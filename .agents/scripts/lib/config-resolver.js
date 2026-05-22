@@ -24,6 +24,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { getCiDelivery } from './config/ci.js';
 import { getCommands } from './config/commands.js';
 import { getGitHub } from './config/github.js';
 import { resolveHydration } from './config/hydration.js';
@@ -41,6 +42,7 @@ export {
   getBaselines,
   resolveBaselines,
 } from './config/baselines.js';
+export { CI_DELIVERY_DEFAULTS, getCiDelivery } from './config/ci.js';
 export { COMMANDS_DEFAULTS, getCommands } from './config/commands.js';
 export {
   BRANCH_PROTECTION_DEFAULTS,
@@ -63,6 +65,7 @@ export {
   SIGNALS_DEFAULTS,
 } from './config/limits.js';
 export { getPaths, PATHS_DEFAULTS, resolvePaths } from './config/paths.js';
+export { getPreflight, PREFLIGHT_DEFAULTS } from './config/preflight.js';
 export {
   AUTO_REFRESH_DEFAULTS,
   CODING_GUARDRAILS_DEFAULTS,
@@ -136,6 +139,10 @@ function applyDeliveryDefaults(rawDelivery) {
     worktreeIsolation: delivery.worktreeIsolation,
   });
   delivery.lifecycle = getLifecycle({ lifecycle: delivery.lifecycle });
+  // Story #2899 (Epic #2880) — `delivery.ci` always carries
+  // `skipForStoryPushes: true` by default so task-commit.js applies the
+  // `[skip ci]` trailer without operator opt-in.
+  delivery.ci = getCiDelivery({ ci: delivery.ci });
   return delivery;
 }
 

@@ -34,7 +34,11 @@ import { parseArgs } from 'node:util';
 
 import { assertBranch } from './assert-branch.js';
 import { runAsCli } from './lib/cli-utils.js';
-import { getQuality, resolveConfig } from './lib/config-resolver.js';
+import {
+  getCiDelivery,
+  getQuality,
+  resolveConfig,
+} from './lib/config-resolver.js';
 import { gitSpawn, gitSync } from './lib/git-utils.js';
 
 const VALID_TYPES = new Set([
@@ -70,6 +74,10 @@ Flags:
              a sibling \`<basename>.test.<ext>\` in the same commit. Default
              sourced from \`agentSettings.quality.codingGuardrails.requireSiblingTest\`.
              Story #1399 (Epic #1386).
+  --skip-ci / --no-skip-ci
+             Force / suppress the trailing \`[skip ci]\` marker on the commit
+             subject. Default sourced from \`delivery.ci.skipForStoryPushes\`
+             (which defaults to true). Story #2899 (Epic #2880, F13).
   --help     Show this message.
 
 Output: JSON { sha: <7-char>, branch, subject } on stdout.
@@ -85,10 +93,16 @@ defense-in-depth and must run.
  * helpers/task-execute.md Step 5) and stitches the optional scope chunk plus
  * the mandatory `(resolves #<taskId>)` trailer.
  *
- * @param {{ type: string, scope?: string, title: string, taskId: number }} input
+ * Story #2899 (Epic #2880, F13): when `skipCi: true`, appends a ` [skip ci]`
+ * trailer to the subject so per-Task Story-branch commits do not stampede the
+ * CI fleet. The Epic-branch merge commit produced by `story-close.js`'s
+ * merge runner never carries the marker — that path is built by a separate
+ * `buildMergeMessage` helper that does not call this function.
+ *
+ * @param {{ type: string, scope?: string, title: string, taskId: number, skipCi?: boolean }} input
  * @returns {string} canonical subject line
  */
-export function buildCommitSubject({ type, scope, title, taskId }) {
+export function buildCommitSubject({ type, scope, title, taskId, skipCi }) {
   if (!type || typeof type !== 'string') {
     throw new TypeError('buildCommitSubject: --type is required');
   }
@@ -108,7 +122,8 @@ export function buildCommitSubject({ type, scope, title, taskId }) {
   const scopeChunk =
     scope && String(scope).trim() ? `(${String(scope).trim()})` : '';
   const lowered = title.trim().toLowerCase();
-  return `${type}${scopeChunk}: ${lowered} (resolves #${taskId})`;
+  const trailer = skipCi === true ? ' [skip ci]' : '';
+  return `${type}${scopeChunk}: ${lowered} (resolves #${taskId})${trailer}`;
 }
 
 // File extensions the sibling-test guard treats as "source" — only modules
@@ -234,6 +249,46 @@ export function resolveSiblingTestFlag(args = {}) {
 }
 
 /**
+ * Story #2899 (Epic #2880, F13) — resolve `delivery.ci.skipForStoryPushes`.
+ * When `true`, `runTaskCommit` instructs `buildCommitSubject` to append a
+ * `[skip ci]` trailer to the per-Task Story-branch commit subject so the
+ * push-per-Task pattern does not stampede the CI fleet. The Epic-branch
+ * merge commit (built separately in `story-close.js`) never carries the
+ * marker.
+ *
+ * Priority order: explicit boolean from the CLI override wins; otherwise
+ * load `.agentrc.json` from `cwd` and read `delivery.ci.skipForStoryPushes`
+ * (default `true` via `getCiDelivery`).
+ *
+ * @param {{
+ *   cliFlag?: boolean,
+ *   cwd?: string,
+ *   resolveConfigImpl?: typeof resolveConfig,
+ *   getCiDeliveryImpl?: typeof getCiDelivery,
+ * }} args
+ * @returns {boolean}
+ */
+export function resolveSkipCiFlag(args = {}) {
+  const {
+    cliFlag,
+    cwd,
+    resolveConfigImpl = resolveConfig,
+    getCiDeliveryImpl = getCiDelivery,
+  } = args;
+  if (typeof cliFlag === 'boolean') return cliFlag;
+  try {
+    const config = resolveConfigImpl({ cwd });
+    const ci = getCiDeliveryImpl(config);
+    return Boolean(ci?.skipForStoryPushes);
+  } catch {
+    // Match the conservative fallback shape from resolveSiblingTestFlag:
+    // when `.agentrc.json` cannot be read, do NOT append the marker. The
+    // worst case is one extra CI run, not a corrupted commit subject.
+    return false;
+  }
+}
+
+/**
  * Stage + commit + verify. Dependency-injection-friendly so tests can swap the
  * git runner and the branch-asserter.
  *
@@ -246,10 +301,12 @@ export function resolveSiblingTestFlag(args = {}) {
  *   paths?: string[],
  *   cwd?: string,
  *   requireSiblingTest?: boolean,
+ *   skipCi?: boolean,
  *   gitSpawnImpl?: typeof gitSpawn,
  *   gitSyncImpl?: typeof gitSync,
  *   assertBranchImpl?: typeof assertBranch,
  *   getQualityImpl?: typeof getQuality,
+ *   getCiDeliveryImpl?: typeof getCiDelivery,
  * }} args
  * @returns {{ sha: string, branch: string, subject: string }}
  */
@@ -263,11 +320,13 @@ export function runTaskCommit(args) {
     paths = [],
     cwd = process.cwd(),
     requireSiblingTest,
+    skipCi,
     gitSpawnImpl = gitSpawn,
     gitSyncImpl = gitSync,
     assertBranchImpl = assertBranch,
     resolveConfigImpl = resolveConfig,
     getQualityImpl = getQuality,
+    getCiDeliveryImpl = getCiDelivery,
   } = args ?? {};
 
   if (!Number.isInteger(storyId) || storyId <= 0) {
@@ -322,7 +381,24 @@ export function runTaskCommit(args) {
   }
 
   // 3. Build the subject + 4. commit (hooks run — never --no-verify).
-  const subject = buildCommitSubject({ type, scope, title, taskId });
+  //    Story #2899 (Epic #2880, F13): when delivery.ci.skipForStoryPushes
+  //    is on (default true), the subject carries a `[skip ci]` trailer so
+  //    per-Task pushes do not stampede the CI fleet. The Epic-branch merge
+  //    commit produced by story-close.js's merge runner uses a separate
+  //    buildMergeMessage helper that never adds the marker.
+  const skipCiFlag = resolveSkipCiFlag({
+    cliFlag: skipCi,
+    cwd,
+    resolveConfigImpl,
+    getCiDeliveryImpl,
+  });
+  const subject = buildCommitSubject({
+    type,
+    scope,
+    title,
+    taskId,
+    skipCi: skipCiFlag,
+  });
   const commit = gitSpawnImpl(cwd, 'commit', '-m', subject);
   if (commit.status !== 0) {
     throw new Error(
@@ -370,6 +446,8 @@ export function parseArgv(argv) {
       paths: { type: 'string', multiple: true },
       'require-sibling-test': { type: 'boolean' },
       'no-require-sibling-test': { type: 'boolean' },
+      'skip-ci': { type: 'boolean' },
+      'no-skip-ci': { type: 'boolean' },
       help: { type: 'boolean' },
     },
     allowPositionals: true,
@@ -383,6 +461,11 @@ export function parseArgv(argv) {
   let requireSiblingTest;
   if (values['no-require-sibling-test']) requireSiblingTest = false;
   else if (values['require-sibling-test']) requireSiblingTest = true;
+  // Story #2899 (Epic #2880, F13) — same override semantics for the
+  // skip-ci trailer: explicit booleans win over `.agentrc.json`.
+  let skipCi;
+  if (values['no-skip-ci']) skipCi = false;
+  else if (values['skip-ci']) skipCi = true;
   return {
     help: Boolean(values.help),
     storyId: Number.parseInt(values.story ?? '', 10),
@@ -390,6 +473,7 @@ export function parseArgv(argv) {
     type: values.type,
     title: values.title,
     scope: values.scope,
+    skipCi,
     paths,
     requireSiblingTest,
   };

@@ -79,6 +79,11 @@ test('runTaskCommit: happy path stages, commits, returns 7-char SHA + branch', (
     scope: 'wiring',
     paths: ['src/a.js', 'src/b.js'],
     cwd: '/fake/cwd',
+    // Story #2899 (Epic #2880, F13) — opt this happy-path test out of the
+    // [skip ci] trailer so the existing fixture subject continues to match.
+    // The skip-ci behaviour has its own dedicated contract test under
+    // tests/contract/delivery/skip-ci-story-commits.test.js.
+    skipCi: false,
     gitSpawnImpl: fakeSpawn,
     gitSyncImpl: fakeSync,
     assertBranchImpl: fakeAssert,
@@ -267,6 +272,10 @@ test('runTaskCommit: --require-sibling-test allows when sibling test is staged',
     title: 'Add Foo',
     cwd: '/fake',
     requireSiblingTest: true,
+    // Story #2899 (Epic #2880, F13) — opt out of the [skip ci] trailer
+    // so this fixture continues to assert the bare subject. The trailer
+    // is exercised under tests/contract/delivery/skip-ci-story-commits.test.js.
+    skipCi: false,
     gitSpawnImpl: fakeSpawn,
     gitSyncImpl: fakeSync,
     assertBranchImpl: fakeAssert,

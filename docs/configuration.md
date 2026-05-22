@@ -249,6 +249,14 @@ top-level keys are validation errors.
 | `codeReview.providerConfig` | No | `object` | — | Optional escape hatch for adapter-specific configuration. No documented keys in Epic #2815; reserved so future adapters can be configured without another schema migration. |
 | `codeReview.maxFixAttempts` | No | `integer` | — | Maximum auto-fix retry attempts per finding in /epic-deliver Phase 5 (code-review). 0 disables auto-fix. Default 3. |
 | `codeReview.maxFixScopeFiles` | No | `integer` | — | Maximum file count a single auto-fix may modify before escalating to agent::blocked. Default 5. |
+| `ci` | No | `object` | — | Nested configuration block. |
+| `ci.skipForStoryPushes` | No | `boolean` | — | Story #2899 (Epic #2880, F13). When true (default), task-commit.js appends a '[skip ci]' trailer to per-Task Story-branch commit subjects so per-Task pushes do not stampede the CI fleet. The Epic-branch merge commit produced by story-close.js never carries the marker, regardless of this flag. |
+| `preflight` | No | `object` | — | Story #2899 (Epic #2880, F13). Thresholds consumed by `.agents/scripts/epic-deliver-preflight.js`. When any value is exceeded the preflight envelope flags a breach and /epic-deliver Phase 1 surfaces it via agent::blocked. |
+| `preflight.maxStories` | No | `integer` | — | — |
+| `preflight.maxWaves` | No | `integer` | — | — |
+| `preflight.maxInstallCostSeconds` | No | `integer` | — | — |
+| `preflight.maxGithubApiRequests` | No | `integer` | — | — |
+| `preflight.maxClaudeQuotaTokens` | No | `integer` | — | — |
 | `failOnConcurrencyHazards` | No | `boolean` | — | — |
 | `feedbackLoop` | No | `object` | — | Nested configuration block. |
 | `feedbackLoop.codeReviewAutoFile` | No | `boolean` | `true` | When true (default), the Epic finalize listener auto-files non-blocking code-review findings as follow-up issues routed by source classification. Set to false to suppress auto-filing; findings remain accessible in the structured comments on the Epic. |
