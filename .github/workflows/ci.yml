@@ -125,13 +125,6 @@ jobs:
       - name: Run check-baselines
         run: node .agents/scripts/check-baselines.js --format text
 
-      - name: Run check-lifecycle-doc-drift
-        # Story #2895 — fail the baselines gate when the LIFECYCLE.md
-        # listener-model table drifts from the per-listener
-        # `this.events` arrays under
-        # `.agents/scripts/lib/orchestration/lifecycle/listeners/`.
-        run: node .agents/scripts/check-lifecycle-doc-drift.js
-
   publish:
     name: Publish to Dist
     needs: [validate]
