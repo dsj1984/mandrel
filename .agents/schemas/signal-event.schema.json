@@ -41,7 +41,7 @@
         }
       }
     },
-    "epicId": { "type": "integer", "minimum": 1 },
+    "epicId": { "type": ["integer", "null"], "minimum": 1 },
     "storyId": { "type": "integer", "minimum": 1 },
     "taskId": { "type": ["integer", "null"], "minimum": 1 },
     "phase": {

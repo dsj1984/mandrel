@@ -80,12 +80,12 @@ afterEach(() => {
 });
 
 describe('tool-trace-hook — resolveActiveStory env-var resolution', () => {
-  it('returns null when CC_EPIC_ID is unset', () => {
+  it('returns {epicId:null, storyId} when CC_EPIC_ID is unset (standalone Story — Story #2874)', () => {
     const active = resolveActiveStory({ CC_STORY_ID: '1043' });
-    assert.equal(active, null);
+    assert.deepEqual(active, { epicId: null, storyId: 1043 });
   });
 
-  it('returns null when CC_STORY_ID is unset', () => {
+  it('returns null when CC_STORY_ID is unset (fully-no-context preserved)', () => {
     const active = resolveActiveStory({ CC_EPIC_ID: '1030' });
     assert.equal(active, null);
   });

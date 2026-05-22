@@ -46,19 +46,25 @@ export const ACTIVE_STORY_ENV_KEYS = ['CC_EPIC_ID', 'CC_STORY_ID'];
  * line endings (the harness's dotenv parser tolerates CRLF too but LF
  * keeps the file deterministic across Windows / macOS / Linux).
  *
+ * Story #2874 — when `epicId === null` (standalone Story, no parent
+ * Epic), the `CC_EPIC_ID=` line is omitted entirely. The trace
+ * hook's no-op contract reads "var absent from env" as the signal,
+ * so emitting an empty `CC_EPIC_ID=` line would set the var to the
+ * empty string and change the contract.
+ *
  * Exported for testing.
  *
- * @param {{ epicId: number, storyId: number }} input
+ * @param {{ epicId: number|null, storyId: number }} input
  * @returns {string}
  */
 export function renderActiveStoryEnvFile({ epicId, storyId }) {
-  return [
+  const lines = [
     '# Auto-managed by .agents/scripts/lib/observability/active-story-env.js',
     '# Re-generated on every story-init; deleted on story-close.',
-    `CC_EPIC_ID=${epicId}`,
-    `CC_STORY_ID=${storyId}`,
-    '',
-  ].join('\n');
+  ];
+  if (epicId !== null) lines.push(`CC_EPIC_ID=${epicId}`);
+  lines.push(`CC_STORY_ID=${storyId}`, '');
+  return lines.join('\n');
 }
 
 /**
@@ -68,7 +74,17 @@ export function renderActiveStoryEnvFile({ epicId, storyId }) {
  * Idempotent: re-running with the same ids is a no-op on disk; with
  * different ids the `.env.local` is overwritten.
  *
- * @param {{ epicId: number, storyId: number, workCwd?: string,
+ * Story #2874 — `epicId: null` is the standalone-Story sentinel.
+ * When passed:
+ *   - `CC_EPIC_ID` is removed from `env` (the var MUST NOT be set
+ *     to an empty string — the trace hook's `resolveActiveStory`
+ *     no-op contract is keyed on the var's absence).
+ *   - The rendered `.env.local` omits the `CC_EPIC_ID=` line.
+ *   - `CC_STORY_ID` behaviour is unchanged.
+ * All other invalid `epicId` values (`0`, negative, NaN, non-integer)
+ * still throw — `null` is the only standalone signal.
+ *
+ * @param {{ epicId: number|null, storyId: number, workCwd?: string,
  *           env?: NodeJS.ProcessEnv, fs?: typeof nodeFs,
  *           logger?: { warn?: (m: string) => void } }} args
  * @returns {{ envSet: boolean, fileWritten: boolean, filePath: string|null }}
@@ -81,9 +97,9 @@ export function setActiveStoryEnv({
   fs = nodeFs,
   logger,
 } = {}) {
-  if (!Number.isInteger(epicId) || epicId <= 0) {
+  if (epicId !== null && (!Number.isInteger(epicId) || epicId <= 0)) {
     throw new Error(
-      `[active-story-env] epicId must be a positive integer; got ${epicId}`,
+      `[active-story-env] epicId must be a positive integer or null; got ${epicId}`,
     );
   }
   if (!Number.isInteger(storyId) || storyId <= 0) {
@@ -92,7 +108,13 @@ export function setActiveStoryEnv({
     );
   }
 
-  env.CC_EPIC_ID = String(epicId);
+  if (epicId === null) {
+    // Standalone Story — ensure CC_EPIC_ID is absent so the trace
+    // hook's no-op contract sees "no epic" rather than "epic=''".
+    if ('CC_EPIC_ID' in env) delete env.CC_EPIC_ID;
+  } else {
+    env.CC_EPIC_ID = String(epicId);
+  }
   env.CC_STORY_ID = String(storyId);
 
   let fileWritten = false;
