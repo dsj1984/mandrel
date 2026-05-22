@@ -46,8 +46,9 @@ From zero to shipped:
    2. **Phase 2 — wave loop** — fan one `/story-deliver` Agent-tool
       sub-agent out per Story per wave (capped at `concurrencyCap`).
       Stories run in parallel inside the operator's Claude session
-      against your Max subscription quota; no subprocess spawn, no
-      GitHub Actions minutes.
+      against your Max subscription quota; no subprocess worker sessions
+      for Story execution, no GitHub Actions minutes. Deterministic
+      Node CLIs remain the state-mutation contract.
    3. **Phase 3 — close-validation** — lint, test, and the project's
       ratcheted baselines run against the Epic branch. Evidence is
       cached by HEAD SHA so re-runs short-circuit.
@@ -695,8 +696,9 @@ required checks fail.
 `/epic-deliver` drives the long-running coordinator inside the operator's
 Claude session. The slash command composes the submodules listed below;
 `/story-deliver` is launched as an Agent-tool sub-agent of
-`/epic-deliver`'s wave loop — no `child_process.spawn`, no GitHub Actions
-runner.
+`/epic-deliver`'s wave loop — no subprocess worker sessions for Story
+execution, no GitHub Actions runner. Deterministic Node CLIs remain the
+state-mutation contract.
 
 | Submodule           | Role                                                                                                                    |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------- |
