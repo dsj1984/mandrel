@@ -100,24 +100,6 @@ describe('config-resolver — loading + legacy shim', () => {
     assert.equal(config.delivery.maxTokenBudget, 100000);
   });
 
-  it('exposes a legacy agentSettings + orchestration shim', () => {
-    const agentrcPath = path.join(PROJECT_ROOT, '.agentrc.json');
-    vol.mkdirSync(PROJECT_ROOT, { recursive: true });
-    vol.writeFileSync(
-      agentrcPath,
-      JSON.stringify({
-        project: REQ.project,
-        github: { owner: 'org', repo: 'repo', operatorHandle: '@me' },
-      }),
-    );
-    const config = resolveConfig({ bustCache: true });
-    assert.ok(config.agentSettings);
-    assert.equal(config.agentSettings.paths.agentRoot, '.agents');
-    assert.ok(config.orchestration);
-    assert.equal(config.orchestration.provider, 'github');
-    assert.equal(config.orchestration.github.owner, 'org');
-  });
-
   it('caches per resolved root path', () => {
     const first = resolveConfig({ bustCache: true });
     const second = resolveConfig({});

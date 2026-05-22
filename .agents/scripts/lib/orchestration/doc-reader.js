@@ -64,7 +64,7 @@ export async function scrapeProjectDocs(settings) {
     const result = await readDocsFromRoot(docsRoot, settings);
     if (result.usedFallback) {
       Logger.warn(
-        '[Epic Planner] ⚠️  agentSettings.docsContextFiles is unset — falling back to every top-level *.md under docsRoot. Configure docsContextFiles for production planning.',
+        '[Epic Planner] ⚠️  project.docsContextFiles is unset — falling back to every top-level *.md under docsRoot. Configure docsContextFiles for production planning.',
       );
     }
     return result;
