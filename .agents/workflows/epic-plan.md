@@ -46,7 +46,7 @@ artifacts you author.
 
 ## Prerequisites
 
-1. **GitHub Epic**: An existing GitHub Issue with the `type/epic` label.
+1. **GitHub Epic**: An existing GitHub Issue with the `type::epic` label.
    Skipped when entering via Phase 1 / `--idea` (the Epic does not exist
    yet — Phases 1–4 will create it).
 2. **API Keys**: `GITHUB_TOKEN` must be set in the `.env` file.
