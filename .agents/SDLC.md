@@ -98,8 +98,15 @@ default flow requires adjustment.
 
 ## Core Principles
 
-- **GitHub as SSOT.** Project logic, work breakdown, and task status all live in
-  GitHub Issues and Labels. No local state files.
+- **Layered state stores with explicit precedence.** Project logic, work
+  breakdown, and ticket status live in GitHub Issues and Labels; the
+  lifecycle bus (`temp/epic-<id>/lifecycle.ndjson`) is the canonical
+  resume target for in-flight runs; structured comments
+  (`epic-run-state`, `story-run-progress`) are the operator-visible
+  rollup. The seven stores, their owners, and their conflict-resolution
+  rules are listed in [§ State stores](#state-stores) — that matrix is
+  the single source of truth for "who owns which write" and supersedes
+  the earlier "GitHub as SSOT" / "lifecycle ledger canonical" prose.
 - **Provider Abstraction.** Orchestration flows through `ITicketingProvider`, an
   abstract interface with a shipped GitHub implementation.
 - **Story-Level Branching.** All Tasks within a Story execute sequentially on a
@@ -128,6 +135,28 @@ default flow requires adjustment.
   the armed auto-merge; the operator becomes a second touchpoint only when
   they disarm auto-merge or when required checks fail and need
   remediation.
+
+---
+
+## State stores
+
+Mandrel writes orchestration state across seven distinct stores. Each
+store has exactly one canonical writer and one well-defined idempotency
+key; conflicts between stores are resolved in the **Conflict
+resolution** column. When the same fact appears in more than one store
+(common during a run — labels mirror lifecycle events, comments mirror
+ledger entries) the entry below names the authoritative reader for that
+fact so downstream code does not have to guess.
+
+| State Store                       | Owner (canonical writer)                                                                         | Mutation API                                                                                                  | Idempotency key                                                                | Conflict resolution                                                                                                                |
+| --------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| GitHub labels                     | `transitionTicketState` via `ticketing.js`                                                       | `gh issue edit --add-label / --remove-label`, wrapped in `update-ticket-state.js`                              | `(ticketId, label-set)` — set-equality check before write                      | Authoritative for current ticket lifecycle state; if the label disagrees with the lifecycle ledger, the **ledger wins on resume** and the label is re-derived. |
+| `epic-run-state` comment          | `checkpointer` submodule in the Epic Deliver Runner                                              | `post-structured-comment.js` (upsert by `kind`)                                                                | `(epicId, kind='epic-run-state')`                                              | Operator-visible rollup of phase progress; on conflict with the lifecycle ledger, the ledger is authoritative and the comment is re-rendered. |
+| `story-run-progress` comment      | `story-task-progress.js` (per Story, per Task transition)                                        | `post-structured-comment.js` (upsert by `kind`)                                                                | `(storyId, kind='story-run-progress')`                                         | Authoritative for Story-level task table; the wave aggregator reads this comment, not labels.                                       |
+| Lifecycle ledger NDJSON           | `lifecycle-emit.js` (single append-only writer per Epic run)                                     | Append-only line write to `temp/epic-<id>/lifecycle.ndjson`                                                    | `(epicId, eventId)` — `eventId` is a content hash of `{type, ts, payload}`     | **Canonical resume target.** When labels / comments disagree with the ledger, the ledger wins and the others are re-derived from it. |
+| Validation evidence cache         | `evidence-gate.js`                                                                               | JSON cache file under `temp/epic-<id>/evidence/<gate>/<sha>.json`                                              | `(gate, git rev-parse HEAD)`                                                   | Pure cache: a missing entry triggers a re-run; presence is a fast-path skip. Cache eviction is safe.                                |
+| PR / auto-merge state             | `AutomergeArmer` listener (sole authorized caller of `gh pr merge`)                              | `gh pr merge --auto --squash --delete-branch`; PR open via `openOrLocatePr` in `Finalizer`                     | `(prNumber, head-branch SHA)` — `gh pr view` probes existing PR before create  | GitHub is authoritative for PR + auto-merge arming state; the lifecycle ledger records the _intent_ to arm, GitHub records the outcome.   |
+| Worktree cleanup state            | `WorktreeManager.reap` (via `story-close.js` / cleanup state)                                    | `git worktree remove` + on-disk pending-cleanup JSON under `temp/epic-<id>/worktree-cleanup.json`              | `(storyId, worktree-path)`                                                     | Filesystem is authoritative for "is the worktree gone?"; the pending-cleanup JSON only tracks Windows stale-registry entries that need a follow-up sweep. |
 
 ---
 
