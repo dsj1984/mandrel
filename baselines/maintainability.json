@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-21T17:08:10.334Z",
+  "generatedAt": "2026-05-22T19:05:45.641Z",
   "rollup": {
     "*": {
       "min": 52.885,
-      "p50": 103.928,
+      "p50": 104.033,
       "p95": 121.571
     }
   },
@@ -727,10 +727,6 @@
       "mi": 118.393
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "mi": 85.845
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/epic-runner/hotspot-detection.js",
       "mi": 91.294
     },
@@ -835,10 +831,6 @@
       "mi": 108.444
     },
     {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/acceptance-reconciler.js",
-      "mi": 90.241
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-armer.js",
       "mi": 99.342
     },
@@ -861,10 +853,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/cleaner.js",
       "mi": 95.023
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/finalizer.js",
-      "mi": 92.94
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/heartbeat-monitor.js",
@@ -1319,10 +1307,6 @@
       "mi": 94.023
     },
     {
-      "path": ".agents/scripts/lib/wave-runner/tick.js",
-      "mi": 94.921
-    },
-    {
       "path": ".agents/scripts/lib/wave-runner/wave-runner-error.js",
       "mi": 120.306
     },
@@ -1397,10 +1381,6 @@
     {
       "path": ".agents/scripts/lib/worktree/node-modules-strategy.js",
       "mi": 88.788
-    },
-    {
-      "path": ".agents/scripts/lifecycle-diff.js",
-      "mi": 86.849
     },
     {
       "path": ".agents/scripts/lifecycle-emit.js",
@@ -1513,10 +1493,6 @@
     {
       "path": ".agents/scripts/run-coverage.js",
       "mi": 96.282
-    },
-    {
-      "path": ".agents/scripts/run-lint.js",
-      "mi": 113.303
     },
     {
       "path": ".agents/scripts/run-tests.js",
@@ -2783,10 +2759,6 @@
       "mi": 116.105
     },
     {
-      "path": "tests/lib/orchestration/lifecycle/activation/listener-registration.test.js",
-      "mi": 109.312
-    },
-    {
       "path": "tests/lib/orchestration/lifecycle/activation/reconcile-failure.test.js",
       "mi": 117.049
     },
@@ -2831,10 +2803,6 @@
       "mi": 105.494
     },
     {
-      "path": "tests/lib/orchestration/lifecycle/listener-finalizer.test.js",
-      "mi": 111.418
-    },
-    {
       "path": "tests/lib/orchestration/lifecycle/listener-heartbeat.test.js",
       "mi": 104.861
     },
@@ -2853,10 +2821,6 @@
     {
       "path": "tests/lib/orchestration/lifecycle/listener-progress.test.js",
       "mi": 94.02
-    },
-    {
-      "path": "tests/lib/orchestration/lifecycle/listener-reconciler.test.js",
-      "mi": 108.611
     },
     {
       "path": "tests/lib/orchestration/lifecycle/listener-signals.test.js",
@@ -2933,10 +2897,6 @@
     {
       "path": "tests/lib/orchestration/lifecycle/resume-story-close.test.js",
       "mi": 108.397
-    },
-    {
-      "path": "tests/lib/orchestration/lifecycle/resume-suite.test.js",
-      "mi": 97.223
     },
     {
       "path": "tests/lib/orchestration/lifecycle/runner-retirement.test.js",
@@ -3345,10 +3305,6 @@
     {
       "path": "tests/lifecycle/lifecycle-lint.test.js",
       "mi": 113.579
-    },
-    {
-      "path": "tests/lifecycle/schema-registry.test.js",
-      "mi": 101.446
     },
     {
       "path": "tests/lifecycle/trace-logger.test.js",
