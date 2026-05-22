@@ -246,7 +246,7 @@ Epic id.
 
 The framework reads the Epic and autonomously builds the entire work breakdown.
 
-> **Epic Clarity Gate (`/epic-plan` Phase 6).** Before PRD / Tech Spec /
+> **Epic Clarity Gate (`/epic-plan` `planning.clarity-gate` state).** Before PRD / Tech Spec /
 > Acceptance Spec authoring kicks off, `/epic-plan` scores the Epic body
 > against the five canonical sections from
 > [`templates/epic-from-idea.md`](templates/epic-from-idea.md) (Context,
@@ -258,7 +258,8 @@ The framework reads the Epic and autonomously builds the entire work breakdown.
 > skips fast with no prompt; a `needs-refinement` verdict drops into the
 > `idea-refinement` skill seeded from the current Epic body, surfaces a
 > HITL diff, and on approval persists the sharpened body via
-> `gh issue edit` before Phase 7 authoring begins. The gate honours the
+> `gh issue edit` before the `planning.spec-authoring` state begins.
+> The gate honours the
 > "do not modify existing issues without permission" Constraint — every
 > body rewrite is operator-confirmed.
 
@@ -301,7 +302,7 @@ fails loudly if any is missing or empty.
 
 #### Adaptive planning risk routing
 
-`/epic-plan` Phase 7 computes a deterministic **`planningRisk`** envelope
+`/epic-plan`'s `planning.spec-authoring` state computes a deterministic **`planningRisk`** envelope
 from the Epic body, labels, and linked context before persisting the
 spec artifacts. The envelope is recorded in the `epic-plan-state`
 checkpoint and consumed by two downstream decisions:
@@ -315,14 +316,15 @@ checkpoint and consumed by two downstream decisions:
   (paired with `requiresReview: true`) or `auto-proceed`. High-risk
   Epics (visible behavior, public API, security, billing, data
   migration, destructive mutation, critical workflow) trigger a HITL
-  stop after Phase 7 so the operator can read the PRD / Tech Spec /
-  Acceptance Spec on GitHub before decomposition starts. Low-risk
-  Epics (docs-only, internal refactor, pure test harness, cleanup)
-  print the auto-proceed message from `reviewRouting.operatorMessage`
-  and chain directly into Phase 8. The operator can force the review
+  stop after `planning.spec-authoring` so the operator can read the
+  PRD / Tech Spec / Acceptance Spec on GitHub before decomposition
+  starts. Low-risk Epics (docs-only, internal refactor, pure test
+  harness, cleanup) print the auto-proceed message from
+  `reviewRouting.operatorMessage` and chain directly into the
+  `planning.decompose` state. The operator can force the review
   stop on low-risk work by passing `--force-review` to `/epic-plan`.
 
-The risk envelope is also threaded into the Phase 8 decomposer context
+The risk envelope is also threaded into the `planning.decompose` state's decomposer context
 so the ticket array can cite the relevant axes when assigning
 `risk::high` labels to Stories. The classifier is local and
 deterministic — it never calls an external LLM or sends Epic content
@@ -335,9 +337,9 @@ framework maintenance, docs-only churn). The **`acceptance::n-a`** label
 on the Epic ticket records the waiver. There are two routes to the label:
 
 - **Operator-applied** — the operator labels the Epic before or during
-  `/epic-plan` Phase 7 when they already know the work does not need a
-  spec.
-- **Planner-selected** — `/epic-plan` Phase 7 computes a
+  `/epic-plan`'s `planning.spec-authoring` state when they already
+  know the work does not need a spec.
+- **Planner-selected** — `/epic-plan`'s `planning.spec-authoring` state computes a
   `planningRisk` envelope (see § Adaptive planning risk routing) and,
   when `acceptanceDisposition === 'not-applicable'`, the persist half
   of `epic-plan-spec.js` applies `acceptance::n-a` on the Epic and skips
@@ -348,15 +350,15 @@ on the Epic ticket records the waiver. There are two routes to the label:
 Either route produces the same runtime behavior. The waiver is respected
 by both runtime gates:
 
-- The `/epic-deliver` **start gate** (Phase 1 snapshot) skips the
-  acceptance-spec presence check when the label is set.
+- The `/epic-deliver` **start gate** (`delivery.snapshot` state) skips
+  the acceptance-spec presence check when the label is set.
 - The finalize-time **acceptance-spec reconciler** returns
   `status: 'waived'` without scanning `tests/features/**` and the
   finalize step proceeds.
 
 The waiver is binary — there is no partial opt-out. If an Epic later
-warrants spec coverage, remove the label and run `/epic-plan` Phase 7
-to author the spec.
+warrants spec coverage, remove the label and run `/epic-plan`'s
+`planning.spec-authoring` state to author the spec.
 
 1. **Ticket Decomposer** (`epic-plan-decompose.js`):
    - Recursively decomposes specs into a 4-tier hierarchy:
@@ -383,7 +385,7 @@ to author the spec.
 When decomposition completes the Epic flips to `agent::ready` and the
 dispatch manifest is posted as a structured comment on the Epic. That
 manifest is the source of truth for the wave layout `/epic-deliver`
-consumes in Phase 1.
+consumes in the `delivery.snapshot` state.
 
 ---
 
@@ -394,7 +396,8 @@ flows and the **Story Init/Close** scripts for individual Stories. All entry
 points share the same primitives — DAG computation, context hydration,
 worktree isolation, and cascade closure. The lifecycle bus listener
 chain inside the session is the single runtime; it owns wave fan-out,
-finalize, automerge, and cleanup. Phase 7, 8.5, and 9 each fire one
+finalize, automerge, and cleanup. The `delivery.finalize`,
+`delivery.automerge`, and `delivery.complete` states each fire one
 typed event via `lifecycle-emit.js` (`epic.close.end`,
 `epic.automerge.start`, `epic.merge.armed`); the matching listeners run
 the side effects. See
@@ -409,13 +412,14 @@ side-effects rather than inline calls at phase boundaries; the
 `AutomergeArmer` listener.
 
 > **Acceptance-spec start gate.** Before a single wave fans out,
-> `/epic-deliver`'s snapshot phase
+> `/epic-deliver`'s `delivery.snapshot` state
 > ([`lib/orchestration/epic-runner/phases/snapshot.js`](scripts/lib/orchestration/epic-runner/phases/snapshot.js))
 > asserts that the Epic either (a) carries the `acceptance::n-a`
 > waiver label, or (b) has a linked `context::acceptance-spec`
 > ticket. The ticket's GitHub state (open / closed) is not checked
 > — presence is sufficient, matching the PRD and Tech Spec contract.
-> The reviewer's OK during `/epic-plan` Phase 7 is the approval
+> The reviewer's OK during `/epic-plan`'s `planning.spec-authoring`
+> state is the approval
 > signal, not a manual ticket-close action; the three planning
 > context tickets are closed automatically by the
 > `Finalizer` listener subscribed to `epic.close.end` once the
@@ -487,7 +491,7 @@ Agents update their state in real-time on GitHub:
 
 - **Labels**: `agent::ready` → `agent::executing` → `agent::done`. The
   intermediate review label is not part of the label taxonomy; the
-  PR opened by `/epic-deliver` Phase 7 is the equivalent "ready to merge"
+  PR opened by `/epic-deliver`'s `delivery.finalize` state is the equivalent "ready to merge"
   signal at the Epic level. The `WaveObserver` submodule additionally
   syncs a GitHub Projects v2 Status column on each transition when a
   `projectNumber` is configured.
@@ -542,7 +546,7 @@ A real content conflict (both stories touched the same lines) aborts the
 loop with a clear error, leaves the local tree clean, and exits non-zero for
 manual resolution. The retry path is a wrapper around the existing happy path.
 
-### Close-tail (Phases 3–9 of `/epic-deliver`)
+### Close-tail (`delivery.close-validation` through `delivery.complete` of `/epic-deliver`)
 
 After the wave loop returns `complete`, `/epic-deliver` runs the
 remaining phases against the Epic branch — close-validation, audit,
@@ -599,10 +603,10 @@ watch / auto-merge / cleanup tail that drives the PR to merge:
       `epic.merge.ready` carrying `{ prNumber, epicId, prUrl }` and
       hands off to the auto-merge gate. The sole production caller
       authorised to shell `gh pr merge` in the entire codebase is
-      the `AutomergeArmer` listener at Phase 8.5 (enforced by the
-      merge-lockout rule in
-      `.agents/scripts/check-lifecycle-lint.js`); Phase 7 never
-      shells the merge command.
+      the `AutomergeArmer` listener at the `delivery.automerge` state
+      (enforced by the merge-lockout rule in
+      `.agents/scripts/check-lifecycle-lint.js`); the
+      `delivery.finalize` state never shells the merge command.
    3. **Planning-artifact close + hand-off (bus-owned, Story #2894).**
       The `Finalizer` chains `closePlanningTickets({ epicId,
       provider })` to close the three planning context tickets
@@ -630,7 +634,7 @@ watch / auto-merge / cleanup tail that drives the PR to merge:
 
 `/epic-deliver` exits cleanly once auto-merge is armed (or sooner if the
 operator declines auto-merge). The operator can merge through the GitHub UI
-at any time; Phase 9 handles the post-merge branch reap.
+at any time; the `delivery.complete` state handles the post-merge branch reap.
 
 ---
 
@@ -652,7 +656,7 @@ required checks fail.
    `agent::executing` to resume.
 2. **PR merge (autonomous by default; operator-gated by exception).** At
    the end of `/epic-deliver`, the workflow opens a PR to `main` and
-   arms GitHub native auto-merge (Phase 8.5). When required checks pass,
+   arms GitHub native auto-merge (the `delivery.automerge` state). When required checks pass,
    the PR lands without a second operator visit; the standard
    label-transition pathway flips the Epic to `agent::done` on merge.
    The operator becomes a touchpoint here only when they (a) disarm
@@ -661,7 +665,7 @@ required checks fail.
    (b) checks fail and need remediation on the Epic branch. There is
    no separate close command — `epic-close.js` exists in
    `.agents/scripts/` but is an internal helper, superseded by
-   `/epic-deliver` Phase 7 finalize.
+   `/epic-deliver`'s `delivery.finalize` state.
 
 ### What triggers `agent::blocked`
 
@@ -709,8 +713,8 @@ state-mutation contract.
 | `notification-hook` | Fire-and-forget webhook for blocker / wave-transition events.                                                           |
 | `wave-observer`     | Emits `wave-N-start` / `wave-N-end` comments and reads each Story's `story-run-progress` snapshot.                      |
 | `column-sync`       | Syncs the Projects v2 Status column from `agent::` labels.                                                              |
-| `code-review`       | `lib/orchestration/code-review.js` — Phase 5 inline audit; halts on critical findings.                                  |
-| `retro-runner`      | `lib/orchestration/retro-runner.js` — Phase 6 retro authoring; posts structured retro comment.                          |
+| `code-review`       | `lib/orchestration/code-review.js` — `delivery.code-review` inline audit; halts on critical findings.                   |
+| `retro-runner`      | `lib/orchestration/retro-runner.js` — `delivery.retro` authoring; posts structured retro comment.                       |
 
 ### Claude Max quota
 
@@ -760,14 +764,15 @@ action.
      reviewer-trail and required-checks history;
    - the standard label-transition pathway flips the Epic to
      `agent::done`;
-   - branch cleanup runs out-of-band: Phase 9 of `/epic-deliver` reaps
-     local refs after the merge; the rare "scrap and reset" case for an
-     unmerged Epic is handled manually.
+   - branch cleanup runs out-of-band: the `delivery.complete` state of
+     `/epic-deliver` reaps local refs after the merge; the rare "scrap
+     and reset" case for an unmerged Epic is handled manually.
 
 If the operator chooses not to merge (rolling back, deferring, re-scoping),
 `/epic-deliver` has not poisoned `main`. The Epic branch can be amended
-in place; re-running `/epic-deliver <epicId>` re-runs Phase 3 / 4 / 5
-against the new HEAD (the evidence wrapper picks up the new SHA) and
+in place; re-running `/epic-deliver <epicId>` re-runs the
+`delivery.close-validation` / `delivery.audit` / `delivery.code-review`
+states against the new HEAD (the evidence wrapper picks up the new SHA) and
 updates the same PR — no duplicate PRs are opened against the same Epic
 branch.
 
@@ -842,7 +847,7 @@ report and posts it as a ticket comment via the `ITicketingProvider`.
   `agentSettings.quality.crap.enabled` is `false`. The
   `baseline-refresh:`-tagged commit convention for baseline edits is the
   project standard; the operator is the gate during `/epic-deliver`
-  Phase 7 (the prior CI guardrail that enforced the tag was removed).
+  `delivery.finalize` state (the prior CI guardrail that enforced the tag was removed).
 - **Human review on High/Critical.** If High or Critical findings are detected,
   the workflow halts for human review at the corresponding `/epic-deliver`
   phase. Approval is given by the operator advancing the phase (the
@@ -948,7 +953,7 @@ failures never block execution.
 | `/single-story-plan`                             | Plan a one-off Story outside an Epic backlog.                                                                                                                                  |
 | `/single-story-deliver <storyId>`                | Deliver a one-off Story authored by `/single-story-plan`.                                                                                                                      |
 | _helper_ `workflows/helpers/task-execute.md`     | Read inline by `/story-deliver` per Task; not a slash command.                                                                                                                |
-| _helper_ `workflows/helpers/code-review.md`      | Auto-invoked by `/story-deliver` (scope: story) and `/epic-deliver` Phase 5 (scope: epic); not a slash command.                                                               |
+| _helper_ `workflows/helpers/code-review.md`      | Auto-invoked by `/story-deliver` (scope: story) and `/epic-deliver`'s `delivery.code-review` state (scope: epic); not a slash command.                                       |
 | `/git-commit-all`                                | Stage and commit all changes                                                                                                                                                 |
 | `/git-push`                                      | Stage, commit, and push to remote                                                                                                                                            |
 | `epic-reconcile.js --explicit-delete`            | Hard reset — close orphaned Epic-scoped issues per `.agents/epics/<id>.yaml`                                                                                                 |
