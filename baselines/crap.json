@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-22T19:42:10.800Z",
+  "generatedAt": "2026-05-22T19:46:25.660Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.010699859060178,
+      "p95": 12.006059669598093,
       "max": 52.501371135067686,
       "methodsAbove20": 32
     }
@@ -7578,48 +7578,6 @@
       "crap": 9.149767843645394
     },
     {
-      "path": ".agents/scripts/lib/orchestration/finalize/close-planning-tickets.js",
-      "method": "closePlanningTickets",
-      "startLine": 47,
-      "crap": 8.040303206997084
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/finalize/open-or-locate-pr.js",
-      "method": "defaultGhSpawn",
-      "startLine": 41,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/finalize/open-or-locate-pr.js",
-      "method": "parsePrListResult",
-      "startLine": 65,
-      "crap": 10
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/finalize/open-or-locate-pr.js",
-      "method": "parsePrViewResult",
-      "startLine": 87,
-      "crap": 9
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/finalize/open-or-locate-pr.js",
-      "method": "openOrLocatePr",
-      "startLine": 123,
-      "crap": 18.183744
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/finalize/post-handoff-comment.js",
-      "method": "renderHandoffBody",
-      "startLine": 33,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/finalize/post-handoff-comment.js",
-      "method": "postHandoffComment",
-      "startLine": 74,
-      "crap": 7
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/branches-reap.js",
       "method": "reapWorktree",
       "startLine": 26,
@@ -8278,18 +8236,6 @@
       "method": "createHeartbeatMonitor",
       "startLine": 200,
       "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/index.js",
-      "method": "parseLedgerPath",
-      "startLine": 64,
-      "crap": 6.189364674940412
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/index.js",
-      "method": "buildDefaultListenerChain",
-      "startLine": 122,
-      "crap": 14.001040002767052
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/intervention-recorder.js",
@@ -10918,72 +10864,6 @@
       "method": "<anon method-24>",
       "startLine": 720,
       "crap": 1.2962962962962963
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "isValidStructuredCommentType",
-      "startLine": 152,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "assertValidStructuredCommentType",
-      "startLine": 169,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "structuredCommentMarker",
-      "startLine": 195,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "getProviderCommentCache",
-      "startLine": 237,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "structuredCommentCacheKey",
-      "startLine": 256,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "getProviderRawCommentsCache",
-      "startLine": 296,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "invalidateRawCommentsCache",
-      "startLine": 314,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "_resetRawCommentsCache",
-      "startLine": 327,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "_resetStructuredCommentCache",
-      "startLine": 346,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "_peekStructuredCommentCache",
-      "startLine": 360,
-      "crap": 3.0416666666666665
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "findStructuredComment",
-      "startLine": 389,
-      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/state.js",
