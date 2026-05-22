@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-21T17:08:10.334Z",
+  "generatedAt": "2026-05-22T19:00:28.069Z",
   "rollup": {
     "*": {
       "min": 52.885,
@@ -1513,10 +1513,6 @@
     {
       "path": ".agents/scripts/run-coverage.js",
       "mi": 96.282
-    },
-    {
-      "path": ".agents/scripts/run-lint.js",
-      "mi": 113.303
     },
     {
       "path": ".agents/scripts/run-tests.js",
