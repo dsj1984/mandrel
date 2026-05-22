@@ -32,11 +32,11 @@ import { BlockerHandler as LifecycleBlockerHandler } from '../lifecycle/listener
 import { BranchCleaner } from '../lifecycle/listeners/branch-cleaner.js';
 import { CheckpointPointerWriter } from '../lifecycle/listeners/checkpoint-pointer-writer.js';
 import { Cleaner } from '../lifecycle/listeners/cleaner.js';
-import { MergeWatcher } from '../lifecycle/listeners/merge-watcher.js';
 import { Finalizer } from '../lifecycle/listeners/finalizer.js';
 import { HeartbeatMonitor } from '../lifecycle/listeners/heartbeat-monitor.js';
 import { InterventionRecorder } from '../lifecycle/listeners/intervention-recorder.js';
 import { LabelTransitioner } from '../lifecycle/listeners/label-transitioner.js';
+import { MergeWatcher } from '../lifecycle/listeners/merge-watcher.js';
 import { NotifyDispatcher } from '../lifecycle/listeners/notify-dispatcher.js';
 import { ProgressReporter as LifecycleProgressReporter } from '../lifecycle/listeners/progress-reporter.js';
 import { SignalsAppender } from '../lifecycle/listeners/signals-appender.js';
