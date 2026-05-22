@@ -627,6 +627,25 @@
       },
       "additionalProperties": false
     },
+    "mergeWatch": {
+      "type": "object",
+      "description": "Knobs consumed by the MergeWatcher lifecycle listener (Story #2896, Epic #2880). `intervalSeconds` is the poll cadence between `gh pr view --json mergeCommit,mergedAt` probes after epic.merge.armed; `maxBudgetSeconds` is the total wall-clock budget before the watcher surfaces `agent::blocked` with reason `budget-exceeded`.",
+      "properties": {
+        "intervalSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 30,
+          "description": "Seconds between MergeWatcher polls. Default 30."
+        },
+        "maxBudgetSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 3600,
+          "description": "Total wall-clock budget (seconds) for the MergeWatcher poll loop. Default 3600 (60 minutes)."
+        }
+      },
+      "additionalProperties": false
+    },
     "quality": {
       "type": "object",
       "properties": {
@@ -663,6 +682,7 @@
         "signals": { "$ref": "#/$defs/signals" },
         "quality": { "$ref": "#/$defs/quality" },
         "lifecycle": { "$ref": "#/$defs/lifecycle" },
+        "mergeWatch": { "$ref": "#/$defs/mergeWatch" },
         "epicAudit": { "$ref": "#/$defs/epicAudit" },
         "codeReview": { "$ref": "#/$defs/codeReview" },
         "failOnConcurrencyHazards": { "type": "boolean" },

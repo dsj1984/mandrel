@@ -453,6 +453,24 @@ const LIFECYCLE_SCHEMA = {
   additionalProperties: false,
 };
 
+/**
+ * `delivery.mergeWatch` — knobs consumed by the MergeWatcher lifecycle
+ * listener (Story #2896, Epic #2880). `intervalSeconds` is the poll
+ * cadence between `gh pr view --json mergeCommit,mergedAt` probes after
+ * `epic.merge.armed`; `maxBudgetSeconds` is the total wall-clock budget
+ * before the watcher surfaces `agent::blocked` with reason
+ * `budget-exceeded`. Both keys default in the listener when omitted
+ * (30s / 3600s).
+ */
+const MERGE_WATCH_SCHEMA = {
+  type: 'object',
+  properties: {
+    intervalSeconds: { type: 'integer', minimum: 1 },
+    maxBudgetSeconds: { type: 'integer', minimum: 1 },
+  },
+  additionalProperties: false,
+};
+
 const QUALITY_SCHEMA = {
   type: 'object',
   properties: {
@@ -579,6 +597,7 @@ const DELIVERY_SCHEMA = {
     signals: SIGNALS_SCHEMA,
     quality: QUALITY_SCHEMA,
     lifecycle: LIFECYCLE_SCHEMA,
+    mergeWatch: MERGE_WATCH_SCHEMA,
     epicAudit: EPIC_AUDIT_SCHEMA,
     codeReview: CODE_REVIEW_SCHEMA,
     // Cross-Story concurrency-hazard gate (Story #2297). When true,

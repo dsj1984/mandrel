@@ -56,7 +56,7 @@ describe('Cleaner — bus-driven archival activation', () => {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   });
 
-  it('after epic.merge.armed, archives temp/epic-<id>/ and emits start → end → complete in order', async () => {
+  it('after epic.merge.confirmed, archives temp/epic-<id>/ and emits start → end → complete in order', async () => {
     // Arrange: seed a realistic Epic temp tree.
     const epicId = 2306;
     const epicDir = path.join(tempRoot, `epic-${epicId}`);
@@ -82,15 +82,23 @@ describe('Cleaner — bus-driven archival activation', () => {
 
     const prUrl = 'https://github.com/dsj1984/mandrel/pull/9999';
 
-    // Act. `epic.merge.armed` schema permits ONLY prUrl in the payload;
-    // the Cleaner sources `epicId` from its constructor, not the event.
-    await bus.emit('epic.merge.armed', { prUrl });
+    // Act. Story #2896 rebound Cleaner to `epic.merge.confirmed`;
+    // the watcher emits this once the PR's mergeCommit goes non-null.
+    // The Cleaner sources `epicId` from its constructor.
+    await bus.emit('epic.merge.confirmed', {
+      epicId,
+      prUrl,
+      prNumber: 9999,
+      mergeCommitSha: 'deadbeef',
+      mergedAt: '2026-05-17T22:00:00.000Z',
+      pollAttempts: 1,
+    });
 
     // Assert: source directory has moved.
     assert.equal(
       fs.existsSync(epicDir),
       false,
-      'temp/epic-<id>/ MUST be moved to the archive after epic.merge.armed',
+      'temp/epic-<id>/ MUST be moved to the archive after epic.merge.confirmed',
     );
 
     // Assert: archive destination exists at the expected path and
@@ -118,9 +126,10 @@ describe('Cleaner — bus-driven archival activation', () => {
 
     // Assert: the ledger records the three Cleaner-emitted events
     // contiguously, in the canonical close-tail order. The entry
-    // `epic.merge.armed` is observed once (delivered to the wildcard
-    // recorder after the named Cleaner handler completes, per the bus
-    // mediator's named-before-wildcard delivery semantics).
+    // `epic.merge.confirmed` is observed once (delivered to the
+    // wildcard recorder after the named Cleaner handler completes,
+    // per the bus mediator's named-before-wildcard delivery
+    // semantics).
     const events = ledger.map((e) => e.event);
     const cleanerSubsequence = [
       'epic.cleanup.start',
@@ -135,9 +144,9 @@ describe('Cleaner — bus-driven archival activation', () => {
       'Cleaner-emitted events MUST appear contiguously in start → end → complete order',
     );
     assert.equal(
-      events.filter((e) => e === 'epic.merge.armed').length,
+      events.filter((e) => e === 'epic.merge.confirmed').length,
       1,
-      'entry epic.merge.armed observed exactly once in the ledger',
+      'entry epic.merge.confirmed observed exactly once in the ledger',
     );
 
     // Assert: the epic.complete record carries { epicId, prUrl }. The

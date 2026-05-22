@@ -4,7 +4,10 @@
  * (Story #2259 / Task #2265, Epic #2172).
  *
  * Acceptance contract:
- *   - Subscribes to `epic.merge.armed` (and ONLY that event).
+ *   - Subscribes to `epic.merge.confirmed` (and ONLY that event;
+ *     rebound from `epic.merge.armed` by Story #2896, Epic #2880,
+ *     so the Epic only transitions to its terminal state after the
+ *     MergeWatcher has observed the PR actually merging on GitHub).
  *   - On a fresh run with a source `temp/epic-<id>/` directory,
  *     archives it under `temp/archive/epic-<id>-<ts>/` and emits
  *     `epic.cleanup.start` → `epic.cleanup.end` → `epic.complete` in
@@ -127,14 +130,14 @@ describe('Cleaner (bus integration) — happy path', () => {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   });
 
-  it('subscribes ONLY to epic.merge.armed', () => {
+  it('subscribes ONLY to epic.merge.confirmed', () => {
     const cleaner = new Cleaner({
       bus: new Bus(),
       epicId: 2172,
       tempRoot,
       logger: quietLogger(),
     });
-    assert.deepEqual([...cleaner.events], ['epic.merge.armed']);
+    assert.deepEqual([...cleaner.events], ['epic.merge.confirmed']);
     assert.equal(cleaner.events.length, 1);
   });
 
@@ -162,8 +165,13 @@ describe('Cleaner (bus integration) — happy path', () => {
     cleaner.register();
 
     // Act.
-    await bus.emit('epic.merge.armed', {
+    await bus.emit('epic.merge.confirmed', {
+      epicId: 2172,
       prUrl: 'https://github.com/o/r/pull/9',
+      prNumber: 9,
+      mergeCommitSha: 'deadbeef',
+      mergedAt: '2026-05-17T21:55:09.000Z',
+      pollAttempts: 1,
     });
 
     // Assert: temp/epic-2172/ moved.
@@ -248,8 +256,13 @@ describe('Cleaner — resume contract (AC-10 Cleaner idempotency)', () => {
     });
     cleaner.register();
 
-    await bus.emit('epic.merge.armed', {
+    await bus.emit('epic.merge.confirmed', {
+      epicId: 2172,
       prUrl: 'https://github.com/o/r/pull/9',
+      prNumber: 9,
+      mergeCommitSha: 'cafefeed',
+      mergedAt: '2026-05-17T22:00:00.000Z',
+      pollAttempts: 1,
     });
 
     // No second archive directory was created — the existing one is
@@ -302,7 +315,7 @@ describe('Cleaner — listener-level idempotency', () => {
       cleaner.register();
 
       const ctx = {
-        event: 'epic.merge.armed',
+        event: 'epic.merge.confirmed',
         seqId: 500,
         payload: { prUrl: 'https://github.com/o/r/pull/9' },
       };

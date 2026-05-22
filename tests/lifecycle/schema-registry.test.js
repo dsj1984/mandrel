@@ -57,6 +57,7 @@ const REQUIRED_EVENTS = Object.freeze([
   'epic.merge.ready',
   'epic.merge.blocked',
   'epic.merge.armed',
+  'epic.merge.confirmed',
   'epic.cleanup.start',
   'epic.cleanup.end',
   'epic.complete',
@@ -185,6 +186,63 @@ describe('lifecycle/schema-registry', () => {
       },
     });
     assert.equal(ok, true, JSON.stringify(validate.errors));
+  });
+
+  it('agentrc.schema accepts delivery.mergeWatch.intervalSeconds and maxBudgetSeconds', () => {
+    const ajv = new Ajv2020({ allErrors: true });
+    addFormats(ajv);
+    const validate = ajv.compile(AGENTRC_SCHEMA);
+    const ok = validate({
+      project: {
+        paths: {
+          agentRoot: '.agents',
+          docsRoot: 'docs',
+          tempRoot: 'temp',
+        },
+      },
+      delivery: {
+        mergeWatch: { intervalSeconds: 60, maxBudgetSeconds: 7200 },
+      },
+    });
+    assert.equal(ok, true, JSON.stringify(validate.errors));
+  });
+
+  it('agentrc.schema rejects non-integer delivery.mergeWatch.intervalSeconds', () => {
+    const ajv = new Ajv2020({ allErrors: true });
+    addFormats(ajv);
+    const validate = ajv.compile(AGENTRC_SCHEMA);
+    const ok = validate({
+      project: {
+        paths: {
+          agentRoot: '.agents',
+          docsRoot: 'docs',
+          tempRoot: 'temp',
+        },
+      },
+      delivery: {
+        mergeWatch: { intervalSeconds: 1.5 },
+      },
+    });
+    assert.equal(ok, false);
+  });
+
+  it('agentrc.schema rejects negative delivery.mergeWatch.intervalSeconds', () => {
+    const ajv = new Ajv2020({ allErrors: true });
+    addFormats(ajv);
+    const validate = ajv.compile(AGENTRC_SCHEMA);
+    const ok = validate({
+      project: {
+        paths: {
+          agentRoot: '.agents',
+          docsRoot: 'docs',
+          tempRoot: 'temp',
+        },
+      },
+      delivery: {
+        mergeWatch: { intervalSeconds: -1 },
+      },
+    });
+    assert.equal(ok, false);
   });
 
   it('agentrc.schema rejects unknown delivery.lifecycle key', () => {

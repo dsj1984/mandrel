@@ -49,6 +49,7 @@ import { BranchCleaner } from './branch-cleaner.js';
 import { CheckpointPointerWriter } from './checkpoint-pointer-writer.js';
 import { Cleaner } from './cleaner.js';
 import { Finalizer } from './finalizer.js';
+import { MergeWatcher } from './merge-watcher.js';
 
 /**
  * Parse `temp/epic-<id>/lifecycle.ndjson` into `{ tempRoot, epicId }`.
@@ -254,8 +255,32 @@ export async function buildDefaultListenerChain(opts = {}) {
     );
   }
 
-  // 7. Cleaner — archives temp/epic-<id>/ and emits the terminal
-  //    epic.cleanup.start → .end → epic.complete sequence.
+  // 7. MergeWatcher (Story #2896, Epic #2880) — polls `gh pr view`
+  //    after `epic.merge.armed` until the PR's mergeCommit is
+  //    non-null, then emits `epic.merge.confirmed`. Cleaner now
+  //    waits on the confirmed event rather than the armed event so
+  //    the Epic only transitions to its terminal state after the
+  //    merge is actually observed on GitHub. Reads `intervalSeconds`
+  //    and `maxBudgetSeconds` from `config.delivery.mergeWatch.*`
+  //    when supplied; otherwise uses the listener's framework
+  //    defaults (30s / 3600s).
+  const mergeWatchConfig = config?.delivery?.mergeWatch ?? {};
+  const mergeWatcher = new MergeWatcher({
+    bus,
+    epicId,
+    tempRoot,
+    cwd: repoRoot,
+    intervalSeconds: mergeWatchConfig.intervalSeconds,
+    maxBudgetSeconds: mergeWatchConfig.maxBudgetSeconds,
+    logger,
+  });
+  mergeWatcher.register();
+  order.push('MergeWatcher');
+
+  // 8. Cleaner — archives temp/epic-<id>/ and emits the terminal
+  //    epic.cleanup.start → .end → epic.complete sequence. Story
+  //    #2896 rebound this listener from `epic.merge.armed` to
+  //    `epic.merge.confirmed`.
   const cleaner = new Cleaner({
     bus,
     epicId,
@@ -287,6 +312,7 @@ export async function buildDefaultListenerChain(opts = {}) {
     automergeArmer,
     automergePredicate,
     branchCleaner,
+    mergeWatcher,
     cleaner,
     checkpointPointerWriter,
     order,

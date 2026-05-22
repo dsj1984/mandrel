@@ -114,6 +114,14 @@ const PAYLOAD_BY_EVENT = Object.freeze({
   },
   'epic.finalize.start': { epicId: 9999 },
   'epic.merge.armed': { prUrl: 'https://example.test/pr/1' },
+  'epic.merge.confirmed': {
+    epicId: 9999,
+    prUrl: 'https://example.test/pr/1',
+    prNumber: 1,
+    mergeCommitSha: 'deadbeef',
+    mergedAt: '2026-05-22T13:00:00Z',
+    pollAttempts: 1,
+  },
   'epic.merge.blocked': {
     prUrl: 'https://example.test/pr/1',
     reason: 'fixture',
