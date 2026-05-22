@@ -274,7 +274,7 @@ describe('factory close-tail registrar — AcceptanceReconciler activation', () 
       1,
       'reconciler classified exactly one epic.close.end',
     );
-    assert.equal(classifications[0].outcome, 'skipped');
+    assert.equal(classifications[0].outcome, 'waived');
     assert.equal(classifications[0].reason, 'waiver');
   });
 

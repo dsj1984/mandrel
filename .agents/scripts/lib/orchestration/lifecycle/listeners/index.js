@@ -13,7 +13,7 @@
  * Canonical roster (registration order):
  *   1. LedgerWriter            (privileged hooks via `register(bus)`)
  *   2. AcceptanceReconciler    (epic.close.end → acceptance.reconcile.*)
- *   3. Finalizer               (acceptance.reconcile.ok → pr.created)
+ *   3. Finalizer               (acceptance.reconcile.{ok,waived} → pr.created)
  *   4. AutomergeArmer          (epic.merge.ready → epic.merge.armed)
  *   5. AutomergePredicate      (epic.watch.end → epic.merge.{ready,blocked})
  *   6. BranchCleaner           (epic.cleanup.start → branch reap)
@@ -168,7 +168,8 @@ export async function buildDefaultListenerChain(opts = {}) {
   acceptanceReconciler.register();
   order.push('AcceptanceReconciler');
 
-  // 3. Finalizer — opens the PR on acceptance.reconcile.ok and (Story
+  // 3. Finalizer — opens the PR on acceptance.reconcile.ok or .waived
+  //    (Story #2893 split waiver out of .skipped) and (Story
   //    #2555) auto-graduates non-blocking code-review findings into
   //    routed follow-up issues. The graduator step is best-effort and
   //    is silently skipped when `provider` / `currentRepo` are not
