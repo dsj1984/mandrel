@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-21T17:08:10.790Z",
+  "generatedAt": "2026-05-22T19:02:19.623Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -12274,84 +12274,6 @@
       "method": "forceClear",
       "startLine": 307,
       "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/wave-runner/tick.js",
-      "method": "tick",
-      "startLine": 58,
-      "crap": 15.00626095667418
-    },
-    {
-      "path": ".agents/scripts/lib/wave-runner/tick.js",
-      "method": "<anon method-1>",
-      "startLine": 77,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/wave-runner/tick.js",
-      "method": "tickResult",
-      "startLine": 224,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/wave-runner/tick.js",
-      "method": "resolveEpicId",
-      "startLine": 234,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/wave-runner/tick.js",
-      "method": "positiveIntOrZero",
-      "startLine": 245,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/wave-runner/tick.js",
-      "method": "storyIdOf",
-      "startLine": 249,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/wave-runner/tick.js",
-      "method": "groupByWave",
-      "startLine": 291,
-      "crap": 9
-    },
-    {
-      "path": ".agents/scripts/lib/wave-runner/tick.js",
-      "method": "extractValidStoryEntries",
-      "startLine": 331,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/wave-runner/tick.js",
-      "method": "resolveStoryEntry",
-      "startLine": 357,
-      "crap": 9
-    },
-    {
-      "path": ".agents/scripts/lib/wave-runner/tick.js",
-      "method": "resolvePlan",
-      "startLine": 382,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/wave-runner/tick.js",
-      "method": "isUndispatched",
-      "startLine": 391,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/wave-runner/tick.js",
-      "method": "readGateFailures",
-      "startLine": 399,
-      "crap": 5.31930879038317
-    },
-    {
-      "path": ".agents/scripts/lib/wave-runner/tick.js",
-      "method": "defaultSignalEmit",
-      "startLine": 415,
-      "crap": 1.1714677640603566
     },
     {
       "path": ".agents/scripts/lib/workers/crap-worker.js",
