@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-21T17:08:10.790Z",
+  "generatedAt": "2026-05-22T19:05:45.903Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -6678,108 +6678,6 @@
       "crap": 4.125
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "createEpicRunnerCollaborators",
-      "startLine": 54,
-      "crap": 1.00003016272614
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "<anon method-2>",
-      "startLine": 73,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "<anon method-3>",
-      "startLine": 79,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "<anon method-4>",
-      "startLine": 80,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "<anon method-5>",
-      "startLine": 82,
-      "crap": 1.2962962962962963
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "<anon method-6>",
-      "startLine": 88,
-      "crap": 1.2962962962962963
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "<anon method-7>",
-      "startLine": 276,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "<anon method-8>",
-      "startLine": 279,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "registerReliabilityObservers",
-      "startLine": 330,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "registerCloseTailChain",
-      "startLine": 421,
-      "crap": 11.411453190611216
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "registerCheckpointPointerWriter",
-      "startLine": 564,
-      "crap": 8.087791495198903
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "registerBlockerHandler",
-      "startLine": 591,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "registerInterventionRecorder",
-      "startLine": 611,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "registerSnapshotListeners",
-      "startLine": 643,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "registerPlanListeners",
-      "startLine": 655,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "registerLifecycleSideEffectListeners",
-      "startLine": 684,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "registerIterateWavesListeners",
-      "startLine": 718,
-      "crap": 5
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/epic-runner/phases/build-wave-dag.js",
       "method": "runBuildWaveDagPhase",
       "startLine": 15,
@@ -7992,18 +7890,6 @@
       "crap": 1
     },
     {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/acceptance-reconciler.js",
-      "method": "classifyReconcileResult",
-      "startLine": 60,
-      "crap": 12
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/acceptance-reconciler.js",
-      "method": "createAcceptanceReconciler",
-      "startLine": 347,
-      "crap": 1.2962962962962963
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-armer.js",
       "method": "ghPrViewAutoMerge",
       "startLine": 62,
@@ -8166,46 +8052,10 @@
       "crap": 1.2962962962962963
     },
     {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/finalizer.js",
-      "method": "defaultRunEpicDeliverFinalize",
-      "startLine": 66,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/finalizer.js",
-      "method": "extractPrUrl",
-      "startLine": 86,
-      "crap": 9.007607062359128
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/finalizer.js",
-      "method": "ghPrListHead",
-      "startLine": 115,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/finalizer.js",
-      "method": "createFinalizer",
-      "startLine": 497,
-      "crap": 1.2962962962962963
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/heartbeat-monitor.js",
       "method": "createHeartbeatMonitor",
       "startLine": 200,
       "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/index.js",
-      "method": "parseLedgerPath",
-      "startLine": 64,
-      "crap": 6.189364674940412
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/index.js",
-      "method": "buildDefaultListenerChain",
-      "startLine": 122,
-      "crap": 14.001116071428571
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/intervention-recorder.js",
@@ -12276,84 +12126,6 @@
       "crap": 2
     },
     {
-      "path": ".agents/scripts/lib/wave-runner/tick.js",
-      "method": "tick",
-      "startLine": 58,
-      "crap": 15.00626095667418
-    },
-    {
-      "path": ".agents/scripts/lib/wave-runner/tick.js",
-      "method": "<anon method-1>",
-      "startLine": 77,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/wave-runner/tick.js",
-      "method": "tickResult",
-      "startLine": 224,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/wave-runner/tick.js",
-      "method": "resolveEpicId",
-      "startLine": 234,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/wave-runner/tick.js",
-      "method": "positiveIntOrZero",
-      "startLine": 245,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/wave-runner/tick.js",
-      "method": "storyIdOf",
-      "startLine": 249,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/wave-runner/tick.js",
-      "method": "groupByWave",
-      "startLine": 291,
-      "crap": 9
-    },
-    {
-      "path": ".agents/scripts/lib/wave-runner/tick.js",
-      "method": "extractValidStoryEntries",
-      "startLine": 331,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/wave-runner/tick.js",
-      "method": "resolveStoryEntry",
-      "startLine": 357,
-      "crap": 9
-    },
-    {
-      "path": ".agents/scripts/lib/wave-runner/tick.js",
-      "method": "resolvePlan",
-      "startLine": 382,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/wave-runner/tick.js",
-      "method": "isUndispatched",
-      "startLine": 391,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/wave-runner/tick.js",
-      "method": "readGateFailures",
-      "startLine": 399,
-      "crap": 5.31930879038317
-    },
-    {
-      "path": ".agents/scripts/lib/wave-runner/tick.js",
-      "method": "defaultSignalEmit",
-      "startLine": 415,
-      "crap": 1.1714677640603566
-    },
-    {
       "path": ".agents/scripts/lib/workers/crap-worker.js",
       "method": "handleCrapWorkerMessage",
       "startLine": 57,
@@ -12844,54 +12616,6 @@
       "method": "validateBranch",
       "startLine": 19,
       "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lifecycle-diff.js",
-      "method": "parseLedgerText",
-      "startLine": 41,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lifecycle-diff.js",
-      "method": "projectRecord",
-      "startLine": 66,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lifecycle-diff.js",
-      "method": "diff",
-      "startLine": 76,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lifecycle-diff.js",
-      "method": "assertMergeGateOrdering",
-      "startLine": 97,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lifecycle-diff.js",
-      "method": "assertReconcileOrdering",
-      "startLine": 130,
-      "crap": 7.3919999999999995
-    },
-    {
-      "path": ".agents/scripts/lifecycle-diff.js",
-      "method": "assertWaveCompleteness",
-      "startLine": 159,
-      "crap": 9.199889443863148
-    },
-    {
-      "path": ".agents/scripts/lifecycle-diff.js",
-      "method": "loadLedger",
-      "startLine": 203,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lifecycle-diff.js",
-      "method": "main",
-      "startLine": 207,
-      "crap": 19.34465665548914
     },
     {
       "path": ".agents/scripts/lifecycle-emit.js",
