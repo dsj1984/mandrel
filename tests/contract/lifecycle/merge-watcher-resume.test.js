@@ -108,6 +108,7 @@ describe('MergeWatcher — first-poll merge confirmation', () => {
     assert.equal(emits.length, 1, 'epic.merge.confirmed emitted exactly once');
     assert.deepEqual(emits[0].payload, {
       epicId: 2880,
+      prUrl: 'https://github.com/o/r/pull/4242',
       prNumber: 4242,
       mergeCommitSha: 'deadbeef',
       mergedAt: '2026-05-22T11:22:33Z',

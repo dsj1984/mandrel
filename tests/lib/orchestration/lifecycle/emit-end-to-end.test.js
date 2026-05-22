@@ -313,8 +313,8 @@ describe('lifecycle-emit end-to-end — full-roster PR-open fixture (Story #2531
       });
       assert.equal(
         chain.order.length,
-        8,
-        'all eight listeners subscribed (full roster)',
+        9,
+        'all nine listeners subscribed (full roster; Story #2896 added MergeWatcher)',
       );
 
       // Register a parallel Finalizer with an injected `runFinalizeFn`

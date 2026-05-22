@@ -5,7 +5,17 @@
  * (Epic #2172).
  *
  * Subscribes to:
- *   - `epic.merge.armed` → and ONLY this event.
+ *   - `epic.merge.confirmed` → and ONLY this event.
+ *
+ * Story #2896 (Epic #2880) rebound this listener from
+ * `epic.merge.armed` to `epic.merge.confirmed` so the Epic only
+ * transitions to its terminal state AFTER the MergeWatcher has
+ * observed `gh pr view --json mergeCommit` returning a non-null
+ * `mergeCommit` (i.e. the PR has actually merged), rather than after
+ * `gh pr merge --auto` was merely armed. The chain ordering is:
+ *
+ *   epic.merge.armed   → MergeWatcher polls
+ *   epic.merge.confirmed → Cleaner (this listener) + LabelTransitioner
  *
  * Side effects executed inside `handle()`:
  *   1. Emit `epic.cleanup.start`.
@@ -165,14 +175,16 @@ export class Cleaner {
     /** @type {Set<string>} `${event}:${seqId}` idempotency cache. */
     this._seen = new Set();
     /**
-     * Classification log — every `epic.merge.armed` observed lands
-     * here with the outcome (`archived`, `existing-archive`,
+     * Classification log — every `epic.merge.confirmed` observed
+     * lands here with the outcome (`archived`, `existing-archive`,
      * `skipped-duplicate`, `failed`). Mirrors the
      * Finalizer / AutomergeArmer "no silent skip" surface.
      */
     this.classifications = [];
     // Frozen tuple — Cleaner subscribes to EXACTLY one event.
-    this.events = Object.freeze(['epic.merge.armed']);
+    // Story #2896 rebind: was `epic.merge.armed`, now
+    // `epic.merge.confirmed` (downstream of MergeWatcher).
+    this.events = Object.freeze(['epic.merge.confirmed']);
   }
 
   register() {

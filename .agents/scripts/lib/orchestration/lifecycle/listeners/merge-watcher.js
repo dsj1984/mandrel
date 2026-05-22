@@ -356,6 +356,7 @@ export class MergeWatcher {
       if (status === 'merged') {
         const confirmPayload = {
           epicId: this.epicId,
+          prUrl,
           prNumber: view.prNumber,
           mergeCommitSha: view.mergeCommitSha,
           mergedAt: view.mergedAt,

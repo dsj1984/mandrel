@@ -113,8 +113,9 @@ describe('buildDefaultListenerChain — registration order (full roster)', () =>
     });
 
     // LedgerWriter uses the privileged hook seam, so it never appears
-    // in the bus's named-listener map. The remaining seven listeners
-    // are all named subscribers.
+    // in the bus's named-listener map. The remaining eight listeners
+    // are all named subscribers (Story #2896 added MergeWatcher
+    // between BranchCleaner and Cleaner).
     assert.deepEqual(chain.order, [
       'LedgerWriter',
       'AcceptanceReconciler',
@@ -122,6 +123,7 @@ describe('buildDefaultListenerChain — registration order (full roster)', () =>
       'AutomergeArmer',
       'AutomergePredicate',
       'BranchCleaner',
+      'MergeWatcher',
       'Cleaner',
       'CheckpointPointerWriter',
     ]);
@@ -130,8 +132,8 @@ describe('buildDefaultListenerChain — registration order (full roster)', () =>
     // listener addition that bypasses the canonical roster contract.
     assert.equal(
       chain.order.length,
-      8,
-      'full-roster chain has exactly eight named registrations',
+      9,
+      'full-roster chain has exactly nine named registrations',
     );
 
     // Every named listener is constructed and exposed for tests.
@@ -189,10 +191,11 @@ describe('buildDefaultListenerChain — full roster with provider + checkpointer
       logger: quietLogger(),
     });
 
-    // All eight canonical listeners subscribe, in canonical order, when
+    // All nine canonical listeners subscribe, in canonical order, when
     // provider + checkpointer + config are all supplied — the
     // `buildDefaultListenerChain` "full roster" contract from Story
-    // #2531 (Epic #2527).
+    // #2531 (Epic #2527), extended by Story #2896 (Epic #2880) which
+    // inserted MergeWatcher between BranchCleaner and Cleaner.
     assert.deepEqual(chain.order, [
       'LedgerWriter',
       'AcceptanceReconciler',
@@ -200,10 +203,11 @@ describe('buildDefaultListenerChain — full roster with provider + checkpointer
       'AutomergeArmer',
       'AutomergePredicate',
       'BranchCleaner',
+      'MergeWatcher',
       'Cleaner',
       'CheckpointPointerWriter',
     ]);
-    assert.equal(chain.order.length, 8);
+    assert.equal(chain.order.length, 9);
 
     // The reconciler stored the injected config for its downstream
     // `reconcileAcceptanceSpec` call; assert the reference threaded
