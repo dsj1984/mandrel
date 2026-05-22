@@ -44,12 +44,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import {
-  appendFileSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-} from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 /**
@@ -106,8 +101,7 @@ export function parseMergeView(stdout) {
     merge && typeof merge === 'object' && typeof merge.oid === 'string'
       ? merge.oid
       : null;
-  const mergedAt =
-    typeof parsed.mergedAt === 'string' ? parsed.mergedAt : null;
+  const mergedAt = typeof parsed.mergedAt === 'string' ? parsed.mergedAt : null;
   const prNumber = Number.isInteger(parsed.number) ? parsed.number : null;
   return { mergeCommitSha: sha, mergedAt, prNumber };
 }
@@ -208,33 +202,28 @@ export class MergeWatcher {
       typeof opts.bus.on !== 'function' ||
       typeof opts.bus.emit !== 'function'
     ) {
-      throw new TypeError(
-        'MergeWatcher requires a bus with on() and emit()',
-      );
+      throw new TypeError('MergeWatcher requires a bus with on() and emit()');
     }
     if (!Number.isInteger(opts.epicId) || opts.epicId < 1) {
       throw new TypeError('MergeWatcher requires a numeric epicId');
     }
     if (typeof opts.tempRoot !== 'string' || opts.tempRoot.length === 0) {
-      throw new TypeError(
-        'MergeWatcher requires a non-empty tempRoot string',
-      );
+      throw new TypeError('MergeWatcher requires a non-empty tempRoot string');
     }
     this.bus = opts.bus;
     this.epicId = opts.epicId;
     this.tempRoot = opts.tempRoot;
     this.cwd = opts.cwd ?? process.cwd();
-    this.intervalSeconds = Number.isInteger(opts.intervalSeconds)
-      && opts.intervalSeconds >= 1
-      ? opts.intervalSeconds
-      : DEFAULT_INTERVAL_SECONDS;
-    this.maxBudgetSeconds = Number.isInteger(opts.maxBudgetSeconds)
-      && opts.maxBudgetSeconds >= 1
-      ? opts.maxBudgetSeconds
-      : DEFAULT_MAX_BUDGET_SECONDS;
+    this.intervalSeconds =
+      Number.isInteger(opts.intervalSeconds) && opts.intervalSeconds >= 1
+        ? opts.intervalSeconds
+        : DEFAULT_INTERVAL_SECONDS;
+    this.maxBudgetSeconds =
+      Number.isInteger(opts.maxBudgetSeconds) && opts.maxBudgetSeconds >= 1
+        ? opts.maxBudgetSeconds
+        : DEFAULT_MAX_BUDGET_SECONDS;
     this.ghPrViewMergeFn = opts.ghPrViewMergeFn ?? ghPrViewMerge;
-    this.readPriorAttemptsFn =
-      opts.readPriorAttemptsFn ?? readPriorAttempts;
+    this.readPriorAttemptsFn = opts.readPriorAttemptsFn ?? readPriorAttempts;
     this.appendAttemptFn = opts.appendAttemptFn ?? appendAttempt;
     this.sleepFn = opts.sleepFn ?? defaultSleep;
     this.nowMsFn = opts.nowMsFn ?? Date.now;
@@ -271,9 +260,7 @@ export class MergeWatcher {
         outcome: 'skipped',
         reason: 'duplicate-seqId',
       });
-      this.logger.debug?.(
-        `[MergeWatcher] skip duplicate ${key} (idempotent)`,
-      );
+      this.logger.debug?.(`[MergeWatcher] skip duplicate ${key} (idempotent)`);
       return;
     }
     this._seen.add(key);
