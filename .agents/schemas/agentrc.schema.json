@@ -252,9 +252,58 @@
       "properties": {
         "provider": {
           "type": "string",
-          "enum": ["native", "codex"],
+          "enum": ["native", "codex", "security-review"],
           "default": "native",
-          "description": "ReviewProvider adapter that produces the Finding[] consumed by runCodeReview(). Story #2833 (Epic #2815) registered `native` (the in-process maintainability/lint pass); Story #2830 added `codex`, which invokes the `/codex:review` Claude Code plugin (https://github.com/openai/codex-plugin-cc). Selecting `codex` when the plugin is not installed hard-fails at factory construction with remediation guidance — there is no silent fallback to `native`."
+          "description": "Legacy single-adapter selection. ReviewProvider that produces the Finding[] consumed by runCodeReview(). Story #2833 registered `native` (in-process maintainability/lint); Story #2830 added `codex` (invokes `/codex:review` plugin); Story #2871 added `security-review` (shells out to `claude --print /security-review`). When `providers` (chain shape) is set this field is ignored with a warning. Selecting an adapter whose probe fails hard-fails at factory construction unless declared `optional: true` in the chain."
+        },
+        "providers": {
+          "type": "array",
+          "description": "Multi-provider chain (Story #2871). When set and non-empty, takes precedence over the legacy `provider` field. The orchestrator iterates inline entries in declaration order and merges their Finding[] before posting one structured comment; manual-prompt entries (e.g. ultrareview) contribute a trailing 'Manual review suggestions' section.",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "enum": ["native", "codex", "security-review", "ultrareview"],
+                "description": "Registered provider key. Inline: native, codex, security-review. Manual-prompt: ultrareview."
+              },
+              "scopes": {
+                "type": "array",
+                "items": { "type": "string", "enum": ["story", "epic"] },
+                "description": "Invocation scopes this entry fires on. Default (omitted) is both."
+              },
+              "optional": {
+                "type": "boolean",
+                "default": false,
+                "description": "When true, construction failure (host missing CLI/plugin) is logged and the entry is skipped instead of hard-failing the chain. Use for cross-runtime portability."
+              },
+              "manualPrompt": {
+                "type": "boolean",
+                "default": false,
+                "description": "When true, the entry is loaded from the manual-prompt registry: contributes a one-line operator suggestion via `renderPrompt()` instead of running a review via `runReview()`. Does not affect severity counts or `halted`."
+              },
+              "when": {
+                "type": "object",
+                "description": "Optional label-gated invocation predicate. Evaluated against the ticket's current labels at invocation time; when false, the entry is silently skipped for this run.",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Single label that MUST be present on the ticket."
+                  },
+                  "labelAny": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 },
+                    "minItems": 1,
+                    "description": "Run when ANY of the listed labels is present."
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
         },
         "providerConfig": {
           "type": "object",
