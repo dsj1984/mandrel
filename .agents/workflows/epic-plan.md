@@ -490,7 +490,7 @@ for the scoring logic.
 
 5. **Audit**:
    - Check the Epic's comment thread to ensure the backlog summary was posted.
-   - Verify that at least one `type/feature`, `type/story`, and `type/task`
+   - Verify that at least one `type::feature`, `type::story`, and `type::task`
      issue was created.
 
 6. **Cleanup**: The wrapper script (`epic-plan-decompose.js`) deletes the
