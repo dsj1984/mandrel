@@ -416,6 +416,47 @@ dispatch manifest is posted as a structured comment on the Epic. That
 manifest is the source of truth for the wave layout `/epic-deliver`
 consumes in the `delivery.snapshot` state.
 
+### `agent::ready` exit conditions
+
+The planning → delivery handoff is governed by an explicit checklist.
+The persist half of `epic-plan-decompose.js` refuses to flip the Epic
+to `agent::ready` unless **every** condition below is true. The
+contract is enforced at the planner boundary so `/epic-deliver` can
+treat `agent::ready` as a load-bearing precondition rather than a
+hopeful signal.
+
+- **Planning artifacts linked or waived.** The Epic body lists a
+  linked `context::prd` and `context::tech-spec` ticket, and either a
+  linked `context::acceptance-spec` ticket **or** the
+  `acceptance::n-a` waiver label. Missing-without-waiver fails the
+  handoff.
+- **Decomposition persisted.** The structural reconciler has applied
+  the Feature/Story/Task hierarchy and written the spec to
+  `.agents/epics/<epicId>.yaml`. The `epic-plan-state` checkpoint
+  comment records `phase: ready`.
+- **Dispatch manifest posted.** A single `epic-dispatch` structured
+  comment exists on the Epic and validates against
+  `.agents/schemas/dispatch-manifest.json`. The dispatch manifest is
+  the source of truth `/epic-deliver` reads during
+  `delivery.snapshot`.
+- **Healthcheck green.** `epic-plan-healthcheck.js` (run during
+  `/epic-plan` Phase 10) returned `ok: true`. A failing healthcheck
+  blocks the handoff — there is no advisory degrade-mode for
+  `agent::ready`.
+- **Notification posted.** The planner has posted the
+  `planning.handoff` notification on the Epic so the operator and any
+  subscribed listeners know the Epic is ready to fan out.
+
+**Operator override.** The `planning::healthcheck-waived` label, applied
+to the Epic by the operator, is the documented escape hatch for cases
+where the healthcheck reports `ok: false` for an environmental reason
+the operator has triaged and accepted (for example: a transient
+`origin` outage during a known maintenance window). When the label is
+present, the persist half allows the `agent::ready` flip even though
+the healthcheck failed. Every other exit condition above still
+applies — the waiver scopes to the healthcheck check alone. Remove
+the label to re-arm the gate.
+
 ---
 
 ## Phase 3: Delivery (Agentic)

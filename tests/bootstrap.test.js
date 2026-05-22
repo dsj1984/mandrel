@@ -138,7 +138,9 @@ describe('Bootstrap — LABEL_TAXONOMY', () => {
   it('label count = non-persona taxonomy + one per persona file', () => {
     // Story #2144 — added `agent::closing` to the taxonomy as the
     // intermediate state between executing and done.
-    const nonPersonaBase = 14;
+    // Story #2921 (Epic #2880 F7) — added `planning::healthcheck-waived`
+    // as the operator override for the post-plan readiness healthcheck.
+    const nonPersonaBase = 15;
     assert.equal(LABEL_TAXONOMY.length, nonPersonaBase + PERSONA_NAMES.length);
   });
 

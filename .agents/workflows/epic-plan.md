@@ -528,12 +528,24 @@ for the scoring logic.
 
 Run the post-plan health check to validate the backlog before handing off to
 `/epic-deliver`. The default `--fast` mode runs only the cheap checks
-(config + git remote) and targets sub-2-second turnaround. It is non-blocking
-— the script always exits 0; the structured JSON on stdout reports findings.
+(config + git remote) and targets sub-2-second turnaround. The script itself
+always exits 0; the structured JSON on stdout reports findings.
 
 ```bash
 node .agents/scripts/epic-plan-healthcheck.js --epic [Epic_ID] --fast
 ```
+
+**The healthcheck is a blocking exit condition for `agent::ready`.**
+Story #2921 (Epic #2880 F7) wired the persist half of
+`epic-plan-decompose.js` to re-run the same `--fast` check before
+flipping the Epic to `agent::ready`.
+When the inline run reports `ok: false`, the persist phase **refuses the
+flip** and throws with the failing check's `reason`. The Epic stays on its
+prior label (`agent::review-spec` in the normal flow) until either the
+underlying check passes on a rerun, or the operator applies the
+`planning::healthcheck-waived` label to the Epic and reruns the persist
+phase. See `.agents/SDLC.md` § "`agent::ready` exit conditions" for the
+full handoff contract and the waiver scope.
 
 The script emits a single line of JSON to stdout:
 
@@ -560,9 +572,10 @@ Modes (additive — fast checks always run):
   `nodeModulesStrategy: 'pnpm-store'` is configured and you want subsequent
   worktree installs to be near-instant instead of fetching from scratch.
 
-If `ok` is `false`, review the entries in `checks[]` before starting
-execution. Individual non-`ok` entries are advisory unless the operator
-chooses to gate on them.
+If `ok` is `false`, review the entries in `checks[]`, resolve the failing
+check(s), and rerun the persist phase. Apply `planning::healthcheck-waived`
+to the Epic only when the failure is environmental and the operator has
+triaged it (e.g. a known `origin` outage during a maintenance window).
 
 ## Phase 11: Notification & Handoff
 

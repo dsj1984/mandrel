@@ -284,6 +284,7 @@ describe('epic-plan spec-flow integration', () => {
       {
         spawnSync: stubSpawnSync,
         writeSpecFn: writeSpecOverride,
+        skipHealthcheck: true,
       },
     );
 
