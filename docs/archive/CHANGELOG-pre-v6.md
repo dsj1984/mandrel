@@ -79,16 +79,16 @@ rolls up here.
   defaults to **abort** with an explicit stderr message — silent
   applies on existing consumers are impossible.
 - New defaults in `.agents/default-agentrc.json`:
-  `agentSettings.quality.mergeMethods`,
-  `agentSettings.quality.prGate.enforceAdmins` (true),
-  `agentSettings.quality.prGate.requiredApprovingReviewCount` (0),
-  `agentSettings.quality.botApprover.enabled` (false; surfaces the
+  `agentSettings/quality.mergeMethods`,
+  `agentSettings/quality.prGate.enforceAdmins` (true),
+  `agentSettings/quality.prGate.requiredApprovingReviewCount` (0),
+  `agentSettings/quality.botApprover.enabled` (false; surfaces the
   runbook link when off).
 
 ### Changed
 
 - **Comment channel is now event-allowlist-gated, not severity-gated;
-  terminal channel removed.** `orchestration.notifications.commentMinLevel`
+  terminal channel removed.** `orchestration/notifications.commentMinLevel`
   is replaced by `commentEvents` (analogous to `webhookEvents`).
   `terminalMinLevel` is removed entirely — the terminal channel was
   effectively dead in the host-LLM `/epic-deliver` flow because nothing
@@ -105,8 +105,8 @@ rolls up here.
   invocations of `notify.js` now carry an `operator-message` event by
   default so they route through the same allowlist.
 - **Webhook channel is now event-allowlist-gated, not severity-gated.**
-  `orchestration.notifications.webhookMinLevel` is removed. Its
-  replacement, `orchestration.notifications.webhookEvents`, is an explicit
+  `orchestration/notifications.webhookMinLevel` is removed. Its
+  replacement, `orchestration/notifications.webhookEvents`, is an explicit
   allowlist of event names. The default vocabulary is the curated
   `epic-*` set: `["epic-started", "epic-progress", "epic-blocked",
   "epic-unblocked", "epic-complete"]`. Severity is carried as webhook
@@ -229,17 +229,17 @@ with actionable errors. Follow the migration block at the bottom.
   `EXECUTION_LABELS` constant and `LABEL_COLORS.EXECUTION` palette are
   deleted. Wave-level execution mode is an internal scheduling
   property, not a label.
-- **`agentSettings.epicClose` config block.** Including
-  `agentSettings.epicClose.runRetro` — the retro is always-on inside
+- **`agentSettings/epicClose` config block.** Including
+  `agentSettings/epicClose.runRetro` — the retro is always-on inside
   `/epic-deliver` Phase 5 (override with the `--skip-retro` CLI flag
   on a one-off basis).
-- **`agentSettings.riskGates` config block.** The heuristics array
-  moved to `agentSettings.planning.riskHeuristics` (see Renamed).
+- **`agentSettings/riskGates` config block.** The heuristics array
+  moved to `agentSettings/planning.riskHeuristics` (see Renamed).
   The `riskGates` name implied runtime gating that has not existed
   since v5.14.
-- **`orchestration.hitl` empty placeholder block.** Carried no
+- **`orchestration/hitl` empty placeholder block.** Carried no
   consumers.
-- **`orchestration.executor` (audit & delete).** Audited as unread by
+- **`orchestration/executor` (audit & delete).** Audited as unread by
   the runtime in 5.40; removed from the schema. The
   `IExecutionAdapter` interface and `ManualDispatchAdapter` ship
   unchanged for downstream consumers, but the `executor` config key
@@ -259,9 +259,9 @@ with actionable errors. Follow the migration block at the bottom.
 | `.agents/scripts/epic-execute-prepare.js`                      | `.agents/scripts/epic-deliver-prepare.js`                          | Same JSON envelope contract for the slash-command parser.                                          |
 | `.agents/scripts/epic-finalize.js`                             | `.agents/scripts/epic-deliver-finalize.js`                         | New responsibility: open PR to `main` instead of merging.                                          |
 | `.agents/workflows/epic-execute.md`                            | `.agents/workflows/epic-deliver.md`                                | Six-phase merged execute + close workflow.                                                         |
-| `agentSettings.riskGates.heuristics`                           | `agentSettings.planning.riskHeuristics`                            | Honesty rename — riskGates implied runtime gating that does not exist.                             |
-| `orchestration.runners.epicRunner`                             | `orchestration.runners.deliverRunner`                              | Whole sub-block (`enabled`, `concurrencyCap`, `progressReportIntervalSec`, `idleTimeoutSec`, …).   |
-| `orchestration.runners.closeRetry`                             | `orchestration.runners.storyMergeRetry`                            | Honesty rename — the retry was always for non-fast-forward push of the Story merge to the Epic.    |
+| `agentSettings/riskGates.heuristics`                           | `agentSettings/planning.riskHeuristics`                            | Honesty rename — riskGates implied runtime gating that does not exist.                             |
+| `orchestration/runners.epicRunner`                             | `orchestration/runners.deliverRunner`                              | Whole sub-block (`enabled`, `concurrencyCap`, `progressReportIntervalSec`, `idleTimeoutSec`, …).   |
+| `orchestration/runners.closeRetry`                             | `orchestration/runners.storyMergeRetry`                            | Honesty rename — the retry was always for non-fast-forward push of the Story merge to the Epic.    |
 | `resolveConfig()` wrapper key `settings`                       | `resolveConfig()` wrapper key `agentSettings`                      | Matches `.agentrc.json`'s literal top-level key; fixes the silent override-drop bug.               |
 
 ### Added
@@ -289,7 +289,7 @@ with actionable errors. Follow the migration block at the bottom.
      comment.
   6. Finalize (`epic-deliver-finalize.js`) — verifies FF, pushes
      `epic/<id>`, opens the PR, sets the required-checks expectation
-     from `agentSettings.quality.prGate.checks`, posts the hand-off
+     from `agentSettings/quality.prGate.checks`, posts the hand-off
      comment naming the PR URL, and exits.
 - **`lib/duplicate-search.js`.** Cross-Epic title + body keyword
   search. Given a sharpened one-pager, scores open Epics and returns
@@ -303,25 +303,25 @@ with actionable errors. Follow the migration block at the bottom.
   from the deliver runner Phase 5. Aggregates perf signals,
   friction counts, hotfix counts, recut counts, parked counts, and
   HITL count using `retro-heuristics.js`.
-- **`agentSettings.quality.prGate.enforceBranchProtection`.** Boolean,
+- **`agentSettings/quality.prGate.enforceBranchProtection`.** Boolean,
   default `true`. When `true`, `/agents-bootstrap-github` calls
   `ensureMainBranchProtection({ checks })` to create or merge branch
   protection on `main` with `prGate.checks` as required status checks.
-- **`agentSettings.planning.riskHeuristics`.** Replaces
-  `agentSettings.riskGates.heuristics`. Same shape; same consumer
+- **`agentSettings/planning.riskHeuristics`.** Replaces
+  `agentSettings/riskGates.heuristics`. Same shape; same consumer
   (the decomposer system prompt). Rename only — no behaviour change.
-- **`agentSettings.epicClose` removed.** Not added — listed in
+- **`agentSettings/epicClose` removed.** Not added — listed in
   Removed for completeness.
 - **`agents-bootstrap-github.js` `ensureMainBranchProtection` step.**
   Idempotent and additive: existing protections are preserved; missing
   required checks are added. Gated behind
-  `agentSettings.quality.prGate.enforceBranchProtection: true`
+  `agentSettings/quality.prGate.enforceBranchProtection: true`
   (default).
 - **`tests/deletion-completeness.test.js`.** Ripgrep-based regression
   test that asserts zero references to the removed concepts
   (`BookendChainer`, `epic::auto-close`, `agent::review`, `runRetro`,
   `risk::medium`, `execution::sequential`, `execution::concurrent`,
-  `epicClose` config key, `orchestration.hitl`, `epicRunner` config
+  `epicClose` config key, `orchestration/hitl`, `epicRunner` config
   key, `closeRetry` config key, `riskGates` config key,
   `bookend-chainer` filename, `epic-finalize` filename, `epic-close`
   filename, plus a heuristic regex for `\.settings\b` reads against
@@ -331,7 +331,7 @@ with actionable errors. Follow the migration block at the bottom.
   subtest so failures pinpoint the offending concept and file:line.
 - **`tests/lib/config/limits-override.test.js`.** Regression test for
   the resolver-key alignment. Constructs a fixture `.agentrc.json`
-  with `agentSettings.limits.maxTickets: 75`, calls
+  with `agentSettings/limits.maxTickets: 75`, calls
   `resolveConfig({ cwd: fixturePath })` then `getLimits(resolved)`,
   and asserts the returned `maxTickets` is `75`. Without the fix,
   this test fails (returns `60`, the new framework default).
@@ -350,11 +350,11 @@ with actionable errors. Follow the migration block at the bottom.
   only two accepted shapes (the wrapper and the bare `agentSettings`
   bag). This is a breaking API change for any consumer of the
   resolver — see Migration.
-- **`agentSettings.limits.maxTickets` default** bumped 40 → 60.
+- **`agentSettings/limits.maxTickets` default** bumped 40 → 60.
   Reflects the observed working range across recent dogfood Epics
   and removes the per-project override that 80% of consumers were
   carrying anyway.
-- **`agentSettings.quality.prGate` promoted from schema-only to
+- **`agentSettings/quality.prGate` promoted from schema-only to
   default config.** The default `checks` array ships as
   `["validate", "test", "lint-baseline", "crap-check",
   "maintainability"]` — the same gate names already enforced by
@@ -463,7 +463,7 @@ Every internal reference that previously read `cfg.settings` becomes
 #### 3. `maxTickets` default bump
 
 The framework default is now `60` (was `40`). If your project pinned
-`agentSettings.limits.maxTickets: 40` solely to override the old
+`agentSettings/limits.maxTickets: 40` solely to override the old
 default, remove the override and inherit the new value:
 
 ```jsonc
@@ -491,7 +491,7 @@ override at the value you want.
 
 #### 4. `prGate` promotion + branch protection
 
-`agentSettings.quality.prGate.enforceBranchProtection` defaults to
+`agentSettings/quality.prGate.enforceBranchProtection` defaults to
 `true`. After upgrading, re-run `/agents-bootstrap-github` once so
 the bootstrap step calls `ensureMainBranchProtection({ checks })`
 and creates or merges branch protection on `main`. The step is
@@ -578,7 +578,7 @@ tests.
 - **`hierarchy-gate.js` auxiliary classification of `type::health`.**
   The label no longer exists, so the gate no longer needs to defer it.
 - **`TYPE_LABELS.HEALTH`** in `lib/label-constants.js`.
-- **`orchestration.runners.epicRunner.healthRefresh`** config schema
+- **`orchestration/runners.epicRunner.healthRefresh`** config schema
   block (`HEALTH_REFRESH_SCHEMA`, `DEFAULT_HEALTH_REFRESH`, the
   `agentrc.schema.json` `$defs.healthRefresh` mirror, and the three
   `config-schema-mirror-drift` tests). The cadence knob existed only to
@@ -590,7 +590,7 @@ tests.
 - Repos that already have an open `📉 Sprint Health: …` ticket from a
   previous run will need to close it manually (or via `gh issue close`).
   The new `epic-close.js` will not touch it. New Epics never get one.
-- `.agentrc.json` files that set `orchestration.runners.epicRunner.healthRefresh`
+- `.agentrc.json` files that set `orchestration/runners.epicRunner.healthRefresh`
   must drop the field — `additionalProperties: false` on `epicRunner` will
   now reject it.
 
@@ -844,7 +844,7 @@ rule: tickets carry decisions and summaries; NDJSON carries events.
   — hotspot (phase elapsed vs baseline p95), rework (edits-per-file),
   churn (repeated tool sequences), idle (gap-second threshold), retry
   (repeat-count threshold). Thresholds live in
-  `agentSettings.limits.signals` with sensible defaults, all overridable
+  `agentSettings/limits.signals` with sensible defaults, all overridable
   per-project.
 - **`story-perf-summary` and `epic-perf-report` structured comments.**
   One per Story (posted at close) and one per Epic (posted at retro);
@@ -887,20 +887,20 @@ rule: tickets carry decisions and summaries; NDJSON carries events.
 - Consumers of friction *comments* on tickets must switch to reading the
   rolled-up `story-perf-summary` / `epic-perf-report` comments. Per-event
   comments no longer exist.
-- Add an `agentSettings.limits.signals` block to `.agentrc.json` if you
+- Add an `agentSettings/limits.signals` block to `.agentrc.json` if you
   need to override the default thresholds; otherwise the defaults apply
   on first run.
 
 ## [5.36.4] — 2026-05-07
 
 **Breaking change for consumer `.agentrc.json` files that still set
-`agentSettings.sprintClose.runRetro`.** The one-release shim shipped in
+`agentSettings/sprintClose.runRetro`.** The one-release shim shipped in
 5.31.0 was originally targeted for removal in 5.32.0; it has overstayed
 that window by five releases. This patch removes it.
 
 ### Removed
 
-- **`agentSettings.sprintClose.runRetro` back-compat shim.** Both the
+- **`agentSettings/sprintClose.runRetro` back-compat shim.** Both the
   resolver fallback (in `lib/config/epic-close.js`) and the `SPRINT_CLOSE_SCHEMA`
   back-compat property (in `lib/config-settings-schema.js`) have been
   deleted. The static mirror at `.agents/schemas/agentrc.schema.json` no
@@ -978,8 +978,8 @@ A full-set documentation review against the codebase landed in this
 patch alongside the automated git-perf check. High-impact accuracy
 fixes:
 
-- **`docs/configuration.md`** — `orchestration.{epicRunner,planRunner,
-  concurrency,closeRetry}` rewritten as `orchestration.runners.*` to
+- **`docs/configuration.md`** — `orchestration/{epicRunner,planRunner,
+  concurrency,closeRetry}` rewritten as `orchestration/runners.*` to
   match the post-Epic-#773 schema; consumers copying the doc literally
   no longer hit AJV validation errors. Added documentation for
   `commands.formatCheck/formatWrite`, `limits.planningContext`, the
@@ -994,7 +994,7 @@ fixes:
   (`state-poller.js`, `dispatch-logger.js`); replaced one with the
   correct current home (`providers/github/issues.js`).
 - **`docs/quality-gates.md`** — fixed the `mi:update` script reference
-  and the pre-#773 `orchestration.closeRetry` path.
+  and the pre-#773 `orchestration/closeRetry` path.
 - **`README.md`** — corrected directory counts (rules: 10 → 8;
   workflows: 25 → 28; skills/stack expressed as 5 categories).
 - **`docs/workflows.md`** — added missing rows for
@@ -1002,8 +1002,8 @@ fixes:
 - **`docs/project-board.md`** — corrected "eight options" → "seven";
   cross-referenced `label-taxonomy.js` for the "Current Sprint" view
   name (which is set in code).
-- **`.agents/SDLC.md`** — same `orchestration.closeRetry` →
-  `orchestration.runners.closeRetry` fix.
+- **`.agents/SDLC.md`** — same `orchestration/closeRetry` →
+  `orchestration/runners.closeRetry` fix.
 
 Consolidations:
 
@@ -1040,7 +1040,7 @@ in a future release" pending a deliberate removal pass.
 ## [5.36.2] — 2026-05-06
 
 Patch: refresh dispatch-manifest header / footer to match the current
-`/epic-execute` → `/wave-execute` → `/story-execute` orchestration.
+`/epic-execute` → `/wave-execute` → `/story-execute` orchestration chain.
 
 ### Changed
 
@@ -1067,7 +1067,7 @@ Patch: raise the default CRAP regression tolerance from 0.001 → 0.05.
 
 ### Changed
 
-- **`agentSettings.quality.crap.tolerance` default** — bumped from 0.001
+- **`agentSettings/quality.crap.tolerance` default** — bumped from 0.001
   to 0.05 in `lib/config/quality.js` (`MAINTAINABILITY_CRAP_DEFAULTS`),
   `check-crap.js` (`resolveCrapEnvOverrides` fallback), and
   `baseline-refresh-guardrail.js` (`parseBaseBranchConfig` fallback).
@@ -1091,7 +1091,7 @@ out of sync with the resolved config.
 
 ### Added
 
-- **`agentSettings.commands.formatCheck` / `formatWrite`** — new optional
+- **`agentSettings/commands.formatCheck` / `formatWrite`** — new optional
   command keys (defaults: `npx biome format .` / `npx biome format --write
   .`). The close-validation format gate (`buildDefaultGates` in
   `lib/close-validation.js`) and the story-close `runFormatAutofix` step
@@ -1119,14 +1119,14 @@ out of sync with the resolved config.
   comments are byte-stable across the rename.
 - **`epic-plan-decompose.js --emit-context`** — logs the resolved
   `limits.maxTickets` to stderr so a misconfigured `.agentrc.json` (e.g.
-  flat-key `maxTickets` instead of grouped `agentSettings.limits.maxTickets`)
+  flat-key `maxTickets` instead of grouped `agentSettings/limits.maxTickets`)
   is visible to the operator instead of silently falling through to the
   framework default. The decomposer prompt template
   (`lib/templates/decomposer-prompts.js`) now imports its in-template
   fallback from `LIMITS_DEFAULTS` rather than carrying its own `40`
   literal, so the fallback can't drift out of sync.
 - **`.agents/workflows/epic-plan.md`** — `maxTickets` doc text updated
-  to point at `agentSettings.limits.maxTickets` and the framework-
+  to point at `agentSettings/limits.maxTickets` and the framework-
   default location instead of repeating the literal `40`.
 
 ## [5.35.1] — 2026-05-06
@@ -1144,8 +1144,8 @@ hydrated prompt.
   branch list with `{{PROTECTED_BRANCHES}}`. Section 5.2 wording clarified
   to separate the rule from the interactive-debugging exception.
 - **`context-hydration-engine.js`** — populates the new placeholders from
-  `agentSettings.commands` (via `getCommands()`) and from
-  `agentSettings.git.protectedBranches` (falling back to `baseBranch`).
+  `agentSettings/commands` (via `getCommands()`) and from
+  `agentSettings/git.protectedBranches` (falling back to `baseBranch`).
 - **`.agents/instructions.md`** — significant streamline:
   - Title `Antigravity Agent Protocol` → `Agent Execution Protocol`
     (removes host-brand leak).
@@ -1203,7 +1203,7 @@ hydrated prompt.
 - **`.agents/rules/git-conventions.md`** — three correctness/staleness
   issues:
   - Hardcoded `npm run lint` / `npm run format:check` commands replaced
-    with a pointer to `agentSettings.commands.validate` + `commands.test`
+    with a pointer to `agentSettings/commands.validate` + `commands.test`
     so non-Node projects get correct local-validation guidance.
   - Removed the legacy "amend the commit rather than creating 'fix lint'
     commits" rule, which contradicts the framework's standing rule
@@ -1587,7 +1587,7 @@ Slack / Discord / Make.com get the same wave + epic rollup signals that
 appeared in `wave-run-progress` and `epic-run-progress` comments — previously
 those were GitHub-only and the webhook only fired on label flips.
 
-**Breaking config change.** `orchestration.notifications.minLevel` and
+**Breaking config change.** `orchestration/notifications.minLevel` and
 `commentMinLevel` are removed and replaced with three **mandatory** per-
 channel gates, each defaulting to `medium`:
 
@@ -1741,7 +1741,7 @@ process-boundary machinery.
 
 This is a **breaking change** for any downstream `.agents/` consumer that types
 `/sprint-*` commands directly, applies the trigger labels by hand, or reads
-`agentSettings.sprintClose.runRetro` from config. The migration block below is
+`agentSettings/sprintClose.runRetro` from config. The migration block below is
 the complete consumer-visible delta.
 
 #### Migration
@@ -1768,14 +1768,14 @@ the complete consumer-visible delta.
   going forward.
 - **Pool mode retired.** `.agents/scripts/pool-claim.js`,
   `.agents/scripts/lib/pool-mode.js`, the `in-progress-by:<sessionId>` claim
-  label scheme, and the `orchestration.runners.poolMode` config block are
+  label scheme, and the `orchestration/runners.poolMode` config block are
   gone. Story assignment is parent-driven and deterministic; sibling sessions
   never race on the same Story. `runtime.sessionId` survives as a stable
   per-process diagnostic in the startup `[ENV]` log line.
 - **Subprocess fan-out machinery removed.**
   `.agents/scripts/lib/orchestration/epic-runner/build-claude-spawn.js` and
   `spawn-smoke-test.js` are deleted, along with the
-  `agentSettings.runners.epicRunner.idleTimeoutSec`, `pollIntervalSec`, and
+  `agentSettings/runners.epicRunner.idleTimeoutSec`, `pollIntervalSec`, and
   `logsDir` config keys. Keep `concurrencyCap` and `progressReportIntervalSec`.
 - **Top-level scripts renamed in lockstep** with the slash commands. Update
   any `package.json` script or `.husky/*` hook that references the old
@@ -1796,8 +1796,8 @@ the complete consumer-visible delta.
   `helpers/sprint-code-review.md` → `epic-code-review.md`,
   `helpers/sprint-retro.md` → `epic-retro.md`,
   `helpers/sprint-testing.md` → `epic-testing.md`.
-- **Config key renamed:** `agentSettings.sprintClose.runRetro` →
-  `agentSettings.epicClose.runRetro`. The resolver reads the legacy key as a
+- **Config key renamed:** `agentSettings/sprintClose.runRetro` →
+  `agentSettings/epicClose.runRetro`. The resolver reads the legacy key as a
   fallback and emits a one-shot deprecation warning; **removal version 5.32.0**.
   Update consumer `.agentrc.json` files now to avoid the warning.
 - **`/epic-plan` CLI flags removed:** `--phase spec|decompose` and
@@ -1822,7 +1822,7 @@ the complete consumer-visible delta.
 ### Worktree cleanup wiring + Stage-2 `git worktree remove`
 
 - **`sweepStaleStoryWorktrees` is now invoked** from `/sprint-plan-spec` and `/sprint-plan-decompose` via `drainPendingCleanupAtBoot` (with ticketing `provider`), after `forceDrainPendingCleanup`, so the pending ledger and orphan done-story worktrees self-heal during planning — not only at epic `sprint-close`.
-- **`drainPendingCleanupAtBoot`** respects `orchestration.worktreeIsolation.root` (no longer hard-codes `.worktrees` under repo root).
+- **`drainPendingCleanupAtBoot`** respects `orchestration/worktreeIsolation.root` (no longer hard-codes `.worktrees` under repo root).
 - **`sprint-story-close`** post-merge drain now defaults to **`forceDrainPendingCleanup`** (Windows handle escalation), matching `sprint-close` Phase 7.
 - **Pending-cleanup Stage 2** tries **`git worktree remove`** (then `--force`) before **`fs.rm`**. New manifest rows use **`attempts: 0`** until the first failed sweep pass (three failed sweeps → `persistent-lock`).
 - **`forceDrainPendingCleanup`**: longer post-`taskkill` settle (1500ms) plus an **extra drain pass** when entries remain stuck after the first post-kill drain.
@@ -1915,7 +1915,7 @@ else's behaviour.
   cheapest fast-fail wins. It honours the same SHA-keyed evidence-skip path
   as `lint`/`test` — re-running close after a no-op change reuses the
   recorded pass.
-- **Command sourced from `agentSettings.commands.typecheck`.** Consumers that
+- **Command sourced from `agentSettings/commands.typecheck`.** Consumers that
   declare a typecheck command in their `.agentrc.json` (e.g. `pnpm exec turbo
   run typecheck`) get that command verbatim; the framework falls back to
   `npm run typecheck` when the field is absent or empty. There is **no
@@ -2026,7 +2026,7 @@ Three small documentation deltas landing the action items from the Epic
   explicit override when a flaky test slips past upstream validation.
 - **`commentMinLevel` documented alongside `minLevel`.**
   `docs/configuration.md` now lists both keys in the
-  `orchestration.notifications` table with a short comparison note so
+  `orchestration/notifications` table with a short comparison note so
   operators tuning verbosity find the new key where they expect it.
 
 ## [5.28.0] - 2026-04-26
@@ -2057,7 +2057,7 @@ additive flags and config keys with safe defaults.
   `epic-plan-decompose.js`) default to a summary mode emitting doc names,
   section headings, relevant excerpts, and file pointers. Add
   `--full-context` to restore the previous full-body behaviour. The new
-  `agentSettings.limits.planningContext` knob controls the byte budget.
+  `agentSettings/limits.planningContext` knob controls the byte budget.
   All `--emit-context` JSON is now compact by default; pass `--pretty`
   to indent for human debugging.
 - **Honest degraded modes.** `select-audits.js`, `lint-baseline.js`, and
@@ -2083,7 +2083,7 @@ additive flags and config keys with safe defaults.
   to `notifications.minLevel`). Per-Task `agent::executing` transitions
   during Story init batch into a single Story-level summary comment.
 - **Health-monitor refresh cadence configurable.** New
-  `agentSettings.healthMonitor.refreshCadence` config selects between
+  `agentSettings/healthMonitor.refreshCadence` config selects between
   `every-close` (legacy), `wave-boundary`, or `every-n-closes` (with
   `everyNCloses`). Defaults to `wave-boundary` so the per-close hot path
   no longer fans out a full Epic ticket re-fetch.
@@ -2130,8 +2130,8 @@ pull forward.
   long-tail methods at CRAP 50–72 are tracked as a follow-on.
 - **`orchestration` is now grouped.** Flat peer keys (`worktreeIsolation`,
   `epicRunner`, `planRunner`, `concurrency`, `closeRetry`, `poolMode`)
-  consolidate under `orchestration.runners` (where they describe runner
-  behaviour) and `orchestration.worktreeIsolation`. The shipped configs and
+  consolidate under `orchestration/runners` (where they describe runner
+  behaviour) and `orchestration/worktreeIsolation`. The shipped configs and
   consumer sweeps land in the same atomic cutover, so no legacy-key
   fallbacks remain in the resolver.
 - **`config-resolver.js` split into a facade + responsibility-bounded
@@ -2144,7 +2144,7 @@ pull forward.
   `providers/github/*` and `lib/worktree/lifecycle/*`. Same pattern
   documented in `docs/patterns.md` (facade + responsibility-bounded
   submodules, ctx-threading discipline, no inter-submodule imports).
-- **`*Root` paths centralised under `agentSettings.paths`.** The legacy
+- **`*Root` paths centralised under `agentSettings/paths`.** The legacy
   flat keys (`agentRoot`, `docsRoot`, `tempRoot`) are gone; consumers read
   via `getPaths()`. Both shipped configs migrated.
 - **State-poller deleted.** The dormant `state-poller.js` module + solo
@@ -2171,17 +2171,17 @@ schema-driven instead of template-diff. The full reference lives in
 
 - **Breaking — flat `agentSettings` keys removed.** The grouped shape is the
   only shape. Migrate as follows:
-  - `agentSettings.<command>Command` → `agentSettings.commands.<command>` for
+  - `agentSettings/<command>Command` → `agentSettings/commands.<command>` for
     `validate`, `lintBaseline`, `test`, `exploratoryTest`, `typecheck`,
     `build`.
-  - `agentSettings.{agentRoot,docsRoot,tempRoot,auditOutputDir}` →
-    `agentSettings.paths.*`. `agentRoot`, `docsRoot`, and `tempRoot` are now
+  - `agentSettings/{agentRoot,docsRoot,tempRoot,auditOutputDir}` →
+    `agentSettings/paths.*`. `agentRoot`, `docsRoot`, and `tempRoot` are now
     required — a missing value is a validation error with a clear path.
-  - `agentSettings.maintainability.*` and the previous flat lint/CRAP/MI/
-    prGate keys → `agentSettings.quality.*` (with `quality.baselines.<gate>`
+  - `agentSettings/maintainability.*` and the previous flat lint/CRAP/MI/
+    prGate keys → `agentSettings/quality.*` (with `quality.baselines.<gate>`
     holding the per-baseline `path` + optional `refreshCommand`).
-  - `agentSettings.{maxInstructionSteps,maxTickets,maxTokenBudget,executionTimeoutMs,executionMaxBuffer}`
-    and the friction thresholds → `agentSettings.limits.*` (friction nested
+  - `agentSettings/{maxInstructionSteps,maxTickets,maxTokenBudget,executionTimeoutMs,executionMaxBuffer}`
+    and the friction thresholds → `agentSettings/limits.*` (friction nested
     under `limits.friction`).
 - **Breaking — disabled commands declare `null`, not empty string.**
   `commands.typecheck` and `commands.build` accept `string | null`; an empty
@@ -2189,21 +2189,21 @@ schema-driven instead of template-diff. The full reference lives in
 - **Breaking — canonical baselines moved under `/baselines/`.** The framework
   reads `baselines/lint.json`, `baselines/crap.json`, and
   `baselines/maintainability.json` by default. Override per-gate via
-  `agentSettings.quality.baselines.<gate>.path`. The previous root-level
+  `agentSettings/quality.baselines.<gate>.path`. The previous root-level
   `crap-baseline.json` / `maintainability-baseline.json` no longer exist.
 - **Sync helper switches to schema-driven validate-then-merge.** The
   `agents-sync-config` helper validates the project config against the
   schema, adds keys the template introduces, and preserves every project-side
   key that validates — including optional keys absent from the template
-  (e.g. `orchestration.concurrency`, `closeRetry`, `poolMode`). It no longer
+  (e.g. `orchestration/concurrency`, `closeRetry`, `poolMode`). It no longer
   silently strips unknown keys; a typo now aborts with a diagnostic instead
   of vanishing.
 - **New static JSON Schema mirror.** Both shipped configs now declare
   `"$schema": "./.agents/schemas/agentrc.schema.json"`, so editors get
   autocomplete and inline validation. The runtime AJV schemas remain the
   source of truth; a drift test keeps the static mirror aligned.
-- **Conditional `orchestration.github` requirement.** When
-  `orchestration.provider` is `"github"`, the `github` block (with required
+- **Conditional `orchestration/github` requirement.** When
+  `orchestration/provider` is `"github"`, the `github` block (with required
   `owner` and `repo`) is now schema-required — the configuration error is
   caught at validation time instead of surfacing as a runtime failure.
 - **New configuration reference doc.** `docs/configuration.md` documents
@@ -2273,7 +2273,7 @@ by any framework code.
   environment-variables UI; for GitHub Actions remote runs, populate
   the `ENV_FILE` repo secret. The notifier and provider no longer read
   `.mcp.json`.
-- **Breaking — `MCP_JSON` repo secret retired from remote orchestration.**
+- **Breaking — `MCP_JSON` repo secret retired from remote orchestration runs.**
   `.github/workflows/epic-orchestrator.yml` only consumes `ENV_FILE`
   now; existing `MCP_JSON` secrets can be removed.
 - **CLI mapping for retired tools.** Each retired tool has a direct
@@ -2310,7 +2310,7 @@ N parallel sessions against one sprint wave. The same command, the same
 ticket lifecycle, the same close-and-cascade — only the worktree layer
 changes shape based on where the session runs.
 
-- **Environment-aware worktree resolver.** `orchestration.worktreeIsolation.
+- **Environment-aware worktree resolver.** `orchestration/worktreeIsolation.
   enabled` is now resolved per process. `AP_WORKTREE_ENABLED=true|false` is an
   explicit operator override, `CLAUDE_CODE_REMOTE=true` auto-disables
   worktrees for web sessions, and the committed config is the fallback. The
@@ -2327,16 +2327,16 @@ changes shape based on where the session runs.
   web; composes with pool-mode eligibility.
 - **Bounded push retry on story close.** The epic-branch push wraps a
   fetch / replay / push retry loop driven by
-  `orchestration.closeRetry.maxAttempts` (default 3) and
-  `orchestration.closeRetry.backoffMs` (default `[250, 500, 1000]`).
+  `orchestration/closeRetry.maxAttempts` (default 3) and
+  `orchestration/closeRetry.backoffMs` (default `[250, 500, 1000]`).
   Concurrent closes from separate clones converge cleanly; real content
   conflicts abort with a clear error and a clean local tree.
 - **Reclaimable claim surfacing.** `in-progress-by:*` labels older than
-  `orchestration.poolMode.staleClaimMinutes` (default 60) are listed as
+  `orchestration/poolMode.staleClaimMinutes` (default 60) are listed as
   reclaimable in pool-mode launch output for operator decision; no automated
   sweep.
-- **New config keys.** `orchestration.closeRetry.{maxAttempts,backoffMs}` and
-  `orchestration.poolMode.{staleClaimMinutes,sessionIdLength}`. Both blocks
+- **New config keys.** `orchestration/closeRetry.{maxAttempts,backoffMs}` and
+  `orchestration/poolMode.{staleClaimMinutes,sessionIdLength}`. Both blocks
   are optional — omitting them yields v5.23.0-equivalent behaviour.
 - **Documented runbook.** New "Running sprint-execute on Claude Code web"
   section in `.agents/README.md` covers required secrets, env-var precedence,
@@ -2354,7 +2354,7 @@ caps, a CHANGELOG style contract, a compact-retro short-circuit for
 clean sprints, and a terminal decision on the `story-566` reap-recovery
 log line.
 
-- **Configurable concurrency caps.** New `orchestration.concurrency`
+- **Configurable concurrency caps.** New `orchestration/concurrency`
   config block exposes `waveGate` (0 = uncapped, preserves v5.21.0
   Promise.all), `commitAssertion` (default 4), `progressReporter`
   (default 8). Adoption at the three v5.21.0 `concurrentMap` sites reads
@@ -2398,7 +2398,7 @@ CRAP threshold). Removed methods are surfaced as a counter, never a failure.
 `check-maintainability`, into `ci.yml` after `test:coverage` (diff-scoped on
 PRs via `--changed-since origin/<base_ref>`, full-repo on push-to-main), and
 into `.husky/pre-push`. All three sites converge on `check-crap.js`; flipping
-`agentSettings.maintainability.crap.enabled` to `false` skips at every site
+`agentSettings/maintainability.crap.enabled` to `false` skips at every site
 with a visible `[CRAP] gate skipped (disabled)` log line.
 
 **Anti-gaming guardrail.** A new `baseline-refresh-guardrail.yml`
@@ -2479,7 +2479,7 @@ its existing `summary`, and `BlockerHandler` uses
 
 ### Quieter defaults
 
-`default-agentrc.json` ships `orchestration.notifications` as
+`default-agentrc.json` ships `orchestration/notifications` as
 `level: "default"`, `webhookMinLevel: "notification"`,
 `mentionOperator: false`, `postToEpic: false` — roughly an order of
 magnitude less chatter than the previous `verbose` / `progress` combo.
@@ -2607,7 +2607,7 @@ when they ask the operator a clarifying question. Root cause:
   Binds only when spawned headless.
 - **Idle-output watchdog.** `defaultSpawn`/`defaultRunSkill` pipe
   stdout/stderr and reset an idle timer on every chunk. If no output
-  arrives within `orchestration.epicRunner.idleTimeoutSec` (default
+  arrives within `orchestration/epicRunner.idleTimeoutSec` (default
   900s; `0` disables), the child is killed and reported as
   `idle-timeout`.
 
@@ -2658,7 +2658,7 @@ dedicated scripts so markdown is a launcher, not a recipe:
 ### Decomposer ticket-cap alignment
 
 The decomposer system prompt hardcoded `25` while
-`agentSettings.maxTickets` defaulted to `40`. The LLM saw both and picked
+`agentSettings/maxTickets` defaulted to `40`. The LLM saw both and picked
 the stricter one. `renderDecomposerSystemPrompt({ maxTickets })` now
 interpolates the cap, so prompt and config can no longer drift.
 
@@ -2719,7 +2719,7 @@ Follow-ons from Epic #380. No public API changes.
   current state, not just the active wave.
 - **CI Node 22/24 matrix + integration-test job.**
 - **Configurable runner logs dir** via
-  `orchestration.epicRunner.logsDir` (default `temp/epic-runner-logs/`,
+  `orchestration/epicRunner.logsDir` (default `temp/epic-runner-logs/`,
   was `.epic-runner-logs/`).
 
 ## [5.15.1] - 2026-04-22
@@ -2762,7 +2762,7 @@ Also: new `ProgressReporter` emits a periodic markdown table +
 - **`BookendChainer`** auto-invokes `/sprint-close` only when
   `epic::auto-close` was snapshotted at dispatch. `/sprint-code-review`
   and `/sprint-retro` remain operator-driven.
-- **Removed** orphan fields `orchestration.epicRunner.storyRetryCount`
+- **Removed** orphan fields `orchestration/epicRunner.storyRetryCount`
   and `blockerTimeoutHours`. Neither was consumed at runtime.
 
 ## [5.15.0] - 2026-04-22
@@ -2844,7 +2844,7 @@ a GitHub label flip and checkpointed via a structured comment.
 - **Engine** `lib/orchestration/epic-runner.js` composes wave-scheduler,
   story-launcher, state-poller, checkpointer, blocker-handler,
   notification-hook, bookend-chainer, wave-observer, column-sync.
-- **`.agentrc.json`** gains `orchestration.epicRunner.{enabled,
+- **`.agentrc.json`** gains `orchestration/epicRunner.{enabled,
   concurrencyCap, pollIntervalSec}`. Webhook URL sourced from MCP env
   or `NOTIFICATION_WEBHOOK_URL` (no longer readable from `.agentrc.json`).
 - **`risk::high` runtime gating retired.** Label remains queryable for
@@ -3177,7 +3177,7 @@ Bundled robustness pass — all backward-compatible unless called out.
   change:** `failed` is `{ id, error, attempts }[]` instead of `number[]`.
 - **`sprint-story-init` halts by default on partial task-transition
   failure.** Opt back in with
-  `orchestration.storyInit.continueOnPartialTransition: true`.
+  `orchestration/storyInit.continueOnPartialTransition: true`.
 - **`ticket-validator`** fails fast on unknown `depends_on` slugs
   instead of silently dropping them at ticket-creation time.
 - **Scrub `.agents` gitlink from worktree index before
@@ -3197,7 +3197,7 @@ silently.
 - **`_copyBootstrapFiles`** runs after `_applyNodeModulesStrategy` and
   before `_installDependencies`, so postinstall hooks (Prisma) see the
   propagated values.
-- **Config:** `orchestration.worktreeIsolation.bootstrapFiles` (default
+- **Config:** `orchestration/worktreeIsolation.bootstrapFiles` (default
   `[".env", ".mcp.json"]`). `..`, absolute paths, and NUL-bytes
   rejected. Existing worktree files never overwritten.
 
@@ -3288,7 +3288,7 @@ Covers 16 findings. Highlights:
 
 ### Configurable ticket decomposition cap
 
-`agentSettings.maxTickets` replaces the hardcoded 25-ticket limit.
+`agentSettings/maxTickets` replaces the hardcoded 25-ticket limit.
 Default raised to **40**.
 
 ## [5.10.0] - 2026-04-16
@@ -3301,7 +3301,7 @@ beyond what GitHub shows.
 
 Removed: `docs/ROADMAP.md`, `generate-roadmap.js`,
 `update-roadmap.yml` template, `roadmap-sync.md` workflow,
-`agentSettings.roadmap` config, `roadmap-exclude` label, roadmap
+`agentSettings/roadmap` config, `roadmap-exclude` label, roadmap
 references across docs, and the `--install-workflows` step in
 `bootstrap-agent-protocols.js` (the only installable workflow was
 `update-roadmap.yml`).
@@ -3426,7 +3426,7 @@ irreversible categories:
 5. Schema migrations rewriting rows or dropping columns without
    backfill.
 
-New `orchestration.hitl.riskHighApproval` (default `true`) toggles
+New `orchestration/hitl.riskHighApproval` (default `true`) toggles
 both gates. When `false`, `risk::high` stays informational on tickets
 but neither dispatch nor close pauses — teams that trust the decomposer
 catch high-risk work at code review instead.
@@ -3471,10 +3471,10 @@ into their own `docs/architecture.md` under `## Tech Stack`.
 
 **Breaking (config shape):**
 
-- **Renamed:** `agentSettings.roadmapPath` → `agentSettings.roadmap.path`
+- **Renamed:** `agentSettings/roadmapPath` → `agentSettings/roadmap.path`
   (nests alongside `roadmap.autoGenerate` / `excludeLabels`).
-- **Removed:** `agentSettings.autoRunSafeCommands`,
-  `agentSettings.defaultPersona`, `agentSettings.protocolRefinement`
+- **Removed:** `agentSettings/autoRunSafeCommands`,
+  `agentSettings/defaultPersona`, `agentSettings/protocolRefinement`
   — none were read by any code or workflow.
 
 **Default changed:** `maxTokenBudget` default `80000` → `200000` to
@@ -3495,8 +3495,8 @@ model is left to the operator or an external router.
 
 **Breaking (config + manifest shape):**
 
-- **Removed:** `agentSettings.defaultModels`,
-  `agentSettings.bookendRequirements`, top-level `models` block
+- **Removed:** `agentSettings/defaultModels`,
+  `agentSettings/bookendRequirements`, top-level `models` block
   (categories / chaining / finops).
 - **Removed:** `resolveModel()`, `resolveRecommendedModel()`, `Model`
   field on task tickets, `recommendedModel` property on story manifest
@@ -3522,7 +3522,7 @@ planning (waves, Story Dispatch Table) lives in `/sprint-plan` Phase
 4, which is where operators were picking stories anyway.
 
 `story-init.js` now honors
-`orchestration.worktreeIsolation.enabled` and seeds the story branch
+`orchestration/worktreeIsolation.enabled` and seeds the story branch
 ref in the main checkout without moving HEAD. Returned JSON exposes
 `workCwd`, `worktreeEnabled`, `worktreeCreated`. Agent `cd`s into
 `workCwd` before Step 1 and passes `--cwd <main-repo>` to
@@ -3538,8 +3538,8 @@ Retros are no longer written to `docs/retros/retro-epic-<id>.md`.
 Every retro posts as a structured comment on the Epic issue,
 beginning with a `## 🪞 Sprint Retrospective — Epic #<id>` marker.
 
-**Breaking (config shape):** `agentSettings.retroPath` removed; new
-`agentSettings.sprintClose.runRetro` (default `true`) controls the
+**Breaking (config shape):** `agentSettings/retroPath` removed; new
+`agentSettings/sprintClose.runRetro` (default `true`) controls the
 close-time retro gate.
 
 ### Config defaults
@@ -3560,7 +3560,7 @@ HEAD and cross-contaminated a commit.
 
 - **`WorktreeManager`** owns `ensure`, `reap`, `list`, `isSafeToRemove`,
   `gc`. Refuses `--force`.
-- **New config block:** `orchestration.worktreeIsolation` — `enabled`,
+- **New config block:** `orchestration/worktreeIsolation` — `enabled`,
   `root`, `nodeModulesStrategy` (`per-worktree` | `symlink` |
   `pnpm-store`), `primeFromPath`, `allowSymlinkOnWindows`,
   `reapOnSuccess`, `reapOnCancel`, `warnOnUncommittedOnReap`,
@@ -3617,7 +3617,7 @@ directly; Node scripts become deterministic GitHub I/O wrappers.
 
 - **Removed:** `lib/llm-client.js` and its test. No more
   `GEMINI_API_KEY` / `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` usage.
-- **Removed:** `orchestration.llm` config block and schema entry.
+- **Removed:** `orchestration/llm` config block and schema entry.
 - **`epic-planner.js` has two modes.** `--emit-context` prints a JSON
   envelope (epic body, scraped docs, recommended system prompts).
   Default mode takes `--prd <file> --techspec <file>` and creates the
@@ -4018,8 +4018,8 @@ suggest and track protocol improvements.
   - New `VerboseLogger` class (`.agents/scripts/lib/VerboseLogger.js`) with
     singleton factory, graceful no-op degradation when disabled, and per-sprint
     JSONL file output.
-  - Configuration: `agentSettings.verboseLogging.enabled` (default: `false`) and
-    `agentSettings.verboseLogging.logDir` (default: `temp/verbose-logs`).
+  - Configuration: `agentSettings/verboseLogging.enabled` (default: `false`) and
+    `agentSettings/verboseLogging.logDir` (default: `temp/verbose-logs`).
   - Integrated into `AgentLoopRunner.js` (action dispatches, observations,
     errors), `sprint-integrate.js` (merge, conflict, verify, consolidate
     phases), and `run-agent-loop.js` (CLI entry point initialization).

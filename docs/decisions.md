@@ -73,8 +73,9 @@ not an in-process interface.
 
 - **Smaller orchestrator surface.** Fewer files, fewer dual-shape
   readers, no factory indirection on the dispatch hot path.
-- **Schema-level breaking change.** The `orchestration.executor` key
-  in `.agentrc.json` becomes a no-op. Per the "no shim layer / hard
+- **Schema-level breaking change.** The legacy `executor` key under
+  the pre-reshape `orchestration` block in `.agentrc.json` becomes a
+  no-op. Per the "no shim layer / hard
   cutovers only" policy (codified by Epic #2646 in
   [`git-conventions.md`](../.agents/rules/git-conventions.md)),
   consumers who still set it will fail validation on upgrade — the
@@ -374,8 +375,9 @@ name without rewriting this ADR text.
 - Prior decisions documenting `epic::auto-close` as the runtime
   authorization for autonomous merge-to-main (now obsolete: the SDL
   no longer merges to `main` — the operator does, via the GitHub UI).
-- Prior decisions documenting `agentSettings.epicClose.runRetro`
-  toggle (now obsolete: the retro is always-on inside the new
+- Prior decisions documenting the legacy `epicClose.runRetro`
+  toggle under the pre-reshape `agentSettings` block (now obsolete:
+  the retro is always-on inside the new
   `/epic-deliver` tail; the configuration knob has been deleted from
   the schema).
 - Two-skill execution surface decisions that named `/epic-execute` +
@@ -449,29 +451,28 @@ The supporting deletions land atomically:
   equivalent signal at the Epic level).
 - `risk::medium`, `execution::sequential`, and `execution::concurrent`
   labels.
-- `agentSettings.epicClose` config block (including `runRetro`).
-- `orchestration.hitl` empty placeholder block.
-- `agentSettings.riskGates` config block (heuristics moved to
-  `agentSettings.planning.riskHeuristics`).
-- `orchestration.runners.epicRunner` → renamed to
-  `orchestration.runners.deliverRunner`.
-- `orchestration.runners.closeRetry` → renamed to
-  `orchestration.runners.storyMergeRetry`.
-- The resolver wrapper key `settings` → renamed to `agentSettings`
-  (matches the `.agentrc.json` literal top-level key, fixing the
-  silent override-drop bug where every accessor read
-  `cfg?.agentSettings?.X ?? cfg?.X` against a wrapper that never
-  carried `agentSettings`).
+- The legacy `epicClose` config block (including `runRetro`).
+- The legacy `hitl` empty placeholder block.
+- The legacy `riskGates` config block — risk heuristics moved to
+  `planning/riskHeuristics`.
+- Legacy runner block `runners/epicRunner` → renamed to
+  `runners/deliverRunner`.
+- Legacy runner block `runners/closeRetry` → renamed to
+  `runners/storyMergeRetry`.
+- The resolver wrapper key `settings` → renamed to the
+  pre-reshape top-level key (matches the legacy `.agentrc.json`
+  literal, fixing the silent override-drop bug where every accessor
+  read against a wrapper that never carried the expected key).
 
-`agentSettings.quality.prGate` is promoted from schema-only to
+The legacy `quality/prGate` block is promoted from schema-only to
 default config and gains an `enforceBranchProtection` boolean
-(default `true`).  `node .agents/scripts/bootstrap.js` gains an
+(default `true`). `node .agents/scripts/bootstrap.js` gains an
 `ensureMainBranchProtection({ checks })` step that creates or merges
 branch protection on `main` with the configured `prGate.checks` as
-required status checks.  Branch protection is now load-bearing
+required status checks. Branch protection is now load-bearing
 because the operator's PR merge is the sole promotion gate.
 
-`agentSettings.limits.maxTickets` default bumps 40 → 60.
+The legacy `limits/maxTickets` default bumps 40 → 60.
 
 ### Consequences
 
@@ -761,7 +762,7 @@ declare default values that the `.agentrc.json` template could mirror.
    because per-Story sub-agents may exit abruptly and a buffered tail
    would silently disappear on `process.exit`.
 4. **Detector thresholds are operator-tunable.**
-   `agentSettings.limits.signals` is the single declarative surface;
+   `delivery.signals` is the single declarative surface;
    `SIGNALS_DEFAULTS` in `.agents/scripts/lib/config/limits.js` is the
    canonical default block (`hotspot.p95Multiplier=1.25`,
    `rework.editsPerFile=5`, `churn.repeatCount=4`,
@@ -986,9 +987,10 @@ ADR if the trade-off proves wrong.
     `story-deliver.md`), top-level scripts (`epic-plan*.js`,
     `story-*.js`, `epic-*.js`), helper `.md` files under
     `workflows/helpers/`, and the config key
-    `agentSettings.sprintClose.runRetro` →
-    `agentSettings.epicClose.runRetro` (with a one-release shim that
-    logs a deprecation warning when the legacy key is read).
+    the legacy `sprintClose/runRetro` key →
+    `epicClose/runRetro` under the pre-reshape top-level block (with a
+    one-release shim that logs a deprecation warning when the legacy
+    key is read).
   - Kept: structured-comment markers (`epic-run-state`,
     `epic-plan-state`, `dispatch-manifest`, `story-init`,
     `code-review`, `retro-complete` — already epic-shaped where it
@@ -1048,9 +1050,10 @@ config-key rename ships with a one-release shim so a typical
   going forward; if you genuinely need a GitHub-Action driver,
   re-introduce it as an out-of-tree workflow that invokes the local
   CLI scripts directly.
-- **For consumer `.agentrc.json` files.** Rename
-  `agentSettings.sprintClose.runRetro` → `agentSettings.epicClose.runRetro`
-  on your next edit. The legacy key still reads with a one-shot
+- **For consumer `.agentrc.json` files.** Rename the legacy
+  `sprintClose/runRetro` key → `epicClose/runRetro` under the
+  pre-reshape top-level block on your next edit. The legacy key
+  still reads with a one-shot
   deprecation warning until removal in 5.32.0.
 - **For sub-agent prompt budget.** Story sub-agents now share the
   parent session's context budget instead of getting a fresh
@@ -1366,9 +1369,10 @@ Concretely:
 - **`null` for disabled commands.** `commands.typecheck` and `commands.build`
   accept `string | null`; an empty string is rejected. `null` is the
   canonical "not applicable" value.
-- **Conditional `orchestration.github` requirement.** When
-  `orchestration.provider` is `"github"`, the `github` block (with required
-  `owner` and `repo`) is schema-required.
+- **Conditional `github` block requirement.** The `github` block (with
+  required `owner` and `repo`) is schema-required at the top level
+  post-reshape; pre-reshape this was a conditional under the legacy
+  `orchestration` umbrella, gated by a `provider` selector.
 - **Static JSON Schema mirror.** Both shipped configs declare
   `"$schema": "./.agents/schemas/agentrc.schema.json"`. The runtime AJV
   schemas in `lib/config-schema.js` and `lib/config-settings-schema.js`
@@ -1377,8 +1381,8 @@ Concretely:
 - **Schema-driven sync helper.** `agents-sync-config` now validates the
   project config against the schema, adds template-introduced keys, and
   preserves every project-side key that validates — including optional keys
-  absent from the template (e.g. `orchestration.concurrency`, `closeRetry`,
-  `poolMode`). Validation failures abort with a diagnostic instead of
+  absent from the template (e.g. the legacy `concurrency`, `closeRetry`,
+  `poolMode` blocks). Validation failures abort with a diagnostic instead of
   silently stripping unknown keys.
 - **Canonical baselines under `/baselines/`.** `baselines/lint.json`,
   `baselines/crap.json`, and `baselines/maintainability.json` are the
@@ -1437,7 +1441,7 @@ applies now that the MCP server is gone.
 ### Context
 
 Version 5.0 introduced the `mandrel` MCP server
-(`.agents/scripts/mcp-orchestration.js`) as a JSON-RPC 2.0 facade over the
+(`.agents/scripts/mcp-orchestration script`) as a JSON-RPC 2.0 facade over the
 orchestration SDK. The stated goal was letting an MCP-capable host (Claude
 Desktop, Cursor) call `dispatch_wave`, `hydrate_context`,
 `transition_ticket_state`, `cascade_completion`, `post_structured_comment`,
@@ -1469,7 +1473,7 @@ By early 2026-04 two costs had compounded against that value:
 
 Retire the `mandrel` MCP server and its companion artefacts:
 
-- Delete `.agents/scripts/mcp-orchestration.js` and everything under
+- Delete `.agents/scripts/mcp-orchestration script` and everything under
   `.agents/scripts/lib/mcp/` and `.agents/scripts/mcp/`.
 - Delete the dedicated MCP docs (`.agents/MCP.md`, `docs/mcp-setup.md`).
 - Drop the `mandrel` block from `.agents/default-mcp.json` and stop
@@ -1509,7 +1513,7 @@ removal, not a logic change.
   `type` drift (ADR-20260422-441b) is no longer a possible failure mode
   because there is no parallel writer.
 - **Positive:** `.mcp.json` is no longer load-bearing for framework
-  orchestration. Operators provision secrets in `.env` (local) or the
+  orchestration; operators provision secrets in `.env` (local) or the
   Claude Code web env-var UI (web); `.mcp.json` is reserved for the
   MCP host's own discovery of third-party servers.
 - **Positive:** Worktree bootstrap drops `.mcp.json` from its copy list;
@@ -1556,13 +1560,13 @@ sessions on a developer machine (one shared filesystem, multiple agents) and
 web Claude Code sessions at claude.ai/code (each session is its own sandboxed
 clone). The shared-filesystem coordination problem that `.worktrees/` solves
 locally does not exist on web — the session itself is already an isolated
-clone. A single committed `orchestration.worktreeIsolation.enabled` value
+clone. A single committed `delivery.worktreeIsolation.enabled` value
 cannot serve both: flipping it between local and web runs would pollute git
 history and confuse other contributors.
 
 ### Decision
 
-`orchestration.worktreeIsolation.enabled` becomes a **resolved** value, not
+`delivery.worktreeIsolation.enabled` becomes a **resolved** value, not
 just a read value. `resolveWorktreeEnabled(opts, env)` in
 `lib/config-resolver.js` consults environment signals before falling back to
 the committed config. Precedence:
@@ -1571,7 +1575,7 @@ the committed config. Precedence:
 2. `env.AP_WORKTREE_ENABLED === 'false'` → `false` (explicit operator
    override).
 3. `env.CLAUDE_CODE_REMOTE === 'true'` → `false` (web-session auto-detect).
-4. Otherwise → committed `orchestration.worktreeIsolation.enabled`.
+4. Otherwise → committed `delivery.worktreeIsolation.enabled`.
 
 The same resolver also publishes `runtime.sessionId`, preferring
 `CLAUDE_CODE_REMOTE_SESSION_ID` when available (set automatically inside web
@@ -1714,7 +1718,7 @@ submodule paths are internal implementation detail.
 
 *   **Positive:**
     *   No caller needs to change — `dispatcher.js`,
-        `mcp-orchestration.js`, `sprint-story-{init,close}.js`, and every
+        `mcp-orchestration script`, `sprint-story-{init,close}.js`, and every
         test file continue to import from the existing paths.
     *   Each submodule owns one responsibility and is individually
         unit-testable; 65 new per-submodule tests landed alongside the
@@ -1860,7 +1864,9 @@ submodule paths are internal implementation detail.
 
 *   **Status:** Accepted (Epic #380 Story #388, v5.15.1).
 *   **Context:** `notify.js` dispatches via the Make.com webhook
-    configured in `orchestration.notificationWebhookUrl`. It is the
+    configured via the `NOTIFICATION_WEBHOOK_URL` env var (formerly the
+    legacy `notificationWebhookUrl` key under the pre-reshape
+    `orchestration` block). It is the
     right surface for operator pings ("your story needs review") but
     the wrong surface for retro bodies, which are long-form markdown
     with internal-only friction analysis. v5.15.0 routed retros through
@@ -2253,7 +2259,7 @@ submodule paths are internal implementation detail.
     onto one ratchet.
 *   **Decision:** Ship CRAP as a **sibling pipeline** with its own baseline
     artefact (`crap-baseline.json`), CLIs (`check-crap`, `update-crap-
-    baseline`), and config block (`agentSettings.maintainability.crap`).
+    baseline`), and config block (`delivery.quality.gates.crap`).
     Wire it at the same three sites as MI (close-validation, ci.yml, pre-
     push) but enforce a **hybrid** model: tracked methods ratchet with line-
     drift fallback; new methods must score ≤ `newMethodCeiling` (default 30,

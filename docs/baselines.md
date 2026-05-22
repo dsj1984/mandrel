@@ -242,7 +242,7 @@ are rejected with an explanatory error.
 
 For the full configuration surface (every gate-level key with defaults
 and types) see [`docs/configuration.md`](configuration.md) and the
-`agentSettings.quality.*` section.
+`delivery.quality.*` section.
 
 ### Shipped surface vs follow-up
 

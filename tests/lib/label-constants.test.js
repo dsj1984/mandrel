@@ -57,10 +57,7 @@ test('PLANNING_LABELS.HEALTHCHECK_WAIVED equals "planning::healthcheck-waived"',
 
 test('PLANNING_HEALTHCHECK_WAIVED named export mirrors PLANNING_LABELS.HEALTHCHECK_WAIVED', () => {
   assert.equal(PLANNING_HEALTHCHECK_WAIVED, 'planning::healthcheck-waived');
-  assert.equal(
-    PLANNING_HEALTHCHECK_WAIVED,
-    PLANNING_LABELS.HEALTHCHECK_WAIVED,
-  );
+  assert.equal(PLANNING_HEALTHCHECK_WAIVED, PLANNING_LABELS.HEALTHCHECK_WAIVED);
 });
 
 test('AJV settings schema accepts planning::healthcheck-waived in every planning-label enum', async () => {

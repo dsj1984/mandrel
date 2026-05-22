@@ -66,7 +66,7 @@ From zero to shipped:
       full env access in the operator's local session.
    7. **Phase 7 — finalize** — pushes `epic/<epicId>` to `origin`,
       opens a pull request to `main`, sets the required-checks
-      expectation from `agentSettings.quality.prGate.checks`, and
+      expectation from `github.branchProtection.requiredChecks`, and
       posts the hand-off comment naming the PR URL. The Epic stays
       at `agent::executing` until the PR merges; the standard
       label-transition pathway flips it to `agent::done` on merge.
@@ -223,9 +223,9 @@ orchestration engine depends on.
 3. **Run bootstrap.** Execute `/agents-bootstrap-github` (or
    `node .agents/scripts/agents-bootstrap-github.js`). Idempotently creates
    the label taxonomy and optional GitHub Project V2 fields, and — when
-   `agentSettings.quality.prGate.enforceBranchProtection` is `true`
+   `github.branchProtection.enforce` is `true`
    (default) — creates or merges branch protection on `main` with the
-   project's `prGate.checks` as required status checks. This step is
+   project's `github.branchProtection.requiredChecks` as required status checks. This step is
    load-bearing for the SDL because PR merges to `main` are the sole
    promotion gate.
 
@@ -529,7 +529,7 @@ Whether the Story is launched directly by the operator or fanned out by
    - Verifies all upstream dependencies are satisfied.
    - Syncs the Epic base branch with `main`.
    - Creates or seeds the Story branch (in a worktree when
-     `orchestration.worktreeIsolation.enabled: true`).
+     `delivery.worktreeIsolation.enabled: true`).
    - Transitions the Story to `agent::executing` (child Tasks start in
      the `/story-deliver` loop via `story-task-progress.js`).
 2. **Task implementation.** The agent executes each Task sequentially on the
@@ -609,8 +609,9 @@ wrapped in a bounded retry: on rejection the script fetches
 `origin/epic/<id>`, replays the Story merge on top of the new remote tip,
 and pushes again. Bounds:
 
-- `orchestration.runners.storyMergeRetry.maxAttempts` — default 3.
-- `orchestration.runners.storyMergeRetry.backoffMs` — default `[250, 500, 1000]`.
+- `DEFAULT_STORY_MERGE_RETRY.maxAttempts` (framework-internal constant in
+  `.agents/scripts/lib/config/runners.js`) — 3.
+- `DEFAULT_STORY_MERGE_RETRY.backoffMs` (same module) — `[250, 500, 1000]`.
 
 A real content conflict (both stories touched the same lines) aborts the
 loop with a clear error, leaves the local tree clean, and exits non-zero for
@@ -914,7 +915,7 @@ report and posts it as a ticket comment via the `ITicketingProvider`.
   into `close-validation` after `check-maintainability`, the `ci.yml` step
   after `test:coverage`, and `.husky/pre-push`. Tracks complexity × coverage
   risk per method against `baselines/crap.json`. Self-skips when
-  `agentSettings.quality.crap.enabled` is `false`. The
+  `delivery.quality.gates.crap.enabled` is `false`. The
   `baseline-refresh:`-tagged commit convention for baseline edits is the
   project standard; the operator is the gate during `/epic-deliver`
   `delivery.finalize` state (the prior CI guardrail that enforced the tag was removed).
@@ -953,7 +954,7 @@ Severity vocabulary (assigned by callers; `eventSeverity()` in
 | `medium` | Operator-visible milestones: Story state transitions, `wave-run-progress`, `epic-run-progress`, story merged, epic complete. | `[medium]`           |
 | `high`   | Operator must act (HITL gates, epic blockers, autonomous-chain failures). Message body should also lead with `🚨 Action Required:`. | `[Action Required]`  |
 
-Two independent event-allowlist knobs in `orchestration.notifications`
+Two independent event-allowlist knobs in `github.notifications`
 (both mandatory):
 
 - `commentEvents` — event-name allowlist for GitHub-ticket comment
