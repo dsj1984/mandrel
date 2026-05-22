@@ -168,12 +168,16 @@ export async function buildDefaultListenerChain(opts = {}) {
   acceptanceReconciler.register();
   order.push('AcceptanceReconciler');
 
-  // 3. Finalizer — opens the PR on acceptance.reconcile.ok and (Story
-  //    #2555) auto-graduates non-blocking code-review findings into
-  //    routed follow-up issues. The graduator step is best-effort and
-  //    is silently skipped when `provider` / `currentRepo` are not
-  //    wired in (e.g. lifecycle-emit CLI). `currentRepo` is resolved
-  //    from `config.github.{owner,repo}`; `frameworkRepo` from
+  // 3. Finalizer — opens the PR on acceptance.reconcile.ok via the
+  //    bus-owned default (`composeBusOwnedFinalize`, Story #2894), which
+  //    chains openOrLocatePr → closePlanningTickets → postHandoffComment
+  //    and emits `epic.merge.ready` on success. The legacy
+  //    `d1-default-no-op` blocker is gone; the listener constructed with
+  //    no `runFinalizeFn` override always runs the real flow. The
+  //    code-review / audit-results graduator steps (Stories #2555 /
+  //    #2615) remain best-effort and are silently skipped when
+  //    `provider` / `currentRepo` are not wired in. `currentRepo` is
+  //    resolved from `config.github.{owner,repo}`; `frameworkRepo` from
   //    `config.github.frameworkRepo` when distinct, otherwise omitted.
   const currentRepo =
     config?.github?.owner && config?.github?.repo

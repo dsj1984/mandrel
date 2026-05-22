@@ -1,8 +1,9 @@
 // .agents/scripts/lib/orchestration/lifecycle/listeners/finalizer.js
 /**
  * Finalizer — lifecycle listener that owns the finalize-phase side
- * effects (push of `epic/<id>` + `gh pr create`) gated on a successful
- * acceptance reconciliation. Story #2253 / Task #2254 (Epic #2172).
+ * effects gated on a successful acceptance reconciliation. Story #2253
+ * / Task #2254 (Epic #2172); promoted to a fully bus-owned writer in
+ * Story #2894 / Task #2917 (Epic #2880).
  *
  * Subscribes to:
  *   - `acceptance.reconcile.ok` → run finalize. The Finalizer
@@ -12,32 +13,37 @@
  *
  * Side effects executed inside `handle()`:
  *   1. Emit `epic.finalize.start`.
- *   2. FF check + `git push origin epic/<id>` via the legacy
- *      `runEpicDeliverFinalize` collaborator (passed as
- *      `runFinalizeFn`).
+ *   2. Auto-graduate non-blocking code-review / audit-results findings
+ *      (best-effort; never throws).
  *   3. Idempotency probe — `gh pr list --head epic/<id>` returns any
- *      existing PR URL. If one exists, short-circuit to a `pr.created`
- *      emit carrying that URL (no new PR opened).
- *   4. Otherwise, the wrapped finalize call runs `gh pr create` and
- *      returns the new PR URL.
- *   5. Emit `pr.created` then `epic.finalize.end`.
+ *      existing PR URL. If one exists, short-circuit to `pr.created`
+ *      + `epic.merge.ready` carrying the existing URL.
+ *   4. Otherwise, invoke `runFinalizeFn`. The production default
+ *      (`composeBusOwnedFinalize`) chains
+ *        a. `openOrLocatePr({ epicId, headBranch, baseBranch })`
+ *        b. `closePlanningTickets({ epicId, provider })`
+ *        c. `postHandoffComment({ epicId, prNumber, prUrl, provider })`
+ *      and returns `{ prNumber, prUrl, planningClose, handoff }`.
+ *   5. Emit `pr.created`, `epic.finalize.end`, and `epic.merge.ready`.
  *
- * Idempotency contract (AC-10): the `(event, seqId)` short-circuit on
- * the listener defends against bus-level replays; the
- * `gh pr list --head` probe defends against cross-process re-runs
- * (`/epic-deliver` restarted on the same branch after a crash). Either
- * is sufficient by itself; defence in depth is intentional.
+ * `epic.merge.ready` is the trigger AutomergeArmer waits on for the
+ * `--auto` arm. Phase 8.5's `epic.automerge.start` emit replays the
+ * same event from the predicate-gated path; both emitters share the
+ * `epic.merge.ready` schema.
  *
- * Side-effect firewall: the listener emits on the bus and shells out
- * to `gh`/`git`. It does NOT mutate ticket labels, post comments, or
- * call `notify` — those listeners receive `pr.created` /
- * `epic.finalize.end` and own their own side effects.
+ * Idempotency contract (AC-10): two-layer defence.
+ *   1. Per-instance `Set<string>` of `${event}:${seqId}` keys — bus-
+ *      level replays short-circuit.
+ *   2. The `gh pr list --head` probe + `openOrLocatePr`'s internal
+ *      locate path — both defend against cross-process re-runs
+ *      (`/epic-deliver` restarted on the same branch after a crash).
  *
- * Why a thin wrapper around `runEpicDeliverFinalize`: the legacy CLI
- * already implements FF + push + PR-create with the right retry
- * semantics; rebuilding it inside the listener would duplicate a
- * battle-tested code path. The wrapper extracts the PR URL from that
- * envelope and converts it into the lifecycle emits.
+ * Side-effect firewall: the listener emits on the bus, shells out to
+ * `gh`/`git` (via the helpers), and upserts the `epic-handoff`
+ * structured comment via `postHandoffComment`. It does NOT mutate Epic
+ * state labels or call `notify` directly — those listeners receive
+ * `pr.created` / `epic.finalize.end` / `epic.merge.ready` and own
+ * their own side effects.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -47,29 +53,124 @@ import {
   isAutoFileEnabled as isAuditResultsAutoFileEnabled,
 } from '../../../feedback-loop/audit-results-graduator.js';
 import { graduateFindings as defaultGraduateFindings } from '../../../feedback-loop/code-review-graduator.js';
+import { closePlanningTickets as defaultClosePlanningTickets } from '../../finalize/close-planning-tickets.js';
+import { openOrLocatePr as defaultOpenOrLocatePr } from '../../finalize/open-or-locate-pr.js';
+import { postHandoffComment as defaultPostHandoffComment } from '../../finalize/post-handoff-comment.js';
 
 /**
- * Default `runFinalizeFn` — a no-op for D-1 (Epic #2306 Story #2319).
+ * Build the production default `runFinalizeFn` that composes the three
+ * bus-owned finalize helpers. Exported as a factory so the listener can
+ * inject the provider (which the default needs but tests inject by
+ * supplying their own `runFinalizeFn` outright).
  *
- * The legacy `runEpicDeliverFinalize` CLI was collapsed to an emit
- * shim that fires `epic.close.end`; invoking it from inside the
- * Finalizer listener would re-enter the close-tail chain through
- * AcceptanceReconciler and recurse. Until a follow-up Story lifts the
- * FF + push + `gh pr create` flow into the listener body itself,
- * production callers MUST inject a working `runFinalizeFn`. Returning
- * a `blocker: 'd1-default-no-op'` here keeps the listener honest:
- * production runs that forget to wire the dependency degrade
- * loudly (the classification surface records the gap), and unit /
- * contract tests already inject their own stub via
- * `opts.runFinalizeFn`.
+ * Returns `{ prNumber, prUrl, planningClose, handoff }` on success, or
+ * `{ blocker: { reason, detail } }` when a step fails with an
+ * unrecoverable error that should keep the Epic at `agent::blocked`.
+ *
+ * @param {{
+ *   provider?: object|null,
+ *   openOrLocatePrFn?: typeof defaultOpenOrLocatePr,
+ *   closePlanningTicketsFn?: typeof defaultClosePlanningTickets,
+ *   postHandoffCommentFn?: typeof defaultPostHandoffComment,
+ * }} deps
  */
-function defaultRunEpicDeliverFinalize() {
-  return {
-    blocker: {
-      reason: 'd1-default-no-op',
-      detail:
-        'Finalizer was constructed without an explicit runFinalizeFn; the D-1 shim cannot push or open a PR. Pass opts.runFinalizeFn to wire the production flow.',
-    },
+export function composeBusOwnedFinalize(deps = {}) {
+  const openOrLocatePrFn = deps.openOrLocatePrFn ?? defaultOpenOrLocatePr;
+  const closePlanningTicketsFn =
+    deps.closePlanningTicketsFn ?? defaultClosePlanningTickets;
+  const postHandoffCommentFn =
+    deps.postHandoffCommentFn ?? defaultPostHandoffComment;
+  const provider = deps.provider ?? null;
+
+  return async function runBusOwnedFinalize({ epicId, cwd } = {}) {
+    if (!Number.isInteger(epicId) || epicId < 1) {
+      return {
+        blocker: {
+          reason: 'invalid-epicId',
+          detail: `runFinalizeFn called with invalid epicId ${epicId}`,
+        },
+      };
+    }
+    let openResult;
+    try {
+      openResult = await openOrLocatePrFn({
+        epicId,
+        headBranch: `epic/${epicId}`,
+        baseBranch: 'main',
+        cwd,
+      });
+    } catch (err) {
+      return {
+        blocker: {
+          reason: 'open-or-locate-pr-failed',
+          detail: err?.message ?? String(err),
+        },
+      };
+    }
+    if (
+      !openResult ||
+      !Number.isInteger(openResult.prNumber) ||
+      typeof openResult.url !== 'string'
+    ) {
+      return {
+        blocker: {
+          reason: 'open-or-locate-pr-empty',
+          detail: 'openOrLocatePr returned no { prNumber, url } envelope',
+        },
+      };
+    }
+
+    // Planning-ticket close + handoff comment require a provider.
+    // The lifecycle-emit CLI may construct the Finalizer without one;
+    // in that case both steps short-circuit with a 'skipped' marker
+    // (the run itself still succeeds — the PR is open and the bus can
+    // arm auto-merge).
+    let planningClose = null;
+    if (provider) {
+      try {
+        planningClose = await closePlanningTicketsFn({
+          epicId,
+          provider,
+        });
+      } catch (err) {
+        return {
+          blocker: {
+            reason: 'close-planning-tickets-failed',
+            detail: err?.message ?? String(err),
+          },
+        };
+      }
+    }
+
+    let handoff = null;
+    if (provider) {
+      try {
+        handoff = await postHandoffCommentFn({
+          epicId,
+          prNumber: openResult.prNumber,
+          prUrl: openResult.url,
+          provider,
+        });
+      } catch (err) {
+        // Handoff is best-effort — failing to upsert the marker comment
+        // should not roll back the PR open. Surface as a non-blocker so
+        // the Finalizer still emits pr.created and arms downstream.
+        handoff = {
+          marker: 'epic-handoff',
+          commentId: null,
+          error: err?.message ?? String(err),
+        };
+      }
+    }
+
+    return {
+      epicId,
+      prNumber: openResult.prNumber,
+      prUrl: openResult.url,
+      created: openResult.created,
+      planningClose,
+      handoff,
+    };
   };
 }
 
@@ -86,7 +187,6 @@ function defaultRunEpicDeliverFinalize() {
 export function extractPrUrl(stdout) {
   const trimmed = String(stdout || '').trim();
   if (trimmed.length === 0) return null;
-  // JSON array form: try parse and pull the first url.
   if (trimmed.startsWith('[')) {
     try {
       const parsed = JSON.parse(trimmed);
@@ -101,22 +201,17 @@ export function extractPrUrl(stdout) {
       return null;
     }
   }
-  // Raw URL form.
-  const match = trimmed.match(/^https:\/\/github\.com\/[^\s]+\/pull\/\d+/);
+  const match = trimmed.match(/^https:\/\/github\.com\/[^\s]+\/pull\/(\d+)/);
   return match ? match[0] : null;
 }
 
 /**
- * Default `gh` spawn used by the listener. The legacy
- * `epic-deliver-finalize` exports `GH_SPAWN_USES_SHELL = false`; we
- * mirror that contract here so a future Windows audit doesn't have to
- * grep across two modules. Exported so tests can stub.
+ * Default `gh` spawn used by the listener's idempotency probe.
+ * Mirrors the `shell: false` contract `openOrLocatePr` and the other
+ * listener helpers use so a future Windows audit doesn't have to grep
+ * across two modules. Exported so tests can stub.
  */
 export function ghPrListHead({ epicBranch, cwd, spawnFn = spawnSync }) {
-  // `--json url --jq '.[0].url'` collapses to either an empty string
-  // (no PR) or the URL alone. Even without `gh` jq support the JSON
-  // array form is parsed by `extractPrUrl`, so the listener is robust
-  // to either output shape.
   const result = spawnFn(
     'gh',
     ['pr', 'list', '--head', epicBranch, '--json', 'url', '--jq', '.[0].url'],
@@ -130,6 +225,20 @@ export function ghPrListHead({ epicBranch, cwd, spawnFn = spawnSync }) {
 }
 
 /**
+ * Extract the PR number from a canonical github.com PR URL. Returns
+ * null when the URL does not match `/pull/<digits>`. Pure helper —
+ * used to derive `prNumber` for the `epic.merge.ready` emit when the
+ * existing-PR short-circuit path returns only a URL.
+ */
+export function extractPrNumber(prUrl) {
+  if (typeof prUrl !== 'string') return null;
+  const m = prUrl.match(/\/pull\/(\d+)(?:[/?#]|$)/);
+  if (!m) return null;
+  const n = Number.parseInt(m[1], 10);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+/**
  * Finalizer listener.
  */
 export class Finalizer {
@@ -138,28 +247,21 @@ export class Finalizer {
    * @param {object} opts.bus
    * @param {number} opts.epicId
    * @param {string} [opts.cwd]
-   * @param {boolean} [opts.fullScope] passed through to
-   *   `runEpicDeliverFinalize`; defaults to false (diff-scope).
-   * @param {Function} [opts.runFinalizeFn] override of
-   *   `runEpicDeliverFinalize` for tests.
+   * @param {boolean} [opts.fullScope] forwarded to `runFinalizeFn`;
+   *   defaults to false (diff-scope).
+   * @param {Function} [opts.runFinalizeFn] override of the composed
+   *   bus-owned finalize default; tests inject their own stub.
    * @param {Function} [opts.ghPrListHeadFn] override of the
    *   idempotency probe.
-   * @param {object} [opts.provider] Ticketing provider forwarded to the
-   *   code-review graduator (Story #2555 / Epic #2547). When omitted,
-   *   the graduator step is skipped — auto-filing is best-effort.
+   * @param {object} [opts.provider] Ticketing provider forwarded to
+   *   the default `runFinalizeFn` (for `closePlanningTickets` /
+   *   `postHandoffComment`) and to the graduators.
    * @param {object} [opts.config] Resolved agent config; forwarded to
-   *   the graduator so the `delivery.feedbackLoop.codeReviewAutoFile`
-   *   toggle is honoured.
-   * @param {{owner:string,repo:string}} [opts.currentRepo] Repo the
-   *   listener is running in; used by the graduator's cross-repo guard.
-   * @param {{owner:string,repo:string}} [opts.frameworkRepo] Optional
-   *   framework-repo override for source-tagged finding routing.
-   * @param {Function} [opts.graduateFindingsFn] Override of the
-   *   `graduateFindings` helper for tests.
-   * @param {Function} [opts.graduateAuditResultsFn] Override of the
-   *   `graduateAuditResults` helper for tests (Story #2615 / Epic
-   *   #2586). When `delivery.feedbackLoop.auditResultsAutoFile === false`
-   *   the listener short-circuits and never invokes this function.
+   *   the graduators.
+   * @param {{owner:string,repo:string}} [opts.currentRepo]
+   * @param {{owner:string,repo:string}} [opts.frameworkRepo]
+   * @param {Function} [opts.graduateFindingsFn]
+   * @param {Function} [opts.graduateAuditResultsFn]
    * @param {{ info?: Function, warn?: Function, debug?: Function }} [opts.logger]
    */
   constructor(opts = {}) {
@@ -177,9 +279,11 @@ export class Finalizer {
     this.epicId = opts.epicId;
     this.cwd = opts.cwd ?? process.cwd();
     this.fullScope = opts.fullScope === true;
-    this.runFinalizeFn = opts.runFinalizeFn ?? defaultRunEpicDeliverFinalize;
-    this.ghPrListHeadFn = opts.ghPrListHeadFn ?? ghPrListHead;
     this.provider = opts.provider ?? null;
+    this.runFinalizeFn =
+      opts.runFinalizeFn ??
+      composeBusOwnedFinalize({ provider: this.provider });
+    this.ghPrListHeadFn = opts.ghPrListHeadFn ?? ghPrListHead;
     this.config = opts.config ?? null;
     this.currentRepo = opts.currentRepo ?? null;
     this.frameworkRepo = opts.frameworkRepo ?? null;
@@ -240,23 +344,19 @@ export class Finalizer {
     }
 
     // 1b. Auto-graduate non-blocking code-review findings (Story #2555).
-    //     Best-effort: never throws, listener failures are logged but
-    //     do NOT block the finalize phase. Skipped silently when the
-    //     provider / currentRepo wiring is absent (e.g. lifecycle-emit
-    //     CLI runs without a provider).
     await this._runCodeReviewGraduation();
 
-    // 1c. Auto-graduate non-blocking audit-results findings (Story
-    //     #2615 / Epic #2586). Same best-effort contract as 1b; the
-    //     `delivery.feedbackLoop.auditResultsAutoFile` toggle is checked
-    //     up-front so the function is never invoked when disabled.
+    // 1c. Auto-graduate non-blocking audit-results findings (Story #2615).
     await this._runAuditResultsGraduation();
 
     // 2. Idempotency probe — does a PR already exist on the head
     //    branch? If yes, short-circuit to a pr.created emit with the
     //    existing URL. This is the AC-10 contract for the most-risky
     //    non-trivial idempotency case (cross-process re-run after a
-    //    crash between `gh pr create` and `pr.created` emit).
+    //    crash between `gh pr create` and `pr.created` emit). The
+    //    bus-owned default `runFinalizeFn` also re-checks via
+    //    `openOrLocatePr`; the listener-level probe is defence in
+    //    depth and keeps the existing test surface stable.
     const probe = this.ghPrListHeadFn({ epicBranch, cwd: this.cwd });
     if (probe.status === 0) {
       const existingUrl = extractPrUrl(probe.stdout);
@@ -264,10 +364,12 @@ export class Finalizer {
         this.logger.info?.(
           `[Finalizer] PR already open for ${epicBranch}: ${existingUrl} — short-circuiting create.`,
         );
-        await this._emitPrCreated({
+        const prNumber = extractPrNumber(existingUrl);
+        await this._emitFinalize({
           event,
           seqId,
           prUrl: existingUrl,
+          prNumber,
           epicBranch,
           base: this._resolveBase(),
           outcome: 'existing',
@@ -275,21 +377,15 @@ export class Finalizer {
         return;
       }
     } else {
-      // `gh pr list` itself failed; degrade to "no probe" rather than
-      // throwing — the legacy finalize CLI will surface its own error
-      // if push/create fails. We log the probe failure for audit.
       this.logger.warn?.(
         `[Finalizer] gh pr list probe failed (status=${probe.status}): ${probe.stderr} — proceeding with create.`,
       );
     }
 
-    // 3. Run the legacy finalize. The CLI owns FF check + hotspot +
-    //    baseline + push + `gh pr create`; we just thread the result
-    //    into emit events. The CLI's inline acceptance reconciliation
-    //    is still in place but is a no-op on the happy path (we just
-    //    proved reconciliation passed by virtue of subscribing to
-    //    `.ok`); leaving it in place during the cutover keeps the
-    //    legacy direct-CLI invocation safe.
+    // 3. Run the composed bus-owned finalize (or the test-injected
+    //    `runFinalizeFn`). The default chains openOrLocatePr →
+    //    closePlanningTickets → postHandoffComment in order and
+    //    returns `{ prNumber, prUrl, planningClose, handoff }`.
     let finalize;
     try {
       finalize = await this.runFinalizeFn({
@@ -306,7 +402,7 @@ export class Finalizer {
         reason: `finalize-threw:${err?.message ?? err}`,
       });
       this.logger.warn?.(
-        `[Finalizer] runEpicDeliverFinalize threw (swallowed): ${err?.message ?? err}`,
+        `[Finalizer] runFinalizeFn threw (swallowed): ${err?.message ?? err}`,
       );
       return;
     }
@@ -332,15 +428,20 @@ export class Finalizer {
         reason: 'no-pr-url',
       });
       this.logger.warn?.(
-        '[Finalizer] runEpicDeliverFinalize returned no prUrl — cannot emit pr.created.',
+        '[Finalizer] runFinalizeFn returned no prUrl — cannot emit pr.created.',
       );
       return;
     }
+    const prNumber =
+      typeof finalize?.prNumber === 'number'
+        ? finalize.prNumber
+        : extractPrNumber(prUrl);
 
-    await this._emitPrCreated({
+    await this._emitFinalize({
       event,
       seqId,
       prUrl,
+      prNumber,
       epicBranch,
       base: this._resolveBase(),
       outcome: 'opened',
@@ -396,15 +497,6 @@ export class Finalizer {
    * Invoke the audit-results graduator best-effort. Wired into finalize
    * so that non-blocking audit findings (high/medium/low/suggestion) get
    * auto-filed as routed follow-up issues — Story #2615 / Epic #2586.
-   *
-   * Unlike the code-review graduator (which is always invoked and short-
-   * circuits internally on its toggle), this method gates the call on
-   * `delivery.feedbackLoop.auditResultsAutoFile` BEFORE invoking the
-   * graduator. AC requires the function not to run when the toggle is
-   * disabled, so the gate lives in the listener.
-   *
-   * All failures are captured and logged at warn level; the finalize
-   * pipeline continues regardless.
    */
   async _runAuditResultsGraduation() {
     if (!this.provider || !this.currentRepo) {
@@ -450,11 +542,24 @@ export class Finalizer {
   }
 
   /**
-   * Emit `pr.created` then `epic.finalize.end` in strict order. Helper
+   * Emit the canonical finalize-success trio: `pr.created` →
+   * `epic.finalize.end` → `epic.merge.ready` in strict order. Helper
    * carved out so the existing-PR short-circuit and the freshly-opened
    * path share the same emit sequence.
+   *
+   * `epic.merge.ready` carries `{ prUrl, prNumber, epicId }` so the
+   * AutomergeArmer can arm `--auto` without re-resolving the PR
+   * number from the URL.
    */
-  async _emitPrCreated({ event, seqId, prUrl, epicBranch, base, outcome }) {
+  async _emitFinalize({
+    event,
+    seqId,
+    prUrl,
+    prNumber,
+    epicBranch,
+    base,
+    outcome,
+  }) {
     this.classifications.push({ event, seqId, outcome, prUrl });
     try {
       await this.bus.emit('pr.created', {
@@ -475,6 +580,17 @@ export class Finalizer {
     } catch (err) {
       this.logger.warn?.(
         `[Finalizer] epic.finalize.end emit failed (swallowed): ${err?.message ?? err}`,
+      );
+    }
+    try {
+      const payload = { prUrl, epicId: this.epicId };
+      if (Number.isInteger(prNumber) && prNumber > 0) {
+        payload.prNumber = prNumber;
+      }
+      await this.bus.emit('epic.merge.ready', payload);
+    } catch (err) {
+      this.logger.warn?.(
+        `[Finalizer] epic.merge.ready emit failed (swallowed): ${err?.message ?? err}`,
       );
     }
   }
