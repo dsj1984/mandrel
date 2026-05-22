@@ -482,10 +482,11 @@ async function markEpicBlockedForCriticalReview({
   bus,
 }) {
   try {
-    await bus.emit('epic.blocked', {
-      reason: 'critical-findings',
-      ...(detail ? { detail } : {}),
-    });
+    // The `epic.blocked` payload schema accepts `reason` (required) and
+    // an optional `sourceStoryId`. The operator-facing detail is carried
+    // in the friction `postComment` below — not in the bus payload —
+    // because the schema is strict (`additionalProperties: false`).
+    await bus.emit('epic.blocked', { reason: 'critical-findings' });
   } catch (err) {
     logger?.warn?.(
       `[close-tail] epic.blocked emit failed (swallowed): ${messageOf(err)}`,
