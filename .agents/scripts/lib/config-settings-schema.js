@@ -503,7 +503,49 @@ const CODE_REVIEW_SCHEMA = {
     // hard-fails with remediation when absent — there is no silent
     // fallback to native. `providerConfig` is an open-shape escape
     // hatch reserved for adapter-specific options.
-    provider: { type: 'string', enum: ['native', 'codex'], default: 'native' },
+    //
+    // Story #2871 added `security-review` to the inline registry plus
+    // a multi-provider `providers: []` chain shape. When `providers` is
+    // set and non-empty, it wins over the legacy single-string
+    // `provider` field. Chain entries can also reference the
+    // `ultrareview` manual-prompt provider via `manualPrompt: true`.
+    provider: {
+      type: 'string',
+      enum: ['native', 'codex', 'security-review'],
+      default: 'native',
+    },
+    providers: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['name'],
+        properties: {
+          name: {
+            type: 'string',
+            enum: ['native', 'codex', 'security-review', 'ultrareview'],
+          },
+          scopes: {
+            type: 'array',
+            items: { type: 'string', enum: ['story', 'epic'] },
+          },
+          optional: { type: 'boolean', default: false },
+          manualPrompt: { type: 'boolean', default: false },
+          when: {
+            type: 'object',
+            properties: {
+              label: { type: 'string', minLength: 1 },
+              labelAny: {
+                type: 'array',
+                items: { type: 'string', minLength: 1 },
+                minItems: 1,
+              },
+            },
+            additionalProperties: false,
+          },
+        },
+        additionalProperties: false,
+      },
+    },
     providerConfig: { type: 'object', additionalProperties: true },
     maxFixAttempts: { type: 'integer', minimum: 0 },
     maxFixScopeFiles: { type: 'integer', minimum: 1 },

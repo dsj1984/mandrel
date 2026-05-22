@@ -116,6 +116,20 @@
       "rework": { "editsPerFile": 5 },
       "retry": { "repeatCount": 3 }
     },
+    "codeReview": {
+      "providers": [
+        { "name": "native" },
+        { "name": "security-review", "scopes": ["epic"], "optional": true },
+        {
+          "name": "ultrareview",
+          "scopes": ["epic"],
+          "manualPrompt": true,
+          "when": { "label": "risk::high" }
+        }
+      ],
+      "maxFixAttempts": 3,
+      "maxFixScopeFiles": 5
+    },
     "quality": {
       "gateScoping": { "scope": "diff", "diffRef": "main" },
       "gates": {

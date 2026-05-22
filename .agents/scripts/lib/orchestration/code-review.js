@@ -257,10 +257,17 @@ export async function runCodeReview(opts = {}) {
 
   try {
     const codeReviewConfig = config?.delivery?.codeReview ?? null;
-    const providerName =
-      (codeReviewConfig && typeof codeReviewConfig.provider === 'string'
-        ? codeReviewConfig.provider
-        : null) ?? 'native';
+    const isChainConfig =
+      codeReviewConfig &&
+      Array.isArray(codeReviewConfig.providers) &&
+      codeReviewConfig.providers.length > 0;
+    const providerName = isChainConfig
+      ? `chain[${codeReviewConfig.providers
+          .map((p) => p?.name ?? '?')
+          .join(',')}]`
+      : ((codeReviewConfig && typeof codeReviewConfig.provider === 'string'
+          ? codeReviewConfig.provider
+          : null) ?? 'native');
     const reviewProvider =
       injectedReviewProvider ?? createReviewProviderFn(codeReviewConfig);
 
@@ -269,17 +276,41 @@ export async function runCodeReview(opts = {}) {
       `[code-review] Running ${providerName} adapter for ${scopeLabel} #${ticketId} (${baseRef}...${headRef})...`,
     );
 
-    const findings = await reviewProvider.runReview({
+    const ticketLabels = Array.isArray(opts.ticketLabels)
+      ? opts.ticketLabels
+      : [];
+    const reviewInput = {
       scope,
       ticketId,
       baseRef,
       headRef,
-    });
+      labels: ticketLabels,
+    };
+
+    const findings = await reviewProvider.runReview(reviewInput);
 
     if (!Array.isArray(findings)) {
       throw new TypeError(
         `[code-review] Review provider "${providerName}" returned a non-array; expected Finding[].`,
       );
+    }
+
+    // Story #2871 — feature-detect manual-prompt providers. Legacy
+    // single-adapter providers don't carry `getPromptMessages`, so the
+    // empty-array fallback keeps the old snapshot byte-stable.
+    let promptMessages = [];
+    if (typeof reviewProvider.getPromptMessages === 'function') {
+      try {
+        const out = await reviewProvider.getPromptMessages(reviewInput);
+        promptMessages = Array.isArray(out) ? out : [];
+      } catch (err) {
+        logger?.warn?.(
+          `[code-review] getPromptMessages threw; treating as empty. ${
+            err?.message ?? err
+          }`,
+        );
+        promptMessages = [];
+      }
     }
 
     const severity = countBySeverity(findings);
@@ -295,6 +326,7 @@ export async function runCodeReview(opts = {}) {
       headRef,
       findings,
       provider: providerName,
+      promptMessages,
     });
 
     let posted = false;

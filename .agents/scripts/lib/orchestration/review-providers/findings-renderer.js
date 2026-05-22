@@ -85,7 +85,36 @@ export function renderFinding(finding) {
 }
 
 /**
+ * Pure: render the optional "Manual review suggestions" section.
+ * Story #2871 — manual-prompt providers (e.g. ultrareview) contribute
+ * one message each; the section is omitted entirely when the input
+ * array is empty so the legacy snapshot stays byte-stable for chains
+ * that carry no prompts.
+ *
+ * Exported for testing.
+ *
+ * @param {ReadonlyArray<string>} messages
+ * @returns {string[]}  lines to append (empty when no messages)
+ */
+export function renderManualPromptsSection(messages) {
+  const filtered = Array.isArray(messages)
+    ? messages.filter((m) => typeof m === 'string' && m.trim().length > 0)
+    : [];
+  if (filtered.length === 0) return [];
+  const lines = ['### 💬 Manual Review Suggestions', ''];
+  for (const message of filtered) {
+    lines.push(`- ${message}`);
+  }
+  lines.push('');
+  return lines;
+}
+
+/**
  * Pure: render the full markdown body for a code-review comment.
+ *
+ * Story #2871 — accepts an optional `promptMessages` field carrying
+ * manual-prompt provider output; rendered as a trailing section when
+ * non-empty.
  *
  * @param {{
  *   scope: ReviewScope,
@@ -94,11 +123,20 @@ export function renderFinding(finding) {
  *   headRef: string,
  *   findings: ReadonlyArray<Finding>,
  *   provider?: string,
+ *   promptMessages?: ReadonlyArray<string>,
  * }} input
  * @returns {string}
  */
 export function renderFindings(input) {
-  const { scope, ticketId, baseRef, headRef, findings, provider } = input;
+  const {
+    scope,
+    ticketId,
+    baseRef,
+    headRef,
+    findings,
+    provider,
+    promptMessages,
+  } = input;
   const counts = countBySeverity(findings);
   const totalKnown =
     counts.critical + counts.high + counts.medium + counts.suggestion;
@@ -140,6 +178,12 @@ export function renderFindings(input) {
         lines.push('');
       }
     }
+  }
+
+  const promptLines = renderManualPromptsSection(promptMessages ?? []);
+  if (promptLines.length > 0) {
+    lines.push('');
+    lines.push(...promptLines);
   }
 
   return lines.join('\n');

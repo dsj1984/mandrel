@@ -7,6 +7,11 @@
  * `findings-renderer` turns that array into the structured-comment body
  * posted to the Story/Epic ticket.
  *
+ * Story #2871 — extends the contract for multi-provider chains and
+ * adds `ManualPromptProvider` for operator-prompt providers
+ * (e.g. ultrareview) that emit a non-blocking suggestion into the
+ * structured comment instead of running a real review.
+ *
  * This file is JSDoc-only — no runtime exports. It exists so other
  * modules and tests have a single canonical reference to import via
  * `@typedef` lookups.
@@ -31,6 +36,41 @@
  *
  * @typedef {object} ReviewProvider
  * @property {(input: ReviewInput) => Promise<Finding[]>} runReview
+ *
+ * Manual-prompt providers (Story #2871) do NOT run a review — they
+ * contribute a one-line operator-facing suggestion to the structured
+ * comment. Used for cloud or user-triggered review tools (e.g.
+ * `/ultrareview`) that cannot be invoked programmatically from a
+ * Node orchestrator.
+ *
+ * @typedef {object} ManualPromptResult
+ * @property {string} message  - Markdown one-liner appended under "Manual review suggestions".
+ *
+ * @typedef {object} ManualPromptProvider
+ * @property {(input: ReviewInput) => Promise<ManualPromptResult>} renderPrompt
+ *
+ * Chain entries (Story #2871) wrap an adapter with metadata used by
+ * the orchestrator to gate invocation per-scope and per-label.
+ *
+ * @typedef {object} ProviderGateContext
+ * @property {ReviewScope}           scope    - Current invocation scope.
+ * @property {ReadonlyArray<string>} labels   - Ticket labels at invocation time.
+ *
+ * @typedef {(ctx: ProviderGateContext) => boolean} ProviderGate
+ *
+ * @typedef {object} InlineChainEntry
+ * @property {string}          name      - Registered provider key (for logs/attribution).
+ * @property {ReviewProvider}  provider  - Constructed inline adapter.
+ * @property {ProviderGate}    gate      - Pure predicate; false → skip this entry.
+ *
+ * @typedef {object} PromptChainEntry
+ * @property {string}                name      - Registered provider key.
+ * @property {ManualPromptProvider}  provider  - Constructed manual-prompt adapter.
+ * @property {ProviderGate}          gate      - Pure predicate; false → skip this entry.
+ *
+ * @typedef {object} ProviderChain
+ * @property {InlineChainEntry[]} inline  - Inline adapters (run, merge Finding[]).
+ * @property {PromptChainEntry[]} prompts - Manual-prompt adapters (render suggestion strings).
  */
 
 export {};

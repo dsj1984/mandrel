@@ -372,6 +372,73 @@ Schema conventions:
 
 ---
 
+## Code review providers (pluggable chain)
+
+`runCodeReview()` (invoked at the end of `/story-deliver`,
+`/single-story-deliver`, and `/epic-deliver`) loads its review backend
+through a pluggable registry. Two configuration shapes are supported:
+
+- **Legacy single provider** — `delivery.codeReview.provider: "native"`
+  (default), `"codex"`, or `"security-review"`. Returns one adapter; one
+  set of findings; one structured comment.
+- **Provider chain** (Story #2871) — `delivery.codeReview.providers: []`
+  iterates a declared list of entries, merges every inline adapter's
+  `Finding[]` in declaration order, and appends a non-blocking
+  "Manual Review Suggestions" section for any manual-prompt entries
+  that contributed text. When both fields are set, `providers` wins.
+
+```json
+{
+  "delivery": {
+    "codeReview": {
+      "providers": [
+        { "name": "native" },
+        { "name": "security-review", "scopes": ["epic"], "optional": true },
+        {
+          "name": "ultrareview",
+          "scopes": ["epic"],
+          "manualPrompt": true,
+          "when": { "label": "risk::high" }
+        }
+      ]
+    }
+  }
+}
+```
+
+Each chain entry accepts:
+
+- `name` (required) — registered key. Inline: `native`, `codex`,
+  `security-review`. Manual-prompt: `ultrareview`.
+- `scopes` — invocation scopes this entry fires on (`["story", "epic"]`).
+  Default is both.
+- `optional` — when `true`, a construction failure (host missing the
+  required CLI/plugin) is logged and the entry is skipped instead of
+  hard-failing the chain. Use for portable configs that ship across
+  Claude and non-Claude runtimes — for example,
+  `security-review` requires the `claude` CLI on PATH and degrades
+  cleanly on a non-Claude host when `optional: true`.
+- `manualPrompt` — when `true`, the entry is loaded from the
+  manual-prompt registry and contributes a one-line operator suggestion
+  via `renderPrompt()` instead of running a real review. Manual-prompt
+  contributions do NOT affect severity counts or the `halted` gate.
+- `when` — optional label predicate evaluated at invocation time
+  against the ticket's labels (`when.label` for a single required
+  label, `when.labelAny` for "any of these"). False predicates skip
+  the entry silently for that run.
+
+Cross-runtime contract: manual-prompt providers (e.g. `ultrareview`)
+emit Markdown only and MUST NEVER throw under any host. Inline
+providers that require a host-specific binary (e.g.
+`security-review` shells out to `claude --print /security-review`)
+SHOULD be declared `optional: true` so non-Claude consumers can pin
+the same `.agents/` version without modifying their config.
+
+The pluggable backend was introduced in Epic #2815; the multi-provider
+chain, `security-review`, and `ultrareview` were added in Story #2871.
+
+---
+
 ## Feedback loop — code-review auto-graduation
 
 When the Epic finalize listener runs, non-blocking code-review findings

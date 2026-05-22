@@ -114,11 +114,15 @@ test('runCodeReview: passes scope/ticketId/baseRef/headRef to the adapter', asyn
     upsertCommentFn: noopUpsert(),
   });
   assert.equal(adapter.calls.length, 1);
+  // Story #2871 — ReviewInput now carries an optional `labels` field
+  // (defaults to []) so chain-entry gate predicates can read ticket
+  // labels at invocation time.
   assert.deepEqual(adapter.calls[0], {
     scope: 'epic',
     ticketId: 42,
     baseRef: 'develop',
     headRef: 'epic/42',
+    labels: [],
   });
 });
 
