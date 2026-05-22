@@ -178,6 +178,52 @@ export class ColumnSync {
     }
   }
 
+  /**
+   * Read the live `Status` column for an issue from the Projects v2
+   * board. Returns the column name (e.g. `'Done'`, `'In Progress'`)
+   * or `null` when the issue is not on the configured project, the
+   * Status field has no current value, or the metadata cannot be
+   * resolved.
+   *
+   * Story #2876 — used by `reassertStatusColumn` to detect drift
+   * between the orchestrator's intended column and the bot-rewritten
+   * column. The labels alone don't move when the bot overwrites
+   * Status — that's the bug class we defend against — so the
+   * drift-check MUST read the live Status, not the issue labels.
+   *
+   * @param {number} issueId
+   * @returns {Promise<string|null>}
+   */
+  async readCurrentColumn(issueId) {
+    if (!this.projectNumber) return null;
+    const meta = await this.#loadMeta();
+    if (!meta) return null;
+    const itemId = await this.#getProjectItemId(issueId, meta.projectId);
+    if (!itemId) return null;
+    try {
+      const data = await this.provider.graphql(
+        `
+        query($itemId: ID!) {
+          node(id: $itemId) {
+            ... on ProjectV2Item {
+              fieldValueByName(name: "Status") {
+                ... on ProjectV2ItemFieldSingleSelectValue { name }
+              }
+            }
+          }
+        }`,
+        { itemId },
+      );
+      const name = data?.node?.fieldValueByName?.name;
+      return typeof name === 'string' && name.length > 0 ? name : null;
+    } catch (err) {
+      this.logger.warn?.(
+        `[ColumnSync] could not read current Status for issue #${issueId}: ${err?.message ?? err}`,
+      );
+      return null;
+    }
+  }
+
   async #getProjectItemId(issueId, projectId) {
     // Walk from the issue to its projectItems and pick the one whose
     // project.id matches the configured board. The previous implementation

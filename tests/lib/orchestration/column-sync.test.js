@@ -290,3 +290,90 @@ describe('ColumnSync.sync', () => {
     assert.equal(res.reason, 'not-on-project');
   });
 });
+
+describe('ColumnSync.readCurrentColumn (Story #2876)', () => {
+  function readProvider({ statusByItem, projectId = 'PVT_x' }) {
+    return {
+      owner: 'acme',
+      repo: 'widgets',
+      projectNumber: 1,
+      async graphql(query, vars) {
+        if (query.includes('viewer') && query.includes('projectV2(number')) {
+          return {
+            viewer: {
+              projectV2: {
+                id: projectId,
+                field: {
+                  id: 'STAT_field',
+                  options: [
+                    { id: 'OPT_inprog', name: 'In Progress' },
+                    { id: 'OPT_done', name: 'Done' },
+                  ],
+                },
+              },
+            },
+          };
+        }
+        if (
+          query.includes('repository(owner') &&
+          query.includes('issue(number')
+        ) {
+          return {
+            repository: {
+              issue: {
+                projectItems: {
+                  nodes: [{ id: 'PVTI_n', project: { id: projectId } }],
+                },
+              },
+            },
+          };
+        }
+        if (query.includes('fieldValueByName')) {
+          const name = statusByItem[vars.itemId] ?? null;
+          return { node: { fieldValueByName: name ? { name } : null } };
+        }
+        throw new Error('unexpected');
+      },
+    };
+  }
+
+  it('returns the live column name when set', async () => {
+    const sync = new ColumnSync({
+      provider: readProvider({ statusByItem: { PVTI_n: 'Done' } }),
+    });
+    assert.equal(await sync.readCurrentColumn(7), 'Done');
+  });
+
+  it('returns null when the field has no current value', async () => {
+    const sync = new ColumnSync({
+      provider: readProvider({ statusByItem: {} }),
+    });
+    assert.equal(await sync.readCurrentColumn(7), null);
+  });
+
+  it('returns null when projectNumber is unset', async () => {
+    const provider = readProvider({ statusByItem: { PVTI_n: 'Done' } });
+    provider.projectNumber = null;
+    const sync = new ColumnSync({ provider });
+    assert.equal(await sync.readCurrentColumn(7), null);
+  });
+
+  it('returns null and logs when the live-Status graphql throws', async () => {
+    const warned = [];
+    const baseProvider = readProvider({ statusByItem: {} });
+    const origGraphql = baseProvider.graphql.bind(baseProvider);
+    baseProvider.graphql = async (query, vars) => {
+      if (query.includes('fieldValueByName')) {
+        throw new Error('boom');
+      }
+      return origGraphql(query, vars);
+    };
+    const sync = new ColumnSync({
+      provider: baseProvider,
+      logger: { info: () => {}, warn: (m) => warned.push(m) },
+    });
+    const result = await sync.readCurrentColumn(7);
+    assert.equal(result, null);
+    assert.ok(warned.some((m) => /could not read current Status/.test(m)));
+  });
+});

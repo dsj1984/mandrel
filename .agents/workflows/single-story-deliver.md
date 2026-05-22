@@ -357,17 +357,33 @@ What this does:
 - Reads the ticket's current `agent::*` label set (now `agent::done`).
 - Re-fires the same `ColumnSync` mutation `transitionTicketState` used
   at close, overwriting the bot's late write.
-- Prints a single-line JSON envelope: `{ ticketId, status, column?, reason? }`.
+- **Polls the live Status for ~15 s after the initial write** and
+  re-fires on drift (Story #2876). Without this loop, a one-shot
+  mutation routinely lost the race against the bot's asynchronous
+  fire (reproduced on Story #2871 / PR #2872).
+- Prints a single-line JSON envelope:
+  `{ ticketId, status, column?, reason?, attempts? }`. `attempts > 1`
+  means the helper had to fight a bot overwrite; `status: 'drifted'`
+  means the bot won every attempt in the poll budget (rare; usually
+  signals operator should reap the conflicting workflows).
+
+Tuning flags (rarely needed):
+
+- `--poll-attempts <n>` — total mutation attempts including the
+  initial sync. Default `4`. Pass `1` to disable the poll loop
+  (fastest, matches pre-#2876 behaviour).
+- `--poll-delay-ms <ms>` — delay between drift checks. Default `5000`.
 
 Idempotent: re-running on a ticket whose Status already matches the
-target returns the same envelope and issues the same single GraphQL
-mutation. No-op skips (`no-project`, `no-meta`, `not-on-project`)
-exit 0 with the reason in the envelope so the workflow can continue.
+target returns the same envelope. No-op skips (`no-project`,
+`no-meta`, `not-on-project`) exit 0 with the reason in the envelope
+so the workflow can continue.
 
-Operators who have already disabled the conflicting bot workflows via
-`agents-bootstrap-github.js --reap-conflicting-workflows` can still
-run this step safely — the re-assert is cheap and defends against
-re-enabled or future bot workflows.
+**Canonical operator fix:** run
+`node .agents/scripts/agents-bootstrap-github.js --reap-conflicting-workflows`
+once per project to delete the conflicting bot workflows entirely.
+This eliminates the race source; the poll loop becomes pure
+defense-in-depth against re-enabled or future workflows.
 
 Skip Step 5.5 only when the operator opted out of auto-merge AND has
 not yet merged the PR (no `agent::done` to re-assert yet) — run it
