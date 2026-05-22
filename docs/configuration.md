@@ -237,6 +237,9 @@ top-level keys are validation errors.
 | `lifecycle` | No | `object` | — | Knobs consumed by the lifecycle event bus (Epic #2172). `timeouts` is a per-event budget map (eventName → seconds) used by `TimeoutWatchdog`; missing entries fall back to in-listener defaults. `heartbeatWarnSeconds` is the no-progress threshold consumed by `HeartbeatMonitor`. Story #2227 lays down the keys; consumers land in later stories. |
 | `lifecycle.timeouts` | No | `object<map>` | — | — |
 | `lifecycle.heartbeatWarnSeconds` | No | `integer` | — | — |
+| `mergeWatch` | No | `object` | — | Knobs consumed by the MergeWatcher lifecycle listener (Story #2896, Epic #2880). `intervalSeconds` is the poll cadence between `gh pr view --json mergeCommit,mergedAt` probes after epic.merge.armed; `maxBudgetSeconds` is the total wall-clock budget before the watcher surfaces `agent::blocked` with reason `budget-exceeded`. |
+| `mergeWatch.intervalSeconds` | No | `integer` | `30` | Seconds between MergeWatcher polls. Default 30. |
+| `mergeWatch.maxBudgetSeconds` | No | `integer` | `3600` | Total wall-clock budget (seconds) for the MergeWatcher poll loop. Default 3600 (60 minutes). |
 | `epicAudit` | No | `object` | — | Nested configuration block. |
 | `epicAudit.maxFixAttempts` | No | `integer` | — | Maximum auto-fix retry attempts per finding in /epic-deliver Phase 4 (epic-audit). 0 disables auto-fix. Default 3. |
 | `epicAudit.maxFixScopeFiles` | No | `integer` | — | Maximum file count a single auto-fix may modify before escalating to agent::blocked. Default 5. |
