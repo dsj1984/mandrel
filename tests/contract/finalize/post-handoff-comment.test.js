@@ -56,7 +56,7 @@ describe('renderHandoffBody', () => {
 describe('postHandoffComment', () => {
   it('upserts the epic-handoff marker on the Epic on first call', async () => {
     const calls = [];
-    const upsertFn = async (provider, ticketId, type, body) => {
+    const upsertFn = async (_provider, ticketId, type, body) => {
       calls.push({ ticketId, type, body });
       return { commentId: 12345 };
     };
@@ -80,7 +80,7 @@ describe('postHandoffComment', () => {
 
   it('is idempotent: re-invocation upserts with the same marker (no duplicates)', async () => {
     const calls = [];
-    const upsertFn = async (provider, ticketId, type, body) => {
+    const upsertFn = async (_provider, ticketId, type, body) => {
       calls.push({ ticketId, type, body });
       return { commentId: 12345 };
     };

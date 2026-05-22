@@ -130,9 +130,7 @@ export async function openOrLocatePr({
   ghSpawn = defaultGhSpawn,
 } = {}) {
   if (!Number.isInteger(epicId) || epicId < 1) {
-    throw new TypeError(
-      'openOrLocatePr: epicId must be a positive integer',
-    );
+    throw new TypeError('openOrLocatePr: epicId must be a positive integer');
   }
   if (typeof headBranch !== 'string' || headBranch.length === 0) {
     throw new TypeError(
@@ -174,13 +172,9 @@ export async function openOrLocatePr({
 
   // 2. Create — open the PR.
   const finalTitle =
-    typeof title === 'string' && title.length > 0
-      ? title
-      : `Epic #${epicId}`;
+    typeof title === 'string' && title.length > 0 ? title : `Epic #${epicId}`;
   const finalBody =
-    typeof body === 'string' && body.length > 0
-      ? body
-      : `Closes #${epicId}`;
+    typeof body === 'string' && body.length > 0 ? body : `Closes #${epicId}`;
   const create = ghSpawn({
     args: [
       'pr',

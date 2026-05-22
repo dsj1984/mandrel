@@ -575,8 +575,10 @@ watch / auto-merge / cleanup tail that drives the PR to merge:
    re-fetching from GitHub. GitHub remains the source of truth; the
    mirror write is best-effort and a failure only logs a warn.
 5. **Finalize (Phase 7).** `/epic-deliver` fires `epic.close.end` via
-   `lifecycle-emit.js`; the `Finalizer` + `AcceptanceReconciler`
-   listener chain runs three close-time responsibilities in order:
+   `lifecycle-emit.js`; the `AcceptanceReconciler` → `Finalizer`
+   listener chain owns every close-time side effect end to end
+   (Story #2894 — bus-owned finalize). The chain runs three
+   responsibilities in order:
    1. **Acceptance-spec reconciliation.** Invokes
       `acceptance-spec-reconciler.js` to diff the AC IDs declared in
       the linked `context::acceptance-spec` body against `@ac-*` /
@@ -586,21 +588,33 @@ watch / auto-merge / cleanup tail that drives the PR to merge:
       so the PRD / Tech Spec / Acceptance Spec stay open until the AC
       coverage gap is fixed. Skipped (`status: 'waived'`) when the Epic
       carries `acceptance::n-a`.
-   2. **PR open and auto-merge arm.** Verifies `epic/<id>`
-      fast-forward-merges the current `main`, pushes the Epic branch to
-      `origin`, runs `gh pr create --base main --head epic/<id>` with a
-      title and body sourced from the Epic's PRD summary, and arms
-      GitHub native auto-merge via `gh pr merge --auto --squash
-      --delete-branch`. The PR's required-checks expectation is set
-      from `github.branchProtection.checks` so the
-      branch-protection gate matches the Epic-level validation that
-      just ran.
-   3. **Planning-artifact close + hand-off.** Closes the three
-      planning context tickets (`context::prd`, `context::tech-spec`,
+   2. **PR open (bus-owned, Story #2894).** On
+      `acceptance.reconcile.ok`, the `Finalizer` listener invokes
+      `openOrLocatePr({ epicId, headBranch: 'epic/<id>', baseBranch:
+      'main' })`. The helper probes for an existing open PR on the
+      head branch first (idempotent locate path) and only runs
+      `gh pr create` when the head branch has no open PR. The
+      Finalizer does **not** arm auto-merge — it emits
+      `epic.merge.ready` carrying `{ prNumber, epicId, prUrl }` and
+      hands off to the auto-merge gate. The sole production caller
+      authorised to shell `gh pr merge` in the entire codebase is
+      the `AutomergeArmer` listener at Phase 8.5 (enforced by the
+      merge-lockout rule in
+      `.agents/scripts/check-lifecycle-lint.js`); Phase 7 never
+      shells the merge command.
+   3. **Planning-artifact close + hand-off (bus-owned, Story #2894).**
+      The `Finalizer` chains `closePlanningTickets({ epicId,
+      provider })` to close the three planning context tickets
+      (`context::prd`, `context::tech-spec`,
       `context::acceptance-spec`) so the Epic's `Closes #<id>`
-      auto-close path is not blocked by open sub-issues, then posts a
-      hand-off structured comment naming the PR URL. The Epic stays
-      at `agent::executing` until the PR merges.
+      auto-close path is not blocked by open sub-issues, then
+      `postHandoffComment({ epicId, prNumber, prUrl, provider })` to
+      upsert the canonical `epic-handoff` structured comment naming
+      the PR. Both helpers are idempotent — re-running finalize
+      after a crash counts already-closed tickets under
+      `alreadyClosed` and edits the existing handoff comment in
+      place rather than appending a duplicate. The Epic stays at
+      `agent::executing` until the PR merges.
 6. **Watch-and-iterate (Phase 8).** `/epic-deliver` watches the open PR's
    required checks until they turn green. Transient failures trigger an
    automated re-run loop; durable failures surface for human remediation

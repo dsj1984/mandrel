@@ -370,12 +370,9 @@ Outcomes:
 - **`fetch-failed`** → re-check network / `origin` access and re-run.
 
 This is a workflow-level step (operator-driven), not part of the
-close-tail listener chain — the listener delegates to a `runFinalizeFn`
-that does not currently push or open the PR in production (see
-[`finalizer.js`](../scripts/lib/orchestration/lifecycle/listeners/finalizer.js)
-docstring). When a future Story lifts the push + `gh pr create` flow
-into the listener body, the sync may move with it; until then, run this
-step manually.
+close-tail listener chain. The sync runs from the main checkout so
+the resulting tip lands on `epic/<epicId>` before Phase 7.1 fires
+the bus-driven close-tail.
 
 ### 7.1 — Fire the close-tail emit
 
@@ -383,14 +380,13 @@ step manually.
 node .agents/scripts/lifecycle-emit.js --epic <epicId> --event epic.close.end
 ```
 
-Emits `epic.close.end` onto the lifecycle bus. **In the current
-production wiring only the first of the three close-time
-responsibilities below runs inside the listener chain; the other two
-are operator/host-LLM responsibilities until the listener's
-`runFinalizeFn` is lifted out of its no-op state (see
-[`finalizer.js`](../scripts/lib/orchestration/lifecycle/listeners/finalizer.js)
-docstring).** Treat this section as both a runtime contract and a
-runbook.
+Emits `epic.close.end` onto the lifecycle bus. **Every close-time
+responsibility below runs inside the listener chain — the operator
+shells nothing manually. The `Finalizer` listener (Story #2894 —
+bus-owned finalize) composes three helpers under
+`.agents/scripts/lib/orchestration/finalize/` and emits the canonical
+chain.** Treat this section as a runtime contract — `/epic-deliver`
+just fires the emit and reads the resulting ledger.
 
 1. **Acceptance-spec reconciliation — bus-driven.** The
    `AcceptanceReconciler` listener invokes
@@ -406,37 +402,35 @@ runbook.
    `acceptance::n-a`, and defends against direct CLI invocation by
    refusing to run when no spec is linked and no waiver is set (the
    start gate in Phase 1 would normally catch that first).
-2. **PR open and auto-merge arm — operator-/host-LLM-driven (today).**
-   The `Finalizer` listener fires after `AcceptanceReconciler`, but its
-   `runFinalizeFn` is a no-op in production. The operator (or the host
-   LLM driving `/epic-deliver`) MUST run the canonical PR-open sequence
-   inline after the close-tail emit returns:
-
-   ```bash
-   gh pr create --base main --head epic/<epicId> \
-     --title "Epic #<epicId>: <title>" \
-     --body-file <run-progress + code-review + retro summary>
-   gh pr merge <prNumber> --auto --squash --delete-branch
-   ```
-
-   Failure of `gh pr merge --auto` is non-fatal — the operator merges
-   through the GitHub UI instead. Once a future Story lifts this flow
-   into the `Finalizer` listener body, this step will become
-   bus-driven and this prose updates to match.
-3. **Planning-artifact close + hand-off — operator-/host-LLM-driven
-   (today).** Close the three planning context tickets manually so the
-   Epic's `Closes #<id>` auto-close path is not blocked by open
-   sub-issues:
-
-   ```bash
-   gh issue close <prdId> --reason completed
-   gh issue close <techSpecId> --reason completed
-   gh issue close <acceptanceSpecId> --reason completed
-   ```
-
-   When the `acceptance::n-a` waiver is set, the Acceptance Spec
-   ticket need not be authored; if no spec was ever opened, the third
-   `gh issue close` is skipped.
+2. **PR open — bus-driven (Story #2894).** On
+   `acceptance.reconcile.ok` the `Finalizer` listener invokes
+   [`openOrLocatePr`](../scripts/lib/orchestration/finalize/open-or-locate-pr.js)
+   with `{ epicId, headBranch: 'epic/<id>', baseBranch: 'main' }`.
+   The helper probes for an existing open PR on the head branch
+   first (idempotent locate path — a re-run of `/epic-deliver`
+   on the same branch short-circuits without opening a duplicate)
+   and only opens a new PR when none exists. The listener then
+   emits `epic.merge.ready` carrying `{ prNumber, epicId, prUrl }`
+   and lets the `AutomergeArmer` (Phase 8.5) own the auto-merge
+   arm. The merge-lockout rule in
+   [`check-lifecycle-lint.js`](../scripts/check-lifecycle-lint.js)
+   keeps `gh pr merge --auto --squash --delete-branch` confined to
+   `AutomergeArmer` — Phase 7 never shells the merge command.
+3. **Planning-artifact close + hand-off — bus-driven (Story
+   #2894).** After `openOrLocatePr` returns, the `Finalizer` chains
+   [`closePlanningTickets`](../scripts/lib/orchestration/finalize/close-planning-tickets.js)
+   to close the three planning context tickets
+   (`context::prd`, `context::tech-spec`, `context::acceptance-spec`)
+   so the Epic's `Closes #<id>` auto-close path is not blocked by
+   open sub-issues, then
+   [`postHandoffComment`](../scripts/lib/orchestration/finalize/post-handoff-comment.js)
+   to upsert the canonical `epic-handoff` structured comment naming
+   the PR URL. Both helpers are idempotent — already-closed tickets
+   are counted under `alreadyClosed`, and the handoff comment is
+   edited in place via `upsertStructuredComment` rather than
+   appending a duplicate. When the `acceptance::n-a` waiver is set
+   and no Acceptance Spec ticket was ever opened, the third
+   planning-ticket close is recorded as `skipped`.
 
 Branch cleanup is out-of-band (Phase 9 reaps local refs after merge; the
 rare "scrap and reset" case for an unmerged Epic is handled manually).

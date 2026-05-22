@@ -25,12 +25,9 @@
  * `agent::blocked`.
  */
 
-import { Logger } from '../../Logger.js';
 import { parseLinkedIssues } from '../../issue-link-parser.js';
-import {
-  STATE_LABELS,
-  transitionTicketState,
-} from '../ticketing.js';
+import { Logger } from '../../Logger.js';
+import { STATE_LABELS, transitionTicketState } from '../ticketing.js';
 
 /**
  * @param {object} args
@@ -65,8 +62,7 @@ export async function closePlanningTickets({
   }
 
   const epic = await provider.getTicket(epicId);
-  const linked =
-    epic?.linkedIssues ?? parseLinkedIssues(epic?.body ?? '');
+  const linked = epic?.linkedIssues ?? parseLinkedIssues(epic?.body ?? '');
 
   const kinds = /** @type {const} */ ([
     ['prd', linked?.prd ?? null],

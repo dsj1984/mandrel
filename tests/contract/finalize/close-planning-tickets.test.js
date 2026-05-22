@@ -62,7 +62,10 @@ describe('closePlanningTickets', () => {
     assert.equal(result.closed, 3);
     assert.equal(result.alreadyClosed, 0);
     assert.equal(result.failed, 0);
-    assert.deepEqual(transitions.sort((a, b) => a - b), [2884, 2885, 2886]);
+    assert.deepEqual(
+      transitions.sort((a, b) => a - b),
+      [2884, 2885, 2886],
+    );
   });
 
   it('returns alreadyClosed=3 and skips transitions when all tickets are closed', async () => {
@@ -87,7 +90,11 @@ describe('closePlanningTickets', () => {
       logger: quietLogger(),
     });
     assert.deepEqual(
-      { closed: result.closed, alreadyClosed: result.alreadyClosed, failed: result.failed },
+      {
+        closed: result.closed,
+        alreadyClosed: result.alreadyClosed,
+        failed: result.failed,
+      },
       { closed: 0, alreadyClosed: 3, failed: 0 },
     );
     assert.equal(transitionCalls, 0);
@@ -144,7 +151,10 @@ describe('closePlanningTickets', () => {
       logger: quietLogger(),
     });
     assert.equal(result.closed, 2);
-    assert.deepEqual(transitions.sort((a, b) => a - b), [100, 101]);
+    assert.deepEqual(
+      transitions.sort((a, b) => a - b),
+      [100, 101],
+    );
   });
 
   it('throws on invalid epicId', async () => {
