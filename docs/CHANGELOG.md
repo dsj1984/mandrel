@@ -250,6 +250,20 @@ restoration.
 - → follow-up **#2071** (schema-module maintainability uplift):
   - `.agents/scripts/lib/config-settings-schema.js` (`mi: 46`)
   - `.agents/scripts/lib/config-gates-schema.js` (`mi: 51`)
+## [1.29.0](https://github.com/dsj1984/mandrel/compare/v1.28.0...v1.29.0) (2026-05-22)
+
+
+### Added
+
+* **code-review:** add security-review and ultrareview providers via chain ([#2872](https://github.com/dsj1984/mandrel/issues/2872)) ([832b189](https://github.com/dsj1984/mandrel/commit/832b1892d735c1574dea77e3f536dd99475862c2)), closes [#2871](https://github.com/dsj1984/mandrel/issues/2871)
+* **gh-exec:** default-timeout knob + transient classification for GhExecTimeoutError ([#2877](https://github.com/dsj1984/mandrel/issues/2877)) ([dad2b16](https://github.com/dsj1984/mandrel/commit/dad2b163695486bd5aa800ee40fb7d7112531ae5)), closes [#2860](https://github.com/dsj1984/mandrel/issues/2860)
+
+
+### Fixed
+
+* **observability:** support standalone stories with null epicId ([#2875](https://github.com/dsj1984/mandrel/issues/2875)) ([d20c51e](https://github.com/dsj1984/mandrel/commit/d20c51e49cc24914f21bffab6828025344f94aef)), closes [#2874](https://github.com/dsj1984/mandrel/issues/2874)
+* **orchestration:** harden reassertStatusColumn with poll-and-retry ([#2878](https://github.com/dsj1984/mandrel/issues/2878)) ([8efcc28](https://github.com/dsj1984/mandrel/commit/8efcc28e1f4513cbf1dd008a91457f5d438955b1)), closes [#2876](https://github.com/dsj1984/mandrel/issues/2876)
+
 ## [1.28.0](https://github.com/dsj1984/mandrel/compare/v1.27.0...v1.28.0) (2026-05-21)
 
 
