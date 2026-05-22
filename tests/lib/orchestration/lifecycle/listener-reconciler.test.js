@@ -124,9 +124,7 @@ describe('AcceptanceReconciler (bus integration)', () => {
       'acceptance.reconcile.start',
       'acceptance.reconcile.waived',
     ]);
-    const waived = emits.find(
-      (e) => e.event === 'acceptance.reconcile.waived',
-    );
+    const waived = emits.find((e) => e.event === 'acceptance.reconcile.waived');
     assert.equal(waived.payload.reason, 'waiver');
     assert.equal(waived.payload.baseRead, true);
     assert.ok(

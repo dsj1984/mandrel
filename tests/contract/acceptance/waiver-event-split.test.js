@@ -132,10 +132,11 @@ describe('contract: acceptance.reconcile.waived (Story #2893)', () => {
     // reason='something-else' must be rejected at emit time.
     const bus = new Bus();
     await assert.rejects(
-      () => bus.emit('acceptance.reconcile.waived', {
-        baseRead: true,
-        reason: 'not-a-waiver',
-      }),
+      () =>
+        bus.emit('acceptance.reconcile.waived', {
+          baseRead: true,
+          reason: 'not-a-waiver',
+        }),
       /schema validation failed/i,
       'bus must reject .waived payloads whose reason is not "waiver"',
     );
