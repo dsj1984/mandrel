@@ -14,12 +14,11 @@
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-
+import { buildMergeMessageWithCap } from '../../../.agents/scripts/lib/orchestration/story-close/merge-subject.js';
 import {
   buildCommitSubject,
   resolveSkipCiFlag,
 } from '../../../.agents/scripts/task-commit.js';
-import { buildMergeMessageWithCap } from '../../../.agents/scripts/lib/orchestration/story-close/merge-subject.js';
 
 describe('contract/delivery/skip-ci-story-commits', () => {
   describe('buildCommitSubject (Story-branch per-Task commits)', () => {
