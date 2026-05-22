@@ -87,9 +87,7 @@ const DEFAULT_DOC_PATH = path.join(REPO_ROOT, 'docs', 'LIFECYCLE.md');
  * register against the bus on the same wildcard contract. They are
  * exempt from the `unknown-row` check.
  */
-const EXEMPT_DOC_ROWS = Object.freeze(
-  new Set(['LedgerWriter', 'TraceLogger']),
-);
+const EXEMPT_DOC_ROWS = Object.freeze(new Set(['LedgerWriter', 'TraceLogger']));
 
 /**
  * Convert a kebab-case basename to PascalCase, e.g.
@@ -197,10 +195,7 @@ export function parseListenerTable(md) {
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
     if (!inTable) {
-      if (
-        line.includes('| Listener') &&
-        line.includes('Subscribes to')
-      ) {
+      if (line.includes('| Listener') && line.includes('Subscribes to')) {
         // Header row found; skip the separator on the next line and
         // start parsing data rows.
         inTable = true;
@@ -253,7 +248,8 @@ export function diffListenerEvents({ code, doc }) {
   let wildcardMismatch = false;
   if (!doc) {
     // Caller surfaces this as `missing-row`; nothing to diff here.
-    if (code.kind === 'literals') return { codeOnly: code.events.slice(), docOnly, wildcardMismatch };
+    if (code.kind === 'literals')
+      return { codeOnly: code.events.slice(), docOnly, wildcardMismatch };
     return { codeOnly, docOnly, wildcardMismatch };
   }
   if (code.kind === 'wildcard') {

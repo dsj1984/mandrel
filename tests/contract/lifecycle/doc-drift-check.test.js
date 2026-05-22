@@ -20,7 +20,13 @@
 
 import { strict as assert } from 'node:assert';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { describe, it } from 'node:test';
@@ -58,7 +64,10 @@ const DOC_PATH = path.join(REPO_ROOT, 'docs', 'LIFECYCLE.md');
 
 describe('check-lifecycle-doc-drift — pure helpers', () => {
   it('converts kebab basenames to PascalCase', () => {
-    assert.equal(kebabToPascal('acceptance-reconciler'), 'AcceptanceReconciler');
+    assert.equal(
+      kebabToPascal('acceptance-reconciler'),
+      'AcceptanceReconciler',
+    );
     assert.equal(kebabToPascal('automerge-armer'), 'AutomergeArmer');
     assert.equal(kebabToPascal('cleaner'), 'Cleaner');
   });
@@ -128,7 +137,7 @@ describe('check-lifecycle-doc-drift — pure helpers', () => {
     const src = [
       "const FOO = 'foo';",
       "export const BAR = 'bar';",
-      "const NOT_A_STRING = 42;",
+      'const NOT_A_STRING = 42;',
     ].join('\n');
     const out = collectStringConstants(src);
     assert.equal(out.get('FOO'), 'foo');
@@ -149,7 +158,10 @@ describe('check-lifecycle-doc-drift — pure helpers', () => {
     ].join('\n');
     const rows = parseListenerTable(md);
     assert.equal(rows.size, 2);
-    assert.deepEqual([...rows.get('Alpha').events].sort(), ['baz.qux', 'foo.bar']);
+    assert.deepEqual([...rows.get('Alpha').events].sort(), [
+      'baz.qux',
+      'foo.bar',
+    ]);
     assert.equal(rows.get('Alpha').hasWildcard, false);
     assert.equal(rows.get('Beta').hasWildcard, true);
   });
@@ -234,7 +246,10 @@ describe('check-lifecycle-doc-drift — fixture drift detection', () => {
       const drift = findings.find(
         (f) => f.kind === 'event-drift' && f.listener === 'FakeRogue',
       );
-      assert.ok(drift, `expected event-drift for FakeRogue, got ${JSON.stringify(findings)}`);
+      assert.ok(
+        drift,
+        `expected event-drift for FakeRogue, got ${JSON.stringify(findings)}`,
+      );
       assert.deepEqual(drift.codeOnly, ['rogue.event']);
       assert.deepEqual(drift.docOnly, ['other.event']);
     } finally {
@@ -277,7 +292,10 @@ describe('check-lifecycle-doc-drift — fixture drift detection', () => {
       const missing = findings.find(
         (f) => f.kind === 'missing-row' && f.listener === 'GhostListener',
       );
-      assert.ok(missing, `expected missing-row, got ${JSON.stringify(findings)}`);
+      assert.ok(
+        missing,
+        `expected missing-row, got ${JSON.stringify(findings)}`,
+      );
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }
@@ -331,7 +349,11 @@ describe('check-lifecycle-doc-drift — fixture drift detection', () => {
       const result = spawnSync(process.execPath, [driver], {
         encoding: 'utf8',
       });
-      assert.equal(result.status, 1, `expected exit 1, stdout: ${result.stdout}`);
+      assert.equal(
+        result.status,
+        1,
+        `expected exit 1, stdout: ${result.stdout}`,
+      );
       assert.match(result.stderr, /Driftling/);
     } finally {
       rmSync(tmp, { recursive: true, force: true });
@@ -343,7 +365,10 @@ describe('check-lifecycle-doc-drift — listener loader', () => {
   it('skips index.js but loads every other listener file', () => {
     const listeners = loadCodeListeners(LISTENERS_DIR);
     const names = listeners.map((l) => l.pascalName).sort();
-    assert.ok(!names.includes('Index'), `loader should skip index.js (got ${names.join(',')})`);
+    assert.ok(
+      !names.includes('Index'),
+      `loader should skip index.js (got ${names.join(',')})`,
+    );
     assert.ok(names.includes('AcceptanceReconciler'));
     assert.ok(names.includes('AutomergeArmer'));
   });
