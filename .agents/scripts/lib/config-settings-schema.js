@@ -192,6 +192,7 @@ const GITHUB_SCHEMA = {
     projectNumber: { type: ['integer', 'null'], minimum: 1 },
     projectOwner: { type: ['string', 'null'], minLength: 1 },
     operatorHandle: { type: 'string', pattern: '^@.+' },
+    defaultTimeoutMs: { type: 'integer', minimum: 1000 },
     branchProtection: BRANCH_PROTECTION_SCHEMA,
     mergeMethods: MERGE_METHODS_SCHEMA,
     notifications: NOTIFICATIONS_SCHEMA,

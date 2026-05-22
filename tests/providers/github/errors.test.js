@@ -24,6 +24,11 @@ const providerMod = await import(
   pathToFileURL(path.join(ROOT, '.agents', 'scripts', 'providers', 'github.js'))
     .href
 );
+const ghExecMod = await import(
+  pathToFileURL(path.join(ROOT, '.agents', 'scripts', 'lib', 'gh-exec.js')).href
+);
+
+const { GhExecTimeoutError } = ghExecMod;
 
 const {
   classifyGithubError,
@@ -94,6 +99,29 @@ describe('providers/github/errors.js — classifyGithubError', () => {
       classifyGithubError({ message: 'permission denied' }),
       'permission',
     );
+  });
+
+  it('transient branch: GhExecTimeoutError is reclassified by err.name (Story #2860)', () => {
+    // GhExecTimeoutError's message is "gh-exec: gh ... exceeded Nms" — no
+    // transient keyword and no `.status` / `.code`. Without the name-based
+    // branch added in #2860, classifyGithubError would fall through to
+    // 'permanent' and withTransientRetry would never fire on a real
+    // gh subprocess timeout.
+    const err = new GhExecTimeoutError(
+      'gh-exec: gh api /repos exceeded 60000ms',
+      { args: ['api', '/repos'], timeoutMs: 60000 },
+    );
+    assert.strictEqual(classifyGithubError(err), 'transient');
+  });
+
+  it('regression guard: a plain Error with a non-matching name is not reclassified', () => {
+    // Negative guard for #2860 — only `name === 'GhExecTimeoutError'`
+    // routes to 'transient' via the name-match branch. A plain Error with
+    // a non-transient message and no transient status/code stays
+    // 'permanent'.
+    const err = new Error('something unrelated went wrong');
+    err.name = 'CustomBenignError';
+    assert.strictEqual(classifyGithubError(err), 'permanent');
   });
 
   it('permanent branch: null err and anything that doesn’t match the others', () => {

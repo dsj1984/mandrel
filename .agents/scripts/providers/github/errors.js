@@ -88,6 +88,11 @@ export function isPermissionSignal(status, lower) {
 
 export function classifyGithubError(err) {
   if (!err) return 'permanent';
+  // `GhExecTimeoutError` (from `lib/gh-exec.js`) carries a message of the
+  // shape `"gh-exec: gh <args> exceeded <N>ms"` — no transient keyword and
+  // no `.status` / `.code`. Match by `err.name` to avoid a circular import
+  // between this module and `lib/gh-exec.js`. Story #2860.
+  if (err.name === 'GhExecTimeoutError') return 'transient';
   const { lower, status, code } = extractErrorFields(err);
   if (matchesAny(lower, FEATURE_DISABLED_MESSAGES)) return 'feature-disabled';
   if (isTransientStatus(status)) return 'transient';
