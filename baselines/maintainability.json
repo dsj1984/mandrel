@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-22T19:00:28.069Z",
+  "generatedAt": "2026-05-22T19:02:19.292Z",
   "rollup": {
     "*": {
       "min": 52.885,
@@ -1317,10 +1317,6 @@
     {
       "path": ".agents/scripts/lib/validation-evidence.js",
       "mi": 94.023
-    },
-    {
-      "path": ".agents/scripts/lib/wave-runner/tick.js",
-      "mi": 94.921
     },
     {
       "path": ".agents/scripts/lib/wave-runner/wave-runner-error.js",
