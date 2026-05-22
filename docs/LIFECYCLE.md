@@ -75,11 +75,11 @@ contract.
 | `epic.plan.end`             | `/epic-plan` Phase 7 closes the planning run.               |
 | `epic.snapshot.start`       | `/epic-deliver` Phase 1 — snapshot phase opens.             |
 | `epic.snapshot.end`         | Snapshot complete; wave plan persisted.                     |
-| `epic.finalize.start`       | Phase 6 finalize begins (PR-open).                          |
+| `epic.finalize.start`       | Phase 7 finalize begins (PR-open).                          |
 | `epic.finalize.end`         | Finalize completed; PR opened (or skipped).                 |
 | `epic.close.start`          | Close-validation chain opens.                               |
 | `epic.close.end`            | Close-validation chain completes.                           |
-| `epic.automerge.start`      | Phase 7.5 emit shim fires.                                  |
+| `epic.automerge.start`      | Phase 8.5 emit shim fires.                                  |
 | `epic.automerge.end`        | Automerge phase concludes.                                  |
 | `epic.cleanup.start`        | Phase 8 cleanup shim fires.                                 |
 | `epic.cleanup.end`          | Cleanup archive + branch reap complete.                     |
@@ -91,6 +91,7 @@ contract.
 | `epic.merge.ready`          | `AutomergePredicate` clean — armed-merge authorised.        |
 | `epic.merge.blocked`        | `AutomergePredicate` dirty — operator-merges-button path.   |
 | `epic.merge.armed`          | `AutomergeArmer` armed GitHub native auto-merge.            |
+| `epic.merge.confirmed`      | `MergeWatcher` observed `mergeCommit` non-null on the PR.   |
 
 ### Wave + Story events
 
@@ -248,7 +249,7 @@ boundary is always the first writer.
 | `SignalsAppender`            | `wave.start`, `wave.end`, `story.dispatch.*`                                                   | Append idempotent rows to `temp/epic-<id>/signals.ndjson`.           |
 | `NotifyDispatcher`           | The curated webhook subset (`epic-*` events)                                                   | Fan out the @mention + webhook channels via `notify.js`.             |
 | `CheckpointPointerWriter`    | `wave.end`, `epic.finalize.start`, `epic.complete`                                             | Persist a resume pointer in `epic-run-state`.                        |
-| `AcceptanceReconciler`       | `epic.close.start` (gated by waiver label)                                                     | Reconcile AC IDs against the linked acceptance-spec ticket.          |
+| `AcceptanceReconciler`       | `epic.close.end` (gated by waiver label)                                                       | Reconcile AC IDs against the linked acceptance-spec ticket.          |
 | `Finalizer`                  | `epic.finalize.start`                                                                          | FF-merge `epic/<id>` onto `main`, push, open the PR, close planning tickets, post the handoff comment. |
 | `Watcher`                    | `pr.created`                                                                                   | Resolve required-check names; poll `gh pr checks`; emit `epic.watch.end`. |
 | `AutomergePredicate`         | `epic.watch.end`                                                                               | Evaluate predicate signals; emit `epic.merge.ready` or `epic.merge.blocked`. |
