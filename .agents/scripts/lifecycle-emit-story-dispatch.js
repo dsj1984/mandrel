@@ -38,8 +38,8 @@
 
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
+import { parseArgs } from 'node:util';
 
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';

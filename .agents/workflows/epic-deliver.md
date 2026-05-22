@@ -172,6 +172,28 @@ as background calls (`run_in_background: true`) and refill from
 `nextAction.stories` immediately as each child returns — never exceed
 the cap, never wait for a whole batch before refilling.
 
+**Ledger the dispatch BEFORE the Agent call.** Immediately before each
+per-Story `Agent` tool call (one shell-out per Story, every attempt —
+including retries from a refill), invoke
+[`lifecycle-emit-story-dispatch.js`](../scripts/lifecycle-emit-story-dispatch.js)
+so the lifecycle ledger durably records the dispatch attempt. The
+emit must happen **before** the Agent call fires — never after — so
+that a host-process crash mid-Agent leaves a `story.dispatch.start`
+record that `wave-tick.js` (see § 2a) can surface under
+`nextAction['in-flight']` on the next tick:
+
+```bash
+node .agents/scripts/lifecycle-emit-story-dispatch.js \
+  --epic <epicId> --story <storyId> \
+  --wave <currentWave> --attempt <attempt>
+```
+
+`<attempt>` starts at 1 for the Story's first dispatch in this wave
+and increments on each retry/refill. The CLI appends exactly one
+NDJSON line to `temp/epic-<epicId>/lifecycle.ndjson`; the matching
+`story.dispatch.end` record is written later by `wave-session`'s bus
+after the Agent return is recorded in § 2c.
+
 Each Agent call's prompt must (1) name the Story + Epic ids, (2)
 instruct the child to invoke `/story-deliver <storyId>`, (3) state the
 **return contract** below, (4) remind the child of the
