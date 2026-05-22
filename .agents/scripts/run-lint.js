@@ -56,6 +56,19 @@ const tasks = [
     cmd: 'node',
     args: ['.agents/scripts/check-lifecycle-lint.js'],
   },
+  {
+    // Custom Node-based lint for label-vocabulary citations in
+    // `.agents/SDLC.md` and `.agents/workflows/**/*.md` (Story #2892,
+    // Tech Spec F9 under Epic #2880). Greps inline backtick code
+    // spans for axis-shaped tokens (`type/epic`, etc.) and asserts
+    // only the canonical `<axis>::<value>` separator from
+    // `lib/label-constants.js` appears. Closes the drift gap that
+    // let the original `type/epic` typo land at
+    // `.agents/workflows/epic-plan.md:49`.
+    name: 'label-vocabulary',
+    cmd: 'node',
+    args: ['.agents/scripts/lint-label-vocabulary.js'],
+  },
 ];
 
 function runTask({ name, cmd, args }) {
