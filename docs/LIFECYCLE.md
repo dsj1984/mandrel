@@ -244,20 +244,22 @@ boundary is always the first writer.
 | `LedgerWriter`               | `*` (registered first on every event)                                                          | Append `emitted` / `completed` / `failed` rows to `lifecycle.ndjson`.|
 | `TraceLogger`                | `*` (wildcard trace observer)                                                                  | Re-render the `lifecycle.md` companion.                              |
 | `LabelTransitioner`          | `wave.end`, `story.merged`, `story.blocked`, `epic.blocked`, `epic.unblocked`, `epic.complete` | Flip ticket `agent::*` labels via `transitionTicketState`.           |
-| `StructuredCommentPoster`    | `wave.start`, `wave.end` (and the Epic-scoped reconciliation events)                           | Upsert lifecycle-tagged structured comments on the Epic ticket.      |
+| `StructuredCommentPoster`    | `wave.start`, `wave.end`, `epic.blocked`, `epic.unblocked`                                     | Upsert lifecycle-tagged structured comments on the Epic ticket.      |
 | `ProgressReporter`           | `wave.end`, `story.dispatch.end`                                                               | Re-compose the `epic-run-progress` comment.                          |
-| `SignalsAppender`            | `wave.start`, `wave.end`, `story.dispatch.*`                                                   | Append idempotent rows to `temp/epic-<id>/signals.ndjson`.           |
-| `NotifyDispatcher`           | The curated webhook subset (`epic-*` events)                                                   | Fan out the @mention + webhook channels via `notify.js`.             |
-| `CheckpointPointerWriter`    | `wave.end`, `epic.finalize.start`, `epic.complete`                                             | Persist a resume pointer in `epic-run-state`.                        |
+| `SignalsAppender`            | `story.dispatch.end`, `story.blocked`, `wave.end`                                              | Append idempotent rows to `temp/epic-<id>/signals.ndjson`.           |
+| `NotifyDispatcher`           | `*` — the curated webhook subset resolved at runtime from `LIFECYCLE_TO_WEBHOOK_EVENT`.        | Fan out the @mention + webhook channels via `notify.js`.             |
+| `CheckpointPointerWriter`    | `*` — the per-instance `SUBSCRIBED_END_EVENTS` set (every `*.end` event plus `epic.finalize.start`). | Persist a resume pointer in `epic-run-state`.                        |
+| `InterventionRecorder`       | `intervention.recorded`                                                                        | Append the manual-intervention payload to the epic-run-state-store. |
 | `AcceptanceReconciler`       | `epic.close.end` (gated by waiver label)                                                       | Reconcile AC IDs against the linked acceptance-spec ticket.          |
-| `Finalizer`                  | `epic.finalize.start`                                                                          | FF-merge `epic/<id>` onto `main`, push, open the PR, close planning tickets, post the handoff comment. |
+| `Finalizer`                  | `acceptance.reconcile.ok`, `acceptance.reconcile.waived`                                       | FF-merge `epic/<id>` onto `main`, push, open the PR, close planning tickets, post the handoff comment. |
 | `Watcher`                    | `pr.created`                                                                                   | Resolve required-check names; poll `gh pr checks`; emit `epic.watch.end`. |
 | `AutomergePredicate`         | `epic.watch.end`                                                                               | Evaluate predicate signals; emit `epic.merge.ready` or `epic.merge.blocked`. |
 | `AutomergeArmer`             | `epic.merge.ready` **only**                                                                    | Arm GitHub native auto-merge — the SOLE production code path authorised to call `gh pr merge`. |
 | `Cleaner`                    | `epic.merge.armed`                                                                             | Archive `temp/epic-<id>/`; emit `epic.cleanup.start` / `epic.cleanup.end` / `epic.complete`. |
+| `BranchCleaner`              | `epic.cleanup.start`                                                                           | Reap the Epic branch + `.worktrees/story-*/` directories.            |
 | `TimeoutWatchdog`            | `*` (wildcard observer with bounded timer)                                                     | Halt the run when a wave / phase exceeds its budget.                 |
 | `HeartbeatMonitor`           | `*` (wildcard observer)                                                                        | Emit periodic heartbeat traces so external watchers can detect a stuck run. |
-| `BlockerHandler`             | `epic.blocked`                                                                                 | The sole runtime pause point — halts execution, waits to resume.     |
+| `BlockerHandler`             | `story.blocked`                                                                                | The sole runtime pause point — halts execution, waits to resume.     |
 
 ### Side-effect firewall
 
