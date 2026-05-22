@@ -6,10 +6,13 @@
  * Story #2894 / Task #2917 (Epic #2880).
  *
  * Subscribes to:
- *   - `acceptance.reconcile.ok` → run finalize. The Finalizer
- *     subscribes ONLY to `.ok` — `.skipped` proceeds without a PR
- *     (waiver / empty spec), `.failed` already routed to `epic.blocked`
- *     via the AcceptanceReconciler.
+ *   - `acceptance.reconcile.ok` → run finalize.
+ *   - `acceptance.reconcile.waived` → run finalize. Story #2893 split
+ *     the `acceptance::n-a` waiver path out of `.skipped` so the
+ *     Finalizer can route waived Epics through to PR creation while
+ *     `.skipped` (empty-spec) still terminates without a PR.
+ *     `.failed` is already routed to `epic.blocked` via the
+ *     AcceptanceReconciler and never reaches the Finalizer.
  *
  * Side effects executed inside `handle()`:
  *   1. Emit `epic.finalize.start`.
@@ -295,13 +298,16 @@ export class Finalizer {
     /** @type {Set<string>} `${event}:${seqId}` idempotency cache. */
     this._seen = new Set();
     /**
-     * Classification log — every `acceptance.reconcile.ok` we observe
-     * lands here with the outcome (`opened`, `existing`, `failed`,
-     * `skipped-duplicate`). Mirrors the BlockerHandler / Reconciler
-     * "no silent skip" surface.
+     * Classification log — every `acceptance.reconcile.ok` or `.waived`
+     * we observe lands here with the outcome (`opened`, `existing`,
+     * `failed`, `skipped-duplicate`). Mirrors the BlockerHandler /
+     * Reconciler "no silent skip" surface.
      */
     this.classifications = [];
-    this.events = Object.freeze(['acceptance.reconcile.ok']);
+    this.events = Object.freeze([
+      'acceptance.reconcile.ok',
+      'acceptance.reconcile.waived',
+    ]);
   }
 
   register() {

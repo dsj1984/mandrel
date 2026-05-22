@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/acceptance.reconcile.waived.schema.json",
+  "title": "acceptance.reconcile.waived",
+  "description": "Emitted by AcceptanceReconciler when reconciliation is waived by the acceptance::n-a label. Distinct from acceptance.reconcile.skipped (which now means 'empty-spec' only) so the Finalizer can subscribe to .waived and route waived Epics through to PR creation while empty-spec Epics still terminate without a PR. The reason field is required and pinned to 'waiver'.",
+  "type": "object",
+  "required": ["baseRead", "reason"],
+  "properties": {
+    "baseRead": { "type": "boolean" },
+    "reason": { "type": "string", "const": "waiver" }
+  },
+  "additionalProperties": false
+}

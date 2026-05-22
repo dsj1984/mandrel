@@ -8,8 +8,8 @@
  * Subscribes to:
  *   - `epic.close.end` → emit `acceptance.reconcile.start`, run the
  *     `reconcileAcceptanceSpec` helper, emit one of
- *     `acceptance.reconcile.ok | .skipped | .failed`, and on `.failed`
- *     also emit `epic.blocked` so the LabelTransitioner /
+ *     `acceptance.reconcile.ok | .waived | .skipped | .failed`, and on
+ *     `.failed` also emit `epic.blocked` so the LabelTransitioner /
  *     StructuredCommentPoster / NotifyDispatcher trio fire the blocker
  *     side effects exactly as a `story.blocked` cascade would.
  *
@@ -41,8 +41,12 @@ import { reconcileAcceptanceSpec as defaultReconcileAcceptanceSpec } from '../..
  * The reconciler exposes a four-value `status` discriminant:
  *   - `'waived'`     → the Epic carries `acceptance::n-a` (or no linked
  *                       spec under `--skip-when-waived`). Emit
- *                       `acceptance.reconcile.skipped` with reason
- *                       `'waiver'`.
+ *                       `acceptance.reconcile.waived` with reason
+ *                       `'waiver'`. Story #2893 split this out from
+ *                       `.skipped` so the Finalizer can subscribe to
+ *                       `.waived` and route waived Epics through to PR
+ *                       creation, while empty-spec Epics still
+ *                       terminate without a PR via `.skipped`.
  *   - `'empty-spec'` → the linked spec exists but declares zero AC IDs.
  *                       Treated as "no work to do"; emit `.skipped` with
  *                       reason `'empty-spec'` so operators see the
@@ -55,7 +59,7 @@ import { reconcileAcceptanceSpec as defaultReconcileAcceptanceSpec } from '../..
  *                       the Epic ticket.
  *
  * @param {object|undefined|null} result reconciler envelope.
- * @returns {{ outcome: 'ok'|'skipped'|'failed', reason?: string }}
+ * @returns {{ outcome: 'ok'|'waived'|'skipped'|'failed', reason?: string }}
  */
 export function classifyReconcileResult(result) {
   if (!result || typeof result !== 'object') {
@@ -63,7 +67,7 @@ export function classifyReconcileResult(result) {
   }
   const status = result.status;
   if (status === 'waived') {
-    return { outcome: 'skipped', reason: 'waiver' };
+    return { outcome: 'waived', reason: 'waiver' };
   }
   if (status === 'empty-spec') {
     return { outcome: 'skipped', reason: 'empty-spec' };
@@ -251,6 +255,15 @@ export class AcceptanceReconciler {
       await this._emitOk({ event, seqId, baseRead });
       return;
     }
+    if (classification.outcome === 'waived') {
+      await this._emitWaived({
+        event,
+        seqId,
+        baseRead,
+        reason: classification.reason ?? 'waiver',
+      });
+      return;
+    }
     if (classification.outcome === 'skipped') {
       await this._emitSkipped({
         event,
@@ -280,6 +293,26 @@ export class AcceptanceReconciler {
     } catch (err) {
       this.logger.warn?.(
         `[AcceptanceReconciler] acceptance.reconcile.ok emit failed (swallowed): ${err?.message ?? err}`,
+      );
+    }
+  }
+
+  /**
+   * Emit `acceptance.reconcile.waived` for the `acceptance::n-a` path.
+   * Story #2893 split this out of `.skipped` so the Finalizer can
+   * subscribe to `.waived` and route waived Epics through to PR
+   * creation. The schema pins `reason` to `'waiver'`.
+   */
+  async _emitWaived({ event, seqId, baseRead, reason }) {
+    this.classifications.push({ event, seqId, outcome: 'waived', reason });
+    try {
+      await this.bus.emit('acceptance.reconcile.waived', {
+        baseRead,
+        reason,
+      });
+    } catch (err) {
+      this.logger.warn?.(
+        `[AcceptanceReconciler] acceptance.reconcile.waived emit failed (swallowed): ${err?.message ?? err}`,
       );
     }
   }

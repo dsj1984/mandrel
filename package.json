@@ -19,7 +19,7 @@
     "lint:md": "markdownlint-cli2 \".agents/**/*.md\" \"*.md\" \"!node_modules/**\" \"!.worktrees/**\"",
     "lint": "node .agents/scripts/run-lint.js && npm run docs:check",
     "docs:gen": "node .agents/scripts/generate-config-docs.js && node .agents/scripts/generate-lifecycle-docs.js",
-    "docs:check": "node .agents/scripts/generate-config-docs.js --check && node .agents/scripts/generate-lifecycle-docs.js --check && node .agents/scripts/check-doc-links.js && npm run skills:check",
+    "docs:check": "node .agents/scripts/generate-config-docs.js --check && node .agents/scripts/generate-lifecycle-docs.js --check && node .agents/scripts/check-lifecycle-doc-drift.js && node .agents/scripts/check-doc-links.js && npm run skills:check",
     "skills:index": "node .agents/scripts/generate-skills-index.js",
     "skills:check": "node .agents/scripts/generate-skills-index.js --check",
     "format": "biome format --write .",

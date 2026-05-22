@@ -13,7 +13,7 @@
  * Canonical roster (registration order):
  *   1. LedgerWriter            (privileged hooks via `register(bus)`)
  *   2. AcceptanceReconciler    (epic.close.end → acceptance.reconcile.*)
- *   3. Finalizer               (acceptance.reconcile.ok → pr.created)
+ *   3. Finalizer               (acceptance.reconcile.{ok,waived} → pr.created)
  *   4. AutomergeArmer          (epic.merge.ready → epic.merge.armed)
  *   5. AutomergePredicate      (epic.watch.end → epic.merge.{ready,blocked})
  *   6. BranchCleaner           (epic.cleanup.start → branch reap)
@@ -168,17 +168,18 @@ export async function buildDefaultListenerChain(opts = {}) {
   acceptanceReconciler.register();
   order.push('AcceptanceReconciler');
 
-  // 3. Finalizer — opens the PR on acceptance.reconcile.ok via the
-  //    bus-owned default (`composeBusOwnedFinalize`, Story #2894), which
-  //    chains openOrLocatePr → closePlanningTickets → postHandoffComment
-  //    and emits `epic.merge.ready` on success. The legacy
-  //    `d1-default-no-op` blocker is gone; the listener constructed with
-  //    no `runFinalizeFn` override always runs the real flow. The
-  //    code-review / audit-results graduator steps (Stories #2555 /
-  //    #2615) remain best-effort and are silently skipped when
-  //    `provider` / `currentRepo` are not wired in. `currentRepo` is
-  //    resolved from `config.github.{owner,repo}`; `frameworkRepo` from
-  //    `config.github.frameworkRepo` when distinct, otherwise omitted.
+  // 3. Finalizer — opens the PR on acceptance.reconcile.ok or .waived
+  //    (Story #2893 split waiver out of .skipped) via the bus-owned
+  //    default (`composeBusOwnedFinalize`, Story #2894), which chains
+  //    openOrLocatePr → closePlanningTickets → postHandoffComment and
+  //    emits `epic.merge.ready` on success. The legacy
+  //    `d1-default-no-op` blocker is gone; the listener constructed
+  //    with no `runFinalizeFn` override always runs the real flow.
+  //    The code-review / audit-results graduator steps (Stories
+  //    #2555 / #2615) remain best-effort and are silently skipped
+  //    when `provider` / `currentRepo` are not wired in. `currentRepo`
+  //    is resolved from `config.github.{owner,repo}`; `frameworkRepo`
+  //    from `config.github.frameworkRepo` when distinct, otherwise omitted.
   const currentRepo =
     config?.github?.owner && config?.github?.repo
       ? { owner: config.github.owner, repo: config.github.repo }

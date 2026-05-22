@@ -361,10 +361,12 @@ export function registerReliabilityObservers({ bus, config, logger }) {
  * Registers, in canonical close-tail order:
  *
  *   1. `AcceptanceReconciler` — subscribes to `epic.close.end`; emits
- *      `acceptance.reconcile.{ok,skipped,failed}` (and `epic.blocked`
- *      on a gap).
- *   2. `Finalizer` — subscribes to `acceptance.reconcile.ok`; emits
- *      `epic.finalize.{start,end}` and `pr.created`. Wired here AFTER
+ *      `acceptance.reconcile.{ok,waived,skipped,failed}` (and
+ *      `epic.blocked` on a gap). Story #2893 split `.waived` out of
+ *      `.skipped` so the Finalizer can route waived Epics to PR
+ *      creation while empty-spec Epics still terminate without a PR.
+ *   2. `Finalizer` — subscribes to `acceptance.reconcile.{ok,waived}`;
+ *      emits `epic.finalize.{start,end}` and `pr.created`. Wired here AFTER
  *      AcceptanceReconciler so the bus invokes them in chain order;
  *      sequential-await semantics mean reconciler outcomes settle
  *      into the ledger before finalize side effects run.
@@ -539,7 +541,7 @@ function registerCloseTailChain({
     cleaner.register();
   }
   logger?.debug?.(
-    '[lifecycle] close-tail chain registered (acceptance-reconciler → epic.close.end; finalizer → acceptance.reconcile.ok; watcher → pr.created; automerge-predicate → epic.watch.end; automerge-armer → epic.merge.ready; branch-cleaner → epic.cleanup.start; cleaner → epic.merge.armed)',
+    '[lifecycle] close-tail chain registered (acceptance-reconciler → epic.close.end; finalizer → acceptance.reconcile.{ok,waived}; watcher → pr.created; automerge-predicate → epic.watch.end; automerge-armer → epic.merge.ready; branch-cleaner → epic.cleanup.start; cleaner → epic.merge.armed)',
   );
   return {
     acceptanceReconciler,

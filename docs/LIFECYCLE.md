@@ -75,11 +75,11 @@ contract.
 | `epic.plan.end`             | `/epic-plan` Phase 7 closes the planning run.               |
 | `epic.snapshot.start`       | `/epic-deliver` Phase 1 — snapshot phase opens.             |
 | `epic.snapshot.end`         | Snapshot complete; wave plan persisted.                     |
-| `epic.finalize.start`       | Phase 6 finalize begins (PR-open).                          |
+| `epic.finalize.start`       | Phase 7 finalize begins (PR-open).                          |
 | `epic.finalize.end`         | Finalize completed; PR opened (or skipped).                 |
 | `epic.close.start`          | Close-validation chain opens.                               |
 | `epic.close.end`            | Close-validation chain completes.                           |
-| `epic.automerge.start`      | Phase 7.5 emit shim fires.                                  |
+| `epic.automerge.start`      | Phase 8.5 emit shim fires.                                  |
 | `epic.automerge.end`        | Automerge phase concludes.                                  |
 | `epic.cleanup.start`        | Phase 8 cleanup shim fires.                                 |
 | `epic.cleanup.end`          | Cleanup archive + branch reap complete.                     |
@@ -91,6 +91,7 @@ contract.
 | `epic.merge.ready`          | `AutomergePredicate` clean — armed-merge authorised.        |
 | `epic.merge.blocked`        | `AutomergePredicate` dirty — operator-merges-button path.   |
 | `epic.merge.armed`          | `AutomergeArmer` armed GitHub native auto-merge.            |
+| `epic.merge.confirmed`      | `MergeWatcher` observed `mergeCommit` non-null on the PR.   |
 
 ### Wave + Story events
 
@@ -110,7 +111,8 @@ contract.
 | `acceptance.reconcile.start`   | Acceptance-spec reconciler begins.                       |
 | `acceptance.reconcile.ok`      | Reconcile completed with no diff vs spec.                |
 | `acceptance.reconcile.failed`  | Reconcile completed but the spec drifted; halt or warn.  |
-| `acceptance.reconcile.skipped` | Reconciler skipped (waiver label or no spec).            |
+| `acceptance.reconcile.waived`  | Reconciler waived by `acceptance::n-a` label (Finalizer routes to PR). |
+| `acceptance.reconcile.skipped` | Reconciler skipped (empty Acceptance Spec; no PR).        |
 | `close-validate.start`         | Close-validation gates open.                             |
 | `close-validate.end`           | Close-validation gates close (pass or fail).             |
 | `code-review.start`            | Phase 4 inline audit opens.                              |
@@ -140,8 +142,9 @@ a lifecycle schema; the drift gate is
 | --- | --- | --- | --- |
 | `acceptance.reconcile.failed` | [`acceptance.reconcile.failed.schema.json`](../.agents/schemas/lifecycle/acceptance.reconcile.failed.schema.json) | Emitted by AcceptanceReconciler when reconciliation fails. Routes to epic.blocked; no PR is created. | `baseRead`, `reason` |
 | `acceptance.reconcile.ok` | [`acceptance.reconcile.ok.schema.json`](../.agents/schemas/lifecycle/acceptance.reconcile.ok.schema.json) | Emitted by AcceptanceReconciler when reconciliation passes. Finalizer subscribes only to this event to gate the push and PR create. | `baseRead` |
-| `acceptance.reconcile.skipped` | [`acceptance.reconcile.skipped.schema.json`](../.agents/schemas/lifecycle/acceptance.reconcile.skipped.schema.json) | Emitted by AcceptanceReconciler when reconciliation is skipped (e.g. acceptance::n-a waiver). The reason field is required so the listener never silently no-ops. | `baseRead`, `reason` |
+| `acceptance.reconcile.skipped` | [`acceptance.reconcile.skipped.schema.json`](../.agents/schemas/lifecycle/acceptance.reconcile.skipped.schema.json) | Emitted by AcceptanceReconciler when reconciliation is skipped because the linked Acceptance Spec declares zero AC IDs ('empty-spec'). Story #2893 split the `acceptance::n-a` waiver path out to `acceptance.reconcile.waived` so the Finalizer can route waived Epics through to PR creation while empty-spec Epics still terminate without a PR. The reason field is required so the listener never silently no-ops. | `baseRead`, `reason` |
 | `acceptance.reconcile.start` | [`acceptance.reconcile.start.schema.json`](../.agents/schemas/lifecycle/acceptance.reconcile.start.schema.json) | Emitted by AcceptanceReconciler at the start of acceptance-spec reconciliation. Must precede pr.created in every healthy run (reconciliation ordering invariant). | `epicId` |
+| `acceptance.reconcile.waived` | [`acceptance.reconcile.waived.schema.json`](../.agents/schemas/lifecycle/acceptance.reconcile.waived.schema.json) | Emitted by AcceptanceReconciler when reconciliation is waived by the acceptance::n-a label. Distinct from acceptance.reconcile.skipped (which now means 'empty-spec' only) so the Finalizer can subscribe to .waived and route waived Epics through to PR creation while empty-spec Epics still terminate without a PR. The reason field is required and pinned to 'waiver'. | `baseRead`, `reason` |
 | `checkpoint.written` | [`checkpoint.written.schema.json`](../.agents/schemas/lifecycle/checkpoint.written.schema.json) | Self-emitted by CheckpointPointerWriter after the pointer file is updated. Carries the phase header for tracing and the last-completed seqId for the resume contract. | `phase`, `lastCompletedSeqId` |
 | `close-validate.end` | [`close-validate.end.schema.json`](../.agents/schemas/lifecycle/close-validate.end.schema.json) | Emitted at the end of the close-validate sub-phase. ok=true => every gate passed; ok=false => failedGate identifies the first failed gate. durationMs is wall-clock time spent in the gate chain. Story #2250. | `epicId`, `storyId`, `ok` |
 | `close-validate.start` | [`close-validate.start.schema.json`](../.agents/schemas/lifecycle/close-validate.start.schema.json) | Emitted at the start of the close-validate sub-phase (pre-merge gate chain typecheck/lint/test/format/maintainability/crap). Story #2250. | `epicId`, `storyId` |
@@ -241,20 +244,22 @@ boundary is always the first writer.
 | `LedgerWriter`               | `*` (registered first on every event)                                                          | Append `emitted` / `completed` / `failed` rows to `lifecycle.ndjson`.|
 | `TraceLogger`                | `*` (wildcard trace observer)                                                                  | Re-render the `lifecycle.md` companion.                              |
 | `LabelTransitioner`          | `wave.end`, `story.merged`, `story.blocked`, `epic.blocked`, `epic.unblocked`, `epic.complete` | Flip ticket `agent::*` labels via `transitionTicketState`.           |
-| `StructuredCommentPoster`    | `wave.start`, `wave.end` (and the Epic-scoped reconciliation events)                           | Upsert lifecycle-tagged structured comments on the Epic ticket.      |
+| `StructuredCommentPoster`    | `wave.start`, `wave.end`, `epic.blocked`, `epic.unblocked`                                     | Upsert lifecycle-tagged structured comments on the Epic ticket.      |
 | `ProgressReporter`           | `wave.end`, `story.dispatch.end`                                                               | Re-compose the `epic-run-progress` comment.                          |
-| `SignalsAppender`            | `wave.start`, `wave.end`, `story.dispatch.*`                                                   | Append idempotent rows to `temp/epic-<id>/signals.ndjson`.           |
-| `NotifyDispatcher`           | The curated webhook subset (`epic-*` events)                                                   | Fan out the @mention + webhook channels via `notify.js`.             |
-| `CheckpointPointerWriter`    | `wave.end`, `epic.finalize.start`, `epic.complete`                                             | Persist a resume pointer in `epic-run-state`.                        |
-| `AcceptanceReconciler`       | `epic.close.start` (gated by waiver label)                                                     | Reconcile AC IDs against the linked acceptance-spec ticket.          |
-| `Finalizer`                  | `epic.finalize.start`                                                                          | FF-merge `epic/<id>` onto `main`, push, open the PR, close planning tickets, post the handoff comment. |
+| `SignalsAppender`            | `story.dispatch.end`, `story.blocked`, `wave.end`                                              | Append idempotent rows to `temp/epic-<id>/signals.ndjson`.           |
+| `NotifyDispatcher`           | `*` — the curated webhook subset resolved at runtime from `LIFECYCLE_TO_WEBHOOK_EVENT`.        | Fan out the @mention + webhook channels via `notify.js`.             |
+| `CheckpointPointerWriter`    | `*` — the per-instance `SUBSCRIBED_END_EVENTS` set (every `*.end` event plus `epic.finalize.start`). | Persist a resume pointer in `epic-run-state`.                        |
+| `InterventionRecorder`       | `intervention.recorded`                                                                        | Append the manual-intervention payload to the epic-run-state-store. |
+| `AcceptanceReconciler`       | `epic.close.end` (gated by waiver label)                                                       | Reconcile AC IDs against the linked acceptance-spec ticket.          |
+| `Finalizer`                  | `acceptance.reconcile.ok`, `acceptance.reconcile.waived`                                       | FF-merge `epic/<id>` onto `main`, push, open the PR, close planning tickets, post the handoff comment. |
 | `Watcher`                    | `pr.created`                                                                                   | Resolve required-check names; poll `gh pr checks`; emit `epic.watch.end`. |
 | `AutomergePredicate`         | `epic.watch.end`                                                                               | Evaluate predicate signals; emit `epic.merge.ready` or `epic.merge.blocked`. |
 | `AutomergeArmer`             | `epic.merge.ready` **only**                                                                    | Arm GitHub native auto-merge — the SOLE production code path authorised to call `gh pr merge`. |
 | `Cleaner`                    | `epic.merge.armed`                                                                             | Archive `temp/epic-<id>/`; emit `epic.cleanup.start` / `epic.cleanup.end` / `epic.complete`. |
+| `BranchCleaner`              | `epic.cleanup.start`                                                                           | Reap the Epic branch + `.worktrees/story-*/` directories.            |
 | `TimeoutWatchdog`            | `*` (wildcard observer with bounded timer)                                                     | Halt the run when a wave / phase exceeds its budget.                 |
 | `HeartbeatMonitor`           | `*` (wildcard observer)                                                                        | Emit periodic heartbeat traces so external watchers can detect a stuck run. |
-| `BlockerHandler`             | `epic.blocked`                                                                                 | The sole runtime pause point — halts execution, waits to resume.     |
+| `BlockerHandler`             | `story.blocked`                                                                                | The sole runtime pause point — halts execution, waits to resume.     |
 
 ### Side-effect firewall
 

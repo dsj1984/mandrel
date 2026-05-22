@@ -44,6 +44,7 @@ const REQUIRED_EVENTS = Object.freeze([
   'epic.close.end',
   'acceptance.reconcile.start',
   'acceptance.reconcile.ok',
+  'acceptance.reconcile.waived',
   'acceptance.reconcile.skipped',
   'acceptance.reconcile.failed',
   'epic.finalize.start',

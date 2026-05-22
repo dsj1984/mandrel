@@ -92,6 +92,7 @@ const PAYLOAD_BY_EVENT = Object.freeze({
   'acceptance.reconcile.ok': { baseRead: true },
   'acceptance.reconcile.skipped': { baseRead: false, reason: 'fixture' },
   'acceptance.reconcile.start': { epicId: 9999 },
+  'acceptance.reconcile.waived': { baseRead: true, reason: 'waiver' },
   'close-validate.end': { epicId: 9999, storyId: 9999, ok: true },
   'close-validate.start': { epicId: 9999, storyId: 9999 },
   'code-review.end': { epicId: 9999, status: 'no-changes' },
