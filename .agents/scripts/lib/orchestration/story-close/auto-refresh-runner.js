@@ -200,7 +200,7 @@ function resolveBaselineAbs(cwd, p) {
 }
 
 function resolveBaselineAbsPaths({ cwd, config, getBaselines }) {
-  const baselines = getBaselines({ agentSettings: config.agentSettings });
+  const baselines = getBaselines(config);
   return {
     miAbs: resolveBaselineAbs(cwd, baselines?.maintainability?.path),
     crapAbs: resolveBaselineAbs(cwd, baselines?.crap?.path),
@@ -421,7 +421,6 @@ async function stageRefreshArtifacts({
   cwd,
   epicBranch,
   storyBranch,
-  agentSettings,
   config,
   getBaselines,
   refreshBaseline,
@@ -459,7 +458,7 @@ async function stageRefreshArtifacts({
       const scorer = scorerBuilder({
         kind: 'maintainability',
         cwd,
-        agentSettings,
+        config,
       });
       miRefreshed = await runRefreshForKind({
         kind: 'maintainability',
@@ -473,7 +472,7 @@ async function stageRefreshArtifacts({
       });
     }
     if (crapAbs) {
-      const scorer = scorerBuilder({ kind: 'crap', cwd, agentSettings });
+      const scorer = scorerBuilder({ kind: 'crap', cwd, config });
       crapRefreshed = await runRefreshForKind({
         kind: 'crap',
         cwd,
@@ -673,7 +672,7 @@ export async function runAutoRefresh({
   cwd,
   epicBranch,
   storyBranch,
-  agentSettings,
+  config,
   deps = {},
 } = {}) {
   const {
@@ -690,7 +689,6 @@ export async function runAutoRefresh({
     computeDiffPaths,
     readerLoadFile,
   } = resolveAutoRefreshDeps(deps);
-  const config = { agentSettings };
 
   const autoRefresh = getQuality(config)?.autoRefresh;
   if (!autoRefresh || autoRefresh.enabled === false) {
@@ -706,7 +704,6 @@ export async function runAutoRefresh({
     cwd,
     epicBranch,
     storyBranch,
-    agentSettings,
     config,
     getBaselines,
     refreshBaseline,

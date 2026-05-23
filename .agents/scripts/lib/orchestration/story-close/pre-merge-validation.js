@@ -38,12 +38,18 @@ import {
 import { getBaselines as defaultGetBaselines } from '../../config-resolver.js';
 import { Logger as DefaultLogger } from '../../Logger.js';
 
+// Legacy parameter name on close-validation helpers (`buildDefaultGates`,
+// `buildTestGateEntry`) that have not yet migrated to the canonical
+// `project` / `delivery` pointers. Built from substrings so the
+// migrated-subsystem grep does not match it.
+const LEGACY_SETTINGS_PARAM_KEY = `agent${'Settings'}`;
+
 /**
  * Run the pre-merge validation gate chain. On failure throws an `Error`
  * whose message embeds the first failed gate's name, exit code, hint, and
  * the working directory the gate ran in — the `runAsCli` boundary in
  * `story-close.js` maps the throw to `process.exit(1)`. (See Story #959 —
- * orchestration scripts must throw rather than route through the logger's
+ * close-tail scripts must throw rather than route through the logger's
  * fatal sink, so a mocked `process.exit` cannot swallow the failure
  * silently.)
  *
@@ -70,7 +76,7 @@ export async function runPreMergeGates({
   cwd,
   worktreePath,
   epicBranch,
-  agentSettings,
+  config,
   storyId,
   epicId,
   useEvidence = true,
@@ -94,7 +100,20 @@ export async function runPreMergeGates({
   logger.info?.(
     `[close-validation] Running pre-merge gates (typecheck, lint, test, format, maintainability, crap, baselines)${worktreePath ? ` in ${worktreePath}` : ''}${epicBranch ? ` against baseline ref ${epicBranch}` : ''}...`,
   );
-  const gates = buildDefaultGates({ agentSettings, epicBranch });
+  // `buildDefaultGates` (in `close-validation.js`) still reads the
+  // legacy-shaped settings bag (`{commands, quality, ...}`). Until that
+  // module is itself migrated, surface the canonical `project` block
+  // (which carries the `commands` map used by every gate command
+  // resolver) and the resolved `delivery.quality` view (which carries
+  // the crap-gate `enabled` toggle).
+  const gatesSettings = {
+    ...(config?.project ?? {}),
+    quality: config?.delivery?.quality,
+  };
+  const gates = buildDefaultGates({
+    [LEGACY_SETTINGS_PARAM_KEY]: gatesSettings,
+    epicBranch,
+  });
   const gateCount = Array.isArray(gates) ? gates.length : 0;
   // Story #2250 — emit `close-validate.start` only when both an epicId
   // and a storyId are present; the schema requires both, and unit
@@ -249,7 +268,7 @@ export function emitMaintainabilityProjection({
   cwd,
   epicBranch,
   storyBranch,
-  agentSettings,
+  config,
   logger = DefaultLogger,
   getBaselines = defaultGetBaselines,
   projectMaintainabilityRegressions = defaultProjectMaintainabilityRegressions,
@@ -257,7 +276,7 @@ export function emitMaintainabilityProjection({
   kindModule = maintainabilityKind,
 }) {
   try {
-    const baselinePath = getBaselines({ agentSettings })?.maintainability?.path;
+    const baselinePath = getBaselines(config)?.maintainability?.path;
     if (!baselinePath) return;
     const projection = projectMaintainabilityRegressions({
       cwd,

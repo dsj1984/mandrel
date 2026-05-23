@@ -85,7 +85,8 @@ export class IssuesGateway {
 
   /**
    * List every issue carrying `labels` (comma-separated string per GitHub
-   * REST). Used by orchestration to scan for `agent::*` state.
+   * REST). Used by the dispatcher / reconciler to scan for `agent::*`
+   * state.
    *
    * @field-manifest /repos/{owner}/{repo}/issues: number, title, body, labels,
    *                 state, assignees, pull_request
