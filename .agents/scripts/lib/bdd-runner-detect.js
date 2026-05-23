@@ -1,6 +1,6 @@
 /**
  * BDD runner detection + pending-tag verification (Epic #2001 Story #2094
- * Task #2103).
+ * Task #2103; workspace-aware extension from Story #2956).
  *
  * Used by `epic-plan-spec.js#buildAuthoringContext` to decide whether the
  * acceptance-spec body should plan **features-first** Story ordering (a real
@@ -15,6 +15,19 @@
  * support which pending/skip tag. We do not boot the runner. This keeps
  * `/epic-plan` Phase 7 hermetic and offline.
  *
+ * **Workspace awareness (Story #2956).** In a pnpm / npm / yarn monorepo the
+ * BDD runner is rarely a root devDependency — it lives in the workspace
+ * package that owns the e2e suite (e.g. `apps/web/package.json`). The
+ * detector reads the root `package.json` first and then unions in
+ * dependencies from every declared workspace package, so an `apps/*` shaped
+ * monorepo no longer falls back to "no runner detected" when the runner
+ * sits one level down. Workspace declarations are read from
+ * `pnpm-workspace.yaml` (`packages:` field) or the root `package.json`
+ * `workspaces` field (array or `{ packages: [] }` object form).
+ * Preferred-first ordering is preserved by iterating
+ * `BDD_RUNNER_TAG_TABLE` against the union of all collected deps — the
+ * first runner present in *any* package wins.
+ *
  * Output shape (returned to the planner-context envelope):
  *
  *   { runner: 'cucumber-js',         pendingTag: '@skip',     supported: true,  fallback: false }
@@ -24,9 +37,11 @@
  *     reason: 'no-bdd-runner-detected' }
  */
 
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import yaml from 'js-yaml';
+import picomatch from 'picomatch';
 
 /**
  * Known BDD runner package names → pending-tag string the runner honours.
@@ -87,22 +102,30 @@ const FALLBACK = Object.freeze({
 
 /**
  * Verify which BDD runner (if any) the project ships and whether it
- * supports a pending/skip tag. Pure — only reads `package.json` from disk.
+ * supports a pending/skip tag. Reads the root `package.json` and (when
+ * declared) every workspace `package.json` so monorepos that house the
+ * runner in `apps/<name>` or `packages/<name>` resolve correctly.
  *
  * @param {object} [opts]
  * @param {string} [opts.cwd] - Project root holding `package.json`.
  * @param {(p: string) => Promise<string>} [opts.readPkg] - Override for
- *   tests; receives the resolved absolute path to `package.json`.
+ *   tests; receives the resolved absolute path to a `package.json`.
+ * @param {(ctx: { cwd: string, rootPkg: object, readPkg: Function }) => Promise<string[]>} [opts.listWorkspacePkgPaths]
+ *   Override for tests; returns absolute paths to workspace `package.json`
+ *   files. Defaults to scanning `pnpm-workspace.yaml` then the root
+ *   `package.json` `workspaces` field and expanding their glob patterns.
  * @returns {Promise<{ runner: string|null, pendingTag: string|null, supported: boolean, fallback: boolean, reason?: string }>}
  */
 export async function verifyBddRunnerPendingTag(opts = {}) {
   const cwd = opts.cwd ?? process.cwd();
   const readPkg = opts.readPkg ?? ((p) => readFile(p, 'utf8'));
-  const pkgPath = path.join(cwd, 'package.json');
+  const listWorkspacePkgPaths =
+    opts.listWorkspacePkgPaths ?? defaultListWorkspacePkgPaths;
+  const rootPkgPath = path.join(cwd, 'package.json');
 
   let raw;
   try {
-    raw = await readPkg(pkgPath);
+    raw = await readPkg(rootPkgPath);
   } catch (err) {
     if (err && err.code === 'ENOENT') {
       return { ...FALLBACK, reason: 'package-json-missing' };
@@ -110,20 +133,48 @@ export async function verifyBddRunnerPendingTag(opts = {}) {
     throw err;
   }
 
-  let pkg;
+  let rootPkg;
   try {
-    pkg = JSON.parse(raw);
+    rootPkg = JSON.parse(raw);
   } catch (err) {
     return { ...FALLBACK, reason: `package-json-parse-error:${err.message}` };
   }
 
-  const deps = {
-    ...(pkg.dependencies ?? {}),
-    ...(pkg.devDependencies ?? {}),
+  const allDeps = {
+    ...(rootPkg.dependencies ?? {}),
+    ...(rootPkg.devDependencies ?? {}),
   };
 
+  let workspacePkgPaths = [];
+  try {
+    workspacePkgPaths = await listWorkspacePkgPaths({ cwd, rootPkg, readPkg });
+  } catch (_err) {
+    // Workspace discovery failure is non-fatal: degrade to root-only scan.
+    workspacePkgPaths = [];
+  }
+
+  for (const wsPkgPath of workspacePkgPaths) {
+    let wsRaw;
+    try {
+      wsRaw = await readPkg(wsPkgPath);
+    } catch (_err) {
+      continue;
+    }
+    let wsPkg;
+    try {
+      wsPkg = JSON.parse(wsRaw);
+    } catch (_err) {
+      continue;
+    }
+    Object.assign(
+      allDeps,
+      wsPkg.dependencies ?? {},
+      wsPkg.devDependencies ?? {},
+    );
+  }
+
   for (const [runner, pendingTag] of Object.entries(BDD_RUNNER_TAG_TABLE)) {
-    if (Object.hasOwn(deps, runner)) {
+    if (Object.hasOwn(allDeps, runner)) {
       return {
         runner,
         pendingTag,
@@ -134,6 +185,159 @@ export async function verifyBddRunnerPendingTag(opts = {}) {
   }
 
   return { ...FALLBACK };
+}
+
+/**
+ * Default workspace discovery: read `pnpm-workspace.yaml` (`packages:`
+ * field) then the root `package.json` `workspaces` field, expand the
+ * glob patterns against `cwd`, and return the resulting workspace
+ * `package.json` absolute paths.
+ *
+ * Returns `[]` (silent) on any of:
+ *   - no `pnpm-workspace.yaml` and no `workspaces` field
+ *   - YAML parse failure
+ *   - patterns matching no on-disk directories
+ *
+ * Failures here are non-fatal so a malformed workspace file can never
+ * block planner-context emission.
+ *
+ * @returns {Promise<string[]>}
+ */
+async function defaultListWorkspacePkgPaths({ cwd, rootPkg }) {
+  const patterns = readWorkspacePatterns(cwd, rootPkg);
+  if (patterns.length === 0) return [];
+  return expandWorkspacePatterns(cwd, patterns);
+}
+
+function readWorkspacePatterns(cwd, rootPkg) {
+  const yamlPath = path.join(cwd, 'pnpm-workspace.yaml');
+  if (existsSync(yamlPath)) {
+    try {
+      const raw = readFileSync(yamlPath, 'utf8');
+      const parsed = yaml.load(raw);
+      if (parsed && Array.isArray(parsed.packages)) {
+        return parsed.packages.filter((p) => typeof p === 'string');
+      }
+    } catch (_err) {
+      // unparseable yaml → fall through to package.json workspaces
+    }
+  }
+
+  if (rootPkg) {
+    const ws = rootPkg.workspaces;
+    if (Array.isArray(ws)) {
+      return ws.filter((p) => typeof p === 'string');
+    }
+    if (ws && Array.isArray(ws.packages)) {
+      return ws.packages.filter((p) => typeof p === 'string');
+    }
+  }
+
+  return [];
+}
+
+/**
+ * Expand a list of workspace glob patterns into absolute paths to each
+ * matching `package.json`. Handles:
+ *   - literal directory entries (no glob chars): `apps/web`
+ *   - single-segment globs: `apps/*`, `packages/*`
+ *   - recursive globs: `packages/**`
+ *   - exclusion patterns prefixed with `!` (pnpm/npm convention)
+ */
+function expandWorkspacePatterns(cwd, patterns) {
+  const includes = patterns.filter((p) => !p.startsWith('!'));
+  const excludes = patterns
+    .filter((p) => p.startsWith('!'))
+    .map((p) => p.slice(1));
+  const excludeMatchers = excludes.map((e) => picomatch(e));
+
+  const results = new Set();
+
+  for (const pattern of includes) {
+    if (!hasGlobChar(pattern)) {
+      const dir = path.join(cwd, pattern);
+      const pkgPath = path.join(dir, 'package.json');
+      const rel = toPosix(path.relative(cwd, dir));
+      if (existsSync(pkgPath) && !excludeMatchers.some((m) => m(rel))) {
+        results.add(pkgPath);
+      }
+      continue;
+    }
+
+    const segments = pattern.split('/');
+    const literalSegments = [];
+    let i = 0;
+    while (i < segments.length && !hasGlobChar(segments[i])) {
+      literalSegments.push(segments[i]);
+      i++;
+    }
+    const baseDir = path.join(cwd, ...literalSegments);
+    if (!existsSyncDir(baseDir)) continue;
+    const recursive = segments.slice(i).includes('**');
+    const includeMatcher = picomatch(pattern);
+    walkPackages({
+      dir: baseDir,
+      relBase: literalSegments.join('/'),
+      includeMatcher,
+      excludeMatchers,
+      recursive,
+      results,
+    });
+  }
+
+  return [...results];
+}
+
+function walkPackages({
+  dir,
+  relBase,
+  includeMatcher,
+  excludeMatchers,
+  recursive,
+  results,
+}) {
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch (_err) {
+    return;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    if (entry.name === 'node_modules' || entry.name === '.git') continue;
+    const rel = relBase ? `${relBase}/${entry.name}` : entry.name;
+    const full = path.join(dir, entry.name);
+    if (includeMatcher(rel) && !excludeMatchers.some((m) => m(rel))) {
+      const pkgPath = path.join(full, 'package.json');
+      if (existsSync(pkgPath)) results.add(pkgPath);
+    }
+    if (recursive) {
+      walkPackages({
+        dir: full,
+        relBase: rel,
+        includeMatcher,
+        excludeMatchers,
+        recursive,
+        results,
+      });
+    }
+  }
+}
+
+function hasGlobChar(s) {
+  return /[*?[]/.test(s);
+}
+
+function toPosix(p) {
+  return p.split(path.sep).join('/');
+}
+
+function existsSyncDir(p) {
+  try {
+    return existsSync(p) && statSync(p).isDirectory();
+  } catch (_err) {
+    return false;
+  }
 }
 
 /**
