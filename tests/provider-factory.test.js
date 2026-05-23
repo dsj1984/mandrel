@@ -1,8 +1,8 @@
 /**
  * Provider Factory Tests
  *
- * Tests the factory function that resolves orchestration.provider
- * to a concrete ITicketingProvider class.
+ * Tests the factory function that instantiates a ticketing provider from
+ * the canonical `github` config block.
  */
 
 import assert from 'node:assert/strict';
@@ -29,64 +29,45 @@ const { createGh } = await import(
 // Factory resolution
 // ---------------------------------------------------------------------------
 describe('createProvider — factory resolution', () => {
-  it('returns a GitHubProvider for provider: "github"', () => {
-    const orchestration = {
-      provider: 'github',
-      github: {
-        owner: 'test-owner',
-        repo: 'test-repo',
-        projectNumber: null,
-        operatorHandle: '@test',
-      },
+  it('returns a GitHubProvider for a valid github config block', () => {
+    const github = {
+      owner: 'test-owner',
+      repo: 'test-repo',
+      projectNumber: null,
+      operatorHandle: '@test',
     };
 
-    const provider = createProvider(orchestration, { token: 'test-token' });
+    const provider = createProvider(github, { token: 'test-token' });
     assert.ok(provider instanceof ITicketingProvider);
     assert.equal(provider.owner, 'test-owner');
     assert.equal(provider.repo, 'test-repo');
   });
 
-  it('throws when orchestration is null', () => {
+  it('throws when github is null', () => {
     assert.throws(
       () => createProvider(null),
-      /orchestration is not configured/,
+      /github config is not configured/,
     );
   });
 
-  it('throws when orchestration is undefined', () => {
+  it('throws when github is undefined', () => {
     assert.throws(
       () => createProvider(undefined),
-      /orchestration is not configured/,
+      /github config is not configured/,
     );
   });
 
-  it('throws when provider is missing', () => {
+  it('throws when owner is missing', () => {
     assert.throws(
-      () => createProvider({ github: {} }),
-      /orchestration\.provider is required/,
+      () => createProvider({ repo: 'r' }),
+      /github\.owner and github\.repo are required/,
     );
   });
 
-  it('throws for unsupported provider', () => {
+  it('throws when repo is missing', () => {
     assert.throws(
-      () => createProvider({ provider: 'jira' }),
-      /Unsupported provider "jira"/,
-    );
-  });
-
-  it('includes supported providers in error message', () => {
-    try {
-      createProvider({ provider: 'linear' });
-      assert.fail('Should have thrown');
-    } catch (err) {
-      assert.ok(err.message.includes('github'));
-    }
-  });
-
-  it('throws when provider-specific config block is missing', () => {
-    assert.throws(
-      () => createProvider({ provider: 'github' }),
-      /orchestration\.github config block is required/,
+      () => createProvider({ owner: 'o' }),
+      /github\.owner and github\.repo are required/,
     );
   });
 });
@@ -139,13 +120,10 @@ describe('createProvider — gh-exec routing', () => {
 
     const provider = createProvider(
       {
-        provider: 'github',
-        github: {
-          owner: 'test-owner',
-          repo: 'test-repo',
-          projectNumber: null,
-          operatorHandle: '@test',
-        },
+        owner: 'test-owner',
+        repo: 'test-repo',
+        projectNumber: null,
+        operatorHandle: '@test',
       },
       { gh },
     );
@@ -173,13 +151,10 @@ describe('createProvider — gh-exec routing', () => {
 
     const provider = createProvider(
       {
-        provider: 'github',
-        github: {
-          owner: 'test-owner',
-          repo: 'test-repo',
-          projectNumber: null,
-          operatorHandle: '@test',
-        },
+        owner: 'test-owner',
+        repo: 'test-repo',
+        projectNumber: null,
+        operatorHandle: '@test',
       },
       { gh },
     );
@@ -205,13 +180,10 @@ describe('createProvider — gh-exec routing', () => {
 
   it('exposes the projects-v2-graphql shim via resolveOrCreateProject', () => {
     const provider = createProvider({
-      provider: 'github',
-      github: {
-        owner: 'test-owner',
-        repo: 'test-repo',
-        projectNumber: null,
-        operatorHandle: '@test',
-      },
+      owner: 'test-owner',
+      repo: 'test-repo',
+      projectNumber: null,
+      operatorHandle: '@test',
     });
     // Method must exist (sourced from projects-v2-graphql shim).
     assert.equal(typeof provider.resolveOrCreateProject, 'function');
