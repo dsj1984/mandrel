@@ -17,7 +17,7 @@
  * comment post was replaced by a `perf-summary` phase inside
  * post-merge-pipeline.js that shells out to `analyze-execution.js`. The
  * timer summary is written to a per-Story JSON file under
- * `temp/epic-<eid>/story-<sid>/phase-timings.json` so the analyzer can
+ * `temp/epic-<eid>/stories/story-<sid>/phase-timings.json` so the analyzer can
  * read it; this helper writes the file and hands the path to the pipeline.
  */
 

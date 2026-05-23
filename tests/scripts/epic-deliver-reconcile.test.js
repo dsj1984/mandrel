@@ -56,7 +56,13 @@ function fakeProvider(children) {
 
 /** Write a Story's dispatch PID state file under the sandbox repo root. */
 function seedPid(repoRoot, epicId, storyId, pid) {
-  const dir = path.join(repoRoot, 'temp', `epic-${epicId}`, String(storyId));
+  const dir = path.join(
+    repoRoot,
+    'temp',
+    `epic-${epicId}`,
+    'stories',
+    `story-${storyId}`,
+  );
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(
     path.join(dir, 'story-init.state.json'),
@@ -91,7 +97,13 @@ describe('readDispatchPid', () => {
   });
 
   it('returns null when the state file lacks a pid field', () => {
-    const dir = path.join(repoRoot, 'temp', `epic-${EPIC_ID}`, '9998');
+    const dir = path.join(
+      repoRoot,
+      'temp',
+      `epic-${EPIC_ID}`,
+      'stories',
+      'story-9998',
+    );
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(
       path.join(dir, 'story-init.state.json'),

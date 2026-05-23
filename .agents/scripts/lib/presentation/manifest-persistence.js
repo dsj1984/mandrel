@@ -3,7 +3,7 @@
  *
  * File I/O for dispatch / story manifests. All fs writes land under the
  * per-Epic tree (`temp/epic-<id>/manifest.{md,json}` for Epic dispatch
- * manifests; `temp/epic-<id>/story-<sid>/manifest.{md,json}` for Story
+ * manifests; `temp/epic-<id>/stories/story-<sid>/manifest.{md,json}` for Story
  * execution manifests — see Epic #1030 Story #1040 / Task #1053). The
  * formatter is injected so this module is testable against a tmpdir
  * without touching the real filesystem layout.
@@ -139,7 +139,7 @@ export function persistManifest(manifest, opts = {}) {
   let mdPath = null;
 
   if (manifest.type === 'story-execution') {
-    // Story manifests live under `temp/epic-<eid>/story-<sid>/`. When the
+    // Story manifests live under `temp/epic-<eid>/stories/story-<sid>/`. When the
     // manifest carries multiple stories, fall back to the first entry's
     // epicId for the directory key (the dispatcher only ever bundles
     // stories that share an Epic; the multi-Epic case is a hand-rolled

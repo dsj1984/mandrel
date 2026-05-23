@@ -11,8 +11,8 @@
  * a `ITicketingProvider`-shaped provider, and a repo root, it enumerates
  * the Epic's direct children (Stories) that still carry `agent::executing`
  * or `agent::closing`, reads each Story's recorded dispatch PID from
- * `temp/epic-<id>/<storyId>/story-init.state.json`, probes that PID's
- * liveness, and groups each Story into one of three buckets:
+ * `temp/epic-<id>/stories/story-<storyId>/story-init.state.json`, probes
+ * that PID's liveness, and groups each Story into one of three buckets:
  *
  *   - `live`     — the recorded PID is alive (do not touch).
  *   - `dead`     — the PID was recorded but the process is gone (re-dispatch).
@@ -27,8 +27,8 @@
  */
 
 import fs from 'node:fs';
-import path from 'node:path';
 import { AGENT_LABELS } from '../label-constants.js';
+import { dispatchStateFilePath } from '../story-init/dispatch-state-writer.js';
 
 /**
  * Default PID liveness probe. Uses `process.kill(pid, 0)` which is a
@@ -53,31 +53,29 @@ export function defaultProbePid(pid) {
 
 /**
  * Read the dispatch PID for a Story from
- * `temp/epic-<epicId>/<storyId>/story-init.state.json`. Returns `null` when
- * the file does not exist or carries no recognized PID field — the caller
- * will classify the Story as `unknown` in that case.
+ * `temp/epic-<epicId>/stories/story-<storyId>/story-init.state.json`.
+ * Returns `null` when the file does not exist or carries no recognized
+ * PID field — the caller will classify the Story as `unknown` in that
+ * case.
  *
  * Recognized field names (in order of precedence):
  *
  *   - `dispatchPid` — the canonical name written by Story #2535's writer
  *     in `lib/story-init/dispatch-state-writer.js`.
  *   - `pid`         — legacy name accepted for backward compatibility
- *     with state files written before the writer landed (and with the
- *     pre-existing test fixtures that seed `pid` directly).
+ *     with the pre-existing test fixtures that seed `pid` directly.
+ *
+ * Path resolution is delegated to `dispatchStateFilePath` from the
+ * writer module so the reader and writer cannot drift apart (Story
+ * #2940).
  *
  * @param {string} repoRoot
- * @param {number|string} epicId
- * @param {number|string} storyId
+ * @param {number} epicId
+ * @param {number} storyId
  * @returns {number|null}
  */
 export function readDispatchPid(repoRoot, epicId, storyId) {
-  const statePath = path.join(
-    repoRoot,
-    'temp',
-    `epic-${epicId}`,
-    String(storyId),
-    'story-init.state.json',
-  );
+  const statePath = dispatchStateFilePath({ repoRoot, epicId, storyId });
   if (!fs.existsSync(statePath)) return null;
   let raw;
   try {

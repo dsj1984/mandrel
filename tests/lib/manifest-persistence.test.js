@@ -88,6 +88,7 @@ test('persistence: writes story-manifest json + md under per-Story dir', () => {
     root,
     'temp',
     'epic-999099',
+    'stories',
     'story-42',
     'manifest.md',
   );
@@ -95,13 +96,17 @@ test('persistence: writes story-manifest json + md under per-Story dir', () => {
     root,
     'temp',
     'epic-999099',
+    'stories',
     'story-42',
     'manifest.json',
   );
-  assert.ok(fs.existsSync(mdPath), 'epic-999099/story-42/manifest.md missing');
+  assert.ok(
+    fs.existsSync(mdPath),
+    'epic-999099/stories/story-42/manifest.md missing',
+  );
   assert.ok(
     fs.existsSync(jsonPath),
-    'epic-999099/story-42/manifest.json missing',
+    'epic-999099/stories/story-42/manifest.json missing',
   );
   const md = fs.readFileSync(mdPath, 'utf8');
   assert.ok(md.includes('Story #42'));

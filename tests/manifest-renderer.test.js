@@ -339,8 +339,8 @@ test('persistManifest', async (t) => {
     };
 
     persistManifest(manifest, { projectRoot });
-    // Per-Epic layout: `temp/epic-<eid>/story-<sid>/manifest.{md,json}`.
-    const storyDir = path.join(tempDir, 'epic-999001', 'story-888');
+    // Per-Epic layout: `temp/epic-<eid>/stories/story-<sid>/manifest.{md,json}`.
+    const storyDir = path.join(tempDir, 'epic-999001', 'stories', 'story-888');
     assert.ok(
       fs.existsSync(path.join(storyDir, 'manifest.json')),
       'per-Story manifest.json',
