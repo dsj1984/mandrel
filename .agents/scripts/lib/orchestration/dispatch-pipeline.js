@@ -38,8 +38,7 @@ export const TYPE_TASK_LABEL = TYPE_LABELS.TASK;
  * @typedef {object} DispatchContext
  * @property {number} epicId                                  Epic ticket number under dispatch.
  * @property {boolean} dryRun                                 When true, mutating side-effects are skipped.
- * @property {object} agentSettings                           Resolved `.agentrc.json` `agentSettings` block.
- * @property {object} orchestration                           Resolved `.agentrc.json` `orchestration` block.
+ * @property {object} config                                  Resolved canonical `.agentrc.json` (with `project`, `github`, `planning`, `delivery` blocks).
  * @property {import('../ITicketingProvider.js').ITicketingProvider} provider  Ticketing provider (may come from cache).
  * @property {import('../worktree-manager.js').WorktreeManager | undefined} worktreeManager  Optional worktree manager (only when isolation is enabled and not dry-run).
  * @property {string} baseBranch                              Trunk branch the Epic branches from (default `main`).
@@ -58,7 +57,7 @@ export const TYPE_TASK_LABEL = TYPE_LABELS.TASK;
  */
 
 /**
- * Resolve the runtime context for a dispatch: agentSettings, provider, adapter,
+ * Resolve the runtime context for a dispatch: canonical config, provider, adapter,
  * worktree manager, base/epic branch names, and the `ensureBranch` bound
  * helper supplied by the caller.
  *
@@ -73,10 +72,10 @@ export const TYPE_TASK_LABEL = TYPE_LABELS.TASK;
 export function resolveDispatchContext(options, ensureBranch) {
   const { epicId, dryRun = false } = options;
 
-  const { agentSettings, orchestration } = resolveConfig();
-  const provider = options.provider ?? createProvider(orchestration);
+  const config = resolveConfig();
+  const provider = options.provider ?? createProvider(config);
 
-  const wtConfig = orchestration?.worktreeIsolation;
+  const wtConfig = config?.delivery?.worktreeIsolation;
   let worktreeManager = options.worktreeManager;
   if (!worktreeManager && wtConfig?.enabled && !dryRun) {
     worktreeManager = new WorktreeManager({
@@ -88,11 +87,10 @@ export function resolveDispatchContext(options, ensureBranch) {
   return {
     epicId,
     dryRun,
-    agentSettings,
-    orchestration,
+    config,
     provider,
     worktreeManager,
-    baseBranch: agentSettings.baseBranch ?? 'main',
+    baseBranch: config?.project?.baseBranch ?? 'main',
     epicBranch: getEpicBranch(epicId),
     ensureBranch,
   };
@@ -190,18 +188,18 @@ export function buildDispatchGraph(tasks) {
  * in dry-run.
  *
  * @param {DispatchContext} ctx  Dispatch context.
- * @param {(epicBranch: string, agentSettings: object) => (Promise<void> | void)} captureLintBaseline  Injected baseline-capture implementation (legacy function or `LintBaselineService.capture`-bound closure).
+ * @param {(epicBranch: string, config: object) => (Promise<void> | void)} captureLintBaseline  Injected baseline-capture implementation (legacy function or `LintBaselineService.capture`-bound closure).
  * @returns {void}
  */
 export function ensureEpicScaffolding(ctx, captureLintBaseline) {
-  const { dryRun, epicBranch, baseBranch, agentSettings, ensureBranch } = ctx;
+  const { dryRun, epicBranch, baseBranch, config, ensureBranch } = ctx;
   if (dryRun) {
     Logger.info('Dry-run mode: skipping branch creation.');
     return;
   }
   Logger.info(`Ensuring Epic base branch: ${epicBranch}`);
   ensureBranch(epicBranch, baseBranch);
-  captureLintBaseline(epicBranch, agentSettings);
+  captureLintBaseline(epicBranch, config);
 }
 
 /**
@@ -228,7 +226,7 @@ export async function runWorktreeGc(ctx, fetched) {
       fetched.allTicketsById,
       {
         reapOnCancel:
-          ctx.orchestration?.worktreeIsolation?.reapOnCancel ?? true,
+          ctx.config?.delivery?.worktreeIsolation?.reapOnCancel ?? true,
       },
     );
     const gcResult = await worktreeManager.gc(openStoryIds, { epicBranch });
