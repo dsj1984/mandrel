@@ -4,7 +4,8 @@
  * Owns issue-comment CRUD against `/repos/{owner}/{repo}/issues/.../comments`.
  * `postComment` is the structured-comment writer (it prepends the visible
  * type-badge); the `<!-- ap:structured-comment ... -->` marker is added by
- * `lib/orchestration/ticketing.js` before the body lands here.
+ * the upstream `upsertStructuredComment` ticketing helper before the body
+ * lands here.
  *
  * Extracted from `../github.js` in Story #2462 / Task #2480. Public
  * surface on `GitHubProvider` is unchanged — `postComment`,
@@ -22,13 +23,12 @@ import {
 } from './request-helpers.js';
 
 // Structured-comment badge — preserved verbatim from the legacy
-// `./github/comments.js`. `upsertStructuredComment` in
-// `lib/orchestration/ticketing.js` prepends the
-// `<!-- ap:structured-comment ... -->` marker before the body reaches
-// `postComment`; this badge is the visible header consumers (Slack
-// notifier, dashboard) grep for. Keeping the emoji + bold marker stable
-// is what makes the round-trip with structured-comment detection work
-// across the rewrite.
+// `./github/comments.js`. The upstream `upsertStructuredComment` ticketing
+// helper prepends the `<!-- ap:structured-comment ... -->` marker before
+// the body reaches `postComment`; this badge is the visible header
+// consumers (Slack notifier, dashboard) grep for. Keeping the emoji + bold
+// marker stable is what makes the round-trip with structured-comment
+// detection work across the rewrite.
 const TYPE_BADGES = {
   progress: '🔄 **Progress**',
   friction: '⚠️ **Friction**',
@@ -70,10 +70,10 @@ export class CommentGateway {
   }
 
   /**
-   * All comments on a single ticket. Used by `findStructuredComment` in
-   * `lib/orchestration/ticketing.js`, which greps each comment body for
-   * the `<!-- ap:structured-comment type="..." -->` marker — so the
-   * per-comment `body` field must round-trip verbatim.
+   * All comments on a single ticket. Used by the upstream
+   * `findStructuredComment` ticketing helper, which greps each comment
+   * body for the `<!-- ap:structured-comment type="..." -->` marker — so
+   * the per-comment `body` field must round-trip verbatim.
    *
    * @field-manifest /repos/{owner}/{repo}/issues/{n}/comments:
    *                 id, body, created_at, user
