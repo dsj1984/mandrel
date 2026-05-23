@@ -141,11 +141,13 @@ test('formatter: story execution manifest respects injected settings', () => {
       ],
     },
     {
-      agentSettings: {
-        paths: { scriptsRoot: 'custom/scripts' },
-        commands: {
-          validate: 'npm run check',
-          test: 'npm run spec',
+      config: {
+        project: {
+          paths: { scriptsRoot: 'custom/scripts' },
+          commands: {
+            validate: 'npm run check',
+            test: 'npm run spec',
+          },
         },
       },
     },
@@ -154,7 +156,7 @@ test('formatter: story execution manifest respects injected settings', () => {
   assert.ok(md.includes('Run `npm run check` and `npm run spec`'));
 });
 
-test('formatter: story execution manifest falls back to defaults when agentSettings absent', () => {
+test('formatter: story execution manifest falls back to defaults when config absent', () => {
   const md = formatStoryManifestMarkdown({
     generatedAt: '2026-04-20T00:00:00.000Z',
     stories: [],

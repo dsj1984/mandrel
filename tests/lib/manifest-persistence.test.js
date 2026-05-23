@@ -74,11 +74,13 @@ test('persistence: writes story-manifest json + md under per-Story dir', () => {
   };
   persistManifest(manifest, {
     projectRoot: root,
-    agentSettings: {
-      paths: { scriptsRoot: '.agents/scripts' },
-      commands: {
-        validate: 'npm run lint',
-        test: 'npm test',
+    config: {
+      project: {
+        paths: { scriptsRoot: '.agents/scripts' },
+        commands: {
+          validate: 'npm run lint',
+          test: 'npm test',
+        },
       },
     },
   });
@@ -127,9 +129,11 @@ test('persistence: story-execution manifest with no epicId falls back to legacy 
   };
   persistManifest(manifest, {
     projectRoot: root,
-    agentSettings: {
-      paths: { scriptsRoot: '.agents/scripts' },
-      commands: { validate: 'npm run lint', test: 'npm test' },
+    config: {
+      project: {
+        paths: { scriptsRoot: '.agents/scripts' },
+        commands: { validate: 'npm run lint', test: 'npm test' },
+      },
     },
   });
   const legacyMd = path.join(root, 'temp', 'story-manifest-42.md');
