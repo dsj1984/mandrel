@@ -19,7 +19,7 @@ description: >-
 ## Overview
 
 `signals-view.js` is the operator-facing viewer for the consolidated
-signals stream. It reads `temp/epic-<eid>/story-<sid>/signals.ndjson` via
+signals stream. It reads `temp/epic-<eid>/stories/story-<sid>/signals.ndjson` via
 [`lib/signals/read`](../../scripts/lib/signals/read.js), builds an
 in-memory span-tree via
 [`lib/signals/buildSpanTree`](../../scripts/lib/signals/span-tree.js), and

@@ -77,7 +77,7 @@ describe('lib/config/temp-paths.js — Epic / Story directory helpers', () => {
   it('builds the canonical story dir', () => {
     assert.equal(
       storyTempDir(1030, 1042),
-      path.join('temp', 'epic-1030', 'story-1042'),
+      path.join('temp', 'epic-1030', 'stories', 'story-1042'),
     );
   });
 
@@ -91,10 +91,10 @@ describe('lib/config/temp-paths.js — Epic / Story directory helpers', () => {
 });
 
 describe('lib/config/temp-paths.js — signals + canonical artifact paths', () => {
-  it('signalsFile resolves to story-<sid>/signals.ndjson', () => {
+  it('signalsFile resolves to stories/story-<sid>/signals.ndjson', () => {
     assert.equal(
       signalsFile(1030, 1042),
-      path.join('temp', 'epic-1030', 'story-1042', 'signals.ndjson'),
+      path.join('temp', 'epic-1030', 'stories', 'story-1042', 'signals.ndjson'),
     );
   });
 
@@ -121,11 +121,17 @@ describe('lib/config/temp-paths.js — signals + canonical artifact paths', () =
   it('Story-level canonical filenames live under the Story dir', () => {
     assert.equal(
       storyManifestPath(1030, 1042),
-      path.join('temp', 'epic-1030', 'story-1042', 'manifest.md'),
+      path.join('temp', 'epic-1030', 'stories', 'story-1042', 'manifest.md'),
     );
     assert.equal(
       storyPerfSummaryPath(1030, 1042),
-      path.join('temp', 'epic-1030', 'story-1042', 'perf-summary.md'),
+      path.join(
+        'temp',
+        'epic-1030',
+        'stories',
+        'story-1042',
+        'perf-summary.md',
+      ),
     );
   });
 });
@@ -138,7 +144,7 @@ describe('lib/config/temp-paths.js — artifact-name guards', () => {
     );
     assert.equal(
       storyArtifactPath(1030, 1042, 'custom.txt'),
-      path.join('temp', 'epic-1030', 'story-1042', 'custom.txt'),
+      path.join('temp', 'epic-1030', 'stories', 'story-1042', 'custom.txt'),
     );
   });
 
@@ -210,7 +216,15 @@ describe('lib/config/temp-paths.js — path.join semantics (Windows + POSIX)', (
     );
     assert.equal(
       signalsFile(1030, 1042, cfg),
-      path.join('a', 'b', 'temp', 'epic-1030', 'story-1042', 'signals.ndjson'),
+      path.join(
+        'a',
+        'b',
+        'temp',
+        'epic-1030',
+        'stories',
+        'story-1042',
+        'signals.ndjson',
+      ),
     );
   });
 
@@ -220,23 +234,29 @@ describe('lib/config/temp-paths.js — path.join semantics (Windows + POSIX)', (
     // the exact separator that ships on the host.
     const dir = storyTempDir(1030, 1042);
     assert.ok(
-      dir.includes(`epic-1030${SEP}story-1042`),
+      dir.includes(`epic-1030${SEP}stories${SEP}story-1042`),
       `expected platform separator '${SEP}' in ${dir}`,
     );
   });
 });
 
 describe('lib/config/temp-paths.js — standalone Story routing (Story #2874)', () => {
-  it('storyTempDir(null, sid) routes to <tempRoot>/standalone/story-<sid>', () => {
+  it('storyTempDir(null, sid) routes to <tempRoot>/standalone/stories/story-<sid>', () => {
     const dir = storyTempDir(null, 1042);
-    assert.equal(dir, path.join('temp', 'standalone', 'story-1042'));
+    assert.equal(dir, path.join('temp', 'standalone', 'stories', 'story-1042'));
   });
 
   it('signalsFile(null, sid) routes through the standalone parent', () => {
     const file = signalsFile(null, 1042);
     assert.equal(
       file,
-      path.join('temp', 'standalone', 'story-1042', 'signals.ndjson'),
+      path.join(
+        'temp',
+        'standalone',
+        'stories',
+        'story-1042',
+        'signals.ndjson',
+      ),
     );
   });
 
@@ -244,7 +264,7 @@ describe('lib/config/temp-paths.js — standalone Story routing (Story #2874)', 
     const file = storyArtifactPath(null, 7, 'manifest.md');
     assert.equal(
       file,
-      path.join('temp', 'standalone', 'story-7', 'manifest.md'),
+      path.join('temp', 'standalone', 'stories', 'story-7', 'manifest.md'),
     );
   });
 
@@ -252,7 +272,7 @@ describe('lib/config/temp-paths.js — standalone Story routing (Story #2874)', 
     const cfg = { project: { paths: { tempRoot: path.join('a', 'b') } } };
     assert.equal(
       storyTempDir(null, 7, cfg),
-      path.join('a', 'b', 'standalone', 'story-7'),
+      path.join('a', 'b', 'standalone', 'stories', 'story-7'),
     );
   });
 

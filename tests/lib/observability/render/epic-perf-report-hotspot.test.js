@@ -60,7 +60,12 @@ async function writeEpicSignals(events) {
 }
 
 async function writeStorySignals(events) {
-  const dir = path.join(workRoot, `epic-${EPIC_ID}`, `story-${STORY_ID}`);
+  const dir = path.join(
+    workRoot,
+    `epic-${EPIC_ID}`,
+    'stories',
+    `story-${STORY_ID}`,
+  );
   await fs.mkdir(dir, { recursive: true });
   const body = events.map((e) => JSON.stringify(e)).join('\n');
   await fs.writeFile(path.join(dir, 'signals.ndjson'), `${body}\n`, 'utf8');

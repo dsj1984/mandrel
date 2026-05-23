@@ -3,17 +3,17 @@
  * the story-close phase pipeline (Story #2460, Epic #2453).
  *
  * Holds the spawn-timeout descriptor table, the reason-token map, the
- * `agentSettings` → timeout-ms resolver, and the friction-comment body
- * renderers. The side-effecting emit (label transition + comment upsert
- * + bus emit) lives in the sibling `timeout-blocked-emitter.js` so this
- * file stays pure and easy to test.
+ * config → timeout-ms resolver, and the friction-comment body renderers.
+ * The side-effecting emit (label transition + comment upsert + bus emit)
+ * lives in the sibling `timeout-blocked-emitter.js` so this file stays
+ * pure and easy to test.
  *
  * Public surface (all exported; re-exported by story-close.js for
  * historical test imports):
  *   - SPAWN_TIMEOUT_DESCRIPTORS
  *   - resolveSpawnTimeoutDescriptor(name)
  *   - resolveSpawnTimeoutReason(name)
- *   - resolveSpawnTimeoutMs(name, agentSettings)
+ *   - resolveSpawnTimeoutMs(name, config)
  *   - renderSpawnTimeoutFrictionBody(input)
  *   - renderCoverageTimeoutFrictionBody(input)
  */
@@ -85,9 +85,9 @@ export function resolveSpawnTimeoutReason(spawnName) {
  * for the named spawn. Best-effort: a missing/invalid resolver returns
  * `null`.
  */
-export function resolveSpawnTimeoutMs(spawnName, agentSettings) {
+export function resolveSpawnTimeoutMs(spawnName, config) {
   try {
-    const quality = getQuality({ agentSettings });
+    const quality = getQuality(config);
     switch (spawnName) {
       case 'coverage-capture':
         return quality?.coverage?.timeoutMs ?? null;

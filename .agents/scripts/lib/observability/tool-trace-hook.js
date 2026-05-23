@@ -5,7 +5,7 @@
  * PostToolUse hook entries. Resolves the active Epic + Story from
  * environment variables (`CC_EPIC_ID` / `CC_STORY_ID`), pairs Pre/Post
  * tool-call events, and appends one `kind:"trace"` NDJSON line per tool
- * call to `temp/epic-<eid>/story-<sid>/traces.ndjson` via the
+ * call to `temp/epic-<eid>/stories/story-<sid>/traces.ndjson` via the
  * `signals-writer.appendTrace` helper.
  *
  * Robustness contract (Tech Spec #1032 §observability + §security):

@@ -12,7 +12,7 @@
  *   4. notification        — fire the story-complete webhook.
  *   5. dashboard-refresh   — regenerate the dispatch manifest.
  *   6. temp-cleanup        — delete the per-Story manifest pair under
- *                            `temp/epic-<eid>/story-<sid>/manifest.{md,json}`
+ *                            `temp/epic-<eid>/stories/story-<sid>/manifest.{md,json}`
  *                            (Epic #1030 Story #1040). Falls back to the
  *                            legacy flat `temp/story-manifest-<id>.{md,json}`
  *                            layout when `epicId` is unknown — both paths
@@ -635,7 +635,7 @@ export async function tempCleanupPhase(ctx) {
   const log = reapPhaseLogger(progress);
   const unlink = unlinkFn ?? (await import('node:fs/promises')).unlink;
 
-  // Per-Epic layout (Epic #1030 Story #1040): `temp/epic-<eid>/story-<sid>/manifest.{md,json}`.
+  // Per-Epic layout (Epic #1030 Story #1040): `temp/epic-<eid>/stories/story-<sid>/manifest.{md,json}`.
   // Legacy flat layout: `temp/story-manifest-<sid>.{md,json}`. The migration
   // tolerates both — try the per-Epic path first when `epicId` is known,
   // and always sweep the legacy path so a half-migrated cohort doesn't
@@ -647,11 +647,11 @@ export async function tempCleanupPhase(ctx) {
     targets.push(
       {
         path: storyArtifactPath(eid, sid, 'manifest.md', config),
-        label: `temp/epic-${epicId}/story-${storyId}/manifest.md`,
+        label: `temp/epic-${epicId}/stories/story-${storyId}/manifest.md`,
       },
       {
         path: storyArtifactPath(eid, sid, 'manifest.json', config),
-        label: `temp/epic-${epicId}/story-${storyId}/manifest.json`,
+        label: `temp/epic-${epicId}/stories/story-${storyId}/manifest.json`,
       },
     );
   }

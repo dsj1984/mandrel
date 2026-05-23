@@ -26,7 +26,7 @@ import {
 /**
  * Friction signals land on disk as NDJSON via
  * `signals-writer.appendSignal` (Epic #1030 Story #1042), which
- * resolves `temp/epic-<eid>/story-<sid>/signals.ndjson` relative to
+ * resolves `temp/epic-<eid>/stories/story-<sid>/signals.ndjson` relative to
  * `process.cwd()`. The reap-failure tests below switch cwd to a fresh
  * tmpdir so the asserted writes never collide with the repo's real
  * `temp/` tree.
@@ -39,6 +39,7 @@ function readFrictionSignals(epicId, storyId) {
     workRoot,
     'temp',
     `epic-${epicId}`,
+    'stories',
     `story-${storyId}`,
     'signals.ndjson',
   );
@@ -490,6 +491,7 @@ describe('worktreeReapPhase', () => {
       const configuredPath = path.join(
         configuredTempRoot,
         'epic-9',
+        'stories',
         'story-1',
         'signals.ndjson',
       );
@@ -695,17 +697,21 @@ describe('tempCleanupPhase', () => {
         throw err;
       },
     });
-    // Per-Epic: epic-200/story-100/manifest.{md,json} (2)
+    // Per-Epic: epic-200/stories/story-100/manifest.{md,json} (2)
     // Legacy:   story-manifest-100.{md,json} (2)
     assert.equal(attempted.length, 4);
     assert.ok(
       attempted.some((p) =>
-        p.replaceAll('\\', '/').endsWith('epic-200/story-100/manifest.md'),
+        p
+          .replaceAll('\\', '/')
+          .endsWith('epic-200/stories/story-100/manifest.md'),
       ),
     );
     assert.ok(
       attempted.some((p) =>
-        p.replaceAll('\\', '/').endsWith('epic-200/story-100/manifest.json'),
+        p
+          .replaceAll('\\', '/')
+          .endsWith('epic-200/stories/story-100/manifest.json'),
       ),
     );
     assert.ok(attempted.some((p) => p.endsWith('story-manifest-100.md')));

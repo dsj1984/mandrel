@@ -74,11 +74,13 @@ test('persistence: writes story-manifest json + md under per-Story dir', () => {
   };
   persistManifest(manifest, {
     projectRoot: root,
-    agentSettings: {
-      paths: { scriptsRoot: '.agents/scripts' },
-      commands: {
-        validate: 'npm run lint',
-        test: 'npm test',
+    config: {
+      project: {
+        paths: { scriptsRoot: '.agents/scripts' },
+        commands: {
+          validate: 'npm run lint',
+          test: 'npm test',
+        },
       },
     },
   });
@@ -86,6 +88,7 @@ test('persistence: writes story-manifest json + md under per-Story dir', () => {
     root,
     'temp',
     'epic-999099',
+    'stories',
     'story-42',
     'manifest.md',
   );
@@ -93,13 +96,17 @@ test('persistence: writes story-manifest json + md under per-Story dir', () => {
     root,
     'temp',
     'epic-999099',
+    'stories',
     'story-42',
     'manifest.json',
   );
-  assert.ok(fs.existsSync(mdPath), 'epic-999099/story-42/manifest.md missing');
+  assert.ok(
+    fs.existsSync(mdPath),
+    'epic-999099/stories/story-42/manifest.md missing',
+  );
   assert.ok(
     fs.existsSync(jsonPath),
-    'epic-999099/story-42/manifest.json missing',
+    'epic-999099/stories/story-42/manifest.json missing',
   );
   const md = fs.readFileSync(mdPath, 'utf8');
   assert.ok(md.includes('Story #42'));
@@ -122,9 +129,11 @@ test('persistence: story-execution manifest with no epicId falls back to legacy 
   };
   persistManifest(manifest, {
     projectRoot: root,
-    agentSettings: {
-      paths: { scriptsRoot: '.agents/scripts' },
-      commands: { validate: 'npm run lint', test: 'npm test' },
+    config: {
+      project: {
+        paths: { scriptsRoot: '.agents/scripts' },
+        commands: { validate: 'npm run lint', test: 'npm test' },
+      },
     },
   });
   const legacyMd = path.join(root, 'temp', 'story-manifest-42.md');

@@ -38,7 +38,7 @@ import {
  *   spawnCmd?: string|null,
  *   timeoutMs?: number|null,
  *   exitCode?: number|null,
- *   agentSettings?: object,
+ *   config?: object,
  *   provider: object,
  *   progress: (tag: string, msg: string) => void,
  *   reason?: string,
@@ -52,14 +52,14 @@ export async function emitSpawnTimeoutBlockedResult({
   spawnCmd = null,
   timeoutMs: providedTimeoutMs = null,
   exitCode = 124,
-  agentSettings,
+  config,
   provider,
   progress: log,
   reason,
   bus = null,
 }) {
   const timeoutMs =
-    providedTimeoutMs ?? resolveSpawnTimeoutMs(spawnName, agentSettings);
+    providedTimeoutMs ?? resolveSpawnTimeoutMs(spawnName, config);
 
   const body = renderSpawnTimeoutFrictionBody({
     storyId,

@@ -328,7 +328,7 @@ describe('rebaseStoryOnEpic — happy + sub-helper branches', () => {
       fs.mkdirSync(wtPath, { recursive: true });
       const stub = gitStub();
       const out = rebaseStoryOnEpic({
-        orchestration: { worktreeIsolation: { enabled: true } },
+        config: { delivery: { worktreeIsolation: { enabled: true } } },
         storyId: 9999,
         epicBranch: 'epic/1',
         storyBranch: 'story-9999',
@@ -352,7 +352,7 @@ describe('rebaseStoryOnEpic — happy + sub-helper branches', () => {
         'fetch origin epic/1': { status: 1, stdout: '', stderr: 'no remote' },
       });
       const out = rebaseStoryOnEpic({
-        orchestration: { worktreeIsolation: { enabled: true } },
+        config: { delivery: { worktreeIsolation: { enabled: true } } },
         storyId: 9998,
         epicBranch: 'epic/1',
         storyBranch: 'story-9998',
@@ -376,7 +376,7 @@ describe('rebaseStoryOnEpic — happy + sub-helper branches', () => {
         'rebase origin/epic/1': { status: 1, stdout: '', stderr: 'conflict' },
       });
       const out = rebaseStoryOnEpic({
-        orchestration: { worktreeIsolation: { enabled: true } },
+        config: { delivery: { worktreeIsolation: { enabled: true } } },
         storyId: 9997,
         epicBranch: 'epic/1',
         storyBranch: 'story-9997',
