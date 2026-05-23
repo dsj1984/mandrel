@@ -103,8 +103,8 @@ export async function runHierarchyGate({ epicId, injectedProvider } = {}) {
     throw new Error('Usage: node hierarchy-gate.js --epic <EPIC_ID>');
   }
 
-  const { orchestration } = resolveConfig();
-  const provider = injectedProvider || createProvider(orchestration);
+  const config = resolveConfig();
+  const provider = injectedProvider || createProvider(config);
 
   let descendants;
   try {

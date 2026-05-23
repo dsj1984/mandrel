@@ -4,17 +4,18 @@
 /**
  * story-close.js — Story Execution Closure (CLI shell).
  *
- * Thin pipeline that wires the phase modules under `phases/`. Each phase
- * runs as a discrete step and may short-circuit the pipeline with a
- * `{ status: 'blocked' }` envelope. Pipeline shape:
+ * Thin pipeline that wires the phase modules under
+ * `lib/orchestration/story-close/phases/`. Each phase runs as a discrete
+ * step and may short-circuit the pipeline with a `{ status: 'blocked' }`
+ * envelope. Pipeline shape:
  *
- *   1. parse + resolveCloseInputs (`close-inputs.js`)
- *   2. preflight                  (`phases/preflight.js`)
+ *   1. parse + resolveCloseInputs (lib/orchestration/story-close/close-inputs.js)
+ *   2. preflight                  (phases/preflight.js)
  *   3. state-flip → closing       (inline helper below)
- *   4. capture starting branch    (`phases/branch-restore.js`)
+ *   4. capture starting branch    (phases/branch-restore.js)
  *   5. acquire per-Epic merge lock + run the locked pipeline
- *      (`phases/locked-pipeline.js` — gates, refresh, close)
- *   6. restore starting branch    (finally; `phases/branch-restore.js`)
+ *      (phases/locked-pipeline.js — gates, refresh, close)
+ *   6. restore starting branch    (finally; phases/branch-restore.js)
  *
  * Usage: `node story-close.js --story <ID> [--epic <ID>]`. Exit codes:
  *   0  ok
@@ -152,7 +153,7 @@ export async function runStoryClose({
   } = resolved;
 
   const notifyFn = (ticketId, payload, opts = {}) =>
-    notify(ticketId, payload, { provider, ...opts });
+    notify(ticketId, payload, { config, provider, ...opts });
 
   const bus = wireLifecycleBus({ epicId, config });
 

@@ -1,63 +1,80 @@
 /**
- * Provider Factory — instantiates the ticketing provider from a canonical
- * `github` config block.
+ * Provider Factory — resolves the configured ticketing provider to a concrete class.
  *
- * Post-cutover (Story #2944, Epic #2880), the factory accepts the canonical
- * `github` block from `.agentrc.json` (`config.github`) directly. There is
- * no `provider` discriminator and no per-provider sub-block lookup — every
- * supported runtime targets GitHub. If/when a second backend is added, the
- * discriminator returns under a fresh top-level config block (e.g.
- * `ticketing.provider`), not via a `github.provider` field.
+ * Accepts the canonical resolved config object (the wrapper returned by
+ * `resolveConfig()` with `config.github` populated). The legacy
+ * `orchestration`-shaped argument is no longer supported as part of the
+ * Epic #2880 hard cutover; see `.agents/rules/git-conventions.md#contract-cutovers-—-no-shim-layer`.
  *
- * @see docs/v5-implementation-plan.md Sprint 1B (initial design)
- * @see Epic #2880 F14 (canonical config cutover)
+ * @see docs/v5-implementation-plan.md Sprint 1B
  */
 
 import { GitHubProvider } from '../providers/github.js';
 
+/** @type {Record<string, typeof import('../lib/ITicketingProvider.js').ITicketingProvider>} */
+const PROVIDERS = {
+  github: GitHubProvider,
+};
+
 /**
- * Create a ticketing provider instance from the canonical `github` config.
+ * Create a ticketing provider instance from the canonical resolved config.
  *
- * Accepts the canonical `github` block (top-level shape from
- * `.agentrc.json`, e.g. `resolveConfig().github`). The legacy
- * config-resolver shim object — recognized by the presence of a nested
- * `github` sub-key alongside a `provider` discriminator — is unwrapped to
- * its inner `github` block for the duration of Epic #2880's call-site
- * migration. Story #2947 deletes both the shim and the unwrap branch in a
- * single hard cutover.
+ * The canonical contract is:
+ *   - `config.github` carries the GitHub provider config block
+ *     (`owner`, `repo`, `projectNumber`, `projectOwner`, `operatorHandle`,
+ *     and friends).
+ *   - Today GitHub is the only supported provider, so the provider name is
+ *     inferred from the presence of `config.github`. When additional
+ *     providers land, this resolver will gain a `config.provider` discriminator.
  *
- * @param {object|null} github - The `github` block from `.agentrc.json`
- *   (typically `resolveConfig().github`). Must carry at least `owner` and
- *   `repo`; `operatorHandle`, `projectNumber`, `projectOwner`,
- *   `defaultTimeoutMs` are honored when present.
- * @param {{ token?: string, gh?: object }} [opts] - Override options (e.g.,
- *   test token, injected `gh-exec` facade).
+ * @param {object|null} config - The resolved config wrapper (`resolveConfig()` output).
+ * @param {{ token?: string }} [opts] - Override options (e.g., test token).
  * @returns {import('../lib/ITicketingProvider.js').ITicketingProvider}
- * @throws {Error} If `github` is missing or lacks `owner`/`repo`.
+ * @throws {Error} If config is not provided or the provider block is missing.
  */
-export function createProvider(github, opts = {}) {
-  if (!github) {
+export function createProvider(config, opts = {}) {
+  if (!config) {
     throw new Error(
-      '[ProviderFactory] github config is not configured in .agentrc.json. ' +
-        'Add a top-level "github" block with at least "owner" and "repo".',
+      '[ProviderFactory] config is not configured. ' +
+        'Pass the resolved config from resolveConfig() with a populated "github" block.',
     );
   }
 
-  // Transitional unwrap: callers under Epic #2880 still pass the legacy
-  // resolver-shim object whose inner block carries the actual owner/repo.
-  // Recognize the shim shape (`{ provider, github: {...}, ... }`) and use
-  // its nested `github` instead of treating the wrapper as the config.
-  // Removed in Story #2947 once every call site reads canonical config.
-  const effective =
-    github.provider && github.github && typeof github.github === 'object'
-      ? github.github
-      : github;
-
-  if (!effective.owner || !effective.repo) {
+  const providerName = resolveProviderName(config);
+  if (!providerName) {
     throw new Error(
-      '[ProviderFactory] github.owner and github.repo are required.',
+      '[ProviderFactory] provider is required. ' +
+        'Populate the canonical "github" block in .agentrc.json.',
     );
   }
 
-  return new GitHubProvider(effective, opts);
+  const ProviderClass = PROVIDERS[providerName];
+  if (!ProviderClass) {
+    const supported = Object.keys(PROVIDERS).join(', ');
+    throw new Error(
+      `[ProviderFactory] Unsupported provider "${providerName}". ` +
+        `Supported: ${supported}.`,
+    );
+  }
+
+  const providerConfig = config[providerName];
+  if (!providerConfig) {
+    throw new Error(
+      `[ProviderFactory] ${providerName} config block is required ` +
+        `when provider is "${providerName}".`,
+    );
+  }
+
+  return new ProviderClass(providerConfig, opts);
+}
+
+/**
+ * Infer the provider name from the resolved config. Today the only
+ * supported value is `'github'`; a future provider would add a discriminator
+ * field on the top-level config and this helper would consult it.
+ */
+function resolveProviderName(config) {
+  if (typeof config.provider === 'string') return config.provider;
+  if (config.github) return 'github';
+  return null;
 }

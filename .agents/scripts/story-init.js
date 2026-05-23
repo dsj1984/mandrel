@@ -103,10 +103,9 @@ export async function runStoryInit({
   }
 
   const config = injectedConfig || resolveConfig({ cwd });
-  const { agentSettings, orchestration } = config;
-  const provider = injectedProvider || createProvider(orchestration);
+  const provider = injectedProvider || createProvider(config);
   const _notifyFn = (ticketId, payload, opts = {}) =>
-    notify(ticketId, payload, { orchestration, provider, ...opts });
+    notify(ticketId, payload, { config, provider, ...opts });
   // Per-Task transition hook: GitHub-comment surface suppressed (the
   // Story-level summary below replaces the N per-Task comments with a
   // single message). The webhook channel is now gated by the
@@ -116,7 +115,7 @@ export async function runStoryInit({
   // excludes them.
   const notifyWebhookOnly = (ticketId, payload) =>
     notify(ticketId, payload, {
-      orchestration,
+      config,
       provider,
       skipComment: true,
     });
@@ -192,7 +191,7 @@ export async function runStoryInit({
       storyId,
       cwd,
       provider,
-      orchestration,
+      config,
       logger: stageLogger,
     });
     if (guard.blocked) {
@@ -219,7 +218,7 @@ export async function runStoryInit({
   let workCwd = cwd;
   let worktreeCreated = false;
   let installStatus = { status: 'skipped', reason: 'dry-run' };
-  const wtConfig = orchestration?.worktreeIsolation;
+  const wtConfig = config.delivery?.worktreeIsolation;
   const { worktreeEnabled } = runtime;
 
   // Per-phase timer. The init-side emits worktree-create / bootstrap /
@@ -237,7 +236,7 @@ export async function runStoryInit({
         epicId,
         epicBranch,
         storyBranch,
-        baseBranch: agentSettings.baseBranch ?? 'main',
+        baseBranch: config.project?.baseBranch ?? 'main',
         cwd,
         worktreeEnabled,
         wtConfig,

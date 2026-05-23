@@ -90,13 +90,13 @@ export async function runEpicDeliverPrepare({
   }
 
   const config = injectedConfig ?? resolveConfig({ cwd });
-  if (!config.orchestration) {
+  if (!config.github) {
     throw new Error(
-      'runEpicDeliverPrepare: no orchestration block in .agentrc.json',
+      'runEpicDeliverPrepare: no github block in .agentrc.json',
     );
   }
-  const provider = injectedProvider ?? createProvider(config.orchestration);
-  const { deliverRunner } = getRunners(config.orchestration);
+  const provider = injectedProvider ?? createProvider(config);
+  const { deliverRunner } = getRunners(config);
   const concurrencyCap = deliverRunner.concurrencyCap;
 
   const ctx = { epicId, provider };

@@ -277,7 +277,7 @@ export async function runPreflight({
   }
 
   const config = injectedConfig ?? resolveConfig({ cwd });
-  const provider = injectedProvider ?? createProvider(config.orchestration);
+  const provider = injectedProvider ?? createProvider(config);
   const thresholds = getPreflight(config);
 
   // Compose the same two phases /epic-deliver Phase 1 runs so the

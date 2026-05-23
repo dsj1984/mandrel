@@ -61,7 +61,7 @@ async function readParkedFollowOns(provider, epicId) {
 
 /**
  * Fan out async reads either uncapped (Promise.all — preserves v5.21.0
- * behaviour when `orchestration.runners.concurrency.waveGate` is omitted) or
+ * behaviour when `delivery.runners.concurrency.waveGate` is omitted) or
  * capped via `concurrentMap` when the operator set a positive cap.
  */
 function fanOut(items, mapper, cap) {
@@ -82,9 +82,9 @@ export async function runWaveGate({
     throw new Error('Usage: node wave-gate.js --epic <EPIC_ID>');
   }
 
-  const { orchestration } = resolveConfig();
-  const provider = injectedProvider || createProvider(orchestration);
-  const concurrency = injectedConcurrency ?? resolveConcurrency(orchestration);
+  const config = resolveConfig();
+  const provider = injectedProvider || createProvider(config);
+  const concurrency = injectedConcurrency ?? resolveConcurrency(config);
 
   // Story #2465 — prime the provider's ticket cache once with every child
   // ticket of the Epic, so the per-Story `getTicket` reads in the three

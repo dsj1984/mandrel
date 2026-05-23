@@ -83,7 +83,7 @@ async function loadProvider() {
     const mod = await import('./lib/provider-factory.js');
     const { resolveConfig } = await import('./lib/config-resolver.js');
     const config = resolveConfig();
-    const provider = mod.createProvider(config?.orchestration ?? {});
+    const provider = mod.createProvider(config ?? {});
     // The existing provider exposes higher-level ticket I/O. The dedupe
     // module only needs `findIssuesByFingerprint(sha)`. Adapt here so we
     // don't bake provider-shape knowledge into the dedupe module.

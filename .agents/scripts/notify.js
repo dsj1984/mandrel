@@ -4,11 +4,12 @@
 /**
  * notify.js
  *
- * Single dispatch entry point for lifecycle notifications across two
+ * Single dispatch entry point for runtime notifications across two
  * independent channels.
  *
  * Lifecycle-bus integration (Epic #2172): under the Wave-7+ runtime,
- * `notify()` is invoked from the `NotifyDispatcher` lifecycle listener,
+ * `notify()` is invoked from the `NotifyDispatcher` listener
+ * (`lib/orchestration/lifecycle/listeners/notify-dispatcher.js`),
  * which subscribes to lifecycle events and maps `event.severity` →
  * `notify()` payload. Direct inline calls at phase boundaries are no
  * longer the canonical path — listeners on the bus are. See
@@ -19,19 +20,18 @@
  *
  * Channels:
  *
- *   1. GITHUB COMMENT — gated by `github.notifications.commentEvents`
- *      (event allowlist). Only dispatches whose `event` name appears in
- *      the allowlist reach the ticket. @mentions operator on `high`
- *      severity; on `medium` when `mentionOperator` is set. Callers may
- *      pass `opts.skipComment: true` to suppress the comment for a single
+ *   1. GITHUB COMMENT — gated by `notifications.commentEvents` (event
+ *      allowlist). Only dispatches whose `event` name appears in the
+ *      allowlist reach the ticket. @mentions operator on `high` severity;
+ *      on `medium` when `mentionOperator` is set. Callers may pass
+ *      `opts.skipComment: true` to suppress the comment for a single
  *      dispatch while still firing the webhook (used for structured-
  *      comment writers that already posted the ticket-side body themselves).
- *   2. WEBHOOK — gated by `github.notifications.webhookEvents` (event
- *      allowlist). Only dispatches whose `event` name appears in the
- *      allowlist reach the webhook. The webhook channel is curated for the
- *      epic narrative (% progress + blockers), not the firehose of
- *      per-story transitions; the default allowlist is the five `epic-*`
- *      events. Payload envelope:
+ *   2. WEBHOOK — gated by `notifications.webhookEvents` (event allowlist).
+ *      Only dispatches whose `event` name appears in the allowlist reach
+ *      the webhook. The webhook channel is curated for the epic narrative
+ *      (% progress + blockers), not the firehose of per-story transitions;
+ *      the default allowlist is the five `epic-*` events. Payload envelope:
  *      `{ text, severity, event?, level?, ticketId?, epicId?, phase? }` —
  *      `text` always populated for back-compat with `{text}`-only consumers.
  *
@@ -42,12 +42,6 @@
  *
  * Severity vocabulary: low | medium | high. See `lib/notifications/notifier.js`
  * for the `eventSeverity()` helper used by ticket-state-transition events.
- *
- * Config shape: post-cutover (Story #2944, Epic #2880), this script reads
- * directly from the canonical `github` block on the resolved config —
- * `github.owner`, `github.repo`, `github.operatorHandle`, and the nested
- * `github.notifications` sub-block. Callers pass `opts.github` (the
- * canonical block) and optionally `opts.provider` (pre-built provider).
  */
 
 import { createHmac } from 'node:crypto';
@@ -79,7 +73,7 @@ function resolveEventAllowlist(notifications, key) {
 }
 
 function buildWebhookPayload({
-  github,
+  config,
   ticketId,
   severity,
   message,
@@ -90,7 +84,7 @@ function buildWebhookPayload({
   phase,
 }) {
   const cleanMessage = message.replace(operator, '').trim();
-  const repo = github?.repo;
+  const repo = config.github?.repo;
   const numericTicketId = Number.parseInt(ticketId, 10);
   const prefix = severity === 'high' ? '[Action Required]' : `[${severity}]`;
   const ticketPart =
@@ -154,18 +148,10 @@ async function sendWebhook(url, payloadBody) {
  *   @mention behavior on the comment channel and is carried as webhook
  *   envelope metadata, but does not gate either channel. `event` is
  *   required for any channel to fire — event-less dispatches are no-ops.
- * @param {{
- *   github?: object,
- *   provider?: object,
- *   skipComment?: boolean,
- *   webhookUrl?: string|null,
- * }} [opts] - `github` is the canonical `github` config block
- *   (defaults to `resolveConfig().github`). `provider` is a pre-built
- *   ticketing provider (defaults to `createProvider(github)`).
  */
 export async function notify(ticketId, payload, opts = {}) {
-  const github = opts.github || resolveConfig().github;
-  const provider = opts.provider || createProvider(github);
+  const config = opts.config || resolveConfig();
+  const provider = opts.provider || createProvider(config);
 
   const { severity = 'medium', message, event, level, epicId, phase } = payload;
   if (!Object.hasOwn(SEVERITY_RANK, severity)) {
@@ -173,8 +159,8 @@ export async function notify(ticketId, payload, opts = {}) {
       `[Notify] Invalid severity "${severity}". Expected: low | medium | high.`,
     );
   }
-  const operator = github?.operatorHandle || '@operator';
-  const notifications = github?.notifications;
+  const operator = config.github?.operatorHandle || '@operator';
+  const notifications = config.github?.notifications;
   const commentEvents = resolveEventAllowlist(notifications, 'commentEvents');
   const webhookEvents = resolveEventAllowlist(notifications, 'webhookEvents');
 
@@ -209,7 +195,7 @@ export async function notify(ticketId, payload, opts = {}) {
     if (webhookUrl) {
       Logger.info(`[Notify] Firing webhook (${event}) to ${webhookUrl}...`);
       const payloadBody = buildWebhookPayload({
-        github,
+        config,
         ticketId,
         severity,
         message,

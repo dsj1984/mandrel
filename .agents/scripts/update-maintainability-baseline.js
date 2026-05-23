@@ -115,13 +115,13 @@ async function main() {
     );
   }
 
-  const { agentSettings } = resolveConfig();
-  const targetDirs = getQuality({ agentSettings }).maintainability.targetDirs;
-  const baselinePath = getBaselines({ agentSettings }).maintainability.path;
+  const config = resolveConfig();
+  const targetDirs = getQuality(config).maintainability.targetDirs;
+  const baselinePath = getBaselines(config).maintainability.path;
   const absBaselinePath = path.isAbsolute(baselinePath)
     ? baselinePath
     : path.resolve(process.cwd(), baselinePath);
-  const epsilon = getBaselineEpsilon('maintainability', { agentSettings });
+  const epsilon = getBaselineEpsilon('maintainability', config);
 
   Logger.info('[Maintainability] Updating baseline...');
   if (fullScope) {

@@ -699,7 +699,7 @@ async function main(argv = process.argv.slice(2)) {
 
   const cwd = path.resolve(args.cwd ?? PROJECT_ROOT);
   const config = resolveConfig({ cwd });
-  const provider = createProvider(config.orchestration);
+  const provider = createProvider(config);
 
   if (args.storyId) {
     // Existence guard: surface a clear log when the Story has no signals

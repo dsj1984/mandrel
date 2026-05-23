@@ -455,11 +455,10 @@ export async function runLintBaselineCli(values, deps = {}) {
 
   const cfg = deps.resolveConfig ? deps.resolveConfig() : resolveConfig();
   const cmdConfig = getCommands(cfg).lintBaseline;
-  const baselinePathRel = getBaselines({ agentSettings: cfg.agentSettings })
-    .lint.path;
+  const baselinePathRel = getBaselines(cfg).lint.path;
   const projectRoot = deps.projectRoot ?? PROJECT_ROOT;
   const baselinePath = path.resolve(projectRoot, baselinePathRel);
-  const limits = getLimits({ agentSettings: cfg.agentSettings });
+  const limits = getLimits(cfg);
   const env = deps.env ?? process.env;
 
   const gateModeOpts = { argv: gateModeArgv, env };

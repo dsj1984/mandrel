@@ -78,8 +78,8 @@ export function parseArgv(argv) {
  *
  * @param {{ epicId: number, baseBranch?: string, gate?: string, help?: boolean }} values
  * @param {{
- *   resolveConfig?: () => { orchestration: object },
- *   createProvider?: (orchestration: object) => object,
+ *   resolveConfig?: () => object,
+ *   createProvider?: (config: object) => object,
  *   selectAudits?: typeof selectAudits,
  *   help?: string,
  * }} [deps]
@@ -107,8 +107,8 @@ export async function runEpicAuditPrepare(values, deps = {}) {
 
   const cfg = deps.resolveConfig ? deps.resolveConfig() : resolveConfig();
   const provider = deps.createProvider
-    ? deps.createProvider(cfg.orchestration)
-    : createProvider(cfg.orchestration);
+    ? deps.createProvider(cfg)
+    : createProvider(cfg);
   const runner = deps.selectAudits ?? selectAudits;
 
   const envelope = await runner({

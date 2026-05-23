@@ -5,7 +5,7 @@
  * `--skip-when-no-crap-files` so untouched-source pushes stay fast).
  *
  * Behaviour:
- *   1. Resolve `agentSettings.quality.crap`. If `enabled === false`, exit 0.
+ *   1. Resolve `delivery.quality.crap`. If `enabled === false`, exit 0.
  *   2. With `--skip-when-no-crap-files`: read `git diff --name-only <ref>...HEAD`
  *      (default ref `main`) and exit 0 if no changed file lives under
  *      `crap.targetDirs`.
@@ -47,8 +47,8 @@ function parseArgs(argv) {
 
 function main() {
   const args = parseArgs(process.argv);
-  const { agentSettings } = resolveConfig({ cwd: args.cwd });
-  const { crap, coverage } = getQuality({ agentSettings });
+  const config = resolveConfig({ cwd: args.cwd });
+  const { crap, coverage } = getQuality(config);
 
   if (crap.enabled === false) {
     Logger.info('[coverage-capture] CRAP gate disabled — skipping capture.');

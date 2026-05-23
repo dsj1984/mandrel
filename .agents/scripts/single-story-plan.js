@@ -244,8 +244,8 @@ async function main() {
     throw new Error('Pass either --refine or --no-refine, not both.');
   }
 
-  const { orchestration } = resolveConfig();
-  const provider = createProvider(orchestration);
+  const config = resolveConfig();
+  const provider = createProvider(config);
   const projectRoot = PROJECT_ROOT;
 
   if (values['emit-context']) {

@@ -15,7 +15,7 @@
  *   1. Resolve the worktree path (if worktree isolation is enabled).
  *   2. Run the canonical close-validation gate chain (typecheck, lint,
  *      test, format, maintainability, coverage, crap) against
- *      `agentSettings.baseBranch` as the baseline ref. `--skip-validation`
+ *      `project.baseBranch` as the baseline ref. `--skip-validation`
  *      bypasses this step.
  *   3. Push the Story branch to `origin`.
  *   4. Open (or reuse) a PR against `baseBranch` via `gh pr create`. The
@@ -48,11 +48,9 @@ import nodeFs from 'node:fs';
 import path from 'node:path';
 import { parseSprintArgs } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
-import {
-  buildDefaultGates,
-  runCloseValidation,
-} from './lib/close-validation.js';
+import { runCloseValidation } from './lib/close-validation.js';
 import { PROJECT_ROOT, resolveConfig } from './lib/config-resolver.js';
+import { buildGatesFromConfig } from './lib/orchestration/story-close/legacy-settings-bag.js';
 import { syncBranchFromBase } from './lib/git/sync-from-base.js';
 import { getStoryBranch, gitSync } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
@@ -87,7 +85,7 @@ function resolveFlag(paramValue, parsedValue, defaultValue) {
 /**
  * Parse and resolve all CLI / injection options for `runSingleStoryClose`.
  * Handles the conditional param-vs-CLI branch and all flag defaults in one
- * place so the main function body stays focused on orchestration logic.
+ * place so the main function body stays focused on close pipeline logic.
  *
  * @param {{ storyIdParam, cwdParam, skipValidationParam, skipSyncParam, noAutoMergeParam, noFullScopeCrapParam }} raw
  * @returns {{ storyId, cwd, skipValidation, skipSync, noAutoMerge, noFullScopeCrap }}
@@ -168,10 +166,9 @@ export async function runSingleStoryClose({
   }
 
   const config = injectedConfig || resolveConfig({ cwd });
-  const { agentSettings, orchestration } = config;
-  const provider = injectedProvider || createProvider(orchestration);
+  const provider = injectedProvider || createProvider(config);
 
-  const baseBranch = agentSettings.baseBranch ?? 'main';
+  const baseBranch = config.project?.baseBranch ?? 'main';
   const storyBranch = getStoryBranch(0, storyId);
 
   progress('INIT', `Closing standalone Story #${storyId}...`);
@@ -191,7 +188,8 @@ export async function runSingleStoryClose({
   }
 
   // Resolve worktree path (read-only check — does the dir exist on disk?).
-  const worktreeRoot = orchestration?.worktreeIsolation?.root ?? '.worktrees';
+  const worktreeRoot =
+    config.delivery?.worktreeIsolation?.root ?? '.worktrees';
   const worktreePathCandidate = path.resolve(
     cwd,
     worktreeRoot,
@@ -212,8 +210,7 @@ export async function runSingleStoryClose({
     const validation = await runCloseValidation({
       cwd,
       worktreePath,
-      gates: buildDefaultGates({
-        agentSettings,
+      gates: buildGatesFromConfig(config, {
         epicBranch: baseBranch,
         fullScopeCrap: !noFullScopeCrap,
       }),
@@ -389,19 +386,20 @@ export async function runSingleStoryClose({
     prUrl,
     autoMergeEnabled,
     autoMergeReason,
-    orchestration,
+    config,
     progress,
   });
 
   // Step 5: reap worktree. The branch is still alive on origin so the PR
   // can land; the local worktree is no longer needed.
   let worktreeReaped = false;
-  const reapEnabled = orchestration?.worktreeIsolation?.reapOnSuccess !== false;
+  const wtIsolation = config.delivery?.worktreeIsolation;
+  const reapEnabled = wtIsolation?.reapOnSuccess !== false;
   if (worktreePath && reapEnabled) {
     try {
       const wm = new WorktreeManager({
         repoRoot: cwd,
-        config: orchestration?.worktreeIsolation,
+        config: wtIsolation,
         logger: {
           info: (m) => progress('WORKTREE', m),
           warn: (m) => progress('WORKTREE', `⚠️ ${m}`),

@@ -25,6 +25,10 @@ import {
   clearPhaseTimerState,
   loadPhaseTimerState,
 } from '../../../util/phase-timer-state.js';
+import {
+  buildLegacyOrchestrationBag,
+  buildLegacySettingsBag,
+} from '../legacy-settings-bag.js';
 import { dispatchRecovery } from '../../story-close-recovery.js';
 import { runClosePhase } from './close.js';
 import { runStoryCodeReview } from './code-review.js';
@@ -35,12 +39,6 @@ import {
 } from './gates.js';
 import { runAutoRefreshSafely } from './refresh.js';
 import { emitSpawnTimeoutBlockedResult } from './timeout-blocked-emitter.js';
-
-// Legacy key on dispatchRecovery's input bag. Built from substrings so the
-// migrated-subsystem grep does not match it; the recovery helper itself
-// lives outside the migrated subsystem and will rename its parameter when
-// its own subsystem is swept.
-const LEGACY_RECOVERY_CONFIG_KEY = `orches${'tration'}`;
 
 /**
  * Run pre-merge gates and, on a clean outcome, the bounded baseline
@@ -53,7 +51,7 @@ async function runGatesAndRefresh(ctx) {
     worktreePath: ctx.worktreePath,
     epicBranch: ctx.epicBranch,
     storyBranch: ctx.storyBranch,
-    config: ctx.config,
+    agentSettings: ctx.agentSettings,
     storyId: ctx.storyId,
     epicId: ctx.epicId,
     noEvidenceFlag: ctx.noEvidenceFlag,
@@ -80,7 +78,7 @@ async function runGatesAndRefresh(ctx) {
         spawnCmd: gateOutcome.spawnCmd ?? null,
         timeoutMs: gateOutcome.timeoutMs ?? null,
         exitCode: gateOutcome.exitCode ?? 124,
-        config: ctx.config,
+        agentSettings: ctx.agentSettings,
         provider: ctx.provider,
         progress: ctx.progress,
         bus: ctx.bus,
@@ -94,7 +92,7 @@ async function runGatesAndRefresh(ctx) {
       cwd: ctx.worktreePath || ctx.cwd,
       epicBranch: ctx.epicBranch,
       storyBranch: ctx.storyBranch,
-      config: ctx.config,
+      agentSettings: ctx.agentSettings,
     },
     { progress: ctx.progress },
   );
@@ -125,9 +123,18 @@ export async function runStoryCloseLocked(args) {
     progress,
   } = args;
 
-  // Prior-state detection + --resume / --restart dispatch. The recovery
-  // helper consumes a legacy-shaped view; surface it from the canonical
-  // `delivery.worktreeIsolation` block.
+  // Bridge the canonical config into the legacy bags that the gate
+  // helpers under `lib/orchestration/story-close/**` still expect.
+  // Removed in the follow-on that migrates those helpers (see
+  // `legacy-settings-bag.js` header).
+  const agentSettings = buildLegacySettingsBag(config);
+  const orchestration = buildLegacyOrchestrationBag(config);
+
+  // Augment args downstream so helpers that destructure `agentSettings` /
+  // `orchestration` keep working without each caller site rebuilding the bags.
+  args = { ...args, agentSettings, orchestration };
+
+  // Prior-state detection + --resume / --restart dispatch.
   const { resumeFromConflict, resumeFromMerge, resumeFromPostMerge } =
     dispatchRecovery({
       cwd,
@@ -135,9 +142,7 @@ export async function runStoryCloseLocked(args) {
       epicId,
       epicBranch,
       storyBranch,
-      [LEGACY_RECOVERY_CONFIG_KEY]: {
-        worktreeIsolation: config?.delivery?.worktreeIsolation,
-      },
+      orchestration,
       resume: resumeFlag,
       restart: restartFlag,
       progress,

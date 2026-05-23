@@ -154,8 +154,8 @@ export async function main(argv = process.argv.slice(2)) {
     process.exit(2);
   }
 
-  const { orchestration } = resolveConfig();
-  const provider = createProvider(orchestration);
+  const config = resolveConfig();
+  const provider = createProvider(config);
   const result = await runHydrateContext({
     ticketId: intent.ticketId,
     epicId: intent.epicId,

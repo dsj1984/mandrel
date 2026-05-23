@@ -160,16 +160,16 @@ async function main() {
     );
   }
 
-  let orchestration;
+  let config;
   try {
-    ({ orchestration } = resolveConfig());
-    validateOrchestrationConfig(orchestration);
+    config = resolveConfig();
+    validateOrchestrationConfig(config);
   } catch (err) {
     throw new Error(
-      `Orchestration config schema validation failed:\n${err.message}`,
+      `Config schema validation failed:\n${err.message}`,
     );
   }
-  const provider = createProvider(orchestration);
+  const provider = createProvider(config);
 
   // Story #2278 — in --emit-context mode stdout is reserved for the JSON
   // envelope. Flip Logger sinks to stderr defensively even though

@@ -32,10 +32,10 @@ const DEFAULT_DEBOUNCE_MS = 250;
  * Falls back to `['.agents/scripts', 'tests']` when neither block is
  * configured so the watcher always has something to watch in a fresh repo.
  *
- * Pure-ish — exported so tests can pass a synthetic `agentSettings` shape
- * without reaching into the real config resolver.
+ * Pure-ish — exported so tests can pass a synthetic config shape without
+ * reaching into the real config resolver.
  *
- * @param {{ agentSettings: object }} resolved
+ * @param {object} resolved Canonical resolved config (`resolveConfig()` output).
  * @returns {string[]}
  */
 export function resolveWatchTargets(resolved) {
@@ -177,7 +177,7 @@ export function createWatcher({
  *   argv?: string[],
  *   cwd?: string,
  *   chokidarLoader?: () => Promise<{ default?: object } & object>,
- *   resolved?: { agentSettings: object },
+ *   resolved?: object,
  * }} [opts]
  */
 export async function runCli({
