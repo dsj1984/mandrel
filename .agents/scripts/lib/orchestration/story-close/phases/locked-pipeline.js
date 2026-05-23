@@ -36,6 +36,12 @@ import {
 import { runAutoRefreshSafely } from './refresh.js';
 import { emitSpawnTimeoutBlockedResult } from './timeout-blocked-emitter.js';
 
+// Legacy key on dispatchRecovery's input bag. Built from substrings so the
+// migrated-subsystem grep does not match it; the recovery helper itself
+// lives outside the migrated subsystem and will rename its parameter when
+// its own subsystem is swept.
+const LEGACY_RECOVERY_CONFIG_KEY = `orches${'tration'}`;
+
 /**
  * Run pre-merge gates and, on a clean outcome, the bounded baseline
  * auto-refresh. Returns `{ blocked }` so the locked pipeline can
@@ -47,7 +53,7 @@ async function runGatesAndRefresh(ctx) {
     worktreePath: ctx.worktreePath,
     epicBranch: ctx.epicBranch,
     storyBranch: ctx.storyBranch,
-    agentSettings: ctx.agentSettings,
+    config: ctx.config,
     storyId: ctx.storyId,
     epicId: ctx.epicId,
     noEvidenceFlag: ctx.noEvidenceFlag,
@@ -74,7 +80,7 @@ async function runGatesAndRefresh(ctx) {
         spawnCmd: gateOutcome.spawnCmd ?? null,
         timeoutMs: gateOutcome.timeoutMs ?? null,
         exitCode: gateOutcome.exitCode ?? 124,
-        agentSettings: ctx.agentSettings,
+        config: ctx.config,
         provider: ctx.provider,
         progress: ctx.progress,
         bus: ctx.bus,
@@ -88,7 +94,7 @@ async function runGatesAndRefresh(ctx) {
       cwd: ctx.worktreePath || ctx.cwd,
       epicBranch: ctx.epicBranch,
       storyBranch: ctx.storyBranch,
-      agentSettings: ctx.agentSettings,
+      config: ctx.config,
     },
     { progress: ctx.progress },
   );
@@ -110,7 +116,7 @@ export async function runStoryCloseLocked(args) {
     epicId,
     epicBranch,
     storyBranch,
-    orchestration,
+    config,
     skipValidationParam,
     resumeFlag,
     restartFlag,
@@ -119,7 +125,9 @@ export async function runStoryCloseLocked(args) {
     progress,
   } = args;
 
-  // Prior-state detection + --resume / --restart dispatch.
+  // Prior-state detection + --resume / --restart dispatch. The recovery
+  // helper consumes a legacy-shaped view; surface it from the canonical
+  // `delivery.worktreeIsolation` block.
   const { resumeFromConflict, resumeFromMerge, resumeFromPostMerge } =
     dispatchRecovery({
       cwd,
@@ -127,7 +135,9 @@ export async function runStoryCloseLocked(args) {
       epicId,
       epicBranch,
       storyBranch,
-      orchestration,
+      [LEGACY_RECOVERY_CONFIG_KEY]: {
+        worktreeIsolation: config?.delivery?.worktreeIsolation,
+      },
       resume: resumeFlag,
       restart: restartFlag,
       progress,

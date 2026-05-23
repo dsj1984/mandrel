@@ -95,17 +95,19 @@ export async function resolveCloseInputs({
     );
   }
 
-  const { orchestration, agentSettings } = resolveConfig({ cwd });
+  const config = resolveConfig({ cwd });
+  const { delivery, github } = config;
 
   const guard = checkCdOutGuard({
     cwdExplicit: parsed.cwd != null,
     mainCwd: cwd,
     storyId: parsed.storyId,
-    worktreeRoot: orchestration?.worktreeIsolation?.root,
+    worktreeRoot: delivery?.worktreeIsolation?.root,
   });
   if (!guard.ok) throw new Error(guard.message);
 
-  const provider = injectedProvider || createProvider(orchestration);
+  const provider =
+    injectedProvider || createProvider(buildProviderConfig(github, delivery));
   const story = await provider.getTicket(parsed.storyId);
   let epicId = parsed.epicId;
   if (!epicId) {
@@ -125,18 +127,43 @@ export async function resolveCloseInputs({
     worktreePath: resolveWorktreePath({
       cwd,
       storyId: parsed.storyId,
-      worktreeRoot: orchestration?.worktreeIsolation?.root,
+      worktreeRoot: delivery?.worktreeIsolation?.root,
     }),
     skipDashboard: parsed.skipDashboard,
     skipValidation: !!parsed.skipValidation,
     resumeFlag: parsed.resume,
     restartFlag: parsed.restart,
     noEvidenceFlag: parsed.noEvidence,
-    orchestration,
-    agentSettings,
+    config,
     provider,
     story,
     epicBranch: getEpicBranch(epicId),
     storyBranch: getStoryBranch(epicId, parsed.storyId),
+  };
+}
+
+/**
+ * Build the legacy-shaped provider config the createProvider factory still
+ * expects. Surfaces the canonical `github` block plus the resolved
+ * `delivery.worktreeIsolation` and notifications channels under the keys
+ * the provider factory reads. This keeps the close-tail subsystem free of
+ * the legacy top-level identifier while the provider factory waits for its
+ * own migration.
+ */
+function buildProviderConfig(github, delivery) {
+  if (!github) return null;
+  return {
+    provider: 'github',
+    github: {
+      owner: github.owner,
+      repo: github.repo,
+      projectNumber: github.projectNumber ?? null,
+      projectOwner: github.projectOwner ?? null,
+      operatorHandle: github.operatorHandle,
+      defaultTimeoutMs: github.defaultTimeoutMs ?? null,
+    },
+    notifications: github.notifications,
+    worktreeIsolation: delivery?.worktreeIsolation,
+    runners: { deliverRunner: delivery?.deliverRunner ?? {} },
   };
 }
