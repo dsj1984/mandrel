@@ -45,6 +45,10 @@ function createFakeProvider({ epic, descendants }) {
 }
 
 const baseConfig = {
+  // Minimal github block — runEpicDeliverPrepare throws when
+  // `config.github` is missing (Epic #2880 removed the legacy
+  // resolver shim that used to synthesize it for unit-test fixtures).
+  github: { owner: 'test-owner', repo: 'test-repo' },
   orchestration: {
     runners: {
       deliverRunner: {

@@ -50,6 +50,15 @@ const AGENT_SETTINGS = {
   baseBranch: 'main',
   quality: { prGate: PR_GATE },
 };
+// Epic #2880 / F14B: runBootstrap reads `opts.project` (canonical) instead
+// of the legacy `opts.agentSettings` shape. The previous AGENT_SETTINGS
+// constant is preserved for any other callers in this file that still
+// reference it (e.g. assertions on shape), but new test calls use
+// PROJECT_BLOCK directly.
+const PROJECT_BLOCK = {
+  baseBranch: 'main',
+  quality: { prGate: PR_GATE },
+};
 const ORCHESTRATION = {
   provider: 'github',
   github: { owner: 'acme', repo: 'widgets' },
@@ -126,7 +135,7 @@ describe('agents-bootstrap-github — end-to-end integration', () => {
     });
     const result = await runBootstrap(ORCHESTRATION, {
       providerOverride: provider,
-      agentSettings: AGENT_SETTINGS,
+      project: PROJECT_BLOCK,
       assumeYes: true,
     });
     assert.equal(result.branchProtection.status, 'created');
@@ -152,7 +161,7 @@ describe('agents-bootstrap-github — end-to-end integration', () => {
     });
     const result = await runBootstrap(ORCHESTRATION, {
       providerOverride: provider,
-      agentSettings: AGENT_SETTINGS,
+      project: PROJECT_BLOCK,
     });
     assert.equal(result.branchProtection.status, 'merged');
     assert.deepEqual(result.branchProtection.added, []);
@@ -178,7 +187,7 @@ describe('agents-bootstrap-github — end-to-end integration', () => {
 
     const result = await runBootstrap(ORCHESTRATION, {
       providerOverride: provider,
-      agentSettings: AGENT_SETTINGS,
+      project: PROJECT_BLOCK,
       hitlConfirm: async () => false,
     });
 
@@ -472,7 +481,7 @@ describe('agents-bootstrap-github — drifted-yes scenario (legacy)', () => {
 
     const result = await runBootstrap(ORCHESTRATION, {
       providerOverride: provider,
-      agentSettings: AGENT_SETTINGS,
+      project: PROJECT_BLOCK,
       assumeYes: true,
     });
 
