@@ -48,8 +48,6 @@ describe('config-resolver — worktreeIsolation defaults', () => {
     assert.deepEqual(wi.bootstrapFiles, [
       ...WORKTREE_ISOLATION_DEFAULTS.bootstrapFiles,
     ]);
-    // The legacy-shim path callers read must mirror the canonical block.
-    assert.deepEqual(config.orchestration.worktreeIsolation, wi);
     // And `resolveWorktreeEnabled()` must return true via the defaulted block.
     assert.equal(resolveWorktreeEnabled({ config }, {}), true);
   });

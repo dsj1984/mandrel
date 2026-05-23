@@ -4,9 +4,8 @@
  * Post-reshape (Epic #1720 Story #1739) `maxTickets` lives under
  * `planning.maxTickets` (was `agentSettings.limits.maxTickets`).
  * `getLimits(resolveConfig())` must surface the operator override
- * end-to-end. The legacy shim still exposes `config.agentSettings.limits`
- * for in-flight call sites that haven't migrated; this test asserts both
- * paths.
+ * end-to-end. Epic #2880 deleted the legacy output-side shim; the
+ * canonical `planning.maxTickets` reader is the only supported path.
  */
 
 import assert from 'node:assert/strict';
@@ -56,8 +55,7 @@ describe('limits-override regression — post-reshape', () => {
     writeFixture(root);
 
     const resolved = resolveConfig({ bustCache: true, cwd: root });
-    // Post-reshape: the resolver still exposes `agentSettings` as a legacy
-    // shim, plus the canonical `planning` block at the top level.
+    // Canonical `planning` block at the top level is the only supported path.
     assert.equal(typeof resolved.planning, 'object');
     assert.equal(resolved.planning.maxTickets, OVERRIDE_VALUE);
 
@@ -67,18 +65,5 @@ describe('limits-override regression — post-reshape', () => {
       OVERRIDE_VALUE,
       `getLimits(resolveConfig()).maxTickets must reflect the .agentrc.json override (${OVERRIDE_VALUE}); got ${limits.maxTickets}`,
     );
-  });
-
-  it('reads through the legacy agentSettings shim too', () => {
-    const root = path.resolve(
-      PROJECT_ROOT,
-      '.worktrees/story-1739-fixture-shim',
-    );
-    writeFixture(root);
-
-    const resolved = resolveConfig({ bustCache: true, cwd: root });
-    // The legacy shim derives `agentSettings.limits.maxTickets` from the
-    // resolved-planning block. Verify the shim is wired correctly.
-    assert.equal(resolved.agentSettings.limits.maxTickets, OVERRIDE_VALUE);
   });
 });

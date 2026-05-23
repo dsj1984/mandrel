@@ -35,9 +35,6 @@ describe('resolveConfig with injected ctx.fs', () => {
 
     assert.equal(resolved.source, agentrcPath);
     assert.equal(resolved.project.baseBranch, 'develop');
-    // Legacy shim preserves the baseBranch under agentSettings for
-    // in-flight call sites that haven't migrated yet.
-    assert.equal(resolved.agentSettings.baseBranch, 'develop');
     assert.deepEqual(reads, [agentrcPath]);
   });
 

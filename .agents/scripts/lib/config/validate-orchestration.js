@@ -26,8 +26,7 @@ const PROJECT_ROOT = path.resolve(__dirname, '../../../..');
  * Run the post-reshape security checks against a resolved config bag.
  *
  * @param {object|null} config - The resolved config (`{ project, github, ... }`)
- *   or `null` for zero-config callers. Legacy callers pass the old
- *   `orchestration` bag — the function tolerates both during the transition.
+ *   or `null` for zero-config callers.
  * @throws {Error} If any security check fails.
  */
 export function validateOrchestrationConfig(config) {
@@ -40,14 +39,8 @@ export function validateOrchestrationConfig(config) {
 
   const errors = [];
 
-  // Accept either the full resolved config or a bare github bag for
-  // back-compat with the handful of call sites that still pass
-  // `config.orchestration` (those sites are removed by Task #1761).
-  const github = config.github ?? config.orchestration?.github ?? null;
-  const worktreeIsolation =
-    config.delivery?.worktreeIsolation ??
-    config.orchestration?.worktreeIsolation ??
-    null;
+  const github = config.github ?? null;
+  const worktreeIsolation = config.delivery?.worktreeIsolation ?? null;
 
   if (github && typeof github === 'object') {
     for (const field of ['owner', 'repo', 'operatorHandle']) {

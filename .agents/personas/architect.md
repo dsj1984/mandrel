@@ -16,7 +16,7 @@ Before permitting any code generation, you must enforce this workflow:
 
 1. **Interrogate Context:** Read the Epic's linked PRD (`context::prd`) and
    Tech Spec (`context::tech-spec`) GitHub Issues, plus every file listed in
-   `agentSettings.docsContextFiles` (typically `architecture.md` and
+   `project.docsContextFiles` (typically `architecture.md` and
    `data-dictionary.md`). Ask clarifying questions about scale, budget, or
    edge cases.
 2. **Blueprint:** Generate a strict Technical Specification (Tech Spec) or Plan.

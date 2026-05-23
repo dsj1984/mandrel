@@ -59,8 +59,8 @@ mandrel/
    any action.
 
 2. **Resolve configuration:** Settings are in [`.agentrc.json`](.agentrc.json).
-   See the `agentSettings` and `orchestration` sections for project-specific
-   values. Tech-stack context lives in
+   See the `project`, `github`, `planning`, and `delivery` sections for
+   project-specific values. Tech-stack context lives in
    [`docs/architecture.md`](docs/architecture.md) under the **Tech Stack**
    section, not in the JSON config.
 
