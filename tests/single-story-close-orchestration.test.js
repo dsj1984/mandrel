@@ -95,8 +95,8 @@ function fakeConfig({
   worktreeRoot = '.no-such-worktree-root',
 } = {}) {
   return {
-    agentSettings: { baseBranch, commands: {} },
-    orchestration: {
+    project: { baseBranch, commands: {} },
+    delivery: {
       worktreeIsolation: {
         enabled: true,
         root: worktreeRoot,
