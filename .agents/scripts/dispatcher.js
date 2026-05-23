@@ -211,10 +211,10 @@ function logStoryManifestPaths(manifest) {
   if (eid && stories.length === 1) {
     const sid = stories[0].storyId;
     Logger.info(
-      `\n[Dispatcher] ✅ Story manifest: temp/epic-${eid}/story-${sid}/manifest.json`,
+      `\n[Dispatcher] ✅ Story manifest: temp/epic-${eid}/stories/story-${sid}/manifest.json`,
     );
     Logger.info(
-      `[Dispatcher] 📄 Markdown: temp/epic-${eid}/story-${sid}/manifest.md\n`,
+      `[Dispatcher] 📄 Markdown: temp/epic-${eid}/stories/story-${sid}/manifest.md\n`,
     );
     return;
   }

@@ -583,7 +583,7 @@ being captured.
 
 `lib/observability/signals-writer.js#appendSignal` appends one
 newline-terminated JSON record per friction event to
-`temp/epic-<eid>/story-<sid>/signals.ndjson`. Records are best-effort
+`temp/epic-<eid>/stories/story-<sid>/signals.ndjson`. Records are best-effort
 (any fs failure is logged via `Logger.warn` and swallowed — observability
 must not halt the runner) and are picked up out-of-band by the analyzer
 (Epic #1030).
@@ -1036,7 +1036,7 @@ across phases against the same tree, the framework wraps each invocation
 in `evidence-gate.js`. On success the wrapper writes
 `{ gateName, commitSha, commandConfigHash, timestamp }` under the per-Epic
 tree at `temp/epic-<epicId>/validation-evidence.json` (Epic-scoped) or
-`temp/epic-<epicId>/story-<storyId>/validation-evidence.json`
+`temp/epic-<epicId>/stories/story-<storyId>/validation-evidence.json`
 (Story-scoped). The next caller reads the record, compares against `git
 rev-parse HEAD` and the resolved command config, and skips when both
 match.

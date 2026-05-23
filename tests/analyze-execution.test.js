@@ -69,14 +69,14 @@ afterEach(() => {
 });
 
 async function seedSignals(eid, sid, lines) {
-  const dir = path.join(workRoot, `epic-${eid}`, `story-${sid}`);
+  const dir = path.join(workRoot, `epic-${eid}`, 'stories', `story-${sid}`);
   await fs.mkdir(dir, { recursive: true });
   const body = `${lines.map((l) => JSON.stringify(l)).join('\n')}\n`;
   await fs.writeFile(path.join(dir, 'signals.ndjson'), body);
 }
 
 async function seedPhaseTimings(eid, sid, payload) {
-  const dir = path.join(workRoot, `epic-${eid}`, `story-${sid}`);
+  const dir = path.join(workRoot, `epic-${eid}`, 'stories', `story-${sid}`);
   await fs.mkdir(dir, { recursive: true });
   await fs.writeFile(
     path.join(dir, 'phase-timings.json'),

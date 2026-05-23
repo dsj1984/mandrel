@@ -627,7 +627,7 @@ export {
  * Throw-away ghSpawnCount emitter (Story #1795 / Epic #1788).
  *
  * Writes the current `gh-exec` spawn counter to
- * `temp/epic-<eid>/story-<sid>/gh-spawn-count.json` so the
+ * `temp/epic-<eid>/stories/story-<sid>/gh-spawn-count.json` so the
  * `analyze-execution.js` child process can read it and emit a
  * `ghSpawnCount` field on the `story-perf-summary` payload. The Story-
  * close orchestrator calls this inside `runPostMergeClose` right before

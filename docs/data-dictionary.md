@@ -8,7 +8,7 @@ Mandrel orchestration engine.
 ## SignalEvent (`signals.ndjson` line)
 
 One newline-terminated JSON object emitted by `signals-writer.appendSignal`
-to `temp/epic-<eid>/story-<sid>/signals.ndjson` (and a sibling
+to `temp/epic-<eid>/stories/story-<sid>/signals.ndjson` (and a sibling
 `traces.ndjson` for `kind: trace`). Closed taxonomy of seven record kinds —
 `friction`, `hotspot`, `rework`, `churn`, `idle`, `retry`, `trace` — defined
 by Epic #1030. Schema lives at
@@ -74,7 +74,7 @@ into one rolled-up report. Schema lives at
 
 ## FrictionEvent (`friction` NDJSON signal)
 
-Appended to `temp/epic-<eid>/story-<sid>/signals.ndjson` by
+Appended to `temp/epic-<eid>/stories/story-<sid>/signals.ndjson` by
 `signals-writer.appendSignal` when detector or gate-failure paths
 trip. (Pre Epic #1030 Story #1042 the same payload was posted as a
 GitHub structured comment by the now-deleted in-process emitter.)
@@ -243,7 +243,7 @@ the Epic is the SSOT; the on-disk file is a renderer cache regenerable via
 | `progress-signals/stalled-worktree.js`              | Detector | Mechanical `ProgressReporter` detector; flags Stories where `agent::done` ships with a live `.worktrees/story-<id>/` directory still on disk.                                                          |
 | `progress-signals/maintainability-drift.js`         | Detector | Mechanical detector; emits a Notable bullet when the maintainability score for any tracked file drifts negatively from the wave-start baseline.                                                        |
 | `progress-signals/crap-drift.js`                    | Detector | Mechanical detector; per-method CRAP drift versus a wave-start baseline. Surfaces a `🧨 CRAP drift: <file>::<method> <score> (ceiling <N>)` bullet when a method crosses the configured ceiling or rises by ≥ threshold. |
-| `signals-writer.appendSignal`                       | Helper   | Append-only NDJSON writer at `lib/observability/signals-writer.js`. Writes one JSON record per line to `temp/epic-<eid>/story-<sid>/signals.ndjson`. Consumers: `diagnose-friction.js`, `story-close.js` reap-failure (via `post-merge-pipeline.js`), `epic-runner/progress-reporter.js` poller-failure, `check-maintainability.js`, and `check-crap.js`. Replaced the deleted in-process emitter class in Epic #1030 Story #1042. |
+| `signals-writer.appendSignal`                       | Helper   | Append-only NDJSON writer at `lib/observability/signals-writer.js`. Writes one JSON record per line to `temp/epic-<eid>/stories/story-<sid>/signals.ndjson`. Consumers: `diagnose-friction.js`, `story-close.js` reap-failure (via `post-merge-pipeline.js`), `epic-runner/progress-reporter.js` poller-failure, `check-maintainability.js`, and `check-crap.js`. Replaced the deleted in-process emitter class in Epic #1030 Story #1042. |
 | `--reap-discard-after-merge` / `--no-reap-discard-after-merge` | CLI flag | `/epic-deliver` Phase 7 flag. Default force-reaps worktrees whose Story branch is already merged into `epic/<id>` (per `git merge-base --is-ancestor`), discarding uncommitted post-merge drift; the `--no-` form preserves prior skip-on-uncommitted behavior. Force-reap emits a `friction` comment listing discarded paths. |
 | Version-bump-intent snapshot                        | Checkpoint | `/epic-deliver` Phase 0.5 parses the Epic body for `Release target:` / `--segment` directives and posts a `notification` structured comment on the Epic (marker `<!-- notification: version-bump-intent -->`) when they disagree with `release.autoVersionBump`.            |
 | Launcher-level config validation                    | Contract | `validateOrchestrationConfig(config)` runs in `main()` of `epic-runner.js`, `plan-runner.js`, `epic-plan-spec.js`, and `epic-plan-decompose.js` — a schema-invalid `.agentrc.json` exits non-zero before any long-running flow begins. |
@@ -382,7 +382,7 @@ Evidence is per-clone, gitignored, and never committed.
 
 Evidence is keyed on `{ scopeId, gateName }` and lives under the per-Epic
 tree at `temp/epic-<epicId>/validation-evidence.json` (Epic-scoped) or
-`temp/epic-<epicId>/story-<storyId>/validation-evidence.json`
+`temp/epic-<epicId>/stories/story-<storyId>/validation-evidence.json`
 (Story-scoped). Callers must thread both the scope id and the owning Epic
 id through the wrapper. The wrapper at `evidence-gate.js` is the only
 writer; close-validation, `epic-code-review`, and `/epic-deliver` Phase 4
