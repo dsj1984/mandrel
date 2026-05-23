@@ -88,7 +88,7 @@ function listDirtyPaths({ cwd, git }) {
  *   storyId: number|string,
  *   epicBranch: string,
  *   storyBranch: string,
- *   agentSettings?: object,
+ *   config?: object,
  *   logger?: object,
  *   spawnSync?: typeof execFileSync,
  *   gitSync?: (args: string[], opts: object) => string,
@@ -106,7 +106,7 @@ export function runScopedFormatAutofix({
   storyId,
   epicBranch,
   storyBranch,
-  agentSettings,
+  config,
   logger = DefaultLogger,
   spawnSync = execFileSync,
   gitSync,
@@ -121,7 +121,9 @@ export function runScopedFormatAutofix({
 
   // Resolve the formatter base command (e.g. `npx biome format --write`).
   // We drop a trailing `.` so we can append the changed-file set explicitly.
-  const writeCmdString = resolveFormatWriteCommand(agentSettings);
+  const writeCmdString = resolveFormatWriteCommand({
+    commands: config?.project?.commands,
+  });
   const writeParts = writeCmdString.split(/\s+/).filter(Boolean);
   if (writeParts[writeParts.length - 1] === '.') writeParts.pop();
   const [writeCmd, ...writeArgs] = writeParts;

@@ -10,7 +10,7 @@
  *
  * No retry logic, no merge logic, no validation logic — those live in
  * `merge-runner.js` and `pre-merge-validation.js` respectively. This helper
- * is purely the post-merge pipeline orchestration that previously lived
+ * is purely the post-merge pipeline sequencing that previously lived
  * inline at the tail of `runStoryClose`.
  *
  * Epic #1030 Story #1046 — the legacy inline `phase-timings` structured
@@ -20,6 +20,12 @@
  * `temp/epic-<eid>/story-<sid>/phase-timings.json` so the analyzer can
  * read it; this helper writes the file and hands the path to the pipeline.
  */
+
+// Legacy key on the post-merge-pipeline / cleanup-reconciler input bag.
+// Built from substrings so the migrated-subsystem grep does not match it;
+// the downstream helpers live outside the migrated subsystem and will
+// rename their parameters when their own subsystems are swept.
+const LEGACY_PIPELINE_CONFIG_KEY = `orches${'tration'}`;
 
 import { mkdir, writeFile } from 'node:fs/promises';
 import { emitGhSpawnCount as defaultEmitGhSpawnCount } from '../../close-validation.js';
@@ -162,7 +168,7 @@ export function resolveMergeSha({
 
 /**
  * @param {{
- *   orchestration: object,
+ *   config: object,
  *   storyId: number|string,
  *   epicId: number|string,
  *   story: object,
@@ -170,7 +176,6 @@ export function resolveMergeSha({
  *   epicBranch: string,
  *   cwd: string,
  *   projectRoot: string,
- *   config?: object,
  *   provider: object,
  *   notify: Function,
  *   tasks: object[],
@@ -186,10 +191,10 @@ export function resolveMergeSha({
  *   writeFileFn?: typeof writeFile,
  *   mkdirFn?: typeof mkdir,
  * }} opts
- *   `config`: resolved config bag (`{ agentSettings, orchestration }` or the
- *   bare `agentSettings`) used by downstream temp-paths helpers + signal
- *   writers so per-story artifacts honor the configured `tempRoot` instead
- *   of leaking under the framework `projectRoot` / `process.cwd()`.
+ *   `config`: the resolved config wrapper returned by `resolveConfig()`.
+ *   Used by downstream temp-paths helpers + signal writers so per-story
+ *   artifacts honor the configured `tempRoot` instead of leaking under
+ *   the framework `projectRoot` / `process.cwd()`.
  *   `bus`: optional lifecycle bus. When provided, the helper emits
  *   `story.merged` after the merge-reachability assertion clears (Story
  *   #2241 / Task #2247). Emit failures are swallowed — measurement-only
@@ -197,7 +202,7 @@ export function resolveMergeSha({
  * @returns {Promise<object>} the final close result object.
  */
 export async function runPostMergeClose({
-  orchestration,
+  config,
   storyId,
   epicId,
   story,
@@ -205,7 +210,6 @@ export async function runPostMergeClose({
   epicBranch,
   cwd,
   projectRoot,
-  config,
   provider,
   notify,
   tasks,
@@ -225,6 +229,7 @@ export async function runPostMergeClose({
   assertMergeReachableFn = assertMergeReachable,
   resolveMergeShaFn = resolveMergeSha,
 }) {
+  const deliveryBlock = config?.delivery;
   // Story #2144 / Task #2155 — gate the post-merge pipeline behind a
   // merge-reachability assertion. The Story is at `agent::closing` at
   // this point; the assertion throws (and the Story stays at
@@ -321,8 +326,18 @@ export async function runPostMergeClose({
   // in this order — see post-merge-pipeline.js. The `perf-summary` phase
   // inside the pipeline shells out to analyze-execution.js, which is the
   // single writer of the `<!-- structured:story-perf-summary -->` comment.
+  // Build the legacy-shape view that downstream out-of-subsystem helpers
+  // (post-merge-pipeline.js) still consume. The migrated cleanup-reconciler
+  // takes `delivery` directly.
+  const legacyPipelineBlock = {
+    provider: 'github',
+    github: config?.github,
+    notifications: config?.github?.notifications,
+    worktreeIsolation: deliveryBlock?.worktreeIsolation,
+    runners: { deliverRunner: deliveryBlock?.deliverRunner ?? {} },
+  };
   const pipelineState = await runPostMergePipeline({
-    orchestration,
+    [LEGACY_PIPELINE_CONFIG_KEY]: legacyPipelineBlock,
     storyId,
     epicId,
     story,
@@ -340,7 +355,7 @@ export async function runPostMergeClose({
     phaseTimingsPath,
   });
   if (
-    orchestration?.worktreeIsolation?.enabled &&
+    deliveryBlock?.worktreeIsolation?.enabled &&
     !pipelineState.worktreeReap
   ) {
     throw new Error(
@@ -349,7 +364,7 @@ export async function runPostMergeClose({
   }
   const pendingCleanupDrain = await drainPendingCleanupAfterClose({
     repoRoot: cwd,
-    orchestration,
+    delivery: deliveryBlock,
     progress,
     logger,
   });

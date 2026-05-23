@@ -13,14 +13,13 @@
  * the lock-file path so a stale lock can be cleared by hand.
  *
  * `pushEpicAndHandleConflicts` wraps `pushEpicWithRetry` + the
- * `PushRetryConflictError` → throw envelope, plus the retry-exhausted /
- * generic-failure → throw envelope used by `runFinalizeMerge`. The resume
+ * `PushRetryConflictError` → throw envelope, plus the retry-exhausted / * generic-failure → throw envelope used by `runFinalizeMerge`. The resume
  * path (`runResumeMerge`) shares the same envelope but routes generic
  * failures through the `describeResumePushFailure` helper for consistent
  * operator-facing copy (see `comment-bodies.js`). Errors thrown from these
  * helpers reach the `runAsCli` boundary in `story-close.js` and are mapped
- * to `process.exit(1)` (Story #959 — orchestration scripts must throw
- * rather than route through the logger's fatal sink, see
+ * to `process.exit(1)` (Story #959 — close-tail scripts must throw rather
+ * than route through the logger's fatal sink, see
  * `.agents/instructions.md`).
  *
  * Both helpers are dependency-injected: the lock acquire/release pair and
@@ -165,12 +164,12 @@ export async function withEpicMergeLock(
  *   cwd: string,
  *   epicBranch: string,
  *   storyBranch: string,
- *   orchestration: object,
+ *   config: object,
  *   log?: (msg: string) => void,
  *   mode?: 'finalize' | 'resume',
  *   pushEpicWithRetry?: typeof defaultPushEpicWithRetry,
  *   git?: { gitSpawn: typeof defaultGitSpawn },
- *   getCloseRetry?: (orchestration: object) => any,
+ *   getRunners?: (config: object) => any,
  * }} opts
  * @returns {Promise<{ ok: boolean, attempts: number, reason?: string, result?: object }>}
  */
@@ -178,7 +177,7 @@ export async function pushEpicAndHandleConflicts({
   cwd,
   epicBranch,
   storyBranch,
-  orchestration,
+  config,
   log = () => {},
   mode = 'finalize',
   pushEpicWithRetry = defaultPushEpicWithRetry,
@@ -191,7 +190,7 @@ export async function pushEpicAndHandleConflicts({
       cwd,
       epicBranch,
       storyBranch,
-      storyMergeRetry: getRunners(orchestration).storyMergeRetry,
+      storyMergeRetry: getRunners(config).storyMergeRetry,
       git,
       log,
     });
@@ -220,7 +219,7 @@ export async function pushEpicAndHandleConflicts({
 }
 
 // ---------------------------------------------------------------------------
-// Story-close merge orchestration
+// Story-close merge sequencing
 // ---------------------------------------------------------------------------
 //
 // `runFinalizeMerge` and `runResumeMerge` previously lived inline in
@@ -248,8 +247,8 @@ export async function pushEpicAndHandleConflicts({
  *
  * @returns {{ rebased: boolean, reason?: string }}
  */
-function resolveStoryWorktreePath({ orchestration, storyId, repoRoot }) {
-  const wtConfig = orchestration?.worktreeIsolation;
+function resolveStoryWorktreePath({ config, storyId, repoRoot }) {
+  const wtConfig = config?.delivery?.worktreeIsolation;
   if (!wtConfig?.enabled) return { reason: 'isolation-disabled' };
   const wtPath = resolveWorkingPath({
     worktreeEnabled: true,
@@ -277,7 +276,7 @@ function runRebaseAndAbortOnConflict({ wtPath, epicBranch, log, gitSpawn }) {
 }
 
 export function rebaseStoryOnEpic({
-  orchestration,
+  config,
   storyId,
   epicBranch,
   storyBranch,
@@ -285,7 +284,7 @@ export function rebaseStoryOnEpic({
   log = () => {},
   gitSpawn = defaultGitSpawn,
 }) {
-  const wt = resolveStoryWorktreePath({ orchestration, storyId, repoRoot });
+  const wt = resolveStoryWorktreePath({ config, storyId, repoRoot });
   if (!wt.wtPath) return { rebased: false, reason: wt.reason };
   const { wtPath } = wt;
 
@@ -316,7 +315,7 @@ export function rebaseStoryOnEpic({
  *   storyId: number|string,
  *   epicId: number|string,
  *   cwd: string,
- *   orchestration: object,
+ *   config: object,
  *   log?: (tag: string, msg: string) => void,
  *   logger?: { error: (msg: string) => void },
  *   gitSync?: typeof defaultGitSync,
@@ -378,7 +377,7 @@ export async function runFinalizeMerge({
   storyId,
   epicId: _epicId,
   cwd,
-  orchestration,
+  config,
   bus = null,
   log = () => {},
   logger = DefaultLogger,
@@ -386,7 +385,7 @@ export async function runFinalizeMerge({
   gitSpawn = defaultGitSpawn,
 }) {
   rebaseStoryOnEpic({
-    orchestration,
+    config,
     storyId,
     epicBranch,
     storyBranch,
@@ -436,7 +435,7 @@ export async function runFinalizeMerge({
       cwd,
       epicBranch,
       storyBranch,
-      orchestration,
+      config,
       log: (msg) => log('GIT', msg),
       mode: 'finalize',
     });
@@ -534,7 +533,7 @@ export async function runResumeMerge({
   storyTitle,
   storyId,
   epicId: _epicId,
-  orchestration,
+  config,
   bus = null,
   logger = DefaultLogger,
   log = () => {},
@@ -566,7 +565,7 @@ export async function runResumeMerge({
       cwd,
       epicBranch,
       storyBranch,
-      orchestration,
+      config,
       log: (msg) => log('GIT', msg),
       mode: 'resume',
     });

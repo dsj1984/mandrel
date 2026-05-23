@@ -28,7 +28,7 @@ function buildPhaseTimer() {
 }
 
 const baseInputs = () => ({
-  orchestration: {},
+  config: { delivery: {} },
   storyId: 100,
   epicId: 1,
   story: { id: 100, title: 'A' },
@@ -147,7 +147,7 @@ describe('runPostMergeClose — persistence failure isolation', () => {
 describe('runPostMergeClose — invariants', () => {
   it('throws when worktree isolation is enabled but pipeline omits worktreeReap', async () => {
     const inputs = baseInputs();
-    inputs.orchestration = { worktreeIsolation: { enabled: true } };
+    inputs.config = { delivery: { worktreeIsolation: { enabled: true } } };
     inputs.runPostMergePipeline = mock.fn(async () => ({
       worktreeReap: undefined,
       branchCleanup: { localDeleted: true, remoteDeleted: true },
@@ -168,7 +168,7 @@ describe('runPostMergeClose — invariants', () => {
 
   it('does not throw when worktree isolation is disabled and reap state is omitted', async () => {
     const inputs = baseInputs();
-    inputs.orchestration = { worktreeIsolation: { enabled: false } };
+    inputs.config = { delivery: { worktreeIsolation: { enabled: false } } };
     inputs.runPostMergePipeline = mock.fn(async () => ({
       worktreeReap: undefined,
       branchCleanup: { localDeleted: true, remoteDeleted: true },

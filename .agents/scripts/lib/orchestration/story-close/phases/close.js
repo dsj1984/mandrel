@@ -40,7 +40,7 @@ export async function runMergePhase(ctx) {
     story,
     storyId,
     epicId,
-    orchestration,
+    config,
     bus,
     progress,
     progressLog,
@@ -61,7 +61,7 @@ export async function runMergePhase(ctx) {
     storyTitle: story.title,
     storyId,
     epicId,
-    orchestration,
+    config,
     bus,
     log: progressLog,
   };
@@ -74,14 +74,13 @@ export async function runMergePhase(ctx) {
  */
 export async function runPostMergePhase(ctx) {
   const {
-    orchestration,
+    config,
     storyId,
     epicId,
     story,
     storyBranch,
     epicBranch,
     cwd,
-    agentSettings,
     provider,
     notifyFn,
     tasks,
@@ -93,7 +92,7 @@ export async function runPostMergePhase(ctx) {
   } = ctx;
 
   return runPostMergeClose({
-    orchestration,
+    config,
     storyId,
     epicId,
     story,
@@ -101,11 +100,6 @@ export async function runPostMergePhase(ctx) {
     epicBranch,
     cwd,
     projectRoot: PROJECT_ROOT,
-    config: {
-      project: { paths: agentSettings?.paths },
-      agentSettings,
-      orchestration,
-    },
     provider,
     notify: notifyFn,
     tasks,

@@ -26,22 +26,22 @@ import { gitSpawn } from '../../git-utils.js';
 import { Logger } from '../../Logger.js';
 import { forceDrainPendingCleanup } from '../../worktree/lifecycle/force-drain.js';
 
-function resolveWorktreeRoot(repoRoot, orchestration) {
-  const configuredRoot = orchestration?.worktreeIsolation?.root ?? '.worktrees';
+function resolveWorktreeRoot(repoRoot, delivery) {
+  const configuredRoot = delivery?.worktreeIsolation?.root ?? '.worktrees';
   return path.join(repoRoot, configuredRoot);
 }
 
 export async function drainPendingCleanupAfterClose({
   repoRoot,
-  orchestration,
+  delivery,
   progress: progressFn,
   logger = Logger,
   git = { gitSpawn },
   drainFn = forceDrainPendingCleanup,
 } = {}) {
-  const wtConfig = orchestration?.worktreeIsolation;
+  const wtConfig = delivery?.worktreeIsolation;
   if (!wtConfig?.enabled) return null;
-  const worktreeRoot = resolveWorktreeRoot(repoRoot, orchestration);
+  const worktreeRoot = resolveWorktreeRoot(repoRoot, delivery);
   const result = await drainFn({
     repoRoot,
     worktreeRoot,
