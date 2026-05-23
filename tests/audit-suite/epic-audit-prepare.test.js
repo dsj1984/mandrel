@@ -59,7 +59,7 @@ function makeFakeSelectAudits({ selectedAudits, changedFiles, ticketTitle }) {
   });
 }
 
-const noopConfig = () => ({ orchestration: {} });
+const noopConfig = () => ({});
 const noopProviderFactory = (provider) => () => provider;
 
 test('parseArgv: accepts --epic and defaults base-branch to main + gate to gate3', () => {

@@ -1,8 +1,8 @@
 /**
  * Provider Factory Tests
  *
- * Tests the factory function that resolves orchestration.provider
- * to a concrete ITicketingProvider class.
+ * Tests the factory function that resolves the configured provider to a
+ * concrete ITicketingProvider class from the canonical resolved config.
  */
 
 import assert from 'node:assert/strict';
@@ -30,7 +30,7 @@ const { createGh } = await import(
 // ---------------------------------------------------------------------------
 describe('createProvider — factory resolution', () => {
   it('returns a GitHubProvider for provider: "github"', () => {
-    const orchestration = {
+    const config = {
       provider: 'github',
       github: {
         owner: 'test-owner',
@@ -40,31 +40,22 @@ describe('createProvider — factory resolution', () => {
       },
     };
 
-    const provider = createProvider(orchestration, { token: 'test-token' });
+    const provider = createProvider(config, { token: 'test-token' });
     assert.ok(provider instanceof ITicketingProvider);
     assert.equal(provider.owner, 'test-owner');
     assert.equal(provider.repo, 'test-repo');
   });
 
-  it('throws when orchestration is null', () => {
-    assert.throws(
-      () => createProvider(null),
-      /orchestration is not configured/,
-    );
+  it('throws when config is null', () => {
+    assert.throws(() => createProvider(null), /config is not configured/);
   });
 
-  it('throws when orchestration is undefined', () => {
-    assert.throws(
-      () => createProvider(undefined),
-      /orchestration is not configured/,
-    );
+  it('throws when config is undefined', () => {
+    assert.throws(() => createProvider(undefined), /config is not configured/);
   });
 
-  it('throws when provider is missing', () => {
-    assert.throws(
-      () => createProvider({ github: {} }),
-      /orchestration\.provider is required/,
-    );
+  it('throws when provider cannot be inferred', () => {
+    assert.throws(() => createProvider({}), /provider is required/);
   });
 
   it('throws for unsupported provider', () => {
@@ -86,7 +77,7 @@ describe('createProvider — factory resolution', () => {
   it('throws when provider-specific config block is missing', () => {
     assert.throws(
       () => createProvider({ provider: 'github' }),
-      /orchestration\.github config block is required/,
+      /github config block is required/,
     );
   });
 });

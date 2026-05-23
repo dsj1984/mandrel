@@ -33,7 +33,7 @@ const DEFAULT_COMMENT_EVENTS = [
 
 describe('notify script', () => {
   let mockProvider;
-  let mockOrchestration;
+  let mockConfig;
   let fetchCalls;
   let defaultOpts;
 
@@ -55,22 +55,22 @@ describe('notify script', () => {
       },
     };
 
-    mockOrchestration = {
+    mockConfig = {
       github: {
         owner: 'acme',
         repo: 'widgets',
         operatorHandle: '@test_operator',
-      },
-      notifications: {
-        mentionOperator: true,
-        commentEvents: [...DEFAULT_COMMENT_EVENTS],
-        webhookEvents: [...DEFAULT_WEBHOOK_EVENTS],
+        notifications: {
+          mentionOperator: true,
+          commentEvents: [...DEFAULT_COMMENT_EVENTS],
+          webhookEvents: [...DEFAULT_WEBHOOK_EVENTS],
+        },
       },
     };
 
     defaultOpts = {
       provider: mockProvider,
-      orchestration: mockOrchestration,
+      config: mockConfig,
       webhookUrl: DEFAULT_WEBHOOK,
     };
   });
@@ -130,7 +130,7 @@ describe('notify script', () => {
   });
 
   it('high always @mentions and fires [Action Required] webhook when event is allowlisted', async () => {
-    mockOrchestration.notifications.mentionOperator = false;
+    mockConfig.github.notifications.mentionOperator = false;
 
     await notify(
       124,
@@ -183,7 +183,7 @@ describe('notify script', () => {
   });
 
   it('dispatches with an event NOT on the webhook allowlist are dropped from the webhook', async () => {
-    mockOrchestration.notifications.webhookEvents = ['epic-blocked'];
+    mockConfig.github.notifications.webhookEvents = ['epic-blocked'];
 
     await notify(
       201,
@@ -209,7 +209,7 @@ describe('notify script', () => {
   });
 
   it('dispatches with an event NOT on the comment allowlist are dropped from the comment channel', async () => {
-    mockOrchestration.notifications.commentEvents = ['operator-message'];
+    mockConfig.github.notifications.commentEvents = ['operator-message'];
 
     await notify(
       202,
@@ -235,7 +235,7 @@ describe('notify script', () => {
   });
 
   it('empty webhookEvents allowlist suppresses every webhook', async () => {
-    mockOrchestration.notifications.webhookEvents = [];
+    mockConfig.github.notifications.webhookEvents = [];
 
     await notify(
       202,
@@ -255,7 +255,7 @@ describe('notify script', () => {
   });
 
   it('empty commentEvents allowlist suppresses every comment', async () => {
-    mockOrchestration.notifications.commentEvents = [];
+    mockConfig.github.notifications.commentEvents = [];
 
     await notify(
       203,
@@ -275,7 +275,7 @@ describe('notify script', () => {
   });
 
   it('severity is carried as envelope metadata regardless of allowlist routing', async () => {
-    mockOrchestration.notifications.webhookEvents = ['epic-progress'];
+    mockConfig.github.notifications.webhookEvents = ['epic-progress'];
 
     await notify(
       300,
@@ -347,7 +347,7 @@ describe('notify script', () => {
       },
       {
         provider: mockProvider,
-        orchestration: mockOrchestration,
+        config: mockConfig,
         webhookUrl: null,
       },
     );
@@ -372,7 +372,7 @@ describe('notify script', () => {
         },
         {
           provider: mockProvider,
-          orchestration: mockOrchestration,
+          config: mockConfig,
           webhookUrl: null,
         },
       );
@@ -405,7 +405,7 @@ describe('notify script', () => {
   });
 
   it('does not @mention on medium when mentionOperator is false', async () => {
-    mockOrchestration.notifications.mentionOperator = false;
+    mockConfig.github.notifications.mentionOperator = false;
 
     await notify(
       127,
