@@ -148,6 +148,12 @@ describe('buildPayload (kebab → camelCase, --epic → epicId)', () => {
 // These tests pin the relaxation so a future schema edit can't silently
 // re-tighten and re-break the documented CLI surface.
 describe('lifecycle-emit ↔ epic.merge.* schemas (Story #2681)', () => {
+  // Inject a bus so the helper does NOT wire the default listener chain.
+  // Without this, MergeWatcher would subscribe to `epic.merge.armed`,
+  // shell out to real `gh pr view` against the fake pull URL, and sleep
+  // 30s up to a 1-hour budget on every emit. We are pinning schema
+  // validation here, not exercising the listener roster, so the bus
+  // should stay listener-free.
   it('epic.merge.armed accepts the injected epicId alongside prUrl', async () => {
     const out = await runLifecycleEmit({
       event: 'epic.merge.armed',
@@ -155,6 +161,7 @@ describe('lifecycle-emit ↔ epic.merge.* schemas (Story #2681)', () => {
         epicId: 90042,
         prUrl: 'https://github.com/dsj1984/mandrel/pull/90042',
       },
+      bus: new Bus(),
     });
     assert.equal(out.event, 'epic.merge.armed');
     assert.equal(typeof out.seqId, 'number');
@@ -168,6 +175,7 @@ describe('lifecycle-emit ↔ epic.merge.* schemas (Story #2681)', () => {
         prUrl: 'https://github.com/dsj1984/mandrel/pull/90043',
         reason: 'manualInterventions > 0',
       },
+      bus: new Bus(),
     });
     assert.equal(out.event, 'epic.merge.blocked');
   });
@@ -179,6 +187,7 @@ describe('lifecycle-emit ↔ epic.merge.* schemas (Story #2681)', () => {
         epicId: 90044,
         prUrl: 'https://github.com/dsj1984/mandrel/pull/90044',
       },
+      bus: new Bus(),
     });
     assert.equal(out.event, 'epic.merge.ready');
   });
@@ -198,6 +207,7 @@ describe('lifecycle-emit ↔ epic.automerge.start schema (Story #2855)', () => {
         epicId: 90045,
         prUrl: 'https://github.com/dsj1984/mandrel/pull/90045',
       },
+      bus: new Bus(),
     });
     assert.equal(out.event, 'epic.automerge.start');
     assert.equal(typeof out.seqId, 'number');
