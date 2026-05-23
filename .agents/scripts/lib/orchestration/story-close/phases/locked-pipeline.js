@@ -25,11 +25,11 @@ import {
   clearPhaseTimerState,
   loadPhaseTimerState,
 } from '../../../util/phase-timer-state.js';
+import { dispatchRecovery } from '../../story-close-recovery.js';
 import {
   buildLegacyOrchestrationBag,
   buildLegacySettingsBag,
 } from '../legacy-settings-bag.js';
-import { dispatchRecovery } from '../../story-close-recovery.js';
 import { runClosePhase } from './close.js';
 import { runStoryCodeReview } from './code-review.js';
 import {
