@@ -47,7 +47,7 @@ const baseEnvelope = (overrides = {}) => ({
 });
 
 function storyDir(epic, story) {
-  return path.join(workRoot, `epic-${epic}`, `story-${story}`);
+  return path.join(workRoot, `epic-${epic}`, 'stories', `story-${story}`);
 }
 
 async function writeSignalsFile(epic, story, lines) {

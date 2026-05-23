@@ -38,11 +38,25 @@ const ORIGINAL_ENV = { ...process.env };
 // The hook calls appendTrace without a `config` arg, so the writer
 // resolves tempRoot via the project default of `'temp'` relative to
 // process.cwd(). We chdir into `workRoot` per-test, so the on-disk
-// layout is `<workRoot>/temp/epic-<eid>/story-<sid>/...`.
+// layout is `<workRoot>/temp/epic-<eid>/stories/story-<sid>/...`.
 const tracesPath = (eid, sid) =>
-  path.join(workRoot, 'temp', `epic-${eid}`, `story-${sid}`, 'traces.ndjson');
+  path.join(
+    workRoot,
+    'temp',
+    `epic-${eid}`,
+    'stories',
+    `story-${sid}`,
+    'traces.ndjson',
+  );
 const signalsPath = (eid, sid) =>
-  path.join(workRoot, 'temp', `epic-${eid}`, `story-${sid}`, 'signals.ndjson');
+  path.join(
+    workRoot,
+    'temp',
+    `epic-${eid}`,
+    'stories',
+    `story-${sid}`,
+    'signals.ndjson',
+  );
 
 beforeEach(() => {
   workRoot = mkdtempSync(path.join(tmpdir(), 'tool-trace-hook-'));
@@ -166,7 +180,14 @@ describe('tool-trace-hook — Pre/Post pairing', () => {
     );
 
     const raw = await fs.readFile(
-      path.join(workRoot, 'temp', 'epic-1030', 'story-1043', 'traces.ndjson'),
+      path.join(
+        workRoot,
+        'temp',
+        'epic-1030',
+        'stories',
+        'story-1043',
+        'traces.ndjson',
+      ),
       'utf8',
     );
     const lines = raw.trim().split('\n');
@@ -199,7 +220,14 @@ describe('tool-trace-hook — Pre/Post pairing', () => {
     );
 
     const raw = await fs.readFile(
-      path.join(workRoot, 'temp', 'epic-1030', 'story-1043', 'traces.ndjson'),
+      path.join(
+        workRoot,
+        'temp',
+        'epic-1030',
+        'stories',
+        'story-1043',
+        'traces.ndjson',
+      ),
       'utf8',
     );
     const lines = raw.trim().split('\n');
@@ -239,7 +267,14 @@ describe('tool-trace-hook — hashing & privacy', () => {
     );
 
     const raw = await fs.readFile(
-      path.join(workRoot, 'temp', 'epic-1030', 'story-1043', 'traces.ndjson'),
+      path.join(
+        workRoot,
+        'temp',
+        'epic-1030',
+        'stories',
+        'story-1043',
+        'traces.ndjson',
+      ),
       'utf8',
     );
     // The raw secret must NOT appear anywhere in the file.
@@ -268,7 +303,14 @@ describe('tool-trace-hook — hashing & privacy', () => {
     );
 
     const raw = await fs.readFile(
-      path.join(workRoot, 'temp', 'epic-1030', 'story-1043', 'traces.ndjson'),
+      path.join(
+        workRoot,
+        'temp',
+        'epic-1030',
+        'stories',
+        'story-1043',
+        'traces.ndjson',
+      ),
       'utf8',
     );
     assert.equal(
@@ -367,7 +409,14 @@ describe('tool-trace-hook — normalizedHash on trace records (Story #1768 / Tas
     );
 
     const raw = await fs.readFile(
-      path.join(workRoot, 'temp', 'epic-1030', 'story-1043', 'traces.ndjson'),
+      path.join(
+        workRoot,
+        'temp',
+        'epic-1030',
+        'stories',
+        'story-1043',
+        'traces.ndjson',
+      ),
       'utf8',
     );
     const trace = JSON.parse(raw.trim());
@@ -406,7 +455,14 @@ describe('tool-trace-hook — normalizedHash on trace records (Story #1768 / Tas
     );
 
     const raw = await fs.readFile(
-      path.join(workRoot, 'temp', 'epic-1030', 'story-1043', 'traces.ndjson'),
+      path.join(
+        workRoot,
+        'temp',
+        'epic-1030',
+        'stories',
+        'story-1043',
+        'traces.ndjson',
+      ),
       'utf8',
     );
     const lines = raw
@@ -448,7 +504,14 @@ describe('tool-trace-hook — normalizedHash on trace records (Story #1768 / Tas
     );
 
     const raw = await fs.readFile(
-      path.join(workRoot, 'temp', 'epic-1030', 'story-1043', 'traces.ndjson'),
+      path.join(
+        workRoot,
+        'temp',
+        'epic-1030',
+        'stories',
+        'story-1043',
+        'traces.ndjson',
+      ),
       'utf8',
     );
     const lines = raw
@@ -477,7 +540,14 @@ describe('tool-trace-hook — normalizedHash on trace records (Story #1768 / Tas
     );
 
     const raw = await fs.readFile(
-      path.join(workRoot, 'temp', 'epic-1030', 'story-1043', 'traces.ndjson'),
+      path.join(
+        workRoot,
+        'temp',
+        'epic-1030',
+        'stories',
+        'story-1043',
+        'traces.ndjson',
+      ),
       'utf8',
     );
     const lines = raw
@@ -510,7 +580,14 @@ describe('tool-trace-hook — normalizedHash on trace records (Story #1768 / Tas
     }
 
     const raw = await fs.readFile(
-      path.join(workRoot, 'temp', 'epic-1030', 'story-1043', 'traces.ndjson'),
+      path.join(
+        workRoot,
+        'temp',
+        'epic-1030',
+        'stories',
+        'story-1043',
+        'traces.ndjson',
+      ),
       'utf8',
     );
     const lines = raw
@@ -548,7 +625,14 @@ describe('tool-trace-hook — normalizedHash on trace records (Story #1768 / Tas
     );
 
     const raw = await fs.readFile(
-      path.join(workRoot, 'temp', 'epic-1030', 'story-1043', 'traces.ndjson'),
+      path.join(
+        workRoot,
+        'temp',
+        'epic-1030',
+        'stories',
+        'story-1043',
+        'traces.ndjson',
+      ),
       'utf8',
     );
     const lines = raw
@@ -573,7 +657,14 @@ describe('tool-trace-hook — normalizedHash on trace records (Story #1768 / Tas
     );
 
     const raw = await fs.readFile(
-      path.join(workRoot, 'temp', 'epic-1030', 'story-1043', 'traces.ndjson'),
+      path.join(
+        workRoot,
+        'temp',
+        'epic-1030',
+        'stories',
+        'story-1043',
+        'traces.ndjson',
+      ),
       'utf8',
     );
     const trace = JSON.parse(raw.trim());

@@ -145,12 +145,15 @@ async function* streamFile(target, kindFilter) {
 }
 
 /**
- * List every `story-<id>/signals.ndjson` path under the Epic's
+ * List every `stories/story-<id>/signals.ndjson` path under the Epic's
  * `<tempRoot>/epic-<epic>/` directory. Returns an empty array when the
  * Epic directory is missing.
  *
  * The returned paths are sorted by Story ID ascending so the iterator's
  * output is stable across runs.
+ *
+ * Story #2940 nested per-Story directories under a `stories/` segment.
+ * Epic-level signals continue to live at the Epic root.
  *
  * @param {number} epic
  * @param {object | undefined} config
@@ -158,24 +161,39 @@ async function* streamFile(target, kindFilter) {
  */
 async function listEpicStorySignalsFiles(epic, config) {
   const epicDir = epicTempDir(epic, config);
-  let entries;
+  let epicEntries;
   try {
-    entries = await fs.readdir(epicDir, { withFileTypes: true });
+    epicEntries = await fs.readdir(epicDir, { withFileTypes: true });
   } catch {
     return [];
   }
-  const storyIds = [];
   let hasEpicLevelSignals = false;
-  for (const ent of entries) {
-    if (ent.isDirectory()) {
+  let hasStoriesDir = false;
+  for (const ent of epicEntries) {
+    if (ent.isDirectory() && ent.name === 'stories') {
+      hasStoriesDir = true;
+    } else if (ent.isFile() && ent.name === 'signals.ndjson') {
+      // Story #1430 — wave-runner lifecycle signals land here.
+      hasEpicLevelSignals = true;
+    }
+  }
+  const storyIds = [];
+  if (hasStoriesDir) {
+    let storyEntries;
+    try {
+      storyEntries = await fs.readdir(path.join(epicDir, 'stories'), {
+        withFileTypes: true,
+      });
+    } catch {
+      storyEntries = [];
+    }
+    for (const ent of storyEntries) {
+      if (!ent.isDirectory()) continue;
       const m = /^story-(\d+)$/.exec(ent.name);
       if (!m) continue;
       const sid = Number.parseInt(m[1], 10);
       if (!isPositiveInt(sid)) continue;
       storyIds.push(sid);
-    } else if (ent.isFile() && ent.name === 'signals.ndjson') {
-      // Story #1430 — wave-runner lifecycle signals land here.
-      hasEpicLevelSignals = true;
     }
   }
   storyIds.sort((a, b) => a - b);

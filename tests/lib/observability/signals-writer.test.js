@@ -36,9 +36,21 @@ afterEach(() => {
 });
 
 const signalsPath = (eid, sid) =>
-  path.join(workRoot, `epic-${eid}`, `story-${sid}`, 'signals.ndjson');
+  path.join(
+    workRoot,
+    `epic-${eid}`,
+    'stories',
+    `story-${sid}`,
+    'signals.ndjson',
+  );
 const tracesPath = (eid, sid) =>
-  path.join(workRoot, `epic-${eid}`, `story-${sid}`, 'traces.ndjson');
+  path.join(
+    workRoot,
+    `epic-${eid}`,
+    'stories',
+    `story-${sid}`,
+    'traces.ndjson',
+  );
 
 describe('signals-writer — appendSignal correctness', () => {
   it('writes 100 valid newline-terminated JSON lines', async () => {

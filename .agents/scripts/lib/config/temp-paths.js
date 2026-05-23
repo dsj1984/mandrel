@@ -15,13 +15,21 @@
  *     ├─ manifest.md          (dispatch manifest)
  *     ├─ retro.md             (mirror of GitHub retro at Epic close)
  *     ├─ perf-report.md       (analyzer output, Epic-level)
+ *     ├─ lifecycle.ndjson     (lifecycle bus ledger)
  *     ├─ checkpoints/...      (epic-runner state store)
  *     ├─ <name>               (epicArtifactPath escape hatch)
- *     └─ story-<sid>/
- *        ├─ manifest.md       (story dispatch manifest)
- *        ├─ signals.ndjson    (append-only signals writer)
- *        ├─ perf-summary.md
- *        └─ <name>            (storyArtifactPath escape hatch)
+ *     └─ stories/
+ *        └─ story-<sid>/
+ *           ├─ manifest.md       (story dispatch manifest)
+ *           ├─ signals.ndjson    (append-only signals writer)
+ *           ├─ perf-summary.md
+ *           ├─ story-init.state.json   (dispatch-state writer)
+ *           └─ <name>            (storyArtifactPath escape hatch)
+ *
+ * Standalone Stories (no parent Epic) follow the same shape under
+ * `<tempRoot>/standalone/stories/story-<sid>/`. The `stories/` segment
+ * was introduced by Story #2940 to visually separate per-Epic artifacts
+ * from per-Story siblings.
  *
  * tempRoot resolution: the helper accepts an optional `config` argument
  * (the full resolved config `{ agentSettings, ... }` or the bare
@@ -150,14 +158,19 @@ export function epicTempDir(eid, config) {
 }
 
 /**
- * `temp/epic-<eid>/story-<sid>/` — every Story-scoped artifact lives
- * under here.
+ * `temp/epic-<eid>/stories/story-<sid>/` — every Story-scoped artifact
+ * lives under here.
  *
  * Story #2874: accepts `eid === null` for standalone Stories (no
  * parent Epic). The standalone variant routes to
- * `<tempRoot>/standalone/story-<sid>/` so signals + traces from
+ * `<tempRoot>/standalone/stories/story-<sid>/` so signals + traces from
  * `/single-story-deliver` runs still land in a stable, scannable
  * location instead of being dropped on the floor.
+ *
+ * Story #2940 introduced the intermediate `stories/` segment so that
+ * per-Epic top-level artifacts (`prd.md`, `techspec.md`, `manifest.md`,
+ * `retro.md`, `lifecycle.ndjson`, `baselines/`, `checkpoints/`) are
+ * visually and structurally separated from the per-Story siblings.
  *
  * @param {number|null} eid
  * @param {number} sid
@@ -170,12 +183,12 @@ export function storyTempDir(eid, sid, config) {
     checkedEid === null
       ? path.join(tempRootFrom(config), 'standalone')
       : epicTempDir(checkedEid, config);
-  return path.join(parent, `story-${storyId(sid)}`);
+  return path.join(parent, 'stories', `story-${storyId(sid)}`);
 }
 
 /**
- * `temp/epic-<eid>/story-<sid>/signals.ndjson` — append-only signal
- * stream consumed by the analyzer (Epic #1030 AC1).
+ * `temp/epic-<eid>/stories/story-<sid>/signals.ndjson` — append-only
+ * signal stream consumed by the analyzer (Epic #1030 AC1).
  *
  * @param {number} eid
  * @param {number} sid
