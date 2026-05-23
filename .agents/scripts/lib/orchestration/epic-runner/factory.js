@@ -62,7 +62,7 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
   const notifyFn =
     ctx.notify ??
     ((ticketId, payload, opts = {}) =>
-      notify(ticketId, payload, { orchestration: config, provider, ...opts }));
+      notify(ticketId, payload, { config, provider, ...opts }));
   // Story #2409 — the legacy class-based checkpoint surface is replaced
   // by the function-based `epic-run-state-store` module. The collaborator
   // slot exposes a bag of provider/epicId-pre-bound functions so

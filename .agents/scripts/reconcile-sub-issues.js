@@ -48,7 +48,7 @@ export async function runReconcileSubIssuesCli(argv, deps = {}) {
   const { epicId } = parseCliArgs(argv);
   const config = deps.config ?? resolveConfig();
   const provider =
-    deps.provider ?? createProvider(config.orchestration ?? null);
+    deps.provider ?? createProvider(config ?? null);
 
   if (typeof provider.reconcileSubIssueLinks !== 'function') {
     throw new Error(

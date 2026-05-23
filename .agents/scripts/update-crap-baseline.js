@@ -20,7 +20,7 @@ import { Logger } from './lib/Logger.js';
  * CLI: scan → score → save the CRAP baseline.
  *
  * Writes the canonical CRAP baseline at the path resolved from
- * `agentSettings.quality.baselines.crap.path` (default `baselines/crap.json`),
+ * `delivery.quality.baselines.crap.path` (default `baselines/crap.json`),
  * or the path supplied via `--baseline <path>`. Output is a deterministic,
  * kernel-stamped envelope. Files without coverage entries are skipped (not
  * scored as 0%) when `requireCoverage: true` — their count and names are

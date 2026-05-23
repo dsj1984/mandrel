@@ -128,10 +128,10 @@ export function resolveFilesArg(raw, deps = {}) {
  * @param {{ readFileSync?: typeof fs.readFileSync }} [deps]
  */
 export function loadAuditRules(deps = {}) {
-  const { agentSettings } = resolveConfig();
+  const config = resolveConfig();
   const rulesPath = path.join(
     PROJECT_ROOT,
-    getPaths({ agentSettings }).schemasRoot,
+    getPaths(config).schemasRoot,
     'audit-rules.json',
   );
   const read = deps.readFileSync ?? fs.readFileSync;
@@ -170,7 +170,7 @@ export function selectOverlappingAudits(rules, files) {
 }
 
 /**
- * Pure orchestration body. Returns `{ exitCode, result }` where
+ * Pure pipeline body. Returns `{ exitCode, result }` where
  * `result.kind` is `'help' | 'validation-error' | 'envelope'`. `main`
  * renders these; tests drive this directly.
  */

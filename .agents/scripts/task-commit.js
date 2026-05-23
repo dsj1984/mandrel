@@ -72,7 +72,7 @@ Flags:
   --require-sibling-test
              Refuse to commit when a staged-add source file under \`src/\` lacks
              a sibling \`<basename>.test.<ext>\` in the same commit. Default
-             sourced from \`agentSettings.quality.codingGuardrails.requireSiblingTest\`.
+             sourced from \`delivery.quality.codingGuardrails.requireSiblingTest\`.
              Story #1399 (Epic #1386).
   --skip-ci / --no-skip-ci
              Force / suppress the trailing \`[skip ci]\` marker on the commit
@@ -215,7 +215,7 @@ export function partitionStagedForSiblingTest(stagedNameStatusStdout) {
  * Story #1399 (Epic #1386) — resolve the effective `requireSiblingTest`
  * setting. Priority order: explicit boolean from the CLI flag (`true` /
  * `false`) wins; otherwise load `.agentrc.json` from `cwd` and read
- * `agentSettings.quality.codingGuardrails.requireSiblingTest` (which itself
+ * `delivery.quality.codingGuardrails.requireSiblingTest` (which itself
  * defaults to `false` in the resolver). Exported for tests; tests pass a
  * `resolveConfigImpl` that returns a synthetic config wrapper so the gate
  * decision is exercised without touching disk.
@@ -353,7 +353,7 @@ export function runTaskCommit(args) {
   }
 
   // 2.5. Sibling-test guard (Story #1399). When the flag is on (CLI override
-  //      or `agentSettings.quality.codingGuardrails.requireSiblingTest`), any
+  //      or `delivery.quality.codingGuardrails.requireSiblingTest`), any
   //      newly-added `src/**/*.<source-ext>` must come with a same-commit
   //      sibling `<basename>.test.<ext>`. The check fires after staging so
   //      the user-supplied --paths set has already taken effect.

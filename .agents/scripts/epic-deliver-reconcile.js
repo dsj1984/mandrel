@@ -47,8 +47,8 @@ Flags:
   --epic <id>       Epic ticket ID to reconcile (required).
   --auto-recover    Write temp/epic-<id>/recovery-plan.json listing dead
                     Stories for the host LLM to re-dispatch.
-  --provider <p>    Override the configured provider (default: from
-                    .agentrc.json orchestration).
+  --provider <p>    Override the configured provider (default: inferred
+                    from the .agentrc.json `github` block).
   --repo-root <p>   Override the repo-root path used to resolve PID files
                     (default: process.cwd()).
   --help            Show this message.
@@ -208,11 +208,11 @@ export async function main(argv = process.argv.slice(2)) {
     process.exit(2);
   }
 
-  const { orchestration } = resolveConfig();
-  const effectiveOrchestration = values.provider
-    ? { ...orchestration, provider: values.provider }
-    : orchestration;
-  const provider = createProvider(effectiveOrchestration);
+  const config = resolveConfig();
+  const effectiveConfig = values.provider
+    ? { ...config, provider: values.provider }
+    : config;
+  const provider = createProvider(effectiveConfig);
 
   const repoRoot = values['repo-root'] ?? process.cwd();
   const envelope = await runReconcile({

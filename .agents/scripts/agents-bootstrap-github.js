@@ -3,13 +3,13 @@
  * agents-bootstrap-github — Idempotent Label & Field Setup
  *
  * Creates the required label taxonomy and project board custom fields
- * for the v5 Epic-centric orchestration on a target GitHub repo.
- * Idempotent — skips resources that already exist.
+ * for the v5 Epic-centric flow on a target GitHub repo. Idempotent —
+ * skips resources that already exist.
  *
  * Usage:
  *   node .agents/scripts/agents-bootstrap-github.js
  *
- * Reads orchestration config from .agentrc.json via the config resolver,
+ * Reads the canonical config from .agentrc.json via the config resolver,
  * then uses the provider factory to instantiate the correct provider.
  *
  * @see docs/v5-implementation-plan.md Sprint 1C
@@ -452,7 +452,7 @@ async function ensureProjectFields(provider, project, log) {
 
 /**
  * Create or additively-merge branch protection on `baseBranch` (typically
- * `main`) so the `agentSettings.quality.prGate.checks` suite is required
+ * `main`) so the `delivery.quality.prGate.checks` suite is required
  * before merge. Behaviour rules:
  *
  *   - `enforceBranchProtection: false` → skip, log the opt-out, return a
@@ -476,7 +476,7 @@ async function ensureMainBranchProtection(
 ) {
   if (prGate?.enforceBranchProtection === false) {
     log(
-      `[bootstrap] Branch protection on '${baseBranch}': skipped (agentSettings.quality.prGate.enforceBranchProtection=false).`,
+      `[bootstrap] Branch protection on '${baseBranch}': skipped (delivery.quality.prGate.enforceBranchProtection=false).`,
     );
     return { status: 'skipped', reason: 'opt-out' };
   }
@@ -553,24 +553,29 @@ export function ensureCiWorkflow(args) {
 /**
  * Run the idempotent bootstrap sequence.
  *
- * @param {object} orchestration - The orchestration config from .agentrc.json.
+ * Accepts the canonical resolved config (output of `resolveConfig()` —
+ * `config.github` holds the GitHub provider block). Epic #2880 removed the
+ * legacy shim parameters; see `.agents/rules/git-conventions.md#contract-cutovers-—-no-shim-layer`.
+ *
+ * @param {object} config - Resolved config wrapper with a `github` block.
  * @param {{
  *   token?: string,
  *   quiet?: boolean,
  *   providerOverride?: object,
- *   agentSettings?: object,
+ *   project?: object,
+ *   github?: object,
  *   baseBranch?: string,
  * }} [opts]
  */
-export async function runBootstrap(orchestration, opts = {}) {
+export async function runBootstrap(config, opts = {}) {
   const provider =
-    opts.providerOverride ??
-    createProvider(orchestration, { token: opts.token });
+    opts.providerOverride ?? createProvider(config, { token: opts.token });
   const log = opts.quiet ? () => {} : Logger.info;
-  const providerConfig = orchestration[orchestration.provider];
+  const providerName = config.provider ?? (config.github ? 'github' : null);
+  const providerConfig = providerName ? config[providerName] : null;
 
   log('[bootstrap] Starting idempotent setup...');
-  log(`[bootstrap] Provider: ${orchestration.provider}`);
+  log(`[bootstrap] Provider: ${providerName}`);
   log(`[bootstrap] Target: ${providerConfig?.owner}/${providerConfig?.repo}`);
 
   log('[bootstrap] Verifying API access...');
@@ -618,10 +623,9 @@ export async function runBootstrap(orchestration, opts = {}) {
   // The legacy `ensureMainBranchProtection` helper is preserved (re-
   // exported below) so the Epic #1142 Story #1157 contract tests stay
   // green; `applyBranchProtection` is its consumer-parity successor.
-  // Post-reshape: bootstrap reads from the new `project` + `github` blocks;
-  // the legacy `agentSettings` bag is still accepted so consumer-bootstrap
-  // tests that hand-craft fixtures keep working.
-  const projectCfg = opts.project ?? opts.agentSettings ?? {};
+  // Post-reshape: bootstrap reads from the new `project` + `github` blocks
+  // exclusively. The legacy "agent settings" opt was removed in Epic #2880.
+  const projectCfg = opts.project ?? config.project ?? {};
   const githubCfg = opts.github ?? {};
   const settings = {
     ...projectCfg,
@@ -773,14 +777,14 @@ async function main() {
 
   const config = resolveConfig();
 
-  if (!config.orchestration) {
+  if (!config.github) {
     throw new Error(
-      '[bootstrap] No "orchestration" block found in .agentrc.json.',
+      '[bootstrap] No "github" block found in .agentrc.json.',
     );
   }
 
   try {
-    validateOrchestrationConfig(config.orchestration);
+    validateOrchestrationConfig(config);
   } catch (err) {
     Logger.error(`[bootstrap] ERROR: ${err.message}`);
     process.exit(1);
@@ -802,12 +806,10 @@ async function main() {
   );
 
   try {
-    const result = await runBootstrap(config.orchestration, {
+    const result = await runBootstrap(config, {
       installWorkflows,
       project: config.project,
       github: config.github,
-      // Legacy shim — older consumer test fixtures may still read this.
-      agentSettings: config.agentSettings,
       assumeYes,
       assumeNo,
       reapConflictingWorkflows,

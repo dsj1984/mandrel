@@ -4,7 +4,7 @@
 /**
  * dispatcher.js — CLI Entry Point for the Dispatch Engine
  *
- * Thin wrapper around the orchestration SDK. Parses CLI arguments,
+ * Thin wrapper around the dispatcher SDK. Parses CLI arguments,
  * delegates core logic to `lib/orchestration/dispatch-engine.js`, then
  * handles file I/O and console output.
  *
@@ -259,7 +259,7 @@ export async function generateAndSaveManifest(
   persistAndAnnounceMarkdown(manifest);
   await maybePostEpicComments(
     manifest,
-    () => opts.provider ?? createProvider(resolveConfig().orchestration),
+    () => opts.provider ?? createProvider(resolveConfig()),
   );
   logManifestSummary(manifest);
   return manifest;

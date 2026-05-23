@@ -112,7 +112,7 @@ export async function runAuditOrchestrator(
   );
 
   const config = resolveConfig();
-  const provider = createProvider(config.orchestration);
+  const provider = createProvider(config);
 
   Logger.info(`Selecting audits...`);
   const selection = await selectAudits({

@@ -46,7 +46,7 @@ export async function runWaveTickCli({
   }
 
   const config = injectedConfig ?? resolveConfig({ cwd });
-  const provider = injectedProvider ?? createProvider(config.orchestration);
+  const provider = injectedProvider ?? createProvider(config);
 
   const result = await tick({
     epic: epicId,

@@ -346,7 +346,7 @@ export async function runBootstrap(args, deps = {}) {
   let provider = deps.provider;
   if (!provider) {
     const config = deps.config ?? resolveConfig({});
-    provider = createProvider(config.orchestration);
+    provider = createProvider(config);
   }
 
   let result;
@@ -491,7 +491,7 @@ export async function runReconcile(args, deps = {}) {
   let provider = deps.provider;
   if (!provider) {
     const config = deps.config ?? resolveConfig({});
-    provider = createProvider(config.orchestration);
+    provider = createProvider(config);
   }
   const ghState = await fetchGhStateFn(provider, args.epicId);
 

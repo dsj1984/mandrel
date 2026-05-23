@@ -25,6 +25,10 @@ import {
   clearPhaseTimerState,
   loadPhaseTimerState,
 } from '../../../util/phase-timer-state.js';
+import {
+  buildLegacyOrchestrationBag,
+  buildLegacySettingsBag,
+} from '../legacy-settings-bag.js';
 import { dispatchRecovery } from '../../story-close-recovery.js';
 import { runClosePhase } from './close.js';
 import { runStoryCodeReview } from './code-review.js';
@@ -110,7 +114,7 @@ export async function runStoryCloseLocked(args) {
     epicId,
     epicBranch,
     storyBranch,
-    orchestration,
+    config,
     skipValidationParam,
     resumeFlag,
     restartFlag,
@@ -118,6 +122,17 @@ export async function runStoryCloseLocked(args) {
     story,
     progress,
   } = args;
+
+  // Bridge the canonical config into the legacy bags that the gate
+  // helpers under `lib/orchestration/story-close/**` still expect.
+  // Removed in the follow-on that migrates those helpers (see
+  // `legacy-settings-bag.js` header).
+  const agentSettings = buildLegacySettingsBag(config);
+  const orchestration = buildLegacyOrchestrationBag(config);
+
+  // Augment args downstream so helpers that destructure `agentSettings` /
+  // `orchestration` keep working without each caller site rebuilding the bags.
+  args = { ...args, agentSettings, orchestration };
 
   // Prior-state detection + --resume / --restart dispatch.
   const { resumeFromConflict, resumeFromMerge, resumeFromPostMerge } =

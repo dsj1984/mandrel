@@ -180,14 +180,13 @@ async function main() {
   let config;
   try {
     config = resolveConfig();
-    validateOrchestrationConfig(config.orchestration);
+    validateOrchestrationConfig(config);
   } catch (err) {
     throw new Error(
-      `Orchestration config schema validation failed:\n${err.message}`,
+      `Config schema validation failed:\n${err.message}`,
     );
   }
-  const { orchestration, agentSettings } = config;
-  const provider = createProvider(orchestration);
+  const provider = createProvider(config);
 
   if (values['describe-resume-point']) {
     const info = await describePlanResumePoint({ provider, epicId });
@@ -233,7 +232,12 @@ async function main() {
   const result = await runSprintPlan({
     epicId,
     provider,
-    settings: agentSettings,
+    settings: {
+      baseBranch: config.project?.baseBranch,
+      paths: config.project?.paths,
+      planning: config.planning,
+      docsContextFiles: config.project?.docsContextFiles,
+    },
     config,
     artifacts: { prdContent, techSpecContent, tickets },
     force: values.force,

@@ -128,7 +128,7 @@ export async function runNoteIntervention({
   }
 
   const config = injectedConfig ?? resolveConfig();
-  const provider = injectedProvider ?? createProvider(config.orchestration);
+  const provider = injectedProvider ?? createProvider(config);
   const bus = busFactory ? busFactory() : createBus();
   const buildListener =
     listenerFactory ?? ((deps) => new InterventionRecorder(deps));
