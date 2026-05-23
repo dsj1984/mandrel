@@ -188,8 +188,7 @@ export async function runSingleStoryClose({
   }
 
   // Resolve worktree path (read-only check — does the dir exist on disk?).
-  const worktreeRoot =
-    config.delivery?.worktreeIsolation?.root ?? '.worktrees';
+  const worktreeRoot = config.delivery?.worktreeIsolation?.root ?? '.worktrees';
   const worktreePathCandidate = path.resolve(
     cwd,
     worktreeRoot,

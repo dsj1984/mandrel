@@ -48,7 +48,7 @@ Flags:
   --auto-recover    Write temp/epic-<id>/recovery-plan.json listing dead
                     Stories for the host LLM to re-dispatch.
   --provider <p>    Override the configured provider (default: inferred
-                    from the .agentrc.json `github` block).
+                    from the .agentrc.json \`github\` block).
   --repo-root <p>   Override the repo-root path used to resolve PID files
                     (default: process.cwd()).
   --help            Show this message.
