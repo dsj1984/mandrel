@@ -62,12 +62,13 @@ function sweepOne(target) {
  * `temp/epic-<id>/manifest.{md,json}` in Epic #1030 / Story #1040;
  * sweeping on each render keeps a single canonical artefact in the
  * epic dir. Idempotent: returns `{ removed: [] }` when nothing to do.
+ *
+ * @param {number} epicId
+ * @param {{ projectRoot?: string, config?: object, logger?: { info?: Function } }} [opts]
  */
 export function deleteLegacyFlatManifest(epicId, opts = {}) {
   const projectRoot = opts.projectRoot ?? getProjectRoot();
-  const resolved = opts.agentSettings
-    ? { agentSettings: opts.agentSettings }
-    : safeResolveConfig(projectRoot);
+  const resolved = opts.config ?? safeResolveConfig(projectRoot);
   const logger = opts.logger ?? console;
 
   const targets = ['md', 'json'].map((ext) =>
@@ -120,19 +121,18 @@ export function atomicWrite(finalPath, content) {
  * spec file is present alongside the Epic (Story #1501) without
  * coupling persistence to the spec loader.
  *
+ * Config resolution: the caller may pass the canonical resolved config
+ * via `opts.config` (story-init does this to avoid a redundant resolve);
+ * otherwise the helper lazy-resolves so `epicArtifactPath` /
+ * `storyArtifactPath` honour any `project.paths.tempRoot` override.
+ *
  * @param {object} manifest
- * @param {{ projectRoot?: string, agentSettings?: object, markdown?: string }} [opts]
+ * @param {{ projectRoot?: string, config?: object, markdown?: string }} [opts]
  * @returns {{ persisted: boolean, path: string|null, error: string|null }}
  */
 export function persistManifest(manifest, opts = {}) {
   const projectRoot = opts.projectRoot ?? getProjectRoot();
-  // Resolve config once so `epicArtifactPath` / `storyArtifactPath`
-  // honour any `agentSettings.paths.tempRoot` override. agentSettings can
-  // also be threaded via `opts.agentSettings` (story-init does this to
-  // avoid a redundant resolve).
-  const resolved = opts.agentSettings
-    ? { agentSettings: opts.agentSettings }
-    : safeResolveConfig(projectRoot);
+  const resolved = opts.config ?? safeResolveConfig(projectRoot);
   const tempPathsConfig = resolved;
 
   let jsonPath = null;
@@ -179,7 +179,7 @@ export function persistManifest(manifest, opts = {}) {
     // manifest.{md,json} pair (resolves #1126).
     deleteLegacyFlatManifest(epicId, {
       projectRoot,
-      agentSettings: opts.agentSettings ?? resolved.agentSettings,
+      config: resolved,
     });
     const relJson = epicArtifactPath(epicId, 'manifest.json', tempPathsConfig);
     const relMd = epicArtifactPath(epicId, 'manifest.md', tempPathsConfig);
@@ -197,9 +197,7 @@ export function persistManifest(manifest, opts = {}) {
       typeof opts.markdown === 'string'
         ? opts.markdown
         : manifest.type === 'story-execution'
-          ? formatStoryManifestMarkdown(manifest, {
-              agentSettings: opts.agentSettings ?? resolved.agentSettings,
-            })
+          ? formatStoryManifestMarkdown(manifest, { config: resolved })
           : formatManifestMarkdown(manifest);
 
     // Ensure both parent directories exist (`temp/epic-<id>/` and
@@ -225,6 +223,6 @@ function safeResolveConfig(projectRoot) {
   try {
     return resolveConfig({ cwd: projectRoot });
   } catch {
-    return { agentSettings: undefined };
+    return undefined;
   }
 }
