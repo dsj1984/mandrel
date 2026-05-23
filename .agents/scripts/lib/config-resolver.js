@@ -9,16 +9,15 @@
  * full-document AJV gate (`AGENTRC_SCHEMA`) on load and returns a wrapper
  * carrying each block plus a `raw`/`source` metadata pair.
  *
- * Hard cutover (input side): legacy `agentSettings.*` / `orchestration.*`
- * documents are rejected up front by the AJV schema. Consumers update
- * their `.agentrc.json` in lockstep with the framework bump.
- *
- * Output-side shim: the returned object additionally exposes
- * `agentSettings` and `orchestration` pointers that surface a synthesized
- * view of the canonical blocks under their legacy paths, so existing call
- * sites keep reading the same fields. The shim is read-only and converges
- * on the post-reshape paths internally; a future Epic sweeps every
- * consumer onto the canonical `project` / `github` / `delivery` reads.
+ * Hard cutover (Epic #2880, Story #2947): both the input-side and
+ * output-side legacy shapes are gone. Legacy `agentSettings.*` /
+ * `orchestration.*` input documents are rejected by the AJV schema
+ * (`additionalProperties: false` at the top level), and the previously
+ * synthesized `agentSettings` / `orchestration` output pointers have been
+ * deleted from the resolver wrapper. Every internal call site reads the
+ * canonical `project` / `github` / `planning` / `delivery` blocks
+ * directly; consumers upgrade in lockstep with the framework bump
+ * (see `.agents/rules/git-conventions.md#contract-cutovers-—-no-shim-layer`).
  */
 
 import fs from 'node:fs';
@@ -27,11 +26,8 @@ import { fileURLToPath } from 'node:url';
 import { getCiDelivery } from './config/ci.js';
 import { getCommands } from './config/commands.js';
 import { getGitHub } from './config/github.js';
-import { resolveHydration } from './config/hydration.js';
 import { getLifecycle } from './config/lifecycle.js';
-import { resolveLimits } from './config/limits.js';
 import { resolvePaths } from './config/paths.js';
-import { resolveQuality } from './config/quality.js';
 import { validateOrchestrationConfig } from './config/validate-orchestration.js';
 import { getWorktreeIsolation } from './config/worktree-isolation.js';
 import { getAgentrcValidator } from './config-schema.js';
@@ -176,54 +172,11 @@ function applyDefaults(raw) {
 }
 
 /**
- * Build the legacy-shape compatibility shim. Lets call sites that still
- * read `config.agentSettings.*` / `config.orchestration.*` keep working
- * during the migration sweep (Task #1761). The shim surfaces the
- * post-reshape blocks under their old paths — read-only and the values
- * stay reference-equal to the canonical blocks.
- */
-function buildLegacyShim(blocks) {
-  const { project, github, planning, delivery } = blocks;
-  const resolvedQuality = resolveQuality(delivery?.quality);
-  return {
-    agentSettings: {
-      baseBranch: project.baseBranch,
-      paths: project.paths,
-      docsContextFiles: project.docsContextFiles,
-      commands: project.commands ?? {},
-      planning,
-      quality: resolvedQuality,
-      limits: resolveLimits({ planning, delivery }),
-      hydration: resolveHydration(delivery),
-    },
-    orchestration: github
-      ? {
-          provider: 'github',
-          github: {
-            owner: github.owner,
-            repo: github.repo,
-            projectNumber: github.projectNumber ?? null,
-            projectOwner: github.projectOwner ?? null,
-            operatorHandle: github.operatorHandle,
-            defaultTimeoutMs: github.defaultTimeoutMs ?? null,
-          },
-          notifications: github.notifications,
-          worktreeIsolation: delivery.worktreeIsolation,
-          runners: {
-            deliverRunner: delivery?.deliverRunner ?? {},
-          },
-        }
-      : null,
-  };
-}
-
-/**
  * Load + validate `.agentrc.json` and return the resolved wrapper.
  *
  * Returned shape:
  *   {
  *     project, github, planning, delivery,  // post-reshape canonical blocks
- *     agentSettings, orchestration,         // legacy-compat shim (read-only)
  *     raw, source,
  *   }
  *
@@ -272,13 +225,11 @@ export function resolveConfig(opts) {
     }
 
     const blocks = applyDefaults(raw);
-    const shim = buildLegacyShim(blocks);
 
-    if (validate) validateOrchestrationConfig({ ...blocks, ...shim });
+    if (validate) validateOrchestrationConfig(blocks);
 
     const resolved = {
       ...blocks,
-      ...shim,
       raw,
       source: agentrcPath,
     };
@@ -293,10 +244,8 @@ export function resolveConfig(opts) {
     },
   };
   const blocks = applyDefaults(zeroRaw);
-  const shim = buildLegacyShim(blocks);
   const resolved = {
     ...blocks,
-    ...shim,
     raw: null,
     source: 'built-in defaults',
   };

@@ -778,9 +778,7 @@ async function main() {
   const config = resolveConfig();
 
   if (!config.github) {
-    throw new Error(
-      '[bootstrap] No "github" block found in .agentrc.json.',
-    );
+    throw new Error('[bootstrap] No "github" block found in .agentrc.json.');
   }
 
   try {

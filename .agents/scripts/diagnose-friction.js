@@ -229,11 +229,7 @@ export async function main(args = process.argv.slice(2)) {
     const config = resolveConfig();
     const provider = createProvider(config);
     const { storyId: resolvedStoryId, epicId: resolvedEpicId } =
-      await resolveContextIds(
-        provider,
-        { taskId, storyId, epicId },
-        config,
-      );
+      await resolveContextIds(provider, { taskId, storyId, epicId }, config);
 
     const signal = buildFrictionSignal({
       epicId: resolvedEpicId,

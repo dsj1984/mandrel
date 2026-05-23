@@ -182,9 +182,7 @@ async function main() {
     config = resolveConfig();
     validateOrchestrationConfig(config);
   } catch (err) {
-    throw new Error(
-      `Config schema validation failed:\n${err.message}`,
-    );
+    throw new Error(`Config schema validation failed:\n${err.message}`);
   }
   const provider = createProvider(config);
 

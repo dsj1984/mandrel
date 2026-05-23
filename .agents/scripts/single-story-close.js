@@ -50,13 +50,13 @@ import { parseSprintArgs } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { runCloseValidation } from './lib/close-validation.js';
 import { PROJECT_ROOT, resolveConfig } from './lib/config-resolver.js';
-import { buildGatesFromConfig } from './lib/orchestration/story-close/legacy-settings-bag.js';
 import { syncBranchFromBase } from './lib/git/sync-from-base.js';
 import { getStoryBranch, gitSync } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
 import { AGENT_LABELS } from './lib/label-constants.js';
 import { clearActiveStoryEnv } from './lib/observability/active-story-env.js';
 import { runCodeReview as runCodeReviewDefault } from './lib/orchestration/code-review.js';
+import { buildGatesFromConfig } from './lib/orchestration/story-close/legacy-settings-bag.js';
 import {
   postStructuredComment,
   upsertStructuredComment,
@@ -188,8 +188,7 @@ export async function runSingleStoryClose({
   }
 
   // Resolve worktree path (read-only check — does the dir exist on disk?).
-  const worktreeRoot =
-    config.delivery?.worktreeIsolation?.root ?? '.worktrees';
+  const worktreeRoot = config.delivery?.worktreeIsolation?.root ?? '.worktrees';
   const worktreePathCandidate = path.resolve(
     cwd,
     worktreeRoot,

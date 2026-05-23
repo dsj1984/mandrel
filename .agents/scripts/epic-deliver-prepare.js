@@ -91,9 +91,7 @@ export async function runEpicDeliverPrepare({
 
   const config = injectedConfig ?? resolveConfig({ cwd });
   if (!config.github) {
-    throw new Error(
-      'runEpicDeliverPrepare: no github block in .agentrc.json',
-    );
+    throw new Error('runEpicDeliverPrepare: no github block in .agentrc.json');
   }
   const provider = injectedProvider ?? createProvider(config);
   const { deliverRunner } = getRunners(config);
