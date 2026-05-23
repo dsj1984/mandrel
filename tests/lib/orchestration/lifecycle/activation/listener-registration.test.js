@@ -555,16 +555,17 @@ describe('factory close-tail registrar — AutomergeArmer activation', () => {
  *      collaborator bag, instantiated from the production listener
  *      class.
  *   2. The bus on the same bag has at least one listener subscribed to
- *      `epic.merge.armed` (Cleaner's sole event). The advertised
- *      `events` tuple is the single-element `['epic.merge.armed']`.
+ *      `epic.merge.confirmed` (Cleaner's sole event after Story #2912
+ *      rebound it from `epic.merge.armed`). The advertised `events`
+ *      tuple is the single-element `['epic.merge.confirmed']`.
  *   3. Source-of-truth grep: `cleaner.js` is imported exactly once in
  *      `factory.js`. Prevents accidental double-registration when
  *      future close-tail listeners are added.
  *
  * This is the runtime closure of the AC for Story #2338: without the
- * listener wired into the production factory, the AutomergeArmer's
- * `epic.merge.armed` emission has no consumer — the temp tree never
- * archives and the terminal `epic.complete` never fires.
+ * listener wired into the production factory, the MergeWatcher's
+ * `epic.merge.confirmed` emission has no consumer — the temp tree
+ * never archives and the terminal `epic.complete` never fires.
  */
 describe('factory close-tail registrar — Cleaner activation', () => {
   it('exposes cleaner on the collaborator bag', () => {
@@ -576,18 +577,18 @@ describe('factory close-tail registrar — Cleaner activation', () => {
     );
   });
 
-  it('subscribes Cleaner to epic.merge.armed on the production bus', () => {
+  it('subscribes Cleaner to epic.merge.confirmed on the production bus', () => {
     const collaborators = createEpicRunnerCollaborators(buildAcceptanceCtx());
-    const armedListeners =
-      collaborators.bus._listeners.get('epic.merge.armed') ?? [];
+    const confirmedListeners =
+      collaborators.bus._listeners.get('epic.merge.confirmed') ?? [];
     assert.ok(
-      armedListeners.length >= 1,
-      'at least one listener subscribed to epic.merge.armed',
+      confirmedListeners.length >= 1,
+      'at least one listener subscribed to epic.merge.confirmed',
     );
     assert.deepEqual(
       [...collaborators.cleaner.events],
-      ['epic.merge.armed'],
-      'Cleaner.events must advertise epic.merge.armed and ONLY epic.merge.armed',
+      ['epic.merge.confirmed'],
+      'Cleaner.events must advertise epic.merge.confirmed and ONLY epic.merge.confirmed (Story #2912 rebind)',
     );
   });
 
