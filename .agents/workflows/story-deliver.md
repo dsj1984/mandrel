@@ -296,6 +296,21 @@ running `/story-deliver` against an already-closed Story is safe.
 
 ## Constraints
 
+- **MUST merge into `epic/<epicId>`, never `main`.** The Story branch's
+  only integration target is the parent Epic's integration branch. If
+  `story-close.js` short-circuits, no-ops, or otherwise fails to merge,
+  **do NOT** fall back to `gh pr create --base main`, **do NOT** invoke
+  `/single-story-deliver` on the same Story, and **do NOT** open a PR by
+  hand against `main`. Such a PR orphans the change on `main` and forces
+  a manual `git merge origin/main` back into `epic/<id>` to recover (the
+  Epic #2880 wave-5 / Story #2960 friction note). The framework refuses
+  these PRs via the `pr-base-guard` helper wired into every
+  `createPullRequest` surface; a raw shell `gh pr create` is the only
+  way to bypass it, and you must not. Diagnose the no-op (was the
+  branch already merged? is the ticket already closed? is the worktree
+  on the wrong HEAD?) and re-run close, or transition the Story to
+  `agent::blocked` with a `friction` comment so the operator can
+  resolve it.
 - **Never** push the Story branch directly to `main`. `story-close.js` is
   the only writer that integrates upstream, and only into `epic/<epicId>`.
 - **Never** merge across Story branches; cross-Story dependencies are
