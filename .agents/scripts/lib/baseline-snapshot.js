@@ -140,8 +140,8 @@ export function forkMainToEpic({
     );
   }
 
-  const { agentSettings } = resolveConfig({ cwd });
-  const baselines = getBaselines({ agentSettings });
+  const config = resolveConfig({ cwd });
+  const baselines = getBaselines(config);
   const results = [];
 
   for (const kind of EPIC_BASELINES) {
@@ -469,9 +469,9 @@ export async function regenerateMainFromTree({
   writeFileFn = defaultWriteBaselineFile,
   loadPriorFn = defaultLoadPriorEnvelope,
 } = {}) {
-  const { agentSettings } = resolveConfig({ cwd });
-  const baselines = getBaselines({ agentSettings });
-  const quality = getQuality({ agentSettings });
+  const config = resolveConfig({ cwd });
+  const baselines = getBaselines(config);
+  const quality = getQuality(config);
 
   const files = [];
   let didChange = false;

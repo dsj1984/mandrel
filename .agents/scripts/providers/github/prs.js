@@ -13,6 +13,7 @@
  */
 
 import { Logger } from '../../lib/Logger.js';
+import { assertStoryPrBaseAllowed } from '../../lib/orchestration/pr-base-guard.js';
 
 export class PullRequestGateway {
   /**
@@ -46,6 +47,15 @@ export class PullRequestGateway {
       );
     }
     const ticket = await getTicket(ticketId);
+
+    // Story #2960 — refuse `--base main` (or any non-Epic branch) when
+    // the ticket body declares an `Epic: #N` parent. Stand-alone Stories
+    // pass through untouched.
+    assertStoryPrBaseAllowed({
+      storyId: ticketId,
+      storyBody: ticket?.body,
+      baseBranch,
+    });
 
     const createResult = await this._gh.pr.create([
       '--title',

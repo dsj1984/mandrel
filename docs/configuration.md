@@ -161,6 +161,7 @@ top-level keys are validation errors.
 | `quality.gates.coverage.floors` | No | `object<map>` | — | — |
 | `quality.gates.coverage.components` | No | `object<map>` | — | — |
 | `quality.gates.coverage.coveragePath` | No | `string` | — | — |
+| `quality.gates.coverage.timeoutMs` | No | `integer` | — | — |
 | `quality.gates.crap` | No | `object` | — | Nested configuration block. |
 | `quality.gates.crap.enabled` | No | `boolean` | — | — |
 | `quality.gates.crap.baselinePath` | No | `string` | — | — |
@@ -515,6 +516,15 @@ No tier-specific knobs beyond the common shape.
 | Field          | Required | Default                          | Purpose                                                  |
 | -------------- | -------- | -------------------------------- | -------------------------------------------------------- |
 | `coveragePath` | No       | `coverage/coverage-final.json`   | Per-method coverage artifact consumed by the gate.       |
+| `timeoutMs`    | No       | `600000`                         | Wall clock (ms) for `npm run test:coverage` spawned by `coverage-capture.js`. SIGKILL → exit 124 (GNU `timeout` convention) so close-validation can branch on hang-vs-failure. |
+
+> **Canonical accessor.** Internal callers MUST read this block via
+> `getQuality(config)` where `config` is the full envelope returned by
+> `resolveConfig()` (or any object that exposes `delivery.quality.*`).
+> Passing a sub-pick such as `getQuality({ agentSettings })` silently
+> resolves to framework defaults — `agentSettings` is not part of the
+> post-Epic-#2880 resolver output and `getQuality` reads only
+> `config?.delivery?.quality`. The same applies to `getBaselines(config)`.
 
 ##### `gates.crap`
 
