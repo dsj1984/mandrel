@@ -154,11 +154,6 @@ export async function runPostMergePhase(ctx) {
 }
 
 /**
- * Composite phase: merge → post-merge close → serialise result.
- * The caller (`runStoryCloseLocked` in story-close.js) marks the
- * `close` phase on its phase timer before calling in.
- */
-/**
  * Pure envelope builder. Given the post-merge `result` and the
  * `verifyFinalStoryLabel` verdict, returns the close-result envelope
  * `runClosePhase` will surface back to `runStoryClose`. Exported so the
@@ -190,6 +185,12 @@ export function buildCloseEnvelope({ result, verdict, storyId }) {
   return { success: true, result };
 }
 
+/**
+ * Composite phase: merge → post-merge close → final-label readback →
+ * envelope serialise. The caller (`runStoryCloseLocked` in
+ * story-close.js) marks the `close` phase on its phase timer before
+ * calling in.
+ */
 export async function runClosePhase(ctx) {
   await runMergePhase(ctx);
   const result = await runPostMergePhase(ctx);
@@ -202,7 +203,11 @@ export async function runClosePhase(ctx) {
     provider: ctx.provider,
     storyId: ctx.storyId,
   });
-  const envelope = buildCloseEnvelope({ result, verdict, storyId: ctx.storyId });
+  const envelope = buildCloseEnvelope({
+    result,
+    verdict,
+    storyId: ctx.storyId,
+  });
 
   Logger.info(
     `\n--- STORY CLOSE RESULT ---\n${JSON.stringify(envelope.result, null, 2)}\n--- END RESULT ---\n`,
