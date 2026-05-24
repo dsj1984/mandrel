@@ -161,6 +161,7 @@ top-level keys are validation errors.
 | `quality.gates.coverage.floors` | No | `object<map>` | — | — |
 | `quality.gates.coverage.components` | No | `object<map>` | — | — |
 | `quality.gates.coverage.coveragePath` | No | `string` | — | — |
+| `quality.gates.coverage.timeoutMs` | No | `integer` | — | — |
 | `quality.gates.crap` | No | `object` | — | Nested configuration block. |
 | `quality.gates.crap.enabled` | No | `boolean` | — | — |
 | `quality.gates.crap.baselinePath` | No | `string` | — | — |
