@@ -1055,6 +1055,51 @@ operator with `Workflows: Read and write` PAT permissions. See
 operator surface that release-please relies on is the one that authorizes
 workflow edits.
 
+### Worktree config shadow
+
+`/story-deliver` and `/single-story-deliver` run inside per-Story
+worktrees under `.worktrees/story-<id>/`. A git worktree checks out the
+**Story branch's own copy** of every repo-tracked file — including
+`.agentrc.json`, `package.json`, `release-please-config.json`, and any
+other config under version control. **Operator edits made in the main
+checkout do NOT propagate to an already-active worktree.** The worktree
+sees the branch's committed contents until the operator either re-edits
+inside the worktree or merges the change into the Story branch.
+
+Symptom: you bump a runtime knob in `<main-repo>/.agentrc.json` (e.g.
+raise `delivery.quality.gates.coverage.timeoutMs`), re-run
+`story-close.js --cwd <worktree>`, and the script still uses the old
+value. The script resolved config from the worktree's stale
+`.agentrc.json`, not the main checkout's edited one. Precedent: Epic
+\#2880 friction note F-W0-6 (Story \#2896 recovery debugging time).
+
+When tuning runtime knobs **mid-Story**:
+
+1. **Prefer an env-var override** when the knob exposes one (e.g.
+   timeouts, log level via `AGENT_LOG_LEVEL`, concurrency caps). Env
+   vars are read from the operator's actual shell, not from the
+   checked-out config, so they bypass worktree shadow entirely.
+2. **Edit the file inside the worktree** —
+   `.worktrees/<story-id>/.agentrc.json` — so the script sees the bump
+   on its next read. Either commit the change on the Story branch (if
+   the bump is project-wide and should land with the Story) or leave
+   it uncommitted as a scratch tweak that gets discarded when the
+   worktree is reaped.
+3. **Use `.agentrc.local.json`** for per-machine tuning you never want
+   to commit. The file is gitignored and layered on top of
+   `.agentrc.json` by the config resolver
+   (see [`docs/configuration.md`](../docs/configuration.md#per-machine-local-overrides)).
+   Note: the local override is still read relative to the script's
+   cwd, so for worktree-bound scripts you must place
+   `.agentrc.local.json` inside the worktree directory — or invoke the
+   script with `--cwd <main-repo>` so the resolver reads from the main
+   checkout's local override.
+
+Editing the main checkout's `.agentrc.json` only affects **the next**
+`story-init.js` invocation, because new Story branches fork from
+`main`'s current tip and therefore see the new config from the start.
+For Stories already in flight, use one of the three options above.
+
 ---
 
 ## Quick reference
