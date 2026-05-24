@@ -10,6 +10,9 @@
  * @module lib/orchestration/epic-plan-decompose/phases/planning-artifacts
  */
 
+import { resolveListValue } from '../../../config/shared.js';
+import { _internal as conflictInternal } from '../../ticket-validator-conflicts.js';
+
 /**
  * Ensure the supplied Epic body carries a `## Planning Artifacts` section.
  * Idempotent — when the section already exists the body is returned
@@ -52,9 +55,21 @@ export function ensurePlanningArtifacts(body, linkedIssues) {
  */
 export function resolveConflictPolicy(cfg) {
   const planning = cfg?.planning;
-  return {
+  const policy = {
     failOnSharedEditors: planning?.failOnSharedEditors === true,
     requireExplicitCrossStoryDeps:
       planning?.requireExplicitCrossStoryDeps === true,
+    failOnRegistryConflicts: planning?.failOnRegistryConflicts === true,
+    failOnLargeFanOut: planning?.failOnLargeFanOut === true,
   };
+  if (Number.isFinite(planning?.largeFanOutThreshold)) {
+    policy.largeFanOutThreshold = planning.largeFanOutThreshold;
+  }
+  if (planning?.crossCuttingRegistries !== undefined) {
+    policy.registries = resolveListValue(
+      conflictInternal.DEFAULT_REGISTRY_PATTERNS,
+      planning.crossCuttingRegistries,
+    );
+  }
+  return policy;
 }

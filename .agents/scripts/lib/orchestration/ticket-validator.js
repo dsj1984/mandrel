@@ -627,14 +627,19 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
     policy: opts.conflictPolicy,
   });
   const findings = [...sizingFindings, ...conflictFindings];
+  const CONFLICT_KINDS = new Set([
+    'shared-editor',
+    'implicit-cross-story-dep',
+    'cross-cutting-registries',
+    'fan-out-warning',
+  ]);
   const errors = findings
     .filter((f) => f.severity === 'hard')
-    .map((f) => {
-      if (f.kind === 'shared-editor' || f.kind === 'implicit-cross-story-dep') {
-        return renderHardConflictError(f);
-      }
-      return renderHardFindingError(f);
-    });
+    .map((f) =>
+      CONFLICT_KINDS.has(f.kind)
+        ? renderHardConflictError(f)
+        : renderHardFindingError(f),
+    );
   // Append per-Task path-assumption mismatches (Story #2636) to the
   // hard-error list. The decompose loop already gates on
   // `errors.length > 0` to trigger a re-prompt, so the new check
