@@ -58,7 +58,7 @@ import { RECONCILE_CLI, spawnReconcilerApply } from './reconcile-spawn.js';
  * @param {import('../../../ITicketingProvider.js').ITicketingProvider} provider
  * @param {{ tickets: Array<object> }} payload
  * @param {object} config
- * @param {{ force?: boolean, resume?: boolean, allowOverBudget?: boolean, spawnSync?: typeof defaultSpawnSync, reconcileCli?: string, writeSpecFn?: typeof writeSpec, renderSpecFn?: typeof renderSpec, cwd?: string, runHealthcheckFn?: typeof defaultRunPlanHealthcheck, skipHealthcheck?: boolean }} [opts]
+ * @param {{ force?: boolean, resume?: boolean, allowOverBudget?: boolean, allowLargeFanOut?: boolean, fanOutCounter?: (arg: { path: string }) => number, spawnSync?: typeof defaultSpawnSync, reconcileCli?: string, writeSpecFn?: typeof writeSpec, renderSpecFn?: typeof renderSpec, cwd?: string, runHealthcheckFn?: typeof defaultRunPlanHealthcheck, skipHealthcheck?: boolean }} [opts]
  */
 export async function runDecomposePhase(
   epicId,
@@ -69,6 +69,8 @@ export async function runDecomposePhase(
     force = false,
     resume = false,
     allowOverBudget = false,
+    allowLargeFanOut = false,
+    fanOutCounter = undefined,
     spawnSync = defaultSpawnSync,
     reconcileCli = RECONCILE_CLI,
     writeSpecFn = writeSpec,
@@ -101,12 +103,22 @@ export async function runDecomposePhase(
       `[epic-plan-decompose] Persisting an over-budget decomposition: ${tickets.length} tickets vs. budget ${maxTickets} (operator override --allow-over-budget).`,
     );
   }
-  await seedPlanState(provider, epicId, epic);
-
+  // Story #2962 — run cross-validation BEFORE the plan-state mutation so
+  // the fan-out gate (and any future hard gate) can refuse persist
+  // without leaving a half-initialised epic-plan-state behind.
   Logger.info(
     `[epic-plan-decompose] Running cross-validation on ${tickets.length} tickets...`,
   );
-  const validated = validateTickets(tickets, config);
+  const validated = validateTickets(tickets, config, { fanOutCounter, cwd });
+
+  // Refuse to persist when any Task declares a deletion whose call-site
+  // fan-out exceeds the configured threshold, unless the operator has
+  // passed `--allow-large-fan-out`. The planner cannot reduce call sites
+  // by re-prompting, so this gate sits at persist time (like
+  // `--allow-over-budget`) rather than in the auto-redrive loop.
+  enforceFanOutGate(validated.findings, allowLargeFanOut);
+
+  await seedPlanState(provider, epicId, epic);
 
   Logger.info(
     `[epic-plan-decompose] Rendering spec for Epic #${epicId} (${validated.length} tickets)...`,
@@ -184,6 +196,32 @@ export async function runDecomposePhase(
  * @param {typeof defaultRunPlanHealthcheck} args.runHealthcheckFn
  * @returns {Promise<{ ok: boolean, waived?: boolean, reason?: string|null }>}
  */
+function enforceFanOutGate(findings, allowLargeFanOut) {
+  const fanOut = (findings ?? []).filter((f) => f.kind === 'fan-out-warning');
+  if (fanOut.length === 0) return;
+  if (allowLargeFanOut) {
+    for (const f of fanOut) {
+      Logger.warn(
+        `[epic-plan-decompose] Persisting a large-fan-out deletion: ` +
+          `Task "${f.taskSlug}" deletes "${f.path}" with ${f.callSiteCount} ` +
+          `call site(s) (threshold ${f.threshold}). Operator override --allow-large-fan-out.`,
+      );
+    }
+    return;
+  }
+  const lines = fanOut
+    .map(
+      (f) =>
+        `  - Task "${f.taskSlug}" (Story "${f.storySlug}") deletes "${f.path}" — ${f.callSiteCount} call site(s) (threshold ${f.threshold})`,
+    )
+    .join('\n');
+  throw new Error(
+    `[epic-plan-decompose] ${fanOut.length} Task(s) declare large-fan-out deletions:\n${lines}\n\n` +
+      `Split each deletion into a subsystem-by-subsystem migration across multiple Stories, ` +
+      `or rerun --allow-large-fan-out after confirming the deletion is intentional.`,
+  );
+}
+
 async function runHealthcheckGate({ epicId, epic, runHealthcheckFn }) {
   Logger.info(
     `[epic-plan-decompose] Running post-plan readiness healthcheck for Epic #${epicId}...`,

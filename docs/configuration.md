@@ -108,6 +108,10 @@ top-level keys are validation errors.
 | `codebaseSnapshot.recentCommitWindow` | No | `integer` | — | — |
 | `failOnSharedEditors` | No | `boolean` | — | — |
 | `requireExplicitCrossStoryDeps` | No | `boolean` | — | — |
+| `failOnRegistryConflicts` | No | `boolean` | — | — |
+| `failOnLargeFanOut` | No | `boolean` | — | — |
+| `largeFanOutThreshold` | No | `integer` | — | — |
+| `crossCuttingRegistries` | No | `string[]` or `{ append?, prepend? }` | — | — |
 
 ### `delivery` (optional)
 

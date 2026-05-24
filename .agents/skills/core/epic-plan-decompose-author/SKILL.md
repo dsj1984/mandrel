@@ -256,6 +256,40 @@ Shared configuration files (non-exhaustive):
 - Any single file under a `schemas/` directory if it is the only producer
   of a contract consumed by other Stories — those consumers MUST
   `depends_on` the producer
+- **Registry / barrel files** (Story #2962). Files whose primary purpose
+  is to wire siblings together (listener registries, handler maps,
+  manifest barrels) collide whenever two concurrent Stories *create new
+  files* that the registry must import. The validator recognises this
+  class via `planning.crossCuttingRegistries` (extender-shaped). The
+  framework default list is:
+  - `lib/orchestration/lifecycle/listeners/index.js`
+  - `**/listeners/index.js`
+  - `**/handlers/index.js`
+
+  Trigger: two or more concurrent Stories either edit a registry path
+  directly **or** declare `assumption: creates` for a file in the
+  registry's parent directory. Remediation is the same as the shared
+  configuration files above — sequential `depends_on` between the
+  Stories, or a dedicated late-wave wiring Story. Consumers extend the
+  list per-project via `planning.crossCuttingRegistries` in
+  `.agentrc.json` (accepts `["…"]` to replace or `{ append: [...] }` to
+  add to the framework default).
+
+### WIDELY-USED SYMBOL DELETION (Story #2962):
+
+When a Task's `body.changes` declares `{ path, assumption: "deletes" }`,
+the decomposer probes the base branch at plan time via `git grep -l`
+for files that reference the deleted module's basename. When the count
+exceeds `planning.largeFanOutThreshold` (default `10`), the validator
+emits a `fan-out-warning` finding and `epic-plan-decompose` refuses to
+persist unless the operator passes `--allow-large-fan-out`.
+
+This gate exists because re-prompting the planner cannot reduce a
+deletion's call-site count — the only safe remediations are to split
+the deletion into a subsystem-by-subsystem migration across multiple
+Stories or to confirm the deletion is intentional and bypass the gate
+with the flag. The threshold is configurable per-project via
+`planning.largeFanOutThreshold` in `.agentrc.json`.
 
 Within-Story carve-out: two Tasks inside the **same** Story may edit a
 shared file freely — they merge together on the same Story branch and
