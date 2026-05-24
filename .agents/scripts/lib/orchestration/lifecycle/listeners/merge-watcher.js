@@ -389,6 +389,24 @@ export class MergeWatcher {
         this.logger.warn?.(
           `[MergeWatcher] poll budget exceeded after ${attempt} attempts (${elapsedMs}ms elapsed, budget=${budgetMs}ms).`,
         );
+        // ultrareview bug_010: surface the abandonment via the bus so
+        // BlockerHandler / LabelTransitioner / StructuredCommentPoster /
+        // NotifyDispatcher escalate the Epic to `agent::blocked` with
+        // an operator-visible reason. Without this emit the Epic stalls
+        // silently — Cleaner never fires, agent::done never flips, and
+        // no operator notification is produced. The epic.blocked payload
+        // schema is strict (`additionalProperties: false`), so the
+        // elapsed/attempt detail stays in the classification log and
+        // warn line above rather than in the bus payload.
+        try {
+          await this.bus.emit('epic.blocked', {
+            reason: `merge-watch:budget-exceeded`,
+          });
+        } catch (err) {
+          this.logger.warn?.(
+            `[MergeWatcher] epic.blocked emit on budget exhaustion failed (swallowed): ${err?.message ?? err}`,
+          );
+        }
         return;
       }
 

@@ -56,7 +56,10 @@ function loadResolvedConfig() {
   let config;
   try {
     config = resolveConfig();
-    validateOrchestrationConfig(config.orchestration);
+    // Epic #2880 / F14B: pass the canonical resolved config directly.
+    // The legacy `config.orchestration` pointer is gone; the validator
+    // reads `config.github` and `config.delivery.worktreeIsolation`.
+    validateOrchestrationConfig(config);
   } catch (err) {
     throw new Error(
       `Orchestration config schema validation failed:\n${err.message}`,
@@ -69,7 +72,10 @@ async function driveDrainPendingCleanup({ config, provider, emitContext }) {
   try {
     await drainPendingCleanupAtBoot({
       repoRoot: PROJECT_ROOT,
-      orchestration: config.orchestration,
+      // Epic #2880 / F14B: drainPendingCleanupAtBoot now reads opts.config
+      // (canonical) and resolves the worktree root from
+      // config.delivery.worktreeIsolation.root.
+      config,
       provider,
       logger: emitContext ? STDERR_LOGGER : undefined,
     });
@@ -137,7 +143,11 @@ export async function main() {
   }
 
   const config = loadResolvedConfig();
-  const provider = createProvider(config.orchestration);
+  // Epic #2880 / F14B: createProvider takes the canonical resolved config
+  // (it reads config.github). The legacy config.orchestration pointer is
+  // gone; passing it yields undefined and crashes the provider factory's
+  // hard guard.
+  const provider = createProvider(config);
   const emitContext = values['emit-context'];
 
   // Story #2278 — in --emit-context mode stdout is reserved for the JSON
