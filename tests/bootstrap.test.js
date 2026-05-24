@@ -138,7 +138,9 @@ describe('Bootstrap — LABEL_TAXONOMY', () => {
   it('label count = non-persona taxonomy + one per persona file', () => {
     // Story #2144 — added `agent::closing` to the taxonomy as the
     // intermediate state between executing and done.
-    const nonPersonaBase = 14;
+    // Story #2921 (Epic #2880 F7) — added `planning::healthcheck-waived`
+    // as the operator override for the post-plan readiness healthcheck.
+    const nonPersonaBase = 15;
     assert.equal(LABEL_TAXONOMY.length, nonPersonaBase + PERSONA_NAMES.length);
   });
 
@@ -262,7 +264,7 @@ describe('Bootstrap — PROJECT_VIEW_DEFS', () => {
 // runBootstrap behavior
 // ---------------------------------------------------------------------------
 describe('Bootstrap — runBootstrap()', () => {
-  const orchestration = {
+  const config = {
     provider: 'github',
     github: {
       owner: 'test-owner',
@@ -274,7 +276,7 @@ describe('Bootstrap — runBootstrap()', () => {
 
   it('calls resolveOrCreateProject, ensureStatusField, ensureProjectViews, ensureProjectFields, ensureLabels in order', async () => {
     const mock = new MockProvider();
-    const result = await runBootstrap(orchestration, {
+    const result = await runBootstrap(config, {
       providerOverride: mock,
       quiet: true,
     });
@@ -292,7 +294,7 @@ describe('Bootstrap — runBootstrap()', () => {
   it('degrades gracefully when resolveOrCreateProject reports scopesMissing', async () => {
     const mock = new MockProvider();
     mock._projectResult = { scopesMissing: true };
-    const result = await runBootstrap(orchestration, {
+    const result = await runBootstrap(config, {
       providerOverride: mock,
       quiet: true,
     });
@@ -314,7 +316,7 @@ describe('Bootstrap — runBootstrap()', () => {
       skipped: ['Epic Roadmap', 'Active Stories', 'My Queue'],
       unavailable: true,
     };
-    const result = await runBootstrap(orchestration, {
+    const result = await runBootstrap(config, {
       providerOverride: mock,
       quiet: true,
     });
@@ -330,7 +332,7 @@ describe('Bootstrap — runBootstrap()', () => {
       status: 'updated',
       added: ['Todo'],
     };
-    const result = await runBootstrap(orchestration, {
+    const result = await runBootstrap(config, {
       providerOverride: mock,
       quiet: true,
     });
@@ -343,8 +345,8 @@ describe('Bootstrap — runBootstrap()', () => {
     mock._projectResult = { scopesMissing: true };
     const result = await runBootstrap(
       {
-        ...orchestration,
-        github: { ...orchestration.github, projectNumber: null },
+        ...config,
+        github: { ...config.github, projectNumber: null },
       },
       { providerOverride: mock, quiet: true },
     );

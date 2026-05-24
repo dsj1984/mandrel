@@ -168,7 +168,7 @@ export async function buildAuthoringContext(
     throw new Error(`Epic #${epicId} not found.`);
   }
 
-  const planningLimits = getLimits({ agentSettings: settings }).planningContext;
+  const planningLimits = getLimits(settings).planningContext;
   const { fullContext = false } = opts;
 
   const docsContext = await buildDocsContext(settings, planningLimits, {
@@ -526,22 +526,22 @@ export async function planEpic(
  * then reaps registered worktrees for done/closed stories. When `provider` is
  * omitted (unit tests), runs `forceDrainPendingCleanup` on the manifest only.
  *
- * Uses `orchestration.worktreeIsolation.root` when present; defaults to
+ * Uses `delivery.worktreeIsolation.root` when present; defaults to
  * `.worktrees`.
  *
  * Non-blocking: stuck entries stay in the manifest; plan execution continues.
  *
  * Exposed for integration tests.
  *
- * @param {{ repoRoot?: string, orchestration?: object, provider?: object, git?: object, logger?: object, fsRm?: function }} [opts]
+ * @param {{ repoRoot?: string, config?: object, provider?: object, git?: object, logger?: object, fsRm?: function }} [opts]
  * @returns {Promise<object>} Sweep/drain summary with legacy `drained` / `persistent` / `remaining` aliases for callers.
  */
 export async function drainPendingCleanupAtBoot(opts = {}) {
   const repoRoot = opts.repoRoot ?? PROJECT_ROOT;
-  const orchestration = opts.orchestration;
+  const config = opts.config;
   const worktreeRoot = path.join(
     repoRoot,
-    orchestration?.worktreeIsolation?.root ?? '.worktrees',
+    config?.delivery?.worktreeIsolation?.root ?? '.worktrees',
   );
   const git = opts.git ?? gitUtils;
   const logger = opts.logger ?? console;
@@ -913,22 +913,29 @@ async function main() {
     throw new Error(`Invalid epic ID: "${values.epic}" — must be a number.`);
   }
 
-  let orchestration;
+  let config;
   let settings;
   try {
-    ({ orchestration, agentSettings: settings } = resolveConfig());
-    validateOrchestrationConfig(orchestration);
+    config = resolveConfig();
+    // `settings` retains the legacy bag shape used by buildAuthoringContext
+    // and friends in this file: `{ baseBranch, paths, planning, ... }`.
+    // Build it from the canonical blocks rather than the legacy shim.
+    settings = {
+      baseBranch: config.project?.baseBranch,
+      paths: config.project?.paths,
+      planning: config.planning,
+      docsContextFiles: config.project?.docsContextFiles,
+    };
+    validateOrchestrationConfig(config);
   } catch (err) {
-    throw new Error(
-      `Orchestration config schema validation failed:\n${err.message}`,
-    );
+    throw new Error(`Config schema validation failed:\n${err.message}`);
   }
-  const provider = createProvider(orchestration);
+  const provider = createProvider(config);
 
   const emitContext = values['emit-context'];
   // Story #2278 — in --emit-context mode stdout is reserved for the JSON
   // envelope. Flip every Logger sink that could land on stdout to stderr
-  // *before* any orchestration code runs (drainPendingCleanupAtBoot,
+  // *before* any pipeline code runs (drainPendingCleanupAtBoot,
   // buildAuthoringContext → buildDocsContext → scrapeProjectDocs), so a
   // captured file is unconditionally parseable by `JSON.parse`.
   if (emitContext) routeAllOutputToStderr();
@@ -936,7 +943,7 @@ async function main() {
   try {
     await drainPendingCleanupAtBoot({
       repoRoot: PROJECT_ROOT,
-      orchestration,
+      config,
       provider,
       // In --emit-context mode stdout is reserved for the JSON envelope;
       // route every drain/sweep log line through stderr so the captured
@@ -952,7 +959,7 @@ async function main() {
   if (emitContext) {
     const ctx = await buildAuthoringContext(epicId, provider, settings, {
       fullContext: values['full-context'],
-      github: orchestration?.github ?? null,
+      github: config.github ?? null,
     });
     const json = values.pretty
       ? JSON.stringify(ctx, null, 2)

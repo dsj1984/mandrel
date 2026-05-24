@@ -169,7 +169,7 @@ taxonomy.
 | `epic-run-state`           | Structured comment  | HTML-marker-scoped JSON checkpoint on the Epic; single SSOT for wave progress and resume across all six `/epic-deliver` phases.    |
 | `wave-<N>-start`           | Structured comment  | Per-wave start marker with wave manifest and start timestamp.                                                                       |
 | `wave-<N>-end`             | Structured comment  | Per-wave end marker with story outcomes and duration.                                                                               |
-| `concurrencyCap`           | Config (integer)    | `orchestration.runners.deliverRunner.concurrencyCap`; max parallel `/story-deliver <storyId>` sub-agents per wave.                  |
+| `concurrencyCap`           | Config (integer)    | `delivery.deliverRunner.concurrencyCap`; max parallel `/story-deliver <storyId>` sub-agents per wave.                  |
 | Blocker-escalation         | Flow state          | Runtime pause driven by `agent::blocked`; the sole HITL touchpoint during a run.                                                    |
 | Status (Projects v2)       | Project field       | Single-select custom field driven by `ColumnSync` from `agent::` labels.                                                            |
 
@@ -310,7 +310,7 @@ ratchet.
 | Term                                                | Kind               | Definition                                                                                                                                                                                                                                                                                                                                                                  |
 | --------------------------------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `baselines/crap.json`                               | Repo-root artefact | `{ kernelVersion, escomplexVersion, rows: [{ file, method, startLine, crap }] }`. Rows deterministically sorted by `(file, startLine)`; alphabetized keys; trailing newline. `kernelVersion` bumps when the inline CRAP formula changes; `escomplexVersion` bumps with the `typhonjs-escomplex` dependency. A baseline whose stamps don't match the running scorer fails closed. |
-| `agentSettings.quality.crap`                        | Config block       | `{ enabled, targetDirs, newMethodCeiling, coveragePath, tolerance, requireCoverage, friction.markerKey, refreshTag }`. Defaults: `enabled: true`, `targetDirs: ["src"]`, `newMethodCeiling: 30`, `coveragePath: "coverage/coverage-final.json"`, `tolerance: 0.05`, `requireCoverage: true`, `refreshTag: "baseline-refresh:"`. List-valued keys accept `{ append }` / `{ prepend }`. |
+| `delivery.quality.gates.crap`                       | Config block       | `{ enabled, targetDirs, newMethodCeiling, coveragePath, tolerance, requireCoverage, friction.markerKey, refreshTag }`. Defaults: `enabled: true`, `targetDirs: ["src"]`, `newMethodCeiling: 30`, `coveragePath: "coverage/coverage-final.json"`, `tolerance: 0.05`, `requireCoverage: true`, `refreshTag: "baseline-refresh:"`. List-valued keys accept `{ append }` / `{ prepend }`. |
 | Hybrid enforcement                                  | Decision contract  | `compareCrap()` resolves each scanned row through four match paths: exact `(file, method, startLine)`, line-drift fallback (same `(file, method)`, shifted `startLine`), new (no match → ceiling check), removed (baseline row absent → reported, never a failure).                                                                                                          |
 | `fixGuidance`                                       | Report field       | Per-violation block in the `--json` envelope: `{ crapCeiling, minComplexityAt100Cov, minCoverageAtCurrentComplexity }`. Derived deterministically from the formula; `null` when unachievable at current complexity. Round-trip property: applying either single-axis fix re-scores under target.                                                                              |
 | `--changed-since <ref>`                             | CLI flag           | On `check-crap.js` and `check-maintainability.js`. Limits scoring + comparison to files in `git diff --name-only <ref>...HEAD`. Bad ref → non-zero exit (no silent degradation to "no regressions").                                                                                                                                                                          |
@@ -324,7 +324,7 @@ ratchet.
 
 | Term                            | Kind             | Definition                                                                                                                                          |
 | ------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `orchestration.concurrency`     | Config block     | `{ waveGate: integer ≥ 0, commitAssertion: integer ≥ 1, progressReporter: integer ≥ 1 }`. All keys optional. Defaults: `0` / `4` / `8`. `additionalProperties: false`. |
+| `DEFAULT_CONCURRENCY`           | Framework constant | `{ waveGate: 0, commitAssertion: 4, progressReporter: 8 }`, exported from `.agents/scripts/lib/orchestration/concurrency.js`. No `.agentrc.json` knob post-reshape — the values are framework-internal constants. |
 | `resolveConcurrency(source)`    | Helper           | `lib/orchestration/concurrency.js`. Returns a frozen `{ waveGate, commitAssertion, progressReporter }`. Falls back to defaults on missing/malformed values. |
 | `concurrentMap(items, fn, opts)` | Utility         | `lib/util/concurrent-map.js`; bounded-concurrency fanout helper. Preserves result order; rejects aggregate on the first thrown error unless the callback swallows it. |
 | `analyze-execution.js`          | CLI              | Reads per-Story `signals.ndjson` and emits the `story-perf-summary` (Story-mode) / `epic-perf-report` (Epic-mode) structured comments. The retro composer reads these for phase p50/p95 and concurrency hints. Wired into `post-merge-pipeline` (Story mode) and Epic close Phase 6.0 (Epic mode) in Epic #1114. |
@@ -343,7 +343,7 @@ ratchet.
 | `resolveWorktreeEnabled(opts, env)` | Helper      | `lib/config-resolver.js`. Returns the resolved boolean (env override → web auto-detect → committed config).                                                                                                          |
 | `resolveSessionId(env)`           | Helper        | `lib/config-resolver.js`. Returns the sanitised, 12-char session-id used in the startup log line.                                                                                                                    |
 | `resolveRuntime(opts, env)`       | Helper        | `lib/config-resolver.js`. Returns `{ worktreeEnabled, sessionId, isRemote }` plus the source attribution string used in the startup log line.                                                                        |
-| `orchestration.runners.storyMergeRetry`| Config block  | `{ maxAttempts: integer ≥ 1, backoffMs: integer[] }`. Both keys optional. Defaults: `maxAttempts: 3`, `backoffMs: [250, 500, 1000]`. Drives the bounded retry on the epic-branch push at story close. Renamed in 5.40.0; see `docs/CHANGELOG.md` for the rename history. |
+| `DEFAULT_STORY_MERGE_RETRY`     | Framework constant | `{ maxAttempts: 3, backoffMs: [250, 500, 1000] }`, exported from `.agents/scripts/lib/config/runners.js`. Drives the bounded retry on the epic-branch push at story close. Post-reshape this is a framework-internal constant — no `.agentrc.json` override. See `docs/CHANGELOG.md` for the rename history. |
 | `pushEpicWithRetry(...)`          | Helper        | `lib/push-epic-retry.js`. Wraps the `git push origin epic/<id>` step with fetch-replay-push retry on non-fast-forward rejection. Aborts cleanly on real content conflicts; never destroys local work.                |
 | `runDispatchManifestGuard(opts)`  | Helper        | `lib/story-init/dependency-guard.js`. Pre-flight blocker check at `story-init.js` startup. Refuses launch if any of the story's blockers are unmerged.                                                              |
 
@@ -393,18 +393,11 @@ and overwrites the record on success.
 
 ## Health-Monitor Refresh Cadence
 
-`agentSettings.healthMonitor.refreshCadence` selects how often the Epic Health
-structured comment is refreshed during Epic execution:
-
-| Value             | Behaviour                                                                  |
-| ----------------- | -------------------------------------------------------------------------- |
-| `every-close`     | Refresh on every story-close.                                              |
-| `wave-boundary`   | Refresh only at wave transitions and at the deliver-tail. **Default.**     |
-| `every-n-closes`  | Refresh every Nth close, where N comes from `healthMonitor.everyNCloses`.  |
-
-`wave-boundary` is the recommended setting for large Epics; the per-close
-refresh is preserved as `every-close` for projects that prefer continuous
-health visibility.
+Post-reshape the Epic Health structured comment is refreshed at
+wave-boundary by the lifecycle-bus-driven structured-comment poster
+(`lib/orchestration/lifecycle/listeners/structured-comment-poster.js`).
+The historic `every-close` / `every-n-closes` cadence selector is no
+longer operator-tunable; the bus owns the refresh schedule.
 
 ---
 

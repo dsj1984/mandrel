@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/epic.merge.confirmed.schema.json",
+  "title": "epic.merge.confirmed",
+  "description": "Emitted by MergeWatcher after gh pr view --json mergeCommit,mergedAt returns a non-null mergeCommit for the armed Epic PR. Strictly downstream of epic.merge.armed; carries the observed mergeCommit SHA, mergedAt timestamp, and the cumulative poll count (Story #2896, Epic #2880).",
+  "type": "object",
+  "required": ["epicId", "prUrl", "mergeCommitSha", "pollAttempts"],
+  "properties": {
+    "epicId": { "type": "integer", "minimum": 1 },
+    "prUrl": { "type": "string", "format": "uri", "minLength": 1 },
+    "prNumber": { "type": ["integer", "null"], "minimum": 1 },
+    "mergeCommitSha": { "type": "string", "minLength": 1 },
+    "mergedAt": { "type": ["string", "null"] },
+    "pollAttempts": { "type": "integer", "minimum": 1 }
+  },
+  "additionalProperties": false
+}

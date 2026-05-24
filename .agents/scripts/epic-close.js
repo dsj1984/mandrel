@@ -190,7 +190,7 @@ export async function runEpicClose({
   }
 
   const config = injectedConfig ?? resolveConfigFn({ cwd });
-  const provider = injectedProvider ?? createProviderFn(config.orchestration);
+  const provider = injectedProvider ?? createProviderFn(config);
 
   logger.info(`[epic-close] Running close-tail for Epic #${parsedEpicId}...`);
   const tail = await runEpicCloseTailFn({

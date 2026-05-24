@@ -459,7 +459,7 @@ test('reconcileCleanupState preserves deferred state when the close-time drain s
 test('drainPendingCleanupAfterClose returns null when worktree isolation is disabled', async () => {
   const res = await drainPendingCleanupAfterClose({
     repoRoot: '.',
-    orchestration: { worktreeIsolation: { enabled: false } },
+    delivery: { worktreeIsolation: { enabled: false } },
   });
   assert.equal(res, null);
 });
@@ -468,7 +468,7 @@ test('drainPendingCleanupAfterClose reports the worktree root and drain summary'
   const events = [];
   const res = await drainPendingCleanupAfterClose({
     repoRoot: '/repo',
-    orchestration: { worktreeIsolation: { enabled: true, root: '.worktrees' } },
+    delivery: { worktreeIsolation: { enabled: true, root: '.worktrees' } },
     progress: (phase, msg) => events.push({ phase, msg }),
     drainFn: async () => ({
       drained: [795],

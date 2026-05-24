@@ -161,6 +161,8 @@ function applyCleanSprintStubs(collaborators, { prUrl }) {
     predicate: 0,
     ghPrViewAutoMerge: 0,
     ghPrMergeAuto: 0,
+    ghPrViewMerge: 0,
+    mergeWatcherSleeps: 0,
     renames: 0,
   };
   const calls = {
@@ -269,6 +271,33 @@ function applyCleanSprintStubs(collaborators, { prUrl }) {
     calls.ghPrMergeAuto.push(args);
     return { status: 0, stdout: '', stderr: '' };
   };
+
+  // MergeWatcher: stub the `gh pr view --json mergeCommit` probe so the
+  // listener observes the PR as merged on the first poll. Without this
+  // stub the listener would shell out to real `gh` against the fake PR
+  // URL, never see a mergeCommit, and sleep `intervalSeconds` (default
+  // 30s) up to `maxBudgetSeconds` (default 3600s = 1hr). Hardening
+  // against that hang is what makes the clean-sprint chain runnable in
+  // a unit test without burning real wall clock. The `sleepFn` override
+  // is belt-and-braces — even if a future change drives multiple polls,
+  // the test never actually waits.
+  if (collaborators.mergeWatcher) {
+    collaborators.mergeWatcher.ghPrViewMergeFn = () => {
+      counters.ghPrViewMerge += 1;
+      return {
+        status: 0,
+        stdout: JSON.stringify({
+          number: 1234,
+          mergeCommit: { oid: 'a'.repeat(40) },
+          mergedAt: '2026-05-23T00:00:00.000Z',
+        }),
+        stderr: '',
+      };
+    };
+    collaborators.mergeWatcher.sleepFn = async () => {
+      counters.mergeWatcherSleeps += 1;
+    };
+  }
 
   // Cleaner: stub the rename so the archive step does NOT move
   // `<tempRoot>/epic-<id>/` out from under the ledger reader. The

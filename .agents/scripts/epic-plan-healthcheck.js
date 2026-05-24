@@ -94,11 +94,11 @@ function parseHealthcheckArgs(argv = process.argv) {
 // it with `name` and `durationMs` for the structured output.
 // ---------------------------------------------------------------------------
 
-/** Validate `.agentrc.json` orchestration block. */
-function checkConfig(orchestration) {
+/** Validate the resolved `.agentrc.json` config. */
+function checkConfig(config) {
   try {
-    validateOrchestrationConfig(orchestration);
-    return { ok: true, detail: 'Orchestration config is valid.' };
+    validateOrchestrationConfig(config);
+    return { ok: true, detail: 'Config is valid.' };
   } catch (err) {
     return { ok: false, detail: `Config validation failed: ${err.message}` };
   }
@@ -276,9 +276,8 @@ export async function runPlanHealthcheck(opts = {}) {
   const { epicId, paranoid, primeInstall, dryRun } = parsed;
   const cwd = PROJECT_ROOT;
 
-  const { agentSettings, orchestration } =
-    opts.injectedConfig || resolveConfig();
-  const baseBranch = agentSettings.baseBranch ?? 'main';
+  const config = opts.injectedConfig || resolveConfig();
+  const baseBranch = config.project?.baseBranch ?? 'main';
 
   progress(
     'HEALTH',
@@ -288,8 +287,8 @@ export async function runPlanHealthcheck(opts = {}) {
   const checks = [];
 
   // Fast lane: config + git remote always run.
-  progress('CHECK', 'Validating orchestration config...');
-  checks.push(await timed('config', async () => checkConfig(orchestration)));
+  progress('CHECK', 'Validating resolved config...');
+  checks.push(await timed('config', async () => checkConfig(config)));
 
   progress('CHECK', 'Checking git remote...');
   checks.push(
@@ -298,7 +297,7 @@ export async function runPlanHealthcheck(opts = {}) {
 
   // Paranoid lane: ticket-hierarchy + dep-cycle revalidation.
   if (paranoid) {
-    const provider = opts.injectedProvider || createProvider(orchestration);
+    const provider = opts.injectedProvider || createProvider(config);
     progress('CHECK', 'Validating ticket hierarchy...');
     checks.push(
       await timed('ticket-hierarchy', () => checkTickets(provider, epicId)),

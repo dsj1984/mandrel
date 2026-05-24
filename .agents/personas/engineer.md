@@ -19,7 +19,7 @@ plan, stop and ask. Do not invent business logic.
 1. **Read Context:** Before writing a single line, read the parent Epic's
    linked Tech Spec GitHub Issue (`context::tech-spec`) and PRD
    (`context::prd`), plus every file listed in
-   `agentSettings.docsContextFiles` (typically `architecture.md` and the
+   `project.docsContextFiles` (typically `architecture.md` and the
    project's architectural guidelines).
 2. **Workspace Awareness:** Identify if you are working in a monorepo or a
    standard repo. Ensure all commands (installing packages, running scripts) are

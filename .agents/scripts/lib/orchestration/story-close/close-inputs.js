@@ -95,17 +95,18 @@ export async function resolveCloseInputs({
     );
   }
 
-  const { orchestration, agentSettings } = resolveConfig({ cwd });
+  const config = resolveConfig({ cwd });
+  const worktreeRoot = config.delivery?.worktreeIsolation?.root;
 
   const guard = checkCdOutGuard({
     cwdExplicit: parsed.cwd != null,
     mainCwd: cwd,
     storyId: parsed.storyId,
-    worktreeRoot: orchestration?.worktreeIsolation?.root,
+    worktreeRoot,
   });
   if (!guard.ok) throw new Error(guard.message);
 
-  const provider = injectedProvider || createProvider(orchestration);
+  const provider = injectedProvider || createProvider(config);
   const story = await provider.getTicket(parsed.storyId);
   let epicId = parsed.epicId;
   if (!epicId) {
@@ -125,15 +126,14 @@ export async function resolveCloseInputs({
     worktreePath: resolveWorktreePath({
       cwd,
       storyId: parsed.storyId,
-      worktreeRoot: orchestration?.worktreeIsolation?.root,
+      worktreeRoot,
     }),
     skipDashboard: parsed.skipDashboard,
     skipValidation: !!parsed.skipValidation,
     resumeFlag: parsed.resume,
     restartFlag: parsed.restart,
     noEvidenceFlag: parsed.noEvidence,
-    orchestration,
-    agentSettings,
+    config,
     provider,
     story,
     epicBranch: getEpicBranch(epicId),

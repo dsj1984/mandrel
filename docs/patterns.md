@@ -152,7 +152,7 @@ A resolved-at-runtime override lets the same code path handle the *web
 Claude Code* case where each session is already a sandboxed clone:
 `resolveWorktreeEnabled(opts, env)` in `lib/config-resolver.js` checks env
 vars (`AP_WORKTREE_ENABLED`, `CLAUDE_CODE_REMOTE`) before falling back to
-the committed `orchestration.worktreeIsolation.enabled` flag, so the flag
+the committed `delivery.worktreeIsolation.enabled` flag, so the flag
 never has to be flipped per-environment.
 
 For the architectural map, config keys, node_modules strategies, and the
@@ -624,7 +624,7 @@ producing a confusing stack trace instead of a clear schema error.
 Each launcher's `main()` now calls `validateOrchestrationConfig` after
 `resolveConfig()` returns and exits non-zero on validation failure
 before any provider call, GitHub I/O, or wave-loop begins. The
-fixture test removes a required `orchestration.runners.deliverRunner` field and
+fixture test removes a required `delivery.deliverRunner` field and
 asserts the launcher exits with a schema error before work starts.
 
 ### Why the explicit call (vs relying on `resolveConfig`)
@@ -903,7 +903,7 @@ observability surface. Three principles:
    (`lib/orchestration/concurrency.js#resolveConcurrency`) handles
    coercion, per-field fallback, and freezing. Every reader goes
    through the same shape; no adoption site re-invents defaults or
-   reads `config.orchestration.concurrency` directly.
+   reads concurrency caps from the resolved config directly.
 3. **Tuning data comes from inside.** The `analyze-execution.js`
    CLI reads each Epic's per-Story `signals.ndjson` stream and emits
    the `epic-perf-report` structured comment that surfaces phase p50/p95

@@ -453,6 +453,24 @@ const LIFECYCLE_SCHEMA = {
   additionalProperties: false,
 };
 
+/**
+ * `delivery.mergeWatch` — knobs consumed by the MergeWatcher lifecycle
+ * listener (Story #2896, Epic #2880). `intervalSeconds` is the poll
+ * cadence between `gh pr view --json mergeCommit,mergedAt` probes after
+ * `epic.merge.armed`; `maxBudgetSeconds` is the total wall-clock budget
+ * before the watcher surfaces `agent::blocked` with reason
+ * `budget-exceeded`. Both keys default in the listener when omitted
+ * (30s / 3600s).
+ */
+const MERGE_WATCH_SCHEMA = {
+  type: 'object',
+  properties: {
+    intervalSeconds: { type: 'integer', minimum: 1 },
+    maxBudgetSeconds: { type: 'integer', minimum: 1 },
+  },
+  additionalProperties: false,
+};
+
 const QUALITY_SCHEMA = {
   type: 'object',
   properties: {
@@ -567,6 +585,36 @@ const HYDRATION_SCHEMA = {
   additionalProperties: false,
 };
 
+// Story #2899 (Epic #2880) — performance defaults + preflight (F13).
+// `delivery.ci.skipForStoryPushes` (default true via getCiDelivery): when
+// true, task-commit.js appends a `[skip ci]` trailer to Story-branch
+// commit subjects so per-Task pushes do not stampede the CI fleet. The
+// Epic-branch merge commit produced by story-close.js's merge runner
+// never carries the marker, regardless of this flag.
+const CI_DELIVERY_SCHEMA = {
+  type: 'object',
+  properties: {
+    skipForStoryPushes: { type: 'boolean' },
+  },
+  additionalProperties: false,
+};
+
+// Story #2899 (Epic #2880) — `delivery.preflight.*` thresholds consumed
+// by `epic-deliver-preflight.js`. When any value is exceeded the CLI
+// surfaces a breach in its envelope and the workflow flips the Epic to
+// `agent::blocked` (see /epic-deliver Phase 1 prelude).
+const PREFLIGHT_SCHEMA = {
+  type: 'object',
+  properties: {
+    maxStories: { type: 'integer', minimum: 1 },
+    maxWaves: { type: 'integer', minimum: 1 },
+    maxInstallCostSeconds: { type: 'integer', minimum: 1 },
+    maxGithubApiRequests: { type: 'integer', minimum: 1 },
+    maxClaudeQuotaTokens: { type: 'integer', minimum: 1 },
+  },
+  additionalProperties: false,
+};
+
 const DELIVERY_SCHEMA = {
   type: 'object',
   properties: {
@@ -579,8 +627,11 @@ const DELIVERY_SCHEMA = {
     signals: SIGNALS_SCHEMA,
     quality: QUALITY_SCHEMA,
     lifecycle: LIFECYCLE_SCHEMA,
+    mergeWatch: MERGE_WATCH_SCHEMA,
     epicAudit: EPIC_AUDIT_SCHEMA,
     codeReview: CODE_REVIEW_SCHEMA,
+    ci: CI_DELIVERY_SCHEMA,
+    preflight: PREFLIGHT_SCHEMA,
     // Cross-Story concurrency-hazard gate (Story #2297). When true,
     // `epic-deliver-prepare` refuses to flip the Epic to
     // `agent::executing` if the upcoming waves still carry any conflict
@@ -607,13 +658,14 @@ const DELIVERY_SCHEMA = {
  *   - `delivery` — execution timeouts, worktree isolation, deliver-runner
  *                  concurrency, docs-freshness, signals, quality.
  *
- * Hard cutover (Epic #2646, Story #2687): the legacy `agentSettings.*` /
- * `orchestration.*` input shape is rejected entirely by this schema, and
- * the corresponding resolver-side compat branches have been swept across
- * the seven `lib/config/*.js` accessors. The internal output-side shim on
- * `resolveConfig` survives as a transitional pointer — a future Epic
- * migrates every consumer onto the canonical `project` / `github` /
- * `delivery` blocks and removes the shim.
+ * Hard cutover (Epic #2646, Story #2687; finalized by Epic #2880, Story
+ * #2935): the legacy `agentSettings.*` / `orchestration.*` input shape is
+ * rejected entirely by this schema (top-level `additionalProperties: false`
+ * fails any document carrying those keys), the corresponding resolver-side
+ * compat branches were swept across the seven `lib/config/*.js` accessors,
+ * and the output-side shim on `resolveConfig` was deleted — every consumer
+ * now reads the canonical `project` / `github` / `planning` / `delivery`
+ * blocks directly.
  */
 export const AGENTRC_SCHEMA = {
   type: 'object',

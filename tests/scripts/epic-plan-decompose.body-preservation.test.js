@@ -315,6 +315,7 @@ describe('runDecomposePhase — Epic body preservation (Story #2283)', () => {
         spawnSync: stubSpawnSync,
         writeSpecFn: writeSpecOverride,
         renderSpecFn: renderSpecOverride,
+        skipHealthcheck: true,
       },
     );
 
@@ -359,6 +360,7 @@ describe('runDecomposePhase — Epic body preservation (Story #2283)', () => {
         spawnSync: stubSpawnSync,
         writeSpecFn: writeSpecOverride,
         renderSpecFn: renderSpecOverride,
+        skipHealthcheck: true,
       },
     );
 

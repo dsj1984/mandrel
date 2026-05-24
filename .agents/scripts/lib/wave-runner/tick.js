@@ -12,6 +12,9 @@
  * @module lib/wave-runner/tick
  */
 
+import { existsSync, readFileSync } from 'node:fs';
+
+import { epicLedgerPath } from '../config/temp-paths.js';
 import { AGENT_LABELS } from '../label-constants.js';
 import { appendEpicSignal } from '../observability/signals-writer.js';
 import * as epicRunStateStoreModule from '../orchestration/epic-run-state-store.js';
@@ -50,6 +53,7 @@ import { WaveRunnerError } from './wave-runner-error.js';
  *   provider?: object,
  *   epicRunStateStore?: { read: () => Promise<object|null> },
  *   signalEmit?: (signal: object) => Promise<unknown>,
+ *   inFlightReader?: () => Promise<number[]>,
  * }} [collaborators]
  * @property {{ provider?: object, config?: object }} [ctx]
  *
@@ -61,6 +65,7 @@ export async function tick(args = {}) {
     provider: collabProvider,
     epicRunStateStore: collabStore,
     signalEmit,
+    inFlightReader: collabInFlightReader,
   } = args.collaborators ?? {};
   const ctx = args.ctx ?? {};
   const provider = collabProvider ?? ctx.provider;
@@ -77,6 +82,8 @@ export async function tick(args = {}) {
     read: () => epicRunStateStoreModule.read({ provider, epicId }),
   };
   const emit = signalEmit ?? defaultSignalEmit(epicId, ctx);
+  const inFlightReader =
+    collabInFlightReader ?? (() => defaultInFlightReader(epicId, ctx?.config));
 
   let state;
   try {
@@ -164,6 +171,14 @@ export async function tick(args = {}) {
   }));
   const gateFailures = readGateFailures(history, currentWave);
 
+  // Story #2891 — compute in-flight Stories from the lifecycle ledger.
+  // A Story is "in-flight" when the ledger carries a
+  // `story.dispatch.start` record for it without a matching
+  // `story.dispatch.end`. The reconciliation is purely additive on the
+  // result envelope so callers can surface dispatched-but-uncompleted
+  // Stories that the per-Wave label state alone cannot reveal.
+  const inFlight = await safeReadInFlight(inFlightReader);
+
   // 6. Decide nextAction.
   let nextAction;
   let tickDetail;
@@ -212,6 +227,12 @@ export async function tick(args = {}) {
 
   await emit({ ...baseTick, nextAction: nextAction.kind, ...tickDetail });
 
+  // Story #2891 — attach the in-flight ledger reconciliation to the
+  // nextAction envelope. Always emit the field (empty array when the
+  // ledger is silent) so downstream consumers can pattern-match on
+  // presence without an existence check.
+  nextAction['in-flight'] = inFlight;
+
   return tickResult({
     nextAction,
     blockedStories,
@@ -219,6 +240,75 @@ export async function tick(args = {}) {
     currentWave,
     totalWaves,
   });
+}
+
+/**
+ * Wrap the configured `inFlightReader` with a defensive guard so an
+ * unreadable ledger never crashes the tick. The default reader already
+ * returns `[]` on missing files; this catches any other shape of
+ * accidental throw and degrades to an empty list so the planner can
+ * still make a decision.
+ *
+ * @param {() => Promise<number[]>} reader
+ * @returns {Promise<number[]>}
+ */
+async function safeReadInFlight(reader) {
+  try {
+    const raw = await reader();
+    return Array.isArray(raw) ? raw.filter((n) => Number.isInteger(n)) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Default `inFlightReader` — parses `temp/epic-<id>/lifecycle.ndjson`
+ * and returns the Story IDs that have a `story.dispatch.start`
+ * `emitted` record without a matching `story.dispatch.end` `emitted`
+ * record. The check is order-insensitive (the wave-runner records the
+ * pair on the same Bus, so the start always lands first, but we don't
+ * depend on that here).
+ *
+ * Returns `[]` when the ledger file does not yet exist or is empty —
+ * the tick is stateless and must not throw when nothing has been
+ * dispatched on this Epic yet.
+ *
+ * @param {number} epicId
+ * @param {object|undefined} config Resolved config (forwarded to
+ *   `epicLedgerPath` so `project.paths.tempRoot` overrides apply).
+ * @returns {Promise<number[]>}
+ */
+async function defaultInFlightReader(epicId, config) {
+  const ledgerPath = epicLedgerPath(epicId, config);
+  if (!existsSync(ledgerPath)) return [];
+  let raw;
+  try {
+    raw = readFileSync(ledgerPath, 'utf8');
+  } catch {
+    return [];
+  }
+  if (!raw) return [];
+  const started = new Set();
+  const ended = new Set();
+  for (const line of raw.split(/\r?\n/)) {
+    if (!line) continue;
+    let record;
+    try {
+      record = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (!record || record.kind !== 'emitted') continue;
+    const storyId = record.payload?.storyId;
+    if (!Number.isInteger(storyId) || storyId <= 0) continue;
+    if (record.event === 'story.dispatch.start') started.add(storyId);
+    else if (record.event === 'story.dispatch.end') ended.add(storyId);
+  }
+  const inFlight = [];
+  for (const id of started) {
+    if (!ended.has(id)) inFlight.push(id);
+  }
+  return inFlight;
 }
 
 function tickResult({

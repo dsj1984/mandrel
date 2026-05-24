@@ -181,7 +181,10 @@ describe('Cleaner crash/resume — cross-process resume after archive completed'
         logger: quietLogger(),
       });
       cleaner1.register();
-      await proc1.bus.emit('epic.merge.armed', {
+      await proc1.bus.emit('epic.merge.confirmed', {
+        epicId: 2172,
+        mergeCommitSha: 'sha',
+        pollAttempts: 1,
         prUrl: 'https://github.com/o/r/pull/9',
       });
     }
@@ -206,7 +209,10 @@ describe('Cleaner crash/resume — cross-process resume after archive completed'
       logger: quietLogger(),
     });
     cleaner2.register();
-    await proc2.bus.emit('epic.merge.armed', {
+    await proc2.bus.emit('epic.merge.confirmed', {
+      epicId: 2172,
+      mergeCommitSha: 'sha',
+      pollAttempts: 1,
       prUrl: 'https://github.com/o/r/pull/9',
     });
 
@@ -256,7 +262,10 @@ describe('Cleaner crash/resume — cross-process resume after archive completed'
         logger: quietLogger(),
       });
       cleaner1.register();
-      await proc1.bus.emit('epic.merge.armed', {
+      await proc1.bus.emit('epic.merge.confirmed', {
+        epicId: 2172,
+        mergeCommitSha: 'sha',
+        pollAttempts: 1,
         prUrl: 'https://github.com/o/r/pull/9',
       });
       // First proc tried to rename, but failed.
@@ -281,7 +290,10 @@ describe('Cleaner crash/resume — cross-process resume after archive completed'
       logger: quietLogger(),
     });
     cleaner2.register();
-    await proc2.bus.emit('epic.merge.armed', {
+    await proc2.bus.emit('epic.merge.confirmed', {
+      epicId: 2172,
+      mergeCommitSha: 'sha',
+      pollAttempts: 1,
       prUrl: 'https://github.com/o/r/pull/9',
     });
 

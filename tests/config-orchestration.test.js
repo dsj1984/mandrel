@@ -6,9 +6,10 @@ import {
 } from '../.agents/scripts/lib/config-resolver.js';
 
 // ---------------------------------------------------------------------------
-// resolveConfig — new top-level shape + legacy shim (Epic #1720 Story #1739)
+// resolveConfig — canonical top-level shape (Epic #1720 Story #1739).
+// Epic #2880 deleted the legacy `agentSettings` / `orchestration` output shim.
 // ---------------------------------------------------------------------------
-describe('resolveConfig — github + legacy orchestration shim', () => {
+describe('resolveConfig — canonical github surface', () => {
   it('returns project / github / planning / delivery blocks', () => {
     const config = resolveConfig({ bustCache: true });
     for (const key of ['project', 'github', 'planning', 'delivery']) {
@@ -16,14 +17,10 @@ describe('resolveConfig — github + legacy orchestration shim', () => {
     }
   });
 
-  it('preserves a legacy orchestration shim for in-flight callers', () => {
+  it('does not expose the deleted legacy agentSettings / orchestration shim', () => {
     const config = resolveConfig({ bustCache: true });
-    assert.ok('orchestration' in config);
-    if (config.source.includes('.agentrc.json') && config.github) {
-      assert.ok(config.orchestration !== null);
-      assert.equal(config.orchestration.provider, 'github');
-      assert.equal(config.orchestration.github.owner, config.github.owner);
-    }
+    assert.equal('agentSettings' in config, false);
+    assert.equal('orchestration' in config, false);
   });
 
   it('reads github.owner/repo from this repo .agentrc.json', () => {

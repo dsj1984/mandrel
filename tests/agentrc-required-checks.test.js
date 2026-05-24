@@ -2,12 +2,16 @@
 //
 // Story #1990 / Task #1992 (Epic #1943) — pins the exact shape of
 // `github.branchProtection.requiredChecks` in the root `.agentrc.json`
-// to the three-entry collapsed set: lint, test, baselines.
+// to the canonical set: lint, test, baselines, lifecycle-doc-drift.
 //
 // Story #1981 / Task #2005 deleted the four per-kind regression CLIs
 // (check-coverage-baseline, check-crap, check-maintainability,
 // check-mutation). This snapshot guards against drift that would
-// either resurrect those entries or drop one of the three survivors.
+// resurrect those entries.
+//
+// Epic #2880 / Task #2916 added `lifecycle-doc-drift` as a fourth
+// required check so listener subscriptions and docs/LIFECYCLE.md stay
+// in sync. The snapshot grew from three to four entries to match.
 
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -29,6 +33,10 @@ const EXPECTED_CHECKS = [
     name: 'baselines',
     cmd: ['node', '.agents/scripts/check-baselines.js'],
   },
+  {
+    name: 'lifecycle-doc-drift',
+    cmd: ['node', '.agents/scripts/check-lifecycle-doc-drift.js'],
+  },
 ];
 
 const FORBIDDEN_NAMES = new Set([
@@ -39,18 +47,18 @@ const FORBIDDEN_NAMES = new Set([
 ]);
 
 describe('.agentrc.json — collapsed requiredChecks snapshot (Task #1992)', () => {
-  it('requiredChecks contains exactly three entries', () => {
+  it('requiredChecks contains exactly four entries', () => {
     const checks = readAgentrc().github.branchProtection.requiredChecks;
     assert.equal(
       checks.length,
-      3,
-      `expected exactly 3 requiredChecks; got ${checks.length}: ${JSON.stringify(
+      4,
+      `expected exactly 4 requiredChecks; got ${checks.length}: ${JSON.stringify(
         checks.map((c) => c.name),
       )}`,
     );
   });
 
-  it('requiredChecks shape matches the canonical [lint, test, baselines] snapshot', () => {
+  it('requiredChecks shape matches the canonical [lint, test, baselines, lifecycle-doc-drift] snapshot', () => {
     const checks = readAgentrc().github.branchProtection.requiredChecks;
     assert.deepEqual(checks, EXPECTED_CHECKS);
   });

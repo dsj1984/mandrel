@@ -301,7 +301,7 @@ so the error surface is auditable after a run completes. See
 
 `lib/orchestration/epic-runner/progress-reporter.js` emits a periodic
 `epic-run-progress` structured comment on the Epic, driven by
-`orchestration.runners.deliverRunner.progressReportIntervalSec`.
+`delivery.deliverRunner.progressReportIntervalSec`.
 
 #### Codebase snapshot (Phase 7)
 
@@ -350,9 +350,10 @@ misreported as a zero-delta failure.
 
 #### Tunable concurrency caps
 
-The three `concurrentMap` adoption sites are configurable via
-`orchestration.concurrency`, resolved from `.agentrc.json` and threaded
-through `ctx.concurrency` by `lib/orchestration/concurrency.js`:
+The three `concurrentMap` adoption sites use the framework-internal
+`DEFAULT_CONCURRENCY` constant exported by
+`lib/orchestration/concurrency.js` and threaded through
+`ctx.concurrency`:
 
 | Key                | Default        | Semantics                                                                                                                       |
 | ------------------ | -------------- | ------------------------------------------------------------------------------------------------------------------------------- |
@@ -360,9 +361,9 @@ through `ctx.concurrency` by `lib/orchestration/concurrency.js`:
 | `commitAssertion`  | `4`            | Wave-end `CommitAssertion.check` concurrent git-read cap.                                                                       |
 | `progressReporter` | `8`            | Progress-reporter concurrent `provider.getTicket` cap.                                                                          |
 
-`resolveConcurrency(source)` reads either `orchestration.concurrency` or a
-pre-narrowed concurrency sub-block, coerces per-field, and falls back to
-`DEFAULT_CONCURRENCY` for missing or malformed values. Consumers tuning caps
+`resolveConcurrency(source)` is retained as a call-site stable export but
+always returns `DEFAULT_CONCURRENCY` post-reshape — the caps are no longer
+operator-tunable via `.agentrc.json`. Consumers monitoring throughput
 read the `epic-perf-report` structured comment posted by
 `analyze-execution.js` at Epic close — it surfaces per-phase p50/p95 and
 the workload signals the retro consumes.
@@ -414,8 +415,9 @@ classDiagram
     ITicketingProvider <|-- GitHubProvider
 ```
 
-**Resolution**: `provider-factory.js` reads `orchestration.provider` from
-`.agentrc.json` and instantiates the matching concrete class.
+**Resolution**: `provider-factory.js` instantiates `GitHubProvider` — the
+only shipped concrete class. The post-reshape canonical config has no
+provider-selector key; the factory's `PROVIDERS` map is the registry.
 
 **Internal layout**: `providers/github.js` is a thin façade over focused
 modules under `providers/github/`: `ticket-mapper.js` (REST/GraphQL payload →
@@ -460,11 +462,11 @@ graph LR
     L[".agentrc.local.json"]:::cfg -->|"Priority 1.5 (gitignored)"| R
     B["Built-in Defaults"]:::cfg -->|"Priority 2"| R
     C[".env file"]:::cfg -->|"Env overlay"| R
-    R --> P["agentSettings.paths"]
-    R --> CMD["agentSettings.commands"]
-    R --> Q["agentSettings.quality"]
-    R --> LM["agentSettings.limits"]
-    R --> O["orchestration block"]
+    R --> P["project.paths"]
+    R --> CMD["project.commands"]
+    R --> Q["delivery.quality"]
+    R --> LM["planning + delivery limits"]
+    R --> O["github + delivery blocks"]
 ```
 
 The runtime AJV schemas in `lib/config-schema.js` and
@@ -476,11 +478,11 @@ readers, kept in sync by a drift test.
 
 | Section                  | Purpose                                                                |
 | ------------------------ | ---------------------------------------------------------------------- |
-| `agentSettings.paths`    | Required filesystem roots (`agentRoot`, `docsRoot`, `tempRoot`).        |
-| `agentSettings.commands` | Validate / lint / test / typecheck / build commands; `null` disables.  |
-| `agentSettings.quality`  | Maintainability + CRAP + lint baselines and `prGate.checks`.            |
-| `agentSettings.limits`   | Resource ceilings + `friction.*` anti-thrashing thresholds.             |
-| `orchestration`          | Provider, GitHub block, worktree isolation, runners, retry tuning.      |
+| `project.paths`          | Required filesystem roots (`agentRoot`, `docsRoot`, `tempRoot`).        |
+| `project.commands`       | Validate / lint / test / typecheck / build commands; `null` disables.  |
+| `delivery.quality`       | Maintainability + CRAP + lint baselines and gate configuration.         |
+| `planning.maxTickets`, `delivery.maxTokenBudget`, `delivery.execution` | Resource ceilings (planning-context, token budget, execution timeout). |
+| `github` + `delivery`    | GitHub provider config, worktree isolation, deliver-runner tuning.      |
 
 Each grouped block is read through a typed accessor (`getPaths(config)`,
 `getCommands(config)`, `getQuality(config)`, `getLimits(config)`) — there are
@@ -708,7 +710,7 @@ workflow narrative that wires them together lives in
 
 ### Worktree Isolation
 
-When `orchestration.worktreeIsolation.enabled` is `true`, each dispatched
+When `delivery.worktreeIsolation.enabled` is `true`, each dispatched
 story runs inside its own `git worktree` at `.worktrees/story-<id>/`. The main
 checkout's HEAD never moves during a parallel run; branch swaps, staging
 operations, and reflog activity are isolated per-story.
@@ -745,7 +747,7 @@ Dispatcher integration:
 - **GC on dispatch start**: `dispatch()` sweeps orphaned worktrees whose
   stories have no remaining live tasks. Refuses to delete unmerged branches.
 
-Setting `orchestration.worktreeIsolation.enabled: false` (or omitting the
+Setting `delivery.worktreeIsolation.enabled: false` (or omitting the
 block) restores single-tree behavior. The `assert-branch.js` pre-commit guard
 and focus-area wave serialization remain in place as defense-in-depth in both
 modes.
@@ -800,7 +802,7 @@ Both modes share:
 - Deterministic, operator-driven story assignment — `/story-deliver` always
   takes an explicit Story id. There is no per-launch label race.
 - The bounded retry on the epic-branch push (`lib/push-epic-retry.js`,
-  configured by `orchestration.runners.storyMergeRetry`) so concurrent closes from
+  using the framework-internal `DEFAULT_STORY_MERGE_RETRY` constant) so concurrent closes from
   separate clones converge cleanly.
 
 They differ only in:
@@ -931,7 +933,7 @@ reaped together with the worktree on `WorktreeManager.reap`. See
 | `approval-required` | ACTION   | Webhook            |
 | `blocked`           | ACTION   | Webhook            |
 
-`agentSettings.notifications` carries two independent per-channel gates,
+`github.notifications` carries two independent per-channel gates,
 both using the same event-name-allowlist model: `commentEvents` filters
 GitHub-ticket comment posting; `webhookEvents` filters
 `NOTIFICATION_WEBHOOK_URL` deliveries. There is no fallback chain;

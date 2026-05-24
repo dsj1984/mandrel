@@ -10,6 +10,8 @@ import {
   isValidTransition,
   LABEL_COLORS,
   META_LABELS,
+  PLANNING_HEALTHCHECK_WAIVED,
+  PLANNING_LABELS,
   VALID_TRANSITIONS,
 } from '../../.agents/scripts/lib/label-constants.js';
 
@@ -43,6 +45,69 @@ test('ACCEPTANCE_NA named export mirrors ACCEPTANCE_LABELS.N_A', () => {
 test('existing CONTEXT_LABELS entries are still exposed', () => {
   assert.equal(CONTEXT_LABELS.PRD, 'context::prd');
   assert.equal(CONTEXT_LABELS.TECH_SPEC, 'context::tech-spec');
+});
+
+// ── Story #2921 — planning-axis label for healthcheck waiver (F7) ────────
+test('PLANNING_LABELS.HEALTHCHECK_WAIVED equals "planning::healthcheck-waived"', () => {
+  assert.equal(
+    PLANNING_LABELS.HEALTHCHECK_WAIVED,
+    'planning::healthcheck-waived',
+  );
+});
+
+test('PLANNING_HEALTHCHECK_WAIVED named export mirrors PLANNING_LABELS.HEALTHCHECK_WAIVED', () => {
+  assert.equal(PLANNING_HEALTHCHECK_WAIVED, 'planning::healthcheck-waived');
+  assert.equal(PLANNING_HEALTHCHECK_WAIVED, PLANNING_LABELS.HEALTHCHECK_WAIVED);
+});
+
+test('AJV settings schema accepts planning::healthcheck-waived in every planning-label enum', async () => {
+  // AC #2 of Story #2921 Task #2933: "AJV schema accepts
+  // 'planning::healthcheck-waived' wherever a planning label is
+  // enumerated." Walk the runtime AJV schema and assert that any enum
+  // whose values are planning labels (i.e. all values match
+  // /^planning::/) includes the new constant. When no such enum exists
+  // yet the assertion is trivially true; the test guards against a
+  // future enum forgetting to extend with the canonical label.
+  const schemaModule = await import(
+    '../../.agents/scripts/lib/config-settings-schema.js'
+  );
+  const root =
+    schemaModule.AGENTRC_SCHEMA ??
+    schemaModule.default ??
+    schemaModule.SETTINGS_SCHEMA;
+  assert.ok(root, 'config-settings-schema did not export a schema root');
+  const offenders = [];
+  const walk = (node, pathParts) => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node.enum)) {
+      const allPlanning =
+        node.enum.length > 0 &&
+        node.enum.every(
+          (v) => typeof v === 'string' && v.startsWith('planning::'),
+        );
+      if (allPlanning && !node.enum.includes(PLANNING_HEALTHCHECK_WAIVED)) {
+        offenders.push(pathParts.join('.'));
+      }
+    }
+    for (const [key, child] of Object.entries(node)) {
+      if (key === 'enum') continue;
+      walk(child, [...pathParts, key]);
+    }
+  };
+  walk(root, ['$root']);
+  assert.deepEqual(
+    offenders,
+    [],
+    `planning-label enum(s) missing PLANNING_HEALTHCHECK_WAIVED: ${offenders.join(', ')}`,
+  );
+});
+
+test('LABEL_COLORS includes a dedicated PLANNING swatch', () => {
+  assert.ok(
+    typeof LABEL_COLORS.PLANNING === 'string' &&
+      /^#[0-9A-Fa-f]{6}$/.test(LABEL_COLORS.PLANNING),
+    `expected hex color for LABEL_COLORS.PLANNING, got ${LABEL_COLORS.PLANNING}`,
+  );
 });
 
 test('LABEL_COLORS includes a dedicated ACCEPTANCE swatch', () => {

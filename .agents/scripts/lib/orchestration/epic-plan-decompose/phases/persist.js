@@ -21,9 +21,13 @@
 
 import { spawnSync as defaultSpawnSync } from 'node:child_process';
 
+import { runPlanHealthcheck as defaultRunPlanHealthcheck } from '../../../../epic-plan-healthcheck.js';
 import { getLimits, PROJECT_ROOT } from '../../../config-resolver.js';
 import { Logger } from '../../../Logger.js';
-import { AGENT_LABELS } from '../../../label-constants.js';
+import {
+  AGENT_LABELS,
+  PLANNING_HEALTHCHECK_WAIVED,
+} from '../../../label-constants.js';
 import { cleanupPhaseTempFiles } from '../../../plan-phase-cleanup.js';
 import { writeSpec } from '../../../spec/index.js';
 import {
@@ -54,7 +58,7 @@ import { RECONCILE_CLI, spawnReconcilerApply } from './reconcile-spawn.js';
  * @param {import('../../../ITicketingProvider.js').ITicketingProvider} provider
  * @param {{ tickets: Array<object> }} payload
  * @param {object} config
- * @param {{ force?: boolean, resume?: boolean, allowOverBudget?: boolean, spawnSync?: typeof defaultSpawnSync, reconcileCli?: string, writeSpecFn?: typeof writeSpec, renderSpecFn?: typeof renderSpec, cwd?: string }} [opts]
+ * @param {{ force?: boolean, resume?: boolean, allowOverBudget?: boolean, spawnSync?: typeof defaultSpawnSync, reconcileCli?: string, writeSpecFn?: typeof writeSpec, renderSpecFn?: typeof renderSpec, cwd?: string, runHealthcheckFn?: typeof defaultRunPlanHealthcheck, skipHealthcheck?: boolean }} [opts]
  */
 export async function runDecomposePhase(
   epicId,
@@ -70,6 +74,8 @@ export async function runDecomposePhase(
     writeSpecFn = writeSpec,
     renderSpecFn = renderSpec,
     cwd = PROJECT_ROOT,
+    runHealthcheckFn = defaultRunPlanHealthcheck,
+    skipHealthcheck = false,
   } = {},
 ) {
   if (force && resume) {
@@ -127,6 +133,22 @@ export async function runDecomposePhase(
   await reconcileSubIssueLinks(epicId, provider);
 
   const checkpoint = await recordCheckpoint(provider, epicId, tickets);
+
+  // Story #2921 (Epic #2880 F7) — `agent::ready` handoff gate. The
+  // post-plan readiness healthcheck (`epic-plan-healthcheck.js`) is now
+  // blocking: a failing healthcheck refuses the `agent::ready` flip
+  // unless the operator has applied the `planning::healthcheck-waived`
+  // label. See `.agents/SDLC.md` § "`agent::ready` exit conditions" for
+  // the full contract. Tests inject `skipHealthcheck: true` to bypass
+  // the network-bound check; production callers must not set this.
+  const healthcheck = skipHealthcheck
+    ? { ok: true, skipped: true }
+    : await runHealthcheckGate({
+        epicId,
+        epic,
+        runHealthcheckFn,
+      });
+
   Logger.info(
     `[epic-plan-decompose] Flipping Epic #${epicId} to ${AGENT_LABELS.READY}...`,
   );
@@ -142,5 +164,57 @@ export async function runDecomposePhase(
     cleanup,
     reconcile,
     specPath: specFilePath,
+    healthcheck,
   };
+}
+
+/**
+ * Run the post-plan readiness healthcheck and enforce the
+ * `agent::ready` handoff gate. Returns the healthcheck result on
+ * success (either `ok: true` or `ok: false` with the waiver label
+ * applied). Throws when the healthcheck failed and the operator has
+ * not applied `planning::healthcheck-waived` to the Epic.
+ *
+ * Extracted from `runDecomposePhase` so the gate is a single named
+ * code path the contract tests can target.
+ *
+ * @param {object} args
+ * @param {number} args.epicId
+ * @param {{ labels?: string[] }} args.epic
+ * @param {typeof defaultRunPlanHealthcheck} args.runHealthcheckFn
+ * @returns {Promise<{ ok: boolean, waived?: boolean, reason?: string|null }>}
+ */
+async function runHealthcheckGate({ epicId, epic, runHealthcheckFn }) {
+  Logger.info(
+    `[epic-plan-decompose] Running post-plan readiness healthcheck for Epic #${epicId}...`,
+  );
+  let result;
+  try {
+    result = await runHealthcheckFn({ epicId, fast: true });
+  } catch (err) {
+    // A throwing healthcheck is itself a failure — surface it as the
+    // gate reason rather than letting the throw propagate raw, so the
+    // operator sees a uniform "handoff refused" diagnostic.
+    result = { ok: false, reason: `healthcheck threw: ${err.message}` };
+  }
+
+  if (result?.ok) {
+    return { ok: true };
+  }
+
+  const labels = Array.isArray(epic?.labels) ? epic.labels : [];
+  const waived = labels.includes(PLANNING_HEALTHCHECK_WAIVED);
+  if (waived) {
+    Logger.warn(
+      `[epic-plan-decompose] Healthcheck failed for Epic #${epicId} but '${PLANNING_HEALTHCHECK_WAIVED}' is applied — proceeding with agent::ready handoff. Reason: ${result?.reason ?? '(no reason reported)'}`,
+    );
+    return { ok: false, waived: true, reason: result?.reason ?? null };
+  }
+
+  throw new Error(
+    `[epic-plan-decompose] Refusing agent::ready handoff for Epic #${epicId}: ` +
+      `post-plan healthcheck failed (${result?.reason ?? '(no reason reported)'}). ` +
+      `Resolve the failing check(s), or apply the '${PLANNING_HEALTHCHECK_WAIVED}' ` +
+      `label to the Epic to override and rerun the persist phase.`,
+  );
 }

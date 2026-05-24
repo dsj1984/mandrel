@@ -14,7 +14,7 @@
  * Flags:
  *   --owner <name>            GitHub owner (default: parsed from origin remote)
  *   --repo <name>             GitHub repo  (default: parsed from origin remote)
- *   --operator-handle <name>  GitHub handle for `agentSettings.operatorHandle`
+ *   --operator-handle <name>  GitHub handle for `github.operatorHandle`
  *   --base-branch <name>      Base branch (default: origin/HEAD or `main`)
  *   --project-number <n>      Projects V2 number (optional)
  *   --assume-yes              Accept every default; required for non-TTY runs
@@ -299,11 +299,10 @@ async function runGithubBootstrap(answers, opts) {
     './lib/config-resolver.js'
   );
   const config = resolveConfig();
-  validateOrchestrationConfig(config.orchestration);
-  return runBootstrap(config.orchestration, {
+  validateOrchestrationConfig(config);
+  return runBootstrap(config, {
     project: config.project,
     github: config.github,
-    agentSettings: config.agentSettings,
     assumeYes: opts.assumeYes,
     baseBranch: answers.baseBranch,
   });

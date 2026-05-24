@@ -10,7 +10,7 @@
  *
  * Story #1083 (Epic #1072) moved the rule-matching logic
  * (`matchesFilePattern`, `matchesAnyFilePattern`, `selectAudits`) into
- * `lib/audit-suite/selector.js` so the orchestration barrel can re-export
+ * `lib/audit-suite/selector.js` so the pipeline barrel can re-export
  * the SDK without importing upward from a top-level CLI. This file now
  * contains only argv parsing, provider construction, JSON stdout, and
  * degraded-mode exit-code mapping.
@@ -81,8 +81,8 @@ export function parseArgv(argv) {
  *
  * @param {ReturnType<typeof parseArgv>} values
  * @param {{
- *   resolveConfig?: () => { orchestration: object },
- *   createProvider?: (orchestration: object) => object,
+ *   resolveConfig?: () => object,
+ *   createProvider?: (config: object) => object,
  *   selectAudits?: typeof selectAudits,
  *   env?: Record<string, string|undefined>,
  *   help?: string,
@@ -123,8 +123,8 @@ export async function runSelectAuditsCli(values, deps = {}) {
 
   const cfg = deps.resolveConfig ? deps.resolveConfig() : resolveConfig();
   const provider = deps.createProvider
-    ? deps.createProvider(cfg.orchestration)
-    : createProvider(cfg.orchestration);
+    ? deps.createProvider(cfg)
+    : createProvider(cfg);
   const env = deps.env ?? process.env;
   const runner = deps.selectAudits ?? selectAudits;
 

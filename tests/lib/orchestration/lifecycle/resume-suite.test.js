@@ -92,6 +92,7 @@ const PAYLOAD_BY_EVENT = Object.freeze({
   'acceptance.reconcile.ok': { baseRead: true },
   'acceptance.reconcile.skipped': { baseRead: false, reason: 'fixture' },
   'acceptance.reconcile.start': { epicId: 9999 },
+  'acceptance.reconcile.waived': { baseRead: true, reason: 'waiver' },
   'close-validate.end': { epicId: 9999, storyId: 9999, ok: true },
   'close-validate.start': { epicId: 9999, storyId: 9999 },
   'code-review.end': { epicId: 9999, status: 'no-changes' },
@@ -113,6 +114,14 @@ const PAYLOAD_BY_EVENT = Object.freeze({
   },
   'epic.finalize.start': { epicId: 9999 },
   'epic.merge.armed': { prUrl: 'https://example.test/pr/1' },
+  'epic.merge.confirmed': {
+    epicId: 9999,
+    prUrl: 'https://example.test/pr/1',
+    prNumber: 1,
+    mergeCommitSha: 'deadbeef',
+    mergedAt: '2026-05-22T13:00:00Z',
+    pollAttempts: 1,
+  },
   'epic.merge.blocked': {
     prUrl: 'https://example.test/pr/1',
     reason: 'fixture',

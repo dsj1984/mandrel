@@ -16,7 +16,7 @@ code, SQL, or UI components — stop immediately.
 
 1. **Gather Context:** Read the parent Epic's linked PRD (`context::prd`)
    and Tech Spec (`context::tech-spec`) GitHub Issues, plus every file
-   listed in `agentSettings.docsContextFiles` (typically `architecture.md`
+   listed in `project.docsContextFiles` (typically `architecture.md`
    and the data dictionary).
 2. **Decompose:** Break down Features into **atomic Tasks** scoped to a
    tight number of action items — aim for roughly five steps per Task as

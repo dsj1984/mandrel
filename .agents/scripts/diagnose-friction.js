@@ -226,13 +226,10 @@ export async function main(args = process.argv.slice(2)) {
 
     const { category, remediation } = classifyFrictionCategory(errorOutput);
 
-    const provider = createProvider(resolveConfig().orchestration);
+    const config = resolveConfig();
+    const provider = createProvider(config);
     const { storyId: resolvedStoryId, epicId: resolvedEpicId } =
-      await resolveContextIds(
-        provider,
-        { taskId, storyId, epicId },
-        config.agentSettings,
-      );
+      await resolveContextIds(provider, { taskId, storyId, epicId }, config);
 
     const signal = buildFrictionSignal({
       epicId: resolvedEpicId,

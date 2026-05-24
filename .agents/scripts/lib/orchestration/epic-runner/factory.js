@@ -36,6 +36,7 @@ import { Finalizer } from '../lifecycle/listeners/finalizer.js';
 import { HeartbeatMonitor } from '../lifecycle/listeners/heartbeat-monitor.js';
 import { InterventionRecorder } from '../lifecycle/listeners/intervention-recorder.js';
 import { LabelTransitioner } from '../lifecycle/listeners/label-transitioner.js';
+import { MergeWatcher } from '../lifecycle/listeners/merge-watcher.js';
 import { NotifyDispatcher } from '../lifecycle/listeners/notify-dispatcher.js';
 import { ProgressReporter as LifecycleProgressReporter } from '../lifecycle/listeners/progress-reporter.js';
 import { SignalsAppender } from '../lifecycle/listeners/signals-appender.js';
@@ -61,7 +62,7 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
   const notifyFn =
     ctx.notify ??
     ((ticketId, payload, opts = {}) =>
-      notify(ticketId, payload, { orchestration: config, provider, ...opts }));
+      notify(ticketId, payload, { config, provider, ...opts }));
   // Story #2409 — the legacy class-based checkpoint surface is replaced
   // by the function-based `epic-run-state-store` module. The collaborator
   // slot exposes a bag of provider/epicId-pre-bound functions so
@@ -126,18 +127,18 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
   // now an inert tuning knob; the lifecycle listener fires on every
   // bus event, not on a wall-clock cadence.
 
-  // Lifecycle bus wiring (Story #2233 — snapshot + plan phase conversions).
-  // The bus runs in parallel with the legacy code path: phases still mutate
-  // runner state directly, but they also emit through the bus so the
-  // NDJSON ledger and companion markdown reflect the same run. Later
-  // Stories cut iterate-waves over and remove the legacy duplications.
+  // Lifecycle bus wiring. After the Epic #2880 / Story #2898 hard cutover
+  // the bus is the sole mutator of phase state: every phase emits through
+  // the bus, and named listeners (LabelTransitioner, StructuredCommentPoster,
+  // BlockerHandler, AcceptanceReconciler, Finalizer, MergeWatcher, Cleaner,
+  // …) own the matching state side effects. There is no remaining branch
+  // here that selects between bus-emit and a direct provider mutation — the
+  // bus is unconditionally constructed and wired below.
   //
-  // Construction is gated on `ctx.epicId` being a positive integer (which
-  // `EpicRunnerContext.validate()` enforces, but tests that bypass the
-  // context construction by feeding `runSnapshotPhase` a hand-rolled `{}`
-  // never reach this code path — they pass `{}` as collaborators directly).
-  // We construct unconditionally here so the production runner always has
-  // the bus available; phases skip emits when no `bus` is on collaborators.
+  // `ctx.bus` is honoured so tests can inject a recording bus and so
+  // alternate harnesses (e.g. epic-deliver's outer composition) can share
+  // a single bus across multiple sub-runners; absent that override the
+  // factory constructs a fresh bus for this run.
   const bus = ctx.bus ?? createBus();
   const tempRoot = tempRootFrom(config);
   const ledgerWriter =
@@ -250,6 +251,7 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     automergePredicate,
     automergeArmer,
     branchCleaner,
+    mergeWatcher,
     cleaner,
   } = registerCloseTailChain({
     bus,
@@ -305,6 +307,7 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     automergePredicate,
     automergeArmer,
     branchCleaner,
+    mergeWatcher,
     cleaner,
   };
 }
@@ -361,10 +364,12 @@ export function registerReliabilityObservers({ bus, config, logger }) {
  * Registers, in canonical close-tail order:
  *
  *   1. `AcceptanceReconciler` — subscribes to `epic.close.end`; emits
- *      `acceptance.reconcile.{ok,skipped,failed}` (and `epic.blocked`
- *      on a gap).
- *   2. `Finalizer` — subscribes to `acceptance.reconcile.ok`; emits
- *      `epic.finalize.{start,end}` and `pr.created`. Wired here AFTER
+ *      `acceptance.reconcile.{ok,waived,skipped,failed}` (and
+ *      `epic.blocked` on a gap). Story #2893 split `.waived` out of
+ *      `.skipped` so the Finalizer can route waived Epics to PR
+ *      creation while empty-spec Epics still terminate without a PR.
+ *   2. `Finalizer` — subscribes to `acceptance.reconcile.{ok,waived}`;
+ *      emits `epic.finalize.{start,end}` and `pr.created`. Wired here AFTER
  *      AcceptanceReconciler so the bus invokes them in chain order;
  *      sequential-await semantics mean reconciler outcomes settle
  *      into the ledger before finalize side effects run.
@@ -436,6 +441,7 @@ function registerCloseTailChain({
       automergePredicate: null,
       automergeArmer: null,
       branchCleaner: null,
+      mergeWatcher: null,
       cleaner: null,
     };
   }
@@ -447,6 +453,7 @@ function registerCloseTailChain({
       automergePredicate: null,
       automergeArmer: null,
       branchCleaner: null,
+      mergeWatcher: null,
       cleaner: null,
     };
   }
@@ -520,14 +527,39 @@ function registerCloseTailChain({
     });
     branchCleaner.register();
   }
-  // Story #2338 / Task #2345 — Cleaner subscribes to `epic.merge.armed`
-  // (and ONLY that event). Registered LAST in the close-tail chain so
-  // every observer / mutator already on the bus sees the terminal
-  // `epic.cleanup.start → epic.cleanup.end → epic.complete` emit
-  // sequence. The listener requires a non-empty `tempRoot`; production
-  // always threads the resolved value through (see `tempRootFrom` in
-  // the collaborator factory), but the slot stays `null` for unit
-  // fixtures that omit it so the rest of the chain wires cleanly.
+  // Story #2896 / Task #2907 — MergeWatcher subscribes to
+  // `epic.merge.armed` (and ONLY that event). Registered between
+  // AutomergeArmer and Cleaner so the bus delivers the freshly-emitted
+  // `epic.merge.armed` in chain order, the watcher polls `gh pr view`
+  // until `mergeCommit` is non-null, and emits `epic.merge.confirmed`
+  // which Cleaner now subscribes to. The slot stays `null` for unit
+  // fixtures that omit `tempRoot`.
+  let mergeWatcher = null;
+  if (typeof tempRoot === 'string' && tempRoot.length > 0) {
+    const mergeWatchConfig = config?.delivery?.mergeWatch ?? {};
+    mergeWatcher = new MergeWatcher({
+      bus,
+      epicId,
+      tempRoot,
+      cwd: cwd ?? process.cwd(),
+      intervalSeconds: mergeWatchConfig.intervalSeconds,
+      maxBudgetSeconds: mergeWatchConfig.maxBudgetSeconds,
+      logger,
+    });
+    mergeWatcher.register();
+  }
+  // Story #2338 / Task #2345 — Cleaner archives temp/epic-<id>/ and
+  // emits the terminal sequence. Story #2896 / Task #2912 rebound
+  // this listener from `epic.merge.armed` to `epic.merge.confirmed`
+  // so the Epic only transitions to its terminal state after the
+  // MergeWatcher has observed the PR actually merging. Registered
+  // LAST in the close-tail chain so every observer / mutator already
+  // on the bus sees the terminal `epic.cleanup.start →
+  // epic.cleanup.end → epic.complete` emit sequence. The listener
+  // requires a non-empty `tempRoot`; production always threads the
+  // resolved value through (see `tempRootFrom` in the collaborator
+  // factory), but the slot stays `null` for unit fixtures that omit
+  // it so the rest of the chain wires cleanly.
   let cleaner = null;
   if (typeof tempRoot === 'string' && tempRoot.length > 0) {
     cleaner = new Cleaner({
@@ -539,7 +571,7 @@ function registerCloseTailChain({
     cleaner.register();
   }
   logger?.debug?.(
-    '[lifecycle] close-tail chain registered (acceptance-reconciler → epic.close.end; finalizer → acceptance.reconcile.ok; watcher → pr.created; automerge-predicate → epic.watch.end; automerge-armer → epic.merge.ready; branch-cleaner → epic.cleanup.start; cleaner → epic.merge.armed)',
+    '[lifecycle] close-tail chain registered (acceptance-reconciler → epic.close.end; finalizer → acceptance.reconcile.{ok,waived}; watcher → pr.created; automerge-predicate → epic.watch.end; automerge-armer → epic.merge.ready; branch-cleaner → epic.cleanup.start; merge-watcher → epic.merge.armed; cleaner → epic.merge.confirmed)',
   );
   return {
     acceptanceReconciler,
@@ -548,6 +580,7 @@ function registerCloseTailChain({
     automergePredicate,
     automergeArmer,
     branchCleaner,
+    mergeWatcher,
     cleaner,
   };
 }

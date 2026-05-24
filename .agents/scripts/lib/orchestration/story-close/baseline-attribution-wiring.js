@@ -136,7 +136,7 @@ export function computeStoryDiffPaths({
  * @param {{
  *   kind: 'maintainability' | 'crap',
  *   cwd: string,
- *   agentSettings?: object,
+ *   config?: object,
  *   getQuality?: typeof defaultGetQuality,
  *   scanDirectory?: typeof defaultScanDirectory,
  *   calculateAll?: typeof defaultCalculateAll,
@@ -150,7 +150,7 @@ export function computeStoryDiffPaths({
 export function buildKindScorer({
   kind,
   cwd,
-  agentSettings,
+  config,
   getQuality = defaultGetQuality,
   scanDirectory = defaultScanDirectory,
   calculateAll = defaultCalculateAll,
@@ -159,7 +159,7 @@ export function buildKindScorer({
   resolveEscomplexVersion = defaultResolveEscomplexVersion,
   resolveTsTranspilerVersion = defaultResolveTsTranspilerVersion,
 }) {
-  const quality = getQuality({ agentSettings }) ?? {};
+  const quality = getQuality(config) ?? {};
   if (kind === 'maintainability') {
     const targetDirs = quality?.maintainability?.targetDirs ?? [];
     return async () => {
@@ -215,16 +215,16 @@ export function buildKindScorer({
 /**
  * Resolve the absolute on-disk path for a kind's baseline file.
  *
- * @param {{ cwd: string, kind: string, agentSettings?: object, getBaselines?: typeof defaultGetBaselines }} input
+ * @param {{ cwd: string, kind: string, config?: object, getBaselines?: typeof defaultGetBaselines }} input
  * @returns {string|null}
  */
 function resolveBaselineWritePath({
   cwd,
   kind,
-  agentSettings,
+  config,
   getBaselines = defaultGetBaselines,
 }) {
-  const baselines = getBaselines({ agentSettings }) ?? {};
+  const baselines = getBaselines(config) ?? {};
   const rel = baselines?.[kind]?.path;
   if (typeof rel !== 'string' || rel.length === 0) return null;
   return path.isAbsolute(rel) ? rel : path.resolve(cwd, rel);
@@ -304,7 +304,7 @@ export async function runRefreshCommit({
   storyId,
   epicBranch,
   storyBranch,
-  agentSettings,
+  config,
   cycleState = null,
   refreshBaseline = defaultRefreshBaseline,
   scorerBuilder = buildKindScorer,
@@ -332,7 +332,7 @@ export async function runRefreshCommit({
   const writePath = resolveBaselineWritePath({
     cwd,
     kind,
-    agentSettings,
+    config,
     getBaselines: getBaselinesImpl,
   });
   if (!writePath) {
@@ -350,7 +350,7 @@ export async function runRefreshCommit({
   const headRef = storyBranch ?? 'HEAD';
   let scorer;
   try {
-    scorer = scorerBuilder({ kind, cwd, agentSettings });
+    scorer = scorerBuilder({ kind, cwd, config });
   } catch (err) {
     return {
       ok: false,
@@ -448,7 +448,7 @@ export async function handleBaselineGateFailure({
   storyBranch,
   storyId,
   epicId,
-  agentSettings,
+  config,
   provider,
   cycleState = null,
   gateRegistry = DEFAULT_GATE_REGISTRY,
@@ -509,7 +509,7 @@ export async function handleBaselineGateFailure({
     storyId,
     epicBranch,
     storyBranch,
-    agentSettings,
+    config,
     cycleState,
     refreshBaseline,
     scorerBuilder,
@@ -546,11 +546,11 @@ function projectMaintainabilityForGate({
   cwd,
   epicBranch,
   storyBranch,
-  agentSettings,
+  config,
   projectMaintainability = defaultProjectMaintainabilityRegressions,
   getBaselines = defaultGetBaselines,
 }) {
-  const baselinePath = getBaselines({ agentSettings })?.maintainability?.path;
+  const baselinePath = getBaselines(config)?.maintainability?.path;
   if (!baselinePath) return [];
   const projection = projectMaintainability({
     cwd,
@@ -692,11 +692,10 @@ export function projectCrapRegressions({
   tolerance = DEFAULT_CRAP_TOLERANCE,
   readBaselineAtRef = defaultReadBaselineAtRef,
   getBaselines = defaultGetBaselines,
-  agentSettings,
+  config,
 } = {}) {
   if (!baselineRef || !headRef) return [];
-  const resolvedPath =
-    baselinePath ?? getBaselines({ agentSettings })?.crap?.path;
+  const resolvedPath = baselinePath ?? getBaselines(config)?.crap?.path;
   if (!resolvedPath) return [];
 
   let baselineEnv;
@@ -732,7 +731,7 @@ function projectCrapForGate({
   cwd,
   epicBranch,
   storyBranch,
-  agentSettings,
+  config,
   getBaselines = defaultGetBaselines,
   readBaselineAtRef = defaultReadBaselineAtRef,
   computeTouched = computeStoryDiffPaths,
@@ -747,7 +746,7 @@ function projectCrapForGate({
     baselineRef: `origin/${epicBranch}`,
     headRef: storyBranch,
     cwd,
-    agentSettings,
+    config,
     readBaselineAtRef,
     getBaselines,
   });
@@ -763,7 +762,7 @@ export function projectRegressionsForGate({
   cwd,
   epicBranch,
   storyBranch,
-  agentSettings,
+  config,
   projectMaintainability = defaultProjectMaintainabilityRegressions,
   getBaselines = defaultGetBaselines,
 }) {
@@ -773,7 +772,7 @@ export function projectRegressionsForGate({
     cwd,
     epicBranch,
     storyBranch,
-    agentSettings,
+    config,
     projectMaintainability,
     getBaselines,
   });
@@ -804,7 +803,7 @@ export async function runPreMergeGatesWithAttribution({
   worktreePath,
   epicBranch,
   storyBranch,
-  agentSettings,
+  config,
   storyId,
   epicId,
   useEvidence,
@@ -830,7 +829,7 @@ export async function runPreMergeGatesWithAttribution({
         cwd,
         worktreePath,
         epicBranch,
-        agentSettings,
+        config,
         storyId,
         epicId,
         useEvidence,
@@ -861,7 +860,7 @@ export async function runPreMergeGatesWithAttribution({
         cwd: gateCwd,
         epicBranch,
         storyBranch,
-        agentSettings,
+        config,
       });
       const outcome = await handleBaselineGateFailureFn({
         gateName,
@@ -871,7 +870,7 @@ export async function runPreMergeGatesWithAttribution({
         storyBranch,
         storyId,
         epicId,
-        agentSettings,
+        config,
         provider,
         cycleState,
       });
@@ -901,7 +900,7 @@ export async function runPreMergeGatesWithAttribution({
     cwd,
     worktreePath,
     epicBranch,
-    agentSettings,
+    config,
     storyId,
     epicId,
     useEvidence,

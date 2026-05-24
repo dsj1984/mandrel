@@ -242,7 +242,11 @@ describe('runDecomposePhase — sub-issue link safety net (Story #2063)', () => 
       provider,
       { tickets },
       {},
-      { spawnSync: stubSpawnSync, writeSpecFn: writeSpecOverride },
+      {
+        spawnSync: stubSpawnSync,
+        writeSpecFn: writeSpecOverride,
+        skipHealthcheck: true,
+      },
     );
 
     const reconcileEvent = provider.events.find(
@@ -265,7 +269,11 @@ describe('runDecomposePhase — sub-issue link safety net (Story #2063)', () => 
       provider,
       { tickets },
       {},
-      { spawnSync: stubSpawnSync, writeSpecFn: writeSpecOverride },
+      {
+        spawnSync: stubSpawnSync,
+        writeSpecFn: writeSpecOverride,
+        skipHealthcheck: true,
+      },
     );
 
     const reconcileIdx = provider.events.findIndex(
@@ -306,7 +314,11 @@ describe('runDecomposePhase — sub-issue link safety net (Story #2063)', () => 
         provider,
         { tickets },
         {},
-        { spawnSync: stubSpawnSync, writeSpecFn: writeSpecOverride },
+        {
+          spawnSync: stubSpawnSync,
+          writeSpecFn: writeSpecOverride,
+          skipHealthcheck: true,
+        },
       ),
       /Sub-issue reconciliation incomplete/,
     );
@@ -341,7 +353,11 @@ describe('runDecomposePhase — sub-issue link safety net (Story #2063)', () => 
       provider,
       { tickets },
       {},
-      { spawnSync: stubSpawnSync, writeSpecFn: writeSpecOverride },
+      {
+        spawnSync: stubSpawnSync,
+        writeSpecFn: writeSpecOverride,
+        skipHealthcheck: true,
+      },
     );
 
     // Epic flipped to agent::ready as normal — the missing method is a

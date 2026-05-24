@@ -90,8 +90,8 @@ export async function renderManifestFromComment({
     throw new Error('Usage: node render-manifest.js --epic <EPIC_ID>');
   }
 
-  const { orchestration } = resolveConfig();
-  const provider = injectedProvider || createProvider(orchestration);
+  const config = resolveConfig();
+  const provider = injectedProvider || createProvider(config);
 
   const comment = await findStructuredComment(
     provider,

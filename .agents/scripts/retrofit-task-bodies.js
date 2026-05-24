@@ -259,7 +259,7 @@ async function main() {
   }
 
   const config = resolveConfig();
-  const provider = createProvider(config.orchestration);
+  const provider = createProvider(config);
 
   if (values['emit-context']) {
     await runEmitContext(epicId, provider, {

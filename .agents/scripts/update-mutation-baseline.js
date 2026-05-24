@@ -39,11 +39,11 @@ import { runStryker } from './lib/mutation/stryker-runner.js';
 /**
  * Resolve the mutation gate config relevant to baseline refresh.
  *
- * @param {object} agentSettings
+ * @param {object} config Canonical resolved config (`resolveConfig()` output).
  * @returns {{ baselinePath: string, tolerancePct: number, strykerConfigPath: string | null }}
  */
-export function resolveMutationGate(agentSettings) {
-  const quality = getQuality({ agentSettings });
+export function resolveMutationGate(config) {
+  const quality = getQuality(config);
   const gate = quality.gates?.mutation ?? {};
   const baselinePath =
     typeof gate.baselinePath === 'string' && gate.baselinePath.length > 0
@@ -82,8 +82,8 @@ export async function refreshMutationBaseline({
   resolveConfigFn = resolveConfig,
   logger = Logger,
 } = {}) {
-  const { agentSettings } = resolveConfigFn({ cwd });
-  const gate = resolveMutationGate(agentSettings);
+  const config = resolveConfigFn({ cwd });
+  const gate = resolveMutationGate(config);
   const absBaseline = path.isAbsolute(gate.baselinePath)
     ? gate.baselinePath
     : path.resolve(cwd, gate.baselinePath);

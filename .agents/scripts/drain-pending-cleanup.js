@@ -49,8 +49,8 @@ async function main() {
     strict: false,
   });
 
-  const { orchestration } = resolveConfig();
-  const wtConfig = orchestration?.worktreeIsolation;
+  const config = resolveConfig();
+  const wtConfig = config.delivery?.worktreeIsolation;
   const worktreeRoot = path.resolve(
     PROJECT_ROOT,
     values['worktree-root'] ?? wtConfig?.root ?? '.worktrees',

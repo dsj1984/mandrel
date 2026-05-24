@@ -49,9 +49,7 @@ import { Logger } from './lib/Logger.js';
 /**
  * Resolve the canonical doc list for a release: `delivery.docsFreshness.paths`
  * entries plus `project.docsContextFiles` prefixed by `project.paths.docsRoot`.
- * Accepts either the full resolved config (`{ project, delivery, ... }`) or
- * the legacy `agentSettings` bag (so call sites that haven't migrated yet
- * keep working).
+ * Expects the full resolved config (`{ project, delivery, ... }`).
  *
  * @param {object} config
  * @returns {string[]}

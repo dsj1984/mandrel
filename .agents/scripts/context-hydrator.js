@@ -36,8 +36,8 @@ async function main() {
     throw new Error('Missing required arguments: (--task|--ticket) and --epic');
   }
 
-  const { orchestration } = resolveConfig();
-  const provider = createProvider(orchestration);
+  const config = resolveConfig();
+  const provider = createProvider(config);
 
   Logger.error(
     `[Hydrator] Hydrating context for Ticket #${ticketId} (Epic #${epicId})...`,

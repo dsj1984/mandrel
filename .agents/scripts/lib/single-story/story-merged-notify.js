@@ -24,7 +24,7 @@ export async function flipLabelAndNotify({
   prUrl,
   autoMergeEnabled,
   autoMergeReason,
-  orchestration,
+  config,
   progress,
 }) {
   const labelFlipped = await flipLabel(provider, storyId, story, progress);
@@ -36,7 +36,7 @@ export async function flipLabelAndNotify({
     prUrl,
     autoMergeEnabled,
     autoMergeReason,
-    orchestration,
+    config,
     provider,
   });
 }
@@ -79,7 +79,7 @@ async function fireStoryMergedNotify({
   prUrl,
   autoMergeEnabled,
   autoMergeReason,
-  orchestration,
+  config,
   provider,
 }) {
   const autoMergeNote = autoMergeEnabled
@@ -94,7 +94,7 @@ async function fireStoryMergedNotify({
         event: 'story-merged',
         level: 'story',
       },
-      { orchestration, provider },
+      { config, provider },
     );
   } catch (err) {
     Logger.warn(

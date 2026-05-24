@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/agentrc.schema.json",
   "title": "Mandrel .agentrc",
-  "description": "Static JSON Schema mirror of the authoritative AJV schema in .agents/scripts/lib/config-settings-schema.js. The AJV schema is the runtime source of truth; this file exists for editor tooling and human readers. A drift test (tests/config-schema-mirror-drift.test.js) keeps the two in sync. Top-level reshape: Epic #1720 Story #1739 pivoted from {agentSettings, orchestration} to {project, github, planning, delivery}. Quality gate reshape: Epic #1720 Story #1737 introduced the uniform delivery.quality.gates.<tier> shape with seven gates (lint, coverage, crap, maintainability, mutation, lighthouse, bundleSize), object-shaped { kind, value } tolerances, and workspace-keyed floors objects. Story #2687 (Epic #2646) confirmed that the schema carries no field whose sole purpose is to keep pre-cutover documents validating — every property exposed here corresponds to a canonical reader in the post-reshape config layer.",
+  "description": "Static JSON Schema mirror of the authoritative AJV schema in .agents/scripts/lib/config-settings-schema.js. The AJV schema is the runtime source of truth; this file exists for editor tooling and human readers. A drift test (tests/config-schema-mirror-drift.test.js) keeps the two in sync. Top-level reshape: Epic #1720 Story #1739 pivoted from {agentSettings, orchestration} to {project, github, planning, delivery}. Quality gate reshape: Epic #1720 Story #1737 introduced the uniform delivery.quality.gates.<tier> shape with seven gates (lint, coverage, crap, maintainability, mutation, lighthouse, bundleSize), object-shaped { kind, value } tolerances, and workspace-keyed floors objects. Story #2687 (Epic #2646) confirmed that the schema carries no field whose sole purpose is to keep pre-cutover documents validating — every property exposed here corresponds to a canonical reader in the post-reshape config layer. Epic #2880 Story #2935 finalized the cutover by deleting the resolver-side output shim that surfaced agentSettings/orchestration pointers; legacy-shaped documents are rejected by root additionalProperties:false and the canonical blocks are the only supported reads.",
   "type": "object",
   "additionalProperties": false,
   "required": ["project"],
@@ -627,6 +627,25 @@
       },
       "additionalProperties": false
     },
+    "mergeWatch": {
+      "type": "object",
+      "description": "Knobs consumed by the MergeWatcher lifecycle listener (Story #2896, Epic #2880). `intervalSeconds` is the poll cadence between `gh pr view --json mergeCommit,mergedAt` probes after epic.merge.armed; `maxBudgetSeconds` is the total wall-clock budget before the watcher surfaces `agent::blocked` with reason `budget-exceeded`.",
+      "properties": {
+        "intervalSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 30,
+          "description": "Seconds between MergeWatcher polls. Default 30."
+        },
+        "maxBudgetSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 3600,
+          "description": "Total wall-clock budget (seconds) for the MergeWatcher poll loop. Default 3600 (60 minutes)."
+        }
+      },
+      "additionalProperties": false
+    },
     "quality": {
       "type": "object",
       "properties": {
@@ -663,8 +682,31 @@
         "signals": { "$ref": "#/$defs/signals" },
         "quality": { "$ref": "#/$defs/quality" },
         "lifecycle": { "$ref": "#/$defs/lifecycle" },
+        "mergeWatch": { "$ref": "#/$defs/mergeWatch" },
         "epicAudit": { "$ref": "#/$defs/epicAudit" },
         "codeReview": { "$ref": "#/$defs/codeReview" },
+        "ci": {
+          "type": "object",
+          "properties": {
+            "skipForStoryPushes": {
+              "type": "boolean",
+              "description": "Story #2899 (Epic #2880, F13). When true (default), task-commit.js appends a '[skip ci]' trailer to per-Task Story-branch commit subjects so per-Task pushes do not stampede the CI fleet. The Epic-branch merge commit produced by story-close.js never carries the marker, regardless of this flag."
+            }
+          },
+          "additionalProperties": false
+        },
+        "preflight": {
+          "type": "object",
+          "description": "Story #2899 (Epic #2880, F13). Thresholds consumed by `.agents/scripts/epic-deliver-preflight.js`. When any value is exceeded the preflight envelope flags a breach and /epic-deliver Phase 1 surfaces it via agent::blocked.",
+          "properties": {
+            "maxStories": { "type": "integer", "minimum": 1 },
+            "maxWaves": { "type": "integer", "minimum": 1 },
+            "maxInstallCostSeconds": { "type": "integer", "minimum": 1 },
+            "maxGithubApiRequests": { "type": "integer", "minimum": 1 },
+            "maxClaudeQuotaTokens": { "type": "integer", "minimum": 1 }
+          },
+          "additionalProperties": false
+        },
         "failOnConcurrencyHazards": { "type": "boolean" },
         "feedbackLoop": {
           "type": "object",

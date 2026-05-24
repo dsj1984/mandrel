@@ -3,7 +3,7 @@
  * current codebase.
  *
  * `/epic-plan` Phase 7 authors PRD + Tech Spec from documentation alone.
- * When `agentSettings.docsContextFiles` (architecture.md, etc.) drift from
+ * When `project.docsContextFiles` (architecture.md, etc.) drift from
  * the real source tree, the Architect persona happily cites modules and
  * paths that no longer exist. The mismatch only surfaces at delivery time,
  * after Phase 8 has already decomposed the stale spec into Tasks.
