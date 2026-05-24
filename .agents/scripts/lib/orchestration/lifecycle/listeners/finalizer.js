@@ -287,6 +287,14 @@ export class Finalizer {
       opts.runFinalizeFn ??
       composeBusOwnedFinalize({ provider: this.provider });
     this.ghPrListHeadFn = opts.ghPrListHeadFn ?? ghPrListHead;
+    // ultrareview bug_007: the existing-PR short-circuit must run the
+    // planning-ticket close and the handoff-comment upsert (both
+    // idempotent) so crash-recovery replays don't skip them. Stored as
+    // instance overrides so tests can swap them with no-op stubs.
+    this.closePlanningTicketsFn =
+      opts.closePlanningTicketsFn ?? defaultClosePlanningTickets;
+    this.postHandoffCommentFn =
+      opts.postHandoffCommentFn ?? defaultPostHandoffComment;
     this.config = opts.config ?? null;
     this.currentRepo = opts.currentRepo ?? null;
     this.frameworkRepo = opts.frameworkRepo ?? null;
@@ -371,6 +379,38 @@ export class Finalizer {
           `[Finalizer] PR already open for ${epicBranch}: ${existingUrl} — short-circuiting create.`,
         );
         const prNumber = extractPrNumber(existingUrl);
+        // ultrareview bug_007: even on the short-circuit path we MUST
+        // run the planning-ticket close and the handoff-comment upsert.
+        // Both helpers are idempotent — closePlanningTickets counts
+        // already-closed tickets under `alreadyClosed`, postHandoffComment
+        // edits an existing marker comment in place. Without these calls,
+        // a crash-recovery replay against an already-open PR leaves the
+        // three planning context tickets open and never posts the
+        // handoff comment, even though epic.merge.ready is still emitted.
+        try {
+          await this.closePlanningTicketsFn({
+            epicId: this.epicId,
+            provider: this.provider,
+            cwd: this.cwd,
+          });
+        } catch (err) {
+          this.logger.warn?.(
+            `[Finalizer] closePlanningTickets on short-circuit failed (swallowed; replay will retry): ${err?.message ?? err}`,
+          );
+        }
+        try {
+          await this.postHandoffCommentFn({
+            epicId: this.epicId,
+            prNumber,
+            prUrl: existingUrl,
+            provider: this.provider,
+            cwd: this.cwd,
+          });
+        } catch (err) {
+          this.logger.warn?.(
+            `[Finalizer] postHandoffComment on short-circuit failed (swallowed; replay will retry): ${err?.message ?? err}`,
+          );
+        }
         await this._emitFinalize({
           event,
           seqId,

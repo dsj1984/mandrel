@@ -221,6 +221,60 @@ describe('MergeWatcher — idempotency on duplicate (event, seqId)', () => {
 });
 
 describe('MergeWatcher — budget exhaustion', () => {
+  // ultrareview bug_010: the budget-exhausted path MUST emit epic.blocked
+  // so BlockerHandler / LabelTransitioner / StructuredCommentPoster /
+  // NotifyDispatcher escalate the Epic to `agent::blocked` with an
+  // operator-visible reason. Without this emit the Epic stalls silently
+  // — Cleaner never fires, agent::done never flips, and no operator
+  // notification is produced.
+  it('emits epic.blocked with reason "merge-watch:budget-exceeded" when budget elapses', async () => {
+    const bus = new Bus();
+    const confirmedEmits = [];
+    const blockedEmits = [];
+    bus.on('epic.merge.confirmed', async (ctx) =>
+      confirmedEmits.push(ctx.payload),
+    );
+    bus.on('epic.blocked', async (ctx) => blockedEmits.push(ctx.payload));
+
+    let nowMs = 0;
+    const watcher = new MergeWatcher({
+      bus,
+      epicId: 2880,
+      tempRoot: '/t',
+      intervalSeconds: 1,
+      maxBudgetSeconds: 1,
+      readPriorAttemptsFn: () => 0,
+      appendAttemptFn: () => {},
+      ghPrViewMergeFn: () => ({
+        status: 0,
+        stdout: '{"mergeCommit":null,"mergedAt":null,"number":7}',
+        stderr: '',
+      }),
+      sleepFn: async () => {},
+      nowMsFn: () => {
+        nowMs += 2000;
+        return nowMs;
+      },
+      nowIsoFn: () => '2026-05-22T14:00:00Z',
+      logger: quietLogger(),
+    });
+    watcher.register();
+
+    await watcher.handle({
+      event: 'epic.merge.armed',
+      seqId: 701,
+      payload: { prUrl: 'https://github.com/o/r/pull/7' },
+    });
+
+    assert.equal(
+      confirmedEmits.length,
+      0,
+      'no confirmed emit on budget exhaustion',
+    );
+    assert.equal(blockedEmits.length, 1, 'exactly one epic.blocked emit');
+    assert.equal(blockedEmits[0].reason, 'merge-watch:budget-exceeded');
+  });
+
   it('returns failed/budget-exceeded without emitting confirmed when budget elapses', async () => {
     const bus = new Bus();
     const emits = [];

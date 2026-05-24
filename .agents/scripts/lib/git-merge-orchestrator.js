@@ -143,10 +143,15 @@ export function mergeFeatureBranch(cwd, featureBranch, vlog, opts = {}) {
     fileList: conflicts.fileList,
   });
 
-  const { agentSettings } = resolveConfig();
+  // Epic #2880 / F14B: read mergeThresholds from the canonical resolved
+  // config (`delivery.mergeThresholds`). The legacy `agentSettings`
+  // pointer is gone — destructuring it throws `Cannot read properties of
+  // undefined`. The threshold block remains optional; `classifyConflict
+  // Severity` falls back to file=3/line=20 when undefined.
+  const config = resolveConfig();
   const severity = classifyConflictSeverity(
     conflicts,
-    agentSettings.mergeThresholds,
+    config?.delivery?.mergeThresholds,
   );
   if (severity === 'major') {
     gitSpawn(cwd, 'merge', '--abort');
