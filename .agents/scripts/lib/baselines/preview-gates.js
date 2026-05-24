@@ -132,8 +132,8 @@ export async function runMaintainabilityPreview({
   staged = false,
   tolerance = 0.5,
 } = {}) {
-  const { agentSettings } = resolveConfig({ cwd });
-  const baselinePath = getBaselines({ agentSettings }).maintainability.path;
+  const config = resolveConfig({ cwd });
+  const baselinePath = getBaselines(config).maintainability.path;
   const baseline = loadMaintainabilityBaseline({
     baselinePath: path.isAbsolute(baselinePath)
       ? baselinePath
@@ -141,7 +141,7 @@ export async function runMaintainabilityPreview({
     epicRef: null,
   });
 
-  const targetDirs = getQuality({ agentSettings }).maintainability.targetDirs;
+  const targetDirs = getQuality(config).maintainability.targetDirs;
   const files = [];
   for (const dir of targetDirs) {
     scanDirectory(dir, files);
@@ -189,15 +189,15 @@ export async function runCrapPreview({
     changedSinceRef,
     cwd,
   });
-  const { agentSettings } = resolveConfig({ cwd });
-  const baselinePath = getBaselines({ agentSettings }).crap.path;
+  const config = resolveConfig({ cwd });
+  const baselinePath = getBaselines(config).crap.path;
   const baseline = loadCrapBaseline({
     baselinePath: path.isAbsolute(baselinePath)
       ? baselinePath
       : path.resolve(cwd, baselinePath),
     epicRef: null,
   });
-  const quality = getQuality({ agentSettings });
+  const quality = getQuality(config);
   const crap = quality.crap;
   if (!baseline || crap.enabled === false) {
     return {
