@@ -35,13 +35,14 @@ const CLI_OPTIONS = {
   force: { type: 'boolean', default: false },
   resume: { type: 'boolean', default: false },
   'allow-over-budget': { type: 'boolean', default: false },
+  'allow-large-fan-out': { type: 'boolean', default: false },
   'emit-context': { type: 'boolean', default: false },
   pretty: { type: 'boolean', default: false },
   'full-context': { type: 'boolean', default: false },
 };
 
 const USAGE =
-  'Usage: epic-plan-decompose.js --epic <EpicId> (--emit-context [--pretty] [--full-context] | --tickets <file>) [--force | --resume] [--allow-over-budget]';
+  'Usage: epic-plan-decompose.js --epic <EpicId> (--emit-context [--pretty] [--full-context] | --tickets <file>) [--force | --resume] [--allow-over-budget] [--allow-large-fan-out]';
 
 function parseEpicId(rawEpic) {
   if (!rawEpic) throw new Error(USAGE);
@@ -126,6 +127,7 @@ async function runPersistPath({ epicId, provider, config, values }) {
       force: values.force,
       resume: values.resume,
       allowOverBudget: values['allow-over-budget'],
+      allowLargeFanOut: values['allow-large-fan-out'],
     });
   } catch (err) {
     await reportPartialFailure({ epicId, provider, err });

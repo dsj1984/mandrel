@@ -186,7 +186,13 @@
         "context": { "$ref": "#/$defs/planningContext" },
         "codebaseSnapshot": { "$ref": "#/$defs/codebaseSnapshot" },
         "failOnSharedEditors": { "type": "boolean" },
-        "requireExplicitCrossStoryDeps": { "type": "boolean" }
+        "requireExplicitCrossStoryDeps": { "type": "boolean" },
+        "failOnRegistryConflicts": { "type": "boolean" },
+        "failOnLargeFanOut": { "type": "boolean" },
+        "largeFanOutThreshold": { "type": "integer", "minimum": 0 },
+        "crossCuttingRegistries": {
+          "$ref": "#/$defs/listOrExtenderOfStrings"
+        }
       },
       "additionalProperties": false
     },
