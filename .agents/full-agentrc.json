@@ -154,7 +154,8 @@
           "baselinePath": "baselines/coverage.json",
           "tolerance": { "kind": "absolute", "value": 0 },
           "floors": { "*": { "lines": 90, "branches": 85, "functions": 90 } },
-          "coveragePath": "coverage/coverage-final.json"
+          "coveragePath": "coverage/coverage-final.json",
+          "timeoutMs": 600000
         },
         "crap": {
           "enabled": true,

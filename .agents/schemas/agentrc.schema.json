@@ -426,7 +426,8 @@
         "components": { "$ref": "#/$defs/components" },
         "coveragePath": {
           "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
-        }
+        },
+        "timeoutMs": { "type": "integer", "minimum": 1 }
       },
       "additionalProperties": false
     },
