@@ -1011,6 +1011,52 @@ failures never block execution.
 
 ---
 
+## Troubleshooting
+
+### Sub-agent CI workflow editing
+
+Sub-agents (any agent operating under the framework's default
+`GITHUB_TOKEN`) **cannot edit files under `.github/workflows/**`**. The
+framework's token does not carry the `workflows` permission scope by
+default, so a push that touches a workflow file is rejected by GitHub
+with an error of the shape:
+
+> refusing to allow a GitHub App to create or update workflow
+> `.github/workflows/<file>.yml` without `workflows` permission
+
+This is a hard constraint, not a transient failure. Re-running the same
+push will not succeed.
+
+**When a Story plans a new CI gate**, route the check through a
+`package.json` script rather than adding it directly to the workflow
+YAML. Examples:
+
+- Add the new check to `npm run lint`, `npm run docs:check`, or
+  `npm test` so an existing CI job picks it up by transitivity.
+- Wire a new `package.json` script and chain it from one of the
+  existing scripts the workflow already invokes.
+- For a check that genuinely cannot be expressed as an npm script,
+  surface it as a script anyway (e.g. `npm run check:<name>` →
+  `node .agents/scripts/<name>.js`) and call the script from the
+  existing `Validate and Test` job's `run:` block — but the YAML edit
+  itself must be made by an operator.
+
+Precedent: Epic #2880 Story #2895 Task #2916 intended to add
+`check-lifecycle-doc-drift.js` directly to `.github/workflows/ci.yml`,
+hit this constraint, and worked around it by chaining the check into
+`npm run docs:check`. The functional outcome is identical; the
+workaround is the canonical pattern.
+
+**When a workflow file genuinely must change** (a new top-level job, a
+trigger change, a runner-image bump, etc.), the edit must be made by an
+operator with `Workflows: Read and write` PAT permissions. See
+[§ One-time PAT setup](../AGENTS.md#one-time-pat-setup) in the root
+`AGENTS.md` for how to provision a PAT with the required scope. The same
+operator surface that release-please relies on is the one that authorizes
+workflow edits.
+
+---
+
 ## Quick reference
 
 | Command                                          | Purpose                                                                                                                                                                      |
