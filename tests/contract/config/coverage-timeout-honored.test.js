@@ -25,11 +25,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
+import { COVERAGE_GATE_DEFAULTS } from '../../../.agents/scripts/lib/config/quality.js';
 import {
   getQuality,
   resolveConfig,
 } from '../../../.agents/scripts/lib/config-resolver.js';
-import { COVERAGE_GATE_DEFAULTS } from '../../../.agents/scripts/lib/config/quality.js';
 import { getAgentrcValidator } from '../../../.agents/scripts/lib/config-schema.js';
 
 const CANONICAL_TIMEOUT = 1_800_000;
