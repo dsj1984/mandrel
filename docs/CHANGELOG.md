@@ -250,6 +250,19 @@ restoration.
 - → follow-up **#2071** (schema-module maintainability uplift):
   - `.agents/scripts/lib/config-settings-schema.js` (`mi: 46`)
   - `.agents/scripts/lib/config-gates-schema.js` (`mi: 51`)
+## [1.30.0](https://github.com/dsj1984/mandrel/compare/v1.29.0...v1.30.0) (2026-05-23)
+
+
+### Fixed
+
+* **bdd-detect:** scan workspace package.json files in monorepos ([#2957](https://github.com/dsj1984/mandrel/issues/2957)) ([456326e](https://github.com/dsj1984/mandrel/commit/456326ee41da1a8443125665cf28592215877e67))
+
+
+### Changed
+
+* **manifest:** migrate helpers to canonical config pointers ([#2955](https://github.com/dsj1984/mandrel/issues/2955)) ([f9b3dac](https://github.com/dsj1984/mandrel/commit/f9b3dac0deea6c2c63cdc4bd4d7b3e0122210e7c)), closes [#2945](https://github.com/dsj1984/mandrel/issues/2945) [#2950](https://github.com/dsj1984/mandrel/issues/2950)
+* **temp-paths:** nest per-story dirs under stories/ and fix divergent dispatch-state path ([#2941](https://github.com/dsj1984/mandrel/issues/2941)) ([2cb4043](https://github.com/dsj1984/mandrel/commit/2cb40431c5ed21aae86fb11196c0db43c99bf54f)), closes [#2940](https://github.com/dsj1984/mandrel/issues/2940)
+
 ## [1.29.0](https://github.com/dsj1984/mandrel/compare/v1.28.0...v1.29.0) (2026-05-22)
 
 
