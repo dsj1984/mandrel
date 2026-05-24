@@ -77,6 +77,15 @@ Pull Request Opened
 **No gate can be skipped.** If lint fails, fix lint — don't disable the rule. If
 a test fails, fix the code — don't skip the test.
 
+**Introducing a new gate that asserts on pre-existing state** (doc-drift,
+lint-vocabulary, dependency-cycle, missing-test-coverage) has its own
+hazard: the gate lands red because of latent findings nobody authored,
+and every downstream PR is blocked until someone hotfixes the integration
+branch. Before wiring such a gate into `requiredChecks`, read
+[`core/introducing-a-baseline-gate`](../introducing-a-baseline-gate/SKILL.md) —
+it covers the two landing shapes (advisory-first or
+populate-the-baseline) that keep the gate green at merge.
+
 ## CI Configuration (GitHub Actions)
 
 A representative pipeline for a Node project runs lint → type check → unit
