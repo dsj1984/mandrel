@@ -11,6 +11,7 @@
     "test:quick": "node .agents/scripts/run-tests.js --tier quick",
     "test:integration": "node .agents/scripts/run-tests.js --tier integration",
     "test:profile": "node .agents/scripts/run-test-profile.js",
+    "test:isolate": "node .agents/scripts/test-isolate.js",
     "verify": "node .agents/scripts/run-verify.js",
     "typecheck": "node -e \"process.exit(0)\"",
     "test:coverage": "node .agents/scripts/run-coverage.js",

@@ -408,6 +408,43 @@ it more robust.
 | "The code is self-explanatory"          | Tests ARE the specification. They document what the code should do, not what it does. |
 | "It's just a prototype"                 | Prototypes become production code. Tests from day one prevent the "test debt" crisis. |
 
+## Diagnosing Test-Pollution Cascades
+
+When a test file passes when run alone but fails inside the full
+`npm test` suite, you are looking at **test pollution** — one test leaves
+shared state behind (env vars, temp files, mock-module registry, global
+singletons) and a later test trips on it. Standard cue:
+
+```bash
+node --test --experimental-test-module-mocks tests/<file>.test.js
+# ℹ pass N  ℹ fail 0   ← passes alone
+
+npm test
+# ℹ pass …  ℹ fail M   ← fails in the full suite
+```
+
+Reach for `npm run test:isolate` before manually bisecting. It runs every
+matching test file individually under `--test-concurrency=1` (one
+subprocess per file), then runs them all together under the suite's
+default concurrency. Files that pass alone but fail in the suite are
+**flippers**; for each flipper the script binary-bisects the remaining
+files to surface the smallest reproducing subset. It also reports any
+file that exited with leftover `process.env` mutations, so you can spot
+global-state leaks by name even before the cascade manifests.
+
+```bash
+npm run test:isolate                          # all tests under tests/
+npm run test:isolate -- tests/lib            # a directory
+npm run test:isolate -- tests/foo.test.js    # a single file
+npm run test:isolate -- --json               # raw report envelope
+```
+
+When the report flags an env-mutator, the fix is almost always missing
+teardown: wrap the mutation in a `t.before` / `t.after` pair, or restore
+the prior value in a `try` / `finally`. When the bisection points at a
+specific polluter file, read it for `t.mock.module` or filesystem-fixture
+patterns that don't clean up after themselves.
+
 ## Red Flags
 
 - Writing code without any corresponding tests
