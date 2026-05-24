@@ -497,7 +497,7 @@ describe('worktreeReapPhase', () => {
       );
       assert.ok(
         existsSync(configuredPath),
-        `friction signal should land under ctx.config.agentSettings.paths.tempRoot (${configuredPath})`,
+        `friction signal should land under ctx.config.project.paths.tempRoot (${configuredPath})`,
       );
 
       const leakedPath = path.join(

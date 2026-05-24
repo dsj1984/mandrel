@@ -133,11 +133,11 @@ export async function main(argv = process.argv.slice(2)) {
     process.exit(2);
   }
 
-  const { orchestration } = resolveConfig();
-  const effectiveOrchestration = values.provider
-    ? { ...orchestration, provider: values.provider }
-    : orchestration;
-  const provider = createProvider(effectiveOrchestration);
+  const config = resolveConfig();
+  const effectiveConfig = values.provider
+    ? { ...config, provider: values.provider }
+    : config;
+  const provider = createProvider(effectiveConfig);
 
   const opts = {
     provider,

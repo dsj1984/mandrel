@@ -25,7 +25,7 @@ import path from 'node:path';
  * @param {boolean} opts.cwdExplicit       True when `--cwd` (or AGENT_WORKTREE_ROOT) was set.
  * @param {string} opts.mainCwd            Resolved main repo path.
  * @param {number|string} opts.storyId
- * @param {string} [opts.worktreeRoot]     `orchestration.worktreeIsolation.root` (defaults to `.worktrees`).
+ * @param {string} [opts.worktreeRoot]     `delivery.worktreeIsolation.root` (defaults to `.worktrees`).
  * @param {string} [opts.currentCwd]       Defaults to `process.cwd()`.
  * @returns {{ ok: true } | { ok: false, message: string }}
  */

@@ -131,6 +131,33 @@ export const META_LABELS = {
   CONSUMER_IMPROVEMENT: 'meta::consumer-improvement',
 };
 
+/**
+ * Planning-axis labels (Epic #2880 F7). Currently scoped to the
+ * `planning::healthcheck-waived` operator-applied waiver, which is the
+ * documented escape hatch for the `/epic-plan` Phase 10 readiness
+ * healthcheck (`epic-plan-healthcheck.js`). The persist half of
+ * `epic-plan-decompose.js` refuses to flip an Epic to `agent::ready`
+ * when the healthcheck returned `ok: false` unless this label is
+ * present — see `.agents/SDLC.md` § "`agent::ready` exit conditions"
+ * for the full handoff contract.
+ *
+ * Future planning-axis waivers (one per failing exit condition) extend
+ * this enum so consumers can reference them by symbol.
+ */
+export const PLANNING_LABELS = {
+  HEALTHCHECK_WAIVED: 'planning::healthcheck-waived',
+};
+
+/**
+ * Convenience named export so callers can reach the constant without
+ * indexing into PLANNING_LABELS — mirrors the ergonomics used by
+ * ACCEPTANCE_NA / CONTEXT_ACCEPTANCE_SPEC. The literal value is
+ * duplicated here (rather than aliased through PLANNING_LABELS) so a
+ * grep for `PLANNING_HEALTHCHECK_WAIVED.*planning::healthcheck-waived`
+ * matches a single line — see Story #2921 Task #2933 AC #1.
+ */
+export const PLANNING_HEALTHCHECK_WAIVED = 'planning::healthcheck-waived';
+
 /** Palette for the taxonomy; consumed by label-taxonomy.js. */
 export const LABEL_COLORS = {
   TYPE: '#7057FF',
@@ -139,4 +166,5 @@ export const LABEL_COLORS = {
   PERSONA: '#C5DEF5',
   CONTEXT: '#D4C5F9',
   ACCEPTANCE: '#FBCA04',
+  PLANNING: '#FEF2C0',
 };

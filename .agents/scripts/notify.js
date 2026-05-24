@@ -4,7 +4,7 @@
 /**
  * notify.js
  *
- * Single dispatch entry point for orchestration notifications across two
+ * Single dispatch entry point for runtime notifications across two
  * independent channels.
  *
  * Lifecycle-bus integration (Epic #2172): under the Wave-7+ runtime,
@@ -73,7 +73,7 @@ function resolveEventAllowlist(notifications, key) {
 }
 
 function buildWebhookPayload({
-  orchestration,
+  config,
   ticketId,
   severity,
   message,
@@ -84,7 +84,7 @@ function buildWebhookPayload({
   phase,
 }) {
   const cleanMessage = message.replace(operator, '').trim();
-  const repo = orchestration.github?.repo;
+  const repo = config.github?.repo;
   const numericTicketId = Number.parseInt(ticketId, 10);
   const prefix = severity === 'high' ? '[Action Required]' : `[${severity}]`;
   const ticketPart =
@@ -150,8 +150,8 @@ async function sendWebhook(url, payloadBody) {
  *   required for any channel to fire — event-less dispatches are no-ops.
  */
 export async function notify(ticketId, payload, opts = {}) {
-  const orchestration = opts.orchestration || resolveConfig().orchestration;
-  const provider = opts.provider || createProvider(orchestration);
+  const config = opts.config || resolveConfig();
+  const provider = opts.provider || createProvider(config);
 
   const { severity = 'medium', message, event, level, epicId, phase } = payload;
   if (!Object.hasOwn(SEVERITY_RANK, severity)) {
@@ -159,15 +159,10 @@ export async function notify(ticketId, payload, opts = {}) {
       `[Notify] Invalid severity "${severity}". Expected: low | medium | high.`,
     );
   }
-  const operator = orchestration.github?.operatorHandle || '@operator';
-  const commentEvents = resolveEventAllowlist(
-    orchestration.notifications,
-    'commentEvents',
-  );
-  const webhookEvents = resolveEventAllowlist(
-    orchestration.notifications,
-    'webhookEvents',
-  );
+  const operator = config.github?.operatorHandle || '@operator';
+  const notifications = config.github?.notifications;
+  const commentEvents = resolveEventAllowlist(notifications, 'commentEvents');
+  const webhookEvents = resolveEventAllowlist(notifications, 'webhookEvents');
 
   const numericId = Number.parseInt(ticketId, 10);
   const noTicket = Number.isNaN(numericId) || numericId <= 0;
@@ -180,7 +175,7 @@ export async function notify(ticketId, payload, opts = {}) {
     // low never @mentions.
     const mention =
       severity === 'high' ||
-      (severity === 'medium' && orchestration.notifications?.mentionOperator);
+      (severity === 'medium' && notifications?.mentionOperator);
     const commentBody = mention ? `${operator} ${message}` : message;
 
     await provider.postComment(numericId, {
@@ -200,7 +195,7 @@ export async function notify(ticketId, payload, opts = {}) {
     if (webhookUrl) {
       Logger.info(`[Notify] Firing webhook (${event}) to ${webhookUrl}...`);
       const payloadBody = buildWebhookPayload({
-        orchestration,
+        config,
         ticketId,
         severity,
         message,

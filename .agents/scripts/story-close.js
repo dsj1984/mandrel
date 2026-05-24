@@ -78,13 +78,10 @@ const progressLog = (tag, msg) => progress(tag, msg);
  * A wiring failure logs and returns `null` — the close result must never
  * depend on lifecycle observability.
  */
-function wireLifecycleBus({ epicId, agentSettings, orchestration }) {
+function wireLifecycleBus({ epicId, config }) {
   try {
     const lifecycleBus = createBus();
-    const tempRoot = tempRootFrom({
-      project: { paths: agentSettings?.paths },
-      orchestration,
-    });
+    const tempRoot = tempRootFrom(config);
     const ledger = createLedgerWriter({
       epicId: Number(epicId),
       tempRoot,
@@ -148,8 +145,7 @@ export async function runStoryClose({
     resumeFlag,
     restartFlag,
     noEvidenceFlag,
-    orchestration,
-    agentSettings,
+    config,
     provider,
     story,
     epicBranch,
@@ -157,9 +153,9 @@ export async function runStoryClose({
   } = resolved;
 
   const notifyFn = (ticketId, payload, opts = {}) =>
-    notify(ticketId, payload, { orchestration, provider, ...opts });
+    notify(ticketId, payload, { config, provider, ...opts });
 
-  const bus = wireLifecycleBus({ epicId, agentSettings, orchestration });
+  const bus = wireLifecycleBus({ epicId, config });
 
   progress('INIT', `Closing Story #${storyId}...`);
 
@@ -206,8 +202,7 @@ export async function runStoryClose({
           resumeFlag,
           restartFlag,
           noEvidenceFlag,
-          orchestration,
-          agentSettings,
+          config,
           provider,
           story,
           epicBranch,

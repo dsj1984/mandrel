@@ -13,7 +13,7 @@
  * Canonical roster (registration order):
  *   1. LedgerWriter            (privileged hooks via `register(bus)`)
  *   2. AcceptanceReconciler    (epic.close.end → acceptance.reconcile.*)
- *   3. Finalizer               (acceptance.reconcile.ok → pr.created)
+ *   3. Finalizer               (acceptance.reconcile.{ok,waived} → pr.created)
  *   4. AutomergeArmer          (epic.merge.ready → epic.merge.armed)
  *   5. AutomergePredicate      (epic.watch.end → epic.merge.{ready,blocked})
  *   6. BranchCleaner           (epic.cleanup.start → branch reap)
@@ -49,6 +49,7 @@ import { BranchCleaner } from './branch-cleaner.js';
 import { CheckpointPointerWriter } from './checkpoint-pointer-writer.js';
 import { Cleaner } from './cleaner.js';
 import { Finalizer } from './finalizer.js';
+import { MergeWatcher } from './merge-watcher.js';
 
 /**
  * Parse `temp/epic-<id>/lifecycle.ndjson` into `{ tempRoot, epicId }`.
@@ -168,13 +169,18 @@ export async function buildDefaultListenerChain(opts = {}) {
   acceptanceReconciler.register();
   order.push('AcceptanceReconciler');
 
-  // 3. Finalizer — opens the PR on acceptance.reconcile.ok and (Story
-  //    #2555) auto-graduates non-blocking code-review findings into
-  //    routed follow-up issues. The graduator step is best-effort and
-  //    is silently skipped when `provider` / `currentRepo` are not
-  //    wired in (e.g. lifecycle-emit CLI). `currentRepo` is resolved
-  //    from `config.github.{owner,repo}`; `frameworkRepo` from
-  //    `config.github.frameworkRepo` when distinct, otherwise omitted.
+  // 3. Finalizer — opens the PR on acceptance.reconcile.ok or .waived
+  //    (Story #2893 split waiver out of .skipped) via the bus-owned
+  //    default (`composeBusOwnedFinalize`, Story #2894), which chains
+  //    openOrLocatePr → closePlanningTickets → postHandoffComment and
+  //    emits `epic.merge.ready` on success. The legacy
+  //    `d1-default-no-op` blocker is gone; the listener constructed
+  //    with no `runFinalizeFn` override always runs the real flow.
+  //    The code-review / audit-results graduator steps (Stories
+  //    #2555 / #2615) remain best-effort and are silently skipped
+  //    when `provider` / `currentRepo` are not wired in. `currentRepo`
+  //    is resolved from `config.github.{owner,repo}`; `frameworkRepo`
+  //    from `config.github.frameworkRepo` when distinct, otherwise omitted.
   const currentRepo =
     config?.github?.owner && config?.github?.repo
       ? { owner: config.github.owner, repo: config.github.repo }
@@ -249,8 +255,32 @@ export async function buildDefaultListenerChain(opts = {}) {
     );
   }
 
-  // 7. Cleaner — archives temp/epic-<id>/ and emits the terminal
-  //    epic.cleanup.start → .end → epic.complete sequence.
+  // 7. MergeWatcher (Story #2896, Epic #2880) — polls `gh pr view`
+  //    after `epic.merge.armed` until the PR's mergeCommit is
+  //    non-null, then emits `epic.merge.confirmed`. Cleaner now
+  //    waits on the confirmed event rather than the armed event so
+  //    the Epic only transitions to its terminal state after the
+  //    merge is actually observed on GitHub. Reads `intervalSeconds`
+  //    and `maxBudgetSeconds` from `config.delivery.mergeWatch.*`
+  //    when supplied; otherwise uses the listener's framework
+  //    defaults (30s / 3600s).
+  const mergeWatchConfig = config?.delivery?.mergeWatch ?? {};
+  const mergeWatcher = new MergeWatcher({
+    bus,
+    epicId,
+    tempRoot,
+    cwd: repoRoot,
+    intervalSeconds: mergeWatchConfig.intervalSeconds,
+    maxBudgetSeconds: mergeWatchConfig.maxBudgetSeconds,
+    logger,
+  });
+  mergeWatcher.register();
+  order.push('MergeWatcher');
+
+  // 8. Cleaner — archives temp/epic-<id>/ and emits the terminal
+  //    epic.cleanup.start → .end → epic.complete sequence. Story
+  //    #2896 rebound this listener from `epic.merge.armed` to
+  //    `epic.merge.confirmed`.
   const cleaner = new Cleaner({
     bus,
     epicId,
@@ -282,6 +312,7 @@ export async function buildDefaultListenerChain(opts = {}) {
     automergeArmer,
     automergePredicate,
     branchCleaner,
+    mergeWatcher,
     cleaner,
     checkpointPointerWriter,
     order,

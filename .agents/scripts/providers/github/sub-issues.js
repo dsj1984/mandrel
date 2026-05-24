@@ -3,8 +3,8 @@
  *
  * Owns the native GitHub Sub-Issues link surface (the GraphQL `subIssues`
  * field on an Issue, plus the add/remove mutations) along with the
- * orchestration-side `reconcileSubIssueLinks` walker that backfills
- * missing links across an Epic's child set.
+ * `reconcileSubIssueLinks` walker that backfills missing parent/child
+ * links across an Epic's child set.
  *
  * Extracted from `../github.js` in Story #2462 / Task #2480. Public
  * surface on `GitHubProvider` is unchanged — `addSubIssue`,

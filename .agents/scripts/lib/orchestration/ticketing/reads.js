@@ -116,6 +116,21 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // emissions are written. Schema:
   // `.agents/schemas/model-attribution.schema.json`.
   'model-attribution',
+  // Story #2894 — `finalize/post-handoff-comment.js` upserts an
+  // `epic-handoff` comment on the Epic at the end of the bus-owned
+  // finalize flow (after `open-or-locate-pr` and `close-planning-tickets`
+  // succeed). The marker carries the freshly opened/located PR URL and
+  // its number so operators can jump straight to the PR from the Epic
+  // ticket. Re-invocations upsert the same marker rather than appending
+  // duplicates.
+  'epic-handoff',
+  // Story #2899 (Epic #2880, F13) — `epic-deliver-preflight.js` upserts a
+  // `delivery-preflight` comment on the Epic at the start of
+  // /epic-deliver Phase 1, surfacing estimated story count, install cost,
+  // wave count, GitHub API request volume, Claude quota burn, and any
+  // threshold breaches against `delivery.preflight.max*`. One entry per
+  // Epic; re-runs replace prior content.
+  'delivery-preflight',
 ]);
 
 export const WAVE_TYPE_PATTERN = WAVE_MARKER_RE;

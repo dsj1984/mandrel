@@ -95,7 +95,7 @@ export async function runPreMergeValidation({
   worktreePath,
   epicBranch,
   storyBranch,
-  agentSettings,
+  config,
   storyId,
   epicId,
   noEvidenceFlag,
@@ -117,14 +117,14 @@ export async function runPreMergeValidation({
       storyId,
       epicBranch,
       storyBranch,
-      agentSettings,
+      config,
       logger: Logger,
     });
   }
   const formatAutofixOutcome = runFormatAutofix({
     cwd,
     storyId,
-    agentSettings,
+    config,
     logger: Logger,
   });
   if (formatAutofixOutcome?.timedOut) {
@@ -141,7 +141,7 @@ export async function runPreMergeValidation({
     worktreePath,
     epicBranch,
     storyBranch,
-    agentSettings,
+    config,
     storyId,
     epicId,
     useEvidence: !noEvidenceFlag,
@@ -155,7 +155,7 @@ export async function runPreMergeValidation({
     cwd,
     epicBranch,
     storyBranch,
-    agentSettings,
+    config,
     logger: Logger,
   });
   return gateOutcome;

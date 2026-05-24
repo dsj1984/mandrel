@@ -36,7 +36,7 @@ Flags:
   --marker       Structured-comment type (e.g. progress, friction,
                  retro, epic-run-state, wave-0-start) (required).
   --body-file    Path to a file containing the markdown body (required).
-  --provider     Provider name (default: value in .agentrc.json orchestration).
+  --provider     Provider name (default: inferred from .agentrc.json github block).
   --help         Show this message.
 `;
 
@@ -109,11 +109,11 @@ export async function main(argv = process.argv.slice(2)) {
 
   const body = await fs.readFile(values['body-file'], 'utf8');
 
-  const { orchestration } = resolveConfig();
-  const effectiveOrchestration = values.provider
-    ? { ...orchestration, provider: values.provider }
-    : orchestration;
-  const provider = createProvider(effectiveOrchestration);
+  const config = resolveConfig();
+  const effectiveConfig = values.provider
+    ? { ...config, provider: values.provider }
+    : config;
+  const provider = createProvider(effectiveConfig);
 
   const envelope = await runPostStructuredComment({
     ticketId,

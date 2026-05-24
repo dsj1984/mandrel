@@ -88,11 +88,11 @@ Use this when bootstrap logs a warning such as
 
 1. **Create the project.** In GitHub, go to the owner (user or org) →
    Projects → New project → Board layout. Name it `<repo> — Agent
-   Protocols` (or whatever `orchestration.github.projectName` is set to
+   Protocols` (or whatever `github.projectName` is set to
    in `.agentrc.json`).
 2. **Record the project number.** Set
-   `orchestration.github.projectNumber` and
-   `orchestration.github.projectOwner` in `.agentrc.json` to match.
+   `github.projectNumber` and
+   `github.projectOwner` in `.agentrc.json` to match.
 3. **Add the `Status` field.** A freshly-created GitHub project already
    has a `Status` field with the three options (`Todo`, `In Progress`,
    `Done`) — no manual setup needed. Bootstrap's `ensureStatusField`

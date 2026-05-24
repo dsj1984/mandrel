@@ -14,7 +14,7 @@
  * What this script does:
  *   1. Validate the Story (type::story, not closed).
  *   2. Fetch origin.
- *   3. Create the Story branch from `agentSettings.baseBranch` (default
+ *   3. Create the Story branch from `project.baseBranch` (default
  *      `main`) — local-only, no remote push at this stage.
  *   4. Materialise a worktree at `.worktrees/story-<id>/` when worktree
  *      isolation is enabled; otherwise check out the branch in-place.
@@ -132,10 +132,9 @@ export async function runSingleStoryInit({
   assertDepsInstalled(cwd);
 
   const config = injectedConfig || resolveConfig({ cwd });
-  const { agentSettings, orchestration } = config;
-  const provider = injectedProvider || createProvider(orchestration);
+  const provider = injectedProvider || createProvider(config);
 
-  const baseBranch = agentSettings.baseBranch ?? 'main';
+  const baseBranch = config.project?.baseBranch ?? 'main';
   // The first arg is unused (legacy epicId slot); pass 0 to satisfy the
   // numeric-validation guard.
   const storyBranch = getStoryBranch(0, storyId);
@@ -193,7 +192,7 @@ export async function runSingleStoryInit({
     const tempRoot = config?.project?.paths?.tempRoot ?? 'temp';
     const lockPath = path.resolve(cwd, tempRoot, 'single-story-sweep.lock');
     const lockTimeoutMs =
-      orchestration?.worktreeIsolation?.sweepLockMs ?? 60_000;
+      config.delivery?.worktreeIsolation?.sweepLockMs ?? 60_000;
     try {
       const sweep = await sweepFn({
         cwd,
@@ -335,7 +334,7 @@ export async function runSingleStoryInit({
     if (runtime.worktreeEnabled) {
       const wm = new WorktreeManager({
         repoRoot: cwd,
-        config: orchestration?.worktreeIsolation,
+        config: config.delivery?.worktreeIsolation,
         logger: {
           info: (m) => progress('WORKTREE', m),
           warn: (m) => progress('WORKTREE', `⚠️ ${m}`),

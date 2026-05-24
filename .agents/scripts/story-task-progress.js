@@ -317,12 +317,12 @@ export async function runStoryTaskProgress(args) {
   }
 
   const config = providerOverride ? null : resolveConfig();
-  const provider = providerOverride ?? createProvider(config.orchestration);
+  const provider = providerOverride ?? createProvider(config);
   const notifyFn = providerOverride
     ? null
     : (ticketId, payload, opts = {}) =>
         notify(ticketId, payload, {
-          orchestration: config.orchestration,
+          config,
           provider,
           ...opts,
         });
@@ -426,7 +426,7 @@ export async function runStoryTaskProgress(args) {
 
   // 4. Upsert the canonical GitHub comment. The writer returns the
   //    rendered markdown body alongside the payload so callers can both
-  //    pass the payload up the orchestration tree and surface the body
+  //    pass the payload up the pipeline tree and surface the body
   //    to chat without re-rendering.
   const { body: renderedBody, payload } = await upsertStoryRunProgress({
     provider,

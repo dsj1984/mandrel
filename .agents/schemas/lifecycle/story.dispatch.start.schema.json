@@ -2,12 +2,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/story.dispatch.start.schema.json",
   "title": "story.dispatch.start",
-  "description": "Emitted by wave-session when a story is handed to the host-LLM for Agent-tool fanout.",
+  "description": "Emitted before a story is handed to the host-LLM for Agent-tool fanout. The wave-session path emits the minimal {storyId, waveIndex} shape inline; lifecycle-emit-story-dispatch.js emits the extended {storyId, waveIndex, dispatchedAt, attempt} shape so /epic-deliver's host loop can durably ledger every dispatch attempt for in-flight reconciliation (Story #2891).",
   "type": "object",
   "required": ["storyId", "waveIndex"],
   "properties": {
     "storyId": { "type": "integer", "minimum": 1 },
-    "waveIndex": { "type": "integer", "minimum": 0 }
+    "waveIndex": { "type": "integer", "minimum": 0 },
+    "dispatchedAt": { "type": "string", "format": "date-time" },
+    "attempt": { "type": "integer", "minimum": 1 }
   },
   "additionalProperties": false
 }

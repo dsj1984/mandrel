@@ -31,7 +31,7 @@ scenario from a known bug. If the spec is ambiguous, stop and ask.
   input AND as a human-readable manual test guide. Post the test plan as a
   structured comment on the parent Story (or Epic) GitHub Issue, or commit
   it to the project's configured test-plan path if one is listed in
-  `agentSettings.docsContextFiles`.
+  `project.docsContextFiles`.
 - **Coverage Mapping:** Explicitly map each test case to an Acceptance Criterion
   from the PRD. Flag any AC that lacks a corresponding test.
 - **Edge Cases:** Go beyond the happy path. Test boundary conditions, empty

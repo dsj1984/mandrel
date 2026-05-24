@@ -3,7 +3,8 @@
  *
  * Pure functions that translate raw GitHub API payloads (REST `Issue`,
  * GraphQL sub-issue node) into the normalized ticket shape consumed
- * throughout the orchestration layer. No I/O, no state, no `execSync` —
+ * throughout the dispatcher / reconciler layer. No I/O, no state, no
+ * `execSync` —
  * verified by the sibling test which exercises the mappers without `gh`
  * installed.
  *

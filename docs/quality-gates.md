@@ -17,7 +17,7 @@ the lift the floor gate represents.
 
 The configuration knobs that drive these gates live in
 [`docs/configuration.md`](configuration.md) under
-`agentSettings.quality.*` and `orchestration.runners.storyMergeRetry.*`. This
+`delivery.quality.*` and the framework-internal `DEFAULT_STORY_MERGE_RETRY` constant. This
 file is the runbook side — what the gate does, when it fires, and how to
 bootstrap or refresh it.
 
@@ -35,8 +35,9 @@ context as you read through any individual gate.
 `epic/<epicId>` branch in quick succession. The push step inside `story-close.js` retries
 on a non-fast-forward rejection — fetch, replay the story merge on top of
 the new remote tip, push again — bounded by
-`orchestration.runners.storyMergeRetry.maxAttempts` (default 3) and
-`orchestration.runners.storyMergeRetry.backoffMs` (default `[250, 500, 1000]`).
+`DEFAULT_STORY_MERGE_RETRY.maxAttempts` (3) and
+`DEFAULT_STORY_MERGE_RETRY.backoffMs` (`[250, 500, 1000]`) from
+`.agents/scripts/lib/config/runners.js`.
 A real
 content conflict (both stories touched the same lines) aborts the loop
 with a clear error and leaves the local tree clean for manual resolution.
@@ -154,7 +155,7 @@ touched it:
 | CRAP | ≤ 20 | per method |
 
 The floors are declared in [`.agentrc.json`](../.agentrc.json) under
-`agentSettings.quality.qualityFloors.*` (defaults baked into the helper
+`delivery.quality.gates.<gate>.floors.*` (defaults baked into the helper
 match the table above) and resolved at runtime by the shared
 helper [`lib/orchestration/check-baselines/phases/floors.js`](../.agents/scripts/lib/orchestration/check-baselines/phases/floors.js).
 All three gates run through `check-baselines.js` (coverage,
@@ -234,8 +235,9 @@ flipped category in the reset.
 Agents MUST halt, summarize blockers, and re-plan if they hit consecutive
 tool errors or perform consecutive analysis steps without modifying a
 file. When any threshold under
-[`agentSettings.limits.friction`](configuration.md#agentsettingslimits) is
-tripped, the friction logger flips the Story to `agent::blocked` and
+the qualitative anti-thrashing cues in
+[`.agents/instructions.md`](../.agents/instructions.md) are tripped, the
+friction logger flips the Story to `agent::blocked` and
 posts a structured `friction` comment on the Task so the operator has
 the trace.
 
@@ -251,7 +253,7 @@ workflows. Integrations fail if new lint warnings are introduced, and the
 baseline automatically tightens when the codebase improves.
 
 The canonical baseline file lives at `baselines/lint.json` (override via
-`agentSettings.quality.baselines.lint.path`). Refresh with:
+`delivery.quality.gates.lint.baselinePath`). Refresh with:
 
 ```bash
 node .agents/scripts/lint-baseline.js --refresh
@@ -275,9 +277,9 @@ on cyclomatic complexity, file length, and dependency counts. The
 between Epics.
 
 Refresh with `npm run maintainability:update` (or the `refreshCommand`
-configured in `agentSettings.quality.baselines.maintainability.refreshCommand`).
+configured in `delivery.quality.gates.maintainability.refreshCommand`).
 
-`agentSettings.quality.maintainability.targetDirs` controls the scanned
+`delivery.quality.gates.maintainability.targetDirs` controls the scanned
 directories — defaults to `["src"]`, accepts `{ "append": [...] }` /
 `{ "prepend": [...] }` for additive overrides.
 
@@ -438,7 +440,7 @@ lacking explicit authorization), it flips the ticket/Epic to
 `agent::blocked`, posts friction context, and waits for operator resume
 (`agent::executing`).
 
-`agentSettings.planning.riskHeuristics` remains the rubric for identifying
+`planning.riskHeuristics` remains the rubric for identifying
 high-impact operations that should trigger blocker escalation.
 
 ---

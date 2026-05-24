@@ -17,7 +17,7 @@
  *   - cli.js             — `parseAuditList`, `parseArgv`, HELP banner
  *   - runner.js          — `runAuditSuite` aggregation core
  *
- * This file is the orchestration entry-point: it parses argv, glues the
+ * This file is the pipeline entry-point: it parses argv, glues the
  * helpers together, writes the JSON envelope to stdout, and re-exports the
  * symbols that downstream callers (`audit-orchestrator.js` and the test
  * suite) already import from this path.

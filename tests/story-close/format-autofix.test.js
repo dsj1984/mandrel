@@ -137,7 +137,7 @@ describe('runFormatAutofix', () => {
     assert.match(logger.logs.warn[0], /exited non-zero/);
   });
 
-  it('honours agentSettings.commands.formatWrite when configured', () => {
+  it('honours project.commands.formatWrite when configured', () => {
     const logger = makeLogger();
     const gitStub = makeGitStub({ statusBefore: '', statusAfter: '' });
     const spawnCalls = [];
@@ -150,8 +150,10 @@ describe('runFormatAutofix', () => {
     const result = runFormatAutofix({
       cwd: '/tmp/repo',
       storyId: 11,
-      agentSettings: {
-        commands: { formatWrite: 'pnpm exec prettier --write .' },
+      config: {
+        project: {
+          commands: { formatWrite: 'pnpm exec prettier --write .' },
+        },
       },
       logger,
       spawnSync: spawn,

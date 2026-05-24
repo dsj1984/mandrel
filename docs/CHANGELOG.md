@@ -598,14 +598,14 @@ All optional unless used; untouched consumers behave as before.
 Hard cut — no aliases. Update `.agentrc.json` in lockstep; legacy shapes fail
 schema validation.
 
-- **Concurrency**: single **`orchestration.concurrency`** block (`decomposer`,
+- **Concurrency**: single **`orchestration/concurrency`** block (`decomposer`,
   `deliverRunner`, `waveGate`, `commitAssertion`, `progressReporter`).
   Removes **`runners.decomposer`**, **`runners.concurrency`**, and
   **`deliverRunner.concurrencyCap`**; use **`resolveConcurrency(orchestration)`**.
 
-- **`sizingProfile`** on dispatch-manifest Tasks that exceed **`agentSettings.planning.taskSizing.softFileCount`** file threshold (profiles: **`mechanical-sweep`**, **`atomic-rewrite`**, **`scaffolding`**).
+- **`sizingProfile`** on dispatch-manifest Tasks that exceed **`agentSettings/planning.taskSizing.softFileCount`** file threshold (profiles: **`mechanical-sweep`**, **`atomic-rewrite`**, **`scaffolding`**).
 
-- **`agentSettings.planning.taskSizing`** — tunable **`maxAcceptance`** /
+- **`agentSettings/planning.taskSizing`** — tunable **`maxAcceptance`** /
   **`maxChanges`** / **`softFileCount`** / **`softAcceptanceCount`** with
   structured oversized/missing-profile findings consumed by decomposition retry.
 
@@ -661,7 +661,7 @@ runtime defaults in code (`LIMITS_DEFAULTS`, `*_GATE_DEFAULTS`,
 - **Story resume** skips Tasks already **`agent::done`** with reachable **`commitSha`**.
 - **`epic-complete` webhook** fires after **`gh pr create`** (**`epic-deliver-finalize.js`**).
 - **Maintainability** gate default tolerance **0.001 → 0.5**, overridable via
-  **`agentSettings.quality.maintainability.tolerance`** / **`CRAP_TOLERANCE`**.
+  **`agentSettings/quality.maintainability.tolerance`** / **`CRAP_TOLERANCE`**.
 
 ---
 

@@ -168,7 +168,7 @@ export async function runEpicExecuteRecordWave({
   validateResultsReturnsXor(results, returns);
 
   const config = injectedConfig ?? resolveConfig({ cwd });
-  const provider = injectedProvider ?? createProvider(config.orchestration);
+  const provider = injectedProvider ?? createProvider(config);
 
   const existing = await epicRunStateStore.read({ provider, epicId });
   if (!existing) {

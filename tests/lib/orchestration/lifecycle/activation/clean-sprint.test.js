@@ -114,6 +114,24 @@ describe('clean-sprint activation — full close-tail ledger ordering', () => {
     // Finalizer emits (textually adjacent in its handler), but the bus
     // records the chain in the depth-first order the listeners actually
     // run — `epic.finalize.end` therefore lands LAST.
+    // Story #2894 — Finalizer is now the bus-owned writer for the PR
+    // open + handoff flow, and emits `epic.merge.ready` immediately
+    // after `epic.finalize.end` carrying `{ prNumber, epicId, prUrl }`.
+    // The Phase 8.5 chain (Watcher → AutomergePredicate) still runs
+    // and re-emits `epic.merge.ready` after CI confirms green, so the
+    // ledger records the full close-tail chain TWICE: once driven by
+    // the Phase 8.5 predicate (the inner chain that fires inside
+    // Finalizer.handle's depth-first unwind from `pr.created`) and
+    // once driven by Finalizer's own `epic.merge.ready` emit (after
+    // `epic.finalize.end`). The cross-process arm probe inside
+    // AutomergeArmer ensures the second arm is a no-op on GitHub,
+    // and the cross-process archive probe inside Cleaner ensures the
+    // archive is moved at most once — but the bus contract is "every
+    // emit fans out to every listener", so both arm + cleanup chains
+    // appear in the ledger. A future Story (F4 / MergeWatcher)
+    // collapses the dual-emit by removing AutomergePredicate from the
+    // chain entirely; until then, this is the canonical end-state for
+    // the bus-owned Finalizer.
     const expected = [
       'epic.close.end',
       'acceptance.reconcile.start',
@@ -128,6 +146,11 @@ describe('clean-sprint activation — full close-tail ledger ordering', () => {
       'epic.cleanup.end',
       'epic.complete',
       'epic.finalize.end',
+      'epic.merge.ready',
+      'epic.merge.armed',
+      'epic.cleanup.start',
+      'epic.cleanup.end',
+      'epic.complete',
     ];
     assert.deepEqual(
       emittedEvents,
@@ -193,23 +216,31 @@ describe('clean-sprint activation — full close-tail ledger ordering', () => {
   });
 
   it('confirms stubbed gh pr view --json autoMergeRequest reports auto-merge armed via the listener path', () => {
-    // The first probe ran inside AutomergeArmer.handle as the
-    // cross-process idempotency check. The fixture's probeSequence[0]
-    // returned `autoMergeRequest: null` (not armed) so the listener
-    // issued `gh pr merge --auto`. A follow-up probe (modelling the
-    // operator running `gh pr view --json autoMergeRequest` after the
-    // run) returns `probeSequence[1]` — auto-merge armed.
+    // Story #2894 — Finalizer's bus-owned `epic.merge.ready` emit
+    // (Phase 7) and AutomergePredicate's `epic.merge.ready` emit
+    // (Phase 8.5) both reach AutomergeArmer, so the cross-process
+    // probe (`gh pr view --json autoMergeRequest`) runs TWICE:
+    //   1. First emit (from the Phase 8.5 predicate, fired
+    //      depth-first from `pr.created`) — probeSequence[0] returns
+    //      `autoMergeRequest: null`, so the listener issues
+    //      `gh pr merge --auto`.
+    //   2. Second emit (from Finalizer's post-finalize.end
+    //      `epic.merge.ready`) — probeSequence[1] returns the armed
+    //      JSON envelope, so the listener short-circuits to
+    //      `_emitArmed` without re-issuing the merge command.
+    // Net effect on GitHub: `gh pr merge --auto` is invoked exactly
+    // once, which is the AC-10 at-most-once contract.
     assert.equal(
       fixture.stubs.counters.ghPrViewAutoMerge,
-      1,
-      'AutomergeArmer probed gh pr view --json autoMergeRequest exactly once',
+      2,
+      'AutomergeArmer probed gh pr view --json autoMergeRequest twice (one per epic.merge.ready emit)',
     );
     assert.equal(
       fixture.stubs.counters.ghPrMergeAuto,
       1,
       'AutomergeArmer issued gh pr merge --auto exactly once (AC-10 at-most-once)',
     );
-    // The post-arm probe (modelling an operator-side re-query):
+    // The post-arm probe (the second one, returning armed):
     const postArmProbe = fixture.stubs.probeSequence[1];
     assert.ok(
       parseAutoMergeArmed(postArmProbe.stdout),

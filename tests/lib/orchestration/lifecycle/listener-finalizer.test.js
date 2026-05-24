@@ -4,7 +4,9 @@
  * (Story #2253 / Task #2254).
  *
  * Acceptance contract:
- *   - Subscribes to `acceptance.reconcile.ok` (and ONLY that event).
+ *   - Subscribes to `acceptance.reconcile.ok` and `.waived` (Story
+ *     #2893 added `.waived`); does NOT subscribe to `.skipped` /
+ *     `.failed`.
  *   - Emits `epic.finalize.start` before any side effect.
  *   - On a fresh run with no existing PR, calls `runEpicDeliverFinalize`
  *     and emits `pr.created` then `epic.finalize.end` carrying the new
@@ -106,7 +108,7 @@ describe('Finalizer (bus integration)', () => {
     assert.equal(finalizeCalls, 1);
   });
 
-  it('subscribes ONLY to acceptance.reconcile.ok (not .skipped/.failed)', () => {
+  it('subscribes to acceptance.reconcile.{ok,waived} and NOT to .skipped/.failed', () => {
     const { bus } = recordingBus();
     const finalizer = new Finalizer({
       bus,
@@ -115,7 +117,10 @@ describe('Finalizer (bus integration)', () => {
       runFinalizeFn: async () => ({ prUrl: 'x' }),
       logger: quietLogger(),
     });
-    assert.deepEqual([...finalizer.events], ['acceptance.reconcile.ok']);
+    assert.deepEqual(
+      [...finalizer.events],
+      ['acceptance.reconcile.ok', 'acceptance.reconcile.waived'],
+    );
   });
 
   it('listener is idempotent on repeat (event, seqId)', async () => {

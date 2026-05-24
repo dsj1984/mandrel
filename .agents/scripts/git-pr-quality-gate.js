@@ -53,12 +53,8 @@ export const DEFAULT_CHECKS = Object.freeze([
 ]);
 
 function resolveChecks(config) {
-  // Post-reshape: required checks live under `github.branchProtection.requiredChecks`.
-  // Legacy `agentSettings.quality.prGate.checks` is still tolerated for ad-hoc
-  // test fixtures during the transition.
-  const configured =
-    config?.github?.branchProtection?.requiredChecks ??
-    config?.agentSettings?.quality?.prGate?.checks;
+  // Canonical: required checks live under `github.branchProtection.requiredChecks`.
+  const configured = config?.github?.branchProtection?.requiredChecks;
   if (!Array.isArray(configured) || configured.length === 0) {
     return DEFAULT_CHECKS;
   }

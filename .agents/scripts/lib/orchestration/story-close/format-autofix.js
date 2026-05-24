@@ -82,7 +82,7 @@ function listDirtyPaths(cwd, run) {
  * @param {{
  *   cwd: string,
  *   storyId: number|string,
- *   agentSettings?: object,
+ *   config?: object,
  *   timeoutMs?: number,
  *   logger?: object,
  *   spawnSync?: typeof execFileSync,
@@ -102,7 +102,7 @@ function listDirtyPaths(cwd, run) {
 export function runFormatAutofix({
   cwd,
   storyId,
-  agentSettings,
+  config,
   timeoutMs,
   logger = DefaultLogger,
   spawnSync = execFileSync,
@@ -111,10 +111,12 @@ export function runFormatAutofix({
   if (!cwd) throw new Error('runFormatAutofix: cwd is required');
 
   const git = gitSync ?? ((args, opts) => spawnSync('git', args, opts));
-  // Resolve the formatter command from `agentSettings.commands.formatWrite`
-  // so Prettier / dprint repos use their own formatter. Falls back to the
+  // Resolve the formatter command from `project.commands.formatWrite` so
+  // Prettier / dprint repos use their own formatter. Falls back to the
   // historical `npx biome format --write .` for repos that haven't opted in.
-  const writeCmdString = resolveFormatWriteCommand(agentSettings);
+  const writeCmdString = resolveFormatWriteCommand({
+    commands: config?.project?.commands,
+  });
   const [writeCmd, ...writeArgs] = writeCmdString.split(/\s+/).filter(Boolean);
 
   // Refuse to act when the tree is already dirty for unrelated reasons —
@@ -138,7 +140,7 @@ export function runFormatAutofix({
   // returns to its caller (Story #2142).
   const resolvedTimeoutMs = resolveFormatTimeoutMs({
     timeoutMs,
-    agentSettings,
+    config,
   });
   const spawnOpts = {
     cwd,
@@ -217,7 +219,7 @@ export function runFormatAutofix({
  * as "no timeout" and the spawn runs unbounded — same fail-open contract
  * coverage-capture uses.
  */
-function resolveFormatTimeoutMs({ timeoutMs, agentSettings }) {
+function resolveFormatTimeoutMs({ timeoutMs, config }) {
   if (
     typeof timeoutMs === 'number' &&
     Number.isInteger(timeoutMs) &&
@@ -226,7 +228,7 @@ function resolveFormatTimeoutMs({ timeoutMs, agentSettings }) {
     return timeoutMs;
   }
   try {
-    const resolved = getQuality({ agentSettings })?.formatAutofix?.timeoutMs;
+    const resolved = getQuality(config)?.formatAutofix?.timeoutMs;
     if (
       typeof resolved === 'number' &&
       Number.isInteger(resolved) &&

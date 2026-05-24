@@ -15,6 +15,7 @@ import {
   CONTEXT_LABELS,
   LABEL_COLORS,
   PERSONA_LABEL_PREFIX,
+  PLANNING_LABELS,
   STATUS_LABELS,
   TYPE_LABELS,
 } from './label-constants.js';
@@ -130,6 +131,18 @@ export const LABEL_TAXONOMY = [
     name: ACCEPTANCE_LABELS.N_A,
     color: LABEL_COLORS.ACCEPTANCE,
     description: 'No acceptance specification required',
+  },
+
+  // Planning axis — operator-applied waivers for the planning → delivery
+  // handoff gates. Currently the sole entry is the `healthcheck-waived`
+  // override consumed by the persist half of `epic-plan-decompose.js`
+  // when `epic-plan-healthcheck.js` returned `ok: false` for a reason
+  // the operator has triaged and accepted.
+  {
+    name: PLANNING_LABELS.HEALTHCHECK_WAIVED,
+    color: LABEL_COLORS.PLANNING,
+    description:
+      'Operator override — allows agent::ready handoff despite a failing post-plan healthcheck',
   },
 ];
 

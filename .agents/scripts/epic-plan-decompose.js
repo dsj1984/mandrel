@@ -19,7 +19,7 @@
  *                            `decomposeEpic` (legacy direct-create flow,
  *                            kept for the existing test surface).
  *   5. persist            — `runDecomposePhase` (reconciler-based flow).
- *   6. cli                — argument parsing + `main()` orchestration.
+ *   6. cli                — argument parsing + `main()` pipeline.
  *
  * Modes:
  *   --emit-context     Prints the decomposer authoring context (PRD body,

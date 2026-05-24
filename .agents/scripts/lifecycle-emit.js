@@ -156,7 +156,7 @@ export function buildPayload(parsed) {
  *
  * The listener chain requires `epicId` (decoded from the payload) and a
  * `repoRoot` (defaulted from `process.cwd()`). Story #2531 (Epic #2527)
- * additionally resolves the canonical orchestration `provider`, the
+ * additionally resolves the canonical provider, the
  * full agent `config`, and a per-Epic `checkpointer` bound to the
  * `epic-run-state` structured comment so the FULL listener roster
  * (including AutomergePredicate and BranchCleaner) subscribes — the
@@ -172,7 +172,7 @@ export function buildPayload(parsed) {
  *   listeners (defaults to `process.cwd()`)
  * @param {object} [opts.logger] optional logger forwarded to the chain
  * @param {object} [opts.provider] override provider (defaults to
- *   `createProvider(config.orchestration)` from the resolved config).
+ *   `createProvider(config)` from the resolved config).
  *   Pass `null` to explicitly skip provider-dependent listeners.
  * @param {object} [opts.checkpointer] override checkpointer (defaults
  *   to a provider/epicId-bound `epic-run-state-store` facade). Pass
@@ -213,7 +213,7 @@ export async function runLifecycleEmit({
       // resolution errors (missing/invalid .agentrc.json or
       // unconfigured provider) and falls back to the skip-cleanly
       // behaviour — the standalone CLI MUST remain usable in repos
-      // that have not configured the orchestration block yet, just
+      // that have not configured the github block yet, just
       // with a reduced listener roster.
       let resolvedConfig = config;
       let resolvedProvider = provider;
@@ -230,10 +230,10 @@ export async function runLifecycleEmit({
       }
       if (resolvedProvider === undefined) {
         try {
-          resolvedProvider = createProvider(resolvedConfig?.orchestration);
+          resolvedProvider = createProvider(resolvedConfig);
         } catch (err) {
           (logger ?? console)?.debug?.(
-            `[lifecycle-emit] createProvider skipped (no orchestration provider configured): ${err?.message ?? err}`,
+            `[lifecycle-emit] createProvider skipped (no provider configured): ${err?.message ?? err}`,
           );
           resolvedProvider = null;
         }

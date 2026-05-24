@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-/* node:coverage ignore file -- rebase-orchestration CLI; conflict-resolution heuristics over real git state, testing would assert only the mock structure */
+/* node:coverage ignore file -- rebase CLI; conflict-resolution heuristics over real git state, testing would assert only the mock structure */
 
 /**
- * git-rebase-and-resolve.js — Rebase orchestration for `/git-merge-pr` Step 2.5.
+ * git-rebase-and-resolve.js — Rebase pipeline for `/git-merge-pr` Step 2.5.
  *
  * `/git-merge-pr` previously embedded the rebase retry loop as prose in
  * markdown: "rebase onto base → if conflicts, follow the template → stage and

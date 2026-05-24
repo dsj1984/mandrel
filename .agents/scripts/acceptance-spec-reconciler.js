@@ -335,7 +335,7 @@ export async function reconcileAcceptanceSpec({
     );
   }
   const config = injectedConfig ?? resolveConfig({ cwd });
-  const provider = injectedProvider ?? createProvider(config.orchestration);
+  const provider = injectedProvider ?? createProvider(config);
   const logger = loggerImpl ?? Logger;
   const repoCwd = cwd ?? PROJECT_ROOT;
   const dir = featuresDir

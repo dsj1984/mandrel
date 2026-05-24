@@ -52,7 +52,7 @@ function makeProvider() {
   });
 }
 
-const noopConfig = () => ({ orchestration: {} });
+const noopConfig = () => ({});
 const noopProviderFactory = (provider) => () => provider;
 
 function makeFakeSelectAudits({ selectedAudits, changedFiles, ticketTitle }) {

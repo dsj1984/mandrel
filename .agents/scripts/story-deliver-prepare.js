@@ -16,7 +16,7 @@
  *   2. Apply the `dependenciesInstalled` tri-state truth table:
  *        - `'true'`     → install already succeeded; skip.
  *        - `'false'`    → install was attempted and failed; run the install
- *                         command (default `npm ci`; `agentSettings.commands`
+ *                         command (default `npm ci`; `project.commands`
  *                         doesn't carry a dedicated `install` key today —
  *                         the `commands.test` adjacency is the spec hook for
  *                         a future override).
@@ -80,7 +80,7 @@ export function deriveInstallAction(dependenciesInstalled, options = {}) {
 
 /**
  * Resolve the install command to run when `dependenciesInstalled === 'false'`.
- * `agentSettings.commands` does not currently carry a dedicated install key,
+ * `project.commands` does not currently carry a dedicated install key,
  * so this defaults to `npm ci`. Operators can override per-invocation via
  * `--install-cmd` (mirrors the spec note about a `commands.test`-adjacent
  * future override).
@@ -175,12 +175,12 @@ export async function runStoryDeliverPrepare(args) {
   }
 
   const config = providerOverride ? null : resolveConfig();
-  const provider = providerOverride ?? createProvider(config.orchestration);
+  const provider = providerOverride ?? createProvider(config);
   const notifyFn = providerOverride
     ? null
     : (ticketId, payload, opts = {}) =>
         notify(ticketId, payload, {
-          orchestration: config.orchestration,
+          config,
           provider,
           ...opts,
         });

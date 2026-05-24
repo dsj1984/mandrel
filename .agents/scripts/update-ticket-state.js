@@ -54,7 +54,7 @@ if (
 
   (async () => {
     const config = resolveConfig();
-    const provider = createProvider(config.orchestration);
+    const provider = createProvider(config);
 
     // Label-only mutation path — no state transition. Callers that just
     // need to drop a single label without flipping the agent::* state.

@@ -49,6 +49,17 @@ const CLOSE_VALIDATION_URL = pathToFileURL(
 const WORKTREE_MANAGER_URL = pathToFileURL(
   path.resolve(REPO_ROOT, '.agents/scripts/lib/worktree-manager.js'),
 ).href;
+// Epic #2880 / F14B: single-story-close.js now reaches buildDefaultGates
+// indirectly via `legacy-settings-bag.js#buildGatesFromConfig`. Mocks on
+// CLOSE_VALIDATION_URL don't intercept that transitive path, so tests
+// that assert on buildDefaultGates being invoked must also mock the
+// legacy-settings-bag module.
+const LEGACY_SETTINGS_BAG_URL = pathToFileURL(
+  path.resolve(
+    REPO_ROOT,
+    '.agents/scripts/lib/orchestration/story-close/legacy-settings-bag.js',
+  ),
+).href;
 
 /**
  * Build a `node:child_process` mock that pass-through every symbol except
@@ -95,8 +106,8 @@ function fakeConfig({
   worktreeRoot = '.no-such-worktree-root',
 } = {}) {
   return {
-    agentSettings: { baseBranch, commands: {} },
-    orchestration: {
+    project: { baseBranch, commands: {} },
+    delivery: {
       worktreeIsolation: {
         enabled: true,
         root: worktreeRoot,
@@ -112,6 +123,19 @@ function defaultGitUtilsMock({ pushImpl } = {}) {
       getStoryBranch: (_epicId, storyId) => `story-${Number(storyId)}`,
       gitSync:
         pushImpl ?? ((..._args) => ({ status: 0, stdout: '', stderr: '' })),
+      // Story #2580 sync-from-base imports these at module load. Even
+      // with `skipSync: true` the static import resolves, so the mock
+      // must surface no-op variants or the loader throws.
+      gitFetchWithRetry: async (..._args) => ({
+        status: 0,
+        stdout: '',
+        stderr: '',
+      }),
+      gitPullWithRetry: async (..._args) => ({
+        status: 0,
+        stdout: '',
+        stderr: '',
+      }),
     },
   };
 }
@@ -513,6 +537,22 @@ describe('runSingleStoryClose orchestration', () => {
 
   it('runs the validation gate when skipValidation is false (happy path)', async (t) => {
     const validationCalls = [];
+    // Mock both the direct gate factory and the legacy-settings-bag
+    // bridge that single-story-close.js now reaches through. Without
+    // the bag mock, buildGatesFromConfig calls the un-mocked
+    // buildDefaultGates and the test never observes its invocation.
+    t.mock.module(LEGACY_SETTINGS_BAG_URL, {
+      namedExports: {
+        buildGatesFromConfig: (config, opts) => {
+          validationCalls.push({
+            agentSettings: config,
+            epicBranch: opts?.epicBranch ?? 'main',
+            phase: 'build',
+          });
+          return [{ name: 'fake-gate' }];
+        },
+      },
+    });
     t.mock.module(CLOSE_VALIDATION_URL, {
       namedExports: {
         buildDefaultGates: ({ agentSettings, epicBranch }) => {

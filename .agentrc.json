@@ -24,6 +24,10 @@
         {
           "name": "baselines",
           "cmd": ["node", ".agents/scripts/check-baselines.js"]
+        },
+        {
+          "name": "lifecycle-doc-drift",
+          "cmd": ["node", ".agents/scripts/check-lifecycle-doc-drift.js"]
         }
       ]
     }

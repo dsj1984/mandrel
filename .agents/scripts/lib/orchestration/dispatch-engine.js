@@ -87,8 +87,8 @@ export async function captureLintBaseline(epicBranch, settings) {
  */
 export async function resolveAndDispatch(options) {
   const { ticketId, dryRun = false } = options;
-  const { orchestration } = resolveConfig();
-  const provider = options.provider ?? createProvider(orchestration);
+  const config = resolveConfig();
+  const provider = options.provider ?? createProvider(config);
 
   const ticket = await provider.getTicket(ticketId);
   const labels = ticket.labels || [];
@@ -158,7 +158,10 @@ export async function dispatch(options) {
     new LintBaselineService({
       exec: defaultLintBaselineExec,
       logger: Logger,
-      settings: ctx.agentSettings,
+      settings: {
+        paths: ctx.config?.project?.paths,
+        quality: ctx.config?.delivery?.quality,
+      },
     });
   ensureEpicScaffolding(ctx, (epicBranch) =>
     lintBaselineService.capture(epicBranch),

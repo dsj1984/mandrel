@@ -30,7 +30,7 @@ Before creating a PRD or Story, you must validate the request:
 
 For any feature larger than a bug fix, open (or update) a GitHub Issue
 labelled `context::prd` and linked to the parent Epic. If the project lists
-`docs/style-guide.md` in `agentSettings.docsContextFiles`, ensure the PRD's
+`docs/style-guide.md` in `project.docsContextFiles`, ensure the PRD's
 UI copy, metadata, and structural assumptions align with it.
 
 - **Problem Statement:** 1-2 sentences on the pain point.

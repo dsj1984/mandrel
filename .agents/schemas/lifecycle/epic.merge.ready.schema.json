@@ -2,13 +2,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/epic.merge.ready.schema.json",
   "title": "epic.merge.ready",
-  "description": "Emitted by AutomergePredicate when the Epic is safe to auto-merge. The ONLY event AutomergeArmer subscribes to.",
+  "description": "Emitted by Finalizer (bus-owned finalize, Story #2894) after openOrLocatePr lands the Epic→main PR, and by AutomergePredicate when Phase 8.5's CI watch confirms the same PR is safe to arm. The ONLY event AutomergeArmer subscribes to.",
   "type": "object",
   "required": ["prUrl"],
   "properties": {
     "prUrl": { "type": "string", "format": "uri", "minLength": 1 },
     "reason": { "type": "string" },
-    "epicId": { "type": "integer", "minimum": 1 }
+    "epicId": { "type": "integer", "minimum": 1 },
+    "prNumber": { "type": "integer", "minimum": 1 }
   },
   "additionalProperties": false
 }
