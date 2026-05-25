@@ -250,6 +250,22 @@ restoration.
 - → follow-up **#2071** (schema-module maintainability uplift):
   - `.agents/scripts/lib/config-settings-schema.js` (`mi: 46`)
   - `.agents/scripts/lib/config-gates-schema.js` (`mi: 51`)
+## [1.31.0](https://github.com/dsj1984/mandrel/compare/v1.30.0...v1.31.0) (2026-05-25)
+
+
+### Added
+
+* **planning:** decomposer cross-cutting rule covers registries + symbol fan-out ([#2974](https://github.com/dsj1984/mandrel/issues/2974)) ([5b3cb85](https://github.com/dsj1984/mandrel/commit/5b3cb852276653c82d1d84c084121f637d234842)), closes [#2962](https://github.com/dsj1984/mandrel/issues/2962)
+* **tests:** add test-isolate diagnostic for pollution cascades ([#2976](https://github.com/dsj1984/mandrel/issues/2976)) ([420d4f5](https://github.com/dsj1984/mandrel/commit/420d4f54487bd452766abe2c3dc7273f872338bc)), closes [#2963](https://github.com/dsj1984/mandrel/issues/2963)
+
+
+### Fixed
+
+* **config:** getQuality reads wrong shape — operator coverage timeout never honored ([#2959](https://github.com/dsj1984/mandrel/issues/2959)) ([#2969](https://github.com/dsj1984/mandrel/issues/2969)) ([09409e6](https://github.com/dsj1984/mandrel/commit/09409e6e07646fdb6b98d79b0836e95a9427a584))
+* **orchestration:** refuse PR creation against main when Story has Epic parent ([#2967](https://github.com/dsj1984/mandrel/issues/2967)) ([a5dcb0d](https://github.com/dsj1984/mandrel/commit/a5dcb0d155137caa995aedba53eff2882be541ae)), closes [#2960](https://github.com/dsj1984/mandrel/issues/2960)
+* **story-close:** assert final label is agent::done before returning success ([#2961](https://github.com/dsj1984/mandrel/issues/2961)) ([#2968](https://github.com/dsj1984/mandrel/issues/2968)) ([e112131](https://github.com/dsj1984/mandrel/commit/e112131c774ea34334be5a7ec4f9618a20a29cad))
+* **tests:** scrub NOTIFICATION_WEBHOOK_URL from test child env (resolves [#2975](https://github.com/dsj1984/mandrel/issues/2975)) ([#2977](https://github.com/dsj1984/mandrel/issues/2977)) ([da0ae04](https://github.com/dsj1984/mandrel/commit/da0ae044cff06885a0007343a912e1523bfb5d67))
+
 ## [1.30.0](https://github.com/dsj1984/mandrel/compare/v1.29.0...v1.30.0) (2026-05-23)
 
 
