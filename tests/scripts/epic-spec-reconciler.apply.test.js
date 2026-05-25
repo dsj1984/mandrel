@@ -393,7 +393,13 @@ describe('reconciler apply — relink path', () => {
     assert.deepEqual(add.args, [8002, 5010]);
   });
 
-  it('rewrites dependsOn footer through updateTicket body mutation', async () => {
+  it('does not write the body from the relink path (Story #2982)', async () => {
+    // Story #2982 — the relink op previously wrote a body containing
+    // only the `blocked by` footer, which stripped description +
+    // `parent: #N` + `Epic: #M` on every dependsOn change. The diff
+    // engine now recomposes the canonical orchestrator footer and
+    // routes the body update through `applyUpdate`; relink dispatches
+    // only the parent sub-issue add/remove (when parent changed).
     const provider = new StubProvider();
     const plan = emptyPlan();
     plan.relinks.push(
@@ -407,8 +413,8 @@ describe('reconciler apply — relink path', () => {
     await apply(plan, provider, {
       slugToIssue: { 'story-blocker': 7001 },
     });
-    const call = provider.calls.find((c) => c.kind === 'updateTicket');
-    assert.match(call.args[1].body, /blocked by #7001/);
+    const updateCalls = provider.calls.filter((c) => c.kind === 'updateTicket');
+    assert.equal(updateCalls.length, 0);
   });
 });
 

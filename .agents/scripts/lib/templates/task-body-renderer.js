@@ -124,3 +124,37 @@ export function composeTaskBody({
 export function hasStructuredHeader(markdownBody) {
   return /^## Goal\n/.test((markdownBody ?? '').trimStart());
 }
+
+/**
+ * Strip the canonical orchestrator footer from a rendered body and return
+ * just the description portion. The footer is anchored on a line that
+ * matches `^---$` followed immediately by `parent: #\d+`; everything from
+ * that `---` line onward (including any trailing `blocked by` block) is
+ * removed. Trailing whitespace is trimmed so the returned string is byte-
+ * stable when fed back through `composeTaskBody`.
+ *
+ * Story #2982 — the `/epic-plan` decompose `--resume` reconciler compared
+ * a spec body (description only) against a GH body (description + footer)
+ * and emitted a destructive Update that wrote just the description back,
+ * stripping the canonical footer that the cascade depends on. The diff
+ * engine now strips the footer before comparison so a body whose
+ * description already matches no longer flaps; the apply engine
+ * re-composes the canonical footer when a genuine description change
+ * lands, so the footer is invariant across reconciles.
+ *
+ * Safe to call on bodies without a footer — returns the input unchanged
+ * (modulo trailing-whitespace trim).
+ *
+ * @param {string|null|undefined} markdownBody
+ * @returns {string}
+ */
+export function stripOrchestratorFooter(markdownBody) {
+  const body = typeof markdownBody === 'string' ? markdownBody : '';
+  // Match a `---` line followed by `parent: #N` on the next line. The
+  // multi-line flag anchors `^---$` per line; `[ \t]*` tolerates trailing
+  // whitespace after the separator. Greedy from the match through end of
+  // string captures any trailing `Epic:`/`audit-snapshot:`/`blocked by`
+  // lines (and any later dup-footer blocks) in one pass.
+  const FOOTER_RE = /\n?---[ \t]*\r?\n+parent:\s*#\d+[\s\S]*$/;
+  return body.replace(FOOTER_RE, '').replace(/\s+$/, '');
+}
