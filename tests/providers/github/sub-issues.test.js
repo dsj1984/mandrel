@@ -41,8 +41,12 @@ const cacheMod = await import(
 );
 
 const { SubIssueGateway } = subIssuesMod;
-const { ADD_SUB_ISSUE_MUTATION, REMOVE_SUB_ISSUE_MUTATION, SUB_ISSUES_QUERY } =
-  errorsMod;
+const {
+  ADD_SUB_ISSUE_MUTATION,
+  PARENT_ISSUE_QUERY,
+  REMOVE_SUB_ISSUE_MUTATION,
+  SUB_ISSUES_QUERY,
+} = errorsMod;
 const { createInlineTicketCache } = cacheMod;
 
 describe('providers/github/sub-issues.js — SubIssueGateway', () => {
@@ -191,6 +195,49 @@ describe('providers/github/sub-issues.js — SubIssueGateway', () => {
     });
     const ids = await gateway.getNativeSubIssues('parent_node', 1);
     assert.deepEqual(ids, []);
+  });
+
+  it('getNativeParent: returns the parent issue number via the PARENT_ISSUE_QUERY (Story #2982)', async () => {
+    const calls = [];
+    const ghGraphql = async (query, variables) => {
+      calls.push({ query, variables });
+      return { node: { parent: { number: 784, id: 'NODE_PARENT' } } };
+    };
+    const gateway = new SubIssueGateway({ ghGraphql });
+    const parent = await gateway.getNativeParent('NODE_CHILD', 50);
+    assert.equal(parent, 784);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].query, PARENT_ISSUE_QUERY);
+    assert.deepEqual(calls[0].variables, { id: 'NODE_CHILD' });
+  });
+
+  it('getNativeParent: returns null when the child has no parent link', async () => {
+    const ghGraphql = async () => ({ node: { parent: null } });
+    const gateway = new SubIssueGateway({ ghGraphql });
+    const parent = await gateway.getNativeParent('NODE_CHILD', 50);
+    assert.equal(parent, null);
+  });
+
+  it('getNativeParent: returns null when the sub-issues feature is disabled', async () => {
+    const ghGraphql = async () => {
+      throw new Error('feature off');
+    };
+    const classify = () => 'feature-disabled';
+    const gateway = new SubIssueGateway({
+      ghGraphql,
+      classifyGithubError: classify,
+    });
+    const parent = await gateway.getNativeParent('NODE_CHILD', 50);
+    assert.equal(parent, null);
+  });
+
+  it('getNativeParent: returns null when called with no node id', async () => {
+    const ghGraphql = async () => {
+      throw new Error('should not be called');
+    };
+    const gateway = new SubIssueGateway({ ghGraphql });
+    const parent = await gateway.getNativeParent(undefined, 50);
+    assert.equal(parent, null);
   });
 
   it('reconcileSubIssueLinks: backfills missing links and reports the totals', async () => {

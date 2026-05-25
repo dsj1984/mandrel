@@ -486,12 +486,13 @@ async function applyRelink(op, provider, slugToIssue) {
       }
     }
   }
-  if (op.dependsOn) {
-    const footer = renderDependsOnFooter(op.dependsOn.after, slugToIssue);
-    await provider.updateTicket(op.issueNumber, {
-      body: footer ? footer.trimStart() : '',
-    });
-  }
+  // Story #2982 — dependsOn edge changes no longer write the body here.
+  // The diff engine recomposes the canonical orchestrator footer
+  // (`---\nparent:`/`Epic:`/`blocked by`) and routes a body change
+  // through `applyUpdate`. Writing it from the relink path stripped
+  // description + parent + Epic on every dep change. The relink op
+  // remains the authoritative carrier of the dependsOn delta for the
+  // state writer and for the parent sub-issue add/remove above.
   return {
     slug: op.slug,
     entity: op.entity,

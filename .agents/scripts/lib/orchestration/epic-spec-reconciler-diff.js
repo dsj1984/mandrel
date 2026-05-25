@@ -80,6 +80,10 @@
  *     issue with an empty body.
  */
 
+import {
+  composeTaskBody,
+  stripOrchestratorFooter,
+} from '../templates/task-body-renderer.js';
 import { assertPlanLabelAllowList } from './epic-spec-reconciler-discriminator.js';
 import {
   closeOp,
@@ -169,6 +173,56 @@ function normaliseBody(value) {
 }
 
 /**
+ * Compose the canonical orchestrator footer onto a spec body for non-epic
+ * entities. Resolves `parentSlug`/`dependsOn` slugs against the running
+ * `state.mapping` so the rendered footer carries the live issue numbers.
+ * Pure: identical inputs produce a byte-identical body.
+ *
+ * Story #2982 — without this re-composition, a body Update sourced from
+ * the YAML spec writes just the description, silently stripping
+ * `parent: #N` / `Epic: #M` / `blocked by #X` and breaking the cascade.
+ *
+ * @param {{entity: string, parentSlug?: string|null, dependsOn?: string[]}} specEntity
+ * @param {string} specBody
+ * @param {{state?: StateInput}} ctx
+ * @returns {string}
+ */
+function composeBodyWithFooter(specEntity, specBody, ctx) {
+  const state = ctx?.state ?? {};
+  const mapping = state.mapping ?? {};
+  const parentSlug = specEntity.parentSlug ?? null;
+  const parentId =
+    parentSlug && mapping[parentSlug]
+      ? mapping[parentSlug].issueNumber
+      : undefined;
+  // Without a resolved parent we cannot render a meaningful footer.
+  // Fall back to the raw spec body — apply still writes something the
+  // operator can inspect; the missing-parent case is rare (the only
+  // current trigger is a relink-in-flight where the new parent has not
+  // landed yet, which surfaces elsewhere via the relink op anyway).
+  if (typeof parentId !== 'number') return specBody;
+  const epicId = typeof state.epicId === 'number' ? state.epicId : undefined;
+  const dependencies = Array.isArray(specEntity.dependsOn)
+    ? specEntity.dependsOn
+        .map((slug) => mapping[slug]?.issueNumber)
+        .filter((id) => typeof id === 'number')
+    : [];
+  // Strip any orchestrator footer the spec already carries before
+  // recomposing. Without the strip we double-wrap when the spec body
+  // round-tripped through `reverse-bootstrap` (which stores the raw GH
+  // body verbatim, footer included) or any other producer that emits a
+  // canonical-form body. With the strip, the function is idempotent
+  // against its own output and against the createTicket-rendered shape.
+  const head = stripOrchestratorFooter(specBody);
+  return composeTaskBody({
+    body: head,
+    parentId,
+    epicId,
+    dependencies,
+  });
+}
+
+/**
  * Pick the ghState observation for an issue number, coercing the key
  * type so numeric and string keys interop.
  *
@@ -190,7 +244,7 @@ function ghObservation(ghState, issueNumber) {
  * @param {StateMappingEntry} mapping
  * @returns {Record<string, {before: unknown, after: unknown}>}
  */
-function fieldChanges(specEntity, obs, mapping) {
+function fieldChanges(specEntity, obs, mapping, ctx = {}) {
   const changes = {};
   if (!obs) {
     // Mapped but GH side missing → treat as full update (apply will
@@ -213,8 +267,27 @@ function fieldChanges(specEntity, obs, mapping) {
   if (typeof specEntity.body === 'string') {
     const specBody = specEntity.body;
     const obsBody = normaliseBody(obs.body);
-    if (specBody !== obsBody) {
-      changes.body = { before: obsBody, after: specBody };
+    const isEpic = specEntity.entity === ENTITY_KINDS.EPIC;
+    if (isEpic) {
+      if (specBody !== obsBody) {
+        changes.body = { before: obsBody, after: specBody };
+      }
+    } else {
+      // Story #2982 — for non-epic entities, compare the spec body
+      // (re-composed with the canonical orchestrator footer) against
+      // the raw GH body. Single comparison catches:
+      //   • description-only changes,
+      //   • parent/Epic id changes (footer differs),
+      //   • dependsOn changes (`blocked by` block differs),
+      //   • duplicated footer blocks (obs has more than one),
+      //   • missing footer (obs has none).
+      // Emit a body change only when the canonical form differs from
+      // what is on GH today — and write the canonical form back, so the
+      // footer cascade-readers depend on stays intact across resumes.
+      const after = composeBodyWithFooter(specEntity, specBody, ctx);
+      if (after !== obsBody) {
+        changes.body = { before: obsBody, after };
+      }
     }
   }
   const effectiveAfterLabels =
@@ -408,7 +481,7 @@ export function diff({ spec, state, ghState } = {}) {
 
     // Mapped: check for content updates.
     const obs = ghObservation(ghState, mapped.issueNumber);
-    const changes = fieldChanges(entity, obs, mapped);
+    const changes = fieldChanges(entity, obs, mapped, { state });
     if (Object.keys(changes).length > 0) {
       plan.updates.push(
         updateOp({

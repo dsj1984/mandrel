@@ -47,6 +47,7 @@ function buildProvider() {
   };
   provider.subIssues = {
     getNativeSubIssues: async () => 'subIssues.getNativeSubIssues',
+    getNativeParent: async () => 'subIssues.getNativeParent',
     addSubIssue: async () => 'subIssues.addSubIssue',
     removeSubIssue: async () => 'subIssues.removeSubIssue',
     reconcileSubIssueLinks: async () => 'subIssues.reconcileSubIssueLinks',
@@ -132,6 +133,7 @@ describe('providers/github.js — surface parity (Story #2462 / Task #2481)', ()
       ['_applyLabelMutations', [1, {}, false], 'tickets._applyLabelMutations'],
       // sub-issues
       ['_getNativeSubIssues', ['NODE', 1], 'subIssues.getNativeSubIssues'],
+      ['_getNativeParent', ['NODE', 1], 'subIssues.getNativeParent'],
       ['addSubIssue', [1, 'NODE'], 'subIssues.addSubIssue'],
       ['removeSubIssue', [1, 2], 'subIssues.removeSubIssue'],
       ['reconcileSubIssueLinks', [1], 'subIssues.reconcileSubIssueLinks'],

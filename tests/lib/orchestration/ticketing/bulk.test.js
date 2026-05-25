@@ -343,3 +343,124 @@ describe('ticketing/bulk — cascadeParentState (Story #2676)', () => {
     assert.deepEqual(result.failed, []);
   });
 });
+
+/**
+ * Story #2982 — regression: a Story whose body lost the `parent: #N`
+ * orchestrator footer (and whose `blocks:` deps are empty) must still
+ * cascade upward to its native Sub-Issue parent so intermediate
+ * Features cascade-close when their last child completes.
+ */
+class NativeParentMock extends ITicketingProvider {
+  constructor() {
+    super();
+    this.updates = [];
+    this.comments = [];
+    this.nativeParentCalls = [];
+    // Hierarchy: Feature 200 ← Story 50 (body has no parent: marker)
+    this.tickets = {
+      50: {
+        id: 50,
+        nodeId: 'NODE_STORY_50',
+        labels: ['agent::done', 'type::story'],
+        // Description-only body — the reconciler stripped the canonical
+        // footer (see Issue 2 in #2982). Without the body marker AND
+        // without `blocks:` deps, the only signal of the parent is the
+        // native Sub-Issues link.
+        body: 'Story description with no orchestrator footer.',
+        state: 'closed',
+      },
+      200: {
+        id: 200,
+        nodeId: 'NODE_FEAT_200',
+        labels: ['agent::executing', 'type::feature'],
+        body: 'Feature body',
+        state: 'open',
+      },
+    };
+    this.deps = {
+      50: { blocks: [], blockedBy: [] },
+      200: { blocks: [], blockedBy: [] },
+    };
+    this.subTickets = {
+      50: [],
+      200: [this.tickets[50]],
+    };
+  }
+  async getTicket(id) {
+    return this.tickets[id];
+  }
+  async updateTicket(id, mutations) {
+    this.updates.push({ id, mutations });
+    if (mutations.labels) {
+      const rm = mutations.labels.remove || [];
+      const add = mutations.labels.add || [];
+      let current = this.tickets[id].labels.filter((l) => !rm.includes(l));
+      current = [...new Set([...current, ...add])];
+      this.tickets[id].labels = current;
+    }
+    if (mutations.state !== undefined) this.tickets[id].state = mutations.state;
+  }
+  async postComment(id, payload) {
+    this.comments.push({ id, payload });
+  }
+  async getTicketDependencies(id) {
+    return this.deps[id];
+  }
+  async getSubTickets(id) {
+    return this.subTickets[id].map((t) => this.tickets[t.id]);
+  }
+  async _getNativeParent(nodeId, number) {
+    this.nativeParentCalls.push({ nodeId, number });
+    if (number === 50) return 200;
+    return null;
+  }
+}
+
+describe('ticketing/bulk — cascadeCompletion native parent fallback (Story #2982)', () => {
+  it('cascades to the native Sub-Issue parent when body markers and blocks are absent', async () => {
+    const mock = new NativeParentMock();
+    __resetParentCascadeLocks();
+    __setCascadeRetryDelays({ delays: [] });
+    const result = await cascadeCompletion(mock, 50);
+    const childLookup = mock.nativeParentCalls.find((c) => c.number === 50);
+    assert.ok(
+      childLookup,
+      'native parent lookup should fire for the child Story #50',
+    );
+    assert.deepEqual(result.cascadedTo, [200]);
+    assert.deepEqual(result.failed, []);
+    assert.equal(
+      mock.tickets[200].labels.includes(STATE_LABELS.DONE),
+      true,
+      'Feature should flip to agent::done via native-parent cascade',
+    );
+  });
+
+  it('skips the native fallback when blocks already supplies a parent', async () => {
+    const mock = new NativeParentMock();
+    __resetParentCascadeLocks();
+    __setCascadeRetryDelays({ delays: [] });
+    mock.deps[50] = { blocks: [200], blockedBy: [] };
+    await cascadeCompletion(mock, 50);
+    const childLookup = mock.nativeParentCalls.find((c) => c.number === 50);
+    assert.equal(
+      childLookup,
+      undefined,
+      'should not query native parent for #50 when blocks names the parent',
+    );
+  });
+
+  it('skips the native fallback when the body footer names a parent', async () => {
+    const mock = new NativeParentMock();
+    __resetParentCascadeLocks();
+    __setCascadeRetryDelays({ delays: [] });
+    mock.tickets[50].body = 'desc\n\n---\nparent: #200';
+    await cascadeCompletion(mock, 50);
+    const childLookup = mock.nativeParentCalls.find((c) => c.number === 50);
+    assert.equal(
+      childLookup,
+      undefined,
+      'should not query native parent for #50 when body footer names the parent',
+    );
+  });
+});

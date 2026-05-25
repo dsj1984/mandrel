@@ -449,6 +449,33 @@ export async function cascadeCompletion(provider, ticketId, opts = {}) {
     parsedParents = parentMatch.map((m) => Number.parseInt(m[1], 10));
   }
 
+  // Story #2982 — third fallback: GitHub's native Sub-Issues API. The
+  // resume reconciler can strip the `parent: #N` orchestrator footer
+  // from a Story body (see Issue 2 in #2982); without the body marker
+  // the cascade silently returned `{ cascadedTo: [], failed: [] }` and
+  // left intermediate Feature tickets stranded OPEN. The native link is
+  // independent of body text, so consult it when the first two
+  // strategies came back empty.
+  if (
+    parsedParents.length === 0 &&
+    typeof provider._getNativeParent === 'function' &&
+    ticket.nodeId
+  ) {
+    try {
+      const nativeParent = await provider._getNativeParent(
+        ticket.nodeId,
+        ticketId,
+      );
+      if (typeof nativeParent === 'number') {
+        parsedParents = [nativeParent];
+      }
+    } catch (err) {
+      Logger.warn(
+        `[cascadeCompletion] native parent lookup failed for #${ticketId}: ${err.message}`,
+      );
+    }
+  }
+
   if (parsedParents.length === 0) {
     return { cascadedTo: [], failed: [] };
   }

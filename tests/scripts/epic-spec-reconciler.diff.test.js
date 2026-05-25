@@ -632,3 +632,179 @@ describe('reconciler diff — Epic body preservation when spec omits body (Story
     assert.equal(epicUpdate, undefined);
   });
 });
+
+/**
+ * Story #2982 — the resume reconciler stripped the canonical
+ * orchestrator footer (`---\nparent: #N\n[Epic: #M\n][blocked by #X\n]`)
+ * from Story bodies. Two-part contract:
+ *   • A Story whose description matches the spec must not emit a
+ *     destructive body Update just because GH carries the canonical
+ *     footer (or a duplicated one).
+ *   • When the description genuinely changes, the emitted body Update
+ *     must carry the canonical footer in its `after` value so apply
+ *     writes it back intact.
+ */
+describe('reconciler diff — orchestrator footer preservation (Story #2982)', () => {
+  function buildInputs({ specBody, obsBody }) {
+    const spec = {
+      epic: {
+        id: 7000,
+        title: 'Cascade Epic',
+        labels: ['type::epic'],
+        body: 'epic body',
+      },
+      features: [
+        {
+          slug: 'feat-cascade',
+          title: 'Cascade Feature',
+          labels: ['type::feature'],
+          stories: [
+            {
+              slug: 'story-cascade',
+              title: 'Cascade Story',
+              labels: ['type::story'],
+              body: specBody,
+              wave: 0,
+              dependsOn: ['story-dep'],
+              tasks: [],
+            },
+            {
+              slug: 'story-dep',
+              title: 'Dep Story',
+              labels: ['type::story'],
+              body: 'dep description',
+              wave: 0,
+              dependsOn: [],
+              tasks: [],
+            },
+          ],
+        },
+      ],
+    };
+    const state = {
+      epicId: 7000,
+      mapping: {
+        epic: { issueNumber: 7000, entity: 'epic', parentSlug: null },
+        'feat-cascade': {
+          issueNumber: 7100,
+          entity: 'feature',
+          parentSlug: 'epic',
+        },
+        'story-cascade': {
+          issueNumber: 7200,
+          entity: 'story',
+          parentSlug: 'feat-cascade',
+          dependsOn: ['story-dep'],
+        },
+        'story-dep': {
+          issueNumber: 7201,
+          entity: 'story',
+          parentSlug: 'feat-cascade',
+          dependsOn: [],
+        },
+      },
+    };
+    const ghState = {
+      7000: {
+        title: 'Cascade Epic',
+        body: 'epic body',
+        labels: ['type::epic'],
+      },
+      7100: {
+        title: 'Cascade Feature',
+        body: '',
+        labels: ['type::feature'],
+      },
+      7200: {
+        title: 'Cascade Story',
+        body: obsBody,
+        labels: ['type::story'],
+      },
+      7201: {
+        title: 'Dep Story',
+        body: 'dep description',
+        labels: ['type::story'],
+      },
+    };
+    return { spec, state, ghState };
+  }
+
+  const canonicalFooter =
+    '\n\n---\nparent: #7100\nEpic: #7000\n\nblocked by #7201';
+
+  it('does not flap when GH already carries the canonical footer (description match)', () => {
+    const description = 'story description';
+    const { spec, state, ghState } = buildInputs({
+      specBody: description,
+      obsBody: `${description}${canonicalFooter}`,
+    });
+    const plan = diff({ spec, state, ghState });
+    const storyUpdate = plan.updates.find((op) => op.slug === 'story-cascade');
+    assert.equal(
+      storyUpdate,
+      undefined,
+      'no body Update should fire when description matches and footer is canonical',
+    );
+  });
+
+  it('recomposes the canonical footer onto the after value when description changes', () => {
+    const { spec, state, ghState } = buildInputs({
+      specBody: 'new description',
+      obsBody: `old description${canonicalFooter}`,
+    });
+    const plan = diff({ spec, state, ghState });
+    const storyUpdate = plan.updates.find((op) => op.slug === 'story-cascade');
+    assert.ok(storyUpdate, 'an Update should fire when description changes');
+    assert.ok(storyUpdate.changes.body);
+    assert.match(storyUpdate.changes.body.after, /^new description/);
+    assert.match(storyUpdate.changes.body.after, /\n---\nparent: #7100\n/);
+    assert.match(storyUpdate.changes.body.after, /Epic: #7000/);
+    assert.match(storyUpdate.changes.body.after, /blocked by #7201/);
+  });
+
+  it('emits an Update that normalises a duplicated footer block to a single canonical form', () => {
+    const description = 'story description';
+    // Epic #775 reproduction: dup `blocked by` lines outside the
+    // separator plus the canonical footer underneath.
+    const obsBody = `${description}\n\nblocked by #7201\n\n---\nparent: #7100\nEpic: #7000\n\nblocked by #7201`;
+    const { spec, state, ghState } = buildInputs({
+      specBody: description,
+      obsBody,
+    });
+    const plan = diff({ spec, state, ghState });
+    const storyUpdate = plan.updates.find((op) => op.slug === 'story-cascade');
+    assert.ok(
+      storyUpdate,
+      'an Update should fire to collapse the duplicated trailer',
+    );
+    const after = storyUpdate.changes.body.after;
+    assert.match(after, /^story description\n\n---\nparent: #7100\n/);
+    const parentMatches = after.match(/parent: #7100/g) ?? [];
+    assert.equal(
+      parentMatches.length,
+      1,
+      'recomposed body must carry exactly one parent: marker',
+    );
+    const blockedMatches = after.match(/blocked by #7201/g) ?? [];
+    assert.equal(
+      blockedMatches.length,
+      1,
+      'recomposed body must carry exactly one blocked by marker',
+    );
+  });
+
+  it('recomposes the canonical footer when the GH body has no footer (resume after strip)', () => {
+    const description = 'story description';
+    const { spec, state, ghState } = buildInputs({
+      specBody: description,
+      obsBody: description,
+    });
+    const plan = diff({ spec, state, ghState });
+    const storyUpdate = plan.updates.find((op) => op.slug === 'story-cascade');
+    assert.ok(
+      storyUpdate,
+      'an Update should fire to restore the missing footer',
+    );
+    assert.match(storyUpdate.changes.body.after, /\n---\nparent: #7100\n/);
+  });
+});

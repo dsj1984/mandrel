@@ -110,7 +110,12 @@ function buildQuiescentFixture() {
     {
       id: FEATURE_ID,
       title: 'Migration Feature',
-      body: `Feature body.\n\n---\nparent: #${EPIC_ID}\nEpic: #${EPIC_ID}`,
+      // Canonical form per `renderOrchestratorFooter`: when parent IS
+      // the Epic, the renderer skips the redundant `Epic: #N` line.
+      // Story #2982 — the reconciler diff now normalises non-canonical
+      // bodies on reconcile, so the fixture must already be canonical
+      // for the bootstrap round-trip to be a no-op.
+      body: `Feature body.\n\n---\nparent: #${EPIC_ID}`,
       labels: ['type::feature'],
     },
     {
