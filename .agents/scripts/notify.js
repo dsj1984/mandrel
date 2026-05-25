@@ -190,6 +190,23 @@ export async function notify(ticketId, payload, opts = {}) {
   if (event && webhookEvents.has(event)) {
     // `opts.webhookUrl === undefined` → resolve from process env.
     // Explicit `null` or string → caller was explicit; don't resolve.
+    //
+    // Test-mode guard: when NODE_ENV=test and the caller did NOT
+    // explicitly pass `opts.webhookUrl`, refuse to resolve the env URL.
+    // Operators keep a real webhook URL in `.env` for development; the
+    // run-tests.js wrapper scrubs it from the test child env as a first
+    // line of defense, but this guard catches any test entry point that
+    // bypasses the wrapper (e.g., `node --test` invoked directly). Set
+    // MANDREL_ALLOW_TEST_WEBHOOKS=1 to opt back in.
+    const inTestMode = process.env.NODE_ENV === 'test';
+    const callerOptedIn = opts.webhookUrl !== undefined;
+    const allowTestWebhooks = process.env.MANDREL_ALLOW_TEST_WEBHOOKS === '1';
+    if (inTestMode && !callerOptedIn && !allowTestWebhooks) {
+      Logger.warn(
+        `[Notify] Webhook event (${event}) suppressed — NODE_ENV=test and caller did not pass opts.webhookUrl. Set MANDREL_ALLOW_TEST_WEBHOOKS=1 to override.`,
+      );
+      return;
+    }
     const webhookUrl =
       opts.webhookUrl === undefined ? resolveWebhookUrl() : opts.webhookUrl;
     if (webhookUrl) {

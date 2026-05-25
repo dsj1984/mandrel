@@ -10,10 +10,15 @@
  * adapted to the new wave-level shape below — preserves test ergonomics
  * without churning every call site.
  *
- * Webhook safety: the default `cwd` points at a nonexistent directory and
- * `fetchImpl` is a no-op stub, so the unified `notify()` dispatcher cannot
- * resolve a real webhook URL or call the real `fetch`. Tests that exercise
- * webhook delivery must override both explicitly.
+ * Webhook safety: `notify` defaults to a no-op stub so the production
+ * `notify()` import wired in `epic-runner/factory.js` never runs from
+ * tests that drive the lifecycle through to allowlisted events
+ * (`wave.end`, `epic.complete`, …). `fetchImpl` and a nonexistent `cwd`
+ * are also stubbed but neither protects the webhook leg on their own —
+ * `notify()`'s `sendWebhook` uses global `fetch`, and webhook URL
+ * resolution reads from `process.env`. Tests that intentionally
+ * exercise webhook delivery MUST explicitly pass `notify` (and
+ * `webhookUrl` if they want the dispatcher to fire).
  */
 
 import { EpicRunnerContext } from '../../.agents/scripts/lib/orchestration/context.js';
@@ -26,6 +31,10 @@ function quietLogger() {
 
 async function stubFetch() {
   return { ok: true, status: 200 };
+}
+
+async function stubNotify() {
+  return { ok: true };
 }
 
 /**
@@ -72,6 +81,7 @@ export function buildCtx(overrides = {}) {
     logger: quietLogger(),
     cwd: WEBHOOK_SAFE_CWD,
     fetchImpl: stubFetch,
+    notify: stubNotify,
     // Default adapter returns a positive count so post-wave commit assertion
     // does not reclassify `done` stories in unrelated tests. Tests that
     // exercise the zero-delta path pass their own gitAdapter override.

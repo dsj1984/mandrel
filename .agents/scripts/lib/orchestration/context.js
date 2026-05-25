@@ -71,6 +71,10 @@ export class EpicRunnerContext extends OrchestrationContext {
     this.gitAdapter = opts.gitAdapter ?? null;
     this.commitAssertion = opts.commitAssertion ?? null;
     this.autoVersionBump = Boolean(opts.autoVersionBump);
+    // Optional notify override. When null, `epic-runner/factory.js` wires
+    // the production `notify()` import. Tests pass a stub to keep webhook
+    // delivery out of the loop.
+    this.notify = opts.notify ?? null;
     if (new.target === EpicRunnerContext) {
       this.validate();
       Object.freeze(this);
