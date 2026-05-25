@@ -250,6 +250,13 @@ restoration.
 - → follow-up **#2071** (schema-module maintainability uplift):
   - `.agents/scripts/lib/config-settings-schema.js` (`mi: 46`)
   - `.agents/scripts/lib/config-gates-schema.js` (`mi: 51`)
+## [1.32.0](https://github.com/dsj1984/mandrel/compare/v1.31.0...v1.32.0) (2026-05-25)
+
+
+### Fixed
+
+* **workspace:** include .mcp.json in default bootstrap file set ([#2978](https://github.com/dsj1984/mandrel/issues/2978)) ([0cdd9bd](https://github.com/dsj1984/mandrel/commit/0cdd9bdfaace8954a377c3e371929ed9d7c512a2))
+
 ## [1.31.0](https://github.com/dsj1984/mandrel/compare/v1.30.0...v1.31.0) (2026-05-25)
 
 
