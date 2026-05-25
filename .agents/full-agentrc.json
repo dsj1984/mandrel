@@ -119,7 +119,7 @@
       "allowSymlinkOnWindows": false,
       "reapOnSuccess": true,
       "reapOnCancel": true,
-      "bootstrapFiles": [".env"]
+      "bootstrapFiles": [".env", ".mcp.json"]
     },
     "signals": {
       "hotspot": { "p95Multiplier": 1.25 },

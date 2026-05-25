@@ -135,7 +135,7 @@ top-level keys are validation errors.
 | `worktreeIsolation.allowSymlinkOnWindows` | No | `boolean` | — | — |
 | `worktreeIsolation.reapOnSuccess` | No | `boolean` | — | — |
 | `worktreeIsolation.reapOnCancel` | No | `boolean` | — | — |
-| `worktreeIsolation.bootstrapFiles` | No | `array<string>` | — | — |
+| `worktreeIsolation.bootstrapFiles` | No | `array<string>` | `[".env",".mcp.json"]` | — |
 | `signals` | No | `object` | — | Nested configuration block. |
 | `signals.hotspot` | No | `object` | — | Nested configuration block. |
 | `signals.hotspot.p95Multiplier` | No | `number` | — | — |
@@ -471,7 +471,7 @@ checkout's HEAD.
 | `allowSymlinkOnWindows` | No              | `false`          | Permit symlink strategy on Windows (requires admin/dev mode). |
 | `reapOnSuccess`         | No              | `true`           | Reap the worktree after a successful Story close.            |
 | `reapOnCancel`          | No              | `true`           | Reap the worktree if the Story is cancelled.                 |
-| `bootstrapFiles`        | No              | `[]`             | Untracked files (e.g. `.env`) copied into each new worktree. |
+| `bootstrapFiles`        | No              | `[".env", ".mcp.json"]` | Untracked files copied into each new worktree. |
 
 ### `delivery.signals`
 

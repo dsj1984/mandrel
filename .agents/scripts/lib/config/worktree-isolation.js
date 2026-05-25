@@ -18,7 +18,7 @@ export const WORKTREE_ISOLATION_DEFAULTS = Object.freeze({
   allowSymlinkOnWindows: false,
   reapOnSuccess: true,
   reapOnCancel: true,
-  bootstrapFiles: Object.freeze(['.env']),
+  bootstrapFiles: Object.freeze(['.env', '.mcp.json']),
 });
 
 /**

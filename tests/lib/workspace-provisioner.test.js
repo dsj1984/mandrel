@@ -28,8 +28,8 @@ function quietLogger() {
   };
 }
 
-test('DEFAULT_WORKSPACE_FILES is [.env]', () => {
-  assert.deepEqual(DEFAULT_WORKSPACE_FILES, ['.env']);
+test('DEFAULT_WORKSPACE_FILES is [.env, .mcp.json]', () => {
+  assert.deepEqual(DEFAULT_WORKSPACE_FILES, ['.env', '.mcp.json']);
 });
 
 test('resolveWorkspaceFiles: prefers workspaceFiles', () => {
@@ -52,7 +52,7 @@ test('resolveWorkspaceFiles: defaults when unset', () => {
   assert.deepEqual(resolveWorkspaceFiles({}), DEFAULT_WORKSPACE_FILES);
 });
 
-test('provision: copies .env into a fresh worktree by default', () => {
+test('provision: copies .env and .mcp.json into a fresh worktree by default', () => {
   const { src, dst } = makeRoots();
   fs.writeFileSync(path.join(src, '.env'), 'TOKEN=1\n');
   fs.writeFileSync(path.join(src, '.mcp.json'), '{"mcpServers":{}}\n');
@@ -64,11 +64,14 @@ test('provision: copies .env into a fresh worktree by default', () => {
     logger,
   });
 
-  assert.deepEqual(result.copied, ['.env']);
+  assert.deepEqual(result.copied.sort(), ['.env', '.mcp.json']);
   assert.equal(result.skipped.length, 0);
   assert.equal(result.missing.length, 0);
   assert.equal(fs.readFileSync(path.join(dst, '.env'), 'utf8'), 'TOKEN=1\n');
-  assert.equal(fs.existsSync(path.join(dst, '.mcp.json')), false);
+  assert.equal(
+    fs.readFileSync(path.join(dst, '.mcp.json'), 'utf8'),
+    '{"mcpServers":{}}\n',
+  );
 });
 
 test('provision: preserves existing target files (no overwrite)', () => {

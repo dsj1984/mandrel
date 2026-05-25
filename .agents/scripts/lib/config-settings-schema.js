@@ -313,6 +313,7 @@ const WORKTREE_ISOLATION_SCHEMA = {
     bootstrapFiles: {
       type: 'array',
       items: { type: 'string', minLength: 1 },
+      default: ['.env', '.mcp.json'],
     },
   },
   additionalProperties: false,
