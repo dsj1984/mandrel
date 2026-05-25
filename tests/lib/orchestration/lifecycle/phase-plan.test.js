@@ -151,7 +151,12 @@ describe('lifecycle/phase-plan', () => {
           { id: 784, labels: ['type::feature'], body: '', state: 'open' },
           { id: 785, labels: ['type::feature'], body: '', state: 'open' },
           // closed reverse-referenced Story — must be filtered out.
-          { id: 774, labels: ['type::story'], body: 'Epic: #775', state: 'closed' },
+          {
+            id: 774,
+            labels: ['type::story'],
+            body: 'Epic: #775',
+            state: 'closed',
+          },
         ],
       ],
       [
@@ -161,12 +166,7 @@ describe('lifecycle/phase-plan', () => {
           { id: 791, labels: ['type::story'], body: '', state: 'open' },
         ],
       ],
-      [
-        785,
-        [
-          { id: 799, labels: ['type::story'], body: '', state: 'open' },
-        ],
-      ],
+      [785, [{ id: 799, labels: ['type::story'], body: '', state: 'open' }]],
     ]);
     const provider = {
       async getSubTickets(parentId) {
@@ -189,7 +189,10 @@ describe('lifecycle/phase-plan', () => {
     const ids = result.stories.map((s) => s.id).sort((a, b) => a - b);
     assert.deepEqual(ids, [787, 791, 799]);
     // Closed reverse-ref #774 excluded.
-    assert.equal(result.stories.find((s) => s.id === 774), undefined);
+    assert.equal(
+      result.stories.find((s) => s.id === 774),
+      undefined,
+    );
 
     const records = readNdjson(writer.ledgerPath);
     const endRecord = records.find(
