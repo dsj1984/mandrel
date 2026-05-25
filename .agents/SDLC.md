@@ -1011,6 +1011,97 @@ failures never block execution.
 
 ---
 
+## Troubleshooting
+
+### Sub-agent CI workflow editing
+
+Sub-agents (any agent operating under the framework's default
+`GITHUB_TOKEN`) **cannot edit files under `.github/workflows/**`**. The
+framework's token does not carry the `workflows` permission scope by
+default, so a push that touches a workflow file is rejected by GitHub
+with an error of the shape:
+
+> refusing to allow a GitHub App to create or update workflow
+> `.github/workflows/<file>.yml` without `workflows` permission
+
+This is a hard constraint, not a transient failure. Re-running the same
+push will not succeed.
+
+**When a Story plans a new CI gate**, route the check through a
+`package.json` script rather than adding it directly to the workflow
+YAML. Examples:
+
+- Add the new check to `npm run lint`, `npm run docs:check`, or
+  `npm test` so an existing CI job picks it up by transitivity.
+- Wire a new `package.json` script and chain it from one of the
+  existing scripts the workflow already invokes.
+- For a check that genuinely cannot be expressed as an npm script,
+  surface it as a script anyway (e.g. `npm run check:<name>` →
+  `node .agents/scripts/<name>.js`) and call the script from the
+  existing `Validate and Test` job's `run:` block — but the YAML edit
+  itself must be made by an operator.
+
+Precedent: Epic #2880 Story #2895 Task #2916 intended to add
+`check-lifecycle-doc-drift.js` directly to `.github/workflows/ci.yml`,
+hit this constraint, and worked around it by chaining the check into
+`npm run docs:check`. The functional outcome is identical; the
+workaround is the canonical pattern.
+
+**When a workflow file genuinely must change** (a new top-level job, a
+trigger change, a runner-image bump, etc.), the edit must be made by an
+operator with `Workflows: Read and write` PAT permissions. See
+[§ One-time PAT setup](../AGENTS.md#one-time-pat-setup) in the root
+`AGENTS.md` for how to provision a PAT with the required scope. The same
+operator surface that release-please relies on is the one that authorizes
+workflow edits.
+
+### Worktree config shadow
+
+`/story-deliver` and `/single-story-deliver` run inside per-Story
+worktrees under `.worktrees/story-<id>/`. A git worktree checks out the
+**Story branch's own copy** of every repo-tracked file — including
+`.agentrc.json`, `package.json`, `release-please-config.json`, and any
+other config under version control. **Operator edits made in the main
+checkout do NOT propagate to an already-active worktree.** The worktree
+sees the branch's committed contents until the operator either re-edits
+inside the worktree or merges the change into the Story branch.
+
+Symptom: you bump a runtime knob in `<main-repo>/.agentrc.json` (e.g.
+raise `delivery.quality.gates.coverage.timeoutMs`), re-run
+`story-close.js --cwd <worktree>`, and the script still uses the old
+value. The script resolved config from the worktree's stale
+`.agentrc.json`, not the main checkout's edited one. Precedent: Epic
+\#2880 friction note F-W0-6 (Story \#2896 recovery debugging time).
+
+When tuning runtime knobs **mid-Story**:
+
+1. **Prefer an env-var override** when the knob exposes one (e.g.
+   timeouts, log level via `AGENT_LOG_LEVEL`, concurrency caps). Env
+   vars are read from the operator's actual shell, not from the
+   checked-out config, so they bypass worktree shadow entirely.
+2. **Edit the file inside the worktree** —
+   `.worktrees/<story-id>/.agentrc.json` — so the script sees the bump
+   on its next read. Either commit the change on the Story branch (if
+   the bump is project-wide and should land with the Story) or leave
+   it uncommitted as a scratch tweak that gets discarded when the
+   worktree is reaped.
+3. **Use `.agentrc.local.json`** for per-machine tuning you never want
+   to commit. The file is gitignored and layered on top of
+   `.agentrc.json` by the config resolver
+   (see [`docs/configuration.md`](../docs/configuration.md#per-machine-local-overrides)).
+   Note: the local override is still read relative to the script's
+   cwd, so for worktree-bound scripts you must place
+   `.agentrc.local.json` inside the worktree directory — or invoke the
+   script with `--cwd <main-repo>` so the resolver reads from the main
+   checkout's local override.
+
+Editing the main checkout's `.agentrc.json` only affects **the next**
+`story-init.js` invocation, because new Story branches fork from
+`main`'s current tip and therefore see the new config from the start.
+For Stories already in flight, use one of the three options above.
+
+---
+
 ## Quick reference
 
 | Command                                          | Purpose                                                                                                                                                                      |
