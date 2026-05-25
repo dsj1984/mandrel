@@ -13,6 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runAsCli } from './lib/cli-utils.js';
+import { buildWebhookSafeTestEnv } from './lib/test-env.js';
 import { parseTapOutput } from './lib/test-profile/parse-tap.js';
 import { renderProfileReport } from './lib/test-profile/render-report.js';
 import { buildNodeTestArgs } from './run-tests.js';
@@ -78,7 +79,7 @@ export function runTestProfile({
     cwd,
     encoding: 'utf8',
     env: {
-      ...process.env,
+      ...buildWebhookSafeTestEnv(process.env),
       SKIP_PREFLIGHT: process.env.SKIP_PREFLIGHT ?? '1',
       FORCE_COLOR: '0',
       NO_COLOR: '1',
