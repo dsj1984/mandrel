@@ -136,4 +136,89 @@ describe('lifecycle/phase-plan', () => {
     assert.ok(Array.isArray(result.waves));
     // No throw, no ledger to inspect (no bus → no writer wired here).
   });
+
+  it('discovers Stories nested under Features (v5 three-level hierarchy)', async () => {
+    // Reproduces Story #2980: Epic → Feature → Story. getSubTickets(epic)
+    // returns Features + closed reverse-ref Story; getSubTickets(feature)
+    // returns the real open Stories. Plan must include all open Stories
+    // and exclude the closed reverse-ref.
+    const epicId = 775;
+    const childrenByParent = new Map([
+      [
+        775,
+        [
+          { id: 781, labels: ['context::prd'], body: '', state: 'open' },
+          { id: 784, labels: ['type::feature'], body: '', state: 'open' },
+          { id: 785, labels: ['type::feature'], body: '', state: 'open' },
+          // closed reverse-referenced Story — must be filtered out.
+          { id: 774, labels: ['type::story'], body: 'Epic: #775', state: 'closed' },
+        ],
+      ],
+      [
+        784,
+        [
+          { id: 787, labels: ['type::story'], body: '', state: 'open' },
+          { id: 791, labels: ['type::story'], body: '', state: 'open' },
+        ],
+      ],
+      [
+        785,
+        [
+          { id: 799, labels: ['type::story'], body: '', state: 'open' },
+        ],
+      ],
+    ]);
+    const provider = {
+      async getSubTickets(parentId) {
+        return (childrenByParent.get(parentId) ?? []).map((s) => ({
+          ...s,
+          labels: [...(s.labels ?? [])],
+        }));
+      },
+    };
+    const bus = new Bus();
+    const writer = new LedgerWriter({ epicId, tempRoot });
+    writer.register(bus);
+
+    const result = await runBuildWaveDagPhase(
+      { epicId, provider },
+      { bus },
+      {},
+    );
+
+    const ids = result.stories.map((s) => s.id).sort((a, b) => a - b);
+    assert.deepEqual(ids, [787, 791, 799]);
+    // Closed reverse-ref #774 excluded.
+    assert.equal(result.stories.find((s) => s.id === 774), undefined);
+
+    const records = readNdjson(writer.ledgerPath);
+    const endRecord = records.find(
+      (r) => r.kind === 'emitted' && r.event === 'epic.plan.end',
+    );
+    assert.ok(endRecord);
+    const flat = endRecord.payload.waves.flat().sort((a, b) => a - b);
+    assert.deepEqual(flat, [787, 791, 799]);
+  });
+
+  it('throws when every reverse-referenced Story is closed (no open Stories)', async () => {
+    const epicId = 5160;
+    const childrenByParent = new Map([
+      [
+        5160,
+        [
+          { id: 9001, labels: ['type::story'], body: '', state: 'closed' },
+          { id: 9002, labels: ['type::story'], body: '', state: 'closed' },
+        ],
+      ],
+    ]);
+    const provider = {
+      async getSubTickets(parentId) {
+        return childrenByParent.get(parentId) ?? [];
+      },
+    };
+    await assert.rejects(
+      () => runBuildWaveDagPhase({ epicId, provider }, {}, {}),
+      /has no child stories to dispatch/,
+    );
+  });
 });

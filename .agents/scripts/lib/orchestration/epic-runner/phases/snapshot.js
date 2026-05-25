@@ -19,7 +19,8 @@
  */
 
 import { parseLinkedIssues } from '../../../issue-link-parser.js';
-import { ACCEPTANCE_NA, TYPE_LABELS } from '../../../label-constants.js';
+import { ACCEPTANCE_NA } from '../../../label-constants.js';
+import { discoverOpenStories } from './build-wave-dag.js';
 
 /**
  * Run the snapshot phase.
@@ -63,18 +64,18 @@ export async function runSnapshotPhase(ctx, collaborators, state) {
 }
 
 /**
- * Enumerate the Story IDs owned by an Epic. Mirrors the filter used by
- * `runBuildWaveDagPhase` so the snapshot.end payload and the wave DAG
- * input set never disagree. Foreign / non-Story descendants are dropped.
+ * Enumerate the Story IDs owned by an Epic. Delegates to
+ * `discoverOpenStories` so the snapshot.end payload and the wave DAG
+ * input set never disagree — both now walk Epic → Feature → Story and
+ * exclude closed reverse-referenced tickets.
  *
  * Returns a sorted array of positive integers (sort order makes the
  * ledger record deterministic across runs and platform iteration
  * quirks, which is what AC-3 / resume determinism depends on).
  */
 async function discoverStoryIds({ epicId, provider }) {
-  const descendants = (await provider.getSubTickets(epicId)) ?? [];
-  const ids = descendants
-    .filter((t) => (t.labels ?? []).includes(TYPE_LABELS.STORY))
+  const stories = await discoverOpenStories({ epicId, provider });
+  const ids = stories
     .map((t) => Number(t.id ?? t.number))
     .filter((id) => Number.isInteger(id) && id > 0);
   return [...new Set(ids)].sort((a, b) => a - b);
