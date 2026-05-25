@@ -1,10 +1,22 @@
 /**
- * Build the wave DAG from the Epic's child Stories.
+ * Build the wave DAG from the Epic's open child Stories.
  *
- * `getSubTickets` returns every descendant (Features, PRDs, Tech Specs,
- * Stories, Tasks) via native sub-issues + body reverse-lookup. The
- * epic-runner only dispatches Stories, so we filter by `type::story`
- * before building the DAG. Throws if there are no Stories.
+ * `getSubTickets` returns the **direct** children of a parent ticket via
+ * native sub-issues + checklist links + body reverse-lookup (despite an
+ * older docstring claiming "every descendant"). The v5 canonical Epic
+ * hierarchy is Epic → Feature → Story → Task, so Stories live as
+ * **grandchildren** of the Epic. We therefore walk one level deeper from
+ * each `type::feature` direct child to collect the real Story set, and
+ * union with any direct-child Stories (some Epics still carry Stories
+ * directly while migrating).
+ *
+ * We additionally filter out closed Stories — `getSubTickets`'s reverse-
+ * reference search can surface closed-as-obsolete tickets whose body
+ * still names the Epic (e.g. a Story replaced during a planning
+ * iteration). Dispatching against those would silently fan a sub-agent
+ * out at pre-replan work.
+ *
+ * Throws if no open Stories are found.
  */
 
 import { parseBlockedBy } from '../../../dependency-parser.js';
@@ -12,16 +24,50 @@ import { computeWaves } from '../../../Graph.js';
 import { TYPE_LABELS } from '../../../label-constants.js';
 import { WaveScheduler } from '../wave-scheduler.js';
 
+/**
+ * Walk Epic → Feature → Story (one descent past the Epic's direct
+ * children) and return the open `type::story` tickets, deduped by id.
+ *
+ * Exported so `snapshot.js#discoverStoryIds` and `epic-deliver-preflight`
+ * can share the same enumeration contract — the snapshot.end payload,
+ * preflight Story count, and wave DAG input set must never disagree.
+ */
+export async function discoverOpenStories({ epicId, provider }) {
+  const descendants = (await provider.getSubTickets(epicId)) ?? [];
+  const features = descendants.filter((t) =>
+    (t.labels ?? []).includes(TYPE_LABELS.FEATURE),
+  );
+  const grandchildren = (
+    await Promise.all(
+      features.map(async (f) => {
+        const id = f.id ?? f.number;
+        return id == null ? [] : ((await provider.getSubTickets(id)) ?? []);
+      }),
+    )
+  ).flat();
+  const seen = new Set();
+  const stories = [];
+  for (const t of [...descendants, ...grandchildren]) {
+    const labels = t.labels ?? [];
+    if (!labels.includes(TYPE_LABELS.STORY)) continue;
+    const rawState = t.state ?? 'open';
+    const norm = typeof rawState === 'string' ? rawState.toLowerCase() : 'open';
+    if (norm !== 'open') continue;
+    const id = t.id ?? t.number;
+    if (id == null || seen.has(id)) continue;
+    seen.add(id);
+    stories.push(t);
+  }
+  return stories;
+}
+
 export async function runBuildWaveDagPhase(ctx, collaborators, state) {
   const { epicId, provider } = ctx;
   const bus = collaborators?.bus ?? null;
   if (bus) {
     await bus.emit('epic.plan.start', { epicId });
   }
-  const descendants = await provider.getSubTickets(epicId);
-  const stories = (descendants ?? []).filter((t) =>
-    (t.labels ?? []).includes(TYPE_LABELS.STORY),
-  );
+  const stories = await discoverOpenStories({ epicId, provider });
   if (!stories.length) {
     throw new Error(`Epic #${epicId} has no child stories to dispatch.`);
   }
