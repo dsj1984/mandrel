@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-22T19:41:38.387Z",
+  "generatedAt": "2026-05-26T22:03:04.080Z",
   "rollup": {
     "*": {
       "min": 52.885,
-      "p50": 103.928,
+      "p50": 104.033,
       "p95": 121.479
     }
   },
@@ -17,10 +17,6 @@
     {
       "path": ".agents/scripts/agents-bootstrap-github.js",
       "mi": 90.654
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "mi": 92.659
     },
     {
       "path": ".agents/scripts/assert-branch.js",
@@ -81,14 +77,6 @@
     {
       "path": ".agents/scripts/epic-deliver-note-intervention.js",
       "mi": 86.917
-    },
-    {
-      "path": ".agents/scripts/epic-deliver-prepare.js",
-      "mi": 88.724
-    },
-    {
-      "path": ".agents/scripts/epic-execute-record-wave.js",
-      "mi": 86.415
     },
     {
       "path": ".agents/scripts/epic-plan-clarity.js",
@@ -631,10 +619,6 @@
       "mi": 92.391
     },
     {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "mi": 90.921
-    },
-    {
       "path": ".agents/scripts/lib/observability/signals-writer.js",
       "mi": 88.188
     },
@@ -1067,10 +1051,6 @@
       "mi": 117.783
     },
     {
-      "path": ".agents/scripts/lib/orchestration/wave-record-io.js",
-      "mi": 101.734
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/wave-record-notifications.js",
       "mi": 98.996
     },
@@ -1117,10 +1097,6 @@
     {
       "path": ".agents/scripts/lib/presentation/manifest-render-waves.js",
       "mi": 99.181
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-renderer.js",
-      "mi": 106.634
     },
     {
       "path": ".agents/scripts/lib/presentation/manifest-story-views.js",
@@ -2007,10 +1983,6 @@
       "mi": 91.379
     },
     {
-      "path": "tests/epic-execute/epic-execute-record-wave.test.js",
-      "mi": 100.065
-    },
-    {
       "path": "tests/epic-plan-clarity.test.js",
       "mi": 112.367
     },
@@ -2593,10 +2565,6 @@
     {
       "path": "tests/lib/observability/perf-aggregator.regression.test.js",
       "mi": 109.72
-    },
-    {
-      "path": "tests/lib/observability/perf-aggregator.test.js",
-      "mi": 93.272
     },
     {
       "path": "tests/lib/observability/render/epic-perf-report-hotspot.test.js",
@@ -3397,10 +3365,6 @@
     {
       "path": "tests/schemas/epic-perf-report.schema.test.js",
       "mi": 104.452
-    },
-    {
-      "path": "tests/schemas/signal-schemas.test.js",
-      "mi": 106.52
     },
     {
       "path": "tests/scripts/agents-bootstrap-github-protection.test.js",
