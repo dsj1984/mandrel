@@ -295,7 +295,8 @@ function describeSignal(s) {
  * @returns {string}
  */
 function followOnTitle(s) {
-  if (!s || typeof s !== 'object') return 'perf: investigate unknown perf signal';
+  if (!s || typeof s !== 'object')
+    return 'perf: investigate unknown perf signal';
   if (s.kind === 'low-utilisation') {
     return `perf(epic-deliver): investigate low utilisation in wave ${s.waveIndex}`;
   }

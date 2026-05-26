@@ -111,10 +111,7 @@ function extractRows(report) {
     : [];
   return arr
     .filter(
-      (r) =>
-        isObject(r) &&
-        Number.isInteger(r.waveIndex) &&
-        r.waveIndex >= 0,
+      (r) => isObject(r) && Number.isInteger(r.waveIndex) && r.waveIndex >= 0,
     )
     .map((r) => ({
       waveIndex: r.waveIndex,
@@ -262,7 +259,9 @@ export function classifyPerfSignals(report, thresholds) {
   if (rows.length === 0) return [];
   const signals = [];
   signals.push(...detectLowUtilisation(rows, resolved.utilisation));
-  signals.push(...detectHighBootstrapShare(rows, report, resolved.bootstrapShare));
+  signals.push(
+    ...detectHighBootstrapShare(rows, report, resolved.bootstrapShare),
+  );
   signals.push(...detectCapBindingRuns(rows, resolved.capBindingRunLength));
   return signals;
 }
