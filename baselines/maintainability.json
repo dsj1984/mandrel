@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-26T19:19:43.959Z",
+  "generatedAt": "2026-05-26T19:40:50.123Z",
   "rollup": {
     "*": {
       "min": 52.885,
-      "p50": 104.033,
+      "p50": 104.034,
       "p95": 121.809
     }
   },
@@ -1561,10 +1561,6 @@
     {
       "path": ".agents/scripts/wave-gate.js",
       "mi": 96.386
-    },
-    {
-      "path": ".agents/scripts/wave-tick.js",
-      "mi": 97.719
     },
     {
       "path": "tests/acceptance-spec-reconciler.test.js",
