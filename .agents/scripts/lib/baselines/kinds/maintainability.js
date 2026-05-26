@@ -55,6 +55,29 @@ export const MAINTAINABILITY_EXCLUSIONS = Object.freeze(
     // escomplex: "this[node.callee.type] is not a function" — the cyclomatic
     // visitor lacks a handler for one of the quality-watch CLI's call shapes.
     '.agents/scripts/quality-watch.js',
+    // escomplex: "Cannot read properties of undefined (reading 'pattern')" —
+    // same family as acceptance-spec-reconciler. The audit recheck CLI uses
+    // the same regex-property scan helpers.
+    '.agents/scripts/epic-audit-recheck.js',
+    // escomplex: "this[node.expression.type] is not a function" — the
+    // expression-type visitor lacks a handler for the spec emitter's async
+    // top-level expression form.
+    '.agents/scripts/epic-plan-spec.js',
+    // escomplex: "Cannot read properties of undefined (reading 'pattern')" —
+    // the audit-to-stories parser reuses the same regex-property scan
+    // patterns as acceptance-spec-reconciler.
+    '.agents/scripts/lib/audit-to-stories/parse-audit-md.js',
+    // escomplex: same "pattern" parse failure family — BDD scanner and
+    // codebase snapshot helpers walk source trees with regex visitors that
+    // hit the upstream destructuring bug.
+    '.agents/scripts/lib/bdd-scenario-scanner.js',
+    '.agents/scripts/lib/codebase-snapshot.js',
+    // escomplex: same "pattern" parse failure — the wave-runner tick uses
+    // the regex-property destructuring escomplex chokes on.
+    '.agents/scripts/lib/wave-runner/tick.js',
+    // escomplex: same "pattern" parse failure — exercises the same
+    // destructuring shape in a test fixture.
+    'tests/scripts/story-close-merge-subject.test.js',
   ]),
 );
 
@@ -63,13 +86,28 @@ export const MAINTAINABILITY_EXCLUSIONS = Object.freeze(
  * before envelope assembly so MI=0 phantoms never reach the on-disk
  * baseline. Pure — does not mutate the input.
  *
- * @template {{path: string}} R
+ * Two layers:
+ *   1. Drop rows whose `path` appears in the explicit
+ *      `MAINTAINABILITY_EXCLUSIONS` allowlist (documented escomplex
+ *      parse-fail families).
+ *   2. Defensive backstop — drop any remaining `mi === 0` rows. A real
+ *      MI score never reaches 0 for valid code (the escomplex floor for
+ *      runnable JS is ~10–20), so `mi === 0` is a reliable signal that
+ *      the scorer hit a parse failure the allowlist hasn't caught yet.
+ *      Without this backstop, a newly-added file that escomplex can't
+ *      parse silently poisons the global min/p50 rollup (Story #2467
+ *      precedent). The audit lens flags any allowlist entries it can
+ *      now score so the list stays auditable.
+ *
+ * @template {{path: string, mi?: number}} R
  * @param {R[]} rows
  * @returns {R[]}
  */
 export function filterExcludedRows(rows) {
   if (!Array.isArray(rows)) return [];
-  return rows.filter((row) => !MAINTAINABILITY_EXCLUSIONS.has(row?.path));
+  return rows.filter(
+    (row) => !MAINTAINABILITY_EXCLUSIONS.has(row?.path) && row?.mi !== 0,
+  );
 }
 
 export function kernelVersion() {
