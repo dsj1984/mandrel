@@ -21,10 +21,10 @@
  * `node dispatcher.js --dry-run` cold-start cost.
  */
 
-import { concurrentMap } from '../util/concurrent-map.js';
 import { Logger } from '../Logger.js';
 import { renderManifestFromManifest } from '../presentation/dispatch-manifest-render.js';
 import { persistManifest } from '../presentation/manifest-persistence.js';
+import { concurrentMap } from '../util/concurrent-map.js';
 import { resolveAndDispatch } from './dispatch-engine.js';
 import {
   reconcileStoryFromGitHub,
