@@ -56,6 +56,10 @@ import { getPreflight, resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
 import { runBuildWaveDagPhase } from './lib/orchestration/epic-runner/phases/build-wave-dag.js';
 import { runSnapshotPhase } from './lib/orchestration/epic-runner/phases/snapshot.js';
+import {
+  computeBaseSha,
+  writePreflightCache,
+} from './lib/orchestration/preflight-cache.js';
 import { upsertStructuredComment } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
 
@@ -290,6 +294,25 @@ export async function runPreflight({
   const storyCount = Array.isArray(state.stories) ? state.stories.length : 0;
   const waveCount = Array.isArray(state.waves) ? state.waves.length : 0;
 
+  // Persist the snapshot/DAG envelope so `epic-deliver-prepare.js` can
+  // reuse it instead of re-walking the hierarchy. The cache key is a
+  // deterministic fingerprint of the Epic ticket returned by the same
+  // `getTicket(epicId)` call that drove `runSnapshotPhase`, so any drift
+  // (label, body, updatedAt) forces a cache miss in prepare.
+  const baseSha = computeBaseSha(state.epic);
+  let cacheWritten = false;
+  if (!dryRun) {
+    await writePreflightCache({
+      epicId,
+      baseSha,
+      epic: state.epic,
+      stories: state.stories,
+      waves: state.waves,
+      cwd,
+    });
+    cacheWritten = true;
+  }
+
   const estimate = computeEstimate({
     storyCount,
     waveCount,
@@ -304,6 +327,8 @@ export async function runPreflight({
     ...estimate,
     breaches,
     thresholds,
+    baseSha,
+    cacheWritten,
   };
 
   if (post && !dryRun) {
