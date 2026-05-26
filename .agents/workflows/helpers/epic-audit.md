@@ -140,54 +140,53 @@ into the CLI itself, the runner will populate `findings[]` and this
 section will collapse to a "read the structured findings off the
 envelope" bullet. Until then, the host LLM is the gate.
 
-## Step 3 — Auto-fix Loop
+## Step 3 — Remediation Routing (host LLM, no automated loop)
 
-Walk the aggregated 🔴 / 🟠 findings from Step 2 through the shared
-bounded-retry loop in
-[`../../scripts/lib/orchestration/auto-fix-loop.js`](../../scripts/lib/orchestration/auto-fix-loop.js).
-The module owns the control flow (per-finding attempt ceiling, scope-cap,
-anti-thrash, safety escalation); this helper supplies the phase-specific
-hooks.
+There is **no runtime auto-fix function** at this phase. The host LLM is
+the executor: it inspects the aggregated 🔴 / 🟠 findings from Step 2 and
+either applies a focused fix on the Epic branch or escalates the finding
+to the operator via the `audit-results` comment in Step 4.
 
-Resolve the loop budget from `.agentrc.json`:
+For each 🔴 / 🟠 finding, the host LLM MUST decide between two paths:
 
-- **`delivery.epicAudit.maxFixAttempts`** — per-finding attempt ceiling
-  (`attemptCeiling`). Defaults to 3 if unset.
-- **`delivery.epicAudit.maxFixScopeFiles`** — per-fix file scope cap
-  (`scopeCap`). Defaults to 5 if unset.
+1. **Apply a focused fix on `[EPIC_BRANCH]`.** Permitted only when the
+   finding is unambiguously *fixable* (clean remediation, no scope creep,
+   no spec deviation, no secret exposure):
+   - Call [`assert-branch.js`](../../scripts/assert-branch.js) with
+     `--expected [EPIC_BRANCH]` before touching the working tree.
+   - Stage explicit paths only (never `git add .`).
+   - Make one focused conventional commit per finding
+     (`fix(<scope>): <description> (audit finding)`).
+   - Re-run the owning lens (re-invoke `run-audit-suite.js` for that
+     single lens) and confirm the finding is gone before moving on.
+   - Run the lens-appropriate validation subset (`npm run lint` plus the
+     relevant `npm test` slice) to confirm the fix did not regress
+     anything.
+   - If the rescan still surfaces the same finding, or validation
+     regresses, **stop fixing** — route the finding to escalation
+     (path 2) and record the attempt context in Step 4.
+2. **Escalate to the operator via Step 4.** Required when the finding
+   falls into any of the following classes:
+   - `spec-deviation` — the change diverges from the PRD/Tech Spec.
+   - `secrets` — credentials, tokens, or PII surfaced in the diff.
+   - `test-deletion` — coverage was removed without an explicit
+     decision in the spec.
+   - `scope-exceeded` — the remediation would touch more files than the
+     change set warrants.
+   - Any finding the host LLM cannot remediate after one focused
+     attempt (the equivalent of the prior loop's
+     `validation-regression` / `thrash-detected` exits).
 
-Invoke `runAutoFixLoop` inline (Node ESM, top-level `await` inside the
-helper's runner block):
+Do not invent a programmatic retry budget. The host LLM applies *at most
+one* focused-fix attempt per finding before escalating; any further
+remediation is the operator's call after reading the `audit-results`
+comment.
 
-```js
-import {
-  runAutoFixLoop,
-} from '../../scripts/lib/orchestration/auto-fix-loop.js';
-
-const { fixed, escalated } = await runAutoFixLoop({
-  findings: aggregatedFindings, // 🔴 + 🟠 from Step 2, ordered by severity
-  attemptCeiling: cfg.delivery?.epicAudit?.maxFixAttempts ?? 3,
-  scopeCap: cfg.delivery?.epicAudit?.maxFixScopeFiles ?? 5,
-  classify, // returns 'spec-deviation' | 'secrets' | … | 'fixable'
-  applyFix, // assert-branch + edit + focused commit on [EPIC_BRANCH]
-  rescan, // re-run the owning lens via run-audit-suite.js
-  validate, // npm run lint + npm test (lens-appropriate subset)
-});
-```
-
-The helper's `applyFix` hook MUST:
-
-1. Call [`assert-branch.js`](../../scripts/assert-branch.js) with
-   `--expected [EPIC_BRANCH]` before touching the working tree.
-2. Stage explicit paths only (never `git add .`).
-3. Make one focused conventional commit per finding
-   (`fix(<scope>): <description> (audit finding)`).
-
-Findings that route to `escalated[]` (safety classes, `ceiling-exhausted`,
-`thrash-detected`, `validation-regression`, `scope-exceeded`) flow through
-to Step 4 unchanged — the loop does not delete them, it just stops trying
-to fix them automatically. Surface the `escalated` reasons in the
-`audit-results` comment so the operator sees why the loop bailed.
+Escalated findings flow through to Step 4 unchanged with their
+escalation reason recorded — the audit pass does not delete them, it
+just stops trying to fix them automatically. Surface the escalation
+reason for each in the `audit-results` comment so the operator sees
+exactly why the finding was not auto-remediated.
 
 ## Step 4 — Post `audit-results` Structured Comment
 
@@ -226,9 +225,10 @@ The body MUST include:
   branches. The audit examines the cumulative effect of the entire Epic.
 - **Always** read the PRD and Tech Spec before walking lenses. Findings
   without spec context are noise.
-- **Always** run auto-fix through the shared `runAutoFixLoop` module — never
-  re-derive bounded-retry / anti-thrash / escalation semantics inline. The
-  loop is the single source of truth for those guarantees.
+- **Always** cap focused fixes at one attempt per finding (Step 3). The
+  host LLM is the executor; there is no shared retry/anti-thrash module
+  to call. Any finding that does not resolve cleanly on the first attempt
+  routes to escalation in Step 4.
 - **Never** widen the lens roster past `selectedAudits`. The whole point of
   the change-set selector is to avoid running irrelevant audits on a
   scoped Epic — running extras defeats the gate.
