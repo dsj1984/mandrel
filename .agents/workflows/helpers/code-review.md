@@ -174,59 +174,52 @@ For every finding, provide:
 - **Description** of the issue
 - **Recommended fix** with a concrete code suggestion
 - **Agent Prompt** — a self-contained, copy-pasteable instruction the
-  operator can hand verbatim to a fresh sub-agent (or the auto-fix loop)
-  to remediate this single finding. The prompt MUST name the file path,
+  operator can hand verbatim to a fresh sub-agent to remediate this
+  single finding. The prompt MUST name the file path,
   the specific change to make, and the acceptance check that proves the
   fix worked. Keep it tight (≤ 5 sentences); the sub-agent will read the
   surrounding code itself.
 
-## Step 4.5 — Auto-fix Loop
+## Step 4.5 — Focused-fix Routing (host LLM, no automated loop)
 
-Walk the 🔴 / 🟠 findings from Step 4 through the shared bounded-retry
-loop in
-[`../../scripts/lib/orchestration/auto-fix-loop.js`](../../scripts/lib/orchestration/auto-fix-loop.js).
-The module owns the control flow (per-finding attempt ceiling, scope-cap,
-anti-thrash, safety escalation); this helper supplies the phase-specific
-hooks.
+There is **no runtime auto-fix function** at this phase. The host LLM is
+the executor: for each 🔴 / 🟠 finding from Step 4, decide between two
+paths and keep the `code-review` structured comment authoritative for
+anything not fixed in-place.
 
-Resolve the loop budget from `.agentrc.json`:
+1. **Apply a focused fix on `[HEAD_REF]`.** Permitted only when the
+   finding is unambiguously *fixable* (clean remediation, no scope
+   creep, no spec deviation, no secret exposure):
+   - Call [`assert-branch.js`](../../scripts/assert-branch.js) with
+     `--expected [HEAD_REF]` before touching the working tree.
+   - Stage explicit paths only (never `git add .`).
+   - Make one focused conventional commit per finding
+     (`fix(<scope>): <description> (review finding)`).
+   - Re-run a targeted rescan: invoke `runCodeReview` (or the relevant
+     diff-scoped subset of pillar checks) on the touched files and
+     confirm the finding is gone.
+   - Run validation appropriate to the change (`npm run lint` plus the
+     relevant `npm test` slice).
+   - If the rescan still surfaces the same finding, or validation
+     regresses, **stop fixing** — leave the finding on the `code-review`
+     structured comment for the operator to triage in Step 5.
+2. **Leave the finding on the structured comment for Step 5.** Required
+   when the finding falls into any of the following classes:
+   - `spec-deviation` — the change diverges from the PRD/Tech Spec.
+   - `secrets` — credentials, tokens, or PII surfaced in the diff.
+   - `test-deletion` — coverage was removed without an explicit
+     decision in the spec.
+   - `scope-exceeded` — the remediation would touch more files than
+     the review scope warrants.
+   - Any finding the host LLM cannot remediate after one focused
+     attempt (the equivalent of the prior loop's
+     `validation-regression` / `thrash-detected` exits).
 
-- **`delivery.codeReview.maxFixAttempts`** — per-finding attempt ceiling
-  (`attemptCeiling`). Defaults to 3 if unset.
-- **`delivery.codeReview.maxFixScopeFiles`** — per-fix file scope cap
-  (`scopeCap`). Defaults to 5 if unset.
-
-Invoke `runAutoFixLoop` inline (Node ESM):
-
-```js
-import {
-  runAutoFixLoop,
-} from '../../scripts/lib/orchestration/auto-fix-loop.js';
-
-const { fixed, escalated } = await runAutoFixLoop({
-  findings: reviewFindings, // 🔴 + 🟠 from Step 4, ordered by severity
-  attemptCeiling: cfg.delivery?.codeReview?.maxFixAttempts ?? 3,
-  scopeCap: cfg.delivery?.codeReview?.maxFixScopeFiles ?? 5,
-  classify, // returns 'spec-deviation' | 'secrets' | … | 'fixable'
-  applyFix, // assert-branch + edit + focused commit on [HEAD_REF]
-  rescan, // re-run runCodeReview or a targeted diff scan
-  validate, // npm run lint + npm test
-});
-```
-
-The helper's `applyFix` hook MUST:
-
-1. Call [`assert-branch.js`](../../scripts/assert-branch.js) with
-   `--expected [HEAD_REF]` before touching the working tree.
-2. Stage explicit paths only (never `git add .`).
-3. Make one focused conventional commit per finding
-   (`fix(<scope>): <description> (review finding)`).
-
-Findings that route to `escalated[]` (safety classes, `ceiling-exhausted`,
-`thrash-detected`, `validation-regression`, `scope-exceeded`) remain on
-the `code-review` structured comment for the operator to triage manually
-in Step 5. The loop never deletes a finding it could not fix — it just
-stops retrying.
+Do not invent a programmatic retry budget. The host LLM applies *at most
+one* focused-fix attempt per finding before escalating to the operator.
+Escalated findings remain on the `code-review` structured comment with
+their reason recorded, so Step 5 (and downstream consumers) see exactly
+why each one was not auto-remediated.
 
 ## Step 4.6 — Cross-phase re-check trigger
 
@@ -274,16 +267,16 @@ When `selectedAudits` is non-empty:
    re-run, so reviewers can trace each finding back to the change set
    that produced it.
 3. If the re-check surfaces fresh 🔴 / 🟠 findings, route them back
-   through Step 4.5's `runAutoFixLoop` invocation. The loop's per-finding
-   ceiling is preserved across re-entries — a finding that was already
-   counted against `attemptCeiling` in the first pass does not get a
-   fresh budget when the cross-phase re-check resurfaces an adjacent
-   one.
+   through Step 4.5's focused-fix routing. Findings that already
+   received a focused-fix attempt in the first pass do not get a fresh
+   attempt when the cross-phase re-check resurfaces an adjacent one —
+   leave them on the `code-review` comment for the operator.
 
 If `selectedAudits` is empty, skip silently and proceed to Step 5. The
 re-check trigger is **read-only signal** — it never mutates the Epic
 branch on its own; mutations only happen if the re-invoked lenses
-surface findings that the auto-fix loop then converts into commits.
+surface findings that the host LLM then converts into commits through
+the same focused-fix routing as Step 4.5.
 
 ## Step 5 — Remediation
 
