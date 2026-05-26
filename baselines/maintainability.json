@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-26T22:03:04.080Z",
+  "generatedAt": "2026-05-26T22:19:52.780Z",
   "rollup": {
     "*": {
       "min": 52.885,
-      "p50": 104.033,
-      "p95": 121.479
+      "p50": 104.034,
+      "p95": 121.484
     }
   },
   "rows": [
@@ -69,10 +69,6 @@
     {
       "path": ".agents/scripts/drain-pending-cleanup.js",
       "mi": 106.069
-    },
-    {
-      "path": ".agents/scripts/epic-close.js",
-      "mi": 97.229
     },
     {
       "path": ".agents/scripts/epic-deliver-note-intervention.js",
@@ -439,10 +435,6 @@
       "mi": 89.732
     },
     {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
-      "mi": 115.364
-    },
-    {
       "path": ".agents/scripts/lib/config/validate-orchestration.js",
       "mi": 90.007
     },
@@ -489,10 +481,6 @@
     {
       "path": ".agents/scripts/lib/env-loader.js",
       "mi": 102.643
-    },
-    {
-      "path": ".agents/scripts/lib/epic-close-tail-helpers.js",
-      "mi": 86.611
     },
     {
       "path": ".agents/scripts/lib/epic-merge-lock.js",
