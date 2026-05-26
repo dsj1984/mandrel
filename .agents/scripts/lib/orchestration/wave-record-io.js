@@ -21,9 +21,9 @@
  * `node dispatcher.js --dry-run` cold-start cost.
  */
 
+import { Logger } from '../Logger.js';
 import { renderManifestFromManifest } from '../presentation/dispatch-manifest-render.js';
 import { persistManifest } from '../presentation/manifest-persistence.js';
-import { Logger } from '../Logger.js';
 import { resolveAndDispatch } from './dispatch-engine.js';
 import {
   reconcileStoryFromGitHub,

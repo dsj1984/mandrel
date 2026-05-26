@@ -9,9 +9,8 @@
 import assert from 'node:assert/strict';
 import child_process from 'node:child_process';
 import { describe, it, mock } from 'node:test';
-
-import { renderManifestFromManifest } from '../.agents/scripts/lib/presentation/dispatch-manifest-render.js';
 import { refreshDispatchManifest } from '../.agents/scripts/lib/orchestration/wave-record-io.js';
+import { renderManifestFromManifest } from '../.agents/scripts/lib/presentation/dispatch-manifest-render.js';
 
 const FIXTURE_MANIFEST = {
   epicId: 4242,
