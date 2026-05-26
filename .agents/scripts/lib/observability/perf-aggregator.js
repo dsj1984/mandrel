@@ -359,6 +359,64 @@ function aggregateTopHotspots(summaries) {
     .slice(0, 5);
 }
 
+/**
+ * Default verify-concurrency cap when the caller does not override it.
+ * Mirrors the default for `delivery.deliverRunner.verifyConcurrencyCap`
+ * in `.agentrc.json` (Epic #3019 Tech Spec §1.4).
+ */
+const DEFAULT_VERIFY_CONCURRENCY_CAP = 4;
+
+/**
+ * Clamp `n` to the inclusive range [lo, hi]. Returns `lo` for NaN /
+ * non-finite inputs so the coercer stays well-behaved on garbage.
+ *
+ * @param {number} n
+ * @param {number} lo
+ * @param {number} hi
+ * @returns {number}
+ */
+function clamp(n, lo, hi) {
+  if (!Number.isFinite(n)) return lo;
+  if (n < lo) return lo;
+  if (n > hi) return hi;
+  return n;
+}
+
+/**
+ * Coerce a single waveParallelism input row into the schema-canonical
+ * shape `{ waveIndex, wallClockMs, summedStoryMs, utilisation,
+ * capBinding, verifyConcurrencyCap }` (Story #3025).
+ *
+ * - Numeric fields are floored to non-negative integers (or clamped
+ *   numbers for utilisation) so the JSON-schema `integer` / `minimum: 0`
+ *   constraints hold by construction.
+ * - `utilisation` is clamped to `[0, 1]` per the Tech Spec
+ *   contract (§1.1).
+ * - `capBinding` is coerced to boolean.
+ * - `verifyConcurrencyCap` falls back to the project default (4) when the
+ *   caller omits it or supplies a non-positive integer; the schema
+ *   requires `minimum: 1` so 0 is not a valid carrier value.
+ *
+ * Exported for unit-testing the coercer in isolation.
+ *
+ * @param {object | null | undefined} row
+ * @returns {{ waveIndex: number, wallClockMs: number, summedStoryMs: number, utilisation: number, capBinding: boolean, verifyConcurrencyCap: number }}
+ */
+export function coerceWaveParallelismRow(row) {
+  const src = isObject(row) ? row : {};
+  const cap = Number(src.verifyConcurrencyCap);
+  const verifyConcurrencyCap =
+    Number.isInteger(cap) && cap >= 1 ? cap : DEFAULT_VERIFY_CONCURRENCY_CAP;
+  return {
+    waveIndex: nonNegativeInt(src.waveIndex),
+    wallClockMs: nonNegativeInt(src.wallClockMs),
+    summedStoryMs: nonNegativeInt(src.summedStoryMs),
+    utilisation: clamp(nonNegativeNumber(src.utilisation), 0, 1),
+    capBinding: Boolean(src.capBinding),
+    verifyConcurrencyCap,
+  };
+}
+
 export function computeEpicPerfReport(perStorySummaries, opts) {
   if (!isObject(opts)) {
     throw new TypeError('computeEpicPerfReport: opts is required');
@@ -403,13 +461,7 @@ export function computeEpicPerfReport(perStorySummaries, opts) {
     .slice(0, 5);
 
   const waveParallelism = Array.isArray(opts.waveParallelism)
-    ? opts.waveParallelism.map((row) => ({
-        wave: nonNegativeInt(row?.wave),
-        wallClockMs: nonNegativeInt(row?.wallClockMs),
-        sumStoryMs: nonNegativeInt(row?.sumStoryMs),
-        utilization: nonNegativeNumber(row?.utilization),
-        stories: nonNegativeInt(row?.stories),
-      }))
+    ? opts.waveParallelism.map((row) => coerceWaveParallelismRow(row))
     : [];
 
   return {
