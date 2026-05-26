@@ -109,6 +109,12 @@ export function worktreesByBranch(cwd) {
 }
 
 /* node:coverage ignore next */
+// Story #2990: this `gh` probe stays on synchronous `execFileSync` (not
+// the `lib/gh-exec.js` async facade) because `planCleanup` is a
+// synchronous planner and `prProbe` is invoked inside a sync `for`
+// loop. Converting the planner to async would ripple into every
+// `git-cleanup` caller and is out of scope for the callers-only
+// provider migration.
 export function defaultGhRunner(args, { cwd }) {
   return execFileSync('gh', args, { cwd, encoding: 'utf8' });
 }

@@ -6,15 +6,15 @@
  * on any failure so the caller can fall back to the operator-merges-button
  * path.
  *
- * The `gh`-spawn boundary lives here intentionally — see Story #2990 for
- * the separate refactor that moves these calls behind a `providers/github/`
- * adapter.
- *
- * `execFileSync` is accepted as an injected dependency so the SUT's
- * cache-busted binding wins when tests mock `node:child_process`. The
- * SUT (`single-story-close.js`) statically imports `execFileSync` and
- * wraps these primitives so external callers (tests) hit the live mock.
+ * Story #2990 routed the underlying `gh pr merge` call through the
+ * `lib/gh-exec.js` facade (the same shim the `providers/github/`
+ * gateways use). The `runner` seam is preserved so existing tests can
+ * inject a synchronous fake; the default runner delegates to
+ * `gh.pr.merge`, which spawns through the classified, typed-error
+ * surface instead of a raw `execFileSync('gh', …)` call.
  */
+
+import { gh as defaultGh } from '../../../gh-exec.js';
 
 /**
  * Enable GitHub native auto-merge on the PR. Non-fatal.
@@ -22,15 +22,15 @@
  * @param {{
  *   cwd: string,
  *   prNumber: number,
- *   execFileSync: Function,
- *   runner?: (args: string[], opts: object) => { status: number, stdout?: string, stderr?: string },
+ *   gh?: ReturnType<typeof import('../../../gh-exec.js').createGh>,
+ *   runner?: (args: string[], opts: object) => ({ status: number, stdout?: string, stderr?: string } | Promise<{ status: number, stdout?: string, stderr?: string }>),
  * }} opts
- * @returns {{ enabled: boolean, reason?: string }}
+ * @returns {Promise<{ enabled: boolean, reason?: string }>}
  */
-export function enableAutoMergeWith({ cwd, prNumber, execFileSync, runner }) {
-  const exec = runner ?? makeDefaultGhAutoMergeRunner(execFileSync);
+export async function enableAutoMergeWith({ cwd, prNumber, gh, runner }) {
+  const exec = runner ?? makeDefaultGhAutoMergeRunner(gh ?? defaultGh);
   try {
-    const result = exec(
+    const result = await exec(
       [
         'pr',
         'merge',
@@ -51,21 +51,57 @@ export function enableAutoMergeWith({ cwd, prNumber, execFileSync, runner }) {
   }
 }
 
-function makeDefaultGhAutoMergeRunner(execFileSync) {
-  return function defaultGhAutoMergeRunner(args, { cwd }) {
+/**
+ * Build the default `gh pr merge` runner that adapts the async
+ * `lib/gh-exec.js` facade into the synchronous-looking
+ * `{ status, stdout, stderr }` envelope `enableAutoMergeWith` consumes.
+ *
+ * The adapter swallows non-zero exits (mapping the typed `GhExecError`
+ * carrier back to its `code` + `stderr`) because auto-merge enablement
+ * is intentionally non-fatal — the caller treats failures as "operator
+ * merges manually".
+ */
+function makeDefaultGhAutoMergeRunner(gh) {
+  return async function defaultGhAutoMergeRunner(args, _opts) {
+    // `args` always starts with `pr merge <prNumber>` — pass everything
+    // after the third element to `gh.pr.merge` as flags so the facade
+    // owns the `gh pr merge <id> …` argv assembly.
+    const [, , prIdStr, ...flags] = args;
     try {
-      const stdout = execFileSync('gh', args, {
-        cwd,
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
-      return { status: 0, stdout, stderr: '' };
-    } catch (err) {
+      const result = await gh.pr.merge(prIdStr, flags);
       return {
-        status: typeof err.status === 'number' ? err.status : 1,
-        stdout: err.stdout?.toString?.() ?? '',
-        stderr: err.stderr?.toString?.() ?? String(err?.message ?? err),
+        status: 0,
+        stdout: result?.stdout ?? '',
+        stderr: result?.stderr ?? '',
       };
+    } catch (err) {
+      // Duck-type: any error carrying a numeric `.code` (or `.status`,
+      // which the legacy `execFileSync` shim used) + an optional
+      // `.stderr` is mapped back to the `{ status, stdout, stderr }`
+      // envelope `enableAutoMergeWith` consumes. The typed
+      // `GhExecError` carriers from `lib/gh-exec.js` already fit this
+      // shape; bare `Error`s without a code fall through to the spawn-
+      // error reason in the parent catch.
+      const numericCode =
+        typeof err?.code === 'number'
+          ? err.code
+          : typeof err?.status === 'number'
+            ? err.status
+            : null;
+      if (numericCode !== null) {
+        return {
+          status: numericCode,
+          stdout:
+            typeof err.stdout === 'string'
+              ? err.stdout
+              : (err.stdout?.toString?.() ?? ''),
+          stderr:
+            typeof err.stderr === 'string'
+              ? err.stderr
+              : (err.stderr?.toString?.() ?? String(err?.message ?? err)),
+        };
+      }
+      throw err;
     }
   };
 }
@@ -80,17 +116,17 @@ function makeDefaultGhAutoMergeRunner(execFileSync) {
  *   prNumber: number|null,
  *   prUrl: string,
  *   noAutoMerge: boolean,
- *   execFileSync: Function,
+ *   gh?: ReturnType<typeof import('../../../gh-exec.js').createGh>,
  *   progress: (tag: string, msg: string) => void,
  * }} args
- * @returns {{ autoMergeEnabled: boolean, autoMergeReason: string|null }}
+ * @returns {Promise<{ autoMergeEnabled: boolean, autoMergeReason: string|null }>}
  */
-export function runAutoMergePhase({
+export async function runAutoMergePhase({
   cwd,
   prNumber,
   prUrl,
   noAutoMerge,
-  execFileSync,
+  gh,
   progress,
 }) {
   if (noAutoMerge) {
@@ -107,7 +143,7 @@ export function runAutoMergePhase({
       autoMergeReason: 'pr-number-unparseable',
     };
   }
-  const result = enableAutoMergeWith({ cwd, prNumber, execFileSync });
+  const result = await enableAutoMergeWith({ cwd, prNumber, gh });
   if (result.enabled) {
     progress(
       'PR',

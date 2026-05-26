@@ -11,7 +11,6 @@
  */
 
 import assert from 'node:assert/strict';
-import * as realChildProcess from 'node:child_process';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -37,11 +36,34 @@ const WORKTREE_MANAGER_URL = pathToFileURL(
   path.resolve(REPO_ROOT, '.agents/scripts/lib/worktree-manager.js'),
 ).href;
 
-function childProcessMock(fakeExecFileSync) {
+/**
+ * Story #2990: build a fake `lib/gh-exec.js` `gh` facade for direct
+ * injection via `injectedGh`. See
+ * `tests/single-story-close-orchestration.test.js#makeFakeGh` for the
+ * full shape — duplicated here so this file remains self-contained.
+ */
+function makeFakeGh(handler) {
+  const dispatch = async (args) => {
+    const wantsJson = Array.isArray(args) && args.includes('--json');
+    const raw = handler(args);
+    if (wantsJson) return raw ?? [];
+    const text = typeof raw === 'string' ? raw : (raw?.stdout ?? '');
+    return { stdout: text, stderr: '', code: 0 };
+  };
   return {
-    namedExports: {
-      ...realChildProcess,
-      execFileSync: fakeExecFileSync,
+    pr: {
+      list: (flags = [], fields) =>
+        dispatch([
+          'pr',
+          'list',
+          ...flags,
+          ...(Array.isArray(fields) && fields.length
+            ? ['--json', fields.join(',')]
+            : []),
+        ]),
+      create: (flags = []) => dispatch(['pr', 'create', ...flags]),
+      merge: (id, flags = []) =>
+        dispatch(['pr', 'merge', String(id), ...flags]),
     },
   };
 }
@@ -249,12 +271,9 @@ describe('runSingleStoryClose — sync integration', () => {
     });
     t.mock.module(CLOSE_VALIDATION_URL, closeValidationMock());
     t.mock.module(WORKTREE_MANAGER_URL, worktreeManagerMock());
-    t.mock.module(
-      'node:child_process',
-      childProcessMock(() => {
-        throw new Error('gh should not be invoked when sync fails');
-      }),
-    );
+    const gh = makeFakeGh(() => {
+      throw new Error('gh should not be invoked when sync fails');
+    });
 
     const { runSingleStoryClose } = await import(`${SUT_URL}?t=sync-conflict`);
     const provider = fakeProvider();
@@ -270,6 +289,7 @@ describe('runSingleStoryClose — sync integration', () => {
             kind: 'conflict',
             conflictFiles: ['src/x.js'],
           }),
+          injectedGh: gh,
         }),
       /Base-sync failed \(conflict\).*src\/x\.js/,
     );
@@ -293,15 +313,12 @@ describe('runSingleStoryClose — sync integration', () => {
     });
     t.mock.module(CLOSE_VALIDATION_URL, closeValidationMock());
     t.mock.module(WORKTREE_MANAGER_URL, worktreeManagerMock());
-    t.mock.module(
-      'node:child_process',
-      childProcessMock((_cmd, args) => {
-        if (args[1] === 'list') return '';
-        if (args[1] === 'create') return 'https://github.com/o/r/pull/1';
-        if (args[1] === 'merge') return ''; // auto-merge enable
-        return '';
-      }),
-    );
+    const gh = makeFakeGh((args) => {
+      if (args[1] === 'list') return [];
+      if (args[1] === 'create') return 'https://github.com/o/r/pull/1';
+      if (args[1] === 'merge') return ''; // auto-merge enable
+      return '';
+    });
 
     const { runSingleStoryClose } = await import(`${SUT_URL}?t=sync-clean`);
     const provider = fakeProvider();
@@ -312,6 +329,7 @@ describe('runSingleStoryClose — sync integration', () => {
       injectedConfig: fakeConfig(),
       injectedSync: async () => ({ synced: true, kind: 'fast-forward' }),
       injectedNotify: () => Promise.resolve(),
+      injectedGh: gh,
       injectedRunCodeReview: async () => ({
         status: 'ok',
         severity: { critical: 0, high: 0, medium: 0, suggestion: 0 },
@@ -333,14 +351,11 @@ describe('runSingleStoryClose — sync integration', () => {
     t.mock.module(GIT_UTILS_URL, gitUtilsMock());
     t.mock.module(CLOSE_VALIDATION_URL, closeValidationMock());
     t.mock.module(WORKTREE_MANAGER_URL, worktreeManagerMock());
-    t.mock.module(
-      'node:child_process',
-      childProcessMock((_cmd, args) => {
-        if (args[1] === 'list') return '';
-        if (args[1] === 'create') return 'https://github.com/o/r/pull/2';
-        return '';
-      }),
-    );
+    const gh = makeFakeGh((args) => {
+      if (args[1] === 'list') return [];
+      if (args[1] === 'create') return 'https://github.com/o/r/pull/2';
+      return '';
+    });
 
     const { runSingleStoryClose } = await import(`${SUT_URL}?t=sync-skip`);
     await runSingleStoryClose({
@@ -354,6 +369,7 @@ describe('runSingleStoryClose — sync integration', () => {
         return { synced: true, kind: 'fast-forward' };
       },
       injectedNotify: () => Promise.resolve(),
+      injectedGh: gh,
       injectedRunCodeReview: async () => ({
         status: 'ok',
         severity: { critical: 0, high: 0, medium: 0, suggestion: 0 },

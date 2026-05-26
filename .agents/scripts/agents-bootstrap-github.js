@@ -87,6 +87,12 @@ const PROJECTS_DOC_POINTER =
  * @returns {{ status: number|null, stdout: string, stderr: string,
  *             error?: NodeJS.ErrnoException }}
  */
+// Story #2990: this preflight runner intentionally stays on raw
+// `spawnSync('gh', …)` (not the `lib/gh-exec.js` facade) because it
+// runs *before* auth is resolved — `gh --version` and `gh auth status`
+// are the very probes that decide whether the facade can be used at
+// all. Routing through the provider layer would create a circular
+// dependency: the facade assumes a working, authenticated `gh`.
 function defaultGhRunner(args) {
   const result = spawnSync('gh', args, { encoding: 'utf8' });
   return {

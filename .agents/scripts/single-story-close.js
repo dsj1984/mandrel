@@ -36,7 +36,6 @@
  * @see .agents/workflows/single-story-deliver.md
  */
 
-import { execFileSync } from 'node:child_process';
 import nodeFs from 'node:fs';
 import path from 'node:path';
 import { runAsCli } from './lib/cli-utils.js';
@@ -69,18 +68,13 @@ import { createProvider } from './lib/provider-factory.js';
 import { flipLabelAndNotify } from './lib/single-story/story-merged-notify.js';
 import { WorktreeManager } from './lib/worktree-manager.js';
 
-// Thin wrappers that bind the SUT-local `execFileSync` binding to the
-// phase primitives. This file is cache-busted by the orchestration tests
-// (`?t=tag` import suffix), so each test sees a fresh `execFileSync`
-// import that reflects the active `node:child_process` mock. Tests
-// import these names directly from the SUT URL.
-export function ensurePullRequest(args) {
-  return ensurePullRequestWith({ ...args, execFileSync });
-}
-
-export function enableAutoMerge(args) {
-  return enableAutoMergeWith({ ...args, execFileSync });
-}
+// Story #2990 moved the `gh`-spawn boundary into the `lib/gh-exec.js`
+// facade (the same shim the `providers/github/` gateways use). The
+// re-exports below preserve the SUT's public surface so tests and the
+// orchestration body keep importing `ensurePullRequest` /
+// `enableAutoMerge` from this file unchanged.
+export const ensurePullRequest = ensurePullRequestWith;
+export const enableAutoMerge = enableAutoMergeWith;
 
 // Re-export pure helpers verbatim — they don't touch `execFileSync`
 // or any URL-mocked module, so the phase exports work unmodified.
@@ -109,6 +103,10 @@ export async function runSingleStoryClose({
   injectedNotify,
   injectedSync,
   injectedRunCodeReview,
+  // Story #2990: lets orchestration tests pass a fake `lib/gh-exec.js`
+  // facade through to the PR open / auto-merge phases without touching
+  // module mocks. Defaults to the real `gh` import on each phase.
+  injectedGh,
 } = {}) {
   const {
     storyId,
@@ -202,12 +200,13 @@ export async function runSingleStoryClose({
   pushStoryBranch({ cwd, storyBranch, gitSync, progress });
 
   // Step 3: open (or reuse) a PR to `baseBranch`.
-  const prUrl = ensurePullRequest({
+  const prUrl = await ensurePullRequest({
     cwd,
     storyId,
     storyTitle: story.title,
     storyBranch,
     baseBranch,
+    gh: injectedGh,
     progress,
   });
 
@@ -232,12 +231,12 @@ export async function runSingleStoryClose({
   }
 
   // Step 3a: enable native auto-merge unless --no-auto-merge.
-  const { autoMergeEnabled, autoMergeReason } = runAutoMergePhase({
+  const { autoMergeEnabled, autoMergeReason } = await runAutoMergePhase({
     cwd,
     prNumber,
     prUrl,
     noAutoMerge,
-    execFileSync,
+    gh: injectedGh,
     progress,
   });
 

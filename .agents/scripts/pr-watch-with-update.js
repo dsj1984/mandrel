@@ -8,14 +8,14 @@
  * required-check poll loop AND the `mergeStateStatus: BEHIND`
  * auto-recovery; this shim re-enters the close-tail chain at the
  * canonical entry event (`pr.created`). Per Epic #2306 acceptance:
- * <50 lines, exactly one `bus.emit`, emits `pr.created`. Full deletion
- * remains D-2's job.
+ * <50 lines, exactly one `bus.emit`, emits `pr.created`. Story #2990
+ * routed `gh pr view` through `lib/gh-exec.js`.
  *
  * Usage: node .agents/scripts/pr-watch-with-update.js --pr <n> [--repo owner/repo]
  */
-import { spawnSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
+import { exec as ghExec } from './lib/gh-exec.js';
 import { createBus } from './lib/orchestration/lifecycle/bus.js';
 
 export async function runPrWatchShim({ prNumber, repo = null, bus } = {}) {
@@ -24,10 +24,7 @@ export async function runPrWatchShim({ prNumber, repo = null, bus } = {}) {
   const args = ['pr', 'view', String(prNumber)];
   if (repo) args.push('--repo', repo);
   args.push('--json', 'url,headRefName,baseRefName');
-  const res = spawnSync('gh', args, { encoding: 'utf-8', shell: false });
-  if (res.status !== 0)
-    throw new Error(`gh pr view exit ${res.status}: ${res.stderr ?? ''}`);
-  const { url, headRefName, baseRefName } = JSON.parse(res.stdout);
+  const { url, headRefName, baseRefName } = await ghExec({ args });
   await (bus ?? createBus()).emit('pr.created', {
     prUrl: url,
     head: headRefName,
