@@ -10,8 +10,8 @@
  * `manualInterventions` count into the body composer.
  */
 
-import { classifyPerfSignals } from '../../retro-perf-heuristics.js';
 import { isCleanManifest } from '../../retro-heuristics.js';
+import { classifyPerfSignals } from '../../retro-perf-heuristics.js';
 
 /**
  * Pure: clamp a candidate count to a non-negative integer. Used to
