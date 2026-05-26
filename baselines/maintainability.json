@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-26T19:40:50.123Z",
+  "generatedAt": "2026-05-22T19:41:38.387Z",
   "rollup": {
     "*": {
       "min": 52.885,
-      "p50": 104.034,
-      "p95": 121.809
+      "p50": 103.928,
+      "p95": 121.479
     }
   },
   "rows": [
@@ -527,20 +527,12 @@
       "mi": 126.057
     },
     {
-      "path": ".agents/scripts/lib/fs-utils.js",
-      "mi": 150.398
-    },
-    {
       "path": ".agents/scripts/lib/gates/baseline-store.js",
       "mi": 104.319
     },
     {
       "path": ".agents/scripts/lib/gates/friction.js",
       "mi": 104.417
-    },
-    {
-      "path": ".agents/scripts/lib/gates/gate-cli.js",
-      "mi": 98.19
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
@@ -1147,10 +1139,6 @@
       "mi": 106.413
     },
     {
-      "path": ".agents/scripts/lib/runtime-context.js",
-      "mi": 121.987
-    },
-    {
       "path": ".agents/scripts/lib/signals/detectors/common.js",
       "mi": 128.211
     },
@@ -1511,6 +1499,10 @@
       "mi": 93.255
     },
     {
+      "path": ".agents/scripts/story-task-progress.js",
+      "mi": 89.273
+    },
+    {
       "path": ".agents/scripts/sync-agentrc.js",
       "mi": 105.583
     },
@@ -1557,6 +1549,10 @@
     {
       "path": ".agents/scripts/wave-gate.js",
       "mi": 96.386
+    },
+    {
+      "path": ".agents/scripts/wave-tick.js",
+      "mi": 97.719
     },
     {
       "path": "tests/acceptance-spec-reconciler.test.js",
@@ -2159,10 +2155,6 @@
       "mi": 109.287
     },
     {
-      "path": "tests/gate-cli.test.js",
-      "mi": 115.279
-    },
-    {
       "path": "tests/gate-friction.test.js",
       "mi": 105.888
     },
@@ -2367,10 +2359,6 @@
       "mi": 113.462
     },
     {
-      "path": "tests/lib/config-resolver-ctx.test.js",
-      "mi": 112.252
-    },
-    {
       "path": "tests/lib/config-resolver-notifications.test.js",
       "mi": 110.612
     },
@@ -2465,10 +2453,6 @@
     {
       "path": "tests/lib/fs-mock.js",
       "mi": 128.761
-    },
-    {
-      "path": "tests/lib/fs-utils.test.js",
-      "mi": 128.859
     },
     {
       "path": "tests/lib/gh-exec-classify.test.js",
@@ -3089,10 +3073,6 @@
     {
       "path": "tests/lib/retro-heuristics.test.js",
       "mi": 105.64
-    },
-    {
-      "path": "tests/lib/runtime-context.test.js",
-      "mi": 117.971
     },
     {
       "path": "tests/lib/signals/detectors/common.test.js",

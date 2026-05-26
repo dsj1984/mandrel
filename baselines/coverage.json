@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-05-16T01:13:59.360Z",
+  "generatedAt": "2026-05-26T20:18:45.277Z",
   "rollup": {
     "*": {
-      "lines": 96.81,
-      "branches": 86.39,
-      "functions": 92.44
+      "lines": 96.78,
+      "branches": 86.27,
+      "functions": 92.62
     }
   },
   "rows": [
@@ -605,12 +605,6 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/fs-utils.js",
-      "lines": 100,
-      "branches": 100,
-      "functions": 100
-    },
-    {
       "path": ".agents/scripts/lib/gates/baseline-store.js",
       "lines": 96.23,
       "branches": 78.26,
@@ -620,12 +614,6 @@
       "path": ".agents/scripts/lib/gates/friction.js",
       "lines": 90.7,
       "branches": 80,
-      "functions": 100
-    },
-    {
-      "path": ".agents/scripts/lib/gates/gate-cli.js",
-      "lines": 100,
-      "branches": 94.87,
       "functions": 100
     },
     {
@@ -1383,12 +1371,6 @@
       "lines": 100,
       "branches": 87.5,
       "functions": 100
-    },
-    {
-      "path": ".agents/scripts/lib/runtime-context.js",
-      "lines": 100,
-      "branches": 100,
-      "functions": 25
     },
     {
       "path": ".agents/scripts/lib/signals/detectors/hotspot.js",
