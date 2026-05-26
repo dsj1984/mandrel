@@ -59,10 +59,11 @@ export const MAINTAINABILITY_EXCLUSIONS = Object.freeze(
     // same family as acceptance-spec-reconciler. The audit recheck CLI uses
     // the same regex-property scan helpers.
     '.agents/scripts/epic-audit-recheck.js',
-    // escomplex: "this[node.expression.type] is not a function" — the
-    // expression-type visitor lacks a handler for the spec emitter's async
-    // top-level expression form.
-    '.agents/scripts/epic-plan-spec.js',
+    // escomplex: parse-fails (MI=0) on the spec-freshness phase's optional-
+    // chained destructuring fallthrough. Same upstream family as the other
+    // "pattern" / destructuring failures; carve-out so the phase split of
+    // epic-plan-spec doesn't poison the global rollup.
+    '.agents/scripts/lib/orchestration/epic-plan-spec/phases/spec-freshness.js',
     // escomplex: "Cannot read properties of undefined (reading 'pattern')" —
     // the audit-to-stories parser reuses the same regex-property scan
     // patterns as acceptance-spec-reconciler.
