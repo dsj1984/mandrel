@@ -233,9 +233,17 @@ Each Agent call's prompt must (1) name the Story + Epic ids, (2)
 instruct the child to invoke `/story-deliver <storyId>`, (3) state the
 **return contract** below, (4) remind the child of the
 **non-interactive contract** (no clarifying questions; transition to
-`agent::blocked` and exit if stuck), and (5) ask the child to suppress
+`agent::blocked` and exit if stuck), (5) ask the child to suppress
 per-Task chat relay and include its **terminal** `renderedBody` in the
-JSON return.
+JSON return, and (6) include the literal directive
+**Heartbeat or block.** — the child MUST emit a `story.heartbeat` lifecycle event at
+least once per Task implementation cycle (or whenever it stalls on a
+long-running step), and if it cannot make progress it MUST transition
+to `agent::blocked` rather than fall silent. The pairing of
+`story.heartbeat` and `agent::blocked` is what lets the §2e Idle
+Watchdog distinguish a working child from a dead one; a silent child
+with no recent heartbeat and no blocker label is the failure mode the
+watchdog is built to catch.
 
 ```json
 {
