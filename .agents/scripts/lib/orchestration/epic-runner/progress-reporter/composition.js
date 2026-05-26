@@ -99,6 +99,65 @@ export function renderProgressTable(rows) {
 }
 
 /**
+ * Declarative descriptor table that drives the Notable bullet block. Each
+ * descriptor names a row state, the emoji prefix to render, and the
+ * `label(count)` function that produces the count-aware human phrase (e.g.
+ * "1 story blocked" vs "2 stories blocked"). Iteration order is the
+ * canonical render order: blocked → in-flight → unknown, matching the
+ * pre-refactor sequential filter walks so output stays byte-identical.
+ */
+const STATE_NOTABLE_DESCRIPTORS = [
+  {
+    state: 'blocked',
+    emoji: STATE_EMOJI.blocked,
+    label: (n) => `${n} stor${n === 1 ? 'y' : 'ies'} blocked`,
+  },
+  {
+    state: 'in-flight',
+    emoji: STATE_EMOJI['in-flight'],
+    label: (n) => `${n} in flight`,
+  },
+  {
+    state: 'unknown',
+    emoji: STATE_EMOJI.unknown,
+    label: (n) => `${n} unreadable (token scope / network?)`,
+  },
+];
+
+/**
+ * Single-pass grouping of `rows` keyed by the descriptor states. Returns a
+ * Map<state, row[]> so callers can iterate descriptors and look up the
+ * matching slice in O(1); states absent from `rows` get an empty array so
+ * the renderer can skip them with a single `length` check.
+ */
+function groupRowsByNotableState(rows) {
+  const groups = new Map(STATE_NOTABLE_DESCRIPTORS.map((d) => [d.state, []]));
+  for (const r of rows) {
+    const bucket = groups.get(r.state);
+    if (bucket) bucket.push(r);
+  }
+  return groups;
+}
+
+/**
+ * Run a single detector against `rows`/`ctx`, swallowing any thrown or
+ * rejected error so one misbehaving detector cannot kill the whole render
+ * path. Failures are surfaced via `logger.warn` so operators still see the
+ * signal; the bullet array is treated as empty on failure.
+ */
+async function runDetector(detector, rows, ctx, logger) {
+  try {
+    const fn = typeof detector === 'function' ? detector : detector?.detect;
+    if (typeof fn !== 'function') return [];
+    const out = await fn.call(detector, rows, ctx);
+    return Array.isArray(out) ? out : [];
+  } catch (err) {
+    logger?.warn?.(`[ProgressReporter] detector failed: ${err.message}`);
+    return [];
+  }
+}
+
+/**
  * Render the **Notable** bullet block: blocked-story summary, in-flight
  * counts, unreadable rows, plus any detector bullets that were collected
  * from the caller. Detectors receive `(rows, ctx)` and may return either
@@ -106,42 +165,28 @@ export function renderProgressTable(rows) {
  * responsible for awaiting and trapping detector failures (we trap them
  * here to keep the render path non-fatal).
  *
+ * The state-driven bullets are emitted from `STATE_NOTABLE_DESCRIPTORS`
+ * via a single grouping pass, which keeps the cyclomatic surface flat as
+ * new notable states are added.
+ *
  * Returns the rendered block (without the leading `**Notable**` header so
  * the caller can place it inside a larger composition).
  */
 export async function renderNotable({ rows, detectors = [], wave, logger }) {
   const items = [];
-  const blocked = rows.filter((r) => r.state === 'blocked');
-  if (blocked.length) {
-    items.push(
-      `- 🚧 ${blocked.length} stor${blocked.length === 1 ? 'y' : 'ies'} blocked: ${blocked.map((r) => `#${r.id}`).join(', ')}`,
-    );
+  const groups = groupRowsByNotableState(rows);
+  for (const { state, emoji, label } of STATE_NOTABLE_DESCRIPTORS) {
+    const matched = groups.get(state);
+    if (!matched.length) continue;
+    const ids = matched.map((r) => `#${r.id}`).join(', ');
+    items.push(`- ${emoji} ${label(matched.length)}: ${ids}`);
   }
-  const inFlight = rows.filter((r) => r.state === 'in-flight');
-  if (inFlight.length) {
-    items.push(
-      `- 🔧 ${inFlight.length} in flight: ${inFlight.map((r) => `#${r.id}`).join(', ')}`,
-    );
-  }
-  const unknown = rows.filter((r) => r.state === 'unknown');
-  if (unknown.length) {
-    items.push(
-      `- ❓ ${unknown.length} unreadable (token scope / network?): ${unknown.map((r) => `#${r.id}`).join(', ')}`,
-    );
-  }
+
   const ctx = { wave };
   const detectorResults = await Promise.all(
-    (detectors ?? []).map(async (detector) => {
-      try {
-        const fn = typeof detector === 'function' ? detector : detector?.detect;
-        if (typeof fn !== 'function') return [];
-        const out = await fn.call(detector, rows, ctx);
-        return Array.isArray(out) ? out : [];
-      } catch (err) {
-        logger?.warn?.(`[ProgressReporter] detector failed: ${err.message}`);
-        return [];
-      }
-    }),
+    (detectors ?? []).map((detector) =>
+      runDetector(detector, rows, ctx, logger),
+    ),
   );
   for (const bullets of detectorResults) {
     for (const b of bullets) items.push(b.startsWith('- ') ? b : `- ${b}`);
