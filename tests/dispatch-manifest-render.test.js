@@ -149,12 +149,7 @@ describe('projectStoriesFromManifest', () => {
 describe('countWaves', () => {
   it('counts distinct non-(-1) wave indexes', () => {
     assert.equal(
-      countWaves([
-        { wave: 0 },
-        { wave: 0 },
-        { wave: 1 },
-        { wave: -1 },
-      ]),
+      countWaves([{ wave: 0 }, { wave: 0 }, { wave: 1 }, { wave: -1 }]),
       2,
     );
   });
