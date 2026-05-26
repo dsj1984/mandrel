@@ -173,7 +173,11 @@ describe('retro-runner perf-signals rendering (Story #3044)', () => {
       counts: baseCounts(),
       epicPerfReport,
       storyPerfSummaries: [],
-      perfThresholds: { utilisation: 0.1, bootstrapShare: 0.4, capBindingRunLength: 2 },
+      perfThresholds: {
+        utilisation: 0.1,
+        bootstrapShare: 0.4,
+        capBindingRunLength: 2,
+      },
       forceFull: true,
     });
     // utilisation threshold lowered below the observed 0.2 → no signal.
@@ -198,9 +202,7 @@ describe('retro-runner perf-signals rendering (Story #3044)', () => {
       epicId: 99,
       counts: baseCounts(),
       epicPerfReport,
-      storyPerfSummaries: [
-        { phaseTimingsMs: { 'story-init': 700 } },
-      ],
+      storyPerfSummaries: [{ phaseTimingsMs: { 'story-init': 700 } }],
       forceFull: true,
     });
     assert.match(body, /high-bootstrap-share/);

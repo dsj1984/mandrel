@@ -49,9 +49,7 @@ describe('classifyPerfSignals (Story #3045)', () => {
           capBinding: true,
         },
       ],
-      storyPerfSummaries: [
-        { phaseTimingsMs: { 'story-init': 100 } },
-      ],
+      storyPerfSummaries: [{ phaseTimingsMs: { 'story-init': 100 } }],
     });
     const signals = classifyPerfSignals(report);
     assert.deepEqual(signals, []);
@@ -127,9 +125,7 @@ describe('classifyPerfSignals (Story #3045)', () => {
           capBinding: false,
         },
       ],
-      storyPerfSummaries: [
-        { phaseTimingsMs: { 'story-init': 100 } },
-      ],
+      storyPerfSummaries: [{ phaseTimingsMs: { 'story-init': 100 } }],
     });
     const signals = classifyPerfSignals(report);
     assert.equal(
@@ -242,14 +238,8 @@ describe('classifyPerfSignals (Story #3045)', () => {
       bootstrapShare: 0.4,
       capBindingRunLength: 2,
     });
-    assert.equal(
-      signals.filter((s) => s.kind === 'low-utilisation').length,
-      2,
-    );
-    assert.equal(
-      signals.filter((s) => s.kind === 'cap-binding-run').length,
-      1,
-    );
+    assert.equal(signals.filter((s) => s.kind === 'low-utilisation').length, 2);
+    assert.equal(signals.filter((s) => s.kind === 'cap-binding-run').length, 1);
   });
 
   it('resolvePerfThresholds falls back to documented defaults', () => {
@@ -257,15 +247,15 @@ describe('classifyPerfSignals (Story #3045)', () => {
       resolvePerfThresholds(undefined),
       DEFAULT_RETRO_PERF_THRESHOLDS,
     );
-    assert.deepEqual(resolvePerfThresholds(null), DEFAULT_RETRO_PERF_THRESHOLDS);
+    assert.deepEqual(
+      resolvePerfThresholds(null),
+      DEFAULT_RETRO_PERF_THRESHOLDS,
+    );
     assert.deepEqual(resolvePerfThresholds({}), DEFAULT_RETRO_PERF_THRESHOLDS);
     assert.deepEqual(
       resolvePerfThresholds({ utilisation: -1, capBindingRunLength: 0 }),
       DEFAULT_RETRO_PERF_THRESHOLDS,
     );
-    assert.equal(
-      resolvePerfThresholds({ utilisation: 0.5 }).utilisation,
-      0.5,
-    );
+    assert.equal(resolvePerfThresholds({ utilisation: 0.5 }).utilisation, 0.5);
   });
 });
