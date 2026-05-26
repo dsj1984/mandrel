@@ -364,10 +364,11 @@ const SIGNALS_SCHEMA = {
 };
 
 // `delivery.quality.gates.<tier>` sub-schemas live in their own module
-// (Story #1737); see `config-gates-schema.js` for the seven gate shapes
+// (Story #1737); see `config/gates/index.js` for the seven gate shapes
 // and the shared { kind, value } tolerance + workspace-keyed floors
-// fragments.
-import { GATES_SCHEMA } from './config-gates-schema.js';
+// fragments. Story #2987 split the former `config-gates-schema.js`
+// aggregate into per-gate files under `config/gates/`.
+import { GATES_SCHEMA } from './config/gates/index.js';
 
 const CODING_GUARDRAILS_SCHEMA = {
   type: 'object',
