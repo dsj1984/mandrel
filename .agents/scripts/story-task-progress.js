@@ -72,6 +72,7 @@ import {
   STORY_RUN_PROGRESS_TYPE,
   upsertStoryRunProgress,
 } from './lib/orchestration/epic-runner/story-run-progress-writer.js';
+import { emitStoryHeartbeat } from './lib/orchestration/lifecycle/emit-story-heartbeat.js';
 import { emitModelAttribution } from './lib/orchestration/model-attribution.js';
 import { parseFencedJsonComment } from './lib/orchestration/structured-comment-parser.js';
 import {
@@ -80,6 +81,7 @@ import {
   transitionTicketState,
 } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
+import { resolveStoryHierarchy } from './lib/story-lifecycle.js';
 import { notify } from './notify.js';
 
 const VALID_TASK_STATES = new Set(['executing', 'done', 'blocked']);
@@ -259,6 +261,23 @@ export function isCommitReachableFromHead(cwd, commitSha) {
 }
 
 /**
+ * Resolve the parent Epic id for a Story by parsing the `Epic: #N` marker
+ * out of the Story ticket body. Returns `null` when the Story has no
+ * `Epic: #N` reference (standalone Story) so the heartbeat emit is
+ * skipped gracefully. Never throws — caller wraps in a best-effort try.
+ *
+ * @param {object} provider
+ * @param {number} storyId
+ * @returns {Promise<number|null>}
+ */
+export async function resolveEpicIdForStory(provider, storyId) {
+  const ticket = await provider.getTicket(storyId);
+  const body = ticket?.body ?? '';
+  const { epicId } = resolveStoryHierarchy(body);
+  return Number.isInteger(epicId) && epicId > 0 ? epicId : null;
+}
+
+/**
  * End-to-end: read cache (or hydrate), apply transition, write cache,
  * upsert the GitHub comment.
  *
@@ -419,6 +438,25 @@ export async function runStoryTaskProgress(args) {
       notify: null,
       cascade: false,
     });
+    // Story #3057 — emit a `story.heartbeat` ledger record after each
+    // Task close so /epic-deliver's host-loop reconciler can confirm
+    // forward progress between dispatch and merge. Best-effort: any
+    // failure to resolve epicId or append to the ledger must NOT block
+    // the transition itself. Heartbeat is observability, not state.
+    try {
+      const epicId = await resolveEpicIdForStory(provider, storyId);
+      if (epicId) {
+        emitStoryHeartbeat({ storyId, epicId, taskId, config });
+      } else {
+        Logger.warn(
+          `[story-task-progress] story.heartbeat skipped: no Epic ref on Story #${storyId}.`,
+        );
+      }
+    } catch (err) {
+      Logger.warn(
+        `[story-task-progress] story.heartbeat emit failed for #${taskId}: ${err?.message ?? err}`,
+      );
+    }
   }
 
   // 3. Persist the cache.
