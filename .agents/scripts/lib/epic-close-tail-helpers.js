@@ -17,6 +17,10 @@
  * side effects.
  */
 
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { runEpicMode as defaultRunEpicMode } from '../analyze-execution.js';
+import { epicPerfReportJsonPath } from './config/temp-paths.js';
 import { Logger } from './Logger.js';
 import {
   STATE_LABELS,
@@ -175,4 +179,116 @@ export async function verifyAndRecoverEpicClose({
       detail,
     };
   }
+}
+
+/**
+ * Invoke `analyze-execution.runEpicMode` from the close tail and persist
+ * the resulting `epic-perf-report` payload to
+ * `temp/epic-<id>/epic-perf-report.json` (Epic #3019 / Story #3029 /
+ * Task #3040). The analyzer already upserts the structured comment on
+ * the Epic; this helper exists so the report is also reachable on disk
+ * without a provider round-trip, and so the `epic-handoff` close
+ * comment can link to it by relative path.
+ *
+ * Friction-not-fatal contract: any throw from the analyzer, the
+ * filesystem write, or the cwd lookup is caught, logged as a `warn`,
+ * and surfaced in the result envelope. The close tail must still
+ * complete in that case — the report is observability output, not a
+ * gating signal. Callers should record the failure (e.g. via the
+ * friction lifecycle event) but MUST NOT throw.
+ *
+ * @param {{
+ *   epicId: number,
+ *   provider: object,
+ *   config?: object,
+ *   cwd?: string,
+ *   logger?: object,
+ *   analyzeFn?: typeof defaultRunEpicMode,
+ *   writeFileFn?: (p: string, data: string, encoding: string) => Promise<void>,
+ *   mkdirFn?: (p: string, opts: object) => Promise<unknown>,
+ *   now?: () => Date,
+ * }} args
+ * @returns {Promise<{
+ *   status: 'ok'|'failed',
+ *   path: string|null,
+ *   commentId: number|null,
+ *   payload: object|null,
+ *   detail?: string,
+ * }>}
+ */
+export async function emitEpicPerfReport({
+  epicId,
+  provider,
+  config,
+  cwd,
+  logger = Logger,
+  analyzeFn = defaultRunEpicMode,
+  writeFileFn = fs.writeFile,
+  mkdirFn = fs.mkdir,
+  now,
+} = {}) {
+  if (!Number.isInteger(epicId) || epicId <= 0) {
+    throw new TypeError(
+      'emitEpicPerfReport: epicId is required (positive integer).',
+    );
+  }
+  if (!provider) {
+    throw new TypeError('emitEpicPerfReport: provider is required.');
+  }
+
+  let result;
+  try {
+    result = await analyzeFn({
+      epicId,
+      provider,
+      config,
+      cwd,
+      logger,
+      ...(typeof now === 'function' ? { now } : {}),
+    });
+  } catch (err) {
+    const detail = err?.message ?? String(err);
+    logger.warn?.(
+      `[epic-close-tail] emitEpicPerfReport: analyze-execution threw for Epic #${epicId} (non-fatal): ${detail}`,
+    );
+    return {
+      status: 'failed',
+      path: null,
+      commentId: null,
+      payload: null,
+      detail,
+    };
+  }
+
+  const target = epicPerfReportJsonPath(epicId, config);
+  try {
+    await mkdirFn(path.dirname(target), { recursive: true });
+    await writeFileFn(
+      target,
+      `${JSON.stringify(result?.payload ?? {}, null, 2)}\n`,
+      'utf8',
+    );
+  } catch (err) {
+    const detail = err?.message ?? String(err);
+    logger.warn?.(
+      `[epic-close-tail] emitEpicPerfReport: failed to persist ${target} (non-fatal): ${detail}`,
+    );
+    return {
+      status: 'failed',
+      path: target,
+      commentId: result?.commentId ?? null,
+      payload: result?.payload ?? null,
+      detail,
+    };
+  }
+
+  logger.info?.(
+    `[epic-close-tail] Persisted epic-perf-report.json at ${target} for Epic #${epicId}.`,
+  );
+  return {
+    status: 'ok',
+    path: target,
+    commentId: result?.commentId ?? null,
+    payload: result?.payload ?? null,
+  };
 }

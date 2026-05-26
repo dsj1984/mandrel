@@ -243,6 +243,23 @@ export const epicPerfReportPath = (eid, config) =>
   epicArtifactPath(eid, 'perf-report.md', config);
 
 /**
+ * `temp/epic-<eid>/epic-perf-report.json` — canonical JSON snapshot of
+ * the `epic-perf-report` payload persisted at /epic-deliver close
+ * (Epic #3019 / Story #3029 / Task #3040). Written by the
+ * `emitEpicPerfReport` close-tail helper alongside the
+ * `epic-perf-report` structured comment so the report is discoverable
+ * from the file system without round-tripping the ticketing provider,
+ * and so the `epic-handoff` structured close comment can link it by
+ * relative path.
+ *
+ * @param {number} eid
+ * @param {object} [config]
+ * @returns {string}
+ */
+export const epicPerfReportJsonPath = (eid, config) =>
+  epicArtifactPath(eid, 'epic-perf-report.json', config);
+
+/**
  * `temp/epic-<eid>/lifecycle.ndjson` — append-only lifecycle bus ledger
  * (Story #2510). The LedgerWriter persists every emitted/completed/failed
  * record here; the TraceLogger renders the companion markdown from it.
