@@ -37,6 +37,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { gitSpawn } from './git-utils.js';
+import { Logger } from './Logger.js';
 
 /**
  * Allowed tier values for `planning.codebaseSnapshot.tier`. Mirrored
@@ -207,13 +208,16 @@ function listRecentlyTouchedDirs(cwd, window) {
  * @param {string} cwd
  * @returns {object}
  */
-function readPackageManifestSurface(cwd) {
+function readPackageManifestSurface(cwd, logger) {
   const pkgPath = path.join(cwd, 'package.json');
   if (!fs.existsSync(pkgPath)) return {};
   let parsed;
   try {
     parsed = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-  } catch (_err) {
+  } catch (err) {
+    logger.debug(
+      `[codebase-snapshot] package.json read/parse failed for ${pkgPath}: ${err?.message ?? err}`,
+    );
     return {};
   }
   const exportsField = parsed.exports;
@@ -286,7 +290,7 @@ function extractExportSignatures(body) {
  * @param {string[]} tracked
  * @returns {Array<{ path: string, exports: string[] }>}
  */
-function collectSignatures(cwd, tracked) {
+function collectSignatures(cwd, tracked, logger) {
   const out = [];
   for (const rel of tracked) {
     const ext = path.extname(rel).toLowerCase();
@@ -295,14 +299,20 @@ function collectSignatures(cwd, tracked) {
     let stat;
     try {
       stat = fs.statSync(abs);
-    } catch (_err) {
+    } catch (err) {
+      logger.debug(
+        `[codebase-snapshot] stat failed for ${abs}: ${err?.message ?? err}`,
+      );
       continue;
     }
     if (stat.size > 64 * 1024) continue;
     let body;
     try {
       body = fs.readFileSync(abs, 'utf8');
-    } catch (_err) {
+    } catch (err) {
+      logger.debug(
+        `[codebase-snapshot] readFile failed for ${abs}: ${err?.message ?? err}`,
+      );
       continue;
     }
     const exports = extractExportSignatures(body);
@@ -359,6 +369,7 @@ function detectTestSurface(cwd, pkg) {
  */
 export function buildCodebaseSnapshot(opts = {}) {
   const cwd = opts.cwd ?? process.cwd();
+  const logger = opts.logger ?? Logger;
   const cfg = resolveSnapshotConfig({
     tier: opts.tier,
     include: opts.include,
@@ -372,7 +383,7 @@ export function buildCodebaseSnapshot(opts = {}) {
   );
   filtered.sort();
 
-  const pkg = readPackageManifestSurface(cwd);
+  const pkg = readPackageManifestSurface(cwd, logger);
   const recentlyTouched = listRecentlyTouchedDirs(cwd, cfg.recentCommitWindow);
   const testSurface = detectTestSurface(cwd, pkg);
 
@@ -396,7 +407,7 @@ export function buildCodebaseSnapshot(opts = {}) {
   };
 
   if (cfg.tier === 'medium') {
-    snapshot.signatures = collectSignatures(cwd, filtered);
+    snapshot.signatures = collectSignatures(cwd, filtered, logger);
   }
 
   return snapshot;

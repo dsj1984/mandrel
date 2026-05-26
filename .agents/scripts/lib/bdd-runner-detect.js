@@ -43,6 +43,8 @@ import path from 'node:path';
 import yaml from 'js-yaml';
 import picomatch from 'picomatch';
 
+import { Logger } from './Logger.js';
+
 /**
  * Known BDD runner package names → pending-tag string the runner honours.
  *
@@ -121,6 +123,7 @@ export async function verifyBddRunnerPendingTag(opts = {}) {
   const readPkg = opts.readPkg ?? ((p) => readFile(p, 'utf8'));
   const listWorkspacePkgPaths =
     opts.listWorkspacePkgPaths ?? defaultListWorkspacePkgPaths;
+  const logger = opts.logger ?? Logger;
   const rootPkgPath = path.join(cwd, 'package.json');
 
   let raw;
@@ -147,9 +150,17 @@ export async function verifyBddRunnerPendingTag(opts = {}) {
 
   let workspacePkgPaths = [];
   try {
-    workspacePkgPaths = await listWorkspacePkgPaths({ cwd, rootPkg, readPkg });
-  } catch (_err) {
+    workspacePkgPaths = await listWorkspacePkgPaths({
+      cwd,
+      rootPkg,
+      readPkg,
+      logger,
+    });
+  } catch (err) {
     // Workspace discovery failure is non-fatal: degrade to root-only scan.
+    logger.debug(
+      `[bdd-runner-detect] workspace discovery failed for ${cwd}: ${err?.message ?? err}`,
+    );
     workspacePkgPaths = [];
   }
 
@@ -157,13 +168,19 @@ export async function verifyBddRunnerPendingTag(opts = {}) {
     let wsRaw;
     try {
       wsRaw = await readPkg(wsPkgPath);
-    } catch (_err) {
+    } catch (err) {
+      logger.debug(
+        `[bdd-runner-detect] readPkg failed for workspace ${wsPkgPath}: ${err?.message ?? err}`,
+      );
       continue;
     }
     let wsPkg;
     try {
       wsPkg = JSON.parse(wsRaw);
-    } catch (_err) {
+    } catch (err) {
+      logger.debug(
+        `[bdd-runner-detect] JSON parse failed for workspace ${wsPkgPath}: ${err?.message ?? err}`,
+      );
       continue;
     }
     Object.assign(
@@ -203,13 +220,14 @@ export async function verifyBddRunnerPendingTag(opts = {}) {
  *
  * @returns {Promise<string[]>}
  */
-async function defaultListWorkspacePkgPaths({ cwd, rootPkg }) {
-  const patterns = readWorkspacePatterns(cwd, rootPkg);
+async function defaultListWorkspacePkgPaths({ cwd, rootPkg, logger }) {
+  const log = logger ?? Logger;
+  const patterns = readWorkspacePatterns(cwd, rootPkg, log);
   if (patterns.length === 0) return [];
-  return expandWorkspacePatterns(cwd, patterns);
+  return expandWorkspacePatterns(cwd, patterns, log);
 }
 
-function readWorkspacePatterns(cwd, rootPkg) {
+function readWorkspacePatterns(cwd, rootPkg, logger) {
   const yamlPath = path.join(cwd, 'pnpm-workspace.yaml');
   if (existsSync(yamlPath)) {
     try {
@@ -218,8 +236,11 @@ function readWorkspacePatterns(cwd, rootPkg) {
       if (parsed && Array.isArray(parsed.packages)) {
         return parsed.packages.filter((p) => typeof p === 'string');
       }
-    } catch (_err) {
+    } catch (err) {
       // unparseable yaml → fall through to package.json workspaces
+      logger.debug(
+        `[bdd-runner-detect] pnpm-workspace.yaml parse failed for ${yamlPath}: ${err?.message ?? err}`,
+      );
     }
   }
 
@@ -244,7 +265,7 @@ function readWorkspacePatterns(cwd, rootPkg) {
  *   - recursive globs: `packages/**`
  *   - exclusion patterns prefixed with `!` (pnpm/npm convention)
  */
-function expandWorkspacePatterns(cwd, patterns) {
+function expandWorkspacePatterns(cwd, patterns, logger) {
   const includes = patterns.filter((p) => !p.startsWith('!'));
   const excludes = patterns
     .filter((p) => p.startsWith('!'))
@@ -272,7 +293,7 @@ function expandWorkspacePatterns(cwd, patterns) {
       i++;
     }
     const baseDir = path.join(cwd, ...literalSegments);
-    if (!existsSyncDir(baseDir)) continue;
+    if (!existsSyncDir(baseDir, logger)) continue;
     const recursive = segments.slice(i).includes('**');
     const includeMatcher = picomatch(pattern);
     walkPackages({
@@ -282,6 +303,7 @@ function expandWorkspacePatterns(cwd, patterns) {
       excludeMatchers,
       recursive,
       results,
+      logger,
     });
   }
 
@@ -295,11 +317,15 @@ function walkPackages({
   excludeMatchers,
   recursive,
   results,
+  logger,
 }) {
   let entries;
   try {
     entries = readdirSync(dir, { withFileTypes: true });
-  } catch (_err) {
+  } catch (err) {
+    logger?.debug(
+      `[bdd-runner-detect] readdir failed for ${dir}: ${err?.message ?? err}`,
+    );
     return;
   }
   for (const entry of entries) {
@@ -319,6 +345,7 @@ function walkPackages({
         excludeMatchers,
         recursive,
         results,
+        logger,
       });
     }
   }
@@ -332,10 +359,13 @@ function toPosix(p) {
   return p.split(path.sep).join('/');
 }
 
-function existsSyncDir(p) {
+function existsSyncDir(p, logger) {
   try {
     return existsSync(p) && statSync(p).isDirectory();
-  } catch (_err) {
+  } catch (err) {
+    logger?.debug(
+      `[bdd-runner-detect] stat failed for ${p}: ${err?.message ?? err}`,
+    );
     return false;
   }
 }
@@ -368,6 +398,7 @@ const CANONICAL_FEATURE_ROOTS = Object.freeze([
  */
 export function resolveFeatureRoots(opts = {}) {
   const cwd = opts.cwd ?? process.cwd();
+  const logger = opts.logger ?? Logger;
   const roots = [];
   for (const candidate of CANONICAL_FEATURE_ROOTS) {
     const abs = path.join(cwd, candidate);
@@ -375,8 +406,11 @@ export function resolveFeatureRoots(opts = {}) {
       if (existsSync(abs) && statSync(abs).isDirectory()) {
         roots.push(abs);
       }
-    } catch (_err) {
+    } catch (err) {
       // Unreadable path → treat as absent. Non-blocking by design.
+      logger.debug(
+        `[bdd-runner-detect] feature-root probe failed for ${abs}: ${err?.message ?? err}`,
+      );
     }
   }
   return roots;

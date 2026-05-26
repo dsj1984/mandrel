@@ -27,33 +27,40 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
+import { Logger } from './Logger.js';
+
 /**
  * Recursively list every file with a `.feature` extension under one of
  * the given roots. Returns absolute paths; never throws on permission
  * errors — unreadable directories are simply skipped.
  *
  * @param {string[]} roots
+ * @param {{ logger?: { debug: Function } }} [opts]
  * @returns {string[]}
  */
-export function listFeatureFiles(roots) {
+export function listFeatureFiles(roots, opts = {}) {
+  const logger = opts.logger ?? Logger;
   const out = [];
   for (const root of roots ?? []) {
-    walk(root, out);
+    walk(root, out, logger);
   }
   return out;
 }
 
-function walk(dir, acc) {
+function walk(dir, acc, logger) {
   let entries;
   try {
     entries = readdirSync(dir, { withFileTypes: true });
-  } catch (_err) {
+  } catch (err) {
+    logger.debug(
+      `[bdd-scenario-scanner] readdir failed for ${dir}: ${err?.message ?? err}`,
+    );
     return;
   }
   for (const entry of entries) {
     const abs = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      walk(abs, acc);
+      walk(abs, acc, logger);
       continue;
     }
     if (!entry.isFile()) continue;
@@ -61,7 +68,10 @@ function walk(dir, acc) {
     try {
       const stat = statSync(abs);
       if (stat.size > 256 * 1024) continue; // skip obviously bogus inputs
-    } catch (_err) {
+    } catch (err) {
+      logger.debug(
+        `[bdd-scenario-scanner] stat failed for ${abs}: ${err?.message ?? err}`,
+      );
       continue;
     }
     acc.push(abs);
@@ -225,13 +235,17 @@ function finalize(scenario) {
  */
 export function scanBddScenarios(opts = {}) {
   const { featureRoots = [] } = opts;
-  const files = listFeatureFiles(featureRoots);
+  const logger = opts.logger ?? Logger;
+  const files = listFeatureFiles(featureRoots, { logger });
   const out = [];
   for (const file of files) {
     let body;
     try {
       body = readFileSync(file, 'utf8');
-    } catch (_err) {
+    } catch (err) {
+      logger.debug(
+        `[bdd-scenario-scanner] readFile failed for ${file}: ${err?.message ?? err}`,
+      );
       continue;
     }
     const scenarios = parseFeatureBody(body);
