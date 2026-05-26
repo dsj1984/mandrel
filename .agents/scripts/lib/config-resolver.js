@@ -74,6 +74,7 @@ export {
   resolveMaintainabilityQuality,
   resolveQuality,
 } from './config/quality.js';
+export { DEFAULT_RETRO, getRetro } from './config/retro.js';
 export {
   DEFAULT_DECOMPOSER,
   DEFAULT_STORY_MERGE_RETRY,

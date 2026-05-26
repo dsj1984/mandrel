@@ -298,6 +298,34 @@ const DELIVER_RUNNER_SCHEMA = {
   additionalProperties: false,
 };
 
+/**
+ * `delivery.retro.perfThresholds` (Story #3042, Task #3043) — operator-tunable
+ * gates for the retro perf-signals classifier. Defaults are documented inline
+ * here and mirrored in `lib/orchestration/retro-perf-heuristics.js
+ * (DEFAULT_RETRO_PERF_THRESHOLDS)` and the static schema mirror.
+ *
+ * `utilisation` / `bootstrapShare` are unit-interval ratios; values outside
+ * [0, 1] fall back to defaults at the resolver. `capBindingRunLength` is a
+ * positive integer count of consecutive cap-binding waves.
+ */
+const RETRO_PERF_THRESHOLDS_SCHEMA = {
+  type: 'object',
+  properties: {
+    utilisation: { type: 'number', minimum: 0, maximum: 1 },
+    bootstrapShare: { type: 'number', minimum: 0, maximum: 1 },
+    capBindingRunLength: { type: 'integer', minimum: 1 },
+  },
+  additionalProperties: false,
+};
+
+const RETRO_SCHEMA = {
+  type: 'object',
+  properties: {
+    perfThresholds: RETRO_PERF_THRESHOLDS_SCHEMA,
+  },
+  additionalProperties: false,
+};
+
 const WORKTREE_ISOLATION_SCHEMA = {
   type: 'object',
   properties: {
@@ -633,6 +661,7 @@ const DELIVERY_SCHEMA = {
     mergeWatch: MERGE_WATCH_SCHEMA,
     epicAudit: EPIC_AUDIT_SCHEMA,
     codeReview: CODE_REVIEW_SCHEMA,
+    retro: RETRO_SCHEMA,
     ci: CI_DELIVERY_SCHEMA,
     preflight: PREFLIGHT_SCHEMA,
     // Cross-Story concurrency-hazard gate (Story #2297). When true,
