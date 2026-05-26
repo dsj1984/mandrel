@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/story.heartbeat.schema.json",
+  "title": "story.heartbeat",
+  "description": "Emitted by story-task-progress.js after each Task close inside a Story's implementation loop. Surfaces the in-progress Story as an inspectable ledger event so /epic-deliver's host-loop reconciler can confirm that a long Story is still making forward progress between dispatch and merge — distinct from story.dispatch.start (one per Story per attempt) and story.merged (one per Story per close). Payload carries the closing Task id so retros can reconstruct per-Task wall-clock cadence.",
+  "type": "object",
+  "required": ["event", "storyId", "epicId", "phase", "timestamp"],
+  "properties": {
+    "event": { "type": "string", "const": "story.heartbeat" },
+    "storyId": { "type": "integer", "minimum": 1 },
+    "epicId": { "type": "integer", "minimum": 1 },
+    "phase": { "type": "string", "const": "implementing" },
+    "taskId": { "type": "integer", "minimum": 1 },
+    "timestamp": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}
