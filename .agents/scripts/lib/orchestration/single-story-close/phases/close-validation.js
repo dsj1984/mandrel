@@ -1,0 +1,79 @@
+/**
+ * phases/close-validation.js — run the canonical close-validation gate
+ * chain for a standalone Story.
+ *
+ * The standalone path uses the same `runCloseValidation` chain as
+ * Epic-attached Stories so the experience matches — only the baseline
+ * ref changes (`main`, not `epic/<id>`).
+ *
+ * Standalone Stories have no parent Epic, so there's no per-Epic path to
+ * scope a `validation-evidence.json` under. Pass `epicId: null` (not `0`)
+ * so the `evidenceActive` predicate in `runCloseValidation` short-circuits
+ * cleanly. `0` is rejected downstream by `validation-evidence.evidencePath`
+ * (which requires a positive integer epicId) and aborts the whole gate
+ * chain.
+ *
+ * The trade-off is that re-runs of close on the same SHA don't hit the
+ * evidence cache for standalone Stories; that's acceptable until/unless
+ * the standalone path warrants its own evidence keyspace.
+ *
+ * `runCloseValidation` and `buildGatesFromConfig` are accepted as injected
+ * dependencies so the parent CLI's cache-busted bindings win in tests
+ * that mock the upstream module URLs.
+ */
+
+import { runCloseValidation as defaultRunCloseValidation } from '../../../close-validation.js';
+import { Logger } from '../../../Logger.js';
+import { buildGatesFromConfig as defaultBuildGatesFromConfig } from '../../story-close/legacy-settings-bag.js';
+
+/**
+ * Run the close-validation gate chain. Throws on first gate failure.
+ *
+ * @param {{
+ *   cwd: string,
+ *   worktreePath: string|null,
+ *   config: object,
+ *   baseBranch: string,
+ *   noFullScopeCrap: boolean,
+ *   storyId: number,
+ *   progress: (tag: string, msg: string) => void,
+ *   runCloseValidation?: typeof defaultRunCloseValidation,
+ *   buildGatesFromConfig?: typeof defaultBuildGatesFromConfig,
+ * }} args
+ */
+export async function runCloseValidationPhase({
+  cwd,
+  worktreePath,
+  config,
+  baseBranch,
+  noFullScopeCrap,
+  storyId,
+  progress,
+  runCloseValidation = defaultRunCloseValidation,
+  buildGatesFromConfig = defaultBuildGatesFromConfig,
+}) {
+  progress(
+    'VALIDATE',
+    `Running close-validation gates against baseline ${baseBranch}${worktreePath ? ` in ${worktreePath}` : ''}...`,
+  );
+  const validation = await runCloseValidation({
+    cwd,
+    worktreePath,
+    gates: buildGatesFromConfig(config, {
+      epicBranch: baseBranch,
+      fullScopeCrap: !noFullScopeCrap,
+    }),
+    log: (m) => Logger.info(m),
+    storyId,
+    epicId: null,
+  });
+  if (!validation.ok) {
+    const [first] = validation.failed;
+    const { gate, status, cwd: gateCwd } = first;
+    throw new Error(
+      `[single-story-close] Gate failed: ${gate.name} (exit ${status})${gateCwd ? ` in ${gateCwd}` : ''}.` +
+        (gate.hint ? ` ${gate.hint}` : ''),
+    );
+  }
+  progress('VALIDATE', '✅ All gates passed.');
+}
