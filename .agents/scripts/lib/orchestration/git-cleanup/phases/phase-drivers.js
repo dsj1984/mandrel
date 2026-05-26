@@ -6,8 +6,15 @@
  * `plan`/`execute` pair, applies the `--dry-run` / `--yes` semantics,
  * and emits the operator-facing log lines.
  *
- * Split out of `cli.js` so each phase file stays under Story #2466's
- * 200-LOC ceiling.
+ * ## Decide / Execute split (Story #2994)
+ *
+ * `runBranchPhase`, `runFastForwardPhase`, and `runStashPhase` each
+ * delegate to a pure `decideXPhase(state)` that returns a plain action
+ * record `{ kind, args }`, and an impure `executeXPhase(action, ctx)`
+ * that performs I/O. The `runXPhase` sequencer composes the two,
+ * inserting the interactive prompt between them when the action's
+ * `kind` is `'prompt-then-execute'`. The split keeps the branching
+ * logic unit-testable without spinning up git or stdin.
  *
  * @module lib/orchestration/git-cleanup/phases/phase-drivers
  */
@@ -51,48 +58,105 @@ function emitExecutionHuman(result) {
   else Logger.error(summary);
 }
 
-/* node:coverage ignore next */
-export async function runFastForwardPhase(opts, cwd, baseBranch) {
-  Logger.info(`${TAG} ── phase: fast-forward-main ──`);
-  const plan = planFastForward({ cwd, baseBranch });
+// =====================================================================
+// Fast-forward phase
+// =====================================================================
+
+/**
+ * Pure: decide what the fast-forward phase should do given the plan.
+ *
+ * Returns an action record:
+ *  - `{ kind: 'skip', result }`               — base branch can't FF
+ *  - `{ kind: 'dry-run', result }`            — dry-run mode
+ *  - `{ kind: 'prompt-then-execute', promptMessage, declinedResult, executeArgs }`
+ *  - `{ kind: 'execute', executeArgs }`       — --yes mode, run immediately
+ *
+ * @param {object} state
+ * @param {object} state.plan        Output of `planFastForward`.
+ * @param {object} state.opts        CLI options (`dryRun`, `yes`).
+ * @param {string} state.baseBranch  Base branch name.
+ * @param {string} state.cwd         Working directory (for execute args).
+ */
+export function decideFastForwardPhase(state) {
+  const { plan, opts, baseBranch, cwd } = state;
   if (!plan.runnable) {
-    Logger.info(`${TAG} ⏭️  ${baseBranch} skipped: ${plan.reason}`);
     return {
-      ok: true,
-      applied: false,
-      skipped: true,
-      reason: plan.reason,
-      behind: plan.behind ?? 0,
+      kind: 'skip',
+      result: {
+        ok: true,
+        applied: false,
+        skipped: true,
+        reason: plan.reason,
+        behind: plan.behind ?? 0,
+      },
+      logMessage: `${TAG} ⏭️  ${baseBranch} skipped: ${plan.reason}`,
     };
   }
   if (opts.dryRun) {
-    Logger.info(
-      `${TAG} DRY RUN — would fast-forward ${baseBranch} by ${plan.behind} commit(s)`,
-    );
     return {
-      ok: true,
-      applied: false,
-      skipped: true,
-      reason: 'dry-run',
-      behind: plan.behind,
+      kind: 'dry-run',
+      result: {
+        ok: true,
+        applied: false,
+        skipped: true,
+        reason: 'dry-run',
+        behind: plan.behind,
+      },
+      logMessage: `${TAG} DRY RUN — would fast-forward ${baseBranch} by ${plan.behind} commit(s)`,
     };
   }
+  const executeArgs = { cwd, baseBranch, plan };
   if (!opts.yes) {
-    const go = await promptYesNo(
-      `${TAG} Fast-forward ${baseBranch} by ${plan.behind} commit(s)?`,
-    );
-    if (!go) {
-      return {
+    return {
+      kind: 'prompt-then-execute',
+      promptMessage: `${TAG} Fast-forward ${baseBranch} by ${plan.behind} commit(s)?`,
+      declinedResult: {
         ok: true,
         applied: false,
         skipped: true,
         reason: 'declined',
         behind: plan.behind,
-      };
-    }
+      },
+      executeArgs,
+    };
   }
-  return executeFastForward({ cwd, baseBranch, plan });
+  return { kind: 'execute', executeArgs };
 }
+
+/**
+ * Impure: perform the fast-forward action returned by
+ * `decideFastForwardPhase`. Returns the phase result.
+ */
+export async function executeFastForwardPhase(action) {
+  if (action.kind === 'skip' || action.kind === 'dry-run') {
+    if (action.logMessage) Logger.info(action.logMessage);
+    return action.result;
+  }
+  if (action.kind === 'execute') {
+    return executeFastForward(action.executeArgs);
+  }
+  throw new Error(
+    `executeFastForwardPhase: unsupported action kind '${action.kind}'`,
+  );
+}
+
+/* node:coverage ignore next */
+export async function runFastForwardPhase(opts, cwd, baseBranch) {
+  Logger.info(`${TAG} ── phase: fast-forward-main ──`);
+  const plan = planFastForward({ cwd, baseBranch });
+  const action = decideFastForwardPhase({ plan, opts, baseBranch, cwd });
+  if (action.kind === 'prompt-then-execute') {
+    if (action.logMessage) Logger.info(action.logMessage);
+    const go = await promptYesNo(action.promptMessage);
+    if (!go) return action.declinedResult;
+    return executeFastForward(action.executeArgs);
+  }
+  return executeFastForwardPhase(action);
+}
+
+// =====================================================================
+// Prune phase (unchanged — low CRAP, kept for parity)
+// =====================================================================
 
 /* node:coverage ignore next */
 export async function runPrunePhase(opts, cwd) {
@@ -118,6 +182,67 @@ export async function runPrunePhase(opts, cwd) {
   return executePrune({ cwd });
 }
 
+// =====================================================================
+// Branch phase
+// =====================================================================
+
+/**
+ * Pure: decide what the branch-reap phase should do given the plan.
+ *
+ * Returns an action record:
+ *  - `{ kind: 'no-candidates', result }`       — empty plan, nothing to reap
+ *  - `{ kind: 'dry-run', result }`             — dry-run mode (plan only)
+ *  - `{ kind: 'prompt-then-execute', promptMessage, declinedResult, executeArgs, plan }`
+ *  - `{ kind: 'execute', executeArgs, plan }`  — --yes mode
+ *
+ * @param {object} state
+ * @param {object} state.plan         Output of `planCleanup`.
+ * @param {object} state.opts         CLI options (`dryRun`, `yes`, `remote`).
+ * @param {string} state.cwd          Working directory.
+ */
+export function decideBranchPhase(state) {
+  const { plan, opts, cwd } = state;
+  if (opts.dryRun) {
+    return { kind: 'dry-run', plan, result: { plan, result: null } };
+  }
+  if (plan.candidates.length === 0) {
+    return { kind: 'no-candidates', plan, result: { plan, result: null } };
+  }
+  const executeArgs = {
+    candidates: plan.candidates,
+    cwd,
+    remote: opts.remote,
+  };
+  if (!opts.yes) {
+    return {
+      kind: 'prompt-then-execute',
+      plan,
+      promptMessage: `${TAG} Reap ${plan.candidates.length} merged branch(es)${opts.remote ? ' (including origin)' : ''}?`,
+      declinedResult: { plan, result: null, declined: true },
+      executeArgs,
+    };
+  }
+  return { kind: 'execute', plan, executeArgs };
+}
+
+/**
+ * Impure: perform the branch-reap action returned by `decideBranchPhase`.
+ * Returns the phase result `{ plan, result, declined? }`.
+ */
+export async function executeBranchPhase(action) {
+  if (action.kind === 'dry-run' || action.kind === 'no-candidates') {
+    return action.result;
+  }
+  if (action.kind === 'execute') {
+    const result = executeCleanup(action.executeArgs);
+    emitExecutionHuman(result);
+    return { plan: action.plan, result };
+  }
+  throw new Error(
+    `executeBranchPhase: unsupported action kind '${action.kind}'`,
+  );
+}
+
 /* node:coverage ignore next */
 export async function runBranchPhase(opts, cwd, baseBranch) {
   Logger.info(`${TAG} ── phase: branches ──`);
@@ -132,24 +257,87 @@ export async function runBranchPhase(opts, cwd, baseBranch) {
     includeRemoteOnly: opts.remote === true,
   });
   emitDryRunHuman(plan, baseBranch);
-  if (opts.dryRun || plan.candidates.length === 0) {
-    return { plan, result: null };
+  const action = decideBranchPhase({ plan, opts, cwd });
+  if (action.kind === 'prompt-then-execute') {
+    const go = await promptYesNo(action.promptMessage);
+    if (!go) return action.declinedResult;
+    const result = executeCleanup(action.executeArgs);
+    emitExecutionHuman(result);
+    return { plan, result };
   }
-  if (!opts.yes) {
-    const go = await promptYesNo(
-      `${TAG} Reap ${plan.candidates.length} merged branch(es)${opts.remote ? ' (including origin)' : ''}?`,
-    );
-    if (!go) {
-      return { plan, result: null, declined: true };
-    }
+  return executeBranchPhase(action);
+}
+
+// =====================================================================
+// Stash phase
+// =====================================================================
+
+/**
+ * Pure: decide what the stash-triage phase should do given the plan.
+ *
+ * Returns an action record:
+ *  - `{ kind: 'no-stashes', result }`        — nothing to triage
+ *  - `{ kind: 'dry-run', result, stashes }`  — dry-run mode
+ *  - `{ kind: 'execute-allowlist', executeArgs }` — --yes / --json mode
+ *  - `{ kind: 'execute-interactive', executeArgs }` — interactive prompt
+ *
+ * @param {object} state
+ * @param {Array}  state.stashes  Output of `planStashes().stashes`.
+ * @param {object} state.opts     CLI options (`dryRun`, `yes`, `json`,
+ *                                `dropStashes`).
+ * @param {string} state.cwd     Working directory.
+ */
+export function decideStashPhase(state) {
+  const { stashes, opts, cwd } = state;
+  if (stashes.length === 0) {
+    return {
+      kind: 'no-stashes',
+      result: { ok: true, actions: [], failures: [] },
+    };
   }
-  const result = executeCleanup({
-    candidates: plan.candidates,
-    cwd,
-    remote: opts.remote,
-  });
-  emitExecutionHuman(result);
-  return { plan, result };
+  if (opts.dryRun) {
+    return {
+      kind: 'dry-run',
+      stashes,
+      result: {
+        ok: true,
+        actions: stashes.map((s) => ({ ref: s.ref, action: 'keep' })),
+        failures: [],
+      },
+    };
+  }
+  if (opts.yes || opts.json) {
+    return {
+      kind: 'execute-allowlist',
+      executeArgs: { cwd, stashes, allowlist: opts.dropStashes },
+    };
+  }
+  return {
+    kind: 'execute-interactive',
+    executeArgs: { cwd, stashes },
+  };
+}
+
+/**
+ * Impure: perform the stash-triage action returned by `decideStashPhase`.
+ * Returns the phase result.
+ */
+export async function executeStashPhase(action) {
+  if (action.kind === 'no-stashes' || action.kind === 'dry-run') {
+    return action.result;
+  }
+  if (action.kind === 'execute-allowlist') {
+    const { cwd, stashes, allowlist } = action.executeArgs;
+    const decideFn = buildAllowlistDecider(allowlist);
+    return executeStashes({ cwd, stashes, decideFn });
+  }
+  if (action.kind === 'execute-interactive') {
+    const { cwd, stashes } = action.executeArgs;
+    return executeStashes({ cwd, stashes, decideFn: promptStashDecision });
+  }
+  throw new Error(
+    `executeStashPhase: unsupported action kind '${action.kind}'`,
+  );
 }
 
 /* node:coverage ignore next */
@@ -167,15 +355,7 @@ export async function runStashPhase(opts, cwd) {
     Logger.info(
       `${TAG} DRY RUN — ${stashes.length} stash(es) listed; no drops applied`,
     );
-    return {
-      ok: true,
-      actions: stashes.map((s) => ({ ref: s.ref, action: 'keep' })),
-      failures: [],
-    };
   }
-  const decideFn =
-    opts.yes || opts.json
-      ? buildAllowlistDecider(opts.dropStashes)
-      : promptStashDecision;
-  return executeStashes({ cwd, stashes, decideFn });
+  const action = decideStashPhase({ stashes, opts, cwd });
+  return executeStashPhase(action);
 }
