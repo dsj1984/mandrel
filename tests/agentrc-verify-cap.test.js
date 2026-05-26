@@ -48,7 +48,10 @@ describe('delivery.deliverRunner.verifyConcurrencyCap (Story #3024)', () => {
     const schema = await loadAgentRcSchema();
     const validate = compileDeliverRunnerValidator(schema);
     const ok = validate({ verifyConcurrencyCap: 4 });
-    assert.ok(ok, `schema should accept cap=4, errors: ${JSON.stringify(validate.errors)}`);
+    assert.ok(
+      ok,
+      `schema should accept cap=4, errors: ${JSON.stringify(validate.errors)}`,
+    );
     assert.equal(validate({ verifyConcurrencyCap: 16 }), true);
     assert.equal(
       validate({

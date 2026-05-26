@@ -101,7 +101,10 @@ describe('verifyWaveResults — bounded concurrency (Story #3024)', () => {
     // Half the rows are *not* actually done on GitHub → discrepancy.
     const labelsByStory = new Map();
     for (let i = 0; i < 10; i += 1) {
-      labelsByStory.set(100 + i, i % 2 === 0 ? ['agent::done'] : ['agent::executing']);
+      labelsByStory.set(
+        100 + i,
+        i % 2 === 0 ? ['agent::done'] : ['agent::executing'],
+      );
     }
     const provider = buildLabelMapProvider(labelsByStory);
     const { verified, discrepancies } = await verifyWaveResults({
@@ -116,7 +119,9 @@ describe('verifyWaveResults — bounded concurrency (Story #3024)', () => {
     }
     // Five odd-indexed Stories should be discrepancies.
     assert.equal(discrepancies.length, 5);
-    const disStoryIds = discrepancies.map((d) => d.storyId).sort((a, b) => a - b);
+    const disStoryIds = discrepancies
+      .map((d) => d.storyId)
+      .sort((a, b) => a - b);
     assert.deepEqual(disStoryIds, [101, 103, 105, 107, 109]);
     for (const d of discrepancies) {
       assert.equal(d.claimed, 'done');
