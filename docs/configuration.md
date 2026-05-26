@@ -127,6 +127,7 @@ top-level keys are validation errors.
 | `deliverRunner` | No | `object` | — | Nested configuration block. |
 | `deliverRunner.concurrencyCap` | No | `integer` | — | — |
 | `deliverRunner.progressReportIntervalSec` | No | `integer` | — | — |
+| `deliverRunner.verifyConcurrencyCap` | No | `integer` | — | Bounded-concurrency cap for the per-wave verifyWaveResults loop (Epic #3019 Tech Spec §1.4). Separate from the wave-execution `concurrencyCap` so operators can tune ticket-verification parallelism independently of Story dispatch parallelism. Default 4. |
 | `worktreeIsolation` | No | `object` | — | Nested configuration block. |
 | `worktreeIsolation.enabled` | No | `boolean` | — | — |
 | `worktreeIsolation.root` | No | `string` | — | — |
