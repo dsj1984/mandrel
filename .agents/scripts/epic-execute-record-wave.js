@@ -200,6 +200,7 @@ export async function runEpicExecuteRecordWave({
   const { verified, discrepancies } = await verifyWaveResults({
     provider,
     results: validated,
+    concurrencyCap: deliverRunner.verifyConcurrencyCap,
   });
 
   // 3. Cross-look manifest titles for the rollup rows.
