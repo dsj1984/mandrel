@@ -1,7 +1,7 @@
 /**
  * phases/auto-merge.js — enable GitHub native auto-merge on the PR.
  *
- * Mirrors the call in `epic-deliver-finalize.js`: squash strategy, delete
+ * Mirrors the epic-deliver finalize call shape: squash strategy, delete
  * the branch on merge. Non-fatal — returns `{ enabled: false, reason }`
  * on any failure so the caller can fall back to the operator-merges-button
  * path.
