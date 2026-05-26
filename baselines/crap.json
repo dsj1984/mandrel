@@ -1,106 +1,16 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-26T20:18:41.910Z",
+  "generatedAt": "2026-05-26T22:03:04.383Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12,
+      "p95": 12.006059669598093,
       "max": 52.501371135067686,
       "methodsAbove20": 31
     }
   },
   "rows": [
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "readStorySignals",
-      "startLine": 70,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "readPhaseTimings",
-      "startLine": 89,
-      "crap": 6.141711619769646
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "readGhSpawnCount",
-      "startLine": 117,
-      "crap": 6.189364674940412
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "renderStoryBody",
-      "startLine": 147,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "renderQualityGateFrictionBlock",
-      "startLine": 192,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "renderBaselineRefreshRateRow",
-      "startLine": 217,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "renderEpicBody",
-      "startLine": 236,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "extractStoryPerfSummaryFromComment",
-      "startLine": 284,
-      "crap": 6.013119533527696
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "runStoryMode",
-      "startLine": 313,
-      "crap": 2.015056241426612
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "collectStorySummaries",
-      "startLine": 367,
-      "crap": 8.215784143518519
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "gatherEpicCommitsFromGit",
-      "startLine": 427,
-      "crap": 4.184216709744554
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "aggregateBaselineFrictionFromSignals",
-      "startLine": 475,
-      "crap": 2.000067432020095
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "runEpicMode",
-      "startLine": 572,
-      "crap": 6.085333333333334
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "parseCli",
-      "startLine": 663,
-      "crap": 10
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "main",
-      "startLine": 691,
-      "crap": 3.131456790123457
-    },
     {
       "path": ".agents/scripts/bootstrap.js",
       "method": "buildQuestions",
@@ -5266,90 +5176,6 @@
       "method": "roundRate",
       "startLine": 210,
       "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "nonNegativeInt",
-      "startLine": 58,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "nonNegativeNumber",
-      "startLine": 64,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "frictionByCategory",
-      "startLine": 77,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "topSlowPhasesVsBaseline",
-      "startLine": 101,
-      "crap": 11.009944933015534
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "reworkScore",
-      "startLine": 134,
-      "crap": 9
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "retryDensity",
-      "startLine": 170,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "phaseTimingsMs",
-      "startLine": 192,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "computeStoryPerfSummary",
-      "startLine": 212,
-      "crap": 10.013486404018948
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "collectValidStorySamples",
-      "startLine": 277,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "buildSignalCounts",
-      "startLine": 296,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "aggregateTopHotspots",
-      "startLine": 334,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "computeEpicPerfReport",
-      "startLine": 362,
-      "crap": 8.00204761504837
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "computeStoryPerfSummaryFromStore",
-      "startLine": 451,
-      "crap": 3.009
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "computeEpicPerfReportFromStore",
-      "startLine": 490,
-      "crap": 3.0146549969468754
     },
     {
       "path": ".agents/scripts/lib/observability/signals-writer.js",
@@ -10908,36 +10734,6 @@
       "crap": 3
     },
     {
-      "path": ".agents/scripts/lib/orchestration/wave-record-io.js",
-      "method": "normalizeReturns",
-      "startLine": 38,
-      "crap": 1.5787037037037037
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-record-io.js",
-      "method": "verifyWaveResults",
-      "startLine": 60,
-      "crap": 7.854629152150125
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-record-io.js",
-      "method": "loadManifestTitleMap",
-      "startLine": 110,
-      "crap": 5.700539437235749
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-record-io.js",
-      "method": "resolveResolvedResults",
-      "startLine": 137,
-      "crap": 5.286333333333333
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-record-io.js",
-      "method": "refreshLocalManifest",
-      "startLine": 180,
-      "crap": 1.9189600480109739
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/wave-record-notifications.js",
       "method": "buildNotifyFn",
       "startLine": 33,
@@ -11374,42 +11170,6 @@
       "method": "renderImplicitDepBullet",
       "startLine": 288,
       "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-renderer.js",
-      "method": "renderStoryManifestMarkdown",
-      "startLine": 50,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-renderer.js",
-      "method": "isEpicManifest",
-      "startLine": 61,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-renderer.js",
-      "method": "providerCanPostComment",
-      "startLine": 72,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-renderer.js",
-      "method": "classifyEpicCommentEligibility",
-      "startLine": 84,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-renderer.js",
-      "method": "postManifestEpicComment",
-      "startLine": 99,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-renderer.js",
-      "method": "postParkedFollowOnsComment",
-      "startLine": 154,
-      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/presentation/manifest-story-views.js",
