@@ -114,15 +114,11 @@ The same files-out-of-scope list as before, declared in `.c8rc.cjs`:
   unit-tested hydration engine; end-to-end coverage requires a real
   provider tree and Story prompt context, which lives in integration
   tests.
-- `.agents/scripts/ticket-decomposer.js` — `/epic-plan` decomposition
-  driver. Validation logic is exercised by the planner tests; the
-  CLI's two modes (`--emit-context` and the validate-then-create
-  default) require real PRD/Tech-Spec bodies and a live Epic id.
 - `epic-plan.js`, `epic-plan-decompose.js`, `epic-plan-spec.js`,
-  `epic-plan-healthcheck.js`, `epic-runner.js`,
-  `retrofit-task-bodies.js` — top-level CLI shells with no unit-test
-  seam; the meaningful orchestration logic lives in `lib/orchestration/*`
-  and `lib/retrofit/` respectively, and is unit-tested there.
+  `epic-plan-healthcheck.js`, `retrofit-task-bodies.js` — top-level
+  CLI shells with no unit-test seam; the meaningful orchestration
+  logic lives in `lib/orchestration/*` and `lib/retrofit/`
+  respectively, and is unit-tested there.
 
 Each excluded file also carries `/* node:coverage ignore file */` at
 the top of its source as a second line of defence; the full
