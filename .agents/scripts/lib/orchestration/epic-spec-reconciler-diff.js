@@ -132,7 +132,23 @@ function labelsEqual(a, b) {
  * time, while these structural namespaces are merged into the Epic's
  * after-set so the comparison stays a no-op.
  */
-const PROTECTED_EPIC_LABEL_NAMESPACES = Object.freeze(['type::', 'risk::']);
+const PROTECTED_EPIC_LABEL_NAMESPACES = Object.freeze([
+  'type::',
+  'risk::',
+  // Story #3050 — `acceptance::*` is set by Phase 7 spec-persist when
+  // `planningRisk.acceptanceDisposition='not-applicable'` (or another
+  // disposition) and gates downstream `/epic-deliver` start/finalize
+  // behavior. Before this namespace was protected, Phase 8 decompose
+  // diffed the Epic's labels against a spec entry that doesn't carry
+  // `acceptance::*`, silently emitting an Update that stripped the
+  // waiver and broke the contract documented in `.agents/SDLC.md`.
+  'acceptance::',
+  // `planning::*` carries operator-applied planning-gate waivers
+  // (e.g. `planning::healthcheck-waived`, see persist.js gate). Same
+  // failure mode as `acceptance::*`: applied between spec and
+  // decompose, stripped by the naive replace-style diff.
+  'planning::',
+]);
 
 /**
  * @param {unknown} label

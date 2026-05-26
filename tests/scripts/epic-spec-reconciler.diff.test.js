@@ -516,6 +516,57 @@ describe('reconciler diff — Epic protected-label preservation (Story #2056)', 
     );
     assert.deepEqual(storyUpdate.changes.labels.after, []);
   });
+
+  // Story #3050 — same shape as Story #2056, extended to acceptance::*
+  // and planning::*. Phase 7 spec-persist labels the Epic with
+  // `acceptance::n-a` (or another disposition) when the planning risk
+  // envelope records `acceptanceDisposition: not-applicable`, and may
+  // also carry an operator-applied `planning::healthcheck-waived`
+  // waiver. Pre-fix Phase 8 decompose stripped both because the
+  // protected-namespace allow-list only covered `type::` / `risk::`.
+  it('preserves acceptance::* and planning::* on the Epic through decompose (Story #3050)', () => {
+    const { spec, state, ghState } = buildInputs({
+      obsEpicLabels: [
+        'acceptance::n-a',
+        'agent::review-spec',
+        'planning::healthcheck-waived',
+        'type::epic',
+      ],
+      specEpicLabels: undefined,
+    });
+    const plan = diff({ spec, state, ghState });
+    const epicUpdate = plan.updates.find((op) => op.slug === 'epic');
+    // An Update is emitted because `agent::review-spec` is still
+    // observed (the wave-runner removes it after decompose via
+    // setEpicLabel). The protected namespaces MUST survive in after.
+    assert.ok(
+      epicUpdate,
+      'Epic Update should be emitted when agent::* differs',
+    );
+    assert.deepEqual(epicUpdate.changes.labels.after.sort(), [
+      'acceptance::n-a',
+      'planning::healthcheck-waived',
+      'type::epic',
+    ]);
+  });
+
+  it('does not emit an Epic Update when only acceptance::* or planning::* diverge (Story #3050)', () => {
+    const { spec, state, ghState } = buildInputs({
+      obsEpicLabels: [
+        'acceptance::n-a',
+        'planning::healthcheck-waived',
+        'type::epic',
+      ],
+      specEpicLabels: undefined,
+    });
+    const plan = diff({ spec, state, ghState });
+    const epicUpdate = plan.updates.find((op) => op.slug === 'epic');
+    assert.equal(
+      epicUpdate,
+      undefined,
+      'Epic Update should not fire when only protected-namespace labels would be stripped',
+    );
+  });
 });
 
 describe('reconciler diff — Epic body preservation when spec omits body (Story #2283)', () => {
