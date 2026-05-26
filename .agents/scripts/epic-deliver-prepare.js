@@ -42,6 +42,10 @@ import {
 import { runBuildWaveDagPhase } from './lib/orchestration/epic-runner/phases/build-wave-dag.js';
 import { runSnapshotPhase } from './lib/orchestration/epic-runner/phases/snapshot.js';
 import { StoryLauncher } from './lib/orchestration/epic-runner/story-launcher.js';
+import {
+  computeBaseSha,
+  readPreflightCache,
+} from './lib/orchestration/preflight-cache.js';
 import { createProvider } from './lib/provider-factory.js';
 
 const HELP = `Usage: node .agents/scripts/epic-deliver-prepare.js --epic <epicId> [--ignore-concurrency-hazards]
@@ -97,10 +101,33 @@ export async function runEpicDeliverPrepare({
   const { deliverRunner } = getRunners(config);
   const concurrencyCap = deliverRunner.concurrencyCap;
 
+  // Story #3027: try the preflight cache first so we don't re-walk Epic
+  // → Feature → Story when `epic-deliver-preflight.js` already did. The
+  // cache key is a deterministic fingerprint of the Epic ticket; a
+  // single getTicket(epicId) round-trip confirms the cache is still
+  // valid. Cache miss or baseSha mismatch → fall back to a fresh pass.
   const ctx = { epicId, provider };
   let state = {};
-  state = await runSnapshotPhase(ctx, {}, state);
-  state = await runBuildWaveDagPhase(ctx, {}, state);
+  let cacheStatus = 'miss';
+  const cached = await readPreflightCache({ epicId, cwd });
+  if (cached) {
+    const freshEpic = await provider.getTicket(epicId);
+    const freshBaseSha = computeBaseSha(freshEpic);
+    if (freshBaseSha === cached.baseSha) {
+      state = {
+        epic: cached.epic,
+        stories: cached.stories,
+        waves: cached.waves,
+      };
+      cacheStatus = 'hit';
+    } else {
+      cacheStatus = 'stale';
+    }
+  }
+  if (cacheStatus !== 'hit') {
+    state = await runSnapshotPhase(ctx, {}, state);
+    state = await runBuildWaveDagPhase(ctx, {}, state);
+  }
 
   // Cross-Story concurrency-hazard gate (Story #2297). Findings come in
   // via DI; no default loader is wired yet — production callers will
@@ -172,6 +199,7 @@ export async function runEpicDeliverPrepare({
       checkpointState.lastUpdatedAt ??
       new Date().toISOString(),
     concurrencyHazardsBypassed: gate.bypassed,
+    preflightCache: cacheStatus,
   };
 }
 
