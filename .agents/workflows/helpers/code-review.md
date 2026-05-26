@@ -188,7 +188,7 @@ paths and keep the `code-review` structured comment authoritative for
 anything not fixed in-place.
 
 1. **Apply a focused fix on `[HEAD_REF]`.** Permitted only when the
-   finding is unambiguously *fixable* (clean remediation, no scope
+   finding is unambiguously _fixable_ (clean remediation, no scope
    creep, no spec deviation, no secret exposure):
    - Call [`assert-branch.js`](../../scripts/assert-branch.js) with
      `--expected [HEAD_REF]` before touching the working tree.
@@ -215,8 +215,8 @@ anything not fixed in-place.
      attempt (the equivalent of the prior loop's
      `validation-regression` / `thrash-detected` exits).
 
-Do not invent a programmatic retry budget. The host LLM applies *at most
-one* focused-fix attempt per finding before escalating to the operator.
+Do not invent a programmatic retry budget. The host LLM applies _at most
+one_ focused-fix attempt per finding before escalating to the operator.
 Escalated findings remain on the `code-review` structured comment with
 their reason recorded, so Step 5 (and downstream consumers) see exactly
 why each one was not auto-remediated.
