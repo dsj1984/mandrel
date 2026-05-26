@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-22T19:41:38.387Z",
+  "generatedAt": "2026-05-26T21:55:35.465Z",
   "rollup": {
     "*": {
       "min": 52.885,
@@ -81,10 +81,6 @@
     {
       "path": ".agents/scripts/epic-deliver-note-intervention.js",
       "mi": 86.917
-    },
-    {
-      "path": ".agents/scripts/epic-deliver-prepare.js",
-      "mi": 88.724
     },
     {
       "path": ".agents/scripts/epic-execute-record-wave.js",
