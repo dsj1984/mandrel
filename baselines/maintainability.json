@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-26T22:03:04.080Z",
+  "generatedAt": "2026-05-26T22:24:48.897Z",
   "rollup": {
     "*": {
       "min": 52.885,
       "p50": 104.033,
-      "p95": 121.479
+      "p95": 121.484
     }
   },
   "rows": [
@@ -69,10 +69,6 @@
     {
       "path": ".agents/scripts/drain-pending-cleanup.js",
       "mi": 106.069
-    },
-    {
-      "path": ".agents/scripts/epic-close.js",
-      "mi": 97.229
     },
     {
       "path": ".agents/scripts/epic-deliver-note-intervention.js",
@@ -423,10 +419,6 @@
       "mi": 84.456
     },
     {
-      "path": ".agents/scripts/lib/config/runners.js",
-      "mi": 104.754
-    },
-    {
       "path": ".agents/scripts/lib/config/runtime.js",
       "mi": 99.384
     },
@@ -437,10 +429,6 @@
     {
       "path": ".agents/scripts/lib/config/sync-agentrc.js",
       "mi": 89.732
-    },
-    {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
-      "mi": 115.364
     },
     {
       "path": ".agents/scripts/lib/config/validate-orchestration.js",
@@ -489,10 +477,6 @@
     {
       "path": ".agents/scripts/lib/env-loader.js",
       "mi": 102.643
-    },
-    {
-      "path": ".agents/scripts/lib/epic-close-tail-helpers.js",
-      "mi": 86.611
     },
     {
       "path": ".agents/scripts/lib/epic-merge-lock.js",
@@ -2341,10 +2325,6 @@
     {
       "path": "tests/lib/config-resolver.test.js",
       "mi": 103.732
-    },
-    {
-      "path": "tests/lib/config-runners.test.js",
-      "mi": 112.579
     },
     {
       "path": "tests/lib/config/github.test.js",
