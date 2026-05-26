@@ -223,10 +223,10 @@ why each one was not auto-remediated.
 
 ## Step 4.6 — Cross-phase re-check trigger
 
-After the auto-fix loop in Step 4.5 returns, the `fixed[]` commits have
-modified files on `[HEAD_REF]` that the Phase 4 audit lenses already
-walked. Some of those edits may overlap the `filePatterns` of one or more
-lenses (e.g. an auto-fix landing in `**/auth/*.js` overlaps the
+After the focused-fix routing in Step 4.5 completes, any host-LLM-applied
+fix commits have modified files on `[HEAD_REF]` that the Phase 4 audit
+lenses already walked. Some of those edits may overlap the `filePatterns`
+of one or more lenses (e.g. a fix landing in `**/auth/*.js` overlaps the
 `audit-security` lens). When that happens, the prior `audit-results`
 structured comment is **stale for the overlapping lenses only** — the
 non-overlapping findings remain authoritative and MUST NOT be
@@ -238,7 +238,7 @@ re-derived.
 > step entirely for `scope === 'story'`.
 
 Invoke the re-check selector with the cumulative set of paths touched by
-the auto-fix commits:
+the focused-fix commits:
 
 ```powershell
 node .agents/scripts/epic-audit-recheck.js \
@@ -263,7 +263,7 @@ When `selectedAudits` is non-empty:
    a new comment; the comment is idempotent and downstream consumers
    (the code-review trim, `/epic-deliver` Pillar 2, the retro helper)
    read it once. The append carries the re-checked lens names, the new
-   findings (if any), and the auto-fix commit SHAs that triggered the
+   findings (if any), and the focused-fix commit SHAs that triggered the
    re-run, so reviewers can trace each finding back to the change set
    that produced it.
 3. If the re-check surfaces fresh 🔴 / 🟠 findings, route them back

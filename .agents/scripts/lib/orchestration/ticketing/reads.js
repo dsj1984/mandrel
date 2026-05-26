@@ -137,6 +137,14 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // `close-validate.end`. One entry per Epic; re-ticks with the same
   // findings upsert in place (`upsertStructuredComment` diffs by body).
   'recurring-failure-class',
+  // Story #3061 (Epic #3051) — the /epic-deliver §2e Idle Watchdog
+  // subsection instructs the parent host LLM to upsert a `wave-stall`
+  // comment on the Epic whenever an in-flight Story has been silent for
+  // longer than the configured cadence. `wave-tick.js --check-idle`
+  // emits the matching envelope; registering the kind here is what makes
+  // the documented remediation actually executable
+  // (assertValidStructuredCommentType would otherwise throw).
+  'wave-stall',
 ]);
 
 export const WAVE_TYPE_PATTERN = WAVE_MARKER_RE;
