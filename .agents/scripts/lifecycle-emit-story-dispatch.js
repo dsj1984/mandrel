@@ -44,9 +44,15 @@ import { parseArgs } from 'node:util';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 
+import {
+  parseRequiredNonNegativeInt,
+  parseRequiredPositiveInt,
+} from './lib/cli/parse-numeric.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { epicLedgerPath } from './lib/config/temp-paths.js';
 import { resolveConfig } from './lib/config-resolver.js';
+
+const TOOL = 'lifecycle-emit-story-dispatch';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA_PATH = path.resolve(
@@ -75,42 +81,16 @@ Appends a single \`story.dispatch.start\` NDJSON record to
  * @returns {{epicId:number, storyId:number, waveIndex:number, attempt:number, dispatchedAt?:string}}
  */
 export function buildPayloadFromArgs(parsed) {
-  const epicId = parseRequiredPositiveInt(parsed.epic, '--epic');
-  const storyId = parseRequiredPositiveInt(parsed.story, '--story');
-  const waveIndex = parseRequiredNonNegativeInt(parsed.wave, '--wave');
-  const attempt = parseRequiredPositiveInt(parsed.attempt, '--attempt');
+  const epicId = parseRequiredPositiveInt(parsed.epic, '--epic', TOOL);
+  const storyId = parseRequiredPositiveInt(parsed.story, '--story', TOOL);
+  const waveIndex = parseRequiredNonNegativeInt(parsed.wave, '--wave', TOOL);
+  const attempt = parseRequiredPositiveInt(parsed.attempt, '--attempt', TOOL);
   const dispatchedAt =
     typeof parsed['dispatched-at'] === 'string' &&
     parsed['dispatched-at'].length > 0
       ? parsed['dispatched-at']
       : new Date().toISOString();
   return { epicId, storyId, waveIndex, attempt, dispatchedAt };
-}
-
-function parseRequiredPositiveInt(raw, flag) {
-  if (raw === undefined || raw === null || raw === '') {
-    throw new Error(`lifecycle-emit-story-dispatch: ${flag} is required`);
-  }
-  const n = Number.parseInt(String(raw).replace(/^#/, ''), 10);
-  if (!Number.isInteger(n) || n < 1) {
-    throw new Error(
-      `lifecycle-emit-story-dispatch: ${flag} must be a positive integer (got ${raw})`,
-    );
-  }
-  return n;
-}
-
-function parseRequiredNonNegativeInt(raw, flag) {
-  if (raw === undefined || raw === null || raw === '') {
-    throw new Error(`lifecycle-emit-story-dispatch: ${flag} is required`);
-  }
-  const n = Number.parseInt(String(raw), 10);
-  if (!Number.isInteger(n) || n < 0) {
-    throw new Error(
-      `lifecycle-emit-story-dispatch: ${flag} must be a non-negative integer (got ${raw})`,
-    );
-  }
-  return n;
 }
 
 /**

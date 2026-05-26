@@ -28,6 +28,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseStandardCliArgs } from './lib/cli/standard-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { Logger } from './lib/Logger.js';
 import { parseSkill } from './lib/skills/parse-skill.js';
@@ -47,33 +48,22 @@ function defaultRepoRoot() {
 
 /**
  * Parse CLI flags. Returns `{ check, root, out }`. Unknown flags trigger
- * a thrown Error so the runAsCli boundary can surface a clean message.
+ * a thrown Error (from the shared parser) so the runAsCli boundary can
+ * surface a clean message.
  */
 export function parseArgs(argv) {
-  const args = { check: false, root: null, out: null };
-  for (let i = 0; i < argv.length; i += 1) {
-    const token = argv[i];
-    if (token === '--check') {
-      args.check = true;
-      continue;
-    }
-    if (token === '--root') {
-      args.root = argv[i + 1];
-      i += 1;
-      continue;
-    }
-    if (token === '--out') {
-      args.out = argv[i + 1];
-      i += 1;
-      continue;
-    }
-    if (token === '--help' || token === '-h') {
-      args.help = true;
-      continue;
-    }
-    throw new Error(`generate-skills-index: unknown argument: ${token}`);
+  if (argv.some((t) => t === '--help' || t === '-h')) {
+    return { check: false, root: null, out: null, help: true };
   }
-  return args;
+  const { values } = parseStandardCliArgs({
+    argv,
+    extras: {
+      check: { type: 'boolean' },
+      root: { type: 'string' },
+      out: { type: 'string' },
+    },
+  });
+  return { check: values.check, root: values.root, out: values.out };
 }
 
 /**

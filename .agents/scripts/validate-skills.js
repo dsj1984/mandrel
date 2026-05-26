@@ -26,6 +26,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
+import { parseStandardCliArgs } from './lib/cli/standard-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { Logger } from './lib/Logger.js';
 import { parseSkill } from './lib/skills/parse-skill.js';
@@ -40,21 +41,17 @@ function defaultRepoRoot() {
 }
 
 export function parseArgs(argv) {
-  const args = { root: null };
-  for (let i = 0; i < argv.length; i += 1) {
-    const token = argv[i];
-    if (token === '--root') {
-      args.root = argv[i + 1];
-      i += 1;
-      continue;
-    }
-    if (token === '--help' || token === '-h') {
-      args.help = true;
-      continue;
-    }
-    throw new Error(`validate-skills: unknown argument: ${token}`);
+  // `--help` / `-h` is a side-channel signal handled before the shared
+  // parser sees it: the shared parser does not (yet) model help flags as
+  // first-class output, and pre-stripping keeps the legacy parsed shape.
+  if (argv.some((t) => t === '--help' || t === '-h')) {
+    return { root: null, help: true };
   }
-  return args;
+  const { values } = parseStandardCliArgs({
+    argv,
+    extras: { root: { type: 'string' } },
+  });
+  return { root: values.root };
 }
 
 /**

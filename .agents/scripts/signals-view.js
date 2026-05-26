@@ -40,6 +40,7 @@
  * @module signals-view
  */
 
+import { parseStandardCliArgs } from './lib/cli/standard-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import * as signals from './lib/signals/index.js';
 
@@ -77,60 +78,16 @@ function err(error) {
   return { ok: false, error };
 }
 
-function readValueFlag(argv, idx, flag) {
-  const next = argv[idx + 1];
-  if (next === undefined) return err(`${flag} requires a value. ${USAGE}`);
-  return { ok: true, value: next };
-}
-
-function readIntFlag(argv, idx, flag) {
-  const v = readValueFlag(argv, idx, flag);
-  if (!v.ok) return v;
-  const n = parseStrictPositiveInt(v.value);
-  if (n == null) {
-    return err(
-      `${flag} expects a positive integer; got ${JSON.stringify(v.value)}. ${USAGE}`,
-    );
-  }
-  return { ok: true, value: n };
-}
-
 const HELP_FLAGS = new Set(['--help', '-h']);
-
-function handleFlagToken(argv, i, out) {
-  const tok = argv[i];
-  if (HELP_FLAGS.has(tok)) return { done: true, result: err(USAGE) };
-  if (tok === '--story') {
-    const r = readIntFlag(argv, i, '--story');
-    if (!r.ok) return { done: true, result: r };
-    out.story = r.value;
-    return { advance: 2 };
-  }
-  if (tok === '--temp-root') {
-    const r = readValueFlag(argv, i, '--temp-root');
-    if (!r.ok) return { done: true, result: r };
-    out.tempRoot = r.value;
-    return { advance: 2 };
-  }
-  return null;
-}
-
-function handlePositional(tok, out) {
-  if (out.epic != null) {
-    return err(`unexpected token ${JSON.stringify(tok)}. ${USAGE}`);
-  }
-  const n = parseStrictPositiveInt(tok);
-  if (n == null) {
-    return err(
-      `<epic-id> must be a positive integer; got ${JSON.stringify(tok)}. ${USAGE}`,
-    );
-  }
-  out.epic = n;
-  return null;
-}
 
 /**
  * Parse argv slice (the array passed to `main` excludes node + script).
+ * Returns a `{ ok, ... }` envelope rather than throwing so `main` can
+ * print a friendly message and exit 1 without a stack trace.
+ *
+ * Delegates the flag walking to `parseStandardCliArgs` and post-validates
+ * the diagnose-specific invariants (single positional epic-id, strictly
+ * positive integers for both ids).
  *
  * @param {string[]} argv
  * @returns {{ ok: true, epic: number, story: number | null, tempRoot: string | null } | { ok: false, error: string }}
@@ -139,21 +96,58 @@ export function parseArgs(argv) {
   if (!Array.isArray(argv) || argv.length === 0) {
     return err(`missing <epic-id>. ${USAGE}`);
   }
-  const out = { epic: null, story: null, tempRoot: null };
-  let i = 0;
-  while (i < argv.length) {
-    const flagResult = handleFlagToken(argv, i, out);
-    if (flagResult?.done) return flagResult.result;
-    if (flagResult?.advance) {
-      i += flagResult.advance;
-      continue;
+  if (argv.some((t) => HELP_FLAGS.has(t))) return err(USAGE);
+
+  let parsed;
+  try {
+    parsed = parseStandardCliArgs({
+      argv,
+      extras: {
+        'temp-root': { type: 'string', alias: 'tempRoot' },
+      },
+    });
+  } catch (e) {
+    if (e && e.code === 'UNKNOWN_FLAG') {
+      return err(`unexpected token "--${e.flag}". ${USAGE}`);
     }
-    const positionalErr = handlePositional(argv[i], out);
-    if (positionalErr) return positionalErr;
-    i += 1;
+    return err(`${e.message}. ${USAGE}`);
   }
-  if (out.epic == null) return err(`missing <epic-id>. ${USAGE}`);
-  return { ok: true, ...out };
+
+  const { values, positionals } = parsed;
+
+  // Exactly one positional, which must be a strictly positive integer
+  // (no leading `+`, no float, no trailing junk).
+  if (positionals.length === 0) {
+    return err(`missing <epic-id>. ${USAGE}`);
+  }
+  if (positionals.length > 1) {
+    return err(`unexpected token ${JSON.stringify(positionals[1])}. ${USAGE}`);
+  }
+  const epic = parseStrictPositiveInt(positionals[0]);
+  if (epic == null) {
+    return err(
+      `<epic-id> must be a positive integer; got ${JSON.stringify(positionals[0])}. ${USAGE}`,
+    );
+  }
+
+  // `--story` is the standard ticket flag; the shared parser already ran
+  // `parseTicketId` on it, but we need to reject "supplied-but-invalid"
+  // (token present, value null) — `parseStandardCliArgs` silently coerces
+  // an unparseable value to null, which would otherwise look the same as
+  // the "absent" case.
+  const storyTokenIdx = argv.indexOf('--story');
+  if (storyTokenIdx !== -1 && values.storyId == null) {
+    const rawNext = argv[storyTokenIdx + 1];
+    const target = rawNext === undefined ? 'a value' : JSON.stringify(rawNext);
+    return err(`--story expects a positive integer; got ${target}. ${USAGE}`);
+  }
+
+  return {
+    ok: true,
+    epic,
+    story: values.storyId,
+    tempRoot: values.tempRoot,
+  };
 }
 
 function formatDuration(ms) {

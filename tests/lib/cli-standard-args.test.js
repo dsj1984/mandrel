@@ -187,6 +187,105 @@ describe('parseStandardCliArgs — required-field enforcement', () => {
   });
 });
 
+describe('parseStandardCliArgs — extras (caller-defined flags)', () => {
+  it('accepts a caller-defined string flag and emits it on values', () => {
+    const { values } = parseStandardCliArgs({
+      argv: ['--root', '/tmp/x'],
+      extras: { root: { type: 'string' } },
+    });
+    assert.equal(values.root, '/tmp/x');
+  });
+
+  it('accepts a caller-defined boolean flag', () => {
+    const { values } = parseStandardCliArgs({
+      argv: ['--check'],
+      extras: { check: { type: 'boolean' } },
+    });
+    assert.equal(values.check, true);
+  });
+
+  it('applies an extras default when the flag is absent', () => {
+    const { values } = parseStandardCliArgs({
+      argv: [],
+      extras: { scope: { type: 'string', default: 'diagnose' } },
+    });
+    assert.equal(values.scope, 'diagnose');
+  });
+
+  it('supports a kebab-case extras flag with an explicit alias', () => {
+    const { values } = parseStandardCliArgs({
+      argv: ['--fail-on-blocker'],
+      extras: {
+        'fail-on-blocker': { type: 'boolean', alias: 'failOnBlocker' },
+      },
+    });
+    assert.equal(values.failOnBlocker, true);
+  });
+
+  it('camelCases an extras flag name by default', () => {
+    const { values } = parseStandardCliArgs({
+      argv: ['--temp-root', '/tmp'],
+      extras: { 'temp-root': { type: 'string' } },
+    });
+    assert.equal(values.tempRoot, '/tmp');
+  });
+
+  it('still rejects an unknown flag when extras do not cover it', () => {
+    assert.throws(
+      () =>
+        parseStandardCliArgs({
+          argv: ['--mystery'],
+          extras: { root: { type: 'string' } },
+        }),
+      (err) => err.code === 'UNKNOWN_FLAG' && err.flag === 'mystery',
+    );
+  });
+
+  it('rejects extras that collide with a standard flag', () => {
+    assert.throws(
+      () =>
+        parseStandardCliArgs({
+          argv: [],
+          extras: { story: { type: 'string' } },
+        }),
+      (err) => err.code === 'EXTRAS_FLAG_COLLISION',
+    );
+  });
+
+  it('rejects extras with an unsupported type', () => {
+    assert.throws(
+      () =>
+        parseStandardCliArgs({
+          argv: [],
+          extras: { root: { type: 'date' } },
+        }),
+      (err) => err.code === 'UNKNOWN_EXTRAS_TYPE',
+    );
+  });
+
+  it('enforces required on an extras flag', () => {
+    assert.throws(
+      () =>
+        parseStandardCliArgs({
+          argv: [],
+          extras: { root: { type: 'string', required: true } },
+        }),
+      (err) => err.code === 'MISSING_REQUIRED_FLAG' && err.flag === 'root',
+    );
+  });
+
+  it('mixes a standard required flag with caller extras', () => {
+    const { values } = parseStandardCliArgs({
+      argv: ['--story', '2989', '--scope', 'diagnose', '--json'],
+      schema: { story: { required: true } },
+      extras: { scope: { type: 'string' } },
+    });
+    assert.equal(values.storyId, 2989);
+    assert.equal(values.scope, 'diagnose');
+    assert.equal(values.json, true);
+  });
+});
+
 describe('parseStandardCliArgs — unknown-flag rejection', () => {
   it('throws UNKNOWN_FLAG on a `--foo` token whose name is not supported', () => {
     assert.throws(
