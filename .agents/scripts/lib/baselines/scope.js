@@ -26,8 +26,7 @@
 //   3. Config — `configScope` ('full' | 'diff') and `configRef` (any
 //      git ref) from `delivery.quality.gateScoping` in `.agentrc.json`.
 //   4. Default — `mode='diff'` against `ref='main'`. This is the
-//      framework-wide fallback when nothing else is configured; it
-//      matches the historical default in `gate-cli.js#resolveScopedRef`.
+//      framework-wide fallback when nothing else is configured.
 //
 // Missing-ref fallback: when the resolved mode is `'diff'` but no ref
 // is supplied at any layer, the resolver falls back to `'main'` rather

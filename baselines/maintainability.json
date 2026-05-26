@@ -527,20 +527,12 @@
       "mi": 126.057
     },
     {
-      "path": ".agents/scripts/lib/fs-utils.js",
-      "mi": 150.398
-    },
-    {
       "path": ".agents/scripts/lib/gates/baseline-store.js",
       "mi": 104.319
     },
     {
       "path": ".agents/scripts/lib/gates/friction.js",
       "mi": 104.417
-    },
-    {
-      "path": ".agents/scripts/lib/gates/gate-cli.js",
-      "mi": 98.19
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
@@ -1145,10 +1137,6 @@
     {
       "path": ".agents/scripts/lib/retrofit/task-body-retrofit.js",
       "mi": 106.413
-    },
-    {
-      "path": ".agents/scripts/lib/runtime-context.js",
-      "mi": 121.987
     },
     {
       "path": ".agents/scripts/lib/signals/detectors/common.js",
@@ -2167,10 +2155,6 @@
       "mi": 109.287
     },
     {
-      "path": "tests/gate-cli.test.js",
-      "mi": 115.279
-    },
-    {
       "path": "tests/gate-friction.test.js",
       "mi": 105.888
     },
@@ -2375,10 +2359,6 @@
       "mi": 113.462
     },
     {
-      "path": "tests/lib/config-resolver-ctx.test.js",
-      "mi": 112.252
-    },
-    {
       "path": "tests/lib/config-resolver-notifications.test.js",
       "mi": 110.612
     },
@@ -2473,10 +2453,6 @@
     {
       "path": "tests/lib/fs-mock.js",
       "mi": 128.761
-    },
-    {
-      "path": "tests/lib/fs-utils.test.js",
-      "mi": 128.859
     },
     {
       "path": "tests/lib/gh-exec-classify.test.js",
@@ -3097,10 +3073,6 @@
     {
       "path": "tests/lib/retro-heuristics.test.js",
       "mi": 105.64
-    },
-    {
-      "path": "tests/lib/runtime-context.test.js",
-      "mi": 117.971
     },
     {
       "path": "tests/lib/signals/detectors/common.test.js",

@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-22T19:46:25.660Z",
+  "generatedAt": "2026-05-26T20:18:41.910Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -4386,12 +4386,6 @@
       "crap": 10
     },
     {
-      "path": ".agents/scripts/lib/fs-utils.js",
-      "method": "ensureDirSync",
-      "startLine": 20,
-      "crap": 1
-    },
-    {
       "path": ".agents/scripts/lib/gates/baseline-store.js",
       "method": "absPath",
       "startLine": 30,
@@ -4420,48 +4414,6 @@
       "method": "emitFrictionSignal",
       "startLine": 10,
       "crap": 3.0146549969468754
-    },
-    {
-      "path": ".agents/scripts/lib/gates/gate-cli.js",
-      "method": "coercePositiveInt",
-      "startLine": 8,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/gates/gate-cli.js",
-      "method": "readFlag",
-      "startLine": 16,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/gates/gate-cli.js",
-      "method": "parseGateArgs",
-      "startLine": 27,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/gates/gate-cli.js",
-      "method": "refFromEnvName",
-      "startLine": 53,
-      "crap": 20
-    },
-    {
-      "path": ".agents/scripts/lib/gates/gate-cli.js",
-      "method": "resolveScopedRefFromEnv",
-      "startLine": 61,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/gates/gate-cli.js",
-      "method": "resolveScopedRefFromConfig",
-      "startLine": 71,
-      "crap": 20
-    },
-    {
-      "path": ".agents/scripts/lib/gates/gate-cli.js",
-      "method": "resolveScopedRef",
-      "startLine": 88,
-      "crap": 26.434374999999996
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
@@ -11530,30 +11482,6 @@
       "method": "unifiedDiff",
       "startLine": 70,
       "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/runtime-context.js",
-      "method": "<anon method-1>",
-      "startLine": 20,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/runtime-context.js",
-      "method": "<anon method-2>",
-      "startLine": 21,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/runtime-context.js",
-      "method": "<anon method-3>",
-      "startLine": 22,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/runtime-context.js",
-      "method": "createRuntimeContext",
-      "startLine": 42,
-      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/signals/detectors/common.js",

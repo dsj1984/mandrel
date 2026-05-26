@@ -696,10 +696,8 @@ maintenance work:
    the HTTP client moved under `providers/github/http-client.js`. The
    barrel imports from these locations, never the other way.
 3. **Dead code is deleted, not archived.** `fs-utils.js` and
-   `runtime-context.js` were marked for removal here; the actual file
-   deletion is tracked separately and may land in a follow-up Story.
-   Their docs references migrate to the surviving three-context
-   pattern in `lib/orchestration/context.js`.
+   `runtime-context.js` are gone; their docs references migrate to the
+   surviving three-context pattern in `lib/orchestration/context.js`.
    A canonical `lib/branch-name-guard.js` collapses two duplicate
    safety guards.
 
