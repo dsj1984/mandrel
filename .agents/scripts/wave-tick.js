@@ -246,10 +246,7 @@ async function main(argv) {
   }
 
   if (values['check-idle'] !== undefined) {
-    const thresholdMinutes = Number.parseInt(
-      String(values['check-idle']),
-      10,
-    );
+    const thresholdMinutes = Number.parseInt(String(values['check-idle']), 10);
     if (!Number.isInteger(thresholdMinutes) || thresholdMinutes <= 0) {
       Logger.error(
         'wave-tick: --check-idle <minutes> must be a positive integer',
