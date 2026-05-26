@@ -293,6 +293,7 @@ const DELIVER_RUNNER_SCHEMA = {
   properties: {
     concurrencyCap: { type: 'integer', minimum: 1 },
     progressReportIntervalSec: { type: 'integer', minimum: 0 },
+    verifyConcurrencyCap: { type: 'integer', minimum: 1 },
   },
   additionalProperties: false,
 };
