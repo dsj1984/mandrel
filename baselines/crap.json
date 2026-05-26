@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-26T22:03:04.383Z",
+  "generatedAt": "2026-05-26T22:19:53.079Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.006059669598093,
+      "p95": 12.010699859060178,
       "max": 52.501371135067686,
       "methodsAbove20": 31
     }
@@ -3420,126 +3420,6 @@
       "crap": 3.072
     },
     {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
-      "method": "getResolveConfig",
-      "startLine": 46,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
-      "method": "tempRootFrom",
-      "startLine": 67,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
-      "method": "tempRootAsync",
-      "startLine": 85,
-      "crap": 1.512
-    },
-    {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
-      "method": "<anon method-1>",
-      "startLine": 91,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
-      "method": "<anon method-2>",
-      "startLine": 107,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
-      "method": "<anon method-3>",
-      "startLine": 117,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
-      "method": "<anon method-4>",
-      "startLine": 126,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
-      "method": "epicTempDir",
-      "startLine": 148,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
-      "method": "storyTempDir",
-      "startLine": 167,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
-      "method": "signalsFile",
-      "startLine": 185,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
-      "method": "epicArtifactPath",
-      "startLine": 200,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
-      "method": "storyArtifactPath",
-      "startLine": 215,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
-      "method": "<anon method-5>",
-      "startLine": 221,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
-      "method": "<anon method-6>",
-      "startLine": 223,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
-      "method": "<anon method-7>",
-      "startLine": 225,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
-      "method": "<anon method-8>",
-      "startLine": 227,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
-      "method": "<anon method-9>",
-      "startLine": 229,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
-      "method": "<anon method-10>",
-      "startLine": 245,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
-      "method": "<anon method-11>",
-      "startLine": 250,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
-      "method": "<anon method-12>",
-      "startLine": 252,
-      "crap": 1
-    },
-    {
       "path": ".agents/scripts/lib/config/validate-orchestration.js",
       "method": "validateOrchestrationConfig",
       "startLine": 33,
@@ -3964,18 +3844,6 @@
       "method": "loadEnv",
       "startLine": 7,
       "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/epic-close-tail-helpers.js",
-      "method": "closePlanningArtifacts",
-      "startLine": 54,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/epic-close-tail-helpers.js",
-      "method": "verifyAndRecoverEpicClose",
-      "startLine": 135,
-      "crap": 3.000845229151014
     },
     {
       "path": ".agents/scripts/lib/epic-merge-lock.js",
