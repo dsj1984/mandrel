@@ -58,6 +58,13 @@ const TEST_CONFIG = {
 const FAST_RECORD = {
   injectedConfig: TEST_CONFIG,
   injectedRefreshLocalManifest: async () => {},
+  // Stub out the curated webhook emits by default so tests that don't
+  // care about notify routing can't reach the real notify() (which would
+  // POST to the operator's Slack webhook when NODE_ENV isn't 'test', e.g.
+  // running `node --test` directly or via an IDE test runner). Tests in
+  // the "curated webhook emits" describe block override this via
+  // `recordWave({ ...FAST_RECORD, injectedNotify: fn })`.
+  injectedNotify: async () => {},
 };
 
 function recordWave(overrides) {
