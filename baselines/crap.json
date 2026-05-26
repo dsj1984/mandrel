@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-26T22:00:01.282Z",
+  "generatedAt": "2026-05-26T22:03:04.383Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12,
+      "p95": 12.006059669598093,
       "max": 52.501371135067686,
       "methodsAbove20": 31
     }
@@ -10734,36 +10734,6 @@
       "crap": 3
     },
     {
-      "path": ".agents/scripts/lib/orchestration/wave-record-io.js",
-      "method": "normalizeReturns",
-      "startLine": 38,
-      "crap": 1.5787037037037037
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-record-io.js",
-      "method": "verifyWaveResults",
-      "startLine": 60,
-      "crap": 7.854629152150125
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-record-io.js",
-      "method": "loadManifestTitleMap",
-      "startLine": 110,
-      "crap": 5.700539437235749
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-record-io.js",
-      "method": "resolveResolvedResults",
-      "startLine": 137,
-      "crap": 5.286333333333333
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-record-io.js",
-      "method": "refreshLocalManifest",
-      "startLine": 180,
-      "crap": 1.9189600480109739
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/wave-record-notifications.js",
       "method": "buildNotifyFn",
       "startLine": 33,
@@ -11200,42 +11170,6 @@
       "method": "renderImplicitDepBullet",
       "startLine": 288,
       "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-renderer.js",
-      "method": "renderStoryManifestMarkdown",
-      "startLine": 50,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-renderer.js",
-      "method": "isEpicManifest",
-      "startLine": 61,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-renderer.js",
-      "method": "providerCanPostComment",
-      "startLine": 72,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-renderer.js",
-      "method": "classifyEpicCommentEligibility",
-      "startLine": 84,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-renderer.js",
-      "method": "postManifestEpicComment",
-      "startLine": 99,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-renderer.js",
-      "method": "postParkedFollowOnsComment",
-      "startLine": 154,
-      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/presentation/manifest-story-views.js",

@@ -46,7 +46,7 @@ import * as epicRunStateStore from './lib/orchestration/epic-run-state-store.js'
 import { upsertEpicRunProgress } from './lib/orchestration/epic-runner/progress-reporter.js';
 import {
   loadManifestTitleMap,
-  refreshLocalManifest,
+  refreshDispatchManifest,
   resolveResolvedResults,
   verifyWaveResults,
 } from './lib/orchestration/wave-record-io.js';
@@ -65,7 +65,7 @@ import { notify } from './notify.js';
 export {
   loadManifestTitleMap,
   normalizeReturns,
-  refreshLocalManifest,
+  refreshDispatchManifest,
   resolveResolvedResults,
   verifyWaveResults,
 } from './lib/orchestration/wave-record-io.js';
@@ -147,7 +147,7 @@ export function parseInputArg(value, deps = {}) {
  *   injectedProvider?: object,
  *   injectedConfig?: object,
  *   injectedNotify?: (ticketId: number, payload: object) => Promise<void>,
- *   injectedRefreshLocalManifest?: (args: { epicId: number }) => Promise<void>,
+ *   injectedRefreshDispatchManifest?: (args: { epicId: number, provider?: object }) => Promise<object>,
  *   now?: () => Date,
  * }} args
  */
@@ -161,7 +161,7 @@ export async function runEpicExecuteRecordWave({
   injectedProvider,
   injectedConfig,
   injectedNotify,
-  injectedRefreshLocalManifest,
+  injectedRefreshDispatchManifest,
   now = () => new Date(),
 } = {}) {
   validateEpicWave(epicId, wave);
@@ -264,16 +264,18 @@ export async function runEpicExecuteRecordWave({
     blockedStoryIds: projection.blockedStoryIds,
   });
 
-  // 8. Refresh the local `temp/epic-<id>/manifest.{md,json}` so the
-  //    operator-facing on-disk view reflects this wave's progress. The
-  //    wave-runner architecture (Epic #1182) replaced the dispatcher's
-  //    per-wave refresh loop; without this hop the manifest is frozen at
-  //    planning time and shows `0/N tasks` even after Stories merge.
-  //    Best-effort: failure here must not block the wave loop.
-  const refreshManifest = injectedRefreshLocalManifest ?? refreshLocalManifest;
-  await refreshManifest({ epicId }).catch((err) => {
+  // 8. Refresh the dispatch manifest in-process so the operator-facing
+  //    on-disk view (`temp/epic-<id>/manifest.{md,json}`) and the
+  //    `dispatch-manifest` Epic comment reflect this wave's progress.
+  //    Story #3026 replaced the historical `dispatcher.js --dry-run`
+  //    subprocess spawn with an in-process `resolveAndDispatch` + pure
+  //    `renderManifest` call. Best-effort: failure here must not block
+  //    the wave loop.
+  const refreshManifest =
+    injectedRefreshDispatchManifest ?? refreshDispatchManifest;
+  await refreshManifest({ epicId, provider }).catch((err) => {
     Logger.warn(
-      `[record-wave] Non-fatal: could not refresh local manifest for Epic #${epicId} — ${err?.message ?? 'unknown error'}`,
+      `[record-wave] Non-fatal: could not refresh dispatch manifest for Epic #${epicId} — ${err?.message ?? 'unknown error'}`,
     );
   });
 

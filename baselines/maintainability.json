@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-26T22:00:00.968Z",
+  "generatedAt": "2026-05-26T22:03:04.080Z",
   "rollup": {
     "*": {
       "min": 52.885,
-      "p50": 104.017,
+      "p50": 104.033,
       "p95": 121.479
     }
   },
@@ -77,10 +77,6 @@
     {
       "path": ".agents/scripts/epic-deliver-note-intervention.js",
       "mi": 86.917
-    },
-    {
-      "path": ".agents/scripts/epic-execute-record-wave.js",
-      "mi": 86.415
     },
     {
       "path": ".agents/scripts/epic-plan-clarity.js",
@@ -1055,10 +1051,6 @@
       "mi": 117.783
     },
     {
-      "path": ".agents/scripts/lib/orchestration/wave-record-io.js",
-      "mi": 101.734
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/wave-record-notifications.js",
       "mi": 98.996
     },
@@ -1105,10 +1097,6 @@
     {
       "path": ".agents/scripts/lib/presentation/manifest-render-waves.js",
       "mi": 99.181
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-renderer.js",
-      "mi": 106.634
     },
     {
       "path": ".agents/scripts/lib/presentation/manifest-story-views.js",
@@ -1993,10 +1981,6 @@
     {
       "path": "tests/epic-execute/epic-deliver-prepare.test.js",
       "mi": 91.379
-    },
-    {
-      "path": "tests/epic-execute/epic-execute-record-wave.test.js",
-      "mi": 100.065
     },
     {
       "path": "tests/epic-plan-clarity.test.js",

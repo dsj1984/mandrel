@@ -17,6 +17,7 @@ import {
   renderParkedFollowOnsComment,
 } from '../orchestration/parked-follow-ons.js';
 import { upsertStructuredComment } from '../orchestration/ticketing.js';
+import { renderManifestFromManifest } from './dispatch-manifest-render.js';
 import {
   buildManifestFromSpec,
   formatManifestMarkdown,
@@ -101,32 +102,10 @@ export async function postManifestEpicComment(manifest, provider) {
   const skipReason = classifyEpicCommentEligibility(manifest, provider);
   if (skipReason) return { posted: false, reason: skipReason };
 
-  const storyManifest = manifest.storyManifest ?? [];
-  const waveEligible = storyManifest.filter((s) => s.type !== 'feature');
-  const waveSet = new Set(
-    waveEligible.map((s) => s.earliestWave).filter((w) => w !== -1),
-  );
-  const stories = waveEligible
-    .filter((s) => s.storyId !== '__ungrouped__')
-    .map((s) => ({
-      storyId: s.storyId,
-      wave: s.earliestWave ?? -1,
-      title: s.storyTitle ?? s.storySlug ?? '',
-    }));
-
-  const body = [
-    `## 📋 Dispatch Manifest — Epic #${manifest.epicId}`,
-    '',
-    `- **Waves:** ${waveSet.size || 1}`,
-    `- **Stories:** ${stories.length}`,
-    `- **Generated:** ${manifest.generatedAt}`,
-    '',
-    'Source of truth for the wave-completeness gate run at `/epic-deliver`.',
-    '',
-    '```json',
-    JSON.stringify({ stories }, null, 2),
-    '```',
-  ].join('\n');
+  // Body rendering lives in the pure `dispatch-manifest-render.js`
+  // helper so the wave-runner's in-process refresh hop can produce a
+  // byte-identical body without spawning `dispatcher.js --dry-run`.
+  const body = renderManifestFromManifest(manifest);
 
   try {
     await upsertStructuredComment(
