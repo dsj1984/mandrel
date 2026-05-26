@@ -52,9 +52,9 @@ import {
   computeStoryPerfSummary,
 } from './lib/observability/perf-aggregator.js';
 import { forEachLine } from './lib/observability/signals-writer.js';
-import { read as readSignals } from './lib/signals/read.js';
 import { upsertStructuredComment } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
+import { read as readSignals } from './lib/signals/read.js';
 
 /**
  * Stream every lifecycle event under the Epic into an in-memory array
