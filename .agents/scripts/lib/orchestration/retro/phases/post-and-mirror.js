@@ -45,6 +45,7 @@ export async function composeAndPostRetro({
   fsImpl = nodeFs,
   startedAt,
   onMirrorWritten,
+  perfThresholds = null,
 }) {
   const signals = await gatherFn({ epicId, provider, logger });
 
@@ -79,6 +80,7 @@ export async function composeAndPostRetro({
     tasksFirstTry,
     timestamp,
     forceFull,
+    perfThresholds,
   });
 
   const findings = await collectRetroFindings({

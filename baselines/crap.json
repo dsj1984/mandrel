@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-26T22:24:49.218Z",
+  "generatedAt": "2026-05-26T22:49:31.214Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.010699859060178,
+      "p95": 12.006059669598093,
       "max": 52.501371135067686,
       "methodsAbove20": 31
     }
@@ -3094,42 +3094,6 @@
       "method": "formatMaintainabilityProjection",
       "startLine": 278,
       "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/config-resolver.js",
-      "method": "applyGithubDefaults",
-      "startLine": 110,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/config-resolver.js",
-      "method": "applyCommandsDefaults",
-      "startLine": 123,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/config-resolver.js",
-      "method": "applyDeliveryDefaults",
-      "startLine": 133,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/config-resolver.js",
-      "method": "applyDefaults",
-      "startLine": 146,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/config-resolver.js",
-      "method": "buildLegacyShim",
-      "startLine": 178,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/config-resolver.js",
-      "method": "resolveConfig",
-      "startLine": 230,
-      "crap": 9
     },
     {
       "path": ".agents/scripts/lib/config/baselines.js",
@@ -8668,96 +8632,6 @@
       "method": "composeRoutedProposals",
       "startLine": 293,
       "crap": 18.00029650589763
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/retro-runner.js",
-      "method": "sumFriction",
-      "startLine": 59,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/retro-runner.js",
-      "method": "collectDescendants",
-      "startLine": 77,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/retro-runner.js",
-      "method": "warnIfEpicLooksPopulated",
-      "startLine": 120,
-      "crap": 4.291587694999271
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/retro-runner.js",
-      "method": "gatherRetroSignals",
-      "startLine": 162,
-      "crap": 12.027811485254988
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/retro-runner.js",
-      "method": "normalizeInterventionCount",
-      "startLine": 342,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/retro-runner.js",
-      "method": "composeRetroBody",
-      "startLine": 372,
-      "crap": 10.000885645167903
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/retro-runner.js",
-      "method": "renderRoutedSections",
-      "startLine": 527,
-      "crap": 16
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/retro-runner.js",
-      "method": "runRetro",
-      "startLine": 655,
-      "crap": 9.00173611111111
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/retro-runner.js",
-      "method": "<anon method-13>",
-      "startLine": 709,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/retro-runner.js",
-      "method": "composeAndPostRetro",
-      "startLine": 733,
-      "crap": 6.001684664942517
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/retro-runner.js",
-      "method": "collectRetroFindings",
-      "startLine": 851,
-      "crap": 2.053989849908217
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/retro-runner.js",
-      "method": "appendChecksSection",
-      "startLine": 891,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/retro-runner.js",
-      "method": "escapeCell",
-      "startLine": 901,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/retro-runner.js",
-      "method": "renderFindingRow",
-      "startLine": 905,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/retro-runner.js",
-      "method": "renderFindingsSection",
-      "startLine": 913,
-      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/codex.js",
