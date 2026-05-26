@@ -8,6 +8,7 @@ import { resolveFeatureRoots } from '../.agents/scripts/lib/bdd-runner-detect.js
 import {
   extractOutcomeKeywords,
   findBestScenarioMatch,
+  listFeatureFiles,
   parseFeatureBody,
   scanBddScenarios,
   scoreMatch,
@@ -154,6 +155,24 @@ describe('scanBddScenarios — directory walk', () => {
     } finally {
       cleanup();
     }
+  });
+});
+
+describe('listFeatureFiles — observability for unreadable paths (Story #2997)', () => {
+  it('calls logger.debug with the unreadable path when readdir fails', () => {
+    const calls = [];
+    const logger = {
+      debug: (msg) => calls.push(msg),
+    };
+    const missing = path.join(tmpdir(), `bdd-scanner-missing-${Date.now()}`);
+    const out = listFeatureFiles([missing], { logger });
+    assert.deepEqual(out, []);
+    assert.equal(calls.length, 1);
+    assert.match(calls[0], /\[bdd-scenario-scanner\] readdir failed/);
+    assert.ok(
+      calls[0].includes(missing),
+      `expected debug payload to include the unreadable path; got: ${calls[0]}`,
+    );
   });
 });
 
