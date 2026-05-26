@@ -1,0 +1,184 @@
+/**
+ * phases/authoring-context.js — emit-context phase.
+ *
+ * Builds the authoring context the host LLM (or the
+ * `epic-plan-spec-author` Skill) needs to write the PRD and Tech Spec.
+ * Returns a plain JSON-serialisable object; never hits the network beyond
+ * the provider call needed to load the Epic.
+ */
+
+import * as os from 'node:os';
+import path from 'node:path';
+import {
+  resolveFeatureRoots,
+  verifyBddRunnerPendingTag,
+} from '../../../bdd-runner-detect.js';
+import { scanBddScenarios } from '../../../bdd-scenario-scanner.js';
+import { buildCodebaseSnapshot } from '../../../codebase-snapshot.js';
+import { getLimits, PROJECT_ROOT } from '../../../config-resolver.js';
+import { scanMemoryFreshness } from '../../../feedback-loop/memory-freshness.js';
+import { fetchPriorFeedback } from '../../../feedback-loop/prior-feedback-fetcher.js';
+import { Logger } from '../../../Logger.js';
+import { buildDocsContext } from '../../doc-reader.js';
+import { applyBudget } from '../../planning-context-budget.js';
+import { classifyPlanningRisk } from '../../planning-risk.js';
+import {
+  ACCEPTANCE_SPEC_SYSTEM_PROMPT,
+  PRD_SYSTEM_PROMPT,
+  TECH_SPEC_SYSTEM_PROMPT,
+} from './prompts.js';
+
+/**
+ * Resolve the per-project memory directory used by the memory-freshness
+ * pre-flight (Story #2557 / Epic #2547).
+ *
+ * Resolution order:
+ *   1. `MANDREL_MEMORY_DIR` environment variable (test seam and operator
+ *      override).
+ *   2. `~/.claude/projects/<repo>/memory/` — the standard Claude Code
+ *      memory substrate path, scoped by the configured GitHub repo so each
+ *      consumer project gets its own memory pool.
+ *   3. `null` when neither is resolvable. The scanner tolerates a missing
+ *      `memoryDir` and surfaces a single `errors[]` entry.
+ *
+ * @param {{ github?: { owner?: string, repo?: string }|null }} opts
+ * @returns {string|null}
+ */
+export function resolveMemoryDir({ github } = {}) {
+  if (
+    typeof process.env.MANDREL_MEMORY_DIR === 'string' &&
+    process.env.MANDREL_MEMORY_DIR.length > 0
+  ) {
+    return process.env.MANDREL_MEMORY_DIR;
+  }
+  const repo = github?.repo;
+  if (typeof repo !== 'string' || repo.length === 0) return null;
+  return path.join(os.homedir(), '.claude', 'projects', repo, 'memory');
+}
+
+/**
+ * Build the authoring context the host LLM (or the
+ * `epic-plan-spec-author` Skill) needs to write the PRD and Tech Spec.
+ *
+ * `docsContext` is bounded by the planning-context budget (Epic #817 Story 9):
+ * over-budget payloads downgrade to a summary representation with headings +
+ * bounded excerpts. Pass `{ fullContext: true }` (CLI: `--full-context`) to
+ * restore the unbounded full-body envelope. The Epic body itself is always
+ * subject to the same budget so a sprawling Epic narrative cannot bypass the
+ * cap by riding on top of `docsContext`.
+ */
+export async function buildAuthoringContext(
+  epicId,
+  provider,
+  settings = {},
+  opts = {},
+) {
+  const epic = await provider.getEpic(epicId);
+  if (!epic) {
+    throw new Error(`Epic #${epicId} not found.`);
+  }
+
+  const planningLimits = getLimits(settings).planningContext;
+  const { fullContext = false } = opts;
+
+  const docsContext = await buildDocsContext(settings, planningLimits, {
+    fullContext,
+  });
+
+  const epicBody = applyBudget(
+    [{ path: `epic-${epic.id}.md`, content: epic.body ?? '' }],
+    planningLimits,
+    { fullContext },
+  );
+
+  // Story #2094 Task #2103 — verify the project's BDD runner pending-tag
+  // support so the acceptance-spec body can record either the verified tag
+  // (features-first ordering) or "fallback: dependencies-first ordering"
+  // when no supported runner is present.
+  const bddRunner = await verifyBddRunnerPendingTag({ cwd: PROJECT_ROOT });
+
+  // Story #2637 — index existing BDD scenarios so the Acceptance Engineer
+  // step can annotate planned ACs with matches from the project's
+  // `.feature` files. Empty array when the project has not adopted BDD;
+  // the scanner is best-effort and never throws on filesystem errors.
+  let bddScenarios = [];
+  try {
+    const featureRoots = resolveFeatureRoots({ cwd: PROJECT_ROOT });
+    bddScenarios = scanBddScenarios({ featureRoots });
+  } catch (err) {
+    Logger.warn(`[epic-plan-spec] BDD scenario scan skipped: ${err.message}`);
+  }
+
+  // Story #2557 — memory-freshness pre-flight runs BEFORE the prior-feedback
+  // fetch so the planner sees a deduplicated, currently-actionable memory
+  // store. The scanner is best-effort: missing memory dir or gh-CLI failures
+  // land in `memoryFreshness.errors[]` and never throw.
+  const githubCfg = opts.github ?? null;
+  const memoryDir = resolveMemoryDir({ github: githubCfg });
+  const memoryFreshness = await scanMemoryFreshness({
+    memoryDir,
+    owner: githubCfg?.owner,
+    repo: githubCfg?.repo,
+    projectRoot: PROJECT_ROOT,
+  });
+
+  // Story #2554 — surface open meta feedback issues to the planner so retro
+  // signals are routed into durable substrates rather than lost in chat.
+  // The fetcher is best-effort: missing owner/repo or gh-CLI failures land
+  // in `errors[]` and never throw.
+  const priorFeedback = await fetchPriorFeedback({
+    owner: githubCfg?.owner,
+    repo: githubCfg?.repo,
+  });
+
+  // Story #2634 — codebase snapshot. Generates a bounded structural view
+  // of the consumer repo (file tree + package surface + recent activity
+  // + optional export signatures at the `medium` tier) so the Architect
+  // can prefer real module names over doc-only ones. The check is
+  // best-effort: any git/filesystem error degrades to an empty snapshot
+  // so Phase 7 stays non-blocking.
+  let codebaseSnapshot = null;
+  try {
+    codebaseSnapshot = buildCodebaseSnapshot({
+      cwd: PROJECT_ROOT,
+      tier: settings?.planning?.codebaseSnapshot?.tier,
+      include: settings?.planning?.codebaseSnapshot?.include,
+      exclude: settings?.planning?.codebaseSnapshot?.exclude,
+      recentCommitWindow:
+        settings?.planning?.codebaseSnapshot?.recentCommitWindow,
+    });
+  } catch (err) {
+    Logger.warn(`[epic-plan-spec] codebase snapshot skipped: ${err.message}`);
+  }
+
+  // Story #2791 — deterministic planning-risk envelope for gate routing
+  // and acceptance disposition. Pure classification over Epic metadata;
+  // no GitHub mutation on the emit-context path.
+  const planningRisk = classifyPlanningRisk({
+    title: epic.title,
+    body: epic.body ?? '',
+    labels: epic.labels ?? [],
+  });
+
+  return {
+    epic: {
+      id: epic.id,
+      title: epic.title,
+      body: epicBody.mode === 'full' ? epic.body : null,
+      bodySummary: epicBody.mode === 'summary' ? epicBody.items[0] : null,
+      linkedIssues: epic.linkedIssues ?? { prd: null, techSpec: null },
+    },
+    docsContext,
+    codebaseSnapshot,
+    systemPrompts: {
+      prd: PRD_SYSTEM_PROMPT,
+      techSpec: TECH_SPEC_SYSTEM_PROMPT,
+      acceptanceSpec: ACCEPTANCE_SPEC_SYSTEM_PROMPT,
+    },
+    bddRunner,
+    bddScenarios,
+    memoryFreshness,
+    priorFeedback,
+    planningRisk,
+  };
+}
