@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-26T21:55:35.465Z",
+  "generatedAt": "2026-05-26T22:00:00.968Z",
   "rollup": {
     "*": {
       "min": 52.885,
-      "p50": 103.928,
+      "p50": 104.017,
       "p95": 121.479
     }
   },
@@ -17,10 +17,6 @@
     {
       "path": ".agents/scripts/agents-bootstrap-github.js",
       "mi": 90.654
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "mi": 92.659
     },
     {
       "path": ".agents/scripts/assert-branch.js",
@@ -625,10 +621,6 @@
     {
       "path": ".agents/scripts/lib/observability/baseline-refresh-rate.js",
       "mi": 92.391
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "mi": 90.921
     },
     {
       "path": ".agents/scripts/lib/observability/signals-writer.js",
@@ -2591,10 +2583,6 @@
       "mi": 109.72
     },
     {
-      "path": "tests/lib/observability/perf-aggregator.test.js",
-      "mi": 93.272
-    },
-    {
       "path": "tests/lib/observability/render/epic-perf-report-hotspot.test.js",
       "mi": 104.293
     },
@@ -3393,10 +3381,6 @@
     {
       "path": "tests/schemas/epic-perf-report.schema.test.js",
       "mi": 104.452
-    },
-    {
-      "path": "tests/schemas/signal-schemas.test.js",
-      "mi": 106.52
     },
     {
       "path": "tests/scripts/agents-bootstrap-github-protection.test.js",
