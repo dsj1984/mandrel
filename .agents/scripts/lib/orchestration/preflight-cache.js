@@ -44,7 +44,9 @@ import path from 'node:path';
  */
 export function preflightCachePath({ epicId, cwd }) {
   if (!Number.isInteger(epicId) || epicId <= 0) {
-    throw new TypeError('preflightCachePath: epicId must be a positive integer');
+    throw new TypeError(
+      'preflightCachePath: epicId must be a positive integer',
+    );
   }
   const root = cwd ?? process.cwd();
   return path.join(root, 'temp', `epic-${epicId}`, 'preflight-snapshot.json');
@@ -71,8 +73,7 @@ export function computeBaseSha(epic) {
   const labels = Array.isArray(epic.labels)
     ? [...epic.labels].map(String).sort()
     : [];
-  const updatedAt =
-    typeof epic.updatedAt === 'string' ? epic.updatedAt : null;
+  const updatedAt = typeof epic.updatedAt === 'string' ? epic.updatedAt : null;
   const payload = JSON.stringify({ id, body, labels, updatedAt });
   return createHash('sha256').update(payload).digest('hex');
 }
@@ -128,10 +129,14 @@ export async function writePreflightCache({
   capturedAt,
 }) {
   if (!Number.isInteger(epicId) || epicId <= 0) {
-    throw new TypeError('writePreflightCache: epicId must be a positive integer');
+    throw new TypeError(
+      'writePreflightCache: epicId must be a positive integer',
+    );
   }
   if (typeof baseSha !== 'string' || !baseSha) {
-    throw new TypeError('writePreflightCache: baseSha must be a non-empty string');
+    throw new TypeError(
+      'writePreflightCache: baseSha must be a non-empty string',
+    );
   }
   if (!epic || typeof epic !== 'object') {
     throw new TypeError('writePreflightCache: epic must be an object');
