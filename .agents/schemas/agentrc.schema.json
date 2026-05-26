@@ -238,7 +238,12 @@
       "type": "object",
       "properties": {
         "concurrencyCap": { "type": "integer", "minimum": 1 },
-        "progressReportIntervalSec": { "type": "integer", "minimum": 0 }
+        "progressReportIntervalSec": { "type": "integer", "minimum": 0 },
+        "verifyConcurrencyCap": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Bounded-concurrency cap for the per-wave verifyWaveResults loop (Epic #3019 Tech Spec §1.4). Separate from the wave-execution `concurrencyCap` so operators can tune ticket-verification parallelism independently of Story dispatch parallelism. Default 4."
+        }
       },
       "additionalProperties": false
     },

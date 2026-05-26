@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-26T22:19:53.079Z",
+  "generatedAt": "2026-05-26T22:24:49.218Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -3339,12 +3339,6 @@
       "path": ".agents/scripts/lib/config/quality.js",
       "method": "getQuality",
       "startLine": 676,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/config/runners.js",
-      "method": "getRunners",
-      "startLine": 56,
       "crap": 1
     },
     {
