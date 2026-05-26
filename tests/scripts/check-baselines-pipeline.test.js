@@ -203,8 +203,11 @@ describe('check-baselines-pipeline — public exports (Story #2466)', () => {
     assert.deepEqual(parsed.gates, ['coverage', 'lint']);
     assert.equal(parsed.format, 'text');
     assert.equal(parsed.friction, false);
-    assert.equal(parsed.storyId, '42');
-    assert.equal(parsed.epicId, '99');
+    // Story #2989: migration to `parseStandardCliArgs` coerces ticket
+    // ids to numbers (the shape signals-writer documents). The legacy
+    // string-typed assertion is updated to match the new contract.
+    assert.equal(parsed.storyId, 42);
+    assert.equal(parsed.epicId, 99);
   });
 
   it('parseArgs rejects unknown flags with a descriptive message', () => {

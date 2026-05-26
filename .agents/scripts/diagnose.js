@@ -42,6 +42,7 @@
 
 import { runChecks } from './lib/checks/index.js';
 import { assembleState } from './lib/checks/state.js';
+import { parseStandardCliArgs } from './lib/cli/standard-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 
 const DEFAULT_SCOPE = 'diagnose';
@@ -55,29 +56,45 @@ const DEFAULT_SCOPE = 'diagnose';
  * @returns {{ scope: string, failOnBlocker: boolean, json: boolean }}
  */
 export function parseArgs(argv) {
-  let scope = DEFAULT_SCOPE;
-  let failOnBlocker = false;
-  let json = false;
+  // `--help` / `-h` and `--scope <value>` require diagnose-specific error
+  // semantics ('HELP' sentinel for validateDiagnoseArgs; "requires a
+  // value" message for missing value). Pre-scan for those before
+  // delegating the rest to the shared parser.
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
+    if (a === '--help' || a === '-h') throw new Error('HELP');
     if (a === '--scope') {
       const next = argv[i + 1];
       if (!next || next.startsWith('--')) {
         throw new Error('--scope requires a value');
       }
-      scope = next;
+      // Skip the value token so the shared parser doesn't see a stray
+      // positional, but leave it in `argv` for parseStandardCliArgs to
+      // consume.
       i++;
-    } else if (a === '--fail-on-blocker') {
-      failOnBlocker = true;
-    } else if (a === '--json') {
-      json = true;
-    } else if (a === '--help' || a === '-h') {
-      throw new Error('HELP');
-    } else {
-      throw new Error(`unknown argument: ${a}`);
     }
   }
-  return { scope, failOnBlocker, json };
+  try {
+    const { values } = parseStandardCliArgs({
+      argv,
+      extras: {
+        scope: { type: 'string', default: DEFAULT_SCOPE },
+        'fail-on-blocker': { type: 'boolean', alias: 'failOnBlocker' },
+      },
+    });
+    return {
+      scope: values.scope,
+      failOnBlocker: values.failOnBlocker,
+      json: values.json,
+    };
+  } catch (err) {
+    if (err && err.code === 'UNKNOWN_FLAG') {
+      // Preserve the legacy `unknown argument: --foo` phrasing so
+      // operator-visible error text stays stable.
+      throw new Error(`unknown argument: --${err.flag}`);
+    }
+    throw err;
+  }
 }
 
 /**
