@@ -441,7 +441,8 @@ export function computeWaveParallelismRows(events, opts = {}) {
       ? opts.concurrencyCap
       : DEFAULT_WAVE_CONCURRENCY_CAP;
   const verifyConcurrencyCap =
-    Number.isInteger(opts.verifyConcurrencyCap) && opts.verifyConcurrencyCap >= 1
+    Number.isInteger(opts.verifyConcurrencyCap) &&
+    opts.verifyConcurrencyCap >= 1
       ? opts.verifyConcurrencyCap
       : DEFAULT_VERIFY_CONCURRENCY_CAP;
 
@@ -488,7 +489,7 @@ export function computeWaveParallelismRows(events, opts = {}) {
       const storiesField = Array.isArray(evt.stories) ? evt.stories : [];
       const storyIds = storiesField
         .map((s) => {
-          const n = Number(isObject(s) ? s.id ?? s.storyId : s);
+          const n = Number(isObject(s) ? (s.id ?? s.storyId) : s);
           return Number.isInteger(n) && n > 0 ? n : null;
         })
         .filter((n) => n != null);
@@ -538,7 +539,10 @@ export function computeWaveParallelismRows(events, opts = {}) {
   const rows = [];
   for (const [idx, rec] of orderedWaves) {
     if (rec.startMs == null) continue;
-    const wallClockMs = Math.max(0, Math.floor((rec.endMs ?? rec.startMs) - rec.startMs));
+    const wallClockMs = Math.max(
+      0,
+      Math.floor((rec.endMs ?? rec.startMs) - rec.startMs),
+    );
     let summedStoryMs = 0;
     for (const sid of rec.stories) {
       const w = storyWindows.get(sid);
@@ -549,11 +553,7 @@ export function computeWaveParallelismRows(events, opts = {}) {
     let utilisation = 0;
     let capBinding = false;
     if (wallClockMs > 0 && concurrencyCap > 0) {
-      utilisation = clamp(
-        summedStoryMs / (wallClockMs * concurrencyCap),
-        0,
-        1,
-      );
+      utilisation = clamp(summedStoryMs / (wallClockMs * concurrencyCap), 0, 1);
       capBinding = summedStoryMs / wallClockMs >= concurrencyCap;
     }
     rows.push({

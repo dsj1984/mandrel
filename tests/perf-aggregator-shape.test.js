@@ -92,7 +92,8 @@ describe('epic-perf-report.schema.json — waveParallelism utilisation row shape
     const errors = validate.errors ?? [];
     const missing = errors.find(
       (e) =>
-        e.keyword === 'required' && e.params?.missingProperty === 'summedStoryMs',
+        e.keyword === 'required' &&
+        e.params?.missingProperty === 'summedStoryMs',
     );
     assert.ok(
       missing,
