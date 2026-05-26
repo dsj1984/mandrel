@@ -18,6 +18,8 @@ import { epicLedgerPath } from '../config/temp-paths.js';
 import { AGENT_LABELS } from '../label-constants.js';
 import { appendEpicSignal } from '../observability/signals-writer.js';
 import * as epicRunStateStoreModule from '../orchestration/epic-run-state-store.js';
+import { detectRecurringFailures } from '../orchestration/recurring-failure-detector.js';
+import { upsertStructuredComment as defaultUpsertStructuredComment } from '../orchestration/ticketing.js';
 
 import { WaveRunnerError } from './wave-runner-error.js';
 
@@ -54,6 +56,7 @@ import { WaveRunnerError } from './wave-runner-error.js';
  *   epicRunStateStore?: { read: () => Promise<object|null> },
  *   signalEmit?: (signal: object) => Promise<unknown>,
  *   inFlightReader?: () => Promise<number[]>,
+ *   recurringFailureReporter?: () => Promise<void>,
  * }} [collaborators]
  * @property {{ provider?: object, config?: object }} [ctx]
  *
@@ -66,6 +69,7 @@ export async function tick(args = {}) {
     epicRunStateStore: collabStore,
     signalEmit,
     inFlightReader: collabInFlightReader,
+    recurringFailureReporter: collabRecurringFailureReporter,
   } = args.collaborators ?? {};
   const ctx = args.ctx ?? {};
   const provider = collabProvider ?? ctx.provider;
@@ -179,6 +183,19 @@ export async function tick(args = {}) {
   // Stories that the per-Wave label state alone cannot reveal.
   const inFlight = await safeReadInFlight(inFlightReader);
 
+  // Story #3062 — scan the per-Epic lifecycle ledger for recurring
+  // failure classes (≥2 distinct Stories sharing the same
+  // `close-validate.end` failedGate) and upsert a
+  // `recurring-failure-class` structured comment on the Epic when
+  // findings are returned. Idempotent across re-ticks: the upsert path
+  // diffs body bytes, so a tick that produces the same findings does not
+  // duplicate the comment. Best-effort — a reporter throw must not crash
+  // the planner.
+  const recurringFailureReporter =
+    collabRecurringFailureReporter ??
+    defaultRecurringFailureReporter({ provider, epicId, config: ctx?.config });
+  await safeReportRecurringFailures(recurringFailureReporter);
+
   // 6. Decide nextAction.
   let nextAction;
   let tickDetail;
@@ -258,6 +275,81 @@ async function safeReadInFlight(reader) {
     return Array.isArray(raw) ? raw.filter((n) => Number.isInteger(n)) : [];
   } catch {
     return [];
+  }
+}
+
+/**
+ * Default `recurringFailureReporter` collaborator — reads the per-Epic
+ * lifecycle ledger via `detectRecurringFailures`, and when at least one
+ * recurring-failure-class finding is returned, upserts a
+ * `recurring-failure-class` structured comment on the Epic ticket.
+ *
+ * The body carries the findings array verbatim in a JSON fence plus a
+ * compact human-readable bullet list keyed by gate. Idempotent across
+ * re-ticks: `upsertStructuredComment` diffs body bytes, so a tick that
+ * produces the same findings does not generate a new comment.
+ *
+ * Story #3062 (Epic #3051).
+ *
+ * @param {object} args
+ * @param {object} args.provider Ticketing provider passed to upsert.
+ * @param {number} args.epicId
+ * @param {object} [args.config]
+ * @returns {() => Promise<void>}
+ */
+function defaultRecurringFailureReporter({ provider, epicId, config }) {
+  return async () => {
+    const ledgerPath = epicLedgerPath(epicId, config);
+    const findings = detectRecurringFailures(epicId, { ledgerPath });
+    if (findings.length === 0) return;
+    const body = renderRecurringFailureBody(findings);
+    await defaultUpsertStructuredComment(
+      provider,
+      epicId,
+      'recurring-failure-class',
+      body,
+    );
+  };
+}
+
+/**
+ * Render the comment body the recurring-failure-class reporter upserts.
+ * The body is deterministic given a deterministic findings array (the
+ * detector sorts findings by gate and storyIds ascending), which is what
+ * makes the upsert idempotent across re-ticks.
+ *
+ * @param {Array<{gate: string, storyIds: number[], firstSeenAt: string, lastSeenAt: string}>} findings
+ * @returns {string}
+ */
+export function renderRecurringFailureBody(findings) {
+  const lines = ['### 🔁 Recurring failure classes detected', ''];
+  for (const f of findings) {
+    const storiesList = f.storyIds.map((id) => `#${id}`).join(', ');
+    lines.push(
+      `- **\`${f.gate}\`** — ${f.storyIds.length} stories (${storiesList}); first \`${f.firstSeenAt}\`, last \`${f.lastSeenAt}\``,
+    );
+  }
+  lines.push('');
+  lines.push('```json');
+  lines.push(
+    JSON.stringify({ kind: 'recurring-failure-class', findings }, null, 2),
+  );
+  lines.push('```');
+  return lines.join('\n');
+}
+
+/**
+ * Wrap the reporter so a throw (e.g. transient provider error, malformed
+ * ledger) never crashes the stateless tick. Best-effort — the next tick
+ * will retry.
+ *
+ * @param {() => Promise<void>} reporter
+ */
+async function safeReportRecurringFailures(reporter) {
+  try {
+    await reporter();
+  } catch {
+    // best-effort
   }
 }
 
