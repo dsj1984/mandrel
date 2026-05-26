@@ -7,19 +7,17 @@
  * `gh pr view --head` is not available on all `gh` versions, so we probe
  * with `gh pr list --head <branch>` and fall back to `gh pr create`.
  *
- * The `gh`-spawn boundary lives here intentionally — see Story #2990 for
- * the separate refactor that moves these calls behind a `providers/github/`
- * adapter. Until that lands, the phase is the single owner of the
- * `execFileSync('gh', …)` calls for the PR open path.
+ * Story #2990 routed the underlying `gh pr list` / `gh pr create` calls
+ * through the `lib/gh-exec.js` facade (the same shim the
+ * `providers/github/` gateways use) so this phase inherits the typed
+ * error classification, timeout handling, and JSON parsing surface
+ * instead of carrying its own `execFileSync('gh', …)` plumbing.
  *
- * `execFileSync` is accepted as an injected dependency so the SUT's
- * cache-busted binding wins when tests mock `node:child_process`. The
- * SUT (`single-story-close.js`) statically imports `execFileSync` and
- * passes it through; direct callers (tests that import from the SUT)
- * receive the same closure shape via the parent's `ensurePullRequest`
- * wrapper.
+ * The function still accepts an injected `gh` facade so tests can wire
+ * a fake without spawning real children.
  */
 
+import { gh as defaultGh } from '../../../gh-exec.js';
 import { Logger } from '../../../Logger.js';
 
 /**
@@ -32,40 +30,39 @@ import { Logger } from '../../../Logger.js';
  *   storyTitle: string,
  *   storyBranch: string,
  *   baseBranch: string,
- *   execFileSync: Function,
+ *   gh?: ReturnType<typeof import('../../../gh-exec.js').createGh>,
  *   progress?: (tag: string, msg: string) => void,
  * }} args
- * @returns {string}
+ * @returns {Promise<string>}
  */
-export function ensurePullRequestWith({
-  cwd,
+export async function ensurePullRequestWith({
+  cwd: _cwd,
   storyId,
   storyTitle,
   storyBranch,
   baseBranch,
-  execFileSync,
+  gh = defaultGh,
   progress = () => {},
 }) {
-  const ghEnv = { ...process.env };
+  // `cwd` is preserved on the call signature for backwards compatibility
+  // with the SUT's thin wrapper, but `gh-exec` spawns `gh` against the
+  // current process cwd. `single-story-close.js` chdirs into the worktree
+  // before invoking the phase, so the effective cwd matches the legacy
+  // `execFileSync('gh', …, { cwd })` shape.
   try {
-    // `gh pr list --head <branch> --state open --json url -q .[0].url`
-    // returns the PR URL or an empty string when no PR matches.
-    const existing = execFileSync(
-      'gh',
-      [
-        'pr',
-        'list',
-        '--head',
-        storyBranch,
-        '--state',
-        'open',
-        '--json',
-        'url',
-        '-q',
-        '.[0].url // empty',
-      ],
-      { cwd, encoding: 'utf8', env: ghEnv },
-    ).trim();
+    // `gh pr list --head <branch> --state open --json url` returns a
+    // JSON array of `{ url }` rows; an empty array means no open PR on
+    // this head. We pick the first entry's URL (matching the legacy
+    // `-q '.[0].url // empty'` projection on our side) so the typed
+    // `gh.pr.list` facade can stay generic.
+    const rows = await gh.pr.list(
+      ['--head', storyBranch, '--state', 'open'],
+      ['url'],
+    );
+    const existing =
+      Array.isArray(rows) && rows.length > 0
+        ? String(rows[0]?.url ?? '').trim()
+        : '';
     if (existing) {
       progress('PR', `Reusing existing PR: ${existing}`);
       return existing;
@@ -88,22 +85,17 @@ export function ensurePullRequestWith({
     `_Auto-opened by \`/single-story-deliver\`._`,
   ].join('\n');
   try {
-    const url = execFileSync(
-      'gh',
-      [
-        'pr',
-        'create',
-        '--base',
-        baseBranch,
-        '--head',
-        storyBranch,
-        '--title',
-        title,
-        '--body',
-        body,
-      ],
-      { cwd, encoding: 'utf8', env: ghEnv },
-    ).trim();
+    const createResult = await gh.pr.create([
+      '--base',
+      baseBranch,
+      '--head',
+      storyBranch,
+      '--title',
+      title,
+      '--body',
+      body,
+    ]);
+    const url = (createResult?.stdout ?? '').trim();
     progress('PR', `✅ Opened: ${url}`);
     return url;
   } catch (err) {

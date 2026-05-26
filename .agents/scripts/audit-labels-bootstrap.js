@@ -16,12 +16,12 @@
  * rather than calling Logger.fatal.
  */
 
-import { spawnSync } from 'node:child_process';
 import process from 'node:process';
 import { parseArgs } from 'node:util';
 
 import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
+import { gh as defaultGh, GhExecError } from './lib/gh-exec.js';
 
 const DIMENSIONS = Object.freeze([
   {
@@ -86,41 +86,26 @@ const DIMENSIONS = Object.freeze([
   },
 ]);
 
-function runGh(args) {
-  const result = spawnSync('gh', args, { encoding: 'utf8' });
-  return {
-    code: result.status,
-    stdout: result.stdout ?? '',
-    stderr: result.stderr ?? '',
-    error: result.error ?? null,
-  };
-}
-
-function labelExists(owner, repo, name) {
-  const { code, stdout } = runGh([
-    'label',
-    'list',
-    '--repo',
-    `${owner}/${repo}`,
-    '--limit',
-    '200',
-    '--json',
-    'name',
-  ]);
-  if (code !== 0) return false;
+async function labelExists(gh, owner, repo, name) {
   try {
-    const list = JSON.parse(stdout);
+    const list = await gh.label.list(
+      ['--repo', `${owner}/${repo}`, '--limit', '200'],
+      ['name'],
+    );
     return Array.isArray(list) && list.some((l) => l?.name === name);
   } catch (_) {
     return false;
   }
 }
 
-function createLabel(owner, repo, { name, color, description }, { force }) {
-  const args = [
-    'label',
-    'create',
-    name,
+async function createLabel(
+  gh,
+  owner,
+  repo,
+  { name, color, description },
+  { force },
+) {
+  const flags = [
     '--repo',
     `${owner}/${repo}`,
     '--color',
@@ -128,16 +113,25 @@ function createLabel(owner, repo, { name, color, description }, { force }) {
     '--description',
     description,
   ];
-  if (force) args.push('--force');
-  const { code, stderr } = runGh(args);
-  return { ok: code === 0, stderr: stderr.trim() };
+  if (force) flags.push('--force');
+  try {
+    await gh.label.create(name, flags);
+    return { ok: true, stderr: '' };
+  } catch (err) {
+    const stderr =
+      err instanceof GhExecError && typeof err.stderr === 'string'
+        ? err.stderr.trim()
+        : String(err?.message ?? err).trim();
+    return { ok: false, stderr };
+  }
 }
 
-export function bootstrapAuditLabels({
+export async function bootstrapAuditLabels({
   owner,
   repo,
   force = false,
   dryRun = false,
+  gh = defaultGh,
 } = {}) {
   if (typeof owner !== 'string' || owner.length === 0) {
     throw new Error('bootstrapAuditLabels: owner is required');
@@ -159,12 +153,12 @@ export function bootstrapAuditLabels({
       continue;
     }
 
-    if (!force && labelExists(owner, repo, labelName)) {
+    if (!force && (await labelExists(gh, owner, repo, labelName))) {
       skipped.push(labelName);
       continue;
     }
 
-    const result = createLabel(owner, repo, candidate, { force });
+    const result = await createLabel(gh, owner, repo, candidate, { force });
     if (result.ok) {
       created.push(labelName);
     } else if (/already exists/i.test(result.stderr)) {
@@ -201,7 +195,7 @@ async function main() {
     );
   }
 
-  const result = bootstrapAuditLabels({
+  const result = await bootstrapAuditLabels({
     owner,
     repo,
     force: !!values.force,

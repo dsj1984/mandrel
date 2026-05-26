@@ -17,7 +17,6 @@
  */
 
 import assert from 'node:assert/strict';
-import * as realChildProcess from 'node:child_process';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -39,11 +38,33 @@ const WORKTREE_MANAGER_URL = pathToFileURL(
   path.resolve(REPO_ROOT, '.agents/scripts/lib/worktree-manager.js'),
 ).href;
 
-function childProcessMock(fakeExecFileSync) {
+/**
+ * Story #2990: see
+ * `tests/single-story-close-orchestration.test.js#makeFakeGh` for the
+ * full contract.
+ */
+function makeFakeGh(handler) {
+  const dispatch = async (args) => {
+    const wantsJson = Array.isArray(args) && args.includes('--json');
+    const raw = handler(args);
+    if (wantsJson) return raw ?? [];
+    const text = typeof raw === 'string' ? raw : (raw?.stdout ?? '');
+    return { stdout: text, stderr: '', code: 0 };
+  };
   return {
-    namedExports: {
-      ...realChildProcess,
-      execFileSync: fakeExecFileSync,
+    pr: {
+      list: (flags = [], fields) =>
+        dispatch([
+          'pr',
+          'list',
+          ...flags,
+          ...(Array.isArray(fields) && fields.length
+            ? ['--json', fields.join(',')]
+            : []),
+        ]),
+      create: (flags = []) => dispatch(['pr', 'create', ...flags]),
+      merge: (id, flags = []) =>
+        dispatch(['pr', 'merge', String(id), ...flags]),
     },
   };
 }
@@ -251,20 +272,17 @@ describe('runStoryScopeReview (direct)', () => {
 describe('runSingleStoryClose review-halt orchestration', () => {
   it('throws non-zero when the Story-scope review reports critical findings and skips auto-merge', async (t) => {
     const ghCalls = [];
-    t.mock.module(
-      'node:child_process',
-      childProcessMock((_cmd, args) => {
-        ghCalls.push(args.slice());
-        if (args[1] === 'list') return '';
-        if (args[1] === 'create') {
-          return 'https://github.com/owner/repo/pull/444\n';
-        }
-        if (args[1] === 'merge') {
-          throw new Error('gh merge must not run when review halts');
-        }
-        throw new Error(`unexpected gh: ${args.join(' ')}`);
-      }),
-    );
+    const gh = makeFakeGh((args) => {
+      ghCalls.push(args.slice());
+      if (args[1] === 'list') return [];
+      if (args[1] === 'create') {
+        return 'https://github.com/owner/repo/pull/444\n';
+      }
+      if (args[1] === 'merge') {
+        throw new Error('gh merge must not run when review halts');
+      }
+      throw new Error(`unexpected gh: ${args.join(' ')}`);
+    });
     t.mock.module(GIT_UTILS_URL, gitUtilsMock());
     t.mock.module(CLOSE_VALIDATION_URL, closeValidationMock());
     t.mock.module(WORKTREE_MANAGER_URL, worktreeManagerMock());
@@ -279,6 +297,7 @@ describe('runSingleStoryClose review-halt orchestration', () => {
         skipSync: true,
         injectedProvider: recorder.provider,
         injectedConfig: fakeConfig(),
+        injectedGh: gh,
         injectedRunCodeReview: async (opts) => {
           // Sanity: the closer must invoke with the canonical envelope.
           assert.equal(opts.scope, 'story');

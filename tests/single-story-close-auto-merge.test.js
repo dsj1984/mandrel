@@ -56,7 +56,7 @@ describe('parsePrNumber', () => {
 });
 
 describe('enableAutoMerge', () => {
-  it('passes --auto --squash --delete-branch to gh and reports enabled on exit 0', () => {
+  it('passes --auto --squash --delete-branch to gh and reports enabled on exit 0', async () => {
     let capturedArgs = null;
     let capturedOpts = null;
     const runner = (args, opts) => {
@@ -64,7 +64,7 @@ describe('enableAutoMerge', () => {
       capturedOpts = opts;
       return { status: 0, stdout: 'ok', stderr: '' };
     };
-    const result = enableAutoMerge({
+    const result = await enableAutoMerge({
       cwd: '/repo',
       prNumber: 123,
       runner,
@@ -81,13 +81,13 @@ describe('enableAutoMerge', () => {
     assert.deepEqual(capturedOpts, { cwd: '/repo' });
   });
 
-  it('reports enabled:false with reason when gh exits non-zero', () => {
+  it('reports enabled:false with reason when gh exits non-zero', async () => {
     const runner = () => ({
       status: 22,
       stdout: '',
       stderr: 'Pull request not in a state allowing auto-merge.',
     });
-    const result = enableAutoMerge({
+    const result = await enableAutoMerge({
       cwd: '/repo',
       prNumber: 123,
       runner,
@@ -97,11 +97,11 @@ describe('enableAutoMerge', () => {
     assert.match(result.reason, /allowing auto-merge/);
   });
 
-  it('reports enabled:false on spawn errors', () => {
+  it('reports enabled:false on spawn errors', async () => {
     const runner = () => {
       throw new Error('ENOENT: gh not installed');
     };
-    const result = enableAutoMerge({
+    const result = await enableAutoMerge({
       cwd: '/repo',
       prNumber: 123,
       runner,
@@ -111,10 +111,10 @@ describe('enableAutoMerge', () => {
     assert.match(result.reason, /ENOENT/);
   });
 
-  it('truncates very long stderr to keep the reason field readable', () => {
+  it('truncates very long stderr to keep the reason field readable', async () => {
     const longStderr = 'x'.repeat(500);
     const runner = () => ({ status: 1, stderr: longStderr });
-    const result = enableAutoMerge({
+    const result = await enableAutoMerge({
       cwd: '/repo',
       prNumber: 123,
       runner,

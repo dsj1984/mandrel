@@ -28,7 +28,6 @@
  */
 
 import assert from 'node:assert/strict';
-import * as realChildProcess from 'node:child_process';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -49,6 +48,10 @@ const CLOSE_VALIDATION_URL = pathToFileURL(
 const WORKTREE_MANAGER_URL = pathToFileURL(
   path.resolve(REPO_ROOT, '.agents/scripts/lib/worktree-manager.js'),
 ).href;
+// Story #2990: the close-tail phases reach `gh` through the
+// `lib/gh-exec.js` facade rather than direct `execFileSync('gh', …)`
+// calls. Tests inject a fake `gh` facade via `injectedGh` (or pass it
+// directly to `ensurePullRequest`) instead of mocking the module URL.
 // Epic #2880 / F14B: single-story-close.js now reaches buildDefaultGates
 // indirectly via `legacy-settings-bag.js#buildGatesFromConfig`. Mocks on
 // CLOSE_VALIDATION_URL don't intercept that transitive path, so tests
@@ -62,17 +65,54 @@ const LEGACY_SETTINGS_BAG_URL = pathToFileURL(
 ).href;
 
 /**
- * Build a `node:child_process` mock that pass-through every symbol except
- * `execFileSync`, which is replaced with the supplied fake. Without the
- * pass-through, sibling modules in the SUT's import graph (e.g.
- * `lib/gh-exec.js` imports `spawn`) fail to instantiate because the mock
- * replaces the whole module surface.
+ * Build a fake `lib/gh-exec.js` `gh` facade for direct injection into
+ * `runSingleStoryClose({ injectedGh })`, `ensurePullRequest({ gh })`,
+ * and `enableAutoMerge({ gh })`. The `handler(args)` callback receives
+ * the argv that would have been passed to `gh` (e.g. `['pr', 'list',
+ * '--head', 'story-1234', '--state', 'open', '--json', 'url']`) and may
+ * either return a value or throw. For `pr list` calls (which carry
+ * `--json`) the handler returns the array shape `gh --json` would emit
+ * (e.g. `[{ url: 'https://…' }]`, or `[]` for "no PR"). For
+ * `pr create` / `pr merge` calls (no `--json`) the handler returns the
+ * URL string the legacy `execFileSync` shim used to return; the wrapper
+ * normalizes it into the `{ stdout, stderr, code }` envelope the
+ * `lib/gh-exec.js` facade actually produces.
+ *
+ * Story #2990 replaced the previous `node:child_process` /
+ * `execFileSync` mock once the phase code stopped spawning `gh`
+ * directly and started routing through the facade.
  */
-function childProcessMock(fakeExecFileSync) {
+function makeFakeGh(handler) {
+  const dispatch = async (args) => {
+    const wantsJson = Array.isArray(args) && args.includes('--json');
+    const raw = handler(args);
+    if (wantsJson) return raw ?? [];
+    const text = typeof raw === 'string' ? raw : (raw?.stdout ?? '');
+    return { stdout: text, stderr: '', code: 0 };
+  };
   return {
-    namedExports: {
-      ...realChildProcess,
-      execFileSync: fakeExecFileSync,
+    pr: {
+      list: (flags = [], fields) =>
+        dispatch([
+          'pr',
+          'list',
+          ...flags,
+          ...(Array.isArray(fields) && fields.length
+            ? ['--json', fields.join(',')]
+            : []),
+        ]),
+      create: (flags = []) => dispatch(['pr', 'create', ...flags]),
+      merge: (id, flags = []) =>
+        dispatch(['pr', 'merge', String(id), ...flags]),
+      view: (id, fields) =>
+        dispatch([
+          'pr',
+          'view',
+          String(id),
+          ...(Array.isArray(fields) && fields.length
+            ? ['--json', fields.join(',')]
+            : []),
+        ]),
     },
   };
 }
@@ -183,51 +223,47 @@ function noopReview() {
 }
 
 describe('ensurePullRequest', () => {
-  it('reuses an existing open PR when gh pr list returns a URL', async (t) => {
+  it('reuses an existing open PR when gh pr list returns a URL', async () => {
     const calls = [];
-    t.mock.module(
-      'node:child_process',
-      childProcessMock((_cmd, args) => {
-        calls.push(args.slice());
-        if (args[1] === 'list') {
-          return 'https://github.com/owner/repo/pull/42\n';
-        }
-        throw new Error(`unexpected gh call: ${args.join(' ')}`);
-      }),
-    );
     const { ensurePullRequest } = await import(`${SUT_URL}?t=ensure-reuse`);
-    const url = ensurePullRequest({
+    const gh = makeFakeGh((args) => {
+      calls.push(args.slice());
+      if (args[1] === 'list') {
+        return [{ url: 'https://github.com/owner/repo/pull/42' }];
+      }
+      throw new Error(`unexpected gh call: ${args.join(' ')}`);
+    });
+    const url = await ensurePullRequest({
       cwd: '/repo',
       storyId: 1234,
       storyTitle: 'Test story',
       storyBranch: 'story-1234',
       baseBranch: 'main',
+      gh,
     });
     assert.equal(url, 'https://github.com/owner/repo/pull/42');
     assert.equal(calls.length, 1, 'gh pr create must not run when list hits');
     assert.equal(calls[0][1], 'list');
   });
 
-  it('creates a fresh PR when gh pr list returns empty', async (t) => {
+  it('creates a fresh PR when gh pr list returns empty', async () => {
     const calls = [];
-    t.mock.module(
-      'node:child_process',
-      childProcessMock((_cmd, args) => {
-        calls.push(args.slice());
-        if (args[1] === 'list') return '\n';
-        if (args[1] === 'create') {
-          return 'https://github.com/owner/repo/pull/100\n';
-        }
-        throw new Error(`unexpected gh call: ${args.join(' ')}`);
-      }),
-    );
     const { ensurePullRequest } = await import(`${SUT_URL}?t=ensure-create`);
-    const url = ensurePullRequest({
+    const gh = makeFakeGh((args) => {
+      calls.push(args.slice());
+      if (args[1] === 'list') return [];
+      if (args[1] === 'create') {
+        return 'https://github.com/owner/repo/pull/100\n';
+      }
+      throw new Error(`unexpected gh call: ${args.join(' ')}`);
+    });
+    const url = await ensurePullRequest({
       cwd: '/repo',
       storyId: 1234,
       storyTitle: 'Test story',
       storyBranch: 'story-1234',
       baseBranch: 'main',
+      gh,
     });
     assert.equal(url, 'https://github.com/owner/repo/pull/100');
     assert.equal(calls.length, 2);
@@ -243,23 +279,21 @@ describe('ensurePullRequest', () => {
     assert.match(createArgs[bodyIdx + 1], /Closes #1234/);
   });
 
-  it('falls back to gh pr create when gh pr list throws', async (t) => {
+  it('falls back to gh pr create when gh pr list throws', async () => {
     const calls = [];
-    t.mock.module(
-      'node:child_process',
-      childProcessMock((_cmd, args) => {
-        calls.push(args.slice());
-        if (args[1] === 'list') throw new Error('auth required');
-        return 'https://github.com/owner/repo/pull/200\n';
-      }),
-    );
     const { ensurePullRequest } = await import(`${SUT_URL}?t=ensure-list-fail`);
-    const url = ensurePullRequest({
+    const gh = makeFakeGh((args) => {
+      calls.push(args.slice());
+      if (args[1] === 'list') throw new Error('auth required');
+      return 'https://github.com/owner/repo/pull/200\n';
+    });
+    const url = await ensurePullRequest({
       cwd: '/repo',
       storyId: 9,
       storyTitle: '',
       storyBranch: 'story-9',
       baseBranch: 'main',
+      gh,
     });
     assert.equal(url, 'https://github.com/owner/repo/pull/200');
     const createCall = calls[1];
@@ -271,27 +305,24 @@ describe('ensurePullRequest', () => {
     );
   });
 
-  it('throws when gh pr create fails', async (t) => {
-    t.mock.module(
-      'node:child_process',
-      childProcessMock((_cmd, args) => {
-        if (args[1] === 'list') return '';
-        if (args[1] === 'create') throw new Error('rate limit');
-        throw new Error('unreachable');
-      }),
-    );
+  it('throws when gh pr create fails', async () => {
     const { ensurePullRequest } = await import(
       `${SUT_URL}?t=ensure-create-fail`
     );
-    assert.throws(
-      () =>
-        ensurePullRequest({
-          cwd: '/repo',
-          storyId: 5,
-          storyTitle: 'X',
-          storyBranch: 'story-5',
-          baseBranch: 'main',
-        }),
+    const gh = makeFakeGh((args) => {
+      if (args[1] === 'list') return [];
+      if (args[1] === 'create') throw new Error('rate limit');
+      throw new Error('unreachable');
+    });
+    await assert.rejects(
+      ensurePullRequest({
+        cwd: '/repo',
+        storyId: 5,
+        storyTitle: 'X',
+        storyBranch: 'story-5',
+        baseBranch: 'main',
+        gh,
+      }),
       /gh pr create.*failed/i,
     );
   });
@@ -300,18 +331,15 @@ describe('ensurePullRequest', () => {
 describe('runSingleStoryClose orchestration', () => {
   it('happy path: skipValidation=true, opens PR, enables auto-merge, flips to agent::done', async (t) => {
     const ghCalls = [];
-    t.mock.module(
-      'node:child_process',
-      childProcessMock((_cmd, args) => {
-        ghCalls.push(args.slice());
-        if (args[1] === 'list') return '';
-        if (args[1] === 'create') {
-          return 'https://github.com/owner/repo/pull/123\n';
-        }
-        if (args[1] === 'merge') return 'ok';
-        throw new Error(`unexpected gh: ${args.join(' ')}`);
-      }),
-    );
+    const gh = makeFakeGh((args) => {
+      ghCalls.push(args.slice());
+      if (args[1] === 'list') return [];
+      if (args[1] === 'create') {
+        return 'https://github.com/owner/repo/pull/123\n';
+      }
+      if (args[1] === 'merge') return 'ok';
+      throw new Error(`unexpected gh: ${args.join(' ')}`);
+    });
     const gitCalls = [];
     t.mock.module(GIT_UTILS_URL, {
       namedExports: {
@@ -337,6 +365,7 @@ describe('runSingleStoryClose orchestration', () => {
       injectedProvider: provider,
       injectedConfig: config,
       injectedRunCodeReview: noopReview(),
+      injectedGh: gh,
     });
 
     assert.equal(success, true);
@@ -385,12 +414,9 @@ describe('runSingleStoryClose orchestration', () => {
   });
 
   it('returns noop early when the Story is already closed', async (t) => {
-    t.mock.module(
-      'node:child_process',
-      childProcessMock(() => {
-        throw new Error('gh must not be invoked when noop');
-      }),
-    );
+    const gh = makeFakeGh(() => {
+      throw new Error('gh must not be invoked when noop');
+    });
     t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
     t.mock.module(CLOSE_VALIDATION_URL, defaultCloseValidationMock());
     t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
@@ -413,6 +439,7 @@ describe('runSingleStoryClose orchestration', () => {
       injectedProvider: provider,
       injectedConfig: fakeConfig(),
       injectedRunCodeReview: noopReview(),
+      injectedGh: gh,
     });
 
     assert.equal(success, true);
@@ -423,17 +450,14 @@ describe('runSingleStoryClose orchestration', () => {
 
   it('honours --no-auto-merge by skipping the auto-merge gh call', async (t) => {
     const ghCalls = [];
-    t.mock.module(
-      'node:child_process',
-      childProcessMock((_cmd, args) => {
-        ghCalls.push(args.slice());
-        if (args[1] === 'list') return '';
-        if (args[1] === 'create') {
-          return 'https://github.com/owner/repo/pull/77\n';
-        }
-        throw new Error(`gh merge must not run with --no-auto-merge`);
-      }),
-    );
+    const gh = makeFakeGh((args) => {
+      ghCalls.push(args.slice());
+      if (args[1] === 'list') return [];
+      if (args[1] === 'create') {
+        return 'https://github.com/owner/repo/pull/77\n';
+      }
+      throw new Error(`gh merge must not run with --no-auto-merge`);
+    });
     t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
     t.mock.module(CLOSE_VALIDATION_URL, defaultCloseValidationMock());
     t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
@@ -455,6 +479,7 @@ describe('runSingleStoryClose orchestration', () => {
       }),
       injectedConfig: fakeConfig(),
       injectedRunCodeReview: noopReview(),
+      injectedGh: gh,
     });
 
     assert.equal(result.autoMergeEnabled, false);
@@ -464,16 +489,13 @@ describe('runSingleStoryClose orchestration', () => {
   });
 
   it('reports pr-number-unparseable when the PR URL has no /pull/<n>', async (t) => {
-    t.mock.module(
-      'node:child_process',
-      childProcessMock((_cmd, args) => {
-        if (args[1] === 'list') return '';
-        if (args[1] === 'create') {
-          return 'https://example.com/totally-not-a-pr\n';
-        }
-        throw new Error('merge must not run when PR number is unparseable');
-      }),
-    );
+    const gh = makeFakeGh((args) => {
+      if (args[1] === 'list') return [];
+      if (args[1] === 'create') {
+        return 'https://example.com/totally-not-a-pr\n';
+      }
+      throw new Error('merge must not run when PR number is unparseable');
+    });
     t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
     t.mock.module(CLOSE_VALIDATION_URL, defaultCloseValidationMock());
     t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
@@ -489,6 +511,7 @@ describe('runSingleStoryClose orchestration', () => {
       }),
       injectedConfig: fakeConfig(),
       injectedRunCodeReview: noopReview(),
+      injectedGh: gh,
     });
 
     assert.equal(result.prNumber, null);
@@ -497,22 +520,19 @@ describe('runSingleStoryClose orchestration', () => {
   });
 
   it('records gh-exit-<status> when auto-merge gh call fails non-zero', async (t) => {
-    t.mock.module(
-      'node:child_process',
-      childProcessMock((_cmd, args) => {
-        if (args[1] === 'list') return '';
-        if (args[1] === 'create') {
-          return 'https://github.com/owner/repo/pull/55\n';
-        }
-        if (args[1] === 'merge') {
-          const err = new Error('Pull request not mergeable');
-          err.status = 22;
-          err.stderr = Buffer.from('Pull request not mergeable');
-          throw err;
-        }
-        throw new Error('unreachable');
-      }),
-    );
+    const gh = makeFakeGh((args) => {
+      if (args[1] === 'list') return [];
+      if (args[1] === 'create') {
+        return 'https://github.com/owner/repo/pull/55\n';
+      }
+      if (args[1] === 'merge') {
+        const err = new Error('Pull request not mergeable');
+        err.status = 22;
+        err.stderr = Buffer.from('Pull request not mergeable');
+        throw err;
+      }
+      throw new Error('unreachable');
+    });
     t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
     t.mock.module(CLOSE_VALIDATION_URL, defaultCloseValidationMock());
     t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
@@ -528,6 +548,7 @@ describe('runSingleStoryClose orchestration', () => {
       }),
       injectedConfig: fakeConfig(),
       injectedRunCodeReview: noopReview(),
+      injectedGh: gh,
     });
 
     assert.equal(result.prNumber, 55);
@@ -566,17 +587,14 @@ describe('runSingleStoryClose orchestration', () => {
       },
     });
     t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
-    t.mock.module(
-      'node:child_process',
-      childProcessMock((_cmd, args) => {
-        if (args[1] === 'list') return '';
-        if (args[1] === 'create') {
-          return 'https://github.com/owner/repo/pull/8\n';
-        }
-        if (args[1] === 'merge') return 'ok';
-        throw new Error('unreachable');
-      }),
-    );
+    const gh = makeFakeGh((args) => {
+      if (args[1] === 'list') return [];
+      if (args[1] === 'create') {
+        return 'https://github.com/owner/repo/pull/8\n';
+      }
+      if (args[1] === 'merge') return 'ok';
+      throw new Error('unreachable');
+    });
     t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
 
     const { runSingleStoryClose } = await import(`${SUT_URL}?t=validate-ok`);
@@ -595,6 +613,7 @@ describe('runSingleStoryClose orchestration', () => {
       }),
       injectedConfig: fakeConfig(),
       injectedRunCodeReview: noopReview(),
+      injectedGh: gh,
     });
 
     assert.equal(result.pushed, true);
@@ -624,12 +643,9 @@ describe('runSingleStoryClose orchestration', () => {
       },
     });
     t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
-    t.mock.module(
-      'node:child_process',
-      childProcessMock(() => {
-        throw new Error('gh must not run when validation fails');
-      }),
-    );
+    const gh = makeFakeGh(() => {
+      throw new Error('gh must not run when validation fails');
+    });
     t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
 
     const { runSingleStoryClose } = await import(`${SUT_URL}?t=validate-fail`);
@@ -649,6 +665,7 @@ describe('runSingleStoryClose orchestration', () => {
         }),
         injectedConfig: fakeConfig(),
         injectedRunCodeReview: noopReview(),
+        injectedGh: gh,
       }),
       /Gate failed: lint/,
     );
@@ -664,12 +681,9 @@ describe('runSingleStoryClose orchestration', () => {
       },
     });
     t.mock.module(CLOSE_VALIDATION_URL, defaultCloseValidationMock());
-    t.mock.module(
-      'node:child_process',
-      childProcessMock(() => {
-        throw new Error('gh must not run when push fails');
-      }),
-    );
+    const gh = makeFakeGh(() => {
+      throw new Error('gh must not run when push fails');
+    });
     t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
 
     const { runSingleStoryClose } = await import(`${SUT_URL}?t=push-fail`);
@@ -689,6 +703,7 @@ describe('runSingleStoryClose orchestration', () => {
         }),
         injectedConfig: fakeConfig(),
         injectedRunCodeReview: noopReview(),
+        injectedGh: gh,
       }),
       /git push failed.*remote rejected/,
     );
@@ -701,17 +716,14 @@ describe('runSingleStoryClose orchestration', () => {
     // the Story's prior status column for the entire run. This test
     // pins the new contract by asserting that ColumnSync's GraphQL
     // surface is touched on the flip to `agent::done`.
-    t.mock.module(
-      'node:child_process',
-      childProcessMock((_cmd, args) => {
-        if (args[1] === 'list') return '';
-        if (args[1] === 'create') {
-          return 'https://github.com/owner/repo/pull/2717\n';
-        }
-        if (args[1] === 'merge') return 'ok';
-        throw new Error(`unexpected gh: ${args.join(' ')}`);
-      }),
-    );
+    const gh = makeFakeGh((args) => {
+      if (args[1] === 'list') return [];
+      if (args[1] === 'create') {
+        return 'https://github.com/owner/repo/pull/2717\n';
+      }
+      if (args[1] === 'merge') return 'ok';
+      throw new Error(`unexpected gh: ${args.join(' ')}`);
+    });
     t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
     t.mock.module(CLOSE_VALIDATION_URL, defaultCloseValidationMock());
     t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
@@ -779,6 +791,7 @@ describe('runSingleStoryClose orchestration', () => {
       injectedProvider: provider,
       injectedConfig: fakeConfig(),
       injectedRunCodeReview: noopReview(),
+      injectedGh: gh,
     });
 
     assert.equal(success, true);
@@ -795,17 +808,14 @@ describe('runSingleStoryClose orchestration', () => {
   });
 
   it('swallows updateTicket failures so the run still returns success', async (t) => {
-    t.mock.module(
-      'node:child_process',
-      childProcessMock((_cmd, args) => {
-        if (args[1] === 'list') return '';
-        if (args[1] === 'create') {
-          return 'https://github.com/owner/repo/pull/33\n';
-        }
-        if (args[1] === 'merge') return 'ok';
-        throw new Error('unreachable');
-      }),
-    );
+    const gh = makeFakeGh((args) => {
+      if (args[1] === 'list') return [];
+      if (args[1] === 'create') {
+        return 'https://github.com/owner/repo/pull/33\n';
+      }
+      if (args[1] === 'merge') return 'ok';
+      throw new Error('unreachable');
+    });
     t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
     t.mock.module(CLOSE_VALIDATION_URL, defaultCloseValidationMock());
     t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
@@ -827,6 +837,7 @@ describe('runSingleStoryClose orchestration', () => {
       }),
       injectedConfig: fakeConfig(),
       injectedRunCodeReview: noopReview(),
+      injectedGh: gh,
     });
 
     assert.equal(success, true);
@@ -835,23 +846,23 @@ describe('runSingleStoryClose orchestration', () => {
 });
 
 describe('runSingleStoryClose story-merged notify dispatch', () => {
-  function happyGhMock(t) {
-    t.mock.module(
-      'node:child_process',
-      childProcessMock((_cmd, args) => {
-        if (args[1] === 'list') return '';
-        if (args[1] === 'create')
-          return 'https://github.com/owner/repo/pull/999\n';
-        if (args[1] === 'merge') return 'ok';
-        throw new Error(`unexpected gh: ${args.join(' ')}`);
-      }),
-    );
+  function happyGh() {
+    return makeFakeGh((args) => {
+      if (args[1] === 'list') return [];
+      if (args[1] === 'create')
+        return 'https://github.com/owner/repo/pull/999\n';
+      if (args[1] === 'merge') return 'ok';
+      throw new Error(`unexpected gh: ${args.join(' ')}`);
+    });
+  }
+
+  function happyMocks(t) {
     t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
     t.mock.module(CLOSE_VALIDATION_URL, defaultCloseValidationMock());
     t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
   }
 
-  async function runWithNotify({ tag, story, fakeNotify, updateThrows }) {
+  async function runWithNotify({ tag, story, fakeNotify, updateThrows, gh }) {
     const { runSingleStoryClose } = await import(`${SUT_URL}?t=${tag}`);
     return runSingleStoryClose({
       storyId: story.id,
@@ -865,11 +876,12 @@ describe('runSingleStoryClose story-merged notify dispatch', () => {
       injectedConfig: fakeConfig(),
       injectedNotify: fakeNotify,
       injectedRunCodeReview: noopReview(),
+      injectedGh: gh ?? happyGh(),
     });
   }
 
   it('fires one story-merged dispatch on the success path', async (t) => {
-    happyGhMock(t);
+    happyMocks(t);
     const calls = [];
     await runWithNotify({
       tag: 'notify-happy',
@@ -889,12 +901,9 @@ describe('runSingleStoryClose story-merged notify dispatch', () => {
   });
 
   it('does not fire when the Story is already closed (noop path)', async (t) => {
-    t.mock.module(
-      'node:child_process',
-      childProcessMock(() => {
-        throw new Error('gh must not run on noop');
-      }),
-    );
+    const gh = makeFakeGh(() => {
+      throw new Error('gh must not run on noop');
+    });
     t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
     t.mock.module(CLOSE_VALIDATION_URL, defaultCloseValidationMock());
     t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
@@ -909,13 +918,14 @@ describe('runSingleStoryClose story-merged notify dispatch', () => {
         labels: ['agent::done'],
       },
       fakeNotify: async (...args) => calls.push(args),
+      gh,
     });
 
     assert.equal(calls.length, 0);
   });
 
   it('does not fire when the label flip fails', async (t) => {
-    happyGhMock(t);
+    happyMocks(t);
     const calls = [];
     const { success } = await runWithNotify({
       tag: 'notify-label-fail',
@@ -929,7 +939,7 @@ describe('runSingleStoryClose story-merged notify dispatch', () => {
   });
 
   it('swallows notify failures and still returns success', async (t) => {
-    happyGhMock(t);
+    happyMocks(t);
     const { success, result } = await runWithNotify({
       tag: 'notify-throws',
       story: { id: 1002, state: 'open', title: 'Notify throws', labels: [] },

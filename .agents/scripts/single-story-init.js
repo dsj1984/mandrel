@@ -205,6 +205,14 @@ export async function runSingleStoryInit({
         protectionCtx: {
           repoRoot: cwd,
           gitSpawn,
+          // Story #2990: the sweep protection-ctx ghRunner stays on raw
+          // `spawnSync('gh', …)` (not the `lib/gh-exec.js` async facade)
+          // because `executeCleanup` invokes the protection checks
+          // inside a synchronous candidate-filter loop. The runner
+          // contract is the legacy `(args, opts) => stdout string`
+          // shape; converting it to async would ripple into the
+          // single-story-sweep planner, which is intentionally
+          // out of scope for the callers-only provider migration.
           ghRunner: (args, opts) => {
             const result = spawnSync('gh', args, {
               cwd: opts?.cwd ?? cwd,
