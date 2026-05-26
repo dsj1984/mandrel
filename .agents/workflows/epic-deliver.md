@@ -233,9 +233,17 @@ Each Agent call's prompt must (1) name the Story + Epic ids, (2)
 instruct the child to invoke `/story-deliver <storyId>`, (3) state the
 **return contract** below, (4) remind the child of the
 **non-interactive contract** (no clarifying questions; transition to
-`agent::blocked` and exit if stuck), and (5) ask the child to suppress
+`agent::blocked` and exit if stuck), (5) ask the child to suppress
 per-Task chat relay and include its **terminal** `renderedBody` in the
-JSON return.
+JSON return, and (6) include the literal directive
+**Heartbeat or block.** — the child MUST emit a `story.heartbeat` lifecycle event at
+least once per Task implementation cycle (or whenever it stalls on a
+long-running step), and if it cannot make progress it MUST transition
+to `agent::blocked` rather than fall silent. The pairing of
+`story.heartbeat` and `agent::blocked` is what lets the §2e Idle
+Watchdog distinguish a working child from a dead one; a silent child
+with no recent heartbeat and no blocker label is the failure mode the
+watchdog is built to catch.
 
 ```json
 {
@@ -294,6 +302,58 @@ After `2c`, re-run `wave-tick.js`. Branch on the new envelope:
   friction comment, flip Epic to `agent::blocked`, park.
 - `wave-complete` → loop to the next wave.
 - `epic-complete` → proceed to Phase 3.
+
+### 2e. Idle Watchdog
+
+A Story's implementation loop can run for many minutes between
+`story.dispatch.start` and the post-merge `story.merged` record. While
+`observe` keeps the host LLM polling the Epic, it does **not** flag a
+sub-agent that has gone silent (host crash, mid-Story stall, lost
+return). The Idle Watchdog closes that gap.
+
+**Cadence.** While any wave is in flight (i.e. `nextAction.kind` is
+`observe` or the most recent dispatch's `in-flight` list is non-empty),
+re-tick every **10 minutes** with the watchdog flag:
+
+```bash
+node .agents/scripts/wave-tick.js --epic <epicId> --check-idle 10
+```
+
+The `--check-idle <minutes>` mode scans the per-Epic lifecycle ledger
+(`temp/epic-<epicId>/lifecycle.ndjson`) for Stories that carry a
+`story.dispatch.start` without a matching `story.dispatch.end` (the
+canonical in-flight list — see § 2a's `nextAction['in-flight']`), and
+compares each in-flight Story's most recent ledger event (any
+`story.*` event, notably the `story.heartbeat` records emitted by
+`story-task-progress.js` after each Task close) against the
+threshold. The CLI emits one envelope on stdout and exits non-zero
+when at least one in-flight Story has been silent for ≥ the
+threshold:
+
+```json
+{
+  "kind": "wave-stall",
+  "epicId": <n>,
+  "thresholdMinutes": <n>,
+  "checkedAt": "<ISO-8601>",
+  "stalled": [{ "storyId": <n>, "lastEventAt": "<ISO-8601>", "idleMinutes": <n> }],
+  "inFlight": [<storyId>, ...]
+}
+```
+
+**On a stall.** When the watchdog exits non-zero, post the envelope
+verbatim as a `wave-stall` structured comment on the Epic (use
+[`post-structured-comment.js`](../scripts/post-structured-comment.js)
+with `--kind wave-stall`), then re-evaluate the affected Stories: if a
+child sub-agent has crashed (no `story.dispatch.end`, no recent
+heartbeat, no commit on `story-<id>`), re-dispatch the Story per § 2b
+incrementing the `--attempt` counter; if the child is alive but
+genuinely blocked, flip the Story to `agent::blocked` and proceed per
+§ 2d's `observe` branch.
+
+Stop the watchdog cadence once `wave-tick.js` returns
+`wave-complete` or `epic-complete` — there are no in-flight Stories
+left to monitor.
 
 ---
 
