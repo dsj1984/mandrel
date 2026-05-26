@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-22T19:46:25.660Z",
+  "generatedAt": "2026-05-26T19:19:44.522Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.006059669598093,
+      "p95": 12,
       "max": 52.501371135067686,
       "methodsAbove20": 32
     }
@@ -5524,18 +5524,6 @@
       "method": "_resetInflightForTests",
       "startLine": 415,
       "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/auto-fix-loop.js",
-      "method": "normalizeOptions",
-      "startLine": 139,
-      "crap": 9.006657351853374
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/auto-fix-loop.js",
-      "method": "runAutoFixLoop",
-      "startLine": 195,
-      "crap": 15
     },
     {
       "path": ".agents/scripts/lib/orchestration/cascade-grouping.js",
