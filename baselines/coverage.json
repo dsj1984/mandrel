@@ -4,9 +4,9 @@
   "generatedAt": "2026-05-26T20:18:45.277Z",
   "rollup": {
     "*": {
-      "lines": 96.81,
-      "branches": 86.39,
-      "functions": 92.44
+      "lines": 96.78,
+      "branches": 86.27,
+      "functions": 92.62
     }
   },
   "rows": [
