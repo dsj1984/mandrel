@@ -15,16 +15,16 @@
 
 import { strict as assert } from 'node:assert';
 import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import Ajv from 'ajv/dist/2020.js';
 
 import { getRunners } from '../.agents/scripts/lib/config/runners.js';
+import { AGENTRC_SCHEMA } from '../.agents/scripts/lib/config-settings-schema.js';
 import {
   coerceWaveParallelismRow,
   computeEpicPerfReport,
 } from '../.agents/scripts/lib/observability/perf-aggregator.js';
-import { AGENTRC_SCHEMA } from '../.agents/scripts/lib/config-settings-schema.js';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 
