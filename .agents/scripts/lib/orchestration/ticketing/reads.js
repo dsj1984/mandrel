@@ -131,6 +131,12 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // threshold breaches against `delivery.preflight.max*`. One entry per
   // Epic; re-runs replace prior content.
   'delivery-preflight',
+  // Story #3062 (Epic #3051) — `wave-tick.js` upserts a
+  // `recurring-failure-class` comment on the Epic when the cross-Story
+  // detector finds two or more Stories that hit the same `failedGate` in
+  // `close-validate.end`. One entry per Epic; re-ticks with the same
+  // findings upsert in place (`upsertStructuredComment` diffs by body).
+  'recurring-failure-class',
 ]);
 
 export const WAVE_TYPE_PATTERN = WAVE_MARKER_RE;
