@@ -397,12 +397,13 @@ suppress a channel entirely, set its array to `[]`.
 
 `/epic-plan` tuning. All fields optional.
 
-| Field                          | Required | Default | Purpose                                                                                          |
-| ------------------------------ | -------- | ------- | ------------------------------------------------------------------------------------------------ |
-| `riskHeuristics`               | No       | `[]`    | Free-form rubric for `risk::high` decisions (informational only — `risk::high` does not gate runtime). Accepts a plain array or the `{ append/prepend }` extender form. |
-| `maxTickets`                   | No       | (none)  | Soft cap on tickets a single Epic may decompose.                                                 |
-| `failOnSharedEditors`          | No       | (none)  | Hard-fail Phase 7 when two Stories declare the same editor.                                       |
-| `requireExplicitCrossStoryDeps`| No       | (none)  | Require explicit cross-Story `blocked by` declarations rather than inferring from shared paths.   |
+| Field                          | Required | Default    | Purpose                                                                                          |
+| ------------------------------ | -------- | ---------- | ------------------------------------------------------------------------------------------------ |
+| `riskHeuristics`               | No       | `[]`       | Free-form rubric for `risk::high` decisions (informational only — `risk::high` does not gate runtime). Accepts a plain array or the `{ append/prepend }` extender form. |
+| `maxTickets`                   | No       | (none)     | Soft cap on tickets a single Epic may decompose.                                                 |
+| `failOnSharedEditors`          | No       | (none)     | Hard-fail Phase 7 when two Stories declare the same editor.                                       |
+| `requireExplicitCrossStoryDeps`| No       | (none)     | Require explicit cross-Story `blocked by` declarations rather than inferring from shared paths.   |
+| `hierarchy`                    | No       | `'4-tier'` | One of `'4-tier'` or `'3-tier'`. Selects the ticket hierarchy the decomposer and runtime use. `'4-tier'` (default) keeps the legacy Epic → Feature → Story → Task shape with per-Task lifecycle. `'3-tier'` is the target shape introduced by Epic #3078 (Epic → Feature → Story with inline Story-level `acceptance[]` / `verify[]`) — `/story-deliver` runs a single Story-implementation phase, no per-Task sub-loop, no `task-commit.js`. While Epic #3078 is in flight both shapes are supported in parallel; after its destructive Feature 8 lands, the flag is removed and `'3-tier'` becomes the only shape. |
 
 ### `planning.context`
 

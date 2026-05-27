@@ -635,8 +635,8 @@ guard now that the operator's PR merge is the sole promotion gate.
 
 ## Ticket Hierarchy
 
-The framework uses a 4-tier GitHub Issue hierarchy with label-based typing and
-`blocked by #NNN` dependency wiring:
+The framework defaults to a 4-tier GitHub Issue hierarchy with label-based
+typing and `blocked by #NNN` dependency wiring:
 
 ```text
 Epic (type::epic)
@@ -651,6 +651,41 @@ Epic (type::epic)
 │   └── Story (type::story)
 └── Feature (type::feature)
 ```
+
+### 3-tier hierarchy (target shape — opt-in via `planning.hierarchy: '3-tier'`)
+
+> **Target shape under construction (Epic #3078).** Set
+> `planning.hierarchy: '3-tier'` in `.agentrc.json` to opt into the
+> reduced hierarchy. While Epic #3078 is in flight, the default remains
+> `'4-tier'` and both shapes are supported in parallel. After Epic
+> #3078's destructive Feature 8 lands, the `planning.hierarchy` flag is
+> removed and 3-tier becomes the only shape; consumers re-pin the
+> `.agents/` submodule to adopt the cutover.
+
+The target shape collapses the Task layer. The decomposer emits only
+three structural ticket types — Epic, Feature, Story — and Story bodies
+carry inline `acceptance[]` and `verify[]` fields where Task bodies used
+to live:
+
+```text
+Epic (type::epic)
+├── PRD (context::prd)
+├── Tech Spec (context::tech-spec)
+├── Feature (type::feature)
+│   ├── Story (type::story)
+│   │   ├── acceptance[]            ← inline on Story body
+│   │   └── verify[]                ← inline on Story body
+│   └── Story (type::story)
+└── Feature (type::feature)
+```
+
+Under 3-tier, `/story-deliver` runs a single Story-implementation phase
+per Story — no per-Task sub-loop, no `task-commit.js`, no
+`(resolves #<taskId>)` commit-subject convention. The state machine,
+cascade behavior, and worktree-isolation contract documented below
+remain in force at the Story tier; the Task-tier rows are simply
+omitted. See [`configuration.md` § `planning`](configuration.md) for
+the flag and Epic #3078 for the full cutover plan.
 
 ### State Machine
 
