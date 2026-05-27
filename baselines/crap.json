@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-27T13:10:21.680Z",
+  "generatedAt": "2026-05-27T13:37:22.468Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -11704,12 +11704,6 @@
       "method": "isBookendTask",
       "startLine": 22,
       "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/templates/decomposer-prompts.js",
-      "method": "renderDecomposerSystemPrompt",
-      "startLine": 11,
-      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/templates/task-body-renderer.js",

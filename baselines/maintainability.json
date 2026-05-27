@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-27T13:10:20.329Z",
+  "generatedAt": "2026-05-27T13:37:21.660Z",
   "rollup": {
     "*": {
-      "min": 38.161,
+      "min": 62.385,
       "p50": 103.671,
-      "p95": 121.235
+      "p95": 121.19
     }
   },
   "rows": [
@@ -489,10 +489,6 @@
     {
       "path": ".agents/scripts/lib/config-schema.js",
       "mi": 171
-    },
-    {
-      "path": ".agents/scripts/lib/config-settings-schema.js",
-      "mi": 38.161
     },
     {
       "path": ".agents/scripts/lib/config/baselines.js",
@@ -1813,10 +1809,6 @@
     {
       "path": ".agents/scripts/lib/task-utils.js",
       "mi": 146.427
-    },
-    {
-      "path": ".agents/scripts/lib/templates/decomposer-prompts.js",
-      "mi": 154.087
     },
     {
       "path": ".agents/scripts/lib/templates/task-body-renderer.js",
