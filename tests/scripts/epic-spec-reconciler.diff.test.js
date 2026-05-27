@@ -902,7 +902,11 @@ describe('reconciler diff — 3-tier hierarchy walk (Story #3117 / Epic #3078)',
       },
     };
     const ghState = {
-      9101: { title: 'Greenfield 3-tier Epic', body: '', labels: ['type::epic'] },
+      9101: {
+        title: 'Greenfield 3-tier Epic',
+        body: '',
+        labels: ['type::epic'],
+      },
       9102: { title: 'Alpha Feature', body: '', labels: ['type::feature'] },
       9103: {
         title: 'First Story (3-tier inline)',
@@ -921,12 +925,7 @@ describe('reconciler diff — 3-tier hierarchy walk (Story #3117 / Epic #3078)',
     const plan = diff({ spec, state, ghState });
     assert.equal(plan.creates.length, 4);
     const slugs = plan.creates.map((op) => op.slug).sort();
-    assert.deepEqual(slugs, [
-      'epic',
-      'feat-alpha',
-      'story-one',
-      'task-one-a',
-    ]);
+    assert.deepEqual(slugs, ['epic', 'feat-alpha', 'story-one', 'task-one-a']);
     const taskOp = plan.creates.find((op) => op.slug === 'task-one-a');
     assert.equal(taskOp.entity, ENTITY_KINDS.TASK);
   });
