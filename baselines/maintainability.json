@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-27T10:23:31.990Z",
+  "generatedAt": "2026-05-27T10:28:42.968Z",
   "rollup": {
     "*": {
       "min": 52.885,
-      "p50": 104.033,
-      "p95": 121.484
+      "p50": 103.928,
+      "p95": 121.479
     }
   },
   "rows": [
@@ -1015,16 +1015,8 @@
       "mi": 93.33
     },
     {
-      "path": ".agents/scripts/lib/orchestration/ticketing.js",
-      "mi": 171
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "mi": 97.182
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/state.js",
-      "mi": 96.093
     },
     {
       "path": ".agents/scripts/lib/orchestration/wave-marker.js",
@@ -1377,10 +1369,6 @@
     {
       "path": ".agents/scripts/providers/github/labels.js",
       "mi": 95.724
-    },
-    {
-      "path": ".agents/scripts/providers/github/mappers.js",
-      "mi": 106.843
     },
     {
       "path": ".agents/scripts/providers/github/merge-methods.js",
@@ -1929,6 +1917,10 @@
     {
       "path": "tests/enforcement/logger-fatal.test.js",
       "mi": 93.691
+    },
+    {
+      "path": "tests/enforcement/manifest-schema.test.js",
+      "mi": 96.328
     },
     {
       "path": "tests/enforcement/no-console.test.js",
@@ -2923,18 +2915,6 @@
       "mi": 105.644
     },
     {
-      "path": "tests/lib/orchestration/ticketing/bulk.test.js",
-      "mi": 112.369
-    },
-    {
-      "path": "tests/lib/orchestration/ticketing/reads.test.js",
-      "mi": 107.631
-    },
-    {
-      "path": "tests/lib/orchestration/ticketing/state.test.js",
-      "mi": 111.049
-    },
-    {
       "path": "tests/lib/orchestration/wave-dispatcher.prime.test.js",
       "mi": 102.926
     },
@@ -3305,10 +3285,6 @@
     {
       "path": "tests/providers/github/sub-issues.test.js",
       "mi": 105.915
-    },
-    {
-      "path": "tests/providers/github/tickets.test.js",
-      "mi": 88.775
     },
     {
       "path": "tests/push-epic-retry.test.js",
