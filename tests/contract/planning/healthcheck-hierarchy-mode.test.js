@@ -119,7 +119,10 @@ describe('epic-plan-healthcheck — hierarchy-mode branching (Story #3119)', () 
     const hierarchyCheck = result.checks.find(
       (c) => c.name === 'ticket-hierarchy',
     );
-    assert.ok(hierarchyCheck, 'ticket-hierarchy check must run under --paranoid');
+    assert.ok(
+      hierarchyCheck,
+      'ticket-hierarchy check must run under --paranoid',
+    );
     assert.equal(
       hierarchyCheck.ok,
       true,
