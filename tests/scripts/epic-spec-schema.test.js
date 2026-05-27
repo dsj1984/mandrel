@@ -115,6 +115,48 @@ describe('epic-spec.schema.json — positive fixtures', () => {
   });
 });
 
+describe('epic-spec.schema.json — Story inline acceptance/verify (Epic #3078)', () => {
+  it('validates a Story carrying inline acceptance[] and verify[] with no tasks[]', () => {
+    const validate = compileSchema();
+    const fixture = loadFixture('story-inline-acceptance');
+    const ok = validate(fixture);
+    assert.equal(ok, true, JSON.stringify(validate.errors));
+  });
+
+  it('validates a Story carrying both inline acceptance/verify AND tasks[] (coexistence)', () => {
+    const validate = compileSchema();
+    const fixture = loadFixture('story-inline-acceptance');
+    const ok = validate(fixture);
+    // The fixture's second story exercises the both-shapes coexistence case.
+    assert.equal(ok, true, JSON.stringify(validate.errors));
+    const story = fixture.features[0].stories[1];
+    assert.ok(Array.isArray(story.acceptance));
+    assert.ok(Array.isArray(story.verify));
+    assert.ok(Array.isArray(story.tasks));
+  });
+
+  it('preserves legacy 4-tier full fixture (tasks[]-only Stories continue to validate)', () => {
+    const validate = compileSchema();
+    const fixture = loadFixture('full');
+    const ok = validate(fixture);
+    assert.equal(ok, true, JSON.stringify(validate.errors));
+  });
+
+  it('exposes the schema-shape `version` identifier (identification-only)', () => {
+    assert.equal(typeof schema.version, 'string');
+    assert.match(schema.version, /^\d+\.\d+\.\d+$/);
+    // Spec instances may optionally declare their own `version`; the schema
+    // accepts strings matching semver triplet.
+    const validate = compileSchema();
+    const ok = validate({
+      version: '2.0.0',
+      epic: { id: 1, title: 'v' },
+      features: [],
+    });
+    assert.equal(ok, true, JSON.stringify(validate.errors));
+  });
+});
+
 describe('epic-spec.schema.json — negative fixtures', () => {
   it('rejects a spec missing the top-level features array (required violation)', () => {
     const validate = compileSchema();

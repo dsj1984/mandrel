@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-26T22:49:30.839Z",
+  "generatedAt": "2026-05-27T10:20:42.137Z",
   "rollup": {
     "*": {
       "min": 52.885,
@@ -3421,10 +3421,6 @@
     {
       "path": "tests/scripts/epic-spec-reconciler.format.test.js",
       "mi": 104.034
-    },
-    {
-      "path": "tests/scripts/epic-spec-schema.test.js",
-      "mi": 108.963
     },
     {
       "path": "tests/scripts/git-cleanup.test.js",
