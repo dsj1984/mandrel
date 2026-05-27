@@ -390,7 +390,7 @@ warrants spec coverage, remove the label and run `/epic-plan`'s
 `planning.spec-authoring` state to author the spec.
 
 1. **Ticket Decomposer** (`epic-plan-decompose.js`):
-   - Recursively decomposes specs into a 4-tier hierarchy:
+   - Recursively decomposes specs into a 4-tier hierarchy (default):
 
      ```text
      Epic (type::epic)
@@ -410,6 +410,39 @@ warrants spec coverage, remove the label and run `/epic-plan`'s
      GitHub's native sub-issues API.
    - **Metadata.** Each Task is stamped with persona, estimated files, and
      agent prompts.
+
+### 3-tier hierarchy (target shape — opt-in via `planning.hierarchy: '3-tier'`)
+
+> **Target shape under construction (Epic #3078).** Set
+> `planning.hierarchy: '3-tier'` in `.agentrc.json` to opt into the
+> reduced hierarchy. While Epic #3078 is in flight, the default remains
+> `'4-tier'` and both shapes are supported in parallel. After Epic
+> #3078's destructive Feature 8 lands, the `planning.hierarchy` flag is
+> removed and 3-tier becomes the only shape; consumers re-pin the
+> `.agents/` submodule to adopt the cutover.
+
+The target shape collapses the Task layer. The decomposer emits only
+three structural ticket types — Epic, Feature, Story — and Story bodies
+carry inline `acceptance[]` and `verify[]` fields where Task bodies used
+to live:
+
+```text
+Epic (type::epic)
+├── PRD (context::prd)
+├── Tech Spec (context::tech-spec)
+├── Feature (type::feature)
+│   ├── Story (type::story)
+│   │   ├── acceptance[]            ← inline on Story body
+│   │   └── verify[]                ← inline on Story body
+│   └── Story (type::story)
+└── Feature (type::feature)
+```
+
+`/story-deliver` under 3-tier runs a **single** Story-implementation
+phase per Story — no per-Task sub-loop, no `task-commit.js`, no
+`(resolves #<taskId>)` commit-subject convention. Wave-loop semantics,
+the Epic → Feature thematic frame, and the Story-branch → Epic-branch
+merge model are unchanged. See Epic #3078 for the full cutover plan.
 
 When decomposition completes the Epic flips to `agent::ready` and the
 dispatch manifest is posted as a structured comment on the Epic. That

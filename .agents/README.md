@@ -7,6 +7,17 @@ orchestration engine that runs Epic → Feature → Story → Task plans on
 GitHub. The framework version lives at [`VERSION`](VERSION) — read that
 file, not a count here.
 
+> **3-tier (target shape — opt-in via `planning.hierarchy: '3-tier'`).**
+> Epic #3078 collapses the Task layer; the target hierarchy is
+> Epic → Feature → Story with inline acceptance/verify on Story bodies.
+> While Epic #3078 is in flight, the default for `planning.hierarchy`
+> in `.agentrc.json` remains `'4-tier'` and both shapes are supported in
+> parallel. Set `planning.hierarchy: '3-tier'` to opt in. After Epic
+> #3078's destructive Feature 8 lands, the flag is removed and 3-tier
+> becomes the only shape — consumers re-pin the `.agents/` submodule to
+> adopt the cutover. See [`SDLC.md` § 3-tier hierarchy](SDLC.md) for the
+> target diagram and execution-model implications.
+
 This is the only README inside the distributed `.agents/` bundle. It
 explains what each part of the submodule is for and captures the
 cross-directory authoring conventions. The process narrative for

@@ -22,6 +22,18 @@ as a Git submodule (via the `dist` branch) into consumer projects'
 - **Current Version:** See [`.agents/VERSION`](.agents/VERSION)
 - **License:** ISC
 
+> **3-tier hierarchy (target shape — opt-in via `planning.hierarchy: '3-tier'`).**
+> Mandrel today defaults to the 4-tier ticket hierarchy
+> (Epic → Feature → Story → Task). Epic #3078 introduces a target
+> 3-tier shape (Epic → Feature → Story with inline Story-level
+> acceptance/verify) opt-in via the `planning.hierarchy` flag in
+> `.agentrc.json`. While Epic #3078 is in flight, the default remains
+> `'4-tier'` and both shapes are supported in parallel; after Epic
+> #3078's destructive Feature 8 lands, the flag is removed and 3-tier
+> becomes the only published shape. See
+> [`.agents/SDLC.md` § 3-tier hierarchy](.agents/SDLC.md) for the
+> target diagram and execution-model implications.
+
 ---
 
 ## Repository Layout
