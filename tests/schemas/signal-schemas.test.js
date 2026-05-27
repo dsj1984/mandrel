@@ -190,11 +190,12 @@ describe('epic-perf-report.schema.json', () => {
       },
       waveParallelism: [
         {
-          wave: 0,
+          waveIndex: 0,
           wallClockMs: 720000,
-          sumStoryMs: 1800000,
-          utilization: 0.4,
-          stories: 3,
+          summedStoryMs: 1800000,
+          utilisation: 0.4,
+          capBinding: false,
+          verifyConcurrencyCap: 4,
         },
       ],
       topHotspots: [{ phase: 'implement', occurrences: 3, avgRatio: 1.31 }],

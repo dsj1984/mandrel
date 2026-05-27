@@ -18,6 +18,7 @@ import { epicLedgerPath } from '../config/temp-paths.js';
 import { AGENT_LABELS } from '../label-constants.js';
 import { appendEpicSignal } from '../observability/signals-writer.js';
 import * as epicRunStateStoreModule from '../orchestration/epic-run-state-store.js';
+import { collectHaltedStoryIds } from '../orchestration/epic-runner/phases/iterate-waves.js';
 import { detectRecurringFailures } from '../orchestration/recurring-failure-detector.js';
 import { upsertStructuredComment as defaultUpsertStructuredComment } from '../orchestration/ticketing.js';
 
@@ -141,12 +142,19 @@ export async function tick(args = {}) {
     wavePlanSize: wavePlan.length,
   };
 
+  // Story #3026 — match the iterate-waves resume-check cache strategy:
+  // only Stories that the checkpoint marks as halted on a prior wave
+  // are force-refreshed. Every other Story serves the tick fetch from
+  // the provider's in-process cache, eliminating the per-wave
+  // `fresh: true` round-trip we historically issued for every Story.
+  const haltedStoryIds = collectHaltedStoryIds(state);
   let waveStates;
   try {
     waveStates = await Promise.all(
       wavePlan.map(async (s) => {
         const id = storyIdOf(s);
-        const ticket = await provider.getTicket(id, { fresh: true });
+        const opts = haltedStoryIds.has(id) ? { fresh: true } : {};
+        const ticket = await provider.getTicket(id, opts);
         return {
           id,
           title: s.title ?? ticket?.title,

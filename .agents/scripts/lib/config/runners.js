@@ -19,10 +19,16 @@ export const DEFAULT_DECOMPOSER = Object.freeze({
 });
 
 /** Hardcoded deliver-runner concurrency cap. Operators override via
- * `delivery.deliverRunner.concurrencyCap` in `.agentrc.json`. */
+ * `delivery.deliverRunner.concurrencyCap` in `.agentrc.json`.
+ *
+ * `verifyConcurrencyCap` (Epic #3019 Tech Spec §1.4 / Story #3024) is a
+ * separate knob that bounds the `verifyWaveResults` loop independently
+ * of Story-dispatch concurrency, so operators can tune ticket-verify
+ * parallelism without raising the wave fan-out. Default 4. */
 const DEFAULT_DELIVER_RUNNER = Object.freeze({
   concurrencyCap: 3,
   progressReportIntervalSec: 120,
+  verifyConcurrencyCap: 4,
 });
 
 /**
@@ -46,7 +52,7 @@ export const DEFAULT_CODE_REVIEW = Object.freeze({
  *
  * @param {object | null | undefined} config
  * @returns {{
- *   deliverRunner: { concurrencyCap: number, progressReportIntervalSec: number },
+ *   deliverRunner: { concurrencyCap: number, progressReportIntervalSec: number, verifyConcurrencyCap: number },
  *   epicAudit: { maxFixAttempts: number, maxFixScopeFiles: number },
  *   codeReview: { maxFixAttempts: number, maxFixScopeFiles: number },
  *   storyMergeRetry: { maxAttempts: number, backoffMs: readonly number[] },
@@ -65,6 +71,9 @@ export function getRunners(config) {
       progressReportIntervalSec:
         deliverRunnerUser.progressReportIntervalSec ??
         DEFAULT_DELIVER_RUNNER.progressReportIntervalSec,
+      verifyConcurrencyCap:
+        deliverRunnerUser.verifyConcurrencyCap ??
+        DEFAULT_DELIVER_RUNNER.verifyConcurrencyCap,
     },
     epicAudit: {
       maxFixAttempts:

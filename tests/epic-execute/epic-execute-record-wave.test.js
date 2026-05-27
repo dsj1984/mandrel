@@ -57,7 +57,7 @@ const TEST_CONFIG = {
 /** Skip subprocess `dispatcher.js --dry-run` — not under test here. */
 const FAST_RECORD = {
   injectedConfig: TEST_CONFIG,
-  injectedRefreshLocalManifest: async () => {},
+  injectedRefreshDispatchManifest: async () => ({}),
   // Stub out the curated webhook emits by default so tests that don't
   // care about notify routing can't reach the real notify() (which would
   // POST to the operator's Slack webhook when NODE_ENV isn't 'test', e.g.
@@ -217,7 +217,7 @@ describe('parseInputArg', () => {
 });
 
 describe('runEpicExecuteRecordWave', () => {
-  it('routes manifest refresh through injectedRefreshLocalManifest', async () => {
+  it('routes manifest refresh through injectedRefreshDispatchManifest', async () => {
     let refreshEpicId;
     const provider = createFakeProvider();
     await seedCheckpoint(provider, 700);
@@ -226,8 +226,9 @@ describe('runEpicExecuteRecordWave', () => {
       wave: 0,
       results: [{ storyId: 1, status: 'done' }],
       injectedProvider: provider,
-      injectedRefreshLocalManifest: async ({ epicId }) => {
+      injectedRefreshDispatchManifest: async ({ epicId }) => {
         refreshEpicId = epicId;
+        return { epicId, body: '', posted: false };
       },
     });
     assert.equal(refreshEpicId, 700);

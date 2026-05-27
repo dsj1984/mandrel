@@ -40,6 +40,7 @@ import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig as defaultResolveConfig } from './lib/config-resolver.js';
 import {
   closePlanningArtifacts as defaultClosePlanningArtifacts,
+  emitEpicPerfReport as defaultEmitEpicPerfReport,
   verifyAndRecoverEpicClose as defaultVerifyAndRecoverEpicClose,
 } from './lib/epic-close-tail-helpers.js';
 import { Logger } from './lib/Logger.js';
@@ -64,21 +65,28 @@ const DEFAULT_LOGGER = {
  * @param {{
  *   epicId: number,
  *   provider: object,
+ *   config?: object,
+ *   cwd?: string,
  *   logger?: object,
  *   closePlanningArtifactsFn?: typeof defaultClosePlanningArtifacts,
  *   verifyAndRecoverEpicCloseFn?: typeof defaultVerifyAndRecoverEpicClose,
+ *   emitEpicPerfReportFn?: typeof defaultEmitEpicPerfReport,
  * }} opts
  * @returns {Promise<{
  *   planningClose: object,
  *   epicClose: object,
+ *   perfReport: object,
  * }>}
  */
 export async function runEpicCloseTail({
   epicId,
   provider,
+  config,
+  cwd,
   logger = DEFAULT_LOGGER,
   closePlanningArtifactsFn = defaultClosePlanningArtifacts,
   verifyAndRecoverEpicCloseFn = defaultVerifyAndRecoverEpicClose,
+  emitEpicPerfReportFn = defaultEmitEpicPerfReport,
 } = {}) {
   if (!Number.isInteger(epicId) || epicId <= 0) {
     throw new TypeError(
@@ -118,7 +126,20 @@ export async function runEpicCloseTail({
     logger,
   });
 
-  return { planningClose, epicClose };
+  // Story #3029 / Task #3040 — emit the epic-perf-report alongside the
+  // close tail so the report is persisted under temp/epic-<id>/ even
+  // when the operator does not separately run analyze-execution.
+  // Friction-not-fatal: a throw here is logged + swallowed by the
+  // helper so the close still completes.
+  const perfReport = await emitEpicPerfReportFn({
+    epicId,
+    provider,
+    config,
+    cwd,
+    logger,
+  });
+
+  return { planningClose, epicClose, perfReport };
 }
 
 /**
@@ -140,6 +161,7 @@ export async function runEpicCloseTail({
  *   fixed: Array,
  *   planningClose?: object,
  *   epicClose?: object,
+ *   perfReport?: object,
  * }>}
  */
 export async function runEpicClose({
@@ -196,10 +218,12 @@ export async function runEpicClose({
   const tail = await runEpicCloseTailFn({
     epicId: parsedEpicId,
     provider,
+    config,
+    cwd,
     logger,
   });
   logger.info(
-    `[epic-close] complete — planning: prd=${tail.planningClose.prd.status} techSpec=${tail.planningClose.techSpec.status}; epic=${tail.epicClose.status}.`,
+    `[epic-close] complete — planning: prd=${tail.planningClose.prd.status} techSpec=${tail.planningClose.techSpec.status}; epic=${tail.epicClose.status}; perfReport=${tail.perfReport?.status ?? 'skipped'}.`,
   );
 
   return {
@@ -208,6 +232,7 @@ export async function runEpicClose({
     fixed: preflight.fixed,
     planningClose: tail.planningClose,
     epicClose: tail.epicClose,
+    perfReport: tail.perfReport,
   };
 }
 
