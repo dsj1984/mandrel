@@ -330,8 +330,53 @@ function buildTaskOut(task) {
   return out;
 }
 
+function pickStringArray(primary, fallback) {
+  const src = Array.isArray(primary)
+    ? primary
+    : Array.isArray(fallback)
+      ? fallback
+      : null;
+  if (!src) return null;
+  const filtered = src.filter((s) => typeof s === 'string' && s.length > 0);
+  return filtered.length > 0 ? filtered : null;
+}
+
+function extractStoryAcceptanceVerify(story) {
+  // Under the 3-tier hierarchy (Epic #3078), Stories carry inline
+  // acceptance[] / verify[] arrays directly on the ticket. The
+  // decomposer may emit these either at the top level of the ticket
+  // (preferred) or nested under a structured `body` object (legacy
+  // shape shared with Task bodies). Read from both and prefer the
+  // top-level fields when present.
+  const fromBody =
+    story.body && typeof story.body === 'object' && !Array.isArray(story.body)
+      ? story.body
+      : null;
+  const out = {};
+  const acceptance = pickStringArray(story.acceptance, fromBody?.acceptance);
+  if (acceptance) out.acceptance = acceptance;
+  const verify = pickStringArray(story.verify, fromBody?.verify);
+  if (verify) out.verify = verify;
+  return out;
+}
+
+// Task emission is conditional: under the 3-tier hierarchy
+// (Epic #3078) Stories have no Task children and the schema
+// (`additionalProperties: false`) rejects a `tasks` key on Story.
+// Only emit `tasks` when the input ticket array actually carries
+// Task children for this Story (back-compat for in-flight 4-tier
+// specs). Epic #3163 tracks the full producer rewrite.
+function applyStoryChildren(out, story, taskSlugs, bySlug) {
+  if (taskSlugs.length > 0) {
+    out.tasks = taskSlugs.map((slug) => buildTaskOut(bySlug.get(slug)));
+    return;
+  }
+  const av = extractStoryAcceptanceVerify(story);
+  if (av.acceptance) out.acceptance = av.acceptance;
+  if (av.verify) out.verify = av.verify;
+}
+
 function buildStoryOut({ story, taskSlugs, bySlug, layers, storySet }) {
-  const tasks = taskSlugs.map((slug) => buildTaskOut(bySlug.get(slug)));
   const deps = Array.isArray(story.depends_on) ? story.depends_on : [];
   const dependsOn = [
     ...new Set(deps.filter((d) => storySet.has(d) && d !== story.slug)),
@@ -341,11 +386,11 @@ function buildStoryOut({ story, taskSlugs, bySlug, layers, storySet }) {
     slug: story.slug,
     title: story.title,
     wave: layers.get(story.slug) ?? 0,
-    tasks,
   };
   assignNonEmpty(out, 'body', renderBody(story.body));
   if (dependsOn.length > 0) out.dependsOn = dependsOn;
   assignNonEmpty(out, 'labels', sanitizeLabels(story.labels));
+  applyStoryChildren(out, story, taskSlugs, bySlug);
   return out;
 }
 
