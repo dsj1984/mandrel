@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-27T14:29:24.260Z",
+  "generatedAt": "2026-05-27T15:26:34.724Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -5674,72 +5674,6 @@
       "method": "detectorsPhase",
       "startLine": 124,
       "crap": 2.0025626306941655
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dispatch-engine.js",
-      "method": "ensureBranch",
-      "startLine": 42,
-      "crap": 1.512
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dispatch-engine.js",
-      "method": "defaultLintBaselineExec",
-      "startLine": 60,
-      "crap": 1.2962962962962963
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dispatch-engine.js",
-      "method": "captureLintBaseline",
-      "startLine": 74,
-      "crap": 1.669921875
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dispatch-engine.js",
-      "method": "resolveAndDispatch",
-      "startLine": 88,
-      "crap": 16
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dispatch-engine.js",
-      "method": "dispatch",
-      "startLine": 135,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dispatch-pipeline.js",
-      "method": "resolveDispatchContext",
-      "startLine": 73,
-      "crap": 4.101610526850582
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dispatch-pipeline.js",
-      "method": "fetchEpicContext",
-      "startLine": 108,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dispatch-pipeline.js",
-      "method": "reconcileEpicState",
-      "startLine": 138,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dispatch-pipeline.js",
-      "method": "buildDispatchGraph",
-      "startLine": 154,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dispatch-pipeline.js",
-      "method": "ensureEpicScaffolding",
-      "startLine": 196,
-      "crap": 2.108
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dispatch-pipeline.js",
-      "method": "runWorktreeGc",
-      "startLine": 216,
-      "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/doc-reader.js",
