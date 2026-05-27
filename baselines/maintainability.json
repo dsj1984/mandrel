@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-27T14:25:51.247Z",
+  "generatedAt": "2026-05-27T14:29:23.868Z",
   "rollup": {
     "*": {
       "min": 62.385,
-      "p50": 103.672,
+      "p50": 103.681,
       "p95": 121.235
     }
   },
@@ -849,10 +849,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/context-envelope.js",
       "mi": 97.886
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/context-hydration-engine.js",
-      "mi": 89.762
     },
     {
       "path": ".agents/scripts/lib/orchestration/context.js",
@@ -4353,10 +4349,6 @@
     {
       "path": "tests/orchestration/context-envelope.test.js",
       "mi": 103.19
-    },
-    {
-      "path": "tests/orchestration/context-hydration-engine.test.js",
-      "mi": 101.251
     },
     {
       "path": "tests/orchestration/skill-capsule-loader.test.js",
