@@ -306,6 +306,93 @@ WARNING: You MUST conserve your output limit. Do NOT generate more than ${maxTic
 <rendered from `heuristics[]` in the context envelope; each item prepended with "- ".>
 ```
 
+## 3-tier mode (activates when `hierarchy === "3-tier"`)
+
+The decomposer-context envelope carries a top-level `hierarchy` field
+sourced from `planning.hierarchy` in `.agentrc.json`. When that field is
+the string `"3-tier"`, the authoring contract changes as described
+below; the entire prose above (the **Decomposer system prompt
+(authoritative)** section) describes the **4-tier** shape and remains
+in force whenever `hierarchy` is `"4-tier"` (the default while Epic
+\#3078 is in flight) or absent. The two shapes are authored from the
+same skill — branch on `hierarchy` once at the top of Step 2 and pick
+the matching contract; never mix them in a single emit.
+
+### Hierarchy rule (3-tier)
+
+- Emit only two ticket types under the Epic: **Feature** and **Story**.
+  Do NOT emit any `type::task` tickets — under 3-tier, the Task layer
+  is collapsed into the Story body.
+- Every Story still nests under a Feature via `parent_slug`. Features
+  still have no `parent_slug` (they attach to the Epic).
+- Story-to-Story `depends_on` is unchanged. Task-level `depends_on`
+  does not exist in this shape.
+
+### Story body shape (3-tier)
+
+Under 3-tier the Story `body` is a **structured object** (not a
+string), carrying everything an executing sub-agent needs to implement
+and self-verify the Story end-to-end in a single phase. The shape is
+the same object the 4-tier Task body uses, lifted onto the Story:
+
+```json
+"body": {
+  "goal":       "<one sentence — why this Story exists; tie it to the parent Feature slug>",
+  "changes":    [
+    { "path": "<file path>", "assumption": "creates" | "refactors-existing" | "deletes" }
+  ],
+  "acceptance": ["<testable, observable criterion>", ...],
+  "verify":     ["<exact command or test path> (<tier>)", ...],
+  "references": [
+    { "path": "<read-only dependency path>", "assumption": "exists" }
+  ]
+}
+```
+
+All the **TASK BODY RULES** above apply unchanged to the Story body
+under 3-tier — including the **NEW-FILE CONTRACT**, the
+acceptance-observability rule, the forbidden-subject-prefix list, the
+required testing-tier tag on every `verify` entry, and the
+`manual:<reason>` escape hatch. The freshness validator and
+ticket-validator both probe Story bodies the same way they probe Task
+bodies under 4-tier.
+
+### Sizing (3-tier)
+
+- `agentSettings.planning.taskSizing` (`softFileCount`, `maxAcceptance`,
+  `maxChanges`) applies to the **Story body** under 3-tier. A Story
+  whose `body.changes` exceeds `softFileCount` MUST declare
+  `body.sizingProfile` from the same closed enum
+  (`mechanical-sweep | atomic-rewrite | scaffolding`).
+- Stories typically touch ≤ 3 files and have ≤ 4 acceptance items. A
+  Story that names more than this is usually two Stories — split it
+  into siblings under the same Feature instead of declaring an
+  oversized body.
+- UI / testid invariance, brand/copy/style sourcing, and the
+  scope-overlap flagging rules from the 4-tier prompt apply to the
+  Story body verbatim — read every "Tasks that …" clause as "Stories
+  that …" when authoring under 3-tier.
+
+### Cross-cutting config edits (3-tier)
+
+The cross-cutting config-file rule and the widely-used-symbol-deletion
+gate both still apply across Stories. Because there is no Task layer,
+the only available remediations are the two Story-level options the
+4-tier prompt already names: explicit `depends_on` chaining between
+the affected Stories, or a dedicated late-wave wiring Story. The
+within-Story carve-out (two atomic edits to the same file inside one
+Story body's `changes`) still applies and is the preferred shape when
+the edits are genuinely one logical change.
+
+### Output contract (3-tier)
+
+The persisted artifact is unchanged: write the full ticket array to
+`temp/epic-<Epic_ID>/tickets.json`. Each Story object's `body` field is
+the structured object above; each Feature object's `body` remains a
+short navigational string. The reviewability budget (`maxTickets`,
+`over_budget_rationale`, `--allow-over-budget`) applies to the combined
+Feature + Story count.
+
 ## Constraints
 
 - Do **not** call the GitHub API from this Skill. Persistence is the

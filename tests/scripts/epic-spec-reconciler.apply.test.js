@@ -577,3 +577,121 @@ describe('reconciler apply — bounded concurrency', () => {
     );
   });
 });
+
+describe('reconciler apply — 3-tier hierarchy (Story #3117 / Epic #3078)', () => {
+  it('applies a 3-tier create plan (Feature + Story only, no Tasks) without phantom task ops', async () => {
+    const provider = new StubProvider({ startingIssue: 9200 });
+    const plan = emptyPlan();
+    plan.creates.push(
+      createOp({
+        slug: 'feat-3tier',
+        entity: ENTITY_KINDS.FEATURE,
+        title: '3-tier Feature',
+        labels: ['type::feature'],
+        parentSlug: 'epic',
+      }),
+      createOp({
+        slug: 'story-3tier',
+        entity: ENTITY_KINDS.STORY,
+        title: 'Story with inline acceptance/verify',
+        labels: ['type::story', 'persona::engineer'],
+        parentSlug: 'feat-3tier',
+        wave: 0,
+        dependsOn: [],
+      }),
+    );
+    const spec3tier = {
+      version: '2.0.0',
+      epic: { id: 9000, title: 'E', labels: ['type::epic'] },
+      features: [
+        {
+          slug: 'feat-3tier',
+          title: '3-tier Feature',
+          labels: ['type::feature'],
+          stories: [
+            {
+              slug: 'story-3tier',
+              title: 'Story with inline acceptance/verify',
+              wave: 0,
+              labels: ['type::story', 'persona::engineer'],
+              acceptance: ['outcome holds'],
+              verify: ['node --test foo (contract)'],
+            },
+          ],
+        },
+      ],
+    };
+    const result = await apply(plan, provider, {
+      epicId: 9000,
+      slugToIssue: { epic: 9000 },
+      spec: spec3tier,
+    });
+    assert.equal(result.failure, undefined);
+    assert.equal(result.created.length, 2);
+    // No createTicket call for any task
+    for (const call of provider.calls) {
+      if (call.kind !== 'createTicket') continue;
+      const labels = call.payload?.labels ?? [];
+      assert.equal(
+        labels.includes('type::task'),
+        false,
+        `apply must not create type::task tickets under 3-tier; saw call ${JSON.stringify(call)}`,
+      );
+    }
+  });
+
+  it('round-trips a 3-tier spec through diff → apply with an empty plan on re-run (idempotent)', async () => {
+    const spec = {
+      version: '2.0.0',
+      epic: { id: 9300, title: '3-tier E', labels: ['type::epic'] },
+      features: [
+        {
+          slug: 'feat-r',
+          title: 'F',
+          labels: ['type::feature'],
+          stories: [
+            {
+              slug: 'story-r',
+              title: 'S',
+              wave: 0,
+              labels: ['type::story', 'persona::engineer'],
+              acceptance: ['x'],
+              verify: ['y (unit)'],
+            },
+          ],
+        },
+      ],
+    };
+    const state = {
+      epicId: 9300,
+      mapping: {
+        epic: { issueNumber: 9300, entity: 'epic', parentSlug: null },
+        'feat-r': {
+          issueNumber: 9301,
+          entity: 'feature',
+          parentSlug: 'epic',
+        },
+        'story-r': {
+          issueNumber: 9302,
+          entity: 'story',
+          parentSlug: 'feat-r',
+          wave: 0,
+          dependsOn: [],
+        },
+      },
+    };
+    const ghState = {
+      9300: { title: '3-tier E', body: '', labels: ['type::epic'] },
+      9301: { title: 'F', body: '', labels: ['type::feature'] },
+      9302: {
+        title: 'S',
+        body: '',
+        labels: ['type::story', 'persona::engineer'],
+      },
+    };
+    const plan = diff({ spec, state, ghState });
+    assert.equal(plan.creates.length, 0);
+    assert.equal(plan.closes.length, 0);
+    assert.equal(plan.relinks.length, 0);
+  });
+});

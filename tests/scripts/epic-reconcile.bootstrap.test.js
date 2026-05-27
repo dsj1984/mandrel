@@ -579,3 +579,99 @@ describe('reverse-bootstrap spec — on-disk YAML', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// 3-tier hierarchy (Story #3117 / Epic #3078)
+//
+// Bootstrapping a 3-tier Epic (Feature → Story only, no `type::task`
+// children) must:
+//   1. classify and project Feature + Story rows correctly,
+//   2. NOT synthesise any task rows from the empty type::task bucket, and
+//   3. produce a state file whose follow-up diff is empty (no false
+//      "missing Task" close ops).
+// ---------------------------------------------------------------------------
+
+function build3tierFixture() {
+  const EPIC_ID = 9200;
+  const FEATURE_ID = 9201;
+  const STORY_ID = 9202;
+
+  const epic = {
+    id: EPIC_ID,
+    title: '3-tier Epic',
+    body: '3-tier epic body.',
+    labels: ['type::epic'],
+  };
+  const tickets = [
+    {
+      id: FEATURE_ID,
+      title: 'Tri-Feature',
+      body: `Feature body.\n\n---\nparent: #${EPIC_ID}`,
+      labels: ['type::feature'],
+    },
+    {
+      id: STORY_ID,
+      title: 'Tri-Story with inline AC',
+      body: `Story body with inline acceptance/verify.\n\n---\nparent: #${FEATURE_ID}\nEpic: #${EPIC_ID}`,
+      labels: ['type::story', 'persona::engineer'],
+    },
+  ];
+  return { epic, tickets, ids: { EPIC_ID, FEATURE_ID, STORY_ID } };
+}
+
+describe('runReverseBootstrap — 3-tier hierarchy (Story #3117)', () => {
+  it('bootstraps a Feature+Story-only Epic without phantom task rows', async () => {
+    const { epic, tickets, ids } = build3tierFixture();
+    const provider = makeProvider({ epic, tickets });
+    const result = await runReverseBootstrap({
+      epicId: ids.EPIC_ID,
+      provider,
+      dryRun: false,
+      epicsDir: sandbox,
+      now: '2026-05-27T00:00:00Z',
+    });
+    assert.equal(result.wroteSpec, true);
+    const reloaded = loadSpec(ids.EPIC_ID, { epicsDir: sandbox });
+    assert.equal(reloaded.epic.id, ids.EPIC_ID);
+    assert.equal(reloaded.features.length, 1);
+    assert.equal(reloaded.features[0].stories.length, 1);
+    const story = reloaded.features[0].stories[0];
+    // Critical: no synthesised tasks[] entry when no type::task tickets
+    // exist on the Epic. The schema makes tasks[] optional precisely so
+    // 3-tier specs round-trip without phantom rows.
+    assert.ok(
+      story.tasks === undefined || story.tasks.length === 0,
+      'a 3-tier Story must not carry synthesised tasks[]',
+    );
+  });
+
+  it('produces an empty follow-up diff for the 3-tier bootstrap (no false missing-Task closes)', async () => {
+    const { epic, tickets, ids } = build3tierFixture();
+    const provider = makeProvider({ epic, tickets });
+    const result = await runReverseBootstrap({
+      epicId: ids.EPIC_ID,
+      provider,
+      dryRun: false,
+      epicsDir: sandbox,
+      now: '2026-05-27T00:00:00Z',
+    });
+    const reloaded = loadSpec(ids.EPIC_ID, { epicsDir: sandbox });
+    const state = JSON.parse(readFileSync(result.statePath, 'utf8'));
+    const ghState = {};
+    for (const t of [epic, ...tickets]) {
+      ghState[t.id] = {
+        title: t.title,
+        body: t.body ?? '',
+        labels: (t.labels ?? []).filter((l) => !l.startsWith('agent::')),
+        state: 'open',
+      };
+    }
+    const plan = diff({ spec: reloaded, state, ghState });
+    assert.deepEqual(plan, {
+      creates: [],
+      updates: [],
+      closes: [],
+      relinks: [],
+    });
+  });
+});
