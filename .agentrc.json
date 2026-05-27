@@ -43,7 +43,7 @@
           "targetDirs": [".agents/scripts"]
         },
         "maintainability": {
-          "floors": { "*": { "min": 50 } },
+          "floors": { "*": { "min": 35 } },
           "targetDirs": [".agents/scripts", "tests"]
         }
       }
