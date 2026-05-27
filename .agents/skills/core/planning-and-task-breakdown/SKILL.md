@@ -9,6 +9,20 @@ description:
 
 # Planning and Task Breakdown
 
+> **Scope note.** This skill is a generic planning discipline — it teaches
+> how to slice and order work into verifiable units, independent of any
+> particular ticket hierarchy. The word "task" below refers to a generic
+> unit of work, not specifically to a Mandrel `type::task` issue. In
+> projects on Mandrel's default 4-tier hierarchy
+> (Epic → Feature → Story → Task) these units map onto `type::task`
+> children of a Story; in projects on the 3-tier hierarchy
+> (`planning.hierarchy: '3-tier'`, Epic → Feature → Story) the same units
+> map onto acceptance/verification bullets inlined on the Story body, or
+> onto sequential sibling Stories. The principles — vertical slicing,
+> dependency ordering, sizing caps, explicit acceptance and verification —
+> are identical in both shapes; only the substrate the leaves live on
+> changes.
+
 ## Policy Capsule
 
 - Enter Plan Mode before writing any code: read the spec + relevant codebase, map dependencies, list risks. Planning output is a plan document, not implementation.
