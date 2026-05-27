@@ -90,7 +90,7 @@ describe('lib/spec/loader.js — loadSpec', () => {
     assert.equal(spec.features.length, 2);
   });
 
-  it('parses + validates a real YAML spec authored by hand', () => {
+  it('parses + validates a real YAML spec authored by hand (3-tier shape)', () => {
     plantSpec(
       8888,
       [
@@ -106,15 +106,19 @@ describe('lib/spec/loader.js — loadSpec', () => {
         '      - slug: story-a',
         '        title: Story A',
         '        wave: 0',
-        '        tasks:',
-        '          - slug: task-a',
-        '            title: Task A',
+        '        acceptance:',
+        '          - Story A delivers feature A',
+        '        verify:',
+        '          - node --test',
         '',
       ].join('\n'),
     );
     const spec = loadSpec(8888, { epicsDir: sandbox });
     assert.equal(spec.epic.id, 8888);
-    assert.equal(spec.features[0].stories[0].tasks[0].slug, 'task-a');
+    assert.equal(spec.features[0].stories[0].slug, 'story-a');
+    assert.deepEqual(spec.features[0].stories[0].acceptance, [
+      'Story A delivers feature A',
+    ]);
   });
 
   it('throws SpecNotFoundError with the resolved path when the file is missing', () => {

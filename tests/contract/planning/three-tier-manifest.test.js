@@ -119,8 +119,6 @@ describe('dispatch-manifest schema — 3-tier shape (Story #3136)', () => {
       generatedAt: new Date().toISOString(),
       dryRun: false,
       summary: {
-        totalTasks: 0,
-        doneTasks: 0,
         totalStories: 2,
         doneStories: 0,
         progressPercent: 0,
@@ -155,7 +153,6 @@ describe('dispatch-manifest schema — 3-tier shape (Story #3136)', () => {
           ],
         },
       ],
-      storyManifest: [],
       dispatched: [],
     };
 
@@ -279,14 +276,13 @@ describe('dispatch-manifest schema — 3-tier shape (Story #3136)', () => {
       generatedAt: new Date().toISOString(),
       dryRun: false,
       summary: {
-        totalTasks: 0,
-        doneTasks: 0,
+        totalStories: 0,
+        doneStories: 0,
         progressPercent: 0,
         totalWaves: 1,
         dispatched: 0,
       },
       waves: [{ waveIndex: 0 }],
-      storyManifest: [],
       dispatched: [],
     };
 
