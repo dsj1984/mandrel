@@ -12,7 +12,6 @@
  */
 
 import { Logger } from './Logger.js';
-import { TYPE_LABELS } from './label-constants.js';
 import {
   STATE_LABELS,
   transitionTicketState,
@@ -43,7 +42,7 @@ export function resolveStoryHierarchy(body) {
  */
 export async function fetchChildTasks(provider, storyId) {
   const subTickets = await provider.getSubTickets(storyId);
-  return subTickets.filter((t) => t.labels.includes(TYPE_LABELS.TASK));
+  return subTickets.filter((t) => t.labels.includes('type::task'));
 }
 
 /**

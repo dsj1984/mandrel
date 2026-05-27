@@ -88,11 +88,13 @@ describe('epic-spec.schema.json — 3-tier Story shape (Story #3136)', () => {
     assert.equal(ok, true, formatErrors(validate.errors));
   });
 
-  it('accepts a Story carrying BOTH inline acceptance/verify AND tasks[] (coexistence)', () => {
-    // Arrange
+  it('rejects a Story carrying tasks[] (4-tier shape removed under Epic #3078)', () => {
+    // Arrange — hard cutover: the schema no longer admits tasks[] under a
+    // Story. Stories that still carry the legacy decomposition must be
+    // surfaced loudly so consumers regenerate their specs.
     const validate = compileSchema();
     const spec = {
-      version: '2.0.0',
+      version: '3.0.0',
       epic: { id: 3078, title: 'E', labels: ['type::epic'] },
       features: [
         {
@@ -100,10 +102,10 @@ describe('epic-spec.schema.json — 3-tier Story shape (Story #3136)', () => {
           title: 'Feature 1',
           stories: [
             {
-              slug: 's-both',
-              title: 'Coexistence Story',
+              slug: 's-with-tasks',
+              title: 'Story illegally carrying tasks[]',
               wave: 0,
-              acceptance: ['Both shapes coexist on the same Story'],
+              acceptance: ['something'],
               verify: ['node --test'],
               tasks: [
                 {
@@ -122,36 +124,17 @@ describe('epic-spec.schema.json — 3-tier Story shape (Story #3136)', () => {
     const ok = validate(spec);
 
     // Assert
-    assert.equal(ok, true, formatErrors(validate.errors));
-  });
-
-  it('accepts the legacy 4-tier Story shape (tasks[] only, no inline arrays)', () => {
-    // Arrange — regression guard: the additive change must not break the
-    // pre-3-tier shape that consumers still emit.
-    const validate = compileSchema();
-    const spec = {
-      epic: { id: 3078, title: 'E', labels: ['type::epic'] },
-      features: [
-        {
-          slug: 'f1',
-          title: 'Feature 1',
-          stories: [
-            {
-              slug: 's-legacy',
-              title: 'Legacy 4-tier Story',
-              wave: 0,
-              tasks: [{ slug: 't1', title: 'Legacy decomposed task' }],
-            },
-          ],
-        },
-      ],
-    };
-
-    // Act
-    const ok = validate(spec);
-
-    // Assert
-    assert.equal(ok, true, formatErrors(validate.errors));
+    assert.equal(ok, false);
+    const errors = validate.errors ?? [];
+    const additional = errors.find(
+      (e) =>
+        e.keyword === 'additionalProperties' &&
+        e.params?.additionalProperty === 'tasks',
+    );
+    assert.ok(
+      additional,
+      `Expected an additionalProperties violation for "tasks", got: ${formatErrors(errors)}`,
+    );
   });
 
   it('rejects a Story whose inline acceptance[] entry is the empty string', () => {

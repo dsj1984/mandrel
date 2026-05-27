@@ -245,18 +245,6 @@ const CODEBASE_SNAPSHOT_SCHEMA = {
 const PLANNING_SCHEMA = {
   type: 'object',
   properties: {
-    // Epic #3078 — opt-in ticket-hierarchy mode. Default '4-tier' preserves
-    // existing Epic → Feature → Story → Task behaviour and the per-Task
-    // lifecycle (task-commit.js, agent::* transitions). '3-tier' collapses
-    // Task into Story, inlines acceptance/verify on the Story body, and
-    // branches /epic-plan + /story-deliver accordingly. After Epic #3078's
-    // destructive Feature 8 lands, the flag is removed and 3-tier becomes
-    // the only published shape.
-    hierarchy: {
-      type: 'string',
-      enum: ['4-tier', '3-tier'],
-      default: '4-tier',
-    },
     riskHeuristics: LIST_OR_EXTENDER_OF_STRINGS,
     maxTickets: { type: 'integer', minimum: 1 },
     context: PLANNING_CONTEXT_SCHEMA,
@@ -630,10 +618,10 @@ const HYDRATION_SCHEMA = {
 
 // Story #2899 (Epic #2880) — performance defaults + preflight (F13).
 // `delivery.ci.skipForStoryPushes` (default true via getCiDelivery): when
-// true, task-commit.js appends a `[skip ci]` trailer to Story-branch
-// commit subjects so per-Task pushes do not stampede the CI fleet. The
-// Epic-branch merge commit produced by story-close.js's merge runner
-// never carries the marker, regardless of this flag.
+// true, pre-push tooling appends a `[skip ci]` trailer to Story-branch
+// commit subjects so intermediate pushes do not stampede the CI fleet.
+// The Epic-branch merge commit produced by story-close.js's merge
+// runner never carries the marker, regardless of this flag.
 const CI_DELIVERY_SCHEMA = {
   type: 'object',
   properties: {

@@ -53,7 +53,7 @@ import { createProvider } from './lib/provider-factory.js';
 
 function classify(ticket) {
   const labels = ticket.labels ?? [];
-  if (labels.includes(TYPE_LABELS.TASK)) return 'task';
+  if (labels.includes('type::task')) return 'task';
   if (labels.includes(TYPE_LABELS.STORY)) return 'story';
   if (labels.includes(TYPE_LABELS.FEATURE)) return 'feature';
   if (

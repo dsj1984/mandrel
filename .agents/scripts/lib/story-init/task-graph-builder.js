@@ -69,26 +69,26 @@ function sortTasksByDependencies(tasks) {
  * @param {string} [deps.input.storyBody]   Story body — used to detect
  *   whether the Story carries inline acceptance (3-tier shape) so the
  *   empty-Task-list path is treated as expected rather than as a warning.
- * @param {'3-tier'|'4-tier'} [deps.input.hierarchy]  Explicit hierarchy
- *   selector from `planning.hierarchy`. When `'3-tier'`, the absence of
- *   child Tasks is the expected shape and is logged as `TASKS` info
- *   instead of a warning, regardless of whether the body has an inline
- *   `## Acceptance` section.
+ *
+ * Task #3154 (Epic #3078) deleted the `planning.hierarchy` flag; the
+ * 3-tier vs 4-tier mode is now derived entirely from the ticket shape —
+ * inline acceptance + zero Tasks resolves to `'3-tier'`, otherwise
+ * `'4-tier'`.
+ *
  * @returns {Promise<{ sortedTasks: Array<object>, mode: '3-tier'|'4-tier' }>}
  */
 export async function buildTaskGraph({ provider, logger, input }) {
-  const { storyId, storyBody = '', hierarchy = null } = input;
+  const { storyId, storyBody = '' } = input;
   const warn = logger?.warn ?? ((msg) => Logger.error(msg));
   const progress = logger?.progress ?? (() => {});
 
   const tasks = await fetchChildTasks(provider, storyId);
 
   const inlineAcceptance = hasInlineAcceptance(storyBody);
-  const threeTier = hierarchy === '3-tier' || inlineAcceptance;
-  const mode = tasks.length === 0 && threeTier ? '3-tier' : '4-tier';
+  const mode = tasks.length === 0 && inlineAcceptance ? '3-tier' : '4-tier';
 
   if (tasks.length === 0) {
-    if (threeTier) {
+    if (inlineAcceptance) {
       progress(
         'TASKS',
         `Story #${storyId} has inline acceptance — no child Tasks expected (3-tier shape).`,

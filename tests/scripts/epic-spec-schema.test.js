@@ -116,30 +116,47 @@ describe('epic-spec.schema.json — positive fixtures', () => {
 });
 
 describe('epic-spec.schema.json — Story inline acceptance/verify (Epic #3078)', () => {
-  it('validates a Story carrying inline acceptance[] and verify[] with no tasks[]', () => {
+  it('validates a Story carrying inline acceptance[] and verify[] (3-tier shape)', () => {
     const validate = compileSchema();
     const fixture = loadFixture('story-inline-acceptance');
     const ok = validate(fixture);
     assert.equal(ok, true, JSON.stringify(validate.errors));
   });
 
-  it('validates a Story carrying both inline acceptance/verify AND tasks[] (coexistence)', () => {
+  it('rejects a Story that contains a tasks[] field (4-tier shape removed)', () => {
     const validate = compileSchema();
-    const fixture = loadFixture('story-inline-acceptance');
-    const ok = validate(fixture);
-    // The fixture's second story exercises the both-shapes coexistence case.
-    assert.equal(ok, true, JSON.stringify(validate.errors));
-    const story = fixture.features[0].stories[1];
-    assert.ok(Array.isArray(story.acceptance));
-    assert.ok(Array.isArray(story.verify));
-    assert.ok(Array.isArray(story.tasks));
-  });
-
-  it('preserves legacy 4-tier full fixture (tasks[]-only Stories continue to validate)', () => {
-    const validate = compileSchema();
-    const fixture = loadFixture('full');
-    const ok = validate(fixture);
-    assert.equal(ok, true, JSON.stringify(validate.errors));
+    const spec = {
+      version: '3.0.0',
+      epic: { id: 3078, title: 'E', labels: ['type::epic'] },
+      features: [
+        {
+          slug: 'f1',
+          title: 'Feature 1',
+          stories: [
+            {
+              slug: 's-with-tasks',
+              title: 'Story illegally carrying tasks[]',
+              wave: 0,
+              acceptance: ['something'],
+              verify: ['node --test'],
+              tasks: [{ slug: 't1', title: 'A task' }],
+            },
+          ],
+        },
+      ],
+    };
+    const ok = validate(spec);
+    assert.equal(ok, false, 'tasks[] under a Story must be rejected');
+    const errors = validate.errors ?? [];
+    const additional = errors.find(
+      (e) =>
+        e.keyword === 'additionalProperties' &&
+        e.params?.additionalProperty === 'tasks',
+    );
+    assert.ok(
+      additional,
+      `Expected an additionalProperties violation for "tasks", got: ${JSON.stringify(errors)}`,
+    );
   });
 
   it('exposes the schema-shape `version` identifier (identification-only)', () => {
@@ -149,7 +166,7 @@ describe('epic-spec.schema.json — Story inline acceptance/verify (Epic #3078)'
     // accepts strings matching semver triplet.
     const validate = compileSchema();
     const ok = validate({
-      version: '2.0.0',
+      version: '3.0.0',
       epic: { id: 1, title: 'v' },
       features: [],
     });

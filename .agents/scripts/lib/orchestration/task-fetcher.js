@@ -3,11 +3,11 @@
  */
 
 import { parseBlockedBy, parseTaskMetadata } from '../dependency-parser.js';
-import { AGENT_LABELS, TYPE_LABELS } from '../label-constants.js';
+import { AGENT_LABELS } from '../label-constants.js';
 import { STATE_LABELS } from './ticketing.js';
 
 const AGENT_DONE_LABEL = STATE_LABELS.DONE;
-const TYPE_TASK_LABEL = TYPE_LABELS.TASK;
+const TYPE_TASK_LABEL = 'type::task';
 
 /**
  * Parses normal ticket objects into task representations.

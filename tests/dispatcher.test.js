@@ -562,29 +562,6 @@ describe('dispatch() — 3-tier hierarchy (Story-level wave plan)', () => {
       [200],
     );
   });
-
-  it('preserves Task-level wave plan when hierarchy is 4-tier (no regression)', async () => {
-    // Same fixture as the "single task, no dependencies" suite — proves
-    // adding the 3-tier branch did not perturb the 4-tier path.
-    const provider = new MockProvider({
-      epic: EPIC,
-      tasks: [makeTask(10)],
-    });
-    const manifest = await dispatch({ epicId: 1, dryRun: true, provider });
-
-    assert.notEqual(
-      manifest.hierarchy,
-      '3-tier',
-      '4-tier manifests must not declare 3-tier hierarchy',
-    );
-    assert.equal(manifest.summary.totalTasks, 1);
-    assert.equal(manifest.waves.length, 1);
-    assert.ok(
-      Array.isArray(manifest.waves[0].tasks),
-      'wave entries must be Tasks under 4-tier',
-    );
-    assert.equal(manifest.waves[0].tasks[0].taskId, 10);
-  });
 });
 
 // ---------------------------------------------------------------------------

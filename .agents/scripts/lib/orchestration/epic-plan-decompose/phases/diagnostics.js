@@ -24,7 +24,7 @@ import { TYPE_LABELS } from '../../../label-constants.js';
 async function emitOpenChildrenDiagnostic(provider, epicId) {
   if (typeof provider.getTickets !== 'function') return;
   const existing = await provider.getTickets(epicId);
-  const childTypes = [TYPE_LABELS.FEATURE, TYPE_LABELS.STORY, TYPE_LABELS.TASK];
+  const childTypes = [TYPE_LABELS.FEATURE, TYPE_LABELS.STORY, 'type::task'];
   const created = (existing || []).filter(
     (t) =>
       (t.labels || []).some((l) => childTypes.includes(l)) &&

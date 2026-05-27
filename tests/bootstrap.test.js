@@ -111,7 +111,8 @@ describe('Bootstrap — LABEL_TAXONOMY', () => {
     assert.ok(names.includes('type::epic'));
     assert.ok(names.includes('type::feature'));
     assert.ok(names.includes('type::story'));
-    assert.ok(names.includes('type::task'));
+    // Epic #3078 Task #3155 — `type::task` removed from the 3-tier taxonomy.
+    assert.ok(!names.includes('type::task'));
   });
 
   it('contains all required agent state labels', () => {
@@ -140,7 +141,8 @@ describe('Bootstrap — LABEL_TAXONOMY', () => {
     // intermediate state between executing and done.
     // Story #2921 (Epic #2880 F7) — added `planning::healthcheck-waived`
     // as the operator override for the post-plan readiness healthcheck.
-    const nonPersonaBase = 15;
+    // Epic #3078 Task #3155 — `type::task` removed (3-tier hard cutover).
+    const nonPersonaBase = 14;
     assert.equal(LABEL_TAXONOMY.length, nonPersonaBase + PERSONA_NAMES.length);
   });
 

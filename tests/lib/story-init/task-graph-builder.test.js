@@ -135,24 +135,7 @@ test('buildTaskGraph treats empty Task list as expected when Story has inline ac
   );
 });
 
-test('buildTaskGraph treats empty Task list as expected when hierarchy=3-tier even without inline body', async () => {
-  const warnings = [];
-  const provider = {
-    async getSubTickets() {
-      return [];
-    },
-  };
-  const out = await buildTaskGraph({
-    provider,
-    logger: { warn: (m) => warnings.push(m), progress: () => {} },
-    input: { storyId: 3121, hierarchy: '3-tier' },
-  });
-  assert.deepStrictEqual(out.sortedTasks, []);
-  assert.strictEqual(out.mode, '3-tier');
-  assert.deepStrictEqual(warnings, []);
-});
-
-test('buildTaskGraph still warns on empty Task list for a 4-tier Story without inline acceptance', async () => {
+test('buildTaskGraph still warns on empty Task list for a Story without inline acceptance', async () => {
   const warnings = [];
   const provider = {
     async getSubTickets() {

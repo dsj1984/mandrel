@@ -19,17 +19,16 @@
 @.agents/rules/shell-conventions.md
 @.agents/rules/testing-standards.md
 
-## 3-tier hierarchy (target shape — opt-in via `planning.hierarchy: '3-tier'`)
+## Ticket hierarchy
 
-> The default ticket hierarchy here is 4-tier
-> (Epic → Feature → Story → Task) — Task lifecycle, `task-commit.js`,
-> and per-Task `agent::*` transitions are all active. Epic #3078
-> introduces a target 3-tier shape (Epic → Feature → Story with inline
-> acceptance/verify on the Story body) opt-in via the
-> `planning.hierarchy` flag in `.agentrc.json`. While Epic #3078 is in
-> flight, the default remains `'4-tier'` and both shapes are supported
-> in parallel. After Epic #3078's destructive Feature 8 lands, the flag
-> is removed and 3-tier becomes the only shape. See
+> Mandrel uses a **3-tier ticket hierarchy** (Epic → Feature → Story),
+> with acceptance criteria and verification steps inlined on the Story
+> body (`acceptance[]` / `verify[]`). `/story-deliver` runs a single
+> Story-implementation phase per Story — there is no `type::task`
+> ticket layer, no per-Task `agent::*` lifecycle, and no
+> `task-commit.js` ceremony. Commits land on `story-<storyId>`
+> directly from the agent and reference the parent Story via
+> `(refs #<storyId>)`. See
 > [`.agents/instructions.md` § 5.D](.agents/instructions.md) and
-> [`.agents/SDLC.md` § 3-tier hierarchy](.agents/SDLC.md) for the full
+> [`.agents/SDLC.md` § Ticket hierarchy](.agents/SDLC.md) for the full
 > contract.

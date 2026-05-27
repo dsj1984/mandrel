@@ -42,8 +42,6 @@ import {
   resolveConfig,
   validateOrchestrationConfig,
 } from './lib/config-resolver.js';
-import { parseBlockedBy } from './lib/dependency-parser.js';
-import { buildGraph, detectCycle } from './lib/Graph.js';
 import { gitSpawn } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
 import { TYPE_LABELS } from './lib/label-constants.js';
@@ -157,19 +155,14 @@ function hasInlineAcceptance(body) {
 }
 
 /**
- * Validate Epic ticket hierarchy and dependency-graph acyclicity.
- *
- * Epic #3078 — when `hierarchy === '3-tier'`, the check accepts an Epic that
- * has zero `type::task` children, provided every Story carries an inline
- * `## Acceptance` checklist. The task-cycle probe is skipped (there are no
- * tasks to graph). The default `'4-tier'` branch is unchanged: missing tasks
- * still fail, and task cycles still surface as errors.
+ * Validate Epic ticket hierarchy. 3-tier is the only supported hierarchy
+ * after Task #3154 deleted `planning.hierarchy`: every Story must carry an
+ * inline `## Acceptance` checklist; there is no Task layer to graph.
  *
  * @param {object} provider
  * @param {number|null} epicId
- * @param {string} [hierarchy] - One of `'4-tier'` (default) or `'3-tier'`.
  */
-async function checkTickets(provider, epicId, hierarchy = '4-tier') {
+async function checkTickets(provider, epicId) {
   if (!epicId) {
     return {
       ok: false,
@@ -195,39 +188,19 @@ async function checkTickets(provider, epicId, hierarchy = '4-tier') {
     t.labels.includes(TYPE_LABELS.FEATURE),
   );
   const stories = tickets.filter((t) => t.labels.includes(TYPE_LABELS.STORY));
-  const tasks = tickets.filter((t) => t.labels.includes(TYPE_LABELS.TASK));
 
   const errors = [];
   if (features.length === 0) errors.push('no type::feature tickets');
   if (stories.length === 0) errors.push('no type::story tickets');
 
-  const is3Tier = hierarchy === '3-tier';
-  if (is3Tier) {
-    // Under 3-tier, Stories carry inline acceptance instead of child Tasks.
-    // Surface every Story missing an inline `## Acceptance` checklist; an
-    // empty backlog of tasks is expected and not an error.
-    const missingAcceptance = stories.filter(
-      (s) => !hasInlineAcceptance(s.body ?? ''),
+  const missingAcceptance = stories.filter(
+    (s) => !hasInlineAcceptance(s.body ?? ''),
+  );
+  if (missingAcceptance.length > 0) {
+    const ids = missingAcceptance.map((s) => `#${s.id}`).join(', ');
+    errors.push(
+      `${missingAcceptance.length} story/stories missing inline acceptance: ${ids}`,
     );
-    if (missingAcceptance.length > 0) {
-      const ids = missingAcceptance.map((s) => `#${s.id}`).join(', ');
-      errors.push(
-        `${missingAcceptance.length} story/stories missing inline acceptance: ${ids}`,
-      );
-    }
-  } else {
-    if (tasks.length === 0) errors.push('no type::task tickets');
-    if (tasks.length > 1) {
-      const graphTasks = tasks.map((t) => ({
-        ...t,
-        dependsOn: parseBlockedBy(t.body ?? '').filter((dep) =>
-          tasks.some((tt) => tt.id === dep),
-        ),
-      }));
-      const { adjacency } = buildGraph(graphTasks);
-      const cycle = detectCycle(adjacency);
-      if (cycle) errors.push(`dependency cycle: #${cycle.join(' -> #')}`);
-    }
   }
 
   if (errors.length > 0) {
@@ -242,11 +215,10 @@ async function checkTickets(provider, epicId, hierarchy = '4-tier') {
       ? ` (advisory: ${missingComplexity.length} story/stories missing complexity label)`
       : '';
 
-  const tail = is3Tier
-    ? `${features.length} features, ${stories.length} stories (3-tier, inline acceptance) — hierarchy valid${advisory}.`
-    : `${features.length} features, ${stories.length} stories, ${tasks.length} tasks — hierarchy valid, no cycles${advisory}.`;
-
-  return { ok: true, detail: tail };
+  return {
+    ok: true,
+    detail: `${features.length} features, ${stories.length} stories (3-tier, inline acceptance) — hierarchy valid${advisory}.`,
+  };
 }
 
 /** Prime the pnpm content-addressable store via `pnpm install --frozen-lockfile`. */
@@ -346,15 +318,12 @@ export async function runPlanHealthcheck(opts = {}) {
     await timed('git-remote', async () => checkGitRemote(baseBranch, cwd)),
   );
 
-  // Paranoid lane: ticket-hierarchy + dep-cycle revalidation.
+  // Paranoid lane: ticket-hierarchy revalidation (3-tier only).
   if (paranoid) {
     const provider = opts.injectedProvider || createProvider(config);
-    const hierarchy = config.planning?.hierarchy ?? '4-tier';
     progress('CHECK', 'Validating ticket hierarchy...');
     checks.push(
-      await timed('ticket-hierarchy', () =>
-        checkTickets(provider, epicId, hierarchy),
-      ),
+      await timed('ticket-hierarchy', () => checkTickets(provider, epicId)),
     );
   }
 

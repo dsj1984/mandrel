@@ -1,6 +1,6 @@
 {
   "$schema": "../../../.agents/schemas/epic-spec.schema.json",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "epic": {
     "id": 3078,
     "title": "3-tier collapse fixture Epic",
@@ -14,30 +14,25 @@
       "stories": [
         {
           "slug": "story-with-inline-shape",
-          "title": "Story carries inline acceptance/verify (no tasks[])",
+          "title": "Story carries inline acceptance/verify (3-tier shape)",
           "wave": 0,
           "dependsOn": [],
           "labels": ["type::story", "persona::engineer"],
           "acceptance": [
             "A Story object containing inline acceptance[] and verify[] string arrays validates against the schema",
-            "A Story object containing the legacy tasks[] array continues to validate"
+            "A Story object whose tasks[] field is set is rejected by the schema"
           ],
           "verify": ["node --test tests/scripts/epic-spec-schema.test.js"]
         },
         {
-          "slug": "story-with-both-shapes",
-          "title": "Story carries both inline acceptance/verify AND tasks[]",
+          "slug": "second-inline-story",
+          "title": "A second Story with inline acceptance/verify",
           "wave": 0,
           "labels": ["type::story"],
-          "acceptance": ["Both shapes coexist on the same Story"],
-          "verify": ["node --test tests/scripts/epic-spec-schema.test.js"],
-          "tasks": [
-            {
-              "slug": "child-task",
-              "title": "A child task carrying the implementation decomposition",
-              "labels": ["type::task"]
-            }
-          ]
+          "acceptance": [
+            "Multiple Stories with inline shape coexist within a Feature"
+          ],
+          "verify": ["node --test tests/scripts/epic-spec-schema.test.js"]
         }
       ]
     }

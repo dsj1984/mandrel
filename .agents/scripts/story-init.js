@@ -204,17 +204,15 @@ export async function runStoryInit({
     }
   }
 
-  // Stage 4 — task graph. Pass the Story body and the resolved
-  // planning.hierarchy through so buildTaskGraph can distinguish a 3-tier
-  // (inline-acceptance) Story from a genuinely empty 4-tier Story when
-  // emitting its progress/warn message.
+  // Stage 4 — task graph. Pass the Story body so buildTaskGraph can detect
+  // the inline-acceptance 3-tier shape. After Task #3154 collapsed the
+  // hierarchy flag, 3-tier is the only supported shape.
   const { sortedTasks, mode: hierarchyMode } = await buildTaskGraph({
     provider,
     logger: stageLogger,
     input: {
       storyId,
       storyBody: body,
-      hierarchy: config.planning?.hierarchy ?? null,
     },
   });
 
@@ -419,12 +417,11 @@ function buildStoryInitResult({
     storyBranch,
     epicBranch,
     storyTitle: story.title,
-    // Hierarchy mode resolved by buildTaskGraph: `'3-tier'` when the Story
-    // has inline acceptance (no child Tasks) under
-    // `planning.hierarchy: '3-tier'`, otherwise `'4-tier'`. Threaded through
-    // so downstream story-deliver-prepare can emit a Story-phase snapshot
-    // shape (`phases[]`) instead of per-Task rows in 3-tier mode.
-    hierarchy: hierarchy ?? '4-tier',
+    // Hierarchy mode resolved by buildTaskGraph. 3-tier is the only
+    // supported shape after Task #3154 deleted the `planning.hierarchy`
+    // flag; this is retained as a constant marker for downstream
+    // consumers and persisted artefacts.
+    hierarchy: hierarchy ?? '3-tier',
     worktreeEnabled,
     workCwd,
     worktreeCreated,
@@ -497,10 +494,10 @@ export function renderStoryInitCommentBody(result) {
     epicId: result.epicId,
     storyBranch: result.storyBranch,
     epicBranch: result.epicBranch,
-    // Hierarchy mode (`'3-tier'` | `'4-tier'`) is persisted so
-    // `story-deliver-prepare.js` can choose the snapshot shape without
-    // re-resolving config + Story body in the worker.
-    hierarchy: result.hierarchy ?? '4-tier',
+    // Hierarchy mode is always `'3-tier'` after Task #3154 deleted the
+    // `planning.hierarchy` flag. Persisted so resumed runs can read it
+    // without re-resolving anything in the worker.
+    hierarchy: result.hierarchy ?? '3-tier',
     worktreeEnabled: result.worktreeEnabled,
     workCwd: result.workCwd,
     worktreeCreated: result.worktreeCreated,

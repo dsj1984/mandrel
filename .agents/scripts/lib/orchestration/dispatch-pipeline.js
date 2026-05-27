@@ -29,7 +29,7 @@ import { reconcileClosedTasks, reconcileHierarchy } from './reconciler.js';
 import { parseTasks } from './task-fetcher.js';
 import { collectOpenStoryIds } from './wave-dispatcher.js';
 
-export const TYPE_TASK_LABEL = TYPE_LABELS.TASK;
+export const TYPE_TASK_LABEL = 'type::task';
 
 /**
  * Runtime context for a single dispatch cycle.
@@ -188,24 +188,18 @@ export function buildDispatchGraph(tasks) {
 }
 
 /**
- * Detect 3-tier hierarchy from the fetched ticket graph. A 3-tier Epic
- * carries zero `type::task` tickets and at least one `type::story`. This
- * is the same structural signal `manifest-builder.isThreeTierShape` uses,
- * duplicated here so dispatch can branch before the manifest is built.
- *
- * Explicit `hierarchy === '3-tier'` (resolved from
- * `agentSettings.planning.hierarchy`) wins over auto-detection so an
- * operator can force the 3-tier path even when the ticket graph is
- * temporarily mixed during a migration.
+ * Detect 3-tier hierarchy from the fetched ticket graph. After Task #3154
+ * deleted the `planning.hierarchy` flag, shape selection is purely
+ * structural: an Epic carrying zero `type::task` tickets and at least one
+ * `type::story` resolves to 3-tier. A Task-bearing graph keeps using the
+ * 4-tier path (still supported for in-flight Epics — Task #3157 owns its
+ * eventual deletion).
  *
  * @param {object[]} tasks
  * @param {object[]} allTickets
- * @param {string|undefined} hierarchy
  * @returns {boolean}
  */
-export function isThreeTierDispatch(tasks, allTickets, hierarchy) {
-  if (hierarchy === '3-tier') return true;
-  if (hierarchy === '4-tier') return false;
+export function isThreeTierDispatch(tasks, allTickets) {
   if (Array.isArray(tasks) && tasks.length > 0) return false;
   if (!Array.isArray(allTickets) || allTickets.length === 0) return false;
   return allTickets.some((t) =>

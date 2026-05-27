@@ -226,7 +226,7 @@ graph TB
 | Script                       | Responsibility                                                                                                                                                                              |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `epic-plan-spec.js`          | Authoring wrapper for PRD + Tech Spec; flips Epic to `agent::review-spec` and writes the `epic-plan-state` checkpoint. Threads `docsContext` and a `codebaseSnapshot` (Story #2634, see below) into the spec-author envelope so the Architect persona cites real modules instead of doc-only names. |
-| `epic-plan-decompose.js`     | Authoring wrapper for the 4-tier ticket hierarchy; flips Epic to `agent::ready` and posts the dispatch manifest.                                                                              |
+| `epic-plan-decompose.js`     | Authoring wrapper for the Feature/Story ticket hierarchy; flips Epic to `agent::ready` and posts the dispatch manifest.                                                                       |
 | `dispatcher.js`              | Builds dependency DAG, computes execution waves, posts the dispatch manifest (consumed by `/epic-deliver`).                                                                                   |
 | `epic-deliver-prepare.js`    | Snapshots the Epic, builds the wave plan, and initialises the `epic-run-state` checkpoint at the start of `/epic-deliver` Phase 1.                                                            |
 | `lifecycle-emit.js`          | Generic argv-driven emit helper. `/epic-deliver` Phase 6 / 7.5 / 8 fire `epic.close.end` / `epic.automerge.start` / `epic.merge.armed` through this CLI; the matching listener chain (`Finalizer`, `AutomergePredicate` + `AutomergeArmer`, `Cleaner`) runs the PR open, auto-merge arm, and branch reap. |
@@ -635,37 +635,9 @@ guard now that the operator's PR merge is the sole promotion gate.
 
 ## Ticket Hierarchy
 
-The framework defaults to a 4-tier GitHub Issue hierarchy with label-based
-typing and `blocked by #NNN` dependency wiring:
-
-```text
-Epic (type::epic)
-├── PRD (context::prd)
-├── Tech Spec (context::tech-spec)
-├── Feature (type::feature)
-│   ├── Story (type::story)
-│   │   ├── Task (type::task)     ← Atomic agent work unit
-│   │   │   ├── - [ ] subtask 1
-│   │   │   └── - [ ] subtask 2
-│   │   └── Task (type::task)
-│   └── Story (type::story)
-└── Feature (type::feature)
-```
-
-### 3-tier hierarchy (target shape — opt-in via `planning.hierarchy: '3-tier'`)
-
-> **Target shape under construction (Epic #3078).** Set
-> `planning.hierarchy: '3-tier'` in `.agentrc.json` to opt into the
-> reduced hierarchy. While Epic #3078 is in flight, the default remains
-> `'4-tier'` and both shapes are supported in parallel. After Epic
-> #3078's destructive Feature 8 lands, the `planning.hierarchy` flag is
-> removed and 3-tier becomes the only shape; consumers re-pin the
-> `.agents/` submodule to adopt the cutover.
-
-The target shape collapses the Task layer. The decomposer emits only
-three structural ticket types — Epic, Feature, Story — and Story bodies
-carry inline `acceptance[]` and `verify[]` fields where Task bodies used
-to live:
+The framework uses a **3-tier GitHub Issue hierarchy**
+(Epic → Feature → Story) with label-based typing and `blocked by #NNN`
+dependency wiring:
 
 ```text
 Epic (type::epic)
@@ -679,23 +651,19 @@ Epic (type::epic)
 └── Feature (type::feature)
 ```
 
-Under 3-tier, `/story-deliver` runs a single Story-implementation phase
-per Story — no per-Task sub-loop, no `task-commit.js`, no
-`(resolves #<taskId>)` commit-subject convention. The state machine,
-cascade behavior, and worktree-isolation contract documented below
-remain in force at the Story tier; the Task-tier rows are simply
-omitted. See [`configuration.md` § `planning`](configuration.md) for
-the flag and Epic #3078 for the full cutover plan.
+`/story-deliver` runs a single Story-implementation phase per Story.
+The state machine, cascade behavior, and worktree-isolation contract
+documented below apply at the Story tier.
 
 ### State Machine
 
-Each Task progresses through a label-driven state machine:
+Each Story progresses through a label-driven state machine:
 
 ```mermaid
 stateDiagram-v2
     [*] --> agent_ready: Created by decomposer
     agent_ready --> agent_executing: Dispatcher picks up
-    agent_executing --> agent_done: Story-close cascade fires
+    agent_executing --> agent_done: story-close.js fires
     agent_done --> [*]
 
     agent_executing --> agent_ready: Hotfix rollback
@@ -703,15 +671,14 @@ stateDiagram-v2
 
 ### Cascade Behavior
 
-When a child ticket transitions to `agent::done`, `cascadeCompletion()` walks
-upward through the hierarchy and closes parents whose children are all done.
-The cascade is **not** uniform across tiers — the table below is the
-authoritative contract:
+When a Story transitions to `agent::done`, `cascadeCompletion()` walks
+upward through the hierarchy and closes parents whose children are all
+done. The cascade is **not** uniform across tiers — the table below is
+the authoritative contract:
 
 | Parent tier                                     | Auto-closes via cascade? | How it closes                                                    |
 | ----------------------------------------------- | ------------------------ | ---------------------------------------------------------------- |
-| Story (`type::story`)                           | Yes                      | Last Task → `agent::done` cascades.                              |
-| Feature (`type::feature'`)                      | Yes                      | Last Story → `agent::done` cascades.                             |
+| Feature (`type::feature`)                       | Yes                      | Last Story → `agent::done` cascades.                             |
 | Epic (`type::epic`)                             | **No** — cascade stops.  | Operator merges the `/epic-deliver` PR via the GitHub UI.        |
 | Planning (`context::prd`, `context::tech-spec`) | **No** — cascade stops.  | Operator close after the Epic PR is merged.                      |
 

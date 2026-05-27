@@ -35,7 +35,7 @@ already configured — see Prerequisites):
 git submodule add -b dist https://github.com/dsj1984/mandrel.git .agents
 node .agents/scripts/bootstrap.js
 # in your agentic IDE:
-/epic-plan          # ideation -> PRD/Tech Spec -> 4-tier ticket hierarchy
+/epic-plan          # ideation -> PRD/Tech Spec -> Epic/Feature/Story hierarchy
 /epic-deliver <id>  # wave loop -> validation -> review -> retro -> open PR
 ```
 

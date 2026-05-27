@@ -37,7 +37,7 @@ import { collectOpenStoryIds, dispatchNextWave } from './wave-dispatcher.js';
 export const AGENT_DONE_LABEL = STATE_LABELS.DONE;
 export const AGENT_EXECUTING_LABEL = STATE_LABELS.EXECUTING;
 export const AGENT_READY_LABEL = STATE_LABELS.READY;
-export const TYPE_TASK_LABEL = TYPE_LABELS.TASK;
+export const TYPE_TASK_LABEL = 'type::task';
 export { collectOpenStoryIds, detectEpicCompletion };
 
 /* node:coverage ignore next */
@@ -148,8 +148,7 @@ export async function dispatch(options) {
   // manifest with `waves[].stories[]` so downstream consumers
   // (manifest renderer, /epic-deliver wave planner) see the correct
   // execution plan without dispatching any Tasks.
-  const hierarchy = ctx.config?.planning?.hierarchy;
-  if (isThreeTierDispatch(fetched.tasks, fetched.allTickets, hierarchy)) {
+  if (isThreeTierDispatch(fetched.tasks, fetched.allTickets)) {
     Logger.info(
       'Detected 3-tier hierarchy — computing Story-level execution waves.',
     );

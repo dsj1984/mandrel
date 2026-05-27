@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-27T16:55:49.587Z",
+  "generatedAt": "2026-05-27T18:57:48.295Z",
   "rollup": {
     "*": {
-      "min": 62.385,
-      "p50": 103.836,
-      "p95": 121.479
+      "min": 38.161,
+      "p50": 103.599,
+      "p95": 121.235
     }
   },
   "rows": [
@@ -61,6 +61,10 @@
     {
       "path": ".agents/scripts/cleanup-repo-test-temp.js",
       "mi": 99.892
+    },
+    {
+      "path": ".agents/scripts/cleanup-type-task-label.js",
+      "mi": 98.989
     },
     {
       "path": ".agents/scripts/context-hydrator.js",
@@ -131,6 +135,10 @@
       "mi": 82.06
     },
     {
+      "path": ".agents/scripts/epic-plan-healthcheck.js",
+      "mi": 97.622
+    },
+    {
       "path": ".agents/scripts/epic-plan-spec.js",
       "mi": 71.241
     },
@@ -169,6 +177,10 @@
     {
       "path": ".agents/scripts/git-rebase-and-resolve.js",
       "mi": 97.034
+    },
+    {
+      "path": ".agents/scripts/hierarchy-gate.js",
+      "mi": 86.424
     },
     {
       "path": ".agents/scripts/hydrate-context.js",
@@ -483,6 +495,10 @@
       "mi": 171
     },
     {
+      "path": ".agents/scripts/lib/config-settings-schema.js",
+      "mi": 38.161
+    },
+    {
       "path": ".agents/scripts/lib/config/baselines.js",
       "mi": 105.01
     },
@@ -736,7 +752,7 @@
     },
     {
       "path": ".agents/scripts/lib/label-taxonomy.js",
-      "mi": 94.622
+      "mi": 95.436
     },
     {
       "path": ".agents/scripts/lib/Logger.js",
@@ -855,6 +871,18 @@
       "mi": 93.343
     },
     {
+      "path": ".agents/scripts/lib/orchestration/detectors-phase.js",
+      "mi": 94.803
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/dispatch-engine.js",
+      "mi": 96.285
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/dispatch-pipeline.js",
+      "mi": 94.826
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/doc-reader.js",
       "mi": 102.211
     },
@@ -883,12 +911,20 @@
       "mi": 103.115
     },
     {
+      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
+      "mi": 110.283
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/dag.js",
       "mi": 104.191
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/decompose-legacy.js",
       "mi": 94.587
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/diagnostics.js",
+      "mi": 113.529
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/persist-helpers.js",
@@ -1007,6 +1043,10 @@
       "mi": 105.161
     },
     {
+      "path": ".agents/scripts/lib/orchestration/epic-runner/story-run-progress-writer.js",
+      "mi": 91.832
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/epic-runner/sub-agent-return.js",
       "mi": 82.827
     },
@@ -1113,6 +1153,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/bus.js",
       "mi": 104.328
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/lifecycle/emit-story-heartbeat.js",
+      "mi": 85.703
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/ledger-writer.js",
@@ -1259,6 +1303,10 @@
       "mi": 103.836
     },
     {
+      "path": ".agents/scripts/lib/orchestration/post-merge/phases/ticket-closure.js",
+      "mi": 98.894
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/post-merge/phases/worktree-reap.js",
       "mi": 92.109
     },
@@ -1305,6 +1353,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/retro/phases/compose-body.js",
       "mi": 88.656
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/retro/phases/gather-signals.js",
+      "mi": 94.931
     },
     {
       "path": ".agents/scripts/lib/orchestration/retro/phases/post-and-mirror.js",
@@ -1531,6 +1583,10 @@
       "mi": 94.978
     },
     {
+      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
+      "mi": 91.529
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/ticketing.js",
       "mi": 171
     },
@@ -1625,10 +1681,6 @@
     {
       "path": ".agents/scripts/lib/push-epic-retry.js",
       "mi": 94.174
-    },
-    {
-      "path": ".agents/scripts/lib/retrofit/task-body-retrofit.js",
-      "mi": 106.413
     },
     {
       "path": ".agents/scripts/lib/signals/detectors/common.js",
@@ -1753,6 +1805,10 @@
     {
       "path": ".agents/scripts/lib/task-utils.js",
       "mi": 146.427
+    },
+    {
+      "path": ".agents/scripts/lib/templates/decomposer-prompts.js",
+      "mi": 140.702
     },
     {
       "path": ".agents/scripts/lib/templates/task-body-renderer.js",
@@ -2015,10 +2071,6 @@
       "mi": 86.397
     },
     {
-      "path": ".agents/scripts/retrofit-task-bodies.js",
-      "mi": 85.361
-    },
-    {
       "path": ".agents/scripts/run-audit-suite.js",
       "mi": 107.591
     },
@@ -2067,8 +2119,12 @@
       "mi": 94.408
     },
     {
-      "path": ".agents/scripts/story-task-progress.js",
-      "mi": 87.662
+      "path": ".agents/scripts/story-deliver-prepare.js",
+      "mi": 90.852
+    },
+    {
+      "path": ".agents/scripts/story-init.js",
+      "mi": 83.361
     },
     {
       "path": ".agents/scripts/sync-agentrc.js",
@@ -2081,10 +2137,6 @@
     {
       "path": ".agents/scripts/sync-claude-commands.js",
       "mi": 98.907
-    },
-    {
-      "path": ".agents/scripts/task-commit.js",
-      "mi": 78.317
     },
     {
       "path": ".agents/scripts/test-isolate.js",
@@ -2611,8 +2663,8 @@
       "mi": 108.302
     },
     {
-      "path": "tests/contract/delivery/skip-ci-story-commits.test.js",
-      "mi": 119.703
+      "path": "tests/contract/delivery/three-tier-dispatch.test.js",
+      "mi": 113.205
     },
     {
       "path": "tests/contract/dispatch/emit-story-dispatch.test.js",
@@ -2695,6 +2747,18 @@
       "mi": 93.553
     },
     {
+      "path": "tests/contract/planning/healthcheck-hierarchy-mode.test.js",
+      "mi": 112.086
+    },
+    {
+      "path": "tests/contract/planning/three-tier-manifest.test.js",
+      "mi": 91.548
+    },
+    {
+      "path": "tests/contract/planning/three-tier-schema.test.js",
+      "mi": 101.121
+    },
+    {
       "path": "tests/contract/reconcile-sub-issues.test.js",
       "mi": 116.972
     },
@@ -2755,12 +2819,20 @@
       "mi": 114.937
     },
     {
+      "path": "tests/dispatcher.test.js",
+      "mi": 100.888
+    },
+    {
       "path": "tests/docs/no-js-fences.test.js",
       "mi": 98.547
     },
     {
       "path": "tests/e2e-story-lifecycle.test.js",
       "mi": 98.491
+    },
+    {
+      "path": "tests/e2e-story-only-epic.test.js",
+      "mi": 95.619
     },
     {
       "path": "tests/emit-context-compact-json.test.js",
@@ -2784,7 +2856,7 @@
     },
     {
       "path": "tests/enforcement/manifest-schema.test.js",
-      "mi": 90.382
+      "mi": 91.692
     },
     {
       "path": "tests/enforcement/no-console.test.js",
@@ -2915,6 +2987,10 @@
       "mi": 113.522
     },
     {
+      "path": "tests/epic-runner/story-run-progress-writer.test.js",
+      "mi": 98.436
+    },
+    {
       "path": "tests/epic-runner/sub-agent-return.test.js",
       "mi": 98.958
     },
@@ -3001,6 +3077,10 @@
     {
       "path": "tests/helpers/make-mock-provider.js",
       "mi": 116.261
+    },
+    {
+      "path": "tests/hierarchy-gate.test.js",
+      "mi": 97.044
     },
     {
       "path": "tests/hook-chain-reflog-invariant.test.js",
@@ -3463,6 +3543,10 @@
       "mi": 123.444
     },
     {
+      "path": "tests/lib/observability/tool-trace-hook.test.js",
+      "mi": 98.18
+    },
+    {
       "path": "tests/lib/orchestration/automerge-predicate.test.js",
       "mi": 107.639
     },
@@ -3497,6 +3581,10 @@
     {
       "path": "tests/lib/orchestration/crap-remediation-1641.test.js",
       "mi": 107.372
+    },
+    {
+      "path": "tests/lib/orchestration/detectors-phase.test.js",
+      "mi": 108.534
     },
     {
       "path": "tests/lib/orchestration/dispatch-pipeline-reachability.test.js",
@@ -3815,6 +3903,10 @@
       "mi": 94.836
     },
     {
+      "path": "tests/lib/orchestration/retro-runner.test.js",
+      "mi": 90.372
+    },
+    {
       "path": "tests/lib/orchestration/review-providers/codex.test.js",
       "mi": 107.383
     },
@@ -4111,6 +4203,10 @@
       "mi": 102.415
     },
     {
+      "path": "tests/lib/story-init/task-graph-builder.test.js",
+      "mi": 110.888
+    },
+    {
       "path": "tests/lib/story-init/transition-summary.test.js",
       "mi": 106.368
     },
@@ -4291,6 +4387,14 @@
       "mi": 103.19
     },
     {
+      "path": "tests/orchestration/context-hydration-engine.test.js",
+      "mi": 101.659
+    },
+    {
+      "path": "tests/orchestration/manifest-builder-3tier.test.js",
+      "mi": 91.513
+    },
+    {
       "path": "tests/orchestration/skill-capsule-loader.test.js",
       "mi": 101.209
     },
@@ -4435,6 +4539,10 @@
       "mi": 108.31
     },
     {
+      "path": "tests/schemas/signal-schemas.test.js",
+      "mi": 104.814
+    },
+    {
       "path": "tests/scripts/agents-bootstrap-github-protection.test.js",
       "mi": 103.888
     },
@@ -4471,6 +4579,10 @@
       "mi": 87.516
     },
     {
+      "path": "tests/scripts/cleanup-type-task-label.test.js",
+      "mi": 110.521
+    },
+    {
       "path": "tests/scripts/dispatcher-fromspec.test.js",
       "mi": 101.796
     },
@@ -4495,6 +4607,10 @@
       "mi": 101.819
     },
     {
+      "path": "tests/scripts/epic-plan-decompose.3tier-creation-diagnostics.test.js",
+      "mi": 101.19
+    },
+    {
       "path": "tests/scripts/epic-plan-decompose.body-preservation.test.js",
       "mi": 94.28
     },
@@ -4515,8 +4631,20 @@
       "mi": 87.683
     },
     {
+      "path": "tests/scripts/epic-reconcile.bootstrap.test.js",
+      "mi": 98.528
+    },
+    {
       "path": "tests/scripts/epic-reconcile.cli.test.js",
       "mi": 106.497
+    },
+    {
+      "path": "tests/scripts/epic-spec-reconciler.apply.test.js",
+      "mi": 94.039
+    },
+    {
+      "path": "tests/scripts/epic-spec-reconciler.diff.test.js",
+      "mi": 95.059
     },
     {
       "path": "tests/scripts/epic-spec-reconciler.discriminator.test.js",
@@ -4601,6 +4729,10 @@
     {
       "path": "tests/scripts/story-close-pipeline.test.js",
       "mi": 110.128
+    },
+    {
+      "path": "tests/scripts/story-close-post-merge-transition.test.js",
+      "mi": 99.045
     },
     {
       "path": "tests/scripts/story-init-install-soak.test.js",
@@ -4751,12 +4883,12 @@
       "mi": 103.683
     },
     {
-      "path": "tests/story-deliver/story-task-progress.test.js",
-      "mi": 88.374
+      "path": "tests/story-deliver/story-deliver-prepare.test.js",
+      "mi": 104.059
     },
     {
-      "path": "tests/story-deliver/task-commit.test.js",
-      "mi": 107.92
+      "path": "tests/story-init.test.js",
+      "mi": 88.055
     },
     {
       "path": "tests/story-off-branch-e2e.test.js",
@@ -4783,10 +4915,6 @@
       "mi": 111.853
     },
     {
-      "path": "tests/task-body-retrofit.test.js",
-      "mi": 113.137
-    },
-    {
       "path": "tests/task-body-validator.test.js",
       "mi": 107.132
     },
@@ -4801,6 +4929,10 @@
     {
       "path": "tests/ticket-decomposer.test.js",
       "mi": 97.687
+    },
+    {
+      "path": "tests/ticket-validation.test.js",
+      "mi": 100.709
     },
     {
       "path": "tests/ticketing-provider.test.js",

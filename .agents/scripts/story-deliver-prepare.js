@@ -219,16 +219,26 @@ export async function runStoryDeliverPrepare(args) {
   }
 
   // 3. Upsert the initial story-run-progress snapshot.
-  //    Shape selection: when `story-init` recorded `hierarchy: '3-tier'` the
-  //    Story has inline acceptance and no child Tasks — emit the
-  //    Story-phase snapshot (`phases[]` with init/implement/validate/close
-  //    entries pinned to `pending`) instead of the per-Task list. The
-  //    `tasksOverride` test hatch still wins so unit tests that pass
-  //    explicit tasks exercise the 4-tier path regardless of the hierarchy.
-  const hierarchy = String(initPayload.hierarchy ?? '4-tier');
+  //
+  //    Task #3154 (Epic #3078) deleted the `planning.hierarchy` flag —
+  //    3-tier is the only supported hierarchy and every story-init
+  //    comment records `hierarchy: '3-tier'`. Snapshot-shape selection
+  //    is now driven entirely by whether the init payload carries any
+  //    child Tasks (or whether the caller pinned `tasksOverride`):
+  //
+  //    - `tasksOverride` or `initPayload.tasks[]` non-empty → emit the
+  //      per-Task `tasks[]` snapshot (preserved so test fixtures and
+  //      legacy comments produced by older runs still resolve correctly).
+  //    - Otherwise → emit the Story-phase `phases[]` snapshot
+  //      (init/implement/validate/close pinned to `pending`).
+  const hierarchy = String(initPayload.hierarchy ?? '3-tier');
   const branch = String(initPayload.storyBranch ?? `story-${storyId}`);
 
-  if (!tasksOverride && hierarchy === '3-tier') {
+  const initPayloadTasks = Array.isArray(initPayload.tasks)
+    ? initPayload.tasks
+    : [];
+
+  if (!tasksOverride && initPayloadTasks.length === 0) {
     const phases = defaultStoryPhases();
     const { body: renderedBody, payload: snapshot } =
       await upsertStoryRunProgress({
@@ -252,20 +262,9 @@ export async function runStoryDeliverPrepare(args) {
     };
   }
 
-  //    Legacy `story-init` comments (pre-5.31.2) omit `tasks[]`, which would
-  //    silently seed an empty snapshot and break every later
-  //    `story-task-progress.js` call. Fall back to fetching the Story's
-  //    sub-tickets directly so the snapshot stays correct on resumed runs.
-  const initPayloadTasks = Array.isArray(initPayload.tasks)
-    ? initPayload.tasks
-    : [];
-  let resolvedTasks = initPayloadTasks;
-  if (!tasksOverride && initPayloadTasks.length === 0) {
-    resolvedTasks = await fetchTasksFallback({ provider, storyId });
-  }
   const tasks =
     tasksOverride ??
-    resolvedTasks.map((t) => ({
+    initPayloadTasks.map((t) => ({
       id: Number(t.id ?? t.number),
       title: String(t.title ?? ''),
       state: 'pending',

@@ -29,10 +29,6 @@
  *     parses argv and delegates. End-to-end hydration depends on a
  *     real provider tree and a Story prompt context that only an
  *     integration test can reasonably build.
- *   - retrofit-task-bodies.js — top-level CLI shell with zero exports.
- *     The retrofit logic is unit-tested under `lib/retrofit/`; the
- *     shell glue (argv → provider → batch loop) is integration-shaped
- *     and not on a unit-test path.
  *   - epic-plan.js / epic-plan-decompose.js / epic-plan-spec.js /
  *     epic-plan-healthcheck.js — `/epic-plan` slash-command CLIs.
  *     Each exports a `runXPhase` that calls into a real GitHub
@@ -64,7 +60,7 @@
  *   Top-level orchestration CLIs (already pragma'd; promoted to the c8
  *   exclude list to keep `c8 report` and the per-file baseline in sync):
  *     story-close.js, story-init.js, story-deliver-prepare.js,
- *     story-task-progress.js, task-commit.js, run-audit-suite.js,
+ *     run-audit-suite.js,
  *     post-structured-comment.js, hydrate-context.js, assert-branch.js,
  *     epic-deliver-prepare.js,
  *     epic-deliver-note-intervention.js, epic-close.js,
@@ -101,8 +97,6 @@ module.exports = {
     '.agents/scripts/epic-plan-healthcheck.js',
     '.agents/scripts/epic-plan-spec.js',
     '.agents/scripts/epic-plan.js',
-    '.agents/scripts/retrofit-task-bodies.js',
-
     // Story #1702 — top-level CLI gates and orchestrators.
     '.agents/scripts/assert-branch.js',
     '.agents/scripts/audit-orchestrator.js',
@@ -134,8 +128,6 @@ module.exports = {
     '.agents/scripts/story-close.js',
     '.agents/scripts/story-deliver-prepare.js',
     '.agents/scripts/story-init.js',
-    '.agents/scripts/story-task-progress.js',
-    '.agents/scripts/task-commit.js',
     '.agents/scripts/test-wrapper.js',
     '.agents/scripts/validate-docs-freshness.js',
 

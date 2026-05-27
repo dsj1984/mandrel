@@ -157,7 +157,7 @@ export async function gatherRetroSignals({
     (t.labels ?? []).includes(TYPE_LABELS.STORY),
   );
   const tasks = descendants.filter((t) =>
-    (t.labels ?? []).includes(TYPE_LABELS.TASK),
+    (t.labels ?? []).includes('type::task'),
   );
 
   // Hotfix count: tasks that ever flipped to status::blocked. The label

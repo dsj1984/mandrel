@@ -32,20 +32,7 @@ stance on future adoption.
 | `/epic-plan --idea "<seed>"`      | Same ideation entry with a pre-supplied seed.                                                                                                      |
 | `/epic-plan <epicId>`             | Existing-Epic mode — generate PRD + Tech Spec + decomposition for an Epic ticket that has already been opened.                                     |
 | `/epic-deliver <epicId>`          | Six-phase wave-loop + close-validation + code-review + retro + finalize. Terminates with a PR open against `main`; operator merges via GitHub UI.  |
-| `/story-deliver <storyId>`        | Init → task loop → close for one Story. Reads `helpers/task-execute.md` inline per Task under the default 4-tier hierarchy. Used directly when re-driving a single Story off-table. |
-
-> **3-tier hierarchy (target shape — opt-in via `planning.hierarchy: '3-tier'`).**
-> Under the target 3-tier shape introduced by Epic #3078, the SDL
-> commands above are unchanged in scope and surface — `/epic-plan`,
-> `/epic-deliver`, and `/story-deliver` keep their CLI shape — but
-> `/story-deliver` runs a single Story-implementation phase per
-> Story instead of the per-Task sub-loop. `helpers/task-execute.md`
-> is not invoked under 3-tier (and is deleted by Epic #3078's
-> destructive Feature 8 alongside `task-commit.js` and the
-> `story-task-progress` shape). While Epic #3078 is in flight, the
-> default remains `'4-tier'` and both shapes are supported in
-> parallel; see [`configuration.md` § `planning`](configuration.md)
-> for the flag.
+| `/story-deliver <storyId>`        | Init → Story-implementation phase → close for one Story. Used directly when re-driving a single Story off-table. |
 
 ## Audit suite
 

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/story.heartbeat.schema.json",
   "title": "story.heartbeat",
-  "description": "Emitted by story-task-progress.js (4-tier) or story-lifecycle.js (3-tier) inside a Story's implementation loop. Surfaces the in-progress Story as an inspectable ledger event so /epic-deliver's host-loop reconciler can confirm a long Story is still making forward progress between dispatch and merge — distinct from story.dispatch.start (one per Story per attempt) and story.merged (one per Story per close). Under 3-tier the Story has no child Task tickets, so the legacy Task-counter fields (taskId, tasksDone, tasksTotal, currentTaskId) are all optional and MAY be omitted; under 4-tier they MAY be present so retros can reconstruct per-Task wall-clock cadence.",
+  "description": "Emitted by story-lifecycle.js inside a Story's implementation loop. Surfaces the in-progress Story as an inspectable ledger event so /epic-deliver's host-loop reconciler can confirm a long Story is still making forward progress between dispatch and merge — distinct from story.dispatch.start (one per Story per attempt) and story.merged (one per Story per close). The 3-tier hierarchy has no child Task tickets, so the heartbeat carries phase info only.",
   "type": "object",
   "required": ["event", "storyId", "epicId", "phase", "timestamp"],
   "properties": {
@@ -10,10 +10,6 @@
     "storyId": { "type": "integer", "minimum": 1 },
     "epicId": { "type": "integer", "minimum": 1 },
     "phase": { "type": "string", "const": "implementing" },
-    "taskId": { "type": "integer", "minimum": 1 },
-    "tasksDone": { "type": "integer", "minimum": 0 },
-    "tasksTotal": { "type": "integer", "minimum": 0 },
-    "currentTaskId": { "type": "integer", "minimum": 1 },
     "timestamp": { "type": "string", "format": "date-time" }
   },
   "additionalProperties": false

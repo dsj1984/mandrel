@@ -1,31 +1,23 @@
 /**
  * tests/contract/delivery/three-tier-dispatch.test.js
  *
- * Contract: dispatch wave computation for a 3-tier Epic. The dispatch
- * layer (`isThreeTierDispatch` + `buildStoryDispatchGraph` in
- * `.agents/scripts/lib/orchestration/dispatch-pipeline.js`) MUST detect a
- * Story-only ticket graph, refuse to invoke the Task-centric grouping
- * pipeline, and emit Story-level execution waves that honour
- * cross-Story `blocked by` dependencies.
+ * Contract: dispatch wave computation for a 3-tier Epic. After Task #3154
+ * deleted the `planning.hierarchy` flag, shape selection is purely
+ * structural — an Epic carrying zero Tasks and at least one Story
+ * resolves to the 3-tier path; a Task-bearing graph keeps the 4-tier
+ * path (Task #3157 owns its eventual deletion).
  *
  * Asserts:
- *   - `isThreeTierDispatch` returns true when explicit hierarchy is
- *     `'3-tier'` regardless of ticket shape.
- *   - `isThreeTierDispatch` returns true for auto-detection when there
- *     are zero Tasks and at least one Story.
- *   - `isThreeTierDispatch` returns false when any Task is present (even
- *     when Stories also exist) and hierarchy is not pinned.
- *   - `isThreeTierDispatch` honours `hierarchy === '4-tier'` and refuses
- *     the 3-tier path even with a Story-only graph.
+ *   - `isThreeTierDispatch` returns true when there are zero Tasks and
+ *     at least one Story.
+ *   - `isThreeTierDispatch` returns false when any Task is present.
+ *   - `isThreeTierDispatch` returns false on an empty ticket graph.
  *   - `buildStoryDispatchGraph` computes the expected Story-level wave
  *     ordering when Story B is `blocked by #<storyA-id>`.
  *   - `buildStoryDispatchGraph` places independent Stories in wave 0
  *     together (parallel-by-default).
  *
- * Story #3136 (Epic #3078, Feature #3093). The companion enforcement
- * test at tests/enforcement/manifest-schema.test.js covers
- * `buildManifest()` shape; this contract test pins the upstream wave
- * computation that feeds it.
+ * Story #3136 (Epic #3078, Feature #3093). Updated under Task #3154.
  */
 
 import assert from 'node:assert/strict';
@@ -55,52 +47,24 @@ function taskTicket(id) {
   };
 }
 
-describe('isThreeTierDispatch — hierarchy detection (Story #3136)', () => {
-  it('returns true when hierarchy is explicitly "3-tier" (overrides shape)', () => {
-    // Arrange — even a graph with Tasks present is forced to 3-tier when
-    // operator pins the hierarchy.
-    const tasks = [taskTicket(1)];
-    const allTickets = [storyTicket(100), taskTicket(1)];
+describe('isThreeTierDispatch — structural detection (Task #3154)', () => {
+  it('returns true when there are zero Tasks and at least one Story', () => {
+    // Arrange
+    const allTickets = [storyTicket(100), storyTicket(101)];
 
     // Act
-    const result = isThreeTierDispatch(tasks, allTickets, '3-tier');
+    const result = isThreeTierDispatch([], allTickets);
 
     // Assert
     assert.equal(result, true);
   });
 
-  it('returns true via auto-detection when there are zero Tasks and at least one Story', () => {
+  it('returns false when any Task is present', () => {
     // Arrange
-    const tasks = [];
-    const allTickets = [storyTicket(100), storyTicket(101)];
-
-    // Act
-    const result = isThreeTierDispatch(tasks, allTickets, undefined);
-
-    // Assert
-    assert.equal(result, true);
-  });
-
-  it('returns false when any Task is present and hierarchy is not pinned', () => {
-    // Arrange
-    const tasks = [taskTicket(1)];
     const allTickets = [storyTicket(100), taskTicket(1)];
 
     // Act
-    const result = isThreeTierDispatch(tasks, allTickets, undefined);
-
-    // Assert
-    assert.equal(result, false);
-  });
-
-  it('returns false when hierarchy is explicitly "4-tier" (overrides Story-only shape)', () => {
-    // Arrange — Story-only graph that auto-detect would route to 3-tier;
-    // explicit "4-tier" must beat the heuristic.
-    const tasks = [];
-    const allTickets = [storyTicket(100), storyTicket(101)];
-
-    // Act
-    const result = isThreeTierDispatch(tasks, allTickets, '4-tier');
+    const result = isThreeTierDispatch([taskTicket(1)], allTickets);
 
     // Assert
     assert.equal(result, false);
@@ -108,7 +72,15 @@ describe('isThreeTierDispatch — hierarchy detection (Story #3136)', () => {
 
   it('returns false on an empty ticket graph', () => {
     // Arrange / Act
-    const result = isThreeTierDispatch([], [], undefined);
+    const result = isThreeTierDispatch([], []);
+
+    // Assert
+    assert.equal(result, false);
+  });
+
+  it('returns false when no Story is present', () => {
+    // Arrange / Act
+    const result = isThreeTierDispatch([], [taskTicket(1)]);
 
     // Assert
     assert.equal(result, false);

@@ -1,21 +1,12 @@
 /**
  * Contract tests for the orchestration `manifest-builder.js` Story-only
- * path (Epic #3078 / Story #3118 / Task #3133).
+ * path.
  *
- * Locks the two-shape branching in `buildManifest`:
- *
- *   1. **3-tier** inputs (no `type::task` tickets, at least one
- *      `type::story`) emit `waves[].stories[]` and a Story-only
- *      `storyManifest`. `groupTasksByStory` from `story-grouper.js`
- *      MUST NOT be invoked.
- *
- *   2. **4-tier** inputs (the current default) continue to emit the
- *      Task-grouped `waves[].tasks[]` shape — and the output is
- *      byte-equivalent to the pre-3-tier behaviour for a frozen fixture.
- *
- * These tests are pure-input contract tests: they pass fixture-shaped
- * tickets directly to `buildManifest` so the projection is locked
- * independent of dispatch-pipeline wiring (Story 3.2+ handles that).
+ * Task #3154 (Epic #3078) deleted the `planning.hierarchy` flag. Shape
+ * selection now relies entirely on structural auto-detection: a
+ * Story-only ticket graph emits the 3-tier shape; a Task-bearing graph
+ * still emits the 4-tier shape (retained for in-flight Epics — Task
+ * #3157 owns its eventual deletion).
  */
 
 import assert from 'node:assert/strict';
@@ -44,21 +35,6 @@ function makeStory(id, overrides = {}) {
     ].join('\n'),
     labels: ['type::story', 'persona::engineer', 'agent::ready'],
     ...overrides,
-  };
-}
-
-function makeTask(id, parentStoryId, dependsOn = []) {
-  return {
-    id,
-    title: `Task ${id}`,
-    body: `parent: #${parentStoryId}`,
-    status: 'agent::ready',
-    labels: ['type::task', 'agent::ready'],
-    persona: 'engineer',
-    mode: 'fast',
-    skills: [],
-    focusAreas: [],
-    dependsOn,
   };
 }
 
@@ -171,7 +147,7 @@ test('3-tier: story-grouper is bypassed (Stories with no `parent: #N` Feature re
   );
 });
 
-test('3-tier: explicit hierarchy:"3-tier" flag forces the Story-only path', () => {
+test('Story-only graph auto-detects to the 3-tier manifest shape', () => {
   const epic = makeEpic();
   const story = makeStory(3098);
 
@@ -183,93 +159,43 @@ test('3-tier: explicit hierarchy:"3-tier" flag forces the Story-only path', () =
     waves: [[story]],
     dispatched: [],
     dryRun: false,
-    hierarchy: '3-tier',
   });
 
   assert.equal(manifest.hierarchy, '3-tier');
   assert.ok(Array.isArray(manifest.waves[0].stories));
+  assert.equal(manifest.summary.totalStories, 1);
+  assert.equal(manifest.summary.totalTasks, undefined);
 });
 
-test('4-tier: byte-equivalent manifest for a frozen Task-grouped fixture', () => {
+test('Task-bearing graph auto-detects to the 4-tier manifest shape', () => {
+  // The 4-tier path is retained for in-flight Epics that still carry
+  // Task tickets. Task #3157 owns its eventual deletion.
   const epic = makeEpic();
   const story = makeStory(100, { id: 100, title: 'Parent Story' });
-  const t1 = makeTask(101, 100);
-  const t2 = makeTask(102, 100, [101]);
-
-  const allTickets = [epic, story, t1, t2];
-  const waves = [[t1], [t2]];
-
-  // Pin generatedAt so the JSON serialisation is fully deterministic for the
-  // byte-equivalence assertion.
-  const fixedNow = '2026-05-27T00:00:00.000Z';
-  const origNow = Date.now;
-  const origToISO = Date.prototype.toISOString;
-  Date.prototype.toISOString = function patched() {
-    return this.getTime() === Date.now() ? fixedNow : origToISO.call(this);
+  const t1 = {
+    id: 101,
+    title: 'Task 101',
+    body: 'parent: #100',
+    status: 'agent::ready',
+    labels: ['type::task', 'agent::ready'],
+    persona: 'engineer',
+    mode: 'fast',
+    skills: [],
+    focusAreas: [],
+    dependsOn: [],
   };
-  Date.now = () => new Date(fixedNow).getTime();
-
-  let manifest;
-  try {
-    manifest = buildManifest({
-      epicId: EPIC_ID,
-      epic,
-      tasks: [t1, t2],
-      allTickets,
-      waves,
-      dispatched: [],
-      dryRun: false,
-    });
-  } finally {
-    Date.now = origNow;
-    Date.prototype.toISOString = origToISO;
-  }
-
-  // The 4-tier shape MUST keep emitting waves[].tasks[] with the established
-  // field set (taskId, title, status, branch, persona, mode, skills,
-  // focusAreas, dependsOn).
-  assert.equal(manifest.waves.length, 2);
-  for (const wave of manifest.waves) {
-    assert.equal(wave.stories, undefined, 'no waves[].stories[] in 4-tier');
-    assert.ok(Array.isArray(wave.tasks));
-    for (const tk of wave.tasks) {
-      assert.equal(typeof tk.taskId, 'number');
-      assert.equal(typeof tk.title, 'string');
-      assert.equal(typeof tk.branch, 'string');
-      assert.equal(typeof tk.persona, 'string');
-      assert.ok(Array.isArray(tk.skills));
-    }
-  }
-
-  // 4-tier hierarchy is omitted (default branch path).
-  assert.equal(manifest.hierarchy, undefined);
-  assert.equal(manifest.summary.totalTasks, 2);
-  assert.equal(manifest.summary.doneTasks, 0);
-  assert.equal(manifest.summary.totalStories, undefined);
-
-  // storyManifest reflects the Task-grouped projection.
-  assert.equal(manifest.storyManifest.length, 1);
-  assert.equal(manifest.storyManifest[0].storyId, 100);
-  assert.equal(manifest.storyManifest[0].tasks.length, 2);
-});
-
-test('4-tier: explicit hierarchy:"4-tier" flag forces the Task-grouped path even if tasks: []', () => {
-  const epic = makeEpic();
-  const story = makeStory(3098);
 
   const manifest = buildManifest({
     epicId: EPIC_ID,
     epic,
-    tasks: [],
-    allTickets: [epic, story],
-    waves: [],
+    tasks: [t1],
+    allTickets: [epic, story, t1],
+    waves: [[t1]],
     dispatched: [],
     dryRun: false,
-    hierarchy: '4-tier',
   });
 
-  // 4-tier explicit: even with stories present, no waves[].stories[] emit.
   assert.equal(manifest.hierarchy, undefined);
-  assert.equal(manifest.summary.totalTasks, 0);
-  assert.equal(manifest.summary.totalStories, undefined);
+  assert.equal(manifest.summary.totalTasks, 1);
+  assert.ok(Array.isArray(manifest.waves[0].tasks));
 });

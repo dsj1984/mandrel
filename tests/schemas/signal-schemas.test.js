@@ -273,7 +273,7 @@ describe('epic-perf-report.schema.json', () => {
   });
 });
 
-describe('story.heartbeat.schema.json (Story #3137 — 3-tier optional Task counters)', () => {
+describe('story.heartbeat.schema.json (Epic #3078 — 3-tier shape only)', () => {
   const schema = loadLifecycleSchema('story.heartbeat.schema.json');
 
   const compile2020 = (s) => {
@@ -286,7 +286,7 @@ describe('story.heartbeat.schema.json (Story #3137 — 3-tier optional Task coun
     assert.doesNotThrow(() => compile2020(schema));
   });
 
-  it('accepts a 3-tier heartbeat with no Task counters', () => {
+  it('accepts a 3-tier heartbeat (phase info only)', () => {
     const validate = compile2020(schema);
     const ok = validate({
       event: 'story.heartbeat',
@@ -298,7 +298,7 @@ describe('story.heartbeat.schema.json (Story #3137 — 3-tier optional Task coun
     assert.equal(ok, true, JSON.stringify(validate.errors));
   });
 
-  it('accepts a legacy 4-tier heartbeat carrying taskId', () => {
+  it('rejects a heartbeat carrying legacy taskId (4-tier removed)', () => {
     const validate = compile2020(schema);
     const ok = validate({
       event: 'story.heartbeat',
@@ -308,10 +308,14 @@ describe('story.heartbeat.schema.json (Story #3137 — 3-tier optional Task coun
       taskId: 3146,
       timestamp: '2026-05-27T16:00:00.000Z',
     });
-    assert.equal(ok, true, JSON.stringify(validate.errors));
+    assert.equal(
+      ok,
+      false,
+      'taskId must be rejected under additionalProperties:false',
+    );
   });
 
-  it('accepts a 4-tier heartbeat carrying tasksDone/tasksTotal/currentTaskId', () => {
+  it('rejects a heartbeat carrying tasksDone/tasksTotal/currentTaskId (4-tier removed)', () => {
     const validate = compile2020(schema);
     const ok = validate({
       event: 'story.heartbeat',
@@ -323,7 +327,7 @@ describe('story.heartbeat.schema.json (Story #3137 — 3-tier optional Task coun
       currentTaskId: 3146,
       timestamp: '2026-05-27T16:00:00.000Z',
     });
-    assert.equal(ok, true, JSON.stringify(validate.errors));
+    assert.equal(ok, false, 'Task counter fields must be rejected');
   });
 
   it('rejects an unknown property under additionalProperties:false', () => {
