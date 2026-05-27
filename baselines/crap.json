@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-27T19:01:05.013Z",
+  "generatedAt": "2026-05-27T21:58:00.638Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.433975308641976,
+      "p95": 12.192000000000002,
       "max": 54.01376032409894,
       "methodsAbove20": 30
     }
@@ -7738,84 +7738,6 @@
       "method": "topoSortCreates",
       "startLine": 752,
       "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
-      "method": "labelsEqual",
-      "startLine": 105,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
-      "method": "isProtectedEpicLabel",
-      "startLine": 157,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
-      "method": "mergeProtectedEpicLabels",
-      "startLine": 173,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
-      "method": "normaliseBody",
-      "startLine": 187,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
-      "method": "composeBodyWithFooter",
-      "startLine": 206,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
-      "method": "ghObservation",
-      "startLine": 249,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
-      "method": "fieldChanges",
-      "startLine": 263,
-      "crap": 15.004441987641403
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
-      "method": "parentEqual",
-      "startLine": 346,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
-      "method": "sortBySlug",
-      "startLine": 359,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
-      "method": "flattenSpec",
-      "startLine": 381,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
-      "method": "epicSlug",
-      "startLine": 443,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
-      "method": "dependsOnEqual",
-      "startLine": 457,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
-      "method": "diff",
-      "startLine": 468,
-      "crap": 14
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-spec-reconciler-discriminator.js",
