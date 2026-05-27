@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-27T15:39:18.390Z",
+  "generatedAt": "2026-05-27T15:45:41.864Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.157083248524323,
+      "p95": 12.192000000000002,
       "max": 52.501371135067686,
       "methodsAbove20": 31
     }
@@ -568,36 +568,6 @@
       "method": "main",
       "startLine": 254,
       "crap": 2.0932944606413995
-    },
-    {
-      "path": ".agents/scripts/hierarchy-gate.js",
-      "method": "classify",
-      "startLine": 47,
-      "crap": 6.0163859808830225
-    },
-    {
-      "path": ".agents/scripts/hierarchy-gate.js",
-      "method": "ticketIsComplete",
-      "startLine": 61,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/hierarchy-gate.js",
-      "method": "collectDescendants",
-      "startLine": 79,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/hierarchy-gate.js",
-      "method": "runHierarchyGate",
-      "startLine": 101,
-      "crap": 11.002039818607866
-    },
-    {
-      "path": ".agents/scripts/hierarchy-gate.js",
-      "method": "main",
-      "startLine": 180,
-      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/audit-suite/cli.js",
@@ -5638,42 +5608,6 @@
       "method": "computeStoryWaves",
       "startLine": 218,
       "crap": 7.183079462052564
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/detectors-phase.js",
-      "method": "reapPhaseLogger",
-      "startLine": 41,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/detectors-phase.js",
-      "method": "resolveLastTaskId",
-      "startLine": 45,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/detectors-phase.js",
-      "method": "persistDetectorEvents",
-      "startLine": 52,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/detectors-phase.js",
-      "method": "runOneDetector",
-      "startLine": 75,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/detectors-phase.js",
-      "method": "isValidIdPair",
-      "startLine": 104,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/detectors-phase.js",
-      "method": "detectorsPhase",
-      "startLine": 124,
-      "crap": 2.0025626306941655
     },
     {
       "path": ".agents/scripts/lib/orchestration/doc-reader.js",
