@@ -405,6 +405,30 @@ for the scoring logic.
 
 ## Phase 8: Work Breakdown Decomposition
 
+> **3-tier hierarchy (target shape — opt-in via `planning.hierarchy: '3-tier'`).**
+> The decomposer's output shape is controlled by the `planning.hierarchy`
+> flag resolved from `.agentrc.json` (default `'4-tier'`).
+>
+> - Under `'4-tier'` (default), the decomposer emits the canonical
+>   Epic → Feature → Story → Task tree; each Story carries one or
+>   more child `type::task` tickets and acceptance criteria live on
+>   Task bodies.
+> - Under `'3-tier'`, the decomposer emits Epic → Feature → Story
+>   trees only — no `type::task` children are created. Acceptance
+>   criteria and verification steps are inlined on the Story body
+>   (`acceptance[]` / `verify[]` fields) and resolved against the
+>   Acceptance Spec context ticket at close time exactly as in the
+>   4-tier flow.
+>
+> The flag is read by `decomposer-prompts.js`, `manifest-builder.js`,
+> the dispatcher, `story-init.js` / `story-deliver-prepare.js`, and
+> the readiness healthcheck. While Epic #3078 is in flight both shapes
+> validate and are supported in parallel; after Epic #3078's
+> destructive Feature 8 lands, the flag is removed and 3-tier becomes
+> the only shape. See
+> [`.agents/instructions.md` § 5.D](../instructions.md) and the Tech
+> Spec on Epic #3078 for the full lifecycle.
+
 1. **Gather Decomposition Context**:
 
    ```bash
