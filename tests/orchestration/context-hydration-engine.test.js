@@ -7,6 +7,7 @@ import { envelopeToPrompt } from '../../.agents/scripts/lib/orchestration/contex
 import {
   __resetContextCache,
   buildSkillCapsuleSections,
+  extractStorySections,
   formatSkillCapsulesSection,
   hydrateContext,
 } from '../../.agents/scripts/lib/orchestration/context-hydration-engine.js';
@@ -173,6 +174,191 @@ describe('hydrateContext — envelope return shape', () => {
     }
     const ids = envelope.provenance.map((p) => p.id).sort((a, b) => a - b);
     assert.deepEqual(ids, [1, 5, 9]);
+  });
+});
+
+describe('extractStorySections — inline Story body parsing (3-tier)', () => {
+  it('parses ## Acceptance and ## Verify checklists', () => {
+    const body = [
+      'Story narrative paragraph.',
+      '',
+      '## Acceptance',
+      '- [ ] Hydrate Story body',
+      '- [x] No regression in 4-tier',
+      '',
+      '## Verify',
+      '- node --test foo.test.js',
+      '- node --test bar.test.js',
+    ].join('\n');
+    const out = extractStorySections(body);
+    assert.deepEqual(out.acceptance, [
+      'Hydrate Story body',
+      'No regression in 4-tier',
+    ]);
+    assert.deepEqual(out.verify, [
+      'node --test foo.test.js',
+      'node --test bar.test.js',
+    ]);
+  });
+
+  it('prefers ## Acceptance Criteria over ## Acceptance when both exist', () => {
+    const body = [
+      '## Acceptance Criteria',
+      '- canonical AC item',
+      '',
+      '## Acceptance',
+      '- legacy AC item',
+    ].join('\n');
+    const out = extractStorySections(body);
+    assert.deepEqual(out.acceptance, ['canonical AC item']);
+  });
+
+  it('returns empty arrays when sections are absent', () => {
+    assert.deepEqual(extractStorySections('only narrative, no headings'), {
+      acceptance: [],
+      verify: [],
+    });
+    assert.deepEqual(extractStorySections(''), {
+      acceptance: [],
+      verify: [],
+    });
+  });
+});
+
+describe('hydrateContext — 3-tier Story body hydration', () => {
+  it('emits acceptanceCriteria + verificationCommands sections from Story body when task carries type::story', async () => {
+    const provider = new HierarchyProvider({
+      1: {
+        id: 1,
+        title: 'Epic',
+        body: 'Epic Body',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+      300: {
+        id: 300,
+        title: 'Story 3-tier',
+        body: '> Epic: #1\n\nStory narrative.\n\n## Acceptance\n- [ ] Inline AC #1\n- [ ] Inline AC #2\n\n## Verify\n- node --test tests/foo.test.js\n',
+        updatedAt: '2026-01-02T00:00:00.000Z',
+      },
+    });
+
+    const envelope = await hydrateContext(
+      {
+        id: 300,
+        title: 'Story 3-tier',
+        body: '> Epic: #1\n\nStory narrative.\n\n## Acceptance\n- [ ] Inline AC #1\n- [ ] Inline AC #2\n\n## Verify\n- node --test tests/foo.test.js\n',
+        labels: ['type::story', 'persona::engineer'],
+      },
+      provider,
+      'epic/1',
+      'story-300',
+      1,
+    );
+
+    const acSection = envelope.sections.find(
+      (s) => s.name === 'acceptanceCriteria',
+    );
+    const verifySection = envelope.sections.find(
+      (s) => s.name === 'verificationCommands',
+    );
+    assert.ok(acSection, 'acceptanceCriteria section must be emitted');
+    assert.ok(verifySection, 'verificationCommands section must be emitted');
+    assert.match(acSection.content, /Inline AC #1/);
+    assert.match(acSection.content, /Inline AC #2/);
+    assert.match(verifySection.content, /node --test tests\/foo\.test\.js/);
+    assert.equal(acSection.source?.kind, 'ticket');
+    assert.equal(acSection.source?.ref, '300');
+
+    const prompt = envelopeToPrompt(envelope);
+    assert.ok(prompt.includes('Inline AC #1'));
+    assert.ok(prompt.includes('node --test tests/foo.test.js'));
+  });
+
+  it('does NOT emit acceptanceCriteria/verificationCommands when task is type::task (4-tier no regression)', async () => {
+    const provider = new HierarchyProvider({
+      1: {
+        id: 1,
+        title: 'Epic',
+        body: 'Epic Body',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+      400: {
+        id: 400,
+        title: 'Task 4-tier',
+        body: '> Epic: #1\n\n## Acceptance\n- [ ] Task AC\n',
+        updatedAt: '2026-01-02T00:00:00.000Z',
+      },
+    });
+
+    const envelope = await hydrateContext(
+      {
+        id: 400,
+        title: 'Task 4-tier',
+        body: '> Epic: #1\n\n## Acceptance\n- [ ] Task AC\n',
+        labels: ['type::task', 'persona::engineer'],
+      },
+      provider,
+      'epic/1',
+      'story-1',
+      1,
+    );
+
+    assert.ok(
+      !envelope.sections.some((s) => s.name === 'acceptanceCriteria'),
+      'acceptanceCriteria MUST NOT be emitted for type::task in 4-tier mode',
+    );
+    assert.ok(
+      !envelope.sections.some((s) => s.name === 'verificationCommands'),
+      'verificationCommands MUST NOT be emitted for type::task in 4-tier mode',
+    );
+    // The taskInstructions section still carries the full body (no regression).
+    const taskInst = envelope.sections.find(
+      (s) => s.name === 'taskInstructions',
+    );
+    assert.ok(taskInst, 'taskInstructions still emitted in 4-tier');
+    assert.match(taskInst.content, /Task AC/);
+  });
+
+  it('schema-identical shape: same envelope keys + section field shape between modes', async () => {
+    const provider = new HierarchyProvider({
+      1: { id: 1, title: 'Epic', body: 'E', updatedAt: '2026-01-01T00:00:00.000Z' },
+    });
+    const storyEnv = await hydrateContext(
+      {
+        id: 500,
+        title: 'S',
+        body: '> Epic: #1\n\n## Acceptance\n- ac\n\n## Verify\n- v\n',
+        labels: ['type::story'],
+      },
+      provider,
+      'epic/1',
+      'story-500',
+      1,
+    );
+    const taskEnv = await hydrateContext(
+      {
+        id: 501,
+        title: 'T',
+        body: '> Epic: #1\n\nbody',
+        labels: ['type::task'],
+      },
+      provider,
+      'epic/1',
+      'story-1',
+      1,
+    );
+    // Top-level keys identical
+    assert.deepEqual(
+      Object.keys(storyEnv).sort(),
+      Object.keys(taskEnv).sort(),
+    );
+    // Section field shape identical (name/priority/content/source on every entry)
+    const fieldShape = (s) =>
+      ['name', 'priority', 'content', 'estimatedTokens'].every(
+        (k) => k in s,
+      );
+    assert.ok(storyEnv.sections.every(fieldShape));
+    assert.ok(taskEnv.sections.every(fieldShape));
   });
 });
 
