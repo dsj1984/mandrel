@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-27T14:08:27.902Z",
+  "generatedAt": "2026-05-27T14:25:52.692Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.049764299946542,
+      "p95": 12.157083248524323,
       "max": 52.501371135067686,
       "methodsAbove20": 31
     }
@@ -6000,102 +6000,6 @@
       "crap": 2
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "method": "indexExistingChildren",
-      "startLine": 23,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "method": "attachAdaptiveConcurrencyHook",
-      "startLine": 42,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "method": "<anon method-2>",
-      "startLine": 46,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "method": "<anon method-3>",
-      "startLine": 46,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "method": "<anon method-4>",
-      "startLine": 49,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "method": "<anon method-5>",
-      "startLine": 54,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "method": "<anon method-6>",
-      "startLine": 55,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "method": "reconcileSubIssueLinks",
-      "startLine": 61,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "method": "setEpicLabel",
-      "startLine": 85,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "method": "loadExistingChildren",
-      "startLine": 95,
-      "crap": 5.072886297376093
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "method": "forceCloseExistingChildren",
-      "startLine": 110,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "method": "<anon method-11>",
-      "startLine": 115,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "method": "resolveChildIndex",
-      "startLine": 129,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "method": "runStagedPasses",
-      "startLine": 143,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "method": "assertEpicHasPlanningArtifacts",
-      "startLine": 177,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "method": "warnTicketCapNearLimit",
-      "startLine": 200,
-      "crap": 2
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/dag.js",
       "method": "resolveParentId",
       "startLine": 18,
@@ -6142,24 +6046,6 @@
       "method": "decomposeEpic",
       "startLine": 62,
       "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/diagnostics.js",
-      "method": "emitOpenChildrenDiagnostic",
-      "startLine": 17,
-      "crap": 12
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/diagnostics.js",
-      "method": "emitLifecycleLabelDiagnostic",
-      "startLine": 31,
-      "crap": 12
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/diagnostics.js",
-      "method": "reportPartialFailure",
-      "startLine": 44,
-      "crap": 1.8502697186178745
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/persist-helpers.js",
@@ -11620,18 +11506,6 @@
       "method": "transitionTaskStates",
       "startLine": 60,
       "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/story-init/task-graph-builder.js",
-      "method": "sortTasksByDependencies",
-      "startLine": 15,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/story-init/task-graph-builder.js",
-      "method": "buildTaskGraph",
-      "startLine": 45,
-      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/story-init/transition-summary.js",
