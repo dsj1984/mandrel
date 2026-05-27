@@ -23,6 +23,9 @@ function makeGit({
   // a custom `showRefByRef` map). Default `false` keeps legacy behavior.
   localStoryExists = false,
   showRefByRef = null,
+  // cherry: per-(upstream, head) override. Each value is a `{ status, stdout }`
+  // bag, the same shape gitSpawn returns. Default exit 1 (no equivalents).
+  cherryByPair = null,
 } = {}) {
   return {
     status(cwd) {
@@ -51,6 +54,13 @@ function makeGit({
         return { status: 0 };
       }
       return { status: 1 };
+    },
+    cherry(_cwd, upstream, head) {
+      if (cherryByPair) {
+        const key = `${upstream}←${head}`;
+        if (key in cherryByPair) return cherryByPair[key];
+      }
+      return { status: 1, stdout: '' };
     },
   };
 }
@@ -170,6 +180,120 @@ test('detectPriorPhase', async (t) => {
       assert.strictEqual(result.phase, RECOVERY_STATES.ALREADY_MERGED);
       assert.strictEqual(result.detail.localStoryRef, 'story-100');
       assert.strictEqual(result.detail.remoteEpicRef, 'origin/epic/42');
+    },
+  );
+
+  await t.test(
+    'returns already-merged via rebased-equivalents when local branch tip is not ancestor but all commits patch-equivalent on origin/epic/<id> (Story #3161)',
+    () => {
+      // Manual recovery path: operator rebased Story #3122's content
+      // directly onto `epic/3078` so the diff landed as commits with
+      // different SHAs. Story tip is not an ancestor of `origin/epic/<id>`
+      // and no `(resolves #<id>)` merge commit exists, but `git cherry`
+      // reports every Story commit as patch-equivalent to a commit
+      // already on the Epic. Expected outcome = ALREADY_MERGED via
+      // rebased-equivalents → resume from post-merge.
+      const result = detectPriorPhase({
+        cwd: CWD,
+        storyId: 100,
+        epicId: 42,
+        git: makeGit({
+          lsRemote: '',
+          localStoryExists: true,
+          // No ancestor relationship — both checks return non-zero.
+          ancestorExit: 1,
+          cherryByPair: {
+            'origin/epic/42←story-100': {
+              status: 0,
+              stdout: '- aaaa1111\n- bbbb2222\n- cccc3333\n',
+            },
+          },
+        }),
+        fs: makeFs([]),
+      });
+      assert.strictEqual(result.phase, RECOVERY_STATES.ALREADY_MERGED);
+      assert.strictEqual(result.detail.via, 'rebased-equivalents');
+      assert.strictEqual(result.detail.localStoryRef, 'story-100');
+      assert.strictEqual(result.detail.remoteEpicRef, 'origin/epic/42');
+      assert.strictEqual(result.detail.equivalents, 3);
+    },
+  );
+
+  await t.test(
+    'rebased-equivalents path also works against the remote story branch when local ref is absent',
+    () => {
+      const result = detectPriorPhase({
+        cwd: CWD,
+        storyId: 100,
+        epicId: 42,
+        git: makeGit({
+          lsRemote: 'abc123\trefs/heads/story-100\n',
+          localStoryExists: false,
+          ancestorExit: 1,
+          cherryByPair: {
+            'origin/epic/42←origin/story-100': {
+              status: 0,
+              stdout: '- aaaa1111\n',
+            },
+          },
+        }),
+        fs: makeFs([]),
+      });
+      assert.strictEqual(result.phase, RECOVERY_STATES.ALREADY_MERGED);
+      assert.strictEqual(result.detail.via, 'rebased-equivalents');
+      assert.strictEqual(result.detail.remoteStoryRef, 'origin/story-100');
+    },
+  );
+
+  await t.test(
+    'returns pushed-unmerged (not already-merged) when cherry reports any + lines',
+    () => {
+      // At least one commit on the Story branch is NOT patch-equivalent
+      // to any commit on the Epic — the branch has unintegrated work, so
+      // we must not short-circuit to RESUME_FROM_POST_MERGE.
+      const result = detectPriorPhase({
+        cwd: CWD,
+        storyId: 100,
+        epicId: 42,
+        git: makeGit({
+          lsRemote: 'abc123\trefs/heads/story-100\n',
+          localStoryExists: true,
+          ancestorExit: 1,
+          cherryByPair: {
+            'origin/epic/42←story-100': {
+              status: 0,
+              stdout: '- aaaa1111\n+ dddd4444\n',
+            },
+            'origin/epic/42←origin/story-100': {
+              status: 0,
+              stdout: '- aaaa1111\n+ dddd4444\n',
+            },
+          },
+        }),
+        fs: makeFs([]),
+      });
+      assert.strictEqual(result.phase, RECOVERY_STATES.PUSHED_UNMERGED);
+    },
+  );
+
+  await t.test(
+    'rebased-equivalents path is skipped when cherry exits non-zero (e.g. missing ref)',
+    () => {
+      const result = detectPriorPhase({
+        cwd: CWD,
+        storyId: 100,
+        epicId: 42,
+        git: makeGit({
+          lsRemote: 'abc123\trefs/heads/story-100\n',
+          localStoryExists: true,
+          ancestorExit: 1,
+          // cherry adapter returns exit 1 with empty stdout by default
+          // — represents `git cherry` failing because origin/epic/42 is
+          // unreachable. Detection must fall through to PUSHED_UNMERGED.
+        }),
+        fs: makeFs([]),
+      });
+      assert.strictEqual(result.phase, RECOVERY_STATES.PUSHED_UNMERGED);
     },
   );
 

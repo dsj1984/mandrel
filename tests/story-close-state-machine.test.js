@@ -108,7 +108,13 @@ test('assertMergeReachable falls back to merge-commit grep when ancestry fails',
   assert.equal(result.reason, 'merge-commit-reachable');
 });
 
-test('assertMergeReachable throws when neither ancestry nor merge-commit grep matches', () => {
+test('assertMergeReachable falls back to rebased-equivalents when ancestry and merge-commit grep miss but cherry shows all patch-equivalent (Story #3161)', () => {
+  // Recovery scenario from Story #3122: operator manually rebased the
+  // Story's content onto `epic/<id>` so the diff is present as commits
+  // with **different SHAs** and no `(resolves #<id>)` merge commit. The
+  // ancestor check returns 1 (story tip's own commits are not ancestors)
+  // and the grep returns empty, but `git cherry` reports every commit on
+  // the Story branch as patch-equivalent to a commit already on the Epic.
   const { gitSpawn } = makeGitSpawn({
     'rev-parse story-100': {
       status: 0,
@@ -123,6 +129,45 @@ test('assertMergeReachable throws when neither ancestry nor merge-commit grep ma
     'log epic/99 --merges -n 1 --pretty=%H --grep=resolves #100': {
       status: 0,
       stdout: '',
+      stderr: '',
+    },
+    'cherry epic/99 story-100': {
+      status: 0,
+      stdout: '- aaaa1111\n- bbbb2222\n- cccc3333\n',
+      stderr: '',
+    },
+  });
+  const result = assertMergeReachable({
+    cwd: '/repo',
+    storyBranch: 'story-100',
+    epicBranch: 'epic/99',
+    storyId: 100,
+    gitSpawn,
+  });
+  assert.equal(result.reachable, true);
+  assert.equal(result.reason, 'rebased-equivalents');
+});
+
+test('assertMergeReachable throws when ancestry, merge-commit grep, and cherry all miss', () => {
+  const { gitSpawn } = makeGitSpawn({
+    'rev-parse story-100': {
+      status: 0,
+      stdout: `${REACHABLE_HEAD}\n`,
+      stderr: '',
+    },
+    [`merge-base --is-ancestor ${REACHABLE_HEAD} epic/99`]: {
+      status: 1,
+      stdout: '',
+      stderr: '',
+    },
+    'log epic/99 --merges -n 1 --pretty=%H --grep=resolves #100': {
+      status: 0,
+      stdout: '',
+      stderr: '',
+    },
+    'cherry epic/99 story-100': {
+      status: 0,
+      stdout: '+ dddd4444\n',
       stderr: '',
     },
   });
@@ -154,6 +199,11 @@ test('assertMergeReachable error message preserves agent::closing recovery contr
     'log epic/99 --merges -n 1 --pretty=%H --grep=resolves #100': {
       status: 0,
       stdout: '',
+      stderr: '',
+    },
+    'cherry epic/99 story-100': {
+      status: 0,
+      stdout: '+ dddd4444\n',
       stderr: '',
     },
   });
