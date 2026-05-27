@@ -45,3 +45,26 @@ test('pre-push — optional audit remains opt-in via PREPUSH_AUDIT', () => {
   assert.match(hook, /PREPUSH_AUDIT/);
   assert.match(hook, /npm audit --audit-level=high/);
 });
+
+// Story #3162 — STORY_CLOSE_RECOVERY env var gates a scoped coverage skip
+// for operator recovery pushes targeting epic/<id>. The hook delegates the
+// decision to check-prepush-recovery.js so the gating logic stays testable
+// in isolation; here we assert the wiring is present.
+test('pre-push — STORY_CLOSE_RECOVERY scoped skip wired to coverage gate', () => {
+  const hook = readPrePush();
+  assert.match(hook, /STORY_CLOSE_RECOVERY/);
+  assert.match(hook, /check-prepush-recovery\.js/);
+  // The skip branch must wrap BOTH coverage-capture and crap:check so a
+  // pre-existing CRAP regression on epic/<id> also clears (the CRAP gate
+  // reads the freshly-captured coverage; gating only the capture would
+  // leave CRAP failing on stale numbers).
+  const helperIdx = hook.indexOf('check-prepush-recovery.js');
+  const captureIdx = hook.indexOf(
+    'coverage-capture.js --skip-when-no-crap-files',
+  );
+  const crapIdx = hook.indexOf('npm run crap:check');
+  assert.ok(
+    helperIdx > -1 && captureIdx > helperIdx && crapIdx > captureIdx,
+    'recovery helper must precede both coverage-capture and crap:check so both are gated',
+  );
+});
