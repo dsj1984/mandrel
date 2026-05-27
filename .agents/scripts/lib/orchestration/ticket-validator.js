@@ -392,7 +392,13 @@ function assertEachTypePresent({ features, stories, tasks }) {
     throw new Error(
       'Cross-Validation Failed: Backlog must contain at least one Story.',
     );
-  if (tasks.length === 0)
+  // 3-tier (Epic #3078): a backlog where every Story carries inline
+  // acceptance + verify is a valid Storyless decomposition with zero
+  // Tasks. Only require ≥1 Task when at least one Story is in the
+  // legacy 4-tier shape (no inline acceptance/verify) — that Story
+  // must still decompose into Tasks, enforced downstream by
+  // `assertEveryStoryHasTasks`.
+  if (tasks.length === 0 && !stories.every(hasInlineAcceptanceAndVerify))
     throw new Error(
       'Cross-Validation Failed: Backlog must contain at least one Task.',
     );
@@ -435,9 +441,43 @@ function countTasksByStory(tasks) {
   return taskCountByStory;
 }
 
+/**
+ * Return true when a Story object carries inline acceptance + verify
+ * arrays — the 3-tier shape introduced by Epic #3078 where the Story
+ * collapses to a single implementation phase and acceptance / verify
+ * live on the Story body instead of in child Task tickets.
+ *
+ * Both arrays must be present, be actual arrays, and contain at least
+ * one entry. Either alone is insufficient — a Story with only
+ * `acceptance[]` (no `verify[]`) cannot be implemented without a
+ * verification handle, and a Story with only `verify[]` (no
+ * `acceptance[]`) carries no observable criterion. Requiring both keeps
+ * the Storyless escape hatch tight: the validator only relaxes the Task
+ * cardinality requirement for Stories that are demonstrably 3-tier.
+ */
+function hasInlineAcceptanceAndVerify(story) {
+  if (story === null || typeof story !== 'object') return false;
+  const { acceptance, verify } = story;
+  return (
+    Array.isArray(acceptance) &&
+    acceptance.length > 0 &&
+    Array.isArray(verify) &&
+    verify.length > 0
+  );
+}
+
 function assertEveryStoryHasTasks({ stories, taskCountByStory }) {
+  // 3-tier (Epic #3078): a Story that carries inline acceptance + verify
+  // is the implementation unit itself — no child Tasks are emitted by the
+  // decomposer. Skip those Stories from the cardinality check so the
+  // legacy 4-tier failure mode ("Story has no child Tasks") does not
+  // fire on a well-formed Storyless ticket. The 4-tier shape (Stories
+  // without inline acceptance/verify) continues to require ≥1 child
+  // Task — that branch is unchanged.
   const emptyStories = stories.filter(
-    (s) => (taskCountByStory.get(s.slug) ?? 0) === 0,
+    (s) =>
+      (taskCountByStory.get(s.slug) ?? 0) === 0 &&
+      !hasInlineAcceptanceAndVerify(s),
   );
   if (emptyStories.length === 0) return;
   const list = emptyStories.map((s) => `"${s.title}" (${s.slug})`).join(', ');
@@ -664,4 +704,5 @@ export const _internal = {
   processCrossStoryTaskDeps,
   assertAcyclic,
   attachFindingsAndErrors,
+  hasInlineAcceptanceAndVerify,
 };
