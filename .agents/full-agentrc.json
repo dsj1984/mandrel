@@ -59,7 +59,6 @@
     }
   },
   "planning": {
-    "hierarchy": "4-tier",
     "maxTickets": 60,
     "context": {
       "maxBytes": 50000,

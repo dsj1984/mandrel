@@ -267,13 +267,13 @@ function buildStoryWaves(waves, epicId) {
 /**
  * Build the full Dispatch Manifest object.
  *
- * Branches on input shape:
- * - **3-tier** (no `type::task` tickets among `allTickets`, at least one
- *   `type::story`): emits `waves[].stories[]` and a Story-only
- *   `storyManifest`. `groupTasksByStory` is **not** invoked.
- * - **4-tier** (the default): emits `waves[].tasks[]` and the
- *   Task-grouped `storyManifest` — byte-equivalent to the pre-3-tier
- *   manifest format.
+ * Task #3154 (Epic #3078) deleted the `planning.hierarchy` flag; shape
+ * selection now relies entirely on structural auto-detection
+ * (`isThreeTierShape`): a Story-only ticket graph emits the 3-tier shape
+ * (`waves[].stories[]` + Story-only `storyManifest`), and a Task-bearing
+ * graph emits the 4-tier shape (`waves[].tasks[]` + Task-grouped
+ * `storyManifest`). The 4-tier code path is retained for in-flight Epics
+ * that still carry Task tickets; Task #3157 owns its eventual deletion.
  *
  * @param {object} params
  * @returns {object}
@@ -287,12 +287,9 @@ export function buildManifest({
   dispatched,
   dryRun,
   agentTelemetry = null,
-  hierarchy,
 }) {
   const allTicketsById = new Map((allTickets ?? []).map((t) => [t.id, t]));
-  const threeTier =
-    hierarchy === '3-tier' ||
-    (hierarchy !== '4-tier' && isThreeTierShape(tasks, allTickets ?? []));
+  const threeTier = isThreeTierShape(tasks, allTickets ?? []);
 
   if (threeTier) {
     const stories = (allTickets ?? []).filter((t) =>
@@ -327,8 +324,10 @@ export function buildManifest({
     };
   }
 
-  const totalTasks = tasks.length;
-  const doneTasks = tasks.filter((t) => t.status === AGENT_DONE_LABEL).length;
+  const totalTasks = (tasks ?? []).length;
+  const doneTasks = (tasks ?? []).filter(
+    (t) => t.status === AGENT_DONE_LABEL,
+  ).length;
   const progress =
     totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
 
@@ -360,7 +359,7 @@ export function buildManifest({
         dependsOn: t.dependsOn,
       })),
     })),
-    storyManifest: buildStoryManifest(tasks, allTickets ?? [], epicId),
+    storyManifest: buildStoryManifest(tasks ?? [], allTickets ?? [], epicId),
     dispatched,
     agentTelemetry,
   };

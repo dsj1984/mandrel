@@ -245,18 +245,6 @@ const CODEBASE_SNAPSHOT_SCHEMA = {
 const PLANNING_SCHEMA = {
   type: 'object',
   properties: {
-    // Epic #3078 — opt-in ticket-hierarchy mode. Default '4-tier' preserves
-    // existing Epic → Feature → Story → Task behaviour and the per-Task
-    // lifecycle (task-commit.js, agent::* transitions). '3-tier' collapses
-    // Task into Story, inlines acceptance/verify on the Story body, and
-    // branches /epic-plan + /story-deliver accordingly. After Epic #3078's
-    // destructive Feature 8 lands, the flag is removed and 3-tier becomes
-    // the only published shape.
-    hierarchy: {
-      type: 'string',
-      enum: ['4-tier', '3-tier'],
-      default: '4-tier',
-    },
     riskHeuristics: LIST_OR_EXTENDER_OF_STRINGS,
     maxTickets: { type: 'integer', minimum: 1 },
     context: PLANNING_CONTEXT_SCHEMA,

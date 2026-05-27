@@ -166,36 +166,32 @@ test('runStoryDeliverPrepare: failed install bubbles up as an Error', async () =
   );
 });
 
-test('runStoryDeliverPrepare: falls back to provider.getSubTickets when legacy story-init payload omits tasks', async () => {
-  // Pre-5.31.2 story-init comments did not embed `tasks[]`. The prepare CLI
-  // must hydrate the task list from the provider so the initial
-  // story-run-progress snapshot is non-empty.
+test('runStoryDeliverPrepare: legacy story-init payload with no tasks emits the phases[] snapshot (Task #3154)', async () => {
+  // Under 3-tier-only (Task #3154), a story-init payload that omits
+  // `tasks[]` is treated as the inline-acceptance shape — the prepare CLI
+  // seeds the `phases[]` snapshot instead of probing the provider for a
+  // legacy Task fallback that no longer exists.
   const provider = makeProvider([
     makeStoryInitComment({
       storyId: 60,
       workCwd: '/tmp/.worktrees/story-60',
       dependenciesInstalled: 'true',
-      tasks: undefined, // legacy payload — no tasks field
+      tasks: undefined,
     }),
   ]);
-  // Stub getSubTickets — the fallback path uses fetchChildTasks under the hood.
-  provider.getSubTickets = async () => [
-    { number: 91, title: 'legacy-A', labels: ['type::task'] },
-    { number: 92, title: 'legacy-B', labels: ['type::task'] },
-    { number: 93, title: 'unrelated', labels: ['type::feature'] },
-  ];
 
   const result = await runStoryDeliverPrepare({
     storyId: 60,
     provider,
     runInstall: () => ({ status: 0 }),
   });
-  assert.equal(result.snapshot.tasks.length, 2);
+
+  assert.equal(Array.isArray(result.snapshot.phases), true);
   assert.deepEqual(
-    result.snapshot.tasks.map((t) => t.id),
-    [91, 92],
+    result.snapshot.phases.map((p) => p.name),
+    ['init', 'implement', 'validate', 'close'],
   );
-  assert.ok(result.snapshot.tasks.every((t) => t.state === 'pending'));
+  assert.equal('tasks' in result.snapshot, false);
 });
 
 test('runStoryDeliverPrepare: prefers payload.tasks when present (no fallback fetch)', async () => {

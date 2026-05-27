@@ -148,8 +148,7 @@ export async function dispatch(options) {
   // manifest with `waves[].stories[]` so downstream consumers
   // (manifest renderer, /epic-deliver wave planner) see the correct
   // execution plan without dispatching any Tasks.
-  const hierarchy = ctx.config?.planning?.hierarchy;
-  if (isThreeTierDispatch(fetched.tasks, fetched.allTickets, hierarchy)) {
+  if (isThreeTierDispatch(fetched.tasks, fetched.allTickets)) {
     Logger.info(
       'Detected 3-tier hierarchy — computing Story-level execution waves.',
     );

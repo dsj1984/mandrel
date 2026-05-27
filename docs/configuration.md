@@ -96,7 +96,6 @@ top-level keys are validation errors.
 
 | Key | Required | Type | Default | Description |
 | --- | --- | --- | --- | --- |
-| `hierarchy` | No | `"4-tier"` \| `"3-tier"` | `"4-tier"` | Ticket hierarchy mode. '4-tier' (default) emits Epic → Feature → Story → Task. '3-tier' (Epic #3078, target shape) collapses Task into Story and inlines acceptance/verify on the Story body. |
 | `riskHeuristics` | No | `string[]` or `{ append?, prepend? }` | — | — |
 | `maxTickets` | No | `integer` | — | — |
 | `context` | No | `object` | — | Nested configuration block. |
