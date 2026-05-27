@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-27T15:45:40.845Z",
+  "generatedAt": "2026-05-27T16:23:56.582Z",
   "rollup": {
     "*": {
       "min": 62.385,
@@ -1113,10 +1113,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/bus.js",
       "mi": 104.328
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/emit-story-heartbeat.js",
-      "mi": 92.568
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/ledger-writer.js",
@@ -4451,10 +4447,6 @@
       "mi": 108.31
     },
     {
-      "path": "tests/schemas/signal-schemas.test.js",
-      "mi": 106.461
-    },
-    {
       "path": "tests/scripts/agents-bootstrap-github-protection.test.js",
       "mi": 103.888
     },
@@ -4625,10 +4617,6 @@
     {
       "path": "tests/scripts/story-init-install-soak.test.js",
       "mi": 104.163
-    },
-    {
-      "path": "tests/scripts/story-task-progress-heartbeat.test.js",
-      "mi": 86.28
     },
     {
       "path": "tests/scripts/sync-branch-from-base.test.js",
