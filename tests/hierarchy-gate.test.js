@@ -33,7 +33,7 @@ class GraphProvider {
 }
 
 describe('runHierarchyGate', () => {
-  it('passes when every descendant is closed and tasks carry agent::done', async () => {
+  it('passes when every descendant Feature and Story is closed', async () => {
     const provider = new GraphProvider({
       100: [
         {
@@ -51,22 +51,15 @@ describe('runHierarchyGate', () => {
           labels: ['type::story'],
         },
       ],
-      300: [
-        {
-          id: 400,
-          title: 'Task A1.1',
-          state: 'closed',
-          labels: ['type::task', 'agent::done'],
-        },
-      ],
+      300: [],
     });
     const result = await runHierarchyGate({
       epicId: 100,
       injectedProvider: provider,
     });
     assert.strictEqual(result.success, true);
-    assert.strictEqual(result.total, 3);
-    assert.strictEqual(result.checked, 3);
+    assert.strictEqual(result.total, 2);
+    assert.strictEqual(result.checked, 2);
     assert.strictEqual(result.auxiliaryDeferred, 0);
   });
 
@@ -81,30 +74,6 @@ describe('runHierarchyGate', () => {
         },
       ],
       201: [],
-    });
-    const trap = trapExit();
-    try {
-      await assert.rejects(
-        runHierarchyGate({ epicId: 100, injectedProvider: provider }),
-        /__exit:1/,
-      );
-      assert.strictEqual(trap.code(), 1);
-    } finally {
-      trap.restore();
-    }
-  });
-
-  it('fails when a Task is closed without agent::done', async () => {
-    const provider = new GraphProvider({
-      100: [
-        {
-          id: 401,
-          title: 'Task missing agent::done',
-          state: 'closed',
-          labels: ['type::task'],
-        },
-      ],
-      401: [],
     });
     const trap = trapExit();
     try {

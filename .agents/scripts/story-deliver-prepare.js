@@ -47,7 +47,7 @@ import {
 import { parseFencedJsonComment } from './lib/orchestration/structured-comment-parser.js';
 import { findStructuredComment } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
-import { fetchChildTasks } from './lib/story-lifecycle.js';
+import { fetchChildTickets } from './lib/story-lifecycle.js';
 import { notify } from './notify.js';
 
 const HELP = `Usage: node .agents/scripts/story-deliver-prepare.js \\
@@ -109,7 +109,7 @@ export function resolveInstallCommand(options = {}) {
  */
 export async function fetchTasksFallback({ provider, storyId }) {
   try {
-    const tasks = await fetchChildTasks(provider, storyId);
+    const tasks = await fetchChildTickets(provider, storyId);
     return tasks.map((t) => ({
       id: Number(t.number ?? t.id),
       title: String(t.title ?? ''),

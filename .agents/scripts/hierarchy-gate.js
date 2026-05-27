@@ -3,39 +3,35 @@
 /**
  * .agents/scripts/hierarchy-gate.js — Hierarchy Completeness Gate
  *
- * Walks the Epic's full sub-issue graph (Features → Stories → Tasks) and
- * verifies every descendant is closed. Where the wave gate asks "did the
- * sprint complete what it committed to?" (manifest view), this gate asks
- * "is anything still open under this Epic?" (live GitHub graph view).
+ * Walks the Epic's full sub-issue graph (Features → Stories) and verifies
+ * every descendant is closed. Where the wave gate asks "did the sprint
+ * complete what it committed to?" (manifest view), this gate asks "is
+ * anything still open under this Epic?" (live GitHub graph view).
  *
  * The two gates catch different problems and are intentionally distinct:
  *   - The wave gate misses descendants that exist on GitHub but were never
  *     in the manifest — context::prd / context::tech-spec tickets, mid-sprint
- *     additions, recuts that bypassed the dispatcher, or tasks closed without
- *     `agent::done`.
+ *     additions, or recuts that bypassed the dispatcher.
  *   - The hierarchy gate misses parked follow-ons that live as separate
  *     top-level Stories outside the Epic's sub-issue graph.
  *
  * Per ticket type the rule is:
  *   - Features  — must be closed.
  *   - Stories   — must be closed.
- *   - Tasks     — must be closed AND carry `agent::done`.
  *   - Auxiliary (context::prd, context::tech-spec) — ignored.
  *     These are closed by the operator after the Epic PR merges, so
  *     requiring them closed here would block every Epic.
  *
- * **3-tier (Storyless) tree shape (Story #3127).** Under the 3-tier
- * hierarchy a Story has no child Tasks — `getSubTickets(<storyId>)`
- * returns `[]`. The walk terminates at the Story; with both the
- * Feature and Story closed, the gate passes. No type-specific branch
- * is required because the rule "every descendant must be complete" is
- * already vacuously true for the empty Task layer.
+ * **3-tier hierarchy (Epic #3078).** Mandrel ships only Epic / Feature /
+ * Story tickets. `getSubTickets(<storyId>)` returns `[]`; the walk
+ * terminates at the Story. Acceptance criteria live inline on the
+ * Story body.
  *
  * Usage:
  *   node .agents/scripts/hierarchy-gate.js --epic <EPIC_ID>
  *
  * Exit codes:
- *   0 — every descendant ticket is closed (and Tasks carry agent::done).
+ *   0 — every descendant ticket is closed.
  *   1 — one or more descendants are still open.
  *   2 — configuration or provider error.
  */
@@ -44,16 +40,11 @@ import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
-import {
-  AGENT_LABELS,
-  CONTEXT_LABELS,
-  TYPE_LABELS,
-} from './lib/label-constants.js';
+import { CONTEXT_LABELS, TYPE_LABELS } from './lib/label-constants.js';
 import { createProvider } from './lib/provider-factory.js';
 
 function classify(ticket) {
   const labels = ticket.labels ?? [];
-  if (labels.includes('type::task')) return 'task';
   if (labels.includes(TYPE_LABELS.STORY)) return 'story';
   if (labels.includes(TYPE_LABELS.FEATURE)) return 'feature';
   if (
@@ -68,12 +59,6 @@ function classify(ticket) {
 function ticketIsComplete(ticket) {
   if (ticket.state !== 'closed') {
     return { ok: false, reason: 'open' };
-  }
-  if (
-    classify(ticket) === 'task' &&
-    !(ticket.labels ?? []).includes(AGENT_LABELS.DONE)
-  ) {
-    return { ok: false, reason: 'closed without agent::done' };
   }
   return { ok: true };
 }
@@ -121,7 +106,7 @@ export async function runHierarchyGate({ epicId, injectedProvider } = {}) {
     process.exit(2);
   }
 
-  const failures = { feature: [], story: [], task: [], other: [] };
+  const failures = { feature: [], story: [], other: [] };
   let auxiliaryDeferred = 0;
   for (const ticket of descendants) {
     const kind = classify(ticket);
@@ -140,10 +125,7 @@ export async function runHierarchyGate({ epicId, injectedProvider } = {}) {
   }
 
   const totalOpen =
-    failures.feature.length +
-    failures.story.length +
-    failures.task.length +
-    failures.other.length;
+    failures.feature.length + failures.story.length + failures.other.length;
 
   if (totalOpen > 0) {
     Logger.error(
@@ -152,7 +134,6 @@ export async function runHierarchyGate({ epicId, injectedProvider } = {}) {
     const sections = [
       ['feature', 'Features'],
       ['story', 'Stories'],
-      ['task', 'Tasks'],
       ['other', 'Untyped descendants'],
     ];
     for (const [key, label] of sections) {
@@ -162,10 +143,7 @@ export async function runHierarchyGate({ epicId, injectedProvider } = {}) {
         Logger.error(`    - #${item.id} (${item.reason}) — ${item.title}`);
       }
     }
-    Logger.error(
-      '\nClose the open descendants — Tasks must carry `agent::done` — ' +
-        'and re-run `/epic-deliver`.',
-    );
+    Logger.error('\nClose the open descendants and re-run `/epic-deliver`.');
     process.exit(1);
   }
 

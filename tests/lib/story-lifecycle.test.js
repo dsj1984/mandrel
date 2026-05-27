@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import { STATE_LABELS } from '../../.agents/scripts/lib/orchestration/ticketing.js';
 import {
   batchTransitionTickets,
-  fetchChildTasks,
+  fetchChildTickets,
   resolveStoryHierarchy,
 } from '../../.agents/scripts/lib/story-lifecycle.js';
 
@@ -44,24 +44,30 @@ describe('story-lifecycle', () => {
     });
   });
 
-  describe('fetchChildTasks', () => {
-    it('filters getSubTickets to type::task only', async () => {
+  describe('fetchChildTickets', () => {
+    it('returns the provider getSubTickets payload unchanged', async () => {
       const provider = {
         getSubTickets: async (id) => {
           assert.equal(id, 100);
           return [
-            { id: 1, labels: ['type::task'] },
-            { id: 2, labels: ['type::story'] },
-            { id: 3, labels: ['type::task', 'agent::done'] },
-            { id: 4, labels: ['type::feature'] },
+            { id: 1, labels: ['type::story'] },
+            { id: 2, labels: ['type::feature'] },
           ];
         },
       };
-      const tasks = await fetchChildTasks(provider, 100);
+      const tickets = await fetchChildTickets(provider, 100);
       assert.deepEqual(
-        tasks.map((t) => t.id),
-        [1, 3],
+        tickets.map((t) => t.id),
+        [1, 2],
       );
+    });
+
+    it('returns [] for 3-tier Stories with no children', async () => {
+      const provider = {
+        getSubTickets: async () => [],
+      };
+      const tickets = await fetchChildTickets(provider, 100);
+      assert.deepEqual(tickets, []);
     });
   });
 
