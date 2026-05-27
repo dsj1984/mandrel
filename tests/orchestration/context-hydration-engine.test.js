@@ -321,7 +321,12 @@ describe('hydrateContext — 3-tier Story body hydration', () => {
 
   it('schema-identical shape: same envelope keys + section field shape between modes', async () => {
     const provider = new HierarchyProvider({
-      1: { id: 1, title: 'Epic', body: 'E', updatedAt: '2026-01-01T00:00:00.000Z' },
+      1: {
+        id: 1,
+        title: 'Epic',
+        body: 'E',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
     });
     const storyEnv = await hydrateContext(
       {
@@ -348,15 +353,10 @@ describe('hydrateContext — 3-tier Story body hydration', () => {
       1,
     );
     // Top-level keys identical
-    assert.deepEqual(
-      Object.keys(storyEnv).sort(),
-      Object.keys(taskEnv).sort(),
-    );
+    assert.deepEqual(Object.keys(storyEnv).sort(), Object.keys(taskEnv).sort());
     // Section field shape identical (name/priority/content/source on every entry)
     const fieldShape = (s) =>
-      ['name', 'priority', 'content', 'estimatedTokens'].every(
-        (k) => k in s,
-      );
+      ['name', 'priority', 'content', 'estimatedTokens'].every((k) => k in s);
     assert.ok(storyEnv.sections.every(fieldShape));
     assert.ok(taskEnv.sections.every(fieldShape));
   });
