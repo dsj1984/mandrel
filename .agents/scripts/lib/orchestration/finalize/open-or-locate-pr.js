@@ -31,6 +31,8 @@
 
 import { spawnSync } from 'node:child_process';
 
+import { sanitizeSkipCiMarkers } from './sanitize-skip-ci.js';
+
 /**
  * Default `gh` invocation — matches the `shell: false` contract the
  * other listener helpers (`ghPrListHead`, `ghPrViewAutoMerge`) use so a
@@ -173,8 +175,16 @@ export async function openOrLocatePr({
   // 2. Create — open the PR.
   const finalTitle =
     typeof title === 'string' && title.length > 0 ? title : `Epic #${epicId}`;
-  const finalBody =
+  // Story #3165: strip any `[skip ci]` / `[ci skip]` / `[no ci]` /
+  // `[skip actions]` / `[actions skip]` markers from the body before
+  // handing it to `gh pr create`. Default body (`Closes #<epicId>`)
+  // never contains them, but a caller-supplied body could carry the
+  // markers in from upstream tooling — and any text that survives
+  // into the squash commit body suppresses CI + release-please on
+  // `main`.
+  const rawBody =
     typeof body === 'string' && body.length > 0 ? body : `Closes #${epicId}`;
+  const finalBody = sanitizeSkipCiMarkers(rawBody);
   const create = ghSpawn({
     args: [
       'pr',
