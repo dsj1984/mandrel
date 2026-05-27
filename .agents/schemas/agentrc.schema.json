@@ -181,6 +181,12 @@
     "planning": {
       "type": "object",
       "properties": {
+        "hierarchy": {
+          "type": "string",
+          "enum": ["4-tier", "3-tier"],
+          "default": "4-tier",
+          "description": "Ticket hierarchy mode. '4-tier' (default) emits Epic → Feature → Story → Task. '3-tier' (Epic #3078, target shape) collapses Task into Story and inlines acceptance/verify on the Story body."
+        },
         "riskHeuristics": { "$ref": "#/$defs/listOrExtenderOfStrings" },
         "maxTickets": { "type": "integer", "minimum": 1 },
         "context": { "$ref": "#/$defs/planningContext" },
