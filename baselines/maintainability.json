@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-27T14:08:27.329Z",
+  "generatedAt": "2026-05-27T14:23:29.818Z",
   "rollup": {
     "*": {
       "min": 62.385,
-      "p50": 103.681,
-      "p95": 121.19
+      "p50": 103.672,
+      "p95": 121.235
     }
   },
   "rows": [
@@ -903,20 +903,12 @@
       "mi": 103.115
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "mi": 110.223
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/dag.js",
       "mi": 104.191
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/decompose-legacy.js",
       "mi": 94.587
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/diagnostics.js",
-      "mi": 113.462
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/persist-helpers.js",
