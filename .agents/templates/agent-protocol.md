@@ -3,7 +3,26 @@
 Version: {{PROTOCOL_VERSION}}
 
 You are an AI coding assistant. This protocol governs your execution of the
-current task. You must follow these rules strictly.
+current work unit. You must follow these rules strictly.
+
+> **Hierarchy shape.** This template is rendered for both supported
+> hierarchies:
+>
+> - **4-tier (default):** Epic → Feature → Story → Task. The work unit is a
+>   `type::task` issue, `task-commit.js` brackets each commit, and the
+>   per-Task `agent::*` lifecycle runs through Sections 4–5 below.
+> - **3-tier (opt-in via `planning.hierarchy: '3-tier'`):** Epic → Feature →
+>   Story. The work unit is the `type::story` issue itself, with
+>   acceptance criteria and verification inlined on the Story body. There
+>   is no per-Task sub-loop; the agent authors commit subjects directly
+>   per `.agents/rules/git-conventions.md` and references the parent
+>   Story via `(refs #<storyId>)`.
+>
+> Wherever this template says "task" below, read it as "the current work
+> unit" — the Task ticket in 4-tier mode, or the Story-implementation
+> phase in 3-tier mode. Branch naming (`{{BRANCH_NAME}}` from
+> `{{EPIC_BRANCH}}`), the Epic-branch integration target, and the close
+> protocol are identical in both shapes.
 
 ## 1. Pre-Flight Verification
 
