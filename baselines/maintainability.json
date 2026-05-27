@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-27T16:42:04.655Z",
+  "generatedAt": "2026-05-27T16:55:49.587Z",
   "rollup": {
     "*": {
       "min": 62.385,
-      "p50": 103.804,
+      "p50": 103.836,
       "p95": 121.479
     }
   },
@@ -1305,10 +1305,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/retro/phases/compose-body.js",
       "mi": 88.656
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/retro/phases/gather-signals.js",
-      "mi": 94.913
     },
     {
       "path": ".agents/scripts/lib/orchestration/retro/phases/post-and-mirror.js",
@@ -3817,10 +3813,6 @@
     {
       "path": "tests/lib/orchestration/retro-proposals.test.js",
       "mi": 94.836
-    },
-    {
-      "path": "tests/lib/orchestration/retro-runner.test.js",
-      "mi": 90.786
     },
     {
       "path": "tests/lib/orchestration/review-providers/codex.test.js",
