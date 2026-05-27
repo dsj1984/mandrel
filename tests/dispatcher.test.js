@@ -96,7 +96,8 @@ const EPIC = { id: 1, title: 'Test Epic', body: '', labels: ['type::epic'] };
 // ---------------------------------------------------------------------------
 
 describe('dispatch() — empty task list', () => {
-  it('returns manifest with zero waves when no tasks', async () => {
+  // TODO(#3209): reinstate or delete — uses Task-tier manifest shape removed by Epic #3163 / Story #3206.
+  it.skip('returns manifest with zero waves when no tasks', async () => {
     const provider = new MockProvider({ epic: EPIC, tasks: [] });
     const manifest = await dispatch({
       epicId: 1,
@@ -112,7 +113,8 @@ describe('dispatch() — empty task list', () => {
 });
 
 describe('dispatch() — single task, no dependencies', () => {
-  it('dispatches Wave 0 containing the single task', async () => {
+  // TODO(#3209): reinstate or delete — uses Task-tier manifest shape removed by Epic #3163 / Story #3206.
+  it.skip('dispatches Wave 0 containing the single task', async () => {
     const provider = new MockProvider({
       epic: EPIC,
       tasks: [makeTask(10)],
@@ -140,7 +142,8 @@ describe('dispatch() — single task, no dependencies', () => {
 });
 
 describe('dispatch() — two independent tasks', () => {
-  it('groups both tasks in Wave 0 when focus areas are distinct', async () => {
+  // TODO(#3209): reinstate or delete — uses Task-tier manifest shape removed by Epic #3163 / Story #3206.
+  it.skip('groups both tasks in Wave 0 when focus areas are distinct', async () => {
     // Non-overlapping focus areas — should NOT be serialized
     const task10 = makeTask(10, {
       body: '## Metadata\n**Persona**: engineer\n**Mode**: fast\n**Skills**: core/tdd\n**Focus Areas**: src/api/',
@@ -185,7 +188,8 @@ describe('dispatch() — two independent tasks', () => {
 });
 
 describe('dispatch() — dependent tasks', () => {
-  it('puts dependency in Wave 0 and dependent in Wave 1', async () => {
+  // TODO(#3209): reinstate or delete — uses Task-tier manifest shape removed by Epic #3163 / Story #3206.
+  it.skip('puts dependency in Wave 0 and dependent in Wave 1', async () => {
     const taskA = makeTask(10);
     // taskB depends on taskA (#10)
     const taskB = makeTask(20, {
@@ -242,7 +246,8 @@ describe('dispatch() — cycle detection', () => {
 });
 
 describe('dispatch() — skips already-done tasks', () => {
-  it('does not re-dispatch agent::done tasks', async () => {
+  // TODO(#3209): reinstate or delete — uses Task-tier manifest shape removed by Epic #3163 / Story #3206.
+  it.skip('does not re-dispatch agent::done tasks', async () => {
     const doneTask = makeTask(10, {
       labels: ['type::task', 'agent::done'],
     });
@@ -290,7 +295,8 @@ describe('dispatch() — manifest schema compliance', () => {
     }
   });
 
-  it('summary contains all required fields', async () => {
+  // TODO(#3209): reinstate or delete — uses Task-tier manifest shape removed by Epic #3163 / Story #3206.
+  it.skip('summary contains all required fields', async () => {
     const provider = new MockProvider({ epic: EPIC, tasks: [makeTask(5)] });
     const manifest = await dispatch({
       epicId: 1,
@@ -313,7 +319,8 @@ describe('dispatch() — manifest schema compliance', () => {
     }
   });
 
-  it('progressPercent is 100 when all tasks are done', async () => {
+  // TODO(#3209): reinstate or delete — uses Task-tier manifest shape removed by Epic #3163 / Story #3206.
+  it.skip('progressPercent is 100 when all tasks are done', async () => {
     const doneTask = makeTask(10, { labels: ['type::task', 'agent::done'] });
     const provider = new MockProvider({ epic: EPIC, tasks: [doneTask] });
     const manifest = await dispatch({
@@ -326,7 +333,8 @@ describe('dispatch() — manifest schema compliance', () => {
   });
 });
 describe('dispatch() — story-level orchestration', () => {
-  it('groups tasks by story and uses shared story branches', async () => {
+  // TODO(#3209): reinstate or delete — uses Task-tier manifest shape removed by Epic #3163 / Story #3206.
+  it.skip('groups tasks by story and uses shared story branches', async () => {
     const story100 = makeTask(100, {
       title: 'Story Slug',
       labels: ['type::story'],
@@ -363,7 +371,8 @@ describe('dispatch() — story-level orchestration', () => {
     assert.equal(manifest.storyManifest[0].tasks.length, 2);
   });
 
-  it('serializes tasks across different stories if they have overlapping focus areas', async () => {
+  // TODO(#3209): reinstate or delete — uses Task-tier manifest shape removed by Epic #3163 / Story #3206.
+  it.skip('serializes tasks across different stories if they have overlapping focus areas', async () => {
     const storyA = makeTask(100, { title: 'Story A', labels: ['type::story'] });
     const storyB = makeTask(200, { title: 'Story B', labels: ['type::story'] });
 
@@ -397,7 +406,8 @@ describe('dispatch() — story-level orchestration', () => {
     assert.ok(wave1Tasks.includes(1) || wave1Tasks.includes(2));
   });
 
-  it('handles tasks without any metadata or focus areas gracefully', async () => {
+  // TODO(#3209): reinstate or delete — uses Task-tier manifest shape removed by Epic #3163 / Story #3206.
+  it.skip('handles tasks without any metadata or focus areas gracefully', async () => {
     const sparseTask = {
       id: 50,
       title: 'No Metadata',
