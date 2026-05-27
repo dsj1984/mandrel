@@ -3,7 +3,16 @@
  *
  * Transitions every child Task ticket to `agent::done`, then the Story
  * itself, then runs cascade completion so any parent Feature/Epic that
- * is now fully resolved closes too. Notifications are intentionally
+ * is now fully resolved closes too.
+ *
+ * **3-tier (Storyless) closure (Story #3127).** Under the 3-tier
+ * hierarchy a Story has no child Tasks — `tasks` arrives as an empty
+ * array. `batchTransitionTickets` handles the empty input cleanly
+ * (the loop trivially completes), the Story is transitioned alone,
+ * and cascade completion walks upward to Feature/Epic exactly as in
+ * the 4-tier path. No branch on hierarchy mode is required here.
+ *
+ * Notifications are intentionally
  * NOT routed through the per-ticket transitions here — `notificationPhase`
  * fires a single rolled-up story-complete message immediately after this
  * phase, so threading `notify` through would double-emit events on every
