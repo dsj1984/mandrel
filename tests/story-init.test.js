@@ -274,6 +274,58 @@ test('renderStoryInitCommentBody coerces missing tasks to []', () => {
   assert.deepStrictEqual(payload.tasks, []);
 });
 
+test('runStoryInit dry-run accepts a 3-tier Story with inline acceptance and zero child Tasks', async () => {
+  // AC1 + AC3 for Story #3121: a Story authored in the 3-tier shape
+  // (inline `## Acceptance` body, no child Task tickets) must flow through
+  // the pipeline cleanly and resolve to an empty `tasks[]`, without
+  // raising an error from task-graph-builder.
+  const story = {
+    id: 712,
+    title: 'Inline-acceptance Story',
+    labels: ['type::story'],
+    body: [
+      '## Goal',
+      'Do the thing.',
+      '',
+      '## Acceptance',
+      '- thing is done',
+      '- second criterion',
+      '',
+      '## Verify',
+      '- node --test',
+      '',
+      '---',
+      'parent: #500',
+      'Epic: #400',
+    ].join('\n'),
+    state: 'open',
+  };
+  const epic = {
+    id: 400,
+    labels: ['type::epic'],
+    linkedIssues: { prd: 401, techSpec: 402 },
+  };
+  const provider = makePipelineProvider({ story, epic, subTickets: [] });
+
+  const out = await runStoryInit({
+    storyId: 712,
+    dryRun: true,
+    injectedProvider: provider,
+    injectedConfig: baseConfig(),
+  });
+
+  assert.strictEqual(out.success, true);
+  assert.strictEqual(out.result.storyId, 712);
+  assert.strictEqual(out.result.epicId, 400);
+  assert.strictEqual(out.result.storyBranch, 'story-712');
+  // No child Tasks — the pipeline returns an empty list cleanly.
+  assert.deepStrictEqual(out.result.tasks, []);
+  // Pipeline still resolved hierarchy correctly.
+  assert.strictEqual(out.result.context.featureId, 500);
+  // The task-graph stage was invoked exactly once (no retry).
+  assert.deepStrictEqual(provider.calls.getSubTickets, [712]);
+});
+
 test('runStoryInit rejects an issue that is not a type::story', async () => {
   const story = {
     id: 42,

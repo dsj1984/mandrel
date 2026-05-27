@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-27T14:23:29.818Z",
+  "generatedAt": "2026-05-27T14:25:51.247Z",
   "rollup": {
     "*": {
       "min": 62.385,
@@ -1779,10 +1779,6 @@
       "mi": 114.029
     },
     {
-      "path": ".agents/scripts/lib/story-init/task-graph-builder.js",
-      "mi": 117.004
-    },
-    {
       "path": ".agents/scripts/lib/story-init/transition-summary.js",
       "mi": 110.587
     },
@@ -2109,10 +2105,6 @@
     {
       "path": ".agents/scripts/story-deliver-prepare.js",
       "mi": 93.255
-    },
-    {
-      "path": ".agents/scripts/story-init.js",
-      "mi": 83.675
     },
     {
       "path": ".agents/scripts/story-task-progress.js",
@@ -4183,10 +4175,6 @@
       "mi": 102.415
     },
     {
-      "path": "tests/lib/story-init/task-graph-builder.test.js",
-      "mi": 114.074
-    },
-    {
       "path": "tests/lib/story-init/transition-summary.test.js",
       "mi": 106.368
     },
@@ -4853,10 +4841,6 @@
     {
       "path": "tests/story-deliver/task-commit.test.js",
       "mi": 107.92
-    },
-    {
-      "path": "tests/story-init.test.js",
-      "mi": 89.403
     },
     {
       "path": "tests/story-off-branch-e2e.test.js",

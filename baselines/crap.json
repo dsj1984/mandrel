@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-27T14:23:31.132Z",
+  "generatedAt": "2026-05-27T14:25:52.692Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -11506,18 +11506,6 @@
       "method": "transitionTaskStates",
       "startLine": 60,
       "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/story-init/task-graph-builder.js",
-      "method": "sortTasksByDependencies",
-      "startLine": 15,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/story-init/task-graph-builder.js",
-      "method": "buildTaskGraph",
-      "startLine": 45,
-      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/story-init/transition-summary.js",
