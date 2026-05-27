@@ -137,7 +137,7 @@ Run a single Story-implementation phase against the inline `acceptance[]`
 1. Flip the snapshot to the `implementing` phase:
 
    ```bash
-   node .agents/scripts/story-task-progress.js \
+   node .agents/scripts/story-phase.js \
      --story <storyId> --phase implementing
    ```
 
@@ -164,7 +164,7 @@ Run a single Story-implementation phase against the inline `acceptance[]`
    proceed to Step 3:
 
    ```bash
-   node .agents/scripts/story-task-progress.js \
+   node .agents/scripts/story-phase.js \
      --story <storyId> --phase closing
    ```
 
@@ -172,7 +172,7 @@ Run a single Story-implementation phase against the inline `acceptance[]`
    `agent::blocked`, post a `friction` comment, and exit non-zero:
 
    ```bash
-   node .agents/scripts/story-task-progress.js \
+   node .agents/scripts/story-phase.js \
      --story <storyId> --phase blocked \
      --blocker-comment-id <id>
    ```
@@ -182,7 +182,7 @@ partially-implemented Story picks up from whatever commits are already
 on `story-<storyId>`; the agent inspects `git log` to decide what work
 remains.
 
-After each `story-task-progress.js` call, **relay the envelope's
+After each `story-phase.js` call, **relay the envelope's
 `renderedBody` to chat** as the Story's progress update. Skip chat
 relay only when running in a non-interactive sub-agent context where
 the parent will aggregate.
@@ -210,7 +210,7 @@ against the main repo (branches checked out in a worktree cannot be
 deleted from themselves):
 
 ```bash
-node .agents/scripts/story-task-progress.js \
+node .agents/scripts/story-phase.js \
   --story <storyId> --phase closing
 
 node <main-repo>/.agents/scripts/story-close.js --story <storyId> --cwd <main-repo>
@@ -229,7 +229,7 @@ with `ticketsClosed[]`, `cascadedTo[]`, and reap status.
 After close, upsert a terminal snapshot:
 
 ```bash
-node .agents/scripts/story-task-progress.js \
+node .agents/scripts/story-phase.js \
   --story <storyId> --phase done
 ```
 
@@ -270,7 +270,7 @@ all Tasks are closed and `branchDeleted: true`, regardless of whether
 `'stale-registry-entry'`.
 
 `renderedBody` is the **most recent** `renderedBody` returned by
-`story-task-progress.js` (typically the `phase: 'done'` snapshot at close,
+`story-phase.js` (typically the `phase: 'done'` snapshot at close,
 or the `phase: 'blocked'` snapshot on a blocker). The parent
 `/epic-deliver` may inline a digest of this in its wave-level Notable
 section. When run interactively (no parent), omit it — the chat already

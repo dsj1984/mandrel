@@ -249,7 +249,8 @@ instruct the child to invoke `/story-deliver <storyId>`, (3) state the
 per-Task chat relay and include its **terminal** `renderedBody` in the
 JSON return, and (6) include the literal directive
 **Heartbeat or block.** — the child MUST emit a `story.heartbeat` lifecycle event at
-least once per Task implementation cycle (or whenever it stalls on a
+least once per Story-level phase transition via
+`node .agents/scripts/story-phase.js` (or whenever it stalls on a
 long-running step), and if it cannot make progress it MUST transition
 to `agent::blocked` rather than fall silent. The pairing of
 `story.heartbeat` and `agent::blocked` is what lets the §2e Idle
@@ -337,7 +338,7 @@ The `--check-idle <minutes>` mode scans the per-Epic lifecycle ledger
 canonical in-flight list — see § 2a's `nextAction['in-flight']`), and
 compares each in-flight Story's most recent ledger event (any
 `story.*` event, notably the `story.heartbeat` records emitted by
-`story-task-progress.js` after each Task close) against the
+`story-phase.js` at each Story-level phase transition) against the
 threshold. The CLI emits one envelope on stdout and exits non-zero
 when at least one in-flight Story has been silent for ≥ the
 threshold:
