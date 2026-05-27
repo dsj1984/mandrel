@@ -37,13 +37,29 @@ export function resolveStoryHierarchy(body) {
 }
 
 /**
- * Fetch the Story's direct child tickets via the provider. Under the
- * 3-tier hierarchy this is expected to return `[]`; the helper remains
- * because callers still hydrate sub-tickets through this seam.
+ * Fetch the Story's direct child tickets via the provider.
+ *
+ * Under the 3-tier hierarchy (Epic #3078) Stories no longer enumerate
+ * child Task tickets — acceptance criteria and verification steps live
+ * inline on the Story body, and decomposers emit only Epic / Feature /
+ * Story issues. For those Stories this helper resolves to an empty
+ * array because `provider.getSubTickets(storyId)` itself returns no
+ * rows. The helper is retained as a thin pass-through so the three
+ * orchestration callers (`story-deliver-prepare`, `task-graph-builder`,
+ * and `locked-pipeline`) keep a single, named seam for sub-ticket
+ * hydration that is easy to mock in tests and to instrument in the
+ * provider layer.
+ *
+ * Legacy ticket trees that were planned before the 3-tier cutover may
+ * still carry sub-tickets (PRD/Tech-Spec links recorded as direct
+ * children, for example). The helper deliberately does **not** filter
+ * those out — the caller is responsible for classifying anything that
+ * comes back. The previous `type::task`-only filter has been removed in
+ * Story #3191 because no current call site relies on that narrowing.
  *
  * @param {object} provider  ITicketingProvider instance.
- * @param {number} storyId   Story ticket number.
- * @returns {Promise<object[]>} Array of child tickets.
+ * @param {number} storyId   Story ticket number to hydrate children for.
+ * @returns {Promise<object[]>} Array of child tickets (empty under 3-tier).
  */
 export async function fetchChildTickets(provider, storyId) {
   return provider.getSubTickets(storyId);
