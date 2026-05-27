@@ -14,6 +14,7 @@ import {
   _resetStructuredCommentCache,
   ALL_STATES,
   assertValidStructuredCommentType,
+  buildStorylessTicketSnapshot,
   findStructuredComment,
   getProviderRawCommentsCache,
   invalidateRawCommentsCache,
@@ -280,5 +281,54 @@ describe('ticketing/reads — per-ticketId raw-comments cache (Story #2465)', ()
     invalidateRawCommentsCache(null, 1);
     invalidateRawCommentsCache({}, 1);
     invalidateRawCommentsCache('not-an-object', 1);
+  });
+});
+
+// Story #3097 (Wave-0 additive, Epic #3078 Strategy B) — Storyless
+// snapshot helper. The 3-tier hierarchy collapses to Epic → Feature →
+// Story (no Task children), so reading a Story snapshot must surface a
+// well-formed object with `subTickets: []` instead of throwing.
+describe('ticketing/reads — buildStorylessTicketSnapshot (Story #3097)', () => {
+  it('returns null for null/undefined input', () => {
+    assert.equal(buildStorylessTicketSnapshot(null), null);
+    assert.equal(buildStorylessTicketSnapshot(undefined), null);
+  });
+
+  it('produces a well-formed snapshot with empty subTickets when none supplied', () => {
+    const ticket = {
+      id: 7,
+      labels: ['type::story', 'agent::ready'],
+      body: 'Story body',
+      state: 'open',
+    };
+    const snapshot = buildStorylessTicketSnapshot(ticket);
+    assert.equal(snapshot.id, 7);
+    assert.deepEqual(snapshot.subTickets, []);
+    // Source fields preserved.
+    assert.equal(snapshot.body, 'Story body');
+    assert.equal(snapshot.state, 'open');
+    assert.deepEqual(snapshot.labels, ['type::story', 'agent::ready']);
+  });
+
+  it('threads through caller-supplied subTickets when provided', () => {
+    const ticket = { id: 8, labels: ['type::story'] };
+    const subs = [{ id: 9 }, { id: 10 }];
+    const snapshot = buildStorylessTicketSnapshot(ticket, { subTickets: subs });
+    assert.deepEqual(snapshot.subTickets, subs);
+  });
+
+  it('ignores non-array opts.subTickets and falls back to []', () => {
+    const ticket = { id: 11, labels: ['type::story'] };
+    const snapshot = buildStorylessTicketSnapshot(ticket, {
+      subTickets: 'not-an-array',
+    });
+    assert.deepEqual(snapshot.subTickets, []);
+  });
+
+  it('does not mutate the input ticket object', () => {
+    const ticket = { id: 12, labels: ['type::story'], body: 'x' };
+    const before = JSON.stringify(ticket);
+    buildStorylessTicketSnapshot(ticket);
+    assert.equal(JSON.stringify(ticket), before);
   });
 });

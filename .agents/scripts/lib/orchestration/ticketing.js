@@ -35,6 +35,8 @@ export {
   _peekStructuredCommentCache,
   _resetStructuredCommentCache,
   assertValidStructuredCommentType,
+  // Story #3097 (Wave-0 additive, Epic #3078) — Storyless snapshot helper.
+  buildStorylessTicketSnapshot,
   findStructuredComment,
   isValidStructuredCommentType,
   STATE_LABELS,
@@ -46,6 +48,8 @@ export {
 export {
   postStructuredComment,
   toggleTasklistCheckbox,
+  // Story #3097 (Wave-0 additive, Epic #3078) — Storyless direct transition.
+  transitionStoryDirect,
   transitionTicketState,
   upsertStructuredComment,
 } from './ticketing/state.js';

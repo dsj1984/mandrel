@@ -251,6 +251,33 @@ export function structuredCommentMarker(type, attrs = null) {
 export const _structuredCommentCache = new WeakMap();
 
 /**
+ * Build a well-formed ticket snapshot for a Story that has zero child
+ * Tasks. Story #3097 (Wave-0 additive, Epic #3078 Strategy B) — the
+ * 3-tier hierarchy collapses Epic → Feature → Story → Task into
+ * Epic → Feature → Story, so a Story may legitimately have no Task
+ * children. Read-side callers that expect a `subTickets` array on the
+ * Story can route through this helper to materialise an empty-children
+ * snapshot without paying a provider round-trip and without risk of
+ * `undefined.map` dereferences. Pure / synchronous; never touches the
+ * provider.
+ *
+ * The function preserves every field on the input `ticket` and merely
+ * pins `subTickets` to `[]` when omitted. Callers that already hold a
+ * resolved children list pass it through; the Storyless path is the
+ * default.
+ *
+ * @param {object|null|undefined} ticket
+ * @param {{ subTickets?: Array<object> }} [opts]
+ * @returns {object|null} The augmented snapshot, or `null` when `ticket`
+ *   is falsy.
+ */
+export function buildStorylessTicketSnapshot(ticket, opts = {}) {
+  if (ticket == null) return null;
+  const subTickets = Array.isArray(opts.subTickets) ? opts.subTickets : [];
+  return { ...ticket, subTickets };
+}
+
+/**
  * Lookup (or lazily create) the per-provider cache map.
  * @param {object} provider
  * @returns {Map<string, object|null>}
