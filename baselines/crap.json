@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-27T13:37:22.468Z",
+  "generatedAt": "2026-05-27T14:08:27.902Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.010699859060178,
+      "p95": 12.049764299946542,
       "max": 52.501371135067686,
       "methodsAbove20": 31
     }
@@ -8044,30 +8044,6 @@
       "method": "createTraceLogger",
       "startLine": 306,
       "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/manifest-builder.js",
-      "method": "getResolvedBranch",
-      "startLine": 22,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/manifest-builder.js",
-      "method": "resolveStoryDeps",
-      "startLine": 40,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/manifest-builder.js",
-      "method": "buildStoryManifest",
-      "startLine": 66,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/manifest-builder.js",
-      "method": "buildManifest",
-      "startLine": 109,
-      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/model-attribution.js",
