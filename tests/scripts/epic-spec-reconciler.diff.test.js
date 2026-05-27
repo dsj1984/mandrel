@@ -859,3 +859,75 @@ describe('reconciler diff — orchestrator footer preservation (Story #2982)', (
     assert.match(storyUpdate.changes.body.after, /\n---\nparent: #7100\n/);
   });
 });
+
+describe('reconciler diff — 3-tier hierarchy walk (Story #3117 / Epic #3078)', () => {
+  it('walks a 3-tier spec (Story with inline acceptance[]/verify[], no tasks[]) without emitting phantom task ops', () => {
+    const { spec, state, ghState } = loadFixture('create-only-3tier');
+    const plan = diff({ spec, state, ghState });
+    assert.equal(plan.updates.length, 0);
+    assert.equal(plan.closes.length, 0);
+    assert.equal(plan.relinks.length, 0);
+    // epic + feat-alpha + story-one = 3 creates. No task ops.
+    assert.equal(plan.creates.length, 3);
+    const slugs = plan.creates.map((op) => op.slug).sort();
+    assert.deepEqual(slugs, ['epic', 'feat-alpha', 'story-one']);
+    for (const op of plan.creates) {
+      assert.notEqual(
+        op.entity,
+        ENTITY_KINDS.TASK,
+        `3-tier spec must not generate task entities; got ${op.slug} as task`,
+      );
+    }
+  });
+
+  it('produces an empty diff for a stable 3-tier spec (no false-positive missing-task)', () => {
+    const { spec } = loadFixture('create-only-3tier');
+    // Pre-seed state + ghState as if the 3-tier tree were already materialised.
+    const state = {
+      epicId: spec.epic.id,
+      mapping: {
+        epic: { issueNumber: 9101, entity: 'epic', parentSlug: null },
+        'feat-alpha': {
+          issueNumber: 9102,
+          entity: 'feature',
+          parentSlug: 'epic',
+        },
+        'story-one': {
+          issueNumber: 9103,
+          entity: 'story',
+          parentSlug: 'feat-alpha',
+          wave: 0,
+          dependsOn: [],
+        },
+      },
+    };
+    const ghState = {
+      9101: { title: 'Greenfield 3-tier Epic', body: '', labels: ['type::epic'] },
+      9102: { title: 'Alpha Feature', body: '', labels: ['type::feature'] },
+      9103: {
+        title: 'First Story (3-tier inline)',
+        body: '',
+        labels: ['type::story', 'persona::engineer'],
+      },
+    };
+    const plan = diff({ spec, state, ghState });
+    assert.equal(plan.creates.length, 0, 'no creates for stable 3-tier tree');
+    assert.equal(plan.closes.length, 0, 'no closes — no phantom missing tasks');
+    assert.equal(plan.relinks.length, 0);
+  });
+
+  it('produces unchanged behavior on the legacy 4-tier create-only fixture (no regression)', () => {
+    const { spec, state, ghState } = loadFixture('create-only');
+    const plan = diff({ spec, state, ghState });
+    assert.equal(plan.creates.length, 4);
+    const slugs = plan.creates.map((op) => op.slug).sort();
+    assert.deepEqual(slugs, [
+      'epic',
+      'feat-alpha',
+      'story-one',
+      'task-one-a',
+    ]);
+    const taskOp = plan.creates.find((op) => op.slug === 'task-one-a');
+    assert.equal(taskOp.entity, ENTITY_KINDS.TASK);
+  });
+});

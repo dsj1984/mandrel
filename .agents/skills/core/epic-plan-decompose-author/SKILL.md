@@ -314,7 +314,7 @@ the string `"3-tier"`, the authoring contract changes as described
 below; the entire prose above (the **Decomposer system prompt
 (authoritative)** section) describes the **4-tier** shape and remains
 in force whenever `hierarchy` is `"4-tier"` (the default while Epic
-#3078 is in flight) or absent. The two shapes are authored from the
+\#3078 is in flight) or absent. The two shapes are authored from the
 same skill — branch on `hierarchy` once at the top of Step 2 and pick
 the matching contract; never mix them in a single emit.
 
