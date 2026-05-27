@@ -1,12 +1,12 @@
 /**
  * Contract tests for the orchestration `manifest-builder.js` Story-only
- * path.
+ * producer.
  *
- * Task #3154 (Epic #3078) deleted the `planning.hierarchy` flag. Shape
- * selection now relies entirely on structural auto-detection: a
- * Story-only ticket graph emits the 3-tier shape; a Task-bearing graph
- * still emits the 4-tier shape (retained for in-flight Epics — Task
- * follow-on Epic #3163 owns its eventual deletion).
+ * Epic #3163, Category 2 (Story #3187) deleted the legacy 4-tier branch
+ * and the `groupTasksByStory` import from `story-grouper.js`. The
+ * producer now reads Story tickets directly from `allTickets` and
+ * always emits the `waves[].stories[]` + Story-only `storyManifest`
+ * shape.
  */
 
 import assert from 'node:assert/strict';
@@ -59,7 +59,6 @@ test('3-tier: buildManifest emits waves[].stories[] when input has only Stories'
   const manifest = buildManifest({
     epicId: EPIC_ID,
     epic,
-    tasks: [],
     allTickets,
     waves,
     dispatched: [],
@@ -103,9 +102,9 @@ test('3-tier: buildManifest emits waves[].stories[] when input has only Stories'
 });
 
 test('3-tier: story-grouper is bypassed (Stories with no `parent: #N` Feature ref still appear)', () => {
-  // In 4-tier mode, `groupTasksByStory` walks each Task's `parent: #N`
-  // line to find its Story container; Stories without a Task child
-  // wouldn't appear in the storyManifest at all. In 3-tier we read
+  // The legacy 4-tier `groupTasksByStory` walked each Task's `parent: #N`
+  // line to find its Story container; a Story with no Task child would
+  // not appear in `storyManifest` at all. The 3-tier producer reads
   // Stories directly from `allTickets`, so a Story with NO `parent: #N`
   // body marker (and no children of any kind) MUST still surface in
   // both `storyManifest` and `waves[].stories[]`.
@@ -113,8 +112,7 @@ test('3-tier: story-grouper is bypassed (Stories with no `parent: #N` Feature re
   const orphanStory = {
     id: 3200,
     title: 'Orphan Story',
-    // Deliberately omit `parent: #N` — groupTasksByStory would route
-    // this Story to the `__ungrouped__` bucket with `tasks: []`.
+    // Deliberately omit `parent: #N`.
     body: '## Acceptance\n- [ ] ships\n\n## Verify\n- node --test',
     labels: ['type::story', 'persona::engineer', 'agent::ready'],
   };
@@ -122,16 +120,13 @@ test('3-tier: story-grouper is bypassed (Stories with no `parent: #N` Feature re
   const manifest = buildManifest({
     epicId: EPIC_ID,
     epic,
-    tasks: [],
     allTickets: [epic, orphanStory],
     waves: [[orphanStory]],
     dispatched: [],
     dryRun: false,
   });
 
-  // Story appears directly in storyManifest (proves groupTasksByStory
-  // was bypassed — the grouper would never emit a Story-only entry from
-  // an empty tasks[] input).
+  // Story appears directly in storyManifest.
   assert.equal(manifest.storyManifest.length, 1);
   assert.equal(manifest.storyManifest[0].storyId, 3200);
   assert.equal(manifest.storyManifest[0].type, 'story');
@@ -139,22 +134,21 @@ test('3-tier: story-grouper is bypassed (Stories with no `parent: #N` Feature re
   // And it appears in waves[].stories[].
   assert.equal(manifest.waves[0].stories[0].storyId, 3200);
 
-  // No `__ungrouped__` artifact (the grouper's fallback bucket).
+  // No `__ungrouped__` artifact (the legacy grouper's fallback bucket).
   assert.equal(
     manifest.storyManifest.find((s) => s.storyId === '__ungrouped__'),
     undefined,
-    'no __ungrouped__ bucket — proves groupTasksByStory was not invoked',
+    'no __ungrouped__ bucket — proves story-grouper is no longer wired in',
   );
 });
 
-test('Story-only graph auto-detects to the 3-tier manifest shape', () => {
+test('Story-only graph emits the 3-tier manifest shape unconditionally', () => {
   const epic = makeEpic();
   const story = makeStory(3098);
 
   const manifest = buildManifest({
     epicId: EPIC_ID,
     epic,
-    tasks: [],
     allTickets: [epic, story],
     waves: [[story]],
     dispatched: [],
@@ -167,35 +161,35 @@ test('Story-only graph auto-detects to the 3-tier manifest shape', () => {
   assert.equal(manifest.summary.totalTasks, undefined);
 });
 
-test('Task-bearing graph auto-detects to the 4-tier manifest shape', () => {
-  // The 4-tier path is retained for in-flight Epics that still carry
-  // Task tickets. follow-on Epic #3163 owns its eventual deletion.
+test('Task-bearing inputs are ignored — producer is Story-only', () => {
+  // Epic #3163 deleted the 4-tier branch. Even if a caller still passes
+  // Task tickets in `allTickets`, the producer filters to `type::story`
+  // and emits the 3-tier shape. No `waves[].tasks[]` is ever produced.
   const epic = makeEpic();
   const story = makeStory(100, { id: 100, title: 'Parent Story' });
-  const t1 = {
+  const taskTicket = {
     id: 101,
-    title: 'Task 101',
+    title: 'Stale Task',
     body: 'parent: #100',
     status: 'agent::ready',
     labels: ['type::task', 'agent::ready'],
-    persona: 'engineer',
-    mode: 'fast',
-    skills: [],
-    focusAreas: [],
-    dependsOn: [],
   };
 
   const manifest = buildManifest({
     epicId: EPIC_ID,
     epic,
-    tasks: [t1],
-    allTickets: [epic, story, t1],
-    waves: [[t1]],
+    allTickets: [epic, story, taskTicket],
+    waves: [[story]],
     dispatched: [],
     dryRun: false,
   });
 
-  assert.equal(manifest.hierarchy, undefined);
-  assert.equal(manifest.summary.totalTasks, 1);
-  assert.ok(Array.isArray(manifest.waves[0].tasks));
+  assert.equal(manifest.hierarchy, '3-tier');
+  assert.equal(manifest.summary.totalStories, 1);
+  assert.equal(manifest.summary.totalTasks, undefined);
+  assert.ok(Array.isArray(manifest.waves[0].stories));
+  assert.equal(manifest.waves[0].tasks, undefined);
+  // Task ticket is filtered out of the Story-only storyManifest.
+  assert.equal(manifest.storyManifest.length, 1);
+  assert.equal(manifest.storyManifest[0].storyId, 100);
 });
