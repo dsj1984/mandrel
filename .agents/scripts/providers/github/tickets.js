@@ -23,7 +23,6 @@
 
 import { parseBlockedBy, parseBlocks } from '../../lib/dependency-parser.js';
 import { Logger } from '../../lib/Logger.js';
-import { composeTaskBody } from '../../lib/templates/task-body-renderer.js';
 import { createInlineTicketCache } from './cache.js';
 import { withTransientRetry } from './errors.js';
 import { issueToListItem, issueToTicket } from './mappers.js';
@@ -32,6 +31,43 @@ import {
   paginateRest,
   parseApiJson,
 } from './request-helpers.js';
+
+/**
+ * Compose the final markdown body for a created ticket. Under the 3-tier
+ * hierarchy (Epic → Feature → Story), `body` is always a string supplied
+ * by the caller (the decomposer, the spec planner, or the reconciler-apply
+ * engine). This helper appends the canonical orchestrator footer
+ * (`parent: #<n>` / `Epic: #<m>` / `blocked by #<x>`) byte-stable with the
+ * format consumers (manifest, close-gate, dispatcher) parse.
+ *
+ * Story #3186 — inlined here when the Task-tier body-renderer helpers
+ * were retired. The structured-body (object) path is gone: Stories carry
+ * inline `acceptance[]` / `verify[]`
+ * arrays on the Story body authored by the decomposer; there is no
+ * server-side rendering of a four-section payload at create time.
+ *
+ * @param {{
+ *   body: string,
+ *   parentId: number,
+ *   epicId?: number,
+ *   dependencies?: number[],
+ * }} opts
+ * @returns {string}
+ */
+function composeStoryBody({ body, parentId, epicId, dependencies = [] }) {
+  const head = typeof body === 'string' ? body : '';
+  const lines = ['---', `parent: #${parentId}`];
+  if (epicId !== undefined && epicId !== null && epicId !== parentId) {
+    lines.push(`Epic: #${epicId}`);
+  }
+  if (dependencies.length > 0) {
+    lines.push('');
+    for (const dep of dependencies) {
+      lines.push(`blocked by #${dep}`);
+    }
+  }
+  return `${head}\n\n${lines.join('\n')}`;
+}
 
 export class TicketGateway {
   /**
@@ -147,8 +183,9 @@ export class TicketGateway {
   // ---------------------------------------------------------------------------
 
   /**
-   * Create a new issue. Renders the body via `composeTaskBody` so the
-   * `parent: #N` / `Epic: #M` footer is consistent across creators.
+   * Create a new issue. Renders the body via the inline `composeStoryBody`
+   * helper so the `parent: #N` / `Epic: #M` / `blocked by #X` footer is
+   * consistent across creators.
    *
    * After the POST, opportunistically link the child as a native sub-issue
    * (via the `addSubIssue` hook — retried internally on the sub-issue
@@ -161,12 +198,11 @@ export class TicketGateway {
   /* node:coverage ignore next */
   async createTicket(parentId, ticketData) {
     const epicId = ticketData.epicId || parentId;
-    const renderedBody = composeTaskBody({
+    const renderedBody = composeStoryBody({
       body: ticketData.body ?? '',
       parentId,
       epicId,
       dependencies: ticketData.dependencies ?? [],
-      auditSnapshot: ticketData.auditSnapshot,
     });
 
     const result = await this._gh.api({
