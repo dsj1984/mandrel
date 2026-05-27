@@ -107,6 +107,54 @@ describe('signal-event.schema.json', () => {
     });
     assert.equal(ok, false);
   });
+
+  // Story #3143 — Storyless event payloads. Under the 3-tier hierarchy
+  // there is no parent Task, so the tool-trace-hook (and any other
+  // signal emitter) omits or nulls `taskId`. Both shapes MUST validate
+  // and the 4-tier carrying-a-taskId shape MUST continue to validate
+  // (no regression).
+  it('accepts a 3-tier signal event with taskId omitted (Storyless)', () => {
+    const validate = compile(schema);
+    const ok = validate({
+      ts: '2026-05-27T16:00:00.000Z',
+      kind: 'trace',
+      source: { tool: 'Bash' },
+      epicId: 3078,
+      storyId: 3143,
+      // taskId intentionally omitted (3-tier: no Task ticket exists)
+    });
+    assert.equal(ok, true, JSON.stringify(validate.errors));
+  });
+
+  it('accepts a 3-tier signal event with taskId explicitly null', () => {
+    const validate = compile(schema);
+    const ok = validate({
+      ts: '2026-05-27T16:00:00.000Z',
+      kind: 'trace',
+      source: { tool: 'Bash' },
+      epicId: 3078,
+      storyId: 3143,
+      taskId: null,
+      phase: null,
+      details: { tool: 'Bash', durationMs: 12 },
+    });
+    assert.equal(ok, true, JSON.stringify(validate.errors));
+  });
+
+  it('continues to accept a 4-tier signal event carrying taskId (no regression)', () => {
+    const validate = compile(schema);
+    const ok = validate({
+      ts: '2026-05-27T16:00:00.000Z',
+      kind: 'friction',
+      source: { tool: 'Bash', script: 'diagnose-friction.js' },
+      epicId: 3078,
+      storyId: 3143,
+      taskId: 3149,
+      phase: 'implement',
+      details: { category: 'Execution Error' },
+    });
+    assert.equal(ok, true, JSON.stringify(validate.errors));
+  });
 });
 
 describe('story-perf-summary.schema.json', () => {

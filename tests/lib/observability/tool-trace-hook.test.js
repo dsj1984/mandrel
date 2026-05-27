@@ -236,6 +236,33 @@ describe('tool-trace-hook — Pre/Post pairing', () => {
     assert.equal(trace.details.durationMs, null);
   });
 
+  // Story #3143 — tool-trace-hook MUST not throw when Task context is
+  // undefined (the 3-tier execution model has no parent Task). The hook
+  // already hardcodes `taskId: null` on the emitted trace; this test
+  // pins the contract so a future refactor cannot accidentally reach
+  // for a non-existent CC_TASK_ID env var or otherwise crash.
+  it('emits a trace with taskId:null when no Task context is present (3-tier)', async () => {
+    // No CC_TASK_ID is ever consumed by the hook; beforeEach already set
+    // only CC_EPIC_ID and CC_STORY_ID. Drive a Post directly to assert
+    // taskId:null on the emitted trace.
+    await assert.doesNotReject(() =>
+      handlePost(
+        {
+          hook_event_name: 'PostToolUse',
+          tool_use_id: 'tu-3tier',
+          tool_name: 'Bash',
+          tool_input: { command: 'node --version' },
+        },
+        { epicId: 1030, storyId: 1043 },
+      ),
+    );
+
+    const raw = await fs.readFile(tracesPath(1030, 1043), 'utf8');
+    const trace = JSON.parse(raw.trim());
+    assert.equal(trace.storyId, 1043);
+    assert.equal(trace.taskId, null);
+  });
+
   it('writes only to traces.ndjson, never to signals.ndjson', async () => {
     await handlePost(
       {
