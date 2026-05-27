@@ -195,21 +195,67 @@ export function mergeFeatureBranch(cwd, featureBranch, vlog, opts = {}) {
 }
 
 /**
- * Build a merge-commit trailer documenting which files were auto-resolved
- * by accepting the feature-branch version and how many lines of the base
- * version were discarded. Human-readable, grep-friendly.
+ * Build a merge-commit message body + trailer documenting which files were
+ * auto-resolved by accepting the feature-branch version and how many lines
+ * of the base version were discarded.
+ *
+ * The output is split into three blocks separated by blank lines so
+ * commitlint's per-line caps (`body-max-line-length` and
+ * `footer-max-line-length`, both default 100) all pass:
+ *
+ *   1. Header sentence.
+ *   2. Body prose listing each file and its discarded line count.
+ *   3. `Auto-resolved-file:` trailers — one per file, path only, so the
+ *      verbose line count never appears on the footer line.
+ *
+ * Paths that would still bust the per-line cap are middle-truncated with
+ * an ellipsis. This is a last-resort safety net for pathological repo
+ * layouts; the common case (short relative paths) emits the full path.
+ *
+ * Exported for contract testing of the cap behaviour.
  *
  * @param {Array<{ file: string, discardedLines: number }>} resolved
+ * @param {{ maxLineLength?: number }} [opts]
  * @returns {string}
  */
-function buildAutoResolveTrailer(resolved) {
+export function buildAutoResolveTrailer(resolved, opts = {}) {
+  const maxLineLength = opts.maxLineLength ?? 100;
   const header =
     'Auto-resolved-conflicts: accepted feature branch for the following file(s).';
-  const body = resolved
-    .map(
-      (r) =>
-        `Auto-resolved-file: ${r.file} (discarded ${r.discardedLines} base line(s))`,
-    )
-    .join('\n');
-  return `${header}\n${body}`;
+
+  const bodyLines = resolved.map((r) => {
+    const suffix = `: discarded ${r.discardedLines} base line(s)`;
+    const prefix = '- ';
+    const available = maxLineLength - prefix.length - suffix.length;
+    return `${prefix}${truncatePathForLine(r.file, available)}${suffix}`;
+  });
+
+  const trailerKey = 'Auto-resolved-file: ';
+  const trailerLines = resolved.map((r) => {
+    const available = maxLineLength - trailerKey.length;
+    return `${trailerKey}${truncatePathForLine(r.file, available)}`;
+  });
+
+  return `${header}\n\n${bodyLines.join('\n')}\n\n${trailerLines.join('\n')}`;
+}
+
+/**
+ * Middle-truncate a path with an ellipsis so it fits within `max`
+ * characters. When `max` is too small to keep any meaningful slice
+ * (≤ 4 chars after the ellipsis), the leading characters win — the
+ * tail is dropped and an ellipsis is appended. Pure helper, no I/O.
+ *
+ * @param {string} p
+ * @param {number} max
+ * @returns {string}
+ */
+function truncatePathForLine(p, max) {
+  if (max <= 0) return '…';
+  if (p.length <= max) return p;
+  const ellipsis = '…';
+  const keep = max - ellipsis.length;
+  if (keep <= 4) return `${p.slice(0, max - 1)}${ellipsis}`;
+  const head = Math.ceil(keep / 2);
+  const tail = Math.floor(keep / 2);
+  return `${p.slice(0, head)}${ellipsis}${p.slice(p.length - tail)}`;
 }
