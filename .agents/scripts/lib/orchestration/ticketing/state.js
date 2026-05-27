@@ -297,6 +297,36 @@ export async function transitionTicketState(
 }
 
 /**
+ * Transition a Story ticket directly to a new `agent::*` state without
+ * walking a Task cascade. Story #3097 (Wave-0 additive, Epic #3078
+ * Strategy B) — in the 3-tier hierarchy a Story has no Task children, so
+ * the canonical `transitionTicketState` upward-cascade path
+ * (`cascadeParentState`) is the only meaningful walk. This helper is a
+ * thin wrapper that pins `cascade: true` (so the parent Feature/Epic
+ * still receives derived-state updates) and is intentionally a no-op
+ * difference from `transitionTicketState` in 4-tier mode — the helper
+ * exists so 3-tier callers can opt into a name that documents intent
+ * (and so F8 can pivot the implementation to skip the now-impossible
+ * Task-fan-in without rewriting call sites). The wrapper preserves every
+ * `opts` field the caller supplies; only `cascade` defaults to `true`
+ * when omitted.
+ *
+ * @param {import('../../ITicketingProvider.js').ITicketingProvider} provider
+ * @param {number} storyId
+ * @param {string} newState - Must be one of STATE_LABELS.
+ * @param {{ notify?: Function, cascade?: boolean, ticketSnapshot?: object }} [opts]
+ */
+export async function transitionStoryDirect(
+  provider,
+  storyId,
+  newState,
+  opts = {},
+) {
+  const merged = { cascade: true, ...opts };
+  await transitionTicketState(provider, storyId, newState, merged);
+}
+
+/**
  * Mutates the tasklist checkbox in the parent's body.
  * E.g., `- [ ] #123` to `- [x] #123`
  *

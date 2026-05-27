@@ -464,3 +464,115 @@ describe('ticketing/bulk — cascadeCompletion native parent fallback (Story #29
     );
   });
 });
+
+/**
+ * Story #3097 (Wave-0 additive, Epic #3078 Strategy B) — Storyless
+ * cascade fixtures. In 3-tier mode (Epic → Feature → Story, no Task
+ * children) a Story that flips to `agent::done` must still cascade
+ * upward without throwing when `getSubTickets(storyId)` returns the
+ * empty array. `deriveParentState([])` returns `null` (no-op), which is
+ * the documented "leave parent unchanged" signal — but the cascade walk
+ * up the parent chain (Feature → Epic) must still complete. The fixture
+ * pins three load-bearing invariants:
+ *   1. Reading a Story snapshot with zero child Tasks succeeds (no
+ *      thrown error from `getSubTickets`).
+ *   2. The cascade no-ops cleanly on the empty-children edge.
+ *   3. `cascadeParentState` walking up from a Storyless Story reaches
+ *      the parent Feature without faulting on the missing Task tier.
+ */
+class StorylessHierarchyMock extends ITicketingProvider {
+  constructor() {
+    super();
+    this.updates = [];
+    this.comments = [];
+    // 3-tier hierarchy: Epic 300 ← Feature 30 ← Story 3 (NO Tasks).
+    this.tickets = {
+      3: {
+        id: 3,
+        labels: ['agent::done', 'type::story'],
+        body: 'Story body — Storyless (3-tier)\nparent: #30',
+        state: 'closed',
+      },
+      30: {
+        id: 30,
+        labels: ['agent::executing', 'type::feature'],
+        body: 'Feature body\n- [ ] #3\nparent: #300',
+        state: 'open',
+      },
+      300: {
+        id: 300,
+        labels: ['agent::executing', 'type::epic'],
+        body: 'Epic body\n- [ ] #30',
+        state: 'open',
+      },
+    };
+    this.deps = {
+      3: { blocks: [30], blockedBy: [] },
+      30: { blocks: [300], blockedBy: [3] },
+      300: { blocks: [], blockedBy: [30] },
+    };
+    // The load-bearing Storyless invariant: Story #3 has zero children.
+    this.subTickets = {
+      3: [],
+      30: [this.tickets[3]],
+      300: [this.tickets[30]],
+    };
+  }
+  async getTicket(id) {
+    return this.tickets[id];
+  }
+  async updateTicket(id, mutations) {
+    this.updates.push({ id, mutations });
+    if (mutations.labels) {
+      const rm = mutations.labels.remove || [];
+      const add = mutations.labels.add || [];
+      let current = this.tickets[id].labels.filter((l) => !rm.includes(l));
+      current = [...new Set([...current, ...add])];
+      this.tickets[id].labels = current;
+    }
+    if (mutations.body !== undefined) this.tickets[id].body = mutations.body;
+    if (mutations.state !== undefined) this.tickets[id].state = mutations.state;
+  }
+  async postComment(id, payload) {
+    this.comments.push({ id, payload });
+  }
+  async getTicketDependencies(id) {
+    return this.deps[id];
+  }
+  async getSubTickets(id) {
+    return this.subTickets[id].map((t) => this.tickets[t.id]);
+  }
+}
+
+describe('ticketing/bulk — Storyless cascades (Story #3097)', () => {
+  beforeEach(() => {
+    __resetParentCascadeLocks();
+    __setCascadeRetryDelays({ delays: [] });
+  });
+
+  it('reading sub-tickets for a Storyless Story returns [] without throwing', async () => {
+    const mock = new StorylessHierarchyMock();
+    const subs = await mock.getSubTickets(3);
+    assert.deepEqual(subs, []);
+  });
+
+  it('cascadeParentState on a Storyless Story propagates done up to the Feature', async () => {
+    const mock = new StorylessHierarchyMock();
+    // Story #3 is already agent::done with no Task children — propagate.
+    const result = await cascadeParentState(mock, 3);
+    assert.equal(
+      mock.tickets[30].labels.includes(STATE_LABELS.DONE),
+      true,
+      'Feature #30 should flip to agent::done when its only child Story closes',
+    );
+    assert.ok(result.cascadedTo.includes(30));
+    assert.deepEqual(result.failed, []);
+  });
+
+  it('deriveParentState on an empty children array is a no-op (Storyless leaf)', async () => {
+    // Direct check: a Storyless Story has no Task children, so deriving
+    // the Story's own derived-state from `getSubTickets(storyId)` (= [])
+    // must return null and NOT throw.
+    assert.equal(deriveParentState([]), null);
+  });
+});

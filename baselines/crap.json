@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-26T22:49:31.214Z",
+  "generatedAt": "2026-05-27T10:28:43.416Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -10380,54 +10380,6 @@
       "crap": 1.2962962962962963
     },
     {
-      "path": ".agents/scripts/lib/orchestration/ticketing/state.js",
-      "method": "validateTransitionInputs",
-      "startLine": 59,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/state.js",
-      "method": "loadTicketSnapshot",
-      "startLine": 77,
-      "crap": 5.1574074074074066
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/state.js",
-      "method": "syncProjectStatusColumn",
-      "startLine": 108,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/state.js",
-      "method": "dispatchTransitionNotification",
-      "startLine": 134,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/state.js",
-      "method": "transitionTicketState",
-      "startLine": 216,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/state.js",
-      "method": "toggleTasklistCheckbox",
-      "startLine": 308,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/state.js",
-      "method": "postStructuredComment",
-      "startLine": 350,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/state.js",
-      "method": "upsertStructuredComment",
-      "startLine": 381,
-      "crap": 6.011218284245225
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/wave-dispatcher.js",
       "method": "collectOpenStoryIds",
       "startLine": 36,
@@ -12994,42 +12946,6 @@
       "method": "isLabelAlreadyExistsError",
       "startLine": 35,
       "crap": 8.162283996994741
-    },
-    {
-      "path": ".agents/scripts/providers/github/mappers.js",
-      "method": "normalizeLabels",
-      "startLine": 15,
-      "crap": 4.012021036814425
-    },
-    {
-      "path": ".agents/scripts/providers/github/mappers.js",
-      "method": "issueToTicket",
-      "startLine": 27,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/providers/github/mappers.js",
-      "method": "issueToEpic",
-      "startLine": 42,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/providers/github/mappers.js",
-      "method": "subIssueNodeToTicket",
-      "startLine": 56,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/providers/github/mappers.js",
-      "method": "issueToListItem",
-      "startLine": 72,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/providers/github/mappers.js",
-      "method": "issueToEpicListItem",
-      "startLine": 86,
-      "crap": 1
     },
     {
       "path": ".agents/scripts/providers/github/projects-v2-graphql.js",

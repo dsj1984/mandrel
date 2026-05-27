@@ -320,6 +320,87 @@ describe('providers/github/tickets.js — TicketGateway', () => {
   });
 });
 
+// Story #3097 (Wave-0 additive, Epic #3078 Strategy B) — Storyless mapper
+// guard. In 3-tier mode a Story can legitimately have zero Task children,
+// which surfaces at the provider boundary as an empty/missing sub-issue
+// node in the GraphQL response. The mappers must return `null` (or an
+// empty list) instead of throwing on missing children — pinned here so
+// the Storyless code path is contractually exercised at the provider
+// surface called out in the task body.
+describe('providers/github mappers — Storyless tolerance (Story #3097)', () => {
+  it('subIssueNodeToTicket returns null for a missing sub-issue node', async () => {
+    const mappersMod = await import(
+      pathToFileURL(
+        path.join(
+          ROOT,
+          '.agents',
+          'scripts',
+          'providers',
+          'github',
+          'mappers.js',
+        ),
+      ).href
+    );
+    const { subIssueNodeToTicket } = mappersMod;
+    assert.equal(subIssueNodeToTicket(null), null);
+    assert.equal(subIssueNodeToTicket(undefined), null);
+  });
+
+  it('subIssueNodesToTickets returns [] for a Storyless Story (no child Tasks)', async () => {
+    const mappersMod = await import(
+      pathToFileURL(
+        path.join(
+          ROOT,
+          '.agents',
+          'scripts',
+          'providers',
+          'github',
+          'mappers.js',
+        ),
+      ).href
+    );
+    const { subIssueNodesToTickets } = mappersMod;
+    // The Storyless invariant: the GraphQL response carries an empty
+    // `nodes` array under the Story → child relation.
+    assert.deepEqual(subIssueNodesToTickets([]), []);
+    assert.deepEqual(subIssueNodesToTickets(null), []);
+    assert.deepEqual(subIssueNodesToTickets(undefined), []);
+  });
+
+  it('subIssueNodesToTickets skips null entries and maps the rest', async () => {
+    const mappersMod = await import(
+      pathToFileURL(
+        path.join(
+          ROOT,
+          '.agents',
+          'scripts',
+          'providers',
+          'github',
+          'mappers.js',
+        ),
+      ).href
+    );
+    const { subIssueNodesToTickets } = mappersMod;
+    const out = subIssueNodesToTickets([
+      null,
+      {
+        number: 5,
+        databaseId: 50,
+        id: 'node_5',
+        title: 'Child',
+        body: 'b',
+        labels: { nodes: [{ name: 'type::task' }] },
+        assignees: { nodes: [] },
+        state: 'OPEN',
+      },
+      undefined,
+    ]);
+    assert.equal(out.length, 1);
+    assert.equal(out[0].id, 5);
+    assert.equal(out[0].state, 'open');
+  });
+});
+
 describe('providers/github.js — surface stays byte-identical', () => {
   it('GitHubProvider delegates ticket CRUD to TicketGateway without changing public shape', async () => {
     const providerMod = await import(
