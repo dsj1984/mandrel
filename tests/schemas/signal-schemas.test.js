@@ -21,6 +21,7 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import Ajv from 'ajv';
+import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 import { getAgentrcValidator } from '../../.agents/scripts/lib/config-settings-schema.js';
 
@@ -29,6 +30,11 @@ const SCHEMAS_DIR = path.resolve(__dirname, '..', '..', '.agents', 'schemas');
 
 const loadSchema = (filename) =>
   JSON.parse(readFileSync(path.join(SCHEMAS_DIR, filename), 'utf8'));
+
+const loadLifecycleSchema = (filename) =>
+  JSON.parse(
+    readFileSync(path.join(SCHEMAS_DIR, 'lifecycle', filename), 'utf8'),
+  );
 
 const compile = (schema) => {
   const ajv = new Ajv({ allErrors: true, strict: false });
@@ -214,6 +220,84 @@ describe('epic-perf-report.schema.json', () => {
       waveParallelism: [],
       topHotspots: [],
       mostFrictionStories: [],
+    });
+    assert.equal(ok, false);
+  });
+});
+
+describe('story.heartbeat.schema.json (Story #3137 — 3-tier optional Task counters)', () => {
+  const schema = loadLifecycleSchema('story.heartbeat.schema.json');
+
+  const compile2020 = (s) => {
+    const ajv = new Ajv2020({ allErrors: true, strict: false });
+    addFormats(ajv);
+    return ajv.compile(s);
+  };
+
+  it('compiles cleanly', () => {
+    assert.doesNotThrow(() => compile2020(schema));
+  });
+
+  it('accepts a 3-tier heartbeat with no Task counters', () => {
+    const validate = compile2020(schema);
+    const ok = validate({
+      event: 'story.heartbeat',
+      storyId: 3137,
+      epicId: 3078,
+      phase: 'implementing',
+      timestamp: '2026-05-27T16:00:00.000Z',
+    });
+    assert.equal(ok, true, JSON.stringify(validate.errors));
+  });
+
+  it('accepts a legacy 4-tier heartbeat carrying taskId', () => {
+    const validate = compile2020(schema);
+    const ok = validate({
+      event: 'story.heartbeat',
+      storyId: 3137,
+      epicId: 3078,
+      phase: 'implementing',
+      taskId: 3146,
+      timestamp: '2026-05-27T16:00:00.000Z',
+    });
+    assert.equal(ok, true, JSON.stringify(validate.errors));
+  });
+
+  it('accepts a 4-tier heartbeat carrying tasksDone/tasksTotal/currentTaskId', () => {
+    const validate = compile2020(schema);
+    const ok = validate({
+      event: 'story.heartbeat',
+      storyId: 3137,
+      epicId: 3078,
+      phase: 'implementing',
+      tasksDone: 2,
+      tasksTotal: 5,
+      currentTaskId: 3146,
+      timestamp: '2026-05-27T16:00:00.000Z',
+    });
+    assert.equal(ok, true, JSON.stringify(validate.errors));
+  });
+
+  it('rejects an unknown property under additionalProperties:false', () => {
+    const validate = compile2020(schema);
+    const ok = validate({
+      event: 'story.heartbeat',
+      storyId: 3137,
+      epicId: 3078,
+      phase: 'implementing',
+      timestamp: '2026-05-27T16:00:00.000Z',
+      mystery: true,
+    });
+    assert.equal(ok, false);
+  });
+
+  it('rejects a missing required field (timestamp)', () => {
+    const validate = compile2020(schema);
+    const ok = validate({
+      event: 'story.heartbeat',
+      storyId: 3137,
+      epicId: 3078,
+      phase: 'implementing',
     });
     assert.equal(ok, false);
   });
