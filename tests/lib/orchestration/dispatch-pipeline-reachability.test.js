@@ -36,7 +36,7 @@ const { buildDispatchGraph } = await import(
 const { buildGraph: buildGraphReal, computeWaves: computeWavesReal } =
   realGraph;
 const { autoSerializeOverlaps: autoSerializeOverlapsReal } = await import(
-  '../../../.agents/scripts/lib/orchestration/concurrent-task-resolver.js'
+  '../../../.agents/scripts/lib/orchestration/concurrent-dep-resolver.js'
 );
 
 /**

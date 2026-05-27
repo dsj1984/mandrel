@@ -4,9 +4,9 @@ import {
   buildGraph,
   computeReachability,
 } from '../../../.agents/scripts/lib/Graph.js';
-import { autoSerializeOverlaps } from '../../../.agents/scripts/lib/orchestration/concurrent-task-resolver.js';
+import { autoSerializeOverlaps } from '../../../.agents/scripts/lib/orchestration/concurrent-dep-resolver.js';
 
-test('concurrent-task-resolver: autoSerializeOverlaps basic', () => {
+test('concurrent-dep-resolver: autoSerializeOverlaps basic', () => {
   const tasks = [
     { id: 1, focusAreas: ['A'], dependsOn: [], scope: 'file' },
     { id: 2, focusAreas: ['A'], dependsOn: [], scope: 'file' },
@@ -24,7 +24,7 @@ test('concurrent-task-resolver: autoSerializeOverlaps basic', () => {
   assert.ok(finalAdjacency.get(2).includes(1));
 });
 
-test('concurrent-task-resolver: autoSerializeOverlaps no overlap', () => {
+test('concurrent-dep-resolver: autoSerializeOverlaps no overlap', () => {
   const tasks = [
     { id: 1, focusAreas: ['A'], dependsOn: [], scope: 'file' },
     { id: 2, focusAreas: ['B'], dependsOn: [], scope: 'file' },
@@ -39,7 +39,7 @@ test('concurrent-task-resolver: autoSerializeOverlaps no overlap', () => {
   assert.deepEqual(tasks[1].dependsOn, []);
 });
 
-test('concurrent-task-resolver: autoSerializeOverlaps avoids duplicates', () => {
+test('concurrent-dep-resolver: autoSerializeOverlaps avoids duplicates', () => {
   const tasks = [
     { id: 1, focusAreas: ['A'], dependsOn: [], scope: 'file' },
     { id: 2, focusAreas: ['A'], dependsOn: [1], scope: 'file' },
@@ -54,7 +54,7 @@ test('concurrent-task-resolver: autoSerializeOverlaps avoids duplicates', () => 
   assert.deepEqual(tasks[1].dependsOn, [1]);
 });
 
-test('concurrent-task-resolver: autoSerializeOverlaps multiple overlaps', () => {
+test('concurrent-dep-resolver: autoSerializeOverlaps multiple overlaps', () => {
   const tasks = [
     { id: 1, focusAreas: ['A'], dependsOn: [], scope: 'file' },
     { id: 2, focusAreas: ['A', 'B'], dependsOn: [], scope: 'file' },
@@ -76,7 +76,7 @@ test('concurrent-task-resolver: autoSerializeOverlaps multiple overlaps', () => 
   assert.deepEqual(tasks[2].dependsOn, [2]);
 });
 
-test('concurrent-task-resolver: autoSerializeOverlaps reuses a pre-computed reachability matrix', () => {
+test('concurrent-dep-resolver: autoSerializeOverlaps reuses a pre-computed reachability matrix', () => {
   // When the caller has already computed reachability, the resolver should
   // honour it rather than triggering another O(V·(V+E)) traversal. We prove
   // this by passing a sentinel matrix where A→B is already reachable,
@@ -102,7 +102,7 @@ test('concurrent-task-resolver: autoSerializeOverlaps reuses a pre-computed reac
   assert.strictEqual(reachable, sentinel, 'reachable is echoed back');
 });
 
-test('concurrent-task-resolver: bucketed overlap matches the naive pairwise result', () => {
+test('concurrent-dep-resolver: bucketed overlap matches the naive pairwise result', () => {
   // Sanity-check that the focus-area bucketing in _collectPendingEdges
   // produces the same edges the previous O(n²) pairwise scan would have.
   const tasks = [

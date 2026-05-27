@@ -1,6 +1,6 @@
 import { assignLayers, computeReachability, detectCycle } from '../Graph.js';
 
-export { autoSerializeOverlaps } from './concurrent-task-resolver.js';
+export { autoSerializeOverlaps } from './concurrent-dep-resolver.js';
 
 /**
  * Roll focus-area sets up from tasks to stories. Returns a map of
