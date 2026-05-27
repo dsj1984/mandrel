@@ -12,6 +12,24 @@ threshold.
 > for the validated shape. Override per-project; never fork this helper to
 > change a number.
 
+<!-- separator: adjacent blockquotes -->
+
+> **3-tier hierarchy (target shape — opt-in via `planning.hierarchy: '3-tier'`).**
+> Every numeric ceiling and ratchet in this helper (cyclomatic flag /
+> must-fix, sibling-test convention, MI drop budget, rename refresh
+> tag) is **identical** between the 4-tier and 3-tier hierarchies —
+> these are coding-time rules keyed off the per-file baselines, not
+> per-Task ceremony. The only surface that changes is the at-keyboard
+> hook point: under 4-tier the pre-commit enforcement runs through
+> [`task-commit.js`](../../scripts/task-commit.js); under 3-tier
+> `task-commit.js` is not invoked and the agent runs
+> `npm run quality:preview` directly before authoring the commit per
+> [`.agents/rules/git-conventions.md`](../../rules/git-conventions.md).
+> The `.husky/pre-commit` hook fires the same `quality-preview.js`
+> engine in both cases, so the merge-time gate is unchanged. See
+> [`.agents/instructions.md` § 5.D](../../instructions.md) for the
+> full hierarchy contract.
+
 ## At-keyboard verification
 
 Run [`npm run quality:preview`](../../../package.json) before

@@ -29,6 +29,31 @@ The ticket array is authored **directly by you, the host LLM**.
 authoring context you need and (b) validates, persists, and transitions the
 Epic lifecycle state.
 
+> **3-tier hierarchy (target shape — opt-in via `planning.hierarchy: '3-tier'`).**
+> The decompose phase honours the `planning.hierarchy` flag resolved
+> from `.agentrc.json` (default `'4-tier'`).
+>
+> - Under `'4-tier'` (default), the ticket array contains
+>   `type::feature`, `type::story`, and `type::task` tickets; Stories
+>   require ≥1 child Task and acceptance criteria live on Task bodies.
+> - Under `'3-tier'`, the ticket array contains only `type::feature`
+>   and `type::story` tickets — no `type::task` children are emitted.
+>   Acceptance criteria and verification steps are inlined on the
+>   Story body via the `acceptance[]` and `verify[]` fields. Story
+>   dependencies that would have been expressed as cross-Task edges
+>   are lifted to Story-level `depends_on`.
+>
+> Both shapes flow through `validateAndNormalizeTickets`; the
+> validator branches on the flag and applies the appropriate
+> cardinality rules. The decomposer system prompt (carried by the
+> [`epic-plan-decompose-author`](../../skills/core/epic-plan-decompose-author/SKILL.md)
+> skill) selects the matching authoring template. While Epic #3078
+> is in flight both shapes are supported in parallel; after the
+> destructive Feature 8 lands, the flag is removed and 3-tier
+> becomes the only shape. See
+> [`.agents/instructions.md` § 5.D](../../instructions.md) for the
+> full contract.
+
 ## Constraint
 
 - **Do not** run this skill until the spec phase is complete. The Epic must

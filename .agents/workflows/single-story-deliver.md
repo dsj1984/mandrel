@@ -38,6 +38,22 @@ overhead rather than help.
 If the Story has an `Epic: #N` reference, use `/story-deliver`. If it
 doesn't, use this workflow.
 
+> **3-tier hierarchy (target shape — opt-in via `planning.hierarchy: '3-tier'`).**
+> Under the 4-tier default, a standalone Story still carries child
+> `type::task` tickets and `single-story-deliver` iterates the per-Task
+> commit loop (`task-commit.js`) exactly as `/story-deliver` does. Under
+> 3-tier, the standalone Story has no Task children — the
+> implementation phase reads the Story's inline `acceptance[]` /
+> `verify[]` fields and the agent authors commits directly per
+> [`.agents/rules/git-conventions.md`](../rules/git-conventions.md),
+> referencing the Story via `(refs #<storyId>)`. Branching, worktree
+> bootstrap, gates, push, and the `gh pr create → main` exit are
+> unchanged between hierarchies. See
+> [`.agents/instructions.md` § 5.D](../instructions.md) and
+> [`.agents/SDLC.md` § 3-tier hierarchy](../SDLC.md) for the full
+> contract; the flag's default remains `'4-tier'` until Epic #3078's
+> destructive Feature 8 lands.
+
 ## Prerequisites
 
 1. A GitHub Issue with the `type::story` label and **no** `Epic: #N`
