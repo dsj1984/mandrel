@@ -9,10 +9,28 @@
 # CI (.github/workflows/ci.yml) remains the authoritative full gate on every PR.
 #
 # Optional: PREPUSH_AUDIT=1 re-enables npm audit (CI still audits on PR/push).
+#
+# Optional: STORY_CLOSE_RECOVERY=1 — scoped escape hatch (Story #3162) for
+# story-close.js recovery paths. When set AND the push targets an
+# `epic/<id>` branch, the coverage + CRAP gate is skipped so the operator
+# can unblock a recovery push without `--no-verify`. All other gates still
+# run; non-epic pushes ignore the env var. Skip is announced on stdout so
+# the bypass is auditable.
+
+# Capture the pre-push ref protocol from stdin so the recovery-gate helper
+# can inspect it. Consumed unconditionally — downstream steps do not read
+# stdin, and not consuming it would leak into the next command on some
+# shells.
+PREPUSH_REFS=$(cat)
 
 node .agents/scripts/quality-preview.js --changed-since origin/main
 if [ "${PREPUSH_AUDIT:-0}" = "1" ]; then
   npm audit --audit-level=high
 fi
-node .agents/scripts/coverage-capture.js --skip-when-no-crap-files --ref origin/main
-npm run crap:check
+
+if printf '%s' "$PREPUSH_REFS" | node .agents/scripts/check-prepush-recovery.js; then
+  : # coverage + CRAP gate skipped; helper printed the audit log line
+else
+  node .agents/scripts/coverage-capture.js --skip-when-no-crap-files --ref origin/main
+  npm run crap:check
+fi
