@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-27T15:31:47.674Z",
+  "generatedAt": "2026-05-27T15:39:17.971Z",
   "rollup": {
     "*": {
       "min": 62.385,
-      "p50": 103.753,
+      "p50": 103.714,
       "p95": 121.235
     }
   },
@@ -169,6 +169,10 @@
     {
       "path": ".agents/scripts/git-rebase-and-resolve.js",
       "mi": 97.034
+    },
+    {
+      "path": ".agents/scripts/hierarchy-gate.js",
+      "mi": 86.239
     },
     {
       "path": ".agents/scripts/hydrate-context.js",
@@ -855,6 +859,10 @@
       "mi": 93.343
     },
     {
+      "path": ".agents/scripts/lib/orchestration/detectors-phase.js",
+      "mi": 94.803
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/doc-reader.js",
       "mi": 102.211
     },
@@ -1005,10 +1013,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/story-launcher.js",
       "mi": 105.161
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/story-run-progress-writer.js",
-      "mi": 90.407
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/sub-agent-return.js",
@@ -1265,6 +1269,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/post-merge/phases/temp-cleanup.js",
       "mi": 103.836
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/post-merge/phases/ticket-closure.js",
+      "mi": 98.894
     },
     {
       "path": ".agents/scripts/lib/orchestration/post-merge/phases/worktree-reap.js",
@@ -2077,10 +2085,6 @@
     {
       "path": ".agents/scripts/story-close.js",
       "mi": 94.408
-    },
-    {
-      "path": ".agents/scripts/story-deliver-prepare.js",
-      "mi": 93.255
     },
     {
       "path": ".agents/scripts/story-task-progress.js",
@@ -2931,10 +2935,6 @@
       "mi": 113.522
     },
     {
-      "path": "tests/epic-runner/story-run-progress-writer.test.js",
-      "mi": 98.721
-    },
-    {
       "path": "tests/epic-runner/sub-agent-return.test.js",
       "mi": 98.958
     },
@@ -3021,6 +3021,10 @@
     {
       "path": "tests/helpers/make-mock-provider.js",
       "mi": 116.261
+    },
+    {
+      "path": "tests/hierarchy-gate.test.js",
+      "mi": 98.674
     },
     {
       "path": "tests/hook-chain-reflog-invariant.test.js",
@@ -3521,6 +3525,10 @@
     {
       "path": "tests/lib/orchestration/crap-remediation-1641.test.js",
       "mi": 107.372
+    },
+    {
+      "path": "tests/lib/orchestration/detectors-phase.test.js",
+      "mi": 108.832
     },
     {
       "path": "tests/lib/orchestration/dispatch-pipeline-reachability.test.js",
@@ -4635,6 +4643,10 @@
       "mi": 110.128
     },
     {
+      "path": "tests/scripts/story-close-post-merge-transition.test.js",
+      "mi": 99.176
+    },
+    {
       "path": "tests/scripts/story-init-install-soak.test.js",
       "mi": 104.163
     },
@@ -4785,10 +4797,6 @@
     {
       "path": "tests/story-close/summarize-gate-results.test.js",
       "mi": 103.683
-    },
-    {
-      "path": "tests/story-deliver/story-deliver-prepare.test.js",
-      "mi": 106.035
     },
     {
       "path": "tests/story-deliver/story-task-progress.test.js",
