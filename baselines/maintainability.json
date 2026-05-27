@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-27T21:53:15.329Z",
+  "generatedAt": "2026-05-27T21:57:59.022Z",
   "rollup": {
     "*": {
       "min": 38.161,
-      "p50": 103.664,
+      "p50": 103.671,
       "p95": 121.235
     }
   },
@@ -1057,10 +1057,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
       "mi": 92.128
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
-      "mi": 90.796
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-spec-reconciler-discriminator.js",
@@ -4385,10 +4381,6 @@
     {
       "path": "tests/orchestration/context-hydration-engine.test.js",
       "mi": 101.659
-    },
-    {
-      "path": "tests/orchestration/manifest-builder-3tier.test.js",
-      "mi": 91.513
     },
     {
       "path": "tests/orchestration/skill-capsule-loader.test.js",
