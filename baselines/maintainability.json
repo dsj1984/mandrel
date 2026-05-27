@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-27T15:26:33.902Z",
+  "generatedAt": "2026-05-27T15:31:47.674Z",
   "rollup": {
     "*": {
       "min": 62.385,
-      "p50": 103.689,
+      "p50": 103.753,
       "p95": 121.235
     }
   },
@@ -169,10 +169,6 @@
     {
       "path": ".agents/scripts/git-rebase-and-resolve.js",
       "mi": 97.034
-    },
-    {
-      "path": ".agents/scripts/hierarchy-gate.js",
-      "mi": 86.239
     },
     {
       "path": ".agents/scripts/hydrate-context.js",
@@ -859,10 +855,6 @@
       "mi": 93.343
     },
     {
-      "path": ".agents/scripts/lib/orchestration/detectors-phase.js",
-      "mi": 94.803
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/doc-reader.js",
       "mi": 102.211
     },
@@ -1273,10 +1265,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/post-merge/phases/temp-cleanup.js",
       "mi": 103.836
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/post-merge/phases/ticket-closure.js",
-      "mi": 98.894
     },
     {
       "path": ".agents/scripts/lib/orchestration/post-merge/phases/worktree-reap.js",
@@ -3035,10 +3023,6 @@
       "mi": 116.261
     },
     {
-      "path": "tests/hierarchy-gate.test.js",
-      "mi": 98.674
-    },
-    {
       "path": "tests/hook-chain-reflog-invariant.test.js",
       "mi": 107.622
     },
@@ -3537,10 +3521,6 @@
     {
       "path": "tests/lib/orchestration/crap-remediation-1641.test.js",
       "mi": 107.372
-    },
-    {
-      "path": "tests/lib/orchestration/detectors-phase.test.js",
-      "mi": 108.832
     },
     {
       "path": "tests/lib/orchestration/dispatch-pipeline-reachability.test.js",
@@ -4653,10 +4633,6 @@
     {
       "path": "tests/scripts/story-close-pipeline.test.js",
       "mi": 110.128
-    },
-    {
-      "path": "tests/scripts/story-close-post-merge-transition.test.js",
-      "mi": 99.176
     },
     {
       "path": "tests/scripts/story-init-install-soak.test.js",
