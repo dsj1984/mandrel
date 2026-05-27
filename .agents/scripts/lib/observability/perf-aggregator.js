@@ -359,6 +359,267 @@ function aggregateTopHotspots(summaries) {
     .slice(0, 5);
 }
 
+/**
+ * Default verify-concurrency cap when the caller does not override it.
+ * Mirrors the default for `delivery.deliverRunner.verifyConcurrencyCap`
+ * in `.agentrc.json` (Epic #3019 Tech Spec §1.4).
+ */
+const DEFAULT_VERIFY_CONCURRENCY_CAP = 4;
+
+/**
+ * Default wave-execution concurrency cap used when the caller does not
+ * supply `concurrencyCap` to {@link computeWaveParallelismRows}. The
+ * project default (`delivery.deliverRunner.concurrencyCap`) is 2 today;
+ * the value here is the safe fallback for offline / test contexts.
+ */
+const DEFAULT_WAVE_CONCURRENCY_CAP = 2;
+
+function tsOf(evt) {
+  return evt?.ts ?? evt?.timestamp ?? null;
+}
+
+function tsToMs(ts) {
+  if (typeof ts !== 'string') return null;
+  const n = Date.parse(ts);
+  return Number.isFinite(n) ? n : null;
+}
+
+function storyIdOf(evt) {
+  const raw = evt?.story ?? evt?.storyId;
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+/**
+ * Compute per-wave parallelism rows from a chronological iterable of
+ * lifecycle events (Task #3028, Epic #3019 / Story #3025).
+ *
+ * Wave windows are bracketed by `wave-start` (carrying `index` +
+ * `stories[]`) and the matching `wave-complete` (same `index`). When no
+ * `wave-complete` is observed for a wave, the wave's wallClockMs falls
+ * back to the timestamp of the last in-wave event observed (so partial
+ * runs still emit a row). When `wave-start` is missing entirely we emit
+ * no row for that wave.
+ *
+ * Per-Story durations within a wave come from `state-transition` events
+ * (`agent::executing` → `agent::done`) for the Story IDs the
+ * `wave-start` payload enumerated. We bracket the **first**
+ * `executing` transition and the **last** terminal transition (`done`,
+ * `blocked`, or `failed`) per Story; if a Story is missing one boundary
+ * its contribution to `summedStoryMs` is 0.
+ *
+ * Field contract (per the extended `epic-perf-report.schema.json`):
+ *   - `waveIndex`: integer ≥ 0, from `wave-start.index`
+ *   - `wallClockMs`: integer ≥ 0, `(waveEnd - waveStart)` in ms
+ *   - `summedStoryMs`: integer ≥ 0, Σ per-Story `(end - start)`
+ *   - `utilisation`: `summedStoryMs / (wallClockMs * concurrencyCap)`,
+ *     clamped to `[0, 1]`. Zero when `wallClockMs === 0` or cap is 0.
+ *   - `capBinding`: true when `summedStoryMs / wallClockMs >=
+ *     concurrencyCap`, false otherwise (and false when wallClockMs
+ *     is 0).
+ *   - `verifyConcurrencyCap`: forwarded from `opts.verifyConcurrencyCap`
+ *     (or the project default 4) so the post-merge close comment can
+ *     attribute saturation back to the cap value in force at the time.
+ *
+ * @param {Iterable<object>} events
+ * @param {{
+ *   concurrencyCap?: number,
+ *   verifyConcurrencyCap?: number,
+ * }} [opts]
+ * @returns {Array<{
+ *   waveIndex: number,
+ *   wallClockMs: number,
+ *   summedStoryMs: number,
+ *   utilisation: number,
+ *   capBinding: boolean,
+ *   verifyConcurrencyCap: number,
+ * }>}
+ */
+export function computeWaveParallelismRows(events, opts = {}) {
+  const concurrencyCap =
+    Number.isInteger(opts.concurrencyCap) && opts.concurrencyCap >= 1
+      ? opts.concurrencyCap
+      : DEFAULT_WAVE_CONCURRENCY_CAP;
+  const verifyConcurrencyCap =
+    Number.isInteger(opts.verifyConcurrencyCap) &&
+    opts.verifyConcurrencyCap >= 1
+      ? opts.verifyConcurrencyCap
+      : DEFAULT_VERIFY_CONCURRENCY_CAP;
+
+  // Materialise the iterable so we can do multiple passes; events are
+  // typically a few thousand per Epic at most.
+  const evtArr = [];
+  for (const e of events ?? []) {
+    if (isObject(e) && typeof e.kind === 'string') evtArr.push(e);
+  }
+
+  // Index Story state-transition windows: first `agent::executing` →
+  // last terminal (`agent::done` | `agent::blocked` | `agent::failed`).
+  const storyWindows = new Map(); // storyId → { startMs, endMs }
+  for (const evt of evtArr) {
+    if (evt.kind !== 'state-transition') continue;
+    const sid = storyIdOf(evt);
+    if (sid == null) continue;
+    const ms = tsToMs(tsOf(evt));
+    if (ms == null) continue;
+    const to =
+      (isObject(evt.details) && evt.details.to) ?? evt.to ?? evt.toState;
+    const rec = storyWindows.get(sid) ?? { startMs: null, endMs: null };
+    if (to === 'agent::executing') {
+      if (rec.startMs == null || ms < rec.startMs) rec.startMs = ms;
+    } else if (
+      to === 'agent::done' ||
+      to === 'agent::blocked' ||
+      to === 'agent::failed'
+    ) {
+      if (rec.endMs == null || ms > rec.endMs) rec.endMs = ms;
+    }
+    storyWindows.set(sid, rec);
+  }
+
+  // Bucket wave-start / wave-complete events by index.
+  const waves = new Map(); // index → { startMs, endMs, stories: number[] }
+
+  for (const evt of evtArr) {
+    const ts = tsToMs(tsOf(evt));
+    if (ts == null) continue;
+    if (evt.kind === 'wave-start') {
+      const idx = Number(evt.index);
+      if (!Number.isInteger(idx) || idx < 0) continue;
+      const storiesField = Array.isArray(evt.stories) ? evt.stories : [];
+      const storyIds = storiesField
+        .map((s) => {
+          const n = Number(isObject(s) ? (s.id ?? s.storyId) : s);
+          return Number.isInteger(n) && n > 0 ? n : null;
+        })
+        .filter((n) => n != null);
+      const rec = waves.get(idx) ?? {
+        startMs: null,
+        endMs: null,
+        stories: [],
+      };
+      if (rec.startMs == null || ts < rec.startMs) rec.startMs = ts;
+      rec.stories = storyIds;
+      waves.set(idx, rec);
+    } else if (evt.kind === 'wave-complete') {
+      const idx = Number(evt.index);
+      if (!Number.isInteger(idx) || idx < 0) continue;
+      const rec = waves.get(idx) ?? {
+        startMs: null,
+        endMs: null,
+        stories: [],
+      };
+      if (rec.endMs == null || ts > rec.endMs) rec.endMs = ts;
+      waves.set(idx, rec);
+    }
+  }
+
+  // Fallback: if a wave never saw `wave-complete`, walk the events
+  // chronologically and use the max ts observed between this wave's
+  // start and the next wave's start as the wallClock terminator.
+  const orderedWaves = [...waves.entries()].sort((a, b) => a[0] - b[0]);
+  for (let i = 0; i < orderedWaves.length; i += 1) {
+    const [idx, rec] = orderedWaves[i];
+    if (rec.endMs != null) continue;
+    const startMs = rec.startMs;
+    if (startMs == null) continue;
+    const nextStartMs =
+      i + 1 < orderedWaves.length ? orderedWaves[i + 1][1].startMs : Infinity;
+    let maxMs = startMs;
+    for (const evt of evtArr) {
+      const ts = tsToMs(tsOf(evt));
+      if (ts == null) continue;
+      if (ts >= startMs && ts < nextStartMs && ts > maxMs) maxMs = ts;
+    }
+    rec.endMs = maxMs;
+    waves.set(idx, rec);
+  }
+
+  // Build rows.
+  const rows = [];
+  for (const [idx, rec] of orderedWaves) {
+    if (rec.startMs == null) continue;
+    const wallClockMs = Math.max(
+      0,
+      Math.floor((rec.endMs ?? rec.startMs) - rec.startMs),
+    );
+    let summedStoryMs = 0;
+    for (const sid of rec.stories) {
+      const w = storyWindows.get(sid);
+      if (!w || w.startMs == null || w.endMs == null) continue;
+      const dur = w.endMs - w.startMs;
+      if (Number.isFinite(dur) && dur > 0) summedStoryMs += Math.floor(dur);
+    }
+    let utilisation = 0;
+    let capBinding = false;
+    if (wallClockMs > 0 && concurrencyCap > 0) {
+      utilisation = clamp(summedStoryMs / (wallClockMs * concurrencyCap), 0, 1);
+      capBinding = summedStoryMs / wallClockMs >= concurrencyCap;
+    }
+    rows.push({
+      waveIndex: idx,
+      wallClockMs,
+      summedStoryMs,
+      utilisation,
+      capBinding,
+      verifyConcurrencyCap,
+    });
+  }
+
+  return rows;
+}
+
+/**
+ * Clamp `n` to the inclusive range [lo, hi]. Returns `lo` for NaN /
+ * non-finite inputs so the coercer stays well-behaved on garbage.
+ *
+ * @param {number} n
+ * @param {number} lo
+ * @param {number} hi
+ * @returns {number}
+ */
+function clamp(n, lo, hi) {
+  if (!Number.isFinite(n)) return lo;
+  if (n < lo) return lo;
+  if (n > hi) return hi;
+  return n;
+}
+
+/**
+ * Coerce a single waveParallelism input row into the schema-canonical
+ * shape `{ waveIndex, wallClockMs, summedStoryMs, utilisation,
+ * capBinding, verifyConcurrencyCap }` (Story #3025).
+ *
+ * - Numeric fields are floored to non-negative integers (or clamped
+ *   numbers for utilisation) so the JSON-schema `integer` / `minimum: 0`
+ *   constraints hold by construction.
+ * - `utilisation` is clamped to `[0, 1]` per the Tech Spec
+ *   contract (§1.1).
+ * - `capBinding` is coerced to boolean.
+ * - `verifyConcurrencyCap` falls back to the project default (4) when the
+ *   caller omits it or supplies a non-positive integer; the schema
+ *   requires `minimum: 1` so 0 is not a valid carrier value.
+ *
+ * Exported for unit-testing the coercer in isolation.
+ *
+ * @param {object | null | undefined} row
+ * @returns {{ waveIndex: number, wallClockMs: number, summedStoryMs: number, utilisation: number, capBinding: boolean, verifyConcurrencyCap: number }}
+ */
+export function coerceWaveParallelismRow(row) {
+  const src = isObject(row) ? row : {};
+  const cap = Number(src.verifyConcurrencyCap);
+  const verifyConcurrencyCap =
+    Number.isInteger(cap) && cap >= 1 ? cap : DEFAULT_VERIFY_CONCURRENCY_CAP;
+  return {
+    waveIndex: nonNegativeInt(src.waveIndex),
+    wallClockMs: nonNegativeInt(src.wallClockMs),
+    summedStoryMs: nonNegativeInt(src.summedStoryMs),
+    utilisation: clamp(nonNegativeNumber(src.utilisation), 0, 1),
+    capBinding: Boolean(src.capBinding),
+    verifyConcurrencyCap,
+  };
+}
+
 export function computeEpicPerfReport(perStorySummaries, opts) {
   if (!isObject(opts)) {
     throw new TypeError('computeEpicPerfReport: opts is required');
@@ -402,15 +663,22 @@ export function computeEpicPerfReport(perStorySummaries, opts) {
     .sort((a, b) => b.frictionCount - a.frictionCount)
     .slice(0, 5);
 
-  const waveParallelism = Array.isArray(opts.waveParallelism)
-    ? opts.waveParallelism.map((row) => ({
-        wave: nonNegativeInt(row?.wave),
-        wallClockMs: nonNegativeInt(row?.wallClockMs),
-        sumStoryMs: nonNegativeInt(row?.sumStoryMs),
-        utilization: nonNegativeNumber(row?.utilization),
-        stories: nonNegativeInt(row?.stories),
-      }))
-    : [];
+  let waveParallelism;
+  if (Array.isArray(opts.waveParallelism)) {
+    waveParallelism = opts.waveParallelism.map((row) =>
+      coerceWaveParallelismRow(row),
+    );
+  } else if (opts.events) {
+    // Derive rows from the raw lifecycle event stream when the caller
+    // hands us the events but no pre-computed array (Story #3025 /
+    // Task #3028).
+    waveParallelism = computeWaveParallelismRows(opts.events, {
+      concurrencyCap: opts.concurrencyCap,
+      verifyConcurrencyCap: opts.verifyConcurrencyCap,
+    });
+  } else {
+    waveParallelism = [];
+  }
 
   return {
     kind: 'epic-perf-report',

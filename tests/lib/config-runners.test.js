@@ -35,6 +35,7 @@ describe('getRunners', () => {
     assert.deepEqual(r.deliverRunner, {
       concurrencyCap: 5,
       progressReportIntervalSec: 60,
+      verifyConcurrencyCap: 4,
     });
   });
 

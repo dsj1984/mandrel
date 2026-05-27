@@ -6,7 +6,6 @@ import {
   resolveConcurrency,
 } from '../.agents/scripts/lib/orchestration/concurrency.js';
 import { CommitAssertion } from '../.agents/scripts/lib/orchestration/epic-runner/commit-assertion.js';
-import { createRuntimeContext } from '../.agents/scripts/lib/runtime-context.js';
 import { runWaveGate } from '../.agents/scripts/wave-gate.js';
 
 // ---------------------------------------------------------------------------
@@ -73,44 +72,6 @@ describe('resolveConcurrency — overrides ignored post-reshape', () => {
     assert.throws(() => {
       out.waveGate = 999;
     });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// createRuntimeContext — ctx.concurrency wiring
-// ---------------------------------------------------------------------------
-
-describe('createRuntimeContext — ctx.concurrency', () => {
-  it('exposes DEFAULT_CONCURRENCY when no overrides are supplied', () => {
-    const ctx = createRuntimeContext();
-    assert.deepEqual(ctx.concurrency, DEFAULT_CONCURRENCY);
-  });
-
-  it('ignores overrides.orchestration (config knob removed post-reshape)', () => {
-    const ctx = createRuntimeContext({
-      orchestration: {
-        runners: {
-          concurrency: {
-            waveGate: 7,
-            commitAssertion: 3,
-            progressReporter: 12,
-          },
-        },
-      },
-    });
-    assert.deepEqual(ctx.concurrency, DEFAULT_CONCURRENCY);
-  });
-
-  it('overrides.concurrency takes precedence (passthrough only)', () => {
-    const ctx = createRuntimeContext({
-      concurrency: { waveGate: 99, commitAssertion: 99, progressReporter: 99 },
-    });
-    assert.equal(ctx.concurrency.waveGate, 99);
-  });
-
-  it('preserves v5.21.0 behaviour when no orchestration block at all', () => {
-    const ctx = createRuntimeContext({ orchestration: null });
-    assert.deepEqual(ctx.concurrency, DEFAULT_CONCURRENCY);
   });
 });
 

@@ -708,9 +708,12 @@ maintenance work:
 - The orchestration barrel becomes a true facade — touching it does
   not pull in the scripts CLI surface or providers, which keeps test
   doubles small.
-- Operators gain `.agents/scripts/README.md` as the entry-point index
-  for the script surface, replacing the prior need to grep package.json
-  scripts and CLI banners.
+- Operators have [`.agents/scripts/README.md`](../.agents/scripts/README.md)
+  as the operator-scripts catalog. The file documents the optional
+  scripts that are not wired into `package.json` / Husky / CI (see
+  Story #3048); it is intentionally **not** an exhaustive index of the
+  ~90 top-level entrypoints — for those, `package.json` scripts and
+  `.agents/workflows/` remain the canonical surface.
 
 ## ADR 20260507-1030a: Performance-signal telemetry — events local, summaries on tickets
 

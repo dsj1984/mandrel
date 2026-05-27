@@ -247,32 +247,41 @@ describe('computeEpicPerfReport', () => {
     ]);
   });
 
-  it('coerces waveParallelism rows to non-negative integers', () => {
+  it('coerces waveParallelism rows to the schema-canonical utilisation shape', () => {
     const out = computeEpicPerfReport([], {
       epicId: 1,
       waveParallelism: [
         {
-          wave: 1,
+          waveIndex: 1,
           wallClockMs: 1000,
-          sumStoryMs: 4000,
-          utilization: 0.25,
-          stories: 4,
+          summedStoryMs: 4000,
+          utilisation: 0.25,
+          capBinding: true,
+          verifyConcurrencyCap: 4,
         },
         {
-          wave: -2,
+          waveIndex: -2,
           wallClockMs: 'bad',
-          sumStoryMs: null,
-          utilization: -1,
-          stories: 1.7,
+          summedStoryMs: null,
+          utilisation: -1,
+          capBinding: 0,
+          verifyConcurrencyCap: 0,
         },
       ],
     });
     assert.equal(out.waveParallelism.length, 2);
-    assert.equal(out.waveParallelism[1].wave, 0);
+    // First row passes through (already canonical).
+    assert.equal(out.waveParallelism[0].waveIndex, 1);
+    assert.equal(out.waveParallelism[0].capBinding, true);
+    assert.equal(out.waveParallelism[0].verifyConcurrencyCap, 4);
+    // Second row coerces garbage to safe defaults.
+    assert.equal(out.waveParallelism[1].waveIndex, 0);
     assert.equal(out.waveParallelism[1].wallClockMs, 0);
-    assert.equal(out.waveParallelism[1].sumStoryMs, 0);
-    assert.equal(out.waveParallelism[1].utilization, 0);
-    assert.equal(out.waveParallelism[1].stories, 1);
+    assert.equal(out.waveParallelism[1].summedStoryMs, 0);
+    assert.equal(out.waveParallelism[1].utilisation, 0);
+    assert.equal(out.waveParallelism[1].capBinding, false);
+    // verifyConcurrencyCap falls back to the project default when omitted/invalid.
+    assert.equal(out.waveParallelism[1].verifyConcurrencyCap, 4);
   });
 
   it('rejects bad epicId', () => {

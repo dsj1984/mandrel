@@ -115,6 +115,7 @@ export async function runRetro(opts = {}) {
     assembleStateFn = assembleState,
     cwd,
     fsImpl = nodeFs,
+    perfThresholds = null,
   } = opts;
 
   if (!Number.isInteger(epicId) || epicId <= 0) {
@@ -152,6 +153,7 @@ export async function runRetro(opts = {}) {
       cwd,
       fsImpl,
       startedAt,
+      perfThresholds,
       onMirrorWritten: (p) => {
         retroPathWritten = p;
       },

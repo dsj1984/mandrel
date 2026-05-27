@@ -54,6 +54,55 @@ import {
 import { forEachLine } from './lib/observability/signals-writer.js';
 import { upsertStructuredComment } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
+import { read as readSignals } from './lib/signals/read.js';
+
+/**
+ * Stream every lifecycle event under the Epic into an in-memory array
+ * (Story #3025 / Task #3030). The perf-aggregator's wave-parallelism
+ * reducer needs a single chronological iterable spanning wave-start /
+ * wave-complete / state-transition events; the canonical reader walks
+ * the epic-level signals.ndjson first, then each per-Story stream in
+ * ascending Story-ID order, so that ordering matches the wave-tick
+ * emit order at runtime.
+ *
+ * Returns `[]` on any reader failure so the analyzer keeps composing
+ * its other report sections.
+ */
+async function readEpicLifecycleEvents(epicId, config, logger) {
+  const events = [];
+  try {
+    for await (const evt of readSignals({ epic: epicId, config })) {
+      if (evt && typeof evt === 'object') events.push(evt);
+    }
+  } catch (err) {
+    logger?.warn?.(
+      `[analyze-execution] readEpicLifecycleEvents(${epicId}) failed (non-fatal): ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  }
+  return events;
+}
+
+/**
+ * Resolve the wave-execution concurrency cap from the resolved config
+ * (`delivery.deliverRunner.concurrencyCap`), falling back to the
+ * dispatcher's safe default of 2. Story #3025 / Task #3030.
+ */
+function resolveConcurrencyCap(config) {
+  const cap = config?.delivery?.deliverRunner?.concurrencyCap;
+  return Number.isInteger(cap) && cap >= 1 ? cap : 2;
+}
+
+/**
+ * Resolve the verify-results concurrency cap from the resolved config
+ * (`delivery.deliverRunner.verifyConcurrencyCap`), falling back to 4.
+ * Story #3025 / Task #3030.
+ */
+function resolveVerifyConcurrencyCap(config) {
+  const cap = config?.delivery?.deliverRunner?.verifyConcurrencyCap;
+  return Number.isInteger(cap) && cap >= 1 ? cap : 4;
+}
 
 const STORY_PERF_TYPE = 'story-perf-summary';
 const EPIC_PERF_TYPE = 'epic-perf-report';
@@ -585,10 +634,34 @@ export async function runEpicMode(ctx) {
   logger.info?.(`[analyze-execution] epic-mode epic=#${epicId}`);
 
   const summaries = await collectFn(provider, epicId, logger);
-  const payload = computeEpicPerfReport(summaries, {
+
+  // Story #3025 / Task #3030 — forward lifecycle events to the
+  // aggregator so the report's `waveParallelism` array is populated
+  // (the analyzer used to omit the field, leaving the report at `[]`).
+  const readLifecycleEventsFn =
+    ctx.readLifecycleEventsFn ?? readEpicLifecycleEvents;
+  const lifecycleEvents = ctx.config
+    ? await readLifecycleEventsFn(epicId, ctx.config, logger)
+    : [];
+  const concurrencyCap = resolveConcurrencyCap(ctx.config);
+  const verifyConcurrencyCap = resolveVerifyConcurrencyCap(ctx.config);
+
+  // Only forward `events` when we actually have something — passing an
+  // empty array suppresses the friction-from-summaries fallback in
+  // `computeEpicPerfReport.buildSignalCounts`, which would zero the
+  // counts for callers that have summaries but no lifecycle stream
+  // (e.g. legacy/test paths without a `config`).
+  const reportOpts = {
     epicId,
     generatedAt: now().toISOString(),
-  });
+    concurrencyCap,
+    verifyConcurrencyCap,
+  };
+  if (lifecycleEvents.length > 0) {
+    reportOpts.events = lifecycleEvents;
+  }
+
+  const payload = computeEpicPerfReport(summaries, reportOpts);
 
   // Story #1400 / Task #1427 — baseline-refresh-rate row. Pure reporter
   // operates on a fixture of git-log records gathered by the injected

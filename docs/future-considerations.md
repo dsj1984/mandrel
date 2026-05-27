@@ -237,8 +237,6 @@ once the model can reliably judge "this diff is risky." Keep the structured
 
 **Primary paths:**
 
-- `.agents/workflows/helpers/epic-code-review.md`
-- `.agents/scripts/epic-code-review.js`
 - `.agents/scripts/lib/orchestration/code-review.js`
 - `.agents/skills/core/code-review-and-quality/SKILL.md`
 

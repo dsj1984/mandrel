@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/epic-perf-report.schema.json",
   "title": "EpicPerfReport",
-  "description": "Payload of the <!-- structured:epic-perf-report --> comment posted once per Epic at close, alongside the retro (Epic #1030).",
+  "description": "Payload of the <!-- structured:epic-perf-report --> comment posted once per Epic at close, alongside the retro (Epic #1030; waveParallelism utilisation rows added under Epic #3019 / Story #3025).",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -33,23 +33,25 @@
     },
     "waveParallelism": {
       "type": "array",
-      "description": "Per-wave parallelism utilization. utilization = wallClockMs / sumStoryMs (lower is better; ideal is 1/N).",
+      "description": "Per-wave parallelism utilisation. utilisation = summedStoryMs / (wallClockMs * concurrencyCap), clamped to [0,1] (Epic #3019 / Story #3025).",
       "items": {
         "type": "object",
         "additionalProperties": false,
         "required": [
-          "wave",
+          "waveIndex",
           "wallClockMs",
-          "sumStoryMs",
-          "utilization",
-          "stories"
+          "summedStoryMs",
+          "utilisation",
+          "capBinding",
+          "verifyConcurrencyCap"
         ],
         "properties": {
-          "wave": { "type": "integer", "minimum": 0 },
+          "waveIndex": { "type": "integer", "minimum": 0 },
           "wallClockMs": { "type": "integer", "minimum": 0 },
-          "sumStoryMs": { "type": "integer", "minimum": 0 },
-          "utilization": { "type": "number", "minimum": 0 },
-          "stories": { "type": "integer", "minimum": 0 }
+          "summedStoryMs": { "type": "integer", "minimum": 0 },
+          "utilisation": { "type": "number", "minimum": 0, "maximum": 1 },
+          "capBinding": { "type": "boolean" },
+          "verifyConcurrencyCap": { "type": "integer", "minimum": 1 }
         }
       }
     },

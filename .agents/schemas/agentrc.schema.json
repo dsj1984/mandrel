@@ -238,7 +238,43 @@
       "type": "object",
       "properties": {
         "concurrencyCap": { "type": "integer", "minimum": 1 },
-        "progressReportIntervalSec": { "type": "integer", "minimum": 0 }
+        "progressReportIntervalSec": { "type": "integer", "minimum": 0 },
+        "verifyConcurrencyCap": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Bounded-concurrency cap for the per-wave verifyWaveResults loop (Epic #3019 Tech Spec §1.4). Separate from the wave-execution `concurrencyCap` so operators can tune ticket-verification parallelism independently of Story dispatch parallelism. Default 4."
+        }
+      },
+      "additionalProperties": false
+    },
+    "retro": {
+      "type": "object",
+      "description": "Story #3042 (Epic #3019). Operator-tunable retro behaviour. Currently exposes `perfThresholds`, the gates the retro perf-signals classifier uses to decide which signals to surface in the `## Performance Signals` / `## Recommended Follow-Ons` retro sections.",
+      "properties": {
+        "perfThresholds": {
+          "type": "object",
+          "description": "Gates for `classifyPerfSignals` (lib/orchestration/retro-perf-heuristics.js). Defaults are 0.6 / 0.4 / 2.",
+          "properties": {
+            "utilisation": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "Per-wave utilisation threshold. Waves whose `utilisation` is strictly below this value emit a `low-utilisation` signal. Default 0.6."
+            },
+            "bootstrapShare": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "Maximum acceptable share of cumulative Story execution time spent in the story-init phase. When exceeded the retro emits a `high-bootstrap-share` signal. Default 0.4."
+            },
+            "capBindingRunLength": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Minimum run length of consecutive cap-binding waves before the retro emits a `cap-binding-run` signal. Default 2."
+            }
+          },
+          "additionalProperties": false
+        }
       },
       "additionalProperties": false
     },
@@ -693,6 +729,7 @@
         "mergeWatch": { "$ref": "#/$defs/mergeWatch" },
         "epicAudit": { "$ref": "#/$defs/epicAudit" },
         "codeReview": { "$ref": "#/$defs/codeReview" },
+        "retro": { "$ref": "#/$defs/retro" },
         "ci": {
           "type": "object",
           "properties": {

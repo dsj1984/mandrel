@@ -1125,6 +1125,12 @@ conventions to follow.
   `IExecutionAdapter` abstraction as a hard cutover.
 - **Config resolution:** `.agents/scripts/lib/config-resolver.js` +
   `config-schema.js` (shell-metacharacter injection guards built in)
+- **Operator scripts catalog:**
+  [`.agents/scripts/README.md`](../.agents/scripts/README.md) documents
+  the optional operator-only CLIs (`loc-delta.js`,
+  `retrofit-task-bodies.js`, `validate-docs-freshness.js`,
+  `update-mutation-baseline.js`) that are not wired into `npm` /
+  Husky / CI.
 
 ### Ticketing & CI
 

@@ -127,6 +127,7 @@ top-level keys are validation errors.
 | `deliverRunner` | No | `object` | — | Nested configuration block. |
 | `deliverRunner.concurrencyCap` | No | `integer` | — | — |
 | `deliverRunner.progressReportIntervalSec` | No | `integer` | — | — |
+| `deliverRunner.verifyConcurrencyCap` | No | `integer` | — | Bounded-concurrency cap for the per-wave verifyWaveResults loop (Epic #3019 Tech Spec §1.4). Separate from the wave-execution `concurrencyCap` so operators can tune ticket-verification parallelism independently of Story dispatch parallelism. Default 4. |
 | `worktreeIsolation` | No | `object` | — | Nested configuration block. |
 | `worktreeIsolation.enabled` | No | `boolean` | — | — |
 | `worktreeIsolation.root` | No | `string` | — | — |
@@ -254,6 +255,11 @@ top-level keys are validation errors.
 | `codeReview.providerConfig` | No | `object` | — | Optional escape hatch for adapter-specific configuration. No documented keys in Epic #2815; reserved so future adapters can be configured without another schema migration. |
 | `codeReview.maxFixAttempts` | No | `integer` | — | Maximum auto-fix retry attempts per finding in /epic-deliver Phase 5 (code-review). 0 disables auto-fix. Default 3. |
 | `codeReview.maxFixScopeFiles` | No | `integer` | — | Maximum file count a single auto-fix may modify before escalating to agent::blocked. Default 5. |
+| `retro` | No | `object` | — | Story #3042 (Epic #3019). Operator-tunable retro behaviour. Currently exposes `perfThresholds`, the gates the retro perf-signals classifier uses to decide which signals to surface in the `## Performance Signals` / `## Recommended Follow-Ons` retro sections. |
+| `retro.perfThresholds` | No | `object` | — | Gates for `classifyPerfSignals` (lib/orchestration/retro-perf-heuristics.js). Defaults are 0.6 / 0.4 / 2. |
+| `retro.perfThresholds.utilisation` | No | `number` | — | Per-wave utilisation threshold. Waves whose `utilisation` is strictly below this value emit a `low-utilisation` signal. Default 0.6. |
+| `retro.perfThresholds.bootstrapShare` | No | `number` | — | Maximum acceptable share of cumulative Story execution time spent in the story-init phase. When exceeded the retro emits a `high-bootstrap-share` signal. Default 0.4. |
+| `retro.perfThresholds.capBindingRunLength` | No | `integer` | — | Minimum run length of consecutive cap-binding waves before the retro emits a `cap-binding-run` signal. Default 2. |
 | `ci` | No | `object` | — | Nested configuration block. |
 | `ci.skipForStoryPushes` | No | `boolean` | — | Story #2899 (Epic #2880, F13). When true (default), task-commit.js appends a '[skip ci]' trailer to per-Task Story-branch commit subjects so per-Task pushes do not stampede the CI fleet. The Epic-branch merge commit produced by story-close.js never carries the marker, regardless of this flag. |
 | `preflight` | No | `object` | — | Story #2899 (Epic #2880, F13). Thresholds consumed by `.agents/scripts/epic-deliver-preflight.js`. When any value is exceeded the preflight envelope flags a breach and /epic-deliver Phase 1 surfaces it via agent::blocked. |
