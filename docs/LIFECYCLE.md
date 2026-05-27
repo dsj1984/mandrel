@@ -103,6 +103,19 @@ contract.
 | `story.merged`              | Story branch merged into `epic/<epicId>`.                   |
 | `story.blocked`             | Story transitioned to `agent::blocked`.                     |
 
+> **3-tier hierarchy (target shape — opt-in via `planning.hierarchy: '3-tier'`).**
+> Under the target 3-tier shape introduced by Epic #3078, the
+> `story.heartbeat` event is still emitted, but per-Task `taskId`
+> payload fields are absent — Stories no longer have child Task
+> tickets to pin against. The `story.heartbeat.schema.json` already
+> allows `taskId` and the per-Task counters (`tasksDone` etc.) to be
+> absent so the bus contract is unchanged. Wave + Story events
+> (`wave.*`, `story.dispatch.*`, `story.merged`, `story.blocked`) are
+> emitted identically under both shapes. While Epic #3078 is in
+> flight, the default remains `'4-tier'` and both shapes are
+> supported in parallel; after its destructive Feature 8 lands, the
+> flag is removed and 3-tier becomes the only shape.
+
 ### Reconciliation + supporting events
 
 | Event                          | Emitted when                                             |

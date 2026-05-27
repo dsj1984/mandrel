@@ -27,6 +27,19 @@ reference — [`docs/baselines.md`](baselines.md). Each per-gate section
 below cross-links back to that reference; consult it once and reuse the
 context as you read through any individual gate.
 
+> **3-tier hierarchy (target shape — opt-in via `planning.hierarchy: '3-tier'`).**
+> The quality gates documented here are tier-agnostic: lint baseline,
+> CRAP, maintainability, coverage floors, and the close-validation
+> chain run identically against the Story branch under both 4-tier
+> and 3-tier hierarchies. The only operational difference is *where*
+> the gates fire — under 4-tier, close-validation runs after the
+> per-Task loop completes; under 3-tier, it runs after the single
+> Story-implementation phase. Friction comments still flip the Story
+> to `agent::blocked`; under 3-tier they post on the Story ticket
+> rather than a child Task ticket. See
+> [`configuration.md` § `planning`](configuration.md) for the flag
+> and Epic #3078 for the cutover plan.
+
 ---
 
 ## Concurrent close safety

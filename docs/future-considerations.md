@@ -168,10 +168,23 @@ Recommendation (Monitor):
 
 ### 4. Per-Task Ritual and Commit Strategy Can Relax
 
-**Status:** Simplify
+**Status:** Simplify (in progress — Epic #3078)
 **Action:** 🔭 Monitor — per-Task granularity is currently load-bearing for
 resume/bisect. Relaxing depends on stronger holistic-edit coherence in
 future models.
+
+> **3-tier hierarchy (target shape — opt-in via `planning.hierarchy: '3-tier'`).**
+> This finding is **actively being addressed** by Epic #3078, which
+> collapses the Task layer into a single Story-implementation phase
+> (Epic → Feature → Story with inline `acceptance[]` / `verify[]` on
+> the Story body). The 3-tier shape removes `task-commit.js`, the
+> per-Task `agent::*` lifecycle, the `(resolves #<taskId>)` commit
+> convention, and the per-Task sub-loop in `/story-deliver`. Opt in
+> via `planning.hierarchy: '3-tier'` in `.agentrc.json` while Epic
+> #3078 is in flight; after its destructive Feature 8 lands, the
+> flag is removed and 3-tier becomes the only shape. See
+> [`decisions.md` § ADR 20260527-three-tier-hierarchy](decisions.md)
+> and [`configuration.md` § `planning`](configuration.md).
 
 **Primary paths:**
 

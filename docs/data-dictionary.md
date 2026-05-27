@@ -229,6 +229,21 @@ the Epic is the SSOT; the on-disk file is a renderer cache regenerable via
 | `agentTelemetry`         | `object`| Open object for runner telemetry (cap-source, runner version, etc.).                              |
 | `summary`                | `object`| Summary counts (total, by-wave, by-status).                                                       |
 
+> **3-tier hierarchy (target shape — opt-in via `planning.hierarchy: '3-tier'`).**
+> Under the 3-tier shape introduced by Epic #3078, the dispatch
+> manifest is **Story-centric**: `waves[].stories[]` replaces the
+> Task-grouped `waves[].tasks[]` shape and `storyManifest[]` rows
+> carry inline `acceptance[]` / `verify[]` instead of pointing at
+> child Task tickets. The producer continues to emit the Task shape
+> by default while Epic #3078 is in flight; the consumer (wave-gate,
+> dispatch-engine, render-manifest) accepts either. After Epic
+> #3078's destructive Feature 8 lands, the Task-shape acceptance
+> path is removed and Story-centric becomes the only manifest shape.
+> Schema-version identifiers on the manifest let a future consumer
+> detect "I cannot read this artifact"; they are not an invitation
+> to keep both readers alive in the same release (per the
+> [hard-cutover policy](decisions.md)).
+
 ---
 
 ## Resilience & Throughput Primitives
