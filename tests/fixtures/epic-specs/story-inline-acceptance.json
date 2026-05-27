@@ -22,9 +22,7 @@
             "A Story object containing inline acceptance[] and verify[] string arrays validates against the schema",
             "A Story object containing the legacy tasks[] array continues to validate"
           ],
-          "verify": [
-            "node --test tests/scripts/epic-spec-schema.test.js"
-          ]
+          "verify": ["node --test tests/scripts/epic-spec-schema.test.js"]
         },
         {
           "slug": "story-with-both-shapes",
