@@ -29,7 +29,7 @@ import { reconcileClosedTasks, reconcileHierarchy } from './reconciler.js';
 import { parseTasks } from './task-fetcher.js';
 import { collectOpenStoryIds } from './wave-dispatcher.js';
 
-export const TYPE_TASK_LABEL = TYPE_LABELS.TASK;
+export const TYPE_TASK_LABEL = 'type::task';
 
 /**
  * Runtime context for a single dispatch cycle.

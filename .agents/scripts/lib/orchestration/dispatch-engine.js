@@ -37,7 +37,7 @@ import { collectOpenStoryIds, dispatchNextWave } from './wave-dispatcher.js';
 export const AGENT_DONE_LABEL = STATE_LABELS.DONE;
 export const AGENT_EXECUTING_LABEL = STATE_LABELS.EXECUTING;
 export const AGENT_READY_LABEL = STATE_LABELS.READY;
-export const TYPE_TASK_LABEL = TYPE_LABELS.TASK;
+export const TYPE_TASK_LABEL = 'type::task';
 export { collectOpenStoryIds, detectEpicCompletion };
 
 /* node:coverage ignore next */

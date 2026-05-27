@@ -10,7 +10,7 @@ import { TYPE_LABELS } from '../label-constants.js';
 import { hasStructuredHeader } from '../templates/task-body-renderer.js';
 
 export function isTaskTicket(ticket) {
-  return (ticket.labels ?? []).includes(TYPE_LABELS.TASK);
+  return (ticket.labels ?? []).includes('type::task');
 }
 
 export function isStoryTicket(ticket) {
