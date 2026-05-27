@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-27T16:23:56.582Z",
+  "generatedAt": "2026-05-27T16:38:29.371Z",
   "rollup": {
     "*": {
       "min": 62.385,
-      "p50": 103.762,
+      "p50": 103.804,
       "p95": 121.479
     }
   },
@@ -3465,10 +3465,6 @@
     {
       "path": "tests/lib/observability/source-classifier.test.js",
       "mi": 123.444
-    },
-    {
-      "path": "tests/lib/observability/tool-trace-hook.test.js",
-      "mi": 98.238
     },
     {
       "path": "tests/lib/orchestration/automerge-predicate.test.js",
