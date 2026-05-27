@@ -73,6 +73,74 @@ const PHASE_EMOJI = {
 };
 
 /**
+ * Canonical 3-tier Story-phase order. The Story-phase snapshot replaces the
+ * 4-tier per-Task list when the Story carries inline acceptance (no child
+ * Tasks). Each entry tracks `status` + `startedAt` / `endedAt` so the parent
+ * `/epic-deliver` aggregator can render a coarse progress bar without
+ * walking Task tickets.
+ */
+export const STORY_PHASE_ORDER = ['init', 'implement', 'validate', 'close'];
+
+const VALID_STORY_PHASE_STATUS = new Set(['pending', 'in-progress', 'done']);
+
+const STORY_PHASE_STATUS_EMOJI = {
+  pending: '⏳',
+  'in-progress': '🔧',
+  done: '✅',
+};
+
+/**
+ * Build the canonical default `phases[]` array for a freshly-initialized
+ * 3-tier Story snapshot. All entries are `pending`; timestamps are null.
+ * Exported so call sites (story-deliver-prepare, story-task-progress) and
+ * tests can build the same shape without re-implementing it.
+ *
+ * @returns {Array<{ name: string, status: 'pending', startedAt: null, endedAt: null }>}
+ */
+export function defaultStoryPhases() {
+  return STORY_PHASE_ORDER.map((name) => ({
+    name,
+    status: 'pending',
+    startedAt: null,
+    endedAt: null,
+  }));
+}
+
+/**
+ * Normalize one Story-phase row into the canonical schema. Timestamps may be
+ * `null` (phase not yet started) or ISO-8601 strings; status is one of
+ * pending | in-progress | done.
+ *
+ * @param {object} phase
+ * @returns {object}
+ */
+function normalizeStoryPhase(phase) {
+  if (!phase || typeof phase !== 'object') {
+    throw new TypeError('story-run-progress phase rows must be objects');
+  }
+  const name = String(phase.name ?? '');
+  if (!STORY_PHASE_ORDER.includes(name)) {
+    throw new RangeError(
+      `story-run-progress invalid phase name "${name}"; ` +
+        `expected one of: ${STORY_PHASE_ORDER.join(', ')}`,
+    );
+  }
+  const status = String(phase.status ?? 'pending');
+  if (!VALID_STORY_PHASE_STATUS.has(status)) {
+    throw new RangeError(
+      `story-run-progress invalid phase status "${status}" for "${name}"; ` +
+        `expected one of: ${[...VALID_STORY_PHASE_STATUS].join(', ')}`,
+    );
+  }
+  return {
+    name,
+    status,
+    startedAt: phase.startedAt == null ? null : String(phase.startedAt),
+    endedAt: phase.endedAt == null ? null : String(phase.endedAt),
+  };
+}
+
+/**
  * Normalize one Task row into the canonical schema. `commitSha` is only
  * carried on `done` rows (it has no meaning before the commit lands and is
  * cleared on rollback).
@@ -112,11 +180,18 @@ function normalizeTask(task) {
  * Exported so tests can pin the rendered shape without going through the
  * upsert path.
  *
+ * Two shapes are supported, selected by whether `input.phases` (3-tier
+ * Story-phase snapshot) or `input.tasks` (legacy 4-tier per-Task list) is
+ * provided. Callers MUST pass exactly one of the two — passing both is
+ * rejected as a contract violation so a mistake at the call site fails
+ * loudly rather than silently dropping one shape.
+ *
  * @param {{
  *   storyId: number,
  *   branch: string,
  *   phase: string,
- *   tasks: object[],
+ *   tasks?: object[],
+ *   phases?: object[],
  *   updatedAt?: string,
  * }} input
  * @returns {{ body: string, payload: object }}
@@ -141,9 +216,47 @@ export function renderStoryRunProgressBody(input) {
         `expected one of: ${[...VALID_PHASES].join(', ')}`,
     );
   }
-  const tasks = (input.tasks ?? []).map(normalizeTask);
+
+  const hasPhases = Array.isArray(input.phases);
+  const hasTasks = Array.isArray(input.tasks);
+  if (hasPhases && hasTasks) {
+    throw new TypeError(
+      'renderStoryRunProgressBody: pass either `phases` (3-tier) or `tasks` ' +
+        '(4-tier), not both — the snapshot shape is mutually exclusive.',
+    );
+  }
+
   const updatedAt = input.updatedAt ?? new Date().toISOString();
 
+  if (hasPhases) {
+    return renderPhasesBody({
+      storyId,
+      branch,
+      phase,
+      phases: input.phases,
+      updatedAt,
+    });
+  }
+  return renderTasksBody({
+    storyId,
+    branch,
+    phase,
+    tasks: input.tasks ?? [],
+    updatedAt,
+  });
+}
+
+/**
+ * Render the 4-tier per-Task body. Pure helper for `renderStoryRunProgressBody`.
+ */
+function renderTasksBody({
+  storyId,
+  branch,
+  phase,
+  tasks: rawTasks,
+  updatedAt,
+}) {
+  const tasks = rawTasks.map(normalizeTask);
   const payload = {
     kind: STORY_RUN_PROGRESS_TYPE,
     storyId,
@@ -188,22 +301,72 @@ export function renderStoryRunProgressBody(input) {
 }
 
 /**
+ * Render the 3-tier Story-phase body. Pure helper for
+ * `renderStoryRunProgressBody`. Emits a `phases[]` payload whose entries
+ * carry `{ name, status, startedAt, endedAt }` for init/implement/validate/close.
+ */
+function renderPhasesBody({ storyId, branch, phase, phases: raw, updatedAt }) {
+  const phases = raw.map(normalizeStoryPhase);
+  const payload = {
+    kind: STORY_RUN_PROGRESS_TYPE,
+    storyId,
+    branch,
+    phase,
+    phases,
+    updatedAt,
+  };
+
+  const done = phases.filter((p) => p.status === 'done').length;
+  const total = phases.length;
+  const phaseEmoji = PHASE_EMOJI[phase] ?? '';
+  const header = `### 📖 Story #${storyId} — ${phaseEmoji} ${phase} · ${done}/${total} phases done`;
+  const tableRows = phases.length
+    ? [
+        '| Phase | Status | Started | Ended |',
+        '| --- | --- | --- | --- |',
+        ...phases.map((p) => {
+          const emoji = STORY_PHASE_STATUS_EMOJI[p.status] ?? '';
+          const started = p.startedAt ?? '—';
+          const ended = p.endedAt ?? '—';
+          return `| ${p.name} | ${emoji} ${p.status} | ${started} | ${ended} |`;
+        }),
+      ].join('\n')
+    : '_(no phases recorded for this story)_';
+
+  const body = [
+    header,
+    '',
+    `Branch: \`${branch}\``,
+    '',
+    tableRows,
+    '',
+    '```json',
+    JSON.stringify(payload, null, 2),
+    '```',
+  ].join('\n');
+
+  return { body, payload };
+}
+
+/**
  * Upsert the story-run-progress structured comment on the Story. Returns
  * `{ body, payload }` so callers can both pass the payload back to
  * `/epic-deliver` and surface the rendered markdown body to chat without
  * re-rendering.
  *
- * When `notify` is supplied, mirrors the upsert to the webhook channel as a
- * typed `story-run-progress` event at `low` severity (frequency-driven —
- * fires on every Task transition). The mirror passes `skipComment: true`
- * because the structured comment was already written by the upsert above.
+ * Two shapes are supported, selected by whether `args.phases` (3-tier
+ * Story-phase snapshot) or `args.tasks` (legacy 4-tier per-Task list) is
+ * provided. When `notify` is supplied, mirrors the upsert to the webhook
+ * channel as a typed `story-run-progress` event at `low` severity. The
+ * mirror's `done/total` count is computed from whichever shape is active.
  *
  * @param {{
  *   provider: import('../../ITicketingProvider.js').ITicketingProvider,
  *   storyId: number,
  *   branch: string,
  *   phase: string,
- *   tasks: object[],
+ *   tasks?: object[],
+ *   phases?: object[],
  *   epicId?: number,
  *   updatedAt?: string,
  *   notify?: Function,
@@ -225,9 +388,14 @@ export async function upsertStoryRunProgress(args) {
     body,
   );
   if (typeof notify === 'function') {
-    const done = payload.tasks.filter((t) => t.state === 'done').length;
-    const total = payload.tasks.length;
-    const message = `Story #${payload.storyId} · ${payload.phase} · ${done}/${total} tasks done`;
+    const isPhases = Array.isArray(payload.phases);
+    const items = isPhases ? payload.phases : payload.tasks;
+    const done = isPhases
+      ? items.filter((p) => p.status === 'done').length
+      : items.filter((t) => t.state === 'done').length;
+    const total = items.length;
+    const unit = isPhases ? 'phases' : 'tasks';
+    const message = `Story #${payload.storyId} · ${payload.phase} · ${done}/${total} ${unit} done`;
     await Promise.resolve(
       notify(
         payload.storyId,

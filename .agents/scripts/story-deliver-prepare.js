@@ -40,6 +40,7 @@ import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import { runInstallCommand } from './lib/install-cmd-parser.js';
 import {
+  defaultStoryPhases,
   STORY_RUN_PROGRESS_TYPE,
   upsertStoryRunProgress,
 } from './lib/orchestration/epic-runner/story-run-progress-writer.js';
@@ -218,8 +219,39 @@ export async function runStoryDeliverPrepare(args) {
   }
 
   // 3. Upsert the initial story-run-progress snapshot.
-  //    Prefer the tasks list off the story-init payload; the override hatch
-  //    is only for tests that don't want to round-trip a full payload.
+  //    Shape selection: when `story-init` recorded `hierarchy: '3-tier'` the
+  //    Story has inline acceptance and no child Tasks — emit the
+  //    Story-phase snapshot (`phases[]` with init/implement/validate/close
+  //    entries pinned to `pending`) instead of the per-Task list. The
+  //    `tasksOverride` test hatch still wins so unit tests that pass
+  //    explicit tasks exercise the 4-tier path regardless of the hierarchy.
+  const hierarchy = String(initPayload.hierarchy ?? '4-tier');
+  const branch = String(initPayload.storyBranch ?? `story-${storyId}`);
+
+  if (!tasksOverride && hierarchy === '3-tier') {
+    const phases = defaultStoryPhases();
+    const { body: renderedBody, payload: snapshot } =
+      await upsertStoryRunProgress({
+        provider,
+        storyId,
+        branch,
+        phase: 'init',
+        phases,
+        notify: notifyFn,
+      });
+    return {
+      storyId,
+      workCwd,
+      dependenciesInstalled,
+      installAction,
+      installCmd,
+      installResult,
+      hierarchy,
+      snapshot,
+      renderedBody,
+    };
+  }
+
   //    Legacy `story-init` comments (pre-5.31.2) omit `tasks[]`, which would
   //    silently seed an empty snapshot and break every later
   //    `story-task-progress.js` call. Fall back to fetching the Story's
@@ -238,7 +270,6 @@ export async function runStoryDeliverPrepare(args) {
       title: String(t.title ?? ''),
       state: 'pending',
     }));
-  const branch = String(initPayload.storyBranch ?? `story-${storyId}`);
   const { body: renderedBody, payload: snapshot } =
     await upsertStoryRunProgress({
       provider,
@@ -256,6 +287,7 @@ export async function runStoryDeliverPrepare(args) {
     installAction,
     installCmd,
     installResult,
+    hierarchy,
     snapshot,
     renderedBody,
   };

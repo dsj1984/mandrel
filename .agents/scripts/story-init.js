@@ -208,7 +208,7 @@ export async function runStoryInit({
   // planning.hierarchy through so buildTaskGraph can distinguish a 3-tier
   // (inline-acceptance) Story from a genuinely empty 4-tier Story when
   // emitting its progress/warn message.
-  const { sortedTasks } = await buildTaskGraph({
+  const { sortedTasks, mode: hierarchyMode } = await buildTaskGraph({
     provider,
     logger: stageLogger,
     input: {
@@ -373,6 +373,7 @@ export async function runStoryInit({
     techSpecId,
     dryRun,
     recutOf,
+    hierarchy: hierarchyMode,
   });
 
   emitStoryInitResult(result, {
@@ -409,6 +410,7 @@ function buildStoryInitResult({
   techSpecId,
   dryRun,
   recutOf,
+  hierarchy,
 }) {
   const dependenciesInstalled = mapDependenciesInstalled(installStatus);
   return {
@@ -417,6 +419,12 @@ function buildStoryInitResult({
     storyBranch,
     epicBranch,
     storyTitle: story.title,
+    // Hierarchy mode resolved by buildTaskGraph: `'3-tier'` when the Story
+    // has inline acceptance (no child Tasks) under
+    // `planning.hierarchy: '3-tier'`, otherwise `'4-tier'`. Threaded through
+    // so downstream story-deliver-prepare can emit a Story-phase snapshot
+    // shape (`phases[]`) instead of per-Task rows in 3-tier mode.
+    hierarchy: hierarchy ?? '4-tier',
     worktreeEnabled,
     workCwd,
     worktreeCreated,
@@ -489,6 +497,10 @@ export function renderStoryInitCommentBody(result) {
     epicId: result.epicId,
     storyBranch: result.storyBranch,
     epicBranch: result.epicBranch,
+    // Hierarchy mode (`'3-tier'` | `'4-tier'`) is persisted so
+    // `story-deliver-prepare.js` can choose the snapshot shape without
+    // re-resolving config + Story body in the worker.
+    hierarchy: result.hierarchy ?? '4-tier',
     worktreeEnabled: result.worktreeEnabled,
     workCwd: result.workCwd,
     worktreeCreated: result.worktreeCreated,

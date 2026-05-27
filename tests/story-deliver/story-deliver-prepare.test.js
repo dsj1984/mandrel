@@ -34,6 +34,7 @@ function makeStoryInitComment({
   dependenciesInstalled,
   tasks,
   storyBranch,
+  hierarchy,
 }) {
   const marker = structuredCommentMarker('story-init');
   const payload = {
@@ -43,6 +44,7 @@ function makeStoryInitComment({
     dependenciesInstalled,
     tasks: tasks ?? [],
   };
+  if (hierarchy) payload.hierarchy = hierarchy;
   return {
     id: 1,
     ticketId: storyId,
@@ -220,6 +222,78 @@ test('runStoryDeliverPrepare: prefers payload.tasks when present (no fallback fe
   });
   assert.equal(result.snapshot.tasks.length, 2);
   assert.equal(getSubTicketsCalls, 0); // no fallback needed
+});
+
+test('runStoryDeliverPrepare: 3-tier hierarchy emits phases[] snapshot (init/implement/validate/close)', async () => {
+  // Story #3129 (Epic #3078): when the story-init comment carries
+  // `hierarchy: '3-tier'`, the prepare CLI must seed the initial snapshot
+  // with a `phases[]` array — not a `tasks[]` list — so the parent
+  // `/epic-deliver` aggregator can render a coarse Story-phase progress
+  // bar without walking Task tickets that do not exist in 3-tier shape.
+  const provider = makeProvider([
+    makeStoryInitComment({
+      storyId: 3129,
+      workCwd: '/tmp/.worktrees/story-3129',
+      dependenciesInstalled: 'true',
+      tasks: [], // inline-acceptance Story has no child Tasks
+      hierarchy: '3-tier',
+    }),
+  ]);
+  // Belt-and-braces: if the prepare CLI falls back to fetchChildTasks for
+  // an empty list, this stub returns nothing so any regression would
+  // produce an empty `tasks[]` payload rather than silently passing.
+  provider.getSubTickets = async () => [];
+
+  const result = await runStoryDeliverPrepare({
+    storyId: 3129,
+    provider,
+    runInstall: () => ({ status: 0 }),
+  });
+
+  assert.equal(result.hierarchy, '3-tier');
+  assert.equal(result.snapshot.phase, 'init');
+  assert.equal(
+    'tasks' in result.snapshot,
+    false,
+    '3-tier snapshot must not carry tasks[]',
+  );
+  assert.equal(Array.isArray(result.snapshot.phases), true);
+  assert.deepEqual(
+    result.snapshot.phases.map((p) => p.name),
+    ['init', 'implement', 'validate', 'close'],
+  );
+  // Every phase pending + null timestamps at init time.
+  for (const p of result.snapshot.phases) {
+    assert.equal(p.status, 'pending');
+    assert.equal(p.startedAt, null);
+    assert.equal(p.endedAt, null);
+  }
+  // Rendered body uses phase header instead of task-count header.
+  assert.match(result.renderedBody, /### 📖 Story #3129/);
+  assert.match(result.renderedBody, /0\/4 phases done/);
+});
+
+test('runStoryDeliverPrepare: 4-tier hierarchy (or omitted) keeps tasks[] shape (no regression)', async () => {
+  // Without `hierarchy` (legacy comments) or with `hierarchy: '4-tier'`,
+  // the prepare CLI must continue to emit the per-Task list snapshot.
+  const provider = makeProvider([
+    makeStoryInitComment({
+      storyId: 200,
+      workCwd: '/tmp/.worktrees/story-200',
+      dependenciesInstalled: 'true',
+      tasks: [{ id: 201, title: 'only-task', state: 'pending' }],
+      hierarchy: '4-tier',
+    }),
+  ]);
+  const result = await runStoryDeliverPrepare({
+    storyId: 200,
+    provider,
+    runInstall: () => ({ status: 0 }),
+  });
+  assert.equal(result.hierarchy, '4-tier');
+  assert.equal(Array.isArray(result.snapshot.tasks), true);
+  assert.equal('phases' in result.snapshot, false);
+  assert.equal(result.snapshot.tasks.length, 1);
 });
 
 test('runStoryDeliverPrepare: throws if no story-init comment is found', async () => {
