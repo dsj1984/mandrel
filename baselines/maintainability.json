@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-27T13:37:21.660Z",
+  "generatedAt": "2026-05-27T14:08:27.329Z",
   "rollup": {
     "*": {
       "min": 62.385,
-      "p50": 103.671,
+      "p50": 103.681,
       "p95": 121.19
     }
   },
@@ -129,10 +129,6 @@
     {
       "path": ".agents/scripts/epic-plan-edit-flow.js",
       "mi": 82.06
-    },
-    {
-      "path": ".agents/scripts/epic-plan-healthcheck.js",
-      "mi": 98.816
     },
     {
       "path": ".agents/scripts/epic-plan-spec.js",
@@ -1241,10 +1237,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/lint-baseline-service.js",
       "mi": 96.762
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/manifest-builder.js",
-      "mi": 102.258
     },
     {
       "path": ".agents/scripts/lib/orchestration/model-attribution.js",
@@ -4615,20 +4607,8 @@
       "mi": 87.683
     },
     {
-      "path": "tests/scripts/epic-reconcile.bootstrap.test.js",
-      "mi": 100.544
-    },
-    {
       "path": "tests/scripts/epic-reconcile.cli.test.js",
       "mi": 106.497
-    },
-    {
-      "path": "tests/scripts/epic-spec-reconciler.apply.test.js",
-      "mi": 97.054
-    },
-    {
-      "path": "tests/scripts/epic-spec-reconciler.diff.test.js",
-      "mi": 95.444
     },
     {
       "path": "tests/scripts/epic-spec-reconciler.discriminator.test.js",
