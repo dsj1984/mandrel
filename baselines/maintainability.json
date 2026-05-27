@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-27T10:20:42.137Z",
+  "generatedAt": "2026-05-27T10:23:31.990Z",
   "rollup": {
     "*": {
       "min": 52.885,
@@ -1929,10 +1929,6 @@
     {
       "path": "tests/enforcement/logger-fatal.test.js",
       "mi": 93.691
-    },
-    {
-      "path": "tests/enforcement/manifest-schema.test.js",
-      "mi": 96.328
     },
     {
       "path": "tests/enforcement/no-console.test.js",

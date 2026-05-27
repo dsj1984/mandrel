@@ -66,6 +66,16 @@
           "type": "integer",
           "minimum": 0
         },
+        "totalStories": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Story-centric count for the 3-tier collapse (Epic #3078). Additive alongside totalTasks; both may appear during the transition."
+        },
+        "doneStories": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of Stories that have reached agent::done. Additive alongside doneTasks."
+        },
         "progressPercent": {
           "type": "integer",
           "minimum": 0,
@@ -88,7 +98,8 @@
       "description": "Ordered list of execution waves computed from the task DAG.",
       "items": {
         "type": "object",
-        "required": ["waveIndex", "tasks"],
+        "required": ["waveIndex"],
+        "anyOf": [{ "required": ["tasks"] }, { "required": ["stories"] }],
         "properties": {
           "waveIndex": {
             "type": "integer",
@@ -143,6 +154,55 @@
                   "type": "string",
                   "enum": ["mechanical-sweep", "atomic-rewrite", "scaffolding"],
                   "description": "Required when the Task touches more files than agentSettings.planning.taskSizing.softFileCount; omit otherwise. The validator (not the schema) enforces the wide-Task requirement."
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "stories": {
+            "type": "array",
+            "description": "Story-centric wave entries for the 3-tier collapse (Epic #3078). Each entry describes one Story dispatched in this wave, with inline acceptance/verify so the wave can run without re-fetching Task tickets. Additive alongside `tasks` during the migration — both shapes validate.",
+            "items": {
+              "type": "object",
+              "required": [
+                "storyId",
+                "title",
+                "persona",
+                "acceptance",
+                "verify",
+                "dependsOn"
+              ],
+              "properties": {
+                "storyId": { "type": "integer", "minimum": 1 },
+                "title": { "type": "string" },
+                "persona": { "type": "string" },
+                "acceptance": {
+                  "type": "array",
+                  "description": "Inline acceptance criteria for the Story (markdown checklist lines).",
+                  "items": { "type": "string" }
+                },
+                "verify": {
+                  "type": "array",
+                  "description": "Inline verify commands or shell snippets executed at close to prove the Story.",
+                  "items": { "type": "string" }
+                },
+                "dependsOn": {
+                  "type": "array",
+                  "description": "Story-level dependencies (Story IDs that must reach agent::done before this Story dispatches).",
+                  "items": { "type": "integer" }
+                },
+                "branch": {
+                  "type": "string",
+                  "description": "Optional Story branch name (e.g., story-3098). Omitted when the runtime derives it from storyId."
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "agent::ready",
+                    "agent::executing",
+                    "agent::done",
+                    "status::blocked"
+                  ]
                 }
               },
               "additionalProperties": false

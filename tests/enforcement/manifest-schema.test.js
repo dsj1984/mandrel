@@ -196,6 +196,181 @@ describe('dispatch-manifest schema drift (AJV fixture)', () => {
     assert.match(messages, /summary/);
   });
 
+  it('accepts an epic-dispatch manifest with waves[].stories[] (3-tier additive)', () => {
+    const validator = loadValidator();
+    const manifest = {
+      type: 'epic-dispatch',
+      schemaVersion: '1.0.0',
+      epicId: 3078,
+      epicTitle: 'Collapse to 3-tier',
+      executor: 'manual',
+      generatedAt: new Date().toISOString(),
+      dryRun: false,
+      summary: {
+        totalTasks: 0,
+        doneTasks: 0,
+        totalStories: 2,
+        doneStories: 0,
+        progressPercent: 0,
+        totalWaves: 1,
+        dispatched: 0,
+      },
+      waves: [
+        {
+          waveIndex: 0,
+          stories: [
+            {
+              storyId: 3098,
+              title: 'S1.2: dispatch-manifest accepts stories',
+              persona: 'engineer',
+              acceptance: ['Schema accepts waves[].stories[]'],
+              verify: ['node --test tests/enforcement/manifest-schema.test.js'],
+              dependsOn: [],
+            },
+            {
+              storyId: 3099,
+              title: 'S1.3: builder emits stories',
+              persona: 'engineer',
+              acceptance: ['Builder produces waves[].stories[]'],
+              verify: ['node --test'],
+              dependsOn: [3098],
+              branch: 'story-3099',
+              status: 'agent::ready',
+            },
+          ],
+        },
+      ],
+      storyManifest: [],
+      dispatched: [],
+    };
+    assertValid(validator, manifest, 'epic-dispatch with stories[]');
+  });
+
+  it('accepts an epic-dispatch manifest with legacy waves[].tasks[] (back-compat)', () => {
+    const validator = loadValidator();
+    const manifest = {
+      type: 'epic-dispatch',
+      schemaVersion: '1.0.0',
+      epicId: 3078,
+      epicTitle: 'Legacy shape still validates',
+      executor: 'manual',
+      generatedAt: new Date().toISOString(),
+      dryRun: false,
+      summary: {
+        totalTasks: 1,
+        doneTasks: 0,
+        progressPercent: 0,
+        totalWaves: 1,
+        dispatched: 0,
+      },
+      waves: [
+        {
+          waveIndex: 0,
+          tasks: [
+            {
+              taskId: 1,
+              title: 'Legacy task',
+              status: 'agent::ready',
+              branch: 'story-1',
+              persona: 'engineer',
+              mode: 'fast',
+              skills: [],
+              focusAreas: [],
+              dependsOn: [],
+            },
+          ],
+        },
+      ],
+      storyManifest: [],
+      dispatched: [],
+    };
+    assertValid(validator, manifest, 'epic-dispatch with legacy tasks[]');
+  });
+
+  it('accepts summary.totalStories/doneStories alongside totalTasks/doneTasks', () => {
+    const validator = loadValidator();
+    const manifest = {
+      type: 'epic-dispatch',
+      schemaVersion: '1.0.0',
+      epicId: 3078,
+      epicTitle: 'Both-summary',
+      executor: 'manual',
+      generatedAt: new Date().toISOString(),
+      dryRun: false,
+      summary: {
+        totalTasks: 5,
+        doneTasks: 2,
+        totalStories: 3,
+        doneStories: 1,
+        progressPercent: 40,
+        totalWaves: 2,
+        dispatched: 0,
+      },
+      waves: [],
+      storyManifest: [],
+      dispatched: [],
+    };
+    assertValid(validator, manifest, 'epic-dispatch with both summary axes');
+  });
+
+  it('rejects a wave entry that has neither tasks nor stories', () => {
+    const validator = loadValidator();
+    const manifest = {
+      type: 'epic-dispatch',
+      schemaVersion: '1.0.0',
+      epicId: 3078,
+      epicTitle: 'No-tasks-no-stories',
+      executor: 'manual',
+      generatedAt: new Date().toISOString(),
+      dryRun: false,
+      summary: {
+        totalTasks: 0,
+        doneTasks: 0,
+        progressPercent: 0,
+        totalWaves: 1,
+        dispatched: 0,
+      },
+      waves: [{ waveIndex: 0 }],
+      storyManifest: [],
+      dispatched: [],
+    };
+    const ok = validator(manifest);
+    assert.equal(ok, false, 'wave with neither tasks nor stories must fail');
+  });
+
+  it('rejects a waves[].stories[] entry that is missing required fields', () => {
+    const validator = loadValidator();
+    const manifest = {
+      type: 'epic-dispatch',
+      schemaVersion: '1.0.0',
+      epicId: 3078,
+      epicTitle: 'bad-story-entry',
+      executor: 'manual',
+      generatedAt: new Date().toISOString(),
+      dryRun: false,
+      summary: {
+        totalTasks: 0,
+        doneTasks: 0,
+        progressPercent: 0,
+        totalWaves: 1,
+        dispatched: 0,
+      },
+      waves: [
+        {
+          waveIndex: 0,
+          stories: [
+            // Missing persona / acceptance / verify / dependsOn
+            { storyId: 3098, title: 'Bad entry' },
+          ],
+        },
+      ],
+      storyManifest: [],
+      dispatched: [],
+    };
+    const ok = validator(manifest);
+    assert.equal(ok, false, 'story entry missing required fields must fail');
+  });
+
   it('rejects a story-execution manifest with malformed tasks', () => {
     const validator = loadValidator();
 
