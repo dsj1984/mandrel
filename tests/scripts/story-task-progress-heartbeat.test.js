@@ -19,6 +19,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
+import { emitStoryHeartbeat } from '../../.agents/scripts/lib/orchestration/lifecycle/emit-story-heartbeat.js';
 import { runStoryTaskProgress } from '../../.agents/scripts/story-task-progress.js';
 
 function makeProvider({ storyId, epicId, taskId }) {
@@ -226,4 +227,47 @@ test('story-task-progress: does NOT emit story.heartbeat when --state=done lacks
     false,
     'no heartbeat without commit-sha',
   );
+});
+
+test('emitStoryHeartbeat: 3-tier emit omits taskId and Task counter fields', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stp-hb-3tier-'));
+  const ledgerPath = path.join(dir, 'lifecycle.ndjson');
+
+  const { record } = emitStoryHeartbeat({
+    storyId: 3137,
+    epicId: 3078,
+    timestamp: '2026-05-27T16:00:00.000Z',
+    ledgerPath,
+  });
+
+  assert.deepEqual(Object.keys(record.payload).sort(), [
+    'epicId',
+    'event',
+    'phase',
+    'storyId',
+    'timestamp',
+  ]);
+  assert.equal('taskId' in record.payload, false);
+  assert.equal('tasksDone' in record.payload, false);
+  assert.equal('tasksTotal' in record.payload, false);
+  assert.equal('currentTaskId' in record.payload, false);
+
+  const raw = fs.readFileSync(ledgerPath, 'utf8');
+  const lines = raw.split('\n').filter((l) => l.length > 0);
+  assert.equal(lines.length, 1);
+});
+
+test('emitStoryHeartbeat: 4-tier emit with legacy taskId still validates and is included', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stp-hb-4tier-'));
+  const ledgerPath = path.join(dir, 'lifecycle.ndjson');
+
+  const { record } = emitStoryHeartbeat({
+    storyId: 3137,
+    epicId: 3078,
+    taskId: 3146,
+    timestamp: '2026-05-27T16:00:00.000Z',
+    ledgerPath,
+  });
+
+  assert.equal(record.payload.taskId, 3146);
 });
