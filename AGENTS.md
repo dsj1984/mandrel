@@ -163,6 +163,15 @@ Releases are automated by
    `main` with `vX.Y.Z`, and mirror a `dist-vX.Y.Z` tag onto `dist`.
    The existing `dist` sync in `ci.yml` propagates the new
    `.agents/VERSION` to consumers.
+4. **Breaking-change releases** ship a consumer-upgrade runbook under
+   `docs/`. The active one is
+   [`docs/upgrade-guide-3-tier.md`](docs/upgrade-guide-3-tier.md) for
+   the Epic #3078 3-tier hierarchy cutover (drains in-flight 4-tier
+   Epics, runs the one-shot `cleanup-type-task-label.js` utility,
+   describes the major-version bump operator step). Link any future
+   breaking-release runbook from this checklist and from the
+   `## Unreleased` section of [`docs/CHANGELOG.md`](docs/CHANGELOG.md)
+   so consumers find it on upgrade.
 
 #### One-time PAT setup
 
