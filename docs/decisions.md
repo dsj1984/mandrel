@@ -16,13 +16,12 @@
 
 ## ADR 20260527-three-tier-hierarchy: Collapse the Task level (Epic → Feature → Story)
 
-**Status:** Accepted (target shape; staged rollout in progress)
+**Status:** Accepted (cutover complete)
 **Date:** 2026-05-27
 **Epic:** [#3078](https://github.com/dsj1984/mandrel/issues/3078) —
 Collapse Task level — adopt 3-tier hierarchy (Epic / Feature / Story)
-**Related:** [`docs/configuration.md` § `planning`](configuration.md)
-documents the `planning.hierarchy` flag; [`docs/architecture.md` §
-Ticket Hierarchy](architecture.md) carries the target diagram.
+**Related:** [`docs/architecture.md` § Ticket Hierarchy](architecture.md)
+carries the canonical diagram.
 
 ### Context
 

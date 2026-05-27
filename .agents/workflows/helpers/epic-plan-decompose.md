@@ -1,7 +1,7 @@
 ---
 description: >-
   Phase 8 of sprint planning — decompose an Epic's PRD and Tech Spec into a
-  Feature/Story/Task hierarchy, persist the backlog, and flip the Epic to
+  Feature/Story hierarchy, persist the backlog, and flip the Epic to
   `agent::ready`. Host-LLM authored; no external API calls.
 ---
 
@@ -19,47 +19,29 @@ Director / Architect
 
 This helper is the **decompose phase** of the split planning pipeline. It
 reads the PRD and Tech Spec previously produced by the spec phase helper
-([`epic-plan-spec.md`](epic-plan-spec.md)), generates the Feature / Story
-/ Task ticket hierarchy, persists it to GitHub, and flips the Epic to
-`agent::ready` (parking) so a human can run `/epic-deliver` when execution
-should begin.
+([`epic-plan-spec.md`](epic-plan-spec.md)), generates the Feature /
+Story ticket hierarchy, persists it to GitHub, and flips the Epic to
+`agent::ready` (parking) so a human can run `/epic-deliver` when
+execution should begin.
 
 The ticket array is authored **directly by you, the host LLM**.
 `epic-plan-decompose.js` is a deterministic wrapper that (a) emits the
 authoring context you need and (b) validates, persists, and transitions the
 Epic lifecycle state.
 
-> **3-tier hierarchy (target shape — opt-in via `planning.hierarchy: '3-tier'`).**
-> The decompose phase honours the `planning.hierarchy` flag resolved
-> from `.agentrc.json` (default `'4-tier'`).
->
-> - Under `'4-tier'` (default), the ticket array contains
->   `type::feature`, `type::story`, and `type::task` tickets; Stories
->   require ≥1 child Task and acceptance criteria live on Task bodies.
-> - Under `'3-tier'`, the ticket array contains only `type::feature`
->   and `type::story` tickets — no `type::task` children are emitted.
->   Acceptance criteria and verification steps are inlined on the
->   Story body via the `acceptance[]` and `verify[]` fields. Story
->   dependencies that would have been expressed as cross-Task edges
->   are lifted to Story-level `depends_on`.
->
-> Both shapes flow through `validateAndNormalizeTickets`; the
-> validator branches on the flag and applies the appropriate
-> cardinality rules. The decomposer system prompt (carried by the
-> [`epic-plan-decompose-author`](../../skills/core/epic-plan-decompose-author/SKILL.md)
-> skill) selects the matching authoring template. While Epic #3078
-> is in flight both shapes are supported in parallel; after the
-> destructive Feature 8 lands, the flag is removed and 3-tier
-> becomes the only shape. See
-> [`.agents/instructions.md` § 5.D](../../instructions.md) for the
-> full contract.
+The ticket array contains `type::feature` and `type::story` tickets
+only — no `type::task` children. Acceptance criteria and verification
+steps are inlined on each Story body via the `acceptance[]` and
+`verify[]` fields. The decomposer system prompt lives in the
+[`epic-plan-decompose-author`](../../skills/core/epic-plan-decompose-author/SKILL.md)
+skill.
 
 ## Constraint
 
 - **Do not** run this skill until the spec phase is complete. The Epic must
   have linked `context::prd` and `context::tech-spec` issues; the script will
   refuse to proceed otherwise.
-- **Do not** reassign Story / Task parents across Features after the
+- **Do not** reassign Story parents across Features after the
   decomposition writes — the `epic-plan-state` checkpoint records the
   structure as committed. Use `--force` to rebuild from scratch.
 - **Every** temp file must include the Epic ID in its name. Multiple Epics
@@ -88,8 +70,8 @@ decomposer system prompt, and the `maxTickets` **reviewability budget**
 ## Step 2 — Author the ticket array
 
 Read `temp/epic-[Epic_ID]/decomposer-context.json`. Produce a JSON array of
-Feature / Story / Task objects that conforms to the schema in the system
-prompt and write it to `temp/epic-[Epic_ID]/tickets.json`.
+Feature / Story objects that conforms to the schema in the system prompt
+and write it to `temp/epic-[Epic_ID]/tickets.json`.
 
 ## Step 3 — Persist and transition
 
@@ -98,7 +80,7 @@ prompt and write it to `temp/epic-[Epic_ID]/tickets.json`.
 node .agents/scripts/epic-plan-decompose.js --epic [Epic_ID] \
   --tickets temp/epic-[Epic_ID]/tickets.json
 
-# Re-decompose (closes existing child Features/Stories/Tasks first)
+# Re-decompose (closes existing child Features/Stories first)
 node .agents/scripts/epic-plan-decompose.js --epic [Epic_ID] \
   --tickets temp/epic-[Epic_ID]/tickets.json --force
 
@@ -110,9 +92,9 @@ node .agents/scripts/epic-plan-decompose.js --epic [Epic_ID] \
 
 On success the script:
 
-- Creates the Feature / Story / Task hierarchy under the Epic.
-- Updates the `epic-plan-state` structured comment with the ticket count and
-  decompose timestamp.
+- Creates the Feature / Story hierarchy under the Epic.
+- Updates the `epic-plan-state` structured comment with the ticket count
+  and decompose timestamp.
 - Flips the Epic to `agent::ready`.
 
 ## Step 4 — Cross-validation
@@ -135,9 +117,9 @@ checks without performing any I/O — it is not a substitute for
 The script exits 0 regardless of findings (non-blocking), but lists any
 `ERR`-level findings that must be addressed before execution:
 
-- Missing `type::feature` / `type::story` / `type::task` tickets.
+- Missing `type::feature` / `type::story` tickets.
 - Stories without `complexity::` labels.
-- Dependency cycles across Tasks.
+- Dependency cycles across Stories.
 
 For the semantic checks the healthcheck cannot automate, do these by eye:
 
@@ -145,8 +127,8 @@ For the semantic checks the healthcheck cannot automate, do these by eye:
   downstream of a "config + runbook" Story in the same Epic should carry a
   scope-verification note pointing at
   `git diff main -- <path>` against the upstream Story branch.
-- **Risk flagging**: Confirm `risk::high` Tasks match the heuristics in the
-  decomposer context.
+- **Risk flagging**: Confirm `risk::high` Stories match the heuristics in
+  the decomposer context.
 
 Fix any gaps by creating additional issues or updating existing ones.
 
@@ -168,10 +150,11 @@ is the single source of truth for which temp paths this phase owns.
 
 - "Epic #N is missing a linked PRD or Tech Spec" — run `/epic-plan [Epic_ID]`
   first (it will run the spec phase if the PRD / Tech Spec are missing).
-- Validator rejects the tickets file — the most common causes are a Story
-  with no child Tasks, a Task whose `parent_slug` does not point at a Story,
-  or cross-Story Task dependencies (which must be lifted to Story-level
-  dependencies).
+- Validator rejects the tickets file — the most common causes are a
+  Story whose `parent_slug` does not point at a Feature, a missing
+  `acceptance[]` / `verify[]` array on a Story body, or a Story
+  `depends_on` slug that does not resolve to another Story in the same
+  Epic.
 - If `--force` is required but the script refuses, confirm the Epic has the
   linked artifacts first — `--force` only re-decomposes; it does not bypass
   the spec-phase prerequisite.

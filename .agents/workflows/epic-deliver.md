@@ -88,22 +88,17 @@ Every other runtime modifier is sourced from the Epic's labels or from
   [`docs/LIFECYCLE.md`](../../docs/LIFECYCLE.md) for the bus
   contract, event taxonomy, ledger format, and listener model.
 
-> **3-tier hierarchy (target shape — opt-in via `planning.hierarchy: '3-tier'`).**
-> `/epic-deliver`'s wave-loop semantics are **unchanged** between the
-> 4-tier (Epic → Feature → Story → Task) and 3-tier (Epic → Feature →
-> Story) hierarchies. The fan-out remains one `Agent` tool call per
-> Story per wave (§ 2b), Story branches still merge into `epic/<id>`
-> with `--no-ff` via `story-close.js`, the close-validation chain
-> (Phase 3), epic-audit, code-review, retro, finalize, and
-> auto-merge gates all operate identically on Story-level units. The
-> only behavioural difference lives inside `/story-deliver`, which
-> under 3-tier runs a single Story-implementation phase against the
-> Story's inline `acceptance[]` / `verify[]` fields instead of
-> iterating over child `type::task` tickets. See
+> **Hierarchy.** `/epic-deliver` operates over the 3-tier hierarchy
+> (Epic → Feature → Story). The fan-out is one `Agent` tool call per
+> Story per wave (§ 2b); Story branches merge into `epic/<id>` with
+> `--no-ff` via `story-close.js`; the close-validation chain
+> (Phase 3), epic-audit, code-review, retro, finalize, and auto-merge
+> gates all operate on Story-level units. `/story-deliver` runs a
+> single Story-implementation phase per Story against the Story's
+> inline `acceptance[]` / `verify[]` fields. See
 > [`.agents/instructions.md` § 5.D](../instructions.md) and
-> [`.agents/SDLC.md` § 3-tier hierarchy](../SDLC.md) for the full
-> contract; the flag's default remains `'4-tier'` until Epic #3078's
-> destructive Feature 8 lands.
+> [`.agents/SDLC.md` § Ticket hierarchy](../SDLC.md) for the full
+> contract.
 
 ---
 

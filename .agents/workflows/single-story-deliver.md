@@ -33,26 +33,10 @@ overhead rather than help.
 | Merge target                  | `main` via PR                                        | `epic/<epicId>` via `--no-ff` merge                     |
 | Cascade up to Feature/Epic    | No                                                   | Yes                                                     |
 | Dispatch manifest interaction | None                                                 | Read at init, regenerated at close                      |
-| Child Task ceremony           | None (standalone Story is atomic)                    | Required (per-Task `task-commit.js` loop)               |
+| Story scope                   | Inline `acceptance[]` / `verify[]` on the Story body | Inline `acceptance[]` / `verify[]` on the Story body    |
 
 If the Story has an `Epic: #N` reference, use `/story-deliver`. If it
 doesn't, use this workflow.
-
-> **3-tier hierarchy (target shape — opt-in via `planning.hierarchy: '3-tier'`).**
-> Under the 4-tier default, a standalone Story still carries child
-> `type::task` tickets and `single-story-deliver` iterates the per-Task
-> commit loop (`task-commit.js`) exactly as `/story-deliver` does. Under
-> 3-tier, the standalone Story has no Task children — the
-> implementation phase reads the Story's inline `acceptance[]` /
-> `verify[]` fields and the agent authors commits directly per
-> [`.agents/rules/git-conventions.md`](../rules/git-conventions.md),
-> referencing the Story via `(refs #<storyId>)`. Branching, worktree
-> bootstrap, gates, push, and the `gh pr create → main` exit are
-> unchanged between hierarchies. See
-> [`.agents/instructions.md` § 5.D](../instructions.md) and
-> [`.agents/SDLC.md` § 3-tier hierarchy](../SDLC.md) for the full
-> contract; the flag's default remains `'4-tier'` until Epic #3078's
-> destructive Feature 8 lands.
 
 ## Prerequisites
 
@@ -136,9 +120,10 @@ All subsequent commands run from this directory.
 
 ## Step 1 — Implementation
 
-A standalone Story is **atomic** — there are no child Tasks, no per-Task
-`task-commit.js` ceremony, no wave dispatch. Work happens in one or more
-commits on the `story-<id>` branch.
+A standalone Story is **atomic** — no wave dispatch and no Epic-scoped
+cascade. Work happens in one or more commits on the `story-<id>`
+branch, against the inline `acceptance[]` / `verify[]` arrays on the
+Story body.
 
 Operator/agent responsibilities while in the worktree:
 
@@ -491,7 +476,7 @@ safe.
   invoking from inside a worktree (worktree-local branch deletion fails
   when run from inside the worktree).
 - **MCP fallback**: if `mandrel` MCP tools fail, fall back to
-  `node .agents/scripts/update-ticket-state.js --task <id> --state <state>`
+  `node .agents/scripts/update-ticket-state.js --ticket <id> --state <state>`
   for label transitions.
 
 ---

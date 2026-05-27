@@ -18,16 +18,11 @@ All tasks within a Story MUST be committed to a shared **Story branch**:
 `story-<storyId>` (e.g., `story-104`). The runtime owns Story branch
 creation via `story-init.js`; agents commit on the active Story branch only.
 
-> **3-tier hierarchy (target shape — opt-in via `planning.hierarchy: '3-tier'`).**
-> The `story-<storyId>` branch naming, the Epic-branch integration
-> target, and the merge model are **unchanged** between the 4-tier
-> (Epic → Feature → Story → Task) and 3-tier (Epic → Feature →
-> Story) hierarchies. The only difference: under 3-tier the Story
-> has no child `type::task` tickets, so commits land on
-> `story-<storyId>` directly from the agent (no `task-commit.js`
-> hook, no per-Task `agent::*` transitions) and the Conventional
-> Commit subject references the Story via `(refs #<storyId>)`
-> instead of the 4-tier `(resolves #<taskId>)` suffix. See
+> **Commit subjects.** Under the 3-tier hierarchy
+> (Epic → Feature → Story), Stories have no child tickets. Commits
+> land on `story-<storyId>` directly from the agent and the
+> Conventional Commit subject references the parent Story via
+> `(refs #<storyId>)`. See
 > [`.agents/instructions.md` § 5.D](../instructions.md) for the
 > full hierarchy contract.
 

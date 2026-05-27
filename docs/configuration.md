@@ -261,7 +261,7 @@ top-level keys are validation errors.
 | `retro.perfThresholds.bootstrapShare` | No | `number` | — | Maximum acceptable share of cumulative Story execution time spent in the story-init phase. When exceeded the retro emits a `high-bootstrap-share` signal. Default 0.4. |
 | `retro.perfThresholds.capBindingRunLength` | No | `integer` | — | Minimum run length of consecutive cap-binding waves before the retro emits a `cap-binding-run` signal. Default 2. |
 | `ci` | No | `object` | — | Nested configuration block. |
-| `ci.skipForStoryPushes` | No | `boolean` | — | Story #2899 (Epic #2880, F13). When true (default), task-commit.js appends a '[skip ci]' trailer to per-Task Story-branch commit subjects so per-Task pushes do not stampede the CI fleet. The Epic-branch merge commit produced by story-close.js never carries the marker, regardless of this flag. |
+| `ci.skipForStoryPushes` | No | `boolean` | — | Story #2899 (Epic #2880, F13). When true (default), pre-push tooling appends a '[skip ci]' trailer to Story-branch commit subjects so intermediate pushes do not stampede the CI fleet. The Epic-branch merge commit produced by story-close.js never carries the marker, regardless of this flag. |
 | `preflight` | No | `object` | — | Story #2899 (Epic #2880, F13). Thresholds consumed by `.agents/scripts/epic-deliver-preflight.js`. When any value is exceeded the preflight envelope flags a breach and /epic-deliver Phase 1 surfaces it via agent::blocked. |
 | `preflight.maxStories` | No | `integer` | — | — |
 | `preflight.maxWaves` | No | `integer` | — | — |
@@ -403,7 +403,6 @@ suppress a channel entirely, set its array to `[]`.
 | `maxTickets`                   | No       | (none)     | Soft cap on tickets a single Epic may decompose.                                                 |
 | `failOnSharedEditors`          | No       | (none)     | Hard-fail Phase 7 when two Stories declare the same editor.                                       |
 | `requireExplicitCrossStoryDeps`| No       | (none)     | Require explicit cross-Story `blocked by` declarations rather than inferring from shared paths.   |
-| `hierarchy`                    | No       | `'4-tier'` | One of `'4-tier'` or `'3-tier'`. Selects the ticket hierarchy the decomposer and runtime use. `'4-tier'` (default) keeps the legacy Epic → Feature → Story → Task shape with per-Task lifecycle. `'3-tier'` is the target shape introduced by Epic #3078 (Epic → Feature → Story with inline Story-level `acceptance[]` / `verify[]`) — `/story-deliver` runs a single Story-implementation phase, no per-Task sub-loop, no `task-commit.js`. While Epic #3078 is in flight both shapes are supported in parallel; after its destructive Feature 8 lands, the flag is removed and `'3-tier'` becomes the only shape. |
 
 ### `planning.context`
 

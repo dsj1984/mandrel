@@ -735,7 +735,7 @@
           "properties": {
             "skipForStoryPushes": {
               "type": "boolean",
-              "description": "Story #2899 (Epic #2880, F13). When true (default), task-commit.js appends a '[skip ci]' trailer to per-Task Story-branch commit subjects so per-Task pushes do not stampede the CI fleet. The Epic-branch merge commit produced by story-close.js never carries the marker, regardless of this flag."
+              "description": "Story #2899 (Epic #2880, F13). When true (default), pre-push tooling appends a '[skip ci]' trailer to Story-branch commit subjects so intermediate pushes do not stampede the CI fleet. The Epic-branch merge commit produced by story-close.js never carries the marker, regardless of this flag."
             }
           },
           "additionalProperties": false

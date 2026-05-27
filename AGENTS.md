@@ -22,17 +22,14 @@ as a Git submodule (via the `dist` branch) into consumer projects'
 - **Current Version:** See [`.agents/VERSION`](.agents/VERSION)
 - **License:** ISC
 
-> **3-tier hierarchy (target shape — opt-in via `planning.hierarchy: '3-tier'`).**
-> Mandrel today defaults to the 4-tier ticket hierarchy
-> (Epic → Feature → Story → Task). Epic #3078 introduces a target
-> 3-tier shape (Epic → Feature → Story with inline Story-level
-> acceptance/verify) opt-in via the `planning.hierarchy` flag in
-> `.agentrc.json`. While Epic #3078 is in flight, the default remains
-> `'4-tier'` and both shapes are supported in parallel; after Epic
-> #3078's destructive Feature 8 lands, the flag is removed and 3-tier
-> becomes the only published shape. See
-> [`.agents/SDLC.md` § 3-tier hierarchy](.agents/SDLC.md) for the
-> target diagram and execution-model implications.
+> **Ticket hierarchy.** Mandrel ships a **3-tier ticket hierarchy**
+> (Epic → Feature → Story). Acceptance criteria and verification
+> steps are inlined on the Story body (`acceptance[]` / `verify[]`)
+> and `/story-deliver` runs a single Story-implementation phase per
+> Story — there is no `type::task` ticket layer and no per-Task
+> commit ceremony. See
+> [`.agents/SDLC.md` § Ticket hierarchy](.agents/SDLC.md) for the
+> diagram and execution-model implications.
 
 ---
 
@@ -166,9 +163,10 @@ Releases are automated by
 4. **Breaking-change releases** ship a consumer-upgrade runbook under
    `docs/`. The active one is
    [`docs/upgrade-guide-3-tier.md`](docs/upgrade-guide-3-tier.md) for
-   the Epic #3078 3-tier hierarchy cutover (drains in-flight 4-tier
-   Epics, runs the one-shot `cleanup-type-task-label.js` utility,
-   describes the major-version bump operator step). Link any future
+   the Epic #3078 3-tier hierarchy cutover (drains any in-flight Epics
+   that still carry `type::task` children, runs the one-shot
+   `cleanup-type-task-label.js` utility, describes the major-version
+   bump operator step). Link any future
    breaking-release runbook from this checklist and from the
    `## Unreleased` section of [`docs/CHANGELOG.md`](docs/CHANGELOG.md)
    so consumers find it on upgrade.

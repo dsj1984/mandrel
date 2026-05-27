@@ -3,8 +3,7 @@
 Single source of truth for the **numeric coding-time rules** every workflow in
 this framework cites. Reviewers, prescriptive auditors, and writing agents all
 read the same numbers from here so a "high cyclomatic complexity" finding in
-`/audit-clean-code` and a `task-execute` pre-commit refusal cite the same
-threshold.
+`/audit-clean-code` and a pre-commit refusal cite the same threshold.
 
 > Tunable via `delivery.quality.codingGuardrails` in `.agentrc.json` —
 > see [`full-agentrc.json`](../../full-agentrc.json) for the framework
@@ -12,34 +11,16 @@ threshold.
 > for the validated shape. Override per-project; never fork this helper to
 > change a number.
 
-<!-- separator: adjacent blockquotes -->
-
-> **3-tier hierarchy (target shape — opt-in via `planning.hierarchy: '3-tier'`).**
-> Every numeric ceiling and ratchet in this helper (cyclomatic flag /
-> must-fix, sibling-test convention, MI drop budget, rename refresh
-> tag) is **identical** between the 4-tier and 3-tier hierarchies —
-> these are coding-time rules keyed off the per-file baselines, not
-> per-Task ceremony. The only surface that changes is the at-keyboard
-> hook point: under 4-tier the pre-commit enforcement runs through
-> [`task-commit.js`](../../scripts/task-commit.js); under 3-tier
-> `task-commit.js` is not invoked and the agent runs
-> `npm run quality:preview` directly before authoring the commit per
-> [`.agents/rules/git-conventions.md`](../../rules/git-conventions.md).
-> The `.husky/pre-commit` hook fires the same `quality-preview.js`
-> engine in both cases, so the merge-time gate is unchanged. See
-> [`.agents/instructions.md` § 5.D](../../instructions.md) for the
-> full hierarchy contract.
-
 ## At-keyboard verification
 
-Run [`npm run quality:preview`](../../../package.json) before
-[`task-commit.js`](../../scripts/task-commit.js) on any Task that touches
-production source. The preview runs `quality-preview.js` with
-`--changed-since HEAD`, which exercises the same maintainability and CRAP
-engines (`escomplex` + `c8` coverage) that `check-baselines.js` enforces at
-merge time, then merges the results into a single per-file delta table. A
-clean preview means the commit will not bounce off the unified baselines
-gate. The `.husky/pre-commit` hook calls the same script.
+Run [`npm run quality:preview`](../../../package.json) before committing
+on any Story that touches production source. The preview runs
+`quality-preview.js` with `--changed-since HEAD`, which exercises the
+same maintainability and CRAP engines (`escomplex` + `c8` coverage) that
+`check-baselines.js` enforces at merge time, then merges the results
+into a single per-file delta table. A clean preview means the commit
+will not bounce off the unified baselines gate. The `.husky/pre-commit`
+hook calls the same script.
 
 ## Cyclomatic ceilings
 
@@ -53,7 +34,7 @@ thresholds, sourced from
 | --- | --- |
 | ≤ 8 | Pass — no annotation required. |
 | > 8 (default `cyclomaticFlag`) | **Flag** in review: explain why, or split. The function is allowed to land but the audit report names it. |
-| > 12 (default `cyclomaticMustFix`) | **Must-fix**: refactor before the Task commits. `quality:preview` reports it as a violation; the close-validation chain refuses the merge. |
+| > 12 (default `cyclomaticMustFix`) | **Must-fix**: refactor before the Story commits. `quality:preview` reports it as a violation; the close-validation chain refuses the merge. |
 
 A common refactor that pulls a 13-CC function under 8 is extracting the early-
 return guard chain into a named predicate, then collapsing the remaining
@@ -68,9 +49,9 @@ keeps the bisect honest — a regression and the test that would have caught
 it land or revert together.
 
 When `delivery.quality.codingGuardrails.requireSiblingTest` is `true`,
-[`task-commit.js`](../../scripts/task-commit.js) refuses to commit a staged
-new source file that lacks a sibling test. Default is `false` so legacy
-repos opt in deliberately; once enabled, the structural check replaces the
+the pre-commit hook refuses to commit a staged new source file that
+lacks a sibling test. Default is `false` so legacy repos opt in
+deliberately; once enabled, the structural check replaces the
 review-time prose rule.
 
 ## Maintainability-Index drop refactor rule

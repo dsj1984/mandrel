@@ -270,7 +270,7 @@ them automatically; agents commit on the execution branch only.
 
 | Purpose          | Format                       | Owner                  | Notes                                                                                         |
 | ---------------- | ---------------------------- | ---------------------- | --------------------------------------------------------------------------------------------- |
-| Story execution  | `story-<storyId>`            | `story-init.js` | Per-Story worktree at `.worktrees/story-<storyId>/`. All Task commits land here.              |
+| Story execution  | `story-<storyId>`            | `story-init.js` | Per-Story worktree at `.worktrees/story-<storyId>/`. All Story implementation commits land here. |
 | Epic integration | `epic/<epicId>`              | `/epic-deliver` slash command | Story branches merge into this branch with `--no-ff`. Pushed per wave.                       |
 
 - **Verification**: After `story-init.js` returns, confirm
@@ -295,31 +295,22 @@ the Epic branch reaches `main` via the pull request that `/epic-deliver`
 opens at the end of its run — the operator merges through the GitHub UI.
 There is no in-script merge to `main`.
 
-### D. 3-tier hierarchy (target shape — opt-in via `planning.hierarchy: '3-tier'`)
+### D. Ticket hierarchy (3-tier)
 
-> **Target shape under construction (Epic #3078).** The default ticket
-> hierarchy is currently 4-tier (Epic → Feature → Story → Task) and the
-> default value of `planning.hierarchy` in `.agentrc.json` is `'4-tier'`.
-> The target shape is **3-tier** (Epic → Feature → Story) — the Task
-> ticket type and its per-Task lifecycle are collapsed into a single
-> Story-implementation phase, with acceptance criteria and verification
-> steps living inline on the Story body. Opt in by setting
-> `planning.hierarchy: '3-tier'` in `.agentrc.json`; until Epic #3078's
-> destructive Feature 8 lands, both shapes are supported in parallel and
-> the runtime branches on the flag. After F8, the flag is removed and
-> 3-tier becomes the only shape.
-
-When operating under 3-tier:
+Mandrel uses a **3-tier ticket hierarchy** (Epic → Feature → Story).
+Acceptance criteria and verification steps live inline on the Story
+body (`acceptance[]` / `verify[]`); there is no `type::task` ticket
+layer.
 
 - The decomposer emits only `type::epic`, `type::feature`, and
-  `type::story` issues — no `type::task` children are created.
-- `/story-deliver` runs a single Story-implementation phase. There is no
-  per-Task sub-loop and `task-commit.js` is not invoked; the agent
-  authors commit subjects directly per
-  [`rules/git-conventions.md`](rules/git-conventions.md) and references
-  the parent Story via `(refs #<storyId>)`.
+  `type::story` issues.
+- `/story-deliver` runs a single Story-implementation phase. There is
+  no per-Task sub-loop; the agent authors commit subjects directly
+  per [`rules/git-conventions.md`](rules/git-conventions.md) and
+  references the parent Story via `(refs #<storyId>)`.
 - Story branches, the Epic-branch integration target, the wave-loop
-  fan-out, and the `epic/<id>` → `main` PR merge model are unchanged.
+  fan-out, and the `epic/<id>` → `main` PR merge model are the same
+  as Section 5.A.
 
 ---
 
