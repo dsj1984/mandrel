@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-27T21:57:59.022Z",
+  "generatedAt": "2026-05-27T23:13:47.045Z",
   "rollup": {
     "*": {
       "min": 38.161,
-      "p50": 103.671,
-      "p95": 121.235
+      "p50": 103.672,
+      "p95": 121.479
     }
   },
   "rows": [
@@ -177,10 +177,6 @@
     {
       "path": ".agents/scripts/git-rebase-and-resolve.js",
       "mi": 97.034
-    },
-    {
-      "path": ".agents/scripts/hierarchy-gate.js",
-      "mi": 86.424
     },
     {
       "path": ".agents/scripts/hydrate-context.js",
@@ -1427,10 +1423,6 @@
       "mi": 90.877
     },
     {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "mi": 94.385
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-close-recovery.js",
       "mi": 85.963
     },
@@ -1521,10 +1513,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/lock-wait-classifier.js",
       "mi": 88.118
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/locked-pipeline.js",
-      "mi": 73.379
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/preflight.js",
@@ -1793,10 +1781,6 @@
     {
       "path": ".agents/scripts/lib/story-init/transition-summary.js",
       "mi": 110.587
-    },
-    {
-      "path": ".agents/scripts/lib/story-lifecycle.js",
-      "mi": 95.516
     },
     {
       "path": ".agents/scripts/lib/task-utils.js",
@@ -2109,10 +2093,6 @@
     {
       "path": ".agents/scripts/story-close.js",
       "mi": 94.408
-    },
-    {
-      "path": ".agents/scripts/story-deliver-prepare.js",
-      "mi": 90.852
     },
     {
       "path": ".agents/scripts/story-init.js",
@@ -3069,10 +3049,6 @@
     {
       "path": "tests/helpers/make-mock-provider.js",
       "mi": 116.261
-    },
-    {
-      "path": "tests/hierarchy-gate.test.js",
-      "mi": 97.044
     },
     {
       "path": "tests/hook-chain-reflog-invariant.test.js",
@@ -4203,10 +4179,6 @@
       "mi": 106.368
     },
     {
-      "path": "tests/lib/story-lifecycle.test.js",
-      "mi": 108.313
-    },
-    {
       "path": "tests/lib/task-utils.test.js",
       "mi": 121.479
     },
@@ -4703,10 +4675,6 @@
       "mi": 107.915
     },
     {
-      "path": "tests/scripts/spec-renderer.test.js",
-      "mi": 106.192
-    },
-    {
       "path": "tests/scripts/spec-state.test.js",
       "mi": 109.045
     },
@@ -4869,10 +4837,6 @@
     {
       "path": "tests/story-close/summarize-gate-results.test.js",
       "mi": 103.683
-    },
-    {
-      "path": "tests/story-deliver/story-deliver-prepare.test.js",
-      "mi": 104.059
     },
     {
       "path": "tests/story-init.test.js",
