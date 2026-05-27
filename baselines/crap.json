@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-27T23:01:18.561Z",
+  "generatedAt": "2026-05-27T23:13:47.364Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.192000000000002,
+      "p95": 12.027811485254988,
       "max": 54.01376032409894,
       "methodsAbove20": 30
     }
@@ -10300,108 +10300,6 @@
       "method": "renderSpecFreshnessComment",
       "startLine": 280,
       "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "getValidator",
-      "startLine": 78,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "_resetRendererValidatorCacheForTests",
-      "startLine": 95,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "normaliseAjvErrors",
-      "startLine": 119,
-      "crap": 1.0130266639527783
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "sanitizeLabels",
-      "startLine": 137,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "renderBody",
-      "startLine": 174,
-      "crap": 14
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "assignNonEmpty",
-      "startLine": 200,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "indexTickets",
-      "startLine": 216,
-      "crap": 13.420476444298657
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "layerStories",
-      "startLine": 255,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "validateRenderSpecInputs",
-      "startLine": 288,
-      "crap": 12.561164258090779
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "bucketChildren",
-      "startLine": 306,
-      "crap": 9
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "buildTaskOut",
-      "startLine": 326,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "buildStoryOut",
-      "startLine": 333,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "buildFeatureOut",
-      "startLine": 352,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "buildEpicOut",
-      "startLine": 375,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "buildGatesOut",
-      "startLine": 382,
-      "crap": 14.010518407212624
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "validateSpec",
-      "startLine": 394,
-      "crap": 3.2099125364431487
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "renderSpec",
-      "startLine": 409,
-      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
