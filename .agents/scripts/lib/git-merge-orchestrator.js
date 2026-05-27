@@ -118,11 +118,42 @@ function commitAutoResolution(cwd, opts, autoResolvedFiles) {
   }
 }
 
+// Epic #3078: pre-commit hooks (notably lint-staged's stash/restore dance)
+// can leave `git merge --no-ff` exiting 0 without recording the commit.
+// Verify HEAD advanced; distinguish silent failure from "Already up to date".
+function classifyZeroExitMerge({
+  headBefore,
+  headAfter,
+  mergeStdout,
+  featureBranch,
+}) {
+  if (headAfter !== headBefore) return { merged: true };
+  if (/Already up to date/i.test(mergeStdout)) {
+    return { merged: true, alreadyMerged: true };
+  }
+  throw new Error(
+    `git merge --no-ff ${featureBranch} exited 0 but HEAD did not advance ` +
+      `(was ${headBefore || '<unknown>'}). Most likely a pre-commit hook ` +
+      `(commonly lint-staged) accepted the merge content into the index ` +
+      `without recording the commit. Inspect the index and any active ` +
+      `stash, commit the merge content manually if appropriate, then ` +
+      `re-run story-close with --resume. See Epic #3078 for incident notes.`,
+  );
+}
+
 export function mergeFeatureBranch(cwd, featureBranch, vlog, opts = {}) {
+  const headBefore = gitSpawn(cwd, 'rev-parse', 'HEAD').stdout;
   const mergeArgs = ['merge', '--no-ff', featureBranch];
   if (opts.message) mergeArgs.push('-m', opts.message);
   const merge = gitSpawn(cwd, ...mergeArgs);
-  if (merge.status === 0) return { merged: true };
+  if (merge.status === 0) {
+    return classifyZeroExitMerge({
+      headBefore,
+      headAfter: gitSpawn(cwd, 'rev-parse', 'HEAD').stdout,
+      mergeStdout: merge.stdout,
+      featureBranch,
+    });
+  }
 
   const conflicts = analyzeConflicts(cwd);
 
