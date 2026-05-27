@@ -180,6 +180,7 @@ export async function pushEpicAndHandleConflicts({
   config,
   log = () => {},
   mode = 'finalize',
+  mergeMessage = null,
   pushEpicWithRetry = defaultPushEpicWithRetry,
   git = { gitSpawn: defaultGitSpawn },
   getRunners = defaultGetRunners,
@@ -193,6 +194,7 @@ export async function pushEpicAndHandleConflicts({
       storyMergeRetry: getRunners(config).storyMergeRetry,
       git,
       log,
+      mergeMessage,
     });
   } catch (err) {
     if (err instanceof PushRetryConflictError) {
@@ -438,6 +440,7 @@ export async function runFinalizeMerge({
       config,
       log: (msg) => log('GIT', msg),
       mode: 'finalize',
+      mergeMessage,
     });
   } catch (err) {
     await emitStoryBlockedSafe({
@@ -539,6 +542,10 @@ export async function runResumeMerge({
   log = () => {},
   gitSpawn = defaultGitSpawn,
 }) {
+  const resumeMergeMessage = await buildMergeMessage(storyTitle, storyId, {
+    cwd,
+    logger,
+  });
   try {
     await finalizeMergeIfPending({
       cwd,
@@ -568,6 +575,7 @@ export async function runResumeMerge({
       config,
       log: (msg) => log('GIT', msg),
       mode: 'resume',
+      mergeMessage: resumeMergeMessage,
     });
   } catch (err) {
     await emitStoryBlockedSafe({

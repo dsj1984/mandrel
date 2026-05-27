@@ -161,15 +161,25 @@ describe('story-close merge-subject — truncation boundary fixtures', () => {
     assert.match(logger.calls[0], /commitlint cap/i);
     assert.match(logger.calls[0], /word boundary/i);
 
-    // (d) truncated-from body trailer present and references the *original*.
+    // (d) truncated-from body trailer present, references a prefix of the
+    // original, AND fits within the cap so commitlint's
+    // footer-max-line-length rule does not reject the auto-resolved
+    // merge commit. When the original would overflow, the value portion is
+    // truncated and an ellipsis is appended.
     assert.equal(shaped.truncated, true);
     assert.equal(typeof shaped.bodyTrailer, 'string');
     assert.match(shaped.bodyTrailer, /^truncated-from: /);
     assert.ok(
-      shaped.bodyTrailer.includes(shaped.original),
-      'body trailer should embed the original (un-truncated) subject',
+      Buffer.byteLength(shaped.bodyTrailer, 'utf8') <= COMMITLINT_DEFAULT_CAP,
+      `trailer line (${Buffer.byteLength(shaped.bodyTrailer, 'utf8')}) must fit cap to satisfy footer-max-line-length`,
     );
-    // The original recorded in the trailer is the over-cap one.
+    const trailerValue = shaped.bodyTrailer.slice('truncated-from: '.length);
+    const trailerValueNoEllipsis = trailerValue.replace(/…$/u, '');
+    assert.ok(
+      shaped.original.startsWith(trailerValueNoEllipsis),
+      'trailer value should be a prefix of the original subject',
+    );
+    // The original recorded by `shaped.original` is the over-cap one.
     assert.ok(
       Buffer.byteLength(shaped.original, 'utf8') > COMMITLINT_DEFAULT_CAP,
     );
@@ -207,8 +217,22 @@ describe('story-close merge-subject — buildMergeMessageWithCap wrapper', () =>
     // The subject (first line) is within the cap.
     const subject = out.message.split('\n', 1)[0];
     assert.ok(Buffer.byteLength(subject, 'utf8') <= COMMITLINT_DEFAULT_CAP);
-    // Original embedded in the trailer.
-    assert.ok(out.message.includes(out.original));
+    // Every line of the message — including the trailer — fits within the
+    // cap so commitlint's footer-max-line-length rule does not reject the
+    // auto-resolved merge commit.
+    for (const line of out.message.split('\n')) {
+      assert.ok(
+        Buffer.byteLength(line, 'utf8') <= COMMITLINT_DEFAULT_CAP,
+        `line "${line}" (${Buffer.byteLength(line, 'utf8')}) must fit cap`,
+      );
+    }
+    // Trailer value is a prefix of the original (possibly with ellipsis).
+    const trailerLine = out.message
+      .split('\n')
+      .find((l) => l.startsWith('truncated-from: '));
+    const trailerValue = trailerLine.slice('truncated-from: '.length);
+    const trailerValueNoEllipsis = trailerValue.replace(/…$/u, '');
+    assert.ok(out.original.startsWith(trailerValueNoEllipsis));
     assert.equal(logger.calls.length, 1);
   });
 });

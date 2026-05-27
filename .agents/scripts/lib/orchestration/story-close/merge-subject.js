@@ -84,6 +84,24 @@ function buildSuffix(storyId) {
   return ` (resolves #${storyId})`;
 }
 
+// Caps the `truncated-from: <subject>` trailer at `cap` bytes so it
+// satisfies commitlint's `footer-max-line-length` rule. Without this
+// cap, an original subject near the header cap (100) produces a
+// ~116-char trailer line.
+function buildTruncatedFromTrailer(originalSubject, cap) {
+  const prefix = 'truncated-from: ';
+  const budget = Math.max(0, cap - Buffer.byteLength(prefix, 'utf8'));
+  if (Buffer.byteLength(originalSubject, 'utf8') <= budget) {
+    return `${prefix}${originalSubject}`;
+  }
+  const ellipsisBytes = Buffer.byteLength('…', 'utf8');
+  let value = originalSubject;
+  while (Buffer.byteLength(value, 'utf8') + ellipsisBytes > budget) {
+    value = value.slice(0, -1);
+  }
+  return `${prefix}${value}…`;
+}
+
 function truncateTitleOnWordBoundary(title, budget) {
   if (budget <= 0) return '';
   if (Buffer.byteLength(title, 'utf8') <= budget) return title;
@@ -157,7 +175,7 @@ export function shapeMergeSubject({
     subject,
     original: originalSubject,
     truncated: true,
-    bodyTrailer: `truncated-from: ${originalSubject}`,
+    bodyTrailer: buildTruncatedFromTrailer(originalSubject, headerMaxLength),
   };
 }
 
