@@ -13,6 +13,7 @@ import {
   checkHeadAncestor,
   checkMergeReachability,
   hasMergeCommitForStory,
+  hasRebasedEquivalents,
   resolveHeadSha,
 } from '../../../../.agents/scripts/lib/worktree/lifecycle/merge-reachability.js';
 
@@ -147,6 +148,44 @@ describe('hasMergeCommitForStory', () => {
   });
 });
 
+describe('hasRebasedEquivalents', () => {
+  it('returns true when every cherry line starts with "- " (all patch-equivalent)', () => {
+    const ctx = fakeCtx([
+      { status: 0, stdout: '- aaaa1111\n- bbbb2222\n- cccc3333\n' },
+    ]);
+    assert.equal(hasRebasedEquivalents(ctx, 'story-42', 'origin/epic/1'), true);
+    assert.deepEqual(ctx.calls[0].args, [
+      'cherry',
+      'origin/epic/1',
+      'story-42',
+    ]);
+  });
+
+  it('returns false when any line starts with "+ " (unintegrated commit)', () => {
+    const ctx = fakeCtx([{ status: 0, stdout: '- aaaa1111\n+ dddd4444\n' }]);
+    assert.equal(
+      hasRebasedEquivalents(ctx, 'story-42', 'origin/epic/1'),
+      false,
+    );
+  });
+
+  it('returns false when cherry stdout is empty (trivial-ancestor case handled elsewhere)', () => {
+    const ctx = fakeCtx([{ status: 0, stdout: '' }]);
+    assert.equal(
+      hasRebasedEquivalents(ctx, 'story-42', 'origin/epic/1'),
+      false,
+    );
+  });
+
+  it('returns false when cherry exits non-zero', () => {
+    const ctx = fakeCtx([{ status: 128, stderr: 'fatal: bad revision' }]);
+    assert.equal(
+      hasRebasedEquivalents(ctx, 'story-42', 'origin/epic/1'),
+      false,
+    );
+  });
+});
+
 describe('checkMergeReachability', () => {
   it('propagates resolveHeadSha failure as safe:false', async () => {
     const ctx = fakeCtx([{ status: 128, stderr: 'fatal: HEAD missing' }]);
@@ -193,11 +232,26 @@ describe('checkMergeReachability', () => {
     });
   });
 
-  it('reports unmerged-commits when both gates fail', async () => {
+  it('falls back to rebased-equivalents when grep misses but cherry shows all patch-equivalent (Story #3161)', async () => {
     const ctx = fakeCtx([
       { status: 0, stdout: 'abc1234' }, // rev-parse HEAD
       { status: 1 }, // ancestor: not ancestor
       { status: 0, stdout: '' }, // grep: no match
+      { status: 0, stdout: '- aaaa1111\n- bbbb2222\n' }, // cherry: all upstream
+    ]);
+    const out = await checkMergeReachability(ctx, '/wt', 'story-42', 'epic/1');
+    assert.deepEqual(out, {
+      safe: true,
+      reason: 'rebased-equivalents',
+    });
+  });
+
+  it('reports unmerged-commits when all three gates fail', async () => {
+    const ctx = fakeCtx([
+      { status: 0, stdout: 'abc1234' }, // rev-parse HEAD
+      { status: 1 }, // ancestor: not ancestor
+      { status: 0, stdout: '' }, // grep: no match
+      { status: 0, stdout: '- aaaa1111\n+ bbbb2222\n' }, // cherry: + present
     ]);
     const out = await checkMergeReachability(ctx, '/wt', 'story-42', 'epic/1');
     assert.deepEqual(out, {
@@ -206,8 +260,12 @@ describe('checkMergeReachability', () => {
     });
   });
 
-  it('reports unmerged-commits without spawning grep for non-story branches', async () => {
-    const ctx = fakeCtx([{ status: 0, stdout: 'abc1234' }, { status: 1 }]);
+  it('reports unmerged-commits without spawning grep for non-story branches (cherry still runs)', async () => {
+    const ctx = fakeCtx([
+      { status: 0, stdout: 'abc1234' },
+      { status: 1 },
+      { status: 0, stdout: '' }, // cherry: empty (no equivalents)
+    ]);
     const out = await checkMergeReachability(
       ctx,
       '/wt',
