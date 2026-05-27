@@ -2,11 +2,11 @@
  * emit-story-heartbeat.js — Story #3057.
  *
  * Programmatic helper that appends a single `story.heartbeat` NDJSON
- * record to `temp/epic-<id>/lifecycle.ndjson` after a Task close inside
- * a Story's implementation loop. Story-implementation phases can run
- * for many minutes between dispatch and merge; `story.heartbeat` is
- * the inspectable in-progress signal the host-loop reconciler reads
- * to confirm forward progress.
+ * record to `temp/epic-<id>/lifecycle.ndjson` during a Story's
+ * implementation loop. Story-implementation phases can run for many
+ * minutes between dispatch and merge; `story.heartbeat` is the
+ * inspectable in-progress signal the host-loop reconciler reads to
+ * confirm forward progress.
  *
  * Distinct from:
  *   - `story.dispatch.start` — one per Story per dispatch attempt
@@ -14,9 +14,19 @@
  *   - `story.merged` — one per Story per close, post-merge.
  *
  * The emit is best-effort: a failure to append (missing schema,
- * unreachable ledger path, validation error) MUST NOT block the Task
+ * unreachable ledger path, validation error) MUST NOT block the phase
  * transition itself. Callers should catch and log via the script's
  * Logger; the heartbeat is observability, not state.
+ *
+ * Schema contract (story.heartbeat.schema.json):
+ *   { event, storyId, epicId, phase, timestamp }
+ *
+ * The schema declares `additionalProperties: false`, so this emitter's
+ * signature is deliberately narrow: only the schema-allowed fields are
+ * accepted. Earlier Task-era counters (`taskId`, `tasksDone`,
+ * `tasksTotal`, `currentTaskId`) were dropped under Epic #3078's
+ * 3-tier hard cutover — they would fail strict validation and have no
+ * meaning when the Story has no child Task tickets.
  */
 
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
@@ -40,6 +50,14 @@ const SCHEMA_PATH = path.resolve(
   'story.heartbeat.schema.json',
 );
 
+const VALID_PHASES = new Set([
+  'init',
+  'implementing',
+  'closing',
+  'blocked',
+  'done',
+]);
+
 let _validator;
 
 function getValidator() {
@@ -54,23 +72,13 @@ function getValidator() {
 /**
  * Append exactly one `story.heartbeat` NDJSON record to the Epic ledger.
  *
- * Story #3137 (3-tier hierarchy support): `taskId` and the legacy
- * `tasksDone`/`tasksTotal`/`currentTaskId` counters are all optional. Under
- * 3-tier the Story has no child Task tickets and these fields MUST be
- * omitted; under 4-tier callers MAY pass `taskId` (the closing Task) and
- * optionally the aggregate counters so retros can reconstruct per-Task
- * cadence.
- *
  * @param {object} opts
  * @param {number} opts.storyId   Story whose implementation loop is firing.
  * @param {number} opts.epicId    Parent Epic — required for the ledger path.
- * @param {number} [opts.taskId]  Closed Task id whose commit triggered the
- *                                heartbeat (4-tier only). Omit under 3-tier.
- * @param {number} [opts.tasksDone]      Optional aggregate counter (4-tier).
- * @param {number} [opts.tasksTotal]     Optional aggregate counter (4-tier).
- * @param {number} [opts.currentTaskId]  Optional aggregate counter (4-tier).
- * @param {string} [opts.timestamp]  ISO-8601 wall clock. Defaults to now().
- * @param {object} [opts.config]  Optional resolved config for tempRoot lookup.
+ * @param {string} [opts.phase='implementing']
+ *                                One of init|implementing|closing|blocked|done.
+ * @param {string} [opts.timestamp]   ISO-8601 wall clock. Defaults to now().
+ * @param {object} [opts.config]      Optional resolved config for tempRoot.
  * @param {string} [opts.ledgerPath]  Override for tests.
  * @returns {{ ledgerPath: string, record: object }}
  */
@@ -78,10 +86,7 @@ export function emitStoryHeartbeat(opts) {
   const {
     storyId,
     epicId,
-    taskId,
-    tasksDone,
-    tasksTotal,
-    currentTaskId,
+    phase = 'implementing',
     timestamp = new Date().toISOString(),
     config,
     ledgerPath: ledgerPathOverride,
@@ -93,33 +98,9 @@ export function emitStoryHeartbeat(opts) {
   if (!Number.isInteger(epicId) || epicId < 1) {
     throw new Error('emitStoryHeartbeat: epicId must be a positive integer');
   }
-  if (taskId !== undefined && (!Number.isInteger(taskId) || taskId < 1)) {
+  if (!VALID_PHASES.has(phase)) {
     throw new Error(
-      'emitStoryHeartbeat: taskId, when provided, must be a positive integer',
-    );
-  }
-  if (
-    tasksDone !== undefined &&
-    (!Number.isInteger(tasksDone) || tasksDone < 0)
-  ) {
-    throw new Error(
-      'emitStoryHeartbeat: tasksDone, when provided, must be a non-negative integer',
-    );
-  }
-  if (
-    tasksTotal !== undefined &&
-    (!Number.isInteger(tasksTotal) || tasksTotal < 0)
-  ) {
-    throw new Error(
-      'emitStoryHeartbeat: tasksTotal, when provided, must be a non-negative integer',
-    );
-  }
-  if (
-    currentTaskId !== undefined &&
-    (!Number.isInteger(currentTaskId) || currentTaskId < 1)
-  ) {
-    throw new Error(
-      'emitStoryHeartbeat: currentTaskId, when provided, must be a positive integer',
+      `emitStoryHeartbeat: phase "${phase}" must be one of: ${[...VALID_PHASES].join(', ')}`,
     );
   }
 
@@ -127,13 +108,9 @@ export function emitStoryHeartbeat(opts) {
     event: 'story.heartbeat',
     storyId,
     epicId,
-    phase: 'implementing',
+    phase,
     timestamp,
   };
-  if (taskId !== undefined) payload.taskId = taskId;
-  if (tasksDone !== undefined) payload.tasksDone = tasksDone;
-  if (tasksTotal !== undefined) payload.tasksTotal = tasksTotal;
-  if (currentTaskId !== undefined) payload.currentTaskId = currentTaskId;
 
   const validator = getValidator();
   if (!validator(payload)) {
