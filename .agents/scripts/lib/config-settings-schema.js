@@ -252,7 +252,11 @@ const PLANNING_SCHEMA = {
     // branches /epic-plan + /story-deliver accordingly. After Epic #3078's
     // destructive Feature 8 lands, the flag is removed and 3-tier becomes
     // the only published shape.
-    hierarchy: { type: 'string', enum: ['4-tier', '3-tier'], default: '4-tier' },
+    hierarchy: {
+      type: 'string',
+      enum: ['4-tier', '3-tier'],
+      default: '4-tier',
+    },
     riskHeuristics: LIST_OR_EXTENDER_OF_STRINGS,
     maxTickets: { type: 'integer', minimum: 1 },
     context: PLANNING_CONTEXT_SCHEMA,
