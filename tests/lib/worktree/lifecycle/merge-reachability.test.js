@@ -153,10 +153,7 @@ describe('hasRebasedEquivalents', () => {
     const ctx = fakeCtx([
       { status: 0, stdout: '- aaaa1111\n- bbbb2222\n- cccc3333\n' },
     ]);
-    assert.equal(
-      hasRebasedEquivalents(ctx, 'story-42', 'origin/epic/1'),
-      true,
-    );
+    assert.equal(hasRebasedEquivalents(ctx, 'story-42', 'origin/epic/1'), true);
     assert.deepEqual(ctx.calls[0].args, [
       'cherry',
       'origin/epic/1',
@@ -165,9 +162,7 @@ describe('hasRebasedEquivalents', () => {
   });
 
   it('returns false when any line starts with "+ " (unintegrated commit)', () => {
-    const ctx = fakeCtx([
-      { status: 0, stdout: '- aaaa1111\n+ dddd4444\n' },
-    ]);
+    const ctx = fakeCtx([{ status: 0, stdout: '- aaaa1111\n+ dddd4444\n' }]);
     assert.equal(
       hasRebasedEquivalents(ctx, 'story-42', 'origin/epic/1'),
       false,
@@ -183,9 +178,7 @@ describe('hasRebasedEquivalents', () => {
   });
 
   it('returns false when cherry exits non-zero', () => {
-    const ctx = fakeCtx([
-      { status: 128, stderr: 'fatal: bad revision' },
-    ]);
+    const ctx = fakeCtx([{ status: 128, stderr: 'fatal: bad revision' }]);
     assert.equal(
       hasRebasedEquivalents(ctx, 'story-42', 'origin/epic/1'),
       false,
