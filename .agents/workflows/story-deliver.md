@@ -20,7 +20,11 @@ slot, per wave) and runs one Story from init to close in one invocation.
       Agent tool × concurrencyCap parallel calls (one assistant turn):
         /story-deliver <storyId>
           → story-init.js
-          → for each Task: read helpers/task-execute.md inline
+          → if tasks.length > 0 (4-tier):
+              for each Task: read helpers/task-execute.md inline
+            else (3-tier):
+              single Story-implementation phase using inline
+              acceptance[] / verify[] from the Story body
           → story-close.js
 ```
 
@@ -131,7 +135,26 @@ reads).
 
 ---
 
-## Step 1 — Implementation (Sequential Task Loop)
+## Step 1 — Implementation (hierarchy-gated)
+
+`story-init.js` returns a `tasks[]` array describing the Story's child
+`type::task` tickets in dependency order. The shape of Step 1 depends on
+whether that array is empty:
+
+- **4-tier branch (`tasks.length > 0`).** Run the
+  [Sequential Task Loop](#step-1a--sequential-task-loop-4-tier) below — one
+  `task-commit.js` invocation per child Task, with per-Task
+  `story-task-progress.js` transitions.
+- **3-tier branch (`tasks.length === 0`).** Run the
+  [Single-phase Story-implementation branch](#step-1b--single-phase-story-implementation-branch-3-tier)
+  below — read inline `acceptance[]` / `verify[]` from the Story body,
+  author commits directly with `(refs #<storyId>)`, and skip
+  `task-commit.js` entirely.
+
+Both branches end at the same Step 2 / Step 3 (validate + close); only
+the work inside Step 1 differs.
+
+### Step 1a — Sequential Task Loop (4-tier)
 
 For **each child Task** in the order returned by `story-init.js`:
 
@@ -193,6 +216,68 @@ the parent will aggregate.
 > [`helpers/_merge-conflict-template.md`](helpers/_merge-conflict-template.md).
 
 The marker is upserted in place — comment count never grows past one.
+
+### Step 1b — Single-phase Story-implementation branch (3-tier)
+
+When `story-init.js` returns `tasks: []`, the Story has no child
+`type::task` tickets and the work is described inline on the Story body
+as `acceptance[]` and `verify[]` arrays (extracted by the hydrator in
+3-tier mode). Run a single Story-implementation phase:
+
+1. Flip the snapshot to the `implementing` phase. There is no per-Task
+   transition under 3-tier — the Story itself carries the only state:
+
+   ```bash
+   node .agents/scripts/story-task-progress.js \
+     --story <storyId> --phase implementing
+   ```
+
+   The CLI accepts `--story` without `--task` when `tasks: []`; the
+   rendered snapshot shows the Story row only (no task table).
+
+2. Read the Story body's inline `acceptance[]` and `verify[]` arrays
+   from the `story-init` structured comment (`context.acceptance`,
+   `context.verify`). These replace the per-Task `## Acceptance` /
+   `## Verify` sections that the 4-tier loop reads from each Task body.
+
+3. Implement the work as one or more commits on `story-<storyId>`.
+   `task-commit.js` is **not** invoked under 3-tier — author commits
+   directly with the project's editor / `git commit`, following
+   [`.agents/rules/git-conventions.md`](../rules/git-conventions.md):
+   - Conventional Commit subject (`feat:`, `fix:`, …).
+   - Reference the parent Story via `(refs #<storyId>)` in the subject
+     or body (note: **not** `(resolves #<id>)`, which is reserved for
+     4-tier Task closure).
+   - The `commit-msg` Husky hook still enforces commitlint locally.
+
+4. Run the inline `verify[]` commands as advisory pre-flight. The
+   canonical validation chain still fires inside `story-close.js`
+   (Step 2 / Step 3); pre-running here is optional and only useful
+   while iterating on a fix.
+
+5. After the final commit lands, flip the snapshot to `closing` and
+   proceed to Step 3:
+
+   ```bash
+   node .agents/scripts/story-task-progress.js \
+     --story <storyId> --phase closing
+   ```
+
+6. If blocked, flip the snapshot to `blocked`, transition the Story to
+   `agent::blocked`, post a `friction` comment, and exit non-zero:
+
+   ```bash
+   node .agents/scripts/story-task-progress.js \
+     --story <storyId> --phase blocked \
+     --blocker-comment-id <id>
+   ```
+
+There is no `--commit-sha` argument under 3-tier — the resume guard is
+expressed at the Story level (was the Story branch already merged into
+`epic/<id>`?) rather than per-Task. Re-entering a partially-implemented
+3-tier Story picks up from whatever commits are already on
+`story-<storyId>`; the agent inspects `git log` to decide what work
+remains.
 
 ---
 
