@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-27T21:58:00.638Z",
+  "generatedAt": "2026-05-27T23:01:18.561Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -904,36 +904,6 @@
       "method": "main",
       "startLine": 244,
       "crap": 2.0932944606413995
-    },
-    {
-      "path": ".agents/scripts/hierarchy-gate.js",
-      "method": "classify",
-      "startLine": 54,
-      "crap": 6.0163859808830225
-    },
-    {
-      "path": ".agents/scripts/hierarchy-gate.js",
-      "method": "ticketIsComplete",
-      "startLine": 68,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/hierarchy-gate.js",
-      "method": "collectDescendants",
-      "startLine": 86,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/hierarchy-gate.js",
-      "method": "runHierarchyGate",
-      "startLine": 108,
-      "crap": 11.002039818607866
-    },
-    {
-      "path": ".agents/scripts/hierarchy-gate.js",
-      "method": "main",
-      "startLine": 187,
-      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/audit-suite/cli.js",
@@ -11142,18 +11112,6 @@
       "crap": 12
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/locked-pipeline.js",
-      "method": "runGatesAndRefresh",
-      "startLine": 48,
-      "crap": 20
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/locked-pipeline.js",
-      "method": "runStoryCloseLocked",
-      "startLine": 110,
-      "crap": 5.187238020876141
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/preflight.js",
       "method": "runStoryClosePreflight",
       "startLine": 36,
@@ -13384,42 +13342,6 @@
       "method": "postBatchedTransitionSummary",
       "startLine": 21,
       "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/story-lifecycle.js",
-      "method": "resolveStoryHierarchy",
-      "startLine": 25,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/story-lifecycle.js",
-      "method": "fetchChildTasks",
-      "startLine": 43,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/story-lifecycle.js",
-      "method": "isRetryableError",
-      "startLine": 56,
-      "crap": 9
-    },
-    {
-      "path": ".agents/scripts/lib/story-lifecycle.js",
-      "method": "batchTransitionTickets",
-      "startLine": 91,
-      "crap": 2.00007289692375
-    },
-    {
-      "path": ".agents/scripts/lib/story-lifecycle.js",
-      "method": "<anon method-2>",
-      "startLine": 106,
-      "crap": 9.00460855712335
-    },
-    {
-      "path": ".agents/scripts/lib/story-lifecycle.js",
-      "method": "<anon method-3>",
-      "startLine": 146,
-      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/task-utils.js",
