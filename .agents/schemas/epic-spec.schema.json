@@ -1,6 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/epic-spec.schema.json",
+  "version": "2.0.0",
   "title": "Epic Spec (declarative structural SSOT)",
   "description": "Canonical structural specification for an Epic and its children (Features, Stories, Tasks), consumed by the epic-spec-reconciler (Epic #1182). Lives on disk as .agents/epics/<epic-id>.yaml. The reconciler diffs this spec against live GitHub state and applies structural mutations (Create/Update/Close/Relink) behind a dry-run default. Slugs are stable, GH-incarnation-independent identifiers used for intra-spec dependency edges (dependsOn) and the spec ↔ GH-issue mapping persisted in the sibling .agents/epics/<epic-id>.state.json. This schema describes the structural shape only; agent-execution state (agent::* labels) is intentionally not modelled — that surface belongs to the wave-runner, not the reconciler.",
   "type": "object",
@@ -10,6 +11,11 @@
     "$schema": {
       "type": "string",
       "description": "Relative or absolute reference to this schema file. Allowed at the top level so YAML editors with $schema-aware autocomplete (e.g. the Red Hat YAML extension) can resolve the schema from the spec file itself."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Optional schema-shape identifier (Epic #3078). Identification-only — readers MUST NOT branch behavior on this value. Bumped to 2.0.0 when Story-level inline acceptance[]/verify[] arrays were introduced and tasks[] became optional under the 3-tier collapse. A spec without `version` is interpreted as the legacy 4-tier shape; the schema accepts both because the change is purely additive."
     },
     "epic": {
       "$ref": "#/$defs/epic",
@@ -102,8 +108,8 @@
     "story": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["slug", "title", "wave", "tasks"],
-      "description": "A Story is the unit of agent execution — exactly one Story branch (story-<id>) and exactly one Story sub-agent per Story per wave. Stories declare their wave assignment and inter-Story dependencies via slug references; the wave-runner consumes these to schedule the parallel fan-out.",
+      "required": ["slug", "title", "wave"],
+      "description": "A Story is the unit of agent execution — exactly one Story branch (story-<id>) and exactly one Story sub-agent per Story per wave. Stories declare their wave assignment and inter-Story dependencies via slug references; the wave-runner consumes these to schedule the parallel fan-out. Stories may carry either child tasks[] (legacy 4-tier decomposition) and/or inline acceptance[] + verify[] arrays (3-tier collapse, Epic #3078). Both shapes validate; tasks[] is kept optional so 3-tier Stories that decompose acceptance/verify directly are accepted, and 4-tier Stories with tasks[] continue to validate with no regression.",
       "properties": {
         "slug": {
           "$ref": "#/$defs/slug",
@@ -136,9 +142,27 @@
           "$ref": "#/$defs/labels",
           "description": "Structural labels attached to this Story (e.g. type::story, persona::*). agent::* labels are forbidden — they are owned by the wave-runner at dispatch time."
         },
+        "acceptance": {
+          "type": "array",
+          "description": "Optional inline acceptance criteria for this Story (Epic #3078 — 3-tier collapse). Each entry is a single user-visible acceptance statement that the Story-level agent must satisfy. Coexists with tasks[]; when both are present, tasks[] carries the implementation decomposition and acceptance[] carries the Story-level outcome contract. When only acceptance[] + verify[] are present (no tasks[]), the Story sub-agent treats them as the Goal/Changes/Acceptance/Verify surface that previously lived on a child Task body.",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A single acceptance criterion expressed as a user-visible outcome (e.g. 'A Story object containing inline acceptance[] validates against the schema')."
+          }
+        },
+        "verify": {
+          "type": "array",
+          "description": "Optional inline verification commands for this Story (Epic #3078 — 3-tier collapse). Each entry is a shell-runnable command (typically a contract test invocation) that proves the corresponding acceptance[] entries hold. Coexists with tasks[]; semantics mirror the existing Task-body `## Verify` section.",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A single verification command (e.g. 'node --test tests/scripts/epic-spec-schema.test.js')."
+          }
+        },
         "tasks": {
           "type": "array",
-          "description": "Ordered list of Tasks under this Story. The Story sub-agent walks tasks[] in order during /story-deliver; each Task produces exactly one commit on the Story branch via task-commit.js.",
+          "description": "Ordered list of Tasks under this Story (legacy 4-tier decomposition). The Story sub-agent walks tasks[] in order during /story-deliver; each Task produces exactly one commit on the Story branch via task-commit.js. Optional as of Epic #3078: Stories that use inline acceptance[]/verify[] may omit tasks[] entirely.",
           "items": { "$ref": "#/$defs/task" }
         }
       }
