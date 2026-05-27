@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-27T18:57:48.295Z",
+  "generatedAt": "2026-05-27T21:53:15.329Z",
   "rollup": {
     "*": {
       "min": 38.161,
-      "p50": 103.599,
+      "p50": 103.664,
       "p95": 121.235
     }
   },
@@ -2049,10 +2049,6 @@
     {
       "path": ".agents/scripts/providers/github/sub-issues.js",
       "mi": 86.43
-    },
-    {
-      "path": ".agents/scripts/providers/github/tickets.js",
-      "mi": 95.219
     },
     {
       "path": ".agents/scripts/quality-preview.js",
