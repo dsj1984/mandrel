@@ -133,7 +133,7 @@ async function main() {
   const opts = parseArgs(process.argv.slice(2));
   const result = await cleanupTypeTaskLabel(opts);
   Logger.info(`[cleanup-type-task-label] ${result.message}`);
-  console.log(JSON.stringify(result, null, 2));
+  process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 }
 
 runAsCli(import.meta.url, main, { source: 'cleanup-type-task-label' });
