@@ -80,10 +80,6 @@
  *     issue with an empty body.
  */
 
-import {
-  composeTaskBody,
-  stripOrchestratorFooter,
-} from '../templates/task-body-renderer.js';
 import { assertPlanLabelAllowList } from './epic-spec-reconciler-discriminator.js';
 import {
   closeOp,
@@ -189,6 +185,58 @@ function normaliseBody(value) {
 }
 
 /**
+ * Match the canonical orchestrator footer anchored on a `---` separator
+ * line followed by `parent: #<digits>`. Greedy through end of string so
+ * duplicate footer blocks and trailing `blocked by` lines are removed in
+ * a single pass. Kept local to this module so the diff engine does not
+ * depend on the Task-body renderer (Story #3185 / Epic #3163: the renderer
+ * is going away with the 3-tier producer cutover).
+ */
+const ORCHESTRATOR_FOOTER_RE = /\n?---[ \t]*\r?\n+parent:\s*#\d+[\s\S]*$/;
+
+/**
+ * Strip the canonical orchestrator footer from a body and return just the
+ * description portion. Safe to call on bodies without a footer — returns
+ * the input unchanged modulo a trailing-whitespace trim. The trim keeps
+ * the result byte-stable when fed back through `composeBodyWithFooter`.
+ *
+ * @param {string|null|undefined} body
+ * @returns {string}
+ */
+function stripFooter(body) {
+  const value = typeof body === 'string' ? body : '';
+  return value.replace(ORCHESTRATOR_FOOTER_RE, '').replace(/\s+$/, '');
+}
+
+/**
+ * Render the canonical orchestrator footer (no leading newline). Format
+ * matches the byte-stable shape that the cascade-reading consumers
+ * (story-init, dispatcher, manifest, close-gate) parse line-anchored:
+ *
+ *   ---
+ *   parent: #<parentId>
+ *   [Epic: #<epicId>]            // only when epicId !== parentId
+ *
+ *   [blocked by #<dep>]          // one per dependency
+ *
+ * @param {{parentId: number, epicId?: number, dependencies?: number[]}} opts
+ * @returns {string}
+ */
+function renderFooter({ parentId, epicId, dependencies = [] }) {
+  const lines = ['---', `parent: #${parentId}`];
+  if (epicId !== undefined && epicId !== null && epicId !== parentId) {
+    lines.push(`Epic: #${epicId}`);
+  }
+  if (dependencies.length > 0) {
+    lines.push('');
+    for (const dep of dependencies) {
+      lines.push(`blocked by #${dep}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+/**
  * Compose the canonical orchestrator footer onto a spec body for non-epic
  * entities. Resolves `parentSlug`/`dependsOn` slugs against the running
  * `state.mapping` so the rendered footer carries the live issue numbers.
@@ -197,6 +245,14 @@ function normaliseBody(value) {
  * Story #2982 — without this re-composition, a body Update sourced from
  * the YAML spec writes just the description, silently stripping
  * `parent: #N` / `Epic: #M` / `blocked by #X` and breaking the cascade.
+ *
+ * Story #3185 — the footer compose/strip logic is inlined here rather
+ * than reused from the legacy Task-body renderer module. Under the
+ * 3-tier hierarchy (Epic → Feature → Story) that renderer is being
+ * removed, so the diff engine carries its own footer shape. The shape
+ * is byte-identical to the legacy renderer's `parent: #<n>` /
+ * `Epic: #<m>` / `blocked by #<x>` output so cascade-readers continue
+ * to parse it unchanged.
  *
  * @param {{entity: string, parentSlug?: string|null, dependsOn?: string[]}} specEntity
  * @param {string} specBody
@@ -228,14 +284,10 @@ function composeBodyWithFooter(specEntity, specBody, ctx) {
   // round-tripped through `reverse-bootstrap` (which stores the raw GH
   // body verbatim, footer included) or any other producer that emits a
   // canonical-form body. With the strip, the function is idempotent
-  // against its own output and against the createTicket-rendered shape.
-  const head = stripOrchestratorFooter(specBody);
-  return composeTaskBody({
-    body: head,
-    parentId,
-    epicId,
-    dependencies,
-  });
+  // against its own output.
+  const head = stripFooter(specBody);
+  const footer = renderFooter({ parentId, epicId, dependencies });
+  return `${head}\n\n${footer}`;
 }
 
 /**
