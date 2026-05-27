@@ -231,7 +231,7 @@ function buildFixtureTickets() {
 
 const stubSpawnSync = () => ({ status: 0, stdout: '', stderr: '' });
 
-// Pending Task #3157: runDecomposePhase still synthesises Task tickets
+// Pending follow-on Epic #3163: runDecomposePhase still synthesises Task tickets
 // and renders specs containing Story.tasks[]. Reinstate after the
 // decomposer is rewritten to emit 3-tier specs only.
 describe.skip('runDecomposePhase — sub-issue link safety net (Story #2063)', () => {

@@ -298,7 +298,7 @@ describe('buildBootstrapInputs', () => {
 // End-to-end happy path — runReverseBootstrap + diff-no-op idempotency
 // ---------------------------------------------------------------------------
 
-// Pending Task #3157: epic-spec-reverse-bootstrap.js still emits 4-tier
+// Pending follow-on Epic #3163: epic-spec-reverse-bootstrap.js still emits 4-tier
 // specs carrying Story.tasks[]. Reinstate after the bootstrap helper is
 // rewritten to emit 3-tier shape.
 describe.skip('runReverseBootstrap — happy path', () => {
@@ -485,7 +485,7 @@ describe('runBootstrap (CLI) — refusal path', () => {
     );
   });
 
-  // Pending Task #3157: this test invokes runBootstrap end-to-end, which
+  // Pending follow-on Epic #3163: this test invokes runBootstrap end-to-end, which
   // re-renders the Epic as a 4-tier spec. Reinstate after the bootstrap
   // helper is rewritten to emit 3-tier shape.
   it.skip('exits 0 on a quiescent Epic and prints the spec/state paths', async () => {
@@ -517,7 +517,7 @@ describe('runBootstrap (CLI) — refusal path', () => {
 // State projection — diff-engine-shape contract
 // ---------------------------------------------------------------------------
 
-// Pending Task #3157: buildBootstrapState still projects Task tickets
+// Pending follow-on Epic #3163: buildBootstrapState still projects Task tickets
 // into the state map. Reinstate after 3-tier rewrite.
 describe.skip('buildBootstrapState — diff-shape contract', () => {
   it('emits an `epic` mapping row pointing at the Epic issue number', () => {
@@ -557,7 +557,7 @@ describe.skip('buildBootstrapState — diff-shape contract', () => {
 // On-disk spec — schema-conformance smoke test
 // ---------------------------------------------------------------------------
 
-// Pending Task #3157: bootstrap helper emits 4-tier YAML. Reinstate
+// Pending follow-on Epic #3163: bootstrap helper emits 4-tier YAML. Reinstate
 // after the helper is rewritten to emit 3-tier shape.
 describe.skip('reverse-bootstrap spec — on-disk YAML', () => {
   it('writes deterministic YAML that round-trips via loadSpec', async () => {
@@ -629,7 +629,7 @@ function build3tierFixture() {
   return { epic, tickets, ids: { EPIC_ID, FEATURE_ID, STORY_ID } };
 }
 
-// Pending Task #3157: spec-renderer.js still emits a Story.tasks[] field
+// Pending follow-on Epic #3163: spec-renderer.js still emits a Story.tasks[] field
 // even for 3-tier inputs, which the schema now rejects. Reinstate after
 // the renderer is rewritten to omit Story.tasks under 3-tier.
 describe.skip('runReverseBootstrap — 3-tier hierarchy (Story #3117)', () => {

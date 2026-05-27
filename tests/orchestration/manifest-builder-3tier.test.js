@@ -6,7 +6,7 @@
  * selection now relies entirely on structural auto-detection: a
  * Story-only ticket graph emits the 3-tier shape; a Task-bearing graph
  * still emits the 4-tier shape (retained for in-flight Epics — Task
- * #3157 owns its eventual deletion).
+ * follow-on Epic #3163 owns its eventual deletion).
  */
 
 import assert from 'node:assert/strict';
@@ -169,7 +169,7 @@ test('Story-only graph auto-detects to the 3-tier manifest shape', () => {
 
 test('Task-bearing graph auto-detects to the 4-tier manifest shape', () => {
   // The 4-tier path is retained for in-flight Epics that still carry
-  // Task tickets. Task #3157 owns its eventual deletion.
+  // Task tickets. follow-on Epic #3163 owns its eventual deletion.
   const epic = makeEpic();
   const story = makeStory(100, { id: 100, title: 'Parent Story' });
   const t1 = {

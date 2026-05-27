@@ -5,7 +5,7 @@
  * deleted the `planning.hierarchy` flag, shape selection is purely
  * structural — an Epic carrying zero Tasks and at least one Story
  * resolves to the 3-tier path; a Task-bearing graph keeps the 4-tier
- * path (Task #3157 owns its eventual deletion).
+ * path (follow-on Epic #3163 owns its eventual deletion).
  *
  * Asserts:
  *   - `isThreeTierDispatch` returns true when there are zero Tasks and

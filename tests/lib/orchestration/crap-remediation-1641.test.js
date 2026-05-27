@@ -271,7 +271,7 @@ function buildSpecTickets() {
   ];
 }
 
-// Pending Task #3157: renderSpec still emits Story.tasks[]. Reinstate
+// Pending follow-on Epic #3163: renderSpec still emits Story.tasks[]. Reinstate
 // after the renderer is rewritten to omit Story.tasks under 3-tier.
 describe.skip('spec-renderer.renderSpec', () => {
   it('happy path projects features → stories → tasks and strips agent labels', () => {

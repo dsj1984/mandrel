@@ -176,7 +176,7 @@ const FIXTURE_EPIC = {
   labels: ['type::epic', 'agent::executing'],
 };
 
-// Pending Task #3157: spec-renderer.js still emits 4-tier specs carrying
+// Pending follow-on Epic #3163: spec-renderer.js still emits 4-tier specs carrying
 // Story.tasks[]. The renderer must be rewritten to emit the 3-tier shape
 // before these tests can be reinstated. The schema-level rejection of
 // tasks[] is covered by tests/scripts/epic-spec-schema.test.js.
@@ -250,7 +250,7 @@ describe.skip('lib/orchestration/spec-renderer.js — basic projection', () => {
   });
 });
 
-// Pending Task #3157: spec-renderer rewrite (see note above).
+// Pending follow-on Epic #3163: spec-renderer rewrite (see note above).
 describe.skip('lib/orchestration/spec-renderer.js — dependsOn / wave layering', () => {
   it('projects inter-Story depends_on edges as dependsOn (slug to slug)', () => {
     const spec = renderSpec(buildFixtureTickets(), { epic: FIXTURE_EPIC });
@@ -343,7 +343,7 @@ describe('lib/orchestration/spec-renderer.js — schema validation', () => {
   });
 });
 
-// Pending Task #3157: spec-renderer rewrite (see note above).
+// Pending follow-on Epic #3163: spec-renderer rewrite (see note above).
 describe.skip('lib/orchestration/spec-renderer.js — round-trip via loader', () => {
   it('renders a spec the loader accepts as valid', () => {
     const spec = renderSpec(buildFixtureTickets(), { epic: FIXTURE_EPIC });

@@ -178,9 +178,35 @@ decision.
 
 ---
 
+## Known follow-on
+
+Epic #3078's destructive Feature 8 deleted the leaf Task-tier surface
+(`task-execute.md`, `task-commit.js`, `retrofit-task-bodies.js`,
+`story-task-progress`) but **deferred the producer-side rewrite** that
+synthesises Task tickets during planning/decompose/spec-render. As a
+result, two helpers still ship and three production import sites still
+reference them:
+
+- `.agents/scripts/lib/orchestration/story-grouper.js` (exports
+  `groupTasksByStory`, still imported by `manifest-builder.js`).
+- `.agents/scripts/lib/templates/task-body-renderer.js` (exports
+  `composeTaskBody`, still imported by `epic-spec-reconciler-diff.js`
+  and `providers/github/tickets.js`).
+- 12 producer-side tests across 6 files are parked behind
+  `describe.skip(...)` pending the rewrite.
+
+The remaining work is tracked in **follow-on Epic #3163**. Consumers
+on v6.x see the 3-tier execution path end-to-end (no `type::task`
+issues are created, `/story-deliver` runs a single phase) — the
+deferred work is internal cleanup that does not change the runtime
+contract.
+
+---
+
 ## References
 
 - Epic #3078 — Collapse Task level: adopt 3-tier hierarchy
+- Follow-on Epic #3163 — Complete Task-tier producer rewrite
 - Story #3104 (this story) — CHANGELOG draft + major-version preparation
 - Story 7.1 cleanup utility:
   [`cleanup-type-task-label.js`](../.agents/scripts/cleanup-type-task-label.js)

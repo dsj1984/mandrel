@@ -219,7 +219,7 @@ afterEach(() => {
   if (sandbox) rmSync(sandbox, { recursive: true, force: true });
 });
 
-// Pending Task #3157: tryRenderFromSpec / spec-renderer still expect
+// Pending follow-on Epic #3163: tryRenderFromSpec / spec-renderer still expect
 // Story.tasks[]. Reinstate after the renderer is rewritten to emit the
 // 3-tier shape.
 test.skip('tryRenderFromSpec round-trips through the real loader against a sandbox spec', () => {
