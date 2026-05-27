@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  defaultStoryPhases,
   renderStoryRunProgressBody,
+  STORY_PHASE_ORDER,
   STORY_RUN_PROGRESS_TYPE,
   upsertStoryRunProgress,
 } from '../../.agents/scripts/lib/orchestration/epic-runner/story-run-progress-writer.js';
@@ -233,5 +235,185 @@ describe('upsertStoryRunProgress', () => {
         }),
       /provider with postComment/,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 3-tier Story-phase snapshot — Story #3129.
+//
+// Under `planning.hierarchy: '3-tier'` the Story has no child Tasks; the
+// `story-run-progress` comment carries a `phases[]` array (init / implement /
+// validate / close) instead of `tasks[]`. The two shapes are mutually
+// exclusive (callers MUST pass exactly one) so the snapshot stays small and
+// the parent `/epic-deliver` aggregator never has to merge them.
+// ---------------------------------------------------------------------------
+
+describe('renderStoryRunProgressBody (3-tier phases shape)', () => {
+  it('defaultStoryPhases seeds the canonical init/implement/validate/close shape', () => {
+    const phases = defaultStoryPhases();
+    assert.deepEqual(
+      phases.map((p) => p.name),
+      STORY_PHASE_ORDER,
+    );
+    assert.deepEqual(
+      phases.map((p) => p.name),
+      ['init', 'implement', 'validate', 'close'],
+    );
+    for (const p of phases) {
+      assert.equal(p.status, 'pending');
+      assert.equal(p.startedAt, null);
+      assert.equal(p.endedAt, null);
+    }
+  });
+
+  it('renders a phases[] payload when input.phases is provided', () => {
+    const { body, payload } = renderStoryRunProgressBody({
+      storyId: 3129,
+      branch: 'story-3129',
+      phase: 'implementing',
+      phases: [
+        {
+          name: 'init',
+          status: 'done',
+          startedAt: '2026-05-27T15:00:00Z',
+          endedAt: '2026-05-27T15:05:00Z',
+        },
+        {
+          name: 'implement',
+          status: 'in-progress',
+          startedAt: '2026-05-27T15:05:00Z',
+          endedAt: null,
+        },
+        { name: 'validate', status: 'pending', startedAt: null, endedAt: null },
+        { name: 'close', status: 'pending', startedAt: null, endedAt: null },
+      ],
+      updatedAt: '2026-05-27T15:30:00Z',
+    });
+
+    assert.equal(payload.kind, 'story-run-progress');
+    assert.equal(payload.storyId, 3129);
+    assert.equal(payload.branch, 'story-3129');
+    assert.equal(payload.phase, 'implementing');
+    assert.equal(payload.updatedAt, '2026-05-27T15:30:00Z');
+    assert.equal(
+      'tasks' in payload,
+      false,
+      'phases shape must not carry tasks',
+    );
+    assert.equal(payload.phases.length, 4);
+    assert.deepEqual(payload.phases[0], {
+      name: 'init',
+      status: 'done',
+      startedAt: '2026-05-27T15:00:00Z',
+      endedAt: '2026-05-27T15:05:00Z',
+    });
+    assert.equal(payload.phases[1].status, 'in-progress');
+    assert.equal(payload.phases[1].endedAt, null);
+
+    assert.match(
+      body,
+      /### 📖 Story #3129 — .*implementing · 1\/4 phases done/,
+    );
+    assert.match(body, /\| Phase \| Status \| Started \| Ended \|/);
+    assert.match(body, /\| init \| .*done .*\| 2026-05-27T15:00:00Z \|/);
+    assert.match(body, /\| implement \| .*in-progress .*\| .*\| — \|/);
+  });
+
+  it('rejects an unknown phase name', () => {
+    assert.throws(
+      () =>
+        renderStoryRunProgressBody({
+          storyId: 3129,
+          branch: 'story-3129',
+          phase: 'init',
+          phases: [{ name: 'rollout', status: 'pending' }],
+        }),
+      /invalid phase name "rollout"/,
+    );
+  });
+
+  it('rejects an unknown phase status', () => {
+    assert.throws(
+      () =>
+        renderStoryRunProgressBody({
+          storyId: 3129,
+          branch: 'story-3129',
+          phase: 'init',
+          phases: [{ name: 'init', status: 'wibble' }],
+        }),
+      /invalid phase status "wibble"/,
+    );
+  });
+
+  it('rejects passing both `phases` and `tasks` (shapes are mutually exclusive)', () => {
+    assert.throws(
+      () =>
+        renderStoryRunProgressBody({
+          storyId: 3129,
+          branch: 'story-3129',
+          phase: 'init',
+          phases: defaultStoryPhases(),
+          tasks: [{ id: 1, title: 'x', state: 'pending' }],
+        }),
+      /mutually exclusive/,
+    );
+  });
+
+  it('4-tier tasks shape still renders with no regression', () => {
+    // Sanity guard: the tasks[] path must keep emitting `tasks` in the
+    // payload (not `phases`) so the parent aggregator's 4-tier readers
+    // continue to work alongside the new 3-tier shape.
+    const { payload } = renderStoryRunProgressBody({
+      storyId: 912,
+      branch: 'story-912',
+      phase: 'init',
+      tasks: [{ id: 913, title: 'A', state: 'pending' }],
+    });
+    assert.equal(Array.isArray(payload.tasks), true);
+    assert.equal('phases' in payload, false);
+  });
+});
+
+describe('upsertStoryRunProgress (3-tier phases shape)', () => {
+  it('upserts a phases-shaped snapshot through the writer', async () => {
+    const provider = buildProvider();
+    const phases = defaultStoryPhases();
+    phases[0].status = 'in-progress';
+    phases[0].startedAt = '2026-05-27T15:00:00Z';
+    const { payload } = await upsertStoryRunProgress({
+      provider,
+      storyId: 3129,
+      branch: 'story-3129',
+      phase: 'init',
+      phases,
+    });
+    assert.equal(provider.comments.length, 1);
+    const parsed = extractPayload(provider.comments[0].body);
+    assert.deepEqual(parsed.phases, payload.phases);
+    assert.equal(parsed.phases.length, 4);
+    assert.equal(parsed.phases[0].status, 'in-progress');
+    assert.equal('tasks' in parsed, false);
+  });
+
+  it('notify fan-out reports phase progress when phases[] is the shape', async () => {
+    const provider = buildProvider();
+    const notifications = [];
+    const phases = defaultStoryPhases();
+    phases[0].status = 'done';
+    phases[1].status = 'in-progress';
+    await upsertStoryRunProgress({
+      provider,
+      storyId: 3129,
+      branch: 'story-3129',
+      phase: 'implementing',
+      phases,
+      notify: (storyId, payload, opts) => {
+        notifications.push({ storyId, payload, opts });
+      },
+    });
+    assert.equal(notifications.length, 1);
+    assert.equal(notifications[0].storyId, 3129);
+    assert.match(notifications[0].payload.message, /1\/4 phases done/);
+    assert.equal(notifications[0].opts.skipComment, true);
   });
 });

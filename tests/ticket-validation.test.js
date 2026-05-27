@@ -87,6 +87,92 @@ test('ticket-validator: fails when a Story has no child Tasks', () => {
   );
 });
 
+test('ticket-validator: accepts a Storyless Story (inline acceptance + verify, zero child Tasks)', () => {
+  // 3-tier (Epic #3078): a Story carrying inline acceptance + verify is
+  // the implementation unit itself and emits no child Tasks. The
+  // validator must not fire the "Story has no child Tasks" check on
+  // this shape, and the backlog cardinality check must not require ≥1
+  // Task when every Story is Storyless.
+  const tickets = [
+    { slug: 'F1', type: 'feature', title: 'Feature 1' },
+    {
+      slug: 'S1',
+      type: 'story',
+      title: 'Storyless story',
+      parent_slug: 'F1',
+      labels: ['complexity::fast'],
+      acceptance: ['Observable criterion is met.'],
+      verify: ['node --test tests/foo.test.js'],
+    },
+  ];
+  const result = validateAndNormalizeTickets(tickets);
+  assert.equal(result.length, 2);
+  // Mixed shape: a Storyless Story coexists with a 4-tier Story that
+  // still requires its own child Tasks.
+  const mixed = [
+    { slug: 'F1', type: 'feature', title: 'Feature' },
+    {
+      slug: 'S1',
+      type: 'story',
+      title: 'Storyless',
+      parent_slug: 'F1',
+      acceptance: ['Done.'],
+      verify: ['npm test'],
+    },
+    {
+      slug: 'S2',
+      type: 'story',
+      title: 'Legacy with task',
+      parent_slug: 'F1',
+    },
+    { slug: 'T1', type: 'task', title: 'Task', parent_slug: 'S2' },
+  ];
+  const mixedResult = validateAndNormalizeTickets(mixed);
+  assert.equal(mixedResult.length, 4);
+});
+
+test('ticket-validator: legacy Story without inline acceptance still requires child Tasks (no regression)', () => {
+  // Empty `acceptance` / `verify` arrays must not satisfy the Storyless
+  // escape hatch — both arrays must be non-empty for the relaxation to
+  // fire. A Story with neither inline acceptance nor child Tasks is the
+  // canonical malformed 4-tier shape and still errors.
+  const tickets = [
+    { slug: 'F1', type: 'feature', title: 'Feature 1' },
+    {
+      slug: 'S1',
+      type: 'story',
+      title: 'Empty 4-tier story',
+      parent_slug: 'F1',
+      acceptance: [],
+      verify: [],
+    },
+    { slug: 'S2', type: 'story', title: 'Has task', parent_slug: 'F1' },
+    { slug: 'T1', type: 'task', title: 'Task', parent_slug: 'S2' },
+  ];
+  assert.throws(
+    () => validateAndNormalizeTickets(tickets),
+    /Story.*have no child Tasks/,
+  );
+  // A Story with only `acceptance` (no `verify`) is incomplete and must
+  // still fail — the relaxation requires both arrays.
+  const onlyAcceptance = [
+    { slug: 'F1', type: 'feature', title: 'Feature' },
+    {
+      slug: 'S1',
+      type: 'story',
+      title: 'Incomplete',
+      parent_slug: 'F1',
+      acceptance: ['Done.'],
+    },
+    { slug: 'S2', type: 'story', title: 'Has task', parent_slug: 'F1' },
+    { slug: 'T1', type: 'task', title: 'Task', parent_slug: 'S2' },
+  ];
+  assert.throws(
+    () => validateAndNormalizeTickets(onlyAcceptance),
+    /Story.*have no child Tasks/,
+  );
+});
+
 test('ticket-validator: reports all empty stories in one error', () => {
   const tickets = [
     { slug: 'F1', type: 'feature', title: 'Feature 1' },

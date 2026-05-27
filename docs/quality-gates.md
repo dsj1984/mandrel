@@ -27,6 +27,11 @@ reference — [`docs/baselines.md`](baselines.md). Each per-gate section
 below cross-links back to that reference; consult it once and reuse the
 context as you read through any individual gate.
 
+> **Story-level gates.** Quality gates run against the Story branch
+> after the single Story-implementation phase completes. Friction
+> comments flip the Story to `agent::blocked` and post on the Story
+> ticket.
+
 ---
 
 ## Concurrent close safety

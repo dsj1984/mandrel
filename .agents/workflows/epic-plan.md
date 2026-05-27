@@ -154,7 +154,7 @@ planned.
 
    > "Epic #[ID] already has PRD (#XX) and Tech Spec (#XX) with YY decomposed
    > tickets. Do you want to **re-plan** from scratch? This will close the old
-   > PRD, Tech Spec, and all Feature/Story/Task tickets and regenerate them."
+   > PRD, Tech Spec, and all Feature/Story tickets and regenerate them."
 
 3. **If user confirms re-plan**: Pass `--force` to all subsequent script
    invocations.
@@ -405,6 +405,13 @@ for the scoring logic.
 
 ## Phase 8: Work Breakdown Decomposition
 
+> **Hierarchy.** The decomposer emits an Epic → Feature → Story tree.
+> Acceptance criteria and verification steps are inlined on each Story
+> body (`acceptance[]` / `verify[]` fields) and resolved against the
+> Acceptance Spec context ticket at close time. See
+> [`.agents/instructions.md` § 5.D](../instructions.md) for the full
+> contract.
+
 1. **Gather Decomposition Context**:
 
    ```bash
@@ -432,7 +439,7 @@ for the scoring logic.
 
 3. **Persist to GitHub**: Run the decompose CLI's persist half. It
    validates the ticket array (`validateAndNormalizeTickets`), creates
-   the Feature/Story/Task issues, flips the Epic to `agent::ready`, and
+   the Feature/Story issues, flips the Epic to `agent::ready`, and
    writes the `epic-plan-state` checkpoint.
 
    ```bash
@@ -452,31 +459,29 @@ for the scoring logic.
      [`lib/orchestration/ticket-validator.js`](../scripts/lib/orchestration/ticket-validator.js);
      its output during decomposition is the canonical proof — no manual
      re-check needed.
-   - **File-assumption gate (Story #2636)**: Each Task's `body.changes`
+   - **File-assumption gate (Story #2636)**: Each Story's `body.changes`
      and `body.references` entries declare an explicit `assumption` ∈
-     `creates | refactors-existing | exists | deletes`.
-     [`validateTaskFileAssumptions`](../scripts/lib/orchestration/file-assumptions.js)
+     `creates | refactors-existing | exists | deletes`. The validator
      probes the base branch for every declared path and rejects the
      decompose when the declaration contradicts reality:
      - `creates` + path **exists** at base → error.
      - `refactors-existing` / `exists` / `deletes` + path **absent** at
        base → error.
-     Errors are batched per-Task into the validator's `errors` envelope
+     Errors are batched per-Story into the validator's `errors` envelope
      so the decompose loop surfaces every mismatch in a single re-prompt
-     rather than one at a time. Tasks that still use the legacy
-     string-bullet shape (`"<path>: <verb> <object>"`) are accepted but
-     log a deprecation warning so the migration progress is visible.
-   - **Scope-overlap check (docs/runbook downstream of config work)**: Scan for
-     Stories whose scope is "docs update", "runbook", or "README" Tasks that
-     land downstream of an earlier "config + runbook" Story in the same Epic. If
-     the earlier Story's AC already covers the same document, the downstream
-     Task's deliverable is likely absorbed. Append a "Scope verification note"
-     to the downstream Task body pointing the executor to
-     `git diff main -- <path>` against the upstream Story branch so they can
-     confirm whether a substantive edit is still required (or only a
-     cross-reference remains). The decomposer system prompt emits this flag
-     automatically where it can detect the pattern — this checklist item is the
-     human/host-LLM backstop.
+     rather than one at a time.
+   - **Scope-overlap check (docs/runbook downstream of config work)**:
+     Scan for Stories whose scope is "docs update", "runbook", or
+     "README" that land downstream of an earlier "config + runbook"
+     Story in the same Epic. If the earlier Story's AC already covers
+     the same document, the downstream Story's deliverable is likely
+     absorbed. Append a "Scope verification note" to the downstream
+     Story body pointing the executor to `git diff main -- <path>`
+     against the upstream Story branch so they can confirm whether a
+     substantive edit is still required (or only a cross-reference
+     remains). The decomposer system prompt emits this flag
+     automatically where it can detect the pattern — this checklist
+     item is the human/host-LLM backstop.
    - **Action**: Fix any scope-overlap exceptions or validator failures by
      re-running the scripted force path so the change is recorded in tooling
      rather than hand-applied:
@@ -490,8 +495,8 @@ for the scoring logic.
 
 5. **Audit**:
    - Check the Epic's comment thread to ensure the backlog summary was posted.
-   - Verify that at least one `type::feature`, `type::story`, and `type::task`
-     issue was created.
+   - Verify that at least one `type::feature` and `type::story` issue
+     was created.
 
 6. **Cleanup**: The wrapper script (`epic-plan-decompose.js`) deletes the
    Phase 8 temp files automatically on success — no operator action required.

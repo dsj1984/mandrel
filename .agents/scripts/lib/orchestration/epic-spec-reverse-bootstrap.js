@@ -209,7 +209,7 @@ function classifyTicket(ticket) {
   const labels = Array.isArray(ticket?.labels) ? ticket.labels : [];
   if (labels.includes(TYPE_LABELS.FEATURE)) return 'feature';
   if (labels.includes(TYPE_LABELS.STORY)) return 'story';
-  if (labels.includes(TYPE_LABELS.TASK)) return 'task';
+  if (labels.includes('type::task')) return 'task';
   return null;
 }
 

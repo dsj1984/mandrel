@@ -18,3 +18,17 @@
 @.agents/rules/security-baseline.md
 @.agents/rules/shell-conventions.md
 @.agents/rules/testing-standards.md
+
+## Ticket hierarchy
+
+> Mandrel uses a **3-tier ticket hierarchy** (Epic → Feature → Story),
+> with acceptance criteria and verification steps inlined on the Story
+> body (`acceptance[]` / `verify[]`). `/story-deliver` runs a single
+> Story-implementation phase per Story — there is no `type::task`
+> ticket layer, no per-Task `agent::*` lifecycle, and no
+> `task-commit.js` ceremony. Commits land on `story-<storyId>`
+> directly from the agent and reference the parent Story via
+> `(refs #<storyId>)`. See
+> [`.agents/instructions.md` § 5.D](.agents/instructions.md) and
+> [`.agents/SDLC.md` § Ticket hierarchy](.agents/SDLC.md) for the full
+> contract.

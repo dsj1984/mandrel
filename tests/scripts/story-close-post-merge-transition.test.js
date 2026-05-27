@@ -233,4 +233,53 @@ describe('ticketClosurePhase — post-merge label transition (Story #2534)', () 
       'rethrown error must preserve the original transport message',
     );
   });
+
+  it('3-tier Storyless closure: empty tasks list transitions Story alone (Story #3127)', async () => {
+    // Under the 3-tier hierarchy a Story has zero child Tasks (acceptance is
+    // inline on the Story body). `ticketClosurePhase` must accept an empty
+    // `tasks` array, skip the batch transition cleanly, transition the Story
+    // to agent::done + closed, and still surface the Story in closedTickets.
+    const storyId = 99100;
+    const tasks = [];
+    const provider = makeFakeProvider([
+      {
+        id: storyId,
+        state: 'open',
+        labels: [STATE_LABELS.CLOSING, 'type::story'],
+      },
+    ]);
+
+    const result = await ticketClosurePhase({
+      provider,
+      tasks,
+      storyId,
+      progress: () => {},
+      logger: makeNoopLogger(),
+    });
+
+    const story = provider.tickets.get(storyId);
+    assert.equal(
+      story.state,
+      'closed',
+      'Storyless 3-tier close must still close the Story issue',
+    );
+    assert.ok(
+      story.labels.includes(STATE_LABELS.DONE),
+      'Storyless 3-tier close must apply agent::done to the Story',
+    );
+    assert.deepEqual(
+      result.closedTickets,
+      [storyId],
+      'closedTickets must contain only the Story when there are no child Tasks',
+    );
+    // No Task updateTicket calls should have been issued.
+    const taskUpdateCalls = provider.calls.updateTicket.filter(
+      (c) => c.id !== storyId,
+    );
+    assert.equal(
+      taskUpdateCalls.length,
+      0,
+      'Storyless closure must not issue any non-Story updateTicket calls',
+    );
+  });
 });

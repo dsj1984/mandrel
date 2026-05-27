@@ -229,6 +229,13 @@ the Epic is the SSOT; the on-disk file is a renderer cache regenerable via
 | `agentTelemetry`         | `object`| Open object for runner telemetry (cap-source, runner version, etc.).                              |
 | `summary`                | `object`| Summary counts (total, by-wave, by-status).                                                       |
 
+> **Story-centric manifest.** The dispatch manifest is Story-centric:
+> `waves[].stories[]` lists the Stories per wave and `storyManifest[]`
+> rows carry inline `acceptance[]` / `verify[]` from each Story body.
+> Schema-version identifiers on the manifest let a future consumer
+> detect "I cannot read this artifact" (per the
+> [hard-cutover policy](decisions.md)).
+
 ---
 
 ## Resilience & Throughput Primitives

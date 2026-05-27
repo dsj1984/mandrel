@@ -78,7 +78,6 @@ export const TYPE_LABELS = {
   EPIC: 'type::epic',
   FEATURE: 'type::feature',
   STORY: 'type::story',
-  TASK: 'type::task',
 };
 
 export const STATUS_LABELS = {

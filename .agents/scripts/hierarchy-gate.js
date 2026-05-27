@@ -24,6 +24,13 @@
  *     These are closed by the operator after the Epic PR merges, so
  *     requiring them closed here would block every Epic.
  *
+ * **3-tier (Storyless) tree shape (Story #3127).** Under the 3-tier
+ * hierarchy a Story has no child Tasks — `getSubTickets(<storyId>)`
+ * returns `[]`. The walk terminates at the Story; with both the
+ * Feature and Story closed, the gate passes. No type-specific branch
+ * is required because the rule "every descendant must be complete" is
+ * already vacuously true for the empty Task layer.
+ *
  * Usage:
  *   node .agents/scripts/hierarchy-gate.js --epic <EPIC_ID>
  *
@@ -46,7 +53,7 @@ import { createProvider } from './lib/provider-factory.js';
 
 function classify(ticket) {
   const labels = ticket.labels ?? [];
-  if (labels.includes(TYPE_LABELS.TASK)) return 'task';
+  if (labels.includes('type::task')) return 'task';
   if (labels.includes(TYPE_LABELS.STORY)) return 'story';
   if (labels.includes(TYPE_LABELS.FEATURE)) return 'feature';
   if (

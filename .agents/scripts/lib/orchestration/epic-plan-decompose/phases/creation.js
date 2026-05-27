@@ -17,14 +17,14 @@ import { runCreationPass } from './creation-pass.js';
 const TYPE_LABEL_TO_TYPE = {
   [TYPE_LABELS.FEATURE]: 'feature',
   [TYPE_LABELS.STORY]: 'story',
-  [TYPE_LABELS.TASK]: 'task',
+  'type::task': 'task',
 };
 
 function indexExistingChildren(existing) {
   const childTypes = new Set([
     TYPE_LABELS.FEATURE,
     TYPE_LABELS.STORY,
-    TYPE_LABELS.TASK,
+    'type::task',
   ]);
   const byTitle = new Map();
   for (const child of existing) {
@@ -102,7 +102,7 @@ async function loadExistingChildren(provider, epicId) {
   }
   return (existing || []).filter((t) =>
     (t.labels || []).some((l) =>
-      [TYPE_LABELS.FEATURE, TYPE_LABELS.STORY, TYPE_LABELS.TASK].includes(l),
+      [TYPE_LABELS.FEATURE, TYPE_LABELS.STORY, 'type::task'].includes(l),
     ),
   );
 }
@@ -140,6 +140,21 @@ export async function resolveChildIndex({ force, resume, provider, epicId }) {
   return childIndex;
 }
 
+/**
+ * Run the staged feature → story → task creation passes against `provider`.
+ *
+ * 3-tier (Epic #3078): when the backlog carries no `type === 'task'`
+ * tickets — the canonical 3-tier shape where Stories carry inline
+ * `acceptance[]` + `verify[]` — the task pass is skipped via the
+ * empty-bucket `continue` below. No "missing tasks" warning is emitted;
+ * the 3-tier shape is a first-class backlog, validated upstream by
+ * `assertEachTypePresent` / `assertEveryStoryHasTasks` in
+ * `lib/orchestration/ticket-validator.js`.
+ *
+ * 4-tier (legacy): all three passes fire in feature → story → task order;
+ * the slugMap propagates across passes so the task pass's
+ * `parent_slug` → Story-issue-number resolution succeeds.
+ */
 export async function runStagedPasses({
   ordered,
   slugMap,

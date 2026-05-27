@@ -3,9 +3,14 @@
 This is the framework submodule (`.agents/`) consumed by host repos via
 `git submodule add`. It ships a system prompt, a baseline rule pack, a
 two-tier skill library, a slash-command workflow set, and the
-orchestration engine that runs Epic → Feature → Story → Task plans on
+orchestration engine that runs Epic → Feature → Story plans on
 GitHub. The framework version lives at [`VERSION`](VERSION) — read that
 file, not a count here.
+
+> **Ticket hierarchy.** Mandrel uses a **3-tier hierarchy**
+> (Epic → Feature → Story) with inline `acceptance[]` / `verify[]` on
+> Story bodies. See [`SDLC.md` § Ticket hierarchy](SDLC.md) for the
+> diagram and execution-model implications.
 
 This is the only README inside the distributed `.agents/` bundle. It
 explains what each part of the submodule is for and captures the
@@ -145,24 +150,21 @@ the prompt+judgment step gets a `description`, an
 `allowed_tools` declaration, and a smoke test; the GitHub I/O around it
 keeps its imperative implementation.
 
-### Worked example 2 — pure script: `retrofit-task-bodies.js`
+### Worked example 2 — pure script: `cleanup-type-task-label.js`
 
-[`scripts/retrofit-task-bodies.js`](scripts/retrofit-task-bodies.js)
-**stays a script** even though it has an LLM step adjacent to it.
+[`scripts/cleanup-type-task-label.js`](scripts/cleanup-type-task-label.js)
+**stays a script** because every step is deterministic GitHub I/O.
 
-- It walks every Task descendant of an Epic, skips ones already on the
-  current structured-body schema, and emits a JSON envelope per
-  non-conforming Task.
-- The host LLM authors a "bodies file" from the envelope (the judgment
-  step, conceptually adjacent — but **not part of this unit**).
-- A second invocation applies the authored bodies, updating each Task's
-  issue body via the GitHub provider.
+- It lists open issues that still carry the legacy `type::task` label,
+  removes the label from each one, and (when requested) deletes the
+  label definition from the repo.
+- Input is the operator's CLI flags (`--dry-run`, etc.) and the
+  GitHub API; output is a JSON envelope summarising what was changed.
 
 The script's own input/output is deterministic and parseable: it does
-not compose prompts, it does not classify, it does not author prose. The
-adjacent LLM authoring step could one day be migrated to a Skill in a
-separate Epic, but doing so would not change this script's verdict —
-the renderer half stays imperative.
+not compose prompts, it does not classify, it does not author prose.
+There is no judgment step adjacent to it — the verdict is "this is
+the right shape" without any future Skill migration.
 
 ---
 

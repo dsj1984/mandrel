@@ -217,4 +217,50 @@ describe('detectorsPhase', () => {
     });
     assert.deepEqual(result, { rework: 0, retry: 0 });
   });
+
+  it('Storyless 3-tier closure: empty tasks invokes detectors with taskId=null (Story #3127)', async () => {
+    // Under the 3-tier hierarchy a Story has no child Tasks. The detector
+    // phase must still fire both detectors, threading taskId=null into the
+    // detector args rather than attempting to resolve a "last Task".
+    const logger = makeLogger();
+    const reworkArgs = [];
+    const retryArgs = [];
+    const result = await detectorsPhase({
+      epicId: 1,
+      storyId: 2,
+      tasks: [], // <- Storyless
+      config: {},
+      progress: () => {},
+      logger,
+      detectorsImpl: {
+        detectRework: async (args) => {
+          reworkArgs.push(args);
+          return [];
+        },
+        detectRetry: async (args) => {
+          retryArgs.push(args);
+          return [];
+        },
+      },
+      appendSignalFn: async () => true,
+    });
+    assert.deepEqual(result, { rework: 0, retry: 0 });
+    assert.equal(reworkArgs.length, 1, 'detectRework must run once');
+    assert.equal(retryArgs.length, 1, 'detectRetry must run once');
+    assert.strictEqual(
+      reworkArgs[0].taskId,
+      null,
+      'detectRework must receive taskId=null in Storyless 3-tier shape',
+    );
+    assert.strictEqual(
+      retryArgs[0].taskId,
+      null,
+      'detectRetry must receive taskId=null in Storyless 3-tier shape',
+    );
+    assert.equal(
+      logger.warnings.length,
+      0,
+      'Storyless detector phase must not emit warnings',
+    );
+  });
 });

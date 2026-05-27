@@ -168,29 +168,23 @@ Recommendation (Monitor):
 
 ### 4. Per-Task Ritual and Commit Strategy Can Relax
 
-**Status:** Simplify
-**Action:** 🔭 Monitor — per-Task granularity is currently load-bearing for
-resume/bisect. Relaxing depends on stronger holistic-edit coherence in
-future models.
+**Status:** Resolved — Epic #3078
+**Action:** ✅ Closed — Epic #3078 collapsed the Task layer into a
+single Story-implementation phase
+(Epic → Feature → Story with inline `acceptance[]` / `verify[]` on the
+Story body). `task-commit.js`, the per-Task `agent::*` lifecycle, the
+`(resolves #<taskId>)` commit convention, and the per-Task sub-loop in
+`/story-deliver` are gone. See
+[`decisions.md` § ADR 20260527-three-tier-hierarchy](decisions.md) for
+the rationale and Consequences.
 
-**Primary paths:**
-
-- `.agents/workflows/story-deliver.md`
-- `.agents/workflows/helpers/task-execute.md`
-- `.agents/scripts/task-commit.js`
-- `.agents/scripts/story-task-progress.js`
-- `.agents/scripts/story-close.js`
-
-Strict one-commit-per-Task maximizes resume and bisect granularity, but it also
-multiplies churn. Stronger holistic editing may justify fewer commits per Story
-while keeping Story-level boundaries and close validation.
-
-Recommendation:
-
-- Add an optional Story-level commit strategy when Tasks are tightly coupled.
-- Keep branch assertions, conventional commit checks, and close validation.
-- Replace always-on per-Task preview checks with once-per-Story or
-  diff-threshold-triggered previews.
+The original finding (one-commit-per-Task multiplies churn; stronger
+holistic editing justifies fewer commits per Story while keeping
+Story-level boundaries and close validation) is now structurally
+enforced: Stories are the unit of commit boundaries, branch assertions,
+conventional-commit checks, and close validation all operate at the
+Story tier, and `quality:preview` runs once before commit rather than
+per-Task.
 
 ### 5. Sub-Agent Return Repair Can Shrink Substantially
 

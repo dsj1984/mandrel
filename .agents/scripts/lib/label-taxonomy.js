@@ -63,11 +63,6 @@ export const LABEL_TAXONOMY = [
     color: LABEL_COLORS.TYPE,
     description: 'User story under a Feature',
   },
-  {
-    name: TYPE_LABELS.TASK,
-    color: LABEL_COLORS.TYPE,
-    description: 'Implementable task',
-  },
 
   // Agent State
   {

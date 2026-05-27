@@ -1,5 +1,6 @@
 {
   "$schema": "../../../.agents/schemas/epic-spec.schema.json",
+  "version": "3.0.0",
   "epic": {
     "id": 1182,
     "title": "v6 Epic D — Declarative epic.yaml + reconciler",
@@ -19,18 +20,11 @@
           "wave": 0,
           "dependsOn": [],
           "labels": ["type::story", "persona::architect"],
-          "tasks": [
-            {
-              "slug": "schema-skeleton",
-              "title": "Schema skeleton + property docs",
-              "labels": ["type::task"]
-            },
-            {
-              "slug": "schema-tests",
-              "title": "Schema fixture tests",
-              "labels": ["type::task"]
-            }
-          ]
+          "acceptance": [
+            "Schema skeleton declares Epic, Feature, Story shapes",
+            "Schema ships with fixture tests covering positive and negative cases"
+          ],
+          "verify": ["node --test tests/scripts/epic-spec-schema.test.js"]
         }
       ]
     },
@@ -43,12 +37,10 @@
           "title": "Diff engine + drift discriminator",
           "wave": 1,
           "dependsOn": ["schema-author"],
-          "tasks": [
-            {
-              "slug": "diff-pure",
-              "title": "Pure-function diff"
-            }
-          ]
+          "acceptance": [
+            "Pure-function diff returns Create/Update/Close/Relink ops"
+          ],
+          "verify": ["node --test tests/scripts/epic-reconcile.test.js"]
         }
       ]
     }

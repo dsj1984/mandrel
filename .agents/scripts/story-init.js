@@ -204,11 +204,16 @@ export async function runStoryInit({
     }
   }
 
-  // Stage 4 — task graph.
-  const { sortedTasks } = await buildTaskGraph({
+  // Stage 4 — task graph. Pass the Story body so buildTaskGraph can detect
+  // the inline-acceptance 3-tier shape. After Task #3154 collapsed the
+  // hierarchy flag, 3-tier is the only supported shape.
+  const { sortedTasks, mode: hierarchyMode } = await buildTaskGraph({
     provider,
     logger: stageLogger,
-    input: { storyId },
+    input: {
+      storyId,
+      storyBody: body,
+    },
   });
 
   // Stage 5 + 6 — branch and task-state transitions. Skipped under --dry-run.
@@ -366,6 +371,7 @@ export async function runStoryInit({
     techSpecId,
     dryRun,
     recutOf,
+    hierarchy: hierarchyMode,
   });
 
   emitStoryInitResult(result, {
@@ -402,6 +408,7 @@ function buildStoryInitResult({
   techSpecId,
   dryRun,
   recutOf,
+  hierarchy,
 }) {
   const dependenciesInstalled = mapDependenciesInstalled(installStatus);
   return {
@@ -410,6 +417,11 @@ function buildStoryInitResult({
     storyBranch,
     epicBranch,
     storyTitle: story.title,
+    // Hierarchy mode resolved by buildTaskGraph. 3-tier is the only
+    // supported shape after Task #3154 deleted the `planning.hierarchy`
+    // flag; this is retained as a constant marker for downstream
+    // consumers and persisted artefacts.
+    hierarchy: hierarchy ?? '3-tier',
     worktreeEnabled,
     workCwd,
     worktreeCreated,
@@ -482,6 +494,10 @@ export function renderStoryInitCommentBody(result) {
     epicId: result.epicId,
     storyBranch: result.storyBranch,
     epicBranch: result.epicBranch,
+    // Hierarchy mode is always `'3-tier'` after Task #3154 deleted the
+    // `planning.hierarchy` flag. Persisted so resumed runs can read it
+    // without re-resolving anything in the worker.
+    hierarchy: result.hierarchy ?? '3-tier',
     worktreeEnabled: result.worktreeEnabled,
     workCwd: result.workCwd,
     worktreeCreated: result.worktreeCreated,

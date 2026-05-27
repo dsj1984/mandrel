@@ -487,6 +487,84 @@ describe('dispatch() — wave-level concurrency', () => {
 });
 
 // ---------------------------------------------------------------------------
+// 3-tier hierarchy — Story-level wave computation
+// (Epic #3078 Story #3128 — dispatch-engine + dependency-analyzer)
+// ---------------------------------------------------------------------------
+
+function makeStoryTicket(id, overrides = {}) {
+  return {
+    id,
+    title: `Story ${id}`,
+    body: '',
+    labels: ['type::story', 'agent::ready'],
+    state: 'open',
+    assignees: [],
+    ...overrides,
+  };
+}
+
+describe('dispatch() — 3-tier hierarchy (Story-level wave plan)', () => {
+  it('emits waves[].stories[] keyed by storyId when no Tasks are present', async () => {
+    const story100 = makeStoryTicket(100, { title: 'First Story' });
+    const story200 = makeStoryTicket(200, { title: 'Second Story' });
+    const provider = new MockProvider({
+      epic: EPIC,
+      tasks: [story100, story200],
+    });
+
+    const manifest = await dispatch({ epicId: 1, dryRun: true, provider });
+
+    assert.equal(
+      manifest.hierarchy,
+      '3-tier',
+      'manifest should declare 3-tier hierarchy',
+    );
+    assert.ok(Array.isArray(manifest.waves), 'waves must be present');
+    // Independent Stories collapse into a single wave.
+    assert.equal(manifest.waves.length, 1);
+    assert.ok(
+      Array.isArray(manifest.waves[0].stories),
+      'wave entries must be Stories, not Tasks',
+    );
+    const storyIds = manifest.waves[0].stories
+      .map((s) => s.storyId)
+      .sort((a, b) => a - b);
+    assert.deepEqual(storyIds, [100, 200]);
+    // Summary uses Story counts under 3-tier.
+    assert.equal(manifest.summary.totalStories, 2);
+  });
+
+  it('respects cross-Story `blocked by` edges when assigning waves', async () => {
+    const storyA = makeStoryTicket(100, { title: 'Independent Story' });
+    const storyB = makeStoryTicket(200, {
+      title: 'Dependent Story',
+      body: 'blocked by #100',
+    });
+    const provider = new MockProvider({
+      epic: EPIC,
+      tasks: [storyA, storyB],
+    });
+
+    const manifest = await dispatch({ epicId: 1, dryRun: true, provider });
+
+    assert.equal(manifest.hierarchy, '3-tier');
+    assert.equal(
+      manifest.waves.length,
+      2,
+      'dependent Story should land in a later wave',
+    );
+    assert.deepEqual(
+      manifest.waves[0].stories.map((s) => s.storyId),
+      [100],
+    );
+    assert.deepEqual(
+      manifest.waves[1].stories.map((s) => s.storyId),
+      [200],
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // CLI failure-exit contract
 // ---------------------------------------------------------------------------
 

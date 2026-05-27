@@ -163,6 +163,75 @@ export function parseHierarchy(body) {
 }
 
 /**
+ * Extract the markdown list items under a `## <heading>` section of a
+ * Story body. Returns an empty array when the section is missing or has
+ * no list items. Recognises both `- ` (incl. `- [ ]` / `- [x]`) and
+ * `* ` bullet markers — matches the parser in `manifest-builder.js`
+ * so the inline-acceptance contract round-trips verbatim across the two
+ * call sites (manifest projection and context hydration).
+ *
+ * @param {string} body
+ * @param {string} heading
+ * @returns {string[]}
+ */
+function extractSectionList(body, heading) {
+  if (typeof body !== 'string' || body.length === 0) return [];
+  const pattern = new RegExp(
+    `^##\\s+${heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`,
+    'mi',
+  );
+  const startMatch = body.match(pattern);
+  if (!startMatch || startMatch.index == null) return [];
+  const startIdx = startMatch.index + startMatch[0].length;
+  const rest = body.slice(startIdx);
+  const nextHeading = rest.search(/^##\s+/m);
+  const block = nextHeading === -1 ? rest : rest.slice(0, nextHeading);
+  const items = [];
+  for (const rawLine of block.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    const m = line.match(/^[-*]\s+(?:\[[ xX]\]\s+)?(.*)$/);
+    if (m && m[1].length > 0) items.push(m[1].trim());
+  }
+  return items;
+}
+
+/**
+ * Extract the inline `## Acceptance` / `## Acceptance Criteria` and
+ * `## Verify` checklists from a Story body. Used by 3-tier hydration to
+ * populate the `acceptanceCriteria` and `verificationCommands` envelope
+ * sections directly from the dispatched Story ticket — under 3-tier the
+ * Story IS the unit of execution and carries acceptance/verify inline
+ * (no child Task tickets to walk).
+ *
+ * @param {string} body
+ * @returns {{ acceptance: string[], verify: string[] }}
+ */
+export function extractStorySections(body) {
+  const canonical = extractSectionList(body, 'Acceptance Criteria');
+  const acceptance =
+    canonical.length > 0 ? canonical : extractSectionList(body, 'Acceptance');
+  const verify = extractSectionList(body, 'Verify');
+  return { acceptance, verify };
+}
+
+/**
+ * Detect whether the dispatched unit is a 3-tier Story (Story is the
+ * leaf, carries inline acceptance/verify) vs. a 4-tier Task (Task is
+ * the leaf, Story is one level up). The decision is made off the
+ * `type::*` label the dispatcher already stamps on every ticket; it
+ * does not depend on `agentSettings.planning.hierarchy`, so this engine
+ * stays correct even when a 4-tier Epic ships in a 3-tier-default repo
+ * (or vice versa) during the Epic #3078 dual-shape window.
+ *
+ * @param {object} task
+ * @returns {boolean}
+ */
+function isThreeTierStoryTask(task) {
+  const labels = task?.labels ?? [];
+  return labels.includes('type::story');
+}
+
+/**
  * Truncate a string to fit within a rough token budget.
  * Approximation: 1 token ≈ 4 characters.
  *
@@ -408,6 +477,32 @@ function buildStaticSections(
       }
     } catch (err) {
       Logger.warn(`[Hydrator] Failed to load skills index: ${err.message}`);
+    }
+  }
+
+  if (isThreeTierStoryTask(task)) {
+    const { acceptance, verify } = extractStorySections(task.body ?? '');
+    if (acceptance.length > 0) {
+      sections.push({
+        name: 'acceptanceCriteria',
+        priority: DEFAULT_SECTION_PRIORITIES.acceptanceCriteria,
+        elideWhenOverBudget: DEFAULT_ELIDE_POLICIES.acceptanceCriteria,
+        content:
+          `## Acceptance Criteria (Story #${task.id})\n\n` +
+          acceptance.map((item) => `- ${item}`).join('\n'),
+        source: { kind: 'ticket', ref: String(task.id) },
+      });
+    }
+    if (verify.length > 0) {
+      sections.push({
+        name: 'verificationCommands',
+        priority: DEFAULT_SECTION_PRIORITIES.verificationCommands,
+        elideWhenOverBudget: DEFAULT_ELIDE_POLICIES.verificationCommands,
+        content:
+          `## Verify (Story #${task.id})\n\n` +
+          verify.map((item) => `- ${item}`).join('\n'),
+        source: { kind: 'ticket', ref: String(task.id) },
+      });
     }
   }
 

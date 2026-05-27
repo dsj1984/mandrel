@@ -270,7 +270,7 @@ them automatically; agents commit on the execution branch only.
 
 | Purpose          | Format                       | Owner                  | Notes                                                                                         |
 | ---------------- | ---------------------------- | ---------------------- | --------------------------------------------------------------------------------------------- |
-| Story execution  | `story-<storyId>`            | `story-init.js` | Per-Story worktree at `.worktrees/story-<storyId>/`. All Task commits land here.              |
+| Story execution  | `story-<storyId>`            | `story-init.js` | Per-Story worktree at `.worktrees/story-<storyId>/`. All Story implementation commits land here. |
 | Epic integration | `epic/<epicId>`              | `/epic-deliver` slash command | Story branches merge into this branch with `--no-ff`. Pushed per wave.                       |
 
 - **Verification**: After `story-init.js` returns, confirm
@@ -294,6 +294,23 @@ the Epic branch automatically by `/story-deliver` (via `story-close.js`);
 the Epic branch reaches `main` via the pull request that `/epic-deliver`
 opens at the end of its run — the operator merges through the GitHub UI.
 There is no in-script merge to `main`.
+
+### D. Ticket hierarchy (3-tier)
+
+Mandrel uses a **3-tier ticket hierarchy** (Epic → Feature → Story).
+Acceptance criteria and verification steps live inline on the Story
+body (`acceptance[]` / `verify[]`); there is no `type::task` ticket
+layer.
+
+- The decomposer emits only `type::epic`, `type::feature`, and
+  `type::story` issues.
+- `/story-deliver` runs a single Story-implementation phase. There is
+  no per-Task sub-loop; the agent authors commit subjects directly
+  per [`rules/git-conventions.md`](rules/git-conventions.md) and
+  references the parent Story via `(refs #<storyId>)`.
+- Story branches, the Epic-branch integration target, the wave-loop
+  fan-out, and the `epic/<id>` → `main` PR merge model are the same
+  as Section 5.A.
 
 ---
 

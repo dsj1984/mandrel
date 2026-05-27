@@ -121,6 +121,16 @@ async function warnIfEpicLooksPopulated({ epicId, provider, logger }) {
  * `logger` so the silent failure becomes visible. Probe failure degrades
  * gracefully — the function never throws on the guard alone.
  *
+ * **3-tier ledgers (Story #3151).** Under the 3-tier hierarchy
+ * (Epic → Feature → Story; no `type::task` children), `tasks` resolves
+ * to an empty array and the task-derived counts (`hotfixes`, `hitl`)
+ * settle at zero. `friction` / `parked` / `recuts` / `storyPerfSummaries`
+ * are all Story-scoped, so the function continues to produce a non-empty
+ * signals report. The empty-walk guard above is **not** triggered for
+ * this shape because `descendants` is populated (it contains the
+ * Stories themselves); the guard fires only when the walker returned
+ * literally nothing under a body that references children.
+ *
  * @returns {Promise<{
  *   stories: Array<{ id: number, body?: string, labels?: string[] }>,
  *   tasks:   Array<{ id: number, labels?: string[] }>,
@@ -147,7 +157,7 @@ export async function gatherRetroSignals({
     (t.labels ?? []).includes(TYPE_LABELS.STORY),
   );
   const tasks = descendants.filter((t) =>
-    (t.labels ?? []).includes(TYPE_LABELS.TASK),
+    (t.labels ?? []).includes('type::task'),
   );
 
   // Hotfix count: tasks that ever flipped to status::blocked. The label

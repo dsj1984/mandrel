@@ -8,6 +8,7 @@
  */
 
 import { PROJECT_ROOT, resolveConfig } from '../config-resolver.js';
+import { parseBlockedBy } from '../dependency-parser.js';
 import {
   buildGraph,
   computeReachability,
@@ -20,12 +21,15 @@ import { Logger } from '../Logger.js';
 import { TYPE_LABELS } from '../label-constants.js';
 import { createProvider } from '../provider-factory.js';
 import { WorktreeManager } from '../worktree-manager.js';
-import { autoSerializeOverlaps } from './dependency-analyzer.js';
+import {
+  autoSerializeOverlaps,
+  computeStoryWaves,
+} from './dependency-analyzer.js';
 import { reconcileClosedTasks, reconcileHierarchy } from './reconciler.js';
 import { parseTasks } from './task-fetcher.js';
 import { collectOpenStoryIds } from './wave-dispatcher.js';
 
-export const TYPE_TASK_LABEL = TYPE_LABELS.TASK;
+export const TYPE_TASK_LABEL = 'type::task';
 
 /**
  * Runtime context for a single dispatch cycle.
@@ -181,6 +185,95 @@ export function buildDispatchGraph(tasks) {
   const allWaves = computeWaves(finalAdjacency, taskMap);
   Logger.info(`Computed ${allWaves.length} execution wave(s).`);
   return { allWaves, taskMap };
+}
+
+/**
+ * Detect 3-tier hierarchy from the fetched ticket graph. After Task #3154
+ * deleted the `planning.hierarchy` flag, shape selection is purely
+ * structural: an Epic carrying zero `type::task` tickets and at least one
+ * `type::story` resolves to 3-tier. A Task-bearing graph keeps using the
+ * 4-tier path (still supported for in-flight Epics — Task #3157 owns its
+ * eventual deletion).
+ *
+ * @param {object[]} tasks
+ * @param {object[]} allTickets
+ * @returns {boolean}
+ */
+export function isThreeTierDispatch(tasks, allTickets) {
+  if (Array.isArray(tasks) && tasks.length > 0) return false;
+  if (!Array.isArray(allTickets) || allTickets.length === 0) return false;
+  return allTickets.some((t) =>
+    (t.labelSet ?? new Set(t.labels ?? [])).has(TYPE_LABELS.STORY),
+  );
+}
+
+/**
+ * Build the Story-level dispatch graph for a 3-tier Epic. Reads story
+ * tickets from `allTickets`, parses cross-Story `blocked by` references
+ * from each Story body (also honoring an optional `dependencies[]`
+ * field set by fixture providers), and computes wave indices via
+ * {@link computeStoryWaves}.
+ *
+ * The returned `allWaves` is an array of Story-ticket arrays, ordered by
+ * wave index. `storyMap` indexes the same Story tickets by id for downstream
+ * lookups (mirrors the `taskMap` returned by {@link buildDispatchGraph}).
+ *
+ * Stories with no resolvable wave (cycle pre-filter, missing in groups)
+ * are placed in their own trailing wave so they remain visible in the
+ * manifest output.
+ *
+ * @param {object[]} allTickets  Fetched ticket graph (Epic + Features + Stories).
+ * @returns {{ allWaves: object[][], storyMap: Map<number, object> }}
+ * @throws {Error} When the Story dependency graph contains a cycle.
+ */
+export function buildStoryDispatchGraph(allTickets) {
+  const stories = (allTickets ?? []).filter((t) =>
+    (t.labelSet ?? new Set(t.labels ?? [])).has(TYPE_LABELS.STORY),
+  );
+  const storyMap = new Map(stories.map((s) => [s.id, s]));
+
+  const explicitDeps = new Map();
+  for (const story of stories) {
+    const fromBody = parseBlockedBy(story.body ?? '');
+    const fromField = Array.isArray(story.dependencies)
+      ? story.dependencies.map(Number)
+      : [];
+    const merged = [...new Set([...fromBody, ...fromField])].filter(
+      (id) => Number.isInteger(id) && id !== story.id && storyMap.has(id),
+    );
+    if (merged.length > 0) explicitDeps.set(story.id, merged);
+  }
+
+  // computeStoryWaves expects a Map<storyId, { tasks: [] }>; with no Tasks
+  // present, only explicitDeps + focus-area rollup (no-op for empty
+  // task lists) drive wave assignment.
+  const storyGroups = new Map(
+    stories.map((s) => [s.id, { storyId: s.id, tasks: [] }]),
+  );
+  const waveAssignment = computeStoryWaves(storyGroups, explicitDeps);
+
+  // Bucket stories by wave index. `computeStoryWaves` returns -1 for any
+  // story it could not place; route those into a trailing bucket so they
+  // still surface in the manifest.
+  const byWave = new Map();
+  let maxWave = -1;
+  for (const story of stories) {
+    const wave = waveAssignment.get(story.id) ?? -1;
+    if (wave > maxWave) maxWave = wave;
+    if (!byWave.has(wave)) byWave.set(wave, []);
+    byWave.get(wave).push(story);
+  }
+
+  const allWaves = [];
+  for (let i = 0; i <= maxWave; i++) {
+    if (byWave.has(i)) allWaves.push(byWave.get(i));
+  }
+  if (byWave.has(-1)) allWaves.push(byWave.get(-1));
+
+  Logger.info(
+    `Computed ${allWaves.length} Story-level execution wave(s) (3-tier).`,
+  );
+  return { allWaves, storyMap };
 }
 
 /**

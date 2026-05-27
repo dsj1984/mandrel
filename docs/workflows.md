@@ -32,7 +32,7 @@ stance on future adoption.
 | `/epic-plan --idea "<seed>"`      | Same ideation entry with a pre-supplied seed.                                                                                                      |
 | `/epic-plan <epicId>`             | Existing-Epic mode — generate PRD + Tech Spec + decomposition for an Epic ticket that has already been opened.                                     |
 | `/epic-deliver <epicId>`          | Six-phase wave-loop + close-validation + code-review + retro + finalize. Terminates with a PR open against `main`; operator merges via GitHub UI.  |
-| `/story-deliver <storyId>`        | Init → task loop → close for one Story. Reads `helpers/task-execute.md` inline per Task. Used directly when re-driving a single Story off-table.   |
+| `/story-deliver <storyId>`        | Init → Story-implementation phase → close for one Story. Used directly when re-driving a single Story off-table. |
 
 ## Audit suite
 

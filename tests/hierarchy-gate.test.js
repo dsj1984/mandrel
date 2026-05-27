@@ -209,4 +209,38 @@ describe('runHierarchyGate', () => {
     // Story 300 only counted once despite appearing under two parents.
     assert.strictEqual(result.total, 3);
   });
+
+  it('passes for a 3-tier tree (Feature → Story with no Tasks) (Story #3127)', async () => {
+    // Under the 3-tier hierarchy a Story has zero child Tasks — acceptance
+    // criteria live inline on the Story body. The gate must accept this
+    // shape as well-formed when every Feature and Story is closed.
+    const provider = new GraphProvider({
+      100: [
+        {
+          id: 200,
+          title: 'Feature 3-tier',
+          state: 'closed',
+          labels: ['type::feature'],
+        },
+      ],
+      200: [
+        {
+          id: 300,
+          title: 'Story inline-acceptance',
+          state: 'closed',
+          labels: ['type::story'],
+        },
+      ],
+      // Story 300 has NO child Tasks (3-tier shape).
+      300: [],
+    });
+    const result = await runHierarchyGate({
+      epicId: 100,
+      injectedProvider: provider,
+    });
+    assert.strictEqual(result.success, true);
+    assert.strictEqual(result.total, 2);
+    assert.strictEqual(result.checked, 2);
+    assert.strictEqual(result.auxiliaryDeferred, 0);
+  });
 });

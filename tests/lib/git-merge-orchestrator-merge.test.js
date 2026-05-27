@@ -32,6 +32,13 @@ mock.module(gitUtilsUrl, {
       calls.push(args);
       const cmd = args[0];
 
+      // Epic #3078: orchestrator now captures HEAD before merge for
+      // silent-failure detection. The merge in this test exits non-zero,
+      // so the HEAD-advance guard is not exercised; the pre-merge
+      // rev-parse just needs a plausible return value.
+      if (cmd === 'rev-parse' && args[1] === 'HEAD') {
+        return { status: 0, stdout: 'baseline-sha', stderr: '' };
+      }
       if (cmd === 'merge' && args[1] === '--no-ff') {
         return { status: 1, stdout: '', stderr: '' };
       }

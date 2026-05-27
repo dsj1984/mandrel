@@ -33,7 +33,7 @@ overhead rather than help.
 | Merge target                  | `main` via PR                                        | `epic/<epicId>` via `--no-ff` merge                     |
 | Cascade up to Feature/Epic    | No                                                   | Yes                                                     |
 | Dispatch manifest interaction | None                                                 | Read at init, regenerated at close                      |
-| Child Task ceremony           | None (standalone Story is atomic)                    | Required (per-Task `task-commit.js` loop)               |
+| Story scope                   | Inline `acceptance[]` / `verify[]` on the Story body | Inline `acceptance[]` / `verify[]` on the Story body    |
 
 If the Story has an `Epic: #N` reference, use `/story-deliver`. If it
 doesn't, use this workflow.
@@ -120,9 +120,10 @@ All subsequent commands run from this directory.
 
 ## Step 1 — Implementation
 
-A standalone Story is **atomic** — there are no child Tasks, no per-Task
-`task-commit.js` ceremony, no wave dispatch. Work happens in one or more
-commits on the `story-<id>` branch.
+A standalone Story is **atomic** — no wave dispatch and no Epic-scoped
+cascade. Work happens in one or more commits on the `story-<id>`
+branch, against the inline `acceptance[]` / `verify[]` arrays on the
+Story body.
 
 Operator/agent responsibilities while in the worktree:
 
@@ -475,7 +476,7 @@ safe.
   invoking from inside a worktree (worktree-local branch deletion fails
   when run from inside the worktree).
 - **MCP fallback**: if `mandrel` MCP tools fail, fall back to
-  `node .agents/scripts/update-ticket-state.js --task <id> --state <state>`
+  `node .agents/scripts/update-ticket-state.js --ticket <id> --state <state>`
   for label transitions.
 
 ---

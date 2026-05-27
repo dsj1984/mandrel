@@ -618,10 +618,10 @@ const HYDRATION_SCHEMA = {
 
 // Story #2899 (Epic #2880) — performance defaults + preflight (F13).
 // `delivery.ci.skipForStoryPushes` (default true via getCiDelivery): when
-// true, task-commit.js appends a `[skip ci]` trailer to Story-branch
-// commit subjects so per-Task pushes do not stampede the CI fleet. The
-// Epic-branch merge commit produced by story-close.js's merge runner
-// never carries the marker, regardless of this flag.
+// true, pre-push tooling appends a `[skip ci]` trailer to Story-branch
+// commit subjects so intermediate pushes do not stampede the CI fleet.
+// The Epic-branch merge commit produced by story-close.js's merge
+// runner never carries the marker, regardless of this flag.
 const CI_DELIVERY_SCHEMA = {
   type: 'object',
   properties: {

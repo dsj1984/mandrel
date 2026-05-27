@@ -14,6 +14,97 @@
 > answered at the time; cross-cuts that the Mandrel rebrand supersedes
 > are flagged in the entries themselves.
 
+## ADR 20260527-three-tier-hierarchy: Collapse the Task level (Epic → Feature → Story)
+
+**Status:** Accepted (cutover complete)
+**Date:** 2026-05-27
+**Epic:** [#3078](https://github.com/dsj1984/mandrel/issues/3078) —
+Collapse Task level — adopt 3-tier hierarchy (Epic / Feature / Story)
+**Related:** [`docs/architecture.md` § Ticket Hierarchy](architecture.md)
+carries the canonical diagram.
+
+### Context
+
+The framework today enforces a strict 4-level hierarchy
+(Epic → Feature → Story → Task). The Task level is the unit of atomic
+dispatch and commit: `task-commit.js`, the per-Task `agent::*` lifecycle,
+the `(resolves #<taskId>)` commit-subject convention, and the
+`/story-deliver` per-Task sub-loop (`helpers/task-execute.md`) all hang
+off it. Most reconciler pain (`epic-spec-reconciler*.js`, the decompose
+helper, the file-assumption gate, recent body-wipe / acceptance-gap
+incidents) crystallises at or below the Task tier — most of which can
+be expressed at Story scope. Modern coding agents self-decompose
+competently inside a single Story worktree, eroding the Task layer's
+value as pre-chunked work. Features, by contrast, do real load-bearing
+work for the wave model and stay.
+
+### Decision
+
+Adopt a **3-tier hierarchy** (Epic → Feature → Story) as the target
+shape. Acceptance criteria and verification steps live inline on the
+Story body (`acceptance[]` / `verify[]`) instead of on child Task
+bodies. `/story-deliver` runs a single Story-implementation phase per
+Story — no per-Task sub-loop, no `task-commit.js`, no per-Task
+lifecycle transitions. The wave-loop fan-out in `/epic-deliver`, the
+Story-branch → Epic-branch merge model, and the Feature thematic frame
+are unchanged.
+
+Rollout follows **Strategy B — Destructive-Last DAG** to preserve the
+hard-cutover guarantee at the published-surface boundary while letting
+the Epic itself execute on intact 4-tier infrastructure:
+
+- **Features 1–7 are additive.** They introduce 3-tier shape support
+  behind a `planning.hierarchy: '3-tier' | '4-tier'` config flag
+  (default `'4-tier'`), add Story-level code paths alongside the
+  existing Task-level paths, and update docs to describe the target
+  shape as a preview.
+- **Feature 8 is a single destructive Story** with `depends_on`
+  covering every Story in F1–F7. It demolishes both the 4-tier surface
+  and the temporary additive support, flips the default to 3-tier, and
+  deletes all parallel-shape code in one auditable landing. The
+  `planning.hierarchy` flag is removed in F8 — by the time `epic/3078`
+  opens its PR to `main`, the shim is gone.
+
+### Consequences
+
+**Positive.**
+
+- Removes the layer with the worst cost-to-value ratio in the
+  framework. Decompose-layer pain (body-wipe, acceptance-gap,
+  decompose-drift) loses its primary surface.
+- Per-Task state machinery (`agent::*` transitions, cascade-to-Story
+  closure rules, per-Task wave assignment, heartbeat counters,
+  `tasks[]` arrays in the dispatch manifest) collapses into Story-tier
+  equivalents.
+- Commit subjects become Story-scoped (`(refs #<storyId>)`), simpler
+  to author and to reason about during retro and bisect.
+
+**Negative.**
+
+- Single-Story bisect granularity drops from per-Task to per-Story.
+  Stories must stay sized for the agent to commit incrementally
+  inside one worktree; otherwise rollback windows grow.
+- Breaking change for consumers — published surface flips at F8.
+  Consumers re-pin the `.agents/` submodule on upgrade per the
+  [hard-cutover policy](#contract-cutovers-no-shim-layer) (see also
+  [`.agents/rules/git-conventions.md`](../.agents/rules/git-conventions.md)).
+  The shipping release carries `BREAKING CHANGE:` / `!` so the
+  operator can drive the major-version bump on the release PR per
+  [`AGENTS.md` § Major-version policy](../AGENTS.md).
+
+### Implementation
+
+Eight Features land in dependency order. F1 (additive schema +
+validator support), F2 (planner opt-in), F3 (runtime accepts
+Story-level execution), F4 (observability / retro / ticketing
+internals), F5 (documentation), F6 (test coverage of 3-tier path), F7
+(operator cutover prep — bootstrap cleanup utility, CHANGELOG draft).
+F8 (destructive cutover) lands alone in the final wave with
+`depends_on` covering every prior Story. See the Epic body for the
+full Feature/Story breakdown.
+
+---
+
 ## ADR 20260519-adapter-layer-removed: Delete the `IExecutionAdapter` abstraction
 
 **Status:** Accepted

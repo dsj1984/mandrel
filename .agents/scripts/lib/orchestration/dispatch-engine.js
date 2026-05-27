@@ -19,8 +19,10 @@ import { TYPE_LABELS } from '../label-constants.js';
 import { createProvider } from '../provider-factory.js';
 import {
   buildDispatchGraph,
+  buildStoryDispatchGraph,
   ensureEpicScaffolding,
   fetchEpicContext,
+  isThreeTierDispatch,
   reconcileEpicState,
   resolveDispatchContext,
   runWorktreeGc,
@@ -35,7 +37,7 @@ import { collectOpenStoryIds, dispatchNextWave } from './wave-dispatcher.js';
 export const AGENT_DONE_LABEL = STATE_LABELS.DONE;
 export const AGENT_EXECUTING_LABEL = STATE_LABELS.EXECUTING;
 export const AGENT_READY_LABEL = STATE_LABELS.READY;
-export const TYPE_TASK_LABEL = TYPE_LABELS.TASK;
+export const TYPE_TASK_LABEL = 'type::task';
 export { collectOpenStoryIds, detectEpicCompletion };
 
 /* node:coverage ignore next */
@@ -138,6 +140,32 @@ export async function dispatch(options) {
 
   const fetched = await fetchEpicContext(ctx);
   await reconcileEpicState(ctx, fetched);
+
+  // 3-tier hierarchy: compute Story-level waves directly from Story
+  // tickets. The runtime fan-out (`dispatchNextWave`) is Task-centric and
+  // does not yet handle Story-level dispatch — that wiring lands in a
+  // follow-on Story (S3.3+). For now we still emit a 3-tier-shaped
+  // manifest with `waves[].stories[]` so downstream consumers
+  // (manifest renderer, /epic-deliver wave planner) see the correct
+  // execution plan without dispatching any Tasks.
+  if (isThreeTierDispatch(fetched.tasks, fetched.allTickets)) {
+    Logger.info(
+      'Detected 3-tier hierarchy — computing Story-level execution waves.',
+    );
+    const { allWaves: storyWaves } = buildStoryDispatchGraph(
+      fetched.allTickets,
+    );
+    return buildManifest({
+      epicId,
+      epic: fetched.epic,
+      tasks: [],
+      allTickets: fetched.allTickets,
+      waves: storyWaves,
+      dispatched: [],
+      dryRun,
+      hierarchy: '3-tier',
+    });
+  }
 
   if (fetched.tasks.length === 0) {
     Logger.info('No tasks found. Nothing to dispatch.');

@@ -4,6 +4,58 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### BREAKING CHANGE — Epic #3078: collapse Task level, adopt 3-tier hierarchy
+
+The framework drops the `type::task` ticket layer. Mandrel now enforces a
+**3-tier hierarchy** (Epic → Feature → Story) with acceptance criteria and
+verification steps living inline on Story bodies. This is a hard cutover at
+the `.agents/` submodule boundary — there is no parallel-shape support
+code in the published surface and no shim layer to migrate through.
+Consumers opt in by re-pinning the submodule to this release tag. See
+[`docs/upgrade-guide-3-tier.md`](./upgrade-guide-3-tier.md) for the
+end-to-end consumer-upgrade runbook and the major-version bump procedure
+the operator must apply on the release-please PR.
+
+**Operator action required.** Per
+[`AGENTS.md` § Major-version policy](../AGENTS.md#major-version-policy),
+release-please caps automatic bumps at minor. This Epic warrants a
+**major** version bump; the operator must edit the release PR (or land a
+`Release-As: X.0.0` trailer commit) before the release lands. See the
+upgrade guide § Release-PR major-version step.
+
+**Consumer pre-flight.** Drain any in-flight 4-tier Epics with open
+`type::task` children before bumping the submodule — the new runtime has
+no code path to dispatch them. After upgrading, run the one-shot
+cleanup utility shipped by Story #3115 to remove the `type::task` label
+from your repository:
+
+```bash
+node .agents/scripts/cleanup-type-task-label.js --dry-run
+node .agents/scripts/cleanup-type-task-label.js
+```
+
+Highlights of the removed surface:
+
+- `/epic-plan` no longer emits `type::task` issues. Decomposers produce
+  only `type::epic`, `type::feature`, and `type::story`.
+- `/story-deliver` runs a single Story-implementation phase per Story —
+  no per-Task sub-loop, no per-Task `agent::*` transitions, no
+  `task-commit.js` invocation. Commits land on `story-<storyId>`
+  directly with subject `(refs #<storyId>)`.
+- `dispatch-manifest.json` is Story-centric: `waves[].stories[]` with
+  inline acceptance/verify, not `waves[].tasks[]` /
+  `storyManifest[]`.
+- Removed files: `helpers/task-execute.md`,
+  `lib/templates/task-body-renderer.js`, `retrofit-task-bodies.js`,
+  `lib/story-grouper.js`, `story-task-progress.js`, `task-commit.js`,
+  and their test suites.
+- Removed config flag: `planning.hierarchy` is deleted; 3-tier becomes
+  the only published shape.
+- Bootstrap label-seeding no longer creates `type::task`.
+
+Wave-loop semantics, parallel Story execution, the Epic-merge model
+(`epic/<id>` → `main` via PR), and Feature semantics are unchanged.
+
 ### Fixed — Story #2845: own Projects v2 Status column (audit + post-merge re-sync)
 
 The orchestrator's `ColumnSync` writes Status at `transitionTicketState`

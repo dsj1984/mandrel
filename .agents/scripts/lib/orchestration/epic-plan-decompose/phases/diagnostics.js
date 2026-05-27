@@ -14,10 +14,17 @@
 import { Logger } from '../../../Logger.js';
 import { TYPE_LABELS } from '../../../label-constants.js';
 
+/**
+ * Count open child tickets under the Epic without distinguishing by
+ * type. 3-tier (Epic #3078) Epics have only Feature + Story children;
+ * 4-tier Epics also have Tasks. Both shapes route through the same
+ * total — diagnostics intentionally never warns about "missing Tasks"
+ * because zero Tasks is a valid 3-tier outcome.
+ */
 async function emitOpenChildrenDiagnostic(provider, epicId) {
   if (typeof provider.getTickets !== 'function') return;
   const existing = await provider.getTickets(epicId);
-  const childTypes = [TYPE_LABELS.FEATURE, TYPE_LABELS.STORY, TYPE_LABELS.TASK];
+  const childTypes = [TYPE_LABELS.FEATURE, TYPE_LABELS.STORY, 'type::task'];
   const created = (existing || []).filter(
     (t) =>
       (t.labels || []).some((l) => childTypes.includes(l)) &&

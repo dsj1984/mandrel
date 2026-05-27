@@ -1,0 +1,40 @@
+{
+  "$schema": "../../../.agents/schemas/epic-spec.schema.json",
+  "version": "3.0.0",
+  "epic": {
+    "id": 3078,
+    "title": "3-tier collapse fixture Epic",
+    "labels": ["type::epic"]
+  },
+  "features": [
+    {
+      "slug": "schema-evolution",
+      "title": "Schema accepts inline Story-level acceptance/verify",
+      "labels": ["type::feature"],
+      "stories": [
+        {
+          "slug": "story-with-inline-shape",
+          "title": "Story carries inline acceptance/verify (3-tier shape)",
+          "wave": 0,
+          "dependsOn": [],
+          "labels": ["type::story", "persona::engineer"],
+          "acceptance": [
+            "A Story object containing inline acceptance[] and verify[] string arrays validates against the schema",
+            "A Story object whose tasks[] field is set is rejected by the schema"
+          ],
+          "verify": ["node --test tests/scripts/epic-spec-schema.test.js"]
+        },
+        {
+          "slug": "second-inline-story",
+          "title": "A second Story with inline acceptance/verify",
+          "wave": 0,
+          "labels": ["type::story"],
+          "acceptance": [
+            "Multiple Stories with inline shape coexist within a Feature"
+          ],
+          "verify": ["node --test tests/scripts/epic-spec-schema.test.js"]
+        }
+      ]
+    }
+  ]
+}

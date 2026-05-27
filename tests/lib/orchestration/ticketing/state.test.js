@@ -18,6 +18,7 @@ import {
 import {
   postStructuredComment,
   toggleTasklistCheckbox,
+  transitionStoryDirect,
   transitionTicketState,
   upsertStructuredComment,
 } from '../../../../.agents/scripts/lib/orchestration/ticketing/state.js';
@@ -287,6 +288,66 @@ describe('ticketing/state — upsertStructuredComment', () => {
     assert.ok(
       mock.commentStore.some((c) => c.body.includes('second')),
       'second body should survive',
+    );
+  });
+});
+
+// Story #3097 (Wave-0 additive, Epic #3078 Strategy B) — Storyless direct
+// Story transition. In 3-tier mode the Story has no Task children, so the
+// canonical `transitionTicketState` Task-fan-in path is not exercised; the
+// helper documents the intent and pins the label set still flips
+// correctly (one agent::* label on the ticket, closed/open mirrored).
+describe('ticketing/state — transitionStoryDirect (Story #3097)', () => {
+  let mock;
+
+  beforeEach(() => {
+    mock = new MockProvider();
+    // Treat ticket #10 as a Story for this suite.
+    mock.tickets[10] = {
+      id: 10,
+      labels: ['agent::ready', 'type::story'],
+      body: 'Story body — zero Task children',
+      state: 'open',
+      title: 'Storyless story',
+    };
+    _resetStructuredCommentCache(mock);
+  });
+
+  it('flips a Story directly from ready to executing with exactly one agent::* label', async () => {
+    await transitionStoryDirect(mock, 10, STATE_LABELS.EXECUTING);
+    const agentLabels = mock.tickets[10].labels.filter((l) =>
+      l.startsWith('agent::'),
+    );
+    assert.deepEqual(agentLabels, [STATE_LABELS.EXECUTING]);
+    assert.equal(mock.tickets[10].state, 'open');
+  });
+
+  it('closes the Story when transitioning to done (no cascade walk required)', async () => {
+    await transitionStoryDirect(mock, 10, STATE_LABELS.DONE);
+    const agentLabels = mock.tickets[10].labels.filter((l) =>
+      l.startsWith('agent::'),
+    );
+    assert.deepEqual(agentLabels, [STATE_LABELS.DONE]);
+    assert.equal(mock.tickets[10].state, 'closed');
+  });
+
+  it('forwards opts (cascade override + ticketSnapshot) to transitionTicketState', async () => {
+    // Cascade is the default but a caller can still suppress it.
+    const snapshot = { ...mock.tickets[10] };
+    await transitionStoryDirect(mock, 10, STATE_LABELS.EXECUTING, {
+      cascade: false,
+      ticketSnapshot: snapshot,
+    });
+    assert.equal(
+      mock.tickets[10].labels.includes(STATE_LABELS.EXECUTING),
+      true,
+    );
+  });
+
+  it('rejects unknown agent::* states up-front (delegates validation)', async () => {
+    await assert.rejects(
+      () => transitionStoryDirect(mock, 10, 'agent::not-a-state'),
+      /Invalid state: agent::not-a-state/,
     );
   });
 });

@@ -28,7 +28,7 @@ From zero to shipped:
      opened.
 
    The framework generates a PRD, a Tech Spec, and the full Feature →
-   Story → Task hierarchy under the Epic, then transitions the Epic to
+   Story hierarchy under the Epic, then transitions the Epic to
    `agent::ready`.
 
 2. **Deliver the Epic.** Run `/epic-deliver <epicId>` in your IDE. The
@@ -86,9 +86,8 @@ From zero to shipped:
 
    For a single Story off the dispatch table (re-driving a hotfix,
    resuming after a halt), run `/story-deliver <storyId>` directly. The
-   two-skill split (`/epic-deliver` and `/story-deliver`, plus the
-   inline `task-execute.md` helper) lets the operator stop or resume at
-   any level of the hierarchy.
+   two-skill split (`/epic-deliver` and `/story-deliver`) lets the
+   operator stop or resume at any level of the hierarchy.
 
 That is the whole happy path. Everything below is **detail** — branching
 conventions, HITL escalation, audit gates — that you only need when the
@@ -109,16 +108,16 @@ default flow requires adjustment.
   the earlier "GitHub as SSOT" / "lifecycle ledger canonical" prose.
 - **Provider Abstraction.** Orchestration flows through `ITicketingProvider`, an
   abstract interface with a shipped GitHub implementation.
-- **Story-Level Branching.** All Tasks within a Story execute sequentially on a
-  shared `story-<id>` branch. Stories merge into `epic/<epicId>`; the Epic
-  branch reaches `main` only via a pull request the operator merges through
-  the GitHub UI.
-- **Hierarchy-aligned skills.** Execution is split along the ticket hierarchy:
-  `/epic-plan` builds the backlog (with optional ideation entry),
-  `/epic-deliver` owns the merged wave-loop + close-tail, `/story-deliver`
-  runs init → task loop → close for one Story, and the inline
-  `task-execute.md` helper documents per-Task discipline. All four share the
-  same primitives (`Graph.computeWaves`, `cascadeCompletion`, `ticketing.js`,
+- **Story-Level Branching.** All work for a Story lands on the shared
+  `story-<id>` branch. Stories merge into `epic/<epicId>`; the Epic
+  branch reaches `main` only via a pull request the operator merges
+  through the GitHub UI.
+- **Hierarchy-aligned skills.** Execution is split along the ticket
+  hierarchy: `/epic-plan` builds the backlog (with optional ideation
+  entry), `/epic-deliver` owns the merged wave-loop + close-tail, and
+  `/story-deliver` runs init → Story-implementation phase → close for
+  one Story. All three share the same primitives
+  (`Graph.computeWaves`, `cascadeCompletion`, `ticketing.js`,
   `WorktreeManager`).
 - **Single-session fan-out.** `/epic-deliver` launches Story sub-agents via
   the Agent tool — every Story runs inside the operator's Claude session,
@@ -390,7 +389,8 @@ warrants spec coverage, remove the label and run `/epic-plan`'s
 `planning.spec-authoring` state to author the spec.
 
 1. **Ticket Decomposer** (`epic-plan-decompose.js`):
-   - Recursively decomposes specs into a 4-tier hierarchy:
+   - Recursively decomposes specs into the **3-tier hierarchy**
+     (Epic → Feature → Story):
 
      ```text
      Epic (type::epic)
@@ -398,18 +398,22 @@ warrants spec coverage, remove the label and run `/epic-plan`'s
      ├── Tech Spec (context::tech-spec)
      ├── Feature (type::feature)
      │   ├── Story (type::story)
-     │   │   ├── Task (type::task)     ← atomic agent work unit
-     │   │   │   ├── - [ ] subtask 1
-     │   │   │   └── - [ ] subtask 2
-     │   │   └── Task (type::task)
+     │   │   ├── acceptance[]            ← inline on Story body
+     │   │   └── verify[]                ← inline on Story body
      │   └── Story (type::story)
      └── Feature (type::feature)
      ```
 
    - **Wiring.** Each ticket is linked using `blocked by #NNN` syntax and
      GitHub's native sub-issues API.
-   - **Metadata.** Each Task is stamped with persona, estimated files, and
-     agent prompts.
+   - **Metadata.** Each Story is stamped with persona, estimated files,
+     and agent prompts, plus the inline `acceptance[]` / `verify[]`
+     arrays the executing sub-agent reads.
+
+`/story-deliver` runs a **single** Story-implementation phase per
+Story. The wave-loop fan-out in `/epic-deliver`, the Epic → Feature
+thematic frame, and the Story-branch → Epic-branch merge model are
+unchanged from the prior 4-tier shape; only the Task layer is gone.
 
 When decomposition completes the Epic flips to `agent::ready` and the
 dispatch manifest is posted as a structured comment on the Epic. That
@@ -505,20 +509,20 @@ side-effects rather than inline calls at phase boundaries; the
 | Mode                  | Entry point                       | When to use                                                                                  |
 | --------------------- | --------------------------------- | -------------------------------------------------------------------------------------------- |
 | **Whole Epic**        | `/epic-deliver <epicId>`          | Drive an Epic end-to-end. Owns the wave loop and the close-tail; ends with a PR open to main. |
-| **Single Story (within Epic)** | `/story-deliver <storyId>` | Init → task loop → close for one Story under an active Epic.                                |
+| **Single Story (within Epic)** | `/story-deliver <storyId>` | Init → Story-implementation phase → close for one Story under an active Epic.               |
 | **Standalone Story — plan**    | `/single-story-plan`       | Plan a one-off Story that does not belong to an Epic backlog.                                |
 | **Standalone Story — deliver** | `/single-story-deliver <storyId>` | Deliver a one-off Story authored by `/single-story-plan`.                            |
 
-The two-skill split (plus the inline `task-execute.md` helper) mirrors how
-the engine already decomposes work; promoting them to slash commands lets
-the operator stop or resume at any level. There is no single-entry-point
-router — each level has its own skill.
+The two-skill split mirrors how the engine already decomposes work;
+promoting them to slash commands lets the operator stop or resume at any
+level. There is no single-entry-point router — each level has its own
+skill.
 
 ### Story-centric branching
 
 - **Format**: `story-<storyId>` (merges into `epic/<epicId>`).
-- **Goal**: minimize merge conflicts and consolidation waves by grouping related
-  tasks on one context slice.
+- **Goal**: minimize merge conflicts and consolidation waves by grouping
+  related work on one context slice.
 
 ### Story execution lifecycle
 
@@ -1111,10 +1115,9 @@ For Stories already in flight, use one of the three options above.
 | `/epic-plan --idea "<seed>"`                     | Same ideation entry with pre-supplied seed.                                                                                                                                   |
 | `/epic-plan <epicId>`                            | Existing-Epic mode — PRD + Tech Spec + decomposition for an Epic Issue already opened.                                                                                       |
 | `/epic-deliver <epicId>`                         | Drive an Epic end-to-end. Wave loop → close-validation → code-review → retro → opens PR to `main` with auto-merge armed.                                                      |
-| `/story-deliver <storyId>`                       | Init → task loop → close for a single Story under an active Epic.                                                                                                             |
+| `/story-deliver <storyId>`                       | Init → Story-implementation phase → close for a single Story under an active Epic.                                                                                           |
 | `/single-story-plan`                             | Plan a one-off Story outside an Epic backlog.                                                                                                                                  |
 | `/single-story-deliver <storyId>`                | Deliver a one-off Story authored by `/single-story-plan`.                                                                                                                      |
-| _helper_ `workflows/helpers/task-execute.md`     | Read inline by `/story-deliver` per Task; not a slash command.                                                                                                                |
 | _helper_ `workflows/helpers/code-review.md`      | Auto-invoked by `/story-deliver` (scope: story) and `/epic-deliver`'s `delivery.code-review` state (scope: epic); not a slash command.                                       |
 | `/git-commit-all`                                | Stage and commit all changes                                                                                                                                                 |
 | `/git-push`                                      | Stage, commit, and push to remote                                                                                                                                            |

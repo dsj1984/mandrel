@@ -18,6 +18,14 @@ All tasks within a Story MUST be committed to a shared **Story branch**:
 `story-<storyId>` (e.g., `story-104`). The runtime owns Story branch
 creation via `story-init.js`; agents commit on the active Story branch only.
 
+> **Commit subjects.** Under the 3-tier hierarchy
+> (Epic → Feature → Story), Stories have no child tickets. Commits
+> land on `story-<storyId>` directly from the agent and the
+> Conventional Commit subject references the parent Story via
+> `(refs #<storyId>)`. See
+> [`.agents/instructions.md` § 5.D](../instructions.md) for the
+> full hierarchy contract.
+
 ## Conventional Commits
 
 - MUST adhere to Conventional Commits format:

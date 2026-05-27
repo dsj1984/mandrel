@@ -88,6 +88,18 @@ Every other runtime modifier is sourced from the Epic's labels or from
   [`docs/LIFECYCLE.md`](../../docs/LIFECYCLE.md) for the bus
   contract, event taxonomy, ledger format, and listener model.
 
+> **Hierarchy.** `/epic-deliver` operates over the 3-tier hierarchy
+> (Epic → Feature → Story). The fan-out is one `Agent` tool call per
+> Story per wave (§ 2b); Story branches merge into `epic/<id>` with
+> `--no-ff` via `story-close.js`; the close-validation chain
+> (Phase 3), epic-audit, code-review, retro, finalize, and auto-merge
+> gates all operate on Story-level units. `/story-deliver` runs a
+> single Story-implementation phase per Story against the Story's
+> inline `acceptance[]` / `verify[]` fields. See
+> [`.agents/instructions.md` § 5.D](../instructions.md) and
+> [`.agents/SDLC.md` § Ticket hierarchy](../SDLC.md) for the full
+> contract.
+
 ---
 
 ## Phase 1 — Prepare the Epic run
@@ -237,7 +249,8 @@ instruct the child to invoke `/story-deliver <storyId>`, (3) state the
 per-Task chat relay and include its **terminal** `renderedBody` in the
 JSON return, and (6) include the literal directive
 **Heartbeat or block.** — the child MUST emit a `story.heartbeat` lifecycle event at
-least once per Task implementation cycle (or whenever it stalls on a
+least once per Story-level phase transition via
+`node .agents/scripts/story-phase.js` (or whenever it stalls on a
 long-running step), and if it cannot make progress it MUST transition
 to `agent::blocked` rather than fall silent. The pairing of
 `story.heartbeat` and `agent::blocked` is what lets the §2e Idle
@@ -325,7 +338,7 @@ The `--check-idle <minutes>` mode scans the per-Epic lifecycle ledger
 canonical in-flight list — see § 2a's `nextAction['in-flight']`), and
 compares each in-flight Story's most recent ledger event (any
 `story.*` event, notably the `story.heartbeat` records emitted by
-`story-task-progress.js` after each Task close) against the
+`story-phase.js` at each Story-level phase transition) against the
 threshold. The CLI emits one envelope on stdout and exits non-zero
 when at least one in-flight Story has been silent for ≥ the
 threshold:

@@ -40,6 +40,7 @@ import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import { runInstallCommand } from './lib/install-cmd-parser.js';
 import {
+  defaultStoryPhases,
   STORY_RUN_PROGRESS_TYPE,
   upsertStoryRunProgress,
 } from './lib/orchestration/epic-runner/story-run-progress-writer.js';
@@ -218,27 +219,56 @@ export async function runStoryDeliverPrepare(args) {
   }
 
   // 3. Upsert the initial story-run-progress snapshot.
-  //    Prefer the tasks list off the story-init payload; the override hatch
-  //    is only for tests that don't want to round-trip a full payload.
-  //    Legacy `story-init` comments (pre-5.31.2) omit `tasks[]`, which would
-  //    silently seed an empty snapshot and break every later
-  //    `story-task-progress.js` call. Fall back to fetching the Story's
-  //    sub-tickets directly so the snapshot stays correct on resumed runs.
+  //
+  //    Task #3154 (Epic #3078) deleted the `planning.hierarchy` flag —
+  //    3-tier is the only supported hierarchy and every story-init
+  //    comment records `hierarchy: '3-tier'`. Snapshot-shape selection
+  //    is now driven entirely by whether the init payload carries any
+  //    child Tasks (or whether the caller pinned `tasksOverride`):
+  //
+  //    - `tasksOverride` or `initPayload.tasks[]` non-empty → emit the
+  //      per-Task `tasks[]` snapshot (preserved so test fixtures and
+  //      legacy comments produced by older runs still resolve correctly).
+  //    - Otherwise → emit the Story-phase `phases[]` snapshot
+  //      (init/implement/validate/close pinned to `pending`).
+  const hierarchy = String(initPayload.hierarchy ?? '3-tier');
+  const branch = String(initPayload.storyBranch ?? `story-${storyId}`);
+
   const initPayloadTasks = Array.isArray(initPayload.tasks)
     ? initPayload.tasks
     : [];
-  let resolvedTasks = initPayloadTasks;
+
   if (!tasksOverride && initPayloadTasks.length === 0) {
-    resolvedTasks = await fetchTasksFallback({ provider, storyId });
+    const phases = defaultStoryPhases();
+    const { body: renderedBody, payload: snapshot } =
+      await upsertStoryRunProgress({
+        provider,
+        storyId,
+        branch,
+        phase: 'init',
+        phases,
+        notify: notifyFn,
+      });
+    return {
+      storyId,
+      workCwd,
+      dependenciesInstalled,
+      installAction,
+      installCmd,
+      installResult,
+      hierarchy,
+      snapshot,
+      renderedBody,
+    };
   }
+
   const tasks =
     tasksOverride ??
-    resolvedTasks.map((t) => ({
+    initPayloadTasks.map((t) => ({
       id: Number(t.id ?? t.number),
       title: String(t.title ?? ''),
       state: 'pending',
     }));
-  const branch = String(initPayload.storyBranch ?? `story-${storyId}`);
   const { body: renderedBody, payload: snapshot } =
     await upsertStoryRunProgress({
       provider,
@@ -256,6 +286,7 @@ export async function runStoryDeliverPrepare(args) {
     installAction,
     installCmd,
     installResult,
+    hierarchy,
     snapshot,
     renderedBody,
   };

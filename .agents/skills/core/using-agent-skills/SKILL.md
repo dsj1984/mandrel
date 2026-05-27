@@ -91,14 +91,12 @@ see X in the spec but Y in the existing code. Which takes precedence?"
 
 The "STOP and ask the operator" guidance above applies when a human is in
 the loop. When you are running as a **sub-agent** of another skill — most
-commonly a Task executor under
-[`.agents/workflows/helpers/task-execute.md`](../../../workflows/helpers/task-execute.md),
-spawned by `/story-deliver` — there is **no input channel** to ask. In that
-context:
+commonly a Story executor spawned by `/story-deliver` — there is **no
+input channel** to ask. In that context:
 
 1. Pick the **narrowest reasonable interpretation** that satisfies the
-   parent Story's acceptance criteria. Out-of-scope cleanups belong in a
-   follow-on ticket, not a widened Task.
+   Story's acceptance criteria. Out-of-scope cleanups belong in a
+   follow-on ticket, not a widened Story.
 2. If you genuinely cannot proceed, transition to `agent::blocked`, post a
    `friction` structured comment naming the decision required and the
    default assumption you would have made, and exit non-zero. The parent
@@ -106,9 +104,9 @@ context:
 3. **Never** stall waiting for input that will never arrive.
 
 This is the only documented exception to the "Manage Confusion Actively"
-rule. Read it together with the Task-loop contract in
-[`task-execute.md`](../../../workflows/helpers/task-execute.md), which
-states the same constraint from the executor side.
+rule. Read it together with the Story-implementation contract in
+[`/story-deliver`](../../../workflows/story-deliver.md), which states
+the same constraint from the executor side.
 
 ### 3. Push Back When Warranted
 

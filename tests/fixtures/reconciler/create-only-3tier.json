@@ -1,0 +1,31 @@
+{
+  "case": "create-only-3tier",
+  "description": "Fresh 3-tier epic (Epic #3078). Story carries inline acceptance[]/verify[] instead of child tasks[]. diff() should yield 3 creates (epic + feature + story) with no phantom task ops and no missing-child diagnostics.",
+  "spec": {
+    "version": "2.0.0",
+    "epic": {
+      "id": 9101,
+      "title": "Greenfield 3-tier Epic",
+      "labels": ["type::epic"]
+    },
+    "features": [
+      {
+        "slug": "feat-alpha",
+        "title": "Alpha Feature",
+        "labels": ["type::feature"],
+        "stories": [
+          {
+            "slug": "story-one",
+            "title": "First Story (3-tier inline)",
+            "wave": 0,
+            "labels": ["type::story", "persona::engineer"],
+            "acceptance": ["A specific observable passes"],
+            "verify": ["node --test tests/foo.test.js (contract)"]
+          }
+        ]
+      }
+    ]
+  },
+  "state": { "epicId": 9101, "mapping": {} },
+  "ghState": {}
+}

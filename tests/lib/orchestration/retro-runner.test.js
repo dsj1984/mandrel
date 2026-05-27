@@ -720,6 +720,70 @@ test('collectDescendants: walks each BFS level concurrently', async () => {
   }
 });
 
+test('gatherRetroSignals: 3-tier ledger (Stories present, zero Tasks) walks without error', async () => {
+  // Story #3151 (Epic #3078) — under the 3-tier hierarchy, the
+  // descendant walk surfaces only `type::story` issues; child
+  // `type::task` tickets do not exist. `gather-signals.js` must
+  // tolerate this shape: produce a non-empty signals report from the
+  // Story-level perf summaries and emit zero hotfix/HITL counts
+  // without throwing. It must also NOT trigger the
+  // "empty-descendant" warn guard, because descendants are not empty
+  // (they contain the Stories themselves) — the guard is meant for a
+  // genuinely empty walk under a populated Epic.
+  const provider = makeProvider({
+    epic: { id: 3078, title: '3-tier Epic' },
+    stories: [
+      {
+        id: 3088,
+        labels: ['type::story'],
+        perfSummary: {
+          kind: 'story-perf-summary',
+          frictionByCategory: { thrash: 2, drift: 1 },
+        },
+      },
+      {
+        id: 3151,
+        labels: ['type::story'],
+        perfSummary: {
+          kind: 'story-perf-summary',
+          frictionByCategory: { ambiguity: 4 },
+        },
+      },
+    ],
+    tasks: [],
+  });
+  const warns = [];
+  const signals = await gatherRetroSignals({
+    epicId: 3078,
+    provider,
+    logger: { warn: (msg) => warns.push(msg) },
+  });
+  assert.equal(signals.tasks.length, 0, 'expected zero tasks under 3-tier');
+  assert.equal(signals.stories.length, 2, 'expected two child Stories');
+  assert.equal(
+    signals.counts.hotfixes,
+    0,
+    'hotfixes is task-derived and must be zero under 3-tier',
+  );
+  assert.equal(
+    signals.counts.hitl,
+    0,
+    'no HITL labels on these stories, expected zero',
+  );
+  assert.equal(
+    signals.counts.friction,
+    7,
+    'friction should aggregate across both Story perf summaries (2+1+4)',
+  );
+  assert.equal(signals.storyPerfSummaries.length, 2);
+  assert.equal(
+    warns.length,
+    0,
+    `3-tier walk is not empty, guard must stay silent; got: ${warns.join('\n')}`,
+  );
+  assert.ok(signals.routedProposals, 'routedProposals envelope present');
+});
+
 test('runRetro: ignores non-finite manualInterventions (defensive)', async () => {
   const provider = makeProvider({
     epic: { id: 900, title: 'Defensive Epic' },

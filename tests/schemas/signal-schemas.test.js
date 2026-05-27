@@ -21,6 +21,7 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import Ajv from 'ajv';
+import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 import { getAgentrcValidator } from '../../.agents/scripts/lib/config-settings-schema.js';
 
@@ -29,6 +30,11 @@ const SCHEMAS_DIR = path.resolve(__dirname, '..', '..', '.agents', 'schemas');
 
 const loadSchema = (filename) =>
   JSON.parse(readFileSync(path.join(SCHEMAS_DIR, filename), 'utf8'));
+
+const loadLifecycleSchema = (filename) =>
+  JSON.parse(
+    readFileSync(path.join(SCHEMAS_DIR, 'lifecycle', filename), 'utf8'),
+  );
 
 const compile = (schema) => {
   const ajv = new Ajv({ allErrors: true, strict: false });
@@ -100,6 +106,54 @@ describe('signal-event.schema.json', () => {
       storyId: 1042,
     });
     assert.equal(ok, false);
+  });
+
+  // Story #3143 — Storyless event payloads. Under the 3-tier hierarchy
+  // there is no parent Task, so the tool-trace-hook (and any other
+  // signal emitter) omits or nulls `taskId`. Both shapes MUST validate
+  // and the 4-tier carrying-a-taskId shape MUST continue to validate
+  // (no regression).
+  it('accepts a 3-tier signal event with taskId omitted (Storyless)', () => {
+    const validate = compile(schema);
+    const ok = validate({
+      ts: '2026-05-27T16:00:00.000Z',
+      kind: 'trace',
+      source: { tool: 'Bash' },
+      epicId: 3078,
+      storyId: 3143,
+      // taskId intentionally omitted (3-tier: no Task ticket exists)
+    });
+    assert.equal(ok, true, JSON.stringify(validate.errors));
+  });
+
+  it('accepts a 3-tier signal event with taskId explicitly null', () => {
+    const validate = compile(schema);
+    const ok = validate({
+      ts: '2026-05-27T16:00:00.000Z',
+      kind: 'trace',
+      source: { tool: 'Bash' },
+      epicId: 3078,
+      storyId: 3143,
+      taskId: null,
+      phase: null,
+      details: { tool: 'Bash', durationMs: 12 },
+    });
+    assert.equal(ok, true, JSON.stringify(validate.errors));
+  });
+
+  it('continues to accept a 4-tier signal event carrying taskId (no regression)', () => {
+    const validate = compile(schema);
+    const ok = validate({
+      ts: '2026-05-27T16:00:00.000Z',
+      kind: 'friction',
+      source: { tool: 'Bash', script: 'diagnose-friction.js' },
+      epicId: 3078,
+      storyId: 3143,
+      taskId: 3149,
+      phase: 'implement',
+      details: { category: 'Execution Error' },
+    });
+    assert.equal(ok, true, JSON.stringify(validate.errors));
   });
 });
 
@@ -214,6 +268,88 @@ describe('epic-perf-report.schema.json', () => {
       waveParallelism: [],
       topHotspots: [],
       mostFrictionStories: [],
+    });
+    assert.equal(ok, false);
+  });
+});
+
+describe('story.heartbeat.schema.json (Epic #3078 — 3-tier shape only)', () => {
+  const schema = loadLifecycleSchema('story.heartbeat.schema.json');
+
+  const compile2020 = (s) => {
+    const ajv = new Ajv2020({ allErrors: true, strict: false });
+    addFormats(ajv);
+    return ajv.compile(s);
+  };
+
+  it('compiles cleanly', () => {
+    assert.doesNotThrow(() => compile2020(schema));
+  });
+
+  it('accepts a 3-tier heartbeat (phase info only)', () => {
+    const validate = compile2020(schema);
+    const ok = validate({
+      event: 'story.heartbeat',
+      storyId: 3137,
+      epicId: 3078,
+      phase: 'implementing',
+      timestamp: '2026-05-27T16:00:00.000Z',
+    });
+    assert.equal(ok, true, JSON.stringify(validate.errors));
+  });
+
+  it('rejects a heartbeat carrying legacy taskId (4-tier removed)', () => {
+    const validate = compile2020(schema);
+    const ok = validate({
+      event: 'story.heartbeat',
+      storyId: 3137,
+      epicId: 3078,
+      phase: 'implementing',
+      taskId: 3146,
+      timestamp: '2026-05-27T16:00:00.000Z',
+    });
+    assert.equal(
+      ok,
+      false,
+      'taskId must be rejected under additionalProperties:false',
+    );
+  });
+
+  it('rejects a heartbeat carrying tasksDone/tasksTotal/currentTaskId (4-tier removed)', () => {
+    const validate = compile2020(schema);
+    const ok = validate({
+      event: 'story.heartbeat',
+      storyId: 3137,
+      epicId: 3078,
+      phase: 'implementing',
+      tasksDone: 2,
+      tasksTotal: 5,
+      currentTaskId: 3146,
+      timestamp: '2026-05-27T16:00:00.000Z',
+    });
+    assert.equal(ok, false, 'Task counter fields must be rejected');
+  });
+
+  it('rejects an unknown property under additionalProperties:false', () => {
+    const validate = compile2020(schema);
+    const ok = validate({
+      event: 'story.heartbeat',
+      storyId: 3137,
+      epicId: 3078,
+      phase: 'implementing',
+      timestamp: '2026-05-27T16:00:00.000Z',
+      mystery: true,
+    });
+    assert.equal(ok, false);
+  });
+
+  it('rejects a missing required field (timestamp)', () => {
+    const validate = compile2020(schema);
+    const ok = validate({
+      event: 'story.heartbeat',
+      storyId: 3137,
+      epicId: 3078,
+      phase: 'implementing',
     });
     assert.equal(ok, false);
   });
