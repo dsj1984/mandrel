@@ -204,11 +204,18 @@ export async function runStoryInit({
     }
   }
 
-  // Stage 4 — task graph.
+  // Stage 4 — task graph. Pass the Story body and the resolved
+  // planning.hierarchy through so buildTaskGraph can distinguish a 3-tier
+  // (inline-acceptance) Story from a genuinely empty 4-tier Story when
+  // emitting its progress/warn message.
   const { sortedTasks } = await buildTaskGraph({
     provider,
     logger: stageLogger,
-    input: { storyId },
+    input: {
+      storyId,
+      storyBody: body,
+      hierarchy: config.planning?.hierarchy ?? null,
+    },
   });
 
   // Stage 5 + 6 — branch and task-state transitions. Skipped under --dry-run.
