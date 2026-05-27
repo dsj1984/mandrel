@@ -100,7 +100,45 @@ export function hasMergeCommitForStory(ctx, branch, epicRef) {
 }
 
 /**
- * Run the full two-phase merge-reachability gate. Returns the same
+ * Predicate: are every commit on `branch` patch-equivalent to a commit
+ * already on `epicRef`? Runs `git cherry <epicRef> <branch>` and returns
+ * `true` when every output line starts with `- ` (already upstream by
+ * patch-id). Returns `false` when:
+ *
+ *   - `git cherry` exits non-zero,
+ *   - the output is empty (no commits to compare — the trivial-ancestor
+ *     case is already covered by `checkHeadAncestor`), or
+ *   - any output line starts with `+ ` (a commit on `branch` whose
+ *     patch-id is not present upstream).
+ *
+ * Surfaces the "Story diff already integrated as rebased equivalents"
+ * recovery case: operator manually rebased the Story's content onto
+ * `epic/<id>` during recovery, so the diff is on the Epic branch as
+ * commits with **different SHAs** but the same patch-ids. The ancestor
+ * check returns `false` (Story tip's own commits are not ancestors), and
+ * no `(resolves #<id>)` merge commit exists — but the work is
+ * functionally integrated.
+ *
+ * Story #3161 — surfaced during Epic #3078 delivery on Story #3122.
+ *
+ * @param {object} ctx
+ * @param {string} branch Branch with commits to test (e.g. `story-3122`).
+ * @param {string} epicRef Epic ref to test against (e.g. `origin/epic/3078`).
+ * @returns {boolean}
+ */
+export function hasRebasedEquivalents(ctx, branch, epicRef) {
+  const res = ctx.git.gitSpawn(ctx.repoRoot, 'cherry', epicRef, branch);
+  if (res.status !== 0) return false;
+  const lines = (res.stdout || '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (lines.length === 0) return false;
+  return lines.every((line) => line.startsWith('- '));
+}
+
+/**
+ * Run the full three-phase merge-reachability gate. Returns the same
  * `{ safe, reason }` envelope `isSafeToRemove` does, so callers can chain
  * the verdict directly into the parent return value.
  *
@@ -127,6 +165,9 @@ export async function checkMergeReachability(ctx, wtPath, branch, epicRef) {
 
   if (hasMergeCommitForStory(ctx, branch, epicRef)) {
     return { safe: true, reason: 'merge-commit-reachable' };
+  }
+  if (hasRebasedEquivalents(ctx, branch, epicRef)) {
+    return { safe: true, reason: 'rebased-equivalents' };
   }
   return {
     safe: false,

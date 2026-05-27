@@ -35,6 +35,7 @@ import { clearActiveStoryEnv as defaultClearActiveStoryEnv } from '../../observa
 import {
   checkHeadAncestor,
   hasMergeCommitForStory,
+  hasRebasedEquivalents,
 } from '../../worktree/lifecycle/merge-reachability.js';
 import { runPostMergePipeline as defaultRunPostMergePipeline } from '../post-merge-pipeline.js';
 import {
@@ -54,16 +55,23 @@ import {
  * the push's retry logic logged success while the remote silently dropped
  * us.
  *
- * Two-phase check mirrors `worktree/lifecycle/merge-reachability.js`:
+ * Three-phase check mirrors `worktree/lifecycle/merge-reachability.js`:
  *   1. `git merge-base --is-ancestor` on the Story branch HEAD.
  *   2. Fallback `git log --grep=resolves #<storyId>` on the Epic branch
  *      (the `--no-ff` merge commit's subject is the durable proof).
+ *   3. Fallback `git cherry <epicBranch> <storyBranch>` patch-id check
+ *      (Story #3161) — every commit on the Story branch is patch-
+ *      equivalent to a commit already on `epicBranch`. Surfaces the
+ *      manual-recovery case where the operator rebased Story content
+ *      directly onto the Epic so the diff is present as commits with
+ *      different SHAs.
  *
- * Throws when neither check passes — the caller's `try/finally` keeps the
+ * Throws when no check passes — the caller's `try/finally` keeps the
  * Story at `agent::closing` so a `/story-execute --resume` can re-enter
  * the post-merge phase rather than re-running preflight.
  *
- * Story #2144 / Task #2155.
+ * Story #2144 / Task #2155; Story #3161 extends with the rebased-
+ * equivalents path.
  *
  * @param {object} args
  * @param {string} args.cwd        Main-repo working directory.
@@ -89,7 +97,8 @@ export function assertMergeReachable({
   if (headRes.status !== 0) {
     // Branch ref already gone (e.g. a prior partial close deleted it) →
     // fall straight to the merge-commit grep, which is the durable proof
-    // path.
+    // path. The cherry/patch-id fallback cannot run without the branch
+    // ref, so we skip it on this path.
     if (hasMergeCommitForStory(ctx, storyBranch, epicBranch)) {
       return { reachable: true, reason: 'merge-commit-reachable' };
     }
@@ -107,12 +116,16 @@ export function assertMergeReachable({
   if (hasMergeCommitForStory(ctx, storyBranch, epicBranch)) {
     return { reachable: true, reason: 'merge-commit-reachable' };
   }
+  if (hasRebasedEquivalents(ctx, storyBranch, epicBranch)) {
+    return { reachable: true, reason: 'rebased-equivalents' };
+  }
   const headShort = headSha.slice(0, 7) || 'HEAD';
   throw new Error(
     `story-close: merge verification failed for #${storyId} — ` +
       `\`${storyBranch}\` head=${headShort} is not reachable from \`${epicBranch}\` ` +
       `and no \`(resolves #${storyId})\` merge commit found on \`${epicBranch}\` ` +
-      `(ancestor=${ancestor.outcome}). Story remains at \`agent::closing\`; ` +
+      `(ancestor=${ancestor.outcome}); patch-id equivalents not detected. ` +
+      `Story remains at \`agent::closing\`; ` +
       `re-run with \`--resume\` once the merge is on \`${epicBranch}\`.`,
   );
 }

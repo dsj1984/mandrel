@@ -12,7 +12,11 @@
  *   - `already-merged`       — the story tip is reachable from `origin/epic/<id>`
  *                              already (typical Windows partial-reap recovery
  *                              path: merge + push succeeded but worktree reap
- *                              or ticket transitions stalled).
+ *                              or ticket transitions stalled), OR the story
+ *                              diff is fully present on `origin/epic/<id>` as
+ *                              rebased commits with different SHAs (manual
+ *                              recovery path, detected via `git cherry`
+ *                              patch-id comparison; Story #3161).
  *   - `pushed-unmerged`      — the story branch is on origin and not yet merged.
  *   - `fresh`                — no prior close activity detected.
  */
@@ -45,6 +49,9 @@ const DEFAULT_GIT_ADAPTER = {
   },
   fetchOrigin(cwd, ref) {
     return gitSpawn(cwd, 'fetch', '--quiet', 'origin', ref);
+  },
+  cherry(cwd, upstream, head) {
+    return gitSpawn(cwd, 'cherry', upstream, head);
   },
 };
 
@@ -170,6 +177,47 @@ export function detectPriorPhase({
           resolvedDetail = {
             remoteStoryRef: `origin/${storyBranch}`,
             remoteEpicRef: epicRef,
+          };
+          break;
+        }
+      }
+    }
+
+    // c) Rebased equivalents (Story #3161). Story tip is not an ancestor
+    //    of `origin/epic/<id>`, but every commit on the Story branch is
+    //    patch-equivalent (`git cherry`) to a commit already on the Epic.
+    //    Surfaces the manual-recovery case where the operator rebased
+    //    Story content directly onto `epic/<id>` so the diff is present
+    //    as commits with different SHAs and no `(resolves #<id>)` merge
+    //    commit. Without this branch, `assertMergeReachable` throws at
+    //    resume time and strands close at `agent::closing`.
+    if (!merged && git.cherry) {
+      const candidates = [];
+      const localStoryRefName = `refs/heads/${storyBranch}`;
+      if (git.showRef && git.showRef(cwd, localStoryRefName)?.status === 0) {
+        candidates.push({ ref: storyBranch, kind: 'local' });
+      }
+      if (lsrOut.length > 0) {
+        candidates.push({ ref: `origin/${storyBranch}`, kind: 'remote' });
+      }
+      const remoteEpicRef = `origin/epic/${epicId}`;
+      for (const cand of candidates) {
+        const cherry = git.cherry(cwd, remoteEpicRef, cand.ref);
+        if (!cherry || cherry.status !== 0) continue;
+        const lines = (cherry.stdout ?? '')
+          .toString()
+          .split('\n')
+          .map((l) => l.trim())
+          .filter(Boolean);
+        if (lines.length === 0) continue;
+        if (lines.every((l) => l.startsWith('- '))) {
+          merged = true;
+          resolvedDetail = {
+            [cand.kind === 'local' ? 'localStoryRef' : 'remoteStoryRef']:
+              cand.ref,
+            remoteEpicRef,
+            via: 'rebased-equivalents',
+            equivalents: lines.length,
           };
           break;
         }
