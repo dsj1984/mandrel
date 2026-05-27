@@ -250,6 +250,31 @@ restoration.
 - → follow-up **#2071** (schema-module maintainability uplift):
   - `.agents/scripts/lib/config-settings-schema.js` (`mi: 46`)
   - `.agents/scripts/lib/config-gates-schema.js` (`mi: 51`)
+## [1.33.0](https://github.com/dsj1984/mandrel/compare/v1.32.0...v1.33.0) (2026-05-26)
+
+
+### Fixed
+
+* **baselines:** harden MI scorer against escomplex parse-fail phantoms ([#2998](https://github.com/dsj1984/mandrel/issues/2998)) ([8023458](https://github.com/dsj1984/mandrel/commit/8023458c597689020ba04e0b1c802fe3170407c3)), closes [#2996](https://github.com/dsj1984/mandrel/issues/2996)
+* **cascade:** preserve orchestrator footer and walk native Sub-Issues parent (resolves [#2982](https://github.com/dsj1984/mandrel/issues/2982)) ([#2983](https://github.com/dsj1984/mandrel/issues/2983)) ([5b2b51d](https://github.com/dsj1984/mandrel/commit/5b2b51defb065e6066b46be43316e0a2dbd8cbf8))
+* **epic-plan-decompose:** preserve acceptance::* and planning::* on Epic through reconciler ([#3052](https://github.com/dsj1984/mandrel/issues/3052)) ([0e96fac](https://github.com/dsj1984/mandrel/commit/0e96fac373b5414917485da1165be435f0c52197)), closes [#3050](https://github.com/dsj1984/mandrel/issues/3050)
+* **tests:** inject noop notify in epic-execute-record-wave defaults ([#3007](https://github.com/dsj1984/mandrel/issues/3007)) ([8575489](https://github.com/dsj1984/mandrel/commit/85754894b9fbba5c64ad6860c2dea3d8df05e440)), closes [#3006](https://github.com/dsj1984/mandrel/issues/3006)
+
+
+### Changed
+
+* **scripts:** complete parseStandardCliArgs rollout + centralize parseRequired{Positive,NonNegative}Int ([#3012](https://github.com/dsj1984/mandrel/issues/3012)) ([b767d1a](https://github.com/dsj1984/mandrel/commit/b767d1a480dbc5d7202ff541abba4f5aec51780b)), closes [#2989](https://github.com/dsj1984/mandrel/issues/2989) [#2993](https://github.com/dsj1984/mandrel/issues/2993)
+* **scripts:** decompose baseline-attribution into phases/ ([#3009](https://github.com/dsj1984/mandrel/issues/3009)) ([32695ff](https://github.com/dsj1984/mandrel/commit/32695ff9b33614bb191f19ac33c1bf9b8f97adef))
+* **scripts:** decompose epic-plan-spec into phases/ ([#3011](https://github.com/dsj1984/mandrel/issues/3011)) ([1a00215](https://github.com/dsj1984/mandrel/commit/1a0021597343283cbb34adf26462fe9a8229b54a))
+* **scripts:** decompose post-merge-pipeline into phases/ ([#3005](https://github.com/dsj1984/mandrel/issues/3005)) ([52f1f78](https://github.com/dsj1984/mandrel/commit/52f1f78104e206722ef8dfda3240338bb503a775))
+* **scripts:** decompose retro-runner into phases/ ([#3008](https://github.com/dsj1984/mandrel/issues/3008)) ([0316a4d](https://github.com/dsj1984/mandrel/commit/0316a4dfcbc30f8300290962cf55cf301544654d))
+* **scripts:** decompose single-story-close.js into phases/ (4/5) ([#3003](https://github.com/dsj1984/mandrel/issues/3003)) ([#3010](https://github.com/dsj1984/mandrel/issues/3010)) ([b93a95f](https://github.com/dsj1984/mandrel/commit/b93a95f062d4df4f3288c9398d19635ec1245ba9))
+* **scripts:** route post-auth gh spawns through lib/gh-exec.js ([#3014](https://github.com/dsj1984/mandrel/issues/3014)) ([f511810](https://github.com/dsj1984/mandrel/commit/f511810abfc82cb5b8a2e791d21990d59e446417)), closes [#2990](https://github.com/dsj1984/mandrel/issues/2990)
+* **scripts:** split config-gates-schema.js per-gate ([#3017](https://github.com/dsj1984/mandrel/issues/3017)) ([26dc20c](https://github.com/dsj1984/mandrel/commit/26dc20c5e97924b4cc946117d5ee9fa13fb9d699)), closes [#2987](https://github.com/dsj1984/mandrel/issues/2987)
+* **scripts:** split git-cleanup phase-drivers into decide/execute pairs ([#3015](https://github.com/dsj1984/mandrel/issues/3015)) ([db24b7c](https://github.com/dsj1984/mandrel/commit/db24b7c20bf152b983d018d9ed704c3e6f61563a)), closes [#2994](https://github.com/dsj1984/mandrel/issues/2994)
+* **scripts:** split runPreMergeValidation into summarizer + emitter ([#3013](https://github.com/dsj1984/mandrel/issues/3013)) ([5b8ce9a](https://github.com/dsj1984/mandrel/commit/5b8ce9a583fad184e9124820a9e245bf55415275)), closes [#2995](https://github.com/dsj1984/mandrel/issues/2995)
+* **scripts:** table-drive renderNotable to drop CRAP 52.5 → &lt; 20 ([#3016](https://github.com/dsj1984/mandrel/issues/3016)) ([1c85190](https://github.com/dsj1984/mandrel/commit/1c85190319a0e90cdd08ba3ef1cd0c5d8961d66f)), closes [#2991](https://github.com/dsj1984/mandrel/issues/2991)
+
 ## [1.32.0](https://github.com/dsj1984/mandrel/compare/v1.31.0...v1.32.0) (2026-05-25)
 
 
