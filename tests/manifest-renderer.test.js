@@ -155,7 +155,7 @@ test('renderManifestMarkdown', async (t) => {
     assert.match(output, /⏳ Blocked/);
   });
 
-  await t.test('renders nested per-wave H2 with story checkbox tasks', () => {
+  await t.test('renders nested per-wave H2 with Story headings', () => {
     const tasks = [makeTask(1, 'agent::ready')];
     const story = makeStory(10, tasks, 0);
     const manifest = makeBaseManifest({ storyManifest: [story] });
@@ -164,7 +164,11 @@ test('renderManifestMarkdown', async (t) => {
     assert.doesNotMatch(output, /## Execution Plan/);
     assert.match(output, /^## .* Wave 0/m); // per-wave H2
     assert.match(output, /^### .* #10/m); // per-Story H3 with id
-    assert.match(output, /- \[ \] #1 — task-1/); // checkbox task line
+    // Under the 3-tier hierarchy (Epic #3163, Story #3196) Stories are
+    // leaves; the per-Story body collapses to the empty-tasks marker
+    // and no per-Task checkbox row is emitted.
+    assert.match(output, /_\(no tasks\)_/);
+    assert.doesNotMatch(output, /- \[ \] #1 — task-1/);
   });
 
   await t.test('renders completed story with checkmark', () => {

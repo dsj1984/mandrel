@@ -86,9 +86,12 @@ test('formatter: renders epic header, meta line, wave TOC, and nested H2/H3 layo
   assert.ok(md.includes('### 🔄 #101 — Alpha Story · 1/2 tasks'));
   assert.ok(!md.includes('`story-101`'));
   assert.ok(!md.includes('~?'));
-  // Tasks render as plain checkbox lines
-  assert.ok(md.includes('- [x] #201 — t-a1'));
-  assert.ok(md.includes('- [ ] #203 — t-b1'));
+  // Under the 3-tier hierarchy Stories are leaves; the per-Story body
+  // collapses to the empty-tasks marker rather than rendering child
+  // Task checkbox rows (Epic #3163, Story #3196).
+  assert.ok(md.includes('_(no tasks)_'));
+  assert.ok(!md.includes('- [x] #201'));
+  assert.ok(!md.includes('- [ ] #203'));
   // Legacy headings are gone
   assert.ok(!md.includes('## Execution Plan'));
   assert.ok(!md.includes('## Story Details'));
@@ -390,9 +393,11 @@ test('renderNestedWaveSections: emits one ## emoji Wave N H2 per wave with H3 st
   assert.ok(!md.includes('`story-101`'));
   assert.ok(!md.includes('~?'));
   assert.ok(!/### 🔄 #101.*[█░]/.test(md));
-  // Tasks rendered as plain checkbox lines (no HTML, no bold)
-  assert.ok(md.includes('- [x] #201 — t-a1'));
-  assert.ok(md.includes('- [ ] #205 — t-c1'));
+  // Under the 3-tier hierarchy Stories are leaves; the per-Story body
+  // collapses to the empty-tasks marker (Epic #3163, Story #3196).
+  assert.ok(md.includes('_(no tasks)_'));
+  assert.ok(!md.includes('- [x] #201'));
+  assert.ok(!md.includes('- [ ] #205'));
 });
 
 test('renderNestedWaveSections: appends a Feature Containers section when present', () => {
@@ -489,121 +494,14 @@ test('topoSortTasks: degrades gracefully for empty / null input', () => {
   assert.deepEqual(topoSortTasks(null), []);
 });
 
-test('renderNestedWaveSections: renders Tasks in topo order with *(after #N)* callouts', () => {
-  const stories = [
-    {
-      storyId: 500,
-      storyTitle: 'Linear Story',
-      type: 'story',
-      earliestWave: 0,
-      branchName: 'story-500',
-      tasks: [
-        // intentionally out-of-order to verify the sort, not the input.
-        {
-          taskId: 503,
-          taskSlug: 't3',
-          status: 'agent::ready',
-          dependencies: [502],
-        },
-        {
-          taskId: 501,
-          taskSlug: 't1',
-          status: 'agent::ready',
-          dependencies: [],
-        },
-        {
-          taskId: 502,
-          taskSlug: 't2',
-          status: 'agent::ready',
-          dependencies: [501],
-        },
-      ],
-    },
-  ];
-  const md = renderNestedWaveSections(stories);
-  // Tasks render in topo order T1, T2, T3
-  const idxT1 = md.indexOf('- [ ] #501 — t1');
-  const idxT2 = md.indexOf('- [ ] #502 — t2 *(after #501)*');
-  const idxT3 = md.indexOf('- [ ] #503 — t3 *(after #502)*');
-  assert.ok(idxT1 >= 0, 'T1 line missing');
-  assert.ok(idxT2 > idxT1, 'T2 should appear after T1');
-  assert.ok(idxT3 > idxT2, 'T3 should appear after T2');
-});
-
-test('renderNestedWaveSections: omits *(after …)* callouts when no in-Story deps exist', () => {
-  const stories = [
-    {
-      storyId: 600,
-      storyTitle: 'Independent Story',
-      type: 'story',
-      earliestWave: 0,
-      branchName: 'story-600',
-      tasks: [
-        {
-          taskId: 601,
-          taskSlug: 't1',
-          status: 'agent::ready',
-          dependencies: [],
-        },
-        {
-          taskId: 602,
-          taskSlug: 't2',
-          status: 'agent::ready',
-          dependencies: [],
-        },
-      ],
-    },
-  ];
-  const md = renderNestedWaveSections(stories);
-  assert.ok(md.includes('- [ ] #601 — t1\n'));
-  assert.ok(md.includes('- [ ] #602 — t2\n'));
-  assert.ok(!md.includes('*(after #'), 'should not emit any after-callouts');
-});
-
-test('renderNestedWaveSections: callout names the latest in-Story dependency when multiple exist', () => {
-  const stories = [
-    {
-      storyId: 700,
-      storyTitle: 'Diamond Story',
-      type: 'story',
-      earliestWave: 0,
-      branchName: 'story-700',
-      tasks: [
-        {
-          taskId: 701,
-          taskSlug: 'root',
-          status: 'agent::ready',
-          dependencies: [],
-        },
-        {
-          taskId: 702,
-          taskSlug: 'left',
-          status: 'agent::ready',
-          dependencies: [701],
-        },
-        {
-          taskId: 703,
-          taskSlug: 'right',
-          status: 'agent::ready',
-          dependencies: [701],
-        },
-        // 704 depends on both: latest in topo order is the one whose work lands last.
-        {
-          taskId: 704,
-          taskSlug: 'merge',
-          status: 'agent::ready',
-          dependencies: [702, 703],
-        },
-      ],
-    },
-  ];
-  const md = renderNestedWaveSections(stories);
-  // 703 sits later in the sorted order than 702 → that's the named dep.
-  assert.ok(
-    md.includes('- [ ] #704 — merge *(after #703)*'),
-    `expected callout to name #703; rendered: ${md}`,
-  );
-});
+// The legacy per-Task topo-sort / `*(after #N)*` callout tests were
+// removed when Epic #3163 (Story #3196) collapsed the per-Story Task
+// rendering: under the 3-tier hierarchy Stories are leaves with no
+// child Task tickets, so `renderNestedWaveSections` no longer projects
+// a Task-level checkbox list and the callout feature has no surface
+// left to assert. The `topoSortTasks` helper above is still exercised
+// directly because it remains a published export of
+// `manifest-helpers.js`.
 
 test('computeStoryProgress: derives pct, done, total from story.tasks[]', () => {
   assert.deepEqual(

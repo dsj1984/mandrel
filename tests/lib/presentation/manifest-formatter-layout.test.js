@@ -197,27 +197,10 @@ test('layout fixture: exactly one bottom <details> block, no other HTML tags any
   );
 });
 
-test('layout fixture: every task line uses native markdown checkboxes (no HTML)', () => {
-  __resetManifestFormatterCache();
-  const md = formatManifestMarkdown(buildLayoutFixture());
-  // Pull every line that starts with a checkbox bullet from outside the
-  // <details> block — task lines should never appear inside it.
-  const detailsRe = /<details>[\s\S]*?<\/details>/;
-  const outside = md.replace(detailsRe, '');
-  const taskLines = outside.split('\n').filter((l) => /^- \[[ x]\] /.test(l));
-  assert.ok(
-    taskLines.length >= 19,
-    `expected at least 19 task checkbox lines, got ${taskLines.length}`,
-  );
-  for (const line of taskLines) {
-    assert.ok(
-      !/<[a-zA-Z/][^>]*>/.test(line),
-      `task line contains HTML: "${line}"`,
-    );
-    // Each line carries an in-Story Task id.
-    assert.match(line, /#\d+/, `task line missing #id: "${line}"`);
-  }
-});
+// The per-Task checkbox / HTML-free assertion was removed when Epic
+// #3163 (Story #3196) collapsed the per-Story Task projection: under
+// the 3-tier hierarchy Stories are leaves, so the renderer no longer
+// emits any `- [ ] #N — title` rows beneath a Story H3.
 
 test('layout fixture: wave summary status reflects per-wave readiness', () => {
   __resetManifestFormatterCache();
