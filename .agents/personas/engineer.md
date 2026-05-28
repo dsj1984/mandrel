@@ -25,10 +25,23 @@ plan, stop and ask. Do not invent business logic.
    standard repo. Ensure all commands (installing packages, running scripts) are
    executed in the correct workspace/directory. Check `package.json` or the
    workspace root configuration to determine the correct scope.
-3. **Implementation:** Write the code in small, logical chunks (atomic steps).
-4. **Verification:** Immediately write/run a test or verification script to
+3. **Story-plan checkpoint** (standalone Stories only): before authoring any
+   commit, evaluate the triggering predicate and post a `story-plan` comment
+   when the Story is non-trivial (see
+   [`helpers/single-story-deliver.md` Step 0.6](../workflows/helpers/single-story-deliver.md)).
+   Author the plan with these constraints:
+   - **Short and factual.** Each field is a list of paths, indices, or
+     short phrases — not prose explanations.
+   - **No implementation details.** `files_to_touch` lists file paths
+     only; `ac_mapping` records test-file paths, not test logic;
+     `open_questions` are decision points the operator can resolve, not
+     design commentary.
+   - **No secrets or PII.** The comment is posted to GitHub — never embed
+     tokens, credentials, or personal data.
+4. **Implementation:** Write the code in small, logical chunks (atomic steps).
+5. **Verification:** Immediately write/run a test or verification script to
    ensure the code works.
-5. **Cleanup:** Remove debug logs and comments that only explain _what_ code
+6. **Cleanup:** Remove debug logs and comments that only explain _what_ code
    does (keep comments that explain _why_).
 
 ## 3. Coding Standards
