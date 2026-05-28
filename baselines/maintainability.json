@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T01:11:31.698Z",
+  "generatedAt": "2026-05-28T01:18:04.072Z",
   "rollup": {
     "*": {
       "min": 38.161,
@@ -677,10 +677,6 @@
     {
       "path": ".agents/scripts/lib/errors/index.js",
       "mi": 126.057
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/audit-results-graduator.js",
-      "mi": 86.422
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/code-review-graduator.js",

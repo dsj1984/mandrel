@@ -1,13 +1,13 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T01:11:31.983Z",
+  "generatedAt": "2026-05-28T01:18:04.585Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.010699859060178,
+      "p95": 12.006059669598093,
       "max": 49.61729902329076,
-      "methodsAbove20": 29
+      "methodsAbove20": 28
     }
   },
   "rows": [
@@ -4546,54 +4546,6 @@
       "method": "formatCliError",
       "startLine": 122,
       "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/audit-results-graduator.js",
-      "method": "isAutoFileEnabled",
-      "startLine": 46,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/audit-results-graduator.js",
-      "method": "buildIdempotencyMarker",
-      "startLine": 72,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/audit-results-graduator.js",
-      "method": "parseFindings",
-      "startLine": 88,
-      "crap": 11
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/audit-results-graduator.js",
-      "method": "runChild",
-      "startLine": 137,
-      "crap": 1.0051252613883308
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/audit-results-graduator.js",
-      "method": "probePathExists",
-      "startLine": 171,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/audit-results-graduator.js",
-      "method": "probeMarkerExists",
-      "startLine": 181,
-      "crap": 6.085333333333334
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/audit-results-graduator.js",
-      "method": "createFollowUpIssue",
-      "startLine": 212,
-      "crap": 7.3919999999999995
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/audit-results-graduator.js",
-      "method": "graduateAuditResults",
-      "startLine": 273,
-      "crap": 35.45068799999999
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/code-review-graduator.js",
