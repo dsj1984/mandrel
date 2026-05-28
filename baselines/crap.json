@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T10:03:16.643Z",
+  "generatedAt": "2026-05-28T10:53:28.902Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -13378,36 +13378,6 @@
       "method": "render3TierPrompt",
       "startLine": 26,
       "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/templates/task-body-renderer.js",
-      "method": "renderTaskBody",
-      "startLine": 27,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/templates/task-body-renderer.js",
-      "method": "renderOrchestratorFooter",
-      "startLine": 66,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/templates/task-body-renderer.js",
-      "method": "composeTaskBody",
-      "startLine": 101,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/templates/task-body-renderer.js",
-      "method": "hasStructuredHeader",
-      "startLine": 124,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/templates/task-body-renderer.js",
-      "method": "stripOrchestratorFooter",
-      "startLine": 151,
-      "crap": 4.916
     },
     {
       "path": ".agents/scripts/lib/test-env.js",
