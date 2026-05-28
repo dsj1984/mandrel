@@ -30,8 +30,11 @@ test('manifest-renderer: renders simple manifest', () => {
 
   // Verify Wave Header and Table Structure
   assert.ok(output.includes('## Wave Summary'), 'Missing waves section');
+  // Story #3194 (Epic #3163) dropped the Tasks column; helpers now tally
+  // Story-tier counts only. Story #3196 will pivot the per-wave H2 body
+  // off Task-tier counts in turn.
   assert.ok(
-    output.includes('| Wave | Status | Stories | Tasks |'),
+    output.includes('| Wave | Status | Stories |'),
     'Missing wave summary table header',
   );
   assert.ok(output.includes('Wave 1'), 'Missing wave row data');
