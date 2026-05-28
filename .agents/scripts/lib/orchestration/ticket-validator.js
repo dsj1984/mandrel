@@ -3,6 +3,7 @@ import { detectCycle } from '../Graph.js';
 import { gitSpawn } from '../git-utils.js';
 
 import { Logger } from '../Logger.js';
+import { parse as parseStoryBody } from '../story-body/story-body.js';
 import { validateStoryFileAssumptions } from './file-assumptions.js';
 import {
   computeConflictFindings,
@@ -76,24 +77,21 @@ function collectTaskPathReferences(task) {
  * touched) from the planner's perspective, so the freshness gate must
  * accept them even when they're absent from `baseBranchRef`.
  *
- * Two shapes are accepted:
+ * Three shapes are accepted:
  *
- * 1. **Legacy string bullets** — `"<path>: <verb> <object>"`. The
- *    surrounding regex `FRESHNESS_PATH_RE` picks the path out of the
- *    prose. Object-form entries that fall through `String(item)` would
- *    stringify to `"[object Object]"` and silently match nothing, so
- *    the regex path is gated to actual strings.
- * 2. **Object form** — `{ path: "<path>", assumption: "creates" | ... }`,
+ * 1. **Canonical string body** — the body is a markdown string produced by
+ *    `serialize()` from `story-body.js`. Parsed via `parse()` to extract
+ *    the structured `changes[]` and `references[]` arrays. This is the
+ *    shape emitted by the decomposer after Story #3302.
+ * 2. **Legacy string bullets** — `"<path>: <verb> <object>"` inside an
+ *    object body's `changes[]`. The regex `FRESHNESS_PATH_RE` picks the
+ *    path out of the prose.
+ * 3. **Object form** — `{ path: "<path>", assumption: "creates" | ... }`,
  *    introduced by Story #2636 as the canonical declaration shape and
  *    documented in `epic-plan-decompose-author/SKILL.md`. The path is
- *    trusted verbatim. Sibling shape `body.references[]` carries the
- *    same `{ path, assumption: "exists" }` form for read-only deps and
- *    is unioned in here too, since a path declared as a read-dependency
- *    by the planner is also "intentional" from the freshness gate's
- *    perspective and should not be flagged when it appears in goal /
- *    verify text.
+ *    trusted verbatim.
  *
- * Only `body.changes` (and now `body.references`) is consulted —
+ * Only `body.changes` (and `body.references`) is consulted —
  * `body.goal`, `body.acceptance`, and `body.verify` are deliberately
  * excluded so the gate continues to flag a planner that hallucinates a
  * fictitious file in narrative copy without declaring it in the
@@ -102,6 +100,40 @@ function collectTaskPathReferences(task) {
 function collectTaskChangesPaths(task) {
   const paths = new Set();
   const body = task.body;
+
+  // Story #3302: when the body is a markdown string (canonical serialized
+  // form), parse it to extract the structured changes[] / references[]
+  // arrays before scanning. Without this, a string body causes the
+  // object-form branch below to fall through on every item, leaving the
+  // freshness gate blind to declared paths.
+  if (typeof body === 'string' && body.trim().length > 0) {
+    let parsed;
+    try {
+      parsed = parseStoryBody(body).body;
+    } catch {
+      // Unparseable body — no paths to whitelist; the freshness gate will
+      // catch any real references in the text scan below.
+      return paths;
+    }
+    for (const arrName of ['changes', 'references']) {
+      const arr = parsed[arrName];
+      if (!Array.isArray(arr)) continue;
+      for (const item of arr) {
+        if (typeof item === 'string') {
+          collectPathsFromText(item, paths);
+        } else if (
+          item !== null &&
+          typeof item === 'object' &&
+          typeof item.path === 'string' &&
+          item.path.length > 0
+        ) {
+          paths.add(item.path);
+        }
+      }
+    }
+    return paths;
+  }
+
   if (body === null || typeof body !== 'object') return paths;
   for (const arrName of ['changes', 'references']) {
     const arr = body[arrName];

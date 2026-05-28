@@ -120,9 +120,15 @@ Stdout is one JSON envelope:
   resolved.
 - **`waves` empty** → STOP. Zero Stories resolved — report and exit.
 
-### 1b. Operator confirmation (skipped with `--yes`)
+### 1b. Operator confirmation (skipped with `--yes` or for single-story plans)
 
-Present the wave plan to the operator in a readable table:
+**Auto-skip rule (Story #3302):** When `waves.length === 1` and
+`waves[0].stories.length === 1`, skip the confirmation prompt
+automatically and proceed. A single-Story plan has no ordering ambiguity
+and no meaningful operator decision to make — the plan *is* "deliver this
+one Story". Prompting for confirmation would just be friction.
+
+Otherwise, present the wave plan to the operator in a readable table:
 
 ```text
 Wave plan — 3 Stories across 2 waves
@@ -134,7 +140,8 @@ Proceed? [Y/n]
 
 Wait for the operator to confirm before dispatching. When the operator
 types `n` or `N`, abort cleanly with a summary of the plan that was
-declined. When `--yes` was passed, skip this step and proceed.
+declined. When `--yes` was passed, skip this step and proceed regardless
+of wave count.
 
 ---
 

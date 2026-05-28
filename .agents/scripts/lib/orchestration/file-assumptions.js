@@ -27,6 +27,7 @@
  */
 
 import { gitSpawn } from '../git-utils.js';
+import { parse as parseStoryBody } from '../story-body/story-body.js';
 import {
   FILE_ASSUMPTION_VALUES,
   isObjectPathEntry,
@@ -67,9 +68,28 @@ function defaultGitRunner({ baseBranchRef, path, cwd }) {
 export function collectStoryAssumptionEntries(story) {
   const out = [];
   const body = story?.body;
-  if (body === null || typeof body !== 'object') return out;
-  if (Array.isArray(body.changes)) {
-    for (const entry of body.changes) {
+
+  // Story #3302: when the body is a markdown string (canonical serialized
+  // form emitted by `serialize()` from story-body.js), parse it first to
+  // extract the structured changes[] / references[] arrays. Without this,
+  // every story with a string body would be treated as the legacy case
+  // (no object-form entries) and the assumption gate would silently no-op.
+  let structuredBody;
+  if (typeof body === 'string' && body.trim().length > 0) {
+    try {
+      structuredBody = parseStoryBody(body).body;
+    } catch {
+      // Unparseable body — treat as legacy (no assumptions to check).
+      return out;
+    }
+  } else if (body !== null && typeof body === 'object') {
+    structuredBody = body;
+  } else {
+    return out;
+  }
+
+  if (Array.isArray(structuredBody.changes)) {
+    for (const entry of structuredBody.changes) {
       if (isObjectPathEntry(entry)) {
         out.push({
           path: entry.path,
@@ -79,8 +99,8 @@ export function collectStoryAssumptionEntries(story) {
       }
     }
   }
-  if (Array.isArray(body.references)) {
-    for (const entry of body.references) {
+  if (Array.isArray(structuredBody.references)) {
+    for (const entry of structuredBody.references) {
       if (isObjectPathEntry(entry)) {
         out.push({
           path: entry.path,

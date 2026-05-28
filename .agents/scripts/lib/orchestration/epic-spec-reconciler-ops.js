@@ -4,6 +4,15 @@
  * lib/orchestration/epic-spec-reconciler-ops.js — operation types + plan shape
  * for the epic-spec reconciler diff engine.
  *
+ * Story #3302: `createOp` must serialize object bodies via `story-body.js`
+ * rather than blind-coercing them with `String()`. See `createOp` for the
+ * serialize-or-throw contract.
+ *
+ * Import note: the `/* node:coverage ignore file *​/` comment at the top of
+ * this module covers the entire file. The serialize-or-throw guard in
+ * `createOp` is the only branch; it is exercised by
+ * `tests/story-3302-body-shape.test.js`.
+ *
  * Owns the typed shapes that flow through the structural reconciler (Epic
  * #1182 / Tech Spec #1483 / Story #1492). The diff engine produces these
  * shapes from `(spec, state, ghState)`; the apply engine consumes them.
@@ -94,6 +103,8 @@
  * @property {RelinkOp[]} relinks
  */
 
+import { StoryBodyParseError, serialize } from '../story-body/story-body.js';
+
 /** Operation kind discriminator values. Exported for use by tests + apply. */
 export const OP_KINDS = Object.freeze({
   CREATE: 'create',
@@ -158,7 +169,29 @@ export function createOp(input) {
     entity: requireEntity(input?.entity),
     title: String(input?.title ?? ''),
   };
-  if (input.body !== undefined) op.body = String(input.body);
+  if (input.body !== undefined) {
+    // Story #3302: never blind-coerce body with String(). An object body
+    // must be serialized via story-body.js so the caller gets the canonical
+    // markdown string rather than "[object Object]". A non-string,
+    // non-object value is still coerced (e.g. null, undefined are already
+    // gated above by the `!== undefined` check at this branch's entrance).
+    const rawBody = input.body;
+    if (rawBody !== null && typeof rawBody === 'object') {
+      try {
+        op.body = serialize(rawBody);
+      } catch (err) {
+        // Re-throw with extra context so callers know which op triggered
+        // the serialization failure. StoryBodyParseError is already
+        // informative; any other error gets wrapped.
+        throw new StoryBodyParseError(
+          `createOp: body for slug "${input?.slug}" is an object but could not be serialized: ${err.message}`,
+          { field: 'body', raw: JSON.stringify(rawBody).slice(0, 200) },
+        );
+      }
+    } else {
+      op.body = String(rawBody);
+    }
+  }
   if (input.labels !== undefined) op.labels = [...input.labels].sort();
   if (input.parentSlug !== undefined) op.parentSlug = String(input.parentSlug);
   if (input.dependsOn !== undefined) op.dependsOn = [...input.dependsOn].sort();
