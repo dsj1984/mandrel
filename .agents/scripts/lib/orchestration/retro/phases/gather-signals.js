@@ -121,15 +121,16 @@ async function warnIfEpicLooksPopulated({ epicId, provider, logger }) {
  * `logger` so the silent failure becomes visible. Probe failure degrades
  * gracefully — the function never throws on the guard alone.
  *
- * **3-tier ledgers (Story #3151).** Under the 3-tier hierarchy
- * (Epic → Feature → Story; no `type::task` children), `tasks` resolves
- * to an empty array and the task-derived counts (`hotfixes`, `hitl`)
- * settle at zero. `friction` / `parked` / `recuts` / `storyPerfSummaries`
- * are all Story-scoped, so the function continues to produce a non-empty
- * signals report. The empty-walk guard above is **not** triggered for
- * this shape because `descendants` is populated (it contains the
- * Stories themselves); the guard fires only when the walker returned
- * literally nothing under a body that references children.
+ * **3-tier ledgers (Story #3151, Story #3200).** Under the 3-tier
+ * hierarchy (Epic → Feature → Story; no Task-tier children), `tasks`
+ * is always the empty array and the task-derived counts (`hotfixes`,
+ * `hitl`) settle at zero. `friction` / `parked` / `recuts` /
+ * `storyPerfSummaries` are all Story-scoped, so the function continues
+ * to produce a non-empty signals report. The empty-walk guard above
+ * is **not** triggered for this shape because `descendants` is
+ * populated (it contains the Stories themselves); the guard fires
+ * only when the walker returned literally nothing under a body that
+ * references children.
  *
  * @returns {Promise<{
  *   stories: Array<{ id: number, body?: string, labels?: string[] }>,
@@ -156,16 +157,13 @@ export async function gatherRetroSignals({
   const stories = descendants.filter((t) =>
     (t.labels ?? []).includes(TYPE_LABELS.STORY),
   );
-  const tasks = descendants.filter((t) =>
-    (t.labels ?? []).includes('type::task'),
-  );
-
-  // Hotfix count: tasks that ever flipped to status::blocked. The label
-  // set on the closed Task is the cheapest signal (history would require
-  // event log access).
-  const hotfixes = tasks.filter((t) =>
-    (t.labels ?? []).includes('status::blocked'),
-  ).length;
+  // 3-tier (Epic → Feature → Story): no Task-tier descendants exist,
+  // so `tasks` is always empty and `hotfixes` (which was Task-derived
+  // from `status::blocked`) is always zero. Kept as a stable field on
+  // the returned envelope so downstream consumers and tests that
+  // splice over `[...stories, ...tasks]` remain well-typed.
+  const tasks = [];
+  const hotfixes = 0;
 
   // HITL count: distinct descendants that currently or historically carry
   // `agent::blocked`. We can only see "currently" here without an event
