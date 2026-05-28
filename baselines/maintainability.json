@@ -4128,7 +4128,7 @@
     },
     {
       "path": "tests/lib/resolve-and-dispatch-guard.test.js",
-      "mi": 120.885
+      "mi": 114.079
     },
     {
       "path": "tests/lib/retro-heuristics.test.js",
