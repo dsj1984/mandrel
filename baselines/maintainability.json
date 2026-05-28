@@ -1,10 +1,10 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T17:54:26.660Z",
+  "generatedAt": "2026-05-28T18:20:39.398Z",
   "rollup": {
     "*": {
-      "min": 62.385,
+      "min": 66.537,
       "p50": 103.683,
       "p95": 121.479
     }
@@ -2077,10 +2077,6 @@
     {
       "path": ".agents/scripts/signals-view.js",
       "mi": 93.522
-    },
-    {
-      "path": ".agents/scripts/single-story-close.js",
-      "mi": 62.385
     },
     {
       "path": ".agents/scripts/single-story-init.js",
