@@ -33,7 +33,10 @@ clean run; otherwise it falls back to the operator-merges-button path.
 ```
 
 The argument is always an Epic ID (`type::epic`). Story IDs go to
-[`/story-deliver`](story-deliver.md); Tasks are not directly executable.
+[`/story-deliver`](story-deliver.md) (standalone) or the
+[`helpers/epic-deliver-story`](helpers/epic-deliver-story.md) helper
+(Epic-attached, invoked by this workflow's fan-out); Tasks are not directly
+executable.
 Story dispatch is in-session via the Agent tool — no subprocess is
 spawned.
 
@@ -46,7 +49,7 @@ spawned.
 ```
 
 - `epicId` — must carry `type::epic`. Otherwise STOP and tell the operator
-  to use `/story-deliver <id>` or open the parent Epic.
+  to use `/story-deliver <id>` (standalone Story) or open the parent Epic.
 - `--skip-epic-audit` — skip Phase 4 (log the override). Use only when the
   change-set audits are known to be irrelevant (e.g., docs-only Epic).
 - `--skip-code-review` — skip Phase 5 (log the override).
@@ -93,7 +96,8 @@ Every other runtime modifier is sourced from the Epic's labels or from
 > Story per wave (§ 2b); Story branches merge into `epic/<id>` with
 > `--no-ff` via `story-close.js`; the close-validation chain
 > (Phase 3), epic-audit, code-review, retro, finalize, and auto-merge
-> gates all operate on Story-level units. `/story-deliver` runs a
+> gates all operate on Story-level units.
+> [`helpers/epic-deliver-story`](helpers/epic-deliver-story.md) runs a
 > single Story-implementation phase per Story against the Story's
 > inline `acceptance[]` / `verify[]` fields. See
 > [`.agents/instructions.md` § 5.D](../instructions.md) and
@@ -207,10 +211,11 @@ renders them in the span-tree view when needed.
 ### 2b. Dispatch — fan out per-Story Agent calls
 
 *You* (the LLM running this skill) are the wave dispatcher; you never
-invoke `/story-deliver` yourself. Emit **one `Agent` tool call per
+invoke `helpers/epic-deliver-story` yourself. Emit **one `Agent` tool call per
 Story** in `nextAction.stories` (even when `length === 1` — the
 parent-child boundary keeps the return-parser uniform). The *children*
-run `/story-deliver`. Use `subagent_type: general-purpose`.
+run [`helpers/epic-deliver-story`](helpers/epic-deliver-story.md). Use
+`subagent_type: general-purpose`.
 
 Emit **one assistant turn** with **N parallel `Agent` calls** where
 `N === min(nextAction.stories.length, concurrencyCap)`. When the wave
@@ -242,7 +247,7 @@ NDJSON line to `temp/epic-<epicId>/lifecycle.ndjson`; the matching
 after the Agent return is recorded in § 2c.
 
 Each Agent call's prompt must (1) name the Story + Epic ids, (2)
-instruct the child to invoke `/story-deliver <storyId>`, (3) state the
+instruct the child to invoke `helpers/epic-deliver-story <storyId>`, (3) state the
 **return contract** below, (4) remind the child of the
 **non-interactive contract** (no clarifying questions; transition to
 `agent::blocked` and exit if stuck), (5) ask the child to suppress
@@ -705,7 +710,7 @@ fallback is tracked as follow-up to Story #2398.
 ## Idempotence and resume
 
 Re-runs pick up at the next undispatched wave (in-flight Stories finish
-via `/story-deliver`'s own checkpointing). The PR from Phase 7 is
+via `helpers/epic-deliver-story`'s own checkpointing). The PR from Phase 7 is
 updated in place on subsequent runs. The authoritative live view is
 the `epic-run-progress` structured comment.
 
@@ -717,8 +722,8 @@ the `epic-run-progress` structured comment.
 - **Never** dispatch more than one wave at a time; concurrency lives
   inside a single wave's fan-out, capped at `concurrencyCap`.
 - **Never** flip Story-level labels from this skill; **never** invoke
-  `/story-deliver` yourself (children run it via Agent fan-out, even
-  for single-Story waves); **never** spawn a subprocess for dispatch.
+  `helpers/epic-deliver-story` yourself (children run it via Agent fan-out,
+  even for single-Story waves); **never** spawn a subprocess for dispatch.
 - **Always** checkpoint via `epic-deliver-prepare.js` /
   `epic-execute-record-wave.js`; never write run state elsewhere.
 - **Always** post a friction structured comment before a non-`complete`
