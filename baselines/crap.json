@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T01:05:23.566Z",
+  "generatedAt": "2026-05-28T01:11:31.983Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -11974,18 +11974,6 @@
       "method": "postParkedFollowOnsComment",
       "startLine": 134,
       "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-story-views.js",
-      "method": "formatStoryManifestMarkdown",
-      "startLine": 31,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-story-views.js",
-      "method": "printStoryDispatchTable",
-      "startLine": 92,
-      "crap": 6
     },
     {
       "path": ".agents/scripts/lib/provider-factory.js",

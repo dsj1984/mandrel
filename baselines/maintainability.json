@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T01:05:23.190Z",
+  "generatedAt": "2026-05-28T01:11:31.698Z",
   "rollup": {
     "*": {
       "min": 38.161,
-      "p50": 103.762,
+      "p50": 103.804,
       "p95": 121.479
     }
   },
@@ -1641,10 +1641,6 @@
     {
       "path": ".agents/scripts/lib/presentation/manifest-renderer.js",
       "mi": 104.55
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-story-views.js",
-      "mi": 97.894
     },
     {
       "path": ".agents/scripts/lib/provider-factory.js",
