@@ -151,7 +151,7 @@ fact so downstream code does not have to guess.
 | --------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
 | GitHub labels                     | `transitionTicketState` via `ticketing.js`                                                       | `gh issue edit --add-label / --remove-label`, wrapped in `update-ticket-state.js`                              | `(ticketId, label-set)` — set-equality check before write                      | Authoritative for current ticket lifecycle state; if the label disagrees with the lifecycle ledger, the **ledger wins on resume** and the label is re-derived. |
 | `epic-run-state` comment          | `checkpointer` submodule in the Epic Deliver Runner                                              | `post-structured-comment.js` (upsert by `kind`)                                                                | `(epicId, kind='epic-run-state')`                                              | Operator-visible rollup of phase progress; on conflict with the lifecycle ledger, the ledger is authoritative and the comment is re-rendered. |
-| `story-run-progress` comment      | `story-task-progress.js` (per Story, per Task transition)                                        | `post-structured-comment.js` (upsert by `kind`)                                                                | `(storyId, kind='story-run-progress')`                                         | Authoritative for Story-level task table; the wave aggregator reads this comment, not labels.                                       |
+| `story-run-progress` comment      | `story-phase.js` (per Story, per phase transition)                                               | `post-structured-comment.js` (upsert by `kind`)                                                                | `(storyId, kind='story-run-progress')`                                         | Authoritative for Story-level phase progress; the wave aggregator reads this comment, not labels.                                   |
 | Lifecycle ledger NDJSON           | `lifecycle-emit.js` (single append-only writer per Epic run)                                     | Append-only line write to `temp/epic-<id>/lifecycle.ndjson`                                                    | `(epicId, eventId)` — `eventId` is a content hash of `{type, ts, payload}`     | **Canonical resume target.** When labels / comments disagree with the ledger, the ledger wins and the others are re-derived from it. |
 | Validation evidence cache         | `evidence-gate.js`                                                                               | JSON cache file under `temp/epic-<id>/evidence/<gate>/<sha>.json`                                              | `(gate, git rev-parse HEAD)`                                                   | Pure cache: a missing entry triggers a re-run; presence is a fast-path skip. Cache eviction is safe.                                |
 | PR / auto-merge state             | `AutomergeArmer` listener (sole authorized caller of `gh pr merge`)                              | `gh pr merge --auto --squash --delete-branch`; PR open via `openOrLocatePr` in `Finalizer`                     | `(prNumber, head-branch SHA)` — `gh pr view` probes existing PR before create  | GitHub is authoritative for PR + auto-merge arming state; the lifecycle ledger records the _intent_ to arm, GitHub records the outcome.   |
@@ -534,14 +534,18 @@ Whether the Story is launched directly by the operator or fanned out by
    - Syncs the Epic base branch with `main`.
    - Creates or seeds the Story branch (in a worktree when
      `delivery.worktreeIsolation.enabled: true`).
-   - Transitions the Story to `agent::executing` (child Tasks start in
-     the `/story-deliver` loop via `story-task-progress.js`).
-2. **Task implementation.** The agent executes each Task sequentially on the
-   shared Story branch, committing after each Task completion.
+   - Transitions the Story to `agent::executing`. `story-phase.js`
+     upserts the initial `story-run-progress` snapshot at the `init`
+     phase.
+2. **Story implementation.** The agent executes the Story's inline
+   `acceptance[]` / `verify[]` contract on the shared Story branch,
+   authoring one or more commits referencing the parent Story via
+   `(refs #<storyId>)`. Each phase transition (`implementing`,
+   `closing`, `done`, `blocked`) is recorded via `story-phase.js`.
 3. **Closure** (`story-close.js`):
    - Runs shift-left validation (lint, format, test).
    - Merges the Story branch into `epic/<epicId>`.
-   - Transitions Tasks → `agent::done`; cascades up Task → Story → Feature
+   - Transitions the Story → `agent::done`; cascades up Story → Feature
      (Epics and context tickets are excluded from auto-cascade).
    - Reaps the Story worktree and cleans up the merged Story branch.
 
