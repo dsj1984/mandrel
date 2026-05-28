@@ -195,16 +195,6 @@ export function renderTree(tree, opts = {}) {
       `  Story ${label}  ${formatDuration(story.durationMs)}  ` +
         `[${story.startedAt ?? '?'} → ${story.endedAt ?? '?'}]`,
     );
-    for (const task of story.tasks) {
-      const tlabel = task.id == null ? '(no task id)' : `#${task.id}`;
-      println(
-        `    Task ${tlabel}  ${formatDuration(task.durationMs)}  ` +
-          `(${task.events.length} event${task.events.length === 1 ? '' : 's'})`,
-      );
-      for (const evt of task.events) {
-        println(`      ${describeEvent(evt)}`);
-      }
-    }
     if (story.events.length > 0) {
       println(
         `    (${story.events.length} story-level event${story.events.length === 1 ? '' : 's'})`,
