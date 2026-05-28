@@ -104,28 +104,37 @@ function extractChangeBulletPath(bullet) {
   return head;
 }
 
-function storySlugOf(task) {
-  return task.parent_slug;
+/**
+ * Resolve the Story-identifying slug for a 3-tier Story. A Story is its
+ * own implementation unit (Epic #3238) — there is no parent Task — so the
+ * producer/consumer indices key on the Story's own `slug`.
+ */
+function storySlugOf(story) {
+  return story.slug;
 }
 
 /**
  * Build the producers index — `Map<path, Array<{storySlug, taskSlug}>>` —
- * by walking every Task's `body.changes` array. Paths are extracted from
+ * by walking every Story's `body.changes` array. Paths are extracted from
  * the colon-split head; bullets without a path-shaped head are skipped.
+ *
+ * `taskSlug` is retained in the entry shape for finding/render
+ * compatibility; in the 3-tier model it carries the Story's own slug since
+ * the Story is the implementation unit.
  */
-function indexProducers(tasks) {
+function indexProducers(stories) {
   const producers = new Map();
-  for (const task of tasks) {
-    const body = task.body;
+  for (const story of stories) {
+    const body = story.body;
     if (!body || typeof body !== 'object') continue;
     const changes = Array.isArray(body.changes) ? body.changes : [];
-    const seenInTask = new Set();
+    const seenInStory = new Set();
     for (const bullet of changes) {
       const path = extractChangeBulletPath(bullet);
       if (!path) continue;
-      if (seenInTask.has(path)) continue;
-      seenInTask.add(path);
-      const entry = { storySlug: storySlugOf(task), taskSlug: task.slug };
+      if (seenInStory.has(path)) continue;
+      seenInStory.add(path);
+      const entry = { storySlug: storySlugOf(story), taskSlug: story.slug };
       const existing = producers.get(path);
       if (existing) existing.push(entry);
       else producers.set(path, [entry]);
@@ -142,17 +151,17 @@ function indexProducers(tasks) {
  * paths are matched (intersect-then-test), so free-text path-like tokens
  * that no one writes never produce false positives.
  *
- * A Task is not its own consumer — entries whose producer is the same Task
- * are skipped to keep the surface focused on cross-Task signal.
+ * A Story is not its own consumer — entries whose producer is the same
+ * Story are skipped to keep the surface focused on cross-Story signal.
  */
-function indexConsumers(tasks, producers) {
+function indexConsumers(stories, producers) {
   const consumers = [];
   if (producers.size === 0) return consumers;
   const producerPaths = Array.from(producers.keys()).sort(
     (a, b) => b.length - a.length,
   );
-  for (const task of tasks) {
-    const body = task.body;
+  for (const story of stories) {
+    const body = story.body;
     if (!body || typeof body !== 'object') continue;
     for (const sourceField of ['acceptance', 'verify']) {
       const items = Array.isArray(body[sourceField]) ? body[sourceField] : [];
@@ -161,11 +170,11 @@ function indexConsumers(tasks, producers) {
       for (const path of producerPaths) {
         if (!joined.includes(path)) continue;
         const producerEntries = producers.get(path) ?? [];
-        if (producerEntries.some((p) => p.taskSlug === task.slug)) continue;
+        if (producerEntries.some((p) => p.taskSlug === story.slug)) continue;
         consumers.push({
           path,
-          storySlug: storySlugOf(task),
-          taskSlug: task.slug,
+          storySlug: storySlugOf(story),
+          taskSlug: story.slug,
           sourceField,
         });
       }
@@ -286,10 +295,10 @@ function computeImplicitDepFindings(consumers, producers, reach, severity) {
  * along with its parent Task/Story so the registry-and-fan-out passes can
  * reason about creates/deletes without re-walking the ticket array.
  */
-function indexAssumptionEntries(tasks) {
+function indexAssumptionEntries(stories) {
   const entries = [];
-  for (const task of tasks) {
-    const body = task?.body;
+  for (const story of stories) {
+    const body = story?.body;
     if (!body || typeof body !== 'object') continue;
     const changes = Array.isArray(body.changes) ? body.changes : [];
     for (const change of changes) {
@@ -303,8 +312,8 @@ function indexAssumptionEntries(tasks) {
       entries.push({
         path: change.path,
         assumption: change.assumption ?? null,
-        storySlug: storySlugOf(task),
-        taskSlug: task.slug,
+        storySlug: storySlugOf(story),
+        taskSlug: story.slug,
       });
     }
   }
@@ -327,7 +336,7 @@ function indexAssumptionEntries(tasks) {
  * registry path.
  */
 function computeRegistryFindings({
-  tasks,
+  stories,
   reach,
   patterns,
   producers,
@@ -374,8 +383,8 @@ function computeRegistryFindings({
   // A registry path's parent dir defines its "registration scope" — any
   // new file in that scope is a wiring candidate.
   const scopeByRegistry = new Map();
-  for (const task of tasks) {
-    const body = task?.body;
+  for (const story of stories) {
+    const body = story?.body;
     if (!body || typeof body !== 'object') continue;
     for (const change of body.changes ?? []) {
       if (
@@ -395,8 +404,8 @@ function computeRegistryFindings({
       )) {
         if (reg.parentDir !== childParent) continue;
         bump(reg.path, {
-          storySlug: storySlugOf(task),
-          taskSlug: task.slug,
+          storySlug: storySlugOf(story),
+          taskSlug: story.slug,
           path: change.path,
           reason: 'creates-sibling',
         });
@@ -518,7 +527,6 @@ function computeFanOutFindings({
  * trigger re-decompose) or `'hard'` (rendered into `errors[]`).
  *
  * @param {object}    input
- * @param {object[]}  input.tasks
  * @param {object[]}  input.stories
  * @param {object}    [input.policy]
  * @param {boolean}   [input.policy.failOnSharedEditors=false]
@@ -530,13 +538,13 @@ function computeFanOutFindings({
  * @param {(arg: { path: string }) => number} [input.policy.fanOutCounter] Optional probe; when omitted the fan-out pass is skipped.
  * @returns {ConflictFinding[]}
  */
-export function computeConflictFindings({ tasks, stories, policy } = {}) {
+export function computeConflictFindings({ stories, policy } = {}) {
   const merged = { ...DEFAULT_POLICY, ...(policy ?? {}) };
-  const taskList = tasks ?? [];
-  const producers = indexProducers(taskList);
-  const consumers = indexConsumers(taskList, producers);
-  const reach = computeStoryReachability(stories ?? []);
-  const assumptionEntries = indexAssumptionEntries(taskList);
+  const storyList = stories ?? [];
+  const producers = indexProducers(storyList);
+  const consumers = indexConsumers(storyList, producers);
+  const reach = computeStoryReachability(storyList);
+  const assumptionEntries = indexAssumptionEntries(storyList);
   const sharedSeverity = merged.failOnSharedEditors ? 'hard' : 'soft';
   const implicitSeverity = merged.requireExplicitCrossStoryDeps
     ? 'hard'
@@ -556,7 +564,7 @@ export function computeConflictFindings({ tasks, stories, policy } = {}) {
       implicitSeverity,
     ),
     ...computeRegistryFindings({
-      tasks: taskList,
+      stories: storyList,
       reach,
       patterns,
       producers,

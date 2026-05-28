@@ -191,24 +191,17 @@ function buildFixtureTickets() {
       slug: 'story-one',
       type: 'story',
       title: 'Story One',
-      body: 'story body',
       labels: ['type::story'],
       parent_slug: 'feature-a',
       depends_on: [],
-    },
-    {
-      slug: 'task-one',
-      type: 'task',
-      title: 'Task One',
+      acceptance: ['done'],
+      verify: ['npm test (unit)'],
       body: {
         goal: 'do thing',
         changes: ['package.json: change a thing'],
         acceptance: ['done'],
-        verify: ['npm test'],
+        verify: ['npm test (unit)'],
       },
-      labels: ['type::task'],
-      parent_slug: 'story-one',
-      depends_on: [],
     },
   ];
 }

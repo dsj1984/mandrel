@@ -14,15 +14,16 @@ import {
  *
  *   (a) two Stories writing the same path in the same wave → shared-editor finding
  *   (b) two Stories writing the same path in serial waves   → no finding
- *   (c) consumer Task references producer's output path     → implicit-cross-story-dep finding
+ *   (c) consumer Story references producer's output path    → implicit-cross-story-dep finding
  *   (d) consumer Story has transitive depends_on to producer → no finding
  *   (e) flag upgrade path rejects on finding                → severity 'hard' + errors[] populated
  *
- * Fixtures use the minimal hierarchy the validator accepts: one Feature,
- * two Stories with one Task each (plus extras as needed). The conflict
- * pass is exercised through `validateAndNormalizeTickets` end-to-end so
- * the integration surface (findings + errors stitched onto the array)
- * is also covered.
+ * 3-tier (Epic #3238): each Story is its own implementation unit and
+ * carries the `body` (goal / changes / acceptance / verify) that the
+ * conflict pass scans, plus the top-level `acceptance[]` + `verify[]`
+ * inline contract the validator requires. The conflict pass is exercised
+ * through `validateAndNormalizeTickets` end-to-end so the integration
+ * surface (findings + errors stitched onto the array) is also covered.
  */
 
 const FEATURE = Object.freeze({
@@ -31,22 +32,14 @@ const FEATURE = Object.freeze({
   title: 'Conflict fixtures',
 });
 
-function makeStory(slug, extras = {}) {
+function makeStory(slug, body = {}, extras = {}) {
   return {
     type: 'story',
     slug,
     parent_slug: 'f-conf',
     title: `Story ${slug}`,
-    ...extras,
-  };
-}
-
-function makeTask(slug, parentSlug, body, extras = {}) {
-  return {
-    type: 'task',
-    slug,
-    parent_slug: parentSlug,
-    title: `Task ${slug}`,
+    acceptance: ['observable criterion'],
+    verify: ['npm test (unit)'],
     body: {
       goal: `Goal for ${slug}.`,
       changes: ['src/default.js: edit'],
@@ -65,12 +58,10 @@ function makeTask(slug, parentSlug, body, extras = {}) {
 test('emits shared-editor finding when two Stories in the same wave write the same path', () => {
   const tickets = [
     FEATURE,
-    makeStory('s-a'),
-    makeStory('s-b'),
-    makeTask('t-a', 's-a', {
+    makeStory('s-a', {
       changes: ['.github/workflows/quality.yml: tighten lint job'],
     }),
-    makeTask('t-b', 's-b', {
+    makeStory('s-b', {
       changes: ['.github/workflows/quality.yml: add coverage gate'],
     }),
   ];
@@ -90,14 +81,14 @@ test('emits shared-editor finding when two Stories in the same wave write the sa
 test('does not emit shared-editor finding when depends_on serialises the writers', () => {
   const tickets = [
     FEATURE,
-    makeStory('s-a'),
-    makeStory('s-b', { depends_on: ['s-a'] }),
-    makeTask('t-a', 's-a', {
+    makeStory('s-a', {
       changes: ['.github/workflows/quality.yml: tighten lint job'],
     }),
-    makeTask('t-b', 's-b', {
-      changes: ['.github/workflows/quality.yml: add coverage gate'],
-    }),
+    makeStory(
+      's-b',
+      { changes: ['.github/workflows/quality.yml: add coverage gate'] },
+      { depends_on: ['s-a'] },
+    ),
   ];
   const result = validateAndNormalizeTickets(tickets);
   const shared = result.findings.filter((f) => f.kind === 'shared-editor');
@@ -108,17 +99,15 @@ test('does not emit shared-editor finding when depends_on serialises the writers
 // (c) — implicit-cross-story-dep: consumer references producer's output path
 // ---------------------------------------------------------------------------
 
-test("emits implicit-cross-story-dep when a Task verifies against another Story's declared path", () => {
+test("emits implicit-cross-story-dep when a Story verifies against another Story's declared path", () => {
   const tickets = [
     FEATURE,
-    makeStory('s-producer'),
-    makeStory('s-consumer'),
-    makeTask('t-producer', 's-producer', {
+    makeStory('s-producer', {
       changes: [
         '.agents/schemas/baselines/coverage.schema.json: introduce schema',
       ],
     }),
-    makeTask('t-consumer', 's-consumer', {
+    makeStory('s-consumer', {
       changes: ['src/consumer.js: read schema'],
       verify: [
         'ajv validate -s .agents/schemas/baselines/coverage.schema.json',
@@ -147,23 +136,26 @@ test("emits implicit-cross-story-dep when a Task verifies against another Story'
 test('does not emit implicit-cross-story-dep when consumer Story transitively depends on producer', () => {
   const tickets = [
     FEATURE,
-    makeStory('s-producer'),
-    makeStory('s-intermediate', { depends_on: ['s-producer'] }),
-    makeStory('s-consumer', { depends_on: ['s-intermediate'] }),
-    makeTask('t-producer', 's-producer', {
+    makeStory('s-producer', {
       changes: [
         '.agents/schemas/baselines/coverage.schema.json: introduce schema',
       ],
     }),
-    makeTask('t-mid', 's-intermediate', {
-      changes: ['src/mid.js: pass-through'],
-    }),
-    makeTask('t-consumer', 's-consumer', {
-      changes: ['src/consumer.js: read schema'],
-      verify: [
-        'ajv validate -s .agents/schemas/baselines/coverage.schema.json',
-      ],
-    }),
+    makeStory(
+      's-intermediate',
+      { changes: ['src/mid.js: pass-through'] },
+      { depends_on: ['s-producer'] },
+    ),
+    makeStory(
+      's-consumer',
+      {
+        changes: ['src/consumer.js: read schema'],
+        verify: [
+          'ajv validate -s .agents/schemas/baselines/coverage.schema.json',
+        ],
+      },
+      { depends_on: ['s-intermediate'] },
+    ),
   ];
   const result = validateAndNormalizeTickets(tickets);
   const implicit = result.findings.filter(
@@ -179,12 +171,10 @@ test('does not emit implicit-cross-story-dep when consumer Story transitively de
 test('failOnSharedEditors=true upgrades shared-editor findings to hard severity', () => {
   const tickets = [
     FEATURE,
-    makeStory('s-a'),
-    makeStory('s-b'),
-    makeTask('t-a', 's-a', {
+    makeStory('s-a', {
       changes: ['.github/workflows/quality.yml: tighten lint job'],
     }),
-    makeTask('t-b', 's-b', {
+    makeStory('s-b', {
       changes: ['.github/workflows/quality.yml: add coverage gate'],
     }),
   ];
@@ -202,14 +192,12 @@ test('failOnSharedEditors=true upgrades shared-editor findings to hard severity'
 test('requireExplicitCrossStoryDeps=true upgrades implicit-cross-story-dep to hard severity', () => {
   const tickets = [
     FEATURE,
-    makeStory('s-producer'),
-    makeStory('s-consumer'),
-    makeTask('t-producer', 's-producer', {
+    makeStory('s-producer', {
       changes: [
         '.agents/schemas/baselines/coverage.schema.json: introduce schema',
       ],
     }),
-    makeTask('t-consumer', 's-consumer', {
+    makeStory('s-consumer', {
       changes: ['src/consumer.js: read schema'],
       verify: [
         'ajv validate -s .agents/schemas/baselines/coverage.schema.json',
@@ -236,10 +224,8 @@ test('requireExplicitCrossStoryDeps=true upgrades implicit-cross-story-dep to ha
 test('emits no conflict findings on a spec with non-overlapping paths', () => {
   const tickets = [
     FEATURE,
-    makeStory('s-a'),
-    makeStory('s-b'),
-    makeTask('t-a', 's-a', { changes: ['src/a.js: edit'] }),
-    makeTask('t-b', 's-b', { changes: ['src/b.js: edit'] }),
+    makeStory('s-a', { changes: ['src/a.js: edit'] }),
+    makeStory('s-b', { changes: ['src/b.js: edit'] }),
   ];
   const result = validateAndNormalizeTickets(tickets);
   const conflict = result.findings.filter(
@@ -255,12 +241,9 @@ test('emits no conflict findings on a spec with non-overlapping paths', () => {
 test('shared-editor cluster surfaces every concurrent writer of the path', () => {
   const tickets = [
     FEATURE,
-    makeStory('s-a'),
-    makeStory('s-b'),
-    makeStory('s-c'),
-    makeTask('t-a', 's-a', { changes: ['package.json: bump deps'] }),
-    makeTask('t-b', 's-b', { changes: ['package.json: add script'] }),
-    makeTask('t-c', 's-c', { changes: ['package.json: edit engines field'] }),
+    makeStory('s-a', { changes: ['package.json: bump deps'] }),
+    makeStory('s-b', { changes: ['package.json: add script'] }),
+    makeStory('s-c', { changes: ['package.json: edit engines field'] }),
   ];
   const result = validateAndNormalizeTickets(tickets);
   const shared = result.findings.filter((f) => f.kind === 'shared-editor');
@@ -299,7 +282,32 @@ test('inSameWave: true only when neither story reaches the other', () => {
 
 test('computeConflictFindings: empty inputs return empty findings', () => {
   assert.deepEqual(computeConflictFindings({}), []);
-  assert.deepEqual(computeConflictFindings({ tasks: [], stories: [] }), []);
+  assert.deepEqual(computeConflictFindings({ stories: [] }), []);
+});
+
+// ---------------------------------------------------------------------------
+// 3-tier guard: a Story missing its inline acceptance + verify contract is
+// rejected before the conflict pass runs (Epic #3238).
+// ---------------------------------------------------------------------------
+
+test('rejects a Story that lacks an inline acceptance + verify contract', () => {
+  const tickets = [
+    FEATURE,
+    {
+      type: 'story',
+      slug: 's-no-contract',
+      parent_slug: 'f-conf',
+      title: 'Story without inline contract',
+      body: {
+        goal: 'Goal.',
+        changes: ['src/x.js: edit'],
+      },
+    },
+  ];
+  assert.throws(
+    () => validateAndNormalizeTickets(tickets),
+    /lack an inline acceptance \+ verify contract/,
+  );
 });
 
 test('renderHardConflictError: produces a remediation hint per finding kind', () => {

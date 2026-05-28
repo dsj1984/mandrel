@@ -16,12 +16,12 @@ function fakeGitRunner(existing) {
   return ({ path }) => set.has(path);
 }
 
-function makeTask(slug, body, extras = {}) {
+function makeStory(slug, body, extras = {}) {
   return {
     slug,
-    type: 'task',
-    title: `Task ${slug}`,
-    parent_slug: 'S1',
+    type: 'story',
+    title: `Story ${slug}`,
+    parent_slug: 'F1',
     body,
     ...extras,
   };
@@ -29,7 +29,7 @@ function makeTask(slug, body, extras = {}) {
 
 test('validateAcFreshness: passes when every referenced path exists at baseBranchRef', () => {
   const tickets = [
-    makeTask('T1', {
+    makeStory('T1', {
       goal: 'Add freshness gate.',
       changes: [
         '.agents/scripts/lib/orchestration/ticket-validator.js: add validator',
@@ -57,7 +57,7 @@ test('validateAcFreshness: throws when a verify path is absent from main AND not
   // declared it in body.changes — so the path is a stale reference, not a
   // net-new file. The freshness gate must still fail.
   const tickets = [
-    makeTask('T1', {
+    makeStory('T1', {
       goal: 'Aggregate phase timings.',
       changes: ['.agents/scripts/some-other-tool.js: edit unrelated'],
       acceptance: ['aggregator emits totals'],
@@ -90,7 +90,7 @@ test('validateAcFreshness: verify path that IS declared in body.changes and abse
   // absent from the base branch tree. The freshness gate must accept it
   // — the planner is creating the file, not hallucinating it.
   const tickets = [
-    makeTask('T1', {
+    makeStory('T1', {
       goal: 'Add freshness regression test.',
       changes: [
         'tests/unit/foo.test.js: cover regression',
@@ -120,7 +120,7 @@ test('validateAcFreshness: net-new path in body.changes skips the git probe enti
   // expected-new set. Proves the skip is path-set membership, not a
   // probe-then-tolerate.
   const tickets = [
-    makeTask('T1', {
+    makeStory('T1', {
       goal: 'Author a brand-new helper plus its test.',
       changes: [
         '.agents/scripts/lib/freshly-authored.js: new helper',
@@ -147,7 +147,7 @@ test('validateAcFreshness: regex bounds — only the three roots are scanned', (
   // Paths that LOOK like code but live outside .agents/scripts, lib/, tests/
   // must NOT trigger the gate. (e.g. docs/, baselines/, image refs, prose.)
   const tickets = [
-    makeTask('T1', {
+    makeStory('T1', {
       goal: 'Update docs only.',
       changes: [
         'docs/architecture.md: add section',
@@ -173,7 +173,7 @@ test('validateAcFreshness: regex bounds — only the three roots are scanned', (
 
 test('validateAcFreshness: Tasks with no file references pass unchanged', () => {
   const tickets = [
-    makeTask('T1', {
+    makeStory('T1', {
       goal: 'Edit Story #1089 body to drop a stale reference.',
       changes: ['GitHub Story #1089 body: remove the deleted-file mention'],
       acceptance: [
@@ -202,13 +202,13 @@ test('validateAcFreshness: error names every offending Task slug + path', () => 
   // Paths must be referenced OUTSIDE `body.changes` to trip the gate —
   // anything declared in `changes` is treated as net-new and skipped.
   const tickets = [
-    makeTask('T1', {
+    makeStory('T1', {
       goal: 'Edit .agents/scripts/missing-one.js to do thing.',
       changes: [],
       acceptance: [],
       verify: [],
     }),
-    makeTask('T2', {
+    makeStory('T2', {
       goal: 'Touch lib/dropped.js to do other thing.',
       changes: [],
       acceptance: [],
@@ -241,13 +241,13 @@ test('validateAcFreshness: error message carries per-path remediation hint point
   // (declare the path in `body.changes`) rather than just calling the
   // reference stale.
   const tickets = [
-    makeTask('T1', {
+    makeStory('T1', {
       goal: 'Add a regression test for the freshness gate.',
       changes: [],
       acceptance: ['regression test exercises the gate'],
       verify: ['node --test tests/lib/orchestration/new-fresh.test.js'],
     }),
-    makeTask('T2', {
+    makeStory('T2', {
       goal: 'Touch .agents/scripts/missing-helper.js to do thing.',
       changes: [],
       acceptance: [],
@@ -292,13 +292,16 @@ test('validateAndNormalizeTickets: freshness gate is opt-in via opts.baseBranchR
   // throws when the runner reports the path missing.
   const tickets = [
     { slug: 'F1', type: 'feature', title: 'F' },
-    { slug: 'S1', type: 'story', title: 'S', parent_slug: 'F1' },
-    makeTask('T1', {
-      goal: 'Touch .agents/scripts/missing.js to do x.',
-      changes: [],
-      acceptance: ['a'],
-      verify: ['v'],
-    }),
+    makeStory(
+      'S1',
+      {
+        goal: 'Touch .agents/scripts/missing.js to do x.',
+        changes: [],
+        acceptance: ['a'],
+        verify: ['v'],
+      },
+      { acceptance: ['a'], verify: ['v'] },
+    ),
   ];
   // Without baseBranchRef the validator's freshness clause is a no-op so
   // legacy callers (and existing tests) keep their semantics.
@@ -322,7 +325,7 @@ test('validateAcFreshness: object-form `{path, assumption: "creates"}` entries s
   // legacy string bullets. The path is declared as net-new in `changes`
   // and cited verbatim by `verify` — the gate must accept it.
   const tickets = [
-    makeTask('T1', {
+    makeStory('T1', {
       goal: 'Author the freshness regression test.',
       changes: [
         { path: 'tests/lib/freshly-authored.test.js', assumption: 'creates' },
@@ -355,7 +358,7 @@ test('validateAcFreshness: object-form changes still flag a verify path NOT in c
   // blanket "trust everything". A task that only declares one object-form
   // path but cites a different one in verify must still fail closed.
   const tickets = [
-    makeTask('T1', {
+    makeStory('T1', {
       goal: 'Edit a known file.',
       changes: [
         {
@@ -390,7 +393,7 @@ test('validateAcFreshness: object-form `{path, assumption: "exists"}` in body.re
   // planner is intentional; citing it in `goal`/`verify` must not trip
   // the freshness gate.
   const tickets = [
-    makeTask('T1', {
+    makeStory('T1', {
       goal: 'Wire generate-foo.js against .agents/schemas/foo.schema.json',
       changes: [
         { path: '.agents/scripts/generate-foo.js', assumption: 'creates' },
@@ -424,7 +427,7 @@ test('validateAcFreshness: mixed string + object form in the same body.changes a
   // Backwards compat: planners (and tests) emitting a mix of the two
   // shapes during the migration window must work too.
   const tickets = [
-    makeTask('T1', {
+    makeStory('T1', {
       goal: 'Half-migrated planner output.',
       changes: [
         'tests/lib/legacy-bullet.test.js: new coverage',

@@ -138,13 +138,15 @@ export async function resolveChildIndex({ force, resume, provider, epicId }) {
 /**
  * Run the staged feature → story creation passes against `provider`.
  *
- * 3-tier (Epic #3078): the canonical shape carries only `feature` and
- * `story` tickets — Stories hold inline `acceptance[]` + `verify[]` on
- * their own bodies, so there is no separate task-creation pass. The two
- * passes fire in feature → story order; the slugMap propagates across
- * passes so the story pass's `parent_slug` → Feature-issue-number
- * resolution succeeds. The backlog is validated upstream by
- * `assertEachTypePresent` in `lib/orchestration/ticket-validator.js`.
+ * 3-tier (Epic #3078 / #3238): the canonical shape carries only
+ * `feature` and `story` tickets — Stories hold inline `acceptance[]` +
+ * `verify[]` on their own bodies, so there is no separate task-creation
+ * pass. The two passes fire in feature → story order; the slugMap
+ * propagates across passes so the story pass's `parent_slug` →
+ * Feature-issue-number resolution succeeds. The inline-contract
+ * invariant is validated upstream by `assertEachTypePresent` /
+ * `assertEveryStoryHasInlineContract` in
+ * `lib/orchestration/ticket-validator.js`.
  */
 export async function runStagedPasses({
   ordered,
