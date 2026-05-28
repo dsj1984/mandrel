@@ -24,7 +24,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, test } from 'node:test';
 
-import { tryRenderFromSpec } from '../../.agents/scripts/dispatcher.js';
+import {
+  overlayLiveTaskStateFromManifest,
+  tryRenderFromSpec,
+} from '../../.agents/scripts/dispatcher.js';
 import { SpecNotFoundError } from '../../.agents/scripts/lib/spec/index.js';
 
 // ---------------------------------------------------------------------------
@@ -251,4 +254,77 @@ test('tryRenderFromSpec returns null when the sandbox spec is missing', () => {
     loaderOpts: { epicsDir: sandbox },
   });
   assert.equal(md, null);
+});
+
+// ---------------------------------------------------------------------------
+// overlayLiveTaskStateFromManifest — 3-tier overlay (Epic #3163, Story #3206).
+// The runtime manifest's wave records carry `stories[]` (each with a live
+// `storyId` + `status`), not the retired Task-tier `tasks[]` shape. The
+// overlay must copy each Story's status onto the matching slug.
+// ---------------------------------------------------------------------------
+
+function buildStateWithStorySlug() {
+  return {
+    epicId: 7777,
+    mapping: {
+      'story-routing': {
+        issueNumber: 5001,
+        contentHash: 'sha256:x',
+        lastObservedAgentState: 'agent::ready',
+      },
+    },
+  };
+}
+
+test('overlayLiveTaskStateFromManifest copies live Story status onto the matching slug', () => {
+  const state = buildStateWithStorySlug();
+  const manifest = {
+    waves: [
+      {
+        waveIndex: 0,
+        stories: [{ storyId: 5001, status: 'agent::done' }],
+      },
+    ],
+  };
+  const result = overlayLiveTaskStateFromManifest(state, manifest);
+  assert.equal(
+    result.mapping['story-routing'].lastObservedAgentState,
+    'agent::done',
+  );
+});
+
+test('overlayLiveTaskStateFromManifest ignores non-agent statuses and unknown storyIds', () => {
+  const state = buildStateWithStorySlug();
+  const manifest = {
+    waves: [
+      {
+        waveIndex: 0,
+        stories: [
+          { storyId: 5001, status: 'in-progress' },
+          { storyId: 9999, status: 'agent::done' },
+        ],
+      },
+    ],
+  };
+  const result = overlayLiveTaskStateFromManifest(state, manifest);
+  // Non-`agent::*` status is not applied; unknown storyId has no slug.
+  assert.equal(
+    result.mapping['story-routing'].lastObservedAgentState,
+    'agent::ready',
+  );
+});
+
+test('overlayLiveTaskStateFromManifest is a safe no-op on null/empty inputs', () => {
+  assert.equal(overlayLiveTaskStateFromManifest(null, {}), null);
+  assert.equal(overlayLiveTaskStateFromManifest(undefined, {}), undefined);
+  const state = buildStateWithStorySlug();
+  // A wave with no `stories[]` array (e.g. the retired tasks-only shape)
+  // is skipped without throwing and leaves state untouched.
+  const result = overlayLiveTaskStateFromManifest(state, {
+    waves: [{ waveIndex: 0, tasks: [{ taskId: 5001, status: 'agent::done' }] }],
+  });
+  assert.equal(
+    result.mapping['story-routing'].lastObservedAgentState,
+    'agent::ready',
+  );
 });

@@ -15,13 +15,12 @@
  * stream out-of-band. See Tech Spec #1032 §observability.
  *
  * Usage:
- *   node diagnose-friction.js [--task <TASK_ID>] [--story <STORY_ID>] \
+ *   node diagnose-friction.js [--story <STORY_ID>] \
  *     [--epic <EPIC_ID>] --cmd <command with args...>
  *
  * Story/Epic resolution order:
  *   1. CLI flags (--story, --epic).
  *   2. Environment vars (STORY_ID, EPIC_ID / SPRINT_ID).
- *   3. Task ticket body parse (`parent: #<storyId>`, `Epic: #<epicId>`).
  *
  * If neither story nor epic can be resolved, the script still prints
  * diagnostic suggestions but skips the signal write (a missing signal is
@@ -35,21 +34,17 @@ import crypto from 'node:crypto';
 import { getLimits, resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
 import { appendSignal } from './lib/observability/signals-writer.js';
-import { createProvider } from './lib/provider-factory.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 function parseArguments(args) {
-  let taskId = null;
   let storyId = null;
   let epicId = null;
   let cmdArgs = [];
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--task') {
-      taskId = args[++i] || null;
-    } else if (args[i] === '--story') {
+    if (args[i] === '--story') {
       storyId = args[++i] || null;
     } else if (args[i] === '--epic') {
       epicId = args[++i] || null;
@@ -58,7 +53,7 @@ function parseArguments(args) {
       break;
     }
   }
-  return { taskId, storyId, epicId, cmdArgs };
+  return { storyId, epicId, cmdArgs };
 }
 
 /**
@@ -114,41 +109,14 @@ function toIntOrNull(value) {
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
-async function resolveContextIds(
-  provider,
-  { taskId, storyId, epicId },
-  settings,
-) {
-  let resolvedStoryId =
+function resolveContextIds({ storyId, epicId }, settings) {
+  const resolvedStoryId =
     toIntOrNull(storyId) ?? toIntOrNull(process.env.STORY_ID);
-  let resolvedEpicId =
+  const resolvedEpicId =
     toIntOrNull(epicId) ??
     toIntOrNull(process.env.EPIC_ID) ??
     toIntOrNull(process.env.SPRINT_ID) ??
     toIntOrNull(settings.epicId);
-
-  if (
-    (resolvedStoryId == null || resolvedEpicId == null) &&
-    taskId &&
-    !process.env.NO_NETWORK
-  ) {
-    try {
-      const ticket = await provider.getTicket(taskId);
-      const body = ticket.body ?? '';
-      if (resolvedStoryId == null) {
-        const storyMatch = body.match(/^parent:\s*#(\d+)/im);
-        if (storyMatch) resolvedStoryId = toIntOrNull(storyMatch[1]);
-      }
-      if (resolvedEpicId == null) {
-        const epicMatch = body.match(/(?:^|\n)Epic:\s*#(\d+)/i);
-        if (epicMatch) resolvedEpicId = toIntOrNull(epicMatch[1]);
-      }
-    } catch (err) {
-      Logger.error(
-        `⚠️ Failed to resolve story/epic context from task #${taskId}: ${err.message}`,
-      );
-    }
-  }
 
   return { storyId: resolvedStoryId, epicId: resolvedEpicId };
 }
@@ -156,7 +124,6 @@ async function resolveContextIds(
 function buildFrictionSignal({
   epicId,
   storyId,
-  taskId,
   category,
   commandStr,
   errorPreview,
@@ -167,7 +134,10 @@ function buildFrictionSignal({
     timestamp: new Date().toISOString(),
     epicId: epicId ?? null,
     storyId: storyId ?? null,
-    taskId: taskId ? Number.parseInt(taskId, 10) : null,
+    // 3-tier hierarchy (Epic #3163): no Task tier, so friction signals
+    // carry no Task id. The field is retained for schema compatibility
+    // and always null.
+    taskId: null,
     category,
     source: {
       tool: 'diagnose-friction.js',
@@ -182,11 +152,11 @@ function buildFrictionSignal({
 // ---------------------------------------------------------------------------
 
 export async function main(args = process.argv.slice(2)) {
-  const { taskId, storyId, epicId, cmdArgs } = parseArguments(args);
+  const { storyId, epicId, cmdArgs } = parseArguments(args);
 
   if (cmdArgs.length === 0) {
     throw new Error(
-      'Usage: node diagnose-friction.js [--task <TASK_ID>] [--story <STORY_ID>] [--epic <EPIC_ID>] --cmd <command with args...>',
+      'Usage: node diagnose-friction.js [--story <STORY_ID>] [--epic <EPIC_ID>] --cmd <command with args...>',
     );
   }
 
@@ -226,15 +196,12 @@ export async function main(args = process.argv.slice(2)) {
 
     const { category, remediation } = classifyFrictionCategory(errorOutput);
 
-    const config = resolveConfig();
-    const provider = createProvider(config);
     const { storyId: resolvedStoryId, epicId: resolvedEpicId } =
-      await resolveContextIds(provider, { taskId, storyId, epicId }, config);
+      resolveContextIds({ storyId, epicId }, config);
 
     const signal = buildFrictionSignal({
       epicId: resolvedEpicId,
       storyId: resolvedStoryId,
-      taskId,
       category,
       commandStr,
       errorPreview,
@@ -255,7 +222,7 @@ export async function main(args = process.argv.slice(2)) {
         });
         if (ok) {
           Logger.error(
-            `✅ Friction signal appended (epic=${resolvedEpicId ?? 'standalone'}, story=${resolvedStoryId}, task=${taskId ?? 'n/a'}).`,
+            `✅ Friction signal appended (epic=${resolvedEpicId ?? 'standalone'}, story=${resolvedStoryId}).`,
           );
         } else {
           Logger.error(

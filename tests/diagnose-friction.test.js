@@ -70,7 +70,7 @@ describe('diagnose-friction.js — v5 (CLI contract)', () => {
   });
 
   it('passes through the exit code of the wrapped command on success', () => {
-    const result = runScript(['--task', '0', '--cmd', 'node', '--version']);
+    const result = runScript(['--cmd', 'node', '--version']);
     assert.equal(
       result.status,
       0,
@@ -80,8 +80,6 @@ describe('diagnose-friction.js — v5 (CLI contract)', () => {
 
   it('passes through non-zero exit code of a failing wrapped command', () => {
     const result = runScript([
-      '--task',
-      '0',
       '--cmd',
       'node',
       '__nonexistent_script_guaranteed_to_fail__.js',
@@ -114,8 +112,6 @@ describe('diagnose-friction.js — v5 (CLI contract)', () => {
 describe('diagnose-friction.js — appends friction signal to NDJSON', () => {
   it('appends a kind:friction record to signals.ndjson when story+epic are provided', () => {
     const result = runScript([
-      '--task',
-      '1057',
       '--story',
       '1042',
       '--epic',
@@ -143,7 +139,11 @@ describe('diagnose-friction.js — appends friction signal to NDJSON', () => {
     assert.equal(signal.kind, 'friction', 'signal.kind must be "friction"');
     assert.equal(signal.epicId, 1030, 'signal.epicId carries the epic id');
     assert.equal(signal.storyId, 1042, 'signal.storyId carries the story id');
-    assert.equal(signal.taskId, 1057, 'signal.taskId carries the task id');
+    assert.equal(
+      signal.taskId,
+      null,
+      'signal.taskId is always null (3-tier: no Task tier)',
+    );
     assert.ok(
       typeof signal.category === 'string' && signal.category.length > 0,
       'signal.category is set by the classifier',
@@ -173,8 +173,6 @@ describe('diagnose-friction.js — appends friction signal to NDJSON', () => {
 
   it('classifies "Cannot find module" as Missing Skill', () => {
     runScript([
-      '--task',
-      '1057',
       '--story',
       '1042',
       '--epic',
@@ -232,14 +230,12 @@ describe('diagnose-friction.js — appends friction signal to NDJSON', () => {
   });
 
   it('does not call postStructuredComment / write GitHub friction comments', () => {
-    // Smoke check: with NO_NETWORK=1 and no --task lookup, the v5/Epic#1030
-    // detector path must not attempt any GitHub round-trip. The presence of
-    // the NDJSON write (asserted in the first test) is the positive signal;
-    // here we just confirm the script does not regress to printing the old
+    // Smoke check: with NO_NETWORK=1, the v5/Epic#1030 detector path must
+    // not attempt any GitHub round-trip. The presence of the NDJSON write
+    // (asserted in the first test) is the positive signal; here we just
+    // confirm the script does not regress to printing the old
     // "Friction posted to Task #" line.
     const result = runScript([
-      '--task',
-      '1057',
       '--story',
       '1042',
       '--epic',
