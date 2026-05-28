@@ -180,53 +180,6 @@ test('e2e fixture: every Wave Summary TOC link round-trips to a real H2 anchor',
   }
 });
 
-// Pending follow-on Story #3196 (Epic #3163): asserts the Tasks column on
-// the Wave Summary TOC, which Story #3194 dropped when manifest-helpers.js
-// pivoted to Story-only counts. Reinstate after #3196 rewrites the renderer.
-test.skip('e2e fixture: first wave H2 follows the TOC table directly (no inline legend)', () => {
-  __resetManifestFormatterCache();
-  const md = formatManifestMarkdown(buildE2EFixture());
-  const tocPos = md.indexOf('| Wave | Status | Stories | Tasks |');
-  const firstH2Pos = md.search(/^## (?:🚀|✅|⏳) Wave 0$/m);
-  assert.ok(tocPos > 0, 'TOC table must render');
-  assert.ok(firstH2Pos > tocPos, 'first wave H2 must sit after the TOC');
-  // Inline legend was retired — full legend lives in the bottom <details>.
-  assert.doesNotMatch(md, /\*\*Legend:\*\*/);
-});
-
-// Pending follow-on Story #3196 (Epic #3163): per-Story H3 emoji now reads
-// story.status (set by Story #3195) — e2e fixture predates that shape.
-test.skip('e2e fixture: per-Story heading carries done/total tasks (no branch, no bar, no ~?)', () => {
-  __resetManifestFormatterCache();
-  const md = formatManifestMarkdown(buildE2EFixture());
-  // Story #100: 2 of 3 tasks done.
-  assert.match(
-    md,
-    /^### .* #100 — Sprint Bootstrap · 2\/3 tasks$/m,
-    'Story #100 heading must carry done/total tasks',
-  );
-  // Story #200: 0 of 3 done.
-  assert.match(
-    md,
-    /^### .* #200 — Render TOC · 0\/3 tasks$/m,
-    'Story #200 heading must carry done/total tasks',
-  );
-  // Story #300 has a blocked Task → 🚧 symbol on the H3.
-  assert.match(md, /^### 🚧 #300 — Order Tasks/m);
-  // Decorations the old format carried are gone everywhere.
-  assert.doesNotMatch(md, /`story-\d+`/, 'no branch backticks in H3s');
-  assert.doesNotMatch(md, /~\?/, 'no ETA placeholder');
-  // Per-Story progress bar removed (the long `[█░]+ NN%` ribbon is gone).
-  assert.doesNotMatch(
-    md
-      .split('\n')
-      .filter((l) => l.startsWith('### '))
-      .join('\n'),
-    /[█░]/,
-    'no progress bar in H3s',
-  );
-});
-
 // The in-Story dep callout (`*(after #N)*`) and the per-Task checkbox
 // rendering assertions were removed when Epic #3163 (Story #3196)
 // collapsed the per-Story Task projection: Stories are leaves under

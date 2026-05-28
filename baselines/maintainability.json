@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T10:53:28.402Z",
+  "generatedAt": "2026-05-28T11:49:48.560Z",
   "rollup": {
     "*": {
       "min": 38.161,
-      "p50": 103.671,
-      "p95": 121.235
+      "p50": 103.753,
+      "p95": 121.479
     }
   },
   "rows": [
@@ -2835,16 +2835,8 @@
       "mi": 114.937
     },
     {
-      "path": "tests/dispatcher.test.js",
-      "mi": 100.888
-    },
-    {
       "path": "tests/docs/no-js-fences.test.js",
       "mi": 98.547
-    },
-    {
-      "path": "tests/e2e-story-lifecycle.test.js",
-      "mi": 98.493
     },
     {
       "path": "tests/e2e-story-only-epic.test.js",
@@ -3495,10 +3487,6 @@
       "mi": 90.952
     },
     {
-      "path": "tests/lib/manifest-formatter.test.js",
-      "mi": 93.482
-    },
-    {
       "path": "tests/lib/manifest-persistence.test.js",
       "mi": 92.143
     },
@@ -3597,10 +3585,6 @@
     {
       "path": "tests/lib/orchestration/context.test.js",
       "mi": 121.009
-    },
-    {
-      "path": "tests/lib/orchestration/crap-remediation-1641.test.js",
-      "mi": 107.372
     },
     {
       "path": "tests/lib/orchestration/detectors-phase.test.js",
@@ -4119,14 +4103,6 @@
       "mi": 98.579
     },
     {
-      "path": "tests/lib/presentation/manifest-formatter-end-to-end.test.js",
-      "mi": 101.248
-    },
-    {
-      "path": "tests/lib/presentation/manifest-formatter-layout.test.js",
-      "mi": 98.421
-    },
-    {
       "path": "tests/lib/presentation/manifest-helpers.test.js",
       "mi": 103.229
     },
@@ -4399,10 +4375,6 @@
       "mi": 103.276
     },
     {
-      "path": "tests/manifest-renderer.test.js",
-      "mi": 97.927
-    },
-    {
       "path": "tests/notify.test.js",
       "mi": 99.641
     },
@@ -4607,10 +4579,6 @@
       "mi": 110.521
     },
     {
-      "path": "tests/scripts/dispatcher-fromspec.test.js",
-      "mi": 100.241
-    },
-    {
       "path": "tests/scripts/epic-close-planning-artifacts.test.js",
       "mi": 103.914
     },
@@ -4631,16 +4599,8 @@
       "mi": 101.819
     },
     {
-      "path": "tests/scripts/epic-plan-decompose.3tier-creation-diagnostics.test.js",
-      "mi": 101.19
-    },
-    {
       "path": "tests/scripts/epic-plan-decompose.body-preservation.test.js",
       "mi": 94.28
-    },
-    {
-      "path": "tests/scripts/epic-plan-decompose.sub-issue-safety-net.test.js",
-      "mi": 93.794
     },
     {
       "path": "tests/scripts/epic-plan-emit-context-stdout-clean.test.js",
@@ -4649,14 +4609,6 @@
     {
       "path": "tests/scripts/epic-plan.edit-flow.test.js",
       "mi": 108.552
-    },
-    {
-      "path": "tests/scripts/epic-plan.spec-flow.test.js",
-      "mi": 87.683
-    },
-    {
-      "path": "tests/scripts/epic-reconcile.bootstrap.test.js",
-      "mi": 98.528
     },
     {
       "path": "tests/scripts/epic-reconcile.cli.test.js",
@@ -4949,10 +4901,6 @@
     {
       "path": "tests/test-wrapper-preflight.test.js",
       "mi": 110.176
-    },
-    {
-      "path": "tests/ticket-decomposer.test.js",
-      "mi": 97.687
     },
     {
       "path": "tests/ticket-validation.test.js",

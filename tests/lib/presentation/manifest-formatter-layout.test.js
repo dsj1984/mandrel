@@ -160,20 +160,6 @@ test('layout fixture: every Wave Summary TOC link round-trips to a real H2 ancho
   }
 });
 
-// Pending follow-on Story #3196 (Epic #3163): asserts the Tasks column on
-// the Wave Summary TOC, which Story #3194 dropped when manifest-helpers.js
-// pivoted to Story-only counts.
-test.skip('layout fixture: first wave H2 follows the TOC table directly (no inline legend)', () => {
-  __resetManifestFormatterCache();
-  const md = formatManifestMarkdown(buildLayoutFixture());
-  const tocPos = md.indexOf('| Wave | Status | Stories | Tasks |');
-  const firstH2Pos = md.search(/^## (?:🚀|✅|⏳) Wave 0$/m);
-  assert.ok(tocPos >= 0, 'TOC table missing');
-  assert.ok(firstH2Pos > tocPos, 'first wave H2 should sit after the TOC');
-  // Inline legend retired — full legend lives in the bottom <details>.
-  assert.doesNotMatch(md, /\*\*Legend:\*\*/);
-});
-
 test('layout fixture: exactly one bottom <details> block, no other HTML tags anywhere', () => {
   __resetManifestFormatterCache();
   const md = formatManifestMarkdown(buildLayoutFixture());
