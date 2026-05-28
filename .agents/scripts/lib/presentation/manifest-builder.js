@@ -14,14 +14,21 @@
  * function's CRAP score drops below 12.
  *
  * Story #3195 (3-tier cutover): the per-Story task-counter projection
- * has been dropped. Stories are now first-class lifecycle units — their
- * progress is derived from the Story's own `agent::*` label (resolved
- * via `state.mapping[slug]`) and the manifest summary counts
- * `totalStories` / `doneStories`, not tasks.
- * The renderer still receives a `storyEntry.tasks[]` array (currently
- * empty under the 3-tier hierarchy) so call-sites that iterate `tasks`
- * continue to read empty rather than `undefined`; sibling Stories in
- * Feature #3181 strip those reads from the four `manifest-*` consumers.
+ * keys have been dropped from `projectStory`. The walker
+ * (`projectFeatures`) computes the rollup counts inline rather than
+ * returning them from each per-Story projection. Downstream consumers
+ * still observe the same `summary.totalTasks` / `summary.doneTasks`
+ * envelope keys at this layer; the wider 3-tier rewrite of the
+ * formatter/helpers/render-waves modules is owned by sibling Stories
+ * under Feature #3181 and ships in coordination — the public summary
+ * shape will move to Story-tier counts when those land.
+ *
+ * Story-level status now surfaces on each `storyEntry.status` so
+ * downstream renderers can read the Story's own `agent::*` label
+ * without rolling up task statuses. The Story-level resolution is the
+ * 3-tier "Stories are first-class lifecycle units" invariant; the
+ * per-Task projection is preserved for the sibling-Story migration
+ * window.
  *
  * No fs / network access; pure transform. Caller supplies `state` from
  * `lib/spec/loader.js#loadState`.
@@ -102,26 +109,49 @@ function buildResolvers(state) {
 }
 
 /**
+ * Private: project a single spec Task into a manifest Task entry. Caller
+ * is responsible for filtering out non-object task nodes via
+ * `validateSpecShape('task', ...)` before invoking.
+ *
+ * @param {object} task
+ * @param {{ resolveId: Function, resolveStatus: Function }} resolvers
+ * @returns {{ taskId: number|string, taskSlug: string, status: string, dependencies: [] }}
+ */
+function projectTask(task, resolvers) {
+  return {
+    taskId: resolvers.resolveId(task.slug),
+    taskSlug: task.slug ?? '',
+    // Tasks have no `dependsOn` surface in the spec — dependency edges
+    // are inferred at the wave-ordering layer, not carried here.
+    dependencies: [],
+    status: resolvers.resolveStatus(task.slug),
+  };
+}
+
+/**
  * Private: project a single spec Story into a manifest Story entry. The
  * Story's status is resolved directly from the Story-level label
- * (`state.mapping[slug].lastObservedAgentState`) — under the 3-tier
- * hierarchy Stories carry their own lifecycle state and there are no
- * child Tasks to roll up. Caller filters non-object stories with
+ * (`state.mapping[slug].lastObservedAgentState`) and surfaces on
+ * `storyEntry.status` — under the 3-tier hierarchy Stories carry their
+ * own lifecycle state. Caller filters non-object stories with
  * `validateSpecShape('story', ...)` before invoking.
  *
- * The returned entry preserves an empty `tasks[]` array so legacy
- * call-sites that still iterate `story.tasks` (being migrated under
- * Feature #3181) read a defined empty array rather than `undefined`.
+ * The returned `storyEntry.tasks[]` is preserved during the Feature
+ * #3181 migration window so legacy renderer call-sites (the four
+ * `manifest-*` modules being rewritten by sibling Stories #3194 /
+ * #3196 / #3197) keep working until they switch off task iteration.
  *
  * @param {object} story
  * @param {{ resolveId: Function, resolveStatus: Function }} resolvers
- * @returns {{
- *   storyEntry: object,
- *   wave: number,
- *   isDone: boolean,
- * }}
+ * @returns {{ storyEntry: object, wave: number }}
  */
 function projectStory(story, resolvers) {
+  const storyTasks = validateSpecShape('tasks', story.tasks) ? story.tasks : [];
+  const tasks = [];
+  for (const t of storyTasks) {
+    if (!validateSpecShape('task', t)) continue;
+    tasks.push(projectTask(t, resolvers));
+  }
   const wave = Number.isInteger(story.wave) ? story.wave : -1;
   const storyId = resolvers.resolveId(story.slug);
   const status = resolvers.resolveStatus(story.slug);
@@ -134,9 +164,9 @@ function projectStory(story, resolvers) {
       typeof storyId === 'number' ? `story-${storyId}` : `story-${story.slug}`,
     earliestWave: wave,
     status,
-    tasks: [],
+    tasks,
   };
-  return { storyEntry, wave, isDone: status === AGENT_LABELS.DONE };
+  return { storyEntry, wave };
 }
 
 /**
@@ -145,23 +175,26 @@ function projectStory(story, resolvers) {
  * out of `buildManifestFromSpec` so the entry point reads as a straight
  * assembly of the result envelope.
  *
- * Story-tier rollup: `totalStories` and `doneStories` are counted from
- * the per-Story `agent::*` label resolved by `projectStory`. There is no
- * task-tier rollup under the 3-tier hierarchy (Story #3195).
+ * The Task-tier `totalTasks` / `doneTasks` rollup is computed inline
+ * here over each `storyEntry.tasks[]` rather than being threaded back
+ * from `projectStory`; this keeps the per-Story projection focused on
+ * the Story-level shape (3-tier invariant) while preserving the
+ * existing summary keys the formatter/renderer still read during the
+ * Feature #3181 migration window.
  *
  * @param {object[]} features
  * @param {{ resolveId: Function, resolveStatus: Function }} resolvers
  * @returns {{
  *   storyManifest: object[],
- *   totalStories: number,
- *   doneStories: number,
+ *   totalTasks: number,
+ *   doneTasks: number,
  *   waveSet: Set<number>,
  * }}
  */
 function projectFeatures(features, resolvers) {
   const storyManifest = [];
-  let totalStories = 0;
-  let doneStories = 0;
+  let totalTasks = 0;
+  let doneTasks = 0;
   const waveSet = new Set();
   for (const feature of features) {
     const stories = validateSpecShape('stories', feature?.stories)
@@ -169,14 +202,16 @@ function projectFeatures(features, resolvers) {
       : [];
     for (const story of stories) {
       if (!validateSpecShape('story', story)) continue;
-      const projection = projectStory(story, resolvers);
-      storyManifest.push(projection.storyEntry);
-      totalStories++;
-      if (projection.isDone) doneStories++;
-      if (projection.wave >= 0) waveSet.add(projection.wave);
+      const { storyEntry, wave } = projectStory(story, resolvers);
+      storyManifest.push(storyEntry);
+      totalTasks += storyEntry.tasks.length;
+      for (const t of storyEntry.tasks) {
+        if (t.status === AGENT_LABELS.DONE) doneTasks++;
+      }
+      if (wave >= 0) waveSet.add(wave);
     }
   }
-  return { storyManifest, totalStories, doneStories, waveSet };
+  return { storyManifest, totalTasks, doneTasks, waveSet };
 }
 
 /**
@@ -214,13 +249,13 @@ export function buildManifestFromSpec(spec, opts = {}) {
     ? spec.features
     : [];
 
-  const { storyManifest, totalStories, doneStories, waveSet } = projectFeatures(
+  const { storyManifest, totalTasks, doneTasks, waveSet } = projectFeatures(
     features,
     resolvers,
   );
 
   const progressPercent =
-    totalStories > 0 ? Math.round((doneStories / totalStories) * 100) : 0;
+    totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
 
   return {
     schemaVersion: '1.0.0',
@@ -230,8 +265,8 @@ export function buildManifestFromSpec(spec, opts = {}) {
     executor: opts.executor ?? 'spec',
     dryRun: opts.dryRun ?? false,
     summary: {
-      totalStories,
-      doneStories,
+      totalTasks,
+      doneTasks,
       progressPercent,
       totalWaves: waveSet.size,
       dispatched: 0,

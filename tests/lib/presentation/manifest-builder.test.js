@@ -3,13 +3,14 @@
  * `buildManifestFromSpec` plus branch coverage of the private
  * `validateSpecShape` predicate (exposed via `__testables`).
  *
- * Story #3195 (3-tier cutover): the per-Story task-counter projection
- * (`storyTotalTasks` / `storyDoneTasks`) was dropped. Story status is
- * now resolved directly from the Story-level `agent::*` label, and the
- * manifest summary counts `totalStories` / `doneStories`. The
- * `storyEntry.tasks[]` array is preserved as an empty array so
- * downstream call-sites that still iterate `tasks` (being migrated
- * under Feature #3181) read empty rather than `undefined`.
+ * Story #3195 (3-tier cutover): `projectStory` no longer threads back
+ * per-Story task-counter projections. The walker (`projectFeatures`)
+ * computes the Task rollup inline from each `storyEntry.tasks[]`, and
+ * each Story entry now surfaces a `status` field resolved directly
+ * from the Story's own `agent::*` label (the 3-tier invariant). The
+ * `tasks[]` projection itself is preserved here for the Feature
+ * #3181 migration window so sibling renderer modules keep working
+ * until they switch off task iteration.
  *
  * The sibling test file in `tests/lib/manifest-formatter.test.js`
  * continues to exercise the renderer-facing re-export path. This file
@@ -79,7 +80,7 @@ test('validateSpecShape: unknown level falls through to false', () => {
 });
 
 // ---------------------------------------------------------------------------
-// buildManifestFromSpec — projection contract (3-tier shape)
+// buildManifestFromSpec — projection contract
 // ---------------------------------------------------------------------------
 
 function specFixture(overrides = {}) {
@@ -90,8 +91,18 @@ function specFixture(overrides = {}) {
         slug: 'feat-a',
         title: 'Feature A',
         stories: [
-          { slug: 'story-a1', title: 'Story A1', wave: 0 },
-          { slug: 'story-a2', title: 'Story A2', wave: 1 },
+          {
+            slug: 'story-a1',
+            title: 'Story A1',
+            wave: 0,
+            tasks: [{ slug: 'task-a1-1' }, { slug: 'task-a1-2' }],
+          },
+          {
+            slug: 'story-a2',
+            title: 'Story A2',
+            wave: 1,
+            tasks: [{ slug: 'task-a2-1' }],
+          },
         ],
       },
     ],
@@ -103,56 +114,65 @@ function stateFixture(mapping) {
   return { mapping };
 }
 
-test('buildManifestFromSpec: projects spec → manifest with epic and stories', () => {
+test('buildManifestFromSpec: projects spec → manifest with epic, stories, tasks', () => {
   const mf = buildManifestFromSpec(specFixture(), {
     generatedAt: '2026-05-15T00:00:00.000Z',
   });
   assert.equal(mf.epicId, 99);
   assert.equal(mf.epicTitle, 'Test Epic');
-  assert.equal(mf.summary.totalStories, 2);
-  assert.equal(mf.summary.doneStories, 0);
+  assert.equal(mf.summary.totalTasks, 3);
+  assert.equal(mf.summary.doneTasks, 0);
   assert.equal(mf.summary.totalWaves, 2);
   assert.equal(mf.storyManifest.length, 2);
   assert.equal(mf.storyManifest[0].storySlug, 'story-a1');
-  // 3-tier: `tasks` is preserved as an empty array so legacy iterators
-  // don't break while Feature #3181 migrates them off.
-  assert.deepEqual(mf.storyManifest[0].tasks, []);
+  assert.equal(mf.storyManifest[0].tasks.length, 2);
+});
+
+test('buildManifestFromSpec: each storyEntry carries its own resolved Story status (3-tier)', () => {
+  const state = stateFixture({
+    'story-a1': { lastObservedAgentState: 'agent::executing' },
+    'story-a2': { lastObservedAgentState: 'agent::done' },
+  });
+  const mf = buildManifestFromSpec(specFixture(), { state });
+  assert.equal(mf.storyManifest[0].status, 'agent::executing');
+  assert.equal(mf.storyManifest[1].status, 'agent::done');
 });
 
 test('buildManifestFromSpec: resolves slugs via state.mapping issueNumber', () => {
   const state = stateFixture({
     'story-a1': { issueNumber: 5001, lastObservedAgentState: 'agent::done' },
-    'story-a2': {
-      issueNumber: 5002,
-      lastObservedAgentState: 'agent::executing',
-    },
+    'task-a1-1': { issueNumber: 6001, lastObservedAgentState: 'agent::done' },
   });
   const mf = buildManifestFromSpec(specFixture(), { state });
   assert.equal(mf.storyManifest[0].storyId, 5001);
   assert.equal(mf.storyManifest[0].branchName, 'story-5001');
-  assert.equal(mf.storyManifest[0].status, 'agent::done');
-  assert.equal(mf.storyManifest[1].storyId, 5002);
-  assert.equal(mf.storyManifest[1].status, 'agent::executing');
-  assert.equal(mf.summary.doneStories, 1);
+  assert.equal(mf.storyManifest[0].tasks[0].taskId, 6001);
+  assert.equal(mf.summary.doneTasks, 1);
 });
 
 test('buildManifestFromSpec: falls back to slug: sentinel when no mapping', () => {
   const mf = buildManifestFromSpec(specFixture());
   assert.equal(mf.storyManifest[0].storyId, 'slug:story-a1');
   assert.equal(mf.storyManifest[0].branchName, 'story-story-a1');
+  assert.equal(mf.storyManifest[0].tasks[0].taskId, 'slug:task-a1-1');
+});
+
+test('buildManifestFromSpec: defaults task status to agent::ready when un-mapped', () => {
+  const mf = buildManifestFromSpec(specFixture());
+  assert.equal(mf.storyManifest[0].tasks[0].status, 'agent::ready');
 });
 
 test('buildManifestFromSpec: defaults Story status to agent::ready when un-mapped', () => {
   const mf = buildManifestFromSpec(specFixture());
   assert.equal(mf.storyManifest[0].status, 'agent::ready');
+  assert.equal(mf.storyManifest[1].status, 'agent::ready');
 });
 
 test('buildManifestFromSpec: ignores non-array features (validateSpecShape guard)', () => {
   const spec = { epic: { id: 1, title: 'x' }, features: 'not-an-array' };
   const mf = buildManifestFromSpec(spec);
   assert.deepEqual(mf.storyManifest, []);
-  assert.equal(mf.summary.totalStories, 0);
-  assert.equal(mf.summary.doneStories, 0);
+  assert.equal(mf.summary.totalTasks, 0);
 });
 
 test('buildManifestFromSpec: ignores non-array stories inside a feature', () => {
@@ -170,7 +190,7 @@ test('buildManifestFromSpec: skips non-object stories', () => {
     features: [
       {
         slug: 'f',
-        stories: [null, 'not-an-object', { slug: 's' }],
+        stories: [null, 'not-an-object', { slug: 's', tasks: [] }],
       },
     ],
   };
@@ -179,13 +199,43 @@ test('buildManifestFromSpec: skips non-object stories', () => {
   assert.equal(mf.storyManifest[0].storySlug, 's');
 });
 
+test('buildManifestFromSpec: ignores non-array story.tasks', () => {
+  const spec = {
+    epic: { id: 1, title: 'x' },
+    features: [
+      {
+        slug: 'f',
+        stories: [{ slug: 's', tasks: 'broken' }],
+      },
+    ],
+  };
+  const mf = buildManifestFromSpec(spec);
+  assert.equal(mf.storyManifest.length, 1);
+  assert.deepEqual(mf.storyManifest[0].tasks, []);
+});
+
+test('buildManifestFromSpec: skips non-object tasks inside a story', () => {
+  const spec = {
+    epic: { id: 1, title: 'x' },
+    features: [
+      {
+        slug: 'f',
+        stories: [{ slug: 's', tasks: [null, 'bad', { slug: 't1' }] }],
+      },
+    ],
+  };
+  const mf = buildManifestFromSpec(spec);
+  assert.equal(mf.storyManifest[0].tasks.length, 1);
+  assert.equal(mf.storyManifest[0].tasks[0].taskSlug, 't1');
+});
+
 test('buildManifestFromSpec: stories without a wave land in earliestWave=-1', () => {
   const spec = {
     epic: { id: 1, title: 'x' },
     features: [
       {
         slug: 'f',
-        stories: [{ slug: 's' }],
+        stories: [{ slug: 's', tasks: [{ slug: 't' }] }],
       },
     ],
   };
@@ -214,29 +264,13 @@ test('buildManifestFromSpec: honours opts.executor / dryRun / generatedAt / agen
   assert.equal(mf.agentTelemetry, tel);
 });
 
-test('buildManifestFromSpec: progressPercent rounds doneStories/totalStories to nearest integer', () => {
-  // 3 stories, 2 done = 67%
-  const spec = {
-    epic: { id: 1, title: 'x' },
-    features: [
-      {
-        slug: 'f',
-        stories: [
-          { slug: 's1', wave: 0 },
-          { slug: 's2', wave: 0 },
-          { slug: 's3', wave: 0 },
-        ],
-      },
-    ],
-  };
+test('buildManifestFromSpec: progressPercent rounds done/total to nearest integer', () => {
   const state = stateFixture({
-    s1: { lastObservedAgentState: 'agent::done' },
-    s2: { lastObservedAgentState: 'agent::done' },
-    s3: { lastObservedAgentState: 'agent::executing' },
+    'task-a1-1': { lastObservedAgentState: 'agent::done' },
+    'task-a1-2': { lastObservedAgentState: 'agent::done' },
   });
-  const mf = buildManifestFromSpec(spec, { state });
-  assert.equal(mf.summary.totalStories, 3);
-  assert.equal(mf.summary.doneStories, 2);
+  const mf = buildManifestFromSpec(specFixture(), { state });
+  // 2/3 = 67% (rounded)
   assert.equal(mf.summary.progressPercent, 67);
 });
 
@@ -244,5 +278,4 @@ test('buildManifestFromSpec: state with non-object mapping is treated as empty',
   const spec = specFixture();
   const mf = buildManifestFromSpec(spec, { state: { mapping: null } });
   assert.equal(mf.storyManifest[0].storyId, 'slug:story-a1');
-  assert.equal(mf.storyManifest[0].status, 'agent::ready');
 });

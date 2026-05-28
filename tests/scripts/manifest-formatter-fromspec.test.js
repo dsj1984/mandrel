@@ -122,6 +122,7 @@ function buildFixturePair() {
         type: 'story',
         branchName: 'story-101',
         earliestWave: 0,
+        status: 'agent::executing',
         tasks: [
           {
             taskId: 201,
@@ -144,6 +145,7 @@ function buildFixturePair() {
         type: 'story',
         branchName: 'story-102',
         earliestWave: 1,
+        status: 'agent::ready',
         tasks: [
           {
             taskId: 203,
