@@ -94,6 +94,39 @@ describe('skill:epic-plan-decompose-author — smoke', () => {
             );
           }
         }
+        // Story #3237 — recalibrated thresholds: maxAcceptance raised to 8
+        // (Story #3231 Recal B). The Skill body must advertise the new ceiling.
+        if (!/maxAcceptance:\s*8/.test(body)) {
+          errors.push(
+            'Skill body must advertise the recalibrated maxAcceptance ceiling of 8 (Story #3231 Recal B)',
+          );
+        }
+        // Story #3237 — sizingProfile is now optional / informational hint,
+        // not a hard rejection (Story #3231 Recal C).
+        if (/missing-sizing-profile(?!-hint)/i.test(body)) {
+          // Tolerate `missing-sizing-profile-hint` but not bare `missing-sizing-profile`
+          // as a rejection token.
+          const msp = body.match(/missing-sizing-profile[^\s-]*/g) ?? [];
+          if (msp.some((m) => m === 'missing-sizing-profile')) {
+            errors.push(
+              'Skill body must not describe missing-sizing-profile as a hard rejection; use missing-sizing-profile-hint (Story #3231 Recal C)',
+            );
+          }
+        }
+        // Story #3237 — estimated_test_files field must be documented
+        // (Story #3235 test-surface gates).
+        if (!/estimated_test_files/i.test(body)) {
+          errors.push(
+            'Skill body must document the estimated_test_files field (Story #3235 test-surface gates)',
+          );
+        }
+        // Story #3237 — per-profile change ceilings table must be present
+        // (Story #3231 Recal A).
+        if (!/profileCeilings|per-profile change ceiling/i.test(body)) {
+          errors.push(
+            'Skill body must describe per-profile change ceilings (Story #3231 Recal A)',
+          );
+        }
         return { ok: errors.length === 0, errors };
       },
     });
