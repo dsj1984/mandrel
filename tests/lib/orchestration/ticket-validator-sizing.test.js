@@ -3,14 +3,24 @@ import test from 'node:test';
 import { validateAndNormalizeTickets } from '../../../.agents/scripts/lib/orchestration/ticket-validator.js';
 
 /**
- * Three-layer Story sizing model fixtures (Story #3231, Epic #3211 Feature 5).
+ * Sizing validator fixtures covering Story #3231 recalibrations and
+ * Story #3235 test-surface gates (Epic #3211 Features 5 and 6).
  *
- * Recalibrations covered:
+ * Recalibrations covered (Story #3231):
  *   Recal A — Per-profile change ceilings (replace global maxChanges: 8)
  *   Recal B — maxAcceptance raised from 6 to 8
  *   Recal C — sizingProfile recommended-always (informational hint, not hard rejection)
  *   Recal D — SOFT_STORY_TASK_COUNT / soft-story-width removed (inert in 3-tier)
  *   Gap 4   — Glob changes[] entries → unknown-width / glob-without-sizing-profile
+ *
+ * Test-surface gates (Story #3235, Feature 6):
+ *   Per-profile soft/hard gates on `estimated_test_files`:
+ *     mechanical-sweep  soft=15 hard=30
+ *     scaffolding       soft=8  hard=15
+ *     atomic-rewrite    soft=3  hard=6
+ *     no-profile        soft=5  hard=10
+ *   Findings: large-test-surface (soft), test-surface-overflow (hard)
+ *   Null/absent value → no finding (informational; absence ≠ zero)
  *
  * The hierarchical scaffolding (one Feature, one Story per Task) is the
  * minimum the validator accepts; the sizing logic is the only thing under
@@ -438,4 +448,227 @@ test('Story with 7 acceptance items emits soft-task-width on acceptance field', 
   assert.equal(soft.length, 1);
   assert.equal(soft[0].observed, 7);
   assert.equal(soft[0].soft, 6);
+});
+
+// ---------------------------------------------------------------------------
+// Feature 6 — estimated_test_files test-surface gates (Story #3235)
+// ---------------------------------------------------------------------------
+
+test('null estimated_test_files produces no test-surface finding (absent = informational)', () => {
+  const result = validateAndNormalizeTickets([
+    FEATURE,
+    makeStory(),
+    makeTask('t-ts-null', {
+      estimated_test_files: null,
+    }),
+  ]);
+  const tsFindings = result.findings.filter(
+    (f) => f.kind === 'large-test-surface' || f.kind === 'test-surface-overflow',
+  );
+  assert.deepEqual(tsFindings, []);
+  assert.deepEqual(result.errors, []);
+});
+
+test('absent estimated_test_files (undefined) produces no test-surface finding', () => {
+  const result = validateAndNormalizeTickets([
+    FEATURE,
+    makeStory(),
+    makeTask('t-ts-absent', {}),
+  ]);
+  const tsFindings = result.findings.filter(
+    (f) => f.kind === 'large-test-surface' || f.kind === 'test-surface-overflow',
+  );
+  assert.deepEqual(tsFindings, []);
+  assert.deepEqual(result.errors, []);
+});
+
+test('no-profile: estimated_test_files=6 is a soft breach (soft=5), emits large-test-surface', () => {
+  const result = validateAndNormalizeTickets([
+    FEATURE,
+    makeStory(),
+    makeTask('t-ts-noprofile-soft', {
+      estimated_test_files: 6,
+    }),
+  ]);
+  const hard = result.findings.filter(
+    (f) => f.kind === 'test-surface-overflow',
+  );
+  assert.deepEqual(hard, []);
+  const soft = result.findings.filter((f) => f.kind === 'large-test-surface');
+  assert.equal(soft.length, 1);
+  assert.equal(soft[0].observed, 6);
+  assert.equal(soft[0].soft, 5);
+  assert.equal(soft[0].ticketSlug, 't-ts-noprofile-soft');
+  assert.equal(soft[0].sizingProfile, null);
+  assert.deepEqual(result.errors, []);
+});
+
+test('no-profile: estimated_test_files=11 trips hard test-surface-overflow (hard=10)', () => {
+  const result = validateAndNormalizeTickets([
+    FEATURE,
+    makeStory(),
+    makeTask('t-ts-noprofile-hard', {
+      estimated_test_files: 11,
+    }),
+  ]);
+  const hard = result.findings.filter(
+    (f) => f.kind === 'test-surface-overflow',
+  );
+  assert.equal(hard.length, 1);
+  assert.equal(hard[0].observed, 11);
+  assert.equal(hard[0].ceiling, 10);
+  assert.equal(hard[0].ticketSlug, 't-ts-noprofile-hard');
+  assert.equal(hard[0].sizingProfile, null);
+  assert.equal(
+    result.errors.filter((e) =>
+      e.includes('test-surface') || e.includes('test surface'),
+    ).length,
+    1,
+  );
+});
+
+test('mechanical-sweep: estimated_test_files=20 is a soft breach (soft=15)', () => {
+  const result = validateAndNormalizeTickets([
+    FEATURE,
+    makeStory(),
+    makeTask('t-ts-sweep-soft', {
+      estimated_test_files: 20,
+      sizingProfile: 'mechanical-sweep',
+    }),
+  ]);
+  const hard = result.findings.filter(
+    (f) => f.kind === 'test-surface-overflow',
+  );
+  assert.deepEqual(hard, []);
+  const soft = result.findings.filter((f) => f.kind === 'large-test-surface');
+  assert.equal(soft.length, 1);
+  assert.equal(soft[0].observed, 20);
+  assert.equal(soft[0].soft, 15);
+  assert.equal(soft[0].sizingProfile, 'mechanical-sweep');
+});
+
+test('mechanical-sweep: estimated_test_files=31 trips hard ceiling (hard=30)', () => {
+  const result = validateAndNormalizeTickets([
+    FEATURE,
+    makeStory(),
+    makeTask('t-ts-sweep-hard', {
+      estimated_test_files: 31,
+      sizingProfile: 'mechanical-sweep',
+    }),
+  ]);
+  const hard = result.findings.filter(
+    (f) => f.kind === 'test-surface-overflow',
+  );
+  assert.equal(hard.length, 1);
+  assert.equal(hard[0].observed, 31);
+  assert.equal(hard[0].ceiling, 30);
+  assert.equal(hard[0].sizingProfile, 'mechanical-sweep');
+});
+
+test('scaffolding: estimated_test_files=10 is a soft breach (soft=8)', () => {
+  const result = validateAndNormalizeTickets([
+    FEATURE,
+    makeStory(),
+    makeTask('t-ts-scaffold-soft', {
+      estimated_test_files: 10,
+      sizingProfile: 'scaffolding',
+    }),
+  ]);
+  const hard = result.findings.filter(
+    (f) => f.kind === 'test-surface-overflow',
+  );
+  assert.deepEqual(hard, []);
+  const soft = result.findings.filter((f) => f.kind === 'large-test-surface');
+  assert.equal(soft.length, 1);
+  assert.equal(soft[0].observed, 10);
+  assert.equal(soft[0].soft, 8);
+  assert.equal(soft[0].sizingProfile, 'scaffolding');
+});
+
+test('scaffolding: estimated_test_files=16 trips hard ceiling (hard=15)', () => {
+  const result = validateAndNormalizeTickets([
+    FEATURE,
+    makeStory(),
+    makeTask('t-ts-scaffold-hard', {
+      estimated_test_files: 16,
+      sizingProfile: 'scaffolding',
+    }),
+  ]);
+  const hard = result.findings.filter(
+    (f) => f.kind === 'test-surface-overflow',
+  );
+  assert.equal(hard.length, 1);
+  assert.equal(hard[0].observed, 16);
+  assert.equal(hard[0].ceiling, 15);
+  assert.equal(hard[0].sizingProfile, 'scaffolding');
+});
+
+test('atomic-rewrite: estimated_test_files=4 is a soft breach (soft=3)', () => {
+  const result = validateAndNormalizeTickets([
+    FEATURE,
+    makeStory(),
+    makeTask('t-ts-rewrite-soft', {
+      estimated_test_files: 4,
+      sizingProfile: 'atomic-rewrite',
+    }),
+  ]);
+  const hard = result.findings.filter(
+    (f) => f.kind === 'test-surface-overflow',
+  );
+  assert.deepEqual(hard, []);
+  const soft = result.findings.filter((f) => f.kind === 'large-test-surface');
+  assert.equal(soft.length, 1);
+  assert.equal(soft[0].observed, 4);
+  assert.equal(soft[0].soft, 3);
+  assert.equal(soft[0].sizingProfile, 'atomic-rewrite');
+});
+
+test('atomic-rewrite: estimated_test_files=7 trips hard ceiling (hard=6)', () => {
+  const result = validateAndNormalizeTickets([
+    FEATURE,
+    makeStory(),
+    makeTask('t-ts-rewrite-hard', {
+      estimated_test_files: 7,
+      sizingProfile: 'atomic-rewrite',
+    }),
+  ]);
+  const hard = result.findings.filter(
+    (f) => f.kind === 'test-surface-overflow',
+  );
+  assert.equal(hard.length, 1);
+  assert.equal(hard[0].observed, 7);
+  assert.equal(hard[0].ceiling, 6);
+  assert.equal(hard[0].sizingProfile, 'atomic-rewrite');
+});
+
+test('estimated_test_files exactly at soft threshold produces no finding', () => {
+  // Exactly at the no-profile soft ceiling (5) — no breach.
+  const result = validateAndNormalizeTickets([
+    FEATURE,
+    makeStory(),
+    makeTask('t-ts-at-soft', {
+      estimated_test_files: 5,
+    }),
+  ]);
+  const tsFindings = result.findings.filter(
+    (f) => f.kind === 'large-test-surface' || f.kind === 'test-surface-overflow',
+  );
+  assert.deepEqual(tsFindings, []);
+  assert.deepEqual(result.errors, []);
+});
+
+test('estimated_test_files exactly at hard threshold produces no finding', () => {
+  // Exactly at the no-profile hard ceiling (10) — no overflow.
+  const result = validateAndNormalizeTickets([
+    FEATURE,
+    makeStory(),
+    makeTask('t-ts-at-hard', {
+      estimated_test_files: 10,
+    }),
+  ]);
+  const hard = result.findings.filter(
+    (f) => f.kind === 'test-surface-overflow',
+  );
+  assert.deepEqual(hard, []);
+  assert.deepEqual(result.errors, []);
 });

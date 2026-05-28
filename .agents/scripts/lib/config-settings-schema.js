@@ -243,7 +243,8 @@ const CODEBASE_SNAPSHOT_SCHEMA = {
 };
 
 /**
- * Per-profile soft+hard change-count ceiling pair (Recal A, Story #3231).
+ * Per-profile soft+hard ceiling pair reused for both change-count ceilings
+ * (Recal A, Story #3231) and test-surface gates (Feature 6, Story #3235).
  */
 const PROFILE_CEILING_SCHEMA = {
   type: 'object',
@@ -273,12 +274,31 @@ const PROFILE_CEILINGS_SCHEMA = {
 };
 
 /**
+ * `planning.taskSizing.testSurface` — operator overrides for per-profile
+ * test-surface gates on `estimated_test_files`. Keys match the `sizingProfile`
+ * enum plus `""` for the no-profile default. Absent keys fall back to
+ * `DEFAULT_TASK_SIZING.testSurface` in `ticket-validator-sizing.js`
+ * (Story #3235, Epic #3211 Feature 6).
+ */
+const TEST_SURFACE_SCHEMA = {
+  type: 'object',
+  properties: {
+    'mechanical-sweep': PROFILE_CEILING_SCHEMA,
+    scaffolding: PROFILE_CEILING_SCHEMA,
+    'atomic-rewrite': PROFILE_CEILING_SCHEMA,
+    '': PROFILE_CEILING_SCHEMA,
+  },
+  additionalProperties: false,
+};
+
+/**
  * `planning.taskSizing` — Story-sizing thresholds consumed by
  * `ticket-validator-sizing.js`. Operator overrides shallow-merge with
  * `DEFAULT_TASK_SIZING` defaults. Story #3231 (Epic #3211 Feature 5)
  * recalibrated for the 3-tier world: `maxAcceptance` raised to 8,
  * per-profile change ceilings introduced, `sizingProfile` demoted to an
- * informational-always hint.
+ * informational-always hint. Story #3235 adds `testSurface` gates on
+ * `estimated_test_files`.
  */
 const TASK_SIZING_SCHEMA = {
   type: 'object',
@@ -287,6 +307,7 @@ const TASK_SIZING_SCHEMA = {
     softAcceptanceCount: { type: 'integer', minimum: 1 },
     softFileCount: { type: 'integer', minimum: 1 },
     profileCeilings: PROFILE_CEILINGS_SCHEMA,
+    testSurface: TEST_SURFACE_SCHEMA,
   },
   additionalProperties: false,
 };
