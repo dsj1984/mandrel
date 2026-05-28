@@ -13,6 +13,16 @@
  * a single private predicate (`validateSpecShape`) so the orchestrator
  * function's CRAP score drops below 12.
  *
+ * Story #3195 (3-tier cutover): the per-Story task-counter projection
+ * has been dropped. Stories are now first-class lifecycle units — their
+ * progress is derived from the Story's own `agent::*` label (resolved
+ * via `state.mapping[slug]`) and the manifest summary counts
+ * `totalStories` / `doneStories`, not tasks.
+ * The renderer still receives a `storyEntry.tasks[]` array (currently
+ * empty under the 3-tier hierarchy) so call-sites that iterate `tasks`
+ * continue to read empty rather than `undefined`; sibling Stories in
+ * Feature #3181 strip those reads from the four `manifest-*` consumers.
+ *
  * No fs / network access; pure transform. Caller supplies `state` from
  * `lib/spec/loader.js#loadState`.
  */
@@ -92,51 +102,29 @@ function buildResolvers(state) {
 }
 
 /**
- * Private: project a single spec Task into a manifest Task entry. Caller
- * is responsible for filtering out non-object task nodes via
- * `validateSpecShape('task', ...)` before invoking.
- *
- * @param {object} task
- * @param {{ resolveId: Function, resolveStatus: Function }} resolvers
- * @returns {{ taskId: number|string, taskSlug: string, status: string, dependencies: [] }}
- */
-function projectTask(task, resolvers) {
-  return {
-    taskId: resolvers.resolveId(task.slug),
-    taskSlug: task.slug ?? '',
-    // Tasks have no `dependsOn` surface in the spec — dependency edges
-    // are inferred at the wave-ordering layer, not carried here.
-    dependencies: [],
-    status: resolvers.resolveStatus(task.slug),
-  };
-}
-
-/**
- * Private: project a single spec Story into a manifest Story entry plus
- * the per-story task tallies. Caller filters non-object stories with
+ * Private: project a single spec Story into a manifest Story entry. The
+ * Story's status is resolved directly from the Story-level label
+ * (`state.mapping[slug].lastObservedAgentState`) — under the 3-tier
+ * hierarchy Stories carry their own lifecycle state and there are no
+ * child Tasks to roll up. Caller filters non-object stories with
  * `validateSpecShape('story', ...)` before invoking.
+ *
+ * The returned entry preserves an empty `tasks[]` array so legacy
+ * call-sites that still iterate `story.tasks` (being migrated under
+ * Feature #3181) read a defined empty array rather than `undefined`.
  *
  * @param {object} story
  * @param {{ resolveId: Function, resolveStatus: Function }} resolvers
  * @returns {{
  *   storyEntry: object,
  *   wave: number,
- *   storyTotalTasks: number,
- *   storyDoneTasks: number,
+ *   isDone: boolean,
  * }}
  */
 function projectStory(story, resolvers) {
-  const storyTasks = validateSpecShape('tasks', story.tasks) ? story.tasks : [];
-  const tasks = [];
-  let storyDoneTasks = 0;
-  for (const t of storyTasks) {
-    if (!validateSpecShape('task', t)) continue;
-    const projected = projectTask(t, resolvers);
-    if (projected.status === AGENT_LABELS.DONE) storyDoneTasks++;
-    tasks.push(projected);
-  }
   const wave = Number.isInteger(story.wave) ? story.wave : -1;
   const storyId = resolvers.resolveId(story.slug);
+  const status = resolvers.resolveStatus(story.slug);
   const storyEntry = {
     storyId,
     storyTitle: story.title ?? '',
@@ -145,9 +133,10 @@ function projectStory(story, resolvers) {
     branchName:
       typeof storyId === 'number' ? `story-${storyId}` : `story-${story.slug}`,
     earliestWave: wave,
-    tasks,
+    status,
+    tasks: [],
   };
-  return { storyEntry, wave, storyTotalTasks: tasks.length, storyDoneTasks };
+  return { storyEntry, wave, isDone: status === AGENT_LABELS.DONE };
 }
 
 /**
@@ -156,19 +145,23 @@ function projectStory(story, resolvers) {
  * out of `buildManifestFromSpec` so the entry point reads as a straight
  * assembly of the result envelope.
  *
+ * Story-tier rollup: `totalStories` and `doneStories` are counted from
+ * the per-Story `agent::*` label resolved by `projectStory`. There is no
+ * task-tier rollup under the 3-tier hierarchy (Story #3195).
+ *
  * @param {object[]} features
  * @param {{ resolveId: Function, resolveStatus: Function }} resolvers
  * @returns {{
  *   storyManifest: object[],
- *   totalTasks: number,
- *   doneTasks: number,
+ *   totalStories: number,
+ *   doneStories: number,
  *   waveSet: Set<number>,
  * }}
  */
 function projectFeatures(features, resolvers) {
   const storyManifest = [];
-  let totalTasks = 0;
-  let doneTasks = 0;
+  let totalStories = 0;
+  let doneStories = 0;
   const waveSet = new Set();
   for (const feature of features) {
     const stories = validateSpecShape('stories', feature?.stories)
@@ -178,12 +171,12 @@ function projectFeatures(features, resolvers) {
       if (!validateSpecShape('story', story)) continue;
       const projection = projectStory(story, resolvers);
       storyManifest.push(projection.storyEntry);
-      totalTasks += projection.storyTotalTasks;
-      doneTasks += projection.storyDoneTasks;
+      totalStories++;
+      if (projection.isDone) doneStories++;
       if (projection.wave >= 0) waveSet.add(projection.wave);
     }
   }
-  return { storyManifest, totalTasks, doneTasks, waveSet };
+  return { storyManifest, totalStories, doneStories, waveSet };
 }
 
 /**
@@ -221,13 +214,13 @@ export function buildManifestFromSpec(spec, opts = {}) {
     ? spec.features
     : [];
 
-  const { storyManifest, totalTasks, doneTasks, waveSet } = projectFeatures(
+  const { storyManifest, totalStories, doneStories, waveSet } = projectFeatures(
     features,
     resolvers,
   );
 
   const progressPercent =
-    totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
+    totalStories > 0 ? Math.round((doneStories / totalStories) * 100) : 0;
 
   return {
     schemaVersion: '1.0.0',
@@ -237,8 +230,8 @@ export function buildManifestFromSpec(spec, opts = {}) {
     executor: opts.executor ?? 'spec',
     dryRun: opts.dryRun ?? false,
     summary: {
-      totalTasks,
-      doneTasks,
+      totalStories,
+      doneStories,
       progressPercent,
       totalWaves: waveSet.size,
       dispatched: 0,
