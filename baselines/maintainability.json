@@ -1,10 +1,10 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T13:34:56.249Z",
+  "generatedAt": "2026-05-28T15:22:04.510Z",
   "rollup": {
     "*": {
-      "min": 38.161,
+      "min": 62.385,
       "p50": 103.714,
       "p95": 121.479
     }
@@ -493,10 +493,6 @@
     {
       "path": ".agents/scripts/lib/config-schema.js",
       "mi": 171
-    },
-    {
-      "path": ".agents/scripts/lib/config-settings-schema.js",
-      "mi": 38.161
     },
     {
       "path": ".agents/scripts/lib/config/baselines.js",
@@ -1579,10 +1575,6 @@
       "mi": 87.067
     },
     {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
-      "mi": 94.978
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "mi": 91.529
     },
@@ -2585,10 +2577,6 @@
     {
       "path": "tests/config-schema-mirror-drift.test.js",
       "mi": 101.563
-    },
-    {
-      "path": "tests/config-settings-schema.test.js",
-      "mi": 108.577
     },
     {
       "path": "tests/config/agentrc-defaults.test.js",
@@ -3997,10 +3985,6 @@
     {
       "path": "tests/lib/orchestration/ticket-validator-freshness.test.js",
       "mi": 109.422
-    },
-    {
-      "path": "tests/lib/orchestration/ticket-validator-sizing.test.js",
-      "mi": 107.184
     },
     {
       "path": "tests/lib/orchestration/ticket-validator-subject-prefix.test.js",
