@@ -250,7 +250,9 @@ describe('planning.* shape', () => {
       {
         ...REQ,
         planning: {
-          taskSizing: { profileCeilings: { 'unknown-profile': { soft: 5, hard: 10 } } },
+          taskSizing: {
+            profileCeilings: { 'unknown-profile': { soft: 5, hard: 10 } },
+          },
         },
       },
       /additional properties/,
