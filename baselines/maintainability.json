@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T15:52:00.258Z",
+  "generatedAt": "2026-05-28T18:53:34.932Z",
   "rollup": {
     "*": {
       "min": 36.604,
       "p50": 103.671,
-      "p95": 121.235
+      "p95": 121.479
     }
   },
   "rows": [
@@ -905,10 +905,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation-pass.js",
       "mi": 103.115
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "mi": 110.283
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/dag.js",
@@ -4585,10 +4581,6 @@
     {
       "path": "tests/scripts/epic-plan-decompose-pipeline.test.js",
       "mi": 101.819
-    },
-    {
-      "path": "tests/scripts/epic-plan-decompose.3tier-creation-diagnostics.test.js",
-      "mi": 103.446
     },
     {
       "path": "tests/scripts/epic-plan-decompose.body-preservation.test.js",
