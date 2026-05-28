@@ -138,17 +138,17 @@ export async function resolveChildIndex({ force, resume, provider, epicId }) {
 /**
  * Run the staged feature → story → task creation passes against `provider`.
  *
- * 3-tier (Epic #3078): when the backlog carries no `type === 'task'`
- * tickets — the canonical 3-tier shape where Stories carry inline
- * `acceptance[]` + `verify[]` — the task pass is skipped via the
- * empty-bucket `continue` below. No "missing tasks" warning is emitted;
- * the 3-tier shape is a first-class backlog, validated upstream by
- * `assertEachTypePresent` / `assertEveryStoryHasTasks` in
+ * 3-tier (Epic #3078 / #3238): the canonical backlog carries no
+ * `type === 'task'` tickets — Stories carry inline `acceptance[]` +
+ * `verify[]` and are the implementation unit. The task pass is skipped
+ * via the empty-bucket `continue` below; no "missing tasks" warning is
+ * emitted. The inline-contract invariant is validated upstream by
+ * `assertEachTypePresent` / `assertEveryStoryHasInlineContract` in
  * `lib/orchestration/ticket-validator.js`.
  *
- * 4-tier (legacy): all three passes fire in feature → story → task order;
- * the slugMap propagates across passes so the task pass's
- * `parent_slug` → Story-issue-number resolution succeeds.
+ * The `task` pass label is retained in the loop only as a defensive
+ * no-op for malformed input — a well-formed 3-tier backlog never
+ * populates that bucket.
  */
 export async function runStagedPasses({
   ordered,
