@@ -42,7 +42,7 @@ function buildGatedProvider() {
           gates.set(storyId, gate);
         }
         const outcome = await gate.promise;
-        if (outcome && outcome.throw) throw outcome.throw;
+        if (outcome?.throw) throw outcome.throw;
         return outcome.ticket;
       } finally {
         inFlight -= 1;
@@ -83,7 +83,7 @@ function buildGatedProvider() {
 function buildLabelMapProvider(labelsByStory, throwForStory) {
   return {
     async getTicket(storyId) {
-      if (throwForStory && throwForStory.has(storyId)) {
+      if (throwForStory?.has(storyId)) {
         throw throwForStory.get(storyId);
       }
       const labels = labelsByStory.get(storyId) ?? ['agent::done'];

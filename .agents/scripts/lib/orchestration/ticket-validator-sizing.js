@@ -49,27 +49,26 @@ export const SIZING_PROFILE_VALUES = Object.freeze([
 ]);
 
 /**
- * Returns true when a `changes[]` bullet contains a glob wildcard character
- * (`*` or `**`). Glob entries contribute `unknown-width` to the sizing pass
- * instead of counting as a distinct file path (Gap 4, Story #3231).
+ * Returns true when a `changes[]` entry is a glob pattern. Handles both the
+ * canonical PathEntry object form `{ path, assumption }` and legacy strings.
  */
 function isGlobBullet(bullet) {
-  if (typeof bullet !== 'string') return false;
-  return bullet.includes('*');
+  const s = bullet?.path ?? bullet;
+  return typeof s === 'string' && s.includes('*');
 }
 
 /**
- * Extract the path-shaped head from a single `changes` bullet. Conventional
- * shape is `"<path>: <verb> <object>"`; we slice on the first colon and
- * return the head when it contains a slash or dot, otherwise `null`.
+ * Extract the path-shaped head from a single `changes` entry. Handles the
+ * canonical PathEntry object form (path used directly) and the legacy
+ * `"<path>: <verb>"` string form (slices on the first colon).
  */
 function extractChangeBulletPath(bullet) {
-  if (typeof bullet !== 'string') return null;
-  const colonIdx = bullet.indexOf(':');
-  if (colonIdx <= 0) return null;
-  const head = bullet.slice(0, colonIdx).trim();
-  if (!/[\\/.]/.test(head)) return null;
-  return head;
+  const s = typeof bullet === 'string' ? bullet : (bullet?.path ?? null);
+  if (!s) return null;
+  const colonIdx = s.indexOf(':');
+  if (colonIdx <= 0) return /[\\/.]/.test(s) ? s.trim() : null;
+  const head = s.slice(0, colonIdx).trim();
+  return /[\\/.]/.test(head) ? head : null;
 }
 
 /**
@@ -77,9 +76,8 @@ function extractChangeBulletPath(bullet) {
  *   - `fileCount` — number of unique non-glob path-shaped heads
  *   - `hasGlobs`  — true when at least one bullet is a glob pattern
  *
- * A Story whose changes include a glob is classified as `unknown-width` for
- * the profile-ceiling gate. The `fileCount` still counts explicit paths so
- * the `softFileCount` hint fires on mixed Stories.
+ * Handles both the canonical PathEntry object form `{ path, assumption }` and
+ * the legacy string form via the underlying helpers.
  */
 function analyseChanges(changes) {
   const paths = new Set();

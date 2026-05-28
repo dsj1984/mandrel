@@ -675,3 +675,48 @@ test('estimated_test_files exactly at hard threshold produces no finding', () =>
   assert.deepEqual(hard, []);
   assert.deepEqual(result.errors, []);
 });
+
+// ---------------------------------------------------------------------------
+// PathEntry object form in changes[] (review finding fix, Epic #3211)
+// ---------------------------------------------------------------------------
+
+test('changes[] with PathEntry object form counts files correctly (not zero)', () => {
+  // Canonical PathEntry form: { path, assumption }. analyseChanges must handle
+  // objects, not only legacy string bullets. A task with 4 PathEntry objects
+  // and no sizingProfile should emit a missing-sizing-profile-hint (fileCount=4 > softFileCount=3).
+  const result = validateAndNormalizeTickets([
+    FEATURE,
+    makeStory(),
+    makeTask('t-pathentry', {
+      changes: [
+        { path: 'src/a.js', assumption: 'creates' },
+        { path: 'src/b.js', assumption: 'refactors-existing' },
+        { path: 'src/c.js', assumption: 'exists' },
+        { path: 'src/d.js', assumption: 'deletes' },
+      ],
+    }),
+  ]);
+  const hint = result.findings.filter(
+    (f) => f.kind === 'missing-sizing-profile-hint',
+  );
+  assert.equal(
+    hint.length,
+    1,
+    'expected missing-sizing-profile-hint for 4 PathEntry changes',
+  );
+  assert.equal(hint[0].fileCount, 4);
+});
+
+test('changes[] with glob PathEntry object triggers glob-without-sizing-profile finding', () => {
+  const result = validateAndNormalizeTickets([
+    FEATURE,
+    makeStory(),
+    makeTask('t-glob-pathentry', {
+      changes: [{ path: '**/*.js', assumption: 'refactors-existing' }],
+    }),
+  ]);
+  const globFindings = result.findings.filter(
+    (f) => f.kind === 'glob-without-sizing-profile',
+  );
+  assert.equal(globFindings.length, 1);
+});
