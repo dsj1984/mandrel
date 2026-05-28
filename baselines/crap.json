@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T01:18:04.585Z",
+  "generatedAt": "2026-05-28T02:21:06.527Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.006059669598093,
+      "p95": 12.000914494741656,
       "max": 49.61729902329076,
       "methodsAbove20": 28
     }
@@ -9526,30 +9526,6 @@
       "method": "renderRoutedSections",
       "startLine": 359,
       "crap": 16
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/retro/phases/gather-signals.js",
-      "method": "sumFriction",
-      "startLine": 35,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/retro/phases/gather-signals.js",
-      "method": "collectDescendants",
-      "startLine": 53,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/retro/phases/gather-signals.js",
-      "method": "warnIfEpicLooksPopulated",
-      "startLine": 91,
-      "crap": 4.291587694999271
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/retro/phases/gather-signals.js",
-      "method": "gatherRetroSignals",
-      "startLine": 143,
-      "crap": 12.027811485254988
     },
     {
       "path": ".agents/scripts/lib/orchestration/retro/phases/post-and-mirror.js",
