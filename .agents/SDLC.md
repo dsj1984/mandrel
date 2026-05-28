@@ -538,6 +538,27 @@ Whether the Story is launched directly by the operator or fanned out by
    - Transitions the Story to `agent::executing`. `story-phase.js`
      upserts the initial `story-run-progress` snapshot at the `init`
      phase.
+1a. **Story-plan checkpoint** (standalone Stories only — Step 0.6 in
+   `helpers/single-story-deliver`): before authoring any commit, the
+   agent evaluates the **always-emit triggering predicate** in
+   `.agents/scripts/lib/story-plan/trigger.js#isNonTrivial`. A Story
+   is non-trivial when any one of: `changes.length >= 3`,
+   `acceptance.length >= 3`, or `sizingProfile === 'atomic-rewrite'`.
+   For non-trivial Stories the agent posts a `story-plan` structured
+   comment via `post-story-plan.js`, recording `files_to_touch`,
+   `ac_mapping`, `open_questions`, and `plan_revision`. When
+   `delivery.storyPlan.requireAcknowledgement` is `true`, the agent
+   polls for the `plan::acknowledged` label before making any commit
+   (timeout: `delivery.storyPlan.ackTimeoutMs`, default 30 min;
+   on timeout the Story transitions to `agent::blocked`). At close
+   time, `single-story-close.js` compares the plan's `files_to_touch`
+   against the actual diff and posts soft findings
+   (`story-plan-files-added` / `story-plan-files-missed`) as advisory
+   signal; these do not gate the close decision. Floors and the
+   acknowledgement gate are configured under `delivery.storyPlan.*`
+   in `.agentrc.json`. See
+   [`helpers/single-story-deliver.md`](workflows/helpers/single-story-deliver.md)
+   Step 0.6 for the full checkpoint contract.
 2. **Story implementation.** The agent executes the Story's inline
    `acceptance[]` / `verify[]` contract on the shared Story branch,
    authoring one or more commits referencing the parent Story via
