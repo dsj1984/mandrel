@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "StoryPlanComment",
+  "description": "Schema for the story-plan structured comment emitted by post-story-plan.js. One comment per Story; idempotent upserts increment plan_revision on each re-post. See Tech Spec #3250 for the full data-model narrative.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "files_to_touch",
+    "ac_mapping",
+    "open_questions",
+    "plan_revision"
+  ],
+  "properties": {
+    "files_to_touch": {
+      "type": "array",
+      "description": "Paths the agent expects to create or modify. Normally a subset or close superset of the Story changes[].path set.",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "ac_mapping": {
+      "type": "object",
+      "description": "Keyed by acceptance-criteria index (0-based, as a string). Maps each AC item to the test files and optional notes planned to satisfy it.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["tests"],
+        "properties": {
+          "tests": {
+            "type": "array",
+            "description": "Test file paths or test identifiers planned to cover this AC item.",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "notes": {
+            "type": "string",
+            "description": "Optional free-text notes about how this AC item will be satisfied."
+          }
+        }
+      }
+    },
+    "open_questions": {
+      "type": "array",
+      "description": "Open questions the agent surfaces before committing. A non-empty list triggers an operator-visible finding.",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "plan_revision": {
+      "type": "integer",
+      "description": "Monotonically increasing counter. Starts at 1; incremented each time the plan is re-posted (e.g. after a re-plan following a validation failure).",
+      "minimum": 1
+    }
+  }
+}

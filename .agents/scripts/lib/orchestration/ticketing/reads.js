@@ -145,6 +145,13 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // the documented remediation actually executable
   // (assertValidStructuredCommentType would otherwise throw).
   'wave-stall',
+  // Story #3258 (Epic #3212) — `post-story-plan.js` upserts a `story-plan`
+  // comment on a Story before the first commit, surfacing the planned
+  // file set, AC-to-test mapping, and open questions. The emitter is
+  // idempotent: re-posts increment `plan_revision` in place rather than
+  // appending a new comment. Schema:
+  // `.agents/schemas/story-plan-comment.schema.json`.
+  'story-plan',
 ]);
 
 export const WAVE_TYPE_PATTERN = WAVE_MARKER_RE;
