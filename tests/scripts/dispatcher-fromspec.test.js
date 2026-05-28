@@ -156,7 +156,11 @@ test('tryRenderFromSpec returns spec-rendered Markdown when the spec is present'
   // Spec-routed render exercises the slug→issueNumber mapping in state.
   assert.match(md, /Routing Story/);
   assert.match(md, /#5001/);
-  assert.match(md, /- \[ \] #5002 — task-routing/);
+  // Under the 3-tier hierarchy (Epic #3163, Story #3196) Stories are
+  // leaves; the per-Story body collapses to the empty-tasks marker
+  // and the renderer no longer emits per-Task checkbox rows.
+  assert.match(md, /_\(no tasks\)_/);
+  assert.doesNotMatch(md, /- \[ \] #5002 — task-routing/);
   // Each loader is invoked exactly once per render.
   const { loadSpecCalls, loadStateCalls } = loaders.callCounts();
   assert.equal(loadSpecCalls, 1);
