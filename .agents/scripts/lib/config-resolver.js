@@ -137,8 +137,8 @@ function applyDeliveryDefaults(rawDelivery) {
   });
   delivery.lifecycle = getLifecycle({ lifecycle: delivery.lifecycle });
   // Story #2899 (Epic #2880) — `delivery.ci` always carries
-  // `skipForStoryPushes: true` by default so task-commit.js applies the
-  // `[skip ci]` trailer without operator opt-in.
+  // `skipForStoryPushes: true` by default so Story-branch commit
+  // tooling applies the `[skip ci]` trailer without operator opt-in.
   delivery.ci = getCiDelivery({ ci: delivery.ci });
   return delivery;
 }
