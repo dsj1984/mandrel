@@ -201,7 +201,7 @@ function extractSectionList(body, heading) {
  * populate the `acceptanceCriteria` and `verificationCommands` envelope
  * sections directly from the dispatched Story ticket — under 3-tier the
  * Story IS the unit of execution and carries acceptance/verify inline
- * (no child Task tickets to walk).
+ * (no child tickets to walk).
  *
  * @param {string} body
  * @returns {{ acceptance: string[], verify: string[] }}

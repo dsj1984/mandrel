@@ -295,7 +295,10 @@ describe('lib/orchestration/spec-renderer.js — dependsOn / wave layering', () 
 });
 
 describe('lib/orchestration/spec-renderer.js — 3-tier guard', () => {
-  it('rejects a ticket of type "task" with a 3-tier message', () => {
+  it('rejects a ticket of type "task" with an unknown-type message', () => {
+    // Epic #3238 / Story #3272 dropped the dedicated `type === 'task'`
+    // render arm. A Task ticket now falls through to the generic
+    // unknown-type guard rather than a Task-specific 3-tier message.
     const tickets = buildFixtureTickets();
     tickets.push({
       slug: 'orphan-task',
@@ -306,7 +309,7 @@ describe('lib/orchestration/spec-renderer.js — 3-tier guard', () => {
     });
     assert.throws(
       () => renderSpec(tickets, { epic: FIXTURE_EPIC }),
-      /3-tier hierarchy/,
+      /unknown type "task"/,
     );
   });
 });

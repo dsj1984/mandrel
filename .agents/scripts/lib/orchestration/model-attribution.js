@@ -1,11 +1,10 @@
 /**
- * model-attribution.js — Task-scoped model attribution comments + rollup
+ * model-attribution.js — per-ticket model attribution comments + rollup
  * (Story #2813).
  *
- * Records which Claude model executed each Task as a structured comment on
- * the Task ticket. Story- and Epic-level mixes are computed at query time
- * by walking the child Tasks' comments — no Story/Epic-scope emission is
- * written.
+ * Records which Claude model executed a given ticket as a structured comment
+ * on that ticket. Epic-level mixes are computed at query time by walking the
+ * child tickets' comments — no Epic-scope emission is written.
  *
  * Surface:
  *
@@ -323,10 +322,10 @@ export async function parseModelAttributionComment(args) {
 }
 
 /**
- * Walk the immediate children of a Story or Epic, read each child's
- * model-attribution comment (when present), and aggregate per-model
- * counts. Tasks with no attribution comment are counted under
- * `missing`.
+ * Walk the immediate child tickets of a parent (e.g. an Epic's Stories),
+ * read each child's model-attribution comment (when present), and
+ * aggregate per-model counts. Children with no attribution comment are
+ * counted under `missing`.
  *
  * Rollup is keyed by `model.family` when present, otherwise by
  * `model.id` so unknown families still aggregate distinctly. The

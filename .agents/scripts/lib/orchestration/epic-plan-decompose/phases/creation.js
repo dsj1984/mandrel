@@ -136,19 +136,17 @@ export async function resolveChildIndex({ force, resume, provider, epicId }) {
 }
 
 /**
- * Run the staged feature → story → task creation passes against `provider`.
+ * Run the staged feature → story creation passes against `provider`.
  *
- * 3-tier (Epic #3078): when the backlog carries no `type === 'task'`
- * tickets — the canonical 3-tier shape where Stories carry inline
- * `acceptance[]` + `verify[]` — the task pass is skipped via the
- * empty-bucket `continue` below. No "missing tasks" warning is emitted;
- * the 3-tier shape is a first-class backlog, validated upstream by
- * `assertEachTypePresent` / `assertEveryStoryHasTasks` in
+ * 3-tier (Epic #3078 / #3238): the canonical shape carries only
+ * `feature` and `story` tickets — Stories hold inline `acceptance[]` +
+ * `verify[]` on their own bodies, so there is no separate task-creation
+ * pass. The two passes fire in feature → story order; the slugMap
+ * propagates across passes so the story pass's `parent_slug` →
+ * Feature-issue-number resolution succeeds. The inline-contract
+ * invariant is validated upstream by `assertEachTypePresent` /
+ * `assertEveryStoryHasInlineContract` in
  * `lib/orchestration/ticket-validator.js`.
- *
- * 4-tier (legacy): all three passes fire in feature → story → task order;
- * the slugMap propagates across passes so the task pass's
- * `parent_slug` → Story-issue-number resolution succeeds.
  */
 export async function runStagedPasses({
   ordered,
@@ -161,7 +159,7 @@ export async function runStagedPasses({
   let activeCap = configuredCap;
   const throttle = attachAdaptiveConcurrencyHook(provider);
   try {
-    for (const passType of ['feature', 'story', 'task']) {
+    for (const passType of ['feature', 'story']) {
       const passTickets = ordered.filter((t) => t.type === passType);
       if (passTickets.length === 0) continue;
       if (throttle.wasThrottled() && activeCap > 1) {
@@ -215,6 +213,6 @@ export function warnTicketCapNearLimit(
 ) {
   if (tickets.length < maxTickets) return;
   logger.warn(
-    `[${tag}] ⚠️  Received ${tickets.length} tickets against a reviewability budget of ${maxTickets}. Verify every Story still has child Tasks; over-budget persistence requires --allow-over-budget.`,
+    `[${tag}] ⚠️  Received ${tickets.length} tickets against a reviewability budget of ${maxTickets}. Review the Feature/Story split before persisting; over-budget persistence requires --allow-over-budget.`,
   );
 }

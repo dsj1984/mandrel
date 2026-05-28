@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
-  collectTaskAssumptionEntries,
+  collectStoryAssumptionEntries,
   FILE_ASSUMPTION_VALUES,
   hasLegacyChangeBullets,
-  validateTaskFileAssumptions,
+  validateStoryFileAssumptions,
 } from '../.agents/scripts/lib/orchestration/file-assumptions.js';
 import {
   isMalformedObjectPathEntry,
@@ -16,14 +16,15 @@ import {
 /**
  * Story #2636 — Phase 8 path-assumption gate.
  *
- * The validator inspects each Task's body.changes and body.references
+ * Story #3276 reworked the gate onto the 3-tier Story inline contract:
+ * the validator inspects each Story's body.changes and body.references
  * for object-form `{ path, assumption }` entries and verifies them
  * against `baseBranchRef`. Legacy string-form bullets are tolerated and
- * emit a one-time deprecation warning per Task.
+ * emit a one-time deprecation warning per Story.
  */
 
-function makeTask({ slug = 'demo-task', body }) {
-  return { type: 'task', slug, title: slug, body };
+function makeStory({ slug = 'demo-story', body }) {
+  return { type: 'story', slug, title: slug, body };
 }
 
 describe('isObjectPathEntry / isMalformedObjectPathEntry — schema guards', () => {
@@ -57,7 +58,7 @@ describe('isObjectPathEntry / isMalformedObjectPathEntry — schema guards', () 
 describe('validateTaskBodyShape — object-form changes + references', () => {
   it('accepts a body whose changes are pure object-form entries', () => {
     const errors = validateTaskBodyShape(
-      makeTask({
+      makeStory({
         body: {
           goal: 'extract verifyToken',
           changes: [
@@ -74,7 +75,7 @@ describe('validateTaskBodyShape — object-form changes + references', () => {
 
   it('rejects a malformed object entry with an unknown assumption', () => {
     const errors = validateTaskBodyShape(
-      makeTask({
+      makeStory({
         body: {
           goal: 'extract verifyToken',
           changes: [{ path: 'src/auth.ts', assumption: 'rewires' }],
@@ -90,7 +91,7 @@ describe('validateTaskBodyShape — object-form changes + references', () => {
 
   it('accepts a body.references array of object entries', () => {
     const errors = validateTaskBodyShape(
-      makeTask({
+      makeStory({
         body: {
           goal: 'g',
           changes: ['src/x.ts: edit'],
@@ -107,7 +108,7 @@ describe('validateTaskBodyShape — object-form changes + references', () => {
 
   it('rejects a body.references that is not an array', () => {
     const errors = validateTaskBodyShape(
-      makeTask({
+      makeStory({
         body: {
           goal: 'g',
           changes: ['src/x.ts: edit'],
@@ -122,10 +123,10 @@ describe('validateTaskBodyShape — object-form changes + references', () => {
   });
 });
 
-describe('collectTaskAssumptionEntries — extraction helper', () => {
+describe('collectStoryAssumptionEntries — extraction helper', () => {
   it('walks changes and references and tags each entry with its source', () => {
-    const entries = collectTaskAssumptionEntries(
-      makeTask({
+    const entries = collectStoryAssumptionEntries(
+      makeStory({
         body: {
           goal: 'g',
           changes: [
@@ -145,8 +146,8 @@ describe('collectTaskAssumptionEntries — extraction helper', () => {
   });
 
   it('returns empty when no object entries are present', () => {
-    const entries = collectTaskAssumptionEntries(
-      makeTask({
+    const entries = collectStoryAssumptionEntries(
+      makeStory({
         body: {
           goal: 'g',
           changes: ['src/x.ts: legacy bullet'],
@@ -161,7 +162,7 @@ describe('collectTaskAssumptionEntries — extraction helper', () => {
 
 describe('hasLegacyChangeBullets — partial migration cue', () => {
   it('returns true when any change entry is still a string', () => {
-    const task = makeTask({
+    const story = makeStory({
       body: {
         goal: 'g',
         changes: [
@@ -172,11 +173,11 @@ describe('hasLegacyChangeBullets — partial migration cue', () => {
         verify: ['v'],
       },
     });
-    assert.equal(hasLegacyChangeBullets(task), true);
+    assert.equal(hasLegacyChangeBullets(story), true);
   });
 
   it('returns false when every change is object-form', () => {
-    const task = makeTask({
+    const story = makeStory({
       body: {
         goal: 'g',
         changes: [{ path: 'src/a.ts', assumption: 'creates' }],
@@ -184,11 +185,11 @@ describe('hasLegacyChangeBullets — partial migration cue', () => {
         verify: ['v'],
       },
     });
-    assert.equal(hasLegacyChangeBullets(task), false);
+    assert.equal(hasLegacyChangeBullets(story), false);
   });
 });
 
-describe('validateTaskFileAssumptions — rules table', () => {
+describe('validateStoryFileAssumptions — rules table', () => {
   // Each row exercises one (assumption × actual-state) combination.
   const cases = [
     {
@@ -248,7 +249,7 @@ describe('validateTaskFileAssumptions — rules table', () => {
   for (const tc of cases) {
     it(tc.label, () => {
       const tickets = [
-        makeTask({
+        makeStory({
           body: {
             goal: 'g',
             changes: [{ path: 'src/sample.ts', assumption: tc.assumption }],
@@ -257,7 +258,7 @@ describe('validateTaskFileAssumptions — rules table', () => {
           },
         }),
       ];
-      const report = validateTaskFileAssumptions({
+      const report = validateStoryFileAssumptions({
         tickets,
         baseBranchRef: 'main',
         gitRunner: () => tc.exists,
@@ -271,10 +272,52 @@ describe('validateTaskFileAssumptions — rules table', () => {
     });
   }
 
-  it('batches multiple mismatches across multiple tasks', () => {
+  it('only scans type==="story" tickets — Features and Epics are skipped', () => {
+    // 3-tier regression (Story #3276): the gate partitions on the Story
+    // tier. A non-Story ticket carrying a mismatched assumption must be
+    // ignored so the gate never fires on narrative Feature/Epic bodies.
     const tickets = [
-      makeTask({
-        slug: 'task-a',
+      {
+        type: 'feature',
+        slug: 'a-feature',
+        title: 'a-feature',
+        body: {
+          goal: 'g',
+          // `creates` + present would be a mismatch IF this were scanned.
+          changes: [{ path: 'src/feature-only.ts', assumption: 'creates' }],
+          acceptance: ['ac'],
+          verify: ['node --test tests/x.test.js (unit)'],
+        },
+      },
+      {
+        type: 'epic',
+        slug: 'an-epic',
+        title: 'an-epic',
+        body: {
+          goal: 'g',
+          changes: [{ path: 'src/epic-only.ts', assumption: 'creates' }],
+          acceptance: ['ac'],
+          verify: ['node --test tests/x.test.js (unit)'],
+        },
+      },
+    ];
+    const report = validateStoryFileAssumptions({
+      tickets,
+      baseBranchRef: 'main',
+      // Every probe reports the path present — would trip `creates` if the
+      // non-Story tickets were scanned. The empty envelope proves they are
+      // partitioned out.
+      gitRunner: () => true,
+    });
+    assert.deepEqual(report.errors, []);
+    assert.deepEqual(report.warnings, []);
+    assert.deepEqual(report.mismatches, []);
+  });
+
+  it('batches multiple mismatches across multiple stories', () => {
+    const tickets = [
+      makeStory({
+        slug: 'story-a',
         body: {
           goal: 'g',
           changes: [{ path: 'src/a.ts', assumption: 'creates' }],
@@ -282,8 +325,8 @@ describe('validateTaskFileAssumptions — rules table', () => {
           verify: ['node --test tests/x.test.js (unit)'],
         },
       }),
-      makeTask({
-        slug: 'task-b',
+      makeStory({
+        slug: 'story-b',
         body: {
           goal: 'g',
           changes: [{ path: 'src/b.ts', assumption: 'refactors-existing' }],
@@ -292,21 +335,21 @@ describe('validateTaskFileAssumptions — rules table', () => {
         },
       }),
     ];
-    // Both probes return the *opposite* of what each task expects.
+    // Both probes return the *opposite* of what each story expects.
     const probe = ({ path }) => path === 'src/a.ts'; // a exists (bad for creates), b absent (bad for refactors)
-    const report = validateTaskFileAssumptions({
+    const report = validateStoryFileAssumptions({
       tickets,
       baseBranchRef: 'main',
       gitRunner: probe,
     });
     assert.equal(report.errors.length, 2);
-    assert.match(report.errors[0], /"task-a"/);
-    assert.match(report.errors[1], /"task-b"/);
+    assert.match(report.errors[0], /"story-a"/);
+    assert.match(report.errors[1], /"story-b"/);
   });
 
-  it('emits a deprecation warning for tasks with only legacy string bullets', () => {
+  it('emits a deprecation warning for stories with only legacy string bullets', () => {
     const tickets = [
-      makeTask({
+      makeStory({
         body: {
           goal: 'g',
           changes: ['src/x.ts: legacy bullet'],
@@ -315,7 +358,7 @@ describe('validateTaskFileAssumptions — rules table', () => {
         },
       }),
     ];
-    const report = validateTaskFileAssumptions({
+    const report = validateStoryFileAssumptions({
       tickets,
       baseBranchRef: 'main',
       gitRunner: () => true,
@@ -327,7 +370,7 @@ describe('validateTaskFileAssumptions — rules table', () => {
 
   it('emits a partial-migration warning when string + object entries mix', () => {
     const tickets = [
-      makeTask({
+      makeStory({
         body: {
           goal: 'g',
           changes: [
@@ -339,7 +382,7 @@ describe('validateTaskFileAssumptions — rules table', () => {
         },
       }),
     ];
-    const report = validateTaskFileAssumptions({
+    const report = validateStoryFileAssumptions({
       tickets,
       baseBranchRef: 'main',
       gitRunner: () => false,
@@ -350,7 +393,7 @@ describe('validateTaskFileAssumptions — rules table', () => {
 
   it('throws when baseBranchRef is missing', () => {
     assert.throws(
-      () => validateTaskFileAssumptions({ tickets: [] }),
+      () => validateStoryFileAssumptions({ tickets: [] }),
       /baseBranchRef is required/,
     );
   });
@@ -358,8 +401,8 @@ describe('validateTaskFileAssumptions — rules table', () => {
   it('caches per-path probe results so siblings reuse the answer', () => {
     let calls = 0;
     const tickets = [
-      makeTask({
-        slug: 'task-a',
+      makeStory({
+        slug: 'story-a',
         body: {
           goal: 'g',
           changes: [{ path: 'shared/util.ts', assumption: 'exists' }],
@@ -367,8 +410,8 @@ describe('validateTaskFileAssumptions — rules table', () => {
           verify: ['node --test tests/x.test.js (unit)'],
         },
       }),
-      makeTask({
-        slug: 'task-b',
+      makeStory({
+        slug: 'story-b',
         body: {
           goal: 'g',
           changes: [{ path: 'shared/util.ts', assumption: 'exists' }],
@@ -377,7 +420,7 @@ describe('validateTaskFileAssumptions — rules table', () => {
         },
       }),
     ];
-    validateTaskFileAssumptions({
+    validateStoryFileAssumptions({
       tickets,
       baseBranchRef: 'main',
       gitRunner: () => {

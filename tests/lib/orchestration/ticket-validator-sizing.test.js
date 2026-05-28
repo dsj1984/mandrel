@@ -22,9 +22,12 @@ import { validateAndNormalizeTickets } from '../../../.agents/scripts/lib/orches
  *   Findings: large-test-surface (soft), test-surface-overflow (hard)
  *   Null/absent value → no finding (informational; absence ≠ zero)
  *
- * The hierarchical scaffolding (one Feature, one Story per Task) is the
- * minimum the validator accepts; the sizing logic is the only thing under
- * test here so the fixtures stay focused.
+ * 3-tier (Epic #3238): each Story is its own implementation unit and
+ * carries the `body` (goal / changes / acceptance / verify / sizingProfile
+ * / estimated_test_files) that the sizing pass scans, plus the top-level
+ * `acceptance[]` + `verify[]` inline contract the validator requires.
+ * Sizing findings are keyed by the Story slug, so the `makeStory` helper
+ * takes the slug each test asserts on.
  */
 
 const FEATURE = Object.freeze({
@@ -33,23 +36,16 @@ const FEATURE = Object.freeze({
   title: 'Sizing fixtures',
 });
 
-function makeStory(slug = 's-sizing') {
+function makeStory(slug = 's-sizing', body) {
   return {
     type: 'story',
     slug,
     parent_slug: 'f-sizing',
-    title: 'Sizing story',
-  };
-}
-
-function makeTask(slug, body, parentSlug = 's-sizing') {
-  return {
-    type: 'task',
-    slug,
-    parent_slug: parentSlug,
-    title: `Task ${slug}`,
+    title: `Sizing story ${slug}`,
+    acceptance: ['observable criterion'],
+    verify: ['npm test (unit)'],
     body: {
-      goal: `Goal for ${slug} (parent ${parentSlug}).`,
+      goal: `Goal for ${slug}.`,
       changes: ['src/a.js: edit'],
       acceptance: ['observable criterion'],
       verify: ['npm test (unit)'],
@@ -65,8 +61,7 @@ function makeTask(slug, body, parentSlug = 's-sizing') {
 test('narrow Story with no sizingProfile produces no findings', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-narrow', {
+    makeStory('t-narrow', {
       changes: ['src/a.js: edit', 'src/b.js: edit', 'src/c.js: edit'],
       acceptance: ['criterion 1', 'criterion 2'],
     }),
@@ -82,8 +77,7 @@ test('narrow Story with no sizingProfile produces no findings', () => {
 test('Story with 8 acceptance items validates clean (Recal B: maxAcceptance=8)', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-8ac', {
+    makeStory('t-8ac', {
       acceptance: Array.from({ length: 8 }, (_, i) => `criterion ${i}`),
     }),
   ]);
@@ -96,8 +90,7 @@ test('Story with 8 acceptance items validates clean (Recal B: maxAcceptance=8)',
 test('Story with 9 acceptance items trips hard oversized-task (Recal B: ceiling=8)', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-9ac', {
+    makeStory('t-9ac', {
       acceptance: Array.from({ length: 9 }, (_, i) => `criterion ${i}`),
       sizingProfile: 'scaffolding',
     }),
@@ -121,8 +114,7 @@ test('Story with 9 acceptance items trips hard oversized-task (Recal B: ceiling=
 test('Story with 5 changes and no sizingProfile emits missing-sizing-profile-hint (Recal C: no hard rejection)', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-wide-no-profile', {
+    makeStory('t-wide-no-profile', {
       changes: [
         'src/a.js: edit',
         'src/b.js: edit',
@@ -150,8 +142,7 @@ test('wide Story with valid sizingProfile emits soft-task-width only (no hard fi
   // soft breach fires (fileCount=4 > softFileCount=3), not the changes breach.
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-wide-valid', {
+    makeStory('t-wide-valid', {
       changes: [
         'src/a.js: edit',
         'src/b.js: edit',
@@ -184,8 +175,7 @@ test('wide Story with valid sizingProfile emits soft-task-width only (no hard fi
 test('mechanical-sweep: 30 changes is a soft breach (soft=25), no hard finding', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-sweep-soft', {
+    makeStory('t-sweep-soft', {
       changes: Array.from({ length: 30 }, (_, i) => `src/file${i}.js: rename`),
       sizingProfile: 'mechanical-sweep',
     }),
@@ -205,8 +195,7 @@ test('mechanical-sweep: 30 changes is a soft breach (soft=25), no hard finding',
 test('mechanical-sweep: 61 changes trips hard ceiling (hard=60)', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-sweep-hard', {
+    makeStory('t-sweep-hard', {
       changes: Array.from({ length: 61 }, (_, i) => `src/file${i}.js: rename`),
       sizingProfile: 'mechanical-sweep',
     }),
@@ -226,8 +215,7 @@ test('mechanical-sweep: 61 changes trips hard ceiling (hard=60)', () => {
 test('scaffolding: 10 changes is a soft breach (soft=8), no hard finding', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-scaffold-soft', {
+    makeStory('t-scaffold-soft', {
       changes: Array.from({ length: 10 }, (_, i) => `src/new${i}.js: create`),
       sizingProfile: 'scaffolding',
     }),
@@ -247,8 +235,7 @@ test('scaffolding: 10 changes is a soft breach (soft=8), no hard finding', () =>
 test('scaffolding: 16 changes trips hard ceiling (hard=15)', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-scaffold-hard', {
+    makeStory('t-scaffold-hard', {
       changes: Array.from({ length: 16 }, (_, i) => `src/new${i}.js: create`),
       sizingProfile: 'scaffolding',
     }),
@@ -264,8 +251,7 @@ test('scaffolding: 16 changes trips hard ceiling (hard=15)', () => {
 test('atomic-rewrite: 3 changes is a soft breach (soft=2), no hard finding', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-rewrite-soft', {
+    makeStory('t-rewrite-soft', {
       changes: ['src/a.js: rewrite', 'src/b.js: rewrite', 'src/c.js: rewrite'],
       sizingProfile: 'atomic-rewrite',
     }),
@@ -285,8 +271,7 @@ test('atomic-rewrite: 3 changes is a soft breach (soft=2), no hard finding', () 
 test('atomic-rewrite: 5 changes trips hard ceiling (hard=4)', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-rewrite-hard', {
+    makeStory('t-rewrite-hard', {
       changes: Array.from({ length: 5 }, (_, i) => `src/file${i}.js: rewrite`),
       sizingProfile: 'atomic-rewrite',
     }),
@@ -302,8 +287,7 @@ test('atomic-rewrite: 5 changes trips hard ceiling (hard=4)', () => {
 test('no-profile: 4 changes is a soft breach (soft=3), no hard finding', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-noprofile-soft', {
+    makeStory('t-noprofile-soft', {
       changes: Array.from({ length: 4 }, (_, i) => `src/f${i}.js: edit`),
     }),
   ]);
@@ -322,8 +306,7 @@ test('no-profile: 4 changes is a soft breach (soft=3), no hard finding', () => {
 test('no-profile: 7 changes trips hard ceiling (hard=6)', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-noprofile-hard', {
+    makeStory('t-noprofile-hard', {
       changes: Array.from({ length: 7 }, (_, i) => `src/f${i}.js: edit`),
     }),
   ]);
@@ -342,8 +325,7 @@ test('no-profile: 7 changes trips hard ceiling (hard=6)', () => {
 test('glob entry in changes emits glob-without-sizing-profile soft finding when no profile (Gap 4)', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-glob-no-profile', {
+    makeStory('t-glob-no-profile', {
       changes: ['**/*.ts: update imports'],
     }),
   ]);
@@ -359,8 +341,7 @@ test('glob entry in changes emits glob-without-sizing-profile soft finding when 
 test('glob entry with valid sizingProfile produces no glob-without-sizing-profile finding (Gap 4)', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-glob-with-profile', {
+    makeStory('t-glob-with-profile', {
       changes: ['**/*.ts: update imports'],
       sizingProfile: 'mechanical-sweep',
     }),
@@ -376,8 +357,7 @@ test('glob entries skip numeric ceiling check — unknown-width bypasses oversiz
   // 100 glob bullets — none are explicit paths, so no oversized-task on changes.
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-glob-many', {
+    makeStory('t-glob-many', {
       changes: Array.from({ length: 100 }, (_, i) => `src/**/${i}.ts: edit`),
       sizingProfile: 'mechanical-sweep',
     }),
@@ -393,14 +373,10 @@ test('glob entries skip numeric ceiling check — unknown-width bypasses oversiz
 // ---------------------------------------------------------------------------
 
 test('no soft-story-width finding emitted in 3-tier world (Recal D)', () => {
-  const extraStory = makeStory('s-extra');
-  extraStory.parent_slug = 'f-sizing';
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-d1'),
-    extraStory,
-    makeTask('t-d2', {}, 's-extra'),
+    makeStory('s-d1'),
+    makeStory('s-d2'),
   ]);
   const storyWidthFindings = result.findings.filter(
     (f) => f.kind === 'soft-story-width',
@@ -409,20 +385,24 @@ test('no soft-story-width finding emitted in 3-tier world (Recal D)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 4-tier guard — assertEveryStoryHasTasks and countTasksByStory intact
+// 3-tier guard — a Story missing its inline acceptance + verify contract is
+// rejected (Epic #3238 replaces the old assertEveryStoryHasTasks gate).
 // ---------------------------------------------------------------------------
 
-test('assertEveryStoryHasTasks guard fires for Stories with no child tasks (4-tier guard intact)', () => {
-  // The 4-tier cardinality guard (assertEveryStoryHasTasks) must remain
-  // intact per Epic #3211 Non-Goals (refs Epic #3078).
+test('rejects a Story that lacks an inline acceptance + verify contract', () => {
   assert.throws(
     () =>
       validateAndNormalizeTickets([
         FEATURE,
-        makeStory(),
-        // No tasks under the story.
+        {
+          type: 'story',
+          slug: 's-no-contract',
+          parent_slug: 'f-sizing',
+          title: 'Story without inline contract',
+          body: { goal: 'Goal.', changes: ['src/a.js: edit'] },
+        },
       ]),
-    /task/i,
+    /lack an inline acceptance \+ verify contract/,
   );
 });
 
@@ -433,8 +413,7 @@ test('assertEveryStoryHasTasks guard fires for Stories with no child tasks (4-ti
 test('Story with 7 acceptance items emits soft-task-width on acceptance field', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-7ac-soft', {
+    makeStory('t-7ac-soft', {
       acceptance: Array.from({ length: 7 }, (_, i) => `criterion ${i}`),
     }),
   ]);
@@ -457,8 +436,7 @@ test('Story with 7 acceptance items emits soft-task-width on acceptance field', 
 test('null estimated_test_files produces no test-surface finding (absent = informational)', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-ts-null', {
+    makeStory('t-ts-null', {
       estimated_test_files: null,
     }),
   ]);
@@ -473,8 +451,7 @@ test('null estimated_test_files produces no test-surface finding (absent = infor
 test('absent estimated_test_files (undefined) produces no test-surface finding', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-ts-absent', {}),
+    makeStory('t-ts-absent', {}),
   ]);
   const tsFindings = result.findings.filter(
     (f) =>
@@ -487,8 +464,7 @@ test('absent estimated_test_files (undefined) produces no test-surface finding',
 test('no-profile: estimated_test_files=6 is a soft breach (soft=5), emits large-test-surface', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-ts-noprofile-soft', {
+    makeStory('t-ts-noprofile-soft', {
       estimated_test_files: 6,
     }),
   ]);
@@ -508,8 +484,7 @@ test('no-profile: estimated_test_files=6 is a soft breach (soft=5), emits large-
 test('no-profile: estimated_test_files=11 trips hard test-surface-overflow (hard=10)', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-ts-noprofile-hard', {
+    makeStory('t-ts-noprofile-hard', {
       estimated_test_files: 11,
     }),
   ]);
@@ -532,8 +507,7 @@ test('no-profile: estimated_test_files=11 trips hard test-surface-overflow (hard
 test('mechanical-sweep: estimated_test_files=20 is a soft breach (soft=15)', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-ts-sweep-soft', {
+    makeStory('t-ts-sweep-soft', {
       estimated_test_files: 20,
       sizingProfile: 'mechanical-sweep',
     }),
@@ -552,8 +526,7 @@ test('mechanical-sweep: estimated_test_files=20 is a soft breach (soft=15)', () 
 test('mechanical-sweep: estimated_test_files=31 trips hard ceiling (hard=30)', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-ts-sweep-hard', {
+    makeStory('t-ts-sweep-hard', {
       estimated_test_files: 31,
       sizingProfile: 'mechanical-sweep',
     }),
@@ -570,8 +543,7 @@ test('mechanical-sweep: estimated_test_files=31 trips hard ceiling (hard=30)', (
 test('scaffolding: estimated_test_files=10 is a soft breach (soft=8)', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-ts-scaffold-soft', {
+    makeStory('t-ts-scaffold-soft', {
       estimated_test_files: 10,
       sizingProfile: 'scaffolding',
     }),
@@ -590,8 +562,7 @@ test('scaffolding: estimated_test_files=10 is a soft breach (soft=8)', () => {
 test('scaffolding: estimated_test_files=16 trips hard ceiling (hard=15)', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-ts-scaffold-hard', {
+    makeStory('t-ts-scaffold-hard', {
       estimated_test_files: 16,
       sizingProfile: 'scaffolding',
     }),
@@ -608,8 +579,7 @@ test('scaffolding: estimated_test_files=16 trips hard ceiling (hard=15)', () => 
 test('atomic-rewrite: estimated_test_files=4 is a soft breach (soft=3)', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-ts-rewrite-soft', {
+    makeStory('t-ts-rewrite-soft', {
       estimated_test_files: 4,
       sizingProfile: 'atomic-rewrite',
     }),
@@ -628,8 +598,7 @@ test('atomic-rewrite: estimated_test_files=4 is a soft breach (soft=3)', () => {
 test('atomic-rewrite: estimated_test_files=7 trips hard ceiling (hard=6)', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-ts-rewrite-hard', {
+    makeStory('t-ts-rewrite-hard', {
       estimated_test_files: 7,
       sizingProfile: 'atomic-rewrite',
     }),
@@ -647,8 +616,7 @@ test('estimated_test_files exactly at soft threshold produces no finding', () =>
   // Exactly at the no-profile soft ceiling (5) — no breach.
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-ts-at-soft', {
+    makeStory('t-ts-at-soft', {
       estimated_test_files: 5,
     }),
   ]);
@@ -664,8 +632,7 @@ test('estimated_test_files exactly at hard threshold produces no finding', () =>
   // Exactly at the no-profile hard ceiling (10) — no overflow.
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-ts-at-hard', {
+    makeStory('t-ts-at-hard', {
       estimated_test_files: 10,
     }),
   ]);
@@ -686,8 +653,7 @@ test('changes[] with PathEntry object form counts files correctly (not zero)', (
   // and no sizingProfile should emit a missing-sizing-profile-hint (fileCount=4 > softFileCount=3).
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-pathentry', {
+    makeStory('t-pathentry', {
       changes: [
         { path: 'src/a.js', assumption: 'creates' },
         { path: 'src/b.js', assumption: 'refactors-existing' },
@@ -710,8 +676,7 @@ test('changes[] with PathEntry object form counts files correctly (not zero)', (
 test('changes[] with glob PathEntry object triggers glob-without-sizing-profile finding', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory(),
-    makeTask('t-glob-pathentry', {
+    makeStory('t-glob-pathentry', {
       changes: [{ path: '**/*.js', assumption: 'refactors-existing' }],
     }),
   ]);
