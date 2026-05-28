@@ -256,11 +256,7 @@ test('atomic-rewrite: 3 changes is a soft breach (soft=2), no hard finding', () 
     FEATURE,
     makeStory(),
     makeTask('t-rewrite-soft', {
-      changes: [
-        'src/a.js: rewrite',
-        'src/b.js: rewrite',
-        'src/c.js: rewrite',
-      ],
+      changes: ['src/a.js: rewrite', 'src/b.js: rewrite', 'src/c.js: rewrite'],
       sizingProfile: 'atomic-rewrite',
     }),
   ]);
