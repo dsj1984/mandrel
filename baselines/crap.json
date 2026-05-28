@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T00:32:43.356Z",
+  "generatedAt": "2026-05-28T00:55:29.189Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -11890,54 +11890,6 @@
       "method": "renderManifestFromManifest",
       "startLine": 89,
       "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-builder.js",
-      "method": "validateSpecShape",
-      "startLine": 44,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-builder.js",
-      "method": "buildResolvers",
-      "startLine": 73,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-builder.js",
-      "method": "<anon method-1>",
-      "startLine": 79,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-builder.js",
-      "method": "<anon method-2>",
-      "startLine": 85,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-builder.js",
-      "method": "projectTask",
-      "startLine": 103,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-builder.js",
-      "method": "projectStory",
-      "startLine": 128,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-builder.js",
-      "method": "projectFeatures",
-      "startLine": 168,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-builder.js",
-      "method": "buildManifestFromSpec",
-      "startLine": 214,
-      "crap": 7
     },
     {
       "path": ".agents/scripts/lib/presentation/manifest-formatter.js",

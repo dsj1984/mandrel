@@ -13,6 +13,23 @@
  * a single private predicate (`validateSpecShape`) so the orchestrator
  * function's CRAP score drops below 12.
  *
+ * Story #3195 (3-tier cutover): the per-Story task-counter projection
+ * keys have been dropped from `projectStory`. The walker
+ * (`projectFeatures`) computes the rollup counts inline rather than
+ * returning them from each per-Story projection. Downstream consumers
+ * still observe the same `summary.totalTasks` / `summary.doneTasks`
+ * envelope keys at this layer; the wider 3-tier rewrite of the
+ * formatter/helpers/render-waves modules is owned by sibling Stories
+ * under Feature #3181 and ships in coordination — the public summary
+ * shape will move to Story-tier counts when those land.
+ *
+ * Story-level status now surfaces on each `storyEntry.status` so
+ * downstream renderers can read the Story's own `agent::*` label
+ * without rolling up task statuses. The Story-level resolution is the
+ * 3-tier "Stories are first-class lifecycle units" invariant; the
+ * per-Task projection is preserved for the sibling-Story migration
+ * window.
+ *
  * No fs / network access; pure transform. Caller supplies `state` from
  * `lib/spec/loader.js#loadState`.
  */
@@ -112,31 +129,32 @@ function projectTask(task, resolvers) {
 }
 
 /**
- * Private: project a single spec Story into a manifest Story entry plus
- * the per-story task tallies. Caller filters non-object stories with
+ * Private: project a single spec Story into a manifest Story entry. The
+ * Story's status is resolved directly from the Story-level label
+ * (`state.mapping[slug].lastObservedAgentState`) and surfaces on
+ * `storyEntry.status` — under the 3-tier hierarchy Stories carry their
+ * own lifecycle state. Caller filters non-object stories with
  * `validateSpecShape('story', ...)` before invoking.
+ *
+ * The returned `storyEntry.tasks[]` is preserved during the Feature
+ * #3181 migration window so legacy renderer call-sites (the four
+ * `manifest-*` modules being rewritten by sibling Stories #3194 /
+ * #3196 / #3197) keep working until they switch off task iteration.
  *
  * @param {object} story
  * @param {{ resolveId: Function, resolveStatus: Function }} resolvers
- * @returns {{
- *   storyEntry: object,
- *   wave: number,
- *   storyTotalTasks: number,
- *   storyDoneTasks: number,
- * }}
+ * @returns {{ storyEntry: object, wave: number }}
  */
 function projectStory(story, resolvers) {
   const storyTasks = validateSpecShape('tasks', story.tasks) ? story.tasks : [];
   const tasks = [];
-  let storyDoneTasks = 0;
   for (const t of storyTasks) {
     if (!validateSpecShape('task', t)) continue;
-    const projected = projectTask(t, resolvers);
-    if (projected.status === AGENT_LABELS.DONE) storyDoneTasks++;
-    tasks.push(projected);
+    tasks.push(projectTask(t, resolvers));
   }
   const wave = Number.isInteger(story.wave) ? story.wave : -1;
   const storyId = resolvers.resolveId(story.slug);
+  const status = resolvers.resolveStatus(story.slug);
   const storyEntry = {
     storyId,
     storyTitle: story.title ?? '',
@@ -145,9 +163,10 @@ function projectStory(story, resolvers) {
     branchName:
       typeof storyId === 'number' ? `story-${storyId}` : `story-${story.slug}`,
     earliestWave: wave,
+    status,
     tasks,
   };
-  return { storyEntry, wave, storyTotalTasks: tasks.length, storyDoneTasks };
+  return { storyEntry, wave };
 }
 
 /**
@@ -155,6 +174,13 @@ function projectStory(story, resolvers) {
  * per-story projections + roll-up counters. Keeps the loop machinery
  * out of `buildManifestFromSpec` so the entry point reads as a straight
  * assembly of the result envelope.
+ *
+ * The Task-tier `totalTasks` / `doneTasks` rollup is computed inline
+ * here over each `storyEntry.tasks[]` rather than being threaded back
+ * from `projectStory`; this keeps the per-Story projection focused on
+ * the Story-level shape (3-tier invariant) while preserving the
+ * existing summary keys the formatter/renderer still read during the
+ * Feature #3181 migration window.
  *
  * @param {object[]} features
  * @param {{ resolveId: Function, resolveStatus: Function }} resolvers
@@ -176,11 +202,13 @@ function projectFeatures(features, resolvers) {
       : [];
     for (const story of stories) {
       if (!validateSpecShape('story', story)) continue;
-      const projection = projectStory(story, resolvers);
-      storyManifest.push(projection.storyEntry);
-      totalTasks += projection.storyTotalTasks;
-      doneTasks += projection.storyDoneTasks;
-      if (projection.wave >= 0) waveSet.add(projection.wave);
+      const { storyEntry, wave } = projectStory(story, resolvers);
+      storyManifest.push(storyEntry);
+      totalTasks += storyEntry.tasks.length;
+      for (const t of storyEntry.tasks) {
+        if (t.status === AGENT_LABELS.DONE) doneTasks++;
+      }
+      if (wave >= 0) waveSet.add(wave);
     }
   }
   return { storyManifest, totalTasks, doneTasks, waveSet };

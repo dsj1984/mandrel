@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T00:32:42.996Z",
+  "generatedAt": "2026-05-28T00:55:28.734Z",
   "rollup": {
     "*": {
       "min": 38.161,
-      "p50": 103.671,
+      "p50": 103.681,
       "p95": 121.235
     }
   },
@@ -1629,10 +1629,6 @@
     {
       "path": ".agents/scripts/lib/presentation/dispatch-manifest-render.js",
       "mi": 113.993
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-builder.js",
-      "mi": 92.608
     },
     {
       "path": ".agents/scripts/lib/presentation/manifest-formatter.js",
@@ -4099,10 +4095,6 @@
       "mi": 87.927
     },
     {
-      "path": "tests/lib/presentation/manifest-builder.test.js",
-      "mi": 98.574
-    },
-    {
       "path": "tests/lib/presentation/manifest-formatter-end-to-end.test.js",
       "mi": 100.773
     },
@@ -4673,10 +4665,6 @@
     {
       "path": "tests/scripts/lifecycle-emit.test.js",
       "mi": 117.259
-    },
-    {
-      "path": "tests/scripts/manifest-formatter-fromspec.test.js",
-      "mi": 86.998
     },
     {
       "path": "tests/scripts/project-bootstrap-phases.test.js",
