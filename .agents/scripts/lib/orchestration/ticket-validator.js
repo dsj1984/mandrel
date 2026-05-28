@@ -155,7 +155,7 @@ function defaultGitRunner({ baseBranchRef, path, cwd }) {
  * @param {string}   opts.baseBranchRef   - Ref to probe (e.g. 'main' or 'origin/main').
  * @param {Function} [opts.gitRunner]     - Probe override (testing seam).
  * @param {string}   [opts.cwd]           - Repo cwd (forwarded to default runner).
- * @throws {ValidationError} when one or more Task references are stale.
+ * @throws {ValidationError} when one or more Story references are stale.
  */
 export function validateAcFreshness({
   tickets,
@@ -168,24 +168,24 @@ export function validateAcFreshness({
       'validateAcFreshness: baseBranchRef is required.',
     );
   }
-  const tasks = (tickets ?? []).filter((t) => t.type === 'task');
-  // Union every Task's `body.changes` paths into an expected-new set. Any
+  const stories = (tickets ?? []).filter((t) => t.type === 'story');
+  // Union every Story's `body.changes` paths into an expected-new set. Any
   // path the planner has declared in `changes` is considered intentional
   // (net-new or about-to-be-modified) and the git probe is skipped for it
   // — otherwise the freshness gate would reject the very test/source file
-  // a Task is meant to create, even when the Task is well-formed.
+  // a Story is meant to create, even when the Story is well-formed.
   const expectedNewPaths = new Set();
-  for (const task of tasks) {
-    for (const path of collectTaskChangesPaths(task)) {
+  for (const story of stories) {
+    for (const path of collectTaskChangesPaths(story)) {
       expectedNewPaths.add(path);
     }
   }
   const misses = [];
-  // Cache per-path probe results — sibling Tasks frequently cite the same
+  // Cache per-path probe results — sibling Stories frequently cite the same
   // helper module; avoid re-spawning git for each repeat.
   const probeCache = new Map();
-  for (const task of tasks) {
-    const refs = collectTaskPathReferences(task);
+  for (const story of stories) {
+    const refs = collectTaskPathReferences(story);
     for (const path of refs) {
       if (expectedNewPaths.has(path)) continue;
       let exists = probeCache.get(path);
@@ -194,14 +194,14 @@ export function validateAcFreshness({
         probeCache.set(path, exists);
       }
       if (!exists) {
-        misses.push({ slug: task.slug ?? '<unknown>', path });
+        misses.push({ slug: story.slug ?? '<unknown>', path });
       }
     }
   }
   if (misses.length === 0) return;
   const lines = misses.map((m) => renderMissLine(m)).join('\n');
   throw new ValidationError(
-    `Cross-Validation Failed: ${misses.length} Task reference(s) name files that do not exist at ${baseBranchRef}:\n${lines}\n\nEither declare the path in body.changes (signals net-new) or correct the reference.`,
+    `Cross-Validation Failed: ${misses.length} Story reference(s) name files that do not exist at ${baseBranchRef}:\n${lines}\n\nEither declare the path in body.changes (signals net-new) or correct the reference.`,
     { misses, baseBranchRef },
   );
 }
@@ -249,7 +249,7 @@ const ALLOWED_COMMIT_TYPES = new Set([
 const SUBJECT_PREFIX_RE = /Commit subject begins with ['"`]([^'"`]+):['"`]/g;
 
 /**
- * Scan every Task's `body.acceptance[]` for "Commit subject begins with
+ * Scan every Story's `body.acceptance[]` for "Commit subject begins with
  * '<prefix>:'" prescriptions and reject the decompose when any captured
  * prefix is not a valid Conventional-Commits type.
  *
@@ -266,7 +266,7 @@ const SUBJECT_PREFIX_RE = /Commit subject begins with ['"`]([^'"`]+):['"`]/g;
  *
  * @param {object}   opts
  * @param {object[]} opts.tickets - Validated ticket hierarchy.
- * @throws {ValidationError} when one or more Task acceptance items
+ * @throws {ValidationError} when one or more Story acceptance items
  *   prescribe a forbidden subject prefix. The error carries
  *   `code: 'forbidden-subject-prefix'` and a `violations[]` payload
  *   listing each `{ slug, prefix, line }` so the decompose loop can
@@ -274,9 +274,9 @@ const SUBJECT_PREFIX_RE = /Commit subject begins with ['"`]([^'"`]+):['"`]/g;
  */
 export function validateAcceptanceSubjectPrefix({ tickets }) {
   const violations = [];
-  const tasks = (tickets ?? []).filter((t) => t.type === 'task');
-  for (const task of tasks) {
-    const body = task.body;
+  const stories = (tickets ?? []).filter((t) => t.type === 'story');
+  for (const story of stories) {
+    const body = story.body;
     if (body === null || typeof body !== 'object') continue;
     if (!Array.isArray(body.acceptance)) continue;
     for (const item of body.acceptance) {
@@ -291,7 +291,7 @@ export function validateAcceptanceSubjectPrefix({ tickets }) {
         const type = rawPrefix.replace(/\(.*\)$/, '').trim();
         if (!ALLOWED_COMMIT_TYPES.has(type)) {
           violations.push({
-            slug: task.slug ?? '<unknown>',
+            slug: story.slug ?? '<unknown>',
             prefix: rawPrefix,
             line,
           });
@@ -309,7 +309,7 @@ export function validateAcceptanceSubjectPrefix({ tickets }) {
     )
     .join('\n');
   const err = new ValidationError(
-    `Cross-Validation Failed: ${violations.length} Task acceptance item(s) prescribe a non-Conventional-Commits subject prefix:\n${lines}\n\nAllowed leading types: ${allowed}. Use a Conventional-Commits subject (e.g. "chore(baselines): refresh ...") and a body trailer (e.g. "baseline-refresh: true") for machine-readable markers. See Epic #2501.`,
+    `Cross-Validation Failed: ${violations.length} Story acceptance item(s) prescribe a non-Conventional-Commits subject prefix:\n${lines}\n\nAllowed leading types: ${allowed}. Use a Conventional-Commits subject (e.g. "chore(baselines): refresh ...") and a body trailer (e.g. "baseline-refresh: true") for machine-readable markers. See Epic #2501.`,
     { violations },
   );
   err.code = 'forbidden-subject-prefix';
@@ -364,7 +364,6 @@ function indexTicketsBySlug(tickets) {
   const ticketBySlug = new Map();
   const features = [];
   const stories = [];
-  const tasks = [];
   const slugAdjacency = new Map();
   for (const t of tickets) {
     if (t.slug) {
@@ -378,12 +377,11 @@ function indexTicketsBySlug(tickets) {
     slugAdjacency.set(t.slug, t.depends_on ?? []);
     if (t.type === 'feature') features.push(t);
     else if (t.type === 'story') stories.push(t);
-    else if (t.type === 'task') tasks.push(t);
   }
-  return { ticketBySlug, features, stories, tasks, slugAdjacency };
+  return { ticketBySlug, features, stories, slugAdjacency };
 }
 
-function assertEachTypePresent({ features, stories, tasks }) {
+function assertEachTypePresent({ features, stories }) {
   if (features.length === 0)
     throw new Error(
       'Cross-Validation Failed: Backlog must contain at least one Feature.',
@@ -392,19 +390,9 @@ function assertEachTypePresent({ features, stories, tasks }) {
     throw new Error(
       'Cross-Validation Failed: Backlog must contain at least one Story.',
     );
-  // 3-tier (Epic #3078): a backlog where every Story carries inline
-  // acceptance + verify is a valid Storyless decomposition with zero
-  // Tasks. Only require ≥1 Task when at least one Story is in the
-  // legacy 4-tier shape (no inline acceptance/verify) — that Story
-  // must still decompose into Tasks, enforced downstream by
-  // `assertEveryStoryHasTasks`.
-  if (tasks.length === 0 && !stories.every(hasInlineAcceptanceAndVerify))
-    throw new Error(
-      'Cross-Validation Failed: Backlog must contain at least one Task.',
-    );
 }
 
-function assertHierarchy({ stories, tasks, ticketBySlug }) {
+function assertHierarchy({ stories, ticketBySlug }) {
   for (const story of stories) {
     if (!story.parent_slug)
       throw new Error(
@@ -416,44 +404,20 @@ function assertHierarchy({ stories, tasks, ticketBySlug }) {
         `Cross-Validation Failed: Story "${story.title}" parent must be a Feature.`,
       );
   }
-  for (const task of tasks) {
-    if (!task.parent_slug)
-      throw new Error(
-        `Cross-Validation Failed: Task "${task.title}" must have a parent_slug.`,
-      );
-    const parent = ticketBySlug.get(task.parent_slug);
-    if (!parent || parent.type !== 'story') {
-      throw new Error(
-        `Cross-Validation Failed: Task "${task.title}" parent must be a Story.`,
-      );
-    }
-  }
-}
-
-function countTasksByStory(tasks) {
-  const taskCountByStory = new Map();
-  for (const task of tasks) {
-    taskCountByStory.set(
-      task.parent_slug,
-      (taskCountByStory.get(task.parent_slug) ?? 0) + 1,
-    );
-  }
-  return taskCountByStory;
 }
 
 /**
  * Return true when a Story object carries inline acceptance + verify
- * arrays — the 3-tier shape introduced by Epic #3078 where the Story
- * collapses to a single implementation phase and acceptance / verify
- * live on the Story body instead of in child Task tickets.
+ * arrays — the 3-tier shape (Epic #3078) where the Story is itself the
+ * implementation unit and acceptance / verify live on the Story body
+ * rather than in child Task tickets.
  *
  * Both arrays must be present, be actual arrays, and contain at least
  * one entry. Either alone is insufficient — a Story with only
  * `acceptance[]` (no `verify[]`) cannot be implemented without a
  * verification handle, and a Story with only `verify[]` (no
- * `acceptance[]`) carries no observable criterion. Requiring both keeps
- * the Storyless escape hatch tight: the validator only relaxes the Task
- * cardinality requirement for Stories that are demonstrably 3-tier.
+ * `acceptance[]`) carries no observable criterion. Requiring both is the
+ * inline-contract invariant every Story must satisfy in the 3-tier model.
  */
 function hasInlineAcceptanceAndVerify(story) {
   if (story === null || typeof story !== 'object') return false;
@@ -466,23 +430,18 @@ function hasInlineAcceptanceAndVerify(story) {
   );
 }
 
-function assertEveryStoryHasTasks({ stories, taskCountByStory }) {
-  // 3-tier (Epic #3078): a Story that carries inline acceptance + verify
-  // is the implementation unit itself — no child Tasks are emitted by the
-  // decomposer. Skip those Stories from the cardinality check so the
-  // legacy 4-tier failure mode ("Story has no child Tasks") does not
-  // fire on a well-formed Storyless ticket. The 4-tier shape (Stories
-  // without inline acceptance/verify) continues to require ≥1 child
-  // Task — that branch is unchanged.
-  const emptyStories = stories.filter(
-    (s) =>
-      (taskCountByStory.get(s.slug) ?? 0) === 0 &&
-      !hasInlineAcceptanceAndVerify(s),
-  );
-  if (emptyStories.length === 0) return;
-  const list = emptyStories.map((s) => `"${s.title}" (${s.slug})`).join(', ');
+function assertEveryStoryHasInlineContract({ stories }) {
+  // 3-tier (Epic #3078 / #3238): every Story is its own implementation
+  // unit and MUST carry a non-empty inline contract — top-level
+  // `acceptance[]` AND `verify[]`. A Story missing either is the legacy
+  // 4-tier shape that expected child Tasks; there is no Task tier any
+  // more, so such a Story is unimplementable and the decompose is
+  // rejected outright.
+  const missing = stories.filter((s) => !hasInlineAcceptanceAndVerify(s));
+  if (missing.length === 0) return;
+  const list = missing.map((s) => `"${s.title}" (${s.slug})`).join(', ');
   throw new Error(
-    `Cross-Validation Failed: ${emptyStories.length} Story/Stories have no child Tasks: ${list}. Every Story must decompose into at least one Task.`,
+    `Cross-Validation Failed: ${missing.length} Story/Stories lack an inline acceptance + verify contract: ${list}. Every Story must carry non-empty top-level acceptance[] and verify[].`,
   );
 }
 
@@ -502,70 +461,6 @@ function assertNoUnknownDeps({ tickets, ticketBySlug }) {
   throw new Error(
     `Cross-Validation Failed: ${unknownDeps.length} depends_on reference(s) use unknown slugs: ${list}. Every slug in depends_on must match a slug present in the backlog.`,
   );
-}
-
-function liftDepToStory({ task, depTicket, ticketBySlug, slugAdjacency }) {
-  const depStory = depTicket.parent_slug;
-  const taskStory = task.parent_slug;
-  const myStory = ticketBySlug.get(taskStory);
-  if (!myStory) return null;
-  if (!myStory.depends_on) myStory.depends_on = [];
-  if (myStory.depends_on.includes(depStory)) return null;
-  myStory.depends_on.push(depStory);
-  const deps = slugAdjacency.get(taskStory) ?? [];
-  if (!deps.includes(depStory)) {
-    deps.push(depStory);
-    slugAdjacency.set(taskStory, deps);
-  }
-  return { fromStory: taskStory, toStory: depStory };
-}
-
-function processCrossStoryTaskDeps({ tasks, ticketBySlug, slugAdjacency }) {
-  const crossStoryLifted = [];
-  for (const task of tasks) {
-    if (!task.depends_on || task.depends_on.length === 0) continue;
-    const keptDeps = [];
-    for (const depSlug of task.depends_on) {
-      const depTicket = ticketBySlug.get(depSlug);
-      if (!depTicket) {
-        // Unreachable — unknown slugs are filtered out above. Defensive
-        // no-op so cycle detection below sees only known slugs.
-        continue;
-      }
-      if (depTicket.type !== 'task') {
-        keptDeps.push(depSlug);
-        continue;
-      }
-      if (depTicket.parent_slug === task.parent_slug) {
-        keptDeps.push(depSlug);
-        continue;
-      }
-      const lift = liftDepToStory({
-        task,
-        depTicket,
-        ticketBySlug,
-        slugAdjacency,
-      });
-      if (lift) {
-        crossStoryLifted.push({ task: task.slug, dep: depSlug, ...lift });
-      }
-    }
-    task.depends_on = keptDeps;
-    slugAdjacency.set(task.slug, keptDeps);
-  }
-  return crossStoryLifted;
-}
-
-function logLiftedDeps(crossStoryLifted) {
-  if (crossStoryLifted.length === 0) return;
-  Logger.warn(
-    `[Decomposer] ⚠️  Lifted ${crossStoryLifted.length} cross-story task dep(s) to story-level:`,
-  );
-  for (const lift of crossStoryLifted) {
-    Logger.warn(
-      `  Task "${lift.task}" → dep "${lift.dep}" lifted to Story "${lift.fromStory}" → Story "${lift.toStory}"`,
-    );
-  }
 }
 
 function assertAcyclic(slugAdjacency) {
@@ -593,22 +488,13 @@ function attachFindingsAndErrors(tickets, findings, errors) {
 }
 
 export function validateAndNormalizeTickets(tickets, opts = {}) {
-  const { ticketBySlug, features, stories, tasks, slugAdjacency } =
+  const { ticketBySlug, features, stories, slugAdjacency } =
     indexTicketsBySlug(tickets);
 
-  assertEachTypePresent({ features, stories, tasks });
-  assertHierarchy({ stories, tasks, ticketBySlug });
-
-  const taskCountByStory = countTasksByStory(tasks);
-  assertEveryStoryHasTasks({ stories, taskCountByStory });
+  assertEachTypePresent({ features, stories });
+  assertHierarchy({ stories, ticketBySlug });
+  assertEveryStoryHasInlineContract({ stories });
   assertNoUnknownDeps({ tickets, ticketBySlug });
-
-  const crossStoryLifted = processCrossStoryTaskDeps({
-    tasks,
-    ticketBySlug,
-    slugAdjacency,
-  });
-  logLiftedDeps(crossStoryLifted);
 
   assertAcyclic(slugAdjacency);
 
@@ -652,17 +538,14 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
   }
 
   const sizingFindings = computeSizingFindings({
-    tasks,
     stories,
-    taskCountByStory,
     sizing: opts.taskSizing,
   });
-  // Cross-Story path-conflict pass runs after Task→Story dep lifting so it
-  // observes the final story-level depends_on graph. Findings are appended
-  // to the same `findings` array consumed by the decompose-loop's hard-
-  // finding gate; severity is controlled by `opts.conflictPolicy`.
+  // Cross-Story path-conflict pass observes the story-level depends_on
+  // graph. Findings are appended to the same `findings` array consumed by
+  // the decompose-loop's hard-finding gate; severity is controlled by
+  // `opts.conflictPolicy`.
   const conflictFindings = computeConflictFindings({
-    tasks,
     stories,
     policy: opts.conflictPolicy,
   });
@@ -697,11 +580,8 @@ export const _internal = {
   indexTicketsBySlug,
   assertEachTypePresent,
   assertHierarchy,
-  countTasksByStory,
-  assertEveryStoryHasTasks,
+  assertEveryStoryHasInlineContract,
   assertNoUnknownDeps,
-  liftDepToStory,
-  processCrossStoryTaskDeps,
   assertAcyclic,
   attachFindingsAndErrors,
   hasInlineAcceptanceAndVerify,

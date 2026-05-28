@@ -36,10 +36,7 @@ import {
   rebaseStoryOnEpic,
   runFinalizeMerge,
 } from '../../../.agents/scripts/lib/orchestration/story-close/merge-runner.js';
-import {
-  _internal as tvInternal,
-  validateAndNormalizeTickets,
-} from '../../../.agents/scripts/lib/orchestration/ticket-validator.js';
+import { validateAndNormalizeTickets } from '../../../.agents/scripts/lib/orchestration/ticket-validator.js';
 
 // ---------------------------------------------------------------------------
 // phaseToState
@@ -76,13 +73,8 @@ function buildMinimalBacklog() {
       title: 'story X',
       parent_slug: 'feat-x',
       depends_on: [],
-    },
-    {
-      slug: 'task-x',
-      type: 'task',
-      title: 'task X',
-      parent_slug: 'story-x',
-      depends_on: [],
+      acceptance: ['story X is implemented'],
+      verify: ['node --test'],
     },
   ];
 }
@@ -101,10 +93,12 @@ describe('ticket-validator.validateAndNormalizeTickets — error branches', () =
   it('throws on duplicate slug', () => {
     const b = buildMinimalBacklog();
     b.push({
-      slug: 'task-x',
-      type: 'task',
+      slug: 'story-x',
+      type: 'story',
       title: 'dup',
-      parent_slug: 'story-x',
+      parent_slug: 'feat-x',
+      acceptance: ['a'],
+      verify: ['v'],
     });
     assert.throws(() => validateAndNormalizeTickets(b), /Duplicate slug/);
   });
@@ -119,9 +113,17 @@ describe('ticket-validator.validateAndNormalizeTickets — error branches', () =
     assert.throws(() => validateAndNormalizeTickets(b), /at least one Story/);
   });
 
-  it('throws when no Task is present', () => {
-    const b = buildMinimalBacklog().filter((t) => t.type !== 'task');
-    assert.throws(() => validateAndNormalizeTickets(b), /at least one Task/);
+  it('throws when a Story lacks an inline acceptance + verify contract', () => {
+    // 3-tier (Epic #3238): a Story with no top-level acceptance/verify is
+    // the legacy 4-tier shape that expected child Tasks — now rejected.
+    const b = buildMinimalBacklog();
+    const story = b.find((t) => t.type === 'story');
+    story.acceptance = undefined;
+    story.verify = undefined;
+    assert.throws(
+      () => validateAndNormalizeTickets(b),
+      /lack an inline acceptance \+ verify contract/,
+    );
   });
 
   it('throws on Story without parent_slug', () => {
@@ -135,48 +137,23 @@ describe('ticket-validator.validateAndNormalizeTickets — error branches', () =
 
   it('throws on Story whose parent is not a Feature', () => {
     const b = buildMinimalBacklog();
-    b.find((t) => t.type === 'story').parent_slug = 'task-x';
-    assert.throws(
-      () => validateAndNormalizeTickets(b),
-      /Story "story X" parent must be a Feature/,
-    );
-  });
-
-  it('throws on Task without parent_slug', () => {
-    const b = buildMinimalBacklog();
-    b.find((t) => t.type === 'task').parent_slug = undefined;
-    assert.throws(
-      () => validateAndNormalizeTickets(b),
-      /Task "task X" must have a parent_slug/,
-    );
-  });
-
-  it('throws on Task whose parent is not a Story', () => {
-    const b = buildMinimalBacklog();
-    b.find((t) => t.type === 'task').parent_slug = 'feat-x';
-    assert.throws(
-      () => validateAndNormalizeTickets(b),
-      /Task "task X" parent must be a Story/,
-    );
-  });
-
-  it('throws when a Story has no child Task', () => {
-    const b = buildMinimalBacklog();
     b.push({
-      slug: 'story-y',
+      slug: 'story-z',
       type: 'story',
-      title: 'story Y',
-      parent_slug: 'feat-x',
+      title: 'story Z',
+      parent_slug: 'story-x',
+      acceptance: ['a'],
+      verify: ['v'],
     });
     assert.throws(
       () => validateAndNormalizeTickets(b),
-      /Story\/Stories have no child Tasks/,
+      /Story "story Z" parent must be a Feature/,
     );
   });
 
   it('throws on unknown depends_on slug', () => {
     const b = buildMinimalBacklog();
-    b.find((t) => t.slug === 'task-x').depends_on = ['ghost'];
+    b.find((t) => t.slug === 'story-x').depends_on = ['ghost'];
     assert.throws(
       () => validateAndNormalizeTickets(b),
       /depends_on reference\(s\) use unknown slugs/,
@@ -192,55 +169,14 @@ describe('ticket-validator.validateAndNormalizeTickets — error branches', () =
       title: 'story Y',
       parent_slug: 'feat-x',
       depends_on: ['story-x'],
-    });
-    b.push({
-      slug: 'task-y',
-      type: 'task',
-      title: 'task Y',
-      parent_slug: 'story-y',
+      acceptance: ['a'],
+      verify: ['v'],
     });
     b.find((t) => t.slug === 'story-x').depends_on = ['story-y'];
     assert.throws(
       () => validateAndNormalizeTickets(b),
       /Circular dependency detected/,
     );
-  });
-});
-
-describe('ticket-validator helpers', () => {
-  it('liftDepToStory short-circuits when myStory is missing', () => {
-    const ticketBySlug = new Map();
-    const out = tvInternal.liftDepToStory({
-      task: { slug: 't', parent_slug: 'missing' },
-      depTicket: { slug: 'dep', parent_slug: 'other' },
-      ticketBySlug,
-      slugAdjacency: new Map(),
-    });
-    assert.equal(out, null);
-  });
-
-  it('processCrossStoryTaskDeps lifts a task→task cross-story dep to story-level', () => {
-    const b = buildMinimalBacklog();
-    b.push({
-      slug: 'story-y',
-      type: 'story',
-      title: 'story Y',
-      parent_slug: 'feat-x',
-      depends_on: [],
-    });
-    b.push({
-      slug: 'task-y',
-      type: 'task',
-      title: 'task Y',
-      parent_slug: 'story-y',
-      depends_on: ['task-x'],
-    });
-    const validated = validateAndNormalizeTickets(b);
-    // task-y's cross-story task dep gets lifted; story-y picks up story-x.
-    const storyY = validated.find((t) => t.slug === 'story-y');
-    assert.deepEqual(storyY.depends_on, ['story-x']);
-    const taskY = validated.find((t) => t.slug === 'task-y');
-    assert.deepEqual(taskY.depends_on, []);
   });
 });
 // ---------------------------------------------------------------------------

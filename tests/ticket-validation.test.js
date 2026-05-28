@@ -2,21 +2,31 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { validateAndNormalizeTickets } from '../.agents/scripts/lib/orchestration/ticket-validator.js';
 
+/**
+ * 3-tier ticket hierarchy (Epic #3238): the backlog is
+ * Feature → Story, with every Story carrying its own inline
+ * `acceptance[]` + `verify[]` contract. There is no Task tier.
+ */
+function makeStory(slug, parentSlug, extras = {}) {
+  return {
+    slug,
+    type: 'story',
+    title: `Story ${slug}`,
+    parent_slug: parentSlug,
+    acceptance: ['Observable criterion is met.'],
+    verify: ['node --test'],
+    ...extras,
+  };
+}
+
 test('ticket-validator: basic valid hierarchy', () => {
   const tickets = [
     { slug: 'F1', type: 'feature', title: 'Feature 1' },
-    {
-      slug: 'S1',
-      type: 'story',
-      title: 'Story 1',
-      parent_slug: 'F1',
-      labels: ['complexity::fast'],
-    },
-    { slug: 'T1', type: 'task', title: 'Task 1', parent_slug: 'S1' },
+    makeStory('S1', 'F1', { labels: ['complexity::fast'] }),
   ];
 
   const result = validateAndNormalizeTickets(tickets);
-  assert.equal(result.length, 3);
+  assert.equal(result.length, 2);
 });
 
 test('ticket-validator: fails on missing types', () => {
@@ -29,13 +39,7 @@ test('ticket-validator: fails on missing types', () => {
 test('ticket-validator: fails on missing parent', () => {
   const tickets = [
     { slug: 'F1', type: 'feature', title: 'Feature 1' },
-    {
-      slug: 'S1',
-      type: 'story',
-      title: 'Story 1',
-      labels: ['complexity::fast'],
-    }, // missing parent_slug
-    { slug: 'T1', type: 'task', title: 'Task 1', parent_slug: 'S1' },
+    makeStory('S1', undefined, { labels: ['complexity::fast'] }),
   ];
   assert.throws(
     () => validateAndNormalizeTickets(tickets),
@@ -46,115 +50,72 @@ test('ticket-validator: fails on missing parent', () => {
 test('ticket-validator: fails on duplicate slug', () => {
   const tickets = [
     { slug: 'F1', type: 'feature', title: 'Feature 1' },
-    {
-      slug: 'S1',
-      type: 'story',
-      title: 'Story 1',
-      parent_slug: 'F1',
-      labels: ['complexity::fast'],
-    },
-    { slug: 'T1', type: 'task', title: 'Task 1', parent_slug: 'S1' },
-    { slug: 'T1', type: 'task', title: 'Task 1 duplicate', parent_slug: 'S1' },
+    makeStory('S1', 'F1', { labels: ['complexity::fast'] }),
+    makeStory('S1', 'F1', { title: 'Story 1 duplicate' }),
   ];
   assert.throws(
     () => validateAndNormalizeTickets(tickets),
-    /Duplicate slug "T1"/,
+    /Duplicate slug "S1"/,
   );
 });
 
-test('ticket-validator: fails when a Story has no child Tasks', () => {
+test('ticket-validator: fails when a Story lacks an inline acceptance + verify contract', () => {
+  // 3-tier (Epic #3238): a Story with no top-level acceptance/verify is
+  // the legacy 4-tier shape that expected child Tasks. With the Task tier
+  // removed, such a Story is unimplementable and is rejected outright.
   const tickets = [
     { slug: 'F1', type: 'feature', title: 'Feature 1' },
     {
       slug: 'S1',
       type: 'story',
-      title: 'Story with no tasks',
+      title: 'Story with no inline contract',
       parent_slug: 'F1',
       labels: ['complexity::fast'],
     },
-    {
-      slug: 'S2',
-      type: 'story',
-      title: 'Story with a task',
-      parent_slug: 'F1',
-      labels: ['complexity::fast'],
-    },
-    { slug: 'T1', type: 'task', title: 'Task 1', parent_slug: 'S2' },
+    makeStory('S2', 'F1', { title: 'Well-formed story' }),
   ];
   assert.throws(
     () => validateAndNormalizeTickets(tickets),
-    /Story.*have no child Tasks/,
+    /lack an inline acceptance \+ verify contract/,
   );
 });
 
-test('ticket-validator: accepts a Storyless Story (inline acceptance + verify, zero child Tasks)', () => {
-  // 3-tier (Epic #3078): a Story carrying inline acceptance + verify is
-  // the implementation unit itself and emits no child Tasks. The
-  // validator must not fire the "Story has no child Tasks" check on
-  // this shape, and the backlog cardinality check must not require ≥1
-  // Task when every Story is Storyless.
+test('ticket-validator: accepts a 3-tier Story (inline acceptance + verify)', () => {
+  // The canonical 3-tier Story carries inline acceptance + verify and is
+  // the implementation unit itself.
   const tickets = [
     { slug: 'F1', type: 'feature', title: 'Feature 1' },
-    {
-      slug: 'S1',
-      type: 'story',
-      title: 'Storyless story',
-      parent_slug: 'F1',
+    makeStory('S1', 'F1', {
+      title: '3-tier story',
       labels: ['complexity::fast'],
       acceptance: ['Observable criterion is met.'],
       verify: ['node --test tests/foo.test.js'],
-    },
+    }),
   ];
   const result = validateAndNormalizeTickets(tickets);
   assert.equal(result.length, 2);
-  // Mixed shape: a Storyless Story coexists with a 4-tier Story that
-  // still requires its own child Tasks.
-  const mixed = [
-    { slug: 'F1', type: 'feature', title: 'Feature' },
-    {
-      slug: 'S1',
-      type: 'story',
-      title: 'Storyless',
-      parent_slug: 'F1',
-      acceptance: ['Done.'],
-      verify: ['npm test'],
-    },
-    {
-      slug: 'S2',
-      type: 'story',
-      title: 'Legacy with task',
-      parent_slug: 'F1',
-    },
-    { slug: 'T1', type: 'task', title: 'Task', parent_slug: 'S2' },
-  ];
-  const mixedResult = validateAndNormalizeTickets(mixed);
-  assert.equal(mixedResult.length, 4);
 });
 
-test('ticket-validator: legacy Story without inline acceptance still requires child Tasks (no regression)', () => {
-  // Empty `acceptance` / `verify` arrays must not satisfy the Storyless
-  // escape hatch — both arrays must be non-empty for the relaxation to
-  // fire. A Story with neither inline acceptance nor child Tasks is the
-  // canonical malformed 4-tier shape and still errors.
+test('ticket-validator: empty inline arrays do not satisfy the contract', () => {
+  // Empty `acceptance` / `verify` arrays must not satisfy the inline
+  // contract — both arrays must be non-empty.
   const tickets = [
     { slug: 'F1', type: 'feature', title: 'Feature 1' },
     {
       slug: 'S1',
       type: 'story',
-      title: 'Empty 4-tier story',
+      title: 'Empty arrays',
       parent_slug: 'F1',
       acceptance: [],
       verify: [],
     },
-    { slug: 'S2', type: 'story', title: 'Has task', parent_slug: 'F1' },
-    { slug: 'T1', type: 'task', title: 'Task', parent_slug: 'S2' },
   ];
   assert.throws(
     () => validateAndNormalizeTickets(tickets),
-    /Story.*have no child Tasks/,
+    /lack an inline acceptance \+ verify contract/,
   );
   // A Story with only `acceptance` (no `verify`) is incomplete and must
-  // still fail — the relaxation requires both arrays.
+  // still fail — the contract requires both arrays.
   const onlyAcceptance = [
     { slug: 'F1', type: 'feature', title: 'Feature' },
     {
@@ -164,16 +125,14 @@ test('ticket-validator: legacy Story without inline acceptance still requires ch
       parent_slug: 'F1',
       acceptance: ['Done.'],
     },
-    { slug: 'S2', type: 'story', title: 'Has task', parent_slug: 'F1' },
-    { slug: 'T1', type: 'task', title: 'Task', parent_slug: 'S2' },
   ];
   assert.throws(
     () => validateAndNormalizeTickets(onlyAcceptance),
-    /Story.*have no child Tasks/,
+    /lack an inline acceptance \+ verify contract/,
   );
 });
 
-test('ticket-validator: reports all empty stories in one error', () => {
+test('ticket-validator: reports all contract-less stories in one error', () => {
   const tickets = [
     { slug: 'F1', type: 'feature', title: 'Feature 1' },
     {
@@ -190,14 +149,7 @@ test('ticket-validator: reports all empty stories in one error', () => {
       parent_slug: 'F1',
       labels: ['complexity::fast'],
     },
-    {
-      slug: 'S3',
-      type: 'story',
-      title: 'Has task',
-      parent_slug: 'F1',
-      labels: ['complexity::fast'],
-    },
-    { slug: 'T1', type: 'task', title: 'Task 1', parent_slug: 'S3' },
+    makeStory('S3', 'F1', { title: 'Well-formed' }),
   ];
   assert.throws(
     () => validateAndNormalizeTickets(tickets),
@@ -205,69 +157,33 @@ test('ticket-validator: reports all empty stories in one error', () => {
   );
 });
 
-test('ticket-validator: lifts cross-story dependencies', () => {
+test('ticket-validator: honors explicit cross-story dependencies', () => {
   const tickets = [
     { slug: 'F1', type: 'feature', title: 'Feature' },
-    {
-      slug: 'S1',
-      type: 'story',
-      title: 'Story 1',
-      parent_slug: 'F1',
+    makeStory('S1', 'F1', { labels: ['complexity::fast'] }),
+    makeStory('S2', 'F1', {
       labels: ['complexity::fast'],
-    },
-    {
-      slug: 'S2',
-      type: 'story',
-      title: 'Story 2',
-      parent_slug: 'F1',
-      labels: ['complexity::fast'],
-    },
-    { slug: 'T1', type: 'task', title: 'Task 1', parent_slug: 'S1' },
-    {
-      slug: 'T2',
-      type: 'task',
-      title: 'Task 2',
-      parent_slug: 'S2',
-      depends_on: ['T1'],
-    },
+      depends_on: ['S1'],
+    }),
   ];
 
   const result = validateAndNormalizeTickets(tickets);
   const s2 = result.find((t) => t.slug === 'S2');
-  const t2 = result.find((t) => t.slug === 'T2');
 
-  assert.ok(
-    s2.depends_on.includes('S1'),
-    'Story 2 should now depend on Story 1',
-  );
-  assert.strictEqual(
-    t2.depends_on.length,
-    0,
-    'Task 2 cross-story dependency should be removed from task level',
-  );
+  assert.ok(s2.depends_on.includes('S1'), 'Story 2 should depend on Story 1');
 });
 
 test('ticket-validator: detects cycles', () => {
   const tickets = [
     { slug: 'F1', type: 'feature', title: 'Feature' },
-    {
-      slug: 'S1',
-      type: 'story',
-      title: 'Story 1',
-      parent_slug: 'F1',
+    makeStory('S1', 'F1', {
       labels: ['complexity::fast'],
       depends_on: ['S2'],
-    },
-    {
-      slug: 'S2',
-      type: 'story',
-      title: 'Story 2',
-      parent_slug: 'F1',
+    }),
+    makeStory('S2', 'F1', {
       labels: ['complexity::fast'],
       depends_on: ['S1'],
-    },
-    { slug: 'T1', type: 'task', title: 'Task 1', parent_slug: 'S1' },
-    { slug: 'T2', type: 'task', title: 'Task 2', parent_slug: 'S2' },
+    }),
   ];
 
   assert.throws(
@@ -283,33 +199,11 @@ test('ticket-validator: fails on missing Feature', () => {
   );
 });
 
-test('ticket-validator: fails on missing Task', () => {
-  assert.throws(
-    () =>
-      validateAndNormalizeTickets([
-        { slug: 'F1', type: 'feature' },
-        {
-          slug: 'S1',
-          type: 'story',
-          parent_slug: 'F1',
-          labels: ['complexity::fast'],
-        },
-      ]),
-    /must contain at least one Task/,
-  );
-});
-
 test('ticket-validator: fails if story parent is not a feature', () => {
   const tickets = [
     { slug: 'F1', type: 'feature' },
-    { slug: 'T0', type: 'task' },
-    {
-      slug: 'S1',
-      type: 'story',
-      parent_slug: 'T0',
-      labels: ['complexity::fast'],
-    },
-    { slug: 'T1', type: 'task', parent_slug: 'S1' },
+    makeStory('S0', 'F1'),
+    makeStory('S1', 'S0', { labels: ['complexity::fast'] }),
   ];
   assert.throws(
     () => validateAndNormalizeTickets(tickets),
@@ -317,62 +211,13 @@ test('ticket-validator: fails if story parent is not a feature', () => {
   );
 });
 
-test('ticket-validator: fails if task parent is not a story', () => {
-  const tickets = [
-    { slug: 'F1', type: 'feature' },
-    {
-      slug: 'S1',
-      type: 'story',
-      parent_slug: 'F1',
-      labels: ['complexity::fast'],
-    },
-    { slug: 'T1', type: 'task', parent_slug: 'F1' },
-  ];
-  assert.throws(
-    () => validateAndNormalizeTickets(tickets),
-    /parent must be a Story/,
-  );
-});
-
-test('ticket-validator: fails fast on unknown depends_on slug (previously deferred to decomposer)', () => {
+test('ticket-validator: fails fast on unknown depends_on slug', () => {
   const tickets = [
     { slug: 'F1', type: 'feature', title: 'Feature 1' },
-    {
-      slug: 'S1',
-      type: 'story',
-      title: 'Story 1',
-      parent_slug: 'F1',
+    makeStory('S1', 'F1', {
       labels: ['complexity::fast'],
-    },
-    {
-      slug: 'T1',
-      type: 'task',
-      title: 'Task 1',
-      parent_slug: 'S1',
       depends_on: ['MISSING'],
-    },
+    }),
   ];
   assert.throws(() => validateAndNormalizeTickets(tickets), /unknown slugs/);
-});
-
-test('ticket-validator: keeps cross-story deps on non-task tickets', () => {
-  const tickets = [
-    { slug: 'F1', type: 'feature' },
-    {
-      slug: 'S1',
-      type: 'story',
-      parent_slug: 'F1',
-      labels: ['complexity::fast'],
-    },
-    {
-      slug: 'S2',
-      type: 'story',
-      parent_slug: 'F1',
-      labels: ['complexity::fast'],
-    },
-    { slug: 'T1', type: 'task', parent_slug: 'S1', depends_on: ['S2'] },
-    { slug: 'T2', type: 'task', parent_slug: 'S2' },
-  ];
-  const result = validateAndNormalizeTickets(tickets);
-  assert.ok(result.find((t) => t.slug === 'T1').depends_on.includes('S2'));
 });

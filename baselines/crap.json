@@ -1,13 +1,13 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T20:07:13.967Z",
+  "generatedAt": "2026-05-28T19:45:11.583Z",
   "rollup": {
     "*": {
       "p50": 3,
       "p95": 12.192000000000002,
       "max": 53.8385539444679,
-      "methodsAbove20": 29
+      "methodsAbove20": 30
     }
   },
   "rows": [
@@ -8910,6 +8910,54 @@
       "crap": 1
     },
     {
+      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
+      "method": "deriveFamily",
+      "startLine": 61,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
+      "method": "resolveModelIdentity",
+      "startLine": 86,
+      "crap": 10.002332361516036
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
+      "method": "buildModelAttributionPayload",
+      "startLine": 134,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
+      "method": "validateModelAttributionPayload",
+      "startLine": 171,
+      "crap": 24.027696468820437
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
+      "method": "renderModelAttributionBody",
+      "startLine": 236,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
+      "method": "emitModelAttribution",
+      "startLine": 265,
+      "crap": 6.0641121963436015
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
+      "method": "parseModelAttributionComment",
+      "startLine": 311,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
+      "method": "rollupModelAttribution",
+      "startLine": 348,
+      "crap": 8.020285499624343
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/parked-follow-ons.js",
       "method": "classifyStoriesAgainstManifest",
       "startLine": 34,
@@ -9138,6 +9186,30 @@
       "crap": 9.267599664814155
     },
     {
+      "path": ".agents/scripts/lib/orchestration/post-merge-pipeline.js",
+      "method": "reapPhaseLogger",
+      "startLine": 67,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/post-merge-pipeline.js",
+      "method": "perfSummaryPhase",
+      "startLine": 95,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/post-merge-pipeline.js",
+      "method": "runPostMergePipeline",
+      "startLine": 186,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/post-merge-pipeline.js",
+      "method": "<anon method-2>",
+      "startLine": 198,
+      "crap": 1
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/post-merge/phases/branch-cleanup.js",
       "method": "reapPhaseLogger",
       "startLine": 13,
@@ -9184,6 +9256,18 @@
       "method": "tempCleanupPhase",
       "startLine": 18,
       "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/post-merge/phases/ticket-closure.js",
+      "method": "reapPhaseLogger",
+      "startLine": 26,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/post-merge/phases/ticket-closure.js",
+      "method": "ticketClosurePhase",
+      "startLine": 30,
+      "crap": 6.268591031475939
     },
     {
       "path": ".agents/scripts/lib/orchestration/post-merge/phases/worktree-reap.js",
@@ -9520,6 +9604,18 @@
       "method": "composeRoutedProposals",
       "startLine": 293,
       "crap": 18.00029650589763
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/retro-runner.js",
+      "method": "runRetro",
+      "startLine": 101,
+      "crap": 9.001599115550905
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/retro-runner.js",
+      "method": "<anon method-1>",
+      "startLine": 157,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/retro/phases/checks.js",
@@ -10972,6 +11068,18 @@
       "method": "defaultIsAlive",
       "startLine": 336,
       "crap": 12
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/phases/locked-pipeline.js",
+      "method": "runGatesAndRefresh",
+      "startLine": 48,
+      "crap": 20
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/phases/locked-pipeline.js",
+      "method": "runStoryCloseLocked",
+      "startLine": 110,
+      "crap": 5.187238020876141
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/preflight.js",

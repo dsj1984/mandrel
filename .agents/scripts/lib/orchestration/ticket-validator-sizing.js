@@ -146,18 +146,17 @@ function resolveTestSurface(sizingProfile, sizing) {
 
 /**
  * Compute the hard + soft sizing findings for a single Story across all
- * layers: acceptance ceiling, per-profile changes
- * ceiling, sizingProfile hint, glob-awareness, and test-surface gates
- * (Feature 6, Story #3235).
+ * layers: acceptance ceiling, per-profile changes ceiling, sizingProfile
+ * hint, glob-awareness, and test-surface gates (Feature 6, Story #3235).
  *
  * Recal C: `sizingProfile` is now recommended-always, not required above
  * the soft gate. A Story with >softFileCount files and no profile emits an
  * informational `missing-sizing-profile-hint` finding instead of the
  * former hard `missing-sizing-profile` rejection.
  */
-function computeTaskSizingFindings(task, sizing) {
+function computeStorySizingFindings(story, sizing) {
   const out = [];
-  const body = task.body && typeof task.body === 'object' ? task.body : null;
+  const body = story.body && typeof story.body === 'object' ? story.body : null;
   const acceptance = Array.isArray(body?.acceptance) ? body.acceptance : [];
   const changes = Array.isArray(body?.changes) ? body.changes : [];
   const sizingProfile = body?.sizingProfile ?? null;
@@ -166,7 +165,7 @@ function computeTaskSizingFindings(task, sizing) {
   if (acceptance.length > sizing.maxAcceptance) {
     out.push(
       makeOversized(
-        task.slug,
+        story.slug,
         'acceptance',
         acceptance.length,
         sizing.maxAcceptance,
@@ -175,7 +174,7 @@ function computeTaskSizingFindings(task, sizing) {
   } else if (acceptance.length > sizing.softAcceptanceCount) {
     out.push(
       makeSoftWidth(
-        task.slug,
+        story.slug,
         'acceptance',
         acceptance.length,
         sizing.softAcceptanceCount,
@@ -194,7 +193,7 @@ function computeTaskSizingFindings(task, sizing) {
       out.push({
         kind: 'glob-without-sizing-profile',
         severity: 'soft',
-        ticketSlug: task.slug,
+        ticketSlug: story.slug,
       });
     }
     // Unknown-width Stories skip the numeric ceiling check; returning early
@@ -204,11 +203,11 @@ function computeTaskSizingFindings(task, sizing) {
     const ceilings = resolveCeilings(sizingProfile, sizing);
     if (changes.length > ceilings.hard) {
       out.push(
-        makeOversized(task.slug, 'changes', changes.length, ceilings.hard),
+        makeOversized(story.slug, 'changes', changes.length, ceilings.hard),
       );
     } else if (changes.length > ceilings.soft) {
       out.push(
-        makeSoftWidth(task.slug, 'changes', changes.length, ceilings.soft),
+        makeSoftWidth(story.slug, 'changes', changes.length, ceilings.soft),
       );
     }
   }
@@ -221,7 +220,7 @@ function computeTaskSizingFindings(task, sizing) {
     out.push({
       kind: 'missing-sizing-profile-hint',
       severity: 'soft',
-      ticketSlug: task.slug,
+      ticketSlug: story.slug,
       fileCount,
       softFileCount: sizing.softFileCount,
     });
@@ -231,7 +230,7 @@ function computeTaskSizingFindings(task, sizing) {
     SIZING_PROFILE_VALUES.includes(sizingProfile)
   ) {
     out.push(
-      makeSoftWidth(task.slug, 'fileCount', fileCount, sizing.softFileCount),
+      makeSoftWidth(story.slug, 'fileCount', fileCount, sizing.softFileCount),
     );
   }
 
@@ -245,7 +244,7 @@ function computeTaskSizingFindings(task, sizing) {
       out.push({
         kind: 'test-surface-overflow',
         severity: 'hard',
-        ticketSlug: task.slug,
+        ticketSlug: story.slug,
         observed: estimatedTestFiles,
         ceiling: testSurface.hard,
         sizingProfile: sizingProfile ?? null,
@@ -254,7 +253,7 @@ function computeTaskSizingFindings(task, sizing) {
       out.push({
         kind: 'large-test-surface',
         severity: 'soft',
-        ticketSlug: task.slug,
+        ticketSlug: story.slug,
         observed: estimatedTestFiles,
         soft: testSurface.soft,
         sizingProfile: sizingProfile ?? null,
@@ -271,26 +270,19 @@ function computeTaskSizingFindings(task, sizing) {
  * `findings`; the AC-visible `errors[]` channel is the rendered
  * subset where `severity === 'hard'`.
  *
- * Note: `stories` and `taskCountByStory` parameters are accepted for
- * API-compatibility with the 4-tier code path in `ticket-validator.js`
- * (`assertEveryStoryHasTasks` / `countTasksByStory` plumbing remains
- * intact per Epic #3211 Non-Goals). In 3-tier, `taskCountByStory` is
- * always empty so the Story-width check that used `SOFT_STORY_TASK_COUNT`
- * has been removed (Recal D).
+ * 3-tier (Epic #3238): each Story is its own implementation unit and
+ * carries the `body` (acceptance / changes / sizingProfile /
+ * estimated_test_files) that the sizing layers score. There is no Task
+ * tier, so findings are computed directly over `stories`.
  *
- * @param {{ tasks: object[], stories: object[], taskCountByStory: Map<string, number>, sizing?: object }} input
+ * @param {{ stories: object[], sizing?: object }} input
  * @returns {object[]}
  */
-export function computeSizingFindings({
-  tasks,
-  stories: _stories,
-  taskCountByStory: _taskCountByStory,
-  sizing,
-}) {
+export function computeSizingFindings({ stories, sizing }) {
   const merged = { ...DEFAULT_TASK_SIZING, ...(sizing ?? {}) };
   const findings = [];
-  for (const task of tasks) {
-    findings.push(...computeTaskSizingFindings(task, merged));
+  for (const story of stories ?? []) {
+    findings.push(...computeStorySizingFindings(story, merged));
   }
   return findings;
 }
