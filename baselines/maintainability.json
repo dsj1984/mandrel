@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T18:20:39.398Z",
+  "generatedAt": "2026-05-28T18:22:55.424Z",
   "rollup": {
     "*": {
       "min": 66.537,
-      "p50": 103.683,
+      "p50": 103.689,
       "p95": 121.479
     }
   },
@@ -745,14 +745,6 @@
     {
       "path": ".agents/scripts/lib/json-utils.js",
       "mi": 95.486
-    },
-    {
-      "path": ".agents/scripts/lib/label-constants.js",
-      "mi": 85.733
-    },
-    {
-      "path": ".agents/scripts/lib/label-taxonomy.js",
-      "mi": 95.436
     },
     {
       "path": ".agents/scripts/lib/Logger.js",
@@ -2441,10 +2433,6 @@
     {
       "path": "tests/bdd-scenario-scanner.test.js",
       "mi": 108.793
-    },
-    {
-      "path": "tests/bootstrap.test.js",
-      "mi": 109.117
     },
     {
       "path": "tests/bootstrap/agents-bootstrap-github.integration.test.js",

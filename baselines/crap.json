@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T18:20:40.816Z",
+  "generatedAt": "2026-05-28T18:22:56.073Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -5212,18 +5212,6 @@
       "method": "deepEqual",
       "startLine": 37,
       "crap": 14
-    },
-    {
-      "path": ".agents/scripts/lib/label-constants.js",
-      "method": "isValidTransition",
-      "startLine": 69,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/label-taxonomy.js",
-      "method": "buildPersonaLabels",
-      "startLine": 35,
-      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/Logger.js",

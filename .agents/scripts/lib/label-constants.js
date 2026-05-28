@@ -148,6 +148,28 @@ export const PLANNING_LABELS = {
 };
 
 /**
+ * Plan-axis labels (Epic #3212). `plan::acknowledged` is the operator-applied
+ * acknowledgement signal for the optional story-plan gating mode
+ * (`delivery.storyPlan.requireAcknowledgement`). When gating is on, the
+ * standalone Story worker (`helpers/single-story-deliver`) MUST NOT commit
+ * until the Story carries this label. The label is applied manually by the
+ * operator or via the `/story-plan-ack <storyId>` slash command.
+ *
+ * Reference this constant by symbol — never hard-code the string
+ * `'plan::acknowledged'` at call sites.
+ */
+export const PLAN_LABELS = {
+  ACKNOWLEDGED: 'plan::acknowledged',
+};
+
+/**
+ * Convenience named export so callers can reach the constant without indexing
+ * into PLAN_LABELS — mirrors the ergonomics used by ACCEPTANCE_NA,
+ * CONTEXT_ACCEPTANCE_SPEC, and PLANNING_HEALTHCHECK_WAIVED.
+ */
+export const PLAN_ACKNOWLEDGED = 'plan::acknowledged';
+
+/**
  * Convenience named export so callers can reach the constant without
  * indexing into PLANNING_LABELS — mirrors the ergonomics used by
  * ACCEPTANCE_NA / CONTEXT_ACCEPTANCE_SPEC. The literal value is
