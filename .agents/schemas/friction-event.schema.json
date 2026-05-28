@@ -15,9 +15,6 @@
     "sprintId": {
       "type": "string"
     },
-    "taskId": {
-      "type": "integer"
-    },
     "category": {
       "type": "string",
       "enum": [
@@ -55,12 +52,5 @@
       }
     }
   },
-  "required": [
-    "eventId",
-    "timestamp",
-    "sprintId",
-    "taskId",
-    "category",
-    "details"
-  ]
+  "required": ["eventId", "timestamp", "sprintId", "category", "details"]
 }
