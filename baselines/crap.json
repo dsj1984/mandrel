@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T15:22:05.078Z",
+  "generatedAt": "2026-05-28T17:54:27.283Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.157083248524323,
+      "p95": 12.192000000000002,
       "max": 53.8385539444679,
       "methodsAbove20": 30
     }
@@ -11758,78 +11758,6 @@
       "method": "<anon method-24>",
       "startLine": 747,
       "crap": 1.2962962962962963
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "isValidStructuredCommentType",
-      "startLine": 173,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "assertValidStructuredCommentType",
-      "startLine": 190,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "structuredCommentMarker",
-      "startLine": 216,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "buildStorylessTicketSnapshot",
-      "startLine": 274,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "getProviderCommentCache",
-      "startLine": 285,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "structuredCommentCacheKey",
-      "startLine": 304,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "getProviderRawCommentsCache",
-      "startLine": 344,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "invalidateRawCommentsCache",
-      "startLine": 362,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "_resetRawCommentsCache",
-      "startLine": 375,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "_resetStructuredCommentCache",
-      "startLine": 394,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "_peekStructuredCommentCache",
-      "startLine": 408,
-      "crap": 3.0416666666666665
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "findStructuredComment",
-      "startLine": 437,
-      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/state.js",
