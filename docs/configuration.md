@@ -106,6 +106,23 @@ top-level keys are validation errors.
 | `codebaseSnapshot.include` | No | `array<string>` | — | — |
 | `codebaseSnapshot.exclude` | No | `array<string>` | — | — |
 | `codebaseSnapshot.recentCommitWindow` | No | `integer` | — | — |
+| `taskSizing` | No | `object` | — | Story-sizing thresholds consumed by ticket-validator-sizing.js. Operator overrides shallow-merge with DEFAULT_TASK_SIZING defaults. Story #3231 (Epic #3211) recalibrated these for the 3-tier world: maxAcceptance raised to 8, per-profile change ceilings introduced, sizingProfile demoted to informational-always. |
+| `taskSizing.maxAcceptance` | No | `integer` | — | Hard ceiling on acceptance[] item count (default 8, Recal B). |
+| `taskSizing.softAcceptanceCount` | No | `integer` | — | Soft-warn threshold on acceptance[] item count (default 6). |
+| `taskSizing.softFileCount` | No | `integer` | — | File-count threshold above which a missing-sizing-profile-hint informational finding fires (default 3, Recal C). |
+| `taskSizing.profileCeilings` | No | `object` | — | Operator overrides for per-profile change ceilings. Keys are sizingProfile enum values plus the empty string for the no-profile default. Absent keys fall back to DEFAULT_TASK_SIZING defaults in ticket-validator-sizing.js (Story #3231). |
+| `taskSizing.profileCeilings.mechanical-sweep` | No | `object` | — | Per-profile soft and hard change-count thresholds (Recal A, Story #3231). |
+| `taskSizing.profileCeilings.mechanical-sweep.soft` | Yes | `integer` | — | — |
+| `taskSizing.profileCeilings.mechanical-sweep.hard` | Yes | `integer` | — | — |
+| `taskSizing.profileCeilings.scaffolding` | No | `object` | — | Per-profile soft and hard change-count thresholds (Recal A, Story #3231). |
+| `taskSizing.profileCeilings.scaffolding.soft` | Yes | `integer` | — | — |
+| `taskSizing.profileCeilings.scaffolding.hard` | Yes | `integer` | — | — |
+| `taskSizing.profileCeilings.atomic-rewrite` | No | `object` | — | Per-profile soft and hard change-count thresholds (Recal A, Story #3231). |
+| `taskSizing.profileCeilings.atomic-rewrite.soft` | Yes | `integer` | — | — |
+| `taskSizing.profileCeilings.atomic-rewrite.hard` | Yes | `integer` | — | — |
+| `taskSizing.profileCeilings.` | No | `object` | — | Per-profile soft and hard change-count thresholds (Recal A, Story #3231). |
+| `taskSizing.profileCeilings..soft` | Yes | `integer` | — | — |
+| `taskSizing.profileCeilings..hard` | Yes | `integer` | — | — |
 | `failOnSharedEditors` | No | `boolean` | — | — |
 | `requireExplicitCrossStoryDeps` | No | `boolean` | — | — |
 | `failOnRegistryConflicts` | No | `boolean` | — | — |

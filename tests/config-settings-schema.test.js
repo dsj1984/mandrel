@@ -216,8 +216,43 @@ describe('planning.* shape', () => {
   });
 
   it('rejects unknown planning property', () => {
+    // taskSizing is now a known key (Story #3231); use a genuinely unknown key.
     expectErrors(
-      { ...REQ, planning: { taskSizing: { maxAcceptance: 6 } } },
+      { ...REQ, planning: { unknownPlanningKey: true } },
+      /additional properties/,
+    );
+  });
+
+  it('accepts planning.taskSizing with per-profile ceilings (Story #3231)', () => {
+    assert.equal(
+      validate({
+        ...REQ,
+        planning: {
+          taskSizing: {
+            maxAcceptance: 10,
+            softAcceptanceCount: 6,
+            softFileCount: 4,
+            profileCeilings: {
+              'mechanical-sweep': { soft: 30, hard: 70 },
+              scaffolding: { soft: 10, hard: 20 },
+              'atomic-rewrite': { soft: 3, hard: 5 },
+              '': { soft: 4, hard: 8 },
+            },
+          },
+        },
+      }),
+      true,
+    );
+  });
+
+  it('rejects unknown key in planning.taskSizing.profileCeilings (Story #3231)', () => {
+    expectErrors(
+      {
+        ...REQ,
+        planning: {
+          taskSizing: { profileCeilings: { 'unknown-profile': { soft: 5, hard: 10 } } },
+        },
+      },
       /additional properties/,
     );
   });

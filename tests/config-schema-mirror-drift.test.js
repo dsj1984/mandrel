@@ -353,6 +353,44 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
     );
   });
 
+  it('accepts planning.taskSizing with profileCeilings on both sides (Story #3231)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        planning: {
+          taskSizing: {
+            maxAcceptance: 10,
+            softAcceptanceCount: 6,
+            softFileCount: 4,
+            profileCeilings: {
+              'mechanical-sweep': { soft: 30, hard: 70 },
+              scaffolding: { soft: 10, hard: 20 },
+              'atomic-rewrite': { soft: 3, hard: 5 },
+              '': { soft: 4, hard: 8 },
+            },
+          },
+        },
+      },
+      'planning.taskSizing + profileCeilings',
+    );
+  });
+
+  it('rejects unknown key inside planning.taskSizing.profileCeilings on both sides (Story #3231)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        planning: {
+          taskSizing: {
+            profileCeilings: {
+              'unknown-profile': { soft: 5, hard: 10 },
+            },
+          },
+        },
+      },
+      'unknown profile key in profileCeilings',
+    );
+  });
+
   it('rejects worktreeIsolation without root when enabled is true on both sides', () => {
     assertAgree(
       {
