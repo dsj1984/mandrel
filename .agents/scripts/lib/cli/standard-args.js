@@ -6,7 +6,7 @@
  * declarative entrypoint that the refactored scripts (story-close,
  * epic-deliver, check-baselines, audit-suite/cli) all call. The helper
  * covers the flags every dispatcher CLI shares (`--epic`, `--story`,
- * `--task`, `--changed-since`, `--json`, `--full-scope`, `--dry-run`)
+ * `--changed-since`, `--json`, `--full-scope`, `--dry-run`)
  * and — via the `extras` schema entry — caller-defined extras (e.g.
  * `--root`, `--scope`, `--check`) so a script can replace its local
  * argv walker with a single declarative call.
@@ -31,10 +31,10 @@
  *
  *   `values` is always returned with every known flag present:
  *
- *     { epicId, storyId, taskId, changedSince, json, fullScope, dryRun,
+ *     { epicId, storyId, changedSince, json, fullScope, dryRun,
  *       ...extras }
  *
- *   Ticket-shaped flags (`--epic`, `--story`, `--task`) parse via
+ *   Ticket-shaped flags (`--epic`, `--story`) parse via
  *   `parseTicketId` (positive integer; leading `#` stripped; `null` on
  *   anything invalid). The string-shaped `--changed-since` keeps the raw
  *   string (or `null` when absent). Boolean flags coerce to `false` when
@@ -78,7 +78,6 @@ import { defineFlags, parseTicketId } from '../cli-args.js';
 const SUPPORTED_FLAGS = Object.freeze({
   epic: { key: 'epicId', type: 'ticket' },
   story: { key: 'storyId', type: 'ticket' },
-  task: { key: 'taskId', type: 'ticket' },
   'changed-since': { key: 'changedSince', type: 'string' },
   json: { key: 'json', type: 'boolean' },
   'full-scope': { key: 'fullScope', type: 'boolean' },
