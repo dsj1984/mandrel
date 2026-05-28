@@ -63,44 +63,6 @@ function epicManifest(overrides = {}) {
   };
 }
 
-// Pending follow-on Story #3195/#3196 (Epic #3163): renderNestedWaveSections
-// still walks story.tasks[]; the TOC table column shape and per-Story body
-// rendering pivot to Story-only counts once those Stories land. Reinstate
-// the layout assertions then.
-test.skip('formatter: renders epic header, meta line, wave TOC, and nested H2/H3 layout', () => {
-  const md = formatManifestMarkdown(epicManifest());
-  assert.ok(md.includes('# 📋 Dispatch Manifest — Epic #42'));
-  assert.ok(md.includes('> **Demo Epic**'));
-  // Meta line folds timestamp + totals on one line; no separate hero section.
-  assert.ok(md.includes('1/4 tasks · 0/2 stories · 2 waves'));
-  assert.ok(!md.includes('## 🏗️ Sprint Progress'));
-  assert.ok(!md.includes('Sprint Progress'));
-  // TOC table — no Progress column (Tasks already shows done/total).
-  assert.ok(md.includes('## Wave Summary'));
-  assert.ok(md.includes('| Wave | Status | Stories | Tasks |'));
-  assert.ok(!md.includes('| Wave | Status | Progress |'));
-  // Per-wave H2 carries emoji + label only (status word lives in the TOC).
-  assert.ok(md.includes('## 🚀 Wave 0'));
-  assert.ok(md.includes('## ⏳ Wave 1'));
-  assert.ok(!md.includes('## 🚀 Ready Wave 0'));
-  // Per-Story H3 carries symbol, #id, title, done/total tasks. No branch
-  // backticks, no progress bar, no `~?` ETA placeholder.
-  assert.ok(md.includes('### 🔄 #101 — Alpha Story · 1/2 tasks'));
-  assert.ok(!md.includes('`story-101`'));
-  assert.ok(!md.includes('~?'));
-  // Under the 3-tier hierarchy Stories are leaves; the per-Story body
-  // collapses to the empty-tasks marker rather than rendering child
-  // Task checkbox rows (Epic #3163, Story #3196).
-  assert.ok(md.includes('_(no tasks)_'));
-  assert.ok(!md.includes('- [x] #201'));
-  assert.ok(!md.includes('- [ ] #203'));
-  // Legacy headings are gone
-  assert.ok(!md.includes('## Execution Plan'));
-  assert.ok(!md.includes('## Story Details'));
-  // Inline legend blockquote retired — full legend lives in <details>.
-  assert.ok(!md.includes('**Legend:**'));
-});
-
 test('formatter: feature containers row when features present', () => {
   const manifest = epicManifest();
   manifest.storyManifest.push({
@@ -355,80 +317,6 @@ test('renderWaveSections: marks a wave done when every Story completed', () => {
   assert.ok(md.includes('✅ Done'));
 });
 
-// Pending follow-on Story #3196 (Epic #3163): per-Story H3 emoji now comes
-// from deriveStorySymbol(story.status) — fixtures here predate the
-// Story-only shape; reinstate after #3196 rewrites renderNestedWaveSections.
-test.skip('renderNestedWaveSections: emits one ## emoji Wave N H2 per wave with H3 stories and checkbox tasks', () => {
-  const manifest = epicManifest();
-  manifest.storyManifest.push({
-    storyId: 103,
-    storySlug: 'gamma',
-    storyTitle: 'Gamma Story',
-    type: 'story',
-    earliestWave: 1,
-    branchName: 'story-103',
-    tasks: [{ taskId: 205, taskSlug: 't-c1', status: 'agent::ready' }],
-  });
-  const md = renderNestedWaveSections(manifest.storyManifest);
-  // One H2 per wave; legacy headings gone; status word stays out of the
-  // heading (it's already in the Wave Summary table).
-  assert.ok(!md.includes('## Execution Plan'));
-  assert.ok(!md.includes('## Story Details'));
-  const w0 = md.match(/^## 🚀 Wave 0$/gm) || [];
-  const w1 = md.match(/^## ⏳ Wave 1$/gm) || [];
-  assert.equal(w0.length, 1, 'exactly one Wave 0 H2');
-  assert.equal(w1.length, 1, 'exactly one Wave 1 H2');
-  // Wave 1 is Blocked → tail names the gating wave.
-  assert.ok(md.includes('· gated on Wave 0'));
-  // Wave 0 is Ready with 1 story → no parallel tail.
-  // Switch Story 103 into Wave 0 to exercise the parallel hint.
-  const md2 = renderNestedWaveSections([
-    ...manifest.storyManifest.slice(0, 1),
-    { ...manifest.storyManifest[2], earliestWave: 0 },
-  ]);
-  assert.ok(md2.includes('· 2 run in parallel'));
-  // Per-Story H3: symbol + #id + title + done/total tasks; no branch
-  // backticks, no progress bar, no `~?` ETA placeholder.
-  assert.ok(md.includes('### 🔄 #101 — Alpha Story · 1/2 tasks'));
-  assert.ok(!md.includes('`story-101`'));
-  assert.ok(!md.includes('~?'));
-  assert.ok(!/### 🔄 #101.*[█░]/.test(md));
-  // Under the 3-tier hierarchy Stories are leaves; the per-Story body
-  // collapses to the empty-tasks marker (Epic #3163, Story #3196).
-  assert.ok(md.includes('_(no tasks)_'));
-  assert.ok(!md.includes('- [x] #201'));
-  assert.ok(!md.includes('- [ ] #205'));
-});
-
-// Pending follow-on Story #3196 (Epic #3163): per-Story H3 emoji derives
-// from story.status in the new shape; fixture needs explicit status.
-test.skip('renderNestedWaveSections: appends a Feature Containers section when present', () => {
-  const stories = [
-    {
-      storyId: 101,
-      storySlug: 'alpha',
-      storyTitle: 'Alpha Story',
-      type: 'story',
-      earliestWave: 0,
-      branchName: 'story-101',
-      tasks: [{ taskId: 200, taskSlug: 't1', status: 'agent::done' }],
-    },
-    {
-      storyId: 300,
-      storySlug: 'container',
-      type: 'feature',
-      earliestWave: -1,
-      branchName: 'feature-300',
-      tasks: [{ taskId: 400, status: 'agent::ready' }],
-    },
-  ];
-  const md = renderNestedWaveSections(stories);
-  assert.ok(md.includes('## Feature Containers'));
-  assert.ok(md.includes('| #300 | container | 1 |'));
-  // story with all tasks done renders ✅ symbol on the H3
-  assert.ok(md.includes('### ✅ #101 — Alpha Story'));
-});
-
 test('renderNestedWaveSections: returns empty string for empty input', () => {
   assert.equal(renderNestedWaveSections([]), '');
   assert.equal(renderNestedWaveSections(null), '');
@@ -460,13 +348,6 @@ test('renderNestedWaveSections: H2 anchors match the TOC link slugs', () => {
 // `renderNestedWaveSections` no longer projects a Task-level checkbox
 // list and the `topoSortTasks` helper was deleted as dead code.
 
-// Pending follow-on Story #3196 (Epic #3163): computeStoryProgress moved out
-// of manifest-helpers.js (Story #3194) into manifest-render-waves.js as a
-// private helper alongside topoSortTasks. Story #3196 deletes both when
-// the renderer pivots to Story-only progress; reinstate or drop with
-// rationale at that point.
-test.skip('computeStoryProgress: derives pct, done, total from story.tasks[]', () => {});
-
 // ---------------------------------------------------------------------------
 // Bottom <details> block (operating procedures + full symbol legend)
 // ---------------------------------------------------------------------------
@@ -488,43 +369,4 @@ test('renderProceduresAndLegendDetails: emits exactly one <details>/</details> p
   assert.match(md, /Symbol legend/);
   // Epic id substituted into the deliver/close examples.
   assert.match(md, /\/epic-deliver 42/);
-});
-
-// Pending follow-on Story #3196 (Epic #3163): asserts TOC column header
-// and Wave-0 H2 ordering, both of which depend on renderNestedWaveSections
-// still walking story.tasks[]. Reinstate after #3196 rewrites the renderer
-// for Story-only manifests.
-test.skip('formatManifestMarkdown: bottom <details> block is the only HTML; first wave H2 follows the TOC directly', () => {
-  const md = formatManifestMarkdown(epicManifest());
-  // Exactly one <details> tag pair in the entire rendered document.
-  assert.equal(
-    (md.match(/<details>/g) || []).length,
-    1,
-    'expected exactly one <details> tag',
-  );
-  assert.equal(
-    (md.match(/<\/details>/g) || []).length,
-    1,
-    'expected exactly one </details> tag',
-  );
-  // Strip the details block, then assert the rest contains no HTML tags.
-  const detailsRe = /<details>[\s\S]*?<\/details>/;
-  const outsideDetails = md.replace(detailsRe, '');
-  const stray = outsideDetails.match(/<[a-zA-Z/][^>]*>/g) || [];
-  assert.deepEqual(
-    stray,
-    [],
-    `unexpected HTML tags outside <details> block: ${JSON.stringify(stray)}`,
-  );
-  // No inline legend — full legend lives in <details> only.
-  assert.ok(!md.includes('**Legend:**'));
-  // First wave H2 follows the TOC table directly.
-  const tocPos = md.indexOf('| Wave | Status | Stories | Tasks |');
-  const firstH2Pos = md.search(/^## 🚀 Wave 0$/m);
-  assert.ok(tocPos >= 0, 'TOC table missing');
-  assert.ok(firstH2Pos > tocPos, 'first wave H2 should follow the TOC');
-  // No top-level "## 🤖 Agent Operating Procedures" or Sprint Progress
-  // headings anymore — both folded into the meta line / details block.
-  assert.ok(!md.includes('## 🤖 Agent Operating Procedures'));
-  assert.ok(!md.includes('Sprint Progress'));
 });

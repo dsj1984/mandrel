@@ -272,37 +272,6 @@ test('renderStoryManifestMarkdown', async (t) => {
     assert.match(output, /Story Execution/);
     assert.match(output, /Story #42/);
   });
-
-  // TODO(#3209): reinstate or delete — exercises Task-tier manifest shape removed by Epic #3163.
-  await t.test(
-    'renders story manifest with tasks and blockers',
-    { skip: true },
-    () => {
-      const manifest = {
-        type: 'story-execution',
-        epicId: 100,
-        generatedAt: '2026-01-01T00:00:00.000Z',
-        stories: [
-          {
-            storyId: 43,
-            storyTitle: 'Test Story',
-            branchName: 'story-43',
-            tasks: [
-              {
-                taskId: 431,
-                title: 'Subtask 1',
-                status: 'agent::ready',
-                dependencies: [99],
-              },
-            ],
-          },
-        ],
-      };
-      const output = renderStoryManifestMarkdown(manifest);
-      assert.match(output, /Subtask 1/);
-      assert.match(output, /blocked by: #99/);
-    },
-  );
 });
 
 test('persistManifest', async (t) => {

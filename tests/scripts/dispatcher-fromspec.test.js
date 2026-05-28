@@ -226,12 +226,11 @@ afterEach(() => {
   if (sandbox) rmSync(sandbox, { recursive: true, force: true });
 });
 
-// Pending follow-on Epic #3163: tryRenderFromSpec / spec-renderer still expect
-// Story.tasks[]. Reinstate after the renderer is rewritten to emit the
-// 3-tier shape.
-test.skip('tryRenderFromSpec round-trips through the real loader against a sandbox spec', () => {
-  // Plant a real YAML spec + a real state file in the sandbox.
-  const yaml = `epic:\n  id: 7777\n  title: 'Dispatcher Routing Fixture'\nfeatures:\n  - slug: feat-routing\n    title: 'Routing Feature'\n    stories:\n      - slug: story-routing\n        title: 'Routing Story'\n        wave: 0\n        tasks:\n          - slug: task-routing\n            title: 'Routing Task'\n`;
+test('tryRenderFromSpec round-trips through the real loader against a sandbox spec', () => {
+  // Epic #3163: Stories are leaves under the 3-tier hierarchy, so the
+  // on-disk spec carries no Story.tasks[]. The real-loader round-trip
+  // surfaces the Story and collapses its body to the empty-tasks marker.
+  const yaml = `epic:\n  id: 7777\n  title: 'Dispatcher Routing Fixture'\nfeatures:\n  - slug: feat-routing\n    title: 'Routing Feature'\n    stories:\n      - slug: story-routing\n        title: 'Routing Story'\n        wave: 0\n`;
   writeFileSync(path.join(sandbox, '7777.yaml'), yaml, 'utf8');
   writeFileSync(
     path.join(sandbox, '7777.state.json'),
@@ -245,7 +244,8 @@ test.skip('tryRenderFromSpec round-trips through the real loader against a sandb
   });
   assert.equal(typeof md, 'string');
   assert.match(md, /Routing Story/);
-  assert.match(md, /- \[ \] #5002 — task-routing/);
+  assert.match(md, /_\(no tasks\)_/);
+  assert.doesNotMatch(md, /task-routing/);
 });
 
 test('tryRenderFromSpec returns null when the sandbox spec is missing', () => {
