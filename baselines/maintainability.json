@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T19:45:10.900Z",
+  "generatedAt": "2026-05-28T20:12:05.952Z",
   "rollup": {
     "*": {
       "min": 36.604,
-      "p50": 103.683,
-      "p95": 121.479
+      "p50": 103.762,
+      "p95": 121.571
     }
   },
   "rows": [
@@ -137,10 +137,6 @@
     {
       "path": ".agents/scripts/epic-plan-edit-flow.js",
       "mi": 82.06
-    },
-    {
-      "path": ".agents/scripts/epic-plan-healthcheck.js",
-      "mi": 97.622
     },
     {
       "path": ".agents/scripts/epic-plan-spec.js",
@@ -1151,10 +1147,6 @@
       "mi": 104.328
     },
     {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/emit-story-heartbeat.js",
-      "mi": 91.671
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/lifecycle/ledger-writer.js",
       "mi": 108.444
     },
@@ -1243,10 +1235,6 @@
       "mi": 96.762
     },
     {
-      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
-      "mi": 82.71
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/parked-follow-ons.js",
       "mi": 92.719
     },
@@ -1279,10 +1267,6 @@
       "mi": 95.317
     },
     {
-      "path": ".agents/scripts/lib/orchestration/post-merge-pipeline.js",
-      "mi": 95.149
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/post-merge/phases/branch-cleanup.js",
       "mi": 106.779
     },
@@ -1297,10 +1281,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/post-merge/phases/temp-cleanup.js",
       "mi": 103.836
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/post-merge/phases/ticket-closure.js",
-      "mi": 98.894
     },
     {
       "path": ".agents/scripts/lib/orchestration/post-merge/phases/worktree-reap.js",
@@ -1337,10 +1317,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/retro-proposals.js",
       "mi": 90.436
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/retro-runner.js",
-      "mi": 82.641
     },
     {
       "path": ".agents/scripts/lib/orchestration/retro/phases/checks.js",
@@ -1521,10 +1497,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/lock-wait-classifier.js",
       "mi": 88.118
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/locked-pipeline.js",
-      "mi": 73.379
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/preflight.js",

@@ -151,7 +151,7 @@ export async function runStoryCloseLocked(args) {
 
   const tasks = await fetchChildTickets(provider, storyId);
   provider.primeTicketCache([story, ...tasks]);
-  progress('TASKS', `Found ${tasks.length} child Task(s)`);
+  progress('TICKETS', `Found ${tasks.length} child ticket(s)`);
 
   const prior = loadPhaseTimerState({ mainCwd: cwd, storyId });
   const phaseTimer = createPhaseTimer(storyId, prior ? { restore: prior } : {});

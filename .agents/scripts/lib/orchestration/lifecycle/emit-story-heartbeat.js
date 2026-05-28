@@ -23,10 +23,11 @@
  *
  * The schema declares `additionalProperties: false`, so this emitter's
  * signature is deliberately narrow: only the schema-allowed fields are
- * accepted. Earlier Task-era counters (`taskId`, `tasksDone`,
+ * accepted. Earlier per-child counters (`taskId`, `tasksDone`,
  * `tasksTotal`, `currentTaskId`) were dropped under Epic #3078's
  * 3-tier hard cutover — they would fail strict validation and have no
- * meaning when the Story has no child Task tickets.
+ * meaning now that the Story is the leaf execution unit with no child
+ * tickets.
  */
 
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
