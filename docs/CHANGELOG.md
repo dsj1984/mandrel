@@ -52,6 +52,10 @@ Highlights of the removed surface:
 - Removed config flag: `planning.hierarchy` is deleted; 3-tier becomes
   the only published shape.
 - Bootstrap label-seeding no longer creates `type::task`.
+- Decompose/bootstrap/signal perimeter swept clean of `'type::task'`
+  literals: `git grep "type::task"` over
+  `lib/orchestration/epic-plan-decompose/` and `lib/signals/` returns no
+  matches.
 
 Wave-loop semantics, parallel Story execution, the Epic-merge model
 (`epic/<id>` → `main` via PR), and Feature semantics are unchanged.
