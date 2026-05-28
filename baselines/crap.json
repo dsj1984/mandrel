@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T00:18:00.930Z",
+  "generatedAt": "2026-05-28T00:55:29.189Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -6366,84 +6366,6 @@
       "crap": 2.0025626306941655
     },
     {
-      "path": ".agents/scripts/lib/orchestration/dispatch-engine.js",
-      "method": "ensureBranch",
-      "startLine": 44,
-      "crap": 1.512
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dispatch-engine.js",
-      "method": "defaultLintBaselineExec",
-      "startLine": 62,
-      "crap": 1.2962962962962963
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dispatch-engine.js",
-      "method": "captureLintBaseline",
-      "startLine": 76,
-      "crap": 1.669921875
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dispatch-engine.js",
-      "method": "resolveAndDispatch",
-      "startLine": 90,
-      "crap": 16
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dispatch-engine.js",
-      "method": "dispatch",
-      "startLine": 137,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dispatch-pipeline.js",
-      "method": "resolveDispatchContext",
-      "startLine": 76,
-      "crap": 4.113791533909877
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dispatch-pipeline.js",
-      "method": "fetchEpicContext",
-      "startLine": 110,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dispatch-pipeline.js",
-      "method": "reconcileEpicState",
-      "startLine": 140,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dispatch-pipeline.js",
-      "method": "buildDispatchGraph",
-      "startLine": 156,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dispatch-pipeline.js",
-      "method": "isThreeTierDispatch",
-      "startLine": 202,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dispatch-pipeline.js",
-      "method": "buildStoryDispatchGraph",
-      "startLine": 229,
-      "crap": 8
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dispatch-pipeline.js",
-      "method": "ensureEpicScaffolding",
-      "startLine": 287,
-      "crap": 2.108
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dispatch-pipeline.js",
-      "method": "runWorktreeGc",
-      "startLine": 307,
-      "crap": 5
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/doc-reader.js",
       "method": "readDocsFromRoot",
       "startLine": 7,
@@ -11130,18 +11052,6 @@
       "crap": 2
     },
     {
-      "path": ".agents/scripts/lib/orchestration/task-fetcher.js",
-      "method": "parseTasks",
-      "startLine": 18,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/task-fetcher.js",
-      "method": "fetchTasks",
-      "startLine": 53,
-      "crap": 1
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
       "method": "matchRegistryPattern",
       "startLine": 72,
@@ -11980,54 +11890,6 @@
       "method": "renderManifestFromManifest",
       "startLine": 89,
       "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-builder.js",
-      "method": "validateSpecShape",
-      "startLine": 44,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-builder.js",
-      "method": "buildResolvers",
-      "startLine": 73,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-builder.js",
-      "method": "<anon method-1>",
-      "startLine": 79,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-builder.js",
-      "method": "<anon method-2>",
-      "startLine": 85,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-builder.js",
-      "method": "projectTask",
-      "startLine": 103,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-builder.js",
-      "method": "projectStory",
-      "startLine": 128,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-builder.js",
-      "method": "projectFeatures",
-      "startLine": 168,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-builder.js",
-      "method": "buildManifestFromSpec",
-      "startLine": 214,
-      "crap": 7
     },
     {
       "path": ".agents/scripts/lib/presentation/manifest-formatter.js",
