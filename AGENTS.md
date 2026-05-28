@@ -116,6 +116,32 @@ confidence (lint + full tests + baselines). Pre-push runs only diff-scoped
 quality preview plus coverage/CRAP ratchet; it does not run full lint or
 `npm test`. CI always runs the full `npm test` suite.
 
+### Advisory CI checks (non-blocking)
+
+CI runs **blocking** required checks and **advisory** non-blocking ones.
+The blocking gates are the ones listed in
+[`.agentrc.json`](.agentrc.json) under
+`github.branchProtection.requiredChecks` (`lint`, `test`, `baselines`,
+`lifecycle-doc-drift`) — a red one of those stops the merge.
+
+Advisory checks surface signal without gating merges:
+
+| Check                 | Tool                                                | What it covers                                                                       | Where to read output                                                       |
+| --------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| `agentlinter (advisory)` | [AgentLinter](https://agentlinter.com/) (`npx agentlinter`, pinned `@0.3.3`, MIT) | Mandrel's own agent-config surface: root `CLAUDE.md` / `AGENTS.md` plus the distributed `.agents/` bundle (skills, personas, rules) | The `agentlinter (advisory)` job logs in the `CI / CD` workflow run — read the two "Run AgentLinter ..." step outputs |
+
+The `agentlinter (advisory)` job is **advisory-only** by design
+(`continue-on-error: true` in [`ci.yml`](.github/workflows/ci.yml) plus an
+exit-code swallow on each step), so a failing AgentLinter run never blocks a
+merge. It is deliberately **not** in `requiredChecks`. The intent is to
+gather signal — its Security and Skill-Safety dimensions are the high-value
+ones for an agent-instruction corpus — and decide later whether any
+dimension is trustworthy enough to promote toward a gate. The generic
+Clarity / Consistency / Completeness scoring is expected to be noisy on
+Mandrel's deliberately verbose, cross-referential instruction files, which
+is exactly why the check stays advisory. The pinned version keeps report
+output reproducible across runs.
+
 ### Slow-test profiling
 
 `npm run test:profile` runs the full suite with the TAP reporter, writes
