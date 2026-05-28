@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T02:21:05.819Z",
+  "generatedAt": "2026-05-28T02:29:43.324Z",
   "rollup": {
     "*": {
       "min": 38.161,
-      "p50": 103.836,
+      "p50": 103.866,
       "p95": 121.479
     }
   },
@@ -485,10 +485,6 @@
     {
       "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
       "mi": 96.56
-    },
-    {
-      "path": ".agents/scripts/lib/config-resolver.js",
-      "mi": 93.845
     },
     {
       "path": ".agents/scripts/lib/config-schema-shared.js",
@@ -1035,10 +1031,6 @@
       "mi": 105.161
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/story-run-progress-writer.js",
-      "mi": 91.832
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/epic-runner/sub-agent-return.js",
       "mi": 82.827
     },
@@ -1431,10 +1423,6 @@
       "mi": 163.888
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution.js",
-      "mi": 93.072
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution/phases/gate-failure.js",
       "mi": 66.537
     },
@@ -1573,14 +1561,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "mi": 95.584
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "mi": 103.076
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/state.js",
-      "mi": 96.965
     },
     {
       "path": ".agents/scripts/lib/orchestration/wave-dispatcher.js",
@@ -1749,10 +1729,6 @@
     {
       "path": ".agents/scripts/lib/story-init/hierarchy-tracer.js",
       "mi": 115.301
-    },
-    {
-      "path": ".agents/scripts/lib/story-init/state-transitioner.js",
-      "mi": 114.029
     },
     {
       "path": ".agents/scripts/lib/story-init/transition-summary.js",
@@ -2077,18 +2053,6 @@
     {
       "path": ".agents/scripts/story-close.js",
       "mi": 94.408
-    },
-    {
-      "path": ".agents/scripts/story-deliver-prepare.js",
-      "mi": 90.852
-    },
-    {
-      "path": ".agents/scripts/story-init.js",
-      "mi": 83.361
-    },
-    {
-      "path": ".agents/scripts/story-phase.js",
-      "mi": 85.061
     },
     {
       "path": ".agents/scripts/sync-agentrc.js",
