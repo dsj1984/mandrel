@@ -13,7 +13,7 @@ description:
 - Check for an applicable skill **before** starting work; skills are workflows, not suggestions — follow steps in order and never skip the verification step.
 - Surface assumptions explicitly before any non-trivial implementation (`ASSUMPTIONS I'M MAKING:` block) and invite correction.
 - Manage confusion actively: STOP, name the inconsistency, present the trade-off, wait for resolution. Never silently pick an interpretation.
-- **Sub-agent exception**: when running under `/story-deliver` or another non-interactive parent, never stall for input. Pick the narrowest reasonable interpretation that satisfies the parent Story's AC; if truly stuck, transition to `agent::blocked`, post a `friction` structured comment with the default assumption, and exit non-zero.
+- **Sub-agent exception**: when running under `helpers/epic-deliver-story`, `helpers/single-story-deliver`, or another non-interactive parent, never stall for input. Pick the narrowest reasonable interpretation that satisfies the parent Story's AC; if truly stuck, transition to `agent::blocked`, post a `friction` structured comment with the default assumption, and exit non-zero.
 - Push back on flawed approaches with concrete, quantified downsides and an alternative; sycophancy is a failure mode.
 - Enforce Simplicity: prefer the boring, obvious solution. Resist abstraction unless it earns its complexity; 1000 lines where 100 suffice is a failure.
 - Maintain Scope Discipline: no drive-by cleanups, no refactoring adjacent systems, no deletions you don't fully understand, no unsolicited features.
@@ -91,8 +91,9 @@ see X in the spec but Y in the existing code. Which takes precedence?"
 
 The "STOP and ask the operator" guidance above applies when a human is in
 the loop. When you are running as a **sub-agent** of another skill — most
-commonly a Story executor spawned by `/story-deliver` — there is **no
-input channel** to ask. In that context:
+commonly a Story executor spawned by `helpers/epic-deliver-story` or
+`helpers/single-story-deliver` — there is **no input channel** to ask.
+In that context:
 
 1. Pick the **narrowest reasonable interpretation** that satisfies the
    Story's acceptance criteria. Out-of-scope cleanups belong in a
@@ -104,9 +105,10 @@ input channel** to ask. In that context:
 3. **Never** stall waiting for input that will never arrive.
 
 This is the only documented exception to the "Manage Confusion Actively"
-rule. Read it together with the Story-implementation contract in
-[`/story-deliver`](../../../workflows/story-deliver.md), which states
-the same constraint from the executor side.
+rule. Read it together with the Story-implementation contracts in
+[`helpers/epic-deliver-story`](../../../workflows/helpers/epic-deliver-story.md)
+and [`helpers/single-story-deliver`](../../../workflows/helpers/single-story-deliver.md),
+which state the same constraint from the executor side.
 
 ### 3. Push Back When Warranted
 

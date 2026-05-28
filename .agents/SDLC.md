@@ -84,10 +84,10 @@ From zero to shipped:
        worktrees after the PR merges so the workspace returns to a
        clean state for the next Epic.
 
-   For a single Story off the dispatch table (re-driving a hotfix,
-   resuming after a halt), run `/story-deliver <storyId>` directly. The
-   two-skill split (`/epic-deliver` and `/story-deliver`) lets the
-   operator stop or resume at any level of the hierarchy.
+   For a single Epic-attached Story (re-driving a hotfix, resuming after
+   a halt), re-run `/epic-deliver <epicId>` — the wave loop picks up
+   incomplete Stories from the dispatch manifest automatically. Standalone
+   Stories (no `Epic: #N` reference) use `/story-deliver <storyId>` instead.
 
 That is the whole happy path. Everything below is **detail** — branching
 conventions, HITL escalation, audit gates — that you only need when the
@@ -115,10 +115,11 @@ default flow requires adjustment.
 - **Hierarchy-aligned skills.** Execution is split along the ticket
   hierarchy: `/epic-plan` builds the backlog (with optional ideation
   entry), `/epic-deliver` owns the merged wave-loop + close-tail, and
-  `/story-deliver` runs init → Story-implementation phase → close for
-  one Story. All three share the same primitives
-  (`Graph.computeWaves`, `cascadeCompletion`, `ticketing.js`,
-  `WorktreeManager`).
+  `/story-deliver` delivers one or more standalone Stories end-to-end.
+  `helpers/epic-deliver-story` and `helpers/single-story-deliver` are the
+  per-Story workers called by those two commands respectively. All share
+  the same primitives (`Graph.computeWaves`, `cascadeCompletion`,
+  `ticketing.js`, `WorktreeManager`).
 - **Single-session fan-out.** `/epic-deliver` launches Story sub-agents via
   the Agent tool — every Story runs inside the operator's Claude session,
   with no subprocess boundary. Worktree filesystem isolation is preserved;
@@ -506,17 +507,17 @@ side-effects rather than inline calls at phase boundaries; the
 
 ### Invocation modes
 
-| Mode                  | Entry point                       | When to use                                                                                  |
-| --------------------- | --------------------------------- | -------------------------------------------------------------------------------------------- |
-| **Whole Epic**        | `/epic-deliver <epicId>`          | Drive an Epic end-to-end. Owns the wave loop and the close-tail; ends with a PR open to main. |
-| **Single Story (within Epic)** | `/story-deliver <storyId>` | Init → Story-implementation phase → close for one Story under an active Epic.               |
-| **Standalone Story — plan**    | `/single-story-plan`       | Plan a one-off Story that does not belong to an Epic backlog.                                |
-| **Standalone Story — deliver** | `/single-story-deliver <storyId>` | Deliver a one-off Story authored by `/single-story-plan`.                            |
+| Mode                             | Entry point                                              | When to use                                                                                    |
+| -------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| **Whole Epic**                   | `/epic-deliver <epicId>`                                 | Drive an Epic end-to-end. Owns the wave loop and the close-tail; ends with a PR open to main.  |
+| **Epic-attached Story (worker)** | _helper_ `helpers/epic-deliver-story <storyId>`          | Per-Story sub-agent called internally by `/epic-deliver`'s wave fan-out; not an operator slash command. |
+| **Standalone Story — plan**      | `/single-story-plan`                                     | Plan a one-off Story that does not belong to an Epic backlog.                                  |
+| **Standalone Story — deliver**   | `/story-deliver <storyId> [<storyId>...]`                | Deliver one or more standalone Stories authored by `/single-story-plan`.                       |
+| **Standalone Story (worker)**    | _helper_ `helpers/single-story-deliver <storyId>`        | Per-Story sub-agent called internally by `/story-deliver`; not an operator slash command.      |
 
-The two-skill split mirrors how the engine already decomposes work;
-promoting them to slash commands lets the operator stop or resume at any
-level. There is no single-entry-point router — each level has its own
-skill.
+The operator-facing entry points are `/epic-deliver` (for Epics) and
+`/story-deliver` (for standalone Stories). The `helpers/` layer sits below
+both and is never invoked directly by the operator.
 
 ### Story-centric branching
 
@@ -551,8 +552,9 @@ Whether the Story is launched directly by the operator or fanned out by
 
 ### Context hydration
 
-When a sub-agent runs `/story-deliver <storyId>`, the Context Hydrator
-assembles a self-contained prompt:
+When a sub-agent runs `helpers/epic-deliver-story <storyId>` (for
+Epic-attached Stories) or `helpers/single-story-deliver <storyId>` (for
+standalone Stories), the Context Hydrator assembles a self-contained prompt:
 
 1. `agent-protocol.md` (universal rules).
 2. Persona and skill directives (from Task labels).
@@ -587,11 +589,11 @@ dispatches any newly-unblocked Tasks. This continues until all waves complete.
 
 ### Story assignment (deterministic)
 
-`/story-deliver` requires an explicit Story id. The parent `/epic-deliver`
-wave loop picks Story ids off the frozen dispatch manifest deterministically
-and launches one Agent-tool sub-agent per id per wave; sibling sub-agents
-never race on the same Story. Operators driving Stories by hand pick ids
-off the same dispatch table.
+`helpers/epic-deliver-story` requires an explicit Story id. The parent
+`/epic-deliver` wave loop picks Story ids off the frozen dispatch manifest
+deterministically and launches one Agent-tool sub-agent (calling
+`helpers/epic-deliver-story`) per id per wave; sibling sub-agents never
+race on the same Story.
 
 `runtime.sessionId` survives as a stable per-process identity surfaced in
 the startup `[ENV]` log line for operator correlation. It is a 12-char
@@ -778,7 +780,7 @@ required checks fail.
 
 `/epic-deliver` drives the long-running coordinator inside the operator's
 Claude session. The slash command composes the submodules listed below;
-`/story-deliver` is launched as an Agent-tool sub-agent of
+`helpers/epic-deliver-story` is launched as an Agent-tool sub-agent of
 `/epic-deliver`'s wave loop — no subprocess worker sessions for Story
 execution, no GitHub Actions runner. Deterministic Node CLIs remain the
 state-mutation contract.
@@ -859,7 +861,7 @@ branch.
 
 ## Testing strategy
 
-Tests are **pyramid-aware**. Every test written during `/story-deliver`
+Tests are **pyramid-aware**. Every test written during Story delivery
 belongs to exactly one tier — **unit**, **contract**, or **e2e / acceptance** —
 and each tier has distinct scope, dependency, and assertion rules. The canonical
 tier definitions, assertion-placement rules, and coverage thresholds live in
@@ -1065,8 +1067,8 @@ workflow edits.
 
 ### Worktree config shadow
 
-`/story-deliver` and `/single-story-deliver` run inside per-Story
-worktrees under `.worktrees/story-<id>/`. A git worktree checks out the
+`helpers/epic-deliver-story` and `helpers/single-story-deliver` run inside
+per-Story worktrees under `.worktrees/story-<id>/`. A git worktree checks out the
 **Story branch's own copy** of every repo-tracked file — including
 `.agentrc.json`, `package.json`, `release-please-config.json`, and any
 other config under version control. **Operator edits made in the main
@@ -1118,11 +1120,12 @@ For Stories already in flight, use one of the three options above.
 | `/epic-plan`                                     | Ideation entry — sharpen idea, search duplicates, open Epic, then PRD + Tech Spec + decomposition.                                                                            |
 | `/epic-plan --idea "<seed>"`                     | Same ideation entry with pre-supplied seed.                                                                                                                                   |
 | `/epic-plan <epicId>`                            | Existing-Epic mode — PRD + Tech Spec + decomposition for an Epic Issue already opened.                                                                                       |
-| `/epic-deliver <epicId>`                         | Drive an Epic end-to-end. Wave loop → close-validation → code-review → retro → opens PR to `main` with auto-merge armed.                                                      |
-| `/story-deliver <storyId>`                       | Init → Story-implementation phase → close for a single Story under an active Epic.                                                                                           |
-| `/single-story-plan`                             | Plan a one-off Story outside an Epic backlog.                                                                                                                                  |
-| `/single-story-deliver <storyId>`                | Deliver a one-off Story authored by `/single-story-plan`.                                                                                                                      |
-| _helper_ `workflows/helpers/code-review.md`      | Auto-invoked by `/story-deliver` (scope: story) and `/epic-deliver`'s `delivery.code-review` state (scope: epic); not a slash command.                                       |
+| `/epic-deliver <epicId>`                                      | Drive an Epic end-to-end. Wave loop → close-validation → code-review → retro → opens PR to `main` with auto-merge armed.                                                       |
+| `/story-deliver <storyId> [<storyId>...]`                     | Deliver one or more standalone Stories (no `Epic: #N` reference). Builds a dependency-aware wave plan and fans out one worker per Story per wave.                              |
+| `/single-story-plan`                                          | Plan a one-off Story outside an Epic backlog.                                                                                                                                  |
+| _helper_ `workflows/helpers/epic-deliver-story`               | Per-Story worker called by `/epic-deliver`'s wave loop; not an operator slash command. See [`helpers/epic-deliver-story.md`](workflows/helpers/epic-deliver-story.md).         |
+| _helper_ `workflows/helpers/single-story-deliver`             | Per-Story worker called by `/story-deliver`; not an operator slash command. See [`helpers/single-story-deliver.md`](workflows/helpers/single-story-deliver.md).                |
+| _helper_ `workflows/helpers/code-review.md`                   | Auto-invoked by `/epic-deliver`'s `delivery.code-review` state (scope: epic); not a slash command.                                                                            |
 | `/git-commit-all`                                | Stage and commit all changes                                                                                                                                                 |
 | `/git-push`                                      | Stage, commit, and push to remote                                                                                                                                            |
 | `epic-reconcile.js --explicit-delete`            | Hard reset — close orphaned Epic-scoped issues per `.agents/epics/<id>.yaml`                                                                                                 |
