@@ -3,23 +3,19 @@
 // Story #3120 / Task #3132 — contract coverage for creation.js and
 // diagnostics.js phase helpers under the 3-tier hierarchy (Epic #3078).
 //
-// Three guarantees pinned here:
+// Two guarantees pinned here:
 //
 //   1. `runStagedPasses` runs only the passes whose ticket type is
 //      present. A 3-tier backlog (Feature + Story with inline
-//      acceptance/verify, NO Tasks) creates the Feature and Story and
-//      never invokes the task-creation pass.
+//      acceptance/verify) creates the Feature and Story; the pass loop
+//      only walks `feature` and `story` types — there is no
+//      task-creation pass.
 //
 //   2. `reportPartialFailure` (diagnostics.js) emits no log line that
 //      mentions "Tasks" when the Epic carries only Feature + Story
-//      children. The 3-tier shape must not surface a "missing Tasks"
-//      warning that the 4-tier shape would also not have surfaced —
-//      diagnostics is type-agnostic and counts all child types together.
-//
-//   3. `runStagedPasses` on a 4-tier backlog (Feature + Story + Task)
-//      continues to fire all three passes in order. Regression guard
-//      for the existing behavior — the 3-tier branch must not skip
-//      Tasks when they are present.
+//      children. The 3-tier diagnostics surface must not surface a
+//      "missing Tasks" warning — diagnostics is type-agnostic and
+//      counts all child types together.
 //
 // Run: node --test tests/scripts/epic-plan-decompose.3tier-creation-diagnostics.test.js
 
@@ -112,56 +108,6 @@ describe('runStagedPasses — 3-tier (no Tasks) creation (Story #3120)', () => {
       configuredCap: 2,
     });
     assert.equal(provider.created.length, 0);
-  });
-});
-
-describe('runStagedPasses — 4-tier regression guard (Story #3120)', () => {
-  it('runs all three passes in feature → story → task order when a 4-tier backlog is supplied', async () => {
-    const provider = buildRecordingProvider();
-    const ordered = [
-      {
-        type: 'feature',
-        slug: 'f1',
-        title: 'F1 — 4-tier feature',
-        labels: ['type::feature'],
-      },
-      {
-        type: 'story',
-        slug: 's1',
-        title: 'S1 — 4-tier story',
-        parent_slug: 'f1',
-        labels: ['type::story'],
-      },
-      {
-        type: 'task',
-        slug: 't1',
-        title: 'T1 — 4-tier task',
-        parent_slug: 's1',
-        labels: ['type::task'],
-        body: { goal: 'g', changes: ['c'], acceptance: ['a'], verify: ['v'] },
-      },
-    ];
-    const slugMap = new Map();
-
-    await runStagedPasses({
-      ordered,
-      slugMap,
-      epicId: EPIC_ID,
-      provider,
-      childIndex: new Map(),
-      configuredCap: 2,
-    });
-
-    // All three passes fire, in canonical order.
-    assert.equal(provider.created.length, 3);
-    assert.deepEqual(
-      provider.created.map((c) => c.title),
-      ['F1 — 4-tier feature', 'S1 — 4-tier story', 'T1 — 4-tier task'],
-    );
-    // Parent chain: feature → story → task, each resolved from the
-    // slugMap built by the prior pass.
-    assert.equal(provider.created[1].parentId, provider.created[0].id);
-    assert.equal(provider.created[2].parentId, provider.created[1].id);
   });
 });
 
