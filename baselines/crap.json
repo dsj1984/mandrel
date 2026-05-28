@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T02:29:43.663Z",
+  "generatedAt": "2026-05-28T02:57:14.738Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.010699859060178,
+      "p95": 12.006059669598093,
       "max": 49.61729902329076,
       "methodsAbove20": 28
     }
@@ -3214,84 +3214,6 @@
       "method": "parseRequiredNonNegativeInt",
       "startLine": 49,
       "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "camelCase",
-      "startLine": 98,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "normaliseCallSignature",
-      "startLine": 111,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "buildDefineFlagsSpec",
-      "startLine": 129,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "knownFlagNames",
-      "startLine": 147,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "findUnknownFlag",
-      "startLine": 156,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "validateSchema",
-      "startLine": 173,
-      "crap": 5.048828125
-    },
-    {
-      "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "validateExtras",
-      "startLine": 195,
-      "crap": 8.56681290745828
-    },
-    {
-      "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "isAbsent",
-      "startLine": 229,
-      "crap": 14.25
-    },
-    {
-      "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "throwMissing",
-      "startLine": 238,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "enforceRequired",
-      "startLine": 251,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "enforceExtrasRequired",
-      "startLine": 263,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "normaliseValues",
-      "startLine": 280,
-      "crap": 18.2669677734375
-    },
-    {
-      "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "parseStandardCliArgs",
-      "startLine": 321,
-      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/close-validation.js",
