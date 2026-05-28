@@ -5,10 +5,20 @@
 import { Logger } from '../Logger.js';
 import { AGENT_LABELS, TYPE_LABELS } from '../label-constants.js';
 import { concurrentMap } from '../util/concurrent-map.js';
-import { parseParentId } from './story-grouper.js';
 import { STATE_LABELS } from './ticketing.js';
 
 const AGENT_DONE_LABEL = STATE_LABELS.DONE;
+
+// Inlined parent-id parser. The reconciler only needs the direct parent
+// reference scraped from a ticket body's `parent: #N` trailer; pulling the
+// helper inline keeps reconciler.js self-contained for the 3-tier
+// hierarchy walk (Tasks → Stories → Features).
+const PARENT_ID_PATTERN = /^parent:\s*#(\d+)/m;
+
+function parseParentIdFromBody(body) {
+  const match = (body ?? '').match(PARENT_ID_PATTERN);
+  return match ? Number.parseInt(match[1], 10) : null;
+}
 
 // Cap=4 — bounded parallelism for ticket-update fan-outs. Reconciliation
 // iterates an Epic-sized set of independent GitHub mutations; cap matches
@@ -109,7 +119,7 @@ export async function reconcileHierarchy(
 
   const childrenOf = new Map();
   for (const ticket of allTickets) {
-    const parentId = parseParentId(ticket.body);
+    const parentId = parseParentIdFromBody(ticket.body);
     if (parentId != null) {
       if (!childrenOf.has(parentId)) childrenOf.set(parentId, []);
       childrenOf.get(parentId).push(ticket.id);
