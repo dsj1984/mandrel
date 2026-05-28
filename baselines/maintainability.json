@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T00:59:13.104Z",
+  "generatedAt": "2026-05-28T01:18:04.072Z",
   "rollup": {
     "*": {
       "min": 38.161,
-      "p50": 103.753,
+      "p50": 103.804,
       "p95": 121.479
     }
   },
@@ -677,10 +677,6 @@
     {
       "path": ".agents/scripts/lib/errors/index.js",
       "mi": 126.057
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/audit-results-graduator.js",
-      "mi": 86.422
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/code-review-graduator.js",
@@ -1641,10 +1637,6 @@
     {
       "path": ".agents/scripts/lib/presentation/manifest-renderer.js",
       "mi": 104.55
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-story-views.js",
-      "mi": 97.894
     },
     {
       "path": ".agents/scripts/lib/provider-factory.js",
@@ -2809,10 +2801,6 @@
     {
       "path": "tests/docs/no-js-fences.test.js",
       "mi": 98.547
-    },
-    {
-      "path": "tests/e2e-story-lifecycle.test.js",
-      "mi": 98.491
     },
     {
       "path": "tests/e2e-story-only-epic.test.js",
@@ -4079,10 +4067,6 @@
       "mi": 104.331
     },
     {
-      "path": "tests/lib/presentation/manifest-render-waves.test.js",
-      "mi": 95.536
-    },
-    {
       "path": "tests/lib/providers/github-projects-extra.test.js",
       "mi": 106.271
     },
@@ -4545,10 +4529,6 @@
     {
       "path": "tests/scripts/cleanup-type-task-label.test.js",
       "mi": 110.521
-    },
-    {
-      "path": "tests/scripts/dispatcher-fromspec.test.js",
-      "mi": 101.796
     },
     {
       "path": "tests/scripts/epic-close-planning-artifacts.test.js",
