@@ -65,7 +65,7 @@ describe('validateTaskBodyShape — object-form changes + references', () => {
             { path: 'src/auth/index.ts', assumption: 'refactors-existing' },
           ],
           acceptance: ['unit test covers verifyToken happy path'],
-          verify: ['npm test -- --grep verifyToken'],
+          verify: ['npm test -- --grep verifyToken (unit)'],
         },
       }),
     );
@@ -79,7 +79,7 @@ describe('validateTaskBodyShape — object-form changes + references', () => {
           goal: 'extract verifyToken',
           changes: [{ path: 'src/auth.ts', assumption: 'rewires' }],
           acceptance: ['ac'],
-          verify: ['v'],
+          verify: ['node --test tests/x.test.js (unit)'],
         },
       }),
     );
@@ -95,7 +95,7 @@ describe('validateTaskBodyShape — object-form changes + references', () => {
           goal: 'g',
           changes: ['src/x.ts: edit'],
           acceptance: ['ac'],
-          verify: ['v'],
+          verify: ['node --test tests/x.test.js (unit)'],
           references: [
             { path: 'tests/features/login.feature', assumption: 'exists' },
           ],
@@ -112,7 +112,7 @@ describe('validateTaskBodyShape — object-form changes + references', () => {
           goal: 'g',
           changes: ['src/x.ts: edit'],
           acceptance: ['ac'],
-          verify: ['v'],
+          verify: ['node --test tests/x.test.js (unit)'],
           references: 'not-an-array',
         },
       }),
@@ -133,7 +133,7 @@ describe('collectTaskAssumptionEntries — extraction helper', () => {
             'src/b.ts: edit',
           ],
           acceptance: ['ac'],
-          verify: ['v'],
+          verify: ['node --test tests/x.test.js (unit)'],
           references: [{ path: 'tests/x.feature', assumption: 'exists' }],
         },
       }),
@@ -151,7 +151,7 @@ describe('collectTaskAssumptionEntries — extraction helper', () => {
           goal: 'g',
           changes: ['src/x.ts: legacy bullet'],
           acceptance: ['ac'],
-          verify: ['v'],
+          verify: ['node --test tests/x.test.js (unit)'],
         },
       }),
     );
@@ -253,7 +253,7 @@ describe('validateTaskFileAssumptions — rules table', () => {
             goal: 'g',
             changes: [{ path: 'src/sample.ts', assumption: tc.assumption }],
             acceptance: ['ac'],
-            verify: ['v'],
+            verify: ['node --test tests/x.test.js (unit)'],
           },
         }),
       ];
@@ -279,7 +279,7 @@ describe('validateTaskFileAssumptions — rules table', () => {
           goal: 'g',
           changes: [{ path: 'src/a.ts', assumption: 'creates' }],
           acceptance: ['ac'],
-          verify: ['v'],
+          verify: ['node --test tests/x.test.js (unit)'],
         },
       }),
       makeTask({
@@ -288,7 +288,7 @@ describe('validateTaskFileAssumptions — rules table', () => {
           goal: 'g',
           changes: [{ path: 'src/b.ts', assumption: 'refactors-existing' }],
           acceptance: ['ac'],
-          verify: ['v'],
+          verify: ['node --test tests/x.test.js (unit)'],
         },
       }),
     ];
@@ -311,7 +311,7 @@ describe('validateTaskFileAssumptions — rules table', () => {
           goal: 'g',
           changes: ['src/x.ts: legacy bullet'],
           acceptance: ['ac'],
-          verify: ['v'],
+          verify: ['node --test tests/x.test.js (unit)'],
         },
       }),
     ];
@@ -335,7 +335,7 @@ describe('validateTaskFileAssumptions — rules table', () => {
             'src/b.ts: legacy',
           ],
           acceptance: ['ac'],
-          verify: ['v'],
+          verify: ['node --test tests/x.test.js (unit)'],
         },
       }),
     ];
@@ -364,7 +364,7 @@ describe('validateTaskFileAssumptions — rules table', () => {
           goal: 'g',
           changes: [{ path: 'shared/util.ts', assumption: 'exists' }],
           acceptance: ['ac'],
-          verify: ['v'],
+          verify: ['node --test tests/x.test.js (unit)'],
         },
       }),
       makeTask({
@@ -373,7 +373,7 @@ describe('validateTaskFileAssumptions — rules table', () => {
           goal: 'g',
           changes: [{ path: 'shared/util.ts', assumption: 'exists' }],
           acceptance: ['ac'],
-          verify: ['v'],
+          verify: ['node --test tests/x.test.js (unit)'],
         },
       }),
     ];
