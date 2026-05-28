@@ -18,7 +18,7 @@
  * array uses the same object shape and is the home for paths the Task/Story
  * reads but does not modify (test fixtures, sibling modules, etc.).
  * String-form `changes` items remain legal so legacy plans keep parsing,
- * but they emit a deprecation signal via `validateTaskFileAssumptions`.
+ * but they emit a deprecation signal via `validateStoryFileAssumptions`.
  *
  * `body.verify` entries must either name a testing tier in parentheses
  * drawn from `VERIFY_TIER_VALUES` (e.g. `npm run test (unit)`) or be the
