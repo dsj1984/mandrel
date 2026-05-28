@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T17:54:27.283Z",
+  "generatedAt": "2026-05-28T18:20:40.816Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -14776,12 +14776,6 @@
       "method": "<anon method-4>",
       "startLine": 283,
       "crap": 2.5
-    },
-    {
-      "path": ".agents/scripts/single-story-close.js",
-      "method": "runSingleStoryClose",
-      "startLine": 94,
-      "crap": 10.000876546145223
     },
     {
       "path": ".agents/scripts/single-story-plan.js",
