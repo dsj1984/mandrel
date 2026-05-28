@@ -454,25 +454,11 @@ test('renderNestedWaveSections: H2 anchors match the TOC link slugs', () => {
   }
 });
 
-// Pending follow-on Story #3196 (Epic #3163): topoSortTasks moved out of
-// manifest-helpers.js (Story #3194) into manifest-render-waves.js as a
-// private helper, where its only caller lives. Story #3196 rewrites
-// renderNestedWaveSections to drop Task-tier rendering and deletes the
-// helper outright; these tests reinstate against whatever Story-tier
-// ordering helper survives that rewrite, or are deleted with rationale.
-test.skip('topoSortTasks: orders T1 → T2 → T3 root-first when T2 deps T1, T3 deps T2', () => {});
-test.skip('topoSortTasks: preserves declaration order when no edges exist', () => {});
-test.skip('topoSortTasks: ignores cross-Story dependency ids', () => {});
-test.skip('topoSortTasks: degrades gracefully for empty / null input', () => {});
-
 // The legacy per-Task topo-sort / `*(after #N)*` callout tests were
-// removed when Epic #3163 (Story #3196) collapsed the per-Story Task
-// rendering: under the 3-tier hierarchy Stories are leaves with no
-// child Task tickets, so `renderNestedWaveSections` no longer projects
-// a Task-level checkbox list and the callout feature has no surface
-// left to assert. The `topoSortTasks` helper above is still exercised
-// directly because it remains a published export of
-// `manifest-helpers.js`.
+// removed when Epic #3163 collapsed the per-Story Task rendering: under
+// the 3-tier hierarchy Stories are leaves with no child Task tickets, so
+// `renderNestedWaveSections` no longer projects a Task-level checkbox
+// list and the `topoSortTasks` helper was deleted as dead code.
 
 // Pending follow-on Story #3196 (Epic #3163): computeStoryProgress moved out
 // of manifest-helpers.js (Story #3194) into manifest-render-waves.js as a

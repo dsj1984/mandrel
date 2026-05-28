@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T09:59:53.735Z",
+  "generatedAt": "2026-05-28T10:03:47.965Z",
   "rollup": {
     "*": {
       "min": 38.161,
@@ -1672,7 +1672,7 @@
     },
     {
       "path": ".agents/scripts/lib/presentation/manifest-render-waves.js",
-      "mi": 97.94
+      "mi": 99.855
     },
     {
       "path": ".agents/scripts/lib/presentation/manifest-renderer.js",
@@ -3504,7 +3504,7 @@
     },
     {
       "path": "tests/lib/manifest-formatter.test.js",
-      "mi": 95.385
+      "mi": 93.482
     },
     {
       "path": "tests/lib/manifest-persistence.test.js",
