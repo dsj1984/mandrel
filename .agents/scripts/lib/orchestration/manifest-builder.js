@@ -9,7 +9,7 @@
  */
 
 import { parseBlockedBy } from '../dependency-parser.js';
-import { getStoryBranch, getTaskBranch, slugify } from '../git-utils.js';
+import { getStoryBranch, slugify } from '../git-utils.js';
 import { TYPE_LABELS } from '../label-constants.js';
 import { computeStoryWaves } from './dependency-analyzer.js';
 import { STATE_LABELS } from './ticketing.js';
@@ -93,31 +93,6 @@ function projectStoryForWave(story, epicId) {
 }
 
 const AGENT_DONE_LABEL = STATE_LABELS.DONE;
-
-/**
- * Resolve the branch name for a task, preferring its parent Story branch.
- *
- * Retained as an export so `wave-dispatcher.js` can resolve branches for
- * any residual Task records that flow through the legacy 4-tier dispatch
- * path. Once Category 3 of Epic #3163 deletes the Task-tier dispatch
- * surface, this helper is removed as well.
- *
- * @param {object} task
- * @param {Map<number, object>} allTicketsById
- * @param {number} epicId
- * @returns {string}
- */
-export function getResolvedBranch(task, allTicketsById, epicId) {
-  const parentMatch = task.body?.match(/parent:\s*#(\d+)/i);
-  if (parentMatch) {
-    const parentId = Number.parseInt(parentMatch[1], 10);
-    const parentTicket = allTicketsById.get(parentId);
-    if (parentTicket?.labels.includes(TYPE_LABELS.STORY)) {
-      return getStoryBranch(epicId, parentId);
-    }
-  }
-  return getTaskBranch(epicId, task.id);
-}
 
 /**
  * Build the Story-only manifest array used by the 3-tier hierarchy path.

@@ -24,11 +24,10 @@ import {
   dispatch,
   resolveAndDispatch,
 } from './lib/orchestration/dispatch-engine.js';
-import { executeStory } from './lib/orchestration/story-executor.js';
 
 // Re-export SDK functions so that direct consumers of dispatcher.js
 // (tests, CI scripts) continue to work without modification.
-export { dispatch, executeStory, resolveAndDispatch };
+export { dispatch, resolveAndDispatch };
 
 // ---------------------------------------------------------------------------
 // Presentation helpers (CLI-only — not part of the SDK)

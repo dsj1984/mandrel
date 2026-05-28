@@ -143,14 +143,6 @@ const AC1_ALLOWED_RESIDUAL = [
     marker: 'epic-deliver-finalize.js',
   },
   {
-    file: '.agents/scripts/lib/orchestration/epic-lifecycle-detector.js',
-    marker: 'single emit point in `epic-deliver-finalize.js`',
-  },
-  {
-    file: '.agents/scripts/lib/orchestration/epic-lifecycle-detector.js',
-    marker: '`epic-deliver-finalize.js` after `gh pr create`',
-  },
-  {
     file: '.agents/scripts/lib/orchestration/epic-runner/hotspot-detection.js',
     marker: '`epic-deliver-finalize.js`',
   },

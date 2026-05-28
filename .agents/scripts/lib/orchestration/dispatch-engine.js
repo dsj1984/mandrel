@@ -2,15 +2,15 @@
  * lib/orchestration/dispatch-engine.js — Core Dispatch Engine (SDK coordinator)
  *
  * Thin facade composing:
- *   - `wave-dispatcher.js`          — wave iteration + per-task dispatch
- *   - `epic-lifecycle-detector.js`  — epic-completion + bookend fire
- *   - `dispatch-pipeline.js`        — internal resolve/fetch/reconcile/graph/scaffold/GC helpers
+ *   - `dispatch-pipeline.js` — internal resolve/fetch/reconcile/graph helpers
  *
- * Consumers (dispatcher.js, tests) import the same public symbols from this
- * path as before — the split is an internal code re-organisation only.
+ * Every Epic is 3-tier (Epic → Feature → Story); `dispatch()` computes a
+ * Story-level wave plan and emits a 3-tier manifest. The legacy Task-tier
+ * dispatch runtime (Task fetcher, single-Story executor, the per-Task
+ * wave fan-out, and the Epic-completion detector) was removed in Epic
+ * #3163.
  */
 
-import { execFileSync } from 'node:child_process';
 import { PROJECT_ROOT, resolveConfig } from '../config-resolver.js';
 import { ConflictingTypeLabelsError } from '../errors/index.js';
 import { ensureLocalBranch } from '../git-branch-lifecycle.js';
@@ -18,67 +18,24 @@ import { Logger } from '../Logger.js';
 import { TYPE_LABELS } from '../label-constants.js';
 import { createProvider } from '../provider-factory.js';
 import {
-  buildDispatchGraph,
   buildStoryDispatchGraph,
-  ensureEpicScaffolding,
   fetchEpicContext,
   isThreeTierDispatch,
   reconcileEpicState,
   resolveDispatchContext,
-  runWorktreeGc,
 } from './dispatch-pipeline.js';
-import { detectEpicCompletion } from './epic-lifecycle-detector.js';
-import { LintBaselineService } from './lint-baseline-service.js';
 import { buildManifest } from './manifest-builder.js';
-import { executeStory } from './story-executor.js';
 import { STATE_LABELS } from './ticketing.js';
-import { collectOpenStoryIds, dispatchNextWave } from './wave-dispatcher.js';
 
 export const AGENT_DONE_LABEL = STATE_LABELS.DONE;
 export const AGENT_EXECUTING_LABEL = STATE_LABELS.EXECUTING;
 export const AGENT_READY_LABEL = STATE_LABELS.READY;
-export { collectOpenStoryIds, detectEpicCompletion };
 
 /* node:coverage ignore next */
 export function ensureBranch(branchName, baseBranch) {
   ensureLocalBranch(branchName, baseBranch, PROJECT_ROOT, {
     log: (msg) => Logger.info(msg),
   });
-}
-
-/**
- * Default exec adapter used by the orchestrator's {@link LintBaselineService}.
- * Thin wrapper around `execFileSync` — kept here (not inside the service)
- * so the service stays unaware of `node:child_process` and unit tests can
- * substitute a mocked adapter.
- *
- * @param {string} file
- * @param {string[]} args
- * @param {import('node:child_process').ExecFileSyncOptions} [options]
- * @returns {void}
- */
-/* node:coverage ignore next */
-function defaultLintBaselineExec(file, args, options) {
-  execFileSync(file, args, options);
-}
-
-/**
- * Back-compat shim. Constructs a throwaway {@link LintBaselineService} with
- * the default exec adapter and invokes `capture()`. New call-sites should
- * instantiate the service directly and inject the exec adapter.
- *
- * @param {string} epicBranch
- * @param {object} settings
- * @returns {Promise<void>}
- */
-/* node:coverage ignore next */
-export async function captureLintBaseline(epicBranch, settings) {
-  const service = new LintBaselineService({
-    exec: defaultLintBaselineExec,
-    logger: Logger,
-    settings,
-  });
-  await service.capture(epicBranch);
 }
 
 /**
@@ -106,7 +63,12 @@ export async function resolveAndDispatch(options) {
   const isFeature = labels.includes(TYPE_LABELS.FEATURE);
 
   if (isStory) {
-    return executeStory({ story: ticket, provider, dryRun });
+    throw new Error(
+      `[Dispatcher] Ticket #${ticketId} is a **Story**. Stories are dispatched ` +
+        'through the 3-tier Story path, not directly via the dispatcher. ' +
+        `Run \`/story-deliver ${ticketId}\` to execute this Story, ` +
+        `or dispatch its parent Epic with \`/epic-deliver #<epicId>\`.`,
+    );
   }
 
   if (isEpic) {
@@ -135,18 +97,17 @@ export async function resolveAndDispatch(options) {
  */
 export async function dispatch(options) {
   const ctx = resolveDispatchContext(options, ensureBranch);
-  const { epicId, dryRun, provider } = ctx;
+  const { epicId, dryRun } = ctx;
 
   const fetched = await fetchEpicContext(ctx);
   await reconcileEpicState(ctx, fetched);
 
-  // 3-tier hierarchy: compute Story-level waves directly from Story
-  // tickets. The runtime fan-out (`dispatchNextWave`) operates at the
-  // Task layer and does not yet handle Story-level dispatch — that
-  // wiring lands in a follow-on Story (S3.3+). For now we still emit a
-  // 3-tier-shaped manifest with `waves[].stories[]` so downstream
-  // consumers (manifest renderer, /epic-deliver wave planner) see the
-  // correct execution plan without dispatching any Tasks.
+  // Every Epic is 3-tier (Epic → Feature → Story). Compute Story-level
+  // waves directly from the Story tickets and emit a 3-tier-shaped
+  // manifest with `waves[].stories[]` so downstream consumers (manifest
+  // renderer, /epic-deliver wave planner) see the correct execution plan.
+  // Per-Story execution is owned by `/story-deliver` (story-init →
+  // story-close), not by this dispatcher.
   if (isThreeTierDispatch(fetched.allTickets)) {
     Logger.info(
       'Detected 3-tier hierarchy — computing Story-level execution waves.',
@@ -166,60 +127,18 @@ export async function dispatch(options) {
     });
   }
 
-  if (fetched.tasks.length === 0) {
-    Logger.info('No tasks found. Nothing to dispatch.');
-    return buildManifest({
-      epicId,
-      epic: fetched.epic,
-      tasks: [],
-      allTickets: [],
-      waves: [],
-      dispatched: [],
-      dryRun,
-    });
-  }
-
-  const { allWaves, taskMap } = buildDispatchGraph(fetched.tasks);
-  const lintBaselineService =
-    options.lintBaselineService ??
-    new LintBaselineService({
-      exec: defaultLintBaselineExec,
-      logger: Logger,
-      settings: {
-        paths: ctx.config?.project?.paths,
-        quality: ctx.config?.delivery?.quality,
-      },
-    });
-  ensureEpicScaffolding(ctx, (epicBranch) =>
-    lintBaselineService.capture(epicBranch),
-  );
-  await runWorktreeGc(ctx, fetched);
-
-  const { dispatched } = await dispatchNextWave(
-    ctx,
-    fetched,
-    allWaves,
-    taskMap,
-  );
-
-  const manifest = buildManifest({
+  // No Story tickets under the Epic — nothing to dispatch. Emit an empty
+  // manifest so callers (renderer, /epic-deliver) get a well-formed
+  // artifact instead of a throw.
+  Logger.info('No Story tickets found under the Epic. Nothing to dispatch.');
+  return buildManifest({
     epicId,
     epic: fetched.epic,
-    tasks: fetched.tasks,
+    tasks: [],
     allTickets: fetched.allTickets,
-    waves: allWaves,
-    dispatched,
+    waves: [],
+    dispatched: [],
     dryRun,
+    hierarchy: '3-tier',
   });
-
-  await detectEpicCompletion({
-    epicId,
-    epic: fetched.epic,
-    tasks: fetched.tasks,
-    manifest,
-    provider,
-    dryRun,
-  });
-
-  return manifest;
 }
