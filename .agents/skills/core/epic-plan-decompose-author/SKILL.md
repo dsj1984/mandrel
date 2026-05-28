@@ -165,17 +165,18 @@ For Features, `body` is a brief string under 2 sentences. Features are navigatio
 For stories, `body` is a STRUCTURED OBJECT, not a string. Stories are consumed by non-interactive sub-agents that may not have the parent Feature body in context, so the story itself must carry everything an agent needs to execute and self-verify.
 
   "body": {
-    "goal":       "<one sentence — why this Story exists; tie it to the parent Feature slug>",
-    "changes":    [
+    "goal":                  "<one sentence — why this Story exists; tie it to the parent Feature slug>",
+    "changes":               [
       { "path": "<file path>", "assumption": "creates" | "refactors-existing" | "deletes" },
       ...
     ],
-    "acceptance": ["<testable, observable criterion>", ...],
-    "verify":     ["<exact command or test path> (<tier>)", ...],
-    "references": [
+    "acceptance":            ["<testable, observable criterion>", ...],
+    "verify":                ["<exact command or test path> (<tier>)", ...],
+    "references":            [
       { "path": "<read-only dependency path>", "assumption": "exists" },
       ...
-    ]
+    ],
+    "estimated_test_files":  <integer | omit when not estimable>
   }
 
 #### STORY BODY RULES:
@@ -186,6 +187,7 @@ For stories, `body` is a STRUCTURED OBJECT, not a string. Stories are consumed b
 - **NEW-FILE CONTRACT (must-follow)**: Any path the Story references in `goal`, `acceptance`, or `verify` that does **not** already exist on `main` MUST also appear in the same Story's `changes` array with `assumption: "creates"`. The freshness validator probes `main` for every referenced code path and rejects the decompose when a missing path is absent from `changes` — even when the Story is the one authoring the file. Example: a Story creating `tests/lib/foo.test.js` whose `verify` runs `node --test tests/lib/foo.test.js` MUST include `{ "path": "tests/lib/foo.test.js", "assumption": "creates" }` in `changes`, otherwise the validator emits a freshness miss and the decompose round trips for a re-emit.
 - **acceptance**: Items MUST be observable from outside the agent. Acceptable shapes: a specific command exits 0, a file exists at a given path, a snapshot test matches, a `data-testid` resolves under a given selector, a row count in a fixture matches. UNACCEPTABLE: "verify by reading the diff", "looks good", "matches the spec" — push these down into a `verify` command instead.
 - **verify**: Each entry MUST name a testing tier in parentheses, drawn from `unit` / `contract` / `e2e` / `validate`. Example: `npm run test -- src/x.test.ts (unit)`, `npm run validate (validate)`. Stories with zero verify entries SHOULD fail validation; if a Story is genuinely unverifiable in isolation (e.g., a copy edit auditor will eyeball), the literal entry `manual:<reason>` is allowed so the absence is intentional, not lazy. Manual entries without a reason are rejected.
+- **estimated_test_files** (optional): Integer estimate of how many test files this Story creates or modifies. Omit when the number is not estimable. When present, the validator applies per-profile soft/hard gates (`planning.taskSizing.testSurface`). Exceeding the soft gate emits `large-test-surface`; exceeding the hard gate emits `test-surface-overflow` (rejection). Default gates by profile: no-profile soft=5/hard=10, `atomic-rewrite` soft=3/hard=6, `scaffolding` soft=8/hard=15, `mechanical-sweep` soft=15/hard=30.
 
 #### FORBIDDEN SUBJECT-PREFIX PRESCRIPTIONS (Conventional-Commits only):
 
@@ -193,18 +195,29 @@ For stories, `body` is a STRUCTURED OBJECT, not a string. Stories are consumed b
 
 #### STORY SIZING HEURISTICS (soft — bias output, validator enforces hard ceilings):
 
-- **Stories typically touch <=3 files and have <=4 acceptance items.** A Story that names more files or stacks more acceptance criteria than this is usually doing the work of two Stories — split it into sibling Stories under the same Feature.
-- These are soft heuristics: the validator's hard ceilings (default `maxAcceptance: 6`, `maxChanges: 8` from `agentSettings.planning.taskSizing`) are the genuine block. Keep Stories well under the soft thresholds and the hard layer never fires.
+- **Stories typically touch <=3 files and have <=6 acceptance items (soft).** A Story that names more files or stacks more acceptance criteria than this is usually doing the work of two Stories — split it into sibling Stories under the same Feature.
+- These are soft heuristics: the validator's hard ceiling is `maxAcceptance: 8` (default from `agentSettings.planning.taskSizing`). Change ceilings are **per-profile** — see the table below.
 
-#### sizingProfile DECLARATION (mandatory on wide Stories):
+##### Per-profile change ceilings (`agentSettings.planning.taskSizing.profileCeilings`):
 
-Stories that touch more files than `agentSettings.planning.taskSizing.softFileCount` (default `3`) MUST declare `body.sizingProfile`. Allowed values (closed enum):
+| `sizingProfile`      | Soft warn | Hard cap |
+|---|---|---|
+| `mechanical-sweep`  | 25 | 60 |
+| `scaffolding`       | 8  | 15 |
+| `atomic-rewrite`    | 2  | 4  |
+| (no profile)        | 3  | 6  |
+
+Keep Stories well under the soft thresholds and the hard layer never fires.
+
+#### sizingProfile DECLARATION (recommended on wide Stories):
+
+Stories that touch more files than `agentSettings.planning.taskSizing.softFileCount` (default `3`) are encouraged to declare `body.sizingProfile`. The field is **optional** — omitting it on a wide Story emits only an informational `missing-sizing-profile-hint` finding, not a rejection. Allowed values (closed enum):
 
 - `"mechanical-sweep"` — a single repeated rename or transform across many sites with one logical change (e.g. "rename `settings` -> `agentSettings` across 50 consumer sites"). The Story body's `changes` may have a single bullet describing the sweep.
 - `"atomic-rewrite"` — one cohesive feature edit that legitimately spans several files (e.g. extracting a helper module and updating its three callers in one logical step).
 - `"scaffolding"` — initial-creation work that lays down many files at once (e.g. spinning up a new package skeleton with config, README, and entry-point stubs).
 
-Omit `sizingProfile` for narrow Stories (<= `softFileCount` files). Declaring an unknown value or omitting it on a wide Story is rejected by the validator with a `missing-sizing-profile` finding and triggers a re-prompt.
+Omit `sizingProfile` for narrow Stories (<= `softFileCount` files). Declaring an unknown value is rejected by the validator. Omitting it on a wide Story emits only an informational hint — it does not trigger a re-prompt.
 
 #### UI / TESTID INVARIANCE (per CLAUDE.md safety rule):
 

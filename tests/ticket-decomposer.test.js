@@ -728,6 +728,70 @@ describe('ticket-decomposer buildDecomposerSystemPrompt', () => {
       'truncation language must be removed; the author should not stop emitting tickets to fit',
     );
   });
+
+  it('advertises the recalibrated maxAcceptance ceiling of 8 (Story #3231 Recal B)', () => {
+    // Story #3237 — the default maxAcceptance was raised from 6 to 8 in
+    // Story #3231. The prompt must mention the updated ceiling so the
+    // planner biases output correctly.
+    const prompt = buildDecomposerSystemPrompt([]);
+    assert.ok(
+      /maxAcceptance:\s*8/.test(prompt),
+      'prompt must advertise maxAcceptance: 8',
+    );
+    assert.ok(
+      !/maxAcceptance:\s*6/.test(prompt),
+      'prompt must not advertise the stale maxAcceptance: 6 ceiling',
+    );
+  });
+
+  it('describes estimated_test_files field and test-surface gates (Story #3235)', () => {
+    // Story #3237 — the estimated_test_files field was added in Story #3235.
+    // The prompt must document it so the planner knows to emit the field.
+    const prompt = buildDecomposerSystemPrompt([]);
+    assert.ok(
+      /estimated_test_files/i.test(prompt),
+      'prompt must document the estimated_test_files field',
+    );
+    assert.ok(
+      /test.surface.overflow|large.test.surface/i.test(prompt),
+      'prompt must mention the test-surface finding names',
+    );
+  });
+
+  it('describes per-profile change ceilings table (Story #3231 Recal A)', () => {
+    // Story #3237 — per-profile change ceilings replaced the global
+    // maxChanges: 8 default in Story #3231.
+    const prompt = buildDecomposerSystemPrompt([]);
+    assert.ok(
+      /profileCeilings|per-profile change ceiling/i.test(prompt),
+      'prompt must describe per-profile change ceilings',
+    );
+    assert.ok(
+      /mechanical-sweep/i.test(prompt),
+      'prompt must list the mechanical-sweep profile ceiling',
+    );
+  });
+
+  it('describes sizingProfile as recommended/optional, not a hard rejection (Story #3231 Recal C)', () => {
+    // Story #3237 — sizingProfile is now informational; omitting it on a
+    // wide Story emits missing-sizing-profile-hint, not a hard rejection.
+    const prompt = buildDecomposerSystemPrompt([]);
+    assert.ok(
+      /missing-sizing-profile-hint/i.test(prompt),
+      'prompt must mention missing-sizing-profile-hint informational finding',
+    );
+    // The old hard-rejection wording must be gone.
+    const lines = prompt
+      .split('\n')
+      .filter((l) => /missing-sizing-profile/.test(l));
+    for (const line of lines) {
+      assert.ok(
+        !/\brejection\b|\breject\b|\bre-prompt\b/i.test(line) ||
+          /hint/i.test(line),
+        `prompt must not describe missing-sizing-profile as a hard rejection (line: "${line.trim()}")`,
+      );
+    }
+  });
 });
 
 describe('ticket-decomposer buildDecompositionContext', () => {
