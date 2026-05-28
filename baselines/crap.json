@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T13:34:56.903Z",
+  "generatedAt": "2026-05-28T15:22:05.078Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -11500,54 +11500,6 @@
       "method": "renderHardConflictError",
       "startLine": 580,
       "crap": 5.137390596376959
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
-      "method": "extractChangeBulletPath",
-      "startLine": 42,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
-      "method": "computeTaskFileCount",
-      "startLine": 57,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
-      "method": "makeOversized",
-      "startLine": 69,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
-      "method": "makeSoftWidth",
-      "startLine": 80,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
-      "method": "computeTaskSizingFindings",
-      "startLine": 96,
-      "crap": 11.627339838416022
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
-      "method": "computeStorySizingFindings",
-      "startLine": 149,
-      "crap": 2.5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
-      "method": "computeSizingFindings",
-      "startLine": 175,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
-      "method": "renderHardFindingError",
-      "startLine": 193,
-      "crap": 3.009
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
