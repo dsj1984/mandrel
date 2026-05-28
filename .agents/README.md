@@ -44,10 +44,10 @@ Two steps, run once per consuming repo:
    installs; pass `--skip-github` to defer the remote half.
 
 After bootstrap you can run any slash command — `/epic-plan`,
-`/single-story-plan`, `/single-story-deliver`, `/audit-security`,
+`/single-story-plan`, `/story-deliver`, `/audit-security`,
 `/agents-update`, etc. The [SDLC guide](SDLC.md) walks an end-to-end
 Epic; standalone Stories pair [`/single-story-plan`](workflows/single-story-plan.md)
-(idea → drafted Story Issue) with [`/single-story-deliver`](workflows/helpers/single-story-deliver.md)
+(idea → drafted Story Issue) with [`/story-deliver`](workflows/story-deliver.md)
 (Story Issue → merged PR).
 
 ---
@@ -376,9 +376,9 @@ Schema conventions:
 
 ## Code review providers (pluggable chain)
 
-`runCodeReview()` (invoked at the end of `/story-deliver`,
-`/single-story-deliver`, and `/epic-deliver`) loads its review backend
-through a pluggable registry. Two configuration shapes are supported:
+`runCodeReview()` (invoked at the end of `helpers/epic-deliver-story`,
+`helpers/single-story-deliver`, and `/epic-deliver`'s `delivery.code-review`
+state) loads its review backend through a pluggable registry. Two configuration shapes are supported:
 
 - **Legacy single provider** — `delivery.codeReview.provider: "native"`
   (default), `"codex"`, or `"security-review"`. Returns one adapter; one

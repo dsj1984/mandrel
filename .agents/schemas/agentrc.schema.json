@@ -180,7 +180,7 @@
     },
     "profileCeiling": {
       "type": "object",
-      "description": "Per-profile soft and hard change-count thresholds (Recal A, Story #3231).",
+      "description": "Soft/hard ceiling pair for a single sizingProfile key.",
       "properties": {
         "soft": { "type": "integer", "minimum": 1 },
         "hard": { "type": "integer", "minimum": 1 }
@@ -199,9 +199,20 @@
       },
       "additionalProperties": false
     },
+    "testSurface": {
+      "type": "object",
+      "description": "Operator overrides for per-profile test-surface gates on estimated_test_files. Keys are sizingProfile enum values plus the empty string for the no-profile default. Absent keys fall back to DEFAULT_TASK_SIZING.testSurface defaults in ticket-validator-sizing.js (Story #3235).",
+      "properties": {
+        "mechanical-sweep": { "$ref": "#/$defs/profileCeiling" },
+        "scaffolding": { "$ref": "#/$defs/profileCeiling" },
+        "atomic-rewrite": { "$ref": "#/$defs/profileCeiling" },
+        "": { "$ref": "#/$defs/profileCeiling" }
+      },
+      "additionalProperties": false
+    },
     "taskSizing": {
       "type": "object",
-      "description": "Story-sizing thresholds consumed by ticket-validator-sizing.js. Operator overrides shallow-merge with DEFAULT_TASK_SIZING defaults. Story #3231 (Epic #3211) recalibrated these for the 3-tier world: maxAcceptance raised to 8, per-profile change ceilings introduced, sizingProfile demoted to informational-always.",
+      "description": "Story-sizing thresholds consumed by ticket-validator-sizing.js. Operator overrides shallow-merge with DEFAULT_TASK_SIZING defaults. Story #3231 (Epic #3211) recalibrated these for the 3-tier world: maxAcceptance raised to 8, per-profile change ceilings introduced, sizingProfile demoted to informational-always. Story #3235 adds testSurface gates on estimated_test_files.",
       "properties": {
         "maxAcceptance": {
           "type": "integer",
@@ -218,7 +229,8 @@
           "minimum": 1,
           "description": "File-count threshold above which a missing-sizing-profile-hint informational finding fires (default 3, Recal C)."
         },
-        "profileCeilings": { "$ref": "#/$defs/profileCeilings" }
+        "profileCeilings": { "$ref": "#/$defs/profileCeilings" },
+        "testSurface": { "$ref": "#/$defs/testSurface" }
       },
       "additionalProperties": false
     },

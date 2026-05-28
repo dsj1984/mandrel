@@ -24,10 +24,11 @@ as a Git submodule (via the `dist` branch) into consumer projects'
 
 > **Ticket hierarchy.** Mandrel ships a **3-tier ticket hierarchy**
 > (Epic → Feature → Story). Acceptance criteria and verification
-> steps are inlined on the Story body (`acceptance[]` / `verify[]`)
-> and `/story-deliver` runs a single Story-implementation phase per
-> Story — there is no `type::task` ticket layer and no per-Task
-> commit ceremony. See
+> steps are inlined on the Story body (`acceptance[]` / `verify[]`).
+> Epic-attached Stories are delivered via `/epic-deliver` (which fans
+> out `helpers/epic-deliver-story` per wave); standalone Stories use
+> `/story-deliver`. There is no `type::task` ticket layer and no
+> per-Task commit ceremony. See
 > [`.agents/SDLC.md` § Ticket hierarchy](.agents/SDLC.md) for the
 > diagram and execution-model implications.
 

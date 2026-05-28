@@ -17,6 +17,11 @@
  *   - Recal D: Inert `SOFT_STORY_TASK_COUNT` / `computeStorySizingFindings`
  *              removed — taskCountByStory is always empty in 3-tier.
  *   - Gap 4:   Glob `changes[]` entries count as `unknown-width`.
+ *
+ * Feature 6 (Story #3235, Epic #3211):
+ *   - Add per-profile test-surface soft/hard gates on `estimated_test_files`.
+ *     Emits `large-test-surface` (soft) and `test-surface-overflow` (hard).
+ *     Configurable via `agentSettings.planning.taskSizing.testSurface`.
  */
 
 export const DEFAULT_TASK_SIZING = Object.freeze({
@@ -28,6 +33,12 @@ export const DEFAULT_TASK_SIZING = Object.freeze({
     scaffolding: Object.freeze({ soft: 8, hard: 15 }),
     'atomic-rewrite': Object.freeze({ soft: 2, hard: 4 }),
     '': Object.freeze({ soft: 3, hard: 6 }),
+  }),
+  testSurface: Object.freeze({
+    'mechanical-sweep': Object.freeze({ soft: 15, hard: 30 }),
+    scaffolding: Object.freeze({ soft: 8, hard: 15 }),
+    'atomic-rewrite': Object.freeze({ soft: 3, hard: 6 }),
+    '': Object.freeze({ soft: 5, hard: 10 }),
   }),
 });
 
@@ -122,9 +133,24 @@ function resolveCeilings(sizingProfile, sizing) {
 }
 
 /**
+ * Resolve the per-profile test-surface gates for the given `sizingProfile`.
+ * Falls back to the no-profile defaults when the profile is absent or unknown.
+ * Operator overrides in `sizing.testSurface` take precedence.
+ */
+function resolveTestSurface(sizingProfile, sizing) {
+  const testSurface = sizing.testSurface ?? DEFAULT_TASK_SIZING.testSurface;
+  const key =
+    sizingProfile && SIZING_PROFILE_VALUES.includes(sizingProfile)
+      ? sizingProfile
+      : '';
+  return testSurface[key] ?? { soft: 5, hard: 10 };
+}
+
+/**
  * Compute the hard + soft sizing findings for a single Story (or Task in
  * 4-tier mode) across all layers: acceptance ceiling, per-profile changes
- * ceiling, sizingProfile hint, glob-awareness.
+ * ceiling, sizingProfile hint, glob-awareness, and test-surface gates
+ * (Feature 6, Story #3235).
  *
  * Recal C: `sizingProfile` is now recommended-always, not required above
  * the soft gate. A Story with >softFileCount files and no profile emits an
@@ -211,6 +237,33 @@ function computeTaskSizingFindings(task, sizing) {
     );
   }
 
+  // Test-surface gates (Feature 6, Story #3235).
+  // `estimated_test_files` is informational when absent (null means unestimated,
+  // not zero). The gates only fire when a numeric value is provided.
+  const estimatedTestFiles = body?.estimated_test_files;
+  if (typeof estimatedTestFiles === 'number') {
+    const testSurface = resolveTestSurface(sizingProfile, sizing);
+    if (estimatedTestFiles > testSurface.hard) {
+      out.push({
+        kind: 'test-surface-overflow',
+        severity: 'hard',
+        ticketSlug: task.slug,
+        observed: estimatedTestFiles,
+        ceiling: testSurface.hard,
+        sizingProfile: sizingProfile ?? null,
+      });
+    } else if (estimatedTestFiles > testSurface.soft) {
+      out.push({
+        kind: 'large-test-surface',
+        severity: 'soft',
+        ticketSlug: task.slug,
+        observed: estimatedTestFiles,
+        soft: testSurface.soft,
+        sizingProfile: sizingProfile ?? null,
+      });
+    }
+  }
+
   return out;
 }
 
@@ -250,6 +303,12 @@ export function computeSizingFindings({
 export function renderHardFindingError(finding) {
   if (finding.kind === 'oversized-task') {
     return `Task "${finding.ticketSlug}" exceeds the ${finding.field} ceiling: observed ${finding.observed}, max ${finding.ceiling}.`;
+  }
+  if (finding.kind === 'test-surface-overflow') {
+    const profile = finding.sizingProfile
+      ? ` (profile: ${finding.sizingProfile})`
+      : '';
+    return `Task "${finding.ticketSlug}" exceeds the test-surface ceiling${profile}: estimated ${finding.observed} test files, max ${finding.ceiling}. Split the Story or lower the test-file estimate.`;
   }
   return `Task "${finding.ticketSlug}" tripped hard finding ${finding.kind}.`;
 }

@@ -60,10 +60,11 @@ For Features, \`body\` is a brief string under 2 sentences. Features are navigat
 For stories, \`body\` is a STRUCTURED OBJECT, not a string. Stories are consumed by non-interactive sub-agents that must self-verify from the Story body alone — there is no Task layer below — so the Story itself must carry everything an agent needs to execute and self-verify.
 
   "body": {
-    "goal":       "<one sentence — tie this story to the parent Feature slug, naming the slug>",
-    "changes":    ["<file path>: <verb> <object>", ...],
-    "acceptance": ["<testable, observable criterion>", ...],
-    "verify":     ["<exact command or test path> (<tier>)", ...]
+    "goal":                  "<one sentence — tie this story to the parent Feature slug, naming the slug>",
+    "changes":               ["<file path>: <verb> <object>", ...],
+    "acceptance":            ["<testable, observable criterion>", ...],
+    "verify":                ["<exact command or test path> (<tier>)", ...],
+    "estimated_test_files":  <integer — number of test files this Story is expected to create or modify; omit when not estimable>
   }
 
 #### STORY BODY RULES:
@@ -72,6 +73,7 @@ For stories, \`body\` is a STRUCTURED OBJECT, not a string. Stories are consumed
 - **changes**: Each bullet MUST be \`<path-or-glob>: <concrete verb> <object>\`. Acceptable path shapes include explicit files (\`src/components/Foo.tsx\`), glob patterns (\`tests/e2e/*.spec.ts\`, \`**/*.astro\`), and module identifiers that resolve to files. Vague verbs ("clean up", "refactor", "improve", "polish", "tighten") are FORBIDDEN unless paired with a named target — "refactor src/x.ts: extract handleSubmit" is fine, "refactor the form" is not.
 - **acceptance**: Items MUST be observable from outside the agent. Acceptable shapes: a specific command exits 0, a file exists at a given path, a snapshot test matches, a \`data-testid\` resolves under a given selector, a row count in a fixture matches. UNACCEPTABLE: "verify by reading the diff", "looks good", "matches the spec" — push these down into a \`verify\` command instead.
 - **verify**: Each entry MUST name a testing tier in parentheses, drawn from \`unit\` / \`contract\` / \`e2e\` / \`validate\`. Example: \`npm run test -- src/x.test.ts (unit)\`, \`npm run validate (validate)\`. Stories with zero verify entries SHOULD fail validation; if a story is genuinely unverifiable in isolation (e.g., a copy edit auditor will eyeball), the literal entry \`manual:<reason>\` is allowed so the absence is intentional, not lazy. Manual entries without a reason are rejected.
+- **estimated_test_files** (optional): Integer estimate of how many test files this Story creates or modifies. Omit when the number is not estimable. When present, the validator applies per-profile soft/hard gates (see \`planning.taskSizing.testSurface\`). Exceeding the soft gate emits a \`large-test-surface\` informational finding; exceeding the hard gate emits a \`test-surface-overflow\` rejection. Default gates by profile: no-profile soft=5/hard=10, \`atomic-rewrite\` soft=3/hard=6, \`scaffolding\` soft=8/hard=15, \`mechanical-sweep\` soft=15/hard=30.
 
 #### STORY SIZING HEURISTICS (soft — bias output, validator enforces hard ceilings):
 

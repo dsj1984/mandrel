@@ -145,7 +145,8 @@ hand back to the operator. Do not paper over the loop with another
 just-in-case retry.
 
 This protocol is not soft-prompt-only — it has a runtime substrate. While
-executing under `/story-deliver`, you MUST emit a `story.heartbeat`
+executing as a Story delivery sub-agent (via `helpers/epic-deliver-story`
+or `helpers/single-story-deliver`), you MUST emit a `story.heartbeat`
 lifecycle event on every Task transition (or whenever you stall on a
 long-running step) so the parent `/epic-deliver` idle watchdog (§ 2e of
 `.agents/workflows/epic-deliver.md`, re-ticked every 10 minutes via
@@ -290,10 +291,10 @@ prompted.
 ### C. History Hygiene
 
 Prioritize a clean `epic/[EPIC_ID]` branch. Story branches are merged into
-the Epic branch automatically by `/story-deliver` (via `story-close.js`);
-the Epic branch reaches `main` via the pull request that `/epic-deliver`
-opens at the end of its run — the operator merges through the GitHub UI.
-There is no in-script merge to `main`.
+the Epic branch automatically by `helpers/epic-deliver-story` (via
+`story-close.js`); the Epic branch reaches `main` via the pull request that
+`/epic-deliver` opens at the end of its run — the operator merges through
+the GitHub UI. There is no in-script merge to `main`.
 
 ### D. Ticket hierarchy (3-tier)
 
@@ -304,10 +305,12 @@ layer.
 
 - The decomposer emits only `type::epic`, `type::feature`, and
   `type::story` issues.
-- `/story-deliver` runs a single Story-implementation phase. There is
-  no per-Task sub-loop; the agent authors commit subjects directly
-  per [`rules/git-conventions.md`](rules/git-conventions.md) and
-  references the parent Story via `(refs #<storyId>)`.
+- Each Story-implementation phase is executed by
+  `helpers/epic-deliver-story` (Epic-attached) or
+  `helpers/single-story-deliver` (standalone). There is no per-Task
+  sub-loop; the agent authors commit subjects directly per
+  [`rules/git-conventions.md`](rules/git-conventions.md) and references
+  the parent Story via `(refs #<storyId>)`.
 - Story branches, the Epic-branch integration target, the wave-loop
   fan-out, and the `epic/<id>` → `main` PR merge model are the same
   as Section 5.A.

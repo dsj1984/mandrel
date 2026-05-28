@@ -49,8 +49,9 @@ When your implementation is complete and verified:
    `{{TEST_CMD}}`) here. The close script's lint/test/format/maintainability
    chain is the authoritative gate, run at Story closure (`story-close.js`).
    Exception: you may run them interactively while iterating on a fix.
-3. The Story branch is auto-merged into the Epic branch by `/story-deliver`
-   (via `story-close.js`) — do **not** merge manually.
+3. The Story branch is auto-merged into the Epic branch by
+   `helpers/epic-deliver-story` (via `story-close.js`) — do **not** merge
+   manually.
 
 ## 6. Definition of Done
 

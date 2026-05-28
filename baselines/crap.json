@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T10:53:28.902Z",
+  "generatedAt": "2026-05-28T15:22:05.078Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.049764299946542,
+      "p95": 12.157083248524323,
       "max": 53.8385539444679,
       "methodsAbove20": 30
     }
@@ -1138,48 +1138,6 @@
       "method": "defaultWriteArtifact",
       "startLine": 44,
       "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/audit-to-stories/build-story-body.js",
-      "method": "uniq",
-      "startLine": 19,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/audit-to-stories/build-story-body.js",
-      "method": "summaryFromGroup",
-      "startLine": 23,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/audit-to-stories/build-story-body.js",
-      "method": "acceptanceCriteriaFromGroup",
-      "startLine": 34,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/audit-to-stories/build-story-body.js",
-      "method": "agentPromptsFromGroup",
-      "startLine": 42,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/audit-to-stories/build-story-body.js",
-      "method": "contextLinksFromGroup",
-      "startLine": 51,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/audit-to-stories/build-story-body.js",
-      "method": "labelsForGroup",
-      "startLine": 61,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/audit-to-stories/build-story-body.js",
-      "method": "buildStoryBody",
-      "startLine": 78,
-      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/dedupe-against-github.js",
@@ -11542,54 +11500,6 @@
       "method": "renderHardConflictError",
       "startLine": 580,
       "crap": 5.137390596376959
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
-      "method": "extractChangeBulletPath",
-      "startLine": 42,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
-      "method": "computeTaskFileCount",
-      "startLine": 57,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
-      "method": "makeOversized",
-      "startLine": 69,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
-      "method": "makeSoftWidth",
-      "startLine": 80,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
-      "method": "computeTaskSizingFindings",
-      "startLine": 96,
-      "crap": 11.627339838416022
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
-      "method": "computeStorySizingFindings",
-      "startLine": 149,
-      "crap": 2.5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
-      "method": "computeSizingFindings",
-      "startLine": 175,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
-      "method": "renderHardFindingError",
-      "startLine": 193,
-      "crap": 3.009
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
