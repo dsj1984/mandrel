@@ -64,7 +64,7 @@ function parseFullScopeFlag(argv = []) {
  * The scorer is `cwd`-aware: the service passes its `cwd` through so all
  * path normalisation stays consistent with diff-scope derivation.
  */
-function buildMaintainabilityScorer({ targetDirs, logger }) {
+function buildMaintainabilityScorer({ targetDirs, ignoreGlobs = [], logger }) {
   return async function maintainabilityScorer(files, opts) {
     const cwd = opts?.cwd ?? process.cwd();
     let absPaths;
@@ -73,7 +73,7 @@ function buildMaintainabilityScorer({ targetDirs, logger }) {
       for (const dir of targetDirs) {
         const abs = path.isAbsolute(dir) ? dir : path.resolve(cwd, dir);
         logger.info(`[Maintainability] Scanning ${dir}...`);
-        scanDirectory(abs, absPaths);
+        scanDirectory(abs, absPaths, { cwd, ignoreGlobs });
       }
     } else {
       // Files come in as canonical POSIX repo-relative paths from the
@@ -116,7 +116,9 @@ async function main() {
   }
 
   const config = resolveConfig();
-  const targetDirs = getQuality(config).maintainability.targetDirs;
+  const miQuality = getQuality(config).maintainability;
+  const targetDirs = miQuality.targetDirs;
+  const ignoreGlobs = miQuality.ignoreGlobs ?? [];
   const baselinePath = getBaselines(config).maintainability.path;
   const absBaselinePath = path.isAbsolute(baselinePath)
     ? baselinePath
@@ -134,7 +136,7 @@ async function main() {
     );
   }
 
-  const scorer = buildMaintainabilityScorer({ targetDirs, logger: Logger });
+  const scorer = buildMaintainabilityScorer({ targetDirs, ignoreGlobs, logger: Logger });
 
   // Task #2214 (Epic #2173, AC-2): flag-omission now defaults to
   // diff-scope. The pre-migration default was a full regenerate; operators

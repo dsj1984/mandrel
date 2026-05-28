@@ -141,10 +141,13 @@ export async function runMaintainabilityPreview({
     epicRef: null,
   });
 
-  const targetDirs = getQuality(config).maintainability.targetDirs;
+  const miQuality = getQuality(config).maintainability;
+  const targetDirs = miQuality.targetDirs;
+  const ignoreGlobs = miQuality.ignoreGlobs ?? [];
   const files = [];
   for (const dir of targetDirs) {
-    scanDirectory(dir, files);
+    const abs = path.isAbsolute(dir) ? dir : path.resolve(cwd, dir);
+    scanDirectory(abs, files, { cwd, ignoreGlobs });
   }
   const { scopeSet, scope, diffRef } = resolvePreviewScope({
     staged,
@@ -221,6 +224,7 @@ export async function runCrapPreview({
   }
 
   const targetDirs = Array.isArray(crap.targetDirs) ? crap.targetDirs : [];
+  const crapIgnoreGlobs = Array.isArray(crap.ignoreGlobs) ? crap.ignoreGlobs : [];
   const requireCoverage = crap.requireCoverage !== false;
   const coveragePath = crap.coveragePath ?? 'coverage/coverage-final.json';
   const coverage = loadCoverage(path.resolve(cwd, coveragePath));
@@ -234,6 +238,7 @@ export async function runCrapPreview({
     requireCoverage,
     cwd,
     scopeFiles: scopeSet,
+    ignoreGlobs: crapIgnoreGlobs,
   });
   const baselineRows = resolveBaselineRows(baseline, scopeSet);
   const result = compareCrap({

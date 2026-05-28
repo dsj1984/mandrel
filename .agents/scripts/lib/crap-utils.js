@@ -239,6 +239,7 @@ export async function scanAndScore({
   requireCoverage = true,
   cwd = process.cwd(),
   scopeFiles = null,
+  ignoreGlobs = [],
 }) {
   if (!Array.isArray(targetDirs)) {
     throw new TypeError('scanAndScore: targetDirs must be an array');
@@ -252,7 +253,7 @@ export async function scanAndScore({
   const files = [];
   for (const dir of targetDirs) {
     const abs = path.isAbsolute(dir) ? dir : path.resolve(cwd, dir);
-    scanDirectory(abs, files);
+    scanDirectory(abs, files, { cwd, ignoreGlobs });
   }
   files.sort();
 

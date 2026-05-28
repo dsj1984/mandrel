@@ -72,11 +72,12 @@ export function buildKindScorer({
   const quality = getQuality(config) ?? {};
   if (kind === 'maintainability') {
     const targetDirs = quality?.maintainability?.targetDirs ?? [];
+    const miIgnoreGlobs = quality?.maintainability?.ignoreGlobs ?? [];
     return async () => {
       const sourceList = [];
       for (const dir of targetDirs) {
         const abs = path.isAbsolute(dir) ? dir : path.resolve(cwd, dir);
-        scanDirectory(abs, sourceList);
+        scanDirectory(abs, sourceList, { cwd, ignoreGlobs: miIgnoreGlobs });
       }
       const scores = await calculateAll(sourceList);
       return filterExcludedRows(
@@ -93,6 +94,9 @@ export function buildKindScorer({
     const targetDirs = Array.isArray(crapCfg.targetDirs)
       ? crapCfg.targetDirs
       : [];
+    const crapIgnoreGlobs = Array.isArray(crapCfg.ignoreGlobs)
+      ? crapCfg.ignoreGlobs
+      : [];
     const requireCoverage = crapCfg.requireCoverage !== false;
     const coveragePath = crapCfg.coveragePath ?? 'coverage/coverage-final.json';
     return async () => {
@@ -106,6 +110,7 @@ export function buildKindScorer({
         coverage,
         requireCoverage,
         cwd,
+        ignoreGlobs: crapIgnoreGlobs,
       });
       // Stamp kernel versions so downstream gates can reason about the
       // scoring environment. The writer keeps `kernelVersion`; the others
