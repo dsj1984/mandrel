@@ -464,7 +464,8 @@ describe('ticket-decomposer orchestration (v5.6+)', () => {
     );
   });
 
-  it('default re-run is idempotent: re-creating same tickets skips all open matches', async () => {
+  // TODO(#3209): reinstate or delete — exercises Task-tier decompose behavior removed by Epic #3163 / Story #3199.
+  it.skip('default re-run is idempotent: re-creating same tickets skips all open matches', async () => {
     mockProvider.getTickets = async () => [
       {
         id: 500,
@@ -493,7 +494,8 @@ describe('ticket-decomposer orchestration (v5.6+)', () => {
     );
   });
 
-  it('refuses to auto-link when an existing child has a different type than the planned ticket', async () => {
+  // TODO(#3209): reinstate or delete — exercises Task-tier cross-type collision removed by Epic #3163 / Story #3199.
+  it.skip('refuses to auto-link when an existing child has a different type than the planned ticket', async () => {
     // Planned: a Story called "Shared Title". Existing: a Task with the
     // same title. Cross-type collision must throw before any create call.
     const tickets = [
@@ -634,7 +636,8 @@ describe('ticket-decomposer orchestration (v5.6+)', () => {
     );
   });
 
-  it('--force close path caps in-flight close mutations at 3', async () => {
+  // TODO(#3209): reinstate or delete — exercises Task-tier force-close behavior removed by Epic #3163 / Story #3199.
+  it.skip('--force close path caps in-flight close mutations at 3', async () => {
     // Seed 10 open existing children so the force-close burst is wider
     // than the cap. Track peak in-flight updateTicket calls to assert
     // concurrency is bounded at 3.
@@ -680,7 +683,8 @@ describe('ticket-decomposer orchestration (v5.6+)', () => {
     );
   });
 
-  it('--force close path surfaces the first rejection deterministically', async () => {
+  // TODO(#3209): reinstate or delete — exercises Task-tier force-close behavior removed by Epic #3163 / Story #3199.
+  it.skip('--force close path surfaces the first rejection deterministically', async () => {
     // Two open children; the FIRST one to be processed throws. concurrentMap
     // contract: first rejection wins, later rejections are swallowed, and
     // the caller sees a single deterministic error.

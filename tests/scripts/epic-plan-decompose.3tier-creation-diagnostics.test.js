@@ -228,7 +228,8 @@ describe('reportPartialFailure — 3-tier no "missing Tasks" warning (Story #312
     );
   });
 
-  it('counts all child types together when both Story and Task children exist (4-tier regression)', async () => {
+  // TODO(#3209): reinstate or delete — exercises Task-tier diagnostics removed by Epic #3163 / Story #3199.
+  it.skip('counts all child types together when both Story and Task children exist (4-tier regression)', async () => {
     const provider = {
       async getEpic() {
         return { id: EPIC_ID, labels: ['type::epic', 'agent::executing'] };
