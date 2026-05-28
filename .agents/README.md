@@ -47,7 +47,7 @@ After bootstrap you can run any slash command — `/epic-plan`,
 `/single-story-plan`, `/single-story-deliver`, `/audit-security`,
 `/agents-update`, etc. The [SDLC guide](SDLC.md) walks an end-to-end
 Epic; standalone Stories pair [`/single-story-plan`](workflows/single-story-plan.md)
-(idea → drafted Story Issue) with [`/single-story-deliver`](workflows/single-story-deliver.md)
+(idea → drafted Story Issue) with [`/single-story-deliver`](workflows/helpers/single-story-deliver.md)
 (Story Issue → merged PR).
 
 ---
