@@ -224,7 +224,9 @@ export async function runCrapPreview({
   }
 
   const targetDirs = Array.isArray(crap.targetDirs) ? crap.targetDirs : [];
-  const crapIgnoreGlobs = Array.isArray(crap.ignoreGlobs) ? crap.ignoreGlobs : [];
+  const crapIgnoreGlobs = Array.isArray(crap.ignoreGlobs)
+    ? crap.ignoreGlobs
+    : [];
   const requireCoverage = crap.requireCoverage !== false;
   const coveragePath = crap.coveragePath ?? 'coverage/coverage-final.json';
   const coverage = loadCoverage(path.resolve(cwd, coveragePath));

@@ -26,9 +26,7 @@ function rmTmp(dir) {
 }
 
 function rels(found, base) {
-  return found
-    .map((p) => path.relative(base, p).replace(/\\/g, '/'))
-    .sort();
+  return found.map((p) => path.relative(base, p).replace(/\\/g, '/')).sort();
 }
 
 // ── empty / missing ignoreGlobs is a no-op ────────────────────────────────
@@ -38,8 +36,12 @@ test('scanDirectory — absent opts produces same result as no opts', () => {
   try {
     fs.writeFileSync(path.join(dir, 'a.js'), '// a');
     fs.writeFileSync(path.join(dir, 'b.ts'), '// b');
-    const withoutOpts = scanDirectory(dir).map((p) => path.relative(dir, p)).sort();
-    const withEmptyOpts = scanDirectory(dir, [], {}).map((p) => path.relative(dir, p)).sort();
+    const withoutOpts = scanDirectory(dir)
+      .map((p) => path.relative(dir, p))
+      .sort();
+    const withEmptyOpts = scanDirectory(dir, [], {})
+      .map((p) => path.relative(dir, p))
+      .sort();
     assert.deepStrictEqual(withEmptyOpts, withoutOpts);
   } finally {
     rmTmp(dir);
@@ -50,7 +52,9 @@ test('scanDirectory — empty ignoreGlobs is a no-op', () => {
   const dir = mkTmp();
   try {
     fs.writeFileSync(path.join(dir, 'a.js'), '// a');
-    const baseline = scanDirectory(dir).map((p) => path.relative(dir, p)).sort();
+    const baseline = scanDirectory(dir)
+      .map((p) => path.relative(dir, p))
+      .sort();
     const withEmpty = scanDirectory(dir, [], { ignoreGlobs: [], cwd: dir })
       .map((p) => path.relative(dir, p))
       .sort();
@@ -70,7 +74,10 @@ test('scanDirectory — single glob excludes matching files', () => {
     fs.writeFileSync(path.join(dir, 'src', 'app.js'), '// app');
     fs.writeFileSync(path.join(dir, 'fixtures', 'mock.js'), '// mock');
 
-    const found = scanDirectory(dir, [], { cwd: dir, ignoreGlobs: ['fixtures/**'] });
+    const found = scanDirectory(dir, [], {
+      cwd: dir,
+      ignoreGlobs: ['fixtures/**'],
+    });
     assert.deepStrictEqual(rels(found, dir), ['src/app.js']);
   } finally {
     rmTmp(dir);
@@ -82,12 +89,23 @@ test('scanDirectory — single glob with ** prefix excludes deeply nested files'
   try {
     fs.mkdirSync(path.join(dir, 'src'));
     fs.mkdirSync(path.join(dir, 'src', '__fixtures__'), { recursive: true });
-    fs.mkdirSync(path.join(dir, 'src', 'utils', '__fixtures__'), { recursive: true });
+    fs.mkdirSync(path.join(dir, 'src', 'utils', '__fixtures__'), {
+      recursive: true,
+    });
     fs.writeFileSync(path.join(dir, 'src', 'a.js'), '// a');
-    fs.writeFileSync(path.join(dir, 'src', '__fixtures__', 'fake.js'), '// fake1');
-    fs.writeFileSync(path.join(dir, 'src', 'utils', '__fixtures__', 'fake2.js'), '// fake2');
+    fs.writeFileSync(
+      path.join(dir, 'src', '__fixtures__', 'fake.js'),
+      '// fake1',
+    );
+    fs.writeFileSync(
+      path.join(dir, 'src', 'utils', '__fixtures__', 'fake2.js'),
+      '// fake2',
+    );
 
-    const found = scanDirectory(dir, [], { cwd: dir, ignoreGlobs: ['**/__fixtures__/**'] });
+    const found = scanDirectory(dir, [], {
+      cwd: dir,
+      ignoreGlobs: ['**/__fixtures__/**'],
+    });
     assert.deepStrictEqual(rels(found, dir), ['src/a.js']);
   } finally {
     rmTmp(dir);
@@ -142,12 +160,22 @@ test('scanDirectory — exclusion is scoped within the targetDir root', () => {
     // fixtures/ inside app/ is excluded; fixtures/ inside packages/ is NOT.
     fs.mkdirSync(path.join(root, 'app', 'src'), { recursive: true });
     fs.mkdirSync(path.join(root, 'app', 'fixtures'), { recursive: true });
-    fs.mkdirSync(path.join(root, 'packages', 'lib', 'src'), { recursive: true });
-    fs.mkdirSync(path.join(root, 'packages', 'lib', 'fixtures'), { recursive: true });
+    fs.mkdirSync(path.join(root, 'packages', 'lib', 'src'), {
+      recursive: true,
+    });
+    fs.mkdirSync(path.join(root, 'packages', 'lib', 'fixtures'), {
+      recursive: true,
+    });
     fs.writeFileSync(path.join(root, 'app', 'src', 'main.js'), '// main');
     fs.writeFileSync(path.join(root, 'app', 'fixtures', 'fix.js'), '// fix');
-    fs.writeFileSync(path.join(root, 'packages', 'lib', 'src', 'util.js'), '// util');
-    fs.writeFileSync(path.join(root, 'packages', 'lib', 'fixtures', 'fix2.js'), '// fix2');
+    fs.writeFileSync(
+      path.join(root, 'packages', 'lib', 'src', 'util.js'),
+      '// util',
+    );
+    fs.writeFileSync(
+      path.join(root, 'packages', 'lib', 'fixtures', 'fix2.js'),
+      '// fix2',
+    );
 
     // Both targetDirs share the same cwd (repo root) and ignoreGlobs.
     const globs = ['app/fixtures/**'];
@@ -158,10 +186,22 @@ test('scanDirectory — exclusion is scoped within the targetDir root', () => {
     }
     const found = rels(files, root);
     // app/fixtures/fix.js is excluded; packages/**  is kept.
-    assert.ok(!found.includes('app/fixtures/fix.js'), 'app fixture should be excluded');
-    assert.ok(found.includes('app/src/main.js'), 'app/src/main.js should be present');
-    assert.ok(found.includes('packages/lib/src/util.js'), 'packages util should be present');
-    assert.ok(found.includes('packages/lib/fixtures/fix2.js'), 'packages fixture is NOT excluded');
+    assert.ok(
+      !found.includes('app/fixtures/fix.js'),
+      'app fixture should be excluded',
+    );
+    assert.ok(
+      found.includes('app/src/main.js'),
+      'app/src/main.js should be present',
+    );
+    assert.ok(
+      found.includes('packages/lib/src/util.js'),
+      'packages util should be present',
+    );
+    assert.ok(
+      found.includes('packages/lib/fixtures/fix2.js'),
+      'packages fixture is NOT excluded',
+    );
   } finally {
     rmTmp(root);
   }
@@ -170,8 +210,12 @@ test('scanDirectory — exclusion is scoped within the targetDir root', () => {
 // ── interaction with components (excluded row never in any bucket) ────────
 
 test('scanDirectory — excluded file is absent from calculateAll result', async () => {
-  const { calculateAll } = await import('../.agents/scripts/lib/maintainability-utils.js');
-  const { groupRows } = await import('../.agents/scripts/lib/baselines/components.js');
+  const { calculateAll } = await import(
+    '../.agents/scripts/lib/maintainability-utils.js'
+  );
+  const { groupRows } = await import(
+    '../.agents/scripts/lib/baselines/components.js'
+  );
   const dir = mkTmp();
   try {
     fs.mkdirSync(path.join(dir, 'src'));
@@ -185,20 +229,27 @@ test('scanDirectory — excluded file is absent from calculateAll result', async
       'export const stub = () => {};\n',
     );
 
-    const files = scanDirectory(dir, [], { cwd: dir, ignoreGlobs: ['fixtures/**'] });
+    const files = scanDirectory(dir, [], {
+      cwd: dir,
+      ignoreGlobs: ['fixtures/**'],
+    });
     const scores = await calculateAll(files);
 
     // 'fixtures/stub.js' must not appear in scores at all.
-    assert.ok(!Object.keys(scores).some((k) => k.includes('fixtures')),
-      'fixtures/stub.js should not appear in scores');
+    assert.ok(
+      !Object.keys(scores).some((k) => k.includes('fixtures')),
+      'fixtures/stub.js should not appear in scores',
+    );
 
     // Also verify components grouper sees nothing for fixtures.
     const rows = Object.entries(scores).map(([p, mi]) => ({ path: p, mi }));
     const components = { all: ['**'] };
     const grouped = groupRows(rows, components, 'path');
     const allPaths = grouped.all?.map((r) => r.path) ?? [];
-    assert.ok(!allPaths.some((p) => p.includes('fixtures')),
-      'fixtures/stub.js should not appear in any component bucket');
+    assert.ok(
+      !allPaths.some((p) => p.includes('fixtures')),
+      'fixtures/stub.js should not appear in any component bucket',
+    );
   } finally {
     rmTmp(dir);
   }
@@ -209,7 +260,9 @@ test('scanDirectory — excluded file is absent from calculateAll result', async
 test('scanDirectory — worktree-prefix paths canonicalise correctly', () => {
   const dir = mkTmp();
   try {
-    fs.mkdirSync(path.join(dir, '.worktrees', 'story-999', 'src'), { recursive: true });
+    fs.mkdirSync(path.join(dir, '.worktrees', 'story-999', 'src'), {
+      recursive: true,
+    });
     fs.mkdirSync(path.join(dir, 'src'));
     fs.writeFileSync(path.join(dir, 'src', 'a.js'), '// a');
     // The worktree-prefixed dir is inside IGNORED_DIRS (.worktrees), so it won't

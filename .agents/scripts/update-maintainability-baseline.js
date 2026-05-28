@@ -136,7 +136,11 @@ async function main() {
     );
   }
 
-  const scorer = buildMaintainabilityScorer({ targetDirs, ignoreGlobs, logger: Logger });
+  const scorer = buildMaintainabilityScorer({
+    targetDirs,
+    ignoreGlobs,
+    logger: Logger,
+  });
 
   // Task #2214 (Epic #2173, AC-2): flag-omission now defaults to
   // diff-scope. The pre-migration default was a full regenerate; operators
