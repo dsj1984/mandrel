@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T15:52:00.258Z",
+  "generatedAt": "2026-05-28T19:45:10.900Z",
   "rollup": {
     "*": {
       "min": 36.604,
-      "p50": 103.671,
-      "p95": 121.235
+      "p50": 103.683,
+      "p95": 121.479
     }
   },
   "rows": [
@@ -907,10 +907,6 @@
       "mi": 103.115
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "mi": 110.283
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/dag.js",
       "mi": 104.191
     },
@@ -1561,18 +1557,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/task-body-validator.js",
       "mi": 98.293
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
-      "mi": 87.067
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
-      "mi": 87.643
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "mi": 91.529
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing.js",
@@ -2743,10 +2727,6 @@
       "mi": 114.185
     },
     {
-      "path": "tests/contract/planning/healthcheck-blocking.test.js",
-      "mi": 93.553
-    },
-    {
       "path": "tests/contract/planning/healthcheck-hierarchy-mode.test.js",
       "mi": 112.086
     },
@@ -3571,10 +3551,6 @@
       "mi": 121.009
     },
     {
-      "path": "tests/lib/orchestration/crap-remediation-1641.test.js",
-      "mi": 107.767
-    },
-    {
       "path": "tests/lib/orchestration/detectors-phase.test.js",
       "mi": 108.534
     },
@@ -3973,26 +3949,6 @@
     {
       "path": "tests/lib/orchestration/task-body-validator.test.js",
       "mi": 111.701
-    },
-    {
-      "path": "tests/lib/orchestration/ticket-validator-conflicts.test.js",
-      "mi": 100.074
-    },
-    {
-      "path": "tests/lib/orchestration/ticket-validator-cross-cutting.test.js",
-      "mi": 104.377
-    },
-    {
-      "path": "tests/lib/orchestration/ticket-validator-freshness.test.js",
-      "mi": 109.422
-    },
-    {
-      "path": "tests/lib/orchestration/ticket-validator-sizing.test.js",
-      "mi": 107.403
-    },
-    {
-      "path": "tests/lib/orchestration/ticket-validator-subject-prefix.test.js",
-      "mi": 108.337
     },
     {
       "path": "tests/lib/orchestration/ticketing.cascade-parallel.test.js",
@@ -4587,14 +4543,6 @@
       "mi": 101.819
     },
     {
-      "path": "tests/scripts/epic-plan-decompose.3tier-creation-diagnostics.test.js",
-      "mi": 103.446
-    },
-    {
-      "path": "tests/scripts/epic-plan-decompose.body-preservation.test.js",
-      "mi": 94.28
-    },
-    {
       "path": "tests/scripts/epic-plan-emit-context-stdout-clean.test.js",
       "mi": 105.713
     },
@@ -4905,14 +4853,6 @@
     {
       "path": "tests/test-wrapper-preflight.test.js",
       "mi": 110.176
-    },
-    {
-      "path": "tests/ticket-decomposer.test.js",
-      "mi": 97.705
-    },
-    {
-      "path": "tests/ticket-validation.test.js",
-      "mi": 100.709
     },
     {
       "path": "tests/ticketing-provider.test.js",
