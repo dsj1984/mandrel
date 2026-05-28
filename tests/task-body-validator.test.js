@@ -151,12 +151,29 @@ describe('collectTaskBodyErrors — legacy / non-structured bodies pass through'
     assert.deepEqual(collectTaskBodyErrors([task('t1', undefined)]), []);
   });
 
-  it('skips Features and Stories regardless of body shape', () => {
+  it('skips Feature tickets regardless of body shape', () => {
     const tickets = [
       { slug: 'f1', type: 'feature', title: 'F', body: 'string is fine' },
-      { slug: 's1', type: 'story', title: 'S', body: { weird: true } },
+      { slug: 'f2', type: 'feature', title: 'F2', body: { weird: true } },
     ];
     assert.deepEqual(collectTaskBodyErrors(tickets), []);
+  });
+
+  it('validates Story tickets with structured bodies (3-tier)', () => {
+    // Under the 3-tier hierarchy Stories carry the implementation scope inline.
+    // A Story with a structured body that violates the schema IS an error.
+    const tickets = [
+      { slug: 's1', type: 'story', title: 'S', body: { weird: true } },
+    ];
+    const errs = collectTaskBodyErrors(tickets);
+    assert.ok(errs.length > 0, 'expected validation errors for a malformed story body');
+  });
+
+  it('skips Story tickets with string bodies (legacy pass-through)', () => {
+    assert.deepEqual(
+      collectTaskBodyErrors([{ slug: 's1', type: 'story', title: 'S', body: 'string body' }]),
+      [],
+    );
   });
 });
 
