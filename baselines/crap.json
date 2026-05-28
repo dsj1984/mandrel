@@ -1,13 +1,13 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-27T23:13:47.364Z",
+  "generatedAt": "2026-05-28T00:18:00.930Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.027811485254988,
-      "max": 54.01376032409894,
-      "methodsAbove20": 30
+      "p95": 12.006059669598093,
+      "max": 49.61729902329076,
+      "methodsAbove20": 29
     }
   },
   "rows": [
@@ -7800,60 +7800,6 @@
       "crap": 2
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
-      "method": "assertEpicQuiescent",
-      "startLine": 132,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
-      "method": "kebabSlug",
-      "startLine": 154,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
-      "method": "deriveSlug",
-      "startLine": 179,
-      "crap": 4.291587694999271
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
-      "method": "classifyTicket",
-      "startLine": 208,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
-      "method": "buildBootstrapInputs",
-      "startLine": 248,
-      "crap": 16.00385367331463
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
-      "method": "buildBootstrapState",
-      "startLine": 358,
-      "crap": 54.01376032409894
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
-      "method": "makeAgentStateResolver",
-      "startLine": 442,
-      "crap": 17.18359375
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
-      "method": "fetchLiveEpic",
-      "startLine": 470,
-      "crap": 9.583984375
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
-      "method": "runReverseBootstrap",
-      "startLine": 509,
-      "crap": 4.777170157739917
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/error-journal.js",
       "method": "serializeError",
       "startLine": 108,
@@ -9460,54 +9406,6 @@
       "method": "reassertStatusColumn",
       "startLine": 95,
       "crap": 15.877522005029721
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/reconciler.js",
-      "method": "reconcileClosedTasks",
-      "startLine": 33,
-      "crap": 1.0013717421124828
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/reconciler.js",
-      "method": "<anon method-2>",
-      "startLine": 48,
-      "crap": 2.0254026317126455
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/reconciler.js",
-      "method": "reconcileHierarchy",
-      "startLine": 99,
-      "crap": 3.0443832291496102
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/reconciler.js",
-      "method": "isDone",
-      "startLine": 119,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/reconciler.js",
-      "method": "shouldClose",
-      "startLine": 131,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/reconciler.js",
-      "method": "applyClose",
-      "startLine": 140,
-      "crap": 1.823974609375
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/reconciler.js",
-      "method": "maybeClose",
-      "startLine": 157,
-      "crap": 3.002666666666667
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/reconciler.js",
-      "method": "<anon method-11>",
-      "startLine": 185,
-      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/recut.js",
