@@ -463,7 +463,8 @@ test('null estimated_test_files produces no test-surface finding (absent = infor
     }),
   ]);
   const tsFindings = result.findings.filter(
-    (f) => f.kind === 'large-test-surface' || f.kind === 'test-surface-overflow',
+    (f) =>
+      f.kind === 'large-test-surface' || f.kind === 'test-surface-overflow',
   );
   assert.deepEqual(tsFindings, []);
   assert.deepEqual(result.errors, []);
@@ -476,7 +477,8 @@ test('absent estimated_test_files (undefined) produces no test-surface finding',
     makeTask('t-ts-absent', {}),
   ]);
   const tsFindings = result.findings.filter(
-    (f) => f.kind === 'large-test-surface' || f.kind === 'test-surface-overflow',
+    (f) =>
+      f.kind === 'large-test-surface' || f.kind === 'test-surface-overflow',
   );
   assert.deepEqual(tsFindings, []);
   assert.deepEqual(result.errors, []);
@@ -520,8 +522,8 @@ test('no-profile: estimated_test_files=11 trips hard test-surface-overflow (hard
   assert.equal(hard[0].ticketSlug, 't-ts-noprofile-hard');
   assert.equal(hard[0].sizingProfile, null);
   assert.equal(
-    result.errors.filter((e) =>
-      e.includes('test-surface') || e.includes('test surface'),
+    result.errors.filter(
+      (e) => e.includes('test-surface') || e.includes('test surface'),
     ).length,
     1,
   );
@@ -651,7 +653,8 @@ test('estimated_test_files exactly at soft threshold produces no finding', () =>
     }),
   ]);
   const tsFindings = result.findings.filter(
-    (f) => f.kind === 'large-test-surface' || f.kind === 'test-surface-overflow',
+    (f) =>
+      f.kind === 'large-test-surface' || f.kind === 'test-surface-overflow',
   );
   assert.deepEqual(tsFindings, []);
   assert.deepEqual(result.errors, []);
