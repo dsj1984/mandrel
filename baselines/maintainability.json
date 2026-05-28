@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T02:29:43.324Z",
+  "generatedAt": "2026-05-28T10:24:53.049Z",
   "rollup": {
     "*": {
       "min": 38.161,
-      "p50": 103.866,
-      "p95": 121.479
+      "p50": 103.888,
+      "p95": 121.586
     }
   },
   "rows": [
@@ -83,16 +83,8 @@
       "mi": 108.343
     },
     {
-      "path": ".agents/scripts/diagnose-friction.js",
-      "mi": 84.259
-    },
-    {
       "path": ".agents/scripts/diagnose.js",
       "mi": 99.168
-    },
-    {
-      "path": ".agents/scripts/dispatcher.js",
-      "mi": 102.354
     },
     {
       "path": ".agents/scripts/drain-pending-cleanup.js",
@@ -465,10 +457,6 @@
     {
       "path": ".agents/scripts/lib/cli/parse-numeric.js",
       "mi": 108.667
-    },
-    {
-      "path": ".agents/scripts/lib/cli/standard-args.js",
-      "mi": 90.293
     },
     {
       "path": ".agents/scripts/lib/close-validation.js",
@@ -851,20 +839,12 @@
       "mi": 132.519
     },
     {
-      "path": ".agents/scripts/lib/orchestration/concurrent-dep-resolver.js",
-      "mi": 89.513
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/context-envelope.js",
       "mi": 97.886
     },
     {
       "path": ".agents/scripts/lib/orchestration/context.js",
       "mi": 102.013
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dependency-analyzer.js",
-      "mi": 93.343
     },
     {
       "path": ".agents/scripts/lib/orchestration/detectors-phase.js",
@@ -881,10 +861,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/epic-deliver-reconcile.js",
       "mi": 92.503
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-lifecycle-detector.js",
-      "mi": 109.889
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/cli.js",
@@ -1527,10 +1503,6 @@
       "mi": 82.316
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-executor.js",
-      "mi": 96.45
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-grouper.js",
       "mi": 101.049
     },
@@ -1561,10 +1533,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "mi": 95.584
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-dispatcher.js",
-      "mi": 92.425
     },
     {
       "path": ".agents/scripts/lib/orchestration/wave-marker.js",
@@ -1713,10 +1681,6 @@
     {
       "path": ".agents/scripts/lib/story-init/context-resolver.js",
       "mi": 90.144
-    },
-    {
-      "path": ".agents/scripts/lib/story-init/dependency-guard.js",
-      "mi": 89.06
     },
     {
       "path": ".agents/scripts/lib/story-init/dispatch-state-writer.js",
@@ -2113,10 +2077,6 @@
     {
       "path": "tests/acceptance-spec-reconciler.test.js",
       "mi": 107.489
-    },
-    {
-      "path": "tests/acceptance/legacy-orchestration-retired.test.js",
-      "mi": 102.982
     },
     {
       "path": "tests/acceptance/lifecycle-ledger-parity.test.js",
@@ -2731,16 +2691,8 @@
       "mi": 107.965
     },
     {
-      "path": "tests/dependency-guard.test.js",
-      "mi": 92.997
-    },
-    {
       "path": "tests/detect-merges.test.js",
       "mi": 100.116
-    },
-    {
-      "path": "tests/diagnose-friction.test.js",
-      "mi": 106.243
     },
     {
       "path": "tests/diagnose-output.test.js",
@@ -2753,10 +2705,6 @@
     {
       "path": "tests/dispatcher-dry-run.test.js",
       "mi": 114.937
-    },
-    {
-      "path": "tests/dispatcher.test.js",
-      "mi": 100.888
     },
     {
       "path": "tests/docs/no-js-fences.test.js",
@@ -3023,10 +2971,6 @@
       "mi": 100.551
     },
     {
-      "path": "tests/integration-prime-after-sweep.test.js",
-      "mi": 103.664
-    },
-    {
       "path": "tests/issue-link-parser.test.js",
       "mi": 107.656
     },
@@ -3159,10 +3103,6 @@
       "mi": 135.16
     },
     {
-      "path": "tests/lib/cli-standard-args.test.js",
-      "mi": 117.28
-    },
-    {
       "path": "tests/lib/cli-utils.test.js",
       "mi": 120.514
     },
@@ -3261,14 +3201,6 @@
     {
       "path": "tests/lib/dependency-parser.test.js",
       "mi": 114.918
-    },
-    {
-      "path": "tests/lib/dispatcher-extra.test.js",
-      "mi": 110.618
-    },
-    {
-      "path": "tests/lib/dispatcher-worktree.test.js",
-      "mi": 108.758
     },
     {
       "path": "tests/lib/doc-reader.test.js",
@@ -3499,36 +3431,16 @@
       "mi": 100.546
     },
     {
-      "path": "tests/lib/orchestration/concurrent-dep-resolver.test.js",
-      "mi": 88.289
-    },
-    {
       "path": "tests/lib/orchestration/context.test.js",
       "mi": 121.009
-    },
-    {
-      "path": "tests/lib/orchestration/crap-remediation-1641.test.js",
-      "mi": 107.372
     },
     {
       "path": "tests/lib/orchestration/detectors-phase.test.js",
       "mi": 108.534
     },
     {
-      "path": "tests/lib/orchestration/dispatch-pipeline-reachability.test.js",
-      "mi": 105.097
-    },
-    {
-      "path": "tests/lib/orchestration/dispatch-pipeline-runWorktreeGc.test.js",
-      "mi": 109.936
-    },
-    {
       "path": "tests/lib/orchestration/epic-cleanup.test.js",
       "mi": 99.815
-    },
-    {
-      "path": "tests/lib/orchestration/epic-lifecycle-detector.test.js",
-      "mi": 105.011
     },
     {
       "path": "tests/lib/orchestration/epic-plan-state-store.test.js",
@@ -3971,14 +3883,6 @@
       "mi": 110.679
     },
     {
-      "path": "tests/lib/orchestration/wave-dispatcher.prime.test.js",
-      "mi": 102.926
-    },
-    {
-      "path": "tests/lib/orchestration/wave-dispatcher.test.js",
-      "mi": 102.755
-    },
-    {
       "path": "tests/lib/orchestration/wave-record-notifications.test.js",
       "mi": 116.703
     },
@@ -4027,10 +3931,6 @@
       "mi": 106.271
     },
     {
-      "path": "tests/lib/reconciler.test.js",
-      "mi": 113.04
-    },
-    {
       "path": "tests/lib/recut.test.js",
       "mi": 119.942
     },
@@ -4069,10 +3969,6 @@
     {
       "path": "tests/lib/signals/span-tree.test.js",
       "mi": 107.29
-    },
-    {
-      "path": "tests/lib/story-executor.test.js",
-      "mi": 103.672
     },
     {
       "path": "tests/lib/story-init/blocker-validator.test.js",
