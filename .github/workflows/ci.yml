@@ -125,58 +125,6 @@ jobs:
       - name: Run check-baselines
         run: node .agents/scripts/check-baselines.js --format text
 
-  agentlinter:
-    # Story #3279 — ADVISORY, NON-BLOCKING dogfooding check.
-    #
-    # This job runs AgentLinter (https://agentlinter.com/, MIT) over Mandrel's
-    # own agent-config surface: the root `CLAUDE.md` / `AGENTS.md` entry points
-    # and the distributed `.agents/` bundle (skills, personas, rules). It
-    # surfaces AgentLinter's Security / Skill-Safety / Structure signal on the
-    # corpus of agent instructions we ship.
-    #
-    # It is INTENTIONALLY advisory and MUST NOT gate merges:
-    #   * `continue-on-error: true` swallows any non-zero exit / red annotation
-    #     so a failing AgentLinter run never fails the build.
-    #   * This job is NOT listed in `.agentrc.json`
-    #     `github.branchProtection.requiredChecks` (which carries the blocking
-    #     gates: `lint`, `test`, `baselines`, `lifecycle-doc-drift`).
-    # Read the report under the job's "Run AgentLinter ..." step logs. See the
-    # "Advisory CI checks" note in `AGENTS.md` for the rationale and the
-    # blocking-vs-advisory distinction.
-    #
-    # The `agentlinter@0.3.3` version is PINNED (not a floating tag) so report
-    # output stays reproducible across runs; bump it deliberately.
-    name: agentlinter (advisory)
-    continue-on-error: true
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Run AgentLinter over root agent configs (advisory)
-        # `--local` keeps output on stdout and skips the report upload.
-        # `|| true` is belt-and-braces over the job-level continue-on-error:
-        # AgentLinter's exit code is swallowed so this step never blocks.
-        # Run from repo root: AgentLinter discovers root CLAUDE.md / AGENTS.md.
-        run: npx --yes agentlinter@0.3.3 --local || true
-
-      - name: Run AgentLinter over .agents bundle (advisory)
-        # AgentLinter combines a single root scan with root configs OR a
-        # subdir scan with that subtree's *.md files, but not both in one
-        # pass — so the distributed `.agents/` skills/personas/rules surface
-        # is scanned in a second, separately-scoped invocation. Same pinned
-        # version, same exit-code swallow.
-        run: npx --yes agentlinter@0.3.3 .agents --local || true
-
   publish:
     name: Publish to Dist
     needs: [validate]
