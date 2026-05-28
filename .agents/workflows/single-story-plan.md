@@ -13,7 +13,7 @@ description:
 `/single-story-plan` is the standalone counterpart to
 [`/epic-plan`](epic-plan.md) for Stories that are **not** attached to an
 Epic. It closes the gap between "one-line idea" and "well-formed
-standalone Story body ready for [`/single-story-deliver`](single-story-deliver.md)"
+standalone Story body ready for [`/single-story-deliver`](helpers/single-story-deliver.md)"
 using the same `host LLM authors + Node wrapper persists` split as
 `/epic-plan`.
 
@@ -157,11 +157,11 @@ exact `gh issue create` shape that would run.
   `--body` opens a new Issue (it is not aware of prior runs); use
   `--dry-run` first when iterating on the draft.
 - **No child Task creation.** Standalone Stories are atomic by contract
-  ([`single-story-deliver.md`](single-story-deliver.md)).
+  ([`single-story-deliver.md`](helpers/single-story-deliver.md)).
 
 ## See also
 
-- [`/single-story-deliver`](single-story-deliver.md) — the consumer
+- [`/single-story-deliver`](helpers/single-story-deliver.md) — the consumer
   workflow that picks the Story up after this one creates it.
 - [`/epic-plan`](epic-plan.md) — the Epic-tier equivalent. Phases 1–4
   inspired the seed-capture + envelope-emit pattern used here.

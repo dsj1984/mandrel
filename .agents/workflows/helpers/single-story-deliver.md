@@ -483,5 +483,5 @@ safe.
 
 ## See also
 
-- [`/story-deliver`](story-deliver.md) — Epic-attached Story execution.
-- [`/epic-deliver`](epic-deliver.md) — full Epic wave loop.
+- [`/story-deliver`](../story-deliver.md) — Epic-attached Story execution.
+- [`/epic-deliver`](../epic-deliver.md) — full Epic wave loop.

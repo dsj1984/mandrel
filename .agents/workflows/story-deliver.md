@@ -30,7 +30,7 @@ The argument is always a **Story ID** (`type::story`). Epic IDs go through
 [`/epic-deliver`](epic-deliver.md).
 
 **Standalone Stories** (no `Epic: #N` in body) use
-[`/single-story-deliver`](single-story-deliver.md) instead — that workflow
+[`/single-story-deliver`](helpers/single-story-deliver.md) instead — that workflow
 branches from `main`, opens its PR directly to `main`, and skips the
 Epic-scoped machinery (cascade, dispatch manifest, dashboard regen).
 `/story-deliver` requires a parent Epic and will refuse to initialize a
