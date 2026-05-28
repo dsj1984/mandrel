@@ -2,19 +2,24 @@
  * file-assumptions.js — Phase 8 path-assumption validator.
  *
  * Story #2635 added the Tech Spec freshness check at Phase 7. This module
- * is the matching gate at Phase 8: every Task's `body.changes` /
+ * is the matching gate at Phase 8: every Story's `body.changes` /
  * `body.references` entry that declares an explicit `assumption` is
  * cross-checked against the actual state of `baseBranchRef`. Mismatches
- * are batched per-Task and surfaced through the same error envelope the
+ * are batched per-Story and surfaced through the same error envelope the
  * decompose loop already uses.
  *
+ * Under the 3-tier hierarchy (Epic → Feature → Story; Epic #3078 / #3238)
+ * the Story is the implementation unit — there is no `type::task` ticket
+ * layer — so the gate scans `type === 'story'` tickets and reads the
+ * `{ path, assumption }` entries inlined on each Story body.
+ *
  * Rules (one error per mismatched path):
- *   - `creates`            + path **exists**  → error (Task would clobber).
+ *   - `creates`            + path **exists**  → error (Story would clobber).
  *   - `refactors-existing` + path **absent** → error (no target to refactor).
  *   - `exists`             + path **absent** → error (read dependency missing).
  *   - `deletes`            + path **absent** → error (nothing to delete).
  *
- * Legacy compatibility: tasks whose `body.changes` items are still bare
+ * Legacy compatibility: stories whose `body.changes` items are still bare
  * strings carry no assumption and are skipped silently here. The
  * deprecation signal is emitted *once* per validator invocation through
  * `collectDeprecationWarnings`, so consumers running an older planner
@@ -47,21 +52,21 @@ function defaultGitRunner({ baseBranchRef, path, cwd }) {
 }
 
 /**
- * Pull every `(path, assumption, source)` triple from a Task body.
+ * Pull every `(path, assumption, source)` triple from a Story body.
  * `source` is one of `'changes' | 'references'` so error messages can
  * point the operator at the right list.
  *
  * Returns an empty array when the body is absent, a plain string, or
  * carries no object-form entries — that's the legacy path. Callers use
  * the resulting array's emptiness to decide whether to emit a
- * deprecation warning for the Task.
+ * deprecation warning for the Story.
  *
- * @param {object} task
+ * @param {object} story
  * @returns {Array<{ path: string, assumption: string, source: 'changes' | 'references' }>}
  */
-export function collectTaskAssumptionEntries(task) {
+export function collectStoryAssumptionEntries(story) {
   const out = [];
-  const body = task?.body;
+  const body = story?.body;
   if (body === null || typeof body !== 'object') return out;
   if (Array.isArray(body.changes)) {
     for (const entry of body.changes) {
@@ -89,16 +94,16 @@ export function collectTaskAssumptionEntries(task) {
 }
 
 /**
- * Predicate: does the task have any string-form `body.changes` bullets
+ * Predicate: does the story have any string-form `body.changes` bullets
  * left over after a partial migration? Used to decide whether to emit a
- * per-task deprecation warning even when at least one object entry is
+ * per-story deprecation warning even when at least one object entry is
  * present.
  *
- * @param {object} task
+ * @param {object} story
  * @returns {boolean}
  */
-export function hasLegacyChangeBullets(task) {
-  const body = task?.body;
+export function hasLegacyChangeBullets(story) {
+  const body = story?.body;
   if (body === null || typeof body !== 'object') return false;
   if (!Array.isArray(body.changes)) return false;
   return body.changes.some((c) => typeof c === 'string');
@@ -119,14 +124,18 @@ function renderMismatch({ slug, source, path, assumption, expected }) {
 }
 
 /**
- * Validate every Task's declared file assumptions against the actual
+ * Validate every Story's declared file assumptions against the actual
  * state of `baseBranchRef`. Returns an envelope:
  *
  *   {
- *     errors:    string[]   // one entry per mismatch, batched per Task
+ *     errors:    string[]   // one entry per mismatch, batched per Story
  *     warnings:  string[]   // legacy/no-assumption deprecation nudges
  *     mismatches: object[]  // structured payload for downstream tooling
  *   }
+ *
+ * Under the 3-tier hierarchy the Story is the implementation unit, so the
+ * gate scans `type === 'story'` tickets and reads the inline
+ * `{ path, assumption }` entries on each Story body.
  *
  * The function never throws on a probe failure — the runner is expected
  * to return `false` for any unreadable git ref, which surfaces the path
@@ -141,28 +150,28 @@ function renderMismatch({ slug, source, path, assumption, expected }) {
  * @param {string}   [opts.cwd]
  * @returns {{ errors: string[], warnings: string[], mismatches: Array }}
  */
-export function validateTaskFileAssumptions(opts) {
+export function validateStoryFileAssumptions(opts) {
   const { tickets, baseBranchRef, gitRunner = defaultGitRunner, cwd } = opts;
   if (!baseBranchRef || typeof baseBranchRef !== 'string') {
     throw new Error(
-      'validateTaskFileAssumptions: baseBranchRef is required and must be a string.',
+      'validateStoryFileAssumptions: baseBranchRef is required and must be a string.',
     );
   }
-  const tasks = (tickets ?? []).filter((t) => t.type === 'task');
+  const stories = (tickets ?? []).filter((t) => t.type === 'story');
   const errors = [];
   const warnings = [];
   const mismatches = [];
   const probeCache = new Map();
 
-  for (const task of tasks) {
-    const slug = task.slug ?? task.title ?? '<unknown>';
-    const entries = collectTaskAssumptionEntries(task);
+  for (const story of stories) {
+    const slug = story.slug ?? story.title ?? '<unknown>';
+    const entries = collectStoryAssumptionEntries(story);
 
     if (entries.length === 0) {
-      // Legacy path: this Task carries no object-form entries. Emit a
+      // Legacy path: this Story carries no object-form entries. Emit a
       // single deprecation warning so the operator sees the migration
-      // nudge once per Task rather than per-bullet.
-      if (hasLegacyChangeBullets(task)) {
+      // nudge once per Story rather than per-bullet.
+      if (hasLegacyChangeBullets(story)) {
         warnings.push(
           `"${slug}" → body.changes uses legacy string bullets without { path, assumption }. Migrate to object form so Phase 8 can verify file-state assumptions. See Story #2636.`,
         );
@@ -172,7 +181,7 @@ export function validateTaskFileAssumptions(opts) {
 
     // Partial-migration warning: some entries are object-form, some are
     // still strings. Surface once so the operator notices the gap.
-    if (hasLegacyChangeBullets(task)) {
+    if (hasLegacyChangeBullets(story)) {
       warnings.push(
         `"${slug}" → body.changes mixes object-form entries with legacy string bullets. Migrate every bullet for full freshness coverage.`,
       );
@@ -203,7 +212,7 @@ export function validateTaskFileAssumptions(opts) {
 /**
  * Apply one assumption rule and return a structured mismatch or `null`
  * when the declared assumption matches reality. Extracted from
- * `validateTaskFileAssumptions` so the rules table sits in one place
+ * `validateStoryFileAssumptions` so the rules table sits in one place
  * that's trivially unit-testable.
  *
  * @param {{ slug: string, source: string, path: string, assumption: string, exists: boolean }} args

@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T20:23:19.339Z",
+  "generatedAt": "2026-05-28T20:39:24.044Z",
   "rollup": {
     "*": {
       "min": 36.604,
-      "p50": 103.762,
+      "p50": 103.836,
       "p95": 121.571
     }
   },
@@ -1067,10 +1067,6 @@
       "mi": 99.718
     },
     {
-      "path": ".agents/scripts/lib/orchestration/file-assumptions.js",
-      "mi": 92.906
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/finalize/close-planning-tickets.js",
       "mi": 82.426
     },
@@ -1521,10 +1517,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/structured-comment-parser.js",
       "mi": 114.919
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/task-body-validator.js",
-      "mi": 98.293
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing.js",
@@ -2953,10 +2945,6 @@
     {
       "path": "tests/evidence-gate.test.js",
       "mi": 113.699
-    },
-    {
-      "path": "tests/file-assumptions.test.js",
-      "mi": 100.531
     },
     {
       "path": "tests/fixtures/baselines/cross-platform/deep/nested/module-c.js",

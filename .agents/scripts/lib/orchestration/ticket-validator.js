@@ -3,7 +3,7 @@ import { detectCycle } from '../Graph.js';
 import { gitSpawn } from '../git-utils.js';
 
 import { Logger } from '../Logger.js';
-import { validateTaskFileAssumptions } from './file-assumptions.js';
+import { validateStoryFileAssumptions } from './file-assumptions.js';
 import {
   computeConflictFindings,
   renderHardConflictError,
@@ -517,15 +517,15 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
     });
   }
 
-  // Story #2636 — Phase 8 path-assumption gate. Cross-check every Task's
+  // Story #2636 — Phase 8 path-assumption gate. Cross-check every Story's
   // declared `{ path, assumption }` against the actual state of the base
-  // branch and batch the mismatches per-Task into the validator's errors
+  // branch and batch the mismatches per-Story into the validator's errors
   // envelope. Skipped when the caller omits `baseBranchRef` so legacy
   // unit tests keep their semantics; production call-sites always pass
   // it.
   let assumptionErrors = [];
   if (opts.baseBranchRef) {
-    const assumptionReport = validateTaskFileAssumptions({
+    const assumptionReport = validateStoryFileAssumptions({
       tickets,
       baseBranchRef: opts.baseBranchRef,
       gitRunner: opts.gitRunner,
@@ -563,7 +563,7 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
         ? renderHardConflictError(f)
         : renderHardFindingError(f),
     );
-  // Append per-Task path-assumption mismatches (Story #2636) to the
+  // Append per-Story path-assumption mismatches (Story #2636) to the
   // hard-error list. The decompose loop already gates on
   // `errors.length > 0` to trigger a re-prompt, so the new check
   // participates in the same loop without bespoke wiring.
