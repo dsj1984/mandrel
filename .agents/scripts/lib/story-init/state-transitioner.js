@@ -1,10 +1,9 @@
 /**
  * state-transitioner.js — Stage 6 of the story-init pipeline.
  *
- * Flips the Story ticket to `agent::executing` at init time. Child Tasks
- * stay at their prior label (typically `agent::ready`) until
- * `story-task-progress.js --state executing` runs for each Task in the
- * `/story-deliver` loop.
+ * Flips the Story ticket to `agent::executing` at init time. Under the
+ * 3-tier hierarchy the Story has inline acceptance and no child Task
+ * lifecycle — `/story-deliver` runs a single Story-implementation phase.
  */
 
 import {

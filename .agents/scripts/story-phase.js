@@ -3,7 +3,7 @@
 /**
  * story-phase.js — phase snapshot + heartbeat writer (3-tier).
  *
- * Replaces the deleted `story-task-progress.js` from the 4-tier era
+ * Replaces the deleted per-Task progress writer from the 4-tier era
  * (removed under #3157). `/story-deliver` calls this CLI at each Story-
  * level phase transition (init → implementing → closing → done, or any
  * → blocked). Each call:
@@ -36,7 +36,7 @@
  *
  * `renderedBody` is the markdown body upserted onto the Story so the
  * caller can relay it to chat verbatim (mirrors the contract the deleted
- * `story-task-progress.js` exposed and that `/story-deliver` Step 1 / 3
+ * per-Task progress writer exposed and that `/story-deliver` Step 1 / 3
  * already documents).
  */
 

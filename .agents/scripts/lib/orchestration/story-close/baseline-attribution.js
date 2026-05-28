@@ -35,9 +35,9 @@ import { gitSpawn as defaultGitSpawn } from '../../git-utils.js';
 
 /**
  * Match `(resolves #<digits>)` in a commit subject. Anchored to the
- * parenthesized form because that's the canonical task-commit.js trailer
- * shape — bare `resolves #N` in prose elsewhere in the message must not
- * win over the trailer.
+ * parenthesized form because that's the canonical Story-branch commit
+ * trailer shape — bare `resolves #N` in prose elsewhere in the message
+ * must not win over the trailer.
  */
 const RESOLVES_TRAILER_RE = /\(resolves #(\d+)\)/i;
 

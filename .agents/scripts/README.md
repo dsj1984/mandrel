@@ -40,32 +40,6 @@ node .agents/scripts/loc-delta.js --json          # machine output
 
 Exits `0` iff total LOC delta `< 0`; exits `1` otherwise.
 
-### `retrofit-task-bodies.js`
-
-**Purpose.** Two-phase upgrade of in-flight Epic Task bodies to the
-v5.33 four-section structured schema (`## Goal` / `## Changes` /
-`## Acceptance` / `## Verify` + orchestrator footer).
-
-**When to run.** Optional. Only relevant if an Epic carries pre-v5.33
-Task bodies that need to be normalized to the current schema. Treat as a
-one-time backfill, not as part of the normal `/epic-deliver` loop.
-
-**Usage.**
-
-```bash
-# Phase 1 — emit context envelope for the host LLM to author bodies
-node .agents/scripts/retrofit-task-bodies.js --epic <id> --emit-context \
-  --out temp/retrofit-<id>.json [--pretty]
-
-# Phase 2 — apply the authored bodies (dry-run by default)
-node .agents/scripts/retrofit-task-bodies.js --epic <id> \
-  --bodies temp/retrofit-<id>-bodies.json --apply
-```
-
-Also documented as a worked example of the
-"pure script alongside an LLM step" pattern in
-[`.agents/README.md`](../README.md).
-
 ### `validate-docs-freshness.js`
 
 **Purpose.** Per-Epic documentation freshness gate. For each doc in

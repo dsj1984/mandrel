@@ -141,12 +141,12 @@ export async function dispatch(options) {
   await reconcileEpicState(ctx, fetched);
 
   // 3-tier hierarchy: compute Story-level waves directly from Story
-  // tickets. The runtime fan-out (`dispatchNextWave`) is Task-centric and
-  // does not yet handle Story-level dispatch — that wiring lands in a
-  // follow-on Story (S3.3+). For now we still emit a 3-tier-shaped
-  // manifest with `waves[].stories[]` so downstream consumers
-  // (manifest renderer, /epic-deliver wave planner) see the correct
-  // execution plan without dispatching any Tasks.
+  // tickets. The runtime fan-out (`dispatchNextWave`) operates at the
+  // Task layer and does not yet handle Story-level dispatch — that
+  // wiring lands in a follow-on Story (S3.3+). For now we still emit a
+  // 3-tier-shaped manifest with `waves[].stories[]` so downstream
+  // consumers (manifest renderer, /epic-deliver wave planner) see the
+  // correct execution plan without dispatching any Tasks.
   if (isThreeTierDispatch(fetched.allTickets)) {
     Logger.info(
       'Detected 3-tier hierarchy — computing Story-level execution waves.',

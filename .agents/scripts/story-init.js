@@ -14,8 +14,9 @@
  *   4. task-graph-builder   — fetch + topologically sort child Tasks.
  *   5. branch-initializer   — materialise the story branch (single-tree
  *                             checkout or isolated worktree).
- *   6. state-transitioner   — flip the Story to `agent::executing` (Tasks
- *                             start via `story-task-progress.js` per Task).
+ *   6. state-transitioner   — flip the Story to `agent::executing`. Under
+ *                             the 3-tier hierarchy the Story has inline
+ *                             acceptance and no child Task lifecycle.
  *
  * Usage:
  *   node story-init.js --story <STORY_ID> [--dry-run]
@@ -506,7 +507,7 @@ export function renderStoryInitCommentBody(result) {
     // Embed the canonical task list so `story-deliver-prepare.js` can seed the
     // initial `story-run-progress` snapshot without re-fetching the task graph.
     // Without this field, the prepare CLI silently seeded an empty snapshot,
-    // breaking every subsequent `story-task-progress.js` call (it asserts the
+    // breaking every subsequent phase-writer call (it asserts the
     // task id is present in the snapshot).
     tasks: Array.isArray(result.tasks)
       ? result.tasks.map((t) => ({ id: t.id, title: t.title }))

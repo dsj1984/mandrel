@@ -13,7 +13,7 @@
  * The bus-driven `story.dispatch.start`/`story.dispatch.end` events are emitted
  * by epic-runner at coarser grain (one pair per Story dispatch) and do not
  * carry the per-Task transition snapshot that `/story-deliver`'s loop produces.
- * `story-task-progress.js`, `story-deliver-prepare.js`, and `sub-agent-return.js`
+ * `story-phase.js`, `story-deliver-prepare.js`, and `sub-agent-return.js`
  * are the active consumers — none of them have a bus equivalent. The duplicate-
  * writer scope in Epic #2646 covers `wave-observer.js` and the polling
  * `epic-runner/progress-reporter.js`; this writer is the sole producer of the
@@ -92,7 +92,7 @@ const STORY_PHASE_STATUS_EMOJI = {
 /**
  * Build the canonical default `phases[]` array for a freshly-initialized
  * 3-tier Story snapshot. All entries are `pending`; timestamps are null.
- * Exported so call sites (story-deliver-prepare, story-task-progress) and
+ * Exported so call sites (story-deliver-prepare, story-phase) and
  * tests can build the same shape without re-implementing it.
  *
  * @returns {Array<{ name: string, status: 'pending', startedAt: null, endedAt: null }>}
