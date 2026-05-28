@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added — Epic #3212: story-plan checkpoint (pre-commit agentic alignment gate)
+
+Standalone Story delivery (`/story-deliver` → `helpers/single-story-deliver`)
+gains a **Step 0.6** story-plan checkpoint that fires before the first commit
+for non-trivial Stories. The agent posts a `story-plan` structured comment
+recording `files_to_touch`, `ac_mapping`, `open_questions`, and
+`plan_revision`; an optional gating mode (`delivery.storyPlan.requireAcknowledgement`)
+holds commits until the operator applies `plan::acknowledged`. At close time,
+`single-story-close.js` emits two soft drift findings
+(`story-plan-files-added` / `story-plan-files-missed`) comparing the plan
+against the actual diff — advisory signal, not a gate.
+
+New surface shipped by this Epic:
+
+- `post-story-plan.js` — idempotent CLI emitter; validates against schema before
+  persisting.
+- `.agents/schemas/story-plan-comment.schema.json` — artifact schema.
+- `/story-plan-ack` (`story-deliver-ack.md`) — slash command applying
+  `plan::acknowledged` to resume a gated worker.
+- `delivery.storyPlan.*` config keys registered across all four mirror
+  surfaces (`agentrc.schema.json`, `config-settings-schema.js`,
+  `full-agentrc.json`, `docs/configuration.md`).
+- `plan::acknowledged` label constant added to `label-constants.js`.
+- `helpers/single-story-deliver.md` Step 0.6 documents the full checkpoint
+  lifecycle contract.
+- SDLC.md and `engineer.md` updated to describe the checkpoint beat and
+  authoring style guidance.
+
 ### Removed — Epic #3238: sweep the residual `type::task` surface clean
 
 Epic #3078 collapsed the Task tier and Epic #3163 completed the
