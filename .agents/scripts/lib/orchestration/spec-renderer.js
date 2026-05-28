@@ -23,7 +23,8 @@
  * two shapes. It:
  *
  *   1. Indexes the flat array by slug, partitioning into features /
- *      stories. A `task` type raises immediately.
+ *      stories. Any unrecognised type (including the historical
+ *      `task`) raises immediately.
  *   2. Filters Story `depends_on` edges down to inter-Story
  *      references in the same Epic.
  *   3. Layers Stories into waves via `Graph.assignLayers` (depth in
@@ -222,8 +223,10 @@ function assignNonEmpty(target, key, value) {
  * features in array order, then look up their children by parent_slug
  * in the order the decomposer emitted them).
  *
- * Under the 3-tier hierarchy, a ticket of type `task` is a contract
- * violation and raises immediately; there is no silent drop.
+ * Under the 3-tier hierarchy (Epic #3078), only `feature` and `story`
+ * types are recognised. Any other type — including the historical
+ * `task` — falls through to the unknown-type guard and raises
+ * immediately; there is no silent drop.
  *
  * @param {Array<object>} tickets
  */
@@ -246,11 +249,7 @@ function indexTickets(tickets) {
     bySlug.set(slug, t);
     if (t.type === 'feature') featureSlugs.push(slug);
     else if (t.type === 'story') storySlugs.push(slug);
-    else if (t.type === 'task') {
-      throw new Error(
-        `[spec-renderer] ticket "${slug}" has type "task" — the 3-tier hierarchy (Epic #3078) forbids Task tickets; Story acceptance[]/verify[] arrays carry the per-Story contract.`,
-      );
-    } else {
+    else {
       throw new Error(
         `[spec-renderer] ticket "${slug}" has unknown type "${t.type}"`,
       );

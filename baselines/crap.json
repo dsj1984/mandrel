@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T20:12:06.492Z",
+  "generatedAt": "2026-05-28T20:23:20.165Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.192000000000002,
+      "p95": 12.157083248524323,
       "max": 53.8385539444679,
       "methodsAbove20": 29
     }
@@ -10150,114 +10150,6 @@
       "method": "renderSpecFreshnessComment",
       "startLine": 280,
       "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "getValidator",
-      "startLine": 87,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "_resetRendererValidatorCacheForTests",
-      "startLine": 104,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "normaliseAjvErrors",
-      "startLine": 128,
-      "crap": 1.0130266639527783
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "sanitizeLabels",
-      "startLine": 146,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "renderBody",
-      "startLine": 185,
-      "crap": 14
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "assignNonEmpty",
-      "startLine": 211,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "indexTickets",
-      "startLine": 230,
-      "crap": 11.71894196233762
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "layerStories",
-      "startLine": 270,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "validateRenderSpecInputs",
-      "startLine": 304,
-      "crap": 12.561164258090779
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "bucketStoriesByFeature",
-      "startLine": 322,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "pickStringArray",
-      "startLine": 334,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "extractStoryAcceptanceVerify",
-      "startLine": 345,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "buildStoryOut",
-      "startLine": 364,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "buildFeatureOut",
-      "startLine": 384,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "buildEpicOut",
-      "startLine": 398,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "buildGatesOut",
-      "startLine": 405,
-      "crap": 8
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "validateSpec",
-      "startLine": 417,
-      "crap": 3.2099125364431487
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "renderSpec",
-      "startLine": 432,
-      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",

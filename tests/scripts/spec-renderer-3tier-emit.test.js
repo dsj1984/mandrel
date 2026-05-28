@@ -16,9 +16,12 @@
  *      onto the rendered Story output (so the 3-tier execution loop has
  *      the Goal/Changes/Acceptance/Verify surface it expects).
  *   3. A 4-tier ticket array (Stories with `type::task` children) now
- *      raises a 3-tier-guard error in `indexTickets`. Epic #3163 / Story
- *      #3192 rewrote the renderer to drop Task-tier emission entirely;
- *      Task tickets in the input are a hard contract violation.
+ *      raises an unknown-type guard error in `indexTickets`. Epic #3163
+ *      / Story #3192 rewrote the renderer to drop Task-tier emission
+ *      entirely, and Epic #3238 / Story #3272 dropped the dedicated
+ *      `type === 'task'` render arm so a Task ticket falls through to the
+ *      generic unknown-type guard. Task tickets in the input are a hard
+ *      contract violation.
  */
 
 import assert from 'node:assert/strict';
@@ -199,15 +202,18 @@ describe('spec-renderer — 3-tier emission (hotfix for Epic #3163 blocker)', ()
 });
 
 describe('spec-renderer — Task tickets rejected (Epic #3163 rewrite)', () => {
-  it('throws a 3-tier-guard error when the input carries any type:"task" ticket', () => {
+  it('throws an unknown-type guard error when the input carries any type:"task" ticket', () => {
     // Epic #3163 rewrote the renderer to drop Task-tier emission
     // entirely. The 4-tier back-compat path that previously emitted
     // a populated `Story.tasks` array is gone; a Task ticket in the
     // input is now a hard contract violation that raises in
-    // `indexTickets` before any spec is built.
+    // `indexTickets` before any spec is built. Epic #3238 / Story
+    // #3272 then dropped the dedicated `type === 'task'` render arm,
+    // so a Task ticket now falls through to the generic unknown-type
+    // guard rather than a Task-specific message.
     assert.throws(
       () => renderSpec(build4TierTickets(), { epic: EPIC, validate: false }),
-      /3-tier hierarchy/,
+      /unknown type "task"/,
     );
   });
 });
