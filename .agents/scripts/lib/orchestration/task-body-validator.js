@@ -149,7 +149,9 @@ export function validateTaskBodyShape(ticket) {
   errors.push(...collectAcceptanceErrors(prefix, body.acceptance));
   // Tier-suffix validation is enforced on Story tickets (3-tier world). Task
   // tickets are a legacy tier whose verify entries may be free-form strings.
-  errors.push(...collectVerifyErrors(prefix, body.verify, { requireTier: isStory }));
+  errors.push(
+    ...collectVerifyErrors(prefix, body.verify, { requireTier: isStory }),
+  );
   errors.push(...collectReferencesErrors(prefix, body.references));
   return errors;
 }

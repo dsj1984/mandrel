@@ -166,12 +166,17 @@ describe('collectTaskBodyErrors — legacy / non-structured bodies pass through'
       { slug: 's1', type: 'story', title: 'S', body: { weird: true } },
     ];
     const errs = collectTaskBodyErrors(tickets);
-    assert.ok(errs.length > 0, 'expected validation errors for a malformed story body');
+    assert.ok(
+      errs.length > 0,
+      'expected validation errors for a malformed story body',
+    );
   });
 
   it('skips Story tickets with string bodies (legacy pass-through)', () => {
     assert.deepEqual(
-      collectTaskBodyErrors([{ slug: 's1', type: 'story', title: 'S', body: 'string body' }]),
+      collectTaskBodyErrors([
+        { slug: 's1', type: 'story', title: 'S', body: 'string body' },
+      ]),
       [],
     );
   });

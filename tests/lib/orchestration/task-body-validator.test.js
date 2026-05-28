@@ -22,8 +22,8 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   collectTaskBodyErrors,
-  validateTaskBodyShape,
   VERIFY_TIER_VALUES,
+  validateTaskBodyShape,
 } from '../../../.agents/scripts/lib/orchestration/task-body-validator.js';
 
 // ---------------------------------------------------------------------------
@@ -65,7 +65,10 @@ const VALID_STORY_BODY = {
 
 describe('VERIFY_TIER_VALUES — exported constant', () => {
   it('exports the canonical tier list', () => {
-    assert.deepEqual([...VERIFY_TIER_VALUES], ['unit', 'contract', 'e2e', 'validate']);
+    assert.deepEqual(
+      [...VERIFY_TIER_VALUES],
+      ['unit', 'contract', 'e2e', 'validate'],
+    );
   });
 
   it('is frozen', () => {
@@ -153,14 +156,20 @@ describe('collectTaskBodyErrors — Story body required sections', () => {
     const errs = collectTaskBodyErrors([
       story('s1', { ...VALID_STORY_BODY, goal: '' }),
     ]);
-    assert.ok(errs.some((e) => /^Story "/.test(e)), errs.join('\n'));
+    assert.ok(
+      errs.some((e) => /^Story "/.test(e)),
+      errs.join('\n'),
+    );
   });
 
   it('prefixes errors with "Task" for task tickets', () => {
     const errs = collectTaskBodyErrors([
       task('t1', { ...VALID_STORY_BODY, goal: '' }),
     ]);
-    assert.ok(errs.some((e) => /^Task "/.test(e)), errs.join('\n'));
+    assert.ok(
+      errs.some((e) => /^Task "/.test(e)),
+      errs.join('\n'),
+    );
   });
 });
 
@@ -354,7 +363,9 @@ describe('collectTaskBodyErrors — assumption enum (Story references[])', () =>
 
 describe('validateTaskBodyShape — Story prefix in error messages', () => {
   it('uses "Story" as the prefix for type::story tickets', () => {
-    const errors = validateTaskBodyShape(story('s1', { ...VALID_STORY_BODY, goal: '' }));
+    const errors = validateTaskBodyShape(
+      story('s1', { ...VALID_STORY_BODY, goal: '' }),
+    );
     assert.ok(
       errors.some((e) => e.startsWith('Story "Story s1" (s1)')),
       errors.join('\n'),
@@ -362,7 +373,9 @@ describe('validateTaskBodyShape — Story prefix in error messages', () => {
   });
 
   it('uses "Task" as the prefix for type::task tickets', () => {
-    const errors = validateTaskBodyShape(task('t1', { ...VALID_STORY_BODY, goal: '' }));
+    const errors = validateTaskBodyShape(
+      task('t1', { ...VALID_STORY_BODY, goal: '' }),
+    );
     assert.ok(
       errors.some((e) => e.startsWith('Task "Task t1" (t1)')),
       errors.join('\n'),
