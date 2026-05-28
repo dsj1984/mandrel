@@ -35,12 +35,12 @@ function loginGroup() {
 test('buildStoryBody emits all canonical sections', () => {
   const { title, body } = buildStoryBody({ group: loginGroup() });
   for (const section of [
-    '## Summary',
-    '## Acceptance Criteria',
+    '## Goal',
+    '## Acceptance',
     '## Agent Prompts',
     '## Context',
   ]) {
-    assert.ok(body.includes(section));
+    assert.ok(body.includes(section), `expected section "${section}" in body`);
   }
   assert.ok(title.length > 0);
 });

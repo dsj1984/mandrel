@@ -10,8 +10,15 @@
  * `audit::<dimension>` represented in the merge plus the standard
  * `type::story`, `agent::ready`, and (when any finding is Critical)
  * `risk::high`.
+ *
+ * The body is serialized via the canonical story-body serializer
+ * (`.agents/scripts/lib/story-body/story-body.js`) so the output is
+ * parseable by `parse()` and round-trippable. Audit-specific content
+ * (agent prompts, context links, fingerprint footer) is appended after
+ * the canonical sections as extended markdown.
  */
 
+import { serialize } from '../story-body/story-body.js';
 import { renderFingerprintFooter } from './fingerprint.js';
 
 const STATIC_LABELS = Object.freeze(['type::story', 'agent::ready']);
@@ -31,15 +38,20 @@ function summaryFromGroup(group) {
   return lines.join('\n');
 }
 
-function acceptanceCriteriaFromGroup(group) {
-  const lines = group.findings.map((f) => {
-    const rec = f.recommendation || '_(no recommendation captured)_';
-    return `- [ ] ${f.title} — ${rec}`;
-  });
-  return lines.join('\n');
+function goalFromGroup(group) {
+  // Derive a concise goal statement from the group title + finding summary.
+  const summary = summaryFromGroup(group);
+  return `${group.title}\n\n${summary}`;
 }
 
-function agentPromptsFromGroup(group) {
+function acceptanceCriteriaFromGroup(group) {
+  return group.findings.map((f) => {
+    const rec = f.recommendation || '_(no recommendation captured)_';
+    return `${f.title} — ${rec}`;
+  });
+}
+
+function agentPromptsSection(group) {
   const blocks = group.findings
     .filter(
       (f) => typeof f.agentPrompt === 'string' && f.agentPrompt.length > 0,
@@ -80,18 +92,30 @@ export function buildStoryBody({ group }) {
     throw new Error('buildStoryBody: group with findings[] is required');
   }
   const title = group.title;
+
+  // Build the canonical StoryBody object from the audit group data.
+  const storyBody = {
+    goal: goalFromGroup(group),
+    changes: [],
+    acceptance: acceptanceCriteriaFromGroup(group),
+    verify: [],
+    references: [],
+    sizingProfile: null,
+    depends_on: [],
+    estimated_test_files: null,
+  };
+
+  // Serialize via the canonical serializer.
+  const canonicalSections = serialize(storyBody);
+
+  // Append audit-specific extended sections (agent prompts, context links,
+  // fingerprint footer) that are not part of the canonical shape.
   const body = [
-    '## Summary',
-    '',
-    summaryFromGroup(group),
-    '',
-    '## Acceptance Criteria',
-    '',
-    acceptanceCriteriaFromGroup(group),
+    canonicalSections,
     '',
     '## Agent Prompts',
     '',
-    agentPromptsFromGroup(group),
+    agentPromptsSection(group),
     '',
     '## Context',
     '',

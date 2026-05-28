@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T10:53:28.902Z",
+  "generatedAt": "2026-05-28T13:34:56.903Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.049764299946542,
+      "p95": 12.157083248524323,
       "max": 53.8385539444679,
       "methodsAbove20": 30
     }
@@ -1138,48 +1138,6 @@
       "method": "defaultWriteArtifact",
       "startLine": 44,
       "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/audit-to-stories/build-story-body.js",
-      "method": "uniq",
-      "startLine": 19,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/audit-to-stories/build-story-body.js",
-      "method": "summaryFromGroup",
-      "startLine": 23,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/audit-to-stories/build-story-body.js",
-      "method": "acceptanceCriteriaFromGroup",
-      "startLine": 34,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/audit-to-stories/build-story-body.js",
-      "method": "agentPromptsFromGroup",
-      "startLine": 42,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/audit-to-stories/build-story-body.js",
-      "method": "contextLinksFromGroup",
-      "startLine": 51,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/audit-to-stories/build-story-body.js",
-      "method": "labelsForGroup",
-      "startLine": 61,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/audit-to-stories/build-story-body.js",
-      "method": "buildStoryBody",
-      "startLine": 78,
-      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/dedupe-against-github.js",
