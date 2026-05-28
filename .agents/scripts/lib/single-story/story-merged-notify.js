@@ -45,10 +45,16 @@ async function flipLabel(provider, storyId, story, progress) {
   try {
     // Route through the canonical state mutator so the Projects v2
     // Status column mirrors the `agent::done` flip (Story #2548 wires
-    // column-sync inside `transitionTicketState`). `cascade: false` is
-    // correct for a standalone Story (no parent chain), and threading
-    // the prefetched `story` as `ticketSnapshot` preserves the
-    // round-trip elimination from Story #1795.
+    // column-sync inside `transitionTicketState`). Threading the
+    // prefetched `story` as `ticketSnapshot` preserves the round-trip
+    // elimination from Story #1795.
+    //
+    // Cascade is left at the default (true) so Stories that have a
+    // parent Feature (e.g. an Epic-parented Story closed via the
+    // standalone path) propagate completion upward. For truly
+    // standalone Stories with no parent the cascade short-circuits
+    // immediately via the provider-capability guard in
+    // `cascadeParentState`, so there is no extra cost.
     //
     // We deliberately omit `notify` here: the `state-transition`
     // notification that `transitionTicketState` would dispatch is
@@ -60,7 +66,6 @@ async function flipLabel(provider, storyId, story, progress) {
     // single event per Story merge.
     await transitionTicketState(provider, storyId, STATE_LABELS.DONE, {
       ticketSnapshot: story,
-      cascade: false,
     });
     progress?.('LABELS', `🏷️  Story #${storyId} → agent::done`);
     return true;
