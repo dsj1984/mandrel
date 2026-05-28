@@ -116,6 +116,76 @@ cd "<workCwd from Step 0 result>"
 
 All subsequent commands run from this directory.
 
+### Step 0.6 — Story-plan checkpoint (non-trivial Stories only)
+
+Before authoring any commit, evaluate the **always-emit triggering predicate**
+to decide whether this Story warrants a `story-plan` structured comment. The
+predicate lives in
+`.agents/scripts/lib/story-plan/trigger.js#isNonTrivial` and is a pure
+function — no side effects, no I/O.
+
+**Triggering logic** (any one axis is sufficient):
+
+1. `changes.length >= floor.changes` — default floor is **3**.
+2. `acceptance.length >= floor.acceptance` — default floor is **3**.
+3. `sizingProfile === 'atomic-rewrite'` — the heaviest sizing profile.
+
+Floors are overridable via `delivery.storyPlan.alwaysEmitFloor` in
+`.agentrc.json`.
+
+**How to evaluate:**
+
+1. Parse the Story body via the canonical parser
+   (`.agents/scripts/lib/story-body/story-body.js#parse`) to obtain
+   `changes[]`, `acceptance[]`, and `sizingProfile`.
+2. Call `isNonTrivial({ changes, acceptance, sizingProfile, floor })`.
+3. If `false` → skip straight to Step 1 (trivial Story; no plan needed).
+4. If `true` → compose the plan JSON and post it via
+   `post-story-plan.js`:
+
+   ```bash
+   node .agents/scripts/post-story-plan.js \
+     --story <storyId> \
+     --plan '<json>'
+   ```
+
+   The plan JSON shape (`story-plan-comment.schema.json`):
+
+   ```json
+   {
+     "files_to_touch": ["<path>", "..."],
+     "ac_mapping": { "0": { "tests": ["<test-path>"] }, "...": {} },
+     "open_questions": [],
+     "plan_revision": 1
+   }
+   ```
+
+   `post-story-plan.js` validates the plan against the schema before
+   persisting and idempotently upserts the `story-plan` comment on the
+   Story ticket.
+
+**Gating-wait path** (`delivery.storyPlan.requireAcknowledgement`):
+
+When `delivery.storyPlan.requireAcknowledgement` is `true` in the resolved
+config, the agent MUST NOT make any commit until the Story ticket carries the
+`plan::acknowledged` label. The label is applied by the operator (or via
+`/story-plan-ack <storyId>`).
+
+Poll for `plan::acknowledged` up to `delivery.storyPlan.ackTimeoutMs`
+(default 1 800 000 ms / 30 min). On timeout:
+
+```bash
+node .agents/scripts/update-ticket-state.js --ticket <storyId> --state blocked
+```
+
+Post a `friction` structured comment naming the missing ack, then exit
+non-zero. Per `orchestration-error-handling.md`, surface the unresolvable
+wait as a clean `agent::blocked` exit — never a silent fall-through.
+
+> **Default behaviour:** `requireAcknowledgement` defaults to `false`. Unless
+> the operator has opted in, the agent posts the plan comment and proceeds
+> immediately to implementation without waiting for an acknowledgement.
+
 ---
 
 ## Step 1 — Implementation
