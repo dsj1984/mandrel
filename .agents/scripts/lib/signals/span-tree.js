@@ -251,7 +251,6 @@ function finalizeStory(state, story) {
   for (const task of taskEntries) finalizeTask(task);
   story.events.sort((ea, eb) => cmpTs(tsOf(ea), tsOf(eb)));
   story.durationMs = diffMs(story.startedAt, story.endedAt);
-  story.tasks = taskEntries;
 }
 
 /**
