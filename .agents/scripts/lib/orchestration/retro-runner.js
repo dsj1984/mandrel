@@ -27,7 +27,7 @@
  * Behaviour:
  *   - Reads child Stories' `story-perf-summary` comments to aggregate
  *     `frictionByCategory` totals (Story #1046 unified-summary path).
- *   - Reads child Tasks' label sets to count hotfixes (`status::blocked`)
+ *   - Reads child Stories' label sets to count hotfixes (`status::blocked`)
  *     and HITL pause events (`agent::blocked`).
  *   - Reads the Epic's `parked-follow-ons` structured comment for the
  *     parked + recut counts (with a fallback to per-Story body grep on the

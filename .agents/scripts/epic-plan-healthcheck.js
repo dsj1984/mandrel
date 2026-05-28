@@ -135,8 +135,8 @@ function checkGitRemote(baseBranch, cwd) {
 /**
  * Detect whether a Story body carries an inline `## Acceptance` section with
  * at least one checklist item. Epic #3078 — under 3-tier hierarchy, Stories
- * replace Task children with inline acceptance, so the hierarchy check uses
- * this signal in place of "has child Tasks".
+ * carry acceptance inline, so the hierarchy check uses this signal as the
+ * mark of a complete, executable Story.
  *
  * @param {string} body
  * @returns {boolean}

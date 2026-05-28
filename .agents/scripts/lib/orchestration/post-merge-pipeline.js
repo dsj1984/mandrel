@@ -7,7 +7,7 @@
  *
  *   1. worktree-reap       — remove the per-Story worktree.
  *   2. branch-cleanup      — delete the Story branch (local + remote).
- *   3. ticket-closure      — transition child Tasks + Story to agent::done
+ *   3. ticket-closure      — transition the Story to agent::done
  *                            and run cascade completion.
  *   4. notification        — fire the story-complete webhook.
  *   5. dashboard-refresh   — regenerate the dispatch manifest.

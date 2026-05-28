@@ -145,8 +145,8 @@ function resolveTestSurface(sizingProfile, sizing) {
 }
 
 /**
- * Compute the hard + soft sizing findings for a single Story (or Task in
- * 4-tier mode) across all layers: acceptance ceiling, per-profile changes
+ * Compute the hard + soft sizing findings for a single Story across all
+ * layers: acceptance ceiling, per-profile changes
  * ceiling, sizingProfile hint, glob-awareness, and test-surface gates
  * (Feature 6, Story #3235).
  *

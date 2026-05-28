@@ -1,16 +1,15 @@
 /**
  * phases/ticket-closure.js — post-merge ticket transition + cascade phase.
  *
- * Transitions every child Task ticket to `agent::done`, then the Story
- * itself, then runs cascade completion so any parent Feature/Epic that
- * is now fully resolved closes too.
+ * Transitions the Story to `agent::done`, then runs cascade completion
+ * so any parent Feature/Epic that is now fully resolved closes too.
  *
- * **3-tier (Storyless) closure (Story #3127).** Under the 3-tier
- * hierarchy a Story has no child Tasks — `tasks` arrives as an empty
- * array. `batchTransitionTickets` handles the empty input cleanly
- * (the loop trivially completes), the Story is transitioned alone,
- * and cascade completion walks upward to Feature/Epic exactly as in
- * the 4-tier path. No branch on hierarchy mode is required here.
+ * **3-tier closure (Story #3127).** Under the 3-tier hierarchy a Story
+ * is the leaf unit of execution and has no child tickets — `tasks`
+ * arrives as an empty array. `batchTransitionTickets` handles the empty
+ * input cleanly (the loop trivially completes), the Story is
+ * transitioned alone, and cascade completion walks upward to
+ * Feature/Epic. No branch on hierarchy mode is required here.
  *
  * Notifications are intentionally
  * NOT routed through the per-ticket transitions here — `notificationPhase`
@@ -35,10 +34,13 @@ export async function ticketClosurePhase(ctx) {
   // transitions here. `notificationPhase` fires a single consolidated
   // story-complete message immediately after this phase; passing notify
   // through would emit redundant state-transition events (one from the
-  // cascade-up triggered by the last child Task, one from the explicit
+  // cascade-up triggered by any child ticket, one from the explicit
   // Story toDone below) that show up as duplicate Slack/webhook lines per
   // story close.
-  log('TICKETS', `Transitioning ${tasks.length} Task(s) to agent::done...`);
+  log(
+    'TICKETS',
+    `Transitioning ${tasks.length} child ticket(s) to agent::done...`,
+  );
   const batch = await batchTransitionTickets(
     provider,
     tasks,
