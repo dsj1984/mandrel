@@ -820,6 +820,71 @@ const DELIVERY_SCHEMA = {
  * now reads the canonical `project` / `github` / `planning` / `delivery`
  * blocks directly.
  */
+// ---------------------------------------------------------------------------
+// qa.* — Agent-driven QA harness contract (Epic #3214)
+// ---------------------------------------------------------------------------
+
+const QA_SIGN_IN_SEAM_SCHEMA = {
+  oneOf: [
+    {
+      type: 'object',
+      properties: {
+        urlTemplate: { ...SAFE_STRING, minLength: 1 },
+      },
+      required: ['urlTemplate'],
+      additionalProperties: false,
+    },
+    {
+      type: 'object',
+      properties: {
+        skill: { ...SAFE_STRING, minLength: 1 },
+      },
+      required: ['skill'],
+      additionalProperties: false,
+    },
+  ],
+};
+
+const QA_PERSONAS_SCHEMA = {
+  type: 'object',
+  additionalProperties: {
+    oneOf: [
+      {
+        type: 'object',
+        properties: {
+          credentialRef: { ...SAFE_STRING, minLength: 1 },
+        },
+        required: ['credentialRef'],
+        additionalProperties: false,
+      },
+      {
+        type: 'object',
+        properties: {
+          signInSkill: { ...SAFE_STRING, minLength: 1 },
+        },
+        required: ['signInSkill'],
+        additionalProperties: false,
+      },
+    ],
+  },
+};
+
+const QA_SCHEMA = {
+  type: 'object',
+  properties: {
+    featureRoot: { ...SAFE_STRING, minLength: 1 },
+    fixturesManifest: { ...SAFE_STRING, minLength: 1 },
+    signInSeam: QA_SIGN_IN_SEAM_SCHEMA,
+    personas: QA_PERSONAS_SCHEMA,
+    consoleAllowlist: {
+      type: 'array',
+      items: { ...SAFE_STRING, minLength: 1 },
+    },
+    designTokens: { ...SAFE_STRING, minLength: 1 },
+  },
+  additionalProperties: false,
+};
+
 export const AGENTRC_SCHEMA = {
   type: 'object',
   required: ['project'],
@@ -829,6 +894,7 @@ export const AGENTRC_SCHEMA = {
     github: GITHUB_SCHEMA,
     planning: PLANNING_SCHEMA,
     delivery: DELIVERY_SCHEMA,
+    qa: QA_SCHEMA,
   },
   additionalProperties: false,
 };
