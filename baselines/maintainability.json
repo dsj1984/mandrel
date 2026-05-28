@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-27T23:41:11.254Z",
+  "generatedAt": "2026-05-28T00:17:59.852Z",
   "rollup": {
     "*": {
       "min": 38.161,
@@ -1075,10 +1075,6 @@
       "mi": 102.961
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
-      "mi": 88.768
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/error-journal.js",
       "mi": 99.718
     },
@@ -1329,10 +1325,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/reassert-status-column.js",
       "mi": 86.111
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/reconciler.js",
-      "mi": 107.628
     },
     {
       "path": ".agents/scripts/lib/orchestration/recut.js",

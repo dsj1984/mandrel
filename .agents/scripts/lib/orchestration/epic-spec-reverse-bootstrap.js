@@ -65,7 +65,20 @@ import { AGENT_LABELS, TYPE_LABELS } from '../label-constants.js';
 import { specPath, writeState } from '../spec/loader.js';
 import { buildState } from '../spec/state.js';
 import { renderSpec } from './spec-renderer.js';
-import { parseParentId } from './story-grouper.js';
+
+/**
+ * Parse the direct parent ID from a ticket body. Matches the canonical
+ * `parent: #<id>` line emitted by `renderOrchestratorFooter`. Inlined
+ * here so the reverse-bootstrap projection does not pull a legacy 4-tier
+ * helper module into the 3-tier hierarchy graph (Epic #3163 / Story #3190).
+ *
+ * @param {string} body
+ * @returns {number|null}
+ */
+function parseParentId(body) {
+  const match = (body ?? '').match(/^parent:\s*#(\d+)/m);
+  return match ? Number.parseInt(match[1], 10) : null;
+}
 
 /**
  * Stable structured-error code for the quiescence-refusal path. Log
@@ -198,18 +211,21 @@ function deriveSlug(ticket, seen) {
 
 /**
  * Determine the structural type of a child ticket from its labels.
- * Returns one of `'feature'`, `'story'`, `'task'`, or `null` when no
- * structural label is present (the ticket is then silently dropped — it
- * is not part of the spec's hierarchy).
+ * Returns one of `'feature'`, `'story'`, or `null` when no structural
+ * label is present (the ticket is then silently dropped — it is not
+ * part of the spec's hierarchy).
+ *
+ * Under the 3-tier hierarchy (Epic → Feature → Story) there is no
+ * Task tier; legacy task-tier tickets on retrofitted Epics are
+ * dropped here so the projected spec stays 3-tier-clean.
  *
  * @param {{labels?: string[]}} ticket
- * @returns {'feature'|'story'|'task'|null}
+ * @returns {'feature'|'story'|null}
  */
 function classifyTicket(ticket) {
   const labels = Array.isArray(ticket?.labels) ? ticket.labels : [];
   if (labels.includes(TYPE_LABELS.FEATURE)) return 'feature';
   if (labels.includes(TYPE_LABELS.STORY)) return 'story';
-  if (labels.includes('type::task')) return 'task';
   return null;
 }
 
@@ -253,7 +269,7 @@ export function buildBootstrapInputs(epic, tickets) {
 
   // Partition + sort by ascending issue number so slug allocation is
   // deterministic across runs.
-  const byType = { feature: [], story: [], task: [] };
+  const byType = { feature: [], story: [] };
   for (const t of safeTickets) {
     if (!t || typeof t.id !== 'number') continue;
     if (t.id === epic.id) continue; // Epic itself is supplied separately.
@@ -268,19 +284,19 @@ export function buildBootstrapInputs(epic, tickets) {
   // Phase 1: allocate slugs. Issue id → slug.
   const issueToSlug = new Map();
   const seen = new Set();
-  for (const type of /** @type {const} */ (['feature', 'story', 'task'])) {
+  for (const type of /** @type {const} */ (['feature', 'story'])) {
     for (const t of byType[type]) {
       const slug = deriveSlug({ id: t.id, title: t.title, type }, seen);
       issueToSlug.set(t.id, slug);
     }
   }
 
-  // Phase 2: resolve parent / depends_on edges. Tasks may parent to a
-  // Story; Stories may parent to a Feature; Features parent to the Epic
-  // (represented as the empty `parent_slug` so the renderer treats them
-  // as top-level).
+  // Phase 2: resolve parent / depends_on edges. Stories parent to a
+  // Feature; Features parent to the Epic (represented as the empty
+  // `parent_slug` so the renderer treats them as top-level). Under the
+  // 3-tier hierarchy there is no Task tier.
   const flatTickets = [];
-  for (const type of /** @type {const} */ (['feature', 'story', 'task'])) {
+  for (const type of /** @type {const} */ (['feature', 'story'])) {
     for (const t of byType[type]) {
       const slug = issueToSlug.get(t.id);
       const parentId = parseParentId(t.body);
@@ -385,12 +401,6 @@ export function buildBootstrapState(spec, issueToSlug, opts = {}) {
         wave: typeof story.wave === 'number' ? story.wave : 0,
         dependsOn: Array.isArray(story.dependsOn) ? [...story.dependsOn] : [],
       });
-      for (const task of story.tasks ?? []) {
-        structuralByslug.set(task.slug, {
-          entity: 'task',
-          parentSlug: story.slug,
-        });
-      }
     }
   }
 
