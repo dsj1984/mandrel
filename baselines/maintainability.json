@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T11:49:48.560Z",
+  "generatedAt": "2026-05-28T13:34:56.249Z",
   "rollup": {
     "*": {
       "min": 38.161,
-      "p50": 103.753,
+      "p50": 103.714,
       "p95": 121.479
     }
   },
@@ -225,10 +225,6 @@
     {
       "path": ".agents/scripts/lib/audit-suite/workflow-loader.js",
       "mi": 115.677
-    },
-    {
-      "path": ".agents/scripts/lib/audit-to-stories/build-story-body.js",
-      "mi": 116.249
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/dedupe-against-github.js",
@@ -2285,10 +2281,6 @@
     {
       "path": "tests/audit-suite/workflow-loader.test.js",
       "mi": 115.765
-    },
-    {
-      "path": "tests/audit-to-stories/build-story-body.test.js",
-      "mi": 109.723
     },
     {
       "path": "tests/audit-to-stories/dedupe-against-github.test.js",
