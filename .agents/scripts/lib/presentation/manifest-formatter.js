@@ -25,13 +25,11 @@ import { createHash } from 'node:crypto';
 import { buildManifestFromSpec } from './manifest-builder.js';
 import {
   computeProgress,
-  computeStoryProgress,
   deriveStorySymbol,
   deriveWaveStatus,
   renderProgressBar,
   renderWaveSections,
   slugifyHeading,
-  topoSortTasks,
   waveHeadingText,
 } from './manifest-helpers.js';
 import { renderProceduresAndLegendDetails } from './manifest-procedures.js';
@@ -50,7 +48,6 @@ import {
 export {
   buildManifestFromSpec,
   computeProgress,
-  computeStoryProgress,
   deriveStorySymbol,
   deriveWaveStatus,
   formatStoryManifestMarkdown,
@@ -61,7 +58,6 @@ export {
   renderProgressBar,
   renderWaveSections,
   slugifyHeading,
-  topoSortTasks,
   waveHeadingText,
 };
 

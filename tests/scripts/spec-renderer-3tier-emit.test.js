@@ -15,11 +15,10 @@
  *   2. The Story's inline `acceptance` and `verify` arrays are projected
  *      onto the rendered Story output (so the 3-tier execution loop has
  *      the Goal/Changes/Acceptance/Verify surface it expects).
- *   3. A 4-tier ticket array (Stories with `type::task` children) still
- *      emits a populated `tasks: [...]` array — this is back-compat for
- *      any in-flight 4-tier specs. Schema-validation is disabled for that
- *      case because the v3.0.0 schema no longer admits Story.tasks; the
- *      full producer rewrite is tracked under Epic #3163.
+ *   3. A 4-tier ticket array (Stories with `type::task` children) now
+ *      raises a 3-tier-guard error in `indexTickets`. Epic #3163 / Story
+ *      #3192 rewrote the renderer to drop Task-tier emission entirely;
+ *      Task tickets in the input are a hard contract violation.
  */
 
 import assert from 'node:assert/strict';
@@ -199,25 +198,16 @@ describe('spec-renderer — 3-tier emission (hotfix for Epic #3163 blocker)', ()
   });
 });
 
-describe('spec-renderer — 4-tier back-compat (Story.tasks still emitted)', () => {
-  it('emits populated Story.tasks when the input carries Task children', () => {
-    // validate:false because the v3.0.0 schema no longer admits
-    // Story.tasks; this case only proves the renderer still emits
-    // the legacy shape for in-flight 4-tier specs. Epic #3163 tracks
-    // the full producer rewrite.
-    const spec = renderSpec(build4TierTickets(), {
-      epic: EPIC,
-      validate: false,
-    });
-    const story = spec.features[0].stories[0];
-    assert.ok(Array.isArray(story.tasks), 'tasks[] should be present');
-    assert.equal(story.tasks.length, 2);
-    assert.deepEqual(
-      story.tasks.map((t) => t.slug),
-      ['task-x1', 'task-x2'],
+describe('spec-renderer — Task tickets rejected (Epic #3163 rewrite)', () => {
+  it('throws a 3-tier-guard error when the input carries any type:"task" ticket', () => {
+    // Epic #3163 rewrote the renderer to drop Task-tier emission
+    // entirely. The 4-tier back-compat path that previously emitted
+    // a populated `Story.tasks` array is gone; a Task ticket in the
+    // input is now a hard contract violation that raises in
+    // `indexTickets` before any spec is built.
+    assert.throws(
+      () => renderSpec(build4TierTickets(), { epic: EPIC, validate: false }),
+      /3-tier hierarchy/,
     );
-    // Structured Task body should render as markdown projection.
-    assert.match(story.tasks[0].body, /## Goal/);
-    assert.match(story.tasks[0].body, /## Verify/);
   });
 });

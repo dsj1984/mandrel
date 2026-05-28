@@ -6,7 +6,7 @@
  *
  *   1. dispatchRecovery     — prior-state detection + --resume / --restart
  *      dispatch
- *   2. fetchChildTasks      — hydrate the cascade target set
+ *   2. fetchChildTickets      — hydrate the cascade target set
  *   3. phase-timer restore  — pick up the snapshot story-init wrote
  *   4. gates                — pre-merge validation (skipped on resume)
  *   5. refresh              — bounded baseline auto-refresh (gates ok path)
@@ -19,7 +19,7 @@
  */
 
 import { Logger } from '../../../Logger.js';
-import { fetchChildTasks } from '../../../story-lifecycle.js';
+import { fetchChildTickets } from '../../../story-lifecycle.js';
 import { createPhaseTimer } from '../../../util/phase-timer.js';
 import {
   clearPhaseTimerState,
@@ -149,7 +149,7 @@ export async function runStoryCloseLocked(args) {
       logger: Logger,
     });
 
-  const tasks = await fetchChildTasks(provider, storyId);
+  const tasks = await fetchChildTickets(provider, storyId);
   provider.primeTicketCache([story, ...tasks]);
   progress('TASKS', `Found ${tasks.length} child Task(s)`);
 

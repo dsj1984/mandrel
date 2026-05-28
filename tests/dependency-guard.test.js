@@ -44,6 +44,25 @@ test('validateBlockersMerged — merged blockers proceed (ok=true)', () => {
   assert.deepStrictEqual(result.blockers, []);
 });
 
+test('validateBlockersMerged — task-less wave-fallback blockers defer to live blocked-by gate (3-tier)', () => {
+  // 3-tier hierarchy: Stories carry no child Tasks, so manifest entries
+  // have empty `tasks` arrays. The wave-fallback heuristic still discovers
+  // earlier-wave peers as *potential* blockers, but a task-less Story holds
+  // no merge-evidence in the manifest — classifying it as unmerged would
+  // be a pure false positive that blocks every wave-1+ Story forever. The
+  // guard must skip such entries and defer to the live `blocked by` gate.
+  const manifest = makeManifest({
+    stories: [
+      { storyId: 100, storyTitle: 'Wave 0', earliestWave: 0, tasks: [] },
+      { storyId: 150, storyTitle: 'Wave 0b', earliestWave: 0, tasks: [] },
+      { storyId: 200, storyTitle: 'Wave 1', earliestWave: 1, tasks: [] },
+    ],
+  });
+  const result = validateBlockersMerged(manifest, 200);
+  assert.strictEqual(result.ok, true);
+  assert.deepStrictEqual(result.blockers, []);
+});
+
 test('validateBlockersMerged — unmerged blockers reported with state + url', () => {
   const manifest = makeManifest({
     repoSlug: 'acme/repo',
@@ -118,10 +137,24 @@ test('validateBlockersMerged — story not in manifest returns ok=true', () => {
 });
 
 test('validateBlockersMerged — wave-fallback when task graph is unavailable', () => {
+  // Wave-fallback fires when the TARGET Story has no parseable task graph
+  // (empty tasks), discovering earlier-wave peers as potential blockers.
+  // Task-bearing blockers that are not all-done are reported; task-less
+  // blockers defer to the live gate (covered by the 3-tier test above).
   const manifest = makeManifest({
     stories: [
-      { storyId: 100, storyTitle: 'Wave 0', earliestWave: 0, tasks: [] },
-      { storyId: 150, storyTitle: 'Wave 0b', earliestWave: 0, tasks: [] },
+      {
+        storyId: 100,
+        storyTitle: 'Wave 0',
+        earliestWave: 0,
+        tasks: [{ taskId: 1001, status: 'agent::ready', dependencies: [] }],
+      },
+      {
+        storyId: 150,
+        storyTitle: 'Wave 0b',
+        earliestWave: 0,
+        tasks: [{ taskId: 1501, status: 'agent::ready', dependencies: [] }],
+      },
       { storyId: 200, storyTitle: 'Wave 1', earliestWave: 1, tasks: [] },
     ],
   });
@@ -131,8 +164,8 @@ test('validateBlockersMerged — wave-fallback when task graph is unavailable', 
     result.blockers.map((b) => b.id),
     [100, 150],
   );
-  // No task data → state summary defaults to "unknown".
-  for (const b of result.blockers) assert.strictEqual(b.state, 'unknown');
+  for (const b of result.blockers)
+    assert.strictEqual(b.state, '0/1 tasks done');
 });
 
 test('validateBlockersMerged — task-graph beats wave-fallback when both present', () => {

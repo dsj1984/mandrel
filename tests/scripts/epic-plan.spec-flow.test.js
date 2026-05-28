@@ -191,7 +191,9 @@ function buildStubProvider({ epicId, epicTitle }) {
 
 /**
  * Tickets fixture covering the minimum spec shape the renderer accepts:
- * one Feature, two Stories (one with an inter-Story dep), two Tasks.
+ * one Feature and two Stories (one with an inter-Story dep). Under the
+ * 3-tier hierarchy (Epic #3078) Stories carry inline acceptance[] /
+ * verify[] arrays directly — there is no Task tier.
  */
 function buildFixtureTickets() {
   return [
@@ -212,6 +214,8 @@ function buildFixtureTickets() {
       labels: ['type::story'],
       parent_slug: 'feature-a',
       depends_on: [],
+      acceptance: ['thing done'],
+      verify: ['npm test'],
     },
     {
       slug: 'story-two',
@@ -221,41 +225,13 @@ function buildFixtureTickets() {
       labels: ['type::story'],
       parent_slug: 'feature-a',
       depends_on: ['story-one'],
-    },
-    {
-      slug: 'task-one',
-      type: 'task',
-      title: 'Task One',
-      body: {
-        goal: 'do thing',
-        changes: ['package.json: change a thing'],
-        acceptance: ['thing done'],
-        verify: ['npm test'],
-      },
-      labels: ['type::task'],
-      parent_slug: 'story-one',
-      depends_on: [],
-    },
-    {
-      slug: 'task-two',
-      type: 'task',
-      title: 'Task Two',
-      body: {
-        goal: 'do another thing',
-        changes: ['package.json: change another thing'],
-        acceptance: ['another thing done'],
-        verify: ['npm test'],
-      },
-      labels: ['type::task'],
-      parent_slug: 'story-two',
-      depends_on: [],
+      acceptance: ['another thing done'],
+      verify: ['npm test'],
     },
   ];
 }
 
-// Pending follow-on Epic #3163: epic-plan still emits 4-tier specs through the
-// renderer. Reinstate after the renderer is rewritten to emit 3-tier.
-describe.skip('epic-plan spec-flow integration', () => {
+describe('epic-plan spec-flow integration', () => {
   it('renders + writes the spec yaml and invokes the reconciler child process', async () => {
     const provider = buildStubProvider({
       epicId: EPIC_ID,
@@ -393,14 +369,8 @@ describe.skip('epic-plan spec-flow integration', () => {
       state.mapping && typeof state.mapping === 'object',
       'state.mapping must be present',
     );
-    // Spec slugs are: feature-a, story-one, story-two, task-one, task-two.
-    const expectedSlugs = [
-      'feature-a',
-      'story-one',
-      'story-two',
-      'task-one',
-      'task-two',
-    ];
+    // Spec slugs are: feature-a, story-one, story-two (3-tier — no Task tier).
+    const expectedSlugs = ['feature-a', 'story-one', 'story-two'];
     for (const slug of expectedSlugs) {
       assert.ok(
         slug in state.mapping,

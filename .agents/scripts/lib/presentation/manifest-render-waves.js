@@ -19,12 +19,28 @@
 
 import { AGENT_LABELS } from '../label-constants.js';
 import {
-  computeStoryProgress,
   deriveStorySymbol,
   deriveWaveStatus,
-  topoSortTasks,
   waveHeadingText,
 } from './manifest-helpers.js';
+
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute per-Story aggregates for the nested wave layout: a 0..100
+ * progress percent and the done/total task counts. Pure.
+ *
+ * @param {{ tasks?: Array<{ status?: string }> }} story
+ * @returns {{ pct: number, done: number, total: number }}
+ */
+function computeStoryProgress(story) {
+  const tasks = story?.tasks ?? [];
+  const total = tasks.length;
+  const done = tasks.filter((t) => t.status === AGENT_LABELS.DONE).length;
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  return { pct, done, total };
+}
 
 /**
  * Private: shape-guard for the per-level nodes touched by the wave
@@ -95,12 +111,12 @@ function groupStoriesByWave(waveStories) {
     const w = story.earliestWave ?? -1;
     if (!waveGroups.has(w)) {
       waveGroups.set(w, []);
-      waveStats.set(w, { stories: 0, tasks: 0, done: 0 });
+      waveStats.set(w, { stories: 0, total: 0, done: 0 });
     }
     waveGroups.get(w).push(story);
     const stat = waveStats.get(w);
     stat.stories++;
-    stat.tasks += story.tasks.length;
+    stat.total += story.tasks.length;
     stat.done += story.tasks.filter(
       (t) => t.status === AGENT_LABELS.DONE,
     ).length;
@@ -109,45 +125,18 @@ function groupStoriesByWave(waveStories) {
 }
 
 /**
- * Render the inline checkbox task list under one Story heading, with
- * `*(after #N)*` callouts for in-Story dependencies only.
+ * Render the inline body shown under one Story H3. Under the 3-tier
+ * hierarchy (Epic #3163) Stories are leaves — they have no child Task
+ * tickets, so the renderer surfaces a single marker rather than the
+ * legacy per-Task checkbox list. The marker is intentionally identical
+ * to the empty-tasks fallback so the layout stays stable when a sibling
+ * producer transitions from emitting `tasks: []` to omitting the field
+ * entirely.
  *
- * @param {object} story
  * @returns {string[]} lines
  */
-function renderStoryTaskList(story) {
-  if (story.tasks.length === 0) return ['_(no tasks)_'];
-
-  const lines = [];
-  // Order Tasks root → blocked-last so the manifest reads in execution
-  // order. Annotate each Task that has any in-Story dependency with the
-  // most-recent dep (Story #1194 Task #1213) — "most recent" is the dep
-  // whose work has to land last for this Task to unblock.
-  const sortedTasks = topoSortTasks(story.tasks);
-  const inStoryIds = new Set(story.tasks.map((t) => String(t.taskId)));
-  const positionInSort = new Map(
-    sortedTasks.map((t, idx) => [String(t.taskId), idx]),
-  );
-  for (const task of sortedTasks) {
-    const isDone = task.status === AGENT_LABELS.DONE;
-    const checkbox = isDone ? '[x]' : '[ ]';
-    const taskTitle = task.taskSlug || task.title || '';
-    const inStoryDeps = (task.dependencies ?? []).filter((d) =>
-      inStoryIds.has(String(d)),
-    );
-    let suffix = '';
-    if (inStoryDeps.length > 0) {
-      const latest = inStoryDeps.reduce((a, b) =>
-        (positionInSort.get(String(a)) ?? -1) >
-        (positionInSort.get(String(b)) ?? -1)
-          ? a
-          : b,
-      );
-      suffix = ` *(after #${latest})*`;
-    }
-    lines.push(`- ${checkbox} #${task.taskId} — ${taskTitle}${suffix}`);
-  }
-  return lines;
+function renderStoryTaskList() {
+  return ['_(no tasks)_'];
 }
 
 /**
@@ -186,7 +175,7 @@ export function renderNestedWaveSections(storyManifest) {
 
     const tail = pickWaveTail(status, waveIdx, sortedWaves, stories.length);
     lines.push(
-      `> ${stories.length} stor${stories.length === 1 ? 'y' : 'ies'} · ${stat.done}/${stat.tasks} tasks${tail}`,
+      `> ${stories.length} stor${stories.length === 1 ? 'y' : 'ies'} · ${stat.done}/${stat.total} tasks${tail}`,
     );
     lines.push('');
 
@@ -198,9 +187,7 @@ export function renderNestedWaveSections(storyManifest) {
         `### ${symbol} #${story.storyId} — ${titleCandidate} · ${sp.done}/${sp.total} tasks`,
       );
       lines.push('');
-      const tasksList = validateWaveSection('tasks', story.tasks)
-        ? renderStoryTaskList(story)
-        : ['_(no tasks)_'];
+      const tasksList = renderStoryTaskList();
       for (const line of tasksList) lines.push(line);
       lines.push('');
     }

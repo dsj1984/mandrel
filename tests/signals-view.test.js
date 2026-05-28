@@ -127,27 +127,13 @@ describe('signals-view — argument parsing', () => {
 });
 
 describe('signals-view — happy path', () => {
-  it('renders a Story → Task tree from a signals stream', async () => {
+  it('renders a Story tree from a signals stream', async () => {
     await writeSignalsFile(workRoot, 1181, 1438, [
       {
         kind: 'wave-start',
         ts: '2026-05-11T00:00:00.000Z',
         epic: 1181,
         story: 1438,
-      },
-      {
-        kind: 'state-transition',
-        ts: '2026-05-11T00:00:10.000Z',
-        epic: 1181,
-        story: 1438,
-        task: 1461,
-      },
-      {
-        kind: 'state-transition',
-        ts: '2026-05-11T00:00:20.000Z',
-        epic: 1181,
-        story: 1438,
-        task: 1461,
       },
       {
         kind: 'wave-end',
@@ -168,7 +154,6 @@ describe('signals-view — happy path', () => {
     assert.equal(exitCode, 0);
     assert.match(out, /Epic #1181/);
     assert.match(out, /Story #1438/);
-    assert.match(out, /Task #1461/);
     // Duration is computed from wave-start → wave-end (60s).
     assert.match(out, /1m0\.0s/);
   });

@@ -122,6 +122,7 @@ function buildFixturePair() {
         type: 'story',
         branchName: 'story-101',
         earliestWave: 0,
+        status: 'agent::executing',
         tasks: [
           {
             taskId: 201,
@@ -144,6 +145,7 @@ function buildFixturePair() {
         type: 'story',
         branchName: 'story-102',
         earliestWave: 1,
+        status: 'agent::ready',
         tasks: [
           {
             taskId: 203,
@@ -219,11 +221,14 @@ test('fromSpec falls back to slug:<slug> ids + agent::ready when state mapping i
   __resetManifestFormatterCache();
   const md = fromSpec(spec, { generatedAt: GENERATED_AT });
   // The Story id surfaces as the slug-sentinel string and the renderer
-  // emits it verbatim into the H3 + checkbox lines. No throw. The H3
-  // carries the spec-author title; the Task checkbox carries the slug.
+  // emits it verbatim into the H3. No throw. Under the 3-tier hierarchy
+  // (Epic #3163, Story #3196) Stories are leaves; the per-Story body
+  // collapses to the empty-tasks marker and the renderer no longer
+  // emits per-Task checkbox rows.
   assert.match(md, /Lonely Story/);
   assert.match(md, /#slug:lonely-story/);
-  assert.match(md, /- \[ \] #slug:lonely-task — lonely-task/);
+  assert.match(md, /_\(no tasks\)_/);
+  assert.doesNotMatch(md, /- \[ \] #slug:lonely-task — lonely-task/);
   // doneTasks should be 0 (fallback status is agent::ready, not agent::done).
   assert.match(md, /0\/1 tasks/);
 });

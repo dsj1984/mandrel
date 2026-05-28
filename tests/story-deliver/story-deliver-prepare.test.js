@@ -235,7 +235,7 @@ test('runStoryDeliverPrepare: 3-tier hierarchy emits phases[] snapshot (init/imp
       hierarchy: '3-tier',
     }),
   ]);
-  // Belt-and-braces: if the prepare CLI falls back to fetchChildTasks for
+  // Belt-and-braces: if the prepare CLI falls back to fetchChildTickets for
   // an empty list, this stub returns nothing so any regression would
   // produce an empty `tasks[]` payload rather than silently passing.
   provider.getSubTickets = async () => [];

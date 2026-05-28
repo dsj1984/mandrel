@@ -10,7 +10,7 @@
 import { parseBlockedBy } from '../dependency-parser.js';
 import { buildGraph, detectCycle, topologicalSort } from '../Graph.js';
 import { Logger } from '../Logger.js';
-import { fetchChildTasks } from '../story-lifecycle.js';
+import { fetchChildTickets } from '../story-lifecycle.js';
 
 /**
  * Detect whether a Story body carries inline acceptance criteria, the
@@ -82,7 +82,7 @@ export async function buildTaskGraph({ provider, logger, input }) {
   const warn = logger?.warn ?? ((msg) => Logger.error(msg));
   const progress = logger?.progress ?? (() => {});
 
-  const tasks = await fetchChildTasks(provider, storyId);
+  const tasks = await fetchChildTickets(provider, storyId);
 
   const inlineAcceptance = hasInlineAcceptance(storyBody);
   const mode = tasks.length === 0 && inlineAcceptance ? '3-tier' : '4-tier';

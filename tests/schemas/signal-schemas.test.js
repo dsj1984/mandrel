@@ -61,7 +61,6 @@ describe('signal-event.schema.json', () => {
       source: { tool: 'Bash', script: 'diagnose-friction.js' },
       epicId: 1030,
       storyId: 1042,
-      taskId: 1071,
       phase: 'implement',
       details: {
         category: 'Execution Error',
@@ -108,11 +107,11 @@ describe('signal-event.schema.json', () => {
     assert.equal(ok, false);
   });
 
-  // Story #3143 — Storyless event payloads. Under the 3-tier hierarchy
-  // there is no parent Task, so the tool-trace-hook (and any other
-  // signal emitter) omits or nulls `taskId`. Both shapes MUST validate
-  // and the 4-tier carrying-a-taskId shape MUST continue to validate
-  // (no regression).
+  // Story #3203 — `taskId` removed from the signal-event schema as part
+  // of the Epic #3163 Task-tier producer rewrite. Under the 3-tier
+  // hierarchy there is no parent Task ticket, so the field has no
+  // referent. `additionalProperties: false` means any leftover emitter
+  // that still ships `taskId` MUST be rejected.
   it('accepts a 3-tier signal event with taskId omitted (Storyless)', () => {
     const validate = compile(schema);
     const ok = validate({
@@ -121,12 +120,11 @@ describe('signal-event.schema.json', () => {
       source: { tool: 'Bash' },
       epicId: 3078,
       storyId: 3143,
-      // taskId intentionally omitted (3-tier: no Task ticket exists)
     });
     assert.equal(ok, true, JSON.stringify(validate.errors));
   });
 
-  it('accepts a 3-tier signal event with taskId explicitly null', () => {
+  it('rejects a signal event carrying legacy taskId (4-tier removed)', () => {
     const validate = compile(schema);
     const ok = validate({
       ts: '2026-05-27T16:00:00.000Z',
@@ -138,10 +136,14 @@ describe('signal-event.schema.json', () => {
       phase: null,
       details: { tool: 'Bash', durationMs: 12 },
     });
-    assert.equal(ok, true, JSON.stringify(validate.errors));
+    assert.equal(
+      ok,
+      false,
+      'taskId must be rejected under additionalProperties:false',
+    );
   });
 
-  it('continues to accept a 4-tier signal event carrying taskId (no regression)', () => {
+  it('rejects a signal event carrying legacy taskId integer (4-tier removed)', () => {
     const validate = compile(schema);
     const ok = validate({
       ts: '2026-05-27T16:00:00.000Z',
@@ -153,7 +155,11 @@ describe('signal-event.schema.json', () => {
       phase: 'implement',
       details: { category: 'Execution Error' },
     });
-    assert.equal(ok, true, JSON.stringify(validate.errors));
+    assert.equal(
+      ok,
+      false,
+      'taskId must be rejected under additionalProperties:false',
+    );
   });
 });
 

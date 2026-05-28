@@ -38,4 +38,60 @@ describe('resolveAndDispatch — conflicting type-label guard', () => {
       },
     );
   });
+
+  it('refuses to dispatch a Story directly and points at /story-deliver', async () => {
+    const provider = new MockProvider({
+      tickets: {
+        104: { id: 104, labels: ['type::story'], body: '', state: 'open' },
+      },
+    });
+
+    await assert.rejects(
+      () => resolveAndDispatch({ ticketId: 104, provider, dryRun: true }),
+      (err) => {
+        assert.match(err.message, /Story/);
+        assert.match(err.message, /story-deliver 104/);
+        return true;
+      },
+    );
+  });
+
+  it('refuses to dispatch a Feature container directly', async () => {
+    const provider = new MockProvider({
+      tickets: {
+        77: {
+          id: 77,
+          labels: ['type::feature'],
+          body: 'parent: #70',
+          state: 'open',
+        },
+      },
+    });
+
+    await assert.rejects(
+      () => resolveAndDispatch({ ticketId: 77, provider, dryRun: true }),
+      (err) => {
+        assert.match(err.message, /Feature/);
+        assert.match(err.message, /cannot be executed directly/);
+        return true;
+      },
+    );
+  });
+
+  it('refuses to dispatch a ticket with an unrecognised type label', async () => {
+    const provider = new MockProvider({
+      tickets: {
+        88: { id: 88, labels: ['type::chore'], body: '', state: 'open' },
+      },
+    });
+
+    await assert.rejects(
+      () => resolveAndDispatch({ ticketId: 88, provider, dryRun: true }),
+      (err) => {
+        assert.match(err.message, /type "chore"/);
+        assert.match(err.message, /epic.*or.*story/i);
+        return true;
+      },
+    );
+  });
 });

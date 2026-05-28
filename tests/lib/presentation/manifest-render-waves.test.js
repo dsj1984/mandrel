@@ -74,13 +74,15 @@ test('renderNestedWaveSections: skips non-object entries inside the manifest', (
       storyTitle: 'Alpha',
       type: 'story',
       earliestWave: 0,
-      tasks: [{ taskId: 200, taskSlug: 't1', status: 'agent::ready' }],
+      tasks: [],
     },
   ];
   const md = renderNestedWaveSections(stories);
   assert.ok(md.includes('## 🚀 Wave 0'));
-  assert.ok(md.includes('### ⬜ #101 — Alpha · 0/1 tasks'));
-  assert.ok(md.includes('- [ ] #200 — t1'));
+  assert.ok(md.includes('### ⬜ #101 — Alpha · 0/0 tasks'));
+  // Under the 3-tier hierarchy Stories are leaves — the per-Task
+  // checkbox list is collapsed to the empty marker.
+  assert.ok(md.includes('_(no tasks)_'));
 });
 
 test('renderNestedWaveSections: renders a single Ready wave with no parallel tail when story count is 1', () => {
@@ -190,18 +192,23 @@ test('renderNestedWaveSections: Story title falls back to storySlug when storyTi
   assert.ok(md.includes('### ⬜ #101 — slug-only'));
 });
 
-test('renderNestedWaveSections: task.title falls back when taskSlug missing', () => {
+test('renderNestedWaveSections: Stories never emit per-Task checkbox rows (3-tier)', () => {
+  // Under the 3-tier hierarchy Stories are leaves; the renderer no
+  // longer projects child Task tickets into checkbox rows even when a
+  // legacy caller still hands in a populated `tasks` array.
   const stories = [
     {
       storyId: 101,
       storyTitle: 'A',
       type: 'story',
       earliestWave: 0,
-      tasks: [{ taskId: 200, title: 'Long Title', status: 'agent::ready' }],
+      tasks: [{ title: 'Long Title', status: 'agent::ready' }],
     },
   ];
   const md = renderNestedWaveSections(stories);
-  assert.ok(md.includes('- [ ] #200 — Long Title'));
+  assert.ok(!md.includes('- [ ]'));
+  assert.ok(!md.includes('- [x]'));
+  assert.ok(md.includes('_(no tasks)_'));
 });
 
 test('renderNestedWaveSections: Ungrouped bucket (wave -1) renders as ungrouped heading', () => {

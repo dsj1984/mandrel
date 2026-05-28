@@ -69,32 +69,30 @@ describe('signals/span-tree — pure-function contract', () => {
     assert.deepEqual(a, b);
   });
 
-  it('input order does not affect output (events are sorted)', async () => {
+  it('input order does not affect output (Story shape stable)', async () => {
     const ordered = [
       {
-        kind: 'state-transition',
+        kind: 'wave-start',
         ts: '2026-05-11T00:00:05Z',
         epic: 1,
         story: 10,
-        task: 100,
       },
       {
-        kind: 'state-transition',
+        kind: 'wave-end',
         ts: '2026-05-11T00:00:10Z',
         epic: 1,
         story: 10,
-        task: 100,
       },
     ];
     const reversed = [...ordered].reverse();
     const a = await buildSpanTree(fromArray(ordered));
     const b = await buildSpanTree(fromArray(reversed));
     assert.deepEqual(
-      a.stories[0].tasks[0].events.map((e) => e.ts),
+      a.stories[0].events.map((e) => e.ts),
       ['2026-05-11T00:00:05Z', '2026-05-11T00:00:10Z'],
     );
     assert.deepEqual(
-      b.stories[0].tasks[0].events.map((e) => e.ts),
+      b.stories[0].events.map((e) => e.ts),
       ['2026-05-11T00:00:05Z', '2026-05-11T00:00:10Z'],
     );
   });
@@ -121,47 +119,44 @@ describe('signals/span-tree — durations', () => {
     assert.equal(tree.stories[0].durationMs, 5000);
   });
 
-  it('missing end event leaves Task durationMs null (does not throw)', async () => {
+  it('missing end event leaves Story durationMs as single-event window', async () => {
     const tree = await buildSpanTree(
       fromArray([
         {
-          kind: 'state-transition',
+          kind: 'wave-start',
           ts: '2026-05-11T00:00:00Z',
           epic: 1,
           story: 10,
-          task: 100,
         },
       ]),
     );
-    const task = tree.stories[0].tasks[0];
+    const story = tree.stories[0];
     // Only one event — startedAt === endedAt → durationMs is 0, which is
     // still "no end" semantically. We assert that the builder didn't
-    // throw and that we got the task; the durationMs reflecting a single
-    // observed event is fine.
-    assert.equal(task.startedAt, '2026-05-11T00:00:00Z');
-    assert.equal(task.endedAt, '2026-05-11T00:00:00Z');
-    assert.equal(task.durationMs, 0);
+    // throw and that we got the story.
+    assert.equal(story.startedAt, '2026-05-11T00:00:00Z');
+    assert.equal(story.endedAt, '2026-05-11T00:00:00Z');
+    assert.equal(story.durationMs, 0);
   });
 
   it('returns null durationMs when end timestamp is unparseable', async () => {
     const tree = await buildSpanTree(
       fromArray([
         {
-          kind: 'state-transition',
+          kind: 'wave-start',
           ts: 'not-a-date',
           epic: 1,
           story: 10,
-          task: 100,
         },
       ]),
     );
-    const task = tree.stories[0].tasks[0];
-    assert.equal(task.durationMs, null);
+    const story = tree.stories[0];
+    assert.equal(story.durationMs, null);
   });
 });
 
 describe('signals/span-tree — grouping', () => {
-  it('groups events by (storyId, taskId) and sorts stories/tasks ascending', async () => {
+  it('groups events by storyId and sorts stories ascending', async () => {
     const tree = await buildSpanTree(
       fromArray([
         {
@@ -169,21 +164,18 @@ describe('signals/span-tree — grouping', () => {
           ts: '2026-05-11T00:00:00Z',
           epic: 1,
           story: 20,
-          task: 200,
         },
         {
           kind: 'friction',
           ts: '2026-05-11T00:00:00Z',
           epic: 1,
           story: 10,
-          task: 100,
         },
         {
           kind: 'friction',
-          ts: '2026-05-11T00:00:00Z',
+          ts: '2026-05-11T00:00:01Z',
           epic: 1,
           story: 10,
-          task: 200,
         },
       ]),
     );
@@ -191,13 +183,11 @@ describe('signals/span-tree — grouping', () => {
       tree.stories.map((s) => s.id),
       [10, 20],
     );
-    assert.deepEqual(
-      tree.stories[0].tasks.map((t) => t.id),
-      [100, 200],
-    );
+    assert.equal(tree.stories[0].events.length, 2);
+    assert.equal(tree.stories[1].events.length, 1);
   });
 
-  it('uses legacy epicId/storyId/taskId field aliases', async () => {
+  it('uses legacy epicId/storyId field aliases', async () => {
     const tree = await buildSpanTree(
       fromArray([
         {
@@ -205,23 +195,20 @@ describe('signals/span-tree — grouping', () => {
           timestamp: '2026-05-11T00:00:00Z',
           epicId: 99,
           storyId: 9,
-          taskId: 90,
         },
       ]),
     );
     assert.equal(tree.epic, 99);
     assert.equal(tree.stories[0].id, 9);
-    assert.equal(tree.stories[0].tasks[0].id, 90);
   });
 
-  it('Story-level (no task) events land on story.events not on a task', async () => {
+  it('Story-level events land on story.events', async () => {
     const tree = await buildSpanTree(
       fromArray([
         { kind: 'wave-start', ts: '2026-05-11T00:00:00Z', epic: 1, story: 10 },
         { kind: 'wave-end', ts: '2026-05-11T00:01:00Z', epic: 1, story: 10 },
       ]),
     );
-    assert.equal(tree.stories[0].tasks.length, 0);
     assert.equal(tree.stories[0].events.length, 2);
   });
 });

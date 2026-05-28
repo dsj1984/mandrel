@@ -16,7 +16,6 @@
  *     `skipped: 'cross-repo-deferred'` and the would-be `gh issue
  *     create` invocation is logged — never shelled out across repos.
  *   - File a follow-up issue with `gh issue create` carrying:
- *       - `type::task`
  *       - `meta::audit-finding`
  *       - `meta::framework-gap` or `meta::consumer-improvement`
  *       - `audit-results::<severity>` (high|medium|low|suggestion)
@@ -377,7 +376,6 @@ export async function graduateAuditResults({
       routedRepo.repo !== currentRepo.repo;
     if (isCrossRepo) {
       const labels = [
-        'type::task',
         'meta::audit-finding',
         metaSourceLabel,
         SEVERITY_LABEL[finding.severity],
@@ -435,7 +433,6 @@ export async function graduateAuditResults({
       `_See Epic #${epicId} for the full audit-results report._`,
     ].join('\n');
     const labels = [
-      'type::task',
       'meta::audit-finding',
       metaSourceLabel,
       SEVERITY_LABEL[finding.severity],

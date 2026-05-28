@@ -24,7 +24,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, test } from 'node:test';
 
-import { tryRenderFromSpec } from '../../.agents/scripts/dispatcher.js';
+import {
+  overlayLiveTaskStateFromManifest,
+  tryRenderFromSpec,
+} from '../../.agents/scripts/dispatcher.js';
 import { SpecNotFoundError } from '../../.agents/scripts/lib/spec/index.js';
 
 // ---------------------------------------------------------------------------
@@ -156,7 +159,11 @@ test('tryRenderFromSpec returns spec-rendered Markdown when the spec is present'
   // Spec-routed render exercises the slug→issueNumber mapping in state.
   assert.match(md, /Routing Story/);
   assert.match(md, /#5001/);
-  assert.match(md, /- \[ \] #5002 — task-routing/);
+  // Under the 3-tier hierarchy (Epic #3163, Story #3196) Stories are
+  // leaves; the per-Story body collapses to the empty-tasks marker
+  // and the renderer no longer emits per-Task checkbox rows.
+  assert.match(md, /_\(no tasks\)_/);
+  assert.doesNotMatch(md, /- \[ \] #5002 — task-routing/);
   // Each loader is invoked exactly once per render.
   const { loadSpecCalls, loadStateCalls } = loaders.callCounts();
   assert.equal(loadSpecCalls, 1);
@@ -219,12 +226,11 @@ afterEach(() => {
   if (sandbox) rmSync(sandbox, { recursive: true, force: true });
 });
 
-// Pending follow-on Epic #3163: tryRenderFromSpec / spec-renderer still expect
-// Story.tasks[]. Reinstate after the renderer is rewritten to emit the
-// 3-tier shape.
-test.skip('tryRenderFromSpec round-trips through the real loader against a sandbox spec', () => {
-  // Plant a real YAML spec + a real state file in the sandbox.
-  const yaml = `epic:\n  id: 7777\n  title: 'Dispatcher Routing Fixture'\nfeatures:\n  - slug: feat-routing\n    title: 'Routing Feature'\n    stories:\n      - slug: story-routing\n        title: 'Routing Story'\n        wave: 0\n        tasks:\n          - slug: task-routing\n            title: 'Routing Task'\n`;
+test('tryRenderFromSpec round-trips through the real loader against a sandbox spec', () => {
+  // Epic #3163: Stories are leaves under the 3-tier hierarchy, so the
+  // on-disk spec carries no Story.tasks[]. The real-loader round-trip
+  // surfaces the Story and collapses its body to the empty-tasks marker.
+  const yaml = `epic:\n  id: 7777\n  title: 'Dispatcher Routing Fixture'\nfeatures:\n  - slug: feat-routing\n    title: 'Routing Feature'\n    stories:\n      - slug: story-routing\n        title: 'Routing Story'\n        wave: 0\n`;
   writeFileSync(path.join(sandbox, '7777.yaml'), yaml, 'utf8');
   writeFileSync(
     path.join(sandbox, '7777.state.json'),
@@ -238,7 +244,8 @@ test.skip('tryRenderFromSpec round-trips through the real loader against a sandb
   });
   assert.equal(typeof md, 'string');
   assert.match(md, /Routing Story/);
-  assert.match(md, /- \[ \] #5002 — task-routing/);
+  assert.match(md, /_\(no tasks\)_/);
+  assert.doesNotMatch(md, /task-routing/);
 });
 
 test('tryRenderFromSpec returns null when the sandbox spec is missing', () => {
@@ -247,4 +254,77 @@ test('tryRenderFromSpec returns null when the sandbox spec is missing', () => {
     loaderOpts: { epicsDir: sandbox },
   });
   assert.equal(md, null);
+});
+
+// ---------------------------------------------------------------------------
+// overlayLiveTaskStateFromManifest — 3-tier overlay (Epic #3163, Story #3206).
+// The runtime manifest's wave records carry `stories[]` (each with a live
+// `storyId` + `status`), not the retired Task-tier `tasks[]` shape. The
+// overlay must copy each Story's status onto the matching slug.
+// ---------------------------------------------------------------------------
+
+function buildStateWithStorySlug() {
+  return {
+    epicId: 7777,
+    mapping: {
+      'story-routing': {
+        issueNumber: 5001,
+        contentHash: 'sha256:x',
+        lastObservedAgentState: 'agent::ready',
+      },
+    },
+  };
+}
+
+test('overlayLiveTaskStateFromManifest copies live Story status onto the matching slug', () => {
+  const state = buildStateWithStorySlug();
+  const manifest = {
+    waves: [
+      {
+        waveIndex: 0,
+        stories: [{ storyId: 5001, status: 'agent::done' }],
+      },
+    ],
+  };
+  const result = overlayLiveTaskStateFromManifest(state, manifest);
+  assert.equal(
+    result.mapping['story-routing'].lastObservedAgentState,
+    'agent::done',
+  );
+});
+
+test('overlayLiveTaskStateFromManifest ignores non-agent statuses and unknown storyIds', () => {
+  const state = buildStateWithStorySlug();
+  const manifest = {
+    waves: [
+      {
+        waveIndex: 0,
+        stories: [
+          { storyId: 5001, status: 'in-progress' },
+          { storyId: 9999, status: 'agent::done' },
+        ],
+      },
+    ],
+  };
+  const result = overlayLiveTaskStateFromManifest(state, manifest);
+  // Non-`agent::*` status is not applied; unknown storyId has no slug.
+  assert.equal(
+    result.mapping['story-routing'].lastObservedAgentState,
+    'agent::ready',
+  );
+});
+
+test('overlayLiveTaskStateFromManifest is a safe no-op on null/empty inputs', () => {
+  assert.equal(overlayLiveTaskStateFromManifest(null, {}), null);
+  assert.equal(overlayLiveTaskStateFromManifest(undefined, {}), undefined);
+  const state = buildStateWithStorySlug();
+  // A wave with no `stories[]` array (e.g. the retired tasks-only shape)
+  // is skipped without throwing and leaves state untouched.
+  const result = overlayLiveTaskStateFromManifest(state, {
+    waves: [{ waveIndex: 0, tasks: [{ taskId: 5001, status: 'agent::done' }] }],
+  });
+  assert.equal(
+    result.mapping['story-routing'].lastObservedAgentState,
+    'agent::ready',
+  );
 });

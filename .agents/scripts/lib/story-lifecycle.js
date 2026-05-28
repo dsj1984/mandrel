@@ -3,12 +3,16 @@
  *
  * These three pure/IO-helpers capture the overlap previously duplicated across
  * the two CLI scripts — parsing the `Epic: #N` / `parent: #N` references out
- * of a Story body, fetching child `type::task` tickets, and batch-transitioning
- * those tasks to a target state label.
+ * of a Story body, fetching child sub-tickets, and batch-transitioning
+ * tickets to a target state label.
  *
  * The shape is narrow on purpose: init/close still own their own orchestration
  * (branch bootstrap, merge, cascade, notifications). Expanding this module to
  * cover those would over-abstract — they are genuinely different concerns.
+ *
+ * Under the 3-tier hierarchy (Epic #3078) Stories have no child tickets, so
+ * `fetchChildTickets` typically returns `[]` — but the helper remains in
+ * place so legacy callers still resolve the Story's direct children cleanly.
  */
 
 import { Logger } from './Logger.js';
@@ -33,16 +37,32 @@ export function resolveStoryHierarchy(body) {
 }
 
 /**
- * Fetch the Story's direct children and return only those labelled
- * `type::task`. Epic/Story/Feature children are filtered out.
+ * Fetch the Story's direct child tickets via the provider.
+ *
+ * Under the 3-tier hierarchy (Epic #3078) Stories no longer enumerate
+ * child Task tickets — acceptance criteria and verification steps live
+ * inline on the Story body, and decomposers emit only Epic / Feature /
+ * Story issues. For those Stories this helper resolves to an empty
+ * array because `provider.getSubTickets(storyId)` itself returns no
+ * rows. The helper is retained as a thin pass-through so the three
+ * orchestration callers (`story-deliver-prepare`, `task-graph-builder`,
+ * and `locked-pipeline`) keep a single, named seam for sub-ticket
+ * hydration that is easy to mock in tests and to instrument in the
+ * provider layer.
+ *
+ * Legacy ticket trees that were planned before the 3-tier cutover may
+ * still carry sub-tickets (PRD/Tech-Spec links recorded as direct
+ * children, for example). The helper deliberately does **not** filter
+ * those out — the caller is responsible for classifying anything that
+ * comes back. The previous `type::task`-only filter has been removed in
+ * Story #3191 because no current call site relies on that narrowing.
  *
  * @param {object} provider  ITicketingProvider instance.
- * @param {number} storyId   Story ticket number.
- * @returns {Promise<object[]>} Array of task tickets.
+ * @param {number} storyId   Story ticket number to hydrate children for.
+ * @returns {Promise<object[]>} Array of child tickets (empty under 3-tier).
  */
-export async function fetchChildTasks(provider, storyId) {
-  const subTickets = await provider.getSubTickets(storyId);
-  return subTickets.filter((t) => t.labels.includes('type::task'));
+export async function fetchChildTickets(provider, storyId) {
+  return provider.getSubTickets(storyId);
 }
 
 /**

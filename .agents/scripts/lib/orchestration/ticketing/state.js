@@ -90,7 +90,7 @@ async function loadTicketSnapshot(provider, opts, ticketId) {
 /**
  * Mirror the post-flip label set onto the GitHub Projects v2 Status
  * column. Story #2548 — wiring this here makes every caller of
- * `transitionTicketState` (story-init, story-close, story-task-progress,
+ * `transitionTicketState` (story-init, story-close, story-phase,
  * the LabelTransitioner lifecycle listener, the update-ticket-state CLI,
  * batch transitions) update the board automatically. Prior to #2548 the
  * sync was only wired from the epic-runner against the Epic ticket, so
@@ -201,9 +201,12 @@ function dispatchTransitionNotification(args) {
  *
  *   `cascade` (default `true`) controls whether a `done` transition fans the
  *   `cascadeCompletion` upward to parents. Per-Task closes invoked mid-Story
- *   from `story-task-progress.js` pass `cascade: false` so the Story/Epic
- *   only flips to `agent::done` at story-close (after the merge lands), not
- *   when the last Task commit lands on the still-unmerged Story branch.
+ *   from the retired per-Task progress writer (4-tier era, removed under
+ *   #3157) passed `cascade: false` so the Story/Epic only flipped to
+ *   `agent::done` at story-close (after the merge lands), not when the
+ *   last Task commit landed on the still-unmerged Story branch. The
+ *   parameter is preserved for callers that still suppress cascade
+ *   explicitly (e.g. batch-transition helpers).
  *
  *   `ticketSnapshot` (Story #1795 / Epic #1788) is an optional pre-fetched
  *   ticket object. When the caller already holds the ticket (e.g.
@@ -273,9 +276,9 @@ export async function transitionTicketState(
   //     Task ("In Progress" surfaces up to the Story and Epic) or when a
   //     child enters the HITL pause state.
   //
-  // Callers that intentionally suppress propagation (notably
-  // `story-task-progress.js`, which closes Tasks at commit-time but
-  // defers the Story flip to story-close after the branch is merged)
+  // Callers that intentionally suppress propagation (historically the
+  // per-Task progress writer, which closed Tasks at commit-time but
+  // deferred the Story flip to story-close after the branch was merged)
   // opt out by passing `cascade: false`.
   if (opts.cascade !== false) {
     const cascade = await cascadeParentState(provider, ticketId, {

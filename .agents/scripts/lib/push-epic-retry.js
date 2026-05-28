@@ -64,6 +64,16 @@ export class PushRetryConflictError extends Error {
   }
 }
 
+/** Re-apply the story merge during a non-ff retry, optionally pinning the
+ * conventional-commit subject so the post-merge `(resolves #N)` grep keeps
+ * finding the merge commit (without it, git falls back to its default
+ * `Merge branch …` subject and the grep misses). */
+function runRetryMerge({ cwd, git, storyBranch, mergeMessage }) {
+  return mergeMessage
+    ? git.gitSpawn(cwd, 'merge', '--no-ff', '-m', mergeMessage, storyBranch)
+    : git.gitSpawn(cwd, 'merge', '--no-ff', '--no-edit', storyBranch);
+}
+
 /** Collect the list of files with unmerged paths after a failed merge. */
 function collectConflictFiles(cwd, git) {
   const result = git.gitSpawn(cwd, 'diff', '--name-only', '--diff-filter=U');
@@ -101,6 +111,7 @@ export async function pushEpicWithRetry({
   git,
   sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
   log = () => {},
+  mergeMessage = null,
 }) {
   if (!cwd) throw new Error('pushEpicWithRetry: cwd is required');
   if (!epicBranch) throw new Error('pushEpicWithRetry: epicBranch is required');
@@ -173,13 +184,12 @@ export async function pushEpicWithRetry({
       };
     }
 
-    const mergeResult = git.gitSpawn(
+    const mergeResult = runRetryMerge({
       cwd,
-      'merge',
-      '--no-ff',
-      '--no-edit',
+      git,
       storyBranch,
-    );
+      mergeMessage,
+    });
     if (mergeResult.status !== 0) {
       const conflicts = collectConflictFiles(cwd, git);
       git.gitSpawn(cwd, 'merge', '--abort');

@@ -47,7 +47,7 @@ import {
 import { parseFencedJsonComment } from './lib/orchestration/structured-comment-parser.js';
 import { findStructuredComment } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
-import { fetchChildTasks } from './lib/story-lifecycle.js';
+import { fetchChildTickets } from './lib/story-lifecycle.js';
 import { notify } from './notify.js';
 
 const HELP = `Usage: node .agents/scripts/story-deliver-prepare.js \\
@@ -101,15 +101,15 @@ export function resolveInstallCommand(options = {}) {
  * Fallback path for legacy `story-init` comments that omit `tasks[]`. Pulls
  * the Story's child Tasks directly off the provider so the initial snapshot
  * has the canonical task list. Returns `[]` on any read failure — the empty
- * snapshot still upserts cleanly and downstream `story-task-progress.js`
- * surfaces a clear "task not found" error rather than silent corruption.
+ * snapshot still upserts cleanly and downstream phase writers surface a
+ * clear "task not found" error rather than silent corruption.
  *
  * @param {{ provider: object, storyId: number }} args
  * @returns {Promise<Array<{ id: number, title: string }>>}
  */
 export async function fetchTasksFallback({ provider, storyId }) {
   try {
-    const tasks = await fetchChildTasks(provider, storyId);
+    const tasks = await fetchChildTickets(provider, storyId);
     return tasks.map((t) => ({
       id: Number(t.number ?? t.id),
       title: String(t.title ?? ''),

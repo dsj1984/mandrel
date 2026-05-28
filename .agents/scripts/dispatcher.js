@@ -24,11 +24,10 @@ import {
   dispatch,
   resolveAndDispatch,
 } from './lib/orchestration/dispatch-engine.js';
-import { executeStory } from './lib/orchestration/story-executor.js';
 
 // Re-export SDK functions so that direct consumers of dispatcher.js
 // (tests, CI scripts) continue to work without modification.
-export { dispatch, executeStory, resolveAndDispatch };
+export { dispatch, resolveAndDispatch };
 
 // ---------------------------------------------------------------------------
 // Presentation helpers (CLI-only — not part of the SDK)
@@ -69,19 +68,21 @@ import { loadSpec, loadState } from './lib/spec/index.js';
  * @returns {string|null} pre-rendered Markdown, or null on any failure.
  */
 /**
- * Overlay live task `status` labels from the just-built manifest onto the
+ * Overlay live Story `status` labels from the just-built manifest onto the
  * loaded state mapping. The spec-aware renderer (`buildManifestFromSpec`)
- * looks up each task's status via `state.mapping[slug].lastObservedAgentState`;
+ * looks up each Story's status via `state.mapping[slug].lastObservedAgentState`;
  * that field is only refreshed by the structural reconciler, so during
- * `/epic-deliver` execution it stays `null` and every task renders as ⬜
+ * `/epic-deliver` execution it stays `null` and every Story renders as ⬜
  * pending even after the Story merges. The wave-runner replaced the
  * dispatcher-per-wave refresh loop and the local state.json never sees
  * the progress signal.
  *
- * The overlay walks `manifest.waves[].tasks[]` (which carry the live
- * `taskId` + `status` from `fetchEpicContext`'s GH query) and copies the
- * status onto the slug that matches each `issueNumber`. Pure; returns the
- * mutated state. Safe on null/undefined.
+ * Under the 3-tier hierarchy (Epic #3163) the runtime manifest's wave
+ * records carry `stories[]` (each with the live `storyId` + `status` from
+ * `fetchEpicContext`'s GH query), not the retired `tasks[]` shape. The
+ * overlay walks `manifest.waves[].stories[]` and copies each Story's
+ * status onto the slug that matches its `storyId` (issueNumber). Pure;
+ * returns the mutated state. Safe on null/undefined.
  *
  * @param {object|null|undefined} state
  * @param {object|null|undefined} manifest
@@ -96,15 +97,15 @@ export function overlayLiveTaskStateFromManifest(state, manifest) {
     }
   }
   for (const wave of manifest.waves) {
-    if (!Array.isArray(wave?.tasks)) continue;
-    for (const task of wave.tasks) {
-      const slug = issueNumberToSlug.get(task?.taskId);
+    if (!Array.isArray(wave?.stories)) continue;
+    for (const story of wave.stories) {
+      const slug = issueNumberToSlug.get(story?.storyId);
       if (!slug) continue;
       if (
-        typeof task.status === 'string' &&
-        task.status.startsWith('agent::')
+        typeof story.status === 'string' &&
+        story.status.startsWith('agent::')
       ) {
-        state.mapping[slug].lastObservedAgentState = task.status;
+        state.mapping[slug].lastObservedAgentState = story.status;
       }
     }
   }

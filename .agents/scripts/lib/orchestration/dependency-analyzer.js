@@ -1,7 +1,5 @@
 import { assignLayers, computeReachability, detectCycle } from '../Graph.js';
 
-export { autoSerializeOverlaps } from './concurrent-task-resolver.js';
-
 /**
  * Roll focus-area sets up from tasks to stories. Returns a map of
  * storyId → { areas: Set<string>, global: boolean }. A story is "global"

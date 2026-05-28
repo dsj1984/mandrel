@@ -227,38 +227,4 @@ describe('reportPartialFailure — 3-tier no "missing Tasks" warning (Story #312
       'reportPartialFailure must still report total open children',
     );
   });
-
-  it('counts all child types together when both Story and Task children exist (4-tier regression)', async () => {
-    const provider = {
-      async getEpic() {
-        return { id: EPIC_ID, labels: ['type::epic', 'agent::executing'] };
-      },
-      async getTickets() {
-        return [
-          { id: 9131, title: 'F1', labels: ['type::feature'], state: 'open' },
-          { id: 9132, title: 'S1', labels: ['type::story'], state: 'open' },
-          { id: 9133, title: 'T1', labels: ['type::task'], state: 'open' },
-          { id: 9134, title: 'T2', labels: ['type::task'], state: 'closed' },
-        ];
-      },
-    };
-
-    const cap = captureErrors();
-    try {
-      await reportPartialFailure({
-        epicId: EPIC_ID,
-        provider,
-        err: new Error('decompose aborted mid-pass'),
-      });
-    } finally {
-      cap.restore();
-    }
-
-    // Open count excludes the closed Task — verifies the existing
-    // filter contract is preserved.
-    assert.ok(
-      cap.lines.some((l) => /Children currently open under Epic: 3/.test(l)),
-      'reportPartialFailure must count open children excluding closed ones',
-    );
-  });
 });

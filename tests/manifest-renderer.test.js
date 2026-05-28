@@ -128,9 +128,11 @@ test('renderManifestMarkdown', async (t) => {
     assert.match(output, /🚀 Ready/);
   });
 
-  await t.test('marks wave as Done when all tasks are done', () => {
+  await t.test('marks wave as Done when all stories are done', () => {
+    // Story #3194 (Epic #3163): wave Done is derived from Story status,
+    // not Task tallies. The Story carries its own `status` on the entry.
     const tasks = [makeTask(1, 'agent::done')];
-    const story = makeStory(10, tasks, 0);
+    const story = { ...makeStory(10, tasks, 0), status: 'agent::done' };
     const manifest = makeBaseManifest({
       summary: {
         totalTasks: 1,
@@ -155,7 +157,7 @@ test('renderManifestMarkdown', async (t) => {
     assert.match(output, /⏳ Blocked/);
   });
 
-  await t.test('renders nested per-wave H2 with story checkbox tasks', () => {
+  await t.test('renders nested per-wave H2 with Story headings', () => {
     const tasks = [makeTask(1, 'agent::ready')];
     const story = makeStory(10, tasks, 0);
     const manifest = makeBaseManifest({ storyManifest: [story] });
@@ -164,7 +166,11 @@ test('renderManifestMarkdown', async (t) => {
     assert.doesNotMatch(output, /## Execution Plan/);
     assert.match(output, /^## .* Wave 0/m); // per-wave H2
     assert.match(output, /^### .* #10/m); // per-Story H3 with id
-    assert.match(output, /- \[ \] #1 — task-1/); // checkbox task line
+    // Under the 3-tier hierarchy (Epic #3163, Story #3196) Stories are
+    // leaves; the per-Story body collapses to the empty-tasks marker
+    // and no per-Task checkbox row is emitted.
+    assert.match(output, /_\(no tasks\)_/);
+    assert.doesNotMatch(output, /- \[ \] #1 — task-1/);
   });
 
   await t.test('renders completed story with checkmark', () => {
@@ -265,32 +271,6 @@ test('renderStoryManifestMarkdown', async (t) => {
     assert.strictEqual(typeof output, 'string');
     assert.match(output, /Story Execution/);
     assert.match(output, /Story #42/);
-  });
-
-  await t.test('renders story manifest with tasks and blockers', () => {
-    const manifest = {
-      type: 'story-execution',
-      epicId: 100,
-      generatedAt: '2026-01-01T00:00:00.000Z',
-      stories: [
-        {
-          storyId: 43,
-          storyTitle: 'Test Story',
-          branchName: 'story-43',
-          tasks: [
-            {
-              taskId: 431,
-              title: 'Subtask 1',
-              status: 'agent::ready',
-              dependencies: [99],
-            },
-          ],
-        },
-      ],
-    };
-    const output = renderStoryManifestMarkdown(manifest);
-    assert.match(output, /Subtask 1/);
-    assert.match(output, /blocked by: #99/);
   });
 });
 

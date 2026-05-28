@@ -3,6 +3,15 @@
  * `buildManifestFromSpec` plus branch coverage of the private
  * `validateSpecShape` predicate (exposed via `__testables`).
  *
+ * Story #3195 (3-tier cutover): `projectStory` no longer threads back
+ * per-Story task-counter projections. The walker (`projectFeatures`)
+ * computes the Task rollup inline from each `storyEntry.tasks[]`, and
+ * each Story entry now surfaces a `status` field resolved directly
+ * from the Story's own `agent::*` label (the 3-tier invariant). The
+ * `tasks[]` projection itself is preserved here for the Feature
+ * #3181 migration window so sibling renderer modules keep working
+ * until they switch off task iteration.
+ *
  * The sibling test file in `tests/lib/manifest-formatter.test.js`
  * continues to exercise the renderer-facing re-export path. This file
  * targets the new module directly so the projection contract is locked
@@ -119,6 +128,16 @@ test('buildManifestFromSpec: projects spec → manifest with epic, stories, task
   assert.equal(mf.storyManifest[0].tasks.length, 2);
 });
 
+test('buildManifestFromSpec: each storyEntry carries its own resolved Story status (3-tier)', () => {
+  const state = stateFixture({
+    'story-a1': { lastObservedAgentState: 'agent::executing' },
+    'story-a2': { lastObservedAgentState: 'agent::done' },
+  });
+  const mf = buildManifestFromSpec(specFixture(), { state });
+  assert.equal(mf.storyManifest[0].status, 'agent::executing');
+  assert.equal(mf.storyManifest[1].status, 'agent::done');
+});
+
 test('buildManifestFromSpec: resolves slugs via state.mapping issueNumber', () => {
   const state = stateFixture({
     'story-a1': { issueNumber: 5001, lastObservedAgentState: 'agent::done' },
@@ -141,6 +160,12 @@ test('buildManifestFromSpec: falls back to slug: sentinel when no mapping', () =
 test('buildManifestFromSpec: defaults task status to agent::ready when un-mapped', () => {
   const mf = buildManifestFromSpec(specFixture());
   assert.equal(mf.storyManifest[0].tasks[0].status, 'agent::ready');
+});
+
+test('buildManifestFromSpec: defaults Story status to agent::ready when un-mapped', () => {
+  const mf = buildManifestFromSpec(specFixture());
+  assert.equal(mf.storyManifest[0].status, 'agent::ready');
+  assert.equal(mf.storyManifest[1].status, 'agent::ready');
 });
 
 test('buildManifestFromSpec: ignores non-array features (validateSpecShape guard)', () => {

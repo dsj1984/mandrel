@@ -43,7 +43,6 @@
     },
     "epicId": { "type": ["integer", "null"], "minimum": 1 },
     "storyId": { "type": "integer", "minimum": 1 },
-    "taskId": { "type": ["integer", "null"], "minimum": 1 },
     "phase": {
       "type": ["string", "null"],
       "minLength": 1,

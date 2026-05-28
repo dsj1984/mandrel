@@ -1,23 +1,23 @@
 /**
  * tests/contract/delivery/three-tier-dispatch.test.js
  *
- * Contract: dispatch wave computation for a 3-tier Epic. After Task #3154
- * deleted the `planning.hierarchy` flag, shape selection is purely
- * structural — an Epic carrying zero Tasks and at least one Story
- * resolves to the 3-tier path; a Task-bearing graph keeps the 4-tier
- * path (follow-on Epic #3163 owns its eventual deletion).
+ * Contract: dispatch wave computation for a 3-tier Epic. After Epic #3163's
+ * hard cutover deleted the `type::task` ticket layer, shape selection is
+ * purely structural — any Epic carrying at least one `type::story` ticket
+ * resolves to the 3-tier path.
  *
  * Asserts:
- *   - `isThreeTierDispatch` returns true when there are zero Tasks and
- *     at least one Story.
- *   - `isThreeTierDispatch` returns false when any Task is present.
+ *   - `isThreeTierDispatch` returns true when at least one Story is
+ *     present.
  *   - `isThreeTierDispatch` returns false on an empty ticket graph.
+ *   - `isThreeTierDispatch` returns false when no Story is present.
  *   - `buildStoryDispatchGraph` computes the expected Story-level wave
  *     ordering when Story B is `blocked by #<storyA-id>`.
  *   - `buildStoryDispatchGraph` places independent Stories in wave 0
  *     together (parallel-by-default).
  *
- * Story #3136 (Epic #3078, Feature #3093). Updated under Task #3154.
+ * Story #3136 (Epic #3078, Feature #3093). Updated under Story #3193
+ * (Epic #3163, Feature #3179) to drop the `tasks` parameter.
  */
 
 import assert from 'node:assert/strict';
@@ -38,41 +38,30 @@ function storyTicket(id, { dependsOnIds = [], extraLabels = [] } = {}) {
   };
 }
 
-function taskTicket(id) {
+function nonStoryTicket(id) {
   return {
     id,
-    title: `Task ${id}`,
+    title: `Feature ${id}`,
     body: '',
-    labels: ['type::task'],
+    labels: ['type::feature'],
   };
 }
 
-describe('isThreeTierDispatch — structural detection (Task #3154)', () => {
-  it('returns true when there are zero Tasks and at least one Story', () => {
+describe('isThreeTierDispatch — structural detection (Story #3193)', () => {
+  it('returns true when at least one Story is present', () => {
     // Arrange
     const allTickets = [storyTicket(100), storyTicket(101)];
 
     // Act
-    const result = isThreeTierDispatch([], allTickets);
+    const result = isThreeTierDispatch(allTickets);
 
     // Assert
     assert.equal(result, true);
   });
 
-  it('returns false when any Task is present', () => {
-    // Arrange
-    const allTickets = [storyTicket(100), taskTicket(1)];
-
-    // Act
-    const result = isThreeTierDispatch([taskTicket(1)], allTickets);
-
-    // Assert
-    assert.equal(result, false);
-  });
-
   it('returns false on an empty ticket graph', () => {
     // Arrange / Act
-    const result = isThreeTierDispatch([], []);
+    const result = isThreeTierDispatch([]);
 
     // Assert
     assert.equal(result, false);
@@ -80,7 +69,7 @@ describe('isThreeTierDispatch — structural detection (Task #3154)', () => {
 
   it('returns false when no Story is present', () => {
     // Arrange / Act
-    const result = isThreeTierDispatch([], [taskTicket(1)]);
+    const result = isThreeTierDispatch([nonStoryTicket(1)]);
 
     // Assert
     assert.equal(result, false);

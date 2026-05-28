@@ -205,8 +205,16 @@ export function validateBlockersMerged(manifest, storyId) {
     const s = storyById.get(bid);
     if (!s) continue;
     const tasks = s.tasks ?? [];
-    const allDone =
-      tasks.length > 0 && tasks.every((t) => t.status === DONE_LABEL);
+    // 3-tier hierarchy (Epic → Feature → Story): Stories carry no child
+    // Tasks, so the manifest entry's `tasks` array is empty by design and
+    // can never satisfy a task-status quorum. Such an entry holds no
+    // merge-evidence, so the wave-fallback heuristic cannot legitimately
+    // classify it as unmerged — doing so produces a pure false positive
+    // that blocks every wave-1+ Story in every 3-tier Epic. Real
+    // cross-Story prerequisites are already enforced by the live
+    // `blocked by` gate in story-init Stage 3; defer to that here.
+    if (tasks.length === 0) continue;
+    const allDone = tasks.every((t) => t.status === DONE_LABEL);
     if (allDone) continue;
     const entry = {
       id: bid,

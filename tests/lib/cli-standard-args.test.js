@@ -29,7 +29,6 @@ describe('parseStandardCliArgs — deterministic shape', () => {
     assert.deepEqual(positionals, []);
     assert.equal(values.epicId, null);
     assert.equal(values.storyId, null);
-    assert.equal(values.taskId, null);
     assert.equal(values.changedSince, null);
     assert.equal(values.json, false);
     assert.equal(values.fullScope, false);
@@ -40,6 +39,17 @@ describe('parseStandardCliArgs — deterministic shape', () => {
     const { values } = parseStandardCliArgs([]);
     const expectedKeys = FLAG_NAMES.map((n) => SUPPORTED_FLAGS[n].key).sort();
     assert.deepEqual(Object.keys(values).sort(), expectedKeys);
+  });
+
+  it('no longer recognises the Task-tier --task flag (3-tier hierarchy)', () => {
+    // Epic #3163 removed the Task tier: the standard parser must not carry
+    // a --task / taskId surface. Passing it now surfaces as UNKNOWN_FLAG.
+    assert.equal(Object.hasOwn(SUPPORTED_FLAGS, 'task'), false);
+    assert.equal(FLAG_NAMES.includes('task'), false);
+    assert.throws(
+      () => parseStandardCliArgs(['--task', '2474']),
+      (err) => err.code === 'UNKNOWN_FLAG' && err.flag === 'task',
+    );
   });
 });
 
@@ -52,11 +62,6 @@ describe('parseStandardCliArgs — per-flag coercion (one assertion per flag)', 
   it('--story coerces to a positive integer (ticket) and strips a leading #', () => {
     const { values } = parseStandardCliArgs(['--story', '#2460']);
     assert.equal(values.storyId, 2460);
-  });
-
-  it('--task coerces to a positive integer (ticket)', () => {
-    const { values } = parseStandardCliArgs(['--task', '2474']);
-    assert.equal(values.taskId, 2474);
   });
 
   it('--changed-since preserves the raw string (string)', () => {
@@ -97,12 +102,9 @@ describe('parseStandardCliArgs — ticket coercion edge cases', () => {
       '2453',
       '--story',
       '2460',
-      '--task',
-      '2474',
     ]);
     assert.equal(values.epicId, 2453);
     assert.equal(values.storyId, 2460);
-    assert.equal(values.taskId, 2474);
   });
 });
 

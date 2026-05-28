@@ -17,15 +17,10 @@ import { runCreationPass } from './creation-pass.js';
 const TYPE_LABEL_TO_TYPE = {
   [TYPE_LABELS.FEATURE]: 'feature',
   [TYPE_LABELS.STORY]: 'story',
-  'type::task': 'task',
 };
 
 function indexExistingChildren(existing) {
-  const childTypes = new Set([
-    TYPE_LABELS.FEATURE,
-    TYPE_LABELS.STORY,
-    'type::task',
-  ]);
+  const childTypes = new Set([TYPE_LABELS.FEATURE, TYPE_LABELS.STORY]);
   const byTitle = new Map();
   for (const child of existing) {
     const typeLabel = (child.labels || []).find((l) => childTypes.has(l));
@@ -102,7 +97,7 @@ async function loadExistingChildren(provider, epicId) {
   }
   return (existing || []).filter((t) =>
     (t.labels || []).some((l) =>
-      [TYPE_LABELS.FEATURE, TYPE_LABELS.STORY, 'type::task'].includes(l),
+      [TYPE_LABELS.FEATURE, TYPE_LABELS.STORY].includes(l),
     ),
   );
 }
