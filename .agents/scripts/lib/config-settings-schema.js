@@ -717,6 +717,55 @@ const PREFLIGHT_SCHEMA = {
   additionalProperties: false,
 };
 
+/**
+ * `delivery.storyPlan.alwaysEmitFloor` — triggering thresholds for the
+ * story-plan structured comment (Epic #3212). The plan is emitted when any
+ * axis meets or exceeds its floor. Both axes default to 3 when omitted.
+ */
+const STORY_PLAN_ALWAYS_EMIT_FLOOR_SCHEMA = {
+  type: 'object',
+  properties: {
+    changes: {
+      type: 'integer',
+      minimum: 1,
+      description:
+        'Minimum changes[] length that triggers a story-plan comment. Default 3.',
+    },
+    acceptance: {
+      type: 'integer',
+      minimum: 1,
+      description:
+        'Minimum acceptance[] length that triggers a story-plan comment. Default 3.',
+    },
+  },
+  additionalProperties: false,
+};
+
+/**
+ * `delivery.storyPlan` — knobs for the story-plan structured-comment
+ * checkpoint introduced by Epic #3212. The checkpoint is additive and
+ * defaults to the current behaviour (emit-and-proceed); the ack gate is
+ * strictly opt-in.
+ */
+const STORY_PLAN_SCHEMA = {
+  type: 'object',
+  properties: {
+    requireAcknowledgement: {
+      type: 'boolean',
+      description:
+        'When true, the story-deliver worker MUST NOT commit until the Story carries the `plan::acknowledged` label. The label is applied by the operator (or `/story-plan-ack <storyId>`). Default false.',
+    },
+    alwaysEmitFloor: STORY_PLAN_ALWAYS_EMIT_FLOOR_SCHEMA,
+    ackTimeoutMs: {
+      type: 'integer',
+      minimum: 1,
+      description:
+        'Bounded wait (ms) for the `plan::acknowledged` label before the worker transitions to `agent::blocked`. Default 1800000 (30 min).',
+    },
+  },
+  additionalProperties: false,
+};
+
 const DELIVERY_SCHEMA = {
   type: 'object',
   properties: {
@@ -733,6 +782,7 @@ const DELIVERY_SCHEMA = {
     epicAudit: EPIC_AUDIT_SCHEMA,
     codeReview: CODE_REVIEW_SCHEMA,
     retro: RETRO_SCHEMA,
+    storyPlan: STORY_PLAN_SCHEMA,
     ci: CI_DELIVERY_SCHEMA,
     preflight: PREFLIGHT_SCHEMA,
     // Cross-Story concurrency-hazard gate (Story #2297). When true,
