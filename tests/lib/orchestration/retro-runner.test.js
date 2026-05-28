@@ -225,7 +225,10 @@ test('runRetro: non-clean signals route to the full six-section path', async () 
   assert.match(retroComment.body, /`lint`.*occurrence/);
   // Recut count derived from body marker fallback.
   assert.equal(out.scorecard.recuts, 1);
-  assert.equal(out.scorecard.hotfixes, 1);
+  // Story #3200 — Task-tier descendants no longer feed the hotfix
+  // count under the 3-tier hierarchy; `hotfixes` is always 0 even
+  // when a legacy in-fixture Task carries `status::blocked`.
+  assert.equal(out.scorecard.hotfixes, 0);
   assert.equal(out.scorecard.friction, 3);
 });
 
@@ -479,7 +482,9 @@ test('gatherRetroSignals: returns routedProposals envelope (empty when no signal
   });
   // Existing behaviour intact.
   assert.equal(signals.storyPerfSummaries.length, 1);
-  assert.equal(signals.tasks.length, 1);
+  // Story #3200 — `tasks` is always `[]` under the 3-tier
+  // hierarchy regardless of legacy fixture seeding.
+  assert.equal(signals.tasks.length, 0);
 });
 
 test('gatherRetroSignals: computes routedProposals from per-Story signals streams', async () => {
@@ -682,7 +687,12 @@ test('collectDescendants: walks each BFS level concurrently', async () => {
       // start before any of their children fire.
       await new Promise((r) => setImmediate(r));
       const subs = subsByParent.get(id) ?? [];
-      return subs.map((s) => ({ ...s, number: s.id, labels: ['type::task'] }));
+      // Story #3200 — descendants surface only `type::story` now;
+      // the BFS-ordering assertion below doesn't care about the
+      // type, but `gather-signals.js` no longer buckets anything
+      // under `type::task`, so the sanity-set check below reads
+      // from `out.stories` alone.
+      return subs.map((s) => ({ ...s, number: s.id, labels: ['type::story'] }));
     },
     async getTicket() {
       return null;
@@ -710,9 +720,10 @@ test('collectDescendants: walks each BFS level concurrently', async () => {
   );
 
   // Sanity: the descendant set is the same as the serial walker would
-  // produce.
+  // produce. Story #3200 — `out.tasks` is always `[]` under the
+  // 3-tier hierarchy, so the sanity set reads from `out.stories`.
   const descendantIds = new Set();
-  for (const sub of [...out.stories, ...out.tasks]) {
+  for (const sub of out.stories) {
     descendantIds.add(sub.id ?? sub.number);
   }
   for (const id of [401, 402, 403, 411, 412, 421, 431, 432]) {
