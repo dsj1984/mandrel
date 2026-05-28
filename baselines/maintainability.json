@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T10:03:47.965Z",
+  "generatedAt": "2026-05-28T10:53:28.402Z",
   "rollup": {
     "*": {
       "min": 38.161,
-      "p50": 103.672,
+      "p50": 103.671,
       "p95": 121.235
     }
   },
@@ -1567,10 +1567,6 @@
       "mi": 96.45
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-grouper.js",
-      "mi": 101.049
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/structured-comment-parser.js",
       "mi": 114.919
     },
@@ -1817,10 +1813,6 @@
     {
       "path": ".agents/scripts/lib/templates/decomposer-prompts.js",
       "mi": 140.702
-    },
-    {
-      "path": ".agents/scripts/lib/templates/task-body-renderer.js",
-      "mi": 112.751
     },
     {
       "path": ".agents/scripts/lib/test-env.js",
@@ -4945,10 +4937,6 @@
     {
       "path": "tests/sync-claude-commands-frontmatter.test.js",
       "mi": 94.246
-    },
-    {
-      "path": "tests/task-body-renderer.test.js",
-      "mi": 111.853
     },
     {
       "path": "tests/task-body-validator.test.js",
