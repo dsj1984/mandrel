@@ -53,9 +53,9 @@ describe('skill:epic-plan-decompose-author — smoke', () => {
             'Skill body must reference temp/epic-<Epic_ID>/tickets.json output path',
           );
         }
-        // The three hierarchy levels are non-negotiable inputs to the
-        // ticket validator.
-        for (const level of ['Features', 'Stories', 'Tasks']) {
+        // The two hierarchy levels are non-negotiable inputs to the
+        // ticket validator (3-tier: Feature → Story, no Task tier).
+        for (const level of ['Features', 'Stories']) {
           if (!new RegExp(`\\b${level}\\b`).test(body)) {
             errors.push(
               `Skill body must describe the "${level}" level of the hierarchy`,
@@ -125,6 +125,44 @@ describe('skill:epic-plan-decompose-author — smoke', () => {
         if (!/profileCeilings|per-profile change ceiling/i.test(body)) {
           errors.push(
             'Skill body must describe per-profile change ceilings (Story #3231 Recal A)',
+          );
+        }
+        // Story #3263 — SKILL must document top-level acceptance[] and verify[]
+        // arrays on the Story ticket object (not nested inside body object).
+        // hasInlineAcceptanceAndVerify() in ticket-validator.js reads story.acceptance
+        // and story.verify at the top level — nesting them inside body makes them
+        // invisible to the validator.
+        if (
+          !/top[-\s]level.*acceptance|acceptance.*top[-\s]level/i.test(body)
+        ) {
+          errors.push(
+            'Skill body must document that acceptance[] lives at the top level of the Story ticket object (Story #3263)',
+          );
+        }
+        if (!/top[-\s]level.*verify|verify.*top[-\s]level/i.test(body)) {
+          errors.push(
+            'Skill body must document that verify[] lives at the top level of the Story ticket object (Story #3263)',
+          );
+        }
+        // Story #3263 — SKILL must document that body is a STRING produced by
+        // serialize(), not a nested object. composeStoryBody() in tickets.js
+        // discards any non-string body silently.
+        if (!/body.*must be.*string|body.*is.*string/i.test(body)) {
+          errors.push(
+            'Skill body must document that Story body must be a string (not an object) for the GitHub provider (Story #3263)',
+          );
+        }
+        // Story #3263 — SKILL must not instruct emitting body as a structured
+        // object for stories (the stale nested shape that the validator rejects).
+        if (/body is a STRUCTURED OBJECT/i.test(body)) {
+          errors.push(
+            'Skill body must not instruct emitting body as a STRUCTURED OBJECT for stories (stale 4-tier shape; Story #3263)',
+          );
+        }
+        // Story #3263 — SKILL must document hyphen-case slug format.
+        if (!/hyphen[-\s]case|\\^\\[a-z0-9\\]|a-z0-9.*-/i.test(body)) {
+          errors.push(
+            'Skill body must document hyphen-case slug format (Story #3263)',
           );
         }
         return { ok: errors.length === 0, errors };
