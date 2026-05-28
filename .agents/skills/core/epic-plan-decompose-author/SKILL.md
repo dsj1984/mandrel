@@ -19,7 +19,7 @@ allowed_tools:
 - Emit exactly one artifact: `temp/epic-<Epic_ID>/tickets.json` (a JSON array). Do not write anywhere else, and never call the GitHub API from this Skill — persistence belongs to the script.
 - Output is JSON only — no prose, no Markdown fence. The downstream validator (`lib/orchestration/ticket-validator.js`) is the authoritative gate; re-author rather than hand-patching when it rejects.
 - Treat **`maxTickets`** from the context envelope as a **reviewability budget**, not a hard authoring cap (Story #2798). Combine atomic Stories first; if the plan genuinely needs more, emit the full plan and add a compact `over_budget_rationale` field at the top of the first Feature's `body` explaining why the plan exceeds the budget. Operator persistence then requires the explicit `--allow-over-budget` override on `epic-plan-decompose.js`; without it the persist step rejects the over-budget array. Never truncate the JSON array to fit.
-- Honour the two-level hierarchy under each Epic: **Feature → Story**. There is no `type::task` layer — Stories carry the implementation scope inline on their bodies.
+- Honour the two-level hierarchy under each Epic: **Feature → Story**. Stories carry the implementation scope inline on their bodies; no lower ticket tier exists.
 - Every ticket carries `type::[feature|story]` and `persona::*` labels; every Story body is a structured object with `goal`, `changes[]` (object form `{ path, assumption }`), `acceptance[]`, `verify[]`, and optional `references[]`.
 - **New-File Contract**: any path referenced in `goal`, `acceptance`, or `verify` that does not exist on `main` MUST appear in the Story's `changes[]` with `assumption: "creates"`; otherwise the freshness validator rejects the decompose.
 - Acceptance items MUST be **observable from outside the agent** (command exits 0, file exists, snapshot matches, testid resolves). Items like "verify by reading the diff" or "looks good" are forbidden — push them into `verify` commands instead.
@@ -105,8 +105,7 @@ Apply the decomposer system prompt below to the PRD + Tech Spec bodies.
 Emit JSON only (no prose, no Markdown fence). The downstream validator
 in [`lib/orchestration/ticket-validator.js`](../../../scripts/lib/orchestration/ticket-validator.js)
 will reject anything off-shape. Combine atomic Stories first; emit one
-Story per logically atomic implementation slice — never a `type::task`
-ticket.
+Story per logically atomic implementation slice.
 
 ### Step 3 — Write the file
 
@@ -137,7 +136,7 @@ Your job is to take a Product Requirements Document (PRD) and a Technical Specif
 2. **Stories**: Atomic, verifiable units of work (e.g., "Implement JWT Token Exchange").
    - MUST be nested under a Feature via `parent_slug`.
    - **Story-Level Execution**: Each Story is executed on a single Story branch (`story-<storyId>`), implemented in one Story-implementation phase, then merged into the Epic branch. The Story body carries the full execution contract (goal, changes, acceptance, verify).
-   - There is NO Task layer. Do NOT emit `type::task` tickets — they will be rejected.
+   - Do NOT emit a lower ticket tier — the validator only accepts `type::feature` and `type::story`.
 
 ### LABEL CONVENTIONS:
 - Every ticket must have a `type::[feature|story]` label.
