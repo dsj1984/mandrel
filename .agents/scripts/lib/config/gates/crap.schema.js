@@ -24,6 +24,10 @@ export const CRAP_GATE = {
     // #2142): a SIGKILL fired at the budget boundary maps to exit code 124
     // so the close orchestrator can flip the Story to `agent::blocked`.
     refreshTimeoutMs: { type: 'integer', minimum: 1 },
+    // Story #3217 — glob patterns matched against canonicalised repo-relative
+    // paths to exclude files from CRAP discovery before scoring. Orthogonal
+    // to `components` (grouping). Absent/empty preserves existing behaviour.
+    ignoreGlobs: { type: 'array', items: { type: 'string', minLength: 1 } },
   },
   additionalProperties: false,
 };

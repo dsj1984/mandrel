@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { minimatch } from 'minimatch';
+import { canonicalise as canonicalisePath } from './baselines/path-canon.js';
 import {
   write as writeBaselineEnvelope,
   writeFile as writeBaselineFile,
@@ -223,11 +225,20 @@ const IGNORED_DIRS = new Set([
  * in `IGNORED_DIRS` (including `coverage` and `.next`, added in 5.29.0
  * to skip vitest's istanbul HTML scaffolding and Next.js build output)
  * are skipped.
+ *
  * @param {string} dir
  * @param {string[]} fileList
+ * @param {{ ignoreGlobs?: string[], cwd?: string }} [opts]
+ *   `ignoreGlobs` — minimatch patterns matched against the canonicalised
+ *   repo-relative path of each discovered file. Files whose path matches
+ *   any pattern are excluded before scoring. Absent/empty is a no-op.
+ *   `cwd` — root used to compute repo-relative paths for glob matching;
+ *   defaults to `process.cwd()` when omitted.
  * @returns {string[]}
  */
-export function scanDirectory(dir, fileList = []) {
+export function scanDirectory(dir, fileList = [], opts = {}) {
+  const { ignoreGlobs = [], cwd: optsCwd } = opts;
+  const matchCwd = optsCwd ?? process.cwd();
   let entries;
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -240,9 +251,19 @@ export function scanDirectory(dir, fileList = []) {
     const filePath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       if (!IGNORED_DIRS.has(entry.name)) {
-        scanDirectory(filePath, fileList);
+        scanDirectory(filePath, fileList, opts);
       }
     } else if (entry.isFile() && isSupportedSourceFile(entry.name)) {
+      if (ignoreGlobs.length > 0) {
+        const absFilePath = path.isAbsolute(filePath)
+          ? filePath
+          : path.resolve(filePath);
+        const rawRel = path.relative(matchCwd, absFilePath).replace(/\\/g, '/');
+        const relPath = canonicalisePath(rawRel);
+        if (ignoreGlobs.some((g) => minimatch(relPath, g, { dot: true }))) {
+          continue;
+        }
+      }
       fileList.push(filePath);
     }
   }

@@ -87,6 +87,7 @@ export const CRAP_GATE_DEFAULTS = Object.freeze({
   // `gates.coverage.timeoutMs` (Story #2142) for shape and SIGKILL → 124
   // semantics.
   refreshTimeoutMs: 60_000,
+  ignoreGlobs: Object.freeze([]),
 });
 
 /** Framework defaults for the coverage gate. */
@@ -112,6 +113,7 @@ export const MAINTAINABILITY_GATE_DEFAULTS = Object.freeze({
   // Story #2165 — bounded timeout (ms) for `npm run maintainability:update`
   // spawned by the baseline-attribution refresh path. Defaults to 60 s.
   refreshTimeoutMs: 60_000,
+  ignoreGlobs: Object.freeze([]),
 });
 
 /**
@@ -161,6 +163,7 @@ const CRAP_GATE_KEYS = new Set([
   'friction',
   'refreshTag',
   'refreshTimeoutMs',
+  'ignoreGlobs',
 ]);
 
 const COVERAGE_GATE_KEYS = new Set([
@@ -179,6 +182,7 @@ const MI_GATE_KEYS = new Set([
   'floors',
   'targetDirs',
   'refreshTimeoutMs',
+  'ignoreGlobs',
 ]);
 
 /**
@@ -245,6 +249,7 @@ export function resolveMaintainabilityCrap(
       friction: { ...defaults.friction },
       refreshTag: defaults.refreshTag,
       refreshTimeoutMs: defaults.refreshTimeoutMs,
+      ignoreGlobs: [...defaults.ignoreGlobs],
       defaultScope: scoping.defaultScope,
       diffRef: scoping.diffRef,
     };
@@ -268,6 +273,9 @@ export function resolveMaintainabilityCrap(
       userCrap.refreshTimeoutMs,
       defaults.refreshTimeoutMs,
     ),
+    ignoreGlobs: Array.isArray(userCrap.ignoreGlobs)
+      ? userCrap.ignoreGlobs.slice()
+      : [...defaults.ignoreGlobs],
     defaultScope: scoping.defaultScope,
     diffRef: scoping.diffRef,
   };
@@ -288,6 +296,7 @@ export function resolveMaintainabilityQuality(userBlock, gateScoping) {
     return {
       targetDirs: [...defaults.targetDirs],
       refreshTimeoutMs: defaults.refreshTimeoutMs,
+      ignoreGlobs: [...defaults.ignoreGlobs],
       defaultScope: scoping.defaultScope,
       diffRef: scoping.diffRef,
     };
@@ -299,6 +308,9 @@ export function resolveMaintainabilityQuality(userBlock, gateScoping) {
       userBlock.refreshTimeoutMs,
       defaults.refreshTimeoutMs,
     ),
+    ignoreGlobs: Array.isArray(userBlock.ignoreGlobs)
+      ? userBlock.ignoreGlobs.slice()
+      : [...defaults.ignoreGlobs],
     defaultScope: scoping.defaultScope,
     diffRef: scoping.diffRef,
   };
