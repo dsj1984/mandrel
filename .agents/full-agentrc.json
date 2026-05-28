@@ -167,14 +167,16 @@
           "newMethodCeiling": 30,
           "requireCoverage": true,
           "friction": { "markerKey": "crap-baseline-regression" },
-          "refreshTag": "baseline-refresh:"
+          "refreshTag": "baseline-refresh:",
+          "ignoreGlobs": ["**/fixtures/**", "**/*.generated.ts"]
         },
         "maintainability": {
           "enabled": true,
           "baselinePath": "baselines/maintainability.json",
           "tolerance": { "kind": "absolute", "value": 0.5 },
           "floors": { "*": { "min": 70, "p50": 80 } },
-          "targetDirs": ["src", "tests"]
+          "targetDirs": ["src", "tests"],
+          "ignoreGlobs": ["**/fixtures/**", "**/*.generated.ts"]
         },
         "mutation": {
           "enabled": true,

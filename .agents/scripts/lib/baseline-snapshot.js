@@ -479,12 +479,13 @@ export async function regenerateMainFromTree({
   // ── maintainability ──────────────────────────────────────────────────────
   const miPath = baselines?.maintainability?.path;
   const miTargetDirs = quality?.maintainability?.targetDirs ?? [];
+  const miIgnoreGlobs = quality?.maintainability?.ignoreGlobs ?? [];
   if (typeof miPath === 'string' && miPath.length > 0) {
     const miAbs = path.isAbsolute(miPath) ? miPath : path.resolve(cwd, miPath);
     const sourceList = [];
     for (const dir of miTargetDirs) {
       const abs = path.isAbsolute(dir) ? dir : path.resolve(cwd, dir);
-      scanDirectoryFn(abs, sourceList);
+      scanDirectoryFn(abs, sourceList, { cwd, ignoreGlobs: miIgnoreGlobs });
     }
     const scores = await calculateAllFn(sourceList);
 
@@ -533,6 +534,9 @@ export async function regenerateMainFromTree({
   const crapTargetDirs = Array.isArray(crapCfg.targetDirs)
     ? crapCfg.targetDirs
     : [];
+  const crapIgnoreGlobs = Array.isArray(crapCfg.ignoreGlobs)
+    ? crapCfg.ignoreGlobs
+    : [];
   const requireCoverage = crapCfg.requireCoverage !== false;
   const coveragePath = crapCfg.coveragePath ?? 'coverage/coverage-final.json';
   if (typeof crapPath === 'string' && crapPath.length > 0) {
@@ -559,6 +563,7 @@ export async function regenerateMainFromTree({
         coverage,
         requireCoverage,
         cwd,
+        ignoreGlobs: crapIgnoreGlobs,
       });
       // scanAndScore yields rows keyed by `file:`; the per-kind crap module's
       // `projectRow` handles `path ?? file`, so the writer takes either.
