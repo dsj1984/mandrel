@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T15:52:00.258Z",
+  "generatedAt": "2026-05-28T17:54:26.660Z",
   "rollup": {
     "*": {
-      "min": 36.604,
-      "p50": 103.671,
-      "p95": 121.235
+      "min": 62.385,
+      "p50": 103.683,
+      "p95": 121.479
     }
   },
   "rows": [
@@ -497,10 +497,6 @@
     {
       "path": ".agents/scripts/lib/config-schema.js",
       "mi": 171
-    },
-    {
-      "path": ".agents/scripts/lib/config-settings-schema.js",
-      "mi": 36.604
     },
     {
       "path": ".agents/scripts/lib/config/baselines.js",
@@ -1581,10 +1577,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "mi": 95.584
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "mi": 103.076
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/state.js",
