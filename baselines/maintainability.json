@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T00:55:28.734Z",
+  "generatedAt": "2026-05-28T00:59:13.104Z",
   "rollup": {
     "*": {
       "min": 38.161,
-      "p50": 103.681,
-      "p95": 121.235
+      "p50": 103.753,
+      "p95": 121.479
     }
   },
   "rows": [
@@ -1631,24 +1631,12 @@
       "mi": 113.993
     },
     {
-      "path": ".agents/scripts/lib/presentation/manifest-formatter.js",
-      "mi": 102.664
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-helpers.js",
-      "mi": 103.202
-    },
-    {
       "path": ".agents/scripts/lib/presentation/manifest-persistence.js",
       "mi": 95.662
     },
     {
       "path": ".agents/scripts/lib/presentation/manifest-procedures.js",
       "mi": 100.741
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-render-waves.js",
-      "mi": 99.181
     },
     {
       "path": ".agents/scripts/lib/presentation/manifest-renderer.js",
@@ -3475,10 +3463,6 @@
       "mi": 90.952
     },
     {
-      "path": "tests/lib/manifest-formatter.test.js",
-      "mi": 93.139
-    },
-    {
       "path": "tests/lib/manifest-persistence.test.js",
       "mi": 92.143
     },
@@ -3489,10 +3473,6 @@
     {
       "path": "tests/lib/manifest-renderer-post.test.js",
       "mi": 110.146
-    },
-    {
-      "path": "tests/lib/manifest-renderer.test.js",
-      "mi": 95.604
     },
     {
       "path": "tests/lib/mutation/baseline-snapshot.test.js",
@@ -4095,14 +4075,6 @@
       "mi": 87.927
     },
     {
-      "path": "tests/lib/presentation/manifest-formatter-end-to-end.test.js",
-      "mi": 100.773
-    },
-    {
-      "path": "tests/lib/presentation/manifest-formatter-layout.test.js",
-      "mi": 98.735
-    },
-    {
       "path": "tests/lib/presentation/manifest-render-concurrency.test.js",
       "mi": 104.331
     },
@@ -4369,10 +4341,6 @@
     {
       "path": "tests/maintainability-utils.coverage-dir-ignored.test.js",
       "mi": 103.276
-    },
-    {
-      "path": "tests/manifest-renderer.test.js",
-      "mi": 98.101
     },
     {
       "path": "tests/notify.test.js",

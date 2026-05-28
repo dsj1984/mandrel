@@ -19,12 +19,101 @@
 
 import { AGENT_LABELS } from '../label-constants.js';
 import {
-  computeStoryProgress,
   deriveStorySymbol,
   deriveWaveStatus,
-  topoSortTasks,
   waveHeadingText,
 } from './manifest-helpers.js';
+
+// ---------------------------------------------------------------------------
+// Task-tier helpers (parked locally pending Story #3196)
+//
+// `topoSortTasks` and `computeStoryProgress` previously lived in
+// `manifest-helpers.js`. Story #3194 (Epic #3163) rewrote that helper
+// module to consume Story-only manifests, but this renderer still walks
+// `story.tasks[]` until Story #3196 rewrites it. To keep the helpers
+// module free of `.tasks[` / `.taskId` access (the Story #3194 AC) the
+// two functions moved here, where their last caller lives. Story #3196
+// will delete both when the renderer drops Task-tier rendering.
+// ---------------------------------------------------------------------------
+
+/**
+ * Topologically sort a Story's Tasks by their `dependencies` (in-Story
+ * `depends_on` ids). Stable: ties resolve in the original declaration
+ * order. Cross-Story dependencies (ids that aren't in the same
+ * `tasks[]`) are ignored.
+ *
+ * Pure / O(n + e) — Kahn's algorithm with a deterministic tie-breaker.
+ *
+ * @param {Array<{ taskId: number|string, dependencies?: Array<number|string> }>} tasks
+ * @returns {Array}
+ */
+function topoSortTasks(tasks) {
+  if (!tasks || tasks.length === 0) return [];
+  const idSet = new Set(tasks.map((t) => String(t.taskId)));
+  const order = new Map();
+  tasks.forEach((t, idx) => {
+    order.set(String(t.taskId), idx);
+  });
+
+  const inDegree = new Map();
+  const adj = new Map();
+  for (const t of tasks) {
+    const tid = String(t.taskId);
+    if (!inDegree.has(tid)) inDegree.set(tid, 0);
+    if (!adj.has(tid)) adj.set(tid, []);
+    for (const dep of t.dependencies ?? []) {
+      const did = String(dep);
+      if (!idSet.has(did)) continue;
+      inDegree.set(tid, (inDegree.get(tid) ?? 0) + 1);
+      if (!adj.has(did)) adj.set(did, []);
+      adj.get(did).push(tid);
+    }
+  }
+
+  const ready = tasks
+    .map((t) => String(t.taskId))
+    .filter((tid) => (inDegree.get(tid) ?? 0) === 0)
+    .sort((a, b) => order.get(a) - order.get(b));
+
+  const out = [];
+  const byId = new Map(tasks.map((t) => [String(t.taskId), t]));
+  while (ready.length > 0) {
+    const tid = ready.shift();
+    out.push(byId.get(tid));
+    for (const next of adj.get(tid) ?? []) {
+      inDegree.set(next, inDegree.get(next) - 1);
+      if (inDegree.get(next) === 0) {
+        let i = 0;
+        while (i < ready.length && order.get(ready[i]) < order.get(next)) i++;
+        ready.splice(i, 0, next);
+      }
+    }
+  }
+
+  // Cycle fallback: append any leftover tasks in original order so we
+  // never silently drop work.
+  if (out.length < tasks.length) {
+    for (const t of tasks) {
+      if (!out.includes(t)) out.push(t);
+    }
+  }
+  return out;
+}
+
+/**
+ * Compute per-Story aggregates for the nested wave layout: a 0..100
+ * progress percent and the done/total task counts. Pure.
+ *
+ * @param {{ tasks?: Array<{ status?: string }> }} story
+ * @returns {{ pct: number, done: number, total: number }}
+ */
+function computeStoryProgress(story) {
+  const tasks = story?.tasks ?? [];
+  const total = tasks.length;
+  const done = tasks.filter((t) => t.status === AGENT_LABELS.DONE).length;
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  return { pct, done, total };
+}
 
 /**
  * Private: shape-guard for the per-level nodes touched by the wave
@@ -95,12 +184,12 @@ function groupStoriesByWave(waveStories) {
     const w = story.earliestWave ?? -1;
     if (!waveGroups.has(w)) {
       waveGroups.set(w, []);
-      waveStats.set(w, { stories: 0, tasks: 0, done: 0 });
+      waveStats.set(w, { stories: 0, total: 0, done: 0 });
     }
     waveGroups.get(w).push(story);
     const stat = waveStats.get(w);
     stat.stories++;
-    stat.tasks += story.tasks.length;
+    stat.total += story.tasks.length;
     stat.done += story.tasks.filter(
       (t) => t.status === AGENT_LABELS.DONE,
     ).length;
@@ -186,7 +275,7 @@ export function renderNestedWaveSections(storyManifest) {
 
     const tail = pickWaveTail(status, waveIdx, sortedWaves, stories.length);
     lines.push(
-      `> ${stories.length} stor${stories.length === 1 ? 'y' : 'ies'} · ${stat.done}/${stat.tasks} tasks${tail}`,
+      `> ${stories.length} stor${stories.length === 1 ? 'y' : 'ies'} · ${stat.done}/${stat.total} tasks${tail}`,
     );
     lines.push('');
 

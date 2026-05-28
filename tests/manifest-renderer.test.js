@@ -128,9 +128,11 @@ test('renderManifestMarkdown', async (t) => {
     assert.match(output, /🚀 Ready/);
   });
 
-  await t.test('marks wave as Done when all tasks are done', () => {
+  await t.test('marks wave as Done when all stories are done', () => {
+    // Story #3194 (Epic #3163): wave Done is derived from Story status,
+    // not Task tallies. The Story carries its own `status` on the entry.
     const tasks = [makeTask(1, 'agent::done')];
-    const story = makeStory(10, tasks, 0);
+    const story = { ...makeStory(10, tasks, 0), status: 'agent::done' };
     const manifest = makeBaseManifest({
       summary: {
         totalTasks: 1,

@@ -5,39 +5,52 @@
  * (`manifest-formatter.js`) and the per-wave renderer
  * (`manifest-render-waves.js`). Split out (Story #1849 Task #1871) so
  * the parent formatter can collapse to the wiring facade. The formatter
- * re-exports every name here so existing call-sites import paths stay
+ * re-exports every name here so existing call-sites' import paths stay
  * unchanged.
+ *
+ * Post-3-tier (Story #3194, Epic #3163): the helpers consume the
+ * Story-only manifest shape. Stories carry their lifecycle state on a
+ * top-level `status` field (the parent Story's `agent::*` label) — the
+ * old per-Story Task array and the per-Task id indirection are no
+ * longer accessed here. Helpers that historically tallied Task-level
+ * state (`topoSortTasks`, `computeStoryProgress`) moved to
+ * `manifest-render-waves.js` where their last caller lives, pending
+ * its own Story-only rewrite.
  */
 
 import { AGENT_LABELS } from '../label-constants.js';
 
 /**
  * Pick the per-Story symbol for the wave-grouped Story table:
- *   🚧 — at least one task is `agent::blocked`
- *   ✅ — every task is `agent::done`
- *   🔄 — some task is `agent::done` or `agent::executing` (not all done)
- *   ⬜ — nothing started yet (planning-time default)
+ *   🚧 — Story is `agent::blocked`
+ *   ✅ — Story is `agent::done`
+ *   🔄 — Story is `agent::executing` (in flight)
+ *   ⬜ — Story is `agent::ready` or unset (planning-time default)
  *
- * Pure: derives state from `s.tasks[].status` only.
+ * Pure: derives the symbol from `story.status` only.
  *
- * @param {{ tasks: Array<{ status?: string }> }} story
+ * @param {{ status?: string }} story
  * @returns {string}
  */
 export function deriveStorySymbol(story) {
-  const tasks = story?.tasks ?? [];
-  if (tasks.length === 0) return '⬜';
-  const blocked = tasks.some((t) => t.status === AGENT_LABELS.BLOCKED);
-  if (blocked) return '🚧';
-  const done = tasks.filter((t) => t.status === AGENT_LABELS.DONE).length;
-  if (done === tasks.length) return '✅';
-  if (done > 0 || tasks.some((t) => t.status === AGENT_LABELS.EXECUTING)) {
-    return '🔄';
-  }
+  const status = story?.status;
+  if (status === AGENT_LABELS.BLOCKED) return '🚧';
+  if (status === AGENT_LABELS.DONE) return '✅';
+  if (status === AGENT_LABELS.EXECUTING) return '🔄';
   return '⬜';
 }
 
 /**
  * Compute aggregate progress numbers for a dispatch manifest. Pure.
+ *
+ * Story-only shape (Epic #3163): `doneStories` / `totalStories` are
+ * derived from each Story's top-level `status` (the parent Story's
+ * `agent::*` label), not from a nested Task array. Task-tier totals
+ * (`taskPct`, `doneTasks`, `totalTasks`) are passed through from the
+ * caller-supplied `manifest.summary` envelope so existing telemetry
+ * surfaces keep rendering identical numbers — the producer-side rewrite
+ * (Story #3195) replaces those counters with Story-tier equivalents in
+ * the same Epic.
  *
  * @param {object} manifest
  * @returns {{
@@ -57,9 +70,7 @@ export function computeProgress(manifest) {
     (s) => s.type === 'story' && s.storyId !== '__ungrouped__',
   );
   const doneStories = allStoryItems.filter(
-    (s) =>
-      s.tasks.length > 0 &&
-      s.tasks.every((t) => t.status === AGENT_LABELS.DONE),
+    (s) => s.status === AGENT_LABELS.DONE,
   ).length;
 
   const storyWaveSet = new Set(
@@ -128,14 +139,21 @@ export function renderProgressBar(percent, opts = {}) {
  * Derive the per-wave status label and emoji used by both the TOC table
  * and the per-wave H2 heading.
  *
+ * The waveStats map carries an opaque pair `{ total, done }` per wave —
+ * the meaning of the unit is the caller's choice. Story-only callers
+ * (`renderWaveSections` here) pass Story counts; Task-aware callers
+ * (the wave renderer, pending Story #3196's rewrite) pass Task counts.
+ * Either way, a wave is "done" when `done === total > 0`. "Ready"
+ * requires every prior wave to be done; otherwise "Blocked".
+ *
  * @param {number} waveIdx
- * @param {Map<number, { tasks: number, done: number }>} waveStats
+ * @param {Map<number, { total: number, done: number }>} waveStats
  * @param {number[]} sortedWaves
  * @returns {{ emoji: string, word: string, label: string }}
  */
 export function deriveWaveStatus(waveIdx, waveStats, sortedWaves) {
   const stat = waveStats.get(waveIdx);
-  const isDone = stat && stat.tasks > 0 && stat.done === stat.tasks;
+  const isDone = stat && stat.total > 0 && stat.done === stat.total;
   if (isDone) return { emoji: '✅', word: 'Done', label: '✅ Done' };
   const isReady =
     waveIdx === 0 ||
@@ -143,7 +161,7 @@ export function deriveWaveStatus(waveIdx, waveStats, sortedWaves) {
       .filter((sw) => sw < waveIdx)
       .every((sw) => {
         const swStat = waveStats.get(sw);
-        return swStat.done === swStat.tasks;
+        return swStat.done === swStat.total;
       });
   return isReady
     ? { emoji: '🚀', word: 'Ready', label: '🚀 Ready' }
@@ -153,6 +171,10 @@ export function deriveWaveStatus(waveIdx, waveStats, sortedWaves) {
 /**
  * Render the "## Wave Summary" section for a manifest's wave-eligible
  * items (Stories only — Features are containers and excluded by caller).
+ *
+ * Story-only shape: per-wave totals count Stories (not Tasks). Each
+ * row reports `doneStories/storyCount` so the TOC reflects Story-tier
+ * progress directly.
  *
  * @param {object[]} waveEligible
  * @returns {string} Markdown block, or empty string when nothing to render.
@@ -164,20 +186,23 @@ export function renderWaveSections(waveEligible) {
   for (const s of waveEligible) {
     const w = s.earliestWave ?? -1;
     if (!waveStats.has(w)) {
-      waveStats.set(w, { stories: 0, tasks: 0, done: 0 });
+      // `total` / `done` is the contract `deriveWaveStatus` consumes;
+      // here each unit is a Story. Other callers (the wave renderer,
+      // pending Story #3196's rewrite) pass Task counts under the same
+      // key names so the predicate stays unit-agnostic.
+      waveStats.set(w, { total: 0, done: 0 });
     }
     const stat = waveStats.get(w);
-    stat.stories++;
-    stat.tasks += s.tasks.length;
-    stat.done += s.tasks.filter((t) => t.status === AGENT_LABELS.DONE).length;
+    stat.total++;
+    if (s.status === AGENT_LABELS.DONE) stat.done++;
   }
 
   const sortedWaves = [...waveStats.keys()].sort((a, b) => a - b);
   const lines = [
     '## Wave Summary',
     '',
-    '| Wave | Status | Stories | Tasks |',
-    '| :--- | :--- | :--- | :--- |',
+    '| Wave | Status | Stories |',
+    '| :--- | :--- | :--- |',
   ];
 
   for (const w of sortedWaves) {
@@ -188,88 +213,9 @@ export function renderWaveSections(waveEligible) {
     const anchor = slugifyHeading(headingText);
     const waveCell = `[${waveLabel}](#${anchor})`;
     lines.push(
-      `| ${waveCell} | ${status.label} | ${stat.stories} | ${stat.done}/${stat.tasks} |`,
+      `| ${waveCell} | ${status.label} | ${stat.done}/${stat.total} |`,
     );
   }
   lines.push('');
   return lines.join('\n');
-}
-
-/**
- * Topologically sort a Story's Tasks by their `dependencies` (in-Story
- * `depends_on` ids). Stable: ties resolve in the original declaration
- * order. Cross-Story dependencies (ids that aren't in the same
- * `tasks[]`) are ignored.
- *
- * Pure / O(n + e) — Kahn's algorithm with a deterministic tie-breaker.
- *
- * @param {Array<{ taskId: number|string, dependencies?: Array<number|string> }>} tasks
- * @returns {Array}
- */
-export function topoSortTasks(tasks) {
-  if (!tasks || tasks.length === 0) return [];
-  const idSet = new Set(tasks.map((t) => String(t.taskId)));
-  const order = new Map();
-  tasks.forEach((t, idx) => {
-    order.set(String(t.taskId), idx);
-  });
-
-  const inDegree = new Map();
-  const adj = new Map();
-  for (const t of tasks) {
-    const tid = String(t.taskId);
-    if (!inDegree.has(tid)) inDegree.set(tid, 0);
-    if (!adj.has(tid)) adj.set(tid, []);
-    for (const dep of t.dependencies ?? []) {
-      const did = String(dep);
-      if (!idSet.has(did)) continue;
-      inDegree.set(tid, (inDegree.get(tid) ?? 0) + 1);
-      if (!adj.has(did)) adj.set(did, []);
-      adj.get(did).push(tid);
-    }
-  }
-
-  const ready = tasks
-    .map((t) => String(t.taskId))
-    .filter((tid) => (inDegree.get(tid) ?? 0) === 0)
-    .sort((a, b) => order.get(a) - order.get(b));
-
-  const out = [];
-  const byId = new Map(tasks.map((t) => [String(t.taskId), t]));
-  while (ready.length > 0) {
-    const tid = ready.shift();
-    out.push(byId.get(tid));
-    for (const next of adj.get(tid) ?? []) {
-      inDegree.set(next, inDegree.get(next) - 1);
-      if (inDegree.get(next) === 0) {
-        let i = 0;
-        while (i < ready.length && order.get(ready[i]) < order.get(next)) i++;
-        ready.splice(i, 0, next);
-      }
-    }
-  }
-
-  // Cycle fallback: append any leftover tasks in original order so we
-  // never silently drop work.
-  if (out.length < tasks.length) {
-    for (const t of tasks) {
-      if (!out.includes(t)) out.push(t);
-    }
-  }
-  return out;
-}
-
-/**
- * Compute per-Story aggregates for the nested wave layout: a 0..100
- * progress percent and the done/total task counts. Pure.
- *
- * @param {{ tasks?: Array<{ status?: string }> }} story
- * @returns {{ pct: number, done: number, total: number }}
- */
-export function computeStoryProgress(story) {
-  const tasks = story?.tasks ?? [];
-  const total = tasks.length;
-  const done = tasks.filter((t) => t.status === AGENT_LABELS.DONE).length;
-  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-  return { pct, done, total };
 }
