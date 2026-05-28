@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T00:17:59.852Z",
+  "generatedAt": "2026-05-28T00:59:13.104Z",
   "rollup": {
     "*": {
       "min": 38.161,
-      "p50": 103.671,
-      "p95": 121.235
+      "p50": 103.753,
+      "p95": 121.479
     }
   },
   "rows": [
@@ -879,14 +879,6 @@
       "mi": 94.803
     },
     {
-      "path": ".agents/scripts/lib/orchestration/dispatch-engine.js",
-      "mi": 96.285
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dispatch-pipeline.js",
-      "mi": 94.826
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/doc-reader.js",
       "mi": 102.211
     },
@@ -1571,10 +1563,6 @@
       "mi": 101.086
     },
     {
-      "path": ".agents/scripts/lib/orchestration/task-fetcher.js",
-      "mi": 114.391
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
       "mi": 87.067
     },
@@ -1643,28 +1631,12 @@
       "mi": 113.993
     },
     {
-      "path": ".agents/scripts/lib/presentation/manifest-builder.js",
-      "mi": 92.608
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-formatter.js",
-      "mi": 102.664
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-helpers.js",
-      "mi": 103.202
-    },
-    {
       "path": ".agents/scripts/lib/presentation/manifest-persistence.js",
       "mi": 95.662
     },
     {
       "path": ".agents/scripts/lib/presentation/manifest-procedures.js",
       "mi": 100.741
-    },
-    {
-      "path": ".agents/scripts/lib/presentation/manifest-render-waves.js",
-      "mi": 99.181
     },
     {
       "path": ".agents/scripts/lib/presentation/manifest-renderer.js",
@@ -2671,10 +2643,6 @@
       "mi": 108.302
     },
     {
-      "path": "tests/contract/delivery/three-tier-dispatch.test.js",
-      "mi": 113.205
-    },
-    {
       "path": "tests/contract/dispatch/emit-story-dispatch.test.js",
       "mi": 109.231
     },
@@ -3495,10 +3463,6 @@
       "mi": 90.952
     },
     {
-      "path": "tests/lib/manifest-formatter.test.js",
-      "mi": 93.139
-    },
-    {
       "path": "tests/lib/manifest-persistence.test.js",
       "mi": 92.143
     },
@@ -3509,10 +3473,6 @@
     {
       "path": "tests/lib/manifest-renderer-post.test.js",
       "mi": 110.146
-    },
-    {
-      "path": "tests/lib/manifest-renderer.test.js",
-      "mi": 95.604
     },
     {
       "path": "tests/lib/mutation/baseline-snapshot.test.js",
@@ -4115,18 +4075,6 @@
       "mi": 87.927
     },
     {
-      "path": "tests/lib/presentation/manifest-builder.test.js",
-      "mi": 98.574
-    },
-    {
-      "path": "tests/lib/presentation/manifest-formatter-end-to-end.test.js",
-      "mi": 100.773
-    },
-    {
-      "path": "tests/lib/presentation/manifest-formatter-layout.test.js",
-      "mi": 98.735
-    },
-    {
       "path": "tests/lib/presentation/manifest-render-concurrency.test.js",
       "mi": 104.331
     },
@@ -4393,10 +4341,6 @@
     {
       "path": "tests/maintainability-utils.coverage-dir-ignored.test.js",
       "mi": 103.276
-    },
-    {
-      "path": "tests/manifest-renderer.test.js",
-      "mi": 98.101
     },
     {
       "path": "tests/notify.test.js",
@@ -4689,10 +4633,6 @@
     {
       "path": "tests/scripts/lifecycle-emit.test.js",
       "mi": 117.259
-    },
-    {
-      "path": "tests/scripts/manifest-formatter-fromspec.test.js",
-      "mi": 86.998
     },
     {
       "path": "tests/scripts/project-bootstrap-phases.test.js",
