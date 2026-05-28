@@ -46,15 +46,8 @@ const PR_GATE = {
   ],
   enforceBranchProtection: true,
 };
-const AGENT_SETTINGS = {
-  baseBranch: 'main',
-  quality: { prGate: PR_GATE },
-};
 // Epic #2880 / F14B: runBootstrap reads `opts.project` (canonical) instead
-// of the legacy `opts.agentSettings` shape. The previous AGENT_SETTINGS
-// constant is preserved for any other callers in this file that still
-// reference it (e.g. assertions on shape), but new test calls use
-// PROJECT_BLOCK directly.
+// of the legacy `opts.agentSettings` shape; new test calls use PROJECT_BLOCK.
 const PROJECT_BLOCK = {
   baseBranch: 'main',
   quality: { prGate: PR_GATE },

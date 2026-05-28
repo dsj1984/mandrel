@@ -44,7 +44,7 @@ function writeLedger(ledgerPath, records) {
   fs.mkdirSync(path.dirname(ledgerPath), { recursive: true });
   fs.writeFileSync(
     ledgerPath,
-    records.map((r) => JSON.stringify(r)).join('\n') + '\n',
+    `${records.map((r) => JSON.stringify(r)).join('\n')}\n`,
     'utf8',
   );
 }
