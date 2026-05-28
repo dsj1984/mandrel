@@ -201,6 +201,15 @@ issues are created, `/story-deliver` runs a single phase) — the
 deferred work is internal cleanup that does not change the runtime
 contract.
 
+> **Resolved.** The deferred producer rewrite landed via Epic #3163's
+> closing PR [#3216](https://github.com/dsj1984/mandrel/pull/3216):
+> `story-grouper.js` and `task-body-renderer.js` are deleted, every
+> producer/presentation/CLI import site is rewritten for the 3-tier
+> hierarchy, and the parked producer-side tests are reinstated. A
+> repo-wide grep for the canonical Task-tier symbols now returns zero
+> structural hits outside the `cleanup-type-task-label.js` consumer
+> utility and this historical note.
+
 ---
 
 ## References
