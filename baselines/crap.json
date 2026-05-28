@@ -1,13 +1,13 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T15:22:05.078Z",
+  "generatedAt": "2026-05-28T20:23:20.165Z",
   "rollup": {
     "*": {
       "p50": 3,
       "p95": 12.157083248524323,
       "max": 53.8385539444679,
-      "methodsAbove20": 30
+      "methodsAbove20": 29
     }
   },
   "rows": [
@@ -6558,96 +6558,6 @@
       "crap": 2
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "method": "indexExistingChildren",
-      "startLine": 22,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "method": "attachAdaptiveConcurrencyHook",
-      "startLine": 37,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "method": "<anon method-2>",
-      "startLine": 41,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "method": "<anon method-3>",
-      "startLine": 41,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "method": "<anon method-4>",
-      "startLine": 44,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "method": "<anon method-5>",
-      "startLine": 49,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "method": "<anon method-6>",
-      "startLine": 50,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "method": "reconcileSubIssueLinks",
-      "startLine": 56,
-      "crap": 4.673296622010356
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "method": "setEpicLabel",
-      "startLine": 80,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "method": "loadExistingChildren",
-      "startLine": 90,
-      "crap": 5.072886297376093
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "method": "forceCloseExistingChildren",
-      "startLine": 105,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "method": "resolveChildIndex",
-      "startLine": 124,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "method": "runStagedPasses",
-      "startLine": 153,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "method": "assertEpicHasPlanningArtifacts",
-      "startLine": 187,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
-      "method": "warnTicketCapNearLimit",
-      "startLine": 210,
-      "crap": 2
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/dag.js",
       "method": "resolveParentId",
       "startLine": 18,
@@ -9000,54 +8910,6 @@
       "crap": 1
     },
     {
-      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
-      "method": "deriveFamily",
-      "startLine": 61,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
-      "method": "resolveModelIdentity",
-      "startLine": 86,
-      "crap": 10.002332361516036
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
-      "method": "buildModelAttributionPayload",
-      "startLine": 134,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
-      "method": "validateModelAttributionPayload",
-      "startLine": 171,
-      "crap": 24.027696468820437
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
-      "method": "renderModelAttributionBody",
-      "startLine": 236,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
-      "method": "emitModelAttribution",
-      "startLine": 265,
-      "crap": 6.0641121963436015
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
-      "method": "parseModelAttributionComment",
-      "startLine": 311,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/model-attribution.js",
-      "method": "rollupModelAttribution",
-      "startLine": 348,
-      "crap": 8.020285499624343
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/parked-follow-ons.js",
       "method": "classifyStoriesAgainstManifest",
       "startLine": 34,
@@ -9276,30 +9138,6 @@
       "crap": 9.267599664814155
     },
     {
-      "path": ".agents/scripts/lib/orchestration/post-merge-pipeline.js",
-      "method": "reapPhaseLogger",
-      "startLine": 67,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/post-merge-pipeline.js",
-      "method": "perfSummaryPhase",
-      "startLine": 95,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/post-merge-pipeline.js",
-      "method": "runPostMergePipeline",
-      "startLine": 186,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/post-merge-pipeline.js",
-      "method": "<anon method-2>",
-      "startLine": 198,
-      "crap": 1
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/post-merge/phases/branch-cleanup.js",
       "method": "reapPhaseLogger",
       "startLine": 13,
@@ -9346,18 +9184,6 @@
       "method": "tempCleanupPhase",
       "startLine": 18,
       "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/post-merge/phases/ticket-closure.js",
-      "method": "reapPhaseLogger",
-      "startLine": 26,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/post-merge/phases/ticket-closure.js",
-      "method": "ticketClosurePhase",
-      "startLine": 30,
-      "crap": 6.268591031475939
     },
     {
       "path": ".agents/scripts/lib/orchestration/post-merge/phases/worktree-reap.js",
@@ -9694,18 +9520,6 @@
       "method": "composeRoutedProposals",
       "startLine": 293,
       "crap": 18.00029650589763
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/retro-runner.js",
-      "method": "runRetro",
-      "startLine": 101,
-      "crap": 9.001599115550905
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/retro-runner.js",
-      "method": "<anon method-1>",
-      "startLine": 157,
-      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/retro/phases/checks.js",
@@ -10336,114 +10150,6 @@
       "method": "renderSpecFreshnessComment",
       "startLine": 280,
       "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "getValidator",
-      "startLine": 87,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "_resetRendererValidatorCacheForTests",
-      "startLine": 104,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "normaliseAjvErrors",
-      "startLine": 128,
-      "crap": 1.0130266639527783
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "sanitizeLabels",
-      "startLine": 146,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "renderBody",
-      "startLine": 185,
-      "crap": 14
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "assignNonEmpty",
-      "startLine": 211,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "indexTickets",
-      "startLine": 230,
-      "crap": 11.71894196233762
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "layerStories",
-      "startLine": 270,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "validateRenderSpecInputs",
-      "startLine": 304,
-      "crap": 12.561164258090779
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "bucketStoriesByFeature",
-      "startLine": 322,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "pickStringArray",
-      "startLine": 334,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "extractStoryAcceptanceVerify",
-      "startLine": 345,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "buildStoryOut",
-      "startLine": 364,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "buildFeatureOut",
-      "startLine": 384,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "buildEpicOut",
-      "startLine": 398,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "buildGatesOut",
-      "startLine": 405,
-      "crap": 8
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "validateSpec",
-      "startLine": 417,
-      "crap": 3.2099125364431487
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "method": "renderSpec",
-      "startLine": 432,
-      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
@@ -11160,18 +10866,6 @@
       "crap": 12
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/locked-pipeline.js",
-      "method": "runGatesAndRefresh",
-      "startLine": 48,
-      "crap": 20
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/locked-pipeline.js",
-      "method": "runStoryCloseLocked",
-      "startLine": 110,
-      "crap": 5.187238020876141
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/preflight.js",
       "method": "runStoryClosePreflight",
       "startLine": 36,
@@ -11392,234 +11086,6 @@
       "method": "fetchTasks",
       "startLine": 52,
       "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
-      "method": "matchRegistryPattern",
-      "startLine": 72,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
-      "method": "isRegistryPath",
-      "startLine": 80,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
-      "method": "parentDirOf",
-      "startLine": 85,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
-      "method": "extractChangeBulletPath",
-      "startLine": 98,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
-      "method": "storySlugOf",
-      "startLine": 107,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
-      "method": "indexProducers",
-      "startLine": 116,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
-      "method": "indexConsumers",
-      "startLine": 148,
-      "crap": 8
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
-      "method": "computeStoryReachability",
-      "startLine": 185,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
-      "method": "inSameWave",
-      "startLine": 205,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
-      "method": "computeSharedEditorFindings",
-      "startLine": 220,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
-      "method": "computeImplicitDepFindings",
-      "startLine": 255,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
-      "method": "indexAssumptionEntries",
-      "startLine": 289,
-      "crap": 8
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
-      "method": "computeRegistryFindings",
-      "startLine": 329,
-      "crap": 16.16121282798834
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
-      "method": "bump",
-      "startLine": 340,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
-      "method": "registryRegistry",
-      "startLine": 443,
-      "crap": 8.215784143518519
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
-      "method": "computeFanOutFindings",
-      "startLine": 483,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
-      "method": "computeConflictFindings",
-      "startLine": 533,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
-      "method": "renderHardConflictError",
-      "startLine": 580,
-      "crap": 5.137390596376959
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "collectPathsFromText",
-      "startLine": 36,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "collectTaskPathReferences",
-      "startLine": 51,
-      "crap": 7.338624338624339
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "collectTaskChangesPaths",
-      "startLine": 102,
-      "crap": 9
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "defaultGitRunner",
-      "startLine": 133,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "validateAcFreshness",
-      "startLine": 160,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "validateAcceptanceSubjectPrefix",
-      "startLine": 275,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "renderMissLine",
-      "startLine": 325,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "indexTicketsBySlug",
-      "startLine": 363,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "assertEachTypePresent",
-      "startLine": 386,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "assertHierarchy",
-      "startLine": 407,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "countTasksByStory",
-      "startLine": 433,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "hasInlineAcceptanceAndVerify",
-      "startLine": 458,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "assertEveryStoryHasTasks",
-      "startLine": 469,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "assertNoUnknownDeps",
-      "startLine": 489,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "liftDepToStory",
-      "startLine": 507,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "processCrossStoryTaskDeps",
-      "startLine": 523,
-      "crap": 7.073142857142857
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "logLiftedDeps",
-      "startLine": 559,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "assertAcyclic",
-      "startLine": 571,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "attachFindingsAndErrors",
-      "startLine": 580,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "validateAndNormalizeTickets",
-      "startLine": 595,
-      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
