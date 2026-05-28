@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T02:29:43.324Z",
+  "generatedAt": "2026-05-28T02:57:14.432Z",
   "rollup": {
     "*": {
       "min": 38.161,
-      "p50": 103.866,
-      "p95": 121.479
+      "p50": 103.88,
+      "p95": 121.571
     }
   },
   "rows": [
@@ -83,16 +83,8 @@
       "mi": 108.343
     },
     {
-      "path": ".agents/scripts/diagnose-friction.js",
-      "mi": 84.259
-    },
-    {
       "path": ".agents/scripts/diagnose.js",
       "mi": 99.168
-    },
-    {
-      "path": ".agents/scripts/dispatcher.js",
-      "mi": 102.354
     },
     {
       "path": ".agents/scripts/drain-pending-cleanup.js",
@@ -465,10 +457,6 @@
     {
       "path": ".agents/scripts/lib/cli/parse-numeric.js",
       "mi": 108.667
-    },
-    {
-      "path": ".agents/scripts/lib/cli/standard-args.js",
-      "mi": 90.293
     },
     {
       "path": ".agents/scripts/lib/close-validation.js",
@@ -2739,10 +2727,6 @@
       "mi": 100.116
     },
     {
-      "path": "tests/diagnose-friction.test.js",
-      "mi": 106.243
-    },
-    {
       "path": "tests/diagnose-output.test.js",
       "mi": 103.888
     },
@@ -3157,10 +3141,6 @@
     {
       "path": "tests/lib/cli-parse-numeric.test.js",
       "mi": 135.16
-    },
-    {
-      "path": "tests/lib/cli-standard-args.test.js",
-      "mi": 117.28
     },
     {
       "path": "tests/lib/cli-utils.test.js",
