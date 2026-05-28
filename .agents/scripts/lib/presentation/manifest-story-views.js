@@ -11,7 +11,6 @@
  */
 
 import { Logger } from '../Logger.js';
-import { AGENT_LABELS } from '../label-constants.js';
 
 /**
  * Format the per-story execution manifest. Pure: caller must supply
@@ -46,16 +45,11 @@ export function formatStoryManifestMarkdown(manifest, opts = {}) {
     lines.push(`- **Epic Branch:** \`${story.epicBranch}\``);
     lines.push(`- **Story Branch:** \`${story.branchName}\``);
     lines.push('');
-    lines.push('**Tasks (execution order):**');
-    for (const task of story.tasks) {
-      const isDone = task.status === AGENT_LABELS.DONE;
-      const checkbox = isDone ? '[x]' : '[ ]';
-      const deps =
-        task.dependencies && task.dependencies.length > 0
-          ? ` _(blocked by: ${task.dependencies.map((d) => `#${d}`).join(', ')})_`
-          : '';
-      lines.push(`- ${checkbox} **#${task.taskId}** — ${task.title}${deps}`);
-    }
+    // Under the 3-tier hierarchy (Epic #3163) Stories are leaves with no
+    // child Task tickets, so the per-Story Task projection has no live
+    // producer. The renderer surfaces a single marker rather than the
+    // legacy per-Task checkbox list.
+    lines.push('_(no tasks)_');
     lines.push('');
   }
 
@@ -68,9 +62,11 @@ export function formatStoryManifestMarkdown(manifest, opts = {}) {
   const closePath = `${scriptsRoot}/story-close.js`;
 
   lines.push(
-    `1. \`node ${initPath} --story <storyId>\` (bootstraps branch, transitions tasks)`,
+    `1. \`node ${initPath} --story <storyId>\` (bootstraps branch, transitions Story)`,
   );
-  lines.push('2. Implement each Task sequentially and commit after each one.');
+  lines.push(
+    '2. Implement the Story body acceptance criteria and commit on the Story branch.',
+  );
   lines.push(`3. Run \`${validateCmd}\` and \`${testCmd}\` to validate.`);
   lines.push(
     `4. \`node <main-repo>/${closePath} --story <storyId> --cwd <main-repo>\` (merges, cleans up, closes tickets)`,
