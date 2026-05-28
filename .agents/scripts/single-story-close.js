@@ -59,6 +59,7 @@ import {
   parsePrNumber,
   runStoryScopeReview,
 } from './lib/orchestration/single-story-close/phases/code-review.js';
+import { runDriftDetectionPhase } from './lib/orchestration/single-story-close/phases/drift-detection.js';
 import { parseCloseOptions } from './lib/orchestration/single-story-close/phases/options.js';
 import { ensurePullRequestWith } from './lib/orchestration/single-story-close/phases/pull-request.js';
 import { pushStoryBranch } from './lib/orchestration/single-story-close/phases/push.js';
@@ -107,6 +108,9 @@ export async function runSingleStoryClose({
   // facade through to the PR open / auto-merge phases without touching
   // module mocks. Defaults to the real `gh` import on each phase.
   injectedGh,
+  // Story #3260: lets tests inject fakes for plan-vs-actual drift detection.
+  injectedFindStructuredComment,
+  injectedGitSync,
 } = {}) {
   const {
     storyId,
@@ -162,6 +166,17 @@ export async function runSingleStoryClose({
   const worktreePath = nodeFs.existsSync(worktreePathCandidate)
     ? worktreePathCandidate
     : null;
+
+  // Step 0.5: plan-vs-actual drift detection (non-blocking soft findings).
+  await runDriftDetectionPhase({
+    cwd,
+    baseBranch,
+    storyId,
+    provider,
+    progress,
+    injectedFindStructuredComment,
+    injectedGitSync,
+  });
 
   // Step 1: gates.
   if (!skipValidation) {
