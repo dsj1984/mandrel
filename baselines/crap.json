@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T02:29:43.663Z",
+  "generatedAt": "2026-05-28T10:24:53.337Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.010699859060178,
+      "p95": 12.000914494741656,
       "max": 49.61729902329076,
       "methodsAbove20": 28
     }
@@ -3216,84 +3216,6 @@
       "crap": 6
     },
     {
-      "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "camelCase",
-      "startLine": 98,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "normaliseCallSignature",
-      "startLine": 111,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "buildDefineFlagsSpec",
-      "startLine": 129,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "knownFlagNames",
-      "startLine": 147,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "findUnknownFlag",
-      "startLine": 156,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "validateSchema",
-      "startLine": 173,
-      "crap": 5.048828125
-    },
-    {
-      "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "validateExtras",
-      "startLine": 195,
-      "crap": 8.56681290745828
-    },
-    {
-      "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "isAbsent",
-      "startLine": 229,
-      "crap": 14.25
-    },
-    {
-      "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "throwMissing",
-      "startLine": 238,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "enforceRequired",
-      "startLine": 251,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "enforceExtrasRequired",
-      "startLine": 263,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "normaliseValues",
-      "startLine": 280,
-      "crap": 18.2669677734375
-    },
-    {
-      "path": ".agents/scripts/lib/cli/standard-args.js",
-      "method": "parseStandardCliArgs",
-      "startLine": 321,
-      "crap": 3
-    },
-    {
       "path": ".agents/scripts/lib/close-validation.js",
       "method": "buildFormatHint",
       "startLine": 59,
@@ -6204,54 +6126,6 @@
       "crap": 5.007407407407407
     },
     {
-      "path": ".agents/scripts/lib/orchestration/dependency-analyzer.js",
-      "method": "rollUpStoryFocus",
-      "startLine": 17,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dependency-analyzer.js",
-      "method": "isFocusOverlapEdgeEligible",
-      "startLine": 78,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dependency-analyzer.js",
-      "method": "hasUsableFocus",
-      "startLine": 101,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dependency-analyzer.js",
-      "method": "focusBagsOverlap",
-      "startLine": 115,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dependency-analyzer.js",
-      "method": "eitherDirectionAlreadyReachable",
-      "startLine": 133,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dependency-analyzer.js",
-      "method": "pickEdgeDirection",
-      "startLine": 148,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dependency-analyzer.js",
-      "method": "addFocusOverlapEdges",
-      "startLine": 155,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dependency-analyzer.js",
-      "method": "computeStoryWaves",
-      "startLine": 218,
-      "crap": 7.183079462052564
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/detectors-phase.js",
       "method": "reapPhaseLogger",
       "startLine": 48,
@@ -6334,12 +6208,6 @@
       "method": "reconcileEpicAgentLabels",
       "startLine": 154,
       "crap": 9.699135184342285
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-lifecycle-detector.js",
-      "method": "detectEpicCompletion",
-      "startLine": 29,
-      "crap": 4.000812884214804
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/cli.js",
@@ -10782,12 +10650,6 @@
       "crap": 5
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-executor.js",
-      "method": "executeStory",
-      "startLine": 18,
-      "crap": 5
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-grouper.js",
       "method": "parseParentId",
       "startLine": 13,
@@ -11296,42 +11158,6 @@
       "method": "<anon method-24>",
       "startLine": 747,
       "crap": 1.2962962962962963
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-dispatcher.js",
-      "method": "collectOpenStoryIds",
-      "startLine": 36,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-dispatcher.js",
-      "method": "dispatchTaskInWave",
-      "startLine": 65,
-      "crap": 10.829142371234207
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-dispatcher.js",
-      "method": "collectHierarchyIds",
-      "startLine": 165,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-dispatcher.js",
-      "method": "primeWaveHierarchy",
-      "startLine": 193,
-      "crap": 6.013119533527696
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-dispatcher.js",
-      "method": "dispatchWave",
-      "startLine": 230,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-dispatcher.js",
-      "method": "dispatchNextWave",
-      "startLine": 305,
-      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/wave-marker.js",
@@ -12442,48 +12268,6 @@
       "method": "resolveContext",
       "startLine": 26,
       "crap": 10.629221665908057
-    },
-    {
-      "path": ".agents/scripts/lib/story-init/dependency-guard.js",
-      "method": "extractJsonBlock",
-      "startLine": 35,
-      "crap": 4.128
-    },
-    {
-      "path": ".agents/scripts/lib/story-init/dependency-guard.js",
-      "method": "loadDispatchManifest",
-      "startLine": 60,
-      "crap": 14.454419397516793
-    },
-    {
-      "path": ".agents/scripts/lib/story-init/dependency-guard.js",
-      "method": "storyKey",
-      "startLine": 129,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/story-init/dependency-guard.js",
-      "method": "summariseStoryState",
-      "startLine": 133,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/story-init/dependency-guard.js",
-      "method": "validateBlockersMerged",
-      "startLine": 158,
-      "crap": 18
-    },
-    {
-      "path": ".agents/scripts/lib/story-init/dependency-guard.js",
-      "method": "runDispatchManifestGuard",
-      "startLine": 240,
-      "crap": 5.362734144890527
-    },
-    {
-      "path": ".agents/scripts/lib/story-init/dependency-guard.js",
-      "method": "formatBlockerReport",
-      "startLine": 290,
-      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/story-init/dispatch-state-writer.js",
