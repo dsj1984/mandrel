@@ -1,13 +1,13 @@
 /**
- * Task body schema validator (v5.33+).
+ * Task/Story body schema validator (v5.33+).
  *
- * Enforces the four-section structured body shape on tasks emitted by the
- * decomposer. String-bodied or undefined-bodied tasks are skipped (legacy
- * fixtures + Feature/Story bodies pass through). When a task body IS a
- * structured object, we require non-empty `goal`, `changes`, `acceptance`,
- * and `verify` arrays — and that `changes` items name at least one
- * path-shaped token so vague verbs ("clean up", "refactor") can't slip
- * through.
+ * Enforces the four-section structured body shape on tasks and 3-tier
+ * stories emitted by the decomposer. String-bodied or undefined-bodied
+ * tasks are skipped (legacy fixtures + Feature bodies pass through). When
+ * a task or story body IS a structured object, we require non-empty
+ * `goal`, `changes`, `acceptance`, and `verify` arrays — and that
+ * `changes` items name at least one path-shaped token so vague verbs
+ * ("clean up", "refactor") can't slip through.
  *
  * `body.changes` items may be either:
  *   1. A string bullet (legacy shape, e.g. `"src/foo.ts: extract handler"`).
@@ -15,10 +15,15 @@
  *
  * Object-form items must declare an `assumption` ∈ `creates |
  * refactors-existing | exists | deletes`. The optional `body.references`
- * array uses the same object shape and is the home for paths the Task
+ * array uses the same object shape and is the home for paths the Task/Story
  * reads but does not modify (test fixtures, sibling modules, etc.).
  * String-form `changes` items remain legal so legacy plans keep parsing,
  * but they emit a deprecation signal via `validateTaskFileAssumptions`.
+ *
+ * `body.verify` entries must either name a testing tier in parentheses
+ * drawn from `VERIFY_TIER_VALUES` (e.g. `npm run test (unit)`) or be the
+ * literal `manual:<reason>` escape hatch when the Story is genuinely
+ * unverifiable in isolation.
  *
  * The errors are batched and surfaced as a single thrown Error so the
  * planner can see every offending slug in one pass instead of fixing one
@@ -34,6 +39,21 @@ export const FILE_ASSUMPTION_VALUES = Object.freeze([
   'refactors-existing',
   'exists',
   'deletes',
+]);
+
+/**
+ * Canonical testing-tier labels that a `verify[]` entry must name (in
+ * parentheses) to pass plan-time validation. Mirrors the skill contract in
+ * `core/epic-plan-decompose-author/SKILL.md § verify rules`.
+ *
+ * Entries that do not end with `(<tier>)` and are not `manual:<reason>` are
+ * rejected by `collectVerifyErrors`.
+ */
+export const VERIFY_TIER_VALUES = Object.freeze([
+  'unit',
+  'contract',
+  'e2e',
+  'validate',
 ]);
 
 const PATH_LIKE_RE = /[/.][\w@\-./*]+|\*\*?\/?\*?\.\w+|[a-z][\w-]*\/[\w-./*]+/i;
@@ -76,9 +96,16 @@ function vagueVerbWithoutTarget(bullet) {
 
 /**
  * Predicate: should the validator skip this ticket entirely? Skip when:
- *   - it is not a task,
- *   - its body is `null`/`undefined` (Feature/Story shape),
- *   - or its body is already a plain string (legacy fixture path).
+ *   - it is a Feature (navigational tickets carry string bodies),
+ *   - it has no body or its body is a plain string (legacy fixture path),
+ *   - or it is a Story whose body is not a structured object (3-tier Stories
+ *     must carry an object body — string-bodied Stories pass through).
+ *
+ * Under the 3-tier hierarchy (Epic #3078), Tasks are gone; Stories carry the
+ * implementation scope inline. The validator therefore inspects both
+ * `type::task` and `type::story` tickets that carry structured (object) bodies
+ * so that `verify[]` tier and `assumption` enum errors surface at planning time
+ * rather than silently passing through.
  *
  * Returns `true` when the ticket should be ignored by
  * `collectTaskBodyErrors`, `false` when the body should be inspected.
@@ -87,24 +114,30 @@ function vagueVerbWithoutTarget(bullet) {
  * @returns {boolean}
  */
 function shouldSkipTicket(ticket) {
-  if (!ticket || ticket.type !== 'task') return true;
+  if (!ticket) return true;
+  // Features always use string bodies — never validate them.
+  if (ticket.type === 'feature') return true;
+  // Only task and story tickets carry structured bodies worth validating.
+  if (ticket.type !== 'task' && ticket.type !== 'story') return true;
   const body = ticket.body;
   return body == null || typeof body === 'string';
 }
 
 /**
- * Validate one structured task body and return every violation it
- * exhibits. Empty array means clean. Splits the per-task cascade out of
+ * Validate one structured task or story body and return every violation it
+ * exhibits. Empty array means clean. Splits the per-ticket cascade out of
  * `collectTaskBodyErrors` so the iteration stays straight-line and so
  * each section's defensive checks are independently testable.
  *
- * @param {object} ticket Task whose `body` has already passed the
+ * @param {object} ticket Task or Story whose `body` has already passed the
  *   `shouldSkipTicket` filter (i.e. `body` is an object-ish, non-string).
  * @returns {string[]}
  */
 export function validateTaskBodyShape(ticket) {
   const body = ticket.body;
-  const prefix = `Task "${ticket.title}" (${ticket.slug})`;
+  const isStory = ticket.type === 'story';
+  const ticketKind = isStory ? 'Story' : 'Task';
+  const prefix = `${ticketKind} "${ticket.title}" (${ticket.slug})`;
   if (typeof body !== 'object') {
     return [`${prefix}: body must be an object, got ${typeof body}.`];
   }
@@ -114,7 +147,11 @@ export function validateTaskBodyShape(ticket) {
   }
   errors.push(...collectChangesErrors(prefix, body.changes));
   errors.push(...collectAcceptanceErrors(prefix, body.acceptance));
-  errors.push(...collectVerifyErrors(prefix, body.verify));
+  // Tier-suffix validation is enforced on Story tickets (3-tier world). Task
+  // tickets are a legacy tier whose verify entries may be free-form strings.
+  errors.push(
+    ...collectVerifyErrors(prefix, body.verify, { requireTier: isStory }),
+  );
   errors.push(...collectReferencesErrors(prefix, body.references));
   return errors;
 }
@@ -232,11 +269,22 @@ function collectAcceptanceErrors(prefix, rawAcceptance) {
 }
 
 /**
+ * Regex that matches a valid tier suffix at the end of a verify entry:
+ * a parenthesised word drawn from `VERIFY_TIER_VALUES` (e.g. `(unit)`).
+ * Whitespace before the opening paren is tolerated.
+ */
+const VERIFY_TIER_RE = new RegExp(
+  `\\((?:${VERIFY_TIER_VALUES.join('|')})\\)\\s*$`,
+);
+
+/**
  * @param {string} prefix
  * @param {unknown} rawVerify
+ * @param {{ requireTier?: boolean }} [opts]
  * @returns {string[]}
  */
-function collectVerifyErrors(prefix, rawVerify) {
+function collectVerifyErrors(prefix, rawVerify, opts = {}) {
+  const { requireTier = false } = opts;
   const verify = Array.isArray(rawVerify) ? rawVerify : [];
   if (verify.length === 0) {
     return [
@@ -246,11 +294,19 @@ function collectVerifyErrors(prefix, rawVerify) {
   const errors = [];
   for (const v of verify) {
     if (typeof v !== 'string') continue;
-    if (!v.startsWith('manual:')) continue;
-    const reason = v.slice('manual:'.length).trim();
-    if (reason === '') {
+    if (v.startsWith('manual:')) {
+      const reason = v.slice('manual:'.length).trim();
+      if (reason === '') {
+        errors.push(
+          `${prefix}: body.verify "manual:" entry has no reason after the colon.`,
+        );
+      }
+      // manual: entries are exempt from the tier-suffix check.
+      continue;
+    }
+    if (requireTier && !VERIFY_TIER_RE.test(v)) {
       errors.push(
-        `${prefix}: body.verify "manual:" entry has no reason after the colon.`,
+        `${prefix}: body.verify entry must end with a tier in parentheses — one of (${VERIFY_TIER_VALUES.join('|')}). Got: "${v}".`,
       );
     }
   }
@@ -258,9 +314,9 @@ function collectVerifyErrors(prefix, rawVerify) {
 }
 
 /**
- * Validate every task in `tickets` whose `body` is a structured object.
- * Returns an array of error strings (one per offending slug); empty array
- * means clean.
+ * Validate every task and 3-tier story in `tickets` whose `body` is a
+ * structured object. Returns an array of error strings (one per offending
+ * slug); empty array means clean.
  *
  * @param {object[]} tickets
  * @returns {string[]}

@@ -10,7 +10,7 @@ description:
 ## Overview
 
 `/single-story-deliver` is the standalone counterpart to
-[`/story-deliver`](story-deliver.md). Use it for a Story that is **not**
+[`/story-deliver`](../story-deliver.md). Use it for a Story that is **not**
 attached to an Epic — refactors carved out of closed Epics, framework
 maintenance, or any work small enough that the Epic-Centric ceremony
 (PRD + Tech Spec + decomposition + dispatch manifest + cascade) would be
@@ -483,5 +483,5 @@ safe.
 
 ## See also
 
-- [`/story-deliver`](story-deliver.md) — Epic-attached Story execution.
-- [`/epic-deliver`](epic-deliver.md) — full Epic wave loop.
+- [`/story-deliver`](../story-deliver.md) — Epic-attached Story execution.
+- [`/epic-deliver`](../epic-deliver.md) — full Epic wave loop.

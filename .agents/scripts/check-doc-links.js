@@ -318,12 +318,16 @@ export function checkFile(absPath, repoRoot) {
   }
 
   // 3. Slash-command resolution. Skip retired hits (already reported) and
-  //    allowlisted tokens.
+  //    allowlisted tokens. A command is valid if it resolves to a top-level
+  //    workflow file OR to a helpers/ module (helpers are not exposed as slash
+  //    commands in .claude/commands/ but are still legitimate named workflows
+  //    that parent workflows invoke by prose reference).
   for (const { token, line } of extractSlashTokens(masked)) {
     if (RETIRED_COMMANDS.has(token)) continue;
     if (SLASH_ALLOWLIST.has(token)) continue;
     const workflowFile = path.join(workflowsDir, `${token}.md`);
-    if (!fs.existsSync(workflowFile)) {
+    const helperFile = path.join(workflowsDir, 'helpers', `${token}.md`);
+    if (!fs.existsSync(workflowFile) && !fs.existsSync(helperFile)) {
       violations.push({
         file: relFile,
         line,

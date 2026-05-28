@@ -242,6 +242,55 @@ const CODEBASE_SNAPSHOT_SCHEMA = {
   additionalProperties: false,
 };
 
+/**
+ * Per-profile soft+hard change-count ceiling pair (Recal A, Story #3231).
+ */
+const PROFILE_CEILING_SCHEMA = {
+  type: 'object',
+  required: ['soft', 'hard'],
+  properties: {
+    soft: { type: 'integer', minimum: 1 },
+    hard: { type: 'integer', minimum: 1 },
+  },
+  additionalProperties: false,
+};
+
+/**
+ * `planning.taskSizing.profileCeilings` — operator overrides for per-profile
+ * change ceilings. Keys are `sizingProfile` enum values plus `""` for the
+ * no-profile default. Absent keys fall back to `DEFAULT_TASK_SIZING` in
+ * `ticket-validator-sizing.js`.
+ */
+const PROFILE_CEILINGS_SCHEMA = {
+  type: 'object',
+  properties: {
+    'mechanical-sweep': PROFILE_CEILING_SCHEMA,
+    scaffolding: PROFILE_CEILING_SCHEMA,
+    'atomic-rewrite': PROFILE_CEILING_SCHEMA,
+    '': PROFILE_CEILING_SCHEMA,
+  },
+  additionalProperties: false,
+};
+
+/**
+ * `planning.taskSizing` — Story-sizing thresholds consumed by
+ * `ticket-validator-sizing.js`. Operator overrides shallow-merge with
+ * `DEFAULT_TASK_SIZING` defaults. Story #3231 (Epic #3211 Feature 5)
+ * recalibrated for the 3-tier world: `maxAcceptance` raised to 8,
+ * per-profile change ceilings introduced, `sizingProfile` demoted to an
+ * informational-always hint.
+ */
+const TASK_SIZING_SCHEMA = {
+  type: 'object',
+  properties: {
+    maxAcceptance: { type: 'integer', minimum: 1 },
+    softAcceptanceCount: { type: 'integer', minimum: 1 },
+    softFileCount: { type: 'integer', minimum: 1 },
+    profileCeilings: PROFILE_CEILINGS_SCHEMA,
+  },
+  additionalProperties: false,
+};
+
 const PLANNING_SCHEMA = {
   type: 'object',
   properties: {
@@ -249,6 +298,7 @@ const PLANNING_SCHEMA = {
     maxTickets: { type: 'integer', minimum: 1 },
     context: PLANNING_CONTEXT_SCHEMA,
     codebaseSnapshot: CODEBASE_SNAPSHOT_SCHEMA,
+    taskSizing: TASK_SIZING_SCHEMA,
     // Cross-Story conflict-finding severity gates. Off by default so
     // existing repos keep advisory-only behaviour; flipping either to
     // `true` upgrades the matching finding class to `'hard'`, which routes

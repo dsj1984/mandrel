@@ -75,19 +75,32 @@ For stories, \`body\` is a STRUCTURED OBJECT, not a string. Stories are consumed
 
 #### STORY SIZING HEURISTICS (soft — bias output, validator enforces hard ceilings):
 
-- **Stories typically touch ≤5 files and have ≤6 acceptance items.** A Story that names many more files or stacks many more acceptance criteria than this is usually doing the work of two Stories — split it.
+- **Stories typically touch ≤5 files and have ≤8 acceptance items.** A Story that names many more files or stacks more than 8 acceptance criteria is usually doing the work of two Stories — split it.
 - **Features typically decompose into ≤5 Stories; otherwise split into a sibling Feature.** A Feature stretching past five Stories is a sign the Feature scope is two features — promote a coherent subset into a sibling Feature instead of letting one Feature balloon.
-- These are soft heuristics: the validator's hard ceilings (default \`maxAcceptance: 6\`, \`maxChanges: 8\` from \`agentSettings.planning.taskSizing\`, reused for Story sizing under this hierarchy) are the genuine block. Keep Stories well under the soft thresholds and the hard layer never fires.
+- These are soft heuristics: the validator's hard ceilings (default \`maxAcceptance: 8\` from \`planning.taskSizing\`) are the genuine block. Per-profile change ceilings govern the \`changes[]\` array — see the table below.
 
-#### sizingProfile DECLARATION (mandatory on wide Stories):
+##### Per-profile change ceilings (\`planning.taskSizing.profileCeilings\`):
 
-Stories that touch more files than \`agentSettings.planning.taskSizing.softFileCount\` (default \`3\`) MUST declare \`body.sizingProfile\`. Allowed values (closed enum):
+| \`sizingProfile\`     | Soft warn | Hard cap |
+|---|---|---|
+| \`mechanical-sweep\` | 25 | 60 |
+| \`scaffolding\`      | 8  | 15 |
+| \`atomic-rewrite\`   | 2  | 4  |
+| (no profile)         | 3  | 6  |
+
+Keep Stories well under the soft thresholds and the hard layer never fires.
+
+#### sizingProfile DECLARATION (recommended on wide Stories):
+
+Stories that touch more files than \`planning.taskSizing.softFileCount\` (default \`3\`) are encouraged to declare \`body.sizingProfile\` so the validator applies the correct per-profile ceiling. The field is **always optional** — omitting it on a wide Story emits only an informational \`missing-sizing-profile-hint\` finding, not a rejection. Allowed values (closed enum):
 
 - \`"mechanical-sweep"\` — a single repeated rename or transform across many sites with one logical change (e.g. "rename \`settings\` → \`agentSettings\` across 50 consumer sites"). The Story body's \`changes\` may have a single bullet describing the sweep.
 - \`"atomic-rewrite"\` — one cohesive feature edit that legitimately spans several files (e.g. extracting a helper module and updating its three callers in one logical step).
 - \`"scaffolding"\` — initial-creation work that lays down many files at once (e.g. spinning up a new package skeleton with config, README, and entry-point stubs).
 
-Omit \`sizingProfile\` for narrow Stories (≤ \`softFileCount\` files). Declaring an unknown value or omitting it on a wide Story is rejected by the validator with a \`missing-sizing-profile\` finding and triggers a re-prompt.
+Omit \`sizingProfile\` for narrow Stories (≤ \`softFileCount\` files). Declaring an unknown value is rejected by the validator. Omitting it on a wide Story emits only an informational hint — it does not trigger a re-prompt.
+
+**Glob entries** in \`changes[]\` (bullets containing \`*\`) mark the Story footprint as \`unknown-width\`. The numeric ceiling check is skipped for glob entries; the validator emits a \`glob-without-sizing-profile\` informational finding when glob entries appear with no declared profile.
 
 #### UI / TESTID INVARIANCE (per CLAUDE.md safety rule):
 

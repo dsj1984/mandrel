@@ -178,6 +178,50 @@
       },
       "additionalProperties": false
     },
+    "profileCeiling": {
+      "type": "object",
+      "description": "Per-profile soft and hard change-count thresholds (Recal A, Story #3231).",
+      "properties": {
+        "soft": { "type": "integer", "minimum": 1 },
+        "hard": { "type": "integer", "minimum": 1 }
+      },
+      "required": ["soft", "hard"],
+      "additionalProperties": false
+    },
+    "profileCeilings": {
+      "type": "object",
+      "description": "Operator overrides for per-profile change ceilings. Keys are sizingProfile enum values plus the empty string for the no-profile default. Absent keys fall back to DEFAULT_TASK_SIZING defaults in ticket-validator-sizing.js (Story #3231).",
+      "properties": {
+        "mechanical-sweep": { "$ref": "#/$defs/profileCeiling" },
+        "scaffolding": { "$ref": "#/$defs/profileCeiling" },
+        "atomic-rewrite": { "$ref": "#/$defs/profileCeiling" },
+        "": { "$ref": "#/$defs/profileCeiling" }
+      },
+      "additionalProperties": false
+    },
+    "taskSizing": {
+      "type": "object",
+      "description": "Story-sizing thresholds consumed by ticket-validator-sizing.js. Operator overrides shallow-merge with DEFAULT_TASK_SIZING defaults. Story #3231 (Epic #3211) recalibrated these for the 3-tier world: maxAcceptance raised to 8, per-profile change ceilings introduced, sizingProfile demoted to informational-always.",
+      "properties": {
+        "maxAcceptance": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Hard ceiling on acceptance[] item count (default 8, Recal B)."
+        },
+        "softAcceptanceCount": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Soft-warn threshold on acceptance[] item count (default 6)."
+        },
+        "softFileCount": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "File-count threshold above which a missing-sizing-profile-hint informational finding fires (default 3, Recal C)."
+        },
+        "profileCeilings": { "$ref": "#/$defs/profileCeilings" }
+      },
+      "additionalProperties": false
+    },
     "planning": {
       "type": "object",
       "properties": {
@@ -185,6 +229,7 @@
         "maxTickets": { "type": "integer", "minimum": 1 },
         "context": { "$ref": "#/$defs/planningContext" },
         "codebaseSnapshot": { "$ref": "#/$defs/codebaseSnapshot" },
+        "taskSizing": { "$ref": "#/$defs/taskSizing" },
         "failOnSharedEditors": { "type": "boolean" },
         "requireExplicitCrossStoryDeps": { "type": "boolean" },
         "failOnRegistryConflicts": { "type": "boolean" },

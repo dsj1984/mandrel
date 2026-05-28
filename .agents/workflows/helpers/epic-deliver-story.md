@@ -1,25 +1,34 @@
 ---
 description: >-
-  Execute one Story end-to-end. Calls `story-init.js`, `cd`s into the worktree,
+  Helper — not a slash command. Execute one Epic-attached Story end-to-end on
+  behalf of `/epic-deliver`. Calls `story-init.js`, `cd`s into the worktree,
   runs the Story-implementation phase against the inline acceptance[] /
   verify[] arrays, writes a `story-run-progress` snapshot per transition, and
   finally calls `story-close.js` to merge into the Epic branch and reap the
   worktree.
+caller: epic-deliver.md
 ---
 
-# /story-deliver #[Story ID]
+# helpers/epic-deliver-story — Epic-attached Story worker
+
+> **Not a slash command.** This file lives in `helpers/` and is not imported
+> into `.claude/commands/`. It is invoked exclusively by the
+> [`/epic-deliver`](../epic-deliver.md) per-wave fan-out via an `Agent` tool
+> call (`subagent_type: general-purpose`). Run `/epic-deliver <epicId>` from
+> the operator surface, not this helper directly.
 
 ## Overview
 
-`/story-deliver` is the **single-Story worker**. It sits below
-[`/epic-deliver`](epic-deliver.md) (which fans out one Story sub-agent per
-slot, per wave) and runs one Story from init to close in one invocation.
+`epic-deliver-story` is the **single-Story worker** for Epic-attached Stories.
+It sits below [`/epic-deliver`](../epic-deliver.md) (which fans out one Story
+sub-agent per slot, per wave) and runs one Story from init to close in one
+invocation.
 
 ```text
 /epic-deliver <epicId>
   → for each wave N:
       Agent tool × concurrencyCap parallel calls (one assistant turn):
-        /story-deliver <storyId>
+        helpers/epic-deliver-story <storyId>
           → story-init.js
           → single Story-implementation phase using inline
             acceptance[] / verify[] from the Story body
@@ -27,27 +36,27 @@ slot, per wave) and runs one Story from init to close in one invocation.
 ```
 
 The argument is always a **Story ID** (`type::story`). Epic IDs go through
-[`/epic-deliver`](epic-deliver.md).
+[`/epic-deliver`](../epic-deliver.md).
 
 **Standalone Stories** (no `Epic: #N` in body) use
-[`/single-story-deliver`](helpers/single-story-deliver.md) instead — that workflow
+[`/story-deliver`](../story-deliver.md) instead — that workflow's helper
 branches from `main`, opens its PR directly to `main`, and skips the
-Epic-scoped machinery (cascade, dispatch manifest, dashboard regen).
-`/story-deliver` requires a parent Epic and will refuse to initialize a
-Story that lacks the `Epic: #N` reference.
+Epic-scoped machinery (cascade, dispatch manifest, dashboard regen). This
+helper requires a parent Epic and will refuse to initialize a Story that lacks
+the `Epic: #N` reference.
 
 > **Worktree isolation.** When `delivery.worktreeIsolation.enabled` is
 > `true`, Step 0 creates a worktree at `.worktrees/story-<id>/` and prints
 > its absolute path as `workCwd`. You **must** `cd` into that path before
 > Step 1. The main checkout's HEAD is never moved. See
-> [`worktree-lifecycle.md`](helpers/worktree-lifecycle.md) for node_modules
+> [`worktree-lifecycle.md`](worktree-lifecycle.md) for node_modules
 > strategies, Windows notes, and escape hatches.
 
 ---
 
 ## Non-interactive execution contract
 
-`/story-deliver` runs as a sub-agent of `/epic-deliver`'s per-wave fan-out
+`epic-deliver-story` runs as a sub-agent of `/epic-deliver`'s per-wave fan-out
 (common case) or interactively for a single Story. Sub-agent runs share
 the parent's permissions but have **no input channel** mid-run.
 
@@ -149,7 +158,7 @@ Run a single Story-implementation phase against the inline `acceptance[]`
 3. Implement the work as one or more commits on `story-<storyId>`.
    Author commits directly with the project's editor / `git commit`,
    following
-   [`.agents/rules/git-conventions.md`](../rules/git-conventions.md):
+   [`.agents/rules/git-conventions.md`](../../rules/git-conventions.md):
    - Conventional Commit subject (`feat:`, `fix:`, …).
    - Reference the parent Story via `(refs #<storyId>)` in the subject
      or body.
@@ -188,7 +197,7 @@ relay only when running in a non-interactive sub-agent context where
 the parent will aggregate.
 
 > Rebase pauses on conflicts → follow
-> [`helpers/_merge-conflict-template.md`](helpers/_merge-conflict-template.md).
+> [`_merge-conflict-template.md`](_merge-conflict-template.md).
 
 ---
 
@@ -283,7 +292,7 @@ has the latest body relayed during Step 1 / Step 3.
 `story-init.js` re-prints the same `workCwd` without recreating the
 worktree. `story-run-progress` is upserted in place. `story-close.js`
 short-circuits when the Story branch is already merged and deleted. Re-
-running `/story-deliver` against an already-closed Story is safe.
+running this helper against an already-closed Story is safe.
 
 ---
 
@@ -293,7 +302,7 @@ running `/story-deliver` against an already-closed Story is safe.
   only integration target is the parent Epic's integration branch. If
   `story-close.js` short-circuits, no-ops, or otherwise fails to merge,
   **do NOT** fall back to `gh pr create --base main`, **do NOT** invoke
-  `/single-story-deliver` on the same Story, and **do NOT** open a PR by
+  `/story-deliver` on the same Story, and **do NOT** open a PR by
   hand against `main`. Such a PR orphans the change on `main` and forces
   a manual `git merge origin/main` back into `epic/<id>` to recover (the
   Epic #2880 wave-5 / Story #2960 friction note). The framework refuses
