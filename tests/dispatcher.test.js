@@ -7,9 +7,9 @@
  * All tests run in --dry-run=false mode with a mocked provider, and skip
  * branch creation (tested separately in integration tests).
  *
- * Note: Epic #2646 / Story #2688 deleted the IExecutionAdapter abstraction;
- * the inline dispatch record produced by `wave-dispatcher.js` no longer
- * needs an adapter mock.
+ * Note: Epic #3163 / Story #3205 removed the Task-tier dispatch runtime;
+ * `dispatch()` is now 3-tier-only and emits a Story-level wave plan. The
+ * legacy Task-tier cases below are skipped under TODO(#3209).
  */
 
 import assert from 'node:assert/strict';
@@ -132,11 +132,12 @@ describe('dispatch() — single task, no dependencies', () => {
     assert.equal(manifest.waves[0].tasks[0].taskId, 10);
   });
 
-  it('dry-run produces a manifest with empty dispatched array', async () => {
+  // TODO(#3209): reinstate or delete — exercised the Task-tier dispatch
+  // branch removed by Epic #3163 / Story #3205. `dispatch()` is now
+  // 3-tier-only and never synthesizes Task dispatch records.
+  it.skip('dry-run produces a manifest with empty dispatched array', async () => {
     const provider = new MockProvider({ epic: EPIC, tasks: [makeTask(10)] });
     const manifest = await dispatch({ epicId: 1, dryRun: true, provider });
-    // In dryRun mode the wave-dispatcher synthesizes a `dry-run-<taskId>`
-    // record per eligible task but does not flip ticket state.
     assert.ok(Array.isArray(manifest.dispatched));
   });
 });
@@ -166,7 +167,10 @@ describe('dispatch() — two independent tasks', () => {
     assert.deepEqual(ids, [10, 20]);
   });
 
-  it('serializes tasks with overlapping focus areas into separate waves', async () => {
+  // TODO(#3209): reinstate or delete — Task-tier focus-area serialization
+  // (autoSerializeOverlaps / buildDispatchGraph) removed by Epic #3163 /
+  // Story #3205. 3-tier focus serialization lives in computeStoryWaves.
+  it.skip('serializes tasks with overlapping focus areas into separate waves', async () => {
     // Same focus area — should be auto-serialized into wave 0 and wave 1
     const task10 = makeTask(10, {
       body: '## Metadata\n**Persona**: engineer\n**Mode**: fast\n**Skills**:\n**Focus Areas**: src/shared/',
@@ -208,7 +212,9 @@ describe('dispatch() — dependent tasks', () => {
     assert.equal(manifest.waves[1].tasks[0].taskId, 20);
   });
 
-  it('does not dispatch Wave 1 when Wave 0 task is not done', async () => {
+  // TODO(#3209): reinstate or delete — Task-tier wave gating removed by
+  // Epic #3163 / Story #3205. `dispatch()` no longer fans out Tasks.
+  it.skip('does not dispatch Wave 1 when Wave 0 task is not done', async () => {
     const taskA = makeTask(10); // agent::ready — not done
     const taskB = makeTask(20, {
       body: '## Metadata\n**Persona**: engineer\n**Mode**: fast\n\nBlocked by #10',
@@ -228,7 +234,10 @@ describe('dispatch() — dependent tasks', () => {
 });
 
 describe('dispatch() — cycle detection', () => {
-  it('throws when tasks form a cycle', async () => {
+  // TODO(#3209): reinstate or delete — Task-tier DAG cycle detection
+  // (buildDispatchGraph) removed by Epic #3163 / Story #3205. Story-level
+  // cycle detection is covered by buildStoryDispatchGraph tests.
+  it.skip('throws when tasks form a cycle', async () => {
     // A → B → A (A blocked by B, B blocked by A)
     const taskA = makeTask(10, {
       body: '## Metadata\n**Persona**: engineer\n**Mode**: fast\n\nBlocked by #20',
@@ -430,7 +439,9 @@ describe('dispatch() — story-level orchestration', () => {
 // 5.12.4 — wave dispatch is concurrent (bounded)
 // ---------------------------------------------------------------------------
 describe('dispatch() — wave-level concurrency', () => {
-  it('hydrates independent wave tasks concurrently, not sequentially', async () => {
+  // TODO(#3209): reinstate or delete — Task-tier concurrent wave dispatch
+  // (dispatchWave / dispatchNextWave) removed by Epic #3163 / Story #3205.
+  it.skip('hydrates independent wave tasks concurrently, not sequentially', async () => {
     // Four independent tasks (non-overlapping focus areas, no deps) — a
     // single wave of four. Each provider.getTicket call yields on the
     // microtask queue so overlapping calls pile up before any resolves.

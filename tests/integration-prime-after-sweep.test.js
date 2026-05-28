@@ -7,7 +7,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { createGh } from '../.agents/scripts/lib/gh-exec.js';
-import { fetchTasks } from '../.agents/scripts/lib/orchestration/task-fetcher.js';
 import { GitHubProvider } from '../.agents/scripts/providers/github.js';
 
 process.env.GITHUB_TOKEN = 'mock-token';
@@ -77,29 +76,8 @@ describe('integration: primeTicketCache after getTickets sweep', () => {
     );
   });
 
-  it('fetchTasks path: getTicket loop for sweep children → 0 extra HTTP calls', async () => {
-    const issues = Array.from({ length: 10 }, (_, i) => makeIssue(200 + i));
-    const calls = [];
-    const gh = ghForSweep(issues, calls);
-
-    const provider = new GitHubProvider(
-      { owner: 'o', repo: 'r' },
-      { gh, token: 'mock-token' },
-    );
-
-    const tasks = await fetchTasks(provider, 10);
-    assert.equal(tasks.length, 10);
-
-    const afterSweep = calls.length;
-    for (const t of tasks) {
-      const hit = await provider.getTicket(t.id);
-      assert.equal(hit.id, t.id);
-    }
-
-    assert.equal(
-      calls.length - afterSweep,
-      0,
-      `expected 0 extra HTTP calls after fetchTasks() sweep, got ${calls.length - afterSweep}`,
-    );
-  });
+  // TODO(#3209): deleted — exercised `fetchTasks` (task-fetcher.js), removed
+  // with the Task-tier dispatch runtime in Epic #3163 / Story #3205. The
+  // GitHubProvider sweep+prime invariant above already covers the perf
+  // contract this case duplicated through the Task-fetch path.
 });

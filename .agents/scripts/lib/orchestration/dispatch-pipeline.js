@@ -3,31 +3,18 @@
  *
  * Internal pipeline helpers composed by `dispatch-engine.js::dispatch()`.
  * Keeping these out of the coordinator keeps the public entry point compact
- * and focused on the 6-step flow: resolve → fetch → reconcile → graph →
- * scaffold → GC → dispatch.
+ * and focused on the 3-tier flow: resolve → fetch → reconcile → Story-graph.
  */
 
 import { PROJECT_ROOT, resolveConfig } from '../config-resolver.js';
 import { parseBlockedBy } from '../dependency-parser.js';
-import {
-  buildGraph,
-  computeReachability,
-  computeWaves,
-  detectCycle,
-  transitiveReduction,
-} from '../Graph.js';
 import { getEpicBranch } from '../git-utils.js';
 import { Logger } from '../Logger.js';
 import { TYPE_LABELS } from '../label-constants.js';
 import { createProvider } from '../provider-factory.js';
 import { WorktreeManager } from '../worktree-manager.js';
-import {
-  autoSerializeOverlaps,
-  computeStoryWaves,
-} from './dependency-analyzer.js';
-import { reconcileClosedTasks, reconcileHierarchy } from './reconciler.js';
-import { parseTasks } from './task-fetcher.js';
-import { collectOpenStoryIds } from './wave-dispatcher.js';
+import { computeStoryWaves } from './dependency-analyzer.js';
+import { reconcileHierarchy } from './reconciler.js';
 
 /**
  * Runtime context for a single dispatch cycle.
@@ -53,9 +40,8 @@ import { collectOpenStoryIds } from './wave-dispatcher.js';
  *
  * @typedef {object} FetchedEpic
  * @property {object} epic                 The Epic ticket record.
- * @property {object[]} allTickets         Every ticket under the Epic (tasks + stories + features + health).
+ * @property {object[]} allTickets         Every ticket under the Epic (stories + features + health).
  * @property {Map<number, object>} allTicketsById  Index of `allTickets` by ticket id.
- * @property {object[]} tasks              Parsed `type::task` records (see {@link parseTasks}).
  */
 
 /**
@@ -99,8 +85,7 @@ export function resolveDispatchContext(options, ensureBranch) {
 }
 
 /**
- * Fetch Epic + all tickets, prime the provider cache, and parse the Task
- * subset.
+ * Fetch Epic + all tickets and prime the provider cache.
  *
  * @param {DispatchContext} ctx  Dispatch context.
  * @returns {Promise<FetchedEpic>}  Epic + ticket graph.
@@ -117,19 +102,12 @@ export async function fetchEpicContext(ctx) {
 
   provider.primeTicketCache(allTickets);
 
-  Logger.info(`Filtering Tasks under Epic #${epicId}...`);
-  const taskTickets = allTickets.filter((t) =>
-    (t.labelSet ?? new Set(t.labels)).has('type::task'),
-  );
-  const tasks = parseTasks(taskTickets);
-  Logger.info(`Found ${tasks.length} task(s).`);
-
-  return { epic, allTickets, allTicketsById, tasks };
+  return { epic, allTickets, allTicketsById };
 }
 
 /**
  * Propagate already-done work up the hierarchy so the manifest reflects
- * reality before dispatch.
+ * reality before dispatch. Walks Stories → Features bottom-up.
  *
  * @param {DispatchContext} ctx  Dispatch context.
  * @param {FetchedEpic} fetched  Result of {@link fetchEpicContext}.
@@ -137,52 +115,9 @@ export async function fetchEpicContext(ctx) {
  */
 export async function reconcileEpicState(ctx, fetched) {
   const { provider, dryRun, epicId } = ctx;
-  const { epic, allTickets, tasks } = fetched;
+  const { epic, allTickets } = fetched;
 
-  await reconcileClosedTasks(tasks, provider, dryRun);
-  await reconcileHierarchy(provider, epicId, epic, tasks, allTickets, dryRun);
-}
-
-/**
- * Build the task DAG, serialize focus-area overlaps, and compute dispatch
- * waves.
- *
- * @param {object[]} tasks  Parsed task records (output of {@link parseTasks}).
- * @returns {{ allWaves: object[][], taskMap: Map<number, object> }}  Waves (array of task arrays) and id→task lookup.
- * @throws {Error} When the dependency graph contains a cycle — the error message lists the offending chain.
- */
-export function buildDispatchGraph(tasks) {
-  const { adjacency, taskMap } = buildGraph(tasks);
-
-  const cycle = detectCycle(adjacency);
-  if (cycle) {
-    throw new Error(
-      `[Dispatcher] Dependency cycle detected: ${cycle.join(' → ')}. ` +
-        'Fix the ticket dependencies before re-running.',
-    );
-  }
-
-  // Compute reachability once per dispatch run and share it across both
-  // graph-shape consumers (transitive reduction + focus-area
-  // serialization). Transitive reduction preserves reachability, so the
-  // same matrix remains valid for `autoSerializeOverlaps` even though it
-  // sees the reduced adjacency — the closure of the reduced graph is
-  // identical to the closure of the original.
-  const reachable = computeReachability(adjacency);
-  const reducedAdjacency = transitiveReduction(adjacency, reachable);
-
-  const { finalAdjacency, graphMutated } = autoSerializeOverlaps(
-    { tasks },
-    reducedAdjacency,
-    { reachable },
-  );
-  if (graphMutated) {
-    Logger.info('Focus-area conflicts detected; serialized overlapping tasks.');
-  }
-
-  const allWaves = computeWaves(finalAdjacency, taskMap);
-  Logger.info(`Computed ${allWaves.length} execution wave(s).`);
-  return { allWaves, taskMap };
+  await reconcileHierarchy(provider, epicId, epic, allTickets, dryRun);
 }
 
 /**
@@ -268,59 +203,4 @@ export function buildStoryDispatchGraph(allTickets) {
     `Computed ${allWaves.length} Story-level execution wave(s) (3-tier).`,
   );
   return { allWaves, storyMap };
-}
-
-/**
- * Ensure the Epic base branch exists and capture a lint baseline. Skipped
- * in dry-run.
- *
- * @param {DispatchContext} ctx  Dispatch context.
- * @param {(epicBranch: string, config: object) => (Promise<void> | void)} captureLintBaseline  Injected baseline-capture implementation (legacy function or `LintBaselineService.capture`-bound closure).
- * @returns {void}
- */
-export function ensureEpicScaffolding(ctx, captureLintBaseline) {
-  const { dryRun, epicBranch, baseBranch, config, ensureBranch } = ctx;
-  if (dryRun) {
-    Logger.info('Dry-run mode: skipping branch creation.');
-    return;
-  }
-  Logger.info(`Ensuring Epic base branch: ${epicBranch}`);
-  ensureBranch(epicBranch, baseBranch);
-  captureLintBaseline(epicBranch, config);
-}
-
-/**
- * Reap orphaned story worktrees. No-op when isolation is disabled or dry-run.
- *
- * Swallows manager errors — worktree GC must never fail a dispatch cycle.
- *
- * @param {DispatchContext} ctx  Dispatch context.
- * @param {FetchedEpic} fetched  Ticket graph used to compute the set of still-open stories.
- * @returns {Promise<void>}
- */
-export async function runWorktreeGc(ctx, fetched) {
-  const { worktreeManager, dryRun, epicBranch } = ctx;
-  if (!worktreeManager || dryRun) return;
-  try {
-    const lockSweep = await worktreeManager.sweepStaleLocks();
-    if (lockSweep.removed.length > 0) {
-      Logger.info(
-        `Stale lock sweep removed ${lockSweep.removed.length} file(s).`,
-      );
-    }
-    const openStoryIds = collectOpenStoryIds(
-      fetched.tasks,
-      fetched.allTicketsById,
-      {
-        reapOnCancel:
-          ctx.config?.delivery?.worktreeIsolation?.reapOnCancel ?? true,
-      },
-    );
-    const gcResult = await worktreeManager.gc(openStoryIds, { epicBranch });
-    if (gcResult.reaped.length > 0) {
-      Logger.info(`Worktree GC reaped ${gcResult.reaped.length} orphan(s).`);
-    }
-  } catch (err) {
-    Logger.warn(`Worktree GC failed (non-fatal): ${err.message}`);
-  }
 }

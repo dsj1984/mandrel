@@ -562,12 +562,6 @@ describe('reconciler.maybeClose', () => {
       },
     };
     const story = makeTicket(10, 'story', { body: 'parent: #1' });
-    const taskA = {
-      id: 100,
-      status: 'agent::done',
-      title: 'tA',
-      body: 'parent: #10',
-    };
     const all = [
       story,
       {
@@ -580,7 +574,7 @@ describe('reconciler.maybeClose', () => {
         labelSet: new Set(['agent::done']),
       },
     ];
-    await reconcileHierarchy(provider, 1, null, [taskA], all, true);
+    await reconcileHierarchy(provider, 1, null, all, true);
     assert.equal(story.state, 'closed');
   });
 
@@ -592,7 +586,7 @@ describe('reconciler.maybeClose', () => {
       },
     };
     const closedStory = makeTicket(11, 'story', { state: 'closed' });
-    await reconcileHierarchy(provider, 1, null, [], [closedStory], false);
+    await reconcileHierarchy(provider, 1, null, [closedStory], false);
     assert.equal(updates, 0);
   });
 });

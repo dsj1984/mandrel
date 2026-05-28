@@ -250,18 +250,20 @@ These modules fold the close-tail into the deliver runner so
 
 #### Dispatch Engine Submodules
 
-`lib/orchestration/dispatch-engine.js` is a coordinator that composes six
-cohesive submodules. Consumers (`dispatcher.js`, tests) import `dispatch`,
-`resolveAndDispatch`, `collectOpenStoryIds`, `detectEpicCompletion`, and the
-`AGENT_*` / `RISK_HIGH_LABEL` / `TYPE_TASK_LABEL` constants from the
-coordinator path.
+`lib/orchestration/dispatch-engine.js` is a coordinator for the 3-tier
+dispatch path. Consumers (`dispatcher.js`, tests) import `dispatch`,
+`resolveAndDispatch`, and the `AGENT_*` constants from the coordinator
+path. Every Epic is 3-tier (Epic → Feature → Story); `dispatch()`
+computes a Story-level wave plan and emits a 3-tier manifest. The legacy
+Task-tier dispatch runtime (Task fetcher, single-Story executor, the
+per-Task wave fan-out, and the Epic-completion detector) was removed in
+Epic #3163; per-Story execution is owned by `/story-deliver`
+(`story-init` → `story-close`).
 
 | Submodule                     | Responsibility                                                                            |
 | ----------------------------- | ----------------------------------------------------------------------------------------- |
-| `dispatch-pipeline.js`        | Resolve context, fetch Epic, reconcile state, build DAG, scaffold branch, run worktree GC. |
-| `wave-dispatcher.js`          | `dispatchWave`, `dispatchNextWave`, per-task dispatch, `collectOpenStoryIds`.              |
+| `dispatch-pipeline.js`        | Resolve context, fetch Epic, reconcile Story/Feature hierarchy, build the Story DAG.       |
 | `risk-gate-handler.js`        | Risk labels are metadata only; no runtime gate.                                            |
-| `epic-lifecycle-detector.js`  | Epic-completion detection (final-wave → Phase 3 close-validation transition).              |
 
 #### Presentation Layer Submodules
 
