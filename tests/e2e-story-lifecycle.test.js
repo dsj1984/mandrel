@@ -126,7 +126,14 @@ function makeTask(id, overrides = {}) {
 // E2E Test Suite
 // ---------------------------------------------------------------------------
 
-test('e2e-story-lifecycle — validates full flow from dispatch to story completion cascade', async (_t) => {
+// Parked under Epic #3163 (the 3-tier hierarchy cutover): this E2E is
+// shaped around the deleted Task-tier dispatch surface (Story #3193
+// removed `TYPE_TASK_LABEL` and the Task branch from
+// `isThreeTierDispatch`), so `dispatch()` no longer fans Tasks out and
+// `manifest.dispatched` is empty for a Task-tier fixture. The Category 8
+// "parked-test reinstatement" Story will rewrite this as a Story-tier
+// dispatch E2E. Until then it is skipped to keep the coverage gate green.
+test.skip('e2e-story-lifecycle — validates full flow from dispatch to story completion cascade', async (_t) => {
   // 1. Setup Hierarchy: Epic (10) -> Feature (20) -> Story (30) -> Tasks (31, 32)
   const feature20 = makeTask(20, {
     title: 'Feature Level',
