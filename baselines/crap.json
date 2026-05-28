@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T02:21:06.527Z",
+  "generatedAt": "2026-05-28T02:29:43.663Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.000914494741656,
+      "p95": 12.010699859060178,
       "max": 49.61729902329076,
       "methodsAbove20": 28
     }
@@ -3472,36 +3472,6 @@
       "method": "formatMaintainabilityProjection",
       "startLine": 278,
       "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/config-resolver.js",
-      "method": "applyGithubDefaults",
-      "startLine": 110,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/config-resolver.js",
-      "method": "applyCommandsDefaults",
-      "startLine": 123,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/config-resolver.js",
-      "method": "applyDeliveryDefaults",
-      "startLine": 133,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/config-resolver.js",
-      "method": "applyDefaults",
-      "startLine": 150,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/config-resolver.js",
-      "method": "resolveConfig",
-      "startLine": 191,
-      "crap": 9
     },
     {
       "path": ".agents/scripts/lib/config/baselines.js",
@@ -7404,48 +7374,6 @@
       "crap": 3
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/story-run-progress-writer.js",
-      "method": "defaultStoryPhases",
-      "startLine": 100,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/story-run-progress-writer.js",
-      "method": "normalizeStoryPhase",
-      "startLine": 117,
-      "crap": 7.025088
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/story-run-progress-writer.js",
-      "method": "normalizeTask",
-      "startLine": 151,
-      "crap": 10.04551661356395
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/story-run-progress-writer.js",
-      "method": "renderStoryRunProgressBody",
-      "startLine": 199,
-      "crap": 8
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/story-run-progress-writer.js",
-      "method": "renderTasksBody",
-      "startLine": 252,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/story-run-progress-writer.js",
-      "method": "renderPhasesBody",
-      "startLine": 308,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/story-run-progress-writer.js",
-      "method": "upsertStoryRunProgress",
-      "startLine": 376,
-      "crap": 7
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/epic-runner/sub-agent-return.js",
       "method": "parseStoryAgentReturn",
       "startLine": 64,
@@ -10164,30 +10092,6 @@
       "crap": 6
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution.js",
-      "method": "normalize",
-      "startLine": 50,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution.js",
-      "method": "lookupSuspect",
-      "startLine": 65,
-      "crap": 8
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution.js",
-      "method": "classifyBaselineDrift",
-      "startLine": 118,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution.js",
-      "method": "<anon method-1>",
-      "startLine": 136,
-      "crap": 2
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution/phases/gate-failure.js",
       "method": "handleBaselineGateFailure",
       "startLine": 80,
@@ -11392,132 +11296,6 @@
       "method": "<anon method-24>",
       "startLine": 747,
       "crap": 1.2962962962962963
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "isValidStructuredCommentType",
-      "startLine": 173,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "assertValidStructuredCommentType",
-      "startLine": 190,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "structuredCommentMarker",
-      "startLine": 216,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "buildStorylessTicketSnapshot",
-      "startLine": 274,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "getProviderCommentCache",
-      "startLine": 285,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "structuredCommentCacheKey",
-      "startLine": 304,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "getProviderRawCommentsCache",
-      "startLine": 344,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "invalidateRawCommentsCache",
-      "startLine": 362,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "_resetRawCommentsCache",
-      "startLine": 375,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "_resetStructuredCommentCache",
-      "startLine": 394,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "_peekStructuredCommentCache",
-      "startLine": 408,
-      "crap": 3.0416666666666665
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "findStructuredComment",
-      "startLine": 437,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/state.js",
-      "method": "validateTransitionInputs",
-      "startLine": 59,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/state.js",
-      "method": "loadTicketSnapshot",
-      "startLine": 77,
-      "crap": 5.1574074074074066
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/state.js",
-      "method": "syncProjectStatusColumn",
-      "startLine": 108,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/state.js",
-      "method": "dispatchTransitionNotification",
-      "startLine": 134,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/state.js",
-      "method": "transitionTicketState",
-      "startLine": 216,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/state.js",
-      "method": "transitionStoryDirect",
-      "startLine": 319,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/state.js",
-      "method": "toggleTasklistCheckbox",
-      "startLine": 338,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/state.js",
-      "method": "postStructuredComment",
-      "startLine": 380,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/state.js",
-      "method": "upsertStructuredComment",
-      "startLine": 411,
-      "crap": 6.011218284245225
     },
     {
       "path": ".agents/scripts/lib/orchestration/wave-dispatcher.js",
@@ -12747,18 +12525,6 @@
       "path": ".agents/scripts/lib/story-init/hierarchy-tracer.js",
       "method": "traceHierarchy",
       "startLine": 19,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/story-init/state-transitioner.js",
-      "method": "transitionStoryToExecuting",
-      "startLine": 28,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/story-init/state-transitioner.js",
-      "method": "transitionTaskStates",
-      "startLine": 60,
       "crap": 1
     },
     {
