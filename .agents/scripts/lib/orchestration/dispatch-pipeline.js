@@ -29,8 +29,6 @@ import { reconcileClosedTasks, reconcileHierarchy } from './reconciler.js';
 import { parseTasks } from './task-fetcher.js';
 import { collectOpenStoryIds } from './wave-dispatcher.js';
 
-export const TYPE_TASK_LABEL = 'type::task';
-
 /**
  * Runtime context for a single dispatch cycle.
  *
@@ -121,7 +119,7 @@ export async function fetchEpicContext(ctx) {
 
   Logger.info(`Filtering Tasks under Epic #${epicId}...`);
   const taskTickets = allTickets.filter((t) =>
-    (t.labelSet ?? new Set(t.labels)).has(TYPE_TASK_LABEL),
+    (t.labelSet ?? new Set(t.labels)).has('type::task'),
   );
   const tasks = parseTasks(taskTickets);
   Logger.info(`Found ${tasks.length} task(s).`);
@@ -188,19 +186,15 @@ export function buildDispatchGraph(tasks) {
 }
 
 /**
- * Detect 3-tier hierarchy from the fetched ticket graph. After Task #3154
- * deleted the `planning.hierarchy` flag, shape selection is purely
- * structural: an Epic carrying zero `type::task` tickets and at least one
- * `type::story` resolves to 3-tier. A Task-bearing graph keeps using the
- * 4-tier path (still supported for in-flight Epics — Task #3157 owns its
- * eventual deletion).
+ * Detect 3-tier hierarchy from the fetched ticket graph. After Epic #3163's
+ * hard cutover deleted the `type::task` ticket layer, shape selection is
+ * purely structural: any Epic carrying at least one `type::story` ticket
+ * resolves to 3-tier.
  *
- * @param {object[]} tasks
  * @param {object[]} allTickets
  * @returns {boolean}
  */
-export function isThreeTierDispatch(tasks, allTickets) {
-  if (Array.isArray(tasks) && tasks.length > 0) return false;
+export function isThreeTierDispatch(allTickets) {
   if (!Array.isArray(allTickets) || allTickets.length === 0) return false;
   return allTickets.some((t) =>
     (t.labelSet ?? new Set(t.labels ?? [])).has(TYPE_LABELS.STORY),

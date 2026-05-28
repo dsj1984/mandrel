@@ -7,7 +7,6 @@ import { AGENT_LABELS } from '../label-constants.js';
 import { STATE_LABELS } from './ticketing.js';
 
 const AGENT_DONE_LABEL = STATE_LABELS.DONE;
-const TYPE_TASK_LABEL = 'type::task';
 
 /**
  * Parses normal ticket objects into task representations.
@@ -51,7 +50,7 @@ export function parseTasks(tickets) {
  * @returns {Promise<object[]>}
  */
 export async function fetchTasks(provider, epicId) {
-  const tickets = await provider.getTickets(epicId, { label: TYPE_TASK_LABEL });
+  const tickets = await provider.getTickets(epicId, { label: 'type::task' });
   provider.primeTicketCache(tickets);
   return parseTasks(tickets);
 }

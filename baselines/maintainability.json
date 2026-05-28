@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T00:17:59.852Z",
+  "generatedAt": "2026-05-28T00:32:42.996Z",
   "rollup": {
     "*": {
       "min": 38.161,
@@ -879,14 +879,6 @@
       "mi": 94.803
     },
     {
-      "path": ".agents/scripts/lib/orchestration/dispatch-engine.js",
-      "mi": 96.285
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/dispatch-pipeline.js",
-      "mi": 94.826
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/doc-reader.js",
       "mi": 102.211
     },
@@ -1569,10 +1561,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/task-body-validator.js",
       "mi": 101.086
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/task-fetcher.js",
-      "mi": 114.391
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
@@ -2669,10 +2657,6 @@
     {
       "path": "tests/contract/delivery/schema-ci-preflight.test.js",
       "mi": 108.302
-    },
-    {
-      "path": "tests/contract/delivery/three-tier-dispatch.test.js",
-      "mi": 113.205
     },
     {
       "path": "tests/contract/dispatch/emit-story-dispatch.test.js",
