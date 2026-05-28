@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T02:19:15.819Z",
+  "generatedAt": "2026-05-28T02:21:05.819Z",
   "rollup": {
     "*": {
       "min": 38.161,
@@ -4477,10 +4477,6 @@
     {
       "path": "tests/schemas/epic-perf-report.schema.test.js",
       "mi": 108.31
-    },
-    {
-      "path": "tests/schemas/signal-schemas.test.js",
-      "mi": 104.814
     },
     {
       "path": "tests/scripts/agents-bootstrap-github-protection.test.js",
