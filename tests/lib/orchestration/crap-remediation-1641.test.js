@@ -29,7 +29,6 @@ import {
   deriveAutoMergeVerdict,
 } from '../../../.agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js';
 import { reconcileHierarchy } from '../../../.agents/scripts/lib/orchestration/reconciler.js';
-import { renderSpec } from '../../../.agents/scripts/lib/orchestration/spec-renderer.js';
 import { runAutoRefresh } from '../../../.agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js';
 import { diffCrapBaselines } from '../../../.agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js';
 import {
