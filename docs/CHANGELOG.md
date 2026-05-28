@@ -306,6 +306,29 @@ restoration.
 - → follow-up **#2071** (schema-module maintainability uplift):
   - `.agents/scripts/lib/config-settings-schema.js` (`mi: 46`)
   - `.agents/scripts/lib/config-gates-schema.js` (`mi: 51`)
+## [1.34.0](https://github.com/dsj1984/mandrel/compare/v1.33.0...v1.34.0) (2026-05-28)
+
+
+### ⚠ BREAKING CHANGES
+
+* Mandrel v6.0.0 — ticket hierarchy is now Epic -> Feature -> Story (with inline acceptance/verify on the Story body). The planning.hierarchy config flag, type::task label, Task-tier scripts, and Task-aware lifecycle hooks have been deleted. Consumers re-pinning .agents/ to v6.0.0 MUST migrate any local Task-tier artifacts per docs/upgrade-guide-3-tier.md.
+
+### Epic
+
+* 3078 ([#3164](https://github.com/dsj1984/mandrel/issues/3164)) ([206da29](https://github.com/dsj1984/mandrel/commit/206da297bdf60fdee976dbaae0858816c308c56a))
+
+
+### Added
+
+* **pre-push:** add STORY_CLOSE_RECOVERY scoped coverage-gate bypass (refs [#3162](https://github.com/dsj1984/mandrel/issues/3162)) ([#3171](https://github.com/dsj1984/mandrel/issues/3171)) ([62bbd2f](https://github.com/dsj1984/mandrel/commit/62bbd2f08954abe67af4a5912e97c30744f3cf41))
+
+
+### Fixed
+
+* **finalize:** strip [skip ci] markers from openOrLocatePr body (refs [#3165](https://github.com/dsj1984/mandrel/issues/3165)) ([#3176](https://github.com/dsj1984/mandrel/issues/3176)) ([0374a1d](https://github.com/dsj1984/mandrel/commit/0374a1dffa96dfacc1ef116d854009edc82d9710))
+* **orchestration:** cap Auto-resolved-file trailer at 100 chars (refs [#3160](https://github.com/dsj1984/mandrel/issues/3160)) ([#3170](https://github.com/dsj1984/mandrel/issues/3170)) ([fbdf13d](https://github.com/dsj1984/mandrel/commit/fbdf13d8306ed3fbabac2afa0f6a0a8fc35ec51b))
+* **spec-renderer:** omit tasks: [] for 3-tier Stories (refs [#3163](https://github.com/dsj1984/mandrel/issues/3163)) ([#3177](https://github.com/dsj1984/mandrel/issues/3177)) ([859fe4b](https://github.com/dsj1984/mandrel/commit/859fe4ba47050e2be98ee36e1c642dcaee0e4f87))
+
 ## [1.33.0](https://github.com/dsj1984/mandrel/compare/v1.32.0...v1.33.0) (2026-05-26)
 
 
