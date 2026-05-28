@@ -781,6 +781,40 @@
       },
       "additionalProperties": false
     },
+    "storyPlanAlwaysEmitFloor": {
+      "type": "object",
+      "description": "Triggering thresholds for the story-plan structured comment (Epic #3212). The plan is emitted when any axis meets or exceeds its floor.",
+      "properties": {
+        "changes": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Minimum changes[] length that triggers a story-plan comment. Default 3."
+        },
+        "acceptance": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Minimum acceptance[] length that triggers a story-plan comment. Default 3."
+        }
+      },
+      "additionalProperties": false
+    },
+    "storyPlan": {
+      "type": "object",
+      "description": "Knobs for the story-plan structured-comment checkpoint (Epic #3212). Additive and defaults to emit-and-proceed; the ack gate is strictly opt-in.",
+      "properties": {
+        "requireAcknowledgement": {
+          "type": "boolean",
+          "description": "When true, the story-deliver worker MUST NOT commit until the Story carries the `plan::acknowledged` label. Applied by the operator or `/story-plan-ack <storyId>`. Default false."
+        },
+        "alwaysEmitFloor": { "$ref": "#/$defs/storyPlanAlwaysEmitFloor" },
+        "ackTimeoutMs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Bounded wait (ms) for the `plan::acknowledged` label before the worker transitions to `agent::blocked`. Default 1800000 (30 min)."
+        }
+      },
+      "additionalProperties": false
+    },
     "delivery": {
       "type": "object",
       "properties": {
@@ -797,6 +831,7 @@
         "epicAudit": { "$ref": "#/$defs/epicAudit" },
         "codeReview": { "$ref": "#/$defs/codeReview" },
         "retro": { "$ref": "#/$defs/retro" },
+        "storyPlan": { "$ref": "#/$defs/storyPlan" },
         "ci": {
           "type": "object",
           "properties": {

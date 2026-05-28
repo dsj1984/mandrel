@@ -15,6 +15,7 @@ import {
   CONTEXT_LABELS,
   LABEL_COLORS,
   PERSONA_LABEL_PREFIX,
+  PLAN_LABELS,
   PLANNING_LABELS,
   STATUS_LABELS,
   TYPE_LABELS,
@@ -138,6 +139,17 @@ export const LABEL_TAXONOMY = [
     color: LABEL_COLORS.PLANNING,
     description:
       'Operator override — allows agent::ready handoff despite a failing post-plan healthcheck',
+  },
+
+  // Plan axis — lifecycle signals for the story-plan gating mode
+  // (Epic #3212). `plan::acknowledged` is applied by the operator (or
+  // `/story-plan-ack`) to unblock a gated story-deliver worker that is
+  // waiting for acknowledgement before its first commit.
+  {
+    name: PLAN_LABELS.ACKNOWLEDGED,
+    color: LABEL_COLORS.PLANNING,
+    description:
+      'Operator has reviewed the story plan; gated worker may proceed to commit',
   },
 ];
 

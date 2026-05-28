@@ -142,7 +142,9 @@ describe('Bootstrap — LABEL_TAXONOMY', () => {
     // Story #2921 (Epic #2880 F7) — added `planning::healthcheck-waived`
     // as the operator override for the post-plan readiness healthcheck.
     // Epic #3078 Task #3155 — `type::task` removed (3-tier hard cutover).
-    const nonPersonaBase = 14;
+    // Story #3259 (Epic #3212) — added `plan::acknowledged` for the
+    // story-plan gating mode opt-in.
+    const nonPersonaBase = 15;
     assert.equal(LABEL_TAXONOMY.length, nonPersonaBase + PERSONA_NAMES.length);
   });
 

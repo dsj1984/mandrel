@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T15:52:00.258Z",
+  "generatedAt": "2026-05-28T18:22:55.424Z",
   "rollup": {
     "*": {
-      "min": 36.604,
-      "p50": 103.671,
-      "p95": 121.235
+      "min": 66.537,
+      "p50": 103.689,
+      "p95": 121.479
     }
   },
   "rows": [
@@ -499,10 +499,6 @@
       "mi": 171
     },
     {
-      "path": ".agents/scripts/lib/config-settings-schema.js",
-      "mi": 36.604
-    },
-    {
       "path": ".agents/scripts/lib/config/baselines.js",
       "mi": 105.01
     },
@@ -749,14 +745,6 @@
     {
       "path": ".agents/scripts/lib/json-utils.js",
       "mi": 95.486
-    },
-    {
-      "path": ".agents/scripts/lib/label-constants.js",
-      "mi": 85.733
-    },
-    {
-      "path": ".agents/scripts/lib/label-taxonomy.js",
-      "mi": 95.436
     },
     {
       "path": ".agents/scripts/lib/Logger.js",
@@ -1583,10 +1571,6 @@
       "mi": 95.584
     },
     {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "mi": 103.076
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/ticketing/state.js",
       "mi": 96.965
     },
@@ -2087,10 +2071,6 @@
       "mi": 93.522
     },
     {
-      "path": ".agents/scripts/single-story-close.js",
-      "mi": 62.385
-    },
-    {
       "path": ".agents/scripts/single-story-init.js",
       "mi": 88.724
     },
@@ -2453,10 +2433,6 @@
     {
       "path": "tests/bdd-scenario-scanner.test.js",
       "mi": 108.793
-    },
-    {
-      "path": "tests/bootstrap.test.js",
-      "mi": 109.117
     },
     {
       "path": "tests/bootstrap/agents-bootstrap-github.integration.test.js",
