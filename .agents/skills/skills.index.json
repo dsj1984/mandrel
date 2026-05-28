@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-24T23:46:31.720Z",
+  "generatedAt": "2026-05-28T17:40:17.803Z",
   "generator": "generate-skills-index.js@1",
   "skills": [
     {
@@ -127,7 +127,7 @@
       "tier": "core",
       "category": "core",
       "path": ".agents/skills/core/epic-plan-decompose-author/SKILL.md",
-      "description": "Author the Feature/Story/Task ticket JSON for an Epic from the decomposer authoring context emitted by `epic-plan-decompose.js --emit-context`. Use during Phase 8 of `/epic-plan` when the host LLM needs to write the ticket array before `epic-plan-decompose.js` validates and persists it.",
+      "description": "Author the Feature/Story ticket JSON for an Epic from the decomposer authoring context emitted by `epic-plan-decompose.js --emit-context`. Use during Phase 8 of `/epic-plan` when the host LLM needs to write the ticket array before `epic-plan-decompose.js` validates and persists it.",
       "policyCapsuleBullets": 11,
       "allowedTools": ["Read", "Write", "Bash"],
       "vendor": null
