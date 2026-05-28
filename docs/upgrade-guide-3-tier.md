@@ -210,12 +210,28 @@ contract.
 > structural hits outside the `cleanup-type-task-label.js` consumer
 > utility and this historical note.
 
+> **Residue closeout (Epic #3238).** A thin residue of `type::task`
+> handling survived in read/validate/render code paths and orchestration
+> prose after Epics #3078 and #3163. Epic #3238 swept it clean: the
+> `type === 'task'` render arm is gone from `spec-renderer.js` (#3272),
+> the decompose pass no longer synthesises Task tickets and its
+> over-budget warning is reworded (#3273), `ticket-validator.js` is
+> 3-tier-only with its 4-tier fixtures migrated (#3274), stale child-Task
+> prose is removed across the in-scope orchestration modules (#3275), and
+> the file-assumptions freshness check is reworked onto the 3-tier Story
+> inline `acceptance[]` / `verify[]` contract (#3276). No internal surface
+> still branches on, validates, or narrates the retired Task tier. This
+> closeout (#3277) records the sweep and confirms the full suite stays
+> green on the Epic branch. The runtime contract consumers see on the
+> 3-tier path is unchanged.
+
 ---
 
 ## References
 
 - Epic #3078 — Collapse Task level: adopt 3-tier hierarchy
 - Follow-on Epic #3163 — Complete Task-tier producer rewrite
+- Residue-closeout Epic #3238 — Sweep the residual `type::task` surface clean
 - Story #3104 (this story) — CHANGELOG draft + major-version preparation
 - Story 7.1 cleanup utility:
   [`cleanup-type-task-label.js`](../.agents/scripts/cleanup-type-task-label.js)

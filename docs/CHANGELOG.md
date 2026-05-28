@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Removed — Epic #3238: sweep the residual `type::task` surface clean
+
+Epic #3078 collapsed the Task tier and Epic #3163 completed the
+producer-side rewrite, but a residue of `type::task` handling survived in
+read/validate/render code paths and orchestration prose. Epic #3238 sweeps
+that residue clean so no internal surface still branches on, validates, or
+narrates the retired Task tier. Closes Epic #3238 (Stories #3272–#3277).
+
+- **Spec renderer.** `spec-renderer.js` drops its dedicated
+  `type === 'task'` render arm — Story bodies render through the 3-tier
+  inline-acceptance path only (#3272).
+- **Decompose.** The decompose pass no longer synthesises Task tickets, and
+  the over-budget warning is reworded for the 3-tier hierarchy (#3273).
+- **Ticket validator.** `ticket-validator.js` is 3-tier-only; the parked
+  4-tier test fixtures are migrated to the Story-inline shape (#3274).
+- **Orchestration prose.** Stale child-Task narration is removed or reworded
+  across the in-scope orchestration modules (#3275).
+- **File-assumptions freshness.** The freshness check is reworked onto the
+  3-tier Story inline `acceptance[]` / `verify[]` contract rather than the
+  former per-Task shape (#3276).
+
+This is internal cleanup that does not change the runtime contract consumers
+already see on the 3-tier path. See
+[`docs/upgrade-guide-3-tier.md`](./upgrade-guide-3-tier.md) § Known follow-on
+for the residue-closeout record.
+
 ### BREAKING CHANGE — Epic #3078: collapse Task level, adopt 3-tier hierarchy
 
 The framework drops the `type::task` ticket layer. Mandrel now enforces a
