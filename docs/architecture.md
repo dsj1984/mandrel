@@ -424,7 +424,7 @@ provider-selector key; the factory's `PROVIDERS` map is the registry.
 **Internal layout**: `providers/github.js` is a thin façade over focused
 modules under `providers/github/`: `ticket-mapper.js` (REST/GraphQL payload →
 ticket shape), `graphql-builder.js` (named query + mutation strings),
-`cache-manager.js` (per-instance ticket cache backed by `lib/CacheLayer`), and
+`cache-manager.js` (per-instance ticket cache), and
 `error-classifier.js` (GraphQL error → category). The façade re-exports every
 symbol consumers previously imported.
 
