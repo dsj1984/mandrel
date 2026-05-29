@@ -32,6 +32,11 @@
  *                                      matches the trailer for exactly this
  *                                      Story id and not a longer id that
  *                                      shares the prefix.
+ *   - `resolvesOrRefsGrepArgs(storyId)` — like `resolvesGrepArgs` but matches
+ *                                      the fully-parenthesized `(resolves #N)`
+ *                                      *or* `(refs #N)` integration marker, for
+ *                                      the ref-independent already-merged scan
+ *                                      in `story-close-recovery.js`.
  *
  * Pure module — no I/O, no git spawns. Callers own the spawn.
  */
@@ -98,4 +103,25 @@ export function parseResolvesStoryId(subject) {
  */
 export function resolvesGrepArgs(storyId) {
   return ['-E', `--grep=resolves #${storyId}( |\\)|$)`];
+}
+
+/**
+ * Build the boundary-safe `git log --grep` argument list that matches the
+ * fully-parenthesized `(resolves #<storyId>)` *or* `(refs #<storyId>)`
+ * integration marker for *exactly* this Story id.
+ *
+ * Unlike {@link resolvesGrepArgs} (which keys off a trailing space / paren /
+ * end boundary), this matcher requires the canonical parenthesized form on
+ * both sides — `\(...\)` — because it is the ref-independent already-merged
+ * signal: when both Story refs are reaped, `story-close-recovery.js` scans
+ * the Epic history for the integration commit whose subject carries the
+ * trailer. The closing `\)` is the boundary that prevents `#3327` matching
+ * `(resolves #33270)`. `refs` is accepted alongside `resolves` because an
+ * agent-authored implementation commit references the Story via `(refs #N)`.
+ *
+ * @param {number|string} storyId
+ * @returns {string[]} `['-E', '--grep=\\((resolves|refs) #<storyId>\\)']`
+ */
+export function resolvesOrRefsGrepArgs(storyId) {
+  return ['-E', `--grep=\\((resolves|refs) #${storyId}\\)`];
 }

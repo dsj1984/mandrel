@@ -45,13 +45,13 @@ import { createReadStream } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createInterface } from 'node:readline';
-
 import {
   epicArtifactPath,
   epicTempDir,
   signalsFile,
   storyTempDir,
 } from '../config/temp-paths.js';
+import { parseStoryBranch } from '../git-utils.js';
 import { Logger } from '../Logger.js';
 
 import { isPositiveInt } from './detectors/common.js';
@@ -189,10 +189,8 @@ async function listEpicStorySignalsFiles(epic, config) {
     }
     for (const ent of storyEntries) {
       if (!ent.isDirectory()) continue;
-      const m = /^story-(\d+)$/.exec(ent.name);
-      if (!m) continue;
-      const sid = Number.parseInt(m[1], 10);
-      if (!isPositiveInt(sid)) continue;
+      const sid = parseStoryBranch(ent.name);
+      if (sid === null || !isPositiveInt(sid)) continue;
       storyIds.push(sid);
     }
   }

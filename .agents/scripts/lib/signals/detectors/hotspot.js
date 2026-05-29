@@ -71,8 +71,8 @@ import { createReadStream } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createInterface } from 'node:readline';
-
 import { epicTempDir } from '../../config/temp-paths.js';
+import { parseStoryBranch } from '../../git-utils.js';
 import { extractTool, isPositiveInt } from './common.js';
 
 /**
@@ -84,9 +84,6 @@ import { extractTool, isPositiveInt } from './common.js';
 const FILE_MUTATING_TOOLS = Object.freeze(
   new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']),
 );
-
-/** Story directories follow `story-<positive-int>`. */
-const STORY_DIR_RE = /^story-(\d+)$/;
 
 function isPositiveNumber(v) {
   return typeof v === 'number' && Number.isFinite(v) && v > 0;
@@ -160,9 +157,9 @@ async function listStoryDirs(epicDir) {
   const stories = [];
   for (const ent of entries) {
     if (!ent.isDirectory()) continue;
-    const m = STORY_DIR_RE.exec(ent.name);
-    if (m == null) continue;
-    stories.push({ id: Number(m[1]), dir: path.join(epicDir, ent.name) });
+    const id = parseStoryBranch(ent.name);
+    if (id == null) continue;
+    stories.push({ id, dir: path.join(epicDir, ent.name) });
   }
   stories.sort((a, b) => a.id - b.id);
   return stories.map((s) => s.dir);

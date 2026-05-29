@@ -42,6 +42,8 @@
  * or the network.
  */
 
+import { parseStoryBranch } from '../git-utils.js';
+
 const DONE_LABEL = 'agent::done';
 
 /**
@@ -52,9 +54,7 @@ const DONE_LABEL = 'agent::done';
  * @returns {number|null}
  */
 export function storyIdFromBranch(branch) {
-  if (typeof branch !== 'string') return null;
-  const match = branch.match(/^story-(\d+)$/);
-  return match ? Number.parseInt(match[1], 10) : null;
+  return parseStoryBranch(branch);
 }
 
 /**

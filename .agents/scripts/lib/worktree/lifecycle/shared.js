@@ -5,7 +5,7 @@
  * git, no ctx.
  */
 
-const STORY_BRANCH_RE = /^story-\d+$/;
+import { isStoryBranch } from '../../git-utils.js';
 
 export function validateStoryId(storyId) {
   const n =
@@ -17,9 +17,9 @@ export function validateStoryId(storyId) {
 }
 
 export function validateBranch(branch) {
-  if (typeof branch !== 'string' || !STORY_BRANCH_RE.test(branch)) {
+  if (!isStoryBranch(branch)) {
     throw new Error(
-      `WorktreeManager: branch must match ${STORY_BRANCH_RE}, got: ${branch}`,
+      `WorktreeManager: branch must match /^story-\\d+$/, got: ${branch}`,
     );
   }
   return branch;

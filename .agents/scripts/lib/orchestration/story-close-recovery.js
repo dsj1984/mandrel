@@ -30,6 +30,7 @@ import fs from 'node:fs';
 import { resolveWorkingPath } from '../config-resolver.js';
 import { gitSpawn } from '../git-utils.js';
 import { Logger } from '../Logger.js';
+import { resolvesOrRefsGrepArgs } from './resolves-token.js';
 
 export const RECOVERY_STATES = Object.freeze({
   FRESH: 'fresh',
@@ -58,8 +59,8 @@ const DEFAULT_GIT_ADAPTER = {
   cherry(cwd, upstream, head) {
     return gitSpawn(cwd, 'cherry', upstream, head);
   },
-  logGrep(cwd, ref, pattern) {
-    return gitSpawn(cwd, 'log', '-E', `--grep=${pattern}`, '--format=%H', ref);
+  logGrep(cwd, ref, grepArgs) {
+    return gitSpawn(cwd, 'log', ...grepArgs, '--format=%H', ref);
   },
 };
 
@@ -86,10 +87,10 @@ const DEFAULT_FS_ADAPTER = {
  */
 function findMergeCommitForStory({ cwd, storyId, epicId, git }) {
   if (!git.logGrep) return null;
-  const pattern = `\\((resolves|refs) #${storyId}\\)`;
+  const grepArgs = resolvesOrRefsGrepArgs(storyId);
   const epicRefs = [`origin/epic/${epicId}`, `epic/${epicId}`];
   for (const epicRef of epicRefs) {
-    const res = git.logGrep(cwd, epicRef, pattern);
+    const res = git.logGrep(cwd, epicRef, grepArgs);
     if (!res || res.status !== 0) continue;
     const sha = (res.stdout ?? '').toString().trim().split('\n')[0]?.trim();
     if (sha) return { sha, epicRef };
