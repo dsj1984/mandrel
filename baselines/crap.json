@@ -1,13 +1,13 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T14:49:50.683Z",
+  "generatedAt": "2026-05-29T15:05:30.155Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.779136,
+      "p95": 12.566846479078583,
       "max": 53.8385539444679,
-      "methodsAbove20": 26
+      "methodsAbove20": 25
     }
   },
   "rows": [
@@ -7792,42 +7792,6 @@
       "method": "createWatcher",
       "startLine": 511,
       "crap": 1.2962962962962963
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/trace-logger.js",
-      "method": "formatClock",
-      "startLine": 26,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/trace-logger.js",
-      "method": "phaseFor",
-      "startLine": 64,
-      "crap": 3.006761833208114
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/trace-logger.js",
-      "method": "summarizePayload",
-      "startLine": 82,
-      "crap": 9
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/trace-logger.js",
-      "method": "parseLedger",
-      "startLine": 108,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/trace-logger.js",
-      "method": "render",
-      "startLine": 141,
-      "crap": 24
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/trace-logger.js",
-      "method": "createTraceLogger",
-      "startLine": 306,
-      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/model-attribution.js",
