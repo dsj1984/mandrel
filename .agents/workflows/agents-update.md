@@ -240,11 +240,31 @@ defaults the consumer's instructions still reference. The pointer move is
 the right moment to reconcile those, while the diff is in front of the
 operator.
 
-Read [`docs/CHANGELOG.md`](../../docs/CHANGELOG.md) inside the bumped
-`.agents/` submodule. Focus on every entry between `OLD_SHA` and
-`NEW_SHA` (the shortlog from Step 1 names the version headers to scan).
-For each entry, check the consumer repo for guidance that has gone
-stale or guidance that should now exist:
+The framework CHANGELOG is **not shipped inside the `.agents/`
+submodule** — the distributed bundle (the `dist` branch) carries only
+the *contents* of `.agents/`, and `docs/CHANGELOG.md` lives at the
+framework repo root, outside that tree. So there is no
+`.agents/docs/CHANGELOG.md` to read in a consumer project; reaching for
+one yields "No tracked CHANGELOG in the submodule."
+
+Source the change set from the framework remote instead. The submodule's
+`origin` points at the framework repo, so fetch its default branch and
+read the CHANGELOG from there:
+
+```bash
+git -C .agents fetch origin main
+git -C .agents show origin/main:docs/CHANGELOG.md
+```
+
+If the remote is unreachable (offline, private-URL credential gap), fall
+back to the `OLD_SHA..NEW_SHA` shortlog printed in Step 1 and the GitHub
+Releases page for the framework repo to identify which version headers
+the bump spans.
+
+Focus on every entry between `OLD_SHA` and `NEW_SHA` (the shortlog from
+Step 1 names the version headers to scan). For each entry, check the
+consumer repo for guidance that has gone stale or guidance that should
+now exist:
 
 1. **Consumer `AGENTS.md` / `CLAUDE.md`.** If the changelog entry
    introduces a new contract the consumer instructions must reflect

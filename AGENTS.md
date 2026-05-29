@@ -167,10 +167,15 @@ Releases are automated by
    the Epic #3078 3-tier hierarchy cutover (drains any in-flight Epics
    that still carry `type::task` children, runs the one-shot
    `cleanup-type-task-label.js` utility, describes the major-version
-   bump operator step). Link any future
-   breaking-release runbook from this checklist and from the
-   `## Unreleased` section of [`docs/CHANGELOG.md`](docs/CHANGELOG.md)
-   so consumers find it on upgrade.
+   bump operator step). Link any future breaking-release runbook from
+   this checklist and from the **release PR body** release-please opens
+   (which becomes the squash-commit body and the versioned
+   [`docs/CHANGELOG.md`](docs/CHANGELOG.md) entry on merge) so consumers
+   find it on upgrade. Do **not** hand-maintain an `## Unreleased`
+   section in `docs/CHANGELOG.md` — release-please is the sole writer of
+   that file and generates version sections from Conventional Commit
+   subjects; a bracket-less `## Unreleased` block is never promoted to a
+   version and only strands the content.
 
 #### One-time PAT setup
 

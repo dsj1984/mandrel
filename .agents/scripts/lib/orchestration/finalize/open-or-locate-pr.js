@@ -113,7 +113,10 @@ export function parsePrViewResult(stdout) {
  *   `epic/<epicId>`).
  * @param {string} [args.baseBranch] — base branch. Default `main`.
  * @param {string} [args.title] — explicit PR title override; defaults
- *   to `Epic #<epicId>`.
+ *   to the Conventional Commit form `feat: Epic #<epicId>` so the
+ *   squash-merge subject on `main` parses cleanly for release-please
+ *   (a non-conventional subject is ignored, producing no version bump
+ *   or changelog entry).
  * @param {string} [args.body] — explicit PR body override; defaults to
  *   `Closes #<epicId>`.
  * @param {string} [args.cwd] — working directory for the gh shells.
@@ -173,8 +176,14 @@ export async function openOrLocatePr({
   }
 
   // 2. Create — open the PR.
+  // Default to the Conventional Commit form so the squash-merge subject
+  // on `main` (PR title + `(#<pr>)`) parses for release-please. A bare
+  // `Epic #<id>` subject carries no conventional type, so release-please
+  // skips it — no version bump, no changelog entry.
   const finalTitle =
-    typeof title === 'string' && title.length > 0 ? title : `Epic #${epicId}`;
+    typeof title === 'string' && title.length > 0
+      ? title
+      : `feat: Epic #${epicId}`;
   // Story #3165: strip any `[skip ci]` / `[ci skip]` / `[no ci]` /
   // `[skip actions]` / `[actions skip]` markers from the body before
   // handing it to `gh pr create`. Default body (`Closes #<epicId>`)

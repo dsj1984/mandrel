@@ -153,7 +153,7 @@ describe('openOrLocatePr', () => {
     const createArgs = calls[1];
     const titleIdx = createArgs.indexOf('--title');
     const bodyIdx = createArgs.indexOf('--body');
-    assert.equal(createArgs[titleIdx + 1], 'Epic #2880');
+    assert.equal(createArgs[titleIdx + 1], 'feat: Epic #2880');
     assert.equal(createArgs[bodyIdx + 1], 'Closes #2880');
   });
 
