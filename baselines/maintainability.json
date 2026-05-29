@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T13:58:50.532Z",
+  "generatedAt": "2026-05-29T14:09:26.091Z",
   "rollup": {
     "*": {
       "min": 61.218,
       "p50": 103.888,
-      "p95": 121.479
+      "p95": 121.235
     }
   },
   "rows": [
@@ -761,10 +761,6 @@
     {
       "path": ".agents/scripts/lib/observability/baseline-refresh-rate.js",
       "mi": 92.391
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "mi": 86.685
     },
     {
       "path": ".agents/scripts/lib/observability/signals-writer.js",
@@ -1715,10 +1711,6 @@
       "mi": 140.702
     },
     {
-      "path": ".agents/scripts/lib/test-env.js",
-      "mi": 130.158
-    },
-    {
       "path": ".agents/scripts/lib/test-isolate/env-snapshot-loader.js",
       "mi": 90.179
     },
@@ -1869,10 +1861,6 @@
     {
       "path": ".agents/scripts/loc-delta.js",
       "mi": 94.191
-    },
-    {
-      "path": ".agents/scripts/notify.js",
-      "mi": 88.988
     },
     {
       "path": ".agents/scripts/post-story-plan.js",
@@ -2641,10 +2629,6 @@
     {
       "path": "tests/contract/memory-freshness.test.js",
       "mi": 102.675
-    },
-    {
-      "path": "tests/contract/notifications/test-mode-webhook-guard.test.js",
-      "mi": 106.606
     },
     {
       "path": "tests/contract/orchestration/pr-base-guard.test.js",
@@ -4235,10 +4219,6 @@
       "mi": 98.445
     },
     {
-      "path": "tests/notify.test.js",
-      "mi": 99.576
-    },
-    {
       "path": "tests/orchestration/context-envelope.test.js",
       "mi": 103.19
     },
@@ -4261,10 +4241,6 @@
     {
       "path": "tests/perf-aggregator-shape.test.js",
       "mi": 105.994
-    },
-    {
-      "path": "tests/perf-aggregator-wave-parallelism.test.js",
-      "mi": 91.283
     },
     {
       "path": "tests/plan-phase-cleanup.test.js",
