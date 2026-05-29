@@ -40,7 +40,7 @@
  * @module story-body
  */
 
-import { FILE_ASSUMPTION_VALUES } from '../orchestration/task-body-validator.js';
+import { FILE_ASSUMPTION_VALUES } from '../orchestration/file-assumption-enum.js';
 
 // ---------------------------------------------------------------------------
 // Public types (JSDoc only — no runtime schema file)

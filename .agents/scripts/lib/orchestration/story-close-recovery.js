@@ -16,7 +16,12 @@
  *                              diff is fully present on `origin/epic/<id>` as
  *                              rebased commits with different SHAs (manual
  *                              recovery path, detected via `git cherry`
- *                              patch-id comparison; Story #3161).
+ *                              patch-id comparison; Story #3161), OR — when
+ *                              both Story refs have already been reaped — the
+ *                              Epic history carries an integration commit
+ *                              referencing the Story (`(resolves #<id>)` /
+ *                              `(refs #<id>)`), found via `git log --grep`
+ *                              (ref-independent path; Story #3327 / Epic #3316).
  *   - `pushed-unmerged`      — the story branch is on origin and not yet merged.
  *   - `fresh`                — no prior close activity detected.
  */
@@ -53,11 +58,44 @@ const DEFAULT_GIT_ADAPTER = {
   cherry(cwd, upstream, head) {
     return gitSpawn(cwd, 'cherry', upstream, head);
   },
+  logGrep(cwd, ref, pattern) {
+    return gitSpawn(cwd, 'log', '-E', `--grep=${pattern}`, '--format=%H', ref);
+  },
 };
 
 const DEFAULT_FS_ADAPTER = {
   existsSync: fs.existsSync,
 };
+
+/**
+ * Scan the Epic branch history for an integration/merge commit whose subject
+ * references this Story via `(resolves #<id>)` or `(refs #<id>)`.
+ *
+ * This is the **ref-independent** already-merged signal: it survives the case
+ * where BOTH the local `story-<id>` branch and the remote `origin/story-<id>`
+ * ref have already been deleted by a prior partial close run, leaving no Story
+ * ref to anchor the ancestor / cherry probes (branches a–c). Because the search
+ * is scoped to the Epic ref's reachable history (`git log <epicRef> --grep`),
+ * any match is by definition already an ancestor of the Epic tip — no separate
+ * ancestor check is required.
+ *
+ * The closing paren in the pattern disambiguates `#<id>` from a longer id that
+ * shares the same prefix (e.g. `#3327` must not match `(resolves #33270)`).
+ *
+ * @returns {{ sha: string, epicRef: string } | null}
+ */
+function findMergeCommitForStory({ cwd, storyId, epicId, git }) {
+  if (!git.logGrep) return null;
+  const pattern = `\\((resolves|refs) #${storyId}\\)`;
+  const epicRefs = [`origin/epic/${epicId}`, `epic/${epicId}`];
+  for (const epicRef of epicRefs) {
+    const res = git.logGrep(cwd, epicRef, pattern);
+    if (!res || res.status !== 0) continue;
+    const sha = (res.stdout ?? '').toString().trim().split('\n')[0]?.trim();
+    if (sha) return { sha, epicRef };
+  }
+  return null;
+}
 
 function storyWorktreePath(cwd, storyId, worktreeRoot) {
   return resolveWorkingPath({
@@ -90,7 +128,181 @@ function hasAnyUncommittedChanges(porcelainOutput) {
 }
 
 /**
+ * Probe: partial-merge — UU markers in the main checkout.
+ *
+ * @returns {{ phase: string, detail: object } | null}
+ */
+function detectPartialMerge({ cwd, detail, git }) {
+  const mainStatus = git.status(cwd);
+  const mainStatusOut = (mainStatus?.stdout ?? '').toString();
+  if (!hasUnmergedMarkers(mainStatusOut)) return null;
+  return {
+    phase: RECOVERY_STATES.PARTIAL_MERGE,
+    detail: { ...detail, checkout: cwd },
+  };
+}
+
+/**
+ * Probe: uncommitted-worktree — worktree present + dirty.
+ *
+ * @returns {{ phase: string, detail: object } | null}
+ */
+function detectUncommittedWorktree({
+  cwd,
+  storyId,
+  worktreeRoot,
+  detail,
+  git,
+  fs: fsAdapter,
+}) {
+  const wtPath = storyWorktreePath(cwd, storyId, worktreeRoot);
+  if (!fsAdapter.existsSync(wtPath)) return null;
+  const wtStatus = git.status(wtPath);
+  const wtStatusOut = (wtStatus?.stdout ?? '').toString();
+  if (!hasAnyUncommittedChanges(wtStatusOut)) return null;
+  return {
+    phase: RECOVERY_STATES.UNCOMMITTED_WORKTREE,
+    detail: { ...detail, worktreePath: wtPath },
+  };
+}
+
+/**
+ * Probe: already-merged — story tip is reachable from `origin/epic/<id>`.
+ *
+ * Triggered when a prior close pushed the merge but stalled before the
+ * ticket transitions / cascade / dashboard regen finished — typical
+ * Windows partial-reap recovery
+ * "merge/close succeed but branchDeleted: false"). Detected from either:
+ *   a) the local `story-<id>` branch still exists and is an ancestor of
+ *      `origin/epic/<id>`; or
+ *   b) the remote `origin/story-<id>` ref is present and merged; or
+ *   c) every commit on the Story branch is patch-equivalent (`git cherry`)
+ *      to a commit already on the Epic (rebased-equivalents, Story #3161).
+ * Any one signal is enough — the local branch may have been reaped while
+ * the remote one survived, or vice versa.
+ *
+ * Returns `null` when `epicId` is absent or no merge signal matches.
+ *
+ * @returns {{ phase: string, detail: object } | null}
+ */
+function detectAlreadyMerged({ cwd, storyId, epicId, lsrOut, detail, git }) {
+  if (!epicId) return null;
+
+  const storyBranch = `story-${storyId}`;
+  const epicRefs = ['origin/epic', `origin/epic/${epicId}`];
+  const probeAncestor = (storyRef, epicRef) =>
+    git.isAncestor(cwd, storyRef, epicRef)?.status === 0;
+
+  let resolvedDetail = null;
+
+  // a) local story branch still exists.
+  const localStoryRef = `refs/heads/${storyBranch}`;
+  if (git.showRef && git.showRef(cwd, localStoryRef)?.status === 0) {
+    const remoteEpicRef = `origin/epic/${epicId}`;
+    if (probeAncestor(storyBranch, remoteEpicRef)) {
+      resolvedDetail = { localStoryRef: storyBranch, remoteEpicRef };
+    }
+  }
+
+  // b) remote story branch present and merged.
+  if (!resolvedDetail && lsrOut.length > 0) {
+    for (const epicRef of epicRefs) {
+      if (probeAncestor(`origin/${storyBranch}`, epicRef)) {
+        resolvedDetail = {
+          remoteStoryRef: `origin/${storyBranch}`,
+          remoteEpicRef: epicRef,
+        };
+        break;
+      }
+    }
+  }
+
+  // c) Rebased equivalents (Story #3161). Story tip is not an ancestor
+  //    of `origin/epic/<id>`, but every commit on the Story branch is
+  //    patch-equivalent (`git cherry`) to a commit already on the Epic.
+  //    Surfaces the manual-recovery case where the operator rebased
+  //    Story content directly onto `epic/<id>` so the diff is present
+  //    as commits with different SHAs and no `(resolves #<id>)` merge
+  //    commit. Without this branch, `assertMergeReachable` throws at
+  //    resume time and strands close at `agent::closing`.
+  if (!resolvedDetail && git.cherry) {
+    const candidates = [];
+    const localStoryRefName = `refs/heads/${storyBranch}`;
+    if (git.showRef && git.showRef(cwd, localStoryRefName)?.status === 0) {
+      candidates.push({ ref: storyBranch, kind: 'local' });
+    }
+    if (lsrOut.length > 0) {
+      candidates.push({ ref: `origin/${storyBranch}`, kind: 'remote' });
+    }
+    const remoteEpicRef = `origin/epic/${epicId}`;
+    for (const cand of candidates) {
+      const cherry = git.cherry(cwd, remoteEpicRef, cand.ref);
+      if (!cherry || cherry.status !== 0) continue;
+      const lines = (cherry.stdout ?? '')
+        .toString()
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean);
+      if (lines.length === 0) continue;
+      if (lines.every((l) => l.startsWith('- '))) {
+        resolvedDetail = {
+          [cand.kind === 'local' ? 'localStoryRef' : 'remoteStoryRef']:
+            cand.ref,
+          remoteEpicRef,
+          via: 'rebased-equivalents',
+          equivalents: lines.length,
+        };
+        break;
+      }
+    }
+  }
+
+  // d) Merge-commit-message scan (ref-independent; Story #3327 / Epic #3316).
+  //    Both the local `story-<id>` branch and the remote `origin/story-<id>`
+  //    ref were deleted by a prior partial close run, so branches a–c have no
+  //    ref to anchor on and fall through. Recover the already-merged signal
+  //    from the Epic history itself: locate the integration commit whose
+  //    subject carries `(resolves #<id>)` / `(refs #<id>)`. Without this
+  //    branch, detection falls to FRESH and the resumed close re-enters the
+  //    pre-merge gate chain, which crashes in `format-autofix-scoped.js` on
+  //    `git diff <epicBranch>...story-<id>` because the Story ref is gone.
+  if (!resolvedDetail) {
+    const mc = findMergeCommitForStory({ cwd, storyId, epicId, git });
+    if (mc) {
+      resolvedDetail = {
+        via: 'merge-commit-message',
+        mergeCommit: mc.sha,
+        remoteEpicRef: mc.epicRef,
+      };
+    }
+  }
+
+  if (!resolvedDetail) return null;
+  return {
+    phase: RECOVERY_STATES.ALREADY_MERGED,
+    detail: { ...detail, ...resolvedDetail },
+  };
+}
+
+/**
+ * Probe: pushed-unmerged — remote story branch exists and not yet merged.
+ *
+ * @returns {{ phase: string, detail: object } | null}
+ */
+function detectPushedUnmerged({ lsrOut, detail }) {
+  if (lsrOut.length === 0) return null;
+  return {
+    phase: RECOVERY_STATES.PUSHED_UNMERGED,
+    detail: { ...detail, remoteRef: lsrOut.split('\n')[0] },
+  };
+}
+
+/**
  * Detect the prior-close state for a Story.
+ *
+ * Runs the single-purpose probes in priority order and returns the first
+ * match, falling back to FRESH when none fire. Probe order is load-bearing:
+ * partial-merge > uncommitted-worktree > already-merged > pushed-unmerged.
  *
  * @param {object} opts
  * @param {string} opts.cwd             Main checkout root.
@@ -115,132 +327,27 @@ export function detectPriorPhase({
   const storyBranch = `story-${storyId}`;
   const detail = { storyId, storyBranch };
 
-  // 1. partial-merge — UU markers in the main checkout.
-  const mainStatus = git.status(cwd);
-  const mainStatusOut = (mainStatus?.stdout ?? '').toString();
-  if (hasUnmergedMarkers(mainStatusOut)) {
-    return {
-      phase: RECOVERY_STATES.PARTIAL_MERGE,
-      detail: { ...detail, checkout: cwd },
-    };
-  }
-
-  // 2. uncommitted-worktree — worktree present + dirty.
-  const wtPath = storyWorktreePath(cwd, storyId, worktreeRoot);
-  if (fsAdapter.existsSync(wtPath)) {
-    const wtStatus = git.status(wtPath);
-    const wtStatusOut = (wtStatus?.stdout ?? '').toString();
-    if (hasAnyUncommittedChanges(wtStatusOut)) {
-      return {
-        phase: RECOVERY_STATES.UNCOMMITTED_WORKTREE,
-        detail: { ...detail, worktreePath: wtPath },
-      };
-    }
-  }
-
-  // 3. already-merged — story tip is reachable from `origin/epic/<id>`.
-  //
-  //    Triggered when a prior close pushed the merge but stalled before the
-  //    ticket transitions / cascade / dashboard regen finished — typical
-  //    Windows partial-reap recovery
-  //    "merge/close succeed but branchDeleted: false"). Detected from either:
-  //      a) the local `story-<id>` branch still exists and is an ancestor of
-  //         `origin/epic/<id>`; or
-  //      b) the remote `origin/story-<id>` ref is present and merged.
-  //    Either signal is enough — the local branch may have been reaped while
-  //    the remote one survived, or vice versa.
+  // `lsRemote` is probed once and shared by the already-merged and
+  // pushed-unmerged probes (both key off the remote story ref).
   const lsr = git.lsRemote(cwd, storyBranch);
   const lsrOut = (lsr?.stdout ?? '').toString().trim();
-  if (epicId) {
-    const epicRefs = ['origin/epic', `origin/epic/${epicId}`];
-    const probeAncestor = (storyRef, epicRef) =>
-      git.isAncestor(cwd, storyRef, epicRef)?.status === 0;
 
-    let merged = false;
-    let resolvedDetail = null;
-
-    // a) local story branch still exists.
-    const localStoryRef = `refs/heads/${storyBranch}`;
-    if (git.showRef && git.showRef(cwd, localStoryRef)?.status === 0) {
-      const remoteEpicRef = `origin/epic/${epicId}`;
-      if (probeAncestor(storyBranch, remoteEpicRef)) {
-        merged = true;
-        resolvedDetail = { localStoryRef: storyBranch, remoteEpicRef };
-      }
+  return (
+    detectPartialMerge({ cwd, detail, git }) ??
+    detectUncommittedWorktree({
+      cwd,
+      storyId,
+      worktreeRoot,
+      detail,
+      git,
+      fs: fsAdapter,
+    }) ??
+    detectAlreadyMerged({ cwd, storyId, epicId, lsrOut, detail, git }) ??
+    detectPushedUnmerged({ lsrOut, detail }) ?? {
+      phase: RECOVERY_STATES.FRESH,
+      detail,
     }
-
-    // b) remote story branch present and merged.
-    if (!merged && lsrOut.length > 0) {
-      for (const epicRef of epicRefs) {
-        if (probeAncestor(`origin/${storyBranch}`, epicRef)) {
-          merged = true;
-          resolvedDetail = {
-            remoteStoryRef: `origin/${storyBranch}`,
-            remoteEpicRef: epicRef,
-          };
-          break;
-        }
-      }
-    }
-
-    // c) Rebased equivalents (Story #3161). Story tip is not an ancestor
-    //    of `origin/epic/<id>`, but every commit on the Story branch is
-    //    patch-equivalent (`git cherry`) to a commit already on the Epic.
-    //    Surfaces the manual-recovery case where the operator rebased
-    //    Story content directly onto `epic/<id>` so the diff is present
-    //    as commits with different SHAs and no `(resolves #<id>)` merge
-    //    commit. Without this branch, `assertMergeReachable` throws at
-    //    resume time and strands close at `agent::closing`.
-    if (!merged && git.cherry) {
-      const candidates = [];
-      const localStoryRefName = `refs/heads/${storyBranch}`;
-      if (git.showRef && git.showRef(cwd, localStoryRefName)?.status === 0) {
-        candidates.push({ ref: storyBranch, kind: 'local' });
-      }
-      if (lsrOut.length > 0) {
-        candidates.push({ ref: `origin/${storyBranch}`, kind: 'remote' });
-      }
-      const remoteEpicRef = `origin/epic/${epicId}`;
-      for (const cand of candidates) {
-        const cherry = git.cherry(cwd, remoteEpicRef, cand.ref);
-        if (!cherry || cherry.status !== 0) continue;
-        const lines = (cherry.stdout ?? '')
-          .toString()
-          .split('\n')
-          .map((l) => l.trim())
-          .filter(Boolean);
-        if (lines.length === 0) continue;
-        if (lines.every((l) => l.startsWith('- '))) {
-          merged = true;
-          resolvedDetail = {
-            [cand.kind === 'local' ? 'localStoryRef' : 'remoteStoryRef']:
-              cand.ref,
-            remoteEpicRef,
-            via: 'rebased-equivalents',
-            equivalents: lines.length,
-          };
-          break;
-        }
-      }
-    }
-
-    if (merged) {
-      return {
-        phase: RECOVERY_STATES.ALREADY_MERGED,
-        detail: { ...detail, ...resolvedDetail },
-      };
-    }
-  }
-
-  // 4. pushed-unmerged — remote story branch exists and not yet merged.
-  if (lsrOut.length > 0) {
-    return {
-      phase: RECOVERY_STATES.PUSHED_UNMERGED,
-      detail: { ...detail, remoteRef: lsrOut.split('\n')[0] },
-    };
-  }
-
-  return { phase: RECOVERY_STATES.FRESH, detail };
+  );
 }
 
 export const RECOVERY_ACTIONS = Object.freeze({

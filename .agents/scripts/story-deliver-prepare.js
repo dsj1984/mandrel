@@ -47,7 +47,6 @@ import {
 import { parseFencedJsonComment } from './lib/orchestration/structured-comment-parser.js';
 import { findStructuredComment } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
-import { fetchChildTickets } from './lib/story-lifecycle.js';
 import { notify } from './notify.js';
 
 const HELP = `Usage: node .agents/scripts/story-deliver-prepare.js \\
@@ -95,28 +94,6 @@ export function resolveInstallCommand(options = {}) {
     return trimmed;
   }
   return 'npm ci';
-}
-
-/**
- * Fallback path for legacy `story-init` comments that omit `tasks[]`. Pulls
- * the Story's child Tasks directly off the provider so the initial snapshot
- * has the canonical task list. Returns `[]` on any read failure — the empty
- * snapshot still upserts cleanly and downstream phase writers surface a
- * clear "task not found" error rather than silent corruption.
- *
- * @param {{ provider: object, storyId: number }} args
- * @returns {Promise<Array<{ id: number, title: string }>>}
- */
-export async function fetchTasksFallback({ provider, storyId }) {
-  try {
-    const tasks = await fetchChildTickets(provider, storyId);
-    return tasks.map((t) => ({
-      id: Number(t.number ?? t.id),
-      title: String(t.title ?? ''),
-    }));
-  } catch {
-    return [];
-  }
 }
 
 /**
@@ -220,17 +197,19 @@ export async function runStoryDeliverPrepare(args) {
 
   // 3. Upsert the initial story-run-progress snapshot.
   //
-  //    Task #3154 (Epic #3078) deleted the `planning.hierarchy` flag —
-  //    3-tier is the only supported hierarchy and every story-init
-  //    comment records `hierarchy: '3-tier'`. Snapshot-shape selection
-  //    is now driven entirely by whether the init payload carries any
-  //    child Tasks (or whether the caller pinned `tasksOverride`):
+  //    The 3-tier migration (Epic #3078) made the inline-acceptance Story
+  //    the only ticket shape: Stories have no child Tasks, so every
+  //    production `story-init` comment records an empty `tasks[]`, and no
+  //    CLI flag wires `tasksOverride` (it is a DI-only test seam — see
+  //    `parseArgv`, which never sets it). The per-Task `tasks[]` branch
+  //    below is therefore NOT exercised by any production caller; it is
+  //    retained solely so unit-test fixtures that pin `tasksOverride` or a
+  //    non-empty `tasks[]` payload still resolve. Shape selection:
   //
-  //    - `tasksOverride` or `initPayload.tasks[]` non-empty → emit the
-  //      per-Task `tasks[]` snapshot (preserved so test fixtures and
-  //      legacy comments produced by older runs still resolve correctly).
-  //    - Otherwise → emit the Story-phase `phases[]` snapshot
-  //      (init/implement/validate/close pinned to `pending`).
+  //    - `tasksOverride` or `initPayload.tasks[]` non-empty → per-Task
+  //      `tasks[]` snapshot (test-fixture path only).
+  //    - Otherwise (every production run) → Story-phase `phases[]`
+  //      snapshot (init/implement/validate/close pinned to `pending`).
   const hierarchy = String(initPayload.hierarchy ?? '3-tier');
   const branch = String(initPayload.storyBranch ?? `story-${storyId}`);
 

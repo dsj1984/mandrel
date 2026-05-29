@@ -28,8 +28,8 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { assertWaveCompleteness } from '../../../../.agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js';
 import { Bus } from '../../../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
+import { assertWaveCompleteness } from '../../../../.agents/scripts/lib/wave-runner/wave-checkpoint.js';
 
 describe('wave-completeness — schema layer', () => {
   it('wave.end schema rejects an outcomes value outside the enum', async () => {

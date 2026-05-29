@@ -75,76 +75,64 @@ export class PlanningStateManager {
     const relatedTickets = await this.provider.getTickets(epicId);
     this.provider.primeTicketCache(relatedTickets);
 
-    // Collect ALL planning artifacts — open AND closed — so stale
-    // sub-issue links get cleaned up regardless of issue state.
-    const allPrds = relatedTickets.filter((t) =>
-      t.labels.includes(CONTEXT_LABELS.PRD),
-    );
-    const allSpecs = relatedTickets.filter((t) =>
-      t.labels.includes(CONTEXT_LABELS.TECH_SPEC),
-    );
-    const allAcceptanceSpecs = relatedTickets.filter((t) =>
-      t.labels.includes(CONTEXT_LABELS.ACCEPTANCE_SPEC),
-    );
+    // One descriptor per planning-artifact type. Each entry parameterizes
+    // the label filter, the canonical reference key on `epic.linkedIssues`,
+    // and a human-readable name for the heal log line, so the per-type
+    // filter / canonical / heal / successor logic runs from a single loop
+    // instead of three inlined copies.
+    const ARTIFACT_TYPES = [
+      { label: CONTEXT_LABELS.PRD, key: 'prd', name: 'PRD' },
+      { label: CONTEXT_LABELS.TECH_SPEC, key: 'techSpec', name: 'Tech Spec' },
+      {
+        label: CONTEXT_LABELS.ACCEPTANCE_SPEC,
+        key: 'acceptanceSpec',
+        name: 'Acceptance Spec',
+      },
+    ];
 
-    // Canonical artifact = first open one; fallback to first overall.
-    const canonicalPrd =
-      allPrds.find((t) => t.state === 'open') ?? allPrds[0] ?? null;
-    const canonicalSpec =
-      allSpecs.find((t) => t.state === 'open') ?? allSpecs[0] ?? null;
-    const canonicalAcceptanceSpec =
-      allAcceptanceSpecs.find((t) => t.state === 'open') ??
-      allAcceptanceSpecs[0] ??
-      null;
+    // Resolve each artifact type: collect ALL matching tickets (open AND
+    // closed) so stale sub-issue links get cleaned up regardless of state;
+    // pick the canonical one (first open, else first overall); heal a
+    // dangling `epic.linkedIssues` reference; and record the resolved
+    // canonical id for successor resolution below.
+    const resolved = ARTIFACT_TYPES.map((descriptor) => {
+      const all = relatedTickets.filter((t) =>
+        t.labels.includes(descriptor.label),
+      );
+      const canonical = all.find((t) => t.state === 'open') ?? all[0] ?? null;
 
-    // Heal linkedIssues if empty but tickets exist
-    if (!epic.linkedIssues.prd && canonicalPrd?.state === 'open') {
-      epic.linkedIssues.prd = canonicalPrd.id;
-      Logger.info(
-        `[Epic Planner] Healed dangling PRD reference: #${epic.linkedIssues.prd}`,
-      );
-    }
-    if (!epic.linkedIssues.techSpec && canonicalSpec?.state === 'open') {
-      epic.linkedIssues.techSpec = canonicalSpec.id;
-      Logger.info(
-        `[Epic Planner] Healed dangling Tech Spec reference: #${epic.linkedIssues.techSpec}`,
-      );
-    }
-    if (
-      !epic.linkedIssues.acceptanceSpec &&
-      canonicalAcceptanceSpec?.state === 'open'
-    ) {
-      epic.linkedIssues.acceptanceSpec = canonicalAcceptanceSpec.id;
-      Logger.info(
-        `[Epic Planner] Healed dangling Acceptance Spec reference: #${epic.linkedIssues.acceptanceSpec}`,
-      );
-    }
+      if (!epic.linkedIssues[descriptor.key] && canonical?.state === 'open') {
+        epic.linkedIssues[descriptor.key] = canonical.id;
+        Logger.info(
+          `[Epic Planner] Healed dangling ${descriptor.name} reference: #${epic.linkedIssues[descriptor.key]}`,
+        );
+      }
+
+      const canonicalId = epic.linkedIssues[descriptor.key] ?? canonical?.id;
+      return { ...descriptor, all, canonicalId };
+    });
 
     // Identify redundant artifacts: everything that is NOT the canonical one.
-    const canonicalPrdId = epic.linkedIssues.prd ?? canonicalPrd?.id;
-    const canonicalSpecId = epic.linkedIssues.techSpec ?? canonicalSpec?.id;
-    const canonicalAcceptanceSpecId =
-      epic.linkedIssues.acceptanceSpec ?? canonicalAcceptanceSpec?.id;
+    const redundant = resolved.flatMap((r) =>
+      r.all.filter((t) => t.id !== r.canonicalId),
+    );
 
-    const redundant = [
-      ...allPrds.filter((t) => t.id !== canonicalPrdId),
-      ...allSpecs.filter((t) => t.id !== canonicalSpecId),
-      ...allAcceptanceSpecs.filter((t) => t.id !== canonicalAcceptanceSpecId),
-    ];
+    // Map artifact label → resolved canonical id, for successor resolution.
+    const successorByLabel = new Map(
+      resolved.map((r) => [r.label, r.canonicalId]),
+    );
 
     // Bound the close+detach mutation burst at 3 so wide redundancy
     // cleanup does not race the GitHub secondary rate limit.
     await concurrentMap(
       redundant,
       async (t) => {
-        let successorId;
-        if (t.labels.includes(CONTEXT_LABELS.PRD)) {
-          successorId = canonicalPrdId;
-        } else if (t.labels.includes(CONTEXT_LABELS.ACCEPTANCE_SPEC)) {
-          successorId = canonicalAcceptanceSpecId;
-        } else {
-          successorId = canonicalSpecId;
-        }
+        const descriptor = ARTIFACT_TYPES.find((d) =>
+          t.labels.includes(d.label),
+        );
+        const successorId = descriptor
+          ? successorByLabel.get(descriptor.label)
+          : undefined;
         Logger.info(
           `[Epic Planner] Cleaning up redundant artifact #${t.id} (superseded by #${successorId})...`,
         );
@@ -156,8 +144,10 @@ export class PlanningStateManager {
               type: 'notification',
               body: `⚠️ **Audit Trace**: This planning artifact was created during an interrupted or failed orchestration run and is now **superseded by #${successorId}**. \n\nClosing this issue to maintain a single source of truth for Epic #${epicId}.`,
             });
-          } catch (_err) {
-            // Ignore comment failures
+          } catch (err) {
+            Logger.warn(
+              `[Epic Planner]   Could not post audit-trace comment on #${t.id}: ${err.message}`,
+            );
           }
           await this.provider.updateTicket(t.id, {
             state: 'closed',

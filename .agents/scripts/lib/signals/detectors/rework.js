@@ -131,6 +131,11 @@ async function tallyEditsByTarget(tracesPath) {
  * @param {number} args.threshold — the maximum tolerated edit count;
  *   targets with `editCount > threshold` emit. MUST be a non-negative
  *   integer.
+ * @param {() => string} [args.nowFn] — optional clock seam returning the
+ *   ISO-8601 `ts` stamped onto every emitted SignalEvent. Defaults to
+ *   `() => new Date().toISOString()`. Inject a fixed-return function in
+ *   tests to make the emitted `ts` deterministic. MUST, when provided, be
+ *   a function.
  * @returns {Promise<object[]>} array of SignalEvent objects
  *   conforming to `.agents/schemas/signal-event.schema.json`.
  */
@@ -142,6 +147,12 @@ export async function detectRework(args) {
   }
   const { tracesPath, epicId, storyId, threshold } = args;
   const taskId = args.taskId ?? null;
+  if (args.nowFn != null && typeof args.nowFn !== 'function') {
+    throw new TypeError(
+      `detectRework: nowFn, when provided, must be a function (got ${typeof args.nowFn})`,
+    );
+  }
+  const nowFn = args.nowFn ?? (() => new Date().toISOString());
 
   if (typeof tracesPath !== 'string' || tracesPath.length === 0) {
     throw new TypeError(
@@ -180,7 +191,7 @@ export async function detectRework(args) {
   }
   offenders.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
 
-  const ts = new Date().toISOString();
+  const ts = nowFn();
   return offenders.map(([targetHash, editCount]) => ({
     ts,
     kind: 'rework',

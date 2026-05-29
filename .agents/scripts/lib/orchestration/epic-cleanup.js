@@ -28,6 +28,8 @@
  * tests can drive the runner end-to-end without touching git or the disk.
  */
 
+import { parseWorktreePorcelain } from '../worktree/inspector.js';
+
 const WT_SCRATCH_BRANCH = 'wt-branch';
 
 /**
@@ -55,34 +57,6 @@ export function listEpicBranchesFromState(state) {
       .sort((a, b) => a - b)
       .map((id) => `story-${id}`),
   };
-}
-
-/**
- * Parse `git worktree list --porcelain` output. Pure. Exported for tests.
- *
- * @param {string} raw
- * @returns {Array<{ path: string, branch: string|null }>}
- */
-export function parseWorktreeList(raw) {
-  if (typeof raw !== 'string' || raw.length === 0) return [];
-  const entries = [];
-  let current = null;
-  for (const line of raw.split(/\r?\n/)) {
-    if (line.startsWith('worktree ')) {
-      if (current) entries.push(current);
-      current = { path: line.slice('worktree '.length).trim(), branch: null };
-    } else if (line.startsWith('branch ')) {
-      const ref = line.slice('branch '.length).trim();
-      if (current) {
-        current.branch = ref.replace(/^refs\/heads\//, '');
-      }
-    } else if (line.length === 0 && current) {
-      entries.push(current);
-      current = null;
-    }
-  }
-  if (current) entries.push(current);
-  return entries;
 }
 
 /**
@@ -338,7 +312,7 @@ export function reapEpicBranches(opts) {
 
   const wtList = gitSpawn(cwd, 'worktree', 'list', '--porcelain');
   const worktrees =
-    wtList.status === 0 ? parseWorktreeList(wtList.stdout ?? '') : [];
+    wtList.status === 0 ? parseWorktreePorcelain(wtList.stdout ?? '') : [];
 
   const reaped = [];
   for (const branch of [...storyBranches, epicBranch]) {

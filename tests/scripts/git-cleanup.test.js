@@ -18,6 +18,7 @@ import {
   planCleanup,
   planFastForward,
   planStashes,
+  probeAllPrs,
   probeLatestPr,
   probeMergedPr,
   renderDryRun,
@@ -1830,6 +1831,188 @@ describe('git-cleanup.planCleanup latest-PR-state integration', () => {
     const openSkip = plan.skipped.find((s) => s.reason === 'latest-pr-open');
     assert.ok(openSkip);
     assert.equal(openSkip.branch, 'release-please/baz');
+  });
+});
+
+describe('git-cleanup.probeAllPrs (Story #3333 bulk fetch)', () => {
+  it('passes the correct single-spawn gh argv (state=all, includes headRefName)', () => {
+    let captured;
+    probeAllPrs(
+      '/cwd',
+      (args, { cwd }) => {
+        captured = { args, cwd };
+        return '[]';
+      },
+      500,
+    );
+    assert.equal(captured.cwd, '/cwd');
+    assert.deepEqual(captured.args, [
+      'pr',
+      'list',
+      '--state',
+      'all',
+      '--json',
+      'number,state,mergedAt,closedAt,headRefOid,headRefName',
+      '--limit',
+      '500',
+    ]);
+  });
+
+  it('indexes rows into a Map keyed by headRefName with probeLatestPr shape', () => {
+    const index = probeAllPrs('/repo', () =>
+      JSON.stringify([
+        {
+          number: 42,
+          state: 'MERGED',
+          mergedAt: '2026-05-18T15:24:18Z',
+          closedAt: '2026-05-18T15:24:18Z',
+          headRefOid: 'sha-merged',
+          headRefName: 'fix/a',
+        },
+        {
+          number: 9,
+          state: 'OPEN',
+          mergedAt: null,
+          closedAt: null,
+          headRefOid: 'sha-open',
+          headRefName: 'feat/b',
+        },
+      ]),
+    );
+    assert.equal(index.size, 2);
+    assert.deepEqual(index.get('fix/a'), {
+      number: 42,
+      state: 'MERGED',
+      mergedAt: '2026-05-18T15:24:18Z',
+      closedAt: '2026-05-18T15:24:18Z',
+      headRefOid: 'sha-merged',
+    });
+    assert.equal(index.get('feat/b').state, 'OPEN');
+  });
+
+  it('keeps the first (newest) row when a head ref appears more than once', () => {
+    const index = probeAllPrs('/repo', () =>
+      JSON.stringify([
+        { number: 200, state: 'OPEN', headRefName: 'release-please/foo' },
+        { number: 100, state: 'MERGED', headRefName: 'release-please/foo' },
+      ]),
+    );
+    assert.equal(index.size, 1);
+    assert.equal(index.get('release-please/foo').number, 200);
+    assert.equal(index.get('release-please/foo').state, 'OPEN');
+  });
+
+  it('uppercases state and coerces missing optional fields to null', () => {
+    const index = probeAllPrs('/repo', () =>
+      JSON.stringify([{ number: 7, state: 'merged', headRefName: 'fix/a' }]),
+    );
+    const row = index.get('fix/a');
+    assert.equal(row.state, 'MERGED');
+    assert.equal(row.mergedAt, null);
+    assert.equal(row.closedAt, null);
+    assert.equal(row.headRefOid, null);
+  });
+
+  it('returns an empty Map on empty / whitespace / malformed / non-array output', () => {
+    assert.equal(probeAllPrs('/repo', () => '').size, 0);
+    assert.equal(probeAllPrs('/repo', () => '   ').size, 0);
+    assert.equal(probeAllPrs('/repo', () => '{not json').size, 0);
+    assert.equal(probeAllPrs('/repo', () => '{"not":"array"}').size, 0);
+  });
+
+  it('skips rows with a missing or non-string headRefName', () => {
+    const index = probeAllPrs('/repo', () =>
+      JSON.stringify([
+        { number: 1, state: 'MERGED' },
+        { number: 2, state: 'MERGED', headRefName: 42 },
+        { number: 3, state: 'MERGED', headRefName: 'fix/ok' },
+      ]),
+    );
+    assert.equal(index.size, 1);
+    assert.equal(index.get('fix/ok').number, 3);
+  });
+});
+
+describe('git-cleanup.planCleanup bulk-index integration (Story #3333)', () => {
+  const baseCtx = (overrides) => ({
+    cwd: '/repo',
+    baseBranch: 'main',
+    mergedLister: () => [],
+    currentBranchFn: () => 'main',
+    protectedConfigFn: () => [],
+    worktreesFn: () => new Map(),
+    branchTipShaFn: () => null,
+    filter: () => true,
+    ...overrides,
+  });
+
+  it('fires the bulk index exactly once and reads each branch from the Map', () => {
+    let indexCalls = 0;
+    const plan = planCleanup(
+      baseCtx({
+        localLister: () => ['fix/a', 'feat/b'],
+        prIndexFn: () => {
+          indexCalls += 1;
+          return new Map([
+            ['fix/a', { number: 1, state: 'MERGED', headRefOid: null }],
+            ['feat/b', { number: 9, state: 'OPEN' }],
+          ]);
+        },
+      }),
+    );
+    assert.equal(indexCalls, 1, 'bulk index should fire exactly once');
+    assert.equal(plan.candidates.length, 1);
+    assert.equal(plan.candidates[0].branch, 'fix/a');
+    const openSkip = plan.skipped.find((s) => s.reason === 'latest-pr-open');
+    assert.ok(openSkip);
+    assert.equal(openSkip.branch, 'feat/b');
+  });
+
+  it('falls back to the per-branch probe only for refs absent from the bulk page', () => {
+    const fallbackCalls = [];
+    const plan = planCleanup(
+      baseCtx({
+        localLister: () => ['fix/in-page', 'fix/absent'],
+        prIndexFn: () =>
+          new Map([
+            ['fix/in-page', { number: 1, state: 'MERGED', headRefOid: null }],
+          ]),
+        prFallback: (branch) => {
+          fallbackCalls.push(branch);
+          return { number: 77, state: 'MERGED', headRefOid: null };
+        },
+      }),
+    );
+    // The in-page branch is served from the Map; only the absent branch
+    // hits the per-branch fallback.
+    assert.deepEqual(fallbackCalls, ['fix/absent']);
+    const candidates = plan.candidates.map((c) => c.branch).sort();
+    assert.deepEqual(candidates, ['fix/absent', 'fix/in-page']);
+    assert.equal(
+      plan.candidates.find((c) => c.branch === 'fix/in-page').prNumber,
+      1,
+    );
+    assert.equal(
+      plan.candidates.find((c) => c.branch === 'fix/absent').prNumber,
+      77,
+    );
+  });
+
+  it('does not fire the bulk index when a caller injects prProbe', () => {
+    let indexCalls = 0;
+    const plan = planCleanup(
+      baseCtx({
+        localLister: () => ['fix/a'],
+        prIndexFn: () => {
+          indexCalls += 1;
+          return new Map();
+        },
+        prProbe: () => ({ number: 5, state: 'MERGED', headRefOid: null }),
+      }),
+    );
+    assert.equal(indexCalls, 0, 'injected prProbe must bypass the bulk fetch');
+    assert.equal(plan.candidates.length, 1);
+    assert.equal(plan.candidates[0].prNumber, 5);
   });
 });
 

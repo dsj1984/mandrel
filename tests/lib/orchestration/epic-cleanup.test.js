@@ -6,7 +6,6 @@ import {
   findWorktreePathForBranch,
   getCheckedOutBranch,
   listEpicBranchesFromState,
-  parseWorktreeList,
   pruneRemoteTrackingRefs,
   reapBranch,
   reapEpicBranches,
@@ -61,35 +60,6 @@ describe('listEpicBranchesFromState', () => {
       waves: [{ stories: [{ id: 0 }, { id: -3 }, { id: 5 }] }],
     });
     assert.deepEqual(out.storyBranches, ['story-5']);
-  });
-});
-
-describe('parseWorktreeList', () => {
-  it('parses a porcelain stream into path/branch records', () => {
-    const raw = [
-      'worktree /repo',
-      'HEAD abcd',
-      'branch refs/heads/main',
-      '',
-      'worktree /repo/.worktrees/story-1191',
-      'HEAD efgh',
-      'branch refs/heads/story-1191',
-      '',
-      'worktree /repo/.worktrees/story-1194',
-      'HEAD ijkl',
-      'detached',
-      '',
-    ].join('\n');
-    const out = parseWorktreeList(raw);
-    assert.equal(out.length, 3);
-    assert.equal(out[1].path, '/repo/.worktrees/story-1191');
-    assert.equal(out[1].branch, 'story-1191');
-    assert.equal(out[2].branch, null);
-  });
-
-  it('returns [] for empty / non-string input', () => {
-    assert.deepEqual(parseWorktreeList(''), []);
-    assert.deepEqual(parseWorktreeList(null), []);
   });
 });
 

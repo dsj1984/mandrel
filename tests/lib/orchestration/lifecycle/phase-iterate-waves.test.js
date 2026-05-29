@@ -21,12 +21,10 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
-import {
-  assertWaveCompleteness,
-  runIterateWavesPhase,
-} from '../../../../.agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js';
+import { runIterateWavesPhase } from '../../../../.agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js';
 import { Bus } from '../../../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
 import { LedgerWriter } from '../../../../.agents/scripts/lib/orchestration/lifecycle/ledger-writer.js';
+import { assertWaveCompleteness } from '../../../../.agents/scripts/lib/wave-runner/wave-checkpoint.js';
 
 function readNdjson(p) {
   return readFileSync(p, 'utf8')

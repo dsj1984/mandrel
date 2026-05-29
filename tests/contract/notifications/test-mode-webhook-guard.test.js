@@ -1,24 +1,28 @@
 // tests/contract/notifications/test-mode-webhook-guard.test.js
 /**
- * Story #2975 — guarantee that tests do NOT POST to the operator's real
- * Slack webhook even when `.env` sets `NOTIFICATION_WEBHOOK_URL`.
+ * Story #2975 / Story #3342 — guarantee that tests do NOT POST to the
+ * operator's real Slack webhook even when `.env` sets
+ * `NOTIFICATION_WEBHOOK_URL`.
  *
- * Two defenses cover the surface:
+ * The NODE_ENV=test library band-aid that previously lived in `notify.js`
+ * has been removed (Story #3342): it conflated "we are running tests" with
+ * "do not deliver", which made the signing and error branches untestable
+ * without an env guard. The surviving defenses are:
  *
  *   1. `run-tests.js` scrubs `NOTIFICATION_WEBHOOK_URL` from the test
- *      child env and sets `NODE_ENV=test`. Tests inherit a clean env.
- *   2. `notify.js` refuses to resolve the env URL when `NODE_ENV=test`
- *      unless the caller explicitly passed `opts.webhookUrl` (opt-in)
- *      or `MANDREL_ALLOW_TEST_WEBHOOKS=1` is set.
+ *      child env and sets `NODE_ENV=test` (see `buildWebhookSafeTestEnv`,
+ *      covered by tests/lib/test-env.test.js). Tests inherit a clean env,
+ *      so `resolveWebhookUrl()` returns nothing and the webhook never
+ *      fires.
+ *   2. `notify()` accepts an injected `opts.fetchImpl`. Tests that want to
+ *      exercise the webhook POST inject a fake fetch, so the request never
+ *      reaches the real network and never touches `globalThis.fetch`.
  *
- * This contract test exercises defense #2 directly: it sets a sentinel
- * URL on `process.env.NOTIFICATION_WEBHOOK_URL` (simulating a test
- * surface that bypassed the runner-level scrub — e.g. `node --test`
- * invoked directly), dispatches an allowlisted webhook event with NO
- * `opts.webhookUrl`, and asserts the global `fetch` is never called.
- *
- * Includes the inverse case: with `MANDREL_ALLOW_TEST_WEBHOOKS=1` the
- * guard yields and the dispatch reaches the (stubbed) fetch.
+ * This contract test exercises both defenses directly:
+ *   - With an env URL set but a fake `fetchImpl` injected, the POST is
+ *     captured by the fake and `globalThis.fetch` is never called.
+ *   - With no env URL (the scrubbed-runner condition), the webhook is
+ *     suppressed because no URL resolves — independent of NODE_ENV.
  */
 
 import assert from 'node:assert/strict';
@@ -45,21 +49,21 @@ function makeProvider() {
   return { postComment: async () => {} };
 }
 
-describe('notify() — test-mode webhook guard (Story #2975)', () => {
+describe('notify() — webhook isolation via injected fetch (Story #3342)', () => {
   let originalFetch;
   let originalNodeEnv;
   let originalWebhookUrl;
-  let originalAllowFlag;
-  let fetchCalls;
+  let globalFetchCalls;
 
   beforeEach(() => {
     originalFetch = global.fetch;
     originalNodeEnv = process.env.NODE_ENV;
     originalWebhookUrl = process.env.NOTIFICATION_WEBHOOK_URL;
-    originalAllowFlag = process.env.MANDREL_ALLOW_TEST_WEBHOOKS;
-    fetchCalls = [];
+    globalFetchCalls = [];
+    // A tripwire: if any code path falls through to the real global fetch,
+    // this records it so the assertions below can fail loudly.
     global.fetch = async (url, opts) => {
-      fetchCalls.push({ url, opts });
+      globalFetchCalls.push({ url, opts });
       return { ok: true, status: 200 };
     };
   });
@@ -73,17 +77,38 @@ describe('notify() — test-mode webhook guard (Story #2975)', () => {
     } else {
       process.env.NOTIFICATION_WEBHOOK_URL = originalWebhookUrl;
     }
-    if (originalAllowFlag === undefined) {
-      delete process.env.MANDREL_ALLOW_TEST_WEBHOOKS;
-    } else {
-      process.env.MANDREL_ALLOW_TEST_WEBHOOKS = originalAllowFlag;
-    }
   });
 
-  it('suppresses webhook when NODE_ENV=test and caller did not pass webhookUrl, even when env URL is set', async () => {
+  it('injected fetchImpl captures the POST and never touches global fetch, even when env URL is set', async () => {
     process.env.NODE_ENV = 'test';
     process.env.NOTIFICATION_WEBHOOK_URL = SENTINEL_URL;
-    delete process.env.MANDREL_ALLOW_TEST_WEBHOOKS;
+
+    const injectedCalls = [];
+    const fakeFetch = async (url, opts) => {
+      injectedCalls.push({ url, opts });
+      return { ok: true, status: 200 };
+    };
+
+    await notify(
+      123,
+      { severity: 'medium', message: 'wave done', event: 'epic-progress' },
+      { config: makeConfig(), provider: makeProvider(), fetchImpl: fakeFetch },
+    );
+
+    // The env URL resolves (the NODE_ENV band-aid is gone) but the POST is
+    // routed through the injected fake, not the real global fetch.
+    assert.equal(injectedCalls.length, 1, 'injected fetch handles the POST');
+    assert.equal(injectedCalls[0].url, SENTINEL_URL);
+    assert.equal(
+      globalFetchCalls.length,
+      0,
+      'global fetch is never reached when fetchImpl is injected',
+    );
+  });
+
+  it('suppresses webhook when no URL resolves (scrubbed-runner condition), regardless of NODE_ENV', async () => {
+    process.env.NODE_ENV = 'test';
+    delete process.env.NOTIFICATION_WEBHOOK_URL;
 
     await notify(
       123,
@@ -92,15 +117,21 @@ describe('notify() — test-mode webhook guard (Story #2975)', () => {
     );
 
     assert.equal(
-      fetchCalls.length,
+      globalFetchCalls.length,
       0,
-      'guard must refuse to resolve env URL under NODE_ENV=test',
+      'no URL resolved → webhook suppressed → global fetch untouched',
     );
   });
 
-  it('allows webhook when caller explicitly passes webhookUrl (opt-in)', async () => {
+  it('honors an explicitly passed webhookUrl through the injected fetch', async () => {
     process.env.NODE_ENV = 'test';
     delete process.env.NOTIFICATION_WEBHOOK_URL;
+
+    const injectedCalls = [];
+    const fakeFetch = async (url, opts) => {
+      injectedCalls.push({ url, opts });
+      return { ok: true, status: 200 };
+    };
 
     await notify(
       123,
@@ -109,25 +140,12 @@ describe('notify() — test-mode webhook guard (Story #2975)', () => {
         config: makeConfig(),
         provider: makeProvider(),
         webhookUrl: 'https://explicit.example/hook',
+        fetchImpl: fakeFetch,
       },
     );
 
-    assert.equal(fetchCalls.length, 1);
-    assert.equal(fetchCalls[0].url, 'https://explicit.example/hook');
-  });
-
-  it('allows webhook when MANDREL_ALLOW_TEST_WEBHOOKS=1 escape hatch is set', async () => {
-    process.env.NODE_ENV = 'test';
-    process.env.NOTIFICATION_WEBHOOK_URL = SENTINEL_URL;
-    process.env.MANDREL_ALLOW_TEST_WEBHOOKS = '1';
-
-    await notify(
-      123,
-      { severity: 'medium', message: 'wave done', event: 'epic-progress' },
-      { config: makeConfig(), provider: makeProvider() },
-    );
-
-    assert.equal(fetchCalls.length, 1);
-    assert.equal(fetchCalls[0].url, SENTINEL_URL);
+    assert.equal(injectedCalls.length, 1);
+    assert.equal(injectedCalls[0].url, 'https://explicit.example/hook');
+    assert.equal(globalFetchCalls.length, 0);
   });
 });

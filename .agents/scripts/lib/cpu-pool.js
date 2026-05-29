@@ -36,10 +36,23 @@
  *
  * No project config or git access is loaded here — the pool itself is
  * a thin scheduler so workers stay cheap to spawn.
+ *
+ * Worker injection (testability):
+ *   - The worker handle is produced by `opts.workerFactory(script, options)`,
+ *     defaulting to `(script, options) => new Worker(script, options)`. The
+ *     factory must return an EventEmitter-shaped handle exposing the subset
+ *     of the `worker_threads.Worker` surface the scheduler uses: `on`,
+ *     `off`, `once`, `postMessage`, and a thenable `terminate()`. Injecting
+ *     a synchronous fake factory lets unit tests drive the scheduling,
+ *     ordering, and exit-race branches in-process without spawning a real
+ *     OS thread.
  */
 
 import os from 'node:os';
 import { Worker } from 'node:worker_threads';
+
+/** Default factory: spawn a real `worker_threads.Worker`. */
+const defaultWorkerFactory = (script, options) => new Worker(script, options);
 
 /**
  * @template TItem, TResult
@@ -49,6 +62,13 @@ import { Worker } from 'node:worker_threads';
  *   concurrency?: number,
  *   workerData?: unknown,
  *   throwOnItemError?: boolean,
+ *   workerFactory?: (
+ *     script: string|URL,
+ *     options: { workerData?: unknown },
+ *   ) => import('node:events').EventEmitter & {
+ *     postMessage: (msg: unknown) => void,
+ *     terminate: () => Promise<unknown> | unknown,
+ *   },
  * }} [opts]
  * @returns {Promise<Array<TResult | { __cpuPoolError: true, message: string }>>}
  */
@@ -60,13 +80,14 @@ export async function runOnPool(workerScript, items, opts = {}) {
   const concurrency = Math.max(1, Math.min(requested, itemsArr.length));
   const workerData = opts.workerData;
   const throwOnItemError = opts.throwOnItemError === true;
+  const workerFactory = opts.workerFactory ?? defaultWorkerFactory;
 
   const results = new Array(itemsArr.length);
   let nextIndex = 0;
   let firstFatalError = null;
 
   async function runWorker() {
-    const worker = new Worker(workerScript, { workerData });
+    const worker = workerFactory(workerScript, { workerData });
     // Track exit at worker scope so the finally block can short-circuit
     // when the worker has already gone away (e.g. mid-dispatch
     // process.exit). Registering a single persistent listener here also

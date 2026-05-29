@@ -102,6 +102,131 @@ function assertDepsInstalled(projectRoot) {
 const progress = Logger.createProgress('single-story-init', { stderr: true });
 
 /**
+ * Build the synchronous `gh` runner the single-story sweep uses for its
+ * candidate-protection checks. Exported for testing.
+ *
+ * Story #2990: the sweep protection-ctx ghRunner stays on raw
+ * `spawnSync('gh', …)` (not the `lib/gh-exec.js` async facade) because
+ * `executeCleanup` invokes the protection checks inside a synchronous
+ * candidate-filter loop. The runner contract is the legacy
+ * `(args, opts) => stdout string` shape; converting it to async would
+ * ripple into the single-story-sweep planner, which is intentionally out
+ * of scope for the callers-only provider migration.
+ *
+ * @param {string} cwd Repo root used as the default spawn cwd.
+ * @returns {(args: string[], opts?: { cwd?: string }) => string}
+ */
+export function makeGhRunner(cwd) {
+  return (args, opts) => {
+    const result = spawnSync('gh', args, {
+      cwd: opts?.cwd ?? cwd,
+      encoding: 'utf-8',
+      shell: false,
+    });
+    if (result.status !== 0) {
+      throw new Error(
+        `gh ${args.join(' ')} exit ${result.status}: ${result.stderr ?? ''}`,
+      );
+    }
+    return result.stdout ?? '';
+  };
+}
+
+/**
+ * Validate that the fetched ticket is a standalone Story this script can
+ * deliver. Throws with the canonical operator-facing message otherwise.
+ * Exported for testing.
+ *
+ * @param {{ labels: string[], state: string }} story Fetched ticket.
+ * @param {number} storyId Story number (for error messages).
+ */
+export function assertDeliverableStory(story, storyId) {
+  if (!story.labels.includes(TYPE_LABELS.STORY)) {
+    throw new Error(
+      `Issue #${storyId} is not a Story (labels: ${story.labels.join(', ')}). Use /story-deliver or /epic-deliver for Epic-attached work.`,
+    );
+  }
+  if (story.state === 'closed') {
+    throw new Error(`Story #${storyId} is already closed.`);
+  }
+}
+
+/**
+ * Reap previously-merged `story-*` branches before starting a new one, so
+ * stale local + origin refs do not accumulate across runs. The sweep
+ * excludes the current run's `storyBranch` and never blocks init: any
+ * sweep failure is logged but does not throw.
+ *
+ * Story #2011 hardens this surface in two ways:
+ *   - Per-candidate protection: branches with unpushed work, dirty
+ *     worktrees, or still-open Story tickets are skipped (and listed
+ *     in `sweep.protected` for the operator).
+ *   - Cross-session lock: a single lockfile under `tempRoot` prevents
+ *     two concurrent `/single-story-deliver` invocations from racing.
+ *
+ * Exported for testing.
+ */
+export async function reapMergedStoryBranches({
+  cwd,
+  baseBranch,
+  storyBranch,
+  config,
+  provider,
+  injectedSweep,
+}) {
+  const sweepFn =
+    injectedSweep ??
+    (await import('./lib/single-story-sweep.js')).sweepMergedStoryBranches;
+  const tempRoot = config?.project?.paths?.tempRoot ?? 'temp';
+  const lockPath = path.resolve(cwd, tempRoot, 'single-story-sweep.lock');
+  const lockTimeoutMs =
+    config.delivery?.worktreeIsolation?.sweepLockMs ?? 60_000;
+  try {
+    const sweep = await sweepFn({
+      cwd,
+      baseBranch,
+      currentStoryBranch: storyBranch,
+      logger: {
+        info: (m) => progress('CLEANUP', m),
+        warn: (m) => progress('CLEANUP', `⚠️ ${m}`),
+      },
+      protectionCtx: {
+        repoRoot: cwd,
+        gitSpawn,
+        ghRunner: makeGhRunner(cwd),
+        getTicket: (id) => provider.getTicket(id),
+      },
+      lockPath,
+      lockTimeoutMs,
+    });
+    if (sweep.error) {
+      progress(
+        'CLEANUP',
+        `⚠️ sweep returned error (init continues): ${sweep.error}`,
+      );
+    } else if (sweep.skipped && sweep.reason) {
+      progress('CLEANUP', `⏭ sweep skipped (${sweep.reason}); init continues.`);
+    } else if (sweep.candidates > 0) {
+      const protectedNote =
+        sweep.protected && sweep.protected.length > 0
+          ? `; protected ${sweep.protected.length} (${sweep.protected
+              .map((p) => `${p.branch}:${p.reason}`)
+              .join(', ')})`
+          : '';
+      progress(
+        'CLEANUP',
+        `🧹 reaped ${sweep.localDeleted} local + ${sweep.remoteDeleted} remote story branch(es)${protectedNote}.`,
+      );
+    }
+  } catch (err) {
+    progress(
+      'CLEANUP',
+      `⚠️ sweep threw (init continues): ${err?.message ?? err}`,
+    );
+  }
+}
+
+/**
  * Initialize a standalone Story. Exported for testing.
  */
 export async function runSingleStoryInit({
@@ -147,14 +272,7 @@ export async function runSingleStoryInit({
   progress('INIT', `Initializing standalone Story #${storyId}...`);
 
   const story = await provider.getTicket(storyId);
-  if (!story.labels.includes(TYPE_LABELS.STORY)) {
-    throw new Error(
-      `Issue #${storyId} is not a Story (labels: ${story.labels.join(', ')}). Use /story-deliver or /epic-deliver for Epic-attached work.`,
-    );
-  }
-  if (story.state === 'closed') {
-    throw new Error(`Story #${storyId} is already closed.`);
-  }
+  assertDeliverableStory(story, storyId);
 
   progress(
     'CONTEXT',
@@ -175,90 +293,14 @@ export async function runSingleStoryInit({
       );
     }
 
-    // Reap previously-merged `story-*` branches before we start a new one,
-    // so stale local + origin refs do not accumulate across runs. The sweep
-    // excludes the current run's `storyBranch` and never blocks init: any
-    // sweep failure is logged but does not throw.
-    //
-    // Story #2011 hardens this surface in two ways:
-    //   - Per-candidate protection: branches with unpushed work, dirty
-    //     worktrees, or still-open Story tickets are skipped (and listed
-    //     in `sweep.protected` for the operator).
-    //   - Cross-session lock: a single lockfile under `tempRoot` prevents
-    //     two concurrent `/single-story-deliver` invocations from racing.
-    const sweepFn =
-      injectedSweep ??
-      (await import('./lib/single-story-sweep.js')).sweepMergedStoryBranches;
-    const tempRoot = config?.project?.paths?.tempRoot ?? 'temp';
-    const lockPath = path.resolve(cwd, tempRoot, 'single-story-sweep.lock');
-    const lockTimeoutMs =
-      config.delivery?.worktreeIsolation?.sweepLockMs ?? 60_000;
-    try {
-      const sweep = await sweepFn({
-        cwd,
-        baseBranch,
-        currentStoryBranch: storyBranch,
-        logger: {
-          info: (m) => progress('CLEANUP', m),
-          warn: (m) => progress('CLEANUP', `⚠️ ${m}`),
-        },
-        protectionCtx: {
-          repoRoot: cwd,
-          gitSpawn,
-          // Story #2990: the sweep protection-ctx ghRunner stays on raw
-          // `spawnSync('gh', …)` (not the `lib/gh-exec.js` async facade)
-          // because `executeCleanup` invokes the protection checks
-          // inside a synchronous candidate-filter loop. The runner
-          // contract is the legacy `(args, opts) => stdout string`
-          // shape; converting it to async would ripple into the
-          // single-story-sweep planner, which is intentionally
-          // out of scope for the callers-only provider migration.
-          ghRunner: (args, opts) => {
-            const result = spawnSync('gh', args, {
-              cwd: opts?.cwd ?? cwd,
-              encoding: 'utf-8',
-              shell: false,
-            });
-            if (result.status !== 0) {
-              throw new Error(
-                `gh ${args.join(' ')} exit ${result.status}: ${result.stderr ?? ''}`,
-              );
-            }
-            return result.stdout ?? '';
-          },
-          getTicket: (id) => provider.getTicket(id),
-        },
-        lockPath,
-        lockTimeoutMs,
-      });
-      if (sweep.error) {
-        progress(
-          'CLEANUP',
-          `⚠️ sweep returned error (init continues): ${sweep.error}`,
-        );
-      } else if (sweep.skipped && sweep.reason) {
-        progress(
-          'CLEANUP',
-          `⏭ sweep skipped (${sweep.reason}); init continues.`,
-        );
-      } else if (sweep.candidates > 0) {
-        const protectedNote =
-          sweep.protected && sweep.protected.length > 0
-            ? `; protected ${sweep.protected.length} (${sweep.protected
-                .map((p) => `${p.branch}:${p.reason}`)
-                .join(', ')})`
-            : '';
-        progress(
-          'CLEANUP',
-          `🧹 reaped ${sweep.localDeleted} local + ${sweep.remoteDeleted} remote story branch(es)${protectedNote}.`,
-        );
-      }
-    } catch (err) {
-      progress(
-        'CLEANUP',
-        `⚠️ sweep threw (init continues): ${err?.message ?? err}`,
-      );
-    }
+    await reapMergedStoryBranches({
+      cwd,
+      baseBranch,
+      storyBranch,
+      config,
+      provider,
+      injectedSweep,
+    });
 
     // Ensure baseBranch exists locally so we can branch from it. If only
     // remote-tracking is present, materialize the local ref.

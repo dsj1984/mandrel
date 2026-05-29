@@ -391,6 +391,169 @@ function storyIdOf(evt) {
 }
 
 /**
+ * Materialise an event iterable into an array of `{ evt, ms }` records,
+ * parsing each event's timestamp **exactly once** (Story #3343). Events
+ * with a non-string `kind` are dropped (matching the prior inline guard);
+ * the `ms` field is `null` when the timestamp is missing or unparseable so
+ * downstream passes can skip it without re-parsing.
+ *
+ * @param {Iterable<object>} events
+ * @returns {Array<{ evt: object, ms: number|null }>}
+ */
+function materialiseTimedEvents(events) {
+  const out = [];
+  for (const evt of events ?? []) {
+    if (isObject(evt) && typeof evt.kind === 'string') {
+      out.push({ evt, ms: tsToMs(tsOf(evt)) });
+    }
+  }
+  return out;
+}
+
+/**
+ * Index Story state-transition windows from pre-timed events: first
+ * `agent::executing` → last terminal (`agent::done` | `agent::blocked` |
+ * `agent::failed`). Reuses the per-event `ms` parsed by
+ * {@link materialiseTimedEvents}. Extracted from
+ * {@link computeWaveParallelismRows} (Story #3343).
+ *
+ * @param {Array<{ evt: object, ms: number|null }>} timedEvents
+ * @returns {Map<number, { startMs: number|null, endMs: number|null }>}
+ */
+function indexStoryWindows(timedEvents) {
+  const storyWindows = new Map();
+  for (const { evt, ms } of timedEvents) {
+    if (evt.kind !== 'state-transition') continue;
+    const sid = storyIdOf(evt);
+    if (sid == null) continue;
+    if (ms == null) continue;
+    const to =
+      (isObject(evt.details) && evt.details.to) ?? evt.to ?? evt.toState;
+    const rec = storyWindows.get(sid) ?? { startMs: null, endMs: null };
+    if (to === 'agent::executing') {
+      if (rec.startMs == null || ms < rec.startMs) rec.startMs = ms;
+    } else if (
+      to === 'agent::done' ||
+      to === 'agent::blocked' ||
+      to === 'agent::failed'
+    ) {
+      if (rec.endMs == null || ms > rec.endMs) rec.endMs = ms;
+    }
+    storyWindows.set(sid, rec);
+  }
+  return storyWindows;
+}
+
+/**
+ * Bucket `wave-start` / `wave-complete` events by index from pre-timed
+ * events. Reuses the per-event `ms` parsed by
+ * {@link materialiseTimedEvents}. Extracted from
+ * {@link computeWaveParallelismRows} (Story #3343).
+ *
+ * @param {Array<{ evt: object, ms: number|null }>} timedEvents
+ * @returns {Map<number, { startMs: number|null, endMs: number|null, stories: number[] }>}
+ */
+function bucketWaves(timedEvents) {
+  const waves = new Map();
+  for (const { evt, ms } of timedEvents) {
+    if (ms == null) continue;
+    if (evt.kind === 'wave-start') {
+      const idx = Number(evt.index);
+      if (!Number.isInteger(idx) || idx < 0) continue;
+      const storiesField = Array.isArray(evt.stories) ? evt.stories : [];
+      const storyIds = storiesField
+        .map((s) => {
+          const n = Number(isObject(s) ? (s.id ?? s.storyId) : s);
+          return Number.isInteger(n) && n > 0 ? n : null;
+        })
+        .filter((n) => n != null);
+      const rec = waves.get(idx) ?? {
+        startMs: null,
+        endMs: null,
+        stories: [],
+      };
+      if (rec.startMs == null || ms < rec.startMs) rec.startMs = ms;
+      rec.stories = storyIds;
+      waves.set(idx, rec);
+    } else if (evt.kind === 'wave-complete') {
+      const idx = Number(evt.index);
+      if (!Number.isInteger(idx) || idx < 0) continue;
+      const rec = waves.get(idx) ?? {
+        startMs: null,
+        endMs: null,
+        stories: [],
+      };
+      if (rec.endMs == null || ms > rec.endMs) rec.endMs = ms;
+      waves.set(idx, rec);
+    }
+  }
+  return waves;
+}
+
+/**
+ * Largest value `< hi` that is `>= lo` in a sorted ascending array, or
+ * `null` when the half-open window `[lo, hi)` contains no element. Pure
+ * binary search — used by {@link fillMissingWaveEnds} to find a wave's
+ * fallback terminator without re-scanning the whole event array per wave.
+ *
+ * @param {number[]} sortedMs ascending
+ * @param {number} lo inclusive lower bound
+ * @param {number} hi exclusive upper bound (may be Infinity)
+ * @returns {number|null}
+ */
+function maxInWindow(sortedMs, lo, hi) {
+  // Find the first index with value >= hi (upper bound), then step back to
+  // the last element strictly below hi.
+  let left = 0;
+  let right = sortedMs.length;
+  while (left < right) {
+    const mid = (left + right) >> 1;
+    if (sortedMs[mid] < hi) left = mid + 1;
+    else right = mid;
+  }
+  const candidate = left - 1; // last index with value < hi
+  if (candidate < 0) return null;
+  const val = sortedMs[candidate];
+  return val >= lo ? val : null;
+}
+
+/**
+ * Fill the `endMs` of any wave that never observed a `wave-complete`:
+ * each such wave's terminator is the max event timestamp in the half-open
+ * window `[startMs, nextStartMs)`, where `nextStartMs` is the start of the
+ * next wave by ascending index (or `Infinity` for the last wave).
+ *
+ * Replaces the prior O(waves × events) nested scan with a single sort of
+ * the already-parsed timestamps plus one binary search per gap-wave
+ * (Story #3343). Output is byte-identical to the prior implementation.
+ *
+ * @param {Array<[number, { startMs: number|null, endMs: number|null, stories: number[] }]>} orderedWaves sorted by index asc
+ * @param {Array<{ evt: object, ms: number|null }>} timedEvents
+ * @returns {void} mutates the wave records in `orderedWaves` in place
+ */
+function fillMissingWaveEnds(orderedWaves, timedEvents) {
+  const needsFill = orderedWaves.some(
+    ([, rec]) => rec.endMs == null && rec.startMs != null,
+  );
+  if (!needsFill) return;
+  const sortedMs = [];
+  for (const { ms } of timedEvents) {
+    if (ms != null) sortedMs.push(ms);
+  }
+  sortedMs.sort((a, b) => a - b);
+  for (let i = 0; i < orderedWaves.length; i += 1) {
+    const [, rec] = orderedWaves[i];
+    if (rec.endMs != null) continue;
+    const startMs = rec.startMs;
+    if (startMs == null) continue;
+    const nextStartMs =
+      i + 1 < orderedWaves.length ? orderedWaves[i + 1][1].startMs : Infinity;
+    const maxMs = maxInWindow(sortedMs, startMs, nextStartMs);
+    rec.endMs = maxMs == null ? startMs : Math.max(startMs, maxMs);
+  }
+}
+
+/**
  * Compute per-wave parallelism rows from a chronological iterable of
  * lifecycle events (Task #3028, Epic #3019 / Story #3025).
  *
@@ -446,94 +609,21 @@ export function computeWaveParallelismRows(events, opts = {}) {
       ? opts.verifyConcurrencyCap
       : DEFAULT_VERIFY_CONCURRENCY_CAP;
 
-  // Materialise the iterable so we can do multiple passes; events are
-  // typically a few thousand per Epic at most.
-  const evtArr = [];
-  for (const e of events ?? []) {
-    if (isObject(e) && typeof e.kind === 'string') evtArr.push(e);
-  }
+  // Materialise the iterable once, parsing each event's timestamp a
+  // single time so every downstream pass reuses the same `ms` value
+  // (Story #3343). Events are typically a few thousand per Epic at most.
+  const timedEvents = materialiseTimedEvents(events);
 
   // Index Story state-transition windows: first `agent::executing` →
   // last terminal (`agent::done` | `agent::blocked` | `agent::failed`).
-  const storyWindows = new Map(); // storyId → { startMs, endMs }
-  for (const evt of evtArr) {
-    if (evt.kind !== 'state-transition') continue;
-    const sid = storyIdOf(evt);
-    if (sid == null) continue;
-    const ms = tsToMs(tsOf(evt));
-    if (ms == null) continue;
-    const to =
-      (isObject(evt.details) && evt.details.to) ?? evt.to ?? evt.toState;
-    const rec = storyWindows.get(sid) ?? { startMs: null, endMs: null };
-    if (to === 'agent::executing') {
-      if (rec.startMs == null || ms < rec.startMs) rec.startMs = ms;
-    } else if (
-      to === 'agent::done' ||
-      to === 'agent::blocked' ||
-      to === 'agent::failed'
-    ) {
-      if (rec.endMs == null || ms > rec.endMs) rec.endMs = ms;
-    }
-    storyWindows.set(sid, rec);
-  }
+  const storyWindows = indexStoryWindows(timedEvents);
 
-  // Bucket wave-start / wave-complete events by index.
-  const waves = new Map(); // index → { startMs, endMs, stories: number[] }
-
-  for (const evt of evtArr) {
-    const ts = tsToMs(tsOf(evt));
-    if (ts == null) continue;
-    if (evt.kind === 'wave-start') {
-      const idx = Number(evt.index);
-      if (!Number.isInteger(idx) || idx < 0) continue;
-      const storiesField = Array.isArray(evt.stories) ? evt.stories : [];
-      const storyIds = storiesField
-        .map((s) => {
-          const n = Number(isObject(s) ? (s.id ?? s.storyId) : s);
-          return Number.isInteger(n) && n > 0 ? n : null;
-        })
-        .filter((n) => n != null);
-      const rec = waves.get(idx) ?? {
-        startMs: null,
-        endMs: null,
-        stories: [],
-      };
-      if (rec.startMs == null || ts < rec.startMs) rec.startMs = ts;
-      rec.stories = storyIds;
-      waves.set(idx, rec);
-    } else if (evt.kind === 'wave-complete') {
-      const idx = Number(evt.index);
-      if (!Number.isInteger(idx) || idx < 0) continue;
-      const rec = waves.get(idx) ?? {
-        startMs: null,
-        endMs: null,
-        stories: [],
-      };
-      if (rec.endMs == null || ts > rec.endMs) rec.endMs = ts;
-      waves.set(idx, rec);
-    }
-  }
-
-  // Fallback: if a wave never saw `wave-complete`, walk the events
-  // chronologically and use the max ts observed between this wave's
-  // start and the next wave's start as the wallClock terminator.
+  // Bucket wave-start / wave-complete events by index, then fill any wave
+  // that never saw `wave-complete` via a single sorted-timestamp sweep
+  // (replacing the prior O(waves × events) nested scan).
+  const waves = bucketWaves(timedEvents);
   const orderedWaves = [...waves.entries()].sort((a, b) => a[0] - b[0]);
-  for (let i = 0; i < orderedWaves.length; i += 1) {
-    const [idx, rec] = orderedWaves[i];
-    if (rec.endMs != null) continue;
-    const startMs = rec.startMs;
-    if (startMs == null) continue;
-    const nextStartMs =
-      i + 1 < orderedWaves.length ? orderedWaves[i + 1][1].startMs : Infinity;
-    let maxMs = startMs;
-    for (const evt of evtArr) {
-      const ts = tsToMs(tsOf(evt));
-      if (ts == null) continue;
-      if (ts >= startMs && ts < nextStartMs && ts > maxMs) maxMs = ts;
-    }
-    rec.endMs = maxMs;
-    waves.set(idx, rec);
-  }
+  fillMissingWaveEnds(orderedWaves, timedEvents);
 
   // Build rows.
   const rows = [];

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -155,6 +156,102 @@ describe('buildCodebaseSnapshot — medium tier exercises signatures', () => {
       entry.exports.length > 0,
       `expected Logger.js to expose at least one export, got ${entry.exports.join(',')}`,
     );
+  });
+});
+
+describe('buildCodebaseSnapshot — memoized glob compilation is output-stable', () => {
+  // Story #3335 — the include/exclude globs are now compiled to RegExp
+  // exactly once per call (hoisted out of the per-file filter loop)
+  // instead of once per tracked file. This must not change *what* the
+  // filter selects. We build a fixed tracked-file set in a throwaway git
+  // repo and assert the snapshot's deterministic fields are byte-identical
+  // to a frozen golden value.
+  let fixture;
+
+  function gitInit(dir) {
+    const run = (args) =>
+      execFileSync('git', args, { cwd: dir, stdio: 'pipe' });
+    run(['init', '-q']);
+    run(['config', 'user.email', 'test@example.com']);
+    run(['config', 'user.name', 'Test']);
+    run(['config', 'commit.gpgsign', 'false']);
+  }
+
+  function setup() {
+    fixture = mkdtempSync(path.join(tmpdir(), 'snapshot-stable-'));
+    gitInit(fixture);
+    // A fixed tracked-file set spanning include hits, exclude hits, and
+    // misses — exercises both glob lists across many files.
+    mkdirSync(path.join(fixture, 'src', 'inner'), { recursive: true });
+    mkdirSync(path.join(fixture, 'lib'), { recursive: true });
+    mkdirSync(path.join(fixture, 'node_modules', 'pkg'), { recursive: true });
+    mkdirSync(path.join(fixture, 'docs'), { recursive: true });
+    const files = {
+      'src/a.js': 'export const a = 1;\n',
+      'src/b.ts': 'export const b = 2;\n',
+      'src/inner/c.js': 'export const c = 3;\n',
+      'src/d.test.js': 'export const d = 4;\n', // excluded by **/*.test.*
+      'lib/e.js': 'export const e = 5;\n',
+      'node_modules/pkg/index.js': 'module.exports = {};\n', // excluded
+      'docs/readme.md': '# docs\n', // not in include set
+      'package.json': JSON.stringify({
+        name: 'fix',
+        scripts: { test: 'node --test' },
+      }),
+    };
+    for (const [rel, body] of Object.entries(files)) {
+      writeFileSync(path.join(fixture, rel), body);
+    }
+    execFileSync('git', ['add', '-A'], { cwd: fixture, stdio: 'pipe' });
+    execFileSync('git', ['commit', '-q', '-m', 'fixture'], {
+      cwd: fixture,
+      stdio: 'pipe',
+    });
+  }
+
+  function teardown() {
+    rmSync(fixture, { recursive: true, force: true });
+  }
+
+  it('produces byte-identical filtered output for a fixed tracked-file set', () => {
+    setup();
+    try {
+      const snapshot = buildCodebaseSnapshot({ cwd: fixture });
+      // Compare only the deterministic fields — `generatedAt` is a wall
+      // clock timestamp, so we exclude it from the byte-for-byte check.
+      const { generatedAt, ...deterministic } = snapshot;
+      assert.ok(typeof generatedAt === 'string');
+      const golden = {
+        tier: 'skinny',
+        pkg: {
+          name: 'fix',
+          main: null,
+          exports: [],
+          bin: [],
+          scripts: ['test'],
+        },
+        files: ['lib/e.js', 'src/a.js', 'src/b.ts', 'src/inner/c.js'],
+        fileCount: 4,
+        truncated: false,
+        recentlyTouched: [
+          'docs',
+          'lib',
+          'node_modules/pkg',
+          'package.json',
+          'src',
+          'src/inner',
+        ],
+        testSurface: { runner: 'npm test', featureRoots: [] },
+        signatures: null,
+      };
+      assert.equal(
+        JSON.stringify(deterministic),
+        JSON.stringify(golden),
+        'memoized glob compilation changed the snapshot filtering output',
+      );
+    } finally {
+      teardown();
+    }
   });
 });
 

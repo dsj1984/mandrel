@@ -5,7 +5,7 @@
  *   - In-target-state: applyMergeMethods is a no-op (status=unchanged).
  *   - Drift + HITL decline: returns skipped, no PATCH.
  *   - Drift + HITL approve: PATCH with target payload lands.
- *   - Per-consumer override: settings.quality.mergeMethods overrides
+ *   - Per-consumer override: settings.github.mergeMethods overrides
  *     framework defaults before diffing.
  *   - Read failure: surfaces failed without throwing.
  */
@@ -110,7 +110,7 @@ describe('bootstrap/applyMergeMethods', () => {
     assert.deepEqual(provider.calls.setMergeMethods[0], TARGET_MERGE_METHODS);
   });
 
-  it('per-consumer override: settings.quality.mergeMethods is applied before diffing', async () => {
+  it('per-consumer override: settings.github.mergeMethods is applied before diffing', async () => {
     // Consumer opts back into merge commits — drift is now relative to
     // *that* target, not the framework default.
     const consumerTarget = {
@@ -120,7 +120,7 @@ describe('bootstrap/applyMergeMethods', () => {
     const provider = makeProvider({ current: { ...consumerTarget } });
     const result = await applyMergeMethods({
       provider,
-      settings: { quality: { mergeMethods: { allow_merge_commit: true } } },
+      settings: { github: { mergeMethods: { allow_merge_commit: true } } },
       hitlConfirm: async () => true,
     });
     assert.equal(result.status, 'unchanged');

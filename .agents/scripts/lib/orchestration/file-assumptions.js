@@ -28,10 +28,8 @@
 
 import { gitSpawn } from '../git-utils.js';
 import { parse as parseStoryBody } from '../story-body/story-body.js';
-import {
-  FILE_ASSUMPTION_VALUES,
-  isObjectPathEntry,
-} from './task-body-validator.js';
+import { FILE_ASSUMPTION_VALUES } from './file-assumption-enum.js';
+import { isObjectPathEntry } from './task-body-validator.js';
 
 /**
  * Default git probe — returns `true` when `path` exists at

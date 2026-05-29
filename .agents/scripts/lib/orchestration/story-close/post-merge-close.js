@@ -38,6 +38,7 @@ import {
   hasRebasedEquivalents,
 } from '../../worktree/lifecycle/merge-reachability.js';
 import { runPostMergePipeline as defaultRunPostMergePipeline } from '../post-merge-pipeline.js';
+import { resolvesGrepArgs } from '../resolves-token.js';
 import {
   drainPendingCleanupAfterClose as defaultDrainPendingCleanupAfterClose,
   reconcileCleanupState as defaultReconcileCleanupState,
@@ -161,7 +162,7 @@ export function resolveMergeSha({
     '-n',
     '1',
     '--format=%H',
-    `--grep=resolves #${storyId}`,
+    ...resolvesGrepArgs(storyId),
     epicBranch,
   );
   if (grep.status === 0) {

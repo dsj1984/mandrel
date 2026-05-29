@@ -29,6 +29,7 @@
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { PROJECT_ROOT } from '../../config-resolver.js';
+import { runOnPool } from '../../cpu-pool.js';
 import { gitSpawn } from '../../git-utils.js';
 import {
   calculateReportForFile,
@@ -39,6 +40,24 @@ import {
   recordPass,
   shouldSkip,
 } from '../../validation-evidence.js';
+
+/** Worker entry that scores one file into a full maintainability report. */
+const MAINTAINABILITY_REPORT_WORKER_URL = new URL(
+  '../../workers/maintainability-report-worker.js',
+  import.meta.url,
+);
+
+/**
+ * Below this JS-file count the worker pool's spawn overhead dominates, so
+ * `analyzeChangedFiles` scores in-process (the pre-pool serial path). At or
+ * above it, per-file `calculateReportForFile` scoring is offloaded to the
+ * shared worker pool so the event loop is not blocked during epic-scoped
+ * reviews (f-performance). Tuned to match the `SERIAL_THRESHOLD` used by the
+ * maintainability baseline scan in `maintainability-utils.js`.
+ */
+export const SERIAL_THRESHOLD = 8;
+
+const JS_MAINTAINABILITY_EXTS = new Set(['.js', '.mjs', '.cjs']);
 
 /**
  * Parse stdout/stderr from a lint runner to estimate error vs warning counts.
@@ -252,16 +271,54 @@ export function classifyChangedFile(relPath, { reportFn, classifier } = {}) {
 }
 
 /**
- * Walk every changed JS file and accumulate the analysis tally. `reportFn`
- * and `classifier` are injected for testability.
+ * Pure: fold one classified file into the running analysis tally. Shared by
+ * the serial and pooled scoring paths so both produce byte-for-byte identical
+ * `maintainability` rows and `critical`/`medium` findings.
+ *
+ * @param {{ totalFiles: number, jsFiles: number, maintainability: object[], criticalFindings: Finding[], mediumFindings: Finding[] }} results
+ * @param {{ row: object|null, criticalFinding: Finding|null, mediumFinding: Finding|null }} classified
+ */
+function accumulateClassified(results, classified) {
+  const { row, criticalFinding, mediumFinding } = classified;
+  if (!row) return;
+  results.maintainability.push(row);
+  if (criticalFinding) results.criticalFindings.push(criticalFinding);
+  if (mediumFinding) results.mediumFindings.push(mediumFinding);
+}
+
+function isJsMaintainabilityFile(relPath) {
+  return JS_MAINTAINABILITY_EXTS.has(path.extname(relPath));
+}
+
+/**
+ * Walk every changed JS file and accumulate the analysis tally.
+ *
+ * For small JS-file sets (below {@link SERIAL_THRESHOLD}) scoring runs
+ * in-process — the worker pool's spawn overhead dominates at small sizes and
+ * the in-process path matches the pre-pool behaviour byte-for-byte. At or
+ * above the threshold, each file's `calculateReportForFile` call is offloaded
+ * to the shared worker pool (`maintainability-report-worker`) so the native
+ * provider no longer blocks the event loop during epic-scoped reviews
+ * (f-performance). Either way the pure classification core
+ * ({@link classifyChangedFile} + {@link classifyReport}) runs in-process, so
+ * the two paths emit identical rows and findings.
+ *
+ * `reportFn` and `classifier` are injected for testability. Passing
+ * `reportFn` forces the serial path (the injected scorer cannot cross the
+ * worker boundary); production callers omit it and get the pooled path for
+ * large sets.
  *
  * @param {string[]} changedFiles
- * @param {{ reportFn?: Function, classifier?: Function }} [deps]
- * @returns {{ totalFiles: number, jsFiles: number, maintainability: object[], criticalFindings: Finding[], mediumFindings: Finding[] }}
+ * @param {{ reportFn?: Function, classifier?: Function, runOnPoolFn?: typeof runOnPool }} [deps]
+ * @returns {Promise<{ totalFiles: number, jsFiles: number, maintainability: object[], criticalFindings: Finding[], mediumFindings: Finding[] }>}
  */
-export function analyzeChangedFiles(
+export async function analyzeChangedFiles(
   changedFiles,
-  { reportFn = calculateReportForFile, classifier = classifyReport } = {},
+  {
+    reportFn = calculateReportForFile,
+    classifier = classifyReport,
+    runOnPoolFn = runOnPool,
+  } = {},
 ) {
   const results = {
     totalFiles: changedFiles.length,
@@ -270,18 +327,50 @@ export function analyzeChangedFiles(
     criticalFindings: [],
     mediumFindings: [],
   };
-  for (const relPath of changedFiles) {
-    const ext = path.extname(relPath);
-    if (ext !== '.js' && ext !== '.mjs' && ext !== '.cjs') continue;
-    results.jsFiles += 1;
-    const { row, criticalFinding, mediumFinding } = classifyChangedFile(
-      relPath,
-      { reportFn, classifier },
+
+  const jsFiles = changedFiles.filter(isJsMaintainabilityFile);
+  results.jsFiles = jsFiles.length;
+  if (jsFiles.length === 0) return results;
+
+  // Serial path: small batches, or whenever a caller injects its own scorer
+  // (a stubbed reportFn cannot be cloned into a worker thread). Score
+  // in-process via the shared classification core.
+  const customReportFn = reportFn !== calculateReportForFile;
+  if (jsFiles.length < SERIAL_THRESHOLD || customReportFn) {
+    for (const relPath of jsFiles) {
+      accumulateClassified(
+        results,
+        classifyChangedFile(relPath, { reportFn, classifier }),
+      );
+    }
+    return results;
+  }
+
+  // Pooled path: offload `calculateReportForFile` to the worker pool, then
+  // classify each report in-process so the tally is assembled by the same
+  // pure core the serial path uses. The pool returns results in input order.
+  const absPaths = jsFiles.map((relPath) =>
+    path.resolve(PROJECT_ROOT, relPath),
+  );
+  const poolResults = await runOnPoolFn(
+    MAINTAINABILITY_REPORT_WORKER_URL,
+    absPaths,
+  );
+  for (let i = 0; i < jsFiles.length; i += 1) {
+    const relPath = jsFiles[i];
+    const poolEntry = poolResults[i];
+    // A host-level pool error or a null report (the worker's I/O-failure
+    // sentinel) maps to the serial path's "reportFn threw" → dropped file.
+    if (!poolEntry || poolEntry.__cpuPoolError || poolEntry.report == null) {
+      continue;
+    }
+    accumulateClassified(
+      results,
+      classifyChangedFile(relPath, {
+        reportFn: () => poolEntry.report,
+        classifier,
+      }),
     );
-    if (!row) continue;
-    results.maintainability.push(row);
-    if (criticalFinding) results.criticalFindings.push(criticalFinding);
-    if (mediumFinding) results.mediumFindings.push(mediumFinding);
   }
   return results;
 }
@@ -556,7 +645,7 @@ export function createNativeProvider(deps = {}) {
       logger?.info?.(
         `[native-review] Analyzing ${changedFiles.length} changed file(s)...`,
       );
-      const results = analyzeChangedFilesFn(changedFiles);
+      const results = await analyzeChangedFilesFn(changedFiles);
 
       // Epic-scope reviews flow through validation-evidence; story-scope
       // reviews currently share the same gate name, keyed on the storyId.
