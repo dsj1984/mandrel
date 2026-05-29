@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T12:40:09.009Z",
+  "generatedAt": "2026-05-29T12:50:06.106Z",
   "rollup": {
     "*": {
       "min": 61.218,
-      "p50": 103.762,
+      "p50": 103.804,
       "p95": 121.571
     }
   },
@@ -1059,10 +1059,6 @@
       "mi": 99.718
     },
     {
-      "path": ".agents/scripts/lib/orchestration/file-assumptions.js",
-      "mi": 92.906
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/finalize/close-planning-tickets.js",
       "mi": 82.426
     },
@@ -1547,10 +1543,6 @@
       "mi": 114.919
     },
     {
-      "path": ".agents/scripts/lib/orchestration/task-body-validator.js",
-      "mi": 98.293
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
       "mi": 87.033
     },
@@ -1721,10 +1713,6 @@
     {
       "path": ".agents/scripts/lib/spec/state.js",
       "mi": 104.935
-    },
-    {
-      "path": ".agents/scripts/lib/story-body/story-body.js",
-      "mi": 84.296
     },
     {
       "path": ".agents/scripts/lib/story-init/blocker-validator.js",
