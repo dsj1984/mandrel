@@ -195,4 +195,46 @@ describe('lifecycle/trace-logger', () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it('A throwing rerender does not propagate out of the bus emit', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'mandrel-trace-'));
+    const originalStderrWrite = process.stderr.write;
+    const stderrChunks = [];
+    try {
+      const bus = new Bus();
+      const writer = new LedgerWriter({ epicId: 7, tempRoot: dir });
+      writer.register(bus);
+      const tracer = new TraceLogger({
+        ledgerPath: writer.ledgerPath,
+        epicId: 7,
+      });
+      // Force the companion render to throw on every invocation. The
+      // wildcard listener must log+swallow so the in-flight emit still
+      // completes and the companion silently degrades to stale.
+      tracer.rerender = () => {
+        throw new Error('boom: companion render exploded');
+      };
+      tracer.register(bus);
+
+      // Capture stderr so we can assert the swallow was logged without
+      // polluting the test runner output.
+      process.stderr.write = (chunk) => {
+        stderrChunks.push(String(chunk));
+        return true;
+      };
+
+      // Emit must resolve (not reject) even though the wildcard listener's
+      // rerender throws.
+      const result = await bus.emit('epic.snapshot.start', { epicId: 7 });
+      process.stderr.write = originalStderrWrite;
+
+      assert.equal(typeof result.seqId, 'number');
+      const logged = stderrChunks.join('');
+      assert.match(logged, /\[TraceLogger\] companion rerender failed/);
+      assert.match(logged, /boom: companion render exploded/);
+    } finally {
+      process.stderr.write = originalStderrWrite;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
