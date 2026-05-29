@@ -21,6 +21,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { setTimeout as sleepPromise } from 'node:timers/promises';
+import { getStoryBranch } from '../../../git-utils.js';
 import { appendSignal } from '../../../observability/signals-writer.js';
 import { recordPendingCleanup } from '../../../worktree/lifecycle/pending-cleanup.js';
 import { WorktreeManager } from '../../../worktree-manager.js';
@@ -375,7 +376,7 @@ function applyStillRegisteredState({
     try {
       manifestEntry = recordPendingCleanupFn(worktreeRoot, {
         storyId: Number(storyId),
-        branch: `story-${Number(storyId)}`,
+        branch: getStoryBranch(null, storyId),
         path: stillRegistered.path,
         push: false,
       });
