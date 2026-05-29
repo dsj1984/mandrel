@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T12:07:04.807Z",
+  "generatedAt": "2026-05-29T12:19:20.665Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.433975308641976,
+      "p95": 12.561164258090779,
       "max": 53.8385539444679,
       "methodsAbove20": 31
     }
@@ -388,84 +388,6 @@
       "method": "main",
       "startLine": 295,
       "crap": 2
-    },
-    {
-      "path": ".agents/scripts/check-doc-links.js",
-      "method": "isExcludedRelPath",
-      "startLine": 120,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/check-doc-links.js",
-      "method": "walkMarkdown",
-      "startLine": 126,
-      "crap": 7.06721536351166
-    },
-    {
-      "path": ".agents/scripts/check-doc-links.js",
-      "method": "discoverMarkdown",
-      "startLine": 145,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/check-doc-links.js",
-      "method": "maskCodeRegions",
-      "startLine": 162,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/check-doc-links.js",
-      "method": "offsetToLine",
-      "startLine": 199,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/check-doc-links.js",
-      "method": "extractLinks",
-      "startLine": 213,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/check-doc-links.js",
-      "method": "isExternalOrInternalAnchor",
-      "startLine": 227,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/check-doc-links.js",
-      "method": "stripAnchorAndQuery",
-      "startLine": 234,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/check-doc-links.js",
-      "method": "extractSlashTokens",
-      "startLine": 258,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/check-doc-links.js",
-      "method": "checkFile",
-      "startLine": 274,
-      "crap": 9.002471923828125
-    },
-    {
-      "path": ".agents/scripts/check-doc-links.js",
-      "method": "runCheck",
-      "startLine": 349,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/check-doc-links.js",
-      "method": "formatViolation",
-      "startLine": 365,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/check-doc-links.js",
-      "method": "main",
-      "startLine": 369,
-      "crap": 6
     },
     {
       "path": ".agents/scripts/check-lifecycle-doc-drift.js",
