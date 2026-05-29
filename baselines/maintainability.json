@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T14:03:05.983Z",
+  "generatedAt": "2026-05-29T14:15:02.254Z",
   "rollup": {
     "*": {
       "min": 61.218,
@@ -763,10 +763,6 @@
       "mi": 92.391
     },
     {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "mi": 86.685
-    },
-    {
       "path": ".agents/scripts/lib/observability/signals-writer.js",
       "mi": 87.419
     },
@@ -1225,10 +1221,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/planning-risk.js",
       "mi": 105.025
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/planning-state-manager.js",
-      "mi": 95.317
     },
     {
       "path": ".agents/scripts/lib/orchestration/post-merge-pipeline.js",
@@ -4245,10 +4237,6 @@
     {
       "path": "tests/perf-aggregator-shape.test.js",
       "mi": 105.994
-    },
-    {
-      "path": "tests/perf-aggregator-wave-parallelism.test.js",
-      "mi": 91.283
     },
     {
       "path": "tests/plan-phase-cleanup.test.js",
