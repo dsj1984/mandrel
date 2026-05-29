@@ -279,12 +279,16 @@ export function checkFile(absPath, repoRoot) {
   const relFile = path.relative(repoRoot, absPath).split(path.sep).join('/');
   const workflowsDir = path.join(repoRoot, '.agents', 'workflows');
 
+  // Tokenize the masked source once and reuse the array across both the
+  // retired-command sweep and the slash-command resolution pass below.
+  const slashTokens = extractSlashTokens(masked);
+
   // 1. Retired-command sweep — runs against the masked source so command
   //    references inside fenced examples don't trip us, but we still catch
   //    every prose mention. Retired-command checks ALWAYS take precedence:
   //    even if the token would otherwise be allowlisted or resolved, a hit
   //    here is a non-zero exit.
-  for (const { token, line } of extractSlashTokens(masked)) {
+  for (const { token, line } of slashTokens) {
     if (RETIRED_COMMANDS.has(token)) {
       violations.push({
         file: relFile,
@@ -322,7 +326,7 @@ export function checkFile(absPath, repoRoot) {
   //    workflow file OR to a helpers/ module (helpers are not exposed as slash
   //    commands in .claude/commands/ but are still legitimate named workflows
   //    that parent workflows invoke by prose reference).
-  for (const { token, line } of extractSlashTokens(masked)) {
+  for (const { token, line } of slashTokens) {
     if (RETIRED_COMMANDS.has(token)) continue;
     if (SLASH_ALLOWLIST.has(token)) continue;
     const workflowFile = path.join(workflowsDir, `${token}.md`);
