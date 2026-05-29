@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T14:09:26.091Z",
+  "generatedAt": "2026-05-29T14:15:02.254Z",
   "rollup": {
     "*": {
       "min": 61.218,
@@ -1221,10 +1221,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/planning-risk.js",
       "mi": 105.025
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/planning-state-manager.js",
-      "mi": 95.317
     },
     {
       "path": ".agents/scripts/lib/orchestration/post-merge-pipeline.js",
