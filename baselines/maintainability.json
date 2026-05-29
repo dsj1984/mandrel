@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T00:21:21.217Z",
+  "generatedAt": "2026-05-29T12:01:29.415Z",
   "rollup": {
     "*": {
       "min": 61.218,
-      "p50": 103.753,
+      "p50": 103.762,
       "p95": 121.479
     }
   },
@@ -617,10 +617,6 @@
     {
       "path": ".agents/scripts/lib/coverage-utils.js",
       "mi": 90.902
-    },
-    {
-      "path": ".agents/scripts/lib/cpu-pool.js",
-      "mi": 101.986
     },
     {
       "path": ".agents/scripts/lib/crap-engine.js",
@@ -3329,10 +3325,6 @@
     {
       "path": "tests/lib/cpu-pool-edge.test.js",
       "mi": 120.854
-    },
-    {
-      "path": "tests/lib/cpu-pool.test.js",
-      "mi": 97.3
     },
     {
       "path": "tests/lib/crap-engine.test.js",
