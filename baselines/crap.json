@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T13:42:46.928Z",
+  "generatedAt": "2026-05-29T13:58:50.917Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.433975308641976,
+      "p95": 12.561164258090779,
       "max": 53.8385539444679,
       "methodsAbove20": 28
     }
@@ -2364,18 +2364,6 @@
       "crap": 1
     },
     {
-      "path": ".agents/scripts/lib/bootstrap/merge-methods.js",
-      "method": "diffMergeMethods",
-      "startLine": 39,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/merge-methods.js",
-      "method": "applyMergeMethods",
-      "startLine": 61,
-      "crap": 4
-    },
-    {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "readJsonIfExists",
       "startLine": 43,
@@ -4114,84 +4102,6 @@
       "method": "emitEpicPerfReport",
       "startLine": 219,
       "crap": 5.012301355882782
-    },
-    {
-      "path": ".agents/scripts/lib/epic-merge-lock.js",
-      "method": "resolveGitCommonDir",
-      "startLine": 50,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/epic-merge-lock.js",
-      "method": "lockPathFor",
-      "startLine": 70,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/epic-merge-lock.js",
-      "method": "isProcessRunning",
-      "startLine": 74,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/epic-merge-lock.js",
-      "method": "readLockMeta",
-      "startLine": 86,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/epic-merge-lock.js",
-      "method": "tryStealStale",
-      "startLine": 99,
-      "crap": 4.034372797153503
-    },
-    {
-      "path": ".agents/scripts/lib/epic-merge-lock.js",
-      "method": "sleep",
-      "startLine": 131,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/epic-merge-lock.js",
-      "method": "incPending",
-      "startLine": 144,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/epic-merge-lock.js",
-      "method": "decPending",
-      "startLine": 148,
-      "crap": 2.032
-    },
-    {
-      "path": ".agents/scripts/lib/epic-merge-lock.js",
-      "method": "pendingAcquires",
-      "startLine": 166,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/epic-merge-lock.js",
-      "method": "pollForLock",
-      "startLine": 178,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/epic-merge-lock.js",
-      "method": "acquireEpicMergeLock",
-      "startLine": 216,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/epic-merge-lock.js",
-      "method": "<anon method-2>",
-      "startLine": 228,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/epic-merge-lock.js",
-      "method": "releaseEpicMergeLock",
-      "startLine": 245,
-      "crap": 3.140625
     },
     {
       "path": ".agents/scripts/lib/epic-plan-clarity.js",
@@ -9160,96 +9070,6 @@
       "method": "buildAttribution",
       "startLine": 199,
       "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
-      "method": "parseLintOutput",
-      "startLine": 61,
-      "crap": 3.011069606413994
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
-      "method": "partitionFilesForLint",
-      "startLine": 98,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
-      "method": "resolveCurrentSha",
-      "startLine": 109,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
-      "method": "spawnLintRunner",
-      "startLine": 116,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
-      "method": "runScopedLint",
-      "startLine": 139,
-      "crap": 14.28854351985499
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
-      "method": "buildLintEvidenceConfig",
-      "startLine": 179,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
-      "method": "classifyChangedFile",
-      "startLine": 201,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
-      "method": "analyzeChangedFiles",
-      "startLine": 262,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
-      "method": "buildLintFindings",
-      "startLine": 299,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
-      "method": "_emptyResults",
-      "startLine": 341,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
-      "method": "tryEvidenceSkip",
-      "startLine": 351,
-      "crap": 8.833819241982507
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
-      "method": "maybeRecordLintEvidence",
-      "startLine": 387,
-      "crap": 11.68114285714286
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
-      "method": "runLintPhase",
-      "startLine": 423,
-      "crap": 3.1044620727177468
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
-      "method": "createNativeProvider",
-      "startLine": 498,
-      "crap": 9.000755795305437
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
-      "method": "createNativeProviderForRegistry",
-      "startLine": 601,
-      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",
