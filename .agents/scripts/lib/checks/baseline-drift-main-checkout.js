@@ -32,6 +32,7 @@
  */
 
 import path from 'node:path';
+import { isStoryBranch as isFlatStoryBranch } from '../git-utils.js';
 
 const ID = 'baseline-drift-main-checkout';
 
@@ -79,7 +80,7 @@ export default {
  * @returns {boolean}
  */
 function isStoryBranch(ref) {
-  return /^story-\d+$/.test(ref) || /^story\/epic-\d+\/\d+$/.test(ref);
+  return isFlatStoryBranch(ref) || /^story\/epic-\d+\/\d+$/.test(ref);
 }
 
 /**

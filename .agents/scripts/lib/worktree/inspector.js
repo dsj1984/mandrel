@@ -8,6 +8,7 @@
  */
 
 import path from 'node:path';
+import { parseStoryBranch } from '../git-utils.js';
 
 /**
  * Parse `git worktree list --porcelain` output into records.
@@ -88,8 +89,7 @@ export function storyIdFromPath(wtPath, worktreeRoot) {
   const resolved = path.resolve(wtPath);
   const rel = path.relative(worktreeRoot, resolved);
   if (rel.startsWith('..') || path.isAbsolute(rel)) return null;
-  const match = rel.match(/^story-(\d+)$/);
-  return match ? Number.parseInt(match[1], 10) : null;
+  return parseStoryBranch(rel);
 }
 
 /**

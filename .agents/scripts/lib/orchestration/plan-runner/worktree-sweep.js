@@ -52,8 +52,7 @@ function isStoryDone(ticket) {
 function storyIdFromPath(wtPath) {
   const parts = wtPath.replace(/\\/g, '/').split('/');
   const last = parts[parts.length - 1] ?? '';
-  const match = last.match(/^story-(\d+)$/);
-  return match ? Number.parseInt(match[1], 10) : null;
+  return defaultGit.parseStoryBranch(last);
 }
 
 /**
