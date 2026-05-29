@@ -17,6 +17,8 @@
  * the `gitSpawn` calls.
  */
 
+import { parseStoryBranch } from '../../git-utils.js';
+
 /**
  * Resolve a worktree's `HEAD` to a full commit SHA via
  * `git rev-parse HEAD` (run inside the worktree). Returns
@@ -83,9 +85,8 @@ export function checkHeadAncestor(ctx, headSha, epicRef) {
  * @returns {boolean}
  */
 export function hasMergeCommitForStory(ctx, branch, epicRef) {
-  const storyMatch = /^story-(\d+)$/.exec(branch);
-  if (!storyMatch) return false;
-  const storyId = storyMatch[1];
+  const storyId = parseStoryBranch(branch);
+  if (storyId === null) return false;
   const grep = ctx.git.gitSpawn(
     ctx.repoRoot,
     'log',

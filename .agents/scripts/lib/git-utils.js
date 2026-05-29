@@ -333,27 +333,31 @@ export function getStoryBranch(_epicId, storyId) {
 }
 
 /**
- * Resolves the canonical branch name for a Task.
- * v5 Standard (Legacy): task/epic-[EPIC_ID]/[TASK_ID]
- * @deprecated In v5, tasks are implemented on their parent story branch (`story-[STORY_ID]`). This is only used as a fallback for orphan tasks.
- * @param {string|number} epicId
- * @param {string|number} taskId
- * @returns {string}
+ * Canonical `story-<id>` branch name matcher. Single source of truth for the
+ * Story-branch shape — `parseStoryBranch` and `isStoryBranch` both close over
+ * this so call sites never re-author the regex inline.
  */
-export function getTaskBranch(epicId, taskId) {
-  const eid = typeof epicId === 'number' ? epicId : Number.parseInt(epicId, 10);
-  if (!Number.isFinite(eid) || eid <= 0) {
-    throw new Error(`getTaskBranch: invalid epicId: ${epicId}`);
-  }
-  // taskId may be numeric or a slug like 'ungrouped' for orphan tasks.
-  const tid =
-    typeof taskId === 'number'
-      ? taskId
-      : /^\d+$/.test(String(taskId))
-        ? Number.parseInt(taskId, 10)
-        : String(taskId);
-  if (typeof tid === 'number' && (!Number.isFinite(tid) || tid <= 0)) {
-    throw new Error(`getTaskBranch: invalid taskId: ${taskId}`);
-  }
-  return `task/epic-${eid}/${tid}`;
+const STORY_BRANCH_RE = /^story-(\d+)$/;
+
+/**
+ * Parse a canonical Story branch name into its numeric Story ID.
+ *
+ * @param {string} name - Branch name to inspect (e.g. `story-3334`).
+ * @returns {number|null} The Story ID when `name` matches `story-<id>`,
+ *   otherwise `null`.
+ */
+export function parseStoryBranch(name) {
+  if (typeof name !== 'string') return null;
+  const match = STORY_BRANCH_RE.exec(name);
+  return match ? Number.parseInt(match[1], 10) : null;
+}
+
+/**
+ * Predicate: is `name` a canonical `story-<id>` branch name?
+ *
+ * @param {string} name - Branch name to test.
+ * @returns {boolean}
+ */
+export function isStoryBranch(name) {
+  return parseStoryBranch(name) !== null;
 }
