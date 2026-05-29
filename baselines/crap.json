@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T21:28:07.240Z",
+  "generatedAt": "2026-05-29T12:01:30.499Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -4083,48 +4083,6 @@
       "path": ".agents/scripts/lib/coverage-utils.js",
       "method": "coverageByMethod",
       "startLine": 235,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/cpu-pool.js",
-      "method": "runOnPool",
-      "startLine": 55,
-      "crap": 3.0008170572039337
-    },
-    {
-      "path": ".agents/scripts/lib/cpu-pool.js",
-      "method": "runWorker",
-      "startLine": 68,
-      "crap": 9.015113702623907
-    },
-    {
-      "path": ".agents/scripts/lib/cpu-pool.js",
-      "method": "dispatchOne",
-      "startLine": 151,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/cpu-pool.js",
-      "method": "<anon method-6>",
-      "startLine": 153,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/cpu-pool.js",
-      "method": "<anon method-7>",
-      "startLine": 158,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/cpu-pool.js",
-      "method": "<anon method-8>",
-      "startLine": 178,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/cpu-pool.js",
-      "method": "<anon method-9>",
-      "startLine": 182,
       "crap": 2
     },
     {
