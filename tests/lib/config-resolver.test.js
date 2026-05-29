@@ -20,6 +20,7 @@ import {
   resolveMaintainabilityCrap,
   resolveQuality,
 } from '../../.agents/scripts/lib/config-resolver.js';
+import { resolveQaContract } from '../../.agents/scripts/lib/qa/resolve-qa-contract.js';
 import { setupFsMock } from './fs-mock.js';
 
 /**
@@ -104,6 +105,68 @@ describe('config-resolver — loading + legacy shim', () => {
     const first = resolveConfig({ bustCache: true });
     const second = resolveConfig({});
     assert.equal(first, second);
+  });
+});
+
+/**
+ * Story #3312 — `resolveConfig` must carry the optional top-level `qa`
+ * block through `applyDefaults` so `/run-qa-harness` Step 0 can read it
+ * off the resolved wrapper. Before the fix, `applyDefaults` returned a
+ * fixed `{ project, github, planning, delivery }` reshape that silently
+ * discarded `raw.qa`, so the harness resolver fell back to treating the
+ * whole wrapper as the bare block and threw "not bound".
+ */
+describe('config-resolver — qa block round-trip (Story #3312)', () => {
+  let vol;
+
+  // A complete, schema-valid `qa` contract for a bound consumer: the four
+  // harness-required fields plus a url-template sign-in seam and a
+  // name-only persona list.
+  const BOUND_QA = Object.freeze({
+    featureRoot: 'tests/features',
+    fixturesManifest: 'tests/fixtures/manifest.json',
+    signInSeam: { urlTemplate: 'https://app.example.test/impersonate/{persona}' },
+    personas: ['coach', 'admin'],
+  });
+
+  beforeEach((t) => {
+    vol = new Volume();
+    setupFsMock(t, vol);
+    resolveConfig({ bustCache: true });
+  });
+
+  function writeAgentrc(extra) {
+    const agentrcPath = path.join(PROJECT_ROOT, '.agentrc.json');
+    vol.mkdirSync(PROJECT_ROOT, { recursive: true });
+    vol.writeFileSync(
+      agentrcPath,
+      JSON.stringify({ project: { ...REQ.project }, ...extra }),
+    );
+  }
+
+  it('round-trips a top-level qa block onto the resolved wrapper', () => {
+    writeAgentrc({ qa: BOUND_QA });
+    const config = resolveConfig({ bustCache: true });
+    assert.deepEqual(config.qa, BOUND_QA);
+  });
+
+  it('omits qa from the wrapper when no qa block is authored', () => {
+    writeAgentrc({});
+    const config = resolveConfig({ bustCache: true });
+    assert.ok(
+      !Object.hasOwn(config, 'qa'),
+      'qa key should be absent when .agentrc.json omits the block',
+    );
+  });
+
+  it('resolveQaContract(resolveConfig()) resolves cleanly for a bound consumer', () => {
+    writeAgentrc({ qa: BOUND_QA });
+    const config = resolveConfig({ bustCache: true });
+    const contract = resolveQaContract(config);
+    assert.equal(contract.featureRoot, BOUND_QA.featureRoot);
+    assert.equal(contract.fixturesManifest, BOUND_QA.fixturesManifest);
+    assert.deepEqual(contract.signInSeam, BOUND_QA.signInSeam);
+    assert.deepEqual(contract.personaNames, ['coach', 'admin']);
   });
 });
 

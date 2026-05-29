@@ -169,6 +169,12 @@ function applyDefaults(raw) {
     github: applyGithubDefaults(raw.github),
     planning: raw.planning ?? {},
     delivery: applyDeliveryDefaults(raw.delivery),
+    // `qa` is an optional top-level block (agentrc.schema.json
+    // `#/$defs/qa`). It needs no default-layering — the harness resolver
+    // (`resolveQaContract`) owns normalization and required-field
+    // enforcement — it only needs to survive the reshape so
+    // `/run-qa-harness` Step 0 can read it off the resolved wrapper.
+    ...(raw.qa !== undefined ? { qa: raw.qa } : {}),
   };
 }
 
@@ -178,6 +184,7 @@ function applyDefaults(raw) {
  * Returned shape:
  *   {
  *     project, github, planning, delivery,  // post-reshape canonical blocks
+ *     qa,                                    // optional QA-harness block (present iff authored)
  *     raw, source,
  *   }
  *
