@@ -71,12 +71,6 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/cleanup-type-task-label.js",
-      "lines": 82.01,
-      "branches": 77.78,
-      "functions": 60
-    },
-    {
       "path": ".agents/scripts/coverage-capture.js",
       "lines": 66.96,
       "branches": 41.67,
