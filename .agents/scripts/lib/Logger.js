@@ -9,26 +9,89 @@
  *   - `fatal`:  unrecoverable; exits the process. Use only at CLI
  *               boundaries, never inside library code.
  *
- * Level is resolved from `AGENT_LOG_LEVEL`:
+ * Level is resolved **lazily on every emit** from `AGENT_LOG_LEVEL` (or a
+ * `setLevel` override). Resolving per emit — rather than once at module
+ * load — lets tests exercise every level branch in-process via `setLevel`
+ * or a live `AGENT_LOG_LEVEL` flip, without spawning a child process per
+ * level (Story #3329):
  *
  *   - `silent`   → only `fatal` emits.
  *   - `info`     → default. Emits `info` and above; suppresses `debug`.
  *   - `verbose`  → emits everything (including `debug`).
  *   - `debug`    → alias for `verbose` (backward compatible).
  */
-const RAW_LEVEL = (process.env.AGENT_LOG_LEVEL ?? '').toLowerCase();
-const LEVEL =
-  RAW_LEVEL === 'silent' ||
-  RAW_LEVEL === 'info' ||
-  RAW_LEVEL === 'verbose' ||
-  RAW_LEVEL === 'debug'
-    ? RAW_LEVEL
-    : 'info';
+/**
+ * Recognized log levels, lowest-noise first. Anything outside this set
+ * resolves to `info`.
+ *
+ * @type {ReadonlySet<string>}
+ */
+const VALID_LEVELS = Object.freeze(
+  new Set(['silent', 'info', 'verbose', 'debug']),
+);
 
-const DEBUG_ENABLED = LEVEL === 'verbose' || LEVEL === 'debug';
-const INFO_ENABLED = LEVEL === 'info' || DEBUG_ENABLED;
-const WARN_ENABLED = INFO_ENABLED;
-const ERROR_ENABLED = INFO_ENABLED;
+/**
+ * Process-wide level override. `null` means "no explicit override — read
+ * `AGENT_LOG_LEVEL` from the environment on each resolve". `setLevel`
+ * pins this so tests (and embedders) can exercise every level branch
+ * in-process without spawning a child whose module-load reads a different
+ * env var. `setLevel(null)` clears the pin and restores env-driven
+ * resolution.
+ *
+ * @type {string|null}
+ */
+let levelOverride = null;
+
+/**
+ * Resolve the active log level lazily. Honors an explicit `setLevel`
+ * override first, otherwise reads `AGENT_LOG_LEVEL` from the environment
+ * on every call. Resolving per emit (rather than once at module load)
+ * means a test can flip `AGENT_LOG_LEVEL` — or call `setLevel` — and see
+ * the level branches react in-process, without a child process per level
+ * (Story #3329).
+ *
+ * @returns {'silent'|'info'|'verbose'|'debug'}
+ */
+export function resolveLevel() {
+  const raw = (
+    levelOverride ??
+    process.env.AGENT_LOG_LEVEL ??
+    ''
+  ).toLowerCase();
+  return VALID_LEVELS.has(raw) ? raw : 'info';
+}
+
+/**
+ * Pin the process-wide log level, bypassing `AGENT_LOG_LEVEL`. Pass a
+ * recognized level (`silent` / `info` / `verbose` / `debug`) to force it,
+ * or `null` to clear the pin and restore env-driven resolution. An
+ * unrecognized non-null value throws so callers cannot silently pin a
+ * level that resolves to `info`.
+ *
+ * @param {('silent'|'info'|'verbose'|'debug')|null} level
+ * @returns {void}
+ */
+export function setLevel(level) {
+  if (level === null) {
+    levelOverride = null;
+    return;
+  }
+  if (typeof level !== 'string' || !VALID_LEVELS.has(level.toLowerCase())) {
+    throw new RangeError(
+      `setLevel: level must be one of silent|info|verbose|debug or null (got ${level})`,
+    );
+  }
+  levelOverride = level.toLowerCase();
+}
+
+function debugEnabled() {
+  const level = resolveLevel();
+  return level === 'verbose' || level === 'debug';
+}
+
+function infoEnabled() {
+  return resolveLevel() === 'info' || debugEnabled();
+}
 
 // Mutable sinks for `info` (defaults to stdout via console.log) and the
 // stdout branch of `createProgress` (defaults to console.log). `warn` already
@@ -55,22 +118,29 @@ export function routeAllOutputToStderr() {
 }
 
 export const Logger = {
-  level: LEVEL,
+  /**
+   * The currently-resolved level. A getter (not a frozen snapshot) so it
+   * reflects `setLevel` overrides and live `AGENT_LOG_LEVEL` changes —
+   * reading `Logger.level` always returns what the next emit will use.
+   */
+  get level() {
+    return resolveLevel();
+  },
 
   debug(message) {
-    if (DEBUG_ENABLED) console.error(`[Orchestrator] 🐛 ${message}`);
+    if (debugEnabled()) console.error(`[Orchestrator] 🐛 ${message}`);
   },
 
   info(message) {
-    if (INFO_ENABLED) infoSink(`[Orchestrator] ℹ️ ${message}`);
+    if (infoEnabled()) infoSink(`[Orchestrator] ℹ️ ${message}`);
   },
 
   warn(message) {
-    if (WARN_ENABLED) warnSink(`[Orchestrator] ⚠️ ${message}`);
+    if (infoEnabled()) warnSink(`[Orchestrator] ⚠️ ${message}`);
   },
 
   error(message) {
-    if (ERROR_ENABLED) console.error(`[Orchestrator] ❌ ${message}`);
+    if (infoEnabled()) console.error(`[Orchestrator] ❌ ${message}`);
   },
 
   fatal(message) {
@@ -80,7 +150,7 @@ export const Logger = {
 
   createProgress(scriptName, { stderr = true } = {}) {
     return (phase, message) => {
-      if (!INFO_ENABLED) return;
+      if (!infoEnabled()) return;
       const line = `▶ [${scriptName}] [${phase}] ${message}`;
       if (stderr) console.error(line);
       else progressStdoutSink(line);
