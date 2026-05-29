@@ -402,7 +402,11 @@ describe('epic-run-state-store', () => {
       ];
       const next = [[{ id: 3 }], [{ id: 4 }], [{ id: 5 }], [{ id: 6 }]];
       const out = reconcileResumePointer(checkpoint, prior, next);
-      assert.equal(out.currentWave, 0, 'pointer reset into the new index space');
+      assert.equal(
+        out.currentWave,
+        0,
+        'pointer reset into the new index space',
+      );
       assert.deepEqual(out.waves, [], 'stale history dropped');
     });
 
