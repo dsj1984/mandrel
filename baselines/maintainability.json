@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T13:33:05.277Z",
+  "generatedAt": "2026-05-29T13:40:40.727Z",
   "rollup": {
     "*": {
       "min": 61.218,
-      "p50": 103.85,
+      "p50": 103.88,
       "p95": 121.479
     }
   },
@@ -41,10 +41,6 @@
     {
       "path": ".agents/scripts/check-baselines.js",
       "mi": 106.627
-    },
-    {
-      "path": ".agents/scripts/check-dead-exports.js",
-      "mi": 92.663
     },
     {
       "path": ".agents/scripts/check-lifecycle-doc-drift.js",
