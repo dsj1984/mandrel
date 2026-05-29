@@ -26,6 +26,10 @@ function makeGit({
   // cherry: per-(upstream, head) override. Each value is a `{ status, stdout }`
   // bag, the same shape gitSpawn returns. Default exit 1 (no equivalents).
   cherryByPair = null,
+  // logGrep: per-ref override keyed by the epic ref searched. Each value is a
+  // `{ status, stdout }` bag. Default exit 0 + empty stdout (no match), which
+  // keeps detection falling through to later signals.
+  logGrepByRef = null,
 } = {}) {
   return {
     status(cwd) {
@@ -61,6 +65,10 @@ function makeGit({
         if (key in cherryByPair) return cherryByPair[key];
       }
       return { status: 1, stdout: '' };
+    },
+    logGrep(_cwd, ref, _pattern) {
+      if (logGrepByRef && ref in logGrepByRef) return logGrepByRef[ref];
+      return { status: 0, stdout: '' };
     },
   };
 }
@@ -294,6 +302,63 @@ test('detectPriorPhase', async (t) => {
         fs: makeFs([]),
       });
       assert.strictEqual(result.phase, RECOVERY_STATES.PUSHED_UNMERGED);
+    },
+  );
+
+  await t.test(
+    'returns already-merged via merge-commit-message when both story refs are reaped but the epic carries the integration commit (Story #3327 / Epic #3316)',
+    () => {
+      // Real-world partial-reap recovery: the prior close merged the Story
+      // onto `epic/<id>` and pushed, then deleted BOTH the local `story-<id>`
+      // branch and the remote `origin/story-<id>` ref before dying at
+      // `agent::closing`. With no Story ref left, branches a–c have nothing to
+      // anchor on. The ref-independent scan recovers the signal from the Epic
+      // history's `(resolves #<id>)` integration commit.
+      const result = detectPriorPhase({
+        cwd: CWD,
+        storyId: 100,
+        epicId: 42,
+        git: makeGit({
+          lsRemote: '', // remote story branch reaped
+          localStoryExists: false, // local story branch reaped
+          ancestorExit: 1,
+          logGrepByRef: {
+            'origin/epic/42': { status: 0, stdout: '80aeee34deadbeef\n' },
+          },
+        }),
+        fs: makeFs([]),
+      });
+      assert.strictEqual(result.phase, RECOVERY_STATES.ALREADY_MERGED);
+      assert.strictEqual(result.detail.via, 'merge-commit-message');
+      assert.strictEqual(result.detail.mergeCommit, '80aeee34deadbeef');
+      assert.strictEqual(result.detail.remoteEpicRef, 'origin/epic/42');
+    },
+  );
+
+  await t.test(
+    'merge-commit-message scan falls back to local epic/<id> when origin/epic/<id> yields no match',
+    () => {
+      const result = detectPriorPhase({
+        cwd: CWD,
+        storyId: 100,
+        epicId: 42,
+        git: makeGit({
+          lsRemote: '',
+          localStoryExists: false,
+          ancestorExit: 1,
+          logGrepByRef: {
+            // origin epic ref unreachable / no match...
+            'origin/epic/42': { status: 1, stdout: '' },
+            // ...but the local epic branch carries the integration commit.
+            'epic/42': { status: 0, stdout: 'cafebabe1234\n' },
+          },
+        }),
+        fs: makeFs([]),
+      });
+      assert.strictEqual(result.phase, RECOVERY_STATES.ALREADY_MERGED);
+      assert.strictEqual(result.detail.via, 'merge-commit-message');
+      assert.strictEqual(result.detail.mergeCommit, 'cafebabe1234');
+      assert.strictEqual(result.detail.remoteEpicRef, 'epic/42');
     },
   );
 
