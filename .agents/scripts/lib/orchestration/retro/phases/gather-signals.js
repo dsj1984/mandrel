@@ -11,6 +11,7 @@
 
 import { TYPE_LABELS } from '../../../label-constants.js';
 import { forEachLine } from '../../../observability/signals-writer.js';
+import { concurrentMap } from '../../../util/concurrent-map.js';
 import { composeRoutedProposals } from '../../retro-proposals.js';
 import { parseFencedJsonComment } from '../../structured-comment-parser.js';
 import { findStructuredComment } from '../../ticketing.js';
@@ -23,6 +24,14 @@ import { findStructuredComment } from '../../ticketing.js';
 export const DEFAULT_FRAMEWORK_REPO = 'dsj1984/mandrel';
 
 const RECUT_BODY_MARKER = /<!--\s*recut-of:\s*#?\d+\s*-->/;
+
+// Story #3347 — bounded fan-out cap for the per-Story `signals.ndjson`
+// reads below. Mirrors the read-concurrency convention used elsewhere in
+// the orchestrator (e.g. SUBTICKET_HYDRATION_CONCURRENCY,
+// CASCADE_SIBLING_READ_CONCURRENCY); keeps a large Epic from opening an
+// unbounded number of concurrent file handles while still collapsing N
+// sequential disk reads into one wall-clock fan-out.
+const SIGNALS_READ_CONCURRENCY = 8;
 
 // Detects #NNN issue references in an Epic body — any match means the Epic
 // likely has child Stories enumerated in the planning artifact, so a
@@ -248,35 +257,61 @@ export async function gatherRetroSignals({
   // failures degrade silently — observability MUST NOT take down the
   // retro path. Empty streams yield empty arrays so the composer
   // remains backward-compatible.
+  //
+  // Story #3347 — the per-Story reads previously ran one-at-a-time in a
+  // sequential `for` loop, serializing N disk reads. They now fan out via
+  // `concurrentMap` with a bounded cap (`SIGNALS_READ_CONCURRENCY`). Each
+  // Story accumulates into its own local arrays; `concurrentMap` preserves
+  // input order so we concatenate the per-Story results in `stories` order.
+  // That keeps `routedSignals` / `memorablePatterns` — and therefore the
+  // composed `routedProposals` — byte-for-byte identical to the prior
+  // serial behaviour, independent of which read settles first.
+  const perStorySignals = await concurrentMap(
+    stories,
+    async (story) => {
+      const sid = Number(story.id ?? story.number);
+      if (!Number.isInteger(sid) || sid <= 0) {
+        return { routedSignals: [], memorablePatterns: [] };
+      }
+      const localRoutedSignals = [];
+      const localMemorablePatterns = [];
+      try {
+        await forEachLineFn(epicId, sid, (parsed) => {
+          if (parsed === null || typeof parsed !== 'object') return;
+          const record = /** @type {Record<string, unknown>} */ (parsed);
+          const category =
+            typeof record.category === 'string' ? record.category : null;
+          const source =
+            record.source === 'framework' ? 'framework' : 'consumer';
+          if (category) {
+            localRoutedSignals.push({ category, source });
+          }
+          if (record.memorable === true && typeof record.insight === 'string') {
+            localMemorablePatterns.push({
+              category: category ?? 'general',
+              insight: record.insight,
+            });
+          }
+        });
+      } catch (err) {
+        logger?.warn?.(
+          `[retro-runner] forEachLine failed for story #${sid} (continuing): ${
+            err?.message ?? err
+          }`,
+        );
+      }
+      return {
+        routedSignals: localRoutedSignals,
+        memorablePatterns: localMemorablePatterns,
+      };
+    },
+    { concurrency: SIGNALS_READ_CONCURRENCY },
+  );
   const routedSignals = [];
   const memorablePatterns = [];
-  for (const story of stories) {
-    const sid = Number(story.id ?? story.number);
-    if (!Number.isInteger(sid) || sid <= 0) continue;
-    try {
-      await forEachLineFn(epicId, sid, (parsed) => {
-        if (parsed === null || typeof parsed !== 'object') return;
-        const record = /** @type {Record<string, unknown>} */ (parsed);
-        const category =
-          typeof record.category === 'string' ? record.category : null;
-        const source = record.source === 'framework' ? 'framework' : 'consumer';
-        if (category) {
-          routedSignals.push({ category, source });
-        }
-        if (record.memorable === true && typeof record.insight === 'string') {
-          memorablePatterns.push({
-            category: category ?? 'general',
-            insight: record.insight,
-          });
-        }
-      });
-    } catch (err) {
-      logger?.warn?.(
-        `[retro-runner] forEachLine failed for story #${sid} (continuing): ${
-          err?.message ?? err
-        }`,
-      );
-    }
+  for (const perStory of perStorySignals) {
+    routedSignals.push(...perStory.routedSignals);
+    memorablePatterns.push(...perStory.memorablePatterns);
   }
 
   // Resolve repos. Caller overrides win; otherwise default the consumer

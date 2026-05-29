@@ -551,6 +551,126 @@ test('gatherRetroSignals: computes routedProposals from per-Story signals stream
   assert.equal(out.routedProposals.discarded[0].category, 'one-off');
 });
 
+test('gatherRetroSignals: parallel signals reads match the prior serial output (order-deterministic)', async () => {
+  // Story #3347 — the per-Story `signals.ndjson` reads now fan out via
+  // `concurrentMap` instead of a sequential `for` loop. This pins the
+  // invariant the parallelization MUST preserve: the composed
+  // `routedProposals` (and the underlying routed-signal / memorable-
+  // pattern ordering) is byte-for-byte identical to the prior serial
+  // behaviour for a multi-Story stub, regardless of which Story's read
+  // settles first.
+  const storyIds = [501, 502, 503, 504];
+  const provider = makeProvider({
+    epic: { id: 500, title: 'Ordering Epic' },
+    stories: storyIds.map((id) => ({
+      id,
+      labels: ['type::story'],
+      perfSummary: { kind: 'story-perf-summary', frictionByCategory: {} },
+    })),
+    tasks: [],
+  });
+
+  // Each Story emits a distinct, source-tagged stream. Categories repeat
+  // across Stories so the composer's bucketing depends on encounter order;
+  // memorable patterns are interleaved to make any reordering observable.
+  const fakeStreams = new Map([
+    [
+      501,
+      [
+        { category: 'lint-loop', source: 'framework' },
+        {
+          category: 'flaky-test',
+          source: 'consumer',
+          memorable: true,
+          insight: 'i-501',
+        },
+      ],
+    ],
+    [
+      502,
+      [
+        { category: 'flaky-test', source: 'consumer' },
+        {
+          category: 'one-off',
+          source: 'consumer',
+          memorable: true,
+          insight: 'i-502',
+        },
+      ],
+    ],
+    [
+      503,
+      [
+        {
+          category: 'lint-loop',
+          source: 'framework',
+          memorable: true,
+          insight: 'i-503',
+        },
+      ],
+    ],
+    [
+      504,
+      [
+        { category: 'thrash', source: 'framework' },
+        { category: 'thrash', source: 'framework' },
+      ],
+    ],
+  ]);
+
+  // Build the reference output by driving the same stub through a strictly
+  // serial forEachLineFn (no artificial delay → reads settle in `stories`
+  // order, the legacy behaviour).
+  const serialForEachLineFn = async (_epicId, sid, cb) => {
+    const lines = fakeStreams.get(sid) ?? [];
+    for (let i = 0; i < lines.length; i++) await cb(lines[i], i + 1);
+    return {
+      linesRead: lines.length,
+      linesParsed: lines.length,
+      missing: false,
+    };
+  };
+  const serialOut = await gatherRetroSignals({
+    epicId: 500,
+    provider,
+    frameworkRepo: 'dsj1984/mandrel',
+    consumerRepo: 'dsj1984/domio',
+    forEachLineFn: serialForEachLineFn,
+  });
+
+  // Now drive the *same* stub through a forEachLineFn whose completion is
+  // deliberately reversed: higher Story IDs resolve their reads first. If
+  // the implementation appended in settle order rather than `stories`
+  // order, the composed proposals would diverge from the serial reference.
+  const parallelForEachLineFn = (_epicId, sid, cb) =>
+    new Promise((resolve) => {
+      // Larger sid → smaller delay → settles earlier.
+      const delay = Math.max(1, (600 - sid) * 2);
+      setTimeout(async () => {
+        const lines = fakeStreams.get(sid) ?? [];
+        for (let i = 0; i < lines.length; i++) await cb(lines[i], i + 1);
+        resolve({
+          linesRead: lines.length,
+          linesParsed: lines.length,
+          missing: false,
+        });
+      }, delay);
+    });
+  const parallelOut = await gatherRetroSignals({
+    epicId: 500,
+    provider,
+    frameworkRepo: 'dsj1984/mandrel',
+    consumerRepo: 'dsj1984/domio',
+    forEachLineFn: parallelForEachLineFn,
+  });
+
+  assert.deepEqual(
+    parallelOut.routedProposals,
+    serialOut.routedProposals,
+    'parallel fan-out must produce identical routedProposals to the serial loop',
+  );
+});
+
 test('gatherRetroSignals: degrades silently on forEachLine error', async () => {
   const provider = makeProvider({
     epic: { id: 970, title: 'Defensive Epic' },
