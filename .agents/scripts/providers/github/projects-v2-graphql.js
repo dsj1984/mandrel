@@ -9,8 +9,8 @@
 import { execSync } from 'node:child_process';
 
 const Q_OWNER = `query($login:String!){user(login:$login){id} organization(login:$login){id}}`;
-const Q_PROJ = (s, f) =>
-  `query($owner:String!,$number:Int!){${s}(login:$owner){projectV2(number:$number){${f}}}}`;
+const Q_PROJ = (scope, fields) =>
+  `query($owner:String!,$number:Int!){${scope}(login:$owner){projectV2(number:$number){${fields}}}}`;
 const M_PROJ = `mutation($ownerId:ID!,$title:String!){createProjectV2(input:{ownerId:$ownerId,title:$title}){projectV2{id number}}}`;
 const M_FIELD = `mutation($projectId:ID!,$name:String!,$options:[ProjectV2SingleSelectFieldOptionInput!]!){createProjectV2Field(input:{projectId:$projectId,dataType:SINGLE_SELECT,name:$name,singleSelectOptions:$options}){projectV2Field{... on ProjectV2SingleSelectField{id name}}}}`;
 const M_UPDATE = `mutation($fieldId:ID!,$name:String!,$options:[ProjectV2SingleSelectFieldOptionInput!]!){updateProjectV2Field(input:{fieldId:$fieldId,name:$name,singleSelectOptions:$options}){projectV2Field{... on ProjectV2SingleSelectField{id name}}}}`;
@@ -21,21 +21,21 @@ const F_VIEWS = `id views(first:50){nodes{name}}`;
 const F_FIELDS = `id fields(first:50){nodes{... on ProjectV2Field{name} ... on ProjectV2IterationField{name} ... on ProjectV2SingleSelectField{name}}}`;
 const SCOPES_RE =
   /INSUFFICIENT_SCOPES|Resource not accessible by personal access token|your token has not been granted the required scopes/i;
-const opt = (n, id) => ({
+const opt = (name, id) => ({
   ...(id && { id }),
-  name: n,
+  name,
   color: 'GRAY',
   description: '',
 });
 
 function readGhCliToken() {
   try {
-    const t = execSync('gh auth token', {
+    const cliToken = execSync('gh auth token', {
       encoding: 'utf8',
       timeout: 5000,
       stdio: ['pipe', 'pipe', 'pipe'],
     }).trim();
-    return t || null;
+    return cliToken || null;
   } catch {
     return null;
   }
@@ -62,14 +62,15 @@ function resolveToken() {
   return ghToken;
 }
 
-export const isInsufficientScopes = (e) =>
-  Boolean(e) && SCOPES_RE.test(e.message ?? e.toString?.() ?? String(e));
-export const isScopesMissingEnvelope = (v) =>
-  Boolean(v) && typeof v === 'object' && v.scopesMissing === true;
+export const isInsufficientScopes = (err) =>
+  Boolean(err) &&
+  SCOPES_RE.test(err.message ?? err.toString?.() ?? String(err));
+export const isScopesMissingEnvelope = (value) =>
+  Boolean(value) && typeof value === 'object' && value.scopesMissing === true;
 
 async function gql(ctx, query, variables) {
   const fetchImpl = ctx.fetchImpl ?? globalThis.fetch;
-  const res = await fetchImpl('https://api.github.com/graphql', {
+  const response = await fetchImpl('https://api.github.com/graphql', {
     method: 'POST',
     headers: {
       Accept: 'application/json',
@@ -79,11 +80,11 @@ async function gql(ctx, query, variables) {
     },
     body: JSON.stringify({ query, variables }),
   });
-  if (!res.ok)
+  if (!response.ok)
     throw new Error(
-      `[GitHubProvider] GraphQL ${res.status}: ${await res.text().catch(() => '')}`,
+      `[GitHubProvider] GraphQL ${response.status}: ${await response.text().catch(() => '')}`,
     );
-  const json = await res.json();
+  const json = await response.json();
   if (json.errors?.length)
     throw new Error(
       `[GitHubProvider] GraphQL errors: ${JSON.stringify(json.errors)}`,
@@ -93,20 +94,20 @@ async function gql(ctx, query, variables) {
 
 async function lookupProject(ctx, fragment, strict = false) {
   if (!ctx.projectNumber) return null;
-  let last = null;
+  let lastError = null;
   for (const scope of ['user', 'organization']) {
     try {
-      const d = await gql(ctx, Q_PROJ(scope, fragment), {
+      const data = await gql(ctx, Q_PROJ(scope, fragment), {
         owner: ctx.projectOwner,
         number: ctx.projectNumber,
       });
-      if (d?.[scope]?.projectV2) return d[scope].projectV2;
-    } catch (e) {
-      if (strict && isInsufficientScopes(e)) throw e;
-      last = e;
+      if (data?.[scope]?.projectV2) return data[scope].projectV2;
+    } catch (err) {
+      if (strict && isInsufficientScopes(err)) throw err;
+      lastError = err;
     }
   }
-  if (strict && last) throw last;
+  if (strict && lastError) throw lastError;
   return null;
 }
 
@@ -115,40 +116,44 @@ export async function resolveOrCreateProject(ctx, opts = {}) {
   const name = opts.name ?? ctx.projectName ?? `${ctx.repo} — Mandrel`;
   if (ctx.projectNumber) {
     try {
-      const p = await lookupProject(ctx, 'id');
-      if (p) {
-        ctx.state.projectId = p.id;
+      const existingProject = await lookupProject(ctx, 'id');
+      if (existingProject) {
+        ctx.state.projectId = existingProject.id;
         return {
-          projectId: p.id,
+          projectId: existingProject.id,
           projectNumber: ctx.projectNumber,
           created: false,
         };
       }
-    } catch (e) {
-      if (isInsufficientScopes(e)) return { scopesMissing: true };
-      throw e;
+    } catch (err) {
+      if (isInsufficientScopes(err)) return { scopesMissing: true };
+      throw err;
     }
     throw new Error(
       `[GitHubProvider] Project #${ctx.projectNumber} not found for ${owner}.`,
     );
   }
   try {
-    const o = await gql(ctx, Q_OWNER, { login: owner });
-    const ownerId = o?.organization?.id ?? o?.user?.id;
+    const ownerResponse = await gql(ctx, Q_OWNER, { login: owner });
+    const ownerId = ownerResponse?.organization?.id ?? ownerResponse?.user?.id;
     if (!ownerId)
       throw new Error(
         `[GitHubProvider] Could not resolve owner node id for "${owner}".`,
       );
-    const p = (await gql(ctx, M_PROJ, { ownerId, title: name }))
+    const createdProject = (await gql(ctx, M_PROJ, { ownerId, title: name }))
       ?.createProjectV2?.projectV2;
-    if (!p)
+    if (!createdProject)
       throw new Error('[GitHubProvider] createProjectV2 returned no project.');
-    ctx.state.projectId = p.id;
-    ctx.projectNumber = p.number;
-    return { projectId: p.id, projectNumber: p.number, created: true };
-  } catch (e) {
-    if (isInsufficientScopes(e)) return { scopesMissing: true };
-    throw e;
+    ctx.state.projectId = createdProject.id;
+    ctx.projectNumber = createdProject.number;
+    return {
+      projectId: createdProject.id,
+      projectNumber: createdProject.number,
+      created: true,
+    };
+  } catch (err) {
+    if (isInsufficientScopes(err)) return { scopesMissing: true };
+    throw err;
   }
 }
 
@@ -160,45 +165,53 @@ export async function ensureStatusField(ctx, optionNames) {
   let project;
   try {
     project = await lookupProject(ctx, F_STATUS, true);
-  } catch (e) {
-    if (isInsufficientScopes(e)) return { status: 'scopes-missing', added: [] };
-    throw e;
+  } catch (err) {
+    if (isInsufficientScopes(err))
+      return { status: 'scopes-missing', added: [] };
+    throw err;
   }
   if (!project)
     throw new Error(
       `[GitHubProvider] Project #${ctx.projectNumber} not found for ${ctx.projectOwner}.`,
     );
-  const cur = (project.fields?.nodes ?? []).find((f) => f?.name === 'Status');
+  const statusField = (project.fields?.nodes ?? []).find(
+    (field) => field?.name === 'Status',
+  );
   try {
-    if (!cur) {
-      const r = await gql(ctx, M_FIELD, {
+    if (!statusField) {
+      const createResult = await gql(ctx, M_FIELD, {
         projectId: project.id,
         name: 'Status',
-        options: optionNames.map((n) => opt(n)),
+        options: optionNames.map((name) => opt(name)),
       });
       return {
         status: 'created',
         added: [...optionNames],
-        fieldId: r?.createProjectV2Field?.projectV2Field?.id,
+        fieldId: createResult?.createProjectV2Field?.projectV2Field?.id,
       };
     }
-    const have = new Map((cur.options ?? []).map((o) => [o.name, o.id]));
-    const missing = optionNames.filter((n) => !have.has(n));
+    const existingOptions = new Map(
+      (statusField.options ?? []).map((option) => [option.name, option.id]),
+    );
+    const missing = optionNames.filter((name) => !existingOptions.has(name));
     if (missing.length === 0)
-      return { status: 'unchanged', added: [], fieldId: cur.id };
+      return { status: 'unchanged', added: [], fieldId: statusField.id };
     const merged = [
-      ...(cur.options ?? []).map((o) => opt(o.name, o.id)),
-      ...missing.map((n) => opt(n)),
+      ...(statusField.options ?? []).map((option) =>
+        opt(option.name, option.id),
+      ),
+      ...missing.map((name) => opt(name)),
     ];
     await gql(ctx, M_UPDATE, {
-      fieldId: cur.id,
+      fieldId: statusField.id,
       name: 'Status',
       options: merged,
     });
-    return { status: 'updated', added: missing, fieldId: cur.id };
-  } catch (e) {
-    if (isInsufficientScopes(e)) return { status: 'scopes-missing', added: [] };
-    throw e;
+    return { status: 'updated', added: missing, fieldId: statusField.id };
+  } catch (err) {
+    if (isInsufficientScopes(err))
+      return { status: 'scopes-missing', added: [] };
+    throw err;
   }
 }
 
@@ -213,18 +226,22 @@ export async function ensureProjectViews(ctx, viewDefs) {
   try {
     project = await lookupProject(ctx, F_VIEWS, true);
   } catch {
-    return { created, skipped: viewDefs.map((v) => v.name), unavailable: true };
+    return {
+      created,
+      skipped: viewDefs.map((view) => view.name),
+      unavailable: true,
+    };
   }
   if (!project)
     throw new Error(
       `[GitHubProvider] Project #${ctx.projectNumber} not found for ${ctx.projectOwner}.`,
     );
-  const have = new Set(
-    (project.views?.nodes ?? []).map((v) => v?.name).filter(Boolean),
+  const existingViewNames = new Set(
+    (project.views?.nodes ?? []).map((view) => view?.name).filter(Boolean),
   );
   let unavailable = false;
   for (const def of viewDefs) {
-    if (have.has(def.name) || unavailable) {
+    if (existingViewNames.has(def.name) || unavailable) {
       skipped.push(def.name);
       continue;
     }
@@ -250,11 +267,13 @@ export async function ensureProjectFields(ctx, fieldDefs) {
     throw new Error(
       `[GitHubProvider] Project #${ctx.projectNumber} not found for ${ctx.projectOwner}.`,
     );
-  const have = new Set(project.fields.nodes.map((f) => f.name).filter(Boolean));
+  const existingFieldNames = new Set(
+    project.fields.nodes.map((field) => field.name).filter(Boolean),
+  );
   const created = [],
     skipped = [];
   for (const def of fieldDefs) {
-    if (have.has(def.name)) {
+    if (existingFieldNames.has(def.name)) {
       skipped.push(def.name);
       continue;
     }
@@ -262,7 +281,7 @@ export async function ensureProjectFields(ctx, fieldDefs) {
       await gql(ctx, M_FIELD, {
         projectId: project.id,
         name: def.name,
-        options: (def.options ?? []).map((o) => opt(o)),
+        options: (def.options ?? []).map((option) => opt(option)),
       });
     created.push(def.name);
   }
@@ -271,9 +290,9 @@ export async function ensureProjectFields(ctx, fieldDefs) {
 
 export async function addItemToProject(ctx, contentNodeId) {
   if (!ctx.state.projectId) {
-    const p = await lookupProject(ctx, 'id');
-    if (!p) return;
-    ctx.state.projectId = p.id;
+    const project = await lookupProject(ctx, 'id');
+    if (!project) return;
+    ctx.state.projectId = project.id;
   }
   await gql(ctx, M_ITEM, {
     projectId: ctx.state.projectId,
