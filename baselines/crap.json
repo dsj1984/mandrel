@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T12:19:20.665Z",
+  "generatedAt": "2026-05-29T12:40:10.467Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -4162,12 +4162,6 @@
       "method": "findSimilarOpenEpics",
       "startLine": 141,
       "crap": 11
-    },
-    {
-      "path": ".agents/scripts/lib/env-loader.js",
-      "method": "loadEnv",
-      "startLine": 7,
-      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/epic-close-tail-helpers.js",

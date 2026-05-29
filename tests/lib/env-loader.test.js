@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { loadEnv } from '../../.agents/scripts/lib/env-loader.js';
+import { Logger } from '../../.agents/scripts/lib/Logger.js';
 
 describe('loadEnv', () => {
   let tmpDir;
@@ -81,16 +82,39 @@ describe('loadEnv', () => {
     assert.strictEqual(process.env.TEST_B, '2');
   });
 
-  it('fails silently when fs throws an error', (t) => {
-    // Ensure the file exists so readFileSync is called
+  it('stays silent when .env read fails with ENOENT', (t) => {
     fs.writeFileSync(path.join(tmpDir, '.env'), 'TEST_KEY=1\n');
 
-    // Mock readFileSync to throw an error
+    const enoent = new Error('ENOENT: no such file or directory');
+    enoent.code = 'ENOENT';
     t.mock.method(fs, 'readFileSync', () => {
-      throw new Error('EACCES: permission denied');
+      throw enoent;
     });
+    const warnMock = t.mock.method(Logger, 'warn', () => {});
 
-    // Should not throw
     assert.doesNotThrow(() => loadEnv(tmpDir));
+    assert.strictEqual(
+      warnMock.mock.callCount(),
+      0,
+      'ENOENT is the silent case and MUST NOT warn',
+    );
+  });
+
+  it('warns with path and error code on a non-ENOENT read error', (t) => {
+    fs.writeFileSync(path.join(tmpDir, '.env'), 'TEST_KEY=1\n');
+
+    const eacces = new Error('EACCES: permission denied');
+    eacces.code = 'EACCES';
+    t.mock.method(fs, 'readFileSync', () => {
+      throw eacces;
+    });
+    const warnMock = t.mock.method(Logger, 'warn', () => {});
+
+    assert.doesNotThrow(() => loadEnv(tmpDir));
+    assert.strictEqual(warnMock.mock.callCount(), 1);
+    const [message] = warnMock.mock.calls[0].arguments;
+    assert.match(message, /env-loader/);
+    assert.match(message, /\.env/);
+    assert.match(message, /EACCES/);
   });
 });
