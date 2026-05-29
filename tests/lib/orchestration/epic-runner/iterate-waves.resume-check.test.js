@@ -16,7 +16,7 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { collectHaltedStoryIds } from '../../../../.agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js';
+import { collectHaltedStoryIds } from '../../../../.agents/scripts/lib/wave-runner/wave-checkpoint.js';
 
 describe('collectHaltedStoryIds', () => {
   it('returns an empty set when no checkpoint is supplied', () => {
