@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T12:40:09.009Z",
+  "generatedAt": "2026-05-29T13:00:59.422Z",
   "rollup": {
     "*": {
       "min": 61.218,
@@ -1424,7 +1424,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close-recovery.js",
-      "mi": 85.284
+      "mi": 84.213
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
@@ -4828,7 +4828,7 @@
     },
     {
       "path": "tests/story-close-recovery.test.js",
-      "mi": 99.198
+      "mi": 97.837
     },
     {
       "path": "tests/story-close-review.test.js",
