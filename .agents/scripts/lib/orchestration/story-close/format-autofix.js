@@ -29,9 +29,13 @@
 
 import { execFileSync } from 'node:child_process';
 
-import { resolveFormatWriteCommand } from '../../close-validation.js';
 import { getQuality } from '../../config-resolver.js';
 import { Logger as DefaultLogger } from '../../Logger.js';
+import {
+  commitDirtyPaths,
+  listDirtyPaths,
+  resolveFormatterCmd,
+} from './format-autofix-shared.js';
 
 const TAG = '[format-autofix]';
 
@@ -44,28 +48,6 @@ const TAG = '[format-autofix]';
  * `coverage-capture.js` (Story #2142).
  */
 export const FORMAT_AUTOFIX_TIMEOUT_EXIT_CODE = 124;
-
-/**
- * Run `git status --porcelain` and return the list of changed paths.
- * @param {string} cwd
- * @param {(args: string[], opts: object) => string} run
- * @returns {string[]}
- */
-function listDirtyPaths(cwd, run) {
-  const out = run(['status', '--porcelain'], {
-    cwd,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'ignore'],
-  });
-  // Porcelain lines are `XY <path>` — exactly two status chars, one
-  // space, then the path. Leading whitespace inside the status pair is
-  // significant (e.g. ` M file` for unstaged-modified) so do not trim
-  // before slicing.
-  return out
-    .split('\n')
-    .filter((line) => line.length >= 4)
-    .map((line) => line.slice(3));
-}
 
 /**
  * Run `npx biome format --write .` then, if anything changed, commit
@@ -114,10 +96,10 @@ export function runFormatAutofix({
   // Resolve the formatter command from `project.commands.formatWrite` so
   // Prettier / dprint repos use their own formatter. Falls back to the
   // historical `npx biome format --write .` for repos that haven't opted in.
-  const writeCmdString = resolveFormatWriteCommand({
+  // The whole-tree fork keeps the trailing `.` (formats the entire tree).
+  const { writeCmdString, writeCmd, writeArgs } = resolveFormatterCmd({
     commands: config?.project?.commands,
   });
-  const [writeCmd, ...writeArgs] = writeCmdString.split(/\s+/).filter(Boolean);
 
   // Refuse to act when the tree is already dirty for unrelated reasons —
   // we don't want to absorb stray edits into a `style:` commit.
@@ -192,17 +174,8 @@ export function runFormatAutofix({
 
   // Stage every modified path and commit. Hooks must run; do not pass
   // --no-verify (project policy: never skip git hooks).
-  git(['add', '-u'], { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
   const subject = `style: biome format autofix on story-close (story #${storyId})`;
-  git(['commit', '-m', subject], {
-    cwd,
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  const sha = git(['rev-parse', '--short', 'HEAD'], {
-    cwd,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'ignore'],
-  }).trim();
+  const sha = commitDirtyPaths({ cwd, git, subject });
 
   logger.info?.(
     `${TAG} healed ${dirtyAfter.length} path(s) with \`${writeCmdString}\`; ` +

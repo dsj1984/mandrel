@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T12:50:06.106Z",
+  "generatedAt": "2026-05-29T13:03:22.576Z",
   "rollup": {
     "*": {
       "min": 61.218,
-      "p50": 103.804,
+      "p50": 103.836,
       "p95": 121.571
     }
   },
@@ -1471,14 +1471,6 @@
       "mi": 119.885
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-close/format-autofix-scoped.js",
-      "mi": 99.095
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
-      "mi": 93.359
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-close/legacy-settings-bag.js",
       "mi": 120.733
     },
@@ -1501,10 +1493,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/code-review.js",
       "mi": 97.676
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/gates.js",
-      "mi": 89.462
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/lock-wait-classifier.js",

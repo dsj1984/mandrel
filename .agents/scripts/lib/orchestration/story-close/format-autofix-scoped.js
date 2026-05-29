@@ -24,8 +24,12 @@
 
 import { execFileSync } from 'node:child_process';
 
-import { resolveFormatWriteCommand } from '../../close-validation.js';
 import { Logger as DefaultLogger } from '../../Logger.js';
+import {
+  commitDirtyPaths,
+  listDirtyPaths,
+  resolveFormatterCmd,
+} from './format-autofix-shared.js';
 
 const TAG = '[format-autofix-scoped]';
 
@@ -48,25 +52,6 @@ function listChangedFiles({ cwd, epicBranch, storyBranch, git }) {
     .map((line) => line.trim())
     .filter((line) => line.length > 0)
     .map((line) => line.replace(/\\/g, '/'));
-}
-
-/**
- * Return the porcelain status after the formatter ran so the caller can
- * tell whether anything needs staging.
- *
- * @param {{ cwd: string, git: Function }} opts
- * @returns {string[]}
- */
-function listDirtyPaths({ cwd, git }) {
-  const out = git(['status', '--porcelain'], {
-    cwd,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'ignore'],
-  });
-  return out
-    .split('\n')
-    .filter((line) => line.length >= 4)
-    .map((line) => line.slice(3));
 }
 
 /**
@@ -121,12 +106,10 @@ export function runScopedFormatAutofix({
 
   // Resolve the formatter base command (e.g. `npx biome format --write`).
   // We drop a trailing `.` so we can append the changed-file set explicitly.
-  const writeCmdString = resolveFormatWriteCommand({
+  const { writeCmdString, writeCmd, writeArgs } = resolveFormatterCmd({
     commands: config?.project?.commands,
+    dropTrailingDot: true,
   });
-  const writeParts = writeCmdString.split(/\s+/).filter(Boolean);
-  if (writeParts[writeParts.length - 1] === '.') writeParts.pop();
-  const [writeCmd, ...writeArgs] = writeParts;
 
   const changed = listChangedFiles({ cwd, epicBranch, storyBranch, git });
   if (changed.length === 0) {
@@ -136,7 +119,7 @@ export function runScopedFormatAutofix({
     return { ran: false, committed: false, reason: 'no-changed-files' };
   }
 
-  const dirtyBefore = listDirtyPaths({ cwd, git });
+  const dirtyBefore = listDirtyPaths(cwd, git);
   if (dirtyBefore.length) {
     logger.info?.(
       `${TAG} skipped — working tree dirty before scoped autofix (${dirtyBefore.length} paths).`,
@@ -159,7 +142,7 @@ export function runScopedFormatAutofix({
     );
   }
 
-  const dirtyAfter = listDirtyPaths({ cwd, git });
+  const dirtyAfter = listDirtyPaths(cwd, git);
   if (!dirtyAfter.length) {
     logger.info?.(
       `${TAG} no format drift on ${changed.length} changed file(s).`,
@@ -169,17 +152,8 @@ export function runScopedFormatAutofix({
 
   // Stage every modified path and commit. Hooks must run; do not pass
   // --no-verify (project policy: never skip git hooks).
-  git(['add', '-u'], { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
   const subject = `fix(story-close): auto-apply biome format in scoped lint (story #${storyId})`;
-  git(['commit', '-m', subject], {
-    cwd,
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  const sha = git(['rev-parse', '--short', 'HEAD'], {
-    cwd,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'ignore'],
-  }).trim();
+  const sha = commitDirtyPaths({ cwd, git, subject });
 
   // The warn-level emission is the Tech Spec contract — operators read
   // this line in the close transcript to know auto-fix landed in the
