@@ -140,6 +140,18 @@ const AXIS_RULES = [
 const CLEANUP_PATTERN = /\b(?:cleanup|chore-only|housekeeping)\b/i;
 
 /**
+ * Signals that the deliverable has no browser/UI surface — a CLI, tooling,
+ * script, or library Epic. BDD `.feature` acceptance scenarios run through a
+ * browser/automation runner, so when there is no visible-behavior axis these
+ * Epics cannot satisfy a `required` Acceptance Spec by `.feature` files;
+ * their acceptance is contract-tier (unit/contract tests), not e2e. The
+ * disposition should therefore not be forced to `required` off a keyword like
+ * "security" alone (Story #3362).
+ */
+const CLI_TOOLING_PATTERN =
+  /\b(?:cli|command[- ]line|tooling|script(?:s|ing)?|library|sdk|no[- ]ui|headless|backend[- ]only)\b/i;
+
+/**
  * @param {string} text
  * @returns {string}
  */
@@ -178,10 +190,30 @@ function resolveOverallLevel(axes) {
 /**
  * @param {PlanningRiskAxis[]} axes
  * @param {RiskLevel} overallLevel
+ * @param {boolean} [cliTooling]
+ *   True when the Epic scope carries a CLI/tooling/no-UI signal (see
+ *   {@link CLI_TOOLING_PATTERN}). When set and there is no `visible-behavior`
+ *   axis, a REQUIRED axis that is *not* itself visible-behavior (e.g.
+ *   `security` on a CLI epic) is weighted down to `recommended` rather than
+ *   forcing a BDD `.feature` Acceptance Spec the deliverable cannot satisfy
+ *   (Story #3362). Genuinely user-facing risk (`visible-behavior`) still
+ *   forces `required`.
  * @returns {AcceptanceDisposition}
  */
-function resolveAcceptanceDisposition(axes, overallLevel) {
-  if (axes.some((entry) => REQUIRED_AXES.has(entry.axis))) {
+function resolveAcceptanceDisposition(axes, overallLevel, cliTooling = false) {
+  const hasVisibleBehavior = axes.some(
+    (entry) => entry.axis === 'visible-behavior',
+  );
+  const requiredAxes = axes.filter((entry) => REQUIRED_AXES.has(entry.axis));
+  if (requiredAxes.length > 0) {
+    // CLI/tooling/no-UI epic with no user-visible surface: BDD `.feature`
+    // scenarios can't satisfy a required Acceptance Spec, so weight the
+    // non-visible required axes down to `recommended` (acceptance is
+    // contract-tier here). A visible-behavior axis overrides this and keeps
+    // the hard requirement.
+    if (cliTooling && !hasVisibleBehavior) {
+      return 'recommended';
+    }
     return 'required';
   }
   if (
@@ -254,10 +286,13 @@ export function classifyPlanningRisk(input = {}) {
     });
   }
 
+  const cliTooling = CLI_TOOLING_PATTERN.test(haystack);
+
   const overallLevel = resolveOverallLevel(axes);
   const acceptanceDisposition = resolveAcceptanceDisposition(
     axes,
     overallLevel,
+    cliTooling,
   );
   const requiresReview = resolveRequiresReview(overallLevel, axes);
   const gateDecision = requiresReview ? 'review-required' : 'auto-proceed';

@@ -54,6 +54,17 @@ export function matchesAnyFilePattern(patterns, files) {
  * @param {string} params.gate
  * @param {import('../ITicketingProvider.js').ITicketingProvider} params.provider
  * @param {string} [params.baseBranch]
+ * @param {string} [params.headRef]
+ *   Git ref whose diff-against-`baseBranch` defines the change set. Defaults
+ *   to `HEAD` (the working-copy tip) for ticket-scoped callers. Epic-mode
+ *   callers MUST pass the requested Epic's own branch ref (e.g.
+ *   `refs/heads/epic/<id>`) so the change set is pinned to that Epic's branch
+ *   rather than whatever HEAD the shared checkout happens to sit on. Under two
+ *   concurrent `/epic-deliver` runs sharing one checkout, diffing against
+ *   `HEAD` silently resolves the *other* Epic's change set (Story #3362). When
+ *   `headRef` cannot be resolved in the repo, the selector returns a
+ *   `degraded: true` envelope (or hard-fails in gate-mode) instead of diffing
+ *   the wrong tree.
  * @param {(cwd: string, ...args: string[]) => Promise<{status:number, stdout:string, stderr:string}>} [params.injectedGitSpawn]
  *   Test-only seam. Production callers leave unset; the real (synchronous) `gitSpawn`
  *   is wrapped in `Promise.resolve` so `withTimeout` can still race it. Tests can
@@ -68,14 +79,15 @@ export function matchesAnyFilePattern(patterns, files) {
  *
  * Returns either the success envelope (`{ selectedAudits, ticketId, gate, context }`)
  * OR the degraded envelope (`{ ok: false, degraded: true, reason, detail }`)
- * when the git-diff probe times out and gate-mode is unset. In gate-mode,
- * the same condition throws.
+ * when the git-diff probe times out OR `headRef` cannot be resolved and
+ * gate-mode is unset. In gate-mode, the same conditions throw.
  */
 export async function selectAudits({
   ticketId,
   gate,
   provider,
   baseBranch = 'main',
+  headRef = 'HEAD',
   injectedGitSpawn,
   gitTimeoutMsOverride,
   gateModeOpts,
@@ -103,10 +115,50 @@ export async function selectAudits({
 
   const runGit = injectedGitSpawn ?? (async (...args) => gitSpawn(...args));
 
+  // Resolve `headRef` to a commit before diffing. A non-default `headRef`
+  // (Epic-mode callers pass `refs/heads/epic/<id>`) that the repo can't
+  // resolve means the requested Epic's branch is not present in this
+  // checkout — diffing `baseBranch...HEAD` would silently report a
+  // *different* Epic's change set (Story #3362). Surface that as an explicit
+  // degraded signal instead of leaking the wrong scope. `HEAD` is always
+  // resolvable in a valid repo, so the default-path callers skip the probe
+  // cost on the common case.
+  if (headRef !== 'HEAD') {
+    let resolved;
+    try {
+      resolved = await withTimeout(
+        runGit(process.cwd(), 'rev-parse', '--verify', '--quiet', headRef),
+        timeoutMs,
+        { label: 'select-audits rev-parse headRef' },
+      );
+    } catch (err) {
+      if (err?.code === 'ETIMEDOUT') {
+        return softFailOrThrow(
+          'GIT_DIFF_TIMEOUT',
+          `select-audits: git rev-parse ${headRef} timed out after ${timeoutMs} ms`,
+          gateModeOpts,
+        );
+      }
+      throw err;
+    }
+    if (resolved?.status !== 0 || !resolved.stdout.trim()) {
+      return softFailOrThrow(
+        'HEAD_REF_UNRESOLVED',
+        `select-audits: requested ref '${headRef}' could not be resolved in this checkout; refusing to diff against a phantom change set`,
+        gateModeOpts,
+      );
+    }
+  }
+
   let changedFiles = [];
   try {
     const diff = await withTimeout(
-      runGit(process.cwd(), 'diff', '--name-only', `${baseBranch}...HEAD`),
+      runGit(
+        process.cwd(),
+        'diff',
+        '--name-only',
+        `${baseBranch}...${headRef}`,
+      ),
       timeoutMs,
       { label: 'select-audits git diff' },
     );
@@ -173,6 +225,10 @@ export async function selectAudits({
       // callers that read only `changedFilesCount` remain unaffected.
       changedFiles,
       changedFilesCount: changedFiles.length,
+      // The ref the change set was actually diffed against. Epic-mode callers
+      // assert this matches the requested Epic branch (Story #3362) so a
+      // mis-pinned diff never reaches the audit-lens selector silently.
+      resolvedRef: headRef,
       ticketTitle: ticket.title,
     },
   };

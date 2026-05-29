@@ -47,13 +47,17 @@ function makeProvider() {
  * touching the filesystem or git.
  */
 function makeFakeSelectAudits({ selectedAudits, changedFiles, ticketTitle }) {
-  return async ({ ticketId, gate }) => ({
+  // Mirror the real selector: echo the `headRef` it was pinned to back as
+  // `context.resolvedRef`, so epic-audit-prepare's per-epic ref assertion
+  // (Story #3362) sees the same value it requested.
+  return async ({ ticketId, gate, headRef }) => ({
     selectedAudits,
     ticketId,
     gate,
     context: {
       changedFiles,
       changedFilesCount: changedFiles.length,
+      resolvedRef: headRef,
       ticketTitle,
     },
   });
@@ -177,6 +181,77 @@ test('runEpicAuditPrepare: degraded selectAudits envelope propagates with non-ze
   assert.equal(result.kind, 'envelope');
   assert.equal(result.envelope.degraded, true);
   assert.equal(result.envelope.reason, 'GIT_DIFF_TIMEOUT');
+  assert.equal(result.envelope.epicId, EPIC_ID);
+  assert.equal(result.envelope.epicBranch, `epic/${EPIC_ID}`);
+});
+
+test('runEpicAuditPrepare: pins selectAudits to the requested Epic branch ref (Story #3362)', async () => {
+  const provider = makeProvider();
+  let capturedArgs = null;
+
+  const capturingRunner = async (args) => {
+    capturedArgs = args;
+    return {
+      selectedAudits: ['audit-security'],
+      ticketId: args.ticketId,
+      gate: args.gate,
+      context: {
+        changedFiles: ['src/a.ts'],
+        changedFilesCount: 1,
+        resolvedRef: args.headRef,
+        ticketTitle: 'x',
+      },
+    };
+  };
+
+  const { exitCode, result } = await runEpicAuditPrepare(
+    { epicId: EPIC_ID, baseBranch: 'main', gate: 'gate3' },
+    {
+      resolveConfig: noopConfig,
+      createProvider: noopProviderFactory(provider),
+      selectAudits: capturingRunner,
+    },
+  );
+
+  assert.equal(exitCode, 0);
+  assert.equal(result.kind, 'envelope');
+  // The selector must be pinned to refs/heads/epic/<id>, NOT the shared
+  // checkout's HEAD — that is the whole point of the cross-epic isolation fix.
+  assert.equal(capturedArgs.headRef, `refs/heads/epic/${EPIC_ID}`);
+  assert.deepEqual(result.envelope.changedFiles, ['src/a.ts']);
+});
+
+test('runEpicAuditPrepare: degrades when selector resolves a different ref than requested (Story #3362)', async () => {
+  const provider = makeProvider();
+
+  // Selector reports it diffed a DIFFERENT epic's branch — exactly the
+  // cross-epic leak symptom. Prepare must fail closed rather than emit the
+  // wrong audit selection.
+  const mismatchedRunner = async ({ ticketId, gate }) => ({
+    selectedAudits: ['audit-seo'],
+    ticketId,
+    gate,
+    context: {
+      changedFiles: ['robots.txt', 'Schema.astro'],
+      changedFilesCount: 2,
+      resolvedRef: 'refs/heads/epic/9999',
+      ticketTitle: 'x',
+    },
+  });
+
+  const { exitCode, result } = await runEpicAuditPrepare(
+    { epicId: EPIC_ID, baseBranch: 'main', gate: 'gate3' },
+    {
+      resolveConfig: noopConfig,
+      createProvider: noopProviderFactory(provider),
+      selectAudits: mismatchedRunner,
+    },
+  );
+
+  assert.equal(exitCode, 1);
+  assert.equal(result.kind, 'envelope');
+  assert.equal(result.envelope.degraded, true);
+  assert.equal(result.envelope.reason, 'EPIC_REF_MISMATCH');
   assert.equal(result.envelope.epicId, EPIC_ID);
   assert.equal(result.envelope.epicBranch, `epic/${EPIC_ID}`);
 });

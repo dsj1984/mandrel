@@ -91,3 +91,78 @@ test('selector: empty diff yields empty changedFiles array (not undefined)', asy
   assert.deepEqual(result.context.changedFiles, []);
   assert.equal(result.context.changedFilesCount, 0);
 });
+
+test('selector: headRef pins the diff to the requested ref (Story #3362)', async () => {
+  const epicRef = 'refs/heads/epic/1241';
+  const seen = [];
+  // Distinguish the rev-parse probe (resolves the ref) from the diff.
+  const fakeGitSpawn = async (_cwd, ...args) => {
+    seen.push(args);
+    if (args[0] === 'rev-parse') {
+      return { status: 0, stdout: 'abc123\n', stderr: '' };
+    }
+    // args: ['diff', '--name-only', '<base>...<headRef>']
+    return { status: 0, stdout: 'env/doctor.js\nenv/fix.js\n', stderr: '' };
+  };
+
+  const result = await selectAudits({
+    ticketId: 500,
+    gate: 'gate1',
+    provider: makeProvider(),
+    headRef: epicRef,
+    injectedGitSpawn: fakeGitSpawn,
+  });
+
+  // The diff range must terminate at the requested ref, not HEAD.
+  const diffCall = seen.find((a) => a[0] === 'diff');
+  assert.equal(diffCall[2], `main...${epicRef}`);
+  assert.equal(result.context.resolvedRef, epicRef);
+  assert.deepEqual(result.context.changedFiles, [
+    'env/doctor.js',
+    'env/fix.js',
+  ]);
+});
+
+test('selector: unresolvable headRef returns a degraded envelope (Story #3362)', async () => {
+  // rev-parse --verify --quiet returns non-zero + empty stdout when the ref
+  // does not exist in this checkout — the concurrent-epic leak symptom.
+  const fakeGitSpawn = async (_cwd, ...args) => {
+    if (args[0] === 'rev-parse') {
+      return { status: 1, stdout: '', stderr: '' };
+    }
+    throw new Error('diff should not run when the ref is unresolved');
+  };
+
+  const result = await selectAudits({
+    ticketId: 500,
+    gate: 'gate1',
+    provider: makeProvider(),
+    headRef: 'refs/heads/epic/9999',
+    injectedGitSpawn: fakeGitSpawn,
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.degraded, true);
+  assert.equal(result.reason, 'HEAD_REF_UNRESOLVED');
+});
+
+test('selector: default headRef (HEAD) skips the rev-parse probe and diffs HEAD', async () => {
+  const seen = [];
+  const fakeGitSpawn = async (_cwd, ...args) => {
+    seen.push(args);
+    return { status: 0, stdout: 'a.js\n', stderr: '' };
+  };
+
+  const result = await selectAudits({
+    ticketId: 500,
+    gate: 'gate1',
+    provider: makeProvider(),
+    injectedGitSpawn: fakeGitSpawn,
+  });
+
+  // No rev-parse probe for the default path; the diff terminates at HEAD.
+  assert.ok(!seen.some((a) => a[0] === 'rev-parse'));
+  const diffCall = seen.find((a) => a[0] === 'diff');
+  assert.equal(diffCall[2], 'main...HEAD');
+  assert.equal(result.context.resolvedRef, 'HEAD');
+});

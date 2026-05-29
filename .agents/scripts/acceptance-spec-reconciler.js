@@ -3,8 +3,12 @@
  * acceptance-spec-reconciler.js — Story #2106 / Task #2113 (Epic #2001).
  *
  * Diffs the AC IDs declared in an Epic's linked `context::acceptance-spec`
- * body against the `@ac-*` / `@pending` tags emitted by scenarios under
- * `tests/features/**`. Surfaces three categories:
+ * body against the **per-Epic-namespaced** `@epic-<id>-ac-*` / `@pending`
+ * tags emitted by scenarios under `tests/features/**`. The namespace is
+ * load-bearing (Story #3362): `tests/features` is a single global tree
+ * shared by every Epic, so a bare `@ac-N` tag authored under an unrelated
+ * Epic's scenarios must not count as coverage for this Epic. Surfaces three
+ * categories:
  *
  *   - `satisfied[]` — AC IDs covered by at least one non-pending scenario.
  *   - `pending[]`   — AC IDs covered only by scenarios tagged `@pending`.
@@ -212,25 +216,46 @@ export function enumerateFeatureFiles(dir) {
 }
 
 /**
+ * Pure: derive the scenario tag token that satisfies an AC ID for a given
+ * Epic. When `epicId` is supplied the token is **namespaced per Epic** —
+ * `epic-<id>-ac-<n>` — so a bare `@ac-N` tag authored under an *unrelated*
+ * Epic's feature scenarios can never count as coverage for this Epic
+ * (Story #3362). When `epicId` is absent the legacy bare `ac-<n>` token is
+ * used so non-Epic callers keep their behaviour.
+ *
+ * @param {string} acId  e.g. `AC-7`
+ * @param {number|null} [epicId]
+ * @returns {string} lower-cased tag token (no `@` prefix)
+ */
+export function acTagToken(acId, epicId = null) {
+  const bare = acId.toLowerCase(); // e.g. "ac-7"
+  if (Number.isInteger(epicId) && epicId > 0) {
+    return `epic-${epicId}-${bare}`; // e.g. "epic-1241-ac-7"
+  }
+  return bare;
+}
+
+/**
  * Pure: classify each declared AC ID against the union of scenario tag
  * sets observed across every feature file.
  *
- * Coverage rule:
- *   - `ac-N` token present on at least one scenario with no `pending` tag
+ * Coverage rule (with `epicId`, the matched token is the per-Epic
+ * namespaced `epic-<id>-ac-<n>` — see {@link acTagToken}):
+ *   - matched token present on at least one scenario with no `pending` tag
  *     on the same scenario → satisfied.
- *   - `ac-N` token present only on scenarios that *also* carry `pending`
+ *   - matched token present only on scenarios that *also* carry `pending`
  *     → pending.
- *   - `ac-N` token absent from every scenario → missing.
+ *   - matched token absent from every scenario → missing.
  *
- * @param {{ acIds: string[], tagSets: Set<string>[] }} args
+ * @param {{ acIds: string[], tagSets: Set<string>[], epicId?: number|null }} args
  * @returns {{ satisfied: string[], pending: string[], missing: string[] }}
  */
-export function classifyCoverage({ acIds, tagSets }) {
+export function classifyCoverage({ acIds, tagSets, epicId = null }) {
   const satisfied = [];
   const pending = [];
   const missing = [];
   for (const acId of acIds) {
-    const tagToken = acId.toLowerCase(); // e.g. "ac-7"
+    const tagToken = acTagToken(acId, epicId);
     let sawSatisfied = false;
     let sawPending = false;
     for (const set of tagSets) {
@@ -269,14 +294,14 @@ export function renderBlockerMessage({
   ];
   if (missing.length > 0) {
     lines.push(
-      `  Missing (no @ac-* tag in tests/features): ${missing.join(', ')}`,
+      `  Missing (no @epic-${epicId}-ac-* tag in tests/features): ${missing.join(', ')}`,
     );
   }
   if (pending.length > 0) {
     lines.push(`  Pending (@pending-only coverage): ${pending.join(', ')}`);
   }
   lines.push(
-    'Author or de-pend the missing scenarios under tests/features/** so every AC ID is satisfied, then re-run /epic-deliver.',
+    `Author or de-pend scenarios under tests/features/** tagged @epic-${epicId}-ac-<n> so every AC ID is satisfied, then re-run /epic-deliver.`,
   );
   return lines.join('\n');
 }
@@ -443,7 +468,11 @@ export async function reconcileAcceptanceSpec({
     };
   }
 
-  const { satisfied, pending, missing } = classifyCoverage({ acIds, tagSets });
+  const { satisfied, pending, missing } = classifyCoverage({
+    acIds,
+    tagSets,
+    epicId,
+  });
   const ok = missing.length === 0 && pending.length === 0;
 
   return {

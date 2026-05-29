@@ -27,6 +27,24 @@ const MIXED_SIGNAL_EPIC = {
   labels: ['type::epic'],
 };
 
+const CLI_SECURITY_EPIC = {
+  title: 'Env-tooling CLI: doctor, fix, lint commands',
+  body: `## Scope
+
+A command-line tooling epic. Includes security hardening of the secret-loading
+path. No browser surface — headless CLI scripts only.`,
+  labels: ['type::epic'],
+};
+
+const UI_SECURITY_EPIC = {
+  title: 'Secure the account settings page',
+  body: `## Scope
+
+User-facing security hardening for the authentication UI change on the settings
+screen.`,
+  labels: ['type::epic'],
+};
+
 describe('classifyPlanningRisk', () => {
   it('classifies a critical-workflow Epic as high risk requiring review', () => {
     const result = classifyPlanningRisk(HIGH_RISK_CRITICAL_WORKFLOW);
@@ -70,6 +88,31 @@ describe('classifyPlanningRisk', () => {
     assert.match(String(docsOnly.evidence), /docs/i);
     assert.ok(security.evidence.length <= 120);
     assert.ok(docsOnly.evidence.length <= 120);
+  });
+
+  it('weights a CLI/tooling security Epic with no UI surface away from required acceptance (Story #3362)', () => {
+    const result = classifyPlanningRisk(CLI_SECURITY_EPIC);
+
+    // The security keyword still raises the axis...
+    assert.ok(
+      result.axes.some((entry) => entry.axis === 'security'),
+      'expected security axis',
+    );
+    // ...but a headless CLI epic cannot satisfy a BDD `.feature` Acceptance
+    // Spec, so the disposition must not be forced to `required`.
+    assert.strictEqual(result.acceptanceDisposition, 'recommended');
+  });
+
+  it('keeps required acceptance when a security Epic IS user-facing (Story #3362)', () => {
+    const result = classifyPlanningRisk(UI_SECURITY_EPIC);
+
+    assert.ok(
+      result.axes.some((entry) => entry.axis === 'visible-behavior'),
+      'expected visible-behavior axis',
+    );
+    // A user-facing surface overrides the CLI weighting — acceptance stays
+    // required.
+    assert.strictEqual(result.acceptanceDisposition, 'required');
   });
 
   it('returns the stable planning risk envelope shape', () => {

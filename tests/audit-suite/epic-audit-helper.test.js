@@ -56,13 +56,17 @@ const noopConfig = () => ({});
 const noopProviderFactory = (provider) => () => provider;
 
 function makeFakeSelectAudits({ selectedAudits, changedFiles, ticketTitle }) {
-  return async ({ ticketId, gate }) => ({
+  // Mirror the real selector: echo the `headRef` it was pinned to back as
+  // `context.resolvedRef`, so epic-audit-prepare's per-epic ref assertion
+  // (Story #3362) passes end-to-end.
+  return async ({ ticketId, gate, headRef }) => ({
     selectedAudits,
     ticketId,
     gate,
     context: {
       changedFiles,
       changedFilesCount: changedFiles.length,
+      resolvedRef: headRef,
       ticketTitle,
     },
   });

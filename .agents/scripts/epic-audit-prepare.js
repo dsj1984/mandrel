@@ -111,18 +111,27 @@ export async function runEpicAuditPrepare(values, deps = {}) {
     : createProvider(cfg);
   const runner = deps.selectAudits ?? selectAudits;
 
+  // Pin the change set to the requested Epic's own branch rather than the
+  // shared checkout's HEAD (Story #3362). Under two concurrent /epic-deliver
+  // runs sharing one working copy, a HEAD-relative diff silently reports the
+  // *other* Epic's change set; `refs/heads/epic/<id>` is unambiguous.
+  const epicBranch = `epic/${epicId}`;
+  const epicRef = `refs/heads/${epicBranch}`;
+
   const envelope = await runner({
     ticketId: epicId,
     gate: gate ?? DEFAULT_GATE,
     provider,
     baseBranch,
+    headRef: epicRef,
   });
 
   // Degraded envelopes from selectAudits short-circuit through the
   // same surface so callers can branch on `degraded: true`. The
   // helper treats a degraded envelope as a Phase 4 abort — propagate
   // it verbatim with a non-zero exit code so shell pipelines see the
-  // failure.
+  // failure. An unresolved Epic ref (HEAD_REF_UNRESOLVED) flows through
+  // here too: better to abort Phase 4 than audit a phantom change set.
   if (envelope?.degraded) {
     return {
       exitCode: 1,
@@ -130,8 +139,30 @@ export async function runEpicAuditPrepare(values, deps = {}) {
         kind: 'envelope',
         envelope: {
           epicId,
-          epicBranch: `epic/${epicId}`,
+          epicBranch,
           ...envelope,
+        },
+      },
+    };
+  }
+
+  // Defence in depth: assert the selector diffed the ref we asked for. If a
+  // future selector change drops the pin, fail closed with an explicit
+  // degraded envelope rather than emitting an audit selection silently
+  // derived from the wrong branch.
+  const resolvedRef = envelope?.context?.resolvedRef;
+  if (resolvedRef !== epicRef) {
+    return {
+      exitCode: 1,
+      result: {
+        kind: 'envelope',
+        envelope: {
+          epicId,
+          epicBranch,
+          ok: false,
+          degraded: true,
+          reason: 'EPIC_REF_MISMATCH',
+          detail: `epic-audit-prepare: selector diffed '${resolvedRef ?? '(unset)'}' but Epic #${epicId} requested '${epicRef}'`,
         },
       },
     };
@@ -146,7 +177,7 @@ export async function runEpicAuditPrepare(values, deps = {}) {
       kind: 'envelope',
       envelope: {
         epicId,
-        epicBranch: `epic/${epicId}`,
+        epicBranch,
         selectedAudits,
         changedFiles,
         changedFilesCount: changedFiles.length,
