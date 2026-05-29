@@ -1,7 +1,7 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": [
-    ".agents/scripts/**/*.js",
+    ".agents/scripts/*.js",
     "scripts/**/*.js",
     "tests/**/*.{js,mjs,cjs}",
     "*.config.{js,mjs,cjs}",
