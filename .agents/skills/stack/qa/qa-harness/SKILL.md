@@ -208,7 +208,7 @@ QA evidence ticket.
   driving any scenario.
 - **No headless fallback.** The chrome-devtools MCP surface is a host-provided
   runtime dependency. If it is unavailable, degrade with a clear error and stop
-  — never fall back to the retired `/run-bdd-suite`.
+  — never fall back to the retired headless BDD runner.
 
 ## 7. Cross-References
 

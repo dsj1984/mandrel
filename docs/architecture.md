@@ -1168,7 +1168,7 @@ they ship the contract that consumer projects implement.
 
 The E2E/Acceptance tier is executed by the **agent-driven QA harness**
 (`/run-qa-harness`, Epic #3214). It is the successor to the framework's
-earlier headless BDD runner (`/run-bdd-suite`, now retired): rather than a
+earlier headless BDD runner (now retired): rather than a
 Node orchestrator running Cucumber headlessly, the harness is a **prose
 workflow** the host LLM executes against a **real browser** through the
 `chrome-devtools` MCP surface, with a human observing. Deterministic Node
