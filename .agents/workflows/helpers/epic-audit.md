@@ -71,10 +71,15 @@ envelope:
 - **`selectedAudits` is non-empty** — continue to Step 2.
 - **`selectedAudits` is empty** (docs-only or no-lens change set) — skip
   Step 2 and write the docs-only marker described in Step 4.
-- **`degraded: true`** — the selector aborted (typically a git-diff
-  timeout). Surface the `reason`/`detail` fields to the operator, post a
-  friction comment on the Epic, and STOP. Do not fall back to running the
-  full lens roster — that defeats the change-set scoping.
+- **`degraded: true`** — the selector aborted. Possible `reason` codes:
+  `GIT_DIFF_TIMEOUT` (git-diff timed out), `HEAD_REF_UNRESOLVED` (the
+  Epic's branch `refs/heads/epic/<id>` is not present in this checkout),
+  or `EPIC_REF_MISMATCH` (the selector diffed a ref other than the
+  requested Epic's branch — the cross-epic-leak guard from Story #3362).
+  Surface the `reason`/`detail` fields to the operator, post a friction
+  comment on the Epic, and STOP. Do not fall back to running the full lens
+  roster — that defeats the change-set scoping, and an unresolved/mismatched
+  ref means the change set would belong to the wrong Epic.
 
 ## Step 2 — Walk Selected Lenses (`runAuditSuite`)
 

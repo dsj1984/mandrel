@@ -14,6 +14,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  acTagToken,
   classifyCoverage,
   classifyReconcilerInvocation,
   collectScenarioTagSets,
@@ -156,6 +157,40 @@ describe('classifyCoverage', () => {
     assert.deepEqual(out.pending, ['AC-2']);
     assert.deepEqual(out.missing, ['AC-3']);
   });
+
+  it('with epicId, matches only the per-epic namespaced tag (Story #3362)', () => {
+    // Scenario carries the namespaced tag for THIS epic → satisfied.
+    const tagSets = [new Set(['epic-1241-ac-1'])];
+    const out = classifyCoverage({ acIds: ['AC-1'], tagSets, epicId: 1241 });
+    assert.deepEqual(out, { satisfied: ['AC-1'], pending: [], missing: [] });
+  });
+
+  it('with epicId, ignores a bare @ac-N tag from an unrelated epic (Story #3362)', () => {
+    // This is the cross-epic leak: a bare `ac-1` (and another epic's
+    // namespaced tag) must NOT count as coverage for epic 1241.
+    const tagSets = [new Set(['ac-1']), new Set(['epic-9999-ac-1'])];
+    const out = classifyCoverage({ acIds: ['AC-1'], tagSets, epicId: 1241 });
+    assert.deepEqual(out, { satisfied: [], pending: [], missing: ['AC-1'] });
+  });
+
+  it('with epicId, a foreign @skip @ac-N does not count as pending (Story #3362)', () => {
+    // The reported symptom: AC-10 read off a `@skip @ac-10` in another
+    // epic's deploy/emergency-hotfix.feature → false pending block.
+    const tagSets = [new Set(['ac-10', 'skip'])];
+    const out = classifyCoverage({ acIds: ['AC-10'], tagSets, epicId: 1241 });
+    assert.deepEqual(out, { satisfied: [], pending: [], missing: ['AC-10'] });
+  });
+});
+
+describe('acTagToken', () => {
+  it('namespaces the token per epic when epicId is a positive integer', () => {
+    assert.equal(acTagToken('AC-7', 1241), 'epic-1241-ac-7');
+  });
+  it('falls back to the bare lower-cased token without an epicId', () => {
+    assert.equal(acTagToken('AC-7'), 'ac-7');
+    assert.equal(acTagToken('AC-7', null), 'ac-7');
+    assert.equal(acTagToken('AC-7', 0), 'ac-7');
+  });
 });
 
 describe('classifyReconcilerInvocation', () => {
@@ -272,11 +307,11 @@ describe('reconcileAcceptanceSpec', () => {
     ]);
     const featureContent = [
       'Feature: Sample',
-      '@ac-1',
+      '@epic-7002-ac-1',
       'Scenario: first',
       '  Given x',
       '',
-      '@ac-2',
+      '@epic-7002-ac-2',
       'Scenario: second',
       '  Given y',
     ].join('\n');
@@ -312,7 +347,7 @@ describe('reconcileAcceptanceSpec', () => {
     ]);
     const featureContent = [
       'Feature: Sample',
-      '@ac-1',
+      '@epic-7003-ac-1',
       'Scenario: only one',
       '  Given x',
     ].join('\n');
@@ -347,11 +382,11 @@ describe('reconcileAcceptanceSpec', () => {
     ]);
     const featureContent = [
       'Feature: Sample',
-      '@ac-1',
+      '@epic-7004-ac-1',
       'Scenario: first',
       '  Given x',
       '',
-      '@ac-2 @pending',
+      '@epic-7004-ac-2 @pending',
       'Scenario: pending one',
       '  Given y',
     ].join('\n');
@@ -394,6 +429,48 @@ describe('reconcileAcceptanceSpec', () => {
     });
     assert.equal(out.status, 'empty-spec');
     assert.equal(out.ok, true);
+  });
+
+  it("does not satisfy AC IDs from another epic's bare @ac-N scenarios (Story #3362)", async () => {
+    // Reproduces the #1241 leak: a CLI epic declares AC-1..AC-2 but authored
+    // zero of its OWN scenarios; unrelated epics' feature files carry bare
+    // @ac-1 / @skip @ac-2. With per-epic namespacing those must NOT count.
+    const provider = buildProvider([
+      {
+        id: 1241,
+        labels: ['type::epic'],
+        body: '## Planning Artifacts\n- [x] Acceptance Spec: #1500\n',
+      },
+      {
+        id: 1500,
+        labels: ['context::acceptance-spec'],
+        body: '| AC-1 | a |\n| AC-2 | b |\n',
+        state: 'closed',
+      },
+    ]);
+    const foreignFeature = [
+      'Feature: analytics (epic 1242)',
+      '@ac-1',
+      'Scenario: unrelated',
+      '  Given x',
+      '',
+      '@skip @ac-2',
+      'Scenario: skipped unrelated',
+      '  Given y',
+    ].join('\n');
+    const out = await reconcileAcceptanceSpec({
+      epicId: 1241,
+      cwd: process.cwd(),
+      injectedProvider: provider,
+      injectedConfig: {},
+      loggerImpl: SILENT_LOGGER,
+      listFeatureFiles: () => ['/fake/analytics.feature'],
+      readFeatureFile: () => foreignFeature,
+    });
+    assert.equal(out.ok, false);
+    assert.equal(out.status, 'gap');
+    assert.deepEqual(out.satisfied, []);
+    assert.deepEqual(out.missing, ['AC-1', 'AC-2']);
   });
 
   it('honours pre-populated linkedIssues.acceptanceSpec on the epic', async () => {
