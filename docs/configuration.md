@@ -903,16 +903,21 @@ Claude Code web environment-variables UI for web sessions.
 | `GITHUB_TOKEN`             | Yes\*     | GitHub API auth for all ticketing operations. `GH_TOKEN` is accepted as a synonym. `gh auth token` is a fallback for local sessions.                      |
 | `NOTIFICATION_WEBHOOK_URL` | No        | POST target for in-band Notifier events (Make.com / Slack / Discord). Unset disables the webhook channel; `log` and `epic-comment` channels still fire. |
 | `WEBHOOK_SECRET`           | No        | Shared secret used to sign outbound webhook payloads as `X-Signature-256: sha256=<hmac>`. Unset ships unsigned payloads.                                 |
-| `MANDREL_ALLOW_TEST_WEBHOOKS` | No     | Set to `1` to keep `NOTIFICATION_WEBHOOK_URL` live inside `npm test` / `npm run test:profile`. Default behaviour scrubs the env var from the test child and refuses webhook delivery under `NODE_ENV=test` (see below). |
+| `MANDREL_ALLOW_TEST_WEBHOOKS` | No     | Set to `1` to keep `NOTIFICATION_WEBHOOK_URL` live inside `npm test` / `npm run test:profile`. Default behaviour scrubs the env var from the test child so no URL resolves and the webhook never fires (see below). |
 
-### Test-mode webhook guard
+### Test-mode webhook isolation
 
 `npm test` / `npm run test:profile` deliberately strip
-`NOTIFICATION_WEBHOOK_URL` from the spawned test child's environment and
-set `NODE_ENV=test`. The library-level guard in `notify.js` then refuses
-to resolve the env URL unless the caller explicitly passed
-`opts.webhookUrl` — defense-in-depth against test surfaces that bypass
-the runner (e.g. `node --test` invoked directly).
+`NOTIFICATION_WEBHOOK_URL` from the spawned test child's environment (and
+set `NODE_ENV=test` for the rest of the suite's environment
+expectations). With the URL scrubbed, `resolveWebhookUrl()` returns
+nothing and `notify()` never POSTs — that scrub is the primary defense.
+
+`notify()` no longer carries a `NODE_ENV=test` band-aid (removed in Story
+\#3342: it made the signing and error branches untestable). Tests that
+need to exercise the webhook POST inject a fake fetch via `opts.fetchImpl`
+instead, so the request is captured in-process and never reaches the real
+network even if a URL resolves.
 
 Operators who keep a real webhook URL in `.env` for development do not
 need to change anything; the scrub is transparent. To deliberately fire

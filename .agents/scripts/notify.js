@@ -106,7 +106,7 @@ function buildWebhookPayload({
   return JSON.stringify(envelope);
 }
 
-async function sendWebhook(url, payloadBody) {
+async function sendWebhook(url, payloadBody, fetchImpl = globalThis.fetch) {
   const headers = { 'Content-Type': 'application/json' };
   const webhookSecret = process.env.WEBHOOK_SECRET;
   if (webhookSecret) {
@@ -116,7 +116,7 @@ async function sendWebhook(url, payloadBody) {
     headers['X-Signature-256'] = `sha256=${signature}`;
   }
   try {
-    const res = await fetch(url, {
+    const res = await fetchImpl(url, {
       method: 'POST',
       headers,
       body: payloadBody,
@@ -148,6 +148,17 @@ async function sendWebhook(url, payloadBody) {
  *   @mention behavior on the comment channel and is carried as webhook
  *   envelope metadata, but does not gate either channel. `event` is
  *   required for any channel to fire — event-less dispatches are no-ops.
+ * @param {{
+ *   config?: object,
+ *   provider?: object,
+ *   webhookUrl?: string|null,
+ *   skipComment?: boolean,
+ *   fetchImpl?: typeof fetch,
+ * }} [opts] - `fetchImpl` is injected into the webhook POST in place of
+ *   `globalThis.fetch`; it defaults to the global, so production callers
+ *   never pass it. Tests inject a fake to assert the request body,
+ *   `X-Signature-256` header, and the 4xx/5xx response branches without a
+ *   live network call or a global monkeypatch.
  */
 export async function notify(ticketId, payload, opts = {}) {
   const config = opts.config || resolveConfig();
@@ -190,23 +201,6 @@ export async function notify(ticketId, payload, opts = {}) {
   if (event && webhookEvents.has(event)) {
     // `opts.webhookUrl === undefined` → resolve from process env.
     // Explicit `null` or string → caller was explicit; don't resolve.
-    //
-    // Test-mode guard: when NODE_ENV=test and the caller did NOT
-    // explicitly pass `opts.webhookUrl`, refuse to resolve the env URL.
-    // Operators keep a real webhook URL in `.env` for development; the
-    // run-tests.js wrapper scrubs it from the test child env as a first
-    // line of defense, but this guard catches any test entry point that
-    // bypasses the wrapper (e.g., `node --test` invoked directly). Set
-    // MANDREL_ALLOW_TEST_WEBHOOKS=1 to opt back in.
-    const inTestMode = process.env.NODE_ENV === 'test';
-    const callerOptedIn = opts.webhookUrl !== undefined;
-    const allowTestWebhooks = process.env.MANDREL_ALLOW_TEST_WEBHOOKS === '1';
-    if (inTestMode && !callerOptedIn && !allowTestWebhooks) {
-      Logger.warn(
-        `[Notify] Webhook event (${event}) suppressed — NODE_ENV=test and caller did not pass opts.webhookUrl. Set MANDREL_ALLOW_TEST_WEBHOOKS=1 to override.`,
-      );
-      return;
-    }
     const webhookUrl =
       opts.webhookUrl === undefined ? resolveWebhookUrl() : opts.webhookUrl;
     if (webhookUrl) {
@@ -222,7 +216,7 @@ export async function notify(ticketId, payload, opts = {}) {
         epicId,
         phase,
       });
-      await sendWebhook(webhookUrl, payloadBody);
+      await sendWebhook(webhookUrl, payloadBody, opts.fetchImpl);
     } else {
       // Event was on the allowlist but no URL is available — surface this
       // so the operator notices a missing/empty NOTIFICATION_WEBHOOK_URL

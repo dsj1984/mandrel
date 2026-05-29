@@ -10,12 +10,13 @@
  *
  *   - `NOTIFICATION_WEBHOOK_URL` is deleted unless the operator opted in
  *     via `MANDREL_ALLOW_TEST_WEBHOOKS=1` (e.g., a contract test
- *     deliberately exercising a sandbox endpoint).
- *   - `NODE_ENV=test` is set so the library-level guard in `notify.js`
- *     can refuse webhook delivery when the caller did not explicitly opt
- *     in via `opts.webhookUrl`. Defense-in-depth: if a future test entry
- *     point bypasses this scrub (e.g., `node --test` invoked directly),
- *     the library guard still catches it.
+ *     deliberately exercising a sandbox endpoint). With the URL scrubbed,
+ *     `resolveWebhookUrl()` returns nothing and `notify()` never POSTs.
+ *   - `NODE_ENV=test` is set for the rest of the suite's environment
+ *     expectations. (It no longer gates `notify()`'s webhook delivery —
+ *     the NODE_ENV band-aid was removed in Story #3342. Tests that need to
+ *     exercise the webhook POST inject `opts.fetchImpl` instead, so the
+ *     request never reaches the real network even if a URL resolves.)
  *
  * @param {NodeJS.ProcessEnv} baseEnv
  * @returns {NodeJS.ProcessEnv}
