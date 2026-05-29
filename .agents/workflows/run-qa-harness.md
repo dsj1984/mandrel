@@ -214,14 +214,17 @@ into structured findings:
 
 Findings use the structured `F#` shape: `{ id, classification, surface,
 symptom, likelyRootCause, disposition (blocker | follow-up), acceptance,
-foldsInto?, evidence: { console[], network[] } }`. Before rendering any
-finding evidence, **scrub captured console/network of tokens, session
-cookies, and PII** per `.agents/rules/security-baseline.md` — findings are
-posted to GitHub at approval time.
+foldsInto?, evidence: { console[], network[] } }`, validated against
+[`qa-finding.schema.json`](../schemas/qa-finding.schema.json). Before
+rendering any finding evidence, **scrub captured console/network of tokens,
+session cookies, and PII** per `.agents/rules/security-baseline.md` — findings
+are posted to GitHub at approval time.
 
 ## Step 5 — Draft follow-ups (operator sign-off required)
 
-Bundle findings **by likely root cause** into proposed follow-up tickets with
+Validate each finding against
+[`qa-finding.schema.json`](../schemas/qa-finding.schema.json) first, then
+bundle findings **by likely root cause** into proposed follow-up tickets with
 `Depends-on` / `Blocks` relationships, and present the draft to the operator
 for approval. The harness **MUST NOT** create tickets autonomously — it stops
 at a draft. The operator-approval gate is the safety boundary against spurious
