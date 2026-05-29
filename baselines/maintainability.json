@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T14:27:13.316Z",
+  "generatedAt": "2026-05-29T14:29:11.999Z",
   "rollup": {
     "*": {
       "min": 61.218,
-      "p50": 103.914,
+      "p50": 103.928,
       "p95": 121.235
     }
   },
@@ -1969,10 +1969,6 @@
     {
       "path": ".agents/scripts/single-story-close.js",
       "mi": 61.218
-    },
-    {
-      "path": ".agents/scripts/single-story-init.js",
-      "mi": 88.418
     },
     {
       "path": ".agents/scripts/single-story-plan.js",
