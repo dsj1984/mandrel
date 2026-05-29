@@ -151,16 +151,18 @@ the prompt+judgment step gets a `description`, an
 `allowed_tools` declaration, and a smoke test; the GitHub I/O around it
 keeps its imperative implementation.
 
-### Worked example 2 — pure script: `cleanup-type-task-label.js`
+### Worked example 2 — pure script: `resync-status-column.js`
 
-[`scripts/cleanup-type-task-label.js`](scripts/cleanup-type-task-label.js)
+[`scripts/resync-status-column.js`](scripts/resync-status-column.js)
 **stays a script** because every step is deterministic GitHub I/O.
 
-- It lists open issues that still carry the legacy `type::task` label,
-  removes the label from each one, and (when requested) deletes the
-  label definition from the repo.
-- Input is the operator's CLI flags (`--dry-run`, etc.) and the
-  GitHub API; output is a JSON envelope summarising what was changed.
+- It derives the target Projects v2 Status column for a ticket,
+  re-asserts it via a GraphQL mutation after auto-merge fires, and
+  polls for drift so the orchestrator wins the race against GitHub's
+  built-in merge bot.
+- Input is the operator's CLI flags (`--ticket`, `--poll-attempts`,
+  etc.) and the GitHub API; output is a single-line JSON envelope
+  summarising the synced state.
 
 The script's own input/output is deterministic and parseable: it does
 not compose prompts, it does not classify, it does not author prose.
