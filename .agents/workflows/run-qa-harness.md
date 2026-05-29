@@ -14,8 +14,8 @@ network are instrumented into structured findings; findings are bundled into a
 follow-up **draft** for operator sign-off — the harness never files tickets
 autonomously.
 
-This workflow is the agent-driven successor to the headless `/run-bdd-suite`
-runner. It is a **prose workflow**, not a Node orchestrator: the host LLM
+This workflow is the agent-driven successor to the framework's earlier
+headless BDD runner. It is a **prose workflow**, not a Node orchestrator: the host LLM
 executes the procedure; deterministic Node helpers under
 `.agents/scripts/lib/qa/` do only contract resolution, scenario selection, and
 console filtering.
@@ -109,7 +109,7 @@ auto-detection — in three cases:
 When you hit any of these, **STOP immediately**. Relay the resolver's
 verbatim message to the operator as the harness's terminal output and do not
 proceed to browser execution. Do not invent a `featureRoot`, do not guess a
-sign-in seam, and do not fall back to `/run-bdd-suite` (it is retired). The
+sign-in seam, and do not fall back to any retired headless BDD runner. The
 loud failure is the contract: a consumer that has not bound the harness has
 not opted into it.
 
@@ -260,4 +260,4 @@ Summarize the sweep in chat with:
   a benign-noise filter, not a security control.
 - **Always** scrub captured evidence of secrets and PII before rendering a
   finding.
-- **Never** fall back to the retired `/run-bdd-suite` workflow.
+- **Never** fall back to a retired headless BDD-runner workflow.

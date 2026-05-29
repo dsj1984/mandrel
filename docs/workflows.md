@@ -69,7 +69,7 @@ invoked manually or automatically at `gate1`–`gate4` by the audit orchestrator
 | `node .agents/scripts/bootstrap.js` | One-shot consumer setup: wires the local harness (`.claude/commands/` sync, `package.json` scripts, hooks, gitignore, Windows git-perf check) **and** initializes the GitHub repo (label taxonomy, project fields, default Kanban board, branch protection when enabled). Not a slash command — runs deterministically with interactive prompts on a TTY and flag-driven non-interactive runs in CI. |
 | `/agents-update`            | Bump the `.agents` submodule to its remote HEAD, reconcile `.agentrc.json` against the new defaults, and regenerate `.claude/commands/`. |
 | `/drain-pending-cleanup`    | Reap any orphan `.worktrees/` residue and prune stale story / epic branches in one pass.                        |
-| `/run-bdd-suite`            | Run a tag-filtered BDD acceptance suite and collect a Cucumber report (consumed by the `epic-testing.md` helper). |
+| `/run-qa-harness`           | Drive a selected set of Gherkin scenarios through a real browser as an agent-driven QA sweep, emitting a sweep summary and structured findings (consumed by the `epic-testing.md` helper). |
 
 ## Internal / reference-only
 
@@ -82,7 +82,7 @@ Not invoked directly by operators, but referenced from other workflows:
   auto-invoked by `/epic-deliver` Phase 4 (close-tail). Findings persist as
   a `code-review` structured comment on the Epic ticket.
 - `helpers/epic-testing.md` — QA evidence ingest for the Epic-testing
-  ticket; consumes `/run-bdd-suite` output. Invoked by operators or by the
+  ticket; consumes `/run-qa-harness` output. Invoked by operators or by the
   `/epic-deliver` close-tail when an Epic-testing ticket is present.
 - `helpers/epic-plan-spec.md`, `helpers/epic-plan-decompose.md` —
   phase procedures delegated to by `/epic-plan`.

@@ -1155,8 +1155,8 @@ three tiers and carries distinct scope, dependency, and assertion rules:
   assertions.
 - **E2E / Acceptance** — `.feature` files authored against
   `.agents/rules/gherkin-standards.md` (the SSOT for the tag taxonomy and
-  forbidden patterns) and executed via `/run-bdd-suite`, whose Cucumber
-  HTML/JSON report is the canonical evidence artifact consumed by the
+  forbidden patterns) and executed via `/run-qa-harness`, whose sweep summary
+  and structured findings are the canonical evidence artifact consumed by the
   `workflows/helpers/epic-testing.md` helper.
 
 Stack skills `skills/stack/qa/gherkin-authoring` and `skills/stack/qa/playwright-bdd`
