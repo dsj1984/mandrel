@@ -1,19 +1,15 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T14:48:00.757Z",
+  "generatedAt": "2026-05-29T14:49:50.243Z",
   "rollup": {
     "*": {
       "min": 61.218,
-      "p50": 104.059,
+      "p50": 104.084,
       "p95": 121.235
     }
   },
   "rows": [
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "mi": 92.832
-    },
     {
       "path": ".agents/scripts/assert-branch.js",
       "mi": 90.137
