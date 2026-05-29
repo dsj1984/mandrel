@@ -869,7 +869,7 @@ const QA_PERSONAS_SCHEMA = {
   },
 };
 
-const QA_SCHEMA = {
+export const QA_SCHEMA = {
   type: 'object',
   properties: {
     featureRoot: { ...SAFE_STRING, minLength: 1 },
