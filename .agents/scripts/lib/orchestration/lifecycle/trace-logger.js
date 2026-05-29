@@ -292,13 +292,29 @@ export class TraceLogger {
   /**
    * Register as a wildcard observer. After every emit, re-read the
    * ledger and re-render the companion.
+   *
+   * The companion render is a best-effort projection: a failed render
+   * (malformed ledger, transient write error, full disk) MUST NOT abort
+   * the in-flight bus emit. Because wildcard listeners run inside the
+   * `emit()` try/catch (see `bus.js`), an unguarded throw here would
+   * short-circuit the emit and propagate to the orchestration caller.
+   * We instead log the failure to stderr and swallow it, degrading to a
+   * stale `lifecycle.md` companion — the canonical NDJSON ledger is
+   * unaffected, so resume and downstream consumers are not broken.
    */
   register(bus) {
     if (!bus || typeof bus.on !== 'function') {
       throw new TypeError('TraceLogger.register: bus must expose .on()');
     }
     bus.on('*', () => {
-      this.rerender();
+      try {
+        this.rerender();
+      } catch (err) {
+        const message = err && err.message ? err.message : String(err);
+        process.stderr.write(
+          `[TraceLogger] companion rerender failed (degrading to stale lifecycle.md): ${message}\n`,
+        );
+      }
     });
   }
 }
