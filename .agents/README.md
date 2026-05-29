@@ -95,6 +95,7 @@ Epic; standalone Stories pair [`/single-story-plan`](workflows/single-story-plan
 | Check registry authoring rules | [§ Self-healing checks](#self-healing-checks) |
 | JSON Schema conventions | [§ Schemas](#schemas) |
 | Bootstrap script (project + GitHub setup) | [`scripts/bootstrap.js`](scripts/bootstrap.js) |
+| Adopt the agent-driven QA harness in your project | [§ Adopting the QA harness](#adopting-the-qa-harness) |
 
 ---
 
@@ -544,3 +545,79 @@ Edit `full-agentrc.json` when a framework default changes; edit
 `starter-agentrc.json` only when the bootstrap seed itself needs new
 schema-required keys; edit the root `.agentrc.json` for changes that
 only affect this repo's own dogfood runs.
+
+---
+
+## Adopting the QA harness
+
+The agent-driven QA harness (`/run-qa-harness`) drives a consumer's Gherkin
+`.feature` scenarios through a real browser (the `chrome-devtools` MCP
+surface), captures per-surface console/network into structured `F#` findings,
+and drafts follow-up tickets for operator sign-off. The end-to-end procedure
+is the SSOT in
+[`workflows/run-qa-harness.md`](workflows/run-qa-harness.md); the
+instrumentation conventions live in the
+[`skills/stack/qa/qa-harness`](skills/stack/qa/qa-harness/SKILL.md) skill; the
+architectural overview (run pipeline, contract fields, finding shape) is in
+[`docs/architecture.md` § Agent-driven QA harness](../docs/architecture.md#agent-driven-qa-harness).
+
+Binding the harness is **opt-in**. A consumer that has not bound it gets a
+loud, actionable failure when `/run-qa-harness` runs — there is no
+auto-detection fallback. To adopt the harness, a consumer project takes three
+concrete steps.
+
+### 1. Bind the `qa` block in `.agentrc.json`
+
+Add a top-level `qa` block. It is optional in the schema (so config
+validation never breaks a non-QA consumer), but the four core fields are
+required at run time by `resolveQaContract`. Copy the reference shape from
+[`full-agentrc.json`](full-agentrc.json) and adapt the paths:
+
+```jsonc
+{
+  "qa": {
+    "featureRoot": "tests/features",                 // root the selector resolves .feature files against
+    "fixturesManifest": "tests/fixtures/personas.json", // persona → seed-data manifest
+    "signInSeam": { "urlTemplate": "/dev/sign-in-as/{persona}" }, // dev seam (see step 3)
+    "personas": {
+      "admin": { "credentialRef": "QA_ADMIN_CREDENTIAL" }, // stored-credential reference, never an inline secret
+      "member": { "signInSkill": "stack/qa/sign-in-member" } // or a per-persona sign-in skill
+    },
+    "consoleAllowlist": ["[HMR]"],                   // optional benign-noise filter (default [])
+    "designTokens": "src/styles/tokens.css"          // optional visual-check pointer (default null)
+  }
+}
+```
+
+`featureRoot`, `fixturesManifest`, `signInSeam`, and `personas` are
+mandatory; omitting any one makes the resolver throw a field-named error.
+`consoleAllowlist` and `designTokens` default to `[]` and `null`.
+
+### 2. Author the fixtures manifest
+
+Create the file referenced by `fixturesManifest`. It binds each persona to
+the seed data the harness loads before signing that persona in, so scenarios
+start from a known state. Every persona named under `qa.personas` should have
+a corresponding entry. Keep the manifest free of real secrets — it carries
+seed-data shape, not credentials (credentials resolve through `credentialRef`
+or a sign-in skill).
+
+### 3. Expose a `signInSeam`
+
+The harness signs in once per persona using a **dev-only seam** — real
+credentials are never entered. Expose one of two shapes:
+
+- **`{ urlTemplate }`** — a dev sign-in route where `{persona}` is
+  substituted (e.g. `/dev/sign-in-as/{persona}` → `/dev/sign-in-as/admin`).
+  Gate this route to non-production builds.
+- **`{ skill }`** — when sign-in is multi-step or non-URL, point at a
+  consumer skill whose `SKILL.md` the harness reads and follows.
+
+Per-persona overrides live under `qa.personas`: `{ credentialRef }` points at
+a stored-credential reference (resolved from the environment, never inlined)
+and `{ signInSkill }` points at a per-persona sign-in skill.
+
+Once these three are in place, `/run-qa-harness <selector>` resolves the
+contract and sweeps the selected scenarios. The `chrome-devtools` MCP surface
+is a host-provided runtime dependency; when it is unavailable the harness
+degrades with a clear error rather than falling back to a headless runner.
