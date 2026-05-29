@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T14:49:50.243Z",
+  "generatedAt": "2026-05-29T15:00:01.700Z",
   "rollup": {
     "*": {
       "min": 61.218,
@@ -1333,10 +1333,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
       "mi": 95.767
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close-recovery.js",
-      "mi": 85.284
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
