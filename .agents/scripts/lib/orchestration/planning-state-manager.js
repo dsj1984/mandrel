@@ -52,17 +52,23 @@ export class PlanningStateManager {
    *   - Persist the healed references back to the Epic body if they were not
    *     already written.
    *
-   * With `force=true` (re-plan requested): close ALL existing PRD / Tech
-   * Spec artifacts, detach them, strip the `## Planning Artifacts` section
-   * from the Epic body, and null out `linkedIssues` so the caller can
-   * regenerate fresh artifacts.
+   * With `force=true` (re-plan requested): **overwrite the canonical
+   * context tickets in place.** Keep the canonical PRD / Tech Spec /
+   * Acceptance Spec **open** and keep `epic.linkedIssues` pointing at them
+   * (so the caller can refresh their bodies via `provider.updateTicket`),
+   * close + detach only the redundant duplicate artifacts (exactly as the
+   * non-force path does), and strip the `## Planning Artifacts` section
+   * from the Epic body so the caller re-appends it pointing at the same
+   * preserved IDs. Context tickets are no longer closed-and-recreated on a
+   * forced re-plan; only Feature/Story child tickets keep that behaviour
+   * (handled outside this manager by `forceCloseExistingChildren`).
    *
    * Mutates `epic.linkedIssues` and `epic.body` in place.
    *
    * @param {PlanCheckpointState & { linkedIssues: object, body: string, id: number }} epic  Epic ticket with mutable planning state.
-   * @param {boolean} [force=false]  When true, close ALL existing artifacts and reset linkedIssues for a forced re-plan.
+   * @param {boolean} [force=false]  When true, preserve canonical context tickets (overwrite-in-place) and strip the Planning Artifacts body section for a forced re-plan.
    * @returns {Promise<void>}
-   * @throws {Error}  Propagates non-404/410 errors from `provider.updateTicket` when `force=true`. All other provider errors are intentionally swallowed.
+   * @throws {Error}  Propagates non-404/410 errors from `provider.updateTicket`. All other provider errors are intentionally swallowed.
    */
   async healAndCleanupArtifacts(epic, force = false) {
     const epicId = epic.id;
@@ -192,55 +198,14 @@ export class PlanningStateManager {
       epic.body += appendBody;
     }
 
-    // Force re-plan: close ALL old planning artifacts and strip body
+    // Force re-plan: overwrite the canonical context tickets in place.
+    // The redundant duplicates have already been closed + detached by the
+    // cleanup pass above. Here we only strip the `## Planning Artifacts`
+    // body section so `planEpic` re-appends it pointing at the same
+    // preserved canonical IDs. We deliberately DO NOT close the canonical
+    // PRD / Tech Spec / Acceptance Spec, and we keep `epic.linkedIssues`
+    // pointing at them so the caller can refresh their bodies.
     if (force) {
-      const idsToClose = new Set(
-        [
-          epic.linkedIssues.prd,
-          epic.linkedIssues.techSpec,
-          epic.linkedIssues.acceptanceSpec,
-        ].filter(Boolean),
-      );
-      for (const t of [...allPrds, ...allSpecs, ...allAcceptanceSpecs]) {
-        idsToClose.add(t.id);
-      }
-
-      if (idsToClose.size > 0) {
-        Logger.info(
-          '[Epic Planner] --force: Closing old planning artifacts...',
-        );
-        // Bound the force-close burst at 3 so wide --force re-plans do
-        // not race the GitHub secondary rate limit.
-        await concurrentMap(
-          Array.from(idsToClose),
-          async (oldId) => {
-            try {
-              await this.provider.updateTicket(oldId, {
-                state: 'closed',
-                state_reason: 'not_planned',
-              });
-              Logger.info(`[Epic Planner]   Closed old artifact #${oldId}`);
-            } catch (err) {
-              if (err.message.includes('404') || err.message.includes('410')) {
-                Logger.info(
-                  `[Epic Planner]   Old artifact #${oldId} was already removed or is inaccessible. Skipping.`,
-                );
-              } else {
-                throw err;
-              }
-            }
-
-            // Also detach from the Epic
-            try {
-              await this.provider.removeSubIssue(epicId, oldId);
-            } catch (_err) {
-              // Safe to ignore
-            }
-          },
-          { concurrency: 3 },
-        );
-      }
-
       const stripped = epic.body.replace(
         /\n*## Planning Artifacts[\s\S]*$/,
         '',
@@ -249,13 +214,9 @@ export class PlanningStateManager {
         await this.provider.updateTicket(epicId, { body: stripped });
         epic.body = stripped;
         Logger.info(
-          '[Epic Planner]   Stripped old Planning Artifacts section from Epic body.',
+          '[Epic Planner]   Stripped old Planning Artifacts section from Epic body (canonical context tickets preserved for in-place overwrite).',
         );
       }
-
-      epic.linkedIssues.prd = null;
-      epic.linkedIssues.techSpec = null;
-      epic.linkedIssues.acceptanceSpec = null;
     }
   }
 
