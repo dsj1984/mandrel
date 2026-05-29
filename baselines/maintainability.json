@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T13:53:45.091Z",
+  "generatedAt": "2026-05-29T14:03:05.983Z",
   "rollup": {
     "*": {
       "min": 61.218,
       "p50": 103.888,
-      "p95": 121.479
+      "p95": 121.235
     }
   },
   "rows": [
@@ -1315,10 +1315,6 @@
       "mi": 97.791
     },
     {
-      "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
-      "mi": 85.115
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",
       "mi": 94.931
     },
@@ -1719,10 +1715,6 @@
       "mi": 140.702
     },
     {
-      "path": ".agents/scripts/lib/test-env.js",
-      "mi": 130.158
-    },
-    {
       "path": ".agents/scripts/lib/test-isolate/env-snapshot-loader.js",
       "mi": 90.179
     },
@@ -1873,10 +1865,6 @@
     {
       "path": ".agents/scripts/loc-delta.js",
       "mi": 94.191
-    },
-    {
-      "path": ".agents/scripts/notify.js",
-      "mi": 88.988
     },
     {
       "path": ".agents/scripts/post-story-plan.js",
@@ -2645,10 +2633,6 @@
     {
       "path": "tests/contract/memory-freshness.test.js",
       "mi": 102.675
-    },
-    {
-      "path": "tests/contract/notifications/test-mode-webhook-guard.test.js",
-      "mi": 106.606
     },
     {
       "path": "tests/contract/orchestration/pr-base-guard.test.js",
@@ -3783,10 +3767,6 @@
       "mi": 96.757
     },
     {
-      "path": "tests/lib/orchestration/review-providers/native.test.js",
-      "mi": 107.908
-    },
-    {
       "path": "tests/lib/orchestration/review-providers/review-provider-factory-chain.test.js",
       "mi": 108.224
     },
@@ -4241,10 +4221,6 @@
     {
       "path": "tests/manifest-renderer.test.js",
       "mi": 98.445
-    },
-    {
-      "path": "tests/notify.test.js",
-      "mi": 99.576
     },
     {
       "path": "tests/orchestration/context-envelope.test.js",
