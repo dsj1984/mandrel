@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T12:50:06.106Z",
+  "generatedAt": "2026-05-29T13:14:26.010Z",
   "rollup": {
     "*": {
       "min": 61.218,
-      "p50": 103.804,
-      "p95": 121.571
+      "p50": 103.836,
+      "p95": 121.479
     }
   },
   "rows": [
@@ -161,10 +161,6 @@
     {
       "path": ".agents/scripts/generate-skills-index.js",
       "mi": 97.053
-    },
-    {
-      "path": ".agents/scripts/git-cleanup.js",
-      "mi": 131.94
     },
     {
       "path": ".agents/scripts/git-pr-quality-gate.js",
@@ -1079,10 +1075,6 @@
       "mi": 95.409
     },
     {
-      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/branches.js",
-      "mi": 86.43
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/cli.js",
       "mi": 97.122
     },
@@ -1097,10 +1089,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes-ff.js",
       "mi": 100.985
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
-      "mi": 99.201
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/parse-args.js",
@@ -1471,14 +1459,6 @@
       "mi": 119.885
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-close/format-autofix-scoped.js",
-      "mi": 99.095
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
-      "mi": 93.359
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-close/legacy-settings-bag.js",
       "mi": 120.733
     },
@@ -1501,10 +1481,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/code-review.js",
       "mi": 97.676
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/gates.js",
-      "mi": 89.462
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/lock-wait-classifier.js",
@@ -4605,10 +4581,6 @@
     {
       "path": "tests/scripts/git-cleanup-pipeline.test.js",
       "mi": 109.658
-    },
-    {
-      "path": "tests/scripts/git-cleanup.test.js",
-      "mi": 107.921
     },
     {
       "path": "tests/scripts/lifecycle-emit.test.js",
