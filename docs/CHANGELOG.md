@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.37.0](https://github.com/dsj1984/mandrel/compare/v1.36.0...v1.37.0) (2026-05-29)
+
+
+### Fixed
+
+* **epic-plan:** overwrite context tickets in place on --force re-plan (refs [#3310](https://github.com/dsj1984/mandrel/issues/3310)) ([#3314](https://github.com/dsj1984/mandrel/issues/3314)) ([3c4c5b5](https://github.com/dsj1984/mandrel/commit/3c4c5b52641dd54de7cf571c33872d073bdf098c))
+
 ## [1.36.0](https://github.com/dsj1984/mandrel/compare/v1.35.0...v1.36.0) (2026-05-29)
 
 
