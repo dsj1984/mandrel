@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { runEpicDeliverPrepare } from '../../.agents/scripts/epic-deliver-prepare.js';
+import { EPIC_RUN_STATE_TYPE as STORE_TYPE } from '../../.agents/scripts/lib/orchestration/epic-run-state-store.js';
 import { structuredCommentMarker } from '../../.agents/scripts/lib/orchestration/ticketing.js';
+import { tick } from '../../.agents/scripts/lib/wave-runner/tick.js';
 import {
   CHECKPOINT_SCHEMA_VERSION,
   EPIC_RUN_STATE_TYPE,
@@ -42,6 +44,29 @@ function createFakeProvider({ epic, descendants }) {
       }
     },
   };
+}
+
+/** Seed a prior `epic-run-state` checkpoint comment onto the Epic. */
+function seedCheckpoint(provider, epicId, state) {
+  const fenced = JSON.stringify(
+    { version: CHECKPOINT_SCHEMA_VERSION, ...state },
+    null,
+    2,
+  );
+  const body = `${structuredCommentMarker(STORE_TYPE)}\n\`\`\`json\n${fenced}\n\`\`\``;
+  const list = provider._comments.get(epicId) ?? [];
+  list.push({ id: 9000, body });
+  provider._comments.set(epicId, list);
+}
+
+/** Parse the `epic-run-state` checkpoint currently persisted on the Epic. */
+function readPersistedCheckpoint(provider, epicId) {
+  const comments = provider._comments.get(epicId) ?? [];
+  const checkpoint = comments.find((c) =>
+    c.body.includes(structuredCommentMarker(STORE_TYPE)),
+  );
+  const fenced = checkpoint.body.match(/```json\n([\s\S]+?)\n```/);
+  return JSON.parse(fenced[1]);
 }
 
 const baseConfig = {
@@ -336,6 +361,139 @@ describe('runEpicDeliverPrepare', () => {
         ],
       }),
       /Refusing to flip Epic/,
+    );
+  });
+
+  // ---------------------------------------------------------------------
+  // Resume pointer reconciliation (Story #3358)
+  // ---------------------------------------------------------------------
+
+  it('resets currentWave to 0 and re-dispatches wave 0 when resume recomputes a shorter plan', async () => {
+    // Original 3-wave Epic: 201 → 202 → 203. Waves 0 and 1 completed
+    // (201, 202 merged → closed), leaving only 203 open. The recomputed
+    // DAG therefore has a single wave whose plan[0] = [203].
+    const epic = { id: 120, labels: ['type::epic', 'acceptance::n-a'] };
+    const descendants = [
+      {
+        id: 203,
+        number: 203,
+        title: 'Third story',
+        labels: ['type::story'],
+        body: '',
+        state: 'open',
+      },
+    ];
+    const provider = createFakeProvider({ epic, descendants });
+
+    // Prior checkpoint from the parked run: 3-wave plan, currentWave=2.
+    seedCheckpoint(provider, 120, {
+      epicId: 120,
+      startedAt: '2026-05-01T00:00:00.000Z',
+      currentWave: 2,
+      totalWaves: 3,
+      concurrencyCap: 3,
+      phase: 'prepare',
+      waves: [
+        { index: 0, stories: [{ storyId: 201, status: 'done' }] },
+        { index: 1, stories: [{ storyId: 202, status: 'done' }] },
+      ],
+      blockerHistory: [],
+      manualInterventions: [],
+      plan: [[{ storyId: 201 }], [{ storyId: 202 }], [{ storyId: 203 }]],
+    });
+
+    const out = await runEpicDeliverPrepare({
+      epicId: 120,
+      injectedProvider: provider,
+      injectedConfig: baseConfig,
+    });
+
+    // Recomputed plan is a single wave over the only open Story.
+    assert.equal(out.totalWaves, 1, 'recomputed DAG has one not-done wave');
+    assert.deepEqual(
+      out.plan[0].stories.map((s) => s.storyId),
+      [203],
+    );
+
+    // The persisted checkpoint must have its pointer reset into the new
+    // index space — currentWave 2 (the old index) would index past the
+    // 1-wave plan and dispatch nothing.
+    const persisted = readPersistedCheckpoint(provider, 120);
+    assert.equal(persisted.currentWave, 0, 'pointer reset to new index 0');
+    assert.deepEqual(persisted.waves, [], 'stale wave history dropped');
+    assert.deepEqual(
+      persisted.plan.map((w) => w.map((s) => s.storyId ?? s.id)),
+      [[203]],
+    );
+
+    // wave-tick must now dispatch the genuinely-ready Story #203, not
+    // index plan[2] of the recomputed plan (which is undefined → empty).
+    const result = await tick({
+      epic: 120,
+      collaborators: { provider, signalEmit: async () => {} },
+      ctx: { config: baseConfig },
+    });
+    assert.equal(result.currentWave, 0);
+    assert.equal(result.nextAction.kind, 'dispatch');
+    assert.deepEqual(
+      result.nextAction.stories.map((s) => s.id),
+      [203],
+    );
+  });
+
+  it('preserves currentWave on an idempotent re-prepare with no completed waves', async () => {
+    // Same open Story set as the prior run → plan is unchanged. The
+    // in-flight pointer (currentWave=1) must survive a no-op re-prepare.
+    const epic = { id: 121, labels: ['type::epic', 'acceptance::n-a'] };
+    const descendants = [
+      {
+        id: 301,
+        number: 301,
+        title: 'A',
+        labels: ['type::story'],
+        body: '',
+        state: 'open',
+      },
+      {
+        id: 302,
+        number: 302,
+        title: 'B (depends on 301)',
+        labels: ['type::story'],
+        body: 'blocked by #301',
+        state: 'open',
+      },
+    ];
+    const provider = createFakeProvider({ epic, descendants });
+
+    seedCheckpoint(provider, 121, {
+      epicId: 121,
+      startedAt: '2026-05-01T00:00:00.000Z',
+      currentWave: 1,
+      totalWaves: 2,
+      concurrencyCap: 3,
+      phase: 'prepare',
+      waves: [{ index: 0, stories: [{ storyId: 301, status: 'done' }] }],
+      blockerHistory: [],
+      manualInterventions: [],
+      plan: [[{ storyId: 301 }], [{ storyId: 302 }]],
+    });
+
+    await runEpicDeliverPrepare({
+      epicId: 121,
+      injectedProvider: provider,
+      injectedConfig: baseConfig,
+    });
+
+    const persisted = readPersistedCheckpoint(provider, 121);
+    assert.equal(
+      persisted.currentWave,
+      1,
+      'in-flight pointer preserved on idempotent re-prepare',
+    );
+    assert.deepEqual(
+      persisted.waves,
+      [{ index: 0, stories: [{ storyId: 301, status: 'done' }] }],
+      'wave history preserved when the plan is unchanged',
     );
   });
 });
