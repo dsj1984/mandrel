@@ -18,6 +18,18 @@
  *     `process.kill(pid, 0)`), or
  *   - if the lock file is older than `timeoutMs * 2`,
  *   the lock is stolen (unlinked) and re-acquired.
+ *
+ * Test seams (mirroring `single-story-sweep/sweep-lock.js`):
+ *   - `nowFn`   — `() => number` (ms epoch); replaces `Date.now`.
+ *   - `fsImpl`  — Node `fs` shim; replaces the imported `fs`.
+ *   - `killFn`  — `(pid, signal) => void`; replaces `process.kill`,
+ *                 so a test can make `pidDead` deterministic without
+ *                 fabricating a real dead PID.
+ *   - `sleepFn` — `(ms) => Promise<void>`; replaces the real
+ *                 `setTimeout`-backed sleep, so the poll loop can spin
+ *                 with no wall-clock waits.
+ * All four default to the real implementations, so production callers
+ * (`acquire(epicId, { repoRoot, timeoutMs })`) see no behavior change.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -47,10 +59,10 @@ const POLL_INTERVAL_MS = 250;
  *      acquisition will then surface the underlying error to the
  *      operator with the literal path that failed.
  */
-export function resolveGitCommonDir(repoRoot) {
+export function resolveGitCommonDir(repoRoot, fsImpl = fs) {
   const local = path.join(repoRoot, '.git');
   try {
-    if (fs.statSync(local).isDirectory()) return local;
+    if (fsImpl.statSync(local).isDirectory()) return local;
   } catch {
     // .git does not exist — fall through to git rev-parse.
   }
@@ -67,15 +79,18 @@ export function resolveGitCommonDir(repoRoot) {
   return local;
 }
 
-function lockPathFor(epicId, repoRoot) {
-  return path.join(resolveGitCommonDir(repoRoot), `epic-${epicId}.merge.lock`);
+function lockPathFor(epicId, repoRoot, fsImpl = fs) {
+  return path.join(
+    resolveGitCommonDir(repoRoot, fsImpl),
+    `epic-${epicId}.merge.lock`,
+  );
 }
 
-function isProcessRunning(pid) {
+function isProcessRunning(pid, killFn = process.kill) {
   if (!Number.isFinite(pid) || pid <= 0) return false;
   try {
     // Signal 0 does not deliver a signal; it just checks existence.
-    process.kill(pid, 0);
+    killFn(pid, 0);
     return true;
   } catch (err) {
     // ESRCH = no such process. EPERM = exists but we can't signal — still alive.
@@ -83,9 +98,9 @@ function isProcessRunning(pid) {
   }
 }
 
-function readLockMeta(filePath) {
+function readLockMeta(filePath, fsImpl = fs) {
   try {
-    const raw = fs.readFileSync(filePath, 'utf8');
+    const raw = fsImpl.readFileSync(filePath, 'utf8');
     const parsed = JSON.parse(raw);
     return {
       pid: Number(parsed.pid),
@@ -96,15 +111,16 @@ function readLockMeta(filePath) {
   }
 }
 
-function tryStealStale(filePath, timeoutMs) {
+function tryStealStale(filePath, timeoutMs, seams) {
+  const { fsImpl, nowFn, killFn } = seams;
   let stats;
   try {
-    stats = fs.statSync(filePath);
+    stats = fsImpl.statSync(filePath);
   } catch {
     return false;
   }
 
-  const meta = readLockMeta(filePath);
+  const meta = readLockMeta(filePath, fsImpl);
   // Corrupted lock file (null meta): we can't verify the writer's PID and
   // the age comparison is unsafe on Windows where NTFS mtime vs Date.now()
   // can disagree by hundreds of milliseconds, falsely flipping `ancient`
@@ -113,13 +129,13 @@ function tryStealStale(filePath, timeoutMs) {
   // safer failure mode than wrongly stealing a lock another process owns.
   if (!meta) return false;
 
-  const ageMs = Date.now() - stats.mtimeMs;
-  const pidDead = !isProcessRunning(meta.pid);
+  const ageMs = nowFn() - stats.mtimeMs;
+  const pidDead = !isProcessRunning(meta.pid, killFn);
   const ancient = ageMs > timeoutMs * 2;
 
   if (pidDead || ancient) {
     try {
-      fs.unlinkSync(filePath);
+      fsImpl.unlinkSync(filePath);
       return true;
     } catch {
       return false;
@@ -128,71 +144,33 @@ function tryStealStale(filePath, timeoutMs) {
   return false;
 }
 
-async function sleep(ms) {
+function defaultSleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// In-process registry of acquirers waiting on a given lock path. Populated
-// the first time a call hits EEXIST (i.e. real contention) and decremented
-// in `finally` when the call returns or throws. The holder itself never
-// counts — it acquires on the first openSync attempt and exits the
-// function, so its count never gets incremented. Exposed via
-// `pendingAcquires` so tests can deterministically observe contention
-// instead of racing a wall-clock sentinel.
-const pendingByPath = new Map();
-
-function incPending(filePath) {
-  pendingByPath.set(filePath, (pendingByPath.get(filePath) ?? 0) + 1);
-}
-
-function decPending(filePath) {
-  const next = (pendingByPath.get(filePath) ?? 0) - 1;
-  if (next <= 0) pendingByPath.delete(filePath);
-  else pendingByPath.set(filePath, next);
-}
-
-/**
- * Number of in-flight `acquireEpicMergeLock` calls currently waiting on
- * the given epic's lock — i.e. callers that hit EEXIST and have not yet
- * acquired or thrown. Excludes the current holder (which acquired on its
- * first attempt and is no longer inside `acquireEpicMergeLock`).
- *
- * Tests use this to assert blocking behaviour without racing real time.
- *
- * @param {number|string} epicId
- * @param {{ repoRoot: string }} opts
- * @returns {number}
- */
-export function pendingAcquires(epicId, { repoRoot } = {}) {
-  if (!repoRoot) throw new Error('pendingAcquires: repoRoot is required');
-  const filePath = lockPathFor(epicId, repoRoot);
-  return pendingByPath.get(filePath) ?? 0;
-}
-
-// Inner polling loop. Reports contention via `onWait`, which is invoked
-// the first time openSync returns EEXIST (i.e. when the call has truly
-// started waiting). Kept separate from `acquireEpicMergeLock` so the
-// public function's cyclomatic complexity stays flat under CRAP — the
-// pending-count bookkeeping lives in the outer wrapper, where its
-// branches don't compound with the polling logic.
-async function pollForLock(epicId, filePath, timeoutMs, onWait) {
-  const started = Date.now();
+// Inner polling loop. Acquires the lock file with `wx` (atomic
+// create-or-error); on EEXIST it tries to steal a stale lock, then
+// either times out or sleeps and retries. Kept separate from
+// `acquireEpicMergeLock` so the public function's cyclomatic complexity
+// stays flat under CRAP.
+async function pollForLock(epicId, filePath, timeoutMs, seams) {
+  const { fsImpl, nowFn, sleepFn } = seams;
+  const started = nowFn();
   while (true) {
     try {
-      const fd = fs.openSync(filePath, 'wx');
-      const acquiredAt = Date.now();
-      fs.writeSync(
+      const fd = fsImpl.openSync(filePath, 'wx');
+      const acquiredAt = nowFn();
+      fsImpl.writeSync(
         fd,
         JSON.stringify({ pid: process.pid, acquiredAt }, null, 2),
       );
-      fs.closeSync(fd);
+      fsImpl.closeSync(fd);
       return { epicId, filePath, acquiredAt };
     } catch (err) {
       if (err.code !== 'EEXIST') throw err;
-      onWait();
-      if (tryStealStale(filePath, timeoutMs)) continue;
-      if (Date.now() - started >= timeoutMs) {
-        const meta = readLockMeta(filePath);
+      if (tryStealStale(filePath, timeoutMs, seams)) continue;
+      if (nowFn() - started >= timeoutMs) {
+        const meta = readLockMeta(filePath, fsImpl);
         const detail = meta
           ? ` (held by pid ${meta.pid} since ${new Date(meta.acquiredAt).toISOString()})`
           : '';
@@ -200,7 +178,7 @@ async function pollForLock(epicId, filePath, timeoutMs, onWait) {
           `acquireEpicMergeLock timed out after ${timeoutMs}ms for epic ${epicId}${detail}`,
         );
       }
-      await sleep(POLL_INTERVAL_MS);
+      await sleepFn(POLL_INTERVAL_MS);
     }
   }
 }
@@ -209,43 +187,52 @@ async function pollForLock(epicId, filePath, timeoutMs, onWait) {
  * Acquire an exclusive Epic merge lock.
  *
  * @param {number|string} epicId
- * @param {{ repoRoot: string, timeoutMs?: number }} opts
+ * @param {object} opts
+ * @param {string} opts.repoRoot            Repo working dir; the lock lands
+ *                                          in its common `.git/`.
+ * @param {number} [opts.timeoutMs=60000]   Poll-until deadline.
+ * @param {() => number} [opts.nowFn]       Clock seam (ms epoch).
+ * @param {object} [opts.fsImpl]            Node `fs` shim.
+ * @param {(pid:number, signal:number)=>void} [opts.killFn]
+ *                                          `process.kill` shim for the
+ *                                          pid-liveness probe.
+ * @param {(ms:number)=>Promise<void>} [opts.sleepFn]
+ *                                          Poll-interval sleep shim.
  * @returns {Promise<{ epicId: number|string, filePath: string, acquiredAt: number }>}
  * @throws {Error} on timeout.
  */
 export async function acquireEpicMergeLock(
   epicId,
-  { repoRoot, timeoutMs = 60_000 } = {},
+  {
+    repoRoot,
+    timeoutMs = 60_000,
+    nowFn = Date.now,
+    fsImpl = fs,
+    killFn = process.kill.bind(process),
+    sleepFn = defaultSleep,
+  } = {},
 ) {
   if (!repoRoot) throw new Error('acquireEpicMergeLock: repoRoot is required');
 
-  const filePath = lockPathFor(epicId, repoRoot);
+  const filePath = lockPathFor(epicId, repoRoot, fsImpl);
   // Ensure the .git directory exists (it will, in a real repo, but the
   // tests use a temp dir and need us to be forgiving).
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fsImpl.mkdirSync(path.dirname(filePath), { recursive: true });
 
-  let counted = false;
-  const onWait = () => {
-    if (counted) return;
-    incPending(filePath);
-    counted = true;
-  };
-  try {
-    return await pollForLock(epicId, filePath, timeoutMs, onWait);
-  } finally {
-    if (counted) decPending(filePath);
-  }
+  const seams = { fsImpl, nowFn, killFn, sleepFn };
+  return pollForLock(epicId, filePath, timeoutMs, seams);
 }
 
 /**
  * Release a previously-acquired Epic merge lock.
  *
  * @param {{ filePath: string }} handle
+ * @param {object} [fsImpl] Node `fs` shim for tests.
  */
-export function releaseEpicMergeLock(handle) {
+export function releaseEpicMergeLock(handle, fsImpl = fs) {
   if (!handle?.filePath) return;
   try {
-    fs.unlinkSync(handle.filePath);
+    fsImpl.unlinkSync(handle.filePath);
   } catch (err) {
     if (err.code !== 'ENOENT') throw err;
   }

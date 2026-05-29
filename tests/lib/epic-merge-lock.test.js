@@ -6,7 +6,6 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import {
   acquireEpicMergeLock,
-  pendingAcquires,
   releaseEpicMergeLock,
   resolveGitCommonDir,
 } from '../../.agents/scripts/lib/epic-merge-lock.js';
@@ -36,41 +35,57 @@ describe('epic-merge-lock', () => {
     );
   });
 
-  it('blocks a second acquire until the first is released', async () => {
+  it('blocks a second acquire until the holder releases (no real-clock wait)', async () => {
     const first = await acquireEpicMergeLock(7, { repoRoot, timeoutMs: 5000 });
-    assert.equal(pendingAcquires(7, { repoRoot }), 0);
 
-    // The async body runs synchronously to its first `await`, so the
-    // EEXIST + incPending happens before the promise suspends. One
-    // microtask flush is enough; no wall-clock sentinel.
-    const secondPromise = acquireEpicMergeLock(7, {
+    // Drive the poll loop with an injected sleepFn and a monotonic clock
+    // that never advances past the deadline. The contender stays blocked
+    // (EEXIST) until the holder's lock is released on the third poll, at
+    // which point the next `openSync('wx')` succeeds. No wall-clock waits.
+    const sleepCalls = [];
+    let pollCount = 0;
+    const sleepFn = (ms) => {
+      sleepCalls.push(ms);
+      pollCount += 1;
+      if (pollCount === 3) releaseEpicMergeLock(first);
+      return Promise.resolve();
+    };
+
+    const second = await acquireEpicMergeLock(7, {
       repoRoot,
       timeoutMs: 5000,
+      // Clock pinned well inside the deadline so the loop never times out;
+      // the only exit is the holder's release.
+      nowFn: () => 1000,
+      sleepFn,
     });
-    await Promise.resolve();
-    assert.equal(pendingAcquires(7, { repoRoot }), 1, 'second is blocked');
 
-    const meta = JSON.parse(fs.readFileSync(first.filePath, 'utf8'));
-    assert.equal(meta.acquiredAt, first.acquiredAt);
-
-    releaseEpicMergeLock(first);
-    const second = await secondPromise;
+    assert.equal(sleepCalls.length, 3, 'polled three times before acquiring');
+    assert.deepEqual(sleepCalls, [250, 250, 250], 'used the poll interval');
     assert.ok(fs.existsSync(second.filePath));
-    assert.equal(pendingAcquires(7, { repoRoot }), 0);
+    const meta = JSON.parse(fs.readFileSync(second.filePath, 'utf8'));
+    assert.equal(meta.pid, process.pid, 'contender now owns the lock');
     releaseEpicMergeLock(second);
   });
 
-  it('steals a stale lock whose PID is not running', async () => {
+  it('steals a stale lock whose PID is reported dead by killFn', async () => {
     const filePath = path.join(repoRoot, '.git', 'epic-99.merge.lock');
-    // Fabricate a lock owned by an almost-certainly-dead PID.
-    fs.writeFileSync(
-      filePath,
-      JSON.stringify({ pid: 999999999, acquiredAt: Date.now() }),
-    );
+    fs.writeFileSync(filePath, JSON.stringify({ pid: 4321, acquiredAt: 1000 }));
+
+    // killFn throws ESRCH → the lock's PID is treated as dead → steal.
+    // nowFn pinned so the (mtime) age branch is irrelevant; the steal is
+    // attributable solely to the injected pid-dead signal.
+    const killFn = () => {
+      const err = new Error('no such process');
+      err.code = 'ESRCH';
+      throw err;
+    };
 
     const handle = await acquireEpicMergeLock(99, {
       repoRoot,
       timeoutMs: 1000,
+      nowFn: () => 2000,
+      killFn,
     });
     assert.ok(fs.existsSync(handle.filePath));
     const meta = JSON.parse(fs.readFileSync(handle.filePath, 'utf8'));
@@ -78,46 +93,72 @@ describe('epic-merge-lock', () => {
     releaseEpicMergeLock(handle);
   });
 
-  it('steals an ancient lock even when PID is still alive', async () => {
+  it('steals an ancient lock even when killFn reports the PID alive', async () => {
     const filePath = path.join(repoRoot, '.git', 'epic-101.merge.lock');
-    fs.writeFileSync(
-      filePath,
-      JSON.stringify({ pid: process.pid, acquiredAt: Date.now() - 60_000 }),
-    );
-    // Backdate the mtime far enough that it looks ancient under timeoutMs*2.
-    const past = new Date(Date.now() - 60_000);
+    fs.writeFileSync(filePath, JSON.stringify({ pid: 4321, acquiredAt: 0 }));
+    // mtime fixed at epoch 0; the injected clock returns a "now" far past
+    // timeoutMs*2, so the ancient branch fires regardless of killFn.
+    const past = new Date(0);
     fs.utimesSync(filePath, past, past);
+
+    let killCalls = 0;
+    const killFn = () => {
+      killCalls += 1; // alive: no throw
+    };
 
     const handle = await acquireEpicMergeLock(101, {
       repoRoot,
-      timeoutMs: 1000, // stale threshold = 2000ms; 60s is well past that.
+      timeoutMs: 1000, // stale threshold = 2000ms
+      nowFn: () => 1_000_000, // age = 1_000_000ms ≫ 2000ms
+      killFn,
     });
     assert.ok(fs.existsSync(handle.filePath));
+    assert.ok(killCalls >= 1, 'pid liveness was probed via killFn');
     releaseEpicMergeLock(handle);
   });
 
-  it('throws when the lock cannot be acquired within the timeout', async () => {
-    const first = await acquireEpicMergeLock(55, {
-      repoRoot,
-      timeoutMs: 2000,
-    });
+  it('throws on timeout using an injected clock, with no real wait', async () => {
+    const first = await acquireEpicMergeLock(55, { repoRoot, timeoutMs: 2000 });
+
+    // The clock jumps past the deadline on the second reading: first call
+    // seeds `started`, the deadline check then sees elapsed >= timeoutMs.
+    // The holder's PID is reported alive so no steal masks the timeout.
+    let tick = 0;
+    const clock = [1000, 1000, 9999];
+    const nowFn = () => clock[Math.min(tick++, clock.length - 1)];
+    const killFn = () => {}; // holder alive → no steal
 
     await assert.rejects(
-      acquireEpicMergeLock(55, { repoRoot, timeoutMs: 300 }),
-      /timed out/,
+      acquireEpicMergeLock(55, {
+        repoRoot,
+        timeoutMs: 300,
+        nowFn,
+        killFn,
+        sleepFn: () => Promise.resolve(),
+      }),
+      /timed out after 300ms for epic 55/,
     );
 
     releaseEpicMergeLock(first);
   });
 
-  it('handles gracefully a corrupted JSON lock file when checking for timeout', async () => {
+  it('handles a corrupted JSON lock file when constructing the timeout error', async () => {
     const filePath = path.join(repoRoot, '.git', 'epic-66.merge.lock');
     fs.writeFileSync(filePath, '{ corrupted_json');
 
-    // The lock is "held" (by the corrupted file) and timeout will expire.
-    // It shouldn't crash while reading meta to construct the timeout error message.
+    // Corrupted meta is never stolen (null meta → held); the loop times
+    // out and must not crash while reading meta for the error message.
+    let tick = 0;
+    const clock = [1000, 1000, 9999];
+    const nowFn = () => clock[Math.min(tick++, clock.length - 1)];
+
     await assert.rejects(
-      acquireEpicMergeLock(66, { repoRoot, timeoutMs: 300 }),
+      acquireEpicMergeLock(66, {
+        repoRoot,
+        timeoutMs: 300,
+        nowFn,
+        sleepFn: () => Promise.resolve(),
+      }),
       /timed out after 300ms for epic 66/,
     );
   });
