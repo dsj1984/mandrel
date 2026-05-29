@@ -1223,7 +1223,7 @@ in [`.agents/full-agentrc.json`](../.agents/full-agentrc.json). Fields:
 | `featureRoot`      | yes      | Filesystem root the selector resolves `.feature` files against.                                                                                               |
 | `fixturesManifest` | yes      | Path to the persona → seed-data manifest loaded before sign-in.                                                                                               |
 | `signInSeam`       | yes      | Discriminated union: `{ urlTemplate }` (substitute `{persona}` into a dev sign-in URL) **or** `{ skill }` (invoke a named consumer skill for procedural sign-in). |
-| `personas`         | yes      | Map of persona name → `{ credentialRef }` (stored-credential reference) or `{ signInSkill }` (per-persona sign-in skill). Never an inline secret.             |
+| `personas`         | yes      | Either a name-only `string[]` (the honest shape under a `{ urlTemplate }` seam, where the persona name is the sole input) **or** a map of persona name → `{ credentialRef }` / `{ signInSkill }` (per-persona auth material, consulted only under a `{ skill }` or credential seam). Never an inline secret. The resolver normalizes both to one canonical map keyed by persona name. |
 | `consoleAllowlist` | no       | Benign-console substring patterns to suppress (default `[]`). A noise filter, **not** a security control — never expand it to silence a genuine error.        |
 | `designTokens`     | no       | Pointer to the token/style source for visual spot-checks (default `null`). When `null`, the design-token check is skipped entirely.                            |
 

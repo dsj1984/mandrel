@@ -502,6 +502,77 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
       'unknown key in qa block',
     );
   });
+
+  it('accepts a name-only personas array on both sides (Story #3306)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        qa: {
+          featureRoot: 'tests/features',
+          fixturesManifest: 'tests/fixtures/manifest.json',
+          signInSeam: { urlTemplate: '/dev/sign-in-as/{persona}' },
+          personas: ['athlete', 'coach', 'org-admin'],
+        },
+      },
+      'qa block with name-only personas array',
+    );
+  });
+
+  it('accepts the object-map personas form on both sides (Story #3306)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        qa: {
+          signInSeam: { skill: 'stack/qa/sign-in' },
+          personas: {
+            admin: { credentialRef: 'env:ADMIN_CREDS' },
+            member: { signInSkill: 'stack/qa/sign-in-member' },
+          },
+        },
+      },
+      'qa block with object-map personas',
+    );
+  });
+
+  it('rejects an empty personas array on both sides (Story #3306)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        qa: { personas: [] },
+      },
+      'empty personas array (minItems)',
+    );
+  });
+
+  it('rejects an empty personas object-map on both sides (Story #3306)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        qa: { personas: { admin: {} } },
+      },
+      'object-map persona without auth material',
+    );
+  });
+
+  it('rejects a blank persona name in the array on both sides (Story #3306)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        qa: { personas: [''] },
+      },
+      'blank persona name (minLength)',
+    );
+  });
+
+  it('rejects shell-injection in a name-only persona on both sides (Story #3306)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        qa: { personas: ['admin; rm -rf /'] },
+      },
+      'shell injection in name-only persona',
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------

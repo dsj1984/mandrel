@@ -262,7 +262,7 @@
     "featureRoot": "tests/features",
     "fixturesManifest": "tests/fixtures/personas.json",
     "signInSeam": {
-      "urlTemplate": "/dev/sign-in-as/{persona}"
+      "skill": "stack/qa/sign-in"
     },
     "personas": {
       "admin": { "credentialRef": "QA_ADMIN_CREDENTIAL" },
