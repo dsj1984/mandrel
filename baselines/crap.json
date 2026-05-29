@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T13:58:50.917Z",
+  "generatedAt": "2026-05-29T14:03:06.459Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -12130,12 +12130,6 @@
       "method": "render3TierPrompt",
       "startLine": 26,
       "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/test-env.js",
-      "method": "buildWebhookSafeTestEnv",
-      "startLine": 23,
-      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/test-isolate/list-files.js",

@@ -40,7 +40,10 @@ describe('notify script', () => {
   beforeEach(() => {
     fetchCalls = [];
 
-    global.fetch = async (url, options) => {
+    // Injected fake fetch (threaded via opts.fetchImpl) — no global
+    // monkeypatch. Records each call so tests can assert the POST body and
+    // headers; URLs containing `fail` reject to exercise the catch branch.
+    const fakeFetch = async (url, options) => {
       fetchCalls.push({ url, options });
       if (url.includes('fail')) {
         throw new Error('Network error');
@@ -72,6 +75,7 @@ describe('notify script', () => {
       provider: mockProvider,
       config: mockConfig,
       webhookUrl: DEFAULT_WEBHOOK,
+      fetchImpl: fakeFetch,
     };
   });
 
@@ -441,6 +445,105 @@ describe('notify script', () => {
       assert.ok(headers['X-Signature-256']);
       assert.ok(headers['X-Signature-256'].startsWith('sha256='));
     } finally {
+      process.env.WEBHOOK_SECRET = originalSecret;
+    }
+  });
+
+  it('injects a fake fetch and asserts POST body, X-Signature-256 header, and 4xx/5xx branches', async () => {
+    const originalSecret = process.env.WEBHOOK_SECRET;
+    process.env.WEBHOOK_SECRET = 'inject-secret';
+
+    const warnCalls = [];
+    const originalWarn = console.warn;
+    console.warn = (msg) => {
+      warnCalls.push(String(msg));
+    };
+
+    try {
+      // Arrange: a fake fetch local to this test, returning a not-ok
+      // response with a configurable status to drive the 4xx/5xx branch.
+      const calls = [];
+      let nextResponse = { ok: true };
+      const fakeFetch = async (url, options) => {
+        calls.push({ url, options });
+        return nextResponse;
+      };
+
+      const opts = { ...defaultOpts, fetchImpl: fakeFetch };
+
+      // Act 1 — happy path: assert the injected fetch saw a POST with the
+      // signed envelope body and the HMAC signature header.
+      await notify(
+        500,
+        {
+          severity: 'high',
+          message: 'Injected dispatch',
+          event: 'epic-blocked',
+          level: 'epic',
+          epicId: 500,
+        },
+        opts,
+      );
+
+      assert.equal(calls.length, 1, 'injected fetch is invoked exactly once');
+      assert.equal(calls[0].url, DEFAULT_WEBHOOK);
+      assert.equal(calls[0].options.method, 'POST');
+      assert.equal(
+        calls[0].options.headers['Content-Type'],
+        'application/json',
+      );
+      const sig = calls[0].options.headers['X-Signature-256'];
+      assert.ok(sig?.startsWith('sha256='), 'X-Signature-256 is present');
+
+      const body = JSON.parse(calls[0].options.body);
+      assert.equal(
+        body.text,
+        '[Action Required] widgets#500: Injected dispatch',
+      );
+      assert.equal(body.severity, 'high');
+      assert.equal(body.event, 'epic-blocked');
+      assert.equal(body.epicId, 500);
+
+      // The signature is the HMAC-SHA256 of the exact serialized body.
+      const { createHmac } = await import('node:crypto');
+      const expectedSig = createHmac('sha256', 'inject-secret')
+        .update(calls[0].options.body)
+        .digest('hex');
+      assert.equal(sig, `sha256=${expectedSig}`);
+
+      // Act 2 — 4xx branch: a not-ok response warns instead of throwing.
+      nextResponse = {
+        ok: false,
+        status: 404,
+        text: async () => 'not found',
+      };
+      await notify(
+        501,
+        { severity: 'high', message: '4xx', event: 'epic-blocked' },
+        opts,
+      );
+      assert.ok(
+        warnCalls.some((m) => m.includes('Webhook returned 404')),
+        '4xx response surfaces a Logger.warn',
+      );
+
+      // Act 3 — 5xx branch: same non-throwing warn path.
+      nextResponse = {
+        ok: false,
+        status: 503,
+        text: async () => 'unavailable',
+      };
+      await notify(
+        502,
+        { severity: 'high', message: '5xx', event: 'epic-blocked' },
+        opts,
+      );
+      assert.ok(
+        warnCalls.some((m) => m.includes('Webhook returned 503')),
+        '5xx response surfaces a Logger.warn',
+      );
+    } finally {
+      console.warn = originalWarn;
       process.env.WEBHOOK_SECRET = originalSecret;
     }
   });
