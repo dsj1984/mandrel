@@ -6,6 +6,7 @@ import {
   EPIC_RUN_STATE_TYPE,
   initialize,
   read,
+  reconcileResumePointer,
   setPhase,
   write,
 } from '../../../.agents/scripts/lib/orchestration/epic-run-state-store.js';
@@ -358,5 +359,86 @@ describe('epic-run-state-store', () => {
     const written = await write({ provider, epicId: 321, state: seed });
     const got = await read({ provider, epicId: 321 });
     assert.deepEqual(got, written);
+  });
+
+  // -------------------------------------------------------------------
+  // reconcileResumePointer (Story #3358)
+  // -------------------------------------------------------------------
+  describe('reconcileResumePointer', () => {
+    it('preserves currentWave + waves when the plan is unchanged', () => {
+      const checkpoint = {
+        currentWave: 2,
+        waves: [{ index: 0 }, { index: 1 }],
+      };
+      const plan = [[{ id: 10 }], [{ id: 20 }], [{ id: 30 }]];
+      const out = reconcileResumePointer(checkpoint, plan, plan);
+      assert.equal(out.currentWave, 2);
+      assert.deepEqual(out.waves, [{ index: 0 }, { index: 1 }]);
+    });
+
+    it('ignores title/worktree churn when comparing plans', () => {
+      const checkpoint = { currentWave: 1, waves: [{ index: 0 }] };
+      const prior = [[{ id: 10, title: 'old', worktree: 'a' }], [{ id: 20 }]];
+      const next = [[{ id: 10, title: 'new', worktree: 'b' }], [{ id: 20 }]];
+      const out = reconcileResumePointer(checkpoint, prior, next);
+      assert.equal(out.currentWave, 1, 'cosmetic churn must not trip a reset');
+      assert.deepEqual(out.waves, [{ index: 0 }]);
+    });
+
+    it('resets currentWave to 0 and clears waves when the plan shrank', () => {
+      const checkpoint = {
+        currentWave: 2,
+        waves: [{ index: 0 }, { index: 1 }],
+      };
+      // Prior plan had 6 waves; resume recomputed a 4-wave plan over the
+      // not-done Stories, re-indexed from 0.
+      const prior = [
+        [{ id: 1 }],
+        [{ id: 2 }],
+        [{ id: 3 }],
+        [{ id: 4 }],
+        [{ id: 5 }],
+        [{ id: 6 }],
+      ];
+      const next = [[{ id: 3 }], [{ id: 4 }], [{ id: 5 }], [{ id: 6 }]];
+      const out = reconcileResumePointer(checkpoint, prior, next);
+      assert.equal(out.currentWave, 0, 'pointer reset into the new index space');
+      assert.deepEqual(out.waves, [], 'stale history dropped');
+    });
+
+    it('resets when wave membership changes but length is identical', () => {
+      const checkpoint = { currentWave: 1, waves: [{ index: 0 }] };
+      const prior = [[{ id: 1 }], [{ id: 2 }]];
+      const next = [[{ id: 1 }], [{ id: 99 }]];
+      const out = reconcileResumePointer(checkpoint, prior, next);
+      assert.equal(out.currentWave, 0);
+      assert.deepEqual(out.waves, []);
+    });
+
+    it('treats an absent prior plan as a fresh-run no-reset baseline', () => {
+      const checkpoint = { currentWave: 0, waves: [] };
+      const next = [[{ id: 1 }]];
+      // undefined prior !== next → reset, but currentWave is already 0 and
+      // waves already empty, so the reconciled output is a clean fresh start.
+      const out = reconcileResumePointer(checkpoint, undefined, next);
+      assert.equal(out.currentWave, 0);
+      assert.deepEqual(out.waves, []);
+    });
+
+    it('coerces non-integer currentWave / non-array waves to safe defaults', () => {
+      const checkpoint = { currentWave: 'nope', waves: 'nope' };
+      const plan = [[{ id: 1 }]];
+      const out = reconcileResumePointer(checkpoint, plan, plan);
+      assert.equal(out.currentWave, 0);
+      assert.deepEqual(out.waves, []);
+    });
+
+    it('keys equality on storyId / number entry shapes too', () => {
+      const checkpoint = { currentWave: 1, waves: [{ index: 0 }] };
+      const prior = [[{ storyId: 5 }], [{ number: 6 }]];
+      const next = [[{ id: 5 }], [{ id: 6 }]];
+      const out = reconcileResumePointer(checkpoint, prior, next);
+      assert.equal(out.currentWave, 1, 'mixed id keys still compare equal');
+    });
   });
 });

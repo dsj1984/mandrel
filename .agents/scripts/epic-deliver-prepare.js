@@ -31,6 +31,7 @@ import { getRunners, resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
 import {
   initialize as initializeEpicRunState,
+  reconcileResumePointer,
   write as writeEpicRunState,
 } from './lib/orchestration/epic-run-state-store.js';
 import {
@@ -180,10 +181,32 @@ export async function runEpicDeliverPrepare({
   // resolve the next wave's stories. Without this write the tick reports
   // every wave as `wave-complete: empty` and the delivery stalls.
   const tickPlan = plan.map((wave) => wave.stories);
+
+  // Story #3358 — reconcile the resume pointer against the recomputed
+  // plan. On a resumed Epic, `build-wave-dag.js` drops the already-merged
+  // (closed) Stories, so the recomputed plan is shorter and re-indexed
+  // from 0. The preserved `currentWave`/`waves[]` reference the *old*
+  // index space; left untouched, `wave-tick.js` would index
+  // `plan[currentWave]` into the new plan and dispatch the wrong wave.
+  // Prepare owns the `plan` field, so it owns the pointer that indexes
+  // into it. When the plan changed, reset the pointer to 0 and drop the
+  // stale history; when it is byte-identical (idempotent re-prepare),
+  // preserve in-flight progress verbatim.
+  const { currentWave, waves } = reconcileResumePointer(
+    checkpointState,
+    checkpointState.plan,
+    tickPlan,
+  );
+
   // Persist the `--ignore-concurrency-hazards` flag on the checkpoint
   // so retro tooling can flag a run that shipped despite an outstanding
   // hazard (the warning above is one-shot; the checkpoint is durable).
-  const checkpointPayload = { ...checkpointState, plan: tickPlan };
+  const checkpointPayload = {
+    ...checkpointState,
+    plan: tickPlan,
+    currentWave,
+    waves,
+  };
   if (gate.bypassed) {
     checkpointPayload.ignoreConcurrencyHazards = true;
   }
