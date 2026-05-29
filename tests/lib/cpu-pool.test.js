@@ -21,6 +21,7 @@
  */
 
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -303,5 +304,227 @@ describe('runOnPool — primitive contract', () => {
       message: 'item refused',
     });
     assert.strictEqual(results[2], 'C');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// (d) injected workerFactory — drive scheduling / ordering / exit-race
+//     branches in-process with a synchronous fake handle, no real thread.
+// ---------------------------------------------------------------------------
+
+/**
+ * EventEmitter-shaped fake worker handle. It satisfies the subset of the
+ * worker_threads.Worker surface that `runOnPool` touches: `on`/`off`/`once`,
+ * `postMessage`, and a thenable `terminate()`. The `respond` callback is
+ * invoked for every `{ item }` dispatch and decides which scheduler branch
+ * to exercise by emitting the corresponding event synchronously (so no real
+ * OS thread, timer, or microtask hop is required to drive the test).
+ *
+ * @param {(item: unknown, handle: FakeWorker) => void} respond
+ */
+class FakeWorker extends EventEmitter {
+  constructor(respond) {
+    super();
+    this.respond = respond;
+    this.terminated = false;
+    this.posted = [];
+  }
+
+  postMessage(msg) {
+    this.posted.push(msg);
+    if (msg && msg.exit === true) {
+      // Clean drain-and-exit: mirror a real worker honoring { exit: true }.
+      this.emit('exit', 0);
+      return;
+    }
+    this.respond(msg.item, this);
+  }
+
+  terminate() {
+    this.terminated = true;
+    return Promise.resolve(0);
+  }
+}
+
+describe('runOnPool — injected workerFactory', () => {
+  it('defaults to spawning a real Worker when no factory is given (parity)', async () => {
+    // The single real-thread parity check: with no workerFactory, the pool
+    // still drives an actual worker_threads.Worker end-to-end.
+    const workerSrc = `
+      import { parentPort } from 'node:worker_threads';
+      parentPort.on('message', (msg) => {
+        if (msg && msg.exit === true) process.exit(0);
+        parentPort.postMessage({ ok: true, result: msg.item * 10 });
+      });
+    `;
+    const workerUrl = new URL(
+      `data:text/javascript,${encodeURIComponent(workerSrc)}`,
+    );
+    const results = await runOnPool(workerUrl, [1, 2, 3], { concurrency: 2 });
+    assert.deepStrictEqual(results, [10, 20, 30]);
+  });
+
+  it('uses the injected factory and preserves input order across workers', async () => {
+    const built = [];
+    const factory = (script, options) => {
+      assert.strictEqual(script, 'fake://script');
+      assert.deepStrictEqual(options, { workerData: { salt: 7 } });
+      const w = new FakeWorker((item, handle) => {
+        handle.emit('message', { ok: true, result: item * item });
+      });
+      built.push(w);
+      return w;
+    };
+
+    const items = [3, 1, 4, 1, 5, 9, 2, 6];
+    const results = await runOnPool('fake://script', items, {
+      concurrency: 3,
+      workerData: { salt: 7 },
+      workerFactory: factory,
+    });
+
+    // Results land at their source index regardless of dispatch race.
+    assert.deepStrictEqual(
+      results,
+      items.map((n) => n * n),
+    );
+    // concurrency=3 → exactly three handles were built and each was reaped.
+    assert.strictEqual(built.length, 3);
+    for (const w of built) {
+      assert.ok(w.terminated, 'every worker handle must be terminated');
+      assert.deepStrictEqual(
+        w.posted.at(-1),
+        { exit: true },
+        'each worker receives a drain { exit: true } before terminate',
+      );
+    }
+  });
+
+  it('captures per-item failures via the fake factory without throwing', async () => {
+    const factory = () =>
+      new FakeWorker((item, handle) => {
+        if (item === 'bad') {
+          handle.emit('message', { ok: false, error: 'item refused' });
+          return;
+        }
+        handle.emit('message', {
+          ok: true,
+          result: String(item).toUpperCase(),
+        });
+      });
+
+    const results = await runOnPool('fake://script', ['a', 'bad', 'c'], {
+      concurrency: 1,
+      workerFactory: factory,
+    });
+    assert.strictEqual(results[0], 'A');
+    assert.deepStrictEqual(results[1], {
+      __cpuPoolError: true,
+      message: 'item refused',
+    });
+    assert.strictEqual(results[2], 'C');
+  });
+
+  it('aborts the whole run on item error when throwOnItemError is true', async () => {
+    const factory = () =>
+      new FakeWorker((item, handle) => {
+        if (item === 'bad') {
+          handle.emit('message', { ok: false, error: 'boom' });
+          return;
+        }
+        handle.emit('message', { ok: true, result: item });
+      });
+
+    await assert.rejects(
+      () =>
+        runOnPool('fake://script', ['ok', 'bad', 'ok'], {
+          concurrency: 1,
+          throwOnItemError: true,
+          workerFactory: factory,
+        }),
+      /cpu-pool item failure: boom/,
+    );
+  });
+
+  it('treats a malformed worker message as a host-level fatal', async () => {
+    const factory = () =>
+      new FakeWorker((_item, handle) => {
+        handle.emit('message', { garbage: true });
+      });
+
+    await assert.rejects(
+      () =>
+        runOnPool('fake://script', ['x'], {
+          concurrency: 1,
+          workerFactory: factory,
+        }),
+      /malformed worker message/,
+    );
+  });
+
+  it('surfaces a worker error event as a fatal rejection', async () => {
+    const factory = () =>
+      new FakeWorker((_item, handle) => {
+        handle.emit('error', new Error('thread blew up'));
+      });
+
+    await assert.rejects(
+      () =>
+        runOnPool('fake://script', ['x'], {
+          concurrency: 1,
+          workerFactory: factory,
+        }),
+      /thread blew up/,
+    );
+  });
+
+  it('rejects when a worker exits non-zero mid-dispatch', async () => {
+    const factory = () =>
+      new FakeWorker((_item, handle) => {
+        handle.emit('exit', 3);
+      });
+
+    await assert.rejects(
+      () =>
+        runOnPool('fake://script', ['x'], {
+          concurrency: 1,
+          workerFactory: factory,
+        }),
+      /worker exited with code 3/,
+    );
+  });
+
+  it('rejects when a worker exits cleanly mid-dispatch (exit race)', async () => {
+    // A code-0 exit while an item is in flight is still a lost item, not a
+    // clean drain — the scheduler must surface it rather than silently drop.
+    const factory = () =>
+      new FakeWorker((_item, handle) => {
+        handle.emit('exit', 0);
+      });
+
+    await assert.rejects(
+      () =>
+        runOnPool('fake://script', ['x'], {
+          concurrency: 1,
+          workerFactory: factory,
+        }),
+      /worker exited mid-dispatch/,
+    );
+  });
+
+  it('short-circuits the drain when the worker already exited', async () => {
+    // Exercise the finally-block branch where workerExited is already true:
+    // the worker reports a clean exit only on the drain { exit: true }, never
+    // mid-dispatch, so no { exit: true } re-post race is needed.
+    const factory = () =>
+      new FakeWorker((item, handle) => {
+        handle.emit('message', { ok: true, result: item + 1 });
+      });
+
+    const results = await runOnPool('fake://script', [10, 20], {
+      concurrency: 1,
+      workerFactory: factory,
+    });
+    assert.deepStrictEqual(results, [11, 21]);
   });
 });
