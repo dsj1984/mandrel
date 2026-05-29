@@ -88,7 +88,7 @@ contract:
 | `featureRoot`      | Root passed to `resolve-selection.js` for scenario discovery.             |
 | `fixturesManifest` | Persona → seed binding loaded before sign-in.                             |
 | `signInSeam`       | `{ kind: 'url', template }` **or** `{ kind: 'skill', skill }` — see Step 2. |
-| `personas`         | Persona names the seam accepts.                                           |
+| `personas`         | Canonical object map keyed by persona name (`personaNames` lists the names). Authored as a plain name array under a `urlTemplate` seam, or as a per-persona credential/skill map under a `skill` (or credential) seam — see Step 2. |
 | `consoleAllowlist` | Inline benign-console patterns (default `[]`) — see Step 4.               |
 | `designTokens`     | Pointer to the token/style source for visual inspection (default `null`). |
 
@@ -145,9 +145,24 @@ the contract's discriminated-union seam:
 - **`kind: 'url'`** — substitute `{persona}` into `template` (e.g.
   `/dev/sign-in-as/{persona}` → `/dev/sign-in-as/admin`) and `navigate_page`
   to the resulting dev seam URL. This is a dev-only seam; **no real
-  credentials** are ever entered.
+  credentials** are ever entered. The persona **name** (a `personaNames`
+  entry) is the **sole input** the seam consumes — per-persona auth material
+  is neither needed nor read here, so under a `urlTemplate` seam the contract
+  is authored as a plain name array (`personas: ["athlete", "coach"]`).
 - **`kind: 'skill'`** — invoke the named consumer skill for procedural
   (multi-step or non-URL) sign-in. Read the skill's `SKILL.md` and follow it.
+
+### Which seam kinds consult per-persona material
+
+Per-persona auth material (`credentialRef` / `signInSkill`, authored via the
+object-map `personas` shape) is consulted **only** under a `skill` or
+credential seam, where the sign-in procedure needs a stored credential
+reference or a per-persona sign-in skill. Under a `urlTemplate`
+dev-impersonation seam the persona name is the only input, so the material is
+never read — author name-only personas there rather than fabricating
+`credentialRef`/`signInSkill` values the harness ignores. The resolver
+normalizes both authored shapes to one canonical object map keyed by persona
+name; a name-only persona resolves to an empty record (no auth material).
 
 After sign-in, confirm the authenticated state with a `take_snapshot`
 (e.g. the user menu or persona badge is present) before driving any scenario.

@@ -26,6 +26,7 @@ describe('resolveQaContract — present (well-formed)', () => {
     assert.deepEqual(out.personas, {
       admin: { credentialRef: 'QA_ADMIN_CREDS' },
     });
+    assert.deepEqual(out.personaNames, ['admin']);
   });
 
   it('accepts a bare qa bag (not wrapped in config)', () => {
@@ -66,6 +67,93 @@ describe('resolveQaContract — present (well-formed)', () => {
       qa: { ...WELL_FORMED, signInSeam: { skill: 'consumer-sign-in' } },
     });
     assert.deepEqual(out.signInSeam, { skill: 'consumer-sign-in' });
+  });
+});
+
+describe('resolveQaContract — personas normalization (Story #3306)', () => {
+  /** Base block carrying a url-template dev-impersonation seam. */
+  const URL_SEAM_BASE = Object.freeze({
+    featureRoot: 'tests/features',
+    fixturesManifest: 'tests/fixtures/personas.json',
+    signInSeam: { urlTemplate: '/dev/sign-in-as/{persona}' },
+  });
+
+  it('accepts a name-only string[] under a urlTemplate seam', () => {
+    const out = resolveQaContract({
+      qa: { ...URL_SEAM_BASE, personas: ['athlete', 'coach', 'org-admin'] },
+    });
+    // Acceptance: resolves cleanly with no fabricated credentialRef/signInSkill.
+    assert.deepEqual(out.personas, {
+      athlete: {},
+      coach: {},
+      'org-admin': {},
+    });
+    assert.deepEqual(out.personaNames, ['athlete', 'coach', 'org-admin']);
+  });
+
+  it('normalizes the name-only array to an empty-record canonical map', () => {
+    const out = resolveQaContract({
+      qa: { ...URL_SEAM_BASE, personas: ['athlete'] },
+    });
+    assert.deepEqual(out.personas.athlete, {});
+  });
+
+  it('keeps the object-map form for credential/skill seams', () => {
+    const out = resolveQaContract({
+      qa: {
+        ...URL_SEAM_BASE,
+        signInSeam: { skill: 'stack/qa/sign-in' },
+        personas: {
+          admin: { credentialRef: 'QA_ADMIN_CREDENTIAL' },
+          member: { signInSkill: 'stack/qa/sign-in-member' },
+        },
+      },
+    });
+    assert.deepEqual(out.personas, {
+      admin: { credentialRef: 'QA_ADMIN_CREDENTIAL' },
+      member: { signInSkill: 'stack/qa/sign-in-member' },
+    });
+    assert.deepEqual(out.personaNames, ['admin', 'member']);
+  });
+
+  it('does not mutate an object-map personas input', () => {
+    const input = {
+      qa: {
+        ...URL_SEAM_BASE,
+        personas: { admin: { credentialRef: 'QA_ADMIN_CREDENTIAL' } },
+      },
+    };
+    const out = resolveQaContract(input);
+    out.personas.admin.credentialRef = 'mutated';
+    assert.equal(input.qa.personas.admin.credentialRef, 'QA_ADMIN_CREDENTIAL');
+  });
+
+  it('does not mutate a name-only personas input', () => {
+    const personas = ['athlete', 'coach'];
+    const input = { qa: { ...URL_SEAM_BASE, personas } };
+    resolveQaContract(input);
+    assert.deepEqual(personas, ['athlete', 'coach']);
+  });
+
+  it('rejects an empty name-only array (personas is required)', () => {
+    assert.throws(
+      () => resolveQaContract({ qa: { ...URL_SEAM_BASE, personas: [] } }),
+      /qa\.personas/,
+    );
+  });
+
+  it('rejects an empty object-map (personas is required)', () => {
+    assert.throws(
+      () => resolveQaContract({ qa: { ...URL_SEAM_BASE, personas: {} } }),
+      /qa\.personas/,
+    );
+  });
+
+  it('rejects a name-only array with a blank persona name', () => {
+    assert.throws(
+      () => resolveQaContract({ qa: { ...URL_SEAM_BASE, personas: [''] } }),
+      /qa\.personas/,
+    );
   });
 });
 

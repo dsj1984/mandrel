@@ -62,6 +62,37 @@ function getQaValidator() {
 }
 
 /**
+ * Normalize the two accepted `personas` shapes to one canonical internal
+ * form (Story #3306).
+ *
+ * The schema accepts either a plain `string[]` of persona names (the honest
+ * shape for a `urlTemplate` dev-impersonation seam, where the workflow reads
+ * only the persona name) or the object-map form keyed by persona name (each
+ * entry carrying `credentialRef` / `signInSkill` for a `skill`/credential
+ * seam). Downstream the workflow consumes only the persona *names*, so the
+ * canonical internal form is an object map keyed by persona name. A name-only
+ * persona maps to an empty record — it carries no fabricated auth material.
+ *
+ * @param {string[] | Record<string, object>} personas Either accepted shape.
+ * @returns {{ personas: Record<string, object>, personaNames: string[] }}
+ */
+function normalizePersonas(personas) {
+  if (Array.isArray(personas)) {
+    const map = {};
+    for (const name of personas) {
+      map[name] = {};
+    }
+    return { personas: map, personaNames: [...personas] };
+  }
+  // Object-map form: clone each entry so callers cannot mutate the input.
+  const map = {};
+  for (const [name, material] of Object.entries(personas)) {
+    map[name] = { ...material };
+  }
+  return { personas: map, personaNames: Object.keys(personas) };
+}
+
+/**
  * Render an AJV error into an actionable, field-named sentence.
  *
  * @param {import('ajv').ErrorObject} err
@@ -87,12 +118,18 @@ function describeError(err) {
  * or the bare `qa` bag. Returns a fresh normalized object — callers must not
  * mutate the input.
  *
+ * `personas` is accepted in either shape (a `string[]` of names or the
+ * object-map form) and normalized to one canonical internal form: an object
+ * map keyed by persona name. A `personaNames` array is also returned for the
+ * common case (url-template seam) where only the names are consumed.
+ *
  * @param {object | null | undefined} config Full resolved config or bare qa block.
  * @returns {{
  *   featureRoot: string,
  *   fixturesManifest: string,
  *   signInSeam: object,
- *   personas: object,
+ *   personas: Record<string, object>,
+ *   personaNames: string[],
  *   consoleAllowlist: string[],
  *   designTokens: string | null,
  * }}
@@ -134,11 +171,14 @@ export function resolveQaContract(config) {
     );
   }
 
+  const { personas, personaNames } = normalizePersonas(qa.personas);
+
   return {
     featureRoot: qa.featureRoot,
     fixturesManifest: qa.fixturesManifest,
     signInSeam: qa.signInSeam,
-    personas: qa.personas,
+    personas,
+    personaNames,
     consoleAllowlist: Array.isArray(qa.consoleAllowlist)
       ? [...qa.consoleAllowlist]
       : [...QA_CONTRACT_DEFAULTS.consoleAllowlist],
