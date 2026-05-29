@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T13:18:26.229Z",
+  "generatedAt": "2026-05-29T13:20:52.136Z",
   "rollup": {
     "*": {
       "min": 61.218,
@@ -2501,10 +2501,6 @@
     {
       "path": "tests/close-validation-mi-projection.test.js",
       "mi": 110.031
-    },
-    {
-      "path": "tests/codebase-snapshot.test.js",
-      "mi": 109.841
     },
     {
       "path": "tests/concurrency-wiring.test.js",
