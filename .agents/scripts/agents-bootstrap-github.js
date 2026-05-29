@@ -15,7 +15,6 @@
  * @see docs/v5-implementation-plan.md Sprint 1C
  */
 
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { applyBranchProtection } from './lib/bootstrap/branch-protection.js';
@@ -23,8 +22,16 @@ import {
   CI_WORKFLOW_RELATIVE_PATH,
   renderCiWorkflow,
 } from './lib/bootstrap/ci-workflow-template.js';
+import {
+  compareSemver,
+  MIN_GH_VERSION,
+  parseGhVersion,
+  preflightGh,
+  preflightRuntimeDeps,
+} from './lib/bootstrap/gh-preflight.js';
 import { confirm as defaultHitlConfirm } from './lib/bootstrap/hitl-confirm.js';
 import { applyMergeMethods } from './lib/bootstrap/merge-methods.js';
+import { printSummary } from './lib/bootstrap/summary.js';
 import {
   auditProjectWorkflows,
   formatAuditSummary,
@@ -47,170 +54,8 @@ import {
 } from './lib/label-taxonomy.js';
 import { createProvider } from './lib/provider-factory.js';
 
-/**
- * Minimum `gh` version the bootstrap supports. Set conservatively per
- * Tech Spec #1350 ("Risks & Mitigations → `gh` version skew"): older
- * releases miss flags the eventual `gh-exec` shim relies on. Bumping this
- * is a deliberate, operator-visible change — keep it tracked here.
- */
-export const MIN_GH_VERSION = '2.40.0';
-
-const GH_INSTALL_HINT =
-  'Install gh: https://cli.github.com/ — then re-run this command.';
-const GH_AUTH_HINT =
-  'Run `gh auth login` (choose GitHub.com → HTTPS → login with a web browser), then re-run this command.';
-
-/**
- * Framework runtime deps the consumer must have installed in
- * `node_modules/` before this script reaches the dynamic
- * `config-resolver` import. `ajv` is the sentinel — if it cannot
- * resolve, the operator skipped `/agents-bootstrap-project` (or its
- * Step 2c/2d dependency-install never ran). The list mirrors the floor
- * in `agents-bootstrap-project.md` Step 2c; keep them in sync.
- */
-const REQUIRED_RUNTIME_DEPS = Object.freeze(['ajv']);
-
-const RUNTIME_DEPS_HINT =
-  'Run `/agents-bootstrap-project` (or `node .agents/scripts/agents-bootstrap-project.js` when present) to merge the framework runtime dependencies into your package.json and install them, then re-run this command.';
-
 const PROJECTS_DOC_POINTER =
   'See docs/project-board.md for the manual Projects V2 setup checklist.';
-
-/**
- * Default runner: synchronously execs `gh <args>` and returns
- * `{ status, stdout, stderr, error }`. Extracted so the preflight tests
- * can inject a stub without spawning a real child process. Forerunner of
- * the `lib/gh-exec.js` shim described in Tech Spec #1350; once that
- * lands, this helper deletes and the preflight calls `gh.exec(...)`.
- *
- * @param {string[]} args
- * @returns {{ status: number|null, stdout: string, stderr: string,
- *             error?: NodeJS.ErrnoException }}
- */
-// Story #2990: this preflight runner intentionally stays on raw
-// `spawnSync('gh', …)` (not the `lib/gh-exec.js` facade) because it
-// runs *before* auth is resolved — `gh --version` and `gh auth status`
-// are the very probes that decide whether the facade can be used at
-// all. Routing through the provider layer would create a circular
-// dependency: the facade assumes a working, authenticated `gh`.
-function defaultGhRunner(args) {
-  const result = spawnSync('gh', args, { encoding: 'utf8' });
-  return {
-    status: result.status,
-    stdout: typeof result.stdout === 'string' ? result.stdout : '',
-    stderr: typeof result.stderr === 'string' ? result.stderr : '',
-    error: result.error,
-  };
-}
-
-/**
- * Parse the first `MAJOR.MINOR.PATCH` triple out of `gh --version` stdout.
- * Returns `null` when the shape is unrecognized so callers can decide
- * whether to surface an error or proceed.
- *
- * @param {string} stdout
- * @returns {string|null}
- */
-export function parseGhVersion(stdout) {
-  const match = /(\d+)\.(\d+)\.(\d+)/.exec(stdout || '');
-  return match ? `${match[1]}.${match[2]}.${match[3]}` : null;
-}
-
-/**
- * Numeric comparison of two `MAJOR.MINOR.PATCH` strings.
- * Returns negative if `a < b`, positive if `a > b`, zero if equal.
- * Missing segments are treated as `0`. Non-numeric segments compare as 0.
- *
- * @param {string} a
- * @param {string} b
- * @returns {number}
- */
-export function compareSemver(a, b) {
-  const pa = String(a)
-    .split('.')
-    .map((n) => Number.parseInt(n, 10) || 0);
-  const pb = String(b)
-    .split('.')
-    .map((n) => Number.parseInt(n, 10) || 0);
-  for (let i = 0; i < 3; i++) {
-    const diff = (pa[i] ?? 0) - (pb[i] ?? 0);
-    if (diff !== 0) return diff;
-  }
-  return 0;
-}
-
-/**
- * Preflight the `gh` CLI before any provider call. Three failure modes,
- * each surfaced as a typed error so callers (CLI `main`, future
- * orchestrators, tests) can `instanceof`-match without parsing strings:
- *
- *   - {@link GhNotInstalledError} — `gh` not on PATH (ENOENT) or the
- *     `--version` invocation reported a non-zero exit suggesting the
- *     binary is missing/broken.
- *   - {@link GhVersionError} — `gh` is present but older than
- *     {@link MIN_GH_VERSION}; carries `{ found, required }` for the
- *     CLI to render an upgrade hint.
- *   - {@link GhAuthError} — `gh auth status` exited non-zero, meaning
- *     no host is logged in.
- *
- * On success returns `{ version }` so the caller can log the resolved
- * version. The `runner` seam defaults to a real `spawnSync('gh', …)`;
- * tests inject a stub returning the canonical
- * `{ status, stdout, stderr, error }` shape.
- *
- * @param {{ runner?: (args: string[]) => {
- *   status: number|null, stdout: string, stderr: string,
- *   error?: NodeJS.ErrnoException
- * } }} [opts]
- * @returns {Promise<{ version: string }>}
- */
-export async function preflightGh(opts = {}) {
-  const runner = opts.runner ?? defaultGhRunner;
-
-  const versionResult = runner(['--version']);
-  if (versionResult.error?.code === 'ENOENT') {
-    throw new GhNotInstalledError(
-      `gh CLI not found on PATH. ${GH_INSTALL_HINT}`,
-    );
-  }
-  if (versionResult.status !== 0) {
-    // Non-ENOENT failure of `gh --version` is treated as "not installed
-    // correctly" — same remediation, same exit semantics.
-    const stderrSnippet = (versionResult.stderr || '').trim().slice(0, 200);
-    throw new GhNotInstalledError(
-      `gh --version failed (exit ${versionResult.status}): ${stderrSnippet}. ${GH_INSTALL_HINT}`,
-    );
-  }
-
-  const version = parseGhVersion(versionResult.stdout);
-  if (!version) {
-    throw new GhNotInstalledError(
-      `Could not parse gh version from output: ${(versionResult.stdout || '').slice(0, 200)}. ${GH_INSTALL_HINT}`,
-    );
-  }
-  if (compareSemver(version, MIN_GH_VERSION) < 0) {
-    throw new GhVersionError(
-      `gh ${version} is older than required ${MIN_GH_VERSION}. Upgrade with your package manager (e.g. \`brew upgrade gh\`, \`winget upgrade GitHub.cli\`, or see https://cli.github.com/) and re-run this command.`,
-      { found: version, required: MIN_GH_VERSION },
-    );
-  }
-
-  const authResult = runner(['auth', 'status']);
-  if (authResult.error?.code === 'ENOENT') {
-    // Defensive — `gh --version` already passed, so ENOENT here would be a
-    // PATH race. Treat the same as not-installed.
-    throw new GhNotInstalledError(
-      `gh CLI disappeared between version and auth check. ${GH_INSTALL_HINT}`,
-    );
-  }
-  if (authResult.status !== 0) {
-    throw new GhAuthError(
-      `gh auth status failed: not logged in. ${GH_AUTH_HINT}`,
-    );
-  }
-
-  return { version };
-}
 
 /**
  * Detect that an error is a not-found / 404 signal across the surfaces
@@ -235,41 +80,6 @@ function isApiAccessNotFoundError(err) {
     /\bnot found\b/i.test(stderr) ||
     /could not resolve to a/i.test(stderr)
   );
-}
-
-/**
- * Preflight the framework's runtime dependencies before dynamic-importing
- * `config-resolver.js` (which transitively pulls in `ajv` via
- * `config-settings-schema.js`). A fresh consumer who skipped
- * `/agents-bootstrap-project` will not have `ajv` installed, and the
- * raw `ERR_MODULE_NOT_FOUND` from the dynamic import is opaque. This
- * preflight converts that into a {@link MissingRuntimeDepsError} that
- * names the missing packages and points the operator at the right
- * workflow.
- *
- * The `resolver` seam lets tests inject a stub without touching the real
- * module graph; production uses `import.meta.resolve(specifier)`.
- *
- * @param {{ resolver?: (specifier: string) => string | Promise<string> }} [opts]
- * @returns {Promise<void>}
- */
-export async function preflightRuntimeDeps(opts = {}) {
-  const resolver =
-    opts.resolver ?? ((specifier) => import.meta.resolve(specifier));
-  const missing = [];
-  for (const specifier of REQUIRED_RUNTIME_DEPS) {
-    try {
-      await resolver(specifier);
-    } catch {
-      missing.push(specifier);
-    }
-  }
-  if (missing.length > 0) {
-    throw new MissingRuntimeDepsError(
-      `Framework runtime dependencies missing from node_modules/: ${missing.join(', ')}. ${RUNTIME_DEPS_HINT}`,
-      { missing },
-    );
-  }
 }
 
 async function verifyApiAccess(provider) {
@@ -677,71 +487,6 @@ export async function runBootstrap(config, opts = {}) {
 // CLI entry point
 // ---------------------------------------------------------------------------
 
-function formatProjectSummary(project) {
-  if (project.scopesMissing) return 'skipped (missing project scope)';
-  if (project.created) return `created #${project.projectNumber}`;
-  if (project.projectNumber) return `adopted #${project.projectNumber}`;
-  return 'skipped';
-}
-
-function formatBranchProtectionSummary(bp) {
-  if (!bp) return 'not-run';
-  if (bp.status === 'created') return `created (added: ${bp.added.join(', ')})`;
-  if (bp.status === 'merged') {
-    return bp.added.length
-      ? `merged (added: ${bp.added.join(', ')})`
-      : 'merged (no changes)';
-  }
-  if (bp.status === 'skipped') return `skipped (${bp.reason})`;
-  if (bp.status === 'failed') return `failed (${bp.reason})`;
-  return bp.status;
-}
-
-function formatWorkflowAuditSummary(wa) {
-  if (!wa) return 'not-run';
-  if (wa.skipped) return `skipped (${wa.reason})`;
-  if (wa.action === 'no-conflicts') return 'no conflicting workflows';
-  if (wa.action === 'warn-only')
-    return `warned (${wa.audit.conflicting.length} conflicting; pass --reap-conflicting-workflows to delete)`;
-  if (wa.action === 'reaped') return `reaped ${wa.reaped.length} workflow(s)`;
-  return wa.action ?? 'unknown';
-}
-
-function formatMergeMethodsSummary(mm) {
-  if (!mm) return 'not-run';
-  if (mm.status === 'unchanged') return 'unchanged (already at target stance)';
-  if (mm.status === 'patched')
-    return `patched (${(mm.patched ?? []).join(', ') || '—'})`;
-  if (mm.status === 'skipped') return `skipped (${mm.reason})`;
-  if (mm.status === 'failed') return `failed (${mm.reason})`;
-  return mm.status;
-}
-
-function printSummary(result) {
-  Logger.info('\n=== Bootstrap Summary ===');
-  Logger.info(`Labels created: ${result.labels.created.length}`);
-  Logger.info(`Labels skipped: ${result.labels.skipped.length}`);
-  Logger.info(`Fields created: ${result.fields.created.length}`);
-  Logger.info(`Fields skipped: ${result.fields.skipped.length}`);
-  Logger.info(`Project: ${formatProjectSummary(result.project)}`);
-  Logger.info(`Status field: ${result.statusField.status}`);
-  const unavailableSuffix = result.views.unavailable
-    ? ' (mutation unavailable)'
-    : '';
-  Logger.info(
-    `Views — created: ${result.views.created.length}, skipped: ${result.views.skipped.length}${unavailableSuffix}`,
-  );
-  Logger.info(
-    `Workflow audit: ${formatWorkflowAuditSummary(result.workflowAudit)}`,
-  );
-  Logger.info(
-    `Branch protection: ${formatBranchProtectionSummary(result.branchProtection)}`,
-  );
-  Logger.info(
-    `Merge methods: ${formatMergeMethodsSummary(result.mergeMethods)}`,
-  );
-}
-
 async function main() {
   // Preflight `gh` before touching config or the provider — surfaces the
   // most common new-adopter failure (missing/stale `gh`) as the first
@@ -825,9 +570,16 @@ async function main() {
 }
 
 // Re-export internal helpers for test consumers (no production caller imports them).
+// Re-export the gh-preflight surface so existing test consumers can keep
+// importing it from this module after the Story #3349 split.
 export {
+  compareSemver,
   ensureMainBranchProtection,
   isApiAccessNotFoundError,
+  MIN_GH_VERSION,
+  parseGhVersion,
+  preflightGh,
+  preflightRuntimeDeps,
   verifyApiAccess,
 };
 
