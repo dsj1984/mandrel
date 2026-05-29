@@ -845,28 +845,45 @@ const QA_SIGN_IN_SEAM_SCHEMA = {
   ],
 };
 
+// `personas` accepts two shapes (Story #3306). The plain `string[]` of
+// persona names is the honest shape for a `urlTemplate` dev-impersonation
+// seam, where the workflow substitutes only the persona name into the URL
+// and never reads per-persona auth material. The object-map form (keyed by
+// persona name, each entry carrying `credentialRef` or `signInSkill`) is
+// for `skill`/credential seams where per-persona material is genuinely
+// consulted. The resolver normalizes both to one canonical internal form.
 const QA_PERSONAS_SCHEMA = {
-  type: 'object',
-  additionalProperties: {
-    oneOf: [
-      {
-        type: 'object',
-        properties: {
-          credentialRef: { ...SAFE_STRING, minLength: 1 },
-        },
-        required: ['credentialRef'],
-        additionalProperties: false,
+  oneOf: [
+    {
+      type: 'array',
+      minItems: 1,
+      items: { ...SAFE_STRING, minLength: 1 },
+    },
+    {
+      type: 'object',
+      minProperties: 1,
+      additionalProperties: {
+        oneOf: [
+          {
+            type: 'object',
+            properties: {
+              credentialRef: { ...SAFE_STRING, minLength: 1 },
+            },
+            required: ['credentialRef'],
+            additionalProperties: false,
+          },
+          {
+            type: 'object',
+            properties: {
+              signInSkill: { ...SAFE_STRING, minLength: 1 },
+            },
+            required: ['signInSkill'],
+            additionalProperties: false,
+          },
+        ],
       },
-      {
-        type: 'object',
-        properties: {
-          signInSkill: { ...SAFE_STRING, minLength: 1 },
-        },
-        required: ['signInSkill'],
-        additionalProperties: false,
-      },
-    ],
-  },
+    },
+  ],
 };
 
 export const QA_SCHEMA = {

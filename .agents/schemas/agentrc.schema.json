@@ -900,31 +900,50 @@
       ]
     },
     "qaPersonas": {
-      "type": "object",
-      "additionalProperties": {
-        "oneOf": [
-          {
-            "type": "object",
-            "required": ["credentialRef"],
-            "additionalProperties": false,
-            "properties": {
-              "credentialRef": {
-                "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": ["signInSkill"],
-            "additionalProperties": false,
-            "properties": {
-              "signInSkill": {
-                "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
-              }
-            }
+      "description": "Personas the QA-harness sign-in seam accepts. Two accepted shapes: (1) a plain array of persona names — the honest shape for a `urlTemplate` dev-impersonation seam, where the persona name is the sole input the workflow consumes; (2) the object-map form keyed by persona name, where each entry carries per-persona auth material (`credentialRef` or `signInSkill`) consulted only under a `skill`/credential seam.",
+      "oneOf": [
+        {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
           }
-        ]
-      }
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "object",
+                "required": ["credentialRef"],
+                "additionalProperties": false,
+                "properties": {
+                  "credentialRef": {
+                    "allOf": [
+                      { "$ref": "#/$defs/safeString" },
+                      { "minLength": 1 }
+                    ]
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "required": ["signInSkill"],
+                "additionalProperties": false,
+                "properties": {
+                  "signInSkill": {
+                    "allOf": [
+                      { "$ref": "#/$defs/safeString" },
+                      { "minLength": 1 }
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
     },
     "qa": {
       "type": "object",

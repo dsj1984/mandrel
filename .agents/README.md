@@ -579,10 +579,7 @@ required at run time by `resolveQaContract`. Copy the reference shape from
     "featureRoot": "tests/features",                 // root the selector resolves .feature files against
     "fixturesManifest": "tests/fixtures/personas.json", // persona → seed-data manifest
     "signInSeam": { "urlTemplate": "/dev/sign-in-as/{persona}" }, // dev seam (see step 3)
-    "personas": {
-      "admin": { "credentialRef": "QA_ADMIN_CREDENTIAL" }, // stored-credential reference, never an inline secret
-      "member": { "signInSkill": "stack/qa/sign-in-member" } // or a per-persona sign-in skill
-    },
+    "personas": ["admin", "member"],                 // name-only array — the honest shape for a url-template seam
     "consoleAllowlist": ["[HMR]"],                   // optional benign-noise filter (default [])
     "designTokens": "src/styles/tokens.css"          // optional visual-check pointer (default null)
   }
@@ -592,6 +589,27 @@ required at run time by `resolveQaContract`. Copy the reference shape from
 `featureRoot`, `fixturesManifest`, `signInSeam`, and `personas` are
 mandatory; omitting any one makes the resolver throw a field-named error.
 `consoleAllowlist` and `designTokens` default to `[]` and `null`.
+
+`personas` accepts **two shapes** (the resolver normalizes both to one
+canonical internal map keyed by persona name):
+
+- **Name-only array** (above) — `["admin", "member"]`. This is the honest
+  shape under a `urlTemplate` dev-impersonation seam, where the persona name
+  is the only input the harness consumes (it is substituted into the URL) and
+  no per-persona auth material is ever read. Do **not** fabricate
+  `credentialRef`/`signInSkill` values a url-template seam ignores.
+- **Object map** — keyed by persona name, each entry carrying per-persona
+  auth material (`{ credentialRef }` or `{ signInSkill }`). Use this only
+  under a `skill` (or credential) seam where that material is genuinely
+  consulted:
+
+  ```jsonc
+  "signInSeam": { "skill": "stack/qa/sign-in" },
+  "personas": {
+    "admin": { "credentialRef": "QA_ADMIN_CREDENTIAL" }, // stored-credential reference, never an inline secret
+    "member": { "signInSkill": "stack/qa/sign-in-member" } // or a per-persona sign-in skill
+  }
+  ```
 
 ### 2. Author the fixtures manifest
 
@@ -613,9 +631,13 @@ credentials are never entered. Expose one of two shapes:
 - **`{ skill }`** — when sign-in is multi-step or non-URL, point at a
   consumer skill whose `SKILL.md` the harness reads and follows.
 
-Per-persona overrides live under `qa.personas`: `{ credentialRef }` points at
-a stored-credential reference (resolved from the environment, never inlined)
-and `{ signInSkill }` points at a per-persona sign-in skill.
+Which seam kinds consult per-persona material: under a `{ urlTemplate }` seam
+the persona **name** is the sole input, so author `personas` as a name-only
+array and supply no auth material. Under a `{ skill }` (or credential) seam,
+author `personas` as the object map and supply per-persona overrides:
+`{ credentialRef }` points at a stored-credential reference (resolved from the
+environment, never inlined) and `{ signInSkill }` points at a per-persona
+sign-in skill.
 
 Once these three are in place, `/run-qa-harness <selector>` resolves the
 contract and sweeps the selected scenarios. The `chrome-devtools` MCP surface
