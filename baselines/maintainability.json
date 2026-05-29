@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T15:05:29.630Z",
+  "generatedAt": "2026-05-29T15:15:49.326Z",
   "rollup": {
     "*": {
       "min": 61.218,
@@ -3377,10 +3377,6 @@
     {
       "path": "tests/lib/orchestration/detectors-phase.test.js",
       "mi": 108.534
-    },
-    {
-      "path": "tests/lib/orchestration/epic-cleanup.test.js",
-      "mi": 99.815
     },
     {
       "path": "tests/lib/orchestration/epic-plan-state-store.test.js",
