@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T13:42:46.425Z",
+  "generatedAt": "2026-05-29T13:58:50.532Z",
   "rollup": {
     "*": {
       "min": 61.218,
-      "p50": 103.88,
+      "p50": 103.888,
       "p95": 121.479
     }
   },
@@ -355,10 +355,6 @@
       "mi": 99.662
     },
     {
-      "path": ".agents/scripts/lib/bootstrap/merge-methods.js",
-      "mi": 88.908
-    },
-    {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "mi": 97.26
     },
@@ -637,10 +633,6 @@
     {
       "path": ".agents/scripts/lib/epic-close-tail-helpers.js",
       "mi": 80.256
-    },
-    {
-      "path": ".agents/scripts/lib/epic-merge-lock.js",
-      "mi": 99.737
     },
     {
       "path": ".agents/scripts/lib/epic-plan-clarity.js",
@@ -1321,10 +1313,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/findings-renderer.js",
       "mi": 97.791
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
-      "mi": 85.115
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/review-provider-factory.js",
@@ -2403,10 +2391,6 @@
       "mi": 102.141
     },
     {
-      "path": "tests/bootstrap/merge-methods.test.js",
-      "mi": 106.594
-    },
-    {
       "path": "tests/bootstrap/project-bootstrap.test.js",
       "mi": 106.624
     },
@@ -3263,10 +3247,6 @@
       "mi": 110.205
     },
     {
-      "path": "tests/lib/epic-merge-lock.test.js",
-      "mi": 97.071
-    },
-    {
       "path": "tests/lib/feedback-loop/code-review-graduator.test.js",
       "mi": 105.628
     },
@@ -3797,10 +3777,6 @@
     {
       "path": "tests/lib/orchestration/review-providers/findings-renderer.test.js",
       "mi": 96.757
-    },
-    {
-      "path": "tests/lib/orchestration/review-providers/native.test.js",
-      "mi": 107.908
     },
     {
       "path": "tests/lib/orchestration/review-providers/review-provider-factory-chain.test.js",
