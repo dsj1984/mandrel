@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.36.0](https://github.com/dsj1984/mandrel/compare/v1.35.0...v1.36.0) (2026-05-29)
+
+
+### Added
+
+* **qa-harness:** accept name-only personas for url-template seams (refs [#3306](https://github.com/dsj1984/mandrel/issues/3306)) ([#3309](https://github.com/dsj1984/mandrel/issues/3309)) ([6a96c07](https://github.com/dsj1984/mandrel/commit/6a96c07bc8a1789c2dcde54b9341b13ff3164d1d))
+
+
+### Fixed
+
+* **release:** version Epic merges and fix agents-update changelog source ([#3307](https://github.com/dsj1984/mandrel/issues/3307)) ([44ea136](https://github.com/dsj1984/mandrel/commit/44ea136aef07154f414150f2ee89c4d6f264382d))
+
 ## [1.35.0](https://github.com/dsj1984/mandrel/compare/v1.34.0...v1.35.0) (2026-05-29)
 
 
