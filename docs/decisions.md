@@ -1730,8 +1730,9 @@ and have been moved to
 Epic #269 introduces a BDD authoring framework: one rule
 (`.agents/rules/gherkin-standards.md`), two skills
 (`skills/stack/qa/gherkin-authoring`, `skills/stack/qa/playwright-bdd`), one
-workflow (`/run-bdd-suite`), and a pyramid-aware rewrite of
-`testing-standards.md`. Without a single source of truth for the tag taxonomy
+acceptance-execution workflow (the headless BDD runner, later retired in Epic
+#3214 in favor of the agent-driven `/run-qa-harness`), and a pyramid-aware
+rewrite of `testing-standards.md`. Without a single source of truth for the tag taxonomy
 and forbidden patterns, the two skills and every consuming project would
 inevitably drift into parallel vocabularies — exactly the failure mode that
 made Cucumber suites unmaintainable in earlier industry cycles.

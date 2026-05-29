@@ -1,18 +1,18 @@
 ---
-description: QA Epic-testing workflow — ingest the Cucumber report from the BDD acceptance suite as Epic evidence
+description: QA Epic-testing workflow — ingest the agent-driven QA harness sweep as Epic evidence
 ---
 
 # Epic Testing (helper)
 
 > **Helper module.** Not a slash command. Invoked from the QA gate during
 > `/epic-deliver` or directly by an operator when the Epic-testing ticket
-> needs refreshed evidence. For ad-hoc BDD runs use `/run-bdd-suite` — this
-> helper owns the Epic-evidence ticket lifecycle on top of it.
+> needs refreshed evidence. For ad-hoc acceptance runs use `/run-qa-harness` —
+> this helper owns the Epic-evidence ticket lifecycle on top of it.
 
 Gather and attach the acceptance-suite evidence that gates Epic closure. The
-evidence artifact is the **Cucumber HTML/JSON report** produced by the
-consuming project's BDD suite (typically via `/run-bdd-suite`), **not** a
-hand-ticked markdown checklist.
+evidence artifact is the **agent-driven QA harness sweep report** produced by
+`/run-qa-harness` (scenario pass/fail/blocked totals plus structured
+findings), **not** a hand-ticked markdown checklist.
 
 > **When to run**: During the QA phase of an Epic, after all Story merges
 > have landed on the Epic branch and before `/epic-deliver`. Also run ad-hoc
@@ -36,31 +36,34 @@ hand-ticked markdown checklist.
    The canonical taxonomy lives in `.agents/rules/gherkin-standards.md`. Do
    not invent new tags here.
 
-## Step 1 — Execute the BDD Suite
+## Step 1 — Execute the QA Harness Sweep
 
-Invoke `/run-bdd-suite` with the chosen tag expression:
+Invoke `/run-qa-harness` with the chosen selector:
 
 ```text
-/run-bdd-suite "@smoke and @risk-high"
+/run-qa-harness "tag:@smoke and @risk-high"
 ```
 
-The `/run-bdd-suite` workflow (`.agents/workflows/run-bdd-suite.md`) owns the
-execution mechanics — reporter configuration, shard layout, trace capture.
-This workflow consumes its output.
+The `/run-qa-harness` workflow (`.agents/workflows/run-qa-harness.md`) owns the
+execution mechanics — `qa` contract resolution, scenario selection, browser
+navigation, and finding capture. This workflow consumes its output.
 
 If the consuming project runs the suite through its own CI invocation rather
 than the slash command, treat the CI run as equivalent provided it produces
-the same Cucumber JSON + HTML artifacts.
+the same scenario totals and structured findings.
 
 ## Step 2 — Collect the Evidence Artifact
 
 The evidence package for the Epic-testing ticket is:
 
-- **Cucumber JSON** — primary, machine-readable record of the run. Required.
-- **Cucumber HTML** — human-readable companion. Required when available.
-- **Playwright trace zips** — for every failed scenario. Required on failure.
-- **Suite summary** — tag expression applied, totals (passed / failed /
-  skipped / undefined), and the commit SHA the suite ran against.
+- **Sweep summary** — selector applied, scenario totals (passed / failed /
+  blocked), and the commit SHA the sweep ran against. Required.
+- **Structured findings** — the `F#` findings bundle the harness emits
+  (console / network / visual problems by surface). Required.
+- **Accessibility snapshots / traces** — for every failed or blocked scenario.
+  Required on failure.
+- **Drafted follow-up bundle** — the proposed follow-up tickets awaiting
+  operator sign-off, when the sweep surfaced findings.
 
 Store the artifacts where your project's evidence convention dictates (CI
 artifact store, object storage, or attached to the ticket directly). Link —
@@ -69,17 +72,17 @@ do not paste — large artifacts.
 ## Step 3 — Attach and Transition
 
 1. Comment on the Epic-testing ticket with:
-   - The suite summary from Step 2.
-   - Links (or attachments) to the Cucumber JSON, Cucumber HTML, and any
-     trace zips.
-   - The commit SHA the run executed against.
-2. If every scenario passed (no `failed`, no `undefined`), transition the
+   - The sweep summary from Step 2.
+   - Links (or attachments) to the structured findings, accessibility
+     snapshots, and any traces.
+   - The commit SHA the sweep executed against.
+2. If every scenario passed (no `failed`, no `blocked`), transition the
    Epic-testing ticket to `agent::done`.
-3. If any scenario failed or is undefined, leave the ticket in its current
+3. If any scenario failed or is blocked, leave the ticket in its current
    state and open a follow-up ticket per failure with:
    - Scenario name and `.feature` file path.
    - One-line symptom.
-   - Link to the failing scenario's trace zip.
+   - Link to the failing scenario's snapshot or trace.
 
 Do not close the Epic-testing ticket on a failed run. `/epic-deliver`
 depends on green evidence.
@@ -96,7 +99,7 @@ that file as evidence. **That flow is deprecated.** Reasons:
 - They are not machine-readable, so downstream aggregation and trend
   reporting are impossible.
 
-The Cucumber report replaces the checklist as the single evidence artifact.
+The QA harness sweep replaces the checklist as the single evidence artifact.
 Projects still maintaining a checklist should migrate by authoring the
 equivalent scenarios in Gherkin (see the `stack/qa/gherkin-authoring` skill)
 and deleting the checklist in the same change.
@@ -104,17 +107,17 @@ and deleting the checklist in the same change.
 ## Constraints
 
 - **Never** substitute a hand-authored checklist or prose summary for the
-  Cucumber report. The report must be the output of an actual run.
+  harness sweep. The evidence must be the output of an actual run.
 - **Never** close the Epic-testing ticket while any scenario is `failed` or
-  `undefined`.
-- **Always** record the commit SHA the suite ran against, so the evidence is
+  `blocked`.
+- **Always** record the commit SHA the sweep ran against, so the evidence is
   pinned to a verifiable tree state.
-- **Always** link trace zips for failed scenarios; a failure without a trace
-  is not actionable.
+- **Always** link a snapshot or trace for failed scenarios; a failure without
+  evidence is not actionable.
 
 ## Cross-References
 
-- Execution mechanics: `.agents/workflows/run-bdd-suite.md`.
+- Execution mechanics: `.agents/workflows/run-qa-harness.md`.
 - Scenario authoring rules: `.agents/rules/gherkin-standards.md`.
 - Runner / fixture / trace conventions:
   `.agents/skills/stack/qa/playwright-bdd/SKILL.md`.
