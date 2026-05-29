@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.38.0](https://github.com/dsj1984/mandrel/compare/v1.37.0...v1.38.0) (2026-05-29)
+
+
+### Added
+
+* Epic [#3316](https://github.com/dsj1984/mandrel/issues/3316) ([#3359](https://github.com/dsj1984/mandrel/issues/3359)) ([2ee5462](https://github.com/dsj1984/mandrel/commit/2ee546258dbb46483fbd201caaf5f1d91cd569df))
+* **single-story-close:** add wrong-tree edit guard (refs [#3364](https://github.com/dsj1984/mandrel/issues/3364)) ([#3366](https://github.com/dsj1984/mandrel/issues/3366)) ([db07f38](https://github.com/dsj1984/mandrel/commit/db07f382863b7a80d19012dadb291b9f8666e22b))
+
+
+### Fixed
+
+* **audit:** isolate audit selector and acceptance reconciler per-epic (refs [#3362](https://github.com/dsj1984/mandrel/issues/3362)) ([#3365](https://github.com/dsj1984/mandrel/issues/3365)) ([8cd28e5](https://github.com/dsj1984/mandrel/commit/8cd28e5483078d289db59c2673ecddbddbb724bb))
+
+
+### Changed
+
+* **scripts:** address Epic [#3316](https://github.com/dsj1984/mandrel/issues/3316) audit follow-ups ([#3361](https://github.com/dsj1984/mandrel/issues/3361)) ([7728a60](https://github.com/dsj1984/mandrel/commit/7728a6049d9739ea48881bba108adee056e13f41))
+
 ## [1.37.0](https://github.com/dsj1984/mandrel/compare/v1.36.0...v1.37.0) (2026-05-29)
 
 
