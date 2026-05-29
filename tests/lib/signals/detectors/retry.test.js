@@ -291,6 +291,62 @@ describe('detectRetry — argument validation', () => {
   });
 });
 
+describe('detectRetry — nowFn clock seam (Story #3329)', () => {
+  it('stamps the emission with the injected nowFn return value', async () => {
+    const FIXED = '2026-01-02T03:04:05.678Z';
+    const events = await detectRetry({
+      tracesPath: fixturePath('retry-over-threshold.ndjson'),
+      epicId: EPIC_ID,
+      storyId: STORY_ID,
+      taskId: TASK_ID,
+      threshold: DEFAULT_THRESHOLD,
+      nowFn: () => FIXED,
+    });
+    assert.ok(events.length >= 1);
+    for (const evt of events) {
+      assert.equal(evt.ts, FIXED);
+    }
+  });
+
+  it('invokes nowFn exactly once per detect call', async () => {
+    let calls = 0;
+    const events = await detectRetry({
+      tracesPath: fixturePath('retry-over-threshold.ndjson'),
+      epicId: EPIC_ID,
+      storyId: STORY_ID,
+      taskId: TASK_ID,
+      threshold: DEFAULT_THRESHOLD,
+      nowFn: () => {
+        calls += 1;
+        return '2026-01-02T03:04:05.678Z';
+      },
+    });
+    assert.ok(events.length >= 1);
+    assert.equal(calls, 1, 'nowFn should be called once per detect call');
+  });
+
+  it('defaults to a real ISO clock when nowFn is omitted', async () => {
+    const events = await run('retry-over-threshold.ndjson', DEFAULT_THRESHOLD);
+    assert.ok(events.length >= 1);
+    assert.match(events[0].ts, /^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it('throws TypeError when nowFn is provided but not a function', async () => {
+    await assert.rejects(
+      () =>
+        detectRetry({
+          tracesPath: fixturePath('retry-over-threshold.ndjson'),
+          epicId: EPIC_ID,
+          storyId: STORY_ID,
+          taskId: TASK_ID,
+          threshold: DEFAULT_THRESHOLD,
+          nowFn: 42,
+        }),
+      TypeError,
+    );
+  });
+});
+
 describe('detectRetry — fixture-size contract (privacy: < 4KB each)', () => {
   it('keeps every fixture file under 4KB to enforce literal-hex hash discipline', async () => {
     const fixtures = [

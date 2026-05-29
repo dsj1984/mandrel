@@ -306,6 +306,62 @@ describe('detectHotspot — argument validation', () => {
   });
 });
 
+describe('detectHotspot — nowFn clock seam (Story #3329)', () => {
+  beforeEach(async () => {
+    await materializeFixtureTempRoot(scratchDir);
+  });
+
+  it('stamps the emission with the injected nowFn return value', async () => {
+    const FIXED = '2026-01-02T03:04:05.678Z';
+    const events = await detectHotspot({
+      epicId: EPIC_ID,
+      multiplier: 0.5,
+      tempRoot: scratchDir,
+      nowFn: () => FIXED,
+    });
+    assert.equal(events.length, 1);
+    assert.equal(events[0].ts, FIXED);
+  });
+
+  it('invokes nowFn exactly once per detect call', async () => {
+    let calls = 0;
+    const events = await detectHotspot({
+      epicId: EPIC_ID,
+      multiplier: 0.5,
+      tempRoot: scratchDir,
+      nowFn: () => {
+        calls += 1;
+        return '2026-01-02T03:04:05.678Z';
+      },
+    });
+    assert.equal(events.length, 1);
+    assert.equal(calls, 1, 'nowFn should be called once per detect call');
+  });
+
+  it('defaults to a real ISO clock when nowFn is omitted', async () => {
+    const events = await detectHotspot({
+      epicId: EPIC_ID,
+      multiplier: 0.5,
+      tempRoot: scratchDir,
+    });
+    assert.equal(events.length, 1);
+    assert.match(events[0].ts, /^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it('throws TypeError when nowFn is provided but not a function', async () => {
+    await assert.rejects(
+      () =>
+        detectHotspot({
+          epicId: EPIC_ID,
+          multiplier: 0.5,
+          tempRoot: scratchDir,
+          nowFn: 'not-a-function',
+        }),
+      TypeError,
+    );
+  });
+});
+
 describe('detectHotspot — fixture-size contract (privacy: < 4KB each)', () => {
   it('keeps every fixture file under 4KB to enforce literal-hex hash discipline', () => {
     const fixtures = [

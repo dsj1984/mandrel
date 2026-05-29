@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it, mock } from 'node:test';
-import { Logger, NOOP_LOGGER } from '../../.agents/scripts/lib/Logger.js';
+import {
+  Logger,
+  NOOP_LOGGER,
+  resolveLevel,
+  setLevel,
+} from '../../.agents/scripts/lib/Logger.js';
 
 describe('Logger', () => {
   beforeEach(() => {
@@ -77,6 +82,114 @@ describe('Logger', () => {
       '▶ [MyScript] [phase] message',
     );
     assert.strictEqual(console.error.mock.calls.length, 0);
+  });
+});
+
+describe('Logger lazy level resolution (Story #3329)', () => {
+  // The level seam lets every branch be exercised in-process — no child
+  // process per level, unlike the load-time `LEVEL` constant it replaced.
+  beforeEach(() => {
+    mock.method(console, 'log', () => {});
+    mock.method(console, 'warn', () => {});
+    mock.method(console, 'error', () => {});
+  });
+
+  afterEach(() => {
+    setLevel(null);
+    mock.restoreAll();
+  });
+
+  it('resolveLevel reads AGENT_LOG_LEVEL on every call (env-driven)', () => {
+    const prior = process.env.AGENT_LOG_LEVEL;
+    try {
+      process.env.AGENT_LOG_LEVEL = 'verbose';
+      assert.equal(resolveLevel(), 'verbose');
+      process.env.AGENT_LOG_LEVEL = 'silent';
+      assert.equal(resolveLevel(), 'silent');
+      process.env.AGENT_LOG_LEVEL = 'gibberish';
+      assert.equal(resolveLevel(), 'info', 'unrecognized → info');
+    } finally {
+      if (prior === undefined) delete process.env.AGENT_LOG_LEVEL;
+      else process.env.AGENT_LOG_LEVEL = prior;
+    }
+  });
+
+  it('setLevel pins the level and Logger.level reflects it', () => {
+    setLevel('verbose');
+    assert.equal(Logger.level, 'verbose');
+    setLevel('silent');
+    assert.equal(Logger.level, 'silent');
+  });
+
+  it('setLevel(null) clears the override and restores env resolution', () => {
+    const prior = process.env.AGENT_LOG_LEVEL;
+    try {
+      process.env.AGENT_LOG_LEVEL = 'info';
+      setLevel('verbose');
+      assert.equal(Logger.level, 'verbose');
+      setLevel(null);
+      assert.equal(Logger.level, 'info');
+    } finally {
+      if (prior === undefined) delete process.env.AGENT_LOG_LEVEL;
+      else process.env.AGENT_LOG_LEVEL = prior;
+    }
+  });
+
+  it('setLevel throws RangeError for an unrecognized non-null level', () => {
+    assert.throws(() => setLevel('loud'), RangeError);
+    assert.throws(() => setLevel(42), RangeError);
+  });
+
+  it('silent suppresses every method except fatal (in-process)', () => {
+    setLevel('silent');
+    Logger.debug('D');
+    Logger.info('I');
+    Logger.warn('W');
+    Logger.error('E');
+    assert.equal(console.log.mock.calls.length, 0);
+    assert.equal(console.warn.mock.calls.length, 0);
+    assert.equal(console.error.mock.calls.length, 0);
+  });
+
+  it('verbose enables debug plus every higher level (in-process)', () => {
+    setLevel('verbose');
+    Logger.debug('D');
+    Logger.info('I');
+    Logger.warn('W');
+    Logger.error('E');
+    assert.equal(console.log.mock.calls.length, 1, 'info → stdout');
+    assert.equal(console.warn.mock.calls.length, 1, 'warn → console.warn');
+    // debug + error both route to stderr → 2 entries.
+    assert.equal(console.error.mock.calls.length, 2);
+  });
+
+  it('debug level behaves identically to verbose (alias)', () => {
+    setLevel('debug');
+    Logger.debug('D');
+    Logger.error('E');
+    assert.equal(console.error.mock.calls.length, 2);
+  });
+
+  it('info suppresses debug but emits info/warn/error (in-process)', () => {
+    setLevel('info');
+    Logger.debug('D');
+    Logger.info('I');
+    Logger.warn('W');
+    Logger.error('E');
+    assert.equal(console.log.mock.calls.length, 1);
+    assert.equal(console.warn.mock.calls.length, 1);
+    assert.equal(console.error.mock.calls.length, 1, 'only error on stderr');
+  });
+
+  it('createProgress respects the level resolved at call time', () => {
+    setLevel('silent');
+    const progress = Logger.createProgress('S');
+    progress('phase', 'msg');
+    assert.equal(console.error.mock.calls.length, 0);
+
+    setLevel('info');
+    progress('phase', 'msg');
+    assert.equal(console.error.mock.calls.length, 1);
   });
 });
 

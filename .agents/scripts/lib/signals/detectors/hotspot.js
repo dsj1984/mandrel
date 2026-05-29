@@ -199,6 +199,11 @@ export function nearestRankP95(values) {
  * @param {number} args.multiplier — positive number; p95 multiplier.
  * @param {string} [args.tempRoot] — override `temp/` root (mostly for
  *   tests that point at a synthetic fixture tree).
+ * @param {() => string} [args.nowFn] — optional clock seam returning the
+ *   ISO-8601 `ts` stamped onto every emitted SignalEvent. Defaults to
+ *   `() => new Date().toISOString()`. Inject a fixed-return function in
+ *   tests to make the emitted `ts` deterministic. MUST, when provided, be
+ *   a function.
  * @returns {Promise<object[]>} array of hotspot SignalEvents conforming
  *   to `.agents/schemas/signal-event.schema.json`'s envelope. Emitted
  *   `details` payload: `{ targetHash, totalEdits, storiesAffected,
@@ -211,6 +216,12 @@ export async function detectHotspot(args) {
     );
   }
   const { epicId, multiplier, tempRoot } = args;
+  if (args.nowFn != null && typeof args.nowFn !== 'function') {
+    throw new TypeError(
+      `detectHotspot: nowFn, when provided, must be a function (got ${typeof args.nowFn})`,
+    );
+  }
+  const nowFn = args.nowFn ?? (() => new Date().toISOString());
 
   if (!isPositiveInt(epicId)) {
     throw new RangeError(
@@ -273,7 +284,7 @@ export async function detectHotspot(args) {
     .filter((h) => totals.get(h) > threshold)
     .sort();
 
-  const ts = new Date().toISOString();
+  const ts = nowFn();
   return offenders.map((targetHash) => ({
     ts,
     kind: 'hotspot',
