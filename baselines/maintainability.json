@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T00:21:21.217Z",
+  "generatedAt": "2026-05-29T12:07:00.627Z",
   "rollup": {
     "*": {
       "min": 61.218,
@@ -619,10 +619,6 @@
       "mi": 90.902
     },
     {
-      "path": ".agents/scripts/lib/cpu-pool.js",
-      "mi": 101.986
-    },
-    {
       "path": ".agents/scripts/lib/crap-engine.js",
       "mi": 92.895
     },
@@ -757,10 +753,6 @@
     {
       "path": ".agents/scripts/lib/label-taxonomy.js",
       "mi": 94.652
-    },
-    {
-      "path": ".agents/scripts/lib/Logger.js",
-      "mi": 111.564
     },
     {
       "path": ".agents/scripts/lib/maintainability-engine.js",
@@ -1675,20 +1667,8 @@
       "mi": 128.211
     },
     {
-      "path": ".agents/scripts/lib/signals/detectors/hotspot.js",
-      "mi": 93.602
-    },
-    {
       "path": ".agents/scripts/lib/signals/detectors/index.js",
       "mi": 171
-    },
-    {
-      "path": ".agents/scripts/lib/signals/detectors/retry.js",
-      "mi": 91.307
-    },
-    {
-      "path": ".agents/scripts/lib/signals/detectors/rework.js",
-      "mi": 87.685
     },
     {
       "path": ".agents/scripts/lib/signals/index.js",
@@ -3331,10 +3311,6 @@
       "mi": 120.854
     },
     {
-      "path": "tests/lib/cpu-pool.test.js",
-      "mi": 97.3
-    },
-    {
       "path": "tests/lib/crap-engine.test.js",
       "mi": 98.952
     },
@@ -3469,10 +3445,6 @@
     {
       "path": "tests/lib/logger-levels.test.js",
       "mi": 107.774
-    },
-    {
-      "path": "tests/lib/logger.test.js",
-      "mi": 120.199
     },
     {
       "path": "tests/lib/maintainability-engine.test.js",
@@ -4133,18 +4105,6 @@
     {
       "path": "tests/lib/signals/detectors/common.test.js",
       "mi": 111.996
-    },
-    {
-      "path": "tests/lib/signals/detectors/hotspot.test.js",
-      "mi": 108.332
-    },
-    {
-      "path": "tests/lib/signals/detectors/retry.test.js",
-      "mi": 111.836
-    },
-    {
-      "path": "tests/lib/signals/detectors/rework.test.js",
-      "mi": 112.89
     },
     {
       "path": "tests/lib/signals/read.test.js",
