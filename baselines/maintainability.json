@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T12:19:19.975Z",
+  "generatedAt": "2026-05-29T12:50:06.106Z",
   "rollup": {
     "*": {
       "min": 61.218,
-      "p50": 103.762,
+      "p50": 103.804,
       "p95": 121.571
     }
   },
@@ -643,10 +643,6 @@
       "mi": 112.973
     },
     {
-      "path": ".agents/scripts/lib/env-loader.js",
-      "mi": 102.643
-    },
-    {
       "path": ".agents/scripts/lib/epic-close-tail-helpers.js",
       "mi": 80.256
     },
@@ -1061,10 +1057,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/error-journal.js",
       "mi": 99.718
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/file-assumptions.js",
-      "mi": 92.906
     },
     {
       "path": ".agents/scripts/lib/orchestration/finalize/close-planning-tickets.js",
@@ -1551,10 +1543,6 @@
       "mi": 114.919
     },
     {
-      "path": ".agents/scripts/lib/orchestration/task-body-validator.js",
-      "mi": 98.293
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
       "mi": 87.033
     },
@@ -1725,10 +1713,6 @@
     {
       "path": ".agents/scripts/lib/spec/state.js",
       "mi": 104.935
-    },
-    {
-      "path": ".agents/scripts/lib/story-body/story-body.js",
-      "mi": 84.296
     },
     {
       "path": ".agents/scripts/lib/story-init/blocker-validator.js",
@@ -3329,10 +3313,6 @@
     {
       "path": "tests/lib/duplicate-search.test.js",
       "mi": 110.205
-    },
-    {
-      "path": "tests/lib/env-loader.test.js",
-      "mi": 118.376
     },
     {
       "path": "tests/lib/epic-merge-lock.test.js",
