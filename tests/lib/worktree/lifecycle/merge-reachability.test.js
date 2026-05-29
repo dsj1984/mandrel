@@ -133,7 +133,8 @@ describe('hasMergeCommitForStory', () => {
       '-n',
       '1',
       '--pretty=%H',
-      '--grep=resolves #42',
+      '-E',
+      '--grep=resolves #42( |\\)|$)',
     ]);
   });
 

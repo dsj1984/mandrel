@@ -33,9 +33,9 @@
  */
 
 import { isObject } from '../json-utils.js';
+import { RESOLVES_TRAILER_RE } from '../orchestration/resolves-token.js';
 
 const BASELINE_REFRESH_PREFIX = 'baseline-refresh:';
-const STORY_RESOLVE_PATTERN = /\(resolves\s+#\d+\)/i;
 const DEFAULT_WINDOW_DAYS = 28;
 
 /**
@@ -65,7 +65,7 @@ function toEpochMs(iso) {
 function classifySubject(subject) {
   if (typeof subject !== 'string' || subject.length === 0) return 'other';
   if (subject.startsWith(BASELINE_REFRESH_PREFIX)) return 'refresh';
-  if (STORY_RESOLVE_PATTERN.test(subject)) return 'story';
+  if (RESOLVES_TRAILER_RE.test(subject)) return 'story';
   return 'other';
 }
 

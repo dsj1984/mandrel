@@ -18,6 +18,7 @@
  */
 
 import { parseStoryBranch } from '../../git-utils.js';
+import { resolvesGrepArgs } from '../../orchestration/resolves-token.js';
 
 /**
  * Resolve a worktree's `HEAD` to a full commit SHA via
@@ -95,7 +96,7 @@ export function hasMergeCommitForStory(ctx, branch, epicRef) {
     '-n',
     '1',
     '--pretty=%H',
-    `--grep=resolves #${storyId}`,
+    ...resolvesGrepArgs(storyId),
   );
   return grep.status === 0 && grep.stdout.trim().length > 0;
 }
