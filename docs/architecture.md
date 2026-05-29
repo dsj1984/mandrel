@@ -1164,6 +1164,78 @@ provide authoring guidance and runtime wiring respectively; neither redefines
 the rule. Scripts in this repository do not themselves run `.feature` files —
 they ship the contract that consumer projects implement.
 
+### Agent-driven QA harness
+
+The E2E/Acceptance tier is executed by the **agent-driven QA harness**
+(`/run-qa-harness`, Epic #3214). It is the successor to the framework's
+earlier headless BDD runner (`/run-bdd-suite`, now retired): rather than a
+Node orchestrator running Cucumber headlessly, the harness is a **prose
+workflow** the host LLM executes against a **real browser** through the
+`chrome-devtools` MCP surface, with a human observing. Deterministic Node
+helpers under `.agents/scripts/lib/qa/` do only contract resolution
+(`resolve-qa-contract.js`), scenario selection (`resolve-selection.js`), and
+console filtering (`console-allowlist.js`); the LLM owns navigation,
+assertion, and triage. The full run procedure is the SSOT in
+[`.agents/workflows/run-qa-harness.md`](../.agents/workflows/run-qa-harness.md);
+the instrumentation conventions live in the
+`skills/stack/qa/qa-harness` skill.
+
+**How it is invoked.** `/run-qa-harness <selector>`, where the selector
+scopes the sweep to a concrete, deterministic scenario set:
+
+- `feature:<id>` — the single `.feature` file whose `featureRoot`-relative
+  path stem (or basename) matches the id.
+- `tag:<expression>` — the scenario set satisfying a cucumber boolean tag
+  expression (`@smoke and not @wip`).
+- `domain:<name>` — every scenario under the `featureRoot`-relative
+  subdirectory `name`.
+
+**Run pipeline.** Each sweep runs the same fixed sequence:
+
+1. **Resolve** the consumer's `qa` contract via `resolveQaContract(config)`.
+   The resolver **fails loudly** — there is no auto-detection fallback — when
+   the block is absent, malformed, or missing a required field.
+2. **Select** the scenario set deterministically (`(file, line)`-sorted) so
+   re-running the same selector scopes the identical set and evidence stays
+   diffable.
+3. **Sign in** once per persona via the contract's `signInSeam` — a dev-only
+   seam; real credentials are never entered.
+4. **Drive** each scenario **navigation-first**: start at a root and reach
+   the surface under test only via UI affordances (never URL-jump to a deep
+   link), and assert every `Then` **semantically** against the accessibility
+   snapshot — never against DOM/CSS selectors, HTTP status codes, or DB rows
+   (those are contract-tier concerns).
+5. **Instrument & inspect** per surface: capture console and network, filter
+   console through the `consoleAllowlist`, and spot-check against
+   `designTokens` when set. Each surviving signal becomes one structured `F#`
+   finding.
+6. **Draft** follow-ups bundled by likely root cause for **operator
+   sign-off** — the harness never files tickets autonomously.
+
+**The `qa` contract block.** Binding the harness is opt-in: a consumer adds
+a top-level `qa` block to `.agentrc.json`. The block is *optional in the
+schema* (so config validation never breaks a non-QA consumer); presence is
+enforced at run time by `resolveQaContract`. The full reference shape lives
+in [`.agents/full-agentrc.json`](../.agents/full-agentrc.json). Fields:
+
+| Field              | Required | Meaning                                                                                                                                                       |
+| ------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `featureRoot`      | yes      | Filesystem root the selector resolves `.feature` files against.                                                                                               |
+| `fixturesManifest` | yes      | Path to the persona → seed-data manifest loaded before sign-in.                                                                                               |
+| `signInSeam`       | yes      | Discriminated union: `{ urlTemplate }` (substitute `{persona}` into a dev sign-in URL) **or** `{ skill }` (invoke a named consumer skill for procedural sign-in). |
+| `personas`         | yes      | Map of persona name → `{ credentialRef }` (stored-credential reference) or `{ signInSkill }` (per-persona sign-in skill). Never an inline secret.             |
+| `consoleAllowlist` | no       | Benign-console substring patterns to suppress (default `[]`). A noise filter, **not** a security control — never expand it to silence a genuine error.        |
+| `designTokens`     | no       | Pointer to the token/style source for visual spot-checks (default `null`). When `null`, the design-token check is skipped entirely.                            |
+
+**Findings — the `F#` shape.** Every captured problem is normalized into a
+structured finding validated against
+[`.agents/schemas/qa-finding.schema.json`](../.agents/schemas/qa-finding.schema.json):
+`{ id, classification, surface, symptom, likelyRootCause, disposition
+(blocker | follow-up), acceptance, foldsInto?, evidence: { console[],
+network[] } }`. Captured evidence is scrubbed of tokens, session cookies, and
+PII before any finding is rendered, because findings are posted to GitHub at
+approval time.
+
 ### What the Agent Should **Not** Assume
 
 - There is no monorepo tool (no Turborepo, no pnpm workspaces) — this is a
