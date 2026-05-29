@@ -1,10 +1,10 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T21:15:21.783Z",
+  "generatedAt": "2026-05-29T00:21:21.217Z",
   "rollup": {
     "*": {
-      "min": 35.783,
+      "min": 61.218,
       "p50": 103.753,
       "p95": 121.479
     }
@@ -497,10 +497,6 @@
     {
       "path": ".agents/scripts/lib/config-schema.js",
       "mi": 171
-    },
-    {
-      "path": ".agents/scripts/lib/config-settings-schema.js",
-      "mi": 35.783
     },
     {
       "path": ".agents/scripts/lib/config/baselines.js",
@@ -2600,7 +2596,7 @@
     },
     {
       "path": "tests/config-schema-mirror-drift.test.js",
-      "mi": 101.053
+      "mi": 102.899
     },
     {
       "path": "tests/config-settings-schema.test.js",

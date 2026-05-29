@@ -70,8 +70,8 @@ authoring.
 - Point `playwright.config.ts` at the generated directory via `testDir`; keep a
   single `defineBddConfig` block that lists `features` and `steps` paths.
 - Register the Cucumber HTML/JSON reporter alongside the Playwright HTML
-  reporter so Epic-testing evidence matches the format expected by
-  `/run-bdd-suite`.
+  reporter so a headless CI invocation emits machine-readable evidence
+  alongside the agent-driven `/run-qa-harness` sweep.
 - Use Playwright projects (not Cucumber profiles) for browser matrix fan-out —
   keeps sharding, retries, and trace config in one place.
 
@@ -97,8 +97,9 @@ authoring.
   [`.agents/rules/gherkin-standards.md`](../../../../rules/gherkin-standards.md#tag-taxonomy)
   (`@smoke`, `@risk-high`, `@platform-*`, `@domain-*`). Do not invent parallel
   tag vocabularies in the runner config; extend via `@domain-*` only.
-- Wire the `/run-bdd-suite <tag-expression>` workflow to a single npm script so
-  operators never reconstruct the generate-then-run sequence by hand.
+- Wire tag-filtered headless runs to a single npm script so operators never
+  reconstruct the generate-then-run sequence by hand; the agent-driven
+  `/run-qa-harness` selector mirrors the same tag expressions for browser sweeps.
 - Fail the run if generation produces zero matching scenarios — a silent empty
   suite is worse than a red build.
 
@@ -183,5 +184,5 @@ those outcomes.
 
 - Scenario authoring rules: `.agents/rules/gherkin-standards.md`.
 - Browser-level conventions: `.agents/skills/stack/qa/playwright/SKILL.md`.
-- Operator entry point: `.agents/workflows/run-bdd-suite.md`.
+- Operator entry point: `.agents/workflows/run-qa-harness.md`.
 - Evidence handoff: `.agents/workflows/helpers/epic-testing.md`.

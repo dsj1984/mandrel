@@ -400,6 +400,108 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
       'conditional root required when enabled=true',
     );
   });
+
+  // -------------------------------------------------------------------------
+  // qa block — agent-driven QA harness contract (Epic #3214, Story #3293).
+  // -------------------------------------------------------------------------
+
+  it('accepts a well-formed qa block with url-template signInSeam on both sides (Story #3293)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        qa: {
+          featureRoot: 'tests/features',
+          fixturesManifest: 'tests/fixtures/manifest.json',
+          signInSeam: { urlTemplate: 'https://app.test/login?as=admin' },
+          personas: {
+            admin: { credentialRef: 'env:ADMIN_CREDS' },
+            member: { signInSkill: 'stack/qa/sign-in' },
+          },
+          consoleAllowlist: ['ResizeObserver loop limit exceeded'],
+          designTokens: 'design/tokens.json',
+        },
+      },
+      'qa block with url-template signInSeam',
+    );
+  });
+
+  it('accepts a qa block with skill signInSeam on both sides (Story #3293)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        qa: {
+          featureRoot: 'tests/features',
+          signInSeam: { skill: 'stack/qa/sign-in' },
+        },
+      },
+      'qa block with skill signInSeam',
+    );
+  });
+
+  it('rejects a qa signInSeam that is neither url-template nor skill on both sides (Story #3293)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        qa: { signInSeam: { token: 'inline-secret' } },
+      },
+      'qa signInSeam neither variant',
+    );
+  });
+
+  it('rejects a qa signInSeam that satisfies both variants on both sides (Story #3293)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        qa: {
+          signInSeam: {
+            urlTemplate: 'https://app.test/login',
+            skill: 'stack/qa/sign-in',
+          },
+        },
+      },
+      'qa signInSeam both variants (oneOf rejects)',
+    );
+  });
+
+  it('rejects shell-injection in qa.featureRoot on both sides (Story #3293)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        qa: { featureRoot: 'tests/features; rm -rf /' },
+      },
+      'shell injection in qa.featureRoot',
+    );
+  });
+
+  it('rejects shell-injection in qa.fixturesManifest on both sides (Story #3293)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        qa: { fixturesManifest: 'fixtures/$(whoami).json' },
+      },
+      'shell injection in qa.fixturesManifest',
+    );
+  });
+
+  it('rejects shell-injection in qa.designTokens on both sides (Story #3293)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        qa: { designTokens: 'tokens.json && cat /etc/passwd' },
+      },
+      'shell injection in qa.designTokens',
+    );
+  });
+
+  it('rejects an unknown key inside the qa block on both sides (Story #3293)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        qa: { mystery: true },
+      },
+      'unknown key in qa block',
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------

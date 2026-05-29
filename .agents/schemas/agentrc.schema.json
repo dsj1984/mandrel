@@ -11,7 +11,8 @@
     "project": { "$ref": "#/$defs/project" },
     "github": { "$ref": "#/$defs/github" },
     "planning": { "$ref": "#/$defs/planning" },
-    "delivery": { "$ref": "#/$defs/delivery" }
+    "delivery": { "$ref": "#/$defs/delivery" },
+    "qa": { "$ref": "#/$defs/qa" }
   },
   "$defs": {
     "safeString": {
@@ -873,6 +874,79 @@
         }
       },
       "additionalProperties": false
+    },
+    "qaSignInSeam": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["urlTemplate"],
+          "additionalProperties": false,
+          "properties": {
+            "urlTemplate": {
+              "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["skill"],
+          "additionalProperties": false,
+          "properties": {
+            "skill": {
+              "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+            }
+          }
+        }
+      ]
+    },
+    "qaPersonas": {
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": ["credentialRef"],
+            "additionalProperties": false,
+            "properties": {
+              "credentialRef": {
+                "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["signInSkill"],
+            "additionalProperties": false,
+            "properties": {
+              "signInSkill": {
+                "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+              }
+            }
+          }
+        ]
+      }
+    },
+    "qa": {
+      "type": "object",
+      "description": "Agent-driven QA harness contract (Epic #3214). Optional top-level block. All filesystem-pointer fields (featureRoot, fixturesManifest, designTokens) carry safeString guards rejecting shell-injection metacharacters. signInSeam is a url-template/skill union; personas resolve to a stored credential reference or a sign-in skill, never an inline secret.",
+      "additionalProperties": false,
+      "properties": {
+        "featureRoot": {
+          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+        },
+        "fixturesManifest": {
+          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+        },
+        "signInSeam": { "$ref": "#/$defs/qaSignInSeam" },
+        "personas": { "$ref": "#/$defs/qaPersonas" },
+        "consoleAllowlist": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "designTokens": {
+          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+        }
+      }
     }
   }
 }

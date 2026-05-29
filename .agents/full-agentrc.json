@@ -257,5 +257,18 @@
       },
       "ackTimeoutMs": 1800000
     }
+  },
+  "qa": {
+    "featureRoot": "tests/features",
+    "fixturesManifest": "tests/fixtures/personas.json",
+    "signInSeam": {
+      "urlTemplate": "/dev/sign-in-as/{persona}"
+    },
+    "personas": {
+      "admin": { "credentialRef": "QA_ADMIN_CREDENTIAL" },
+      "member": { "signInSkill": "stack/qa/sign-in-member" }
+    },
+    "consoleAllowlist": ["Download the React DevTools", "[HMR]"],
+    "designTokens": "src/styles/tokens.css"
   }
 }
