@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T14:49:50.243Z",
+  "generatedAt": "2026-05-29T15:05:29.630Z",
   "rollup": {
     "*": {
       "min": 61.218,
-      "p50": 104.084,
+      "p50": 104.155,
       "p95": 121.235
     }
   },
@@ -1151,10 +1151,6 @@
       "mi": 93.277
     },
     {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/trace-logger.js",
-      "mi": 91.064
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/lint-baseline-service.js",
       "mi": 96.762
     },
@@ -1333,10 +1329,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
       "mi": 95.767
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close-recovery.js",
-      "mi": 85.284
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
@@ -1949,10 +1941,6 @@
     {
       "path": ".agents/scripts/story-close.js",
       "mi": 94.408
-    },
-    {
-      "path": ".agents/scripts/story-deliver-prepare.js",
-      "mi": 90.852
     },
     {
       "path": ".agents/scripts/story-init.js",
@@ -4109,10 +4097,6 @@
     {
       "path": "tests/lifecycle/schema-registry.test.js",
       "mi": 98.672
-    },
-    {
-      "path": "tests/lifecycle/trace-logger.test.js",
-      "mi": 100.521
     },
     {
       "path": "tests/lint-baseline-degraded.test.js",
