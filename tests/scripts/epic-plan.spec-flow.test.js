@@ -664,3 +664,360 @@ describe('acceptance disposition persistence — Story #2792', () => {
     assert.strictEqual(verdict.contexts.acceptanceSpec, 'waived');
   });
 });
+
+/**
+ * Build a provider with an Epic that already carries linked context tickets
+ * (PRD / Tech Spec / Acceptance Spec) plus the full ticket table, so the
+ * `--force` overwrite-in-place path can be exercised end-to-end. Tracks
+ * per-ticket body/title/state mutations and posted comments.
+ */
+function buildOverwriteProvider({
+  epicTitle = 'Test Epic',
+  prdId = 6100,
+  techSpecId = 6200,
+  acceptanceSpecId = null,
+  epicLabels = ['type::epic'],
+  extraTickets = {},
+} = {}) {
+  let nextId = 6500;
+  const epic = {
+    id: 6000,
+    title: epicTitle,
+    body: '',
+    labels: epicLabels,
+    linkedIssues: {
+      prd: prdId,
+      techSpec: techSpecId,
+      acceptanceSpec: acceptanceSpecId,
+    },
+  };
+  // Reflect the linked artifacts in the Epic body so healAndCleanup's
+  // body-strip path runs as it would in production.
+  const artifactLines = [
+    `- [ ] PRD: #${prdId}`,
+    `- [ ] Tech Spec: #${techSpecId}`,
+  ];
+  if (acceptanceSpecId) {
+    artifactLines.push(`- [ ] Acceptance Spec: #${acceptanceSpecId}`);
+  }
+  epic.body = `Epic context.\n\n## Planning Artifacts\n${artifactLines.join('\n')}\n`;
+
+  const tickets = { [epic.id]: epic };
+  tickets[prdId] = {
+    id: prdId,
+    title: `[PRD] ${epicTitle}`,
+    body: 'old prd body',
+    labels: ['context::prd'],
+    state: 'open',
+  };
+  tickets[techSpecId] = {
+    id: techSpecId,
+    title: `[Tech Spec] ${epicTitle}`,
+    body: 'old tech spec body',
+    labels: ['context::tech-spec'],
+    state: 'open',
+  };
+  if (acceptanceSpecId) {
+    tickets[acceptanceSpecId] = {
+      id: acceptanceSpecId,
+      title: `[Acceptance Spec] ${epicTitle}`,
+      body: 'old acceptance body',
+      labels: ['context::acceptance-spec'],
+      state: 'open',
+    };
+  }
+  Object.assign(tickets, extraTickets);
+
+  const createdTickets = [];
+  const updatedTickets = [];
+  const comments = []; // { id, payload }
+  const detached = []; // child ids removed from the Epic
+
+  const provider = {
+    epic,
+    tickets,
+    createdTickets,
+    updatedTickets,
+    comments,
+    detached,
+    async getEpic() {
+      return epic;
+    },
+    async getTicket(id) {
+      return tickets[id] ?? null;
+    },
+    async getTickets() {
+      return Object.values(tickets).filter((t) => t.id !== epic.id);
+    },
+    async createTicket(epicId, ticketData) {
+      const id = nextId++;
+      const created = {
+        id,
+        title: ticketData.title,
+        body: ticketData.body ?? '',
+        labels: ticketData.labels ?? [],
+        state: 'open',
+      };
+      tickets[id] = created;
+      createdTickets.push({ epicId, ticketData, id });
+      return { id, url: `https://stub/issues/${id}` };
+    },
+    async updateTicket(id, mutations) {
+      updatedTickets.push({ id, mutations });
+      const cur = tickets[id];
+      if (!cur) return;
+      if (mutations.title !== undefined) cur.title = mutations.title;
+      if (mutations.body !== undefined) cur.body = mutations.body;
+      if (mutations.state) cur.state = mutations.state;
+      if (mutations.labels && typeof mutations.labels === 'object') {
+        const existing = new Set(cur.labels ?? []);
+        for (const add of mutations.labels.add ?? []) existing.add(add);
+        for (const rm of mutations.labels.remove ?? []) existing.delete(rm);
+        cur.labels = Array.from(existing);
+      }
+    },
+    async postComment(id, payload) {
+      comments.push({ id, payload });
+    },
+    async removeSubIssue(_epicId, childId) {
+      detached.push(childId);
+    },
+    primeTicketCache() {},
+  };
+
+  return provider;
+}
+
+describe('--force overwrite-in-place — Story #3310', () => {
+  it('overwrites PRD + Tech Spec + Acceptance Spec in place (same ids, new bodies, no creates)', async () => {
+    const provider = buildOverwriteProvider({
+      epicTitle: 'Security and billing rollout',
+      acceptanceSpecId: 6300,
+    });
+
+    await planEpic(
+      provider.epic.id,
+      provider,
+      {
+        prdContent: '## Overview\nNEW PRD.',
+        techSpecContent: '## Technical Overview\nNEW TS.',
+        acceptanceSpecContent:
+          '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
+      },
+      {},
+      { force: true },
+    );
+
+    // AC-1: no new context-ticket issues created.
+    assert.equal(provider.createdTickets.length, 0);
+
+    // AC-1: bodies updated while ids preserved.
+    assert.match(provider.tickets[6100].body, /NEW PRD/);
+    assert.match(provider.tickets[6200].body, /NEW TS/);
+    assert.match(provider.tickets[6300].body, /AC-1/);
+
+    // AC-2: tickets remain open.
+    assert.equal(provider.tickets[6100].state, 'open');
+    assert.equal(provider.tickets[6200].state, 'open');
+    assert.equal(provider.tickets[6300].state, 'open');
+
+    // AC-2: Planning Artifacts section points at the same preserved ids.
+    const epicBody = provider.tickets[provider.epic.id].body;
+    assert.match(epicBody, /PRD: #6100/);
+    assert.match(epicBody, /Tech Spec: #6200/);
+    assert.match(epicBody, /Acceptance Spec: #6300/);
+  });
+
+  it('refreshes the title prefix to track the current Epic title', async () => {
+    const provider = buildOverwriteProvider({
+      epicTitle: 'Renamed Epic After Clarity Gate',
+      acceptanceSpecId: 6300,
+    });
+
+    await planEpic(
+      provider.epic.id,
+      provider,
+      {
+        prdContent: '## Overview\nNEW PRD.',
+        techSpecContent: '## Technical Overview\nNEW TS.',
+        acceptanceSpecContent:
+          '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
+      },
+      {},
+      { force: true },
+    );
+
+    assert.equal(
+      provider.tickets[6100].title,
+      '[PRD] Renamed Epic After Clarity Gate',
+    );
+    assert.equal(
+      provider.tickets[6200].title,
+      '[Tech Spec] Renamed Epic After Clarity Gate',
+    );
+    assert.equal(
+      provider.tickets[6300].title,
+      '[Acceptance Spec] Renamed Epic After Clarity Gate',
+    );
+  });
+
+  it('AC-3: posts a single regeneration audit comment per overwritten ticket', async () => {
+    const provider = buildOverwriteProvider({
+      epicTitle: 'Security and billing rollout',
+      acceptanceSpecId: 6300,
+    });
+
+    await planEpic(
+      provider.epic.id,
+      provider,
+      {
+        prdContent: '## Overview\nNEW PRD.',
+        techSpecContent: '## Technical Overview\nNEW TS.',
+        acceptanceSpecContent:
+          '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
+      },
+      {},
+      { force: true },
+    );
+
+    const regenComments = provider.comments.filter((c) =>
+      /Regeneration Audit/.test(c.payload.body),
+    );
+    assert.equal(regenComments.length, 3);
+    for (const id of [6100, 6200, 6300]) {
+      assert.equal(
+        regenComments.filter((c) => c.id === id).length,
+        1,
+        `expected exactly one regeneration comment on #${id}`,
+      );
+    }
+  });
+
+  it('AC-4: still closes + detaches redundant duplicate context artifacts', async () => {
+    const provider = buildOverwriteProvider({
+      epicTitle: 'Security and billing rollout',
+      acceptanceSpecId: 6300,
+      extraTickets: {
+        // A redundant duplicate PRD from an interrupted run.
+        6999: {
+          id: 6999,
+          title: '[PRD] leftover',
+          body: 'dupe',
+          labels: ['context::prd'],
+          state: 'open',
+        },
+      },
+    });
+
+    await planEpic(
+      provider.epic.id,
+      provider,
+      {
+        prdContent: '## Overview\nNEW PRD.',
+        techSpecContent: '## Technical Overview\nNEW TS.',
+        acceptanceSpecContent:
+          '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
+      },
+      {},
+      { force: true },
+    );
+
+    // Redundant duplicate closed + detached; canonical preserved.
+    assert.equal(provider.tickets[6999].state, 'closed');
+    assert.ok(provider.detached.includes(6999));
+    assert.equal(provider.tickets[6100].state, 'open');
+  });
+
+  it('AC-5: present→waived closes the existing Acceptance Spec ticket', async () => {
+    const provider = buildOverwriteProvider({
+      // A docs-only Epic resolves to acceptance disposition not-applicable.
+      epicTitle: 'Docs-only readme cleanup',
+      acceptanceSpecId: 6300,
+    });
+
+    await planEpic(
+      provider.epic.id,
+      provider,
+      {
+        prdContent: '## Overview\nNEW PRD.',
+        techSpecContent: '## Technical Overview\nNEW TS.',
+        acceptanceSpecContent:
+          '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
+      },
+      {},
+      { force: true },
+    );
+
+    // Acceptance spec genuinely closed (not overwritten) and detached.
+    assert.equal(provider.tickets[6300].state, 'closed');
+    assert.ok(provider.detached.includes(6300));
+    // Epic body no longer references the acceptance spec.
+    const epicBody = provider.tickets[provider.epic.id].body;
+    assert.doesNotMatch(epicBody, /Acceptance Spec: #6300/);
+    // The acceptance::n-a waiver is applied.
+    assert.ok(provider.epic.labels.includes(ACCEPTANCE_NA));
+  });
+
+  it('AC-5: absent→present creates a new Acceptance Spec ticket', async () => {
+    const provider = buildOverwriteProvider({
+      epicTitle: 'Security and billing rollout',
+      acceptanceSpecId: null, // none linked yet
+    });
+
+    await planEpic(
+      provider.epic.id,
+      provider,
+      {
+        prdContent: '## Overview\nNEW PRD.',
+        techSpecContent: '## Technical Overview\nNEW TS.',
+        acceptanceSpecContent:
+          '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
+      },
+      {},
+      { force: true },
+    );
+
+    const created = provider.createdTickets.filter((t) =>
+      (t.ticketData.labels ?? []).includes('context::acceptance-spec'),
+    );
+    assert.equal(created.length, 1);
+    // PRD + Tech Spec were overwritten in place, not created.
+    assert.equal(
+      provider.createdTickets.filter((t) =>
+        (t.ticketData.labels ?? []).some((l) =>
+          ['context::prd', 'context::tech-spec'].includes(l),
+        ),
+      ).length,
+      0,
+    );
+  });
+
+  it('AC-7: first-time --force (no prior artifacts) still creates the context tickets', async () => {
+    const provider = buildPlanEpicProvider({
+      title: 'Security and billing rollout',
+      body: 'User-facing security changes with Stripe billing.',
+    });
+
+    await planEpic(
+      provider.epic.id,
+      provider,
+      {
+        prdContent: '## Overview\nPRD.',
+        techSpecContent: '## Technical Overview\nTS.',
+        acceptanceSpecContent:
+          '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
+      },
+      {},
+      { force: true },
+    );
+
+    // All three context tickets created from scratch.
+    assert.equal(provider.createdTickets.length, 3);
+    const labels = provider.createdTickets.map((t) => t.ticketData.labels[0]);
+    assert.deepEqual(labels, [
+      'context::prd',
+      'context::tech-spec',
+      'context::acceptance-spec',
+    ]);
+  });
+});

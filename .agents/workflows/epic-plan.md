@@ -153,11 +153,18 @@ planned.
    artifacts. Ask:
 
    > "Epic #[ID] already has PRD (#XX) and Tech Spec (#XX) with YY decomposed
-   > tickets. Do you want to **re-plan** from scratch? This will close the old
-   > PRD, Tech Spec, and all Feature/Story tickets and regenerate them."
+   > tickets. Do you want to **re-plan**? This will **overwrite the PRD,
+   > Tech Spec, and Acceptance Spec in place** (same issue numbers, refreshed
+   > bodies, comment history preserved) and **close-and-recreate** all
+   > Feature/Story tickets."
 
 3. **If user confirms re-plan**: Pass `--force` to all subsequent script
-   invocations.
+   invocations. Under `--force`, the three context tickets (PRD, Tech Spec,
+   Acceptance Spec) are overwritten in place — their issue numbers, Epic
+   sub-issue links, and prior discussion are preserved, and each receives a
+   one-line regeneration audit comment. Feature/Story child tickets are still
+   closed and recreated, because a re-decomposition can legitimately produce a
+   different ticket set.
 4. **If user declines**: Abort gracefully.
 
 ## Phase 6: Epic Clarity Gate
@@ -321,7 +328,10 @@ for the scoring logic.
      --techspec temp/epic-[Epic_ID]/techspec.md \
      --acceptance-spec temp/epic-[Epic_ID]/acceptance-spec.md
 
-   # Re-planning (force regeneration)
+   # Re-planning (--force overwrites the three context tickets IN PLACE —
+   # same PRD / Tech Spec / Acceptance Spec issue numbers, refreshed bodies,
+   # tickets kept open, one regeneration audit comment each. Feature/Story
+   # child tickets are still close-and-recreate at decomposition time.)
    node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] \
      --prd temp/epic-[Epic_ID]/prd.md \
      --techspec temp/epic-[Epic_ID]/techspec.md \

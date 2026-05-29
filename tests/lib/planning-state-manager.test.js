@@ -85,7 +85,7 @@ describe('PlanningStateManager', () => {
     assert.ok(provider.subTickets[10].includes(11));
   });
 
-  it('force re-plan: closes all and strips body', async () => {
+  it('force re-plan: preserves canonical, closes only redundant duplicates', async () => {
     const provider = new MockProvider({
       tickets: {
         10: {
@@ -96,9 +96,11 @@ describe('PlanningStateManager', () => {
         },
         11: { id: 11, labels: ['context::prd'], state: 'open' },
         12: { id: 12, labels: ['context::tech-spec'], state: 'open' },
+        // A redundant duplicate PRD left over from an interrupted run.
+        13: { id: 13, labels: ['context::prd'], state: 'open' },
       },
       subTickets: {
-        10: [11, 12],
+        10: [11, 12, 13],
       },
     });
 
@@ -112,10 +114,19 @@ describe('PlanningStateManager', () => {
 
     await mgr.healAndCleanupArtifacts(epic, true); // force=true
 
-    assert.strictEqual(provider.tickets[11].state, 'closed');
-    assert.strictEqual(provider.tickets[12].state, 'closed');
-    assert.strictEqual(epic.linkedIssues.prd, null);
-    assert.strictEqual(epic.linkedIssues.techSpec, null);
+    // Canonical context tickets are preserved OPEN with their IDs intact so
+    // planEpic can overwrite them in place.
+    assert.strictEqual(provider.tickets[11].state, 'open');
+    assert.strictEqual(provider.tickets[12].state, 'open');
+    assert.strictEqual(epic.linkedIssues.prd, 11);
+    assert.strictEqual(epic.linkedIssues.techSpec, 12);
+
+    // The redundant duplicate is still closed and detached.
+    assert.strictEqual(provider.tickets[13].state, 'closed');
+    assert.ok(!provider.subTickets[10].includes(13));
+
+    // The Planning Artifacts body section is stripped so planEpic re-appends
+    // it pointing at the same preserved IDs.
     assert.ok(!epic.body.includes('## Planning Artifacts'));
   });
 
@@ -180,8 +191,11 @@ describe('PlanningStateManager', () => {
     assert.strictEqual(provider.tickets[11].state, 'open');
   });
 
-  it('force re-plan path caps in-flight close mutations at 3', async () => {
-    // 10 stale planning artifacts so the --force burst is wider than the cap.
+  it('force re-plan path caps the redundant-duplicate close burst at 3', async () => {
+    // 1 canonical PRD + 9 redundant duplicates so the --force redundant
+    // close burst is wider than the cap. Under overwrite-in-place the
+    // canonical context ticket is preserved OPEN; only the redundant
+    // duplicates are closed, and that burst is bounded by the cap.
     const tickets = {
       10: { id: 10, title: 'Epic', body: '', labels: ['type::epic'] },
     };
@@ -190,7 +204,7 @@ describe('PlanningStateManager', () => {
       const id = 200 + i;
       tickets[id] = {
         id,
-        title: `Stale PRD ${i}`,
+        title: `PRD ${i}`,
         labels: ['context::prd'],
         state: 'open',
       };
@@ -225,9 +239,13 @@ describe('PlanningStateManager', () => {
 
     assert.ok(
       peakInFlight <= 3,
-      `expected peak in-flight force-close mutations <= 3 but observed ${peakInFlight}`,
+      `expected peak in-flight redundant-close mutations <= 3 but observed ${peakInFlight}`,
     );
-    for (const id of ids) {
+    // Canonical PRD #200 is preserved open for in-place overwrite.
+    assert.strictEqual(provider.tickets[200].state, 'open');
+    assert.strictEqual(epic.linkedIssues.prd, 200);
+    // The 9 redundant duplicates are closed.
+    for (const id of ids.slice(1)) {
       assert.strictEqual(provider.tickets[id].state, 'closed');
     }
   });
