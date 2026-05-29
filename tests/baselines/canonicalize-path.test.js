@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { canonicalizeBaselinePath } from '../../.agents/scripts/lib/baselines/canonicalize-path.js';
+import { canonicalizeBaselinePath } from '../../.agents/scripts/lib/baselines/path-canon.js';
 
 // ---------------------------------------------------------------------------
 // canonicalize-path.test.js — pin every rule in the

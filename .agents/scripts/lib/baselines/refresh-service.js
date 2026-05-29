@@ -72,7 +72,7 @@
 import { execFile as nodeExecFile } from 'node:child_process';
 import nodeFs from 'node:fs';
 import { promisify } from 'node:util';
-import { canonicalizeBaselinePath } from './canonicalize-path.js';
+import { canonicalizeBaselinePath } from './path-canon.js';
 import {
   write as writeEnvelope,
   writeFile as writeEnvelopeFile,

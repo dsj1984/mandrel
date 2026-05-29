@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T14:15:02.254Z",
+  "generatedAt": "2026-05-29T14:17:06.442Z",
   "rollup": {
     "*": {
       "min": 61.218,
-      "p50": 103.888,
+      "p50": 103.904,
       "p95": 121.235
     }
   },
@@ -247,10 +247,6 @@
       "mi": 80.707
     },
     {
-      "path": ".agents/scripts/lib/baselines/canonicalize-path.js",
-      "mi": 101.238
-    },
-    {
       "path": ".agents/scripts/lib/baselines/component-matcher.js",
       "mi": 132.148
     },
@@ -311,20 +307,12 @@
       "mi": 98.112
     },
     {
-      "path": ".agents/scripts/lib/baselines/path-canon.js",
-      "mi": 101.232
-    },
-    {
       "path": ".agents/scripts/lib/baselines/preview-gates.js",
       "mi": 84.317
     },
     {
       "path": ".agents/scripts/lib/baselines/reader.js",
       "mi": 94.538
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "mi": 94.141
     },
     {
       "path": ".agents/scripts/lib/baselines/scope.js",
@@ -2207,14 +2195,6 @@
       "mi": 86.955
     },
     {
-      "path": "tests/baselines/canonicalize-path-fixture.test.js",
-      "mi": 109.096
-    },
-    {
-      "path": "tests/baselines/canonicalize-path.test.js",
-      "mi": 128.969
-    },
-    {
       "path": "tests/baselines/component-matcher.test.js",
       "mi": 125.891
     },
@@ -2561,10 +2541,6 @@
     {
       "path": "tests/contract/dispatch/wave-tick-inflight.test.js",
       "mi": 103.17
-    },
-    {
-      "path": "tests/contract/dist-bundle-import-isolation.test.js",
-      "mi": 96.681
     },
     {
       "path": "tests/contract/epic-plan-prior-feedback.test.js",
