@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T13:20:52.136Z",
+  "generatedAt": "2026-05-29T13:42:46.425Z",
   "rollup": {
     "*": {
       "min": 61.218,
-      "p50": 103.85,
+      "p50": 103.88,
       "p95": 121.479
     }
   },
@@ -41,10 +41,6 @@
     {
       "path": ".agents/scripts/check-baselines.js",
       "mi": 106.627
-    },
-    {
-      "path": ".agents/scripts/check-dead-exports.js",
-      "mi": 92.663
     },
     {
       "path": ".agents/scripts/check-lifecycle-doc-drift.js",
@@ -973,10 +969,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/phases/build-wave-dag.js",
       "mi": 100.858
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "mi": 92.722
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/phases/snapshot.js",
@@ -1953,10 +1945,6 @@
     {
       "path": ".agents/scripts/providers/github/project-board.js",
       "mi": 135.623
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "mi": 97.138
     },
     {
       "path": ".agents/scripts/providers/github/prs.js",
@@ -3519,10 +3507,6 @@
       "mi": 91.059
     },
     {
-      "path": "tests/lib/orchestration/epic-runner/iterate-waves.resume-check.test.js",
-      "mi": 102.769
-    },
-    {
       "path": "tests/lib/orchestration/error-journal.test.js",
       "mi": 103.928
     },
@@ -3703,10 +3687,6 @@
       "mi": 104.212
     },
     {
-      "path": "tests/lib/orchestration/lifecycle/phase-iterate-waves.test.js",
-      "mi": 108.292
-    },
-    {
       "path": "tests/lib/orchestration/lifecycle/phase-plan.test.js",
       "mi": 104.21
     },
@@ -3757,10 +3737,6 @@
     {
       "path": "tests/lib/orchestration/lifecycle/runner-retirement.test.js",
       "mi": 97.112
-    },
-    {
-      "path": "tests/lib/orchestration/lifecycle/wave-completeness.test.js",
-      "mi": 121.586
     },
     {
       "path": "tests/lib/orchestration/lint-baseline-service.test.js",
