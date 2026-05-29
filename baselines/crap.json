@@ -1,13 +1,13 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T14:03:06.459Z",
+  "generatedAt": "2026-05-29T14:17:06.915Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.561164258090779,
+      "p95": 12.566846479078583,
       "max": 53.8385539444679,
-      "methodsAbove20": 28
+      "methodsAbove20": 27
     }
   },
   "rows": [
@@ -1236,12 +1236,6 @@
       "crap": 1
     },
     {
-      "path": ".agents/scripts/lib/baselines/canonicalize-path.js",
-      "method": "canonicalizeBaselinePath",
-      "startLine": 51,
-      "crap": 6
-    },
-    {
       "path": ".agents/scripts/lib/baselines/component-matcher.js",
       "method": "componentMatches",
       "startLine": 18,
@@ -2004,30 +1998,6 @@
       "crap": 1
     },
     {
-      "path": ".agents/scripts/lib/baselines/path-canon.js",
-      "method": "isAbsolute",
-      "startLine": 43,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/path-canon.js",
-      "method": "hasTraversal",
-      "startLine": 60,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/path-canon.js",
-      "method": "canonicalise",
-      "startLine": 75,
-      "crap": 7.032218295389168
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/path-canon.js",
-      "method": "assertCanonical",
-      "startLine": 132,
-      "crap": 9
-    },
-    {
       "path": ".agents/scripts/lib/baselines/preview-gates.js",
       "method": "compareScores",
       "startLine": 53,
@@ -2116,66 +2086,6 @@
       "method": "loadFile",
       "startLine": 272,
       "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "<anon method-1>",
-      "startLine": 101,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "<anon method-2>",
-      "startLine": 102,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "<anon method-3>",
-      "startLine": 103,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "refreshBaseline",
-      "startLine": 149,
-      "crap": 6.001880750308357
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "defaultGitDiff",
-      "startLine": 266,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "deriveScopeFromDiff",
-      "startLine": 307,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "fileFilterFor",
-      "startLine": 335,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "resolveScope",
-      "startLine": 357,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "readPriorEnvelope",
-      "startLine": 395,
-      "crap": 7.226851851851852
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/refresh-service.js",
-      "method": "validateOptions",
-      "startLine": 424,
-      "crap": 9
     },
     {
       "path": ".agents/scripts/lib/baselines/scope.js",
@@ -5026,126 +4936,6 @@
       "method": "roundRate",
       "startLine": 210,
       "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "nonNegativeInt",
-      "startLine": 58,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "nonNegativeNumber",
-      "startLine": 64,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "frictionByCategory",
-      "startLine": 77,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "topSlowPhasesVsBaseline",
-      "startLine": 101,
-      "crap": 11.009944933015534
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "reworkScore",
-      "startLine": 134,
-      "crap": 9
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "retryDensity",
-      "startLine": 170,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "phaseTimingsMs",
-      "startLine": 192,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "computeStoryPerfSummary",
-      "startLine": 212,
-      "crap": 10.013486404018948
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "collectValidStorySamples",
-      "startLine": 277,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "buildSignalCounts",
-      "startLine": 296,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "aggregateTopHotspots",
-      "startLine": 334,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "tsOf",
-      "startLine": 377,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "tsToMs",
-      "startLine": 381,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "storyIdOf",
-      "startLine": 387,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "computeWaveParallelismRows",
-      "startLine": 438,
-      "crap": 49.57646887301356
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "clamp",
-      "startLine": 581,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "coerceWaveParallelismRow",
-      "startLine": 608,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "computeEpicPerfReport",
-      "startLine": 623,
-      "crap": 9.001889212827988
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "computeStoryPerfSummaryFromStore",
-      "startLine": 719,
-      "crap": 3.009
-    },
-    {
-      "path": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "method": "computeEpicPerfReportFromStore",
-      "startLine": 758,
-      "crap": 3.0146549969468754
     },
     {
       "path": ".agents/scripts/lib/observability/signals-writer.js",
