@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T14:17:06.915Z",
+  "generatedAt": "2026-05-29T14:27:13.785Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -8764,24 +8764,6 @@
       "method": "renderRoutedSections",
       "startLine": 359,
       "crap": 16
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/retro/phases/gather-signals.js",
-      "method": "sumFriction",
-      "startLine": 35,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/retro/phases/gather-signals.js",
-      "method": "collectDescendants",
-      "startLine": 53,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/retro/phases/gather-signals.js",
-      "method": "warnIfEpicLooksPopulated",
-      "startLine": 91,
-      "crap": 4.291587694999271
     },
     {
       "path": ".agents/scripts/lib/orchestration/retro/phases/post-and-mirror.js",
