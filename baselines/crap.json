@@ -1,13 +1,13 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T14:33:14.819Z",
+  "generatedAt": "2026-05-29T14:48:01.767Z",
   "rollup": {
     "*": {
       "p50": 3,
       "p95": 12.566846479078583,
       "max": 53.8385539444679,
-      "methodsAbove20": 27
+      "methodsAbove20": 26
     }
   },
   "rows": [
@@ -2709,78 +2709,6 @@
       "path": ".agents/scripts/lib/checks/push-hook-parity.js",
       "method": "indent",
       "startLine": 101,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/checks/state.js",
-      "method": "clearStateCache",
-      "startLine": 99,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/checks/state.js",
-      "method": "defaultGitProbe",
-      "startLine": 112,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/checks/state.js",
-      "method": "defaultFsProbe",
-      "startLine": 126,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/checks/state.js",
-      "method": "defaultEnvProbe",
-      "startLine": 137,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/checks/state.js",
-      "method": "defaultLockProbe",
-      "startLine": 153,
-      "crap": 12
-    },
-    {
-      "path": ".agents/scripts/lib/checks/state.js",
-      "method": "validatePidProbeInputs",
-      "startLine": 186,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/checks/state.js",
-      "method": "defaultPidLivenessProbe",
-      "startLine": 202,
-      "crap": 12
-    },
-    {
-      "path": ".agents/scripts/lib/checks/state.js",
-      "method": "probeGit",
-      "startLine": 221,
-      "crap": 25
-    },
-    {
-      "path": ".agents/scripts/lib/checks/state.js",
-      "method": "probeFs",
-      "startLine": 341,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/checks/state.js",
-      "method": "probeEnv",
-      "startLine": 396,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/checks/state.js",
-      "method": "assembleState",
-      "startLine": 426,
-      "crap": 9
-    },
-    {
-      "path": ".agents/scripts/lib/checks/state.js",
-      "method": "getScopeKeys",
-      "startLine": 482,
       "crap": 1
     },
     {

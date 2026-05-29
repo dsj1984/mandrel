@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T14:45:35.237Z",
+  "generatedAt": "2026-05-29T14:48:00.757Z",
   "rollup": {
     "*": {
       "min": 61.218,
@@ -393,10 +393,6 @@
     {
       "path": ".agents/scripts/lib/checks/stale-origin-epic.js",
       "mi": 87.46
-    },
-    {
-      "path": ".agents/scripts/lib/checks/state.js",
-      "mi": 87.416
     },
     {
       "path": ".agents/scripts/lib/checks/story-init-not-backgrounded.js",
