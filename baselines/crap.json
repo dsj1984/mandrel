@@ -1,13 +1,13 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T13:03:23.046Z",
+  "generatedAt": "2026-05-29T13:20:53.915Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.561164258090779,
+      "p95": 12.566846479078583,
       "max": 53.8385539444679,
-      "methodsAbove20": 31
+      "methodsAbove20": 30
     }
   },
   "rows": [
@@ -4812,126 +4812,6 @@
       "crap": 2
     },
     {
-      "path": ".agents/scripts/lib/git-utils.js",
-      "method": "cleanGitEnv",
-      "startLine": 59,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/git-utils.js",
-      "method": "__setGitRunners",
-      "startLine": 78,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/git-utils.js",
-      "method": "gitSync",
-      "startLine": 91,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/git-utils.js",
-      "method": "gitSpawn",
-      "startLine": 109,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/git-utils.js",
-      "method": "createGitInterface",
-      "startLine": 138,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/git-utils.js",
-      "method": "<anon method-4>",
-      "startLine": 145,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/git-utils.js",
-      "method": "<anon method-5>",
-      "startLine": 154,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/git-utils.js",
-      "method": "runWithRetry",
-      "startLine": 169,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/git-utils.js",
-      "method": "<anon method-6>",
-      "startLine": 189,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/git-utils.js",
-      "method": "<anon method-7>",
-      "startLine": 190,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/git-utils.js",
-      "method": "isPackedRefsContention",
-      "startLine": 208,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/git-utils.js",
-      "method": "<anon method-10>",
-      "startLine": 219,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/git-utils.js",
-      "method": "<anon method-9>",
-      "startLine": 219,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/git-utils.js",
-      "method": "__setSleep",
-      "startLine": 228,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/git-utils.js",
-      "method": "gitFetchWithRetry",
-      "startLine": 246,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/git-utils.js",
-      "method": "gitPullWithRetry",
-      "startLine": 272,
-      "crap": 5.33984375
-    },
-    {
-      "path": ".agents/scripts/lib/git-utils.js",
-      "method": "getEpicBranch",
-      "startLine": 295,
-      "crap": 4.373177842565598
-    },
-    {
-      "path": ".agents/scripts/lib/git-utils.js",
-      "method": "slugify",
-      "startLine": 311,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/git-utils.js",
-      "method": "getStoryBranch",
-      "startLine": 326,
-      "crap": 4.25
-    },
-    {
-      "path": ".agents/scripts/lib/git-utils.js",
-      "method": "getTaskBranch",
-      "startLine": 343,
-      "crap": 11.060858945654385
-    },
-    {
       "path": ".agents/scripts/lib/git/cached-fetch.js",
       "method": "__resetModuleCache",
       "startLine": 81,
@@ -7752,72 +7632,6 @@
       "crap": 2
     },
     {
-      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/branches.js",
-      "method": "skipEntryFromVerdict",
-      "startLine": 35,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/branches.js",
-      "method": "evaluateLocalBranch",
-      "startLine": 43,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/branches.js",
-      "method": "collectRemoteOnlyCandidates",
-      "startLine": 93,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/branches.js",
-      "method": "planCleanup",
-      "startLine": 148,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/branches.js",
-      "method": "<anon method-1>",
-      "startLine": 157,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/branches.js",
-      "method": "<anon method-2>",
-      "startLine": 159,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/branches.js",
-      "method": "<anon method-3>",
-      "startLine": 166,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/branches.js",
-      "method": "executeCleanup",
-      "startLine": 213,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/branches.js",
-      "method": "<anon method-4>",
-      "startLine": 219,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/branches.js",
-      "method": "<anon method-5>",
-      "startLine": 220,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/branches.js",
-      "method": "<anon method-6>",
-      "startLine": 221,
-      "crap": 1
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/cli.js",
       "method": "resolveBaseBranch",
       "startLine": 25,
@@ -7936,72 +7750,6 @@
       "method": "dropStash",
       "startLine": 83,
       "crap": 4.048
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
-      "method": "listLocalBranches",
-      "startLine": 33,
-      "crap": 5.146108329540283
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
-      "method": "listRemoteBranches",
-      "startLine": 48,
-      "crap": 5.2958984375
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
-      "method": "listMergedBranches",
-      "startLine": 66,
-      "crap": 5.20262390670554
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
-      "method": "currentBranch",
-      "startLine": 82,
-      "crap": 7.608000000000001
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
-      "method": "readProtectedConfig",
-      "startLine": 89,
-      "crap": 4.6796875
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
-      "method": "worktreesByBranch",
-      "startLine": 99,
-      "crap": 16.021036814425244
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
-      "method": "defaultGhRunner",
-      "startLine": 118,
-      "crap": 1.2962962962962963
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
-      "method": "probeMergedPr",
-      "startLine": 132,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
-      "method": "probeLatestPr",
-      "startLine": 185,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
-      "method": "branchTipSha",
-      "startLine": 235,
-      "crap": 49.61729902329076
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
-      "method": "classifyLatestPr",
-      "startLine": 290,
-      "crap": 9
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/parse-args.js",
@@ -9088,102 +8836,6 @@
       "method": "ticketClosurePhase",
       "startLine": 29,
       "crap": 6.242617283950617
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/post-merge/phases/worktree-reap.js",
-      "method": "isWindowsReapLockFailure",
-      "startLine": 42,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/post-merge/phases/worktree-reap.js",
-      "method": "findStillRegisteredEntry",
-      "startLine": 46,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/post-merge/phases/worktree-reap.js",
-      "method": "resolveWorktreeRoot",
-      "startLine": 56,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/post-merge/phases/worktree-reap.js",
-      "method": "retryPruneUntilCleared",
-      "startLine": 62,
-      "crap": 4.0092592592592595
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/post-merge/phases/worktree-reap.js",
-      "method": "reapPhaseLogger",
-      "startLine": 87,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/post-merge/phases/worktree-reap.js",
-      "method": "createWorktreeReapState",
-      "startLine": 91,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/post-merge/phases/worktree-reap.js",
-      "method": "emitReapFailureFriction",
-      "startLine": 104,
-      "crap": 3.0134344023323614
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/post-merge/phases/worktree-reap.js",
-      "method": "resolveSkipState",
-      "startLine": 140,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/post-merge/phases/worktree-reap.js",
-      "method": "resolveInitialReapStatus",
-      "startLine": 152,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/post-merge/phases/worktree-reap.js",
-      "method": "initialReapState",
-      "startLine": 158,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/post-merge/phases/worktree-reap.js",
-      "method": "logReapOutcome",
-      "startLine": 174,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/post-merge/phases/worktree-reap.js",
-      "method": "detectStillRegistered",
-      "startLine": 210,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/post-merge/phases/worktree-reap.js",
-      "method": "escalateStillRegistered",
-      "startLine": 225,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/post-merge/phases/worktree-reap.js",
-      "method": "logStaleRegistryEntry",
-      "startLine": 253,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/post-merge/phases/worktree-reap.js",
-      "method": "worktreeReapPhase",
-      "startLine": 263,
-      "crap": 6.000104956268221
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/post-merge/phases/worktree-reap.js",
-      "method": "applyStillRegisteredState",
-      "startLine": 349,
-      "crap": 5.015410843454726
     },
     {
       "path": ".agents/scripts/lib/orchestration/pr-base-guard.js",
@@ -13282,36 +12934,6 @@
       "method": "gc",
       "startLine": 15,
       "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/worktree/lifecycle/merge-reachability.js",
-      "method": "resolveHeadSha",
-      "startLine": 31,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/worktree/lifecycle/merge-reachability.js",
-      "method": "checkHeadAncestor",
-      "startLine": 54,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/worktree/lifecycle/merge-reachability.js",
-      "method": "hasMergeCommitForStory",
-      "startLine": 85,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/worktree/lifecycle/merge-reachability.js",
-      "method": "hasRebasedEquivalents",
-      "startLine": 129,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/worktree/lifecycle/merge-reachability.js",
-      "method": "checkMergeReachability",
-      "startLine": 151,
-      "crap": 6
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/pending-cleanup.js",
