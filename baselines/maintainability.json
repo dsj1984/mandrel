@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T14:29:11.999Z",
+  "generatedAt": "2026-05-29T14:33:14.367Z",
   "rollup": {
     "*": {
       "min": 61.218,
-      "p50": 103.928,
+      "p50": 104.034,
       "p95": 121.235
     }
   },
@@ -747,10 +747,6 @@
       "mi": 90.113
     },
     {
-      "path": ".agents/scripts/lib/observability/baseline-refresh-rate.js",
-      "mi": 92.391
-    },
-    {
       "path": ".agents/scripts/lib/observability/signals-writer.js",
       "mi": 87.419
     },
@@ -921,10 +917,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/blocker-wait.js",
       "mi": 105.75
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/commit-assertion.js",
-      "mi": 97.501
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/concurrency-gate.js",
@@ -1367,10 +1359,6 @@
       "mi": 163.888
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution.js",
-      "mi": 93.072
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution/phases/gate-failure.js",
       "mi": 66.537
     },
@@ -1415,10 +1403,6 @@
       "mi": 93.146
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-subject.js",
-      "mi": 96.075
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/branch-restore.js",
       "mi": 86.922
     },
@@ -1453,10 +1437,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/timeout-blocked.js",
       "mi": 97.761
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/post-merge-close.js",
-      "mi": 70.79
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/pre-merge-validation.js",
@@ -4107,10 +4087,6 @@
       "mi": 104.53
     },
     {
-      "path": "tests/lib/worktree/lifecycle/merge-reachability.test.js",
-      "mi": 103.814
-    },
-    {
       "path": "tests/lib/worktree/lifecycle/precheck.test.js",
       "mi": 105.907
     },
@@ -4665,10 +4641,6 @@
     {
       "path": "tests/story-close-review.test.js",
       "mi": 103.85
-    },
-    {
-      "path": "tests/story-close-state-machine.test.js",
-      "mi": 109.35
     },
     {
       "path": "tests/story-close.test.js",

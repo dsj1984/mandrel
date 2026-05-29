@@ -20,6 +20,7 @@ import { promisify } from 'node:util';
 
 import { concurrentMap } from '../../util/concurrent-map.js';
 import { DEFAULT_CONCURRENCY } from '../concurrency.js';
+import { resolvesGrepArgs } from '../resolves-token.js';
 
 const execFile = promisify(execFileCb);
 
@@ -156,13 +157,7 @@ async function countResolvesOnEpic({ runner, cwd, epicRef, storyId }) {
   try {
     const { stdout } = await runner(
       'git',
-      [
-        'log',
-        epicRef,
-        '-E',
-        `--grep=resolves #${storyId}( |\\)|$)`,
-        '--format=%H',
-      ],
+      ['log', epicRef, ...resolvesGrepArgs(storyId), '--format=%H'],
       { cwd, windowsHide: true },
     );
     return String(stdout).split('\n').filter(Boolean).length;

@@ -32,14 +32,7 @@
  */
 
 import { gitSpawn as defaultGitSpawn } from '../../git-utils.js';
-
-/**
- * Match `(resolves #<digits>)` in a commit subject. Anchored to the
- * parenthesized form because that's the canonical Story-branch commit
- * trailer shape — bare `resolves #N` in prose elsewhere in the message
- * must not win over the trailer.
- */
-const RESOLVES_TRAILER_RE = /\(resolves #(\d+)\)/i;
+import { parseResolvesStoryId } from '../resolves-token.js';
 
 /**
  * Normalize a path for set-based intersection. `git diff --name-only`
@@ -84,8 +77,7 @@ function lookupSuspect({ gitRunner, cwd, epicRef, path }) {
   const sepIdx = line.search(/\s/);
   const suspectSha = sepIdx === -1 ? line : line.slice(0, sepIdx);
   const subject = sepIdx === -1 ? '' : line.slice(sepIdx + 1);
-  const m = RESOLVES_TRAILER_RE.exec(subject);
-  const suspectStoryNumber = m ? Number.parseInt(m[1], 10) : null;
+  const suspectStoryNumber = parseResolvesStoryId(subject);
   return { suspectSha: suspectSha || null, suspectStoryNumber };
 }
 

@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T14:29:12.526Z",
+  "generatedAt": "2026-05-29T14:33:14.819Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -4902,42 +4902,6 @@
       "crap": 6.318832260445283
     },
     {
-      "path": ".agents/scripts/lib/observability/baseline-refresh-rate.js",
-      "method": "toEpochMs",
-      "startLine": 45,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/observability/baseline-refresh-rate.js",
-      "method": "classifySubject",
-      "startLine": 65,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/observability/baseline-refresh-rate.js",
-      "method": "computeCutoffMs",
-      "startLine": 76,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/observability/baseline-refresh-rate.js",
-      "method": "computeBaselineRefreshRate",
-      "startLine": 127,
-      "crap": 14
-    },
-    {
-      "path": ".agents/scripts/lib/observability/baseline-refresh-rate.js",
-      "method": "<anon method-2>",
-      "startLine": 140,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/observability/baseline-refresh-rate.js",
-      "method": "roundRate",
-      "startLine": 210,
-      "crap": 2
-    },
-    {
       "path": ".agents/scripts/lib/observability/signals-writer.js",
       "method": "tracesFile",
       "startLine": 55,
@@ -6238,24 +6202,6 @@
       "method": "<anon method-4>",
       "startLine": 89,
       "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/commit-assertion.js",
-      "method": "buildDefaultGitAdapter",
-      "startLine": 122,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/commit-assertion.js",
-      "method": "defaultGitAdapter",
-      "startLine": 130,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/commit-assertion.js",
-      "method": "countResolvesOnEpic",
-      "startLine": 155,
-      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/concurrency-gate.js",
@@ -9420,30 +9366,6 @@
       "crap": 6
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution.js",
-      "method": "normalize",
-      "startLine": 50,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution.js",
-      "method": "lookupSuspect",
-      "startLine": 65,
-      "crap": 8
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution.js",
-      "method": "classifyBaselineDrift",
-      "startLine": 118,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution.js",
-      "method": "<anon method-1>",
-      "startLine": 136,
-      "crap": 2
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution/phases/gate-failure.js",
       "method": "handleBaselineGateFailure",
       "startLine": 80,
@@ -9768,54 +9690,6 @@
       "crap": 1
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-subject.js",
-      "method": "loadHeaderMaxLength",
-      "startLine": 46,
-      "crap": 7.3919999999999995
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-subject.js",
-      "method": "_resetHeaderMaxLengthCache",
-      "startLine": 75,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-subject.js",
-      "method": "buildPrefix",
-      "startLine": 79,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-subject.js",
-      "method": "buildSuffix",
-      "startLine": 83,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-subject.js",
-      "method": "buildTruncatedFromTrailer",
-      "startLine": 91,
-      "crap": 3.0327719617660445
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-subject.js",
-      "method": "truncateTitleOnWordBoundary",
-      "startLine": 105,
-      "crap": 5.390625
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-subject.js",
-      "method": "shapeMergeSubject",
-      "startLine": 144,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-subject.js",
-      "method": "buildMergeMessageWithCap",
-      "startLine": 190,
-      "crap": 2
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/branch-restore.js",
       "method": "captureStartingBranch",
       "startLine": 28,
@@ -10036,24 +9910,6 @@
       "method": "renderCoverageTimeoutFrictionBody",
       "startLine": 146,
       "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/post-merge-close.js",
-      "method": "assertMergeReachable",
-      "startLine": 85,
-      "crap": 8.03688970651975
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/post-merge-close.js",
-      "method": "resolveMergeSha",
-      "startLine": 149,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/post-merge-close.js",
-      "method": "runPostMergeClose",
-      "startLine": 217,
-      "crap": 6.000225477532348
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/pre-merge-validation.js",

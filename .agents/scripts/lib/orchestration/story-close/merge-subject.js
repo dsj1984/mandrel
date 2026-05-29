@@ -27,6 +27,7 @@
 
 import path from 'node:path';
 import { Logger as DefaultLogger } from '../../Logger.js';
+import { resolvesToken } from '../resolves-token.js';
 
 const COMMITLINT_DEFAULT_HEADER_MAX_LENGTH = 100;
 const headerCapCache = new Map();
@@ -78,10 +79,6 @@ export function _resetHeaderMaxLengthCache() {
 
 function buildPrefix(type, scope) {
   return scope ? `${type}(${scope}): ` : `${type}: `;
-}
-
-function buildSuffix(storyId) {
-  return ` (resolves #${storyId})`;
 }
 
 // Caps the `truncated-from: <subject>` trailer at `cap` bytes so it
@@ -151,7 +148,7 @@ export function shapeMergeSubject({
 }) {
   const lcTitle = title.charAt(0).toLowerCase() + title.slice(1);
   const prefix = buildPrefix(type, scope);
-  const suffix = buildSuffix(storyId);
+  const suffix = resolvesToken(storyId);
   const originalSubject = `${prefix}${lcTitle}${suffix}`;
   if (Buffer.byteLength(originalSubject, 'utf8') <= headerMaxLength) {
     return {

@@ -91,7 +91,7 @@ test('assertMergeReachable falls back to merge-commit grep when ancestry fails',
       stdout: '',
       stderr: '',
     },
-    'log epic/99 --merges -n 1 --pretty=%H --grep=resolves #100': {
+    'log epic/99 --merges -n 1 --pretty=%H -E --grep=resolves #100( |\\)|$)': {
       status: 0,
       stdout: 'deadbee\n',
       stderr: '',
@@ -126,7 +126,7 @@ test('assertMergeReachable falls back to rebased-equivalents when ancestry and m
       stdout: '',
       stderr: '',
     },
-    'log epic/99 --merges -n 1 --pretty=%H --grep=resolves #100': {
+    'log epic/99 --merges -n 1 --pretty=%H -E --grep=resolves #100( |\\)|$)': {
       status: 0,
       stdout: '',
       stderr: '',
@@ -160,7 +160,7 @@ test('assertMergeReachable throws when ancestry, merge-commit grep, and cherry a
       stdout: '',
       stderr: '',
     },
-    'log epic/99 --merges -n 1 --pretty=%H --grep=resolves #100': {
+    'log epic/99 --merges -n 1 --pretty=%H -E --grep=resolves #100( |\\)|$)': {
       status: 0,
       stdout: '',
       stderr: '',
@@ -196,7 +196,7 @@ test('assertMergeReachable error message preserves agent::closing recovery contr
       stdout: '',
       stderr: '',
     },
-    'log epic/99 --merges -n 1 --pretty=%H --grep=resolves #100': {
+    'log epic/99 --merges -n 1 --pretty=%H -E --grep=resolves #100( |\\)|$)': {
       status: 0,
       stdout: '',
       stderr: '',
