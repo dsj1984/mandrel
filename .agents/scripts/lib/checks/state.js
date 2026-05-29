@@ -211,7 +211,178 @@ function defaultPidLivenessProbe(pid) {
 }
 
 /**
- * Build the git projection for a key list.
+ * Probe the current HEAD ref (short / abbreviated form). Returns the branch
+ * name, or `null` when git cannot resolve HEAD (detached / non-repo).
+ *
+ * @param {object} args
+ * @param {string} args.cwd
+ * @param {(cwd: string, ...args: string[]) => { ok: boolean, stdout: string }} args.git
+ * @returns {string|null}
+ */
+function probeHeadRef({ cwd, git }) {
+  const result = git(cwd, 'rev-parse', '--abbrev-ref', 'HEAD');
+  return result.ok ? result.stdout : null;
+}
+
+/**
+ * Split a newline-delimited `for-each-ref --format='%(refname:short)'`
+ * payload into a trimmed, non-empty short-name list.
+ *
+ * @param {{ ok: boolean, stdout: string }} result
+ * @returns {string[]}
+ */
+function parseBranchList(result) {
+  return result.ok && result.stdout
+    ? result.stdout
+        .split('\n')
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : [];
+}
+
+/**
+ * Probe the epic branches (`refs/heads/epic/`), short-name form.
+ *
+ * @param {object} args
+ * @param {string} args.cwd
+ * @param {(cwd: string, ...args: string[]) => { ok: boolean, stdout: string }} args.git
+ * @returns {string[]}
+ */
+function probeEpicBranches({ cwd, git }) {
+  return parseBranchList(
+    git(cwd, 'for-each-ref', '--format=%(refname:short)', 'refs/heads/epic/'),
+  );
+}
+
+/**
+ * Probe all local branches (`refs/heads/`), short-name form. Used by checks
+ * that grep over the branch list for legacy naming patterns.
+ *
+ * @param {object} args
+ * @param {string} args.cwd
+ * @param {(cwd: string, ...args: string[]) => { ok: boolean, stdout: string }} args.git
+ * @returns {string[]}
+ */
+function probeLocalBranches({ cwd, git }) {
+  return parseBranchList(
+    git(cwd, 'for-each-ref', '--format=%(refname:short)', 'refs/heads/'),
+  );
+}
+
+/**
+ * Probe `core.bare`. Returns the config value, or `null` when unset.
+ *
+ * @param {object} args
+ * @param {string} args.cwd
+ * @param {(cwd: string, ...args: string[]) => { ok: boolean, stdout: string }} args.git
+ * @returns {string|null}
+ */
+function probeCoreBare({ cwd, git }) {
+  const result = git(cwd, 'config', '--get', 'core.bare');
+  return result.ok ? result.stdout : null;
+}
+
+/**
+ * Build a map of epic branch → { local, remote, ahead } sync state.
+ * Standalone (Story #3351): takes the already-assembled `epicBranches` as an
+ * explicit argument rather than reading sibling probe output, so it is
+ * independently testable and the ordering dependency on the epicBranches
+ * probe is explicit at the call site.
+ *
+ * Story #2463 (preflight batching): the prior implementation issued
+ * two `git rev-parse --verify` spawnSync calls per epic branch
+ * (one for `epic/<id>`, one for `origin/epic/<id>`), giving an
+ * O(branches × 2) probe cost. The collapsed implementation issues
+ * exactly one `git for-each-ref` invocation that emits
+ *   `<refname> <objectname> <upstream:short> <upstream:objectname>`
+ * for every local branch, then filters to the epic branches the
+ * scope already declared. Probe cost drops to O(1) for the spawn
+ * surface while preserving the byte-identical return shape:
+ *   { local: string|null, remote: string|null, ahead: boolean }.
+ *
+ * `ahead` stays true only when local AND remote SHAs both exist and
+ * differ — branches with no upstream config (no `%(upstream:objectname)`)
+ * report `remote: null, ahead: false`, matching the pre-batch behavior
+ * where `rev-parse --verify origin/<branch>` failed for unpushed refs.
+ *
+ * @param {object} args
+ * @param {string} args.cwd
+ * @param {(cwd: string, ...args: string[]) => { ok: boolean, stdout: string }} args.git
+ * @param {readonly string[]} args.epicBranches
+ * @returns {Record<string, { local: string|null, remote: string|null, ahead: boolean }>}
+ */
+function probeEpicBranchSync({ cwd, git, epicBranches }) {
+  const sync = {};
+  const branches = epicBranches ?? [];
+  const branchSet = new Set(branches);
+  const formatted = git(
+    cwd,
+    'for-each-ref',
+    '--format=%(refname:short) %(objectname) %(upstream:short) %(upstream:objectname)',
+    'refs/heads/',
+  );
+  const rows = new Map();
+  if (formatted.ok && formatted.stdout) {
+    for (const line of formatted.stdout.split('\n')) {
+      if (!line) continue;
+      // Split on whitespace; trailing fields may be empty strings.
+      // refname is mandatory (always present); objectname always populated
+      // for an existing ref; upstream fields may be missing.
+      const parts = line.split(' ');
+      const refname = parts[0];
+      if (!refname || !branchSet.has(refname)) continue;
+      const objectname = parts[1] || null;
+      const upstreamShort = parts[2] || null;
+      const upstreamObjectname = parts[3] || null;
+      rows.set(refname, {
+        local: objectname,
+        // Surface remote SHA only when an upstream is configured AND
+        // git resolved its objectname. An upstream short-name without
+        // an objectname (gone-upstream edge case) collapses to null.
+        remote: upstreamShort && upstreamObjectname ? upstreamObjectname : null,
+      });
+    }
+  }
+  for (const branch of branches) {
+    const row = rows.get(branch);
+    const localSha = row?.local ?? null;
+    const remoteSha = row?.remote ?? null;
+    sync[branch] = {
+      local: localSha,
+      remote: remoteSha,
+      ahead: Boolean(localSha && remoteSha && localSha !== remoteSha),
+    };
+  }
+  return sync;
+}
+
+/**
+ * Handler map keyed by git probe field name (the part after `git.`). Each
+ * handler receives `{ cwd, git, out }` and returns the field's value. `out`
+ * exposes the already-assembled projection so dependent probes (e.g.
+ * `epicBranchSync`, which needs `epicBranches`) can read upstream results.
+ *
+ * Story #3351: replaces the prior if/else ladder so each probe is
+ * independently testable and the `epicBranchSync` → `epicBranches` ordering
+ * dependency is explicit (it reads `out.epicBranches` and the SCOPE_KEYS
+ * ordering guarantees that field is assembled first).
+ *
+ * @type {Record<string, (ctx: { cwd: string, git: (cwd: string, ...args: string[]) => { ok: boolean, stdout: string }, out: Record<string, unknown> }) => unknown>}
+ */
+const GIT_PROBES = Object.freeze({
+  headRef: ({ cwd, git }) => probeHeadRef({ cwd, git }),
+  epicBranches: ({ cwd, git }) => probeEpicBranches({ cwd, git }),
+  localBranches: ({ cwd, git }) => probeLocalBranches({ cwd, git }),
+  coreBare: ({ cwd, git }) => probeCoreBare({ cwd, git }),
+  epicBranchSync: ({ cwd, git, out }) =>
+    probeEpicBranchSync({ cwd, git, epicBranches: out.epicBranches ?? [] }),
+});
+
+/**
+ * Build the git projection for a key list by iterating the `GIT_PROBES`
+ * handler map. Keys are processed in declaration order; a probe that depends
+ * on a sibling field (e.g. `epicBranchSync` → `epicBranches`) relies on the
+ * SCOPE_KEYS ordering placing its dependency first.
  *
  * @param {readonly string[]} keys
  * @param {string} cwd
@@ -223,106 +394,9 @@ function probeGit(keys, cwd, git) {
   for (const key of keys) {
     if (!key.startsWith('git.')) continue;
     const field = key.slice(4);
-    if (field === 'headRef') {
-      const result = git(cwd, 'rev-parse', '--abbrev-ref', 'HEAD');
-      out.headRef = result.ok ? result.stdout : null;
-    } else if (field === 'epicBranches') {
-      const result = git(
-        cwd,
-        'for-each-ref',
-        '--format=%(refname:short)',
-        'refs/heads/epic/',
-      );
-      out.epicBranches =
-        result.ok && result.stdout
-          ? result.stdout
-              .split('\n')
-              .map((s) => s.trim())
-              .filter(Boolean)
-          : [];
-    } else if (field === 'localBranches') {
-      // All local branches (refs/heads/), short name form. Used by checks
-      // that grep over the branch list for legacy naming patterns.
-      const result = git(
-        cwd,
-        'for-each-ref',
-        '--format=%(refname:short)',
-        'refs/heads/',
-      );
-      out.localBranches =
-        result.ok && result.stdout
-          ? result.stdout
-              .split('\n')
-              .map((s) => s.trim())
-              .filter(Boolean)
-          : [];
-    } else if (field === 'coreBare') {
-      const result = git(cwd, 'config', '--get', 'core.bare');
-      out.coreBare = result.ok ? result.stdout : null;
-    } else if (field === 'epicBranchSync') {
-      // Build a map of epic branch → { local, remote, ahead } sync state.
-      // Depends on `epicBranches` being assembled; the SCOPE_KEYS ordering
-      // ensures it appears first.
-      //
-      // Story #2463 (preflight batching): the prior implementation issued
-      // two `git rev-parse --verify` spawnSync calls per epic branch
-      // (one for `epic/<id>`, one for `origin/epic/<id>`), giving an
-      // O(branches × 2) probe cost. The collapsed implementation issues
-      // exactly one `git for-each-ref` invocation that emits
-      //   `<refname> <objectname> <upstream:short> <upstream:objectname>`
-      // for every local branch, then filters to the epic branches the
-      // scope already declared. Probe cost drops to O(1) for the spawn
-      // surface while preserving the byte-identical return shape:
-      //   { local: string|null, remote: string|null, ahead: boolean }.
-      //
-      // `ahead` stays true only when local AND remote SHAs both exist and
-      // differ — branches with no upstream config (no `%(upstream:objectname)`)
-      // report `remote: null, ahead: false`, matching the pre-batch behavior
-      // where `rev-parse --verify origin/<branch>` failed for unpushed refs.
-      const sync = {};
-      const branches = out.epicBranches ?? [];
-      const branchSet = new Set(branches);
-      const formatted = git(
-        cwd,
-        'for-each-ref',
-        '--format=%(refname:short) %(objectname) %(upstream:short) %(upstream:objectname)',
-        'refs/heads/',
-      );
-      const rows = new Map();
-      if (formatted.ok && formatted.stdout) {
-        for (const line of formatted.stdout.split('\n')) {
-          if (!line) continue;
-          // Split on whitespace; trailing fields may be empty strings.
-          // refname is mandatory (always present); objectname always populated
-          // for an existing ref; upstream fields may be missing.
-          const parts = line.split(' ');
-          const refname = parts[0];
-          if (!refname || !branchSet.has(refname)) continue;
-          const objectname = parts[1] || null;
-          const upstreamShort = parts[2] || null;
-          const upstreamObjectname = parts[3] || null;
-          rows.set(refname, {
-            local: objectname,
-            // Surface remote SHA only when an upstream is configured AND
-            // git resolved its objectname. An upstream short-name without
-            // an objectname (gone-upstream edge case) collapses to null.
-            remote:
-              upstreamShort && upstreamObjectname ? upstreamObjectname : null,
-          });
-        }
-      }
-      for (const branch of branches) {
-        const row = rows.get(branch);
-        const localSha = row?.local ?? null;
-        const remoteSha = row?.remote ?? null;
-        sync[branch] = {
-          local: localSha,
-          remote: remoteSha,
-          ahead: Boolean(localSha && remoteSha && localSha !== remoteSha),
-        };
-      }
-      out.epicBranchSync = sync;
-    }
+    const handler = GIT_PROBES[field];
+    if (!handler) continue;
+    out[field] = handler({ cwd, git, out });
   }
   return out;
 }
