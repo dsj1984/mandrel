@@ -237,9 +237,13 @@ export async function runPreMergeValidation({
   // format drift introduced by Story commits into a dedicated
   // `fix(story-close):` commit on the Story branch and emits Logger.warn
   // naming the auto-fixed files, so the subsequent `biome ci` gate finds
-  // zero diffs on the changed-file set. Skipped when epic/story branches
-  // are not supplied (defensive: keeps the old whole-tree path intact for
-  // resume callers that don't pass them).
+  // zero diffs on the changed-file set. The scoped step is a strict
+  // pre-pass to the whole-tree `runFormatAutofix` below — never a
+  // replacement: the whole-tree heal still runs unconditionally and
+  // covers files (JSON/YAML/config) outside the changed-file set. The
+  // scoped step is skipped only when a resume caller cannot supply both
+  // branch refs (the `epicBranch...storyBranch` diff has no anchor), in
+  // which case the whole-tree heal alone keeps the close correct.
   if (epicBranch && storyBranch) {
     runScopedFormatAutofix({
       cwd,
