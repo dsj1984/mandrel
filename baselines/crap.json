@@ -1,13 +1,13 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T13:40:41.252Z",
+  "generatedAt": "2026-05-29T13:42:46.928Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.561164258090779,
+      "p95": 12.433975308641976,
       "max": 53.8385539444679,
-      "methodsAbove20": 29
+      "methodsAbove20": 28
     }
   },
   "rows": [
@@ -6730,54 +6730,6 @@
       "method": "buildStoryDag",
       "startLine": 129,
       "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "extractStoryIds",
-      "startLine": 48,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "assertWaveCompleteness",
-      "startLine": 76,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "collectHaltedStoryIds",
-      "startLine": 116,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "applyCommitAssertion",
-      "startLine": 144,
-      "crap": 4.06103515625
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "runIterateWavesPhase",
-      "startLine": 177,
-      "crap": 27.13692413741101
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "<anon method-12>",
-      "startLine": 191,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "<anon method-16>",
-      "startLine": 273,
-      "crap": 2.0438957475994513
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "<anon method-24>",
-      "startLine": 363,
-      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/phases/snapshot.js",

@@ -18,10 +18,10 @@ import { epicLedgerPath } from '../config/temp-paths.js';
 import { AGENT_LABELS } from '../label-constants.js';
 import { appendEpicSignal } from '../observability/signals-writer.js';
 import * as epicRunStateStoreModule from '../orchestration/epic-run-state-store.js';
-import { collectHaltedStoryIds } from '../orchestration/epic-runner/phases/iterate-waves.js';
 import { detectRecurringFailures } from '../orchestration/recurring-failure-detector.js';
 import { upsertStructuredComment as defaultUpsertStructuredComment } from '../orchestration/ticketing.js';
 
+import { collectHaltedStoryIds } from './wave-checkpoint.js';
 import { WaveRunnerError } from './wave-runner-error.js';
 
 /**
