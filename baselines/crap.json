@@ -1,124 +1,16 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T14:33:14.819Z",
+  "generatedAt": "2026-05-29T14:49:50.683Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.566846479078583,
+      "p95": 12.779136,
       "max": 53.8385539444679,
-      "methodsAbove20": 27
+      "methodsAbove20": 26
     }
   },
   "rows": [
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "readEpicLifecycleEvents",
-      "startLine": 71,
-      "crap": 5.024
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "resolveConcurrencyCap",
-      "startLine": 92,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "resolveVerifyConcurrencyCap",
-      "startLine": 102,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "readStorySignals",
-      "startLine": 119,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "readPhaseTimings",
-      "startLine": 138,
-      "crap": 6.141711619769646
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "readGhSpawnCount",
-      "startLine": 166,
-      "crap": 6.189364674940412
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "renderStoryBody",
-      "startLine": 196,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "renderQualityGateFrictionBlock",
-      "startLine": 241,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "renderBaselineRefreshRateRow",
-      "startLine": 266,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "renderEpicBody",
-      "startLine": 285,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "extractStoryPerfSummaryFromComment",
-      "startLine": 333,
-      "crap": 6.013119533527696
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "runStoryMode",
-      "startLine": 362,
-      "crap": 2.015056241426612
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "collectStorySummaries",
-      "startLine": 416,
-      "crap": 7.151973017939815
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "gatherEpicCommitsFromGit",
-      "startLine": 476,
-      "crap": 4.184216709744554
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "aggregateBaselineFrictionFromSignals",
-      "startLine": 524,
-      "crap": 2.000067432020095
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "runEpicMode",
-      "startLine": 621,
-      "crap": 8.074646449919813
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "parseCli",
-      "startLine": 736,
-      "crap": 10
-    },
-    {
-      "path": ".agents/scripts/analyze-execution.js",
-      "method": "main",
-      "startLine": 764,
-      "crap": 3.131456790123457
-    },
     {
       "path": ".agents/scripts/audit-labels-bootstrap.js",
       "method": "labelExists",
@@ -2709,78 +2601,6 @@
       "path": ".agents/scripts/lib/checks/push-hook-parity.js",
       "method": "indent",
       "startLine": 101,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/checks/state.js",
-      "method": "clearStateCache",
-      "startLine": 99,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/checks/state.js",
-      "method": "defaultGitProbe",
-      "startLine": 112,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/checks/state.js",
-      "method": "defaultFsProbe",
-      "startLine": 126,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/checks/state.js",
-      "method": "defaultEnvProbe",
-      "startLine": 137,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/checks/state.js",
-      "method": "defaultLockProbe",
-      "startLine": 153,
-      "crap": 12
-    },
-    {
-      "path": ".agents/scripts/lib/checks/state.js",
-      "method": "validatePidProbeInputs",
-      "startLine": 186,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/checks/state.js",
-      "method": "defaultPidLivenessProbe",
-      "startLine": 202,
-      "crap": 12
-    },
-    {
-      "path": ".agents/scripts/lib/checks/state.js",
-      "method": "probeGit",
-      "startLine": 221,
-      "crap": 25
-    },
-    {
-      "path": ".agents/scripts/lib/checks/state.js",
-      "method": "probeFs",
-      "startLine": 341,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/checks/state.js",
-      "method": "probeEnv",
-      "startLine": 396,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/checks/state.js",
-      "method": "assembleState",
-      "startLine": 426,
-      "crap": 9
-    },
-    {
-      "path": ".agents/scripts/lib/checks/state.js",
-      "method": "getScopeKeys",
-      "startLine": 482,
       "crap": 1
     },
     {
