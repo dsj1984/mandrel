@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T15:44:53.563Z",
+  "generatedAt": "2026-05-29T16:19:16.450Z",
   "rollup": {
     "*": {
-      "min": 61.218,
+      "min": 34.009,
       "p50": 103.85,
-      "p95": 121.809
+      "p95": 121.586
     }
   },
   "rows": [
@@ -495,6 +495,10 @@
       "mi": 171
     },
     {
+      "path": ".agents/scripts/lib/config-settings-schema.js",
+      "mi": 34.009
+    },
+    {
       "path": ".agents/scripts/lib/config/baselines.js",
       "mi": 105.406
     },
@@ -956,7 +960,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/plan-epic.js",
-      "mi": 71.41
+      "mi": 69.619
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/prompts.js",
@@ -1456,7 +1460,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close-recovery.js",
-      "mi": 87.974
+      "mi": 86.902
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
@@ -1596,7 +1600,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "mi": 94.761
+      "mi": 93.076
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing.js",
@@ -1689,6 +1693,18 @@
     {
       "path": ".agents/scripts/lib/push-epic-retry.js",
       "mi": 95.053
+    },
+    {
+      "path": ".agents/scripts/lib/qa/console-allowlist.js",
+      "mi": 101.876
+    },
+    {
+      "path": ".agents/scripts/lib/qa/resolve-qa-contract.js",
+      "mi": 97.891
+    },
+    {
+      "path": ".agents/scripts/lib/qa/resolve-selection.js",
+      "mi": 102.741
     },
     {
       "path": ".agents/scripts/lib/signals/detectors/common.js",
@@ -2620,7 +2636,7 @@
     },
     {
       "path": "tests/config-schema-mirror-drift.test.js",
-      "mi": 102.899
+      "mi": 103.778
     },
     {
       "path": "tests/config-settings-schema.test.js",
@@ -4120,7 +4136,7 @@
     },
     {
       "path": "tests/lib/planning-state-manager.test.js",
-      "mi": 87.927
+      "mi": 87.369
     },
     {
       "path": "tests/lib/presentation/manifest-builder.test.js",
@@ -4547,6 +4563,22 @@
       "mi": 98.694
     },
     {
+      "path": "tests/qa-contract-validation.test.js",
+      "mi": 116.118
+    },
+    {
+      "path": "tests/qa-finding-shape.test.js",
+      "mi": 109.886
+    },
+    {
+      "path": "tests/qa-harness-selection.test.js",
+      "mi": 107.762
+    },
+    {
+      "path": "tests/qa-instrumentation-allowlist.test.js",
+      "mi": 114.96
+    },
+    {
       "path": "tests/quality-preview-staged-scope.test.js",
       "mi": 101.251
     },
@@ -4581,6 +4613,10 @@
     {
       "path": "tests/run-audit-suite-cli.test.js",
       "mi": 106.961
+    },
+    {
+      "path": "tests/run-bdd-suite-retired.test.js",
+      "mi": 103.534
     },
     {
       "path": "tests/schemas/epic-perf-report.schema.test.js",
@@ -4899,6 +4935,10 @@
       "mi": 109.4
     },
     {
+      "path": "tests/story-3302-body-shape.test.js",
+      "mi": 107.056
+    },
+    {
       "path": "tests/story-close-branch-restore.test.js",
       "mi": 94.046
     },
@@ -4916,7 +4956,7 @@
     },
     {
       "path": "tests/story-close-recovery.test.js",
-      "mi": 99.198
+      "mi": 97.837
     },
     {
       "path": "tests/story-close-review.test.js",

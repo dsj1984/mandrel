@@ -16,7 +16,12 @@
  *                              diff is fully present on `origin/epic/<id>` as
  *                              rebased commits with different SHAs (manual
  *                              recovery path, detected via `git cherry`
- *                              patch-id comparison; Story #3161).
+ *                              patch-id comparison; Story #3161), OR — when
+ *                              both Story refs have already been reaped — the
+ *                              Epic history carries an integration commit
+ *                              referencing the Story (`(resolves #<id>)` /
+ *                              `(refs #<id>)`), found via `git log --grep`
+ *                              (ref-independent path; Story #3327 / Epic #3316).
  *   - `pushed-unmerged`      — the story branch is on origin and not yet merged.
  *   - `fresh`                — no prior close activity detected.
  */
@@ -53,11 +58,44 @@ const DEFAULT_GIT_ADAPTER = {
   cherry(cwd, upstream, head) {
     return gitSpawn(cwd, 'cherry', upstream, head);
   },
+  logGrep(cwd, ref, pattern) {
+    return gitSpawn(cwd, 'log', '-E', `--grep=${pattern}`, '--format=%H', ref);
+  },
 };
 
 const DEFAULT_FS_ADAPTER = {
   existsSync: fs.existsSync,
 };
+
+/**
+ * Scan the Epic branch history for an integration/merge commit whose subject
+ * references this Story via `(resolves #<id>)` or `(refs #<id>)`.
+ *
+ * This is the **ref-independent** already-merged signal: it survives the case
+ * where BOTH the local `story-<id>` branch and the remote `origin/story-<id>`
+ * ref have already been deleted by a prior partial close run, leaving no Story
+ * ref to anchor the ancestor / cherry probes (branches a–c). Because the search
+ * is scoped to the Epic ref's reachable history (`git log <epicRef> --grep`),
+ * any match is by definition already an ancestor of the Epic tip — no separate
+ * ancestor check is required.
+ *
+ * The closing paren in the pattern disambiguates `#<id>` from a longer id that
+ * shares the same prefix (e.g. `#3327` must not match `(resolves #33270)`).
+ *
+ * @returns {{ sha: string, epicRef: string } | null}
+ */
+function findMergeCommitForStory({ cwd, storyId, epicId, git }) {
+  if (!git.logGrep) return null;
+  const pattern = `\\((resolves|refs) #${storyId}\\)`;
+  const epicRefs = [`origin/epic/${epicId}`, `epic/${epicId}`];
+  for (const epicRef of epicRefs) {
+    const res = git.logGrep(cwd, epicRef, pattern);
+    if (!res || res.status !== 0) continue;
+    const sha = (res.stdout ?? '').toString().trim().split('\n')[0]?.trim();
+    if (sha) return { sha, epicRef };
+  }
+  return null;
+}
 
 function storyWorktreePath(cwd, storyId, worktreeRoot) {
   return resolveWorkingPath({
@@ -216,6 +254,26 @@ function detectAlreadyMerged({ cwd, storyId, epicId, lsrOut, detail, git }) {
         };
         break;
       }
+    }
+  }
+
+  // d) Merge-commit-message scan (ref-independent; Story #3327 / Epic #3316).
+  //    Both the local `story-<id>` branch and the remote `origin/story-<id>`
+  //    ref were deleted by a prior partial close run, so branches a–c have no
+  //    ref to anchor on and fall through. Recover the already-merged signal
+  //    from the Epic history itself: locate the integration commit whose
+  //    subject carries `(resolves #<id>)` / `(refs #<id>)`. Without this
+  //    branch, detection falls to FRESH and the resumed close re-enters the
+  //    pre-merge gate chain, which crashes in `format-autofix-scoped.js` on
+  //    `git diff <epicBranch>...story-<id>` because the Story ref is gone.
+  if (!resolvedDetail) {
+    const mc = findMergeCommitForStory({ cwd, storyId, epicId, git });
+    if (mc) {
+      resolvedDetail = {
+        via: 'merge-commit-message',
+        mergeCommit: mc.sha,
+        remoteEpicRef: mc.epicRef,
+      };
     }
   }
 
