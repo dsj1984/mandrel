@@ -125,7 +125,9 @@ describe('config-resolver — qa block round-trip (Story #3312)', () => {
   const BOUND_QA = Object.freeze({
     featureRoot: 'tests/features',
     fixturesManifest: 'tests/fixtures/manifest.json',
-    signInSeam: { urlTemplate: 'https://app.example.test/impersonate/{persona}' },
+    signInSeam: {
+      urlTemplate: 'https://app.example.test/impersonate/{persona}',
+    },
     personas: ['coach', 'admin'],
   });
 
