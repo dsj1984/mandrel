@@ -578,20 +578,35 @@ test('gatherRetroSignals: parallel signals reads match the prior serial output (
       501,
       [
         { category: 'lint-loop', source: 'framework' },
-        { category: 'flaky-test', source: 'consumer', memorable: true, insight: 'i-501' },
+        {
+          category: 'flaky-test',
+          source: 'consumer',
+          memorable: true,
+          insight: 'i-501',
+        },
       ],
     ],
     [
       502,
       [
         { category: 'flaky-test', source: 'consumer' },
-        { category: 'one-off', source: 'consumer', memorable: true, insight: 'i-502' },
+        {
+          category: 'one-off',
+          source: 'consumer',
+          memorable: true,
+          insight: 'i-502',
+        },
       ],
     ],
     [
       503,
       [
-        { category: 'lint-loop', source: 'framework', memorable: true, insight: 'i-503' },
+        {
+          category: 'lint-loop',
+          source: 'framework',
+          memorable: true,
+          insight: 'i-503',
+        },
       ],
     ],
     [
@@ -609,7 +624,11 @@ test('gatherRetroSignals: parallel signals reads match the prior serial output (
   const serialForEachLineFn = async (_epicId, sid, cb) => {
     const lines = fakeStreams.get(sid) ?? [];
     for (let i = 0; i < lines.length; i++) await cb(lines[i], i + 1);
-    return { linesRead: lines.length, linesParsed: lines.length, missing: false };
+    return {
+      linesRead: lines.length,
+      linesParsed: lines.length,
+      missing: false,
+    };
   };
   const serialOut = await gatherRetroSignals({
     epicId: 500,
@@ -630,7 +649,11 @@ test('gatherRetroSignals: parallel signals reads match the prior serial output (
       setTimeout(async () => {
         const lines = fakeStreams.get(sid) ?? [];
         for (let i = 0; i < lines.length; i++) await cb(lines[i], i + 1);
-        resolve({ linesRead: lines.length, linesParsed: lines.length, missing: false });
+        resolve({
+          linesRead: lines.length,
+          linesParsed: lines.length,
+          missing: false,
+        });
       }, delay);
     });
   const parallelOut = await gatherRetroSignals({
