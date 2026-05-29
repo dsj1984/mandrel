@@ -24,6 +24,7 @@ import {
   parseLintOutput,
   partitionFilesForLint,
   runScopedLint,
+  SERIAL_THRESHOLD,
 } from '../../../../.agents/scripts/lib/orchestration/review-providers/native.js';
 
 const ALLOWED_SEVERITIES = new Set([
@@ -129,7 +130,7 @@ test('classifyChangedFile: swallows file-deleted reportFn errors', () => {
   });
 });
 
-test('analyzeChangedFiles: only JS files contribute to maintainability counts', () => {
+test('analyzeChangedFiles: only JS files contribute to maintainability counts', async () => {
   const tiers = new Map([
     [80, 'healthy'],
     [60, 'warning'],
@@ -140,17 +141,127 @@ test('analyzeChangedFiles: only JS files contribute to maintainability counts', 
     ['b.mjs', { moduleScore: 60, worstMethod: 40 }],
     ['c.cjs', { moduleScore: 10, worstMethod: 5 }],
   ]);
-  const out = analyzeChangedFiles(['a.js', 'b.mjs', 'c.cjs', 'd.md', 'e.txt'], {
-    reportFn: (abs) => {
-      const key = [...reports.keys()].find((k) => abs.endsWith(k));
-      return reports.get(key);
+  const out = await analyzeChangedFiles(
+    ['a.js', 'b.mjs', 'c.cjs', 'd.md', 'e.txt'],
+    {
+      reportFn: (abs) => {
+        const key = [...reports.keys()].find((k) => abs.endsWith(k));
+        return reports.get(key);
+      },
+      classifier: (r) => tiers.get(r.moduleScore),
     },
-    classifier: (r) => tiers.get(r.moduleScore),
-  });
+  );
   assert.equal(out.totalFiles, 5);
   assert.equal(out.jsFiles, 3);
   assert.equal(out.criticalFindings.length, 1);
   assert.equal(out.mediumFindings.length, 1);
+});
+
+test('analyzeChangedFiles: serial and pooled paths produce identical rows and findings', async () => {
+  // Acceptance: row / criticalFinding / mediumFinding parity between the
+  // serial (in-process) and pooled (worker-pool) scoring paths on a fixed
+  // fixture set. The fixture exceeds SERIAL_THRESHOLD so the pooled branch
+  // is exercised, and mixes every tier so all finding buckets are populated.
+  const reportByName = new Map([
+    [
+      'critical.js',
+      { moduleScore: 5, worstMethod: 12, methods: [], parseError: false },
+    ],
+    [
+      'warning.mjs',
+      { moduleScore: 60, worstMethod: 30.5, methods: [], parseError: false },
+    ],
+    [
+      'healthy.cjs',
+      { moduleScore: 90, worstMethod: 80, methods: [], parseError: false },
+    ],
+    [
+      'crit2.js',
+      { moduleScore: 8, worstMethod: 10, methods: [], parseError: false },
+    ],
+    [
+      'warn2.js',
+      { moduleScore: 62, worstMethod: 40, methods: [], parseError: false },
+    ],
+    [
+      'ok1.js',
+      { moduleScore: 88, worstMethod: 70, methods: [], parseError: false },
+    ],
+    [
+      'ok2.js',
+      { moduleScore: 85, worstMethod: 72, methods: [], parseError: false },
+    ],
+    [
+      'ok3.js',
+      { moduleScore: 84, worstMethod: 71, methods: [], parseError: false },
+    ],
+  ]);
+  const tierFor = (report) => {
+    if (report.worstMethod !== null && report.worstMethod < 20)
+      return 'critical';
+    if (report.worstMethod !== null && report.worstMethod < 50)
+      return 'warning';
+    if (report.moduleScore < 65) return 'warning';
+    return 'healthy';
+  };
+  const lookup = (abs) => {
+    const key = [...reportByName.keys()].find((k) => abs.endsWith(k));
+    return reportByName.get(key);
+  };
+  const changed = [...reportByName.keys(), 'README.md'];
+  assert.ok(
+    reportByName.size >= SERIAL_THRESHOLD,
+    'fixture must reach SERIAL_THRESHOLD to force the pooled path',
+  );
+
+  // Serial path: caller injects its own reportFn (forces in-process scoring).
+  const serial = await analyzeChangedFiles(changed, {
+    reportFn: lookup,
+    classifier: tierFor,
+  });
+
+  // Pooled path: omit reportFn (production scorer) and stub runOnPool to
+  // return the same fixture reports in input order. The worker boundary is
+  // the only difference, so any divergence is a parity bug.
+  const jsFiles = changed.filter((f) => /\.(js|mjs|cjs)$/.test(f));
+  const pooled = await analyzeChangedFiles(changed, {
+    classifier: tierFor,
+    runOnPoolFn: async (_worker, absPaths) => {
+      assert.equal(absPaths.length, jsFiles.length);
+      return absPaths.map((abs) => ({ filePath: abs, report: lookup(abs) }));
+    },
+  });
+
+  assert.deepEqual(pooled.maintainability, serial.maintainability);
+  assert.deepEqual(pooled.criticalFindings, serial.criticalFindings);
+  assert.deepEqual(pooled.mediumFindings, serial.mediumFindings);
+  assert.equal(pooled.jsFiles, serial.jsFiles);
+  assert.equal(pooled.totalFiles, serial.totalFiles);
+});
+
+test('analyzeChangedFiles: pooled path drops files with null report or pool error', async () => {
+  const changed = Array.from({ length: 10 }, (_, i) => `f${i}.js`);
+  const pooled = await analyzeChangedFiles(changed, {
+    classifier: () => 'critical',
+    runOnPoolFn: async (_worker, absPaths) =>
+      absPaths.map((abs, i) => {
+        if (i === 0) return { __cpuPoolError: true, message: 'crash' };
+        if (i === 1) return { filePath: abs, report: null, error: 'ENOENT' };
+        return {
+          filePath: abs,
+          report: {
+            moduleScore: 5,
+            worstMethod: 10,
+            methods: [],
+            parseError: false,
+          },
+        };
+      }),
+  });
+  // 10 JS files, 2 dropped (pool error + null report) → 8 critical rows.
+  assert.equal(pooled.jsFiles, 10);
+  assert.equal(pooled.maintainability.length, 8);
+  assert.equal(pooled.criticalFindings.length, 8);
 });
 
 test('buildLintFindings: errors collapse into a high-risk Finding', () => {
