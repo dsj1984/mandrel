@@ -24,6 +24,7 @@ import {
   listLocalBranches,
   listMergedBranches,
   listRemoteBranches,
+  probeAllPrs,
   probeLatestPr,
   pruneRemoteTracking,
   readProtectedConfig,
@@ -136,14 +137,22 @@ function collectRemoteOnlyCandidates({
 /**
  * Pure-ish: enumerate merged-branch candidates.
  *
- * The PR probe defaults to {@link probeLatestPr} so the planner classifies
- * each candidate by the **latest** PR on the head ref rather than any
- * historical merge. Branches whose latest PR is OPEN or CLOSED-not-merged
- * are skipped with `reason: 'latest-pr-open'` /
+ * The PR probe classifies each candidate by the **latest** PR on the head
+ * ref rather than any historical merge. Branches whose latest PR is OPEN
+ * or CLOSED-not-merged are skipped with `reason: 'latest-pr-open'` /
  * `reason: 'latest-pr-closed-not-merged'`. When the latest PR is MERGED
  * but the branch tip has diverged from the PR's `headRefOid` (post-merge
  * force-push), the branch is skipped with
  * `reason: 'tip-diverged-from-merge'`.
+ *
+ * Performance (Story #3333): when the caller does not inject its own
+ * `prProbe`, the planner fires **one** bulk `gh pr list --state all`
+ * (via {@link probeAllPrs}) up front and indexes the page by
+ * `headRefName`. Each branch loop then reads its PR signal from that Map
+ * instead of spawning a per-branch `gh`. {@link probeLatestPr} remains
+ * the per-branch fallback for head refs absent from the bulk page (a PR
+ * that fell outside the fetch window), so correctness is preserved for
+ * every branch. Injecting `prProbe` bypasses the bulk fetch entirely.
  */
 export function planCleanup(ctx) {
   const {
@@ -154,13 +163,22 @@ export function planCleanup(ctx) {
     currentBranchFn = defaultCurrentBranch,
     protectedConfigFn = readProtectedConfig,
     worktreesFn = worktreesByBranch,
-    prProbe = (b, c) => probeLatestPr(b, c),
+    prProbe: injectedPrProbe,
+    prIndexFn = probeAllPrs,
+    prFallback = probeLatestPr,
     branchTipShaFn = branchTipSha,
     filter = () => true,
     includeRemoteOnly = false,
     remoteLister = listRemoteBranches,
     remoteName = 'origin',
   } = ctx;
+  const prProbe =
+    injectedPrProbe ??
+    (() => {
+      const prIndex = prIndexFn(cwd);
+      return (branch, c) =>
+        prIndex.has(branch) ? prIndex.get(branch) : prFallback(branch, c);
+    })();
   const resolvedCurrent = currentBranchFn(cwd);
   const resolvedConfigured = protectedConfigFn(cwd);
   const classify = (branch) =>

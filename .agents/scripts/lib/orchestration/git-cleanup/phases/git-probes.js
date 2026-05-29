@@ -220,6 +220,73 @@ export function probeLatestPr(branch, cwd, runGh = defaultGhRunner) {
 }
 
 /**
+ * Bulk-probe every open/closed/merged PR in one `gh` spawn, indexed by
+ * head ref name.
+ *
+ * Replaces the N per-branch {@link probeLatestPr} spawns the planner used
+ * to fire inside its branch loops (Story #3333, f-performance). A single
+ * `gh pr list --state all` page is parsed into a `Map<headRefName,
+ * prInfo>` whose values carry the **same** shape {@link probeLatestPr}
+ * returns, so `classifyLatestPr` reads them without translation.
+ *
+ * When a head ref appears more than once on the page (multiple PRs share a
+ * head — reused branch names), the **first** row wins. `gh pr list`
+ * returns rows newest-first, so the first row is the latest PR on that
+ * head — exactly the "latest PR" signal {@link probeLatestPr} resolves
+ * per-branch. The planner keeps {@link probeLatestPr} as a per-branch
+ * fallback for head refs absent from this page (a branch whose PR fell
+ * outside the `--limit` window).
+ *
+ * Returns an empty Map on any failure (non-array, empty, or malformed
+ * JSON) so the caller transparently falls back to per-branch probing.
+ *
+ * @param {string} cwd
+ * @param {(args: string[], opts: { cwd: string }) => string} runGh
+ * @param {number} limit  Max rows to fetch in the single page (default 1000).
+ * @returns {Map<string, { number: number, state: string, mergedAt: string|null, closedAt: string|null, headRefOid: string|null }>}
+ */
+export function probeAllPrs(cwd, runGh = defaultGhRunner, limit = 1000) {
+  const out = runGh(
+    [
+      'pr',
+      'list',
+      '--state',
+      'all',
+      '--json',
+      'number,state,mergedAt,closedAt,headRefOid,headRefName',
+      '--limit',
+      String(limit),
+    ],
+    { cwd },
+  );
+  const trimmed = (out ?? '').trim();
+  const index = new Map();
+  if (!trimmed) return index;
+  let parsed;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return index;
+  }
+  if (!Array.isArray(parsed)) return index;
+  for (const row of parsed) {
+    const headRefName =
+      typeof row?.headRefName === 'string' ? row.headRefName : null;
+    if (!headRefName || index.has(headRefName)) continue;
+    const state =
+      typeof row.state === 'string' ? row.state.toUpperCase() : 'UNKNOWN';
+    index.set(headRefName, {
+      number: Number(row.number) || 0,
+      state,
+      mergedAt: row.mergedAt ?? null,
+      closedAt: row.closedAt ?? null,
+      headRefOid: row.headRefOid ?? null,
+    });
+  }
+  return index;
+}
+
+/**
  * Resolve the current tip SHA of a branch.
  *
  * For branches that exist locally (`localExists: true`), reads

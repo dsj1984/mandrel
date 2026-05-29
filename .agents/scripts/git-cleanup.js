@@ -57,6 +57,7 @@ import {
 import {
   branchTipSha,
   classifyLatestPr,
+  probeAllPrs,
   probeLatestPr,
   probeMergedPr,
 } from './lib/orchestration/git-cleanup/phases/git-probes.js';
@@ -102,6 +103,7 @@ export {
   planCleanup,
   planFastForward,
   planStashes,
+  probeAllPrs,
   probeLatestPr,
   probeMergedPr,
   renderDryRun,
