@@ -2,7 +2,24 @@
  * path-canon.js — single canonicalisation authority for every path written
  * into (or compared against) a Mandrel baseline (Story #1891, Epic #1786).
  *
- * Every baseline ships repo-relative POSIX-style paths. The canonicaliser:
+ * This module is the one place baseline path canonicalisation lives. It
+ * exposes three helpers tuned to two boundaries (Story #3345 folded the
+ * formerly separate `canonicalize-path.js` permissive coercer in here so
+ * there is a single import surface):
+ *
+ *   - `canonicalise(p)` — the **strict** repo-relative canonicaliser. It
+ *     rejects input it considers unsafe to key a baseline by, then
+ *     normalises what it accepts.
+ *   - `assertCanonical(p)` — the **throw-on-reject** writer-boundary check.
+ *     It runs the same rejection checks as `canonicalise` but never
+ *     transforms the input.
+ *   - `canonicalizeBaselinePath(p)` — the **permissive coercer** used by the
+ *     refresh service. It never throws on absolute / drive-letter / UNC
+ *     input; instead it transforms those shapes into a repo-relative key,
+ *     because its caller funnels raw `git diff` and tool output through a
+ *     single point that must always yield a canonical key.
+ *
+ * `canonicalise` enforces, in order:
  *
  *   1. Rejects absolute paths (Windows `C:\...` or POSIX `/...`) — baselines
  *      that key by absolute paths break the moment they're checked out on a
@@ -19,8 +36,9 @@
  *   5. Strips a leading `./` for cosmetic stability — `./src/a.js` and
  *      `src/a.js` are the same path and should serialise to the same key.
  *
- * The function is **idempotent**: `canonicalise(canonicalise(p)) === canonicalise(p)`
- * for every input it accepts. Tests pin this property explicitly.
+ * Both `canonicalise` and `canonicalizeBaselinePath` are **idempotent**:
+ * feeding either function's output back in produces the same string. Tests
+ * pin this property explicitly.
  *
  * `assertCanonical` is the throw-on-reject variant. It runs the same checks
  * but does not transform the input — used at the writer boundary to assert
@@ -168,4 +186,76 @@ export function assertCanonical(input) {
       `path-canon.assertCanonical: double-slash segments are forbidden in baselines (got "${input}")`,
     );
   }
+}
+
+/**
+ * Permissively coerce a raw filesystem path into the POSIX, repo-relative
+ * key shape used by the Unified Baseline Refresh Service (Story #2192,
+ * Epic #2173). Unlike `canonicalise`, this helper never throws on absolute,
+ * drive-letter, or UNC input — it transforms those shapes into a
+ * repo-relative key because its caller (the refresh service) receives raw
+ * paths from `git diff` and tool output and needs a single funnel that
+ * always produces a canonical key.
+ *
+ * Rules, in order:
+ *   1. Reject non-string input with `TypeError`.
+ *   2. Swap every `\` for `/` so the rest of the pipeline sees a single
+ *      separator style regardless of platform.
+ *   3. Strip a UNC prefix (`//server/share/`) so paths surfaced by tools
+ *      that resolved a network share collapse to a repo-relative key.
+ *   4. Strip a Windows drive-letter prefix (`C:` / `C:/`) so paths
+ *      surfaced by Windows tools collapse to the same key as the
+ *      equivalent Linux path.
+ *   5. Strip a single leading `/` so a path that was absolute after
+ *      drive-letter stripping becomes repo-relative.
+ *   6. Strip a leading `./` for cosmetic stability.
+ *   7. Collapse any `/{2,}` run to a single `/`.
+ *
+ * The function is **idempotent**: feeding its own output back in produces
+ * the same string. Downstream consumers (the refresh service and the gate
+ * reader) rely on this property so a row written on Windows compares equal
+ * to the same row written on Linux.
+ *
+ * @param {string} input  A raw filesystem path. May use `\` or `/`
+ *                        separators, may carry a Windows drive letter, may
+ *                        be absolute or relative.
+ * @returns {string}      The canonical, forward-slash, repo-relative key.
+ * @throws {TypeError}    When `input` is not a string.
+ */
+export function canonicalizeBaselinePath(input) {
+  if (typeof input !== 'string') {
+    throw new TypeError(
+      `canonicalizeBaselinePath: expected string, got ${input === null ? 'null' : typeof input}`,
+    );
+  }
+
+  // 1. Normalize separators first.
+  let working = input.replace(/\\/g, '/');
+
+  // 2. Strip UNC share prefix (`//server/share/...`) before generic
+  //    double-slash collapse so the share name is preserved as a regular
+  //    path segment, not eaten.
+  const uncMatch = working.match(/^\/\/([^/]+)\/([^/]+)(\/|$)/);
+  if (uncMatch) {
+    working = working.slice(uncMatch[0].length);
+  }
+
+  // 3. Strip Windows drive-letter prefix (`C:` or `C:/`).
+  working = working.replace(/^[A-Za-z]:\/?/, '');
+
+  // 4. Strip a single leading `/` so an absolute path becomes
+  //    repo-relative.
+  if (working.startsWith('/')) {
+    working = working.replace(/^\/+/, '');
+  }
+
+  // 5. Strip a leading `./`.
+  if (working.startsWith('./')) {
+    working = working.slice(2);
+  }
+
+  // 6. Collapse redundant separators.
+  working = working.replace(/\/{2,}/g, '/');
+
+  return working;
 }

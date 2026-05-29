@@ -137,17 +137,17 @@ describe('dist bundle import isolation (Story #2572)', () => {
     );
   });
 
-  it('AC: canonicalize-path.js lives inside the .agents/ bundle', () => {
+  it('AC: path-canon.js lives inside the .agents/ bundle', () => {
     const expectedPath = path.join(
       BUNDLE_ROOT,
       'scripts',
       'lib',
       'baselines',
-      'canonicalize-path.js',
+      'path-canon.js',
     );
     assert.ok(
       statSync(expectedPath).isFile(),
-      'canonicalize-path.js must live under .agents/scripts/lib/baselines/ so it ships via dist',
+      'path-canon.js must live under .agents/scripts/lib/baselines/ so it ships via dist',
     );
   });
 });
