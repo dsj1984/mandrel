@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T13:03:22.576Z",
+  "generatedAt": "2026-05-29T13:20:52.136Z",
   "rollup": {
     "*": {
       "min": 61.218,
-      "p50": 103.836,
-      "p95": 121.571
+      "p50": 103.85,
+      "p95": 121.479
     }
   },
   "rows": [
@@ -161,10 +161,6 @@
     {
       "path": ".agents/scripts/generate-skills-index.js",
       "mi": 97.053
-    },
-    {
-      "path": ".agents/scripts/git-cleanup.js",
-      "mi": 131.94
     },
     {
       "path": ".agents/scripts/git-pr-quality-gate.js",
@@ -707,10 +703,6 @@
       "mi": 94.245
     },
     {
-      "path": ".agents/scripts/lib/git-utils.js",
-      "mi": 102.56
-    },
-    {
       "path": ".agents/scripts/lib/git/cached-fetch.js",
       "mi": 113.686
     },
@@ -1079,10 +1071,6 @@
       "mi": 95.409
     },
     {
-      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/branches.js",
-      "mi": 86.43
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/cli.js",
       "mi": 97.122
     },
@@ -1097,10 +1085,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes-ff.js",
       "mi": 100.985
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
-      "mi": 99.201
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/parse-args.js",
@@ -1285,10 +1269,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/post-merge/phases/ticket-closure.js",
       "mi": 98.894
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/post-merge/phases/worktree-reap.js",
-      "mi": 92.109
     },
     {
       "path": ".agents/scripts/lib/orchestration/pr-base-guard.js",
@@ -1861,10 +1841,6 @@
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/gc.js",
       "mi": 100.159
-    },
-    {
-      "path": ".agents/scripts/lib/worktree/lifecycle/merge-reachability.js",
-      "mi": 100.686
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/pending-cleanup.js",
@@ -2525,10 +2501,6 @@
     {
       "path": "tests/close-validation-mi-projection.test.js",
       "mi": 110.031
-    },
-    {
-      "path": "tests/codebase-snapshot.test.js",
-      "mi": 109.841
     },
     {
       "path": "tests/concurrency-wiring.test.js",
@@ -4593,10 +4565,6 @@
     {
       "path": "tests/scripts/git-cleanup-pipeline.test.js",
       "mi": 109.658
-    },
-    {
-      "path": "tests/scripts/git-cleanup.test.js",
-      "mi": 107.921
     },
     {
       "path": "tests/scripts/lifecycle-emit.test.js",
