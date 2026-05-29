@@ -35,7 +35,10 @@ describe('resolveQaContract — present (well-formed)', () => {
 
   it('defaults the optional fields when omitted', () => {
     const out = resolveQaContract({ qa: { ...WELL_FORMED } });
-    assert.deepEqual(out.consoleAllowlist, QA_CONTRACT_DEFAULTS.consoleAllowlist);
+    assert.deepEqual(
+      out.consoleAllowlist,
+      QA_CONTRACT_DEFAULTS.consoleAllowlist,
+    );
     assert.equal(out.designTokens, QA_CONTRACT_DEFAULTS.designTokens);
   });
 
