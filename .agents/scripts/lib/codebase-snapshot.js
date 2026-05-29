@@ -126,18 +126,33 @@ function compileGlob(glob) {
 }
 
 /**
- * Match `path` against any glob in `globs`. Both sides are normalized
- * to forward slashes before matching so Windows callsites see the same
- * shape as POSIX ones.
+ * Compile a list of glob entries to RegExp once. Callers hoist this out
+ * of the per-file loop so the snapshot pays the (cheap but non-zero)
+ * compilation cost a fixed number of times per `buildCodebaseSnapshot`
+ * call — ~13 globs total — rather than recompiling every glob for every
+ * tracked file (thousands of RegExp constructions on a real repo).
+ *
+ * @param {string[]} globs
+ * @returns {RegExp[]}
+ */
+function compileGlobs(globs) {
+  return globs.map(compileGlob);
+}
+
+/**
+ * Match `path` against any precompiled glob RegExp. Both the candidate
+ * and the globs are normalized to forward slashes (the globs at compile
+ * time, the candidate here) so Windows callsites see the same shape as
+ * POSIX ones.
  *
  * @param {string} candidate
- * @param {string[]} globs
+ * @param {RegExp[]} compiledGlobs
  * @returns {boolean}
  */
-function matchesAny(candidate, globs) {
+function matchesAny(candidate, compiledGlobs) {
   const normalised = candidate.replace(/\\/g, '/');
-  for (const g of globs) {
-    if (compileGlob(g).test(normalised)) return true;
+  for (const re of compiledGlobs) {
+    if (re.test(normalised)) return true;
   }
   return false;
 }
@@ -378,8 +393,14 @@ export function buildCodebaseSnapshot(opts = {}) {
   });
 
   const tracked = listTrackedFiles(cwd);
+  // Compile the include/exclude globs to RegExp exactly once per call
+  // (memoized here, hoisted out of the per-file loop) so a repo with
+  // thousands of tracked files doesn't trigger thousands of RegExp
+  // constructions. See `compileGlobs`.
+  const includeRes = compileGlobs(cfg.include);
+  const excludeRes = compileGlobs(cfg.exclude);
   const filtered = tracked.filter(
-    (f) => matchesAny(f, cfg.include) && !matchesAny(f, cfg.exclude),
+    (f) => matchesAny(f, includeRes) && !matchesAny(f, excludeRes),
   );
   filtered.sort();
 
