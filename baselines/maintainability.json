@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T13:48:52.686Z",
+  "generatedAt": "2026-05-29T13:53:45.091Z",
   "rollup": {
     "*": {
       "min": 61.218,
@@ -353,10 +353,6 @@
     {
       "path": ".agents/scripts/lib/bootstrap/hitl-confirm.js",
       "mi": 99.662
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/merge-methods.js",
-      "mi": 88.908
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
@@ -2397,10 +2393,6 @@
     {
       "path": "tests/bootstrap/hitl-confirm.test.js",
       "mi": 102.141
-    },
-    {
-      "path": "tests/bootstrap/merge-methods.test.js",
-      "mi": 106.594
     },
     {
       "path": "tests/bootstrap/project-bootstrap.test.js",

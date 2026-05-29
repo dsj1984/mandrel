@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T13:48:53.362Z",
+  "generatedAt": "2026-05-29T13:53:45.553Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -2362,18 +2362,6 @@
       "method": "<anon method-1>",
       "startLine": 71,
       "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/merge-methods.js",
-      "method": "diffMergeMethods",
-      "startLine": 39,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/merge-methods.js",
-      "method": "applyMergeMethods",
-      "startLine": 61,
-      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
