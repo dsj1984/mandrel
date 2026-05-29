@@ -1,13 +1,13 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T13:20:53.915Z",
+  "generatedAt": "2026-05-29T13:40:41.252Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.566846479078583,
+      "p95": 12.561164258090779,
       "max": 53.8385539444679,
-      "methodsAbove20": 30
+      "methodsAbove20": 29
     }
   },
   "rows": [
@@ -322,72 +322,6 @@
       "method": "main",
       "startLine": 61,
       "crap": 1.1016296296296297
-    },
-    {
-      "path": ".agents/scripts/check-dead-exports.js",
-      "method": "parseArgv",
-      "startLine": 42,
-      "crap": 9
-    },
-    {
-      "path": ".agents/scripts/check-dead-exports.js",
-      "method": "loadBaseline",
-      "startLine": 75,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/check-dead-exports.js",
-      "method": "extractRowsFromKnip",
-      "startLine": 97,
-      "crap": 14
-    },
-    {
-      "path": ".agents/scripts/check-dead-exports.js",
-      "method": "diffRows",
-      "startLine": 131,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/check-dead-exports.js",
-      "method": "<anon method-1>",
-      "startLine": 132,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/check-dead-exports.js",
-      "method": "<anon method-4>",
-      "startLine": 138,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/check-dead-exports.js",
-      "method": "renderDiff",
-      "startLine": 156,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/check-dead-exports.js",
-      "method": "runKnip",
-      "startLine": 178,
-      "crap": 27.323832749072807
-    },
-    {
-      "path": ".agents/scripts/check-dead-exports.js",
-      "method": "readKnipOutput",
-      "startLine": 213,
-      "crap": 1.0233236151603498
-    },
-    {
-      "path": ".agents/scripts/check-dead-exports.js",
-      "method": "runCli",
-      "startLine": 235,
-      "crap": 8.000311619006812
-    },
-    {
-      "path": ".agents/scripts/check-dead-exports.js",
-      "method": "main",
-      "startLine": 295,
-      "crap": 2
     },
     {
       "path": ".agents/scripts/check-lifecycle-doc-drift.js",
@@ -13642,96 +13576,6 @@
       "method": "issueToEpicListItem",
       "startLine": 116,
       "crap": 1
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "<anon method-1>",
-      "startLine": 12,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "<anon method-2>",
-      "startLine": 24,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "readGhCliToken",
-      "startLine": 31,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "readEnvToken",
-      "startLine": 44,
-      "crap": 12
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "memoizeEnvToken",
-      "startLine": 48,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "resolveToken",
-      "startLine": 52,
-      "crap": 12
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "<anon method-3>",
-      "startLine": 65,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "<anon method-4>",
-      "startLine": 67,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "gql",
-      "startLine": 70,
-      "crap": 3.0059176460918877
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "lookupProject",
-      "startLine": 94,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "resolveOrCreateProject",
-      "startLine": 113,
-      "crap": 7.946286327824611
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "ensureStatusField",
-      "startLine": 155,
-      "crap": 7.142857142857143
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "ensureProjectViews",
-      "startLine": 205,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "ensureProjectFields",
-      "startLine": 246,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "addItemToProject",
-      "startLine": 272,
-      "crap": 3
     },
     {
       "path": ".agents/scripts/providers/github/request-helpers.js",
