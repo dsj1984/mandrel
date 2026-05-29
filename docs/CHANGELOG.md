@@ -360,6 +360,23 @@ restoration.
 - → follow-up **#2071** (schema-module maintainability uplift):
   - `.agents/scripts/lib/config-settings-schema.js` (`mi: 46`)
   - `.agents/scripts/lib/config-gates-schema.js` (`mi: 51`)
+## [1.35.0](https://github.com/dsj1984/mandrel/compare/v1.34.0...v1.35.0) (2026-05-29)
+
+
+### Added
+
+* **audit:** pilot dynamic-workflow orchestration for audit-clean-code with graceful degradation (refs [#3278](https://github.com/dsj1984/mandrel/issues/3278)) ([#3282](https://github.com/dsj1984/mandrel/issues/3282)) ([414ecd4](https://github.com/dsj1984/mandrel/commit/414ecd4dcdc13b8c46b535634d28cb1df35a87e4))
+* **story-deliver:** add stories-wave-tick.js DAG/wave engine with unit tests (refs [#3233](https://github.com/dsj1984/mandrel/issues/3233)) ([#3243](https://github.com/dsj1984/mandrel/issues/3243)) ([72fba7e](https://github.com/dsj1984/mandrel/commit/72fba7e4c3ef89e6e97f410a0c922a8cd04565c5))
+* **workflows:** create helpers/epic-deliver-story.md and repoint epic-deliver fan-out (refs [#3229](https://github.com/dsj1984/mandrel/issues/3229)) ([#3239](https://github.com/dsj1984/mandrel/issues/3239)) ([6173324](https://github.com/dsj1984/mandrel/commit/6173324d502126dbacff665ffa8479beeac94bba))
+
+
+### Fixed
+
+* **cascade:** enable parent-Feature cascade from single-story close path ([#3242](https://github.com/dsj1984/mandrel/issues/3242)) ([368bc1d](https://github.com/dsj1984/mandrel/commit/368bc1d9a8e5c8133be3c16c2ab385896971f3af))
+* **review:** handle PathEntry objects in analyseChanges, suppress MI noise, fix lint errors ([#3248](https://github.com/dsj1984/mandrel/issues/3248)) ([972fe78](https://github.com/dsj1984/mandrel/commit/972fe783fac74b7040c992c68bec4695738c6086))
+* **skill:** align decompose-author SKILL Story-body shape with validator + provider contract (refs [#3263](https://github.com/dsj1984/mandrel/issues/3263)) ([#3267](https://github.com/dsj1984/mandrel/issues/3267)) ([5b6a439](https://github.com/dsj1984/mandrel/commit/5b6a4390bec18621ad8a0e5e279f513d2b4dc070))
+* **story-body:** serialize object bodies in createOp; parse string bodies in freshness + assumption gates (refs [#3302](https://github.com/dsj1984/mandrel/issues/3302)) ([#3303](https://github.com/dsj1984/mandrel/issues/3303)) ([69322ac](https://github.com/dsj1984/mandrel/commit/69322ac2ed772b7fb6281c0aa49c0087a6834fbb))
+
 ## [1.34.0](https://github.com/dsj1984/mandrel/compare/v1.33.0...v1.34.0) (2026-05-28)
 
 
