@@ -1,13 +1,13 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T13:33:05.774Z",
+  "generatedAt": "2026-05-29T13:48:53.362Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.566846479078583,
+      "p95": 12.561164258090779,
       "max": 53.8385539444679,
-      "methodsAbove20": 30
+      "methodsAbove20": 28
     }
   },
   "rows": [
@@ -322,72 +322,6 @@
       "method": "main",
       "startLine": 61,
       "crap": 1.1016296296296297
-    },
-    {
-      "path": ".agents/scripts/check-dead-exports.js",
-      "method": "parseArgv",
-      "startLine": 42,
-      "crap": 9
-    },
-    {
-      "path": ".agents/scripts/check-dead-exports.js",
-      "method": "loadBaseline",
-      "startLine": 75,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/check-dead-exports.js",
-      "method": "extractRowsFromKnip",
-      "startLine": 97,
-      "crap": 14
-    },
-    {
-      "path": ".agents/scripts/check-dead-exports.js",
-      "method": "diffRows",
-      "startLine": 131,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/check-dead-exports.js",
-      "method": "<anon method-1>",
-      "startLine": 132,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/check-dead-exports.js",
-      "method": "<anon method-4>",
-      "startLine": 138,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/check-dead-exports.js",
-      "method": "renderDiff",
-      "startLine": 156,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/check-dead-exports.js",
-      "method": "runKnip",
-      "startLine": 178,
-      "crap": 27.323832749072807
-    },
-    {
-      "path": ".agents/scripts/check-dead-exports.js",
-      "method": "readKnipOutput",
-      "startLine": 213,
-      "crap": 1.0233236151603498
-    },
-    {
-      "path": ".agents/scripts/check-dead-exports.js",
-      "method": "runCli",
-      "startLine": 235,
-      "crap": 8.000311619006812
-    },
-    {
-      "path": ".agents/scripts/check-dead-exports.js",
-      "method": "main",
-      "startLine": 295,
-      "crap": 2
     },
     {
       "path": ".agents/scripts/check-lifecycle-doc-drift.js",
@@ -4182,84 +4116,6 @@
       "crap": 5.012301355882782
     },
     {
-      "path": ".agents/scripts/lib/epic-merge-lock.js",
-      "method": "resolveGitCommonDir",
-      "startLine": 50,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/epic-merge-lock.js",
-      "method": "lockPathFor",
-      "startLine": 70,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/epic-merge-lock.js",
-      "method": "isProcessRunning",
-      "startLine": 74,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/epic-merge-lock.js",
-      "method": "readLockMeta",
-      "startLine": 86,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/epic-merge-lock.js",
-      "method": "tryStealStale",
-      "startLine": 99,
-      "crap": 4.034372797153503
-    },
-    {
-      "path": ".agents/scripts/lib/epic-merge-lock.js",
-      "method": "sleep",
-      "startLine": 131,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/epic-merge-lock.js",
-      "method": "incPending",
-      "startLine": 144,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/epic-merge-lock.js",
-      "method": "decPending",
-      "startLine": 148,
-      "crap": 2.032
-    },
-    {
-      "path": ".agents/scripts/lib/epic-merge-lock.js",
-      "method": "pendingAcquires",
-      "startLine": 166,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/epic-merge-lock.js",
-      "method": "pollForLock",
-      "startLine": 178,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/epic-merge-lock.js",
-      "method": "acquireEpicMergeLock",
-      "startLine": 216,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/epic-merge-lock.js",
-      "method": "<anon method-2>",
-      "startLine": 228,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/epic-merge-lock.js",
-      "method": "releaseEpicMergeLock",
-      "startLine": 245,
-      "crap": 3.140625
-    },
-    {
       "path": ".agents/scripts/lib/epic-plan-clarity.js",
       "method": "classify",
       "startLine": 58,
@@ -6796,54 +6652,6 @@
       "method": "buildStoryDag",
       "startLine": 129,
       "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "extractStoryIds",
-      "startLine": 48,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "assertWaveCompleteness",
-      "startLine": 76,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "collectHaltedStoryIds",
-      "startLine": 116,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "applyCommitAssertion",
-      "startLine": 144,
-      "crap": 4.06103515625
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "runIterateWavesPhase",
-      "startLine": 177,
-      "crap": 27.13692413741101
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "<anon method-12>",
-      "startLine": 191,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "<anon method-16>",
-      "startLine": 273,
-      "crap": 2.0438957475994513
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "<anon method-24>",
-      "startLine": 363,
-      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/phases/snapshot.js",
