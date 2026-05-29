@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-28T21:28:07.240Z",
+  "generatedAt": "2026-05-29T12:19:20.665Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.192000000000002,
+      "p95": 12.561164258090779,
       "max": 53.8385539444679,
       "methodsAbove20": 31
     }
@@ -388,84 +388,6 @@
       "method": "main",
       "startLine": 295,
       "crap": 2
-    },
-    {
-      "path": ".agents/scripts/check-doc-links.js",
-      "method": "isExcludedRelPath",
-      "startLine": 120,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/check-doc-links.js",
-      "method": "walkMarkdown",
-      "startLine": 126,
-      "crap": 7.06721536351166
-    },
-    {
-      "path": ".agents/scripts/check-doc-links.js",
-      "method": "discoverMarkdown",
-      "startLine": 145,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/check-doc-links.js",
-      "method": "maskCodeRegions",
-      "startLine": 162,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/check-doc-links.js",
-      "method": "offsetToLine",
-      "startLine": 199,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/check-doc-links.js",
-      "method": "extractLinks",
-      "startLine": 213,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/check-doc-links.js",
-      "method": "isExternalOrInternalAnchor",
-      "startLine": 227,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/check-doc-links.js",
-      "method": "stripAnchorAndQuery",
-      "startLine": 234,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/check-doc-links.js",
-      "method": "extractSlashTokens",
-      "startLine": 258,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/check-doc-links.js",
-      "method": "checkFile",
-      "startLine": 274,
-      "crap": 9.002471923828125
-    },
-    {
-      "path": ".agents/scripts/check-doc-links.js",
-      "method": "runCheck",
-      "startLine": 349,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/check-doc-links.js",
-      "method": "formatViolation",
-      "startLine": 365,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/check-doc-links.js",
-      "method": "main",
-      "startLine": 369,
-      "crap": 6
     },
     {
       "path": ".agents/scripts/check-lifecycle-doc-drift.js",
@@ -4086,48 +4008,6 @@
       "crap": 2
     },
     {
-      "path": ".agents/scripts/lib/cpu-pool.js",
-      "method": "runOnPool",
-      "startLine": 55,
-      "crap": 3.0008170572039337
-    },
-    {
-      "path": ".agents/scripts/lib/cpu-pool.js",
-      "method": "runWorker",
-      "startLine": 68,
-      "crap": 9.015113702623907
-    },
-    {
-      "path": ".agents/scripts/lib/cpu-pool.js",
-      "method": "dispatchOne",
-      "startLine": 151,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/cpu-pool.js",
-      "method": "<anon method-6>",
-      "startLine": 153,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/cpu-pool.js",
-      "method": "<anon method-7>",
-      "startLine": 158,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/cpu-pool.js",
-      "method": "<anon method-8>",
-      "startLine": 178,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/cpu-pool.js",
-      "method": "<anon method-9>",
-      "startLine": 182,
-      "crap": 2
-    },
-    {
       "path": ".agents/scripts/lib/crap-engine.js",
       "method": "calculateCrapForSource",
       "startLine": 31,
@@ -5182,72 +5062,6 @@
       "method": "deepEqual",
       "startLine": 37,
       "crap": 14
-    },
-    {
-      "path": ".agents/scripts/lib/Logger.js",
-      "method": "<anon method-1>",
-      "startLine": 38,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/Logger.js",
-      "method": "<anon method-2>",
-      "startLine": 39,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/Logger.js",
-      "method": "<anon method-3>",
-      "startLine": 40,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/Logger.js",
-      "method": "routeAllOutputToStderr",
-      "startLine": 51,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/Logger.js",
-      "method": "<anon method-4>",
-      "startLine": 52,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/Logger.js",
-      "method": "<anon method-5>",
-      "startLine": 53,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/Logger.js",
-      "method": "<anon method-6>",
-      "startLine": 54,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/Logger.js",
-      "method": "<anon method-8>",
-      "startLine": 120,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/Logger.js",
-      "method": "<anon method-9>",
-      "startLine": 121,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/Logger.js",
-      "method": "<anon method-10>",
-      "startLine": 122,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/Logger.js",
-      "method": "<anon method-11>",
-      "startLine": 123,
-      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/maintainability-engine.js",
@@ -12358,72 +12172,6 @@
       "method": "extractTool",
       "startLine": 28,
       "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/signals/detectors/hotspot.js",
-      "method": "isPositiveNumber",
-      "startLine": 91,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/signals/detectors/hotspot.js",
-      "method": "tallyEditsByTarget",
-      "startLine": 102,
-      "crap": 10.010797969981644
-    },
-    {
-      "path": ".agents/scripts/lib/signals/detectors/hotspot.js",
-      "method": "listStoryDirs",
-      "startLine": 153,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/signals/detectors/hotspot.js",
-      "method": "nearestRankP95",
-      "startLine": 181,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/signals/detectors/hotspot.js",
-      "method": "detectHotspot",
-      "startLine": 207,
-      "crap": 12
-    },
-    {
-      "path": ".agents/scripts/lib/signals/detectors/retry.js",
-      "method": "resolveIdentity",
-      "startLine": 114,
-      "crap": 5.507137490608565
-    },
-    {
-      "path": ".agents/scripts/lib/signals/detectors/retry.js",
-      "method": "isFailedBash",
-      "startLine": 138,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/signals/detectors/retry.js",
-      "method": "tallyFailuresByIdentity",
-      "startLine": 150,
-      "crap": 9.024
-    },
-    {
-      "path": ".agents/scripts/lib/signals/detectors/retry.js",
-      "method": "detectRetry",
-      "startLine": 217,
-      "crap": 12
-    },
-    {
-      "path": ".agents/scripts/lib/signals/detectors/rework.js",
-      "method": "tallyEditsByTarget",
-      "startLine": 74,
-      "crap": 10.065751623243198
-    },
-    {
-      "path": ".agents/scripts/lib/signals/detectors/rework.js",
-      "method": "detectRework",
-      "startLine": 137,
-      "crap": 12.049764299946542
     },
     {
       "path": ".agents/scripts/lib/signals/read.js",
