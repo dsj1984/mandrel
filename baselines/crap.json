@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T13:20:53.915Z",
+  "generatedAt": "2026-05-29T13:33:05.774Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -13642,96 +13642,6 @@
       "method": "issueToEpicListItem",
       "startLine": 116,
       "crap": 1
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "<anon method-1>",
-      "startLine": 12,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "<anon method-2>",
-      "startLine": 24,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "readGhCliToken",
-      "startLine": 31,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "readEnvToken",
-      "startLine": 44,
-      "crap": 12
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "memoizeEnvToken",
-      "startLine": 48,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "resolveToken",
-      "startLine": 52,
-      "crap": 12
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "<anon method-3>",
-      "startLine": 65,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "<anon method-4>",
-      "startLine": 67,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "gql",
-      "startLine": 70,
-      "crap": 3.0059176460918877
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "lookupProject",
-      "startLine": 94,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "resolveOrCreateProject",
-      "startLine": 113,
-      "crap": 7.946286327824611
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "ensureStatusField",
-      "startLine": 155,
-      "crap": 7.142857142857143
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "ensureProjectViews",
-      "startLine": 205,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "ensureProjectFields",
-      "startLine": 246,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "addItemToProject",
-      "startLine": 272,
-      "crap": 3
     },
     {
       "path": ".agents/scripts/providers/github/request-helpers.js",

@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T13:20:52.136Z",
+  "generatedAt": "2026-05-29T13:33:05.277Z",
   "rollup": {
     "*": {
       "min": 61.218,
@@ -1953,10 +1953,6 @@
     {
       "path": ".agents/scripts/providers/github/project-board.js",
       "mi": 135.623
-    },
-    {
-      "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "mi": 97.138
     },
     {
       "path": ".agents/scripts/providers/github/prs.js",
