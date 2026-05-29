@@ -64,6 +64,7 @@ import { parseCloseOptions } from './lib/orchestration/single-story-close/phases
 import { ensurePullRequestWith } from './lib/orchestration/single-story-close/phases/pull-request.js';
 import { pushStoryBranch } from './lib/orchestration/single-story-close/phases/push.js';
 import { reapWorktreePhase } from './lib/orchestration/single-story-close/phases/worktree-reap.js';
+import { runWrongTreeGuardPhase } from './lib/orchestration/single-story-close/phases/wrong-tree-guard.js';
 import { buildGatesFromConfig } from './lib/orchestration/story-close/legacy-settings-bag.js';
 import { createProvider } from './lib/provider-factory.js';
 import { flipLabelAndNotify } from './lib/single-story/story-merged-notify.js';
@@ -111,6 +112,8 @@ export async function runSingleStoryClose({
   // Story #3260: lets tests inject fakes for plan-vs-actual drift detection.
   injectedFindStructuredComment,
   injectedGitSync,
+  // Story #3364: lets tests inject a fake `gitSpawn` for the wrong-tree guard.
+  injectedGitSpawn,
 } = {}) {
   const {
     storyId,
@@ -166,6 +169,20 @@ export async function runSingleStoryClose({
   const worktreePath = nodeFs.existsSync(worktreePathCandidate)
     ? worktreePathCandidate
     : null;
+
+  // Step 0.4: wrong-tree guard (Story #3364). When the worktree is the active
+  // work tree, abort if stray tracked-path edits are sitting in the main
+  // checkout — they signal that path-based Edit/Write tools wrote to the wrong
+  // tree (the Bash `cd` only steers the shell). Runs before any gate so a
+  // false-clean worktree never reaches commit. Throws on a confirmed positive.
+  await runWrongTreeGuardPhase({
+    cwd,
+    worktreePath,
+    storyId,
+    provider,
+    progress,
+    gitSpawn: injectedGitSpawn,
+  });
 
   // Step 0.5: plan-vs-actual drift detection (non-blocking soft findings).
   await runDriftDetectionPhase({

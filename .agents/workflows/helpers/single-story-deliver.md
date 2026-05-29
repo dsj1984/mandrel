@@ -116,6 +116,20 @@ cd "<workCwd from Step 0 result>"
 
 All subsequent commands run from this directory.
 
+> **Worktree scope is not just the Bash cwd.** `cd <workCwd>` steers the
+> **Bash** tool's working directory, but it does **not** scope the
+> path-based **Edit/Write/Read** tools — those resolve **absolute paths**
+> and ignore the shell cwd. On Windows especially, an agent whose shell
+> sits in the worktree can still silently edit the **main checkout** if it
+> resolves a main-checkout absolute path. To stay in the worktree you MUST
+> prefix **every Edit/Write/Read path with the absolute worktree root**
+> (the `workCwd` value from Step 0), not merely `cd` into it. Never edit
+> files under the bare main-checkout root. `single-story-close.js` runs a
+> **wrong-tree guard** (Story #3364) that aborts close and posts a
+> `friction` comment if it finds uncommitted tracked-path edits in the main
+> checkout while the worktree is the active work tree — but that is a
+> backstop, not a substitute for prefixing paths correctly.
+
 ### Step 0.6 — Story-plan checkpoint (non-trivial Stories only)
 
 Before authoring any commit, evaluate the **always-emit triggering predicate**
@@ -541,7 +555,11 @@ safe.
 
 - **Never** push the Story branch directly to `main`. The PR is the only
   merge surface.
-- **Always** `cd` into the `workCwd` returned by Step 0 before editing.
+- **Always** `cd` into the `workCwd` returned by Step 0 before editing,
+  **and** prefix every path-based Edit/Write/Read with that absolute
+  `workCwd` root — the `cd` alone does not scope the path-based tools (see
+  Step 0.5). Editing a bare main-checkout path lands the change in the wrong
+  tree; close's wrong-tree guard (Story #3364) aborts when it detects this.
 - **Always** pass `--cwd <main-repo>` to `single-story-close.js` when
   invoking from inside a worktree (worktree-local branch deletion fails
   when run from inside the worktree).
