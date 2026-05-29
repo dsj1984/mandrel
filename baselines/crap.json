@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T12:19:20.665Z",
+  "generatedAt": "2026-05-29T12:50:06.891Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.561164258090779,
+      "p95": 12.566846479078583,
       "max": 53.8385539444679,
       "methodsAbove20": 31
     }
@@ -4164,12 +4164,6 @@
       "crap": 11
     },
     {
-      "path": ".agents/scripts/lib/env-loader.js",
-      "method": "loadEnv",
-      "startLine": 7,
-      "crap": 2
-    },
-    {
       "path": ".agents/scripts/lib/epic-close-tail-helpers.js",
       "method": "closePlanningArtifacts",
       "startLine": 58,
@@ -7668,42 +7662,6 @@
       "crap": 9.20539068369647
     },
     {
-      "path": ".agents/scripts/lib/orchestration/file-assumptions.js",
-      "method": "defaultGitRunner",
-      "startLine": 44,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/file-assumptions.js",
-      "method": "collectStoryAssumptionEntries",
-      "startLine": 67,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/file-assumptions.js",
-      "method": "hasLegacyChangeBullets",
-      "startLine": 105,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/file-assumptions.js",
-      "method": "renderMismatch",
-      "startLine": 119,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/file-assumptions.js",
-      "method": "validateStoryFileAssumptions",
-      "startLine": 153,
-      "crap": 8
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/file-assumptions.js",
-      "method": "checkAssumption",
-      "startLine": 221,
-      "crap": 9.149767843645394
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/finalize/close-planning-tickets.js",
       "method": "closePlanningTickets",
       "startLine": 47,
@@ -11074,84 +11032,6 @@
       "method": "parseFencedJsonComment",
       "startLine": 40,
       "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/task-body-validator.js",
-      "method": "bulletNamesPath",
-      "startLine": 74,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/task-body-validator.js",
-      "method": "vagueVerbWithoutTarget",
-      "startLine": 86,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/task-body-validator.js",
-      "method": "shouldSkipTicket",
-      "startLine": 116,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/task-body-validator.js",
-      "method": "validateTaskBodyShape",
-      "startLine": 136,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/task-body-validator.js",
-      "method": "isObjectPathEntry",
-      "startLine": 169,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/task-body-validator.js",
-      "method": "isMalformedObjectPathEntry",
-      "startLine": 185,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/task-body-validator.js",
-      "method": "collectChangesErrors",
-      "startLine": 198,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/task-body-validator.js",
-      "method": "<anon method-1>",
-      "startLine": 206,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/task-body-validator.js",
-      "method": "collectReferencesErrors",
-      "startLine": 239,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/task-body-validator.js",
-      "method": "collectAcceptanceErrors",
-      "startLine": 263,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/task-body-validator.js",
-      "method": "collectVerifyErrors",
-      "startLine": 286,
-      "crap": 8
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/task-body-validator.js",
-      "method": "collectTaskBodyErrors",
-      "startLine": 324,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/task-body-validator.js",
-      "method": "validateTaskBodies",
-      "startLine": 340,
-      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/task-fetcher.js",
