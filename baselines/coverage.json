@@ -4,9 +4,9 @@
   "generatedAt": "2026-05-27T19:01:07.472Z",
   "rollup": {
     "*": {
-      "lines": 94.89,
-      "branches": 84.09,
-      "functions": 89.01
+      "lines": 94.92,
+      "branches": 84.1,
+      "functions": 89.07
     }
   },
   "rows": [
@@ -69,12 +69,6 @@
       "lines": 91.04,
       "branches": 91.67,
       "functions": 100
-    },
-    {
-      "path": ".agents/scripts/cleanup-type-task-label.js",
-      "lines": 82.01,
-      "branches": 77.78,
-      "functions": 60
     },
     {
       "path": ".agents/scripts/coverage-capture.js",

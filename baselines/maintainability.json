@@ -67,10 +67,6 @@
       "mi": 99.892
     },
     {
-      "path": ".agents/scripts/cleanup-type-task-label.js",
-      "mi": 98.989
-    },
-    {
       "path": ".agents/scripts/context-hydrator.js",
       "mi": 96.337
     },
@@ -4597,10 +4593,6 @@
     {
       "path": "tests/scripts/cleanup-repo-test-temp.test.js",
       "mi": 87.516
-    },
-    {
-      "path": "tests/scripts/cleanup-type-task-label.test.js",
-      "mi": 110.521
     },
     {
       "path": "tests/scripts/dispatcher-fromspec.test.js",

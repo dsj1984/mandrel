@@ -552,36 +552,6 @@
       "crap": 7.155836556075718
     },
     {
-      "path": ".agents/scripts/cleanup-type-task-label.js",
-      "method": "defaultProvider",
-      "startLine": 40,
-      "crap": 5.429499999999999
-    },
-    {
-      "path": ".agents/scripts/cleanup-type-task-label.js",
-      "method": "isLabelNotFoundError",
-      "startLine": 69,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/cleanup-type-task-label.js",
-      "method": "cleanupTypeTaskLabel",
-      "startLine": 86,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/cleanup-type-task-label.js",
-      "method": "parseArgs",
-      "startLine": 128,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/cleanup-type-task-label.js",
-      "method": "main",
-      "startLine": 132,
-      "crap": 2
-    },
-    {
       "path": ".agents/scripts/coverage-capture.js",
       "method": "parseArgs",
       "startLine": 33,
