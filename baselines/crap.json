@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-29T16:19:55.801Z",
+  "generatedAt": "2026-05-30T16:25:22.509Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -2704,78 +2704,6 @@
       "method": "applyProjectBootstrap",
       "startLine": 530,
       "crap": 1.2962962962962963
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/prompt.js",
-      "method": "parseFlags",
-      "startLine": 43,
-      "crap": 10.04551661356395
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/prompt.js",
-      "method": "parseGitRemoteUrl",
-      "startLine": 78,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/prompt.js",
-      "method": "runGit",
-      "startLine": 93,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/prompt.js",
-      "method": "inferDefaults",
-      "startLine": 107,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/prompt.js",
-      "method": "resolveFromFlag",
-      "startLine": 164,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/prompt.js",
-      "method": "resolveFromEnv",
-      "startLine": 177,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/prompt.js",
-      "method": "resolveFromSilent",
-      "startLine": 193,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/prompt.js",
-      "method": "askOnce",
-      "startLine": 209,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/prompt.js",
-      "method": "resolveInteractive",
-      "startLine": 224,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/prompt.js",
-      "method": "resolveAssumeYes",
-      "startLine": 247,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/prompt.js",
-      "method": "collectAnswers",
-      "startLine": 290,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/prompt.js",
-      "method": "<anon method-1>",
-      "startLine": 304,
-      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
