@@ -523,10 +523,17 @@ just fires the emit and reads the resulting ledger.
    first (idempotent locate path — a re-run of `/epic-deliver`
    on the same branch short-circuits without opening a duplicate)
    and only opens a new PR when none exists. The listener then
-   emits `epic.merge.ready` carrying `{ prNumber, epicId, prUrl }`
-   and lets the `AutomergeArmer` (Phase 8.5) own the auto-merge
-   arm. The merge-lockout rule in
-   [`check-lifecycle-lint.js`](../scripts/check-lifecycle-lint.js)
+   emits `pr.created` → `epic.finalize.end` and **stops** (Story
+   #3367). It does **not** emit `epic.merge.ready`: that event is
+   the sole `AutomergeArmer` trigger, and emitting it from finalize
+   would cascade `epic.close.end` synchronously through the arm →
+   `MergeWatcher` → `Cleaner` → `BranchCleaner` reap, deleting the
+   `epic/<id>` branch before the PR merged and bypassing the
+   `AutomergePredicate` disqualification gate. The auto-merge arm is
+   driven later from the gated watch path (`pr.created` → `Watcher`
+   → `epic.watch.end` → `AutomergePredicate` → `epic.merge.ready` →
+   `AutomergeArmer`) re-entered in Phase 8.5. The merge-lockout rule
+   in [`check-lifecycle-lint.js`](../scripts/check-lifecycle-lint.js)
    keeps `gh pr merge --auto --squash --delete-branch` confined to
    `AutomergeArmer` — Phase 7 never shells the merge command.
 3. **Planning-artifact close + hand-off — bus-driven (Story

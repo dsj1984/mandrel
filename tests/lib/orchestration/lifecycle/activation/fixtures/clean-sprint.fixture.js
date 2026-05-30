@@ -299,6 +299,18 @@ function applyCleanSprintStubs(collaborators, { prUrl }) {
     };
   }
 
+  // BranchCleaner (Story #3367): stub the open-PR guard probe so the
+  // listener never shells out to real `gh pr list` against the fake PR
+  // URL. Report zero open PRs so the epic branch is reaped on the clean
+  // path (the close-tail ledger assertions expect the full reap to run).
+  if (collaborators.branchCleaner) {
+    collaborators.branchCleaner.spawnFn = () => ({
+      status: 0,
+      stdout: '0\n',
+      stderr: '',
+    });
+  }
+
   // Cleaner: stub the rename so the archive step does NOT move
   // `<tempRoot>/epic-<id>/` out from under the ledger reader. The
   // listener still emits the terminal `epic.cleanup.start →

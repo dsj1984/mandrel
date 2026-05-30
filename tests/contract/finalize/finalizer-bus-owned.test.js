@@ -11,14 +11,18 @@
  *      composition.
  *   2. The default `runFinalizeFn` is the bus-owned composition (no
  *      `d1-default-no-op` blocker reachable from the default path).
- *   3. On success, Finalizer emits `epic.merge.ready` carrying
- *      `{ prNumber, epicId, prUrl }`.
+ *   3. On success, Finalizer emits `pr.created` → `epic.finalize.end`
+ *      and STOPS — it does NOT emit `epic.merge.ready` (Story #3367).
+ *      Emitting `epic.merge.ready` from finalize cascaded
+ *      `epic.close.end` synchronously into the auto-merge arm + branch
+ *      reap, bypassing the AutomergePredicate gate; the arm now flows
+ *      only through the gated watch path.
  *   4. The full emit sequence is start → pr.created →
- *      epic.finalize.end → epic.merge.ready.
+ *      epic.finalize.end (terminal — no epic.merge.ready).
  *   5. Handoff-comment failures are best-effort: PR creation still
- *      succeeds, and the merge.ready emit still fires.
+ *      succeeds, and the finalize.end emit still fires.
  *   6. `openOrLocatePr` failures route through the blocker channel —
- *      no `pr.created` / `epic.merge.ready` emit.
+ *      no `pr.created` / `epic.finalize.end` emit.
  */
 
 import { strict as assert } from 'node:assert';
@@ -180,7 +184,7 @@ describe('composeBusOwnedFinalize', () => {
 });
 
 describe('Finalizer with the bus-owned default', () => {
-  it('emits start → pr.created → finalize.end → epic.merge.ready in order with no overrides', async () => {
+  it('emits start → pr.created → finalize.end (and NO epic.merge.ready) with no overrides', async () => {
     const bus = makeBus();
     const finalizer = new Finalizer({
       bus,
@@ -220,19 +224,27 @@ describe('Finalizer with the bus-owned default', () => {
           e === 'epic.finalize.end' ||
           e === 'epic.merge.ready',
       );
+    // Story #3367: the Finalizer stops at epic.finalize.end. It MUST NOT
+    // emit epic.merge.ready (that is the AutomergePredicate's sole job).
     assert.deepEqual(ordered, [
       'epic.finalize.start',
       'pr.created',
       'epic.finalize.end',
-      'epic.merge.ready',
     ]);
-    const mergeReady = bus.emitted.find((e) => e.event === 'epic.merge.ready');
-    assert.equal(mergeReady.payload.prNumber, 99);
-    assert.equal(mergeReady.payload.epicId, 2880);
-    assert.equal(mergeReady.payload.prUrl, 'https://github.com/o/r/pull/99');
+    assert.equal(
+      bus.emitted.find((e) => e.event === 'epic.merge.ready'),
+      undefined,
+      'Finalizer MUST NOT emit epic.merge.ready (Story #3367)',
+    );
+    // The PR URL still reaches the bus via pr.created / epic.finalize.end.
+    const finalizeEnd = bus.emitted.find(
+      (e) => e.event === 'epic.finalize.end',
+    );
+    assert.equal(finalizeEnd.payload.epicId, 2880);
+    assert.equal(finalizeEnd.payload.prUrl, 'https://github.com/o/r/pull/99');
   });
 
-  it('emits epic.merge.ready with the existing-PR URL when the probe short-circuits', async () => {
+  it('emits pr.created + finalize.end (no epic.merge.ready) with the existing-PR URL when the probe short-circuits', async () => {
     const bus = makeBus();
     const finalizer = new Finalizer({
       bus,
@@ -251,11 +263,22 @@ describe('Finalizer with the bus-owned default', () => {
     });
     finalizer.register();
     await bus.emit('acceptance.reconcile.ok', { baseRead: true });
-    const mergeReady = bus.emitted.find((e) => e.event === 'epic.merge.ready');
-    assert.ok(mergeReady, 'epic.merge.ready must still fire');
-    assert.equal(mergeReady.payload.prNumber, 123);
-    assert.equal(mergeReady.payload.epicId, 2880);
-    assert.equal(mergeReady.payload.prUrl, 'https://github.com/o/r/pull/123');
+    const prCreated = bus.emitted.find((e) => e.event === 'pr.created');
+    assert.ok(prCreated, 'pr.created must fire on the short-circuit path');
+    assert.equal(prCreated.payload.prUrl, 'https://github.com/o/r/pull/123');
+    const finalizeEnd = bus.emitted.find(
+      (e) => e.event === 'epic.finalize.end',
+    );
+    assert.ok(
+      finalizeEnd,
+      'epic.finalize.end must fire on the short-circuit path',
+    );
+    assert.equal(finalizeEnd.payload.prUrl, 'https://github.com/o/r/pull/123');
+    assert.equal(
+      bus.emitted.find((e) => e.event === 'epic.merge.ready'),
+      undefined,
+      'Finalizer MUST NOT emit epic.merge.ready (Story #3367)',
+    );
   });
 
   it('Finalizer constructed with no runFinalizeFn override has the bus-owned composition as default', () => {

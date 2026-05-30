@@ -28,9 +28,79 @@
  * tests can drive the runner end-to-end without touching git or the disk.
  */
 
+import { spawnSync } from 'node:child_process';
+
 import { parseWorktreePorcelain } from '../worktree/inspector.js';
 
 const WT_SCRATCH_BRANCH = 'wt-branch';
+
+/**
+ * Probe GitHub for an OPEN, unmerged PR whose head is `epicBranch`.
+ * Returns `true` when an open PR exists (→ caller MUST keep the branch).
+ *
+ * Hardening guard for Story #3367: an `epic/<id>` branch with an open
+ * PR is the branch the PR needs — reaping it (local `git branch -D` +
+ * remote prune) deletes the PR's head out from under it before the
+ * merge lands. The reap path force-deletes with `git branch -D`, so
+ * git's own "unmerged → refuse" safety is not in play; this probe is
+ * the explicit gate. Fails CLOSED: any probe error (gh missing, network
+ * failure, unparseable output) returns `true` so an indeterminate state
+ * never green-lights a destructive reap.
+ *
+ * @param {{
+ *   epicBranch: string,
+ *   cwd: string,
+ *   spawnFn?: typeof spawnSync,
+ *   logger?: { warn?: Function },
+ * }} opts
+ * @returns {boolean}
+ */
+export function epicBranchHasOpenPr(opts) {
+  const { epicBranch, cwd, spawnFn = spawnSync, logger } = opts;
+  if (typeof epicBranch !== 'string' || epicBranch.length === 0) {
+    return false;
+  }
+  let result;
+  try {
+    result = spawnFn(
+      'gh',
+      [
+        'pr',
+        'list',
+        '--head',
+        epicBranch,
+        '--state',
+        'open',
+        '--json',
+        'number,state',
+        '--jq',
+        'length',
+      ],
+      { cwd, encoding: 'utf-8', shell: false },
+    );
+  } catch (err) {
+    // Fail closed — an indeterminate probe must keep the branch.
+    logger?.warn?.(
+      `[epic-cleanup] open-PR probe threw for ${epicBranch} (keeping branch): ${err?.message ?? err}`,
+    );
+    return true;
+  }
+  if (!result || result.status !== 0) {
+    logger?.warn?.(
+      `[epic-cleanup] open-PR probe failed for ${epicBranch} (status=${result?.status}; keeping branch): ${(result?.stderr ?? '').trim()}`,
+    );
+    return true;
+  }
+  const count = Number.parseInt(String(result.stdout ?? '').trim(), 10);
+  if (!Number.isInteger(count)) {
+    // Unparseable output — fail closed.
+    logger?.warn?.(
+      `[epic-cleanup] open-PR probe returned unparseable count for ${epicBranch} (keeping branch): ${String(result.stdout ?? '').trim()}`,
+    );
+    return true;
+  }
+  return count > 0;
+}
 
 /**
  * Build the list of branches owned by the Epic from the checkpoint.
@@ -265,6 +335,8 @@ export function deleteWtBranchIfPresent(opts) {
  *   rmSyncFn?: Function,
  *   baseBranch?: string,
  *   remote?: string,
+ *   spawnFn?: Function,
+ *   epicBranchHasOpenPrFn?: typeof epicBranchHasOpenPr,
  *   logger?: { info?: Function, warn?: Function },
  * }} opts
  * @returns {{
@@ -274,6 +346,7 @@ export function deleteWtBranchIfPresent(opts) {
  *   switched: { switched: boolean, from: string|null, to: string|null, stderr?: string } | null,
  *   pruned: { pruned: string[], stderr?: string } | null,
  *   wtBranch: { deleted: boolean, present: boolean, reason?: string, stderr?: string } | null,
+ *   epicBranchKept: boolean,
  *   ok: boolean,
  * }}
  */
@@ -285,6 +358,8 @@ export function reapEpicBranches(opts) {
     rmSyncFn,
     baseBranch = 'main',
     remote = 'origin',
+    spawnFn,
+    epicBranchHasOpenPrFn = epicBranchHasOpenPr,
     logger,
   } = opts;
   const { epicBranch, storyBranches } = listEpicBranchesFromState(state);
@@ -296,26 +371,58 @@ export function reapEpicBranches(opts) {
       switched: null,
       pruned: null,
       wtBranch: null,
+      epicBranchKept: false,
       ok: true,
     };
   }
 
-  // If the main checkout is still on epic/<id>, switch off first so the
-  // subsequent `git branch -D` isn't refused by "used by worktree".
-  const switched = switchCheckoutOffBranch({
-    fromBranch: epicBranch,
-    toBranch: baseBranch,
+  // Story #3367 hardening — never reap an epic branch whose PR is still
+  // open and unmerged. Reaping it (local `git branch -D` + remote prune)
+  // would delete the PR's head out from under it before the merge lands.
+  // The guard fails closed: an indeterminate probe keeps the branch. The
+  // story branches are still reaped (their history is captured in the
+  // epic branch's merge commits and the open PR), but the epic branch,
+  // the checkout-off-branch switch, and the remote prune are all skipped
+  // so neither the local ref nor `origin/epic/<id>` is destroyed.
+  const epicHasOpenPr = epicBranchHasOpenPrFn({
+    epicBranch,
     cwd,
-    gitSpawn,
+    spawnFn,
     logger,
   });
+  if (epicHasOpenPr) {
+    logger?.warn?.(
+      `[epic-cleanup] ${epicBranch} has an open, unmerged PR — keeping the epic branch + its remote ref; reaping story branches only.`,
+    );
+  }
+
+  // If the main checkout is still on epic/<id>, switch off first so the
+  // subsequent `git branch -D` isn't refused by "used by worktree". When
+  // the epic branch is being kept (open PR) we leave the checkout where
+  // it is — there is no epic-branch delete to unblock.
+  const switched = epicHasOpenPr
+    ? { switched: false, from: null, to: null }
+    : switchCheckoutOffBranch({
+        fromBranch: epicBranch,
+        toBranch: baseBranch,
+        cwd,
+        gitSpawn,
+        logger,
+      });
 
   const wtList = gitSpawn(cwd, 'worktree', 'list', '--porcelain');
   const worktrees =
     wtList.status === 0 ? parseWorktreePorcelain(wtList.stdout ?? '') : [];
 
+  // When the epic branch has an open PR, drop it from the reap list so
+  // neither the local ref nor (via the remote prune below) its tracking
+  // ref is destroyed.
+  const branchesToReap = epicHasOpenPr
+    ? [...storyBranches]
+    : [...storyBranches, epicBranch];
+
   const reaped = [];
-  for (const branch of [...storyBranches, epicBranch]) {
+  for (const branch of branchesToReap) {
     const wtPath = findWorktreePathForBranch(branch, worktrees);
     const result = reapBranch({
       branch,
@@ -331,7 +438,11 @@ export function reapEpicBranches(opts) {
     );
   }
 
-  const pruned = pruneRemoteTrackingRefs({ cwd, gitSpawn, remote });
+  // Skip the remote prune entirely when the epic branch is kept: a prune
+  // would drop the `origin/epic/<id>` tracking ref the open PR depends on.
+  const pruned = epicHasOpenPr
+    ? { pruned: [] }
+    : pruneRemoteTrackingRefs({ cwd, gitSpawn, remote });
   if (pruned.pruned.length > 0) {
     logger?.info?.(
       `[epic-cleanup] pruned ${pruned.pruned.length} stale tracking ref(s): ${pruned.pruned.join(', ')}`,
@@ -356,6 +467,7 @@ export function reapEpicBranches(opts) {
     switched,
     pruned,
     wtBranch,
+    epicBranchKept: epicHasOpenPr,
     ok: failures.length === 0,
   };
 }

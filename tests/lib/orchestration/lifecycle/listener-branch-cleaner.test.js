@@ -50,6 +50,17 @@ function makeCheckpointer(state) {
   };
 }
 
+/**
+ * Story #3367 — the open-PR guard probe (`gh pr list --head epic/<id>
+ * --state open --jq length`) defaults to a real `gh` shell-out. Inject
+ * this stub so unit tests never touch the network: it reports zero open
+ * PRs (`length` → 0), so `reapEpicBranches` reaps the epic branch as
+ * before. Tests that exercise the guard pass their own stub.
+ */
+function noOpenPrSpawn() {
+  return { status: 0, stdout: '0\n', stderr: '' };
+}
+
 describe('BranchCleaner — constructor guards', () => {
   const validOpts = {
     bus: new Bus(),
@@ -112,6 +123,7 @@ describe('BranchCleaner — handle()', () => {
       cwd: '/repo',
       gitSpawn: makeGitSpawn({ overrides: gitOverrides, log: gitSpawnLog }),
       rmSyncFn: () => {},
+      spawnFn: noOpenPrSpawn,
       logger: quietLogger(),
     });
     return { bus, cleaner, gitSpawnLog };
@@ -273,11 +285,43 @@ describe('BranchCleaner — bus-driven activation', () => {
       cwd: '/repo',
       gitSpawn: makeGitSpawn(),
       rmSyncFn: () => {},
+      spawnFn: noOpenPrSpawn,
       logger: quietLogger(),
     });
     cleaner.register();
     await bus.emit('epic.cleanup.start', { epicId: 99 });
     assert.equal(cleaner.classifications.length, 1);
     assert.equal(cleaner.classifications[0].outcome, 'reaped');
+  });
+
+  // Story #3367 — the listener forwards `spawnFn` into reapEpicBranches'
+  // open-PR guard; an open PR keeps the epic branch.
+  it('keeps the epic branch when the guard probe reports an open PR', async () => {
+    const state = { epicId: 99, waves: [{ stories: [{ id: 1 }] }] };
+    const gitSpawnLog = [];
+    const bus = new Bus();
+    const cleaner = new BranchCleaner({
+      bus,
+      epicId: 99,
+      checkpointer: makeCheckpointer(state),
+      cwd: '/repo',
+      gitSpawn: makeGitSpawn({ log: gitSpawnLog }),
+      rmSyncFn: () => {},
+      // Probe reports one open PR on the head.
+      spawnFn: () => ({ status: 0, stdout: '1\n', stderr: '' }),
+      logger: quietLogger(),
+    });
+    cleaner.register();
+    await bus.emit('epic.cleanup.start', { epicId: 99 });
+    assert.equal(cleaner.classifications[0].outcome, 'reaped');
+    // story-1 is reaped; epic/99 is NOT force-deleted.
+    const deletes = gitSpawnLog
+      .filter((c) => c.args[0] === 'branch' && c.args[1] === '-D')
+      .map((c) => c.args[2]);
+    assert.ok(deletes.includes('story-1'));
+    assert.ok(
+      !deletes.includes('epic/99'),
+      'epic/99 must not be force-deleted while its PR is open',
+    );
   });
 });

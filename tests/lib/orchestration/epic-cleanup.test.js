@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 
 import {
   deleteWtBranchIfPresent,
+  epicBranchHasOpenPr,
   findWorktreePathForBranch,
   getCheckedOutBranch,
   listEpicBranchesFromState,
@@ -203,11 +204,13 @@ describe('reapEpicBranches', () => {
       },
       cwd: '/repo',
       gitSpawn,
+      epicBranchHasOpenPrFn: () => false,
     });
     assert.equal(out.ok, true);
     assert.equal(out.reaped.length, 3);
     const branches = out.reaped.map((r) => r.branch);
     assert.deepEqual(branches, ['story-1', 'story-2', 'epic/100']);
+    assert.equal(out.epicBranchKept, false);
   });
 
   it('returns ok=true with no work when state is null', () => {
@@ -235,6 +238,7 @@ describe('reapEpicBranches', () => {
       state: { epicId: 9, waves: [{ stories: [{ id: 99 }] }] },
       cwd: '/repo',
       gitSpawn,
+      epicBranchHasOpenPrFn: () => false,
     });
     assert.equal(out.ok, false);
     assert.equal(out.failures.length, 1);
@@ -258,6 +262,7 @@ describe('reapEpicBranches', () => {
       cwd: '/repo',
       gitSpawn,
       baseBranch: 'develop',
+      epicBranchHasOpenPrFn: () => false,
     });
     assert.equal(out.switched.switched, true);
     assert.equal(out.switched.from, 'epic/77');
@@ -282,6 +287,7 @@ describe('reapEpicBranches', () => {
       state: { epicId: 78, waves: [{ stories: [{ id: 1 }] }] },
       cwd: '/repo',
       gitSpawn,
+      epicBranchHasOpenPrFn: () => false,
     });
     assert.equal(out.switched.switched, false);
     assert.equal(out.switched.from, 'main');
@@ -312,10 +318,73 @@ describe('reapEpicBranches', () => {
       state: { epicId: 100, waves: [{ stories: [{ id: 1 }] }] },
       cwd: '/repo',
       gitSpawn,
+      epicBranchHasOpenPrFn: () => false,
     });
     assert.deepEqual(out.pruned.pruned, ['origin/epic/100', 'origin/story-1']);
     assert.equal(out.wtBranch.deleted, true);
     assert.equal(out.wtBranch.present, true);
+  });
+
+  // Story #3367 — defense-in-depth: never reap an epic branch whose PR
+  // is still open and unmerged.
+  it('keeps epic/<id> (+ skips switch + skips remote prune) when an open PR exists', () => {
+    const calls = [];
+    const gitSpawn = (_cwd, ...args) => {
+      calls.push(args.join(' '));
+      if (args[0] === 'symbolic-ref') {
+        return { status: 0, stdout: 'epic/100', stderr: '' };
+      }
+      if (args[0] === 'worktree' && args[1] === 'list') {
+        return { status: 0, stdout: '', stderr: '' };
+      }
+      return { status: 0, stdout: '', stderr: '' };
+    };
+    const out = reapEpicBranches({
+      state: { epicId: 100, waves: [{ stories: [{ id: 1 }, { id: 2 }] }] },
+      cwd: '/repo',
+      gitSpawn,
+      epicBranchHasOpenPrFn: () => true,
+    });
+    // Epic branch kept; only story branches reaped.
+    assert.equal(out.epicBranchKept, true);
+    const branches = out.reaped.map((r) => r.branch);
+    assert.deepEqual(branches, ['story-1', 'story-2']);
+    // The destructive epic/100 delete MUST NOT have run.
+    assert.ok(
+      !calls.includes('branch -D epic/100'),
+      'epic/100 must not be force-deleted while its PR is open',
+    );
+    // The checkout-off-branch switch is skipped (no epic delete to unblock).
+    assert.equal(out.switched.switched, false);
+    assert.ok(
+      !calls.some((c) => c.startsWith('checkout ')),
+      'checkout-off-branch switch must be skipped when the epic branch is kept',
+    );
+    // The remote prune (which would drop origin/epic/100) is skipped.
+    assert.deepEqual(out.pruned.pruned, []);
+    assert.ok(
+      !calls.some((c) => c.startsWith('remote prune')),
+      'remote prune must be skipped when the epic branch is kept',
+    );
+  });
+
+  it('still reaps the epic branch when the probe reports no open PR', () => {
+    const calls = [];
+    const gitSpawn = (_cwd, ...args) => {
+      calls.push(args.join(' '));
+      if (args[0] === 'worktree' && args[1] === 'list') {
+        return { status: 0, stdout: '', stderr: '' };
+      }
+      return { status: 0, stdout: '', stderr: '' };
+    };
+    const out = reapEpicBranches({
+      state: { epicId: 100, waves: [{ stories: [{ id: 1 }] }] },
+      cwd: '/repo',
+      gitSpawn,
+      epicBranchHasOpenPrFn: () => false,
+    });
+    assert.equal(out.epicBranchKept, false);
+    assert.ok(calls.includes('branch -D epic/100'));
   });
 });
 
@@ -502,5 +571,66 @@ describe('deleteWtBranchIfPresent', () => {
     assert.equal(out.present, true);
     assert.equal(out.stderr, 'unmerged commits');
     assert.ok(warnings.some((w) => /could not delete wt-branch/.test(w)));
+  });
+});
+
+describe('epicBranchHasOpenPr (Story #3367 guard)', () => {
+  it('returns true when gh reports one or more open PRs on the head', () => {
+    const spawnFn = () => ({ status: 0, stdout: '1\n', stderr: '' });
+    assert.equal(
+      epicBranchHasOpenPr({ epicBranch: 'epic/100', cwd: '/repo', spawnFn }),
+      true,
+    );
+  });
+
+  it('returns false when gh reports zero open PRs on the head', () => {
+    const spawnFn = () => ({ status: 0, stdout: '0\n', stderr: '' });
+    assert.equal(
+      epicBranchHasOpenPr({ epicBranch: 'epic/100', cwd: '/repo', spawnFn }),
+      false,
+    );
+  });
+
+  it('fails closed (returns true) when the gh probe exits non-zero', () => {
+    const warnings = [];
+    const spawnFn = () => ({ status: 1, stdout: '', stderr: 'gh: not found' });
+    assert.equal(
+      epicBranchHasOpenPr({
+        epicBranch: 'epic/100',
+        cwd: '/repo',
+        spawnFn,
+        logger: { warn: (m) => warnings.push(m) },
+      }),
+      true,
+    );
+    assert.ok(warnings.some((w) => /open-PR probe failed/.test(w)));
+  });
+
+  it('fails closed (returns true) when the spawn throws', () => {
+    const spawnFn = () => {
+      throw new Error('ENOENT');
+    };
+    assert.equal(
+      epicBranchHasOpenPr({ epicBranch: 'epic/100', cwd: '/repo', spawnFn }),
+      true,
+    );
+  });
+
+  it('fails closed (returns true) on unparseable stdout', () => {
+    const spawnFn = () => ({ status: 0, stdout: 'not-a-number', stderr: '' });
+    assert.equal(
+      epicBranchHasOpenPr({ epicBranch: 'epic/100', cwd: '/repo', spawnFn }),
+      true,
+    );
+  });
+
+  it('returns false for an empty epicBranch (no branch to protect)', () => {
+    const spawnFn = () => {
+      throw new Error('must not be called');
+    };
+    assert.equal(
+      epicBranchHasOpenPr({ epicBranch: '', cwd: '/repo', spawnFn }),
+      false,
+    );
   });
 });

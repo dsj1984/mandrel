@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/epic.merge.ready.schema.json",
   "title": "epic.merge.ready",
-  "description": "Emitted by Finalizer (bus-owned finalize, Story #2894) after openOrLocatePr lands the Epic→main PR, and by AutomergePredicate when Phase 8.5's CI watch confirms the same PR is safe to arm. The ONLY event AutomergeArmer subscribes to.",
+  "description": "Emitted SOLELY by AutomergePredicate (on epic.watch.end) once the CI watch confirms the Epic→main PR is safe to arm and the disqualification gate passes. The ONLY event AutomergeArmer subscribes to. Story #3367: the Finalizer no longer emits this event — emitting it from finalize cascaded epic.close.end synchronously into the auto-merge arm + branch reap, bypassing the predicate gate and deleting the epic branch before the PR merged.",
   "type": "object",
   "required": ["prUrl"],
   "properties": {
