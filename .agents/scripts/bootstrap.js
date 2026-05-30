@@ -26,6 +26,7 @@
 
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { listProjects, listRepos } from './lib/bootstrap/gh-list.js';
 import { runPreflight } from './lib/bootstrap/preflight.js';
 import { applyProjectBootstrap } from './lib/bootstrap/project-bootstrap.js';
 import {
@@ -53,7 +54,67 @@ Flags:
   --help                    Print this help
 `;
 
-function buildQuestions(defaults) {
+/**
+ * Resolve the GitHub owner using the same flag → env → inferred-default
+ * precedence the `owner` question itself walks (`resolveFromFlag` →
+ * `resolveFromEnv` → `resolveFromSilent`). The repo / project pickers need
+ * the owner up front to scope their `gh` queries, but the picker `list`
+ * closures run before `collectAnswers` has recorded the owner answer, so we
+ * recompute it here from the same sources rather than reading a not-yet-set
+ * answer.
+ *
+ * Returns `null` when no owner can be determined — both pickers degrade to
+ * an empty list (and therefore skip) in that case.
+ *
+ * @param {{ owner?: string|null }} defaults
+ * @param {Record<string, string|boolean>} flags
+ * @param {NodeJS.ProcessEnv} env
+ * @returns {string|null}
+ */
+export function resolveOwnerForPicker(defaults, flags, env = process.env) {
+  const fromFlag = flags?.owner;
+  if (typeof fromFlag === 'string' && fromFlag.length > 0) return fromFlag;
+  const fromEnv = env?.GH_OWNER;
+  if (typeof fromEnv === 'string' && fromEnv.length > 0) return fromEnv;
+  const fromDefault = defaults?.owner;
+  if (typeof fromDefault === 'string' && fromDefault.length > 0) {
+    return fromDefault;
+  }
+  return null;
+}
+
+/**
+ * Build the question list for the interactive bootstrap prompts.
+ *
+ * The `repo` and `projectNumber` questions carry an optional
+ * `picker: { list }` field that `resolveFromPicker` consumes when running
+ * interactively. The repo picker lists the owner's repositories (bare repo
+ * names, derived from each `owner/name` slug returned by `listRepos`); the
+ * project picker lists the owner's Projects V2 titles via `listProjects`.
+ *
+ * Both pickers are interactive-only by virtue of `resolveFromPicker`'s
+ * `ctx.interactive` gate and its position in the `RESOLVERS` chain (after
+ * flag / env / silent resolvers): when `--owner`/`--repo` or
+ * `GH_OWNER`/`GH_REPO` are supplied, or `--assume-yes` is set, the earlier
+ * resolvers win and the picker never runs. The pickers also self-skip when
+ * the owner cannot be resolved (empty list) so a missing owner never blocks.
+ *
+ * @param {{ owner?: string|null, repo?: string|null,
+ *           baseBranch?: string|null, operatorHandle?: string|null }} defaults
+ * @param {object} [pickerCtx]
+ * @param {Record<string, string|boolean>} [pickerCtx.flags]
+ * @param {NodeJS.ProcessEnv} [pickerCtx.env]
+ * @param {{ listRepos?: typeof listRepos, listProjects?: typeof listProjects }}
+ *   [pickerCtx.providers] Injectable `gh-list` providers (tests pass stubs).
+ */
+export function buildQuestions(defaults, pickerCtx = {}) {
+  const flags = pickerCtx.flags ?? {};
+  const env = pickerCtx.env ?? process.env;
+  const providers = pickerCtx.providers ?? {};
+  const repoLister = providers.listRepos ?? listRepos;
+  const projectLister = providers.listProjects ?? listProjects;
+  const owner = resolveOwnerForPicker(defaults, flags, env);
+
   return [
     {
       key: 'owner',
@@ -72,6 +133,13 @@ function buildQuestions(defaults) {
       message: 'GitHub repo',
       default: defaults.repo,
       required: true,
+      picker: {
+        list: () =>
+          repoLister({ owner }).map((slug) => {
+            const slash = slug.indexOf('/');
+            return slash === -1 ? slug : slug.slice(slash + 1);
+          }),
+      },
       validate: (v) =>
         /^[A-Za-z0-9._-]+$/.test(v) ? null : 'Invalid GitHub repo name',
     },
@@ -103,6 +171,9 @@ function buildQuestions(defaults) {
       message: 'Projects V2 number (blank to skip)',
       default: null,
       required: false,
+      picker: {
+        list: () => projectLister({ owner }),
+      },
       validate: (v) =>
         v.length === 0 || /^\d+$/.test(v)
           ? null
@@ -459,7 +530,7 @@ export function prepareContext(state, opts = {}) {
  */
 export async function collectAndValidateAnswers(state) {
   const { answers, missing } = await collectAnswers({
-    questions: buildQuestions(state.defaults),
+    questions: buildQuestions(state.defaults, { flags: state.flags }),
     flags: state.flags,
     interactive: state.interactive,
     assumeYes: state.assumeYes,
