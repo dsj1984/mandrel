@@ -224,3 +224,25 @@ describe('executeGithubBootstrap', () => {
     assert.equal(report.github, undefined);
   });
 });
+
+describe('main() preflight gating (fail-before-mutate)', () => {
+  it('short-circuits with exit 1 when preflight fails, before any mutation phase runs', async () => {
+    const { main } = await import('../../.agents/scripts/bootstrap.js');
+    // A failing preflight must halt the pipeline at phase 2 — before
+    // prepareContext / executeBootstrap / executeGithubBootstrap. We inject
+    // a failing preflight runner and assert main returns exit 1. Because the
+    // pipeline short-circuits on the first {ok:false}, none of the mutation
+    // phases execute (they would otherwise need owner/repo answers and would
+    // touch the filesystem). Passing valid flags proves the halt is the
+    // preflight, not a missing-answers bail.
+    const failingPreflight = async () => ({
+      ok: false,
+      checks: [{ name: 'gh', ok: false, remedy: 'Install the GitHub CLI.' }],
+    });
+    const exit = await main(
+      ['--owner', 'acme', '--repo', 'widget', '--assume-yes', '--skip-github'],
+      { preflightRun: failingPreflight },
+    );
+    assert.equal(exit, 1);
+  });
+});

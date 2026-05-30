@@ -627,10 +627,10 @@ export async function runPipeline(phases) {
   return { ok: true, state };
 }
 
-export async function main(argv = process.argv.slice(2)) {
+export async function main(argv = process.argv.slice(2), opts = {}) {
   const result = await runPipeline([
     () => parseAndValidate(argv),
-    (s) => runPreflightPhase(s),
+    (s) => runPreflightPhase(s, { run: opts.preflightRun }),
     (s) => prepareContext(s),
     (s) => collectAndValidateAnswers(s),
     (s) => executeBootstrap(s),
