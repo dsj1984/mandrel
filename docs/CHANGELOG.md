@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.39.0](https://github.com/dsj1984/mandrel/compare/v1.38.0...v1.39.0) (2026-05-30)
+
+
+### Added
+
+* Epic [#3304](https://github.com/dsj1984/mandrel/issues/3304) ([#3379](https://github.com/dsj1984/mandrel/issues/3379)) ([850355e](https://github.com/dsj1984/mandrel/commit/850355e34392211d8dff2da3ad95f2c96ffbabbf))
+
 ## [1.38.0](https://github.com/dsj1984/mandrel/compare/v1.37.0...v1.38.0) (2026-05-29)
 
 
