@@ -207,8 +207,15 @@ that belong in contract tests, not in a user-journey sweep (see
 only be expressed as a wire-shape or DB check is a signal the scenario is
 mis-tiered, not a reason to break the semantic rule.
 
-Record each scenario's result (pass / fail / blocked) with the surface it
-ended on and a one-line user-visible symptom for any failure.
+Before driving each scenario, state its **business intent** in one
+plain-English line, derived from the `Scenario:` name and its
+`Given/When/Then` (what the user is trying to do and the outcome that proves
+it) — e.g. "a signed-in coach reaches their own team-management surface".
+Then record the scenario's result (pass / fail / blocked) with the surface it
+ended on and a one-line user-visible symptom for any failure. State the
+intent for **every** scenario, not only failures. Keep it to one line sourced
+from the `Scenario:` name and steps — the `.feature` file is the source of
+truth; do not paraphrase every step or leak implementation detail.
 
 ## Step 4 — Instrument & inspect (findings)
 
@@ -254,6 +261,9 @@ Summarize the sweep in chat with:
 - Selector applied and the resolved scenario count.
 - Scenario totals: passed / failed / blocked.
 - Findings totals by classification and disposition (blocker vs follow-up).
+- A per-scenario line pairing each scenario's plain-English intent with its
+  verdict (pass / fail / blocked), grouped by feature file or domain — so the
+  digest reads as "what was checked → what happened", not a tag list.
 - For each failure, the scenario name, file path, the surface it ended on, and
   a one-line user-visible symptom.
 - A pointer to the drafted follow-up bundle awaiting sign-off (if any).
