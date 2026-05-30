@@ -1,13 +1,13 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-30T16:27:16.711Z",
+  "generatedAt": "2026-05-30T16:43:40.924Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.99514091350826,
+      "p95": 12.865514650638616,
       "max": 49.61729902329076,
-      "methodsAbove20": 32
+      "methodsAbove20": 31
     }
   },
   "rows": [
@@ -2350,186 +2350,6 @@
       "method": "applyMergeMethods",
       "startLine": 60,
       "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "readJsonIfExists",
-      "startLine": 43,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "writeJson",
-      "startLine": 48,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "checkNodeVersion",
-      "startLine": 57,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "detectPackageManager",
-      "startLine": 67,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "ensurePackageJson",
-      "startLine": 78,
-      "crap": 10
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "ensureDependenciesInstalled",
-      "startLine": 133,
-      "crap": 38.278972303207
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "ensureAgentrc",
-      "startLine": 169,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "validateAgentrc",
-      "startLine": 203,
-      "crap": 17.339303887645023
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "ensureClaudeSettings",
-      "startLine": 225,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "ensureGitignore",
-      "startLine": 258,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "runSyncCommands",
-      "startLine": 284,
-      "crap": 5.455350394125904
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "checkParity",
-      "startLine": 311,
-      "crap": 5.520543981481482
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "checkWindowsGitPerf",
-      "startLine": 341,
-      "crap": 10.876386948302788
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "<anon method-8>",
-      "startLine": 395,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "<anon method-9>",
-      "startLine": 400,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "<anon method-10>",
-      "startLine": 409,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "<anon method-11>",
-      "startLine": 425,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "<anon method-12>",
-      "startLine": 431,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "<anon method-13>",
-      "startLine": 435,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "<anon method-14>",
-      "startLine": 439,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "<anon method-15>",
-      "startLine": 443,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "<anon method-16>",
-      "startLine": 449,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "<anon method-17>",
-      "startLine": 453,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "<anon method-18>",
-      "startLine": 457,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "<anon method-19>",
-      "startLine": 461,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "<anon method-20>",
-      "startLine": 467,
-      "crap": 2.5
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "<anon method-21>",
-      "startLine": 474,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "throwIfFatal",
-      "startLine": 488,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "runPhases",
-      "startLine": 506,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "method": "applyProjectBootstrap",
-      "startLine": 530,
-      "crap": 1.2962962962962963
     },
     {
       "path": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
