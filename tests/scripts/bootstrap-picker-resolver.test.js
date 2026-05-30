@@ -22,6 +22,7 @@ import {
   listRepos,
 } from '../../.agents/scripts/lib/bootstrap/gh-list.js';
 import {
+  normalizePickerChoice,
   RESOLVERS,
   resolveFromPicker,
   resolveFromSilent,
@@ -101,19 +102,44 @@ describe('listRepos', () => {
 });
 
 describe('listProjects', () => {
-  it('maps titles out of the { projects: [...] } envelope on success', () => {
+  it('maps { label, value } choices out of the { projects: [...] } envelope', () => {
     const runner = okRunner(
-      JSON.stringify({ projects: [{ title: 'Roadmap' }, { title: 'Bugs' }] }),
+      JSON.stringify({
+        projects: [
+          { title: 'Roadmap', number: 7 },
+          { title: 'Bugs', number: 12 },
+        ],
+      }),
     );
     assert.deepEqual(listProjects({ owner: 'acme', runner }), [
-      'Roadmap',
-      'Bugs',
+      { label: 'Roadmap (#7)', value: '7' },
+      { label: 'Bugs (#12)', value: '12' },
     ]);
   });
 
   it('also accepts a bare JSON array of projects', () => {
-    const runner = okRunner(JSON.stringify([{ title: 'Roadmap' }]));
-    assert.deepEqual(listProjects({ owner: 'acme', runner }), ['Roadmap']);
+    const runner = okRunner(JSON.stringify([{ title: 'Roadmap', number: 3 }]));
+    assert.deepEqual(listProjects({ owner: 'acme', runner }), [
+      { label: 'Roadmap (#3)', value: '3' },
+    ]);
+  });
+
+  it('drops projects without an integer number', () => {
+    const runner = okRunner(
+      JSON.stringify({
+        projects: [{ title: 'No Number' }, { title: 'Good', number: 5 }],
+      }),
+    );
+    assert.deepEqual(listProjects({ owner: 'acme', runner }), [
+      { label: 'Good (#5)', value: '5' },
+    ]);
+  });
+
+  it('falls back to the number as the label when title is missing', () => {
+    const runner = okRunner(JSON.stringify([{ number: 9 }]));
+    assert.deepEqual(listProjects({ owner: 'acme', runner }), [
+      { label: '9 (#9)', value: '9' },
+    ]);
   });
 
   it('returns [] on a non-zero exit', () => {
@@ -200,6 +226,88 @@ describe('resolveFromPicker', () => {
     assert.deepEqual(await resolveFromPicker(ctx), {
       kind: 'value',
       value: 'only/one',
+    });
+  });
+
+  it('renders { label, value } choices by label and resolves the value', async () => {
+    const lines = [];
+    const ctx = baseCtx({
+      q: {
+        message: 'Pick a project',
+        picker: {
+          list: () => [
+            { label: 'Roadmap (#7)', value: '7' },
+            { label: 'Bugs (#12)', value: '12' },
+          ],
+        },
+      },
+      output: { write: (s) => lines.push(s) },
+      getRl: () => Promise.resolve({ question: () => Promise.resolve('2') }),
+    });
+    const outcome = await resolveFromPicker(ctx);
+    assert.deepEqual(outcome, { kind: 'value', value: '12' });
+    const rendered = lines.join('');
+    assert.match(rendered, /1\) Roadmap \(#7\)/);
+    assert.match(rendered, /2\) Bugs \(#12\)/);
+  });
+
+  it('skips (manual entry) when the selected value fails q.validate', async () => {
+    const lines = [];
+    const ctx = baseCtx({
+      q: {
+        key: 'projectNumber',
+        message: 'Pick a project',
+        // A picker accidentally yielding a non-numeric value must not bypass
+        // the numeric validator — it falls through to manual entry instead.
+        picker: { list: () => [{ label: 'Roadmap', value: 'Roadmap' }] },
+        validate: (v) => (/^\d+$/.test(v) ? null : 'Must be an integer'),
+      },
+      output: { write: (s) => lines.push(s) },
+      getRl: () => Promise.resolve({ question: () => Promise.resolve('1') }),
+    });
+    assert.deepEqual(await resolveFromPicker(ctx), { kind: 'skip' });
+    assert.match(lines.join(''), /Must be an integer/);
+  });
+
+  it('returns the value when the selection passes q.validate', async () => {
+    const ctx = baseCtx({
+      q: {
+        key: 'projectNumber',
+        message: 'Pick a project',
+        picker: { list: () => [{ label: 'Roadmap (#7)', value: '7' }] },
+        validate: (v) => (/^\d+$/.test(v) ? null : 'Must be an integer'),
+      },
+      getRl: () => Promise.resolve({ question: () => Promise.resolve('1') }),
+    });
+    assert.deepEqual(await resolveFromPicker(ctx), {
+      kind: 'value',
+      value: '7',
+    });
+  });
+});
+
+describe('normalizePickerChoice', () => {
+  it('treats a bare string as both label and value', () => {
+    assert.deepEqual(normalizePickerChoice('acme/api'), {
+      label: 'acme/api',
+      value: 'acme/api',
+    });
+  });
+
+  it('keeps an explicit label/value pair', () => {
+    assert.deepEqual(
+      normalizePickerChoice({ label: 'Roadmap (#7)', value: '7' }),
+      {
+        label: 'Roadmap (#7)',
+        value: '7',
+      },
+    );
+  });
+
+  it('falls back to the value as the label when label is absent', () => {
+    assert.deepEqual(normalizePickerChoice({ value: '7' }), {
+      label: '7',
+      value: '7',
     });
   });
 });

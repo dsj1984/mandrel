@@ -93,14 +93,16 @@ export function listRepos(opts = {}) {
 
 /**
  * List projects (Projects v2) for an owner via `gh project list --owner
- * <owner>`. Returns the project title for each project, or `[]` on any
- * non-zero exit / spawn error / missing owner.
+ * <owner>`. Returns one `{ label, value }` choice per project — `label` is
+ * the human-readable title (with the number appended) and `value` is the
+ * numeric Projects V2 number as a string — or `[]` on any non-zero exit /
+ * spawn error / missing owner.
  *
  * @param {{ owner?: string, runner?: (args: string[]) => {
  *   status: number|null, stdout: string, stderr: string,
  *   error?: NodeJS.ErrnoException
  * } }} [opts]
- * @returns {string[]}
+ * @returns {{ label: string, value: string }[]}
  */
 export function listProjects(opts = {}) {
   const { owner, runner = defaultGhRunner } = opts;
@@ -129,7 +131,23 @@ export function listProjects(opts = {}) {
     : Array.isArray(parsed?.projects)
       ? parsed.projects
       : [];
+  // Return `{ label, value }` choices: the menu shows the human-readable
+  // title, but the resolved value is the numeric Projects V2 number that
+  // the `projectNumber` question's validator (and the downstream GitHub
+  // provider) require. Mapping the title into the numeric field would store
+  // a non-numeric string and break project resolution.
   return projects
-    .map((item) => (item && typeof item === 'object' ? item.title : undefined))
-    .filter((value) => typeof value === 'string' && value.length > 0);
+    .map((item) => {
+      if (!item || typeof item !== 'object') return undefined;
+      const number = item.number;
+      if (typeof number !== 'number' || !Number.isInteger(number)) {
+        return undefined;
+      }
+      const title =
+        typeof item.title === 'string' && item.title.length > 0
+          ? item.title
+          : String(number);
+      return { label: `${title} (#${number})`, value: String(number) };
+    })
+    .filter((choice) => choice !== undefined);
 }

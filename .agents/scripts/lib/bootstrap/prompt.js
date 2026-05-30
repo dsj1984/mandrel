@@ -229,10 +229,11 @@ export async function resolveFromPicker(ctx) {
   const choices = (await picker.list()) ?? [];
   if (!Array.isArray(choices) || choices.length === 0) return { kind: 'skip' };
 
+  const normalized = choices.map(normalizePickerChoice);
   const rl = await ctx.getRl();
   ctx.output.write(`${ctx.q.message}:\n`);
-  choices.forEach((choice, index) => {
-    ctx.output.write(`  ${index + 1}) ${choice}\n`);
+  normalized.forEach((choice, index) => {
+    ctx.output.write(`  ${index + 1}) ${choice.label}\n`);
   });
   const raw = await rl.question('  Select a number (or press Enter to type): ');
   const trimmed = raw.trim();
@@ -241,11 +242,39 @@ export async function resolveFromPicker(ctx) {
   if (
     !Number.isInteger(selection) ||
     selection < 1 ||
-    selection > choices.length
+    selection > normalized.length
   ) {
     return { kind: 'skip' };
   }
-  return { kind: 'value', value: choices[selection - 1] };
+  const value = normalized[selection - 1].value;
+  // A picker must never bypass the validation the manual path enforces.
+  if (ctx.q.validate) {
+    const err = ctx.q.validate(value);
+    if (err) {
+      ctx.output.write(`  ! ${err}\n`);
+      return { kind: 'skip' };
+    }
+  }
+  return { kind: 'value', value };
+}
+
+/**
+ * Normalize a picker choice into a `{ label, value }` pair. A bare string
+ * choice uses the same text for both; an object choice carries an explicit
+ * `label` shown in the menu and `value` returned on selection. Exported for
+ * unit testing.
+ *
+ * @param {string | { label?: string, value?: string }} choice
+ * @returns {{ label: string, value: string }}
+ */
+export function normalizePickerChoice(choice) {
+  if (choice && typeof choice === 'object') {
+    const value = String(choice.value ?? '');
+    const label = String(choice.label ?? value);
+    return { label, value };
+  }
+  const text = String(choice);
+  return { label: text, value: text };
 }
 
 /**
