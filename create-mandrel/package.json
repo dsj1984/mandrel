@@ -1,0 +1,31 @@
+{
+  "name": "create-mandrel",
+  "version": "0.0.0",
+  "description": "Cold-start launcher for Mandrel: vendors the .agents submodule, then runs bootstrap.",
+  "type": "module",
+  "license": "ISC",
+  "bin": {
+    "create-mandrel": "index.js"
+  },
+  "main": "index.js",
+  "exports": "./index.js",
+  "files": [
+    "index.js",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.22.1 <25"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dsj1984/mandrel.git",
+    "directory": "create-mandrel"
+  },
+  "keywords": [
+    "mandrel",
+    "scaffold",
+    "bootstrap",
+    "create",
+    "launcher"
+  ]
+}
