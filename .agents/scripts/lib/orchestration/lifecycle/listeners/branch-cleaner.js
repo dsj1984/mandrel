@@ -94,6 +94,10 @@ export class BranchCleaner {
    * @param {Function} [opts.gitSpawn] - Injectable git spawner for tests.
    * @param {Function} [opts.rmSyncFn] - Injectable filesystem remove for
    *   the worktree Windows-lock fallback.
+   * @param {Function} [opts.spawnFn] - Injectable process spawner forwarded
+   *   to `reapEpicBranches` for the Story #3367 open-PR guard probe
+   *   (`gh pr list --head epic/<id> --state open`). Defaults to the real
+   *   `spawnSync` inside `epic-cleanup.js`; tests inject a stub.
    * @param {{ info?: Function, warn?: Function, debug?: Function }} [opts.logger]
    */
   constructor(opts = {}) {
@@ -123,6 +127,9 @@ export class BranchCleaner {
     this.remote = opts.remote ?? 'origin';
     this.gitSpawn = opts.gitSpawn ?? defaultGitSpawn;
     this.rmSyncFn = opts.rmSyncFn ?? defaultRmSync;
+    // Story #3367 — forwarded to reapEpicBranches' open-PR guard probe.
+    // `undefined` lets epic-cleanup.js fall back to its real `spawnSync`.
+    this.spawnFn = opts.spawnFn;
     this.logger = opts.logger ?? console;
     /** @type {Set<string>} `${event}:${seqId}` idempotency cache. */
     this._seen = new Set();
@@ -191,6 +198,7 @@ export class BranchCleaner {
       rmSyncFn: this.rmSyncFn,
       baseBranch: this.baseBranch,
       remote: this.remote,
+      spawnFn: this.spawnFn,
       logger: this.logger,
     });
 

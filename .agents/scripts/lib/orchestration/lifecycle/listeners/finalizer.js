@@ -20,19 +20,29 @@
  *      (best-effort; never throws).
  *   3. Idempotency probe — `gh pr list --head epic/<id>` returns any
  *      existing PR URL. If one exists, short-circuit to `pr.created`
- *      + `epic.merge.ready` carrying the existing URL.
+ *      + `epic.finalize.end` carrying the existing URL.
  *   4. Otherwise, invoke `runFinalizeFn`. The production default
  *      (`composeBusOwnedFinalize`) chains
  *        a. `openOrLocatePr({ epicId, headBranch, baseBranch })`
  *        b. `closePlanningTickets({ epicId, provider })`
  *        c. `postHandoffComment({ epicId, prNumber, prUrl, provider })`
  *      and returns `{ prNumber, prUrl, planningClose, handoff }`.
- *   5. Emit `pr.created`, `epic.finalize.end`, and `epic.merge.ready`.
+ *   5. Emit `pr.created` then `epic.finalize.end`.
  *
- * `epic.merge.ready` is the trigger AutomergeArmer waits on for the
- * `--auto` arm. Phase 8.5's `epic.automerge.start` emit replays the
- * same event from the predicate-gated path; both emitters share the
- * `epic.merge.ready` schema.
+ * Why the Finalizer does NOT emit `epic.merge.ready` (Story #3367):
+ *   `epic.merge.ready` is the SOLE trigger AutomergeArmer subscribes to,
+ *   and AutomergeArmer's `epic.merge.armed` cascades synchronously
+ *   through MergeWatcher → Cleaner → BranchCleaner (branch reap). If the
+ *   Finalizer emitted `epic.merge.ready` directly, firing `epic.close.end`
+ *   would run that entire destructive cascade in one synchronous pass —
+ *   arming auto-merge and reaping the `epic/<id>` branch BEFORE the PR is
+ *   merged, and BYPASSING the AutomergePredicate disqualification gate
+ *   (which only ever fires on `epic.watch.end`). The Finalizer's job ends
+ *   at opening the PR (`pr.created` + `epic.finalize.end`). The auto-merge
+ *   arm flows ONLY through the gated path: `pr.created` → `Watcher` →
+ *   `epic.watch.end` → `AutomergePredicate` → `epic.merge.ready` →
+ *   `AutomergeArmer`. AutomergePredicate is the SOLE emitter of
+ *   `epic.merge.ready` (merge-gate-ordering invariant).
  *
  * Idempotency contract (AC-10): two-layer defence.
  *   1. Per-instance `Set<string>` of `${event}:${seqId}` keys — bus-
@@ -45,8 +55,7 @@
  * `gh`/`git` (via the helpers), and upserts the `epic-handoff`
  * structured comment via `postHandoffComment`. It does NOT mutate Epic
  * state labels or call `notify` directly — those listeners receive
- * `pr.created` / `epic.finalize.end` / `epic.merge.ready` and own
- * their own side effects.
+ * `pr.created` / `epic.finalize.end` and own their own side effects.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -588,14 +597,20 @@ export class Finalizer {
   }
 
   /**
-   * Emit the canonical finalize-success trio: `pr.created` →
-   * `epic.finalize.end` → `epic.merge.ready` in strict order. Helper
-   * carved out so the existing-PR short-circuit and the freshly-opened
-   * path share the same emit sequence.
+   * Emit the canonical finalize-success pair: `pr.created` →
+   * `epic.finalize.end` in strict order. Helper carved out so the
+   * existing-PR short-circuit and the freshly-opened path share the
+   * same emit sequence.
    *
-   * `epic.merge.ready` carries `{ prUrl, prNumber, epicId }` so the
-   * AutomergeArmer can arm `--auto` without re-resolving the PR
-   * number from the URL.
+   * The Finalizer deliberately STOPS at `epic.finalize.end` and never
+   * emits `epic.merge.ready` (Story #3367). Emitting `epic.merge.ready`
+   * here would let `epic.close.end` cascade synchronously into the
+   * auto-merge arm + branch reap, bypassing the AutomergePredicate gate.
+   * The auto-merge arm flows ONLY through `pr.created` → Watcher →
+   * `epic.watch.end` → AutomergePredicate → `epic.merge.ready`.
+   *
+   * `prNumber` stays in the classification log for trace/audit even
+   * though it is no longer threaded onto an `epic.merge.ready` payload.
    */
   async _emitFinalize({
     event,
@@ -606,7 +621,7 @@ export class Finalizer {
     base,
     outcome,
   }) {
-    this.classifications.push({ event, seqId, outcome, prUrl });
+    this.classifications.push({ event, seqId, outcome, prUrl, prNumber });
     try {
       await this.bus.emit('pr.created', {
         prUrl,
@@ -626,17 +641,6 @@ export class Finalizer {
     } catch (err) {
       this.logger.warn?.(
         `[Finalizer] epic.finalize.end emit failed (swallowed): ${err?.message ?? err}`,
-      );
-    }
-    try {
-      const payload = { prUrl, epicId: this.epicId };
-      if (Number.isInteger(prNumber) && prNumber > 0) {
-        payload.prNumber = prNumber;
-      }
-      await this.bus.emit('epic.merge.ready', payload);
-    } catch (err) {
-      this.logger.warn?.(
-        `[Finalizer] epic.merge.ready emit failed (swallowed): ${err?.message ?? err}`,
       );
     }
   }
