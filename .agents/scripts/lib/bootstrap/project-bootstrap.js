@@ -27,6 +27,34 @@ export const REQUIRED_RUNTIME_DEPS = Object.freeze({
 
 export const SYNC_COMMAND = 'node .agents/scripts/sync-claude-commands.js';
 
+export const BOOTSTRAP_COMMAND = 'node .agents/scripts/bootstrap.js';
+
+/**
+ * Marker that identifies the framework's system-prompt import inside a
+ * consumer `CLAUDE.md`. The wiring step keys idempotence off this exact
+ * import path so a re-run never duplicates the import line.
+ */
+export const SYSTEM_PROMPT_IMPORT = '@.agents/instructions.md';
+
+/**
+ * Import block appended to an existing `CLAUDE.md` that lacks the import.
+ * Mirrors the root `CLAUDE.md` shape (a `## System Prompt` heading above
+ * the import) so the consumer file reads the same as this repo's own.
+ */
+export const SYSTEM_PROMPT_BLOCK = `## System Prompt
+
+${SYSTEM_PROMPT_IMPORT}
+`;
+
+/**
+ * Full `CLAUDE.md` body written when the consumer has no `CLAUDE.md` at
+ * all. A bare title plus the import block is enough for Claude Code to
+ * hydrate the framework system prompt on cold start.
+ */
+export const SYSTEM_PROMPT_CLAUDE_MD = `# Agent Protocols
+
+${SYSTEM_PROMPT_BLOCK}`;
+
 const GITIGNORE_BLOCKS = Object.freeze({
   commands: {
     pattern: /^\s*\.claude\/commands\/?\s*$/m,
@@ -82,6 +110,7 @@ export function ensurePackageJson(ctx) {
     created: false,
     scriptsSyncCommands: 'already-present',
     scriptsPrepare: 'already-present',
+    scriptsBootstrap: 'already-present',
     deps: { added: [], skipped: [] },
   };
   let pkg = readJsonIfExists(pkgPath);
@@ -107,6 +136,13 @@ export function ensurePackageJson(ctx) {
     pkg.scripts.prepare = `${prepare} && ${SYNC_COMMAND}`;
     outcomes.scriptsPrepare = 'appended';
   }
+  // Expose a discoverable `npm run bootstrap` alias for the framework
+  // setup command. An operator-defined `bootstrap` script always wins —
+  // we only seed the default when the key is absent.
+  if (!pkg.scripts.bootstrap) {
+    pkg.scripts.bootstrap = BOOTSTRAP_COMMAND;
+    outcomes.scriptsBootstrap = 'added';
+  }
   pkg.dependencies = pkg.dependencies ?? {};
   for (const [dep, version] of Object.entries(REQUIRED_RUNTIME_DEPS)) {
     if (pkg.dependencies[dep]) {
@@ -120,6 +156,7 @@ export function ensurePackageJson(ctx) {
     outcomes.created ||
     outcomes.scriptsSyncCommands === 'added' ||
     outcomes.scriptsPrepare !== 'already-present' ||
+    outcomes.scriptsBootstrap === 'added' ||
     outcomes.deps.added.length > 0;
   if (mutated) writeJson(pkgPath, pkg);
   return { ...outcomes, path: pkgPath, mutated };
@@ -334,6 +371,43 @@ export function checkParity(ctx) {
 }
 
 /**
+ * Step 8.5 — Wire the framework system prompt into a consumer `CLAUDE.md`.
+ *
+ * Claude Code hydrates its always-loaded context from a project-root
+ * `CLAUDE.md`; without the `@.agents/instructions.md` import the framework
+ * system prompt never loads on cold start. This step makes that wiring
+ * automatic and idempotent:
+ *
+ *   - No `CLAUDE.md` at all → write a minimal one carrying the import.
+ *   - `CLAUDE.md` exists but lacks the import → append the import block.
+ *   - `CLAUDE.md` already imports it → no-op (no duplicate import line).
+ *
+ * Idempotence is keyed off the literal `SYSTEM_PROMPT_IMPORT` path, so a
+ * re-run on an already-wired file is a guaranteed zero-mutation no-op.
+ *
+ * Returns `{ action, path }` where `action` is one of `created`,
+ * `appended`, or `already-present`.
+ */
+export function ensureSystemPromptWiring(ctx) {
+  const target = path.join(ctx.projectRoot, 'CLAUDE.md');
+  if (!fs.existsSync(target)) {
+    fs.writeFileSync(target, SYSTEM_PROMPT_CLAUDE_MD, 'utf8');
+    return { action: 'created', path: target };
+  }
+  const existing = fs.readFileSync(target, 'utf8');
+  if (existing.includes(SYSTEM_PROMPT_IMPORT)) {
+    return { action: 'already-present', path: target };
+  }
+  const separator = existing.length > 0 && !existing.endsWith('\n') ? '\n' : '';
+  fs.writeFileSync(
+    target,
+    `${existing}${separator}\n${SYSTEM_PROMPT_BLOCK}`,
+    'utf8',
+  );
+  return { action: 'appended', path: target };
+}
+
+/**
  * Step 9 — Windows git-perf hints (warn-only). On non-Windows this is a
  * silent no-op. On Windows the check probes three settings and reports
  * which are missing; it never mutates global git config.
@@ -447,6 +521,10 @@ export const BOOTSTRAP_PHASES = Object.freeze([
   {
     name: 'claudeSettings',
     run: (ctx) => ensureClaudeSettings(ctx),
+  },
+  {
+    name: 'systemPromptWiring',
+    run: (ctx) => ensureSystemPromptWiring(ctx),
   },
   {
     name: 'gitignore',
