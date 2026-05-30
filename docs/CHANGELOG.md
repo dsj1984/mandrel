@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.40.0](https://github.com/dsj1984/mandrel/compare/v1.39.0...v1.40.0) (2026-05-30)
+
+
+### Fixed
+
+* **lifecycle:** stop epic.close.end cascading into branch reap (refs [#3367](https://github.com/dsj1984/mandrel/issues/3367)) ([#3381](https://github.com/dsj1984/mandrel/issues/3381)) ([9d21318](https://github.com/dsj1984/mandrel/commit/9d213186c6511a1a2128f472512f24271e05af46))
+
 ## [1.39.0](https://github.com/dsj1984/mandrel/compare/v1.38.0...v1.39.0) (2026-05-30)
 
 
