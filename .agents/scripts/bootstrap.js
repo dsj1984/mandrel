@@ -26,6 +26,7 @@
 
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runPreflight } from './lib/bootstrap/preflight.js';
 import { applyProjectBootstrap } from './lib/bootstrap/project-bootstrap.js';
 import {
   collectAnswers,
@@ -378,6 +379,36 @@ export function parseAndValidate(argv, opts = {}) {
 }
 
 /**
+ * Phase 1.5 — Unified prerequisite preflight (Story #3375). Runs as the
+ * FIRST mutation-relevant gate: ahead of `prepareContext` and every
+ * project-side / GitHub-side mutation. Aggregates the Node, git, and
+ * (unless `--skip-github`) `gh` CLI + auth checks. On failure it prints
+ * each failing check's remedy and halts the pipeline with exit code 1
+ * before any mutation occurs.
+ *
+ * Exported for tests.
+ *
+ * @param {{ flags: Record<string, string|boolean> }} state
+ * @param {{ run?: typeof runPreflight }} [opts]
+ * @returns {Promise<PhaseResult>}
+ */
+export async function runPreflightPhase(state, opts = {}) {
+  const run = opts.run ?? runPreflight;
+  const result = await run({ skipGithub: Boolean(state.flags['skip-github']) });
+  if (!result.ok) {
+    Logger.error(
+      '[bootstrap] Prerequisite preflight failed. Resolve the following before re-running:',
+    );
+    for (const check of result.checks) {
+      if (check.ok) continue;
+      Logger.error(`  - ${check.name}: ${check.remedy}`);
+    }
+    return { ok: false, exit: 1 };
+  }
+  return { ok: true, payload: { preflight: result } };
+}
+
+/**
  * Phase 2 — Resolve project paths, infer defaults from git, and compute
  * which inferred keys can be silently accepted. Pure I/O against the
  * local filesystem (no network calls).
@@ -524,6 +555,7 @@ export async function runPipeline(phases) {
 export async function main(argv = process.argv.slice(2)) {
   const result = await runPipeline([
     () => parseAndValidate(argv),
+    (s) => runPreflightPhase(s),
     (s) => prepareContext(s),
     (s) => collectAndValidateAnswers(s),
     (s) => executeBootstrap(s),
