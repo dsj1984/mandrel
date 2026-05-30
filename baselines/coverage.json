@@ -1,20 +1,20 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-05-29T15:40:10.651Z",
+  "generatedAt": "2026-05-30T17:42:29.140Z",
   "rollup": {
     "*": {
-      "lines": 94.9,
-      "branches": 84.12,
-      "functions": 88.95
+      "lines": 95.06,
+      "branches": 84.11,
+      "functions": 89.16
     }
   },
   "rows": [
     {
       "path": ".agents/scripts/acceptance-spec-reconciler.js",
-      "lines": 83.49,
-      "branches": 86.67,
-      "functions": 70
+      "lines": 84.35,
+      "branches": 87.23,
+      "functions": 72.73
     },
     {
       "path": ".agents/scripts/analyze-execution.js",
@@ -30,9 +30,9 @@
     },
     {
       "path": ".agents/scripts/bootstrap.js",
-      "lines": 89.46,
-      "branches": 78.57,
-      "functions": 72.41
+      "lines": 91.2,
+      "branches": 81.82,
+      "functions": 79.41
     },
     {
       "path": ".agents/scripts/check-baselines.js",
@@ -90,8 +90,8 @@
     },
     {
       "path": ".agents/scripts/epic-audit-prepare.js",
-      "lines": 92,
-      "branches": 68.42,
+      "lines": 93.2,
+      "branches": 68.18,
       "functions": 66.67
     },
     {
@@ -180,8 +180,8 @@
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
-      "lines": 96.65,
-      "branches": 81.08,
+      "lines": 93.62,
+      "branches": 80.95,
       "functions": 100
     },
     {
@@ -413,6 +413,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/bootstrap/gh-list.js",
+      "lines": 92.81,
+      "branches": 76.92,
+      "functions": 75
+    },
+    {
       "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
       "lines": 91.16,
       "branches": 75,
@@ -431,15 +437,21 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/bootstrap/preflight.js",
+      "lines": 94.41,
+      "branches": 84.62,
+      "functions": 85.71
+    },
+    {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "lines": 78.95,
-      "branches": 81.82,
-      "functions": 43.33
+      "lines": 81.64,
+      "branches": 84.42,
+      "functions": 43.75
     },
     {
       "path": ".agents/scripts/lib/bootstrap/prompt.js",
-      "lines": 99.41,
-      "branches": 88.76,
+      "lines": 99.52,
+      "branches": 90.98,
       "functions": 100
     },
     {
@@ -450,9 +462,9 @@
     },
     {
       "path": ".agents/scripts/lib/bootstrap/summary.js",
-      "lines": 26.67,
+      "lines": 100,
       "branches": 100,
-      "functions": 0
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/bootstrap/workflow-audit.js",
@@ -511,7 +523,7 @@
     {
       "path": ".agents/scripts/lib/checks/state.js",
       "lines": 94.27,
-      "branches": 89.34,
+      "branches": 88.43,
       "functions": 91.3
     },
     {
@@ -907,7 +919,7 @@
     {
       "path": ".agents/scripts/lib/feedback-loop/prior-feedback-fetcher.js",
       "lines": 96.85,
-      "branches": 75.93,
+      "branches": 76.36,
       "functions": 100
     },
     {
@@ -1327,7 +1339,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/epic-run-state-store.js",
       "lines": 100,
-      "branches": 89.29,
+      "branches": 81.82,
       "functions": 100
     },
     {
@@ -1735,7 +1747,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/trace-logger.js",
       "lines": 98.46,
-      "branches": 85.53,
+      "branches": 85.33,
       "functions": 100
     },
     {
@@ -1783,7 +1795,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
       "lines": 99.53,
-      "branches": 78.43,
+      "branches": 77.55,
       "functions": 100
     },
     {
@@ -1794,8 +1806,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/planning-risk.js",
-      "lines": 93.75,
-      "branches": 83.64,
+      "lines": 94.46,
+      "branches": 84.48,
       "functions": 75
     },
     {
@@ -2027,6 +2039,12 @@
       "functions": 20
     },
     {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/wrong-tree-guard.js",
+      "lines": 97.78,
+      "branches": 86.49,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/skill-capsule-loader.js",
       "lines": 96.36,
       "branches": 86.36,
@@ -2136,7 +2154,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/legacy-settings-bag.js",
-      "lines": 94.2,
+      "lines": 95.65,
       "branches": 90,
       "functions": 100
     },
@@ -2448,8 +2466,8 @@
     },
     {
       "path": ".agents/scripts/lib/signals/read.js",
-      "lines": 96.3,
-      "branches": 90,
+      "lines": 96.27,
+      "branches": 91.3,
       "functions": 100
     },
     {
@@ -2485,7 +2503,7 @@
     {
       "path": ".agents/scripts/lib/single-story-sweep/protection.js",
       "lines": 99.27,
-      "branches": 82.09,
+      "branches": 80.95,
       "functions": 100
     },
     {
@@ -2706,9 +2724,9 @@
     },
     {
       "path": ".agents/scripts/lib/wave-runner/tick.js",
-      "lines": 96.25,
-      "branches": 86.96,
-      "functions": 94.44
+      "lines": 96.41,
+      "branches": 88.27,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/wave-runner/wave-checkpoint.js",
@@ -2748,7 +2766,7 @@
     },
     {
       "path": ".agents/scripts/lib/worktree-manager.js",
-      "lines": 92.55,
+      "lines": 92.94,
       "branches": 83.33,
       "functions": 70
     },
@@ -2761,7 +2779,7 @@
     {
       "path": ".agents/scripts/lib/worktree/inspector.js",
       "lines": 100,
-      "branches": 97.78,
+      "branches": 97.62,
       "functions": 100
     },
     {
@@ -3006,7 +3024,7 @@
     },
     {
       "path": ".agents/scripts/single-story-close.js",
-      "lines": 98.63,
+      "lines": 98.76,
       "branches": 81.82,
       "functions": 100
     },

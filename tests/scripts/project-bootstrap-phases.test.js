@@ -24,7 +24,7 @@ import {
 } from '../../.agents/scripts/lib/bootstrap/project-bootstrap.js';
 
 describe('BOOTSTRAP_PHASES — ordering', () => {
-  it('lists the 11 phases in canonical order', () => {
+  it('lists the 12 phases in canonical order', () => {
     const names = BOOTSTRAP_PHASES.map((p) => p.name);
     assert.deepEqual(names, [
       'nodeCheck',
@@ -33,6 +33,7 @@ describe('BOOTSTRAP_PHASES — ordering', () => {
       'agentrc',
       'validation',
       'claudeSettings',
+      'systemPromptWiring',
       'gitignore',
       'sync',
       'parity',
@@ -208,7 +209,7 @@ describe('runPhases', () => {
 });
 
 describe('applyProjectBootstrap — report shape parity', () => {
-  it('produces a report keyed by the 11 phase names in canonical order', () => {
+  it('produces a report keyed by the 12 phase names in canonical order', () => {
     // Assert the order of `BOOTSTRAP_PHASES` directly — this is the
     // contract `applyProjectBootstrap` thinly wraps. JSON-snapshot
     // parity against the inline-pipeline shape lives here so a Task
@@ -220,6 +221,7 @@ describe('applyProjectBootstrap — report shape parity', () => {
       'agentrc',
       'validation',
       'claudeSettings',
+      'systemPromptWiring',
       'gitignore',
       'sync',
       'parity',

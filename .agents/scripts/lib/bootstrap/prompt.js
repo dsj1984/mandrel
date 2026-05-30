@@ -198,6 +198,86 @@ export function resolveFromSilent(ctx) {
 }
 
 /**
+ * Resolver — interactive numbered-menu picker. Sits between
+ * `resolveFromSilent` and `resolveInteractive` so an operator who declined
+ * the silent default still gets a live menu of real choices (e.g. their
+ * GitHub repos / projects) before falling back to free-text entry.
+ *
+ * The question opts in by carrying an optional `picker: { list }` field,
+ * where `list` is a function returning an array of string choices (commonly
+ * a `gh-list` provider bound to the resolved owner). The resolver returns
+ * `kind: 'skip'` — falling through to manual entry via `resolveInteractive`
+ * — in three cases:
+ *
+ *   1. not interactive (`ctx.interactive` is false),
+ *   2. the question has no `picker` (or no callable `picker.list`),
+ *   3. the provider returns an empty list (no choices to render).
+ *
+ * Otherwise it renders a numbered menu, reads a selection via `ctx.getRl()`,
+ * and returns the chosen value. A blank line or an out-of-range / unparseable
+ * selection also falls through to manual entry (`kind: 'skip'`) rather than
+ * looping, keeping the resolver single-shot and predictable.
+ *
+ * @param {ResolverContext} ctx
+ * @returns {Promise<{ kind: 'value'|'skip', value?: string }>}
+ */
+export async function resolveFromPicker(ctx) {
+  if (!ctx.interactive) return { kind: 'skip' };
+  const picker = ctx.q.picker;
+  if (!picker || typeof picker.list !== 'function') return { kind: 'skip' };
+
+  const choices = (await picker.list()) ?? [];
+  if (!Array.isArray(choices) || choices.length === 0) return { kind: 'skip' };
+
+  const normalized = choices.map(normalizePickerChoice);
+  const rl = await ctx.getRl();
+  ctx.output.write(`${ctx.q.message}:\n`);
+  normalized.forEach((choice, index) => {
+    ctx.output.write(`  ${index + 1}) ${choice.label}\n`);
+  });
+  const raw = await rl.question('  Select a number (or press Enter to type): ');
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return { kind: 'skip' };
+  const selection = Number.parseInt(trimmed, 10);
+  if (
+    !Number.isInteger(selection) ||
+    selection < 1 ||
+    selection > normalized.length
+  ) {
+    return { kind: 'skip' };
+  }
+  const value = normalized[selection - 1].value;
+  // A picker must never bypass the validation the manual path enforces.
+  if (ctx.q.validate) {
+    const err = ctx.q.validate(value);
+    if (err) {
+      ctx.output.write(`  ! ${err}\n`);
+      return { kind: 'skip' };
+    }
+  }
+  return { kind: 'value', value };
+}
+
+/**
+ * Normalize a picker choice into a `{ label, value }` pair. A bare string
+ * choice uses the same text for both; an object choice carries an explicit
+ * `label` shown in the menu and `value` returned on selection. Exported for
+ * unit testing.
+ *
+ * @param {string | { label?: string, value?: string }} choice
+ * @returns {{ label: string, value: string }}
+ */
+export function normalizePickerChoice(choice) {
+  if (choice && typeof choice === 'object') {
+    const value = String(choice.value ?? '');
+    const label = String(choice.label ?? value);
+    return { label, value };
+  }
+  const text = String(choice);
+  return { label: text, value: text };
+}
+
+/**
  * Prompt once with the question's default label, applying the default when
  * the operator pressed Enter on an empty line. Pure I/O; exported so
  * `resolveInteractive` can be unit-tested with a mocked readline.
@@ -259,6 +339,7 @@ export const RESOLVERS = Object.freeze([
   resolveFromFlag,
   resolveFromEnv,
   resolveFromSilent,
+  resolveFromPicker,
   resolveInteractive,
   resolveAssumeYes,
 ]);

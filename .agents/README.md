@@ -21,27 +21,115 @@ cross-directory authoring conventions. The process narrative for
 
 ## Activation
 
-Two steps, run once per consuming repo:
+### Cold start — `create-mandrel`
 
-1. **Load the system prompt.** Configure your AI tool (`.cursorrules`,
-   Custom Instructions, or system-prompt settings) to load
-   [`instructions.md`](instructions.md) verbatim. Without this, none of
-   the protocols are active.
-2. **Run the unified bootstrap.** From the host repo root:
+From an **empty or existing** project that does not yet have `.agents/`,
+one command vendors the framework and runs setup end to end:
 
-   ```bash
-   node .agents/scripts/bootstrap.js
-   ```
+```bash
+npm create mandrel
+# or, equivalently:
+npx create-mandrel
+```
 
-   The script walks every required value (auto-detecting owner / repo /
-   base branch from `git remote`), seeds `.agentrc.json` from
-   [`starter-agentrc.json`](starter-agentrc.json), merges the
-   framework's runtime dependencies, runs `npm install`, wires the
-   `.claude/commands/` sync hook, gitignores derived artefacts, runs
-   the stabilized-quality-gates installer, then creates the GitHub
-   label taxonomy + Project V2 fields. Idempotent — safe to re-run. Pass
-   `--owner`, `--repo`, and `--assume-yes` for non-interactive (CI)
-   installs; pass `--skip-github` to defer the remote half.
+The launcher's only job is to make the provenance of `.agents/`
+non-negotiable, then hand off to the in-tree bootstrap:
+
+1. If `.agents/` is **absent**, it adds the framework as a Git submodule
+   tracking the `dist` branch
+   (`git submodule add -b dist <canonical-remote> .agents`) and runs
+   `git submodule update --init`. The remote is a hardcoded build-time
+   constant — it is **never** read from an argument, environment
+   variable, or prompt, so a cold-start command can never be steered to
+   vendor arbitrary code.
+2. If `.agents/` is **already present**, it skips the add/update and goes
+   straight to bootstrap.
+3. It always runs `node .agents/scripts/bootstrap.js`, forwarding every
+   flag unchanged (e.g. `--owner`, `--repo`, `--assume-yes`,
+   `--skip-github`).
+
+### Run the unified bootstrap directly
+
+When `.agents/` is already vendored, run the bootstrap straight from the
+host repo root:
+
+```bash
+node .agents/scripts/bootstrap.js
+# bootstrap also seeds a discoverable npm alias, so after the first run:
+npm run bootstrap
+```
+
+The bootstrap adds an `npm run bootstrap` script to the consumer's
+`package.json` (pointing at `node .agents/scripts/bootstrap.js`) the
+first time it runs — an operator-defined `bootstrap` script always wins,
+so the seed is skipped when the key already exists.
+
+The bootstrap pipeline, in order:
+
+1. **Preflight gate (runs first, before any mutation).** A single
+   fail-before-mutate check confirms Node is at the required major
+   version, `git` is on `PATH`, the command is running inside a git work
+   tree, and — unless `--skip-github` is set — that the `gh` CLI is
+   installed and authenticated. If any check fails the bootstrap prints
+   each failing check's remedy and halts with exit 1 **before** touching
+   a single file or making a GitHub call, so a half-configured repo is
+   never left behind.
+2. **Resolve answers (owner / repo / base branch / operator handle /
+   project number).** Defaults are inferred from the local `git remote`
+   and config (no network calls). Each value is resolved through a
+   priority chain: CLI flag → environment variable
+   (`GH_OWNER`, `GH_REPO`, …) → silently-accepted inferred default →
+   interactive picker → free-text prompt → `--assume-yes` default.
+3. **Project-side mutations.** Seeds `.agentrc.json` from
+   [`starter-agentrc.json`](starter-agentrc.json), merges the framework's
+   runtime dependencies into `package.json`, runs the install, wires the
+   `.claude/commands/` sync hook, wires the system prompt (see below),
+   gitignores derived artefacts, and runs the quality-gates installer.
+4. **GitHub-side mutations.** Creates the label taxonomy, Project V2
+   fields, branch protection, and merge-method settings. Skipped with
+   `--skip-github`.
+
+The bootstrap is idempotent — safe to re-run; an already-configured
+clone produces zero file mutations.
+
+### Automatic system-prompt wiring
+
+The bootstrap wires the framework system prompt into a project-root
+`CLAUDE.md` automatically, so there is no manual "load the system prompt"
+step. Claude Code hydrates its always-loaded context from `CLAUDE.md`,
+and the wiring step (idempotent, keyed off the literal
+`@.agents/instructions.md` import path) does one of three things:
+
+- **No `CLAUDE.md`** → writes a minimal one carrying a `## System Prompt`
+  heading and the `@.agents/instructions.md` import.
+- **`CLAUDE.md` exists but lacks the import** → appends the import block.
+- **`CLAUDE.md` already imports it** → no-op (no duplicate import line).
+
+If your AI tool is not Claude Code, load
+[`instructions.md`](instructions.md) verbatim through that tool's own
+system-prompt mechanism (`.cursorrules`, Custom Instructions, etc.).
+
+### Interactive repo / project pickers
+
+When the bootstrap runs interactively (a TTY, and `--assume-yes` is not
+set), the **repo** and **project-number** questions render a live,
+numbered menu of real choices instead of a blank prompt:
+
+- The **repo picker** lists the resolved owner's repositories via
+  `gh repo list <owner>`.
+- The **project picker** lists the owner's Projects V2 titles via
+  `gh project list --owner <owner>`.
+
+The pickers are interactive-only and never block: a `--owner`/`--repo`
+flag, a `GH_OWNER`/`GH_REPO` environment variable, or `--assume-yes`
+short-circuits the picker (the earlier resolvers win); a non-TTY run
+skips it entirely. If the owner cannot be resolved, or `gh` is missing,
+unauthenticated, too old, or returns nothing, the list comes back empty
+and the prompt falls through to manual free-text entry — so a missing or
+stale `gh` never breaks the run.
+
+For non-interactive (CI) installs, pass `--owner`, `--repo`, and
+`--assume-yes`; pass `--skip-github` to defer the remote half.
 
 After bootstrap you can run any slash command — `/epic-plan`,
 `/single-story-plan`, `/story-deliver`, `/audit-security`,

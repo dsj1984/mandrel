@@ -23,6 +23,7 @@ import {
   resolveAssumeYes,
   resolveFromEnv,
   resolveFromFlag,
+  resolveFromPicker,
   resolveFromSilent,
   resolveInteractive,
 } from '../../.agents/scripts/lib/bootstrap/prompt.js';
@@ -243,13 +244,14 @@ describe('resolveAssumeYes', () => {
 });
 
 describe('RESOLVERS priority order', () => {
-  it('is a frozen array with five resolvers in the documented order', () => {
-    assert.equal(RESOLVERS.length, 5);
+  it('is a frozen array with six resolvers in the documented order', () => {
+    assert.equal(RESOLVERS.length, 6);
     assert.equal(RESOLVERS[0], resolveFromFlag);
     assert.equal(RESOLVERS[1], resolveFromEnv);
     assert.equal(RESOLVERS[2], resolveFromSilent);
-    assert.equal(RESOLVERS[3], resolveInteractive);
-    assert.equal(RESOLVERS[4], resolveAssumeYes);
+    assert.equal(RESOLVERS[3], resolveFromPicker);
+    assert.equal(RESOLVERS[4], resolveInteractive);
+    assert.equal(RESOLVERS[5], resolveAssumeYes);
     assert.ok(Object.isFrozen(RESOLVERS));
   });
 });
