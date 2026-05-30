@@ -207,6 +207,10 @@ export const SECTIONS = Object.freeze([
     render: (r) => [`  .claude/settings.json  ${r.claudeSettings.action}`],
   },
   {
+    name: 'systemPromptWiring',
+    render: (r) => [`  CLAUDE.md              ${r.systemPromptWiring.action}`],
+  },
+  {
     name: 'gitignore.commands',
     render: (r) => [`  .gitignore commands    ${r.gitignore.commands}`],
   },
