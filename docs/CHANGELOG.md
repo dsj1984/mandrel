@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.41.0](https://github.com/dsj1984/mandrel/compare/v1.40.0...v1.41.0) (2026-05-31)
+
+
+### Added
+
+* **config:** implement .agentrc.local.json override layer (refs [#3388](https://github.com/dsj1984/mandrel/issues/3388)) ([#3405](https://github.com/dsj1984/mandrel/issues/3405)) ([f42e898](https://github.com/dsj1984/mandrel/commit/f42e898212b3c62bdd9de0e19ce7a876ff435839))
+
+
+### Fixed
+
+* **ci:** SHA-pin third-party GitHub Actions (refs [#3399](https://github.com/dsj1984/mandrel/issues/3399)) ([#3403](https://github.com/dsj1984/mandrel/issues/3403)) ([32a3744](https://github.com/dsj1984/mandrel/commit/32a374436718e97f91da274930d25120b81b0388))
+* **close:** defer agent::done + issue-close to PR-merge in standalone story-close (refs [#3385](https://github.com/dsj1984/mandrel/issues/3385)) ([#3395](https://github.com/dsj1984/mandrel/issues/3395)) ([43dd1f4](https://github.com/dsj1984/mandrel/commit/43dd1f45c734b97c2c3cc647d55ab3e8c0e5d221))
+
 ## [1.40.0](https://github.com/dsj1984/mandrel/compare/v1.39.0...v1.40.0) (2026-05-30)
 
 
