@@ -329,7 +329,7 @@ describe('ensurePullRequest', () => {
 });
 
 describe('runSingleStoryClose orchestration', () => {
-  it('happy path: skipValidation=true, opens PR, enables auto-merge, flips to agent::done', async (t) => {
+  it('happy path: skipValidation=true, opens PR, enables auto-merge, rests at agent::closing (issue stays OPEN)', async (t) => {
     const ghCalls = [];
     const gh = makeFakeGh((args) => {
       ghCalls.push(args.slice());
@@ -397,20 +397,22 @@ describe('runSingleStoryClose orchestration', () => {
     assert.ok(ghCalls[2].includes('--squash'));
     assert.ok(ghCalls[2].includes('--delete-branch'));
 
-    // The flip routes through `transitionTicketState` (Story #2717), so
-    // the patch carries the add/remove form rather than a raw labels
-    // array, plus the issue-close mirror (`state: 'closed'`,
-    // `state_reason: 'completed'`) that the canonical mutator emits for
-    // every `agent::done` transition.
+    // Story #3385 — the close path now rests the Story at `agent::closing`,
+    // NOT `agent::done`. The flip still routes through
+    // `transitionTicketState` (Story #2717) so the patch carries the
+    // add/remove form, but the issue stays OPEN (`state: 'open'`,
+    // `state_reason: null`) because the canonical mutator only closes the
+    // issue on a transition to `agent::done`. The `agent::done` flip +
+    // issue-close is deferred to `single-story-confirm-merge.js`.
     const [{ patch }] = provider._updates();
-    assert.deepEqual(patch.labels.add, ['agent::done']);
+    assert.deepEqual(patch.labels.add, ['agent::closing']);
     assert.ok(
       Array.isArray(patch.labels.remove) &&
         patch.labels.remove.includes('agent::executing'),
       'transitionTicketState must remove sibling agent:: states',
     );
-    assert.equal(patch.state, 'closed');
-    assert.equal(patch.state_reason, 'completed');
+    assert.equal(patch.state, 'open');
+    assert.equal(patch.state_reason, null);
   });
 
   it('returns noop early when the Story is already closed', async (t) => {
@@ -715,7 +717,9 @@ describe('runSingleStoryClose orchestration', () => {
     // `syncProjectStatusColumn` and left the GitHub Projects board on
     // the Story's prior status column for the entire run. This test
     // pins the new contract by asserting that ColumnSync's GraphQL
-    // surface is touched on the flip to `agent::done`.
+    // surface is touched on the close flip. Story #3385 — the close flip
+    // now targets `agent::closing` (→ `In Progress` column), not
+    // `agent::done`; the `Done` column flip happens at confirm-merge.
     const gh = makeFakeGh((args) => {
       if (args[1] === 'list') return [];
       if (args[1] === 'create') {
@@ -800,9 +804,9 @@ describe('runSingleStoryClose orchestration', () => {
     );
     assert.ok(
       mutation,
-      'ColumnSync must issue the updateProjectV2ItemFieldValue mutation when the Story flips to agent::done',
+      'ColumnSync must issue the updateProjectV2ItemFieldValue mutation when the Story flips to agent::closing',
     );
-    assert.equal(mutation.vars.optionId, 'opt-done');
+    assert.equal(mutation.vars.optionId, 'opt-inprog');
     assert.equal(mutation.vars.itemId, 'ITEM-1');
     assert.equal(mutation.vars.projectId, 'PROJ');
   });
@@ -845,7 +849,7 @@ describe('runSingleStoryClose orchestration', () => {
   });
 });
 
-describe('runSingleStoryClose story-merged notify dispatch', () => {
+describe('runSingleStoryClose story-closing notify dispatch', () => {
   function happyGh() {
     return makeFakeGh((args) => {
       if (args[1] === 'list') return [];
@@ -880,7 +884,7 @@ describe('runSingleStoryClose story-merged notify dispatch', () => {
     });
   }
 
-  it('fires one story-merged dispatch on the success path', async (t) => {
+  it('fires one story-closing dispatch on the success path', async (t) => {
     happyMocks(t);
     const calls = [];
     await runWithNotify({
@@ -893,11 +897,14 @@ describe('runSingleStoryClose story-merged notify dispatch', () => {
     assert.equal(calls.length, 1);
     const [{ ticketId, payload }] = calls;
     assert.equal(ticketId, 999);
-    assert.equal(payload.event, 'story-merged');
+    // Story #3385 — close-entry fires `story-closing` (the issue stays
+    // OPEN at `agent::closing`); the `story-merged` event moves to
+    // confirm-merge once the PR merge is confirmed.
+    assert.equal(payload.event, 'story-closing');
     assert.equal(payload.level, 'story');
     assert.equal(payload.severity, 'medium');
     assert.match(payload.message, /Story #999/);
-    assert.match(payload.message, /agent::done/);
+    assert.match(payload.message, /agent::closing/);
   });
 
   it('does not fire when the Story is already closed (noop path)', async (t) => {
