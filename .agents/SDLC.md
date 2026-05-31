@@ -18,18 +18,67 @@ ADR 20260512-coupling-stance in [`../docs/decisions.md`](../docs/decisions.md).
 
 From zero to shipped:
 
-1. **Plan the work.** Run `/epic-plan` in your agentic IDE.
-   - With **no arguments** (or `--idea "<seed>"`), the workflow runs
-     ideation: it sharpens the seed into a one-pager, searches for
-     duplicate open Epics, opens a fresh `type::epic` Issue from the
-     confirmed body, then proceeds to PRD + Tech Spec authoring.
-   - With **`<epicId>`**, the workflow skips ideation and runs PRD +
-     Tech Spec + decomposition for an Epic Issue you have already
-     opened.
+1. **Plan the work.** Run `/epic-plan` in your agentic IDE. The framework
+   generates a PRD, a Tech Spec, and an Acceptance Spec, decomposes the
+   work into the full Feature → Story hierarchy under the Epic, and
+   transitions the Epic to `agent::ready`.
 
-   The framework generates a PRD, a Tech Spec, and the full Feature →
-   Story hierarchy under the Epic, then transitions the Epic to
-   `agent::ready`.
+   The entry point you use selects where the run begins:
+   - With **no arguments** (or `--idea "<seed>"`), the workflow enters at
+     Phase 1 and runs the ideation phases (1–4) to open a fresh
+     `type::epic` Issue before authoring.
+   - With **`<epicId>`**, the workflow skips ideation and enters at
+     Phase 5 for an Epic Issue you have already opened.
+
+   > **Phase numbering note.** The numbered phases below are
+   > `/epic-plan`'s **internal** phases (1–11), not the SDLC-level
+   > Phase 0–4 used by the Mermaid diagram in [§ End-to-End
+   > Process](#end-to-end-process). Phases 1–4 run **only** on the
+   > ideation entry; an existing-Epic invocation starts at Phase 5.
+
+   1. **Phase 1 — idea refinement** *(ideation entry only)* — the
+      `idea-refinement` skill drives a divergent → convergent → sharpen
+      loop and emits a one-pager with the five canonical Epic sections.
+      Stops for operator confirmation of the one-pager.
+   2. **Phase 2 — cross-Epic duplicate search** *(ideation entry only)*
+      — `lib/duplicate-search.js` ranks open Epics whose scope overlaps
+      the one-pager; the operator confirms the idea is distinct or folds
+      it into an existing Epic (in which case `/epic-plan` exits).
+   3. **Phase 3 — render Epic body** *(ideation entry only)* — renders
+      the confirmed one-pager into the canonical Epic-from-idea template
+      and stops for a final wording confirmation.
+   4. **Phase 4 — open the Epic Issue** *(ideation entry only)* — opens
+      the GitHub Issue with **only** the `type::epic` label; the captured
+      id flows into the rest of the pipeline.
+   5. **Phase 5 — re-plan detection** — checks whether the Epic already
+      carries planning artifacts and, if so, prompts before overwriting
+      the PRD / Tech Spec / Acceptance Spec in place and recreating the
+      Feature/Story tickets.
+   6. **Phase 6 — Epic clarity gate** — scores the Epic body against the
+      five canonical sections (threshold ≥ 4 of 5). A `clear` verdict
+      proceeds silently; `needs-refinement` drops into a one-shot
+      refinement loop with a HITL diff before persisting the sharpened
+      body.
+   7. **Phase 7 — PRD, Tech Spec & Acceptance Spec** — the
+      `epic-plan-spec-author` skill authors all three planning artifacts
+      as linked context tickets, flips the Epic to `agent::review-spec`,
+      and routes high-risk Epics to a HITL review stop (low-risk Epics
+      auto-proceed).
+   8. **Phase 8 — work-breakdown decomposition** — the
+      `epic-plan-decompose-author` skill emits the Epic → Feature → Story
+      tree (with inline `acceptance[]` / `verify[]` per Story); the
+      validator enforces hierarchy, DAG acyclicity, and file-assumption
+      invariants.
+   9. **Phase 9 — execution roadmap** — runs the dispatcher in dry-run to
+      compute waves and posts the `dispatch-manifest` structured comment
+      that `/epic-deliver` consumes.
+   10. **Phase 10 — readiness health check** — `epic-plan-healthcheck.js`
+       runs the `--fast` config + git-remote checks; a non-OK result is a
+       **blocking** exit condition for the `agent::ready` flip (overridable
+       only via the `planning::healthcheck-waived` label).
+   11. **Phase 11 — notification & hand-off** — posts the backlog summary
+       comment, @mentions the operator, and names `/epic-deliver` as the
+       next step.
 
 2. **Deliver the Epic.** Run `/epic-deliver <epicId>` in your IDE. The
    skill drives the merged execute + close flow end-to-end.
@@ -155,7 +204,7 @@ fact so downstream code does not have to guess.
 | `story-run-progress` comment      | `story-phase.js` (per Story, per phase transition)                                               | `post-structured-comment.js` (upsert by `kind`)                                                                | `(storyId, kind='story-run-progress')`                                         | Authoritative for Story-level phase progress; the wave aggregator reads this comment, not labels.                                   |
 | Lifecycle ledger NDJSON           | `lifecycle-emit.js` (single append-only writer per Epic run)                                     | Append-only line write to `temp/epic-<id>/lifecycle.ndjson`                                                    | `(epicId, eventId)` — `eventId` is a content hash of `{type, ts, payload}`     | **Canonical resume target.** When labels / comments disagree with the ledger, the ledger wins and the others are re-derived from it. |
 | Validation evidence cache         | `evidence-gate.js`                                                                               | JSON cache file under `temp/epic-<id>/evidence/<gate>/<sha>.json`                                              | `(gate, git rev-parse HEAD)`                                                   | Pure cache: a missing entry triggers a re-run; presence is a fast-path skip. Cache eviction is safe.                                |
-| PR / auto-merge state             | `AutomergeArmer` listener (sole authorized caller of `gh pr merge`)                              | `gh pr merge --auto --squash --delete-branch`; PR open via `openOrLocatePr` in `Finalizer`                     | `(prNumber, head-branch SHA)` — `gh pr view` probes existing PR before create  | GitHub is authoritative for PR + auto-merge arming state; the lifecycle ledger records the _intent_ to arm, GitHub records the outcome.   |
+| PR / auto-merge state             | `AutomergeArmer` listener (sole authorized caller of `gh pr merge`)                              | `gh pr merge --auto --squash --delete-branch`; PR open via `openOrLocatePr` in `Finalizer`                     | `(prNumber, head-branch SHA)` — `gh pr view` probes existing PR before create  | GitHub is authoritative for PR + auto-merge arming state; the lifecycle ledger records the *intent* to arm, GitHub records the outcome.   |
 | Worktree cleanup state            | `WorktreeManager.reap` (via `story-close.js` / cleanup state)                                    | `git worktree remove` + on-disk pending-cleanup JSON under `temp/epic-<id>/worktree-cleanup.json`              | `(storyId, worktree-path)`                                                     | Filesystem is authoritative for "is the worktree gone?"; the pending-cleanup JSON only tracks Windows stale-registry entries that need a follow-up sweep. |
 
 ---
@@ -510,10 +559,10 @@ side-effects rather than inline calls at phase boundaries; the
 | Mode                             | Entry point                                              | When to use                                                                                    |
 | -------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | **Whole Epic**                   | `/epic-deliver <epicId>`                                 | Drive an Epic end-to-end. Owns the wave loop and the close-tail; ends with a PR open to main.  |
-| **Epic-attached Story (worker)** | _helper_ `helpers/epic-deliver-story <storyId>`          | Per-Story sub-agent called internally by `/epic-deliver`'s wave fan-out; not an operator slash command. |
+| **Epic-attached Story (worker)** | *helper* `helpers/epic-deliver-story <storyId>`          | Per-Story sub-agent called internally by `/epic-deliver`'s wave fan-out; not an operator slash command. |
 | **Standalone Story — plan**      | `/single-story-plan`                                     | Plan a one-off Story that does not belong to an Epic backlog.                                  |
 | **Standalone Story — deliver**   | `/story-deliver <storyId> [<storyId>...]`                | Deliver one or more standalone Stories authored by `/single-story-plan`.                       |
-| **Standalone Story (worker)**    | _helper_ `helpers/single-story-deliver <storyId>`        | Per-Story sub-agent called internally by `/story-deliver`; not an operator slash command.      |
+| **Standalone Story (worker)**    | *helper* `helpers/single-story-deliver <storyId>`        | Per-Story sub-agent called internally by `/story-deliver`; not an operator slash command.      |
 
 The operator-facing entry points are `/epic-deliver` (for Epics) and
 `/story-deliver` (for standalone Stories). The `helpers/` layer sits below
@@ -781,7 +830,7 @@ required checks fail.
   registry down).
 - Wave concurrency exhausted for an unbounded time (possible deadlock).
 
-### What is _not_ gated at runtime
+### What is *not* gated at runtime
 
 - `risk::high` tasks **run without pause.** The label remains as planning
   metadata and retro telemetry, but it does **not** halt the dispatcher
@@ -1144,9 +1193,9 @@ For Stories already in flight, use one of the three options above.
 | `/epic-deliver <epicId>`                                      | Drive an Epic end-to-end. Wave loop → close-validation → code-review → retro → opens PR to `main` with auto-merge armed.                                                       |
 | `/story-deliver <storyId> [<storyId>...]`                     | Deliver one or more standalone Stories (no `Epic: #N` reference). Builds a dependency-aware wave plan and fans out one worker per Story per wave.                              |
 | `/single-story-plan`                                          | Plan a one-off Story outside an Epic backlog.                                                                                                                                  |
-| _helper_ `workflows/helpers/epic-deliver-story`               | Per-Story worker called by `/epic-deliver`'s wave loop; not an operator slash command. See [`helpers/epic-deliver-story.md`](workflows/helpers/epic-deliver-story.md).         |
-| _helper_ `workflows/helpers/single-story-deliver`             | Per-Story worker called by `/story-deliver`; not an operator slash command. See [`helpers/single-story-deliver.md`](workflows/helpers/single-story-deliver.md).                |
-| _helper_ `workflows/helpers/code-review.md`                   | Auto-invoked by `/epic-deliver`'s `delivery.code-review` state (scope: epic); not a slash command.                                                                            |
+| *helper* `workflows/helpers/epic-deliver-story`               | Per-Story worker called by `/epic-deliver`'s wave loop; not an operator slash command. See [`helpers/epic-deliver-story.md`](workflows/helpers/epic-deliver-story.md).         |
+| *helper* `workflows/helpers/single-story-deliver`             | Per-Story worker called by `/story-deliver`; not an operator slash command. See [`helpers/single-story-deliver.md`](workflows/helpers/single-story-deliver.md).                |
+| *helper* `workflows/helpers/code-review.md`                   | Auto-invoked by `/epic-deliver`'s `delivery.code-review` state (scope: epic); not a slash command.                                                                            |
 | `/git-commit-all`                                | Stage and commit all changes                                                                                                                                                 |
 | `/git-push`                                      | Stage, commit, and push to remote                                                                                                                                            |
 | `epic-reconcile.js --explicit-delete`            | Hard reset — close orphaned Epic-scoped issues per `.agents/epics/<id>.yaml`                                                                                                 |
