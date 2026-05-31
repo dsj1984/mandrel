@@ -61,7 +61,7 @@ re-run anytime.
 
 ## License
 
-ISC
+MIT
 
 ---
 

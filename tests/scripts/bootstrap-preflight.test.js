@@ -20,8 +20,8 @@ import { runPreflight } from '../../.agents/scripts/lib/bootstrap/preflight.js';
 
 // --- Stub runners -----------------------------------------------------------
 
-const okNode = () => ({ ok: true, version: '22.22.1', required: 20 });
-const oldNode = () => ({ ok: false, version: '18.0.0', required: 20 });
+const okNode = () => ({ ok: true, version: '22.22.1', required: '22.22.1' });
+const oldNode = () => ({ ok: false, version: '18.0.0', required: '22.22.1' });
 
 function gitRunnerStub({
   availableStatus = 0,
@@ -99,7 +99,7 @@ describe('runPreflight', () => {
     const node = res.checks.find((c) => c.name === 'node');
     assert.equal(node.ok, false);
     assert.match(node.remedy, /18\.0\.0/);
-    assert.match(node.remedy, /below required 20/);
+    assert.match(node.remedy, /below required 22\.22\.1/);
   });
 
   it('fails with a git-install remedy when git is not on PATH (ENOENT)', async () => {

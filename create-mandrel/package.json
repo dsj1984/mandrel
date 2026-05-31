@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "description": "Cold-start launcher for Mandrel: vendors the .agents submodule, then runs bootstrap.",
   "type": "module",
-  "license": "ISC",
+  "license": "MIT",
   "bin": {
     "create-mandrel": "index.js"
   },

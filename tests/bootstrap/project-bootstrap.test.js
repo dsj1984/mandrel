@@ -20,7 +20,9 @@ import {
   ensureClaudeSettings,
   ensureGitignore,
   ensurePackageJson,
+  REQUIRED_NODE_FLOOR,
   REQUIRED_RUNTIME_DEPS,
+  satisfiesNodeEngine,
   SYNC_COMMAND,
 } from '../../.agents/scripts/lib/bootstrap/project-bootstrap.js';
 
@@ -43,12 +45,31 @@ afterEach(() => {
   fs.rmSync(tmpRoot, { recursive: true, force: true });
 });
 
+describe('satisfiesNodeEngine', () => {
+  it('accepts the engines floor and supported majors below 25', () => {
+    assert.equal(satisfiesNodeEngine('22.22.1'), true);
+    assert.equal(satisfiesNodeEngine('24.0.0'), true);
+  });
+
+  it('rejects versions below the floor and at/above major 25', () => {
+    assert.equal(satisfiesNodeEngine('22.22.0'), false);
+    assert.equal(satisfiesNodeEngine('21.0.0'), false);
+    assert.equal(satisfiesNodeEngine('25.0.0'), false);
+  });
+});
+
 describe('checkNodeVersion', () => {
-  it('reports the running Node version and ok=true on >=20', () => {
+  it('reports the running Node version against the engines floor', () => {
     const result = checkNodeVersion();
-    assert.equal(result.required, 20);
+    assert.equal(result.required, REQUIRED_NODE_FLOOR);
     assert.ok(typeof result.version === 'string');
     assert.equal(typeof result.ok, 'boolean');
+  });
+
+  it('rejects injected versions below the engines floor', () => {
+    const result = checkNodeVersion('20.0.0');
+    assert.equal(result.ok, false);
+    assert.equal(result.version, '20.0.0');
   });
 });
 
