@@ -20,8 +20,9 @@ overhead rather than help.
 /single-story-deliver <storyId>
   → single-story-init.js          (branch from main, worktree, agent::executing)
   → agent implements + commits     (operator works in the worktree)
-  → single-story-close.js          (gates, push, gh pr create → main, agent::done)
+  → single-story-close.js          (gates, push, gh pr create → main, agent::closing)
   → CI watch + fix loop            (until all required checks pass + PR is merged)
+  → single-story-confirm-merge.js  (PR merged → agent::done, issue closes)
 ```
 
 **When to use `/single-story-deliver` vs. `/story-deliver`:**
@@ -295,9 +296,16 @@ The script:
    non-fatal: the operator retains the manual merge surface in the
    GitHub UI. Pass `--no-auto-merge` to opt out when the PR needs a
    pre-merge eyeball.
-4. Flips the Story to `agent::done`. The GitHub issue stays open until
-   the auto-merge fires (or until the operator merges manually); the
-   `Closes #<id>` PR footer auto-closes the issue on merge.
+4. Flips the Story to **`agent::closing`** (NOT `agent::done`) and leaves
+   the GitHub issue **OPEN** (Story #3385). Auto-merge completes
+   asynchronously *after* this script exits, so closing the issue here
+   would strand a CLOSED issue with no merged work if the PR later failed
+   CI, went `BEHIND` base, or was closed without merging. The Story rests
+   at `agent::closing` while the PR is open with auto-merge armed; the
+   `agent::done` flip (which closes the issue) is deferred to Step 5.5's
+   `single-story-confirm-merge.js`. This brings the standalone path to
+   parity with the epic path (#2155), where a Story only reaches
+   `agent::done` once its merge into `epic/<id>` is confirmed.
 5. Reaps the worktree when `delivery.worktreeIsolation.reapOnSuccess`
    is enabled.
 
@@ -330,11 +338,15 @@ gh pr checks <prNumber> --watch
 
 When the watch exits:
 
-- **All checks ✓** — auto-merge will fire (or has already). The
-  `Closes #<id>` footer closes the Story issue on merge. Done.
+- **All checks ✓** — auto-merge will fire (or has already). The Story is
+  still at `agent::closing` with its issue OPEN at this point (Step 3
+  deferred the `agent::done` flip). The `Closes #<id>` footer closes the
+  Story issue when the merge lands; Step 5 confirms the merge and Step 5.5
+  flips the Story to `agent::done`. Proceed to Step 5.
 - **Any check ✗** — diagnose, fix, and push a new commit on
   `story-<storyId>`, then re-watch. Auto-merge stays enabled across
-  retries; no need to re-arm it.
+  retries; no need to re-arm it. The Story stays at `agent::closing`
+  throughout, so a failed/abandoned PR never strands a CLOSED issue.
 
 ### Resurrecting the worktree after `reapOnSuccess`
 
@@ -402,7 +414,7 @@ the watch exits clean.
 
 ---
 
-## Step 5 — Merge confirmation
+## Step 5 — Merge confirmation + `agent::done` flip (**required, not optional**)
 
 With auto-merge enabled (default), GitHub squash-merges the PR when
 every required check turns green and the `Closes #<id>` footer
@@ -418,6 +430,33 @@ Expect `state: "MERGED"`. With `--no-auto-merge`, the PR is the merge
 gate. The operator reviews and merges via the GitHub UI; the same
 `Closes #<id>` auto-close fires when the merge lands on `main`.
 
+**Then flip the Story to `agent::done`.** Step 3 deferred this flip
+(Story #3385) so the Story rested at `agent::closing` with its issue OPEN
+while the PR was open. Now that the merge is confirmed, drive the
+`agent::closing → agent::done` transition (which closes the issue) via:
+
+```bash
+node .agents/scripts/single-story-confirm-merge.js --story <storyId> --cwd <main-repo>
+```
+
+The confirmation script re-reads the live PR state (`gh pr view --json
+state,mergedAt`, probing `gh pr list --head story-<id> --state all` when
+`--pr` is omitted) and:
+
+- **PR `MERGED`** → flips `agent::closing → agent::done`, closing the
+  issue, and fires the `story-merged` notify. Prints
+  `{ action: 'done', merged: true, ... }`.
+- **PR still open / closed-without-merge** → leaves the Story at
+  `agent::closing` (issue stays OPEN) and prints
+  `{ action: 'pending', reason: 'pr-open' | 'pr-not-merged' | 'no-pr' }`.
+  Re-run after the merge lands.
+- **Story already `agent::done` / issue already closed** → idempotent
+  `{ action: 'noop', reason: 'already-done' }`.
+
+This is the standalone counterpart to the epic path's post-merge
+`agent::done` flip in `post-merge-close.js` (#2155): the issue closes
+exactly when the work has merged, never at PR-open.
+
 ---
 
 ## Step 5.5 — Re-assert Status column (**required, not optional**)
@@ -425,11 +464,11 @@ gate. The operator reviews and merges via the GitHub UI; the same
 The GitHub Projects v2 built-in workflows `Pull request merged` and
 `Pull request linked to issue` are enabled by default on most boards
 and fire ~minutes *after* auto-merge lands. They overwrite the Status
-field as a side-effect, clobbering the `Done` value `single-story-close.js`
-set at `agent::done` flip-time and leaving closed Stories stuck at
-`In Progress` on the board (reproduced on Story #2813). The
-orchestrator's close path has already exited by then, so the bot
-gets the last write.
+field as a side-effect, clobbering the `Done` value
+`single-story-confirm-merge.js` set at the `agent::done` flip in Step 5
+and leaving closed Stories stuck at `In Progress` on the board
+(reproduced on Story #2813). The confirmation step has already exited by
+then, so the bot gets the last write.
 
 Re-assert authority once the merge confirms:
 
@@ -543,6 +582,11 @@ cleanup.
   the worktree when one already exists for `story-<id>`.
 - `single-story-close.js` short-circuits when the Story is already
   closed (returns `{ action: 'noop', reason: 'already-closed' }`).
+- `single-story-confirm-merge.js` short-circuits when the Story already
+  carries `agent::done` or the issue is already closed (returns
+  `{ action: 'noop', reason: 'already-done' }`), and is safe to re-run
+  while the PR is still open (returns `{ action: 'pending', ... }` without
+  mutating the Story).
 - The PR probe (`gh pr list --head <branch> --state open`) reuses an
   existing open PR rather than opening a duplicate.
 
