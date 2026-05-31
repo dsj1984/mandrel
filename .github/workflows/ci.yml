@@ -1,5 +1,12 @@
 name: CI / CD
 
+# Action pinning (Story #3399): third-party `uses:` refs are pinned to full
+# 40-char commit SHAs with a `# vX.Y.Z` comment. First-party `actions/*`
+# remain on major-version tags (`@v4`) — Dependabot's `github-actions`
+# ecosystem updates those tags in-place and SHA-pinning would require a
+# manual bump per release with no automated PR surface. Revisit when
+# Dependabot action pinning is enabled repo-wide.
+
 on:
   push:
     branches: [main]
@@ -48,7 +55,7 @@ jobs:
         # third-party action's default branch is a supply-chain risk vector
         # (CWE-1357). Bump deliberately when a new TruffleHog release ships;
         # `npm run audit-security` flags any reversion to `@main` / `@master`.
-        uses: trufflesecurity/trufflehog@v3.95.3
+        uses: trufflesecurity/trufflehog@37b77001d0174ebec2fcca2bd83ff83a6d45a3ab # v3.95.3
         with:
           extra_args: --debug --only-verified
 
