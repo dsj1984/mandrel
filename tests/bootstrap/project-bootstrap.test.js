@@ -22,8 +22,8 @@ import {
   ensurePackageJson,
   REQUIRED_NODE_FLOOR,
   REQUIRED_RUNTIME_DEPS,
-  satisfiesNodeEngine,
   SYNC_COMMAND,
+  satisfiesNodeEngine,
 } from '../../.agents/scripts/lib/bootstrap/project-bootstrap.js';
 
 let tmpRoot;
