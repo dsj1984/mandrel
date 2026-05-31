@@ -182,22 +182,27 @@ for high-risk operations.
 
 ## 2. FinOps & Token Budgeting (Economic Guardrails)
 
-To prevent runaway API costs, you MUST strictly adhere to the following
-FinOps protocol:
+Mandrel does **not** enforce live LLM spend from response metadata. The
+framework limits **hydrated prompt size** and optional **pre-dispatch
+estimates**; your host runtime (editor / CLI) owns session quota and hard
+stops.
 
-### A. Token Tracking & Budgeting
+### A. Token budget (hydration + pre-dispatch estimates)
 
-- **Check Budget**: Before starting a task, resolve `maxTokenBudget` from
-  `.agentrc.json`.
-- **Active Monitoring**: You MUST track your token usage (input + output)
-  provided by the LLM response metadata after every tool call.
-- **Soft-Warning (80%)**: When usage reaches the threshold defined by
-  `budgetWarningThreshold` (default 0.8), you MUST notify the user via a
-  terminal message and trigger the configured notification webhook
-  (resolved from the `NOTIFICATION_WEBHOOK_URL` env var).
-- **Hard-Stop (100%)**: If you reach `maxTokenBudget`, you MUST **STOP**
-  immediately. You are forbidden from continuing until a human operator
-  grants an explicit override via a status update or CLI flag.
+- **`delivery.maxTokenBudget`** (`.agentrc.json`, resolved via
+  `lib/config/limits.js`): caps the task prompt built by
+  `hydrate-context` / `hydrateContext`. The pipeline uses a rough token
+  estimate (≈4 characters per token) and applies section-aware elision
+  (`elideEnvelope`) so oversized envelopes drop or summarize
+  lower-priority sections before you receive the prompt.
+- **`delivery.preflight.*`** (optional): before `/epic-deliver` fan-out,
+  `epic-deliver-preflight.js` compares **estimated** story count, waves,
+  install time, GitHub API volume, and Claude quota tokens against
+  configured ceilings (`maxClaudeQuotaTokens`, etc.). A breach surfaces
+  via `agent::blocked`; there is no per-tool-call metering.
+- **Host runtime**: session billing, quota exhaustion, and operator
+  overrides are enforced by your provider (e.g. Claude Code), not by
+  Mandrel scripts.
 
 ---
 
