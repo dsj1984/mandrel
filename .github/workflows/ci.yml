@@ -17,10 +17,11 @@ jobs:
     name: Validate and Test
     # Single ubuntu-latest / node 22 leg. The matrix shape was retired in
     # PR #1348 once the only remaining axis was a degenerate one — Windows
-    # was removed earlier (operator runs Windows locally; pre-push hook is
-    # the real Windows gate), and there is no plan to revive a second
-    # Node version on this branch. See #1267 for the per-OS baseline plan
-    # if matrix-shaped CI is ever reinstated.
+    # was removed from this job earlier (#1270) because full Windows
+    # coverage + baseline gates produced c8/timing flap with no source
+    # defects. A lighter advisory Windows smoke leg lives in the
+    # `windows-smoke` job below (Story #3389). See #1267 for the per-OS
+    # baseline plan if matrix-shaped CI is ever reinstated.
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -124,6 +125,47 @@ jobs:
 
       - name: Run check-baselines
         run: node .agents/scripts/check-baselines.js --format text
+
+  windows-smoke:
+    # Story #3389 — advisory Windows leg. Exercises bootstrap, command sync,
+    # config resolution, and the quick test tier without joining the
+    # branch-protection required-check set (Validate and Test / baselines
+    # names stay unchanged). Catches Windows-only regressions in worktree
+    # path handling, PowerShell/npm wiring, and platform-conditional code
+    # without reintroducing the c8/timing baseline flap that retired the
+    # full Windows matrix leg (#1270).
+    name: Windows Smoke
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Bootstrap (dry-run)
+        run: node .agents/scripts/bootstrap.js --dry-run --assume-yes --skip-github
+
+      - name: Command Sync
+        run: npm run sync:commands
+
+      - name: Config Resolution
+        run: >-
+          node --experimental-test-module-mocks --test
+          tests/shipped-configs-validate.test.js
+          tests/lib/config-resolver.test.js
+          tests/lib/config-resolver-worktree.test.js
+
+      - name: Fast Test Slice
+        run: npm run test:quick
 
   publish:
     name: Publish to Dist
