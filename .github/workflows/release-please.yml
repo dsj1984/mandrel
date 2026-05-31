@@ -1,5 +1,9 @@
 name: Release Please
 
+# Action pinning (Story #3399): third-party `uses:` refs are pinned to full
+# 40-char commit SHAs with a `# vX.Y.Z` comment. First-party `actions/*`
+# remain on major-version tags (`@v4`) — see ci.yml header for rationale.
+
 on:
   push:
     branches: [main]
@@ -38,7 +42,7 @@ jobs:
       # repository secret.
       - name: Run release-please
         id: release
-        uses: googleapis/release-please-action@v5.0.0
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
