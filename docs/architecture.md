@@ -131,7 +131,7 @@ The instruction layer defines **what agents are** and **how they must behave**.
 graph LR
     classDef active fill:#c4f9d0,stroke:#333,color:#000
 
-    T["Task Ticket"] --> L{"persona label?"}
+    S["Story Ticket"] --> L{"persona label?"}
     L -->|"architect"| A["architect.md"]:::active
     L -->|"engineer"| E["engineer.md"]:::active
     L -->|"qa-engineer"| Q["qa-engineer.md"]:::active
@@ -230,7 +230,7 @@ graph TB
 | `dispatcher.js`              | Builds dependency DAG, computes execution waves, posts the dispatch manifest (consumed by `/epic-deliver`).                                                                                   |
 | `epic-deliver-prepare.js`    | Snapshots the Epic, builds the wave plan, and initialises the `epic-run-state` checkpoint at the start of `/epic-deliver` Phase 1.                                                            |
 | `lifecycle-emit.js`          | Generic argv-driven emit helper. `/epic-deliver` Phase 6 / 7.5 / 8 fire `epic.close.end` / `epic.automerge.start` / `epic.merge.armed` through this CLI; the matching listener chain (`Finalizer`, `AutomergePredicate` + `AutomergeArmer`, `Cleaner`) runs the PR open, auto-merge arm, and branch reap. |
-| `story-init.js`              | Initialises a Story worktree and flips the Story to `agent::executing`; per-Task labels start in `story-task-progress.js`.                                                                   |
+| `story-init.js`              | Initialises a Story worktree and flips the Story to `agent::executing`.                                                                                                                     |
 | `story-close.js`             | Validates, merges, reaps, and cascades on Story completion. Thin CLI shell over `lib/orchestration/story-close/{merge-runner,cleanup-reconciler,comment-bodies}`. |
 | `context-hydrator.js`        | Assembles self-contained prompts (protocol + persona + skills + hierarchy + task).                                                                                                            |
 | `update-ticket-state.js`     | Syncs ticket status via GitHub labels (`agent::ready` → `agent::done`).                                                                                                                       |
@@ -255,9 +255,9 @@ dispatch path. Consumers (`dispatcher.js`, tests) import `dispatch`,
 `resolveAndDispatch`, and the `AGENT_*` constants from the coordinator
 path. Every Epic is 3-tier (Epic → Feature → Story); `dispatch()`
 computes a Story-level wave plan and emits a 3-tier manifest. The legacy
-Task-tier dispatch runtime (Task fetcher, single-Story executor, the
-per-Task wave fan-out, and the Epic-completion detector) was removed in
-Epic #3163; per-Story execution is owned by `/story-deliver`
+The retired 4-tier dispatch runtime (legacy fetcher, wave fan-out, and
+Epic-completion detector) was removed in Epic #3163; per-Story
+execution is owned by `/story-deliver`
 (`story-init` → `story-close`).
 
 | Submodule                     | Responsibility                                                                            |
@@ -333,7 +333,7 @@ envelope so Phase 7 stays non-blocking.
 | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `lib/orchestration/epic-runner/commit-assertion.js` | Post-wave guard — a "done" wave whose stories produced zero commits on `origin/story-<id>` is reclassified as `halted` instead of silently passing.   |
 | `lib/observability/signals-writer.js`               | Append-only NDJSON writer for `friction` / trace records under `temp/epic-<eid>/stories/story-<sid>/signals.ndjson`. The single producer for the telemetry pipeline; the consolidated reader (`lib/observability/signals-reader.js`) is the sole consumer. |
-| `lib/orchestration/column-sync.js`                  | Drives the Projects v2 Status column from `agent::` labels (best-effort). Invoked from inside `transitionTicketState` (Story #2548) so every label flip — Epic, Story, Task — mirrors onto the board.                  |
+| `lib/orchestration/column-sync.js`                  | Drives the Projects v2 Status column from `agent::` labels (best-effort). Invoked from inside `transitionTicketState` (Story #2548) so every label flip — Epic and Story — mirrors onto the board.                  |
 
 `CommitAssertion`'s default git adapter falls back to a `resolves #<storyId>`
 grep on `origin/epic/<id>` when `origin/story-<id>` has already been deleted
@@ -434,7 +434,7 @@ symbol consumers previously imported.
 
 Mandrel runs Claude-Code-in-session: `/epic-deliver` fans out via the
 `Agent` tool over a wave of Story sub-agents, each driving the per-Story
-Task loop directly from the Story worktree. There is no separate
+implementation loop directly from the Story worktree. There is no separate
 adapter abstraction — `wave-dispatcher.js` synthesizes the
 `{ taskId, dispatchId, status }` record inline at the dispatch site,
 and the **dispatch manifest** (md + structured comment, schema
@@ -541,13 +541,13 @@ sequenceDiagram
     P->>GH: Open Epic (ideation path) / read existing Epic
     P->>EP: Generate PRD + Tech Spec
     EP->>GH: Create linked context issues
-    EP->>TD: Decompose into tasks
-    TD->>GH: Create Feature → Story → Task hierarchy
+    EP->>TD: Decompose into Stories
+    TD->>GH: Create Feature → Story hierarchy
 
     H->>D: /epic-deliver #EPIC
     D->>EDR: Build DAG, compute waves, run all six phases
     EDR->>GH: Create epic/ and story/ branches
-    EDR->>CH: Hydrate task context
+    EDR->>CH: Hydrate story context
     CH-->>EDR: Self-contained prompt
     EDR->>A: Dispatch story (Agent-tool sub-agent)
     A->>GH: Update labels (agent::executing → done)
@@ -749,7 +749,7 @@ Dispatcher integration:
 - **Reap on merge**: `story-close` calls `wm.reap` after a successful merge.
   The reap refuses dirty trees and logs a warning.
 - **GC on dispatch start**: `dispatch()` sweeps orphaned worktrees whose
-  stories have no remaining live tasks. Refuses to delete unmerged branches.
+  stories have no remaining live work. Refuses to delete unmerged branches.
 
 Setting `delivery.worktreeIsolation.enabled: false` (or omitting the
 block) restores single-tree behavior. The `assert-branch.js` pre-commit guard
@@ -888,7 +888,7 @@ The model has three layers:
    first write; `epicId` / `storyId` must be positive integers.
 2. **Detectors — `diagnose-friction.js` and the per-detector pure
    modules under `lib/signals/detectors/` (`rework.js`, `retry.js`,
-   `hotspot.js`).** Rework + retry run inside the post-Task close
+   `hotspot.js`).** Rework + retry run inside the post-Story close
    pipeline (`lib/orchestration/post-merge-pipeline.js`); hotspot runs
    at Epic close from `lib/orchestration/epic-runner/progress-reporter.js`.
    Each call site resolves thresholds via `getSignals(config)`
@@ -948,7 +948,7 @@ comment allowlist is `state-transition`, `story-merged`,
 `epic-unblocked`, `epic-complete` — so Slack consumers see the epic
 narrative (% progress + blockers) without the per-story firehose.
 `transitionTicketState` suppresses the `notify()` dispatch entirely
-for low-severity transitions (task-level, non-terminal story / epic
+for low-severity transitions (non-terminal story / epic
 flips) so the comment channel sees only the medium-severity
 story-level events operators expect. Severity is carried as envelope
 metadata and still drives `@mention` behavior on the comment channel
