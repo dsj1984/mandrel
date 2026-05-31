@@ -1042,12 +1042,19 @@ the gate identically at the others.
 
 ## FinOps Model
 
-The framework implements an economic guardrail system for LLM cost management:
+The framework limits context and dispatch cost through **estimation**, not
+live LLM metering:
 
-### Budget Protocol
+### Budget protocol
 
-- **Soft Warning** at 80% of `maxTokenBudget` → user notification + webhook.
-- **Hard Stop** at 100% → execution halt, requires human override.
+- **`delivery.maxTokenBudget`**: caps hydrated task prompts. `hydrate-context`
+  estimates tokens (≈4 characters per token) and elides sections when the
+  envelope exceeds the cap (`elideEnvelope` in `context-envelope.js`).
+- **`delivery.preflight.*`** (optional): `epic-deliver-preflight.js` compares
+  pre-dispatch estimates (stories, waves, install time, GitHub API calls,
+  Claude quota tokens) to configured ceilings before `/epic-deliver` fan-out.
+- **Host runtime**: session quota and billing hard stops are enforced by the
+  operator's editor / CLI provider, not by Mandrel scripts.
 
 ---
 

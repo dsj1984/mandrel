@@ -199,11 +199,11 @@ failure dashboards; retention, redaction, and support-bundle tooling.
 
 ### Finding 13 — Cost controls are not a product-grade FinOps system
 
-Evidence: the instruction layer mandates active token tracking + hard stops, but
-the implementation mostly estimates prompt-hydration budget and preflight Claude
-quota; `/epic-deliver` runs inside the operator's Claude Max session and quota
-exhaustion becomes `agent::blocked`. (Instruction-text honesty about this is
-already filed in #3388.)
+Evidence: the instruction layer formerly mandated active token tracking + hard
+stops, but the implementation mostly estimates prompt-hydration budget and
+pre-dispatch preflight (`epic-deliver-preflight.js`); `/epic-deliver` runs
+inside the operator's Claude Max session and quota exhaustion becomes
+`agent::blocked`. Instruction-text honesty was remediated in #3398.
 
 Remediation direction: provider-level usage accounting; per-run/project/user
 budgets enforced by deterministic code; pre-dispatch cost estimates + post-run
