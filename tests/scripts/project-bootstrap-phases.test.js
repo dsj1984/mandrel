@@ -87,8 +87,13 @@ describe('throwIfFatal', () => {
   it('surfaces the nodeCheck pre-refactor error verbatim', () => {
     const phase = BOOTSTRAP_PHASES.find((p) => p.name === 'nodeCheck');
     assert.throws(
-      () => throwIfFatal(phase, { ok: false, version: '18.0.0', required: 20 }),
-      /Node 18.0.0 is below required 20.x/,
+      () =>
+        throwIfFatal(phase, {
+          ok: false,
+          version: '18.0.0',
+          required: '22.22.1',
+        }),
+      /Node 18\.0\.0 is below required 22\.22\.1/,
     );
   });
 

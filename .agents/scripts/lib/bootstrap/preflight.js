@@ -29,7 +29,7 @@ const GIT_INSTALL_HINT =
 const GIT_WORKTREE_HINT =
   'Run this command from inside a git repository (run `git init` or `cd` into your project clone), then re-run.';
 const NODE_REMEDY = (result) =>
-  `Node ${result.version} is below required ${result.required}.x. Upgrade Node (https://nodejs.org/) and re-run this command.`;
+  `Node ${result.version} is below required ${result.required}. Upgrade Node (https://nodejs.org/) and re-run this command.`;
 
 /**
  * Default git runner: synchronously execs `git <args>` and returns the
@@ -54,7 +54,7 @@ function defaultGitRunner(args) {
  * Probe Node version via the injected `nodeCheck` seam (defaults to
  * `checkNodeVersion`). Returns a check record.
  *
- * @param {() => { ok: boolean, version: string, required: number }} nodeCheck
+ * @param {() => { ok: boolean, version: string, required: string }} nodeCheck
  * @returns {{ name: string, ok: boolean, remedy?: string }}
  */
 function checkNode(nodeCheck) {
@@ -127,7 +127,7 @@ async function checkGh(gh) {
  * @param {object} [opts]
  * @param {boolean} [opts.skipGithub=false] — when true, skip the `gh` CLI
  *   + auth check (the Node and git checks always run).
- * @param {() => { ok: boolean, version: string, required: number }}
+ * @param {() => { ok: boolean, version: string, required: string }}
  *   [opts.nodeCheck] — Node-version seam (defaults to `checkNodeVersion`).
  * @param {(args: string[]) => object} [opts.gitRunner] — git runner seam
  *   (defaults to a real `spawnSync('git', …)`).

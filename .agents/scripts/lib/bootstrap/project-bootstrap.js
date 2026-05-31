@@ -78,14 +78,42 @@ function writeJson(p, obj) {
   fs.writeFileSync(p, `${JSON.stringify(obj, null, 2)}\n`, 'utf8');
 }
 
+/** Matches root `package.json` `engines.node`. */
+export const REQUIRED_NODE_FLOOR = '22.22.1';
+export const REQUIRED_NODE_CEILING_MAJOR = 25;
+
 /**
- * Step 1 — Verify Node ≥ 20. Returns `{ ok, version }` so the CLI can
- * report the detected version regardless of whether the check passed.
+ * Return true when `version` satisfies `>=22.22.1 <25` (same as `engines`).
+ *
+ * @param {string} version
+ * @returns {boolean}
  */
-export function checkNodeVersion() {
-  const version = process.versions.node;
-  const major = Number.parseInt(version.split('.')[0], 10) || 0;
-  return { ok: major >= 20, version, required: 20 };
+export function satisfiesNodeEngine(version) {
+  const [majorRaw, minorRaw, patchRaw] = version.split('.');
+  const major = Number.parseInt(majorRaw, 10) || 0;
+  const minor = Number.parseInt(minorRaw, 10) || 0;
+  const patch = Number.parseInt(patchRaw, 10) || 0;
+  if (major >= REQUIRED_NODE_CEILING_MAJOR) return false;
+  if (major > 22) return true;
+  if (major < 22) return false;
+  if (minor > 22) return true;
+  if (minor < 22) return false;
+  return patch >= 1;
+}
+
+/**
+ * Step 1 — Verify Node satisfies `engines.node`. Returns `{ ok, version,
+ * required }` so the CLI can report the detected version regardless of
+ * whether the check passed.
+ *
+ * @param {string} [version=process.versions.node]
+ */
+export function checkNodeVersion(version = process.versions.node) {
+  return {
+    ok: satisfiesNodeEngine(version),
+    version,
+    required: REQUIRED_NODE_FLOOR,
+  };
 }
 
 /**
@@ -469,7 +497,7 @@ export function checkWindowsGitPerf(ctx) {
 const fatalNodeCheck = (result) =>
   result.ok
     ? null
-    : `[bootstrap] Node ${result.version} is below required ${result.required}.x. Upgrade Node and re-run.`;
+    : `[bootstrap] Node ${result.version} is below required ${result.required}. Upgrade Node and re-run.`;
 
 const fatalValidation = (result) =>
   result.ok

@@ -75,7 +75,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⚠ BREAKING CHANGES
 
-* Mandrel v6.0.0 — ticket hierarchy is now Epic -> Feature -> Story (with inline acceptance/verify on the Story body). The planning.hierarchy config flag, type::task label, Task-tier scripts, and Task-aware lifecycle hooks have been deleted. Consumers re-pinning .agents/ to v6.0.0 MUST migrate any local Task-tier artifacts per docs/upgrade-guide-3-tier.md.
+* Mandrel v6.0.0 — ticket hierarchy is now Epic -> Feature -> Story (with inline acceptance/verify on the Story body). The planning.hierarchy config flag, type::task label, Task-tier scripts, and Task-aware lifecycle hooks have been deleted. Consumers re-pinning .agents/ to v6.0.0 MUST remove any local Task-tier artifacts as part of the upgrade.
 
 ### Epic
 
