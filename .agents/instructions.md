@@ -95,15 +95,16 @@ paths). Project-specific technology context is intentionally kept out of
 
 You MUST log telemetry about any operational difficulty or automation
 opportunity you encounter. Post friction details directly to the relevant
-GitHub Task ticket:
+GitHub Story (or Epic) ticket:
 
 - **Command**:
-  `node .agents/scripts/diagnose-friction.js --epic [EPIC_ID] --task [TASK_ID] --cmd [FAILED_COMMAND]`
+  `node .agents/scripts/diagnose-friction.js --story [STORY_ID] --cmd [FAILED_COMMAND]`
+  (add `--epic [EPIC_ID]` when the Story sits under an Epic)
 - **When to fire**: After consecutive tool validation errors, unrecoverable
   command failures, or ambiguity requiring explicit self-correction. Also
   after repetitive sequences of commands or boilerplate-heavy steps that
   could be simplified by a workflow or skill.
-- **No-ticket fallback**: If you hit friction outside an Epic/Story/Task
+- **No-ticket fallback**: If you hit friction outside an Epic/Story
   loop, write a JSON record to `temp/friction-<timestamp>.json` with the
   same fields, and mention the file in your final summary so a human can
   route it later. Do not silently drop the signal.
