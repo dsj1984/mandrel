@@ -868,7 +868,10 @@ entirely — useful when the consumer wants exactly its own dirs.
 ### Per-machine local overrides
 
 `.agentrc.local.json` (gitignored) is layered on top of `.agentrc.json` by the
-resolver. Use it for machine-specific tuning (e.g. lower
+resolver. Precedence (highest wins): local → committed `.agentrc.json` →
+built-in defaults. Object keys **deep-merge** so a local file can override one
+nested field without restating sibling keys; absent local file is a no-op. Use
+it for machine-specific tuning (e.g. lower
 `delivery.deliverRunner.concurrencyCap` on a laptop) that should never reach
 git.
 

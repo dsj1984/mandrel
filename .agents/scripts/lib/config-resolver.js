@@ -1,7 +1,9 @@
 /**
  * Unified Configuration Resolver — facade (Epic #1720 Story #1739).
  *
- * Resolution chain: `<project-root>/.agentrc.json` → built-in defaults.
+ * Resolution chain: `<project-root>/.agentrc.local.json` (optional) →
+ * `.agentrc.json` → built-in defaults. Object keys deep-merge; absent local
+ * file is a no-op.
  * `.env` is loaded lazily once per resolved root via `loadEnv`.
  *
  * Post-reshape, `.agentrc.json` declares four top-level blocks:
@@ -147,6 +149,63 @@ function applyDeliveryDefaults(rawDelivery) {
  * Apply framework defaults for the four top-level blocks. Pure (no
  * mutation) — returns a fresh object.
  */
+/**
+ * Deep-merge plain objects for the `.agentrc.local.json` overlay. Arrays and
+ * scalars from `override` replace the base value at that key.
+ *
+ * @param {unknown} base
+ * @param {unknown} override
+ * @returns {unknown}
+ */
+function deepMergeObjects(base, override) {
+  if (
+    override === null ||
+    typeof override !== 'object' ||
+    Array.isArray(override)
+  ) {
+    return override;
+  }
+  if (base === null || typeof base !== 'object' || Array.isArray(base)) {
+    return { ...override };
+  }
+  const out = { ...base };
+  for (const key of Object.keys(override)) {
+    const baseVal = base[key];
+    const overrideVal = override[key];
+    if (
+      overrideVal !== null &&
+      typeof overrideVal === 'object' &&
+      !Array.isArray(overrideVal) &&
+      baseVal !== null &&
+      typeof baseVal === 'object' &&
+      !Array.isArray(baseVal)
+    ) {
+      out[key] = deepMergeObjects(baseVal, overrideVal);
+    } else {
+      out[key] = overrideVal;
+    }
+  }
+  return out;
+}
+
+/** @param {import('node:fs')} fsImpl */
+function readJsonConfigFile(fsImpl, filePath, label) {
+  try {
+    return JSON.parse(fsImpl.readFileSync(filePath, 'utf8'));
+  } catch (parseErr) {
+    throw new Error(
+      `[config] Failed to parse ${label}: ${parseErr.message}. ` +
+        `Fix the JSON syntax before proceeding.`,
+    );
+  }
+}
+
+const ZERO_CONFIG_RAW = Object.freeze({
+  project: {
+    paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+  },
+});
+
 function applyDefaults(raw) {
   const project = applyCommandsDefaults({ ...(raw.project ?? {}) });
   // Default docsContextFiles list — same five files the framework has
@@ -211,51 +270,58 @@ export function resolveConfig(opts) {
   }
 
   const agentrcPath = path.join(root, '.agentrc.json');
-  if (fsImpl.existsSync(agentrcPath)) {
-    let raw;
-    try {
-      raw = JSON.parse(fsImpl.readFileSync(agentrcPath, 'utf8'));
-    } catch (parseErr) {
-      throw new Error(
-        `[config] Failed to parse .agentrc.json: ${parseErr.message}. ` +
-          `Fix the JSON syntax before proceeding.`,
-      );
-    }
+  const localPath = path.join(root, '.agentrc.local.json');
+  const hasAgentrc = fsImpl.existsSync(agentrcPath);
+  const hasLocal = fsImpl.existsSync(localPath);
 
-    if (validate) {
-      const validateAgentrc = getAgentrcValidator();
-      if (!validateAgentrc(raw)) {
-        const details = (validateAgentrc.errors || [])
-          .map((e) => `${e.instancePath || '(root)'} ${e.message}`)
-          .join(', ');
-        throw new Error(`[config] Invalid .agentrc.json: ${details}`);
-      }
-    }
-
-    const blocks = applyDefaults(raw);
-
-    if (validate) validateOrchestrationConfig(blocks);
-
+  if (!hasAgentrc && !hasLocal) {
+    const blocks = applyDefaults({ ...ZERO_CONFIG_RAW });
     const resolved = {
       ...blocks,
-      raw,
-      source: agentrcPath,
+      raw: null,
+      source: 'built-in defaults',
     };
     _cacheByRoot.set(root, resolved);
     return resolved;
   }
 
-  // Hard-coded defaults (zero-config experience).
-  const zeroRaw = {
-    project: {
-      paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
-    },
-  };
-  const blocks = applyDefaults(zeroRaw);
+  let raw = hasAgentrc
+    ? readJsonConfigFile(fsImpl, agentrcPath, '.agentrc.json')
+    : { ...ZERO_CONFIG_RAW };
+
+  let source = hasAgentrc ? agentrcPath : 'built-in defaults';
+
+  if (hasLocal) {
+    const localRaw = readJsonConfigFile(
+      fsImpl,
+      localPath,
+      '.agentrc.local.json',
+    );
+    raw = deepMergeObjects(raw, localRaw);
+    source =
+      source === 'built-in defaults'
+        ? `${localPath} (overrides built-in defaults)`
+        : `${localPath} (overrides ${agentrcPath})`;
+  }
+
+  if (validate) {
+    const validateAgentrc = getAgentrcValidator();
+    if (!validateAgentrc(raw)) {
+      const details = (validateAgentrc.errors || [])
+        .map((e) => `${e.instancePath || '(root)'} ${e.message}`)
+        .join(', ');
+      throw new Error(`[config] Invalid .agentrc.json: ${details}`);
+    }
+  }
+
+  const blocks = applyDefaults(raw);
+
+  if (validate) validateOrchestrationConfig(blocks);
+
   const resolved = {
     ...blocks,
-    raw: null,
-    source: 'built-in defaults',
+    raw,
+    source,
   };
   _cacheByRoot.set(root, resolved);
   return resolved;

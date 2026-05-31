@@ -6,6 +6,7 @@ dist
 *.log
 
 # Agent Local Overrides
+.agentrc.local.json
 .agents/*.local.md
 .agents/*local.json
 

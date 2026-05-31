@@ -454,7 +454,9 @@ shim layer, per the policy codified there.
 ### 5. Configuration System
 
 Configuration follows a **layered resolution** pattern with operational
-settings organised into a **grouped contract**:
+settings organised into a **grouped contract**. Optional `.agentrc.local.json`
+(gitignored) deep-merges on top of `.agentrc.json`; built-in defaults fill any
+remaining gaps. Absent local file is a no-op.
 
 ```mermaid
 graph LR
