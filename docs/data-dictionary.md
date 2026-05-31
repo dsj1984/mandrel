@@ -26,7 +26,7 @@ summaries-on-tickets rationale.
 | `source`   | `object`            | Yes      | `{ tool: string, script?: string }`. `tool` is the originating surface (`Bash`, `Edit`, `Write`, `Read`, `Grep`, `Glob`, or a script name for derived signals). |
 | `epicId`   | `integer ≥ 1`       | Yes      | Epic the event belongs to. Pins the on-disk path to `temp/epic-<epicId>/`.                                                 |
 | `storyId`  | `integer ≥ 1`       | Yes      | Story the event was sampled inside. Pins the on-disk path to `story-<storyId>/`.                                           |
-| `taskId`   | `integer ≥ 1` \| `null` | No   | Task within the Story, when known. `null` for Story-level events that don't pin to a Task.                                 |
+| `taskId`   | `integer ≥ 1` \| `null` | No   | Legacy field name; GitHub issue number when the event is scoped below Epic level. `null` for Story-wide events.              |
 | `phase`    | `string` \| `null`  | No       | Execution phase the event was sampled inside (`bootstrap`, `implement`, `test`, `close`, …). `null` for raw traces outside a phase boundary. |
 | `details`  | `object`            | No       | Kind-specific payload (free-form for forward compatibility). Common keys: `category`, `command`, `elapsedMs`, `targetHash`. |
 
@@ -35,7 +35,7 @@ summaries-on-tickets rationale.
 ## StoryPerfSummary (`structured:story-perf-summary` comment)
 
 Payload of the single performance summary comment posted on every Story
-ticket at close (Epic #1030). Replaces the per-Task friction comment fanout
+ticket at close (Epic #1030). Replaces the per-Story friction comment fanout
 and the standalone phase-timings comment. Schema lives at
 [`story-perf-summary.schema.json`](../.agents/schemas/story-perf-summary.schema.json).
 
@@ -87,7 +87,7 @@ the table below mirrors that schema — update both together.
 | `eventId`  | `uuid string`       | Yes      | Unique event identifier.                                               |
 | `timestamp`| `ISO8601 date-time` | Yes      | When the event occurred.                                               |
 | `sprintId` | `string`            | Yes      | Epic identifier the event belongs to. Field is `sprintId` for back-compat with the schema; rename to `epicId` is a planned breaking change tracked in the next major. |
-| `taskId`   | `integer`           | Yes      | GitHub issue number of the Task / Story.                                |
+| `taskId`   | `integer`           | Yes      | GitHub issue number of the Story (legacy field name `taskId`).          |
 | `category` | `enum`              | Yes      | One of `Prompt Ambiguity`, `Missing Skill`, `Incorrect Persona`, `Tool Limitation`, `Execution Error`. |
 | `details`  | `string`            | Yes      | Specific error message or observation.                                  |
 | `source`   | `object`            | No       | `{ tool?: string, command?: string }` — failed tool / command.          |
@@ -193,7 +193,7 @@ any prior comment of the same type.
 | `dispatch-manifest` | `/epic-plan` / dispatcher                           | Frozen Story manifest for the wave-gate.                                 |
 | `parked-follow-ons` | dispatcher                                          | Out-of-manifest Stories surfaced at the deliver-tail gate (recuts + parked). |
 | `story-init`        | `story-init.js`                                     | Initial Story metadata snapshot.                                         |
-| `story-run-progress`| `/story-deliver`                                    | Per-Task transitions inside one Story.                                   |
+| `story-run-progress`| `/story-deliver`                                    | Per-Story label transitions during `/story-deliver`.                   |
 | `epic-run-progress` | `/epic-deliver` (`epic-execute-record-wave.js`)     | Cross-wave Story-level rollup, grouped by wave. Single comment, upserted in place after each wave. |
 | `code-review`       | `lib/orchestration/code-review.js` (Phase 4)        | Findings report posted on the Epic.                                      |
 | `retro`             | `lib/orchestration/retro-runner.js` (Phase 5)       | Final retrospective body with the `retro-complete` marker.               |
@@ -245,7 +245,7 @@ the Epic is the SSOT; the on-disk file is a renderer cache regenerable via
 | `CommitAssertion`                                   | Class    | Post-wave guard wired into `wave-observer`; reclassifies a `done` wave with zero new commits on `origin/story-<id>` as `halted`. Lives at `lib/orchestration/epic-runner/commit-assertion.js`. Falls back to a `resolves #<storyId>` grep on `origin/epic/<id>` when `origin/story-<id>` is already deleted by `story-close`. |
 | `detectPriorPhase()`                                | Function | Recovery-state detector exported by `lib/orchestration/story-close-recovery.js`; classifies the close-time situation as `clean` / `unmerged-story-branch` / `merge-in-progress` / `dirty-worktree` so `--resume` and `--restart` can branch. |
 | `--resume` / `--restart`                            | CLI flag | `story-close.js` flags. `--resume` picks up at the merge-resolution step from a failed prior close without re-running init/implement/validate; `--restart` aborts any partial state and re-inits. |
-| `hierarchy-gate.js`                                 | Script   | `/epic-deliver` Phase 1.2 gate; walks the Epic's full sub-issue graph (Features → Stories → Tasks plus auxiliary tickets) and exits non-zero if any descendant is open or any Task is closed without `agent::done`. Pairs with `wave-gate.js` (manifest view) for the Phase 1 Feature Completeness Check. |
+| `hierarchy-gate.js`                                 | Script   | `/epic-deliver` Phase 1.2 gate; walks the Epic's full sub-issue graph (Features → Stories plus auxiliary tickets) and exits non-zero if any descendant is open or any Story is closed without `agent::done`. Pairs with `wave-gate.js` (manifest view) for the Phase 1 Feature Completeness Check. |
 | `setPlan({ waves })`                                | Method   | `ProgressReporter` API. Called once at runner start so each fire renders every wave + story (queued / in-flight / done / blocked) with a `Wave` column rather than only the active wave.                |
 | `progress-signals/stalled-worktree.js`              | Detector | Mechanical `ProgressReporter` detector; flags Stories where `agent::done` ships with a live `.worktrees/story-<id>/` directory still on disk.                                                          |
 | `progress-signals/maintainability-drift.js`         | Detector | Mechanical detector; emits a Notable bullet when the maintainability score for any tracked file drifts negatively from the wave-start baseline.                                                        |
@@ -366,8 +366,8 @@ authoritative SDK.
 | ------------------------------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `post-structured-comment.js`               | CLI      | `--ticket <id> --marker <key> --body-file <path>`. Wraps `upsertStructuredComment(provider, ticketId, marker, body)` from `lib/orchestration/ticketing.js`; idempotent by marker. |
 | `select-audits.js` / `run-audit-suite.js`  | CLI      | Selection reads `audit-rules.json` (manifest schema: `audit-rules.schema.json`); suite execution loads the selected workflow prompts.                              |
-| `hydrate-context.js` / `context-hydrator.js` | CLI    | `hydrate-context.js --ticket <id> --epic <id>` emits the JSON envelope. `context-hydrator.js --task <id> --epic <id>` is the raw-prompt wrapper used by operator workflows. |
-| `update-ticket-state.js`                   | CLI      | Covers ticket state transitions and cascade-completion. Cascade runs inline at the SDK layer when a Story's last open Task closes.                                  |
+| `hydrate-context.js` / `context-hydrator.js` | CLI    | `hydrate-context.js --ticket <id> [--epic <id>]` emits the JSON envelope. `context-hydrator.js --ticket <id> --epic <id>` prints the raw prompt (`--task` is a legacy alias for `--ticket`). |
+| `update-ticket-state.js`                   | CLI      | Covers ticket state transitions and cascade-completion. Cascade runs inline at the SDK layer when a Story reaches `agent::done`.                                    |
 | `dispatcher.js`                            | CLI      | Builds the dependency DAG, computes execution waves, dispatches stories. Invoked by `/epic-plan` Phase 3.                                                           |
 | `process.env`-only secrets resolution      | Contract | `notifier.js` `resolveWebhookUrl()` and the GitHub provider's `GITHUB_TOKEN` lookup read **only** from `process.env`. `.mcp.json` is not consulted as a secrets backstop.       |
 

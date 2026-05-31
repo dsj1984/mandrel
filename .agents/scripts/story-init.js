@@ -378,7 +378,6 @@ export async function runStoryInit({
   emitStoryInitResult(result, {
     storyId,
     dryRun,
-    taskCount: sortedTasks.length,
   });
 
   if (!dryRun) {
@@ -529,7 +528,7 @@ export function renderStoryInitCommentBody(result) {
   ].join('\n');
 }
 
-function emitStoryInitResult(result, { storyId, dryRun, taskCount }) {
+function emitStoryInitResult(result, { storyId, dryRun }) {
   Logger.info('\n--- STORY INIT RESULT ---');
   Logger.info(JSON.stringify(result, null, 2));
   Logger.info('--- END RESULT ---\n');
@@ -538,7 +537,7 @@ function emitStoryInitResult(result, { storyId, dryRun, taskCount }) {
     'DONE',
     dryRun
       ? '✅ Dry-run complete. No git or ticket changes made.'
-      : `✅ Story #${storyId} initialized. ${taskCount} Task(s) ready for implementation.`,
+      : `✅ Story #${storyId} initialized. Ready for implementation.`,
   );
 }
 
