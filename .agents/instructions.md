@@ -72,8 +72,9 @@ directly — there is no separate state-mutation MCP server to degrade from.
 
 If a `.agents/instructions.local.md` file or `.agentrc.local.json` is present,
 you MUST load them. They contain personal developer preferences and
-environment variables that override project defaults. Do not modify these
-local files unless requested.
+environment variables that override project defaults. The config resolver
+deep-merges `.agentrc.local.json` over `.agentrc.json` (local wins; absent
+local file is a no-op). Do not modify these local files unless requested.
 
 ### F. Modular Global Rules
 
