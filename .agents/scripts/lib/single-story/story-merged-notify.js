@@ -1,8 +1,22 @@
 /**
- * story-merged-notify.js — flip Story label to agent::done and fire the
- * `story-merged` event for a standalone-Story close. Mirrors the event
- * name used by `post-merge-pipeline.notificationPhase` so operator
- * subscriptions cover both Epic-attached and standalone Stories.
+ * story-merged-notify.js — flip a standalone Story to its close-entry rest
+ * state and fire the matching operator notification.
+ *
+ * Story #3385 — the standalone close path no longer flips `agent::done`
+ * (and no longer closes the GitHub issue) at PR-open time. GitHub
+ * auto-merge completes *asynchronously* after `single-story-close.js`
+ * exits, so closing the issue at PR-open left the Story marked "done"
+ * while its PR could still fail CI, go `BEHIND` base, or be closed
+ * without merging — stranding a CLOSED issue with no merged work.
+ *
+ * The fix brings the standalone path to parity with the epic path
+ * (#2155): the Story rests at `agent::closing` while the PR is open with
+ * auto-merge armed, and only flips `agent::done` (closing the issue) once
+ * the merge is confirmed by the post-merge confirmation step
+ * (`single-story-confirm-merge.js`, invoked by the CI-watch loop in
+ * `single-story-deliver.md` Step 5). This module owns the close-entry
+ * `agent::closing` flip + the `story-closing` notify; the `agent::done`
+ * flip + the `story-merged` notify live in `./confirm-merge.js`.
  *
  * Both the label flip and the notify dispatch are best-effort: failures
  * are logged and swallowed so neither a flaky GitHub API nor a flaky
@@ -29,7 +43,7 @@ export async function flipLabelAndNotify({
 }) {
   const labelFlipped = await flipLabel(provider, storyId, story, progress);
   if (!labelFlipped) return;
-  await fireStoryMergedNotify({
+  await fireStoryClosingNotify({
     notifyFn: notifyFn ?? defaultNotify,
     storyId,
     story,
@@ -43,31 +57,34 @@ export async function flipLabelAndNotify({
 
 async function flipLabel(provider, storyId, story, progress) {
   try {
-    // Route through the canonical state mutator so the Projects v2
-    // Status column mirrors the `agent::done` flip (Story #2548 wires
+    // Story #3385 — flip to `agent::closing`, NOT `agent::done`. The
+    // canonical mutator (`transitionTicketState`) only closes the GitHub
+    // issue (`state: 'closed'`, `state_reason: 'completed'`) on a
+    // transition to `agent::done`; flipping to `agent::closing` leaves the
+    // issue OPEN, which is exactly the rest state the standalone path must
+    // hold while the PR is open with auto-merge armed.
+    //
+    // Route through the canonical state mutator so the Projects v2 Status
+    // column mirrors the `agent::closing` flip (Story #2548 wires
     // column-sync inside `transitionTicketState`). Threading the
     // prefetched `story` as `ticketSnapshot` preserves the round-trip
     // elimination from Story #1795.
     //
-    // Cascade is left at the default (true) so Stories that have a
-    // parent Feature (e.g. an Epic-parented Story closed via the
-    // standalone path) propagate completion upward. For truly
-    // standalone Stories with no parent the cascade short-circuits
-    // immediately via the provider-capability guard in
-    // `cascadeParentState`, so there is no extra cost.
+    // Cascade is left at the default (true) so Stories that have a parent
+    // Feature (e.g. an Epic-parented Story closed via the standalone path)
+    // propagate the `agent::closing` state upward. For truly standalone
+    // Stories with no parent the cascade short-circuits immediately via
+    // the provider-capability guard in `cascadeParentState`, so there is
+    // no extra cost.
     //
     // We deliberately omit `notify` here: the `state-transition`
     // notification that `transitionTicketState` would dispatch is
-    // redundant with the typed `story-merged` event that
-    // `fireStoryMergedNotify` emits immediately afterwards. Operator
-    // subscribers consume `story-merged` (it mirrors the
-    // post-merge-pipeline event name for Epic-attached Stories), so
-    // letting the close path own the dispatch keeps both lanes on a
-    // single event per Story merge.
-    await transitionTicketState(provider, storyId, STATE_LABELS.DONE, {
+    // redundant with the typed `story-closing` event that
+    // `fireStoryClosingNotify` emits immediately afterwards.
+    await transitionTicketState(provider, storyId, STATE_LABELS.CLOSING, {
       ticketSnapshot: story,
     });
-    progress?.('LABELS', `🏷️  Story #${storyId} → agent::done`);
+    progress?.('LABELS', `🏷️  Story #${storyId} → agent::closing`);
     return true;
   } catch (err) {
     Logger.error(
@@ -77,7 +94,7 @@ async function flipLabel(provider, storyId, story, progress) {
   }
 }
 
-async function fireStoryMergedNotify({
+async function fireStoryClosingNotify({
   notifyFn,
   storyId,
   story,
@@ -88,22 +105,22 @@ async function fireStoryMergedNotify({
   provider,
 }) {
   const autoMergeNote = autoMergeEnabled
-    ? 'auto-merge enabled — GitHub will squash-merge when required checks pass'
-    : `auto-merge not enabled (${autoMergeReason ?? 'unknown'}) — operator merges via GitHub UI`;
+    ? 'auto-merge enabled — GitHub will squash-merge when required checks pass, then the Story flips to `agent::done`'
+    : `auto-merge not enabled (${autoMergeReason ?? 'unknown'}) — operator merges via GitHub UI, then the Story flips to \`agent::done\``;
   try {
     await notifyFn(
       storyId,
       {
         severity: 'medium',
-        message: `✅ Standalone Story #${storyId} — *${story.title}* — flipped to \`agent::done\`. PR: ${prUrl} (${autoMergeNote}).`,
-        event: 'story-merged',
+        message: `🔁 Standalone Story #${storyId} — *${story.title}* — flipped to \`agent::closing\`. PR: ${prUrl} (${autoMergeNote}). The issue stays OPEN until the merge is confirmed.`,
+        event: 'story-closing',
         level: 'story',
       },
       { config, provider },
     );
   } catch (err) {
     Logger.warn(
-      `[single-story-close] ⚠️ story-merged notify dispatch failed (swallowed): ${err?.message ?? err}`,
+      `[single-story-close] ⚠️ story-closing notify dispatch failed (swallowed): ${err?.message ?? err}`,
     );
   }
 }

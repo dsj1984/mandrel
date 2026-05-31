@@ -220,8 +220,11 @@ Print a final run summary:
   Wave 1: #102 ✅ done
 
 All Stories delivered. PRs opened, auto-merge armed. CI will merge each
-PR when checks pass. Run `git-cleanup --fast-forward-main` after the
-last merge to bring local main up to date.
+PR when checks pass; each child then confirms the merge and flips its
+Story to `agent::done` (Story #3385 — until the merge confirms, a Story
+rests at `agent::closing` with its issue OPEN). Run
+`git-cleanup --fast-forward-main` after the last merge to bring local
+main up to date.
 ```
 
 When some Stories are blocked or failed, list them explicitly with the

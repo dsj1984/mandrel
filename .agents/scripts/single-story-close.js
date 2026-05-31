@@ -18,7 +18,10 @@
  *   4. pull-request      — `gh pr list` probe + `gh pr create`
  *   5. code-review       — Story-scope review (Epic #2815 / Story #2839)
  *   6. auto-merge        — `gh pr merge --auto --squash --delete-branch`
- *   7. label flip + notify — Story → `agent::done`
+ *   7. label flip + notify — Story → `agent::closing` (Story #3385; the
+ *                          `agent::done` flip + issue-close is deferred to
+ *                          the post-merge confirmation step,
+ *                          `single-story-confirm-merge.js`)
  *   8. worktree-reap     — drop the per-Story worktree
  *
  * Existing tests import the re-exported helpers
@@ -272,7 +275,12 @@ export async function runSingleStoryClose({
     progress,
   });
 
-  // Step 4: flip Story label to agent::done and fire story-merged notify.
+  // Step 4: flip Story label to agent::closing (NOT agent::done) and fire
+  // the story-closing notify. Story #3385 — the issue stays OPEN while the
+  // PR is open with auto-merge armed; the agent::done flip (which closes the
+  // issue) is deferred to the post-merge confirmation step
+  // (`single-story-confirm-merge.js`, invoked by the CI-watch loop). This
+  // brings the standalone path to parity with the epic path (#2155).
   await flipLabelAndNotify({
     provider,
     notifyFn: injectedNotify,
@@ -307,8 +315,8 @@ export async function runSingleStoryClose({
     autoMergeReason,
     worktreeReaped,
     note: autoMergeEnabled
-      ? 'PR open against baseBranch with auto-merge enabled. GitHub will squash-merge when required checks pass; the Closes #<id> footer auto-closes the issue.'
-      : 'PR open against baseBranch. Operator merges via GitHub UI to close the issue (Closes #<id> auto-close).',
+      ? 'PR open against baseBranch with auto-merge enabled. Story rests at agent::closing (issue stays OPEN). GitHub will squash-merge when required checks pass; run single-story-confirm-merge.js after the merge confirms to flip agent::done and close the issue (the Closes #<id> footer also auto-closes it).'
+      : 'PR open against baseBranch. Story rests at agent::closing (issue stays OPEN). Operator merges via GitHub UI; run single-story-confirm-merge.js after the merge confirms to flip agent::done (the Closes #<id> footer also auto-closes the issue).',
   };
 
   Logger.info(
