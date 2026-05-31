@@ -485,7 +485,7 @@ fall back to documented defaults (or are no-ops when omitted).
 
 | Field             | Required | Default | Purpose                                                            |
 | ----------------- | -------- | ------- | ------------------------------------------------------------------ |
-| `maxTokenBudget`  | No       | (none)  | Soft cap on per-call token budget (planning hint).                 |
+| `maxTokenBudget`  | No       | (none)  | Hydrated prompt cap for `hydrate-context` (character-based estimate + section elision). |
 
 ### `delivery.docsFreshness`
 
