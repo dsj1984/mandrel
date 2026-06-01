@@ -233,19 +233,18 @@ export async function runPreMergeValidation({
   bus = null,
 }) {
   // Story #2533: scope-narrowed biome-format auto-apply on the Epic→Story
-  // diff *before* the whole-tree autofix runs. The scoped step folds
-  // format drift introduced by Story commits into a dedicated
-  // `fix(story-close):` commit on the Story branch and emits Logger.warn
-  // naming the auto-fixed files, so the subsequent `biome ci` gate finds
-  // zero diffs on the changed-file set. The scoped step is a strict
-  // pre-pass to the whole-tree `runFormatAutofix` below — never a
-  // replacement: the whole-tree heal still runs unconditionally and
-  // covers files (JSON/YAML/config) outside the changed-file set. The
-  // scoped step is skipped only when a resume caller cannot supply both
-  // branch refs (the `epicBranch...storyBranch` diff has no anchor), in
-  // which case the whole-tree heal alone keeps the close correct.
+  // diff. The scoped step folds format drift introduced by Story commits
+  // into a dedicated `fix(story-close):` commit on the Story branch and
+  // emits Logger.warn naming the auto-fixed files.
+  //
+  // Story #3407: when branch refs are available, this scoped step is the
+  // formatter autofix path. Falling through to the whole-tree `.` formatter
+  // from inside `.worktrees/story-*` is fragile against consumer ignore
+  // globs that exclude `.worktrees`, so the broad autofix is retained only
+  // for resume/legacy callers that cannot supply a diff anchor.
+  let formatAutofixOutcome = null;
   if (epicBranch && storyBranch) {
-    runScopedFormatAutofix({
+    formatAutofixOutcome = runScopedFormatAutofix({
       cwd,
       storyId,
       epicBranch,
@@ -253,13 +252,14 @@ export async function runPreMergeValidation({
       config,
       logger: Logger,
     });
+  } else {
+    formatAutofixOutcome = runFormatAutofix({
+      cwd,
+      storyId,
+      config,
+      logger: Logger,
+    });
   }
-  const formatAutofixOutcome = runFormatAutofix({
-    cwd,
-    storyId,
-    config,
-    logger: Logger,
-  });
   if (formatAutofixOutcome?.timedOut) {
     const summary = summarizeGateResults({ formatAutofixOutcome });
     return emitGateOutcome(summary, {
