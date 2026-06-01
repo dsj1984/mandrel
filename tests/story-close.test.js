@@ -1,5 +1,7 @@
 import assert from 'node:assert';
 import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import {
@@ -20,6 +22,34 @@ import {
 import { renderCoverageTimeoutFrictionBody } from '../.agents/scripts/story-close.js';
 
 const SCRIPT_PATH = path.resolve('.agents/scripts/story-close.js');
+
+function runGit(cwd, args) {
+  const result = spawnSync('git', args, {
+    cwd,
+    encoding: 'utf8',
+  });
+  assert.equal(
+    result.status,
+    0,
+    `git ${args.join(' ')} failed: ${result.stderr || result.stdout}`,
+  );
+  return result;
+}
+
+async function withTempGitRepo(fn) {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'mandrel-story-close-'));
+  try {
+    runGit(dir, ['init', '-b', 'main']);
+    runGit(dir, ['config', 'user.email', 'agent@example.invalid']);
+    runGit(dir, ['config', 'user.name', 'Mandrel Agent']);
+    writeFileSync(path.join(dir, 'tracked.js'), 'const value = 1;\n');
+    runGit(dir, ['add', 'tracked.js']);
+    runGit(dir, ['commit', '-m', 'chore: seed repo']);
+    return await fn(dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 test('buildResumeMergeCommitMsg lower-cases the first letter and tags resolves', () => {
   assert.strictEqual(
@@ -248,6 +278,67 @@ test('runCloseValidation', async (t) => {
       assert.deepStrictEqual(gate.args, ['biome', 'format', '.']);
       assert.match(gate.hint, /biome format --write/);
     },
+  );
+
+  await t.test(
+    'default biome format gate scopes execution to changed files when a baseline ref is available',
+    async () =>
+      withTempGitRepo(async (repoDir) => {
+        runGit(repoDir, ['switch', '-c', 'story-3407']);
+        writeFileSync(path.join(repoDir, 'tracked.js'), 'const value = 2;\n');
+        runGit(repoDir, ['add', 'tracked.js']);
+        runGit(repoDir, ['commit', '-m', 'fix: update tracked file']);
+
+        const gate = buildDefaultGates({ epicBranch: 'main' }).find(
+          (g) => g.name === 'format',
+        );
+        const calls = [];
+        const result = await runCloseValidationOnly({
+          cwd: repoDir,
+          gates: [gate],
+          runner: (cmd, args) => {
+            calls.push({ cmd, args });
+            return { status: 0 };
+          },
+          log: () => {},
+        });
+
+        assert.equal(result.ok, true);
+        assert.deepStrictEqual(calls, [
+          {
+            cmd: 'npx',
+            args: ['biome', 'format', 'tracked.js'],
+          },
+        ]);
+      }),
+  );
+
+  await t.test(
+    'default biome format gate skips instead of running dot when the story diff is empty',
+    async () =>
+      withTempGitRepo(async (repoDir) => {
+        runGit(repoDir, ['switch', '-c', 'story-3407']);
+
+        const gate = buildDefaultGates({ epicBranch: 'main' }).find(
+          (g) => g.name === 'format',
+        );
+        const calls = [];
+        const result = await runCloseValidationOnly({
+          cwd: repoDir,
+          gates: [gate],
+          runner: (cmd, args) => {
+            calls.push({ cmd, args });
+            return { status: 0 };
+          },
+          log: () => {},
+        });
+
+        assert.equal(result.ok, true);
+        assert.deepStrictEqual(result.skipped, [
+          { gate, reason: 'no-changed-files' },
+        ]);
+        assert.deepStrictEqual(calls, []);
+      }),
   );
 
   await t.test(

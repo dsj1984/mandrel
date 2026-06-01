@@ -15,7 +15,7 @@
  * commit atomically with the Story PR.
  */
 
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { writeFile as defaultWriteFile } from 'node:fs/promises';
 import { defaultGetHeadSha } from './close-validation/projections/head-sha.js';
 import { getCommands } from './config/commands.js';
@@ -33,6 +33,7 @@ import {
  * @property {string}   cmd   - Executable to run.
  * @property {string[]} args  - Arguments passed to `cmd`.
  * @property {string}   [hint] - Remediation hint shown on failure.
+ * @property {{ baseRef: string }} [changedFileScope] - Optional Story-diff scope.
  * @property {(cmd: string, args: string[], opts: { cwd: string, gateName?: string, log?: (m: string) => void, signal?: AbortSignal }) => Promise<{ status: number }> | { status: number }} [run]
  *   - Optional in-process runner. Story #1973: when present, the gate
  *     executes via this callable instead of spawning `cmd`/`args` through
@@ -52,15 +53,16 @@ const TYPECHECK_HINT =
 /** Default formatter command when `agentSettings.commands.formatCheck` is unset. */
 const FORMAT_CHECK_FALLBACK = 'npx biome format .';
 
+/** Default formatter command in write mode. */
+const FORMAT_WRITE_FALLBACK = 'npx biome format --write .';
+
 /**
  * Build the format-gate hint dynamically from the resolved write command so
  * a Prettier-only repo gets `prettier --write` in its hint, not biome.
  */
 function buildFormatHint(writeCmd) {
   const cmd =
-    writeCmd && writeCmd.trim().length > 0
-      ? writeCmd
-      : 'npx biome format --write .';
+    writeCmd && writeCmd.trim().length > 0 ? writeCmd : FORMAT_WRITE_FALLBACK;
   return `Run \`${cmd}\` to auto-fix formatting drift.`;
 }
 
@@ -131,8 +133,67 @@ export function resolveFormatWriteCommand(settings) {
   return resolveCommandWithFallback(
     settings,
     'formatWrite',
-    'npx biome format --write .',
+    FORMAT_WRITE_FALLBACK,
   );
+}
+
+/**
+ * Compute the Story-diff file scope for formatter gates. The default Biome
+ * formatter used to run against `.` from inside `.worktrees/story-*`, which
+ * lets consumer ignore globs that exclude `.worktrees` self-exclude the whole
+ * run. Scoping to changed paths keeps verification real without depending on
+ * how consumers spell root ignore patterns.
+ *
+ * @param {{ cwd: string, baseRef: string }} opts
+ * @returns {string[]}
+ */
+export function listChangedFilesForFormatGate({ cwd, baseRef }) {
+  if (!cwd) throw new Error('listChangedFilesForFormatGate: cwd is required');
+  if (!baseRef)
+    throw new Error('listChangedFilesForFormatGate: baseRef is required');
+  const out = execFileSync(
+    'git',
+    ['diff', '--name-only', `${baseRef}...HEAD`],
+    {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+  );
+  return out
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => line.replace(/\\/g, '/'));
+}
+
+function buildChangedFileScope(baseRef) {
+  if (!baseRef) return null;
+  return { baseRef };
+}
+
+function applyChangedFileScope({ gate, spawnCwd, log }) {
+  if (!gate.changedFileScope) {
+    return { gate, cmd: gate.cmd, args: gate.args, skip: false };
+  }
+  const changedFiles = listChangedFilesForFormatGate({
+    cwd: spawnCwd,
+    baseRef: gate.changedFileScope.baseRef,
+  });
+  if (changedFiles.length === 0) {
+    log(
+      `[close-validation] ⏭ ${gate.name} skipped (no changed files to format)`,
+    );
+    return { gate, cmd: gate.cmd, args: gate.args, skip: true };
+  }
+  const args =
+    gate.args[gate.args.length - 1] === '.'
+      ? gate.args.slice(0, -1)
+      : gate.args;
+  log(
+    `[close-validation] ↳ ${gate.name} scoped to ${changedFiles.length} changed file(s) from ${gate.changedFileScope.baseRef}...HEAD`,
+  );
+  return { gate, cmd: gate.cmd, args: [...args, ...changedFiles], skip: false };
 }
 
 /**
@@ -213,6 +274,10 @@ export function buildDefaultGates({
     .split(/\s+/)
     .filter(Boolean);
   const formatWriteString = resolveFormatWriteCommand(agentSettings);
+  const formatChangedFileScope =
+    formatCheckString === FORMAT_CHECK_FALLBACK
+      ? buildChangedFileScope(_epicBranch)
+      : null;
   return [
     {
       name: 'typecheck',
@@ -231,6 +296,9 @@ export function buildDefaultGates({
       cmd: formatCmd,
       args: formatArgs,
       hint: buildFormatHint(formatWriteString),
+      ...(formatChangedFileScope
+        ? { changedFileScope: formatChangedFileScope }
+        : {}),
     },
     {
       name: 'coverage-capture',
@@ -531,9 +599,26 @@ export async function runCloseValidation({
   let firstIndepFailure = null;
 
   const indepTasks = independent.map(async (gate) => {
+    let execution;
+    try {
+      execution = applyChangedFileScope({ gate, spawnCwd, log });
+    } catch (err) {
+      if (!firstIndepFailure) {
+        firstIndepFailure = { gate, status: 1, cwd: spawnCwd };
+        log(
+          `[close-validation] ✖ ${gate.name} failed to resolve changed-file scope: ${err?.message ?? err}`,
+        );
+        ac.abort();
+      }
+      return;
+    }
+    if (execution.skip) {
+      skipped.push({ gate, reason: 'no-changed-files' });
+      return;
+    }
     const configHash = hashCommandConfig({
-      cmd: gate.cmd,
-      args: gate.args,
+      cmd: execution.cmd,
+      args: execution.args,
       cwd: spawnCwd,
     });
     const verdict = evidenceVerdict(gate, configHash);
@@ -544,7 +629,10 @@ export async function runCloseValidation({
     const startedAt = evidenceActive ? evidenceClock() : 0;
     let result;
     try {
-      result = await dispatchGate(gate, ac.signal);
+      result = await dispatchGate(
+        { ...gate, cmd: execution.cmd, args: execution.args },
+        ac.signal,
+      );
     } catch (err) {
       result = { status: 1, error: err };
     }
@@ -578,9 +666,24 @@ export async function runCloseValidation({
 
   // ── Phase 2: serial gates in declared order ─────────────────────────
   for (const gate of serial) {
+    let execution;
+    try {
+      execution = applyChangedFileScope({ gate, spawnCwd, log });
+    } catch (err) {
+      failed.push({ gate, status: 1, cwd: spawnCwd });
+      log(
+        `[close-validation] ✖ ${gate.name} failed to resolve changed-file scope: ${err?.message ?? err}`,
+      );
+      if (gate.hint) log(`[close-validation]   hint: ${gate.hint}`);
+      break;
+    }
+    if (execution.skip) {
+      skipped.push({ gate, reason: 'no-changed-files' });
+      continue;
+    }
     const configHash = hashCommandConfig({
-      cmd: gate.cmd,
-      args: gate.args,
+      cmd: execution.cmd,
+      args: execution.args,
       cwd: spawnCwd,
     });
     const verdict = evidenceVerdict(gate, configHash);
@@ -589,7 +692,11 @@ export async function runCloseValidation({
       continue;
     }
     const startedAt = evidenceActive ? evidenceClock() : 0;
-    const result = await dispatchGate(gate);
+    const result = await dispatchGate({
+      ...gate,
+      cmd: execution.cmd,
+      args: execution.args,
+    });
     if (result.status !== 0) {
       failed.push({ gate, status: result.status, cwd: spawnCwd });
       log(
