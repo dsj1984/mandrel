@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.42.0](https://github.com/dsj1984/mandrel/compare/v1.41.0...v1.42.0) (2026-06-01)
+
+
+### Fixed
+
+* **story-close:** scope format gate to story diff (refs [#3407](https://github.com/dsj1984/mandrel/issues/3407)) ([#3408](https://github.com/dsj1984/mandrel/issues/3408)) ([25e671e](https://github.com/dsj1984/mandrel/commit/25e671eee24686bcf04d979afc780f647143711c))
+
 ## [1.41.0](https://github.com/dsj1984/mandrel/compare/v1.40.0...v1.41.0) (2026-05-31)
 
 
