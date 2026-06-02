@@ -84,7 +84,7 @@ import { WorktreeManager } from './lib/worktree-manager.js';
  * Why: a wiped `node_modules/` previously surfaced as
  * `ERR_MODULE_NOT_FOUND: Cannot find package 'picomatch'` from deep inside
  * the sweep graph — opaque for operators. This guard probes a representative
- * runtime dep (declared in `REQUIRED_RUNTIME_DEPS`) and tells the operator
+ * runtime dep (declared in `.agents/runtime-deps.json`) and tells the operator
  * exactly what to run.
  */
 function assertDepsInstalled(projectRoot) {
