@@ -14,15 +14,19 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { loadRuntimeDepsManifest } from '../runtime-deps/manifest.js';
 import { applyQualityBootstrap } from './quality-bootstrap.js';
 
+/**
+ * The framework's required runtime dependencies, seeded into a consumer's
+ * `package.json` during bootstrap. Derived from the vendored SSOT manifest
+ * (`.agents/runtime-deps.json`) so there is exactly one place the list lives
+ * — the same manifest the preflight guard and drift test read (Story #3432).
+ * `optionalDependencies` are intentionally not seeded: they sit behind
+ * graceful-degradation paths and consumers opt into them only if needed.
+ */
 export const REQUIRED_RUNTIME_DEPS = Object.freeze({
-  ajv: '^8.20.0',
-  'ajv-formats': '^3.0.1',
-  'js-yaml': '^4.1.1',
-  picomatch: '^4.0.4',
-  'string-argv': '^0.3.2',
-  'typhonjs-escomplex': '^0.1.0',
+  ...loadRuntimeDepsManifest().dependencies,
 });
 
 export const SYNC_COMMAND = 'node .agents/scripts/sync-claude-commands.js';

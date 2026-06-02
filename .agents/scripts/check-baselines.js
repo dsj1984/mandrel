@@ -32,6 +32,10 @@
 //   3 EXIT_CONFIG      — config resolution failure (mapped by main()).
 //   4 EXIT_REGRESSION  — at least one head-vs-base regression.
 
+// Fail-fast if the framework's runtime deps are not installed — must be the
+// first import so the check runs before any third-party-importing sibling
+// module is evaluated (Story #3432).
+import './lib/runtime-deps/ensure-installed.js';
 import { EXIT_CONFIG } from './lib/baselines/exit-codes.js';
 import { runAsCli } from './lib/cli-utils.js';
 import {
