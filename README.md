@@ -8,9 +8,10 @@ natively in GitHub Issues, Labels, and Projects V2.
 
 ## Prerequisites
 
-Mandrel is installed **into an existing project** as a Git submodule and
-wires its orchestration into that project's GitHub repository. Before
-you run `bootstrap.js` you need:
+Mandrel is installed **into an existing project** from the
+[`@mandrel/agents`](https://www.npmjs.com/package/@mandrel/agents) npm
+package and wires its orchestration into that project's GitHub repository.
+Before you run `bootstrap.js` you need:
 
 - **An existing Git repository** — clone or `cd` into the project you
   want to add Mandrel to. The framework cannot bootstrap a brand-new,
@@ -26,18 +27,32 @@ you run `bootstrap.js` you need:
 - **GitHub CLI `gh`** >= 2.40 — run `gh auth login` once so orchestration
   scripts pick up your token from the OS keychain.
 
+See [`docs/compatibility-matrix.md`](docs/compatibility-matrix.md) for the
+supported OS / Node / package-manager combinations.
+
 ## Get Started
 
 From the root of your existing Git repository (with its GitHub remote
 already configured — see Prerequisites):
 
 ```bash
-git submodule add -b dist https://github.com/dsj1984/mandrel.git .agents
+npm install @mandrel/agents
+npx mandrel sync            # materialize ./.agents/ from the installed package
 node .agents/scripts/bootstrap.js
 # in your agentic IDE:
 /epic-plan          # ideation -> PRD/Tech Spec -> Epic/Feature/Story hierarchy
 /epic-deliver <id>  # wave loop -> validation -> review -> retro -> open PR
 ```
+
+`npm install @mandrel/agents` pins an exact, provenance-signed version in
+your lockfile. The package's `postinstall` hook runs `mandrel sync`
+best-effort, so `./.agents/` is usually materialized automatically; the
+explicit `npx mandrel sync` above is the belt-and-suspenders step for
+`--ignore-scripts` or sandboxed-CI installs. Run `npx mandrel doctor` any
+time to confirm the install is healthy.
+
+> **Already on the old Git submodule?** Follow the one-time
+> [submodule-to-npm migration guide](docs/migration-submodule-to-npm.md).
 
 `bootstrap.js` is interactive on a TTY and auto-accepts the
 owner/repo/base branch/operator handle it can infer from your local
@@ -84,7 +99,9 @@ mandrel/
 └── package.json
 ```
 
-Only `.agents/` is distributed to consumers via the `dist` branch.
+Only `.agents/` is distributed to consumers — it ships inside the
+`@mandrel/agents` npm package and is materialized into a consumer's
+`./.agents/` directory by `mandrel sync`.
 
 ### Install scripts are disabled by default
 
