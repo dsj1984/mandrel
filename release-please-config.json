@@ -30,6 +30,24 @@
         { "type": "build", "section": "Build System", "hidden": true },
         { "type": "ci", "section": "CI/CD", "hidden": true }
       ]
+    },
+    "create-mandrel": {
+      "package-name": "create-mandrel",
+      "changelog-path": "CHANGELOG.md",
+      "versioning": "always-bump-minor",
+      "changelog-sections": [
+        { "type": "feat", "section": "Added" },
+        { "type": "fix", "section": "Fixed" },
+        { "type": "perf", "section": "Performance" },
+        { "type": "refactor", "section": "Changed" },
+        { "type": "revert", "section": "Reverted" },
+        { "type": "docs", "section": "Documentation", "hidden": true },
+        { "type": "style", "section": "Style", "hidden": true },
+        { "type": "chore", "section": "Chores", "hidden": true },
+        { "type": "test", "section": "Tests", "hidden": true },
+        { "type": "build", "section": "Build System", "hidden": true },
+        { "type": "ci", "section": "CI/CD", "hidden": true }
+      ]
     }
   }
 }
