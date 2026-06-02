@@ -766,6 +766,27 @@ const STORY_PLAN_SCHEMA = {
   additionalProperties: false,
 };
 
+/**
+ * `delivery.refactorStage` — opt-in, config-gated post-green refactor
+ * checkpoint wired into story-deliver (Story #3430, Epic #3418). Strictly
+ * additive and default-OFF: when `enabled` is unset or `false`, story-deliver
+ * behaves exactly as before. When `true`, the worker runs an advisory
+ * post-green refactor pass (the `refactorer` persona +
+ * `core/refactoring-discipline` skill) after the suite is green. The stage is
+ * advisory only — it never changes existing close-validation gate semantics.
+ */
+const REFACTOR_STAGE_SCHEMA = {
+  type: 'object',
+  properties: {
+    enabled: {
+      type: 'boolean',
+      description:
+        'When true, story-deliver runs an advisory post-green refactor stage (refactorer persona + core/refactoring-discipline skill) after the suite is green. Default false — when unset the stage is skipped and close-validation gate semantics are unchanged.',
+    },
+  },
+  additionalProperties: false,
+};
+
 const DELIVERY_SCHEMA = {
   type: 'object',
   properties: {
@@ -783,6 +804,7 @@ const DELIVERY_SCHEMA = {
     codeReview: CODE_REVIEW_SCHEMA,
     retro: RETRO_SCHEMA,
     storyPlan: STORY_PLAN_SCHEMA,
+    refactorStage: REFACTOR_STAGE_SCHEMA,
     ci: CI_DELIVERY_SCHEMA,
     preflight: PREFLIGHT_SCHEMA,
     // Cross-Story concurrency-hazard gate (Story #2297). When true,

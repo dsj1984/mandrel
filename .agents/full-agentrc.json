@@ -256,6 +256,9 @@
         "acceptance": 3
       },
       "ackTimeoutMs": 1800000
+    },
+    "refactorStage": {
+      "enabled": false
     }
   },
   "qa": {

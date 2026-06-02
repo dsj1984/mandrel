@@ -481,6 +481,43 @@ side effects, preserve shared state, validate outputs, and leave an audit trail.
 The future-proof harness is smaller, stricter at the boundaries, and much less
 prescriptive inside the model's reasoning loop.
 
+### Deferred Capability — Dynamic Spec/Gherkin Mutation
+
+**Status:** Deferred (🔭 Monitor) — superseded for now by a cheap static lint.
+
+A feasibility spike (2026-06-01) evaluated *spec/Gherkin mutation testing*:
+mutating acceptance scenarios (e.g. flipping a `Scenario Outline` outcome cell)
+and checking whether the acceptance suite catches the weakening. A surviving
+spec-mutant signals an acceptance test that is not actually pinned to the spec
+(a tautological or parameter-ignoring step definition).
+
+Findings:
+
+- **Generation is trivial; the kill-step is the cost.** Killing a mutant means
+  re-running the acceptance scenario, which on the consumer chain (`.feature` →
+  step defs → `playwright-bdd` → real browser + live app stack) is the slowest
+  test tier. Cost scales as `scenarios × mutants/scenario × (scenario
+  wall-clock + stack overhead)` — structurally expensive as a framework default.
+- **Only the Examples/parameter surface is high-signal.** Mutating
+  `Scenario Outline` cells / step parameters is binding-safe by construction;
+  prose mutation mostly breaks step binding ("undefined step") and is noise.
+- **Existing Stryker infra is reusable in shape only.** The baseline-kind +
+  `check-baselines` plumbing carry over, but a Gherkin AST mutator and a
+  per-mutant scenario runner are net-new.
+- **Most of the value is reachable statically.** A placeholder-reference lint
+  (every `Scenario Outline` `<placeholder>` must be consumed by its bound step
+  def's assertion) catches the dominant failure mode at ~zero runtime cost.
+
+**Decision.** Ship the static placeholder-reference lint as the Phase-0
+substitute (delivered under the verification-rigor Epic). Defer the dynamic
+runtime engine.
+
+**Trip-wire conditions to revisit.** Re-evaluate only when *both* hold: (1)
+strong consumer demand on the BDD/acceptance tier (the engine is useless to
+the non-BDD majority and to this repo, which authors no `.feature` files), and
+(2) a dogfood fixture exists so the engine ships exercised rather than
+theoretical. Until then, the static lint is the supported surface.
+
 ## Part 2 — Product-Readiness Backlog (If/When Mandrel Is Productized)
 
 Last triaged: 2026-05-30 (against `.agents/VERSION` 1.40.0).

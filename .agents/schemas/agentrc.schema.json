@@ -816,6 +816,18 @@
       },
       "additionalProperties": false
     },
+    "refactorStage": {
+      "type": "object",
+      "description": "Opt-in, config-gated post-green refactor checkpoint wired into story-deliver (Story #3430, Epic #3418). Strictly additive and default-OFF: when disabled, story-deliver behaves exactly as before. Advisory only — never changes existing close-validation gate semantics.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, story-deliver runs an advisory post-green refactor stage (refactorer persona + core/refactoring-discipline skill) after the suite is green. Default false — when unset the stage is skipped and close-validation gate semantics are unchanged."
+        }
+      },
+      "additionalProperties": false
+    },
     "delivery": {
       "type": "object",
       "properties": {
@@ -833,6 +845,7 @@
         "codeReview": { "$ref": "#/$defs/codeReview" },
         "retro": { "$ref": "#/$defs/retro" },
         "storyPlan": { "$ref": "#/$defs/storyPlan" },
+        "refactorStage": { "$ref": "#/$defs/refactorStage" },
         "ci": {
           "type": "object",
           "properties": {
