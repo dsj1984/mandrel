@@ -416,7 +416,9 @@ describe('agents-materialized check', () => {
       existsSync: (p) => p.includes('instructions.md'),
       // resolvePackage must not be consulted on the green path; throw to prove it.
       resolvePackage: () => {
-        throw new Error('resolvePackage should not be called when materialized');
+        throw new Error(
+          'resolvePackage should not be called when materialized',
+        );
       },
     });
     assertResultShape(result, { expectOk: true });
@@ -428,7 +430,8 @@ describe('agents-materialized check', () => {
     const result = check.run({
       cwd: () => '/fake/project',
       existsSync: () => false,
-      resolvePackage: () => '/fake/project/node_modules/@mandrel/agents/package.json',
+      resolvePackage: () =>
+        '/fake/project/node_modules/@mandrel/agents/package.json',
     });
     assertResultShape(result, { expectOk: false });
     assert.match(result.remedy, /mandrel sync/);
@@ -454,7 +457,8 @@ describe('agents-materialized check', () => {
     const result = check.run({
       cwd: () => '/fake/project',
       existsSync: () => false,
-      resolvePackage: () => '/fake/project/node_modules/@mandrel/agents/package.json',
+      resolvePackage: () =>
+        '/fake/project/node_modules/@mandrel/agents/package.json',
     });
     assert.doesNotMatch(result.detail, /\n/);
   });
