@@ -36,9 +36,13 @@ const subFile = path.resolve(__dirname, '..', 'lib', 'cli', `${sub}.js`);
 let mod;
 try {
   mod = await import(subFile);
-} catch {
-  usage(sub);
-  process.exit(1);
+} catch (err) {
+  if (err.code === 'ERR_MODULE_NOT_FOUND' && err.message.includes(subFile)) {
+    usage(sub);
+    process.exit(1);
+  }
+  // Re-throw broken-module errors so they are visible rather than masked.
+  throw err;
 }
 
 if (typeof mod.default !== 'function') {
