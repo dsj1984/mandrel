@@ -84,20 +84,28 @@ jobs:
       - name: Enable Corepack (pnpm / yarn shims)
         run: corepack enable
 
+      - name: Install dev dependencies (for the pack prepare hook)
+        # `npm pack` triggers the package's `prepare` hook
+        # (`husky && npm run sync:commands`). On the runner's bundled npm
+        # (Node 22 / npm 10.x), `npm pack --ignore-scripts` does NOT reliably
+        # skip `prepare` (unlike npm 11+), and `prepare` needs the `husky`
+        # binary plus the framework's runtime deps. Install them first so the
+        # hook resolves. The repo `.npmrc` sets `ignore-scripts=true`, so this
+        # install itself runs no lifecycle scripts — it only populates
+        # `node_modules` (incl. `node_modules/.bin/husky`).
+        shell: bash
+        run: npm ci
+
       - name: Pack the framework into a tarball
         # `npm pack` honors package.json `files` (`.agents/`, `bin/`, `lib/`)
         # and the publishable surface, so the consumer install below exercises
-        # exactly what `npm publish` would ship.
-        # `--ignore-scripts` skips the dev-only `prepare` hook
-        # (`husky && npm run sync:commands`); this job packs from a bare
-        # checkout with no dev dependencies installed, so running `prepare`
-        # would fail on a missing `husky` binary. The hook produces no
-        # files that ship in the tarball (`.claude/` is not in the `files`
-        # allowlist), so skipping it does not change the packed artifact.
+        # exactly what `npm publish` would ship. Deps are installed above so the
+        # `prepare` hook resolves regardless of how the runner's npm treats
+        # `--ignore-scripts` on pack.
         shell: bash
         run: |
           mkdir -p artifact
-          TARBALL=$(npm pack --ignore-scripts --pack-destination "$PWD/artifact" | tail -1)
+          TARBALL=$(npm pack --pack-destination "$PWD/artifact" | tail -1)
           echo "TARBALL_PATH=$PWD/artifact/$TARBALL" >> "$GITHUB_ENV"
           echo "Packed $TARBALL"
 
