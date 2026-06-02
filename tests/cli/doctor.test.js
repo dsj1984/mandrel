@@ -17,8 +17,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { runDoctor } from '../../lib/cli/doctor.js';
-import doctor from '../../lib/cli/doctor.js';
+import doctor, { runDoctor } from '../../lib/cli/doctor.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
