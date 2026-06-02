@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import {
   buildDefaultGates,
   DEFAULT_GATES,
+  isFormatterEligible,
   resolveTypecheckCommand,
   runCloseValidation as runCloseValidationOnly,
 } from '../.agents/scripts/lib/close-validation.js';
@@ -339,6 +340,114 @@ test('runCloseValidation', async (t) => {
         ]);
         assert.deepStrictEqual(calls, []);
       }),
+  );
+
+  await t.test(
+    'default biome format gate skips when the diff contains only formatter-ineligible files (docs-only Story)',
+    async () =>
+      withTempGitRepo(async (repoDir) => {
+        runGit(repoDir, ['switch', '-c', 'story-3410']);
+        writeFileSync(
+          path.join(repoDir, 'docs.md'),
+          '# Docs\n\nNew section.\n',
+        );
+        runGit(repoDir, ['add', 'docs.md']);
+        runGit(repoDir, ['commit', '-m', 'docs: add a section']);
+
+        const gate = buildDefaultGates({ epicBranch: 'main' }).find(
+          (g) => g.name === 'format',
+        );
+        const calls = [];
+        const result = await runCloseValidationOnly({
+          cwd: repoDir,
+          gates: [gate],
+          runner: (cmd, args) => {
+            calls.push({ cmd, args });
+            return { status: 0 };
+          },
+          log: () => {},
+        });
+
+        assert.equal(result.ok, true);
+        assert.deepStrictEqual(result.skipped, [
+          { gate, reason: 'no-changed-files' },
+        ]);
+        assert.deepStrictEqual(
+          calls,
+          [],
+          'biome must not be invoked with only ineligible (.md) paths',
+        );
+      }),
+  );
+
+  await t.test(
+    'default biome format gate scopes to the eligible subset when the diff mixes eligible and ineligible files',
+    async () =>
+      withTempGitRepo(async (repoDir) => {
+        runGit(repoDir, ['switch', '-c', 'story-3410']);
+        writeFileSync(path.join(repoDir, 'src.ts'), 'export const x = 1;\n');
+        writeFileSync(path.join(repoDir, 'notes.md'), '# Notes\n');
+        writeFileSync(path.join(repoDir, 'data.json'), '{ "a": 1 }\n');
+        runGit(repoDir, ['add', 'src.ts', 'notes.md', 'data.json']);
+        runGit(repoDir, ['commit', '-m', 'feat: mixed change']);
+
+        const gate = buildDefaultGates({ epicBranch: 'main' }).find(
+          (g) => g.name === 'format',
+        );
+        const calls = [];
+        const result = await runCloseValidationOnly({
+          cwd: repoDir,
+          gates: [gate],
+          runner: (cmd, args) => {
+            calls.push({ cmd, args });
+            return { status: 0 };
+          },
+          log: () => {},
+        });
+
+        assert.equal(result.ok, true);
+        assert.equal(calls.length, 1);
+        assert.equal(calls[0].cmd, 'npx');
+        // Only the biome-eligible paths reach the formatter; .md is dropped.
+        const appended = calls[0].args.slice(2).sort();
+        assert.deepStrictEqual(appended, ['data.json', 'src.ts']);
+      }),
+  );
+
+  await t.test(
+    'isFormatterEligible classifies biome-eligible extensions',
+    () => {
+      for (const p of [
+        'a.ts',
+        'b.tsx',
+        'c.js',
+        'd.jsx',
+        'e.mjs',
+        'f.cjs',
+        'g.json',
+        'h.jsonc',
+        'i.css',
+        'nested/dir/j.ts',
+      ]) {
+        assert.equal(isFormatterEligible(p), true, `${p} should be eligible`);
+      }
+      for (const p of [
+        'README.md',
+        'docs/decisions.md',
+        'config.yaml',
+        'config.yml',
+        'notes.txt',
+        'image.png',
+        'Makefile',
+        'noext',
+      ]) {
+        assert.equal(
+          isFormatterEligible(p),
+          false,
+          `${p} should be ineligible`,
+        );
+      }
+    },
   );
 
   await t.test(

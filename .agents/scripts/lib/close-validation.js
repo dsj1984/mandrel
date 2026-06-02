@@ -172,6 +172,54 @@ function buildChangedFileScope(baseRef) {
   return { baseRef };
 }
 
+/**
+ * File extensions Biome's formatter can process. Used to filter the
+ * changed-file scope down to the formatter-eligible subset (Story #3410):
+ * passing only ineligible paths (e.g. a docs-only Story whose diff is all
+ * markdown) makes `biome format <files>` report "No files were processed"
+ * and exit 1, failing the gate for a Story that has nothing to format.
+ *
+ * The set mirrors Biome's handled languages (JS/TS family + JSON + CSS).
+ * Markdown, YAML, and other unhandled types are intentionally absent — the
+ * default formatter is biome, so the scope is keyed to what biome formats.
+ * Consumers who swap the formatter via `agentSettings.commands.formatCheck`
+ * do not get `changedFileScope` at all (see `buildDefaultGates`), so this
+ * filter only ever runs against the default biome command.
+ */
+const FORMATTER_ELIGIBLE_EXTENSIONS = new Set([
+  'ts',
+  'tsx',
+  'js',
+  'jsx',
+  'mjs',
+  'cjs',
+  'json',
+  'jsonc',
+  'css',
+]);
+
+/**
+ * Whether a changed path is eligible for the default (biome) formatter,
+ * decided purely by file extension. Pure function — no I/O. Exported for
+ * unit coverage (Story #3410).
+ *
+ * @param {string} filePath - A repo-relative path (forward-slash normalized).
+ * @returns {boolean}
+ */
+export function isFormatterEligible(filePath) {
+  if (typeof filePath !== 'string') return false;
+  const lastSlash = Math.max(
+    filePath.lastIndexOf('/'),
+    filePath.lastIndexOf('\\'),
+  );
+  const base = filePath.slice(lastSlash + 1);
+  const dot = base.lastIndexOf('.');
+  // No extension (dotfile-only or extensionless) → not formatter-eligible.
+  if (dot <= 0) return false;
+  const ext = base.slice(dot + 1).toLowerCase();
+  return FORMATTER_ELIGIBLE_EXTENSIONS.has(ext);
+}
+
 function applyChangedFileScope({ gate, spawnCwd, log }) {
   if (!gate.changedFileScope) {
     return { gate, cmd: gate.cmd, args: gate.args, skip: false };
@@ -180,9 +228,15 @@ function applyChangedFileScope({ gate, spawnCwd, log }) {
     cwd: spawnCwd,
     baseRef: gate.changedFileScope.baseRef,
   });
-  if (changedFiles.length === 0) {
+  // Filter to the formatter-eligible subset before deciding to skip. A
+  // non-empty diff that contains zero formatter-eligible files (e.g. a
+  // docs-only Story) must take the skip path, not invoke biome with only
+  // ineligible paths — biome reports "No files were processed" and exits 1
+  // in that case (Story #3410).
+  const eligibleFiles = changedFiles.filter(isFormatterEligible);
+  if (eligibleFiles.length === 0) {
     log(
-      `[close-validation] ⏭ ${gate.name} skipped (no changed files to format)`,
+      `[close-validation] ⏭ ${gate.name} skipped (no formatter-eligible changed files)`,
     );
     return { gate, cmd: gate.cmd, args: gate.args, skip: true };
   }
@@ -191,9 +245,14 @@ function applyChangedFileScope({ gate, spawnCwd, log }) {
       ? gate.args.slice(0, -1)
       : gate.args;
   log(
-    `[close-validation] ↳ ${gate.name} scoped to ${changedFiles.length} changed file(s) from ${gate.changedFileScope.baseRef}...HEAD`,
+    `[close-validation] ↳ ${gate.name} scoped to ${eligibleFiles.length} formatter-eligible changed file(s) from ${gate.changedFileScope.baseRef}...HEAD`,
   );
-  return { gate, cmd: gate.cmd, args: [...args, ...changedFiles], skip: false };
+  return {
+    gate,
+    cmd: gate.cmd,
+    args: [...args, ...eligibleFiles],
+    skip: false,
+  };
 }
 
 /**
