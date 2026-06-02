@@ -48,40 +48,38 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  tag-dist:
-    # Mirror the release-please tag onto the `dist` branch under a
-    # `dist-` namespace so submodule consumers (who track the `dist`
-    # branch) can pin to a release commit reachable from `dist`'s
-    # history. The main-side `vX.Y.Z` tag points at the release commit
-    # on `main`; the `dist-vX.Y.Z` tag points at the equivalent `dist`
-    # tip after the post-merge CI sync runs. Two namespaces avoids the
-    # "same tag name, two SHAs" conflict that `main` and `dist` would
-    # otherwise create.
-    name: Mirror release tag onto dist branch
+  npm-publish:
+    # Publish the package to the npm registry with build provenance once
+    # release-please cuts a release. This replaces the retired `dist`
+    # branch mirror: consumers now install a versioned, provenance-signed
+    # package from npm instead of pinning a Git submodule to the `dist`
+    # branch. `id-token: write` lets npm attach a signed provenance
+    # statement (Sigstore) proving the tarball was built from this repo's
+    # CI run; `package.json#publishConfig.provenance` opts the publish in.
+    # Auth uses the `NPM_TOKEN` automation token rather than OIDC token
+    # exchange so the publish works against the public registry without
+    # additional trusted-publisher configuration.
+    name: Publish to npm
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
+      id-token: write
     steps:
-      - name: Checkout dist branch
+      - name: Checkout Code
         uses: actions/checkout@v4
-        with:
-          ref: dist
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Tag dist tip with `dist-<tag>`
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install Dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Publish package
+        run: npm publish
         env:
-          MAIN_TAG: ${{ needs.release-please.outputs.tag_name }}
-        run: |
-          set -euo pipefail
-          DIST_TAG="dist-${MAIN_TAG}"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if git ls-remote --exit-code --tags origin "${DIST_TAG}" >/dev/null 2>&1; then
-            echo "Tag ${DIST_TAG} already exists on origin — skipping."
-            exit 0
-          fi
-          git tag "${DIST_TAG}"
-          git push origin "refs/tags/${DIST_TAG}"
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
