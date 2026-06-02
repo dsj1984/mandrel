@@ -1,7 +1,9 @@
 # Mandrel — `.agents/`
 
-This is the framework submodule (`.agents/`) consumed by host repos via
-`git submodule add`. It ships a system prompt, a baseline rule pack, a
+This is the framework payload (`.agents/`) consumed by host repos. It ships
+inside the [`@mandrel/agents`](https://www.npmjs.com/package/@mandrel/agents)
+npm package and is materialized into a consumer's `./.agents/` directory by
+`mandrel sync`. It carries a system prompt, a baseline rule pack, a
 two-tier skill library, a slash-command workflow set, and the
 orchestration engine that runs Epic → Feature → Story plans on
 GitHub. The framework version lives at [`VERSION`](VERSION) — read that
@@ -13,7 +15,7 @@ file, not a count here.
 > diagram and execution-model implications.
 
 This is the only README inside the distributed `.agents/` bundle. It
-explains what each part of the submodule is for and captures the
+explains what each part of the bundle is for and captures the
 cross-directory authoring conventions. The process narrative for
 `/epic-plan` and `/epic-deliver` stays in [`SDLC.md`](SDLC.md).
 
@@ -21,36 +23,46 @@ cross-directory authoring conventions. The process narrative for
 
 ## Activation
 
-### Cold start — `create-mandrel`
+### Cold start — install the npm package
 
 From an **empty or existing** project that does not yet have `.agents/`,
-one command vendors the framework and runs setup end to end:
+install the package and materialize the framework payload:
 
 ```bash
-npm create mandrel
-# or, equivalently:
-npx create-mandrel
+npm install @mandrel/agents
+# pnpm add @mandrel/agents
+# yarn add @mandrel/agents
 ```
 
-The launcher's only job is to make the provenance of `.agents/`
-non-negotiable, then hand off to the in-tree bootstrap:
+Installing `@mandrel/agents` pins an exact, provenance-signed version in
+your lockfile (the npm publish attaches a Sigstore build-provenance
+statement proving the tarball was built from this repo's CI). The package's
+`postinstall` hook runs `mandrel sync` best-effort, which copies the
+package's `.agents/` payload into your project's `./.agents/` directory as
+plain regular files (never a symlink). If lifecycle scripts are skipped
+(`--ignore-scripts`, sandboxed CI), run it yourself:
 
-1. If `.agents/` is **absent**, it adds the framework as a Git submodule
-   tracking the `dist` branch
-   (`git submodule add -b dist <canonical-remote> .agents`) and runs
-   `git submodule update --init`. The remote is a hardcoded build-time
-   constant — it is **never** read from an argument, environment
-   variable, or prompt, so a cold-start command can never be steered to
-   vendor arbitrary code.
-2. If `.agents/` is **already present**, it skips the add/update and goes
-   straight to bootstrap.
-3. It always runs `node .agents/scripts/bootstrap.js`, forwarding every
-   flag unchanged (e.g. `--owner`, `--repo`, `--assume-yes`,
-   `--skip-github`).
+```bash
+npx mandrel sync           # materialize ./.agents/ (idempotent, copy-only)
+npx mandrel sync --dry-run # preview the planned copies, write nothing
+npx mandrel doctor         # confirm the install is healthy
+```
+
+Then run the bootstrap to wire the project and GitHub side:
+
+```bash
+node .agents/scripts/bootstrap.js
+```
+
+> **Migrating from the retired Git submodule?** Older installs vendored
+> `.agents/` via `git submodule add -b dist …`. That `dist`-branch channel
+> is retired in favor of the npm package; follow the one-time
+> [`docs/migration-submodule-to-npm.md`](../docs/migration-submodule-to-npm.md)
+> guide to deinit the submodule and switch to `npm install @mandrel/agents`.
 
 ### Run the unified bootstrap directly
 
-When `.agents/` is already vendored, run the bootstrap straight from the
+When `.agents/` is already materialized, run the bootstrap straight from the
 host repo root:
 
 ```bash
@@ -141,12 +153,12 @@ Epic; standalone Stories pair [`/single-story-plan`](workflows/single-story-plan
 ### Runtime dependencies
 
 The framework scripts under `.agents/scripts/` import a small set of
-third-party npm packages at runtime. Because `.agents/` is distributed as
-a Git submodule, it carries **no `node_modules` of its own** — the scripts
-resolve their dependencies from the **consuming repository's** install
-(Node walks `node_modules` upward from the script's location to your repo
-root). The required set is enumerated in a single vendored manifest that
-ships inside the submodule:
+third-party npm packages at runtime. The materialized `./.agents/` tree
+carries **no `node_modules` of its own** — `mandrel sync` copies only the
+`.agents/` payload, so the scripts resolve their dependencies from the
+**consuming repository's** install (Node walks `node_modules` upward from
+the script's location to your repo root). The required set is enumerated in
+a single vendored manifest that ships inside the bundle:
 
 - **[`runtime-deps.json`](runtime-deps.json)** — the single source of
   truth. Its `dependencies` block lists the **required** packages (`ajv`,
@@ -178,7 +190,7 @@ in `runtime-deps.json`.
 | Path | Purpose |
 | ---- | ------- |
 | [`instructions.md`](instructions.md) | Primary system prompt loaded by the host AI tool. |
-| [`VERSION`](VERSION) | Framework version shipped by this submodule. |
+| [`VERSION`](VERSION) | Framework version shipped by this `.agents/` bundle. |
 | [`SDLC.md`](SDLC.md) | Operator process for `/epic-plan` and `/epic-deliver`. |
 | [`starter-agentrc.json`](starter-agentrc.json) | Bootstrap delta-seed copied to the consumer repo root as `.agentrc.json`. |
 | [`full-agentrc.json`](full-agentrc.json) | Exhaustive editor reference enumerating every schema key with its framework default. |
