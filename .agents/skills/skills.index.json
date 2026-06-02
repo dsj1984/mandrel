@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-29T00:43:42.686Z",
+  "generatedAt": "2026-06-02T02:25:11.327Z",
   "generator": "generate-skills-index.js@1",
   "skills": [
     {
@@ -219,6 +219,16 @@
       "path": ".agents/skills/core/planning-and-task-breakdown/SKILL.md",
       "description": "Breaks work into ordered tasks. Use when you have a spec or clear requirements and need to break work into implementable tasks. Use when a task feels too large to start, when you need to estimate scope, or when parallel work is possible.",
       "policyCapsuleBullets": 9,
+      "allowedTools": null,
+      "vendor": null
+    },
+    {
+      "name": "property-based-testing",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/property-based-testing/SKILL.md",
+      "description": "Generative testing of invariants. Use when a unit has properties that should hold across a whole input domain — round-trips, idempotence, ordering, conservation — rather than a handful of hand-picked examples. The test-tier, mocking, and assertion-placement MUSTs live in `.agents/rules/testing-standards.md`; this skill shows how to find properties, pick the right per-stack library, and keep generative tests deterministic and fast.",
+      "policyCapsuleBullets": 8,
       "allowedTools": null,
       "vendor": null
     },
