@@ -10,7 +10,7 @@
  */
 
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -32,10 +32,11 @@ if (!sub) {
 }
 
 const subFile = path.resolve(__dirname, '..', 'lib', 'cli', `${sub}.js`);
+const subFileUrl = pathToFileURL(subFile).href;
 
 let mod;
 try {
-  mod = await import(subFile);
+  mod = await import(subFileUrl);
 } catch (err) {
   if (err.code === 'ERR_MODULE_NOT_FOUND' && err.message.includes(subFile)) {
     usage(sub);
