@@ -106,8 +106,17 @@ jobs:
         run: |
           mkdir -p artifact
           TARBALL=$(npm pack --pack-destination "$PWD/artifact" | tail -1)
-          echo "TARBALL_PATH=$PWD/artifact/$TARBALL" >> "$GITHUB_ENV"
-          echo "Packed $TARBALL"
+          ABS="$PWD/artifact/$TARBALL"
+          # On Windows runners, bash hands back an MSYS path (/d/a/...). npm and
+          # pnpm tolerate it, but yarn-classic resolves it natively and fails
+          # ("Tarball ... can not be located"). cygpath -m emits a native mixed
+          # path (D:/a/...) that all three accept; on Linux cygpath is absent so
+          # the POSIX path is used as-is.
+          if command -v cygpath >/dev/null 2>&1; then
+            ABS="$(cygpath -m "$ABS")"
+          fi
+          echo "TARBALL_PATH=$ABS" >> "$GITHUB_ENV"
+          echo "Packed $TARBALL -> $ABS"
 
       - name: Scaffold a throwaway consumer project
         # A minimal consumer with one unrelated dep (left-pad) so we can prove
