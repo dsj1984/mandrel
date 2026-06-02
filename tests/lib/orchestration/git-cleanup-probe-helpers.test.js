@@ -34,7 +34,8 @@ describe('validSha', () => {
 
 describe('firstLsRemoteSha', () => {
   it('extracts the leading SHA token from the first non-empty line', () => {
-    const stdout = 'deadbeef1234\trefs/heads/main\nfeedface5678\trefs/heads/x\n';
+    const stdout =
+      'deadbeef1234\trefs/heads/main\nfeedface5678\trefs/heads/x\n';
     assert.equal(firstLsRemoteSha(stdout), 'deadbeef1234');
   });
 
