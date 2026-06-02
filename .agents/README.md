@@ -138,6 +138,39 @@ Epic; standalone Stories pair [`/single-story-plan`](workflows/single-story-plan
 (idea → drafted Story Issue) with [`/story-deliver`](workflows/story-deliver.md)
 (Story Issue → merged PR).
 
+### Runtime dependencies
+
+The framework scripts under `.agents/scripts/` import a small set of
+third-party npm packages at runtime. Because `.agents/` is distributed as
+a Git submodule, it carries **no `node_modules` of its own** — the scripts
+resolve their dependencies from the **consuming repository's** install
+(Node walks `node_modules` upward from the script's location to your repo
+root). The required set is enumerated in a single vendored manifest that
+ships inside the submodule:
+
+- **[`runtime-deps.json`](runtime-deps.json)** — the single source of
+  truth. Its `dependencies` block lists the **required** packages (`ajv`,
+  `ajv-formats`, `js-yaml`, `minimatch`, `picomatch`, `string-argv`,
+  `typescript`, `typhonjs-escomplex`); its `optionalDependencies` block
+  lists packages used only behind graceful-degradation paths (`chokidar`
+  for `quality:watch`, `@commitlint/load` for commit-subject sizing).
+
+**How a consumer satisfies them:** `bootstrap` (above) merges the required
+set into your `package.json` `dependencies` and runs your package manager's
+install — so a freshly bootstrapped repo already has them. If you adopt
+`.agents/` without the bootstrap, add the `runtime-deps.json` `dependencies`
+to your own `package.json` (any compatible versions) and install.
+
+**Fail-fast guard.** The dependency-dependent entry points
+(`epic-plan-spec.js`, `epic-plan-decompose.js`, and the baseline scorers)
+run a presence check on their required deps before doing any work. When the
+install is missing, empty, or stale, they exit non-zero with an actionable
+message naming the missing packages and your install command — instead of a
+raw `ERR_MODULE_NOT_FOUND` deep inside a workflow. A drift test
+(`tests/scripts/runtime-deps-drift.test.js`) keeps the manifest honest: it
+fails if any third-party import under `.agents/scripts/**` is not declared
+in `runtime-deps.json`.
+
 ---
 
 ## Contents

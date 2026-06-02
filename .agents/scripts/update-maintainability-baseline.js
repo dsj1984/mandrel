@@ -27,6 +27,10 @@
  * story-close would have produced for the same scope.
  */
 
+// Fail-fast if the framework's runtime deps are not installed — must be the
+// first import so the check runs before any third-party-importing sibling
+// module is evaluated (Story #3432).
+import './lib/runtime-deps/ensure-installed.js';
 import path from 'node:path';
 import { parseDiffScopeFlag } from './lib/baselines/diff-scope-cli.js';
 import { filterExcludedRows } from './lib/baselines/kinds/maintainability.js';
