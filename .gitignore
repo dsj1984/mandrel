@@ -5,6 +5,12 @@ dist
 .DS_Store
 *.log
 
+# Regenerated agent payload (npm-distribution model): ./.agents/ is a working
+# copy materialized from node_modules/@mandrel/agents by `mandrel sync` (run by
+# the package postinstall hook). The package tarball is the source of truth, so
+# the regenerated copy is never committed. See Tech Spec #3459 / Feature #3461.
+/.agents/
+
 # Agent Local Overrides
 .agentrc.local.json
 .agents/*.local.md
