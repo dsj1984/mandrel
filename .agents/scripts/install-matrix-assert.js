@@ -271,6 +271,9 @@ export function runAssertions({
   return { ok, results };
 }
 
+// cli-opt-out: synchronous CLI whose bespoke main-guard forwards an explicit
+// 0/1 exit code from runAssertions(); runAsCli's async-main signature does not
+// preserve that result code (same rationale as coverage-capture.js).
 // Run when invoked directly (not when imported by tests).
 const invokedDirectly = process.argv[1]?.endsWith('install-matrix-assert.js');
 if (invokedDirectly) {
