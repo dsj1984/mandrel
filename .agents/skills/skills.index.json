@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-02T02:52:36.593Z",
+  "generatedAt": "2026-06-02T03:15:28.143Z",
   "generator": "generate-skills-index.js@1",
   "skills": [
     {
@@ -239,6 +239,16 @@
       "path": ".agents/skills/core/property-based-testing/SKILL.md",
       "description": "Generative testing of invariants. Use when a unit has properties that should hold across a whole input domain — round-trips, idempotence, ordering, conservation — rather than a handful of hand-picked examples. The test-tier, mocking, and assertion-placement MUSTs live in `.agents/rules/testing-standards.md`; this skill shows how to find properties, pick the right per-stack library, and keep generative tests deterministic and fast.",
       "policyCapsuleBullets": 8,
+      "allowedTools": null,
+      "vendor": null
+    },
+    {
+      "name": "refactoring-discipline",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/refactoring-discipline/SKILL.md",
+      "description": "Run a post-green refactor pass that lowers CRAP and removes duplication without changing behaviour. Use after tests pass and gates are green, when a function's CRAP score is high but well-covered, or when the same logic is duplicated across files. Pairs with the `refactorer` persona and the opt-in `delivery.refactorStage` checkpoint; complements `core/code-simplification` (clarity) by focusing on the measured CRAP/duplication axes.",
+      "policyCapsuleBullets": 9,
       "allowedTools": null,
       "vendor": null
     },
