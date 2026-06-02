@@ -21,7 +21,6 @@ import {
   ensureGitignore,
   ensurePackageJson,
   REQUIRED_NODE_FLOOR,
-  REQUIRED_RUNTIME_DEPS,
   SYNC_COMMAND,
   satisfiesNodeEngine,
 } from '../../.agents/scripts/lib/bootstrap/project-bootstrap.js';
@@ -95,16 +94,33 @@ describe('ensurePackageJson', () => {
     assert.equal(outcome.created, true);
     assert.equal(outcome.scriptsSyncCommands, 'added');
     assert.equal(outcome.scriptsPrepare, 'added');
-    assert.deepEqual(
-      outcome.deps.added.sort(),
-      Object.keys(REQUIRED_RUNTIME_DEPS).sort(),
-    );
     const pkg = readJson(path.join(tmpRoot, 'package.json'));
     assert.equal(pkg.scripts['sync:commands'], SYNC_COMMAND);
     assert.equal(pkg.scripts.prepare, SYNC_COMMAND);
-    for (const dep of Object.keys(REQUIRED_RUNTIME_DEPS)) {
-      assert.ok(pkg.dependencies[dep], `missing dependency ${dep}`);
-    }
+  });
+
+  it('never seeds framework runtime deps into the consumer manifest', () => {
+    // Story #3466: the dependency-merge loop was removed — framework deps
+    // arrive transitively via @mandrel/agents, so bootstrap must leave the
+    // consumer manifest's dependency surface entirely untouched.
+    const outcome = ensurePackageJson({ projectRoot: tmpRoot });
+    assert.equal(Object.hasOwn(outcome, 'deps'), false);
+    const pkg = readJson(path.join(tmpRoot, 'package.json'));
+    assert.equal(Object.hasOwn(pkg, 'dependencies'), false);
+  });
+
+  it('leaves a pre-existing dependencies block unmutated', () => {
+    writeFile(
+      path.join(tmpRoot, 'package.json'),
+      `${JSON.stringify(
+        { name: 'host', dependencies: { 'left-pad': '^1.0.0' } },
+        null,
+        2,
+      )}\n`,
+    );
+    ensurePackageJson({ projectRoot: tmpRoot });
+    const pkg = readJson(path.join(tmpRoot, 'package.json'));
+    assert.deepEqual(pkg.dependencies, { 'left-pad': '^1.0.0' });
   });
 
   it('appends sync to an existing prepare without clobbering it', () => {
@@ -124,7 +140,6 @@ describe('ensurePackageJson', () => {
     assert.equal(second.created, false);
     assert.equal(second.scriptsSyncCommands, 'already-present');
     assert.equal(second.scriptsPrepare, 'already-present');
-    assert.deepEqual(second.deps.added, []);
     assert.equal(second.mutated, false);
   });
 });
