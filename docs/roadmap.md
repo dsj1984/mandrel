@@ -520,7 +520,8 @@ theoretical. Until then, the static lint is the supported surface.
 
 ## Part 2 — Product-Readiness Backlog (If/When Mandrel Is Productized)
 
-Last triaged: 2026-05-30 (against `.agents/VERSION` 1.40.0).
+Last triaged: 2026-06-02 (distribution & onboarding slice filed — see below;
+prior triage 2026-05-30 against `.agents/VERSION` 1.40.0).
 
 Scope: this document is the **standing backlog** of product-readiness gaps that
 Mandrel would need to close *if and when it is productized* (sold or distributed
@@ -550,6 +551,22 @@ into four epics. The slices noted as "filed" below live there:
 Findings 4, 7, 8 are fully resolved by the above and are **not** repeated below.
 Findings 6, 9, 14, 18 were partially filed; only their deferred remainders
 appear here.
+
+A 2026-06-02 triage filed the **distribution-and-onboarding slice** — the
+internally-valuable remainder of E-B plus the install-experience findings —
+into five epics:
+
+| Epic | Covers | Filed from findings |
+|------|--------|---------------------|
+| [#3435](https://github.com/dsj1984/mandrel/issues/3435) — installer/content partition + `mandrel doctor` | lifecycle/runtime split, readiness command, config-explain seed | 11 (doctor) |
+| [#3436](https://github.com/dsj1984/mandrel/issues/3436) — npm distribution + dep simplification | **supersedes E-B**: npm package, `mandrel sync`, kill the dep-merge hack, release integrity, compat matrix | 3, 18 (remainder) |
+| [#3437](https://github.com/dsj1984/mandrel/issues/3437) — auto-update & version lifecycle | `mandrel update`, migration runner, notify-on-stale, Renovate/Dependabot, config-compat tests | 11 (config migrations), 18 (remainder) |
+| [#3438](https://github.com/dsj1984/mandrel/issues/3438) — consent-first install & onboarding | dry-run manifest, phased approval, uninstall/rollback, config profiles, `/onboard` first-run path | 10, 11 (profiles), 16 |
+| [#3439](https://github.com/dsj1984/mandrel/issues/3439) — GitHub-optional / no-mutation profile | Issues-only lite mode; no Projects/branch-protection mutation | 10 (no-mutation), 2 (partial) |
+
+**E-B is fully filed** (see #3436/#3437). Findings 10, 11, 16 and the
+Projects/branch-protection slice of Finding 2 were partially filed; their
+deferred remainders appear under E-A/E-D/E-F below.
 
 ---
 
@@ -611,11 +628,29 @@ Remediation direction:
 - Separate "required issue-tracker state" from GitHub-specific affordances
   (Projects V2 columns, Sub-Issues).
 
+**Filed slice (2026-06-02):** the Projects-V2 / branch-protection decoupling —
+an Issues-only "no-mutation" mode — →
+[#3439](https://github.com/dsj1984/mandrel/issues/3439). The full
+provider-abstraction remainder (a provider conformance suite and a non-GitHub
+provider implementation) stays gated on the productize decision.
+
 ---
 
 ### Candidate epic E-B — Distribution & release productization
 
 **Findings:** 3, 18 (remainder).
+
+> **Status: filed (2026-06-02).** The internally-valuable core graduated to
+> [#3436](https://github.com/dsj1984/mandrel/issues/3436) (npm distribution +
+> dependency simplification — supersedes Finding 3 and the
+> create-mandrel-versioning / release-integrity / compat-matrix direction) and
+> [#3437](https://github.com/dsj1984/mandrel/issues/3437) (auto-update
+> lifecycle — migration runner, cross-version config-compat tests, rollback /
+> upgrade messaging from the Finding 18 remainder). The detail below is
+> retained as the filed work's source analysis. Still gated on the productize
+> decision (paid-support remainder of Finding 18): a formal version/support
+> policy, deprecation policy, and operator-facing release notes beyond
+> commit-derived changelog entries.
 
 #### Finding 3 — Distribution is not productized
 
@@ -695,6 +730,12 @@ minimal/no-mutation profile; separate IDE wiring vs repo config vs GitHub-admin
 vs quality gates into independently approved phases; enterprise docs for
 required permissions.
 
+**Filed slice (2026-06-02):** machine-readable dry-run / mutation manifest,
+phased independently-approved mutation stages, and uninstall/rollback →
+[#3438](https://github.com/dsj1984/mandrel/issues/3438); the minimal/no-mutation
+(Issues-only) profile → [#3439](https://github.com/dsj1984/mandrel/issues/3439).
+Deferred remainder: enterprise docs for required permissions.
+
 #### Finding 11 — Configuration surface is large and hard to productize
 
 Evidence: `.agents/full-agentrc.json` is ~274 lines of low-level knobs; the
@@ -705,6 +746,13 @@ Remediation direction: product config profiles (solo/local, team/GitHub,
 enterprise, QA-only, audit-only); generated per-stack examples; `mandrel doctor`
 / config-explain commands; versioned config migrations with actionable upgrade
 messages.
+
+**Filed slice (2026-06-02):** `mandrel doctor` / config-explain →
+[#3435](https://github.com/dsj1984/mandrel/issues/3435); product config profiles
+→ [#3438](https://github.com/dsj1984/mandrel/issues/3438); versioned config
+migrations with actionable upgrade messages →
+[#3437](https://github.com/dsj1984/mandrel/issues/3437). Deferred remainder:
+generated per-stack config examples.
 
 #### Finding 12 — Observability is local and operator-centric
 
@@ -796,6 +844,12 @@ Mandrel); symptom-first troubleshooting. Includes the cheap "declare the scope"
 messaging that says Mandrel is Claude-Code-first and GitHub-first by design
 (the underlying facts from Findings 1 & 2).
 
+**Filed slice (2026-06-02):** the guided "first successful run" path — `/onboard`,
+`docsContextFiles` scaffolding, the ~15-minute path, and a sample-repo pointer →
+[#3438](https://github.com/dsj1984/mandrel/issues/3438). Deferred remainder:
+product landing README, demo videos, pricing / comparison pages, and the
+scenario-guide library.
+
 #### Finding 6 (remainder) — Product claims vs automation
 
 Filed slice: `.agentrc.local.json` layer + token-budget honesty → #3388.
@@ -813,7 +867,7 @@ tests.
    narrow" tension.
 2. **E-A portability** — the biggest scope multiplier; decide runtime/ticketing
    neutrality early because it shapes everything else.
-3. **E-C QA harness** and **E-B distribution** — parallel product builds.
+3. **E-C QA harness** — parallel product build. (**E-B distribution is now
+   filed** — see #3436 / #3437.)
 4. **E-D enterprise** and **E-E platform matrix** — gate on first enterprise
    prospect.
-
