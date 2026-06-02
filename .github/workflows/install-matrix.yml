@@ -1,0 +1,179 @@
+name: Install Matrix
+
+# Golden-path install test matrix (Story #3472, Feature #3464, Epic #3436).
+#
+# Proves the published-package consumer contract end to end across every
+# supported package manager and OS axis:
+#
+#   {npm, pnpm, yarn} x {ubuntu-latest, windows-latest}
+#
+# Each leg packs THIS repo into a tarball (so the matrix exercises the
+# in-tree code, not whatever is currently on the npm registry), installs it
+# into a throwaway consumer project with the leg's package manager, and then
+# asserts the three golden-path invariants via
+# `.agents/scripts/install-matrix-assert.js` (one cross-platform Node script
+# instead of divergent PowerShell/bash snippets — see
+# `.agents/rules/shell-conventions.md`):
+#
+#   1. ./.agents/ is materialized after install + `mandrel sync`.
+#   2. The consumer package.json is not mutated with framework runtime deps.
+#   3. `mandrel doctor` returns a ready verdict.
+#
+# `mandrel doctor` requires an authenticated GitHub CLI (its `gh-auth` check),
+# so each leg exports the workflow's GITHUB_TOKEN as GH_TOKEN — on GitHub-hosted
+# runners `gh` is preinstalled and `gh auth status` authenticates against it.
+# Doctor's `commands-in-sync` check compares `.agents/workflows/` to
+# `.claude/commands/` relative to the installed package, so the leg also runs
+# `mandrel sync-commands` (the same step the bootstrap/postinstall flow runs)
+# before doctor so the verdict is honestly green.
+#
+# Action pinning mirrors ci.yml: first-party `actions/*` stay on major-version
+# tags so Dependabot's github-actions ecosystem can bump them in place.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/install-matrix.yml'
+      - '.agents/scripts/install-matrix-assert.js'
+      - 'lib/cli/**'
+      - 'bin/**'
+      - 'package.json'
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/install-matrix.yml'
+      - '.agents/scripts/install-matrix-assert.js'
+      - 'lib/cli/**'
+      - 'bin/**'
+      - 'package.json'
+  workflow_dispatch: # Allow manual triggering
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  install-matrix:
+    name: install (${{ matrix.package-manager }} / ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        package-manager: [npm, pnpm, yarn]
+    env:
+      # `mandrel doctor`'s gh-auth check shells out to `gh auth status`, which
+      # reads GH_TOKEN. The auto-injected workflow token authenticates the
+      # preinstalled GitHub CLI on hosted runners.
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable Corepack (pnpm / yarn shims)
+        run: corepack enable
+
+      - name: Pack the framework into a tarball
+        # `npm pack` honors package.json `files` (`.agents/`, `bin/`, `lib/`)
+        # and the publishable surface, so the consumer install below exercises
+        # exactly what `npm publish` would ship.
+        shell: bash
+        run: |
+          mkdir -p artifact
+          TARBALL=$(npm pack --pack-destination "$PWD/artifact" | tail -1)
+          echo "TARBALL_PATH=$PWD/artifact/$TARBALL" >> "$GITHUB_ENV"
+          echo "Packed $TARBALL"
+
+      - name: Scaffold a throwaway consumer project
+        # A minimal consumer with one unrelated dep (left-pad) so we can prove
+        # the install adds the framework package WITHOUT touching the
+        # consumer's own declared deps or injecting framework runtime deps.
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/consumer"
+          cat > "$RUNNER_TEMP/consumer/package.json" <<'JSON'
+          {
+            "name": "install-matrix-consumer",
+            "version": "1.0.0",
+            "private": true,
+            "dependencies": {
+              "left-pad": "^1.3.0"
+            }
+          }
+          JSON
+          echo "CONSUMER_DIR=$RUNNER_TEMP/consumer" >> "$GITHUB_ENV"
+
+      - name: Install the framework with ${{ matrix.package-manager }}
+        # `--ignore-scripts` (and the pnpm/yarn equivalents) is intentional:
+        # it forces the "postinstall was skipped" path so the explicit
+        # `mandrel sync` step below is what materializes ./.agents/ — the exact
+        # situation `mandrel doctor`'s agents-materialized remedy describes.
+        shell: bash
+        working-directory: ${{ env.CONSUMER_DIR }}
+        run: |
+          set -euo pipefail
+          case "${{ matrix.package-manager }}" in
+            npm)
+              npm install --ignore-scripts "$TARBALL_PATH"
+              ;;
+            pnpm)
+              pnpm add --ignore-scripts "$TARBALL_PATH"
+              ;;
+            yarn)
+              # Classic yarn (corepack default for `yarn`) installs the tarball
+              # by file path and skips lifecycle scripts with --ignore-scripts.
+              yarn add --ignore-scripts "file:$TARBALL_PATH"
+              ;;
+            *)
+              echo "Unknown package manager: ${{ matrix.package-manager }}" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Resolve the mandrel CLI entry point
+        shell: bash
+        working-directory: ${{ env.CONSUMER_DIR }}
+        run: |
+          echo "MANDREL_BIN=$CONSUMER_DIR/node_modules/@mandrel/agents/bin/mandrel.js" >> "$GITHUB_ENV"
+
+      - name: Materialize .agents/ (mandrel sync)
+        shell: bash
+        working-directory: ${{ env.CONSUMER_DIR }}
+        run: node "$MANDREL_BIN" sync
+
+      - name: Sync slash commands (mandrel sync-commands)
+        # Populates .claude/commands/ so doctor's commands-in-sync check passes
+        # — the same step the bootstrap/postinstall onboarding flow performs.
+        shell: bash
+        working-directory: ${{ env.CONSUMER_DIR }}
+        run: node "$MANDREL_BIN" sync-commands
+
+      - name: Assert materialization + clean consumer manifest
+        shell: bash
+        run: |
+          node "$GITHUB_WORKSPACE/.agents/scripts/install-matrix-assert.js" \
+            --consumer "$CONSUMER_DIR" \
+            --check materialized \
+            --check manifest-clean
+
+      - name: Run mandrel doctor and require a ready verdict
+        shell: bash
+        working-directory: ${{ env.CONSUMER_DIR }}
+        run: |
+          set -o pipefail
+          node "$MANDREL_BIN" doctor 2>&1 | tee "$RUNNER_TEMP/doctor-output.txt"
+          node "$GITHUB_WORKSPACE/.agents/scripts/install-matrix-assert.js" \
+            --consumer "$CONSUMER_DIR" \
+            --check doctor-ready \
+            --doctor-output "$RUNNER_TEMP/doctor-output.txt"
