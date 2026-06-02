@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-02T03:35:20.226Z",
+  "generatedAt": "2026-06-02T21:31:06.509Z",
   "rollup": {
     "*": {
       "min": 61.218,
@@ -2131,10 +2131,6 @@
       "mi": 61.218
     },
     {
-      "path": ".agents/scripts/single-story-init.js",
-      "mi": 91.072
-    },
-    {
       "path": ".agents/scripts/single-story-plan.js",
       "mi": 86.713
     },
@@ -2521,10 +2517,6 @@
     {
       "path": "tests/bootstrap/merge-methods.test.js",
       "mi": 106.594
-    },
-    {
-      "path": "tests/bootstrap/project-bootstrap.test.js",
-      "mi": 106.624
     },
     {
       "path": "tests/bootstrap/prompt.test.js",
