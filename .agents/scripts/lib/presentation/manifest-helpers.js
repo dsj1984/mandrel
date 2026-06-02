@@ -71,7 +71,8 @@ export function computeProgress(manifest) {
   );
 
   return {
-    storyPct: totalStories > 0 ? Math.round((doneStories / totalStories) * 100) : 0,
+    storyPct:
+      totalStories > 0 ? Math.round((doneStories / totalStories) * 100) : 0,
     doneStories,
     totalStories,
     storyWaveCount: storyWaveSet.size || 1,

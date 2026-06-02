@@ -88,8 +88,20 @@ test('renderNestedWaveSections: skips non-object entries and renders Story H3 wi
 
 test('renderNestedWaveSections: wave blockquote counts done/total Stories', () => {
   const stories = [
-    { storyId: 101, storyTitle: 'A', type: 'story', earliestWave: 0, status: 'agent::done' },
-    { storyId: 102, storyTitle: 'B', type: 'story', earliestWave: 0, status: 'agent::ready' },
+    {
+      storyId: 101,
+      storyTitle: 'A',
+      type: 'story',
+      earliestWave: 0,
+      status: 'agent::done',
+    },
+    {
+      storyId: 102,
+      storyTitle: 'B',
+      type: 'story',
+      earliestWave: 0,
+      status: 'agent::ready',
+    },
   ];
   const md = renderNestedWaveSections(stories);
   assert.ok(md.includes('> 2 stories · 1/2 done'));
@@ -125,7 +137,13 @@ test('renderNestedWaveSections: Blocked wave emits the gating tail naming the la
 
 test('renderNestedWaveSections: Feature Containers section emits a Story-only column set', () => {
   const stories = [
-    { storyId: 101, storyTitle: 'A', type: 'story', earliestWave: 0, status: 'agent::done' },
+    {
+      storyId: 101,
+      storyTitle: 'A',
+      type: 'story',
+      earliestWave: 0,
+      status: 'agent::done',
+    },
     { storyId: 300, storySlug: 'container', type: 'feature', earliestWave: -1 },
   ];
   const md = renderNestedWaveSections(stories);

@@ -203,8 +203,10 @@ export function buildManifestFromSpec(spec, opts = {}) {
     ? spec.features
     : [];
 
-  const { storyManifest, totalStories, doneStories, waveSet } =
-    projectFeatures(features, resolvers);
+  const { storyManifest, totalStories, doneStories, waveSet } = projectFeatures(
+    features,
+    resolvers,
+  );
 
   const progressPercent =
     totalStories > 0 ? Math.round((doneStories / totalStories) * 100) : 0;
