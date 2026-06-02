@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.43.0](https://github.com/dsj1984/mandrel/compare/v1.42.0...v1.43.0) (2026-06-02)
+
+
+### Added
+
+* Epic [#3418](https://github.com/dsj1984/mandrel/issues/3418) ([#3434](https://github.com/dsj1984/mandrel/issues/3434)) ([c926255](https://github.com/dsj1984/mandrel/commit/c926255d04f7d769b2a2d5ac9fcbdb67b48ec6a1))
+
+
+### Fixed
+
+* **single-story:** gate confirm-merge noop on agent::done label not closed issue (refs [#3415](https://github.com/dsj1984/mandrel/issues/3415)) ([#3416](https://github.com/dsj1984/mandrel/issues/3416)) ([6ac471e](https://github.com/dsj1984/mandrel/commit/6ac471edd3da4869d3632a0f85e7edc199840835))
+* **story-close:** filter format gate scope to formatter-eligible files (refs [#3410](https://github.com/dsj1984/mandrel/issues/3410)) ([#3411](https://github.com/dsj1984/mandrel/issues/3411)) ([f38f32c](https://github.com/dsj1984/mandrel/commit/f38f32cfc3da400b13648fd32ac5e7bc8fa271bf))
+
 ## [1.42.0](https://github.com/dsj1984/mandrel/compare/v1.41.0...v1.42.0) (2026-06-01)
 
 
