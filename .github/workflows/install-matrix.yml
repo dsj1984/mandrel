@@ -88,10 +88,16 @@ jobs:
         # `npm pack` honors package.json `files` (`.agents/`, `bin/`, `lib/`)
         # and the publishable surface, so the consumer install below exercises
         # exactly what `npm publish` would ship.
+        # `--ignore-scripts` skips the dev-only `prepare` hook
+        # (`husky && npm run sync:commands`); this job packs from a bare
+        # checkout with no dev dependencies installed, so running `prepare`
+        # would fail on a missing `husky` binary. The hook produces no
+        # files that ship in the tarball (`.claude/` is not in the `files`
+        # allowlist), so skipping it does not change the packed artifact.
         shell: bash
         run: |
           mkdir -p artifact
-          TARBALL=$(npm pack --pack-destination "$PWD/artifact" | tail -1)
+          TARBALL=$(npm pack --ignore-scripts --pack-destination "$PWD/artifact" | tail -1)
           echo "TARBALL_PATH=$PWD/artifact/$TARBALL" >> "$GITHUB_ENV"
           echo "Packed $TARBALL"
 
