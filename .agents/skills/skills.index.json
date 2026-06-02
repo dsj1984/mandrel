@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-29T00:43:42.686Z",
+  "generatedAt": "2026-06-02T02:25:11.327Z",
   "generator": "generate-skills-index.js@1",
   "skills": [
     {
@@ -9,7 +9,10 @@
       "path": ".agents/skills/core/analyze-execution/SKILL.md",
       "description": "Aggregate per-Story or per-Epic execution signals into a structured perf-summary or perf-report and upsert it onto the corresponding GitHub ticket. Use after a Story closes (Story mode) or as part of `/epic-deliver` Phase 6 (Epic mode). Reads NDJSON via `lib/signals/read` and writes a single structured comment.",
       "policyCapsuleBullets": 8,
-      "allowedTools": ["Read", "Bash"],
+      "allowedTools": [
+        "Read",
+        "Bash"
+      ],
       "vendor": null
     },
     {
@@ -29,7 +32,11 @@
       "path": ".agents/skills/core/baseline-refresh/SKILL.md",
       "description": "Author a refresh commit for any of the unified-baseline snapshots (CRAP, maintainability, dead-exports, lighthouse). Use whenever an intentional code change resets a baseline key (rename, deliberate complexity bump, perf regression with operator sign-off) and the close-validation chain needs the refreshed snapshot to land on the same Story branch as the triggering edit.",
       "policyCapsuleBullets": 10,
-      "allowedTools": ["Read", "Write", "Bash"],
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Bash"
+      ],
       "vendor": null
     },
     {
@@ -109,7 +116,10 @@
       "path": ".agents/skills/core/diagnose-friction/SKILL.md",
       "description": "Wrap a shell command with diagnostic capture. On failure, print static suggestions and append a structured `friction` record to the per-Story signals.ndjson stream. Use whenever a script in the orchestration loop invokes a tool whose failure shape we want the analyzer to attribute.",
       "policyCapsuleBullets": 8,
-      "allowedTools": ["Bash", "Read"],
+      "allowedTools": [
+        "Bash",
+        "Read"
+      ],
       "vendor": null
     },
     {
@@ -129,7 +139,11 @@
       "path": ".agents/skills/core/epic-plan-decompose-author/SKILL.md",
       "description": "Author the Feature/Story ticket JSON for an Epic from the decomposer authoring context emitted by `epic-plan-decompose.js --emit-context`. Use during Phase 8 of `/epic-plan` when the host LLM needs to write the ticket array before `epic-plan-decompose.js` validates and persists it.",
       "policyCapsuleBullets": 11,
-      "allowedTools": ["Read", "Write", "Bash"],
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Bash"
+      ],
       "vendor": null
     },
     {
@@ -139,7 +153,11 @@
       "path": ".agents/skills/core/epic-plan-spec-author/SKILL.md",
       "description": "Author the PRD, Tech Spec, and Acceptance Spec markdown for an Epic from the planner authoring context emitted by `epic-plan-spec.js --emit-context`. Use during Phase 7 of `/epic-plan` when the host LLM needs to write the three artifacts before `epic-plan-spec.js` persists them.",
       "policyCapsuleBullets": 10,
-      "allowedTools": ["Read", "Write", "Bash"],
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Bash"
+      ],
       "vendor": null
     },
     {
@@ -169,7 +187,10 @@
       "path": ".agents/skills/core/hydrate-context/SKILL.md",
       "description": "Hydrate a Task or Story ticket into a structured ContextEnvelope (or the legacy `{ prompt }` stdout wrapper). Reads the ticket body, parses Feature / Epic hierarchy, fetches the Tech Spec + PRD, and assembles named sections with provenance and section-aware elision. Successor to the retired mandrel MCP `context.hydrate` tool.",
       "policyCapsuleBullets": 7,
-      "allowedTools": ["Read", "Bash"],
+      "allowedTools": [
+        "Read",
+        "Bash"
+      ],
       "vendor": null
     },
     {
@@ -219,6 +240,16 @@
       "path": ".agents/skills/core/planning-and-task-breakdown/SKILL.md",
       "description": "Breaks work into ordered tasks. Use when you have a spec or clear requirements and need to break work into implementable tasks. Use when a task feels too large to start, when you need to estimate scope, or when parallel work is possible.",
       "policyCapsuleBullets": 9,
+      "allowedTools": null,
+      "vendor": null
+    },
+    {
+      "name": "property-based-testing",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/property-based-testing/SKILL.md",
+      "description": "Generative testing of invariants. Use when a unit has properties that should hold across a whole input domain — round-trips, idempotence, ordering, conservation — rather than a handful of hand-picked examples. The test-tier, mocking, and assertion-placement MUSTs live in `.agents/rules/testing-standards.md`; this skill shows how to find properties, pick the right per-stack library, and keep generative tests deterministic and fast.",
+      "policyCapsuleBullets": 8,
       "allowedTools": null,
       "vendor": null
     },
