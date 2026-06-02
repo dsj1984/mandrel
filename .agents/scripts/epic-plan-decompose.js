@@ -44,6 +44,10 @@
  * refactor implementation.
  */
 
+// Fail-fast if the framework's runtime deps are not installed — must be the
+// first import so the check runs before any third-party-importing sibling
+// module is evaluated (Story #3432).
+import './lib/runtime-deps/ensure-installed.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { main } from './lib/orchestration/epic-plan-decompose/phases/cli.js';
 import {
