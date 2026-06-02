@@ -186,7 +186,7 @@ describe('epic-plan-decompose pipeline — runDecomposePhase over-budget gate (S
     async createTicket() {
       return { id: 999, url: 'u' };
     },
-    async getTickets() {
+    async getSubTickets() {
       return [];
     },
   });

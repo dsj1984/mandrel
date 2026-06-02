@@ -171,10 +171,19 @@ export function parseCli(argv) {
  * Project the GH state observation into the shape the diff engine
  * expects: `{ [issueNumber]: { title, body?, labels?, state } }`.
  *
- * Pulls every ticket under the Epic via `getTickets` (matches the
- * decomposer's "fetch all children" call shape) plus the Epic itself.
- * The provider's returned issues come back with `id, title, body?,
- * labels[], state`; the diff engine ignores fields it doesn't use.
+ * Enumerates the Epic's children via the **server-side-scoped**
+ * `getSubTickets(epicId)` (native sub-issue GraphQL graph → checklist
+ * links → reverse-search) rather than `getTickets(epicId)`'s repo-wide
+ * `state=all` scan-and-filter (Story #3455). The structural diff engine
+ * never branches on `obs.state` — Close detection is driven by
+ * spec-vs-mapping, `fieldChanges` compares only `title/body/labels/wave`,
+ * and `ghState` is consulted only to look up an issue by the number
+ * already in the state-file mapping — so dropping the repo-wide
+ * closed-issue over-fetch changes nothing but cost (and removes the
+ * latent spurious-Update risk on a re-plan of a partially-delivered
+ * Epic). The provider's returned children come back as full ticket
+ * objects (`id, title, body, labels, state`); the diff engine ignores
+ * fields it doesn't use.
  *
  * @param {object} provider
  * @param {number} epicId
@@ -200,8 +209,8 @@ export async function fetchGhState(provider, epicId) {
     /* swallow — epic body observation is non-fatal for diff */
   }
 
-  if (typeof provider.getTickets === 'function') {
-    const tickets = await provider.getTickets(epicId);
+  if (typeof provider.getSubTickets === 'function') {
+    const tickets = await provider.getSubTickets(epicId);
     for (const t of tickets ?? []) {
       if (typeof t.id !== 'number') continue;
       ghState[t.id] = {

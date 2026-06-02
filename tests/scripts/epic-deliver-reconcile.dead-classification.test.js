@@ -54,7 +54,7 @@ function fixtureStory(id, title, label = 'agent::executing') {
 
 function fakeProvider(children) {
   return {
-    getTickets: async () => children,
+    getSubTickets: async () => children,
   };
 }
 

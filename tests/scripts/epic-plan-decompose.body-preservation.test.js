@@ -103,6 +103,11 @@ function buildStubProvider({ epicId, epicBody }) {
     async getTickets() {
       return Array.from(issues.values()).filter((t) => t.id !== epicId);
     },
+    // Story #3455 — decompose's resume-indexing path enumerates children
+    // via the scoped getSubTickets; mirror the same child set.
+    async getSubTickets() {
+      return Array.from(issues.values()).filter((t) => t.id !== epicId);
+    },
     async createTicket(_parentId, payload) {
       const id = nextId++;
       issues.set(id, {

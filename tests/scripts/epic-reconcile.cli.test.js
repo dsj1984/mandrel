@@ -27,11 +27,13 @@ import { describe, it } from 'node:test';
 
 import {
   EXIT_CODES,
+  fetchGhState,
   parseCli,
   planHasCloses,
   renderExplicitDeleteMessage,
   runReconcile,
 } from '../../.agents/scripts/epic-reconcile.js';
+import { diff as realDiff } from '../../.agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js';
 import {
   closeOp,
   createOp,
@@ -611,5 +613,174 @@ describe('runReconcile — bootstrap state.mapping.epic', () => {
       0,
       'diff must not emit a Create op for the epic entity once the CLI has seeded mapping.epic',
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fetchGhState — scoped child enumeration (Story #3455)
+// ---------------------------------------------------------------------------
+
+describe('fetchGhState — scoped child enumeration (Story #3455)', () => {
+  /**
+   * Build a provider stub that records which enumeration surface the
+   * reconciler reaches for. `getTickets` is the legacy repo-wide
+   * scan-and-filter; `getSubTickets` is the server-side-scoped sub-issue
+   * graph. Story #3455 routes `fetchGhState` through the latter.
+   */
+  function buildEnumProvider({ epic, children }) {
+    const calls = { getTickets: 0, getSubTickets: 0, getEpic: 0 };
+    return {
+      calls,
+      async getEpic(id) {
+        calls.getEpic += 1;
+        return epic && epic.id === id ? epic : null;
+      },
+      async getTickets() {
+        calls.getTickets += 1;
+        return children;
+      },
+      async getSubTickets() {
+        calls.getSubTickets += 1;
+        return children;
+      },
+    };
+  }
+
+  it('sources the Epic observation from getSubTickets, never the repo-wide getTickets', async () => {
+    const provider = buildEnumProvider({
+      epic: { id: 700, title: 'Epic', body: '', labels: ['type::epic'] },
+      children: [
+        { id: 701, title: 'Story one', body: 'b1', labels: [], state: 'open' },
+      ],
+    });
+
+    const ghState = await fetchGhState(provider, 700);
+
+    // AC: scoped path is used (so unrelated issues in other Epics do not
+    // enlarge the fetch); the repo-wide scan-and-filter is never reached.
+    assert.equal(provider.calls.getSubTickets, 1);
+    assert.equal(provider.calls.getTickets, 0);
+    // The observation projects the scoped child set + the epic itself.
+    assert.deepEqual(Object.keys(ghState).sort(), ['700', '701']);
+  });
+
+  it('keeps closed/delivered children visible in the observation', async () => {
+    const provider = buildEnumProvider({
+      epic: { id: 800, title: 'Epic', body: '', labels: ['type::epic'] },
+      children: [
+        { id: 801, title: 'Open story', body: '', labels: [], state: 'open' },
+        {
+          id: 802,
+          title: 'Delivered story',
+          body: '',
+          labels: [],
+          state: 'closed',
+        },
+      ],
+    });
+
+    const ghState = await fetchGhState(provider, 800);
+
+    // AC: load-bearing visibility — the scoped fetch still surfaces the
+    // closed child (getSubTickets walks the full sub-issue graph; only the
+    // diff engine, which ignores obs.state, declines to act on it).
+    assert.equal(ghState[802].state, 'closed');
+    assert.equal(ghState[801].state, 'open');
+  });
+
+  it('re-reconcile with a closed/delivered child emits no spurious Update/Close op', async () => {
+    // A partially-delivered Epic: feature-a + story-one already mapped and
+    // delivered (story-one closed on GH). The structural fields the diff
+    // engine is authoritative over (title/body/labels) match the spec; the
+    // only "drift" is the closed GH state — exactly the over-fetch the
+    // legacy repo-wide `getTickets` pulled in and the scoped `getSubTickets`
+    // still surfaces. Because the diff engine never branches on `obs.state`,
+    // the closed child must produce neither an Update nor a Close op.
+    const epicId = 900;
+    const epicIssue = 900;
+    const featureIssue = 910;
+    const storyIssue = 911;
+
+    // Compose the canonical orchestrator footer the diff engine expects on
+    // non-epic bodies so the body comparison is a no-op.
+    const storyBody = `A delivered story.\n\n---\nparent: #${featureIssue}\nEpic: #${epicId}`;
+    const featureBody = `A feature.\n\n---\nparent: #${epicIssue}`;
+
+    const spec = {
+      epic: { id: epicId, title: 'Partially Delivered Epic', body: '' },
+      features: [
+        {
+          slug: 'feature-a',
+          title: 'Feature A',
+          body: 'A feature.',
+          labels: ['type::feature'],
+          stories: [
+            {
+              slug: 'story-one',
+              title: 'Story One',
+              body: 'A delivered story.',
+              labels: ['type::story'],
+            },
+          ],
+        },
+      ],
+    };
+
+    const state = {
+      epicId,
+      mapping: {
+        epic: { issueNumber: epicIssue, entity: 'epic', parentSlug: null },
+        'feature-a': {
+          issueNumber: featureIssue,
+          entity: 'feature',
+          parentSlug: 'epic',
+        },
+        'story-one': {
+          issueNumber: storyIssue,
+          entity: 'story',
+          parentSlug: 'feature-a',
+        },
+      },
+    };
+
+    // The scoped enumeration surfaces the closed/delivered story — exactly
+    // the over-fetch the legacy repo-wide getTickets would also have
+    // pulled. The diff must ignore its closed state.
+    const provider = buildEnumProvider({
+      epic: {
+        id: epicIssue,
+        title: 'Partially Delivered Epic',
+        body: '',
+        labels: ['type::epic'],
+      },
+      children: [
+        {
+          id: featureIssue,
+          title: 'Feature A',
+          body: featureBody,
+          labels: ['type::feature'],
+          state: 'open',
+        },
+        {
+          id: storyIssue,
+          title: 'Story One',
+          body: storyBody,
+          labels: ['type::story'],
+          state: 'closed',
+        },
+      ],
+    });
+
+    const ghState = await fetchGhState(provider, epicId);
+    const plan = realDiff({ spec, state, ghState });
+
+    assert.equal(provider.calls.getSubTickets, 1);
+    assert.equal(provider.calls.getTickets, 0);
+    // No close: the slug is still in the spec.
+    assert.equal(plan.closes.length, 0, 'no spurious Close op');
+    // No update against the closed/delivered child whose structural
+    // fields match the spec (the closed state is not structural).
+    const storyUpdate = plan.updates.find((op) => op.slug === 'story-one');
+    assert.equal(storyUpdate, undefined, 'no spurious Update op for story-one');
   });
 });

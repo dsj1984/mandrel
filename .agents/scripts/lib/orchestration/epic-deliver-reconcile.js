@@ -162,9 +162,9 @@ export async function reconcileEpicAgentLabels({
       `[epic-deliver-reconcile] epicId must be a positive integer (got ${epicId}).`,
     );
   }
-  if (!provider || typeof provider.getTickets !== 'function') {
+  if (!provider || typeof provider.getSubTickets !== 'function') {
     throw new Error(
-      '[epic-deliver-reconcile] provider must implement getTickets(parentId).',
+      '[epic-deliver-reconcile] provider must implement getSubTickets(parentId).',
     );
   }
   if (typeof repoRoot !== 'string' || repoRoot.length === 0) {
@@ -173,7 +173,12 @@ export async function reconcileEpicAgentLabels({
     );
   }
 
-  const children = await provider.getTickets(epicId);
+  // Story #3455 — scope child enumeration to the Epic's sub-issue graph
+  // (server-side) instead of `getTickets`'s repo-wide `state=all` scan.
+  // The watchdog only classifies children that carry a reconcile label
+  // (executing/closing → open issues), so the scoped fetch yields the
+  // same candidate set without paging every issue in the repo.
+  const children = await provider.getSubTickets(epicId);
   const candidates = (children ?? []).filter(hasReconcileLabel);
 
   const live = [];

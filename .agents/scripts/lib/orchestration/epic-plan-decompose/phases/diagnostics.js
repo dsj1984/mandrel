@@ -20,8 +20,13 @@ import { TYPE_LABELS } from '../../../label-constants.js';
  * tickets are always Feature or Story.
  */
 async function emitOpenChildrenDiagnostic(provider, epicId) {
-  if (typeof provider.getTickets !== 'function') return;
-  const existing = await provider.getTickets(epicId);
+  if (typeof provider.getSubTickets !== 'function') return;
+  // Story #3455 — scope to the Epic's sub-issue graph instead of
+  // `getTickets`'s repo-wide `state=all` scan. The diagnostic explicitly
+  // counts `state !== 'closed'`, so the scoped fetch (which still surfaces
+  // closed children) yields the same open-child count without paging
+  // every issue in the repo.
+  const existing = await provider.getSubTickets(epicId);
   const childTypes = [TYPE_LABELS.FEATURE, TYPE_LABELS.STORY];
   const created = (existing || []).filter(
     (t) =>

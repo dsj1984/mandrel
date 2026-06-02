@@ -88,9 +88,14 @@ export async function setEpicLabel(provider, epicId, targetLabel) {
 }
 
 async function loadExistingChildren(provider, epicId) {
+  // Story #3455 — scope resume-indexing to the Epic's sub-issue graph
+  // (`getSubTickets`) instead of `getTickets`'s repo-wide `state=all`
+  // scan. The downstream filter keeps only Feature/Story children, so the
+  // scoped fetch surfaces the same set without paging every issue in the
+  // repo.
   const existing =
-    typeof provider.getTickets === 'function'
-      ? await provider.getTickets(epicId)
+    typeof provider.getSubTickets === 'function'
+      ? await provider.getSubTickets(epicId)
       : [];
   if (existing.length > 0 && typeof provider.primeTicketCache === 'function') {
     provider.primeTicketCache(existing);
