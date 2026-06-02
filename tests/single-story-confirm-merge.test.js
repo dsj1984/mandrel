@@ -184,13 +184,13 @@ describe('confirmStoryMerged', () => {
     assert.equal(prRead, 0, 'PR state is not even read once already done');
   });
 
-  it('is idempotent: noop when the issue is already closed (GitHub Closes # auto-close raced us)', async () => {
+  it('is idempotent: noop when a closed issue also carries agent::done', async () => {
     const provider = makeFakeProvider({
       initialStory: {
         id: 3385,
         state: 'closed',
-        title: 'Auto-closed',
-        labels: ['agent::closing'],
+        title: 'Already done and closed',
+        labels: ['agent::done'],
       },
     });
     const result = await confirmStoryMerged({
@@ -203,6 +203,47 @@ describe('confirmStoryMerged', () => {
     });
     assert.equal(result.action, 'noop');
     assert.equal(result.reason, 'already-done');
+    assert.equal(provider._updates().length, 0, 'no re-flip on noop');
+  });
+
+  it('still flips to agent::done when the Closes-footer already closed the issue but the label is agent::closing (Story #3415)', async () => {
+    // Reproduces Story #3413 / PR #3414: GitHub auto-merge closes the issue
+    // via the `Closes #<id>` footer *before* confirm-merge runs, so the
+    // story arrives here with `state: 'closed'` while the label is still
+    // `agent::closing`. A closed issue alone must NOT short-circuit — the
+    // `agent::closing → agent::done` flip must still fire.
+    const provider = makeFakeProvider({
+      initialStory: {
+        id: 3385,
+        state: 'closed',
+        title: 'Auto-closed by Closes-footer',
+        labels: ['agent::closing'],
+      },
+    });
+    const notifyCalls = [];
+    const result = await confirmStoryMerged({
+      provider,
+      storyId: 3385,
+      prNumber: 42,
+      prUrl: 'https://github.com/o/r/pull/42',
+      cwd: '/repo',
+      injectedNotify: async (ticketId, payload) =>
+        notifyCalls.push({ ticketId, payload }),
+      readPrMergeStateFn: fakeMergeState('MERGED', 'x'),
+    });
+
+    // The flip fires (NOT a noop) even though the issue was already closed.
+    assert.equal(result.action, 'done');
+    assert.equal(result.merged, true);
+
+    // transitionTicketState was invoked and applied the agent::done flip.
+    const [{ patch }] = provider._updates();
+    assert.deepEqual(patch.labels.add, ['agent::done']);
+    assert.ok(patch.labels.remove.includes('agent::closing'));
+
+    // story-merged notify fires exactly once.
+    assert.equal(notifyCalls.length, 1);
+    assert.equal(notifyCalls[0].payload.event, 'story-merged');
   });
 
   it('reports flip-failed and skips the notify when the done transition throws', async () => {

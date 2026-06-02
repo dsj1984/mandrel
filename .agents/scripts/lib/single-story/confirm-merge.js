@@ -18,7 +18,11 @@
  *   - `{ action: 'done', merged: true }`
  *       PR merged → flipped `agent::done`, issue closed.
  *   - `{ action: 'noop', reason: 'already-done' }`
- *       Story already carries `agent::done` / issue already closed.
+ *       Story already carries `agent::done`. A closed issue *alone* does
+ *       NOT short-circuit — GitHub's `Closes #<id>` footer closes the issue
+ *       on auto-merge before this step runs, so a closed issue whose label
+ *       is still `agent::closing` must still drive the `agent::done` flip
+ *       (Story #3415).
  *   - `{ action: 'pending', reason: 'pr-open' | 'pr-not-merged' }`
  *       PR is still open (or closed-without-merge); the Story is left at
  *       `agent::closing` and the issue stays OPEN. Recoverable — re-run
@@ -93,12 +97,22 @@ export async function confirmStoryMerged({
 
   const story = await provider.getTicket(storyId);
 
-  // Idempotence: a prior confirm-merge run (or the GitHub `Closes #<id>`
-  // auto-close) may already have closed the issue / flipped agent::done.
-  if (story.state === 'closed' || story.labels?.includes(STATE_LABELS.DONE)) {
+  // Idempotence: short-circuit only when the Story already carries
+  // `agent::done`. A *closed issue alone* is NOT sufficient — GitHub
+  // auto-merge closes the issue via the `Closes #<id>` PR footer *before*
+  // this confirm step runs, so a Story whose label is still `agent::closing`
+  // routinely arrives here with `state === 'closed'`. Gating the noop on
+  // `state === 'closed'` mistook that for already-done and skipped the
+  // `agent::closing → agent::done` flip, stranding the label and the
+  // Projects board at "In Progress" (reproduced on Story #3413 / PR #3414).
+  // Requiring the `agent::done` label preserves idempotence for a genuinely
+  // finished Story while still driving the flip for the closed-by-footer
+  // case below (`transitionTicketState` is idempotent against an
+  // already-closed issue).
+  if (story.labels?.includes(STATE_LABELS.DONE)) {
     progress?.(
       'CONFIRM',
-      `⏭  Story #${storyId} already done/closed — nothing to confirm.`,
+      `⏭  Story #${storyId} already agent::done — nothing to confirm.`,
     );
     return { storyId, action: 'noop', reason: 'already-done', merged: true };
   }
