@@ -379,6 +379,55 @@ at first-run time (no MCP-server bootstrap step) and at secrets-resolution
 time (`GITHUB_TOKEN` and `NOTIFICATION_WEBHOOK_URL` read only from
 `process.env`).
 
+#### Lifecycle vs. Runtime partition boundary
+
+Scripts in the Mandrel framework divide into two non-overlapping sets. The
+partition is determined by **who invokes the script**:
+
+| Partition     | Invocation context                                       | Resident path                    |
+| ------------- | -------------------------------------------------------- | -------------------------------- |
+| **Lifecycle** | Human operators (CLI, one-time setup, consumer sync)     | `bin/` (mandrel CLI subcommands) |
+| **Runtime**   | Agent sessions, git hooks, CI pipelines                  | `.agents/scripts/`               |
+
+**Lifecycle scripts** are invoked only by human operators — never by agent
+sessions, git hooks, or CI pipelines. They were moved to the `mandrel` CLI
+bin (under `bin/`) as part of Epic #3435 to make the boundary explicit and
+machine-enforceable:
+
+- `bootstrap.js` — one-time consumer onboarding
+- `agents-bootstrap-github.js` — GitHub-side bootstrap (labels, branch
+  protection)
+- `sync-claude-commands.js` — syncs `.claude/commands/` from `.agents/workflows/`
+- `update-self.js` — updates the `.agents/` submodule to latest `dist`
+- `sync-agentrc.js` — merges upstream `starter-agentrc.json` deltas into the
+  consumer's `.agentrc.json`
+- `check-windows-git-perf.js` — one-time Windows git performance diagnostic
+- `lib/bootstrap/*` — shared bootstrap helper modules
+
+**Runtime orchestration scripts** are invoked by agent sessions, git hooks,
+or CI pipelines and must remain at their `.agents/scripts/<name>` paths
+(because agents and hooks resolve them via that stable path):
+
+- `story-init.js`, `story-close.js` — Story worktree lifecycle
+- `wave-tick.js` — idle watchdog tick
+- `update-ticket-state.js` — GitHub label transitions
+- `dispatcher.js` — DAG computation and dispatch manifest
+- And all other scripts under `.agents/scripts/` not listed above
+
+**The rule:** a script is _lifecycle_ if it is only ever invoked by a human
+operator at the terminal; it is _runtime_ if it is invoked by an agent
+session, a git hook, or a CI step via the `.agents/scripts/<name>` path.
+Moving a lifecycle script to `bin/` without updating the hook or CI
+invocation site breaks the calling surface; moving a runtime script away
+from `.agents/scripts/` breaks agent sessions and git hooks.
+
+This partition is enforced by the invariant test at
+`tests/cli/partition.test.js`: it asserts that `.claude/settings.json`'s
+`UserPromptSubmit` hook no longer contains a bare
+`node .agents/scripts/sync-claude-commands.js` invocation — evidence that
+the hook migration from Story #3451 has taken effect and the lifecycle
+script is now correctly invoked through the `mandrel` CLI.
+
 ---
 
 ### 3. Provider Abstraction Layer
