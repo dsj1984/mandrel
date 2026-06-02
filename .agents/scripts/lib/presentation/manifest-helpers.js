@@ -8,14 +8,12 @@
  * re-exports every name here so existing call-sites' import paths stay
  * unchanged.
  *
- * Post-3-tier (Story #3194, Epic #3163): the helpers consume the
+ * Post-3-tier (Story #3194 / #3413, Epic #3163): the helpers consume the
  * Story-only manifest shape. Stories carry their lifecycle state on a
  * top-level `status` field (the parent Story's `agent::*` label) — the
- * old per-Story Task array and the per-Task id indirection are no
- * longer accessed here. Helpers that historically tallied Task-level
- * state (`topoSortTasks`, `computeStoryProgress`) moved to
- * `manifest-render-waves.js` where their last caller lives, pending
- * its own Story-only rewrite.
+ * old per-Story Task array, the per-Task id indirection, and the
+ * Task-tier summary pass-through have all been deleted. `computeProgress`
+ * now reports Story-tier aggregates only.
  */
 
 import { AGENT_LABELS } from '../label-constants.js';
@@ -43,32 +41,27 @@ export function deriveStorySymbol(story) {
 /**
  * Compute aggregate progress numbers for a dispatch manifest. Pure.
  *
- * Story-only shape (Epic #3163): `doneStories` / `totalStories` are
- * derived from each Story's top-level `status` (the parent Story's
- * `agent::*` label), not from a nested Task array. Task-tier totals
- * (`taskPct`, `doneTasks`, `totalTasks`) are passed through from the
- * caller-supplied `manifest.summary` envelope so existing telemetry
- * surfaces keep rendering identical numbers — the producer-side rewrite
- * (Story #3195) replaces those counters with Story-tier equivalents in
- * the same Epic.
+ * Story-only shape (Epic #3163, Story #3413): `doneStories` /
+ * `totalStories` are derived from each Story's top-level `status` (the
+ * parent Story's `agent::*` label), not from a nested Task array.
+ * `storyPct` is the Story-tier completion percentage; the residual
+ * Task-tier pass-through fields have been deleted.
  *
  * @param {object} manifest
  * @returns {{
- *   taskPct: number,
- *   doneTasks: number,
- *   totalTasks: number,
+ *   storyPct: number,
  *   doneStories: number,
  *   totalStories: number,
  *   storyWaveCount: number,
  * }}
  */
 export function computeProgress(manifest) {
-  const summary = manifest?.summary ?? {};
   const storyManifest = manifest?.storyManifest ?? [];
 
   const allStoryItems = storyManifest.filter(
     (s) => s.type === 'story' && s.storyId !== '__ungrouped__',
   );
+  const totalStories = allStoryItems.length;
   const doneStories = allStoryItems.filter(
     (s) => s.status === AGENT_LABELS.DONE,
   ).length;
@@ -78,11 +71,10 @@ export function computeProgress(manifest) {
   );
 
   return {
-    taskPct: summary.progressPercent ?? 0,
-    doneTasks: summary.doneTasks ?? 0,
-    totalTasks: summary.totalTasks ?? 0,
+    storyPct:
+      totalStories > 0 ? Math.round((doneStories / totalStories) * 100) : 0,
     doneStories,
-    totalStories: allStoryItems.length,
+    totalStories,
     storyWaveCount: storyWaveSet.size || 1,
   };
 }

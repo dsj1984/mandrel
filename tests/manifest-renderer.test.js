@@ -13,16 +13,7 @@ import {
 // Shared Fixtures
 // ---------------------------------------------------------------------------
 
-function makeTask(id, status = 'agent::ready', title = `Task ${id}`) {
-  return {
-    taskId: id,
-    taskSlug: title.toLowerCase().replace(/\s/g, '-'),
-    status,
-    dependencies: [],
-  };
-}
-
-function makeStory(storyId, tasks = [], wave = 0) {
+function makeStory(storyId, status = 'agent::ready', wave = 0) {
   return {
     storyId,
     storyTitle: `Story ${storyId}`,
@@ -30,11 +21,11 @@ function makeStory(storyId, tasks = [], wave = 0) {
     type: 'story',
     branchName: `story-${storyId}`,
     earliestWave: wave,
-    tasks,
+    status,
   };
 }
 
-function makeFeature(featureId, tasks = []) {
+function makeFeature(featureId) {
   return {
     storyId: featureId,
     storyTitle: `Feature ${featureId}`,
@@ -42,7 +33,6 @@ function makeFeature(featureId, tasks = []) {
     type: 'feature',
     branchName: `feature-${featureId}`,
     earliestWave: -1,
-    tasks,
   };
 }
 
@@ -53,8 +43,8 @@ function makeBaseManifest(overrides = {}) {
     generatedAt: '2026-01-01T00:00:00.000Z',
     dryRun: false,
     summary: {
-      totalTasks: 0,
-      doneTasks: 0,
+      totalStories: 0,
+      doneStories: 0,
       progressPercent: 0,
       totalWaves: 0,
       dispatched: 0,
@@ -84,18 +74,26 @@ test('renderManifestMarkdown', async (t) => {
     assert.match(output, /\/epic-deliver/);
   });
 
-  await t.test('header meta line carries done/total task counts', () => {
+  await t.test('header meta line carries done/total story counts', () => {
     const manifest = makeBaseManifest({
       summary: {
-        totalTasks: 4,
-        doneTasks: 0,
+        totalStories: 4,
+        doneStories: 0,
         progressPercent: 0,
         totalWaves: 1,
         dispatched: 0,
       },
+      storyManifest: [
+        makeStory(1, 'agent::ready', 0),
+        makeStory(2, 'agent::ready', 0),
+        makeStory(3, 'agent::ready', 0),
+        makeStory(4, 'agent::ready', 0),
+      ],
     });
     const output = renderManifestMarkdown(manifest);
-    assert.match(output, /0\/4 tasks/);
+    assert.match(output, /0\/4 stories/);
+    // No residual Task-tier count.
+    assert.doesNotMatch(output, /tasks/);
     // Hero progress block + status emoji are gone — the meta line carries
     // the totals and the Wave Summary table breaks them down per wave.
     assert.doesNotMatch(output, /Sprint Progress/);
@@ -103,13 +101,12 @@ test('renderManifestMarkdown', async (t) => {
   });
 
   await t.test('renders wave summary table for stories', () => {
-    const tasks = [makeTask(1, 'agent::done'), makeTask(2, 'agent::ready')];
-    const story = makeStory(10, tasks, 0);
+    const story = makeStory(10, 'agent::ready', 0);
     const manifest = makeBaseManifest({
       summary: {
-        totalTasks: 2,
-        doneTasks: 1,
-        progressPercent: 50,
+        totalStories: 1,
+        doneStories: 0,
+        progressPercent: 0,
         totalWaves: 1,
         dispatched: 0,
       },
@@ -121,22 +118,20 @@ test('renderManifestMarkdown', async (t) => {
   });
 
   await t.test('marks wave as Ready when wave 0', () => {
-    const tasks = [makeTask(1, 'agent::ready')];
-    const story = makeStory(10, tasks, 0);
+    const story = makeStory(10, 'agent::ready', 0);
     const manifest = makeBaseManifest({ storyManifest: [story] });
     const output = renderManifestMarkdown(manifest);
     assert.match(output, /🚀 Ready/);
   });
 
   await t.test('marks wave as Done when all stories are done', () => {
-    // Story #3194 (Epic #3163): wave Done is derived from Story status,
-    // not Task tallies. The Story carries its own `status` on the entry.
-    const tasks = [makeTask(1, 'agent::done')];
-    const story = { ...makeStory(10, tasks, 0), status: 'agent::done' };
+    // Story #3194 / #3413 (Epic #3163): wave Done is derived from Story
+    // status. The Story carries its own `status` on the entry.
+    const story = makeStory(10, 'agent::done', 0);
     const manifest = makeBaseManifest({
       summary: {
-        totalTasks: 1,
-        doneTasks: 1,
+        totalStories: 1,
+        doneStories: 1,
         progressPercent: 100,
         totalWaves: 1,
         dispatched: 0,
@@ -148,42 +143,37 @@ test('renderManifestMarkdown', async (t) => {
   });
 
   await t.test('marks wave as Blocked when prior wave incomplete', () => {
-    const tasks0 = [makeTask(1, 'agent::ready')];
-    const tasks1 = [makeTask(2, 'agent::ready')];
-    const story0 = makeStory(10, tasks0, 0);
-    const story1 = makeStory(11, tasks1, 1);
+    const story0 = makeStory(10, 'agent::ready', 0);
+    const story1 = makeStory(11, 'agent::ready', 1);
     const manifest = makeBaseManifest({ storyManifest: [story0, story1] });
     const output = renderManifestMarkdown(manifest);
     assert.match(output, /⏳ Blocked/);
   });
 
   await t.test('renders nested per-wave H2 with Story headings', () => {
-    const tasks = [makeTask(1, 'agent::ready')];
-    const story = makeStory(10, tasks, 0);
+    const story = makeStory(10, 'agent::ready', 0);
     const manifest = makeBaseManifest({ storyManifest: [story] });
     const output = renderManifestMarkdown(manifest);
     // Legacy "## Execution Plan" was retired in Story #1194 Task #1212.
     assert.doesNotMatch(output, /## Execution Plan/);
     assert.match(output, /^## .* Wave 0/m); // per-wave H2
     assert.match(output, /^### .* #10/m); // per-Story H3 with id
-    // Under the 3-tier hierarchy (Epic #3163, Story #3196) Stories are
-    // leaves; the per-Story body collapses to the empty-tasks marker
-    // and no per-Task checkbox row is emitted.
-    assert.match(output, /_\(no tasks\)_/);
-    assert.doesNotMatch(output, /- \[ \] #1 — task-1/);
+    // Under the 3-tier hierarchy (Epic #3163, Story #3413) Stories are
+    // leaves; no per-Task body or checkbox row is emitted.
+    assert.doesNotMatch(output, /_\(no tasks\)_/);
+    assert.doesNotMatch(output, /- \[ \]/);
   });
 
   await t.test('renders completed story with checkmark', () => {
-    const tasks = [makeTask(1, 'agent::done')];
-    const story = makeStory(10, tasks, 0);
+    const story = makeStory(10, 'agent::done', 0);
     const manifest = makeBaseManifest({ storyManifest: [story] });
     const output = renderManifestMarkdown(manifest);
     assert.match(output, /✅/);
   });
 
   await t.test('excludes features from execution plan waves', () => {
-    const feature = makeFeature(50, [makeTask(1)]);
-    const story = makeStory(10, [makeTask(2)], 0);
+    const feature = makeFeature(50);
+    const story = makeStory(10, 'agent::ready', 0);
     const manifest = makeBaseManifest({ storyManifest: [feature, story] });
     const output = renderManifestMarkdown(manifest);
     // Feature should be in a separate section, not in wave execution
@@ -194,18 +184,20 @@ test('renderManifestMarkdown', async (t) => {
   });
 
   await t.test('renders feature containers section', () => {
-    const feature = makeFeature(50, [makeTask(1), makeTask(2)]);
+    const feature = makeFeature(50);
     const manifest = makeBaseManifest({ storyManifest: [feature] });
     const output = renderManifestMarkdown(manifest);
     assert.match(output, /Feature Containers/);
     assert.match(output, /not directly executable/);
     assert.match(output, /#50/);
+    // No residual Child Tasks column.
+    assert.doesNotMatch(output, /Child Tasks/);
   });
 
   await t.test(
     'does not render Feature Containers section when no features',
     () => {
-      const story = makeStory(10, [makeTask(1)], 0);
+      const story = makeStory(10, 'agent::ready', 0);
       const manifest = makeBaseManifest({ storyManifest: [story] });
       const output = renderManifestMarkdown(manifest);
       assert.doesNotMatch(output, /Feature Containers/);
@@ -213,8 +205,8 @@ test('renderManifestMarkdown', async (t) => {
   );
 
   await t.test('renders multiple waves in correct order', () => {
-    const s0 = makeStory(10, [makeTask(1, 'agent::done')], 0);
-    const s1 = makeStory(11, [makeTask(2, 'agent::ready')], 1);
+    const s0 = makeStory(10, 'agent::done', 0);
+    const s1 = makeStory(11, 'agent::ready', 1);
     const manifest = makeBaseManifest({ storyManifest: [s1, s0] }); // intentionally reversed
     const output = renderManifestMarkdown(manifest);
     const wave0Pos = output.indexOf('Wave 0');

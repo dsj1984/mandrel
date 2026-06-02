@@ -3,6 +3,12 @@
  * `renderNestedWaveSections` plus branch coverage of the private
  * `validateWaveSection` predicate (exposed via `__testables`).
  *
+ * Story #3413 (3-tier cutover, final): the residual per-Task rendering
+ * has been deleted. Each wave counts Stories (done/total), renders one
+ * H3 per Story with no task suffix, and emits no `_(no tasks)_` marker
+ * or `Child Tasks` feature-table column. A Story is "done" when its
+ * top-level `status` is `agent::done`.
+ *
  * The existing `tests/lib/manifest-formatter.test.js` continues to
  * exercise the renderer through the formatter's re-export so the
  * round-trip layout is locked at the façade. This file targets the new
@@ -31,20 +37,16 @@ test('validateWaveSection: storyManifest level accepts only arrays', () => {
   assert.equal(validateWaveSection('storyManifest', 'x'), false);
 });
 
-test('validateWaveSection: tasks level accepts only arrays', () => {
-  assert.equal(validateWaveSection('tasks', []), true);
-  assert.equal(validateWaveSection('tasks', [{ taskId: 1 }]), true);
-  assert.equal(validateWaveSection('tasks', null), false);
-  assert.equal(validateWaveSection('tasks', undefined), false);
-  assert.equal(validateWaveSection('tasks', { taskId: 1 }), false);
-});
-
 test('validateWaveSection: story level accepts only non-null objects', () => {
-  assert.equal(validateWaveSection('story', { storyId: 1, tasks: [] }), true);
+  assert.equal(validateWaveSection('story', { storyId: 1 }), true);
   assert.equal(validateWaveSection('story', {}), true);
   assert.equal(validateWaveSection('story', null), false);
   assert.equal(validateWaveSection('story', undefined), false);
   assert.equal(validateWaveSection('story', 42), false);
+});
+
+test('validateWaveSection: removed tasks level falls through to false', () => {
+  assert.equal(validateWaveSection('tasks', []), false);
 });
 
 test('validateWaveSection: unknown level falls through to false', () => {
@@ -65,7 +67,7 @@ test('renderNestedWaveSections: returns empty string for null / empty / non-arra
   assert.equal(renderNestedWaveSections({}), '');
 });
 
-test('renderNestedWaveSections: skips non-object entries inside the manifest', () => {
+test('renderNestedWaveSections: skips non-object entries and renders Story H3 with no task suffix', () => {
   const stories = [
     null,
     'invalid',
@@ -74,48 +76,51 @@ test('renderNestedWaveSections: skips non-object entries inside the manifest', (
       storyTitle: 'Alpha',
       type: 'story',
       earliestWave: 0,
-      tasks: [],
     },
   ];
   const md = renderNestedWaveSections(stories);
   assert.ok(md.includes('## 🚀 Wave 0'));
-  assert.ok(md.includes('### ⬜ #101 — Alpha · 0/0 tasks'));
-  // Under the 3-tier hierarchy Stories are leaves — the per-Task
-  // checkbox list is collapsed to the empty marker.
-  assert.ok(md.includes('_(no tasks)_'));
+  assert.ok(md.includes('### ⬜ #101 — Alpha'));
+  // No residual Task projection.
+  assert.ok(!md.includes('tasks'));
+  assert.ok(!md.includes('_(no tasks)_'));
 });
 
-test('renderNestedWaveSections: renders a single Ready wave with no parallel tail when story count is 1', () => {
-  const stories = [
-    {
-      storyId: 101,
-      storyTitle: 'Solo',
-      type: 'story',
-      earliestWave: 0,
-      tasks: [{ taskId: 200, taskSlug: 't1', status: 'agent::ready' }],
-    },
-  ];
-  const md = renderNestedWaveSections(stories);
-  assert.ok(md.includes('## 🚀 Wave 0'));
-  assert.ok(!md.includes('run in parallel'));
-});
-
-test('renderNestedWaveSections: Ready wave with multiple stories emits the parallel-fan-out tail', () => {
+test('renderNestedWaveSections: wave blockquote counts done/total Stories', () => {
   const stories = [
     {
       storyId: 101,
       storyTitle: 'A',
       type: 'story',
       earliestWave: 0,
-      tasks: [{ taskId: 200, taskSlug: 't1', status: 'agent::ready' }],
+      status: 'agent::done',
     },
     {
       storyId: 102,
       storyTitle: 'B',
       type: 'story',
       earliestWave: 0,
-      tasks: [{ taskId: 201, taskSlug: 't2', status: 'agent::ready' }],
+      status: 'agent::ready',
     },
+  ];
+  const md = renderNestedWaveSections(stories);
+  assert.ok(md.includes('> 2 stories · 1/2 done'));
+});
+
+test('renderNestedWaveSections: renders a single Ready wave with no parallel tail when story count is 1', () => {
+  const stories = [
+    { storyId: 101, storyTitle: 'Solo', type: 'story', earliestWave: 0 },
+  ];
+  const md = renderNestedWaveSections(stories);
+  assert.ok(md.includes('## 🚀 Wave 0'));
+  assert.ok(md.includes('> 1 story · 0/1 done'));
+  assert.ok(!md.includes('run in parallel'));
+});
+
+test('renderNestedWaveSections: Ready wave with multiple stories emits the parallel-fan-out tail', () => {
+  const stories = [
+    { storyId: 101, storyTitle: 'A', type: 'story', earliestWave: 0 },
+    { storyId: 102, storyTitle: 'B', type: 'story', earliestWave: 0 },
   ];
   const md = renderNestedWaveSections(stories);
   assert.ok(md.includes('· 2 run in parallel'));
@@ -123,59 +128,29 @@ test('renderNestedWaveSections: Ready wave with multiple stories emits the paral
 
 test('renderNestedWaveSections: Blocked wave emits the gating tail naming the latest prior wave', () => {
   const stories = [
-    {
-      storyId: 101,
-      storyTitle: 'A',
-      type: 'story',
-      earliestWave: 0,
-      tasks: [{ taskId: 200, taskSlug: 't1', status: 'agent::ready' }],
-    },
-    {
-      storyId: 102,
-      storyTitle: 'B',
-      type: 'story',
-      earliestWave: 1,
-      tasks: [{ taskId: 201, taskSlug: 't2', status: 'agent::ready' }],
-    },
+    { storyId: 101, storyTitle: 'A', type: 'story', earliestWave: 0 },
+    { storyId: 102, storyTitle: 'B', type: 'story', earliestWave: 1 },
   ];
   const md = renderNestedWaveSections(stories);
   assert.ok(md.includes('· gated on Wave 0'));
 });
 
-test('renderNestedWaveSections: empty story.tasks renders _(no tasks)_ marker', () => {
-  const stories = [
-    {
-      storyId: 101,
-      storyTitle: 'Empty',
-      type: 'story',
-      earliestWave: 0,
-      tasks: [],
-    },
-  ];
-  const md = renderNestedWaveSections(stories);
-  assert.ok(md.includes('_(no tasks)_'));
-});
-
-test('renderNestedWaveSections: Feature Containers section emits when type=feature entries exist', () => {
+test('renderNestedWaveSections: Feature Containers section emits a Story-only column set', () => {
   const stories = [
     {
       storyId: 101,
       storyTitle: 'A',
       type: 'story',
       earliestWave: 0,
-      tasks: [{ taskId: 200, taskSlug: 't1', status: 'agent::done' }],
+      status: 'agent::done',
     },
-    {
-      storyId: 300,
-      storySlug: 'container',
-      type: 'feature',
-      earliestWave: -1,
-      tasks: [{ taskId: 400, status: 'agent::ready' }],
-    },
+    { storyId: 300, storySlug: 'container', type: 'feature', earliestWave: -1 },
   ];
   const md = renderNestedWaveSections(stories);
   assert.ok(md.includes('## Feature Containers'));
-  assert.ok(md.includes('| #300 | container | 1 |'));
+  assert.ok(md.includes('| Feature | Title |'));
+  assert.ok(md.includes('| #300 | container |'));
+  assert.ok(!md.includes('Child Tasks'));
 });
 
 test('renderNestedWaveSections: Story title falls back to storySlug when storyTitle missing', () => {
@@ -185,7 +160,6 @@ test('renderNestedWaveSections: Story title falls back to storySlug when storyTi
       storySlug: 'slug-only',
       type: 'story',
       earliestWave: 0,
-      tasks: [{ taskId: 200, taskSlug: 't1', status: 'agent::ready' }],
     },
   ];
   const md = renderNestedWaveSections(stories);
@@ -194,8 +168,8 @@ test('renderNestedWaveSections: Story title falls back to storySlug when storyTi
 
 test('renderNestedWaveSections: Stories never emit per-Task checkbox rows (3-tier)', () => {
   // Under the 3-tier hierarchy Stories are leaves; the renderer no
-  // longer projects child Task tickets into checkbox rows even when a
-  // legacy caller still hands in a populated `tasks` array.
+  // longer projects child Task tickets even when a legacy caller still
+  // hands in a populated `tasks` array.
   const stories = [
     {
       storyId: 101,
@@ -208,18 +182,12 @@ test('renderNestedWaveSections: Stories never emit per-Task checkbox rows (3-tie
   const md = renderNestedWaveSections(stories);
   assert.ok(!md.includes('- [ ]'));
   assert.ok(!md.includes('- [x]'));
-  assert.ok(md.includes('_(no tasks)_'));
+  assert.ok(!md.includes('_(no tasks)_'));
 });
 
 test('renderNestedWaveSections: Ungrouped bucket (wave -1) renders as ungrouped heading', () => {
   const stories = [
-    {
-      storyId: 101,
-      storyTitle: 'A',
-      type: 'story',
-      earliestWave: -1,
-      tasks: [{ taskId: 200, taskSlug: 't1', status: 'agent::ready' }],
-    },
+    { storyId: 101, storyTitle: 'A', type: 'story', earliestWave: -1 },
   ];
   const md = renderNestedWaveSections(stories);
   assert.ok(md.includes('Ungrouped'));

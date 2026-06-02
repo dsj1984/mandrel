@@ -15,19 +15,7 @@ function buildLargeManifest(storyCount = 50) {
       type: 'story',
       earliestWave: i % 5,
       branchName: `story-${1000 + i}`,
-      tasks: [
-        {
-          taskId: 2000 + i * 2,
-          taskSlug: `t-${i}-a`,
-          status: 'agent::done',
-        },
-        {
-          taskId: 2001 + i * 2,
-          taskSlug: `t-${i}-b`,
-          status: 'agent::ready',
-          dependencies: [2000 + i * 2],
-        },
-      ],
+      status: i % 2 === 0 ? 'agent::done' : 'agent::ready',
     });
   }
   return {
@@ -36,8 +24,8 @@ function buildLargeManifest(storyCount = 50) {
     dryRun: false,
     generatedAt: '2026-04-24T00:00:00.000Z',
     summary: {
-      totalTasks: storyCount * 2,
-      doneTasks: storyCount,
+      totalStories: storyCount,
+      doneStories: Math.ceil(storyCount / 2),
       progressPercent: 50,
       dispatched: storyCount,
       totalWaves: 5,
@@ -63,7 +51,8 @@ test('formatManifestMarkdown re-renders when input changes', () => {
   __resetManifestFormatterCache();
   const a = buildLargeManifest(5);
   const b = buildLargeManifest(5);
-  b.summary.doneTasks = a.summary.doneTasks + 1;
+  // Flip a Story's status so the rendered output (and content hash) differs.
+  b.storyManifest[1].status = 'agent::done';
   const first = formatManifestMarkdown(a);
   const second = formatManifestMarkdown(b);
   assert.notEqual(first, second);

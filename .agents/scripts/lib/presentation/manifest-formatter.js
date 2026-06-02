@@ -127,7 +127,7 @@ function _formatManifestMarkdownUncached(manifest) {
  * @returns {string[]}
  */
 function renderManifestHeader(manifest) {
-  const { epicId, epicTitle, summary, generatedAt } = manifest;
+  const { epicId, epicTitle, generatedAt } = manifest;
   const progress = computeProgress(manifest);
   const waveCount = progress.storyWaveCount;
   return [
@@ -135,7 +135,7 @@ function renderManifestHeader(manifest) {
     '',
     `> **${epicTitle}**`,
     '',
-    `_Generated ${generatedAt} · ${summary.doneTasks}/${summary.totalTasks} tasks · ${progress.doneStories}/${progress.totalStories} stories · ${waveCount} wave${waveCount === 1 ? '' : 's'}_`,
+    `_Generated ${generatedAt} · ${progress.doneStories}/${progress.totalStories} stories · ${waveCount} wave${waveCount === 1 ? '' : 's'}_`,
     '',
     renderProceduresAndLegendDetails(epicId),
     '',
@@ -178,9 +178,11 @@ function renderManifestBody(manifest) {
 
 /**
  * Private: emit the agent-telemetry trailer (friction count + recent
- * friction list) when the manifest carries one.
+ * friction list) when the manifest carries one. Under the 3-tier
+ * hierarchy (Epic #3163) friction records are Story-scoped, so each
+ * recent-friction item is keyed by its `storyId`.
  *
- * @param {{ totalFriction: number, recentFriction: Array<{ message: string, taskId: number|string }> }} agentTelemetry
+ * @param {{ totalFriction: number, recentFriction: Array<{ message: string, storyId: number|string }> }} agentTelemetry
  * @returns {string[]}
  */
 /* node:coverage ignore next */
@@ -197,7 +199,7 @@ function renderManifestTelemetry(agentTelemetry) {
         .replace(/\s+/g, ' ')
         .replace(/\n/g, ' ')
         .trim();
-      lines.push(`  - Task **#${item.taskId}**: ${safeMessage}`);
+      lines.push(`  - Story **#${item.storyId}**: ${safeMessage}`);
     }
   } else {
     lines.push('- **Active Issues:** None recorded.');

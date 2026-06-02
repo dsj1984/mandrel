@@ -22,9 +22,9 @@ function epicManifest(overrides = {}) {
     dryRun: false,
     generatedAt: '2026-04-20T00:00:00.000Z',
     summary: {
-      totalTasks: 4,
-      doneTasks: 1,
-      progressPercent: 25,
+      totalStories: 2,
+      doneStories: 0,
+      progressPercent: 0,
       dispatched: 2,
       totalWaves: 2,
     },
@@ -36,10 +36,7 @@ function epicManifest(overrides = {}) {
         type: 'story',
         earliestWave: 0,
         branchName: 'story-101',
-        tasks: [
-          { taskId: 201, taskSlug: 't-a1', status: 'agent::done' },
-          { taskId: 202, taskSlug: 't-a2', status: 'agent::ready' },
-        ],
+        status: 'agent::ready',
       },
       {
         storyId: 102,
@@ -48,15 +45,7 @@ function epicManifest(overrides = {}) {
         type: 'story',
         earliestWave: 1,
         branchName: 'story-102',
-        tasks: [
-          {
-            taskId: 203,
-            taskSlug: 't-b1',
-            status: 'agent::ready',
-            dependencies: [201],
-          },
-          { taskId: 204, taskSlug: 't-b2', status: 'agent::ready' },
-        ],
+        status: 'agent::ready',
       },
     ],
     ...overrides,
@@ -71,7 +60,6 @@ test('formatter: feature containers row when features present', () => {
     type: 'feature',
     earliestWave: -1,
     branchName: 'feature-300',
-    tasks: [{ taskId: 400, taskSlug: 'orphan', status: 'agent::ready' }],
   });
   const md = formatManifestMarkdown(manifest);
   assert.ok(md.includes('## Feature Containers'));
@@ -96,14 +84,6 @@ test('formatter: story execution manifest respects injected settings', () => {
           storyTitle: 'Alpha',
           epicBranch: 'epic/42',
           branchName: 'story-101',
-          tasks: [
-            {
-              taskId: 201,
-              title: 'Do the thing',
-              status: 'agent::ready',
-              dependencies: [],
-            },
-          ],
         },
       ],
     },
@@ -143,14 +123,12 @@ test('formatter: printStoryDispatchTable writes to injected logger', () => {
         storySlug: 'alpha',
         type: 'story',
         earliestWave: 0,
-        tasks: [{}, {}],
       },
       {
         storyId: 200,
         storySlug: 'container',
         type: 'feature',
         earliestWave: -1,
-        tasks: [{}],
       },
     ],
     { logger },
@@ -159,6 +137,9 @@ test('formatter: printStoryDispatchTable writes to injected logger', () => {
   assert.ok(flat.includes('📋 STORY DISPATCH TABLE'));
   assert.ok(flat.includes('#101'));
   assert.ok(flat.includes('📦 Feature Containers'));
+  // No residual Tasks column or orphaned-tasks feature line.
+  assert.ok(!flat.includes('Tasks'));
+  assert.ok(!flat.includes('orphaned'));
 });
 
 test('formatter: printStoryDispatchTable no-ops on empty manifest', () => {
@@ -172,14 +153,16 @@ test('formatter: printStoryDispatchTable no-ops on empty manifest', () => {
 // Pure helper fixtures (Story #484)
 // ---------------------------------------------------------------------------
 
-test('computeProgress: aggregates task pct, story counts, wave count', () => {
+test('computeProgress: aggregates Story-tier pct, story counts, wave count', () => {
   const result = computeProgress(epicManifest());
-  assert.equal(result.taskPct, 25);
-  assert.equal(result.doneTasks, 1);
-  assert.equal(result.totalTasks, 4);
+  assert.equal(result.storyPct, 0);
   assert.equal(result.totalStories, 2);
   assert.equal(result.doneStories, 0);
   assert.equal(result.storyWaveCount, 2);
+  // No residual Task-tier pass-through.
+  assert.equal(result.taskPct, undefined);
+  assert.equal(result.doneTasks, undefined);
+  assert.equal(result.totalTasks, undefined);
 });
 
 test('computeProgress: counts a story as done from its top-level status', () => {
@@ -187,17 +170,17 @@ test('computeProgress: counts a story as done from its top-level status', () => 
   manifest.storyManifest[0].status = 'agent::done';
   const result = computeProgress(manifest);
   assert.equal(result.doneStories, 1);
+  assert.equal(result.storyPct, 50);
 });
 
 test('computeProgress: falls back to wave count of 1 when no waves are set', () => {
   const result = computeProgress({
-    summary: { progressPercent: 0, doneTasks: 0, totalTasks: 0 },
     storyManifest: [
       {
         storyId: 1,
         type: 'story',
         earliestWave: -1,
-        tasks: [],
+        status: 'agent::ready',
       },
     ],
   });

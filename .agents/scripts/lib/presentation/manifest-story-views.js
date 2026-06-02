@@ -45,12 +45,6 @@ export function formatStoryManifestMarkdown(manifest, opts = {}) {
     lines.push(`- **Epic Branch:** \`${story.epicBranch}\``);
     lines.push(`- **Story Branch:** \`${story.branchName}\``);
     lines.push('');
-    // Under the 3-tier hierarchy (Epic #3163) Stories are leaves with no
-    // child Task tickets, so the per-Story Task projection has no live
-    // producer. The renderer surfaces a single marker rather than the
-    // legacy per-Task checkbox list.
-    lines.push('_(no tasks)_');
-    lines.push('');
   }
 
   lines.push('---');
@@ -93,21 +87,11 @@ export function printStoryDispatchTable(storyManifest, opts = {}) {
   const stories = storyManifest.filter((s) => s.type !== 'feature');
   const features = storyManifest.filter((s) => s.type === 'feature');
 
-  log(
-    '\n┌─────────┬──────────────────────────────────────┬──────┬────────────┬──────────────┐',
-  );
-  log(
-    '│                           📋 STORY DISPATCH TABLE                            │',
-  );
-  log(
-    '├─────────┼──────────────────────────────────────┼──────┼──────────────┤',
-  );
-  log(
-    '│ Story   │ Title                                │ Wave │ Tasks        │',
-  );
-  log(
-    '├─────────┼──────────────────────────────────────┼──────┼──────────────┤',
-  );
+  log('\n┌─────────┬──────────────────────────────────────┬──────┐');
+  log('│                  📋 STORY DISPATCH TABLE                 │');
+  log('├─────────┼──────────────────────────────────────┼──────┤');
+  log('│ Story   │ Title                                │ Wave │');
+  log('├─────────┼──────────────────────────────────────┼──────┤');
 
   for (const story of stories) {
     const id =
@@ -116,13 +100,10 @@ export function printStoryDispatchTable(storyManifest, opts = {}) {
     const wave = (
       story.earliestWave === -1 ? '-' : String(story.earliestWave)
     ).padEnd(4);
-    const taskCount = `${story.tasks.length} task(s)`.padEnd(12);
-    log(`│ ${id.padEnd(7)} │ ${title} │ ${wave} │ ${taskCount} │`);
+    log(`│ ${id.padEnd(7)} │ ${title} │ ${wave} │`);
   }
 
-  log(
-    '└─────────┴──────────────────────────────────────┴──────┴──────────────┘',
-  );
+  log('└─────────┴──────────────────────────────────────┴──────┘');
   log('');
   log('  💡 Stories in the same [Wave] can be executed in parallel.');
   log('  💡 Use /epic-deliver #[Story ID] to execute a Story.');
@@ -131,9 +112,7 @@ export function printStoryDispatchTable(storyManifest, opts = {}) {
     log('');
     log('  📦 Feature Containers (not directly executable):');
     for (const f of features) {
-      log(
-        `     #${f.storyId} — ${f.storySlug} (${f.tasks.length} orphaned tasks)`,
-      );
+      log(`     #${f.storyId} — ${f.storySlug}`);
     }
   }
   log('');

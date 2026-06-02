@@ -25,7 +25,7 @@
  *     rollup walker; returns `null` on missing/malformed payloads.
  *   - {@link rollupModelAttribution} — given a Story or Epic ticket id,
  *     walks `getSubTickets`, collects attribution comments, returns
- *     `{ totalTasks, byModel: {...}, missing: N }`.
+ *     `{ totalChildren, byModel: {...}, missing: N }`.
  */
 
 import { parseFencedJsonComment } from './structured-comment-parser.js';
@@ -338,7 +338,7 @@ export async function parseModelAttributionComment(args) {
  * }} args
  * @returns {Promise<{
  *   parentId: number,
- *   totalTasks: number,
+ *   totalChildren: number,
  *   missing: number,
  *   byModel: Record<string, number>,
  *   byId: Record<string, number>,
@@ -382,7 +382,7 @@ export async function rollupModelAttribution(args) {
   }
   return {
     parentId,
-    totalTasks: children.length,
+    totalChildren: children.length,
     missing,
     byModel,
     byId,
