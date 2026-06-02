@@ -73,7 +73,7 @@ which deleted the existing compatibility shim layer across
 emit shims, and duplicate progress/comment writers in one pass. The
 per-finding closing references (audit Findings #10, #11, #13, #17) live in
 the merged PRs and the Epic #2646 history; the standing forward-looking
-audit lives at [`docs/future-considerations.md`](../../docs/future-considerations.md).
+audit lives at [`docs/roadmap.md`](../../docs/roadmap.md) (Part 1 — Model-Evolution Audit).
 
 Practical guidance when authoring a contract change:
 
