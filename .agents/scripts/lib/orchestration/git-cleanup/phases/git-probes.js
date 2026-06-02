@@ -286,6 +286,37 @@ export function probeAllPrs(cwd, runGh = defaultGhRunner, limit = 1000) {
   return index;
 }
 
+const SHA_RE = /^[0-9a-f]{7,40}$/i;
+
+/**
+ * Normalise a raw git SHA string: trim it and return it only when it
+ * matches the 7–40 hex-char shape, else `null`. Shared by both the local
+ * and remote-only resolution paths so the validation lives in one place.
+ *
+ * @param {string} raw
+ * @returns {string | null}
+ */
+function validSha(raw) {
+  const sha = (raw ?? '').trim();
+  return SHA_RE.test(sha) ? sha : null;
+}
+
+/**
+ * Extract the leading SHA token from `git ls-remote` stdout. Returns the
+ * first non-empty line's first whitespace-delimited field, or `''` when
+ * stdout carries no usable line.
+ *
+ * @param {string} stdout
+ * @returns {string}
+ */
+function firstLsRemoteSha(stdout) {
+  const first = stdout
+    .split('\n')
+    .map((l) => l.trim())
+    .find(Boolean);
+  return first ? (first.split(/\s+/)[0]?.trim() ?? '') : '';
+}
+
 /**
  * Resolve the current tip SHA of a branch.
  *
@@ -307,20 +338,13 @@ export function branchTipSha({
 }) {
   if (localExists) {
     const res = gitSpawn(cwd, 'rev-parse', `refs/heads/${branch}`);
-    if (res.status !== 0) return null;
-    const sha = res.stdout.trim();
-    return /^[0-9a-f]{7,40}$/i.test(sha) ? sha : null;
+    return res.status !== 0 ? null : validSha(res.stdout);
   }
   const res = gitSpawn(cwd, 'ls-remote', '--heads', remoteName, branch);
-  if (res.status !== 0) return null;
-  const first = res.stdout
-    .split('\n')
-    .map((l) => l.trim())
-    .find(Boolean);
-  if (!first) return null;
-  const sha = first.split(/\s+/)[0]?.trim() ?? '';
-  return /^[0-9a-f]{7,40}$/i.test(sha) ? sha : null;
+  return res.status !== 0 ? null : validSha(firstLsRemoteSha(res.stdout));
 }
+
+export const __testing = { validSha, firstLsRemoteSha };
 
 /**
  * Pure-ish: classify a latest-PR probe row into a planner verdict.

@@ -39,7 +39,7 @@
     "quality": {
       "gates": {
         "crap": {
-          "floors": { "*": { "max": 105 } },
+          "floors": { "*": { "max": 40 } },
           "targetDirs": [".agents/scripts"]
         },
         "maintainability": {

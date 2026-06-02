@@ -20,6 +20,22 @@ import readline from 'node:readline';
 
 const TAG = '[git-cleanup]';
 
+/**
+ * Map a raw stash-prompt answer to a decision verdict. Pure: trims and
+ * lowercases the input, then classifies it as `drop` / `quit` / `keep`.
+ * `drop` covers `d`/`drop`/`y`/`yes`; `quit` covers `q`/`quit`; anything
+ * else (including empty) defaults to the safe `keep`.
+ *
+ * @param {string} answer
+ * @returns {'drop' | 'keep' | 'quit'}
+ */
+export function decideStashAnswer(answer) {
+  const t = (answer ?? '').trim().toLowerCase();
+  if (t === 'd' || t === 'drop' || t === 'y' || t === 'yes') return 'drop';
+  if (t === 'q' || t === 'quit') return 'quit';
+  return 'keep';
+}
+
 /* node:coverage ignore next */
 export async function promptYesNo(question) {
   const rl = readline.createInterface({
@@ -49,10 +65,7 @@ export async function promptStashDecision(entry) {
         (a) => resolve(a),
       );
     });
-    const t = (ans ?? '').trim().toLowerCase();
-    if (t === 'd' || t === 'drop' || t === 'y' || t === 'yes') return 'drop';
-    if (t === 'q' || t === 'quit') return 'quit';
-    return 'keep';
+    return decideStashAnswer(ans);
   } finally {
     rl.close();
   }
