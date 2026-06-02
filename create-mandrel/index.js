@@ -1,24 +1,27 @@
 #!/usr/bin/env node
 /**
- * create-mandrel — cold-start launcher for Mandrel (Story #3373).
+ * create-mandrel — cold-start launcher for Mandrel (Story #3373, #3465).
  *
  * Zero-to-installed entry point for cold-start onboarding. The launcher's
- * single job is to vendor the `.agents` Git submodule (when absent) and then
- * hand off to the in-tree bootstrap:
+ * single job is to install the distributed `@mandrel/agents` npm package
+ * (when `.agents` is absent), materialize it into `./.agents/` via
+ * `mandrel sync`, and then hand off to the in-tree bootstrap:
  *
- *   1. If `.agents` is absent → `git submodule add -b dist <CANONICAL_REMOTE>`
- *      against a HARDCODED canonical remote URL, then
- *      `git submodule update --init`.
- *   2. If `.agents` already exists → skip the add/update and go straight to
- *      bootstrap.
+ *   1. If `.agents` is absent →
+ *        a. `npm install @mandrel/agents` against a HARDCODED canonical
+ *           package name, then
+ *        b. `npx mandrel sync` to copy `node_modules/@mandrel/agents/` →
+ *           `./.agents/`.
+ *   2. If `.agents` already exists → skip the install/sync and go straight
+ *      to bootstrap.
  *   3. Always exec `node .agents/scripts/bootstrap.js`, forwarding every
  *      passthrough flag (e.g. `--assume-yes`, `--skip-github`, `--owner`,
  *      `--repo`) unchanged.
  *
- * SECURITY: the submodule remote is a build-time constant. It is NEVER
- * sourced from operator input, an environment variable, or argv. Allowing an
- * operator-supplied URL would let a cold-start command vendor arbitrary code
- * into `.agents/` and run it — the launcher exists precisely to make the
+ * SECURITY: the package name is a build-time constant. It is NEVER sourced
+ * from operator input, an environment variable, or argv. Allowing an
+ * operator-supplied package would let a cold-start command install arbitrary
+ * code into `.agents/` and run it — the launcher exists precisely to make the
  * provenance of `.agents` non-negotiable.
  *
  * Usage:
@@ -30,17 +33,14 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 
 /**
- * Canonical Mandrel dist remote. HARDCODED on purpose — see the security
- * note in the module header. The `dist` branch carries the distributed
- * `.agents/` bundle (per AGENTS.md § Project Overview).
+ * Canonical Mandrel npm package. HARDCODED on purpose — see the security
+ * note in the module header. The package ships the `mandrel` CLI bin and the
+ * `.agents/` payload as files (per AGENTS.md § Project Overview / Epic #3436).
  */
-export const CANONICAL_REMOTE = 'https://github.com/dsj1984/mandrel.git';
+export const CANONICAL_PACKAGE = '@mandrel/agents';
 
-/** The branch the submodule tracks. */
-export const DIST_BRANCH = 'dist';
-
-/** Path the submodule is vendored to, relative to the project root. */
-export const SUBMODULE_PATH = '.agents';
+/** Path `.agents/` is materialized to, relative to the project root. */
+export const AGENTS_PATH = '.agents';
 
 /**
  * Compute the ordered list of commands the launcher must run, given whether
@@ -48,12 +48,12 @@ export const SUBMODULE_PATH = '.agents';
  * logic is unit-testable in isolation.
  *
  * When `.agents` is absent the plan is:
- *   git submodule add -b dist <CANONICAL_REMOTE> .agents
- *   git submodule update --init -- .agents
+ *   npm install @mandrel/agents
+ *   npx mandrel sync
  *   node .agents/scripts/bootstrap.js [...passthrough]
  *
- * When `.agents` is present the add/update steps are skipped and the plan is
- * just the bootstrap invocation.
+ * When `.agents` is present the install/sync steps are skipped and the plan
+ * is just the bootstrap invocation.
  *
  * @param {object} opts
  * @param {boolean} opts.agentsPresent — whether `.agents` already exists.
@@ -64,25 +64,18 @@ export function planLaunch({ agentsPresent, passthroughArgs = [] }) {
   const steps = [];
   if (!agentsPresent) {
     steps.push({
-      cmd: 'git',
-      args: [
-        'submodule',
-        'add',
-        '-b',
-        DIST_BRANCH,
-        CANONICAL_REMOTE,
-        SUBMODULE_PATH,
-      ],
+      cmd: 'npm',
+      args: ['install', CANONICAL_PACKAGE],
     });
     steps.push({
-      cmd: 'git',
-      args: ['submodule', 'update', '--init', '--', SUBMODULE_PATH],
+      cmd: 'npx',
+      args: ['mandrel', 'sync'],
     });
   }
   steps.push({
     cmd: process.execPath,
     args: [
-      path.join(SUBMODULE_PATH, 'scripts', 'bootstrap.js'),
+      path.join(AGENTS_PATH, 'scripts', 'bootstrap.js'),
       ...passthroughArgs,
     ],
   });
@@ -91,8 +84,13 @@ export function planLaunch({ agentsPresent, passthroughArgs = [] }) {
 
 /**
  * Default synchronous command runner. Inherits stdio so the operator sees
- * git/bootstrap output live, and surfaces a non-zero exit by throwing so the
- * launcher halts the plan at the first failing step.
+ * npm / sync / bootstrap output live, and surfaces a non-zero exit by
+ * throwing so the launcher halts the plan at the first failing step.
+ *
+ * `npm` and `npx` resolve to `.cmd` shims on Windows, which `spawnSync`
+ * cannot exec without a shell. The command and args are build-time constants
+ * (never operator-supplied), so enabling `shell` introduces no injection
+ * surface.
  *
  * @param {{ cmd: string, args: string[] }} step
  * @param {string} cwd
@@ -101,6 +99,7 @@ function defaultRunStep(step, cwd) {
   const result = spawnSync(step.cmd, step.args, {
     cwd,
     stdio: 'inherit',
+    shell: true,
   });
   if (result.error) {
     throw new Error(
@@ -122,7 +121,7 @@ function defaultRunStep(step, cwd) {
 /**
  * Run the launcher end to end. Dependencies are injected so the orchestration
  * (existence check → ordered step execution) is unit-testable without
- * touching git, the network, or the real filesystem.
+ * touching npm, the network, or the real filesystem.
  *
  * @param {object} [opts]
  * @param {string[]} [opts.argv] — passthrough flags for bootstrap (default:
@@ -138,7 +137,7 @@ export function runLauncher(opts = {}) {
   const exists = opts.exists ?? existsSync;
   const runStep = opts.runStep ?? defaultRunStep;
 
-  const agentsPresent = exists(path.join(cwd, SUBMODULE_PATH));
+  const agentsPresent = exists(path.join(cwd, AGENTS_PATH));
   const steps = planLaunch({ agentsPresent, passthroughArgs: argv });
   for (const step of steps) {
     runStep(step, cwd);
