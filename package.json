@@ -41,7 +41,8 @@
     "quality:preview": "node .agents/scripts/quality-preview.js --changed-since HEAD && node .agents/scripts/check-dead-exports.js",
     "quality:watch": "node .agents/scripts/quality-watch.js",
     "sync:commands": "node bin/mandrel.js sync-commands",
-    "prepare": "husky && npm run sync:commands"
+    "prepare": "husky && npm run sync:commands",
+    "postinstall": "node bin/postinstall.js mandrel sync"
   },
   "repository": {
     "type": "git",
