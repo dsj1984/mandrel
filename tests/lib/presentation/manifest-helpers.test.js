@@ -2,9 +2,11 @@
  * tests/lib/presentation/manifest-helpers.test.js
  *
  * Contract tests for the Story-only `manifest-helpers.js` surface
- * (Story #3194, Epic #3163). The helpers no longer walk `story.tasks[]`
- * or `task.taskId` — each Story carries its lifecycle on a top-level
- * `status` field. These tests exercise the new shape directly.
+ * (Story #3194 / #3413, Epic #3163). The helpers no longer walk
+ * `story.tasks[]` or `task.taskId`, and `computeProgress` no longer
+ * passes through Task-tier summary counts — each Story carries its
+ * lifecycle on a top-level `status` field and progress is Story-tier
+ * only. These tests exercise the new shape directly.
  */
 
 import assert from 'node:assert/strict';
@@ -50,7 +52,7 @@ test('deriveStorySymbol: ⬜ for agent::ready / unset / unknown', () => {
 
 function manifestFixture(stories) {
   return {
-    summary: { progressPercent: 25, doneTasks: 1, totalTasks: 4 },
+    summary: { progressPercent: 50, totalStories: 2, doneStories: 1 },
     storyManifest: stories,
   };
 }
@@ -69,10 +71,11 @@ test('computeProgress: doneStories counts stories whose status is agent::done', 
   assert.equal(result.doneStories, 1);
   assert.equal(result.totalStories, 2);
   assert.equal(result.storyWaveCount, 2);
-  // Task-tier passthroughs come from summary directly.
-  assert.equal(result.taskPct, 25);
-  assert.equal(result.doneTasks, 1);
-  assert.equal(result.totalTasks, 4);
+  assert.equal(result.storyPct, 50);
+  // No residual Task-tier pass-through.
+  assert.equal(result.taskPct, undefined);
+  assert.equal(result.doneTasks, undefined);
+  assert.equal(result.totalTasks, undefined);
 });
 
 test('computeProgress: stories without status are not counted as done', () => {

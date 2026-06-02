@@ -265,7 +265,7 @@ test('composeRetroBody: deterministic body for a clean manifest', () => {
     timestamp: '2026-05-10T00:00:00.000Z',
   });
   assert.equal(compact, true);
-  assert.equal(scorecard.totalTasks, 3);
+  assert.equal(scorecard.tasksTotal, 3);
   assert.match(body, /Total Tasks {18}\| 3/);
   assert.match(body, /<!-- retro-complete: 2026-05-10T00:00:00\.000Z -->$/);
 });

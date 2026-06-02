@@ -9,8 +9,10 @@
  * The fixture pair is constructed in-file so the round-trip relationship
  * is obvious at a glance: we hand-author a manifest, then derive the
  * spec + state that — by construction — describe the same Stories /
- * Tasks / wave layout / status labels. `fromSpec` is expected to produce
- * the same Markdown the renderer would emit for the manifest directly.
+ * wave layout / status labels. Under the 3-tier hierarchy (Epic #3163,
+ * Story #3413) Stories are leaves with no child Tasks. `fromSpec` is
+ * expected to produce the same Markdown the renderer would emit for the
+ * manifest directly.
  *
  * Also exercises:
  *   - `fromManifest` is the canonical alias for `formatManifestMarkdown`
@@ -107,9 +109,9 @@ function buildFixturePair() {
     executor: 'spec',
     dryRun: false,
     summary: {
-      totalTasks: 3,
-      doneTasks: 1,
-      progressPercent: 33,
+      totalStories: 2,
+      doneStories: 0,
+      progressPercent: 0,
       totalWaves: 2,
       dispatched: 0,
     },
@@ -123,20 +125,6 @@ function buildFixturePair() {
         branchName: 'story-101',
         earliestWave: 0,
         status: 'agent::executing',
-        tasks: [
-          {
-            taskId: 201,
-            taskSlug: 'task-a1',
-            status: 'agent::done',
-            dependencies: [],
-          },
-          {
-            taskId: 202,
-            taskSlug: 'task-a2',
-            status: 'agent::ready',
-            dependencies: [],
-          },
-        ],
       },
       {
         storyId: 102,
@@ -146,14 +134,6 @@ function buildFixturePair() {
         branchName: 'story-102',
         earliestWave: 1,
         status: 'agent::ready',
-        tasks: [
-          {
-            taskId: 203,
-            taskSlug: 'task-b1',
-            status: 'agent::ready',
-            dependencies: [],
-          },
-        ],
       },
     ],
     dispatched: [],
@@ -222,15 +202,14 @@ test('fromSpec falls back to slug:<slug> ids + agent::ready when state mapping i
   const md = fromSpec(spec, { generatedAt: GENERATED_AT });
   // The Story id surfaces as the slug-sentinel string and the renderer
   // emits it verbatim into the H3. No throw. Under the 3-tier hierarchy
-  // (Epic #3163, Story #3196) Stories are leaves; the per-Story body
-  // collapses to the empty-tasks marker and the renderer no longer
-  // emits per-Task checkbox rows.
+  // (Epic #3163, Story #3413) Stories are leaves; the renderer emits no
+  // per-Task body or checkbox rows.
   assert.match(md, /Lonely Story/);
   assert.match(md, /#slug:lonely-story/);
-  assert.match(md, /_\(no tasks\)_/);
-  assert.doesNotMatch(md, /- \[ \] #slug:lonely-task — lonely-task/);
-  // doneTasks should be 0 (fallback status is agent::ready, not agent::done).
-  assert.match(md, /0\/1 tasks/);
+  assert.doesNotMatch(md, /_\(no tasks\)_/);
+  assert.doesNotMatch(md, /- \[ \]/);
+  // doneStories should be 0 (fallback status is agent::ready, not agent::done).
+  assert.match(md, /0\/1 stories/);
 });
 
 test('fromSpec on an empty spec emits the header-only manifest cleanly', () => {
@@ -267,7 +246,8 @@ test('buildManifestFromSpec tolerates absent / malformed state without throwing'
   // No opts at all.
   const m1 = buildManifestFromSpec(spec);
   assert.equal(m1.storyManifest[0].storyId, 'slug:s');
-  assert.equal(m1.storyManifest[0].tasks[0].status, 'agent::ready');
+  assert.equal(m1.storyManifest[0].status, 'agent::ready');
+  assert.equal(m1.storyManifest[0].tasks, undefined);
   // Empty mapping.
   const m2 = buildManifestFromSpec(spec, { state: { mapping: {} } });
   assert.equal(m2.storyManifest[0].storyId, 'slug:s');
@@ -299,7 +279,7 @@ test('buildManifestFromSpec passes executor / dryRun / agentTelemetry through to
   assert.equal(d.agentTelemetry, null);
 });
 
-test('buildManifestFromSpec skips malformed Story entries + Tasks without crashing', () => {
+test('buildManifestFromSpec skips malformed Story entries without crashing', () => {
   const spec = {
     epic: { id: 4, title: 'Malformed' },
     features: [
@@ -313,16 +293,11 @@ test('buildManifestFromSpec skips malformed Story entries + Tasks without crashi
             slug: 'good',
             title: 'Good',
             wave: 'bad-wave', // non-integer → earliestWave = -1, not counted into totalWaves
-            tasks: [
-              { slug: 'a', title: 'A' },
-              null, // Array.isArray check passes; map still emits an entry — see below
-            ],
           },
           {
-            slug: 'no-tasks',
-            title: 'No Tasks',
+            slug: 'waved',
+            title: 'Waved',
             wave: 0,
-            // tasks omitted → falls back to [] via Array.isArray guard
           },
         ],
       },
@@ -333,15 +308,15 @@ test('buildManifestFromSpec skips malformed Story entries + Tasks without crashi
       },
     ],
   };
-  // The `null` task entry would crash on `t.slug`; verify we don't include
-  // a tasks: [null, …] shape by filtering the iteration.
   const m = buildManifestFromSpec(spec);
   // The Story with wave='bad-wave' is still emitted (earliestWave = -1)
   // but it doesn't contribute to totalWaves.
   const goodStory = m.storyManifest.find((s) => s.storySlug === 'good');
   assert.ok(goodStory, 'good story must survive');
   assert.equal(goodStory.earliestWave, -1);
-  // totalWaves counts only valid (>= 0) wave numbers — only the no-tasks
+  // Stories are leaves — no residual tasks array.
+  assert.equal(goodStory.tasks, undefined);
+  // totalWaves counts only valid (>= 0) wave numbers — only the waved
   // Story declared wave: 0.
   assert.equal(m.summary.totalWaves, 1);
 });

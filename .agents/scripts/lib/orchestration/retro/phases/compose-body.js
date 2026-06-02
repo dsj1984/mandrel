@@ -78,7 +78,7 @@ export function composeRetroBody(input) {
     `| Friction Events              | ${counts.friction} |`,
   ];
   const scorecard = {
-    totalTasks: tasksTotal,
+    tasksTotal,
     tasksFirstTry,
     hotfixes: counts.hotfixes,
     hitl: counts.hitl,

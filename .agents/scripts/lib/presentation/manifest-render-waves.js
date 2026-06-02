@@ -2,8 +2,10 @@
  * manifest-render-waves.js
  *
  * Presentation-only: emits the per-wave `## <emoji> Wave N` H2 sections
- * (with nested per-Story H3 headings and inline checkbox Task lists) that
- * sit beneath the Wave Summary table in the dispatch manifest. The TOC
+ * (with nested per-Story H3 headings) that sit beneath the Wave Summary
+ * table in the dispatch manifest. Under the 3-tier hierarchy (Epic
+ * #3163) Stories are leaves with no child Task tickets, so each wave
+ * counts Stories (done/total) and renders one H3 per Story. The TOC
  * links emitted by `renderWaveSections` jump directly into the H2
  * anchors emitted here.
  *
@@ -28,21 +30,6 @@ import {
 // ---------------------------------------------------------------------------
 
 /**
- * Compute per-Story aggregates for the nested wave layout: a 0..100
- * progress percent and the done/total task counts. Pure.
- *
- * @param {{ tasks?: Array<{ status?: string }> }} story
- * @returns {{ pct: number, done: number, total: number }}
- */
-function computeStoryProgress(story) {
-  const tasks = story?.tasks ?? [];
-  const total = tasks.length;
-  const done = tasks.filter((t) => t.status === AGENT_LABELS.DONE).length;
-  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-  return { pct, done, total };
-}
-
-/**
  * Private: shape-guard for the per-level nodes touched by the wave
  * renderer. Centralising the checks keeps `renderNestedWaveSections`
  * linear — the function reads as a straight projection from `storyManifest`
@@ -51,7 +38,6 @@ function computeStoryProgress(story) {
  * `level` describes which input the renderer is about to walk:
  *   - `'storyManifest'` → top-level `storyManifest[]` array
  *   - `'story'`         → a single Story manifest entry (object)
- *   - `'tasks'`         → a Story's `tasks[]` array
  *
  * Returns `true` when the node satisfies the contract; the caller skips
  * or substitutes an empty list when `false`.
@@ -63,7 +49,6 @@ function computeStoryProgress(story) {
 function validateWaveSection(level, value) {
   switch (level) {
     case 'storyManifest':
-    case 'tasks':
       return Array.isArray(value);
     case 'story':
       return value !== null && typeof value === 'object';
@@ -98,11 +83,15 @@ function pickWaveTail(status, waveIdx, sortedWaves, storyCount) {
 }
 
 /**
- * Group Stories into per-wave buckets and accumulate per-wave totals.
- * Pure helper — keeps the bookkeeping outside the main render loop.
+ * Group Stories into per-wave buckets and accumulate per-wave Story
+ * totals. Pure helper — keeps the bookkeeping outside the main render
+ * loop. Under the 3-tier hierarchy (Epic #3163) Stories are leaves with
+ * no child Task tickets, so each wave's `total` / `done` counts Stories
+ * (a Story is "done" when it carries `agent::done`) — the unit
+ * `deriveWaveStatus` consumes.
  *
  * @param {object[]} waveStories
- * @returns {{ waveGroups: Map<number, object[]>, waveStats: Map<number, { stories: number, tasks: number, done: number }> }}
+ * @returns {{ waveGroups: Map<number, object[]>, waveStats: Map<number, { total: number, done: number }> }}
  */
 function groupStoriesByWave(waveStories) {
   const waveGroups = new Map();
@@ -111,38 +100,20 @@ function groupStoriesByWave(waveStories) {
     const w = story.earliestWave ?? -1;
     if (!waveGroups.has(w)) {
       waveGroups.set(w, []);
-      waveStats.set(w, { stories: 0, total: 0, done: 0 });
+      waveStats.set(w, { total: 0, done: 0 });
     }
     waveGroups.get(w).push(story);
     const stat = waveStats.get(w);
-    stat.stories++;
-    stat.total += story.tasks.length;
-    stat.done += story.tasks.filter(
-      (t) => t.status === AGENT_LABELS.DONE,
-    ).length;
+    stat.total++;
+    if (story.status === AGENT_LABELS.DONE) stat.done++;
   }
   return { waveGroups, waveStats };
 }
 
 /**
- * Render the inline body shown under one Story H3. Under the 3-tier
- * hierarchy (Epic #3163) Stories are leaves — they have no child Task
- * tickets, so the renderer surfaces a single marker rather than the
- * legacy per-Task checkbox list. The marker is intentionally identical
- * to the empty-tasks fallback so the layout stays stable when a sibling
- * producer transitions from emitting `tasks: []` to omitting the field
- * entirely.
- *
- * @returns {string[]} lines
- */
-function renderStoryTaskList() {
-  return ['_(no tasks)_'];
-}
-
-/**
  * Render one `## <emoji> Wave N` section per wave with nested per-Story H3
- * headings and inline checkbox Task lists. The TOC links from
- * `renderWaveSections` jump straight into these H2 anchors.
+ * headings. The TOC links from `renderWaveSections` jump straight into
+ * these H2 anchors.
  *
  * @param {object[]} storyManifest
  * @returns {string} Markdown block, or empty string when nothing to render.
@@ -175,20 +146,14 @@ export function renderNestedWaveSections(storyManifest) {
 
     const tail = pickWaveTail(status, waveIdx, sortedWaves, stories.length);
     lines.push(
-      `> ${stories.length} stor${stories.length === 1 ? 'y' : 'ies'} · ${stat.done}/${stat.total} tasks${tail}`,
+      `> ${stories.length} stor${stories.length === 1 ? 'y' : 'ies'} · ${stat.done}/${stat.total} done${tail}`,
     );
     lines.push('');
 
     for (const story of stories) {
-      const sp = computeStoryProgress(story);
       const symbol = deriveStorySymbol(story);
       const titleCandidate = story.storyTitle || story.storySlug || '';
-      lines.push(
-        `### ${symbol} #${story.storyId} — ${titleCandidate} · ${sp.done}/${sp.total} tasks`,
-      );
-      lines.push('');
-      const tasksList = renderStoryTaskList();
-      for (const line of tasksList) lines.push(line);
+      lines.push(`### ${symbol} #${story.storyId} — ${titleCandidate}`);
       lines.push('');
     }
   }
@@ -201,10 +166,10 @@ export function renderNestedWaveSections(storyManifest) {
     );
     lines.push('> Execute the Stories within each Feature instead.');
     lines.push('');
-    lines.push('| Feature | Title | Child Tasks |');
-    lines.push('| :--- | :--- | :--- |');
+    lines.push('| Feature | Title |');
+    lines.push('| :--- | :--- |');
     for (const f of featureItems) {
-      lines.push(`| #${f.storyId} | ${f.storySlug} | ${f.tasks.length} |`);
+      lines.push(`| #${f.storyId} | ${f.storySlug} |`);
     }
     lines.push('');
   }

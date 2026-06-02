@@ -232,7 +232,7 @@ function logEpicManifestSummary(manifest) {
   Logger.info(`\n[Dispatcher] ✅ Manifest: temp/epic-${epicId}/manifest.json`);
   Logger.info(`[Dispatcher] 📄 Markdown: temp/epic-${epicId}/manifest.md`);
   Logger.info(
-    `[Dispatcher] Progress: ${manifest.summary.doneTasks}/${manifest.summary.totalTasks} tasks done (${manifest.summary.progressPercent}%)`,
+    `[Dispatcher] Progress: ${manifest.summary.doneStories}/${manifest.summary.totalStories} stories done (${manifest.summary.progressPercent}%)`,
   );
   Logger.info(`[Dispatcher] Dispatched: ${manifest.summary.dispatched}`);
   printStoryDispatchTable(manifest.storyManifest);

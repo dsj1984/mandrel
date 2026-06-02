@@ -241,7 +241,7 @@ test('rollupModelAttribution: aggregates per-family counts and surfaces missing 
 
   const got = await rollupModelAttribution({ provider, parentId: 999 });
   assert.equal(got.parentId, 999);
-  assert.equal(got.totalTasks, 4);
+  assert.equal(got.totalChildren, 4);
   assert.equal(got.missing, 1);
   assert.deepEqual(got.byModel, { Opus: 2, Sonnet: 1 });
   assert.deepEqual(got.byId, {
@@ -255,7 +255,7 @@ test('rollupModelAttribution: returns zeroed envelope for a parent with no child
   const got = await rollupModelAttribution({ provider, parentId: 42 });
   assert.deepEqual(got, {
     parentId: 42,
-    totalTasks: 0,
+    totalChildren: 0,
     missing: 0,
     byModel: {},
     byId: {},
@@ -291,7 +291,7 @@ test('rollupModelAttribution: end-to-end emit → readback → rollup against th
     env: { CLAUDE_MODEL: 'claude-sonnet-4-6' },
   });
   const rollup = await rollupModelAttribution({ provider, parentId: 700 });
-  assert.equal(rollup.totalTasks, 2);
+  assert.equal(rollup.totalChildren, 2);
   assert.equal(rollup.missing, 0);
   assert.deepEqual(rollup.byModel, { Opus: 1, Sonnet: 1 });
 });

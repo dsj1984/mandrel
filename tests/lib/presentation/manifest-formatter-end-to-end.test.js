@@ -40,16 +40,7 @@ import {
 // `*(after #2001)*` inside Story #300.
 // ---------------------------------------------------------------------------
 
-function task(id, status = 'agent::ready', deps = []) {
-  return {
-    taskId: id,
-    taskSlug: `task-${id}`,
-    status,
-    dependencies: deps,
-  };
-}
-
-function story(id, title, wave, tasks) {
+function story(id, title, wave, status = 'agent::ready') {
   return {
     storyId: id,
     storySlug: `story-${id}`,
@@ -57,56 +48,30 @@ function story(id, title, wave, tasks) {
     type: 'story',
     earliestWave: wave,
     branchName: `story-${id}`,
-    tasks,
+    status,
   };
 }
 
 function buildE2EFixture() {
-  // Wave 0: 2 stories, 5 tasks. Story #100 has a fully-done Task to drive
-  // a non-zero per-Story progress bar.
-  const s100 = story(100, 'Sprint Bootstrap', 0, [
-    task(1001, 'agent::done'),
-    task(1002, 'agent::done', [1001]),
-    task(1003, 'agent::executing', [1002]),
-  ]);
-  const s101 = story(101, 'Wire Telemetry', 0, [
-    task(1011, 'agent::done'),
-    task(1012, 'agent::ready', [1011]),
-  ]);
+  // Wave 0: 2 stories.
+  const s100 = story(100, 'Sprint Bootstrap', 0);
+  const s101 = story(101, 'Wire Telemetry', 0);
 
-  // Wave 1: 2 stories, 6 tasks. Story #200's #2001 is the upstream of a
-  // cross-Story dep that promotes to a Story-edge (Story #300 → Wave 2).
-  const s200 = story(200, 'Render TOC', 1, [
-    task(2001, 'agent::ready'),
-    task(2002, 'agent::ready', [2001]),
-    task(2003, 'agent::ready', [2002]),
-  ]);
-  const s201 = story(201, 'Nest Stories', 1, [
-    task(2011, 'agent::ready'),
-    task(2012, 'agent::ready', [2011]),
-    task(2013, 'agent::ready', [2011]),
-  ]);
+  // Wave 1: 2 stories.
+  const s200 = story(200, 'Render TOC', 1);
+  const s201 = story(201, 'Nest Stories', 1);
 
-  // Wave 2: 1 Story with 3 tasks; #3001 declares a cross-Story dep on
-  // #2001 (Story #200 / Wave 1). The analyzer would have promoted this
-  // to a Story-edge, deferring Story #300 to Wave 2. The renderer must
-  // NOT include `*(after #2001)*` because #2001 is not in this Story.
-  // #3002 has an in-Story dep on #3001 that DOES render as `(after #3001)`.
-  // #3003 is blocked to exercise the 🚧 status symbol.
-  const s300 = story(300, 'Order Tasks', 2, [
-    task(3001, 'agent::ready', [2001]), // cross-Story → not rendered
-    task(3002, 'agent::ready', [3001]), // in-Story → rendered
-    task(3003, 'agent::blocked', [3001]),
-  ]);
+  // Wave 2: 1 Story.
+  const s300 = story(300, 'Order Tasks', 2);
 
   return {
     epicId: 11780,
     epicTitle: 'Synthetic E2E Fixture Epic',
     generatedAt: '2026-05-11T00:00:00.000Z',
     summary: {
-      totalTasks: 14,
-      doneTasks: 4,
-      progressPercent: Math.round((4 / 14) * 100),
+      totalStories: 5,
+      doneStories: 0,
+      progressPercent: 0,
       dispatched: 4,
       totalWaves: 3,
     },
@@ -143,19 +108,22 @@ test('e2e fixture: layout has no legacy Execution Plan / Story Details headings'
   );
 });
 
-test('e2e fixture: header meta line folds done/total tasks + stories + wave count', () => {
+test('e2e fixture: header meta line folds done/total stories + wave count', () => {
   __resetManifestFormatterCache();
   const md = formatManifestMarkdown(buildE2EFixture());
   // No Sprint Progress hero anymore — meta line carries the totals.
   assert.doesNotMatch(md, /Sprint Progress/);
   assert.doesNotMatch(md, /^## (?:🏗️|🔥|🎉)/m);
-  // Single `_Generated …_` line carries timestamp + tasks + stories +
-  // wave count. Story #100 is the only one with all tasks done; the
-  // fixture has 5 stories total.
+  // Single `_Generated …_` line carries timestamp + Story-tier counts +
+  // wave count. No residual Task-tier counts. The fixture has 5 stories
+  // total, none done.
   assert.match(
     md,
-    /_Generated 2026-05-11T00:00:00\.000Z · 4\/14 tasks · 0\/5 stories · 3 waves_/,
+    /_Generated 2026-05-11T00:00:00\.000Z · 0\/5 stories · 3 waves_/,
   );
+  // The meta line carries no residual Task-tier count.
+  const metaLine = md.match(/_Generated [^\n]*_/)?.[0] ?? '';
+  assert.doesNotMatch(metaLine, /tasks/);
 });
 
 test('e2e fixture: every Wave Summary TOC link round-trips to a real H2 anchor', () => {

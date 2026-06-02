@@ -77,8 +77,8 @@ function buildManifest(overrides = {}) {
     executor: 'mock',
     dryRun: false,
     summary: {
-      totalTasks: 1,
-      doneTasks: 0,
+      totalStories: 1,
+      doneStories: 0,
       progressPercent: 0,
       totalWaves: 1,
       dispatched: 0,
@@ -92,14 +92,7 @@ function buildManifest(overrides = {}) {
         type: 'story',
         branchName: 'story-5001',
         earliestWave: 0,
-        tasks: [
-          {
-            taskId: 5002,
-            taskSlug: 'task-routing',
-            status: 'agent::ready',
-            dependencies: [],
-          },
-        ],
+        status: 'agent::ready',
       },
     ],
     dispatched: [],
@@ -159,11 +152,10 @@ test('tryRenderFromSpec returns spec-rendered Markdown when the spec is present'
   // Spec-routed render exercises the slug→issueNumber mapping in state.
   assert.match(md, /Routing Story/);
   assert.match(md, /#5001/);
-  // Under the 3-tier hierarchy (Epic #3163, Story #3196) Stories are
-  // leaves; the per-Story body collapses to the empty-tasks marker
-  // and the renderer no longer emits per-Task checkbox rows.
-  assert.match(md, /_\(no tasks\)_/);
-  assert.doesNotMatch(md, /- \[ \] #5002 — task-routing/);
+  // Under the 3-tier hierarchy (Epic #3163, Story #3413) Stories are
+  // leaves; the renderer emits no per-Task body or checkbox rows.
+  assert.doesNotMatch(md, /_\(no tasks\)_/);
+  assert.doesNotMatch(md, /- \[ \]/);
   // Each loader is invoked exactly once per render.
   const { loadSpecCalls, loadStateCalls } = loaders.callCounts();
   assert.equal(loadSpecCalls, 1);
@@ -229,7 +221,7 @@ afterEach(() => {
 test('tryRenderFromSpec round-trips through the real loader against a sandbox spec', () => {
   // Epic #3163: Stories are leaves under the 3-tier hierarchy, so the
   // on-disk spec carries no Story.tasks[]. The real-loader round-trip
-  // surfaces the Story and collapses its body to the empty-tasks marker.
+  // surfaces the Story with no per-Task body.
   const yaml = `epic:\n  id: 7777\n  title: 'Dispatcher Routing Fixture'\nfeatures:\n  - slug: feat-routing\n    title: 'Routing Feature'\n    stories:\n      - slug: story-routing\n        title: 'Routing Story'\n        wave: 0\n`;
   writeFileSync(path.join(sandbox, '7777.yaml'), yaml, 'utf8');
   writeFileSync(
@@ -244,7 +236,7 @@ test('tryRenderFromSpec round-trips through the real loader against a sandbox sp
   });
   assert.equal(typeof md, 'string');
   assert.match(md, /Routing Story/);
-  assert.match(md, /_\(no tasks\)_/);
+  assert.doesNotMatch(md, /_\(no tasks\)_/);
   assert.doesNotMatch(md, /task-routing/);
 });
 
