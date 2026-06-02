@@ -1,15 +1,16 @@
 /**
- * create-mandrel-launcher.test — Story #3373
+ * create-mandrel-launcher.test — Story #3373, #3465
  *
  * Exercises the cold-start launcher's pure planning logic and its injected
  * orchestration:
  *
- *   - planLaunch: decides submodule-add vs skip and the bootstrap handoff.
+ *   - planLaunch: decides npm-install + mandrel-sync vs skip and the
+ *     bootstrap handoff.
  *   - runLauncher: probes `.agents` existence, runs the planned steps in
  *     order, and forwards passthrough flags to bootstrap unchanged.
  *
- * All git / filesystem / process boundaries are injected, so the suite is a
- * pure unit test (no real git, no network, no spawned children).
+ * All npm / filesystem / process boundaries are injected, so the suite is a
+ * pure unit test (no real npm, no network, no spawned children).
  */
 
 import assert from 'node:assert/strict';
@@ -17,60 +18,50 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 
 import {
-  CANONICAL_REMOTE,
-  DIST_BRANCH,
+  AGENTS_PATH,
+  CANONICAL_PACKAGE,
   planLaunch,
   runLauncher,
-  SUBMODULE_PATH,
 } from '../../create-mandrel/index.js';
 
-const BOOTSTRAP_REL = path.join(SUBMODULE_PATH, 'scripts', 'bootstrap.js');
+const BOOTSTRAP_REL = path.join(AGENTS_PATH, 'scripts', 'bootstrap.js');
 
 describe('planLaunch', () => {
-  it('adds the submodule against the hardcoded canonical remote on the dist branch when .agents is absent', () => {
+  it('installs the hardcoded canonical package when .agents is absent', () => {
     const steps = planLaunch({ agentsPresent: false });
-    const add = steps.find((s) => s.cmd === 'git' && s.args[1] === 'add');
-    assert.ok(add, 'expected a `git submodule add` step');
-    assert.deepEqual(add.args, [
-      'submodule',
-      'add',
-      '-b',
-      DIST_BRANCH,
-      CANONICAL_REMOTE,
-      SUBMODULE_PATH,
-    ]);
+    const install = steps.find(
+      (s) => s.cmd === 'npm' && s.args[0] === 'install',
+    );
+    assert.ok(install, 'expected an `npm install` step');
+    assert.deepEqual(install.args, ['install', CANONICAL_PACKAGE]);
   });
 
-  it('pins the dist branch to the canonical Mandrel remote (never operator-supplied)', () => {
-    // The remote is a build-time constant; assert its exact value so a
+  it('targets the canonical Mandrel package (never operator-supplied)', () => {
+    // The package name is a build-time constant; assert its exact value so a
     // refactor that accidentally parameterizes it fails loudly.
-    assert.equal(CANONICAL_REMOTE, 'https://github.com/dsj1984/mandrel.git');
-    assert.equal(DIST_BRANCH, 'dist');
+    assert.equal(CANONICAL_PACKAGE, '@mandrel/agents');
+    assert.equal(AGENTS_PATH, '.agents');
   });
 
-  it('runs `git submodule update --init` after the add when .agents is absent', () => {
+  it('runs `npx mandrel sync` after the install when .agents is absent', () => {
     const steps = planLaunch({ agentsPresent: false });
-    const update = steps.find((s) => s.cmd === 'git' && s.args[1] === 'update');
-    assert.ok(update, 'expected a `git submodule update --init` step');
-    assert.deepEqual(update.args, [
-      'submodule',
-      'update',
-      '--init',
-      '--',
-      SUBMODULE_PATH,
-    ]);
-    // Add must precede update.
-    const addIdx = steps.findIndex((s) => s.args[1] === 'add');
-    const updIdx = steps.findIndex((s) => s.args[1] === 'update');
-    assert.ok(addIdx < updIdx, 'add must run before update');
+    const sync = steps.find((s) => s.cmd === 'npx');
+    assert.ok(sync, 'expected an `npx mandrel sync` step');
+    assert.deepEqual(sync.args, ['mandrel', 'sync']);
+    // Install must precede sync.
+    const installIdx = steps.findIndex(
+      (s) => s.cmd === 'npm' && s.args[0] === 'install',
+    );
+    const syncIdx = steps.findIndex((s) => s.cmd === 'npx');
+    assert.ok(installIdx < syncIdx, 'install must run before sync');
   });
 
-  it('skips the add/update steps and goes straight to bootstrap when .agents already exists', () => {
+  it('skips the install/sync steps and goes straight to bootstrap when .agents already exists', () => {
     const steps = planLaunch({ agentsPresent: true });
     assert.equal(
-      steps.filter((s) => s.cmd === 'git').length,
+      steps.filter((s) => s.cmd === 'npm' || s.cmd === 'npx').length,
       0,
-      'no git steps expected when .agents is present',
+      'no npm/npx steps expected when .agents is present',
     );
     assert.equal(steps.length, 1);
     assert.ok(steps[0].args[0].endsWith(BOOTSTRAP_REL));
@@ -101,7 +92,7 @@ describe('planLaunch', () => {
 });
 
 describe('runLauncher', () => {
-  it('runs add + update + bootstrap (in that order) when .agents is absent', () => {
+  it('runs install + sync + bootstrap (in that order) when .agents is absent', () => {
     const ran = [];
     const result = runLauncher({
       argv: ['--assume-yes'],
@@ -112,8 +103,11 @@ describe('runLauncher', () => {
 
     assert.equal(result.agentsPresent, false);
     assert.equal(ran.length, 3);
-    assert.deepEqual(ran[0].args.slice(0, 2), ['submodule', 'add']);
-    assert.deepEqual(ran[1].args.slice(0, 2), ['submodule', 'update']);
+    assert.deepEqual(ran[0], {
+      cmd: 'npm',
+      args: ['install', CANONICAL_PACKAGE],
+    });
+    assert.deepEqual(ran[1], { cmd: 'npx', args: ['mandrel', 'sync'] });
     assert.equal(ran[2].cmd, process.execPath);
     assert.deepEqual(ran[2].args.slice(1), ['--assume-yes']);
   });
@@ -129,10 +123,10 @@ describe('runLauncher', () => {
       },
       runStep: () => {},
     });
-    assert.deepEqual(probed, [path.join('/some/project', SUBMODULE_PATH)]);
+    assert.deepEqual(probed, [path.join('/some/project', AGENTS_PATH)]);
   });
 
-  it('skips git steps and only runs bootstrap when .agents exists', () => {
+  it('skips npm/npx steps and only runs bootstrap when .agents exists', () => {
     const ran = [];
     const result = runLauncher({
       argv: ['--skip-github'],
@@ -147,7 +141,7 @@ describe('runLauncher', () => {
     assert.deepEqual(ran[0].args.slice(1), ['--skip-github']);
   });
 
-  it('halts the plan at the first failing step (does not run bootstrap if add fails)', () => {
+  it('halts the plan at the first failing step (does not run sync/bootstrap if install fails)', () => {
     const ran = [];
     assert.throws(
       () =>
@@ -157,15 +151,16 @@ describe('runLauncher', () => {
           exists: () => false,
           runStep: (step) => {
             ran.push(step);
-            if (step.args[1] === 'add') {
-              throw new Error('git submodule add failed');
+            if (step.cmd === 'npm' && step.args[0] === 'install') {
+              throw new Error('npm install failed');
             }
           },
         }),
-      /git submodule add failed/,
+      /npm install failed/,
     );
-    // Only the add ran; update + bootstrap never fired.
+    // Only the install ran; sync + bootstrap never fired.
     assert.equal(ran.length, 1);
-    assert.equal(ran[0].args[1], 'add');
+    assert.equal(ran[0].cmd, 'npm');
+    assert.equal(ran[0].args[0], 'install');
   });
 });
