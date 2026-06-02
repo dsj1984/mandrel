@@ -232,6 +232,38 @@ When some Stories are blocked or failed, list them explicitly with the
 
 ---
 
+## Opt-in post-green refactor stage (`delivery.refactorStage`)
+
+When `delivery.refactorStage.enabled` is `true` in `.agentrc.json`, each
+per-Story worker runs an **advisory** post-green refactor pass after the
+Story's suite is green and the close-validation gates already pass — and
+**before** close. The stage is **strictly opt-in and default-OFF**: when the
+key is unset or `false`, story-deliver behaves exactly as documented above
+and this stage is skipped entirely.
+
+The stage adopts the [`refactorer`](../personas/refactorer.md) persona and the
+[`core/refactoring-discipline`](../skills/core/refactoring-discipline/SKILL.md)
+skill to drive a behaviour-preserving pass that lowers CRAP and removes
+duplication on the files the Story already touched:
+
+- **Post-green only.** It runs after the suite is green and the gates pass —
+  never from red, and never to make a failing test pass.
+- **Behaviour-preserving.** Existing tests MUST keep passing without
+  modification; if a test had to change, the change was a behaviour change and
+  must be reverted.
+- **Advisory, not a gate.** This stage does **not** introduce a new
+  close-validation gate and does **not** change the semantics of the existing
+  [close-validation](../scripts/lib/close-validation.js) chain (typecheck,
+  lint, test, format, maintainability, coverage, crap). The canonical gates
+  remain the single source of pass/fail at close; the refactor stage only adds
+  an extra behaviour-preserving cleanup commit when enabled.
+
+> **Default-OFF guarantee.** Consumers who do not set
+> `delivery.refactorStage.enabled` (or set it to `false`) see no change in
+> delivery behaviour — no extra stage, no new gate, identical close semantics.
+
+---
+
 ## Idempotence
 
 `/single-story-deliver` is idempotent at every phase:
