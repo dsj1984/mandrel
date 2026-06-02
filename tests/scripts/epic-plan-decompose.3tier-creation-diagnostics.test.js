@@ -132,7 +132,7 @@ describe('reportPartialFailure — 3-tier no "missing Tasks" warning (Story #312
       async getEpic() {
         return { id: EPIC_ID, labels: ['type::epic', 'agent::executing'] };
       },
-      async getTickets() {
+      async getSubTickets() {
         // 3-tier: Feature + Story only, no Task children.
         return [
           { id: 9121, title: 'F1', labels: ['type::feature'], state: 'open' },

@@ -47,10 +47,10 @@ function fixtureStory(id, title, label = 'agent::executing') {
   };
 }
 
-/** In-memory provider stub exposing `getTickets(parentId)`. */
+/** In-memory provider stub exposing `getSubTickets(parentId)`. */
 function fakeProvider(children) {
   return {
-    getTickets: async () => children,
+    getSubTickets: async () => children,
   };
 }
 

@@ -103,6 +103,13 @@ function buildStubProvider({ epicId, epicTitle }) {
       calls.getTickets += 1;
       return Array.from(issues.values()).filter((t) => t.id !== epicId);
     },
+    // Story #3455 — the reconciler's `fetchGhState` now enumerates the
+    // Epic's children via the scoped `getSubTickets` rather than the
+    // repo-wide `getTickets`. Mirror the same child set so the apply
+    // path observes the live tickets it always did.
+    async getSubTickets(_parentId) {
+      return Array.from(issues.values()).filter((t) => t.id !== epicId);
+    },
     async createTicket(parentId, payload) {
       calls.createTicket += 1;
       const id = nextId++;

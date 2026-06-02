@@ -92,8 +92,14 @@ export async function runWaveGate({
   // paying a wire round-trip each. `primeTicketCache` is a no-op on
   // providers without a cache (manual adapter, test stubs), so the call
   // is unconditional.
+  //
+  // Story #3455 — scope the prime to the Epic's sub-issue graph
+  // (`getSubTickets`) instead of `getTickets`'s repo-wide `state=all`
+  // scan. This is a best-effort warm cache, so the scoped child set is
+  // observably equivalent for the per-Story reads that follow while
+  // dropping the whole-repo pagination.
   try {
-    const allTickets = await provider.getTickets(epicId);
+    const allTickets = await provider.getSubTickets(epicId);
     if (Array.isArray(allTickets)) {
       provider.primeTicketCache(allTickets);
     }

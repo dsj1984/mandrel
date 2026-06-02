@@ -82,10 +82,10 @@ class TimingProvider {
     return this.comments;
   }
 
-  async getTickets(epicId, _filters = {}) {
+  async getSubTickets(epicId) {
     this.getTicketsCalls.push(epicId);
     if (this.getTicketsThrows) {
-      throw new Error('getTickets failed');
+      throw new Error('getSubTickets failed');
     }
     return Object.values(this.tickets).map((t) => ({ ...t }));
   }
@@ -331,7 +331,7 @@ describe('wave-gate — pass/fail/fetch-error contract', () => {
 });
 
 describe('wave-gate — ticket-cache prime (Story #2465)', () => {
-  it('calls provider.getTickets exactly once per runWaveGate invocation', async () => {
+  it('calls provider.getSubTickets exactly once per runWaveGate invocation', async () => {
     const provider = new TimingProvider({
       tickets: {
         10: { id: 10, state: 'closed' },

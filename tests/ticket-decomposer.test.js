@@ -346,7 +346,7 @@ describe('ticket-decomposer orchestration (v5.6+)', () => {
     // never created. Resume must skip the Feature and create only Story One
     // + Story Two, wiring Story Two's dep to the id of the freshly-created
     // Story One (NOT to the pre-existing Feature).
-    mockProvider.getTickets = async () => [
+    mockProvider.getSubTickets = async () => [
       {
         id: 500,
         title: 'Feature One',
@@ -379,7 +379,7 @@ describe('ticket-decomposer orchestration (v5.6+)', () => {
   });
 
   it('resume mode: errors when the Epic has no existing children', async () => {
-    mockProvider.getTickets = async () => [];
+    mockProvider.getSubTickets = async () => [];
     await assert.rejects(
       () =>
         decomposeEpic(
@@ -415,7 +415,7 @@ describe('ticket-decomposer orchestration (v5.6+)', () => {
     let firedRL = false;
     // Fake http client surface — just enough for the adaptive hook to bind.
     mockProvider._http = { onTransientFailure: null };
-    mockProvider.getTickets = async () => [];
+    mockProvider.getSubTickets = async () => [];
     mockProvider.createTicket = async (parentId, ticketData) => {
       inFlight++;
       const labels = ticketData.labels || [];
