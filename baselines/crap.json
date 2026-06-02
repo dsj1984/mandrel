@@ -1,13 +1,13 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-30T17:42:46.312Z",
+  "generatedAt": "2026-06-02T01:44:52.454Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.192000000000002,
-      "max": 49.61729902329076,
-      "methodsAbove20": 29
+      "p95": 12.157083248524323,
+      "max": 38.82544452792387,
+      "methodsAbove20": 26
     }
   },
   "rows": [
@@ -67,9 +67,21 @@
     },
     {
       "path": ".agents/scripts/audit-labels-bootstrap.js",
+      "method": "resolveOwnerRepo",
+      "startLine": 184,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/audit-labels-bootstrap.js",
+      "method": "formatBootstrapReport",
+      "startLine": 203,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/audit-labels-bootstrap.js",
       "method": "main",
-      "startLine": 176,
-      "crap": 42
+      "startLine": 224,
+      "crap": 12
     },
     {
       "path": ".agents/scripts/bootstrap.js",
@@ -8695,14 +8707,26 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
+      "method": "validSha",
+      "startLine": 299,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
+      "method": "firstLsRemoteSha",
+      "startLine": 312,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "method": "branchTipSha",
-      "startLine": 302,
-      "crap": 49.61729902329076
+      "startLine": 333,
+      "crap": 16.584433318161132
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "method": "classifyLatestPr",
-      "startLine": 357,
+      "startLine": 381,
       "crap": 9
     },
     {
@@ -8791,15 +8815,21 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/prompts.js",
+      "method": "decideStashAnswer",
+      "startLine": 32,
+      "crap": 7
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/prompts.js",
       "method": "promptYesNo",
-      "startLine": 24,
+      "startLine": 40,
       "crap": 1.800655976676385
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/prompts.js",
       "method": "promptStashDecision",
-      "startLine": 40,
-      "crap": 49.011374999999994
+      "startLine": 56,
+      "crap": 1.833706492977814
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/prune.js",
