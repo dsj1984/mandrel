@@ -112,9 +112,7 @@ export function enumerateSurvivors(report) {
     });
   }
 
-  perFile.sort(
-    (a, b) => b.count - a.count || a.file.localeCompare(b.file),
-  );
+  perFile.sort((a, b) => b.count - a.count || a.file.localeCompare(b.file));
 
   return {
     ok: true,
