@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.44.0](https://github.com/dsj1984/mandrel/compare/v1.43.0...v1.44.0) (2026-06-02)
+
+
+### Added
+
+* Epic [#3435](https://github.com/dsj1984/mandrel/issues/3435) ([#3453](https://github.com/dsj1984/mandrel/issues/3453)) ([6dc9381](https://github.com/dsj1984/mandrel/commit/6dc93816d61add8829179b5cfe1915d6dd6b43af))
+
+
+### Fixed
+
+* scope epic child-ticket fetch through getSubTickets in reconciliation (refs [#3455](https://github.com/dsj1984/mandrel/issues/3455)) ([#3456](https://github.com/dsj1984/mandrel/issues/3456)) ([c447940](https://github.com/dsj1984/mandrel/commit/c4479405c3012d19619120e92cb9126a5a8d6c8a))
+
 ## [1.43.0](https://github.com/dsj1984/mandrel/compare/v1.42.0...v1.43.0) (2026-06-02)
 
 
