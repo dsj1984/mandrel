@@ -171,6 +171,54 @@ export async function bootstrapAuditLabels({
   return { created, skipped, failed, total: DIMENSIONS.length };
 }
 
+/**
+ * Resolve `{ owner, repo }` from parsed CLI flags, falling back to the
+ * `github.{owner,repo}` config keys. Throws when neither source supplies
+ * both values. Pulled out of `main` so the resolution + guard is a single
+ * testable unit.
+ *
+ * @param {{ owner?: string, repo?: string }} values
+ * @param {{ github?: { owner?: string, repo?: string } }} [config]
+ * @returns {{ owner: string, repo: string }}
+ */
+export function resolveOwnerRepo(values, config) {
+  const owner = values.owner ?? config?.github?.owner;
+  const repo = values.repo ?? config?.github?.repo;
+  if (!owner || !repo) {
+    throw new Error(
+      'audit-labels-bootstrap: --owner and --repo are required (or set them in .agentrc.json under github.{owner,repo}).',
+    );
+  }
+  return { owner, repo };
+}
+
+/**
+ * Render the operator-facing summary lines for a bootstrap result. Pure:
+ * returns `{ stdout, stderr }` strings rather than writing, so `main` owns
+ * the single write site and the formatting stays unit-testable.
+ *
+ * @param {{ created: string[], skipped: string[], failed: Array<{label: string, reason: string}>, total: number }} result
+ * @returns {{ stdout: string, stderr: string }}
+ */
+export function formatBootstrapReport(result) {
+  const lines = [
+    `audit-labels-bootstrap: ${result.created.length} created, ${result.skipped.length} skipped, ${result.failed.length} failed (of ${result.total}).`,
+  ];
+  if (result.created.length > 0) {
+    lines.push(`  created: ${result.created.join(', ')}`);
+  }
+  if (result.skipped.length > 0) {
+    lines.push(`  skipped: ${result.skipped.join(', ')}`);
+  }
+  const stderr = result.failed
+    .map((f) => `  FAILED ${f.label}: ${f.reason}`)
+    .join('\n');
+  return {
+    stdout: `${lines.join('\n')}\n`,
+    stderr: stderr ? `${stderr}\n` : '',
+  };
+}
+
 export const __testing = { DIMENSIONS };
 
 async function main() {
@@ -185,15 +233,7 @@ async function main() {
     strict: false,
   });
 
-  const config = resolveConfig();
-  const owner = values.owner ?? config?.github?.owner;
-  const repo = values.repo ?? config?.github?.repo;
-
-  if (!owner || !repo) {
-    throw new Error(
-      'audit-labels-bootstrap: --owner and --repo are required (or set them in .agentrc.json under github.{owner,repo}).',
-    );
-  }
+  const { owner, repo } = resolveOwnerRepo(values, resolveConfig());
 
   const result = await bootstrapAuditLabels({
     owner,
@@ -202,19 +242,10 @@ async function main() {
     dryRun: !!values['dry-run'],
   });
 
-  process.stdout.write(
-    `audit-labels-bootstrap: ${result.created.length} created, ${result.skipped.length} skipped, ${result.failed.length} failed (of ${result.total}).\n`,
-  );
-  if (result.created.length > 0) {
-    process.stdout.write(`  created: ${result.created.join(', ')}\n`);
-  }
-  if (result.skipped.length > 0) {
-    process.stdout.write(`  skipped: ${result.skipped.join(', ')}\n`);
-  }
+  const report = formatBootstrapReport(result);
+  process.stdout.write(report.stdout);
+  if (report.stderr) process.stderr.write(report.stderr);
   if (result.failed.length > 0) {
-    for (const f of result.failed) {
-      process.stderr.write(`  FAILED ${f.label}: ${f.reason}\n`);
-    }
     throw new Error(`${result.failed.length} label(s) failed to create`);
   }
 }

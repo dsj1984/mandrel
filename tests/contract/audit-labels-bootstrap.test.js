@@ -17,6 +17,8 @@ import { describe, it } from 'node:test';
 import {
   __testing,
   bootstrapAuditLabels,
+  formatBootstrapReport,
+  resolveOwnerRepo,
 } from '../../.agents/scripts/audit-labels-bootstrap.js';
 
 function makeGh({ existing = [], createBehaviour = 'ok' } = {}) {
@@ -111,5 +113,60 @@ describe('bootstrapAuditLabels — failure path', () => {
     assert.equal(result.failed.length, 0);
     assert.equal(result.skipped.length, __testing.DIMENSIONS.length);
     assert.equal(result.created.length, 0);
+  });
+});
+
+describe('resolveOwnerRepo', () => {
+  it('prefers CLI flag values over config', () => {
+    const resolved = resolveOwnerRepo(
+      { owner: 'flagOwner', repo: 'flagRepo' },
+      { github: { owner: 'cfgOwner', repo: 'cfgRepo' } },
+    );
+    assert.deepEqual(resolved, { owner: 'flagOwner', repo: 'flagRepo' });
+  });
+
+  it('falls back to github.{owner,repo} config when flags absent', () => {
+    const resolved = resolveOwnerRepo(
+      {},
+      { github: { owner: 'cfgOwner', repo: 'cfgRepo' } },
+    );
+    assert.deepEqual(resolved, { owner: 'cfgOwner', repo: 'cfgRepo' });
+  });
+
+  it('throws when neither flags nor config supply owner/repo', () => {
+    assert.throws(() => resolveOwnerRepo({}, {}), /--owner and --repo/);
+    assert.throws(
+      () => resolveOwnerRepo({ owner: 'o' }, undefined),
+      /--owner and --repo/,
+    );
+  });
+});
+
+describe('formatBootstrapReport', () => {
+  it('renders only the summary line when nothing was created/skipped/failed', () => {
+    const { stdout, stderr } = formatBootstrapReport({
+      created: [],
+      skipped: [],
+      failed: [],
+      total: 12,
+    });
+    assert.equal(
+      stdout,
+      'audit-labels-bootstrap: 0 created, 0 skipped, 0 failed (of 12).\n',
+    );
+    assert.equal(stderr, '');
+  });
+
+  it('includes created and skipped detail lines and failure stderr', () => {
+    const { stdout, stderr } = formatBootstrapReport({
+      created: ['audit::security'],
+      skipped: ['audit::seo'],
+      failed: [{ label: 'audit::sre', reason: 'boom' }],
+      total: 12,
+    });
+    assert.match(stdout, /1 created, 1 skipped, 1 failed \(of 12\)\./);
+    assert.match(stdout, /created: audit::security/);
+    assert.match(stdout, /skipped: audit::seo/);
+    assert.equal(stderr, '  FAILED audit::sre: boom\n');
   });
 });
