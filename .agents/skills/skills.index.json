@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-02T02:25:11.327Z",
+  "generatedAt": "2026-06-02T02:52:36.593Z",
   "generator": "generate-skills-index.js@1",
   "skills": [
     {
@@ -199,6 +199,16 @@
       "path": ".agents/skills/core/introducing-a-baseline-gate/SKILL.md",
       "description": "Land a new CI check that asserts on a body of pre-existing state (doc-drift, lint-vocabulary, dependency-cycle, missing-test-coverage, unused-export). Use when introducing a gate whose first run would surface latent findings — the introducing Story MUST guarantee the gate exits 0 at merge, not just that the cited discrepancies pass.",
       "policyCapsuleBullets": 6,
+      "allowedTools": null,
+      "vendor": null
+    },
+    {
+      "name": "mutation-survivor-remediation",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/mutation-survivor-remediation/SKILL.md",
+      "description": "Turn surviving mutants into killed ones. Use after a Stryker mutation run reports a leaky score, when the mutation gate regresses, or when you want to harden a specific module's tests. The mutation-score gate and baseline ratchet live in the mutation baseline kind and `stryker-runner.js`; this skill shows how to read the survivor report, pick targets, and write the test that kills each survivor without inflating the suite.",
+      "policyCapsuleBullets": 8,
       "allowedTools": null,
       "vendor": null
     },
