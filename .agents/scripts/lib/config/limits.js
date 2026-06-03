@@ -9,6 +9,7 @@
  *   - `planning.context.{maxBytes, summaryMode}` (planning-context budget)
  *   - `delivery.maxTokenBudget` (task-prompt hydration cap)
  *   - `delivery.execution.timeoutMs` (per-process execution timeout)
+ *   - `delivery.lease.ttlMs` (assignee-as-lease staleness window — Story #3480)
  *   - `delivery.signals.{hotspot, rework, retry}` (performance-signal
  *     detector thresholds — `churn` and `idle` dropped)
  *
@@ -34,6 +35,15 @@ export const SIGNALS_DEFAULTS = Object.freeze({
 });
 
 /**
+ * Default TTL for the assignee-as-lease primitive (Story #3480). A claim
+ * whose owner has not emitted a `story.heartbeat` within this window is
+ * considered stale and may be reclaimed by another operator. 15 minutes
+ * gives a healthy run comfortable headroom over the §2e idle watchdog's
+ * 10-minute re-tick while still releasing a genuinely dead claim promptly.
+ */
+export const LEASE_TTL_MS_DEFAULT = 900000;
+
+/**
  * Framework defaults for the surviving limits surface. `executionTimeoutMs`
  * bumps from 5 min to 10 min per the Story 1 decisions log.
  */
@@ -41,6 +51,7 @@ export const LIMITS_DEFAULTS = Object.freeze({
   maxTickets: 60,
   maxTokenBudget: 200000,
   executionTimeoutMs: 600000,
+  leaseTtlMs: LEASE_TTL_MS_DEFAULT,
   planningContext: Object.freeze({
     maxBytes: 50000,
     summaryMode: 'auto',
@@ -82,6 +93,7 @@ function mergeSignals(userSignals) {
  *   maxTickets: number,
  *   maxTokenBudget: number,
  *   executionTimeoutMs: number,
+ *   leaseTtlMs: number,
  *   planningContext: { maxBytes: number, summaryMode: string },
  *   signals: ReturnType<typeof mergeSignals>,
  * }}
@@ -103,11 +115,14 @@ export function resolveLimits(config) {
     delivery.execution && typeof delivery.execution === 'object'
       ? delivery.execution
       : {};
+  const lease =
+    delivery.lease && typeof delivery.lease === 'object' ? delivery.lease : {};
   return {
     maxTickets: planning.maxTickets ?? LIMITS_DEFAULTS.maxTickets,
     maxTokenBudget: delivery.maxTokenBudget ?? LIMITS_DEFAULTS.maxTokenBudget,
     executionTimeoutMs:
       execution.timeoutMs ?? LIMITS_DEFAULTS.executionTimeoutMs,
+    leaseTtlMs: lease.ttlMs ?? LIMITS_DEFAULTS.leaseTtlMs,
     planningContext: {
       ...LIMITS_DEFAULTS.planningContext,
       ...planningContextUser,
@@ -138,4 +153,32 @@ export function getLimits(config) {
  */
 export function getSignals(config) {
   return getLimits(config).signals;
+}
+
+/**
+ * Resolve the assignee-as-lease TTL in milliseconds (Story #3480). Standalone
+ * accessor so the `ticket-lease` module can import it without dragging the
+ * whole limits surface into its bundle. Precedence:
+ *
+ *   1. An explicit `override` (a positive finite number) — lets a caller or
+ *      test pin the TTL directly.
+ *   2. `delivery.lease.ttlMs` from the resolved config.
+ *   3. `LEASE_TTL_MS_DEFAULT`.
+ *
+ * A non-positive or non-finite override is ignored (falls through to config /
+ * default) so a stray `0` can never collapse every claim to instantly-stale.
+ *
+ * @param {object | null | undefined} config
+ * @param {number} [override]
+ * @returns {number}
+ */
+export function resolveLeaseTtlMs(config, override) {
+  if (
+    typeof override === 'number' &&
+    Number.isFinite(override) &&
+    override > 0
+  ) {
+    return override;
+  }
+  return getLimits(config).leaseTtlMs;
 }

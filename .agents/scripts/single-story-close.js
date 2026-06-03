@@ -68,6 +68,7 @@ import { ensurePullRequestWith } from './lib/orchestration/single-story-close/ph
 import { pushStoryBranch } from './lib/orchestration/single-story-close/phases/push.js';
 import { reapWorktreePhase } from './lib/orchestration/single-story-close/phases/worktree-reap.js';
 import { runWrongTreeGuardPhase } from './lib/orchestration/single-story-close/phases/wrong-tree-guard.js';
+import { releaseStoryLease } from './lib/orchestration/single-story-lease-guard.js';
 import { buildGatesFromConfig } from './lib/orchestration/story-close/legacy-settings-bag.js';
 import { createProvider } from './lib/provider-factory.js';
 import { flipLabelAndNotify } from './lib/single-story/story-merged-notify.js';
@@ -117,6 +118,8 @@ export async function runSingleStoryClose({
   injectedGitSync,
   // Story #3364: lets tests inject a fake `gitSpawn` for the wrong-tree guard.
   injectedGitSpawn,
+  // Story #3483: lets tests swap the lease release on clean close.
+  injectedReleaseLease,
 } = {}) {
   const {
     storyId,
@@ -303,6 +306,31 @@ export async function runSingleStoryClose({
     WorktreeManager,
   });
 
+  // Step 6: release the Story lease (Story #3483). The init-time lease
+  // serialised concurrent standalone runs; a clean close clears the Story
+  // assignment so the next run sees an unclaimed ticket. The guard no-ops
+  // when the operator no longer holds the claim (a later run took over), so
+  // a late close never yanks a live claim away from its current owner.
+  // Best-effort: a release failure must not fail an otherwise-clean close —
+  // the lease goes stale via TTL regardless.
+  let leaseReleased = false;
+  try {
+    const release = injectedReleaseLease ?? releaseStoryLease;
+    const outcome = await release({ provider, storyId, config });
+    leaseReleased = outcome.released;
+    progress(
+      'LEASE',
+      outcome.released
+        ? `🔓 Story #${storyId} lease released.`
+        : `🔓 Story #${storyId} lease not released (${outcome.reason}).`,
+    );
+  } catch (err) {
+    progress(
+      'LEASE',
+      `⚠️ lease release failed (close continues): ${err?.message ?? err}`,
+    );
+  }
+
   const result = {
     storyId,
     standalone: true,
@@ -314,6 +342,7 @@ export async function runSingleStoryClose({
     autoMergeEnabled,
     autoMergeReason,
     worktreeReaped,
+    leaseReleased,
     note: autoMergeEnabled
       ? 'PR open against baseBranch with auto-merge enabled. Story rests at agent::closing (issue stays OPEN). GitHub will squash-merge when required checks pass; run single-story-confirm-merge.js after the merge confirms to flip agent::done and close the issue (the Closes #<id> footer also auto-closes it).'
       : 'PR open against baseBranch. Story rests at agent::closing (issue stays OPEN). Operator merges via GitHub UI; run single-story-confirm-merge.js after the merge confirms to flip agent::done (the Closes #<id> footer also auto-closes the issue).',

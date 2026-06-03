@@ -231,6 +231,49 @@ function extractBlockedBy(footerBlock) {
   return deps;
 }
 
+// Matches the trailing `<!-- meta: {...} -->` block serialize() emits.
+const META_BLOCK_RE = /<!--\s*meta:\s*(\{[\s\S]*?\})\s*-->/;
+
+/**
+ * Extract the `sizingProfile` / `estimated_test_files` fields from the
+ * trailing `<!-- meta: {...} -->` comment block written by
+ * {@link serialize}. Returns canonical-shaped values (null when absent or
+ * malformed) so the parser round-trips the meta block faithfully.
+ *
+ * Failing closed here would be wrong: the meta block is an optional,
+ * machine-written convenience and a malformed comment must not corrupt an
+ * otherwise-valid Story body. A parse failure degrades to the absent-meta
+ * defaults instead of throwing.
+ *
+ * @param {string} markdown
+ * @returns {{ sizingProfile: string|null, estimated_test_files: number|null }}
+ */
+function extractMeta(markdown) {
+  const result = { sizingProfile: null, estimated_test_files: null };
+  const match = markdown.match(META_BLOCK_RE);
+  if (!match) return result;
+
+  let parsed;
+  try {
+    parsed = JSON.parse(match[1]);
+  } catch {
+    // Malformed meta comment — degrade to defaults rather than corrupt the body.
+    return result;
+  }
+  if (parsed === null || typeof parsed !== 'object') return result;
+
+  if (
+    typeof parsed.sizingProfile === 'string' &&
+    parsed.sizingProfile.trim().length > 0
+  ) {
+    result.sizingProfile = parsed.sizingProfile.trim();
+  }
+  if (typeof parsed.estimated_test_files === 'number') {
+    result.estimated_test_files = parsed.estimated_test_files;
+  }
+  return result;
+}
+
 /**
  * Split markdown into named sections plus a footer block.
  *
@@ -275,6 +318,14 @@ function splitSections(markdown) {
         if (!sections.has(currentSection)) sections.set(currentSection, []);
         continue;
       }
+    }
+
+    // The trailing `<!-- meta: {...} -->` block is machine metadata, not
+    // section content. Skip it so a `## References` section immediately
+    // followed by the meta block does not swallow the comment as a
+    // references entry. `extractMeta` reads it separately from the raw body.
+    if (META_BLOCK_RE.test(line)) {
+      continue;
     }
 
     if (inPreamble) {
@@ -432,12 +483,17 @@ export function parse(input) {
   // --- Parse footer ---
   const dependsOn = extractBlockedBy(footer);
 
-  // --- estimated_test_files (not present in markdown — always null from markdown) ---
-  const estimated_test_files = null;
-  warnings.push('test-surface-unestimated: estimated_test_files not present.');
-
-  // --- sizingProfile (not in markdown sections — will be null from markdown) ---
-  const sizingProfile = null;
+  // --- Recover sizingProfile / estimated_test_files from the meta block ---
+  // serialize() writes these into a trailing `<!-- meta: {...} -->` comment
+  // so round-trips preserve them. Absent meta block → canonical null defaults.
+  const meta = extractMeta(input);
+  const estimated_test_files = meta.estimated_test_files;
+  const sizingProfile = meta.sizingProfile;
+  if (estimated_test_files === null) {
+    warnings.push(
+      'test-surface-unestimated: estimated_test_files not present.',
+    );
+  }
 
   const body = {
     goal,

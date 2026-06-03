@@ -280,6 +280,14 @@
       },
       "additionalProperties": false
     },
+    "lease": {
+      "type": "object",
+      "description": "Story #3480 (Epic #3457). Assignee-as-lease primitive. ttlMs is the staleness window — a ticket claim whose owner has not emitted a story.heartbeat within this many milliseconds is reclaimable by another operator. Defaults to 900000 (15 min) in lib/config/limits.js.",
+      "properties": {
+        "ttlMs": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
     "docsFreshness": {
       "type": "object",
       "properties": {
@@ -834,6 +842,7 @@
         "execution": { "$ref": "#/$defs/execution" },
         "hydration": { "$ref": "#/$defs/hydration" },
         "maxTokenBudget": { "type": "integer", "minimum": 1 },
+        "lease": { "$ref": "#/$defs/lease" },
         "docsFreshness": { "$ref": "#/$defs/docsFreshness" },
         "deliverRunner": { "$ref": "#/$defs/deliverRunner" },
         "worktreeIsolation": { "$ref": "#/$defs/worktreeIsolation" },

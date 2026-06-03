@@ -697,6 +697,48 @@ A real content conflict (both stories touched the same lines) aborts the
 loop with a clear error, leaves the local tree clean, and exits non-zero for
 manual resolution. The retry path is a wrapper around the existing happy path.
 
+### Cross-clone coordination
+
+Concurrent runs are serialised by **two distinct layers**, and the
+distinction matters: getting it wrong leaves two clones racing on the same
+Epic with no guard between them.
+
+**Filesystem locks are same-machine-only.** The Epic merge lock
+(`.agents/scripts/lib/epic-merge-lock.js`) lives at
+`<gitCommonDir>/epic-<epicId>.merge.lock` inside `.git/`, and the
+single-story sweep lock (`.agents/scripts/lib/single-story-sweep/sweep-lock.js`)
+is a single-file rendezvous on the local filesystem. Both decide staleness
+by probing a recorded **process PID** with `process.kill(pid, 0)` and by
+comparing a local-filesystem mtime against a TTL. Because a PID is only
+meaningful on the machine that owns it and `.git/` is never committed,
+**these locks coordinate only the worktrees and sessions on a single
+machine/clone. They do NOT coordinate across clones.** Two operators on
+two separate clones (or two CI runners) will each acquire their *own*
+merge lock and never see the other's — the locks are invisible to each
+other. The only cross-clone safety the merge step itself has is the
+bounded push-retry described above, which recovers from the
+non-fast-forward rejection *after* the race has already happened.
+
+**The assignee-as-lease is the cross-clone layer.** To stop two clones
+from both *starting* to drive the same Epic or Story, the framework takes
+an exclusive, time-bounded claim on the ticket via
+[`ticket-lease.js`](scripts/lib/orchestration/ticket-lease.js). The lease
+rides the ticket's GitHub `assignees` field — a substrate every clone can
+read — so a live foreign claim is visible to, and refuses, a second
+operator regardless of which machine they are on. `/epic-deliver` acquires
+the Epic lease in its prepare guard and `/single-story-deliver` acquires
+the Story lease at init; liveness is decided by the owner's most-recent
+`story.heartbeat` against `delivery.lease.ttlMs`. A live foreign claim
+fails the preflight closed (refuse-and-exit, naming the owner); `--steal`
+is the only override. See
+[`README.md` § Multi-developer coordination](README.md#multi-developer-coordination)
+for the full lease behaviour table.
+
+The two layers are complementary, not redundant: the lease prevents two
+clones from racing in the first place, while the same-machine merge lock
+serialises the parallel-wave story closures *within* the one clone that
+holds the lease.
+
 ### Close-tail (`delivery.close-validation` through `delivery.complete` of `/epic-deliver`)
 
 After the wave loop returns `complete`, `/epic-deliver` runs the

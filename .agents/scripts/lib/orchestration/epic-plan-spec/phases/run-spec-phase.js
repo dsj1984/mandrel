@@ -11,6 +11,7 @@ import { PROJECT_ROOT } from '../../../config-resolver.js';
 import { Logger } from '../../../Logger.js';
 import { AGENT_LABELS, TYPE_LABELS } from '../../../label-constants.js';
 import { cleanupPhaseTempFiles } from '../../../plan-phase-cleanup.js';
+import { acquireEpicPlanLease } from '../../epic-plan-lease-guard.js';
 import {
   initialize as initializePlanState,
   PLAN_PHASES,
@@ -40,7 +41,7 @@ async function setEpicLabel(provider, epicId, targetLabel) {
  * @param {import('../../../ITicketingProvider.js').ITicketingProvider} provider
  * @param {{ prdContent: string, techSpecContent: string, acceptanceSpecContent?: string|null }} artifacts
  * @param {object} settings
- * @param {{ force?: boolean, forceReview?: boolean }} [opts]
+ * @param {{ force?: boolean, forceReview?: boolean, steal?: boolean, config?: object }} [opts]
  * @returns {Promise<{ epicId: number, prdId: number|null, techSpecId: number|null, acceptanceSpecId: number|null, checkpoint: object, planningRisk: import('../../planning-risk.js').PlanningRiskEnvelope, reviewRouting: import('../../plan-review-routing.js').ReviewRoutingEnvelope }>}
  */
 export async function runSpecPhase(
@@ -48,7 +49,7 @@ export async function runSpecPhase(
   provider,
   { prdContent, techSpecContent, acceptanceSpecContent = null },
   settings = {},
-  { force = false, forceReview = false } = {},
+  { force = false, forceReview = false, steal = false, config } = {},
 ) {
   const epic = await provider.getEpic(epicId);
   if (!epic) {
@@ -59,6 +60,12 @@ export async function runSpecPhase(
       `[epic-plan-spec] Ticket #${epicId} is not a ${TYPE_LABELS.EPIC}.`,
     );
   }
+
+  // Workflow-guards (Story #3481): acquire the Epic-lease before any Phase 7
+  // mutation so two concurrent /epic-plan runs cannot both drive this Epic. The
+  // guard fails closed (audit #3513) — any foreign assignee refuses here and
+  // the CLI exits non-zero naming the owner, unless `--steal` transfers it.
+  await acquireEpicPlanLease({ provider, epicId, config, steal });
 
   await initializePlanState({ provider, epicId });
   await setPlanPhase({

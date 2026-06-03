@@ -65,6 +65,7 @@ import {
   executeFastForward,
   planFastForward,
 } from './lib/orchestration/git-cleanup/phases/fast-forward.js';
+import { acquireStoryLease } from './lib/orchestration/single-story-lease-guard.js';
 import {
   STATE_LABELS,
   transitionTicketState,
@@ -152,6 +153,24 @@ export function assertDeliverableStory(story, storyId) {
 }
 
 /**
+ * Decide how to seed the Story branch given local / remote presence. Pure and
+ * exported for testing (Story #3483 AC3: an existing `story-<id>` branch must
+ * be **reused**, never re-created — re-creating throws `branch already exists`).
+ *
+ * @param {{ localHas: boolean, remoteHas: boolean }} presence
+ * @returns {'reuse'|'fetch'|'create'}
+ *   - `reuse`  — a local ref already exists; the caller must not run
+ *                `git branch` (which would throw on the existing ref).
+ *   - `fetch`  — only the remote ref exists; materialise the local ref.
+ *   - `create` — neither exists; branch from baseBranch.
+ */
+export function decideStoryBranchSeed({ localHas, remoteHas }) {
+  if (localHas) return 'reuse';
+  if (remoteHas) return 'fetch';
+  return 'create';
+}
+
+/**
  * Reap previously-merged `story-*` branches before starting a new one, so
  * stale local + origin refs do not accumulate across runs. The sweep
  * excludes the current run's `storyBranch` and never blocks init: any
@@ -236,6 +255,14 @@ export async function runSingleStoryInit({
   injectedProvider,
   injectedConfig,
   injectedSweep,
+  // Story #3483: lets tests drive the lease preflight deterministically.
+  // `injectedAcquireLease` swaps the guard; `leaseNow` injects the clock the
+  // fail-closed liveness check evaluates against (audit #3513). `steal`
+  // forcibly transfers a foreign claim — the standalone path has no Epic
+  // heartbeat ledger, so a foreign assignee blocks unless stolen.
+  injectedAcquireLease,
+  steal = false,
+  leaseNow,
 } = {}) {
   const parsed =
     storyIdParam !== undefined
@@ -247,6 +274,12 @@ export async function runSingleStoryInit({
       : parseSprintArgs();
   const { storyId, dryRun } = parsed;
   const cwd = path.resolve(cwdParam ?? parsed.cwd ?? PROJECT_ROOT);
+  // `--steal` is not part of the shared parseSprintArgs surface; read it from
+  // argv on the CLI path (the explicit `steal` param wins for programmatic /
+  // test callers). The standalone lease fails closed on a foreign assignee
+  // (audit #3513), so `--steal` is the operator's forcible-transfer override.
+  const stealRequested =
+    steal || (storyIdParam === undefined && process.argv.includes('--steal'));
 
   if (!storyId) {
     throw new Error(
@@ -278,6 +311,28 @@ export async function runSingleStoryInit({
     'CONTEXT',
     `Standalone Story: "${story.title}" → branch ${storyBranch} from ${baseBranch}.`,
   );
+
+  // Story #3483 — lease preflight. Take an exclusive, time-bounded claim on
+  // the Story ticket before any git mutation so two concurrent standalone
+  // runs cannot both drive the same Story. The standalone path has no Epic
+  // heartbeat ledger, so the guard fails closed (audit #3513): a foreign
+  // assignee is treated as a live claim and aborts init (naming the current
+  // owner) unless --steal forcibly transfers it. Unclaimed / self-held claims
+  // proceed. Skipped under --dry-run (no assignee mutation).
+  if (!dryRun) {
+    const acquire = injectedAcquireLease ?? acquireStoryLease;
+    const lease = await acquire({
+      provider,
+      storyId,
+      config,
+      steal: stealRequested,
+      now: leaseNow,
+    });
+    progress(
+      'LEASE',
+      `🔒 Story #${storyId} lease ${lease.reason} (owner=@${lease.owner}).`,
+    );
+  }
 
   let workCwd = cwd;
   let worktreeCreated = false;
@@ -350,9 +405,11 @@ export async function runSingleStoryInit({
     //   - already local → noop
     //   - remote only   → fetch
     //   - neither       → create from baseBranch
-    const localHas = branchExistsLocally(storyBranch, cwd);
-    const remoteHas = branchExistsRemotely(storyBranch, cwd);
-    if (!localHas && remoteHas) {
+    const seedAction = decideStoryBranchSeed({
+      localHas: branchExistsLocally(storyBranch, cwd),
+      remoteHas: branchExistsRemotely(storyBranch, cwd),
+    });
+    if (seedAction === 'fetch') {
       progress('GIT', `Fetching remote story branch: ${storyBranch}`);
       const r = gitSpawn(
         cwd,
@@ -365,7 +422,7 @@ export async function runSingleStoryInit({
           `Failed to fetch story branch ${storyBranch}: ${r.stderr || '(no stderr)'}`,
         );
       }
-    } else if (!localHas && !remoteHas) {
+    } else if (seedAction === 'create') {
       progress(
         'GIT',
         `Creating story branch ref: ${storyBranch} from ${baseBranch}`,
@@ -377,6 +434,8 @@ export async function runSingleStoryInit({
         );
       }
     } else {
+      // seedAction === 'reuse' — the local ref already exists. Do NOT run
+      // `git branch` here; re-creating an existing ref throws. Reuse it.
       progress('GIT', `Reusing existing local story branch: ${storyBranch}`);
     }
 
