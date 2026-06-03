@@ -31,6 +31,10 @@ import {
 import { cleanupPhaseTempFiles } from '../../../plan-phase-cleanup.js';
 import { writeSpec } from '../../../spec/index.js';
 import {
+  assertNoOpenPlanChildren,
+  releaseEpicPlanLease,
+} from '../../epic-plan-lease-guard.js';
+import {
   PLAN_PHASES,
   setPhase as setPlanPhase,
 } from '../../epic-plan-state-store.js';
@@ -118,6 +122,17 @@ export async function runDecomposePhase(
   // `--allow-over-budget`) rather than in the auto-redrive loop.
   enforceFanOutGate(validated.findings, allowLargeFanOut);
 
+  // Workflow-guards (Story #3481): refuse to persist when the Epic already has
+  // open Feature/Story children unless this is a deliberate re-decompose
+  // (`--force` closes + recreates the tree; `--resume` continues a partial
+  // persist). Sits immediately before the first plan-state mutation so a
+  // refusal never leaves a half-initialised epic-plan-state behind.
+  await assertNoOpenPlanChildren({
+    provider,
+    epicId,
+    force: force || resume,
+  });
+
   await seedPlanState(provider, epicId, epic);
 
   Logger.info(
@@ -169,6 +184,11 @@ export async function runDecomposePhase(
 
   const cleanup = await cleanupPhaseTempFiles({ phase: 'decompose', epicId });
   logCleanupSummary(cleanup, epicId, tickets.length);
+
+  // Workflow-guards (Story #3481): release the Epic-lease now that Phase 8 has
+  // persisted the plan. Best-effort — a release failure never fails decompose.
+  await releaseEpicPlanLease({ provider, epicId, config });
+
   return {
     epicId,
     ticketCount: tickets.length,
