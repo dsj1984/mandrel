@@ -27,7 +27,14 @@ import readline from 'node:readline/promises';
  * `--help` text in bootstrap.js.
  */
 export const KNOWN_FLAGS = Object.freeze({
-  string: ['owner', 'repo', 'operator-handle', 'base-branch', 'project-number'],
+  string: [
+    'owner',
+    'repo',
+    'operator-handle',
+    'base-branch',
+    'project-number',
+    'profile',
+  ],
   boolean: ['assume-yes', 'skip-github', 'skip-quality', 'help', 'dry-run'],
 });
 

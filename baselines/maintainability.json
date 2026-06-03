@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-03T14:54:25.355Z",
+  "generatedAt": "2026-06-03T15:11:21.150Z",
   "rollup": {
     "*": {
       "min": 45.044,
-      "p50": 103.83,
+      "p50": 103.836,
       "p95": 121.586
     }
   },
@@ -383,10 +383,6 @@
       "mi": 101.211
     },
     {
-      "path": ".agents/scripts/lib/bootstrap/prompt.js",
-      "mi": 87.596
-    },
-    {
       "path": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
       "mi": 85.187
     },
@@ -609,10 +605,6 @@
     {
       "path": ".agents/scripts/lib/config/shared.js",
       "mi": 105.208
-    },
-    {
-      "path": ".agents/scripts/lib/config/sync-agentrc.js",
-      "mi": 89.732
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",

@@ -17,6 +17,9 @@
  *   --operator-handle <name>  GitHub handle for `github.operatorHandle`
  *   --base-branch <name>      Base branch (default: origin/HEAD or `main`)
  *   --project-number <n>      Projects V2 number (optional)
+ *   --profile <name>          Config profile to seed .agentrc.json from
+ *                             (solo-local|team-github|qa-only|audit-only);
+ *                             blank uses the full starter reference
  *   --assume-yes              Accept every default; required for non-TTY runs
  *   --skip-github             Skip the GitHub-side bootstrap entirely
  *   --skip-quality            Skip the quality-gates bootstrap (Step 7.5)
@@ -44,6 +47,7 @@ import {
   parseFlags,
 } from './lib/bootstrap/prompt.js';
 import { runAsCli } from './lib/cli-utils.js';
+import { listProfiles, PROFILE_NAMES } from './lib/config/profiles.js';
 import { Logger } from './lib/Logger.js';
 
 const HELP = `bootstrap.js — single-command consumer setup for Mandrel.
@@ -56,6 +60,9 @@ Flags:
   --operator-handle <name>  GitHub handle for github.operatorHandle
   --base-branch <name>      Base branch (default: origin/HEAD or 'main')
   --project-number <n>      Projects V2 number (optional)
+  --profile <name>          Config profile to seed .agentrc.json from
+                            (solo-local|team-github|qa-only|audit-only);
+                            blank uses the full starter reference
   --assume-yes              Accept every default; required for non-TTY runs
   --skip-github             Skip the GitHub-side bootstrap entirely
   --skip-quality            Skip the quality-gates bootstrap (Step 7.5)
@@ -187,6 +194,27 @@ export function buildQuestions(defaults, pickerCtx = {}) {
         v.length === 0 || /^\d+$/.test(v)
           ? null
           : 'Must be an integer or blank',
+    },
+    {
+      // Story #3527 — pick a named config profile to seed `.agentrc.json`
+      // from that profile's posture-scoped delta rather than the full
+      // bundled starter reference. Blank keeps the historical default (the
+      // full starter). The picker lists the canonical profile names; the
+      // validator rejects any non-empty value that is not a known profile so
+      // a typo never reaches `ensureAgentrc`.
+      key: 'profile',
+      flag: 'profile',
+      env: 'MANDREL_PROFILE',
+      message: 'Config profile (blank for the full starter reference)',
+      default: null,
+      required: false,
+      picker: {
+        list: () => listProfiles(),
+      },
+      validate: (v) =>
+        v.length === 0 || PROFILE_NAMES.includes(v)
+          ? null
+          : `Unknown profile. Known profiles: ${PROFILE_NAMES.join(', ')}.`,
     },
   ];
 }
