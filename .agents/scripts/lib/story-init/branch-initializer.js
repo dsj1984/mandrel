@@ -24,6 +24,7 @@ import {
   branchExistsLocally,
   branchExistsRemotely,
   checkoutStoryBranch,
+  classifyBranchSeed,
   ensureEpicBranch,
   ensureEpicBranchRef,
 } from '../git-branch-lifecycle.js';
@@ -149,12 +150,17 @@ export async function bootstrapBranch({
  * created from the epic branch. Returns the action keyword. Exported so the
  * decision is testable without git side-effects.
  *
+ * Delegates the (local, remote) decision to the shared `classifyBranchSeed`
+ * classifier (Story #3513) so this Epic-attached path and the standalone
+ * `single-story-init.js#decideStoryBranchSeed` share one decision tree. The
+ * shared classifier returns `'local'` for the local-present case; this path
+ * names that outcome `'none'` (no re-seed).
+ *
  * @returns {'none'|'fetch'|'create'}
  */
 export function planStoryBranchSeed({ localHas, remoteHas }) {
-  if (localHas) return 'none';
-  if (remoteHas) return 'fetch';
-  return 'create';
+  const action = classifyBranchSeed({ localHas, remoteHas });
+  return action === 'local' ? 'none' : action;
 }
 
 /**

@@ -1089,6 +1089,36 @@ the gate identically at the others.
 
 - **Husky** + **lint-staged**: Auto-lint and format staged files on commit.
 
+#### `lint-staged` biome config: `--no-errors-on-unmatched`
+
+The biome steps in `.lintstagedrc` (`biome check` / `biome format`) carry
+the `--no-errors-on-unmatched` flag. This is the canonical fix for the
+defect tracked in **Story #3529**.
+
+**Background.** `biome.json` sets `vcs.useIgnoreFile=true`, so biome honours
+`.gitignore`. Epic #3436 (PR #3485) briefly added `/.agents/` to
+`.gitignore` as part of the in-flight npm-distribution migration. Because
+`.agents/` is the framework's own committed source tree, every staged
+`.agents/**/*.js` change was then handed to biome as an *ignored* path:
+biome processed 0 files and **exited 1**, hard-failing the pre-commit hook
+on any framework `.js` commit. Story #3489 (PR #3531) removed the
+`/.agents/` ignore in this source repo (the `.gitignore` NOTE block records
+why the framework repo keeps `.agents/` tracked while consumer projects
+ignore their materialized copy), which eliminates the original trigger.
+
+**Why the flag stays.** `--no-errors-on-unmatched` is retained as a
+defensive default rather than reverted now that #3489 fixed the root cause.
+Without it, biome treats an "all staged paths ignored" set as an error and
+exits non-zero; with it, biome still lints/formats every *non-ignored*
+staged file (no silent coverage loss — verified: a staged `.agents/scripts/`
+edit passes the hook and is linted) but no longer hard-fails when a commit
+happens to stage only ignored paths. The `.gitignore` in this repo still
+ignores local-override paths (`.agents/*.local.md`, `.agents/*local.json`)
+and consumer projects ignore their entire materialized `/.agents/` copy, so
+an all-ignored staged set remains a reachable state the flag guards against
+at zero cost. `.lintstagedrc` is plain JSON and cannot carry an inline
+comment, so this rationale lives here.
+
 ---
 
 ## FinOps Model
