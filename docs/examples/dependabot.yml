@@ -1,0 +1,23 @@
+# Example consumer .github/dependabot.yml — scoped to the @mandrel/agents
+# framework lifecycle. Drop this into your consumer project's .github/
+# directory (merge the `updates` entry with your existing config). The
+# `mandrel doctor` CI gate and the auto-merge workflow live alongside it; see
+# docs/renovate-dependabot.md for the full setup.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    allow:
+      - dependency-name: "@mandrel/agents"
+    labels:
+      - "mandrel"
+      - "dependencies"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    # Hold the deliberate 1.x -> 2.0 major for manual review (see docs/upgrade-major.md).
+    ignore:
+      - dependency-name: "@mandrel/agents"
+        update-types: ["version-update:semver-major"]
