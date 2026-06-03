@@ -1,15 +1,25 @@
 ---
-description: Bump the `.agents` submodule to its remote HEAD and report the change set.
+description: Legacy submodule-bump upgrade path (superseded by `mandrel update`) — bump the `.agents` submodule to its remote HEAD and report the change set.
 ---
 
 # /agents-update
+
+> **Legacy upgrade path.** `/agents-update` and its `update-self.js` script are
+> the **legacy Git-submodule-bump** path, **superseded by the `mandrel update`
+> CLI** (bump → sync → migrate → doctor) under the npm distribution model
+> (#3436/#3437). They are **retained only for consumer repos that have not yet
+> migrated off the retired `dist`-branch Git submodule**; on the
+> `@mandrel/agents` npm install, upgrade with `mandrel update` instead. The
+> submodule mechanics described below are accurate for that legacy path and do
+> **not** apply to npm-installed consumers.
 
 ## Overview
 
 `/agents-update` advances the consumer repo's `.agents/` submodule pointer to
 the latest commit on its tracked branch, then regenerates
-`.claude/commands/` against the new workflow set. It is the **only**
-supported way to upgrade the framework inside a consumer project.
+`.claude/commands/` against the new workflow set. It is the legacy upgrade
+path for consumer repos still vendoring `.agents/` as a Git submodule;
+npm-installed consumers upgrade with `mandrel update` instead.
 
 The upgrade contract:
 
@@ -241,11 +251,11 @@ the right moment to reconcile those, while the diff is in front of the
 operator.
 
 The framework CHANGELOG is **not shipped inside the `.agents/`
-submodule** — the distributed bundle (the `dist` branch) carries only
-the *contents* of `.agents/`, and `docs/CHANGELOG.md` lives at the
-framework repo root, outside that tree. So there is no
-`.agents/docs/CHANGELOG.md` to read in a consumer project; reaching for
-one yields "No tracked CHANGELOG in the submodule."
+bundle** — the distributed bundle carries only the *contents* of
+`.agents/`, and `docs/CHANGELOG.md` lives at the framework repo root,
+outside that tree. So there is no `.agents/docs/CHANGELOG.md` to read in
+a consumer project; reaching for one yields "No tracked CHANGELOG in the
+submodule."
 
 Source the change set from the framework remote instead. The submodule's
 `origin` points at the framework repo, so fetch its default branch and
