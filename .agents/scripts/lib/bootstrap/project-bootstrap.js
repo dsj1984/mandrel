@@ -14,6 +14,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { previewMutationManifest } from './manifest.js';
 import { applyQualityBootstrap } from './quality-bootstrap.js';
 
 export const SYNC_COMMAND = 'node .agents/scripts/sync-claude-commands.js';
@@ -607,16 +608,28 @@ export async function runPhases(phases, ctx) {
  * Compose every step in order. Each returned key is the outcome of one
  * step so the CLI can render a structured summary.
  *
+ * When `ctx.preview` is truthy, the function performs **no writes and no
+ * network I/O**. Instead it derives the operator-facing change list from
+ * the single mutation-manifest source ({@link previewMutationManifest}) and
+ * returns `{ preview: true, groups, entries }` — the exact same source the
+ * consent-first install screen renders. Deriving the preview from
+ * `buildMutationManifest` (rather than from a parallel hand-maintained list)
+ * guarantees the preview the operator approves and the execution that
+ * follows enumerate one identical set of mutations (Story #3521).
+ *
  * @param {object} ctx
  * @param {string} ctx.projectRoot
  * @param {string} [ctx.agentRoot]
  * @param {{ owner: string, repo: string, baseBranch: string,
  *           operatorHandle: string|null }} ctx.answers
+ * @param {boolean} [ctx.preview]   — no-write preview from the manifest.
  * @param {boolean} [ctx.skipQuality]
+ * @param {boolean} [ctx.skipGithub]
  * @param {boolean} [ctx.skipInstall]
  * @param {boolean} [ctx.quiet]
  * @returns {Promise<object>}
  */
 export async function applyProjectBootstrap(ctx) {
+  if (ctx.preview) return previewMutationManifest(ctx);
   return runPhases(BOOTSTRAP_PHASES, ctx);
 }

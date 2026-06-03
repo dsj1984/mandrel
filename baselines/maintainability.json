@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-03T11:28:30.584Z",
+  "generatedAt": "2026-06-03T13:40:44.829Z",
   "rollup": {
     "*": {
       "min": 45.044,
@@ -385,10 +385,6 @@
     {
       "path": ".agents/scripts/lib/bootstrap/preflight.js",
       "mi": 101.211
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "mi": 96.852
     },
     {
       "path": ".agents/scripts/lib/bootstrap/prompt.js",
