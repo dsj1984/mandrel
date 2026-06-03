@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-03T14:54:25.860Z",
+  "generatedAt": "2026-06-03T15:13:20.670Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.192000000000002,
+      "p95": 12.226395160174576,
       "max": 38.82544452792387,
       "methodsAbove20": 24
     }
@@ -2538,18 +2538,6 @@
       "crap": 2
     },
     {
-      "path": ".agents/scripts/lib/bootstrap/hitl-confirm.js",
-      "method": "confirm",
-      "startLine": 40,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/hitl-confirm.js",
-      "method": "<anon method-1>",
-      "startLine": 71,
-      "crap": 1
-    },
-    {
       "path": ".agents/scripts/lib/bootstrap/merge-methods.js",
       "method": "diffMergeMethods",
       "startLine": 39,
@@ -2602,90 +2590,6 @@
       "method": "runPreflight",
       "startLine": 139,
       "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/prompt.js",
-      "method": "parseFlags",
-      "startLine": 43,
-      "crap": 10.04551661356395
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/prompt.js",
-      "method": "parseGitRemoteUrl",
-      "startLine": 78,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/prompt.js",
-      "method": "runGit",
-      "startLine": 93,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/prompt.js",
-      "method": "inferDefaults",
-      "startLine": 107,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/prompt.js",
-      "method": "resolveFromFlag",
-      "startLine": 164,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/prompt.js",
-      "method": "resolveFromEnv",
-      "startLine": 177,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/prompt.js",
-      "method": "resolveFromSilent",
-      "startLine": 193,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/prompt.js",
-      "method": "resolveFromPicker",
-      "startLine": 224,
-      "crap": 12
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/prompt.js",
-      "method": "normalizePickerChoice",
-      "startLine": 270,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/prompt.js",
-      "method": "askOnce",
-      "startLine": 289,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/prompt.js",
-      "method": "resolveInteractive",
-      "startLine": 304,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/prompt.js",
-      "method": "resolveAssumeYes",
-      "startLine": 327,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/prompt.js",
-      "method": "collectAnswers",
-      "startLine": 371,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/prompt.js",
-      "method": "<anon method-2>",
-      "startLine": 385,
-      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
@@ -3790,36 +3694,6 @@
       "method": "<anon method-1>",
       "startLine": 30,
       "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/config/sync-agentrc.js",
-      "method": "syncAgentrc",
-      "startLine": 61,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/config/sync-agentrc.js",
-      "method": "collectRedundantAdvisories",
-      "startLine": 131,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/config/sync-agentrc.js",
-      "method": "isLeafSchemaRemovable",
-      "startLine": 176,
-      "crap": 11
-    },
-    {
-      "path": ".agents/scripts/lib/config/sync-agentrc.js",
-      "method": "formatSyncReport",
-      "startLine": 204,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/config/sync-agentrc.js",
-      "method": "previewValue",
-      "startLine": 234,
-      "crap": 3.072
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
