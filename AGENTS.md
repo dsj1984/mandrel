@@ -208,9 +208,14 @@ operator-visible consequences:
 
 - **Namespaced tags (`include-component-in-tag: true`).** Each package
   gets a distinct tag namespace so the two version series never collide:
-  - **`mandrel` (root, `.`)** uses `component: ""`, so its tag stays the
-    bare `vX.Y.Z` form (e.g. `v1.44.0`). The empty component preserves
-    the historical `mandrel` tag series that the manifest is keyed off.
+  - **`mandrel` (root, `.`)** has `package-name: "mandrel"` with
+    `component: ""`. Because `include-component-in-tag` is `true`,
+    release-please prefixes the tag with the package name, so the root
+    package's tags are **namespaced** as `mandrel-vX.Y.Z` (e.g.
+    `mandrel-v1.44.0`). Releases through `v1.43.0` predate the
+    two-package topology and carry the older **bare `vX.Y.Z`** tags; the
+    series became namespaced at `mandrel-v1.44.0`, the first release cut
+    after `create-mandrel` was added.
   - **`create-mandrel`** uses `component: "create-mandrel"`, so its tag
     is namespaced as `create-mandrel-vX.Y.Z` (e.g. `create-mandrel-v0.2.0`).
 
@@ -218,8 +223,8 @@ operator-visible consequences:
   [`release-please.yml`](.github/workflows/release-please.yml) checks out
   the repository root and runs `npm publish` against the root `package.json`
   — it publishes the **`mandrel` package only** and does not key off any
-  tag pattern, so the namespaced `create-mandrel-*` tag never triggers a
-  mandrel publish. `ci.yml` triggers only on branch `push` /
+  tag pattern, so neither the `mandrel-*` nor the `create-mandrel-*` tag
+  series triggers a publish by tag. `ci.yml` triggers only on branch `push` /
   `pull_request` / `workflow_dispatch` events (it has **no** tag-driven
   step), so neither tag series triggers CI directly.
 
