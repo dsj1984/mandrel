@@ -24,6 +24,79 @@ instead — they never touch a submodule at all.
 
 ---
 
+## Automated migration (give this to your agent)
+
+If you run a coding agent in your consumer project, paste the **single,
+self-contained prompt** below and let it perform the whole migration. It
+embeds every step, so the agent does not need this file. The only mutations
+are the submodule removal, the `@mandrel/agents` install, and the materialized
+`./.agents/` tree — all reviewable in a PR — and the agent stops if
+`mandrel doctor` is not green.
+
+```text
+You are migrating this project from the retired Mandrel **Git submodule**
+(`.agents/` pinned to the `dist` branch) to the **`@mandrel/agents` npm
+package**. Work on a NEW branch and open a PR — do not push to the default
+branch, and do not bypass git hooks. If any step fails, or `mandrel doctor` is
+not green at the end, STOP and report it — do not paper over it.
+
+1. Preflight. Confirm `.agents/` is currently a submodule: check that
+   `.gitmodules` contains a `[submodule ".agents"]` block (or that
+   `git submodule status` lists `.agents`). If it is NOT a submodule, STOP and
+   report that the project is already on the npm package — nothing to migrate.
+
+2. Preserve local edits. Run `git -C .agents status --porcelain`. If it shows
+   ANY changes, STOP and report them: hand edits inside `.agents/` are
+   overwritten by `mandrel sync` and must first be moved into the project
+   layer (root `.agentrc.json`, or the `.agents/local/` zone). Never discard
+   them silently.
+
+3. Deinitialize the submodule: `git submodule deinit -f .agents`.
+
+4. Remove the gitlink and internal git data: run `git rm -f .agents`, then
+   delete the submodule's internal git dir — `rm -rf .git/modules/.agents` on
+   macOS/Linux, or `Remove-Item -Recurse -Force .git/modules/.agents` on
+   Windows PowerShell.
+
+5. Remove the `.gitmodules` entry. If `.agents` was the only submodule, the
+   file is now empty — `git rm -f .gitmodules`. Otherwise edit `.gitmodules`,
+   delete only the `[submodule ".agents"]` block, and `git add .gitmodules`.
+   Also drop any leftover section from `.git/config`:
+   `git config --remove-section submodule..agents` (ignore a "no such section"
+   error).
+
+6. Install the package, pinning an exact version in the lockfile:
+   `npm install @mandrel/agents` (or `pnpm add @mandrel/agents` /
+   `yarn add @mandrel/agents`). The package `postinstall` runs `mandrel sync`
+   best-effort; if your install used `--ignore-scripts`, the next step runs it
+   explicitly.
+
+7. Materialize `./.agents/` and check health: `npx mandrel sync` (an
+   idempotent plain-file copy), then `npx mandrel doctor`. Expect
+   `✅  Ready (N/N checks passed)`. If doctor is not green, STOP and report
+   which check failed.
+
+8. Prune the stale `dist` remote-tracking ref left over from the submodule's
+   `-b dist` checkout: `git remote prune origin`. This only cleans your local
+   clone; it does not touch the upstream branch.
+
+9. If `.claude/settings.json` has a `UserPromptSubmit` hook whose command is
+   `node .agents/scripts/sync-claude-commands.js`, repoint it at the CLI:
+   `npx mandrel sync-commands`. Leave every other hook untouched.
+
+10. Commit everything on the branch: `git add -A`, then
+    `git commit -m "build: migrate Mandrel from git submodule to @mandrel/agents npm package"`.
+
+11. Verify, then open the PR and report results: `git submodule status` shows
+    no `.agents` entry; `npm ls @mandrel/agents` resolves the pinned version;
+    `git ls-files -s .agents | head -1` shows mode `100644` (a regular file),
+    NOT `160000` (a gitlink); and `npx mandrel doctor` is green.
+```
+
+The manual, step-by-step version of the same migration follows below.
+
+---
+
 ## Before you start
 
 - Commit or stash any **local edits inside `.agents/`**. The submodule may
@@ -180,6 +253,57 @@ If `mandrel doctor` reports `.agents/` is not materialized, run
 `npx mandrel sync` — that is the documented remedy for the
 `--ignore-scripts` / sandboxed-CI path where the postinstall hook was
 skipped.
+
+---
+
+## Migrating lifecycle hooks to the `mandrel` CLI
+
+Separately from the distribution change, Epic #3435 moved the lifecycle
+scripts out of bare `.agents/scripts/` invocations and behind the `mandrel`
+CLI bin. If your project's `.claude/settings.json` wires the
+`UserPromptSubmit` hook directly to the old sync script, repoint it at the CLI
+subcommand as part of the migration.
+
+Old hook command:
+
+```json
+{
+  "type": "command",
+  "command": "node .agents/scripts/sync-claude-commands.js"
+}
+```
+
+New hook command:
+
+```json
+{
+  "type": "command",
+  "command": "npx mandrel sync-commands"
+}
+```
+
+In context, the `UserPromptSubmit` block becomes:
+
+```json
+"hooks": {
+  "UserPromptSubmit": [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "npx mandrel sync-commands"
+        }
+      ]
+    }
+  ]
+}
+```
+
+The bare-script path keeps working on older installs, but the CLI bin is the
+stable, versioned entry point — migrate the hook when you upgrade to this
+version or later. (Inside this framework repo itself the equivalent invocation
+is `node bin/mandrel.js sync-commands`, because the repo runs its own bin
+directly; consumers use the installed package bin via `npx mandrel`.)
 
 ---
 
