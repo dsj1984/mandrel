@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-03T00:08:39.631Z",
+  "generatedAt": "2026-06-03T00:37:58.829Z",
   "rollup": {
     "*": {
-      "min": 61.218,
-      "p50": 103.888,
+      "min": 66.537,
+      "p50": 103.928,
       "p95": 121.809
     }
   },
@@ -107,10 +107,6 @@
       "mi": 81.789
     },
     {
-      "path": ".agents/scripts/epic-deliver-prepare.js",
-      "mi": 85.139
-    },
-    {
       "path": ".agents/scripts/epic-deliver-reconcile.js",
       "mi": 96.27
     },
@@ -133,10 +129,6 @@
     {
       "path": ".agents/scripts/epic-plan-healthcheck.js",
       "mi": 97.622
-    },
-    {
-      "path": ".agents/scripts/epic-plan-spec.js",
-      "mi": 71.241
     },
     {
       "path": ".agents/scripts/epic-plan.js",
@@ -919,10 +911,6 @@
       "mi": 102.956
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/persist.js",
-      "mi": 88.229
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/planning-artifacts.js",
       "mi": 99.762
     },
@@ -945,10 +933,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/prompts.js",
       "mi": 138.609
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/run-spec-phase.js",
-      "mi": 81.72
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-state-store.js",
@@ -1767,10 +1751,6 @@
       "mi": 112.285
     },
     {
-      "path": ".agents/scripts/lib/story-init/branch-initializer.js",
-      "mi": 96.842
-    },
-    {
       "path": ".agents/scripts/lib/story-init/context-resolver.js",
       "mi": 90.144
     },
@@ -2115,14 +2095,6 @@
       "mi": 93.522
     },
     {
-      "path": ".agents/scripts/single-story-close.js",
-      "mi": 61.218
-    },
-    {
-      "path": ".agents/scripts/single-story-init.js",
-      "mi": 91.072
-    },
-    {
       "path": ".agents/scripts/single-story-plan.js",
       "mi": 86.713
     },
@@ -2137,10 +2109,6 @@
     {
       "path": ".agents/scripts/story-deliver-prepare.js",
       "mi": 88.71
-    },
-    {
-      "path": ".agents/scripts/story-init.js",
-      "mi": 83.361
     },
     {
       "path": ".agents/scripts/story-phase.js",
@@ -2773,10 +2741,6 @@
     {
       "path": "tests/contract/orchestration/pr-base-guard.test.js",
       "mi": 114.185
-    },
-    {
-      "path": "tests/contract/planning/healthcheck-blocking.test.js",
-      "mi": 93.868
     },
     {
       "path": "tests/contract/planning/healthcheck-hierarchy-mode.test.js",
