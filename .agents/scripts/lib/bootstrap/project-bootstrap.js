@@ -48,7 +48,7 @@ export const SYSTEM_PROMPT_CLAUDE_MD = `# Agent Protocols
 
 ${SYSTEM_PROMPT_BLOCK}`;
 
-const GITIGNORE_BLOCKS = Object.freeze({
+export const GITIGNORE_BLOCKS = Object.freeze({
   commands: {
     pattern: /^\s*\.claude\/commands\/?\s*$/m,
     block:
