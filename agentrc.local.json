@@ -1,0 +1,6 @@
+{
+  "$schema": "./.agents/schemas/agentrc.schema.json",
+  "github": {
+    "operatorHandle": "@dsj1984"
+  }
+}
