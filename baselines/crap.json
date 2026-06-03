@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-03T00:08:40.069Z",
+  "generatedAt": "2026-06-03T00:37:59.479Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -7110,24 +7110,6 @@
       "crap": 2.2560000000000002
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/persist.js",
-      "method": "runDecomposePhase",
-      "startLine": 63,
-      "crap": 8.0194450493989
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/persist.js",
-      "method": "enforceFanOutGate",
-      "startLine": 199,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/persist.js",
-      "method": "runHealthcheckGate",
-      "startLine": 225,
-      "crap": 4.05088540606554
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/planning-artifacts.js",
       "method": "ensurePlanningArtifacts",
       "startLine": 31,
@@ -7186,18 +7168,6 @@
       "method": "planEpic",
       "startLine": 93,
       "crap": 34.36484986948942
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/run-spec-phase.js",
-      "method": "setEpicLabel",
-      "startLine": 26,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/run-spec-phase.js",
-      "method": "runSpecPhase",
-      "startLine": 46,
-      "crap": 7.019056115593619
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-state-store.js",
@@ -15718,12 +15688,6 @@
       "method": "<anon method-4>",
       "startLine": 283,
       "crap": 2.5
-    },
-    {
-      "path": ".agents/scripts/single-story-close.js",
-      "method": "runSingleStoryClose",
-      "startLine": 96,
-      "crap": 10.00056942419825
     },
     {
       "path": ".agents/scripts/single-story-plan.js",
