@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.45.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.44.0...mandrel-v1.45.0) (2026-06-03)
+
+
+### Fixed
+
+* **uninstall:** keep the .mcp.json gitignore entry when a real .mcp.json exists ([#3542](https://github.com/dsj1984/mandrel/issues/3542)) ([#3555](https://github.com/dsj1984/mandrel/issues/3555)) ([0ff599c](https://github.com/dsj1984/mandrel/commit/0ff599c51872f595298b0a1aeddd4dbf0de74793))
+* **uninstall:** replace hash-prefix heuristic with byte-equality check ([#3551](https://github.com/dsj1984/mandrel/issues/3551)) ([1b11d68](https://github.com/dsj1984/mandrel/commit/1b11d68bbe37a172e83dacef9aad7b514629e4cc))
+
 ## [1.44.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.43.0...mandrel-v1.44.0) (2026-06-03)
 
 
