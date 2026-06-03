@@ -86,8 +86,7 @@ export class ColumnSync {
       ctx?.config?.github?.projectNumber ??
       provider.projectNumber ??
       null;
-    this.projectOwner =
-      opts.projectOwner ?? provider.projectOwner ?? null;
+    this.projectOwner = opts.projectOwner ?? provider.projectOwner ?? null;
     this.logger = opts.logger ?? ctx?.logger ?? console;
     this._meta = null; // lazy-cached { projectId, fieldId, options: Map<name, id> }
   }

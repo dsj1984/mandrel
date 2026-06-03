@@ -333,7 +333,9 @@ describe('ColumnSync.sync', () => {
         }
         if (query.includes('updateProjectV2ItemFieldValue')) {
           return {
-            updateProjectV2ItemFieldValue: { projectV2Item: { id: vars.itemId } },
+            updateProjectV2ItemFieldValue: {
+              projectV2Item: { id: vars.itemId },
+            },
           };
         }
         return {};
@@ -346,13 +348,15 @@ describe('ColumnSync.sync', () => {
     assert.equal(res.column, 'Done');
 
     // Confirm the cross-owner query was issued (not the viewer query)
-    const metaCall = graphqlCalls.find((c) => c.query.includes('user(login: $owner)'));
+    const metaCall = graphqlCalls.find((c) =>
+      c.query.includes('user(login: $owner)'),
+    );
     assert.ok(metaCall, 'issued the user(login: $owner) query');
     assert.equal(metaCall.vars.owner, 'dsj1984');
     assert.equal(metaCall.vars.number, 1);
 
-    const viewerCall = graphqlCalls.find((c) =>
-      c.query.includes('viewer {') && c.query.includes('projectV2'),
+    const viewerCall = graphqlCalls.find(
+      (c) => c.query.includes('viewer {') && c.query.includes('projectV2'),
     );
     assert.equal(viewerCall, undefined, 'did not fall back to viewer query');
 
@@ -403,7 +407,9 @@ describe('ColumnSync.sync', () => {
         }
         if (query.includes('updateProjectV2ItemFieldValue')) {
           return {
-            updateProjectV2ItemFieldValue: { projectV2Item: { id: vars.itemId } },
+            updateProjectV2ItemFieldValue: {
+              projectV2Item: { id: vars.itemId },
+            },
           };
         }
         return {};
@@ -418,7 +424,10 @@ describe('ColumnSync.sync', () => {
     const viewerCall = graphqlCalls.find(
       (c) => c.query.includes('viewer {') && c.query.includes('projectV2'),
     );
-    assert.ok(viewerCall, 'used the viewer query when no projectOwner configured');
+    assert.ok(
+      viewerCall,
+      'used the viewer query when no projectOwner configured',
+    );
 
     const crossOwnerCall = graphqlCalls.find((c) =>
       c.query.includes('user(login: $owner)'),
