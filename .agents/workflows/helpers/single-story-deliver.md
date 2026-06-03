@@ -63,11 +63,39 @@ node .agents/scripts/single-story-init.js --story <storyId>
 > `Monitor` — a sub-agent that exits mid-install leaves the worktree
 > half-bootstrapped.
 
-The script validates `type::story`, fetches `origin`, seeds
-`story-<id>` from `baseBranch`, materializes a worktree (when
-`delivery.worktreeIsolation.enabled` is true), upserts a
+The script validates `type::story`, **acquires the Story lease**, fetches
+`origin`, seeds `story-<id>` from `baseBranch`, materializes a worktree
+(when `delivery.worktreeIsolation.enabled` is true), upserts a
 `story-init` structured comment carrying `standalone: true`, and flips
 the Story to `agent::executing`.
+
+> **Lease preflight (Story #3483).** Before any git mutation, init takes an
+> exclusive, time-bounded **lease** on the Story ticket via the
+> assignee-as-lease primitive (`lib/orchestration/ticket-lease.js`). The
+> single assignee *is* the lease owner (resolved from
+> `github.operatorHandle`). The standalone path has no Epic-scoped dispatch
+> manifest to serialise two operators driving the same Story, so this lease
+> is the only guard against a concurrent `single-story-init` clobbering an
+> in-flight run. Outcomes:
+>
+> - **Unclaimed / self-held / stale-foreign** → init proceeds (a stale
+>   foreign claim — one whose owner's last `story.heartbeat` is older than
+>   the lease TTL, or who never emitted one — is reclaimed automatically).
+> - **Live foreign claim** → init **exits non-zero** with a message naming
+>   the current owner. Coordinate with that operator or wait for the claim
+>   to go stale before re-running.
+>
+> `--dry-run` skips the lease (no assignee mutation). The matching release
+> runs in `single-story-close.js` (Step 3).
+
+Init is also idempotent on the Story branch itself:
+
+> **Branch reuse (Story #3483).** When a `story-<id>` branch already exists
+> locally, init **reuses** it rather than re-creating it (re-running
+> `git branch` on an existing ref throws `branch already exists`). The
+> seed decision (`reuse` / `fetch` / `create`) keys off local + remote ref
+> presence, so re-running init on a partially-initialized Story is
+> idempotent.
 
 Between the fetch and the branch-seed step, the script also runs a
 **merged-`story-*` sweep**: it invokes the same primitive as
@@ -308,6 +336,14 @@ The script:
    `agent::done` once its merge into `epic/<id>` is confirmed.
 5. Reaps the worktree when `delivery.worktreeIsolation.reapOnSuccess`
    is enabled.
+6. **Releases the Story lease** (Story #3483). Clears the Story assignment
+   that init claimed so the next `/single-story-deliver` run sees an
+   unclaimed ticket. The release is a no-op when the operator no longer
+   holds the claim (a later run took over via reclaim/steal), so a late
+   close never yanks a live claim away from its current owner. Best-effort:
+   a release failure is logged but does not fail an otherwise-clean close —
+   the lease goes stale via TTL regardless. The close result carries
+   `leaseReleased: <boolean>`.
 
 `--skip-validation` bypasses Step 1 (gates). Use only when re-running
 close after a fixed gate failure that's already known to pass.
