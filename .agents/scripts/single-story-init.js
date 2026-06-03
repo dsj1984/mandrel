@@ -65,6 +65,7 @@ import {
   executeFastForward,
   planFastForward,
 } from './lib/orchestration/git-cleanup/phases/fast-forward.js';
+import { acquireStoryLease } from './lib/orchestration/single-story-lease-guard.js';
 import {
   STATE_LABELS,
   transitionTicketState,
@@ -152,6 +153,24 @@ export function assertDeliverableStory(story, storyId) {
 }
 
 /**
+ * Decide how to seed the Story branch given local / remote presence. Pure and
+ * exported for testing (Story #3483 AC3: an existing `story-<id>` branch must
+ * be **reused**, never re-created — re-creating throws `branch already exists`).
+ *
+ * @param {{ localHas: boolean, remoteHas: boolean }} presence
+ * @returns {'reuse'|'fetch'|'create'}
+ *   - `reuse`  — a local ref already exists; the caller must not run
+ *                `git branch` (which would throw on the existing ref).
+ *   - `fetch`  — only the remote ref exists; materialise the local ref.
+ *   - `create` — neither exists; branch from baseBranch.
+ */
+export function decideStoryBranchSeed({ localHas, remoteHas }) {
+  if (localHas) return 'reuse';
+  if (remoteHas) return 'fetch';
+  return 'create';
+}
+
+/**
  * Reap previously-merged `story-*` branches before starting a new one, so
  * stale local + origin refs do not accumulate across runs. The sweep
  * excludes the current run's `storyBranch` and never blocks init: any
@@ -236,6 +255,12 @@ export async function runSingleStoryInit({
   injectedProvider,
   injectedConfig,
   injectedSweep,
+  // Story #3483: lets tests drive the lease preflight deterministically.
+  // `injectedAcquireLease` swaps the guard; `leaseHeartbeatAt` / `leaseNow`
+  // thread the owner's last-heartbeat + clock into the live-claim decision.
+  injectedAcquireLease,
+  leaseHeartbeatAt = null,
+  leaseNow,
 } = {}) {
   const parsed =
     storyIdParam !== undefined
@@ -278,6 +303,28 @@ export async function runSingleStoryInit({
     'CONTEXT',
     `Standalone Story: "${story.title}" → branch ${storyBranch} from ${baseBranch}.`,
   );
+
+  // Story #3483 — lease preflight. Take an exclusive, time-bounded claim on
+  // the Story ticket before any git mutation so two concurrent standalone
+  // runs cannot both drive the same Story. A live foreign claim throws here
+  // (naming the current owner) and aborts init; unclaimed / self-held /
+  // stale-foreign claims proceed. Skipped under --dry-run (no assignee
+  // mutation) and when worktree isolation is the only seam — the lease rides
+  // the ticket, not the worktree.
+  if (!dryRun) {
+    const acquire = injectedAcquireLease ?? acquireStoryLease;
+    const lease = await acquire({
+      provider,
+      storyId,
+      config,
+      heartbeatAt: leaseHeartbeatAt,
+      now: leaseNow,
+    });
+    progress(
+      'LEASE',
+      `🔒 Story #${storyId} lease ${lease.reason} (owner=@${lease.owner}).`,
+    );
+  }
 
   let workCwd = cwd;
   let worktreeCreated = false;
@@ -350,9 +397,11 @@ export async function runSingleStoryInit({
     //   - already local → noop
     //   - remote only   → fetch
     //   - neither       → create from baseBranch
-    const localHas = branchExistsLocally(storyBranch, cwd);
-    const remoteHas = branchExistsRemotely(storyBranch, cwd);
-    if (!localHas && remoteHas) {
+    const seedAction = decideStoryBranchSeed({
+      localHas: branchExistsLocally(storyBranch, cwd),
+      remoteHas: branchExistsRemotely(storyBranch, cwd),
+    });
+    if (seedAction === 'fetch') {
       progress('GIT', `Fetching remote story branch: ${storyBranch}`);
       const r = gitSpawn(
         cwd,
@@ -365,7 +414,7 @@ export async function runSingleStoryInit({
           `Failed to fetch story branch ${storyBranch}: ${r.stderr || '(no stderr)'}`,
         );
       }
-    } else if (!localHas && !remoteHas) {
+    } else if (seedAction === 'create') {
       progress(
         'GIT',
         `Creating story branch ref: ${storyBranch} from ${baseBranch}`,
@@ -377,6 +426,8 @@ export async function runSingleStoryInit({
         );
       }
     } else {
+      // seedAction === 'reuse' — the local ref already exists. Do NOT run
+      // `git branch` here; re-creating an existing ref throws. Reuse it.
       progress('GIT', `Reusing existing local story branch: ${storyBranch}`);
     }
 
