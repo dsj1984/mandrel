@@ -69,8 +69,9 @@ export function columnForLabels(labels) {
 export class ColumnSync {
   /**
    * @param {{
-   *   provider: import('../ITicketingProvider.js').ITicketingProvider & { projectNumber?: number|null, graphql: Function },
+   *   provider: import('../ITicketingProvider.js').ITicketingProvider & { projectNumber?: number|null, projectOwner?: string|null, graphql: Function },
    *   projectNumber?: number | null,
+   *   projectOwner?: string | null,
    *   logger?: { info: Function, warn: Function },
    *   ctx?: { provider?: object, config?: { github?: { projectNumber?: number|null } }, logger?: object },
    * }} opts
@@ -85,6 +86,8 @@ export class ColumnSync {
       ctx?.config?.github?.projectNumber ??
       provider.projectNumber ??
       null;
+    this.projectOwner =
+      opts.projectOwner ?? provider.projectOwner ?? null;
     this.logger = opts.logger ?? ctx?.logger ?? console;
     this._meta = null; // lazy-cached { projectId, fieldId, options: Map<name, id> }
   }
@@ -139,24 +142,49 @@ export class ColumnSync {
   async #loadMeta() {
     if (this._meta !== null) return this._meta || null;
     try {
-      const data = await this.provider.graphql(
-        `
-        query($number: Int!) {
-          viewer {
-            projectV2(number: $number) {
-              id
-              field(name: "Status") {
-                ... on ProjectV2SingleSelectField {
-                  id
-                  options { id name }
+      let project;
+      if (this.projectOwner) {
+        // When the project is owned by a different account than the
+        // authenticated viewer, `viewer.projectV2` returns null. Use
+        // `user(login: $owner).projectV2` instead. (Story #3560)
+        const data = await this.provider.graphql(
+          `
+          query($owner: String!, $number: Int!) {
+            user(login: $owner) {
+              projectV2(number: $number) {
+                id
+                field(name: "Status") {
+                  ... on ProjectV2SingleSelectField {
+                    id
+                    options { id name }
+                  }
                 }
               }
             }
-          }
-        }`,
-        { number: this.projectNumber },
-      );
-      const project = data?.viewer?.projectV2;
+          }`,
+          { owner: this.projectOwner, number: this.projectNumber },
+        );
+        project = data?.user?.projectV2;
+      } else {
+        const data = await this.provider.graphql(
+          `
+          query($number: Int!) {
+            viewer {
+              projectV2(number: $number) {
+                id
+                field(name: "Status") {
+                  ... on ProjectV2SingleSelectField {
+                    id
+                    options { id name }
+                  }
+                }
+              }
+            }
+          }`,
+          { number: this.projectNumber },
+        );
+        project = data?.viewer?.projectV2;
+      }
       const field = project?.field;
       if (!project || !field) {
         this._meta = false;
