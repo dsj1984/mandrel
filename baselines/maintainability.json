@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-03T02:03:32.496Z",
+  "generatedAt": "2026-06-03T02:15:34.546Z",
   "rollup": {
     "*": {
-      "min": 33.523,
-      "p50": 103.85,
+      "min": 45.044,
+      "p50": 103.83,
       "p95": 121.586
     }
   },
@@ -24,7 +24,7 @@
     },
     {
       "path": ".agents/scripts/audit-labels-bootstrap.js",
-      "mi": 81.721
+      "mi": 87.365
     },
     {
       "path": ".agents/scripts/audit-orchestrator.js",
@@ -49,6 +49,10 @@
     {
       "path": ".agents/scripts/check-doc-links.js",
       "mi": 90.521
+    },
+    {
+      "path": ".agents/scripts/check-gherkin-placeholders.js",
+      "mi": 88.348
     },
     {
       "path": ".agents/scripts/check-lifecycle-doc-drift.js",
@@ -96,7 +100,7 @@
     },
     {
       "path": ".agents/scripts/epic-audit-prepare.js",
-      "mi": 85.762
+      "mi": 82.519
     },
     {
       "path": ".agents/scripts/epic-close.js",
@@ -216,7 +220,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
-      "mi": 101.269
+      "mi": 97.146
     },
     {
       "path": ".agents/scripts/lib/audit-suite/substitutions.js",
@@ -363,6 +367,10 @@
       "mi": 125.329
     },
     {
+      "path": ".agents/scripts/lib/bootstrap/gh-list.js",
+      "mi": 101.45
+    },
+    {
       "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
       "mi": 101.665
     },
@@ -375,8 +383,16 @@
       "mi": 88.993
     },
     {
+      "path": ".agents/scripts/lib/bootstrap/preflight.js",
+      "mi": 101.211
+    },
+    {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "mi": 96.852
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/prompt.js",
+      "mi": 87.596
     },
     {
       "path": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
@@ -468,7 +484,7 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation.js",
-      "mi": 95.982
+      "mi": 92.919
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/head-sha.js",
@@ -484,7 +500,7 @@
     },
     {
       "path": ".agents/scripts/lib/config-resolver.js",
-      "mi": 93.845
+      "mi": 90.965
     },
     {
       "path": ".agents/scripts/lib/config-schema-shared.js",
@@ -495,8 +511,16 @@
       "mi": 171
     },
     {
+      "path": ".agents/scripts/lib/config-settings-schema-delivery.js",
+      "mi": 45.044
+    },
+    {
+      "path": ".agents/scripts/lib/config-settings-schema-quality.js",
+      "mi": 57.261
+    },
+    {
       "path": ".agents/scripts/lib/config-settings-schema.js",
-      "mi": 33.523
+      "mi": 49.706
     },
     {
       "path": ".agents/scripts/lib/config/baselines.js",
@@ -791,6 +815,10 @@
       "mi": 80.087
     },
     {
+      "path": ".agents/scripts/lib/mutation/survivor-report.js",
+      "mi": 90.893
+    },
+    {
       "path": ".agents/scripts/lib/notifications/notifier.js",
       "mi": 111.988
     },
@@ -984,7 +1012,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-run-state-store.js",
-      "mi": 97.779
+      "mi": 95.192
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner.js",
@@ -1144,7 +1172,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
-      "mi": 96.396
+      "mi": 98.12
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/parse-args.js",
@@ -1156,7 +1184,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/prompts.js",
-      "mi": 116.216
+      "mi": 117.495
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/prune.js",
@@ -1216,7 +1244,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/finalizer.js",
-      "mi": 83.039
+      "mi": 83.689
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/heartbeat-monitor.js",
@@ -1356,7 +1384,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/resolves-token.js",
-      "mi": 129.262
+      "mi": 130.397
     },
     {
       "path": ".agents/scripts/lib/orchestration/retro-heuristics.js",
@@ -1453,6 +1481,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/worktree-reap.js",
       "mi": 115.333
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/wrong-tree-guard.js",
+      "mi": 104.065
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-lease-guard.js",
@@ -1560,7 +1592,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/gates.js",
-      "mi": 89.462
+      "mi": 88.565
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/lock-wait-classifier.js",
@@ -1672,7 +1704,7 @@
     },
     {
       "path": ".agents/scripts/lib/presentation/manifest-builder.js",
-      "mi": 92.218
+      "mi": 93.756
     },
     {
       "path": ".agents/scripts/lib/presentation/manifest-formatter.js",
@@ -1692,7 +1724,7 @@
     },
     {
       "path": ".agents/scripts/lib/presentation/manifest-render-waves.js",
-      "mi": 99.855
+      "mi": 98.886
     },
     {
       "path": ".agents/scripts/lib/presentation/manifest-renderer.js",
@@ -1700,7 +1732,7 @@
     },
     {
       "path": ".agents/scripts/lib/presentation/manifest-story-views.js",
-      "mi": 97.709
+      "mi": 99.019
     },
     {
       "path": ".agents/scripts/lib/provider-factory.js",
@@ -1721,6 +1753,22 @@
     {
       "path": ".agents/scripts/lib/qa/resolve-selection.js",
       "mi": 102.741
+    },
+    {
+      "path": ".agents/scripts/lib/runtime-deps/ensure-installed.js",
+      "mi": 103.83
+    },
+    {
+      "path": ".agents/scripts/lib/runtime-deps/manifest.js",
+      "mi": 92.207
+    },
+    {
+      "path": ".agents/scripts/lib/runtime-deps/preflight.js",
+      "mi": 114.512
+    },
+    {
+      "path": ".agents/scripts/lib/runtime-deps/scan-imports.js",
+      "mi": 92.486
     },
     {
       "path": ".agents/scripts/lib/signals/detectors/common.js",
@@ -1748,7 +1796,7 @@
     },
     {
       "path": ".agents/scripts/lib/signals/read.js",
-      "mi": 90.205
+      "mi": 90.735
     },
     {
       "path": ".agents/scripts/lib/signals/schema.js",
@@ -1772,11 +1820,15 @@
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/protection.js",
-      "mi": 92.676
+      "mi": 93.272
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
       "mi": 101.674
+    },
+    {
+      "path": ".agents/scripts/lib/single-story/confirm-merge.js",
+      "mi": 94.868
     },
     {
       "path": ".agents/scripts/lib/single-story/story-merged-notify.js",
@@ -1952,7 +2004,7 @@
     },
     {
       "path": ".agents/scripts/lib/worktree/inspector.js",
-      "mi": 91.633
+      "mi": 92.16
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle-manager.js",
@@ -1996,7 +2048,7 @@
     },
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/shared.js",
-      "mi": 120.392
+      "mi": 122.913
     },
     {
       "path": ".agents/scripts/lib/worktree/node-modules-strategy.js",
@@ -2163,6 +2215,10 @@
       "mi": 58.031
     },
     {
+      "path": ".agents/scripts/single-story-confirm-merge.js",
+      "mi": 82.803
+    },
+    {
       "path": ".agents/scripts/single-story-init.js",
       "mi": 90.788
     },
@@ -2248,7 +2304,7 @@
     },
     {
       "path": "tests/acceptance-spec-reconciler.test.js",
-      "mi": 107.489
+      "mi": 106.72
     },
     {
       "path": "tests/acceptance/legacy-orchestration-retired.test.js",
@@ -2316,7 +2372,7 @@
     },
     {
       "path": "tests/audit-suite/epic-audit-prepare.test.js",
-      "mi": 101.108
+      "mi": 98.337
     },
     {
       "path": "tests/audit-suite/findings.test.js",
@@ -2336,7 +2392,7 @@
     },
     {
       "path": "tests/audit-suite/selector-changedfiles.test.js",
-      "mi": 111.141
+      "mi": 106.572
     },
     {
       "path": "tests/audit-suite/substitutions.test.js",
@@ -2571,6 +2627,10 @@
       "mi": 115.212
     },
     {
+      "path": "tests/bootstrap/summary.test.js",
+      "mi": 94.767
+    },
+    {
       "path": "tests/bootstrap/workflow-audit.test.js",
       "mi": 103.714
     },
@@ -2635,12 +2695,32 @@
       "mi": 113.227
     },
     {
+      "path": "tests/cli/doctor.test.js",
+      "mi": 98.269
+    },
+    {
+      "path": "tests/cli/hook-migration.test.js",
+      "mi": 114.503
+    },
+    {
+      "path": "tests/cli/mandrel.test.js",
+      "mi": 113.325
+    },
+    {
+      "path": "tests/cli/partition.test.js",
+      "mi": 113.324
+    },
+    {
       "path": "tests/cli/postinstall.test.js",
       "mi": 130.712
     },
     {
       "path": "tests/cli/registry.test.js",
       "mi": 109.982
+    },
+    {
+      "path": "tests/cli/sync-commands.test.js",
+      "mi": 117.821
     },
     {
       "path": "tests/close-validation-mi-projection.test.js",
@@ -2685,6 +2765,10 @@
     {
       "path": "tests/config/quality.floors.test.js",
       "mi": 119.271
+    },
+    {
+      "path": "tests/config/refactor-stage.test.js",
+      "mi": 107.173
     },
     {
       "path": "tests/config/sync-agentrc.test.js",
@@ -2768,7 +2852,7 @@
     },
     {
       "path": "tests/contract/finalize/finalizer-bus-owned.test.js",
-      "mi": 109.035
+      "mi": 109.634
     },
     {
       "path": "tests/contract/finalize/open-or-locate-pr.test.js",
@@ -3347,6 +3431,10 @@
       "mi": 115.191
     },
     {
+      "path": "tests/lib/config-resolver-local.test.js",
+      "mi": 101.86
+    },
+    {
       "path": "tests/lib/config-resolver-notifications.test.js",
       "mi": 112.258
     },
@@ -3556,11 +3644,11 @@
     },
     {
       "path": "tests/lib/manifest-formatter-cache.test.js",
-      "mi": 90.952
+      "mi": 92.402
     },
     {
       "path": "tests/lib/manifest-formatter.test.js",
-      "mi": 98.671
+      "mi": 99.847
     },
     {
       "path": "tests/lib/manifest-persistence.test.js",
@@ -3589,6 +3677,10 @@
     {
       "path": "tests/lib/mutation/stryker-runner.test.js",
       "mi": 100.669
+    },
+    {
+      "path": "tests/lib/mutation/survivor-report.test.js",
+      "mi": 99.919
     },
     {
       "path": "tests/lib/notifications/notifier.test.js",
@@ -3668,7 +3760,7 @@
     },
     {
       "path": "tests/lib/orchestration/epic-cleanup.test.js",
-      "mi": 99.469
+      "mi": 101.322
     },
     {
       "path": "tests/lib/orchestration/epic-deliver-lease-guard.test.js",
@@ -3697,6 +3789,10 @@
     {
       "path": "tests/lib/orchestration/git-cleanup-phase-drivers-decide.test.js",
       "mi": 97.172
+    },
+    {
+      "path": "tests/lib/orchestration/git-cleanup-probe-helpers.test.js",
+      "mi": 120.427
     },
     {
       "path": "tests/lib/orchestration/label-transitions.test.js",
@@ -3775,6 +3871,10 @@
       "mi": 107.649
     },
     {
+      "path": "tests/lib/orchestration/lifecycle/close-end-no-cascade.test.js",
+      "mi": 106.659
+    },
+    {
       "path": "tests/lib/orchestration/lifecycle/emit-end-to-end.test.js",
       "mi": 100.55
     },
@@ -3792,7 +3892,7 @@
     },
     {
       "path": "tests/lib/orchestration/lifecycle/listener-branch-cleaner.test.js",
-      "mi": 105.94
+      "mi": 105.335
     },
     {
       "path": "tests/lib/orchestration/lifecycle/listener-chain-wiring.test.js",
@@ -3853,6 +3953,10 @@
     {
       "path": "tests/lib/orchestration/lifecycle/listeners/intervention-recorder.test.js",
       "mi": 106.976
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/listeners/merge-watcher.test.js",
+      "mi": 111.936
     },
     {
       "path": "tests/lib/orchestration/lifecycle/merge-gate-ordering.test.js",
@@ -3952,7 +4056,7 @@
     },
     {
       "path": "tests/lib/orchestration/planning-risk.test.js",
-      "mi": 107.181
+      "mi": 108.026
     },
     {
       "path": "tests/lib/orchestration/post-merge-pipeline-stale-registry.test.js",
@@ -4184,11 +4288,11 @@
     },
     {
       "path": "tests/lib/presentation/manifest-builder.test.js",
-      "mi": 98.579
+      "mi": 100.107
     },
     {
       "path": "tests/lib/presentation/manifest-formatter-end-to-end.test.js",
-      "mi": 101.265
+      "mi": 102.961
     },
     {
       "path": "tests/lib/presentation/manifest-formatter-layout.test.js",
@@ -4204,7 +4308,7 @@
     },
     {
       "path": "tests/lib/presentation/manifest-render-waves.test.js",
-      "mi": 95.491
+      "mi": 98.86
     },
     {
       "path": "tests/lib/providers/github-projects-extra.test.js",
@@ -4484,7 +4588,7 @@
     },
     {
       "path": "tests/manifest-renderer.test.js",
-      "mi": 98.445
+      "mi": 99.27
     },
     {
       "path": "tests/notify.test.js",
@@ -4691,8 +4795,24 @@
       "mi": 107.365
     },
     {
+      "path": "tests/scripts/bootstrap-picker-resolver.test.js",
+      "mi": 111.974
+    },
+    {
+      "path": "tests/scripts/bootstrap-preflight.test.js",
+      "mi": 110.036
+    },
+    {
       "path": "tests/scripts/bootstrap-print-summary.test.js",
       "mi": 105.271
+    },
+    {
+      "path": "tests/scripts/bootstrap-question-pickers.test.js",
+      "mi": 102.573
+    },
+    {
+      "path": "tests/scripts/bootstrap-system-prompt-wiring.test.js",
+      "mi": 106.979
     },
     {
       "path": "tests/scripts/check-baselines-pipeline.test.js",
@@ -4709,6 +4829,10 @@
     {
       "path": "tests/scripts/check-baselines.unknown-axis.test.js",
       "mi": 110.435
+    },
+    {
+      "path": "tests/scripts/check-gherkin-placeholders.test.js",
+      "mi": 103.561
     },
     {
       "path": "tests/scripts/cleanup-repo-test-temp.test.js",
@@ -4768,7 +4892,7 @@
     },
     {
       "path": "tests/scripts/epic-reconcile.cli.test.js",
-      "mi": 106.497
+      "mi": 103.51
     },
     {
       "path": "tests/scripts/epic-spec-reconciler.apply.test.js",
@@ -4808,7 +4932,15 @@
     },
     {
       "path": "tests/scripts/manifest-formatter-fromspec.test.js",
-      "mi": 86.749
+      "mi": 87.826
+    },
+    {
+      "path": "tests/scripts/project-bootstrap-phases.test.js",
+      "mi": 120.586
+    },
+    {
+      "path": "tests/scripts/prompt-resolvers.test.js",
+      "mi": 110.514
     },
     {
       "path": "tests/scripts/recurring-failure-detector.test.js",
@@ -4825,6 +4957,14 @@
     {
       "path": "tests/scripts/run-verify.test.js",
       "mi": 111.521
+    },
+    {
+      "path": "tests/scripts/runtime-deps-drift.test.js",
+      "mi": 113.516
+    },
+    {
+      "path": "tests/scripts/runtime-deps-preflight.test.js",
+      "mi": 114.798
     },
     {
       "path": "tests/scripts/single-story-sweep-lock.test.js",
@@ -4933,6 +5073,14 @@
     {
       "path": "tests/single-story-close-sync.test.js",
       "mi": 108.342
+    },
+    {
+      "path": "tests/single-story-close-wrong-tree-guard.test.js",
+      "mi": 111.825
+    },
+    {
+      "path": "tests/single-story-confirm-merge.test.js",
+      "mi": 102.695
     },
     {
       "path": "tests/single-story-plan.test.js",

@@ -1,9 +1,9 @@
 {
   "**/*.js": [
-    "biome check --write"
+    "biome check --write --no-errors-on-unmatched"
   ],
   "**/!(package-lock).{json,jsonc,json5}": [
-    "biome format --write"
+    "biome format --write --no-errors-on-unmatched"
   ],
   "{.agents/**/,}*.md": [
     "markdownlint-cli2 --fix"
