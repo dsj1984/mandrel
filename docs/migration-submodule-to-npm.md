@@ -185,17 +185,92 @@ skipped.
 
 ## Upgrading after the migration
 
-Once you are on the package, upgrades no longer involve Git at all:
+Once you are on the package, upgrades no longer involve Git at all. The
+ongoing upgrade path is the **`mandrel update`** orchestrator — a single
+command that advances `@mandrel/agents` to the newest non-major published
+version and drives the whole post-bump cycle for you:
 
 ```bash
-npm install @mandrel/agents@<newer-version>
-npx mandrel sync
-npx mandrel doctor
+npx mandrel update
 ```
 
-Because the version is in your lockfile, upgrades are explicit, reviewable in
-a PR diff, and reproducible across machines and CI. Mandrel follows the
-hard-cutover contract documented in
-[`.agents/rules/git-conventions.md` § Contract Cutovers](../.agents/rules/git-conventions.md),
-so read the release notes for the target version before upgrading across a
-contract change.
+On a routine (non-major) bump, `mandrel update` runs four ordered steps:
+
+1. **`npm update`** — bumps the `@mandrel/agents` dependency to the newest
+   non-major version. The lockfile change is **left staged on disk, never
+   committed** — `mandrel update` performs no `git` mutation, so you review
+   and commit the bump yourself.
+2. **`mandrel sync`** — re-materializes `./.agents/` from the freshly
+   installed package payload (a plain file copy, never a symlink).
+3. **migrations** — runs every version-keyed migration step in the
+   `installed → target` range, in ascending version order. Each step is
+   idempotent and prints an actionable line naming what it changed.
+4. **`mandrel doctor`** — verifies the result against the check registry.
+   `mandrel update` reports success **only when every doctor check passes**;
+   a failing check makes it exit non-zero so an incomplete upgrade is never
+   reported as done.
+
+It then surfaces the target version's `docs/CHANGELOG.md` sections so the
+release notes are in front of you. Preview the whole plan without writing
+anything:
+
+```bash
+npx mandrel update --dry-run   # prints the resolved target + ordered steps
+```
+
+Because the version is in your lockfile, upgrades stay explicit, reviewable
+in a PR diff, and reproducible across machines and CI.
+
+### Major upgrades are gated
+
+Mandrel lives on the **1.x** line and is released by `release-please` with
+`always-bump-minor`, so routine work only ever advances the **minor** axis —
+a major release is a deliberate, manual operator decision on the framework
+side. `mandrel update` mirrors that: when the newest published version
+crosses a major boundary (for example `1.x → 2.0`), it **refuses to apply
+the bump automatically**. It prints the available version, points you at
+[`upgrade-major.md`](upgrade-major.md), and exits non-zero **without
+touching anything** (no `npm update`, no sync, no migrations, no doctor).
+You cross the boundary deliberately by re-running with `--major`, runbook in
+hand. Minor and patch bumps within the 1.x line are never gated.
+
+Mandrel follows the hard-cutover contract documented in
+[`.agents/rules/git-conventions.md` § Contract Cutovers](../.agents/rules/git-conventions.md)
+(no shim layer, no parallel old-shape support), so read the release notes for
+the target version before upgrading across a contract change.
+
+### Running a migration on its own
+
+You rarely need this — `mandrel update` runs migrations as part of its cycle
+— but the migration runner is also exposed as a standalone command for
+re-applying a step a prior upgrade missed, or for inspecting what a version
+crossing would do before committing to it:
+
+```bash
+npx mandrel migrate --from <version> --to <version>
+npx mandrel migrate --from <version> --to <version> --dry-run
+```
+
+Both `--from` and `--to` are required (they bound the
+`from < version <= to` range the runner filters on). `--dry-run` reports
+which in-range steps would apply or be skipped and writes nothing.
+
+### The `.agents/local/` local-additions zone
+
+`mandrel sync` overwrites `./.agents/` in place from the package payload, so
+anything you edit directly inside a synced framework file is clobbered on the
+next upgrade. The sanctioned home for hand-authored additions you want to
+**survive every re-materialization** is the **`.agents/local/`** zone:
+
+- `mandrel sync` never copies a payload file into `.agents/local/` (the
+  published package ships none) and never prunes what you place there, so
+  your local additions persist across every `mandrel sync` / `mandrel update`.
+- `mandrel doctor`'s drift check treats `.agents/local/` as consumer-owned:
+  hand edits there are expected and do not register as drift, whereas a hand
+  edit to a synced framework file outside the zone is flagged so you move it
+  into `.agents/local/` (or your project layer) before it is silently
+  overwritten.
+
+Keep project-specific skills, local workflow fragments, and other durable
+customizations under `.agents/local/` rather than editing synced framework
+files in place.
