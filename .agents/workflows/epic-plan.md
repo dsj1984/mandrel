@@ -252,12 +252,17 @@ for the scoring logic.
 > primitive (`lib/orchestration/ticket-lease.js`, wired through
 > `lib/orchestration/epic-plan-lease-guard.js`). The lease rides the Epic's
 > single assignee: the operator (`github.operatorHandle` in `.agentrc.json`)
-> claims the Epic for the duration of the plan. A **live** foreign claim —
-> another operator whose most-recent `story.heartbeat` for this Epic is within
-> `delivery.lease.ttlMs` — makes the persist half **exit non-zero and name the
+> claims the Epic for the duration of the plan. The guard **fails closed**:
+> `/epic-plan` emits no `story.heartbeat` during its run (heartbeats are a
+> delivery-time signal), so there is no live-heartbeat source to judge a
+> concurrent plan's liveness from. Any **foreign assignee** is therefore
+> treated as a live claim — the persist half **exits non-zero and names the
 > current owner**, so two `/epic-plan` runs cannot drive the same Epic
-> concurrently. A stale or unassigned claim is taken silently. The lease is
-> **released after Phase 8** (decompose) completes; see the Phase 8 note.
+> concurrently. Pass **`--steal`** to forcibly transfer a foreign claim once
+> you have confirmed the other run is dead. An **unassigned** Epic, or one
+> **already held by this operator**, is taken (or re-affirmed) silently. The
+> lease is **released after Phase 8** (decompose) completes; see the Phase 8
+> note.
 
 <!-- separator: adjacent blockquotes -->
 

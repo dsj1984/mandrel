@@ -52,6 +52,7 @@ import {
 } from './lib/orchestration/epic-runner/story-run-progress-writer.js';
 import { emitStoryHeartbeat } from './lib/orchestration/lifecycle/emit-story-heartbeat.js';
 import { parseFencedJsonComment } from './lib/orchestration/structured-comment-parser.js';
+import { normalizeOperatorHandle } from './lib/orchestration/ticket-lease.js';
 import { findStructuredComment } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
 import { resolveStoryHierarchy } from './lib/story-lifecycle.js';
@@ -171,6 +172,48 @@ async function resolveStoryBranch({ provider, storyId }) {
 }
 
 /**
+ * Best-effort `story.heartbeat` emit for one phase transition. Resolves the
+ * lease-owner handle the SAME way the lease primitive does
+ * (`normalizeOperatorHandle(github.operatorHandle)`) and stamps it as
+ * `operator` so `latestHeartbeatForOwner({ epicId, owner })` resolves a real
+ * heartbeat — without it `isClaimLive(null)` is false and /epic-deliver
+ * silently reclaims a live foreign claim (audit #3513). The field is attached
+ * only when a handle resolves, preserving the "omit when absent" shape for
+ * repos that have not configured `github.operatorHandle`. A failed append is
+ * logged and swallowed: the heartbeat is observability, not state.
+ *
+ * @param {{ storyId: number, epicId: number, phase: string, config: object|null, ledgerPath?: string, timestamp: string }} args
+ * @returns {{ heartbeatEmitted: boolean, ledgerPath: string|null }}
+ */
+function emitHeartbeatBestEffort({
+  storyId,
+  epicId,
+  phase,
+  config,
+  ledgerPath,
+  timestamp,
+}) {
+  const operator = normalizeOperatorHandle(config?.github?.operatorHandle);
+  try {
+    const res = emitStoryHeartbeat({
+      storyId,
+      epicId,
+      phase,
+      timestamp,
+      ...(operator !== null ? { operator } : {}),
+      config: config ?? undefined,
+      ledgerPath,
+    });
+    return { heartbeatEmitted: true, ledgerPath: res.ledgerPath };
+  } catch (err) {
+    Logger.warn(
+      `[story-phase] story.heartbeat emit failed (continuing): ${err.message}`,
+    );
+    return { heartbeatEmitted: false, ledgerPath: null };
+  }
+}
+
+/**
  * End-to-end phase writer. DI-friendly: tests pass `provider`, override
  * the ledger path, and skip the heartbeat as needed.
  *
@@ -232,22 +275,14 @@ export async function runStoryPhase(args) {
   let heartbeatEmitted = false;
   let ledgerPath = null;
   if (!noHeartbeat && epicId) {
-    try {
-      const res = emitStoryHeartbeat({
-        storyId,
-        epicId,
-        phase,
-        timestamp: now.toISOString(),
-        config: config ?? undefined,
-        ledgerPath: ledgerPathOverride,
-      });
-      heartbeatEmitted = true;
-      ledgerPath = res.ledgerPath;
-    } catch (err) {
-      Logger.warn(
-        `[story-phase] story.heartbeat emit failed (continuing): ${err.message}`,
-      );
-    }
+    ({ heartbeatEmitted, ledgerPath } = emitHeartbeatBestEffort({
+      storyId,
+      epicId,
+      phase,
+      config,
+      ledgerPath: ledgerPathOverride,
+      timestamp: now.toISOString(),
+    }));
   }
 
   return {

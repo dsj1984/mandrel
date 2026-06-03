@@ -19,6 +19,8 @@
  *                       structured comment.
  *
  * --force regenerates existing PRD/Tech Spec.
+ * --steal forcibly transfers a foreign Epic-lease claim (the plan-lease guard
+ *   fails closed, so any foreign assignee blocks the run unless stolen).
  *
  * Exit codes:
  *   0 — phase complete, Epic is now `agent::review-spec`.
@@ -98,6 +100,7 @@ async function main() {
       'acceptance-spec': { type: 'string' },
       force: { type: 'boolean', default: false },
       'force-review': { type: 'boolean', default: false },
+      steal: { type: 'boolean', default: false },
       'emit-context': { type: 'boolean', default: false },
       pretty: { type: 'boolean', default: false },
       'full-context': { type: 'boolean', default: false },
@@ -191,7 +194,12 @@ async function main() {
     provider,
     { prdContent, techSpecContent, acceptanceSpecContent },
     settings,
-    { force: values.force, forceReview: values['force-review'], config },
+    {
+      force: values.force,
+      forceReview: values['force-review'],
+      steal: values.steal === true,
+      config,
+    },
   );
 
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);

@@ -8,12 +8,19 @@
  * silently duplicate the Feature/Story tree:
  *
  *   - `acquireEpicPlanLease`   — claim the Epic before Phase 7 (spec). Refuses
- *                                (throws, exit non-zero) when a *live* foreign
- *                                claim already holds the Epic, naming the
- *                                current owner. Liveness is decided from the
- *                                owner's most-recent `story.heartbeat` in the
- *                                Epic lifecycle ledger vs. the configured lease
- *                                TTL — the same seam the lease primitive uses.
+ *                                (throws, exit non-zero) when a foreign claim
+ *                                already holds the Epic, naming the current
+ *                                owner. **Fail-closed (audit #3513):**
+ *                                `/epic-plan` emits no `story.heartbeat` during
+ *                                its run (heartbeats are a delivery-time
+ *                                signal), so there is no live-heartbeat source
+ *                                to judge a concurrent plan's liveness from.
+ *                                Defaulting liveness to "stale" made every
+ *                                foreign claim look reclaimable, leaving the
+ *                                guard inert. We therefore treat ANY foreign
+ *                                assignee as a live claim and refuse the take
+ *                                unless `--steal` forcibly transfers it. An
+ *                                unassigned or self-held Epic still proceeds.
  *   - `releaseEpicPlanLease`   — release the claim after Phase 8 (decompose).
  *                                Best-effort and self-scoped: a no-op once the
  *                                Epic was reassigned elsewhere.
@@ -32,15 +39,9 @@ import { Logger } from '../Logger.js';
 import { TYPE_LABELS } from '../label-constants.js';
 import {
   acquireLease,
-  latestHeartbeatForOwner,
   normalizeOperatorHandle,
   releaseLease,
 } from './ticket-lease.js';
-
-// Re-exported for callers/tests that import the heartbeat resolver from this
-// guard's historical location. The implementation now lives in
-// `ticket-lease.js` so `/epic-deliver` and `/story-deliver` can share it.
-export { latestHeartbeatForOwner };
 
 /**
  * Resolve the operator handle that owns this `/epic-plan` run from
@@ -64,18 +65,26 @@ export function resolveOperator(config) {
 }
 
 /**
- * Acquire the Epic-lease before Phase 7. Resolves the operator and the current
- * owner's last heartbeat, then delegates the live/stale decision to
- * `acquireLease`. A *live* foreign claim throws (caught at the CLI boundary →
- * exit non-zero) naming the current owner; a stale or unclaimed Epic is taken.
+ * Acquire the Epic-lease before Phase 7.
+ *
+ * **Fail-closed (audit #3513).** `/epic-plan` emits no `story.heartbeat`
+ * during its run, so there is no live-heartbeat source to judge a concurrent
+ * plan's liveness from. Rather than default liveness to "stale" (which made
+ * every foreign claim look reclaimable and left this guard inert), we anchor
+ * `heartbeatAt` to the same `now` the lease primitive evaluates against. That
+ * makes `isClaimLive` return true for ANY foreign owner, so `acquireLease`
+ * refuses a foreign assignee unless `steal` is set — naming the current owner.
+ * An unassigned Epic (`unclaimed`) or a self-held claim (`already-held`) still
+ * proceeds without a write. This mirrors `single-story-lease-guard.js`.
+ *
+ * A refused claim throws (caught at the CLI boundary → exit non-zero).
  *
  * @param {object} args
  * @param {import('../ITicketingProvider.js').ITicketingProvider} args.provider
  * @param {number} args.epicId
  * @param {object} [args.config]
- * @param {boolean} [args.steal=false]   Force-transfer a live foreign claim.
+ * @param {boolean} [args.steal=false]   Force-transfer a foreign claim.
  * @param {number} [args.now]            Injectable clock (epoch ms; tests).
- * @param {string} [args.ledgerPath]     Ledger path override (tests).
  * @returns {Promise<{ acquired: boolean, owner: string|null, previousOwner: string|null, reason: string }>}
  */
 export async function acquireEpicPlanLease({
@@ -84,7 +93,6 @@ export async function acquireEpicPlanLease({
   config,
   steal = false,
   now,
-  ledgerPath,
 }) {
   const operator = resolveOperator(config);
   if (operator === null) {
@@ -100,39 +108,31 @@ export async function acquireEpicPlanLease({
     };
   }
 
-  // `acquireLease` judges a foreign claim's liveness from the *current owner's*
-  // heartbeat — not necessarily our own. Read the assignee first so the
-  // heartbeat lookup is keyed on whoever actually holds the Epic.
-  const ticket = await provider.getTicket(epicId);
-  const currentOwner =
-    Array.isArray(ticket?.assignees) && ticket.assignees.length > 0
-      ? ticket.assignees[0]
-      : null;
-  const ownerHeartbeat = currentOwner
-    ? latestHeartbeatForOwner({
-        epicId,
-        owner: currentOwner,
-        config,
-        ledgerPath,
-      })
-    : null;
-
+  // Fail closed: with no live-heartbeat source on the plan path, treat any
+  // foreign assignee as a live claim by anchoring `heartbeatAt` to the same
+  // `now` the primitive evaluates against (`isClaimLive` → true for any owner).
+  // `acquireLease` then refuses a foreign claim unless `steal` is set; an
+  // unassigned or self-held Epic proceeds without a write.
+  const resolvedNow =
+    typeof now === 'number' && Number.isFinite(now) ? now : Date.now();
   const result = await acquireLease({
     provider,
     ticketId: epicId,
     operator,
-    heartbeatAt: ownerHeartbeat,
+    heartbeatAt: resolvedNow,
     steal,
     config,
-    now,
+    now: resolvedNow,
   });
 
   if (!result.acquired) {
     throw new Error(
-      `[epic-plan] Epic #${epicId} is currently claimed by '${result.owner}' ` +
-        `(live lease). Refusing to plan concurrently. Wait for that run to ` +
-        `finish, or re-run with the lease steal override once you have ` +
-        `confirmed the other run is dead.`,
+      `[epic-plan] Epic #${epicId} is currently claimed by '${result.owner}'. ` +
+        `Refusing to plan concurrently — another /epic-plan run owns this Epic ` +
+        `(the plan path has no heartbeat ledger, so a foreign assignee always ` +
+        `blocks unless stolen). Wait for that run to finish, or re-run with ` +
+        `--steal to forcibly transfer the claim once you have confirmed the ` +
+        `other run is dead.`,
     );
   }
 

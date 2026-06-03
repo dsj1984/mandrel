@@ -709,6 +709,15 @@ yanks the claim back from whoever legitimately took over.
   ([`single-story-lease-guard.js`](scripts/lib/orchestration/single-story-lease-guard.js)).
   The standalone path requires `github.operatorHandle` to be set — without
   an operator identity the lease has no owner to record.
+- **`/epic-plan`** acquires the lease on the **Epic** ticket before Phase 7
+  (spec) and releases it after Phase 8 (decompose)
+  ([`epic-plan-lease-guard.js`](scripts/lib/orchestration/epic-plan-lease-guard.js)).
+  Because planning emits no `story.heartbeat` (heartbeats are a
+  delivery-time signal), the plan path has no live-heartbeat source and so
+  **fails closed**: any foreign assignee is treated as a live claim and
+  refuses the run unless `--steal` transfers it. Unassigned or self-held
+  Epics proceed. When `github.operatorHandle` is unset the lease cannot be
+  keyed and the preflight degrades to a no-op.
 
 ---
 

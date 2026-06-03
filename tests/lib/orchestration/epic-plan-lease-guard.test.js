@@ -1,14 +1,9 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { afterEach, beforeEach, describe, it } from 'node:test';
+import { describe, it } from 'node:test';
 
-import { LEASE_TTL_MS_DEFAULT } from '../../../.agents/scripts/lib/config/limits.js';
 import {
   acquireEpicPlanLease,
   assertNoOpenPlanChildren,
-  latestHeartbeatForOwner,
   releaseEpicPlanLease,
   resolveOperator,
 } from '../../../.agents/scripts/lib/orchestration/epic-plan-lease-guard.js';
@@ -24,8 +19,6 @@ const OPERATOR = 'alice';
 const FOREIGN = 'bob';
 const CONFIG = { github: { operatorHandle: OPERATOR } };
 const NOW = 1_000_000_000_000;
-const FRESH_TS = new Date(NOW - 1000).toISOString();
-const STALE_TS = new Date(NOW - (LEASE_TTL_MS_DEFAULT + 1000)).toISOString();
 
 /**
  * Fake provider exposing the lease/guard surface: getTicket (assignees),
@@ -61,37 +54,6 @@ function makeProvider({ assignees = [], children = [], epic = {} } = {}) {
   };
 }
 
-let ledgerDir;
-beforeEach(() => {
-  ledgerDir = mkdtempSync(path.join(tmpdir(), 'epic-plan-lease-'));
-});
-afterEach(() => {
-  ledgerDir = null;
-});
-
-function writeLedger(records) {
-  const p = path.join(ledgerDir, 'lifecycle.ndjson');
-  const text = records.map((r) => JSON.stringify(r)).join('\n');
-  writeFileSync(p, `${text}\n`, 'utf8');
-  return p;
-}
-
-function heartbeatRecord({ operator, timestamp }) {
-  return {
-    kind: 'emitted',
-    ts: timestamp,
-    event: 'story.heartbeat',
-    payload: {
-      event: 'story.heartbeat',
-      storyId: 1,
-      epicId: 9,
-      phase: 'implementing',
-      timestamp,
-      operator,
-    },
-  };
-}
-
 // ---------------------------------------------------------------------------
 // resolveOperator
 // ---------------------------------------------------------------------------
@@ -117,68 +79,18 @@ describe('epic-plan-lease-guard — resolveOperator', () => {
 });
 
 // ---------------------------------------------------------------------------
-// latestHeartbeatForOwner
+// acquireEpicPlanLease — fail-closed (audit #3513)
+//
+// `/epic-plan` emits no story.heartbeat during its run, so there is no
+// live-heartbeat source to judge a concurrent plan's liveness from. The guard
+// therefore fails closed: ANY foreign assignee is treated as a live claim and
+// refuses the take (naming the owner) unless `--steal` transfers it. There is
+// no ledger plumbing on this path any more — liveness is anchored to `now`.
 // ---------------------------------------------------------------------------
 
-describe('epic-plan-lease-guard — latestHeartbeatForOwner', () => {
-  it('returns the most recent heartbeat epoch-ms for the owner', () => {
-    const older = new Date(NOW - 5000).toISOString();
-    const newer = new Date(NOW - 1000).toISOString();
-    const ledgerPath = writeLedger([
-      heartbeatRecord({ operator: FOREIGN, timestamp: older }),
-      heartbeatRecord({ operator: FOREIGN, timestamp: newer }),
-      heartbeatRecord({ operator: OPERATOR, timestamp: FRESH_TS }),
-    ]);
-
-    const result = latestHeartbeatForOwner({
-      epicId: 9,
-      owner: FOREIGN,
-      ledgerPath,
-    });
-    assert.equal(result, Date.parse(newer));
-  });
-
-  it('returns null when no heartbeat exists for the owner', () => {
-    const ledgerPath = writeLedger([
-      heartbeatRecord({ operator: OPERATOR, timestamp: FRESH_TS }),
-    ]);
-    assert.equal(
-      latestHeartbeatForOwner({ epicId: 9, owner: FOREIGN, ledgerPath }),
-      null,
-    );
-  });
-
-  it('returns null when the ledger file is absent', () => {
-    assert.equal(
-      latestHeartbeatForOwner({
-        epicId: 9,
-        owner: FOREIGN,
-        ledgerPath: path.join(ledgerDir, 'does-not-exist.ndjson'),
-      }),
-      null,
-    );
-  });
-
-  it('downgrades a corrupt ledger to null rather than throwing', () => {
-    const p = path.join(ledgerDir, 'lifecycle.ndjson');
-    writeFileSync(p, '{not valid json\n', 'utf8');
-    assert.equal(
-      latestHeartbeatForOwner({ epicId: 9, owner: FOREIGN, ledgerPath: p }),
-      null,
-    );
-  });
-});
-
-// ---------------------------------------------------------------------------
-// acquireEpicPlanLease — AC1: live foreign claim exits non-zero, names owner
-// ---------------------------------------------------------------------------
-
-describe('epic-plan-lease-guard — acquireEpicPlanLease', () => {
-  it('refuses a live foreign claim and names the current owner (AC1)', async () => {
+describe('epic-plan-lease-guard — acquireEpicPlanLease (fail-closed)', () => {
+  it('refuses ANY foreign assignee and names the current owner — no heartbeat needed', async () => {
     const provider = makeProvider({ assignees: [FOREIGN] });
-    const ledgerPath = writeLedger([
-      heartbeatRecord({ operator: FOREIGN, timestamp: FRESH_TS }),
-    ]);
 
     await assert.rejects(
       acquireEpicPlanLease({
@@ -186,11 +98,11 @@ describe('epic-plan-lease-guard — acquireEpicPlanLease', () => {
         epicId: 9,
         config: CONFIG,
         now: NOW,
-        ledgerPath,
       }),
       (err) => {
         assert.match(err.message, /claimed by 'bob'/);
         assert.match(err.message, /#9/);
+        assert.match(err.message, /--steal/);
         return true;
       },
     );
@@ -198,54 +110,47 @@ describe('epic-plan-lease-guard — acquireEpicPlanLease', () => {
     assert.equal(provider.updateCalls.length, 0);
   });
 
-  it('claims an unassigned Epic', async () => {
-    const provider = makeProvider({ assignees: [] });
-    const ledgerPath = writeLedger([]);
+  it('transfers a foreign claim when steal is set', async () => {
+    const provider = makeProvider({ assignees: [FOREIGN] });
 
     const result = await acquireEpicPlanLease({
       provider,
       epicId: 9,
       config: CONFIG,
+      steal: true,
       now: NOW,
-      ledgerPath,
     });
 
     assert.equal(result.acquired, true);
-    assert.equal(result.owner, OPERATOR);
+    assert.equal(result.reason, 'stolen');
+    assert.equal(result.previousOwner, FOREIGN);
     assert.deepEqual(provider.state.assignees, [OPERATOR]);
   });
 
-  it('reclaims an Epic whose foreign claim heartbeat is stale', async () => {
-    const provider = makeProvider({ assignees: [FOREIGN] });
-    const ledgerPath = writeLedger([
-      heartbeatRecord({ operator: FOREIGN, timestamp: STALE_TS }),
-    ]);
+  it('claims an unassigned Epic', async () => {
+    const provider = makeProvider({ assignees: [] });
 
     const result = await acquireEpicPlanLease({
       provider,
       epicId: 9,
       config: CONFIG,
       now: NOW,
-      ledgerPath,
     });
 
     assert.equal(result.acquired, true);
-    assert.equal(result.reason, 'reclaimed');
+    assert.equal(result.reason, 'unclaimed');
+    assert.equal(result.owner, OPERATOR);
     assert.deepEqual(provider.state.assignees, [OPERATOR]);
   });
 
   it('degrades to a no-op when no operator is configured', async () => {
     const provider = makeProvider({ assignees: [FOREIGN] });
-    const ledgerPath = writeLedger([
-      heartbeatRecord({ operator: FOREIGN, timestamp: FRESH_TS }),
-    ]);
 
     const result = await acquireEpicPlanLease({
       provider,
       epicId: 9,
       config: { github: {} },
       now: NOW,
-      ledgerPath,
     });
 
     assert.equal(result.acquired, true);
@@ -256,16 +161,12 @@ describe('epic-plan-lease-guard — acquireEpicPlanLease', () => {
 
   it('re-affirms a self-held claim without re-writing', async () => {
     const provider = makeProvider({ assignees: [OPERATOR] });
-    const ledgerPath = writeLedger([
-      heartbeatRecord({ operator: OPERATOR, timestamp: FRESH_TS }),
-    ]);
 
     const result = await acquireEpicPlanLease({
       provider,
       epicId: 9,
       config: CONFIG,
       now: NOW,
-      ledgerPath,
     });
 
     assert.equal(result.acquired, true);
@@ -280,16 +181,12 @@ describe('epic-plan-lease-guard — acquireEpicPlanLease', () => {
   it('recognizes a self-held lease when operatorHandle has a leading @', async () => {
     // Assignee is the BARE login; operatorHandle carries the '@' prefix.
     const provider = makeProvider({ assignees: [OPERATOR] });
-    const ledgerPath = writeLedger([
-      heartbeatRecord({ operator: OPERATOR, timestamp: FRESH_TS }),
-    ]);
 
     const result = await acquireEpicPlanLease({
       provider,
       epicId: 9,
       config: { github: { operatorHandle: `@${OPERATOR}` } },
       now: NOW,
-      ledgerPath,
     });
 
     assert.equal(result.acquired, true);
