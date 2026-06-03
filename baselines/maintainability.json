@@ -2680,7 +2680,7 @@
     },
     {
       "path": "tests/cli/postinstall.test.js",
-      "mi": 130.712
+      "mi": 124.773
     },
     {
       "path": "tests/cli/sync-commands.test.js",

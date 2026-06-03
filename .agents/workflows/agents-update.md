@@ -9,7 +9,7 @@ description: Legacy submodule-bump upgrade path (superseded by `mandrel update`)
 > CLI** (bump → sync → migrate → doctor) under the npm distribution model
 > (#3436/#3437). They are **retained only for consumer repos that have not yet
 > migrated off the retired `dist`-branch Git submodule**; on the
-> `@mandrel/agents` npm install, upgrade with `mandrel update` instead. The
+> `@mandrelai/agents` npm install, upgrade with `mandrel update` instead. The
 > submodule mechanics described below are accurate for that legacy path and do
 > **not** apply to npm-installed consumers.
 

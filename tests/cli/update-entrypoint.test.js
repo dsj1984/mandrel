@@ -146,7 +146,7 @@ function makeDeps(fsFake, cap, { onNpmView, onNpmInstall } = {}) {
       },
       // Downstream materialize/migrate/verify seams are stubbed: the boundary
       // under test is the entrypoint ↔ npm/network/fs wiring, not sync.js's
-      // real @mandrel/agents resolution (absent in this dev repo).
+      // real @mandrelai/agents resolution (absent in this dev repo).
       runSync: () => {
         calls.push('runSync');
         return { copied: 0, planned: 0, dryRun: false };
@@ -191,7 +191,7 @@ describe('mandrel update entrypoint — production wiring', () => {
     // install → sync → migrate → doctor (changelog is surfaced via the fs).
     assert.deepEqual(calls, [
       'npm-view',
-      `npm install @mandrel/agents@${TARGET_VERSION}`,
+      `npm install @mandrelai/agents@${TARGET_VERSION}`,
       'runSync',
       `runMigrations:${CURRENT_VERSION}->${TARGET_VERSION}`,
       'runDoctor',
@@ -252,7 +252,7 @@ describe('mandrel update entrypoint — freshness-cache population', () => {
     assert.ok(!calls.includes('npm-view'), 'fresh cache must skip the probe');
     // The install still ran at the cached target.
     assert.ok(
-      calls.includes(`npm install @mandrel/agents@${TARGET_VERSION}`),
+      calls.includes(`npm install @mandrelai/agents@${TARGET_VERSION}`),
       'expected install at the cached target',
     );
   });

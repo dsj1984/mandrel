@@ -19,12 +19,12 @@
  * **Source-checkout guard (Story #3489).** In the Mandrel framework repo
  * itself, `./.agents/` is not a regenerated working copy — it *is* the
  * committed product, and `mandrel sync` would clobber that source of truth
- * with a copy of `node_modules/@mandrel/agents/.agents/`. Today the repo
+ * with a copy of `node_modules/@mandrelai/agents/.agents/`. Today the repo
  * `.npmrc` (`ignore-scripts=true`) masks this, but a contributor running
  * `npm install --ignore-scripts=false` (or a tool that re-enables scripts)
  * would overwrite the source tree. To make the guard intrinsic rather than
  * config-dependent, the hook detects the source checkout — the repo whose
- * root `package.json#name` is `@mandrel/agents` — and no-ops (exit 0)
+ * root `package.json#name` is `@mandrelai/agents` — and no-ops (exit 0)
  * without invoking the materializer. Consumer installs (where the package is
  * a dependency under a differently-named root `package.json`) are unaffected
  * and still materialize `.agents/` as before.
@@ -41,7 +41,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runSync } from '../lib/cli/sync.js';
 
-const PACKAGE_NAME = '@mandrel/agents';
+const PACKAGE_NAME = '@mandrelai/agents';
 
 const HINT =
   'mandrel: could not materialize ./.agents/ during install — run `mandrel sync` to finish setup.\n';
@@ -51,8 +51,8 @@ const HINT =
  * checkout (as opposed to a consumer project that depends on the package).
  *
  * The signal is the **repo-root** `package.json#name`: in the source repo it
- * is `@mandrel/agents`; in a consumer project it is the consumer's own
- * package name (and `@mandrel/agents` lives under `node_modules/` instead).
+ * is `@mandrelai/agents`; in a consumer project it is the consumer's own
+ * package name (and `@mandrelai/agents` lives under `node_modules/` instead).
  * We resolve the root from this module's own location (`bin/postinstall.js`
  * sits one directory below the repo root), not from `process.cwd()`, so the
  * detection is stable regardless of where npm invokes the hook from.
@@ -62,7 +62,7 @@ const HINT =
  * `package.json` never strands a consumer without their `.agents/` payload.
  *
  * @param {{ fs?: typeof nodeFs, moduleUrl?: string }} [opts]
- * @returns {boolean} `true` when running in the `@mandrel/agents` source repo.
+ * @returns {boolean} `true` when running in the `@mandrelai/agents` source repo.
  */
 export function isSourceCheckout({
   fs = nodeFs,

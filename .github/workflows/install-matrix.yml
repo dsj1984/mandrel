@@ -168,7 +168,7 @@ jobs:
         shell: bash
         working-directory: ${{ env.CONSUMER_DIR }}
         run: |
-          echo "MANDREL_BIN=$CONSUMER_DIR/node_modules/@mandrel/agents/bin/mandrel.js" >> "$GITHUB_ENV"
+          echo "MANDREL_BIN=$CONSUMER_DIR/node_modules/@mandrelai/agents/bin/mandrel.js" >> "$GITHUB_ENV"
 
       - name: Materialize .agents/ (mandrel sync)
         shell: bash

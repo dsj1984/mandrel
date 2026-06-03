@@ -16,7 +16,7 @@ govern AI coding assistants. The `.claude/` / hook / skill surface
 leans in on Claude Code as the reference runtime, and the dispatcher
 under `.agents/scripts/` treats the dispatch manifest (md + structured
 comment) as the cross-runtime contract. The framework is distributed as
-the [`@mandrel/agents`](https://www.npmjs.com/package/@mandrel/agents) npm
+the [`@mandrelai/agents`](https://www.npmjs.com/package/@mandrelai/agents) npm
 package and materialized into consumer projects' `.agents/` directories by
 `mandrel sync`.
 
@@ -139,7 +139,7 @@ the same machine before and after an optimization. Optional flags:
 2. Make changes inside `.agents/` (the distributed product).
 3. Commit — Husky will auto-lint and format staged `.md` files.
 4. Open a PR against `main`. CI validates the change; once merged,
-   release-please cuts the release that publishes `@mandrel/agents` to npm
+   release-please cuts the release that publishes `@mandrelai/agents` to npm
    (see the Release Checklist below).
 
 ### Release Checklist
@@ -164,10 +164,10 @@ Releases are automated by
    `Validate and Test` passes, GitHub squash-merges the release PR,
    which triggers the workflow to create the GitHub Release, tag
    `main` with `vX.Y.Z`, and run the `npm-publish` job — publishing
-   `@mandrel/agents` to npm with build provenance (Sigstore) once the
+   `@mandrelai/agents` to npm with build provenance (Sigstore) once the
    release is cut. This replaces the retired `dist`-branch mirror:
    consumers now install a versioned, provenance-signed package from npm
-   (`npm install @mandrel/agents`, then `mandrel sync`) instead of pinning
+   (`npm install @mandrelai/agents`, then `mandrel sync`) instead of pinning
    a Git submodule to the `dist` branch. The `npm-publish` job requires the
    `NPM_TOKEN` secret — see [§ npm publish token](#npm-publish-token) below.
 4. **Breaking-change releases** ship a consumer-upgrade runbook under

@@ -1038,7 +1038,7 @@ A single GitHub Actions workflow (`ci.yml`) runs on every push and PR:
 
 Distribution is **not** handled by `ci.yml`. A separate `release-please.yml`
 workflow cuts releases and runs the `npm-publish` job that publishes
-`@mandrel/agents` to npm with Sigstore build provenance once a release is
+`@mandrelai/agents` to npm with Sigstore build provenance once a release is
 tagged. The retired `dist`-branch mirror that `ci.yml` once synced no longer
 exists.
 
@@ -1149,7 +1149,7 @@ live LLM metering:
 ## Distribution Model
 
 Mandrel is distributed as the
-[`@mandrel/agents`](https://www.npmjs.com/package/@mandrel/agents) npm package.
+[`@mandrelai/agents`](https://www.npmjs.com/package/@mandrelai/agents) npm package.
 The package payload is materialized into the consumer's `./.agents/` directory
 as plain regular files by `mandrel sync` (run best-effort from the package
 `postinstall`, or invoked directly):
@@ -1157,7 +1157,7 @@ as plain regular files by `mandrel sync` (run best-effort from the package
 ```text
 Consumer Project/
 ├── node_modules/
-│   └── @mandrel/agents/  ← installed package (pinned, provenance-signed)
+│   └── @mandrelai/agents/  ← installed package (pinned, provenance-signed)
 ├── .agents/          ← materialized by `mandrel sync` (copy-only, never a symlink)
 │   ├── instructions.md
 │   ├── personas/
@@ -1170,7 +1170,7 @@ Consumer Project/
 └── ...
 ```
 
-Consumers `npm install @mandrel/agents` (which pins an exact,
+Consumers `npm install @mandrelai/agents` (which pins an exact,
 provenance-signed version in the lockfile), run `mandrel sync` to materialize
 `./.agents/`, copy `starter-agentrc.json` to their project root as
 `.agentrc.json`, and configure their `orchestration` block — see
