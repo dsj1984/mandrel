@@ -330,7 +330,7 @@ validation error with a clear `instancePath`.
 
 | Field       | Required | Purpose                                          |
 | ----------- | -------- | ------------------------------------------------ |
-| `agentRoot` | Yes      | Path to the framework submodule (e.g. `.agents`). |
+| `agentRoot` | Yes      | Path to the materialized framework payload (e.g. `.agents`). |
 | `docsRoot`  | Yes      | Path to project documentation (e.g. `docs`).      |
 | `tempRoot`  | Yes      | Path for ephemeral artefacts (e.g. `temp`).       |
 

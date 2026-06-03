@@ -85,9 +85,11 @@ the Epic itself execute on intact 4-tier infrastructure:
   Stories must stay sized for the agent to commit incrementally
   inside one worktree; otherwise rollback windows grow.
 - Breaking change for consumers — published surface flips at F8.
-  Consumers re-pin the `.agents/` submodule on upgrade per the
+  Consumers re-pin the `@mandrel/agents` package on upgrade per the
   [hard-cutover policy](#contract-cutovers-no-shim-layer) (see also
   [`.agents/rules/git-conventions.md`](../.agents/rules/git-conventions.md)).
+  (This ADR predates the npm-distribution cutover (#3436); the upgrade unit
+  was the `.agents/` submodule pointer at the time it was written.)
   The shipping release carries `BREAKING CHANGE:` / `!` so the
   operator can drive the major-version bump on the release PR per
   [`AGENTS.md` § Major-version policy](../AGENTS.md).

@@ -398,7 +398,10 @@ machine-enforceable:
 - `agents-bootstrap-github.js` — GitHub-side bootstrap (labels, branch
   protection)
 - `sync-claude-commands.js` — syncs `.claude/commands/` from `.agents/workflows/`
-- `update-self.js` — updates the `.agents/` submodule to latest `dist`
+- `update-self.js` — **legacy** submodule-bump path; superseded by the
+  `mandrel update` CLI (bump → sync → migrate → doctor) under the npm
+  distribution model. Retained only for repos that have not yet migrated off
+  the retired `dist`-branch submodule.
 - `sync-agentrc.js` — merges upstream `starter-agentrc.json` deltas into the
   consumer's `.agentrc.json`
 - `check-windows-git-perf.js` — one-time Windows git performance diagnostic
@@ -1032,8 +1035,12 @@ A single GitHub Actions workflow (`ci.yml`) runs on every push and PR:
    Diff-scoped on PRs (`--changed-since origin/<base_ref>`); full-repo scan on
    push-to-main so a regression in an untouched file cannot ride in alongside
    an unrelated PR. JSON report uploaded as the `crap-report` artifact.
-6. **Dist Sync** — On merge to `main`, syncs `.agents/` to the `dist` branch
-   for consumer submodule distribution.
+
+Distribution is **not** handled by `ci.yml`. A separate `release-please.yml`
+workflow cuts releases and runs the `npm-publish` job that publishes
+`@mandrel/agents` to npm with Sigstore build provenance once a release is
+tagged. The retired `dist`-branch mirror that `ci.yml` once synced no longer
+exists.
 
 The baseline-refresh CI guardrail was removed alongside the bot-approver
 pipeline; the `baseline-refresh:` commit subject + non-empty body
@@ -1141,11 +1148,17 @@ live LLM metering:
 
 ## Distribution Model
 
-Mandrel is distributed as a **Git submodule** via the `dist` branch:
+Mandrel is distributed as the
+[`@mandrel/agents`](https://www.npmjs.com/package/@mandrel/agents) npm package.
+The package payload is materialized into the consumer's `./.agents/` directory
+as plain regular files by `mandrel sync` (run best-effort from the package
+`postinstall`, or invoked directly):
 
 ```text
 Consumer Project/
-├── .agents/          ← Git submodule pointing to dist branch
+├── node_modules/
+│   └── @mandrel/agents/  ← installed package (pinned, provenance-signed)
+├── .agents/          ← materialized by `mandrel sync` (copy-only, never a symlink)
 │   ├── instructions.md
 │   ├── personas/
 │   ├── rules/
@@ -1157,11 +1170,20 @@ Consumer Project/
 └── ...
 ```
 
-Consumers add the submodule, copy `starter-agentrc.json` to their project
-root as `.agentrc.json`, and configure their `orchestration` block — see
-`full-agentrc.json` for the exhaustive reference. Project-specific
+Consumers `npm install @mandrel/agents` (which pins an exact,
+provenance-signed version in the lockfile), run `mandrel sync` to materialize
+`./.agents/`, copy `starter-agentrc.json` to their project root as
+`.agentrc.json`, and configure their `orchestration` block — see
+`full-agentrc.json` for the exhaustive reference. The ongoing upgrade path is
+`mandrel update` (bump → sync → migrate → doctor). Project-specific
 technology context lives in `docs/architecture.md` under the **Tech Stack**
 section below — not in `.agentrc.json`.
+
+> The legacy **Git submodule + `dist` branch** distribution channel is
+> retired. Older installs that vendored `.agents/` via `git submodule add -b
+> dist …` should follow the one-time
+> [`docs/migration-submodule-to-npm.md`](migration-submodule-to-npm.md) guide
+> to switch to the npm package.
 
 ---
 

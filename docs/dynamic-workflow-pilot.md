@@ -47,10 +47,10 @@ This pilot does **not** trip that rule:
   fallback in [`instructions.md` §1.C/§1.D](../.agents/instructions.md)
   (live-docs → in-repo → web). Capability-based strategy selection is a
   runtime concern, not a versioned contract.
-- A consumer pinning any release gets both paths in one submodule bump. On a
-  non-Claude runtime, or with workflows disabled, or on CC < 2.1.154, the
-  sequential lens runs unchanged — there is no "old shape" left behind on the
-  read side.
+- A consumer pinning any release gets both paths in one version upgrade
+  (`mandrel update`). On a non-Claude runtime, or with workflows disabled, or
+  on CC < 2.1.154, the sequential lens runs unchanged — there is no "old shape"
+  left behind on the read side.
 
 Strategy selection lives in
 [`capability.js`](../.agents/scripts/lib/dynamic-workflow/capability.js)

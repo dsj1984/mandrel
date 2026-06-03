@@ -370,7 +370,9 @@ These should remain even for substantially stronger models:
 10. **Structured comments** as durable workflow artifacts.
 11. **BDD and acceptance evidence paths** when user-facing outcomes are in
     scope.
-12. **Dist structure checks** for submodule consumers.
+12. **Distribution-integrity checks** for npm consumers (`mandrel doctor`,
+    sync drift detection, compatibility matrix) — superseding the retired
+    `dist`-branch submodule structure checks (#3436).
 
 ### Recommended Target Architecture
 
@@ -705,15 +707,17 @@ produced a leakage map worth recording before any portability work is scoped:
 
 #### Finding 3 — Distribution is not productized
 
-Evidence:
+Evidence (point-in-time, **resolved by #3436** — the framework now ships as
+the `@mandrel/agents` npm package and is no longer distributed via the
+`dist`-branch submodule):
 
-- Root `package.json` has no `bin`, `files`, `publishConfig`, or `workspaces`,
-  and empty `description`/`keywords`/`author`. (Intentional: it is the framework
-  repo, distributed via the `dist` submodule branch, not a published package.)
+- Root `package.json` had no `bin`, `files`, `publishConfig`, or `workspaces`,
+  and empty `description`/`keywords`/`author` (at the time the framework repo
+  was distributed via the `dist`-branch submodule, not a published package).
 - `create-mandrel/package.json` is version `0.0.0` and is not a root workspace.
 - `create-mandrel/index.js` hardcodes `https://github.com/dsj1984/mandrel.git`.
-- `.github/workflows/ci.yml` "publishes" only by copying `.agents/` to `dist`;
-  it does not publish npm packages.
+- `.github/workflows/ci.yml` then "published" only by copying `.agents/` to the
+  `dist` branch; it did not publish npm packages.
 
 Remediation direction:
 
@@ -730,9 +734,10 @@ Filed slice: the dangling `docs/upgrade-guide-3-tier.md` reference → #3386.
 
 Deferred remainder:
 
-- `release-please` manages the root package and `.agents/VERSION`; `dist` sync
-  copies `.agents/` after main merge; major bumps are intentionally capped
-  (`always-bump-minor`).
+- `release-please` manages the root package and `.agents/VERSION`; major bumps
+  are intentionally capped (`always-bump-minor`). (The former `dist` sync that
+  copied `.agents/` after main merge is retired — #3436 publishes the
+  `@mandrel/agents` npm package instead.)
 - Paid products additionally need: a formal version/support policy, deprecation
   policy, rollback guidance, cross-version config-compatibility tests, automated
   migration checks for breaking changes, and operator-facing release notes
@@ -883,10 +888,11 @@ and compatibility tests across npm/pnpm/yarn and Windows/macOS/Linux.
 
 #### Finding 16 — Product UX and discoverability are developer-internal
 
-Evidence: the README assumes Git submodules, GitHub remotes, `gh`, and slash
-commands; `.agents/README.md` is framework-author oriented; docs are scattered;
-there are no screenshots, demo videos, tutorials, sample repos, comparison
-pages, pricing pages, or a "first successful run" path.
+Evidence: the README assumed Git submodules (now reconciled to the
+`@mandrel/agents` npm package + `mandrel sync` model per #3436), GitHub remotes,
+`gh`, and slash commands; `.agents/README.md` is framework-author oriented;
+docs are scattered; there are no screenshots, demo videos, tutorials, sample
+repos, comparison pages, pricing pages, or a "first successful run" path.
 
 Remediation direction: a product landing README (who it's for, outcomes,
 constraints, 15-minute demo path); sample repos + scripted demos; scenario

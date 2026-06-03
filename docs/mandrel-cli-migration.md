@@ -53,7 +53,7 @@ scripts out of `.agents/scripts/` and into the `mandrel` CLI (`bin/mandrel.js`).
 This keeps `.agents/scripts/` focused on orchestration tooling and gives
 lifecycle commands a stable, versioned entry point via the CLI dispatcher.
 
-Consumers who pin to a `.agents/` submodule version and invoke the bare
+Consumers on an older `.agents/` install that invoke the bare
 `.agents/scripts/sync-claude-commands.js` path directly will continue to work
 for now, but should migrate their hooks to `node bin/mandrel.js sync-commands`
 when upgrading to this version or later.

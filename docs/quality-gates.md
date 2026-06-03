@@ -299,8 +299,8 @@ produces. No new runtime dependencies. Runs at three sites:
 `close-validation` (story close), `ci.yml` (push + PR), and
 `.husky/pre-push`.
 
-If you're a consumer repo pulling the framework via the `dist` submodule,
-this is what you need to know.
+If you're a consumer repo that installed the framework via the
+`@mandrel/agents` npm package (`mandrel sync`), this is what you need to know.
 
 ### First-run behavior — bootstrap before the first push
 

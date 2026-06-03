@@ -15,9 +15,10 @@ collection of instructions, personas, skills, and SDLC workflows that
 govern AI coding assistants. The `.claude/` / hook / skill surface
 leans in on Claude Code as the reference runtime, and the dispatcher
 under `.agents/scripts/` treats the dispatch manifest (md + structured
-comment) as the cross-runtime contract. The framework is distributed
-as a Git submodule (via the `dist` branch) into consumer projects'
-`.agents/` directories.
+comment) as the cross-runtime contract. The framework is distributed as
+the [`@mandrel/agents`](https://www.npmjs.com/package/@mandrel/agents) npm
+package and materialized into consumer projects' `.agents/` directories by
+`mandrel sync`.
 
 - **Current Version:** See [`.agents/VERSION`](.agents/VERSION)
 - **License:** ISC
@@ -95,7 +96,7 @@ mandrel/
 | Node Version | >=22.22.1 <25                                                 |
 | Package Mgr  | npm                                                            |
 | Shell        | PowerShell (Windows) — use `;` not `&&` as statement separator |
-| CI/CD        | GitHub Actions (`ci.yml`) — validates markdown, syncs `dist`   |
+| CI/CD        | GitHub Actions (`ci.yml`) — validates markdown + tests        |
 
 ### Key Commands
 
@@ -137,7 +138,9 @@ the same machine before and after an optimization. Optional flags:
 1. Branch from `main`.
 2. Make changes inside `.agents/` (the distributed product).
 3. Commit — Husky will auto-lint and format staged `.md` files.
-4. Open a PR against `main`. CI validates and syncs to `dist` on merge.
+4. Open a PR against `main`. CI validates the change; once merged,
+   release-please cuts the release that publishes `@mandrel/agents` to npm
+   (see the Release Checklist below).
 
 ### Release Checklist
 
