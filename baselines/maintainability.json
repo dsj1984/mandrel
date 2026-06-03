@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-02T03:35:20.226Z",
+  "generatedAt": "2026-06-03T00:01:05.170Z",
   "rollup": {
     "*": {
       "min": 61.218,
-      "p50": 103.85,
+      "p50": 103.88,
       "p95": 121.586
     }
   },
@@ -1769,10 +1769,6 @@
     {
       "path": ".agents/scripts/lib/spec/state.js",
       "mi": 104.935
-    },
-    {
-      "path": ".agents/scripts/lib/story-body/story-body.js",
-      "mi": 84.296
     },
     {
       "path": ".agents/scripts/lib/story-init/blocker-validator.js",
