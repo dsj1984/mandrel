@@ -15,8 +15,7 @@
     "owner": "dsj1984",
     "repo": "mandrel",
     "projectNumber": 1,
-    "projectOwner": "dsj1984",
-    "operatorHandle": "@dsj1984",
+    "operatorHandle": "@[USERNAME]",
     "branchProtection": {
       "requiredChecks": [
         { "name": "lint", "cmd": ["npm", "run", "lint"] },

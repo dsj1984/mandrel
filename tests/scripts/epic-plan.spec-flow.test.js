@@ -458,6 +458,12 @@ function buildRunSpecPhaseProvider(epicShape = {}) {
 
   return {
     ...base,
+    // The Epic-plan lease (acquireEpicPlanLease) reads/writes the assignee via
+    // getTicket/updateTicket. The epic starts unassigned, so the lease takes an
+    // unclaimed claim cleanly.
+    async getTicket(id) {
+      return { ...base.epic, id, assignees: base.epic.assignees ?? [] };
+    },
     async getTicketComments(ticketId) {
       return comments.get(ticketId) ?? [];
     },
@@ -477,6 +483,13 @@ function buildRunSpecPhaseProvider(epicShape = {}) {
   };
 }
 
+// Shared opts.config carrying an operator handle so the Epic-plan lease can
+// acquire (the guard fails closed without one). Reused across the runSpecPhase
+// cases below.
+const SPEC_LEASE_CFG = {
+  github: { owner: 'o', repo: 'r', operatorHandle: '@ci' },
+};
+
 describe('review routing — Story #2795', () => {
   it('high-risk runSpecPhase records review-required routing in checkpoint', async () => {
     const provider = buildRunSpecPhaseProvider({
@@ -492,6 +505,7 @@ describe('review routing — Story #2795', () => {
         techSpecContent: '## Technical Overview\nNo stale paths here.',
       },
       { baseBranch: 'main', paths: { tempRoot: sandbox } },
+      { config: SPEC_LEASE_CFG },
     );
 
     assert.equal(result.planningRisk.requiresReview, true);
@@ -516,6 +530,7 @@ describe('review routing — Story #2795', () => {
         techSpecContent: '## Technical Overview\nNo stale paths here.',
       },
       { baseBranch: 'main', paths: { tempRoot: sandbox } },
+      { config: SPEC_LEASE_CFG },
     );
 
     assert.equal(result.planningRisk.requiresReview, false);
@@ -548,7 +563,7 @@ describe('review routing — Story #2795', () => {
         techSpecContent: '## Technical Overview\nNo stale paths here.',
       },
       { baseBranch: 'main', paths: { tempRoot: sandbox } },
-      { forceReview: true },
+      { forceReview: true, config: SPEC_LEASE_CFG },
     );
 
     assert.equal(result.reviewRouting.decision, 'operator-override-review');

@@ -172,9 +172,13 @@ and upserts the `epic-run-state` checkpoint. Treat the printed JSON as
 >    a **stale** claim is silently reclaimed. The operator identity is
 >    resolved from `--as <handle>` → `github.operatorHandle` →
 >    `git config user.email`. Pass `--steal` to forcibly transfer a live
->    foreign claim (the takeover is logged for auditability). A clone with
->    no resolvable identity skips the lease step (the checkout guard still
->    runs); the lease is the cross-clone coordination layer, while
+>    foreign claim (the takeover is logged for auditability). The committed
+>    `github.operatorHandle` is the non-personal `@[USERNAME]` placeholder,
+>    which resolves to null — so when none of the three sources yields a real
+>    identity the guard **fails closed** (throws after the checkout guard
+>    runs) rather than driving an ownerless, unguarded delivery. Set your own
+>    handle in `.agentrc.local.json`, pass `--as <handle>`, or configure
+>    `git user.email`. The lease is the cross-clone coordination layer, while
 >    `epic-merge-lock.js` continues to serialize same-machine sessions.
 >
 > Both guards throw on failure, which `runAsCli` maps to `process.exit(1)`

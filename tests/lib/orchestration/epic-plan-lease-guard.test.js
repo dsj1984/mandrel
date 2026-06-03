@@ -143,19 +143,34 @@ describe('epic-plan-lease-guard — acquireEpicPlanLease (fail-closed)', () => {
     assert.deepEqual(provider.state.assignees, [OPERATOR]);
   });
 
-  it('degrades to a no-op when no operator is configured', async () => {
+  it('fails closed (throws) when no operator is configured', async () => {
     const provider = makeProvider({ assignees: [FOREIGN] });
 
-    const result = await acquireEpicPlanLease({
-      provider,
-      epicId: 9,
-      config: { github: {} },
-      now: NOW,
-    });
-
-    assert.equal(result.acquired, true);
-    assert.equal(result.reason, 'no-operator');
+    await assert.rejects(
+      acquireEpicPlanLease({
+        provider,
+        epicId: 9,
+        config: { github: {} },
+        now: NOW,
+      }),
+      /no operator identity is configured/,
+    );
     // no assignee mutation when the lease cannot be keyed
+    assert.equal(provider.updateCalls.length, 0);
+  });
+
+  it('fails closed when operatorHandle is still the @[USERNAME] placeholder', async () => {
+    const provider = makeProvider({ assignees: [FOREIGN] });
+
+    await assert.rejects(
+      acquireEpicPlanLease({
+        provider,
+        epicId: 9,
+        config: { github: { operatorHandle: '@[USERNAME]' } },
+        now: NOW,
+      }),
+      /placeholder/,
+    );
     assert.equal(provider.updateCalls.length, 0);
   });
 
