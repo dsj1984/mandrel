@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-03T00:37:58.829Z",
+  "generatedAt": "2026-06-03T02:03:32.496Z",
   "rollup": {
     "*": {
-      "min": 66.537,
-      "p50": 103.928,
-      "p95": 121.809
+      "min": 33.523,
+      "p50": 103.85,
+      "p95": 121.586
     }
   },
   "rows": [
@@ -33,6 +33,10 @@
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "mi": 95.518
+    },
+    {
+      "path": ".agents/scripts/bootstrap.js",
+      "mi": 101.687
     },
     {
       "path": ".agents/scripts/check-baselines.js",
@@ -107,6 +111,10 @@
       "mi": 81.789
     },
     {
+      "path": ".agents/scripts/epic-deliver-prepare.js",
+      "mi": 81.196
+    },
+    {
       "path": ".agents/scripts/epic-deliver-reconcile.js",
       "mi": 96.27
     },
@@ -129,6 +137,10 @@
     {
       "path": ".agents/scripts/epic-plan-healthcheck.js",
       "mi": 97.622
+    },
+    {
+      "path": ".agents/scripts/epic-plan-spec.js",
+      "mi": 69.971
     },
     {
       "path": ".agents/scripts/epic-plan.js",
@@ -173,6 +185,10 @@
     {
       "path": ".agents/scripts/hydrate-context.js",
       "mi": 98.316
+    },
+    {
+      "path": ".agents/scripts/install-matrix-assert.js",
+      "mi": 89.263
     },
     {
       "path": ".agents/scripts/lib/audit-suite/cli.js",
@@ -359,6 +375,10 @@
       "mi": 88.993
     },
     {
+      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
+      "mi": 96.852
+    },
+    {
       "path": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
       "mi": 85.187
     },
@@ -475,6 +495,10 @@
       "mi": 171
     },
     {
+      "path": ".agents/scripts/lib/config-settings-schema.js",
+      "mi": 33.523
+    },
+    {
       "path": ".agents/scripts/lib/config/baselines.js",
       "mi": 105.406
     },
@@ -537,6 +561,10 @@
     {
       "path": ".agents/scripts/lib/config/lifecycle.js",
       "mi": 111.715
+    },
+    {
+      "path": ".agents/scripts/lib/config/limits.js",
+      "mi": 102.418
     },
     {
       "path": ".agents/scripts/lib/config/paths.js",
@@ -875,6 +903,10 @@
       "mi": 93.145
     },
     {
+      "path": ".agents/scripts/lib/orchestration/epic-deliver-lease-guard.js",
+      "mi": 101.917
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/epic-deliver-reconcile.js",
       "mi": 92.503
     },
@@ -911,12 +943,20 @@
       "mi": 102.956
     },
     {
+      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/persist.js",
+      "mi": 86.429
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/planning-artifacts.js",
       "mi": 99.762
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/reconcile-spawn.js",
       "mi": 98.087
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-plan-lease-guard.js",
+      "mi": 97.757
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/authoring-context.js",
@@ -933,6 +973,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/prompts.js",
       "mi": 138.609
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/run-spec-phase.js",
+      "mi": 80.687
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-state-store.js",
@@ -1133,6 +1177,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/bus.js",
       "mi": 104.328
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/lifecycle/emit-story-heartbeat.js",
+      "mi": 89.31
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/ledger-writer.js",
@@ -1407,6 +1455,10 @@
       "mi": 115.333
     },
     {
+      "path": ".agents/scripts/lib/orchestration/single-story-lease-guard.js",
+      "mi": 107.286
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/skill-capsule-loader.js",
       "mi": 104.902
     },
@@ -1549,6 +1601,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/task-body-validator.js",
       "mi": 98.521
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ticket-lease.js",
+      "mi": 87.098
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
@@ -1747,8 +1803,16 @@
       "mi": 104.935
     },
     {
+      "path": ".agents/scripts/lib/story-body/story-body.js",
+      "mi": 83.583
+    },
+    {
       "path": ".agents/scripts/lib/story-init/blocker-validator.js",
       "mi": 112.285
+    },
+    {
+      "path": ".agents/scripts/lib/story-init/branch-initializer.js",
+      "mi": 97.663
     },
     {
       "path": ".agents/scripts/lib/story-init/context-resolver.js",
@@ -2095,6 +2159,14 @@
       "mi": 93.522
     },
     {
+      "path": ".agents/scripts/single-story-close.js",
+      "mi": 58.031
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "mi": 90.788
+    },
+    {
       "path": ".agents/scripts/single-story-plan.js",
       "mi": 86.713
     },
@@ -2109,6 +2181,10 @@
     {
       "path": ".agents/scripts/story-deliver-prepare.js",
       "mi": 88.71
+    },
+    {
+      "path": ".agents/scripts/story-init.js",
+      "mi": 83.437
     },
     {
       "path": ".agents/scripts/story-phase.js",
@@ -2480,7 +2556,7 @@
     },
     {
       "path": "tests/bootstrap/project-bootstrap.test.js",
-      "mi": 106.624
+      "mi": 107.293
     },
     {
       "path": "tests/bootstrap/prompt.test.js",
@@ -2557,6 +2633,14 @@
     {
       "path": "tests/cli-utils-redactor.test.js",
       "mi": 113.227
+    },
+    {
+      "path": "tests/cli/postinstall.test.js",
+      "mi": 130.712
+    },
+    {
+      "path": "tests/cli/registry.test.js",
+      "mi": 109.982
     },
     {
       "path": "tests/close-validation-mi-projection.test.js",
@@ -2741,6 +2825,10 @@
     {
       "path": "tests/contract/orchestration/pr-base-guard.test.js",
       "mi": 114.185
+    },
+    {
+      "path": "tests/contract/planning/healthcheck-blocking.test.js",
+      "mi": 94.365
     },
     {
       "path": "tests/contract/planning/healthcheck-hierarchy-mode.test.js",
@@ -3583,6 +3671,14 @@
       "mi": 99.469
     },
     {
+      "path": "tests/lib/orchestration/epic-deliver-lease-guard.test.js",
+      "mi": 106.004
+    },
+    {
+      "path": "tests/lib/orchestration/epic-plan-lease-guard.test.js",
+      "mi": 101.188
+    },
+    {
       "path": "tests/lib/orchestration/epic-plan-state-store.test.js",
       "mi": 97.99
     },
@@ -3919,6 +4015,10 @@
       "mi": 113.727
     },
     {
+      "path": "tests/lib/orchestration/single-story-lease-guard.test.js",
+      "mi": 107.506
+    },
+    {
       "path": "tests/lib/orchestration/story-close/auto-refresh-runner.commit-hygiene.test.js",
       "mi": 105.104
     },
@@ -3975,8 +4075,16 @@
       "mi": 107.988
     },
     {
+      "path": "tests/lib/orchestration/story-phase-heartbeat-operator.test.js",
+      "mi": 100.52
+    },
+    {
       "path": "tests/lib/orchestration/task-body-validator.test.js",
       "mi": 111.701
+    },
+    {
+      "path": "tests/lib/orchestration/ticket-lease.test.js",
+      "mi": 100.77
     },
     {
       "path": "tests/lib/orchestration/ticket-validator-conflicts.test.js",
@@ -4141,6 +4249,10 @@
     {
       "path": "tests/lib/signals/span-tree.test.js",
       "mi": 107.977
+    },
+    {
+      "path": "tests/lib/story-body/story-body-meta-round-trip.test.js",
+      "mi": 107.899
     },
     {
       "path": "tests/lib/story-body/story-body.test.js",
@@ -4579,6 +4691,10 @@
       "mi": 107.365
     },
     {
+      "path": "tests/scripts/bootstrap-print-summary.test.js",
+      "mi": 105.271
+    },
+    {
       "path": "tests/scripts/check-baselines-pipeline.test.js",
       "mi": 102.241
     },
@@ -4597,6 +4713,10 @@
     {
       "path": "tests/scripts/cleanup-repo-test-temp.test.js",
       "mi": 87.516
+    },
+    {
+      "path": "tests/scripts/create-mandrel-launcher.test.js",
+      "mi": 113.079
     },
     {
       "path": "tests/scripts/dispatcher-fromspec.test.js",
@@ -4677,6 +4797,10 @@
     {
       "path": "tests/scripts/git-cleanup.test.js",
       "mi": 107.977
+    },
+    {
+      "path": "tests/scripts/install-matrix-assert.test.js",
+      "mi": 109.247
     },
     {
       "path": "tests/scripts/lifecycle-emit.test.js",

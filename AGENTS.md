@@ -158,9 +158,13 @@ Releases are automated by
    [§ One-time PAT setup](#one-time-pat-setup) below). Once
    `Validate and Test` passes, GitHub squash-merges the release PR,
    which triggers the workflow to create the GitHub Release, tag
-   `main` with `vX.Y.Z`, and mirror a `dist-vX.Y.Z` tag onto `dist`.
-   The existing `dist` sync in `ci.yml` propagates the new
-   `.agents/VERSION` to consumers.
+   `main` with `vX.Y.Z`, and run the `npm-publish` job — publishing
+   `@mandrel/agents` to npm with build provenance (Sigstore) once the
+   release is cut. This replaces the retired `dist`-branch mirror:
+   consumers now install a versioned, provenance-signed package from npm
+   (`npm install @mandrel/agents`, then `mandrel sync`) instead of pinning
+   a Git submodule to the `dist` branch. The `npm-publish` job requires the
+   `NPM_TOKEN` secret — see [§ npm publish token](#npm-publish-token) below.
 4. **Breaking-change releases** ship a consumer-upgrade runbook under
    `docs/` (describing the migration steps and the major-version bump
    operator step). Link any future breaking-release runbook from
@@ -202,6 +206,29 @@ Configure a Personal Access Token once to break the deadlock:
 Alternative: install a GitHub App with the same permissions and feed
 its installation token in via the same secret name. Apps have a higher
 ceiling on automation throughput than PATs.
+
+#### npm publish token
+
+The `npm-publish` job in
+[`release-please.yml`](.github/workflows/release-please.yml) authenticates
+to the npm registry with an automation token (rather than OIDC trusted
+publishing), so it needs a one-time secret:
+
+1. Create an **automation** access token with publish rights on the
+   `@mandrel` scope at <https://www.npmjs.com/settings/~/tokens>. The
+   token owner must be able to publish under `@mandrel`; the first
+   publish of the scoped package relies on `publishConfig.access:
+   "public"` (already set in `package.json`) so the public registry
+   accepts it.
+2. Add it as a repository secret named **`NPM_TOKEN`** at
+   <https://github.com/dsj1984/mandrel/settings/secrets/actions>.
+3. No further setup is required: the job declares `id-token: write` and
+   `package.json#publishConfig.provenance: true`, so npm attaches a
+   signed Sigstore provenance statement automatically.
+
+Without `NPM_TOKEN`, release-please still tags `main` and creates the
+GitHub Release, but the `npm-publish` job fails and the package is not
+published until the secret is configured and the job re-run.
 
 #### Major-version policy
 

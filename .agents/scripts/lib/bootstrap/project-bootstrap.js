@@ -14,20 +14,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { loadRuntimeDepsManifest } from '../runtime-deps/manifest.js';
 import { applyQualityBootstrap } from './quality-bootstrap.js';
-
-/**
- * The framework's required runtime dependencies, seeded into a consumer's
- * `package.json` during bootstrap. Derived from the vendored SSOT manifest
- * (`.agents/runtime-deps.json`) so there is exactly one place the list lives
- * — the same manifest the preflight guard and drift test read (Story #3432).
- * `optionalDependencies` are intentionally not seeded: they sit behind
- * graceful-degradation paths and consumers opt into them only if needed.
- */
-export const REQUIRED_RUNTIME_DEPS = Object.freeze({
-  ...loadRuntimeDepsManifest().dependencies,
-});
 
 export const SYNC_COMMAND = 'node .agents/scripts/sync-claude-commands.js';
 
@@ -132,8 +119,11 @@ export function detectPackageManager(projectRoot) {
 
 /**
  * Step 2a/2b/2c — Ensure `package.json` exists and carries the
- * `sync:commands` + `prepare` scripts plus the framework's runtime
- * dependencies. Returns the per-key outcome the caller can render.
+ * `sync:commands` + `prepare` + `bootstrap` scripts. The consumer manifest
+ * is never mutated with framework runtime dependencies: those arrive
+ * transitively via the `@mandrel/agents` package, so bootstrap leaves the
+ * `dependencies` block untouched (Story #3466). Returns the per-key outcome
+ * the caller can render.
  */
 export function ensurePackageJson(ctx) {
   const pkgPath = path.join(ctx.projectRoot, 'package.json');
@@ -143,7 +133,6 @@ export function ensurePackageJson(ctx) {
     scriptsSyncCommands: 'already-present',
     scriptsPrepare: 'already-present',
     scriptsBootstrap: 'already-present',
-    deps: { added: [], skipped: [] },
   };
   let pkg = readJsonIfExists(pkgPath);
   if (!pkg) {
@@ -175,31 +164,23 @@ export function ensurePackageJson(ctx) {
     pkg.scripts.bootstrap = BOOTSTRAP_COMMAND;
     outcomes.scriptsBootstrap = 'added';
   }
-  pkg.dependencies = pkg.dependencies ?? {};
-  for (const [dep, version] of Object.entries(REQUIRED_RUNTIME_DEPS)) {
-    if (pkg.dependencies[dep]) {
-      outcomes.deps.skipped.push(dep);
-      continue;
-    }
-    pkg.dependencies[dep] = version;
-    outcomes.deps.added.push(dep);
-  }
   const mutated =
     outcomes.created ||
     outcomes.scriptsSyncCommands === 'added' ||
     outcomes.scriptsPrepare !== 'already-present' ||
-    outcomes.scriptsBootstrap === 'added' ||
-    outcomes.deps.added.length > 0;
+    outcomes.scriptsBootstrap === 'added';
   if (mutated) writeJson(pkgPath, pkg);
   return { ...outcomes, path: pkgPath, mutated };
 }
 
 /**
- * Step 2d — Install dependencies when the package.json was touched or
- * the framework's sentinel module is unresolvable. Returns
- * `{ ran, manager, skipped, reason }`.
+ * Step 2d — Install dependencies when the framework's sentinel module is
+ * unresolvable. Bootstrap no longer seeds framework deps into the consumer
+ * manifest (Story #3466) — they arrive transitively via `@mandrel/agents`
+ * — so the install is triggered purely by an empty/stale `node_modules`.
+ * Returns `{ ran, manager, skipped, reason }`.
  */
-export function ensureDependenciesInstalled(ctx, packageOutcome) {
+export function ensureDependenciesInstalled(ctx) {
   const manager = detectPackageManager(ctx.projectRoot);
   const sentinel = path.join(
     ctx.projectRoot,
@@ -207,8 +188,7 @@ export function ensureDependenciesInstalled(ctx, packageOutcome) {
     'ajv',
     'package.json',
   );
-  const needsInstall =
-    packageOutcome.deps.added.length > 0 || !fs.existsSync(sentinel);
+  const needsInstall = !fs.existsSync(sentinel);
   if (!needsInstall) {
     return { ran: false, manager, skipped: true, reason: 'already-installed' };
   }
@@ -538,7 +518,7 @@ export const BOOTSTRAP_PHASES = Object.freeze([
   },
   {
     name: 'install',
-    run: (ctx, report) => ensureDependenciesInstalled(ctx, report.pkg),
+    run: (ctx) => ensureDependenciesInstalled(ctx),
   },
   {
     name: 'agentrc',
