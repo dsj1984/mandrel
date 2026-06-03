@@ -155,6 +155,21 @@ describe('ticket-lease — isClaimLive', () => {
       false,
     );
   });
+
+  // Story #3513 — the TTL boundary is inclusive: a heartbeat exactly `ttlMs`
+  // old (`now - heartbeatAt === ttlMs`) is still live (the comparison is `<=`,
+  // not `<`). A claim is only stale once it is strictly older than the TTL.
+  it('treats a heartbeat exactly at the TTL boundary as live (inclusive)', () => {
+    assert.equal(
+      isClaimLive({ heartbeatAt: NOW - 5000, ttlMs: 5000, now: NOW }),
+      true,
+    );
+    // One ms past the boundary flips to stale.
+    assert.equal(
+      isClaimLive({ heartbeatAt: NOW - 5001, ttlMs: 5000, now: NOW }),
+      false,
+    );
+  });
 });
 
 describe('ticket-lease — acquireLease', () => {
@@ -277,6 +292,70 @@ describe('ticket-lease — acquireLease', () => {
     assert.equal(result.owner, 'alice');
     assert.equal(result.previousOwner, 'bob');
     assert.equal(result.reason, 'stolen');
+    assert.deepEqual(provider.state.assignees, ['alice']);
+  });
+
+  // Story #3513 — `steal:true` only changes the outcome for a *live* foreign
+  // claim (it forces the transfer that would otherwise be refused). For every
+  // non-live-foreign starting state it is inert: the same path runs as without
+  // the flag, and `reason` is NOT `stolen`.
+  it('with steal:true on an unassigned ticket, claims it as unclaimed (not stolen)', async () => {
+    const provider = makeProvider([]);
+
+    const result = await acquireLease({
+      provider,
+      ticketId: 42,
+      operator: 'alice',
+      steal: true,
+      ttlMs: 5000,
+      now: NOW,
+    });
+
+    assert.equal(result.acquired, true);
+    assert.equal(result.owner, 'alice');
+    assert.equal(result.previousOwner, null);
+    assert.equal(result.reason, 'unclaimed');
+    assert.deepEqual(provider.state.assignees, ['alice']);
+  });
+
+  it('with steal:true on a self-held claim, re-affirms without re-writing (already-held)', async () => {
+    const provider = makeProvider(['alice']);
+
+    const result = await acquireLease({
+      provider,
+      ticketId: 42,
+      operator: 'alice',
+      heartbeatAt: FRESH,
+      steal: true,
+      ttlMs: 5000,
+      now: NOW,
+    });
+
+    assert.equal(result.acquired, true);
+    assert.equal(result.reason, 'already-held');
+    // steal must not force a redundant assignee write on a self-held claim
+    assert.equal(provider.updateCalls.length, 0);
+    assert.deepEqual(provider.state.assignees, ['alice']);
+  });
+
+  it('with steal:true on a stale foreign claim, reports reclaimed (not stolen)', async () => {
+    const provider = makeProvider(['bob']);
+
+    const result = await acquireLease({
+      provider,
+      ticketId: 42,
+      operator: 'alice',
+      heartbeatAt: STALE,
+      steal: true,
+      ttlMs: 5000,
+      now: NOW,
+    });
+
+    assert.equal(result.acquired, true);
+    assert.equal(result.owner, 'alice');
+    assert.equal(result.previousOwner, 'bob');
+    // a stale claim is reclaimed on its own merits — steal is inert here
+    assert.equal(result.reason, 'reclaimed');
     assert.deepEqual(provider.state.assignees, ['alice']);
   });
 
