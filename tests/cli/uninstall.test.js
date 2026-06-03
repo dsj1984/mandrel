@@ -97,6 +97,12 @@ function reversibleEntries() {
       reversible: true,
     },
     {
+      phaseGroup: 'repo-config',
+      target: '.agentrc.json',
+      action: 'create',
+      reversible: true,
+    },
+    {
       phaseGroup: 'quality-gates',
       target: '.husky/pre-commit',
       action: 'configure',
@@ -182,6 +188,10 @@ function seedFreshInstall(root) {
       bootstrap: BOOTSTRAP_COMMAND,
       ...QUALITY_NPM_SCRIPTS,
     },
+  });
+  writeJson(path.join(root, '.agentrc.json'), {
+    $schema: './.agents/schemas/agentrc.schema.json',
+    github: { owner: 'acme', repo: 'widgets' },
   });
   fs.mkdirSync(path.join(root, '.husky'), { recursive: true });
   fs.writeFileSync(
@@ -302,6 +312,8 @@ describe('runUninstall — fresh install (AC2)', () => {
     const pkg = readJson(path.join(tmpRoot, 'package.json'));
     assert.equal(pkg.scripts, undefined);
     assert.equal(pkg.name, 'fresh'); // operator fields preserved
+    // Install-created .agentrc.json is removed.
+    assert.equal(fs.existsSync(path.join(tmpRoot, '.agentrc.json')), false);
     // The ledger itself is removed so a re-run is a no-op.
     assert.equal(fs.existsSync(ledgerPath(tmpRoot)), false);
   });
@@ -636,6 +648,59 @@ describe('runUninstall — .mcp.json gitignore retention (Story #3542)', () => {
       '.mcp.json entry must be stripped when no file exists',
     );
     assert.match(gi, /node_modules\//, 'operator content must survive');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Story #3543 — .agentrc.json reversal (contract mismatch fix)
+// ---------------------------------------------------------------------------
+
+describe('runUninstall — .agentrc.json reversal (Story #3543)', () => {
+  it('removes an install-created .agentrc.json', () => {
+    // Arrange: bootstrap created .agentrc.json from nothing.
+    fs.mkdirSync(tmpRoot, { recursive: true });
+    writeJson(path.join(tmpRoot, '.agentrc.json'), {
+      $schema: './.agents/schemas/agentrc.schema.json',
+      github: { owner: 'acme', repo: 'widgets' },
+    });
+    writeLedger(tmpRoot, {
+      entries: [{ target: '.agentrc.json', reversible: true }],
+    });
+
+    const cap = makeCapture();
+    runUninstall({ projectRoot: tmpRoot, write: cap.write, exit: cap.exit });
+
+    assert.equal(cap.exitCode, 0);
+    assert.equal(
+      fs.existsSync(path.join(tmpRoot, '.agentrc.json')),
+      false,
+      'install-created .agentrc.json must be removed',
+    );
+    assert.match(cap.text, /reverted/);
+  });
+
+  it('reports skipped when .agentrc.json is absent (idempotent re-run)', () => {
+    // Arrange: ledger references .agentrc.json but the file is already gone.
+    fs.mkdirSync(tmpRoot, { recursive: true });
+    writeLedger(tmpRoot, {
+      entries: [{ target: '.agentrc.json', reversible: true }],
+    });
+
+    const cap = makeCapture();
+    runUninstall({ projectRoot: tmpRoot, write: cap.write, exit: cap.exit });
+
+    assert.equal(cap.exitCode, 0);
+    assert.match(cap.text, /skipped/);
+    assert.match(cap.text, /file absent/);
+  });
+
+  it('routes .agentrc.json to fileTargets (not manual) in planUninstall', () => {
+    const ledger = {
+      entries: [{ target: '.agentrc.json', reversible: true }],
+    };
+    const { fileTargets, manual } = planUninstall(ledger);
+    assert.deepEqual(fileTargets, ['.agentrc.json']);
+    assert.equal(manual.length, 0);
   });
 });
 
