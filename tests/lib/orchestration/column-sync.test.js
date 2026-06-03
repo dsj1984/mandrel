@@ -289,6 +289,155 @@ describe('ColumnSync.sync', () => {
     assert.equal(res.status, 'skipped');
     assert.equal(res.reason, 'not-on-project');
   });
+
+  it('uses user(login: $owner) query when projectOwner differs from viewer (Story #3560)', async () => {
+    // Simulates the cross-owner scenario: operator authenticated as
+    // 'chrisbarrantes' but project is owned by 'dsj1984'. viewer.projectV2
+    // would return null; user(login: 'dsj1984').projectV2 returns the board.
+    const graphqlCalls = [];
+    const provider = {
+      graphqlCalls,
+      projectNumber: 1,
+      projectOwner: 'dsj1984',
+      owner: 'dsj1984',
+      repo: 'mandrel',
+      async graphql(query, vars) {
+        graphqlCalls.push({ query, vars });
+        if (query.includes('user(login: $owner)')) {
+          return {
+            user: {
+              projectV2: {
+                id: 'PROJ-CROSS',
+                field: {
+                  id: 'FIELD-CROSS',
+                  options: [
+                    { id: 'opt-todo', name: 'Todo' },
+                    { id: 'opt-inprog', name: 'In Progress' },
+                    { id: 'opt-done', name: 'Done' },
+                  ],
+                },
+              },
+            },
+          };
+        }
+        if (query.includes('projectItems(first')) {
+          return {
+            repository: {
+              issue: {
+                projectItems: {
+                  nodes: [{ id: 'ITEM-CROSS', project: { id: 'PROJ-CROSS' } }],
+                },
+              },
+            },
+          };
+        }
+        if (query.includes('updateProjectV2ItemFieldValue')) {
+          return {
+            updateProjectV2ItemFieldValue: {
+              projectV2Item: { id: vars.itemId },
+            },
+          };
+        }
+        return {};
+      },
+    };
+
+    const sync = new ColumnSync({ provider });
+    const res = await sync.sync(100, ['agent::done']);
+    assert.equal(res.status, 'synced');
+    assert.equal(res.column, 'Done');
+
+    // Confirm the cross-owner query was issued (not the viewer query)
+    const metaCall = graphqlCalls.find((c) =>
+      c.query.includes('user(login: $owner)'),
+    );
+    assert.ok(metaCall, 'issued the user(login: $owner) query');
+    assert.equal(metaCall.vars.owner, 'dsj1984');
+    assert.equal(metaCall.vars.number, 1);
+
+    const viewerCall = graphqlCalls.find(
+      (c) => c.query.includes('viewer {') && c.query.includes('projectV2'),
+    );
+    assert.equal(viewerCall, undefined, 'did not fall back to viewer query');
+
+    const mutation = graphqlCalls.find((c) =>
+      c.query.includes('updateProjectV2ItemFieldValue'),
+    );
+    assert.ok(mutation, 'issued the update mutation');
+    assert.equal(mutation.vars.projectId, 'PROJ-CROSS');
+    assert.equal(mutation.vars.itemId, 'ITEM-CROSS');
+    assert.equal(mutation.vars.optionId, 'opt-done');
+  });
+
+  it('falls back to viewer query when projectOwner is not configured', async () => {
+    // Ensures backward compatibility: when projectOwner is absent (null),
+    // the original viewer.projectV2 path is still used.
+    const graphqlCalls = [];
+    const provider = {
+      graphqlCalls,
+      projectNumber: 42,
+      // projectOwner deliberately absent
+      owner: 'acme',
+      repo: 'widgets',
+      async graphql(query, vars) {
+        graphqlCalls.push({ query, vars });
+        if (query.includes('viewer {')) {
+          return {
+            viewer: {
+              projectV2: {
+                id: 'PROJ-VIEWER',
+                field: {
+                  id: 'FIELD-VIEWER',
+                  options: [{ id: 'opt-done', name: 'Done' }],
+                },
+              },
+            },
+          };
+        }
+        if (query.includes('projectItems(first')) {
+          return {
+            repository: {
+              issue: {
+                projectItems: {
+                  nodes: [{ id: 'ITEM-V', project: { id: 'PROJ-VIEWER' } }],
+                },
+              },
+            },
+          };
+        }
+        if (query.includes('updateProjectV2ItemFieldValue')) {
+          return {
+            updateProjectV2ItemFieldValue: {
+              projectV2Item: { id: vars.itemId },
+            },
+          };
+        }
+        return {};
+      },
+    };
+
+    const sync = new ColumnSync({ provider });
+    const res = await sync.sync(50, ['agent::done']);
+    assert.equal(res.status, 'synced');
+    assert.equal(res.column, 'Done');
+
+    const viewerCall = graphqlCalls.find(
+      (c) => c.query.includes('viewer {') && c.query.includes('projectV2'),
+    );
+    assert.ok(
+      viewerCall,
+      'used the viewer query when no projectOwner configured',
+    );
+
+    const crossOwnerCall = graphqlCalls.find((c) =>
+      c.query.includes('user(login: $owner)'),
+    );
+    assert.equal(
+      crossOwnerCall,
+      undefined,
+      'did not issue the cross-owner query',
+    );
+  });
 });
 
 describe('ColumnSync.readCurrentColumn (Story #2876)', () => {
