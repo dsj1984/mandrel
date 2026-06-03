@@ -149,7 +149,8 @@ export async function collectPhaseApprovals(args) {
  * @param {object} [args.ctx] — manifest context (`answers`, `skipGithub`,
  *   `skipQuality`); forwarded to {@link previewMutationManifest}.
  * @param {(line: string) => void} [args.log] — sink for the manifest screen
- *   (default `console.log`). Each rendered screen is emitted as one call.
+ *   (default writes to `process.stdout`). Each rendered screen is emitted as
+ *   one call.
  * @param {(arg: object, opts: object) => Promise<boolean>} [args.confirm]
  * @param {'yes'|'no'} [args.assume]
  * @param {NodeJS.WritableStream} [args.stdout]
@@ -161,7 +162,7 @@ export async function collectPhaseApprovals(args) {
 export async function runPhasedApproval(args) {
   const { ctx = {}, log, confirm, assume, stdout, stdin, isTTY } = args;
   const preview = previewMutationManifest(ctx);
-  const sink = log ?? ((line) => console.log(line));
+  const sink = log ?? ((line) => process.stdout.write(`${line}\n`));
   sink(renderManifestScreen(preview));
   const { approved, decisions } = await collectPhaseApprovals({
     preview,
