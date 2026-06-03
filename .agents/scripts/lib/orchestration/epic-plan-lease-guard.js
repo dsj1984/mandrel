@@ -46,9 +46,11 @@ import {
 /**
  * Resolve the operator handle that owns this `/epic-plan` run from
  * `github.operatorHandle`. The assignee-as-lease primitive is single-holder
- * keyed on a non-empty string; when no operator is configured the lease cannot
- * be keyed, so this returns `null` and the preflight degrades to a no-op rather
- * than wedging every plan run in a repo that has not set the handle.
+ * keyed on a non-empty string; when no operator is configured (unset, or the
+ * shipped `@[USERNAME]` placeholder, both of which `normalizeOperatorHandle`
+ * maps to `null`) the lease cannot be keyed. This returns `null`; the caller
+ * (`acquireEpicPlanLease`) then fails closed by throwing rather than running an
+ * ownerless, unguarded plan.
  *
  * The `@`-prefix some operators carry on `operatorHandle` is stripped so the
  * value matches the bare login GitHub writes to (and returns from) a ticket's
@@ -96,16 +98,14 @@ export async function acquireEpicPlanLease({
 }) {
   const operator = resolveOperator(config);
   if (operator === null) {
-    Logger.warn(
-      `[epic-plan] Epic-lease preflight skipped for #${epicId}: ` +
-        'github.operatorHandle is unset in .agentrc.json (no lease key).',
+    throw new Error(
+      `[epic-plan] Refusing to plan Epic #${epicId}: no operator identity is ` +
+        'configured. github.operatorHandle is unset or still the shipped ' +
+        '`@[USERNAME]` placeholder, so the Epic-lease has no owner and ' +
+        'concurrent /epic-plan runs cannot be serialised. Set your own handle ' +
+        'in .agentrc.local.json (e.g. { "github": { "operatorHandle": ' +
+        '"@your-login" } }) and re-run.',
     );
-    return {
-      acquired: true,
-      owner: null,
-      previousOwner: null,
-      reason: 'no-operator',
-    };
   }
 
   // Fail closed: with no live-heartbeat source on the plan path, treat any

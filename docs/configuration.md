@@ -76,7 +76,7 @@ top-level keys are validation errors.
 | `repo` | Yes | `string` | — | — |
 | `projectNumber` | No | `integer` \| `null` | — | — |
 | `projectOwner` | No | `string` \| `null` | — | — |
-| `operatorHandle` | No | `string` | — | — |
+| `operatorHandle` | Yes | `string` | — | — |
 | `defaultTimeoutMs` | No | `integer` | — | Default `timeoutMs` (in milliseconds) applied to every `gh` subprocess spawned by the GitHub provider facade. Caps any single `gh api` / `gh issue ...` / `gh pr ...` invocation so a stalled TCP socket or long-poll cannot hang an orchestration indefinitely. A `GhExecTimeoutError` from a hit ceiling is classified `transient` and retried by `withTransientRetry`. Recommended floor 1000ms; recommended default 60000 (60s). Omit to use the in-code default of 60000. Story #2860. |
 | `branchProtection` | No | `object` | — | Nested configuration block. |
 | `branchProtection.enforce` | No | `boolean` | — | — |
@@ -764,7 +764,8 @@ number of keys.
 | `project.commands.lintBaseline`                      | `npm run lint`                        | `npx eslint . --format json`               | Root piggybacks on the repo's existing lint script; consumer template assumes a generic ESLint setup with structured output.     |
 | `delivery.quality.gates.maintainability.targetDirs`  | `[".agents/scripts", "tests"]`        | `["src"]`                                  | Root scans the framework's own source tree; consumer template scans the conventional `src/`.                                     |
 | `delivery.quality.gates.crap.targetDirs`             | `[".agents/scripts"]`                 | `["src"]`                                  | Same reason as maintainability above.                                                                                            |
-| `github.owner` / `.repo` / `.projectNumber` / `.projectOwner` / `.operatorHandle` | Populated for `dsj1984/mandrel` | `[OWNER]` / `[REPO]` / `null` / `null` / `@[USERNAME]` | Repo-specific identifiers; placeholders in the template are replaced by `node .agents/scripts/bootstrap.js` (or by hand). |
+| `github.owner` / `.repo` / `.projectNumber` | Populated for `dsj1984/mandrel` | `[OWNER]` / `[REPO]` / `null` | Shared repo identifiers; placeholders in the template are replaced by `node .agents/scripts/bootstrap.js` (or by hand). |
+| `github.operatorHandle` | Committed as the `@[USERNAME]` placeholder; each contributor overrides it in gitignored `.agentrc.local.json` | `@[USERNAME]` | Schema-required, but per-contributor: the committed placeholder resolves to null and the lease guards fail closed until you set your own handle locally (see [Per-machine local overrides](#per-machine-local-overrides)). |
 | `delivery.worktreeIsolation.nodeModulesStrategy`     | `per-worktree`                        | `per-worktree`                             | npm-only repo (`package-lock.json`); worktree init runs `npm ci` per tree.                                                       |
 
 When a consumer runs `/agents-update`, the
@@ -878,6 +879,33 @@ nested field without restating sibling keys; absent local file is a no-op. Use
 it for machine-specific tuning (e.g. lower
 `delivery.deliverRunner.concurrencyCap` on a laptop) that should never reach
 git.
+
+**Per-contributor identity (required).** `github.operatorHandle` is a personal,
+per-contributor value with two jobs: the `@`-handle the framework @mentions on
+friction comments, **and** the lease owner the workflow guards
+([`ticket-lease.js`](../.agents/scripts/lib/orchestration/ticket-lease.js))
+assign to a ticket so two contributors cannot drive the same Epic/Story
+concurrently. Because the lease must distinguish *your* run from *another
+person's*, a shared committed handle would defeat it — everyone would coordinate
+under one identity. So each contributor sets their own in `.agentrc.local.json`:
+
+```json
+{
+  "github": { "operatorHandle": "@your-handle" }
+}
+```
+
+`operatorHandle` is **required** by the schema, but the committed `.agentrc.json`
+carries only the non-personal placeholder `@[USERNAME]` (so CI and fresh clones
+validate without naming a real person). The placeholder is **not** a usable
+identity: [`normalizeOperatorHandle`](../.agents/scripts/lib/orchestration/ticket-lease.js)
+resolves `@[USERNAME]` to `null`, and the lease guards (`/epic-plan`,
+`/epic-deliver`, `/story-deliver`) **fail closed** — they throw with a
+"set your own handle in `.agentrc.local.json`" message rather than running an
+ownerless, unguarded workflow. Your local overlay replaces the placeholder with
+your real handle, and the guards proceed. By contrast, `github.owner` / `repo`
+are **shared** repo identifiers (everyone targets the same `dsj1984/mandrel`)
+and stay committed with real values.
 
 ### Adding a new top-level key (framework change)
 

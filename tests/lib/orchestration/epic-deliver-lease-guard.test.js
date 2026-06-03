@@ -239,18 +239,22 @@ describe('epic-deliver-lease-guard — runPrepareGuards', () => {
     assert.deepEqual(provider.state.assignees, ['alice']);
   });
 
-  it('skips the lease (no throw) when no operator identity resolves', async () => {
+  it('fails closed (throws) when no operator identity resolves', async () => {
     const provider = makeProvider([]);
-    const { lease } = await runPrepareGuards({
-      epicId: EPIC_ID,
-      expectedBranch: [EPIC_BRANCH, 'main'],
-      git: makeGit({ branch: 'main' }),
-      provider,
-      operator: null,
-      now: NOW,
-      logger: SILENT_LOGGER,
-    });
-    assert.equal(lease, null);
+    await assert.rejects(
+      runPrepareGuards({
+        epicId: EPIC_ID,
+        expectedBranch: [EPIC_BRANCH, 'main'],
+        git: makeGit({ branch: 'main' }),
+        provider,
+        operator: null,
+        now: NOW,
+        logger: SILENT_LOGGER,
+      }),
+      /no operator identity could be resolved/,
+    );
+    // checkout-safety runs first (cheap, local); the lease never writes an
+    // assignee because the run is refused before the GitHub round-trip.
     assert.equal(provider.updateCalls.length, 0);
   });
 });

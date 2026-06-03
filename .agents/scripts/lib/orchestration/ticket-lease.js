@@ -46,14 +46,31 @@ import { epicLedgerPath } from '../config/temp-paths.js';
 import { parseLedger } from './lifecycle/trace-logger.js';
 
 /**
+ * The shipped, non-personal operator-identity placeholder (and its bare,
+ * post-normalise form). The committed `.agentrc.json` and the distributed
+ * templates carry this sentinel so `github.operatorHandle` is schema-present
+ * without naming a real person; each contributor overrides it with their own
+ * handle in the gitignored `.agentrc.local.json`. It is NOT a usable lease
+ * owner: `normalizeOperatorHandle` maps it to `null` so the guards fail closed
+ * (a contributor who never set their handle is loudly refused, never silently
+ * coordinated under a shared identity) and no assignee PATCH ever writes a
+ * literal `[USERNAME]` (HTTP 422).
+ */
+export const OPERATOR_HANDLE_PLACEHOLDER = '@[USERNAME]';
+const OPERATOR_HANDLE_PLACEHOLDER_BARE = '[USERNAME]';
+
+/**
  * Normalise an operator handle into the bare login GitHub writes to (and
  * returns from) a ticket's `assignees`. Trims surrounding whitespace and
  * strips a single leading `@` so an `@`-prefixed `operatorHandle` matches a
  * bare assignee login (otherwise the assignee PATCH is rejected HTTP 422 and
  * the self-held-claim comparison `owner === operator` never matches).
  *
- * Returns `null` for a non-string, empty, or whitespace-only handle so each
- * caller can apply its own absent-handling (degrade to a no-op, or throw).
+ * Returns `null` for a non-string, empty, whitespace-only, or placeholder
+ * handle (`@[USERNAME]`) so each caller can apply its own absent-handling
+ * (degrade to a no-op, or throw). Treating the placeholder as unset is what
+ * makes the shipped sentinel safe: a contributor who never overrode it is
+ * indistinguishable from one who set nothing, so the guards fail closed.
  *
  * @param {unknown} raw
  * @returns {string|null}
@@ -61,7 +78,10 @@ import { parseLedger } from './lifecycle/trace-logger.js';
 export function normalizeOperatorHandle(raw) {
   if (typeof raw !== 'string') return null;
   const trimmed = raw.trim().replace(/^@/, '');
-  return trimmed.length > 0 ? trimmed : null;
+  if (trimmed.length === 0 || trimmed === OPERATOR_HANDLE_PLACEHOLDER_BARE) {
+    return null;
+  }
+  return trimmed;
 }
 
 /**

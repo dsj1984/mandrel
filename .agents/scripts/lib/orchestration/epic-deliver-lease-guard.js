@@ -228,18 +228,20 @@ export async function acquireEpicLease({
  * checkout-safety check first (cheap, local, no network), then the Epic-lease
  * acquisition (a GitHub round-trip). Both fail closed by throwing.
  *
- * When `operator` cannot be resolved the lease step is skipped with a warning
- * rather than throwing — a clone with no operator identity configured (e.g. a
- * fresh CI checkout with no `git config user.email`) should still be able to
- * run the checkout-safety guard; the lease is the cross-clone coordination
- * layer and degrades to a no-op without an identity.
+ * The checkout-safety guard runs first (cheap, local) and always executes. The
+ * Epic-lease step then **fails closed**: when `operator` cannot be resolved
+ * (null — `--as`, `github.operatorHandle`, and `git user.email` all empty, with
+ * the shipped `@[USERNAME]` placeholder normalised to null), this throws rather
+ * than running an ownerless, unguarded delivery. The lease is the cross-clone
+ * coordination layer; without an identity it cannot serialise concurrent runs,
+ * so silently skipping it would defeat the guard.
  *
  * @param {object} args
  * @param {number} args.epicId
  * @param {string|string[]} args.expectedBranch  Branch(es) prepare expects HEAD on.
  * @param {object} args.git                   Injected git shim (statusPorcelain/currentBranch).
  * @param {object} args.provider              Ticketing provider for the lease.
- * @param {string|null} args.operator         Resolved operator handle (null skips the lease).
+ * @param {string|null} args.operator         Resolved operator handle (null fails closed → throw).
  * @param {number|null} [args.heartbeatAt]    Current owner's last heartbeat (epoch ms).
  * @param {boolean} [args.steal=false]        Transfer a live foreign claim.
  * @param {object} [args.config]              Resolved config.
@@ -247,9 +249,10 @@ export async function acquireEpicLease({
  * @param {object} [args.logger]              Logger with info/warn.
  * @returns {Promise<{
  *   checkout: ReturnType<typeof checkCheckoutSafety>,
- *   lease: { acquired: boolean, owner: string, reason: string }|null,
+ *   lease: { acquired: boolean, owner: string, reason: string },
  * }>}
- * @throws {Error} on a dirty/wrong-branch tree or a refused live foreign lease.
+ * @throws {Error} on a dirty/wrong-branch tree, an unresolvable operator
+ *   identity, or a refused live foreign lease.
  */
 export async function runPrepareGuards({
   epicId,
@@ -274,10 +277,15 @@ export async function runPrepareGuards({
   );
 
   if (!operator) {
-    log.warn?.(
-      '[epic-deliver] ⚠️  No operator identity resolved (--as / github.operatorHandle / git user.email all empty); skipping Epic-lease preflight.',
+    throw new Error(
+      '[epic-deliver] Refusing to start: no operator identity could be ' +
+        'resolved. --as, github.operatorHandle (unset or still the shipped ' +
+        '`@[USERNAME]` placeholder), and git user.email are all empty, so the ' +
+        'Epic-lease has no owner and concurrent /epic-deliver runs cannot be ' +
+        'serialised. Set your own handle in .agentrc.local.json (e.g. ' +
+        '{ "github": { "operatorHandle": "@your-login" } }), pass --as <handle>, ' +
+        'or configure git user.email, then re-run.',
     );
-    return { checkout, lease: null };
   }
 
   const lease = await acquireEpicLease({
