@@ -3,7 +3,7 @@
  * Unit tests for the `agents-drift` doctor check in lib/cli/registry.js.
  *
  * The check compares the consumer's materialized `./.agents/<f>` bytes against
- * the installed `@mandrel/agents` package payload, excluding the
+ * the installed `@mandrelai/agents` package payload, excluding the
  * `.agents/local/` zone (Story #3498). Every branch is driven through
  * injectable seams (`cwd`, `fsImpl`, `resolvePackageRoot`) so no real
  * filesystem or package is touched — matching the seam style of the other
@@ -142,7 +142,7 @@ function parentOf(p) {
   return idx <= 0 ? '' : p.slice(0, idx);
 }
 
-const PKG_ROOT = '/fake/project/node_modules/@mandrel/agents';
+const PKG_ROOT = '/fake/project/node_modules/@mandrelai/agents';
 const PROJECT = '/fake/project';
 
 // ---------------------------------------------------------------------------
@@ -248,7 +248,7 @@ describe('agents-drift check', () => {
     assert.match(result.remedy, /mandrel sync/);
   });
 
-  it('is a no-op success when @mandrel/agents is not installed', () => {
+  it('is a no-op success when @mandrelai/agents is not installed', () => {
     const fsImpl = makeFs({
       [`${PROJECT}/.agents/instructions.md`]: 'body',
     });

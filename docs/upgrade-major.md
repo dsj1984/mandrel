@@ -1,6 +1,6 @@
 # Upgrading across a major version (breaking-change runbook)
 
-This is the runbook the `mandrel update` **major gate** points you at. When the newest published `@mandrel/agents` crosses a major boundary (for example `1.x → 2.0`), `mandrel update` **refuses to apply it automatically** — it prints the available version, a pointer to this document, and exits non-zero without mutating anything. You cross the boundary deliberately, with this runbook in hand, by re-running with `--major`.
+This is the runbook the `mandrel update` **major gate** points you at. When the newest published `@mandrelai/agents` crosses a major boundary (for example `1.x → 2.0`), `mandrel update` **refuses to apply it automatically** — it prints the available version, a pointer to this document, and exits non-zero without mutating anything. You cross the boundary deliberately, with this runbook in hand, by re-running with `--major`.
 
 > **Why a major is gated.** Mandrel lives on the **1.x** line and is released by `release-please` with `versioning: always-bump-minor` — routine work only ever advances the **minor** axis, even when a commit carries a `BREAKING CHANGE:` footer. A **major release is a deliberate, manual operator decision** on the framework side ([AGENTS.md § Major-version policy](../AGENTS.md)): an operator sets the version explicitly via a `Release-As: X.0.0` trailer or an in-place version edit on the release PR. The consumer-side major gate is the mirror image of that manual step: just as a major release cannot be cut by reflex, a major upgrade cannot be **adopted** by reflex. Minor and patch bumps within the 1.x line are never gated — only the rare major crossing is.
 
@@ -12,7 +12,7 @@ Mandrel follows a **hard-cutover contract** ([`.agents/rules/git-conventions.md`
 
 In npm terms this means:
 
-- **The package version *is* the contract version.** Your lockfile pins an exact `@mandrel/agents` version, so you are always reading exactly one shape of every artifact — the one that ships in the version you installed. There is no "compatibility mode" to fall back to.
+- **The package version *is* the contract version.** Your lockfile pins an exact `@mandrelai/agents` version, so you are always reading exactly one shape of every artifact — the one that ships in the version you installed. There is no "compatibility mode" to fall back to.
 - **A major bump signals a hard cutover.** A `1.x → 2.0` crossing is the framework telling you that at least one contract shape changed with no backward-compatible reader. You adopt the new shape by upgrading the package; the **PR diff for the version bump is the migration boundary**.
 - **Migrations run forward only.** `mandrel update` runs the version-keyed migration steps for the range you are crossing (each step is idempotent and prints what it changed and why). There is no down-migration: to revert, you pin the previous version in your lockfile and re-`sync`.
 
@@ -50,7 +50,7 @@ npx mandrel update --major
 
 With `--major`, `mandrel update` runs the full cycle and prints the breaking-change notes inline:
 
-1. **npm install.** It installs `@mandrel/agents@<2.0.0>` via npm. The lockfile change is **left staged, never committed** — `mandrel update` performs no `git` mutation, matching the "operator commits the lockfile" contract.
+1. **npm install.** It installs `@mandrelai/agents@<2.0.0>` via npm. The lockfile change is **left staged, never committed** — `mandrel update` performs no `git` mutation, matching the "operator commits the lockfile" contract.
 2. **Re-materialize.** It runs `mandrel sync` so `./.agents/` reflects the new package payload (a plain file copy; your `.agents/local/` zone is never touched).
 3. **Migrate.** It runs every version-keyed migration step in the `installed → target` range, in ascending version order. Each applied step prints an actionable `migrated: <file> — <what changed / why>` line. Migrations are idempotent, so a re-run is a safe no-op.
 4. **Verify with doctor.** It runs `mandrel doctor` and reports success **only when every check passes**. A failing doctor makes `update` exit non-zero so you treat the upgrade as incomplete rather than done.
@@ -71,7 +71,7 @@ Once doctor is green, stage and commit the lockfile bump, the re-materialized `.
 
 ```bash
 git add -A
-git commit -m "build: upgrade @mandrel/agents to 2.0.0"
+git commit -m "build: upgrade @mandrelai/agents to 2.0.0"
 ```
 
 Open a PR so the breaking diff is reviewed before it lands on your default branch.
@@ -93,7 +93,7 @@ Renovate and Dependabot are configured to **hold** the `1.x → 2.0` major for m
 There is no down-migration. To roll back a major you adopted:
 
 ```bash
-npm install @mandrel/agents@<previous-1.x-version>
+npm install @mandrelai/agents@<previous-1.x-version>
 npx mandrel sync
 npx mandrel doctor
 ```

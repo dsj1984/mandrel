@@ -8,7 +8,7 @@
  *
  * The source-checkout guard (Story #3489) adds a no-op short-circuit: when the
  * hook runs inside the Mandrel framework source repo (root
- * `package.json#name === "@mandrel/agents"`), it MUST skip the materializer
+ * `package.json#name === "@mandrelai/agents"`), it MUST skip the materializer
  * entirely so `mandrel sync` never clobbers the committed `.agents/` source —
  * even under `npm install --ignore-scripts=false`.
  *
@@ -197,8 +197,8 @@ describe('isSourceCheckout — repo-root package.json#name detection', () => {
     },
   });
 
-  it('returns true when root package.json#name is @mandrel/agents', () => {
-    const fs = makeFs(JSON.stringify({ name: '@mandrel/agents' }));
+  it('returns true when root package.json#name is @mandrelai/agents', () => {
+    const fs = makeFs(JSON.stringify({ name: '@mandrelai/agents' }));
     assert.equal(isSourceCheckout({ fs, moduleUrl }), true);
   });
 

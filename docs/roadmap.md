@@ -708,7 +708,7 @@ produced a leakage map worth recording before any portability work is scoped:
 #### Finding 3 — Distribution is not productized
 
 Evidence (point-in-time, **resolved by #3436** — the framework now ships as
-the `@mandrel/agents` npm package and is no longer distributed via the
+the `@mandrelai/agents` npm package and is no longer distributed via the
 `dist`-branch submodule):
 
 - Root `package.json` had no `bin`, `files`, `publishConfig`, or `workspaces`,
@@ -738,7 +738,7 @@ Deferred remainder:
   `.release-please-manifest.json`); major bumps
   are intentionally capped (`always-bump-minor`). (The former `dist` sync that
   copied `.agents/` after main merge is retired — #3436 publishes the
-  `@mandrel/agents` npm package instead.)
+  `@mandrelai/agents` npm package instead.)
 - Paid products additionally need: a formal version/support policy, deprecation
   policy, rollback guidance, cross-version config-compatibility tests, automated
   migration checks for breaking changes, and operator-facing release notes
@@ -890,7 +890,7 @@ and compatibility tests across npm/pnpm/yarn and Windows/macOS/Linux.
 #### Finding 16 — Product UX and discoverability are developer-internal
 
 Evidence: the README assumed Git submodules (now reconciled to the
-`@mandrel/agents` npm package + `mandrel sync` model per #3436), GitHub remotes,
+`@mandrelai/agents` npm package + `mandrel sync` model per #3436), GitHub remotes,
 `gh`, and slash commands; `.agents/README.md` is framework-author oriented;
 docs are scattered; there are no screenshots, demo videos, tutorials, sample
 repos, comparison pages, pricing pages, or a "first successful run" path.

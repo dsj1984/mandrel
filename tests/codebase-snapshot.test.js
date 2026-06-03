@@ -62,7 +62,7 @@ describe('buildCodebaseSnapshot — skinny tier (this repo)', () => {
     assert.ok(Array.isArray(snapshot.files));
     assert.ok(snapshot.files.length > 0);
     assert.equal(snapshot.signatures, null);
-    assert.ok(snapshot.pkg.name === '@mandrel/agents');
+    assert.ok(snapshot.pkg.name === '@mandrelai/agents');
     assert.ok(Array.isArray(snapshot.pkg.scripts));
     assert.ok(snapshot.pkg.scripts.includes('test'));
   });

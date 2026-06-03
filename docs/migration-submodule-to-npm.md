@@ -4,7 +4,7 @@ Mandrel used to ship as a **Git submodule** pinned to the `dist` branch:
 consumers ran `git submodule add -b dist … .agents` and pulled framework
 updates by advancing the submodule pointer. That distribution channel is
 **retired**. The framework now ships as a versioned, provenance-signed npm
-package, [`@mandrel/agents`](https://www.npmjs.com/package/@mandrel/agents),
+package, [`@mandrelai/agents`](https://www.npmjs.com/package/@mandrelai/agents),
 and the `.agents/` working tree is **materialized from the installed package**
 by `mandrel sync` (a plain file copy — never a symlink).
 
@@ -29,13 +29,13 @@ instead — they never touch a submodule at all.
 If you run a coding agent in your consumer project, paste the **single,
 self-contained prompt** below and let it perform the whole migration. It
 embeds every step, so the agent does not need this file. The only mutations
-are the submodule removal, the `@mandrel/agents` install, and the materialized
+are the submodule removal, the `@mandrelai/agents` install, and the materialized
 `./.agents/` tree — all reviewable in a PR — and the agent stops if
 `mandrel doctor` is not green.
 
 ```text
 You are migrating this project from the retired Mandrel **Git submodule**
-(`.agents/` pinned to the `dist` branch) to the **`@mandrel/agents` npm
+(`.agents/` pinned to the `dist` branch) to the **`@mandrelai/agents` npm
 package**. Work on a NEW branch and open a PR — do not push to the default
 branch, and do not bypass git hooks. If any step fails, or `mandrel doctor` is
 not green at the end, STOP and report it — do not paper over it.
@@ -66,8 +66,8 @@ not green at the end, STOP and report it — do not paper over it.
    error).
 
 6. Install the package, pinning an exact version in the lockfile:
-   `npm install @mandrel/agents` (or `pnpm add @mandrel/agents` /
-   `yarn add @mandrel/agents`). The package `postinstall` runs `mandrel sync`
+   `npm install @mandrelai/agents` (or `pnpm add @mandrelai/agents` /
+   `yarn add @mandrelai/agents`). The package `postinstall` runs `mandrel sync`
    best-effort; if your install used `--ignore-scripts`, the next step runs it
    explicitly.
 
@@ -85,10 +85,10 @@ not green at the end, STOP and report it — do not paper over it.
    `npx mandrel sync-commands`. Leave every other hook untouched.
 
 10. Commit everything on the branch: `git add -A`, then
-    `git commit -m "build: migrate Mandrel from git submodule to @mandrel/agents npm package"`.
+    `git commit -m "build: migrate Mandrel from git submodule to @mandrelai/agents npm package"`.
 
 11. Verify, then open the PR and report results: `git submodule status` shows
-    no `.agents` entry; `npm ls @mandrel/agents` resolves the pinned version;
+    no `.agents` entry; `npm ls @mandrelai/agents` resolves the pinned version;
     `git ls-files -s .agents | head -1` shows mode `100644` (a regular file),
     NOT `160000` (a gitlink); and `npx mandrel doctor` is green.
 ```
@@ -165,13 +165,13 @@ git config --remove-section submodule..agents 2>/dev/null || true
 
 ### 4. Install the npm package
 
-Add `@mandrel/agents` as a regular dependency with your project's package
+Add `@mandrelai/agents` as a regular dependency with your project's package
 manager. This pins an exact version in your lockfile.
 
 ```bash
-npm install @mandrel/agents
-# pnpm add @mandrel/agents
-# yarn add @mandrel/agents
+npm install @mandrelai/agents
+# pnpm add @mandrelai/agents
+# yarn add @mandrelai/agents
 ```
 
 The package ships a `postinstall` hook that runs `mandrel sync` on a
@@ -180,14 +180,14 @@ If you install with `--ignore-scripts` (or your CI does), the postinstall is
 skipped and you run `mandrel sync` yourself in the next step.
 
 > **Pin a specific version** by appending `@<version>` (for example
-> `npm install @mandrel/agents@1.43.0`). Upgrades are then a normal
-> `npm install @mandrel/agents@<newer>` followed by `mandrel sync` — no
+> `npm install @mandrelai/agents@1.43.0`). Upgrades are then a normal
+> `npm install @mandrelai/agents@<newer>` followed by `mandrel sync` — no
 > `git submodule update`.
 
 ### 5. Materialize `./.agents/` with `mandrel sync`
 
 `mandrel sync` copies the package's `.agents/` payload
-(`node_modules/@mandrel/agents/.agents/`) into your project's `./.agents/`
+(`node_modules/@mandrelai/agents/.agents/`) into your project's `./.agents/`
 directory as **plain regular files**. It is idempotent — rerun it any time to
 re-materialize after an upgrade.
 
@@ -236,7 +236,7 @@ Stage the submodule removal, the new dependency, and the materialized
 
 ```bash
 git add -A
-git commit -m "build: migrate Mandrel from git submodule to @mandrel/agents npm package"
+git commit -m "build: migrate Mandrel from git submodule to @mandrelai/agents npm package"
 ```
 
 ---
@@ -247,7 +247,7 @@ git commit -m "build: migrate Mandrel from git submodule to @mandrel/agents npm 
 | ----- | ------- | -------- |
 | Submodule is gone | `git submodule status` | No `.agents` entry |
 | No `.gitmodules` stanza | `grep -c '\.agents' .gitmodules` (if the file still exists) | No `[submodule ".agents"]` block |
-| Package is installed | `npm ls @mandrel/agents` | Resolves to the version you pinned |
+| Package is installed | `npm ls @mandrelai/agents` | Resolves to the version you pinned |
 | `.agents/` is plain files | `git ls-files -s .agents \| head -1` | Mode `100644` (a regular file), **not** `160000` (a gitlink) |
 | Install is healthy | `npx mandrel doctor` | `✅  Ready (N/N checks passed)` |
 
@@ -313,7 +313,7 @@ directly; consumers use the installed package bin via `npx mandrel`.)
 
 Once you are on the package, upgrades no longer involve Git at all. The
 ongoing upgrade path is the **`mandrel update`** orchestrator — a single
-command that advances `@mandrel/agents` to the newest non-major published
+command that advances `@mandrelai/agents` to the newest non-major published
 version and drives the whole post-bump cycle for you:
 
 ```bash
@@ -322,7 +322,7 @@ npx mandrel update
 
 On a routine (non-major) bump, `mandrel update` runs four ordered steps:
 
-1. **`npm update`** — bumps the `@mandrel/agents` dependency to the newest
+1. **`npm update`** — bumps the `@mandrelai/agents` dependency to the newest
    non-major version. The lockfile change is **left staged on disk, never
    committed** — `mandrel update` performs no `git` mutation, so you review
    and commit the bump yourself.

@@ -1,7 +1,7 @@
 # Mandrel — `.agents/`
 
 This is the framework payload (`.agents/`) consumed by host repos. It ships
-inside the [`@mandrel/agents`](https://www.npmjs.com/package/@mandrel/agents)
+inside the [`@mandrelai/agents`](https://www.npmjs.com/package/@mandrelai/agents)
 npm package and is materialized into a consumer's `./.agents/` directory by
 `mandrel sync`. It carries a system prompt, a baseline rule pack, a
 two-tier skill library, a slash-command workflow set, and the
@@ -31,12 +31,12 @@ From an **empty or existing** project that does not yet have `.agents/`,
 install the package and materialize the framework payload:
 
 ```bash
-npm install @mandrel/agents
-# pnpm add @mandrel/agents
-# yarn add @mandrel/agents
+npm install @mandrelai/agents
+# pnpm add @mandrelai/agents
+# yarn add @mandrelai/agents
 ```
 
-Installing `@mandrel/agents` pins an exact, provenance-signed version in
+Installing `@mandrelai/agents` pins an exact, provenance-signed version in
 your lockfile (the npm publish attaches a Sigstore build-provenance
 statement proving the tarball was built from this repo's CI). The package's
 `postinstall` hook runs `mandrel sync` best-effort, which copies the
@@ -60,12 +60,12 @@ node .agents/scripts/bootstrap.js
 > `.agents/` via `git submodule add -b dist …`. That `dist`-branch channel
 > is retired in favor of the npm package; follow the one-time
 > [`docs/migration-submodule-to-npm.md`](../docs/migration-submodule-to-npm.md)
-> guide to deinit the submodule and switch to `npm install @mandrel/agents`.
+> guide to deinit the submodule and switch to `npm install @mandrelai/agents`.
 
 ### Upgrading and local additions
 
 Once installed, the ongoing upgrade path is **`mandrel update`** — it bumps
-`@mandrel/agents` to the newest non-major version, re-runs `mandrel sync`,
+`@mandrelai/agents` to the newest non-major version, re-runs `mandrel sync`,
 applies version-keyed migrations, and verifies the install with
 `mandrel doctor`. The lockfile bump is left **staged for you to review and
 commit** (the command performs no `git` mutation):

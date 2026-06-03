@@ -9,7 +9,7 @@ natively in GitHub Issues, Labels, and Projects V2.
 ## Prerequisites
 
 Mandrel is installed **into an existing project** from the
-[`@mandrel/agents`](https://www.npmjs.com/package/@mandrel/agents) npm
+[`@mandrelai/agents`](https://www.npmjs.com/package/@mandrelai/agents) npm
 package and wires its orchestration into that project's GitHub repository.
 Before you run `bootstrap.js` you need:
 
@@ -36,7 +36,7 @@ From the root of your existing Git repository (with its GitHub remote
 already configured — see Prerequisites):
 
 ```bash
-npm install @mandrel/agents
+npm install @mandrelai/agents
 npx mandrel sync            # materialize ./.agents/ from the installed package
 node .agents/scripts/bootstrap.js
 # in your agentic IDE:
@@ -44,7 +44,7 @@ node .agents/scripts/bootstrap.js
 /epic-deliver <id>  # wave loop -> validation -> review -> retro -> open PR
 ```
 
-`npm install @mandrel/agents` pins an exact, provenance-signed version in
+`npm install @mandrelai/agents` pins an exact, provenance-signed version in
 your lockfile. The package's `postinstall` hook runs `mandrel sync`
 best-effort, so `./.agents/` is usually materialized automatically; the
 explicit `npx mandrel sync` above is the belt-and-suspenders step for
@@ -100,7 +100,7 @@ mandrel/
 ```
 
 Only `.agents/` is distributed to consumers — it ships inside the
-`@mandrel/agents` npm package and is materialized into a consumer's
+`@mandrelai/agents` npm package and is materialized into a consumer's
 `./.agents/` directory by `mandrel sync`.
 
 ### Install scripts are disabled by default
@@ -119,7 +119,7 @@ for that invocation only.
 CRAP and Maintainability gates fire at every checkpoint (keystroke,
 pre-commit, pre-push, story-close, CI, Epic merge) against the same
 thresholds from `delivery.quality.*` in `.agentrc.json`. Downstream
-projects pull the surface in by upgrading the `@mandrel/agents` package
+projects pull the surface in by upgrading the `@mandrelai/agents` package
 (`mandrel update`).
 
 ### Development
@@ -136,7 +136,7 @@ npm run test:coverage  # tests with coverage gate
 Releases are automated by `release-please`. Land Conventional Commits on
 `main`; release-please opens a single combined `chore: release main` PR
 (two-package manifest mode) that squash-merges itself once CI is green,
-then tags `main` and publishes `@mandrel/agents` to npm. See the
+then tags `main` and publishes `@mandrelai/agents` to npm. See the
 **Contribution Workflow** and **Release Checklist** sections in
 [`AGENTS.md`](AGENTS.md) for the two-package topology, PAT/npm-token setup,
 and major-version policy.
