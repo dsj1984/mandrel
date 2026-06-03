@@ -217,6 +217,7 @@ in `runtime-deps.json`.
 | JSON Schema conventions | [§ Schemas](#schemas) |
 | Bootstrap script (project + GitHub setup) | [`scripts/bootstrap.js`](scripts/bootstrap.js) |
 | Adopt the agent-driven QA harness in your project | [§ Adopting the QA harness](#adopting-the-qa-harness) |
+| Coordinate two operators on the same repo (lease model) | [§ Multi-developer coordination](#multi-developer-coordination) |
 
 ---
 
@@ -647,6 +648,67 @@ To opt in, set three fields on `delivery.worktreeIsolation` in your root
 Once these are set, `story-init.js` skips `npm ci` in the worktree and
 junctions/symlinks `node_modules` from the donor — typical cold-start
 falls from minutes to under a second.
+
+---
+
+## Multi-developer coordination
+
+Two operators can drive the same repository at once — one running
+`/epic-deliver <id>`, another running `/single-story-deliver <id>`, or two
+operators on the same Epic from separate clones. The framework keeps those
+runs from clobbering one another with **two distinct coordination layers**.
+They solve different problems and must not be confused:
+
+- **Filesystem locks** (`epic-merge-lock`, `sweep-lock`) serialise work
+  **within a single machine/clone**. They are keyed on local process PIDs
+  and live under `.git/` (or a local lockfile path), so they do **not**
+  coordinate across clones. See
+  [`SDLC.md` § Cross-clone coordination](SDLC.md#cross-clone-coordination)
+  for why.
+- **The assignee-as-lease claim** coordinates **across clones** by riding
+  the ticket's GitHub `assignees` surface — a substrate every clone can
+  see. This is the cross-clone layer, described below.
+
+### Assignee-as-lease claim model
+
+The lease primitive lives in
+[`scripts/lib/orchestration/ticket-lease.js`](scripts/lib/orchestration/ticket-lease.js).
+Rather than inventing a new state column, the lease rides the ticket's
+existing **assignees** field: the single assignee *is* the lease owner.
+Liveness is decided by the owner's most-recent `story.heartbeat` timestamp
+compared against a configurable TTL (`delivery.lease.ttlMs`).
+
+The model has five behaviours, all expressed through `acquireLease` /
+`releaseLease`:
+
+| Behaviour | When it fires | Outcome |
+| --------- | ------------- | ------- |
+| **Acquire by self-assign** | The ticket is unassigned. | The operator is written to `assignees`; the run proceeds (`reason: 'unclaimed'`). |
+| **Re-affirm a self-held claim** | The operator already holds the lease. | No write; the run proceeds (`reason: 'already-held'`). |
+| **Refuse-if-foreign** | A *different* operator holds the lease and their heartbeat is within the TTL (the claim is **live**). | The acquire **fails closed** — the run refuses to start and names the current owner so you know who to coordinate with (`reason: 'held'`). |
+| **Stale-claim reclaim** | A foreign claim exists but its heartbeat is older than the TTL (or the owner never heartbeated). | The lease is automatically reassigned to the operator (`reason: 'reclaimed'`). An abandoned claim never wedges the ticket. |
+| **`--steal` override** | A foreign claim is *live* and the operator passes `--steal`. | The live claim is forcibly transferred (`reason: 'stolen'`). This is the **only** way past a live foreign claim. |
+
+On a clean completion the holder **releases** the lease (clears the
+assignment), but only when it still holds it — a late release on a ticket
+that was since reassigned (e.g. via `--steal`) is a no-op, so it never
+yanks the claim back from whoever legitimately took over.
+
+**Where it's wired:**
+
+- **`/epic-deliver`** acquires the lease on the **Epic** ticket during its
+  prepare phase, before any mutating git work
+  ([`epic-deliver-lease-guard.js`](scripts/lib/orchestration/epic-deliver-lease-guard.js)).
+  A live foreign claim refuses the run; pass `--steal` to override and
+  `--as <handle>` to claim under a specific identity. The operator is
+  resolved from `--as`, then `github.operatorHandle`, then
+  `git config user.email`; when none resolve, the lease step is skipped
+  (the checkout-safety guard still runs).
+- **`/single-story-deliver`** acquires the lease on the **Story** ticket at
+  init and releases it at close
+  ([`single-story-lease-guard.js`](scripts/lib/orchestration/single-story-lease-guard.js)).
+  The standalone path requires `github.operatorHandle` to be set — without
+  an operator identity the lease has no owner to record.
 
 ---
 
