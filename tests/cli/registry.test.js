@@ -451,7 +451,7 @@ describe('agents-materialized check', () => {
       },
     });
     assertResultShape(result, { expectOk: false });
-    assert.match(result.remedy, /npm install @mandrel\/agents/);
+    assert.match(result.remedy, /npm install @mandrelai\/agents/);
   });
 
   it('does not echo file contents — detail and remedy are path/instruction only', () => {

@@ -266,8 +266,8 @@ to the npm registry with an automation token (rather than OIDC trusted
 publishing), so it needs a one-time secret:
 
 1. Create an **automation** access token with publish rights on the
-   `@mandrel` scope at <https://www.npmjs.com/settings/~/tokens>. The
-   token owner must be able to publish under `@mandrel`; the first
+   `@mandrelai` scope at <https://www.npmjs.com/settings/~/tokens>. The
+   token owner must be able to publish under `@mandrelai`; the first
    publish of the scoped package relies on `publishConfig.access:
    "public"` (already set in `package.json`) so the public registry
    accepts it.
