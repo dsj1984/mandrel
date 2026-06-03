@@ -1,19 +1,15 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-03T14:54:25.355Z",
+  "generatedAt": "2026-06-03T15:13:20.331Z",
   "rollup": {
     "*": {
       "min": 45.044,
-      "p50": 103.83,
+      "p50": 103.85,
       "p95": 121.586
     }
   },
   "rows": [
-    {
-      "path": ".agents/scripts/agents-bootstrap-github.js",
-      "mi": 87.859
-    },
     {
       "path": ".agents/scripts/analyze-execution.js",
       "mi": 87.823
@@ -371,20 +367,12 @@
       "mi": 101.665
     },
     {
-      "path": ".agents/scripts/lib/bootstrap/hitl-confirm.js",
-      "mi": 99.662
-    },
-    {
       "path": ".agents/scripts/lib/bootstrap/merge-methods.js",
       "mi": 88.993
     },
     {
       "path": ".agents/scripts/lib/bootstrap/preflight.js",
       "mi": 101.211
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/prompt.js",
-      "mi": 87.596
     },
     {
       "path": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
@@ -609,10 +597,6 @@
     {
       "path": ".agents/scripts/lib/config/shared.js",
       "mi": 105.208
-    },
-    {
-      "path": ".agents/scripts/lib/config/sync-agentrc.js",
-      "mi": 89.732
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
@@ -2573,14 +2557,6 @@
     {
       "path": "tests/bdd-scenario-scanner.test.js",
       "mi": 108.793
-    },
-    {
-      "path": "tests/bootstrap.test.js",
-      "mi": 109.117
-    },
-    {
-      "path": "tests/bootstrap/agents-bootstrap-github.integration.test.js",
-      "mi": 103.762
     },
     {
       "path": "tests/bootstrap/agents-update-contract.test.js",
