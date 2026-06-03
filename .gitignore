@@ -19,6 +19,16 @@ dist
 .agents/*.local.md
 .agents/*local.json
 
+# Agent local-additions zone (Story #3498, f-drift-local-zone).
+# `.agents/local/` is the consumer-owned, sync-exempt space for hand-authored
+# additions: `mandrel sync` never writes into nor prunes it, so files placed
+# there survive every re-materialization. Consumers SHOULD commit their
+# `.agents/local/` additions to source control — this convention is documented
+# here intentionally WITHOUT an ignore rule so those additions stay tracked.
+# (In this framework repo the entire `/.agents/` working copy is ignored above
+# because it is regenerated from the package payload; the convention is for
+# downstream consumer projects that vendor `.agents/` via `mandrel sync`.)
+
 tmp/
 temp/
 

@@ -60,6 +60,40 @@ node .agents/scripts/bootstrap.js
 > [`docs/migration-submodule-to-npm.md`](../docs/migration-submodule-to-npm.md)
 > guide to deinit the submodule and switch to `npm install @mandrel/agents`.
 
+### Upgrading and local additions
+
+Once installed, the ongoing upgrade path is **`mandrel update`** — it bumps
+`@mandrel/agents` to the newest non-major version, re-runs `mandrel sync`,
+applies version-keyed migrations, and verifies the install with
+`mandrel doctor`. The lockfile bump is left **staged for you to review and
+commit** (the command performs no `git` mutation):
+
+```bash
+npx mandrel update           # update → sync → migrate → doctor
+npx mandrel update --dry-run # preview the target version + ordered steps
+```
+
+A **major** crossing (e.g. `1.x → 2.0`) is **gated**: Mandrel lives on the
+1.x line under release-please `always-bump-minor`, so a major is a deliberate
+operator decision. `mandrel update` refuses a major bump, points at the
+[`docs/upgrade-major.md`](../docs/upgrade-major.md) runbook, and exits
+without touching anything — re-run with `--major` to adopt it. Minor and
+patch bumps are never gated. Migrations can also be run on their own:
+
+```bash
+npx mandrel migrate --from <version> --to <version> [--dry-run]
+```
+
+**Local additions survive upgrades only inside `.agents/local/`.** Because
+`mandrel sync` overwrites `./.agents/` in place from the package payload,
+hand edits to synced framework files are clobbered on the next upgrade — and
+`mandrel doctor`'s drift check flags them. The **`.agents/local/`** zone is
+the consumer-owned space `mandrel sync` never copies into nor prunes and the
+drift check treats as sanctioned, so keep project-specific skills and local
+workflow fragments there rather than editing synced files in place. The full
+upgrade and local-zone guide is
+[`docs/migration-submodule-to-npm.md`](../docs/migration-submodule-to-npm.md).
+
 ### Run the unified bootstrap directly
 
 When `.agents/` is already materialized, run the bootstrap straight from the
