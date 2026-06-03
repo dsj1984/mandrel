@@ -148,11 +148,13 @@ Releases are automated by
 1. Land Conventional Commits on `main` (the rules in
    [`.agents/rules/git-conventions.md`](.agents/rules/git-conventions.md)
    already enforce the commit-message contract).
-2. release-please opens a `chore(main): release X.Y.Z` PR with
+2. release-please opens a **single combined** release PR with
    auto-merge enabled (squash). Review the auto-generated entry in
    `docs/CHANGELOG.md` and the bumps to `package.json` and
    `.agents/VERSION` if you want; otherwise no operator action is
-   needed.
+   needed. See [§ Two-package release topology](#two-package-release-topology)
+   below for the combined-PR title/branch shape and the tag namespace
+   each package uses.
 3. CI fires on the release PR automatically (because release-please
    uses the operator-managed `RELEASE_PLEASE_TOKEN` PAT — see
    [§ One-time PAT setup](#one-time-pat-setup) below). Once
@@ -176,6 +178,47 @@ Releases are automated by
    that file and generates version sections from Conventional Commit
    subjects; a bracket-less `## Unreleased` block is never promoted to a
    version and only strands the content.
+
+#### Two-package release topology
+
+`release-please-config.json` declares **two** packages — the root
+`mandrel` package (`.`) and `create-mandrel` (the bootstrap CLI). This
+puts release-please in **multi-package manifest mode**, which has two
+operator-visible consequences:
+
+- **One combined release PR.** With `separate-pull-requests` left at its
+  default (`false`), release-please opens a **single** combined PR for
+  both packages rather than one PR per package. The combined PR uses:
+  - **Branch:** `release-please--branches--main`
+  - **Title:** `chore: release main`
+
+  This differs from the legacy single-package shape
+  (`chore(main): release X.Y.Z` on
+  `release-please--branches--main--components--mandrel`). When the
+  package set changed from one to two, the old per-component PR was
+  **orphaned** — release-please no longer manages that branch shape, so
+  it does not auto-close it. If you ever see two open
+  `autorelease: pending` PRs, the one on the per-component branch is the
+  stale orphan; close it and keep the combined `release-please--branches--main`
+  PR as the live one. There should be **exactly one** open release PR at
+  a time.
+
+- **Namespaced tags (`include-component-in-tag: true`).** Each package
+  gets a distinct tag namespace so the two version series never collide:
+  - **`mandrel` (root, `.`)** uses `component: ""`, so its tag stays the
+    bare `vX.Y.Z` form (e.g. `v1.44.0`). The empty component preserves
+    the historical `mandrel` tag series that the manifest is keyed off.
+  - **`create-mandrel`** uses `component: "create-mandrel"`, so its tag
+    is namespaced as `create-mandrel-vX.Y.Z` (e.g. `create-mandrel-v0.2.0`).
+
+  The `npm-publish` job in
+  [`release-please.yml`](.github/workflows/release-please.yml) checks out
+  the repository root and runs `npm publish` against the root `package.json`
+  — it publishes the **`mandrel` package only** and does not key off any
+  tag pattern, so the namespaced `create-mandrel-*` tag never triggers a
+  mandrel publish. `ci.yml` triggers only on branch `push` /
+  `pull_request` / `workflow_dispatch` events (it has **no** tag-driven
+  step), so neither tag series triggers CI directly.
 
 #### One-time PAT setup
 
