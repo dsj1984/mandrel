@@ -19,6 +19,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { getCommands } from '../config/commands.js';
 import {
   getLimits,
@@ -126,15 +127,28 @@ export function formatSkillCapsulesSection(entries) {
 // ---------------------------------------------------------------------------
 
 /**
- * Read the framework VERSION file.
+ * Resolve the framework version from the installed package's `package.json`.
+ *
+ * Under npm distribution `package.json` is the single source of truth for the
+ * framework version (the legacy plaintext version marker is retired). This
+ * module ships inside the `@mandrelai/agents` package at
+ * `<pkgRoot>/.agents/scripts/lib/orchestration/context-hydration-engine.js`,
+ * so the package manifest sits four directories up — the same layout in the
+ * dev repo and in the published tarball. Read that manifest's `version`.
+ *
+ * Falls back to `'unknown'` when the manifest is absent or unreadable so a
+ * missing package.json never crashes hydration.
  *
  * @returns {string}
  */
 function getVersion() {
   try {
-    return fs
-      .readFileSync(path.join(PROJECT_ROOT, '.agents', 'VERSION'), 'utf8')
-      .trim();
+    const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+    const pkgPath = path.resolve(moduleDir, '../../../..', 'package.json');
+    const parsed = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+    return typeof parsed.version === 'string' && parsed.version.trim()
+      ? parsed.version.trim()
+      : 'unknown';
   } catch {
     return 'unknown';
   }
