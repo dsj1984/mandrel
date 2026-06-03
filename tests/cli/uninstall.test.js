@@ -542,6 +542,104 @@ describe('runUninstall — heading-only and comment-only operator content (Story
 });
 
 // ---------------------------------------------------------------------------
+// Story #3542 — retain .mcp.json gitignore entry when .mcp.json exists
+// ---------------------------------------------------------------------------
+
+describe('runUninstall — .mcp.json gitignore retention (Story #3542)', () => {
+  it('retains the .mcp.json ignore entry when a real .mcp.json is present', () => {
+    // Arrange: a .gitignore with both framework blocks and a real .mcp.json.
+    fs.mkdirSync(tmpRoot, { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpRoot, '.gitignore'),
+      `node_modules/\n${GITIGNORE_BLOCKS.commands.block}${GITIGNORE_BLOCKS.mcp.block}`,
+      'utf8',
+    );
+    fs.writeFileSync(
+      path.join(tmpRoot, '.mcp.json'),
+      '{"mcpServers":{}}',
+      'utf8',
+    );
+    writeLedger(tmpRoot, {
+      entries: [{ target: '.gitignore', reversible: true }],
+    });
+
+    // Act
+    const cap = makeCapture();
+    runUninstall({ projectRoot: tmpRoot, write: cap.write, exit: cap.exit });
+
+    // Assert: commands entry removed, mcp entry kept
+    const gi = fs.readFileSync(path.join(tmpRoot, '.gitignore'), 'utf8');
+    assert.equal(
+      gi.includes('.claude/commands/'),
+      false,
+      'commands entry must be stripped',
+    );
+    assert.match(gi, /\.mcp\.json/, '.mcp.json entry must be retained');
+    assert.equal(cap.exitCode, 0);
+  });
+
+  it('reports the retention reason in the outcome detail', () => {
+    // Arrange
+    fs.mkdirSync(tmpRoot, { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpRoot, '.gitignore'),
+      `${GITIGNORE_BLOCKS.commands.block}${GITIGNORE_BLOCKS.mcp.block}`,
+      'utf8',
+    );
+    fs.writeFileSync(
+      path.join(tmpRoot, '.mcp.json'),
+      '{"mcpServers":{}}',
+      'utf8',
+    );
+    writeLedger(tmpRoot, {
+      entries: [{ target: '.gitignore', reversible: true }],
+    });
+
+    // Act
+    const cap = makeCapture();
+    runUninstall({ projectRoot: tmpRoot, write: cap.write, exit: cap.exit });
+
+    // Assert: outcome line mentions the retention
+    assert.match(
+      cap.text,
+      /\.mcp\.json/,
+      'output must mention .mcp.json retention',
+    );
+    assert.equal(cap.exitCode, 0);
+  });
+
+  it('removes the .mcp.json ignore entry when no .mcp.json exists', () => {
+    // Arrange: framework blocks present, no real .mcp.json on disk.
+    fs.mkdirSync(tmpRoot, { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpRoot, '.gitignore'),
+      `node_modules/\n${GITIGNORE_BLOCKS.commands.block}${GITIGNORE_BLOCKS.mcp.block}`,
+      'utf8',
+    );
+    writeLedger(tmpRoot, {
+      entries: [{ target: '.gitignore', reversible: true }],
+    });
+
+    // Act
+    runUninstall({ projectRoot: tmpRoot, write: () => {}, exit: () => {} });
+
+    // Assert: both framework entries removed
+    const gi = fs.readFileSync(path.join(tmpRoot, '.gitignore'), 'utf8');
+    assert.equal(
+      gi.includes('.claude/commands/'),
+      false,
+      'commands entry must be stripped',
+    );
+    assert.equal(
+      gi.includes('.mcp.json'),
+      false,
+      '.mcp.json entry must be stripped when no file exists',
+    );
+    assert.match(gi, /node_modules\//, 'operator content must survive');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // AC4 — GitHub-side state untouched unless --include-github
 // ---------------------------------------------------------------------------
 
