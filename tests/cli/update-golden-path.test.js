@@ -49,6 +49,7 @@ import { runUpdate } from '../../lib/cli/update.js';
 const CURRENT_VERSION = '1.43.0';
 const TARGET_VERSION = '1.44.0';
 const LOCKFILE = 'package-lock.json';
+const PACKAGE_JSON = 'package.json';
 
 /**
  * A faithful in-memory model of the consumer working tree across the update
@@ -66,7 +67,7 @@ const LOCKFILE = 'package-lock.json';
 function makeWorkingTree() {
   const committed = new Map([
     [LOCKFILE, `{"version":"${CURRENT_VERSION}"}`],
-    ['.agents/VERSION', CURRENT_VERSION],
+    [PACKAGE_JSON, `{"version":"${CURRENT_VERSION}"}`],
   ]);
   const workingTree = new Map(committed);
   const index = new Set();
@@ -106,9 +107,11 @@ function makeWorkingTree() {
 /**
  * Wire the full golden-path seam set against a shared working-tree fixture.
  * Each seam mutates / reads the same `tree` so the steps compose the way the
- * live cycle does: `npmUpdate` bumps + stages the lockfile, `runSync`
- * re-materializes `.agents/VERSION`, `runMigrations` is a no-op (empty
- * registry on the 1.x line), and `runDoctor` inspects the resulting tree.
+ * live cycle does: `npmUpdate` bumps + stages the lockfile and the
+ * installed `package.json` version (the framework version SSOT under npm
+ * distribution), `runSync` re-materializes the `.agents/` payload,
+ * `runMigrations` is a no-op (empty registry on the 1.x line), and
+ * `runDoctor` inspects the resulting tree.
  */
 function makeGoldenPathSeams(tree) {
   const calls = [];
@@ -121,15 +124,16 @@ function makeGoldenPathSeams(tree) {
     },
     npmUpdate: async (version) => {
       calls.push(`npm-update:${version}`);
-      // npm rewrites the lockfile on disk and stages it — but never commits.
+      // npm rewrites the lockfile + package.json on disk and stages them —
+      // but never commits. package.json is the framework version SSOT.
       tree.write(LOCKFILE, `{"version":"${version}"}`);
       tree.add(LOCKFILE);
+      tree.write(PACKAGE_JSON, `{"version":"${version}"}`);
+      tree.add(PACKAGE_JSON);
     },
     runSync: (_opts) => {
       calls.push('sync');
-      // Re-materialize the pinned VERSION marker from the new payload.
-      tree.write('.agents/VERSION', TARGET_VERSION);
-      tree.add('.agents/VERSION');
+      // Re-materialize the `.agents/` payload from the new package version.
       return { copied: 1, planned: 1, dryRun: false };
     },
     runMigrations: ({ fromVersion, toVersion }) => {
@@ -140,9 +144,11 @@ function makeGoldenPathSeams(tree) {
     runDoctor: async () => {
       calls.push('doctor');
       // Doctor reads the post-sync state the earlier steps produced and
-      // verifies it is healthy: the materialized VERSION matches the target
-      // and the lockfile bump is staged (the expected pre-commit shape).
-      const versionOk = tree.read('.agents/VERSION') === TARGET_VERSION;
+      // verifies it is healthy: the bumped package.json version matches the
+      // target and the lockfile bump is staged (the expected pre-commit
+      // shape).
+      const versionOk =
+        tree.read(PACKAGE_JSON) === `{"version":"${TARGET_VERSION}"}`;
       const lockStaged = tree.isStaged(LOCKFILE);
       return {
         ok: versionOk && lockStaged,

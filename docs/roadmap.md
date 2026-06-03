@@ -523,7 +523,7 @@ theoretical. Until then, the static lint is the supported surface.
 ## Part 2 — Product-Readiness Backlog (If/When Mandrel Is Productized)
 
 Last triaged: 2026-06-02 (distribution & onboarding slice filed — see below;
-prior triage 2026-05-30 against `.agents/VERSION` 1.40.0).
+prior triage 2026-05-30 against framework version 1.40.0).
 
 Scope: this document is the **standing backlog** of product-readiness gaps that
 Mandrel would need to close *if and when it is productized* (sold or distributed
@@ -734,7 +734,8 @@ Filed slice: the dangling `docs/upgrade-guide-3-tier.md` reference → #3386.
 
 Deferred remainder:
 
-- `release-please` manages the root package and `.agents/VERSION`; major bumps
+- `release-please` manages the root package version (`package.json` +
+  `.release-please-manifest.json`); major bumps
   are intentionally capped (`always-bump-minor`). (The former `dist` sync that
   copied `.agents/` after main merge is retired — #3436 publishes the
   `@mandrelai/agents` npm package instead.)

@@ -20,7 +20,9 @@ the [`@mandrelai/agents`](https://www.npmjs.com/package/@mandrelai/agents) npm
 package and materialized into consumer projects' `.agents/` directories by
 `mandrel sync`.
 
-- **Current Version:** See [`.agents/VERSION`](.agents/VERSION)
+- **Current Version:** the `version` field of the root
+  [`package.json`](package.json) (run `npm ls @mandrel/agents` in a
+  consumer project)
 - **License:** ISC
 
 > **Ticket hierarchy.** Mandrel ships a **3-tier ticket hierarchy**
@@ -153,8 +155,8 @@ Releases are automated by
    already enforce the commit-message contract).
 2. release-please opens a **single combined** release PR with
    auto-merge enabled (squash). Review the auto-generated entry in
-   `docs/CHANGELOG.md` and the bumps to `package.json` and
-   `.agents/VERSION` if you want; otherwise no operator action is
+   `docs/CHANGELOG.md` and the bump to `package.json` (the framework
+   version SSOT) if you want; otherwise no operator action is
    needed. See [§ Two-package release topology](#two-package-release-topology)
    below for the combined-PR title/branch shape and the tag namespace
    each package uses.
@@ -290,9 +292,10 @@ which caps automatic bumps at the minor axis even when commits carry
 
 1. Land the breaking work on `main` as usual (Conventional Commits).
 2. On the release PR that release-please opens, either:
-   - **Edit `package.json`, `.agents/VERSION`, and `docs/CHANGELOG.md`
-     in-place** on the release branch to set the major version
-     (release-please will respect the edits and tag accordingly), OR
+   - **Edit `package.json`, `.release-please-manifest.json`, and
+     `docs/CHANGELOG.md` in-place** on the release branch to set the
+     major version (release-please will respect the edits and tag
+     accordingly), OR
    - **Add a one-shot commit on `main`** with `Release-As: X.0.0` in
      the trailer — release-please will adopt that as the proposed
      version on its next run.

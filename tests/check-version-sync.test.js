@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -8,86 +8,31 @@ import { checkVersionSync } from '../scripts/check-version-sync.js';
 
 function makeFixture({
   pkgVersion = '1.2.3',
-  fileVersion = '1.2.3',
-  changelogVersion = '1.2.3',
-  changelogPrefix = '# Changelog\n\n',
+  manifestVersion = '1.2.3',
+  manifestEntries,
 } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'version-sync-'));
-  mkdirSync(join(root, '.agents'), { recursive: true });
-  mkdirSync(join(root, 'docs'), { recursive: true });
   writeFileSync(
     join(root, 'package.json'),
     JSON.stringify({ name: 'x', version: pkgVersion }),
   );
-  writeFileSync(join(root, '.agents/VERSION'), `${fileVersion}\n`);
+  const manifest = manifestEntries ?? {
+    '.': manifestVersion,
+    'create-mandrel': '0.2.0',
+  };
   writeFileSync(
-    join(root, 'docs/CHANGELOG.md'),
-    `${changelogPrefix}## [${changelogVersion}] - 2026-04-14\n\nNotes.\n`,
+    join(root, '.release-please-manifest.json'),
+    JSON.stringify(manifest),
   );
   return root;
 }
 
 test('checkVersionSync', async (t) => {
-  await t.test('passes when all three sources match', () => {
+  await t.test('passes when both sources match', () => {
     const root = makeFixture({
       pkgVersion: '5.5.1',
-      fileVersion: '5.5.1',
-      changelogVersion: '5.5.1',
+      manifestVersion: '5.5.1',
     });
-    try {
-      const result = checkVersionSync(root);
-      assert.strictEqual(result.ok, true);
-      assert.strictEqual(result.version, '5.5.1');
-    } finally {
-      rmSync(root, { recursive: true, force: true });
-    }
-  });
-
-  await t.test('fails when package.json drifts from VERSION file', () => {
-    const root = makeFixture({
-      pkgVersion: '5.5.2',
-      fileVersion: '5.5.1',
-      changelogVersion: '5.5.2',
-    });
-    try {
-      const result = checkVersionSync(root);
-      assert.strictEqual(result.ok, false);
-      assert.match(result.reason, /Version drift/);
-      assert.match(result.reason, /\.agents\/VERSION.*5\.5\.1/);
-    } finally {
-      rmSync(root, { recursive: true, force: true });
-    }
-  });
-
-  await t.test('fails when CHANGELOG latest entry lags', () => {
-    const root = makeFixture({
-      pkgVersion: '5.5.1',
-      fileVersion: '5.5.1',
-      changelogVersion: '5.5.0',
-    });
-    try {
-      const result = checkVersionSync(root);
-      assert.strictEqual(result.ok, false);
-      assert.match(result.reason, /docs\/CHANGELOG\.md.*5\.5\.0/);
-    } finally {
-      rmSync(root, { recursive: true, force: true });
-    }
-  });
-
-  await t.test('reads the FIRST ## [X.Y.Z] heading (latest entry)', () => {
-    // Real-world CHANGELOG has multiple version headings; we want the topmost one.
-    const root = mkdtempSync(join(tmpdir(), 'version-sync-'));
-    mkdirSync(join(root, '.agents'), { recursive: true });
-    mkdirSync(join(root, 'docs'), { recursive: true });
-    writeFileSync(
-      join(root, 'package.json'),
-      JSON.stringify({ version: '5.5.1' }),
-    );
-    writeFileSync(join(root, '.agents/VERSION'), '5.5.1\n');
-    writeFileSync(
-      join(root, 'docs/CHANGELOG.md'),
-      '# Changelog\n\n## [5.5.1] - 2026-04-14\n\nNew.\n\n## [5.5.0] - 2026-04-14\n\nOld.\n',
-    );
     try {
       const result = checkVersionSync(root);
       assert.strictEqual(result.ok, true);
@@ -98,53 +43,44 @@ test('checkVersionSync', async (t) => {
   });
 
   await t.test(
-    'treats a bare ## [Unreleased] anchor as a wildcard (v6 pre-cut window)',
+    'reads the root package entry ("."), ignoring sibling packages',
     () => {
-      // After Story #1605 (Epic #1184) consolidates the 5.x history out of
-      // docs/CHANGELOG.md but before the v6.0.0 cut, the live changelog
-      // carries only a `## [Unreleased]` anchor. package.json + VERSION
-      // still read 5.41.0 in that window; the gate must not trip.
-      const root = mkdtempSync(join(tmpdir(), 'version-sync-'));
-      mkdirSync(join(root, '.agents'), { recursive: true });
-      mkdirSync(join(root, 'docs'), { recursive: true });
-      writeFileSync(
-        join(root, 'package.json'),
-        JSON.stringify({ version: '5.41.0' }),
-      );
-      writeFileSync(join(root, '.agents/VERSION'), '5.41.0\n');
-      writeFileSync(
-        join(root, 'docs/CHANGELOG.md'),
-        '# Changelog\n\n## [Unreleased]\n\nv6 work in flight.\n',
-      );
+      const root = makeFixture({
+        pkgVersion: '5.5.1',
+        manifestEntries: { '.': '5.5.1', 'create-mandrel': '9.9.9' },
+      });
       try {
         const result = checkVersionSync(root);
         assert.strictEqual(result.ok, true);
-        assert.strictEqual(result.version, '5.41.0');
-        assert.strictEqual(result.sources['docs/CHANGELOG.md'], null);
+        assert.strictEqual(result.version, '5.5.1');
       } finally {
         rmSync(root, { recursive: true, force: true });
       }
     },
   );
 
-  await t.test('throws when CHANGELOG has no version heading', () => {
-    const root = mkdtempSync(join(tmpdir(), 'version-sync-'));
-    mkdirSync(join(root, '.agents'), { recursive: true });
-    mkdirSync(join(root, 'docs'), { recursive: true });
-    writeFileSync(
-      join(root, 'package.json'),
-      JSON.stringify({ version: '1.0.0' }),
-    );
-    writeFileSync(join(root, '.agents/VERSION'), '1.0.0\n');
-    writeFileSync(
-      join(root, 'docs/CHANGELOG.md'),
-      '# Changelog\n\nNo entries yet.\n',
-    );
+  await t.test('fails when package.json drifts from the manifest', () => {
+    const root = makeFixture({
+      pkgVersion: '5.5.2',
+      manifestVersion: '5.5.1',
+    });
     try {
-      assert.throws(
-        () => checkVersionSync(root),
-        /no "## \[X\.Y\.Z\]" heading/,
-      );
+      const result = checkVersionSync(root);
+      assert.strictEqual(result.ok, false);
+      assert.match(result.reason, /Version drift/);
+      assert.match(result.reason, /\.release-please-manifest\.json.*5\.5\.1/);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  await t.test('throws when the manifest has no root-package entry', () => {
+    const root = makeFixture({
+      pkgVersion: '1.0.0',
+      manifestEntries: { 'create-mandrel': '0.2.0' },
+    });
+    try {
+      assert.throws(() => checkVersionSync(root), /no "\." root-package entry/);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

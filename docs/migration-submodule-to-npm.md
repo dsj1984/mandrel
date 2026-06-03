@@ -104,8 +104,10 @@ The manual, step-by-step version of the same migration follows below.
   overwrites `./.agents/` in place from the package payload, so anything you
   customized there must be migrated into your own project layer (root
   `.agentrc.json`, project skills, etc.) first.
-- Note the framework version you are currently pinned to (read
-  `.agents/VERSION`) so you can pick a target package version deliberately.
+- Note the framework version you are currently pinned to (read the
+  `version` field of the submodule's `package.json`) so you can pick a
+  target package version deliberately. After migrating, the installed
+  version is whatever `npm ls @mandrel/agents` reports.
 - Make sure your `gh` CLI is still authenticated — orchestration scripts and
   `mandrel doctor`'s `gh-auth` check read your token exactly as before.
 
