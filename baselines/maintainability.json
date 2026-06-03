@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-03T02:15:34.546Z",
+  "generatedAt": "2026-06-03T11:19:44.773Z",
   "rollup": {
     "*": {
       "min": 45.044,
@@ -2713,10 +2713,6 @@
     {
       "path": "tests/cli/postinstall.test.js",
       "mi": 130.712
-    },
-    {
-      "path": "tests/cli/registry.test.js",
-      "mi": 109.982
     },
     {
       "path": "tests/cli/sync-commands.test.js",
