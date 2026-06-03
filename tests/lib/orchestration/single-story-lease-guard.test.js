@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { LEASE_TTL_MS_DEFAULT } from '../../../.agents/scripts/lib/config/limits.js';
 import {
   acquireStoryLease,
   releaseStoryLease,
@@ -36,8 +35,6 @@ function makeProvider(initialAssignees = []) {
 }
 
 const NOW = 1_000_000_000_000; // fixed clock
-const FRESH = NOW - 1000; // 1s ago — live
-const STALE = NOW - (LEASE_TTL_MS_DEFAULT + 1000); // older than the default TTL
 const CONFIG = { github: { operatorHandle: '@alice' } };
 
 describe('single-story-lease-guard — resolveOperator', () => {
@@ -91,7 +88,6 @@ describe('single-story-lease-guard — acquireStoryLease', () => {
       provider,
       storyId: 3483,
       config: CONFIG,
-      heartbeatAt: FRESH,
       now: NOW,
     });
 
@@ -101,7 +97,7 @@ describe('single-story-lease-guard — acquireStoryLease', () => {
   });
 
   // AC1: a live foreign claim exits non-zero and names the current owner.
-  it('throws and names the owner when a live foreign claim blocks the take', async () => {
+  it('throws and names the owner when a foreign claim blocks the take', async () => {
     const provider = makeProvider(['bob']);
 
     await assert.rejects(
@@ -109,7 +105,6 @@ describe('single-story-lease-guard — acquireStoryLease', () => {
         provider,
         storyId: 3483,
         config: CONFIG,
-        heartbeatAt: FRESH,
         now: NOW,
       }),
       (err) => {
@@ -122,37 +117,47 @@ describe('single-story-lease-guard — acquireStoryLease', () => {
     assert.deepEqual(provider.state.assignees, ['bob']);
   });
 
-  it('reclaims a stale foreign claim instead of throwing', async () => {
+  // Audit #3513 — fail-closed: the standalone path has no Epic heartbeat
+  // ledger, so a foreign assignee is treated as a live claim and BLOCKS by
+  // default (it is no longer silently reclaimed). The operator must use
+  // --steal once they have confirmed the other run is dead.
+  it('blocks a foreign claim by default (no heartbeat source → fail closed)', async () => {
+    const provider = makeProvider(['bob']);
+
+    await assert.rejects(
+      acquireStoryLease({
+        provider,
+        storyId: 3483,
+        config: CONFIG,
+        // no heartbeatAt source on the standalone path → fail closed
+        now: NOW,
+      }),
+      (err) => {
+        assert.match(err.message, /Story #3483 is currently held by @bob/);
+        assert.match(err.message, /--steal/);
+        return true;
+      },
+    );
+    // The foreign claim survives — no assignee write happened.
+    assert.equal(provider.updateCalls.length, 0);
+    assert.deepEqual(provider.state.assignees, ['bob']);
+  });
+
+  it('forcibly transfers a foreign claim with steal:true', async () => {
     const provider = makeProvider(['bob']);
 
     const result = await acquireStoryLease({
       provider,
       storyId: 3483,
       config: CONFIG,
-      heartbeatAt: STALE,
+      steal: true,
       now: NOW,
     });
 
     assert.equal(result.acquired, true);
     assert.equal(result.owner, 'alice');
     assert.equal(result.previousOwner, 'bob');
-    assert.equal(result.reason, 'reclaimed');
-    assert.deepEqual(provider.state.assignees, ['alice']);
-  });
-
-  it('reclaims a foreign claim that never emitted a heartbeat', async () => {
-    const provider = makeProvider(['bob']);
-
-    const result = await acquireStoryLease({
-      provider,
-      storyId: 3483,
-      config: CONFIG,
-      // no heartbeatAt — treated as stale/reclaimable
-      now: NOW,
-    });
-
-    assert.equal(result.acquired, true);
-    assert.equal(result.reason, 'reclaimed');
+    assert.equal(result.reason, 'stolen');
     assert.deepEqual(provider.state.assignees, ['alice']);
   });
 

@@ -39,7 +39,94 @@
  * `Date.now()`.
  */
 
+import { readFileSync } from 'node:fs';
+
 import { resolveLeaseTtlMs } from '../config/limits.js';
+import { epicLedgerPath } from '../config/temp-paths.js';
+import { parseLedger } from './lifecycle/trace-logger.js';
+
+/**
+ * Normalise an operator handle into the bare login GitHub writes to (and
+ * returns from) a ticket's `assignees`. Trims surrounding whitespace and
+ * strips a single leading `@` so an `@`-prefixed `operatorHandle` matches a
+ * bare assignee login (otherwise the assignee PATCH is rejected HTTP 422 and
+ * the self-held-claim comparison `owner === operator` never matches).
+ *
+ * Returns `null` for a non-string, empty, or whitespace-only handle so each
+ * caller can apply its own absent-handling (degrade to a no-op, or throw).
+ *
+ * @param {unknown} raw
+ * @returns {string|null}
+ */
+export function normalizeOperatorHandle(raw) {
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim().replace(/^@/, '');
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+/**
+ * Read the most-recent `story.heartbeat` epoch-ms recorded for a given lease
+ * owner from an Epic lifecycle ledger. Returns `null` when the ledger is
+ * absent, unreadable, or carries no heartbeat for that owner — which the lease
+ * primitive treats as a stale (reclaimable) claim.
+ *
+ * The ledger is NDJSON; each `story.heartbeat` record carries
+ * `payload.operator` (Story #3480) and `payload.timestamp` (ISO-8601). A
+ * malformed ledger downgrades to `null` rather than throwing so a corrupt
+ * observability artifact never wedges the lease preflight.
+ *
+ * This is the shared liveness source the lease guards thread into
+ * `acquireLease` via `heartbeatAt`; `/epic-plan` and `/epic-deliver` both
+ * reuse it so a live foreign claim actually refuses.
+ *
+ * @param {object} args
+ * @param {number} args.epicId
+ * @param {string} args.owner            Lease owner whose heartbeat to find.
+ * @param {object} [args.config]         Resolved config (for ledger path).
+ * @param {string} [args.ledgerPath]     Explicit path override (tests).
+ * @param {(eid: number, config?: object) => string} [args.ledgerPathResolver]
+ *        Injectable resolver (tests). Defaults to `epicLedgerPath`.
+ * @param {(p: string) => string} [args.readFile]  Injectable reader (tests).
+ * @returns {number|null}
+ */
+export function latestHeartbeatForOwner({
+  epicId,
+  owner,
+  config,
+  ledgerPath,
+  ledgerPathResolver = epicLedgerPath,
+  readFile = (p) => readFileSync(p, 'utf8'),
+}) {
+  if (typeof owner !== 'string' || owner.length === 0) return null;
+  const resolvedPath = ledgerPath ?? ledgerPathResolver(epicId, config);
+
+  let text;
+  try {
+    text = readFile(resolvedPath);
+  } catch (_err) {
+    // No ledger yet (fresh Epic) → no heartbeat → reclaimable.
+    return null;
+  }
+
+  let records;
+  try {
+    records = parseLedger(text);
+  } catch (_err) {
+    // Corrupt ledger is an observability problem, not a coordination blocker.
+    return null;
+  }
+
+  let latest = null;
+  for (const record of records) {
+    const payload = record?.payload;
+    if (!payload || payload.event !== 'story.heartbeat') continue;
+    if (payload.operator !== owner) continue;
+    const ts = Date.parse(payload.timestamp ?? '');
+    if (!Number.isFinite(ts)) continue;
+    if (latest === null || ts > latest) latest = ts;
+  }
+  return latest;
+}
 
 /**
  * Decide whether a foreign claim is still "live" given the owner's last
@@ -68,7 +155,7 @@ export function isClaimLive({ heartbeatAt, ttlMs, now }) {
  * @param {string[]|undefined|null} assignees
  * @returns {string|null}
  */
-function currentOwner(assignees) {
+export function currentOwner(assignees) {
   if (!Array.isArray(assignees) || assignees.length === 0) return null;
   return assignees[0];
 }

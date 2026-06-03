@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import { runEpicDeliverPrepare } from '../../../.agents/scripts/epic-deliver-prepare.js';
 import { LEASE_TTL_MS_DEFAULT } from '../../../.agents/scripts/lib/config/limits.js';
@@ -312,6 +315,103 @@ describe('runEpicDeliverPrepare — lease/checkout preflight', () => {
         }),
       /not the expected/,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// runEpicDeliverPrepare — production liveness wiring (audit #3513).
+// Proves the /epic-deliver path REFUSES a live foreign claim WITHOUT injecting
+// heartbeatAt directly: a fresh story.heartbeat for the foreign owner is seeded
+// into a tmpdir Epic ledger and the prepare resolves it via the shared
+// latestHeartbeatForOwner. Before the fix this was inert — heartbeatAt
+// defaulted to null, every foreign claim looked stale, and the refusal was
+// unreachable.
+// ---------------------------------------------------------------------------
+
+describe('runEpicDeliverPrepare — heartbeat liveness wiring (#3513)', () => {
+  let tempRoot;
+
+  beforeEach(() => {
+    tempRoot = mkdtempSync(path.join(tmpdir(), 'epic-deliver-hb-'));
+  });
+  afterEach(() => {
+    tempRoot = null;
+  });
+
+  /** Config whose tempRoot points at the per-test tmpdir ledger location. */
+  function configWithTempRoot() {
+    return {
+      github: { owner: 'o', repo: 'r', operatorHandle: 'alice' },
+      project: { baseBranch: 'main', paths: { tempRoot } },
+      orchestration: {
+        runners: { deliverRunner: { enabled: true, concurrencyCap: 3 } },
+      },
+    };
+  }
+
+  /** Seed a story.heartbeat for `owner` at `tsMs` into the Epic ledger. */
+  function seedHeartbeat({ epicId, owner, tsMs }) {
+    const dir = path.join(tempRoot, `epic-${epicId}`);
+    mkdirSync(dir, { recursive: true });
+    const timestamp = new Date(tsMs).toISOString();
+    const record = {
+      kind: 'emitted',
+      ts: timestamp,
+      event: 'story.heartbeat',
+      payload: { event: 'story.heartbeat', timestamp, operator: owner },
+    };
+    writeFileSync(
+      path.join(dir, 'lifecycle.ndjson'),
+      `${JSON.stringify(record)}\n`,
+    );
+  }
+
+  it('refuses a live foreign claim resolved from the Epic ledger (no injected heartbeat)', async () => {
+    const provider = makeProvider(['bob']);
+    // Foreign owner bob has a FRESH heartbeat in the ledger → live → refuse.
+    seedHeartbeat({ epicId: EPIC_ID, owner: 'bob', tsMs: FRESH });
+
+    await assert.rejects(
+      () =>
+        runEpicDeliverPrepare({
+          epicId: EPIC_ID,
+          injectedProvider: provider,
+          injectedConfig: configWithTempRoot(),
+          injectedGit: makeGit({ branch: EPIC_BRANCH }),
+          // NB: leaseHeartbeatAt is NOT passed — liveness comes from the ledger.
+          leaseNow: NOW,
+        }),
+      (err) => {
+        assert.match(err.message, /already claimed by 'bob'/);
+        return true;
+      },
+    );
+    // Fail closed: no assignee write, never reached snapshot/checkpoint.
+    assert.equal(provider.updateCalls.length, 0);
+  });
+
+  it('reclaims a foreign claim whose ledger heartbeat is stale', async () => {
+    const provider = makeProvider(['bob']);
+    // bob's heartbeat is older than the TTL → stale → reclaimable.
+    seedHeartbeat({ epicId: EPIC_ID, owner: 'bob', tsMs: STALE });
+
+    // The prepare proceeds past the lease step; it later reads the preflight
+    // cache / snapshot which our in-memory provider does not fully model, so
+    // we only assert the lease was acquired (assignees flipped to alice).
+    await assert.rejects(
+      () =>
+        runEpicDeliverPrepare({
+          epicId: EPIC_ID,
+          injectedProvider: provider,
+          injectedConfig: configWithTempRoot(),
+          injectedGit: makeGit({ branch: EPIC_BRANCH }),
+          leaseNow: NOW,
+        }),
+      // Past the lease, the bare in-memory provider lacks the snapshot surface,
+      // so prepare throws downstream — but the lease was reclaimed first.
+      () => true,
+    );
+    assert.deepEqual(provider.state.assignees, ['alice']);
   });
 });
 

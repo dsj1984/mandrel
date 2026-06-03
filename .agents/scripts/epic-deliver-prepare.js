@@ -53,6 +53,10 @@ import {
   computeBaseSha,
   readPreflightCache,
 } from './lib/orchestration/preflight-cache.js';
+import {
+  latestHeartbeatForOwner,
+  currentOwner as leaseCurrentOwner,
+} from './lib/orchestration/ticket-lease.js';
 import { createProvider } from './lib/provider-factory.js';
 
 const HELP = `Usage: node .agents/scripts/epic-deliver-prepare.js --epic <epicId> [--ignore-concurrency-hazards] [--steal] [--as <handle>]
@@ -145,7 +149,7 @@ export async function runEpicDeliverPrepare({
   steal = false,
   asOperator,
   injectedGit,
-  leaseHeartbeatAt = null,
+  leaseHeartbeatAt,
   leaseNow,
   skipPreflightGuards = false,
 } = {}) {
@@ -186,13 +190,33 @@ export async function runEpicDeliverPrepare({
         config,
         gitUserEmail: injectedGit ? undefined : resolveGitUserEmail(guardCwd),
       }) ?? null;
+
+    // Liveness seam: a foreign claim is only "live" (and so refuses) when the
+    // claim *owner* has a recent `story.heartbeat`. Without this the lease
+    // guard is inert — `heartbeatAt` defaults to null, `isClaimLive(null)` is
+    // false, and every foreign claim looks stale and gets silently reclaimed
+    // (audit #3513). Read the Epic's current assignee (the claim owner) and
+    // resolve that owner's latest heartbeat from the Epic lifecycle ledger
+    // (`temp/epic-<id>/lifecycle.ndjson`) via the shared resolver, so a LIVE
+    // foreign claim actually refuses and only a genuinely stale/absent one is
+    // reclaimed. Tests may inject `leaseHeartbeatAt` directly (any value,
+    // including null) to bypass the ledger read; the CLI passes nothing.
+    let heartbeatAt = leaseHeartbeatAt;
+    if (heartbeatAt === undefined) {
+      const epicTicket = await provider.getTicket(epicId);
+      const claimOwner = leaseCurrentOwner(epicTicket?.assignees);
+      heartbeatAt = claimOwner
+        ? latestHeartbeatForOwner({ epicId, owner: claimOwner, config })
+        : null;
+    }
+
     await runPrepareGuards({
       epicId,
       expectedBranch,
       git,
       provider,
       operator,
-      heartbeatAt: leaseHeartbeatAt,
+      heartbeatAt,
       steal,
       config,
       now: leaseNow,

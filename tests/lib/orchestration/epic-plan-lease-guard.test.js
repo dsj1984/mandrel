@@ -101,6 +101,16 @@ describe('epic-plan-lease-guard — resolveOperator', () => {
     assert.equal(resolveOperator(CONFIG), OPERATOR);
   });
 
+  it('strips a leading @ so the value matches the bare assignee login', () => {
+    // GitHub rejects an `@`-prefixed assignee (HTTP 422) and the
+    // self-held-claim comparison `owner === operator` would never match a
+    // bare login from `assignees`. Mirror the sibling lease guards.
+    assert.equal(
+      resolveOperator({ github: { operatorHandle: '@alice' } }),
+      'alice',
+    );
+  });
+
   it('returns null when github.operatorHandle is unset', () => {
     assert.equal(resolveOperator({ github: {} }), null);
   });
@@ -261,6 +271,31 @@ describe('epic-plan-lease-guard — acquireEpicPlanLease', () => {
     assert.equal(result.acquired, true);
     assert.equal(result.reason, 'already-held');
     assert.equal(provider.updateCalls.length, 0);
+  });
+
+  // Audit #3513 — the '@'-strip bug: when operatorHandle carries a leading
+  // '@' but the assignee is the bare login, the self-held lease must still
+  // match (owner === operator) and re-affirm without re-writing — not refuse
+  // or reclaim its own claim.
+  it('recognizes a self-held lease when operatorHandle has a leading @', async () => {
+    // Assignee is the BARE login; operatorHandle carries the '@' prefix.
+    const provider = makeProvider({ assignees: [OPERATOR] });
+    const ledgerPath = writeLedger([
+      heartbeatRecord({ operator: OPERATOR, timestamp: FRESH_TS }),
+    ]);
+
+    const result = await acquireEpicPlanLease({
+      provider,
+      epicId: 9,
+      config: { github: { operatorHandle: `@${OPERATOR}` } },
+      now: NOW,
+      ledgerPath,
+    });
+
+    assert.equal(result.acquired, true);
+    assert.equal(result.reason, 'already-held');
+    assert.equal(provider.updateCalls.length, 0);
+    assert.deepEqual(provider.state.assignees, [OPERATOR]);
   });
 });
 

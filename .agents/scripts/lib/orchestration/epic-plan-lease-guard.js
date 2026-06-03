@@ -27,14 +27,20 @@
  * cross-run mutual exclusion and the child-duplication refusal around it.
  */
 
-import { readFileSync } from 'node:fs';
-
 import { getGitHub } from '../config/github.js';
-import { epicLedgerPath } from '../config/temp-paths.js';
 import { Logger } from '../Logger.js';
 import { TYPE_LABELS } from '../label-constants.js';
-import { parseLedger } from './lifecycle/trace-logger.js';
-import { acquireLease, releaseLease } from './ticket-lease.js';
+import {
+  acquireLease,
+  latestHeartbeatForOwner,
+  normalizeOperatorHandle,
+  releaseLease,
+} from './ticket-lease.js';
+
+// Re-exported for callers/tests that import the heartbeat resolver from this
+// guard's historical location. The implementation now lives in
+// `ticket-lease.js` so `/epic-deliver` and `/story-deliver` can share it.
+export { latestHeartbeatForOwner };
 
 /**
  * Resolve the operator handle that owns this `/epic-plan` run from
@@ -43,75 +49,18 @@ import { acquireLease, releaseLease } from './ticket-lease.js';
  * be keyed, so this returns `null` and the preflight degrades to a no-op rather
  * than wedging every plan run in a repo that has not set the handle.
  *
+ * The `@`-prefix some operators carry on `operatorHandle` is stripped so the
+ * value matches the bare login GitHub writes to (and returns from) a ticket's
+ * `assignees` — otherwise the assignee PATCH is rejected (HTTP 422, invalid
+ * assignee) and the self-held-claim comparison (`owner === operator`) never
+ * matches. This mirrors the sibling lease guards
+ * (`single-story-lease-guard.js`, `epic-deliver-lease-guard.js`).
+ *
  * @param {object} config Resolved config bag.
  * @returns {string|null}
  */
 export function resolveOperator(config) {
-  const handle = getGitHub(config).operatorHandle;
-  if (typeof handle !== 'string' || handle.trim() === '') {
-    return null;
-  }
-  return handle.trim();
-}
-
-/**
- * Read the most-recent `story.heartbeat` epoch-ms recorded for a given lease
- * owner from the Epic lifecycle ledger. Returns `null` when the ledger is
- * absent, unreadable, or carries no heartbeat for that owner — which the lease
- * primitive treats as a stale (reclaimable) claim.
- *
- * The ledger is NDJSON; each `story.heartbeat` record carries
- * `payload.operator` (Story #3480) and `payload.timestamp` (ISO-8601). A
- * malformed ledger downgrades to `null` rather than throwing so a corrupt
- * observability artifact never wedges the planning preflight.
- *
- * @param {object} args
- * @param {number} args.epicId
- * @param {string} args.owner            Lease owner whose heartbeat to find.
- * @param {object} [args.config]         Resolved config (for ledger path).
- * @param {string} [args.ledgerPath]     Explicit path override (tests).
- * @param {(eid: number, config?: object) => string} [args.ledgerPathResolver]
- *        Injectable resolver (tests). Defaults to `epicLedgerPath`.
- * @param {(p: string) => string} [args.readFile]  Injectable reader (tests).
- * @returns {number|null}
- */
-export function latestHeartbeatForOwner({
-  epicId,
-  owner,
-  config,
-  ledgerPath,
-  ledgerPathResolver = epicLedgerPath,
-  readFile = (p) => readFileSync(p, 'utf8'),
-}) {
-  if (typeof owner !== 'string' || owner.length === 0) return null;
-  const resolvedPath = ledgerPath ?? ledgerPathResolver(epicId, config);
-
-  let text;
-  try {
-    text = readFile(resolvedPath);
-  } catch (_err) {
-    // No ledger yet (fresh Epic) → no heartbeat → reclaimable.
-    return null;
-  }
-
-  let records;
-  try {
-    records = parseLedger(text);
-  } catch (_err) {
-    // Corrupt ledger is an observability problem, not a planning blocker.
-    return null;
-  }
-
-  let latest = null;
-  for (const record of records) {
-    const payload = record?.payload;
-    if (!payload || payload.event !== 'story.heartbeat') continue;
-    if (payload.operator !== owner) continue;
-    const ts = Date.parse(payload.timestamp ?? '');
-    if (!Number.isFinite(ts)) continue;
-    if (latest === null || ts > latest) latest = ts;
-  }
-  return latest;
+  return normalizeOperatorHandle(getGitHub(config).operatorHandle);
 }
 
 /**

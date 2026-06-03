@@ -57,6 +57,9 @@ Run from the **main checkout** (the worktree does not exist yet):
 node .agents/scripts/single-story-init.js --story <storyId>
 ```
 
+Flags: `--dry-run` (no git/ticket mutation), `--steal` (forcibly transfer a
+foreign Story lease to this operator — see the fail-closed lease note below).
+
 > **Execution mode.** Like `story-init.js`, this command can take 3–6
 > minutes when the worktree's per-tree install runs. Invoke synchronously
 > with `Bash(timeout: 600000)`. Do **not** use `run_in_background` +
@@ -76,14 +79,20 @@ the Story to `agent::executing`.
 > `github.operatorHandle`). The standalone path has no Epic-scoped dispatch
 > manifest to serialise two operators driving the same Story, so this lease
 > is the only guard against a concurrent `single-story-init` clobbering an
-> in-flight run. Outcomes:
+> in-flight run.
 >
-> - **Unclaimed / self-held / stale-foreign** → init proceeds (a stale
->   foreign claim — one whose owner's last `story.heartbeat` is older than
->   the lease TTL, or who never emitted one — is reclaimed automatically).
-> - **Live foreign claim** → init **exits non-zero** with a message naming
->   the current owner. Coordinate with that operator or wait for the claim
->   to go stale before re-running.
+> **Fail-closed (audit #3513).** Unlike `/epic-deliver`, the standalone path
+> has **no Epic-scoped lifecycle ledger** to read a per-owner
+> `story.heartbeat` from, so there is no live-heartbeat source to decide
+> whether a foreign claim is stale. Rather than silently reclaim every
+> foreign assignee (which would leave the guard inert), the standalone lease
+> **fails closed**: a foreign assignee is treated as a *live* claim. Outcomes:
+>
+> - **Unclaimed / self-held** → init proceeds (a self-held claim is
+>   re-affirmed without re-writing assignees).
+> - **Any foreign assignee** → init **exits non-zero** with a message naming
+>   the current owner. Coordinate with that operator, or pass **`--steal`** to
+>   forcibly transfer the claim once you have confirmed the other run is dead.
 >
 > `--dry-run` skips the lease (no assignee mutation). The matching release
 > runs in `single-story-close.js` (Step 3).

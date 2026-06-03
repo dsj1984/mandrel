@@ -101,6 +101,52 @@ describe('parse() — meta block recovery', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Malformed / non-object meta block degrades to defaults (never throws).
+// The meta block is an optional machine-written convenience; a corrupt comment
+// must not corrupt an otherwise-valid Story body.
+// ---------------------------------------------------------------------------
+
+describe('parse() — malformed / non-object meta block degrades safely', () => {
+  /**
+   * Serialize a valid body, then splice a raw (possibly malformed) meta
+   * comment in place of the canonical one so the corrupt block is exercised
+   * against an otherwise round-trippable body.
+   */
+  function bodyWithRawMeta(rawMeta) {
+    const base = serialize({
+      ...BODY_WITH_META,
+      sizingProfile: null,
+      estimated_test_files: null,
+    });
+    return `${base}\n\n<!-- meta: ${rawMeta} -->`;
+  }
+
+  it('degrades a malformed (non-JSON) meta block to null defaults without throwing', () => {
+    // Brace-delimited so META_BLOCK_RE matches and the JSON.parse catch fires.
+    const md = bodyWithRawMeta('{not valid json: ,}');
+    let result;
+    assert.doesNotThrow(() => {
+      result = parse(md);
+    });
+    assert.equal(result.body.sizingProfile, null);
+    assert.equal(result.body.estimated_test_files, null);
+    // The body itself still parses — Goal survived the corrupt meta comment.
+    assert.equal(result.body.goal, BODY_WITH_META.goal);
+  });
+
+  it('degrades a non-object meta payload (array / scalar) to null defaults', () => {
+    for (const raw of ['[1,2,3]', '42', '"a string"', 'null']) {
+      let result;
+      assert.doesNotThrow(() => {
+        result = parse(bodyWithRawMeta(raw));
+      }, `expected no throw for meta payload ${raw}`);
+      assert.equal(result.body.sizingProfile, null);
+      assert.equal(result.body.estimated_test_files, null);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // References section must not swallow the meta block
 // ---------------------------------------------------------------------------
 

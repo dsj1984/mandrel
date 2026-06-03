@@ -256,10 +256,12 @@ export async function runSingleStoryInit({
   injectedConfig,
   injectedSweep,
   // Story #3483: lets tests drive the lease preflight deterministically.
-  // `injectedAcquireLease` swaps the guard; `leaseHeartbeatAt` / `leaseNow`
-  // thread the owner's last-heartbeat + clock into the live-claim decision.
+  // `injectedAcquireLease` swaps the guard; `leaseNow` injects the clock the
+  // fail-closed liveness check evaluates against (audit #3513). `steal`
+  // forcibly transfers a foreign claim — the standalone path has no Epic
+  // heartbeat ledger, so a foreign assignee blocks unless stolen.
   injectedAcquireLease,
-  leaseHeartbeatAt = null,
+  steal = false,
   leaseNow,
 } = {}) {
   const parsed =
@@ -272,6 +274,12 @@ export async function runSingleStoryInit({
       : parseSprintArgs();
   const { storyId, dryRun } = parsed;
   const cwd = path.resolve(cwdParam ?? parsed.cwd ?? PROJECT_ROOT);
+  // `--steal` is not part of the shared parseSprintArgs surface; read it from
+  // argv on the CLI path (the explicit `steal` param wins for programmatic /
+  // test callers). The standalone lease fails closed on a foreign assignee
+  // (audit #3513), so `--steal` is the operator's forcible-transfer override.
+  const stealRequested =
+    steal || (storyIdParam === undefined && process.argv.includes('--steal'));
 
   if (!storyId) {
     throw new Error(
@@ -306,18 +314,18 @@ export async function runSingleStoryInit({
 
   // Story #3483 — lease preflight. Take an exclusive, time-bounded claim on
   // the Story ticket before any git mutation so two concurrent standalone
-  // runs cannot both drive the same Story. A live foreign claim throws here
-  // (naming the current owner) and aborts init; unclaimed / self-held /
-  // stale-foreign claims proceed. Skipped under --dry-run (no assignee
-  // mutation) and when worktree isolation is the only seam — the lease rides
-  // the ticket, not the worktree.
+  // runs cannot both drive the same Story. The standalone path has no Epic
+  // heartbeat ledger, so the guard fails closed (audit #3513): a foreign
+  // assignee is treated as a live claim and aborts init (naming the current
+  // owner) unless --steal forcibly transfers it. Unclaimed / self-held claims
+  // proceed. Skipped under --dry-run (no assignee mutation).
   if (!dryRun) {
     const acquire = injectedAcquireLease ?? acquireStoryLease;
     const lease = await acquire({
       provider,
       storyId,
       config,
-      heartbeatAt: leaseHeartbeatAt,
+      steal: stealRequested,
       now: leaseNow,
     });
     progress(

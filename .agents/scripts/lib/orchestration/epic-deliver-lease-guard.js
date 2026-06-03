@@ -29,7 +29,7 @@
  * `process.exit(1)` by the `runAsCli` boundary), never `Logger.fatal`.
  */
 
-import { acquireLease, describeLease } from './ticket-lease.js';
+import { acquireLease, normalizeOperatorHandle } from './ticket-lease.js';
 
 /**
  * Resolve the acquiring operator's identity. Precedence (Tech Spec #3476):
@@ -50,10 +50,8 @@ import { acquireLease, describeLease } from './ticket-lease.js';
 export function resolveOperator({ asFlag, config, gitUserEmail } = {}) {
   const candidates = [asFlag, config?.github?.operatorHandle, gitUserEmail];
   for (const raw of candidates) {
-    if (typeof raw === 'string') {
-      const trimmed = raw.trim().replace(/^@/, '');
-      if (trimmed.length > 0) return trimmed;
-    }
+    const normalized = normalizeOperatorHandle(raw);
+    if (normalized !== null) return normalized;
   }
   return null;
 }
@@ -302,5 +300,3 @@ export async function runPrepareGuards({
   }
   return { checkout, lease };
 }
-
-export { describeLease };

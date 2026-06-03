@@ -1,10 +1,16 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { afterEach, beforeEach, describe, it } from 'node:test';
 import { LEASE_TTL_MS_DEFAULT } from '../../../.agents/scripts/lib/config/limits.js';
 import {
   acquireLease,
+  currentOwner,
   describeLease,
   isClaimLive,
+  latestHeartbeatForOwner,
+  normalizeOperatorHandle,
   releaseLease,
 } from '../../../.agents/scripts/lib/orchestration/ticket-lease.js';
 
@@ -38,6 +44,91 @@ function makeProvider(initialAssignees = []) {
 const NOW = 1_000_000_000_000; // fixed clock
 const FRESH = NOW - 1000; // 1s ago — live
 const STALE = NOW - (LEASE_TTL_MS_DEFAULT + 1000); // older than TTL — stale
+
+describe('ticket-lease — normalizeOperatorHandle', () => {
+  it('strips a single leading @ and trims whitespace', () => {
+    assert.equal(normalizeOperatorHandle('@alice'), 'alice');
+    assert.equal(normalizeOperatorHandle('  @bob '), 'bob');
+    assert.equal(normalizeOperatorHandle('carol'), 'carol');
+  });
+
+  it('returns null for empty / whitespace / non-string input', () => {
+    assert.equal(normalizeOperatorHandle(''), null);
+    assert.equal(normalizeOperatorHandle('   '), null);
+    assert.equal(normalizeOperatorHandle('@'), null);
+    assert.equal(normalizeOperatorHandle(undefined), null);
+    assert.equal(normalizeOperatorHandle(null), null);
+    assert.equal(normalizeOperatorHandle(42), null);
+  });
+});
+
+describe('ticket-lease — currentOwner', () => {
+  it('returns the first assignee or null for an empty/absent list', () => {
+    assert.equal(currentOwner(['bob', 'carol']), 'bob');
+    assert.equal(currentOwner([]), null);
+    assert.equal(currentOwner(undefined), null);
+    assert.equal(currentOwner(null), null);
+  });
+});
+
+describe('ticket-lease — latestHeartbeatForOwner', () => {
+  let ledgerDir;
+  beforeEach(() => {
+    ledgerDir = mkdtempSync(path.join(tmpdir(), 'ticket-lease-hb-'));
+  });
+  afterEach(() => {
+    ledgerDir = null;
+  });
+
+  function writeLedger(records) {
+    const p = path.join(ledgerDir, 'lifecycle.ndjson');
+    writeFileSync(p, `${records.map((r) => JSON.stringify(r)).join('\n')}\n`);
+    return p;
+  }
+
+  function heartbeat(operator, timestamp) {
+    return {
+      kind: 'emitted',
+      ts: timestamp,
+      event: 'story.heartbeat',
+      payload: { event: 'story.heartbeat', timestamp, operator },
+    };
+  }
+
+  it('returns the most recent heartbeat epoch-ms for the owner', () => {
+    const older = new Date(NOW - 5000).toISOString();
+    const newer = new Date(NOW - 1000).toISOString();
+    const ledgerPath = writeLedger([
+      heartbeat('bob', older),
+      heartbeat('bob', newer),
+      heartbeat('alice', new Date(NOW - 100).toISOString()),
+    ]);
+    assert.equal(
+      latestHeartbeatForOwner({ epicId: 9, owner: 'bob', ledgerPath }),
+      Date.parse(newer),
+    );
+  });
+
+  it('returns null for an absent ledger', () => {
+    assert.equal(
+      latestHeartbeatForOwner({
+        epicId: 9,
+        owner: 'bob',
+        ledgerPath: path.join(ledgerDir, 'missing.ndjson'),
+      }),
+      null,
+    );
+  });
+
+  it('downgrades a corrupt ledger to null instead of throwing', () => {
+    const p = path.join(ledgerDir, 'lifecycle.ndjson');
+    writeFileSync(p, '{not json\n');
+    assert.equal(
+      latestHeartbeatForOwner({ epicId: 9, owner: 'bob', ledgerPath: p }),
+      null,
+    );
+  });
+});
 
 describe('ticket-lease — isClaimLive', () => {
   it('treats a heartbeat within the TTL as live', () => {
