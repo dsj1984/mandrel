@@ -12,12 +12,6 @@
       "component": "",
       "changelog-path": "docs/CHANGELOG.md",
       "versioning": "always-bump-minor",
-      "extra-files": [
-        {
-          "type": "generic",
-          "path": ".agents/VERSION"
-        }
-      ],
       "changelog-sections": [
         { "type": "feat", "section": "Added" },
         { "type": "fix", "section": "Fixed" },
