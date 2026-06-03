@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-03T00:08:39.631Z",
+  "generatedAt": "2026-06-03T00:33:46.428Z",
   "rollup": {
     "*": {
-      "min": 61.218,
-      "p50": 103.888,
+      "min": 66.537,
+      "p50": 103.904,
       "p95": 121.809
     }
   },
@@ -105,10 +105,6 @@
     {
       "path": ".agents/scripts/epic-deliver-preflight.js",
       "mi": 81.789
-    },
-    {
-      "path": ".agents/scripts/epic-deliver-prepare.js",
-      "mi": 85.139
     },
     {
       "path": ".agents/scripts/epic-deliver-reconcile.js",
@@ -1767,10 +1763,6 @@
       "mi": 112.285
     },
     {
-      "path": ".agents/scripts/lib/story-init/branch-initializer.js",
-      "mi": 96.842
-    },
-    {
       "path": ".agents/scripts/lib/story-init/context-resolver.js",
       "mi": 90.144
     },
@@ -2115,14 +2107,6 @@
       "mi": 93.522
     },
     {
-      "path": ".agents/scripts/single-story-close.js",
-      "mi": 61.218
-    },
-    {
-      "path": ".agents/scripts/single-story-init.js",
-      "mi": 91.072
-    },
-    {
       "path": ".agents/scripts/single-story-plan.js",
       "mi": 86.713
     },
@@ -2137,10 +2121,6 @@
     {
       "path": ".agents/scripts/story-deliver-prepare.js",
       "mi": 88.71
-    },
-    {
-      "path": ".agents/scripts/story-init.js",
-      "mi": 83.361
     },
     {
       "path": ".agents/scripts/story-phase.js",
