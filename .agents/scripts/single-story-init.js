@@ -51,6 +51,7 @@ import {
 import {
   branchExistsLocally,
   branchExistsRemotely,
+  classifyBranchSeed,
 } from './lib/git-branch-lifecycle.js';
 import {
   getStoryBranch,
@@ -157,6 +158,12 @@ export function assertDeliverableStory(story, storyId) {
  * exported for testing (Story #3483 AC3: an existing `story-<id>` branch must
  * be **reused**, never re-created — re-creating throws `branch already exists`).
  *
+ * Delegates the (local, remote) decision to the shared `classifyBranchSeed`
+ * classifier (Story #3513) so this path and the Epic-attached
+ * `branch-initializer.js#planStoryBranchSeed` share one decision tree. The
+ * shared classifier returns `'local'` for the local-present case; this path
+ * names that outcome `'reuse'`.
+ *
  * @param {{ localHas: boolean, remoteHas: boolean }} presence
  * @returns {'reuse'|'fetch'|'create'}
  *   - `reuse`  — a local ref already exists; the caller must not run
@@ -165,9 +172,8 @@ export function assertDeliverableStory(story, storyId) {
  *   - `create` — neither exists; branch from baseBranch.
  */
 export function decideStoryBranchSeed({ localHas, remoteHas }) {
-  if (localHas) return 'reuse';
-  if (remoteHas) return 'fetch';
-  return 'create';
+  const action = classifyBranchSeed({ localHas, remoteHas });
+  return action === 'local' ? 'reuse' : action;
 }
 
 /**

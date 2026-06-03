@@ -56,6 +56,35 @@ export function branchExistsRemotely(branch, cwd) {
 }
 
 /**
+ * Pure: classify how a `story-<id>` branch should be seeded from the (local,
+ * remote) ref-presence matrix. This is the single source of truth shared by
+ * both story-init paths (Story #3513):
+ *   - `single-story-init.js#decideStoryBranchSeed` (standalone path)
+ *   - `story-init/branch-initializer.js#planStoryBranchSeed` (Epic path)
+ *
+ * Both call sites previously re-implemented the same `local → no-op, remote →
+ * fetch, else create` decision tree; they now delegate here so the branching
+ * logic lives in exactly one place. The two callers keep their own keyword for
+ * the "local ref already exists" outcome (`reuse` vs `none`) — synonyms for
+ * "do not re-create / do not re-seed" preserved for their existing public/test
+ * contracts — so this classifier returns the neutral `'local'` keyword and
+ * each caller maps it onto its own vocabulary.
+ *
+ * @param {{ localHas: boolean, remoteHas: boolean }} presence
+ * @returns {'local'|'fetch'|'create'}
+ *   - `local`  — a local ref already exists; the caller must not run
+ *                `git branch` (which throws on the existing ref) and must not
+ *                fetch.
+ *   - `fetch`  — only the remote ref exists; materialise the local ref.
+ *   - `create` — neither exists; branch from the base/Epic branch.
+ */
+export function classifyBranchSeed({ localHas, remoteHas }) {
+  if (localHas) return 'local';
+  if (remoteHas) return 'fetch';
+  return 'create';
+}
+
+/**
  * Ensure an Epic branch exists and is published to `origin`. Handles all
  * four states of the (local, remote) matrix.
  *
