@@ -429,6 +429,119 @@ describe('runUninstall — preserves pre-existing content (AC3)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Story #3541 — heading-only / comment-only operator content is preserved
+// ---------------------------------------------------------------------------
+
+describe('runUninstall — heading-only and comment-only operator content (Story #3541)', () => {
+  it('preserves a CLAUDE.md whose only non-framework content is markdown headings', () => {
+    // Operator wrote a CLAUDE.md that is nothing but headings before install.
+    // The install appended SYSTEM_PROMPT_BLOCK — uninstall must strip the block
+    // and keep the headings rather than deleting the file.
+    fs.mkdirSync(tmpRoot, { recursive: true });
+    const operatorHeadings = `# My Project\n\n## Architecture\n\n### Subsection\n\n${SYSTEM_PROMPT_BLOCK}`;
+    fs.writeFileSync(path.join(tmpRoot, 'CLAUDE.md'), operatorHeadings, 'utf8');
+    writeLedger(tmpRoot, {
+      entries: [{ target: 'CLAUDE.md', reversible: true }],
+    });
+
+    runUninstall({ projectRoot: tmpRoot, write: () => {}, exit: () => {} });
+
+    // File must still exist (operator content preserved).
+    assert.equal(
+      fs.existsSync(path.join(tmpRoot, 'CLAUDE.md')),
+      true,
+      'CLAUDE.md was wrongly deleted when operator content was heading-only',
+    );
+    const after = fs.readFileSync(path.join(tmpRoot, 'CLAUDE.md'), 'utf8');
+    assert.match(after, /# My Project/, 'top-level heading must survive');
+    assert.match(after, /## Architecture/, 'second heading must survive');
+    assert.equal(
+      after.includes(SYSTEM_PROMPT_IMPORT),
+      false,
+      'framework import must be stripped',
+    );
+  });
+
+  it('removes a CLAUDE.md that is byte-identical to the install-authored template', () => {
+    // The install created the file from nothing — uninstall should delete it.
+    fs.mkdirSync(tmpRoot, { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpRoot, 'CLAUDE.md'),
+      SYSTEM_PROMPT_CLAUDE_MD,
+      'utf8',
+    );
+    writeLedger(tmpRoot, {
+      entries: [{ target: 'CLAUDE.md', reversible: true }],
+    });
+
+    runUninstall({ projectRoot: tmpRoot, write: () => {}, exit: () => {} });
+
+    assert.equal(
+      fs.existsSync(path.join(tmpRoot, 'CLAUDE.md')),
+      false,
+      'install-created CLAUDE.md must be removed',
+    );
+  });
+
+  it('preserves a pre-commit hook whose only non-framework lines are shebang/comments', () => {
+    // Operator hook: shebang + a comment, no executable lines.  The install
+    // appended PRE_COMMIT_MARKER — uninstall must strip the line and keep the
+    // shebang/comment rather than deleting the file.
+    fs.mkdirSync(path.join(tmpRoot, '.husky'), { recursive: true });
+    const operatorHook = `#!/bin/sh\n# My project pre-commit notes\n${PRE_COMMIT_MARKER}\n`;
+    fs.writeFileSync(
+      path.join(tmpRoot, '.husky', 'pre-commit'),
+      operatorHook,
+      'utf8',
+    );
+    writeLedger(tmpRoot, {
+      entries: [{ target: '.husky/pre-commit', reversible: true }],
+    });
+
+    runUninstall({ projectRoot: tmpRoot, write: () => {}, exit: () => {} });
+
+    // File must still exist (operator content preserved).
+    assert.equal(
+      fs.existsSync(path.join(tmpRoot, '.husky', 'pre-commit')),
+      true,
+      'pre-commit was wrongly deleted when operator content was shebang/comment-only',
+    );
+    const hook = fs.readFileSync(
+      path.join(tmpRoot, '.husky', 'pre-commit'),
+      'utf8',
+    );
+    assert.match(hook, /#!/, 'shebang must survive');
+    assert.match(hook, /My project pre-commit notes/, 'comment must survive');
+    assert.equal(
+      hook.includes(PRE_COMMIT_MARKER),
+      false,
+      'quality-preview line must be stripped',
+    );
+  });
+
+  it('removes a pre-commit hook that is byte-identical to the install-authored template', () => {
+    // The install created the file from nothing — uninstall should delete it.
+    fs.mkdirSync(path.join(tmpRoot, '.husky'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpRoot, '.husky', 'pre-commit'),
+      DOWNSTREAM_PRE_COMMIT,
+      'utf8',
+    );
+    writeLedger(tmpRoot, {
+      entries: [{ target: '.husky/pre-commit', reversible: true }],
+    });
+
+    runUninstall({ projectRoot: tmpRoot, write: () => {}, exit: () => {} });
+
+    assert.equal(
+      fs.existsSync(path.join(tmpRoot, '.husky', 'pre-commit')),
+      false,
+      'install-created pre-commit hook must be removed',
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // AC4 — GitHub-side state untouched unless --include-github
 // ---------------------------------------------------------------------------
 
