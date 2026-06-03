@@ -144,7 +144,7 @@ the two operator-tunable knobs F13 ships.
 ### Phase 1 main — Seed the wave plan
 
 ```bash
-node .agents/scripts/epic-deliver-prepare.js --epic <epicId>
+node .agents/scripts/epic-deliver-prepare.js --epic <epicId> [--steal] [--as <handle>]
 ```
 
 Validates `type::epic`, enumerates `type::story` descendants, parses
@@ -153,6 +153,34 @@ and upserts the `epic-run-state` checkpoint. Treat the printed JSON as
 `state`: `{ epicId, totalWaves, concurrencyCap, plan, checkpointInitializedAt }`.
 `plan[N]` is the Stories assigned to wave `N`. Flip the Epic to
 `agent::executing` (idempotent) after the CLI returns.
+
+> **Preflight guards (Story #3482 / F-workflow-guards).** Before the
+> snapshot phase runs — and before any worktree is created — prepare runs
+> two **fail-closed** guards
+> ([`lib/orchestration/epic-deliver-lease-guard.js`](../scripts/lib/orchestration/epic-deliver-lease-guard.js)):
+>
+> 1. **Checkout safety.** Prepare refuses to start when the working tree is
+>    dirty or HEAD is on a branch other than the expected one (`epic/<id>`
+>    on a resume, or the project base branch on a fresh run). It will
+>    **not** check `epic/<id>` out over your work — the historic
+>    HEAD-yank footgun. Remediation: commit/stash/clean the tree, or
+>    switch to the expected branch, then re-run.
+> 2. **Epic lease.** Prepare acquires the assignee-as-lease on the Epic
+>    ticket (`ticket-lease.acquireLease`). On a **live foreign claim**
+>    (a teammate's run with a fresh `story.heartbeat` within
+>    `delivery.lease.ttlMs`) it exits non-zero and names the current owner;
+>    a **stale** claim is silently reclaimed. The operator identity is
+>    resolved from `--as <handle>` → `github.operatorHandle` →
+>    `git config user.email`. Pass `--steal` to forcibly transfer a live
+>    foreign claim (the takeover is logged for auditability). A clone with
+>    no resolvable identity skips the lease step (the checkout guard still
+>    runs); the lease is the cross-clone coordination layer, while
+>    `epic-merge-lock.js` continues to serialize same-machine sessions.
+>
+> Both guards throw on failure, which `runAsCli` maps to `process.exit(1)`
+> per [`orchestration-error-handling.md`](../rules/orchestration-error-handling.md).
+
+Once the preflight guards pass, the snapshot phase applies one more gate:
 
 > **Acceptance-spec start gate.** Before the wave loop fans out, the
 > snapshot phase

@@ -43,7 +43,11 @@ import { setActiveStoryEnv } from './lib/observability/active-story-env.js';
 import { upsertStructuredComment } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
 import { validateBlockers } from './lib/story-init/blocker-validator.js';
-import { initializeBranch } from './lib/story-init/branch-initializer.js';
+import {
+  ensureStoryBranchSeed,
+  initializeBranch,
+  planStoryBranchSeed,
+} from './lib/story-init/branch-initializer.js';
 import { resolveContext } from './lib/story-init/context-resolver.js';
 import { runDispatchManifestGuard } from './lib/story-init/dependency-guard.js';
 import { writeDispatchStateFile } from './lib/story-init/dispatch-state-writer.js';
@@ -540,6 +544,19 @@ function emitStoryInitResult(result, { storyId, dryRun }) {
       : `✅ Story #${storyId} initialized. Ready for implementation.`,
   );
 }
+
+// ---------------------------------------------------------------------------
+// Story-branch reuse surface (Story #3482)
+// ---------------------------------------------------------------------------
+//
+// story-init treats a pre-existing `story-<id>` ref as **reuse**, never an
+// error: the branch-seed stage classifies the (local, remote) state via
+// `planStoryBranchSeed` and short-circuits to a no-op when the ref already
+// exists, and swallows the "already exists" race when a concurrent dispatch
+// creates the ref between the probe and the `git branch` call. Both helpers
+// live in the branch-initializer stage; re-exported here so the reuse contract
+// is reachable (and testable) from the story-init entry point.
+export { ensureStoryBranchSeed, planStoryBranchSeed };
 
 // ---------------------------------------------------------------------------
 // Main guard

@@ -157,20 +157,77 @@ export function planStoryBranchSeed({ localHas, remoteHas }) {
   return 'create';
 }
 
-function ensureStoryBranchSeed({ storyBranch, epicBranch, mainCwd, progress }) {
+/**
+ * Ensure the `story-<id>` ref exists locally, seeding it from the Epic branch
+ * (or fetching it from origin) only when it does not already exist. A
+ * pre-existing ref — local or created concurrently between the probe and the
+ * `git branch` call — is treated as **reuse**, never an error (Story #3482).
+ *
+ * Exported with injectable git seams so the reuse / race-swallow behaviour is
+ * unit-testable without standing up a real repo.
+ *
+ * @param {object} args
+ * @param {string} args.storyBranch
+ * @param {string} args.epicBranch
+ * @param {string} args.mainCwd
+ * @param {(level: string, msg: string) => void} [args.progress]
+ * @param {object} [args.git]   Injected `{ spawn, existsLocally, existsRemotely }`.
+ */
+export function ensureStoryBranchSeed({
+  storyBranch,
+  epicBranch,
+  mainCwd,
+  progress = defaultProgress(),
+  git,
+}) {
+  const spawn = git?.spawn ?? ((...args) => gitSpawn(mainCwd, ...args));
+  const existsLocally =
+    git?.existsLocally ?? ((b) => branchExistsLocally(b, mainCwd));
+  const existsRemotely =
+    git?.existsRemotely ?? ((b) => branchExistsRemotely(b, mainCwd));
+
   const action = planStoryBranchSeed({
-    localHas: branchExistsLocally(storyBranch, mainCwd),
-    remoteHas: branchExistsRemotely(storyBranch, mainCwd),
+    localHas: existsLocally(storyBranch),
+    remoteHas: existsRemotely(storyBranch),
   });
-  if (action === 'fetch') {
-    progress('GIT', `Fetching remote story branch: ${storyBranch}`);
-    gitSpawn(mainCwd, 'fetch', 'origin', `${storyBranch}:${storyBranch}`);
-  } else if (action === 'create') {
+  if (action === 'none') {
+    // Story #3482 — a pre-existing `story-<id>` ref is reuse, not an error.
+    // The worktree bootstrap below seeds onto whatever the ref already points
+    // at (resuming a partially-implemented Story), so seeding is a no-op here.
     progress(
       'GIT',
-      `Creating story branch ref: ${storyBranch} from ${epicBranch}`,
+      `Reusing existing story branch ref: ${storyBranch} (no re-seed)`,
     );
-    gitSpawn(mainCwd, 'branch', storyBranch, epicBranch);
+    return;
+  }
+  if (action === 'fetch') {
+    progress('GIT', `Fetching remote story branch: ${storyBranch}`);
+    spawn('fetch', 'origin', `${storyBranch}:${storyBranch}`);
+    return;
+  }
+  progress(
+    'GIT',
+    `Creating story branch ref: ${storyBranch} from ${epicBranch}`,
+  );
+  const res = spawn('branch', storyBranch, epicBranch);
+  // Story #3482 — close the probe→create race: another concurrent
+  // dispatch (or a prior interrupted run) may have created the ref between
+  // our existence probe above and this `git branch` call. `git branch`
+  // exits non-zero with "already exists" in that window. Treat it as reuse
+  // rather than letting story-init abort — the ref exists, which is exactly
+  // the post-condition this function guarantees.
+  if (res.status !== 0) {
+    const stderr = res.stderr || res.stdout || '';
+    if (/already exists/i.test(stderr)) {
+      progress(
+        'GIT',
+        `Story branch ref ${storyBranch} already exists (created concurrently) — reusing.`,
+      );
+      return;
+    }
+    throw new Error(
+      `ensureStoryBranchSeed: failed to create ${storyBranch} from ${epicBranch}: ${stderr}`,
+    );
   }
 }
 
