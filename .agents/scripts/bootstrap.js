@@ -409,6 +409,14 @@ async function runGithubBootstrap(answers, opts) {
     github: config.github,
     assumeYes: opts.assumeYes,
     baseBranch: answers.baseBranch,
+    // Story #3526 — GitHub-admin mutations are explicit opt-in inside
+    // `runBootstrap`. This call site is reached only from
+    // `executeGithubBootstrap`, which already gates on the `github-admin`
+    // phase group being approved (and on `--skip-github` being absent), so
+    // arriving here IS the operator's consent. Pass it through so the
+    // boundary-level gate applies the approved mutations rather than
+    // short-circuiting to a no-op.
+    githubAdminApproved: true,
   });
 }
 

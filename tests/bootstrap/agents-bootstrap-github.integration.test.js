@@ -130,6 +130,7 @@ describe('agents-bootstrap-github — end-to-end integration', () => {
       providerOverride: provider,
       project: PROJECT_BLOCK,
       assumeYes: true,
+      githubAdminApproved: true,
     });
     assert.equal(result.branchProtection.status, 'created');
     assert.equal(result.mergeMethods.status, 'patched');
@@ -155,6 +156,7 @@ describe('agents-bootstrap-github — end-to-end integration', () => {
     const result = await runBootstrap(ORCHESTRATION, {
       providerOverride: provider,
       project: PROJECT_BLOCK,
+      githubAdminApproved: true,
     });
     assert.equal(result.branchProtection.status, 'merged');
     assert.deepEqual(result.branchProtection.added, []);
@@ -182,6 +184,7 @@ describe('agents-bootstrap-github — end-to-end integration', () => {
       providerOverride: provider,
       project: PROJECT_BLOCK,
       hitlConfirm: async () => false,
+      githubAdminApproved: true,
     });
 
     assert.equal(result.branchProtection.status, 'skipped');
@@ -476,6 +479,7 @@ describe('agents-bootstrap-github — drifted-yes scenario (legacy)', () => {
       providerOverride: provider,
       project: PROJECT_BLOCK,
       assumeYes: true,
+      githubAdminApproved: true,
     });
 
     assert.equal(result.branchProtection.status, 'merged');
