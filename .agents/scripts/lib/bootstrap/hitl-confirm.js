@@ -1,5 +1,5 @@
 /**
- * bootstrap/hitl-confirm — Epic #1235 Story 5
+ * bootstrap/hitl-confirm — Epic #1235 Story 5; consent-first opt-in (#3526)
  *
  * Renders a structured diff to stdout and prompts the operator y/N when
  * stdout is a TTY. When not a TTY (CI, sub-agent, redirected pipe), the
@@ -14,12 +14,19 @@
  * followed by a JSON dump of `{ current, proposed }`. Callers that want
  * a richer view (per-field colour, contextual unified diff) can wrap
  * `confirm` and render their own preamble before calling.
+ *
+ * Consent-first install (Story #3526): the GitHub-admin phase group — the
+ * irreversible remote mutations (labels, Projects V2, branch protection,
+ * merge methods) — is gated by an explicit opt-in, not merely a TTY. A
+ * non-TTY run that has not opted in records every group as declined, so the
+ * abort hint names BOTH the dedicated `--approve-github-admin` flag (consent
+ * to just the remote mutations) and `--assume-yes` (accept every group).
  */
 
 import { createInterface } from 'node:readline';
 
 const ABORT_MESSAGE =
-  '[bootstrap] aborting: no TTY available for HITL confirm (set --assume-yes to bypass)';
+  '[bootstrap] aborting: no TTY available for HITL confirm (opt in with --approve-github-admin for GitHub-admin mutations, or --assume-yes to accept every phase group)';
 
 /**
  * @param {object} args

@@ -373,6 +373,19 @@ export function ensureCiWorkflow(args) {
  * `config.github` holds the GitHub provider block). Epic #2880 removed the
  * legacy shim parameters; see `.agents/rules/git-conventions.md#contract-cutovers-—-no-shim-layer`.
  *
+ * Consent-first install (Story #3526, Feature #3515, Epic #3438): every
+ * mutation this function performs — labels, Projects V2, branch protection,
+ * merge methods — is the irreversible `github-admin` phase group from the
+ * mutation manifest. The whole sequence is now **explicit opt-in**: unless
+ * `opts.githubAdminApproved === true`, `runBootstrap` short-circuits before
+ * touching the provider and issues **zero** GitHub mutations. This is the
+ * boundary-level enforcement of the consent gate the `bootstrap.js`
+ * orchestrator already collects (`approvePhases` → `executeGithubBootstrap`):
+ * a direct caller cannot silently reconfigure a repo by skipping the phased
+ * approval flow. Even additive branch-protection / merge-method changes that
+ * previously applied without a prompt are gated — they are enumerated in the
+ * manifest's `github-admin` group and only land once that group is approved.
+ *
  * @param {object} config - Resolved config wrapper with a `github` block.
  * @param {{
  *   token?: string,
@@ -381,9 +394,24 @@ export function ensureCiWorkflow(args) {
  *   project?: object,
  *   github?: object,
  *   baseBranch?: string,
- * }} [opts]
+ *   githubAdminApproved?: boolean,
+ * }} [opts] - `githubAdminApproved` MUST be `true` for any GitHub mutation to
+ *   occur; any other value (absent / `false`) is treated as "not approved"
+ *   and the run is a verified no-op.
  */
 export async function runBootstrap(config, opts = {}) {
+  // Explicit opt-in gate (Story #3526). Default-deny: absent or non-`true`
+  // approval issues zero GitHub mutations and returns a no-op envelope the
+  // CLI summary renders as a skip. The provider is never instantiated, so a
+  // non-approved run performs no network I/O at all.
+  if (opts.githubAdminApproved !== true) {
+    const skipLog = opts.quiet ? () => {} : Logger.info;
+    skipLog(
+      '[bootstrap] GitHub-admin mutations skipped: github-admin phase group not approved (explicit opt-in required).',
+    );
+    return { skipped: true, reason: 'github-admin-not-approved' };
+  }
+
   const provider =
     opts.providerOverride ?? createProvider(config, { token: opts.token });
   const log = opts.quiet ? () => {} : Logger.info;
@@ -553,6 +581,14 @@ async function main() {
   const reapConflictingWorkflows = process.argv.includes(
     '--reap-conflicting-workflows',
   );
+  // Story #3526 — GitHub-admin mutations are explicit opt-in. The standalone
+  // CLI must carry an unambiguous approval signal before any remote mutation
+  // lands: either `--approve-github-admin` (the dedicated consent flag) or
+  // `--assume-yes` (the existing "accept everything" escape hatch). Without
+  // one of these, `runBootstrap` short-circuits to a verified no-op so a bare
+  // invocation never silently reconfigures branch protection or merge methods.
+  const githubAdminApproved =
+    assumeYes || process.argv.includes('--approve-github-admin');
 
   try {
     const result = await runBootstrap(config, {
@@ -562,8 +598,18 @@ async function main() {
       assumeYes,
       assumeNo,
       reapConflictingWorkflows,
+      githubAdminApproved,
     });
-    printSummary(result);
+    // A non-approved run returns the skip envelope (no full result shape);
+    // the skip line is already logged inside runBootstrap, so render the
+    // detailed summary only when mutations were actually attempted.
+    if (result.skipped) {
+      Logger.info(
+        `[bootstrap] GitHub-admin step skipped (${result.reason}). Re-run with --approve-github-admin (or --assume-yes) to apply.`,
+      );
+    } else {
+      printSummary(result);
+    }
   } catch (err) {
     throw new Error(`[bootstrap] runBootstrap failed: ${err.message}`);
   }

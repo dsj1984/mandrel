@@ -1,19 +1,15 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-03T15:11:21.150Z",
+  "generatedAt": "2026-06-03T15:13:20.331Z",
   "rollup": {
     "*": {
       "min": 45.044,
-      "p50": 103.836,
+      "p50": 103.85,
       "p95": 121.586
     }
   },
   "rows": [
-    {
-      "path": ".agents/scripts/agents-bootstrap-github.js",
-      "mi": 87.859
-    },
     {
       "path": ".agents/scripts/analyze-execution.js",
       "mi": 87.823
@@ -369,10 +365,6 @@
     {
       "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
       "mi": 101.665
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/hitl-confirm.js",
-      "mi": 99.662
     },
     {
       "path": ".agents/scripts/lib/bootstrap/merge-methods.js",
@@ -2565,14 +2557,6 @@
     {
       "path": "tests/bdd-scenario-scanner.test.js",
       "mi": 108.793
-    },
-    {
-      "path": "tests/bootstrap.test.js",
-      "mi": 109.117
-    },
-    {
-      "path": "tests/bootstrap/agents-bootstrap-github.integration.test.js",
-      "mi": 103.762
     },
     {
       "path": "tests/bootstrap/agents-update-contract.test.js",
