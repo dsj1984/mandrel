@@ -8,11 +8,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const AGENTS_DIR = path.join(REPO_ROOT, '.agents');
 const README_PATH = path.join(AGENTS_DIR, 'README.md');
-const VERSION_PATH = path.join(AGENTS_DIR, 'VERSION');
-
-function readVersion() {
-  return fs.readFileSync(VERSION_PATH, 'utf8').trim();
-}
 
 function countMarkdownFiles(dir) {
   return fs
@@ -75,19 +70,6 @@ test('scanReadmeVersionClaims: no literal next to VERSION passes', () => {
     '5.29.0',
   );
   assert.deepStrictEqual(offenses, []);
-});
-
-test('.agents/README.md inline VERSION literal matches .agents/VERSION', () => {
-  const content = fs.readFileSync(README_PATH, 'utf8');
-  const actual = readVersion();
-  const offenses = scanReadmeVersionClaims(content, actual);
-  assert.deepStrictEqual(
-    offenses,
-    [],
-    `README inline VERSION literal is stale. ` +
-      `Either remove the parenthetical or sync it with .agents/VERSION (${actual}). ` +
-      `Offenses: ${JSON.stringify(offenses)}`,
-  );
 });
 
 // The post-slim README (Story #1007) no longer enumerates persona / rule /

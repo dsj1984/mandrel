@@ -6,8 +6,10 @@ npm package and is materialized into a consumer's `./.agents/` directory by
 `mandrel sync`. It carries a system prompt, a baseline rule pack, a
 two-tier skill library, a slash-command workflow set, and the
 orchestration engine that runs Epic → Feature → Story plans on
-GitHub. The framework version lives at [`VERSION`](VERSION) — read that
-file, not a count here.
+GitHub. The framework version is the version of the installed
+[`@mandrel/agents`](https://www.npmjs.com/package/@mandrel/agents) npm
+package — run `npm ls @mandrel/agents` (or read `package.json`), not a
+count here.
 
 > **Ticket hierarchy.** Mandrel uses a **3-tier hierarchy**
 > (Epic → Feature → Story) with inline `acceptance[]` / `verify[]` on
@@ -224,7 +226,6 @@ in `runtime-deps.json`.
 | Path | Purpose |
 | ---- | ------- |
 | [`instructions.md`](instructions.md) | Primary system prompt loaded by the host AI tool. |
-| [`VERSION`](VERSION) | Framework version shipped by this `.agents/` bundle. |
 | [`SDLC.md`](SDLC.md) | Operator process for `/epic-plan` and `/epic-deliver`. |
 | [`starter-agentrc.json`](starter-agentrc.json) | Bootstrap delta-seed copied to the consumer repo root as `.agentrc.json`. |
 | [`full-agentrc.json`](full-agentrc.json) | Exhaustive editor reference enumerating every schema key with its framework default. |
