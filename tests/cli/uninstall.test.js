@@ -779,3 +779,134 @@ describe('runUninstall — edge cases', () => {
     assert.match(cap.text, /unreadable/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Story #3544 — per-target JSON.parse guard (corrupt operator file)
+// ---------------------------------------------------------------------------
+
+describe('runUninstall — corrupt target file guard (Story #3544)', () => {
+  it('yields a skipped outcome (not an uncaught throw) when settings.json is invalid JSON', () => {
+    // Arrange: an operator-edited .claude/settings.json that is invalid JSON.
+    fs.mkdirSync(path.join(tmpRoot, '.claude'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpRoot, '.claude', 'settings.json'),
+      '{ not valid json at all',
+      'utf8',
+    );
+    writeLedger(tmpRoot, {
+      entries: [{ target: '.claude/settings.json', reversible: true }],
+    });
+
+    const cap = makeCapture();
+    // Must not throw — the per-target guard must catch the JSON.parse error.
+    let result;
+    assert.doesNotThrow(() => {
+      result = runUninstall({
+        projectRoot: tmpRoot,
+        write: cap.write,
+        exit: cap.exit,
+      });
+    });
+
+    // AC2: yields a skipped outcome rather than an uncaught throw
+    assert.equal(cap.exitCode, 0);
+    assert.match(cap.text, /skipped/);
+    assert.match(cap.text, /unparseable/);
+    assert.equal(result.parseErrorCount, 1);
+  });
+
+  it('yields a skipped outcome (not an uncaught throw) when package.json is invalid JSON', () => {
+    // Arrange: an operator-edited package.json that is invalid JSON.
+    fs.mkdirSync(tmpRoot, { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpRoot, 'package.json'),
+      '{ broken json',
+      'utf8',
+    );
+    writeLedger(tmpRoot, {
+      entries: [{ target: 'package.json', reversible: true }],
+    });
+
+    const cap = makeCapture();
+    let result;
+    assert.doesNotThrow(() => {
+      result = runUninstall({
+        projectRoot: tmpRoot,
+        write: cap.write,
+        exit: cap.exit,
+      });
+    });
+
+    assert.equal(cap.exitCode, 0);
+    assert.match(cap.text, /skipped/);
+    assert.match(cap.text, /unparseable/);
+    assert.equal(result.parseErrorCount, 1);
+  });
+
+  it('continues reverting other targets after a corrupt file (AC3 — one bad file does not abort)', () => {
+    // Arrange: settings.json is corrupt; CLAUDE.md and .agentrc.json are valid.
+    fs.mkdirSync(path.join(tmpRoot, '.claude'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpRoot, '.claude', 'settings.json'),
+      '{ not valid json',
+      'utf8',
+    );
+    fs.writeFileSync(
+      path.join(tmpRoot, 'CLAUDE.md'),
+      SYSTEM_PROMPT_CLAUDE_MD,
+      'utf8',
+    );
+    writeJson(path.join(tmpRoot, '.agentrc.json'), {
+      $schema: './.agents/schemas/agentrc.schema.json',
+    });
+    writeLedger(tmpRoot, {
+      entries: [
+        { target: '.claude/settings.json', reversible: true },
+        { target: 'CLAUDE.md', reversible: true },
+        { target: '.agentrc.json', reversible: true },
+      ],
+    });
+
+    const cap = makeCapture();
+    runUninstall({ projectRoot: tmpRoot, write: cap.write, exit: cap.exit });
+
+    // The corrupt settings.json is skipped, but CLAUDE.md and .agentrc.json
+    // are still reverted.
+    assert.equal(cap.exitCode, 0);
+    assert.equal(
+      fs.existsSync(path.join(tmpRoot, 'CLAUDE.md')),
+      false,
+      'CLAUDE.md must be reverted even though settings.json was corrupt',
+    );
+    assert.equal(
+      fs.existsSync(path.join(tmpRoot, '.agentrc.json')),
+      false,
+      '.agentrc.json must be reverted even though settings.json was corrupt',
+    );
+    // The corrupt target is reported as skipped.
+    assert.match(cap.text, /skipped/);
+    assert.match(cap.text, /unparseable/);
+  });
+
+  it('leaves the install ledger intact when a target is skipped due to parse error (AC4 — resume possible)', () => {
+    // Arrange: settings.json is corrupt; only this one entry in ledger.
+    fs.mkdirSync(path.join(tmpRoot, '.claude'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpRoot, '.claude', 'settings.json'),
+      '{ corrupt',
+      'utf8',
+    );
+    writeLedger(tmpRoot, {
+      entries: [{ target: '.claude/settings.json', reversible: true }],
+    });
+
+    runUninstall({ projectRoot: tmpRoot, write: () => {}, exit: () => {} });
+
+    // Ledger must still exist so operator can fix the file and re-run.
+    assert.equal(
+      fs.existsSync(ledgerPath(tmpRoot)),
+      true,
+      'install ledger must be retained when a target was skipped due to parse error',
+    );
+  });
+});
