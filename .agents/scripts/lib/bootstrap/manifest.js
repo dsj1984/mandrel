@@ -163,8 +163,15 @@ export function buildMutationManifest(ctx = {}) {
       phaseGroup: PHASE_GROUPS.REPO_CONFIG,
       target: rel('.agentrc.json'),
       action: 'create',
+      // Story #3527 — when the operator picked a named config profile, the
+      // repo-config phase seeds from that profile's posture-scoped delta;
+      // otherwise it seeds from the full bundled starter reference. The
+      // preview reflects the chosen source so the operator approves the
+      // mutation they will actually get.
       detail:
-        'Seed .agentrc.json from the bundled starter with the operator-supplied owner/repo/handle/base-branch.',
+        typeof ctx.answers?.profile === 'string' && ctx.answers.profile.length
+          ? `Seed .agentrc.json from the "${ctx.answers.profile}" config profile with the operator-supplied owner/repo/handle/base-branch.`
+          : 'Seed .agentrc.json from the bundled starter with the operator-supplied owner/repo/handle/base-branch.',
       reversible: true,
     },
   );

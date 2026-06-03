@@ -32,6 +32,7 @@ import {
   iterDefaultLeaves,
   lookupPath,
 } from './defaults.js';
+import { resolveProfile } from './profiles.js';
 
 /**
  * @typedef {Object} SyncChange
@@ -240,4 +241,72 @@ function previewValue(value) {
   }
   if (s == null) return 'undefined';
   return s.length > 80 ? `${s.slice(0, 77)}...` : s;
+}
+
+// ---------------------------------------------------------------------------
+// Profile-seeded `.agentrc.json` body (Story #3527, Epic #3438)
+//
+// When an installer picks a named config profile during bootstrap, the
+// repo-config phase seeds `.agentrc.json` from that profile's delta seed
+// (a minimal, posture-scoped document) rather than from the full bundled
+// starter reference. The profile seed files carry the same operator-identity
+// placeholders the starter uses (`[OWNER]`, `[REPO]`, `[USERNAME]`) and pin
+// `project.baseBranch` to `main`, so the substitution rules are identical to
+// the starter path in `ensureAgentrc`. Centralising the substitution here
+// keeps the seeding logic pure and unit-testable, and guarantees the profile
+// and starter paths apply the same operator overlay.
+// ---------------------------------------------------------------------------
+
+/**
+ * @typedef {Object} ProfileSeedAnswers
+ * @property {string} owner            GitHub owner for `[OWNER]`.
+ * @property {string} repo             GitHub repo for `[REPO]`.
+ * @property {string} [operatorHandle] Handle for `[USERNAME]`; falls back to
+ *   `owner` when blank/absent (mirrors the starter path).
+ * @property {string} [baseBranch]     Base branch; when present and not
+ *   `main`, replaces the profile's pinned `"baseBranch": "main"`.
+ */
+
+/**
+ * Build the `.agentrc.json` body to write when seeding from a named config
+ * profile (Story #3527). Resolves and schema-validates the profile delta via
+ * {@link resolveProfile}, re-attaches the editor `$schema` pointer the
+ * consumer config uses, then applies the same operator-identity placeholder
+ * substitution and `baseBranch` override the starter path applies in
+ * `ensureAgentrc`.
+ *
+ * A minimal profile (e.g. `solo-local`, which carries only `project`) yields a
+ * correspondingly minimal `.agentrc.json` — no `github`/`delivery` blocks and
+ * therefore no `[OWNER]`/`[REPO]`/`[USERNAME]` placeholders to substitute. The
+ * resolved config still layers framework defaults at read time, so the seeded
+ * file stays intentionally small and scoped to the chosen posture.
+ *
+ * @param {{ profile: string, answers: ProfileSeedAnswers }} opts
+ * @returns {string} The newline-terminated JSON body to write to
+ *   `.agentrc.json`.
+ * @throws {Error} If the profile name is unknown or its seed fails schema
+ *   validation (propagated from {@link resolveProfile}).
+ */
+export function buildProfileAgentrcBody(opts) {
+  const { profile, answers } = opts;
+  // `resolveProfile` strips the `$schema` pointer (it is editor metadata, not
+  // part of the delta seed). Re-attach the consumer-relative pointer so the
+  // seeded `.agentrc.json` matches the starter path's `$schema` shape.
+  const seed = resolveProfile(profile);
+  const body = {
+    $schema: './.agents/schemas/agentrc.schema.json',
+    ...seed,
+  };
+  let text = `${JSON.stringify(body, null, 2)}\n`;
+  text = text
+    .replace(/\[OWNER\]/g, answers.owner)
+    .replace(/\[REPO\]/g, answers.repo)
+    .replace(/\[USERNAME\]/g, answers.operatorHandle ?? answers.owner);
+  if (answers.baseBranch && answers.baseBranch !== 'main') {
+    text = text.replace(
+      /"baseBranch":\s*"main"/,
+      `"baseBranch": "${answers.baseBranch}"`,
+    );
+  }
+  return text;
 }

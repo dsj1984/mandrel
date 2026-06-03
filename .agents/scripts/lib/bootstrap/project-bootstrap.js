@@ -14,6 +14,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { buildProfileAgentrcBody } from '../config/sync-agentrc.js';
 import { PHASE_GROUPS, previewMutationManifest } from './manifest.js';
 import { applyQualityBootstrap } from './quality-bootstrap.js';
 
@@ -210,16 +211,40 @@ export function ensureDependenciesInstalled(ctx) {
 }
 
 /**
- * Step 2.5a — Seed `.agentrc.json` from the bundled starter when missing.
- * Replaces the `[OWNER]` / `[REPO]` / `[USERNAME]` / `[BASE_BRANCH]`
- * placeholders with operator-supplied values.
+ * Step 2.5a — Seed `.agentrc.json` when missing.
  *
- * An existing `.agentrc.json` is never overwritten — operator wins.
+ * Two seeding sources, selected by whether the operator picked a named
+ * config profile (Story #3527):
+ *
+ *   - **Profile selected** (`ctx.answers.profile` is a known profile name):
+ *     seed from that profile's delta via
+ *     {@link buildProfileAgentrcBody}. The minimal `solo-local` profile
+ *     yields a correspondingly minimal `.agentrc.json` scoped to that
+ *     posture — the repo-config phase seeds from the chosen profile delta
+ *     rather than the full reference config.
+ *   - **No profile** (`ctx.answers.profile` blank/absent): seed from the
+ *     bundled `starter-agentrc.json` reference (the historical default).
+ *
+ * Both sources apply the same operator-identity placeholder substitution
+ * (`[OWNER]` / `[REPO]` / `[USERNAME]`) and `baseBranch` override.
+ *
+ * An existing `.agentrc.json` is never overwritten — operator wins. A
+ * profile name that fails to resolve/validate propagates as a throw so the
+ * fatal `validation` phase never runs against a half-written file.
+ *
+ * @returns {{ action: string, path: string, source?: string,
+ *   profile?: string }}
  */
 export function ensureAgentrc(ctx) {
   const target = path.join(ctx.projectRoot, '.agentrc.json');
   if (fs.existsSync(target)) {
     return { action: 'already-present', path: target };
+  }
+  const profile = ctx.answers.profile;
+  if (typeof profile === 'string' && profile.length > 0) {
+    const body = buildProfileAgentrcBody({ profile, answers: ctx.answers });
+    fs.writeFileSync(target, body, 'utf8');
+    return { action: 'seeded', path: target, source: 'profile', profile };
   }
   const starter = path.join(
     ctx.agentRoot ?? path.join(ctx.projectRoot, '.agents'),
@@ -243,7 +268,7 @@ export function ensureAgentrc(ctx) {
     );
   }
   fs.writeFileSync(target, body, 'utf8');
-  return { action: 'seeded', path: target };
+  return { action: 'seeded', path: target, source: 'starter' };
 }
 
 /**
