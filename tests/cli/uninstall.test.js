@@ -554,7 +554,11 @@ describe('runUninstall — .mcp.json gitignore retention (Story #3542)', () => {
       `node_modules/\n${GITIGNORE_BLOCKS.commands.block}${GITIGNORE_BLOCKS.mcp.block}`,
       'utf8',
     );
-    fs.writeFileSync(path.join(tmpRoot, '.mcp.json'), '{"mcpServers":{}}', 'utf8');
+    fs.writeFileSync(
+      path.join(tmpRoot, '.mcp.json'),
+      '{"mcpServers":{}}',
+      'utf8',
+    );
     writeLedger(tmpRoot, {
       entries: [{ target: '.gitignore', reversible: true }],
     });
@@ -565,7 +569,11 @@ describe('runUninstall — .mcp.json gitignore retention (Story #3542)', () => {
 
     // Assert: commands entry removed, mcp entry kept
     const gi = fs.readFileSync(path.join(tmpRoot, '.gitignore'), 'utf8');
-    assert.equal(gi.includes('.claude/commands/'), false, 'commands entry must be stripped');
+    assert.equal(
+      gi.includes('.claude/commands/'),
+      false,
+      'commands entry must be stripped',
+    );
     assert.match(gi, /\.mcp\.json/, '.mcp.json entry must be retained');
     assert.equal(cap.exitCode, 0);
   });
@@ -578,7 +586,11 @@ describe('runUninstall — .mcp.json gitignore retention (Story #3542)', () => {
       `${GITIGNORE_BLOCKS.commands.block}${GITIGNORE_BLOCKS.mcp.block}`,
       'utf8',
     );
-    fs.writeFileSync(path.join(tmpRoot, '.mcp.json'), '{"mcpServers":{}}', 'utf8');
+    fs.writeFileSync(
+      path.join(tmpRoot, '.mcp.json'),
+      '{"mcpServers":{}}',
+      'utf8',
+    );
     writeLedger(tmpRoot, {
       entries: [{ target: '.gitignore', reversible: true }],
     });
@@ -588,7 +600,11 @@ describe('runUninstall — .mcp.json gitignore retention (Story #3542)', () => {
     runUninstall({ projectRoot: tmpRoot, write: cap.write, exit: cap.exit });
 
     // Assert: outcome line mentions the retention
-    assert.match(cap.text, /\.mcp\.json/, 'output must mention .mcp.json retention');
+    assert.match(
+      cap.text,
+      /\.mcp\.json/,
+      'output must mention .mcp.json retention',
+    );
     assert.equal(cap.exitCode, 0);
   });
 
@@ -609,8 +625,16 @@ describe('runUninstall — .mcp.json gitignore retention (Story #3542)', () => {
 
     // Assert: both framework entries removed
     const gi = fs.readFileSync(path.join(tmpRoot, '.gitignore'), 'utf8');
-    assert.equal(gi.includes('.claude/commands/'), false, 'commands entry must be stripped');
-    assert.equal(gi.includes('.mcp.json'), false, '.mcp.json entry must be stripped when no file exists');
+    assert.equal(
+      gi.includes('.claude/commands/'),
+      false,
+      'commands entry must be stripped',
+    );
+    assert.equal(
+      gi.includes('.mcp.json'),
+      false,
+      '.mcp.json entry must be stripped when no file exists',
+    );
     assert.match(gi, /node_modules\//, 'operator content must survive');
   });
 });
