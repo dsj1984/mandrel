@@ -19,6 +19,11 @@ dist
 .agents/*.local.md
 .agents/*local.json
 
+# Per-clone install ledger written by the consent-first bootstrap (Story #3524).
+# Records the approved mutations a future `mandrel uninstall` consumes; it is a
+# per-clone install record, not a checked-in source artifact.
+.agents/.install-manifest.json
+
 # Agent local-additions zone (Story #3498, f-drift-local-zone).
 # `.agents/local/` is the consumer-owned, sync-exempt space for hand-authored
 # additions: `mandrel sync` never writes into nor prunes it, so files placed

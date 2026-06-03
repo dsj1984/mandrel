@@ -14,6 +14,8 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { buildProfileAgentrcBody } from '../config/sync-agentrc.js';
+import { PHASE_GROUPS, previewMutationManifest } from './manifest.js';
 import { applyQualityBootstrap } from './quality-bootstrap.js';
 
 export const SYNC_COMMAND = 'node .agents/scripts/sync-claude-commands.js';
@@ -46,7 +48,7 @@ export const SYSTEM_PROMPT_CLAUDE_MD = `# Agent Protocols
 
 ${SYSTEM_PROMPT_BLOCK}`;
 
-const GITIGNORE_BLOCKS = Object.freeze({
+export const GITIGNORE_BLOCKS = Object.freeze({
   commands: {
     pattern: /^\s*\.claude\/commands\/?\s*$/m,
     block:
@@ -209,16 +211,40 @@ export function ensureDependenciesInstalled(ctx) {
 }
 
 /**
- * Step 2.5a — Seed `.agentrc.json` from the bundled starter when missing.
- * Replaces the `[OWNER]` / `[REPO]` / `[USERNAME]` / `[BASE_BRANCH]`
- * placeholders with operator-supplied values.
+ * Step 2.5a — Seed `.agentrc.json` when missing.
  *
- * An existing `.agentrc.json` is never overwritten — operator wins.
+ * Two seeding sources, selected by whether the operator picked a named
+ * config profile (Story #3527):
+ *
+ *   - **Profile selected** (`ctx.answers.profile` is a known profile name):
+ *     seed from that profile's delta via
+ *     {@link buildProfileAgentrcBody}. The minimal `solo-local` profile
+ *     yields a correspondingly minimal `.agentrc.json` scoped to that
+ *     posture — the repo-config phase seeds from the chosen profile delta
+ *     rather than the full reference config.
+ *   - **No profile** (`ctx.answers.profile` blank/absent): seed from the
+ *     bundled `starter-agentrc.json` reference (the historical default).
+ *
+ * Both sources apply the same operator-identity placeholder substitution
+ * (`[OWNER]` / `[REPO]` / `[USERNAME]`) and `baseBranch` override.
+ *
+ * An existing `.agentrc.json` is never overwritten — operator wins. A
+ * profile name that fails to resolve/validate propagates as a throw so the
+ * fatal `validation` phase never runs against a half-written file.
+ *
+ * @returns {{ action: string, path: string, source?: string,
+ *   profile?: string }}
  */
 export function ensureAgentrc(ctx) {
   const target = path.join(ctx.projectRoot, '.agentrc.json');
   if (fs.existsSync(target)) {
     return { action: 'already-present', path: target };
+  }
+  const profile = ctx.answers.profile;
+  if (typeof profile === 'string' && profile.length > 0) {
+    const body = buildProfileAgentrcBody({ profile, answers: ctx.answers });
+    fs.writeFileSync(target, body, 'utf8');
+    return { action: 'seeded', path: target, source: 'profile', profile };
   }
   const starter = path.join(
     ctx.agentRoot ?? path.join(ctx.projectRoot, '.agents'),
@@ -242,7 +268,7 @@ export function ensureAgentrc(ctx) {
     );
   }
   fs.writeFileSync(target, body, 'utf8');
-  return { action: 'seeded', path: target };
+  return { action: 'seeded', path: target, source: 'starter' };
 }
 
 /**
@@ -504,6 +530,14 @@ const fatalParity = (result) =>
  * branches. Exported so tests can assert phase ordering, the fatal flag,
  * and the report-shape parity guarantee without driving the whole
  * bootstrap.
+ *
+ * Each project-side mutation phase carries a `phaseGroup` matching one of
+ * the consent-first {@link PHASE_GROUPS}. When a phased-approval gate is
+ * supplied via `ctx.approvedGroups`, a phase whose `phaseGroup` is not in
+ * the approved set is skipped (recorded as a `phase-group-declined` no-op)
+ * — declining one group never short-circuits the others (Story #3524).
+ * Phases with no `phaseGroup` (the Node-version precondition and the
+ * dependency install) are always-run infrastructure, never gated.
  */
 export const BOOTSTRAP_PHASES = Object.freeze([
   {
@@ -514,6 +548,7 @@ export const BOOTSTRAP_PHASES = Object.freeze([
   },
   {
     name: 'pkg',
+    phaseGroup: PHASE_GROUPS.REPO_CONFIG,
     run: (ctx) => ensurePackageJson(ctx),
   },
   {
@@ -522,38 +557,46 @@ export const BOOTSTRAP_PHASES = Object.freeze([
   },
   {
     name: 'agentrc',
+    phaseGroup: PHASE_GROUPS.REPO_CONFIG,
     run: (ctx) => ensureAgentrc(ctx),
   },
   {
     name: 'validation',
+    phaseGroup: PHASE_GROUPS.REPO_CONFIG,
     run: async (ctx) => validateAgentrc(ctx),
     isFatal: true,
     formatError: fatalValidation,
   },
   {
     name: 'claudeSettings',
+    phaseGroup: PHASE_GROUPS.IDE_WIRING,
     run: (ctx) => ensureClaudeSettings(ctx),
   },
   {
     name: 'systemPromptWiring',
+    phaseGroup: PHASE_GROUPS.IDE_WIRING,
     run: (ctx) => ensureSystemPromptWiring(ctx),
   },
   {
     name: 'gitignore',
+    phaseGroup: PHASE_GROUPS.IDE_WIRING,
     run: (ctx) => ensureGitignore(ctx),
   },
   {
     name: 'sync',
+    phaseGroup: PHASE_GROUPS.IDE_WIRING,
     run: (ctx) => runSyncCommands(ctx),
   },
   {
     name: 'parity',
+    phaseGroup: PHASE_GROUPS.IDE_WIRING,
     run: (ctx) => checkParity(ctx),
     isFatal: true,
     formatError: fatalParity,
   },
   {
     name: 'quality',
+    phaseGroup: PHASE_GROUPS.QUALITY_GATES,
     run: (ctx) =>
       ctx.skipQuality
         ? { skipped: true }
@@ -564,6 +607,24 @@ export const BOOTSTRAP_PHASES = Object.freeze([
     run: (ctx) => checkWindowsGitPerf(ctx),
   },
 ]);
+
+/**
+ * Decide whether a phase should run given the approved-phase-group gate.
+ * An always-run infrastructure phase (no `phaseGroup`) runs unconditionally.
+ * A grouped phase runs only when no gate is supplied (`approvedGroups`
+ * absent — the un-gated legacy path) or when its group is in the gate.
+ *
+ * Exported for unit testing.
+ *
+ * @param {BootstrapPhase} phase
+ * @param {Set<string>|undefined} approvedGroups
+ * @returns {boolean}
+ */
+export function isPhaseApproved(phase, approvedGroups) {
+  if (!phase.phaseGroup) return true;
+  if (!approvedGroups) return true;
+  return approvedGroups.has(phase.phaseGroup);
+}
 
 /**
  * Throw with the formatted message when the phase is marked fatal and
@@ -586,6 +647,12 @@ export function throwIfFatal(phase, result) {
  * the result on `report[phase.name]`, then route fatal phases through
  * `throwIfFatal`. Returns the accumulated report.
  *
+ * When `ctx.approvedGroups` is a `Set`, a grouped phase whose `phaseGroup`
+ * is not approved is skipped and recorded as
+ * `{ skipped: true, reason: 'phase-group-declined', phaseGroup }` — it never
+ * runs, never throws (so a declined `ide-wiring` group also skips its
+ * fatal `parity` check), and never short-circuits the remaining phases.
+ *
  * Exported for tests so phase ordering and fatal behaviour can be
  * asserted without spawning a full bootstrap.
  *
@@ -596,6 +663,14 @@ export function throwIfFatal(phase, result) {
 export async function runPhases(phases, ctx) {
   const report = {};
   for (const phase of phases) {
+    if (!isPhaseApproved(phase, ctx.approvedGroups)) {
+      report[phase.name] = {
+        skipped: true,
+        reason: 'phase-group-declined',
+        phaseGroup: phase.phaseGroup,
+      };
+      continue;
+    }
     const result = await phase.run(ctx, report);
     report[phase.name] = result;
     throwIfFatal(phase, result);
@@ -607,16 +682,31 @@ export async function runPhases(phases, ctx) {
  * Compose every step in order. Each returned key is the outcome of one
  * step so the CLI can render a structured summary.
  *
+ * When `ctx.preview` is truthy, the function performs **no writes and no
+ * network I/O**. Instead it derives the operator-facing change list from
+ * the single mutation-manifest source ({@link previewMutationManifest}) and
+ * returns `{ preview: true, groups, entries }` — the exact same source the
+ * consent-first install screen renders. Deriving the preview from
+ * `buildMutationManifest` (rather than from a parallel hand-maintained list)
+ * guarantees the preview the operator approves and the execution that
+ * follows enumerate one identical set of mutations (Story #3521).
+ *
  * @param {object} ctx
  * @param {string} ctx.projectRoot
  * @param {string} [ctx.agentRoot]
  * @param {{ owner: string, repo: string, baseBranch: string,
  *           operatorHandle: string|null }} ctx.answers
+ * @param {boolean} [ctx.preview]   — no-write preview from the manifest.
+ * @param {Set<string>} [ctx.approvedGroups] — when present, only phases
+ *   whose `phaseGroup` is in this set execute (the consent-first gate from
+ *   Story #3524); always-run infrastructure phases ignore it.
  * @param {boolean} [ctx.skipQuality]
+ * @param {boolean} [ctx.skipGithub]
  * @param {boolean} [ctx.skipInstall]
  * @param {boolean} [ctx.quiet]
  * @returns {Promise<object>}
  */
 export async function applyProjectBootstrap(ctx) {
+  if (ctx.preview) return previewMutationManifest(ctx);
   return runPhases(BOOTSTRAP_PHASES, ctx);
 }

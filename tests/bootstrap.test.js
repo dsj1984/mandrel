@@ -283,6 +283,7 @@ describe('Bootstrap — runBootstrap()', () => {
     const result = await runBootstrap(config, {
       providerOverride: mock,
       quiet: true,
+      githubAdminApproved: true,
     });
 
     assert.equal(mock.ensureLabelsCalls.length, 1);
@@ -301,6 +302,7 @@ describe('Bootstrap — runBootstrap()', () => {
     const result = await runBootstrap(config, {
       providerOverride: mock,
       quiet: true,
+      githubAdminApproved: true,
     });
 
     assert.equal(result.project.scopesMissing, true);
@@ -323,6 +325,7 @@ describe('Bootstrap — runBootstrap()', () => {
     const result = await runBootstrap(config, {
       providerOverride: mock,
       quiet: true,
+      githubAdminApproved: true,
     });
 
     assert.equal(result.views.unavailable, true);
@@ -339,6 +342,7 @@ describe('Bootstrap — runBootstrap()', () => {
     const result = await runBootstrap(config, {
       providerOverride: mock,
       quiet: true,
+      githubAdminApproved: true,
     });
     assert.equal(result.statusField.status, 'updated');
     assert.deepEqual(result.statusField.added, ['Todo']);
@@ -352,7 +356,7 @@ describe('Bootstrap — runBootstrap()', () => {
         ...config,
         github: { ...config.github, projectNumber: null },
       },
-      { providerOverride: mock, quiet: true },
+      { providerOverride: mock, quiet: true, githubAdminApproved: true },
     );
     assert.equal(result.project.skipped, true);
     assert.equal(result.project.scopesMissing, true);

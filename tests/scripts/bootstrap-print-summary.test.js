@@ -187,6 +187,7 @@ describe('SECTIONS shape', () => {
       'quality',
       'winPerf',
       'github',
+      'ledger',
     ]);
   });
 });
