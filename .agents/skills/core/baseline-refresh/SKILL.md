@@ -76,9 +76,9 @@ Epic: #<epic-id>
    [`.agents/rules/git-conventions.md`](../../../rules/git-conventions.md),
    so the subject must conform.
 2. `release-please` consumes Conventional-Commits subjects on `main` to
-   generate `docs/CHANGELOG.md` and bump `package.json` /
-   `.agents/VERSION`. A non-conventional subject parses as "no changelog
-   entry" and the refresh disappears from the release record.
+   generate `docs/CHANGELOG.md` and bump `package.json`. A
+   non-conventional subject parses as "no changelog entry" and the
+   refresh disappears from the release record.
 3. `chore(baselines):` keeps the refresh out of the user-facing changelog
    (which is correct — a baseline refresh is internal hygiene, not a
    feature or fix) while still being machine-parseable.

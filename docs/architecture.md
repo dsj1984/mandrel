@@ -80,7 +80,6 @@ The repository has a clear separation between the **distributed product**
 mandrel/
 ├── .agents/                  ← Distributed bundle (the "product")
 │   ├── instructions.md       ← Primary system prompt (all agent rules)
-│   ├── VERSION               ← Semantic version
 │   ├── SDLC.md               ← End-to-end workflow guide
 │   ├── README.md             ← Consumer documentation
 │   ├── starter-agentrc.json ← Bootstrap delta-seed (copy to .agentrc.json)
