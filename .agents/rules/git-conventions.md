@@ -46,8 +46,8 @@ creation via `story-init.js`; agents commit on the active Story branch only.
 
 ## Contract Cutovers — No Shim Layer
 
-Mandrel is a Git-submodule-distributed framework whose consumers pin to
-specific versions; they opt into breaks at upgrade time. Operator policy
+Mandrel ships as the `@mandrel/agents` npm package, whose consumers pin an
+exact lockfile version; they opt into breaks at upgrade time. Operator policy
 for any contract change (config shape, baseline shape, schema, lifecycle
 payload, ticket label, dispatch artifact, public API of a script) is
 therefore:
@@ -58,9 +58,9 @@ therefore:
    feature flag that toggles between the two shapes.
 2. **The PR diff IS the migration.** A consumer upgrading to a release
    with the change adopts the new shape by upgrading the
-   `.agents/` submodule. The PR that lands on `main` already moved
-   every internal call site; consumers move on the same beat by
-   re-pinning.
+   `@mandrel/agents` package (`mandrel update`). The PR that lands on
+   `main` already moved every internal call site; consumers move on the
+   same beat by upgrading.
 3. **No deprecation ledger, no version-windowed sunsets.** The framework
    does not track "to be removed in vX.Y" entries or run two shapes side
    by side for a release window. If a shape changes, the old shape is

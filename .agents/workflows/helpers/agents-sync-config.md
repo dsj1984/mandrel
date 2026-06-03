@@ -12,8 +12,10 @@ description: >-
 
 > **Not a slash command.** Lives under `.agents/workflows/helpers/` so it is
 > not synced into `.claude/commands/`. Invoked by reference from
-> [`/agents-update`](../agents-update.md) after the submodule pointer moves;
-> previously shipped as `/agents-sync-config`.
+> [`/agents-update`](../agents-update.md) (the legacy submodule-bump path)
+> after a framework update; previously shipped as `/agents-sync-config`. The
+> reconciliation is distribution-agnostic — under the npm model the same
+> `.agentrc.json` validation runs as part of `mandrel update`.
 >
 > **Configuration reference.** The full set of configurable keys, defaults,
 > and required-vs-optional flags lives in

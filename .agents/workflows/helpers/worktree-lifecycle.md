@@ -100,7 +100,8 @@ or stale locks.
 
 ## `.agents` copy (consumer projects)
 
-In consumer projects `.agents/` is declared as a git submodule in `.gitmodules`.
+In consumer projects **on the legacy Git-submodule install**, `.agents/` is
+declared as a git submodule in `.gitmodules`.
 When `git worktree add` creates `.worktrees/story-<id>/`, the worktree carries
 its own gitlink entry for `.agents`, and `git worktree remove` then refuses to
 reap it on the grounds that "there is a submodule inside the worktree."
@@ -117,8 +118,9 @@ length worktrees this is acceptable; if the root `.agents/` changes during an
 epic, those updates do not propagate into existing worktrees. Recreate the
 worktree (or add an explicit refresh step) if you need the update mid-epic.
 
-The framework repo itself (where `.agents` is a regular tracked directory, not a
-submodule) skips this behavior. Detection is automatic — keyed off whether
+The framework repo itself — and any npm-installed consumer, where `mandrel sync`
+materializes `.agents/` as a regular tracked directory rather than a submodule —
+skips this behavior. Detection is automatic — keyed off whether
 `.gitmodules` at repo root declares `.agents` as a submodule path.
 
 > **Why copy instead of symlink:** the previous symlink/junction approach caused
