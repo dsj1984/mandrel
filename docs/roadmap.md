@@ -628,11 +628,62 @@ Remediation direction:
 - Separate "required issue-tracker state" from GitHub-specific affordances
   (Projects V2 columns, Sub-Issues).
 
-**Filed slice (2026-06-02):** the Projects-V2 / branch-protection decoupling —
-an Issues-only "no-mutation" mode — →
-[#3439](https://github.com/dsj1984/mandrel/issues/3439). The full
-provider-abstraction remainder (a provider conformance suite and a non-GitHub
-provider implementation) stays gated on the productize decision.
+**Filed slice (2026-06-02, expanded 2026-06-03):** the Projects-V2 /
+branch-protection decoupling — an Issues-only "no-mutation" (lite) mode — →
+[#3439](https://github.com/dsj1984/mandrel/issues/3439). Following the
+architecture review below, #3439 was re-scoped to also perform the
+**provider-interface segregation slice**: splitting `ITicketingProvider` into a
+core ticketing contract plus optional, nullable `IProjectBoardProvider` /
+`IRepoConfigProvider` capability accessors, with lite mode expressed as a GitHub
+provider missing those two capabilities. The full provider-abstraction remainder
+(a provider conformance suite, a non-GitHub provider implementation, the
+labels-as-state lifecycle layer, and the VCS/delivery-axis split below) stays
+gated on the productize decision.
+
+##### Architecture review (2026-06-03) — how deep the GitHub lock goes
+
+A four-track read of the ticketing seam (driven by #3439 lite-mode planning)
+produced a leakage map worth recording before any portability work is scoped:
+
+- **Two axes, not one.** Mandrel conflates the **tracker** (issues, state, type,
+  hierarchy, comments) with the **VCS / delivery host** (branches, PRs, merge,
+  CI gates) because GitHub is both. A future "Jira mode" is *not* "replace
+  GitHub" — Jira users still merge PRs on a Git host. A portable design needs
+  **two** provider interfaces (tracker + VCS/delivery); they are fused today.
+- **What is already clean.** The construction seam is real and centralized
+  (`createProvider(config)` → abstract `ITicketingProvider`, ~100 call sites; a
+  dormant `config.provider` discriminator already exists in
+  `provider-factory.js`). Core ticket CRUD, comments, labels, sub-issues, and
+  dependencies route through the provider. The `agent::*` / `type::*` label
+  vocabulary is provider-agnostic *string data* (an SSOT compared by value,
+  written via `updateTicket`). `GitHubProvider` is a thin composer over nine
+  gateways with Projects V2 already isolated.
+- **What is leaky (portability blockers), ranked.**
+  1. **PR / merge / CI-gate delivery bypasses the provider entirely** — the
+     lifecycle listeners and close phases shell out to `gh pr …` directly
+     (~8 modules); `createPullRequest()` exists on the interface but the runtime
+     path does not use it. No Jira/VCS equivalent of `gh pr checks --required` /
+     `mergeStateStatus`. *Highest blocker.*
+  2. **Labels ARE the state** — no abstract lifecycle. `transitionTicketState`
+     writes `agent::*` strings directly; `VALID_TRANSITIONS` is a label-keyed
+     graph; `ColumnSync` projects labels onto GitHub Projects columns. Jira has
+     native workflow statuses → needs a translation layer that does not exist.
+  3. **`gh` CLI is the universal transport** — `gh-exec` is GitHub-specific and
+     imported by ~24 orchestration modules, below the provider seam.
+  4. **Interface fuses three concerns** — core ticketing + Projects-board ops +
+     repo-config mutation (`setBranchProtection` / `setMergeMethods`) + raw
+     `graphql()`; a Jira provider would no-op roughly a third of the interface.
+  5. **Integer issue-number identity** is assumed pervasively (`#NNN`,
+     `Number.isInteger`); Jira keys are strings. Wide but mechanical.
+  6. **Git branch / worktree / epic→main-PR model** is hardcoded across ~149
+     files plus workflow markdown — the VCS axis again.
+- **Sequencing decision (2026-06-03).** The board / repo-config **interface
+  segregation** (blocker #4's cheap half — the gateways are already isolated) is
+  being done now inside #3439, because lite mode needs the capability seam
+  anyway. The expensive remainder — an abstract labels-as-state lifecycle layer
+  (#2), the VCS/delivery-axis split (#1, #3, #6), string IDs (#5), a provider
+  conformance suite, and any non-GitHub implementation — stays **gated** on the
+  productize decision (this Finding 2 / E-A).
 
 ---
 
