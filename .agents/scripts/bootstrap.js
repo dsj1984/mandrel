@@ -27,6 +27,15 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { listProjects, listRepos } from './lib/bootstrap/gh-list.js';
+import {
+  buildLedgerRecord,
+  writeInstallLedger,
+} from './lib/bootstrap/install-ledger.js';
+import {
+  buildMutationManifest,
+  PHASE_GROUPS,
+} from './lib/bootstrap/manifest.js';
+import { runPhasedApproval } from './lib/bootstrap/phased-approval.js';
 import { runPreflight } from './lib/bootstrap/preflight.js';
 import { applyProjectBootstrap } from './lib/bootstrap/project-bootstrap.js';
 import {
@@ -314,15 +323,34 @@ export const SECTIONS = Object.freeze([
   },
   {
     name: 'github',
-    render: (r) =>
-      r.github
+    render: (r) => {
+      if (!r.github) return ['  github                 skipped'];
+      if (r.github.error) {
+        return [`  github                 error (${r.github.error})`];
+      }
+      if (r.github.skipped) {
+        return [
+          `  github                 skipped (${r.github.reason ?? 'skipped'})`,
+        ];
+      }
+      return [
+        `  github.labels          created=${r.github.labels.created.length} skipped=${r.github.labels.skipped.length}`,
+        `  github.project         ${r.github.project.projectNumber ?? 'skipped'}`,
+        `  github.branchProtection ${r.github.branchProtection.status ?? 'n/a'}`,
+        `  github.mergeMethods    ${r.github.mergeMethods.status ?? 'n/a'}`,
+      ];
+    },
+  },
+  {
+    name: 'ledger',
+    render: (r) => {
+      if (!r.ledger) return null;
+      return r.ledger.written
         ? [
-            `  github.labels          created=${r.github.labels.created.length} skipped=${r.github.labels.skipped.length}`,
-            `  github.project         ${r.github.project.projectNumber ?? 'skipped'}`,
-            `  github.branchProtection ${r.github.branchProtection.status ?? 'n/a'}`,
-            `  github.mergeMethods    ${r.github.mergeMethods.status ?? 'n/a'}`,
+            `  install-ledger         wrote ${r.ledger.entryCount} entr${r.ledger.entryCount === 1 ? 'y' : 'ies'} (groups: ${r.ledger.approvedGroups.join(', ')})`,
           ]
-        : ['  github                 skipped'],
+        : [`  install-ledger         not written (${r.ledger.reason})`];
+    },
   },
 ]);
 
@@ -541,10 +569,24 @@ export async function collectAndValidateAnswers(state) {
     return { ok: false, exit: 1 };
   }
   if (state.flags['dry-run']) {
-    Logger.info('[bootstrap] dry-run plan:');
+    // The dry-run plan is the FULL mutation manifest — the same single
+    // source the consent-first screen renders and execution honours
+    // (Story #3524). It includes the GitHub-side (`github-admin`) entries
+    // unless `--skip-github` was passed, so the operator previews every
+    // mutation, and it writes no files.
+    const manifestCtx = {
+      answers,
+      skipGithub: Boolean(state.flags['skip-github']),
+      skipQuality: Boolean(state.flags['skip-quality']),
+    };
+    Logger.info('[bootstrap] dry-run plan (no writes):');
     Logger.info(
       JSON.stringify(
-        { answers, defaults: state.defaults, flags: state.flags },
+        {
+          answers,
+          flags: state.flags,
+          manifest: buildMutationManifest(manifestCtx),
+        },
         null,
         2,
       ),
@@ -555,15 +597,56 @@ export async function collectAndValidateAnswers(state) {
 }
 
 /**
+ * Phase 3.5 — Manifest-first, phased approval (Story #3524). Renders the
+ * FULL mutation manifest (every phase group, including the GitHub-admin
+ * entries unless `--skip-github`) BEFORE collecting any approval, then
+ * walks the four phase groups one at a time. Each group is independently
+ * approvable — declining one never skips the others. `--assume-yes` pins
+ * every prompt to "yes" (required for non-TTY runs); a non-TTY run without
+ * `--assume-yes` records every group as declined (the HITL confirm refuses
+ * to silent-apply without a TTY).
+ *
+ * Returns the approved phase-group `Set` plus the per-group decision log,
+ * threaded into the execution phases as the single consent gate.
+ *
+ * Exported for tests.
+ *
+ * @param {{
+ *   answers: object,
+ *   assumeYes: boolean,
+ *   flags: Record<string, string|boolean>,
+ * }} state
+ * @param {{ confirm?: Function }} [opts] — injectable confirm primitive.
+ * @returns {Promise<PhaseAdvance>}
+ */
+export async function approvePhases(state, opts = {}) {
+  const manifestCtx = {
+    answers: state.answers,
+    skipGithub: Boolean(state.flags['skip-github']),
+    skipQuality: Boolean(state.flags['skip-quality']),
+  };
+  const { approved, decisions } = await runPhasedApproval({
+    ctx: manifestCtx,
+    log: (line) => Logger.info(line),
+    confirm: opts.confirm,
+    assume: state.assumeYes ? 'yes' : undefined,
+  });
+  return { ok: true, payload: { approvedGroups: approved, decisions } };
+}
+
+/**
  * Phase 4 — Execute the project-side bootstrap and return the structured
  * report. Logs the start banner so operator-visible output is unchanged
- * from the pre-refactor inline pipeline.
+ * from the pre-refactor inline pipeline. The approved phase-group gate
+ * from {@link approvePhases} is threaded through so only consented
+ * mutations land.
  *
  * @param {{
  *   answers: object,
  *   projectRoot: string,
  *   agentRoot: string,
  *   flags: Record<string, string|boolean>,
+ *   approvedGroups: Set<string>,
  * }} state
  * @returns {Promise<PhaseAdvance>}
  */
@@ -575,6 +658,7 @@ export async function executeBootstrap(state) {
     projectRoot: state.projectRoot,
     agentRoot: state.agentRoot,
     answers: state.answers,
+    approvedGroups: state.approvedGroups,
     skipQuality: Boolean(state.flags['skip-quality']),
   });
   return { ok: true, payload: { report } };
@@ -585,16 +669,33 @@ export async function executeBootstrap(state) {
  * the error is captured on the report rather than thrown so the summary
  * still prints. Always advances the pipeline so `printSummary` runs.
  *
+ * The GitHub-side mutations are the irreversible `github-admin` phase
+ * group; they run only when that group was approved in {@link approvePhases}
+ * (in addition to the existing `--skip-github` opt-out). A declined
+ * `github-admin` group records `{ skipped: true, reason }` on the report so
+ * the summary reflects the consent decision.
+ *
  * @param {{
  *   report: object,
  *   answers: object,
  *   flags: Record<string, string|boolean>,
  *   assumeYes: boolean,
+ *   approvedGroups: Set<string>,
  * }} state
  * @returns {Promise<PhaseAdvance>}
  */
 export async function executeGithubBootstrap(state) {
   if (state.flags['skip-github']) return { ok: true, payload: {} };
+  if (
+    state.approvedGroups &&
+    !state.approvedGroups.has(PHASE_GROUPS.GITHUB_ADMIN)
+  ) {
+    state.report.github = {
+      skipped: true,
+      reason: 'phase-group-declined',
+    };
+    return { ok: true, payload: {} };
+  }
   try {
     state.report.github = await runGithubBootstrap(state.answers, {
       assumeYes: state.assumeYes,
@@ -603,6 +704,79 @@ export async function executeGithubBootstrap(state) {
     Logger.error(`[bootstrap] GitHub bootstrap failed: ${err.message}`);
     state.report.github = { error: err.message };
   }
+  return { ok: true, payload: {} };
+}
+
+/**
+ * Compute the phase groups whose mutations actually landed, for the install
+ * ledger. Project-side groups (`ide-wiring`, `repo-config`, `quality-gates`)
+ * count as applied when they were approved. The remote `github-admin` group
+ * counts as applied only when it was approved AND the GitHub bootstrap
+ * succeeded — a skipped or errored GitHub run never records irreversible
+ * remote mutations in the ledger that a future `mandrel uninstall` would try
+ * to roll back.
+ *
+ * Exported for tests.
+ *
+ * @param {Set<string>} approvedGroups
+ * @param {object} report
+ * @returns {Set<string>}
+ */
+export function resolveAppliedGroups(approvedGroups, report) {
+  const applied = new Set();
+  for (const group of approvedGroups ?? []) {
+    if (group === PHASE_GROUPS.GITHUB_ADMIN) {
+      const gh = report?.github;
+      if (gh && !gh.error && !gh.skipped) applied.add(group);
+      continue;
+    }
+    applied.add(group);
+  }
+  return applied;
+}
+
+/**
+ * Phase 6 — Record the install ledger (Story #3524). Writes
+ * `.agents/.install-manifest.json` enumerating exactly the approved-and-
+ * applied mutation-manifest entries so a future `mandrel uninstall` can
+ * consume it. The ledger is gitignored. When no group landed (e.g. a
+ * non-TTY run that declined everything), no ledger is written.
+ *
+ * Exported for tests.
+ *
+ * @param {{
+ *   answers: object,
+ *   projectRoot: string,
+ *   flags: Record<string, string|boolean>,
+ *   approvedGroups: Set<string>,
+ *   report: object,
+ * }} state
+ * @returns {PhaseAdvance}
+ */
+export function recordLedger(state) {
+  const appliedGroups = resolveAppliedGroups(
+    state.approvedGroups,
+    state.report,
+  );
+  const manifestCtx = {
+    answers: state.answers,
+    skipGithub: Boolean(state.flags['skip-github']),
+    skipQuality: Boolean(state.flags['skip-quality']),
+  };
+  const entries = buildMutationManifest(manifestCtx).filter((e) =>
+    appliedGroups.has(e.phaseGroup),
+  );
+  if (entries.length === 0) {
+    state.report.ledger = { written: false, reason: 'no-mutations-applied' };
+    return { ok: true, payload: {} };
+  }
+  const record = buildLedgerRecord({
+    entries,
+    approvedGroups: appliedGroups,
+    answers: state.answers,
+  });
+  const result = writeInstallLedger(state.projectRoot, record);
+  state.report.ledger = { ...result, approvedGroups: [...appliedGroups] };
   return { ok: true, payload: {} };
 }
 
@@ -633,8 +807,10 @@ export async function main(argv = process.argv.slice(2), opts = {}) {
     (s) => runPreflightPhase(s, { run: opts.preflightRun }),
     (s) => prepareContext(s),
     (s) => collectAndValidateAnswers(s),
+    (s) => approvePhases(s, { confirm: opts.confirm }),
     (s) => executeBootstrap(s),
     (s) => executeGithubBootstrap(s),
+    (s) => recordLedger(s),
   ]);
   if (!result.ok) return result.exit;
   printSummary(result.state.report);

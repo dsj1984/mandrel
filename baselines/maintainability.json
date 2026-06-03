@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-03T13:40:44.829Z",
+  "generatedAt": "2026-06-03T14:54:25.355Z",
   "rollup": {
     "*": {
       "min": 45.044,
@@ -33,10 +33,6 @@
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "mi": 95.518
-    },
-    {
-      "path": ".agents/scripts/bootstrap.js",
-      "mi": 101.687
     },
     {
       "path": ".agents/scripts/check-baselines.js",
@@ -4793,10 +4789,6 @@
     {
       "path": "tests/scripts/bootstrap-preflight.test.js",
       "mi": 110.036
-    },
-    {
-      "path": "tests/scripts/bootstrap-print-summary.test.js",
-      "mi": 105.271
     },
     {
       "path": "tests/scripts/bootstrap-question-pickers.test.js",
