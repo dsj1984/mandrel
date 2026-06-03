@@ -1,0 +1,14 @@
+{
+  "$schema": "../../../../.agents/schemas/agentrc.schema.json",
+  "legacyTooling": {
+    "linter": "tslint",
+    "note": "removed in a later release; the current schema rejects this top-level key"
+  },
+  "project": {
+    "baseBranch": "main",
+    "paths": {
+      "agentRoot": ".agents",
+      "docsRoot": "docs"
+    }
+  }
+}
