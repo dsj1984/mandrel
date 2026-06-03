@@ -19,7 +19,7 @@
  * Logger; the heartbeat is observability, not state.
  *
  * Schema contract (story.heartbeat.schema.json):
- *   { event, storyId, epicId, phase, timestamp }
+ *   { event, storyId, epicId, phase, timestamp, operator? }
  *
  * The schema declares `additionalProperties: false`, so this emitter's
  * signature is deliberately narrow: only the schema-allowed fields are
@@ -27,7 +27,9 @@
  * `tasksTotal`, `currentTaskId`) were dropped under Epic #3078's
  * 3-tier hard cutover — they would fail strict validation and have no
  * meaning now that the Story is the leaf execution unit with no child
- * tickets.
+ * tickets. The optional `operator` field (Story #3480) records the handle
+ * holding the assignee-as-lease claim; it is included only when supplied so
+ * pre-lease callers continue to emit the unchanged shape.
  */
 
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
@@ -79,6 +81,13 @@ function getValidator() {
  * @param {string} [opts.phase='implementing']
  *                                One of init|implementing|closing|blocked|done.
  * @param {string} [opts.timestamp]   ISO-8601 wall clock. Defaults to now().
+ * @param {string} [opts.operator]    Optional lease-owner handle (Story #3480).
+ *                                    When a non-empty string is supplied it is
+ *                                    recorded on the payload so the
+ *                                    assignee-as-lease primitive can decide a
+ *                                    claim's liveness from the latest heartbeat
+ *                                    for a given owner. Omitted when absent so
+ *                                    pre-lease callers emit the unchanged shape.
  * @param {object} [opts.config]      Optional resolved config for tempRoot.
  * @param {string} [opts.ledgerPath]  Override for tests.
  * @returns {{ ledgerPath: string, record: object }}
@@ -89,6 +98,7 @@ export function emitStoryHeartbeat(opts) {
     epicId,
     phase = 'implementing',
     timestamp = new Date().toISOString(),
+    operator,
     config,
     ledgerPath: ledgerPathOverride,
   } = opts ?? {};
@@ -104,6 +114,14 @@ export function emitStoryHeartbeat(opts) {
       `emitStoryHeartbeat: phase "${phase}" must be one of: ${[...VALID_PHASES].join(', ')}`,
     );
   }
+  if (
+    operator !== undefined &&
+    (typeof operator !== 'string' || operator.length === 0)
+  ) {
+    throw new Error(
+      'emitStoryHeartbeat: operator, when supplied, must be a non-empty string',
+    );
+  }
 
   const payload = {
     event: 'story.heartbeat',
@@ -111,6 +129,7 @@ export function emitStoryHeartbeat(opts) {
     epicId,
     phase,
     timestamp,
+    ...(operator !== undefined ? { operator } : {}),
   };
 
   const validator = getValidator();

@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-03T00:01:05.734Z",
+  "generatedAt": "2026-06-03T00:08:40.069Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12,
+      "p95": 12.000914494741656,
       "max": 38.82544452792387,
       "methodsAbove20": 25
     }
@@ -3784,30 +3784,6 @@
       "method": "getLifecycle",
       "startLine": 31,
       "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/config/limits.js",
-      "method": "mergeSignals",
-      "startLine": 59,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/config/limits.js",
-      "method": "resolveLimits",
-      "startLine": 89,
-      "crap": 9
-    },
-    {
-      "path": ".agents/scripts/lib/config/limits.js",
-      "method": "getLimits",
-      "startLine": 126,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/config/limits.js",
-      "method": "getSignals",
-      "startLine": 139,
-      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/paths.js",
