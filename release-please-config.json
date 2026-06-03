@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
   "release-type": "node",
-  "include-component-in-tag": false,
+  "include-component-in-tag": true,
   "include-v-in-tag": true,
   "draft": false,
   "prerelease": false,
@@ -9,6 +9,7 @@
   "packages": {
     ".": {
       "package-name": "mandrel",
+      "component": "",
       "changelog-path": "docs/CHANGELOG.md",
       "versioning": "always-bump-minor",
       "extra-files": [
@@ -33,6 +34,7 @@
     },
     "create-mandrel": {
       "package-name": "create-mandrel",
+      "component": "create-mandrel",
       "changelog-path": "CHANGELOG.md",
       "versioning": "always-bump-minor",
       "changelog-sections": [
