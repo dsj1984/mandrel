@@ -14,17 +14,18 @@ npx create-mandrel [bootstrap flags...]
 The launcher performs the minimum work needed to get Mandrel installed, then
 hands off to the in-tree bootstrap:
 
-1. **Vendors `.agents` (when absent).** If your project does not already have
-   an `.agents` directory, the launcher adds Mandrel's distributed bundle as a
-   Git submodule pinned to the `dist` branch:
+1. **Installs `@mandrel/agents` and materializes `.agents` (when absent).** If
+   your project does not already have an `.agents` directory, the launcher
+   installs Mandrel's distributed npm package and then copies the payload into
+   `./.agents/`:
 
    ```bash
-   git submodule add -b dist https://github.com/dsj1984/mandrel.git .agents
-   git submodule update --init -- .agents
+   npm install @mandrel/agents
+   npx mandrel sync
    ```
 
-2. **Skips the add when `.agents` already exists.** Re-running the launcher on
-   a project that is already wired up goes straight to bootstrap, so the
+2. **Skips the install when `.agents` already exists.** Re-running the launcher
+   on a project that is already wired up goes straight to bootstrap, so the
    command is safe to run more than once.
 
 3. **Runs bootstrap.** The launcher always finishes by invoking
@@ -53,17 +54,15 @@ Example non-interactive cold start:
 npx create-mandrel --assume-yes --owner acme --repo widget
 ```
 
-## Why the remote is hardcoded
+## Why the package name is hardcoded
 
-The submodule remote URL is a build-time constant. It is **never** read from
-an environment variable, a flag, or any other operator-supplied input. The
-launcher's whole purpose is to make the provenance of `.agents/` non-negotiable
-— accepting an operator-supplied URL would let a cold-start command vendor
-arbitrary code into `.agents/` and execute it.
+The installed package name (`@mandrel/agents`) is a build-time constant. It is
+**never** read from an environment variable, a flag, or any other
+operator-supplied input. The launcher's whole purpose is to make the provenance
+of `.agents/` non-negotiable — accepting an operator-supplied package would let
+a cold-start command install arbitrary code into `.agents/` and execute it.
 
 ## Requirements
 
 - Node.js `>=22.22.1 <25`
-- Git (the launcher shells out to `git submodule`).
-- The target directory must be inside a Git working tree (submodules require a
-  repository).
+- npm (the launcher shells out to `npm install` and `npx mandrel sync`).

@@ -1,0 +1,201 @@
+# Migrating from the Git submodule to the npm package
+
+Mandrel used to ship as a **Git submodule** pinned to the `dist` branch:
+consumers ran `git submodule add -b dist … .agents` and pulled framework
+updates by advancing the submodule pointer. That distribution channel is
+**retired**. The framework now ships as a versioned, provenance-signed npm
+package, [`@mandrel/agents`](https://www.npmjs.com/package/@mandrel/agents),
+and the `.agents/` working tree is **materialized from the installed package**
+by `mandrel sync` (a plain file copy — never a symlink).
+
+This guide is a **one-time migration** for an existing consumer that still has
+`.agents/` wired in as a submodule. New projects should follow the cold-start
+flow in [`.agents/README.md` § Activation](../.agents/README.md#activation)
+instead — they never touch a submodule at all.
+
+> **Why the change?** The `dist` branch had no version identity, no integrity
+> attestation, and forced every consumer onto Git submodule ergonomics
+> (`git submodule update --remote`, detached-HEAD foot-guns, no lockfile).
+> The npm package pins an exact version in your lockfile, ships a Sigstore
+> build-provenance statement proving the tarball was built from this repo's
+> CI, and upgrades through the package manager you already use. See
+> [`compatibility-matrix.md`](compatibility-matrix.md) for the supported
+> OS / Node / package-manager combinations.
+
+---
+
+## Before you start
+
+- Commit or stash any **local edits inside `.agents/`**. The submodule may
+  contain changes you made on top of the pinned `dist` commit; `mandrel sync`
+  overwrites `./.agents/` in place from the package payload, so anything you
+  customized there must be migrated into your own project layer (root
+  `.agentrc.json`, project skills, etc.) first.
+- Note the framework version you are currently pinned to (read
+  `.agents/VERSION`) so you can pick a target package version deliberately.
+- Make sure your `gh` CLI is still authenticated — orchestration scripts and
+  `mandrel doctor`'s `gh-auth` check read your token exactly as before.
+
+The migration is **idempotent and reversible up to the submodule removal
+commit**. Do it on a branch and open a PR so the diff is reviewable.
+
+---
+
+## Migration steps
+
+### 1. Deinitialize the submodule
+
+Tell Git to stop tracking `.agents/` as a submodule working tree. This empties
+the working directory but leaves the `.gitmodules` entry and the gitlink in the
+index — those come out in the next steps.
+
+```bash
+git submodule deinit -f .agents
+```
+
+### 2. Remove the submodule's gitlink and internal Git data
+
+```bash
+# Remove the gitlink (the special 160000-mode entry) from the index and tree.
+git rm -f .agents
+
+# Remove the submodule's internal Git directory so Git forgets it entirely.
+rm -rf .git/modules/.agents
+```
+
+On Windows PowerShell, use `Remove-Item -Recurse -Force .git/modules/.agents`
+instead of `rm -rf`.
+
+### 3. Remove the `.gitmodules` entry
+
+If `.agents/` was your only submodule, the file is now empty (or holds only an
+orphaned `[submodule ".agents"]` block). Either delete the whole file or remove
+just the stanza:
+
+```bash
+# If .agents was the only submodule, the file is now empty — delete it:
+git rm -f .gitmodules
+
+# Otherwise, edit .gitmodules and delete the [submodule ".agents"] block,
+# then stage it:
+#   git add .gitmodules
+```
+
+Also remove the matching `[submodule ".agents"]` section from `.git/config` if
+your Git version left it behind:
+
+```bash
+git config --remove-section submodule..agents 2>/dev/null || true
+```
+
+### 4. Install the npm package
+
+Add `@mandrel/agents` as a regular dependency with your project's package
+manager. This pins an exact version in your lockfile.
+
+```bash
+npm install @mandrel/agents
+# pnpm add @mandrel/agents
+# yarn add @mandrel/agents
+```
+
+The package ships a `postinstall` hook that runs `mandrel sync` on a
+best-effort basis, so on a normal install `./.agents/` is materialized for you.
+If you install with `--ignore-scripts` (or your CI does), the postinstall is
+skipped and you run `mandrel sync` yourself in the next step.
+
+> **Pin a specific version** by appending `@<version>` (for example
+> `npm install @mandrel/agents@1.43.0`). Upgrades are then a normal
+> `npm install @mandrel/agents@<newer>` followed by `mandrel sync` — no
+> `git submodule update`.
+
+### 5. Materialize `./.agents/` with `mandrel sync`
+
+`mandrel sync` copies the package's `.agents/` payload
+(`node_modules/@mandrel/agents/.agents/`) into your project's `./.agents/`
+directory as **plain regular files**. It is idempotent — rerun it any time to
+re-materialize after an upgrade.
+
+```bash
+npx mandrel sync
+# or, if the postinstall already ran, this is a no-op overwrite-in-place.
+```
+
+Run `npx mandrel sync --dry-run` first if you want to see exactly which files
+would be written without touching disk.
+
+After syncing, run the doctor to confirm the install is healthy:
+
+```bash
+npx mandrel doctor
+```
+
+A green `✅  Ready (N/N checks passed)` confirms `./.agents/` is materialized,
+your consumer manifest was not polluted with framework runtime deps, the
+slash commands are in sync, and `gh` is authenticated.
+
+### 6. Delete the remote `dist`-tracking branch reference
+
+Your local clone may still carry a remote-tracking ref for the retired `dist`
+branch (left over from the submodule's `-b dist` checkout). It no longer
+points at anything you consume — prune it so it stops showing up in
+`git branch -a`:
+
+```bash
+# Prune any stale remote-tracking refs (including the old dist mirror).
+git remote prune origin
+
+# Or remove just the dist-tracking ref explicitly:
+git branch -r -d origin/dist 2>/dev/null || true
+```
+
+You do **not** delete the upstream `dist` branch on `github.com/dsj1984/mandrel`
+— that is the framework maintainers' concern, and the branch is already
+retired upstream. This step only cleans up your local clone's leftover
+reference to it.
+
+### 7. Commit the migration
+
+Stage the submodule removal, the new dependency, and the materialized
+`./.agents/` tree (now plain files), then commit:
+
+```bash
+git add -A
+git commit -m "build: migrate Mandrel from git submodule to @mandrel/agents npm package"
+```
+
+---
+
+## Verifying the migration
+
+| Check | Command | Expected |
+| ----- | ------- | -------- |
+| Submodule is gone | `git submodule status` | No `.agents` entry |
+| No `.gitmodules` stanza | `grep -c '\.agents' .gitmodules` (if the file still exists) | No `[submodule ".agents"]` block |
+| Package is installed | `npm ls @mandrel/agents` | Resolves to the version you pinned |
+| `.agents/` is plain files | `git ls-files -s .agents \| head -1` | Mode `100644` (a regular file), **not** `160000` (a gitlink) |
+| Install is healthy | `npx mandrel doctor` | `✅  Ready (N/N checks passed)` |
+
+If `mandrel doctor` reports `.agents/` is not materialized, run
+`npx mandrel sync` — that is the documented remedy for the
+`--ignore-scripts` / sandboxed-CI path where the postinstall hook was
+skipped.
+
+---
+
+## Upgrading after the migration
+
+Once you are on the package, upgrades no longer involve Git at all:
+
+```bash
+npm install @mandrel/agents@<newer-version>
+npx mandrel sync
+npx mandrel doctor
+```
+
+Because the version is in your lockfile, upgrades are explicit, reviewable in
+a PR diff, and reproducible across machines and CI. Mandrel follows the
+hard-cutover contract documented in
+[`.agents/rules/git-conventions.md` § Contract Cutovers](../.agents/rules/git-conventions.md),
+so read the release notes for the target version before upgrading across a
+contract change.

@@ -30,7 +30,7 @@ function makeReport(overrides = {}) {
       created: false,
       scriptsSyncCommands: 'added',
       scriptsPrepare: 'appended',
-      deps: { added: ['ajv', 'picomatch'], skipped: [] },
+      scriptsBootstrap: 'added',
     },
     install: { ran: true, manager: 'npm', skipped: false },
     agentrc: { action: 'seeded' },
@@ -61,7 +61,7 @@ describe('renderSummary — byte-identical snapshots', () => {
     const expected = [
       '',
       '=== Bootstrap Summary ===',
-      '  package.json           created=false sync:commands=added prepare=appended deps+=2',
+      '  package.json           created=false sync:commands=added prepare=appended bootstrap=added',
       '  install                ran via npm',
       '  .agentrc.json          seeded',
       '  .claude/settings.json  merged',
@@ -86,7 +86,7 @@ describe('renderSummary — byte-identical snapshots', () => {
     const expected = [
       '',
       '=== Bootstrap Summary ===',
-      '  package.json           created=false sync:commands=added prepare=appended deps+=2',
+      '  package.json           created=false sync:commands=added prepare=appended bootstrap=added',
       '  install                ran via npm',
       '  .agentrc.json          seeded',
       '  .claude/settings.json  merged',
@@ -111,7 +111,7 @@ describe('renderSummary — byte-identical snapshots', () => {
     const expected = [
       '',
       '=== Bootstrap Summary ===',
-      '  package.json           created=false sync:commands=added prepare=appended deps+=2',
+      '  package.json           created=false sync:commands=added prepare=appended bootstrap=added',
       '  install                ran via npm',
       '  .agentrc.json          seeded',
       '  .claude/settings.json  merged',
@@ -143,7 +143,7 @@ describe('renderSummary — byte-identical snapshots', () => {
     const expected = [
       '',
       '=== Bootstrap Summary ===',
-      '  package.json           created=false sync:commands=added prepare=appended deps+=2',
+      '  package.json           created=false sync:commands=added prepare=appended bootstrap=added',
       '  install                ran via npm',
       '  .agentrc.json          seeded',
       '  .claude/settings.json  merged',

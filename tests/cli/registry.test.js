@@ -69,8 +69,8 @@ describe('registry', () => {
     assert.ok(Array.isArray(registry), 'registry must be an array');
   });
 
-  it('contains exactly 7 checks', () => {
-    assert.equal(registry.length, 7);
+  it('contains exactly 8 checks', () => {
+    assert.equal(registry.length, 8);
   });
 
   it('every entry has a string name and a run function', () => {
@@ -94,6 +94,7 @@ describe('registry', () => {
       'gh-auth',
       'commands-in-sync',
       'runtime-deps',
+      'agents-materialized',
     ];
     assert.deepEqual(
       registry.map((c) => c.name),
@@ -390,5 +391,75 @@ describe('runtime-deps check', () => {
     assert.match(result.detail, /pkg-b/);
     assert.match(result.remedy, /pkg-a/);
     assert.match(result.remedy, /pkg-b/);
+  });
+
+  it('still resolves all deps via the real require seam (behaviour unchanged)', () => {
+    const check = findCheck('runtime-deps');
+    const result = check.run({
+      manifestRequired: ['ajv'],
+      resolve: () => '/fake/path/to/ajv',
+    });
+    assertResultShape(result, { expectOk: true });
+    assert.match(result.detail, /all dependencies found/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// agents-materialized
+// ---------------------------------------------------------------------------
+
+describe('agents-materialized check', () => {
+  it('returns ok=true when ./.agents/instructions.md exists', () => {
+    const check = findCheck('agents-materialized');
+    const result = check.run({
+      cwd: () => '/fake/project',
+      existsSync: (p) => p.includes('instructions.md'),
+      // resolvePackage must not be consulted on the green path; throw to prove it.
+      resolvePackage: () => {
+        throw new Error(
+          'resolvePackage should not be called when materialized',
+        );
+      },
+    });
+    assertResultShape(result, { expectOk: true });
+    assert.match(result.detail, /materialized/);
+  });
+
+  it('returns ok=false with a `mandrel sync` remedy when the package is installed but ./.agents/ is absent', () => {
+    const check = findCheck('agents-materialized');
+    const result = check.run({
+      cwd: () => '/fake/project',
+      existsSync: () => false,
+      resolvePackage: () =>
+        '/fake/project/node_modules/@mandrel/agents/package.json',
+    });
+    assertResultShape(result, { expectOk: false });
+    assert.match(result.remedy, /mandrel sync/);
+  });
+
+  it('returns ok=false with an install remedy when neither ./.agents/ nor the package is present', () => {
+    const check = findCheck('agents-materialized');
+    const result = check.run({
+      cwd: () => '/fake/project',
+      existsSync: () => false,
+      resolvePackage: () => {
+        throw Object.assign(new Error('Cannot find module'), {
+          code: 'MODULE_NOT_FOUND',
+        });
+      },
+    });
+    assertResultShape(result, { expectOk: false });
+    assert.match(result.remedy, /npm install @mandrel\/agents/);
+  });
+
+  it('does not echo file contents — detail and remedy are path/instruction only', () => {
+    const check = findCheck('agents-materialized');
+    const result = check.run({
+      cwd: () => '/fake/project',
+      existsSync: () => false,
+      resolvePackage: () =>
+        '/fake/project/node_modules/@mandrel/agents/package.json',
+    });
+    assert.doesNotMatch(result.detail, /\n/);
   });
 });

@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-02T03:35:20.226Z",
+  "generatedAt": "2026-06-02T22:08:49.162Z",
   "rollup": {
     "*": {
       "min": 61.218,
       "p50": 103.85,
-      "p95": 121.586
+      "p95": 121.809
     }
   },
   "rows": [
@@ -2131,10 +2131,6 @@
       "mi": 61.218
     },
     {
-      "path": ".agents/scripts/single-story-init.js",
-      "mi": 91.072
-    },
-    {
       "path": ".agents/scripts/single-story-plan.js",
       "mi": 86.713
     },
@@ -2523,10 +2519,6 @@
       "mi": 106.594
     },
     {
-      "path": "tests/bootstrap/project-bootstrap.test.js",
-      "mi": 106.624
-    },
-    {
       "path": "tests/bootstrap/prompt.test.js",
       "mi": 107.833
     },
@@ -2605,10 +2597,6 @@
     {
       "path": "tests/close-validation-mi-projection.test.js",
       "mi": 110.031
-    },
-    {
-      "path": "tests/codebase-snapshot.test.js",
-      "mi": 104.605
     },
     {
       "path": "tests/concurrency-wiring.test.js",

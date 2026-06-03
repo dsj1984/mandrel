@@ -260,7 +260,7 @@ export const SECTIONS = Object.freeze([
   {
     name: 'package.json',
     render: (r) => [
-      `  package.json           created=${r.pkg.created} sync:commands=${r.pkg.scriptsSyncCommands} prepare=${r.pkg.scriptsPrepare} deps+=${r.pkg.deps.added.length}`,
+      `  package.json           created=${r.pkg.created} sync:commands=${r.pkg.scriptsSyncCommands} prepare=${r.pkg.scriptsPrepare} bootstrap=${r.pkg.scriptsBootstrap}`,
     ],
   },
   {

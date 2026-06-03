@@ -1,8 +1,17 @@
 {
-  "name": "mandrel",
+  "name": "@mandrel/agents",
   "version": "1.43.0",
-  "description": "",
+  "description": "Claude Code-first opinionated workflow framework: instructions, personas, skills, and SDLC workflows that govern AI coding assistants.",
   "main": "index.js",
+  "files": [
+    ".agents/",
+    "bin/",
+    "lib/"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "pretest": "node .agents/scripts/test-wrapper.js && node .agents/scripts/validate-skills.js",
     "pretest:quick": "node .agents/scripts/test-wrapper.js",
@@ -32,13 +41,21 @@
     "quality:preview": "node .agents/scripts/quality-preview.js --changed-since HEAD && node .agents/scripts/check-dead-exports.js",
     "quality:watch": "node .agents/scripts/quality-watch.js",
     "sync:commands": "node bin/mandrel.js sync-commands",
-    "prepare": "husky && npm run sync:commands"
+    "prepare": "husky && npm run sync:commands",
+    "postinstall": "node bin/postinstall.js mandrel sync"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dsj1984/mandrel.git"
   },
-  "keywords": [],
+  "keywords": [
+    "claude-code",
+    "ai-agents",
+    "sdlc",
+    "workflow",
+    "orchestration",
+    "agentic"
+  ],
   "author": "",
   "license": "MIT",
   "bin": {
