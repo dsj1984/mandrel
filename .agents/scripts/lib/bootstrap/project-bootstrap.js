@@ -123,7 +123,7 @@ export function detectPackageManager(projectRoot) {
  * Step 2a/2b/2c — Ensure `package.json` exists and carries the
  * `sync:commands` + `prepare` + `bootstrap` scripts. The consumer manifest
  * is never mutated with framework runtime dependencies: those arrive
- * transitively via the `@mandrel/agents` package, so bootstrap leaves the
+ * transitively via the `@mandrelai/agents` package, so bootstrap leaves the
  * `dependencies` block untouched (Story #3466). Returns the per-key outcome
  * the caller can render.
  */
@@ -178,7 +178,7 @@ export function ensurePackageJson(ctx) {
 /**
  * Step 2d — Install dependencies when the framework's sentinel module is
  * unresolvable. Bootstrap no longer seeds framework deps into the consumer
- * manifest (Story #3466) — they arrive transitively via `@mandrel/agents`
+ * manifest (Story #3466) — they arrive transitively via `@mandrelai/agents`
  * — so the install is triggered purely by an empty/stale `node_modules`.
  * Returns `{ ran, manager, skipped, reason }`.
  */

@@ -1,7 +1,7 @@
 # Compatibility matrix
 
 This page is the source of truth for the **supported install surface** of the
-[`@mandrel/agents`](https://www.npmjs.com/package/@mandrel/agents) package: the
+[`@mandrelai/agents`](https://www.npmjs.com/package/@mandrelai/agents) package: the
 operating systems, Node.js versions, and package managers that the framework is
 tested and supported against.
 
@@ -36,7 +36,7 @@ The install matrix runs every package manager against every OS:
 `yarn` refers to **classic yarn** (the Corepack default for the `yarn` shim).
 Yarn Berry (PnP) is not exercised by the matrix; if you use Berry, install in
 `node-modules` linker mode so `mandrel sync` can resolve the package root from
-`node_modules/@mandrel/agents`.
+`node_modules/@mandrelai/agents`.
 
 ---
 
@@ -60,14 +60,14 @@ within the declared range but are not separately gated.
 
 ## Package-manager notes
 
-- **npm** — the reference package manager. `npm install @mandrel/agents`
+- **npm** — the reference package manager. `npm install @mandrelai/agents`
   runs the `postinstall` hook (best-effort `mandrel sync`) automatically
   unless `--ignore-scripts` is set.
 - **pnpm** — supported. Enable it via Corepack (`corepack enable`) and use
-  `pnpm add @mandrel/agents`. `mandrel sync` resolves the package root from
+  `pnpm add @mandrelai/agents`. `mandrel sync` resolves the package root from
   pnpm's `node_modules` layout, so it works under pnpm's symlinked store.
 - **yarn (classic)** — supported. Enable via Corepack and use
-  `yarn add @mandrel/agents`.
+  `yarn add @mandrelai/agents`.
 
 In all three cases, if the lifecycle scripts are skipped (`--ignore-scripts`
 or the equivalent), run `npx mandrel sync` afterward to materialize

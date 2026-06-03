@@ -1,7 +1,7 @@
 # Version-keyed migrations
 
 The migration runner applies one-time, version-gated transformations to a
-consumer project's on-disk state when they upgrade `@mandrel/agents` across a
+consumer project's on-disk state when they upgrade `@mandrelai/agents` across a
 version boundary that changed a contract.
 
 The engine lives in [`index.js`](./index.js). It owns ordering, version

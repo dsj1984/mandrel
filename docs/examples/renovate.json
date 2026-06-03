@@ -4,7 +4,7 @@
   "packageRules": [
     {
       "description": "Mandrel framework: auto-merge minor/patch on the 1.x line once doctor passes in CI",
-      "matchPackageNames": ["@mandrel/agents"],
+      "matchPackageNames": ["@mandrelai/agents"],
       "matchUpdateTypes": ["minor", "patch"],
       "groupName": "mandrel",
       "automerge": true,
@@ -13,7 +13,7 @@
     },
     {
       "description": "Mandrel framework: hold the deliberate 1.x -> 2.0 major for manual review (see docs/upgrade-major.md)",
-      "matchPackageNames": ["@mandrel/agents"],
+      "matchPackageNames": ["@mandrelai/agents"],
       "matchUpdateTypes": ["major"],
       "automerge": false,
       "labels": ["mandrel", "major-update"]

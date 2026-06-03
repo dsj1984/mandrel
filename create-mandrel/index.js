@@ -3,14 +3,14 @@
  * create-mandrel — cold-start launcher for Mandrel (Story #3373, #3465).
  *
  * Zero-to-installed entry point for cold-start onboarding. The launcher's
- * single job is to install the distributed `@mandrel/agents` npm package
+ * single job is to install the distributed `@mandrelai/agents` npm package
  * (when `.agents` is absent), materialize it into `./.agents/` via
  * `mandrel sync`, and then hand off to the in-tree bootstrap:
  *
  *   1. If `.agents` is absent →
- *        a. `npm install @mandrel/agents` against a HARDCODED canonical
+ *        a. `npm install @mandrelai/agents` against a HARDCODED canonical
  *           package name, then
- *        b. `npx mandrel sync` to copy `node_modules/@mandrel/agents/` →
+ *        b. `npx mandrel sync` to copy `node_modules/@mandrelai/agents/` →
  *           `./.agents/`.
  *   2. If `.agents` already exists → skip the install/sync and go straight
  *      to bootstrap.
@@ -37,7 +37,7 @@ import path from 'node:path';
  * note in the module header. The package ships the `mandrel` CLI bin and the
  * `.agents/` payload as files (per AGENTS.md § Project Overview / Epic #3436).
  */
-export const CANONICAL_PACKAGE = '@mandrel/agents';
+export const CANONICAL_PACKAGE = '@mandrelai/agents';
 
 /** Path `.agents/` is materialized to, relative to the project root. */
 export const AGENTS_PATH = '.agents';
@@ -48,7 +48,7 @@ export const AGENTS_PATH = '.agents';
  * logic is unit-testable in isolation.
  *
  * When `.agents` is absent the plan is:
- *   npm install @mandrel/agents
+ *   npm install @mandrelai/agents
  *   npx mandrel sync
  *   node .agents/scripts/bootstrap.js [...passthrough]
  *

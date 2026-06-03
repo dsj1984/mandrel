@@ -46,7 +46,7 @@ creation via `story-init.js`; agents commit on the active Story branch only.
 
 ## Contract Cutovers — No Shim Layer
 
-Mandrel ships as the `@mandrel/agents` npm package, whose consumers pin an
+Mandrel ships as the `@mandrelai/agents` npm package, whose consumers pin an
 exact lockfile version; they opt into breaks at upgrade time. Operator policy
 for any contract change (config shape, baseline shape, schema, lifecycle
 payload, ticket label, dispatch artifact, public API of a script) is
@@ -58,7 +58,7 @@ therefore:
    feature flag that toggles between the two shapes.
 2. **The PR diff IS the migration.** A consumer upgrading to a release
    with the change adopts the new shape by upgrading the
-   `@mandrel/agents` package (`mandrel update`). The PR that lands on
+   `@mandrelai/agents` package (`mandrel update`). The PR that lands on
    `main` already moved every internal call site; consumers move on the
    same beat by upgrading.
 3. **No deprecation ledger, no version-windowed sunsets.** The framework
