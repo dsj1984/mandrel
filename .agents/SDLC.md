@@ -725,12 +725,17 @@ an exclusive, time-bounded claim on the ticket via
 [`ticket-lease.js`](scripts/lib/orchestration/ticket-lease.js). The lease
 rides the ticket's GitHub `assignees` field — a substrate every clone can
 read — so a live foreign claim is visible to, and refuses, a second
-operator regardless of which machine they are on. `/epic-deliver` acquires
-the Epic lease in its prepare guard and `/single-story-deliver` acquires
-the Story lease at init; liveness is decided by the owner's most-recent
-`story.heartbeat` against `delivery.lease.ttlMs`. A live foreign claim
-fails the preflight closed (refuse-and-exit, naming the owner); `--steal`
-is the only override. See
+operator regardless of which machine they are on. All three delivery and
+planning entry points take the claim: `/epic-plan` acquires the Epic lease
+before Phase 7 (spec) and releases it after Phase 8 (decompose),
+`/epic-deliver` acquires the Epic lease in its prepare guard, and
+`/single-story-deliver` acquires the Story lease at init. For
+`/epic-deliver` and `/single-story-deliver`, liveness is decided by the
+owner's most-recent `story.heartbeat` against `delivery.lease.ttlMs`;
+because planning emits no `story.heartbeat`, `/epic-plan` has no
+live-heartbeat source and treats **any** foreign assignee as a live claim.
+A live foreign claim fails the preflight closed (refuse-and-exit, naming
+the owner); `--steal` is the only override. See
 [`README.md` § Multi-developer coordination](README.md#multi-developer-coordination)
 for the full lease behaviour table.
 

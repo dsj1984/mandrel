@@ -119,7 +119,8 @@ for that invocation only.
 CRAP and Maintainability gates fire at every checkpoint (keystroke,
 pre-commit, pre-push, story-close, CI, Epic merge) against the same
 thresholds from `delivery.quality.*` in `.agentrc.json`. Downstream
-projects pull the surface in via the `/agents-update` workflow.
+projects pull the surface in by upgrading the `@mandrel/agents` package
+(`mandrel update`).
 
 ### Development
 
@@ -133,7 +134,9 @@ npm run test:coverage  # tests with coverage gate
 ### Release process
 
 Releases are automated by `release-please`. Land Conventional Commits on
-`main`; release-please opens a `chore(main): release X.Y.Z` PR that
-squash-merges itself once CI is green. See the **Contribution Workflow**
-section in [`AGENTS.md`](AGENTS.md) for PAT setup and major-version
-policy.
+`main`; release-please opens a single combined `chore: release main` PR
+(two-package manifest mode) that squash-merges itself once CI is green,
+then tags `main` and publishes `@mandrel/agents` to npm. See the
+**Contribution Workflow** and **Release Checklist** sections in
+[`AGENTS.md`](AGENTS.md) for the two-package topology, PAT/npm-token setup,
+and major-version policy.
