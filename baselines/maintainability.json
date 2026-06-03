@@ -4896,7 +4896,7 @@
     },
     {
       "path": "tests/scripts/project-bootstrap-phases.test.js",
-      "mi": 120.586
+      "mi": 118.588
     },
     {
       "path": "tests/scripts/prompt-resolvers.test.js",
