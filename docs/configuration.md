@@ -152,6 +152,8 @@ top-level keys are validation errors.
 | `hydration` | No | `object` | — | Context hydrator settings (Epic #2648). The envelope-first pipeline is the only supported output shape; this object now only carries the skill-body opt-in. |
 | `hydration.fullSkillBodies` | No | `boolean` | `false` | When true, embed full SKILL.md bodies; when false, prefer policy capsules from skills.index.json. |
 | `maxTokenBudget` | No | `integer` | — | — |
+| `lease` | No | `object` | — | Story #3480 (Epic #3457). Assignee-as-lease primitive. ttlMs is the staleness window — a ticket claim whose owner has not emitted a story.heartbeat within this many milliseconds is reclaimable by another operator. Defaults to 900000 (15 min) in lib/config/limits.js. |
+| `lease.ttlMs` | No | `integer` | — | — |
 | `docsFreshness` | No | `object` | — | Nested configuration block. |
 | `docsFreshness.paths` | No | `array` | — | — |
 | `deliverRunner` | No | `object` | — | Nested configuration block. |
