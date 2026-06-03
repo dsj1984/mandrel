@@ -28,7 +28,13 @@ import { parseArgs } from 'node:util';
 
 import { runAsCli } from './lib/cli-utils.js';
 import { getRunners, resolveConfig } from './lib/config-resolver.js';
+import { currentBranch as gitCurrentBranch } from './lib/git-branch-lifecycle.js';
+import { getEpicBranch, gitSpawn } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
+import {
+  resolveOperator,
+  runPrepareGuards,
+} from './lib/orchestration/epic-deliver-lease-guard.js';
 import {
   initialize as initializeEpicRunState,
   reconcileResumePointer,
@@ -49,10 +55,13 @@ import {
 } from './lib/orchestration/preflight-cache.js';
 import { createProvider } from './lib/provider-factory.js';
 
-const HELP = `Usage: node .agents/scripts/epic-deliver-prepare.js --epic <epicId> [--ignore-concurrency-hazards]
+const HELP = `Usage: node .agents/scripts/epic-deliver-prepare.js --epic <epicId> [--ignore-concurrency-hazards] [--steal] [--as <handle>]
 
 Snapshots Epic #<id>, builds the wave DAG, initializes the epic-run-state
-checkpoint, and prints the per-wave dispatch plan as JSON.
+checkpoint, and prints the per-wave dispatch plan as JSON. Before any of that,
+runs two fail-closed preflight guards (Story #3482): a checkout-safety check
+(refuse on a dirty tree or an unexpected branch) and an Epic-lease acquisition
+(refuse on a live foreign claim).
 
 Options:
   --ignore-concurrency-hazards   Bypass the cross-Story concurrency-hazard
@@ -60,7 +69,53 @@ Options:
                                  recorded on the Epic checkpoint so retro
                                  tooling can flag a run that shipped
                                  despite an outstanding hazard.
+  --steal                        Forcibly transfer a live foreign Epic lease
+                                 to this operator instead of refusing. The
+                                 takeover is logged for auditability.
+  --as <handle>                  Operator identity to claim the Epic lease as.
+                                 Defaults to github.operatorHandle, then the
+                                 local git config user.email.
 `;
+
+/**
+ * Build the production git shim the checkout-safety guard reads through. Pure
+ * `git` subprocess wrappers over `cwd`; injected as a seam so the unit suite
+ * can substitute an in-memory shim.
+ *
+ * @param {string} cwd
+ * @returns {{ statusPorcelain: () => { dirty: boolean, entries: string }, currentBranch: () => string|null }}
+ */
+function createGitShim(cwd) {
+  return {
+    statusPorcelain() {
+      const res = gitSpawn(cwd, 'status', '--porcelain');
+      if (res.status !== 0) {
+        throw new Error(
+          `[epic-deliver] Failed to read git status: ${res.stderr || '(no stderr)'}`,
+        );
+      }
+      const entries = res.stdout ?? '';
+      return { dirty: entries.length > 0, entries };
+    },
+    currentBranch() {
+      return gitCurrentBranch(cwd);
+    },
+  };
+}
+
+/**
+ * Resolve the local `git config user.email` as the last-resort operator
+ * identity. Returns null when git is unavailable or the value is unset.
+ *
+ * @param {string} cwd
+ * @returns {string|null}
+ */
+function resolveGitUserEmail(cwd) {
+  const res = gitSpawn(cwd, 'config', 'user.email');
+  if (res.status !== 0) return null;
+  const value = (res.stdout ?? '').trim();
+  return value.length > 0 ? value : null;
+}
 
 /**
  * End-to-end prepare. DI-friendly: tests pass `injectedProvider` and skip the
@@ -87,6 +142,12 @@ export async function runEpicDeliverPrepare({
   injectedConfig,
   injectedFindings,
   ignoreConcurrencyHazards = false,
+  steal = false,
+  asOperator,
+  injectedGit,
+  leaseHeartbeatAt = null,
+  leaseNow,
+  skipPreflightGuards = false,
 } = {}) {
   if (!Number.isInteger(epicId) || epicId <= 0) {
     throw new TypeError(
@@ -101,6 +162,43 @@ export async function runEpicDeliverPrepare({
   const provider = injectedProvider ?? createProvider(config);
   const { deliverRunner } = getRunners(config);
   const concurrencyCap = deliverRunner.concurrencyCap;
+
+  // Preflight guards (Story #3482): fail closed on a dirty/foreign-branch
+  // checkout and on a live foreign Epic lease, BEFORE any snapshot or git
+  // mutation runs. The guards are injectable so the unit suite exercises them
+  // without a real repo. They are skipped when an explicit `skipPreflightGuards`
+  // is set, OR — implicitly — when a caller injects a provider but no git seam:
+  // that combination is the signature of the pre-existing prepare-runner unit
+  // tests that assert the DAG/checkpoint behaviour against an in-memory
+  // provider and never stand up a working tree. The real CLI path passes
+  // neither `injectedProvider` nor `injectedGit`, so the guards always run for
+  // an operator-driven invocation.
+  const guardsSuppressed =
+    skipPreflightGuards || (Boolean(injectedProvider) && !injectedGit);
+  if (!guardsSuppressed) {
+    const guardCwd = cwd ?? process.cwd();
+    const git = injectedGit ?? createGitShim(guardCwd);
+    const baseBranch = config.project?.baseBranch ?? 'main';
+    const expectedBranch = [getEpicBranch(epicId), baseBranch];
+    const operator =
+      resolveOperator({
+        asFlag: asOperator,
+        config,
+        gitUserEmail: injectedGit ? undefined : resolveGitUserEmail(guardCwd),
+      }) ?? null;
+    await runPrepareGuards({
+      epicId,
+      expectedBranch,
+      git,
+      provider,
+      operator,
+      heartbeatAt: leaseHeartbeatAt,
+      steal,
+      config,
+      now: leaseNow,
+      logger: Logger,
+    });
+  }
 
   // Story #3027: try the preflight cache first so we don't re-walk Epic
   // → Feature → Story when `epic-deliver-preflight.js` already did. The
@@ -232,6 +330,8 @@ async function main() {
       epic: { type: 'string' },
       help: { type: 'boolean', short: 'h' },
       'ignore-concurrency-hazards': { type: 'boolean', default: false },
+      steal: { type: 'boolean', default: false },
+      as: { type: 'string' },
     },
     strict: false,
   });
@@ -250,6 +350,8 @@ async function main() {
   const result = await runEpicDeliverPrepare({
     epicId,
     ignoreConcurrencyHazards: values['ignore-concurrency-hazards'] === true,
+    steal: values.steal === true,
+    asOperator: typeof values.as === 'string' ? values.as : undefined,
   });
   Logger.info(JSON.stringify(result, null, 2));
 }
