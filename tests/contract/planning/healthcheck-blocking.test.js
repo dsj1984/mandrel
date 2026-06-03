@@ -71,6 +71,9 @@ function buildStubProvider({ epicId, epicLabels }) {
     async getTickets() {
       return Array.from(issues.values()).filter((t) => t.id !== epicId);
     },
+    async getSubTickets() {
+      return Array.from(issues.values()).filter((t) => t.id !== epicId);
+    },
     async createTicket(_parentId, payload) {
       const id = nextId++;
       issues.set(id, {

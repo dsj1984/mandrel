@@ -191,7 +191,7 @@ async function main() {
     provider,
     { prdContent, techSpecContent, acceptanceSpecContent },
     settings,
-    { force: values.force, forceReview: values['force-review'] },
+    { force: values.force, forceReview: values['force-review'], config },
   );
 
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);

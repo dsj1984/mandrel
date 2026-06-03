@@ -247,6 +247,28 @@ for the scoring logic.
 
 ## Phase 7: Epic Planning (PRD, Tech Spec & Acceptance Spec)
 
+> **Epic-lease preflight (workflow guard).** Before any Phase 7 mutation,
+> `epic-plan-spec.js` acquires the Epic-lease via the assignee-as-lease
+> primitive (`lib/orchestration/ticket-lease.js`, wired through
+> `lib/orchestration/epic-plan-lease-guard.js`). The lease rides the Epic's
+> single assignee: the operator (`github.operatorHandle` in `.agentrc.json`)
+> claims the Epic for the duration of the plan. A **live** foreign claim —
+> another operator whose most-recent `story.heartbeat` for this Epic is within
+> `delivery.lease.ttlMs` — makes the persist half **exit non-zero and name the
+> current owner**, so two `/epic-plan` runs cannot drive the same Epic
+> concurrently. A stale or unassigned claim is taken silently. The lease is
+> **released after Phase 8** (decompose) completes; see the Phase 8 note.
+
+<!-- separator: adjacent blockquotes -->
+
+> **Idempotent context tickets.** The persist half is find-or-create keyed on
+> the Epic's `linkedIssues`: a re-run **reuses the already-linked PRD and Tech
+> Spec issues** (and Acceptance Spec, when present) instead of creating
+> duplicates. Pass `--force` to overwrite the canonical context tickets in
+> place (same issue numbers, refreshed bodies).
+
+<!-- separator: adjacent blockquotes -->
+
 > **Three context tickets, not two.** Every Epic carries three planning
 > artifacts as linked GitHub sub-issues: PRD (`context::prd`), Tech Spec
 > (`context::tech-spec`), and Acceptance Spec
@@ -414,6 +436,17 @@ for the scoring logic.
    [`lib/plan-phase-cleanup.js`](../scripts/lib/plan-phase-cleanup.js).
 
 ## Phase 8: Work Breakdown Decomposition
+
+> **Open-children guard (workflow guard).** Before persisting the breakdown,
+> `epic-plan-decompose.js` refuses to run when the Epic **already has open
+> Feature/Story children**, unless `--force` (close + recreate the tree) or
+> `--resume` (continue a partial persist) is set. This stops a re-run from
+> stacking a duplicate Feature/Story tree on top of an existing one — the
+> phase exits non-zero and lists the open children. Once persist completes,
+> the Epic-lease acquired in Phase 7 is **released** (best-effort; a release
+> failure never fails decompose).
+
+<!-- separator: adjacent blockquotes -->
 
 > **Hierarchy.** The decomposer emits an Epic → Feature → Story tree.
 > Acceptance criteria and verification steps are inlined on each Story
