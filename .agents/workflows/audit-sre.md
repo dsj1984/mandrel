@@ -1,5 +1,5 @@
 ---
-description: Audit production-readiness for a release candidate: SLOs, observability, runbooks, error budgets, and rollback paths.
+description: "Audit production-readiness for a release candidate: SLOs, observability, runbooks, error budgets, and rollback paths."
 ---
 
 # Production Release Candidate Audit
