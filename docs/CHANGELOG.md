@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.48.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.47.0...mandrel-v1.48.0) (2026-06-04)
+
+
+### Added
+
+* **skills:** add operator comprehension capability (refs [#3571](https://github.com/dsj1984/mandrel/issues/3571)) ([#3572](https://github.com/dsj1984/mandrel/issues/3572)) ([12f0810](https://github.com/dsj1984/mandrel/commit/12f0810ac184a4d54808f7f977fee93310b2fb0c))
+
+
+### Fixed
+
+* **bootstrap:** honest applied-group + prepare-removal reporting and non-TTY help ([#3545](https://github.com/dsj1984/mandrel/issues/3545)) ([#3569](https://github.com/dsj1984/mandrel/issues/3569)) ([d5691f9](https://github.com/dsj1984/mandrel/commit/d5691f976796819a4a2f39c66161fa03d27abff7))
+
 ## [1.47.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.46.0...mandrel-v1.47.0) (2026-06-04)
 
 
