@@ -78,6 +78,40 @@ describe('postinstall hook — success path', () => {
   });
 });
 
+describe('postinstall hook — destination root (Story #3584)', () => {
+  // npm runs the postinstall lifecycle with cwd set to the package dir, not
+  // the consumer root. runPostinstall must hand runSync a cwd resolving to
+  // INIT_CWD (where `npm install` ran) so .agents/ lands in the consumer
+  // project, not back onto node_modules/@mandrelai/agents.
+  it('passes sync a cwd resolving to INIT_CWD when it is set', () => {
+    let received;
+    runPostinstall({
+      ...consumer,
+      initCwd: '/home/dev/my-app',
+      sync: ({ cwd }) => {
+        received = cwd();
+      },
+      writeErr: () => {},
+      exit: () => {},
+    });
+    assert.equal(received, '/home/dev/my-app');
+  });
+
+  it('falls back to process.cwd() when INIT_CWD is unset', () => {
+    let received;
+    runPostinstall({
+      ...consumer,
+      initCwd: undefined,
+      sync: ({ cwd }) => {
+        received = cwd();
+      },
+      writeErr: () => {},
+      exit: () => {},
+    });
+    assert.equal(received, process.cwd());
+  });
+});
+
 describe('postinstall hook — sync reports non-zero exit (e.g. package missing)', () => {
   it('still exits 0 (best-effort: never fail the install)', () => {
     let exitCode;

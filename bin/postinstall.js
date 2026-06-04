@@ -119,9 +119,22 @@ export function isSourceCheckout({
  * and we also catch any thrown error (e.g. a mid-copy filesystem fault), so
  * the postinstall lifecycle can never fail the consumer's `npm install`.
  *
+ * **Destination root (Story #3584).** `runSync` derives its destination from
+ * `process.cwd()`, but npm runs a dependency's lifecycle scripts with cwd set
+ * to the **package's own directory** (`node_modules/@mandrelai/agents`), not
+ * the consumer project root. Left unset, the materializer would copy
+ * `.agents/` back onto the package's own payload and the consumer's project
+ * root would get nothing. We pass `runSync` a `cwd` resolving to `INIT_CWD` —
+ * the directory where `npm install` was invoked (the consumer root) — falling
+ * back to `process.cwd()` only when the hook runs outside npm (`INIT_CWD`
+ * unset). This is scoped to the postinstall path: the manual `mandrel sync` /
+ * `mandrel update` paths already run from the project root and keep
+ * `runSync`'s default `process.cwd()` behaviour.
+ *
  * @param {{
  *   sync?: typeof runSync,
  *   isSourceCheckout?: typeof isSourceCheckout,
+ *   initCwd?: string,
  *   writeErr?: (s: string) => void,
  *   exit?: (code: number) => void,
  * }} [opts]
@@ -131,6 +144,7 @@ export function isSourceCheckout({
 export function runPostinstall({
   sync = runSync,
   isSourceCheckout: detectSource = isSourceCheckout,
+  initCwd = process.env.INIT_CWD,
   writeErr = (s) => process.stderr.write(s),
   exit = (code) => process.exit(code),
 } = {}) {
@@ -149,6 +163,11 @@ export function runPostinstall({
     // `postinstall` string document intent (and are what the hint points
     // operators at); they are not flags this hook needs to honor.
     sync({
+      // Resolve the destination from INIT_CWD (the consumer project root,
+      // where `npm install` ran), not the package dir npm makes cwd during
+      // the postinstall lifecycle (Story #3584). Fall back to process.cwd()
+      // outside npm, when INIT_CWD is unset.
+      cwd: () => initCwd || process.cwd(),
       // Best-effort: never let sync's own non-zero exit terminate the
       // install. Record the failure and fall through to the exit-0 hint.
       exit: (code) => {
