@@ -5,7 +5,7 @@
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.226395160174576,
+      "p95": 12.433975308641976,
       "max": 38.82544452792387,
       "methodsAbove20": 24
     }
@@ -2605,14 +2605,8 @@
     },
     {
       "path": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
-      "method": "isSubmoduleAgents",
-      "startLine": 120,
-      "crap": 2.1481481481481484
-    },
-    {
-      "path": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
       "method": "ensureGuardrailsHelper",
-      "startLine": 139,
+      "startLine": 126,
       "crap": 5.008200418221329
     },
     {
@@ -14251,81 +14245,39 @@
     },
     {
       "path": ".agents/scripts/lib/worktree/bootstrapper.js",
-      "method": "isAgentsSubmodule",
-      "startLine": 25,
-      "crap": 2.032
-    },
-    {
-      "path": ".agents/scripts/lib/worktree/bootstrapper.js",
       "method": "copyBootstrapFiles",
-      "startLine": 45,
+      "startLine": 24,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/worktree/bootstrapper.js",
       "method": "wrapBootstrapLogger",
-      "startLine": 61,
+      "startLine": 40,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/worktree/bootstrapper.js",
       "method": "<anon method-1>",
-      "startLine": 62,
+      "startLine": 41,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/worktree/bootstrapper.js",
       "method": "<anon method-2>",
-      "startLine": 65,
+      "startLine": 44,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/worktree/bootstrapper.js",
       "method": "<anon method-3>",
-      "startLine": 66,
+      "startLine": 45,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/worktree/bootstrapper.js",
       "method": "<anon method-4>",
-      "startLine": 67,
+      "startLine": 46,
       "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/worktree/bootstrapper.js",
-      "method": "copyAgentsFromRoot",
-      "startLine": 78,
-      "crap": 6.902598627413996
-    },
-    {
-      "path": ".agents/scripts/lib/worktree/bootstrapper.js",
-      "method": "removeCopiedAgents",
-      "startLine": 127,
-      "crap": 4.034372797153503
-    },
-    {
-      "path": ".agents/scripts/lib/worktree/bootstrapper.js",
-      "method": "setAgentsGitlinkSkipWorktree",
-      "startLine": 166,
-      "crap": 8.597171599358507
-    },
-    {
-      "path": ".agents/scripts/lib/worktree/bootstrapper.js",
-      "method": "dropAgentsGitlinkFromIndex",
-      "startLine": 192,
-      "crap": 7.333333333333334
-    },
-    {
-      "path": ".agents/scripts/lib/worktree/bootstrapper.js",
-      "method": "dropAllSubmoduleGitlinksFromIndex",
-      "startLine": 212,
-      "crap": 6.053737609329446
-    },
-    {
-      "path": ".agents/scripts/lib/worktree/bootstrapper.js",
-      "method": "purgePerWorktreeSubmoduleDir",
-      "startLine": 255,
-      "crap": 6.197842458782821
     },
     {
       "path": ".agents/scripts/lib/worktree/inspector.js",

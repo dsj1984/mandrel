@@ -5,8 +5,7 @@
  * project clone. Performs four additive actions, each safe to re-run:
  *
  *   1. Copies the `code-quality-guardrails.md` helper into the project's
- *      `.agents/workflows/helpers/` (no-op when the project consumes
- *      `.agents/` as a submodule — the helper already lives there).
+ *      `.agents/workflows/helpers/` (no-op when the helper is already present).
  *   2. Installs `.husky/pre-commit` carrying the `quality:preview` invocation
  *      that the framework ships, preserving any custom hook lines already in
  *      place. When a custom (non-framework) `pre-commit` exists, it is left
@@ -113,23 +112,11 @@ function writeJson(p, obj) {
 }
 
 /**
- * Detect whether the project consumes `.agents/` as a git submodule.
- * Used to decide whether the helper file copy is a no-op (submodule case)
- * or a real install (vendored / fresh-bootstrap case).
- */
-function isSubmoduleAgents(projectRoot) {
-  const gitmodules = path.join(projectRoot, '.gitmodules');
-  if (!fs.existsSync(gitmodules)) return false;
-  const txt = fs.readFileSync(gitmodules, 'utf8');
-  return /\.agents/.test(txt);
-}
-
-/**
  * Step 1 — Ensure the code-quality-guardrails helper is present under
- * `.agents/workflows/helpers/`. When `.agents/` is a submodule the helper
- * already lives upstream and we report `present-via-submodule`. Otherwise
- * the helper is copied from the framework source if available, or skipped
- * with a `missing-source` outcome the caller can surface.
+ * `.agents/workflows/helpers/`. When the helper already exists we report
+ * `already-present`. Otherwise the helper is copied from the framework source
+ * if available, or skipped with a `missing-source` outcome the caller can
+ * surface.
  *
  * @param {object} ctx
  * @param {string} ctx.projectRoot
@@ -145,9 +132,6 @@ export function ensureGuardrailsHelper(ctx) {
     'helpers',
     'code-quality-guardrails.md',
   );
-  if (isSubmoduleAgents(projectRoot) && fs.existsSync(target)) {
-    return { action: 'present-via-submodule', path: target };
-  }
   if (fs.existsSync(target)) {
     return { action: 'already-present', path: target };
   }

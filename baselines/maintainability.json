@@ -5,7 +5,7 @@
   "rollup": {
     "*": {
       "min": 45.044,
-      "p50": 103.836,
+      "p50": 103.85,
       "p95": 121.586
     }
   },
@@ -2257,10 +2257,6 @@
     {
       "path": ".agents/scripts/update-mutation-baseline.js",
       "mi": 90.226
-    },
-    {
-      "path": ".agents/scripts/update-self.js",
-      "mi": 82.639
     },
     {
       "path": ".agents/scripts/update-ticket-state.js",

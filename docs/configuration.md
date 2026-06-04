@@ -1000,8 +1000,8 @@ allowlists drift project-to-project.
 ### Cadence
 
 Run `/fewer-permission-prompts` **once per `/agents-update`
-invocation**, immediately after the submodule pointer moves and before
-the bump commit lands. The cadence is codified in
+invocation**, immediately after the package upgrade re-materializes
+`.agents/` and before the bump commit lands. The cadence is codified in
 [`/agents-update` Step 3.6](../.agents/workflows/agents-update.md). The
 operator who just bumped `.agents/` has the freshest transcript context
 in the active session, which is exactly what the skill scans, so this

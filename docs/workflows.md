@@ -28,7 +28,7 @@ merges the PR through the GitHub UI — the workflow never merges to
 
 `/agents-update` invokes the Claude Code built-in
 `/fewer-permission-prompts` (Step 3.6) to refresh the harness allowlist
-after a submodule bump. Other built-ins (`/loop`, `/insights`, `/goal`)
+after a package bump. Other built-ins (`/loop`, `/insights`, `/goal`)
 are not wired into any workflow today — see ADR 20260512-coupling-stance
 and ADR 20260512-loop-adoption in [`decisions.md`](decisions.md) for the
 stance on future adoption.
@@ -80,7 +80,7 @@ invoked manually or automatically at `gate1`–`gate4` by the audit orchestrator
 | Command                    | Purpose                                                                                                          |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `node .agents/scripts/bootstrap.js` | One-shot consumer setup: wires the local harness (mandrel plugin sync + enablement, `package.json` scripts, hooks, gitignore, Windows git-perf check) **and** initializes the GitHub repo (label taxonomy, project fields, default Kanban board, branch protection when enabled). Not a slash command — runs deterministically with interactive prompts on a TTY and flag-driven non-interactive runs in CI. |
-| `/mandrel:agents-update`            | **Legacy** submodule-bump path: bump the `.agents` submodule to its remote HEAD, reconcile `.agentrc.json` against the new defaults, and regenerate `.claude/commands/`. Under the npm distribution model (#3436/#3437) the supported upgrade path is the `mandrel update` CLI (bump → sync → migrate → doctor); `/agents-update` is retained only for repos still on the retired `dist`-branch submodule. |
+| `/mandrel:agents-update`            | Upgrade the installed `@mandrelai/agents` package via the `mandrel update` CLI (bump → sync → migrate → doctor), reconcile `.agentrc.json` against the new defaults, and refresh the Claude Code plugin command surface. |
 | `/mandrel:drain-pending-cleanup`    | Reap any orphan `.worktrees/` residue and prune stale story / epic branches in one pass.                        |
 | `/mandrel:run-qa-harness`           | Drive a selected set of Gherkin scenarios through a real browser as an agent-driven QA sweep, emitting a sweep summary and structured findings (consumed by the `epic-testing.md` helper). Run pipeline, the `qa` contract fields, and the `F#` finding shape are documented in [`architecture.md` § Agent-driven QA harness](architecture.md#agent-driven-qa-harness); consumer adoption steps are in [`.agents/README.md` § Adopting the QA harness](../.agents/README.md#adopting-the-qa-harness). |
 
@@ -102,8 +102,8 @@ Not invoked directly by operators, but referenced from other workflows:
 - `helpers/task-execute.md` — single-Task implementation procedure read
   inline by `/story-deliver` per Task (not a slash command).
 - `helpers/agents-sync-config.md` — schema-driven validate-then-merge procedure
-  for `.agentrc.json`, invoked by `/agents-update` after the submodule pointer
-  moves (formerly shipped as `/agents-sync-config`).
+  for `.agentrc.json`, invoked by `/agents-update` after the package upgrade
+  re-materializes `.agents/` (formerly shipped as `/agents-sync-config`).
 - `helpers/worktree-lifecycle.md` — per-story `git worktree` isolation model,
   including node_modules strategies, Windows notes, and escape hatches. Lives
   under `helpers/` because it is operator and reviewer reference documentation,

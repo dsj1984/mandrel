@@ -51,9 +51,6 @@ explicit `npx mandrel sync` above is the belt-and-suspenders step for
 `--ignore-scripts` or sandboxed-CI installs. Run `npx mandrel doctor` any
 time to confirm the install is healthy.
 
-> **Already on the old Git submodule?** Follow the one-time
-> [submodule-to-npm migration guide](docs/migration-submodule-to-npm.md).
-
 `bootstrap.js` is interactive on a TTY and auto-accepts the
 owner/repo/base branch/operator handle it can infer from your local
 `git remote` and `git config user.name` — you only get prompted for
