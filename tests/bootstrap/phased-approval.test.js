@@ -253,6 +253,43 @@ describe('resolveAppliedGroups', () => {
     });
     assert.equal(applied.has(PHASE_GROUPS.GITHUB_ADMIN), false);
   });
+
+  it('drops github-admin when branchProtection sub-mutation failed', () => {
+    // A top-level error is absent but an individual sub-mutation failed —
+    // the ledger must NOT record github-admin as applied (Story #3545).
+    const applied = resolveAppliedGroups(new Set([PHASE_GROUPS.GITHUB_ADMIN]), {
+      github: {
+        labels: { created: [], skipped: [] },
+        branchProtection: { status: 'failed', reason: 'API timeout' },
+        mergeMethods: { status: 'patched' },
+      },
+    });
+    assert.equal(applied.has(PHASE_GROUPS.GITHUB_ADMIN), false);
+  });
+
+  it('drops github-admin when mergeMethods sub-mutation failed', () => {
+    const applied = resolveAppliedGroups(new Set([PHASE_GROUPS.GITHUB_ADMIN]), {
+      github: {
+        labels: { created: [], skipped: [] },
+        branchProtection: { status: 'created' },
+        mergeMethods: { status: 'failed', reason: 'Permission denied' },
+      },
+    });
+    assert.equal(applied.has(PHASE_GROUPS.GITHUB_ADMIN), false);
+  });
+
+  it('counts a run with intentionally skipped sub-mutations as applied', () => {
+    // `status: 'skipped'` on a sub-mutation is an explicit opt-out (opt-out
+    // flag / no-config), not a failure — the group still landed.
+    const applied = resolveAppliedGroups(new Set([PHASE_GROUPS.GITHUB_ADMIN]), {
+      github: {
+        labels: { created: ['type::story'], skipped: [] },
+        branchProtection: { status: 'skipped', reason: 'opt-out' },
+        mergeMethods: { status: 'unchanged' },
+      },
+    });
+    assert.equal(applied.has(PHASE_GROUPS.GITHUB_ADMIN), true);
+  });
 });
 
 describe('buildLedgerRecord', () => {
