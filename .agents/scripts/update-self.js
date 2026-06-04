@@ -16,7 +16,8 @@
  *        Retries up to 3 times with a 2s backoff.
  *   4. Capture NEW_SHA and print the SHA range + shortlog.
  *   5. Exec `node .agents/scripts/sync-claude-commands.js` so the
- *      consumer's `.claude/commands/` tracks the new workflows.
+ *      consumer's mandrel plugin tree (`.claude/plugins/mandrel/`) tracks
+ *      the new workflows.
  *
  * Exit codes:
  *   0 — success (including a no-op when OLD === NEW).
@@ -140,7 +141,7 @@ if (oldSha === newSha) {
   }
 }
 
-// Step 5 — regenerate .claude/commands/ via the authoritative writer.
+// Step 5 — regenerate the mandrel plugin tree via the authoritative writer.
 const syncScript = path.join(
   submoduleAbs,
   'scripts',

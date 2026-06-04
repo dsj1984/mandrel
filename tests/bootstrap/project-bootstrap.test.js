@@ -145,12 +145,24 @@ describe('ensurePackageJson', () => {
 });
 
 describe('ensureClaudeSettings', () => {
-  it('creates a fresh settings.json with the UserPromptSubmit hook', () => {
+  it('creates a fresh settings.json with the hook and plugin enablement', () => {
     const outcome = ensureClaudeSettings({ projectRoot: tmpRoot });
     assert.equal(outcome.action, 'created');
     const settings = readJson(path.join(tmpRoot, '.claude', 'settings.json'));
     const cmd = settings.hooks.UserPromptSubmit[0].hooks[0].command;
     assert.ok(cmd.includes('sync-claude-commands.js'));
+    // Plugin enablement lands in the same step (Story #3576 sequencing guard):
+    // the repo-local marketplace + the enabledPlugins entry so /mandrel:<name>
+    // loads the moment the flat commands are gone.
+    assert.equal(settings.enabledPlugins['mandrel@mandrel'], true);
+    assert.equal(
+      settings.extraKnownMarketplaces.mandrel.source.source,
+      'directory',
+    );
+    assert.equal(
+      settings.extraKnownMarketplaces.mandrel.source.path,
+      './.claude',
+    );
   });
 
   it('merges into an existing settings.json without duplicating', () => {
@@ -162,6 +174,8 @@ describe('ensureClaudeSettings', () => {
     const second = ensureClaudeSettings({ projectRoot: tmpRoot });
     assert.equal(first.action, 'merged');
     assert.equal(second.action, 'already-present');
+    const settings = readJson(path.join(tmpRoot, '.claude', 'settings.json'));
+    assert.equal(settings.enabledPlugins['mandrel@mandrel'], true);
   });
 });
 
@@ -171,14 +185,17 @@ describe('ensureGitignore', () => {
     assert.equal(outcome.commands, 'added');
     assert.equal(outcome.mcp, 'added');
     const body = fs.readFileSync(path.join(tmpRoot, '.gitignore'), 'utf8');
-    assert.ok(body.includes('.claude/commands/'));
+    // The generated plugin projection (Story #3576), not the retired flat
+    // .claude/commands/ surface, is the ignored generated path.
+    assert.ok(body.includes('.claude/plugins/mandrel/'));
+    assert.ok(body.includes('.claude/.claude-plugin/'));
     assert.ok(body.includes('.mcp.json'));
   });
 
   it('skips already-present entries', () => {
     writeFile(
       path.join(tmpRoot, '.gitignore'),
-      'node_modules/\n.claude/commands/\n.mcp.json\n',
+      'node_modules/\n.claude/plugins/mandrel/\n.mcp.json\n',
     );
     const outcome = ensureGitignore({ projectRoot: tmpRoot });
     assert.equal(outcome.commands, 'already-present');

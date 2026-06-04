@@ -11,8 +11,8 @@ caller: epic-deliver.md
 
 # helpers/epic-deliver-story — Epic-attached Story worker
 
-> **Not a slash command.** This file lives in `helpers/` and is not imported
-> into `.claude/commands/`. It is invoked exclusively by the
+> **Not a slash command.** This file lives in `helpers/` and is not projected
+> into the mandrel plugin command tree. It is invoked exclusively by the
 > [`/epic-deliver`](../epic-deliver.md) per-wave fan-out via an `Agent` tool
 > call (`subagent_type: general-purpose`). Run `/epic-deliver <epicId>` from
 > the operator surface, not this helper directly.

@@ -1,12 +1,19 @@
 /**
- * sync-claude-commands frontmatter pass-through (Story #1324, Epic #1185;
- * trimmed in Story #2590 after `recommendedModel` was removed).
+ * sync-claude-commands plugin projection (Story #1324, Epic #1185; trimmed in
+ * Story #2590; cut over to the Claude Code plugin shape in Story #3576).
  *
- * Asserts that the sync script propagates the optional `dispatchModel`
- * field verbatim, and that a workflow with no model hint produces output
- * that is byte-identical to today's baseline (HEADER + source bytes).
- * Together this proves the plumbing layer needs no code change beyond
- * the env-var SRC/DEST overrides added for testing.
+ * The writer no longer emits a flat `.claude/commands/` tree — it projects the
+ * workflows into a Claude Code **plugin** so each command is invocable as
+ * `/mandrel:<name>`. These tests assert the plugin shape:
+ *   - commands land under `<pluginRoot>/commands/<name>.md`, frontmatter
+ *     (`description:` / `dispatchModel:`) preserved verbatim under the
+ *     AUTO-GENERATED header;
+ *   - the plugin manifest is written at
+ *     `<pluginRoot>/.claude-plugin/plugin.json` with `name: "mandrel"`;
+ *   - the repo-local marketplace listing is written one level above `plugins/`
+ *     at `<marketplaceRoot>/.claude-plugin/marketplace.json`;
+ *   - `helpers/` is excluded;
+ *   - re-running is idempotent (byte-identical output, no churn).
  */
 
 import assert from 'node:assert/strict';
@@ -30,15 +37,24 @@ const HEADER =
   '<!-- AUTO-GENERATED — do not edit. Source of truth: .agents/workflows/ -->\n<!-- Re-run: npm run sync:commands -->\n\n';
 
 /**
- * Run sync-claude-commands.js with isolated SRC/DEST dirs. Returns the
- * map of synced filenames → final on-disk content.
+ * Run sync-claude-commands.js with an isolated SRC workflow tree and a DEST
+ * plugin root. Returns the absolute plugin-root path plus a `commands` map of
+ * synced filename → on-disk content. The caller owns cleanup via `cleanup()`.
+ *
+ * The DEST override points at the plugin root: the writer emits
+ * `<dest>/commands/*.md`, `<dest>/.claude-plugin/plugin.json`, and the
+ * marketplace two levels up at `<dest>/../../.claude-plugin/marketplace.json`.
+ * We mirror the real `.claude/plugins/mandrel/` nesting so the marketplace path
+ * resolves the same way it does in a project.
  */
 function runSyncWith(sources) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'sync-claude-commands-'));
   const src = path.join(tmp, 'workflows');
-  const dest = path.join(tmp, 'commands');
+  // Nest the plugin root as <tmp>/.claude/plugins/mandrel so the writer's
+  // "marketplace two levels up" math lands at <tmp>/.claude/.claude-plugin/.
+  const pluginRoot = path.join(tmp, '.claude', 'plugins', 'mandrel');
   fs.mkdirSync(src, { recursive: true });
-  fs.mkdirSync(dest, { recursive: true });
+  fs.mkdirSync(pluginRoot, { recursive: true });
   for (const [name, content] of Object.entries(sources)) {
     fs.writeFileSync(path.join(src, name), content, 'utf8');
   }
@@ -46,24 +62,37 @@ function runSyncWith(sources) {
     env: {
       ...process.env,
       SYNC_CLAUDE_COMMANDS_SRC: src,
-      SYNC_CLAUDE_COMMANDS_DEST: dest,
+      SYNC_CLAUDE_COMMANDS_DEST: pluginRoot,
     },
     encoding: 'utf8',
   });
   if (result.status !== 0) {
+    fs.rmSync(tmp, { recursive: true, force: true });
     throw new Error(
       `sync exited with ${result.status}: ${result.stderr || result.stdout}`,
     );
   }
-  const synced = {};
-  for (const f of fs.readdirSync(dest)) {
-    synced[f] = fs.readFileSync(path.join(dest, f), 'utf8');
+  const commandsDir = path.join(pluginRoot, 'commands');
+  const commands = {};
+  for (const f of fs.readdirSync(commandsDir)) {
+    commands[f] = fs.readFileSync(path.join(commandsDir, f), 'utf8');
   }
-  fs.rmSync(tmp, { recursive: true, force: true });
-  return synced;
+  return {
+    tmp,
+    pluginRoot,
+    commands,
+    manifestPath: path.join(pluginRoot, '.claude-plugin', 'plugin.json'),
+    marketplacePath: path.join(
+      tmp,
+      '.claude',
+      '.claude-plugin',
+      'marketplace.json',
+    ),
+    cleanup: () => fs.rmSync(tmp, { recursive: true, force: true }),
+  };
 }
 
-test('sync-claude-commands: preserves dispatchModel verbatim', () => {
+test('sync-claude-commands: preserves dispatchModel verbatim in the plugin command', () => {
   const source = [
     '---',
     'description: Fixture workflow with a dispatchModel hint.',
@@ -76,19 +105,24 @@ test('sync-claude-commands: preserves dispatchModel verbatim', () => {
     '',
   ].join('\n');
 
-  const synced = runSyncWith({ 'fixture-dispatch.md': source });
-
-  assert.ok(synced['fixture-dispatch.md'], 'expected fixture-dispatch.md');
-  // Header is prepended verbatim and frontmatter survives byte-for-byte.
-  assert.equal(synced['fixture-dispatch.md'], HEADER + source);
-  assert.match(synced['fixture-dispatch.md'], /^dispatchModel: haiku$/m);
+  const run = runSyncWith({ 'fixture-dispatch.md': source });
+  try {
+    assert.ok(
+      run.commands['fixture-dispatch.md'],
+      'expected fixture-dispatch.md',
+    );
+    // Header is prepended verbatim and frontmatter survives byte-for-byte.
+    assert.equal(run.commands['fixture-dispatch.md'], HEADER + source);
+    assert.match(
+      run.commands['fixture-dispatch.md'],
+      /^dispatchModel: haiku$/m,
+    );
+  } finally {
+    run.cleanup();
+  }
 });
 
-test('sync-claude-commands: workflow without model hints is byte-identical to baseline', () => {
-  // A workflow declaring only `description` represents the post-#2590
-  // baseline shape. The synced output must equal HEADER + source bytes
-  // exactly — proof that the plumbing layer's behaviour is unchanged for
-  // workflows that opt out of the convention.
+test('sync-claude-commands: workflow body is byte-identical to HEADER + source', () => {
   const source = [
     '---',
     'description: Fixture workflow with no model hints (baseline shape).',
@@ -100,32 +134,135 @@ test('sync-claude-commands: workflow without model hints is byte-identical to ba
     '',
   ].join('\n');
 
-  const synced = runSyncWith({ 'fixture-baseline.md': source });
-
-  assert.ok(synced['fixture-baseline.md'], 'expected fixture-baseline.md');
-  assert.equal(synced['fixture-baseline.md'], HEADER + source);
-  // Confirm no model hint leaked in.
-  assert.doesNotMatch(synced['fixture-baseline.md'], /dispatchModel/);
+  const run = runSyncWith({ 'fixture-baseline.md': source });
+  try {
+    assert.ok(
+      run.commands['fixture-baseline.md'],
+      'expected fixture-baseline.md',
+    );
+    assert.equal(run.commands['fixture-baseline.md'], HEADER + source);
+    assert.doesNotMatch(run.commands['fixture-baseline.md'], /dispatchModel/);
+  } finally {
+    run.cleanup();
+  }
 });
 
-test('sync-claude-commands: each enum value round-trips for dispatchModel', () => {
-  const values = ['haiku', 'sonnet', 'opus'];
-  const sources = {};
-  for (const v of values) {
-    sources[`fixture-${v}.md`] = [
-      '---',
-      `description: Fixture for ${v}.`,
-      `dispatchModel: ${v}`,
-      '---',
-      '',
-      'Body.',
-      '',
-    ].join('\n');
+test('sync-claude-commands: emits a plugin manifest named "mandrel"', () => {
+  const source = ['---', 'description: Fixture.', '---', '', 'Body.', ''].join(
+    '\n',
+  );
+  const run = runSyncWith({ 'fixture.md': source });
+  try {
+    assert.ok(
+      fs.existsSync(run.manifestPath),
+      'expected .claude-plugin/plugin.json',
+    );
+    const manifest = JSON.parse(fs.readFileSync(run.manifestPath, 'utf8'));
+    assert.equal(manifest.name, 'mandrel');
+    assert.ok(
+      typeof manifest.version === 'string' && manifest.version.length > 0,
+      'manifest carries a version sourced from package.json',
+    );
+    assert.ok(
+      typeof manifest.description === 'string' && manifest.description.length,
+      'manifest carries a description',
+    );
+  } finally {
+    run.cleanup();
   }
-  const synced = runSyncWith(sources);
-  for (const v of values) {
-    const name = `fixture-${v}.md`;
-    assert.ok(synced[name], `expected ${name} in dest`);
-    assert.equal(synced[name], HEADER + sources[name]);
+});
+
+test('sync-claude-commands: emits a repo-local marketplace listing the mandrel plugin', () => {
+  const source = ['---', 'description: Fixture.', '---', '', 'Body.', ''].join(
+    '\n',
+  );
+  const run = runSyncWith({ 'fixture.md': source });
+  try {
+    assert.ok(
+      fs.existsSync(run.marketplacePath),
+      'expected .claude/.claude-plugin/marketplace.json',
+    );
+    const market = JSON.parse(fs.readFileSync(run.marketplacePath, 'utf8'));
+    assert.equal(market.name, 'mandrel');
+    assert.ok(Array.isArray(market.plugins) && market.plugins.length === 1);
+    assert.equal(market.plugins[0].name, 'mandrel');
+    // The plugin source resolves relative to the marketplace root (the dir
+    // containing .claude-plugin/), so it points at ./plugins/mandrel.
+    assert.equal(market.plugins[0].source, './plugins/mandrel');
+  } finally {
+    run.cleanup();
+  }
+});
+
+test('sync-claude-commands: excludes the helpers/ subdirectory', () => {
+  const source = ['---', 'description: Fixture.', '---', '', 'Body.', ''].join(
+    '\n',
+  );
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'sync-claude-commands-'));
+  try {
+    const src = path.join(tmp, 'workflows');
+    const helpers = path.join(src, 'helpers');
+    const pluginRoot = path.join(tmp, '.claude', 'plugins', 'mandrel');
+    fs.mkdirSync(helpers, { recursive: true });
+    fs.mkdirSync(pluginRoot, { recursive: true });
+    fs.writeFileSync(path.join(src, 'top-level.md'), source, 'utf8');
+    // A helper module lives under helpers/ — it must NOT become a command.
+    fs.writeFileSync(path.join(helpers, 'a-helper.md'), source, 'utf8');
+    const result = spawnSync(process.execPath, [SYNC_SCRIPT], {
+      env: {
+        ...process.env,
+        SYNC_CLAUDE_COMMANDS_SRC: src,
+        SYNC_CLAUDE_COMMANDS_DEST: pluginRoot,
+      },
+      encoding: 'utf8',
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const commandsDir = path.join(pluginRoot, 'commands');
+    const synced = fs.readdirSync(commandsDir).sort();
+    assert.deepEqual(synced, ['top-level.md']);
+    assert.equal(fs.existsSync(path.join(commandsDir, 'a-helper.md')), false);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('sync-claude-commands: re-running is idempotent (no churn)', () => {
+  const source = ['---', 'description: Fixture.', '---', '', 'Body.', ''].join(
+    '\n',
+  );
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'sync-claude-commands-'));
+  try {
+    const src = path.join(tmp, 'workflows');
+    const pluginRoot = path.join(tmp, '.claude', 'plugins', 'mandrel');
+    fs.mkdirSync(src, { recursive: true });
+    fs.mkdirSync(pluginRoot, { recursive: true });
+    fs.writeFileSync(path.join(src, 'fixture.md'), source, 'utf8');
+    const env = {
+      ...process.env,
+      SYNC_CLAUDE_COMMANDS_SRC: src,
+      SYNC_CLAUDE_COMMANDS_DEST: pluginRoot,
+    };
+    const first = spawnSync(process.execPath, [SYNC_SCRIPT], {
+      env,
+      encoding: 'utf8',
+    });
+    assert.equal(first.status, 0, first.stderr);
+    const cmdPath = path.join(pluginRoot, 'commands', 'fixture.md');
+    const after1 = fs.readFileSync(cmdPath, 'utf8');
+    const second = spawnSync(process.execPath, [SYNC_SCRIPT], {
+      env,
+      encoding: 'utf8',
+    });
+    assert.equal(second.status, 0, second.stderr);
+    const after2 = fs.readFileSync(cmdPath, 'utf8');
+    assert.equal(
+      after1,
+      after2,
+      'second run leaves the command byte-identical',
+    );
+    // The second run reports zero newly-synced files.
+    assert.match(second.stdout, /0 file\(s\) synced/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
   }
 });

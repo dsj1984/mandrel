@@ -22,10 +22,11 @@ name: Install Matrix
 # `mandrel doctor` requires an authenticated GitHub CLI (its `gh-auth` check),
 # so each leg exports the workflow's GITHUB_TOKEN as GH_TOKEN — on GitHub-hosted
 # runners `gh` is preinstalled and `gh auth status` authenticates against it.
-# Doctor's `commands-in-sync` check compares `.agents/workflows/` to
-# `.claude/commands/` relative to the installed package, so the leg also runs
-# `mandrel sync-commands` (the same step the bootstrap/postinstall flow runs)
-# before doctor so the verdict is honestly green.
+# Doctor's `commands-in-sync` check compares `.agents/workflows/` to the
+# generated plugin command tree `.claude/plugins/mandrel/commands/` relative to
+# the installed package, so the leg also runs `mandrel sync-commands` (the same
+# step the bootstrap/postinstall flow runs) before doctor so the verdict is
+# honestly green.
 #
 # Action pinning mirrors ci.yml: first-party `actions/*` stay on major-version
 # tags so Dependabot's github-actions ecosystem can bump them in place.
@@ -240,8 +241,9 @@ jobs:
         run: node "$MANDREL_BIN" sync
 
       - name: Sync slash commands (mandrel sync-commands)
-        # Populates .claude/commands/ so doctor's commands-in-sync check passes
-        # — the same step the bootstrap/postinstall onboarding flow performs.
+        # Generates the mandrel plugin command tree (.claude/plugins/mandrel/)
+        # so doctor's commands-in-sync check passes — the same step the
+        # bootstrap/postinstall onboarding flow performs.
         shell: bash
         working-directory: ${{ env.CONSUMER_DIR }}
         run: node "$MANDREL_BIN" sync-commands

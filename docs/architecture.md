@@ -396,7 +396,8 @@ machine-enforceable:
 - `bootstrap.js` — one-time consumer onboarding
 - `agents-bootstrap-github.js` — GitHub-side bootstrap (labels, branch
   protection)
-- `sync-claude-commands.js` — syncs `.claude/commands/` from `.agents/workflows/`
+- `sync-claude-commands.js` — projects `.agents/workflows/` into the mandrel
+  Claude Code plugin (`.claude/plugins/mandrel/`, invoked as `/mandrel:<name>`)
 - `update-self.js` — **legacy** submodule-bump path; superseded by the
   `mandrel update` CLI (bump → sync → migrate → doctor) under the npm
   distribution model. Retained only for repos that have not yet migrated off

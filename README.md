@@ -39,9 +39,9 @@ already configured — see Prerequisites):
 npm install @mandrelai/agents
 npx mandrel sync            # materialize ./.agents/ from the installed package
 node .agents/scripts/bootstrap.js
-# in your agentic IDE:
-/epic-plan          # ideation -> PRD/Tech Spec -> Epic/Feature/Story hierarchy
-/epic-deliver <id>  # wave loop -> validation -> review -> retro -> open PR
+# in Claude Code (v2.1.0+) — commands are namespaced under the mandrel plugin:
+/mandrel:epic-plan          # ideation -> PRD/Tech Spec -> Epic/Feature/Story hierarchy
+/mandrel:epic-deliver <id>  # wave loop -> validation -> review -> retro -> open PR
 ```
 
 `npm install @mandrelai/agents` pins an exact, provenance-signed version in

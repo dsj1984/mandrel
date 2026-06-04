@@ -16,10 +16,11 @@ description: Legacy submodule-bump upgrade path (superseded by `mandrel update`)
 ## Overview
 
 `/agents-update` advances the consumer repo's `.agents/` submodule pointer to
-the latest commit on its tracked branch, then regenerates
-`.claude/commands/` against the new workflow set. It is the legacy upgrade
-path for consumer repos still vendoring `.agents/` as a Git submodule;
-npm-installed consumers upgrade with `mandrel update` instead.
+the latest commit on its tracked branch, then regenerates the mandrel plugin
+command tree (`.claude/plugins/mandrel/`, invoked as `/mandrel:<name>`) against
+the new workflow set. It is the legacy upgrade path for consumer repos still
+vendoring `.agents/` as a Git submodule; npm-installed consumers upgrade with
+`mandrel update` instead.
 
 The upgrade contract:
 
@@ -34,12 +35,13 @@ The upgrade contract:
   uncommitted changes, the workflow refuses to run before touching
   anything. Stash, commit, or discard inside `.agents/` first; the
   workflow does not perform recovery dances on the operator's behalf.
-- **`.agents/workflows/` → `.claude/commands/` mirroring is delegated.**
-  The only authoritative writer of `.claude/commands/` is
+- **`.agents/workflows/` → mandrel plugin projection is delegated.**
+  The only authoritative writer of the generated plugin tree
+  (`.claude/plugins/mandrel/`) is
   [`sync-claude-commands.js`](../scripts/sync-claude-commands.js), which
   prepends the `<!-- AUTO-GENERATED -->` header that
   `/agents-bootstrap-project` parity-checks. This workflow invokes it
-  after the pointer moves; nothing else copies workflow files.
+  after the pointer moves; nothing else projects workflow files.
 
 > **Persona**: `devops-engineer` · **Skills**:
 > `core/ci-cd-and-automation`, `core/documentation-and-adrs`
@@ -61,8 +63,8 @@ The script:
 4. Captures the post-update pointer as `NEW_SHA`.
 5. Prints `OLD..NEW` and the shortlog of new commits (or
    `No changes` if the pointer did not move).
-6. Execs `node .agents/scripts/sync-claude-commands.js` so
-   `.claude/commands/` reflects the new workflow set.
+6. Execs `node .agents/scripts/sync-claude-commands.js` so the mandrel
+   plugin tree (`.claude/plugins/mandrel/`) reflects the new workflow set.
 7. Execs `node .agents/scripts/check-windows-git-perf.js` to verify
    host-level git performance settings on Windows (`core.fsmonitor`,
    `feature.manyFiles`, per-repo `git maintenance` schedule). Warn-only;
@@ -81,14 +83,14 @@ a1b2c3d4e5f6..9f8e7d6c5b4a
   synced   agents-update.md
   synced   epic-plan.md
 ...
-✔ 3 file(s) synced, 26 total commands in .claude/commands/
+✔ 3 file(s) synced, 29 total commands in the mandrel plugin (/mandrel:<name>).
 ```
 
 A no-op run (already up to date) looks like:
 
 ```text
 [update-self] No changes — .agents/ already at 9f8e7d6c5b4a....
-✔ 0 file(s) synced, 26 total commands in .claude/commands/
+✔ 0 file(s) synced, 29 total commands in the mandrel plugin (/mandrel:<name>).
 ```
 
 ## Step 3 — Reconcile `.agentrc.json` against the new defaults
