@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.51.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.50.0...mandrel-v1.51.0) (2026-06-04)
+
+
+### ⚠ BREAKING CHANGES
+
+* **commands:** Mandrel slash commands revert from `/mandrel:<command>` back to `/<command>`. Consumers no longer need the mandrel plugin enabled; the next `mandrel sync` reaps the plugin tree and writes flat `.claude/commands/`.
+
+### Added
+
+* **commands:** revert the [#3576](https://github.com/dsj1984/mandrel/issues/3576) plugin cutover — flat /&lt;name&gt; commands ([#3594](https://github.com/dsj1984/mandrel/issues/3594)) ([a8afee6](https://github.com/dsj1984/mandrel/commit/a8afee613c700e19c9fa3015570a981560a51035))
+
+
+### Fixed
+
+* **quality:** preview gate honors the configured maintainability tolerance ([#3593](https://github.com/dsj1984/mandrel/issues/3593)) ([3c770dc](https://github.com/dsj1984/mandrel/commit/3c770dcaf895aafdbc2051022f16ba91319a4bc5))
+* **worktree:** copy operator local-override files into isolated worktrees ([#3591](https://github.com/dsj1984/mandrel/issues/3591)) ([784df1a](https://github.com/dsj1984/mandrel/commit/784df1a74edde57f52928f80273179aa29c7dad3))
+
 ## [1.50.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.49.0...mandrel-v1.50.0) (2026-06-04)
 
 
