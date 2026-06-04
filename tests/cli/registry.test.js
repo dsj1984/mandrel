@@ -310,7 +310,7 @@ describe('commands-in-sync check', () => {
       readDir: () => [...files],
     });
     assertResultShape(result, { expectOk: true });
-    assert.match(result.detail, /3 plugin commands up to date/);
+    assert.match(result.detail, /3 commands up to date/);
   });
 
   it('returns ok=false when a source file is not in the destination', () => {
@@ -366,7 +366,7 @@ describe('commands-in-sync check', () => {
     // root — not a package-relative path under node_modules.
     assert.deepEqual(dirsRead, [
       path.join(consumerRoot, '.agents', 'workflows'),
-      path.join(consumerRoot, '.claude', 'plugins', 'mandrel', 'commands'),
+      path.join(consumerRoot, '.claude', 'commands'),
     ]);
   });
 });

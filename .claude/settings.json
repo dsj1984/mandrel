@@ -1,15 +1,4 @@
 {
-  "extraKnownMarketplaces": {
-    "mandrel": {
-      "source": {
-        "source": "directory",
-        "path": "./.claude"
-      }
-    }
-  },
-  "enabledPlugins": {
-    "mandrel@mandrel": true
-  },
   "permissions": {
     "allow": [
       "Read",

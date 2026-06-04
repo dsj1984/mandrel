@@ -14,9 +14,65 @@
 > answered at the time; cross-cuts that the Mandrel rebrand supersedes
 > are flagged in the entries themselves.
 
+## ADR 20260604-flat-command-projection-revert: Revert the plugin cutover — project workflows as flat `/<name>` commands
+
+**Status:** Accepted
+**Date:** 2026-06-04
+**Supersedes:**
+[`20260603-plugin-namespace-cutover`](#adr-20260603-plugin-namespace-cutover-project-workflows-as-a-claude-code-plugin-mandrelname)
+— reverts the plugin projection back to a flat `.claude/commands/` surface.
+
+### Context
+
+ADR 20260603 projected the workflows into a Claude Code **plugin**
+(`/mandrel:<name>`) to gain an invocation-level namespace. In practice that
+bet failed a load-bearing assumption: **the plugin system is not available in
+every Claude Code environment.** An operator on Claude Code 2.1.159 found
+`/plugin` reported *"isn't available in this environment"* and **no**
+`/mandrel:<name>` commands appeared — even though `.claude/settings.json`
+carried valid `extraKnownMarketplaces` + `enabledPlugins` and `claude plugin
+validate` passed. Because #3576 was a hard cutover that **deleted** the flat
+`.claude/commands/` projection, the entire Mandrel command surface became
+unreachable in any environment that cannot load plugins.
+
+The flat `.claude/commands/*.md` projection, by contrast, is the surface that
+loads across **every** Claude Code environment (CLI, IDE, GUI, web, SDK)
+with no plugin/marketplace/enablement plumbing.
+
+### Decision
+
+Revert to a **flat projection**: `sync-claude-commands.js` writes each
+top-level `.agents/workflows/*.md` into `.claude/commands/<name>.md`, invoked
+as a bare `/<name>` command. No plugin manifest, no repo-local marketplace, no
+`enabledPlugins` / `extraKnownMarketplaces`. On a machine that synced under
+#3576, the next sync **reaps** the stale `.claude/plugins/mandrel/` +
+`.claude/.claude-plugin/`. The cwd-rooted resolution (Story #3588) and the
+frontmatter-preserving header injection (`lib/command-header.js#applyHeader`,
+so each command's `description` parses) are kept.
+
+The single-brand discoverability affordance reverts to ADR 20260513: a bare
+`/mandrel` catalog command (the `mandrel.md` workflow) plus descriptive base
+names. The collision-risk and provenance concerns #3576 raised are accepted as
+the cost of universal reachability — a command that does not load has no
+namespace to protect.
+
+### Consequences
+
+- **Breaking change** for consumers on a #3576 release: commands revert from
+  `/mandrel:<command>` to `/<command>`; the next `mandrel sync` reaps the
+  plugin tree and writes `.claude/commands/`. No plugin enablement is needed.
+- The cross-runtime contract (`.agents/workflows/` + dispatch manifest) is
+  untouched, as it was under #3576.
+
+---
+
 ## ADR 20260603-plugin-namespace-cutover: Project workflows as a Claude Code plugin (`/mandrel:<name>`)
 
-**Status:** Accepted (hard cutover complete)
+**Status:** Superseded by
+[`20260604-flat-command-projection-revert`](#adr-20260604-flat-command-projection-revert-revert-the-plugin-cutover--project-workflows-as-flat-name-commands)
+(the plugin system is unavailable in some Claude Code environments; the
+projection reverted to flat `.claude/commands/`).
+**Date:** 2026-06-03
 **Date:** 2026-06-03
 **Story:** [#3576](https://github.com/dsj1984/mandrel/issues/3576) —
 Project workflows as a Claude Code plugin — hard cutover from flat

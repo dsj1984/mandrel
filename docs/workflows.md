@@ -6,15 +6,14 @@ This is a **reference index** of every slash-command skill shipped under
 commands compose. This file is only for "which command does X?" lookups.
 
 Every command file lives at `.agents/workflows/<name>.md` and is projected into
-a **Claude Code plugin** by `npm run sync:commands` so it shows up as a
-namespaced `/mandrel:<name>` command (e.g. `/mandrel:epic-deliver`). The
-projection writes the plugin manifest at
-`.claude/plugins/mandrel/.claude-plugin/plugin.json`, the command tree under
-`.claude/plugins/mandrel/commands/`, and a repo-local marketplace listing at
-`.claude/.claude-plugin/marketplace.json`. The `mandrel:` namespace is the one
-place the brand appears — it makes every Mandrel command collision-safe and
-self-identifying (see ADR 20260603-plugin-namespace-cutover). Requires Claude
-Code v2.1.0+ for stable `plugin:command` namespacing.
+a flat `.claude/commands/` tree by `npm run sync:commands` (the UserPromptSubmit
+hook keeps it current) so it shows up as a bare `/<name>` slash command (e.g.
+`/epic-deliver`). The projection writes only `.claude/commands/<name>.md` —
+there is no plugin manifest and no marketplace listing. The commands load in
+every Claude Code environment. The #3576 plugin cutover (which namespaced
+commands as `/mandrel:<name>`) was reverted because the plugin system
+(`/plugin`) is unavailable in some Claude Code environments, leaving namespaced
+commands unreachable; the flat `.claude/commands/` projection loads everywhere.
 
 ## SDL critical path
 
@@ -35,11 +34,11 @@ stance on future adoption.
 
 | Command                           | Purpose                                                                                                                                            |
 | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/mandrel:epic-plan`                      | Ideation mode (no args) — sharpen a raw idea, search for duplicates, create the Epic, then run PRD + Tech Spec + decomposition.                    |
-| `/mandrel:epic-plan --idea "<seed>"`      | Same ideation entry with a pre-supplied seed.                                                                                                      |
-| `/mandrel:epic-plan <epicId>`             | Existing-Epic mode — generate PRD + Tech Spec + decomposition for an Epic ticket that has already been opened.                                     |
-| `/mandrel:epic-deliver <epicId>`          | Six-phase wave-loop + close-validation + code-review + retro + finalize. Terminates with a PR open against `main`; operator merges via GitHub UI.  |
-| `/mandrel:story-deliver <storyId>`        | Init → Story-implementation phase → close for one Story. Used directly when re-driving a single Story off-table. |
+| `/epic-plan`                      | Ideation mode (no args) — sharpen a raw idea, search for duplicates, create the Epic, then run PRD + Tech Spec + decomposition.                    |
+| `/epic-plan --idea "<seed>"`      | Same ideation entry with a pre-supplied seed.                                                                                                      |
+| `/epic-plan <epicId>`             | Existing-Epic mode — generate PRD + Tech Spec + decomposition for an Epic ticket that has already been opened.                                     |
+| `/epic-deliver <epicId>`          | Six-phase wave-loop + close-validation + code-review + retro + finalize. Terminates with a PR open against `main`; operator merges via GitHub UI.  |
+| `/story-deliver <storyId>`        | Init → Story-implementation phase → close for one Story. Used directly when re-driving a single Story off-table. |
 
 ## Audit suite
 
@@ -48,41 +47,41 @@ invoked manually or automatically at `gate1`–`gate4` by the audit orchestrator
 
 | Command                    | Focus                                                                          |
 | -------------------------- | ------------------------------------------------------------------------------ |
-| `/mandrel:audit-architecture`      | Architecture and clean-code structure                                          |
-| `/mandrel:audit-clean-code`        | Clean-code and maintainability                                                 |
-| `/mandrel:audit-dependencies`      | Dependency audit and upgrade                                                   |
-| `/mandrel:audit-devops`            | DevOps infrastructure                                                          |
-| `/mandrel:audit-lighthouse`        | Lighthouse audit (Performance / Accessibility / Best Practices / SEO)          |
-| `/mandrel:audit-performance`       | Performance and bottleneck analysis                                            |
-| `/mandrel:audit-privacy`           | Privacy and PII data flows                                                     |
-| `/mandrel:audit-quality`           | Testing and quality assurance                                                  |
-| `/mandrel:audit-security`          | Security and vulnerability scan                                                |
-| `/mandrel:audit-seo`               | SEO and Generative Engine Optimization                                         |
-| `/mandrel:audit-sre`               | Production release-candidate SRE readiness                                     |
-| `/mandrel:audit-ux-ui`             | UX/UI consistency and design system adherence                                  |
+| `/audit-architecture`      | Architecture and clean-code structure                                          |
+| `/audit-clean-code`        | Clean-code and maintainability                                                 |
+| `/audit-dependencies`      | Dependency audit and upgrade                                                   |
+| `/audit-devops`            | DevOps infrastructure                                                          |
+| `/audit-lighthouse`        | Lighthouse audit (Performance / Accessibility / Best Practices / SEO)          |
+| `/audit-performance`       | Performance and bottleneck analysis                                            |
+| `/audit-privacy`           | Privacy and PII data flows                                                     |
+| `/audit-quality`           | Testing and quality assurance                                                  |
+| `/audit-security`          | Security and vulnerability scan                                                |
+| `/audit-seo`               | SEO and Generative Engine Optimization                                         |
+| `/audit-sre`               | Production release-candidate SRE readiness                                     |
+| `/audit-ux-ui`             | UX/UI consistency and design system adherence                                  |
 
 ## Git operations
 
 | Command                   | Purpose                                                                       |
 | ------------------------- | ----------------------------------------------------------------------------- |
-| `/mandrel:git-commit-all`         | Commit all outstanding changes to the current branch.                         |
-| `/mandrel:git-push`               | Commit all outstanding changes and push to the remote.                        |
-| `/mandrel:git-merge-pr`           | Analyze, validate, resolve conflicts, and merge a given pull request.         |
+| `/git-commit-all`         | Commit all outstanding changes to the current branch.                         |
+| `/git-push`               | Commit all outstanding changes and push to the remote.                        |
+| `/git-merge-pr`           | Analyze, validate, resolve conflicts, and merge a given pull request.         |
 
 ## Comprehension
 
 | Command                   | Purpose                                                                       |
 | ------------------------- | ----------------------------------------------------------------------------- |
-| `/mandrel:explain [PR# \| branch \| --staged]` | Walk the operator through a code change until they understand it — problem, why, design decisions, edge cases, blast radius. Drives the `core/knowledge-transfer` skill (restate-first, why-ladder, mastery gates, persistent checklist) with an operator-controlled stop at every checkpoint. The same engine runs over a *plan* at `/epic-plan` Phase 11. |
+| `/explain [PR# \| branch \| --staged]` | Walk the operator through a code change until they understand it — problem, why, design decisions, edge cases, blast radius. Drives the `core/knowledge-transfer` skill (restate-first, why-ladder, mastery gates, persistent checklist) with an operator-controlled stop at every checkpoint. The same engine runs over a *plan* at `/epic-plan` Phase 11. |
 
 ## Setup & meta
 
 | Command                    | Purpose                                                                                                          |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `node .agents/scripts/bootstrap.js` | One-shot consumer setup: wires the local harness (mandrel plugin sync + enablement, `package.json` scripts, hooks, gitignore, Windows git-perf check) **and** initializes the GitHub repo (label taxonomy, project fields, default Kanban board, branch protection when enabled). Not a slash command — runs deterministically with interactive prompts on a TTY and flag-driven non-interactive runs in CI. |
-| `/mandrel:agents-update`            | Upgrade the installed `@mandrelai/agents` package via the `mandrel update` CLI (bump → sync → migrate → doctor), reconcile `.agentrc.json` against the new defaults, and refresh the Claude Code plugin command surface. |
-| `/mandrel:drain-pending-cleanup`    | Reap any orphan `.worktrees/` residue and prune stale story / epic branches in one pass.                        |
-| `/mandrel:run-qa-harness`           | Drive a selected set of Gherkin scenarios through a real browser as an agent-driven QA sweep, emitting a sweep summary and structured findings (consumed by the `epic-testing.md` helper). Run pipeline, the `qa` contract fields, and the `F#` finding shape are documented in [`architecture.md` § Agent-driven QA harness](architecture.md#agent-driven-qa-harness); consumer adoption steps are in [`.agents/README.md` § Adopting the QA harness](../.agents/README.md#adopting-the-qa-harness). |
+| `node .agents/scripts/bootstrap.js` | One-shot consumer setup: wires the local harness (`.claude/commands/` sync hook, `package.json` scripts, hooks, gitignore, Windows git-perf check) **and** initializes the GitHub repo (label taxonomy, project fields, default Kanban board, branch protection when enabled). Not a slash command — runs deterministically with interactive prompts on a TTY and flag-driven non-interactive runs in CI. |
+| `/agents-update`            | Upgrade the installed `@mandrelai/agents` package via the `mandrel update` CLI (bump → sync → migrate → doctor), reconcile `.agentrc.json` against the new defaults, and refresh the Claude Code `.claude/commands/` surface. |
+| `/drain-pending-cleanup`    | Reap any orphan `.worktrees/` residue and prune stale story / epic branches in one pass.                        |
+| `/run-qa-harness`           | Drive a selected set of Gherkin scenarios through a real browser as an agent-driven QA sweep, emitting a sweep summary and structured findings (consumed by the `epic-testing.md` helper). Run pipeline, the `qa` contract fields, and the `F#` finding shape are documented in [`architecture.md` § Agent-driven QA harness](architecture.md#agent-driven-qa-harness); consumer adoption steps are in [`.agents/README.md` § Adopting the QA harness](../.agents/README.md#adopting-the-qa-harness). |
 
 ## Internal / reference-only
 
@@ -134,10 +133,10 @@ already documented in the system prompt.
 
 1. Author `.agents/workflows/<name>.md` with a YAML frontmatter block (`name`,
    `description`).
-2. Run `npm run sync:commands` — this projects the file into the mandrel
-   plugin at `.claude/plugins/mandrel/commands/<name>.md` so it surfaces as a
-   `/mandrel:<name>` command. Never hand-edit the generated tree; it carries
-   the `<!-- AUTO-GENERATED -->` header and is regenerated idempotently.
-3. Add a row to this index (showing the `/mandrel:<name>` invocation) and (if
+2. Run `npm run sync:commands` — this projects the file into the flat
+   `.claude/commands/<name>.md` tree so it surfaces as a `/<name>` command.
+   Never hand-edit the generated tree; it carries the `<!-- AUTO-GENERATED -->`
+   header and is regenerated idempotently.
+3. Add a row to this index (showing the `/<name>` invocation) and (if
    the command is part of the canonical lifecycle) a reference in
    [`.agents/SDLC.md`](../.agents/SDLC.md).

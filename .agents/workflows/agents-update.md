@@ -25,10 +25,9 @@ description: >-
 
 `/agents-update` advances the consumer repo to the newest non-major
 `@mandrelai/agents` release, re-materializes `.agents/`, and regenerates the
-mandrel plugin command tree (`.claude/plugins/mandrel/`, invoked as
-`/mandrel:<name>`) against the new workflow set — then reconciles the
-consumer's own config, harness allowlist, and instructions against the
-change set the upgrade surfaced.
+flat `.claude/commands/` tree (invoked as `/<name>`) against the new workflow
+set — then reconciles the consumer's own config, harness allowlist, and
+instructions against the change set the upgrade surfaced.
 
 The upgrade contract:
 
@@ -51,10 +50,10 @@ The upgrade contract:
   `mandrel update` performs no `git add` / `git commit`. Staging and
   committing the bump (plus any consumer-side reconciliation) is Step 5 of
   this workflow.
-- **`.agents/workflows/` → mandrel plugin projection is delegated.**
+- **`.agents/workflows/` → `.claude/commands/` projection is delegated.**
   `mandrel update`'s sync step re-materializes `.agents/`, and the only
-  authoritative writer of the generated plugin tree
-  (`.claude/plugins/mandrel/`) is
+  authoritative writer of the generated flat command tree
+  (`.claude/commands/`) is
   [`sync-claude-commands.js`](../scripts/sync-claude-commands.js), which
   prepends the `<!-- AUTO-GENERATED -->` header that
   `/agents-bootstrap-project` parity-checks. Nothing else copies workflow
@@ -94,8 +93,8 @@ version before applying.
    `--install-cmd "<pm> <args>"` for a pnpm/yarn workspace). The lockfile
    change is left **staged** for review; the CLI never commits.
 5. **runSync** — re-materializes `.agents/` from the freshly installed
-   payload, which also regenerates the mandrel plugin command tree
-   (`.claude/plugins/mandrel/`) via `sync-claude-commands.js`.
+   payload, which also regenerates the flat `.claude/commands/` tree via
+   `sync-claude-commands.js`.
 6. **runMigrations** — applies any version-keyed migration steps for the
    crossed range.
 7. **doctor** — runs the check registry to verify the resulting install.
@@ -362,7 +361,7 @@ no accepted entries; omit the consumer-instruction paths if Step 4 was a
 no-op.
 
 > **Note:** `mandrel update`'s sync step also re-materializes `.agents/`
-> (and the mandrel plugin tree under `.claude/plugins/mandrel/`). On the npm
+> (and the flat command tree under `.claude/commands/`). On the npm
 > distribution `.agents/` is a
 > materialized directory rebuilt from the installed package — whether the
 > consumer commits the regenerated `.agents/` tree, or treats it as a

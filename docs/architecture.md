@@ -396,8 +396,8 @@ machine-enforceable:
 - `bootstrap.js` — one-time consumer onboarding
 - `agents-bootstrap-github.js` — GitHub-side bootstrap (labels, branch
   protection)
-- `sync-claude-commands.js` — projects `.agents/workflows/` into the mandrel
-  Claude Code plugin (`.claude/plugins/mandrel/`, invoked as `/mandrel:<name>`)
+- `sync-claude-commands.js` — projects `.agents/workflows/` into the flat
+  Claude Code `.claude/commands/` tree (invoked as `/<name>`)
 - `sync-agentrc.js` — merges upstream `starter-agentrc.json` deltas into the
   consumer's `.agentrc.json`
 - `check-windows-git-perf.js` — one-time Windows git performance diagnostic

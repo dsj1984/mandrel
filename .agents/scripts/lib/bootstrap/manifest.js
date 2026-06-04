@@ -111,9 +111,8 @@ export function buildMutationManifest(ctx = {}) {
 
   // --- ide-wiring -------------------------------------------------------
   // Claude Code / IDE integration: the system-prompt import, the
-  // UserPromptSubmit sync hook + plugin enablement, the generated plugin
-  // command surface, and the .gitignore entry that keeps the generated tree
-  // out of git.
+  // UserPromptSubmit sync hook, the generated flat command surface, and the
+  // .gitignore entry that keeps the generated tree out of git.
   entries.push(
     {
       phaseGroup: PHASE_GROUPS.IDE_WIRING,
@@ -128,15 +127,15 @@ export function buildMutationManifest(ctx = {}) {
       target: rel('.claude', 'settings.json'),
       action: 'merge',
       detail:
-        'Add the UserPromptSubmit re-sync hook and enable the repo-local mandrel plugin (extraKnownMarketplaces + enabledPlugins) so /mandrel:<command> loads.',
+        'Add the UserPromptSubmit re-sync hook so the /<command> tree stays current.',
       reversible: true,
     },
     {
       phaseGroup: PHASE_GROUPS.IDE_WIRING,
-      target: rel('.claude', 'plugins', 'mandrel'),
+      target: rel('.claude', 'commands'),
       action: 'run',
       detail:
-        'Generate the mandrel plugin command surface (/mandrel:<name>) from .agents/workflows/.',
+        'Generate the flat command surface (/<name>) from .agents/workflows/.',
       reversible: true,
     },
     {
@@ -144,7 +143,7 @@ export function buildMutationManifest(ctx = {}) {
       target: rel('.gitignore'),
       action: 'merge',
       detail:
-        'Ignore .claude/plugins/mandrel/ + .claude/.claude-plugin/ (generated) and .mcp.json (carries secrets).',
+        'Ignore .claude/commands/ (generated) and .mcp.json (carries secrets).',
       reversible: true,
     },
   );
