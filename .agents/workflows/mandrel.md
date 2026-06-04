@@ -9,21 +9,23 @@ description: >-
 
 ## Overview
 
-`/mandrel:mandrel` is the **discoverability entry point** for the Mandrel-owned
+`/mandrel` is the **discoverability entry point** for the Mandrel-owned
 command surface. It prints a catalog of every workflow that lives under
 `.agents/workflows/` (top-level only — `helpers/` are path-included modules,
-not runnable commands). Consumers run `/mandrel:mandrel` once to learn what the
+not runnable commands). Consumers run `/mandrel` once to learn what the
 framework adds to Claude Code's `/` menu, then use the descriptive per-command
 names day-to-day.
 
-Under the plugin cutover (Story #3576) every Mandrel command is namespaced as
-`/mandrel:<name>` — the `mandrel:` prefix now signals provenance on *every*
-command, not just this catalog entry. The dedicated catalog entry is kept (as
-`/mandrel:mandrel`) for the printed index, though the namespace makes it partly
-redundant; a later Story may retire or repurpose it. The naming-discipline rule
-(`docs/decisions.md`) still keeps every base command name descriptive
-(`epic-deliver`, `audit-clean-code`, `story-deliver`, …) — the brand appears
-exactly once, as the plugin namespace, never as a `mandrel-` filename prefix.
+Every Mandrel command is generated into a flat `.claude/commands/` tree by
+`npm run sync:commands` (the UserPromptSubmit hook keeps it current) and loads
+as a bare `/<name>` slash command in every Claude Code environment. The #3576
+plugin cutover (which namespaced commands as `/mandrel:<name>`) was reverted
+because the plugin system (`/plugin`) is unavailable in some Claude Code
+environments, leaving namespaced commands unreachable; flat `.claude/commands/`
+loads everywhere. `/mandrel` is the catalog command, named after the
+`mandrel.md` workflow file. The naming-discipline rule (`docs/decisions.md`)
+keeps every command name descriptive (`epic-deliver`, `audit-clean-code`,
+`story-deliver`, …) — the brand never appears as a `mandrel-` filename prefix.
 
 ## Procedure
 
@@ -51,7 +53,7 @@ into shape; the vague-flag exists so the catalog catches regressions.
 - **Not a writer.** No GitHub I/O, no commit creation, no label transitions,
   no file mutations. Pure read-of-disk + stdout.
 - **Not a sync.** `sync-claude-commands.js` is still the only writer of the
-  generated mandrel plugin tree (`.claude/plugins/mandrel/`). `/mandrel:mandrel`
+  generated flat command tree (`.claude/commands/`). `/mandrel`
   reads the workflow set; it doesn't reshape the command catalog Claude Code
   surfaces in its `/` menu.
 - **Not a docs index.** Workflow long-form docs live in each workflow's own
