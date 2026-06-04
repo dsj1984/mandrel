@@ -42,6 +42,35 @@ import {
 } from './kinds/maintainability.js';
 
 /**
+ * Framework default MI preview tolerance, used only when neither an explicit
+ * override nor a configured `quality.maintainability.tolerance` is present.
+ * Mirrors the historical preview default.
+ */
+export const MI_PREVIEW_DEFAULT_TOLERANCE = 0.5;
+
+/**
+ * Resolve the effective maintainability tolerance for the preview gate so it
+ * agrees with the authoritative `check-baselines` gate. Precedence: an explicit
+ * caller override → the configured `quality.maintainability.tolerance` (already
+ * resolved to a scalar by `getQuality`) → the framework default. Previously the
+ * preview hardcoded the default and ignored the configured value, so a project
+ * that raised its tolerance (e.g. to 12) still saw the local pre-commit/pre-push
+ * gate flag sub-tolerance drops that `check-baselines` accepted.
+ *
+ * @param {{ explicit?: number | null, configured?: number, fallback?: number }} opts
+ * @returns {number}
+ */
+export function resolvePreviewTolerance({
+  explicit = null,
+  configured,
+  fallback = MI_PREVIEW_DEFAULT_TOLERANCE,
+} = {}) {
+  if (Number.isFinite(explicit)) return explicit;
+  if (Number.isFinite(configured)) return configured;
+  return fallback;
+}
+
+/**
  * Pure: replicate the legacy `check-maintainability.js compareScores`
  * behavior so the preview runner can build the stats block the report
  * builder expects.
@@ -130,7 +159,7 @@ export async function runMaintainabilityPreview({
   cwd = process.cwd(),
   changedSinceRef = null,
   staged = false,
-  tolerance = 0.5,
+  tolerance = null,
 } = {}) {
   const config = resolveConfig({ cwd });
   const baselinePath = getBaselines(config).maintainability.path;
@@ -142,6 +171,10 @@ export async function runMaintainabilityPreview({
   });
 
   const miQuality = getQuality(config).maintainability;
+  const effectiveTolerance = resolvePreviewTolerance({
+    explicit: tolerance,
+    configured: miQuality.tolerance,
+  });
   const targetDirs = miQuality.targetDirs;
   const ignoreGlobs = miQuality.ignoreGlobs ?? [];
   const files = [];
@@ -170,7 +203,7 @@ export async function runMaintainabilityPreview({
     const posixRel = rel.split(path.sep).join('/');
     if (!MAINTAINABILITY_EXCLUSIONS.has(posixRel)) scores[key] = mi;
   }
-  const stats = compareScores(scores, scopedBaseline, tolerance);
+  const stats = compareScores(scores, scopedBaseline, effectiveTolerance);
   const envelope = buildMaintainabilityReport(scores, stats, {
     scope,
     diffRef,
