@@ -62,6 +62,12 @@ invoked manually or automatically at `gate1`–`gate4` by the audit orchestrator
 | `/git-push`               | Commit all outstanding changes and push to the remote.                        |
 | `/git-merge-pr`           | Analyze, validate, resolve conflicts, and merge a given pull request.         |
 
+## Comprehension
+
+| Command                   | Purpose                                                                       |
+| ------------------------- | ----------------------------------------------------------------------------- |
+| `/explain [PR# \| branch \| --staged]` | Walk the operator through a code change until they understand it — problem, why, design decisions, edge cases, blast radius. Drives the `core/knowledge-transfer` skill (restate-first, why-ladder, mastery gates, persistent checklist) with an operator-controlled stop at every checkpoint. The same engine runs over a *plan* at `/epic-plan` Phase 11. |
+
 ## Setup & meta
 
 | Command                    | Purpose                                                                                                          |
