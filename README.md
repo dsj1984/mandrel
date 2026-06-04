@@ -87,9 +87,12 @@ npx mandrel update
    [`docs/upgrade-major.md`](docs/upgrade-major.md), and exits non-zero
    without touching anything. Re-run with `--major` to apply it.
 3. **No-op short-circuit** — already on the newest version ⇒ nothing to do.
-4. **Install** the target version (the dependency bump is left **staged**
-   on disk — `mandrel update` performs no `git add` / `git commit`, so you
-   review and commit the lockfile change yourself).
+4. **Install** the target version with the project's package manager —
+   auto-detected from the lockfile (`pnpm-lock.yaml` ⇒ pnpm, `yarn.lock` ⇒
+   yarn, otherwise npm) so the bump lands in your real lockfile. The
+   dependency bump is left **staged** on disk — `mandrel update` performs no
+   `git add` / `git commit`, so you review and commit the lockfile change
+   yourself.
 5. **Sync** — re-materialize `./.agents/` from the freshly installed payload.
 6. **Migrate** — apply version-keyed migration steps for the crossed range.
 7. **Doctor** — run the check registry to verify the resulting install.
@@ -102,12 +105,14 @@ npx mandrel update
   runs.
 - `--major` — apply a major-version crossing that the gate would otherwise
   refuse. Review [`docs/upgrade-major.md`](docs/upgrade-major.md) first.
-- `--install-cmd "<cmd>"` — override the install command for pnpm/yarn
-  workspaces. The default is `npm install @mandrelai/agents@<target>`; pass
-  e.g. `--install-cmd "pnpm add @mandrelai/agents@<target>"` so the bump
-  lands in your real lockfile rather than writing a stray
-  `package-lock.json`. The registry probe always stays on `npm view` (it is
-  a PM-agnostic registry query).
+- `--install-cmd "<cmd>"` — override the auto-detected install command. The
+  package manager is normally detected from your lockfile
+  (`pnpm-lock.yaml` ⇒ `pnpm add -D …`, `yarn.lock` ⇒ `yarn add -D …`,
+  otherwise `npm install …`), so an override is rarely needed. When you do
+  pass one, a `{target}` placeholder is substituted with the resolved newest
+  version — e.g. `--install-cmd "pnpm add -D @mandrelai/agents@{target} -w"` —
+  so the override can still consume the auto-probed version. The registry
+  probe always stays on `npm view` (it is a PM-agnostic registry query).
 
 ### Manual equivalent
 
