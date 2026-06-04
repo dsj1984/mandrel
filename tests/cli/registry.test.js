@@ -14,6 +14,7 @@
  */
 
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import { describe, it } from 'node:test';
 
 import { registry } from '../../lib/cli/registry.js';
@@ -342,6 +343,31 @@ describe('commands-in-sync check', () => {
     });
     assertResultShape(result, { expectOk: false });
     assert.match(result.detail, /1 stale/);
+  });
+
+  // Story #3588 — regression: without an explicit projectRoot the check MUST
+  // anchor on the consumer dir (cwd()), not the package-relative
+  // resolveProjectRoot() climb that lands in node_modules in a real install.
+  it('defaults the root to cwd() (the consumer dir), not the package-relative climb', () => {
+    const check = findCheck('commands-in-sync');
+    const consumerRoot = path.join('/fake', 'consumer');
+    const dirsRead = [];
+    const result = check.run({
+      // projectRoot intentionally omitted — exercise the default resolution.
+      cwd: () => consumerRoot,
+      readDir: (dir) => {
+        dirsRead.push(dir);
+        // Both src and dest in sync so the assertion is purely about roots.
+        return ['epic-deliver.md', 'story-deliver.md'];
+      },
+    });
+    assertResultShape(result, { expectOk: true });
+    // The check must read the src/dest dirs anchored on the cwd() consumer
+    // root — not a package-relative path under node_modules.
+    assert.deepEqual(dirsRead, [
+      path.join(consumerRoot, '.agents', 'workflows'),
+      path.join(consumerRoot, '.claude', 'plugins', 'mandrel', 'commands'),
+    ]);
   });
 });
 
