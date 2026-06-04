@@ -16,18 +16,18 @@
  * `mandrel sync` itself does: no network, no shell, no writes outside
  * `./.agents/`.
  *
- * **Source-checkout guard (Story #3489).** In the Mandrel framework repo
- * itself, `./.agents/` is not a regenerated working copy — it *is* the
- * committed product, and `mandrel sync` would clobber that source of truth
- * with a copy of `node_modules/@mandrelai/agents/.agents/`. Today the repo
- * `.npmrc` (`ignore-scripts=true`) masks this, but a contributor running
+ * **Source-checkout guard (Story #3489, fixed in #3580).** In the Mandrel
+ * framework repo itself, `./.agents/` is not a regenerated working copy — it
+ * *is* the committed product, and `mandrel sync` would clobber that source of
+ * truth with a copy of `node_modules/@mandrelai/agents/.agents/`. Today the
+ * repo `.npmrc` (`ignore-scripts=true`) masks this, but a contributor running
  * `npm install --ignore-scripts=false` (or a tool that re-enables scripts)
  * would overwrite the source tree. To make the guard intrinsic rather than
- * config-dependent, the hook detects the source checkout — the repo whose
- * root `package.json#name` is `@mandrelai/agents` — and no-ops (exit 0)
+ * config-dependent, the hook detects the source checkout and no-ops (exit 0)
  * without invoking the materializer. Consumer installs (where the package is
- * a dependency under a differently-named root `package.json`) are unaffected
- * and still materialize `.agents/` as before.
+ * a dependency under `node_modules/`) are unaffected and still materialize
+ * `.agents/` as before — see `isSourceCheckout` for the two signals used to
+ * tell them apart.
  *
  * Injectable seams (used by tests/cli/postinstall.test.js):
  *   - `sync`             — replaces the real `runSync` from lib/cli/sync.js
@@ -50,28 +50,55 @@ const HINT =
  * Detect whether this hook is running inside the Mandrel framework source
  * checkout (as opposed to a consumer project that depends on the package).
  *
- * The signal is the **repo-root** `package.json#name`: in the source repo it
- * is `@mandrelai/agents`; in a consumer project it is the consumer's own
- * package name (and `@mandrelai/agents` lives under `node_modules/` instead).
- * We resolve the root from this module's own location (`bin/postinstall.js`
- * sits one directory below the repo root), not from `process.cwd()`, so the
- * detection is stable regardless of where npm invokes the hook from.
+ * Two complementary, fail-safe signals — both biased toward running the sync
+ * (the safe default for a consumer) — tell the two cases apart:
+ *
+ * 1. **`node_modules` path guard (primary).** When the package is installed as
+ *    a dependency this module lives at
+ *    `<consumer>/node_modules/@mandrelai/agents/bin/postinstall.js`, so its own
+ *    resolved path contains a `node_modules` segment. That is true *by
+ *    construction* for every dependency install and needs no env var, so a
+ *    `node_modules` ancestor is treated as an unambiguous consumer install →
+ *    return `false` (run the sync). This is the signal the original guard
+ *    (Story #3489) was missing: it resolved the package's **own**
+ *    `package.json` (always named `@mandrelai/agents`) instead of the consumer
+ *    root, so it misfired on every consumer install and skipped the sync
+ *    (Story #3580).
+ *
+ * 2. **`INIT_CWD`-rooted name check (source-repo signal).** Outside
+ *    `node_modules`, resolve the **invoking project root** and compare its
+ *    `package.json#name` to `@mandrelai/agents`. npm sets `INIT_CWD` to the
+ *    directory where `npm install` was invoked — the framework repo root when
+ *    a contributor installs the framework itself. When `INIT_CWD` is unset
+ *    (e.g. the hook is run directly via `node`, outside npm), fall back to the
+ *    module-relative repo root (`bin/postinstall.js` sits one directory below
+ *    it), which still resolves to the source repo's own `package.json`.
  *
  * Fails safe: any read/parse error returns `false` (treat as a consumer
  * install and let the best-effort sync run), so a malformed or missing
  * `package.json` never strands a consumer without their `.agents/` payload.
  *
- * @param {{ fs?: typeof nodeFs, moduleUrl?: string }} [opts]
+ * @param {{ fs?: typeof nodeFs, initCwd?: string, moduleUrl?: string }} [opts]
  * @returns {boolean} `true` when running in the `@mandrelai/agents` source repo.
  */
 export function isSourceCheckout({
   fs = nodeFs,
+  initCwd = process.env.INIT_CWD,
   moduleUrl = import.meta.url,
 } = {}) {
   try {
     const here = path.dirname(fileURLToPath(moduleUrl));
-    const pkgPath = path.join(here, '..', 'package.json');
-    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+    // Installed as a dependency → unambiguously a consumer install, regardless
+    // of what any package.json#name says. Run the sync.
+    if (here.split(path.sep).includes('node_modules')) return false;
+
+    // Source checkout: resolve the invoking project root (the dir where
+    // `npm install` ran) and compare its package name. Fall back to the
+    // module-relative repo root when npm did not set INIT_CWD.
+    const root = initCwd || path.join(here, '..');
+    const pkg = JSON.parse(
+      fs.readFileSync(path.join(root, 'package.json'), 'utf8'),
+    );
     return pkg?.name === PACKAGE_NAME;
   } catch {
     return false;

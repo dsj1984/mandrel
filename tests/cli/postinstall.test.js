@@ -7,21 +7,29 @@
  * to the doctor-detected state instead of failing the consumer's install.
  *
  * The source-checkout guard (Story #3489) adds a no-op short-circuit: when the
- * hook runs inside the Mandrel framework source repo (root
- * `package.json#name === "@mandrelai/agents"`), it MUST skip the materializer
- * entirely so `mandrel sync` never clobbers the committed `.agents/` source —
- * even under `npm install --ignore-scripts=false`.
+ * hook runs inside the Mandrel framework source repo, it MUST skip the
+ * materializer entirely so `mandrel sync` never clobbers the committed
+ * `.agents/` source — even under `npm install --ignore-scripts=false`.
+ *
+ * Story #3580 fixes that guard: it previously resolved the package's **own**
+ * `package.json` (always named `@mandrelai/agents`) instead of the consumer
+ * root, so it misfired on every consumer install and skipped the sync.
+ * `isSourceCheckout` now keys off two fail-safe signals — a `node_modules`
+ * ancestor in the module path (→ consumer install) and, outside
+ * `node_modules`, the `INIT_CWD`-rooted `package.json#name` (→ source repo).
  *
  * Tests drive `runPostinstall` through its injectable seams (`sync`,
  * `isSourceCheckout`, `writeErr`, `exit`) and `isSourceCheckout` through its
- * `fs` / `moduleUrl` seams, so no real package resolution, filesystem I/O, or
- * process exit occurs (testing-standards § Unit). The consumer-path suites
- * inject `isSourceCheckout: () => false` to isolate the materializer behaviour
- * from the source-checkout guard.
+ * `fs` / `initCwd` / `moduleUrl` seams, so no real package resolution,
+ * filesystem I/O, or process exit occurs (testing-standards § Unit). The
+ * consumer-path suites inject `isSourceCheckout: () => false` to isolate the
+ * materializer behaviour from the source-checkout guard.
  */
 
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import { describe, it } from 'node:test';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { isSourceCheckout, runPostinstall } from '../../bin/postinstall.js';
 
@@ -182,12 +190,27 @@ describe('postinstall hook — source-checkout guard (Story #3489)', () => {
   });
 });
 
-describe('isSourceCheckout — repo-root package.json#name detection', () => {
-  // The SUT resolves the probed file as dirname(fileURLToPath(moduleUrl))
-  // joined with '..'. We point moduleUrl at this test file's own URL so
-  // `fileURLToPath` produces a valid path on every platform; the fake fs keys
-  // off the package.json basename rather than the exact directory.
-  const moduleUrl = import.meta.url;
+describe('isSourceCheckout — consumer vs. source-repo detection (Story #3580)', () => {
+  // This test file's own URL sits OUTSIDE any node_modules segment, so the
+  // primary `node_modules` guard passes through and the INIT_CWD-rooted name
+  // check decides. We drive the root explicitly via `initCwd` so the result
+  // never depends on the ambient INIT_CWD npm sets during the test run; the
+  // fake fs keys off the package.json basename rather than the exact directory.
+  const sourceModuleUrl = import.meta.url;
+
+  // A path that mimics a dependency install:
+  // <consumer>/node_modules/@mandrelai/agents/bin/postinstall.js. Derived from
+  // the test dir so `pathToFileURL` produces a host-valid URL on every OS.
+  const consumerModuleUrl = pathToFileURL(
+    path.join(
+      path.dirname(fileURLToPath(import.meta.url)),
+      'node_modules',
+      '@mandrelai',
+      'agents',
+      'bin',
+      'postinstall.js',
+    ),
+  ).href;
 
   const makeFs = (contents) => ({
     readFileSync: (p) => {
@@ -197,23 +220,62 @@ describe('isSourceCheckout — repo-root package.json#name detection', () => {
     },
   });
 
-  it('returns true when root package.json#name is @mandrelai/agents', () => {
+  it('returns true in the source repo (INIT_CWD root name is @mandrelai/agents)', () => {
     const fs = makeFs(JSON.stringify({ name: '@mandrelai/agents' }));
-    assert.equal(isSourceCheckout({ fs, moduleUrl }), true);
+    assert.equal(
+      isSourceCheckout({ fs, initCwd: '/repo', moduleUrl: sourceModuleUrl }),
+      true,
+    );
   });
 
-  it('returns false when root package.json#name is a consumer project', () => {
+  it('returns false for a consumer install detected via the node_modules path guard', () => {
+    // The fake fs would report @mandrelai/agents (as the package's own
+    // package.json does), proving the node_modules path guard wins and the
+    // name check never runs — the exact bug Story #3580 fixes.
+    const fs = makeFs(JSON.stringify({ name: '@mandrelai/agents' }));
+    assert.equal(
+      isSourceCheckout({
+        fs,
+        initCwd: '/consumer',
+        moduleUrl: consumerModuleUrl,
+      }),
+      false,
+    );
+  });
+
+  it('returns false when the INIT_CWD root is a consumer project', () => {
     const fs = makeFs(JSON.stringify({ name: 'my-consumer-app' }));
-    assert.equal(isSourceCheckout({ fs, moduleUrl }), false);
+    assert.equal(
+      isSourceCheckout({
+        fs,
+        initCwd: '/consumer',
+        moduleUrl: sourceModuleUrl,
+      }),
+      false,
+    );
+  });
+
+  it('falls back to the module-relative root when INIT_CWD is unset', () => {
+    const fs = makeFs(JSON.stringify({ name: '@mandrelai/agents' }));
+    assert.equal(
+      isSourceCheckout({ fs, initCwd: undefined, moduleUrl: sourceModuleUrl }),
+      true,
+    );
   });
 
   it('fails safe (false) when package.json is unreadable', () => {
     const fs = makeFs(null);
-    assert.equal(isSourceCheckout({ fs, moduleUrl }), false);
+    assert.equal(
+      isSourceCheckout({ fs, initCwd: '/repo', moduleUrl: sourceModuleUrl }),
+      false,
+    );
   });
 
   it('fails safe (false) when package.json is malformed JSON', () => {
     const fs = makeFs('{ not valid json');
-    assert.equal(isSourceCheckout({ fs, moduleUrl }), false);
+    assert.equal(
+      isSourceCheckout({ fs, initCwd: '/repo', moduleUrl: sourceModuleUrl }),
+      false,
+    );
   });
 });
