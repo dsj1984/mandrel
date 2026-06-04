@@ -4,9 +4,9 @@
  * Worktree removal end-to-end:
  *
  *   - `isSafeToRemove`: clean-tree + branch-merged precondition.
- *   - `removeWorktreeWithRecovery`: `git worktree remove` with submodule-guard
- *     and Windows-lock retries, Stage 1 `fs.rm` fallback, and the Stage 2
- *     hand-off to the `pending-cleanup.json` manifest when Stage 1 exhausts.
+ *   - `removeWorktreeWithRecovery`: `git worktree remove` with Windows-lock
+ *     retries, Stage 1 `fs.rm` fallback, and the Stage 2 hand-off to the
+ *     `pending-cleanup.json` manifest when Stage 1 exhausts.
  *   - `reap`: precondition check, force-discard for already-merged dirty
  *     trees, and the post-remove belt-and-braces fs.rm sweep.
  *
@@ -15,11 +15,6 @@
 
 import fs from 'node:fs';
 import { rm as fsPromisesRm } from 'node:fs/promises';
-import {
-  dropAllSubmoduleGitlinksFromIndex,
-  purgePerWorktreeSubmoduleDir,
-  removeCopiedAgents,
-} from '../bootstrapper.js';
 import { isInsideWorktree, samePath, storyIdFromPath } from '../inspector.js';
 import { sleepSync } from '../node-modules-strategy.js';
 import { checkMergeReachability } from './merge-reachability.js';
@@ -149,10 +144,6 @@ async function fsRmWithRetry(
 
 function classifyRemoveStderr(stderr) {
   return {
-    isSubmoduleGuard:
-      /working trees containing submodules cannot be moved or removed/i.test(
-        stderr,
-      ),
     isLockLike: WINDOWS_LOCK_RE.test(stderr),
     isCwdLike: WINDOWS_CWD_RE.test(stderr),
   };
@@ -165,22 +156,13 @@ function finalizeGitWorktreeRemove(ctx) {
 
 function handleRemoveFailure(
   ctx,
-  wtPath,
-  _stderr,
+  _wtPath,
   classification,
   attempt,
   maxAttempts,
 ) {
   const retryDelaysMs = [0, 150, 350, 700, 1200, 2000];
-  const { isSubmoduleGuard, isLockLike, isCwdLike } = classification;
-  if (isSubmoduleGuard && attempt < maxAttempts) {
-    ctx.logger.warn(
-      `worktree.reap remove blocked by submodule guard; retrying (${attempt}/${maxAttempts})`,
-    );
-    dropAllSubmoduleGitlinksFromIndex(ctx, wtPath);
-    purgePerWorktreeSubmoduleDir(ctx, wtPath);
-    return 'continue';
-  }
+  const { isLockLike, isCwdLike } = classification;
   if ((isLockLike || isCwdLike) && attempt < maxAttempts) {
     const delay = retryDelaysMs[attempt] ?? 300;
     const reasonClass = isCwdLike ? 'cwd-like' : 'lock-like';
@@ -208,7 +190,6 @@ async function runGitWorktreeRemoveLoop(ctx, wtPath) {
     const action = handleRemoveFailure(
       ctx,
       wtPath,
-      stderr,
       classification,
       attempt,
       maxAttempts,
@@ -582,8 +563,6 @@ export async function reap(ctx, storyId, opts = {}) {
   if (!safetyCheck.ok) return safetyCheck.result;
   const { discardedPaths } = safetyCheck;
 
-  removeCopiedAgents(ctx, wtPath);
-  dropAllSubmoduleGitlinksFromIndex(ctx, wtPath);
   escapeWorktreeCwd(ctx, wtPath);
 
   const storyIdN = validateStoryId(storyId);

@@ -398,10 +398,6 @@ machine-enforceable:
   protection)
 - `sync-claude-commands.js` — projects `.agents/workflows/` into the mandrel
   Claude Code plugin (`.claude/plugins/mandrel/`, invoked as `/mandrel:<name>`)
-- `update-self.js` — **legacy** submodule-bump path; superseded by the
-  `mandrel update` CLI (bump → sync → migrate → doctor) under the npm
-  distribution model. Retained only for repos that have not yet migrated off
-  the retired `dist`-branch submodule.
 - `sync-agentrc.js` — merges upstream `starter-agentrc.json` deltas into the
   consumer's `.agentrc.json`
 - `check-windows-git-perf.js` — one-time Windows git performance diagnostic
@@ -788,7 +784,7 @@ four cohesive submodules under `.agents/scripts/lib/worktree/`:
 | -------------------------- | ------------------------------------------------------------------------------------------------------- |
 | `lifecycle-manager.js`     | `ensure`, `reap`, `list`, `gc`, `prune`, `sweepStaleLocks`, Windows-lock-aware remove recovery.         |
 | `node-modules-strategy.js` | `applyNodeModulesStrategy` + `installDependencies` for `per-worktree` / `symlink` / `pnpm-store`.       |
-| `bootstrapper.js`          | Bootstrap-file copy (`.env`), `.agents/` snapshot for submodule consumers, submodule-index scrub.       |
+| `bootstrapper.js`          | Bootstrap-file copy (`.env`) into a freshly created worktree.                                           |
 | `inspector.js`             | Pure porcelain parsing, path helpers (`samePath`, `storyIdFromPath`, `isInsideWorktree`), Windows path warnings. |
 
 The submodules are **internal implementation detail**. Downstream projects
@@ -1178,12 +1174,6 @@ provenance-signed version in the lockfile), run `mandrel sync` to materialize
 `mandrel update` (bump → sync → migrate → doctor). Project-specific
 technology context lives in `docs/architecture.md` under the **Tech Stack**
 section below — not in `.agentrc.json`.
-
-> The legacy **Git submodule + `dist` branch** distribution channel is
-> retired. Older installs that vendored `.agents/` via `git submodule add -b
-> dist …` should follow the one-time
-> [`docs/migration-submodule-to-npm.md`](migration-submodule-to-npm.md) guide
-> to switch to the npm package.
 
 ---
 

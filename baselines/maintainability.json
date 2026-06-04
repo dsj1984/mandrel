@@ -2259,10 +2259,6 @@
       "mi": 90.226
     },
     {
-      "path": ".agents/scripts/update-self.js",
-      "mi": 82.639
-    },
-    {
       "path": ".agents/scripts/update-ticket-state.js",
       "mi": 89.883
     },

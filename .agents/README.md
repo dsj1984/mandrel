@@ -56,12 +56,6 @@ Then run the bootstrap to wire the project and GitHub side:
 node .agents/scripts/bootstrap.js
 ```
 
-> **Migrating from the retired Git submodule?** Older installs vendored
-> `.agents/` via `git submodule add -b dist …`. That `dist`-branch channel
-> is retired in favor of the npm package; follow the one-time
-> [`docs/migration-submodule-to-npm.md`](../docs/migration-submodule-to-npm.md)
-> guide to deinit the submodule and switch to `npm install @mandrelai/agents`.
-
 ### Upgrading and local additions
 
 Once installed, the ongoing upgrade path is **`mandrel update`** — it bumps
@@ -92,9 +86,7 @@ hand edits to synced framework files are clobbered on the next upgrade — and
 `mandrel doctor`'s drift check flags them. The **`.agents/local/`** zone is
 the consumer-owned space `mandrel sync` never copies into nor prunes and the
 drift check treats as sanctioned, so keep project-specific skills and local
-workflow fragments there rather than editing synced files in place. The full
-upgrade and local-zone guide is
-[`docs/migration-submodule-to-npm.md`](../docs/migration-submodule-to-npm.md).
+workflow fragments there rather than editing synced files in place.
 
 ### Run the unified bootstrap directly
 

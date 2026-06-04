@@ -4,8 +4,7 @@
  * This file is a thin facade over `lib/worktree/*`:
  *   - `lib/worktree/lifecycle-manager.js` — ensure / reap / list / gc / prune.
  *   - `lib/worktree/node-modules-strategy.js` — per-worktree / symlink / pnpm-store.
- *   - `lib/worktree/bootstrapper.js` — bootstrap-file copy, `.agents` snapshot,
- *     submodule-index scrubbers.
+ *   - `lib/worktree/bootstrapper.js` — bootstrap-file copy.
  *   - `lib/worktree/inspector.js` — pure path + porcelain parsing helpers.
  *
  * External callers import `WorktreeManager` and `parseWorktreePorcelain` from
@@ -26,7 +25,6 @@ import {
   DEFAULT_WORKSPACE_FILES,
   provision as provisionWorkspace,
 } from './workspace-provisioner.js';
-import { copyAgentsFromRoot } from './worktree/bootstrapper.js';
 import {
   maybeWarnWindowsPath,
   parseWorktreePorcelain,
@@ -163,16 +161,6 @@ export class WorktreeManager {
           logger: wrapped,
         });
       },
-      copyAgentsFromRoot: (wtPath) =>
-        copyAgentsFromRoot(
-          {
-            repoRoot: this.repoRoot,
-            logger: this.logger,
-            git: this.git,
-            platform: this.platform,
-          },
-          wtPath,
-        ),
     };
   }
 

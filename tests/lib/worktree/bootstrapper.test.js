@@ -3,13 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import {
-  copyBootstrapFiles,
-  dropAgentsGitlinkFromIndex,
-  dropAllSubmoduleGitlinksFromIndex,
-  isAgentsSubmodule,
-  removeCopiedAgents,
-} from '../../../.agents/scripts/lib/worktree/bootstrapper.js';
+import { copyBootstrapFiles } from '../../../.agents/scripts/lib/worktree/bootstrapper.js';
 
 function makeRepo() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'bootstrap-'));
@@ -26,29 +20,6 @@ function quietLogger() {
     },
   };
 }
-
-test('isAgentsSubmodule: false when no .gitmodules', () => {
-  const root = makeRepo();
-  assert.equal(isAgentsSubmodule(root), false);
-});
-
-test('isAgentsSubmodule: true when .gitmodules declares .agents', () => {
-  const root = makeRepo();
-  fs.writeFileSync(
-    path.join(root, '.gitmodules'),
-    '[submodule ".agents"]\n\tpath = .agents\n\turl = https://example/ap\n',
-  );
-  assert.equal(isAgentsSubmodule(root), true);
-});
-
-test('isAgentsSubmodule: false when .gitmodules declares a different submodule', () => {
-  const root = makeRepo();
-  fs.writeFileSync(
-    path.join(root, '.gitmodules'),
-    '[submodule "vendor"]\n\tpath = vendor\n\turl = https://example/v\n',
-  );
-  assert.equal(isAgentsSubmodule(root), false);
-});
 
 test('copyBootstrapFiles: copies .env when present in repoRoot and missing in worktree', () => {
   const root = makeRepo();
@@ -107,111 +78,4 @@ test('copyBootstrapFiles: skips missing source files silently', () => {
   );
   assert.equal(sink.warn.length, 0);
   assert.equal(fs.existsSync(path.join(wt, '.env')), false);
-});
-
-test('dropAgentsGitlinkFromIndex: no-op when not a submodule repo', () => {
-  const root = makeRepo();
-  let gitSpawnCalls = 0;
-  const git = {
-    gitSpawn: () => {
-      gitSpawnCalls++;
-      return { status: 0, stdout: '', stderr: '' };
-    },
-  };
-  const { logger } = quietLogger();
-  dropAgentsGitlinkFromIndex(
-    { repoRoot: root, git, logger },
-    path.join(root, 'wt'),
-  );
-  assert.equal(gitSpawnCalls, 0);
-});
-
-test('removeCopiedAgents: preserves materialised .agents in non-submodule (framework) repos', () => {
-  // Regression for ADR-20260424-638a / story-566 reap recovery. In framework
-  // repos .agents/ is a tracked directory — deleting it here dirties the
-  // worktree and makes `git worktree remove` fail with "contains modified
-  // or untracked files", forcing every reap into the fs-rm-retry tail.
-  const root = makeRepo();
-  // No .gitmodules → isAgentsSubmodule() returns false.
-  const wtPath = path.join(root, '.worktrees', 'story-1');
-  const wtAgents = path.join(wtPath, '.agents');
-  fs.mkdirSync(wtAgents, { recursive: true });
-  fs.writeFileSync(path.join(wtAgents, 'sentinel.txt'), 'tracked content');
-
-  const git = {
-    gitSpawn: () => ({ status: 0, stdout: '', stderr: '' }),
-  };
-  const { logger } = quietLogger();
-  removeCopiedAgents(
-    { repoRoot: root, logger, git, platform: 'linux' },
-    wtPath,
-  );
-
-  assert.equal(
-    fs.existsSync(wtAgents),
-    true,
-    'framework .agents must survive removeCopiedAgents',
-  );
-  assert.equal(
-    fs.readFileSync(path.join(wtAgents, 'sentinel.txt'), 'utf8'),
-    'tracked content',
-  );
-});
-
-test('removeCopiedAgents: still removes .agents in submodule (consumer) repos', () => {
-  const root = makeRepo();
-  fs.writeFileSync(
-    path.join(root, '.gitmodules'),
-    '[submodule ".agents"]\n\tpath = .agents\n\turl = https://example/ap\n',
-  );
-  const wtPath = path.join(root, '.worktrees', 'story-1');
-  const wtAgents = path.join(wtPath, '.agents');
-  fs.mkdirSync(wtAgents, { recursive: true });
-  fs.writeFileSync(path.join(wtAgents, 'copied.txt'), 'copy');
-
-  const git = {
-    gitSpawn: (_cwd, ...args) => {
-      if (args[0] === 'ls-files' && args[1] === '--stage') {
-        return { status: 0, stdout: '160000 abc123 0\t.agents\n', stderr: '' };
-      }
-      return { status: 0, stdout: '', stderr: '' };
-    },
-  };
-  const { logger } = quietLogger();
-  removeCopiedAgents(
-    { repoRoot: root, logger, git, platform: 'linux' },
-    wtPath,
-  );
-
-  assert.equal(
-    fs.existsSync(wtAgents),
-    false,
-    'consumer-repo copied .agents must be removed',
-  );
-});
-
-test('dropAllSubmoduleGitlinksFromIndex: parses gitlinks + issues rm --cached', () => {
-  const calls = [];
-  const git = {
-    gitSpawn: (cwd, ...args) => {
-      calls.push({ cwd, args });
-      if (args[0] === 'ls-files' && args[1] === '--stage') {
-        return {
-          status: 0,
-          stdout:
-            '160000 abcdef1234567890 0\tvendor/dep\n160000 fedcba0987654321 0\tsub/mod\n100644 1234 0\tregular.js\n',
-          stderr: '',
-        };
-      }
-      return { status: 0, stdout: '', stderr: '' };
-    },
-  };
-  const { logger } = quietLogger();
-  dropAllSubmoduleGitlinksFromIndex({ git, logger }, '/repo/wt');
-  const rmCalls = calls.filter((c) => c.args[0] === 'rm');
-  assert.equal(rmCalls.length, 2);
-  assert.deepEqual(
-    rmCalls.map((c) => c.args.at(-1)),
-    ['vendor/dep', 'sub/mod'],
-  );
 });

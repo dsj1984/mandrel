@@ -5,7 +5,7 @@
  *
  * Replaces the manual procedure formerly described in
  * `.agents/workflows/helpers/agents-sync-config.md`. Invoked by
- * `/agents-update` Step 3 after the submodule pointer moves.
+ * `/agents-update` Step 3 after the package upgrade re-materializes `.agents/`.
  *
  * Contract:
  *   - Validates the project config against the framework schema. On
