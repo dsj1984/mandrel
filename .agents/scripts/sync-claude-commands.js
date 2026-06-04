@@ -37,12 +37,22 @@
 // cli-opt-out: top-level-await script with no main() function — runAsCli wraps an async main, which doesn't apply here.
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { Logger } from './lib/Logger.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = path.resolve(__dirname, '../..');
+// Resolve the project root from the invocation cwd — the consumer project where
+// `.agents/` is materialized and where Claude Code loads the plugin from
+// `<root>/.claude/plugins/mandrel/`. It MUST NOT use `__dirname/../..`: in an
+// npm-installed consumer this script runs from
+// `node_modules/@mandrelai/agents/.agents/scripts/`, so that climb lands on the
+// package dir and the plugin tree would be written *inside node_modules* rather
+// than the consumer — leaving `/mandrel:*` commands unloadable and the
+// `commands-in-sync` doctor check (which resolves the same consumer root via
+// cwd — Story #3588) reporting "N not synced". Every real invocation runs with
+// cwd at the project root: `npm run sync:commands`, the UserPromptSubmit hook,
+// and `mandrel sync-commands` (which inherits the caller's cwd). Tests drive
+// fixture trees via the SYNC_CLAUDE_COMMANDS_SRC/DEST overrides below.
+const PROJECT_ROOT = process.cwd();
 
 /** Plugin manifest name — the `mandrel:` namespace every command gets. */
 export const PLUGIN_NAME = 'mandrel';
