@@ -184,6 +184,37 @@ Releases are automated by
    subjects; a bracket-less `## Unreleased` block is never promoted to a
    version and only strands the content.
 
+#### Install Matrix release gate (required checks on `main`)
+
+The **Install Matrix** workflow
+([`.github/workflows/install-matrix.yml`](.github/workflows/install-matrix.yml))
+proves the published-package consumer contract end to end (pack → install →
+`mandrel sync` / `sync-commands` → assert materialization, a clean consumer
+manifest, and a `mandrel doctor` ready verdict). It gates releases the same
+way `lint` / `test` / `baselines` do — through **branch protection on the
+release PR**, not through `release-please.yml`. To avoid the classic
+required-check + path-filter deadlock, the workflow splits into two profiles:
+
+- **Gate (required, always reports):** a 2-leg diagonal that runs on **every**
+  `pull_request` to `main` and on `push` to `main`, with **no path filter** so
+  the check always reports (including on the release PR, which only bumps
+  `package.json`). The two gating job names — add **exactly these** to the
+  branch-protection required-status-check set on `main`:
+  - `install (npm / ubuntu-latest)`
+  - `install (yarn / windows-latest)`
+
+  Do **not** add the internal `select-matrix` setup job to branch protection —
+  it is plumbing that emits the per-event matrix, not a gate.
+- **Coverage (non-blocking):** all 6 legs
+  (`{npm, pnpm, yarn} × {ubuntu-latest, windows-latest}`) run on a nightly
+  `schedule` and on `workflow_dispatch` so pnpm and npm-on-Windows regressions
+  are still caught (≤24h latency) without taxing every PR.
+
+**Operator action (one-time, out-of-band).** Adding the two checks to branch
+protection is a GitHub UI / `gh api` admin action; the workflow ships the
+gate but cannot self-register as required. Add the two job names above to the
+required-status-check set on `main` once.
+
 #### Two-package release topology
 
 `release-please-config.json` declares **two** packages — the root
