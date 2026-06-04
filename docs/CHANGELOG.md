@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.49.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.48.0...mandrel-v1.49.0) (2026-06-04)
+
+
+### Fixed
+
+* **postinstall:** source-checkout guard misfires on every consumer install, skipping `.agents/` sync ([#3580](https://github.com/dsj1984/mandrel/issues/3580)) ([#3582](https://github.com/dsj1984/mandrel/issues/3582)) ([97b896f](https://github.com/dsj1984/mandrel/commit/97b896f1cb974ef86726353532087de1e9828c0e))
+* **update:** auto-detect package manager in mandrel update (refs [#3575](https://github.com/dsj1984/mandrel/issues/3575)) ([#3577](https://github.com/dsj1984/mandrel/issues/3577)) ([f766f7c](https://github.com/dsj1984/mandrel/commit/f766f7ce649c5d56741318339173a69755f8a0ae))
+
 ## [1.48.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.47.0...mandrel-v1.48.0) (2026-06-04)
 
 
