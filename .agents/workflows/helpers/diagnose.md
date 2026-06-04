@@ -8,7 +8,7 @@ description: >-
 # diagnose viewer (helper)
 
 > **Helper, not a slash command.** Files under `workflows/helpers/` are not
-> synced to `.claude/commands/`. The same `lib/checks/` registry runs
+> projected into the mandrel plugin command tree. The same `lib/checks/` registry runs
 > automatically as preflight inside `/epic-deliver`, `/story-close`, and
 > `npm test` — this viewer exists only for ad-hoc inspection. Invoke the
 > backing script directly: `node .agents/scripts/diagnose.js [args]`.

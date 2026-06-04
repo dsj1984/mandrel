@@ -80,7 +80,7 @@ function reversibleEntries() {
     },
     {
       phaseGroup: 'ide-wiring',
-      target: '.claude/commands',
+      target: '.claude/plugins/mandrel',
       action: 'run',
       reversible: true,
     },
@@ -159,13 +159,17 @@ function seedFreshInstall(root) {
     'utf8',
   );
   writeJson(path.join(root, '.claude', 'settings.json'), {
+    extraKnownMarketplaces: {
+      mandrel: { source: { source: 'directory', path: './.claude' } },
+    },
+    enabledPlugins: { 'mandrel@mandrel': true },
     hooks: {
       UserPromptSubmit: [
         { hooks: [{ type: 'command', command: SYNC_COMMAND }] },
       ],
     },
   });
-  const cmdDir = path.join(root, '.claude', 'commands');
+  const cmdDir = path.join(root, '.claude', 'plugins', 'mandrel', 'commands');
   fs.mkdirSync(cmdDir, { recursive: true });
   fs.writeFileSync(
     path.join(cmdDir, 'epic-deliver.md'),
@@ -173,6 +177,14 @@ function seedFreshInstall(root) {
     'utf8',
   );
   fs.writeFileSync(path.join(cmdDir, 'doctor.md'), '# generated\n', 'utf8');
+  fs.mkdirSync(path.join(root, '.claude', '.claude-plugin'), {
+    recursive: true,
+  });
+  fs.writeFileSync(
+    path.join(root, '.claude', '.claude-plugin', 'marketplace.json'),
+    '{}\n',
+    'utf8',
+  );
   fs.writeFileSync(
     path.join(root, '.gitignore'),
     `${GITIGNORE_BLOCKS.commands.block}${GITIGNORE_BLOCKS.mcp.block}`,
@@ -293,9 +305,13 @@ describe('runUninstall — fresh install (AC2)', () => {
 
     // CLAUDE.md was install-authored (only the framework block) → removed.
     assert.equal(fs.existsSync(path.join(tmpRoot, 'CLAUDE.md')), false);
-    // Generated slash-command surface is gone.
+    // Generated plugin command surface is gone.
     assert.equal(
-      fs.existsSync(path.join(tmpRoot, '.claude', 'commands')),
+      fs.existsSync(path.join(tmpRoot, '.claude', 'plugins', 'mandrel')),
+      false,
+    );
+    assert.equal(
+      fs.existsSync(path.join(tmpRoot, '.claude', '.claude-plugin')),
       false,
     );
     // Install-authored settings.json (only the sync hook) is removed.

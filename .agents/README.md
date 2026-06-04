@@ -131,8 +131,10 @@ The bootstrap pipeline, in order:
 3. **Project-side mutations.** Seeds `.agentrc.json` from
    [`starter-agentrc.json`](starter-agentrc.json), merges the framework's
    runtime dependencies into `package.json`, runs the install, wires the
-   `.claude/commands/` sync hook, wires the system prompt (see below),
-   gitignores derived artefacts, and runs the quality-gates installer.
+   mandrel plugin sync hook **and** plugin enablement
+   (`extraKnownMarketplaces` + `enabledPlugins` so `/mandrel:<command>`
+   loads), wires the system prompt (see below), gitignores derived
+   artefacts, and runs the quality-gates installer.
 4. **GitHub-side mutations.** Creates the label taxonomy, Project V2
    fields, branch protection, and merge-method settings. Skipped with
    `--skip-github`.
@@ -179,11 +181,14 @@ stale `gh` never breaks the run.
 For non-interactive (CI) installs, pass `--owner`, `--repo`, and
 `--assume-yes`; pass `--skip-github` to defer the remote half.
 
-After bootstrap you can run any slash command — `/epic-plan`,
-`/single-story-plan`, `/story-deliver`, `/audit-security`,
-`/agents-update`, etc. The [SDLC guide](SDLC.md) walks an end-to-end
-Epic; standalone Stories pair [`/single-story-plan`](workflows/single-story-plan.md)
-(idea → drafted Story Issue) with [`/story-deliver`](workflows/story-deliver.md)
+After bootstrap (Claude Code v2.1.0+) every Mandrel command loads through the
+`mandrel` plugin, namespaced as `/mandrel:<command>` — e.g. `/mandrel:epic-plan`,
+`/mandrel:single-story-plan`, `/mandrel:story-deliver`, `/mandrel:audit-security`.
+The bare `/epic-plan` form is gone; the `mandrel:` namespace makes every command
+collision-safe and self-identifying. The [SDLC guide](SDLC.md) walks an
+end-to-end Epic; standalone Stories pair
+[`/mandrel:single-story-plan`](workflows/single-story-plan.md) (idea → drafted
+Story Issue) with [`/mandrel:story-deliver`](workflows/story-deliver.md)
 (Story Issue → merged PR).
 
 ### Runtime dependencies
@@ -233,8 +238,8 @@ in `runtime-deps.json`.
 | [`rules/`](rules/) | Domain-agnostic coding, security, testing, shell, git, and workflow rules. |
 | [`skills/core/`](skills/core/) | Universal process skills such as debugging, TDD, security, documentation, and code review. |
 | [`skills/stack/`](skills/stack/) | Stack-specific guardrails for frameworks, services, and testing tools. |
-| [`workflows/`](workflows/) | Slash-command workflow definitions. Top-level files are synced to `.claude/commands/`. |
-| [`workflows/helpers/`](workflows/helpers/) | Workflow fragments read by parent workflows; not exposed as slash commands. |
+| [`workflows/`](workflows/) | Workflow definitions. Top-level files are projected into the mandrel plugin (`.claude/plugins/mandrel/commands/`) and invoked as `/mandrel:<name>`. |
+| [`workflows/helpers/`](workflows/helpers/) | Workflow fragments read by parent workflows; not exposed as commands. |
 | [`scripts/`](scripts/) | Deterministic Node.js CLIs used by workflows and operators. |
 | [`scripts/lib/orchestration/`](scripts/lib/orchestration/) | In-process orchestration SDK used by the CLI wrappers. |
 | [`scripts/lib/checks/`](scripts/lib/checks/) | Discovery-based self-healing checks registry for preflight, the `diagnose.js` viewer, and retro surfaces. |
@@ -342,12 +347,15 @@ the right shape" without any future Skill migration.
 
 ## Workflow Authoring
 
-`workflows/` is the source of truth for the slash-command surface
-exposed by Claude Code in this repo. Each top-level `.md` file is synced
-into `.claude/commands/<name>.md` by
-[`sync-claude-commands.js`](scripts/sync-claude-commands.js). Files under
+`workflows/` is the source of truth for the command surface exposed by
+Claude Code in this repo. Each top-level `.md` file is projected into the
+**mandrel plugin** at `.claude/plugins/mandrel/commands/<name>.md` by
+[`sync-claude-commands.js`](scripts/sync-claude-commands.js), so it is
+invoked as `/mandrel:<name>`. The writer also emits the plugin manifest
+(`.claude/plugins/mandrel/.claude-plugin/plugin.json`) and a repo-local
+marketplace (`.claude/.claude-plugin/marketplace.json`). Files under
 `workflows/helpers/` are path-included modules read by parent workflows;
-they are not synced or exposed as slash commands.
+they are not projected or exposed as commands.
 
 If you are looking for an end-user reference for an individual workflow,
 read the workflow file itself. Every workflow is a self-contained
@@ -378,8 +386,8 @@ To add a workflow:
 
 1. Drop a new `.md` file at the top level of `workflows/`.
 2. Add frontmatter with at least `description`.
-3. Run `npm run sync:commands` to mirror the file into
-   `.claude/commands/`.
+3. Run `npm run sync:commands` to project the file into the mandrel plugin
+   (`.claude/plugins/mandrel/commands/`); it surfaces as `/mandrel:<name>`.
 
 ---
 

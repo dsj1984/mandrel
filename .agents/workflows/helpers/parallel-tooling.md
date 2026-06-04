@@ -2,7 +2,8 @@
 
 Procedural module read **inline** by workflows that perform context-gathering,
 long-running shell work, or independent unit fan-out. This is **not** a slash
-command — there is no `/parallel-tooling` registration in `.claude/commands/`.
+command — it is not projected into the mandrel plugin command tree
+(`.claude/plugins/mandrel/`), so there is no `/mandrel:parallel-tooling`.
 Callers reference this file at the top of their first scan / read instruction
 so the parallelism conventions land before the work does.
 

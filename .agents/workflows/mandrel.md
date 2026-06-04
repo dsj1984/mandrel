@@ -9,18 +9,21 @@ description: >-
 
 ## Overview
 
-`/mandrel` is the **discoverability entry point** for the Mandrel-owned
-slash-command surface. It prints a catalog of every workflow that lives under
+`/mandrel:mandrel` is the **discoverability entry point** for the Mandrel-owned
+command surface. It prints a catalog of every workflow that lives under
 `.agents/workflows/` (top-level only — `helpers/` are path-included modules,
-not runnable commands). Consumers run `/mandrel` once to learn what the
-framework adds to Claude Code's built-in `/` menu, then use the descriptive
-per-command names day-to-day.
+not runnable commands). Consumers run `/mandrel:mandrel` once to learn what the
+framework adds to Claude Code's `/` menu, then use the descriptive per-command
+names day-to-day.
 
-This is the **one** place a brand-prefixed command makes sense — the entry
-point itself, not the per-command names. The naming-discipline rule
-(`docs/decisions.md`) keeps every other command described by what it does
-(`/epic-deliver`, `/audit-clean-code`, `/story-deliver`, etc.) rather than
-forcing `mandrel-` on every entry.
+Under the plugin cutover (Story #3576) every Mandrel command is namespaced as
+`/mandrel:<name>` — the `mandrel:` prefix now signals provenance on *every*
+command, not just this catalog entry. The dedicated catalog entry is kept (as
+`/mandrel:mandrel`) for the printed index, though the namespace makes it partly
+redundant; a later Story may retire or repurpose it. The naming-discipline rule
+(`docs/decisions.md`) still keeps every base command name descriptive
+(`epic-deliver`, `audit-clean-code`, `story-deliver`, …) — the brand appears
+exactly once, as the plugin namespace, never as a `mandrel-` filename prefix.
 
 ## Procedure
 
@@ -47,9 +50,10 @@ into shape; the vague-flag exists so the catalog catches regressions.
 
 - **Not a writer.** No GitHub I/O, no commit creation, no label transitions,
   no file mutations. Pure read-of-disk + stdout.
-- **Not a sync.** `sync-claude-commands.js` is still the only writer of
-  `.claude/commands/`. `/mandrel` reads the workflow set; it doesn't reshape
-  the slash-command catalog Claude Code surfaces in its `/` menu.
+- **Not a sync.** `sync-claude-commands.js` is still the only writer of the
+  generated mandrel plugin tree (`.claude/plugins/mandrel/`). `/mandrel:mandrel`
+  reads the workflow set; it doesn't reshape the command catalog Claude Code
+  surfaces in its `/` menu.
 - **Not a docs index.** Workflow long-form docs live in each workflow's own
   body and in `docs/workflows.md`. `/mandrel` is a one-line-per-command
   menu, not a reference manual.

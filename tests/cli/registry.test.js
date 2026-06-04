@@ -309,7 +309,7 @@ describe('commands-in-sync check', () => {
       readDir: () => [...files],
     });
     assertResultShape(result, { expectOk: true });
-    assert.match(result.detail, /3 commands up to date/);
+    assert.match(result.detail, /3 plugin commands up to date/);
   });
 
   it('returns ok=false when a source file is not in the destination', () => {
