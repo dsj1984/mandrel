@@ -23,34 +23,6 @@ export const SYNC_COMMAND = 'node .agents/scripts/sync-claude-commands.js';
 export const BOOTSTRAP_COMMAND = 'node .agents/scripts/bootstrap.js';
 
 /**
- * Plugin / marketplace identity for the generated Claude Code plugin
- * projection (Story #3576). Kept in sync with the writer in
- * `.agents/scripts/sync-claude-commands.js` (`PLUGIN_NAME` / `MARKETPLACE_NAME`).
- * Commands are invocable as `/mandrel:<name>`.
- */
-export const PLUGIN_NAME = 'mandrel';
-export const MARKETPLACE_NAME = 'mandrel';
-
-/**
- * `enabledPlugins` key Claude Code uses to enable the repo-local plugin: the
- * `<plugin>@<marketplace>` pair. Written into the consumer's
- * `.claude/settings.json` so teammates get the plugin enabled on clone.
- */
-export const PLUGIN_ENABLEMENT_KEY = `${PLUGIN_NAME}@${MARKETPLACE_NAME}`;
-
-/**
- * `extraKnownMarketplaces` entry registering the repo-local marketplace from a
- * directory source. The generated marketplace listing lives at
- * `.claude/.claude-plugin/marketplace.json`, so the source directory is
- * `./.claude` (relative to the project root). Checked into the consumer's
- * `.claude/settings.json` so the plugin loads with no hosted marketplace.
- */
-export const MARKETPLACE_SOURCE = Object.freeze({
-  source: 'directory',
-  path: './.claude',
-});
-
-/**
  * Marker that identifies the framework's system-prompt import inside a
  * consumer `CLAUDE.md`. The wiring step keys idempotence off this exact
  * import path so a re-run never duplicates the import line.
@@ -78,9 +50,9 @@ ${SYSTEM_PROMPT_BLOCK}`;
 
 export const GITIGNORE_BLOCKS = Object.freeze({
   commands: {
-    pattern: /^\s*\.claude\/plugins\/mandrel\/?\s*$/m,
+    pattern: /^\s*\.claude\/commands\/?\s*$/m,
     block:
-      '\n# Claude Code plugin projection is generated from .agents/workflows/ — do not commit.\n.claude/plugins/mandrel/\n.claude/.claude-plugin/\n.claude/commands/\n',
+      '\n# Claude Code command projection is generated from .agents/workflows/ — do not commit.\n.claude/commands/\n',
   },
   mcp: {
     pattern: /^\s*\.mcp\.json\s*$/m,
@@ -322,44 +294,14 @@ export async function validateAgentrc(ctx) {
 }
 
 /**
- * Ensure the plugin-enablement keys are present in a settings object. Wires
- * the repo-local marketplace (`extraKnownMarketplaces`) and enables the plugin
- * (`enabledPlugins`) so the generated `/mandrel:<name>` commands load with no
- * hosted marketplace. Mutates `settings` in place and returns true when it
- * changed anything (idempotent — re-running is a no-op).
+ * Step 3 — Merge the `UserPromptSubmit` sync hook into `.claude/settings.json`.
+ * Returns `{ action }`.
  *
- * Bundling this with the sync hook in the *same* bootstrap step is the
- * sequencing guard (Story #3576): the consumer never ends up with the flat
- * bare commands removed while the plugin is still disabled.
- *
- * @param {object} settings
- * @returns {boolean} mutated
- */
-function ensurePluginEnablement(settings) {
-  let mutated = false;
-  settings.extraKnownMarketplaces = settings.extraKnownMarketplaces ?? {};
-  if (!settings.extraKnownMarketplaces[MARKETPLACE_NAME]) {
-    settings.extraKnownMarketplaces[MARKETPLACE_NAME] = {
-      source: { ...MARKETPLACE_SOURCE },
-    };
-    mutated = true;
-  }
-  settings.enabledPlugins = settings.enabledPlugins ?? {};
-  if (settings.enabledPlugins[PLUGIN_ENABLEMENT_KEY] !== true) {
-    settings.enabledPlugins[PLUGIN_ENABLEMENT_KEY] = true;
-    mutated = true;
-  }
-  return mutated;
-}
-
-/**
- * Step 3 — Merge the `UserPromptSubmit` sync hook **and** the plugin
- * enablement keys into `.claude/settings.json`. Returns `{ action }`.
- *
- * The sync hook keeps the generated `/mandrel:<name>` command tree current;
- * the enablement keys (`extraKnownMarketplaces` + `enabledPlugins`) make the
- * repo-local plugin load. Both land in one step so the flat-command removal
- * and the plugin enablement are a single atomic change (Story #3576).
+ * The sync hook keeps the generated flat `/<name>` command tree
+ * (`.claude/commands/`) current. The flat projection needs no plugin
+ * enablement keys — it loads in every Claude Code environment, including those
+ * where the plugin system (`/plugin`) is unavailable (the #3576 plugin cutover
+ * was reverted for exactly that reason).
  */
 export function ensureClaudeSettings(ctx) {
   const target = path.join(ctx.projectRoot, '.claude', 'settings.json');
@@ -367,10 +309,6 @@ export function ensureClaudeSettings(ctx) {
   if (!fs.existsSync(target)) {
     fs.mkdirSync(path.dirname(target), { recursive: true });
     const fresh = {
-      extraKnownMarketplaces: {
-        [MARKETPLACE_NAME]: { source: { ...MARKETPLACE_SOURCE } },
-      },
-      enabledPlugins: { [PLUGIN_ENABLEMENT_KEY]: true },
       hooks: {
         UserPromptSubmit: [{ hooks: [hook] }],
       },
@@ -393,7 +331,6 @@ export function ensureClaudeSettings(ctx) {
     settings.hooks.UserPromptSubmit.push({ hooks: [hook] });
     mutated = true;
   }
-  if (ensurePluginEnablement(settings)) mutated = true;
   if (!mutated) return { action: 'already-present', path: target };
   writeJson(target, settings);
   return { action: 'merged', path: target };
@@ -453,22 +390,16 @@ export function runSyncCommands(ctx) {
 
 /**
  * Step 6 — Parity check between `.agents/workflows/*.md` and the generated
- * plugin command tree `.claude/plugins/mandrel/commands/*.md` (Story #3576).
- * Step 5's sync already enforces this; this is a belt-and-braces verification
- * that the plugin projection covers every top-level workflow.
+ * flat command tree `.claude/commands/*.md`. Step 5's sync already enforces
+ * this; this is a belt-and-braces verification that the command projection
+ * covers every top-level workflow.
  */
 export function checkParity(ctx) {
   const workflowsDir = path.join(
     ctx.agentRoot ?? path.join(ctx.projectRoot, '.agents'),
     'workflows',
   );
-  const commandsDir = path.join(
-    ctx.projectRoot,
-    '.claude',
-    'plugins',
-    PLUGIN_NAME,
-    'commands',
-  );
+  const commandsDir = path.join(ctx.projectRoot, '.claude', 'commands');
   const list = (dir) =>
     fs.existsSync(dir)
       ? fs
