@@ -2,10 +2,15 @@
  * workspace-provisioner.js
  *
  * Central authority for populating a fresh worktree (or remote-runner checkout)
- * with gitignored workspace files — `.env` and `.mcp.json` by default, plus
- * any other files declared in `.agentrc.json orchestration.workspaceFiles`.
- * Every caller that needs these files in a non-main checkout should go
- * through this module; ad-hoc copy logic elsewhere in the codebase is a bug.
+ * with gitignored workspace files — by default `.env`, `.mcp.json`, and the
+ * operator's local-override files (`.agentrc.local.json`,
+ * `.agents/instructions.local.md`) — plus any other files declared in
+ * `.agentrc.json orchestration.workspaceFiles`. The local-override files are
+ * provisioned so a worktree-isolated agent honors the §1.E local-override
+ * contract (e.g. `github.operatorHandle`) rather than silently falling back to
+ * the committed `.agentrc.json` placeholders. Every caller that needs these
+ * files in a non-main checkout should go through this module; ad-hoc copy
+ * logic elsewhere in the codebase is a bug.
  *
  * Public API:
  *   - `provision({ sourceRoot, targetWorktree, files?, logger? })` — copies
@@ -17,14 +22,25 @@
  *   - `resolveWorkspaceFiles(orchestrationConfig)` — resolves the list honoring
  *     the new `orchestration.workspaceFiles` key, the legacy
  *     `orchestration.worktreeIsolation.bootstrapFiles`, and the default.
- *   - `DEFAULT_WORKSPACE_FILES` — `['.env', '.mcp.json']`.
+ *   - `DEFAULT_WORKSPACE_FILES` — `['.env', '.mcp.json', '.agentrc.local.json',
+ *     '.agents/instructions.local.md']`.
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { NOOP_LOGGER } from './Logger.js';
 
-export const DEFAULT_WORKSPACE_FILES = ['.env', '.mcp.json'];
+// Keep in sync with `WORKTREE_ISOLATION_DEFAULTS.bootstrapFiles` in
+// `./config/worktree-isolation.js`. The local-override files are listed even
+// though they are frequently absent — `provision()` skips missing sources and
+// `verify()` callers filter to files present at the source first, so a missing
+// override never fails a worktree create.
+export const DEFAULT_WORKSPACE_FILES = [
+  '.env',
+  '.mcp.json',
+  '.agentrc.local.json',
+  '.agents/instructions.local.md',
+];
 
 /**
  * Resolve the list of workspace files to provision.
