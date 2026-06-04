@@ -47,7 +47,7 @@ function setupRepoWithBadFloor() {
       docsContextFiles: [],
       commands: { lintBaseline: 'echo', test: 'echo', typecheck: 'echo' },
     },
-    github: { owner: 'x', repo: 'y' },
+    github: { owner: 'x', repo: 'y', operatorHandle: '@ci' },
     delivery: {
       quality: {
         gates: {

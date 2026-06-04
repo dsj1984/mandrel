@@ -10,7 +10,7 @@ description: >-
 # signals span-tree viewer (helper)
 
 > **Helper, not a slash command.** Files under `workflows/helpers/` are not
-> synced to `.claude/commands/`. The signals subsystem itself
+> projected into the mandrel plugin command tree. The signals subsystem itself
 > (`lib/signals/`, writer, schema, detectors, NDJSON listeners) runs as
 > part of the normal `/epic-deliver` machinery — this viewer is for
 > ad-hoc debugging when you need to inspect the span-tree directly.

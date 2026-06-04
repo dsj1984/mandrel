@@ -52,11 +52,18 @@ describe('single-story-lease-guard — resolveOperator', () => {
   it('throws when no operator handle is configured', () => {
     assert.throws(
       () => resolveOperator({ github: {} }),
-      /github.operatorHandle is not configured/,
+      /no operator identity is configured/,
     );
     assert.throws(
       () => resolveOperator({}),
-      /operatorHandle is not configured/,
+      /no operator identity is configured/,
+    );
+  });
+
+  it('throws when operatorHandle is still the shipped @[USERNAME] placeholder', () => {
+    assert.throws(
+      () => resolveOperator({ github: { operatorHandle: '@[USERNAME]' } }),
+      /placeholder/,
     );
   });
 });

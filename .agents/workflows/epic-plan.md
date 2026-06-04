@@ -630,7 +630,62 @@ check(s), and rerun the persist phase. Apply `planning::healthcheck-waived`
 to the Epic only when the failure is environmental and the operator has
 triaged it (e.g. a known `origin` outage during a maintenance window).
 
-## Phase 11: Notification & Handoff
+## Phase 11: Plan Comprehension Gate
+
+An **opt-in, advisory** gate that offers the operator a guided walkthrough of
+the freshly planned backlog before they hand off to `/epic-deliver`. The plan
+is the moment the operator authorizes an autonomous fan-out of subagents — this
+phase exists so they can *understand and endorse* the approach while it is
+still free to change, not after the code lands.
+
+> **Non-blocking by construction.** This phase runs **after** Phase 10 has
+> already flipped the Epic to `agent::ready`. It never gates that flip, never
+> blocks the handoff, and the operator can decline or stop it at any point.
+> `risk::high` remains planning metadata and `agent::blocked` remains the only
+> mandatory runtime pause — this gate adds neither.
+
+### 1. Decide whether to offer the walkthrough (LM judgment)
+
+There is **no `--flag`**. Evaluate the plan with judgment — the same idiom as
+the `story-plan` non-trivial predicate
+([`helpers/single-story-deliver.md` Step 0.6](helpers/single-story-deliver.md))
+— and **default to skipping silently**. Offer the walkthrough only when the
+plan is genuinely worth one. Signals that warrant offering:
+
+- The roadmap spans **multiple waves** or a **large Story count**.
+- Any Story or the Epic carries **`risk::high`**, or the plan matches the
+  `planning.riskHeuristics` in `.agentrc.json` (destructive/irreversible
+  changes, shared auth/security, CI/CD gate changes, monorepo-wide rewrites,
+  destructive migrations).
+- The Tech Spec introduces a **novel architectural decision** or a wide
+  **blast radius** across subsystems.
+
+A small, single-wave, low-risk plan proceeds straight to Phase 12 with no
+prompt. When in doubt on a borderline plan, make a one-line offer rather than
+forcing the walkthrough.
+
+### 2. Run the walkthrough (when offered and accepted)
+
+Activate the
+[`core/knowledge-transfer`](../skills/core/knowledge-transfer/SKILL.md) skill
+with the **plan** as the subject — the Epic body, the linked PRD / Tech Spec
+context tickets, the decomposition (Features/Stories with inline
+`acceptance[]` / `verify[]`), and the Phase 9 wave roadmap. The skill owns the
+method (restate-first, the why-ladder, mastery gates, depth levels, optional
+quizzing, the persistent `temp/comprehension-*.md` checklist).
+
+**Interruptible at every checkpoint.** Each step MUST offer an explicit
+"I'm good — proceed to `/epic-deliver`" exit. The instant the operator takes
+it, stop the walkthrough and advance to Phase 12. Never trap the operator in
+the loop.
+
+### 3. Advance
+
+Whether the walkthrough was skipped, declined, completed, or stopped early,
+proceed to Phase 12. This gate produces no label transition and no blocking
+condition.
+
+## Phase 12: Notification & Handoff
 
 1. **Notify Operator (INFO)**:
    - Post a summary comment on the Epic issue with work breakdown stats.

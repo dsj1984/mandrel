@@ -11,7 +11,7 @@ description: >-
 # agents-sync-config (helper)
 
 > **Not a slash command.** Lives under `.agents/workflows/helpers/` so it is
-> not synced into `.claude/commands/`. Invoked by reference from
+> not projected into the mandrel plugin command tree. Invoked by reference from
 > [`/agents-update`](../agents-update.md) (the legacy submodule-bump path)
 > after a framework update; previously shipped as `/agents-sync-config`. The
 > reconciliation is distribution-agnostic — under the npm model the same

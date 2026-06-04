@@ -76,7 +76,12 @@ From zero to shipped:
        runs the `--fast` config + git-remote checks; a non-OK result is a
        **blocking** exit condition for the `agent::ready` flip (overridable
        only via the `planning::healthcheck-waived` label).
-   11. **Phase 11 — notification & hand-off** — posts the backlog summary
+   11. **Phase 11 — plan comprehension gate** — an opt-in, advisory
+       walkthrough of the planned backlog driven by the
+       `core/knowledge-transfer` skill. Offered by LM judgment only on
+       non-trivial plans, runs **after** the `agent::ready` flip, and is
+       interruptible at every checkpoint — it never blocks the hand-off.
+   12. **Phase 12 — notification & hand-off** — posts the backlog summary
        comment, @mentions the operator, and names `/epic-deliver` as the
        next step.
 

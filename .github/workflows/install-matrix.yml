@@ -29,26 +29,49 @@ name: Install Matrix
 #
 # Action pinning mirrors ci.yml: first-party `actions/*` stay on major-version
 # tags so Dependabot's github-actions ecosystem can bump them in place.
+#
+# ── Release gating (Story #3564) ─────────────────────────────────────────────
+# This workflow is the release gate for the published-package consumer contract.
+# To avoid the classic required-check + path-filter deadlock (a path-filtered
+# workflow never reports on PRs that don't touch the filtered paths, so a
+# required check hangs "pending" forever), the matrix is split by trigger event
+# into two reporting profiles that share ONE job body:
+#
+#   • GATE (required, always reports): a 2-leg diagonal that runs on EVERY
+#     `pull_request` to `main` and on `push` to `main`, with NO path filter:
+#       - install (npm / ubuntu-latest)   — dominant PM, fastest happy path
+#       - install (yarn / windows-latest) — the most fragile combo; exercises
+#         the MSYS/`cygpath` tarball-path handling documented in the Pack step.
+#     Because there is no path filter on the gating path, the check reports on
+#     every PR (including the release PR, which bumps package.json) so the
+#     required check never hangs "pending".
+#
+#   • COVERAGE (non-blocking sweep): all 6 legs
+#     (`{npm, pnpm, yarn} × {ubuntu-latest, windows-latest}`) run on a nightly
+#     `schedule` and on `workflow_dispatch`, so pnpm and npm-on-Windows
+#     regressions are still caught (≤24h latency) without taxing every PR or
+#     adding flake surface to the release-blocking path.
+#
+# OPERATOR ACTION (branch protection on `main`): add these two job names to the
+# required-status-check set so the Install Matrix gate actually blocks merges
+# (including the release PR). Add EXACTLY these two checks, not the whole
+# workflow:
+#       install (npm / ubuntu-latest)
+#       install (yarn / windows-latest)
+# (See CLAUDE.md → "Two-package release topology" for the same operator note.)
+# The internal `select-matrix` setup job is plumbing and must NOT be added to
+# branch protection.
 
 on:
   push:
     branches: [main]
-    paths:
-      - '.github/workflows/install-matrix.yml'
-      - '.agents/scripts/install-matrix-assert.js'
-      - 'lib/cli/**'
-      - 'bin/**'
-      - 'package.json'
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened]
-    paths:
-      - '.github/workflows/install-matrix.yml'
-      - '.agents/scripts/install-matrix-assert.js'
-      - 'lib/cli/**'
-      - 'bin/**'
-      - 'package.json'
-  workflow_dispatch: # Allow manual triggering
+  schedule:
+    # Nightly full-coverage sweep (06:17 UTC) across all 6 legs.
+    - cron: '17 6 * * *'
+  workflow_dispatch: # Allow manual triggering (runs the full 6-leg sweep)
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -58,14 +81,55 @@ permissions:
   contents: read
 
 jobs:
+  select-matrix:
+    # Internal plumbing: emit the matrix leg set keyed off the trigger event.
+    # `pull_request` / `push` → 2-leg required GATE; `schedule` /
+    # `workflow_dispatch` → full 6-leg non-blocking COVERAGE sweep. Keeping the
+    # selection in one place lets the single `install-matrix` job body below
+    # stay the sole copy of the pack → install → sync → sync-commands → assert →
+    # doctor sequence (no step-body duplication). Do NOT add this job to
+    # branch-protection required checks — it is not a gate.
+    name: select-matrix
+    runs-on: ubuntu-latest
+    outputs:
+      include: ${{ steps.select.outputs.include }}
+    steps:
+      - name: Select matrix legs for this event
+        id: select
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          gate='[{"package-manager":"npm","os":"ubuntu-latest"},{"package-manager":"yarn","os":"windows-latest"}]'
+          full='[{"package-manager":"npm","os":"ubuntu-latest"},{"package-manager":"pnpm","os":"ubuntu-latest"},{"package-manager":"yarn","os":"ubuntu-latest"},{"package-manager":"npm","os":"windows-latest"},{"package-manager":"pnpm","os":"windows-latest"},{"package-manager":"yarn","os":"windows-latest"}]'
+          case "$EVENT_NAME" in
+            pull_request|push)
+              include="$gate"
+              ;;
+            schedule|workflow_dispatch)
+              include="$full"
+              ;;
+            *)
+              # Unknown trigger: fall back to the safe required GATE subset.
+              include="$gate"
+              ;;
+          esac
+          echo "include=$include" >> "$GITHUB_OUTPUT"
+
   install-matrix:
+    needs: select-matrix
+    # The job-name template resolves to deterministic, branch-protection-stable
+    # check names — on PR/push the GATE legs report exactly as
+    # `install (npm / ubuntu-latest)` and `install (yarn / windows-latest)`.
     name: install (${{ matrix.package-manager }} / ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
+      # Keep fail-fast off so one leg's failure does not mask the others
+      # (required by the gating contract — both gate legs must report).
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
-        package-manager: [npm, pnpm, yarn]
+        include: ${{ fromJSON(needs.select-matrix.outputs.include) }}
     env:
       # `mandrel doctor`'s gh-auth check shells out to `gh auth status`, which
       # reads GH_TOKEN. The auto-injected workflow token authenticates the

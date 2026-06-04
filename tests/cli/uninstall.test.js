@@ -80,7 +80,7 @@ function reversibleEntries() {
     },
     {
       phaseGroup: 'ide-wiring',
-      target: '.claude/commands',
+      target: '.claude/plugins/mandrel',
       action: 'run',
       reversible: true,
     },
@@ -159,13 +159,17 @@ function seedFreshInstall(root) {
     'utf8',
   );
   writeJson(path.join(root, '.claude', 'settings.json'), {
+    extraKnownMarketplaces: {
+      mandrel: { source: { source: 'directory', path: './.claude' } },
+    },
+    enabledPlugins: { 'mandrel@mandrel': true },
     hooks: {
       UserPromptSubmit: [
         { hooks: [{ type: 'command', command: SYNC_COMMAND }] },
       ],
     },
   });
-  const cmdDir = path.join(root, '.claude', 'commands');
+  const cmdDir = path.join(root, '.claude', 'plugins', 'mandrel', 'commands');
   fs.mkdirSync(cmdDir, { recursive: true });
   fs.writeFileSync(
     path.join(cmdDir, 'epic-deliver.md'),
@@ -173,6 +177,14 @@ function seedFreshInstall(root) {
     'utf8',
   );
   fs.writeFileSync(path.join(cmdDir, 'doctor.md'), '# generated\n', 'utf8');
+  fs.mkdirSync(path.join(root, '.claude', '.claude-plugin'), {
+    recursive: true,
+  });
+  fs.writeFileSync(
+    path.join(root, '.claude', '.claude-plugin', 'marketplace.json'),
+    '{}\n',
+    'utf8',
+  );
   fs.writeFileSync(
     path.join(root, '.gitignore'),
     `${GITIGNORE_BLOCKS.commands.block}${GITIGNORE_BLOCKS.mcp.block}`,
@@ -293,9 +305,13 @@ describe('runUninstall — fresh install (AC2)', () => {
 
     // CLAUDE.md was install-authored (only the framework block) → removed.
     assert.equal(fs.existsSync(path.join(tmpRoot, 'CLAUDE.md')), false);
-    // Generated slash-command surface is gone.
+    // Generated plugin command surface is gone.
     assert.equal(
-      fs.existsSync(path.join(tmpRoot, '.claude', 'commands')),
+      fs.existsSync(path.join(tmpRoot, '.claude', 'plugins', 'mandrel')),
+      false,
+    );
+    assert.equal(
+      fs.existsSync(path.join(tmpRoot, '.claude', '.claude-plugin')),
       false,
     );
     // Install-authored settings.json (only the sync hook) is removed.
@@ -908,5 +924,64 @@ describe('runUninstall — corrupt target file guard (Story #3544)', () => {
       true,
       'install ledger must be retained when a target was skipped due to parse error',
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Story #3545 — prepare-removal reporting: empty-after-strip and no-match
+// ---------------------------------------------------------------------------
+
+describe('revertPackageJson — prepare-removal reporting (Story #3545)', () => {
+  it('deletes the prepare key when stripping the fragment leaves an empty string', () => {
+    // `prepare` is exactly ` && <sync>` — after strip + trim the value is "".
+    // The key must be deleted, not written as `"prepare": ""`.
+    fs.mkdirSync(tmpRoot, { recursive: true });
+    writeJson(path.join(tmpRoot, 'package.json'), {
+      name: 'empty-prepare',
+      scripts: {
+        prepare: ` && ${SYNC_COMMAND}`,
+      },
+    });
+    writeLedger(tmpRoot, {
+      entries: [{ target: 'package.json', reversible: true }],
+    });
+
+    runUninstall({ projectRoot: tmpRoot, write: () => {}, exit: () => {} });
+
+    const pkg = readJson(path.join(tmpRoot, 'package.json'));
+    // The key must be absent (not set to "").
+    assert.equal(
+      pkg.scripts?.prepare,
+      undefined,
+      'prepare must be deleted when stripping leaves an empty string',
+    );
+  });
+
+  it('does not report prepare as removed when the sync fragment is absent', () => {
+    // `prepare` is an operator value with no SYNC_COMMAND in it — uninstall
+    // must leave it completely intact and not list it in the removed scripts.
+    fs.mkdirSync(tmpRoot, { recursive: true });
+    writeJson(path.join(tmpRoot, 'package.json'), {
+      name: 'no-sync-prepare',
+      scripts: {
+        prepare: 'husky',
+        'sync:commands': SYNC_COMMAND, // framework script → removed
+      },
+    });
+    writeLedger(tmpRoot, {
+      entries: [{ target: 'package.json', reversible: true }],
+    });
+
+    runUninstall({ projectRoot: tmpRoot, write: () => {}, exit: () => {} });
+
+    const pkg = readJson(path.join(tmpRoot, 'package.json'));
+    // prepare must be untouched.
+    assert.equal(
+      pkg.scripts.prepare,
+      'husky',
+      'prepare must survive when it contains no sync fragment',
+    );
+    // The framework sync:commands key was removed.
+    assert.equal(pkg.scripts['sync:commands'], undefined);
   });
 });

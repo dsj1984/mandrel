@@ -139,10 +139,10 @@ function makeDeps(fsFake, cap, { onNpmView, onNpmInstall } = {}) {
         if (onNpmView) onNpmView();
         return TARGET_VERSION;
       },
-      npmRunner: (cmd, args) => {
-        calls.push(`${cmd} ${args.join(' ')}`);
-        if (onNpmInstall) onNpmInstall(cmd, args);
-        return { status: 0, stdout: '', stderr: '' };
+      runInstall: (installCmd, cwd) => {
+        calls.push(installCmd);
+        if (onNpmInstall) onNpmInstall(installCmd, cwd);
+        return { status: 0, stderr: '' };
       },
       // Downstream materialize/migrate/verify seams are stubbed: the boundary
       // under test is the entrypoint ↔ npm/network/fs wiring, not sync.js's

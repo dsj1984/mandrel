@@ -20,7 +20,7 @@
  *   --profile <name>          Config profile to seed .agentrc.json from
  *                             (solo-local|team-github|qa-only|audit-only);
  *                             blank uses the full starter reference
- *   --assume-yes              Accept every default; required for non-TTY runs
+ *   --assume-yes              Accept every default; without it a non-TTY run declines all prompts
  *   --skip-github             Skip the GitHub-side bootstrap entirely
  *   --skip-quality            Skip the quality-gates bootstrap (Step 7.5)
  *   --dry-run                 Print the resolved plan without mutating
@@ -63,7 +63,7 @@ Flags:
   --profile <name>          Config profile to seed .agentrc.json from
                             (solo-local|team-github|qa-only|audit-only);
                             blank uses the full starter reference
-  --assume-yes              Accept every default; required for non-TTY runs
+  --assume-yes              Accept every default; without it a non-TTY run declines all prompts
   --skip-github             Skip the GitHub-side bootstrap entirely
   --skip-quality            Skip the quality-gates bootstrap (Step 7.5)
   --dry-run                 Print the resolved plan without mutating
@@ -763,12 +763,28 @@ export function resolveAppliedGroups(approvedGroups, report) {
   for (const group of approvedGroups ?? []) {
     if (group === PHASE_GROUPS.GITHUB_ADMIN) {
       const gh = report?.github;
-      if (gh && !gh.error && !gh.skipped) applied.add(group);
+      if (gh && !gh.error && !gh.skipped && githubSubMutationsSucceeded(gh))
+        applied.add(group);
       continue;
     }
     applied.add(group);
   }
   return applied;
+}
+
+/**
+ * Return true only when every github-admin sub-mutation that ran either
+ * succeeded or was intentionally skipped (opt-out / no-config). A `status`
+ * of `'failed'` on any sub-result means at least one remote mutation did not
+ * land, so the ledger must NOT record the `github-admin` group as applied.
+ *
+ * @param {object} gh — the `report.github` object after a non-error, non-skip run.
+ * @returns {boolean}
+ */
+function githubSubMutationsSucceeded(gh) {
+  if (gh.branchProtection?.status === 'failed') return false;
+  if (gh.mergeMethods?.status === 'failed') return false;
+  return true;
 }
 
 /**

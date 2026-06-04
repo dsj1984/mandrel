@@ -189,7 +189,7 @@ const MERGE_METHODS_SCHEMA = {
 
 const GITHUB_SCHEMA = {
   type: 'object',
-  required: ['owner', 'repo'],
+  required: ['owner', 'repo', 'operatorHandle'],
   properties: {
     owner: { type: 'string', minLength: 1 },
     repo: { type: 'string', minLength: 1 },
