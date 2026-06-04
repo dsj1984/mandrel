@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.47.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.46.0...mandrel-v1.47.0) (2026-06-04)
+
+
+### Fixed
+
+* **update:** resolve Windows spawn ENOENT and add --install-cmd (refs [#3565](https://github.com/dsj1984/mandrel/issues/3565)) ([#3567](https://github.com/dsj1984/mandrel/issues/3567)) ([48b8d64](https://github.com/dsj1984/mandrel/commit/48b8d64b22f9dd52ef8f5dfb055ace8418503770))
+
 ## [1.46.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.45.0...mandrel-v1.46.0) (2026-06-03)
 
 
