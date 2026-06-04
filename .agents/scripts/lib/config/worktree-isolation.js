@@ -18,7 +18,21 @@ export const WORKTREE_ISOLATION_DEFAULTS = Object.freeze({
   allowSymlinkOnWindows: false,
   reapOnSuccess: true,
   reapOnCancel: true,
-  bootstrapFiles: Object.freeze(['.env', '.mcp.json']),
+  // Gitignored workspace files copied into each new worktree. Includes the
+  // operator's local-override files (`.agentrc.local.json`,
+  // `.agents/instructions.local.md`) so a worktree-isolated agent honors the
+  // §1.E local-override contract instead of silently falling back to the
+  // committed `.agentrc.json` placeholders — the gap that left
+  // `github.operatorHandle` unset inside worktrees and broke Story-lease
+  // release at close. Missing sources are skipped by the provisioner, so
+  // listing files that may be absent is safe. Keep in sync with
+  // `DEFAULT_WORKSPACE_FILES` in `../workspace-provisioner.js`.
+  bootstrapFiles: Object.freeze([
+    '.env',
+    '.mcp.json',
+    '.agentrc.local.json',
+    '.agents/instructions.local.md',
+  ]),
 });
 
 /**
