@@ -94,7 +94,14 @@ describe('cpu-pool — byte-for-byte parity with serial baseline', () => {
   let originalCwd;
 
   before(() => {
-    workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cpu-pool-parity-'));
+    // realpathSync so workDir matches process.cwd() after chdir; on macOS
+    // os.tmpdir() returns `/tmp/…` while cwd resolves the `/tmp → /private/tmp`
+    // symlink, and the expected keys (built via path.relative(workDir, …))
+    // would then diverge from calculateAll's cwd-relative output. No-op on
+    // Linux.
+    workDir = fs.realpathSync(
+      fs.mkdtempSync(path.join(os.tmpdir(), 'cpu-pool-parity-')),
+    );
     originalCwd = process.cwd();
     process.chdir(workDir);
   });
@@ -189,7 +196,12 @@ describe('cpu-pool — parse-error isolation', () => {
   let originalCwd;
 
   before(() => {
-    workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cpu-pool-isolate-'));
+    // See the parity suite's note: realpathSync keeps workDir in sync with
+    // process.cwd() after chdir so macOS's /tmp symlink doesn't skew the
+    // cwd-relative keys. No-op on Linux.
+    workDir = fs.realpathSync(
+      fs.mkdtempSync(path.join(os.tmpdir(), 'cpu-pool-isolate-')),
+    );
     originalCwd = process.cwd();
     process.chdir(workDir);
   });

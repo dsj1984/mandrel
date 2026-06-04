@@ -25,7 +25,15 @@ import { calculateAll } from '../.agents/scripts/lib/maintainability-utils.js';
  */
 
 function mkTmp() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'baseline_snap_'));
+  // realpathSync canonicalises the dir so it matches what process.cwd()
+  // reports after chdir. On macOS os.tmpdir() yields `/tmp/…` but cwd
+  // resolves the `/tmp → /private/tmp` symlink; without this the
+  // path.relative() the scorer runs against cwd would emit a `../../…`
+  // traversal instead of the bare `a.js` key these snapshots pin. No-op on
+  // Linux, where /tmp is a real directory.
+  return fs.realpathSync(
+    fs.mkdtempSync(path.join(os.tmpdir(), 'baseline_snap_')),
+  );
 }
 
 function rmTmp(dir) {
