@@ -412,7 +412,7 @@ test('story-close: successful merge and closure', async () => {
           tempRoot: path.join(sandboxCwd, 'temp'),
         },
       },
-      github: { owner: 'o', repo: 'r' },
+      github: { owner: 'o', repo: 'r', operatorHandle: '@ci' },
       delivery: { worktreeIsolation: { enabled: false } },
     }),
   );
@@ -476,7 +476,7 @@ test('story-close: reaps worktree using resolved --cwd repo root', async () => {
           tempRoot: path.join(explicitMainRepo, 'temp'),
         },
       },
-      github: { owner: 'o', repo: 'r' },
+      github: { owner: 'o', repo: 'r', operatorHandle: '@ci' },
       delivery: {
         worktreeIsolation: {
           enabled: true,
@@ -543,7 +543,7 @@ test('story-close: resolves config from runtime --cwd (can disable reap)', async
           tempRoot: path.join(tmp, 'temp'),
         },
       },
-      github: { owner: 'o', repo: 'r' },
+      github: { owner: 'o', repo: 'r', operatorHandle: '@ci' },
       delivery: { worktreeIsolation: { enabled: false } },
     }),
   );
@@ -603,7 +603,7 @@ test('story-init: resolves config from runtime --cwd for worktree mode', async (
           tempRoot: path.join(tmp, 'temp'),
         },
       },
-      github: { owner: 'o', repo: 'r' },
+      github: { owner: 'o', repo: 'r', operatorHandle: '@ci' },
       delivery: { worktreeIsolation: { enabled: false } },
     }),
   );

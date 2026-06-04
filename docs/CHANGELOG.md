@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.47.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.46.0...mandrel-v1.47.0) (2026-06-04)
+
+
+### Fixed
+
+* **update:** resolve Windows spawn ENOENT and add --install-cmd (refs [#3565](https://github.com/dsj1984/mandrel/issues/3565)) ([#3567](https://github.com/dsj1984/mandrel/issues/3567)) ([48b8d64](https://github.com/dsj1984/mandrel/commit/48b8d64b22f9dd52ef8f5dfb055ace8418503770))
+
+## [1.46.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.45.0...mandrel-v1.46.0) (2026-06-03)
+
+
+### ⚠ BREAKING CHANGES
+
+* **orchestration:** `.agentrc.json` documents with a `github` block must now include `github.operatorHandle`. The shipped templates already carry the `@[USERNAME]` placeholder, so consumers upgrading via `mandrel sync` get it automatically; a hand-written config without it will fail schema validation until the key is added.
+
+### Added
+
+* **orchestration:** require per-contributor operatorHandle and fail closed in lease guards ([#3563](https://github.com/dsj1984/mandrel/issues/3563)) ([50e0b3e](https://github.com/dsj1984/mandrel/commit/50e0b3ea8f2a67679114620cd9ed292e5473686d))
+
+
+### Fixed
+
+* **column-sync:** use projectOwner instead of viewer in #loadMeta query ([#3560](https://github.com/dsj1984/mandrel/issues/3560)) ([#3561](https://github.com/dsj1984/mandrel/issues/3561)) ([f4a1de8](https://github.com/dsj1984/mandrel/commit/f4a1de806b9ba3aac9d12bad868da88b0de08a98))
+* **uninstall:** add revertAgentrc handler to fix reversibility mismatch (refs [#3543](https://github.com/dsj1984/mandrel/issues/3543)) ([#3557](https://github.com/dsj1984/mandrel/issues/3557)) ([70f1d88](https://github.com/dsj1984/mandrel/commit/70f1d88036dbab79090cc02ced98afc05bb7852a))
+* **uninstall:** guard per-target reversal loop against JSON.parse failures (refs [#3544](https://github.com/dsj1984/mandrel/issues/3544)) ([#3562](https://github.com/dsj1984/mandrel/issues/3562)) ([d974e0d](https://github.com/dsj1984/mandrel/commit/d974e0df2736200624aca56d37feebac7b952b77))
+
 ## [1.45.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.44.0...mandrel-v1.45.0) (2026-06-03)
 
 

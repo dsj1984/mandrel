@@ -52,7 +52,8 @@ import {
  *
  * @param {object} config Resolved `.agentrc.json` config.
  * @returns {string} Bare operator handle.
- * @throws {Error} When no `github.operatorHandle` is configured — without an
+ * @throws {Error} When no `github.operatorHandle` resolves — unset, or still the
+ *   shipped `@[USERNAME]` placeholder (both normalise to `null`). Without an
  *   operator identity the lease has no owner to record, so the standalone
  *   path cannot safely serialise concurrent runs.
  */
@@ -60,8 +61,11 @@ export function resolveOperator(config) {
   const handle = normalizeOperatorHandle(config?.github?.operatorHandle);
   if (handle === null) {
     throw new Error(
-      'single-story lease: github.operatorHandle is not configured. ' +
-        'Set it in .agentrc.json so the standalone Story lease has an owner.',
+      'single-story lease: no operator identity is configured. ' +
+        'github.operatorHandle is unset or still the shipped `@[USERNAME]` ' +
+        'placeholder, so the standalone Story lease has no owner. Set your own ' +
+        'handle in .agentrc.local.json (e.g. { "github": { "operatorHandle": ' +
+        '"@your-login" } }) and re-run.',
     );
   }
   return handle;
