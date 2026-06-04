@@ -1,96 +1,140 @@
 ---
-description: Legacy submodule-bump upgrade path (superseded by `mandrel update`) — bump the `.agents` submodule to its remote HEAD and report the change set.
+description: >-
+  npm-era upgrade wraparound for a Mandrel consumer. Runs `mandrel update`
+  (resolve newest non-major version → install → re-materialize `.agents/` →
+  migrate → doctor → surface changelog) as the single mechanical step, then
+  walks the operator through the judgment wraparound the CLI deliberately
+  leaves unowned: reconcile `.agentrc.json`, install the Epic #1386
+  quality-gate surface, refresh the harness permission allowlist, reconcile
+  the consumer's `AGENTS.md` / runbooks against the surfaced changelog, and
+  stage + commit the staged lockfile bump.
 ---
 
 # /agents-update
 
-> **Legacy upgrade path.** `/agents-update` and its `update-self.js` script are
-> the **legacy Git-submodule-bump** path, **superseded by the `mandrel update`
-> CLI** (bump → sync → migrate → doctor) under the npm distribution model
-> (#3436/#3437). They are **retained only for consumer repos that have not yet
-> migrated off the retired `dist`-branch Git submodule**; on the
-> `@mandrelai/agents` npm install, upgrade with `mandrel update` instead. The
-> submodule mechanics described below are accurate for that legacy path and do
-> **not** apply to npm-installed consumers.
+> **Upgrade owner.** The mechanical upgrade is owned end to end by the
+> [`mandrel update`](../../lib/cli/update.js) CLI under the npm distribution
+> model (`@mandrelai/agents`, #3436/#3437). This workflow wraps that CLI: it
+> runs `mandrel update`, then walks the operator through the
+> **distribution-agnostic judgment steps** the CLI deliberately does **not**
+> perform — config reconciliation, the Epic #1386 quality-gate installs, the
+> permission-allowlist refresh, the consumer-side changelog reconciliation,
+> and the stage-and-commit of the staged lockfile bump.
 
 ## Overview
 
-`/agents-update` advances the consumer repo's `.agents/` submodule pointer to
-the latest commit on its tracked branch, then regenerates the mandrel plugin
-command tree (`.claude/plugins/mandrel/`, invoked as `/mandrel:<name>`) against
-the new workflow set. It is the legacy upgrade path for consumer repos still
-vendoring `.agents/` as a Git submodule; npm-installed consumers upgrade with
-`mandrel update` instead.
+`/agents-update` advances the consumer repo to the newest non-major
+`@mandrelai/agents` release, re-materializes `.agents/`, and regenerates the
+mandrel plugin command tree (`.claude/plugins/mandrel/`, invoked as
+`/mandrel:<name>`) against the new workflow set — then reconciles the
+consumer's own config, harness allowlist, and instructions against the
+change set the upgrade surfaced.
 
 The upgrade contract:
 
-- **The pointer only moves on explicit invocation.** There is no
-  `postinstall` hook and no background drift. Teammates always work against
-  the SHA recorded in the consumer repo's git history until someone runs
-  this workflow and commits the result.
-- **CI honours the committed SHA.** When `CI=true`, the script skips
-  `--remote` so CI jobs check out exactly the pointer recorded in git —
-  never "whatever HEAD happens to be today."
-- **A dirty submodule worktree blocks the upgrade.** If `.agents/` has
-  uncommitted changes, the workflow refuses to run before touching
-  anything. Stash, commit, or discard inside `.agents/` first; the
-  workflow does not perform recovery dances on the operator's behalf.
+- **The version only moves on explicit invocation.** `mandrel update`
+  resolves the newest published version and bumps the dependency only when
+  you run it. There is no `postinstall` hook and no background drift;
+  teammates work against the exact `@mandrelai/agents` version pinned in the
+  consumer's `package-lock.json` until someone runs this workflow and commits
+  the result.
+- **CI honours the committed lockfile.** Consumer CI runs `npm ci` against
+  the committed `package-lock.json`, so it installs exactly the version the
+  lockfile pins — never "whatever the registry's newest is today."
+- **The major axis is gated.** `mandrel update` refuses to cross a major
+  boundary (e.g. `1.x → 2.0`) without an explicit `--major`, printing a
+  pointer to `docs/upgrade-major.md` and exiting non-zero without touching
+  anything. Routine minor/patch bumps within the current major are never
+  gated.
+- **The CLI never commits.** The npm bump rewrites `package.json` /
+  `package-lock.json` and leaves them **staged on disk** for operator review;
+  `mandrel update` performs no `git add` / `git commit`. Staging and
+  committing the bump (plus any consumer-side reconciliation) is Step 5 of
+  this workflow.
 - **`.agents/workflows/` → mandrel plugin projection is delegated.**
-  The only authoritative writer of the generated plugin tree
+  `mandrel update`'s sync step re-materializes `.agents/`, and the only
+  authoritative writer of the generated plugin tree
   (`.claude/plugins/mandrel/`) is
   [`sync-claude-commands.js`](../scripts/sync-claude-commands.js), which
   prepends the `<!-- AUTO-GENERATED -->` header that
-  `/agents-bootstrap-project` parity-checks. This workflow invokes it
-  after the pointer moves; nothing else projects workflow files.
+  `/agents-bootstrap-project` parity-checks. Nothing else copies workflow
+  files.
 
 > **Persona**: `devops-engineer` · **Skills**:
 > `core/ci-cd-and-automation`, `core/documentation-and-adrs`
 
 ## Step 1 — Run the updater
 
-From the consumer repo root (the parent of `.agents/`):
+Preview first, then apply. From the consumer repo root:
 
 ```bash
-node .agents/scripts/update-self.js
+mandrel update --dry-run
+mandrel update
 ```
 
-The script:
+`mandrel update --dry-run` resolves the newest non-major version and prints
+the ordered step plan (`npm-update → runSync → runMigrations → doctor →
+surface changelog`) without invoking any effectful seam — no dependency bump,
+no sync, no migrations, no doctor, nothing written. Read the planned target
+version before applying.
 
-1. Verifies `.agents/` is clean (`git -C .agents status --porcelain`).
-2. Captures the current pointer as `OLD_SHA`.
-3. Runs `git submodule update --init --force --remote .agents` with up to
-   3 retries and a 2s backoff. `--remote` is dropped when `CI=true`.
-4. Captures the post-update pointer as `NEW_SHA`.
-5. Prints `OLD..NEW` and the shortlog of new commits (or
-   `No changes` if the pointer did not move).
-6. Execs `node .agents/scripts/sync-claude-commands.js` so the mandrel
-   plugin tree (`.claude/plugins/mandrel/`) reflects the new workflow set.
-7. Execs `node .agents/scripts/check-windows-git-perf.js` to verify
-   host-level git performance settings on Windows (`core.fsmonitor`,
-   `feature.manyFiles`, per-repo `git maintenance` schedule). Warn-only;
-   no-op on macOS / Linux. Prints the exact commands to run for any
-   missing setting and exits 0 either way.
+`mandrel update` (no flags) runs the live cycle:
+
+1. **Resolve target** — the newest published `@mandrelai/agents` version (via
+   the daily freshness cache in `temp/version-check.json`) and the currently
+   installed version.
+2. **Major gate** — if the newest version crosses a major boundary, the run
+   declines, prints the `docs/upgrade-major.md` pointer, and exits non-zero
+   without touching anything. Re-run with `--major` only after reviewing that
+   runbook.
+3. **No-op short-circuit** — already on the newest version ⇒ prints
+   `Already up to date` and exits 0.
+4. **Install** — bumps the dependency (default
+   `npm install @mandrelai/agents@<target>`; pass
+   `--install-cmd "<pm> <args>"` for a pnpm/yarn workspace). The lockfile
+   change is left **staged** for review; the CLI never commits.
+5. **runSync** — re-materializes `.agents/` from the freshly installed
+   payload, which also regenerates the mandrel plugin command tree
+   (`.claude/plugins/mandrel/`) via `sync-claude-commands.js`.
+6. **runMigrations** — applies any version-keyed migration steps for the
+   crossed range.
+7. **doctor** — runs the check registry to verify the resulting install.
+8. **Surface changelog** — prints the `docs/CHANGELOG.md` section(s) covering
+   the applied range `(current, target]`. Capture this output — Step 4
+   reconciles the consumer's own instructions against it.
 
 ## Step 2 — Expected output
 
-A successful bump looks like:
+A successful bump ends with:
 
 ```text
-a1b2c3d4e5f6..9f8e7d6c5b4a
-[update-self] New commits:
-  9f8e7d6 feat: new workflow X
-  a0b1c2d fix: tighten Y validation
-  synced   agents-update.md
-  synced   epic-plan.md
-...
-✔ 3 file(s) synced, 29 total commands in the mandrel plugin (/mandrel:<name>).
+Updating v1.44.0 → v1.46.0…
+✅  Updated to v1.46.0. The lockfile bump is staged for review.
+
+Changelog for v1.46.0:
+## [1.46.0](…)
+### Features
+* new workflow X
+### Bug Fixes
+* tighten Y validation
 ```
 
-A no-op run (already up to date) looks like:
+A no-op run (already on the newest version) looks like:
 
 ```text
-[update-self] No changes — .agents/ already at 9f8e7d6c5b4a....
-✔ 0 file(s) synced, 29 total commands in the mandrel plugin (/mandrel:<name>).
+✅  Already up to date (v1.46.0 is the newest version).
+```
+
+A `--dry-run` preview looks like:
+
+```text
+mandrel update — planned upgrade v1.44.0 → v1.46.0
+  1. npm-update
+  2. runSync
+  3. runMigrations
+  4. doctor
+  5. surface changelog
+Dry run: no files written, no dependency bumped.
 ```
 
 ## Step 3 — Reconcile `.agentrc.json` against the new defaults
@@ -160,9 +204,10 @@ The four `quality-bootstrap` outcomes:
 
 1. **`helper`** — copies
    [`code-quality-guardrails.md`](helpers/code-quality-guardrails.md)
-   into the project's `.agents/workflows/helpers/`. Reports
-   `present-via-submodule` when `.agents/` is a submodule (the helper
-   already lives upstream).
+   into the project's `.agents/workflows/helpers/`. On the npm
+   distribution the helper is materialized into `.agents/` by
+   `mandrel update`'s sync step, so this typically reports a `no-change`
+   present outcome.
 2. **`hook`** — installs `.husky/pre-commit` carrying the
    diff-scoped `quality:preview` invocation. **Custom hooks are
    preserved**: when a non-framework hook already exists the action is
@@ -215,7 +260,7 @@ additive allowlist patch for `.claude/settings.json`:
 
 The skill is supplied by the Claude Code harness (it is not a workflow
 in this repo); invoke it as a slash command from the same Claude Code
-session that just bumped the submodule. It:
+session that just ran `mandrel update`. It:
 
 1. Reads recent transcripts under `.claude/projects/.../`.
 2. Buckets repeated read-only Bash + MCP tool calls by frequency.
@@ -232,50 +277,37 @@ auto-applied change:
   (`Bash(node .agents/scripts/<name>.js *)`, `Bash(gh issue view *)`,
   `mcp__github__get_*`, etc.).
 - Apply the accepted subset by editing `.claude/settings.json` and
-  stage it alongside the submodule bump in Step 5.
+  stage it alongside the version bump in Step 5.
 
 The maintenance cadence is **once per `/agents-update` invocation** —
-the same operator who just moved the framework pointer is the one with
-the freshest transcript context to review the proposed allowlist
+the same operator who just ran `mandrel update` is the one with the
+freshest transcript context to review the proposed allowlist
 diff. Skipping the step is fine when the bump introduces no new
 scripts (the skill will report "no new high-frequency calls"), but the
 step itself is non-optional: silence-by-omission is what produces the
 hand-tuned drift this maintenance is meant to eliminate.
 
-## Step 4 — Review the CHANGELOG and update consumer-side guidance
+## Step 4 — Review the surfaced changelog and update consumer-side guidance
 
 Framework upgrades change behaviour the consumer project's own
 `AGENTS.md` (or `CLAUDE.md`) and project runbooks often encode — e.g.,
 new validators that change what a planner is allowed to emit, new
 ticket-body schemas downstream agents must produce, retired flags or
-defaults the consumer's instructions still reference. The pointer move is
+defaults the consumer's instructions still reference. The version bump is
 the right moment to reconcile those, while the diff is in front of the
 operator.
 
-The framework CHANGELOG is **not shipped inside the `.agents/`
-bundle** — the distributed bundle carries only the *contents* of
-`.agents/`, and `docs/CHANGELOG.md` lives at the framework repo root,
-outside that tree. So there is no `.agents/docs/CHANGELOG.md` to read in
-a consumer project; reaching for one yields "No tracked CHANGELOG in the
-submodule."
+`mandrel update` already **surfaced the changelog** for the applied range
+`(current, target]` in Step 1 — its final step prints every
+`docs/CHANGELOG.md` section newer than the installed version and no newer
+than the target. That printed range is your source of truth; you do not
+need to fetch a CHANGELOG from anywhere, since the CLI emitted it inline.
+If the upgrade output scrolled past, re-read the prior run's transcript or
+open the framework's GitHub Releases page for the version headers the
+bump spanned.
 
-Source the change set from the framework remote instead. The submodule's
-`origin` points at the framework repo, so fetch its default branch and
-read the CHANGELOG from there:
-
-```bash
-git -C .agents fetch origin main
-git -C .agents show origin/main:docs/CHANGELOG.md
-```
-
-If the remote is unreachable (offline, private-URL credential gap), fall
-back to the `OLD_SHA..NEW_SHA` shortlog printed in Step 1 and the GitHub
-Releases page for the framework repo to identify which version headers
-the bump spans.
-
-Focus on every entry between `OLD_SHA` and `NEW_SHA` (the shortlog from
-Step 1 names the version headers to scan). For each entry, check the
-consumer repo for guidance that has gone stale or guidance that should
+For each changelog entry between the installed and target versions, check
+the consumer repo for guidance that has gone stale or guidance that should
 now exist:
 
 1. **Consumer `AGENTS.md` / `CLAUDE.md`.** If the changelog entry
@@ -296,77 +328,89 @@ is a valid review outcome. The goal is to leave the consumer
 instructions and runbooks *consistent* with the new framework version,
 not to manufacture churn.
 
-Stage every consumer-side edit alongside the submodule pointer move so
-the bump and the reconciliation land in the same commit (Step 5). A
+Stage every consumer-side edit alongside the staged lockfile bump so the
+upgrade and the reconciliation land in the same commit (Step 5). A
 reviewer reading the bump should be able to see, in one diff, both
-"the framework moved" and "what we changed in our own files in
+"the framework version moved" and "what we changed in our own files in
 response."
 
 ## Step 5 — Commit the bump
 
-The script never auto-commits. After reviewing the shortlog, any
-`.agentrc.json` reconciliation diff from Step 3, the
-`.claude/settings.json` allowlist patch from Step 3.6, and the consumer
-instruction / runbook updates from Step 4, stage and commit the
-pointer move (plus the reconciliation and consumer edits, if any)
-from the consumer repo root:
+`mandrel update` leaves the dependency bump **staged on disk** but never
+commits. After reviewing the surfaced changelog, any `.agentrc.json`
+reconciliation diff from Step 3, the `.claude/settings.json` allowlist
+patch from Step 3.6, and the consumer instruction / runbook updates from
+Step 4, stage and commit the bump (plus the reconciliation and consumer
+edits, if any) from the consumer repo root:
 
 ```bash
-git add .agents .agentrc.json .claude/settings.json AGENTS.md  # plus any runbook files touched in Step 4
-git commit -m "chore: bump .agents to <NEW_SHORT_SHA>
+git add package.json package-lock.json .agentrc.json .claude/settings.json AGENTS.md  # plus any runbook files touched in Step 4
+git commit -m "chore: update @mandrelai/agents to v<NEW_VERSION>
 
-OLD..NEW: a1b2c3d4e5f6..9f8e7d6c5b4a
+Upgraded v<OLD_VERSION> → v<NEW_VERSION> via mandrel update.
 
 - feat: new workflow X
 - fix: tighten Y validation
 - consumer: update AGENTS.md task-body schema reference"
 ```
 
-Include the SHA range and, optionally, the shortlog so reviewers can see
-what moved without re-running the updater. Omit `.agentrc.json` from the
-`git add` if Step 3 reported `No changes required`; omit
-`.claude/settings.json` if Step 3.6 produced no accepted entries; omit
-the consumer-instruction paths if Step 4 was a no-op.
+Include the version range and, optionally, the surfaced changelog
+highlights so reviewers can see what moved without re-running the
+updater. Omit `.agentrc.json` from the `git add` if Step 3 reported
+`No changes required`; omit `.claude/settings.json` if Step 3.6 produced
+no accepted entries; omit the consumer-instruction paths if Step 4 was a
+no-op.
+
+> **Note:** `mandrel update`'s sync step also re-materializes `.agents/`
+> (and the mandrel plugin tree under `.claude/plugins/mandrel/`). On the npm
+> distribution `.agents/` is a
+> materialized directory rebuilt from the installed package — whether the
+> consumer commits the regenerated `.agents/` tree, or treats it as a
+> gitignored install artifact rebuilt by `mandrel sync`, depends on the
+> consumer's own vendoring policy. Stage the `.agents/` / `.claude/`
+> changes here only if the project commits its materialized tree.
 
 ## Troubleshooting
 
-- **`fatal: needed a single revision`** — the submodule entry in
-  `.gitmodules` does not pin a remote branch. Add
-  `branch = main` (or the appropriate branch name) under the `.agents`
-  entry:
+- **`a newer MAJOR version (X.0.0) is available`** — `mandrel update`
+  hit the major gate and exited non-zero without touching anything. A
+  major crossing is a breaking upgrade. Read `docs/upgrade-major.md`,
+  then re-run `mandrel update --major` only after you have absorbed the
+  migration steps that runbook describes.
 
-  ```ini
-  [submodule ".agents"]
-    path = .agents
-    url = https://github.com/dsj1984/mandrel.git
-    branch = main
-  ```
+- **`doctor reported failures: …`** — the dependency bumped and `.agents/`
+  re-materialized, but a doctor check failed (and the run exited
+  non-zero). Run `mandrel doctor` for the per-check remedies. The lockfile
+  bump is already staged; fix the doctor finding (often a missing
+  bootstrap install — Step 3.5 — or a stale `.agentrc.json` — Step 3)
+  before committing in Step 5.
 
-  Commit the `.gitmodules` change and re-run.
+- **Install command failed / `npm install … exited <n>`** — the npm
+  install step could not bump the dependency (network hiccup, registry
+  auth gap, or a peer-dependency conflict). Resolve the underlying npm
+  error and re-run `mandrel update`; it is idempotent — a clean re-run
+  resumes from the resolve step and short-circuits if the install already
+  landed.
 
-- **`.agents/ has uncommitted changes`** — the script refuses to run
-  over an unclean submodule. `cd .agents && git status` shows what
-  moved; commit it inside the submodule (if the change belongs
-  upstream) or `git checkout -- .` to discard it (if it was
-  accidental). Then re-invoke.
-
-- **`failed after 3 attempts`** — retries are exhausted. The underlying
-  cause is almost always a network hiccup reaching the framework
-  remote, or (in CI) missing credentials for a private submodule URL.
-  Re-invoke when connectivity is restored; the script is idempotent.
+- **Wrong package manager** — the default install is `npm install`. For a
+  pnpm or yarn workspace, pass the package manager explicitly:
+  `mandrel update --install-cmd "pnpm add @mandrelai/agents@<target>"`.
+  The registry probe always stays on `npm view` (a PM-agnostic query); only
+  the install seam honours the override.
 
 ## Constraints
 
-- **Idempotent.** A second invocation immediately after a successful run
-  prints `No changes` and exits 0.
-- **Stdlib only.** The script uses `node:child_process`, `node:fs`,
-  `node:path`, and `node:timers/promises` — no new dependencies.
-- **Windows-compatible.** `spawnSync` is invoked with explicit argument
-  arrays; no shell strings, no bash-isms.
-- **No auto-commit.** The operator reviews the shortlog and writes the
-  commit message. The workflow does not know whether the pointer move
-  is release-worthy.
-- **No framework-side version bump.** This workflow moves the
-  *consumer's* pointer. It does not tag a release on the framework
-  itself — that remains the framework maintainer's call after they
-  review the diff upstream.
+- **Idempotent.** A second `mandrel update` immediately after a successful
+  run resolves the same newest version, hits the no-op short-circuit, and
+  prints `Already up to date` — exit 0, nothing bumped.
+- **Non-major only by default.** The major axis is gated behind an explicit
+  `--major`; routine minor/patch bumps within the current major apply
+  without a gate.
+- **No auto-commit.** `mandrel update` leaves the lockfile bump staged on
+  disk and never runs git. The operator reviews the surfaced changelog and
+  writes the commit message (Step 5) — the CLI does not know whether the
+  bump is release-worthy for the consumer.
+- **No framework-side version bump.** This workflow advances the
+  *consumer's* pinned `@mandrelai/agents` version. It does not tag a release
+  on the framework itself — that remains the framework maintainer's call via
+  release-please.
