@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.50.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.49.0...mandrel-v1.50.0) (2026-06-04)
+
+
+### Fixed
+
+* **postinstall:** materialize .agents/ into INIT_CWD, not the npm-lifecycle cwd (refs [#3584](https://github.com/dsj1984/mandrel/issues/3584)) ([#3585](https://github.com/dsj1984/mandrel/issues/3585)) ([0844b45](https://github.com/dsj1984/mandrel/commit/0844b45351b47fddf01e5e90b4bd68764d578f50))
+
 ## [1.49.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.48.0...mandrel-v1.49.0) (2026-06-04)
 
 
