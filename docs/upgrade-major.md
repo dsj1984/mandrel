@@ -107,7 +107,6 @@ Then revert any config edits the forward migrations made (your version-control h
 | Document | Purpose |
 | --- | --- |
 | [`renovate-dependabot.md`](renovate-dependabot.md) | Dependency-bot config that gates Mandrel bumps on `mandrel doctor` and holds majors for manual review |
-| [`migration-submodule-to-npm.md`](migration-submodule-to-npm.md) | One-time migration from the retired `dist`-branch submodule to the npm package |
 | [`compatibility-matrix.md`](compatibility-matrix.md) | Supported OS / Node / package-manager combinations |
 | [AGENTS.md § Major-version policy](../AGENTS.md) | The framework-side manual major-release step this gate mirrors |
 | [`.agents/rules/git-conventions.md` § Contract Cutovers](../.agents/rules/git-conventions.md) | The hard-cutover / no-shim policy a major expresses |

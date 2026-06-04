@@ -1,6 +1,6 @@
 # Renovate / Dependabot integration
 
-Mandrel ships as the npm package [`@mandrelai/agents`](https://www.npmjs.com/package/@mandrelai/agents), and the `.agents/` working tree is materialized from the installed package by `mandrel sync` (see [`migration-submodule-to-npm.md`](migration-submodule-to-npm.md)). Because the framework is a regular versioned dependency pinned in your lockfile, framework upgrades can ride the **same dependency-update PRs** you already use for every other package — Renovate or Dependabot opens the bump, `mandrel doctor` gates it in CI, and you review and merge it like any other dependency PR.
+Mandrel ships as the npm package [`@mandrelai/agents`](https://www.npmjs.com/package/@mandrelai/agents), and the `.agents/` working tree is materialized from the installed package by `mandrel sync`. Because the framework is a regular versioned dependency pinned in your lockfile, framework upgrades can ride the **same dependency-update PRs** you already use for every other package — Renovate or Dependabot opens the bump, `mandrel doctor` gates it in CI, and you review and merge it like any other dependency PR.
 
 This guide gives you a drop-in config for **both** bots. Pick whichever your project already runs — you do not need both. Each config:
 

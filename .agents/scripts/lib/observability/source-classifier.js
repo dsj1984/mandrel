@@ -2,7 +2,7 @@
  * source-classifier.js — pure classifier that tags a friction signal
  * record as either `"framework"` (the Mandrel framework itself) or
  * `"consumer"` (the host project that consumes the framework via the
- * `.agents/` submodule).
+ * materialized `.agents/` directory).
  *
  * Used by `signals-writer.js#appendSignal` / `appendEpicSignal` so every
  * record in `temp/epic-<eid>/stories/story-<sid>/signals.ndjson` carries an

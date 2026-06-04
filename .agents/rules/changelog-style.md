@@ -155,15 +155,14 @@ early in a wave landed after peers had merged. `finalizeMerge` now:
    abort; minor = auto-resolve by accepting Story's version with audit
    log).
 
-### Per-worktree `.agents` collapsed into root symlink
+### Per-worktree node_modules collapsed into shared store
 
-Consumer projects declare `.agents` as a submodule; the per-worktree
-gitlink caused `git worktree remove` to refuse. `ensure()` now
-replaces the worktree's `.agents/` with a symlink (junction on
-Windows) to `<repoRoot>/.agents` and marks the per-worktree index
-entry `skip-worktree`. `reap()` removes the symlink before
-`git worktree remove`. Auto-detected: if `.gitmodules` declares
-`.agents` as a submodule path, the symlink applies.
+Per-worktree `npm install` duplicated dependencies across every story
+tree and blew out disk on parallel waves. `ensure()` now links each
+worktree's `node_modules` to a primed donor tree (junction on Windows)
+and `reap()` removes the link before `git worktree remove`.
+Auto-detected: if the configured strategy is `symlink`, the link
+applies.
 
 ### Deliver tail auto-invokes pre-merge gates
 
@@ -203,15 +202,14 @@ implementation detail that operators cannot act on.
 
 Parallel story waves kept tripping over each other at integration time.
 This release reduces the conflict surface at story close and stabilises
-worktree cleanup on consumer projects that vendor `.agents` as a
-submodule.
+worktree cleanup.
 
 - **Pre-merge rebase at story close** shrinks the conflict window to
   each story's real delta; conflicts above the triage threshold abort
   and surface to the operator.
-- **`.agents` submodule-aware worktrees.** Consumer projects that declare
-  `.agents` as a submodule no longer need a manual cleanup step —
-  worktree reap handles the gitlink automatically.
+- **Shared-store worktrees.** Per-story worktrees link a shared
+  `node_modules` store, so parallel waves no longer duplicate installs
+  or leave residue that blocks reap.
 - **`/epic-deliver` auto-invokes pre-merge gates** (code review, retro)
   inline. `--skip-code-review` is available as an override.
 - **Closure sweep covers Epic Health tickets** in addition to PRD and

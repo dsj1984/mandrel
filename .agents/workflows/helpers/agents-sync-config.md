@@ -12,10 +12,9 @@ description: >-
 
 > **Not a slash command.** Lives under `.agents/workflows/helpers/` so it is
 > not projected into the mandrel plugin command tree. Invoked by reference from
-> [`/agents-update`](../agents-update.md) (the legacy submodule-bump path)
-> after a framework update; previously shipped as `/agents-sync-config`. The
-> reconciliation is distribution-agnostic — under the npm model the same
-> `.agentrc.json` validation runs as part of `mandrel update`.
+> [`/agents-update`](../agents-update.md) after a framework update; previously
+> shipped as `/agents-sync-config`. The reconciliation runs as part of the
+> `mandrel update` upgrade path (bump → sync → migrate → doctor).
 >
 > **Configuration reference.** The full set of configurable keys, defaults,
 > and required-vs-optional flags lives in

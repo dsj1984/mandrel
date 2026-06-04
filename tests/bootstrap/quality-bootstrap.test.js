@@ -50,7 +50,7 @@ function readJson(p) {
 beforeEach(() => {
   tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'quality-bootstrap-'));
   // Stand up a minimal "framework" tree so the helper has a copy source.
-  // Real-world callers pass the path to their .agents submodule checkout.
+  // Real-world callers pass the path to their materialized `.agents/` checkout.
   frameworkRoot = path.join(tmpRoot, '_framework');
   const helperSource = path.join(
     frameworkRoot,

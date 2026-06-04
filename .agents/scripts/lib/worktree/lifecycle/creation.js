@@ -3,9 +3,9 @@
  *
  * `ensure` — idempotently provision `.worktrees/story-<id>/` on `branch`.
  * Threads the `ctx` bag built by `WorktreeManager`; cross-cutting work
- * (workspace bootstrap, agents-snapshot copy, Windows long-path warning) is
- * supplied via callbacks on `ctx` so this submodule never reaches into
- * `WorktreeManager` instance state directly.
+ * (workspace bootstrap, Windows long-path warning) is supplied via callbacks
+ * on `ctx` so this submodule never reaches into `WorktreeManager` instance
+ * state directly.
  */
 
 import fs from 'node:fs';
@@ -107,7 +107,6 @@ export async function ensure(ctx, storyId, branch) {
   ctx.copyBootstrapFiles(wtPath);
   phase('install');
   const installStatus = installDependencies(ctx, wtPath);
-  ctx.copyAgentsFromRoot(wtPath);
 
   ctx.logger.info(`worktree.created storyId=${id} path=${wtPath}`);
   return {

@@ -98,36 +98,14 @@ manifest via `dispatcher.js`) against the active epic. Running
 `/story-deliver <storyId>` on its own does **not** clean up orphan worktrees
 or stale locks.
 
-## `.agents` copy (consumer projects)
+## `.agents` materialization
 
-In consumer projects **on the legacy Git-submodule install**, `.agents/` is
-declared as a git submodule in `.gitmodules`.
-When `git worktree add` creates `.worktrees/story-<id>/`, the worktree carries
-its own gitlink entry for `.agents`, and `git worktree remove` then refuses to
-reap it on the grounds that "there is a submodule inside the worktree."
-
-`WorktreeManager.ensure()` resolves this at worktree creation by removing the
-empty gitlink placeholder, recursively copying `<repoRoot>/.agents/` into the
-worktree, and marking the `.agents` gitlink entry `skip-worktree` so routine
-task commits do not accidentally stage submodule metadata changes. `reap()`
-mirrors the teardown: clear `skip-worktree`, delete the copied directory, scrub
-the gitlink, then `git worktree remove`.
-
-The copy is a point-in-time snapshot taken at worktree creation. For epic-
-length worktrees this is acceptable; if the root `.agents/` changes during an
-epic, those updates do not propagate into existing worktrees. Recreate the
-worktree (or add an explicit refresh step) if you need the update mid-epic.
-
-The framework repo itself — and any npm-installed consumer, where `mandrel sync`
-materializes `.agents/` as a regular tracked directory rather than a submodule —
-skips this behavior. Detection is automatic — keyed off whether
-`.gitmodules` at repo root declares `.agents` as a submodule path.
-
-> **Why copy instead of symlink:** the previous symlink/junction approach caused
-> `git worktree remove` failures on Windows when junction targets didn't match
-> exactly, and a mismatched junction risked the remove following it and wiping
-> `<repoRoot>/.agents`. Plain directory copies have no such traversal risk and
-> `git worktree remove` works without special cases.
+`.agents/` is a regular tracked directory in every checkout — the framework
+repo tracks it directly, and npm-installed consumers materialize it via
+`mandrel sync`. Because it is not a git submodule, a per-story worktree
+carries no `.agents` gitlink, so `git worktree add` and `git worktree remove`
+need no special handling for it: the directory is created and reaped like any
+other tracked path.
 
 ## node_modules strategies
 
