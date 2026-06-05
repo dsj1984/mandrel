@@ -37,7 +37,10 @@
  *     (in which case the operator may have manually closed the Story).
  */
 
-import { parseFencedJsonComment } from '../structured-comment-parser.js';
+import {
+  parseFencedJson,
+  parseFencedJsonComment,
+} from '../structured-comment-parser.js';
 import { findStructuredComment } from '../ticketing.js';
 import { STORY_RUN_PROGRESS_TYPE } from './story-run-progress-writer.js';
 
@@ -151,8 +154,8 @@ function collectJsonCandidates(text) {
   const out = [];
   if (text.startsWith('{')) out.push(text);
 
-  const fenceMatch = text.match(/```json\s*\n([\s\S]*?)\n```/);
-  if (fenceMatch) out.push(fenceMatch[1]);
+  const fenced = parseFencedJson(text);
+  if (fenced !== null) out.push(JSON.stringify(fenced));
 
   // First balanced `{...}` substring — naive but adequate for the chat
   // narration + envelope case.

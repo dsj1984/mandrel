@@ -22,26 +22,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { epicArtifactPath } from '../config/temp-paths.js';
 import { Logger } from '../Logger.js';
+import { parseFencedJson } from '../orchestration/structured-comment-parser.js';
 import { findStructuredComment } from '../orchestration/ticketing.js';
 
 const DONE_LABEL = 'agent::done';
-
-/**
- * Extract the first fenced ```json … ``` block from a comment body.
- *
- * @param {string} body
- * @returns {object | null}
- */
-function extractJsonBlock(body) {
-  if (typeof body !== 'string' || body.length === 0) return null;
-  const match = body.match(/```json\s*\n([\s\S]*?)\n```/);
-  if (!match) return null;
-  try {
-    return JSON.parse(match[1]);
-  } catch {
-    return null;
-  }
-}
 
 /**
  * Load the dispatch manifest for an Epic.
@@ -100,7 +84,7 @@ export async function loadDispatchManifest({
       if (!comment) {
         return { ok: false, reason: 'no-dispatch-manifest-comment' };
       }
-      const parsed = extractJsonBlock(comment.body);
+      const parsed = parseFencedJson(comment.body);
       if (!parsed || !Array.isArray(parsed.stories)) {
         return { ok: false, reason: 'dispatch-manifest-comment-unparseable' };
       }

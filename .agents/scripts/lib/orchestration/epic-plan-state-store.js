@@ -28,6 +28,7 @@
  * ```
  */
 
+import { parseFencedJsonComment } from './structured-comment-parser.js';
 import { findStructuredComment, upsertStructuredComment } from './ticketing.js';
 
 export const EPIC_PLAN_STATE_TYPE = 'epic-plan-state';
@@ -47,8 +48,6 @@ export const PLAN_PHASES = Object.freeze({
   DECOMPOSING: 'decomposing',
   READY: 'ready',
 });
-
-const JSON_FENCE_RE = /```json\s*\n([\s\S]*?)\n```/;
 
 function assertProvider(provider) {
   if (!provider)
@@ -76,14 +75,7 @@ export async function read({ provider, epicId } = {}) {
     epicId,
     EPIC_PLAN_STATE_TYPE,
   );
-  if (!comment?.body) return null;
-  const match = comment.body.match(JSON_FENCE_RE);
-  if (!match) return null;
-  try {
-    return JSON.parse(match[1]);
-  } catch (_err) {
-    return null;
-  }
+  return parseFencedJsonComment(comment);
 }
 
 /**
