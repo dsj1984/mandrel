@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T14:26:40.100Z",
+  "generatedAt": "2026-06-05T15:02:11.799Z",
   "rollup": {
     "*": {
       "min": 45.044,
@@ -1149,10 +1149,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/index.js",
       "mi": 69.141
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "mi": 93.277
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/trace-logger.js",
@@ -3709,10 +3705,6 @@
     {
       "path": "tests/lib/orchestration/lifecycle/listener-signals.test.js",
       "mi": 104.219
-    },
-    {
-      "path": "tests/lib/orchestration/lifecycle/listener-watcher.test.js",
-      "mi": 109.146
     },
     {
       "path": "tests/lib/orchestration/lifecycle/listeners/merge-watcher.test.js",
