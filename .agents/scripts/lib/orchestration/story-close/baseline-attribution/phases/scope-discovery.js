@@ -9,6 +9,7 @@
  * `gitRunner` so tests can pin the diff math without spawning git.
  */
 
+import { diffNameOnly } from '../../../../changed-files.js';
 import { gitSpawn as defaultGitSpawn } from '../../../../git-utils.js';
 
 /**
@@ -24,18 +25,15 @@ export function computeStoryDiffPaths({
   gitRunner = { gitSpawn: defaultGitSpawn },
 }) {
   if (!cwd || !epicBranch || !storyBranch) return [];
-  const diff = gitRunner.gitSpawn(
-    cwd,
-    'diff',
-    '--name-only',
-    `origin/${epicBranch}...${storyBranch}`,
-  );
-  if (diff.status !== 0) return [];
-  return (diff.stdout || '')
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .map((line) => line.replace(/\\/g, '/'));
+  try {
+    return diffNameOnly({
+      range: `origin/${epicBranch}...${storyBranch}`,
+      cwd,
+      gitSpawn: gitRunner.gitSpawn,
+    });
+  } catch {
+    return [];
+  }
 }
 
 /**

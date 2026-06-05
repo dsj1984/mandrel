@@ -21,6 +21,7 @@
 
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import { parseNameOnlyStdout } from '../changed-files.js';
 
 /**
  * Parse `--diff-scope <ref>` (and the legacy `--diff-scope=<ref>` form)
@@ -80,13 +81,7 @@ export function resolveDiffScopeFiles({
     encoding: 'utf8',
   });
   if (!res || res.status !== 0) return new Set();
-  return new Set(
-    (res.stdout || '')
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0)
-      .map((line) => line.replace(/\\/g, '/')),
-  );
+  return new Set(parseNameOnlyStdout(res.stdout));
 }
 
 /**
