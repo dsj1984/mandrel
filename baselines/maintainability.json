@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T17:46:50.358Z",
+  "generatedAt": "2026-06-05T18:08:47.590Z",
   "rollup": {
     "*": {
       "min": 45.044,
@@ -537,10 +537,6 @@
     {
       "path": ".agents/scripts/lib/config/preflight.js",
       "mi": 106.274
-    },
-    {
-      "path": ".agents/scripts/lib/config/quality.js",
-      "mi": 83.814
     },
     {
       "path": ".agents/scripts/lib/config/retro.js",
@@ -3121,10 +3117,6 @@
     {
       "path": "tests/lib/config-resolver-worktree.test.js",
       "mi": 109.498
-    },
-    {
-      "path": "tests/lib/config-resolver.test.js",
-      "mi": 104.674
     },
     {
       "path": "tests/lib/config-runners.test.js",

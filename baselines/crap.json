@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T17:46:50.888Z",
+  "generatedAt": "2026-06-05T18:08:48.011Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.006059669598093,
+      "p95": 12.000914494741656,
       "max": 38.82544452792387,
       "methodsAbove20": 20
     }
@@ -2956,108 +2956,6 @@
       "method": "normaliseFloor",
       "startLine": 54,
       "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/config/quality.js",
-      "method": "toleranceScalar",
-      "startLine": 197,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/config/quality.js",
-      "method": "warnUnknownKeys",
-      "startLine": 209,
-      "crap": 2.0932944606413995
-    },
-    {
-      "path": ".agents/scripts/lib/config/quality.js",
-      "method": "resolveMaintainabilityCrap",
-      "startLine": 227,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/config/quality.js",
-      "method": "resolveMaintainabilityQuality",
-      "startLine": 289,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/config/quality.js",
-      "method": "resolvePositiveIntegerMs",
-      "startLine": 335,
-      "crap": 4.592592592592593
-    },
-    {
-      "path": ".agents/scripts/lib/config/quality.js",
-      "method": "resolveFormatAutofix",
-      "startLine": 351,
-      "crap": 4.405097860719162
-    },
-    {
-      "path": ".agents/scripts/lib/config/quality.js",
-      "method": "resolveCoverageGate",
-      "startLine": 366,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/config/quality.js",
-      "method": "resolveCodingGuardrails",
-      "startLine": 409,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/config/quality.js",
-      "method": "resolveAutoRefresh",
-      "startLine": 441,
-      "crap": 14.25
-    },
-    {
-      "path": ".agents/scripts/lib/config/quality.js",
-      "method": "resolveBaselinesFromGates",
-      "startLine": 486,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/config/quality.js",
-      "method": "mergeFloorsWithDefaults",
-      "startLine": 522,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/config/quality.js",
-      "method": "resolveGatesWithFloors",
-      "startLine": 561,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/config/quality.js",
-      "method": "resolveQuality",
-      "startLine": 575,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/config/quality.js",
-      "method": "assertEpsilonValue",
-      "startLine": 635,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/config/quality.js",
-      "method": "resolveBaselineEpsilon",
-      "startLine": 646,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/config/quality.js",
-      "method": "getBaselineEpsilon",
-      "startLine": 671,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/config/quality.js",
-      "method": "getQuality",
-      "startLine": 688,
-      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/retro.js",
