@@ -4,7 +4,7 @@ import { LIMITS_DEFAULTS } from '../config/limits.js';
  * Sole source of truth for the prompt's `maxTickets` cap is the resolved
  * limits block (see {@link LIMITS_DEFAULTS}). The previous standalone
  * `DEFAULT_MAX_TICKETS = 40` literal allowed the prompt to drift out of sync
- * with `agentSettings.limits.maxTickets` when call sites forgot to pass the
+ * with `planning.maxTickets` when call sites forgot to pass the
  * resolved value; importing it here means a fallback path (no caller-supplied
  * value) still tracks the framework default in `lib/config/limits.js`.
  *

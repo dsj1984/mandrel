@@ -4,7 +4,7 @@
  * Runs typecheck, lint, test, format check, and maintainability/coverage/
  * CRAP regression checks before the story merge so drift is caught in the
  * worktree rather than at pre-push time on the Epic branch. Format command
- * is configurable via `agentSettings.commands.formatCheck`; default is
+ * is configurable via `project.commands.formatCheck`; default is
  * `npx biome format .`. All gates inherit stdio so the operator sees the
  * raw output; the returned summary surfaces actionable hints on failure.
  *
@@ -51,7 +51,7 @@ const TYPECHECK_FALLBACK = 'npm run typecheck';
 const TYPECHECK_HINT =
   'TypeScript regression — fix type errors on the Story branch before retrying close. If the failure is a stale generated type (e.g. wrangler types), regenerate locally and commit before the close.';
 
-/** Default formatter command when `agentSettings.commands.formatCheck` is unset. */
+/** Default formatter command when `project.commands.formatCheck` is unset. */
 const FORMAT_CHECK_FALLBACK = 'npx biome format .';
 
 /** Default formatter command in write mode. */
@@ -68,11 +68,11 @@ function buildFormatHint(writeCmd) {
 }
 
 /**
- * Resolve a string `agentSettings.commands.<key>` with a fallback when the
+ * Resolve a string `project.commands.<key>` with a fallback when the
  * value is missing, empty, or the resolver throws on malformed settings.
  * Shared engine behind the three resolveX command helpers.
  *
- * @param {{ agentSettings?: { commands?: object } } | object | null | undefined} settings
+ * @param {{ project?: { commands?: object } } | object | null | undefined} settings
  * @param {string} key
  * @param {string} fallback
  * @returns {string}
@@ -94,12 +94,12 @@ function resolveCommandWithFallback(settings, key, fallback) {
 }
 
 /**
- * Resolve the typecheck command. Reads `agentSettings.commands.typecheck`;
+ * Resolve the typecheck command. Reads `project.commands.typecheck`;
  * falls back to `npm run typecheck`. The framework-wide
  * `COMMANDS_DEFAULTS.typecheck` is `null` but this gate is mandatory, so
  * we apply the fallback here. Exported for testing.
  *
- * @param {{ agentSettings?: { commands?: object } } | object | null | undefined} settings
+ * @param {{ project?: { commands?: object } } | object | null | undefined} settings
  * @returns {string}
  */
 export function resolveTypecheckCommand(settings) {
@@ -107,11 +107,11 @@ export function resolveTypecheckCommand(settings) {
 }
 
 /**
- * Resolve the format-check command. Reads `agentSettings.commands.formatCheck`;
+ * Resolve the format-check command. Reads `project.commands.formatCheck`;
  * falls back to `npx biome format .` so existing repos keep working byte-
  * for-byte. Exported for testing.
  *
- * @param {{ agentSettings?: { commands?: object } } | object | null | undefined} settings
+ * @param {{ project?: { commands?: object } } | object | null | undefined} settings
  * @returns {string}
  */
 export function resolveFormatCheckCommand(settings) {
@@ -124,10 +124,10 @@ export function resolveFormatCheckCommand(settings) {
 
 /**
  * Resolve the format-write command used by story-close format-autofix (and
- * surfaced in the format-gate hint). Reads `agentSettings.commands.formatWrite`;
+ * surfaced in the format-gate hint). Reads `project.commands.formatWrite`;
  * falls back to `npx biome format --write .`. Exported for testing.
  *
- * @param {{ agentSettings?: { commands?: object } } | object | null | undefined} settings
+ * @param {{ project?: { commands?: object } } | object | null | undefined} settings
  * @returns {string}
  */
 export function resolveFormatWriteCommand(settings) {
@@ -188,7 +188,7 @@ function buildChangedFileScope(baseRef) {
  * The set mirrors Biome's handled languages (JS/TS family + JSON + CSS).
  * Markdown, YAML, and other unhandled types are intentionally absent — the
  * default formatter is biome, so the scope is keyed to what biome formats.
- * Consumers who swap the formatter via `agentSettings.commands.formatCheck`
+ * Consumers who swap the formatter via `project.commands.formatCheck`
  * do not get `changedFileScope` at all (see `buildDefaultGates`), so this
  * filter only ever runs against the default biome command.
  */
@@ -267,10 +267,10 @@ function applyChangedFileScope({ gate, spawnCwd, log }) {
  * capture already runs the suite under c8 instrumentation (Story #1798).
  *
  * Reads `crap.enabled` from any of the shapes call sites pass us (the
- * resolved legacy-shim shape, the raw `.agentrc.json` shape, and the raw
- * partial-config shape some unit tests construct directly). Defaults to
- * `true` so an omitted setting matches `CRAP_GATE_DEFAULTS.enabled`. We
- * deliberately do NOT round-trip through `getQuality()` here because that
+ * legacy-shim shape, the canonical `delivery.quality.gates.crap.*` shape,
+ * and the raw partial-config shape some unit tests construct directly).
+ * Defaults to `true` so an omitted setting matches `CRAP_GATE_DEFAULTS.enabled`.
+ * We deliberately do NOT round-trip through `getQuality()` here because that
  * resolver expects the unresolved `gates.crap.*` shape.
  *
  * @param {object|undefined|null} agentSettings
@@ -294,7 +294,7 @@ function isCrapGateEnabled(agentSettings) {
  * gate otherwise. Splitting this out keeps `buildDefaultGates` flat for
  * the CRAP-cyclomatic gate.
  *
- * @param {object|undefined|null} agentSettings
+ * @param {object|undefined|null} agentSettings - Legacy-shim settings bag or resolved config.
  * @returns {Gate[]}
  */
 function buildTestGateEntry(agentSettings) {
@@ -312,7 +312,7 @@ function buildTestGateEntry(agentSettings) {
  * mode.
  *
  * `typecheck` is mandatory; consumers may customise the command via
- * `agentSettings.commands.typecheck` (default `npm run typecheck`).
+ * `project.commands.typecheck` (default `npm run typecheck`).
  *
  * Story #2210 retired the legacy per-kind in-process regression gates
  * (`check-maintainability`, `check-crap`, `check-mutation`) and their
@@ -355,7 +355,7 @@ export function buildDefaultGates({
     {
       // Gate name kept generic ("format") so the close-orchestrator log line
       // and the per-gate phase-timer key don't shift when a repo swaps biome
-      // for Prettier / dprint via `agentSettings.commands.formatCheck`. The
+      // for Prettier / dprint via `project.commands.formatCheck`. The
       // actual command and the remediation hint resolve from config.
       name: 'format',
       cmd: formatCmd,
@@ -392,11 +392,11 @@ export function buildDefaultGates({
 }
 
 /**
- * Default gate list resolved with no consumer agentSettings — uses the
+ * Default gate list resolved with no consumer config — uses the
  * `npm run typecheck` fallback for the typecheck gate. Call sites that have a
- * resolved agentSettings object in scope (e.g. `story-close.js`) should
+ * resolved config object in scope (e.g. `story-close.js`) should
  * prefer `buildDefaultGates({ agentSettings })` so a configured
- * `agentSettings.commands.typecheck` is honoured.
+ * `project.commands.typecheck` is honoured.
  *
  * @type {Gate[]}
  */

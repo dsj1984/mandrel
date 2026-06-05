@@ -39,7 +39,7 @@ const DEFAULT_COMPONENTS = Object.freeze({ '*': Object.freeze(['**']) });
  *     malformed input.
  *
  * @param {object} [gateConfig]  A single gate config slice, e.g.
- *   `agentSettings.delivery.quality.gates.coverage`.
+ *   `delivery.quality.gates.coverage`.
  * @returns {Record<string, string[]>} Components map, never null.
  */
 export function resolveComponents(gateConfig) {

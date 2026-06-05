@@ -233,7 +233,7 @@ export function extractStorySections(body) {
  * leaf, carries inline acceptance/verify) vs. a 4-tier Task (Task is
  * the leaf, Story is one level up). The decision is made off the
  * `type::*` label the dispatcher already stamps on every ticket; it
- * does not depend on `agentSettings.planning.hierarchy`, so this engine
+ * does not depend on `planning.hierarchy`, so this engine
  * stays correct even when a 4-tier Epic ships in a 3-tier-default repo
  * (or vice versa) during the Epic #3078 dual-shape window.
  *
@@ -271,7 +271,7 @@ export function truncateToTokenBudget(text, tokenBudget) {
  *
  * @param {object} args
  * @param {{ templatesRoot: string }} args.paths
- * @param {object} args.settings - resolved agentSettings
+ * @param {object} args.settings - resolved config (post-reshape `project.*` / `delivery.*` shape)
  * @param {string} args.currentVersion
  * @param {string} args.taskBranch
  * @param {string} args.epicBranch
@@ -353,7 +353,7 @@ function envelopeTaskFrom(task) {
  * @param {object} task
  * @param {import('../ITicketingProvider.js').ITicketingProvider} provider
  * @param {number} epicId
- * @param {object} agentSettings
+ * @param {object} agentSettings - Legacy-shim settings bag or resolved config.
  * @returns {Promise<{ content: string, provenance: import('./context-envelope.js').TicketSnapshot[] }>}
  */
 async function buildHierarchySections(task, provider, epicId, agentSettings) {
@@ -403,7 +403,7 @@ async function buildHierarchySections(task, provider, epicId, agentSettings) {
 /**
  * @param {object} task
  * @param {{ templatesRoot: string, personasRoot: string, skillsRoot: string }} paths
- * @param {object} agentSettings
+ * @param {object} agentSettings - Legacy-shim settings bag or resolved config.
  * @param {string} currentVersion
  * @param {string} taskBranch
  * @param {string} epicBranch

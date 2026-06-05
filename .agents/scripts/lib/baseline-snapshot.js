@@ -94,7 +94,7 @@ export function epicSnapshotPathFor({ epicId, kind, cwd = process.cwd() }) {
  * Fork the tracked main baselines into `temp/epic-<id>/baselines/`. Idempotent.
  *
  * Source paths are resolved through the agent-settings config so a repo that
- * relocates its baselines (`agentSettings.quality.baselines.{maintainability,crap}.path`)
+ * relocates its baselines (`delivery.quality.gates.{maintainability,crap}.baselinePath`)
  * is honoured. Destination layout is fixed at `temp/epic-<id>/baselines/<kind>.json`
  * so the close-validation gate's `--epic-ref` resolution stays predictable, and
  * the per-epic temp-tree cleanup reaps them on Story merge with no extra wiring.
@@ -425,7 +425,7 @@ export function commitSnapshotsToEpicBranch({
  * commit is needed.
  *
  * Coverage source for crap regeneration defaults to `coverage/coverage-final.json`
- * via `agentSettings.quality.crap.coveragePath`. When coverage is missing and
+ * via `delivery.quality.gates.crap.coveragePath`. When coverage is missing and
  * `requireCoverage` is true, the crap regeneration is skipped (didChange stays
  * false for that file) and a warn is emitted — the operator is expected to run
  * `npm run test:coverage` before /epic-deliver if a refresh is anticipated.

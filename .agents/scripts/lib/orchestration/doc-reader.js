@@ -44,8 +44,8 @@ async function readDocsFromRoot(docsRoot, settings) {
  * surface — use {@link buildDocsContext} when an envelope-shaped value is
  * needed.
  *
- * @param {object} settings — `agentSettings` block (must include
- *   `paths.docsRoot`, optionally `docsContextFiles`).
+ * @param {object} settings — Resolved config bag (`project.paths.docsRoot`,
+ *   `project.docsContextFiles`) or legacy-shim view (same shape).
  * @returns {Promise<{ docs: Array<{name: string, path: string, content: string}>, usedFallback: boolean }>}
  */
 export async function scrapeProjectDocs(settings) {
@@ -82,7 +82,7 @@ export async function scrapeProjectDocs(settings) {
  * payloads downgrade to summary mode automatically. Callers pass
  * `{ fullContext: true }` to honour the `--full-context` CLI opt-in.
  *
- * @param {object} settings — `agentSettings` block.
+ * @param {object} settings — Resolved config bag (same shape as `scrapeProjectDocs`).
  * @param {{ maxBytes?: number, summaryMode?: 'auto'|'always'|'never' }} [planningLimits]
  * @param {{ fullContext?: boolean }} [opts]
  * @returns {Promise<{ mode: 'full'|'summary', items: Array<object>, totalBytes: number, usedFallback: boolean }>}

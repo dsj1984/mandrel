@@ -46,11 +46,11 @@ export class LintBaselineService {
    * @param {LintBaselineLogger} deps.logger       Logger for skip / capture / failure messages.
    * @param {object} deps.settings                 `.agentrc.json` `settings` block.
    *   The baseline artifact path is resolved via
-   *   `getBaselines({ agentSettings: settings }).lint.path` (default
+   *   `getBaselines(settings).lint.path` (default
    *   `baselines/lint.json`); operators override under
-   *   `agentSettings.quality.baselines.lint.path`.
-   *   `scriptsRoot` is resolved via `getPaths({ agentSettings: settings })`
-   *   (lives at `settings.paths.scriptsRoot` post-Epic #773 Story 9).
+   *   `delivery.quality.gates.lint.baselinePath`.
+   *   `scriptsRoot` is resolved via `getPaths(settings)`
+   *   (lives at `project.paths.scriptsRoot` post-Epic #773 Story 9).
    * @param {typeof import('node:fs')} [deps.fs]   Optional `fs` module (defaults to `node:fs`). Kept injectable so unit tests can assert no real-disk access.
    */
   constructor({ exec, logger, settings, fs = defaultFs }) {

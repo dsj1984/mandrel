@@ -32,8 +32,8 @@
  * from per-Story siblings.
  *
  * tempRoot resolution: the helper accepts an optional `config` argument
- * (the full resolved config `{ agentSettings, ... }` or the bare
- * `agentSettings` bag); when omitted it lazy-loads via `resolveConfig()` so
+ * (the full resolved config or a partial bag with `project.paths.tempRoot`);
+ * when omitted it lazy-loads via `resolveConfig()` so
  * call sites already inside the resolver can pass their own bag and avoid the
  * round-trip. The missing-tempRoot fallback resolves to `'temp'` — the
  * framework default shipped in `.agents/full-agentrc.json`. Note that the

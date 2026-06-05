@@ -68,7 +68,7 @@ export function resolvePhaseTempPaths(phase, epicId, repoRoot = PROJECT_ROOT) {
       `[plan-phase-cleanup] Unknown phase "${phase}". Expected one of: ${Object.keys(PHASE_TEMP_BASENAMES).join(', ')}.`,
     );
   }
-  // Thread the resolved config so we honour `agentSettings.paths.tempRoot`
+  // Thread the resolved config so we honour `project.paths.tempRoot`
   // overrides; fall back to the helper's default when the resolver itself
   // throws (zero-config callers — unit tests).
   let config;
