@@ -22,6 +22,7 @@ import {
   extractPrNumber,
   normalizeCheckState,
   parseGhPrChecks,
+  pollUntilTerminal,
   reduceOutcomes,
   Watcher,
 } from '../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js';
@@ -119,6 +120,122 @@ describe('allTerminal', () => {
 
   it('false when any outcome is pending', () => {
     assert.equal(allTerminal({ a: 'success', b: 'pending' }), false);
+  });
+});
+
+describe('pollUntilTerminal', () => {
+  it('returns immediately when initial outcomes are already terminal', async () => {
+    const ghCalls = [];
+    const result = await pollUntilTerminal({
+      prUrl: 'https://github.com/o/r/pull/1',
+      cwd: '/tmp',
+      outcomes: { lint: 'success' },
+      polls: 0,
+      maxPolls: 5,
+      ghPrChecksFn: () => {
+        ghCalls.push(1);
+        return { status: 0, stdout: '[]', stderr: '' };
+      },
+      pollIntervalMs: 0,
+      sleepFn: async () => {},
+      logger: { warn: () => {} },
+    });
+    assert.deepEqual(result.outcomes, { lint: 'success' });
+    assert.equal(result.polls, 0);
+    assert.equal(ghCalls.length, 0, 'no gh calls when already terminal');
+  });
+
+  it('polls until outcomes go terminal', async () => {
+    const responses = [
+      {
+        status: 8,
+        stdout: '[{"name":"lint","state":"","bucket":"pending"}]',
+        stderr: '',
+      },
+      {
+        status: 0,
+        stdout: '[{"name":"lint","state":"SUCCESS","bucket":"pass"}]',
+        stderr: '',
+      },
+    ];
+    let idx = 0;
+    const result = await pollUntilTerminal({
+      prUrl: 'https://github.com/o/r/pull/2',
+      cwd: '/tmp',
+      outcomes: { lint: 'pending' },
+      polls: 0,
+      maxPolls: 5,
+      ghPrChecksFn: () => responses[Math.min(idx++, responses.length - 1)],
+      pollIntervalMs: 0,
+      sleepFn: async () => {},
+      logger: { warn: () => {} },
+    });
+    assert.deepEqual(result.outcomes, { lint: 'success' });
+    assert.equal(result.polls, 2);
+  });
+
+  it('stops at maxPolls cap and returns pending outcomes', async () => {
+    const result = await pollUntilTerminal({
+      prUrl: 'https://github.com/o/r/pull/3',
+      cwd: '/tmp',
+      outcomes: { slow: 'pending' },
+      polls: 0,
+      maxPolls: 3,
+      ghPrChecksFn: () => ({
+        status: 8,
+        stdout: '[{"name":"slow","state":"","bucket":"pending"}]',
+        stderr: '',
+      }),
+      pollIntervalMs: 0,
+      sleepFn: async () => {},
+      logger: { warn: () => {} },
+    });
+    assert.equal(result.polls, 3);
+    assert.equal(result.outcomes.slow, 'pending');
+  });
+
+  it('skips a transient gh failure and continues polling', async () => {
+    const warnings = [];
+    const responses = [
+      { status: 5, stdout: '', stderr: 'transient error' },
+      { status: 0, stdout: '[{"name":"lint","state":"SUCCESS"}]', stderr: '' },
+    ];
+    let idx = 0;
+    const result = await pollUntilTerminal({
+      prUrl: 'https://github.com/o/r/pull/4',
+      cwd: '/tmp',
+      outcomes: { lint: 'pending' },
+      polls: 0,
+      maxPolls: 5,
+      ghPrChecksFn: () => responses[Math.min(idx++, responses.length - 1)],
+      pollIntervalMs: 0,
+      sleepFn: async () => {},
+      logger: { warn: (msg) => warnings.push(msg) },
+    });
+    assert.deepEqual(result.outcomes, { lint: 'success' });
+    assert.equal(result.polls, 2);
+    assert.equal(warnings.length, 1, 'transient failure logged once');
+    assert.match(warnings[0], /transient failure/);
+  });
+
+  it('resumes from a non-zero polls offset', async () => {
+    const result = await pollUntilTerminal({
+      prUrl: 'https://github.com/o/r/pull/5',
+      cwd: '/tmp',
+      outcomes: { lint: 'pending' },
+      polls: 2,
+      maxPolls: 4,
+      ghPrChecksFn: () => ({
+        status: 0,
+        stdout: '[{"name":"lint","state":"SUCCESS"}]',
+        stderr: '',
+      }),
+      pollIntervalMs: 0,
+      sleepFn: async () => {},
+      logger: { warn: () => {} },
+    });
+    assert.deepEqual(result.outcomes, { lint: 'success' });
+    assert.equal(result.polls, 3, 'poll counter increments from the offset');
   });
 });
 

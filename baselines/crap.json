@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T14:26:41.034Z",
+  "generatedAt": "2026-06-05T14:42:30.277Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.157083248524323,
+      "p95": 12.010699859060178,
       "max": 38.82544452792387,
       "methodsAbove20": 22
     }
@@ -8080,84 +8080,6 @@
       "method": "buildDefaultListenerChain",
       "startLine": 123,
       "crap": 14.000681748615634
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "method": "normalizeCheckState",
-      "startLine": 56,
-      "crap": 17.47058823529412
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "method": "extractPrNumber",
-      "startLine": 99,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "method": "ghPrChecks",
-      "startLine": 113,
-      "crap": 1.8502697186178745
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "method": "ghPrView",
-      "startLine": 138,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "method": "parseMergeStateStatus",
-      "startLine": 158,
-      "crap": 3.0416666666666665
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "method": "ghPrUpdateBranch",
-      "startLine": 176,
-      "crap": 1.7702546296296295
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "method": "allGreen",
-      "startLine": 206,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "method": "parseGhPrChecks",
-      "startLine": 224,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "method": "reduceOutcomes",
-      "startLine": 246,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "method": "allTerminal",
-      "startLine": 262,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "method": "promotePendingToTimedOut",
-      "startLine": 275,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "method": "defaultSleep",
-      "startLine": 286,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "method": "createWatcher",
-      "startLine": 511,
-      "crap": 1.2962962962962963
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/trace-logger.js",
