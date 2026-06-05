@@ -480,14 +480,17 @@ export async function regenerateMainFromTree({
   const miPath = baselines?.maintainability?.path;
   const miTargetDirs = quality?.maintainability?.targetDirs ?? [];
   const miIgnoreGlobs = quality?.maintainability?.ignoreGlobs ?? [];
+  // Hoisted so the CRAP pass can reuse it when targetDirs match — avoids a
+  // second full-tree walk over the same directories (Story #3663).
+  let miSourceList = null;
   if (typeof miPath === 'string' && miPath.length > 0) {
     const miAbs = path.isAbsolute(miPath) ? miPath : path.resolve(cwd, miPath);
-    const sourceList = [];
+    miSourceList = [];
     for (const dir of miTargetDirs) {
       const abs = path.isAbsolute(dir) ? dir : path.resolve(cwd, dir);
-      scanDirectoryFn(abs, sourceList, { cwd, ignoreGlobs: miIgnoreGlobs });
+      scanDirectoryFn(abs, miSourceList, { cwd, ignoreGlobs: miIgnoreGlobs });
     }
-    const scores = await calculateAllFn(sourceList);
+    const scores = await calculateAllFn(miSourceList);
 
     // Project the scoring helper's `{path: mi}` map onto the writer's
     // canonical row shape. Story #2079 path-canon defence stays in place —
@@ -558,12 +561,22 @@ export async function regenerateMainFromTree({
         reason: 'no-coverage',
       });
     } else {
+      // Reuse the MI scan's file list when CRAP and MI target the same
+      // directories with the same ignore globs — avoids a second full-tree
+      // walk over identical source trees (Story #3663).
+      const crapDirsMatchMi =
+        miSourceList !== null &&
+        crapTargetDirs.length === miTargetDirs.length &&
+        crapTargetDirs.every((d, i) => d === miTargetDirs[i]) &&
+        crapIgnoreGlobs.length === miIgnoreGlobs.length &&
+        crapIgnoreGlobs.every((g, i) => g === miIgnoreGlobs[i]);
       const { rows } = await scanAndScoreFn({
         targetDirs: crapTargetDirs,
         coverage,
         requireCoverage,
         cwd,
         ignoreGlobs: crapIgnoreGlobs,
+        ...(crapDirsMatchMi && { preScannedFiles: miSourceList }),
       });
       // scanAndScore yields rows keyed by `file:`; the per-kind crap module's
       // `projectRow` handles `path ?? file`, so the writer takes either.

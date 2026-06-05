@@ -386,3 +386,50 @@ test('scanAndScore — tolerates non-existent target directories', async () => {
     rmTmp(cwd);
   }
 });
+
+test('scanAndScore — preScannedFiles skips the directory walk and produces identical results (Story #3663)', async () => {
+  const cwd = mkTmpCwd();
+  try {
+    const srcDir = path.join(cwd, 'src');
+    fs.mkdirSync(srcDir);
+    fs.writeFileSync(
+      path.join(srcDir, 'covered.js'),
+      'export function covered(x) { return x + 1; }\n',
+    );
+    const coverage = {
+      [path.join(srcDir, 'covered.js')]: coverageEntryFor(1, 1.0),
+    };
+
+    // Reference result via the normal directory walk.
+    const resultFromWalk = await scanAndScore({
+      targetDirs: ['src'],
+      coverage,
+      requireCoverage: true,
+      cwd,
+    });
+
+    // Equivalent result via pre-scanned file list (simulating what
+    // regenerateMainFromTree passes after the MI scan).
+    const preScannedFiles = [path.join(srcDir, 'covered.js')];
+    const resultFromPreScanned = await scanAndScore({
+      targetDirs: ['src'],
+      coverage,
+      requireCoverage: true,
+      cwd,
+      preScannedFiles,
+    });
+
+    // Both paths must produce byte-identical row output.
+    assert.deepStrictEqual(
+      resultFromPreScanned.rows,
+      resultFromWalk.rows,
+      'preScannedFiles path must yield identical rows to the walk path',
+    );
+    assert.strictEqual(
+      resultFromPreScanned.scannedFiles,
+      resultFromWalk.scannedFiles,
+    );
+  } finally {
+    rmTmp(cwd);
+  }
+});
