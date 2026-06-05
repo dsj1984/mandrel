@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T13:01:25.887Z",
+  "generatedAt": "2026-06-05T13:51:10.662Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -10188,120 +10188,6 @@
       "crap": 1
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "lockPathDisplay",
-      "startLine": 64,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "emitStoryBlockedSafe",
-      "startLine": 87,
-      "crap": 2.116522530723714
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "withEpicMergeLock",
-      "startLine": 118,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "pushEpicAndHandleConflicts",
-      "startLine": 176,
-      "crap": 8
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "resolveStoryWorktreePath",
-      "startLine": 252,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "runFetchOrigin",
-      "startLine": 265,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "runRebaseAndAbortOnConflict",
-      "startLine": 272,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "rebaseStoryOnEpic",
-      "startLine": 280,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "buildMergeMessage",
-      "startLine": 327,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "buildVerboseMergeLogger",
-      "startLine": 339,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "throwOnMajorConflict",
-      "startLine": 346,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "logMergeOutcome",
-      "startLine": 357,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "runFinalizeMerge",
-      "startLine": 375,
-      "crap": 2.0032198422780385
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "<anon method-2>",
-      "startLine": 441,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "isMergePending",
-      "startLine": 467,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "commitPendingMerge",
-      "startLine": 471,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "finalizeMergeIfPending",
-      "startLine": 491,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "runResumeMerge",
-      "startLine": 532,
-      "crap": 1.020993070646603
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "<anon method-3>",
-      "startLine": 576,
-      "crap": 1
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-close/merge-subject.js",
       "method": "loadHeaderMaxLength",
       "startLine": 47,
@@ -10384,60 +10270,6 @@
       "method": "runClosePhase",
       "startLine": 194,
       "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/code-review.js",
-      "method": "buildBlockedResult",
-      "startLine": 40,
-      "crap": 1.0093308062399766
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/code-review.js",
-      "method": "runStoryCodeReview",
-      "startLine": 78,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/code-review.js",
-      "method": "<anon method-1>",
-      "startLine": 104,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/code-review.js",
-      "method": "<anon method-2>",
-      "startLine": 105,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/gates.js",
-      "method": "emitBaselineBlockedResult",
-      "startLine": 44,
-      "crap": 1.9000779039731026
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/gates.js",
-      "method": "shouldSkipValidation",
-      "startLine": 79,
-      "crap": 4.007282658170232
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/gates.js",
-      "method": "summarizeGateResults",
-      "startLine": 116,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/gates.js",
-      "method": "emitGateOutcome",
-      "startLine": 180,
-      "crap": 18.346209912536445
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/gates.js",
-      "method": "runPreMergeValidation",
-      "startLine": 222,
-      "crap": 19.360077389295796
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/lock-wait-classifier.js",
@@ -10524,24 +10356,6 @@
       "crap": 5.187238020876141
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/preflight.js",
-      "method": "runStoryClosePreflight",
-      "startLine": 36,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/preflight.js",
-      "method": "emitPreflightBlockedResult",
-      "startLine": 68,
-      "crap": 1.833706492977814
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/preflight.js",
-      "method": "runPreflightPhase",
-      "startLine": 92,
-      "crap": 5.429499999999999
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/refresh.js",
       "method": "describeAutoRefreshOutcome",
       "startLine": 25,
@@ -10558,12 +10372,6 @@
       "method": "runAutoRefreshSafely",
       "startLine": 77,
       "crap": 9.561
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/timeout-blocked-emitter.js",
-      "method": "emitSpawnTimeoutBlockedResult",
-      "startLine": 48,
-      "crap": 5.844173713369296
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/timeout-blocked.js",
