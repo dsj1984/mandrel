@@ -14,6 +14,7 @@ function axisDirection(kind, axis) {
   if (kind === 'lint') return 'lte';
   if (kind === 'crap') return 'lte';
   if (kind === 'bundle-size') return 'lte';
+  if (kind === 'duplication') return 'lte';
   if (kind === 'mutation') {
     if (axis === 'survived' || axis === 'noCoverage') return 'lte';
     return 'gte';

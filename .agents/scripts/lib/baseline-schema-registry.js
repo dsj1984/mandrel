@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // Canonical baseline schema registry (Story #1888).
 //
-// The shared envelope schema and the seven per-kind row/rollup schemas live
+// The shared envelope schema and the eight per-kind row/rollup schemas live
 // under .agents/schemas/baselines/. Consumers compile them through a single
 // AJV instance so cross-references (per-kind schemas `allOf` the envelope)
 // resolve without each callsite re-registering the envelope.
@@ -42,6 +42,7 @@ export const BASELINE_KIND_SCHEMA_FILES = Object.freeze([
   'mutation.schema.json',
   'lighthouse.schema.json',
   'bundle-size.schema.json',
+  'duplication.schema.json',
 ]);
 
 /** Every baseline schema filename (envelope + per-kind) in registration order. */

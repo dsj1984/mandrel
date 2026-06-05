@@ -254,6 +254,17 @@ top-level keys are validation errors.
 | `quality.gates.bundle-size.floors` | No | `object<map>` | — | — |
 | `quality.gates.bundle-size.components` | No | `object<map>` | — | — |
 | `quality.gates.bundle-size.bundles[]` | No | `array<bundleDeclaration>` | — | Each item (`bundleDeclaration`) has: name, path, limit. |
+| `quality.gates.duplication` | No | `object` | — | Nested configuration block. |
+| `quality.gates.duplication.enabled` | No | `boolean` | — | — |
+| `quality.gates.duplication.baselinePath` | No | `string` | — | — |
+| `quality.gates.duplication.tolerance` | No | `object` | — | Nested configuration block. |
+| `quality.gates.duplication.tolerance.kind` | Yes | `"absolute"` \| `"percent"` | — | — |
+| `quality.gates.duplication.tolerance.value` | Yes | `number` | — | — |
+| `quality.gates.duplication.floors` | No | `object<map>` | — | — |
+| `quality.gates.duplication.components` | No | `object<map>` | — | — |
+| `quality.gates.duplication.targetDirs` | No | `string[]` or `{ append?, prepend? }` | — | Directories whose JS sources the duplication (DRY) gate scans for copy-paste clones. Mandrel ships a `src/`-centric default; projects whose executable code lives elsewhere (e.g. this repo's `.agents/scripts/`) override here. The framework default is intentionally not auto-discovered, so an override is the explicit, auditable signal (Story #3664). |
+| `quality.gates.duplication.refreshTimeoutMs` | No | `integer` | — | Bounded timeout (ms) for `npm run duplication:update` spawned by the baseline-attribution refresh path. Mirrors `crap.refreshTimeoutMs` / `coverage.timeoutMs`: a SIGKILL fired at the budget boundary maps to exit 124. Default 60000 (Story #3664). |
+| `quality.gates.duplication.ignoreGlobs` | No | `array<string>` | — | Minimatch glob patterns matched against the canonicalised repo-relative path of each discovered file. Files matching any pattern are excluded from duplication discovery before scanning. Orthogonal to `components` (grouping). Absent or empty preserves the existing behaviour (Story #3664). |
 | `quality.formatAutofix` | No | `object` | — | Bounded-timeout knob for the close-time `npx biome format --write` spawn (Story #2165). A SIGKILL fired at the budget boundary maps to exit 124 so the close orchestrator can flip the Story to `agent::blocked` with a friction comment. |
 | `quality.formatAutofix.timeoutMs` | No | `integer` | — | — |
 | `quality.codingGuardrails` | No | `object` | — | Nested configuration block. |
@@ -274,6 +285,7 @@ top-level keys are validation errors.
 | `quality.baselineEpsilon.lint` | No | `number` | — | — |
 | `quality.baselineEpsilon.lighthouse` | No | `number` | — | — |
 | `quality.baselineEpsilon.bundle-size` | No | `number` | — | — |
+| `quality.baselineEpsilon.duplication` | No | `number` | — | — |
 | `lifecycle` | No | `object` | — | Knobs consumed by the lifecycle event bus (Epic #2172). `timeouts` is a per-event budget map (eventName → seconds) used by `TimeoutWatchdog`; missing entries fall back to in-listener defaults. `heartbeatWarnSeconds` is the no-progress threshold consumed by `HeartbeatMonitor`. Story #2227 lays down the keys; consumers land in later stories. |
 | `lifecycle.timeouts` | No | `object<map>` | — | — |
 | `lifecycle.heartbeatWarnSeconds` | No | `integer` | — | — |

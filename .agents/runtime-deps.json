@@ -12,6 +12,7 @@
   },
   "optionalDependencies": {
     "@commitlint/load": "^21.0.0",
-    "chokidar": "^5.0.0"
+    "chokidar": "^5.0.0",
+    "jscpd": "^4.0.0"
   }
 }

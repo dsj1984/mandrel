@@ -23,6 +23,7 @@ export const KNOWN_KINDS = Object.freeze([
   'mutation',
   'lighthouse',
   'bundle-size',
+  'duplication',
 ]);
 
 export const DEFAULT_BASELINE_PATHS = Object.freeze({
@@ -33,6 +34,7 @@ export const DEFAULT_BASELINE_PATHS = Object.freeze({
   mutation: 'baselines/mutation.json',
   lighthouse: 'baselines/lighthouse.json',
   'bundle-size': 'baselines/bundle-size.json',
+  duplication: 'baselines/duplication.json',
 });
 
 export const HELP_TEXT = `Usage: check-baselines.js [--config <path>] [--gate <kind>[,<kind>]] [--format json|text] [--no-friction] [--story <id>] [--epic <id>]

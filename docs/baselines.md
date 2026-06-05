@@ -14,6 +14,9 @@ Cross-references:
 - [`docs/configuration.md`](configuration.md) — the `.agentrc.json`
   configuration surface that backs the gates.
 - [`.agents/README.md`](../.agents/README.md) — consumer onboarding.
+- [`docs/mutation-testing-spike.md`](mutation-testing-spike.md) — why the
+  `mutation` gate ships **dormant** (built-but-unwired, intentionally
+  opt-in) and the cost/fit analysis behind deferring its activation.
 
 ---
 
