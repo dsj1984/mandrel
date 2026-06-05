@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T12:16:41.450Z",
+  "generatedAt": "2026-06-05T12:43:55.699Z",
   "rollup": {
     "*": {
       "min": 45.044,
-      "p50": 103.914,
+      "p50": 103.928,
       "p95": 121.964
     }
   },
@@ -617,10 +617,6 @@
     {
       "path": ".agents/scripts/lib/crap-engine.js",
       "mi": 92.895
-    },
-    {
-      "path": ".agents/scripts/lib/crap-utils.js",
-      "mi": 87.861
     },
     {
       "path": ".agents/scripts/lib/degraded-mode.js",
