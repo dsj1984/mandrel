@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T18:39:40.959Z",
+  "generatedAt": "2026-06-05T19:06:14.151Z",
   "rollup": {
     "*": {
       "min": 45.044,
@@ -2959,10 +2959,6 @@
       "mi": 104.272
     },
     {
-      "path": "tests/lib/baseline-snapshot.test.js",
-      "mi": 106.045
-    },
-    {
       "path": "tests/lib/branch-name-guard.test.js",
       "mi": 123.889
     },
@@ -3157,10 +3153,6 @@
     {
       "path": "tests/lib/crap-engine.test.js",
       "mi": 98.952
-    },
-    {
-      "path": "tests/lib/crap-utils.test.js",
-      "mi": 93.509
     },
     {
       "path": "tests/lib/dependency-analyzer.test.js",

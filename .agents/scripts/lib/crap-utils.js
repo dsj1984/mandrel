@@ -268,12 +268,20 @@ export function analyzeOnce(source, coverageForFile) {
  * I/O or scoring happens — so pre-push / PR-CI runs never pay the
  * parse-and-score cost on untouched files.
  *
+ * When `preScannedFiles` is provided (an array of absolute paths already
+ * collected by a prior `scanDirectory` pass over the same `targetDirs`), the
+ * directory walk is skipped entirely — the supplied list is used as-is.
+ * Callers that run both CRAP and MI passes over the same target dirs (e.g.
+ * `regenerateMainFromTree`) SHOULD pass the MI scan's file list here so the
+ * tree is walked only once per run.
+ *
  * @param {{
  *   targetDirs: string[],
  *   coverage: object|null,
  *   requireCoverage?: boolean,
  *   cwd?: string,
  *   scopeFiles?: Set<string>|string[]|null,
+ *   preScannedFiles?: string[]|null,
  * }} params
  * @returns {{
  *   rows: Array<{
@@ -296,6 +304,7 @@ export async function scanAndScore({
   cwd = process.cwd(),
   scopeFiles = null,
   ignoreGlobs = [],
+  preScannedFiles = null,
 }) {
   if (!Array.isArray(targetDirs)) {
     throw new TypeError('scanAndScore: targetDirs must be an array');
@@ -306,10 +315,14 @@ export async function scanAndScore({
       : scopeFiles instanceof Set
         ? scopeFiles
         : new Set(scopeFiles);
-  const files = [];
-  for (const dir of targetDirs) {
-    const abs = path.isAbsolute(dir) ? dir : path.resolve(cwd, dir);
-    scanDirectory(abs, files, { cwd, ignoreGlobs });
+  // When the caller supplies a pre-walked file list (e.g. from a prior MI
+  // scan over the same target dirs), skip the directory walk entirely.
+  const files = preScannedFiles != null ? [...preScannedFiles] : [];
+  if (preScannedFiles == null) {
+    for (const dir of targetDirs) {
+      const abs = path.isAbsolute(dir) ? dir : path.resolve(cwd, dir);
+      scanDirectory(abs, files, { cwd, ignoreGlobs });
+    }
   }
   files.sort();
 

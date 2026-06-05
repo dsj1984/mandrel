@@ -485,6 +485,60 @@ describe('regenerateMainFromTree (Story #2135 / Task #2145 — writer-funnel)', 
     );
   });
 
+  it('passes preScannedFiles to scanAndScoreFn when CRAP and MI target the same dirs (Story #3663)', async () => {
+    // Verify that regenerateMainFromTree does not walk the same directory
+    // tree twice: when crapTargetDirs === miTargetDirs and ignoreGlobs
+    // match, scanAndScoreFn receives `preScannedFiles` equal to the list
+    // produced by the MI scanDirectoryFn.
+    const miPath = abs('baselines/maintainability.json');
+    const crapPath = abs('baselines/crap.json');
+    const fsImpl = makeFsShim({ [miPath]: '{}\n', [crapPath]: '{}\n' });
+    const spies = makeWriterSpies();
+
+    // The MI scan returns a concrete file list so we can assert it is
+    // forwarded to the CRAP scan.
+    const fakeFiles = [abs('.agents/scripts/foo.js')];
+    let capturedCrapArgs = null;
+
+    await regenerateMainFromTree({
+      cwd: FAKE_CWD,
+      resolveConfig: () => ({ agentSettings: {} }),
+      getBaselines: () => BASELINES_RESOLVED,
+      getQuality: () => QUALITY_RESOLVED,
+      logger: silentLogger(),
+      fsImpl,
+      scanDirectoryFn: (_dir, list) => {
+        list.push(...fakeFiles);
+        return list;
+      },
+      calculateAllFn: async () => ({}),
+      scanAndScoreFn: async (opts) => {
+        capturedCrapArgs = opts;
+        return { rows: [] };
+      },
+      loadCoverageFn: () => ({}),
+      resolveEscomplexVersionFn: () => '0.1.0',
+      resolveTsTranspilerVersionFn: () => '5.9.3',
+      writeFn: spies.writeFn,
+      writeFileFn: spies.writeFileFn,
+      loadPriorFn: () => null,
+    });
+
+    assert.ok(
+      capturedCrapArgs !== null,
+      'scanAndScoreFn must have been called',
+    );
+    assert.ok(
+      Array.isArray(capturedCrapArgs.preScannedFiles),
+      'preScannedFiles must be an array when dirs match',
+    );
+    assert.deepEqual(
+      capturedCrapArgs.preScannedFiles,
+      fakeFiles,
+      'preScannedFiles must equal the MI scan output',
+    );
+  });
+
   it('drops saveMaintainabilityFn and saveCrapFn injection params (Task #2145 AC)', async () => {
     // Static contract check: the rewired function does NOT accept the
     // legacy save-fn injections. Passing them in would either be silently
