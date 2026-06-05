@@ -1,9 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import escomplex from 'typhonjs-escomplex';
 import { canonicalise as canonicalisePath } from './baselines/path-canon.js';
-import { findCoverageEntry } from './coverage-utils.js';
+import {
+  coverageForMethodInEntry,
+  findCoverageEntry,
+} from './coverage-utils.js';
 import { runOnPool } from './cpu-pool.js';
-import { calculateCrapForSource } from './crap-engine.js';
+import { crapFormula } from './crap-engine.js';
 import { Logger } from './Logger.js';
 import {
   resolveTsTranspilerVersion,
@@ -199,6 +203,58 @@ export function buildBaselineEnvelope({
 }
 
 /**
+ * Parse `source` exactly once with escomplex and derive both the
+ * maintainability score and the raw CRAP method rows from that single report.
+ *
+ * Callers that need both scores for the same source string (e.g. a combined
+ * CRAP + MI scan) MUST use this helper rather than calling `calculateCrapForSource`
+ * and `calculateForSource` separately — doing so would parse the AST twice.
+ *
+ * Coverage-dependent CRAP values require a `coverageForFile` entry (the value
+ * from `coverage-final.json` for this file). Pass `null` when no coverage is
+ * available; method rows whose coverage cannot be resolved will carry
+ * `coverage: null` and `crap: null`.
+ *
+ * @param {string} source Prepared (possibly transpiled) JavaScript source text.
+ * @param {object|null} coverageForFile Istanbul coverage entry for this file.
+ * @returns {{
+ *   report: object,
+ *   miScore: number,
+ *   crapRows: Array<{
+ *     method: string,
+ *     startLine: number,
+ *     cyclomatic: number,
+ *     coverage: number|null,
+ *     crap: number|null,
+ *   }>,
+ *   parseError: boolean,
+ * }}
+ */
+export function analyzeOnce(source, coverageForFile) {
+  let report;
+  try {
+    report = escomplex.analyzeModule(source);
+  } catch {
+    return { report: null, miScore: 0, crapRows: [], parseError: true };
+  }
+  const miScore =
+    typeof report.maintainability === 'number' ? report.maintainability : 0;
+  const methods = report?.methods ?? [];
+  const crapRows = [];
+  for (const m of methods) {
+    const startLine = m?.lineStart;
+    if (typeof startLine !== 'number') continue;
+    const cyclomatic = m?.cyclomatic ?? 0;
+    const coverage = coverageForFile
+      ? coverageForMethodInEntry(coverageForFile, startLine)
+      : null;
+    const crap = coverage === null ? null : crapFormula(cyclomatic, coverage);
+    crapRows.push({ method: m.name, startLine, cyclomatic, coverage, crap });
+  }
+  return { report, miScore, crapRows, parseError: false };
+}
+
+/**
  * Scan `targetDirs` for JS files, score each method via the CRAP kernel, and
  * return enriched rows plus skip counters. Does not write to disk.
  *
@@ -329,6 +385,9 @@ export async function scanAndScore({
  * In-process scorer used by both the small-batch fast path and as the
  * reference implementation against which the worker output is asserted
  * byte-for-byte in the cpu-pool tests.
+ *
+ * Uses `analyzeOnce` so the source is parsed a single time and both the
+ * CRAP rows and the MI score are derived from the same escomplex report.
  */
 function scoreFileSerial({ abs, relPath, requireCoverage }, coverage) {
   const entry = findCoverageEntry(coverage, relPath);
@@ -357,10 +416,8 @@ function scoreFileSerial({ abs, relPath, requireCoverage }, coverage) {
       skippedMethodsNoCoverage: 0,
     };
   }
-  let methodRows;
-  try {
-    methodRows = calculateCrapForSource(prepared, entry);
-  } catch {
+  const { crapRows, parseError } = analyzeOnce(prepared, entry);
+  if (parseError) {
     return {
       skippedFileNoCoverage: false,
       rows: null,
@@ -369,7 +426,7 @@ function scoreFileSerial({ abs, relPath, requireCoverage }, coverage) {
   }
   const rows = [];
   let skippedMethodsNoCoverage = 0;
-  for (const mr of methodRows) {
+  for (const mr of crapRows) {
     if (mr.crap === null || mr.coverage === null) {
       skippedMethodsNoCoverage += 1;
       continue;
