@@ -235,6 +235,83 @@ describe('lifecycle/phase-iterate-waves', () => {
   });
 });
 
+describe('lifecycle/phase-iterate-waves — clock seam (Story #3640)', () => {
+  let tempRoot;
+
+  beforeEach(() => {
+    tempRoot = mkdtempSync(path.join(tmpdir(), 'mandrel-iterwaves-clk-'));
+  });
+  afterEach(() => {
+    rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  it('routes wave timestamps through the injected clock seam', async () => {
+    const epicId = 9901;
+    // Deterministic clock: returns epoch values from a fixed sequence.
+    // Calling order in the wave loop: startedAt → completedAt → waveHistory.completedAt
+    const timestamps = [
+      1_700_000_000_000, // startedAt
+      1_700_000_005_000, // completedAt (after applyCommitAssertion)
+      1_700_000_006_000, // waveHistory completedAt
+    ];
+    let callIdx = 0;
+    const clock = () =>
+      timestamps[callIdx++] ?? timestamps[timestamps.length - 1];
+
+    const bus = new Bus();
+    const writer = new LedgerWriter({ epicId, tempRoot });
+    writer.register(bus);
+
+    const launcher = {
+      async launchWave(stories) {
+        return stories.map((s) => ({ storyId: s.id, status: 'done' }));
+      },
+    };
+    const state = buildSingleWaveState([301]);
+    const provider = buildProvider();
+
+    const result = await runIterateWavesPhase(
+      ctxFixture({ provider, epicId }),
+      { ...buildCollaborators({ bus, launcher }), clock },
+      state,
+    );
+
+    assert.equal(result.completionState, 'completed');
+
+    // wave.start payload must carry the deterministic startedAt
+    const records = readNdjson(writer.ledgerPath);
+    const emitted = records.filter((r) => r.kind === 'emitted');
+    const startRec = emitted.find((r) => r.event === 'wave.start');
+    const endRec = emitted.find((r) => r.event === 'wave.end');
+
+    assert.equal(
+      startRec.payload.startedAt,
+      new Date(1_700_000_000_000).toISOString(),
+      'wave.start.startedAt sourced from clock seam',
+    );
+    assert.equal(
+      endRec.payload.completedAt,
+      new Date(1_700_000_005_000).toISOString(),
+      'wave.end.completedAt sourced from clock seam',
+    );
+    assert.equal(
+      endRec.payload.durationMs,
+      5000,
+      'durationMs derived from clock-seam timestamps',
+    );
+
+    // waveHistory entry's completedAt must come from the third clock call
+    assert.equal(
+      result.waveHistory[0].startedAt,
+      new Date(1_700_000_000_000).toISOString(),
+    );
+    assert.equal(
+      result.waveHistory[0].completedAt,
+      new Date(1_700_000_006_000).toISOString(),
+    );
+  });
+});
+
 describe('assertWaveCompleteness', () => {
   it('passes when outcomes keys exactly match storyIds', () => {
     assertWaveCompleteness({
