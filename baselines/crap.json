@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T12:16:41.888Z",
+  "generatedAt": "2026-06-05T12:43:57.448Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.226395160174576,
+      "p95": 12.192000000000002,
       "max": 38.82544452792387,
       "methodsAbove20": 22
     }
@@ -3988,54 +3988,6 @@
       "method": "deriveFixGuidance",
       "startLine": 98,
       "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/crap-utils.js",
-      "method": "resolveEscomplexVersion",
-      "startLine": 39,
-      "crap": 7.019915663262714
-    },
-    {
-      "path": ".agents/scripts/lib/crap-utils.js",
-      "method": "resolveBaselinePath",
-      "startLine": 67,
-      "crap": 5.5026296018031555
-    },
-    {
-      "path": ".agents/scripts/lib/crap-utils.js",
-      "method": "projectCrapEnvelopeToLegacy",
-      "startLine": 103,
-      "crap": 6.662000000000001
-    },
-    {
-      "path": ".agents/scripts/lib/crap-utils.js",
-      "method": "getCrapBaseline",
-      "startLine": 124,
-      "crap": 10.872684714024018
-    },
-    {
-      "path": ".agents/scripts/lib/crap-utils.js",
-      "method": "buildBaselineEnvelope",
-      "startLine": 175,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/crap-utils.js",
-      "method": "scanAndScore",
-      "startLine": 236,
-      "crap": 12.433975308641976
-    },
-    {
-      "path": ".agents/scripts/lib/crap-utils.js",
-      "method": "scoreFileSerial",
-      "startLine": 333,
-      "crap": 7.333333333333334
-    },
-    {
-      "path": ".agents/scripts/lib/crap-utils.js",
-      "method": "scoreFilesViaPool",
-      "startLine": 388,
-      "crap": 1.037037037037037
     },
     {
       "path": ".agents/scripts/lib/degraded-mode.js",
