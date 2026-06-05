@@ -7,50 +7,18 @@
 //   - Missing path at ref returns `null` rather than throwing.
 //
 // The "spawn, not exec" assertion uses a mock `spawnSync` so we can
-// count invocations and inspect argv. The "real git" leg uses a temp
-// repo fixture to prove the cache-miss path actually round-trips
-// through git.
+// count invocations and inspect argv. The "real git" acceptance leg that
+// actually exercises the subprocess lives in git-base.integration.test.js
+// (tagged `test:integration` so it doesn't tax the quick-feedback loop).
 
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
 import { afterEach, describe, it } from 'node:test';
 
 import {
-  __cacheSize,
   __resetForTests,
   __setSpawnRunner,
   readBaseFromGit,
 } from '../../.agents/scripts/lib/baselines/git-base.js';
-
-// ---------------------------------------------------------------------------
-// Helpers — build a throwaway git repo with one committed file we can
-// look up at HEAD. Each test that needs the fixture creates its own
-// directory and tears it down in afterEach to keep parallel runs safe.
-// ---------------------------------------------------------------------------
-
-function makeGitRepo() {
-  const dir = mkdtempSync(path.join(tmpdir(), 'git-base-test-'));
-  const run = (...args) =>
-    execFileSync('git', args, {
-      cwd: dir,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      encoding: 'utf-8',
-    });
-  run('init', '--initial-branch=main');
-  run('config', 'user.email', 'test@example.com');
-  run('config', 'user.name', 'Test');
-  run('config', 'commit.gpgsign', 'false');
-  writeFileSync(
-    path.join(dir, 'baseline.json'),
-    JSON.stringify({ floor: 40 }, null, 2),
-  );
-  run('add', 'baseline.json');
-  run('commit', '-m', 'seed');
-  return dir;
-}
 
 describe('readBaseFromGit', () => {
   afterEach(() => {
@@ -166,32 +134,5 @@ describe('readBaseFromGit', () => {
       () => readBaseFromGit('main', ''),
       /file must be a non-empty string/,
     );
-  });
-
-  it('reads from a real temp git repo (acceptance: exits 0 on fixture)', () => {
-    const dir = makeGitRepo();
-    try {
-      __resetForTests(); // restore real spawnSync
-      const got = readBaseFromGit('HEAD', 'baseline.json', { cwd: dir });
-      assert.ok(got !== null, 'HEAD:baseline.json should exist');
-      assert.match(got, /"floor":\s*40/);
-      // Second call exercises the real-spawn → cache transition.
-      const sizeBefore = __cacheSize();
-      const got2 = readBaseFromGit('HEAD', 'baseline.json', { cwd: dir });
-      assert.equal(got2, got);
-      assert.equal(
-        __cacheSize(),
-        sizeBefore,
-        'second read must not grow cache',
-      );
-
-      // Missing file at HEAD → null.
-      const missing = readBaseFromGit('HEAD', 'no-such-file.json', {
-        cwd: dir,
-      });
-      assert.equal(missing, null);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
   });
 });
