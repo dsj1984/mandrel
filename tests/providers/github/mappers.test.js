@@ -25,10 +25,6 @@ const mappersMod = await import(
     path.join(ROOT, '.agents', 'scripts', 'providers', 'github', 'mappers.js'),
   ).href
 );
-const providerMod = await import(
-  pathToFileURL(path.join(ROOT, '.agents', 'scripts', 'providers', 'github.js'))
-    .href
-);
 
 const {
   issueToTicket,
@@ -199,15 +195,5 @@ describe('providers/github/mappers.js — GraphQL payload shapes', () => {
       state: 'OPEN',
     });
     assert.deepStrictEqual(t.assignees, []);
-  });
-});
-
-describe('providers/github.js — re-export surface', () => {
-  it('parent exposes all five mappers with identity preserved', () => {
-    assert.strictEqual(providerMod.issueToTicket, issueToTicket);
-    assert.strictEqual(providerMod.issueToEpic, issueToEpic);
-    assert.strictEqual(providerMod.issueToListItem, issueToListItem);
-    assert.strictEqual(providerMod.issueToEpicListItem, issueToEpicListItem);
-    assert.strictEqual(providerMod.subIssueNodeToTicket, subIssueNodeToTicket);
   });
 });

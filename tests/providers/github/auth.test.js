@@ -22,10 +22,6 @@ const authMod = await import(
     path.join(ROOT, '.agents', 'scripts', 'providers', 'github', 'auth.js'),
   ).href
 );
-const providerMod = await import(
-  pathToFileURL(path.join(ROOT, '.agents', 'scripts', 'providers', 'github.js'))
-    .href
-);
 
 const { __setExecSyncForTests, resolveToken, readGhCliToken, execSyncHolder } =
   authMod;
@@ -117,23 +113,5 @@ describe('providers/github/auth.js — token resolution', () => {
     // After reset, the holder points back at the default execSync.
     // We can't run gh in tests, but we can assert the holder's impl shape.
     assert.strictEqual(typeof execSyncHolder.impl, 'function');
-  });
-
-  it('public surface: providers/github.js re-exports the auth symbols', () => {
-    assert.strictEqual(
-      typeof providerMod.__setExecSyncForTests,
-      'function',
-      '__setExecSyncForTests must be reachable through the parent',
-    );
-    assert.strictEqual(
-      typeof providerMod.readGhCliToken,
-      'function',
-      'readGhCliToken must be reachable through the parent',
-    );
-    assert.strictEqual(
-      typeof providerMod.execSyncHolder,
-      'object',
-      'execSyncHolder must be reachable through the parent',
-    );
   });
 });

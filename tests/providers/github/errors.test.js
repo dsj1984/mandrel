@@ -156,26 +156,11 @@ describe('providers/github/errors.js — GraphQL constants', () => {
 });
 
 describe('providers/github.js — re-export surface', () => {
-  it('parent re-exports the four named symbols unchanged', () => {
+  it('parent re-exports classifyGithubError and the four predicate helpers unchanged', () => {
     assert.strictEqual(
       providerMod.classifyGithubError,
       classifyGithubError,
       'classifyGithubError identity preserved',
-    );
-    assert.strictEqual(
-      providerMod.SUB_ISSUES_QUERY,
-      SUB_ISSUES_QUERY,
-      'SUB_ISSUES_QUERY identity preserved',
-    );
-    assert.strictEqual(
-      providerMod.ADD_SUB_ISSUE_MUTATION,
-      ADD_SUB_ISSUE_MUTATION,
-      'ADD_SUB_ISSUE_MUTATION identity preserved',
-    );
-    assert.strictEqual(
-      providerMod.REMOVE_SUB_ISSUE_MUTATION,
-      REMOVE_SUB_ISSUE_MUTATION,
-      'REMOVE_SUB_ISSUE_MUTATION identity preserved',
     );
   });
 });

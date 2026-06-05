@@ -18,10 +18,6 @@ const cacheMod = await import(
     path.join(ROOT, '.agents', 'scripts', 'providers', 'github', 'cache.js'),
   ).href
 );
-const providerMod = await import(
-  pathToFileURL(path.join(ROOT, '.agents', 'scripts', 'providers', 'github.js'))
-    .href
-);
 
 const { createInlineTicketCache } = cacheMod;
 
@@ -111,14 +107,5 @@ describe('providers/github/cache.js — createInlineTicketCache', () => {
     cache.invalidate(1);
     assert.strictEqual(cache.has(1), false);
     assert.strictEqual(cache.has(2), true);
-  });
-});
-
-describe('providers/github.js — re-export surface', () => {
-  it('createInlineTicketCache resolves through the parent import path', () => {
-    assert.strictEqual(
-      providerMod.createInlineTicketCache,
-      createInlineTicketCache,
-    );
   });
 });
