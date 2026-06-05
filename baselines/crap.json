@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T17:16:23.114Z",
+  "generatedAt": "2026-06-05T17:37:58.684Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -9742,102 +9742,6 @@
       "method": "renderHardConflictError",
       "startLine": 588,
       "crap": 5.137390596376959
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "collectPathsFromText",
-      "startLine": 37,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "collectTaskPathReferences",
-      "startLine": 52,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "collectTaskChangesPaths",
-      "startLine": 100,
-      "crap": 17.205704491618075
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "defaultGitRunner",
-      "startLine": 165,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "validateAcFreshness",
-      "startLine": 192,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "validateAcceptanceSubjectPrefix",
-      "startLine": 307,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "renderMissLine",
-      "startLine": 357,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "indexTicketsBySlug",
-      "startLine": 395,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "assertEachTypePresent",
-      "startLine": 416,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "assertHierarchy",
-      "startLine": 427,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "hasInlineAcceptanceAndVerify",
-      "startLine": 454,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "assertEveryStoryHasInlineContract",
-      "startLine": 465,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "assertNoUnknownDeps",
-      "startLine": 480,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "assertAcyclic",
-      "startLine": 498,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "attachFindingsAndErrors",
-      "startLine": 507,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "method": "validateAndNormalizeTickets",
-      "startLine": 522,
-      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
