@@ -158,3 +158,18 @@ assertions into a single "kitchen sink" test — split them.
   integration paths rather than isolated logic.
 - Coverage targets apply to production code. Test helpers, fixtures, and
   generated code are excluded per the project's coverage config.
+
+## Property-Based Testing (a technique, not a tier)
+
+Property-based testing is a **technique** — generating a domain of inputs and
+asserting invariants that must hold across all of them — not a fourth tier. It
+layers onto the **unit** tier (and occasionally the **contract** tier) without
+changing where a test lives or how it is mocked: the tier-placement, mocking,
+and coverage MUSTs above remain the SSOT and continue to govern any
+property-based test. Reach for it when a unit's correctness is better expressed
+as an invariant over many inputs than as a handful of hand-picked examples
+(parsers, encoders/decoders, serializers, sorting, idempotency).
+
+For the how — choosing properties, shrinking, generators, and worked
+examples — see the companion skill
+[`core/property-based-testing`](../skills/core/property-based-testing/SKILL.md).
