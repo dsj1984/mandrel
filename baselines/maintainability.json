@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-03T16:42:54.244Z",
+  "generatedAt": "2026-06-05T10:57:13.945Z",
   "rollup": {
     "*": {
       "min": 45.044,
-      "p50": 103.85,
+      "p50": 103.888,
       "p95": 121.586
     }
   },
@@ -33,10 +33,6 @@
     {
       "path": ".agents/scripts/check-baselines.js",
       "mi": 106.627
-    },
-    {
-      "path": ".agents/scripts/check-dead-exports.js",
-      "mi": 92.737
     },
     {
       "path": ".agents/scripts/check-doc-links.js",
@@ -713,10 +709,6 @@
     {
       "path": ".agents/scripts/lib/git-branch-cleanup.js",
       "mi": 91.007
-    },
-    {
-      "path": ".agents/scripts/lib/git-branch-lifecycle.js",
-      "mi": 99.537
     },
     {
       "path": ".agents/scripts/lib/git-merge-orchestrator.js",
@@ -1839,10 +1831,6 @@
       "mi": 112.285
     },
     {
-      "path": ".agents/scripts/lib/story-init/branch-initializer.js",
-      "mi": 97.663
-    },
-    {
       "path": ".agents/scripts/lib/story-init/context-resolver.js",
       "mi": 90.144
     },
@@ -2193,10 +2181,6 @@
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "mi": 82.803
-    },
-    {
-      "path": ".agents/scripts/single-story-init.js",
-      "mi": 90.788
     },
     {
       "path": ".agents/scripts/single-story-plan.js",
@@ -2629,10 +2613,6 @@
     {
       "path": "tests/check-crap-json.test.js",
       "mi": 87.345
-    },
-    {
-      "path": "tests/check-dead-exports.test.js",
-      "mi": 93.641
     },
     {
       "path": "tests/check-doc-links.test.js",
@@ -3513,10 +3493,6 @@
     {
       "path": "tests/lib/git-branch-lifecycle-plan.test.js",
       "mi": 136.652
-    },
-    {
-      "path": "tests/lib/git-branch-lifecycle.test.js",
-      "mi": 108.581
     },
     {
       "path": "tests/lib/git-fetch-retry.test.js",
