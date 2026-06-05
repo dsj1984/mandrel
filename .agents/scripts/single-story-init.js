@@ -48,17 +48,13 @@ import {
   resolveConfig,
   resolveRuntime,
 } from './lib/config-resolver.js';
+import { cachedGitFetch } from './lib/git/cached-fetch.js';
 import {
   branchExistsLocally,
   branchExistsViaTrackingRef,
   classifyBranchSeed,
 } from './lib/git-branch-lifecycle.js';
-import {
-  getStoryBranch,
-  gitFetchWithRetry,
-  gitSpawn,
-  gitSync,
-} from './lib/git-utils.js';
+import { getStoryBranch, gitSpawn, gitSync } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
 import { TYPE_LABELS } from './lib/label-constants.js';
 import { setActiveStoryEnv } from './lib/observability/active-story-env.js';
@@ -257,6 +253,11 @@ export async function reapMergedStoryBranches({
  * testing (owns the fast-forward cascade; mirrors `fetchMainRefs` +
  * `ensureEpicBranch` in `branch-initializer.js`).
  *
+ * Routes the `origin` fetch through `cachedGitFetch` so concurrent standalone
+ * Story waves share the same per-process coalescing window that Epic-attached
+ * stories get via `branch-initializer.js#fetchMainRefs`. Pass `fetchFn` to
+ * inject a stub in tests without touching real git.
+ *
  * @param {object} opts
  * @param {string} opts.cwd
  * @param {string} opts.baseBranch
@@ -265,6 +266,10 @@ export async function reapMergedStoryBranches({
  * @param {object} opts.provider
  * @param {Function|undefined} opts.injectedSweep
  * @param {Function} opts.progress
+ * @param {import('./lib/git/cached-fetch.js').FetchCache} [opts.fetchCache]
+ *   Override the module-level cache — used by tests that need a fresh, isolated
+ *   cache. Production callers omit this so all Stories in a wave share the
+ *   module singleton.
  */
 export async function materializeBaseBranch({
   cwd,
@@ -274,10 +279,14 @@ export async function materializeBaseBranch({
   provider,
   injectedSweep,
   progress,
+  fetchCache,
 }) {
   progress('GIT', 'Fetching remote refs...');
-  const fetchResult = await gitFetchWithRetry(cwd, 'origin');
-  if (fetchResult.attempts > 1) {
+  const fetchOpts = fetchCache ? { cache: fetchCache } : {};
+  const fetchResult = await cachedGitFetch(cwd, 'origin', fetchOpts);
+  if (fetchResult.cached) {
+    progress('GIT', 'Fetch served from (cwd, ref) cache — skipped network.');
+  } else if (fetchResult.attempts > 1) {
     progress(
       'GIT',
       `Fetch completed after ${fetchResult.attempts} attempt(s) — packed-refs contention.`,
@@ -344,10 +353,10 @@ export async function materializeBaseBranch({
  *   - remote only   → fetch
  *   - neither       → create from baseBranch
  *
- * `gitFetchWithRetry(cwd, 'origin')` is assumed to have run before this call,
- * so remote-tracking refs are authoritative. Uses a local tracking-ref check
- * rather than a network `ls-remote` round-trip. Exported for testing (owns
- * the seedAction switch + throws).
+ * `cachedGitFetch(cwd, 'origin')` is assumed to have run before this call
+ * (via `materializeBaseBranch`), so remote-tracking refs are authoritative.
+ * Uses a local tracking-ref check rather than a network `ls-remote` round-trip.
+ * Exported for testing (owns the seedAction switch + throws).
  *
  * @param {object} opts
  * @param {string} opts.cwd
