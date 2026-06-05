@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T18:08:47.590Z",
+  "generatedAt": "2026-06-05T18:39:40.959Z",
   "rollup": {
     "*": {
       "min": 45.044,
@@ -1709,10 +1709,6 @@
     {
       "path": ".agents/scripts/lib/wave-runner/wave-runner-error.js",
       "mi": 120.306
-    },
-    {
-      "path": ".agents/scripts/lib/workers/crap-worker.js",
-      "mi": 80.742
     },
     {
       "path": ".agents/scripts/lib/workers/maintainability-report-worker.js",
@@ -4097,10 +4093,6 @@
     {
       "path": "tests/lib/wave-marker.test.js",
       "mi": 114.813
-    },
-    {
-      "path": "tests/lib/workers/crap-worker.test.js",
-      "mi": 112.102
     },
     {
       "path": "tests/lib/workers/maintainability-report-worker.test.js",
