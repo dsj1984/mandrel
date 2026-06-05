@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T16:11:55.531Z",
+  "generatedAt": "2026-06-05T16:29:23.104Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.010699859060178,
+      "p95": 12.157083248524323,
       "max": 38.82544452792387,
       "methodsAbove20": 21
     }
@@ -9198,36 +9198,6 @@
       "crap": 1
     },
     {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
-      "method": "parsePrNumber",
-      "startLine": 34,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
-      "method": "buildStoryReviewCrossRefBody",
-      "startLine": 54,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
-      "method": "runStoryScopeReview",
-      "startLine": 103,
-      "crap": 5.029676368817423
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
-      "method": "<anon method-1>",
-      "startLine": 135,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
-      "method": "<anon method-2>",
-      "startLine": 136,
-      "crap": 1
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
       "method": "resolveFlag",
       "startLine": 25,
@@ -13180,42 +13150,6 @@
       "method": "main",
       "startLine": 218,
       "crap": 2.2560000000000002
-    },
-    {
-      "path": ".agents/scripts/providers/github.js",
-      "method": "<anon method-1>",
-      "startLine": 159,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/providers/github.js",
-      "method": "<anon method-2>",
-      "startLine": 165,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/providers/github.js",
-      "method": "<anon method-3>",
-      "startLine": 168,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/providers/github.js",
-      "method": "<anon method-4>",
-      "startLine": 171,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/providers/github.js",
-      "method": "<anon method-5>",
-      "startLine": 174,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/providers/github.js",
-      "method": "<anon method-6>",
-      "startLine": 177,
-      "crap": 1
     },
     {
       "path": ".agents/scripts/providers/github/auth.js",
