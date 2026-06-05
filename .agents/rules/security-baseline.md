@@ -4,7 +4,10 @@ Non-negotiable security MUSTs that apply to every piece of code generated. This
 rule is the SSOT for security taxonomy and constraints; the companion skill
 [`core/security-and-hardening`](../skills/core/security-and-hardening/SKILL.md)
 shows **how** to apply these MUSTs with code patterns, examples, and process
-guidance. When in conflict, this rule wins; the skill is updated to match.
+guidance. Conflicts resolve per the central ordering in
+[`.agents/instructions.md` § 1.K](../instructions.md) — this rule sits above
+the skill, and its security MUSTs are **inviolable**: no persona, skill, or
+local override may relax them. The skill is updated to match.
 
 ## Input Validation
 
