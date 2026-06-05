@@ -86,7 +86,7 @@ export function resolveCrapEnvOverrides(crapConfig, env) {
  * Pure helper: resolve the effective MI tolerance by layering precedence:
  *   1. `CRAP_TOLERANCE` env-var (CI override — the baseline-refresh-
  *      guardrail uses this to force base-branch values on both gates).
- *   2. `agentSettings.quality.maintainability.tolerance` from the config.
+ *   2. `delivery.quality.gates.maintainability.tolerance` from the config.
  *   3. `MI_DEFAULT_TOLERANCE` (0.5).
  *
  * Malformed env values warn and fall through to the next layer — a typo

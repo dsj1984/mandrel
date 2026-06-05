@@ -21,7 +21,7 @@
  * Feature 6 (Story #3235, Epic #3211):
  *   - Add per-profile test-surface soft/hard gates on `estimated_test_files`.
  *     Emits `large-test-surface` (soft) and `test-surface-overflow` (hard).
- *     Configurable via `agentSettings.planning.taskSizing.testSurface`.
+ *     Configurable via `planning.taskSizing.testSurface`.
  */
 
 export const DEFAULT_TASK_SIZING = Object.freeze({

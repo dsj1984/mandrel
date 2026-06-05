@@ -55,7 +55,7 @@ function analyzeConflicts(cwd) {
 /**
  * Pure: classify a conflict snapshot as `'major'` (caller aborts) or
  * `'minor'` (caller auto-resolves). Thresholds default to the values in
- * `agentSettings.mergeThresholds` and fall back to file=3, line=20.
+ * `delivery.mergeThresholds` and fall back to file=3, line=20.
  *
  * @param {{ files: number, lines: number }} conflicts
  * @param {{ files?: number, lines?: number } | undefined} thresholds
