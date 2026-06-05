@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T12:16:41.888Z",
+  "generatedAt": "2026-06-05T13:21:20.620Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.226395160174576,
+      "p95": 12.157083248524323,
       "max": 38.82544452792387,
       "methodsAbove20": 22
     }
@@ -1326,54 +1326,6 @@
       "crap": 15
     },
     {
-      "path": ".agents/scripts/lib/baselines/diff-scope-cli.js",
-      "method": "parseDiffScopeFlag",
-      "startLine": 35,
-      "crap": 8
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/diff-scope-cli.js",
-      "method": "resolveDiffScopeFiles",
-      "startLine": 72,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/diff-scope-cli.js",
-      "method": "resolveDiffScope",
-      "startLine": 102,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/diff-scope-cli.js",
-      "method": "readBaselineJson",
-      "startLine": 124,
-      "crap": 12
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/diff-scope-cli.js",
-      "method": "readCrapPriorRows",
-      "startLine": 140,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/diff-scope-cli.js",
-      "method": "readMaintainabilityPriorRows",
-      "startLine": 147,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/diff-scope-cli.js",
-      "method": "readPriorBaselineRows",
-      "startLine": 154,
-      "crap": 8.208333333333336
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/diff-scope-cli.js",
-      "method": "buildWriterScopeArgs",
-      "startLine": 186,
-      "crap": 18.00246568587162
-    },
-    {
       "path": ".agents/scripts/lib/baselines/env-overrides.js",
       "method": "resolveCrapEnvOverrides",
       "startLine": 31,
@@ -2646,30 +2598,6 @@
       "crap": 9
     },
     {
-      "path": ".agents/scripts/lib/changed-files.js",
-      "method": "parseNameOnlyStdout",
-      "startLine": 34,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/changed-files.js",
-      "method": "getChangedFiles",
-      "startLine": 43,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/changed-files.js",
-      "method": "getStagedFiles",
-      "startLine": 74,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/changed-files.js",
-      "method": "resolvePreviewScope",
-      "startLine": 102,
-      "crap": 3
-    },
-    {
       "path": ".agents/scripts/lib/checks/baseline-drift-main-checkout.js",
       "method": "isStoryBranch",
       "startLine": 82,
@@ -3108,150 +3036,6 @@
       "crap": 3
     },
     {
-      "path": ".agents/scripts/lib/close-validation.js",
-      "method": "buildFormatHint",
-      "startLine": 63,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation.js",
-      "method": "resolveCommandWithFallback",
-      "startLine": 79,
-      "crap": 3.021333333333333
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation.js",
-      "method": "resolveTypecheckCommand",
-      "startLine": 104,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation.js",
-      "method": "resolveFormatCheckCommand",
-      "startLine": 116,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation.js",
-      "method": "resolveFormatWriteCommand",
-      "startLine": 132,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation.js",
-      "method": "listChangedFilesForFormatGate",
-      "startLine": 150,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation.js",
-      "method": "buildChangedFileScope",
-      "startLine": 170,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation.js",
-      "method": "isFormatterEligible",
-      "startLine": 209,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation.js",
-      "method": "applyChangedFileScope",
-      "startLine": 223,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation.js",
-      "method": "isCrapGateEnabled",
-      "startLine": 273,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation.js",
-      "method": "buildTestGateEntry",
-      "startLine": 294,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation.js",
-      "method": "buildDefaultGates",
-      "startLine": 323,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation.js",
-      "method": "partitionGates",
-      "startLine": 414,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation.js",
-      "method": "pipePrefixed",
-      "startLine": 429,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation.js",
-      "method": "attachGateAbortHandler",
-      "startLine": 465,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation.js",
-      "method": "<anon method-7>",
-      "startLine": 467,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation.js",
-      "method": "<anon method-8>",
-      "startLine": 476,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation.js",
-      "method": "gateExitCode",
-      "startLine": 483,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation.js",
-      "method": "defaultGateRunner",
-      "startLine": 488,
-      "crap": 12
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation.js",
-      "method": "runCloseValidation",
-      "startLine": 550,
-      "crap": 13.79279321177767
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation.js",
-      "method": "<anon method-14>",
-      "startLine": 579,
-      "crap": 5.8053155522163795
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation.js",
-      "method": "<anon method-15>",
-      "startLine": 602,
-      "crap": 3.062196307094266
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation.js",
-      "method": "<anon method-16>",
-      "startLine": 635,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation.js",
-      "method": "emitGhSpawnCount",
-      "startLine": 814,
-      "crap": 5.000390625
-    },
-    {
       "path": ".agents/scripts/lib/close-validation/projections/head-sha.js",
       "method": "parseHeadSha",
       "startLine": 22,
@@ -3268,48 +3052,6 @@
       "method": "validateProjectionInputs",
       "startLine": 56,
       "crap": 8
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
-      "method": "normaliseSkipReason",
-      "startLine": 38,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
-      "method": "refreshEpicRef",
-      "startLine": 53,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
-      "method": "diffChangedFiles",
-      "startLine": 74,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
-      "method": "scoreFile",
-      "startLine": 112,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
-      "method": "collectRegressions",
-      "startLine": 147,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
-      "method": "projectMaintainabilityRegressions",
-      "startLine": 215,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
-      "method": "formatMaintainabilityProjection",
-      "startLine": 278,
-      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/config/baselines.js",
@@ -3988,54 +3730,6 @@
       "method": "deriveFixGuidance",
       "startLine": 98,
       "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/crap-utils.js",
-      "method": "resolveEscomplexVersion",
-      "startLine": 39,
-      "crap": 7.019915663262714
-    },
-    {
-      "path": ".agents/scripts/lib/crap-utils.js",
-      "method": "resolveBaselinePath",
-      "startLine": 67,
-      "crap": 5.5026296018031555
-    },
-    {
-      "path": ".agents/scripts/lib/crap-utils.js",
-      "method": "projectCrapEnvelopeToLegacy",
-      "startLine": 103,
-      "crap": 6.662000000000001
-    },
-    {
-      "path": ".agents/scripts/lib/crap-utils.js",
-      "method": "getCrapBaseline",
-      "startLine": 124,
-      "crap": 10.872684714024018
-    },
-    {
-      "path": ".agents/scripts/lib/crap-utils.js",
-      "method": "buildBaselineEnvelope",
-      "startLine": 175,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/crap-utils.js",
-      "method": "scanAndScore",
-      "startLine": 236,
-      "crap": 12.433975308641976
-    },
-    {
-      "path": ".agents/scripts/lib/crap-utils.js",
-      "method": "scoreFileSerial",
-      "startLine": 333,
-      "crap": 7.333333333333334
-    },
-    {
-      "path": ".agents/scripts/lib/crap-utils.js",
-      "method": "scoreFilesViaPool",
-      "startLine": 388,
-      "crap": 1.037037037037037
     },
     {
       "path": ".agents/scripts/lib/degraded-mode.js",
@@ -6702,42 +6396,6 @@
       "crap": 34.36484986948942
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-state-store.js",
-      "method": "assertProvider",
-      "startLine": 53,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-state-store.js",
-      "method": "assertEpicId",
-      "startLine": 58,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-state-store.js",
-      "method": "read",
-      "startLine": 71,
-      "crap": 3.0146549969468754
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-state-store.js",
-      "method": "write",
-      "startLine": 94,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-state-store.js",
-      "method": "initialize",
-      "startLine": 116,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-state-store.js",
-      "method": "setPhase",
-      "startLine": 143,
-      "crap": 2
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/epic-run-state-store.js",
       "method": "assertProvider",
       "startLine": 32,
@@ -7228,42 +6886,6 @@
       "method": "upsertStoryRunProgress",
       "startLine": 376,
       "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/sub-agent-return.js",
-      "method": "parseStoryAgentReturn",
-      "startLine": 64,
-      "crap": 14.0245
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/sub-agent-return.js",
-      "method": "validateStoryReturnShape",
-      "startLine": 111,
-      "crap": 11.035851851851852
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/sub-agent-return.js",
-      "method": "collectJsonCandidates",
-      "startLine": 150,
-      "crap": 8
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/sub-agent-return.js",
-      "method": "quote",
-      "startLine": 177,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/sub-agent-return.js",
-      "method": "reconcileStoryFromGitHub",
-      "startLine": 205,
-      "crap": 14.015777610818933
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/sub-agent-return.js",
-      "method": "renderMalformedReturnsFriction",
-      "startLine": 273,
-      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
@@ -9648,42 +9270,6 @@
       "crap": 1
     },
     {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/drift-detection.js",
-      "method": "getDiffFiles",
-      "startLine": 30,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/drift-detection.js",
-      "method": "extractPlanFiles",
-      "startLine": 56,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/drift-detection.js",
-      "method": "computeDriftFindings",
-      "startLine": 81,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/drift-detection.js",
-      "method": "formatAddedFinding",
-      "startLine": 95,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/drift-detection.js",
-      "method": "formatMissedFinding",
-      "startLine": 111,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/drift-detection.js",
-      "method": "runDriftDetectionPhase",
-      "startLine": 140,
-      "crap": 6.007870063502668
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
       "method": "resolveFlag",
       "startLine": 25,
@@ -10194,18 +9780,6 @@
       "crap": 5.429499999999999
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution/phases/scope-discovery.js",
-      "method": "computeStoryDiffPaths",
-      "startLine": 20,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution/phases/scope-discovery.js",
-      "method": "validateProjectionContext",
-      "startLine": 45,
-      "crap": 4
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-friction-body.js",
       "method": "formatSuspectStory",
       "startLine": 38,
@@ -10282,18 +9856,6 @@
       "method": "describeResumePushFailure",
       "startLine": 53,
       "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/format-autofix-scoped.js",
-      "method": "listChangedFiles",
-      "startLine": 44,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/format-autofix-scoped.js",
-      "method": "runScopedFormatAutofix",
-      "startLine": 89,
-      "crap": 7.006869163893957
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix-shared.js",
@@ -10798,12 +10360,6 @@
       "method": "emitMaintainabilityProjection",
       "startLine": 267,
       "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/structured-comment-parser.js",
-      "method": "parseFencedJsonComment",
-      "startLine": 40,
-      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/task-body-validator.js",
@@ -12864,48 +12420,6 @@
       "crap": 10.629221665908057
     },
     {
-      "path": ".agents/scripts/lib/story-init/dependency-guard.js",
-      "method": "extractJsonBlock",
-      "startLine": 35,
-      "crap": 4.128
-    },
-    {
-      "path": ".agents/scripts/lib/story-init/dependency-guard.js",
-      "method": "loadDispatchManifest",
-      "startLine": 60,
-      "crap": 14.454419397516793
-    },
-    {
-      "path": ".agents/scripts/lib/story-init/dependency-guard.js",
-      "method": "storyKey",
-      "startLine": 129,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/story-init/dependency-guard.js",
-      "method": "summariseStoryState",
-      "startLine": 133,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/story-init/dependency-guard.js",
-      "method": "validateBlockersMerged",
-      "startLine": 158,
-      "crap": 18
-    },
-    {
-      "path": ".agents/scripts/lib/story-init/dependency-guard.js",
-      "method": "runDispatchManifestGuard",
-      "startLine": 248,
-      "crap": 5.362734144890527
-    },
-    {
-      "path": ".agents/scripts/lib/story-init/dependency-guard.js",
-      "method": "formatBlockerReport",
-      "startLine": 298,
-      "crap": 2
-    },
-    {
       "path": ".agents/scripts/lib/story-init/dispatch-state-writer.js",
       "method": "dispatchStateFilePath",
       "startLine": 59,
@@ -13962,54 +13476,6 @@
       "crap": 2.2560000000000002
     },
     {
-      "path": ".agents/scripts/post-story-plan.js",
-      "method": "loadValidator",
-      "startLine": 67,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/post-story-plan.js",
-      "method": "parsePlan",
-      "startLine": 82,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/post-story-plan.js",
-      "method": "deriveNextRevision",
-      "startLine": 115,
-      "crap": 6.104956268221574
-    },
-    {
-      "path": ".agents/scripts/post-story-plan.js",
-      "method": "formatPlanBody",
-      "startLine": 143,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/post-story-plan.js",
-      "method": "runPostStoryPlan",
-      "startLine": 159,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/post-story-plan.js",
-      "method": "parseArgv",
-      "startLine": 180,
-      "crap": 1.7865270823850707
-    },
-    {
-      "path": ".agents/scripts/post-story-plan.js",
-      "method": "validateRequiredArgs",
-      "startLine": 200,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/post-story-plan.js",
-      "method": "main",
-      "startLine": 210,
-      "crap": 18.589086456855053
-    },
-    {
       "path": ".agents/scripts/providers/github.js",
       "method": "<anon method-1>",
       "startLine": 159,
@@ -14476,30 +13942,6 @@
       "method": "runReconcileSubIssuesCli",
       "startLine": 47,
       "crap": 4
-    },
-    {
-      "path": ".agents/scripts/render-manifest.js",
-      "method": "extractManifestJson",
-      "startLine": 38,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/render-manifest.js",
-      "method": "writeRenderedManifest",
-      "startLine": 56,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/render-manifest.js",
-      "method": "renderManifestFromComment",
-      "startLine": 85,
-      "crap": 8.47932933344292
-    },
-    {
-      "path": ".agents/scripts/render-manifest.js",
-      "method": "main",
-      "startLine": 132,
-      "crap": 2
     },
     {
       "path": ".agents/scripts/resync-status-column.js",
