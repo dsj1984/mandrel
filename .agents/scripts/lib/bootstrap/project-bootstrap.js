@@ -6,11 +6,13 @@
  * is idempotent and additive — re-running on an already-bootstrapped clone
  * produces zero file mutations and zero network I/O.
  *
- * The composite `applyProjectBootstrap(ctx)` runs the steps in order and
- * returns a structured report the CLI summarises at exit.
+ * Injectable seams: every function that performs filesystem I/O or spawns a
+ * child process accepts an optional `fsImpl` / `spawnImpl` default-param so
+ * unit tests can stub I/O without touching the real filesystem. The seam
+ * contract is defined in `.agents/rules/test-seams.md`.
  */
 
-import { spawnSync } from 'node:child_process';
+import { spawnSync as defaultSpawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -61,14 +63,31 @@ export const GITIGNORE_BLOCKS = Object.freeze({
   },
 });
 
-function readJsonIfExists(p) {
-  if (!fs.existsSync(p)) return null;
-  return JSON.parse(fs.readFileSync(p, 'utf8'));
+/**
+ * Read a JSON file if it exists; return null when missing. Accepts an
+ * injectable `fsImpl` so callers can stub filesystem access in tests.
+ *
+ * @param {string} p
+ * @param {typeof fs} [fsImpl]
+ * @returns {object|null}
+ */
+function readJsonIfExists(p, fsImpl = fs) {
+  if (!fsImpl.existsSync(p)) return null;
+  return JSON.parse(fsImpl.readFileSync(p, 'utf8'));
 }
 
-function writeJson(p, obj) {
-  fs.mkdirSync(path.dirname(p), { recursive: true });
-  fs.writeFileSync(p, `${JSON.stringify(obj, null, 2)}\n`, 'utf8');
+/**
+ * Write a pretty-printed JSON file, creating parent directories as needed.
+ * Accepts an injectable `fsImpl` so callers can stub filesystem access in
+ * tests.
+ *
+ * @param {string} p
+ * @param {object} obj
+ * @param {typeof fs} [fsImpl]
+ */
+function writeJson(p, obj, fsImpl = fs) {
+  fsImpl.mkdirSync(path.dirname(p), { recursive: true });
+  fsImpl.writeFileSync(p, `${JSON.stringify(obj, null, 2)}\n`, 'utf8');
 }
 
 /** Matches root `package.json` `engines.node`. */
@@ -112,10 +131,14 @@ export function checkNodeVersion(version = process.versions.node) {
 /**
  * Detect the package manager based on lockfile presence. Defaults to
  * `npm` when no lock is found.
+ *
+ * @param {string} projectRoot
+ * @param {typeof fs} [fsImpl]
  */
-export function detectPackageManager(projectRoot) {
-  if (fs.existsSync(path.join(projectRoot, 'pnpm-lock.yaml'))) return 'pnpm';
-  if (fs.existsSync(path.join(projectRoot, 'yarn.lock'))) return 'yarn';
+export function detectPackageManager(projectRoot, fsImpl = fs) {
+  if (fsImpl.existsSync(path.join(projectRoot, 'pnpm-lock.yaml')))
+    return 'pnpm';
+  if (fsImpl.existsSync(path.join(projectRoot, 'yarn.lock'))) return 'yarn';
   return 'npm';
 }
 
@@ -126,8 +149,12 @@ export function detectPackageManager(projectRoot) {
  * transitively via the `@mandrelai/agents` package, so bootstrap leaves the
  * `dependencies` block untouched (Story #3466). Returns the per-key outcome
  * the caller can render.
+ *
+ * @param {object} ctx
+ * @param {typeof fs} [ctx.fsImpl]
  */
 export function ensurePackageJson(ctx) {
+  const { fsImpl = fs } = ctx;
   const pkgPath = path.join(ctx.projectRoot, 'package.json');
   const projectName = path.basename(path.resolve(ctx.projectRoot));
   const outcomes = {
@@ -136,7 +163,7 @@ export function ensurePackageJson(ctx) {
     scriptsPrepare: 'already-present',
     scriptsBootstrap: 'already-present',
   };
-  let pkg = readJsonIfExists(pkgPath);
+  let pkg = readJsonIfExists(pkgPath, fsImpl);
   if (!pkg) {
     pkg = {
       name: projectName,
@@ -171,7 +198,7 @@ export function ensurePackageJson(ctx) {
     outcomes.scriptsSyncCommands === 'added' ||
     outcomes.scriptsPrepare !== 'already-present' ||
     outcomes.scriptsBootstrap === 'added';
-  if (mutated) writeJson(pkgPath, pkg);
+  if (mutated) writeJson(pkgPath, pkg, fsImpl);
   return { ...outcomes, path: pkgPath, mutated };
 }
 
@@ -181,23 +208,28 @@ export function ensurePackageJson(ctx) {
  * manifest (Story #3466) — they arrive transitively via `@mandrelai/agents`
  * — so the install is triggered purely by an empty/stale `node_modules`.
  * Returns `{ ran, manager, skipped, reason }`.
+ *
+ * @param {object} ctx
+ * @param {typeof fs} [ctx.fsImpl]
+ * @param {typeof defaultSpawnSync} [ctx.spawnImpl]
  */
 export function ensureDependenciesInstalled(ctx) {
-  const manager = detectPackageManager(ctx.projectRoot);
+  const { fsImpl = fs, spawnImpl = defaultSpawnSync } = ctx;
+  const manager = detectPackageManager(ctx.projectRoot, fsImpl);
   const sentinel = path.join(
     ctx.projectRoot,
     'node_modules',
     'ajv',
     'package.json',
   );
-  const needsInstall = !fs.existsSync(sentinel);
+  const needsInstall = !fsImpl.existsSync(sentinel);
   if (!needsInstall) {
     return { ran: false, manager, skipped: true, reason: 'already-installed' };
   }
   if (ctx.skipInstall) {
     return { ran: false, manager, skipped: true, reason: 'skip-install-flag' };
   }
-  const result = spawnSync(manager, ['install'], {
+  const result = spawnImpl(manager, ['install'], {
     cwd: ctx.projectRoot,
     stdio: ctx.quiet ? 'ignore' : 'inherit',
     shell: process.platform === 'win32',
@@ -232,28 +264,31 @@ export function ensureDependenciesInstalled(ctx) {
  * profile name that fails to resolve/validate propagates as a throw so the
  * fatal `validation` phase never runs against a half-written file.
  *
+ * @param {object} ctx
+ * @param {typeof fs} [ctx.fsImpl]
  * @returns {{ action: string, path: string, source?: string,
  *   profile?: string }}
  */
 export function ensureAgentrc(ctx) {
+  const { fsImpl = fs } = ctx;
   const target = path.join(ctx.projectRoot, '.agentrc.json');
-  if (fs.existsSync(target)) {
+  if (fsImpl.existsSync(target)) {
     return { action: 'already-present', path: target };
   }
   const profile = ctx.answers.profile;
   if (typeof profile === 'string' && profile.length > 0) {
     const body = buildProfileAgentrcBody({ profile, answers: ctx.answers });
-    fs.writeFileSync(target, body, 'utf8');
+    fsImpl.writeFileSync(target, body, 'utf8');
     return { action: 'seeded', path: target, source: 'profile', profile };
   }
   const starter = path.join(
     ctx.agentRoot ?? path.join(ctx.projectRoot, '.agents'),
     'starter-agentrc.json',
   );
-  if (!fs.existsSync(starter)) {
+  if (!fsImpl.existsSync(starter)) {
     return { action: 'missing-starter', path: target };
   }
-  let body = fs.readFileSync(starter, 'utf8');
+  let body = fsImpl.readFileSync(starter, 'utf8');
   body = body
     .replace(/\[OWNER\]/g, ctx.answers.owner)
     .replace(/\[REPO\]/g, ctx.answers.repo)
@@ -267,27 +302,34 @@ export function ensureAgentrc(ctx) {
       `"baseBranch": "${ctx.answers.baseBranch}"`,
     );
   }
-  fs.writeFileSync(target, body, 'utf8');
+  fsImpl.writeFileSync(target, body, 'utf8');
   return { action: 'seeded', path: target, source: 'starter' };
 }
 
 /**
  * Step 2.5b — Validate `.agentrc.json` against the framework's AJV schema.
  * Returns `{ ok, errors }`. Caller decides whether to abort.
+ *
+ * @param {object} ctx
+ * @param {typeof fs} [ctx.fsImpl]
  */
 export async function validateAgentrc(ctx) {
+  const { fsImpl = fs } = ctx;
   const schemaModule = path.join(
     ctx.agentRoot ?? path.join(ctx.projectRoot, '.agents'),
     'scripts',
     'lib',
     'config-settings-schema.js',
   );
-  if (!fs.existsSync(schemaModule)) {
+  if (!fsImpl.existsSync(schemaModule)) {
     return { ok: false, errors: ['config-settings-schema.js not found'] };
   }
   const mod = await import(`file://${schemaModule.replace(/\\/g, '/')}`);
   const validate = mod.getAgentrcValidator();
-  const data = readJsonIfExists(path.join(ctx.projectRoot, '.agentrc.json'));
+  const data = readJsonIfExists(
+    path.join(ctx.projectRoot, '.agentrc.json'),
+    fsImpl,
+  );
   if (!data) return { ok: false, errors: ['.agentrc.json missing'] };
   const ok = validate(data);
   return { ok: !!ok, errors: ok ? [] : (validate.errors ?? []) };
@@ -302,21 +344,25 @@ export async function validateAgentrc(ctx) {
  * enablement keys — it loads in every Claude Code environment, including those
  * where the plugin system (`/plugin`) is unavailable (the #3576 plugin cutover
  * was reverted for exactly that reason).
+ *
+ * @param {object} ctx
+ * @param {typeof fs} [ctx.fsImpl]
  */
 export function ensureClaudeSettings(ctx) {
+  const { fsImpl = fs } = ctx;
   const target = path.join(ctx.projectRoot, '.claude', 'settings.json');
   const hook = { type: 'command', command: SYNC_COMMAND };
-  if (!fs.existsSync(target)) {
-    fs.mkdirSync(path.dirname(target), { recursive: true });
+  if (!fsImpl.existsSync(target)) {
+    fsImpl.mkdirSync(path.dirname(target), { recursive: true });
     const fresh = {
       hooks: {
         UserPromptSubmit: [{ hooks: [hook] }],
       },
     };
-    writeJson(target, fresh);
+    writeJson(target, fresh, fsImpl);
     return { action: 'created', path: target };
   }
-  const settings = readJsonIfExists(target);
+  const settings = readJsonIfExists(target, fsImpl);
   settings.hooks = settings.hooks ?? {};
   settings.hooks.UserPromptSubmit = settings.hooks.UserPromptSubmit ?? [];
   const hookAlready = settings.hooks.UserPromptSubmit.some((group) =>
@@ -332,17 +378,23 @@ export function ensureClaudeSettings(ctx) {
     mutated = true;
   }
   if (!mutated) return { action: 'already-present', path: target };
-  writeJson(target, settings);
+  writeJson(target, settings, fsImpl);
   return { action: 'merged', path: target };
 }
 
 /**
  * Step 4 + Step 8 — Ensure `.gitignore` carries the `.claude/commands/`
  * and `.mcp.json` entries. Returns a per-block outcome.
+ *
+ * @param {object} ctx
+ * @param {typeof fs} [ctx.fsImpl]
  */
 export function ensureGitignore(ctx) {
+  const { fsImpl = fs } = ctx;
   const target = path.join(ctx.projectRoot, '.gitignore');
-  const existing = fs.existsSync(target) ? fs.readFileSync(target, 'utf8') : '';
+  const existing = fsImpl.existsSync(target)
+    ? fsImpl.readFileSync(target, 'utf8')
+    : '';
   let body = existing;
   const outcomes = {};
   for (const [key, def] of Object.entries(GITIGNORE_BLOCKS)) {
@@ -355,7 +407,7 @@ export function ensureGitignore(ctx) {
       def.block;
     outcomes[key] = 'added';
   }
-  if (body !== existing) fs.writeFileSync(target, body, 'utf8');
+  if (body !== existing) fsImpl.writeFileSync(target, body, 'utf8');
   return { ...outcomes, path: target };
 }
 
@@ -365,14 +417,18 @@ export function ensureGitignore(ctx) {
  * single source of truth), so a successful exit equals parity.
  *
  * Returns `{ ok, stdout }`.
+ *
+ * @param {object} ctx
+ * @param {typeof defaultSpawnSync} [ctx.spawnImpl]
  */
 export function runSyncCommands(ctx) {
+  const { spawnImpl = defaultSpawnSync } = ctx;
   const script = path.join(
     ctx.agentRoot ?? path.join(ctx.projectRoot, '.agents'),
     'scripts',
     'sync-claude-commands.js',
   );
-  const result = spawnSync(process.execPath, [script], {
+  const result = spawnImpl(process.execPath, [script], {
     cwd: ctx.projectRoot,
     encoding: 'utf8',
   });
@@ -393,16 +449,20 @@ export function runSyncCommands(ctx) {
  * flat command tree `.claude/commands/*.md`. Step 5's sync already enforces
  * this; this is a belt-and-braces verification that the command projection
  * covers every top-level workflow.
+ *
+ * @param {object} ctx
+ * @param {typeof fs} [ctx.fsImpl]
  */
 export function checkParity(ctx) {
+  const { fsImpl = fs } = ctx;
   const workflowsDir = path.join(
     ctx.agentRoot ?? path.join(ctx.projectRoot, '.agents'),
     'workflows',
   );
   const commandsDir = path.join(ctx.projectRoot, '.claude', 'commands');
   const list = (dir) =>
-    fs.existsSync(dir)
-      ? fs
+    fsImpl.existsSync(dir)
+      ? fsImpl
           .readdirSync(dir, { withFileTypes: true })
           .filter((e) => e.isFile() && e.name.endsWith('.md'))
           .map((e) => e.name.replace(/\.md$/, ''))
@@ -436,19 +496,23 @@ export function checkParity(ctx) {
  *
  * Returns `{ action, path }` where `action` is one of `created`,
  * `appended`, or `already-present`.
+ *
+ * @param {object} ctx
+ * @param {typeof fs} [ctx.fsImpl]
  */
 export function ensureSystemPromptWiring(ctx) {
+  const { fsImpl = fs } = ctx;
   const target = path.join(ctx.projectRoot, 'CLAUDE.md');
-  if (!fs.existsSync(target)) {
-    fs.writeFileSync(target, SYSTEM_PROMPT_CLAUDE_MD, 'utf8');
+  if (!fsImpl.existsSync(target)) {
+    fsImpl.writeFileSync(target, SYSTEM_PROMPT_CLAUDE_MD, 'utf8');
     return { action: 'created', path: target };
   }
-  const existing = fs.readFileSync(target, 'utf8');
+  const existing = fsImpl.readFileSync(target, 'utf8');
   if (existing.includes(SYSTEM_PROMPT_IMPORT)) {
     return { action: 'already-present', path: target };
   }
   const separator = existing.length > 0 && !existing.endsWith('\n') ? '\n' : '';
-  fs.writeFileSync(
+  fsImpl.writeFileSync(
     target,
     `${existing}${separator}\n${SYSTEM_PROMPT_BLOCK}`,
     'utf8',
@@ -460,8 +524,13 @@ export function ensureSystemPromptWiring(ctx) {
  * Step 9 — Windows git-perf hints (warn-only). On non-Windows this is a
  * silent no-op. On Windows the check probes three settings and reports
  * which are missing; it never mutates global git config.
+ *
+ * @param {object} ctx
+ * @param {typeof fs} [ctx.fsImpl]
+ * @param {typeof defaultSpawnSync} [ctx.spawnImpl]
  */
 export function checkWindowsGitPerf(ctx) {
+  const { fsImpl = fs, spawnImpl = defaultSpawnSync } = ctx;
   if (os.platform() !== 'win32') {
     return { platform: process.platform, skipped: true };
   }
@@ -470,10 +539,10 @@ export function checkWindowsGitPerf(ctx) {
     'scripts',
     'check-windows-git-perf.js',
   );
-  if (!fs.existsSync(script)) {
+  if (!fsImpl.existsSync(script)) {
     return { platform: 'win32', skipped: true, reason: 'script-missing' };
   }
-  const result = spawnSync(process.execPath, [script], {
+  const result = spawnImpl(process.execPath, [script], {
     cwd: ctx.projectRoot,
     encoding: 'utf8',
   });
@@ -715,6 +784,8 @@ export async function runPhases(phases, ctx) {
  * @param {boolean} [ctx.skipGithub]
  * @param {boolean} [ctx.skipInstall]
  * @param {boolean} [ctx.quiet]
+ * @param {typeof fs} [ctx.fsImpl]       — injectable filesystem seam (test-seams.md).
+ * @param {typeof defaultSpawnSync} [ctx.spawnImpl] — injectable spawn seam (test-seams.md).
  * @returns {Promise<object>}
  */
 export async function applyProjectBootstrap(ctx) {
