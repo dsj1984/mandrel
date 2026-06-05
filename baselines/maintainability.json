@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T16:37:39.626Z",
+  "generatedAt": "2026-06-05T16:54:52.141Z",
   "rollup": {
     "*": {
       "min": 45.044,
-      "p50": 104.084,
-      "p95": 122.422
+      "p50": 104.191,
+      "p95": 122.198
     }
   },
   "rows": [
@@ -239,10 +239,6 @@
       "mi": 105.693
     },
     {
-      "path": ".agents/scripts/lib/auto-refresh-baselines.js",
-      "mi": 87.316
-    },
-    {
       "path": ".agents/scripts/lib/baseline-loader.js",
       "mi": 105.28
     },
@@ -251,24 +247,12 @@
       "mi": 103.244
     },
     {
-      "path": ".agents/scripts/lib/baseline-snapshot.js",
-      "mi": 80.707
-    },
-    {
       "path": ".agents/scripts/lib/baselines/component-matcher.js",
       "mi": 132.148
     },
     {
-      "path": ".agents/scripts/lib/baselines/components.js",
-      "mi": 92.597
-    },
-    {
       "path": ".agents/scripts/lib/baselines/diff-scope-cli.js",
       "mi": 104.227
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/env-overrides.js",
-      "mi": 86.705
     },
     {
       "path": ".agents/scripts/lib/baselines/envelope.js",
@@ -367,10 +351,6 @@
       "mi": 101.211
     },
     {
-      "path": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
-      "mi": 85.187
-    },
-    {
       "path": ".agents/scripts/lib/bootstrap/summary.js",
       "mi": 100
     },
@@ -453,10 +433,6 @@
     {
       "path": ".agents/scripts/lib/cli/standard-args.js",
       "mi": 90.224
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation.js",
-      "mi": 92.919
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/head-sha.js",
@@ -555,10 +531,6 @@
       "mi": 111.715
     },
     {
-      "path": ".agents/scripts/lib/config/limits.js",
-      "mi": 102.418
-    },
-    {
       "path": ".agents/scripts/lib/config/paths.js",
       "mi": 108.049
     },
@@ -581,10 +553,6 @@
     {
       "path": ".agents/scripts/lib/config/shared.js",
       "mi": 105.208
-    },
-    {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
-      "mi": 114.571
     },
     {
       "path": ".agents/scripts/lib/config/validate-orchestration.js",
@@ -693,10 +661,6 @@
     {
       "path": ".agents/scripts/lib/git-branch-cleanup.js",
       "mi": 91.007
-    },
-    {
-      "path": ".agents/scripts/lib/git-merge-orchestrator.js",
-      "mi": 94.245
     },
     {
       "path": ".agents/scripts/lib/git-utils.js",
@@ -873,10 +837,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/dispatch-pipeline.js",
       "mi": 100.017
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/doc-reader.js",
-      "mi": 102.211
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-deliver-close-tail.js",
@@ -1149,10 +1109,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/trace-logger.js",
       "mi": 90.586
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lint-baseline-service.js",
-      "mi": 96.762
     },
     {
       "path": ".agents/scripts/lib/orchestration/model-attribution.js",
@@ -1463,10 +1419,6 @@
       "mi": 87.033
     },
     {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
-      "mi": 87.499
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "mi": 93.076
     },
@@ -1501,10 +1453,6 @@
     {
       "path": ".agents/scripts/lib/path-security.js",
       "mi": 117.206
-    },
-    {
-      "path": ".agents/scripts/lib/plan-phase-cleanup.js",
-      "mi": 97.856
     },
     {
       "path": ".agents/scripts/lib/preflight-runner.js",
@@ -1705,10 +1653,6 @@
     {
       "path": ".agents/scripts/lib/task-utils.js",
       "mi": 146.427
-    },
-    {
-      "path": ".agents/scripts/lib/templates/decomposer-prompts.js",
-      "mi": 140.702
     },
     {
       "path": ".agents/scripts/lib/test-env.js",
