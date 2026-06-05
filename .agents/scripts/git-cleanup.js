@@ -69,6 +69,7 @@ import {
 import {
   buildJsonEnvelope,
   computeExitCode,
+  renderDeferredLine,
   renderDryRun,
   renderExecutionLine,
   renderExecutionSummary,
@@ -106,6 +107,7 @@ export {
   probeAllPrs,
   probeLatestPr,
   probeMergedPr,
+  renderDeferredLine,
   renderDryRun,
   renderExecutionLine,
   renderExecutionSummary,

@@ -26,6 +26,7 @@ import { buildGlobFilter } from './filters.js';
 import { promptStashDecision, promptYesNo } from './prompts.js';
 import { executePrune } from './prune.js';
 import {
+  renderDeferredLine,
   renderDryRun,
   renderExecutionLine,
   renderExecutionSummary,
@@ -51,6 +52,9 @@ function emitExecutionHuman(result) {
   }
   for (const r of result.local) Logger.info(renderExecutionLine(r, 'local'));
   for (const r of result.remote) Logger.info(renderExecutionLine(r, 'remote'));
+  for (const d of result.deferred ?? []) {
+    Logger.warn(renderDeferredLine(d));
+  }
   const pruneLine = renderPruneLine(result.prune);
   if (pruneLine) Logger.info(pruneLine);
   const summary = renderExecutionSummary(result);
