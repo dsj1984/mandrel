@@ -185,9 +185,13 @@ export class IssuesGateway {
   }
 
   /**
-   * Aggregate sub-tickets via the three-strategy fallback: native
-   * sub-issues (GraphQL) → checklist links in body → reverse-search.
-   * Deduped while preserving the historical fallback order.
+   * Aggregate sub-tickets via a priority-fallback strategy:
+   *   1. Native sub-issues (GraphQL) + checklist links in body — run in
+   *      parallel because checklist parsing is pure/synchronous.
+   *   2. Reverse-search (`_getReferencedChildren`) — a full-repo label
+   *      scan that is **only** executed when both strategy 1 sources
+   *      return empty. This avoids the unconditional full-repo scan that
+   *      fired on every call in the old `Promise.all` path.
    *
    * @param {number} parentId
    * @param {{ fresh?: boolean }} [opts] - Pass `{ fresh: true }` to bypass
@@ -198,12 +202,19 @@ export class IssuesGateway {
     const getTicket = this._hooks.getTicket;
     const getNativeSubIssues = this._hooks.getNativeSubIssues;
     const parent = await getTicket(parentId);
-    const [nativeChildIds, checklistChildIds, referencedChildIds] =
-      await Promise.all([
-        getNativeSubIssues(parent.nodeId, parentId),
-        Promise.resolve(this._getChecklistChildren(parent.body)),
-        this._getReferencedChildren(parentId),
-      ]);
+
+    // Strategy 1: native sub-issues (GraphQL) + checklist (synchronous).
+    const [nativeChildIds, checklistChildIds] = await Promise.all([
+      getNativeSubIssues(parent.nodeId, parentId),
+      Promise.resolve(this._getChecklistChildren(parent.body)),
+    ]);
+
+    // Strategy 2 (fallback): full-repo reverse-search — only when strategy
+    // 1 produced nothing, avoiding the unconditional scan on every call.
+    let referencedChildIds = [];
+    if (nativeChildIds.length === 0 && checklistChildIds.length === 0) {
+      referencedChildIds = await this._getReferencedChildren(parentId);
+    }
 
     const allChildIds = [
       ...new Set([
