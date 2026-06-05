@@ -194,6 +194,14 @@ fewest tests at the e2e tier. Beyond the tier, classify by resource cost:
 Small tests should make up the vast majority of your suite. They're fast,
 reliable, and easy to debug when they fail.
 
+**Related — property-based testing.** When a unit's correctness is better
+expressed as an invariant over a domain of inputs than as a few hand-picked
+examples (parsers, encoders, serializers, idempotency), reach for the
+[`core/property-based-testing`](../property-based-testing/SKILL.md) skill. It is
+a technique layered onto the unit (and occasionally contract) tier — tier
+placement, mocking, and coverage stay governed by
+[`testing-standards.md`](../../../rules/testing-standards.md).
+
 **The Beyonce Rule:** If you liked it, you should have put a test on it.
 Infrastructure changes, refactoring, and migrations are not responsible for
 catching your bugs — your tests are. If a change breaks your code and you
