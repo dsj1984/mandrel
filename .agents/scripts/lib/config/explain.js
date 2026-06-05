@@ -165,7 +165,7 @@ const KEY_MEANINGS = Object.freeze({
   'delivery.docsFreshness.paths':
     'Docs whose freshness is checked at delivery time.',
   'delivery.deliverRunner.concurrencyCap':
-    'Maximum Stories dispatched in parallel within one wave.',
+    'Maximum Stories dispatched in parallel within one wave. Default 3 — conservative by design to keep host-quota consumption predictable. Operators running wide-wave Epics with adequate parallel-agent quota should raise this to reduce wall-clock time proportionally.',
   'delivery.deliverRunner.progressReportIntervalSec':
     'Cadence for delivery progress reporting.',
   'delivery.deliverRunner.verifyConcurrencyCap':
