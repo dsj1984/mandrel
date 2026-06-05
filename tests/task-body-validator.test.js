@@ -1,11 +1,14 @@
 /**
- * Schema validation tests for the v5.33 structured task body.
+ * Schema validation tests for the structured Story body (3-tier world).
  *
  *   - rejects each empty-section variant (changes / acceptance / verify);
  *   - rejects bullets that name no path-shaped token;
  *   - rejects vague verbs without a named target;
  *   - allows manual:<reason> in verify;
  *   - skips legacy string / undefined bodies (Feature/Story compat).
+ *
+ * Legacy task-typed fixtures are used throughout this file; the decomposer
+ * no longer creates type::task tickets in practice (3-tier architecture).
  */
 
 import assert from 'node:assert/strict';
@@ -190,7 +193,7 @@ describe('validateTaskBodies', () => {
     ];
     assert.throws(
       () => validateTaskBodies(tickets),
-      /2 task body schema violation\(s\)[\s\S]*t1[\s\S]*t2/,
+      /2 story body schema violation\(s\)[\s\S]*t1[\s\S]*t2/,
     );
   });
 
