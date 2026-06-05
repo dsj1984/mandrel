@@ -1,11 +1,13 @@
 /**
- * CLI: advisory dead-export ratchet built on knip.
+ * CLI: ratchet-down dead-export gate built on knip.
  *
- * Story #1852 (Epic #1831). Sibling of `check-crap.js` /
- * `check-maintainability.js`, but **always advisory** — exit code is 0 on
- * both clean and drifting runs. The goal is to surface added / removed dead
- * exports in `npm run quality:preview` output so contributors notice drift
- * before it accumulates, without failing close-validation or pre-push.
+ * Story #1852 (Epic #1831) shipped the advisory form. Story #3627 (Epic #3599)
+ * converts it to a **ratchet-down gate**: exit 1 when `added.length > 0`
+ * (new dead exports are not allowed), exit 0 when the diff is clean or when
+ * only removals are detected (the baseline is shrinking, which is the success
+ * signal). Knip spawn failures remain advisory (exit 0 + stderr warning) so a
+ * misconfigured knip installation cannot block CI when we have no current
+ * snapshot to compare against.
  *
  * Contract:
  *   - Reads the committed baseline at `baselines/dead-exports.json`
@@ -18,10 +20,9 @@
  *     `- <file>: <symbol>` for each removed one, then a summary line.
  *   - With `--json`: writes the structured envelope to stdout and skips the
  *     human summary. The envelope still includes `added`, `removed`,
- *     `baselineRows`, `currentRows`.
- *   - Exits 0 always (advisory). knip's own non-zero exit when its
- *     project is misconfigured is logged but does not propagate — this
- *     script never fails a build.
+ *     `baselineRows`, `currentRows`, and `exitCode`.
+ *   - Exit codes: 0 = clean or removals-only; 1 = added exports detected.
+ *     Knip spawn/parse failure exits 0 (advisory) with a stderr warning.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -147,7 +148,8 @@ export function diffRows(baselineRows, currentRows) {
  *   `+ <file>: <symbol>` for added rows
  *   `- <file>: <symbol>` for removed rows
  * Followed by a one-line summary even on a clean diff so operators see the
- * "no drift" signal.
+ * "no drift" signal. When added rows are present the summary includes a
+ * "(gate fail)" marker so the ratchet violation is visible in CI output.
  *
  * @param {{ added: Array, removed: Array }} diff
  * @returns {string}
@@ -156,8 +158,9 @@ export function renderDiff(diff) {
   const lines = [];
   for (const r of diff.added) lines.push(`+ ${r.file}: ${r.symbol}`);
   for (const r of diff.removed) lines.push(`- ${r.file}: ${r.symbol}`);
+  const tag = diff.added.length > 0 ? '(gate fail)' : '(ok)';
   lines.push(
-    `[dead-exports] added=${diff.added.length} removed=${diff.removed.length} (advisory)`,
+    `[dead-exports] added=${diff.added.length} removed=${diff.removed.length} ${tag}`,
   );
   return lines.join('\n');
 }
@@ -229,7 +232,7 @@ function readKnipOutput(filePath) {
  *   runKnipImpl?: typeof runKnip,
  *   loadBaselineImpl?: typeof loadBaseline,
  * }} [opts]
- * @returns {Promise<number>} exit code (always 0 — advisory)
+ * @returns {Promise<number>} exit code: 0 = clean or removals-only; 1 = added exports detected
  */
 export async function runCli({
   argv = process.argv.slice(2),
@@ -264,6 +267,11 @@ export async function runCli({
   const currentRows = extractRowsFromKnip(knipEnvelope);
   const diff = diffRows(baselineRows, currentRows);
 
+  // Ratchet-down gate: fail when new dead exports are introduced. Removals are
+  // the success signal (baseline shrinking). Knip spawn failures stay advisory
+  // so a misconfigured knip installation cannot block CI without a snapshot.
+  const exitCode = knipError === null && diff.added.length > 0 ? 1 : 0;
+
   if (json) {
     const envelope = {
       kind: 'dead-exports-report',
@@ -273,6 +281,7 @@ export async function runCli({
       added: diff.added,
       removed: diff.removed,
       knipError,
+      exitCode,
     };
     stdout.write(`${JSON.stringify(envelope, null, 2)}\n`);
   } else {
@@ -288,7 +297,7 @@ export async function runCli({
     stdout.write(`${renderDiff(diff)}\n`);
   }
 
-  return 0;
+  return exitCode;
 }
 
 async function main() {
