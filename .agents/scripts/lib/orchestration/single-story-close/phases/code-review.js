@@ -14,13 +14,14 @@
  * conversation comments and issue comments, because PRs are issues at
  * the API level.
  *
- * Also hosts `parsePrNumber`, the pure helper that extracts a numeric PR
- * id from a `gh pr create` URL.
+ * Re-exports `parsePrNumber` (delegates to `lib/github-url.js`) so
+ * existing call sites need not change. Story #3649.
  *
  * Critical findings cause `runStoryScopeReview` to return `halted: true`;
  * the caller raises that to a thrown error so auto-merge is not enabled.
  */
 
+import { parsePrNumberFromUrl } from '../../../github-url.js';
 import { postStructuredComment } from '../../ticketing/state.js';
 
 /**
@@ -28,16 +29,14 @@ import { postStructuredComment } from '../../ticketing/state.js';
  * URL like `https://github.com/<owner>/<repo>/pull/<n>`; we want `<n>`.
  * Returns `null` when the URL doesn't match. Exported for testing.
  *
+ * Delegates to `parsePrNumberFromUrl` in `lib/github-url.js`.
+ * Re-exported under the original name so existing call sites and tests
+ * do not need to change. Story #3649.
+ *
  * @param {string|null|undefined} prUrl
  * @returns {number|null}
  */
-export function parsePrNumber(prUrl) {
-  if (typeof prUrl !== 'string') return null;
-  const match = prUrl.match(/\/pull\/(\d+)(?:[/?#]|$)/);
-  if (!match) return null;
-  const n = Number.parseInt(match[1], 10);
-  return Number.isInteger(n) && n > 0 ? n : null;
-}
+export const parsePrNumber = parsePrNumberFromUrl;
 
 /**
  * Build the cross-reference comment body posted on the Story issue when
