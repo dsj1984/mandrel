@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T18:08:48.011Z",
+  "generatedAt": "2026-06-05T18:39:41.259Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.000914494741656,
+      "p95": 12,
       "max": 38.82544452792387,
       "methodsAbove20": 20
     }
@@ -11722,12 +11722,6 @@
       "method": "assertWaveCompleteness",
       "startLine": 69,
       "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/workers/crap-worker.js",
-      "method": "handleCrapWorkerMessage",
-      "startLine": 57,
-      "crap": 13
     },
     {
       "path": ".agents/scripts/lib/workers/maintainability-report-worker.js",
