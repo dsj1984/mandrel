@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T11:27:51.759Z",
+  "generatedAt": "2026-06-05T11:31:54.950Z",
   "rollup": {
     "*": {
       "min": 45.044,
@@ -5049,10 +5049,6 @@
     {
       "path": "tests/spec-freshness.test.js",
       "mi": 109.4
-    },
-    {
-      "path": "tests/story-3302-body-shape.test.js",
-      "mi": 107.056
     },
     {
       "path": "tests/story-close-branch-restore.test.js",
