@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-03T16:42:54.244Z",
+  "generatedAt": "2026-06-05T10:47:30.741Z",
   "rollup": {
     "*": {
       "min": 45.044,
-      "p50": 103.85,
+      "p50": 103.88,
       "p95": 121.586
     }
   },
@@ -33,10 +33,6 @@
     {
       "path": ".agents/scripts/check-baselines.js",
       "mi": 106.627
-    },
-    {
-      "path": ".agents/scripts/check-dead-exports.js",
-      "mi": 92.737
     },
     {
       "path": ".agents/scripts/check-doc-links.js",
@@ -2629,10 +2625,6 @@
     {
       "path": "tests/check-crap-json.test.js",
       "mi": 87.345
-    },
-    {
-      "path": "tests/check-dead-exports.test.js",
-      "mi": 93.641
     },
     {
       "path": "tests/check-doc-links.test.js",
