@@ -19,9 +19,15 @@
  *
  * Critical findings cause `runStoryScopeReview` to return `halted: true`;
  * the caller raises that to a thrown error so auto-merge is not enabled.
+ *
+ * Delegates the `runCodeReview` invocation to `runStoryReviewCore`
+ * (exported from `story-close/phases/code-review.js`) so both the
+ * Epic-attached and standalone close paths share a single invocation
+ * pattern (Story #3653).
  */
 
 import { parsePrNumberFromUrl } from '../../../github-url.js';
+import { runStoryReviewCore } from '../../story-close/phases/code-review.js';
 import { postStructuredComment } from '../../ticketing/state.js';
 
 /**
@@ -123,17 +129,15 @@ export async function runStoryScopeReview({
     `Running Story-scope code review for Story #${storyId} (${baseBranch}...${storyBranch}) → PR #${prNumber}...`,
   );
 
-  const result = await runCodeReviewFn({
-    scope: 'story',
-    ticketId: storyId,
+  const result = await runStoryReviewCore({
+    storyId,
     baseRef: baseBranch,
     headRef: storyBranch,
     commentTargetId: prNumber,
     provider,
-    logger: {
-      info: (m) => progress('REVIEW', m),
-      warn: (m) => progress('REVIEW', `⚠️ ${m}`),
-    },
+    progress,
+    progressTag: 'REVIEW',
+    runCodeReviewFn,
   });
 
   const sev = result.severity ?? {
