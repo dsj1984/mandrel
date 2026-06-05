@@ -62,9 +62,9 @@ export function pickSpawnShape(cmdConfig) {
 }
 
 // Shared core: extract the JSON-array tail from shell output, then tally
-// errors/warnings. `detailed=true` also returns per-file counts + rule
+// errors/warnings. `{ detailed: true }` also returns per-file counts + rule
 // histogram (used by `diff` + `captureBaseline` to attribute regressions).
-function parseLintShared(jsonStr, detailed) {
+function parseLintShared(jsonStr, { detailed = false } = {}) {
   const empty = detailed
     ? { errorCount: 0, warningCount: 0, byFile: {} }
     : { errorCount: 0, warningCount: 0 };
@@ -103,7 +103,7 @@ function parseLintShared(jsonStr, detailed) {
 }
 
 export function parseLintOutput(jsonStr, _cmdConfig) {
-  return parseLintShared(jsonStr, false);
+  return parseLintShared(jsonStr, { detailed: false });
 }
 
 /**
@@ -111,7 +111,7 @@ export function parseLintOutput(jsonStr, _cmdConfig) {
  * counts and a rule histogram keyed by ruleId (or `<unknown>`).
  */
 export function parseLintOutputDetailed(jsonStr, _cmdConfig) {
-  return parseLintShared(jsonStr, true);
+  return parseLintShared(jsonStr, { detailed: true });
 }
 
 // Soft-fail contract (Tech Spec #819): a JSON-parse failure emits the
@@ -122,7 +122,7 @@ function runLintShared(
   executionTimeoutMs,
   executionMaxBuffer,
   gateModeOpts,
-  detailed,
+  { detailed = false } = {},
 ) {
   const shape = pickSpawnShape(cmdConfig);
   if (shape.command === '') {
@@ -139,7 +139,7 @@ function runLintShared(
     shell: shape.shell,
   });
   try {
-    return parseLintShared(result.stdout.trim(), detailed);
+    return parseLintShared(result.stdout.trim(), { detailed });
   } catch (err) {
     return softFailOrThrow(
       'LINT_OUTPUT_PARSE_FAILED',
@@ -160,7 +160,9 @@ export function runLintCommand(
     executionTimeoutMs,
     executionMaxBuffer,
     gateModeOpts,
-    false,
+    {
+      detailed: false,
+    },
   );
 }
 
@@ -175,7 +177,9 @@ function runLintCommandDetailed(
     executionTimeoutMs,
     executionMaxBuffer,
     gateModeOpts,
-    true,
+    {
+      detailed: true,
+    },
   );
 }
 

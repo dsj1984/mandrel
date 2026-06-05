@@ -18,7 +18,6 @@ import { deriveFixGuidance } from '../../crap-engine.js';
 import { getCrapBaseline } from '../../crap-utils.js';
 import { loadBaseline } from '../../gates/baseline-store.js';
 import { Logger } from '../../Logger.js';
-import { componentMatches } from '../component-matcher.js';
 import {
   kernelDriftAxis,
   missingBaselineAxis,
@@ -26,6 +25,13 @@ import {
 } from '../envelope.js';
 import { canonicalise } from '../path-canon.js';
 import { mergeRowsByScope } from '../scope.js';
+import {
+  makeAggregate,
+  makeCompare,
+  makeEpsilon,
+  makeRollup,
+  percentile,
+} from './_shared-metric.js';
 
 export const name = 'crap';
 export const keyField = 'path';
@@ -86,38 +92,24 @@ export function sortRows(rows) {
   });
 }
 
-function aggregate(rows) {
-  if (!rows || rows.length === 0) {
-    return { p50: 0, p95: 0, max: 0, methodsAbove20: 0 };
-  }
-  const sorted = [...rows].map((r) => r.crap).sort((a, b) => a - b);
-  return {
-    p50: percentile(sorted, 50),
-    p95: percentile(sorted, 95),
-    max: sorted[sorted.length - 1],
-    methodsAbove20: sorted.filter((c) => c > 20).length,
-  };
-}
+// Re-export percentile so existing consumers that imported it from crap.js
+// keep working without an import path change.
+export { percentile };
 
-function percentile(sortedValues, p) {
-  if (sortedValues.length === 0) return 0;
-  // Nearest-rank percentile — keeps the rollup integer-friendly without
-  // pulling in a stats dep.
-  const idx = Math.min(
-    sortedValues.length - 1,
-    Math.max(0, Math.ceil((p / 100) * sortedValues.length) - 1),
-  );
-  return sortedValues[idx];
-}
+const aggregate = makeAggregate({
+  fields: [
+    {
+      rowKey: 'crap',
+      percentiles: [50, 95],
+      extras: (sorted) => ({
+        max: sorted.length > 0 ? sorted[sorted.length - 1] : 0,
+        methodsAbove20: sorted.filter((c) => c > 20).length,
+      }),
+    },
+  ],
+});
 
-export function rollup(rows, components = []) {
-  const out = { '*': aggregate(rows) };
-  for (const c of components ?? []) {
-    const matched = (rows ?? []).filter((r) => componentMatches(c, r.path));
-    out[c.name] = aggregate(matched);
-  }
-  return out;
-}
+export const rollup = makeRollup({ aggregate });
 
 /**
  * Pure compare(head, base) for the CRAP kind. Diffs rows by the
@@ -138,37 +130,13 @@ export function rollup(rows, components = []) {
  *
  * No I/O. No process exit. No friction emission.
  */
-export function compare(head, base) {
-  const headRows = Array.isArray(head?.rows) ? head.rows : [];
-  const baseRows = Array.isArray(base?.rows) ? base.rows : [];
-  const baseByKey = new Map();
-  for (const r of baseRows) baseByKey.set(crapRowKey(r), r);
-  const seen = new Set();
-  const regressions = [];
-  const improvements = [];
-  const unchanged = [];
-  const additions = [];
-  for (const h of headRows) {
-    const key = crapRowKey(h);
-    seen.add(key);
-    const b = baseByKey.get(key);
-    if (!b) {
-      additions.push({ key, head: h, base: null });
-      continue;
-    }
-    const delta = (h.crap ?? 0) - (b.crap ?? 0);
-    if (delta > 0) regressions.push({ key, head: h, base: b });
-    else if (delta < 0) improvements.push({ key, head: h, base: b });
-    else unchanged.push({ key, head: h, base: b });
-  }
-  for (const b of baseRows) {
-    const key = crapRowKey(b);
-    if (seen.has(key)) continue;
-    if ((b.crap ?? 0) > 0) improvements.push({ key, head: null, base: b });
-    else unchanged.push({ key, head: null, base: b });
-  }
-  return { regressions, improvements, unchanged, additions };
-}
+export const compare = makeCompare({
+  identity: crapRowKey,
+  betterIsHigher: false,
+  metricField: 'crap',
+  // Removed methods whose crap > 0 are improvements (the debt is gone).
+  removedIsImprovement: (b) => (b.crap ?? 0) > 0,
+});
 
 function crapRowKey(row) {
   return `${row.path}::${row.method}@${row.startLine}`;
@@ -184,18 +152,10 @@ function crapRowKey(row) {
  * @param {number} epsilon non-negative absolute tolerance on CRAP
  * @returns {Array<object>}
  */
-export function applyEpsilon(prior, regenerated, epsilon) {
-  const priorRows = Array.isArray(prior) ? prior : [];
-  const regenRows = Array.isArray(regenerated) ? regenerated : [];
-  const eps = Number.isFinite(epsilon) && epsilon >= 0 ? epsilon : 0;
-  const priorByKey = new Map();
-  for (const r of priorRows) priorByKey.set(crapRowKey(r), r);
-  return regenRows.map((row) => {
-    const p = priorByKey.get(crapRowKey(row));
-    if (!p) return row;
-    return Math.abs((row.crap ?? 0) - (p.crap ?? 0)) <= eps ? p : row;
-  });
-}
+export const applyEpsilon = makeEpsilon({
+  identity: crapRowKey,
+  metricField: 'crap',
+});
 
 /**
  * Pure scope-aware merge for s-diff-scoped-writes (Story #1974). CRAP rows

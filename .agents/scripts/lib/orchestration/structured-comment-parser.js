@@ -11,11 +11,11 @@
  *
  * This helper centralizes that single regex so a future change to the
  * fence format (e.g. tolerating CRLF, surrounding whitespace, alternate
- * fence languages) lives in exactly one place. The function is deliberately
- * permissive about input shape: anything that isn't `{ body: string }`
- * returns `null` rather than throwing, matching what the existing callers
- * already do — they all treat parse failure as "no payload available" and
- * fall back to a default state.
+ * fence languages) lives in exactly one place. The functions are
+ * deliberately permissive about input shape: anything that isn't the
+ * expected type returns `null` rather than throwing, matching what the
+ * existing callers already do — they all treat parse failure as "no
+ * payload available" and fall back to a default state.
  *
  * Acceptance contract for this helper:
  *   - returns the parsed JSON value when the body contains a valid fenced
@@ -29,6 +29,30 @@ const JSON_FENCE_RE = /```json\s*\n([\s\S]*?)\n```/;
 
 /**
  * Extract the parsed JSON object from the first fenced ```json``` block in
+ * a raw string. Returns `null` for any malformed or missing input — callers
+ * treat that as "no payload" and fall back.
+ *
+ * Use this variant when the caller already holds the raw comment body as a
+ * string (e.g. after extracting `.body` themselves). Use
+ * `parseFencedJsonComment` when working with a comment-like object.
+ *
+ * @param {unknown} text — the raw string to scan.
+ * @returns {unknown | null} the parsed JSON value (typically an object),
+ *   or `null` when extraction fails.
+ */
+export function parseFencedJson(text) {
+  if (typeof text !== 'string') return null;
+  const match = text.match(JSON_FENCE_RE);
+  if (!match) return null;
+  try {
+    return JSON.parse(match[1]);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Extract the parsed JSON object from the first fenced ```json``` block in
  * a structured comment's `body`. Returns `null` for any malformed or
  * missing input — callers treat that as "no payload" and fall back.
  *
@@ -39,11 +63,5 @@ const JSON_FENCE_RE = /```json\s*\n([\s\S]*?)\n```/;
  */
 export function parseFencedJsonComment(comment) {
   if (!comment || typeof comment.body !== 'string') return null;
-  const match = comment.body.match(JSON_FENCE_RE);
-  if (!match) return null;
-  try {
-    return JSON.parse(match[1]);
-  } catch {
-    return null;
-  }
+  return parseFencedJson(comment.body);
 }

@@ -167,9 +167,25 @@ test('renderDiff: lines + summary for added and removed', () => {
   assert.match(out, /added=1 removed=1/);
 });
 
-test('renderDiff: summary even on empty diff', () => {
+test('renderDiff: summary includes (gate fail) when added rows present', () => {
+  const out = renderDiff({
+    added: [{ file: 'a.js', symbol: 'foo' }],
+    removed: [],
+  });
+  assert.match(out, /\(gate fail\)/);
+});
+
+test('renderDiff: summary includes (ok) on empty diff', () => {
   const out = renderDiff({ added: [], removed: [] });
-  assert.match(out, /added=0 removed=0 \(advisory\)/);
+  assert.match(out, /added=0 removed=0 \(ok\)/);
+});
+
+test('renderDiff: summary includes (ok) when only removals (baseline shrinking)', () => {
+  const out = renderDiff({
+    added: [],
+    removed: [{ file: 'b.js', symbol: 'bar' }],
+  });
+  assert.match(out, /\(ok\)/);
 });
 
 function captureStream() {
@@ -221,7 +237,7 @@ test('runCli: exits 0 and emits JSON envelope on clean diff', async () => {
   assert.deepEqual(envelope.removed, []);
 });
 
-test('runCli: surfaces drift (added + removed) in JSON envelope', async () => {
+test('runCli: exits 1 and includes exitCode in JSON envelope when added exports present', async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dead-exports-cli-'));
   const baselinePath = path.join(tmp, 'baseline.json');
   fs.writeFileSync(
@@ -260,13 +276,53 @@ test('runCli: surfaces drift (added + removed) in JSON envelope', async () => {
     stdout: stdout.stream,
     stderr: stderr.stream,
   });
-  assert.equal(exit, 0);
+  // Ratchet-down gate: added exports cause exit 1.
+  assert.equal(exit, 1);
   const envelope = JSON.parse(stdout.text());
   assert.deepEqual(envelope.added, [{ file: 'c.js', symbol: 'baz' }]);
   assert.deepEqual(envelope.removed, [{ file: 'b.js', symbol: 'bar' }]);
+  assert.equal(envelope.exitCode, 1);
 });
 
-test('runCli: human output prints + and - lines for drift', async () => {
+test('runCli: exits 0 when only removals detected (baseline shrinking)', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dead-exports-cli-'));
+  const baselinePath = path.join(tmp, 'baseline.json');
+  fs.writeFileSync(
+    baselinePath,
+    JSON.stringify({
+      kernelVersion: '6.14.0',
+      generatedAt: '2026-01-01T00:00:00Z',
+      rows: [
+        { file: 'a.js', symbol: 'foo' },
+        { file: 'b.js', symbol: 'bar' },
+      ],
+    }),
+  );
+  const knipOutPath = path.join(tmp, 'knip.json');
+  fs.writeFileSync(
+    knipOutPath,
+    JSON.stringify({
+      issues: [{ file: 'a.js', exports: [{ name: 'foo' }] }],
+    }),
+  );
+
+  const stdout = captureStream();
+  const stderr = captureStream();
+  const exit = await runCli({
+    argv: ['--baseline', baselinePath, '--knip-output', knipOutPath, '--json'],
+    cwd: tmp,
+    stdout: stdout.stream,
+    stderr: stderr.stream,
+  });
+  // Removals-only is the success signal — baseline is shrinking.
+  assert.equal(exit, 0);
+  const envelope = JSON.parse(stdout.text());
+  assert.deepEqual(envelope.added, []);
+  assert.deepEqual(envelope.removed, [{ file: 'b.js', symbol: 'bar' }]);
+  assert.equal(envelope.exitCode, 0);
+});
+
+test('runCli: human output prints + and - lines for drift and gate-fail marker', async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dead-exports-cli-'));
   const baselinePath = path.join(tmp, 'baseline.json');
   fs.writeFileSync(
@@ -297,14 +353,16 @@ test('runCli: human output prints + and - lines for drift', async () => {
     stdout: stdout.stream,
     stderr: stderr.stream,
   });
-  assert.equal(exit, 0);
+  // Added exports → gate fail → exit 1.
+  assert.equal(exit, 1);
   const out = stdout.text();
   assert.match(out, /\+ c\.js: baz/);
   assert.match(out, /- b\.js: bar/);
   assert.match(out, /added=1 removed=1/);
+  assert.match(out, /\(gate fail\)/);
 });
 
-test('runCli: returns 0 even when baseline is missing (advisory)', async () => {
+test('runCli: exits 1 when baseline is missing and current rows are non-empty', async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dead-exports-cli-'));
   const knipOutPath = path.join(tmp, 'knip.json');
   fs.writeFileSync(
@@ -326,9 +384,9 @@ test('runCli: returns 0 even when baseline is missing (advisory)', async () => {
     stdout: stdout.stream,
     stderr: stderr.stream,
   });
-  assert.equal(exit, 0);
+  // No baseline → every current row appears as added → gate fail.
+  assert.equal(exit, 1);
   assert.match(stderr.text(), /baseline not found/);
-  // With no baseline, the lone current row surfaces as added.
   assert.match(stdout.text(), /\+ a\.js: foo/);
 });
 

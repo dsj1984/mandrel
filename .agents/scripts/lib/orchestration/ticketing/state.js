@@ -14,6 +14,16 @@
  * cycle because neither side dereferences the other at
  * module-evaluation time — both bindings are resolved at call-time
  * once both modules have completed evaluation.
+ *
+ * Story #3661 — `_columnSyncRegistry` is a module-level WeakMap that
+ * retains one `ColumnSync` instance per provider for the lifetime of the
+ * process. `ColumnSync` already caches the project metadata (projectId,
+ * fieldId, option ids) inside the instance after the first GraphQL fetch
+ * (`this._meta`), but that cache was discarded on every label transition
+ * because `syncProjectStatusColumn` constructed a fresh instance each
+ * call. The registry lets the instance — and therefore its `_meta`
+ * cache — survive across transitions, so the invariant metadata is
+ * resolved exactly once per run rather than once per label flip.
  */
 
 import { extractEpicIdFromBody } from '../../dependency-parser.js';
@@ -40,6 +50,31 @@ import {
   structuredCommentCacheKey,
   structuredCommentMarker,
 } from './reads.js';
+
+/**
+ * One `ColumnSync` instance per provider, retained for the process
+ * lifetime so the invariant project metadata (`projectId`, `fieldId`,
+ * option ids) is fetched exactly once per run regardless of how many
+ * label transitions fire. The `ColumnSync` instance already caches
+ * the metadata internally (`_meta`), but that cache was thrown away on
+ * every call to `syncProjectStatusColumn` because the function
+ * constructed a fresh instance each time. Story #3661.
+ *
+ * `WeakMap` keys are GC-friendly: when a provider is collected the
+ * entry is automatically removed without a manual eviction step.
+ */
+const _columnSyncRegistry = new WeakMap();
+
+/**
+ * Drop the cached `ColumnSync` for a given provider. Exposed as a
+ * named export so unit tests that swap providers between assertions can
+ * reset the registry without reloading the module.
+ *
+ * @param {object} provider
+ */
+export function _resetColumnSyncCache(provider) {
+  _columnSyncRegistry.delete(provider);
+}
 
 /**
  * Guard the inputs to {@link transitionTicketState}. Extracted from the
@@ -101,13 +136,49 @@ async function loadTicketSnapshot(provider, opts, ticketId) {
  * GraphQL failure MUST NOT block the label transition itself. Errors
  * surface via `Logger.warn` and the function resolves cleanly.
  *
+ * The `_makeColumnSync` default param is a DIP seam: production callers
+ * accept the default (which constructs a real `ColumnSync`); tests inject
+ * a factory stub that avoids the GraphQL dependency without mocking the
+ * module. Story #3645.
+ *
+ * Story #3661 — when the caller uses the default factory (i.e. did not
+ * inject a stub), the function looks up or creates a `ColumnSync`
+ * instance in `_columnSyncRegistry` keyed by `provider`. This keeps the
+ * instance — and therefore its `_meta` cache — alive across transitions
+ * so the invariant project metadata is fetched exactly once per run.
+ * Test-injected factories bypass the registry entirely; their synthetic
+ * stubs are never stored in `_columnSyncRegistry`.
+ *
  * @param {object} provider
  * @param {number} ticketId
  * @param {string} newState
+ * @param {(opts: object) => { sync: (id: number, labels: string[]) => Promise<object> }} [_makeColumnSync]
  */
-async function syncProjectStatusColumn(provider, ticketId, newState) {
+async function syncProjectStatusColumn(
+  provider,
+  ticketId,
+  newState,
+  _makeColumnSync,
+) {
   try {
-    const sync = new ColumnSync({ provider, logger: Logger });
+    let sync;
+    if (_makeColumnSync) {
+      // Test-injected factory: bypass the registry so stubs are never
+      // accidentally cached and reused in subsequent calls.
+      sync = _makeColumnSync({ provider, logger: Logger });
+    } else {
+      // Production path: look up or create the per-provider instance.
+      // The instance's `_meta` cache survives across label transitions
+      // so the invariant project metadata (projectId, fieldId, options)
+      // is only fetched once per process run. Story #3661.
+      if (!_columnSyncRegistry.has(provider)) {
+        _columnSyncRegistry.set(
+          provider,
+          new ColumnSync({ provider, logger: Logger }),
+        );
+      }
+      sync = _columnSyncRegistry.get(provider);
+    }
     await sync.sync(ticketId, [newState]);
   } catch (err) {
     Logger.warn(
@@ -189,7 +260,7 @@ function dispatchTransitionNotification(args) {
  * @param {import('../../ITicketingProvider.js').ITicketingProvider} provider
  * @param {number} ticketId
  * @param {string} newState - Must be one of STATE_LABELS.
- * @param {{ notify?: Function, cascade?: boolean, ticketSnapshot?: object }} [opts]
+ * @param {{ notify?: Function, cascade?: boolean, ticketSnapshot?: object, _makeColumnSync?: Function }} [opts]
  *   Optional notify function (the exported `notify(ticketId, payload, opts)`
  *   from `notify.js`, or any stub matching its shape). When provided, a
  *   state-transition notification fires after a successful transition.
@@ -215,6 +286,11 @@ function dispatchTransitionNotification(args) {
  *   `transitionTicketState` would otherwise issue — one for the notify
  *   `fromState` lookup and one inside `provider.updateTicket`'s label
  *   merge path. Backwards compatible: when omitted, behaviour is unchanged.
+ *
+ *   `_makeColumnSync` (Story #3645 DIP seam) — factory for the board-sync
+ *   object. Production callers omit it (the default constructs a real
+ *   `ColumnSync`); tests inject a stub to avoid GraphQL calls without
+ *   module-level mocking.
  */
 export async function transitionTicketState(
   provider,
@@ -261,7 +337,13 @@ export async function transitionTicketState(
 
   // Story #2548 — mirror the new state onto the Projects v2 Status
   // column. Best-effort; never blocks the transition.
-  await syncProjectStatusColumn(provider, ticketId, newState);
+  // Story #3645 — thread the DIP seam so callers can inject a stub.
+  await syncProjectStatusColumn(
+    provider,
+    ticketId,
+    newState,
+    opts._makeColumnSync,
+  );
 
   // Automatically trigger upward cascade on every transition (Story
   // #2676). The unified entry point is `cascadeParentState`, which:
@@ -333,16 +415,21 @@ export async function transitionStoryDirect(
  * Mutates the tasklist checkbox in the parent's body.
  * E.g., `- [ ] #123` to `- [x] #123`
  *
+ * Story #3645 — positional `checked` boolean replaced with a named
+ * `{ checked }` options bag to eliminate the boolean-trap smell (SRP /
+ * naming clarity audit finding). All call sites updated in the same PR
+ * per the No-Shim cutover rule.
+ *
  * @param {import('../../ITicketingProvider.js').ITicketingProvider} provider
  * @param {number} ticketId - ID of parent ticket
  * @param {number} subIssueId - ID of child ticket
- * @param {boolean} checked
+ * @param {{ checked: boolean }} opts
  */
 export async function toggleTasklistCheckbox(
   provider,
   ticketId,
   subIssueId,
-  checked,
+  { checked },
 ) {
   const ticket = await provider.getTicket(ticketId);
   const body = ticket.body || '';

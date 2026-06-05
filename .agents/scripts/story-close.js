@@ -162,7 +162,7 @@ export async function runStoryClose({
   // Phase 2 — preflight (exit-code 2 reservation when refused).
   const preflightOutcome = await runStoryClosePreflight({ storyId, cwd });
   if (!preflightOutcome.ok) {
-    const blockedResult = emitPreflightBlockedResult({
+    const blockedResult = await emitPreflightBlockedResult({
       storyId,
       preflight: preflightOutcome,
       progress,

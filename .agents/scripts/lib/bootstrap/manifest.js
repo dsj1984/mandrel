@@ -201,7 +201,7 @@ export function buildMutationManifest(ctx = {}) {
         target: rel('.agentrc.json'),
         action: 'merge',
         detail:
-          'Seed agentSettings.quality coding-guardrails and auto-refresh defaults.',
+          'Seed delivery.quality coding-guardrails and auto-refresh defaults.',
         reversible: true,
       },
     );

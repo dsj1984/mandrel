@@ -73,8 +73,8 @@ const MIGRATION_ALLOWLIST = Object.freeze(
     // (Task #2215) and is intentionally absent from this list — the refresh-
     // service invariant must catch any regression that reintroduces a direct
     // kind-internal write to that CLI.
-    '.agents/scripts/update-coverage-baseline.js',
-    '.agents/scripts/update-crap-baseline.js',
+    // Story #3658 migrated update-crap-baseline.js and update-coverage-baseline.js;
+    // both are intentionally absent — the invariant catches any regression.
     '.agents/scripts/update-mutation-baseline.js',
     '.agents/scripts/lint-baseline.js',
     '.agents/scripts/lib/coverage-baseline.js',
@@ -297,6 +297,16 @@ describe('refresh-service invariant — repository scan', () => {
     assert.ok(
       !MIGRATION_ALLOWLIST.has('.agents/scripts/epic-deliver-finalize.js'),
       'Story #2204 has migrated finalize; the allowlist entry MUST be removed',
+    );
+    // Story #3658 — update-crap-baseline.js and update-coverage-baseline.js
+    // now route through refreshBaseline(). Their allowlist entries are removed.
+    assert.ok(
+      !MIGRATION_ALLOWLIST.has('.agents/scripts/update-crap-baseline.js'),
+      'Story #3658 has migrated update-crap-baseline.js; the allowlist entry MUST be removed',
+    );
+    assert.ok(
+      !MIGRATION_ALLOWLIST.has('.agents/scripts/update-coverage-baseline.js'),
+      'Story #3658 has migrated update-coverage-baseline.js; the allowlist entry MUST be removed',
     );
   });
 });

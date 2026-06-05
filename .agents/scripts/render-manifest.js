@@ -31,19 +31,13 @@ import { runAsCli } from './lib/cli-utils.js';
 import { epicArtifactPath } from './lib/config/temp-paths.js';
 import { PROJECT_ROOT, resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
+import { parseFencedJson } from './lib/orchestration/structured-comment-parser.js';
 import { findStructuredComment } from './lib/orchestration/ticketing.js';
 import { atomicWrite } from './lib/presentation/manifest-persistence.js';
 import { createProvider } from './lib/provider-factory.js';
 
 export function extractManifestJson(body) {
-  if (typeof body !== 'string') return null;
-  const fence = body.match(/```json\s*\n([\s\S]*?)\n```/);
-  if (!fence) return null;
-  try {
-    return JSON.parse(fence[1]);
-  } catch {
-    return null;
-  }
+  return parseFencedJson(body);
 }
 
 /**

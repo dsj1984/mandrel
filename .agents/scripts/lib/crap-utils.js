@@ -1,9 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import escomplex from 'typhonjs-escomplex';
 import { canonicalise as canonicalisePath } from './baselines/path-canon.js';
-import { findCoverageEntry } from './coverage-utils.js';
+import {
+  coverageForMethodInEntry,
+  findCoverageEntry,
+} from './coverage-utils.js';
 import { runOnPool } from './cpu-pool.js';
-import { calculateCrapForSource } from './crap-engine.js';
+import { crapFormula } from './crap-engine.js';
 import { Logger } from './Logger.js';
 import {
   resolveTsTranspilerVersion,
@@ -199,6 +203,58 @@ export function buildBaselineEnvelope({
 }
 
 /**
+ * Parse `source` exactly once with escomplex and derive both the
+ * maintainability score and the raw CRAP method rows from that single report.
+ *
+ * Callers that need both scores for the same source string (e.g. a combined
+ * CRAP + MI scan) MUST use this helper rather than calling `calculateCrapForSource`
+ * and `calculateForSource` separately — doing so would parse the AST twice.
+ *
+ * Coverage-dependent CRAP values require a `coverageForFile` entry (the value
+ * from `coverage-final.json` for this file). Pass `null` when no coverage is
+ * available; method rows whose coverage cannot be resolved will carry
+ * `coverage: null` and `crap: null`.
+ *
+ * @param {string} source Prepared (possibly transpiled) JavaScript source text.
+ * @param {object|null} coverageForFile Istanbul coverage entry for this file.
+ * @returns {{
+ *   report: object,
+ *   miScore: number,
+ *   crapRows: Array<{
+ *     method: string,
+ *     startLine: number,
+ *     cyclomatic: number,
+ *     coverage: number|null,
+ *     crap: number|null,
+ *   }>,
+ *   parseError: boolean,
+ * }}
+ */
+export function analyzeOnce(source, coverageForFile) {
+  let report;
+  try {
+    report = escomplex.analyzeModule(source);
+  } catch {
+    return { report: null, miScore: 0, crapRows: [], parseError: true };
+  }
+  const miScore =
+    typeof report.maintainability === 'number' ? report.maintainability : 0;
+  const methods = report?.methods ?? [];
+  const crapRows = [];
+  for (const m of methods) {
+    const startLine = m?.lineStart;
+    if (typeof startLine !== 'number') continue;
+    const cyclomatic = m?.cyclomatic ?? 0;
+    const coverage = coverageForFile
+      ? coverageForMethodInEntry(coverageForFile, startLine)
+      : null;
+    const crap = coverage === null ? null : crapFormula(cyclomatic, coverage);
+    crapRows.push({ method: m.name, startLine, cyclomatic, coverage, crap });
+  }
+  return { report, miScore, crapRows, parseError: false };
+}
+
+/**
  * Scan `targetDirs` for JS files, score each method via the CRAP kernel, and
  * return enriched rows plus skip counters. Does not write to disk.
  *
@@ -212,12 +268,20 @@ export function buildBaselineEnvelope({
  * I/O or scoring happens — so pre-push / PR-CI runs never pay the
  * parse-and-score cost on untouched files.
  *
+ * When `preScannedFiles` is provided (an array of absolute paths already
+ * collected by a prior `scanDirectory` pass over the same `targetDirs`), the
+ * directory walk is skipped entirely — the supplied list is used as-is.
+ * Callers that run both CRAP and MI passes over the same target dirs (e.g.
+ * `regenerateMainFromTree`) SHOULD pass the MI scan's file list here so the
+ * tree is walked only once per run.
+ *
  * @param {{
  *   targetDirs: string[],
  *   coverage: object|null,
  *   requireCoverage?: boolean,
  *   cwd?: string,
  *   scopeFiles?: Set<string>|string[]|null,
+ *   preScannedFiles?: string[]|null,
  * }} params
  * @returns {{
  *   rows: Array<{
@@ -240,6 +304,7 @@ export async function scanAndScore({
   cwd = process.cwd(),
   scopeFiles = null,
   ignoreGlobs = [],
+  preScannedFiles = null,
 }) {
   if (!Array.isArray(targetDirs)) {
     throw new TypeError('scanAndScore: targetDirs must be an array');
@@ -250,10 +315,14 @@ export async function scanAndScore({
       : scopeFiles instanceof Set
         ? scopeFiles
         : new Set(scopeFiles);
-  const files = [];
-  for (const dir of targetDirs) {
-    const abs = path.isAbsolute(dir) ? dir : path.resolve(cwd, dir);
-    scanDirectory(abs, files, { cwd, ignoreGlobs });
+  // When the caller supplies a pre-walked file list (e.g. from a prior MI
+  // scan over the same target dirs), skip the directory walk entirely.
+  const files = preScannedFiles != null ? [...preScannedFiles] : [];
+  if (preScannedFiles == null) {
+    for (const dir of targetDirs) {
+      const abs = path.isAbsolute(dir) ? dir : path.resolve(cwd, dir);
+      scanDirectory(abs, files, { cwd, ignoreGlobs });
+    }
   }
   files.sort();
 
@@ -329,6 +398,9 @@ export async function scanAndScore({
  * In-process scorer used by both the small-batch fast path and as the
  * reference implementation against which the worker output is asserted
  * byte-for-byte in the cpu-pool tests.
+ *
+ * Uses `analyzeOnce` so the source is parsed a single time and both the
+ * CRAP rows and the MI score are derived from the same escomplex report.
  */
 function scoreFileSerial({ abs, relPath, requireCoverage }, coverage) {
   const entry = findCoverageEntry(coverage, relPath);
@@ -357,10 +429,8 @@ function scoreFileSerial({ abs, relPath, requireCoverage }, coverage) {
       skippedMethodsNoCoverage: 0,
     };
   }
-  let methodRows;
-  try {
-    methodRows = calculateCrapForSource(prepared, entry);
-  } catch {
+  const { crapRows, parseError } = analyzeOnce(prepared, entry);
+  if (parseError) {
     return {
       skippedFileNoCoverage: false,
       rows: null,
@@ -369,7 +439,7 @@ function scoreFileSerial({ abs, relPath, requireCoverage }, coverage) {
   }
   const rows = [];
   let skippedMethodsNoCoverage = 0;
-  for (const mr of methodRows) {
+  for (const mr of crapRows) {
     if (mr.crap === null || mr.coverage === null) {
       skippedMethodsNoCoverage += 1;
       continue;
@@ -386,8 +456,15 @@ function scoreFileSerial({ abs, relPath, requireCoverage }, coverage) {
 }
 
 async function scoreFilesViaPool(queue, coverage) {
-  const results = await runOnPool(CRAP_WORKER_URL, queue, {
-    workerData: { coverage },
+  // Resolve each file's coverage entry on the host before dispatch so workers
+  // receive only their file's entry rather than the whole map. This removes the
+  // O(workers × coverageMapSize) structured-clone at spawn time.
+  const enrichedQueue = queue.map((item) => ({
+    ...item,
+    coverageEntry: findCoverageEntry(coverage, item.relPath),
+  }));
+  const results = await runOnPool(CRAP_WORKER_URL, enrichedQueue, {
+    workerData: {},
   });
   return results.map((r, i) => {
     const item = queue[i];

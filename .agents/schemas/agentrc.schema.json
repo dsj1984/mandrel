@@ -303,7 +303,11 @@
     "deliverRunner": {
       "type": "object",
       "properties": {
-        "concurrencyCap": { "type": "integer", "minimum": 1 },
+        "concurrencyCap": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum Stories dispatched in parallel within one wave. Default 3. Conservative by design — keeps host-quota consumption predictable on small waves and avoids GitHub API saturation. Operators running wide-wave Epics on hosts with adequate parallel-agent quota should raise this value to reduce wall-clock time proportionally. See epic-deliver.md § Phase 2b for the dispatch model and the throughput tradeoff discussion."
+        },
         "progressReportIntervalSec": { "type": "integer", "minimum": 0 },
         "verifyConcurrencyCap": {
           "type": "integer",

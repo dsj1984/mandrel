@@ -15,6 +15,7 @@
  * pre-push time.
  */
 
+import { diffNameOnly } from '../../changed-files.js';
 import { cachedGitFetchSync } from '../../git/cached-fetch.js';
 import { gitSpawn as defaultGitSpawn } from '../../git-utils.js';
 import { calculateForSource } from '../../maintainability-engine.js';
@@ -72,24 +73,16 @@ function refreshEpicRef(cwd, epicBranch, git) {
  * @returns {{ ok: true, files: string[] } | { ok: false, detail: string }}
  */
 function diffChangedFiles({ cwd, epicBranch, storyBranch, git }) {
-  const diff = git.gitSpawn(
-    cwd,
-    'diff',
-    '--name-only',
-    `origin/${epicBranch}...${storyBranch}`,
-  );
-  if (diff.status !== 0) {
-    return {
-      ok: false,
-      detail: diff.stderr || diff.stdout || `exit ${diff.status}`,
-    };
+  try {
+    const files = diffNameOnly({
+      range: `origin/${epicBranch}...${storyBranch}`,
+      cwd,
+      gitSpawn: git.gitSpawn,
+    });
+    return { ok: true, files };
+  } catch (err) {
+    return { ok: false, detail: err.message };
   }
-  const files = (diff.stdout || '')
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .map((line) => line.replace(/\\/g, '/'));
-  return { ok: true, files };
 }
 
 /**

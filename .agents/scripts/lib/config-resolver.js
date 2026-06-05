@@ -35,53 +35,21 @@ import { getWorktreeIsolation } from './config/worktree-isolation.js';
 import { getAgentrcValidator } from './config-schema.js';
 import { loadEnv } from './env-loader.js';
 
-export {
-  BASELINES_DEFAULTS,
-  getBaselines,
-  resolveBaselines,
-} from './config/baselines.js';
+export { BASELINES_DEFAULTS, getBaselines } from './config/baselines.js';
 export { CI_DELIVERY_DEFAULTS, getCiDelivery } from './config/ci.js';
 export { COMMANDS_DEFAULTS, getCommands } from './config/commands.js';
-export {
-  BRANCH_PROTECTION_DEFAULTS,
-  DEFAULT_REQUIRED_CHECKS,
-  getGitHub,
-  MERGE_METHODS_DEFAULTS,
-  NOTIFICATIONS_DEFAULTS,
-} from './config/github.js';
-export {
-  getHydration,
-  HYDRATION_DEFAULTS,
-  resolveHydration,
-} from './config/hydration.js';
-export { getLifecycle, LIFECYCLE_DEFAULTS } from './config/lifecycle.js';
-export {
-  getLimits,
-  getSignals,
-  LIMITS_DEFAULTS,
-  resolveLimits,
-  SIGNALS_DEFAULTS,
-} from './config/limits.js';
-export { getPaths, PATHS_DEFAULTS, resolvePaths } from './config/paths.js';
+export { NOTIFICATIONS_DEFAULTS } from './config/github.js';
+export { getLimits, LIMITS_DEFAULTS } from './config/limits.js';
+export { getPaths } from './config/paths.js';
 export { getPreflight, PREFLIGHT_DEFAULTS } from './config/preflight.js';
 export {
-  AUTO_REFRESH_DEFAULTS,
   CODING_GUARDRAILS_DEFAULTS,
   getQuality,
-  MAINTAINABILITY_CRAP_DEFAULTS,
-  MAINTAINABILITY_QUALITY_DEFAULTS,
-  resolveAutoRefresh,
   resolveCodingGuardrails,
   resolveMaintainabilityCrap,
-  resolveMaintainabilityQuality,
   resolveQuality,
 } from './config/quality.js';
-export { DEFAULT_RETRO, getRetro } from './config/retro.js';
-export {
-  DEFAULT_DECOMPOSER,
-  DEFAULT_STORY_MERGE_RETRY,
-  getRunners,
-} from './config/runners.js';
+export { getRunners } from './config/runners.js';
 export {
   resolveRuntime,
   resolveSessionId,
@@ -90,10 +58,7 @@ export {
 } from './config/runtime.js';
 export { resolveListValue } from './config/shared.js';
 export { validateOrchestrationConfig } from './config/validate-orchestration.js';
-export {
-  getWorktreeIsolation,
-  WORKTREE_ISOLATION_DEFAULTS,
-} from './config/worktree-isolation.js';
+export { WORKTREE_ISOLATION_DEFAULTS } from './config/worktree-isolation.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // scripts/lib/ → scripts/ → .agents/ → project root

@@ -25,19 +25,23 @@
  * forward the bus, and `story.blocked` is emitted separately on the
  * critical-halt path so the Epic-scoped lifecycle ledger still sees
  * the Story drop out.
+ *
+ * `runStoryReviewCore` is exported as the shared spine that the
+ * `single-story-close` path imports, so both close paths call `runCodeReview`
+ * through a single implementation rather than each maintaining its own
+ * invocation pattern (Story #3653).
  */
 
 import { Logger } from '../../../Logger.js';
 import { runCodeReview } from '../../code-review.js';
-import { emitStoryBlockedSafe } from '../merge-runner.js';
+import { emitBlockedCloseResult } from '../merge-runner.js';
 
 /**
- * Build the blocked-result envelope for a critical-finding outcome.
- * Mirrors `emitBaselineBlockedResult` (status: 'blocked', phase:
- * 'closing', success: false) plus `exitCode: 1` so the CLI shell
- * exits non-zero — the task acceptance pins this.
+ * Collect the extra fields for the code-review-critical blocked envelope.
+ * Pure; used by `runStoryCodeReview` to populate the `extra` argument of
+ * `emitBlockedCloseResult`.
  */
-function buildBlockedResult({ storyId, reviewResult }) {
+function buildCodeReviewBlockedExtra({ storyId, reviewResult }) {
   const severity = reviewResult?.severity ?? {
     critical: 0,
     high: 0,
@@ -45,16 +49,67 @@ function buildBlockedResult({ storyId, reviewResult }) {
     suggestion: 0,
   };
   return {
-    success: false,
-    status: 'blocked',
-    phase: 'closing',
-    reason: 'code-review-critical',
     storyId: Number(storyId),
     blockerReason: reviewResult?.blockerReason ?? null,
     severity,
     posted: reviewResult?.posted ?? false,
     exitCode: 1,
   };
+}
+
+/**
+ * Invoke `runCodeReviewFn` with the canonical Story-scope envelope and return
+ * the raw result. Shared by both the Epic-attached close path
+ * (`runStoryCodeReview`) and the standalone close path
+ * (`single-story-close/phases/code-review.js#runStoryScopeReview`) so the
+ * invocation pattern lives in one place (Story #3653).
+ *
+ * The caller is responsible for error handling and result interpretation —
+ * this function propagates throws rather than swallowing them, because the
+ * two callers have different advisory postures:
+ *
+ *   - Epic-attached close: swallows throws (non-blocking advisory, same as
+ *     `refresh.js`).
+ *   - Standalone close: propagates throws (a review failure stops the close).
+ *
+ * @param {{
+ *   storyId: number|string,
+ *   baseRef: string,
+ *   headRef: string,
+ *   commentTargetId?: number|null,
+ *   provider: object,
+ *   progress: (tag: string, msg: string) => void,
+ *   progressTag?: string,
+ *   runCodeReviewFn?: typeof runCodeReview,
+ * }} args
+ * @returns {Promise<object>} Raw result envelope from `runCodeReview`.
+ */
+export async function runStoryReviewCore({
+  storyId,
+  baseRef,
+  headRef,
+  commentTargetId = null,
+  provider,
+  progress,
+  progressTag = 'CODE-REVIEW',
+  runCodeReviewFn = runCodeReview,
+}) {
+  const storyIdNum = Number(storyId);
+  const opts = {
+    scope: 'story',
+    ticketId: storyIdNum,
+    baseRef,
+    headRef,
+    provider,
+    logger: {
+      info: (m) => progress(progressTag, m),
+      warn: (m) => progress(progressTag, `⚠️ ${m}`),
+    },
+  };
+  if (commentTargetId != null) {
+    opts.commentTargetId = commentTargetId;
+  }
+  return runCodeReviewFn(opts);
 }
 
 /**
@@ -94,16 +149,13 @@ export async function runStoryCodeReview(args) {
 
   let reviewResult;
   try {
-    reviewResult = await runCodeReviewFn({
-      scope: 'story',
-      ticketId: storyIdNum,
+    reviewResult = await runStoryReviewCore({
+      storyId: storyIdNum,
       baseRef: epicBranch,
       headRef: storyBranch,
       provider,
-      logger: {
-        info: (m) => progress('CODE-REVIEW', m),
-        warn: (m) => progress('CODE-REVIEW', `⚠️ ${m}`),
-      },
+      progress,
+      runCodeReviewFn,
     });
   } catch (err) {
     // Adapter / wiring failure — log and proceed. The review is advisory
@@ -116,23 +168,16 @@ export async function runStoryCodeReview(args) {
   }
 
   if (reviewResult?.halted) {
-    progress(
-      'BLOCKED',
-      `Story #${storyIdNum} blocked: code-review reported ${reviewResult.severity.critical} critical blocker(s).`,
-    );
-    await emitStoryBlockedSafe({
-      bus,
+    const blocked = await emitBlockedCloseResult({
       storyId: storyIdNum,
+      phase: 'closing',
       reason: 'code-review-critical',
+      extra: buildCodeReviewBlockedExtra({ storyId: storyIdNum, reviewResult }),
+      bus,
+      progress,
+      blockedMessage: `Story #${storyIdNum} blocked: code-review reported ${reviewResult.severity.critical} critical blocker(s).`,
       logger: Logger,
     });
-    const blocked = buildBlockedResult({
-      storyId: storyIdNum,
-      reviewResult,
-    });
-    Logger.info(
-      `\n--- STORY CLOSE RESULT ---\n${JSON.stringify(blocked, null, 2)}\n--- END RESULT ---\n`,
-    );
     return { blocked };
   }
 

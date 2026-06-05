@@ -94,7 +94,7 @@ export function epicSnapshotPathFor({ epicId, kind, cwd = process.cwd() }) {
  * Fork the tracked main baselines into `temp/epic-<id>/baselines/`. Idempotent.
  *
  * Source paths are resolved through the agent-settings config so a repo that
- * relocates its baselines (`agentSettings.quality.baselines.{maintainability,crap}.path`)
+ * relocates its baselines (`delivery.quality.gates.{maintainability,crap}.baselinePath`)
  * is honoured. Destination layout is fixed at `temp/epic-<id>/baselines/<kind>.json`
  * so the close-validation gate's `--epic-ref` resolution stays predictable, and
  * the per-epic temp-tree cleanup reaps them on Story merge with no extra wiring.
@@ -425,7 +425,7 @@ export function commitSnapshotsToEpicBranch({
  * commit is needed.
  *
  * Coverage source for crap regeneration defaults to `coverage/coverage-final.json`
- * via `agentSettings.quality.crap.coveragePath`. When coverage is missing and
+ * via `delivery.quality.gates.crap.coveragePath`. When coverage is missing and
  * `requireCoverage` is true, the crap regeneration is skipped (didChange stays
  * false for that file) and a warn is emitted — the operator is expected to run
  * `npm run test:coverage` before /epic-deliver if a refresh is anticipated.
@@ -480,14 +480,17 @@ export async function regenerateMainFromTree({
   const miPath = baselines?.maintainability?.path;
   const miTargetDirs = quality?.maintainability?.targetDirs ?? [];
   const miIgnoreGlobs = quality?.maintainability?.ignoreGlobs ?? [];
+  // Hoisted so the CRAP pass can reuse it when targetDirs match — avoids a
+  // second full-tree walk over the same directories (Story #3663).
+  let miSourceList = null;
   if (typeof miPath === 'string' && miPath.length > 0) {
     const miAbs = path.isAbsolute(miPath) ? miPath : path.resolve(cwd, miPath);
-    const sourceList = [];
+    miSourceList = [];
     for (const dir of miTargetDirs) {
       const abs = path.isAbsolute(dir) ? dir : path.resolve(cwd, dir);
-      scanDirectoryFn(abs, sourceList, { cwd, ignoreGlobs: miIgnoreGlobs });
+      scanDirectoryFn(abs, miSourceList, { cwd, ignoreGlobs: miIgnoreGlobs });
     }
-    const scores = await calculateAllFn(sourceList);
+    const scores = await calculateAllFn(miSourceList);
 
     // Project the scoring helper's `{path: mi}` map onto the writer's
     // canonical row shape. Story #2079 path-canon defence stays in place —
@@ -558,12 +561,22 @@ export async function regenerateMainFromTree({
         reason: 'no-coverage',
       });
     } else {
+      // Reuse the MI scan's file list when CRAP and MI target the same
+      // directories with the same ignore globs — avoids a second full-tree
+      // walk over identical source trees (Story #3663).
+      const crapDirsMatchMi =
+        miSourceList !== null &&
+        crapTargetDirs.length === miTargetDirs.length &&
+        crapTargetDirs.every((d, i) => d === miTargetDirs[i]) &&
+        crapIgnoreGlobs.length === miIgnoreGlobs.length &&
+        crapIgnoreGlobs.every((g, i) => g === miIgnoreGlobs[i]);
       const { rows } = await scanAndScoreFn({
         targetDirs: crapTargetDirs,
         coverage,
         requireCoverage,
         cwd,
         ignoreGlobs: crapIgnoreGlobs,
+        ...(crapDirsMatchMi && { preScannedFiles: miSourceList }),
       });
       // scanAndScore yields rows keyed by `file:`; the per-kind crap module's
       // `projectRow` handles `path ?? file`, so the writer takes either.

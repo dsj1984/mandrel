@@ -125,33 +125,6 @@ export const FORMAT_AUTOFIX_DEFAULTS = Object.freeze({
   timeoutMs: 60_000,
 });
 
-/**
- * Backward-compatible flattened defaults that existing call sites read.
- * `MAINTAINABILITY_CRAP_DEFAULTS` is the legacy export name; it now
- * synthesises a flat view over the gate-shaped defaults so resolver
- * consumers see the historical keys (`tolerance` as a number,
- * `coveragePath` from the coverage gate, `defaultScope` / `diffRef`
- * from the gateScoping block).
- */
-export const MAINTAINABILITY_CRAP_DEFAULTS = Object.freeze({
-  enabled: CRAP_GATE_DEFAULTS.enabled,
-  targetDirs: CRAP_GATE_DEFAULTS.targetDirs,
-  newMethodCeiling: CRAP_GATE_DEFAULTS.newMethodCeiling,
-  coveragePath: COVERAGE_GATE_DEFAULTS.coveragePath,
-  tolerance: CRAP_GATE_DEFAULTS.tolerance.value,
-  requireCoverage: CRAP_GATE_DEFAULTS.requireCoverage,
-  friction: CRAP_GATE_DEFAULTS.friction,
-  refreshTag: CRAP_GATE_DEFAULTS.refreshTag,
-  defaultScope: DEFAULT_GATE_SCOPING.scope,
-  diffRef: DEFAULT_GATE_SCOPING.diffRef,
-});
-
-export const MAINTAINABILITY_QUALITY_DEFAULTS = Object.freeze({
-  targetDirs: MAINTAINABILITY_GATE_DEFAULTS.targetDirs,
-  defaultScope: DEFAULT_GATE_SCOPING.scope,
-  diffRef: DEFAULT_GATE_SCOPING.diffRef,
-});
-
 const CRAP_GATE_KEYS = new Set([
   'enabled',
   'baselinePath',

@@ -27,7 +27,6 @@ import { fileURLToPath } from 'node:url';
 import { findWildcardObserverFirewallViolations } from '../../../../.agents/scripts/check-lifecycle-lint.js';
 import { Bus } from '../../../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
 import {
-  createTimeoutWatchdog,
   parsePhaseEvent,
   TimeoutWatchdog,
 } from '../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/timeout-watchdog.js';
@@ -340,11 +339,6 @@ describe('TimeoutWatchdog — paired-timer ordering (spawn vs lifecycle)', () =>
 });
 
 describe('TimeoutWatchdog — factory + registration guards', () => {
-  it('createTimeoutWatchdog returns an instance', () => {
-    const wd = createTimeoutWatchdog({});
-    assert.ok(wd instanceof TimeoutWatchdog);
-  });
-
   it('register() throws when bus is missing required methods', () => {
     const wd = new TimeoutWatchdog({});
     assert.throws(() => wd.register(null), /bus must expose/);

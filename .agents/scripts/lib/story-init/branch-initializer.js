@@ -22,7 +22,7 @@ import { resolveWorkingPath } from '../config-resolver.js';
 import { cachedGitFetch } from '../git/cached-fetch.js';
 import {
   branchExistsLocally,
-  branchExistsRemotely,
+  branchExistsViaTrackingRef,
   checkoutStoryBranch,
   classifyBranchSeed,
   ensureEpicBranch,
@@ -189,8 +189,11 @@ export function ensureStoryBranchSeed({
   const spawn = git?.spawn ?? ((...args) => gitSpawn(mainCwd, ...args));
   const existsLocally =
     git?.existsLocally ?? ((b) => branchExistsLocally(b, mainCwd));
+  // `ensureStoryBranchSeed` is always called after `fetchMainRefs` in
+  // `bootstrapWorktree`, so remote-tracking refs are authoritative. Use a
+  // local tracking-ref check rather than a network `ls-remote` round-trip.
   const existsRemotely =
-    git?.existsRemotely ?? ((b) => branchExistsRemotely(b, mainCwd));
+    git?.existsRemotely ?? ((b) => branchExistsViaTrackingRef(b, mainCwd));
 
   const action = planStoryBranchSeed({
     localHas: existsLocally(storyBranch),

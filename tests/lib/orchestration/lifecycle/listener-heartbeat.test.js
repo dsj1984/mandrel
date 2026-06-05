@@ -27,7 +27,6 @@ import {
 } from '../../../../.agents/scripts/check-lifecycle-lint.js';
 import { Bus } from '../../../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
 import {
-  createHeartbeatMonitor,
   DEFAULT_HEARTBEAT_WARN_SECONDS,
   HeartbeatMonitor,
 } from '../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/heartbeat-monitor.js';
@@ -79,11 +78,6 @@ describe('HeartbeatMonitor — construction', () => {
   it('rejects non-positive warnSeconds', () => {
     assert.throws(() => new HeartbeatMonitor({ warnSeconds: 0 }), RangeError);
     assert.throws(() => new HeartbeatMonitor({ warnSeconds: -1 }), RangeError);
-  });
-
-  it('createHeartbeatMonitor returns an instance', () => {
-    const hm = createHeartbeatMonitor({});
-    assert.ok(hm instanceof HeartbeatMonitor);
   });
 });
 

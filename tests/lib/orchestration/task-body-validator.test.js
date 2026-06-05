@@ -7,15 +7,14 @@
  *   - verify[] entries must name a testing tier in parentheses drawn from
  *     VERIFY_TIER_VALUES (unit / contract / e2e / validate) OR use the
  *     `manual:<reason>` escape hatch.
- *   - Story tickets with structured bodies are now validated the same way
- *     Tasks were; Feature tickets and string-bodied Story tickets still
- *     pass through.
+ *   - Story tickets with structured bodies are validated; Feature tickets
+ *     and string-bodied Story tickets still pass through.
  *   - assumption enum values in changes[] / references[] are validated for
- *     both task and story bodies.
+ *     story bodies (and legacy task-typed fixtures).
  *
- * The existing root-level tests/task-body-validator.test.js covers the
- * original task-only surface; this file extends coverage for the new
- * Story-body and tier-suffix paths.
+ * The root-level tests/task-body-validator.test.js covers the core
+ * validation surface using legacy task-typed fixtures; this file extends
+ * coverage for the Story-body and tier-suffix paths.
  */
 
 import assert from 'node:assert/strict';

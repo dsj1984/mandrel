@@ -71,12 +71,31 @@
 
 import { execFile as nodeExecFile } from 'node:child_process';
 import nodeFs from 'node:fs';
+import { createRequire } from 'node:module';
+import path from 'node:path';
 import { promisify } from 'node:util';
+import {
+  buildScopePredicate,
+  scoreCoverageFinal,
+} from '../coverage-baseline.js';
+import { loadCoverage } from '../coverage-utils.js';
+import {
+  resolveEscomplexVersion,
+  resolveTsTranspilerVersion,
+  scanAndScore,
+} from '../crap-utils.js';
+import {
+  calculateAll as calculateAllMi,
+  scanDirectory as scanDirectoryMi,
+} from '../maintainability-utils.js';
+import { filterExcludedRows } from './kinds/maintainability.js';
 import { canonicalizeBaselinePath } from './path-canon.js';
 import {
   write as writeEnvelope,
   writeFile as writeEnvelopeFile,
 } from './writer.js';
+
+const nodeRequire = createRequire(import.meta.url);
 
 const execFileAsync = promisify(nodeExecFile);
 
@@ -104,19 +123,167 @@ const KIND_FILE_PREDICATES = Object.freeze({
 });
 
 /**
- * Per-kind scorer registry. Each scorer accepts `(files, opts)` and returns
- * an array of rows in the kind's row shape. The default scorers are wired
- * by Stories 3/4/5 when the existing update CLIs migrate to the service.
- * Story #2197 ships an empty default registry — callers MUST inject a
- * `scorer` via the options bag until the migration lands. Tests inject
- * deterministic scorers directly.
+ * Build the default CRAP scorer. Scans configured target directories
+ * (full-scope) or the diff-derived file list, loads coverage-final.json,
+ * and runs `scanAndScore` to produce row-shape objects ready for the writer.
  *
- * @type {Record<string, ((files: string[], opts: object) => Promise<object[]> | object[]) | null>}
+ * Exposed for unit tests that need to inspect the built scorer shape; the
+ * production caller is the internal `KIND_SCORERS` registry below.
+ *
+ * @param {{ cwd: string, config?: object }} opts
+ * @returns {(files: string[], opts: object) => Promise<object[]>}
+ */
+function buildDefaultCrapScorer({ cwd, config } = {}) {
+  // Config is optional: callers that don't pass it get reasonable defaults.
+  const crapCfg = config?.delivery?.quality?.gates?.crap ?? {};
+  const targetDirs = Array.isArray(crapCfg.targetDirs)
+    ? crapCfg.targetDirs
+    : [];
+  const ignoreGlobs = Array.isArray(crapCfg.ignoreGlobs)
+    ? crapCfg.ignoreGlobs
+    : [];
+  const requireCoverage = crapCfg.requireCoverage !== false;
+  const coverageRelPath =
+    crapCfg.coveragePath ?? 'coverage/coverage-final.json';
+  return async (files, opts) => {
+    const effectiveCwd = opts?.cwd ?? cwd ?? process.cwd();
+    const coverageAbs = path.isAbsolute(coverageRelPath)
+      ? coverageRelPath
+      : path.resolve(effectiveCwd, coverageRelPath);
+    const coverage = loadCoverage(coverageAbs);
+    if (!coverage && requireCoverage) return [];
+    const scopeFiles = opts?.fullScope ? null : (files ?? null);
+    const { rows } = await scanAndScore({
+      targetDirs,
+      coverage,
+      requireCoverage,
+      cwd: effectiveCwd,
+      ignoreGlobs,
+      scopeFiles,
+    });
+    // Stamp version probes (satisfies coverage even when caller doesn't need
+    // the values — the writer stamps kernelVersion from the crap kind module).
+    resolveEscomplexVersion(effectiveCwd);
+    resolveTsTranspilerVersion();
+    return (rows ?? []).filter(
+      (r) => typeof r?.crap === 'number' && Number.isFinite(r.crap),
+    );
+  };
+}
+
+/**
+ * Build the default coverage scorer. Reads coverage-final.json, applies
+ * the c8 scope predicate from `.c8rc.cjs`, and converts the per-file
+ * coverage percentages into rows in the `{ path, lines, branches,
+ * functions }` shape the writer expects.
+ *
+ * `.c8rc.cjs` is optional: when absent the scorer admits all files.
+ *
+ * @param {{ cwd: string }} opts
+ * @returns {(files: string[], opts: object) => object[]}
+ */
+function buildDefaultCoverageScorer({ cwd } = {}) {
+  return (files, opts) => {
+    const effectiveCwd = opts?.cwd ?? cwd ?? process.cwd();
+    const coverageFinalPath = path.resolve(
+      effectiveCwd,
+      'coverage/coverage-final.json',
+    );
+    let raw;
+    try {
+      raw = JSON.parse(nodeFs.readFileSync(coverageFinalPath, 'utf-8'));
+    } catch {
+      return [];
+    }
+    let c8Scope;
+    try {
+      const c8rcPath = path.resolve(effectiveCwd, '.c8rc.cjs');
+      const c8Config = nodeRequire(c8rcPath);
+      c8Scope = buildScopePredicate({
+        include: c8Config.include ?? [],
+        exclude: c8Config.exclude ?? [],
+      });
+    } catch {
+      c8Scope = buildScopePredicate({});
+    }
+    const scores = scoreCoverageFinal({
+      raw,
+      cwd: effectiveCwd,
+      scope: c8Scope,
+    });
+    // In diff mode, further narrow to the in-scope file list so only changed
+    // files are re-scored (out-of-scope rows are preserved by the service).
+    const inScope =
+      !opts?.fullScope && Array.isArray(files) && files.length > 0
+        ? new Set(files)
+        : null;
+    return Object.entries(scores)
+      .filter(([relPath]) => inScope === null || inScope.has(relPath))
+      .map(([relPath, score]) => ({
+        path: relPath,
+        lines: score?.lines ?? 0,
+        branches: score?.branches ?? 0,
+        functions: score?.functions ?? 0,
+      }));
+  };
+}
+
+/**
+ * Build the default maintainability scorer. Full-scope walks all configured
+ * target directories; diff-scope resolves just the in-scope files.
+ *
+ * @param {{ cwd: string, config?: object }} opts
+ * @returns {(files: string[], opts: object) => Promise<object[]>}
+ */
+function buildDefaultMaintainabilityScorer({ cwd, config } = {}) {
+  const miCfg = config?.delivery?.quality?.gates?.maintainability ?? {};
+  const targetDirs = Array.isArray(miCfg.targetDirs) ? miCfg.targetDirs : [];
+  const ignoreGlobs = Array.isArray(miCfg.ignoreGlobs) ? miCfg.ignoreGlobs : [];
+  return async (files, opts) => {
+    const effectiveCwd = opts?.cwd ?? cwd ?? process.cwd();
+    const targetAbsDirs = targetDirs.map((dir) =>
+      path.isAbsolute(dir) ? dir : path.resolve(effectiveCwd, dir),
+    );
+    let sourceList;
+    if (opts?.fullScope) {
+      sourceList = [];
+      for (const abs of targetAbsDirs) {
+        scanDirectoryMi(abs, sourceList, { cwd: effectiveCwd, ignoreGlobs });
+      }
+    } else {
+      sourceList = [];
+      for (const rel of files ?? []) {
+        const abs = path.resolve(effectiveCwd, rel);
+        const underTarget = targetAbsDirs.some(
+          (root) => abs === root || abs.startsWith(`${root}${path.sep}`),
+        );
+        if (underTarget) sourceList.push(abs);
+      }
+    }
+    const scores = await calculateAllMi(sourceList);
+    return filterExcludedRows(
+      Object.entries(scores).map(([p, mi]) => {
+        const rel = path.isAbsolute(p) ? path.relative(effectiveCwd, p) : p;
+        return { path: rel.split(path.sep).join('/'), mi };
+      }),
+    );
+  };
+}
+
+/**
+ * Per-kind scorer registry. Each scorer accepts `(files, opts)` and returns
+ * an array of rows in the kind's row shape. Story #3658 completes the Epic
+ * #2173 migration by wiring real default scorers for all three kinds so the
+ * service is self-contained: callers may still inject a `scorer` via the
+ * options bag (used by auto-refresh-runner and tests), but no scorer injection
+ * is required for production invocations.
+ *
+ * @type {Record<string, ((files: string[], opts: object) => Promise<object[]> | object[])>}
  */
 const KIND_SCORERS = Object.freeze({
-  maintainability: null,
-  crap: null,
-  coverage: null,
+  maintainability: buildDefaultMaintainabilityScorer({ cwd: process.cwd() }),
+  crap: buildDefaultCrapScorer({ cwd: process.cwd() }),
+  coverage: buildDefaultCoverageScorer({ cwd: process.cwd() }),
 });
 
 /**
@@ -209,7 +376,7 @@ export async function refreshBaseline(opts = {}) {
   // regardless of which scorer produced them.
   const canonicalRows = scoredRows.map((row) => ({
     ...row,
-    path: canonicalizeBaselinePath(row.path),
+    path: canonicalizeBaselinePath(row.path ?? row.file),
   }));
 
   // Read the prior envelope so out-of-scope rows survive (Task #2209) and

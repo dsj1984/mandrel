@@ -64,6 +64,17 @@ export function invalidateWorktreeCache(ctx, _opts = {}) {
   ctx.listCache.ts = 0;
 }
 
+/**
+ * Find a worktree record by its absolute path. Uses the shared cache via
+ * `getWorktreeList`, so repeated calls within the 5-second TTL are free.
+ *
+ * @param {object} ctx - Lifecycle context bag (`repoRoot`, `git`, `platform`,
+ *   `worktreeRoot`, `listCache`).
+ * @param {string} absPath - Absolute filesystem path to match against the
+ *   `path` field of each worktree record.
+ * @returns {{ path: string, head: string|null, branch: string|null, bare: boolean, detached: boolean }|null}
+ *   The matching worktree record, or `null` when no worktree lives at that path.
+ */
 export function findByPath(ctx, absPath) {
   return (
     getWorktreeList(ctx).find((r) => samePath(r.path, absPath, ctx.platform)) ??
@@ -71,6 +82,16 @@ export function findByPath(ctx, absPath) {
   );
 }
 
+/**
+ * Unconditionally run `git worktree list --porcelain` and return the parsed
+ * result. Unlike `getWorktreeList`, this bypasses the `listCache` and always
+ * queries git — use it when a fresh snapshot is required (e.g. immediately
+ * after an add/remove). Throws on non-zero git exit.
+ *
+ * @param {object} ctx - Lifecycle context bag (`repoRoot`, `git`, `platform`,
+ *   `worktreeRoot`, `listCache`).
+ * @returns {Promise<Array<{ path: string, head: string|null, branch: string|null, bare: boolean, detached: boolean }>>}
+ */
 export async function list(ctx) {
   const res = ctx.git.gitSpawn(ctx.repoRoot, 'worktree', 'list', '--porcelain');
   if (res.status !== 0) {
@@ -79,6 +100,17 @@ export async function list(ctx) {
   return parseWorktreePorcelain(res.stdout);
 }
 
+/**
+ * Run `git worktree prune` against the repo root and invalidate the list
+ * cache on success. Returns a result object rather than throwing on failure
+ * so callers can decide how to handle a partial prune.
+ *
+ * @param {object} ctx - Lifecycle context bag (`repoRoot`, `git`, `platform`,
+ *   `worktreeRoot`, `listCache`).
+ * @returns {{ pruned: true } | { pruned: false, reason: string }}
+ *   `{ pruned: true }` when git exited 0; `{ pruned: false, reason }` with
+ *   the stderr/stdout text (or `'worktree-prune-failed'`) otherwise.
+ */
 export function prune(ctx) {
   const res = ctx.git.gitSpawn(ctx.repoRoot, 'worktree', 'prune');
   if (res.status !== 0) {

@@ -1,13 +1,18 @@
 /**
- * Task/Story body schema validator (v5.33+).
+ * Story body schema validator (v5.33+).
  *
- * Enforces the four-section structured body shape on tasks and 3-tier
- * stories emitted by the decomposer. String-bodied or undefined-bodied
- * tasks are skipped (legacy fixtures + Feature bodies pass through). When
- * a task or story body IS a structured object, we require non-empty
- * `goal`, `changes`, `acceptance`, and `verify` arrays — and that
- * `changes` items name at least one path-shaped token so vague verbs
- * ("clean up", "refactor") can't slip through.
+ * Enforces the four-section structured body shape on 3-tier Stories emitted
+ * by the decomposer. String-bodied or undefined-bodied tickets are skipped
+ * (Feature bodies and legacy fixtures pass through). When a Story body IS a
+ * structured object, we require non-empty `goal`, `changes`, `acceptance`,
+ * and `verify` arrays — and that `changes` items name at least one
+ * path-shaped token so vague verbs ("clean up", "refactor") can't slip
+ * through.
+ *
+ * There is no `type::task` ticket layer in the 3-tier hierarchy
+ * (Epic → Feature → Story). Legacy test fixtures that carry `type: 'task'`
+ * are still accepted so existing plans keep parsing, but the decomposer
+ * no longer creates `type::task` tickets in practice.
  *
  * `body.changes` items may be either:
  *   1. A string bullet (legacy shape, e.g. `"src/foo.ts: extract handler"`).
@@ -15,7 +20,7 @@
  *
  * Object-form items must declare an `assumption` ∈ `creates |
  * refactors-existing | exists | deletes`. The optional `body.references`
- * array uses the same object shape and is the home for paths the Task/Story
+ * array uses the same object shape and is the home for paths the Story
  * reads but does not modify (test fixtures, sibling modules, etc.).
  * String-form `changes` items remain legal so legacy plans keep parsing,
  * but they emit a deprecation signal via `validateStoryFileAssumptions`.
@@ -101,11 +106,12 @@ function vagueVerbWithoutTarget(bullet) {
  *   - or it is a Story whose body is not a structured object (3-tier Stories
  *     must carry an object body — string-bodied Stories pass through).
  *
- * Under the 3-tier hierarchy (Epic #3078), Tasks are gone; Stories carry the
- * implementation scope inline. The validator therefore inspects both
- * `type::task` and `type::story` tickets that carry structured (object) bodies
- * so that `verify[]` tier and `assumption` enum errors surface at planning time
- * rather than silently passing through.
+ * Under the 3-tier hierarchy (Epic → Feature → Story), Stories carry the
+ * implementation scope inline. The validator inspects `type::story` tickets
+ * with structured (object) bodies so that `verify[]` tier and `assumption`
+ * enum errors surface at planning time. `type::task` tickets are a legacy
+ * shape that the decomposer no longer emits; they pass through unchanged to
+ * keep existing test fixtures and plan snapshots parseable.
  *
  * Returns `true` when the ticket should be ignored by
  * `collectTaskBodyErrors`, `false` when the body should be inspected.
@@ -117,19 +123,23 @@ function shouldSkipTicket(ticket) {
   if (!ticket) return true;
   // Features always use string bodies — never validate them.
   if (ticket.type === 'feature') return true;
-  // Only task and story tickets carry structured bodies worth validating.
+  // Stories carry structured bodies in the 3-tier world. Legacy task-typed
+  // fixtures are also tolerated here so existing plan snapshots keep parsing.
   if (ticket.type !== 'task' && ticket.type !== 'story') return true;
   const body = ticket.body;
   return body == null || typeof body === 'string';
 }
 
 /**
- * Validate one structured task or story body and return every violation it
- * exhibits. Empty array means clean. Splits the per-ticket cascade out of
+ * Validate one structured Story body and return every violation it exhibits.
+ * Empty array means clean. Splits the per-ticket cascade out of
  * `collectTaskBodyErrors` so the iteration stays straight-line and so
  * each section's defensive checks are independently testable.
  *
- * @param {object} ticket Task or Story whose `body` has already passed the
+ * Also accepts legacy `type: 'task'` fixtures (no longer emitted by the
+ * decomposer) so existing plan snapshots remain parseable.
+ *
+ * @param {object} ticket Story whose `body` has already passed the
  *   `shouldSkipTicket` filter (i.e. `body` is an object-ish, non-string).
  * @returns {string[]}
  */
@@ -147,8 +157,8 @@ export function validateTaskBodyShape(ticket) {
   }
   errors.push(...collectChangesErrors(prefix, body.changes));
   errors.push(...collectAcceptanceErrors(prefix, body.acceptance));
-  // Tier-suffix validation is enforced on Story tickets (3-tier world). Task
-  // tickets are a legacy tier whose verify entries may be free-form strings.
+  // Tier-suffix validation is enforced on Story tickets (3-tier world).
+  // Legacy task-typed fixtures are tolerated with free-form verify strings.
   errors.push(
     ...collectVerifyErrors(prefix, body.verify, { requireTier: isStory }),
   );
@@ -314,9 +324,10 @@ function collectVerifyErrors(prefix, rawVerify, opts = {}) {
 }
 
 /**
- * Validate every task and 3-tier story in `tickets` whose `body` is a
- * structured object. Returns an array of error strings (one per offending
- * slug); empty array means clean.
+ * Validate every 3-tier Story in `tickets` whose `body` is a structured
+ * object. Returns an array of error strings (one per offending slug); empty
+ * array means clean. Legacy `type: 'task'` fixtures are also validated when
+ * they carry structured bodies, but the decomposer no longer creates them.
  *
  * @param {object[]} tickets
  * @returns {string[]}
@@ -331,7 +342,7 @@ export function collectTaskBodyErrors(tickets) {
 }
 
 /**
- * Throw a single batched error if any task body is malformed; otherwise
+ * Throw a single batched error if any Story body is malformed; otherwise
  * return `tickets` unchanged.
  *
  * @param {object[]} tickets
@@ -341,6 +352,6 @@ export function validateTaskBodies(tickets) {
   const errs = collectTaskBodyErrors(tickets);
   if (errs.length === 0) return tickets;
   throw new Error(
-    `[Decomposer] ${errs.length} task body schema violation(s):\n${errs.map((e) => `  - ${e}`).join('\n')}`,
+    `[Decomposer] ${errs.length} story body schema violation(s):\n${errs.map((e) => `  - ${e}`).join('\n')}`,
   );
 }

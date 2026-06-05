@@ -3,6 +3,7 @@ import path from 'node:path';
 
 import { resolveComponents } from '../../../baselines/components.js';
 import { calculateForSource } from '../../../maintainability-engine.js';
+import { componentOrder, formatNumber } from './_bullet-format.js';
 
 const DEFAULT_THRESHOLD = 2.0;
 // Distinct from the canonical ratchet baseline at `baselines/maintainability.json`
@@ -87,16 +88,6 @@ export function detectComponentRegressions(params = {}) {
     }
   }
   return bullets;
-}
-
-function componentOrder(a, b) {
-  if (a === '*') return -1;
-  if (b === '*') return 1;
-  return a.localeCompare(b);
-}
-
-function formatNumber(value) {
-  return Number.isInteger(value) ? String(value) : value.toFixed(2);
 }
 
 export function createMaintainabilityDriftDetector(opts = {}) {

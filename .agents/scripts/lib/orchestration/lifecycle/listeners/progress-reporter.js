@@ -115,7 +115,3 @@ export class ProgressReporter {
     this._seen.clear();
   }
 }
-
-export function createProgressReporter(opts) {
-  return new ProgressReporter(opts);
-}

@@ -6,6 +6,12 @@
  * remove, or change scope of `.agents/scripts/**` files and the
  * resulting per-file coverage shifts are expected.
  *
+ * Story #3658 (Epic #2173): this CLI is now a thin wrapper around
+ * `refreshBaseline({ kind: 'coverage' })` from
+ * `.agents/scripts/lib/baselines/refresh-service.js`. All scoring, scope
+ * resolution, envelope assembly, and persistence flows through the unified
+ * service.
+ *
  * The script does NOT run the test suite itself — invoke
  * `npm run test:coverage` first (or rely on its prior run-on-disk
  * artifact). This keeps the refresh idempotent and lets operators
@@ -14,14 +20,14 @@
 
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { resolveDiffScope } from './lib/baselines/diff-scope-cli.js';
+import { parseDiffScopeFlag } from './lib/baselines/diff-scope-cli.js';
+import { refreshBaseline } from './lib/baselines/refresh-service.js';
 import { getBaselineEpsilon } from './lib/config/quality.js';
 import {
   buildScopePredicate,
   COVERAGE_BASELINE_PATH,
   readCoverageFinal,
   scoreCoverageFinal,
-  writeBaseline,
 } from './lib/coverage-baseline.js';
 import { Logger } from './lib/Logger.js';
 
@@ -31,41 +37,93 @@ function loadC8Scope(cwd) {
   return require(path.resolve(cwd, '.c8rc.cjs'));
 }
 
+function parseFullScopeFlag(argv = []) {
+  return argv.includes('--full-scope');
+}
+
 function main() {
+  const argv = process.argv.slice(2);
+  const diffScopeRef = parseDiffScopeFlag(argv);
+  const fullScope = parseFullScopeFlag(argv);
   const cwd = process.cwd();
   Logger.info('[Coverage] Updating baseline from coverage-final.json...');
 
-  let raw;
-  try {
-    raw = readCoverageFinal(cwd);
-  } catch (err) {
-    Logger.error(`[Coverage] ❌ ${err.message}`);
-    process.exit(1);
-  }
-
-  const c8Config = loadC8Scope(cwd);
-  const c8Scope = buildScopePredicate({
-    include: c8Config.include ?? [],
-    exclude: c8Config.exclude ?? [],
-  });
-  const scores = scoreCoverageFinal({ raw, cwd, scope: c8Scope });
-  const fileCount = Object.keys(scores).length;
-
-  // Story #1974: epsilon-by-default + opt-in `--diff-scope <ref>` (out-of-
-  // scope rows preserved verbatim from the prior on-disk envelope).
-  const diffScope = resolveDiffScope({ argv: process.argv.slice(2), cwd });
-  if (diffScope) {
-    Logger.info(
-      `[Coverage] --diff-scope ${diffScope.ref}: ${diffScope.files.size} file(s) in scope.`,
+  if (fullScope && diffScopeRef !== null) {
+    throw new Error(
+      '[Coverage] --full-scope is incompatible with --diff-scope; pick one',
     );
   }
-  const abs = writeBaseline(cwd, scores, undefined, {
-    epsilon: getBaselineEpsilon('coverage', null),
-    scope: diffScope?.scope,
+
+  // Build the per-kind scorer the service will invoke. The scorer receives
+  // `(files, { fullScope })` and returns rows in the `{path, lines,
+  // branches, functions}` shape the writer expects.
+  const scorer = (files, opts) => {
+    const effectiveCwd = opts?.cwd ?? cwd;
+    let raw;
+    try {
+      raw = readCoverageFinal(effectiveCwd);
+    } catch (err) {
+      Logger.error(`[Coverage] ❌ ${err.message}`);
+      return [];
+    }
+
+    const c8Config = loadC8Scope(effectiveCwd);
+    const c8Scope = buildScopePredicate({
+      include: c8Config.include ?? [],
+      exclude: c8Config.exclude ?? [],
+    });
+    const scores = scoreCoverageFinal({
+      raw,
+      cwd: effectiveCwd,
+      scope: c8Scope,
+    });
+
+    // In diff mode, further narrow to the service-resolved in-scope file list.
+    const inScope =
+      !opts?.fullScope && Array.isArray(files) && files.length > 0
+        ? new Set(files)
+        : null;
+
+    const rows = Object.entries(scores)
+      .filter(([relPath]) => inScope === null || inScope.has(relPath))
+      .map(([relPath, score]) => ({
+        path: relPath,
+        lines: score?.lines ?? 0,
+        branches: score?.branches ?? 0,
+        functions: score?.functions ?? 0,
+      }));
+
+    const fileCount = Object.keys(scores).length;
+    Logger.info(
+      `[Coverage] Scored ${fileCount} file(s)${inScope ? ` (${rows.length} in scope)` : ''}.`,
+    );
+    return rows;
+  };
+
+  const absBaselinePath = path.resolve(cwd, COVERAGE_BASELINE_PATH);
+  const epsilon = getBaselineEpsilon('coverage', null);
+  const refreshOpts = {
+    kind: 'coverage',
+    writePath: absBaselinePath,
+    epsilon,
+    scorer,
+  };
+  if (fullScope) {
+    refreshOpts.fullScope = true;
+  } else if (diffScopeRef) {
+    refreshOpts.baseRef = diffScopeRef;
+  }
+  // No flag → scopeFiles=null + fullScope=false → service derives the diff
+  // via `origin/main..HEAD` (its default baseRef/headRef).
+
+  return refreshBaseline(refreshOpts).then((result) => {
+    Logger.info(
+      `[Coverage] ✅ Baseline updated: ${result.envelope.rows.length} file(s) recorded at ${COVERAGE_BASELINE_PATH} (${absBaselinePath}). scope=${result.scope.mode}, wrote=${result.wrote}.`,
+    );
   });
-  Logger.info(
-    `[Coverage] ✅ Baseline updated: ${fileCount} file(s) recorded at ${COVERAGE_BASELINE_PATH} (${abs}).`,
-  );
 }
 
-main();
+main().catch((err) => {
+  Logger.error(`[Coverage] ❌ Fatal error: ${err?.message ?? err}`);
+  process.exit(1);
+});

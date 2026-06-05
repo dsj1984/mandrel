@@ -1,6 +1,74 @@
 import { createGitInterface } from './git-utils.js';
 
 /**
+ * Parse the stdout from `git diff --name-only` into a normalized file list.
+ * Trims whitespace, drops blank lines, and converts backslash separators to
+ * forward slashes so set-membership checks line up with the paths produced by
+ * `scanAndScore` and `calculateAll` on Windows checkouts.
+ *
+ * Pure; no I/O.
+ *
+ * @param {string | null | undefined} stdout
+ * @returns {string[]}
+ */
+export function parseNameOnlyStdout(stdout) {
+  if (!stdout) return [];
+  return stdout
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .map((line) => line.replace(/\\/g, '/'));
+}
+
+/**
+ * Low-level helper: run `git diff --name-only <range>` and return the
+ * forward-slash-normalised file list. Throws on non-zero git exit so callers
+ * that must fail-closed can propagate the error; callers that prefer
+ * best-effort behaviour wrap this in a try/catch.
+ *
+ * Accepts either a pre-built `range` string **or** `baseRef`+`headRef`
+ * (assembled into `<baseRef>...<headRef>` when `threeDot` is true, or
+ * `<baseRef>..<headRef>` otherwise). When both `range` and
+ * `baseRef`/`headRef` are supplied, `range` takes precedence.
+ *
+ * The `gitSpawn` injection matches the signature used by `createGitInterface`:
+ * `(cwd: string, ...gitArgs: string[]) => { status: number, stdout: string, stderr: string }`.
+ * Production callers omit it (the default uses `createGitInterface({})`);
+ * tests pass a stub.
+ *
+ * @param {object} params
+ * @param {string} [params.range]         Pre-built range string (e.g. `"epic/3599...story-3636"`).
+ * @param {string} [params.baseRef]       Left-hand ref — used when `range` is absent.
+ * @param {string} [params.headRef='HEAD'] Right-hand ref — used when `range` is absent.
+ * @param {boolean} [params.threeDot=true] Use three-dot (`...`) merge-base semantics
+ *   when `range` is absent. Set to `false` for a two-dot direct diff.
+ * @param {string} [params.cwd=process.cwd()]
+ * @param {((cwd: string, ...args: string[]) => { status: number, stdout: string, stderr: string }) | null} [params.gitSpawn]
+ * @returns {string[]} Forward-slash-normalised repo-relative paths.
+ * @throws {Error} When git exits non-zero.
+ */
+export function diffNameOnly({
+  range,
+  baseRef,
+  headRef = 'HEAD',
+  threeDot = true,
+  cwd = process.cwd(),
+  gitSpawn,
+} = {}) {
+  const resolvedRange =
+    range ?? `${baseRef}${threeDot ? '...' : '..'}${headRef}`;
+  const spawnFn = gitSpawn ?? createGitInterface({}).gitSpawn;
+  const res = spawnFn(cwd, 'diff', '--name-only', resolvedRange);
+  if (res.status !== 0) {
+    const detail = res.stderr || res.stdout || `exit ${res.status}`;
+    throw new Error(
+      `[diff-name-only] git diff --name-only ${resolvedRange} failed: ${detail}`,
+    );
+  }
+  return parseNameOnlyStdout(res.stdout);
+}
+
+/**
  * Resolve the list of files changed since `ref` relative to the current HEAD.
  *
  * Used by `check-crap.js` and `check-maintainability.js` to implement the
@@ -31,15 +99,6 @@ import { createGitInterface } from './git-utils.js';
  *   etc.). The error message names the ref so the operator can react without
  *   re-reading the CLI flags.
  */
-function parseNameOnlyStdout(stdout) {
-  if (!stdout) return [];
-  return stdout
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .map((line) => line.replace(/\\/g, '/'));
-}
-
 export function getChangedFiles({
   ref = 'main',
   cwd = process.cwd(),

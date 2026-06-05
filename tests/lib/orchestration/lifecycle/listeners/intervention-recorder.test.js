@@ -15,7 +15,6 @@ import { describe, it } from 'node:test';
 
 import { Bus } from '../../../../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
 import {
-  createInterventionRecorder,
   INTERVENTION_RECORDED_EVENT,
   InterventionRecorder,
 } from '../../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/intervention-recorder.js';
@@ -239,17 +238,6 @@ describe('InterventionRecorder — error propagation', () => {
       }),
       /boom/,
     );
-  });
-});
-
-describe('createInterventionRecorder factory', () => {
-  it('returns an InterventionRecorder instance', () => {
-    const recorder = createInterventionRecorder({
-      provider: {},
-      epicId: 2307,
-      logger: quietLogger(),
-    });
-    assert.ok(recorder instanceof InterventionRecorder);
   });
 });
 

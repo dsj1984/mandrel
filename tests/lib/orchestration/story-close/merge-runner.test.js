@@ -10,6 +10,9 @@
  *                                  → throw, finalize-mode retry-exhausted
  *                                  copy, finalize-mode generic copy,
  *                                  resume-mode copy via describeResumePushFailure.
+ *   - emitBlockedCloseResult — canonical envelope builder; bus emit,
+ *                              banner log, progress call, extra merge,
+ *                              bus-null no-op.
  */
 
 import assert from 'node:assert/strict';
@@ -17,6 +20,7 @@ import path from 'node:path';
 import { describe, it, mock } from 'node:test';
 
 import {
+  emitBlockedCloseResult,
   lockPathDisplay,
   pushEpicAndHandleConflicts,
   withEpicMergeLock,
@@ -259,6 +263,93 @@ describe('pushEpicAndHandleConflicts — failure modes', () => {
         }),
       /unknown/,
     );
+  });
+});
+
+describe('emitBlockedCloseResult', () => {
+  it('returns a blocked envelope with success:false, status:blocked, phase and reason', async () => {
+    const progressCalls = [];
+    const result = await emitBlockedCloseResult({
+      storyId: 42,
+      phase: 'closing',
+      reason: 'baseline-drift-not-attributable',
+      progress: (tag, msg) => progressCalls.push({ tag, msg }),
+      blockedMessage: 'Story #42 blocked: drift on 3 path(s).',
+      logger: { info: () => {}, warn: () => {} },
+    });
+    assert.equal(result.success, false);
+    assert.equal(result.status, 'blocked');
+    assert.equal(result.phase, 'closing');
+    assert.equal(result.reason, 'baseline-drift-not-attributable');
+    assert.equal(progressCalls.length, 1);
+    assert.equal(progressCalls[0].tag, 'BLOCKED');
+    assert.match(progressCalls[0].msg, /blocked: drift on 3 path/);
+  });
+
+  it('merges extra fields into the result envelope', async () => {
+    const result = await emitBlockedCloseResult({
+      storyId: 10,
+      phase: 'preflight',
+      reason: 'preflight-refused',
+      extra: { findings: ['f1', 'f2'], exitCode: 2 },
+      progress: () => {},
+      blockedMessage: 'blocked',
+      logger: { info: () => {}, warn: () => {} },
+    });
+    assert.deepEqual(result.findings, ['f1', 'f2']);
+    assert.equal(result.exitCode, 2);
+  });
+
+  it('emits story.blocked on the bus when bus is provided', async () => {
+    const emitted = [];
+    const bus = {
+      emit: async (event, payload) => emitted.push({ event, payload }),
+    };
+    await emitBlockedCloseResult({
+      storyId: 99,
+      phase: 'closing',
+      reason: 'push-failed:finalize',
+      bus,
+      progress: () => {},
+      blockedMessage: 'blocked',
+      logger: { info: () => {}, warn: () => {} },
+    });
+    assert.equal(emitted.length, 1);
+    assert.equal(emitted[0].event, 'story.blocked');
+    assert.equal(emitted[0].payload.storyId, 99);
+    assert.equal(emitted[0].payload.reason, 'push-failed:finalize');
+  });
+
+  it('skips the bus emit when bus is null', async () => {
+    let emitCalled = false;
+    // Providing bus: null means no emit — no error should be thrown.
+    const result = await emitBlockedCloseResult({
+      storyId: 7,
+      phase: 'closing',
+      reason: 'merge-conflict:major',
+      bus: null,
+      progress: () => {
+        emitCalled = true;
+      },
+      blockedMessage: 'blocked',
+      logger: { info: () => {}, warn: () => {} },
+    });
+    assert.equal(result.success, false);
+    // progress was still called even when bus is null
+    assert.ok(emitCalled);
+  });
+
+  it('logs the --- STORY CLOSE RESULT --- banner via the logger', async () => {
+    const infoCalls = [];
+    await emitBlockedCloseResult({
+      storyId: 5,
+      phase: 'closing',
+      reason: 'code-review-critical',
+      progress: () => {},
+      blockedMessage: 'blocked',
+      logger: { info: (m) => infoCalls.push(m), warn: () => {} },
+    });
+    assert.ok(infoCalls.some((m) => m.includes('--- STORY CLOSE RESULT ---')));
   });
 });
 

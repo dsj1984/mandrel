@@ -12,8 +12,8 @@
  *      untouched and the caller is told to merge in the snippet manually.
  *   3. Adds `quality:preview` and `quality:watch` npm scripts when missing.
  *      Existing scripts are preserved.
- *   4. Seeds `agentSettings.quality.codingGuardrails` and
- *      `agentSettings.quality.autoRefresh` defaults in `.agentrc.json` when
+ *   4. Seeds `delivery.quality.codingGuardrails` and
+ *      `delivery.quality.autoRefresh` defaults in `.agentrc.json` when
  *      the keys are absent. Existing values are preserved.
  *
  * Returns a structured summary so the bootstrap and update workflows can
@@ -68,7 +68,7 @@ export const PRE_COMMIT_MARKER =
   'node .agents/scripts/quality-preview.js --changed-since HEAD --staged';
 
 /**
- * Default values seeded into `agentSettings.quality.{codingGuardrails,autoRefresh}`
+ * Default values seeded into `delivery.quality.{codingGuardrails,autoRefresh}`
  * when the keys are absent. Mirrors `.agents/full-agentrc.json` — keep in
  * sync when those numbers move.
  */
@@ -301,8 +301,8 @@ function mergeMissingKeys(
 }
 
 /**
- * Step 4 — Seed the `agentSettings.quality.codingGuardrails` and
- * `agentSettings.quality.autoRefresh` defaults into `.agentrc.json`. Only
+ * Step 4 — Seed the `delivery.quality.codingGuardrails` and
+ * `delivery.quality.autoRefresh` defaults into `.agentrc.json`. Only
  * missing keys are added; existing values are preserved unconditionally
  * (including operator overrides that diverge from the framework defaults).
  *

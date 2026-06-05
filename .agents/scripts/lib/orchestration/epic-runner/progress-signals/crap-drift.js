@@ -3,6 +3,7 @@ import path from 'node:path';
 import { resolveComponents } from '../../../baselines/components.js';
 import { loadCoverage as defaultLoadCoverage } from '../../../coverage-utils.js';
 import { calculateCrapForSource } from '../../../crap-engine.js';
+import { componentOrder, formatNumber } from './_bullet-format.js';
 
 const DEFAULT_THRESHOLD = 5.0;
 const DEFAULT_CEILING = 30;
@@ -83,16 +84,6 @@ export function detectComponentRegressions(params = {}) {
     }
   }
   return bullets;
-}
-
-function componentOrder(a, b) {
-  if (a === '*') return -1;
-  if (b === '*') return 1;
-  return a.localeCompare(b);
-}
-
-function formatNumber(value) {
-  return Number.isInteger(value) ? String(value) : value.toFixed(2);
 }
 
 /**

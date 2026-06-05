@@ -295,7 +295,3 @@ export class BlockerHandler {
     this.classifications = [];
   }
 }
-
-export function createBlockerHandler(opts) {
-  return new BlockerHandler(opts);
-}

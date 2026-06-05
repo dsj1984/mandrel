@@ -73,16 +73,43 @@ export function buildKindScorer({
   if (kind === 'maintainability') {
     const targetDirs = quality?.maintainability?.targetDirs ?? [];
     const miIgnoreGlobs = quality?.maintainability?.ignoreGlobs ?? [];
-    return async () => {
-      const sourceList = [];
-      for (const dir of targetDirs) {
-        const abs = path.isAbsolute(dir) ? dir : path.resolve(cwd, dir);
-        scanDirectory(abs, sourceList, { cwd, ignoreGlobs: miIgnoreGlobs });
+    // Scorer receives `(files, opts)` from the refresh-service.
+    // When `opts.fullScope !== true`, score only the in-scope diff files
+    // that fall under a configured target dir — rows outside those roots
+    // are preserved verbatim by the service / writer (out-of-scope merging).
+    // When `opts.fullScope === true`, walk the full target dirs as before.
+    return async (files, opts) => {
+      const effectiveCwd = opts?.cwd ?? cwd;
+      const targetAbsDirs = targetDirs.map((dir) =>
+        path.isAbsolute(dir) ? dir : path.resolve(effectiveCwd, dir),
+      );
+      let sourceList;
+      if (opts?.fullScope) {
+        sourceList = [];
+        for (const abs of targetAbsDirs) {
+          scanDirectory(abs, sourceList, {
+            cwd: effectiveCwd,
+            ignoreGlobs: miIgnoreGlobs,
+          });
+        }
+      } else {
+        // Diff-scope: resolve each in-scope file to absolute path, keep
+        // only those that fall under a configured target dir.
+        sourceList = [];
+        for (const rel of files ?? []) {
+          const abs = path.resolve(effectiveCwd, rel);
+          const underTarget = targetAbsDirs.some(
+            (root) => abs === root || abs.startsWith(`${root}${path.sep}`),
+          );
+          if (underTarget) sourceList.push(abs);
+        }
       }
       const scores = await calculateAll(sourceList);
       return filterExcludedRows(
         Object.entries(scores).map(([key, mi]) => {
-          const rel = path.isAbsolute(key) ? path.relative(cwd, key) : key;
+          const rel = path.isAbsolute(key)
+            ? path.relative(effectiveCwd, key)
+            : key;
           const posixRel = rel.split(path.sep).join('/');
           return { path: canonicalisePath(posixRel), mi };
         }),
@@ -99,23 +126,30 @@ export function buildKindScorer({
       : [];
     const requireCoverage = crapCfg.requireCoverage !== false;
     const coveragePath = crapCfg.coveragePath ?? 'coverage/coverage-final.json';
-    return async () => {
+    // Scorer receives `(files, opts)` from the refresh-service.
+    // When `opts.fullScope !== true`, forward the diff-scope file list to
+    // `scanAndScore` via its `scopeFiles` parameter so it restricts scoring
+    // to the in-scope files (Story #3647 — diff-scope awareness).
+    return async (files, opts) => {
+      const effectiveCwd = opts?.cwd ?? cwd;
       const coverageAbs = path.isAbsolute(coveragePath)
         ? coveragePath
-        : path.resolve(cwd, coveragePath);
+        : path.resolve(effectiveCwd, coveragePath);
       const coverage = loadCoverage(coverageAbs);
       if (!coverage && requireCoverage) return [];
+      const scopeFiles = opts?.fullScope ? null : (files ?? null);
       const { rows } = await scanAndScore({
         targetDirs,
         coverage,
         requireCoverage,
-        cwd,
+        cwd: effectiveCwd,
         ignoreGlobs: crapIgnoreGlobs,
+        scopeFiles,
       });
       // Stamp kernel versions so downstream gates can reason about the
       // scoring environment. The writer keeps `kernelVersion`; the others
       // remain available via the resolved values for the per-kind module.
-      resolveEscomplexVersion(cwd);
+      resolveEscomplexVersion(effectiveCwd);
       resolveTsTranspilerVersion();
       return (rows ?? []).filter(
         (r) => typeof r?.crap === 'number' && Number.isFinite(r.crap),

@@ -1,7 +1,7 @@
 /**
  * Limits/budgets/signals accessors (Epic #1720 Story #1739 — top-level reshape).
  *
- * Pre-reshape, every runtime ceiling lived under `agentSettings.limits.*`.
+ * Pre-reshape, every runtime ceiling lived under the legacy `agentSettings.limits.*` bag.
  * Post-reshape, the surviving keys are split across `planning.*` and
  * `delivery.*`:
  *

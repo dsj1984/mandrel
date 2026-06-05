@@ -419,7 +419,3 @@ export class MergeWatcher {
     this.classifications = [];
   }
 }
-
-export function createMergeWatcher(opts) {
-  return new MergeWatcher(opts);
-}

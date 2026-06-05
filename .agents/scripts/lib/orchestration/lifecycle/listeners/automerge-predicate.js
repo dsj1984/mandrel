@@ -462,7 +462,3 @@ export class AutomergePredicate {
     this.classifications = [];
   }
 }
-
-export function createAutomergePredicate(opts) {
-  return new AutomergePredicate(opts);
-}

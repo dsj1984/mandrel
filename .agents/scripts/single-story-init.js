@@ -48,17 +48,13 @@ import {
   resolveConfig,
   resolveRuntime,
 } from './lib/config-resolver.js';
+import { cachedGitFetch } from './lib/git/cached-fetch.js';
 import {
   branchExistsLocally,
-  branchExistsRemotely,
+  branchExistsViaTrackingRef,
   classifyBranchSeed,
 } from './lib/git-branch-lifecycle.js';
-import {
-  getStoryBranch,
-  gitFetchWithRetry,
-  gitSpawn,
-  gitSync,
-} from './lib/git-utils.js';
+import { getStoryBranch, gitSpawn, gitSync } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
 import { TYPE_LABELS } from './lib/label-constants.js';
 import { setActiveStoryEnv } from './lib/observability/active-story-env.js';
@@ -252,6 +248,228 @@ export async function reapMergedStoryBranches({
 }
 
 /**
+ * Fetch remote refs, reap merged story branches, and fast-forward the local
+ * base branch so new story branches seed from origin's tip. Exported for
+ * testing (owns the fast-forward cascade; mirrors `fetchMainRefs` +
+ * `ensureEpicBranch` in `branch-initializer.js`).
+ *
+ * Routes the `origin` fetch through `cachedGitFetch` so concurrent standalone
+ * Story waves share the same per-process coalescing window that Epic-attached
+ * stories get via `branch-initializer.js#fetchMainRefs`. Pass `fetchFn` to
+ * inject a stub in tests without touching real git.
+ *
+ * @param {object} opts
+ * @param {string} opts.cwd
+ * @param {string} opts.baseBranch
+ * @param {string} opts.storyBranch
+ * @param {object} opts.config
+ * @param {object} opts.provider
+ * @param {Function|undefined} opts.injectedSweep
+ * @param {Function} opts.progress
+ * @param {import('./lib/git/cached-fetch.js').FetchCache} [opts.fetchCache]
+ *   Override the module-level cache — used by tests that need a fresh, isolated
+ *   cache. Production callers omit this so all Stories in a wave share the
+ *   module singleton.
+ */
+export async function materializeBaseBranch({
+  cwd,
+  baseBranch,
+  storyBranch,
+  config,
+  provider,
+  injectedSweep,
+  progress,
+  fetchCache,
+}) {
+  progress('GIT', 'Fetching remote refs...');
+  const fetchOpts = fetchCache ? { cache: fetchCache } : {};
+  const fetchResult = await cachedGitFetch(cwd, 'origin', fetchOpts);
+  if (fetchResult.cached) {
+    progress('GIT', 'Fetch served from (cwd, ref) cache — skipped network.');
+  } else if (fetchResult.attempts > 1) {
+    progress(
+      'GIT',
+      `Fetch completed after ${fetchResult.attempts} attempt(s) — packed-refs contention.`,
+    );
+  }
+
+  await reapMergedStoryBranches({
+    cwd,
+    baseBranch,
+    storyBranch,
+    config,
+    provider,
+    injectedSweep,
+  });
+
+  // Ensure baseBranch exists locally so we can branch from it. If only
+  // remote-tracking is present, materialize the local ref.
+  if (!branchExistsLocally(baseBranch, cwd)) {
+    const r = gitSpawn(cwd, 'fetch', 'origin', `${baseBranch}:${baseBranch}`);
+    if (r.status !== 0) {
+      throw new Error(
+        `Failed to fetch base branch ${baseBranch}: ${r.stderr || '(no stderr)'}`,
+      );
+    }
+    return;
+  }
+
+  // `git fetch origin` updates remote-tracking refs only; local `main` stays
+  // at the pre-merge tip until fast-forwarded. Use the same helper as
+  // `/git-cleanup --fast-forward-main` (checkout base + `merge --ff-only`) so
+  // new `story-*` branches seed from origin's tip when the main checkout is
+  // clean (Story #2744).
+  const ffPlan = planFastForward({ cwd, baseBranch });
+  const ff = executeFastForward({
+    cwd,
+    baseBranch,
+    plan: ffPlan,
+    logger: {
+      info: (m) => progress('GIT', m.replace(/^\[git-cleanup\]\s*/, '')),
+      warn: (m) => progress('GIT', `⚠️ ${m.replace(/^\[git-cleanup\]\s*/, '')}`),
+    },
+  });
+  if (ff.applied) {
+    progress(
+      'GIT',
+      `Fast-forwarded local ${baseBranch} by ${ff.behind} commit(s).`,
+    );
+  } else if (ff.reason === 'not-fast-forward') {
+    progress(
+      'GIT',
+      `⚠️ local ${baseBranch} is not a fast-forward behind origin/${baseBranch}; seeding from local tip.`,
+    );
+  } else if (ff.reason === 'dirty-tree') {
+    progress(
+      'GIT',
+      `⚠️ working tree dirty; skipped fast-forward of ${baseBranch}.`,
+    );
+  }
+}
+
+/**
+ * Seed the Story branch from the base branch. Three cases, idempotent in all:
+ *   - already local → reuse (do NOT re-create an existing ref)
+ *   - remote only   → fetch
+ *   - neither       → create from baseBranch
+ *
+ * `cachedGitFetch(cwd, 'origin')` is assumed to have run before this call
+ * (via `materializeBaseBranch`), so remote-tracking refs are authoritative.
+ * Uses a local tracking-ref check rather than a network `ls-remote` round-trip.
+ * Exported for testing (owns the seedAction switch + throws).
+ *
+ * @param {object} opts
+ * @param {string} opts.cwd
+ * @param {string} opts.storyBranch
+ * @param {string} opts.baseBranch
+ * @param {Function} opts.progress
+ */
+export function seedStoryBranch({ cwd, storyBranch, baseBranch, progress }) {
+  const seedAction = decideStoryBranchSeed({
+    localHas: branchExistsLocally(storyBranch, cwd),
+    remoteHas: branchExistsViaTrackingRef(storyBranch, cwd),
+  });
+  if (seedAction === 'fetch') {
+    progress('GIT', `Fetching remote story branch: ${storyBranch}`);
+    const r = gitSpawn(cwd, 'fetch', 'origin', `${storyBranch}:${storyBranch}`);
+    if (r.status !== 0) {
+      throw new Error(
+        `Failed to fetch story branch ${storyBranch}: ${r.stderr || '(no stderr)'}`,
+      );
+    }
+    return;
+  }
+  if (seedAction === 'create') {
+    progress(
+      'GIT',
+      `Creating story branch ref: ${storyBranch} from ${baseBranch}`,
+    );
+    const r = gitSpawn(cwd, 'branch', storyBranch, baseBranch);
+    if (r.status !== 0) {
+      throw new Error(
+        `Failed to create story branch ${storyBranch}: ${r.stderr || '(no stderr)'}`,
+      );
+    }
+    return;
+  }
+  // seedAction === 'reuse' — the local ref already exists. Do NOT run
+  // `git branch` here; re-creating an existing ref throws. Reuse it.
+  progress('GIT', `Reusing existing local story branch: ${storyBranch}`);
+}
+
+/**
+ * Provision a worktree (or check out the branch in single-tree mode), then
+ * record the active-story environment markers. Returns the resolved
+ * `workCwd`, `worktreeCreated`, and `installStatus`. Exported for testing
+ * (owns the worktree/single-tree routing + setActiveStoryEnv call).
+ *
+ * @param {object} opts
+ * @param {object} opts.runtime
+ * @param {string} opts.cwd
+ * @param {number} opts.storyId
+ * @param {string} opts.storyBranch
+ * @param {object} opts.config
+ * @param {Function} opts.progress
+ * @returns {Promise<{ workCwd: string, worktreeCreated: boolean, installStatus: object }>}
+ */
+export async function provisionWorktree({
+  runtime,
+  cwd,
+  storyId,
+  storyBranch,
+  config,
+  progress,
+}) {
+  let workCwd = cwd;
+  let worktreeCreated = false;
+  let installStatus = { status: 'skipped', reason: 'single-tree-mode' };
+
+  if (runtime.worktreeEnabled) {
+    const wm = new WorktreeManager({
+      repoRoot: cwd,
+      config: config.delivery?.worktreeIsolation,
+      logger: {
+        info: (m) => progress('WORKTREE', m),
+        warn: (m) => progress('WORKTREE', `⚠️ ${m}`),
+        error: (m) => Logger.error(`[single-story-init] ${m}`),
+      },
+    });
+    const ensured = await wm.ensure(storyId, storyBranch);
+    workCwd = ensured.path;
+    worktreeCreated = ensured.created;
+    installStatus = ensured.installStatus ?? installStatus;
+    progress(
+      'WORKTREE',
+      `${ensured.created ? '✨ Created' : '♻️  Reusing'} worktree: ${ensured.path}`,
+    );
+  } else {
+    // Single-tree mode: check out the branch on the main checkout.
+    gitSync(cwd, 'checkout', storyBranch);
+  }
+
+  try {
+    // Story #2874 — standalone Stories have no parent Epic; pass
+    // `epicId: null` so the helper omits CC_EPIC_ID from env + file
+    // instead of throwing on a 0 sentinel. The trace hook keys its
+    // standalone-trace branch on CC_EPIC_ID being absent.
+    setActiveStoryEnv({
+      epicId: null,
+      storyId,
+      workCwd,
+      logger: {
+        warn: (m) => progress('ENV', `⚠️ ${m}`),
+      },
+    });
+  } catch (err) {
+    Logger.error(
+      `[single-story-init] ⚠️ Failed to set active-Story env: ${err?.message ?? err}`,
+    );
+  }
+
+  return { workCwd, worktreeCreated, installStatus };
+}
+
+/**
  * Initialize a standalone Story. Exported for testing.
  */
 export async function runSingleStoryInit({
@@ -345,149 +563,24 @@ export async function runSingleStoryInit({
   let installStatus = { status: 'skipped', reason: 'dry-run' };
 
   if (!dryRun) {
-    progress('GIT', 'Fetching remote refs...');
-    const fetchResult = await gitFetchWithRetry(cwd, 'origin');
-    if (fetchResult.attempts > 1) {
-      progress(
-        'GIT',
-        `Fetch completed after ${fetchResult.attempts} attempt(s) — packed-refs contention.`,
-      );
-    }
-
-    await reapMergedStoryBranches({
+    await materializeBaseBranch({
       cwd,
       baseBranch,
       storyBranch,
       config,
       provider,
       injectedSweep,
+      progress,
     });
-
-    // Ensure baseBranch exists locally so we can branch from it. If only
-    // remote-tracking is present, materialize the local ref.
-    if (!branchExistsLocally(baseBranch, cwd)) {
-      const r = gitSpawn(cwd, 'fetch', 'origin', `${baseBranch}:${baseBranch}`);
-      if (r.status !== 0) {
-        throw new Error(
-          `Failed to fetch base branch ${baseBranch}: ${r.stderr || '(no stderr)'}`,
-        );
-      }
-    } else {
-      // `git fetch origin` updates remote-tracking refs only; local
-      // `main` stays at the pre-merge tip until fast-forwarded. Use the
-      // same helper as `/git-cleanup --fast-forward-main` (checkout base +
-      // `merge --ff-only`) so new `story-*` branches seed from origin's
-      // tip when the main checkout is clean (Story #2744).
-      const ffPlan = planFastForward({ cwd, baseBranch });
-      const ff = executeFastForward({
-        cwd,
-        baseBranch,
-        plan: ffPlan,
-        logger: {
-          info: (m) => progress('GIT', m.replace(/^\[git-cleanup\]\s*/, '')),
-          warn: (m) =>
-            progress('GIT', `⚠️ ${m.replace(/^\[git-cleanup\]\s*/, '')}`),
-        },
-      });
-      if (ff.applied) {
-        progress(
-          'GIT',
-          `Fast-forwarded local ${baseBranch} by ${ff.behind} commit(s).`,
-        );
-      } else if (ff.reason === 'not-fast-forward') {
-        progress(
-          'GIT',
-          `⚠️ local ${baseBranch} is not a fast-forward behind origin/${baseBranch}; seeding from local tip.`,
-        );
-      } else if (ff.reason === 'dirty-tree') {
-        progress(
-          'GIT',
-          `⚠️ working tree dirty; skipped fast-forward of ${baseBranch}.`,
-        );
-      }
-    }
-
-    // Seed the Story branch. Three cases, idempotent in all of them:
-    //   - already local → noop
-    //   - remote only   → fetch
-    //   - neither       → create from baseBranch
-    const seedAction = decideStoryBranchSeed({
-      localHas: branchExistsLocally(storyBranch, cwd),
-      remoteHas: branchExistsRemotely(storyBranch, cwd),
-    });
-    if (seedAction === 'fetch') {
-      progress('GIT', `Fetching remote story branch: ${storyBranch}`);
-      const r = gitSpawn(
-        cwd,
-        'fetch',
-        'origin',
-        `${storyBranch}:${storyBranch}`,
-      );
-      if (r.status !== 0) {
-        throw new Error(
-          `Failed to fetch story branch ${storyBranch}: ${r.stderr || '(no stderr)'}`,
-        );
-      }
-    } else if (seedAction === 'create') {
-      progress(
-        'GIT',
-        `Creating story branch ref: ${storyBranch} from ${baseBranch}`,
-      );
-      const r = gitSpawn(cwd, 'branch', storyBranch, baseBranch);
-      if (r.status !== 0) {
-        throw new Error(
-          `Failed to create story branch ${storyBranch}: ${r.stderr || '(no stderr)'}`,
-        );
-      }
-    } else {
-      // seedAction === 'reuse' — the local ref already exists. Do NOT run
-      // `git branch` here; re-creating an existing ref throws. Reuse it.
-      progress('GIT', `Reusing existing local story branch: ${storyBranch}`);
-    }
-
-    // Worktree (or single-tree fallback).
-    if (runtime.worktreeEnabled) {
-      const wm = new WorktreeManager({
-        repoRoot: cwd,
-        config: config.delivery?.worktreeIsolation,
-        logger: {
-          info: (m) => progress('WORKTREE', m),
-          warn: (m) => progress('WORKTREE', `⚠️ ${m}`),
-          error: (m) => Logger.error(`[single-story-init] ${m}`),
-        },
-      });
-      const ensured = await wm.ensure(storyId, storyBranch);
-      workCwd = ensured.path;
-      worktreeCreated = ensured.created;
-      installStatus = ensured.installStatus ?? installStatus;
-      progress(
-        'WORKTREE',
-        `${ensured.created ? '✨ Created' : '♻️  Reusing'} worktree: ${ensured.path}`,
-      );
-    } else {
-      // Single-tree mode: check out the branch on the main checkout.
-      gitSync(cwd, 'checkout', storyBranch);
-      installStatus = { status: 'skipped', reason: 'single-tree-mode' };
-    }
-
-    try {
-      // Story #2874 — standalone Stories have no parent Epic; pass
-      // `epicId: null` so the helper omits CC_EPIC_ID from env + file
-      // instead of throwing on a 0 sentinel. The trace hook keys its
-      // standalone-trace branch on CC_EPIC_ID being absent.
-      setActiveStoryEnv({
-        epicId: null,
-        storyId,
-        workCwd,
-        logger: {
-          warn: (m) => progress('ENV', `⚠️ ${m}`),
-        },
-      });
-    } catch (err) {
-      Logger.error(
-        `[single-story-init] ⚠️ Failed to set active-Story env: ${err?.message ?? err}`,
-      );
-    }
+    seedStoryBranch({ cwd, storyBranch, baseBranch, progress });
+    ({ workCwd, worktreeCreated, installStatus } = await provisionWorktree({
+      runtime,
+      cwd,
+      storyId,
+      storyBranch,
+      config,
+      progress,
+    }));
   }
 
   const dependenciesInstalled =

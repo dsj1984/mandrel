@@ -99,6 +99,53 @@ export async function emitStoryBlockedSafe({ bus, storyId, reason, logger }) {
 }
 
 /**
+ * Canonical "blocked close-result" envelope builder used by all four
+ * pre-merge and merge-phase blocked exits (Story #3638 — duplication
+ * noted by audit fe90dd9c36fc).
+ *
+ * The four previously-parallel patterns each:
+ *   1. Build a `{ success: false, status: 'blocked', phase, reason, …extra }` result.
+ *   2. Call `emitStoryBlockedSafe` (best-effort bus emit, optional).
+ *   3. Print the `--- STORY CLOSE RESULT ---` banner via `Logger.info`.
+ *   4. Call `progress('BLOCKED', blockedMessage)` for the operator-facing line.
+ *
+ * This helper centralises all four steps so callers supply only their
+ * domain-specific fields via `extra` and the human-facing `blockedMessage`.
+ * Bus emission is skipped when `bus` is `null`/`undefined` (the same
+ * semantics as `emitStoryBlockedSafe`).
+ *
+ * @param {{
+ *   storyId: number|string,
+ *   phase: string,
+ *   reason: string,
+ *   extra?: object,
+ *   bus?: object|null,
+ *   progress: (tag: string, msg: string) => void,
+ *   blockedMessage: string,
+ *   logger?: { info?: Function, warn?: Function },
+ * }} args
+ * @returns {Promise<{ success: false, status: 'blocked', phase: string, reason: string, [key: string]: unknown }>}
+ */
+export async function emitBlockedCloseResult({
+  storyId,
+  phase,
+  reason,
+  extra = {},
+  bus = null,
+  progress,
+  blockedMessage,
+  logger = DefaultLogger,
+}) {
+  const result = { success: false, status: 'blocked', phase, reason, ...extra };
+  await emitStoryBlockedSafe({ bus, storyId, reason, logger });
+  logger.info?.(
+    `\n--- STORY CLOSE RESULT ---\n${JSON.stringify(result, null, 2)}\n--- END RESULT ---\n`,
+  );
+  progress('BLOCKED', blockedMessage);
+  return result;
+}
+
+/**
  * Acquire the per-Epic filesystem merge lock, run `fn(handle)` inside a
  * try/finally, and always release. Logs `🔒 Acquired ...` at acquire and
  * `🔓 Released epic-merge lock` on release via the supplied `log` sink.

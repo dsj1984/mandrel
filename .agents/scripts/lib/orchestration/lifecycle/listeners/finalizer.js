@@ -59,12 +59,12 @@
  */
 
 import { spawnSync } from 'node:child_process';
-
 import {
   graduateAuditResults as defaultGraduateAuditResults,
   isAutoFileEnabled as isAuditResultsAutoFileEnabled,
 } from '../../../feedback-loop/audit-results-graduator.js';
 import { graduateFindings as defaultGraduateFindings } from '../../../feedback-loop/code-review-graduator.js';
+import { parsePrNumberFromUrl } from '../../../github-url.js';
 import { closePlanningTickets as defaultClosePlanningTickets } from '../../finalize/close-planning-tickets.js';
 import { openOrLocatePr as defaultOpenOrLocatePr } from '../../finalize/open-or-locate-pr.js';
 import { postHandoffComment as defaultPostHandoffComment } from '../../finalize/post-handoff-comment.js';
@@ -237,20 +237,6 @@ export function ghPrListHead({ epicBranch, cwd, spawnFn = spawnSync }) {
 }
 
 /**
- * Extract the PR number from a canonical github.com PR URL. Returns
- * null when the URL does not match `/pull/<digits>`. Pure helper —
- * used to derive `prNumber` for the `epic.merge.ready` emit when the
- * existing-PR short-circuit path returns only a URL.
- */
-export function extractPrNumber(prUrl) {
-  if (typeof prUrl !== 'string') return null;
-  const m = prUrl.match(/\/pull\/(\d+)(?:[/?#]|$)/);
-  if (!m) return null;
-  const n = Number.parseInt(m[1], 10);
-  return Number.isInteger(n) && n > 0 ? n : null;
-}
-
-/**
  * Finalizer listener.
  */
 export class Finalizer {
@@ -387,7 +373,7 @@ export class Finalizer {
         this.logger.info?.(
           `[Finalizer] PR already open for ${epicBranch}: ${existingUrl} — short-circuiting create.`,
         );
-        const prNumber = extractPrNumber(existingUrl);
+        const prNumber = parsePrNumberFromUrl(existingUrl);
         // ultrareview bug_007: even on the short-circuit path we MUST
         // run the planning-ticket close and the handoff-comment upsert.
         // Both helpers are idempotent — closePlanningTickets counts
@@ -490,7 +476,7 @@ export class Finalizer {
     const prNumber =
       typeof finalize?.prNumber === 'number'
         ? finalize.prNumber
-        : extractPrNumber(prUrl);
+        : parsePrNumberFromUrl(prUrl);
 
     await this._emitFinalize({
       event,
@@ -658,8 +644,4 @@ export class Finalizer {
     this._seen.clear();
     this.classifications = [];
   }
-}
-
-export function createFinalizer(opts) {
-  return new Finalizer(opts);
 }

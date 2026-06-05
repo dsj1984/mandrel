@@ -376,7 +376,3 @@ export class AcceptanceReconciler {
     this.classifications = [];
   }
 }
-
-export function createAcceptanceReconciler(opts) {
-  return new AcceptanceReconciler(opts);
-}

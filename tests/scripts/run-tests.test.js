@@ -5,26 +5,73 @@ import {
   buildNodeTestArgs,
   chunkTestTargets,
   MAX_TARGET_CHARS,
+  resolveTestConcurrency,
   runTestSuite,
+  TEST_CONCURRENCY_MAX,
+  TEST_CONCURRENCY_MIN,
   TEST_RUNNER_FLAGS,
 } from '../../.agents/scripts/run-tests.js';
 
-test('buildNodeTestArgs preserves the default test glob and appends extra args', () => {
-  assert.deepEqual(
-    buildNodeTestArgs({ extraArgs: ['tests/foo.test.js'], tier: 'full' }),
-    [
-      '--experimental-test-module-mocks',
-      '--test',
-      '--test-concurrency=8',
-      'tests/**/*.test.js',
-      'tests/foo.test.js',
-    ],
+// ---------------------------------------------------------------------------
+// resolveTestConcurrency — host-aware clamping
+// ---------------------------------------------------------------------------
+
+test('resolveTestConcurrency clamps to TEST_CONCURRENCY_MIN when parallelism is 0', () => {
+  assert.equal(resolveTestConcurrency(0), TEST_CONCURRENCY_MIN);
+});
+
+test('resolveTestConcurrency clamps to TEST_CONCURRENCY_MIN when parallelism is negative', () => {
+  assert.equal(resolveTestConcurrency(-4), TEST_CONCURRENCY_MIN);
+});
+
+test('resolveTestConcurrency clamps to TEST_CONCURRENCY_MAX when parallelism exceeds the ceiling', () => {
+  assert.equal(
+    resolveTestConcurrency(TEST_CONCURRENCY_MAX + 10),
+    TEST_CONCURRENCY_MAX,
   );
+});
+
+test('resolveTestConcurrency passes through an in-range value unchanged', () => {
+  const mid = Math.floor((TEST_CONCURRENCY_MIN + TEST_CONCURRENCY_MAX) / 2);
+  assert.equal(resolveTestConcurrency(mid), mid);
+});
+
+test('TEST_CONCURRENCY_MIN is 1 and TEST_CONCURRENCY_MAX is 16', () => {
+  assert.equal(TEST_CONCURRENCY_MIN, 1);
+  assert.equal(TEST_CONCURRENCY_MAX, 16);
+});
+
+test('TEST_RUNNER_FLAGS contains --test-concurrency in the [1,16] range', () => {
+  const flag = TEST_RUNNER_FLAGS.find((f) =>
+    f.startsWith('--test-concurrency='),
+  );
+  assert.ok(flag, 'TEST_RUNNER_FLAGS must include --test-concurrency=N');
+  const n = Number(flag.split('=')[1]);
+  assert.ok(
+    n >= TEST_CONCURRENCY_MIN && n <= TEST_CONCURRENCY_MAX,
+    `--test-concurrency=${n} is outside [${TEST_CONCURRENCY_MIN},${TEST_CONCURRENCY_MAX}]`,
+  );
+});
+
+// ---------------------------------------------------------------------------
+// buildNodeTestArgs — flag presence
+// ---------------------------------------------------------------------------
+
+test('buildNodeTestArgs preserves the default test glob and appends extra args', () => {
+  const args = buildNodeTestArgs({
+    extraArgs: ['tests/foo.test.js'],
+    tier: 'full',
+  });
+  assert.ok(args.includes('--experimental-test-module-mocks'));
+  assert.ok(args.includes('--test'));
+  assert.ok(args.some((f) => f.startsWith('--test-concurrency=')));
+  assert.ok(args.includes('tests/**/*.test.js'));
+  assert.ok(args.includes('tests/foo.test.js'));
 });
 
 test('buildNodeTestArgs quick tier resolves explicit file targets', () => {
   const args = buildNodeTestArgs({ tier: 'quick', repoRoot: process.cwd() });
-  assert.ok(args.includes('--test-concurrency=8'));
+  assert.ok(args.some((f) => f.startsWith('--test-concurrency=')));
   assert.ok(!args.includes('tests/**/*.test.js'));
   assert.ok(args.some((a) => a.startsWith('tests/')));
   assert.ok(!args.includes('tests/hook-chain-reflog-invariant.test.js'));
