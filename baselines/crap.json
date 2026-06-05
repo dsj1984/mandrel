@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T13:51:10.662Z",
+  "generatedAt": "2026-06-05T14:42:30.277Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -6846,90 +6846,6 @@
       "crap": 2
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "extractStoryIds",
-      "startLine": 60,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "buildWaveStartStories",
-      "startLine": 81,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "applyCommitAssertion",
-      "startLine": 110,
-      "crap": 4.06103515625
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "resolveDoneSkips",
-      "startLine": 160,
-      "crap": 3.0674056875154103
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "<anon method-10>",
-      "startLine": 171,
-      "crap": 2.0438957475994513
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "sessionRowFor",
-      "startLine": 217,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "dispatchWave",
-      "startLine": 247,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "<anon method-17>",
-      "startLine": 264,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "buildWaveEndOutcomes",
-      "startLine": 288,
-      "crap": 6.062208
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "waveEndStoryEntry",
-      "startLine": 322,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "handleWaveBlocker",
-      "startLine": 350,
-      "crap": 8.249111663066035
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "countDoneStories",
-      "startLine": 448,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "runIterateWavesPhase",
-      "startLine": 456,
-      "crap": 9
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "<anon method-21>",
-      "startLine": 470,
-      "crap": 2
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/epic-runner/phases/snapshot.js",
       "method": "runSnapshotPhase",
       "startLine": 50,
@@ -8164,84 +8080,6 @@
       "method": "buildDefaultListenerChain",
       "startLine": 123,
       "crap": 14.000681748615634
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "method": "normalizeCheckState",
-      "startLine": 56,
-      "crap": 17.47058823529412
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "method": "extractPrNumber",
-      "startLine": 99,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "method": "ghPrChecks",
-      "startLine": 113,
-      "crap": 1.8502697186178745
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "method": "ghPrView",
-      "startLine": 138,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "method": "parseMergeStateStatus",
-      "startLine": 158,
-      "crap": 3.0416666666666665
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "method": "ghPrUpdateBranch",
-      "startLine": 176,
-      "crap": 1.7702546296296295
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "method": "allGreen",
-      "startLine": 206,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "method": "parseGhPrChecks",
-      "startLine": 224,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "method": "reduceOutcomes",
-      "startLine": 246,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "method": "allTerminal",
-      "startLine": 262,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "method": "promotePendingToTimedOut",
-      "startLine": 275,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "method": "defaultSleep",
-      "startLine": 286,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "method": "createWatcher",
-      "startLine": 511,
-      "crap": 1.2962962962962963
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/trace-logger.js",
