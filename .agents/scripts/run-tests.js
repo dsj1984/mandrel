@@ -29,6 +29,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cleanupRepoTestTempArtifacts } from './cleanup-repo-test-temp.js';
@@ -39,13 +40,40 @@ import { listTestFilesForTier, parseTierArgv } from './lib/test-tiers.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 
+/** Minimum and maximum bounds for `--test-concurrency`. */
+export const TEST_CONCURRENCY_MIN = 1;
+export const TEST_CONCURRENCY_MAX = 16;
+
+/**
+ * Resolve the `--test-concurrency` value for the current host.
+ *
+ * Uses `os.availableParallelism()` (Node ≥18.14 / ≥20.0) clamped to the
+ * range `[TEST_CONCURRENCY_MIN, TEST_CONCURRENCY_MAX]`.  The `parallelism`
+ * parameter is injected in tests so the clamping logic is verifiable
+ * without touching the OS.
+ *
+ * @param {number} [parallelism] - defaults to `os.availableParallelism()`
+ * @returns {number}
+ */
+export function resolveTestConcurrency(
+  parallelism = os.availableParallelism(),
+) {
+  return Math.min(
+    TEST_CONCURRENCY_MAX,
+    Math.max(TEST_CONCURRENCY_MIN, parallelism),
+  );
+}
+
 /**
  * Fixed `node --test` flags applied to every spawn (every chunk).
+ * `--test-concurrency` is derived at startup from the host's available
+ * parallelism so the value is appropriate for the machine running the suite
+ * rather than being pinned to the historical constant of 8.
  */
 export const TEST_RUNNER_FLAGS = Object.freeze([
   '--experimental-test-module-mocks',
   '--test',
-  '--test-concurrency=8',
+  `--test-concurrency=${resolveTestConcurrency()}`,
 ]);
 
 /**
