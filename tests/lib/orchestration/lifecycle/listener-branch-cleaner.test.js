@@ -20,7 +20,6 @@ import { describe, it } from 'node:test';
 import { Bus } from '../../../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
 import {
   BranchCleaner,
-  createBranchCleaner,
   summarizeReap,
 } from '../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/branch-cleaner.js';
 
@@ -104,11 +103,6 @@ describe('BranchCleaner — constructor guards', () => {
   it('subscribes to epic.cleanup.start and only that event', () => {
     const cleaner = new BranchCleaner(validOpts);
     assert.deepEqual(cleaner.events, ['epic.cleanup.start']);
-  });
-
-  it('createBranchCleaner is a thin factory', () => {
-    const inst = createBranchCleaner(validOpts);
-    assert.ok(inst instanceof BranchCleaner);
   });
 });
 

@@ -198,7 +198,3 @@ export class LabelTransitioner {
     this._seen.clear();
   }
 }
-
-export function createLabelTransitioner(opts) {
-  return new LabelTransitioner(opts);
-}

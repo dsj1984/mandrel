@@ -293,7 +293,3 @@ export class TimeoutWatchdog {
     return [...this._timers.keys()];
   }
 }
-
-export function createTimeoutWatchdog(opts) {
-  return new TimeoutWatchdog(opts);
-}

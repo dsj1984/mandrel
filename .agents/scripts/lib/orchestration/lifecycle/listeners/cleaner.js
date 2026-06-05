@@ -353,7 +353,3 @@ export class Cleaner {
     this.classifications = [];
   }
 }
-
-export function createCleaner(opts) {
-  return new Cleaner(opts);
-}

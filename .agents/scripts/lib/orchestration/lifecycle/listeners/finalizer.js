@@ -659,7 +659,3 @@ export class Finalizer {
     this.classifications = [];
   }
 }
-
-export function createFinalizer(opts) {
-  return new Finalizer(opts);
-}

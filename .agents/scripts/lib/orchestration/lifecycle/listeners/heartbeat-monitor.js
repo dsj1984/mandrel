@@ -196,7 +196,3 @@ export class HeartbeatMonitor {
     this.warnings = [];
   }
 }
-
-export function createHeartbeatMonitor(opts) {
-  return new HeartbeatMonitor(opts);
-}

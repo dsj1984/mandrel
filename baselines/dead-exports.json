@@ -580,14 +580,6 @@
       "symbol": "executeStashPhase"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/acceptance-reconciler.js",
-      "symbol": "createAcceptanceReconciler"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-armer.js",
-      "symbol": "createAutomergeArmer"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-armer.js",
       "symbol": "ghPrMergeAuto"
     },
@@ -596,28 +588,8 @@
       "symbol": "ghPrViewAutoMerge"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
-      "symbol": "createAutomergePredicate"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/blocker-handler.js",
-      "symbol": "createBlockerHandler"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/checkpoint-pointer-writer.js",
-      "symbol": "createCheckpointPointerWriter"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/cleaner.js",
-      "symbol": "createCleaner"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/cleaner.js",
       "symbol": "defaultNow"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/finalizer.js",
-      "symbol": "createFinalizer"
     },
     {
       "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/finalizer.js",
@@ -628,16 +600,8 @@
       "symbol": "ghPrListHead"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/label-transitioner.js",
-      "symbol": "createLabelTransitioner"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/merge-watcher.js",
       "symbol": "appendAttempt"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/merge-watcher.js",
-      "symbol": "createMergeWatcher"
     },
     {
       "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/merge-watcher.js",
@@ -665,23 +629,7 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/notify-dispatcher.js",
-      "symbol": "createNotifyDispatcher"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/notify-dispatcher.js",
       "symbol": "LIFECYCLE_TO_WEBHOOK_EVENT"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/progress-reporter.js",
-      "symbol": "createProgressReporter"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/signals-appender.js",
-      "symbol": "createSignalsAppender"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/structured-comment-poster.js",
-      "symbol": "createStructuredCommentPoster"
     },
     {
       "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
