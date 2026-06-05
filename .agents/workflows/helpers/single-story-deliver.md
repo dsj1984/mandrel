@@ -247,6 +247,16 @@ cascade. Work happens in one or more commits on the `story-<id>`
 branch, against the inline `acceptance[]` / `verify[]` arrays on the
 Story body.
 
+> **Re-anchor first (before your first commit).** A delivery sub-agent
+> receives its persona via the hydrated envelope once, then runs for many
+> phases — long enough to drift. As your explicit first action in this
+> step, re-read your assigned persona (`.agents/personas/<role>.md`,
+> resolved from the Story's `persona::*` label; default `engineer.md`) and
+> the global rules in `.agents/rules/` (per
+> [`.agents/instructions.md` § 1.F](../../instructions.md)). This is a cheap
+> self-anchor, not a runtime gate — keep it to a quick re-read so it does
+> not bloat the hydrated prompt (`delivery.maxTokenBudget` elision).
+
 Operator/agent responsibilities while in the worktree:
 
 1. Read the Story body. Treat its acceptance criteria as the contract.
@@ -652,6 +662,15 @@ safe.
 - **Always** pass `--cwd <main-repo>` to `single-story-close.js` when
   invoking from inside a worktree (worktree-local branch deletion fails
   when run from inside the worktree).
+- **Handoff discipline — report state, not process.** When you hand back to
+  your caller (the `/story-deliver` aggregator or the interactive operator),
+  report essential terminal state only: the Story branch, the closing commit
+  SHA, what changed, and what was verified. Mirror the fields the close
+  pipeline already emits (`single-story-close.js` / `story-phase.js`
+  envelopes, the `story-run-progress` snapshot) rather than inventing a new
+  contract. Do not narrate the steps you took, and do not prescribe how the
+  next stage should do its work. Prose process commentary only bloats the
+  hydrated prompt (`delivery.maxTokenBudget` elision).
 - **MCP fallback**: if `mandrel` MCP tools fail, fall back to
   `node .agents/scripts/update-ticket-state.js --ticket <id> --state <state>`
   for label transitions.
