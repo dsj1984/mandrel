@@ -16,6 +16,7 @@ import {
   structuredCommentMarker,
 } from '../../../../.agents/scripts/lib/orchestration/ticketing/reads.js';
 import {
+  _resetColumnSyncCache,
   postStructuredComment,
   toggleTasklistCheckbox,
   transitionStoryDirect,
@@ -101,6 +102,7 @@ describe('ticketing/state — transitionTicketState', () => {
   beforeEach(() => {
     mock = new MockProvider();
     _resetStructuredCommentCache(mock);
+    _resetColumnSyncCache(mock);
   });
 
   it('validateTransitionInputs throws on unknown state labels', async () => {
@@ -239,6 +241,100 @@ describe('ticketing/state — transitionTicketState', () => {
     assert.equal(syncCalls.length, 1);
     assert.equal(syncCalls[0].id, 10);
     assert.deepEqual(syncCalls[0].labels, [STATE_LABELS.EXECUTING]);
+  });
+
+  // Story #3661 — registry: meta-query fires once across N transitions.
+  it('reuses the same ColumnSync instance across multiple transitions (meta fetched once)', async () => {
+    // Arrange: extend MockProvider with a graphql surface that counts
+    // project-metadata fetch calls so we can assert the cache is hit.
+    const metaFetchCalls = [];
+    // Re-use the existing `mock` instance so all ITicketingProvider
+    // methods (getTicket, updateTicket, …) are wired up correctly.
+    // Augment it with the graphql + project-board properties that
+    // ColumnSync needs.
+    mock.projectNumber = 7;
+    mock.projectOwner = null;
+    mock.owner = 'acme';
+    mock.repo = 'widgets';
+    mock.graphql = async (query, vars) => {
+      if (query.includes('viewer') && query.includes('projectV2')) {
+        metaFetchCalls.push({ query, vars });
+        return {
+          viewer: {
+            projectV2: {
+              id: 'PROJ',
+              field: {
+                id: 'FIELD',
+                options: [
+                  { id: 'opt-inprog', name: 'In Progress' },
+                  { id: 'opt-done', name: 'Done' },
+                ],
+              },
+            },
+          },
+        };
+      }
+      if (query.includes('projectItems(first')) {
+        return {
+          repository: {
+            issue: {
+              projectItems: {
+                nodes: [{ id: 'ITEM-1', project: { id: 'PROJ' } }],
+              },
+            },
+          },
+        };
+      }
+      if (query.includes('updateProjectV2ItemFieldValue')) {
+        return {
+          updateProjectV2ItemFieldValue: { projectV2Item: { id: vars.itemId } },
+        };
+      }
+      return {};
+    };
+    _resetColumnSyncCache(mock);
+
+    // Act: fire three label transitions without injecting _makeColumnSync.
+    await transitionTicketState(mock, 10, STATE_LABELS.EXECUTING, {
+      cascade: false,
+    });
+    await transitionTicketState(mock, 10, STATE_LABELS.BLOCKED, {
+      cascade: false,
+    });
+    await transitionTicketState(mock, 10, STATE_LABELS.EXECUTING, {
+      cascade: false,
+    });
+
+    // Assert: the meta GraphQL query fired exactly once across all three
+    // transitions — not once per transition.
+    assert.equal(
+      metaFetchCalls.length,
+      1,
+      `expected the project-metadata query to fire exactly once; got ${metaFetchCalls.length}`,
+    );
+  });
+
+  // Story #3661 — injected _makeColumnSync bypasses the registry (no caching).
+  it('does not cache instances created by an injected _makeColumnSync', async () => {
+    const factoryCalls = [];
+    const syncCalls = [];
+    const makeColumnSync = () => {
+      factoryCalls.push(1);
+      return { sync: async (id, labels) => syncCalls.push({ id, labels }) };
+    };
+
+    await transitionTicketState(mock, 10, STATE_LABELS.EXECUTING, {
+      cascade: false,
+      _makeColumnSync: makeColumnSync,
+    });
+    await transitionTicketState(mock, 10, STATE_LABELS.BLOCKED, {
+      cascade: false,
+      _makeColumnSync: makeColumnSync,
+    });
+
+    // The factory should have been called once per transition (not reused).
+    assert.equal(factoryCalls.length, 2);
+    assert.equal(syncCalls.length, 2);
   });
 });
 

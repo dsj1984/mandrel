@@ -14,6 +14,16 @@
  * cycle because neither side dereferences the other at
  * module-evaluation time — both bindings are resolved at call-time
  * once both modules have completed evaluation.
+ *
+ * Story #3661 — `_columnSyncRegistry` is a module-level WeakMap that
+ * retains one `ColumnSync` instance per provider for the lifetime of the
+ * process. `ColumnSync` already caches the project metadata (projectId,
+ * fieldId, option ids) inside the instance after the first GraphQL fetch
+ * (`this._meta`), but that cache was discarded on every label transition
+ * because `syncProjectStatusColumn` constructed a fresh instance each
+ * call. The registry lets the instance — and therefore its `_meta`
+ * cache — survive across transitions, so the invariant metadata is
+ * resolved exactly once per run rather than once per label flip.
  */
 
 import { extractEpicIdFromBody } from '../../dependency-parser.js';
@@ -40,6 +50,31 @@ import {
   structuredCommentCacheKey,
   structuredCommentMarker,
 } from './reads.js';
+
+/**
+ * One `ColumnSync` instance per provider, retained for the process
+ * lifetime so the invariant project metadata (`projectId`, `fieldId`,
+ * option ids) is fetched exactly once per run regardless of how many
+ * label transitions fire. The `ColumnSync` instance already caches
+ * the metadata internally (`_meta`), but that cache was thrown away on
+ * every call to `syncProjectStatusColumn` because the function
+ * constructed a fresh instance each time. Story #3661.
+ *
+ * `WeakMap` keys are GC-friendly: when a provider is collected the
+ * entry is automatically removed without a manual eviction step.
+ */
+const _columnSyncRegistry = new WeakMap();
+
+/**
+ * Drop the cached `ColumnSync` for a given provider. Exposed as a
+ * named export so unit tests that swap providers between assertions can
+ * reset the registry without reloading the module.
+ *
+ * @param {object} provider
+ */
+export function _resetColumnSyncCache(provider) {
+  _columnSyncRegistry.delete(provider);
+}
 
 /**
  * Guard the inputs to {@link transitionTicketState}. Extracted from the
@@ -106,6 +141,14 @@ async function loadTicketSnapshot(provider, opts, ticketId) {
  * a factory stub that avoids the GraphQL dependency without mocking the
  * module. Story #3645.
  *
+ * Story #3661 — when the caller uses the default factory (i.e. did not
+ * inject a stub), the function looks up or creates a `ColumnSync`
+ * instance in `_columnSyncRegistry` keyed by `provider`. This keeps the
+ * instance — and therefore its `_meta` cache — alive across transitions
+ * so the invariant project metadata is fetched exactly once per run.
+ * Test-injected factories bypass the registry entirely; their synthetic
+ * stubs are never stored in `_columnSyncRegistry`.
+ *
  * @param {object} provider
  * @param {number} ticketId
  * @param {string} newState
@@ -115,10 +158,27 @@ async function syncProjectStatusColumn(
   provider,
   ticketId,
   newState,
-  _makeColumnSync = (opts) => new ColumnSync(opts),
+  _makeColumnSync,
 ) {
   try {
-    const sync = _makeColumnSync({ provider, logger: Logger });
+    let sync;
+    if (_makeColumnSync) {
+      // Test-injected factory: bypass the registry so stubs are never
+      // accidentally cached and reused in subsequent calls.
+      sync = _makeColumnSync({ provider, logger: Logger });
+    } else {
+      // Production path: look up or create the per-provider instance.
+      // The instance's `_meta` cache survives across label transitions
+      // so the invariant project metadata (projectId, fieldId, options)
+      // is only fetched once per process run. Story #3661.
+      if (!_columnSyncRegistry.has(provider)) {
+        _columnSyncRegistry.set(
+          provider,
+          new ColumnSync({ provider, logger: Logger }),
+        );
+      }
+      sync = _columnSyncRegistry.get(provider);
+    }
     await sync.sync(ticketId, [newState]);
   } catch (err) {
     Logger.warn(
