@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T17:16:22.677Z",
+  "generatedAt": "2026-06-05T17:37:57.537Z",
   "rollup": {
     "*": {
       "min": 45.044,
@@ -1413,10 +1413,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
       "mi": 87.033
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "mi": 93.076
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing.js",
@@ -4821,10 +4817,6 @@
     {
       "path": "tests/ticket-decomposer.test.js",
       "mi": 99.673
-    },
-    {
-      "path": "tests/ticket-validation.test.js",
-      "mi": 108.739
     },
     {
       "path": "tests/ticketing-provider.test.js",
