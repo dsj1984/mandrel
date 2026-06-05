@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { beforeEach, describe, it } from 'node:test';
 import { Volume } from 'memfs';
+import { CRAP_GATE_DEFAULTS } from '../../.agents/scripts/lib/config/quality.js';
 import {
   BASELINES_DEFAULTS,
   CODING_GUARDRAILS_DEFAULTS,
@@ -12,7 +13,6 @@ import {
   getPaths,
   getQuality,
   LIMITS_DEFAULTS,
-  MAINTAINABILITY_CRAP_DEFAULTS,
   PROJECT_ROOT,
   resolveCodingGuardrails,
   resolveConfig,
@@ -228,7 +228,7 @@ describe('helper accessors against the post-reshape shape', () => {
 
   it('getQuality defaults match exported defaults', () => {
     const q = getQuality({});
-    assert.equal(q.crap.enabled, MAINTAINABILITY_CRAP_DEFAULTS.enabled);
+    assert.equal(q.crap.enabled, CRAP_GATE_DEFAULTS.enabled);
     assert.equal(
       q.codingGuardrails.cyclomaticFlag,
       CODING_GUARDRAILS_DEFAULTS.cyclomaticFlag,

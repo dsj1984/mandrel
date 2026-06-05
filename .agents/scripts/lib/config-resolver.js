@@ -45,7 +45,6 @@ export { getPreflight, PREFLIGHT_DEFAULTS } from './config/preflight.js';
 export {
   CODING_GUARDRAILS_DEFAULTS,
   getQuality,
-  MAINTAINABILITY_CRAP_DEFAULTS,
   resolveCodingGuardrails,
   resolveMaintainabilityCrap,
   resolveQuality,
