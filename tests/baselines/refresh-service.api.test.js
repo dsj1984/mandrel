@@ -101,16 +101,24 @@ describe('refreshBaseline — option-bag validation', () => {
     );
   });
 
-  it('throws when no scorer is registered and none is injected', async () => {
-    await assert.rejects(
-      () =>
-        refreshBaseline({
-          kind: 'maintainability',
-          writePath: path.join(workDir, 'm.json'),
-          fullScope: true,
-        }),
-      /no scorer registered for kind "maintainability"/,
-    );
+  it('uses the registered default scorer when no scorer is injected (Story #3658)', async () => {
+    // Story #3658 completes the Epic #2173 migration: all three kinds now have
+    // registered default scorers in KIND_SCORERS, so callers no longer need to
+    // inject a scorer. A full-scope invocation with no scorer must succeed
+    // (the default maintainability scorer returns an empty result when no target
+    // dirs are configured — the service still writes a valid empty baseline).
+    const writePath = path.join(workDir, 'm.json');
+    const result = await refreshBaseline({
+      kind: 'maintainability',
+      writePath,
+      fullScope: true,
+    });
+    assert.equal(result.kind, 'maintainability');
+    assert.equal(result.scope.mode, 'full');
+    // An unconfigured scorer may or may not find files — either way it must
+    // not throw, and must return a valid envelope.
+    assert.ok(typeof result.wrote === 'boolean');
+    assert.ok(Array.isArray(result.envelope?.rows));
   });
 });
 
