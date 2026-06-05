@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T16:11:55.109Z",
+  "generatedAt": "2026-06-05T16:20:08.035Z",
   "rollup": {
     "*": {
       "min": 45.044,
@@ -1313,10 +1313,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
       "mi": 108.168
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
-      "mi": 98
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",

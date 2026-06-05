@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T16:11:55.531Z",
+  "generatedAt": "2026-06-05T16:20:08.327Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -9195,36 +9195,6 @@
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
       "method": "<anon method-1>",
       "startLine": 66,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
-      "method": "parsePrNumber",
-      "startLine": 34,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
-      "method": "buildStoryReviewCrossRefBody",
-      "startLine": 54,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
-      "method": "runStoryScopeReview",
-      "startLine": 103,
-      "crap": 5.029676368817423
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
-      "method": "<anon method-1>",
-      "startLine": 135,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
-      "method": "<anon method-2>",
-      "startLine": 136,
       "crap": 1
     },
     {

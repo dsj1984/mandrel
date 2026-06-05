@@ -37,6 +37,8 @@
 
 import { spawnSync } from 'node:child_process';
 
+import { parsePrNumberFromUrl } from '../../../github-url.js';
+
 /**
  * Map `gh pr checks` `state` values to the canonical outcome enum on
  * the `epic.watch.end` schema, with a fourth `'pending'` sentinel for
@@ -94,14 +96,11 @@ export function normalizeCheckState(raw) {
  * number — we pass the URL through verbatim, but the helper still
  * exists for tests asserting we never silently coerce a malformed URL.
  *
- * Returns `null` for anything that doesn't look like a GitHub PR URL.
+ * Delegates to `parsePrNumberFromUrl` in `lib/github-url.js`.
+ * Re-exported under the original name so existing call sites and tests
+ * do not need to change. Story #3649.
  */
-export function extractPrNumber(prUrl) {
-  const m = String(prUrl ?? '').match(
-    /^https:\/\/github\.com\/[^/]+\/[^/]+\/pull\/(\d+)\b/,
-  );
-  return m ? Number.parseInt(m[1], 10) : null;
-}
+export const extractPrNumber = parsePrNumberFromUrl;
 
 /**
  * Default `gh pr checks` spawn. Always invokes with `--required` so the
