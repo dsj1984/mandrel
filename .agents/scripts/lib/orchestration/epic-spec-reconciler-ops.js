@@ -1,5 +1,3 @@
-/* node:coverage ignore file -- MI 0 inert plain-object factories (operation types + plan shape); data-as-code, no branches to cover */
-
 /**
  * lib/orchestration/epic-spec-reconciler-ops.js — operation types + plan shape
  * for the epic-spec reconciler diff engine.
@@ -8,10 +6,13 @@
  * rather than blind-coercing them with `String()`. See `createOp` for the
  * serialize-or-throw contract.
  *
- * Import note: the `/* node:coverage ignore file *​/` comment at the top of
- * this module covers the entire file. The serialize-or-throw guard in
- * `createOp` is the only branch; it is exercised by
- * `tests/story-3302-body-shape.test.js`.
+ * Coverage note: the pure factories and plan utilities in this module are
+ * exercised by `tests/story-3302-body-shape.test.js`. The one genuinely
+ * untestable branch is the `createOp` serialize catch-rethrow path — it
+ * requires `serialize()` to throw on a plain object, which the library
+ * contract does not support (serialize only throws on non-object inputs, and
+ * those are excluded by the `typeof rawBody === 'object'` guard above); the
+ * branch is annotated with a surgical `node:coverage ignore` below.
  *
  * Owns the typed shapes that flow through the structural reconciler (Epic
  * #1182 / Tech Spec #1483 / Story #1492). The diff engine produces these
@@ -179,6 +180,11 @@ export function createOp(input) {
     if (rawBody !== null && typeof rawBody === 'object') {
       try {
         op.body = serialize(rawBody);
+        /* node:coverage ignore next 7 -- serialize() only throws on non-object
+           inputs; the rawBody guard above (`typeof rawBody === 'object'`) already
+           excludes every value that could make serialize() throw, so this catch
+           branch is unreachable in practice. It is kept as a defensive wrapper
+           for hypothetical future serialize contract changes. */
       } catch (err) {
         // Re-throw with extra context so callers know which op triggered
         // the serialization failure. StoryBodyParseError is already

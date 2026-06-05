@@ -7,14 +7,29 @@
  *      freshness gate does not false-positive on net-new files.
  *   3. `collectStoryAssumptionEntries` parses a canonical string body so
  *      the #2636 assumption gate works on the serialized form.
+ *
+ * Story #3629 (component-health / coverage-annotation cleanup) extends this
+ * file with tests for the remaining pure decision cores in
+ * `epic-spec-reconciler-ops.js` — `updateOp`, `closeOp`, `relinkOp`, and
+ * the plan utility functions — so that the blanket file-level coverage ignore
+ * can be removed and only the genuinely untestable catch branch is annotated.
  */
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  closeOp,
   createOp,
   ENTITY_KINDS,
+  emptyPlan,
+  isEmptyPlan,
+  isOperation,
+  isPlan,
+  OP_KINDS,
+  planSize,
+  relinkOp,
+  updateOp,
 } from '../.agents/scripts/lib/orchestration/epic-spec-reconciler-ops.js';
 import { collectStoryAssumptionEntries } from '../.agents/scripts/lib/orchestration/file-assumptions.js';
 import { validateAcFreshness } from '../.agents/scripts/lib/orchestration/ticket-validator.js';
@@ -267,5 +282,286 @@ describe('collectStoryAssumptionEntries — canonical string body (Story #3302)'
       assumption: 'deletes',
       source: 'changes',
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Story #3629: pure decision cores — updateOp, closeOp, relinkOp
+// ---------------------------------------------------------------------------
+
+describe('updateOp — factory and validation (Story #3629)', () => {
+  it('builds a well-formed UpdateOp with change entries', () => {
+    const op = updateOp({
+      slug: 'my-story',
+      entity: ENTITY_KINDS.STORY,
+      issueNumber: 42,
+      changes: {
+        title: { before: 'Old', after: 'New' },
+        body: { before: 'x', after: 'y' },
+      },
+    });
+    assert.equal(op.kind, OP_KINDS.UPDATE);
+    assert.equal(op.slug, 'my-story');
+    assert.equal(op.entity, ENTITY_KINDS.STORY);
+    assert.equal(op.issueNumber, 42);
+    assert.deepEqual(op.changes.title, { before: 'Old', after: 'New' });
+    assert.deepEqual(op.changes.body, { before: 'x', after: 'y' });
+  });
+
+  it('accepts an empty changes object', () => {
+    const op = updateOp({
+      slug: 'empty-changes',
+      entity: ENTITY_KINDS.FEATURE,
+      issueNumber: 7,
+      changes: {},
+    });
+    assert.deepEqual(op.changes, {});
+  });
+
+  it('throws when a change entry lacks before/after', () => {
+    assert.throws(
+      () =>
+        updateOp({
+          slug: 'bad-change',
+          entity: ENTITY_KINDS.STORY,
+          issueNumber: 1,
+          changes: { title: { only: 'one key' } },
+        }),
+      TypeError,
+    );
+  });
+
+  it('throws on an invalid slug', () => {
+    assert.throws(
+      () =>
+        updateOp({
+          slug: '',
+          entity: ENTITY_KINDS.STORY,
+          issueNumber: 1,
+          changes: {},
+        }),
+      TypeError,
+    );
+  });
+
+  it('throws on an invalid entity kind', () => {
+    assert.throws(
+      () =>
+        updateOp({
+          slug: 'valid-slug',
+          entity: 'invalid-entity',
+          issueNumber: 1,
+          changes: {},
+        }),
+      TypeError,
+    );
+  });
+});
+
+describe('closeOp — factory (Story #3629)', () => {
+  it('builds a CloseOp with optional title', () => {
+    const op = closeOp({
+      slug: 'old-story',
+      entity: ENTITY_KINDS.STORY,
+      issueNumber: 99,
+      title: 'Deprecated story',
+    });
+    assert.equal(op.kind, OP_KINDS.CLOSE);
+    assert.equal(op.slug, 'old-story');
+    assert.equal(op.entity, ENTITY_KINDS.STORY);
+    assert.equal(op.issueNumber, 99);
+    assert.equal(op.title, 'Deprecated story');
+  });
+
+  it('omits title when not provided', () => {
+    const op = closeOp({
+      slug: 'no-title',
+      entity: ENTITY_KINDS.EPIC,
+      issueNumber: 5,
+    });
+    assert.equal('title' in op, false);
+  });
+
+  it('throws on an invalid slug', () => {
+    assert.throws(
+      () => closeOp({ slug: '', entity: ENTITY_KINDS.STORY, issueNumber: 1 }),
+      TypeError,
+    );
+  });
+});
+
+describe('relinkOp — factory (Story #3629)', () => {
+  it('builds a RelinkOp with a parent edge change', () => {
+    const op = relinkOp({
+      slug: 'child-story',
+      entity: ENTITY_KINDS.STORY,
+      issueNumber: 10,
+      parent: { before: 'feature-a', after: 'feature-b' },
+    });
+    assert.equal(op.kind, OP_KINDS.RELINK);
+    assert.deepEqual(op.parent, { before: 'feature-a', after: 'feature-b' });
+    assert.equal('dependsOn' in op, false);
+  });
+
+  it('builds a RelinkOp with a dependsOn edge change (arrays sorted)', () => {
+    const op = relinkOp({
+      slug: 'story-b',
+      entity: ENTITY_KINDS.STORY,
+      issueNumber: 11,
+      dependsOn: { before: ['z-story', 'a-story'], after: ['c-story'] },
+    });
+    assert.deepEqual(op.dependsOn.before, ['a-story', 'z-story']);
+    assert.deepEqual(op.dependsOn.after, ['c-story']);
+    assert.equal('parent' in op, false);
+  });
+
+  it('builds a RelinkOp with both parent and dependsOn', () => {
+    const op = relinkOp({
+      slug: 'story-c',
+      entity: ENTITY_KINDS.STORY,
+      issueNumber: 12,
+      parent: { before: null, after: 'feature-x' },
+      dependsOn: { before: [], after: ['story-d'] },
+    });
+    assert.ok(op.parent);
+    assert.ok(op.dependsOn);
+  });
+
+  it('coerces null parent edges to null', () => {
+    const op = relinkOp({
+      slug: 'story-null',
+      entity: ENTITY_KINDS.STORY,
+      issueNumber: 13,
+      parent: { before: null, after: null },
+    });
+    assert.equal(op.parent.before, null);
+    assert.equal(op.parent.after, null);
+  });
+
+  it('throws when neither parent nor dependsOn is provided', () => {
+    assert.throws(
+      () =>
+        relinkOp({
+          slug: 'story-empty',
+          entity: ENTITY_KINDS.STORY,
+          issueNumber: 14,
+        }),
+      TypeError,
+    );
+  });
+
+  it('throws on an invalid slug', () => {
+    assert.throws(
+      () =>
+        relinkOp({
+          slug: 42,
+          entity: ENTITY_KINDS.STORY,
+          issueNumber: 1,
+          parent: { before: null, after: 'f' },
+        }),
+      TypeError,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Story #3629: plan utility functions
+// ---------------------------------------------------------------------------
+
+describe('emptyPlan / isPlan / planSize / isEmptyPlan / isOperation (Story #3629)', () => {
+  it('emptyPlan returns a plan with four empty arrays', () => {
+    const plan = emptyPlan();
+    assert.ok(isPlan(plan));
+    assert.deepEqual(plan.creates, []);
+    assert.deepEqual(plan.updates, []);
+    assert.deepEqual(plan.closes, []);
+    assert.deepEqual(plan.relinks, []);
+  });
+
+  it('isPlan returns false for non-objects', () => {
+    assert.equal(isPlan(null), false);
+    assert.equal(isPlan(undefined), false);
+    assert.equal(isPlan('string'), false);
+    assert.equal(isPlan(42), false);
+  });
+
+  it('isPlan returns false when any array property is missing', () => {
+    assert.equal(isPlan({ creates: [], updates: [], closes: [] }), false);
+    assert.equal(
+      isPlan({ creates: [], updates: [], closes: [], relinks: 'x' }),
+      false,
+    );
+  });
+
+  it('planSize returns 0 for an empty plan', () => {
+    assert.equal(planSize(emptyPlan()), 0);
+  });
+
+  it('planSize returns the sum across all four buckets', () => {
+    const plan = emptyPlan();
+    plan.creates.push(
+      createOp({ slug: 's1', entity: ENTITY_KINDS.STORY, title: 'S1' }),
+    );
+    plan.closes.push(
+      closeOp({ slug: 's2', entity: ENTITY_KINDS.STORY, issueNumber: 2 }),
+    );
+    assert.equal(planSize(plan), 2);
+  });
+
+  it('planSize returns 0 for a non-plan value', () => {
+    assert.equal(planSize(null), 0);
+    assert.equal(planSize({}), 0);
+  });
+
+  it('isEmptyPlan returns true for an empty plan', () => {
+    assert.equal(isEmptyPlan(emptyPlan()), true);
+  });
+
+  it('isEmptyPlan returns false for a non-empty plan', () => {
+    const plan = emptyPlan();
+    plan.creates.push(
+      createOp({ slug: 's1', entity: ENTITY_KINDS.STORY, title: 'S1' }),
+    );
+    assert.equal(isEmptyPlan(plan), false);
+  });
+
+  it('isOperation returns true for a valid CreateOp', () => {
+    const op = createOp({
+      slug: 'test-op',
+      entity: ENTITY_KINDS.STORY,
+      title: 'Test',
+    });
+    assert.equal(isOperation(op), true);
+  });
+
+  it('isOperation returns true for a valid UpdateOp', () => {
+    const op = updateOp({
+      slug: 'up-op',
+      entity: ENTITY_KINDS.FEATURE,
+      issueNumber: 5,
+      changes: { title: { before: 'A', after: 'B' } },
+    });
+    assert.equal(isOperation(op), true);
+  });
+
+  it('isOperation returns false for non-objects and malformed ops', () => {
+    assert.equal(isOperation(null), false);
+    assert.equal(isOperation('string'), false);
+    assert.equal(
+      isOperation({ kind: 'invalid', slug: 'x', entity: ENTITY_KINDS.STORY }),
+      false,
+    );
+    assert.equal(
+      isOperation({ kind: OP_KINDS.CREATE, slug: 'x', entity: 'bad-entity' }),
+      false,
+    );
+    assert.equal(
+      isOperation({
+        kind: OP_KINDS.CREATE,
+        slug: 42,
+        entity: ENTITY_KINDS.STORY,
+      }),
+      false,
+    );
   });
 });
