@@ -107,7 +107,3 @@ export class SignalsAppender {
     this._seen.clear();
   }
 }
-
-export function createSignalsAppender(opts) {
-  return new SignalsAppender(opts);
-}

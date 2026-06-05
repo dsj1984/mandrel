@@ -257,7 +257,3 @@ export function summarizeReap(result) {
     wtBranchDeleted: result?.wtBranch?.deleted === true,
   };
 }
-
-export function createBranchCleaner(opts) {
-  return new BranchCleaner(opts);
-}

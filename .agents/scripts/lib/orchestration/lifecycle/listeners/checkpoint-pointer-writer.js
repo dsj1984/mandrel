@@ -277,10 +277,3 @@ export class CheckpointPointerWriter {
     this._lastSeqId = 0;
   }
 }
-
-/**
- * Factory wrapper for symmetry with other listeners.
- */
-export function createCheckpointPointerWriter(opts) {
-  return new CheckpointPointerWriter(opts);
-}

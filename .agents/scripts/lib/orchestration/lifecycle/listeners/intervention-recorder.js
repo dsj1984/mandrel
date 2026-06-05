@@ -138,7 +138,3 @@ export class InterventionRecorder {
     this._seen.clear();
   }
 }
-
-export function createInterventionRecorder(opts) {
-  return new InterventionRecorder(opts);
-}

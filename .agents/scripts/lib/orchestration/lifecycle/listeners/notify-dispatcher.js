@@ -161,7 +161,3 @@ export class NotifyDispatcher {
     this._seen.clear();
   }
 }
-
-export function createNotifyDispatcher(opts) {
-  return new NotifyDispatcher(opts);
-}

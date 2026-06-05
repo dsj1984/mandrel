@@ -246,7 +246,3 @@ export class AutomergeArmer {
     this.classifications = [];
   }
 }
-
-export function createAutomergeArmer(opts) {
-  return new AutomergeArmer(opts);
-}

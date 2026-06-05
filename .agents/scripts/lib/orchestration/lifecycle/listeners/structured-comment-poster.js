@@ -255,10 +255,6 @@ export class StructuredCommentPoster {
   }
 }
 
-export function createStructuredCommentPoster(opts) {
-  return new StructuredCommentPoster(opts);
-}
-
 /**
  * Marker-helper exports — used by retrospective tooling and parity
  * tests to locate the wave-start/wave-end structured comments without
