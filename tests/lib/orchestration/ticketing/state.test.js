@@ -221,6 +221,25 @@ describe('ticketing/state — transitionTicketState', () => {
     assert.deepEqual(agentLabels, [STATE_LABELS.EXECUTING]);
     assert.equal(mock.tickets[10].state, 'open');
   });
+
+  // Story #3645 — DIP seam: _makeColumnSync is injectable so tests can
+  // verify the board-sync path without wiring a real ColumnSync / GraphQL.
+  it('invokes _makeColumnSync factory and calls sync on the result', async () => {
+    const syncCalls = [];
+    const fakeSync = {
+      sync: async (id, labels) => syncCalls.push({ id, labels }),
+    };
+    const makeColumnSync = () => fakeSync;
+
+    await transitionTicketState(mock, 10, STATE_LABELS.EXECUTING, {
+      cascade: false,
+      _makeColumnSync: makeColumnSync,
+    });
+
+    assert.equal(syncCalls.length, 1);
+    assert.equal(syncCalls[0].id, 10);
+    assert.deepEqual(syncCalls[0].labels, [STATE_LABELS.EXECUTING]);
+  });
 });
 
 describe('ticketing/state — toggleTasklistCheckbox', () => {
@@ -231,12 +250,12 @@ describe('ticketing/state — toggleTasklistCheckbox', () => {
   });
 
   it('toggles an unchecked box to checked', async () => {
-    await toggleTasklistCheckbox(mock, 11, 10, true);
+    await toggleTasklistCheckbox(mock, 11, 10, { checked: true });
     assert.equal(mock.tickets[11].body.includes('- [x] #10'), true);
   });
 
   it('is a no-op when the sub-issue is not referenced', async () => {
-    await toggleTasklistCheckbox(mock, 11, 999, true);
+    await toggleTasklistCheckbox(mock, 11, 999, { checked: true });
     assert.equal(mock.updates.length, 0);
   });
 });

@@ -101,13 +101,24 @@ async function loadTicketSnapshot(provider, opts, ticketId) {
  * GraphQL failure MUST NOT block the label transition itself. Errors
  * surface via `Logger.warn` and the function resolves cleanly.
  *
+ * The `_makeColumnSync` default param is a DIP seam: production callers
+ * accept the default (which constructs a real `ColumnSync`); tests inject
+ * a factory stub that avoids the GraphQL dependency without mocking the
+ * module. Story #3645.
+ *
  * @param {object} provider
  * @param {number} ticketId
  * @param {string} newState
+ * @param {(opts: object) => { sync: (id: number, labels: string[]) => Promise<object> }} [_makeColumnSync]
  */
-async function syncProjectStatusColumn(provider, ticketId, newState) {
+async function syncProjectStatusColumn(
+  provider,
+  ticketId,
+  newState,
+  _makeColumnSync = (opts) => new ColumnSync(opts),
+) {
   try {
-    const sync = new ColumnSync({ provider, logger: Logger });
+    const sync = _makeColumnSync({ provider, logger: Logger });
     await sync.sync(ticketId, [newState]);
   } catch (err) {
     Logger.warn(
@@ -189,7 +200,7 @@ function dispatchTransitionNotification(args) {
  * @param {import('../../ITicketingProvider.js').ITicketingProvider} provider
  * @param {number} ticketId
  * @param {string} newState - Must be one of STATE_LABELS.
- * @param {{ notify?: Function, cascade?: boolean, ticketSnapshot?: object }} [opts]
+ * @param {{ notify?: Function, cascade?: boolean, ticketSnapshot?: object, _makeColumnSync?: Function }} [opts]
  *   Optional notify function (the exported `notify(ticketId, payload, opts)`
  *   from `notify.js`, or any stub matching its shape). When provided, a
  *   state-transition notification fires after a successful transition.
@@ -215,6 +226,11 @@ function dispatchTransitionNotification(args) {
  *   `transitionTicketState` would otherwise issue — one for the notify
  *   `fromState` lookup and one inside `provider.updateTicket`'s label
  *   merge path. Backwards compatible: when omitted, behaviour is unchanged.
+ *
+ *   `_makeColumnSync` (Story #3645 DIP seam) — factory for the board-sync
+ *   object. Production callers omit it (the default constructs a real
+ *   `ColumnSync`); tests inject a stub to avoid GraphQL calls without
+ *   module-level mocking.
  */
 export async function transitionTicketState(
   provider,
@@ -261,7 +277,13 @@ export async function transitionTicketState(
 
   // Story #2548 — mirror the new state onto the Projects v2 Status
   // column. Best-effort; never blocks the transition.
-  await syncProjectStatusColumn(provider, ticketId, newState);
+  // Story #3645 — thread the DIP seam so callers can inject a stub.
+  await syncProjectStatusColumn(
+    provider,
+    ticketId,
+    newState,
+    opts._makeColumnSync,
+  );
 
   // Automatically trigger upward cascade on every transition (Story
   // #2676). The unified entry point is `cascadeParentState`, which:
@@ -333,16 +355,21 @@ export async function transitionStoryDirect(
  * Mutates the tasklist checkbox in the parent's body.
  * E.g., `- [ ] #123` to `- [x] #123`
  *
+ * Story #3645 — positional `checked` boolean replaced with a named
+ * `{ checked }` options bag to eliminate the boolean-trap smell (SRP /
+ * naming clarity audit finding). All call sites updated in the same PR
+ * per the No-Shim cutover rule.
+ *
  * @param {import('../../ITicketingProvider.js').ITicketingProvider} provider
  * @param {number} ticketId - ID of parent ticket
  * @param {number} subIssueId - ID of child ticket
- * @param {boolean} checked
+ * @param {{ checked: boolean }} opts
  */
 export async function toggleTasklistCheckbox(
   provider,
   ticketId,
   subIssueId,
-  checked,
+  { checked },
 ) {
   const ticket = await provider.getTicket(ticketId);
   const body = ticket.body || '';

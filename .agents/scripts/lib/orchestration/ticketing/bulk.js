@@ -253,7 +253,9 @@ async function processCascadeParentLocked(
   const cascadedTo = [];
   const failed = [];
   try {
-    await toggleTasklistCheckbox(provider, parentId, ticketId, true);
+    await toggleTasklistCheckbox(provider, parentId, ticketId, {
+      checked: true,
+    });
 
     // Idempotency check (Story #1817): re-fetch the parent under the lock
     // so a concurrent cascade winner that already flipped this parent to
