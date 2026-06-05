@@ -31,7 +31,9 @@ export async function resolveContext({ provider, logger, input }) {
   try {
     story = await provider.getTicket(storyId);
   } catch (err) {
-    throw new Error(`Failed to fetch Story #${storyId}: ${err.message}`, { cause: err });
+    throw new Error(`Failed to fetch Story #${storyId}: ${err.message}`, {
+      cause: err,
+    });
   }
 
   if (!story.labels.includes(TYPE_LABELS.STORY)) {
