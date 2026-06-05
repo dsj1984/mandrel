@@ -221,3 +221,53 @@ test('ticket-validator: fails fast on unknown depends_on slug', () => {
   ];
   assert.throws(() => validateAndNormalizeTickets(tickets), /unknown slugs/);
 });
+
+test('ticket-validator: shared probe cache — each path probed once across both gates', () => {
+  // Arrange: two Stories where the same path appears in one Story's AC text
+  // (scanned by validateAcFreshness) and another Story's body.changes
+  // assumption (scanned by validateStoryFileAssumptions). The shared
+  // memoized runner should invoke the underlying probe exactly once per
+  // unique (baseBranchRef, path) pair, not once per validator.
+  const probeCalls = [];
+  const gitRunner = ({ baseBranchRef, path }) => {
+    probeCalls.push(`${baseBranchRef}:${path}`);
+    // Simulate the path existing so neither gate raises an error.
+    return true;
+  };
+
+  const sharedPath = '.agents/scripts/lib/orchestration/ticket-validator.js';
+
+  const tickets = [
+    { slug: 'F1', type: 'feature', title: 'Feature 1' },
+    makeStory('S1', 'F1', {
+      // body.changes object-form triggers validateStoryFileAssumptions
+      body: {
+        goal: 'refactor the validator',
+        changes: [{ path: sharedPath, assumption: 'refactors-existing' }],
+        acceptance: ['Observable outcome is met.'],
+        verify: ['node --test'],
+      },
+      acceptance: ['Observable outcome is met.'],
+      verify: ['node --test'],
+    }),
+    makeStory('S2', 'F1', {
+      // AC text references the same path — triggers validateAcFreshness
+      acceptance: [`The change is consistent with \`${sharedPath}\` exports.`],
+      verify: ['node --test'],
+    }),
+  ];
+
+  validateAndNormalizeTickets(tickets, {
+    baseBranchRef: 'main',
+    gitRunner,
+  });
+
+  // Each unique path should be probed at most once, even though two
+  // validators both inspect the same path.
+  const uniqueCalls = [...new Set(probeCalls)];
+  assert.deepEqual(
+    uniqueCalls,
+    probeCalls,
+    `Expected each path to be probed once; got ${probeCalls.length} calls for ${uniqueCalls.length} unique paths`,
+  );
+});
