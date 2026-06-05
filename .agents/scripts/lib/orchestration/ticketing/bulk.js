@@ -17,7 +17,6 @@
 
 import { Logger } from '../../Logger.js';
 import { TYPE_LABELS } from '../../label-constants.js';
-import { concurrentMap } from '../../util/concurrent-map.js';
 import { dispatchCascadeGroups, groupByAncestor } from '../cascade-grouping.js';
 import { ALL_STATES, STATE_LABELS } from './reads.js';
 import {
@@ -29,13 +28,6 @@ import {
 // Re-export `groupByAncestor` so external callers that imported it from
 // the ticketing facade continue to work after the verb-family split.
 export { groupByAncestor };
-
-/**
- * Cap on concurrent sibling re-reads inside `cascadeCompletion`. Bounded to
- * keep wide tasklists (many siblings under one parent) from saturating the
- * provider's connection pool while still amortising network latency.
- */
-const CASCADE_SIBLING_READ_CONCURRENCY = 8;
 
 /**
  * Retry budget for transient `gh` failures (rate limit, secondary rate limit,
@@ -283,44 +275,16 @@ async function processCascadeParentLocked(
       return { cascadedTo, failed };
     }
 
-    const subTickets = await provider.getSubTickets(parentId);
-    // Re-fetch each sibling with fresh reads before the all-done check.
-    // `getSubTickets` populates each row via `getTicket`, which honors the
-    // per-instance ticket cache — a stale CLOSED entry for a sibling that
-    // has since been reopened (operator action, prior failed cascade) would
-    // otherwise let the cascade close the parent while a sibling is still
-    // open. Cache invalidation here is cheap (one HTTP read per sibling)
-    // and only fires when the closing ticket itself reaches `agent::done`,
-    // so the cost is bounded.
-    //
-    // The sibling-read fan-out is bounded via `concurrentMap` (cap=8) so a
-    // wide tasklist does not saturate the provider's connection pool. The
-    // mapper preserves input order and the per-row try/catch guarantees a
-    // transient read failure falls back to the (possibly stale) row from
-    // `getSubTickets` rather than rejecting the whole cascade.
-    const freshSubTickets = await concurrentMap(
-      subTickets,
-      async (st) => {
-        if (typeof provider.invalidateTicket === 'function') {
-          try {
-            provider.invalidateTicket(st.id);
-          } catch {
-            // Cache invalidation is best-effort — fall through to whatever
-            // `getTicket` returns even if the invalidation hook throws.
-          }
-        }
-        if (typeof provider.getTicket !== 'function') return st;
-        try {
-          return await provider.getTicket(st.id, { fresh: true });
-        } catch {
-          // A transient read failure must not silently flip the cascade
-          // to "all done"; fall back to the (possibly stale) row from
-          // `getSubTickets` so the existing label check still applies.
-          return st;
-        }
-      },
-      { concurrency: CASCADE_SIBLING_READ_CONCURRENCY },
-    );
+    // Fetch siblings with fresh reads to defend against stale-CLOSED entries.
+    // `{ fresh: true }` threads into the per-child `getTicket` inside
+    // `getSubTickets`, bypassing the cache in one pass rather than two.
+    // The per-child try/catch fallback-to-null is preserved by `getSubTickets`
+    // itself, so a transient read failure cannot silently flip the all-done
+    // check. The concurrency cap (SUBTICKET_HYDRATION_CONCURRENCY = 8) is
+    // applied inside `getSubTickets`.
+    const freshSubTickets = await provider.getSubTickets(parentId, {
+      fresh: true,
+    });
     const allDone = freshSubTickets.every(
       (st) => st.labels.includes(STATE_LABELS.DONE) || st.state === 'closed',
     );
@@ -347,8 +311,12 @@ async function processCascadeParentLocked(
     // definition. Operators who need Feature-level AC verification
     // should encode it in the final child Story, not rely on a manual
     // close step.
-    const parent = await provider.getTicket(parentId);
-    const isEpic = parent.labels.includes(TYPE_LABELS.EPIC);
+    //
+    // Reuse the parentSnapshot from the idempotency check above — it is
+    // a fresh read (cache was invalidated before the getTicket call) and
+    // the parent's type label is invariant within a single cascade lock
+    // hold, so a second getTicket is wasteful and redundant.
+    const isEpic = parentSnapshot.labels.includes(TYPE_LABELS.EPIC);
     if (isEpic) {
       logger.warn(
         `[Ticketing] Cascade reached Epic #${parentId}. Skipping auto-close (Epics close via the operator's PR merge or /epic-close recovery).`,
@@ -406,9 +374,9 @@ async function processCascadeParentLocked(
  * ({@link groupByAncestor}). Groups run in parallel via `Promise.all`,
  * but parents **within** a group run strictly sequentially in input
  * order — concurrent transitions against a shared ancestor would race
- * the "all children done?" check. Within each parent, sibling re-reads
- * fan out via `concurrentMap` with a fixed cap (8) — see
- * `CASCADE_SIBLING_READ_CONCURRENCY`.
+ * the "all children done?" check. Within each parent, sibling reads
+ * fan out via `getSubTickets(parentId, { fresh: true })` with the
+ * concurrency cap (8) applied inside `getSubTickets`.
  *
  * Log output is captured per parent into a buffered logger and flushed
  * to the real {@link Logger} after all groups resolve, in the original
@@ -677,29 +645,11 @@ async function processStateCascadeParentLocked(
         // best-effort cache invalidation
       }
     }
-    const subTickets = await provider.getSubTickets(parentId);
-    const freshSubs = await concurrentMap(
-      subTickets,
-      async (st) => {
-        if (typeof provider.invalidateTicket === 'function') {
-          try {
-            provider.invalidateTicket(st.id);
-          } catch {
-            // best-effort cache invalidation
-          }
-        }
-        if (typeof provider.getTicket !== 'function') return st;
-        try {
-          return await provider.getTicket(st.id, { fresh: true });
-        } catch {
-          // Transient sibling read failure must not silently flip the
-          // parent's derived state — fall back to the row we already
-          // have so the existing label set still drives the rule.
-          return st;
-        }
-      },
-      { concurrency: CASCADE_SIBLING_READ_CONCURRENCY },
-    );
+    // Fetch siblings fresh in one pass — `{ fresh: true }` threads into the
+    // per-child `getTicket` inside `getSubTickets`, replacing the previous
+    // two-step pattern of `getSubTickets` + a second `concurrentMap` fan-out
+    // with `invalidateTicket` + `getTicket(id, { fresh:true })`.
+    const freshSubs = await provider.getSubTickets(parentId, { fresh: true });
 
     const derived = deriveParentState(freshSubs);
     if (derived === null) return { cascadedTo, failed };

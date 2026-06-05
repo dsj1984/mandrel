@@ -188,8 +188,13 @@ export class IssuesGateway {
    * Aggregate sub-tickets via the three-strategy fallback: native
    * sub-issues (GraphQL) → checklist links in body → reverse-search.
    * Deduped while preserving the historical fallback order.
+   *
+   * @param {number} parentId
+   * @param {{ fresh?: boolean }} [opts] - Pass `{ fresh: true }` to bypass
+   *   the per-instance ticket cache for every child hydration fetch. Used
+   *   by the cascade logic to skip a redundant second fan-out.
    */
-  async getSubTickets(parentId) {
+  async getSubTickets(parentId, opts = {}) {
     const getTicket = this._hooks.getTicket;
     const getNativeSubIssues = this._hooks.getNativeSubIssues;
     const parent = await getTicket(parentId);
@@ -208,10 +213,11 @@ export class IssuesGateway {
       ]),
     ];
 
+    const ticketOpts = opts.fresh ? { fresh: true } : undefined;
     const subTickets = await concurrentMap(
       allChildIds,
       (id) =>
-        getTicket(id).catch((err) => {
+        getTicket(id, ticketOpts).catch((err) => {
           const msg = err?.message ?? String(err);
           Logger.warn(
             `[GitHubProvider] getSubTickets: child #${id} fetch failed (parent #${parentId}): ${msg}`,
