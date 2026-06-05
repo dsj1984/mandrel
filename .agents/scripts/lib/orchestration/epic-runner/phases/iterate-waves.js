@@ -453,6 +453,19 @@ function countDoneStories(waveHistory) {
   );
 }
 
+/**
+ * Produce an ISO-8601 wall-clock string from a millisecond epoch value.
+ * Extracted so callers can substitute a deterministic `clock` in tests
+ * without patching the global `Date` — mirrors the `nowIso` seam in
+ * `lifecycle/ledger-writer.js`.
+ *
+ * @param {number} epochMs - milliseconds since Unix epoch (e.g. `clock()`)
+ * @returns {string} ISO-8601 string
+ */
+function toIsoString(epochMs) {
+  return new Date(epochMs).toISOString();
+}
+
 export async function runIterateWavesPhase(ctx, collaborators, state) {
   const { epicId, provider, config, logger } = ctx;
   const { concurrencyCap } = getRunners(config).deliverRunner;
@@ -466,6 +479,7 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
     journal,
     bus = null,
     waveSessionFactory = createWaveSession,
+    clock = () => Date.now(),
   } = collaborators;
   const journalSuffix = () => (journal?.path ? ` (see ${journal.path})` : '');
   const { scheduler, waves, epic } = state;
@@ -520,7 +534,7 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
     logger.info?.(
       `[EpicRunner] Wave ${wave.index + 1}/${scheduler.totalWaves} dispatching ${wave.stories.length} stor${wave.stories.length === 1 ? 'y' : 'ies'}`,
     );
-    const startedAt = new Date().toISOString();
+    const startedAt = toIsoString(clock());
 
     const { toLaunch, skippedResults } = await resolveDoneSkips({
       wave,
@@ -568,7 +582,7 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
       epicId,
       logger,
     });
-    const completedAt = new Date().toISOString();
+    const completedAt = toIsoString(clock());
     const durationMs = startedAt
       ? new Date(completedAt).getTime() - new Date(startedAt).getTime()
       : null;
@@ -601,7 +615,7 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
       status: failures.length ? 'halted' : 'completed',
       stories: results,
       startedAt,
-      completedAt: new Date().toISOString(),
+      completedAt: toIsoString(clock()),
     });
     await epicRunStateStore.write({
       currentWave: scheduler.currentWave,
