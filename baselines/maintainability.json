@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T14:42:29.596Z",
+  "generatedAt": "2026-06-05T15:21:30.622Z",
   "rollup": {
     "*": {
       "min": 45.044,
@@ -1691,10 +1691,6 @@
       "mi": 112.285
     },
     {
-      "path": ".agents/scripts/lib/story-init/context-resolver.js",
-      "mi": 90.144
-    },
-    {
       "path": ".agents/scripts/lib/story-init/dispatch-state-writer.js",
       "mi": 99.256
     },
@@ -2257,10 +2253,6 @@
     {
       "path": "tests/baselines/exit-codes.test.js",
       "mi": 117.111
-    },
-    {
-      "path": "tests/baselines/git-base.test.js",
-      "mi": 108.89
     },
     {
       "path": "tests/baselines/kernel.test.js",
