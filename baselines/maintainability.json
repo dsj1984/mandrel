@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T13:01:23.902Z",
+  "generatedAt": "2026-06-05T13:51:10.041Z",
   "rollup": {
     "*": {
       "min": 45.044,
-      "p50": 104.034,
-      "p95": 121.964
+      "p50": 104.065,
+      "p95": 122.198
     }
   },
   "rows": [
@@ -1435,10 +1435,6 @@
       "mi": 120.733
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "mi": 93.146
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-close/merge-subject.js",
       "mi": 94.043
     },
@@ -1451,14 +1447,6 @@
       "mi": 87.145
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/code-review.js",
-      "mi": 97.676
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/gates.js",
-      "mi": 88.565
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/lock-wait-classifier.js",
       "mi": 88.118
     },
@@ -1467,16 +1455,8 @@
       "mi": 73.379
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/preflight.js",
-      "mi": 103.268
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/refresh.js",
       "mi": 104.509
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/timeout-blocked-emitter.js",
-      "mi": 88.387
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/timeout-blocked.js",
@@ -2031,10 +2011,6 @@
       "mi": 84.205
     },
     {
-      "path": ".agents/scripts/run-tests.js",
-      "mi": 96.362
-    },
-    {
       "path": ".agents/scripts/run-verify.js",
       "mi": 103.077
     },
@@ -2061,10 +2037,6 @@
     {
       "path": ".agents/scripts/stories-wave-tick.js",
       "mi": 82.021
-    },
-    {
-      "path": ".agents/scripts/story-close.js",
-      "mi": 94.408
     },
     {
       "path": ".agents/scripts/story-deliver-prepare.js",
@@ -3943,10 +3915,6 @@
       "mi": 101.92
     },
     {
-      "path": "tests/lib/orchestration/story-close/merge-runner.test.js",
-      "mi": 119.002
-    },
-    {
       "path": "tests/lib/orchestration/story-close/post-merge-close.test.js",
       "mi": 112.346
     },
@@ -4737,10 +4705,6 @@
     {
       "path": "tests/scripts/run-test-profile.test.js",
       "mi": 108.045
-    },
-    {
-      "path": "tests/scripts/run-tests.test.js",
-      "mi": 112.354
     },
     {
       "path": "tests/scripts/run-verify.test.js",
