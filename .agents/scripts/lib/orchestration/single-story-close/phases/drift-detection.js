@@ -16,6 +16,7 @@
  * git are swallowed as warnings so the close path is never blocked.
  */
 
+import { parseFencedJsonComment } from '../../structured-comment-parser.js';
 import { findStructuredComment } from '../../ticketing/reads.js';
 import { postStructuredComment } from '../../ticketing/state.js';
 
@@ -55,18 +56,11 @@ export function getDiffFiles(gitSync, cwd, baseBranch) {
  */
 export function extractPlanFiles(comment) {
   if (!comment) return null;
-  const body = comment.body ?? '';
-  const jsonMatch = body.match(/```json\s*([\s\S]*?)```/);
-  if (!jsonMatch) return null;
-  try {
-    const parsed = JSON.parse(jsonMatch[1].trim());
-    if (!Array.isArray(parsed?.files_to_touch)) return null;
-    return parsed.files_to_touch.filter(
-      (f) => typeof f === 'string' && f.length > 0,
-    );
-  } catch {
-    return null;
-  }
+  const parsed = parseFencedJsonComment(comment);
+  if (!parsed || !Array.isArray(parsed?.files_to_touch)) return null;
+  return parsed.files_to_touch.filter(
+    (f) => typeof f === 'string' && f.length > 0,
+  );
 }
 
 /**

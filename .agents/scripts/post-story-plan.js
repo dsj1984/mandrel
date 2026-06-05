@@ -31,6 +31,7 @@ import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
+import { parseFencedJsonComment } from './lib/orchestration/structured-comment-parser.js';
 import {
   findStructuredComment,
   upsertStructuredComment,
@@ -116,20 +117,10 @@ export async function deriveNextRevision(provider, storyId) {
   const prior = await findStructuredComment(provider, storyId, COMMENT_TYPE);
   if (!prior) return 1;
 
-  // The comment body is wrapped in the structured-comment HTML marker.
-  // Extract the JSON content (everything after the marker line).
-  const body = prior.body ?? '';
-  const jsonMatch = body.match(/```json\s*([\s\S]*?)```/);
-  if (!jsonMatch) return 1;
-
-  try {
-    const parsed = JSON.parse(jsonMatch[1].trim());
-    const rev = parsed?.plan_revision;
-    if (typeof rev === 'number' && Number.isFinite(rev) && rev >= 1) {
-      return rev + 1;
-    }
-  } catch {
-    // Corrupt prior body — start fresh at 1.
+  const parsed = parseFencedJsonComment(prior);
+  const rev = parsed?.plan_revision;
+  if (typeof rev === 'number' && Number.isFinite(rev) && rev >= 1) {
+    return rev + 1;
   }
   return 1;
 }
