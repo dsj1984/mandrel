@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T19:40:59.135Z",
+  "generatedAt": "2026-06-05T22:02:14.478Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.157083248524323,
+      "p95": 12.010699859060178,
       "max": 38.82544452792387,
       "methodsAbove20": 26
     }
@@ -82,6 +82,30 @@
       "method": "main",
       "startLine": 224,
       "crap": 12
+    },
+    {
+      "path": ".agents/scripts/audit-strategy.js",
+      "method": "resolveAuditStrategy",
+      "startLine": 68,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/audit-strategy.js",
+      "method": "formatDecisionLine",
+      "startLine": 81,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/audit-strategy.js",
+      "method": "parseArgs",
+      "startLine": 92,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/audit-strategy.js",
+      "method": "main",
+      "startLine": 117,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/check-baselines.js",
@@ -4590,51 +4614,81 @@
       "crap": 11
     },
     {
+      "path": ".agents/scripts/lib/dynamic-workflow/architecture-report-contract.js",
+      "method": "assertReportContract",
+      "startLine": 63,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/dynamic-workflow/architecture-report-contract.js",
+      "method": "escapeRegExp",
+      "startLine": 82,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/dynamic-workflow/audit-orchestrator.js",
+      "method": "defaultContractError",
+      "startLine": 117,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/dynamic-workflow/audit-orchestrator.js",
+      "method": "runAuditOrchestration",
+      "startLine": 137,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/dynamic-workflow/audit-orchestrator.js",
+      "method": "<anon method-1>",
+      "startLine": 147,
+      "crap": 1
+    },
+    {
       "path": ".agents/scripts/lib/dynamic-workflow/capability.js",
       "method": "isFlagSet",
-      "startLine": 112,
+      "startLine": 121,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/dynamic-workflow/capability.js",
       "method": "compareVersions",
-      "startLine": 126,
+      "startLine": 135,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/dynamic-workflow/capability.js",
       "method": "<anon method-1>",
-      "startLine": 127,
+      "startLine": 136,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/dynamic-workflow/capability.js",
       "method": "meetsVersionFloor",
-      "startLine": 154,
+      "startLine": 163,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/dynamic-workflow/capability.js",
       "method": "detectDynamicWorkflowCapability",
-      "startLine": 204,
+      "startLine": 213,
       "crap": 10
     },
     {
       "path": ".agents/scripts/lib/dynamic-workflow/capability.js",
       "method": "selectAuditStrategy",
-      "startLine": 309,
+      "startLine": 318,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/dynamic-workflow/capability.js",
       "method": "snapshotFromEnv",
-      "startLine": 361,
+      "startLine": 370,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/dynamic-workflow/capability.js",
       "method": "forceStrategyFromEnv",
-      "startLine": 379,
+      "startLine": 388,
       "crap": 4
     },
     {
@@ -4647,6 +4701,42 @@
       "path": ".agents/scripts/lib/dynamic-workflow/clean-code-report-contract.js",
       "method": "escapeRegExp",
       "startLine": 92,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/dynamic-workflow/performance-report-contract.js",
+      "method": "assertReportContract",
+      "startLine": 65,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/dynamic-workflow/performance-report-contract.js",
+      "method": "escapeRegExp",
+      "startLine": 84,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/dynamic-workflow/quality-report-contract.js",
+      "method": "assertReportContract",
+      "startLine": 83,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/dynamic-workflow/quality-report-contract.js",
+      "method": "escapeRegExp",
+      "startLine": 102,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/dynamic-workflow/security-report-contract.js",
+      "method": "assertReportContract",
+      "startLine": 76,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/dynamic-workflow/security-report-contract.js",
+      "method": "escapeRegExp",
+      "startLine": 95,
       "crap": 1
     },
     {

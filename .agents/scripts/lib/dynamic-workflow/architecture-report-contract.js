@@ -1,24 +1,24 @@
-// .agents/scripts/lib/dynamic-workflow/clean-code-report-contract.js
+// .agents/scripts/lib/dynamic-workflow/architecture-report-contract.js
 /**
- * The `audit-clean-code` report contract (Story #3278).
+ * The `audit-architecture` report contract (Epic #3597, Story #3612).
  *
  * This is the **single source of truth** for the report shape that BOTH the
- * sequential lens (`.agents/workflows/audit-clean-code.md` Step 3) and the
+ * sequential lens (`.agents/workflows/audit-architecture.md` Step 3) and the
  * orchestrated dynamic-workflow path
- * (`.claude/workflows/audit-clean-code.workflow.js`) MUST emit to
- * `{{auditOutputDir}}/audit-clean-code-results.md`. Keeping it here lets the
+ * (`.claude/workflows/audit-architecture.workflow.js`) MUST emit to
+ * `{{auditOutputDir}}/audit-architecture-results.md`. Keeping it here lets the
  * contract-tier test assert report conformance against one definition rather
  * than re-deriving headings from prose in two places.
  *
- * This module documents the **existing** report shape; it does not introduce
- * a new one. Changing the report contract is a separate, deliberate decision —
- * not a side effect of the dual-path orchestration work.
+ * Changing the report contract is explicitly **out of scope** for this Story —
+ * the orchestrated path emits the lens's existing report contract unchanged.
+ * This module documents the existing shape, it does not introduce a new one.
  *
- * @module dynamic-workflow/clean-code-report-contract
+ * @module dynamic-workflow/architecture-report-contract
  */
 
 /** The artifact filename the lens writes under `auditOutputDir`. */
-export const REPORT_ARTIFACT_BASENAME = 'audit-clean-code-results.md';
+export const REPORT_ARTIFACT_BASENAME = 'audit-architecture-results.md';
 
 /**
  * The required top-level (`##`) section headings, in document order, that the
@@ -28,13 +28,13 @@ export const REPORT_ARTIFACT_BASENAME = 'audit-clean-code-results.md';
  */
 export const REQUIRED_SECTIONS = Object.freeze([
   'Executive Summary',
+  'Triage Summary',
+  'Architecture Guardrail Coverage',
   'Detailed Findings',
-  'Dead Code Inventory',
-  'Technical Debt Backlog',
 ]);
 
 /** The H1 title the report opens with. */
-export const REPORT_TITLE = 'Clean Code Audit Report';
+export const REPORT_TITLE = 'Architecture & Clean Code Review';
 
 /**
  * The required field labels inside each `### <finding>` block under
@@ -42,21 +42,11 @@ export const REPORT_TITLE = 'Clean Code Audit Report';
  * lens template.
  */
 export const FINDING_FIELDS = Object.freeze([
+  'Category',
   'Dimension',
-  'Impact',
   'Current State',
   'Recommendation & Rationale',
   'Agent Prompt',
-]);
-
-/**
- * The Dead Code Inventory table column headers, in order.
- */
-export const DEAD_CODE_COLUMNS = Object.freeze([
-  'File',
-  'Symbol / Block',
-  'Type',
-  'Estimated LOC',
 ]);
 
 /**

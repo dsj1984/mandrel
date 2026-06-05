@@ -1,40 +1,39 @@
-// .agents/scripts/lib/dynamic-workflow/clean-code-report-contract.js
+// .agents/scripts/lib/dynamic-workflow/security-report-contract.js
 /**
- * The `audit-clean-code` report contract (Story #3278).
+ * The `audit-security` report contract (Epic #3597, Story #3613).
  *
  * This is the **single source of truth** for the report shape that BOTH the
- * sequential lens (`.agents/workflows/audit-clean-code.md` Step 3) and the
+ * sequential lens (`.agents/workflows/audit-security.md` Step 3) and the
  * orchestrated dynamic-workflow path
- * (`.claude/workflows/audit-clean-code.workflow.js`) MUST emit to
- * `{{auditOutputDir}}/audit-clean-code-results.md`. Keeping it here lets the
+ * (`.claude/workflows/audit-security.workflow.js`) MUST emit to
+ * `{{auditOutputDir}}/audit-security-results.md`. Keeping it here lets the
  * contract-tier test assert report conformance against one definition rather
  * than re-deriving headings from prose in two places.
  *
- * This module documents the **existing** report shape; it does not introduce
- * a new one. Changing the report contract is a separate, deliberate decision —
- * not a side effect of the dual-path orchestration work.
+ * Generalising the orchestrated dual path to the security lens is explicitly
+ * **report-contract-preserving** — this module documents the existing shape the
+ * sequential lens already emits, it does not introduce a new one.
  *
- * @module dynamic-workflow/clean-code-report-contract
+ * @module dynamic-workflow/security-report-contract
  */
 
 /** The artifact filename the lens writes under `auditOutputDir`. */
-export const REPORT_ARTIFACT_BASENAME = 'audit-clean-code-results.md';
+export const REPORT_ARTIFACT_BASENAME = 'audit-security-results.md';
 
 /**
  * The required top-level (`##`) section headings, in document order, that the
  * lens markdown's Step 3 template defines. A conformant report MUST contain
- * each of these headings; the orchestrated path assembles its sub-agent
+ * each of these headings; the orchestrated path assembles its cross-checked
  * findings into exactly this skeleton.
  */
 export const REQUIRED_SECTIONS = Object.freeze([
   'Executive Summary',
   'Detailed Findings',
-  'Dead Code Inventory',
-  'Technical Debt Backlog',
+  'Defensive Recommendations',
 ]);
 
 /** The H1 title the report opens with. */
-export const REPORT_TITLE = 'Clean Code Audit Report';
+export const REPORT_TITLE = 'Security Audit Report';
 
 /**
  * The required field labels inside each `### <finding>` block under
@@ -43,20 +42,24 @@ export const REPORT_TITLE = 'Clean Code Audit Report';
  */
 export const FINDING_FIELDS = Object.freeze([
   'Dimension',
-  'Impact',
+  'Severity',
+  'CWE ID',
   'Current State',
   'Recommendation & Rationale',
   'Agent Prompt',
 ]);
 
 /**
- * The Dead Code Inventory table column headers, in order.
+ * The severity buckets the Executive Summary risk profile and per-finding
+ * `Severity` field draw from. The lens speaks in High/Medium/Low (with
+ * Critical as the top High band); this list is the canonical taxonomy the
+ * downstream `audit-to-stories` consumer maps onto Story priority.
  */
-export const DEAD_CODE_COLUMNS = Object.freeze([
-  'File',
-  'Symbol / Block',
-  'Type',
-  'Estimated LOC',
+export const SEVERITY_LEVELS = Object.freeze([
+  'Critical',
+  'High',
+  'Medium',
+  'Low',
 ]);
 
 /**

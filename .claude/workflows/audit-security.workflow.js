@@ -1,36 +1,37 @@
 /**
- * Dynamic-workflow orchestrator for the `audit-clean-code` lens (Story #3278).
+ * Dynamic-workflow orchestrator for the `audit-security` lens
+ * (Epic #3597, Story #3613).
  *
  * This is a Claude Code **dynamic workflow** script
  * (https://code.claude.com/docs/en/workflows). The runtime executes it in the
  * background, holding the loop and intermediate findings in script variables
  * so only the final report lands in the host LLM's context. It is the
- * *orchestrated* execution path for `audit-clean-code`; the *sequential*
- * single-pass path remains `.agents/workflows/audit-clean-code.md`, followed
+ * *orchestrated* execution path for `audit-security`; the *sequential*
+ * single-pass path remains `.agents/workflows/audit-security.md`, followed
  * turn-by-turn whenever dynamic workflows are unavailable.
  *
  * ## Why a saved project workflow
  *
  * Saved at `.claude/workflows/` so it is shared with everyone who clones the
  * repo (per the dynamic-workflows doc: a project-saved script is the right
- * home for a shared workflow). It runs as `/audit-clean-code` when dynamic
+ * home for a shared workflow). It runs as `/audit-security` when dynamic
  * workflows are enabled.
  *
  * ## Lens markdown stays authoritative
  *
  * This script does NOT fork a second copy of the analysis spec. The
  * per-dimension prompts are *derived from* the lens markdown
- * (`.agents/workflows/audit-clean-code.md`) at run time via
- * `loadLensSpec()` — the lens remains the single source of truth for *what*
- * to analyse and *the output report shape*. If the lens changes, this
- * orchestrator picks up the change without edits.
+ * (`.agents/workflows/audit-security.md`) at run time via `loadLensSpec()` —
+ * the lens remains the single source of truth for *what* to analyse and *the
+ * output report shape*. If the lens changes, this orchestrator picks up the
+ * change without edits.
  *
  * ## Report contract parity
  *
  * Both paths emit the identical report to
- * `{{auditOutputDir}}/audit-clean-code-results.md` with the headings defined
- * in `lib/dynamic-workflow/clean-code-report-contract.js`. The orchestrated
- * path assembles its cross-checked findings into exactly that skeleton and
+ * `{{auditOutputDir}}/audit-security-results.md` with the headings defined in
+ * `lib/dynamic-workflow/security-report-contract.js`. The orchestrated path
+ * assembles its cross-checked findings into exactly that skeleton and
  * self-verifies with `assertReportContract` before writing, so downstream
  * consumers (`/epic-deliver` Phase 4 epic-audit, `audit-to-stories`) cannot
  * tell which path produced the report.
@@ -42,9 +43,9 @@
  * here. It lives once in
  * `lib/dynamic-workflow/audit-orchestrator.js` (`runAuditOrchestration`) and
  * is shared by every audit lens. This workflow declares only what is
- * lens-specific — the clean-code dimension list, the per-dimension /
+ * lens-specific — the security dimension list, the per-dimension /
  * cross-check / synthesis prompt builders, the read-only tool allowlist, and
- * the clean-code report-contract self-check — and delegates the fan-out
+ * the security report-contract self-check — and delegates the fan-out
  * plumbing to the engine.
  *
  * ## Read-only guarantee
@@ -61,17 +62,17 @@
  * when `inputs.changedFiles` is a non-empty newline-delimited list (Epic-mode
  * invocation from `/epic-deliver` Phase 4) the scan is restricted to those
  * files; otherwise it is a full codebase-wide scan, identical to a manual
- * `/audit-clean-code`.
+ * `/audit-security`.
  *
  * The live dynamic-workflow runtime context (`agent` + `phase`) is the
  * canonical `WorkflowContext` typedef re-exported from the shared engine, so
  * this lens and every future lens reference one shape rather than each
  * re-declaring (and drifting from) the runtime contract. The lens-specific
- * `inputs` keys this entry point reads are documented by {@link CleanCodeInputs}.
+ * `inputs` keys this entry point reads are documented by {@link SecurityInputs}.
  *
  * @typedef {import('../../.agents/scripts/lib/dynamic-workflow/audit-orchestrator.js').WorkflowContext} WorkflowContext
  *
- * @typedef {object} CleanCodeInputs
+ * @typedef {object} SecurityInputs
  * @property {string} [changedFiles]  Epic-mode change-set list (newline-delimited).
  * @property {string} [auditOutputDir] Resolved audit output dir.
  */
@@ -85,7 +86,7 @@ import {
   REPORT_ARTIFACT_BASENAME,
   REPORT_TITLE,
   REQUIRED_SECTIONS,
-} from '../../.agents/scripts/lib/dynamic-workflow/clean-code-report-contract.js';
+} from '../../.agents/scripts/lib/dynamic-workflow/security-report-contract.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..', '..');
@@ -93,27 +94,23 @@ const LENS_PATH = path.join(
   REPO_ROOT,
   '.agents',
   'workflows',
-  'audit-clean-code.md',
+  'audit-security.md',
 );
 
 /**
  * The independent analysis dimensions the lens decomposes into. These names
- * map 1:1 onto the lens's Step 1 "Quality Scan" bullets and Step 2
- * "Evaluation Dimensions"; each fans out to its own subagent so they run in
- * parallel and can be cross-checked independently.
+ * map 1:1 onto the lens's Step 1 "Vulnerability Surface Analysis" bullets and
+ * Step 2 "Evaluation Dimensions"; each fans out to its own subagent so they
+ * run in parallel and can be cross-checked independently.
  */
 const DIMENSIONS = Object.freeze([
-  'Logic Complexity',
-  'Duplication',
-  'Component Health',
-  'Naming Clarity',
-  'Error Handling',
-  'Dead Code',
-  'SOLID Principles',
-  'DRY',
-  'KISS',
-  'Testability',
-  'Documentation',
+  'Injection',
+  'Broken Access Control',
+  'Cryptographic Failures',
+  'Security Misconfiguration',
+  'Vulnerable Components',
+  'Secret Management',
+  'Authentication & Session Handling',
 ]);
 
 /** Read-only tool allowlist for analysis agents — no write/edit/shell. */
@@ -139,7 +136,7 @@ export function loadLensSpec() {
 export function buildScopeClause(changedFiles) {
   const list = typeof changedFiles === 'string' ? changedFiles.trim() : '';
   if (list.length === 0 || list === '{{changedFiles}}') {
-    return 'SCOPE: No scope filter — analyse the full codebase, exactly as a manual /audit-clean-code run.';
+    return 'SCOPE: No scope filter — analyse the full codebase, exactly as a manual /audit-security run.';
   }
   return [
     'SCOPE: Restrict analysis to the following changed files (and their',
@@ -160,8 +157,9 @@ export function buildScopeClause(changedFiles) {
  */
 export function buildDimensionPrompt(dimension, lensSpec, scopeClause) {
   return [
-    `You are auditing the codebase for the "${dimension}" dimension only.`,
-    'You are READ-ONLY: do not edit, create, or run mutating commands.',
+    `You are auditing the codebase for the "${dimension}" security dimension only.`,
+    'You are READ-ONLY: do not edit, create, or run mutating commands, and',
+    'do not attempt to exploit the system.',
     '',
     scopeClause,
     '',
@@ -174,9 +172,10 @@ export function buildDimensionPrompt(dimension, lensSpec, scopeClause) {
     '',
     `Return ONLY the findings for the "${dimension}" dimension, each as a`,
     '`### <Short Title>` block using the exact field structure from the lens',
-    'Step 3 template (Dimension, Impact, Current State, Recommendation &',
-    'Rationale, Agent Prompt). For the Dead Code dimension also return rows',
-    'for the Dead Code Inventory table with an estimated LOC per entry.',
+    'Step 3 template (Dimension, Severity, CWE ID, Current State,',
+    'Recommendation & Rationale, Agent Prompt). Assign each finding a',
+    'severity of Critical, High, Medium, or Low and cite the matching CWE ID',
+    'where one applies.',
   ].join('\n');
 }
 
@@ -190,11 +189,11 @@ export function buildDimensionPrompt(dimension, lensSpec, scopeClause) {
  */
 export function buildCrossCheckPrompt(dimension, findings) {
   return [
-    `You are an adversarial reviewer for the "${dimension}" clean-code`,
+    `You are an adversarial reviewer for the "${dimension}" security`,
     'findings below. You are READ-ONLY. For each finding, independently',
     'verify it against the actual code: confirm true positives, DROP false',
-    'positives or unsubstantiated claims, and tighten over-broad',
-    'recommendations. Preserve the exact `### <title>` field structure for',
+    'positives or unsubstantiated claims, and right-size the severity and',
+    'recommendation. Preserve the exact `### <title>` field structure for',
     'every finding you keep. At the end, append a single line:',
     '`CROSS-CHECK: kept <k> / dropped <d>` so the synthesis stage can report',
     'how many findings the cross-check filtered out.',
@@ -216,19 +215,19 @@ export function buildCrossCheckPrompt(dimension, findings) {
 export function buildSynthesisPrompt(crossCheckedBlocks, auditOutputDir) {
   const artifactPath = `${auditOutputDir.replace(/\/+$/, '')}/${REPORT_ARTIFACT_BASENAME}`;
   return [
-    'Assemble the cross-checked findings below into a single Clean Code Audit',
+    'Assemble the cross-checked findings below into a single Security Audit',
     'Report and WRITE it (this is the one permitted write in the run) to:',
     `  ${artifactPath}`,
     '',
     `The report MUST open with "# ${REPORT_TITLE}" and contain these "##"`,
     `sections in order: ${REQUIRED_SECTIONS.join(', ')}.`,
     'Place each cross-checked `### <title>` finding under "## Detailed',
-    'Findings"; aggregate all dead-code rows into the "## Dead Code',
-    'Inventory" table; summarise the maintainability index (High/Medium/Low)',
-    'and primary themes in "## Executive Summary"; list heavy-rework modules',
-    'in "## Technical Debt Backlog". Sum the per-dimension',
-    '`CROSS-CHECK: kept/dropped` lines and note the total dropped count in the',
-    'Executive Summary so the benchmark can record cross-check filtering.',
+    'Findings"; summarise the overall risk profile (Critical/High/Medium/Low)',
+    'and security posture in "## Executive Summary"; list 3-5 hardening',
+    'measures (security headers, configurations, libraries) in "## Defensive',
+    'Recommendations". Sum the per-dimension `CROSS-CHECK: kept/dropped` lines',
+    'and note the total dropped count in the Executive Summary so the',
+    'benchmark can record cross-check filtering.',
     '',
     '--- CROSS-CHECKED FINDINGS ---',
     crossCheckedBlocks.join('\n\n'),
@@ -243,15 +242,15 @@ export function buildSynthesisPrompt(crossCheckedBlocks, auditOutputDir) {
  * fan-out.
  *
  * The three-phase fan-out itself lives in the shared
- * {@link runAuditOrchestration} engine; this function binds the clean-code
+ * {@link runAuditOrchestration} engine; this function binds the security
  * lens-specific arguments (lens spec, scope clause, output dir) into the
- * engine's prompt-builder contract and supplies the clean-code report
+ * engine's prompt-builder contract and supplies the security report
  * self-check.
  *
- * @param {WorkflowContext & { inputs?: CleanCodeInputs }} ctx
+ * @param {WorkflowContext & { inputs?: SecurityInputs }} ctx
  * @returns {Promise<{ artifact: string, dimensions: number, droppedNote: string }>}
  */
-export default async function auditCleanCodeWorkflow(ctx) {
+export default async function auditSecurityWorkflow(ctx) {
   const { inputs = {} } = ctx;
   const lensSpec = loadLensSpec();
   const scopeClause = buildScopeClause(inputs.changedFiles);
@@ -269,7 +268,7 @@ export default async function auditCleanCodeWorkflow(ctx) {
       buildSynthesisPrompt(crossCheckedBlocks, auditOutputDir),
     assertReportContract,
     formatContractError: (check) =>
-      `[audit-clean-code.workflow] report failed contract check: missing ${
+      `[audit-security.workflow] report failed contract check: missing ${
         check.hasTitle ? '' : 'title; '
       }sections=[${check.missingSections.join(', ')}]`,
   });

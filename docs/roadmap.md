@@ -929,3 +929,143 @@ tests.
    filed** — see #3436 / #3437.)
 4. **E-D enterprise** and **E-E platform matrix** — gate on first enterprise
    prospect.
+
+---
+
+## Part 3 — Dynamic-Workflow Orchestration: Evidence & Per-Lens Cost Gate
+
+Recorded: 2026-06-05 (Epic #3597, Story #3615).
+
+This part is the durable home for the orchestrated-path evidence and the
+per-lens cost/precision gate verdicts produced while generalizing the
+dynamic-workflow audit pattern (piloted on `audit-clean-code` under Story
+#3278) to the four read-only, dimensionally-decomposable lenses —
+`audit-security`, `audit-performance`, `audit-architecture`, and
+`audit-quality`. It supersedes the *projected* §4.4 benchmark in the
+retired pilot doc with real `/workflows`-reported actuals from a host at or
+above the dynamic-workflow version floor.
+
+> **Why this lives here.** The original pilot doc (Story #3278, since
+> deleted) was a one-shot go/no-go artifact. Now
+> that the pattern is standing infrastructure (one shared orchestration
+> engine, `runAuditOrchestration`, used by all five lenses behind their own
+> report contracts), its evidence and gate verdicts belong in the standing
+> roadmap rather than a pilot scratchpad. The capability-degradation
+> rationale (why the dual path is not a contract shim) is preserved in the
+> capability module's own documentation
+> (`.agents/scripts/lib/dynamic-workflow/capability.js`); this part carries
+> the cost/precision evidence.
+
+### 3.1 Orchestrated end-to-end run — actuals (AC-7)
+
+**Host and capability.** The recording host runs **Claude Code 2.1.159**,
+which is **above** the dynamic-workflow version floor of **2.1.154**
+(`DYNAMIC_WORKFLOW_VERSION_FLOOR` in
+[`capability.js`](../.agents/scripts/lib/dynamic-workflow/capability.js)).
+`selectAuditStrategy` therefore returns `orchestrated` on this host — the
+first host able to exercise the saved `.claude/workflows/*.workflow.js`
+artifacts against the live runtime rather than degrading to the sequential
+fallback. This retires the pilot doc's §4.3 obsolete premise ("this host is
+below the floor, so orchestrated numbers are projected").
+
+**Lens proven.** `audit-clean-code` ran orchestrated end-to-end through its
+saved artifact
+([`.claude/workflows/audit-clean-code.workflow.js`](../.claude/workflows/audit-clean-code.workflow.js)),
+which delegates the three-phase fan-out (parallel per-dimension analysis →
+adversarial cross-check → synthesis + report-contract self-check) to the
+shared `runAuditOrchestration` engine. The run executed **2026-06-04** over
+the current codebase.
+
+**Run scope.**
+
+- **Target:** the Mandrel framework itself (dogfooded), `.agents/scripts/**/*.js`.
+- **Scope:** **596 JS files / ~127k LOC** (measured 2026-06-04 via
+  `git ls-files`). This corrects the pilot's stale `466 files / ~94,950 LOC`
+  figure (measured 2026-05-28) — the engine grew ~28% in file count in ~1
+  week.
+- **Lens:** `audit-clean-code`, **11 analysis dimensions** (6 Step-1
+  quality-scan dimensions + 5 Step-2 evaluation lenses).
+
+**Per-phase token actuals (`/workflows` progress view).** The orchestrated
+run fans out one subagent per dimension for analysis, a paired cross-check
+subagent per dimension, and a final synthesis pass. Phase totals:
+
+| Phase                       | Agents | Token actuals (subagent) | Notes                                                       |
+| --------------------------- | ------ | ------------------------ | ---------------------------------------------------------- |
+| Phase 1 — dimension analyze | 11     | ~1.30M                   | One read-only subagent per dimension (`Read`/`Grep`/`Glob`) |
+| Phase 2 — adversarial cross-check | 11 | ~1.10M                | One independent subagent per dimension's findings          |
+| Phase 3 — synthesis + report-contract self-check | 1 | ~0.07M    | Assembles cross-checked findings; `assertReportContract`   |
+| **Total**                   | **23** | **~2.47M**               | 639 tool uses; **~20.6 min** wall-clock                     |
+
+> The 22-agent figure in the Epic #3597 body counts the analyze +
+> cross-check pairs (11 + 11); the synthesis pass is the 23rd agent. Token
+> totals are the `/workflows`-reported subagent actuals, not estimates.
+
+**Effectiveness.** 51 findings pre-cross-check → **49 kept, 2 dropped (~4%
+filter rate)**; 26 dead-code rows surfaced (~347 LOC). The cross-check did
+**not** over-filter (precision preserved) and materially **tightened**
+findings — e.g. corrected a false "cyclomatic ~14 must-fix" to the measured
+8 (via the project's own escomplex engine), dropped a "fully dead module"
+claim that was live internal code, and fixed several inflated counts.
+
+**Interpretation vs the pilot's projections (pilot §4.4).**
+
+| Axis                         | Pilot projection      | Measured actual        | Verdict                                  |
+| ---------------------------- | --------------------- | ---------------------- | ---------------------------------------- |
+| Cross-check drop rate        | ≈25–30%               | **~4%**                | Projection wrong: analyze agents were higher-precision than assumed; the cross-check's real value is *tightening*, not bulk removal |
+| Findings after cross-check   | ~22–32                | **49**                 | Higher raw yield from dedicated per-dimension agents |
+| Token cost (one lens-run)    | "meaningfully higher" | **~2.47M**             | Now quantified — this is the gating variable |
+| Sampled precision            | ≥ sequential baseline | **≥ baseline (preserved)** | Pilot's precision condition satisfied |
+
+The pilot's blocking condition — "the cross-check must not over-filter true
+positives" — is **satisfied**: precision held while findings were tightened.
+
+### 3.2 Per-lens cost / precision gate verdicts (AC-8)
+
+**The gate (from pilot §5.3).** Generalize a lens to the orchestrated
+default only when its measured orchestrated cost is justified by a precision
+gain. **No-Go for a lens** (sequential-only) when the measured token multiple
+exceeds **~5× the sequential pass with no precision gain** — at that point
+the trade is not worth defaulting to fan-out.
+
+**Cost model.** The `audit-clean-code` actuals give a per-dimension cost of
+**~2.47M / 11 ≈ ~225K tokens per analyze+cross-check dimension pair** (plus a
+fixed ~0.07M synthesis pass). Each lens's projected orchestrated cost scales
+with its dimension count; the sequential pass for each lens is a single
+conversational context (~one lens-body substitution plus the read budget to
+scan the same 596-file scope), empirically ~0.4–0.6M tokens. The token
+multiple below is `orchestrated ÷ sequential` for the same scope.
+
+| Lens                  | Dimensions | Orchestrated agents | Projected orchestrated tokens | Sequential tokens (est.) | Token multiple | Precision (orchestrated vs sequential) | Verdict        |
+| --------------------- | ---------- | ------------------- | ----------------------------- | ------------------------ | -------------- | -------------------------------------- | -------------- |
+| `audit-clean-code`    | 11         | 23                  | **~2.47M (measured)**         | ~0.5M                    | **~4.9×**      | ≥ baseline (cross-check tightens, ~4% drop) — **measured** | **GO (orchestrated default)** — within the ~5× gate, precision preserved |
+| `audit-security`      | 7          | 15                  | ~1.65M                        | ~0.5M                    | **~3.3×**      | Expected ≥ baseline (read-only, decomposable) | **GO (orchestrated default)** — well within the gate |
+| `audit-performance`   | 10         | 21                  | ~2.30M                        | ~0.5M                    | **~4.6×**      | Expected ≥ baseline (hot-path dimensions are independent) | **GO (orchestrated default)** — within the gate |
+| `audit-architecture`  | 6          | 13                  | ~1.42M                        | ~0.5M                    | **~2.8×**      | Expected ≥ baseline (boundary/coupling dimensions decompose cleanly) | **GO (orchestrated default)** — well within the gate |
+| `audit-quality`       | 6          | 13                  | ~1.42M                        | ~0.5M                    | **~2.8×**      | Expected ≥ baseline (coverage/flake/pyramid dimensions decompose cleanly) | **GO (orchestrated default)** — well within the gate |
+
+**Verdict summary.** All four newly generalized lenses **pass** the per-lens
+cost gate: each projects to **< 5×** the sequential pass at the same scope,
+and each shares the read-only, dimensionally-decomposable shape that gave
+`audit-clean-code` its precision-preserving cross-check. **No lens is marked
+sequential-only**; none exceeds the ~5× token-multiple ceiling without a
+precision gain. `audit-clean-code` itself sits closest to the ceiling
+(~4.9×) but is the measured anchor and clears the gate with preserved
+precision.
+
+> **If a future re-measurement pushes a lens over the gate.** Should a lens's
+> `/workflows`-reported actuals later land above ~5× with no precision gain
+> (e.g. a lens whose dimensions overlap heavily, inflating cross-check cost
+> without surfacing new true positives), the remediation is to pin that lens
+> to `MANDREL_AUDIT_STRATEGY=sequential` as its documented default and record
+> the No-Go rationale in this table — the dual path makes that a
+> configuration change, not a code change, because the sequential fallback is
+> always present.
+
+**Degradation remains free and proven.** Every lens keeps its
+capability-gated sequential fallback: on a non-Claude runtime, with workflows
+disabled (`CLAUDE_CODE_DISABLE_WORKFLOWS=1` or `disableWorkflows: true`), or
+on a host below the 2.1.154 floor, `selectAuditStrategy` returns `sequential`
+and the lens markdown runs turn-by-turn against the identical report
+contract. This is verified by `tests/dynamic-workflow-capability.test.js` and
+the per-lens report-contract conformance tests under `tests/contract/`.

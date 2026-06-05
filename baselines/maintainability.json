@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T19:06:14.151Z",
+  "generatedAt": "2026-06-05T22:02:17.207Z",
   "rollup": {
     "*": {
       "min": 45.044,
-      "p50": 104.191,
-      "p95": 122.422
+      "p50": 104.233,
+      "p95": 122.198
     }
   },
   "rows": [
@@ -25,6 +25,10 @@
     {
       "path": ".agents/scripts/audit-orchestrator.js",
       "mi": 97.27
+    },
+    {
+      "path": ".agents/scripts/audit-strategy.js",
+      "mi": 98.562
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
@@ -591,11 +595,31 @@
       "mi": 98.772
     },
     {
+      "path": ".agents/scripts/lib/dynamic-workflow/architecture-report-contract.js",
+      "mi": 114.706
+    },
+    {
+      "path": ".agents/scripts/lib/dynamic-workflow/audit-orchestrator.js",
+      "mi": 107.857
+    },
+    {
       "path": ".agents/scripts/lib/dynamic-workflow/capability.js",
       "mi": 90.306
     },
     {
       "path": ".agents/scripts/lib/dynamic-workflow/clean-code-report-contract.js",
+      "mi": 112.973
+    },
+    {
+      "path": ".agents/scripts/lib/dynamic-workflow/performance-report-contract.js",
+      "mi": 114.747
+    },
+    {
+      "path": ".agents/scripts/lib/dynamic-workflow/quality-report-contract.js",
+      "mi": 111.412
+    },
+    {
+      "path": ".agents/scripts/lib/dynamic-workflow/security-report-contract.js",
       "mi": 112.973
     },
     {
@@ -2035,6 +2059,10 @@
       "mi": 102.354
     },
     {
+      "path": "tests/audit-strategy.test.js",
+      "mi": 109.815
+    },
+    {
       "path": "tests/audit-suite/audit-fan-out-retirement.test.js",
       "mi": 115.93
     },
@@ -2459,6 +2487,10 @@
       "mi": 115.074
     },
     {
+      "path": "tests/contract/architecture-report-contract.test.js",
+      "mi": 112.272
+    },
+    {
       "path": "tests/contract/audit-labels-bootstrap.test.js",
       "mi": 110.334
     },
@@ -2583,6 +2615,10 @@
       "mi": 114.185
     },
     {
+      "path": "tests/contract/performance-report-contract.test.js",
+      "mi": 112.776
+    },
+    {
       "path": "tests/contract/planning/healthcheck-blocking.test.js",
       "mi": 94.365
     },
@@ -2599,12 +2635,20 @@
       "mi": 101.121
     },
     {
+      "path": "tests/contract/quality-report-contract.test.js",
+      "mi": 112.059
+    },
+    {
       "path": "tests/contract/reconcile-sub-issues.test.js",
       "mi": 116.972
     },
     {
       "path": "tests/contract/retro-routed-sections.test.js",
       "mi": 84.186
+    },
+    {
+      "path": "tests/contract/security-report-contract.test.js",
+      "mi": 111.81
     },
     {
       "path": "tests/contract/spawn-timeout-hardening.test.js",
@@ -2669,6 +2713,10 @@
     {
       "path": "tests/docs/no-js-fences.test.js",
       "mi": 98.579
+    },
+    {
+      "path": "tests/dynamic-workflow-audit-orchestrator.test.js",
+      "mi": 108.151
     },
     {
       "path": "tests/dynamic-workflow-capability.test.js",

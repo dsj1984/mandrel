@@ -16,6 +16,60 @@ abstraction, premature optimization, high cognitive load, and over-engineering.
 You must prioritize maintainability and readability without altering any
 existing external APIs or business logic.
 
+## Execution strategy (dual-path)
+
+This lens runs along one of two execution paths. Both emit the **identical**
+report contract (Step 3); downstream consumers (`/epic-deliver` Phase 4
+epic-audit, `audit-to-stories`) are agnostic to which path produced it.
+
+- **Orchestrated (dynamic-workflow) path.** When Claude Code's
+  [dynamic workflows](https://code.claude.com/docs/en/workflows) are
+  available, the saved project workflow
+  `.claude/workflows/audit-architecture.workflow.js` fans the dimensions below
+  out as parallel read-only subagents, runs an **adversarial cross-check**
+  stage (an independent agent reviews each dimension's findings and drops
+  false positives before they enter the report), then synthesises the Step 3
+  report. The orchestrator derives its per-dimension prompts from *this*
+  markdown at run time — the lens stays the single source of truth; the
+  script does not fork a second copy of the spec.
+- **Sequential (single-pass) path.** When dynamic workflows are unavailable,
+  follow Steps 1–3 below turn-by-turn exactly as before. This is the default
+  fallback and changes nothing about the existing behaviour.
+
+**Strategy selection** is computed by
+[`lib/dynamic-workflow/capability.js`](../scripts/lib/dynamic-workflow/capability.js)
+(`selectAuditStrategy`). The orchestrated path is chosen only when the runtime
+is Claude Code, `disableWorkflows` is not set (settings.json **or**
+`CLAUDE_CODE_DISABLE_WORKFLOWS`), and the Claude Code version meets the
+research-preview floor (`>= 2.1.154`). Any other runtime, a disabled setting,
+or an older version degrades gracefully to the sequential path.
+
+> **Capability degradation, not a contract shim.** This dual path is **not**
+> covered by the No-Shim / hard-cutover rule in
+> [`git-conventions.md`](../rules/git-conventions.md). That rule forbids
+> running two shapes of the *same contract* side by side. Here there is **one**
+> report contract; only the *execution strategy* is selected from a runtime
+> capability — the same pattern the protocol already endorses for live-docs
+> fallback in [`instructions.md` §1.C/§1.D](../instructions.md). The full
+> capability-degradation rationale lives in the
+> [`capability.js`](../scripts/lib/dynamic-workflow/capability.js) module
+> docstring; the orchestrated-run evidence and per-lens cost/precision gate
+> verdicts live in [`docs/roadmap.md`](../../docs/roadmap.md) (Part 3 —
+> Dynamic-Workflow Orchestration).
+
+**Forcing a path (for testing).** Set `MANDREL_AUDIT_STRATEGY=sequential` to
+verify the fallback path with the feature notionally disabled, or
+`MANDREL_AUDIT_STRATEGY=orchestrated` to pin the dynamic path. To exercise the
+real disable signals instead, set `CLAUDE_CODE_DISABLE_WORKFLOWS=1` (env) or
+`disableWorkflows: true` in `.claude/settings.json` and re-run the lens — both
+degrade to the sequential path.
+
+> **Read-only on both paths.** The lens is read-only (see Constraint). The
+> orchestrated subagents run in `acceptEdits` and inherit the session tool
+> allowlist, but the workflow script grants the analysis agents only
+> read/search tools (`Read`, `Grep`, `Glob`) — no write/edit/shell-mutation
+> tools. The single write in an orchestrated run is the final report artifact.
+
 ## Scope (Epic mode)
 
 When this lens is invoked from `/epic-deliver` Phase 4 (epic-audit), the
@@ -88,7 +142,7 @@ Evaluate the gathered context against the following clean code dimensions:
    code blocks.
 4. **Naming & Self-Documentation:** Find poorly named variables/functions,
    inconsistent naming conventions, or areas that rely heavily on comments to
-   explain _what_ the code does rather than _why_.
+   explain *what* the code does rather than *why*.
 5. **Coupling & Cohesion:** Spot tight coupling between modules that should be
    independent or god-objects handling too many concerns.
 6. **Testable Surface (Humble-Object Boundary):** Flag modules that interleave
