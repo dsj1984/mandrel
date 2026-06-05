@@ -91,7 +91,44 @@ Evaluate the gathered context against the following clean code dimensions:
    explain _what_ the code does rather than _why_.
 5. **Coupling & Cohesion:** Spot tight coupling between modules that should be
    independent or god-objects handling too many concerns.
-6. **Automated Architecture Guardrails:** Assess whether the project encodes
+6. **Testable Surface (Humble-Object Boundary):** Flag modules that interleave
+   hard-to-test I/O — filesystem (`fs`), process spawning (`child_process`,
+   `exec`, `spawn`), network calls, database access, or GUI/terminal
+   rendering — directly with business logic. The humble-object /
+   ports-and-adapters discipline says the environmentally-unsuitable shell
+   (the part bound to the OS, the network, or a device) should stay thin and
+   nearly logic-free, while the decision-making logic it wraps is extracted
+   into a pure, separately-testable module. Identify functions where a
+   branch, a calculation, or a validation rule can only be exercised by
+   standing up a real file, a child process, or a socket, and recommend
+   pulling that logic out behind a seam so it can be unit-tested in isolation
+   with the I/O mocked at the boundary (per the unit-tier mocking rule in
+   [`rules/testing-standards.md`](../rules/testing-standards.md)). Treat the
+   ratio of testable logic to unsuitable shell as the property under review:
+   maximize the former, minimize the latter. Severity grades by how much
+   logic is trapped behind the boundary:
+   - **High** — a substantial decision surface (multiple branches, a
+     non-trivial algorithm, or a validation/parsing rule) is entangled with
+     I/O such that it can only be reached through the live environment,
+     leaving it effectively untested or covered only by slow,
+     environment-dependent integration tests.
+   - **Medium** — moderate logic is mixed with I/O; a seam is feasible and
+     would meaningfully raise the unit-testable surface, but the current
+     entanglement is contained to one module.
+   - **Low** — thin or incidental coupling (e.g. a one-line transform beside
+     a read) where extraction is optional polish rather than a testability
+     win.
+
+   For each finding, name the module/function, identify the trapped logic and
+   the I/O it is bound to, and propose the concrete seam (the pure function or
+   port to extract, and where the I/O adapter should call into it). This repo
+   already practices a related seam discipline at the error-handling boundary:
+   [`rules/orchestration-error-handling.md`](../rules/orchestration-error-handling.md)
+   requires orchestration scripts to `throw` rather than `Logger.fatal` so the
+   thin `runAsCli` shell — not the logic — owns the `process.exit` side effect,
+   keeping the wrapped logic exercisable under a stubbed `process.exit`. Cite
+   that precedent where it applies rather than restating it.
+7. **Automated Architecture Guardrails:** Assess whether the project encodes
    its architectural boundaries as **deterministic, automated checks** rather
    than relying on convention or reviewer memory. When relevant to the
    consumer project's shape, evaluate enforcement for:
@@ -204,7 +241,7 @@ marked `n/a`.]
 ### [Short Title of the Issue]
 
 - **Category:** [Quick Win | Structural Change]
-- **Dimension:** [e.g., Cognitive Load & Nesting | Automated Architecture Guardrails]
+- **Dimension:** [e.g., Cognitive Load & Nesting | Testable Surface (Humble-Object Boundary) | Automated Architecture Guardrails]
 - **Current State:** [The specific file/function and why it is problematic]
 - **Recommendation & Rationale:** [The specific refactor strategy and how it
   improves readability or maintainability]
