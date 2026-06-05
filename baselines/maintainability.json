@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T13:01:23.902Z",
+  "generatedAt": "2026-06-05T13:43:44.532Z",
   "rollup": {
     "*": {
       "min": 45.044,
@@ -2029,10 +2029,6 @@
     {
       "path": ".agents/scripts/run-test-profile.js",
       "mi": 84.205
-    },
-    {
-      "path": ".agents/scripts/run-tests.js",
-      "mi": 96.362
     },
     {
       "path": ".agents/scripts/run-verify.js",
@@ -4737,10 +4733,6 @@
     {
       "path": "tests/scripts/run-test-profile.test.js",
       "mi": 108.045
-    },
-    {
-      "path": "tests/scripts/run-tests.test.js",
-      "mi": 112.354
     },
     {
       "path": "tests/scripts/run-verify.test.js",
