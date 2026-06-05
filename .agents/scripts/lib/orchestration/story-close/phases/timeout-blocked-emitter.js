@@ -19,12 +19,11 @@ import {
   transitionTicketState,
   upsertStructuredComment,
 } from '../../ticketing.js';
-import { emitStoryBlockedSafe } from '../merge-runner.js';
+import { emitBlockedCloseResult } from '../merge-runner.js';
 import {
   renderSpawnTimeoutFrictionBody,
   resolveSpawnTimeoutDescriptor,
   resolveSpawnTimeoutMs,
-  resolveSpawnTimeoutReason,
 } from './timeout-blocked.js';
 
 /**
@@ -94,30 +93,20 @@ export async function emitSpawnTimeoutBlockedResult({
     );
   }
 
-  await emitStoryBlockedSafe({
-    bus,
-    storyId,
-    reason: resolveSpawnTimeoutReason(spawnName),
-    logger: Logger,
-  });
-
   const descriptor = resolveSpawnTimeoutDescriptor(spawnName);
-  const result = {
-    success: false,
-    status: 'blocked',
+  return emitBlockedCloseResult({
+    storyId,
     phase: 'closing',
     reason: reason ?? `${spawnName}-timeout`,
-    gateName: spawnName,
-    exitCode: exitCode ?? 124,
-    timeoutMs,
-    commentId,
-  };
-  Logger.info(
-    `\n--- STORY CLOSE RESULT ---\n${JSON.stringify(result, null, 2)}\n--- END RESULT ---\n`,
-  );
-  log(
-    'BLOCKED',
-    `Story #${storyId} blocked: \`${spawnCmd || descriptor.defaultCmd}\` exceeded ${timeoutMs ?? 'configured'}ms — flipped to ${STATE_LABELS.BLOCKED}.`,
-  );
-  return result;
+    extra: {
+      gateName: spawnName,
+      exitCode: exitCode ?? 124,
+      timeoutMs,
+      commentId,
+    },
+    bus,
+    progress: log,
+    blockedMessage: `Story #${storyId} blocked: \`${spawnCmd || descriptor.defaultCmd}\` exceeded ${timeoutMs ?? 'configured'}ms — flipped to ${STATE_LABELS.BLOCKED}.`,
+    logger: Logger,
+  });
 }

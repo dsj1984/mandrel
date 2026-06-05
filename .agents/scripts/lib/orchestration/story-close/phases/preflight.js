@@ -18,6 +18,7 @@ import {
   PREFLIGHT_REFUSED_EXIT_CODE,
   runPreflight,
 } from '../../../preflight-runner.js';
+import { emitBlockedCloseResult } from '../merge-runner.js';
 
 /**
  * Run the story-close preflight gate. Exported so tests can drive it
@@ -65,22 +66,20 @@ export async function runStoryClosePreflight({
  * exit. Shape mirrors `emitBaselineBlockedResult` so the wave aggregator's
  * label-derivation fallback sees a consistent envelope.
  */
-export function emitPreflightBlockedResult({ storyId, preflight, progress }) {
-  const result = {
-    success: false,
-    status: 'blocked',
+export async function emitPreflightBlockedResult({
+  storyId,
+  preflight,
+  progress,
+}) {
+  return emitBlockedCloseResult({
+    storyId,
     phase: 'preflight',
     reason: 'preflight-refused',
-    findings: preflight.findings,
-  };
-  Logger.info(
-    `\n--- STORY CLOSE RESULT ---\n${JSON.stringify(result, null, 2)}\n--- END RESULT ---\n`,
-  );
-  progress(
-    'BLOCKED',
-    `Story #${storyId} blocked: preflight refused — ${preflight.findings.length} blocker finding(s).`,
-  );
-  return result;
+    extra: { findings: preflight.findings },
+    progress,
+    blockedMessage: `Story #${storyId} blocked: preflight refused — ${preflight.findings.length} blocker finding(s).`,
+    logger: Logger,
+  });
 }
 
 /**
@@ -95,7 +94,7 @@ export async function runPreflightPhase({ ctx }) {
     cwd: ctx.cwd,
   });
   if (outcome.ok) return { ok: true };
-  const exitEnvelope = emitPreflightBlockedResult({
+  const exitEnvelope = await emitPreflightBlockedResult({
     storyId: ctx.storyId,
     preflight: outcome,
     progress: ctx.progress,

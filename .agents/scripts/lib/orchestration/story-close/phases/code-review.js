@@ -29,15 +29,14 @@
 
 import { Logger } from '../../../Logger.js';
 import { runCodeReview } from '../../code-review.js';
-import { emitStoryBlockedSafe } from '../merge-runner.js';
+import { emitBlockedCloseResult } from '../merge-runner.js';
 
 /**
- * Build the blocked-result envelope for a critical-finding outcome.
- * Mirrors `emitBaselineBlockedResult` (status: 'blocked', phase:
- * 'closing', success: false) plus `exitCode: 1` so the CLI shell
- * exits non-zero — the task acceptance pins this.
+ * Collect the extra fields for the code-review-critical blocked envelope.
+ * Pure; used by `runStoryCodeReview` to populate the `extra` argument of
+ * `emitBlockedCloseResult`.
  */
-function buildBlockedResult({ storyId, reviewResult }) {
+function buildCodeReviewBlockedExtra({ storyId, reviewResult }) {
   const severity = reviewResult?.severity ?? {
     critical: 0,
     high: 0,
@@ -45,10 +44,6 @@ function buildBlockedResult({ storyId, reviewResult }) {
     suggestion: 0,
   };
   return {
-    success: false,
-    status: 'blocked',
-    phase: 'closing',
-    reason: 'code-review-critical',
     storyId: Number(storyId),
     blockerReason: reviewResult?.blockerReason ?? null,
     severity,
@@ -116,23 +111,16 @@ export async function runStoryCodeReview(args) {
   }
 
   if (reviewResult?.halted) {
-    progress(
-      'BLOCKED',
-      `Story #${storyIdNum} blocked: code-review reported ${reviewResult.severity.critical} critical blocker(s).`,
-    );
-    await emitStoryBlockedSafe({
-      bus,
+    const blocked = await emitBlockedCloseResult({
       storyId: storyIdNum,
+      phase: 'closing',
       reason: 'code-review-critical',
+      extra: buildCodeReviewBlockedExtra({ storyId: storyIdNum, reviewResult }),
+      bus,
+      progress,
+      blockedMessage: `Story #${storyIdNum} blocked: code-review reported ${reviewResult.severity.critical} critical blocker(s).`,
       logger: Logger,
     });
-    const blocked = buildBlockedResult({
-      storyId: storyIdNum,
-      reviewResult,
-    });
-    Logger.info(
-      `\n--- STORY CLOSE RESULT ---\n${JSON.stringify(blocked, null, 2)}\n--- END RESULT ---\n`,
-    );
     return { blocked };
   }
 

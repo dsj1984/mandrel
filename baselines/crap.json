@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T13:21:20.620Z",
+  "generatedAt": "2026-06-05T13:51:10.662Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.157083248524323,
+      "p95": 12.010699859060178,
       "max": 38.82544452792387,
       "methodsAbove20": 22
     }
@@ -1326,6 +1326,54 @@
       "crap": 15
     },
     {
+      "path": ".agents/scripts/lib/baselines/diff-scope-cli.js",
+      "method": "parseDiffScopeFlag",
+      "startLine": 35,
+      "crap": 8
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/diff-scope-cli.js",
+      "method": "resolveDiffScopeFiles",
+      "startLine": 72,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/diff-scope-cli.js",
+      "method": "resolveDiffScope",
+      "startLine": 102,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/diff-scope-cli.js",
+      "method": "readBaselineJson",
+      "startLine": 124,
+      "crap": 12
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/diff-scope-cli.js",
+      "method": "readCrapPriorRows",
+      "startLine": 140,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/diff-scope-cli.js",
+      "method": "readMaintainabilityPriorRows",
+      "startLine": 147,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/diff-scope-cli.js",
+      "method": "readPriorBaselineRows",
+      "startLine": 154,
+      "crap": 8.208333333333336
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/diff-scope-cli.js",
+      "method": "buildWriterScopeArgs",
+      "startLine": 186,
+      "crap": 18.00246568587162
+    },
+    {
       "path": ".agents/scripts/lib/baselines/env-overrides.js",
       "method": "resolveCrapEnvOverrides",
       "startLine": 31,
@@ -2598,6 +2646,30 @@
       "crap": 9
     },
     {
+      "path": ".agents/scripts/lib/changed-files.js",
+      "method": "parseNameOnlyStdout",
+      "startLine": 34,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/changed-files.js",
+      "method": "getChangedFiles",
+      "startLine": 43,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/changed-files.js",
+      "method": "getStagedFiles",
+      "startLine": 74,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/changed-files.js",
+      "method": "resolvePreviewScope",
+      "startLine": 102,
+      "crap": 3
+    },
+    {
       "path": ".agents/scripts/lib/checks/baseline-drift-main-checkout.js",
       "method": "isStoryBranch",
       "startLine": 82,
@@ -3036,6 +3108,150 @@
       "crap": 3
     },
     {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "buildFormatHint",
+      "startLine": 63,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "resolveCommandWithFallback",
+      "startLine": 79,
+      "crap": 3.021333333333333
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "resolveTypecheckCommand",
+      "startLine": 104,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "resolveFormatCheckCommand",
+      "startLine": 116,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "resolveFormatWriteCommand",
+      "startLine": 132,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "listChangedFilesForFormatGate",
+      "startLine": 150,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "buildChangedFileScope",
+      "startLine": 170,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "isFormatterEligible",
+      "startLine": 209,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "applyChangedFileScope",
+      "startLine": 223,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "isCrapGateEnabled",
+      "startLine": 273,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "buildTestGateEntry",
+      "startLine": 294,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "buildDefaultGates",
+      "startLine": 323,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "partitionGates",
+      "startLine": 414,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "pipePrefixed",
+      "startLine": 429,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "attachGateAbortHandler",
+      "startLine": 465,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "<anon method-7>",
+      "startLine": 467,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "<anon method-8>",
+      "startLine": 476,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "gateExitCode",
+      "startLine": 483,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "defaultGateRunner",
+      "startLine": 488,
+      "crap": 12
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "runCloseValidation",
+      "startLine": 550,
+      "crap": 13.79279321177767
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "<anon method-14>",
+      "startLine": 579,
+      "crap": 5.8053155522163795
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "<anon method-15>",
+      "startLine": 602,
+      "crap": 3.062196307094266
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "<anon method-16>",
+      "startLine": 635,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "emitGhSpawnCount",
+      "startLine": 814,
+      "crap": 5.000390625
+    },
+    {
       "path": ".agents/scripts/lib/close-validation/projections/head-sha.js",
       "method": "parseHeadSha",
       "startLine": 22,
@@ -3052,6 +3268,48 @@
       "method": "validateProjectionInputs",
       "startLine": 56,
       "crap": 8
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
+      "method": "normaliseSkipReason",
+      "startLine": 38,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
+      "method": "refreshEpicRef",
+      "startLine": 53,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
+      "method": "diffChangedFiles",
+      "startLine": 74,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
+      "method": "scoreFile",
+      "startLine": 112,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
+      "method": "collectRegressions",
+      "startLine": 147,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
+      "method": "projectMaintainabilityRegressions",
+      "startLine": 215,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
+      "method": "formatMaintainabilityProjection",
+      "startLine": 278,
+      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/config/baselines.js",
@@ -9780,6 +10038,18 @@
       "crap": 5.429499999999999
     },
     {
+      "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution/phases/scope-discovery.js",
+      "method": "computeStoryDiffPaths",
+      "startLine": 20,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution/phases/scope-discovery.js",
+      "method": "validateProjectionContext",
+      "startLine": 45,
+      "crap": 4
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-friction-body.js",
       "method": "formatSuspectStory",
       "startLine": 38,
@@ -9858,6 +10128,18 @@
       "crap": 5
     },
     {
+      "path": ".agents/scripts/lib/orchestration/story-close/format-autofix-scoped.js",
+      "method": "listChangedFiles",
+      "startLine": 44,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/format-autofix-scoped.js",
+      "method": "runScopedFormatAutofix",
+      "startLine": 89,
+      "crap": 7.006869163893957
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix-shared.js",
       "method": "listDirtyPaths",
       "startLine": 32,
@@ -9903,120 +10185,6 @@
       "path": ".agents/scripts/lib/orchestration/story-close/legacy-settings-bag.js",
       "method": "buildLegacyOrchestrationBag",
       "startLine": 62,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "lockPathDisplay",
-      "startLine": 64,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "emitStoryBlockedSafe",
-      "startLine": 87,
-      "crap": 2.116522530723714
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "withEpicMergeLock",
-      "startLine": 118,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "pushEpicAndHandleConflicts",
-      "startLine": 176,
-      "crap": 8
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "resolveStoryWorktreePath",
-      "startLine": 252,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "runFetchOrigin",
-      "startLine": 265,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "runRebaseAndAbortOnConflict",
-      "startLine": 272,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "rebaseStoryOnEpic",
-      "startLine": 280,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "buildMergeMessage",
-      "startLine": 327,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "buildVerboseMergeLogger",
-      "startLine": 339,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "throwOnMajorConflict",
-      "startLine": 346,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "logMergeOutcome",
-      "startLine": 357,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "runFinalizeMerge",
-      "startLine": 375,
-      "crap": 2.0032198422780385
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "<anon method-2>",
-      "startLine": 441,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "isMergePending",
-      "startLine": 467,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "commitPendingMerge",
-      "startLine": 471,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "finalizeMergeIfPending",
-      "startLine": 491,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "runResumeMerge",
-      "startLine": 532,
-      "crap": 1.020993070646603
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "<anon method-3>",
-      "startLine": 576,
       "crap": 1
     },
     {
@@ -10104,60 +10272,6 @@
       "crap": 2
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/code-review.js",
-      "method": "buildBlockedResult",
-      "startLine": 40,
-      "crap": 1.0093308062399766
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/code-review.js",
-      "method": "runStoryCodeReview",
-      "startLine": 78,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/code-review.js",
-      "method": "<anon method-1>",
-      "startLine": 104,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/code-review.js",
-      "method": "<anon method-2>",
-      "startLine": 105,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/gates.js",
-      "method": "emitBaselineBlockedResult",
-      "startLine": 44,
-      "crap": 1.9000779039731026
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/gates.js",
-      "method": "shouldSkipValidation",
-      "startLine": 79,
-      "crap": 4.007282658170232
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/gates.js",
-      "method": "summarizeGateResults",
-      "startLine": 116,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/gates.js",
-      "method": "emitGateOutcome",
-      "startLine": 180,
-      "crap": 18.346209912536445
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/gates.js",
-      "method": "runPreMergeValidation",
-      "startLine": 222,
-      "crap": 19.360077389295796
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/lock-wait-classifier.js",
       "method": "isWindows",
       "startLine": 46,
@@ -10242,24 +10356,6 @@
       "crap": 5.187238020876141
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/preflight.js",
-      "method": "runStoryClosePreflight",
-      "startLine": 36,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/preflight.js",
-      "method": "emitPreflightBlockedResult",
-      "startLine": 68,
-      "crap": 1.833706492977814
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/preflight.js",
-      "method": "runPreflightPhase",
-      "startLine": 92,
-      "crap": 5.429499999999999
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/refresh.js",
       "method": "describeAutoRefreshOutcome",
       "startLine": 25,
@@ -10276,12 +10372,6 @@
       "method": "runAutoRefreshSafely",
       "startLine": 77,
       "crap": 9.561
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/timeout-blocked-emitter.js",
-      "method": "emitSpawnTimeoutBlockedResult",
-      "startLine": 48,
-      "crap": 5.844173713369296
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/timeout-blocked.js",
