@@ -288,6 +288,60 @@ function defaultSleep(ms) {
 }
 
 /**
+ * Inner poll-to-terminal loop. Polls `ghPrChecksFn` on each tick until
+ * every required check reaches a terminal state or the iteration cap
+ * (`maxPolls`) fires. Transient `gh` failures (exit status != 0/8 with
+ * an empty stdout) are logged and skipped — the outer cap eventually
+ * short-circuits if `gh` is unrecoverably broken.
+ *
+ * Exported so the BEHIND-recovery outer loop in `Watcher.handle()` can
+ * call this for each CI cycle without duplicating the inner logic.
+ *
+ * @param {object} opts
+ * @param {string} opts.prUrl
+ * @param {string} opts.cwd
+ * @param {object} opts.outcomes  Initial `{ checkName: outcome }` map.
+ * @param {number} opts.polls     Current poll counter (mutated in-place by caller).
+ * @param {number} opts.maxPolls  Hard cap on total poll iterations.
+ * @param {Function} opts.ghPrChecksFn
+ * @param {number} opts.pollIntervalMs
+ * @param {Function} opts.sleepFn
+ * @param {{ warn?: Function }} opts.logger
+ * @returns {Promise<{ outcomes: object, polls: number }>}
+ */
+export async function pollUntilTerminal({
+  prUrl,
+  cwd,
+  outcomes,
+  polls,
+  maxPolls,
+  ghPrChecksFn,
+  pollIntervalMs,
+  sleepFn,
+  logger,
+}) {
+  let currentOutcomes = outcomes;
+  let currentPolls = polls;
+  while (!allTerminal(currentOutcomes) && currentPolls < maxPolls) {
+    await sleepFn(pollIntervalMs);
+    currentPolls += 1;
+    const probe = ghPrChecksFn({ prUrl, cwd });
+    const entries = parseGhPrChecks(probe.stdout);
+    if (entries.length === 0 && probe.status !== 0 && probe.status !== 8) {
+      // Transient `gh` failure — log and continue. The outer
+      // iteration cap eventually short-circuits if `gh` is
+      // unrecoverably broken.
+      logger.warn?.(
+        `[Watcher] gh pr checks transient failure (status=${probe.status}): ${probe.stderr}`,
+      );
+      continue;
+    }
+    currentOutcomes = reduceOutcomes(entries);
+  }
+  return { outcomes: currentOutcomes, polls: currentPolls };
+}
+
+/**
  * Watcher listener.
  */
 export class Watcher {
@@ -421,22 +475,17 @@ export class Watcher {
     let polls = 0;
     let updatesApplied = 0;
     while (polls < this.maxPolls) {
-      while (!allTerminal(outcomes) && polls < this.maxPolls) {
-        await this.sleepFn(this.pollIntervalMs);
-        polls += 1;
-        const probe = this.ghPrChecksFn({ prUrl, cwd: this.cwd });
-        const entries = parseGhPrChecks(probe.stdout);
-        if (entries.length === 0 && probe.status !== 0 && probe.status !== 8) {
-          // Transient `gh` failure — log and continue. The outer
-          // iteration cap eventually short-circuits if `gh` is
-          // unrecoverably broken.
-          this.logger.warn?.(
-            `[Watcher] gh pr checks transient failure (status=${probe.status}): ${probe.stderr}`,
-          );
-          continue;
-        }
-        outcomes = reduceOutcomes(entries);
-      }
+      ({ outcomes, polls } = await pollUntilTerminal({
+        prUrl,
+        cwd: this.cwd,
+        outcomes,
+        polls,
+        maxPolls: this.maxPolls,
+        ghPrChecksFn: this.ghPrChecksFn,
+        pollIntervalMs: this.pollIntervalMs,
+        sleepFn: this.sleepFn,
+        logger: this.logger,
+      }));
       // Checks have either all gone terminal or we hit the iteration
       // cap. BEHIND-recovery (legacy pr-watch parity, Story #2327):
       // when every required check is green AND the PR is BEHIND its
