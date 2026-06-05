@@ -143,6 +143,16 @@ Story-level rollup the parent `/epic-deliver` aggregator reads).
 Run a single Story-implementation phase against the inline `acceptance[]`
 / `verify[]` arrays on the Story body:
 
+> **Re-anchor first (before your first commit).** You received your persona
+> via the hydrated envelope once, then run for many phases — long enough to
+> drift. As your explicit first action in this phase, re-read your assigned
+> persona (`.agents/personas/<role>.md`, resolved from the Story's
+> `persona::*` label; default `engineer.md`) and the global rules in
+> `.agents/rules/` (per
+> [`.agents/instructions.md` § 1.F](../../instructions.md)). This is a cheap
+> self-anchor, not a runtime gate — keep it to a quick re-read so it does
+> not bloat the hydrated prompt (`delivery.maxTokenBudget` elision).
+
 1. Flip the snapshot to the `implementing` phase:
 
    ```bash
@@ -262,6 +272,17 @@ When run as a sub-agent, return one JSON object:
 
 `status === 'done'` requires the Story closed and
 `branchDeleted: true`.
+
+> **Handoff discipline — report state, not process.** Populate the return
+> object with essential terminal state only: the Story branch, the closing
+> commit SHA, what changed, and what was verified (this maps onto the
+> existing `storyId` / `branchDeleted` / `phase` / `detail` /
+> `renderedBody` fields — do **not** add new envelope fields). Do not
+> narrate the steps you took to get there, and do not prescribe how
+> `/epic-deliver`'s aggregator should do its job downstream. The parent
+> reads structured state from this envelope and the `story-run-progress`
+> snapshot; prose process commentary only bloats the hydrated prompt
+> (`delivery.maxTokenBudget` elision).
 
 `branchDeleted` is sourced from the `branchDeleted` field of the
 `story-close.js` result envelope, which is `branchCleanup.localDeleted &&
