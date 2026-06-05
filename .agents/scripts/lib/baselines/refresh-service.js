@@ -376,7 +376,7 @@ export async function refreshBaseline(opts = {}) {
   // regardless of which scorer produced them.
   const canonicalRows = scoredRows.map((row) => ({
     ...row,
-    path: canonicalizeBaselinePath(row.path),
+    path: canonicalizeBaselinePath(row.path ?? row.file),
   }));
 
   // Read the prior envelope so out-of-scope rows survive (Task #2209) and
