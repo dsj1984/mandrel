@@ -178,6 +178,29 @@ for high-risk operations.
   auth/security changes, CI/CD gate changes, monorepo-wide rewrites, and
   destructive schema migrations.
 
+### K. Precedence & Conflict Resolution
+
+The governance documents you load are layered. When two of them conflict,
+resolve by this **total ordering** (higher wins):
+
+1. **Local overrides** — `.agents/instructions.local.md` / `.agentrc.local.json`
+   (§ 1.E).
+2. **This file** — `.agents/instructions.md`.
+3. **Global rules** — `.agents/rules/*.md` (§ 1.F).
+4. **The active persona** — `.agents/personas/[role].md` (§ 1.A).
+5. **Skills** — `.agents/skills/**/SKILL.md` (§ 1.B).
+
+Two carve-outs refine the ordering:
+
+- **More specific wins within a tier.** When two documents in the **same**
+  tier overlap, the narrower, more-specific statement governs the broader one
+  (e.g. a stack-specific skill refines a general core skill; a per-rule
+  statement refines a cross-rule one).
+- **`rules/security-baseline.md` is inviolable.** No persona, skill, or local
+  override may relax a security MUST. A security constraint that conflicts
+  with any lower-tier guidance — or with a local override — always wins,
+  regardless of its tier position above.
+
 ---
 
 ## 2. FinOps & Token Budgeting (Economic Guardrails)
