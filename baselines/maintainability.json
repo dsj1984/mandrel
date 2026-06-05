@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T10:57:13.945Z",
+  "generatedAt": "2026-06-05T11:18:38.766Z",
   "rollup": {
     "*": {
       "min": 45.044,
       "p50": 103.888,
-      "p95": 121.586
+      "p95": 121.809
     }
   },
   "rows": [
@@ -473,10 +473,6 @@
     {
       "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
       "mi": 96.56
-    },
-    {
-      "path": ".agents/scripts/lib/config-resolver.js",
-      "mi": 90.965
     },
     {
       "path": ".agents/scripts/lib/config-schema-shared.js",
@@ -5061,10 +5057,6 @@
     {
       "path": "tests/spec-freshness.test.js",
       "mi": 109.4
-    },
-    {
-      "path": "tests/story-3302-body-shape.test.js",
-      "mi": 107.056
     },
     {
       "path": "tests/story-close-branch-restore.test.js",
