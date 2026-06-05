@@ -17,6 +17,21 @@
  *
  * The refresh is intentionally non-fatal when Stryker is not configured:
  * the operator can run `npx stryker init` and re-invoke this script.
+ *
+ * DORMANT BY DESIGN (Story #3665). This script and the rest of the
+ * mutation-testing surface ship built-but-unwired: Mandrel declares no
+ * `delivery.quality.gates.mutation` block and no `stryker.conf.*`, so the
+ * gate never enters the `check-baselines` pipeline and this refresh
+ * self-skips (no Stryker config detected). The dormancy is an evaluated,
+ * intentional opt-in — not an oversight. A spike concluded DEFER on
+ * activation because turning it on requires a `node --test` Stryker
+ * runner integration, reconciling the workspace-keyed snapshot writer
+ * (`lib/mutation/baseline-snapshot.js`) with the kernel's path-keyed
+ * baseline shape (`lib/baselines/kinds/mutation.js`), and nightly CI
+ * plumbing — at a multi-hour full-run cost. See
+ * `docs/mutation-testing-spike.md` for the cost model, the baseline-shape
+ * fit analysis, the proposed `gates.mutation` config, and the
+ * re-evaluation trigger.
  */
 
 import path from 'node:path';
