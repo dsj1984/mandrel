@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T11:18:38.766Z",
+  "generatedAt": "2026-06-05T11:31:54.950Z",
   "rollup": {
     "*": {
       "min": 45.044,
@@ -1619,10 +1619,6 @@
       "mi": 171
     },
     {
-      "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
-      "mi": 95.584
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
       "mi": 103.078
     },
@@ -2081,10 +2077,6 @@
     {
       "path": ".agents/scripts/providers/github/errors.js",
       "mi": 97.964
-    },
-    {
-      "path": ".agents/scripts/providers/github/issues.js",
-      "mi": 108.398
     },
     {
       "path": ".agents/scripts/providers/github/labels.js",
