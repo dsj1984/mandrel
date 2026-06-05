@@ -19,16 +19,59 @@
  */
 
 import { strict as assert } from 'node:assert';
+import fsp from 'node:fs/promises';
+import os from 'node:os';
+import nodePath from 'node:path';
 import { describe, it } from 'node:test';
 
 import {
   EPIC_HANDOFF_MARKER,
+  extractRunTraceDigest,
+  loadRunTraceFromDisk,
   postHandoffComment,
   renderHandoffBody,
+  renderRunTraceSection,
 } from '../../../.agents/scripts/lib/orchestration/finalize/post-handoff-comment.js';
 
 function quietLogger() {
   return { info: () => {}, warn: () => {}, debug: () => {} };
+}
+
+/**
+ * Build a small, valid NDJSON ledger string with two phases so the
+ * TraceLogger Summary projection has phase durations to roll up and one
+ * failed terminal to exercise the failed-count line.
+ */
+function sampleLedger() {
+  const recs = [
+    {
+      kind: 'emitted',
+      seqId: 1,
+      event: 'epic.snapshot.start',
+      ts: '2026-06-05T10:00:00.000Z',
+      payload: { epicId: 42 },
+    },
+    {
+      kind: 'completed',
+      seqId: 1,
+      event: 'epic.snapshot.start',
+      ts: '2026-06-05T10:00:02.000Z',
+    },
+    {
+      kind: 'emitted',
+      seqId: 2,
+      event: 'wave.start',
+      ts: '2026-06-05T10:00:05.000Z',
+      payload: { waveIndex: 0 },
+    },
+    {
+      kind: 'failed',
+      seqId: 2,
+      event: 'wave.start',
+      ts: '2026-06-05T10:00:09.000Z',
+    },
+  ];
+  return `${recs.map((r) => JSON.stringify(r)).join('\n')}\n`;
 }
 
 describe('renderHandoffBody', () => {
@@ -50,6 +93,168 @@ describe('renderHandoffBody', () => {
     const body = renderHandoffBody({ epicId: 1, prNumber: 7 });
     assert.match(body, /Pull request: #7$/m);
     assert.doesNotMatch(body, /\(http/);
+  });
+
+  it('embeds the Run trace digest section when a runTrace envelope is supplied', () => {
+    const runTrace = renderRunTraceSection({
+      digest: '- Events: 2\n- Completed: 1\n- Failed: 1',
+      relativePath: 'temp/epic-42/lifecycle.md',
+      truncated: false,
+    });
+    const body = renderHandoffBody({
+      epicId: 42,
+      prNumber: 9,
+      runTrace: {
+        digest: '- Events: 2\n- Completed: 1\n- Failed: 1',
+        relativePath: 'temp/epic-42/lifecycle.md',
+        truncated: false,
+      },
+    });
+    assert.ok(runTrace.length > 0);
+    assert.match(body, /## Run trace/);
+    assert.match(body, /- Events: 2/);
+    assert.match(body, /- Failed: 1/);
+  });
+
+  it('omits the Run trace section when no runTrace envelope is supplied', () => {
+    const body = renderHandoffBody({ epicId: 42, prNumber: 9 });
+    assert.doesNotMatch(body, /## Run trace/);
+  });
+});
+
+describe('renderRunTraceSection', () => {
+  it('returns empty string for null / malformed envelope', () => {
+    assert.equal(renderRunTraceSection(null), '');
+    assert.equal(renderRunTraceSection(undefined), '');
+    assert.equal(renderRunTraceSection({}), '');
+    assert.equal(renderRunTraceSection({ digest: 42 }), '');
+  });
+
+  it('renders the heading, the digest body, and the lifecycle.md link', () => {
+    const section = renderRunTraceSection({
+      digest: '- Events: 5\n- Completed: 4\n- Failed: 1',
+      relativePath: 'temp/epic-7/lifecycle.md',
+      truncated: false,
+    });
+    assert.match(section, /## Run trace/);
+    assert.match(section, /- Events: 5/);
+    assert.match(
+      section,
+      /\[`temp\/epic-7\/lifecycle\.md`\]\(temp\/epic-7\/lifecycle\.md\)/,
+    );
+    assert.doesNotMatch(section, /truncated/i);
+  });
+
+  it('emits a truncation note when truncated is true', () => {
+    const section = renderRunTraceSection({
+      digest: '- Events: 9999',
+      relativePath: 'temp/epic-7/lifecycle.md',
+      truncated: true,
+    });
+    assert.match(section, /truncated/i);
+    // The relative-path link to the full lifecycle.md is retained.
+    assert.match(section, /lifecycle\.md/);
+  });
+});
+
+describe('extractRunTraceDigest', () => {
+  it('projects the Summary block from a valid ledger string', () => {
+    const out = extractRunTraceDigest({
+      ledgerText: sampleLedger(),
+      epicId: 42,
+      relativePath: 'temp/epic-42/lifecycle.md',
+    });
+    assert.ok(out, 'expected a digest envelope');
+    assert.equal(out.truncated, false);
+    assert.equal(out.relativePath, 'temp/epic-42/lifecycle.md');
+    // The digest carries the Summary rollup, not the per-event trace.
+    assert.match(out.digest, /Events: 2/);
+    assert.match(out.digest, /Completed: 1/);
+    assert.match(out.digest, /Failed: 1/);
+    assert.match(out.digest, /Phase durations:/);
+    // The full per-event trace lines (HH:MM:SS event.name) are NOT carried.
+    assert.doesNotMatch(out.digest, /epic\.snapshot\.start/);
+  });
+
+  it('returns null for an empty ledger (no emitted records)', () => {
+    assert.equal(
+      extractRunTraceDigest({
+        ledgerText: '',
+        epicId: 1,
+        relativePath: 'temp/epic-1/lifecycle.md',
+      }),
+      null,
+    );
+  });
+
+  it('returns null for a malformed ledger rather than throwing', () => {
+    assert.equal(
+      extractRunTraceDigest({
+        ledgerText: '{not json}\n',
+        epicId: 1,
+        relativePath: 'temp/epic-1/lifecycle.md',
+      }),
+      null,
+    );
+  });
+
+  it('truncates and flags when the projected digest exceeds the byte budget', () => {
+    const out = extractRunTraceDigest({
+      ledgerText: sampleLedger(),
+      epicId: 42,
+      relativePath: 'temp/epic-42/lifecycle.md',
+      maxBytes: 20,
+    });
+    assert.ok(out);
+    assert.equal(out.truncated, true);
+    assert.ok(
+      Buffer.byteLength(out.digest, 'utf8') <= 20,
+      'truncated digest must fit the byte budget',
+    );
+  });
+});
+
+describe('loadRunTraceFromDisk', () => {
+  it('returns null when the ledger file is absent', async () => {
+    const dir = await fsp.mkdtemp(nodePath.join(os.tmpdir(), 'runtrace-'));
+    try {
+      const out = await loadRunTraceFromDisk({
+        epicId: 999999,
+        config: { project: { paths: { tempRoot: dir } } },
+        cwd: dir,
+      });
+      assert.equal(out, null);
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('returns null for a non-positive epicId', async () => {
+    assert.equal(await loadRunTraceFromDisk({ epicId: 0 }), null);
+    assert.equal(await loadRunTraceFromDisk({ epicId: -1 }), null);
+  });
+
+  it('projects the digest from an on-disk ledger', async () => {
+    const dir = await fsp.mkdtemp(nodePath.join(os.tmpdir(), 'runtrace-'));
+    try {
+      const epicDir = nodePath.join(dir, 'epic-77');
+      await fsp.mkdir(epicDir, { recursive: true });
+      await fsp.writeFile(
+        nodePath.join(epicDir, 'lifecycle.ndjson'),
+        sampleLedger(),
+        'utf8',
+      );
+      const out = await loadRunTraceFromDisk({
+        epicId: 77,
+        config: { project: { paths: { tempRoot: dir } } },
+        cwd: dir,
+      });
+      assert.ok(out, 'expected a digest envelope');
+      assert.match(out.digest, /Events: 2/);
+      assert.equal(out.relativePath, 'epic-77/lifecycle.md');
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true });
+    }
   });
 });
 

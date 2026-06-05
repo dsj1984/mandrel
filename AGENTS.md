@@ -4,7 +4,9 @@
 > protocols are defined in [`.agents/instructions.md`](.agents/instructions.md).
 > You **MUST** load and follow that file as your primary system prompt. This
 > file provides repository-level onboarding context only — it does not redefine
-> any rules.
+> any rules. When two governance documents conflict, resolve by the total
+> ordering declared in
+> [`.agents/instructions.md` § 1.K — Precedence & Conflict Resolution](.agents/instructions.md).
 
 ---
 

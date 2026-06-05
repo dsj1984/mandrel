@@ -19,6 +19,13 @@
 @.agents/rules/shell-conventions.md
 @.agents/rules/testing-standards.md
 
+> **Import order is not precedence.** The order these files are imported above
+> is for loading convenience only; when two governance documents conflict, the
+> authoritative resolution order is declared once in
+> [`.agents/instructions.md` § 1.K — Precedence & Conflict Resolution](.agents/instructions.md)
+> (local overrides → `instructions.md` → `rules/` → active persona → `skills/`,
+> with security-baseline inviolable).
+
 ## Ticket hierarchy
 
 > Mandrel uses a **3-tier ticket hierarchy** (Epic → Feature → Story),
