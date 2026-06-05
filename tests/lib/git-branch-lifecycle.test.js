@@ -5,6 +5,7 @@ import { afterEach, describe, it } from 'node:test';
 import {
   branchExistsLocally,
   branchExistsRemotely,
+  branchExistsViaTrackingRef,
   checkoutStoryBranch,
   currentBranch,
   ensureEpicBranch,
@@ -86,6 +87,39 @@ describe('branchExistsLocally / branchExistsRemotely', () => {
   it('remote: status 0 but empty stdout → false', () => {
     installScriptedRunner([OK('')]);
     assert.equal(branchExistsRemotely('feat-x', '/cwd'), false);
+  });
+});
+
+describe('branchExistsViaTrackingRef', () => {
+  it('returns true when refs/remotes/origin/<branch> exists (status 0)', () => {
+    const r = installScriptedRunner([OK()]);
+    assert.equal(branchExistsViaTrackingRef('feat-x', '/cwd'), true);
+    // Verify the correct ref path is passed — no ls-remote, no network call
+    assert.deepEqual(r.calls[0], [
+      'rev-parse',
+      '--verify',
+      '--quiet',
+      'refs/remotes/origin/feat-x',
+    ]);
+  });
+
+  it('returns false when the tracking ref is absent (non-zero status)', () => {
+    const r = installScriptedRunner([FAIL()]);
+    assert.equal(branchExistsViaTrackingRef('feat-x', '/cwd'), false);
+    assert.deepEqual(r.calls[0], [
+      'rev-parse',
+      '--verify',
+      '--quiet',
+      'refs/remotes/origin/feat-x',
+    ]);
+  });
+
+  it('uses rev-parse, not ls-remote, so no network args appear', () => {
+    const r = installScriptedRunner([OK()]);
+    branchExistsViaTrackingRef('epic/42', '/cwd');
+    assert.equal(r.calls[0][0], 'rev-parse');
+    // ls-remote would have 'ls-remote' as the first arg — assert it does not
+    assert.notEqual(r.calls[0][0], 'ls-remote');
   });
 });
 
@@ -284,7 +318,9 @@ describe('ensureEpicBranchRef — every action arm', () => {
   });
 
   it("action='publish-existing' when only local exists", () => {
-    const r = installScriptedRunner([OK(), OK('')]);
+    // branchExistsViaTrackingRef uses rev-parse: non-zero (FAIL) means no
+    // tracking ref, so remote=false → publish-existing with local=true.
+    const r = installScriptedRunner([OK(), FAIL()]);
     ensureEpicBranchRef('epic/42', 'main', '/cwd');
     assert.deepEqual(r.execCalls[0], [
       'push',
@@ -296,7 +332,9 @@ describe('ensureEpicBranchRef — every action arm', () => {
   });
 
   it("action='create-and-publish' when neither exists", () => {
-    const r = installScriptedRunner([FAIL(), OK('')]);
+    // branchExistsViaTrackingRef uses rev-parse: both must be FAIL for
+    // local=false and remote=false → create-and-publish.
+    const r = installScriptedRunner([FAIL(), FAIL()]);
     ensureEpicBranchRef('epic/42', 'main', '/cwd');
     assert.deepEqual(r.execCalls[0], ['branch', 'epic/42', 'main']);
     assert.deepEqual(r.execCalls[1], [

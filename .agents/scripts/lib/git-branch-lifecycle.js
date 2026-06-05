@@ -45,6 +45,9 @@ export function branchExistsLocally(branch, cwd) {
 /**
  * Return true iff the given branch exists on the `origin` remote.
  *
+ * Issues a network `ls-remote` call. Prefer `branchExistsViaTrackingRef`
+ * after a `git fetch` has already populated the remote-tracking refs.
+ *
  * @param {string} branch
  * @param {string} cwd
  * @returns {boolean}
@@ -53,6 +56,33 @@ export function branchExistsRemotely(branch, cwd) {
   assertBranchSafe(branch);
   const result = gitSpawn(cwd, 'ls-remote', '--heads', 'origin', branch);
   return result.status === 0 && result.stdout.length > 0;
+}
+
+/**
+ * Return true iff the given branch exists on `origin` according to the
+ * local remote-tracking ref (`refs/remotes/origin/<branch>`).
+ *
+ * This is a purely-local check (no network) that is authoritative whenever
+ * a `git fetch origin` has already been run — e.g. inside `bootstrapWorktree`
+ * and `bootstrapBranch` which always call `cachedGitFetch` first. Use this
+ * instead of `branchExistsRemotely` in those paths to avoid a redundant
+ * network round-trip.
+ *
+ * @param {string} branch
+ * @param {string} cwd
+ * @returns {boolean}
+ */
+export function branchExistsViaTrackingRef(branch, cwd) {
+  assertBranchSafe(branch);
+  return (
+    gitSpawn(
+      cwd,
+      'rev-parse',
+      '--verify',
+      '--quiet',
+      `refs/remotes/origin/${branch}`,
+    ).status === 0
+  );
 }
 
 /**
@@ -258,9 +288,14 @@ export function ensureEpicBranchRef(epicBranch, baseBranch, cwd, opts = {}) {
   assertBranchSafe(epicBranch, baseBranch);
   const progress = opts.progress ?? (() => {});
 
+  // `ensureEpicBranchRef` is always called after a `git fetch origin` (via
+  // `cachedGitFetch` / `fetchMainRefs` in `bootstrapWorktree`). The
+  // remote-tracking refs are therefore authoritative, so we check
+  // `refs/remotes/origin/<branch>` locally rather than issuing a second
+  // network `ls-remote` call.
   const action = planEnsureEpicBranchRefAction(
     branchExistsLocally(epicBranch, cwd),
-    branchExistsRemotely(epicBranch, cwd),
+    branchExistsViaTrackingRef(epicBranch, cwd),
   );
 
   if (action === 'noop') {

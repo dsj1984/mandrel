@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T10:53:17.630Z",
+  "generatedAt": "2026-06-05T10:57:14.923Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.192000000000002,
+      "p95": 12.226395160174576,
       "max": 38.82544452792387,
       "methodsAbove20": 23
     }
@@ -4810,60 +4810,6 @@
       "method": "deleteBranchesBatched",
       "startLine": 189,
       "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/git-branch-lifecycle.js",
-      "method": "currentBranch",
-      "startLine": 24,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/git-branch-lifecycle.js",
-      "method": "branchExistsLocally",
-      "startLine": 37,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/git-branch-lifecycle.js",
-      "method": "branchExistsRemotely",
-      "startLine": 52,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/git-branch-lifecycle.js",
-      "method": "ensureEpicBranch",
-      "startLine": 67,
-      "crap": 9
-    },
-    {
-      "path": ".agents/scripts/lib/git-branch-lifecycle.js",
-      "method": "_assertOnBranch",
-      "startLine": 131,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/git-branch-lifecycle.js",
-      "method": "checkoutStoryBranch",
-      "startLine": 152,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/git-branch-lifecycle.js",
-      "method": "planEnsureEpicBranchRefAction",
-      "startLine": 223,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/git-branch-lifecycle.js",
-      "method": "ensureEpicBranchRef",
-      "startLine": 228,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/git-branch-lifecycle.js",
-      "method": "ensureLocalBranch",
-      "startLine": 276,
-      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/git-utils.js",
