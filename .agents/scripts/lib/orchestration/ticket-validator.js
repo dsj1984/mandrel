@@ -173,6 +173,29 @@ function defaultGitRunner({ baseBranchRef, path, cwd }) {
 }
 
 /**
+ * Wrap a `(ref, path) → boolean` git runner in a memoizing closure keyed by
+ * `"${baseBranchRef}:${path}"`. The wrapper is created once per
+ * `validateAndNormalizeTickets` call and threaded into both
+ * `validateAcFreshness` and `validateStoryFileAssumptions` so the two gates
+ * share a single probe cache rather than maintaining independent ones.
+ *
+ * @param {Function} runner - The underlying `({ baseBranchRef, path, cwd }) => boolean` probe.
+ * @returns {Function} A memoized probe with the same signature.
+ */
+function makeMemoizedGitRunner(runner) {
+  const cache = new Map();
+  return function memoizedGitRunner({ baseBranchRef, path, cwd }) {
+    const key = `${baseBranchRef}:${path}`;
+    let result = cache.get(key);
+    if (result === undefined) {
+      result = Boolean(runner({ baseBranchRef, path, cwd }));
+      cache.set(key, result);
+    }
+    return result;
+  };
+}
+
+/**
  * Verify that every code-asset path referenced by a Task body or AC exists at
  * `baseBranchRef`. A missing path means the planner LLM hallucinated (or the
  * path was deleted between planning and decomposition) — refuse to decompose
@@ -536,6 +559,17 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
   // the failure mode is reported up-front rather than after a git probe.
   validateAcceptanceSubjectPrefix({ tickets });
 
+  // Hoist a single memoized (ref, path) → boolean probe shared across both
+  // git-probe gates below. Without this, `validateAcFreshness` and
+  // `validateStoryFileAssumptions` each maintain an independent cache, so a
+  // path that appears in both the AC-freshness scan and the file-assumption
+  // scan spawns two `git cat-file` processes. The memoizing wrapper captures
+  // results by `"${baseBranchRef}:${path}"` key so the second gate reuses
+  // the first's results without any additional git I/O.
+  const sharedGitRunner = opts.baseBranchRef
+    ? makeMemoizedGitRunner(opts.gitRunner ?? defaultGitRunner)
+    : null;
+
   // Refuse to decompose when any Task body or AC names a code-asset path
   // missing from the Epic's base branch tree. Skipped when the caller
   // omits `baseBranchRef` so legacy unit tests keep their existing
@@ -544,7 +578,7 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
     validateAcFreshness({
       tickets,
       baseBranchRef: opts.baseBranchRef,
-      gitRunner: opts.gitRunner,
+      gitRunner: sharedGitRunner,
       cwd: opts.cwd,
     });
   }
@@ -560,7 +594,7 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
     const assumptionReport = validateStoryFileAssumptions({
       tickets,
       baseBranchRef: opts.baseBranchRef,
-      gitRunner: opts.gitRunner,
+      gitRunner: sharedGitRunner,
       cwd: opts.cwd,
     });
     for (const warning of assumptionReport.warnings) {
