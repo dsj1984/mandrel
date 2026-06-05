@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T15:21:30.622Z",
+  "generatedAt": "2026-06-05T15:52:57.884Z",
   "rollup": {
     "*": {
       "min": 45.044,
-      "p50": 104.065,
+      "p50": 104.084,
       "p95": 122.198
     }
   },
@@ -293,10 +293,6 @@
     {
       "path": ".agents/scripts/lib/baselines/kinds/coverage.js",
       "mi": 98.807
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "mi": 92.921
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/lighthouse.js",
@@ -1377,10 +1373,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution/phases/gate-failure.js",
       "mi": 66.537
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution/phases/refresh-commit.js",
-      "mi": 85.571
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution/phases/regression-projection.js",
