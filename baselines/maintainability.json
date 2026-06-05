@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T12:01:49.921Z",
+  "generatedAt": "2026-06-05T12:12:05.948Z",
   "rollup": {
     "*": {
       "min": 45.044,
-      "p50": 103.904,
+      "p50": 103.914,
       "p95": 121.964
     }
   },
@@ -997,10 +997,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/deliver-phases.js",
       "mi": 118.393
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "mi": 85.248
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/hotspot-detection.js",

@@ -17,6 +17,14 @@
  * bag. The iterate-waves phase relied on those mirror calls; with the
  * sync inlined into the state mutator, every label flip (Epic, Story,
  * Task) updates the board automatically.
+ *
+ * Story #3633 — The imperative `registerX` helpers are replaced by a
+ * declarative `LISTENER_REGISTRY` and a generic `wireListeners` driver.
+ * The canonical close-tail ordering (slot numbers) is now data, not prose
+ * comments. Adding a listener is an array entry; the driver constructs in
+ * slot order, evaluates `requires`, calls `build`, calls `register`, and
+ * returns a name→instance map that `createEpicRunnerCollaborators` spreads
+ * into the collaborator bag.
  */
 
 import { notify } from '../../../notify.js';
@@ -51,6 +59,395 @@ import {
 import { waitForEpicUnblock } from './blocker-wait.js';
 import { buildDefaultGitAdapter, CommitAssertion } from './commit-assertion.js';
 import { StoryLauncher } from './story-launcher.js';
+
+// ---------------------------------------------------------------------------
+// Precondition helpers used in `requires` predicates of LISTENER_REGISTRY.
+// ---------------------------------------------------------------------------
+
+/** Returns true when `bus` exposes the required `on()` and `emit()` methods. */
+function busOk(bus) {
+  return (
+    bus != null &&
+    typeof bus.on === 'function' &&
+    typeof bus.emit === 'function'
+  );
+}
+
+/** Returns true when `n` is a positive integer (valid epicId). */
+function intOk(n) {
+  return Number.isInteger(n) && n >= 1;
+}
+
+/** Returns true when `s` is a non-empty string (valid tempRoot / cwd). */
+function strOk(s) {
+  return typeof s === 'string' && s.length > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Listener slot constants — canonical ordering that was previously encoded as
+// prose comments (factory.js:159-167, 230-265, 497-572). Each integer is the
+// relative position within the bus subscriber queue. Observers run before
+// mutators, close-tail runs after mutators, BlockerHandler is last.
+// ---------------------------------------------------------------------------
+const SLOT = {
+  CHECKPOINT_POINTER_WRITER: 10, // EARLY — advance resume cursor before side effects
+  TIMEOUT_WATCHDOG: 20, // wildcard observer — after trace/ledger, before mutators
+  HEARTBEAT_MONITOR: 21, // wildcard observer — paired with TimeoutWatchdog
+  LABEL_TRANSITIONER: 40, // iterate-waves mutator
+  STRUCTURED_COMMENT_POSTER: 41, // iterate-waves mutator
+  LIFECYCLE_PROGRESS_REPORTER: 50, // side-effect trio
+  SIGNALS_APPENDER: 51,
+  NOTIFY_DISPATCHER: 52,
+  INTERVENTION_RECORDER: 60,
+  // Close-tail chain:
+  //   AcceptanceReconciler < Finalizer < Watcher < AutomergePredicate
+  //   < AutomergeArmer < BranchCleaner < MergeWatcher < Cleaner
+  ACCEPTANCE_RECONCILER: 70,
+  FINALIZER: 71,
+  WATCHER: 72,
+  AUTOMERGE_PREDICATE: 73,
+  AUTOMERGE_ARMER: 74,
+  BRANCH_CLEANER: 75,
+  MERGE_WATCHER: 76,
+  CLEANER: 77,
+  BLOCKER_HANDLER: 80, // LAST — after the full close-tail chain
+};
+
+// ---------------------------------------------------------------------------
+// Declarative listener registry.
+//
+// Each entry describes one lifecycle listener:
+//   name     — key in the collaborator bag
+//   slot     — integer ordering (see SLOT above); driver sorts by this
+//   requires — predicate(shared) → boolean; listener skipped when false,
+//              collaborator bag slot set to null
+//   build    — factory(shared) → instance (must NOT call .register())
+//   register — (instance, bus) → void; defaults to instance.register(bus)
+//
+// "shared" is the pre-built non-listener context bag passed by
+// `createEpicRunnerCollaborators` into `wireListeners`.
+// ---------------------------------------------------------------------------
+const LISTENER_REGISTRY = [
+  {
+    name: 'checkpointPointerWriter',
+    slot: SLOT.CHECKPOINT_POINTER_WRITER,
+    // Story #2266 / Task #2268 — register EARLY so the pointer write
+    // advances the resume cursor before any later handler reacts.
+    requires: (shared) =>
+      busOk(shared.bus) && intOk(shared.epicId) && strOk(shared.tempRoot),
+    build: (shared) =>
+      new CheckpointPointerWriter({
+        bus: shared.bus,
+        epicId: shared.epicId,
+        tempRoot: shared.tempRoot,
+        logger: shared.logger,
+      }),
+    register: (instance) => instance.register(),
+  },
+  {
+    name: 'timeoutWatchdog',
+    slot: SLOT.TIMEOUT_WATCHDOG,
+    // Story #2314 — wildcard observer; runs after trace/ledger writers,
+    // before named mutators.
+    requires: (shared) => busOk(shared.bus),
+    build: (shared) => {
+      const lifecycle = shared.config?.delivery?.lifecycle ?? {};
+      const timeouts =
+        lifecycle.timeouts && typeof lifecycle.timeouts === 'object'
+          ? lifecycle.timeouts
+          : {};
+      return new TimeoutWatchdog({ timeouts, logger: shared.logger });
+    },
+    register: (instance, bus) => instance.register(bus),
+  },
+  {
+    name: 'heartbeatMonitor',
+    slot: SLOT.HEARTBEAT_MONITOR,
+    // Story #2314 — wildcard observer paired with TimeoutWatchdog.
+    requires: (shared) => busOk(shared.bus),
+    build: (shared) => {
+      const lifecycle = shared.config?.delivery?.lifecycle ?? {};
+      const opts = { logger: shared.logger };
+      if (Number.isInteger(lifecycle.heartbeatWarnSeconds)) {
+        opts.warnSeconds = lifecycle.heartbeatWarnSeconds;
+      }
+      return new HeartbeatMonitor(opts);
+    },
+    register: (instance, bus) => instance.register(bus),
+  },
+  {
+    name: 'labelTransitioner',
+    slot: SLOT.LABEL_TRANSITIONER,
+    // Story #2239 Task #2242 — iterate-waves label mutator.
+    requires: (shared) =>
+      busOk(shared.bus) && !!shared.provider && intOk(shared.epicId),
+    build: (shared) =>
+      new LabelTransitioner({
+        provider: shared.provider,
+        epicId: shared.epicId,
+        transitionTicketState,
+        logger: shared.logger,
+      }),
+    register: (instance, bus) => instance.register(bus),
+  },
+  {
+    name: 'structuredCommentPoster',
+    slot: SLOT.STRUCTURED_COMMENT_POSTER,
+    // Story #2239 Task #2244 — iterate-waves structured-comment mutator.
+    requires: (shared) =>
+      busOk(shared.bus) && !!shared.provider && intOk(shared.epicId),
+    build: (shared) =>
+      new StructuredCommentPoster({
+        provider: shared.provider,
+        epicId: shared.epicId,
+        upsertStructuredComment,
+        logger: shared.logger,
+      }),
+    register: (instance, bus) => instance.register(bus),
+  },
+  {
+    name: 'lifecycleProgressReporter',
+    slot: SLOT.LIFECYCLE_PROGRESS_REPORTER,
+    // Story #2239 Task #2244 — side-effect trio, progress reporter.
+    requires: (shared) => busOk(shared.bus) && intOk(shared.epicId),
+    build: (shared) => new LifecycleProgressReporter({ logger: shared.logger }),
+    register: (instance, bus) => instance.register(bus),
+  },
+  {
+    name: 'signalsAppender',
+    slot: SLOT.SIGNALS_APPENDER,
+    // Story #2239 Task #2244 — side-effect trio, signals appender.
+    requires: (shared) => busOk(shared.bus) && intOk(shared.epicId),
+    build: (shared) =>
+      new SignalsAppender({
+        epicId: shared.epicId,
+        appendEpicSignal,
+        config: shared.config,
+        logger: shared.logger,
+      }),
+    register: (instance, bus) => instance.register(bus),
+  },
+  {
+    name: 'notifyDispatcher',
+    slot: SLOT.NOTIFY_DISPATCHER,
+    // Story #2239 Task #2244 — side-effect trio, notify dispatcher.
+    // Skipped when no notify function is available.
+    requires: (shared) =>
+      busOk(shared.bus) &&
+      intOk(shared.epicId) &&
+      typeof shared.notify === 'function',
+    build: (shared) =>
+      new NotifyDispatcher({
+        epicId: shared.epicId,
+        notify: shared.notify,
+        appendEpicSignal,
+        config: shared.config,
+        logger: shared.logger,
+      }),
+    register: (instance, bus) => instance.register(bus),
+  },
+  {
+    name: 'interventionRecorder',
+    slot: SLOT.INTERVENTION_RECORDER,
+    // Story #2410 / Task #2416 — subscribes to `intervention.recorded`.
+    requires: (shared) =>
+      busOk(shared.bus) && !!shared.provider && intOk(shared.epicId),
+    build: (shared) =>
+      new InterventionRecorder({
+        provider: shared.provider,
+        epicId: shared.epicId,
+        logger: shared.logger,
+      }),
+    register: (instance, bus) => instance.register(bus),
+  },
+  // ---- Close-tail chain (Story #2315 and extensions) ---------------------
+  {
+    name: 'acceptanceReconciler',
+    slot: SLOT.ACCEPTANCE_RECONCILER,
+    // Story #2315 / Task #2322 — subscribes to `epic.close.end`.
+    requires: (shared) => busOk(shared.bus) && intOk(shared.epicId),
+    build: (shared) =>
+      new AcceptanceReconciler({
+        bus: shared.bus,
+        epicId: shared.epicId,
+        cwd: shared.cwd ?? process.cwd(),
+        provider: shared.provider ?? null,
+        config: shared.config ?? null,
+        logger: shared.logger,
+      }),
+    register: (instance) => instance.register(),
+  },
+  {
+    name: 'finalizer',
+    slot: SLOT.FINALIZER,
+    // Story #2319 / Task #2328 — subscribes to `acceptance.reconcile.{ok,waived}`.
+    requires: (shared) => busOk(shared.bus) && intOk(shared.epicId),
+    build: (shared) =>
+      new Finalizer({
+        bus: shared.bus,
+        epicId: shared.epicId,
+        cwd: shared.cwd ?? process.cwd(),
+        logger: shared.logger,
+      }),
+    register: (instance) => instance.register(),
+  },
+  {
+    name: 'watcher',
+    slot: SLOT.WATCHER,
+    // Story #2327 / Task #2331 — subscribes to `pr.created`.
+    requires: (shared) => busOk(shared.bus) && intOk(shared.epicId),
+    build: (shared) =>
+      new Watcher({
+        bus: shared.bus,
+        cwd: shared.cwd ?? process.cwd(),
+        logger: shared.logger,
+      }),
+    register: (instance) => instance.register(),
+  },
+  {
+    name: 'automergePredicate',
+    slot: SLOT.AUTOMERGE_PREDICATE,
+    // Story #2333 / Task #2337 — subscribes to `epic.watch.end`.
+    // AutomergePredicate requires a truthy `provider`; its constructor
+    // throws otherwise. Guard so the rest of the chain wires cleanly in
+    // unit fixtures that omit provider.
+    requires: (shared) =>
+      busOk(shared.bus) && intOk(shared.epicId) && !!shared.provider,
+    build: (shared) =>
+      new AutomergePredicate({
+        bus: shared.bus,
+        epicId: shared.epicId,
+        provider: shared.provider,
+        logger: shared.logger,
+      }),
+    register: (instance) => instance.register(),
+  },
+  {
+    name: 'automergeArmer',
+    slot: SLOT.AUTOMERGE_ARMER,
+    // Story #2336 / Task #2341 — subscribes to `epic.merge.ready` ONLY.
+    // Registered after AutomergePredicate so the predicate's verdict is
+    // the sole gate before the arm.
+    requires: (shared) => busOk(shared.bus) && intOk(shared.epicId),
+    build: (shared) =>
+      new AutomergeArmer({
+        bus: shared.bus,
+        cwd: shared.cwd ?? process.cwd(),
+        logger: shared.logger,
+      }),
+    register: (instance) => instance.register(),
+  },
+  {
+    name: 'branchCleaner',
+    slot: SLOT.BRANCH_CLEANER,
+    // Story #2398 — subscribes to `epic.cleanup.start`. Requires a
+    // checkpointer (to read epic-run-state) and a main-checkout cwd.
+    // Registered before Cleaner so the subscription is live when Cleaner
+    // emits `epic.cleanup.start` inside its `epic.merge.confirmed` handler.
+    requires: (shared) =>
+      busOk(shared.bus) &&
+      intOk(shared.epicId) &&
+      !!shared.checkpointer &&
+      typeof shared.checkpointer.read === 'function',
+    build: (shared) =>
+      new BranchCleaner({
+        bus: shared.bus,
+        epicId: shared.epicId,
+        checkpointer: shared.checkpointer,
+        cwd: shared.cwd ?? process.cwd(),
+        logger: shared.logger,
+      }),
+    register: (instance) => instance.register(),
+  },
+  {
+    name: 'mergeWatcher',
+    slot: SLOT.MERGE_WATCHER,
+    // Story #2896 / Task #2907 — subscribes to `epic.merge.armed`.
+    // Registered between AutomergeArmer and Cleaner; the slot stays null
+    // for unit fixtures that omit tempRoot.
+    requires: (shared) =>
+      busOk(shared.bus) && intOk(shared.epicId) && strOk(shared.tempRoot),
+    build: (shared) => {
+      const mergeWatchConfig = shared.config?.delivery?.mergeWatch ?? {};
+      return new MergeWatcher({
+        bus: shared.bus,
+        epicId: shared.epicId,
+        tempRoot: shared.tempRoot,
+        cwd: shared.cwd ?? process.cwd(),
+        intervalSeconds: mergeWatchConfig.intervalSeconds,
+        maxBudgetSeconds: mergeWatchConfig.maxBudgetSeconds,
+        logger: shared.logger,
+      });
+    },
+    register: (instance) => instance.register(),
+  },
+  {
+    name: 'cleaner',
+    slot: SLOT.CLEANER,
+    // Story #2338 / Task #2345 — subscribes to `epic.merge.confirmed`.
+    // Registered LAST in the close-tail chain so every observer / mutator
+    // already on the bus sees the terminal event sequence. The slot stays
+    // null for unit fixtures that omit tempRoot.
+    requires: (shared) =>
+      busOk(shared.bus) && intOk(shared.epicId) && strOk(shared.tempRoot),
+    build: (shared) =>
+      new Cleaner({
+        bus: shared.bus,
+        epicId: shared.epicId,
+        tempRoot: shared.tempRoot,
+        logger: shared.logger,
+      }),
+    register: (instance) => instance.register(),
+  },
+  {
+    name: 'blockerHandler',
+    slot: SLOT.BLOCKER_HANDLER,
+    // Story #2241 / Task #2246 — registered AFTER the close-tail chain so
+    // iterate-waves can call `emitUnblocked()` after the wait loop observes
+    // the operator's resume.
+    requires: (shared) => busOk(shared.bus) && intOk(shared.epicId),
+    build: (shared) =>
+      new LifecycleBlockerHandler({
+        bus: shared.bus,
+        epicId: shared.epicId,
+        logger: shared.logger,
+      }),
+    register: (instance) => instance.register(),
+  },
+];
+
+// ---------------------------------------------------------------------------
+// wireListeners — generic driver for LISTENER_REGISTRY.
+//
+// Sorts entries by slot, evaluates `requires(shared)`, constructs via
+// `build(shared)`, calls `entry.register(instance, bus)`, and returns a
+// name→instance map. Entries whose `requires` returns false produce a null
+// slot so the collaborator-bag key exists and downstream code checking
+// `collaborators.X === null` continues to work.
+// ---------------------------------------------------------------------------
+
+/**
+ * Wire all listeners from the registry onto the bus.
+ *
+ * @param {object} bus      - The lifecycle bus.
+ * @param {object} shared   - Pre-built non-listener context bag.
+ * @param {Array}  registry - Descriptor array (defaults to LISTENER_REGISTRY).
+ * @returns {Record<string, object|null>} name→instance map.
+ */
+function wireListeners(bus, shared, registry = LISTENER_REGISTRY) {
+  const sorted = [...registry].sort((a, b) => a.slot - b.slot);
+  const result = {};
+  for (const entry of sorted) {
+    if (!entry.requires(shared)) {
+      result[entry.name] = null;
+      continue;
+    }
+    const instance = entry.build(shared);
+    entry.register(instance, bus);
+    result[entry.name] = instance;
+  }
+  return result;
+}
 
 export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
   const { provider, config, logger } = ctx;
@@ -156,122 +553,33 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     });
   traceLogger.register(bus);
 
-  // Story #2266 / Task #2268 — register the CheckpointPointerWriter
-  // EARLY, before any downstream named listener subscribes to a
-  // `*.end` event. The pointer write is the resume cursor; advancing
-  // it before the rest of the named-listener chain runs means a throw
-  // from a later listener still leaves the pointer at the most
-  // recently completed phase boundary. The bus mediator runs named
-  // listeners in registration order, so this `.register()` MUST
-  // remain before `registerIterateWavesListeners` / the side-effect
-  // trio below.
-  const checkpointPointerWriter = registerCheckpointPointerWriter({
-    bus,
-    epicId: ctx.epicId,
-    tempRoot,
-    logger,
-  });
-
-  // Story #2314 — register the reliability observers (TimeoutWatchdog,
-  // HeartbeatMonitor) as wildcard subscribers. Per the Epic's canonical
-  // listener ordering, observers run AFTER the trace/ledger writers (so
-  // the audit trail records the emit before the observer reacts) and
-  // BEFORE the named mutators (so a timeout-driven `epic.blocked` emit
-  // races no later-registered handler that might mutate runner state).
-  //
-  // Both observers are wildcard subscribers (`bus.on('*', …)`); the
-  // `wildcard-observer-firewall` lint rule already guarantees neither
-  // file imports a state-mutating module. Returns the constructed
-  // instances so the runner (or tests) can introspect armed timers and
-  // observation cursors; `null` for unit fixtures that hand a minimal
-  // collaborators bag.
-  const reliabilityObservers = registerReliabilityObservers({
+  // Build the shared context bag passed to every registry entry.
+  // `checkpointer` is `epicRunStateStore` — the BranchCleaner reads
+  // `epic-run-state` from the Epic Issue via this handle.
+  const shared = {
     bus,
     config,
-    logger,
-  });
-
-  // Phase-scoped listener registration. Snapshot + plan phases use the
-  // privileged ledger seam for canonical persistence; named listeners
-  // here are reserved for downstream side effects (column sync,
-  // progress reporter mirrors, etc.). The Story #2233 cutover wires
-  // the canonical persistence only — additional snapshot/plan-specific
-  // named listeners will be added in follow-up Stories as more code
-  // paths migrate off the legacy runner state. Keeping the registration
-  // block here (rather than inline in each phase) is the single seam
-  // future contributors edit when adding listeners.
-  registerSnapshotListeners({ bus, logger });
-  registerPlanListeners({ bus, logger });
-  registerIterateWavesListeners({
-    bus,
     provider,
-    epicId: ctx.epicId,
-    logger,
-  });
-  const lifecycleProgressReporter = registerLifecycleSideEffectListeners({
-    bus,
-    epicId: ctx.epicId,
-    notify: notifyFn,
-    config,
-    logger,
-  });
-  // Story #2410 / Task #2416 — register the InterventionRecorder
-  // listener. Subscribes to `intervention.recorded` and persists the
-  // payload to the `epic-run-state` comment via
-  // `epic-run-state-store.appendIntervention`. The persisted
-  // `manualInterventions` array is what the auto-merge predicate reads
-  // to disqualify Epics that hit a manual recovery during delivery.
-  const interventionRecorder = registerInterventionRecorder({
-    bus,
-    provider,
-    epicId: ctx.epicId,
-    logger,
-  });
-  // Story #2315 / Task #2322 — register the close-tail chain
-  // (AcceptanceReconciler → Finalizer → …) AFTER the observer +
-  // mutator listener stack and BEFORE the BlockerHandler.
-  // AcceptanceReconciler subscribes to `epic.close.end` and may emit
-  // `epic.blocked` on a gap; placing its registration ahead of
-  // BlockerHandler ensures the blocker cascade listener is already on
-  // the bus when the reconciler fires its failure path. Wiring the
-  // AcceptanceReconciler here closes the High-2 finding from Epic
-  // #2306 (the listener existed but was never instantiated by the
-  // production factory).
-  //
-  // Story #2319 / Task #2328 — extends the close-tail chain with
-  // `Finalizer`, subscribed to `acceptance.reconcile.ok`. Registering
-  // Finalizer immediately after AcceptanceReconciler keeps the
-  // close-tail event order deterministic (reconciler emits `.ok`,
-  // finalizer reacts) and ahead of the watcher / armer / cleaner
-  // listeners that future Stories will wire here.
-  const {
-    acceptanceReconciler,
-    finalizer,
-    watcher,
-    automergePredicate,
-    automergeArmer,
-    branchCleaner,
-    mergeWatcher,
-    cleaner,
-  } = registerCloseTailChain({
-    bus,
     epicId: ctx.epicId,
     cwd: ctx.cwd,
-    provider,
-    config,
     logger,
     tempRoot,
+    notify: notifyFn,
     checkpointer: epicRunStateStore,
-  });
-  // Story #2241 / Task #2246 — register the lifecycle BlockerHandler
-  // listener. The instance is exposed on the collaborator bag so
-  // iterate-waves can call `emitUnblocked()` after the wait loop
-  // observes the operator's resume.
-  const blockerHandler = registerBlockerHandler({
-    bus,
-    epicId: ctx.epicId,
-    logger,
-  });
+  };
+
+  // Story #3633 — wire all lifecycle listeners via the declarative registry.
+  // The driver sorts entries by slot, evaluates `requires`, constructs via
+  // `build`, calls `register`, and returns a name→instance map. Ordering
+  // is captured in the SLOT constants above instead of prose comments.
+  const listeners = wireListeners(bus, shared);
+
+  logger?.debug?.(
+    '[lifecycle] all listeners wired via declarative registry ' +
+      '(checkpoint-pointer-writer, reliability-observers, iterate-waves, ' +
+      'side-effects, intervention-recorder, close-tail chain, blocker-handler)',
+  );
+
   // Pre-bound wait-for-resume closure — pulls labels via the provider
   // and journals failures into the shared `journal` so iterate-waves
   // does not need to know about pollUntil internals.
@@ -288,7 +596,7 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
   return {
     notify: notifyFn,
     epicRunStateStore,
-    blockerHandler,
+    blockerHandler: listeners.blockerHandler,
     blockerWait,
     launcher,
     gitAdapter,
@@ -297,18 +605,26 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     bus,
     ledgerWriter,
     traceLogger,
-    lifecycleProgressReporter,
-    interventionRecorder,
-    checkpointPointerWriter,
-    reliabilityObservers,
-    acceptanceReconciler,
-    finalizer,
-    watcher,
-    automergePredicate,
-    automergeArmer,
-    branchCleaner,
-    mergeWatcher,
-    cleaner,
+    lifecycleProgressReporter: listeners.lifecycleProgressReporter,
+    interventionRecorder: listeners.interventionRecorder,
+    checkpointPointerWriter: listeners.checkpointPointerWriter,
+    // Expose reliability observers as a bag (or null for unit fixtures
+    // whose bus does not satisfy busOk).
+    reliabilityObservers:
+      listeners.timeoutWatchdog != null && listeners.heartbeatMonitor != null
+        ? {
+            timeoutWatchdog: listeners.timeoutWatchdog,
+            heartbeatMonitor: listeners.heartbeatMonitor,
+          }
+        : null,
+    acceptanceReconciler: listeners.acceptanceReconciler,
+    finalizer: listeners.finalizer,
+    watcher: listeners.watcher,
+    automergePredicate: listeners.automergePredicate,
+    automergeArmer: listeners.automergeArmer,
+    branchCleaner: listeners.branchCleaner,
+    mergeWatcher: listeners.mergeWatcher,
+    cleaner: listeners.cleaner,
   };
 }
 
@@ -329,9 +645,13 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
  * Returns an object exposing the constructed instances so tests can
  * introspect armed timers / observation cursors; returns `null` for
  * unit fixtures that hand an unbusable collaborators bag.
+ *
+ * NOTE: kept as a named export for backward compatibility — the
+ * `listener-registration.test.js` suite calls it directly to test
+ * the reliability-observer construction path in isolation.
  */
 export function registerReliabilityObservers({ bus, config, logger }) {
-  if (!bus || typeof bus.on !== 'function' || typeof bus.emit !== 'function') {
+  if (!busOk(bus)) {
     return null;
   }
   const lifecycle = config?.delivery?.lifecycle ?? {};
@@ -358,281 +678,6 @@ export function registerReliabilityObservers({ bus, config, logger }) {
 }
 
 /**
- * Construct and register the close-tail listener chain (Story #2315 /
- * Task #2322; extended by Story #2319 / Task #2328, Story #2327 /
- * Task #2331, Story #2333 / Task #2337, and Story #2336 / Task #2341).
- * Registers, in canonical close-tail order:
- *
- *   1. `AcceptanceReconciler` — subscribes to `epic.close.end`; emits
- *      `acceptance.reconcile.{ok,waived,skipped,failed}` (and
- *      `epic.blocked` on a gap). Story #2893 split `.waived` out of
- *      `.skipped` so the Finalizer can route waived Epics to PR
- *      creation while empty-spec Epics still terminate without a PR.
- *   2. `Finalizer` — subscribes to `acceptance.reconcile.{ok,waived}`;
- *      emits `epic.finalize.{start,end}` and `pr.created`. Wired here AFTER
- *      AcceptanceReconciler so the bus invokes them in chain order;
- *      sequential-await semantics mean reconciler outcomes settle
- *      into the ledger before finalize side effects run.
- *   3. `Watcher` — subscribes to `pr.created`; resolves the required
- *      check name set at runtime via `gh pr checks` and emits
- *      `epic.watch.{start,end}`. Registered AFTER Finalizer so the bus
- *      delivers the freshly-emitted `pr.created` to Watcher in chain
- *      order.
- *   4. `AutomergePredicate` — subscribes to `epic.watch.end`; emits
- *      `epic.merge.{ready,blocked}`. Wired AFTER Watcher so the bus
- *      delivers the freshly-emitted `epic.watch.end` in chain order,
- *      and BEFORE the AutomergeArmer which subscribes to
- *      `epic.merge.ready`. The listener at
- *      `lib/orchestration/lifecycle/listeners/automerge-predicate.js`
- *      now owns `evaluateAutoMergePredicate` directly; the legacy
- *      `lib/orchestration/automerge-predicate.js` module was deleted
- *      in Story #2415 (Epic #2307).
- *   5. `AutomergeArmer` — subscribes to `epic.merge.ready` (and ONLY
- *      that event); probes `gh pr view --json autoMergeRequest` and
- *      issues `gh pr merge --auto --squash --delete-branch` exactly
- *      once per PR. Emits `epic.merge.armed`. Wired AFTER
- *      AutomergePredicate so the bus delivers the freshly-emitted
- *      `epic.merge.ready` in chain order, and BEFORE the Cleaner
- *      which subscribes to `epic.merge.armed`. This is the runtime
- *      closure of High-1 from the Epic #2172 review: auto-merge can
- *      no longer fire before the predicate's verdict.
- *   6. `BranchCleaner` — subscribes to `epic.cleanup.start` (and ONLY
- *      that event). Reads the `epic-run-state` checkpoint, then reaps
- *      every `story-<id>` + `epic/<id>` local branch, removes attached
- *      worktrees (with a Windows file-lock fallback), prunes stale
- *      `<remote>/...` tracking refs, and deletes the `wt-branch`
- *      scratch ref. Registered immediately before Cleaner so the
- *      subscription is live when Cleaner emits `epic.cleanup.start`
- *      inside its `epic.merge.armed` handler. The slot stays `null`
- *      for unit fixtures that omit the checkpointer.
- *   7. `Cleaner` — subscribes to `epic.merge.armed` (and ONLY that
- *      event). Archives `temp/epic-<id>/` under
- *      `temp/archive/epic-<id>-<ts>/` and emits the terminal sequence
- *      `epic.cleanup.start → epic.cleanup.end → epic.complete`.
- *      Registered LAST in the close-tail chain so every observer and
- *      mutator already wired on the bus sees the terminal events.
- *      Requires a non-empty `tempRoot`; the slot stays `null` for unit
- *      fixtures that omit it.
- *
- * The "close-tail chain" name is deliberately umbrella-shaped: future
- * close-time listeners register here in the same canonical slot —
- * after observers and mutators, before BlockerHandler.
- *
- * Returns the constructed listener bag so the collaborator bag can
- * expose each to tests. Returns the bag with `null` slots when the bus
- * or epicId is unusable so unit fixtures continue to operate without a
- * live bus.
- */
-function registerCloseTailChain({
-  bus,
-  epicId,
-  cwd,
-  provider,
-  config,
-  logger,
-  tempRoot,
-  checkpointer,
-}) {
-  if (!bus || typeof bus.on !== 'function' || typeof bus.emit !== 'function') {
-    return {
-      acceptanceReconciler: null,
-      finalizer: null,
-      watcher: null,
-      automergePredicate: null,
-      automergeArmer: null,
-      branchCleaner: null,
-      mergeWatcher: null,
-      cleaner: null,
-    };
-  }
-  if (!Number.isInteger(epicId) || epicId < 1) {
-    return {
-      acceptanceReconciler: null,
-      finalizer: null,
-      watcher: null,
-      automergePredicate: null,
-      automergeArmer: null,
-      branchCleaner: null,
-      mergeWatcher: null,
-      cleaner: null,
-    };
-  }
-  const acceptanceReconciler = new AcceptanceReconciler({
-    bus,
-    epicId,
-    cwd: cwd ?? process.cwd(),
-    provider: provider ?? null,
-    config: config ?? null,
-    logger,
-  });
-  acceptanceReconciler.register();
-  const finalizer = new Finalizer({
-    bus,
-    epicId,
-    cwd: cwd ?? process.cwd(),
-    logger,
-  });
-  finalizer.register();
-  const watcher = new Watcher({
-    bus,
-    cwd: cwd ?? process.cwd(),
-    logger,
-  });
-  watcher.register();
-  // AutomergePredicate requires a truthy `provider` — its constructor
-  // throws otherwise. The factory's collaborator pipeline always
-  // supplies a provider in production (EpicRunnerContext enforces it),
-  // but unit fixtures occasionally pass `null`. Guard so the rest of
-  // the close-tail chain still wires cleanly in those cases.
-  let automergePredicate = null;
-  if (provider) {
-    automergePredicate = new AutomergePredicate({
-      bus,
-      epicId,
-      provider,
-      logger,
-    });
-    automergePredicate.register();
-  }
-  // AutomergeArmer subscribes to `epic.merge.ready` (and ONLY that
-  // event). Registered AFTER AutomergePredicate so the bus delivers
-  // the freshly-emitted `epic.merge.ready` in chain order. This is
-  // the sole production code path authorized to call `gh pr merge`
-  // (the merge-lockout lint rule enforces the allow-list).
-  const automergeArmer = new AutomergeArmer({
-    bus,
-    cwd: cwd ?? process.cwd(),
-    logger,
-  });
-  automergeArmer.register();
-  // Story #2398 — BranchCleaner subscribes to `epic.cleanup.start` (and
-  // ONLY that event). Registered immediately before Cleaner so the
-  // subscription is live by the time Cleaner emits `epic.cleanup.start`
-  // inside its `epic.merge.armed` handler. The bus runs listeners
-  // awaited and in registration order; BranchCleaner therefore reaps
-  // every `story-<id>` + `epic/<id>` branch (plus attached worktrees,
-  // stale tracking refs, and the `wt-branch` scratch ref) BEFORE
-  // Cleaner moves `temp/epic-<id>/` under `temp/archive/`. The
-  // listener requires a `checkpointer` (to read `epic-run-state` from
-  // the Epic Issue) and a `cwd` that points at the main checkout; the
-  // slot stays `null` for unit fixtures that omit either.
-  let branchCleaner = null;
-  if (checkpointer && typeof checkpointer.read === 'function') {
-    branchCleaner = new BranchCleaner({
-      bus,
-      epicId,
-      checkpointer,
-      cwd: cwd ?? process.cwd(),
-      logger,
-    });
-    branchCleaner.register();
-  }
-  // Story #2896 / Task #2907 — MergeWatcher subscribes to
-  // `epic.merge.armed` (and ONLY that event). Registered between
-  // AutomergeArmer and Cleaner so the bus delivers the freshly-emitted
-  // `epic.merge.armed` in chain order, the watcher polls `gh pr view`
-  // until `mergeCommit` is non-null, and emits `epic.merge.confirmed`
-  // which Cleaner now subscribes to. The slot stays `null` for unit
-  // fixtures that omit `tempRoot`.
-  let mergeWatcher = null;
-  if (typeof tempRoot === 'string' && tempRoot.length > 0) {
-    const mergeWatchConfig = config?.delivery?.mergeWatch ?? {};
-    mergeWatcher = new MergeWatcher({
-      bus,
-      epicId,
-      tempRoot,
-      cwd: cwd ?? process.cwd(),
-      intervalSeconds: mergeWatchConfig.intervalSeconds,
-      maxBudgetSeconds: mergeWatchConfig.maxBudgetSeconds,
-      logger,
-    });
-    mergeWatcher.register();
-  }
-  // Story #2338 / Task #2345 — Cleaner archives temp/epic-<id>/ and
-  // emits the terminal sequence. Story #2896 / Task #2912 rebound
-  // this listener from `epic.merge.armed` to `epic.merge.confirmed`
-  // so the Epic only transitions to its terminal state after the
-  // MergeWatcher has observed the PR actually merging. Registered
-  // LAST in the close-tail chain so every observer / mutator already
-  // on the bus sees the terminal `epic.cleanup.start →
-  // epic.cleanup.end → epic.complete` emit sequence. The listener
-  // requires a non-empty `tempRoot`; production always threads the
-  // resolved value through (see `tempRootFrom` in the collaborator
-  // factory), but the slot stays `null` for unit fixtures that omit
-  // it so the rest of the chain wires cleanly.
-  let cleaner = null;
-  if (typeof tempRoot === 'string' && tempRoot.length > 0) {
-    cleaner = new Cleaner({
-      bus,
-      epicId,
-      tempRoot,
-      logger,
-    });
-    cleaner.register();
-  }
-  logger?.debug?.(
-    '[lifecycle] close-tail chain registered (acceptance-reconciler → epic.close.end; finalizer → acceptance.reconcile.{ok,waived}; watcher → pr.created; automerge-predicate → epic.watch.end; automerge-armer → epic.merge.ready; branch-cleaner → epic.cleanup.start; merge-watcher → epic.merge.armed; cleaner → epic.merge.confirmed)',
-  );
-  return {
-    acceptanceReconciler,
-    finalizer,
-    watcher,
-    automergePredicate,
-    automergeArmer,
-    branchCleaner,
-    mergeWatcher,
-    cleaner,
-  };
-}
-
-/**
- * Construct and register the CheckpointPointerWriter listener
- * (Story #2266 / Task #2268). The writer subscribes to every `*.end`
- * event, persists `{ lastCompletedSeqId, phase }` to
- * `temp/epic-<id>/checkpoint.json`, and self-emits `checkpoint.written`
- * exactly once per observed `*.end`. Returns the instance so tests can
- * introspect the pointer path; returns `null` for unit fixtures that
- * supply an unbusable collaborators bag.
- */
-function registerCheckpointPointerWriter({ bus, epicId, tempRoot, logger }) {
-  if (!bus || typeof bus.on !== 'function' || typeof bus.emit !== 'function') {
-    return null;
-  }
-  if (!Number.isInteger(epicId) || epicId < 1) return null;
-  if (typeof tempRoot !== 'string' || tempRoot.length === 0) return null;
-  const writer = new CheckpointPointerWriter({
-    bus,
-    epicId,
-    tempRoot,
-    logger,
-  });
-  writer.register();
-  logger?.debug?.(
-    '[lifecycle] checkpoint-pointer-writer registered (every *.end → temp/epic-<id>/checkpoint.json)',
-  );
-  return writer;
-}
-
-/**
- * Construct and register the lifecycle BlockerHandler listener
- * (Story #2241 / Task #2246). The listener owns story.blocked →
- * epic.blocked cascade plus the matching epic.unblocked emit. Returns
- * the instance so iterate-waves can drive `emitUnblocked()` after the
- * wait loop observes the operator's resume. Returns `null` for unit
- * fixtures that supply an unbusable collaborators bag.
- */
-function registerBlockerHandler({ bus, epicId, logger }) {
-  if (!bus || typeof bus.on !== 'function') return null;
-  if (!Number.isInteger(epicId) || epicId < 1) return null;
-  const listener = new LifecycleBlockerHandler({ bus, epicId, logger });
-  listener.register();
-  logger?.debug?.(
-    '[lifecycle] blocker-handler listener registered (story.blocked → epic.blocked / .unblocked)',
-  );
-  return listener;
-}
-
-/**
  * Construct and register the InterventionRecorder listener
  * (Story #2410 / Task #2416). Subscribes to `intervention.recorded` and
  * persists the payload to the epic-run-state structured comment via
@@ -640,6 +685,9 @@ function registerBlockerHandler({ bus, epicId, logger }) {
  * instance so tests can introspect the seqId guard; returns `null` for
  * unit fixtures that supply an unbusable collaborators bag, an absent
  * provider, or a non-numeric epicId.
+ *
+ * NOTE: kept as a named export for backward compatibility. The factory
+ * delegates to the LISTENER_REGISTRY entry for `interventionRecorder`.
  */
 export function registerInterventionRecorder({
   bus,
@@ -660,112 +708,4 @@ export function registerInterventionRecorder({
     '[lifecycle] intervention-recorder listener registered (intervention.recorded → epic-run-state-store.appendIntervention)',
   );
   return listener;
-}
-
-/**
- * Register snapshot-phase listeners on the bus. The LedgerWriter is
- * already wired via the privileged hook seam, so this function is the
- * seam for future named listeners that need to react to snapshot events
- * (e.g. story-dispatch precomputation, manifest mirrors). For Story
- * #2233 the named-listener slot is intentionally empty — the
- * verification surface is the on-disk ledger that the writer hook
- * persists. The function exists (and the logger ping fires) so the
- * registration site is easy to grep for ("registerSnapshotListeners")
- * when later Stories add real listeners.
- */
-function registerSnapshotListeners({ bus, logger }) {
-  if (!bus || typeof bus.on !== 'function') return;
-  logger?.debug?.(
-    '[lifecycle] snapshot listeners registered (writer-only; named slot reserved)',
-  );
-}
-
-/**
- * Register plan-phase listeners on the bus. See
- * `registerSnapshotListeners` for the rationale; same pattern, same
- * deferred-listener policy.
- */
-function registerPlanListeners({ bus, logger }) {
-  if (!bus || typeof bus.on !== 'function') return;
-  logger?.debug?.(
-    '[lifecycle] plan listeners registered (writer-only; named slot reserved)',
-  );
-}
-
-/**
- * Register iterate-waves listeners on the bus (Story #2239 Task #2242):
- * LabelTransitioner and StructuredCommentPoster. Each listener owns
- * exactly one side effect (label flips / structured-comment upserts)
- * and is idempotent on `(event, seqId)` per the listeners/README.md
- * contract.
- *
- * Listeners are constructed only when both `bus` and `provider` are
- * present so unit fixtures that hand a minimal collaborators bag
- * (`{}`) continue to operate without listeners.
- */
-/**
- * Register the side-effect listener trio for the iterate-waves phase
- * (Story #2239 Task #2244): LifecycleProgressReporter, SignalsAppender,
- * NotifyDispatcher. Returns the constructed
- * `LifecycleProgressReporter` so the runner (or tests) can read its
- * snapshot without re-scanning the ledger.
- *
- * Listeners are constructed only when both `bus` and a usable `notify`
- * function are present. The signals-writer and notify exports are
- * imported up-top — no late wiring beyond the bus surface.
- */
-function registerLifecycleSideEffectListeners({
-  bus,
-  epicId,
-  notify: notifyFn,
-  config,
-  logger,
-}) {
-  if (!bus || typeof bus.on !== 'function') return null;
-  if (!Number.isInteger(epicId)) return null;
-  const reporter = new LifecycleProgressReporter({ logger });
-  reporter.register(bus);
-  const signalsAppender = new SignalsAppender({
-    epicId,
-    appendEpicSignal,
-    config,
-    logger,
-  });
-  signalsAppender.register(bus);
-  if (typeof notifyFn === 'function') {
-    const notifyDispatcher = new NotifyDispatcher({
-      epicId,
-      notify: notifyFn,
-      appendEpicSignal,
-      config,
-      logger,
-    });
-    notifyDispatcher.register(bus);
-  }
-  logger?.debug?.(
-    '[lifecycle] side-effect listeners registered (progress-reporter, signals-appender, notify-dispatcher)',
-  );
-  return reporter;
-}
-
-function registerIterateWavesListeners({ bus, provider, epicId, logger }) {
-  if (!bus || typeof bus.on !== 'function') return;
-  if (!provider || !Number.isInteger(epicId)) return;
-  const labelTransitioner = new LabelTransitioner({
-    provider,
-    epicId,
-    transitionTicketState,
-    logger,
-  });
-  labelTransitioner.register(bus);
-  const commentPoster = new StructuredCommentPoster({
-    provider,
-    epicId,
-    upsertStructuredComment,
-    logger,
-  });
-  commentPoster.register(bus);
-  logger?.debug?.(
-    '[lifecycle] iterate-waves listeners registered (label-transitioner, structured-comment-poster)',
-  );
 }

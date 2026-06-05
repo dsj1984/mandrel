@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T12:01:50.991Z",
+  "generatedAt": "2026-06-05T12:12:06.662Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -6910,108 +6910,6 @@
       "method": "assertValidDeliverPhase",
       "startLine": 43,
       "crap": 4.125
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "createEpicRunnerCollaborators",
-      "startLine": 55,
-      "crap": 1.000029469357595
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "<anon method-2>",
-      "startLine": 74,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "<anon method-3>",
-      "startLine": 80,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "<anon method-4>",
-      "startLine": 81,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "<anon method-5>",
-      "startLine": 83,
-      "crap": 1.2962962962962963
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "<anon method-6>",
-      "startLine": 89,
-      "crap": 1.2962962962962963
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "<anon method-7>",
-      "startLine": 278,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "<anon method-8>",
-      "startLine": 281,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "registerReliabilityObservers",
-      "startLine": 333,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "registerCloseTailChain",
-      "startLine": 426,
-      "crap": 13.431198378446119
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "registerCheckpointPointerWriter",
-      "startLine": 597,
-      "crap": 8.087791495198903
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "registerBlockerHandler",
-      "startLine": 624,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "registerInterventionRecorder",
-      "startLine": 644,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "registerSnapshotListeners",
-      "startLine": 676,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "registerPlanListeners",
-      "startLine": 688,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "registerLifecycleSideEffectListeners",
-      "startLine": 717,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "registerIterateWavesListeners",
-      "startLine": 751,
-      "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/phases/build-wave-dag.js",
