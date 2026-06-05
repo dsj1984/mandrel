@@ -32,7 +32,7 @@ import { Logger } from '../../../Logger.js';
 import { runPreMergeGatesWithAttribution } from '../baseline-attribution-wiring.js';
 import { runFormatAutofix } from '../format-autofix.js';
 import { runScopedFormatAutofix } from '../format-autofix-scoped.js';
-import { emitStoryBlockedSafe } from '../merge-runner.js';
+import { emitBlockedCloseResult } from '../merge-runner.js';
 import { emitMaintainabilityProjection } from '../pre-merge-validation.js';
 
 /**
@@ -47,28 +47,20 @@ export async function emitBaselineBlockedResult({
   progress: log,
   bus = null,
 }) {
-  const result = {
-    success: false,
-    status: 'blocked',
+  const nonAttributable = gateOutcome.nonAttributable ?? [];
+  return emitBlockedCloseResult({
+    storyId,
     phase: 'closing',
     reason: 'baseline-drift-not-attributable',
-    nonAttributable: gateOutcome.nonAttributable ?? [],
-    commentId: gateOutcome.commentId ?? null,
-  };
-  await emitStoryBlockedSafe({
+    extra: {
+      nonAttributable,
+      commentId: gateOutcome.commentId ?? null,
+    },
     bus,
-    storyId,
-    reason: 'baseline-drift-not-attributable',
+    progress: log,
+    blockedMessage: `Story #${storyId} blocked: baseline drift on ${nonAttributable.length} path(s) not attributable to this Story.`,
     logger: Logger,
   });
-  Logger.info(
-    `\n--- STORY CLOSE RESULT ---\n${JSON.stringify(result, null, 2)}\n--- END RESULT ---\n`,
-  );
-  log(
-    'BLOCKED',
-    `Story #${storyId} blocked: baseline drift on ${result.nonAttributable.length} path(s) not attributable to this Story.`,
-  );
-  return result;
 }
 
 /**
