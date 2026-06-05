@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T11:44:02.411Z",
+  "generatedAt": "2026-06-05T12:16:41.450Z",
   "rollup": {
     "*": {
       "min": 45.044,
-      "p50": 103.888,
-      "p95": 121.809
+      "p50": 103.914,
+      "p95": 121.964
     }
   },
   "rows": [
@@ -579,10 +579,6 @@
       "mi": 109.253
     },
     {
-      "path": ".agents/scripts/lib/config/runners.js",
-      "mi": 92.463
-    },
-    {
       "path": ".agents/scripts/lib/config/runtime.js",
       "mi": 99.669
     },
@@ -999,10 +995,6 @@
       "mi": 118.393
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "mi": 85.248
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/epic-runner/hotspot-detection.js",
       "mi": 91.294
     },
@@ -1171,76 +1163,8 @@
       "mi": 108.444
     },
     {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/acceptance-reconciler.js",
-      "mi": 89.542
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-armer.js",
-      "mi": 99.342
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
-      "mi": 93.448
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/blocker-handler.js",
-      "mi": 96.942
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/branch-cleaner.js",
-      "mi": 100.434
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/checkpoint-pointer-writer.js",
-      "mi": 106.54
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/cleaner.js",
-      "mi": 95.023
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/finalizer.js",
-      "mi": 83.689
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/heartbeat-monitor.js",
-      "mi": 104.555
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/index.js",
       "mi": 69.141
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/intervention-recorder.js",
-      "mi": 107.526
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/label-transitioner.js",
-      "mi": 96.281
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/merge-watcher.js",
-      "mi": 89.377
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/notify-dispatcher.js",
-      "mi": 104.838
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/progress-reporter.js",
-      "mi": 112.461
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/signals-appender.js",
-      "mi": 110.047
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/structured-comment-poster.js",
-      "mi": 92.424
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/timeout-watchdog.js",
-      "mi": 100.922
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
@@ -3807,10 +3731,6 @@
       "mi": 108.313
     },
     {
-      "path": "tests/lib/orchestration/lifecycle/listener-branch-cleaner.test.js",
-      "mi": 105.335
-    },
-    {
       "path": "tests/lib/orchestration/lifecycle/listener-chain-wiring.test.js",
       "mi": 112.327
     },
@@ -3829,10 +3749,6 @@
     {
       "path": "tests/lib/orchestration/lifecycle/listener-finalizer.test.js",
       "mi": 111.426
-    },
-    {
-      "path": "tests/lib/orchestration/lifecycle/listener-heartbeat.test.js",
-      "mi": 104.861
     },
     {
       "path": "tests/lib/orchestration/lifecycle/listener-label.test.js",
@@ -3859,16 +3775,8 @@
       "mi": 104.219
     },
     {
-      "path": "tests/lib/orchestration/lifecycle/listener-timeout.test.js",
-      "mi": 103.591
-    },
-    {
       "path": "tests/lib/orchestration/lifecycle/listener-watcher.test.js",
       "mi": 109.146
-    },
-    {
-      "path": "tests/lib/orchestration/lifecycle/listeners/intervention-recorder.test.js",
-      "mi": 106.976
     },
     {
       "path": "tests/lib/orchestration/lifecycle/listeners/merge-watcher.test.js",
