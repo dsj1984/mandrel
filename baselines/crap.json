@@ -1,13 +1,13 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T15:21:32.544Z",
+  "generatedAt": "2026-06-05T15:52:58.278Z",
   "rollup": {
     "*": {
       "p50": 3,
       "p95": 12.010699859060178,
       "max": 38.82544452792387,
-      "methodsAbove20": 22
+      "methodsAbove20": 21
     }
   },
   "rows": [
@@ -1666,144 +1666,6 @@
       "method": "<anon method-4>",
       "startLine": 192,
       "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "method": "kernelVersion",
-      "startLine": 44,
-      "crap": 7.06721536351166
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "method": "projectRow",
-      "startLine": 72,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "method": "sortRows",
-      "startLine": 81,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "method": "aggregate",
-      "startLine": 89,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "method": "percentile",
-      "startLine": 102,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "method": "rollup",
-      "startLine": 113,
-      "crap": 1.052734375
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "method": "compare",
-      "startLine": 141,
-      "crap": 8.002148299822094
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "method": "crapRowKey",
-      "startLine": 173,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "method": "applyEpsilon",
-      "startLine": 187,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "method": "mergeRows",
-      "startLine": 213,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "method": "<anon method-7>",
-      "startLine": 218,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "method": "<anon method-8>",
-      "startLine": 219,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "method": "filterRowsByFileScope",
-      "startLine": 243,
-      "crap": 3.6875
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "method": "checkCrapRegression",
-      "startLine": 268,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "method": "compareCrap",
-      "startLine": 294,
-      "crap": 12
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "method": "<anon method-10>",
-      "startLine": 409,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "method": "<anon method-11>",
-      "startLine": 418,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "method": "evaluateBaselineCompatibility",
-      "startLine": 440,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "method": "loadCrapBaseline",
-      "startLine": 454,
-      "crap": 9.021751535698701
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "method": "buildCrapReport",
-      "startLine": 495,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "method": "printSummaryHeader",
-      "startLine": 552,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "method": "printViolation",
-      "startLine": 567,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "method": "printRemovedRows",
-      "startLine": 585,
-      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/lighthouse.js",
@@ -9784,30 +9646,6 @@
       "method": "runPreMergeGatesWithAttribution",
       "startLine": 186,
       "crap": 9.19458292524599
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution/phases/refresh-commit.js",
-      "method": "buildKindScorer",
-      "startLine": 60,
-      "crap": 28.928720369913766
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution/phases/refresh-commit.js",
-      "method": "resolveBaselineWritePath",
-      "startLine": 136,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution/phases/refresh-commit.js",
-      "method": "stageAndCheckBaselineDrift",
-      "startLine": 158,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution/phases/refresh-commit.js",
-      "method": "runRefreshCommit",
-      "startLine": 216,
-      "crap": 13.114070186238141
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution/phases/regression-projection.js",
