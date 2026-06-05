@@ -1,13 +1,13 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T15:52:11.524Z",
+  "generatedAt": "2026-06-05T15:52:58.278Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.157083248524323,
+      "p95": 12.010699859060178,
       "max": 38.82544452792387,
-      "methodsAbove20": 22
+      "methodsAbove20": 21
     }
   },
   "rows": [
@@ -9646,30 +9646,6 @@
       "method": "runPreMergeGatesWithAttribution",
       "startLine": 186,
       "crap": 9.19458292524599
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution/phases/refresh-commit.js",
-      "method": "buildKindScorer",
-      "startLine": 60,
-      "crap": 28.928720369913766
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution/phases/refresh-commit.js",
-      "method": "resolveBaselineWritePath",
-      "startLine": 136,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution/phases/refresh-commit.js",
-      "method": "stageAndCheckBaselineDrift",
-      "startLine": 158,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution/phases/refresh-commit.js",
-      "method": "runRefreshCommit",
-      "startLine": 216,
-      "crap": 13.114070186238141
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution/phases/regression-projection.js",
