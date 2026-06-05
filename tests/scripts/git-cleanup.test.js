@@ -457,7 +457,11 @@ describe('git-cleanup.executeCleanup', () => {
     assert.equal(result.ok, true);
   });
 
-  it('skips local delete when worktree removal fails', () => {
+  it('still deletes the local ref when worktree removal fails (Story #3598 decouple)', () => {
+    // Ref-reap is decoupled from worktree-reap: the merged ref is deleted
+    // even when the directory could not be removed. A non-lock-class
+    // worktree failure remains a hard failure on the worktree scope.
+    let localDeleted = false;
     const result = executeCleanup({
       candidates: [
         baseCand({
@@ -468,16 +472,26 @@ describe('git-cleanup.executeCleanup', () => {
       ],
       cwd: '/repo',
       remote: false,
-      removeWorktreeFn: () => ({ ok: false, dirty: true, stderr: 'boom' }),
+      removeWorktreeFn: () => ({
+        ok: false,
+        dirty: true,
+        lockClass: false,
+        stderr: 'boom',
+      }),
       deleteLocalFn: () => {
-        throw new Error('should not run');
+        localDeleted = true;
+        return { deleted: true, reason: 'deleted' };
       },
       logger: { info() {}, warn() {}, error() {} },
     });
+    assert.equal(localDeleted, true, 'local ref reaped despite worktree fail');
+    assert.equal(result.local.length, 1);
+    assert.equal(result.local[0].ok, true);
+    // Non-lock-class worktree failure is still a hard failure.
     assert.equal(result.ok, false);
     assert.equal(result.failures.length, 1);
     assert.equal(result.failures[0].scope, 'worktree');
-    assert.equal(result.local.length, 0);
+    assert.equal(result.deferred.length, 0);
   });
 
   it('records dirty-but-forced worktrees and continues', () => {
@@ -579,21 +593,14 @@ describe('git-cleanup.executeCleanup', () => {
   });
 
   it('skips prune when remote=true but no candidates produced remote attempts', () => {
+    // A candidate with no worktree and a remote-only `localExists: false`
+    // skips the remote delete, so no remote attempts are produced and
+    // prune does not run.
     let pruneCalls = 0;
     const result = executeCleanup({
-      candidates: [
-        baseCand({
-          branch: 'fix/wt',
-          hasWorktree: true,
-          worktreePath: '/wt/fix-wt',
-        }),
-      ],
+      candidates: [],
       cwd: '/repo',
       remote: true,
-      removeWorktreeFn: () => ({ ok: false, dirty: true, stderr: 'boom' }),
-      deleteLocalFn: () => {
-        throw new Error('should not run');
-      },
       pruneRemoteFn: () => {
         pruneCalls += 1;
         return { ok: true, pruned: [] };

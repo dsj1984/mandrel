@@ -5,11 +5,14 @@
  * @module lib/orchestration/git-cleanup/phases/branches
  */
 
+import { dirname } from 'node:path';
+
 import {
   deleteBranchLocal,
   deleteBranchRemote,
 } from '../../../git-branch-cleanup.js';
 import { Logger } from '../../../Logger.js';
+import { recordPendingCleanup } from '../../../worktree/lifecycle/pending-cleanup.js';
 import {
   buildPruneSummary,
   reapLocalRef,
@@ -227,7 +230,31 @@ export function planCleanup(ctx) {
   return { candidates, skipped };
 }
 
-/** Pure-ish: execute the branch reap plan. */
+/**
+ * Derive the pending-cleanup manifest root from a candidate's worktree
+ * path. The manifest lives in the worktree root (`.worktrees/`), and a
+ * candidate's `worktreePath` is `<root>/story-<id>`, so the parent
+ * directory is the root. Returns `null` when the candidate has no
+ * worktree path (remote-only / no-worktree candidate).
+ */
+function worktreeRootFor(cand) {
+  if (!cand.worktreePath) return null;
+  return dirname(cand.worktreePath);
+}
+
+/**
+ * Pure-ish: execute the branch reap plan.
+ *
+ * Ref-reap is decoupled from worktree-reap (Story #3598): every
+ * already-merged candidate has its local ref (and remote ref, in
+ * `--remote` mode) deleted regardless of whether its worktree directory
+ * could be physically removed. A lock-class worktree-removal failure is
+ * recorded as a non-fatal `deferred` entry + a `pending-cleanup` handoff
+ * (drained by the next plan-time worktree-sweep) rather than a hard
+ * `failure`, so an OS file lock on an already-merged branch's directory
+ * never makes the run exit non-zero. A non-lock worktree failure still
+ * surfaces as a hard failure.
+ */
 export function executeCleanup(ctx) {
   const {
     candidates,
@@ -237,6 +264,7 @@ export function executeCleanup(ctx) {
     deleteLocalFn = (b, c) => deleteBranchLocal(b, { cwd: c, force: true }),
     deleteRemoteFn = (b, c) => deleteBranchRemote(b, { cwd: c }),
     pruneRemoteFn = (c, r) => pruneRemoteTracking(c, r, parsePrunedRefs),
+    recordPendingCleanupFn = recordPendingCleanup,
     remoteName = 'origin',
     logger = Logger,
   } = ctx;
@@ -244,18 +272,23 @@ export function executeCleanup(ctx) {
   const local = [];
   const remoteResults = [];
   const failures = [];
+  const deferred = [];
   for (const cand of candidates) {
-    if (
-      !reapWorktree({
-        cand,
-        removeWorktreeFn,
-        cwd,
-        logger,
-        worktrees,
-        failures,
-      })
-    )
-      continue;
+    // Worktree removal is attempted but its outcome does NOT gate the ref
+    // reap: the candidate is already merged, so a leftover directory must
+    // never strand the ref. Lock-class removal failures are deferred to
+    // the pending-cleanup sweep inside reapWorktree.
+    reapWorktree({
+      cand,
+      removeWorktreeFn,
+      cwd,
+      logger,
+      worktrees,
+      failures,
+      deferred,
+      recordPendingCleanupFn,
+      worktreeRoot: worktreeRootFor(cand),
+    });
     if (!reapLocalRef({ cand, deleteLocalFn, cwd, local, failures })) continue;
     if (remote)
       reapRemoteRef({ cand, deleteRemoteFn, cwd, remoteResults, failures });
@@ -270,6 +303,7 @@ export function executeCleanup(ctx) {
     remote: remoteResults,
     prune,
     failures,
+    deferred,
     ok: failures.length === 0,
   };
 }

@@ -99,6 +99,25 @@ export function renderPruneLine(prune) {
   return `${TAG} ✅ prune    ${prune.remote} (dropped ${prune.pruned.length} stale ref(s): ${list})`;
 }
 
+/**
+ * Pure: render a single deferred-worktree line. A lock-class
+ * worktree-removal failure (Windows file lock on an already-merged
+ * branch's directory) is non-fatal — the branch ref was still reaped and
+ * the directory is handed off to the pending-cleanup sweep. Returns the
+ * operator-facing warning so the deferred signal is visible even on a
+ * clean (`ok: true`) run.
+ *
+ * @param {{ branch?: string, path: string, pendingCleanup?: object|null }} entry
+ * @returns {string}
+ */
+export function renderDeferredLine(entry) {
+  const ref = entry.branch ? `${entry.branch} ` : '';
+  const handoff = entry.pendingCleanup
+    ? ' (deferred to pending-cleanup sweep)'
+    : ' (deferred)';
+  return `${TAG} ⚠️ deferred ${ref}${entry.path} — worktree locked; ref reaped${handoff}`;
+}
+
 /** Pure: render the trailing summary line. */
 export function renderExecutionSummary(result) {
   if (!result.ok) {
@@ -107,7 +126,12 @@ export function renderExecutionSummary(result) {
   const prunedCount = result.prune?.pruned?.length ?? 0;
   const pruneNote =
     prunedCount > 0 ? ` + ${prunedCount} stale tracking ref(s)` : '';
-  return `${TAG} ✅ Reaped ${result.local.length} local + ${result.remote.length} remote + ${result.worktrees.length} worktree(s)${pruneNote}.`;
+  const deferredCount = result.deferred?.length ?? 0;
+  const deferredNote =
+    deferredCount > 0
+      ? ` (${deferredCount} worktree(s) deferred to sweep)`
+      : '';
+  return `${TAG} ✅ Reaped ${result.local.length} local + ${result.remote.length} remote + ${result.worktrees.length} worktree(s)${pruneNote}.${deferredNote}`;
 }
 
 const EMPTY_RESULT = Object.freeze({
@@ -116,6 +140,7 @@ const EMPTY_RESULT = Object.freeze({
   remote: [],
   prune: null,
   failures: [],
+  deferred: [],
   ok: true,
 });
 
@@ -142,6 +167,7 @@ export function buildJsonEnvelope({
     fastForward,
     stashes,
     failures: r.failures,
+    deferred: r.deferred ?? [],
     ok: r.ok,
   };
 }
