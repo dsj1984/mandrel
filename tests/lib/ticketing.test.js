@@ -372,10 +372,10 @@ test('ticketing.js', async (t) => {
   );
 
   await t.test('toggleTasklistCheckbox logic', async () => {
-    await toggleTasklistCheckbox(mock, 1, 2, true);
+    await toggleTasklistCheckbox(mock, 1, 2, { checked: true });
     assert.strictEqual(mock.tickets[1].body, 'Epic body\n- [x] #2');
 
-    await toggleTasklistCheckbox(mock, 1, 2, false);
+    await toggleTasklistCheckbox(mock, 1, 2, { checked: false });
     assert.strictEqual(mock.tickets[1].body, 'Epic body\n- [ ] #2');
   });
 
@@ -713,8 +713,12 @@ test('ticketing.js', async (t) => {
           if (id === 31) return { blocks: [30], blockedBy: [] };
           return { blocks: [], blockedBy: [] };
         },
-        async getSubTickets(id) {
-          if (id === 30) return [tickets[31], tickets[32]];
+        async getSubTickets(id, opts = {}) {
+          if (id === 30) {
+            const subs = [tickets[31], tickets[32]];
+            if (opts.fresh) return subs.map((t) => fresh[t.id] ?? t);
+            return subs;
+          }
           return [];
         },
         invalidateTicket(id) {
@@ -730,8 +734,8 @@ test('ticketing.js', async (t) => {
         'cascade must halt when a fresh sibling read shows it still executing',
       );
       assert.ok(
-        invalidated.includes(32),
-        'sibling cache must be invalidated before the all-done check',
+        invalidated.includes(30),
+        'parent cache must be invalidated before the fresh sibling read',
       );
     },
   );
@@ -951,8 +955,25 @@ test('ticketing.js', async (t) => {
           if (id === trigger.id) return { blocks: [100], blockedBy: [] };
           return { blocks: [], blockedBy: [] };
         },
-        async getSubTickets(id) {
-          if (id === 100) return siblings;
+        async getSubTickets(id, opts = {}) {
+          if (id === 100) {
+            if (opts.fresh) {
+              // Simulate the per-child fresh reads that the real provider
+              // fans out internally with a concurrency cap of EXPECTED_CAP.
+              const result = [];
+              for (let i = 0; i < siblings.length; i += EXPECTED_CAP) {
+                const batch = siblings.slice(i, i + EXPECTED_CAP);
+                const batchResults = await Promise.all(
+                  batch.map((s) =>
+                    fakeProvider.getTicket(s.id, { fresh: true }),
+                  ),
+                );
+                result.push(...batchResults);
+              }
+              return result;
+            }
+            return siblings;
+          }
           return [];
         },
       };
