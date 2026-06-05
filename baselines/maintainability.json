@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T10:57:13.945Z",
+  "generatedAt": "2026-06-05T11:09:46.889Z",
   "rollup": {
     "*": {
       "min": 45.044,
@@ -473,10 +473,6 @@
     {
       "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
       "mi": 96.56
-    },
-    {
-      "path": ".agents/scripts/lib/config-resolver.js",
-      "mi": 90.965
     },
     {
       "path": ".agents/scripts/lib/config-schema-shared.js",
