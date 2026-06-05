@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T16:01:42.910Z",
+  "generatedAt": "2026-06-05T16:20:08.035Z",
   "rollup": {
     "*": {
       "min": 45.044,
-      "p50": 104.084,
+      "p50": 104.089,
       "p95": 122.198
     }
   },
@@ -1315,10 +1315,6 @@
       "mi": 108.168
     },
     {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
-      "mi": 98
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
       "mi": 110.234
     },
@@ -1869,10 +1865,6 @@
     {
       "path": ".agents/scripts/lifecycle-emit.js",
       "mi": 96.043
-    },
-    {
-      "path": ".agents/scripts/lint-baseline.js",
-      "mi": 91.35
     },
     {
       "path": ".agents/scripts/lint-label-vocabulary.js",
