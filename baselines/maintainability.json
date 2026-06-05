@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T15:12:55.580Z",
+  "generatedAt": "2026-06-05T16:01:42.910Z",
   "rollup": {
     "*": {
       "min": 45.044,
-      "p50": 104.065,
+      "p50": 104.084,
       "p95": 122.198
     }
   },
@@ -293,10 +293,6 @@
     {
       "path": ".agents/scripts/lib/baselines/kinds/coverage.js",
       "mi": 98.807
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "mi": 92.921
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/lighthouse.js",
@@ -1379,10 +1375,6 @@
       "mi": 66.537
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution/phases/refresh-commit.js",
-      "mi": 85.571
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution/phases/regression-projection.js",
       "mi": 90.345
     },
@@ -1489,10 +1481,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
       "mi": 103.078
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/state.js",
-      "mi": 96.965
     },
     {
       "path": ".agents/scripts/lib/orchestration/wave-marker.js",
@@ -1689,10 +1677,6 @@
     {
       "path": ".agents/scripts/lib/story-init/blocker-validator.js",
       "mi": 112.285
-    },
-    {
-      "path": ".agents/scripts/lib/story-init/context-resolver.js",
-      "mi": 90.144
     },
     {
       "path": ".agents/scripts/lib/story-init/dispatch-state-writer.js",
@@ -3981,10 +3965,6 @@
     {
       "path": "tests/lib/orchestration/ticketing/reads.test.js",
       "mi": 107.289
-    },
-    {
-      "path": "tests/lib/orchestration/ticketing/state.test.js",
-      "mi": 110.679
     },
     {
       "path": "tests/lib/orchestration/wave-record-notifications.test.js",
