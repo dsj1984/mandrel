@@ -18,13 +18,25 @@ export const DEFAULT_DECOMPOSER = Object.freeze({
   concurrencyCap: 3,
 });
 
-/** Hardcoded deliver-runner concurrency cap. Operators override via
- * `delivery.deliverRunner.concurrencyCap` in `.agentrc.json`.
+/**
+ * Hardcoded deliver-runner defaults. Operators override via
+ * `delivery.deliverRunner.*` in `.agentrc.json`.
  *
- * `verifyConcurrencyCap` (Epic #3019 Tech Spec §1.4 / Story #3024) is a
- * separate knob that bounds the `verifyWaveResults` loop independently
- * of Story-dispatch concurrency, so operators can tune ticket-verify
- * parallelism without raising the wave fan-out. Default 4. */
+ * **Throughput tradeoff — `concurrencyCap`.**
+ * The default of 3 is intentionally conservative: it keeps host-quota
+ * consumption low for Epics with small waves and avoids saturating the
+ * GitHub API with concurrent label writes. For wide-wave Epics where the
+ * host has adequate parallel-agent quota, operators should raise
+ * `delivery.deliverRunner.concurrencyCap` — wall-clock time falls
+ * proportionally to the extra concurrency. The safe default is a tuning
+ * knob, not a performance ceiling. See `epic-deliver.md` § Phase 2b and
+ * `full-agentrc.json` `delivery.deliverRunner.concurrencyCap` for details.
+ *
+ * **`verifyConcurrencyCap`** (Epic #3019 Tech Spec §1.4 / Story #3024) is a
+ * separate knob that bounds the `verifyWaveResults` loop independently of
+ * Story-dispatch concurrency, so operators can tune ticket-verify parallelism
+ * without raising the wave fan-out. Default 4.
+ */
 const DEFAULT_DELIVER_RUNNER = Object.freeze({
   concurrencyCap: 3,
   progressReportIntervalSec: 120,

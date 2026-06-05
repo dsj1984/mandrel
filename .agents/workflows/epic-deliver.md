@@ -256,6 +256,17 @@ as background calls (`run_in_background: true`) and refill from
 `nextAction.stories` immediately as each child returns — never exceed
 the cap, never wait for a whole batch before refilling.
 
+> **Throughput tradeoff.** The default `concurrencyCap` of 3 is
+> intentionally conservative — it keeps host-quota consumption low on
+> Epics with small waves and avoids flooding the GitHub API. For
+> wide-wave Epics (many Stories per wave) where the host has adequate
+> parallel-agent quota, raising `delivery.deliverRunner.concurrencyCap`
+> in `.agentrc.json` reduces wall-clock time proportionally to the
+> extra concurrency. The safe default is left in place; this is a
+> deliberate operator-tuning knob, not a hidden performance ceiling.
+> See `full-agentrc.json` `delivery.deliverRunner.concurrencyCap` for
+> the configuration surface.
+
 **Ledger the dispatch BEFORE the Agent call.** Immediately before each
 per-Story `Agent` tool call (one shell-out per Story, every attempt —
 including retries from a refill), invoke

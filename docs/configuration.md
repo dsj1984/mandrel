@@ -157,7 +157,7 @@ top-level keys are validation errors.
 | `docsFreshness` | No | `object` | — | Nested configuration block. |
 | `docsFreshness.paths` | No | `array` | — | — |
 | `deliverRunner` | No | `object` | — | Nested configuration block. |
-| `deliverRunner.concurrencyCap` | No | `integer` | — | — |
+| `deliverRunner.concurrencyCap` | No | `integer` | — | Maximum Stories dispatched in parallel within one wave. Default 3. Conservative by design — keeps host-quota consumption predictable on small waves and avoids GitHub API saturation. Operators running wide-wave Epics on hosts with adequate parallel-agent quota should raise this value to reduce wall-clock time proportionally. See epic-deliver.md § Phase 2b for the dispatch model and the throughput tradeoff discussion. |
 | `deliverRunner.progressReportIntervalSec` | No | `integer` | — | — |
 | `deliverRunner.verifyConcurrencyCap` | No | `integer` | — | Bounded-concurrency cap for the per-wave verifyWaveResults loop (Epic #3019 Tech Spec §1.4). Separate from the wave-execution `concurrencyCap` so operators can tune ticket-verification parallelism independently of Story dispatch parallelism. Default 4. |
 | `worktreeIsolation` | No | `object` | — | Nested configuration block. |

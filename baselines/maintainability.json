@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T12:12:05.948Z",
+  "generatedAt": "2026-06-05T12:16:41.450Z",
   "rollup": {
     "*": {
       "min": 45.044,
@@ -577,10 +577,6 @@
     {
       "path": ".agents/scripts/lib/config/retro.js",
       "mi": 109.253
-    },
-    {
-      "path": ".agents/scripts/lib/config/runners.js",
-      "mi": 92.463
     },
     {
       "path": ".agents/scripts/lib/config/runtime.js",
