@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T11:31:54.950Z",
+  "generatedAt": "2026-06-05T11:44:02.411Z",
   "rollup": {
     "*": {
       "min": 45.044,
@@ -1033,14 +1033,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/transport.js",
       "mi": 81.695
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js",
-      "mi": 87.37
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/maintainability-drift.js",
-      "mi": 85.861
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/stalled-worktree.js",

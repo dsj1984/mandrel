@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T11:31:55.460Z",
+  "generatedAt": "2026-06-05T11:38:43.047Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -7282,96 +7282,6 @@
       "method": "emitEpicComplete",
       "startLine": 261,
       "crap": 9
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js",
-      "method": "normaliseCoveragePath",
-      "startLine": 20,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js",
-      "method": "coverageKeyMatches",
-      "startLine": 30,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js",
-      "method": "detectComponentRegressions",
-      "startLine": 57,
-      "crap": 10
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js",
-      "method": "componentOrder",
-      "startLine": 88,
-      "crap": 3.072
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js",
-      "method": "formatNumber",
-      "startLine": 94,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js",
-      "method": "createCrapDriftDetector",
-      "startLine": 137,
-      "crap": 16.000058037463184
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js",
-      "method": "methodKey",
-      "startLine": 156,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js",
-      "method": "findCoverageEntry",
-      "startLine": 164,
-      "crap": 5.018782870022539
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js",
-      "method": "scoreFile",
-      "startLine": 176,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js",
-      "method": "readCoverageMap",
-      "startLine": 203,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/maintainability-drift.js",
-      "method": "detectComponentRegressions",
-      "startLine": 62,
-      "crap": 10
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/maintainability-drift.js",
-      "method": "componentOrder",
-      "startLine": 92,
-      "crap": 3.576
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/maintainability-drift.js",
-      "method": "formatNumber",
-      "startLine": 98,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/maintainability-drift.js",
-      "method": "createMaintainabilityDriftDetector",
-      "startLine": 102,
-      "crap": 9
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/maintainability-drift.js",
-      "method": "scoreFile",
-      "startLine": 115,
-      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/stalled-worktree.js",
