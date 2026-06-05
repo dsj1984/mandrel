@@ -443,8 +443,15 @@ function scoreFileSerial({ abs, relPath, requireCoverage }, coverage) {
 }
 
 async function scoreFilesViaPool(queue, coverage) {
-  const results = await runOnPool(CRAP_WORKER_URL, queue, {
-    workerData: { coverage },
+  // Resolve each file's coverage entry on the host before dispatch so workers
+  // receive only their file's entry rather than the whole map. This removes the
+  // O(workers × coverageMapSize) structured-clone at spawn time.
+  const enrichedQueue = queue.map((item) => ({
+    ...item,
+    coverageEntry: findCoverageEntry(coverage, item.relPath),
+  }));
+  const results = await runOnPool(CRAP_WORKER_URL, enrichedQueue, {
+    workerData: {},
   });
   return results.map((r, i) => {
     const item = queue[i];

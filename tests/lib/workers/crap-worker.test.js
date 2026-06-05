@@ -3,19 +3,22 @@ import { describe, it } from 'node:test';
 
 import { handleCrapWorkerMessage } from '../../../.agents/scripts/lib/workers/crap-worker.js';
 
+// Coverage is now pre-resolved on the host and attached as item.coverageEntry.
+const STUB_ENTRY = { fnMap: {}, statementMap: {}, s: {} };
+
 const okItem = {
   abs: '/abs/file.js',
   relPath: 'src/file.js',
   requireCoverage: false,
+  coverageEntry: STUB_ENTRY,
 };
 
 function stubDeps({
   readFile = () => 'export const x = 1;',
   transpile = (_abs, src) => src,
   calculateCrap = () => [],
-  findEntry = () => ({ fnMap: {}, statementMap: {}, s: {} }),
 } = {}) {
-  return { readFile, transpile, calculateCrap, findEntry };
+  return { readFile, transpile, calculateCrap };
 }
 
 describe('handleCrapWorkerMessage — control messages', () => {
@@ -52,22 +55,33 @@ describe('handleCrapWorkerMessage — control messages', () => {
 });
 
 describe('handleCrapWorkerMessage — coverage gate', () => {
-  it('requireCoverage + missing entry → skippedFileNoCoverage', () => {
+  it('requireCoverage + missing entry (null coverageEntry) → skippedFileNoCoverage', () => {
     const out = handleCrapWorkerMessage(
-      { item: { ...okItem, requireCoverage: true } },
+      { item: { ...okItem, requireCoverage: true, coverageEntry: null } },
       null,
-      stubDeps({ findEntry: () => null }),
+      stubDeps(),
     );
     assert.equal(out.message.ok, true);
     assert.equal(out.message.result.skippedFileNoCoverage, true);
     assert.deepEqual(out.message.result.rows, []);
   });
 
-  it('requireCoverage:false continues even when entry is null', () => {
+  it('requireCoverage + missing entry (undefined coverageEntry) → skippedFileNoCoverage', () => {
+    const { coverageEntry: _, ...itemNoCov } = okItem;
     const out = handleCrapWorkerMessage(
-      { item: okItem },
+      { item: { ...itemNoCov, requireCoverage: true } },
       null,
-      stubDeps({ findEntry: () => null }),
+      stubDeps(),
+    );
+    assert.equal(out.message.ok, true);
+    assert.equal(out.message.result.skippedFileNoCoverage, true);
+  });
+
+  it('requireCoverage:false continues even when coverageEntry is null', () => {
+    const out = handleCrapWorkerMessage(
+      { item: { ...okItem, coverageEntry: null } },
+      null,
+      stubDeps(),
     );
     assert.equal(out.message.result.skippedFileNoCoverage, false);
     assert.deepEqual(out.message.result.rows, []);

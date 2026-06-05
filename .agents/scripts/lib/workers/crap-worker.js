@@ -2,15 +2,16 @@
  * lib/workers/crap-worker.js — CPU-pool worker entry for `scanAndScore`.
  * One file in, the file's per-method CRAP rows out. No project config,
  * no git — just typhonjs-escomplex (via crap-engine), the in-memory TS
- * transpile shim, and the pure coverage-lookup helper.
+ * transpile shim, and the pre-resolved coverage entry from the host.
  *
- * `workerData`:
- *   { coverage: object | null }   — the istanbul coverage map. Cloned
- *   into the worker once per spawn; lookups happen via the pure
- *   findCoverageEntry helper from coverage-utils.js.
+ * `workerData`: `{}` — coverage is no longer cloned into workers at spawn.
+ * Instead, the host resolves each file's coverage entry via `findCoverageEntry`
+ * before dispatch and attaches it as `item.coverageEntry`. Workers receive
+ * only their file's entry, removing the O(workers × coverageMapSize) clone.
  *
  * Message contract — see lib/cpu-pool.js:
- *   IN  : { item: { abs: string, relPath: string, requireCoverage: boolean } }
+ *   IN  : { item: { abs: string, relPath: string, requireCoverage: boolean,
+ *                   coverageEntry: object | null } }
  *         { exit: true }
  *   OUT : { ok: true, result: {
  *           relPath,
@@ -26,8 +27,7 @@
  */
 
 import fs from 'node:fs';
-import { parentPort, workerData } from 'node:worker_threads';
-import { findCoverageEntry } from '../coverage-utils.js';
+import { parentPort } from 'node:worker_threads';
 import { calculateCrapForSource } from '../crap-engine.js';
 import { transpileIfNeeded } from '../maintainability-utils.js';
 
@@ -44,17 +44,20 @@ import { transpileIfNeeded } from '../maintainability-utils.js';
  * Side effects (fs, transpile, escomplex) are wired through `deps` so
  * tests pass deterministic stubs.
  *
+ * Coverage is supplied via `item.coverageEntry` (pre-resolved on the host),
+ * not via a whole-map `coverage` argument. The second parameter is kept as
+ * `_coverage` for backward-compatibility but is intentionally unused.
+ *
  * @param {unknown} msg
- * @param {object|null} coverage
+ * @param {object|null} _coverage - Unused. Coverage is in `item.coverageEntry`.
  * @param {{
  *   readFile?: (abs: string) => string,
  *   transpile?: (abs: string, source: string) => string | null,
  *   calculateCrap?: (source: string, entry: object|null) => Array<object>,
- *   findEntry?: (map: object|null, relPath: string) => object|null,
  * }} [deps]
  * @returns {{kind: 'exit'} | {kind: 'reply', message: object}}
  */
-export function handleCrapWorkerMessage(msg, coverage, deps = {}) {
+export function handleCrapWorkerMessage(msg, _coverage, deps = {}) {
   if (msg && msg.exit === true) return { kind: 'exit' };
 
   const item = msg?.item;
@@ -72,12 +75,14 @@ export function handleCrapWorkerMessage(msg, coverage, deps = {}) {
     };
   }
   const { abs, relPath, requireCoverage } = item;
-  const findEntry = deps.findEntry ?? findCoverageEntry;
   const readFile = deps.readFile ?? ((p) => fs.readFileSync(p, 'utf-8'));
   const transpile = deps.transpile ?? transpileIfNeeded;
   const calculateCrap = deps.calculateCrap ?? calculateCrapForSource;
 
-  const entry = findEntry(coverage, relPath);
+  // Coverage entry is pre-resolved on the host and attached to the item.
+  // `item.coverageEntry` may be explicitly `null` when the file has no
+  // coverage, or `undefined` when the caller did not supply it (treat as null).
+  const entry = item.coverageEntry ?? null;
   if (requireCoverage && entry === null) {
     return {
       kind: 'reply',
@@ -181,9 +186,8 @@ export function handleCrapWorkerMessage(msg, coverage, deps = {}) {
 }
 
 if (parentPort) {
-  const coverage = workerData?.coverage ?? null;
   parentPort.on('message', (msg) => {
-    const out = handleCrapWorkerMessage(msg, coverage);
+    const out = handleCrapWorkerMessage(msg, null);
     if (out.kind === 'exit') {
       parentPort.close();
       return;
