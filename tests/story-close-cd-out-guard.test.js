@@ -131,6 +131,80 @@ test('checkCdOutGuard pure helper', async (t) => {
     assert.equal(result.ok, false);
     assert.match(result.message, /story-42/);
   });
+
+  await t.test(
+    'fires when currentCwd and mainCwd differ only by a symlinked prefix (Story #3672)',
+    () => {
+      // Regression for the macOS false-negative: the derived `workCwd`
+      // (built from the verbatim `--cwd` arg via path.resolve, symlinks NOT
+      // resolved) and `process.cwd()` (OS-canonicalized) point at the same
+      // worktree but carry different string prefixes (`/tmp` vs
+      // `/private/tmp`). Inject a realpath seam that canonicalizes both
+      // operands to one fixed string per story segment, proving the guard
+      // realpath's BOTH sides before comparing — platform-independently
+      // (the seam keys off the trailing `story-<id>` segment, so it does not
+      // care whether the host's path.resolve produced POSIX or Windows
+      // separators on the way in).
+      const realpath = (p) =>
+        /story-746$/.test(p) ? '/private/tmp/repo/.worktrees/story-746' : p;
+      const result = checkCdOutGuard({
+        cwdExplicit: true,
+        mainCwd: '/tmp/repo',
+        storyId: 746,
+        currentCwd: '/private/tmp/repo/.worktrees/story-746',
+        realpath,
+      });
+      assert.equal(result.ok, false);
+      assert.match(result.message, /Refusing to close/);
+      assert.match(result.message, /story-746/);
+    },
+  );
+
+  await t.test(
+    'stays ok for a sibling worktree even after symlink canonicalization (Story #3672)',
+    () => {
+      // The canonicalized worktree prefix matches, but the story segment
+      // differs — the guard must still let a sibling worktree through.
+      // Canonicalize the two distinct story segments to two distinct strings.
+      const realpath = (p) => {
+        if (/story-746$/.test(p))
+          return '/private/tmp/repo/.worktrees/story-746';
+        if (/story-999$/.test(p))
+          return '/private/tmp/repo/.worktrees/story-999';
+        return p;
+      };
+      const result = checkCdOutGuard({
+        cwdExplicit: true,
+        mainCwd: '/tmp/repo',
+        storyId: 746,
+        currentCwd: '/private/tmp/repo/.worktrees/story-999',
+        realpath,
+      });
+      assert.deepStrictEqual(result, { ok: true });
+    },
+  );
+
+  await t.test(
+    'falls back to path.resolve when realpath throws on a missing path (Story #3672)',
+    () => {
+      // realpathSync throws on not-yet-existing paths; the guard must fall
+      // back to path.resolve so a worktree dir that does not exist yet still
+      // compares correctly. Both operands resolve to the same worktree, so
+      // the fallback must still produce matching strings and the guard fires.
+      const realpath = () => {
+        throw new Error('ENOENT');
+      };
+      const result = checkCdOutGuard({
+        cwdExplicit: true,
+        mainCwd: '/repo',
+        storyId: 746,
+        currentCwd: '/repo/.worktrees/story-746',
+        realpath,
+      });
+      assert.equal(result.ok, false);
+      assert.match(result.message, /Refusing to close/);
+    },
+  );
 });
 
 test('story-close cd-out guard (subprocess)', async (t) => {

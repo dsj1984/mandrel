@@ -14,11 +14,41 @@
  * `workCwd` to the main repo, so the equality check is a tautology there
  * and we don't reject those.
  *
+ * Both operands are canonicalized through `fs.realpathSync` before the
+ * equality check (Story #3672). `path.resolve` normalizes `.`/`..` and makes
+ * a path absolute but does NOT resolve symlinks, while `process.cwd()` is
+ * returned fully canonicalized by the OS. On hosts where the working path
+ * contains a symlinked component — most notably macOS, where `/tmp` →
+ * `/private/tmp` and `/var` → `/private/var` — the two strings would never
+ * match, so the guard silently no-opped and failed to fire. Realpath'ing
+ * both sides closes that false-negative.
+ *
  * Pure: takes inputs, returns a verdict. Exported so the rejection path is
- * unit-testable without spawning the script.
+ * unit-testable without spawning the script. The `realpath` seam is injected
+ * (default `fs.realpathSync`) so tests can drive the symlinked and
+ * non-symlinked cases without touching the filesystem.
  */
 
+import fs from 'node:fs';
 import path from 'node:path';
+
+/**
+ * Canonicalize a path: resolve symlinks via `realpath`, falling back to
+ * `path.resolve` when the path does not exist yet (`realpathSync` throws on
+ * missing paths). The fallback keeps the comparison correct for
+ * not-yet-created worktree directories.
+ *
+ * @param {string} p
+ * @param {(p: string) => string} realpath
+ * @returns {string}
+ */
+function canonical(p, realpath) {
+  try {
+    return realpath(p);
+  } catch {
+    return path.resolve(p);
+  }
+}
 
 /**
  * @param {object} opts
@@ -27,6 +57,7 @@ import path from 'node:path';
  * @param {number|string} opts.storyId
  * @param {string} [opts.worktreeRoot]     `delivery.worktreeIsolation.root` (defaults to `.worktrees`).
  * @param {string} [opts.currentCwd]       Defaults to `process.cwd()`.
+ * @param {(p: string) => string} [opts.realpath]  Symlink-resolution seam (defaults to `fs.realpathSync`).
  * @returns {{ ok: true } | { ok: false, message: string }}
  */
 export function checkCdOutGuard({
@@ -35,10 +66,14 @@ export function checkCdOutGuard({
   storyId,
   worktreeRoot = '.worktrees',
   currentCwd = process.cwd(),
+  realpath = fs.realpathSync,
 }) {
   if (!cwdExplicit) return { ok: true };
-  const workCwd = path.resolve(mainCwd, worktreeRoot, `story-${storyId}`);
-  const cwd = path.resolve(currentCwd);
+  const workCwd = canonical(
+    path.resolve(mainCwd, worktreeRoot, `story-${storyId}`),
+    realpath,
+  );
+  const cwd = canonical(currentCwd, realpath);
   if (cwd !== workCwd) return { ok: true };
   return {
     ok: false,
