@@ -10,7 +10,9 @@ scenarios are authored. The companion skill
 [`core/test-driven-development`](../skills/core/test-driven-development/SKILL.md)
 shows **how** to apply these standards (TDD cycle, Prove-It Pattern, naming,
 anti-patterns) — read this rule for the **what**. When the skill and this
-rule diverge, this rule wins.
+rule diverge, this rule wins, per the central ordering in
+[`.agents/instructions.md` § 1.K](../instructions.md) (rules sit above
+skills).
 
 ## The Three Tiers
 
