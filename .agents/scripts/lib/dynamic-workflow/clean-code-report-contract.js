@@ -10,9 +10,9 @@
  * contract-tier test assert report conformance against one definition rather
  * than re-deriving headings from prose in two places.
  *
- * Changing the report contract is explicitly **out of scope** for the pilot
- * (see the Story's "Out of Scope" section) — this module documents the
- * existing shape, it does not introduce a new one.
+ * This module documents the **existing** report shape; it does not introduce
+ * a new one. Changing the report contract is a separate, deliberate decision —
+ * not a side effect of the dual-path orchestration work.
  *
  * @module dynamic-workflow/clean-code-report-contract
  */

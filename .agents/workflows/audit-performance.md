@@ -72,9 +72,12 @@ or an older version degrades gracefully to the sequential path.
 > running two shapes of the *same contract* side by side. Here there is **one**
 > report contract; only the *execution strategy* is selected from a runtime
 > capability — the same pattern the protocol already endorses for live-docs
-> fallback in [`instructions.md` §1.C/§1.D](../instructions.md). See
-> [`docs/dynamic-workflow-pilot.md`](../../docs/dynamic-workflow-pilot.md) for
-> the full rationale and the pilot benchmark.
+> fallback in [`instructions.md` §1.C/§1.D](../instructions.md). The full
+> capability-degradation rationale lives in the
+> [`capability.js`](../scripts/lib/dynamic-workflow/capability.js) module
+> docstring; the orchestrated-run evidence and per-lens cost/precision gate
+> verdicts live in [`docs/roadmap.md`](../../docs/roadmap.md) (Part 3 —
+> Dynamic-Workflow Orchestration).
 
 **Forcing a path (for testing).** Set `MANDREL_AUDIT_STRATEGY=sequential` to
 verify the fallback path with the feature notionally disabled, or

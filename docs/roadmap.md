@@ -945,8 +945,8 @@ dynamic-workflow audit pattern (piloted on `audit-clean-code` under Story
 retired pilot doc with real `/workflows`-reported actuals from a host at or
 above the dynamic-workflow version floor.
 
-> **Why this lives here.** The pilot doc
-> (`docs/dynamic-workflow-pilot.md`) was a one-shot go/no-go artifact. Now
+> **Why this lives here.** The original pilot doc (Story #3278, since
+> deleted) was a one-shot go/no-go artifact. Now
 > that the pattern is standing infrastructure (one shared orchestration
 > engine, `runAuditOrchestration`, used by all five lenses behind their own
 > report contracts), its evidence and gate verdicts belong in the standing
