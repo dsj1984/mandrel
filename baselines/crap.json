@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T19:40:59.135Z",
+  "generatedAt": "2026-06-05T21:47:23.819Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.157083248524323,
+      "p95": 12.192000000000002,
       "max": 38.82544452792387,
       "methodsAbove20": 26
     }
@@ -4588,66 +4588,6 @@
       "method": "findSimilarOpenEpics",
       "startLine": 141,
       "crap": 11
-    },
-    {
-      "path": ".agents/scripts/lib/dynamic-workflow/capability.js",
-      "method": "isFlagSet",
-      "startLine": 112,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/dynamic-workflow/capability.js",
-      "method": "compareVersions",
-      "startLine": 126,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/dynamic-workflow/capability.js",
-      "method": "<anon method-1>",
-      "startLine": 127,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/dynamic-workflow/capability.js",
-      "method": "meetsVersionFloor",
-      "startLine": 154,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/dynamic-workflow/capability.js",
-      "method": "detectDynamicWorkflowCapability",
-      "startLine": 204,
-      "crap": 10
-    },
-    {
-      "path": ".agents/scripts/lib/dynamic-workflow/capability.js",
-      "method": "selectAuditStrategy",
-      "startLine": 309,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/dynamic-workflow/capability.js",
-      "method": "snapshotFromEnv",
-      "startLine": 361,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/dynamic-workflow/capability.js",
-      "method": "forceStrategyFromEnv",
-      "startLine": 379,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/dynamic-workflow/clean-code-report-contract.js",
-      "method": "assertReportContract",
-      "startLine": 73,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/dynamic-workflow/clean-code-report-contract.js",
-      "method": "escapeRegExp",
-      "startLine": 92,
-      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/env-loader.js",

@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T19:06:14.151Z",
+  "generatedAt": "2026-06-05T21:47:23.500Z",
   "rollup": {
     "*": {
       "min": 45.044,
@@ -589,14 +589,6 @@
     {
       "path": ".agents/scripts/lib/duplicate-search.js",
       "mi": 98.772
-    },
-    {
-      "path": ".agents/scripts/lib/dynamic-workflow/capability.js",
-      "mi": 90.306
-    },
-    {
-      "path": ".agents/scripts/lib/dynamic-workflow/clean-code-report-contract.js",
-      "mi": 112.973
     },
     {
       "path": ".agents/scripts/lib/env-loader.js",

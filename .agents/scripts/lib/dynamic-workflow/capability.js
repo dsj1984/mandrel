@@ -1,24 +1,33 @@
 // .agents/scripts/lib/dynamic-workflow/capability.js
 /**
- * Dynamic-workflow capability detection + audit-lens strategy selection
- * (Story #3278 — `audit-clean-code` dynamic-workflow pilot).
+ * Dynamic-workflow capability detection + audit-lens strategy selection.
+ *
+ * Originated as the `audit-clean-code` dynamic-workflow pilot (Story #3278)
+ * and generalized to five read-only, dimensionally-decomposable lenses
+ * (`audit-clean-code`, `audit-security`, `audit-performance`,
+ * `audit-architecture`, `audit-quality`) under Epic #3597. The one-shot pilot
+ * doc has been retired; this module docstring is the **canonical home for the
+ * capability-degradation rationale** (the "Why this is not a contract shim"
+ * section below), and `docs/roadmap.md` (Part 3 — Dynamic-Workflow
+ * Orchestration) holds the orchestrated-run evidence and per-lens
+ * cost/precision gate verdicts.
  *
  * Claude Code's [dynamic workflows](https://code.claude.com/docs/en/workflows)
  * let a JS script orchestrate many subagents in the background. They are a
- * Claude Code-only, paid-plan, research-preview feature (CC >= 2.1.154). The
- * `audit-clean-code` lens runs along **two execution paths**:
+ * Claude Code-only, paid-plan, research-preview feature (CC >= 2.1.154). Each
+ * generalized lens runs along **two execution paths**:
  *
- *   1. **orchestrated** — the dynamic-workflow script
- *      (`.claude/workflows/audit-clean-code.workflow.js`) fans the lens
- *      dimensions out as parallel subagents with an adversarial cross-check
- *      stage, then emits the report contract.
+ *   1. **orchestrated** — the per-lens dynamic-workflow script
+ *      (`.claude/workflows/<lens>.workflow.js`) fans the lens dimensions out
+ *      as parallel subagents with an adversarial cross-check stage, then emits
+ *      the report contract.
  *   2. **sequential** — the existing single-pass lens
- *      (`.agents/workflows/audit-clean-code.md`) followed turn-by-turn.
+ *      (`.agents/workflows/<lens>.md`) followed turn-by-turn.
  *
- * Both paths MUST emit the identical report contract
- * (`{{auditOutputDir}}/audit-clean-code-results.md`), so downstream
- * consumers (`/epic-deliver` Phase 4 epic-audit, `audit-to-stories`) are
- * agnostic to which path produced it.
+ * Both paths MUST emit the identical per-lens report contract
+ * (`{{auditOutputDir}}/<lens>-results.md`), so downstream consumers
+ * (`/epic-deliver` Phase 4 epic-audit, `audit-to-stories`) are agnostic to
+ * which path produced it.
  *
  * ## Why this is capability-degradation, not a contract shim
  *
