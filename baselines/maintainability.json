@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T16:20:08.035Z",
+  "generatedAt": "2026-06-05T16:29:22.799Z",
   "rollup": {
     "*": {
       "min": 45.044,
-      "p50": 104.089,
-      "p95": 122.198
+      "p50": 104.084,
+      "p95": 122.422
     }
   },
   "rows": [
@@ -1885,10 +1885,6 @@
     {
       "path": ".agents/scripts/pr-watch-with-update.js",
       "mi": 99.151
-    },
-    {
-      "path": ".agents/scripts/providers/github.js",
-      "mi": 113.98
     },
     {
       "path": ".agents/scripts/providers/github/auth.js",
@@ -4371,32 +4367,16 @@
       "mi": 118.196
     },
     {
-      "path": "tests/providers/github/auth.test.js",
-      "mi": 116.914
-    },
-    {
       "path": "tests/providers/github/branch-protection.test.js",
       "mi": 97.869
-    },
-    {
-      "path": "tests/providers/github/cache.test.js",
-      "mi": 104.484
     },
     {
       "path": "tests/providers/github/comments.test.js",
       "mi": 93.166
     },
     {
-      "path": "tests/providers/github/errors.test.js",
-      "mi": 111.04
-    },
-    {
       "path": "tests/providers/github/labels.test.js",
       "mi": 107.568
-    },
-    {
-      "path": "tests/providers/github/mappers.test.js",
-      "mi": 99.475
     },
     {
       "path": "tests/providers/github/merge-methods.test.js",
