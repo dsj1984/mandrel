@@ -29,6 +29,7 @@
 import * as bundleSize from './kinds/bundle-size.js';
 import * as coverage from './kinds/coverage.js';
 import * as crap from './kinds/crap.js';
+import * as duplication from './kinds/duplication.js';
 import * as lighthouse from './kinds/lighthouse.js';
 import * as lint from './kinds/lint.js';
 import * as maintainability from './kinds/maintainability.js';
@@ -46,6 +47,7 @@ const KIND_MODULES = Object.freeze({
   mutation,
   lighthouse,
   'bundle-size': bundleSize,
+  duplication,
 });
 
 /**

@@ -45,6 +45,11 @@
           "floors": { "*": { "min": 34 } },
           "targetDirs": [".agents/scripts", "tests"],
           "tolerance": { "kind": "absolute", "value": 12 }
+        },
+        "duplication": {
+          "floors": { "*": { "percentage": 25 } },
+          "targetDirs": [".agents/scripts"],
+          "tolerance": { "kind": "absolute", "value": 1 }
         }
       }
     }

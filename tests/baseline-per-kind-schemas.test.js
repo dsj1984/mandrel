@@ -45,6 +45,7 @@ const KIND_FILES = [
   'mutation.schema.json',
   'lighthouse.schema.json',
   'bundle-size.schema.json',
+  'duplication.schema.json',
 ];
 
 const CANONICAL_FIXTURES = {
@@ -107,6 +108,27 @@ const CANONICAL_FIXTURES = {
     rollup: { '*': { totalKb: 250, gzippedKb: 80 } },
     rows: [{ bundle: 'main', rawKb: 250, gzippedKb: 80 }],
   },
+  'duplication.schema.json': {
+    $schema: '.agents/schemas/baselines/duplication.schema.json',
+    kernelVersion: '1.0.0',
+    generatedAt: '2026-05-15T00:00:00Z',
+    rollup: {
+      '*': {
+        percentage: 10.5,
+        duplicatedLines: 21,
+        totalLines: 200,
+        filesWithDuplication: 1,
+      },
+    },
+    rows: [
+      {
+        path: 'src/a.js',
+        duplicatedLines: 21,
+        totalLines: 200,
+        percentage: 10.5,
+      },
+    ],
+  },
 };
 
 // Cross-kind rollup-shape used to prove each schema rejects a rollup whose
@@ -115,7 +137,7 @@ const CANONICAL_FIXTURES = {
 const MISMATCHED_ROLLUP = { '*': { mystery: 1, totallyUnknown: 'no' } };
 
 describe('per-kind baseline schemas (Story #1888)', () => {
-  it('exposes all seven schema files plus the envelope on disk', () => {
+  it('exposes all eight schema files plus the envelope on disk', () => {
     const files = readdirSync(SCHEMAS_DIR).filter((f) =>
       f.endsWith('.schema.json'),
     );

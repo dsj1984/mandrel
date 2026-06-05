@@ -77,6 +77,7 @@ export const KNOWN_KINDS = Object.freeze([
   'mutation',
   'lighthouse',
   'bundle-size',
+  'duplication',
 ]);
 
 function schemaRefFor(kind) {

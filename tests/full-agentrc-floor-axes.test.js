@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import * as bundleSizeKind from '../.agents/scripts/lib/baselines/kinds/bundle-size.js';
 import * as coverageKind from '../.agents/scripts/lib/baselines/kinds/coverage.js';
 import * as crapKind from '../.agents/scripts/lib/baselines/kinds/crap.js';
+import * as duplicationKind from '../.agents/scripts/lib/baselines/kinds/duplication.js';
 import * as lighthouseKind from '../.agents/scripts/lib/baselines/kinds/lighthouse.js';
 import * as lintKind from '../.agents/scripts/lib/baselines/kinds/lint.js';
 import * as maintainabilityKind from '../.agents/scripts/lib/baselines/kinds/maintainability.js';
@@ -35,6 +36,7 @@ const KINDS = {
   mutation: mutationKind,
   lighthouse: lighthouseKind,
   'bundle-size': bundleSizeKind,
+  duplication: duplicationKind,
 };
 
 function aggregateAxisKeys(kindModule) {

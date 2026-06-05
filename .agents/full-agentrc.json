@@ -218,6 +218,15 @@
           "tolerance": { "kind": "percent", "value": 0 },
           "floors": { "*": {} },
           "bundles": []
+        },
+        "duplication": {
+          "enabled": false,
+          "baselinePath": "baselines/duplication.json",
+          "tolerance": { "kind": "absolute", "value": 1 },
+          "floors": { "*": { "percentage": 25 } },
+          "targetDirs": ["src"],
+          "refreshTimeoutMs": 60000,
+          "ignoreGlobs": ["**/fixtures/**", "**/*.generated.ts"]
         }
       },
       "codingGuardrails": {
@@ -239,7 +248,8 @@
         "mutation": 0.5,
         "lint": 0,
         "lighthouse": 1,
-        "bundle-size": 1024
+        "bundle-size": 1024,
+        "duplication": 0.5
       }
     },
     "lifecycle": {

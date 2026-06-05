@@ -1,0 +1,62 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://mandrel/.agents/schemas/baselines/duplication.schema.json",
+  "title": "DuplicationBaselineV2",
+  "description": "Per-kind baseline schema for the code-duplication (DRY) gate, envelope-shaped. Extends the shared baseline-envelope contract. Rows record per-file copy-paste duplication reported by a clone detector (jscpd); the rollup recomputes an exact aggregate ratio from raw line counts.",
+  "allOf": [{ "$ref": "baseline-envelope.schema.json" }],
+  "type": "object",
+  "properties": {
+    "rollup": {
+      "type": "object",
+      "required": ["*"],
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "percentage",
+          "duplicatedLines",
+          "totalLines",
+          "filesWithDuplication"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "percentage": { "type": "number", "minimum": 0, "maximum": 100 },
+          "duplicatedLines": { "type": "integer", "minimum": 0 },
+          "totalLines": { "type": "integer", "minimum": 0 },
+          "filesWithDuplication": { "type": "integer", "minimum": 0 }
+        }
+      },
+      "properties": {
+        "*": {
+          "type": "object",
+          "required": [
+            "percentage",
+            "duplicatedLines",
+            "totalLines",
+            "filesWithDuplication"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "percentage": { "type": "number", "minimum": 0, "maximum": 100 },
+            "duplicatedLines": { "type": "integer", "minimum": 0 },
+            "totalLines": { "type": "integer", "minimum": 0 },
+            "filesWithDuplication": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "duplicatedLines", "totalLines", "percentage"],
+        "additionalProperties": false,
+        "properties": {
+          "path": { "type": "string" },
+          "duplicatedLines": { "type": "integer", "minimum": 0 },
+          "totalLines": { "type": "integer", "minimum": 0 },
+          "percentage": { "type": "number", "minimum": 0, "maximum": 100 }
+        }
+      }
+    }
+  }
+}
