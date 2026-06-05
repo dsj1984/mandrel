@@ -50,7 +50,7 @@ import {
 } from './lib/config-resolver.js';
 import {
   branchExistsLocally,
-  branchExistsRemotely,
+  branchExistsViaTrackingRef,
   classifyBranchSeed,
 } from './lib/git-branch-lifecycle.js';
 import {
@@ -411,9 +411,12 @@ export async function runSingleStoryInit({
     //   - already local → noop
     //   - remote only   → fetch
     //   - neither       → create from baseBranch
+    // `gitFetchWithRetry(cwd, 'origin')` ran above, so remote-tracking refs
+    // are authoritative. Use a local tracking-ref check rather than a network
+    // `ls-remote` round-trip.
     const seedAction = decideStoryBranchSeed({
       localHas: branchExistsLocally(storyBranch, cwd),
-      remoteHas: branchExistsRemotely(storyBranch, cwd),
+      remoteHas: branchExistsViaTrackingRef(storyBranch, cwd),
     });
     if (seedAction === 'fetch') {
       progress('GIT', `Fetching remote story branch: ${storyBranch}`);
