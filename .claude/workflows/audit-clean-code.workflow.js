@@ -35,10 +35,22 @@
  * consumers (`/epic-deliver` Phase 4 epic-audit, `audit-to-stories`) cannot
  * tell which path produced the report.
  *
+ * ## Shared orchestration engine
+ *
+ * The three-phase fan-out (parallel per-dimension analysis → adversarial
+ * cross-check → synthesis + report-contract self-check) is **not** inlined
+ * here. It lives once in
+ * `lib/dynamic-workflow/audit-orchestrator.js` (`runAuditOrchestration`) and
+ * is shared by every audit lens. This workflow declares only what is
+ * lens-specific — the clean-code dimension list, the per-dimension /
+ * cross-check / synthesis prompt builders, the read-only tool allowlist, and
+ * the clean-code report-contract self-check — and delegates the fan-out
+ * plumbing to the engine.
+ *
  * ## Read-only guarantee
  *
  * The lens is read-only. Dynamic-workflow subagents run in `acceptEdits` and
- * inherit the session tool allowlist, but this script grants the analysis
+ * inherit the session tool allowlist, but the engine grants the analysis
  * agents NO write/edit/shell-mutation tools — they receive only read/search
  * tools (`Read`, `Grep`, `Glob`). The single write in the run is the final
  * report artifact, performed by the synthesis stage.
@@ -51,20 +63,23 @@
  * files; otherwise it is a full codebase-wide scan, identical to a manual
  * `/audit-clean-code`.
  *
- * @typedef {object} WorkflowContext
- * @property {(opts: object) => Promise<{ output: string }>} agent
- *   Spawn a subagent. `{ prompt, allowedTools?, model? }`.
- * @property {(name: string, fn: () => Promise<unknown>) => Promise<unknown>} phase
- *   Group agents into a named phase (surfaced in the `/workflows` view with
- *   per-phase agent count, token total, and elapsed time).
- * @property {object} inputs   Caller-supplied inputs.
- * @property {string} [inputs.changedFiles]  Epic-mode change-set list (newline-delimited).
- * @property {string} [inputs.auditOutputDir] Resolved audit output dir.
+ * The live dynamic-workflow runtime context (`agent` + `phase`) is the
+ * canonical `WorkflowContext` typedef re-exported from the shared engine, so
+ * this lens and every future lens reference one shape rather than each
+ * re-declaring (and drifting from) the runtime contract. The lens-specific
+ * `inputs` keys this entry point reads are documented by {@link CleanCodeInputs}.
+ *
+ * @typedef {import('../../.agents/scripts/lib/dynamic-workflow/audit-orchestrator.js').WorkflowContext} WorkflowContext
+ *
+ * @typedef {object} CleanCodeInputs
+ * @property {string} [changedFiles]  Epic-mode change-set list (newline-delimited).
+ * @property {string} [auditOutputDir] Resolved audit output dir.
  */
 
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runAuditOrchestration } from '../../.agents/scripts/lib/dynamic-workflow/audit-orchestrator.js';
 import {
   assertReportContract,
   REPORT_ARTIFACT_BASENAME,
@@ -227,64 +242,40 @@ export function buildSynthesisPrompt(crossCheckedBlocks, auditOutputDir) {
  * and so tests can import the pure prompt-builders above without executing the
  * fan-out.
  *
- * @param {WorkflowContext} ctx
+ * The three-phase fan-out itself lives in the shared
+ * {@link runAuditOrchestration} engine; this function binds the clean-code
+ * lens-specific arguments (lens spec, scope clause, output dir) into the
+ * engine's prompt-builder contract and supplies the clean-code report
+ * self-check.
+ *
+ * @param {WorkflowContext & { inputs?: CleanCodeInputs }} ctx
  * @returns {Promise<{ artifact: string, dimensions: number, droppedNote: string }>}
  */
 export default async function auditCleanCodeWorkflow(ctx) {
-  const { agent, phase, inputs = {} } = ctx;
+  const { inputs = {} } = ctx;
   const lensSpec = loadLensSpec();
   const scopeClause = buildScopeClause(inputs.changedFiles);
   const auditOutputDir = inputs.auditOutputDir ?? 'temp/audits';
+  const artifact = `${auditOutputDir.replace(/\/+$/, '')}/${REPORT_ARTIFACT_BASENAME}`;
 
-  // Phase 1 — parallel per-dimension analysis (read-only agents).
-  const rawFindings = await phase('analyze-dimensions', async () => {
-    const results = await Promise.all(
-      DIMENSIONS.map(async (dimension) => {
-        const { output } = await agent({
-          prompt: buildDimensionPrompt(dimension, lensSpec, scopeClause),
-          allowedTools: READ_ONLY_TOOLS,
-        });
-        return { dimension, findings: output };
-      }),
-    );
-    return results;
-  });
-
-  // Phase 2 — adversarial cross-check: an independent agent reviews each
-  // dimension's findings and filters false positives before inclusion.
-  const crossChecked = await phase('adversarial-cross-check', async () => {
-    return Promise.all(
-      rawFindings.map(async ({ dimension, findings }) => {
-        const { output } = await agent({
-          prompt: buildCrossCheckPrompt(dimension, findings),
-          allowedTools: READ_ONLY_TOOLS,
-        });
-        return output;
-      }),
-    );
-  });
-
-  // Phase 3 — synthesis: assemble the report contract and write the artifact.
-  const { output: report } = await phase('synthesize-report', async () =>
-    agent({
-      prompt: buildSynthesisPrompt(crossChecked, auditOutputDir),
-      // Synthesis is the one stage permitted to write the report artifact.
-      allowedTools: [...READ_ONLY_TOOLS, 'Write'],
-    }),
-  );
-
-  // Self-verify report-contract conformance before returning.
-  const check = assertReportContract(report);
-  if (!check.conformant) {
-    throw new Error(
+  await runAuditOrchestration({
+    ctx,
+    dimensions: DIMENSIONS,
+    readOnlyTools: READ_ONLY_TOOLS,
+    buildDimensionPrompt: (dimension) =>
+      buildDimensionPrompt(dimension, lensSpec, scopeClause),
+    buildCrossCheckPrompt,
+    buildSynthesisPrompt: (crossCheckedBlocks) =>
+      buildSynthesisPrompt(crossCheckedBlocks, auditOutputDir),
+    assertReportContract,
+    formatContractError: (check) =>
       `[audit-clean-code.workflow] report failed contract check: missing ${
         check.hasTitle ? '' : 'title; '
       }sections=[${check.missingSections.join(', ')}]`,
-    );
-  }
+  });
 
   return {
-    artifact: `${auditOutputDir.replace(/\/+$/, '')}/${REPORT_ARTIFACT_BASENAME}`,
+    artifact,
     dimensions: DIMENSIONS.length,
     droppedNote:
       'See Executive Summary for total findings dropped by cross-check.',
