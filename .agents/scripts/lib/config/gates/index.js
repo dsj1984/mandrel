@@ -3,6 +3,7 @@
 import { BUNDLE_SIZE_GATE } from './bundle-size.schema.js';
 import { COVERAGE_GATE } from './coverage.schema.js';
 import { CRAP_GATE } from './crap.schema.js';
+import { DUPLICATION_GATE } from './duplication.schema.js';
 import { LIGHTHOUSE_GATE } from './lighthouse.schema.js';
 import { LINT_GATE } from './lint.schema.js';
 import { MAINTAINABILITY_GATE } from './maintainability.schema.js';
@@ -29,6 +30,7 @@ export const GATES_SCHEMA = {
     mutation: MUTATION_GATE,
     lighthouse: LIGHTHOUSE_GATE,
     'bundle-size': BUNDLE_SIZE_GATE,
+    duplication: DUPLICATION_GATE,
   },
   additionalProperties: false,
 };

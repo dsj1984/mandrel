@@ -608,7 +608,8 @@ export function resolveQuality(userQuality) {
  * the prior bytes so env variance never rewrites the on-disk baseline.
  *
  * Defaults match the AC: MI 0.5, CRAP 0.5, coverage 0.1, mutation 0.5,
- * lint 0 (counts are integer), lighthouse 1, bundle-size 1024 (bytes).
+ * lint 0 (counts are integer), lighthouse 1, bundle-size 1024 (bytes),
+ * duplication 0.5 (percentage points, Story #3664).
  */
 export const BASELINE_EPSILON_DEFAULTS = Object.freeze({
   maintainability: 0.5,
@@ -618,6 +619,7 @@ export const BASELINE_EPSILON_DEFAULTS = Object.freeze({
   lint: 0,
   lighthouse: 1,
   'bundle-size': 1024,
+  duplication: 0.5,
 });
 
 const BASELINE_EPSILON_KINDS = new Set(Object.keys(BASELINE_EPSILON_DEFAULTS));

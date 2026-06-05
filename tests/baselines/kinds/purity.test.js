@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import * as bundleSize from '../../../.agents/scripts/lib/baselines/kinds/bundle-size.js';
 import * as coverage from '../../../.agents/scripts/lib/baselines/kinds/coverage.js';
 import * as crap from '../../../.agents/scripts/lib/baselines/kinds/crap.js';
+import * as duplication from '../../../.agents/scripts/lib/baselines/kinds/duplication.js';
 import * as lighthouse from '../../../.agents/scripts/lib/baselines/kinds/lighthouse.js';
 import * as lint from '../../../.agents/scripts/lib/baselines/kinds/lint.js';
 import * as maintainability from '../../../.agents/scripts/lib/baselines/kinds/maintainability.js';
@@ -39,7 +40,33 @@ const KINDS = [
     sample: maintainabilitySample(),
   },
   { name: 'mutation', mod: mutation, sample: mutationSample() },
+  { name: 'duplication', mod: duplication, sample: duplicationSample() },
 ];
+
+function duplicationSample() {
+  return {
+    head: {
+      rows: [
+        {
+          path: 'src/a.js',
+          duplicatedLines: 12,
+          totalLines: 100,
+          percentage: 12,
+        },
+      ],
+    },
+    base: {
+      rows: [
+        {
+          path: 'src/a.js',
+          duplicatedLines: 8,
+          totalLines: 100,
+          percentage: 8,
+        },
+      ],
+    },
+  };
+}
 
 function bundleSizeSample() {
   return {

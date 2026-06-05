@@ -51,6 +51,7 @@ const BASELINE_EPSILON_SCHEMA = {
     lint: { type: 'number', minimum: 0 },
     lighthouse: { type: 'number', minimum: 0 },
     'bundle-size': { type: 'number', minimum: 0 },
+    duplication: { type: 'number', minimum: 0 },
   },
   additionalProperties: false,
 };

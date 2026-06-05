@@ -14,6 +14,7 @@ import { describe, it } from 'node:test';
 import * as bundleSize from '../../../.agents/scripts/lib/baselines/kinds/bundle-size.js';
 import * as coverage from '../../../.agents/scripts/lib/baselines/kinds/coverage.js';
 import * as crap from '../../../.agents/scripts/lib/baselines/kinds/crap.js';
+import * as duplication from '../../../.agents/scripts/lib/baselines/kinds/duplication.js';
 import * as lighthouse from '../../../.agents/scripts/lib/baselines/kinds/lighthouse.js';
 import * as lint from '../../../.agents/scripts/lib/baselines/kinds/lint.js';
 import * as maintainability from '../../../.agents/scripts/lib/baselines/kinds/maintainability.js';
@@ -27,6 +28,7 @@ const ALL_KINDS = [
   ['lint', lint],
   ['lighthouse', lighthouse],
   ['bundle-size', bundleSize],
+  ['duplication', duplication],
 ];
 
 describe('applyEpsilon export — every kind', () => {

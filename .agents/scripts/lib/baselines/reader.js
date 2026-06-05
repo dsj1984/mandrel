@@ -47,6 +47,7 @@ const DEFAULT_PATHS = Object.freeze({
   mutation: 'baselines/mutation.json',
   lighthouse: 'baselines/lighthouse.json',
   'bundle-size': 'baselines/bundle-size.json',
+  duplication: 'baselines/duplication.json',
 });
 
 const KIND_TO_SCHEMA_FILE = Object.freeze({
@@ -57,6 +58,7 @@ const KIND_TO_SCHEMA_FILE = Object.freeze({
   mutation: 'mutation.schema.json',
   lighthouse: 'lighthouse.schema.json',
   'bundle-size': 'bundle-size.schema.json',
+  duplication: 'duplication.schema.json',
 });
 
 // Lazy singleton — building the AJV instance reads eight schema files off
