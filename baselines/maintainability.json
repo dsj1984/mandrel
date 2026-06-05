@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T12:16:41.450Z",
+  "generatedAt": "2026-06-05T13:21:19.252Z",
   "rollup": {
     "*": {
       "min": 45.044,
-      "p50": 103.914,
-      "p95": 121.964
+      "p50": 103.962,
+      "p95": 122.198
     }
   },
   "rows": [
@@ -263,10 +263,6 @@
       "mi": 92.597
     },
     {
-      "path": ".agents/scripts/lib/baselines/diff-scope-cli.js",
-      "mi": 104.227
-    },
-    {
       "path": ".agents/scripts/lib/baselines/env-overrides.js",
       "mi": 86.705
     },
@@ -391,10 +387,6 @@
       "mi": 122.902
     },
     {
-      "path": ".agents/scripts/lib/changed-files.js",
-      "mi": 105.815
-    },
-    {
       "path": ".agents/scripts/lib/checks/baseline-drift-main-checkout.js",
       "mi": 99.115
     },
@@ -459,20 +451,12 @@
       "mi": 90.224
     },
     {
-      "path": ".agents/scripts/lib/close-validation.js",
-      "mi": 92.919
-    },
-    {
       "path": ".agents/scripts/lib/close-validation/projections/head-sha.js",
       "mi": 121.809
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/inputs.js",
       "mi": 91.412
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
-      "mi": 96.56
     },
     {
       "path": ".agents/scripts/lib/config-schema-shared.js",
@@ -617,10 +601,6 @@
     {
       "path": ".agents/scripts/lib/crap-engine.js",
       "mi": 92.895
-    },
-    {
-      "path": ".agents/scripts/lib/crap-utils.js",
-      "mi": 87.861
     },
     {
       "path": ".agents/scripts/lib/degraded-mode.js",
@@ -967,10 +947,6 @@
       "mi": 80.687
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-state-store.js",
-      "mi": 97.693
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/epic-run-state-store.js",
       "mi": 95.192
     },
@@ -1037,10 +1013,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/story-run-progress-writer.js",
       "mi": 91.832
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/sub-agent-return.js",
-      "mi": 82.827
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/wave-scheduler.js",
@@ -1343,10 +1315,6 @@
       "mi": 98
     },
     {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/drift-detection.js",
-      "mi": 101.191
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
       "mi": 110.234
     },
@@ -1411,10 +1379,6 @@
       "mi": 90.345
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution/phases/scope-discovery.js",
-      "mi": 119.929
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-friction-body.js",
       "mi": 116.855
     },
@@ -1433,10 +1397,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/story-close/comment-bodies.js",
       "mi": 119.885
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/format-autofix-scoped.js",
-      "mi": 98.632
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix-shared.js",
@@ -1505,10 +1465,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/story-close/pre-merge-validation.js",
       "mi": 82.771
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/structured-comment-parser.js",
-      "mi": 114.919
     },
     {
       "path": ".agents/scripts/lib/orchestration/task-body-validator.js",
@@ -1743,10 +1699,6 @@
       "mi": 90.144
     },
     {
-      "path": ".agents/scripts/lib/story-init/dependency-guard.js",
-      "mi": 88.902
-    },
-    {
       "path": ".agents/scripts/lib/story-init/dispatch-state-writer.js",
       "mi": 99.256
     },
@@ -1955,10 +1907,6 @@
       "mi": 89.701
     },
     {
-      "path": ".agents/scripts/post-story-plan.js",
-      "mi": 95.645
-    },
-    {
       "path": ".agents/scripts/post-structured-comment.js",
       "mi": 95.413
     },
@@ -2037,10 +1985,6 @@
     {
       "path": ".agents/scripts/reconcile-sub-issues.js",
       "mi": 98.904
-    },
-    {
-      "path": ".agents/scripts/render-manifest.js",
-      "mi": 92.124
     },
     {
       "path": ".agents/scripts/resync-status-column.js",
@@ -3137,10 +3081,6 @@
     {
       "path": "tests/lib/branch-name-guard.test.js",
       "mi": 123.889
-    },
-    {
-      "path": "tests/lib/changed-files.test.js",
-      "mi": 107.313
     },
     {
       "path": "tests/lib/checks/baseline-drift-main-checkout.test.js",
@@ -5009,10 +4949,6 @@
     {
       "path": "tests/structure.test.js",
       "mi": 107.034
-    },
-    {
-      "path": "tests/structured-comment-parser.test.js",
-      "mi": 114.734
     },
     {
       "path": "tests/sync-claude-commands-frontmatter.test.js",
