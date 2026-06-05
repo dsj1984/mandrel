@@ -16,6 +16,7 @@
  * git are swallowed as warnings so the close path is never blocked.
  */
 
+import { parseNameOnlyStdout } from '../../../changed-files.js';
 import { parseFencedJsonComment } from '../../structured-comment-parser.js';
 import { findStructuredComment } from '../../ticketing/reads.js';
 import { postStructuredComment } from '../../ticketing/state.js';
@@ -37,11 +38,7 @@ export function getDiffFiles(gitSync, cwd, baseBranch) {
       `origin/${baseBranch}...HEAD`,
     );
     if (typeof raw !== 'string') return [];
-    return raw
-      .split('\n')
-      .map((l) => l.trim())
-      .filter(Boolean)
-      .sort();
+    return parseNameOnlyStdout(raw).sort();
   } catch {
     return [];
   }

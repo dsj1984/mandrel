@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  diffNameOnly,
   getChangedFiles,
   getStagedFiles,
+  parseNameOnlyStdout,
   resolvePreviewScope,
 } from '../../.agents/scripts/lib/changed-files.js';
 
@@ -168,5 +170,140 @@ describe('resolvePreviewScope', () => {
     assert.equal(out.scope, 'full');
     assert.equal(out.scopeSet, null);
     assert.equal(out.diffRef, null);
+  });
+});
+
+describe('parseNameOnlyStdout', () => {
+  it('returns an empty array for null/undefined/empty input', () => {
+    assert.deepEqual(parseNameOnlyStdout(null), []);
+    assert.deepEqual(parseNameOnlyStdout(undefined), []);
+    assert.deepEqual(parseNameOnlyStdout(''), []);
+  });
+
+  it('splits on newlines and trims whitespace', () => {
+    assert.deepEqual(parseNameOnlyStdout('a.js\nb.js\n'), ['a.js', 'b.js']);
+  });
+
+  it('filters out blank lines', () => {
+    assert.deepEqual(parseNameOnlyStdout('a.js\n\nb.js'), ['a.js', 'b.js']);
+  });
+
+  it('normalizes Windows backslash separators to forward slashes', () => {
+    assert.deepEqual(parseNameOnlyStdout('lib\\foo\\bar.js\n'), [
+      'lib/foo/bar.js',
+    ]);
+  });
+});
+
+describe('diffNameOnly', () => {
+  function makeSpawn(result) {
+    const calls = [];
+    const gitSpawn = (cwd, ...args) => {
+      calls.push({ cwd, args });
+      return result;
+    };
+    return { gitSpawn, calls };
+  }
+
+  it('builds a three-dot range from baseRef + headRef and parses the result', () => {
+    const { gitSpawn, calls } = makeSpawn({
+      status: 0,
+      stdout: 'lib/a.js\nlib/b.js\n',
+      stderr: '',
+    });
+    const out = diffNameOnly({
+      baseRef: 'origin/epic/1',
+      headRef: 'story-99',
+      cwd: '/repo',
+      gitSpawn,
+    });
+    assert.deepEqual(out, ['lib/a.js', 'lib/b.js']);
+    assert.deepEqual(calls[0].args, [
+      'diff',
+      '--name-only',
+      'origin/epic/1...story-99',
+    ]);
+  });
+
+  it('defaults headRef to HEAD when only baseRef is supplied', () => {
+    const { gitSpawn, calls } = makeSpawn({
+      status: 0,
+      stdout: '',
+      stderr: '',
+    });
+    diffNameOnly({ baseRef: 'main', cwd: '/repo', gitSpawn });
+    assert.deepEqual(calls[0].args, ['diff', '--name-only', 'main...HEAD']);
+  });
+
+  it('uses a two-dot range when threeDot is false', () => {
+    const { gitSpawn, calls } = makeSpawn({
+      status: 0,
+      stdout: '',
+      stderr: '',
+    });
+    diffNameOnly({
+      baseRef: 'main',
+      headRef: 'HEAD',
+      threeDot: false,
+      cwd: '/repo',
+      gitSpawn,
+    });
+    assert.deepEqual(calls[0].args, ['diff', '--name-only', 'main..HEAD']);
+  });
+
+  it('uses the pre-built range string when supplied, ignoring baseRef/headRef', () => {
+    const { gitSpawn, calls } = makeSpawn({
+      status: 0,
+      stdout: 'x.js\n',
+      stderr: '',
+    });
+    const out = diffNameOnly({
+      range: 'epic/3599...story-3636',
+      baseRef: 'ignored',
+      headRef: 'ignored',
+      cwd: '/repo',
+      gitSpawn,
+    });
+    assert.deepEqual(out, ['x.js']);
+    assert.deepEqual(calls[0].args, [
+      'diff',
+      '--name-only',
+      'epic/3599...story-3636',
+    ]);
+  });
+
+  it('throws a descriptive error on non-zero git exit', () => {
+    const { gitSpawn } = makeSpawn({
+      status: 128,
+      stdout: '',
+      stderr: 'fatal: not a git repo',
+    });
+    assert.throws(
+      () => diffNameOnly({ range: 'main...HEAD', cwd: '/repo', gitSpawn }),
+      (err) =>
+        err instanceof Error &&
+        /\[diff-name-only\]/.test(err.message) &&
+        /fatal: not a git repo/.test(err.message),
+    );
+  });
+
+  it('returns an empty array for an empty diff', () => {
+    const { gitSpawn } = makeSpawn({ status: 0, stdout: '', stderr: '' });
+    assert.deepEqual(
+      diffNameOnly({ range: 'main...HEAD', cwd: '/repo', gitSpawn }),
+      [],
+    );
+  });
+
+  it('normalizes backslash separators in the output', () => {
+    const { gitSpawn } = makeSpawn({
+      status: 0,
+      stdout: 'lib\\foo.js\n',
+      stderr: '',
+    });
+    assert.deepEqual(
+      diffNameOnly({ range: 'main...HEAD', cwd: '/repo', gitSpawn }),
+      ['lib/foo.js'],
+    );
   });
 });

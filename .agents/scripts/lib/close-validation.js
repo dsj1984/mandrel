@@ -17,6 +17,7 @@
 
 import { execFileSync, spawn } from 'node:child_process';
 import { writeFile as defaultWriteFile } from 'node:fs/promises';
+import { diffNameOnly } from './changed-files.js';
 import { defaultGetHeadSha } from './close-validation/projections/head-sha.js';
 import { getCommands } from './config/commands.js';
 import { storyArtifactPath } from './config/temp-paths.js';
@@ -151,20 +152,25 @@ export function listChangedFilesForFormatGate({ cwd, baseRef }) {
   if (!cwd) throw new Error('listChangedFilesForFormatGate: cwd is required');
   if (!baseRef)
     throw new Error('listChangedFilesForFormatGate: baseRef is required');
-  const out = execFileSync(
-    'git',
-    ['diff', '--name-only', `${baseRef}...HEAD`],
-    {
-      cwd,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    },
-  );
-  return out
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => line.replace(/\\/g, '/'));
+  // Bridge execFileSync into the gitSpawn(cwd, ...args) contract so
+  // diffNameOnly owns the stdout → path-list conversion.
+  const gitSpawn = (_cwd, ...args) => {
+    try {
+      const stdout = execFileSync('git', args, {
+        cwd: _cwd,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      return { status: 0, stdout, stderr: '' };
+    } catch (err) {
+      return {
+        status: err.status ?? 1,
+        stdout: err.stdout ?? '',
+        stderr: err.stderr ?? err.message,
+      };
+    }
+  };
+  return diffNameOnly({ baseRef, cwd, gitSpawn });
 }
 
 function buildChangedFileScope(baseRef) {

@@ -24,6 +24,7 @@
 
 import { execFileSync } from 'node:child_process';
 
+import { diffNameOnly } from '../../changed-files.js';
 import { Logger as DefaultLogger } from '../../Logger.js';
 import {
   commitDirtyPaths,
@@ -35,23 +36,39 @@ const TAG = '[format-autofix-scoped]';
 
 /**
  * List the files changed between `epicBranch` and `storyBranch` using the
- * three-dot merge-base diff. Matches the semantics of `lib/changed-files.js`
- * but consumes the local `git` interface so callers can inject a stub.
+ * three-dot merge-base diff. Delegates parsing to `diffNameOnly` from
+ * `changed-files.js` so the stdout → path-list conversion lives in one place.
+ *
+ * The `git` parameter uses the caller's local interface:
+ * `(args: string[], opts: object) => string`. A bridge adapter wraps it into
+ * the `gitSpawn(cwd, ...args)` shape that `diffNameOnly` expects.
  *
  * @param {{ cwd: string, epicBranch: string, storyBranch: string, git: Function }} opts
  * @returns {string[]}
  */
 function listChangedFiles({ cwd, epicBranch, storyBranch, git }) {
-  const out = git(['diff', '--name-only', `${epicBranch}...${storyBranch}`], {
+  // Bridge the (args, opts) → string interface into gitSpawn(cwd, ...args).
+  const gitSpawn = (_cwd, ...args) => {
+    try {
+      const stdout = git(args, {
+        cwd: _cwd,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      });
+      return { status: 0, stdout: stdout ?? '', stderr: '' };
+    } catch (err) {
+      return {
+        status: err.status ?? 1,
+        stdout: err.stdout ?? '',
+        stderr: err.stderr ?? err.message,
+      };
+    }
+  };
+  return diffNameOnly({
+    range: `${epicBranch}...${storyBranch}`,
     cwd,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'ignore'],
+    gitSpawn,
   });
-  return out
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .map((line) => line.replace(/\\/g, '/'));
 }
 
 /**
