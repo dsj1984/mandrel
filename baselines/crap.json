@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T14:42:30.277Z",
+  "generatedAt": "2026-06-05T15:21:32.544Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -12340,12 +12340,6 @@
       "method": "validateBlockers",
       "startLine": 21,
       "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/story-init/context-resolver.js",
-      "method": "resolveContext",
-      "startLine": 26,
-      "crap": 10.629221665908057
     },
     {
       "path": ".agents/scripts/lib/story-init/dispatch-state-writer.js",
