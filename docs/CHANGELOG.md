@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.52.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.51.0...mandrel-v1.52.0) (2026-06-06)
+
+
+### Added
+
+* **baselines:** add code-duplication (DRY) quality gate (refs [#3664](https://github.com/dsj1984/mandrel/issues/3664)) ([#3670](https://github.com/dsj1984/mandrel/issues/3670)) ([5057a32](https://github.com/dsj1984/mandrel/commit/5057a327d92eefb8b03e0f64e7710d7a00b64977))
+* Epic [#3597](https://github.com/dsj1984/mandrel/issues/3597) — generalize dynamic-workflow audit orchestration to 4 lenses + retire pilot ([#3680](https://github.com/dsj1984/mandrel/issues/3680)) ([970ddbb](https://github.com/dsj1984/mandrel/commit/970ddbb735b36a27d14b0375b84ca3899c136f82))
+* **finalize:** embed a run-trace digest in the epic-handoff comment (refs [#3669](https://github.com/dsj1984/mandrel/issues/3669)) ([#3676](https://github.com/dsj1984/mandrel/issues/3676)) ([1170cf3](https://github.com/dsj1984/mandrel/commit/1170cf35a32f1e45f7c57c0be1922c91a7cd7c78))
+* **tech-debt:** Epic [#3599](https://github.com/dsj1984/mandrel/issues/3599) — Clean-Code & Performance Audit Remediation ([#3673](https://github.com/dsj1984/mandrel/issues/3673)) ([ec013c9](https://github.com/dsj1984/mandrel/commit/ec013c904e4206cbf919b6c6669210492a9f3838))
+* **workflows:** add role re-anchoring and minimal-handoff discipline to delivery sub-agents (refs [#3667](https://github.com/dsj1984/mandrel/issues/3667)) ([#3674](https://github.com/dsj1984/mandrel/issues/3674)) ([1acc68d](https://github.com/dsj1984/mandrel/commit/1acc68dbc9b191bd1b88c0b777e17d65e3472eff))
+
+
+### Fixed
+
+* **git-cleanup:** decouple ref reap from worktree removal so a Windows-locked merged worktree no longer strands its ref (refs [#3598](https://github.com/dsj1984/mandrel/issues/3598)) ([#3617](https://github.com/dsj1984/mandrel/issues/3617)) ([819ebbc](https://github.com/dsj1984/mandrel/commit/819ebbcf73d7bffcf44e0fe81329de405c0e6ea5))
+* **scripts:** add ESM boundary package.json to silence MODULE_TYPELESS_PACKAGE_JSON in consumers (refs [#3589](https://github.com/dsj1984/mandrel/issues/3589)) ([#3677](https://github.com/dsj1984/mandrel/issues/3677)) ([4364c51](https://github.com/dsj1984/mandrel/commit/4364c515c6b1f936b4f9537c9ba274954763160a))
+* **story-close:** canonicalize both paths in cd-out guard so symlinked prefixes (macOS /tmp) no longer false-negative (refs [#3672](https://github.com/dsj1984/mandrel/issues/3672)) ([#3678](https://github.com/dsj1984/mandrel/issues/3678)) ([e37b27a](https://github.com/dsj1984/mandrel/commit/e37b27a0e3b255963337a8b77553588b93d8a9da))
+
+
+### Changed
+
+* **dynamic-workflow:** share report contract assertion core (refs [#3681](https://github.com/dsj1984/mandrel/issues/3681)) ([#3683](https://github.com/dsj1984/mandrel/issues/3683)) ([75851fe](https://github.com/dsj1984/mandrel/commit/75851fe8ac4213507bcdc05e95728a8aab563b7a))
+
 ## [1.51.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.50.0...mandrel-v1.51.0) (2026-06-04)
 
 
