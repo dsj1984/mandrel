@@ -142,6 +142,25 @@ function filterToStoryDiff({ miRows, crapRows, storyDiffPaths }) {
   return { mi, crap };
 }
 
+function normalizeTargetDir(dir) {
+  if (typeof dir !== 'string' || dir.length === 0) return null;
+  return dir.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '');
+}
+
+function buildRequiredScopeFilePredicate({
+  kind,
+  config,
+  getQuality = defaultGetQuality,
+}) {
+  const quality = getQuality(config) ?? {};
+  const targetDirs = Array.isArray(quality?.[kind]?.targetDirs)
+    ? quality[kind].targetDirs.map(normalizeTargetDir).filter(Boolean)
+    : [];
+  if (targetDirs.length === 0) return () => true;
+  return (file) =>
+    targetDirs.some((dir) => file === dir || file.startsWith(`${dir}/`));
+}
+
 /**
  * Check whether a `baseline-refresh-regression` signal tagged with the
  * runner's `source.tool === 'auto-refresh-runner'` already exists in the
@@ -316,6 +335,8 @@ async function runRefreshForKind({
   epicBranch,
   storyBranch,
   writePath,
+  config,
+  getQuality,
   refreshBaseline,
   scorer,
   fsImpl,
@@ -333,6 +354,12 @@ async function runRefreshForKind({
     scorer,
     fs: fsImpl,
     cwd,
+    requireRowsForScopeFiles: true,
+    requiredScopeFilePredicate: buildRequiredScopeFilePredicate({
+      kind,
+      config,
+      getQuality,
+    }),
   });
   return { writePath, wrote: result?.wrote === true };
 }
@@ -422,6 +449,7 @@ async function stageRefreshArtifacts({
   epicBranch,
   storyBranch,
   config,
+  getQuality,
   getBaselines,
   refreshBaseline,
   scorerBuilder,
@@ -466,6 +494,8 @@ async function stageRefreshArtifacts({
         epicBranch,
         storyBranch,
         writePath: miAbs,
+        config,
+        getQuality,
         refreshBaseline,
         scorer,
         fsImpl,
@@ -479,6 +509,8 @@ async function stageRefreshArtifacts({
         epicBranch,
         storyBranch,
         writePath: crapAbs,
+        config,
+        getQuality,
         refreshBaseline,
         scorer,
         fsImpl,
@@ -705,6 +737,7 @@ export async function runAutoRefresh({
     epicBranch,
     storyBranch,
     config,
+    getQuality,
     getBaselines,
     refreshBaseline,
     scorerBuilder,

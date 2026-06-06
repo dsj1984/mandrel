@@ -179,6 +179,25 @@ function resolveBaselineWritePath({
   return path.isAbsolute(rel) ? rel : path.resolve(cwd, rel);
 }
 
+function normalizeTargetDir(dir) {
+  if (typeof dir !== 'string' || dir.length === 0) return null;
+  return dir.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '');
+}
+
+function buildRequiredScopeFilePredicate({
+  kind,
+  config,
+  getQuality = defaultGetQuality,
+}) {
+  const quality = getQuality(config) ?? {};
+  const targetDirs = Array.isArray(quality?.[kind]?.targetDirs)
+    ? quality[kind].targetDirs.map(normalizeTargetDir).filter(Boolean)
+    : [];
+  if (targetDirs.length === 0) return () => true;
+  return (file) =>
+    targetDirs.some((dir) => file === dir || file.startsWith(`${dir}/`));
+}
+
 /**
  * Stage the baseline file, then check whether the staged tree differs
  * from HEAD via `git diff --cached --exit-code`. Returns one of:
@@ -318,6 +337,11 @@ export async function runRefreshCommit({
       scorer,
       fs: fsImpl,
       cwd,
+      requireRowsForScopeFiles: true,
+      requiredScopeFilePredicate: buildRequiredScopeFilePredicate({
+        kind,
+        config,
+      }),
     });
   } catch (err) {
     return {
