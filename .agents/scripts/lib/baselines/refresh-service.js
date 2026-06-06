@@ -52,6 +52,8 @@
  *     cwd,         // working directory for git diff; default process.cwd()
  *     generatedAt, // optional pinned timestamp (test determinism); falls
  *                  // back to MANDREL_BASELINE_GENERATED_AT, then now().
+ *     requireRowsForScopeFiles, // optional fail-loud guard for Story-close
+ *     requiredScopeFilePredicate, // optional predicate to narrow guarded files
  *   }) -> Promise<{
  *     kind, writePath, scope: { mode, ref?, files: string[] },
  *     envelope, wrote: boolean
@@ -304,6 +306,8 @@ const KIND_SCORERS = Object.freeze({
  *   gitDiff?: (args: { baseRef: string, headRef: string, cwd: string }) => Iterable<string> | Promise<Iterable<string>>,
  *   cwd?: string,
  *   generatedAt?: string,
+ *   requireRowsForScopeFiles?: boolean,
+ *   requiredScopeFilePredicate?: (file: string) => boolean,
  * }} opts
  * @returns {Promise<{
  *   kind: string,
@@ -327,6 +331,8 @@ export async function refreshBaseline(opts = {}) {
     gitDiff = defaultGitDiff,
     cwd = process.cwd(),
     generatedAt,
+    requireRowsForScopeFiles = false,
+    requiredScopeFilePredicate,
   } = opts;
 
   validateOptions({ kind, scopeFiles, fullScope, writePath });
@@ -379,6 +385,14 @@ export async function refreshBaseline(opts = {}) {
     path: canonicalizeBaselinePath(row.path ?? row.file),
   }));
 
+  assertRequiredScopeRows({
+    kind,
+    scope,
+    canonicalRows,
+    requireRowsForScopeFiles,
+    requiredScopeFilePredicate,
+  });
+
   // Read the prior envelope so out-of-scope rows survive (Task #2209) and
   // the structural-equality short-circuit can fire.
   const priorEnvelope = readPriorEnvelope(writePath, fs);
@@ -419,6 +433,35 @@ export async function refreshBaseline(opts = {}) {
     envelope,
     wrote,
   };
+}
+
+function assertRequiredScopeRows({
+  kind,
+  scope,
+  canonicalRows,
+  requireRowsForScopeFiles,
+  requiredScopeFilePredicate,
+}) {
+  if (!requireRowsForScopeFiles || scope.mode === 'full') return;
+  const predicate =
+    typeof requiredScopeFilePredicate === 'function'
+      ? requiredScopeFilePredicate
+      : () => true;
+  const requiredFiles = scope.files.filter(predicate);
+  if (requiredFiles.length === 0) return;
+
+  const rowPaths = new Set(
+    canonicalRows
+      .map((row) => row?.path)
+      .filter((rowPath) => typeof rowPath === 'string' && rowPath.length > 0),
+  );
+  const missing = requiredFiles.filter((file) => !rowPaths.has(file));
+  if (missing.length === 0) return;
+
+  throw new Error(
+    `refreshBaseline(${kind}): scoped file(s) produced no baseline rows: ${missing.join(', ')}. ` +
+      'Run coverage/scoring for the changed files or use full-scope refresh; refusing to write a baseline that would silently drop Story-owned files.',
+  );
 }
 
 /**

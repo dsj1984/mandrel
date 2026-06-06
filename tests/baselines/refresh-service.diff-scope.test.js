@@ -179,6 +179,64 @@ describe('refreshBaseline — diff-scope default (Task #2207)', () => {
       scorer: makeRecordingScorer([]),
     });
   });
+
+  it('keeps Story-owned new files in refreshed maintainability and CRAP baselines', async () => {
+    const newFile = '.agents/scripts/lib/new-story-owned-file.js';
+    const cases = [
+      {
+        kind: 'maintainability',
+        rows: [{ path: newFile, mi: 88 }],
+      },
+      {
+        kind: 'crap',
+        rows: [
+          { path: newFile, method: 'newStoryOwnedFile', startLine: 1, crap: 2 },
+        ],
+      },
+    ];
+
+    for (const { kind, rows } of cases) {
+      const result = await refreshBaseline({
+        kind,
+        writePath: path.join(workDir, `${kind}.json`),
+        scopeFiles: null,
+        fullScope: false,
+        generatedAt: FIXED,
+        gitDiff: makeRecordingGitDiff([newFile]),
+        scorer: makeRecordingScorer(rows),
+        requireRowsForScopeFiles: true,
+        requiredScopeFilePredicate: (file) =>
+          file.startsWith('.agents/scripts/'),
+      });
+
+      assert.equal(result.scope.mode, 'diff');
+      assert.equal(
+        result.envelope.rows.some((row) => row.path === newFile),
+        true,
+      );
+    }
+  });
+
+  it('fails loudly when a required Story-owned scoped file produces no baseline row', async () => {
+    const newFile = '.agents/scripts/lib/unscored-story-owned-file.js';
+
+    await assert.rejects(
+      () =>
+        refreshBaseline({
+          kind: 'maintainability',
+          writePath: path.join(workDir, 'maintainability-missing.json'),
+          scopeFiles: null,
+          fullScope: false,
+          generatedAt: FIXED,
+          gitDiff: makeRecordingGitDiff([newFile]),
+          scorer: makeRecordingScorer([]),
+          requireRowsForScopeFiles: true,
+          requiredScopeFilePredicate: (file) =>
+            file.startsWith('.agents/scripts/'),
+        }),
+      /produced no baseline rows: \.agents\/scripts\/lib\/unscored-story-owned-file\.js/,
+    );
+  });
 });
 
 describe('deriveScopeFromDiff — direct invocation', () => {
