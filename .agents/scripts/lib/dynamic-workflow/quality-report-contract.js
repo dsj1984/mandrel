@@ -1,4 +1,6 @@
 // .agents/scripts/lib/dynamic-workflow/quality-report-contract.js
+import { assertSectionsContract } from './report-contract-core.js';
+
 /**
  * The `audit-quality` report contract (Epic #3597, Story #3614).
  *
@@ -81,24 +83,8 @@ export const IMPACT_LEVELS = Object.freeze(['High', 'Medium', 'Low']);
  * @returns {{ conformant: boolean, missingSections: string[], hasTitle: boolean }}
  */
 export function assertReportContract(markdown) {
-  const text = typeof markdown === 'string' ? markdown : '';
-  const hasTitle = new RegExp(
-    `^#\\s+${escapeRegExp(REPORT_TITLE)}\\s*$`,
-    'm',
-  ).test(text);
-
-  const missingSections = REQUIRED_SECTIONS.filter(
-    (heading) =>
-      !new RegExp(`^##\\s+${escapeRegExp(heading)}\\s*$`, 'm').test(text),
-  );
-
-  return {
-    conformant: hasTitle && missingSections.length === 0,
-    missingSections,
-    hasTitle,
-  };
-}
-
-function escapeRegExp(str) {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return assertSectionsContract(markdown, {
+    title: REPORT_TITLE,
+    requiredSections: REQUIRED_SECTIONS,
+  });
 }
