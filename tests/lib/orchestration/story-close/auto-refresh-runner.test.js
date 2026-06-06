@@ -30,6 +30,8 @@ const AGENT_SETTINGS_FIXTURE = {
       maintainability: { path: 'baselines/maintainability.json' },
       crap: { path: 'baselines/crap.json' },
     },
+    maintainability: { targetDirs: ['.agents/scripts', 'tests'] },
+    crap: { targetDirs: ['.agents/scripts'] },
   },
 };
 
@@ -214,7 +216,23 @@ describe('runAutoRefresh — Story #2205 routing through refreshBaseline()', () 
       assert.equal(typeof call.writePath, 'string');
       assert.equal(call.baseRef, 'origin/epic/2173');
       assert.equal(call.headRef, 'story-2205');
+      assert.equal(call.requireRowsForScopeFiles, true);
+      assert.equal(typeof call.requiredScopeFilePredicate, 'function');
     }
+    const miCall = calls.find((c) => c.kind === 'maintainability');
+    const crapCall = calls.find((c) => c.kind === 'crap');
+    assert.equal(
+      miCall.requiredScopeFilePredicate('tests/new-baseline.test.js'),
+      true,
+    );
+    assert.equal(
+      crapCall.requiredScopeFilePredicate('tests/new-baseline.test.js'),
+      false,
+    );
+    assert.equal(
+      crapCall.requiredScopeFilePredicate('.agents/scripts/new-baseline.js'),
+      true,
+    );
 
     // AC: only the kind that actually drifted produces a commit. The
     // crap kind reported `wrote:false` so the runner never staged it.
