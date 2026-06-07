@@ -113,6 +113,18 @@ function gitUtilsMock() {
     namedExports: {
       getStoryBranch: (_e, s) => `story-${Number(s)}`,
       gitSync: () => ({ status: 0, stdout: '', stderr: '' }),
+      // refs #3685 — single-story-close reaches base-sync / changed-files
+      // through the lazily-imported runner, i.e. only after this mock is
+      // installed. Surface every git-utils export the chain imports at load
+      // time (sync retries + the createGitInterface seam) or the loader throws.
+      gitFetchWithRetry: async () => ({ status: 0, stdout: '', stderr: '' }),
+      gitPullWithRetry: async () => ({ status: 0, stdout: '', stderr: '' }),
+      createGitInterface: () => ({
+        gitSync: () => '',
+        gitSpawn: () => ({ status: 0, stdout: '', stderr: '' }),
+        gitFetchWithRetry: async () => ({ status: 0, stdout: '', stderr: '' }),
+        gitPullWithRetry: async () => ({ status: 0, stdout: '', stderr: '' }),
+      }),
     },
   };
 }
