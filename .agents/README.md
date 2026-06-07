@@ -260,7 +260,7 @@ in `runtime-deps.json`.
 | Check registry authoring rules | [§ Self-healing checks](#self-healing-checks) |
 | JSON Schema conventions | [§ Schemas](#schemas) |
 | Bootstrap script (project + GitHub setup) | [`scripts/bootstrap.js`](scripts/bootstrap.js) |
-| Adopt the agent-driven QA harness in your project | [§ Adopting the QA harness](#adopting-the-qa-harness) |
+| Adopt the QA workflows (`/qa-explore`, `/qa-run-harness`) in your project | [§ Adopting the QA harness](#adopting-the-qa-harness) |
 | Coordinate two operators on the same repo (lease model) | [§ Multi-developer coordination](#multi-developer-coordination) |
 
 ---
@@ -790,21 +790,48 @@ only affect this repo's own dogfood runs.
 
 ## Adopting the QA harness
 
-The agent-driven QA harness (`/run-qa-harness`) drives a consumer's Gherkin
-`.feature` scenarios through a real browser (the `chrome-devtools` MCP
-surface), captures per-surface console/network into structured `F#` findings,
-and drafts follow-up tickets for operator sign-off. The end-to-end procedure
-is the SSOT in
-[`workflows/run-qa-harness.md`](workflows/run-qa-harness.md); the
-instrumentation conventions live in the
-[`skills/stack/qa/qa-harness`](skills/stack/qa/qa-harness/SKILL.md) skill; the
-architectural overview (run pipeline, contract fields, finding shape) is in
-[`docs/architecture.md` § Agent-driven QA harness](../docs/architecture.md#agent-driven-qa-harness).
+Mandrel ships **two** complementary QA loops, both adopting the `qa-engineer`
+persona and both reading the same `qa.*` project contract from `.agentrc.json`:
 
-Binding the harness is **opt-in**. A consumer that has not bound it gets a
-loud, actionable failure when `/run-qa-harness` runs — there is no
-auto-detection fallback. To adopt the harness, a consumer project takes three
-concrete steps.
+- **`/qa-explore <surface>`** — an open-ended, human-in-the-loop
+  **Plan → Capture → Triage** exploratory sweep. The operator names a surface;
+  the agent probes it for product bugs, environment-setup friction, tooling/DX
+  gaps, missing tests, and enhancement ideas, recording each observation as a
+  `QaLedgerItem` against the
+  [`qa-ledger.schema.json`](schemas/qa-ledger.schema.json) contract. Capture is
+  strictly read-only — the only write it performs is appending ledger lines to
+  the session ledger at **`temp/qa/<sessionId>.ndjson`** (session scratch under
+  `project.paths.tempRoot`, gitignored, never committed). Triage then
+  classifies, dedups, and routes each item into a `file` / `defer` / `dismiss`
+  disposition; every phase transition and every ticket-filing write is
+  operator-gated. A resumed session (`--session-id <id>`) appends and carries
+  its un-triaged backlog forward. The end-to-end procedure is the SSOT in
+  [`workflows/qa-explore.md`](workflows/qa-explore.md), with the deterministic
+  decision seams under `scripts/lib/qa/` (session, redaction, coverage,
+  missing-test) and `scripts/lib/findings/` (classification, dedup/route).
+- **`/qa-run-harness <selector>`** — the **automated complement**: it drives a
+  consumer's Gherkin `.feature` scenarios through a real browser (the
+  `chrome-devtools` MCP surface), captures per-surface console/network into
+  structured `F#` findings, and drafts follow-up tickets for operator
+  sign-off. The end-to-end procedure is the SSOT in
+  [`workflows/qa-run-harness.md`](workflows/qa-run-harness.md); the
+  instrumentation conventions live in the
+  [`skills/stack/qa/qa-harness`](skills/stack/qa/qa-harness/SKILL.md) skill; the
+  architectural overview (run pipeline, contract fields, finding shape) is in
+  [`docs/architecture.md` § Agent-driven QA harness](../docs/architecture.md#agent-driven-qa-harness).
+
+Reach for `/qa-explore` for ad-hoc exploration of a freshly delivered
+Story/Feature or a structured bug-hunt you want captured into a triageable
+ledger; reach for `/qa-run-harness` to step a **known** scenario set through
+the browser for a regression pass.
+
+Binding the QA contract is **opt-in**. Both workflows resolve the consumer's
+`qa` block through the single seam
+[`resolve-qa-contract.js`](scripts/lib/qa/resolve-qa-contract.js); a consumer
+that has not bound it gets a loud, actionable failure ("this project has not
+bound the QA harness") when either workflow runs — there is no auto-detection
+fallback. To adopt the QA surface, a consumer project takes three concrete
+steps.
 
 ### 1. Bind the `qa` block in `.agentrc.json`
 
@@ -879,7 +906,11 @@ author `personas` as the object map and supply per-persona overrides:
 environment, never inlined) and `{ signInSkill }` points at a per-persona
 sign-in skill.
 
-Once these three are in place, `/run-qa-harness <selector>` resolves the
-contract and sweeps the selected scenarios. The `chrome-devtools` MCP surface
-is a host-provided runtime dependency; when it is unavailable the harness
-degrades with a clear error rather than falling back to a headless runner.
+Once these three `qa.*` keys are in place, both `/qa-explore <surface>` and
+`/qa-run-harness <selector>` resolve the contract and operate against the
+bound surface. For `/qa-run-harness`, the `chrome-devtools` MCP surface is a
+host-provided runtime dependency; when it is unavailable the harness degrades
+with a clear error rather than falling back to a headless runner.
+`/qa-explore` reads the same `qa.*` keys to scope its exploration and to drive
+the deterministic coverage/missing-test verdicts, then records each
+observation into the `temp/qa/` ledger described above.

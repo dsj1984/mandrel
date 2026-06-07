@@ -1,0 +1,198 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, beforeEach, describe, it } from 'node:test';
+
+import {
+  isUntriaged,
+  ledgerPathFor,
+  readLedger,
+  resolveQaSession,
+  resolveSessionId,
+  TRIAGED_DISPOSITIONS,
+} from '../../../.agents/scripts/lib/qa/qa-session.js';
+
+/**
+ * Story #3723 — session-id + ledger resume helper (Epic #3686).
+ *
+ * The resume seam lets a later /qa-explore run pick up where the last left
+ * off: it resolves a stable session-id, finds the ledger under `temp/qa/`,
+ * reads the parsed items plus the still-un-triaged subset (the rolling
+ * backlog), and on a second run with the same session-id reuses the existing
+ * ledger rather than overwriting it. These tests pin those four acceptance
+ * criteria.
+ */
+
+let tmpRoot;
+/** A config bag whose tempRoot points at an isolated tmp dir for each test. */
+function configFor(root) {
+  return { project: { paths: { tempRoot: root } } };
+}
+
+/** Write ndjson `items` to the session ledger, creating `qa/` as needed. */
+function seedLedger(ledgerPath, items) {
+  fs.mkdirSync(path.dirname(ledgerPath), { recursive: true });
+  const body = items.map((i) => JSON.stringify(i)).join('\n');
+  fs.writeFileSync(ledgerPath, `${body}\n`, 'utf8');
+}
+
+beforeEach(() => {
+  tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-session-'));
+});
+
+afterEach(() => {
+  fs.rmSync(tmpRoot, { recursive: true, force: true });
+});
+
+describe('resolveSessionId — stable id resolution', () => {
+  it('prefers an explicit session-id and slugifies it', () => {
+    assert.equal(
+      resolveSessionId({ sessionId: 'sweep/2026 alpha' }),
+      'sweep-2026-alpha',
+    );
+  });
+
+  it('falls back to the QA_SESSION_ID env var', () => {
+    assert.equal(
+      resolveSessionId({ env: { QA_SESSION_ID: 'nightly-42' } }),
+      'nightly-42',
+    );
+  });
+
+  it('derives a fresh id when none is supplied', () => {
+    const id = resolveSessionId({ env: {} });
+    assert.match(id, /^qa-\d{4}-\d{2}-\d{2}-[0-9a-f]{8}$/);
+  });
+
+  it('never lets a hostile label escape the qa directory', () => {
+    const id = resolveSessionId({ sessionId: '../../etc/passwd' });
+    assert.ok(!id.includes('/'));
+    assert.ok(!id.includes('\\'));
+    assert.ok(!id.includes('..'));
+  });
+});
+
+describe('ledgerPathFor — path under temp/qa/', () => {
+  it('places the ledger at <tempRoot>/qa/<sessionId>.ndjson', () => {
+    const p = ledgerPathFor('alpha', configFor(tmpRoot));
+    assert.equal(p, path.join(tmpRoot, 'qa', 'alpha.ndjson'));
+  });
+
+  it('uses the framework-default temp root when config is absent', () => {
+    const p = ledgerPathFor('alpha');
+    assert.equal(p, path.join('temp', 'qa', 'alpha.ndjson'));
+  });
+});
+
+describe('isUntriaged — rolling-backlog predicate', () => {
+  it('treats each triaged disposition as triaged', () => {
+    for (const disposition of TRIAGED_DISPOSITIONS) {
+      assert.equal(isUntriaged({ disposition }), false);
+    }
+  });
+
+  it('treats a missing, null, or unknown disposition as untriaged', () => {
+    assert.equal(isUntriaged({}), true);
+    assert.equal(isUntriaged({ disposition: null }), true);
+    assert.equal(isUntriaged({ disposition: '' }), true);
+    assert.equal(isUntriaged({ disposition: 'pending' }), true);
+  });
+});
+
+describe('readLedger — parse items + untriaged subset', () => {
+  it('returns parsed items and the un-triaged subset', () => {
+    const ledgerPath = ledgerPathFor('read', configFor(tmpRoot));
+    seedLedger(ledgerPath, [
+      { id: 'L1', disposition: 'file' },
+      { id: 'L2' },
+      { id: 'L3', disposition: 'defer' },
+      { id: 'L4', disposition: null },
+    ]);
+
+    const { exists, items, untriaged } = readLedger(ledgerPath);
+
+    assert.equal(exists, true);
+    assert.equal(items.length, 4);
+    assert.deepEqual(
+      untriaged.map((i) => i.id),
+      ['L2', 'L4'],
+    );
+  });
+
+  it('skips blank and malformed lines rather than throwing', () => {
+    const ledgerPath = ledgerPathFor('partial', configFor(tmpRoot));
+    fs.mkdirSync(path.dirname(ledgerPath), { recursive: true });
+    fs.writeFileSync(
+      ledgerPath,
+      `${JSON.stringify({ id: 'L1' })}\n\n{not valid json\n`,
+      'utf8',
+    );
+
+    const { items, untriaged } = readLedger(ledgerPath);
+
+    assert.deepEqual(
+      items.map((i) => i.id),
+      ['L1'],
+    );
+    assert.equal(untriaged.length, 1);
+  });
+
+  it('reports a missing ledger as empty, not an error', () => {
+    const ledgerPath = ledgerPathFor('absent', configFor(tmpRoot));
+    const result = readLedger(ledgerPath);
+
+    assert.deepEqual(result, { exists: false, items: [], untriaged: [] });
+  });
+});
+
+describe('resolveQaSession — resume contract', () => {
+  it('resolves a stable id and ledger path under temp/qa/', () => {
+    const session = resolveQaSession({
+      sessionId: 'resume-me',
+      config: configFor(tmpRoot),
+    });
+
+    assert.equal(session.sessionId, 'resume-me');
+    assert.equal(
+      session.ledgerPath,
+      path.join(tmpRoot, 'qa', 'resume-me.ndjson'),
+    );
+    assert.equal(session.reused, false);
+    assert.deepEqual(session.items, []);
+    assert.deepEqual(session.untriaged, []);
+  });
+
+  it('reads parsed items and the un-triaged backlog from an existing ledger', () => {
+    const config = configFor(tmpRoot);
+    const ledgerPath = ledgerPathFor('history', config);
+    seedLedger(ledgerPath, [
+      { id: 'L1', disposition: 'dismiss' },
+      { id: 'L2' },
+    ]);
+
+    const session = resolveQaSession({ sessionId: 'history', config });
+
+    assert.equal(session.reused, true);
+    assert.equal(session.items.length, 2);
+    assert.deepEqual(
+      session.untriaged.map((i) => i.id),
+      ['L2'],
+    );
+  });
+
+  it('reuses the existing ledger on a second run rather than overwriting it', () => {
+    const config = configFor(tmpRoot);
+    const ledgerPath = ledgerPathFor('same-session', config);
+    seedLedger(ledgerPath, [{ id: 'L1', disposition: 'file' }]);
+    const originalBytes = fs.readFileSync(ledgerPath);
+
+    const session = resolveQaSession({ sessionId: 'same-session', config });
+
+    // The resolver must surface the reuse signal …
+    assert.equal(session.reused, true);
+    assert.equal(session.ledgerPath, ledgerPath);
+    // … and must not have touched the on-disk ledger.
+    assert.deepEqual(fs.readFileSync(ledgerPath), originalBytes);
+  });
+});

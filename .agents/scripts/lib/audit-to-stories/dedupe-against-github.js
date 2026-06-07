@@ -2,20 +2,26 @@
  * lib/audit-to-stories/dedupe-against-github.js
  *
  * Idempotency gate: classify each proposed group as either eligible-to-create,
- * already-open (skip), or re-occurring (skip, but flag). The classifier
- * leans on the fingerprint footer the workflow stamps into every Story
- * body it creates — `<!-- audit-fingerprints: sha1,sha1,... -->`.
+ * already-open (skip), or re-occurring (skip, but flag).
  *
- * The lookup is delegated to a `provider` port the caller injects. The
- * port exposes a single async method, `findIssuesByFingerprint(sha)`,
- * that returns the matching issues `{ number, state }[]`. In production
- * the CLI wires this to the existing GitHub provider via
- * `provider-factory.js`; in tests it's a thin in-memory stub.
+ * This module owns **no** fingerprint or dedup logic. It routes every
+ * finding through the shared `lib/findings/route-finding.js` helper — the
+ * single dedup/route implementation, shared verbatim with `qa-explore` — and
+ * folds the per-finding `routeFinding` decisions up to a group action:
+ *
+ *   - any finding routes to `update-existing` / `duplicate` → `skip-open`
+ *   - else any finding routes to `regression-of-closed`     → `skip-reoccurring`
+ *   - else (every finding is `new`)                          → `create`
+ *
+ * The GitHub lookup is delegated to a `provider` port the caller injects,
+ * exposing `findIssuesByFingerprint(sha)` → `{ number, state, body }[]`. The
+ * port is adapted into the `searchIssues` shape the shared helper expects.
  *
  * Pure orchestration: this module performs no network I/O itself.
  */
 
-import { parseFingerprintFooter } from './fingerprint.js';
+import { routeFinding } from '../findings/route-finding.js';
+import { toCanonicalFinding } from './finding-adapter.js';
 
 /**
  * @typedef {object} GroupClassification
@@ -28,7 +34,7 @@ import { parseFingerprintFooter } from './fingerprint.js';
 /**
  * @param {object} params
  * @param {Array<object>} params.groups — output of `groupFindings`.
- * @param {Array<{ findIssuesByFingerprint: (sha: string) => Promise<Array<{ number: number, state: string, body?: string }>> }>} params.provider
+ * @param {{ findIssuesByFingerprint: (sha: string) => Promise<Array<{ number: number, state: string, body?: string }>> }} params.provider
  * @returns {Promise<{ classifications: GroupClassification[], summary: { create: number, skipOpen: number, skipReoccurring: number } }>}
  */
 export async function classifyGroupsAgainstGitHub({ groups, provider }) {
@@ -41,45 +47,55 @@ export async function classifyGroupsAgainstGitHub({ groups, provider }) {
     );
   }
 
+  // Adapt the provider port into the `searchIssues` shape routeFinding wants.
+  // routeFinding hands the port the sha it computed off the canonical
+  // projection, which equals the sha the group already carries (both come
+  // from the same `toCanonicalFinding` projection).
+  const searchIssues = (sha) => provider.findIssuesByFingerprint(sha);
+
   const classifications = [];
   const summary = { create: 0, skipOpen: 0, skipReoccurring: 0 };
 
   for (const group of groups) {
-    const shas = (group.findings ?? [])
-      .map((f) => f?.fingerprint?.full)
-      .filter((s) => typeof s === 'string' && s.length === 40);
+    const findings = group.findings ?? [];
 
     const matchedIssues = [];
     const matchedFingerprints = [];
-    for (const sha of shas) {
-      const hits = await provider.findIssuesByFingerprint(sha);
-      if (!Array.isArray(hits)) continue;
-      for (const hit of hits) {
-        if (
-          hit &&
-          typeof hit.number === 'number' &&
-          typeof hit.state === 'string'
-        ) {
-          // Sanity-confirm the footer actually carries this sha so a
-          // false-positive search hit (e.g. body referencing the sha in
-          // prose) does not skip the create.
-          if (typeof hit.body === 'string') {
-            const footerShas = parseFingerprintFooter(hit.body);
-            if (!footerShas.includes(sha)) continue;
-          }
-          matchedIssues.push({ number: hit.number, state: hit.state });
-          if (!matchedFingerprints.includes(sha)) {
-            matchedFingerprints.push(sha);
-          }
-        }
+    let sawOpen = false;
+    let sawClosed = false;
+
+    for (const finding of findings) {
+      const sha = finding?.fingerprint?.full;
+      if (typeof sha !== 'string' || sha.length !== 40) continue;
+
+      const { decision, matchedIssue, fingerprint } = await routeFinding(
+        toCanonicalFinding(finding),
+        { searchIssues },
+      );
+
+      if (decision === 'new') continue;
+
+      if (matchedIssue) {
+        matchedIssues.push({
+          number: matchedIssue.number,
+          state: matchedIssue.state,
+        });
+      }
+      if (!matchedFingerprints.includes(fingerprint)) {
+        matchedFingerprints.push(fingerprint);
+      }
+      if (decision === 'update-existing' || decision === 'duplicate') {
+        sawOpen = true;
+      } else if (decision === 'regression-of-closed') {
+        sawClosed = true;
       }
     }
 
     let action = 'create';
-    if (matchedIssues.some((m) => m.state.toLowerCase() === 'open')) {
+    if (sawOpen) {
       action = 'skip-open';
       summary.skipOpen += 1;
-    } else if (matchedIssues.length > 0) {
+    } else if (sawClosed) {
       action = 'skip-reoccurring';
       summary.skipReoccurring += 1;
     } else {

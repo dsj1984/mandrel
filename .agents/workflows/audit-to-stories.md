@@ -51,9 +51,14 @@ They remain read-only emitters of audit reports.
 
 Run the CLI in `--scan` mode against the resolved glob. It parses every
 `### Finding` block, normalises the fields (`Severity` / `Impact` are
-both recognised; `Dimension` / `Category` likewise), extracts file paths
-mentioned in the body, and stamps each finding with a stable sha1
-fingerprint keyed on `(dimension, normalised title, primary file)`.
+both recognised; `Dimension` / `Category` likewise), and extracts file
+paths mentioned in the body. It then stamps each finding with a stable
+sha1 fingerprint via the shared
+[`lib/findings/route-finding.js`](../scripts/lib/findings/route-finding.js)
+helper (`fingerprintFinding`) — the single dedup/route implementation
+shared with `qa-explore`. The workflow carries **no** separate inline
+fingerprint or dedup code; identity, footer round-trip, and routing all
+flow through that one module.
 
 ```bash
 node .agents/scripts/audit-to-stories.js --scan \
@@ -163,7 +168,8 @@ For each entry whose plan classification is `create`, open a GitHub
 Issue. Use the GitHub MCP tool when available (`issue_write` with
 method `create`), or fall back to `gh issue create`. The body carries
 the canonical sections (Summary, Acceptance Criteria, Agent Prompts,
-Context) plus the machine-readable fingerprint footer
+Context) plus the machine-readable fingerprint footer rendered by the
+shared helper's `fingerprintFooter(sha)`
 (`<!-- audit-fingerprints: sha1,sha1,... -->`) that Phase 6 relies on.
 
 Labels applied:
@@ -176,24 +182,33 @@ Labels applied:
 
 ## Phase 6 — Idempotency (folded into Phase 1 scan)
 
-The `--scan` step's `classifications` array carries the action verdict
-for each group:
+The `--scan` step routes each group's findings through the shared
+[`lib/findings/route-finding.js`](../scripts/lib/findings/route-finding.js)
+helper (`routeFinding`) — the same dedup/route entrypoint `qa-explore`
+consumes — and maps its `decision` onto the group's action verdict in
+the `classifications` array:
 
-- **`create`** — no existing Issue's fingerprint footer references any
-  of this group's finding shas. Eligible.
-- **`skip-open`** — an open Issue already tracks at least one of the
-  group's findings. The dedupe module surfaces the matched Issue
-  numbers; the operator decides whether to comment "Re-detected on
-  <date>" via `--update` semantics (manual for now).
-- **`skip-reoccurring`** — every match is in a closed Issue. The group
+- **`create`** ← `routeFinding` returned `new`: no existing Issue's
+  fingerprint footer references any of this group's finding shas.
+  Eligible.
+- **`skip-open`** ← `routeFinding` returned `update-existing` (or
+  `duplicate`): an open Issue already tracks at least one of the
+  group's findings. The decision surfaces the matched Issue number; the
+  operator decides whether to comment "Re-detected on <date>" via
+  `--update` semantics (manual for now).
+- **`skip-reoccurring`** ← `routeFinding` returned
+  `regression-of-closed`: every match is in a closed Issue. The group
   is skipped by default; flag in the Phase 7 summary so the operator
   can decide whether to reopen.
 
-The dedupe step uses the `findIssuesByFingerprint(sha)` port adapted
-from the project's existing GitHub provider — the actual search runs
-against the repo's open + closed issues for each sha in the group, and
-a footer-confirmation step filters out false-positive search hits whose
-body mentions the sha in prose without the canonical marker.
+`routeFinding` is handed a `searchIssues` port adapted from the
+project's existing GitHub provider — the actual search runs against the
+repo's open + closed issues for each sha in the group, and the helper's
+footer-confirmation step filters out false-positive search hits whose
+body mentions the sha in prose without the canonical marker. The
+workflow owns **no** parallel dedup or footer-parsing code: the
+fingerprint, footer round-trip, and routing all live in that one shared
+module.
 
 When no provider is available (e.g. air-gapped dev environment), pass
 `--no-provider` to the `--scan` step — every group is classified
@@ -217,10 +232,15 @@ opened. When the Standalone-Stories path ran, list every Issue URL.
 
 - **Never** modify any `audit-*` producer workflow. Audit producers
   stay read-only.
-- **Never** open a duplicate Issue. The fingerprint marker and the
-  footer-confirmation step gate every create.
-- **Always** stamp the fingerprint footer in the body of every created
-  Story. Without it, the next run cannot dedupe.
+- **Never** open a duplicate Issue. The shared
+  [`route-finding.js`](../scripts/lib/findings/route-finding.js) helper's
+  fingerprint marker and footer-confirmation step gate every create.
+- **Never** reimplement fingerprinting or dedup inline. Route every
+  finding through the shared `route-finding.js` helper — it is the single
+  dedup/route implementation, shared with `qa-explore`.
+- **Always** stamp the fingerprint footer (via the helper's
+  `fingerprintFooter`) in the body of every created Story. Without it,
+  the next run cannot dedupe.
 - **Always** present the Phase 2, 3, and 4 HITL gates. Do not bypass —
   even when "obvious" — because the severity / grouping / mode picks
   are operator decisions that the workflow's UX contract relies on.
@@ -232,3 +252,6 @@ opened. When the Standalone-Stories path ran, list every Issue URL.
 
 - [`/epic-plan`](epic-plan.md) — the planning pipeline `/audit-to-stories`
   chains into for the Single-Epic grouping mode.
+- [`lib/findings/route-finding.js`](../scripts/lib/findings/route-finding.js) —
+  the shared fingerprint/dedup/route helper this workflow and `qa-explore`
+  both consume. There is no second dedup implementation.

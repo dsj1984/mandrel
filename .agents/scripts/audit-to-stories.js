@@ -34,7 +34,7 @@ import process from 'node:process';
 import { parseArgs } from 'node:util';
 import { buildStoryBody } from './lib/audit-to-stories/build-story-body.js';
 import { classifyGroupsAgainstGitHub } from './lib/audit-to-stories/dedupe-against-github.js';
-import { withFingerprints } from './lib/audit-to-stories/fingerprint.js';
+import { withFingerprints } from './lib/audit-to-stories/finding-adapter.js';
 import { groupFindings } from './lib/audit-to-stories/group-findings.js';
 import { parseAuditReports } from './lib/audit-to-stories/parse-audit-md.js';
 import { buildEpicSeedMarkdown } from './lib/audit-to-stories/seed-epic-from-findings.js';

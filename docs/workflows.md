@@ -60,6 +60,37 @@ invoked manually or automatically at `gate1`–`gate4` by the audit orchestrator
 | `/audit-sre`               | Production release-candidate SRE readiness                                     |
 | `/audit-ux-ui`             | UX/UI consistency and design system adherence                                  |
 
+## QA workflows
+
+Two complementary QA loops. `/qa-explore` is the **open-ended, exploratory**
+sweep (the agent probes a named surface, captures observations into a session
+ledger, then triages them); `/qa-run-harness` is its **automated complement**
+(the agent steps a known set of Gherkin `.feature` scenarios through a real
+browser). Both adopt the `qa-engineer` persona and resolve the consumer's
+`qa.*` project-contract block from `.agentrc.json` via
+[`resolve-qa-contract.js`](../.agents/scripts/lib/qa/resolve-qa-contract.js)
+before they touch the surface — the resolver fails **loudly** when the project
+has not bound the harness, with no silent fallback.
+
+| Command                   | Purpose                                                                       |
+| ------------------------- | ----------------------------------------------------------------------------- |
+| `/qa-explore <surface>`   | Human-in-the-loop **Plan → Capture → Triage** exploratory-QA loop over a named surface. Capture is strictly read-only; each observation is appended as a `QaLedgerItem` to the session ledger under `temp/qa/<sessionId>.ndjson`. Triage classifies, dedups, and routes each item into a `file` / `defer` / `dismiss` disposition — every phase transition and every ticket-filing write is operator-gated. Cites `/qa-run-harness` as the scripted-scenario complement. |
+| `/qa-run-harness <selector>` | Drive a selected set of Gherkin scenarios through a real browser as an agent-driven QA sweep, emitting a sweep summary and structured `F#` findings (consumed by the `epic-testing.md` helper). |
+
+The `temp/qa/` ledger is session scratch under `project.paths.tempRoot` — it is
+one `QaLedgerItem` per ndjson line, gitignored per
+[`.agents/instructions.md` § 6](../.agents/instructions.md), and **never**
+committed. A resumed session (`--session-id <id>`) appends and carries its
+un-triaged backlog forward; it never overwrites a prior ledger. The
+`/qa-explore` procedure, ledger contract, and helper seams
+(`.agents/scripts/lib/qa/` + `.agents/scripts/lib/findings/`) are documented in
+[`workflows/qa-explore.md`](../.agents/workflows/qa-explore.md); the
+`/qa-run-harness` run pipeline, the `qa` contract fields, and the `F#` finding
+shape are in
+[`architecture.md` § Agent-driven QA harness](architecture.md#agent-driven-qa-harness).
+Consumer adoption steps are in
+[`.agents/README.md` § Adopting the QA harness](../.agents/README.md#adopting-the-qa-harness).
+
 ## Git operations
 
 | Command                   | Purpose                                                                       |
@@ -80,7 +111,6 @@ invoked manually or automatically at `gate1`–`gate4` by the audit orchestrator
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `node .agents/scripts/bootstrap.js` | One-shot consumer setup: wires the local harness (`.claude/commands/` sync hook, `package.json` scripts, hooks, gitignore, Windows git-perf check) **and** initializes the GitHub repo (label taxonomy, project fields, default Kanban board, branch protection when enabled). Not a slash command — runs deterministically with interactive prompts on a TTY and flag-driven non-interactive runs in CI. |
 | `/agents-update`            | Upgrade the installed `@mandrelai/agents` package via the `mandrel update` CLI (bump → sync → migrate → doctor), reconcile `.agentrc.json` against the new defaults, and refresh the Claude Code `.claude/commands/` surface. |
-| `/run-qa-harness`           | Drive a selected set of Gherkin scenarios through a real browser as an agent-driven QA sweep, emitting a sweep summary and structured findings (consumed by the `epic-testing.md` helper). Run pipeline, the `qa` contract fields, and the `F#` finding shape are documented in [`architecture.md` § Agent-driven QA harness](architecture.md#agent-driven-qa-harness); consumer adoption steps are in [`.agents/README.md` § Adopting the QA harness](../.agents/README.md#adopting-the-qa-harness). |
 
 ## Internal / reference-only
 
@@ -93,7 +123,7 @@ Not invoked directly by operators, but referenced from other workflows:
   auto-invoked by `/epic-deliver` Phase 4 (close-tail). Findings persist as
   a `code-review` structured comment on the Epic ticket.
 - `helpers/epic-testing.md` — QA evidence ingest for the Epic-testing
-  ticket; consumes `/run-qa-harness` output. Invoked by operators or by the
+  ticket; consumes `/qa-run-harness` output. Invoked by operators or by the
   `/epic-deliver` close-tail when an Epic-testing ticket is present.
 - `helpers/epic-plan-spec.md`, `helpers/epic-plan-decompose.md` —
   phase procedures delegated to by `/epic-plan`.

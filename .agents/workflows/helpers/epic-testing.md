@@ -6,12 +6,12 @@ description: QA Epic-testing workflow — ingest the agent-driven QA harness swe
 
 > **Helper module.** Not a slash command. Invoked from the QA gate during
 > `/epic-deliver` or directly by an operator when the Epic-testing ticket
-> needs refreshed evidence. For ad-hoc acceptance runs use `/run-qa-harness` —
+> needs refreshed evidence. For ad-hoc acceptance runs use `/qa-run-harness` —
 > this helper owns the Epic-evidence ticket lifecycle on top of it.
 
 Gather and attach the acceptance-suite evidence that gates Epic closure. The
 evidence artifact is the **agent-driven QA harness sweep report** produced by
-`/run-qa-harness` (scenario pass/fail/blocked totals plus structured
+`/qa-run-harness` (scenario pass/fail/blocked totals plus structured
 findings), **not** a hand-ticked markdown checklist.
 
 > **When to run**: During the QA phase of an Epic, after all Story merges
@@ -38,13 +38,13 @@ findings), **not** a hand-ticked markdown checklist.
 
 ## Step 1 — Execute the QA Harness Sweep
 
-Invoke `/run-qa-harness` with the chosen selector:
+Invoke `/qa-run-harness` with the chosen selector:
 
 ```text
-/run-qa-harness "tag:@smoke and @risk-high"
+/qa-run-harness "tag:@smoke and @risk-high"
 ```
 
-The `/run-qa-harness` workflow (`.agents/workflows/run-qa-harness.md`) owns the
+The `/qa-run-harness` workflow (`.agents/workflows/qa-run-harness.md`) owns the
 execution mechanics — `qa` contract resolution, scenario selection, browser
 navigation, and finding capture. This workflow consumes its output.
 
@@ -117,7 +117,7 @@ and deleting the checklist in the same change.
 
 ## Cross-References
 
-- Execution mechanics: `.agents/workflows/run-qa-harness.md`.
+- Execution mechanics: `.agents/workflows/qa-run-harness.md`.
 - Scenario authoring rules: `.agents/rules/gherkin-standards.md`.
 - Runner / fixture / trace conventions:
   `.agents/skills/stack/qa/playwright-bdd/SKILL.md`.
