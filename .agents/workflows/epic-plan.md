@@ -646,11 +646,9 @@ still free to change, not after the code lands.
 
 ### 1. Decide whether to offer the walkthrough (LM judgment)
 
-There is **no `--flag`**. Evaluate the plan with judgment — the same idiom as
-the `story-plan` non-trivial predicate
-([`helpers/single-story-deliver.md` Step 0.6](helpers/single-story-deliver.md))
-— and **default to skipping silently**. Offer the walkthrough only when the
-plan is genuinely worth one. Signals that warrant offering:
+There is **no `--flag`**. Evaluate the plan with judgment and **default to
+skipping silently**. Offer the walkthrough only when the plan is genuinely
+worth one. Signals that warrant offering:
 
 - The roadmap spans **multiple waves** or a **large Story count**.
 - Any Story or the Epic carries **`risk::high`**, or the plan matches the

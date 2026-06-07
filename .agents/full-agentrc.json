@@ -260,14 +260,6 @@
       },
       "heartbeatWarnSeconds": 60
     },
-    "storyPlan": {
-      "requireAcknowledgement": false,
-      "alwaysEmitFloor": {
-        "changes": 3,
-        "acceptance": 3
-      },
-      "ackTimeoutMs": 1800000
-    },
     "refactorStage": {
       "enabled": false
     }

@@ -14,7 +14,6 @@ import { runAutoMergePhase } from './phases/auto-merge.js';
 import { runBaseSyncPhase } from './phases/base-sync.js';
 import { runCloseValidationPhase } from './phases/close-validation.js';
 import { parsePrNumber, runStoryScopeReview } from './phases/code-review.js';
-import { runDriftDetectionPhase } from './phases/drift-detection.js';
 import { parseCloseOptions } from './phases/options.js';
 import { ensurePullRequestWith } from './phases/pull-request.js';
 import { pushStoryBranch } from './phases/push.js';
@@ -53,8 +52,6 @@ async function runPrePushPhases({
   skipSync,
   noFullScopeCrap,
   injectedSync,
-  injectedFindStructuredComment,
-  injectedGitSync,
   injectedGitSpawn,
 }) {
   await runWrongTreeGuardPhase({
@@ -64,15 +61,6 @@ async function runPrePushPhases({
     provider,
     progress,
     gitSpawn: injectedGitSpawn,
-  });
-  await runDriftDetectionPhase({
-    cwd,
-    baseBranch,
-    storyId,
-    provider,
-    progress,
-    injectedFindStructuredComment,
-    injectedGitSync,
   });
   if (!skipValidation) {
     await runCloseValidationPhase({
@@ -213,8 +201,6 @@ export async function runSingleStoryClose({
   injectedSync,
   injectedRunCodeReview,
   injectedGh,
-  injectedFindStructuredComment,
-  injectedGitSync,
   injectedGitSpawn,
   injectedReleaseLease,
 } = {}) {
@@ -260,8 +246,6 @@ export async function runSingleStoryClose({
     provider,
     worktreePath,
     injectedSync,
-    injectedFindStructuredComment,
-    injectedGitSync,
     injectedGitSpawn,
   });
 
