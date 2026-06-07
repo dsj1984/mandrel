@@ -27,8 +27,9 @@ Before you run `bootstrap.js` you need:
 - **GitHub CLI `gh`** >= 2.40 — run `gh auth login` once so orchestration
   scripts pick up your token from the OS keychain.
 
-See [`docs/compatibility-matrix.md`](docs/compatibility-matrix.md) for the
-supported OS / Node / package-manager combinations.
+See the [Compatibility matrix](docs/upgrade-major.md#compatibility-matrix)
+section of `docs/upgrade-major.md` for the supported OS / Node /
+package-manager combinations.
 
 ## Install & Setup
 

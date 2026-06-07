@@ -2,7 +2,7 @@
 # framework lifecycle. Drop this into your consumer project's .github/
 # directory (merge the `updates` entry with your existing config). The
 # `mandrel doctor` CI gate and the auto-merge workflow live alongside it; see
-# docs/renovate-dependabot.md for the full setup.
+# docs/upgrade-major.md (Renovate / Dependabot integration) for the full setup.
 version: 2
 updates:
   - package-ecosystem: "npm"
