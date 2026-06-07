@@ -15,6 +15,16 @@
  *   3. A ledger item whose class is outside the enum is rejected.
  *   4. The schema is distinct from qa-finding.schema.json (different title and
  *      $id).
+ *   5. (Story #3738) The two-phase item lifecycle: a captured-but-untriaged
+ *      item — Capture-phase fields present, `disposition` absent / null /
+ *      `pending` / `untriaged` — validates, while a fully-triaged item
+ *      (resolved `disposition`) validates exactly as before, and genuinely
+ *      malformed items (out-of-enum `class`, missing Capture field, bad
+ *      `disposition`) still fail. The Capture phase appends an item before
+ *      Triage assigns a disposition (see `.agents/scripts/lib/qa/qa-session.js`,
+ *      `readLedger` / `isUntriaged`), so the schema MUST accept that
+ *      mid-flight shape or the resume path rejects exactly the records it is
+ *      built to recover.
  */
 
 import assert from 'node:assert/strict';
@@ -119,6 +129,11 @@ describe('qa-ledger.schema.json — rejects malformed ledger items', () => {
     );
   });
 
+  // Capture-phase fields are required at capture time, before Triage assigns
+  // a disposition. `disposition` is deliberately NOT in this list (Story
+  // #3738): it is only required once the item is triaged, so its absence is a
+  // valid captured-but-untriaged shape — exercised in the lifecycle block
+  // below — not a malformed item.
   for (const field of [
     'id',
     'class',
@@ -126,7 +141,6 @@ describe('qa-ledger.schema.json — rejects malformed ledger items', () => {
     'evidence',
     'coverage',
     'missingTest',
-    'disposition',
   ]) {
     it(`rejects an item missing required field: ${field}`, () => {
       const item = validLedgerItem();
@@ -156,6 +170,83 @@ describe('qa-ledger.schema.json — rejects malformed ledger items', () => {
   it('rejects a disposition outside the enum', () => {
     const ok = validate(validLedgerItem({ disposition: 'maybe' }));
     assert.equal(ok, false);
+  });
+});
+
+describe('qa-ledger.schema.json — captured-but-untriaged lifecycle (Story #3738)', () => {
+  const validate = compile();
+
+  /**
+   * A captured-but-untriaged item carries the Capture-phase fields but no
+   * resolved disposition. This mirrors what `qa-session.js` appends during the
+   * read-only Capture phase and reads back as the rolling backlog on resume.
+   */
+  function capturedItem(overrides = {}) {
+    const item = validLedgerItem(overrides);
+    delete item.disposition;
+    delete item.relates;
+    return { ...item, ...overrides };
+  }
+
+  it('accepts an untriaged item with disposition absent', () => {
+    const ok = validate(capturedItem());
+    assert.equal(ok, true, JSON.stringify(validate.errors));
+  });
+
+  it('accepts an untriaged item with disposition null', () => {
+    const ok = validate(capturedItem({ disposition: null }));
+    assert.equal(ok, true, JSON.stringify(validate.errors));
+  });
+
+  it('accepts an untriaged item with a pending/untriaged sentinel', () => {
+    for (const sentinel of ['pending', 'untriaged']) {
+      const ok = validate(capturedItem({ disposition: sentinel }));
+      assert.equal(
+        ok,
+        true,
+        `expected sentinel ${sentinel} to validate: ${JSON.stringify(validate.errors)}`,
+      );
+    }
+  });
+
+  it('accepts every Capture-phase class while untriaged', () => {
+    for (const cls of [
+      'product-bug',
+      'environment-setup',
+      'tooling-dx',
+      'test-gap',
+      'enhancement',
+    ]) {
+      const ok = validate(capturedItem({ class: cls }));
+      assert.equal(
+        ok,
+        true,
+        `expected untriaged ${cls} to validate: ${JSON.stringify(validate.errors)}`,
+      );
+    }
+  });
+
+  it('still rejects an untriaged item missing a Capture-phase field', () => {
+    const item = capturedItem();
+    delete item.evidence;
+    const ok = validate(item);
+    assert.equal(ok, false, 'expected a missing Capture field to be rejected');
+  });
+
+  it('still rejects an untriaged item whose class is outside the enum', () => {
+    const ok = validate(capturedItem({ class: 'mystery-class' }));
+    assert.equal(ok, false, 'expected an out-of-enum class to be rejected');
+  });
+
+  it('validates a fully-triaged item for each resolved disposition', () => {
+    for (const disposition of ['file', 'defer', 'dismiss']) {
+      const ok = validate(validLedgerItem({ disposition }));
+      assert.equal(
+        ok,
+        true,
+        `expected triaged disposition ${disposition} to validate: ${JSON.stringify(validate.errors)}`,
+      );
+    }
   });
 });
 
