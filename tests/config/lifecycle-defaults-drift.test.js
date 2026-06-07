@@ -8,7 +8,7 @@ import {
 } from '../../.agents/scripts/lib/config/lifecycle.js';
 
 const TEMPLATE_PATH = fileURLToPath(
-  new URL('../../.agents/full-agentrc.json', import.meta.url),
+  new URL('../../.agents/docs/agentrc-reference.json', import.meta.url),
 );
 
 describe('LIFECYCLE_DEFAULTS', () => {

@@ -16,7 +16,7 @@
  *                  named profile seed passed via `opts.profile`. The profile
  *                  would supply it.
  *   - `default`  — neither layer carries the key; the framework default from
- *                  `.agents/full-agentrc.json` applies.
+ *                  `.agents/docs/agentrc-reference.json` applies.
  *
  * Secret hygiene: no key in the `.agentrc.json` surface is a credential today,
  * but the report is defensive — any key whose dotted path matches a

@@ -11,11 +11,11 @@ import {
 import { deepEqual } from '../../.agents/scripts/lib/json-utils.js';
 
 const TEMPLATE_PATH = fileURLToPath(
-  new URL('../../.agents/full-agentrc.json', import.meta.url),
+  new URL('../../.agents/docs/agentrc-reference.json', import.meta.url),
 );
 
 describe('getAgentrcDefaults', () => {
-  it('resolves to .agents/full-agentrc.json', () => {
+  it('resolves to .agents/docs/agentrc-reference.json', () => {
     assert.equal(FULL_AGENTRC_PATH, TEMPLATE_PATH);
   });
 

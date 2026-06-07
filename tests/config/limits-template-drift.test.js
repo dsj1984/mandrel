@@ -15,13 +15,13 @@ import { LIMITS_DEFAULTS } from '../../.agents/scripts/lib/config/limits.js';
 //   - delivery.execution.timeoutMs
 //   - delivery.signals.{hotspot, rework, retry}
 //
-// This guard keeps `.agents/full-agentrc.json` aligned with
+// This guard keeps `.agents/docs/agentrc-reference.json` aligned with
 // `LIMITS_DEFAULTS` so the exhaustive reference template documents the
 // same values the resolver would otherwise compute.
 // ---------------------------------------------------------------------------
 
 const TEMPLATE_PATH = fileURLToPath(
-  new URL('../../.agents/full-agentrc.json', import.meta.url),
+  new URL('../../.agents/docs/agentrc-reference.json', import.meta.url),
 );
 
 describe('full-agentrc.json ↔ LIMITS_DEFAULTS drift guard', () => {

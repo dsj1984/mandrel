@@ -6,7 +6,7 @@ coding assistants. It is the authoritative reference for how the system is
 structured, how components interact, and where to find each subsystem.
 
 > **For the end-to-end workflow narrative** — how the commands compose, label
-> transitions, HITL touchpoints — see [`.agents/SDLC.md`](../.agents/SDLC.md).
+> transitions, HITL touchpoints — see [`.agents/docs/SDLC.md`](../.agents/docs/SDLC.md).
 > This file covers the *architecture* (modules, interfaces, data flow) that
 > the workflow runs on top of. The slash-command reference index lives in
 > [`workflows.md`](workflows.md).
@@ -80,10 +80,8 @@ The repository has a clear separation between the **distributed product**
 mandrel/
 ├── .agents/                  ← Distributed bundle (the "product")
 │   ├── instructions.md       ← Primary system prompt (all agent rules)
-│   ├── SDLC.md               ← End-to-end workflow guide
 │   ├── README.md             ← Consumer documentation
 │   ├── starter-agentrc.json ← Bootstrap delta-seed (copy to .agentrc.json)
-│   ├── full-agentrc.json    ← Exhaustive editor reference (every schema key)
 │   │
 │   ├── personas/             ← Role-specific behavior files
 │   ├── rules/                ← Domain-agnostic coding standards
@@ -96,7 +94,11 @@ mandrel/
 │   │   ├── providers/        ←   Ticketing provider implementations
 │   │   └── adapters/         ←   Execution adapter implementations
 │   ├── schemas/              ← JSON Schema for structured output
-│   └── templates/            ← Prompt and planning templates
+│   ├── templates/            ← Prompt and planning templates
+│   └── docs/                 ← Shipped consumer reference docs
+│       ├── SDLC.md           ←   End-to-end workflow guide
+│       ├── configuration.md  ←   Every .agentrc.json key (shipped)
+│       └── agentrc-reference.json ← Exhaustive editor reference
 │
 ├── .agentrc.json             ← Runtime configuration (dogfooding)
 ├── .github/workflows/        ← CI/CD pipeline (ci.yml)
@@ -540,7 +542,7 @@ Each grouped block is read through a typed accessor (`getPaths(config)`,
 `getCommands(config)`, `getQuality(config)`, `getLimits(config)`) — there are
 no flat-key reads anywhere in the resolver or its consumers.
 
-> See [`docs/configuration.md`](configuration.md) for the canonical
+> See [`.agents/docs/configuration.md`](../.agents/docs/configuration.md) for the canonical
 > reader-facing reference: every key, default, and required-vs-optional flag,
 > the root-dogfood-vs-distributed-template diff table, and baseline
 > conventions (canonical `/baselines/` vs per-wave drift snapshots under
@@ -760,7 +762,7 @@ The shipped slash commands (under `.agents/workflows/`) fall into six
 categories — planning, execution, closure, audits, git operations, and
 setup/meta. The canonical reference is [`workflows.md`](workflows.md); the
 workflow narrative that wires them together lives in
-[`.agents/SDLC.md`](../.agents/SDLC.md).
+[`.agents/docs/SDLC.md`](../.agents/docs/SDLC.md).
 
 ### Worktree Isolation
 
@@ -1170,7 +1172,7 @@ Consumers `npm install @mandrelai/agents` (which pins an exact,
 provenance-signed version in the lockfile), run `mandrel sync` to materialize
 `./.agents/`, copy `starter-agentrc.json` to their project root as
 `.agentrc.json`, and configure their `orchestration` block — see
-`full-agentrc.json` for the exhaustive reference. The ongoing upgrade path is
+`.agents/docs/agentrc-reference.json` for the exhaustive reference. The ongoing upgrade path is
 `mandrel update` (bump → sync → migrate → doctor). Project-specific
 technology context lives in `docs/architecture.md` under the **Tech Stack**
 section below — not in `.agentrc.json`.
@@ -1316,7 +1318,7 @@ scopes the sweep to a concrete, deterministic scenario set:
 a top-level `qa` block to `.agentrc.json`. The block is *optional in the
 schema* (so config validation never breaks a non-QA consumer); presence is
 enforced at run time by `resolveQaContract`. The full reference shape lives
-in [`.agents/full-agentrc.json`](../.agents/full-agentrc.json). Fields:
+in [`.agents/docs/agentrc-reference.json`](../.agents/docs/agentrc-reference.json). Fields:
 
 | Field              | Required | Meaning                                                                                                                                                       |
 | ------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |

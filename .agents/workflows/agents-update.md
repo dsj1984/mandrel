@@ -139,7 +139,7 @@ Dry run: no files written, no dependency bumped.
 ## Step 3 — Reconcile `.agentrc.json` against the new defaults
 
 A framework bump can add or reshape fields in
-`.agents/full-agentrc.json` (and the underlying schema). Run the
+`.agents/docs/agentrc-reference.json` (and the underlying schema). Run the
 reconciliation helper to verify the consumer's `.agentrc.json` still
 validates against the new schema, and to surface any project values that
 already match framework defaults (and could therefore be safely deleted):

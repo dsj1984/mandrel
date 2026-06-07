@@ -34,7 +34,7 @@ package and materialized into consumer projects' `.agents/` directories by
 > out `helpers/epic-deliver-story` per wave); standalone Stories use
 > `/story-deliver`. There is no `type::task` ticket layer and no
 > per-Task commit ceremony. See
-> [`.agents/SDLC.md` § Ticket hierarchy](.agents/SDLC.md) for the
+> [`.agents/docs/SDLC.md` § Ticket hierarchy](.agents/docs/SDLC.md) for the
 > diagram and execution-model implications.
 
 ---
@@ -52,9 +52,8 @@ mandrel/
 │   ├── scripts/              # Deterministic JS tooling (orchestration engine)
 │   ├── schemas/              # JSON Schemas for structured output validation
 │   ├── templates/            # Epic / planning prompt templates
+│   ├── docs/                  # Shipped consumer reference docs (SDLC.md, configuration.md, agentrc-reference.json)
 │   ├── starter-agentrc.json # Bootstrap delta-seed — consumers copy to project root
-│   ├── full-agentrc.json    # Exhaustive editor reference (every schema key)
-│   ├── SDLC.md               # End-to-end SDLC narrative (/epic-plan + /epic-deliver)
 │   └── README.md             # Detailed consumer user guide
 ├── .agentrc.json             # Root config for this repo (dogfooding)
 ├── docs/                     # Implementation plans and changelog
@@ -345,6 +344,6 @@ decision.
 | ---------------------------------------------------- | ----------------------------------- |
 | [`.agents/instructions.md`](.agents/instructions.md) | **System prompt** — all agent rules |
 | [`.agents/README.md`](.agents/README.md)             | Consumer user guide                 |
-| [`.agents/SDLC.md`](.agents/SDLC.md)                 | End-to-end SDLC narrative           |
+| [`.agents/docs/SDLC.md`](.agents/docs/SDLC.md)       | End-to-end SDLC narrative           |
 | [`.agentrc.json`](.agentrc.json)                     | Runtime configuration               |
 | [`docs/CHANGELOG.md`](docs/CHANGELOG.md)             | Release history                     |

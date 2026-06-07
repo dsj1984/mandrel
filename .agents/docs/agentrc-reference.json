@@ -1,5 +1,5 @@
 {
-  "$schema": "./.agents/schemas/agentrc.schema.json",
+  "$schema": "../schemas/agentrc.schema.json",
   "project": {
     "baseBranch": "main",
     "paths": {

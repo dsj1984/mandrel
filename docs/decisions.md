@@ -1067,7 +1067,7 @@ declare default values that the `.agentrc.json` template could mirror.
   guards on the summary schemas mean a producer drift fails AJV at
   close time, not at consumer parse time.
 - **Operator overrides survive template re-bootstraps.**
-  `.agents/full-agentrc.json` mirrors `SIGNALS_DEFAULTS` exactly
+  `.agents/docs/agentrc-reference.json` mirrors `SIGNALS_DEFAULTS` exactly
   (the `tests/config/limits-template-drift.test.js` guard fails on any
   divergence), so an operator who copied the template wholesale and one
   who merged it on top of an existing block resolve to the same
@@ -1122,7 +1122,7 @@ inline so the Epic could complete.
    STOP gate is preserved unchanged.
 3. **Slim `.agents/README.md`** to ≤ 150 lines: activation + a single
    "where to look" pointer table. Detailed reference content moves to
-   `docs/configuration.md`, new `docs/quality-gates.md`, and the
+   `.agents/docs/configuration.md`, new `docs/quality-gates.md`, and the
    root `.agents/README.md` sections for distributed-submodule
    conventions. (Windows git-perf guidance was historically a fourth
    target; superseded by `.agents/scripts/check-windows-git-perf.js` in
@@ -1669,7 +1669,7 @@ Concretely:
   intentionally distinct filenames (`wave-mi-snapshot.json`,
   `wave-crap-snapshot.json`) under `.agents/state/` so a repo-wide grep
   never confuses one with the other.
-- **New configuration reference doc.** `docs/configuration.md` documents
+- **New configuration reference doc.** `.agents/docs/configuration.md` documents
   every configurable key, its default, whether it is required, and the
   baseline conventions. The `.agents/README.md` "Key Settings" table is
   the high-traffic subset; the doc is the canonical source.

@@ -34,7 +34,7 @@ artifacts you author.
 - Wait for user validation before migrating to Phase 8 when
   `planningRisk.requiresReview` is true (or the operator passes
   `--force-review`). Low-risk Epics auto-proceed after spec validation.
-  See [SDLC § Adaptive planning risk routing](../SDLC.md#adaptive-planning-risk-routing)
+  See [SDLC § Adaptive planning risk routing](../docs/SDLC.md#adaptive-planning-risk-routing)
   for the full envelope shape and the planner-selected
   `acceptance::n-a` route.
 - Delegate Phase 7 and Phase 8 to the
@@ -287,7 +287,7 @@ for the scoring logic.
 > the runtime gates (start gate, finalize reconciler) honour the
 > waiver — the spec ticket itself need not be authored or approved when
 > the waiver is set. See [SDLC § Acceptance Spec — the third planning
-> context ticket](../SDLC.md#acceptance-spec--the-third-planning-context-ticket)
+> context ticket](../docs/SDLC.md#acceptance-spec--the-third-planning-context-ticket)
 > for the full lifecycle.
 
 <!-- separator: adjacent blockquotes -->
@@ -597,7 +597,7 @@ flip** and throws with the failing check's `reason`. The Epic stays on its
 prior label (`agent::review-spec` in the normal flow) until either the
 underlying check passes on a rerun, or the operator applies the
 `planning::healthcheck-waived` label to the Epic and reruns the persist
-phase. See `.agents/SDLC.md` § "`agent::ready` exit conditions" for the
+phase. See `.agents/docs/SDLC.md` § "`agent::ready` exit conditions" for the
 full handoff contract and the waiver scope.
 
 The script emits a single line of JSON to stdout:

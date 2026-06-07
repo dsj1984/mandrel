@@ -49,7 +49,7 @@ export const QA_CONTRACT_DEFAULTS = Object.freeze({
 const ABSENT_MESSAGE =
   'qa: this project has not bound the QA harness — add a `qa` block to ' +
   '.agentrc.json (featureRoot, fixturesManifest, signInSeam, personas) ' +
-  'before invoking the QA harness. See .agents/full-agentrc.json for the ' +
+  'before invoking the QA harness. See .agents/docs/agentrc-reference.json for the ' +
   'full contract shape.';
 
 let _qaValidator = null;

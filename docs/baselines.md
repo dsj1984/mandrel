@@ -11,7 +11,7 @@ Cross-references:
 
 - [`docs/quality-gates.md`](quality-gates.md) — runtime behaviour of each
   gate (when it fires, what it asserts, how to refresh).
-- [`docs/configuration.md`](configuration.md) — the `.agentrc.json`
+- [`.agents/docs/configuration.md`](../.agents/docs/configuration.md) — the `.agentrc.json`
   configuration surface that backs the gates.
 - [`.agents/README.md`](../.agents/README.md) — consumer onboarding.
 - [`docs/mutation-testing-spike.md`](mutation-testing-spike.md) — why the
@@ -244,7 +244,7 @@ on the legacy `maintainability` axis (which never appears in the rollup)
 are rejected with an explanatory error.
 
 For the full configuration surface (every gate-level key with defaults
-and types) see [`docs/configuration.md`](configuration.md) and the
+and types) see [`.agents/docs/configuration.md`](../.agents/docs/configuration.md) and the
 `delivery.quality.*` section.
 
 ### Shipped surface vs follow-up
@@ -295,7 +295,7 @@ delta and nothing else.
 
 - [`docs/quality-gates.md`](quality-gates.md) — when each gate fires and
   how to opt out.
-- [`docs/configuration.md`](configuration.md) — full `.agentrc.json`
+- [`.agents/docs/configuration.md`](../.agents/docs/configuration.md) — full `.agentrc.json`
   surface.
 - [`.agents/scripts/lib/baselines/`](../.agents/scripts/lib/baselines/) —
   source of truth for the writer, reader, kernel registry, components

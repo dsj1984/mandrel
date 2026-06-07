@@ -2,7 +2,7 @@
 
 This is a **reference index** of every slash-command skill shipped under
 `.agents/workflows/`. The canonical workflow narrative lives in
-[`.agents/SDLC.md`](../.agents/SDLC.md) — read that first to understand how the
+[`.agents/docs/SDLC.md`](../.agents/docs/SDLC.md) — read that first to understand how the
 commands compose. This file is only for "which command does X?" lookups.
 
 Every command file lives at `.agents/workflows/<name>.md` and is projected into
@@ -175,4 +175,4 @@ already documented in the system prompt.
    header and is regenerated idempotently.
 3. Add a row to this index (showing the `/<name>` invocation) and (if
    the command is part of the canonical lifecycle) a reference in
-   [`.agents/SDLC.md`](../.agents/SDLC.md).
+   [`.agents/docs/SDLC.md`](../.agents/docs/SDLC.md).

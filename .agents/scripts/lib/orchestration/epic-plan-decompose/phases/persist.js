@@ -165,7 +165,7 @@ export async function runDecomposePhase(
   // post-plan readiness healthcheck (`epic-plan-healthcheck.js`) is now
   // blocking: a failing healthcheck refuses the `agent::ready` flip
   // unless the operator has applied the `planning::healthcheck-waived`
-  // label. See `.agents/SDLC.md` § "`agent::ready` exit conditions" for
+  // label. See `.agents/docs/SDLC.md` § "`agent::ready` exit conditions" for
   // the full contract. Tests inject `skipHealthcheck: true` to bypass
   // the network-bound check; production callers must not set this.
   const healthcheck = skipHealthcheck

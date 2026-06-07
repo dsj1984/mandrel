@@ -15,7 +15,7 @@ const STARTER_PATH = fileURLToPath(
   new URL('../../.agents/starter-agentrc.json', import.meta.url),
 );
 const FULL_PATH = fileURLToPath(
-  new URL('../../.agents/full-agentrc.json', import.meta.url),
+  new URL('../../.agents/docs/agentrc-reference.json', import.meta.url),
 );
 
 function makeTmpProject() {

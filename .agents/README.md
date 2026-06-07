@@ -13,13 +13,13 @@ count here.
 
 > **Ticket hierarchy.** Mandrel uses a **3-tier hierarchy**
 > (Epic → Feature → Story) with inline `acceptance[]` / `verify[]` on
-> Story bodies. See [`SDLC.md` § Ticket hierarchy](SDLC.md) for the
+> Story bodies. See [`docs/SDLC.md` § Ticket hierarchy](docs/SDLC.md) for the
 > diagram and execution-model implications.
 
 This is the only README inside the distributed `.agents/` bundle. It
 explains what each part of the bundle is for and captures the
 cross-directory authoring conventions. The process narrative for
-`/epic-plan` and `/epic-deliver` stays in [`SDLC.md`](SDLC.md).
+`/epic-plan` and `/epic-deliver` stays in [`docs/SDLC.md`](docs/SDLC.md).
 
 ---
 
@@ -177,7 +177,7 @@ After bootstrap, every Mandrel command is generated into a flat
 `.claude/commands/` tree by `npm run sync:commands` (the UserPromptSubmit hook
 keeps it current) and loads as a bare `/<command>` slash command — e.g.
 `/epic-plan`, `/story-plan`, `/story-deliver`, `/audit-security`. The
-commands load in every Claude Code environment. The [SDLC guide](SDLC.md) walks
+commands load in every Claude Code environment. The [SDLC guide](docs/SDLC.md) walks
 an end-to-end Epic; standalone Stories pair
 [`/story-plan`](workflows/story-plan.md) (idea → drafted Story
 Issue) with [`/story-deliver`](workflows/story-deliver.md) (Story Issue → merged
@@ -223,9 +223,9 @@ in `runtime-deps.json`.
 | Path | Purpose |
 | ---- | ------- |
 | [`instructions.md`](instructions.md) | Primary system prompt loaded by the host AI tool. |
-| [`SDLC.md`](SDLC.md) | Operator process for `/epic-plan` and `/epic-deliver`. |
+| [`docs/SDLC.md`](docs/SDLC.md) | Operator process for `/epic-plan` and `/epic-deliver`. |
 | [`starter-agentrc.json`](starter-agentrc.json) | Bootstrap delta-seed copied to the consumer repo root as `.agentrc.json`. |
-| [`full-agentrc.json`](full-agentrc.json) | Exhaustive editor reference enumerating every schema key with its framework default. |
+| [`agentrc-reference.json`](docs/agentrc-reference.json) | Exhaustive editor reference enumerating every schema key with its framework default. |
 | [`personas/`](personas/) | Role-specific behavior packs selected by task persona or explicit user instruction. |
 | [`rules/`](rules/) | Domain-agnostic coding, security, testing, shell, git, and workflow rules. |
 | [`skills/core/`](skills/core/) | Universal process skills such as debugging, TDD, security, documentation, and code review. |
@@ -244,9 +244,9 @@ in `runtime-deps.json`.
 
 | You want… | Open |
 | --------- | ---- |
-| The Epic planning and delivery process | [`SDLC.md`](SDLC.md) |
+| The Epic planning and delivery process | [`docs/SDLC.md`](docs/SDLC.md) |
 | The system prompt loaded by your AI tool | [`instructions.md`](instructions.md) |
-| Every `.agentrc.json` key, default, and override | [`docs/configuration.md`](../docs/configuration.md) |
+| Every `.agentrc.json` key, default, and override | [`docs/configuration.md`](docs/configuration.md) (under `.agents/`) |
 | Quality-gate runbooks (CRAP, MI, lint, friction) | [`docs/quality-gates.md`](../docs/quality-gates.md) |
 | Baseline envelope, component model, writer/reader contract | [`docs/baselines.md`](../docs/baselines.md) |
 | Slash-command workflow definitions | [`workflows/`](workflows/) |
@@ -654,10 +654,10 @@ each with different cost/portability trade-offs:
 | -------------- | ---------------------------------------------------------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------- |
 | `per-worktree` | Default-safe — no host setup, no symlink semantics to worry about. | Full `npm ci` per Story. | Slowest. Each worktree gets an independent `node_modules`.                                                  |
 | `symlink`      | npm/yarn repos that want the fast path. **Opt-in.**              | Near-zero.               | Junctions a single donor `node_modules` into each worktree. Refuses on Windows unless explicitly opted in.  |
-| `pnpm-store`   | pnpm repos. **Shipped consumer default in `full-agentrc.json`.** | Fast (store-backed).     | Runs `pnpm install --frozen-lockfile` against the shared content-addressable store.                         |
+| `pnpm-store`   | pnpm repos. **Shipped consumer default in `agentrc-reference.json`.** | Fast (store-backed).     | Runs `pnpm install --frozen-lockfile` against the shared content-addressable store.                         |
 
 The **shipped consumer default in
-[`.agents/full-agentrc.json`](./full-agentrc.json) remains
+[`.agents/docs/agentrc-reference.json`](./docs/agentrc-reference.json) remains
 `pnpm-store`**. Repos that do not use pnpm should opt in to `symlink`
 explicitly in their root `.agentrc.json`; this repo dogfoods that
 configuration.
@@ -709,7 +709,7 @@ They solve different problems and must not be confused:
   **within a single machine/clone**. They are keyed on local process PIDs
   and live under `.git/` (or a local lockfile path), so they do **not**
   coordinate across clones. See
-  [`SDLC.md` § Cross-clone coordination](SDLC.md#cross-clone-coordination)
+  [`docs/SDLC.md` § Cross-clone coordination](docs/SDLC.md#cross-clone-coordination)
   for why.
 - **The assignee-as-lease claim** coordinates **across clones** by riding
   the ticket's GitHub `assignees` surface — a substrate every clone can
@@ -776,12 +776,12 @@ confuse:
 | --------------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | `.agentrc.json` (repo root)       | The framework dogfooding itself   | Live config used when running `/epic-*`, `/story-deliver` against this repo. Exercises the framework end-to-end. |
 | `.agents/starter-agentrc.json`    | Downstream consumer repos         | Bootstrap delta-seed a consumer copies via `cp .agents/starter-agentrc.json .agentrc.json`. Minimum schema-required keys.        |
-| `.agents/full-agentrc.json`       | Operators and reviewers           | Exhaustive editor reference enumerating every schema key with its framework default. Not a copy target.                          |
+| `.agents/docs/agentrc-reference.json`       | Operators and reviewers           | Exhaustive editor reference enumerating every schema key with its framework default. Not a copy target.                          |
 
 The three files share a schema; where they legitimately diverge (target
 dirs, repo identifiers, version-file pointer) is documented in
-[`docs/configuration.md` § Root dogfood vs distributed template](../docs/configuration.md#root-dogfood-vs-distributed-template).
-Edit `full-agentrc.json` when a framework default changes; edit
+[`docs/configuration.md` § Root dogfood vs distributed template](docs/configuration.md#root-dogfood-vs-distributed-template).
+Edit `agentrc-reference.json` when a framework default changes; edit
 `starter-agentrc.json` only when the bootstrap seed itself needs new
 schema-required keys; edit the root `.agentrc.json` for changes that
 only affect this repo's own dogfood runs.
@@ -838,7 +838,7 @@ steps.
 Add a top-level `qa` block. It is optional in the schema (so config
 validation never breaks a non-QA consumer), but the four core fields are
 required at run time by `resolveQaContract`. Copy the reference shape from
-[`full-agentrc.json`](full-agentrc.json) and adapt the paths:
+[`agentrc-reference.json`](docs/agentrc-reference.json) and adapt the paths:
 
 ```jsonc
 {

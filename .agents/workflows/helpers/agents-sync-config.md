@@ -18,7 +18,7 @@ description: >-
 >
 > **Configuration reference.** The full set of configurable keys, defaults,
 > and required-vs-optional flags lives in
-> [`docs/configuration.md`](../../../docs/configuration.md). This helper only
+> [`docs/configuration.md`](../../docs/configuration.md). This helper only
 > documents the reconciliation procedure.
 
 ## Overview
@@ -42,7 +42,7 @@ The reconciliation rules:
 | Identity placeholder paths (`github.owner` / `repo` / …)  | **Never flagged** — they carry no usable framework default                              |
 
 The defaults source of truth is
-[`.agents/full-agentrc.json`](../../full-agentrc.json), consulted via
+[`.agents/docs/agentrc-reference.json`](../../docs/agentrc-reference.json), consulted via
 [`getAgentrcDefaults()`](../../scripts/lib/config/defaults.js). A parity test
 keeps that file aligned with the schema and the runtime accessors so the
 "what counts as default" question has exactly one answer.

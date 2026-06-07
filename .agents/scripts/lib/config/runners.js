@@ -30,7 +30,7 @@ export const DEFAULT_DECOMPOSER = Object.freeze({
  * `delivery.deliverRunner.concurrencyCap` — wall-clock time falls
  * proportionally to the extra concurrency. The safe default is a tuning
  * knob, not a performance ceiling. See `epic-deliver.md` § Phase 2b and
- * `full-agentrc.json` `delivery.deliverRunner.concurrencyCap` for details.
+ * `agentrc-reference.json` `delivery.deliverRunner.concurrencyCap` for details.
  *
  * **`verifyConcurrencyCap`** (Epic #3019 Tech Spec §1.4 / Story #3024) is a
  * separate knob that bounds the `verifyWaveResults` loop independently of

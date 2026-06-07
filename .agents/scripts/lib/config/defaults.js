@@ -1,7 +1,7 @@
 /**
  * `getAgentrcDefaults()` — single source of `.agentrc.json` defaults.
  *
- * `.agents/full-agentrc.json` is the authoritative editor-reference
+ * `.agents/docs/agentrc-reference.json` is the authoritative editor-reference
  * inventory of every field the framework supports plus its default
  * value. Runtime accessors under `lib/config/*.js` (`COMMANDS_DEFAULTS`,
  * `BRANCH_PROTECTION_DEFAULTS`, gate defaults, etc.) layer the same
@@ -27,7 +27,11 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // .agents/scripts/lib/config/ → .agents/
 const AGENTS_ROOT = path.resolve(__dirname, '../../..');
-export const FULL_AGENTRC_PATH = path.join(AGENTS_ROOT, 'full-agentrc.json');
+export const FULL_AGENTRC_PATH = path.join(
+  AGENTS_ROOT,
+  'docs',
+  'agentrc-reference.json',
+);
 
 /**
  * Dotted paths whose template value is a human placeholder
@@ -44,7 +48,7 @@ export const IDENTITY_PLACEHOLDER_PATHS = Object.freeze([
 let _cache = null;
 
 /**
- * Parse `.agents/full-agentrc.json` and return a deep-frozen snapshot.
+ * Parse `.agents/docs/agentrc-reference.json` and return a deep-frozen snapshot.
  *
  * @param {{ bustCache?: boolean }} [opts]
  * @returns {object}

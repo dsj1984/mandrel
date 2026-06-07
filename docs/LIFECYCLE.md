@@ -314,7 +314,7 @@ re-enter the same chain. The ledger writes (`emitted` → listener fan-out
 - [`docs/architecture.md`](architecture.md) — system overview; the
   Orchestration Engine and Epic Deliver Runner sections describe how
   the bus fits into the larger SDL.
-- [`.agents/SDLC.md`](../.agents/SDLC.md) — end-to-end SDLC narrative;
+- [`.agents/docs/SDLC.md`](../.agents/docs/SDLC.md) — end-to-end SDLC narrative;
   the Phase 3 (Delivery) section names the bus as the runtime
   coordinator.
 - [`.agents/workflows/epic-deliver.md`](../.agents/workflows/epic-deliver.md)
