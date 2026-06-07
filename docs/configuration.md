@@ -306,12 +306,6 @@ top-level keys are validation errors.
 | `retro.perfThresholds.utilisation` | No | `number` | — | Per-wave utilisation threshold. Waves whose `utilisation` is strictly below this value emit a `low-utilisation` signal. Default 0.6. |
 | `retro.perfThresholds.bootstrapShare` | No | `number` | — | Maximum acceptable share of cumulative Story execution time spent in the story-init phase. When exceeded the retro emits a `high-bootstrap-share` signal. Default 0.4. |
 | `retro.perfThresholds.capBindingRunLength` | No | `integer` | — | Minimum run length of consecutive cap-binding waves before the retro emits a `cap-binding-run` signal. Default 2. |
-| `storyPlan` | No | `object` | — | Knobs for the story-plan structured-comment checkpoint (Epic #3212). Additive and defaults to emit-and-proceed; the ack gate is strictly opt-in. |
-| `storyPlan.requireAcknowledgement` | No | `boolean` | — | When true, the story-deliver worker MUST NOT commit until the Story carries the `plan::acknowledged` label. Applied by the operator or `/story-plan-ack <storyId>`. Default false. |
-| `storyPlan.alwaysEmitFloor` | No | `object` | — | Triggering thresholds for the story-plan structured comment (Epic #3212). The plan is emitted when any axis meets or exceeds its floor. |
-| `storyPlan.alwaysEmitFloor.changes` | No | `integer` | — | Minimum changes[] length that triggers a story-plan comment. Default 3. |
-| `storyPlan.alwaysEmitFloor.acceptance` | No | `integer` | — | Minimum acceptance[] length that triggers a story-plan comment. Default 3. |
-| `storyPlan.ackTimeoutMs` | No | `integer` | — | Bounded wait (ms) for the `plan::acknowledged` label before the worker transitions to `agent::blocked`. Default 1800000 (30 min). |
 | `refactorStage` | No | `object` | — | Opt-in, config-gated post-green refactor checkpoint wired into story-deliver (Story #3430, Epic #3418). Strictly additive and default-OFF: when disabled, story-deliver behaves exactly as before. Advisory only — never changes existing close-validation gate semantics. |
 | `refactorStage.enabled` | No | `boolean` | `false` | When true, story-deliver runs an advisory post-green refactor stage (refactorer persona + core/refactoring-discipline skill) after the suite is green. Default false — when unset the stage is skipped and close-validation gate semantics are unchanged. |
 | `ci` | No | `object` | — | Nested configuration block. |
@@ -737,25 +731,6 @@ per-scope override.
 | ----------------------- | -------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `codeReviewAutoFile`    | No       | `true`  | When `true`, the Epic finalize listener auto-files non-blocking code-review findings as follow-up issues routed by source classification. |
 | `auditResultsAutoFile`  | No       | `true`  | When `true`, the Epic finalize listener auto-files non-blocking audit-results findings as follow-up issues routed by source classification. |
-
-### `delivery.storyPlan`
-
-Story-plan structured-comment checkpoint (Epic #3212). The checkpoint is
-additive and defaults to the current behaviour (emit-and-proceed); the
-acknowledgement gate is strictly opt-in.
-
-When a Story is **non-trivial** (determined by `alwaysEmitFloor` thresholds or
-a heavy `sizingProfile`), the story-deliver worker posts a `story-plan`
-structured comment before the first commit. If `requireAcknowledgement` is
-`true`, the worker polls for the `plan::acknowledged` label up to `ackTimeoutMs`
-milliseconds; on timeout it transitions to `agent::blocked`.
-
-| Field                        | Required | Default     | Purpose                                                                          |
-| ---------------------------- | -------- | ----------- | -------------------------------------------------------------------------------- |
-| `requireAcknowledgement`     | No       | `false`     | Gate commits on `plan::acknowledged`. Opt-in — the story-deliver default is emit-and-proceed. |
-| `alwaysEmitFloor.changes`    | No       | `3`         | Minimum `changes[]` item count that triggers plan emission.                      |
-| `alwaysEmitFloor.acceptance` | No       | `3`         | Minimum `acceptance[]` item count that triggers plan emission.                   |
-| `ackTimeoutMs`               | No       | `1800000`   | Bounded ack-wait (ms) before transitioning to `agent::blocked`. Default 30 min.  |
 
 ---
 

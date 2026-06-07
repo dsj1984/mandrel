@@ -192,14 +192,6 @@ const KEY_MEANINGS = Object.freeze({
     'Maximum auto-fix attempts the code-review phase makes.',
   'delivery.codeReview.maxFixScopeFiles':
     'Maximum files an auto-fix may touch in one attempt.',
-  'delivery.storyPlan.requireAcknowledgement':
-    'Whether a story-plan comment must be acknowledged before commits.',
-  'delivery.storyPlan.alwaysEmitFloor.changes':
-    'Touched-file count above which a story-plan is always emitted.',
-  'delivery.storyPlan.alwaysEmitFloor.acceptance':
-    'Acceptance count above which a story-plan is always emitted.',
-  'delivery.storyPlan.ackTimeoutMs':
-    'How long to wait for a story-plan acknowledgement.',
   'delivery.refactorStage.enabled':
     'Whether a dedicated refactor stage runs during delivery.',
 
