@@ -26,6 +26,7 @@ import { fileURLToPath } from 'node:url';
 import { EpicRunnerContext } from '../../../../../.agents/scripts/lib/orchestration/context.js';
 import {
   createEpicRunnerCollaborators,
+  registerInterventionRecorder,
   registerReliabilityObservers,
 } from '../../../../../.agents/scripts/lib/orchestration/epic-runner/factory.js';
 import { Bus } from '../../../../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
@@ -182,6 +183,53 @@ describe('registerReliabilityObservers — boot-time listener census', () => {
       registerReliabilityObservers({ bus: { on: () => {} } }),
       null,
       'a bus missing emit() must be rejected',
+    );
+  });
+});
+
+describe('registerInterventionRecorder — boot-time listener census', () => {
+  it('returns null for missing collaborators', () => {
+    const provider = {};
+    const bus = new Bus();
+
+    assert.equal(
+      registerInterventionRecorder({ bus: null, provider, epicId: 1 }),
+      null,
+    );
+    assert.equal(
+      registerInterventionRecorder({ bus: {}, provider, epicId: 1 }),
+      null,
+    );
+    assert.equal(
+      registerInterventionRecorder({ bus, provider: null, epicId: 1 }),
+      null,
+    );
+    assert.equal(
+      registerInterventionRecorder({ bus, provider, epicId: 0 }),
+      null,
+    );
+    assert.equal(
+      registerInterventionRecorder({ bus, provider, epicId: '1' }),
+      null,
+    );
+  });
+
+  it('registers the intervention recorder on intervention.recorded', () => {
+    const bus = new Bus();
+    const provider = {};
+    const listener = registerInterventionRecorder({
+      bus,
+      provider,
+      epicId: 2410,
+      logger: quietLogger(),
+    });
+
+    assert.ok(listener, 'expected listener instance to be returned');
+    assert.deepEqual([...listener.events], ['intervention.recorded']);
+    assert.equal(
+      (bus._listeners.get('intervention.recorded') ?? []).length,
+      1,
+      'intervention.recorded should have one registered listener',
     );
   });
 });

@@ -86,98 +86,121 @@ function formatDuration(ms) {
  * with the full payload). Blocker events stay compact.
  */
 export function renderBody(event, payload) {
-  const lines = [];
-  if (event === 'wave.start') {
-    const idx = Number(payload?.waveIndex);
-    const totalWaves = Number(payload?.totalWaves);
-    const stories = Array.isArray(payload?.stories) ? payload.stories : [];
-    const ids = Array.isArray(payload?.storyIds) ? payload.storyIds : [];
-    const startedAt = payload?.startedAt;
-    const heading = Number.isInteger(totalWaves)
-      ? `### 🚀 Wave ${idx + 1}/${totalWaves} starting`
-      : `### 🚀 Wave ${idx + 1} starting`;
-    lines.push(heading);
-    lines.push('');
-    if (startedAt) {
-      lines.push(`Started: \`${startedAt}\``);
-    }
-    const count = stories.length || ids.length;
-    lines.push(`Stories: ${count}`);
-    if (stories.length) {
-      lines.push('');
-      for (const s of stories) {
-        const id = Number(s?.id ?? s?.storyId);
-        const title = typeof s?.title === 'string' && s.title ? s.title : null;
-        lines.push(`- #${id}${title ? ` — ${title}` : ''}`);
-      }
-    } else if (ids.length) {
-      lines.push('');
-      for (const id of ids) lines.push(`- #${id}`);
-    }
-  } else if (event === 'wave.end') {
-    const idx = Number(payload?.waveIndex);
-    const totalWaves = Number(payload?.totalWaves);
-    const outcomes = payload?.outcomes ?? {};
-    const stories = Array.isArray(payload?.stories) ? payload.stories : [];
-    const completedAt = payload?.completedAt;
-    const durationMs = payload?.durationMs;
-    const entries = Object.entries(outcomes);
-    const okCount = entries.filter(([, v]) => v === 'done').length;
-    const skippedCount = entries.filter(([, v]) => v === 'skipped').length;
-    const bad = entries.length - okCount - skippedCount;
-    const heading = Number.isInteger(totalWaves)
-      ? `### 🏁 Wave ${idx + 1}/${totalWaves} ${bad === 0 ? 'completed' : 'halted'}`
-      : `### 🏁 Wave ${idx + 1} ${bad === 0 ? 'completed' : 'halted'}`;
-    lines.push(heading);
-    lines.push('');
-    if (completedAt) {
-      const formatted = formatDuration(durationMs);
-      lines.push(
-        `Completed: \`${completedAt}\`${formatted ? ` (${formatted})` : ''}`,
-      );
-    }
-    lines.push(
-      `Outcomes: ${okCount} done · ${skippedCount} skipped · ${bad} failed/blocked`,
-    );
-    if (stories.length) {
-      lines.push('');
-      for (const s of stories) {
-        const id = Number(s?.storyId);
-        const status = String(s?.status ?? 'failed');
-        const icon =
-          status === 'done' ? '✅' : status === 'skipped' ? '⏭️' : '❌';
-        const detail =
-          typeof s?.detail === 'string' && s.detail ? ` — ${s.detail}` : '';
-        lines.push(`- ${icon} #${id} \`${status}\`${detail}`);
-      }
-    } else if (entries.length) {
-      lines.push('');
-      for (const [id, outcome] of entries) {
-        const icon =
-          outcome === 'done' ? '✅' : outcome === 'skipped' ? '⏭️' : '❌';
-        lines.push(`- ${icon} #${id} \`${outcome}\``);
-      }
-    }
-  } else if (event === 'epic.blocked') {
-    lines.push('### 🚧 Epic blocked');
-    lines.push('');
-    lines.push(`Reason: \`${payload?.reason ?? 'unknown'}\``);
-    if (Number.isInteger(payload?.sourceStoryId)) {
-      lines.push(`Source: #${payload.sourceStoryId}`);
-    }
-  } else if (event === 'epic.unblocked') {
-    lines.push('### ✅ Epic unblocked');
-    lines.push('');
-    lines.push(`Reason: \`${payload?.reason ?? 'unknown'}\``);
-    if (Number.isInteger(payload?.sourceStoryId)) {
-      lines.push(`Source: #${payload.sourceStoryId}`);
-    }
-  }
+  const lines = renderEventLines(event, payload);
   lines.push('');
   lines.push('```json');
   lines.push(JSON.stringify({ kind: event, ...payload }, null, 2));
   lines.push('```');
   return lines.join('\n');
+}
+
+function renderEventLines(event, payload) {
+  if (event === 'wave.start') {
+    return renderWaveStartLines(payload);
+  }
+  if (event === 'wave.end') {
+    return renderWaveEndLines(payload);
+  }
+  if (event === 'epic.blocked') {
+    return renderBlockerLines('### 🚧 Epic blocked', payload);
+  }
+  if (event === 'epic.unblocked') {
+    return renderBlockerLines('### ✅ Epic unblocked', payload);
+  }
+  return [];
+}
+
+function renderWaveStartLines(payload) {
+  const idx = Number(payload?.waveIndex);
+  const totalWaves = Number(payload?.totalWaves);
+  const stories = Array.isArray(payload?.stories) ? payload.stories : [];
+  const ids = Array.isArray(payload?.storyIds) ? payload.storyIds : [];
+  const heading = Number.isInteger(totalWaves)
+    ? `### 🚀 Wave ${idx + 1}/${totalWaves} starting`
+    : `### 🚀 Wave ${idx + 1} starting`;
+  const lines = [heading, ''];
+  if (payload?.startedAt) lines.push(`Started: \`${payload.startedAt}\``);
+  lines.push(`Stories: ${stories.length || ids.length}`);
+  appendWaveStartStories(lines, stories, ids);
+  return lines;
+}
+
+function appendWaveStartStories(lines, stories, ids) {
+  if (stories.length) {
+    lines.push('');
+    for (const s of stories) {
+      const id = Number(s?.id ?? s?.storyId);
+      const title = typeof s?.title === 'string' && s.title ? s.title : null;
+      lines.push(`- #${id}${title ? ` — ${title}` : ''}`);
+    }
+    return;
+  }
+  if (ids.length) {
+    lines.push('');
+    for (const id of ids) lines.push(`- #${id}`);
+  }
+}
+
+function renderWaveEndLines(payload) {
+  const idx = Number(payload?.waveIndex);
+  const totalWaves = Number(payload?.totalWaves);
+  const outcomes = payload?.outcomes ?? {};
+  const entries = Object.entries(outcomes);
+  const counts = summarizeOutcomes(entries);
+  const heading = Number.isInteger(totalWaves)
+    ? `### 🏁 Wave ${idx + 1}/${totalWaves} ${counts.bad === 0 ? 'completed' : 'halted'}`
+    : `### 🏁 Wave ${idx + 1} ${counts.bad === 0 ? 'completed' : 'halted'}`;
+  const lines = [heading, ''];
+  if (payload?.completedAt) {
+    const formatted = formatDuration(payload.durationMs);
+    lines.push(
+      `Completed: \`${payload.completedAt}\`${formatted ? ` (${formatted})` : ''}`,
+    );
+  }
+  lines.push(
+    `Outcomes: ${counts.ok} done · ${counts.skipped} skipped · ${counts.bad} failed/blocked`,
+  );
+  appendWaveEndStories(lines, payload?.stories, entries);
+  return lines;
+}
+
+function summarizeOutcomes(entries) {
+  const ok = entries.filter(([, v]) => v === 'done').length;
+  const skipped = entries.filter(([, v]) => v === 'skipped').length;
+  return { ok, skipped, bad: entries.length - ok - skipped };
+}
+
+function appendWaveEndStories(lines, rawStories, entries) {
+  const stories = Array.isArray(rawStories) ? rawStories : [];
+  if (stories.length) {
+    lines.push('');
+    for (const s of stories) {
+      const id = Number(s?.storyId);
+      const status = String(s?.status ?? 'failed');
+      const detail =
+        typeof s?.detail === 'string' && s.detail ? ` — ${s.detail}` : '';
+      lines.push(`- ${statusIcon(status)} #${id} \`${status}\`${detail}`);
+    }
+    return;
+  }
+  if (entries.length) {
+    lines.push('');
+    for (const [id, outcome] of entries) {
+      lines.push(`- ${statusIcon(outcome)} #${id} \`${outcome}\``);
+    }
+  }
+}
+
+function statusIcon(status) {
+  return status === 'done' ? '✅' : status === 'skipped' ? '⏭️' : '❌';
+}
+
+function renderBlockerLines(heading, payload) {
+  const lines = [heading, '', `Reason: \`${payload?.reason ?? 'unknown'}\``];
+  if (Number.isInteger(payload?.sourceStoryId)) {
+    lines.push(`Source: #${payload.sourceStoryId}`);
+  }
+  return lines;
 }
 
 export class StructuredCommentPoster {

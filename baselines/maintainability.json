@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-05T22:02:17.207Z",
+  "generatedAt": "2026-06-07T01:58:40.931Z",
   "rollup": {
     "*": {
-      "min": 45.044,
-      "p50": 104.233,
+      "min": 70.566,
+      "p50": 104.272,
       "p95": 122.198
     }
   },
@@ -133,10 +133,6 @@
     {
       "path": ".agents/scripts/epic-plan-healthcheck.js",
       "mi": 97.622
-    },
-    {
-      "path": ".agents/scripts/epic-plan-spec.js",
-      "mi": 69.971
     },
     {
       "path": ".agents/scripts/epic-plan.js",
@@ -459,18 +455,6 @@
       "mi": 171
     },
     {
-      "path": ".agents/scripts/lib/config-settings-schema-delivery.js",
-      "mi": 45.044
-    },
-    {
-      "path": ".agents/scripts/lib/config-settings-schema-quality.js",
-      "mi": 57.261
-    },
-    {
-      "path": ".agents/scripts/lib/config-settings-schema.js",
-      "mi": 49.706
-    },
-    {
       "path": ".agents/scripts/lib/config/baselines.js",
       "mi": 105.406
     },
@@ -649,10 +633,6 @@
     {
       "path": ".agents/scripts/lib/errors/index.js",
       "mi": 126.057
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/audit-results-graduator.js",
-      "mi": 86.427
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/code-review-graduator.js",
@@ -923,12 +903,12 @@
       "mi": 79.675
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/drain.js",
-      "mi": 87.346
+      "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/cli-args.js",
+      "mi": 90.987
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/plan-epic.js",
-      "mi": 69.619
+      "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/drain.js",
+      "mi": 87.346
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/prompts.js",
@@ -1123,10 +1103,6 @@
       "mi": 108.444
     },
     {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/index.js",
-      "mi": 69.141
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/lifecycle/trace-logger.js",
       "mi": 90.586
     },
@@ -1311,6 +1287,10 @@
       "mi": 104.065
     },
     {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
+      "mi": 80.718
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/single-story-lease-guard.js",
       "mi": 107.286
     },
@@ -1335,16 +1315,12 @@
       "mi": 84.544
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
-      "mi": 163.888
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution.js",
       "mi": 93.954
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution/phases/gate-failure.js",
-      "mi": 66.537
+      "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution/phases/pre-merge-attribution.js",
+      "mi": 74.676
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution/phases/regression-projection.js",
@@ -1815,10 +1791,6 @@
       "mi": 87.028
     },
     {
-      "path": ".agents/scripts/lifecycle-emit.js",
-      "mi": 96.043
-    },
-    {
       "path": ".agents/scripts/lint-label-vocabulary.js",
       "mi": 88.01
     },
@@ -1907,10 +1879,6 @@
       "mi": 98.904
     },
     {
-      "path": ".agents/scripts/resync-status-column.js",
-      "mi": 86.397
-    },
-    {
       "path": ".agents/scripts/run-audit-suite.js",
       "mi": 107.591
     },
@@ -1937,10 +1905,6 @@
     {
       "path": ".agents/scripts/signals-view.js",
       "mi": 93.522
-    },
-    {
-      "path": ".agents/scripts/single-story-close.js",
-      "mi": 58.031
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
@@ -2065,10 +2029,6 @@
     {
       "path": "tests/audit-suite/audit-fan-out-retirement.test.js",
       "mi": 115.93
-    },
-    {
-      "path": "tests/audit-suite/audit-results-graduator.test.js",
-      "mi": 105.689
     },
     {
       "path": "tests/audit-suite/audit-rules-gap-fill.test.js",
@@ -2811,10 +2771,6 @@
       "mi": 107.32
     },
     {
-      "path": "tests/epic-planner.test.js",
-      "mi": 100.305
-    },
-    {
       "path": "tests/epic-runner/_build-ctx.js",
       "mi": 122.625
     },
@@ -3555,10 +3511,6 @@
       "mi": 116.105
     },
     {
-      "path": "tests/lib/orchestration/lifecycle/activation/listener-registration.test.js",
-      "mi": 109.129
-    },
-    {
       "path": "tests/lib/orchestration/lifecycle/activation/reconcile-failure.test.js",
       "mi": 117.049
     },
@@ -3605,10 +3557,6 @@
     {
       "path": "tests/lib/orchestration/lifecycle/listener-cleaner.test.js",
       "mi": 110.157
-    },
-    {
-      "path": "tests/lib/orchestration/lifecycle/listener-comment.test.js",
-      "mi": 105.494
     },
     {
       "path": "tests/lib/orchestration/lifecycle/listener-finalizer.test.js",
@@ -4393,10 +4341,6 @@
     {
       "path": "tests/resolve-runtime.test.js",
       "mi": 114.994
-    },
-    {
-      "path": "tests/resync-status-column-cli.test.js",
-      "mi": 116.517
     },
     {
       "path": "tests/retro-perf-heuristics.test.js",

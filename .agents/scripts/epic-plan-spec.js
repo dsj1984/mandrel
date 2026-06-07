@@ -36,7 +36,6 @@
 // module is evaluated (Story #3432).
 import './lib/runtime-deps/ensure-installed.js';
 import { readFile } from 'node:fs/promises';
-import { parseArgs } from 'node:util';
 import {
   forkAndCommitEpicSnapshot,
   forkMainToEpic,
@@ -60,6 +59,7 @@ import {
   buildAuthoringContext,
   resolveMemoryDir,
 } from './lib/orchestration/epic-plan-spec/phases/authoring-context.js';
+import { parseEpicPlanSpecArgs } from './lib/orchestration/epic-plan-spec/phases/cli-args.js';
 import { drainPendingCleanupAtBoot } from './lib/orchestration/epic-plan-spec/phases/drain.js';
 import {
   planEpic,
@@ -92,31 +92,7 @@ export {
 };
 
 async function main() {
-  const { values } = parseArgs({
-    options: {
-      epic: { type: 'string' },
-      prd: { type: 'string' },
-      techspec: { type: 'string' },
-      'acceptance-spec': { type: 'string' },
-      force: { type: 'boolean', default: false },
-      'force-review': { type: 'boolean', default: false },
-      steal: { type: 'boolean', default: false },
-      'emit-context': { type: 'boolean', default: false },
-      pretty: { type: 'boolean', default: false },
-      'full-context': { type: 'boolean', default: false },
-    },
-  });
-
-  if (!values.epic) {
-    throw new Error(
-      'Usage: epic-plan-spec.js --epic <EpicId> (--emit-context [--pretty] [--full-context] | --prd <file> --techspec <file> [--acceptance-spec <file>]) [--force]',
-    );
-  }
-
-  const epicId = Number.parseInt(values.epic, 10);
-  if (Number.isNaN(epicId)) {
-    throw new Error(`Invalid epic ID: "${values.epic}" — must be a number.`);
-  }
+  const { values, epicId } = parseEpicPlanSpecArgs();
 
   let config;
   let settings;

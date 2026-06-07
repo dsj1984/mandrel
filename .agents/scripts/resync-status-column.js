@@ -117,6 +117,34 @@ export function validateRequiredArgs(values) {
   return { ticketId, pollAttempts, pollDelayMs, errors };
 }
 
+export function resolveEffectiveConfig(config, providerName) {
+  return providerName ? { ...config, provider: providerName } : config;
+}
+
+export function buildReassertOptions({
+  provider,
+  ticketId,
+  logger,
+  pollAttempts,
+  pollDelayMs,
+}) {
+  const opts = {
+    provider,
+    ticketId,
+    logger,
+  };
+  if (pollAttempts !== undefined) opts.pollAttempts = pollAttempts;
+  if (pollDelayMs !== undefined) opts.pollDelayMs = pollDelayMs;
+  return opts;
+}
+
+export function writeUsageErrors(errors, stderr = process.stderr) {
+  for (const e of errors) {
+    stderr.write(`[resync-status-column] ${e}\n`);
+  }
+  stderr.write(HELP);
+}
+
 export async function main(argv = process.argv.slice(2)) {
   const values = parseArgv(argv);
   if (values.help) {
@@ -126,28 +154,22 @@ export async function main(argv = process.argv.slice(2)) {
   const { ticketId, pollAttempts, pollDelayMs, errors } =
     validateRequiredArgs(values);
   if (errors.length) {
-    for (const e of errors) {
-      process.stderr.write(`[resync-status-column] ${e}\n`);
-    }
-    process.stderr.write(HELP);
+    writeUsageErrors(errors);
     process.exit(2);
   }
 
   const config = resolveConfig();
-  const effectiveConfig = values.provider
-    ? { ...config, provider: values.provider }
-    : config;
+  const effectiveConfig = resolveEffectiveConfig(config, values.provider);
   const provider = createProvider(effectiveConfig);
-
-  const opts = {
-    provider,
-    ticketId,
-    logger: Logger,
-  };
-  if (pollAttempts !== undefined) opts.pollAttempts = pollAttempts;
-  if (pollDelayMs !== undefined) opts.pollDelayMs = pollDelayMs;
-
-  const result = await reassertStatusColumn(opts);
+  const result = await reassertStatusColumn(
+    buildReassertOptions({
+      provider,
+      ticketId,
+      logger: Logger,
+      pollAttempts,
+      pollDelayMs,
+    }),
+  );
   process.stdout.write(`${JSON.stringify({ ticketId, ...result })}\n`);
 }
 

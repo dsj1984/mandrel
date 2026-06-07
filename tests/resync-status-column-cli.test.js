@@ -2,8 +2,11 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  buildReassertOptions,
   parseArgv,
+  resolveEffectiveConfig,
   validateRequiredArgs,
+  writeUsageErrors,
 } from '../.agents/scripts/resync-status-column.js';
 
 describe('resync-status-column CLI', () => {
@@ -37,5 +40,50 @@ describe('resync-status-column CLI', () => {
       parseArgv(['--ticket', 'not-a-number']),
     );
     assert.equal(errors.length, 1);
+  });
+
+  it('overrides the provider only when --provider is supplied', () => {
+    const baseConfig = { provider: 'github', github: { owner: 'dsj1984' } };
+
+    assert.equal(resolveEffectiveConfig(baseConfig), baseConfig);
+    assert.deepEqual(resolveEffectiveConfig(baseConfig, 'mock'), {
+      provider: 'mock',
+      github: { owner: 'dsj1984' },
+    });
+  });
+
+  it('builds reassert options with optional polling settings only when present', () => {
+    const provider = {};
+    const logger = {};
+
+    assert.deepEqual(
+      buildReassertOptions({ provider, ticketId: 2813, logger }),
+      { provider, ticketId: 2813, logger },
+    );
+    assert.deepEqual(
+      buildReassertOptions({
+        provider,
+        ticketId: 2813,
+        logger,
+        pollAttempts: 2,
+        pollDelayMs: 0,
+      }),
+      { provider, ticketId: 2813, logger, pollAttempts: 2, pollDelayMs: 0 },
+    );
+  });
+
+  it('writes validation errors with the usage text', () => {
+    let stderr = '';
+    writeUsageErrors(['bad ticket'], {
+      write(chunk) {
+        stderr += chunk;
+      },
+    });
+
+    assert.match(stderr, /\[resync-status-column\] bad ticket/);
+    assert.match(
+      stderr,
+      /Usage: node \.agents\/scripts\/resync-status-column\.js/,
+    );
   });
 });
