@@ -21,7 +21,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { preflightGh } from './gh-preflight.js';
+import { checkProjectScopes, preflightGh } from './gh-preflight.js';
 import { checkNodeVersion } from './project-bootstrap.js';
 
 const GIT_INSTALL_HINT =
@@ -127,20 +127,34 @@ async function checkGh(gh) {
  * @param {object} [opts]
  * @param {boolean} [opts.skipGithub=false] — when true, skip the `gh` CLI
  *   + auth check (the Node and git checks always run).
+ * @param {boolean} [opts.requireWorkTree=true] — when true (the default,
+ *   used by `bootstrap.js`), being outside a git work tree FAILS the gate.
+ *   When false (`bootstrap-new.js`), the work-tree probe is informational:
+ *   it never fails the gate and its result is reported via the returned
+ *   `gitInitialized` flag so later steps can fill in the missing git state.
+ * @param {boolean} [opts.checkProjectScope=false] — when true (and
+ *   `skipGithub` is false), also verify the `gh` token carries the
+ *   `project` scope needed to read/modify GitHub Projects V2.
  * @param {() => { ok: boolean, version: string, required: string }}
  *   [opts.nodeCheck] — Node-version seam (defaults to `checkNodeVersion`).
  * @param {(args: string[]) => object} [opts.gitRunner] — git runner seam
  *   (defaults to a real `spawnSync('git', …)`).
  * @param {(opts?: object) => Promise<{ version: string }>} [opts.gh] —
  *   `gh` preflight seam (defaults to `preflightGh`).
- * @returns {Promise<{ ok: boolean, checks: Array<{ name: string,
- *   ok: boolean, remedy?: string }> }>}
+ * @param {() => Promise<{ name: string, ok: boolean, remedy?: string }>}
+ *   [opts.projectScope] — project-scope seam (defaults to
+ *   `checkProjectScopes`).
+ * @returns {Promise<{ ok: boolean, gitInitialized: boolean,
+ *   checks: Array<{ name: string, ok: boolean, remedy?: string }> }>}
  */
 export async function runPreflight(opts = {}) {
   const skipGithub = Boolean(opts.skipGithub);
+  const requireWorkTree = opts.requireWorkTree !== false;
+  const checkProjectScope = Boolean(opts.checkProjectScope);
   const nodeCheck = opts.nodeCheck ?? checkNodeVersion;
   const gitRunner = opts.gitRunner ?? defaultGitRunner;
   const gh = opts.gh ?? preflightGh;
+  const projectScope = opts.projectScope ?? checkProjectScopes;
 
   const checks = [checkNode(nodeCheck)];
 
@@ -148,14 +162,34 @@ export async function runPreflight(opts = {}) {
   checks.push(gitAvailable);
   // The inside-work-tree probe only makes sense when git itself resolved;
   // if git is missing the rev-parse error is redundant noise.
+  let gitInitialized = false;
   if (gitAvailable.ok) {
-    checks.push(checkInsideWorkTree(gitRunner));
+    const workTree = checkInsideWorkTree(gitRunner);
+    gitInitialized = workTree.ok;
+    if (requireWorkTree) {
+      checks.push(workTree);
+    } else {
+      // Non-fatal detection: record whether we are inside a git repo but
+      // never fail the gate on it — `bootstrap-new.js` can run pre-init and
+      // collect the remote/branch/owner in later steps.
+      checks.push({
+        name: 'git-work-tree',
+        ok: true,
+        gitInitialized,
+        detail: gitInitialized
+          ? 'inside a git work tree'
+          : 'not a git repo yet — will be collected in later steps',
+      });
+    }
   }
 
   if (!skipGithub) {
     checks.push(await checkGh(gh));
+    if (checkProjectScope) {
+      checks.push(await projectScope());
+    }
   }
 
   const ok = checks.every((c) => c.ok);
-  return { ok, checks };
+  return { ok, gitInitialized, checks };
 }

@@ -35,7 +35,14 @@ export const KNOWN_FLAGS = Object.freeze({
     'project-number',
     'profile',
   ],
-  boolean: ['assume-yes', 'skip-github', 'skip-quality', 'help', 'dry-run'],
+  boolean: [
+    'assume-yes',
+    'skip-github',
+    'skip-quality',
+    'help',
+    'dry-run',
+    'reap-conflicting-workflows',
+  ],
 });
 
 /**

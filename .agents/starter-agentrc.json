@@ -11,7 +11,8 @@
   "github": {
     "owner": "[OWNER]",
     "repo": "[REPO]",
-    "operatorHandle": "@[USERNAME]"
+    "operatorHandle": "@[USERNAME]",
+    "projectNumber": null
   },
   "delivery": {
     "ci": {
