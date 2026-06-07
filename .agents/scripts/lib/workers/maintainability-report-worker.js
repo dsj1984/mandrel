@@ -13,8 +13,16 @@
  * `calculateReportForFile` instead of `calculateForFile`.
  *
  * Message contract — see lib/cpu-pool.js:
- *   IN  : { item: string }      — absolute file path to score
- *         { exit: true }        — drain & terminate
+ *   IN  : { item: string }                  — absolute file path to score
+ *                                             (reads head content from disk)
+ *         { item: { source, label } }       — pre-sourced content to score
+ *                                             (Story #3696: the native review
+ *                                             sources head content via
+ *                                             `git show <headRef>:<path>` and
+ *                                             passes the string here so the
+ *                                             worker scores the head version,
+ *                                             not the on-disk base copy)
+ *         { exit: true }                     — drain & terminate
  *   OUT : { ok: true, result: { filePath, report: object | null } }
  *
  * `report` is `null` only when the file genuinely cannot be read (ENOENT
@@ -27,7 +35,35 @@
  */
 
 import { parentPort } from 'node:worker_threads';
-import { calculateReportForFile } from '../maintainability-engine.js';
+import {
+  calculateReport,
+  calculateReportForFile,
+} from '../maintainability-engine.js';
+import { transpileIfNeeded } from '../maintainability-utils.js';
+
+/**
+ * Score a pre-sourced content string (Story #3696). Mirrors
+ * `native.js#scoreSourceReport`: transpile the source by its `label`
+ * extension, then report. A null transpile (unsupported / failed) resolves
+ * to a parse-error report rather than throwing, matching the disk path.
+ *
+ * @param {string} source
+ * @param {string} label  Path used only to pick the transpile mode.
+ * @returns {object}
+ */
+function reportFromSource(source, label) {
+  const prepared = transpileIfNeeded(label, source);
+  if (prepared === null) {
+    return {
+      moduleScore: 0,
+      methods: [],
+      worstMethod: null,
+      meanMethod: null,
+      parseError: true,
+    };
+  }
+  return calculateReport(prepared);
+}
 
 /**
  * Pure handler for a single inbound worker message. Exported so unit
@@ -41,7 +77,14 @@ import { calculateReportForFile } from '../maintainability-engine.js';
 export function handleMaintainabilityReportWorkerMessage(msg, deps = {}) {
   if (msg && msg.exit === true) return { kind: 'exit' };
 
-  if (!msg || typeof msg.item !== 'string') {
+  const item = msg?.item;
+  const isPathItem = typeof item === 'string';
+  const isSourceItem =
+    item &&
+    typeof item === 'object' &&
+    typeof item.source === 'string' &&
+    typeof item.label === 'string';
+  if (!isPathItem && !isSourceItem) {
     return {
       kind: 'reply',
       message: {
@@ -50,10 +93,13 @@ export function handleMaintainabilityReportWorkerMessage(msg, deps = {}) {
       },
     };
   }
-  const filePath = msg.item;
+  const filePath = isPathItem ? item : item.label;
   const reportFn = deps.report ?? calculateReportForFile;
+  const sourceReportFn = deps.reportFromSource ?? reportFromSource;
   try {
-    const report = reportFn(filePath);
+    const report = isSourceItem
+      ? sourceReportFn(item.source, item.label)
+      : reportFn(filePath);
     return {
       kind: 'reply',
       message: { ok: true, result: { filePath, report } },
