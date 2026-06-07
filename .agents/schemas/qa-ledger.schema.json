@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://mandrel.dev/schemas/qa-ledger.schema.json",
   "title": "QaLedgerItem",
-  "description": "Structured exploratory-QA ledger item (`f3-qa-explore-core`, Feature #3710, Epic #3686). One object per observation captured while exploring a consumer surface — distinct from a `qa-finding` (the browser-sweep `F#` finding): a ledger item classifies a broader exploratory signal (product bug, environment-setup friction, tooling/DX gap, test-coverage gap, or enhancement idea), records the evidence and coverage context, names any missing test, and carries the operator disposition so Triage can parse a whole session. Evidence MUST already be scrubbed of secrets, session tokens, and PII per `.agents/rules/security-baseline.md` before it is rendered here.",
+  "description": "Structured exploratory-QA ledger item (`f3-qa-explore-core`, Feature #3710, Epic #3686). One object per observation captured while exploring a consumer surface — distinct from a `qa-finding` (the browser-sweep `F#` finding): a ledger item classifies a broader exploratory signal (product bug, environment-setup friction, tooling/DX gap, test-coverage gap, or enhancement idea), records the evidence and coverage context, names any missing test, and carries the operator disposition so Triage can parse a whole session. A ledger item has a two-phase lifecycle: the read-only **Capture** phase appends an item with the Capture-phase fields populated (`id`, `class`, `severity`, `evidence`, `coverage`, `missingTest`) but no resolved `disposition`; the **Triage** phase later assigns the `disposition`. The schema therefore validates BOTH the captured-but-untriaged shape (`disposition` absent, `null`, or a `pending`/`untriaged` sentinel — the rolling backlog `.agents/scripts/lib/qa/qa-session.js` reads back on resume) AND the fully-triaged shape (`disposition` resolved to `file`/`defer`/`dismiss`), while still rejecting genuinely malformed items. Evidence MUST already be scrubbed of secrets, session tokens, and PII per `.agents/rules/security-baseline.md` before it is rendered here.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -11,8 +11,7 @@
     "severity",
     "evidence",
     "coverage",
-    "missingTest",
-    "disposition"
+    "missingTest"
   ],
   "properties": {
     "id": {
@@ -51,9 +50,9 @@
       "description": "A description of the automated test that, if present, would have caught this signal — or `null` when no test gap applies (e.g. a pure enhancement idea)."
     },
     "disposition": {
-      "type": "string",
-      "description": "What Triage should do with the item: `file` to promote it to a follow-up ticket, `defer` to park it for a later session, or `dismiss` to close it as non-actionable.",
-      "enum": ["file", "defer", "dismiss"]
+      "type": ["string", "null"],
+      "description": "Triage output. Once an item is triaged, this resolves to what Triage should do with it: `file` to promote it to a follow-up ticket, `defer` to park it for a later session, or `dismiss` to close it as non-actionable. While the item is still in the read-only Capture phase (captured-but-untriaged), `disposition` is `null`, absent, or carries a `pending`/`untriaged` sentinel — the rolling-backlog state `.agents/scripts/lib/qa/qa-session.js` reads back on resume. Any non-sentinel string value MUST be one of the triaged enum values; an out-of-enum value (e.g. `maybe`) is still rejected.",
+      "enum": ["file", "defer", "dismiss", "pending", "untriaged", null]
     },
     "relates": {
       "type": "array",
