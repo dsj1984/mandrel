@@ -3,7 +3,7 @@
  *
  * Acceptance: the headless `/run-bdd-suite` workflow is hard-cutover deleted
  * and every live reference is repointed to its agent-driven successor
- * `/run-qa-harness` (authored in Story #3297).
+ * `/qa-run-harness` (authored in Story #3297).
  *
  * This spec is a structural assertion that:
  *   1. `.agents/workflows/run-bdd-suite.md` no longer exists.
@@ -78,7 +78,7 @@ describe('run-bdd-suite retirement guard', () => {
     assert.equal(
       await fileExists(target),
       false,
-      `${RETIRED_WORKFLOW} must be deleted — its successor is .agents/workflows/run-qa-harness.md`,
+      `${RETIRED_WORKFLOW} must be deleted — its successor is .agents/workflows/qa-run-harness.md`,
     );
   });
 
@@ -109,7 +109,7 @@ describe('run-bdd-suite retirement guard', () => {
     assert.deepEqual(
       offenders,
       [],
-      `Found live references to the retired /run-bdd-suite workflow (repoint to /run-qa-harness):\n${offenders.join('\n')}`,
+      `Found live references to the retired /run-bdd-suite workflow (repoint to /qa-run-harness):\n${offenders.join('\n')}`,
     );
   });
 });

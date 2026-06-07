@@ -750,7 +750,7 @@ Deferred remainder:
 
 **Finding:** 5.
 
-Today `run-qa-harness.md` is by design a **prose** workflow: the host LLM drives
+Today `qa-run-harness.md` is by design a **prose** workflow: the host LLM drives
 a `chrome-devtools` MCP surface; deterministic Node helpers under
 `.agents/scripts/lib/qa/` do only contract resolution, scenario selection, and
 console filtering; there is no headless fallback; and it never files tickets
