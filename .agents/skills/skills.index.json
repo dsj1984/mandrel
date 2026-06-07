@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-07T16:15:41.090Z",
+  "generatedAt": "2026-06-07T16:40:24.678Z",
   "generator": "generate-skills-index.js@1",
   "skills": [
     {
@@ -250,6 +250,16 @@
       "description": "Generative testing of invariants. Use when a unit has properties that should hold across a whole input domain — round-trips, idempotence, ordering, conservation — rather than a handful of hand-picked examples. The test-tier, mocking, and assertion-placement MUSTs live in `.agents/rules/testing-standards.md`; this skill shows how to find properties, pick the right per-stack library, and keep generative tests deterministic and fast.",
       "policyCapsuleBullets": 8,
       "allowedTools": null,
+      "vendor": null
+    },
+    {
+      "name": "qa-coverage-mapping",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/qa-coverage-mapping/SKILL.md",
+      "description": "Map a quality finding to a per-tier coverage verdict (unit / contract / acceptance) aligned to `.agents/rules/testing-standards.md`. Use when a finding points at a symbol or surface and you need to know which test tiers already cover it and which are missing, so remediation lands the right tier. Delegates the verdict to the deterministic `lib/qa/coverage-verdict.js#coverageVerdict` helper.",
+      "policyCapsuleBullets": 7,
+      "allowedTools": ["Read", "Bash"],
       "vendor": null
     },
     {
