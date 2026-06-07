@@ -159,7 +159,8 @@ function buildQuestions(defaults, flags, env = process.env) {
       key: 'repo',
       flag: 'repo',
       env: 'GH_REPO',
-      message: 'Github repo name - Select from the list or enter a new name to create one',
+      message:
+        'Github repo name - Select from the list or enter a new name to create one',
       default: defaults.repo,
       required: true,
       picker: {
@@ -341,7 +342,10 @@ export function prepareContext(state, opts = {}) {
   Logger.info(`  base branch    ${defaults.baseBranch ?? '(none)'}`);
   Logger.info(`  username       ${defaults.operatorHandle ?? '(none)'}`);
 
-  return { ok: true, payload: { projectRoot, agentRoot, defaults, silentAccept } };
+  return {
+    ok: true,
+    payload: { projectRoot, agentRoot, defaults, silentAccept },
+  };
 }
 
 /**
@@ -488,10 +492,7 @@ export async function collectAndConfirm(state) {
 
     Logger.info('[temp][step4] Approval');
     Logger.info(renderAnswerSummary(answers, creation, project));
-    const correct = await confirmYesNo(
-      'Is this correct?',
-      state.interactive,
-    );
+    const correct = await confirmYesNo('Is this correct?', state.interactive);
     if (!correct) {
       Logger.info('[bootstrap-new] Okay — let’s try again.');
       // Re-prompt everything on the next pass (drop silent-accept).
@@ -500,10 +501,7 @@ export async function collectAndConfirm(state) {
     }
 
     // In --dry-run we only collect/confirm info, so never ask to create.
-    if (
-      !state.flags['dry-run'] &&
-      (creation.newRepo || creation.newProject)
-    ) {
+    if (!state.flags['dry-run'] && (creation.newRepo || creation.newProject)) {
       const approved = await confirmYesNo(
         'Create the new GitHub repo/project listed above?',
         state.interactive,
@@ -640,7 +638,9 @@ export function persistProjectNumber(state) {
 export async function executeGithubBootstrap(state) {
   Logger.info('[temp][step6] GitHub bootstrap');
   if (state.flags['skip-github']) {
-    Logger.info('[bootstrap-new] --skip-github set; skipping GitHub bootstrap.');
+    Logger.info(
+      '[bootstrap-new] --skip-github set; skipping GitHub bootstrap.',
+    );
     return { ok: true, payload: {} };
   }
   try {
@@ -654,8 +654,10 @@ export async function executeGithubBootstrap(state) {
     Logger.error(`[bootstrap-new] GitHub bootstrap failed: ${err.message}`);
     // GhExecError carries the real gh stderr/stdout/exit code — surface it so
     // a generic "gh exited with code 1" is actually diagnosable.
-    if (err.stderr) Logger.error(`[bootstrap-new]   gh stderr: ${err.stderr.trim()}`);
-    if (err.stdout) Logger.error(`[bootstrap-new]   gh stdout: ${err.stdout.trim()}`);
+    if (err.stderr)
+      Logger.error(`[bootstrap-new]   gh stderr: ${err.stderr.trim()}`);
+    if (err.stdout)
+      Logger.error(`[bootstrap-new]   gh stdout: ${err.stdout.trim()}`);
     if (Array.isArray(err.args)) {
       Logger.error(`[bootstrap-new]   gh args: ${err.args.join(' ')}`);
     }
@@ -667,7 +669,10 @@ export async function executeGithubBootstrap(state) {
 /** Step 6c — Record the install ledger for a future uninstall. */
 export function recordLedger(state) {
   Logger.info('[temp][step6] Record install ledger');
-  const appliedGroups = resolveAppliedGroups(state.approvedGroups, state.report);
+  const appliedGroups = resolveAppliedGroups(
+    state.approvedGroups,
+    state.report,
+  );
   const manifestCtx = {
     answers: state.answers,
     skipGithub: Boolean(state.flags['skip-github']),

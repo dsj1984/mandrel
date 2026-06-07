@@ -160,9 +160,7 @@ function viewsEndpoints(account, owner, projectNumber) {
     );
   }
   if (account.id != null) {
-    candidates.push(
-      `/users/${account.id}/projectsV2/${projectNumber}/views`,
-    );
+    candidates.push(`/users/${account.id}/projectsV2/${projectNumber}/views`);
   }
   return candidates;
 }
@@ -182,9 +180,7 @@ async function createView(ctx, endpoints, body) {
       if (err.status !== 404) throw err;
     }
   }
-  throw (
-    lastError ?? new Error('[GitHubProvider] No views endpoint available.')
-  );
+  throw lastError ?? new Error('[GitHubProvider] No views endpoint available.');
 }
 
 async function lookupProject(ctx, fragment, strict = false) {

@@ -246,16 +246,28 @@ describe('Bootstrap — STATUS_FIELD_OPTIONS', () => {
 });
 
 describe('Bootstrap — PROJECT_VIEW_DEFS', () => {
-  it('defines the three default Views', () => {
+  it('defines the four default Views', () => {
     const names = PROJECT_VIEW_DEFS.map((v) => v.name);
-    assert.deepEqual(names, ['Epic Roadmap', 'Active Stories', 'My Queue']);
+    assert.deepEqual(names, [
+      'Mandrel Board',
+      'Epic Roadmap',
+      'Active Stories',
+      'My Queue',
+    ]);
   });
 
-  it('each View has a filter and groupBy', () => {
+  it('each View has a string filter and groups by Status', () => {
     for (const view of PROJECT_VIEW_DEFS) {
-      assert.ok(view.filter, `${view.name} missing filter`);
+      assert.equal(typeof view.filter, 'string', `${view.name} missing filter`);
       assert.equal(view.groupBy, 'Status');
     }
+  });
+
+  it('Mandrel Board is a board-layout view with an empty filter', () => {
+    const view = PROJECT_VIEW_DEFS.find((v) => v.name === 'Mandrel Board');
+    assert.ok(view, 'Mandrel Board view missing');
+    assert.equal(view.layout, 'board');
+    assert.equal(view.filter, '');
   });
 
   it('Epic Roadmap filter targets type::epic', () => {
@@ -386,7 +398,7 @@ describe('Bootstrap — module exports', () => {
 
   it('exports PROJECT_VIEW_DEFS array', () => {
     assert.ok(Array.isArray(PROJECT_VIEW_DEFS));
-    assert.equal(PROJECT_VIEW_DEFS.length, 3);
+    assert.equal(PROJECT_VIEW_DEFS.length, 4);
   });
 });
 

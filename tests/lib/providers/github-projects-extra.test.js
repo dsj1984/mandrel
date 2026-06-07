@@ -20,14 +20,44 @@ const NOT_GRANTED_ERR = new Error(
 );
 
 /**
- * Build a ctx + fake `fetch` that drives the shim. Each call to `fetch` invokes
- * `runGraphqlScript` with the parsed `{ query, variables }` body and the
- * 0-indexed call number; the return value becomes the GraphQL `data` payload.
- * Returning `null` or throwing simulates an error response.
+ * Build a ctx + fake `fetch` that drives the shim.
+ *
+ * GraphQL calls (to `…/graphql`) invoke `runGraphqlScript` with the parsed
+ * `{ query, variables }` body and the 0-indexed GraphQL call number; the
+ * return value becomes the GraphQL `data` payload. Returning `null` or
+ * throwing simulates an error response.
+ *
+ * REST calls (any other URL — `resolveOwnerAccount`'s `GET /users/{login}`
+ * and `createView`'s `POST …/views`) invoke `runRest(url, method, body, j,
+ * restOk)` when provided; otherwise they fall back to sensible defaults
+ * (owner resolves to a `User`, view creation succeeds). `restOk(payload,
+ * status)` builds a fetch-shaped response.
  */
-function buildCtx({ runGraphqlScript } = {}) {
+function buildCtx({ runGraphqlScript, runRest } = {}) {
   const calls = [];
-  const fetchImpl = async (_url, init) => {
+  const restCalls = [];
+  const restOk = (payload, status = 200) => ({
+    ok: status >= 200 && status < 300,
+    status,
+    async json() {
+      return payload;
+    },
+    async text() {
+      return typeof payload === 'string' ? payload : JSON.stringify(payload);
+    },
+  });
+  const fetchImpl = async (url, init) => {
+    if (url !== 'https://api.github.com/graphql') {
+      const method = init.method ?? 'GET';
+      const body = init.body ? JSON.parse(init.body) : null;
+      const j = restCalls.length;
+      restCalls.push({ url, method, body });
+      if (typeof runRest === 'function')
+        return runRest(url, method, body, j, restOk);
+      // Defaults: resolve the owner as a User; view creation succeeds.
+      if (method === 'GET') return restOk({ id: 4242, type: 'User' });
+      return restOk({ id: 'VIEW_NODE', name: body?.name });
+    }
     const body = JSON.parse(init.body);
     const i = calls.length;
     calls.push({ query: body.query, variables: body.variables });
@@ -71,7 +101,7 @@ function buildCtx({ runGraphqlScript } = {}) {
     token: 'fake-token',
     fetchImpl,
   };
-  return { ctx, calls };
+  return { ctx, calls, restCalls };
 }
 
 describe('isInsufficientScopes', () => {
@@ -318,6 +348,7 @@ describe('ensureProjectViews', () => {
   });
 
   it('flips unavailable=true after the first create failure and skips the rest', async () => {
+    let posts = 0;
     const { ctx } = buildCtx({
       runGraphqlScript: (_q, _v, i) => {
         if (i === 0) {
@@ -325,8 +356,14 @@ describe('ensureProjectViews', () => {
             user: { projectV2: { id: 'pv2', views: { nodes: [] } } },
           };
         }
-        // first create call (i=1) fails; subsequent should not be invoked
-        throw new Error('mutation unavailable');
+        return {};
+      },
+      runRest: (_url, method, _body, _j, restOk) => {
+        if (method === 'GET') return restOk({ id: 4242, type: 'User' });
+        // The first view-create POST fails with a non-404 status; the loop
+        // must flip unavailable and skip the remaining defs without a 2nd POST.
+        posts += 1;
+        return restOk('view creation failed', 500);
       },
     });
     const result = await ensureProjectViews(ctx, [
@@ -334,6 +371,7 @@ describe('ensureProjectViews', () => {
       { name: 'B' },
     ]);
     assert.equal(result.unavailable, true);
+    assert.equal(posts, 1);
     assert.deepEqual(result.created, []);
     assert.deepEqual(result.skipped, ['A', 'B']);
   });
