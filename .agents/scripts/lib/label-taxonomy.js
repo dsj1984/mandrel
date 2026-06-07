@@ -184,9 +184,16 @@ export const STATUS_FIELD_OPTIONS = ['Todo', 'In Progress', 'Done'];
  * the filter strings in `docs/project-board.md` when the mutation is
  * unavailable.
  *
- * @type {Array<{ name: string, filter: string, groupBy: string }>}
+ * @type {Array<{ name: string, filter: string, groupBy: string,
+ *   layout?: 'table'|'board'|'roadmap' }>}
  */
 export const PROJECT_VIEW_DEFS = [
+  {
+    name: 'Mandrel Board',
+    filter: '',
+    groupBy: 'Status',
+    layout: 'board',
+  },
   {
     name: 'Epic Roadmap',
     filter: 'label:type::epic',
