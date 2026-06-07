@@ -1,0 +1,67 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://mandrel.dev/schemas/qa-ledger.schema.json",
+  "title": "QaLedgerItem",
+  "description": "Structured exploratory-QA ledger item (`f3-qa-explore-core`, Feature #3710, Epic #3686). One object per observation captured while exploring a consumer surface — distinct from a `qa-finding` (the browser-sweep `F#` finding): a ledger item classifies a broader exploratory signal (product bug, environment-setup friction, tooling/DX gap, test-coverage gap, or enhancement idea), records the evidence and coverage context, names any missing test, and carries the operator disposition so Triage can parse a whole session. Evidence MUST already be scrubbed of secrets, session tokens, and PII per `.agents/rules/security-baseline.md` before it is rendered here.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "class",
+    "severity",
+    "evidence",
+    "coverage",
+    "missingTest",
+    "disposition"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Stable ledger-item identifier, assigned `L1`, `L2`, … in capture order across an exploratory session.",
+      "pattern": "^L[0-9]+$"
+    },
+    "class": {
+      "type": "string",
+      "description": "The kind of exploratory signal this item represents. `product-bug` is a genuine defect in the product under test; `environment-setup` is friction standing up or seeding the environment; `tooling-dx` is a developer-experience or tooling gap; `test-gap` is a missing or insufficient automated test; `enhancement` is a non-defect improvement idea.",
+      "enum": [
+        "product-bug",
+        "environment-setup",
+        "tooling-dx",
+        "test-gap",
+        "enhancement"
+      ]
+    },
+    "severity": {
+      "type": "string",
+      "description": "Operator-assigned severity of the item, used to order Triage attention.",
+      "enum": ["critical", "high", "medium", "low", "info"]
+    },
+    "evidence": {
+      "type": "string",
+      "description": "A one-line, scrubbed description of the observed signal supporting the item (what was seen, where). Captured detail MUST be free of tokens, session cookies, and PII per `.agents/rules/security-baseline.md`.",
+      "minLength": 1
+    },
+    "coverage": {
+      "type": "string",
+      "description": "The surface, scenario, or area of the product the exploration was covering when this item surfaced (e.g. a route label or feature name). Falls back to `unknown` when the explorer cannot resolve a coverage label.",
+      "minLength": 1
+    },
+    "missingTest": {
+      "type": ["string", "null"],
+      "description": "A description of the automated test that, if present, would have caught this signal — or `null` when no test gap applies (e.g. a pure enhancement idea)."
+    },
+    "disposition": {
+      "type": "string",
+      "description": "What Triage should do with the item: `file` to promote it to a follow-up ticket, `defer` to park it for a later session, or `dismiss` to close it as non-actionable.",
+      "enum": ["file", "defer", "dismiss"]
+    },
+    "relates": {
+      "type": "array",
+      "description": "Optional. The ids of other ledger items this item relates to or folds into during session triage. Omit (or leave empty) for a standalone item.",
+      "items": {
+        "type": "string",
+        "pattern": "^L[0-9]+$"
+      }
+    }
+  }
+}
