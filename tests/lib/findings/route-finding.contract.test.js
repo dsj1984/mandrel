@@ -45,6 +45,41 @@ const finding = {
   labels: ['perf'],
 };
 
+/**
+ * Map an audit-to-stories-shaped `### Finding` block onto the canonical
+ * identity the shared helper fingerprints over. Audit findings name their
+ * area `dimension`; otherwise they already carry the identity fields, so
+ * this is a near-passthrough projection onto
+ * {title, area, primaryFile, severity, labels}.
+ */
+function fromAuditFinding(f) {
+  return {
+    title: f.title,
+    area: f.dimension,
+    primaryFile: f.primaryFile,
+    severity: f.severity,
+    labels: f.labels,
+  };
+}
+
+/**
+ * Map a qa-explore `F#` finding (`qa-finding.schema.json` shape) onto the
+ * same canonical identity. The QA harness names its fields differently
+ * (`classification`/`surface`/`symptom`/`disposition`), so the adapter
+ * projects them onto {title, area, primaryFile, severity, labels} before
+ * routing — proving a structurally different producer resolves through the
+ * *same* routeFinding entrypoint.
+ */
+function fromQaFinding(f) {
+  return {
+    title: f.symptom,
+    area: f.classification,
+    primaryFile: f.surface,
+    severity: f.disposition === 'blocker' ? 'high' : 'low',
+    labels: [`qa:${f.classification}`],
+  };
+}
+
 test('contract: searchIssues scans both open and closed and yields new on empty store', async () => {
   const store = makeIssueStore([]);
   const result = await routeFinding(finding, store);
@@ -102,4 +137,97 @@ test('contract: mixed open+closed store prefers the open match', async () => {
   const result = await routeFinding(finding, store);
   assert.equal(result.decision, 'update-existing');
   assert.equal(result.matchedIssue.number, 501);
+});
+
+// --- Shared entrypoint: audit-to-stories AND qa-explore route through routeFinding ---
+//
+// These tests prove the F1 hard-cutover invariant for Story #3720: an
+// audit-to-stories-shaped finding and a qa-explore-shaped finding both
+// resolve through the SAME routeFinding entrypoint after each producer's
+// native shape is projected onto the canonical identity. There is no
+// second dedup path — the only thing that differs between producers is the
+// adapter that names their fields.
+
+const auditFinding = {
+  title: 'Unbounded recursion in dispatch planner',
+  dimension: 'maintainability',
+  primaryFile: '.agents/scripts/lib/dispatch/plan.js',
+  severity: 'high',
+  labels: ['audit:clean-code'],
+};
+
+const qaFinding = {
+  id: 'F7',
+  classification: 'console-error',
+  surface: '/checkout',
+  symptom: 'Uncaught TypeError reading "total" of undefined on checkout',
+  likelyRootCause: null,
+  disposition: 'blocker',
+  acceptance: null,
+  evidence: {
+    console: [{ level: 'error', text: 'TypeError: ...' }],
+    network: [],
+  },
+};
+
+test('contract: an audit-to-stories-shaped finding routes to new through routeFinding', async () => {
+  const store = makeIssueStore([]);
+  const result = await routeFinding(fromAuditFinding(auditFinding), store);
+  assert.equal(result.decision, 'new');
+  assert.equal(result.matchedIssue, null);
+  assert.match(result.fingerprint, /^[0-9a-f]{40}$/);
+});
+
+test('contract: a qa-explore-shaped finding routes to new through the same routeFinding', async () => {
+  const store = makeIssueStore([]);
+  const result = await routeFinding(fromQaFinding(qaFinding), store);
+  assert.equal(result.decision, 'new');
+  assert.equal(result.matchedIssue, null);
+  assert.match(result.fingerprint, /^[0-9a-f]{40}$/);
+});
+
+test('contract: an audit-shaped finding dedupes against its own prior Issue (update-existing)', async () => {
+  const { full: sha } = fingerprintFinding(fromAuditFinding(auditFinding));
+  const store = makeIssueStore([
+    { number: 610, state: 'open', fingerprint: sha },
+  ]);
+  const result = await routeFinding(fromAuditFinding(auditFinding), store);
+  assert.equal(result.decision, 'update-existing');
+  assert.equal(result.matchedIssue.number, 610);
+});
+
+test('contract: a qa-shaped finding dedupes against its own prior Issue through the shared helper', async () => {
+  const { full: sha } = fingerprintFinding(fromQaFinding(qaFinding));
+  const store = makeIssueStore([
+    { number: 620, state: 'open', fingerprint: sha },
+  ]);
+  const result = await routeFinding(fromQaFinding(qaFinding), store);
+  assert.equal(result.decision, 'update-existing');
+  assert.equal(result.matchedIssue.number, 620);
+});
+
+test('contract: audit-shaped and qa-shaped findings yield distinct fingerprints from one helper', async () => {
+  // Same entrypoint, same fingerprint function — distinct identities because
+  // the two producers describe genuinely different problems. This is the
+  // load-bearing proof that one shared helper serves both shapes.
+  const auditFp = fingerprintFinding(fromAuditFinding(auditFinding)).full;
+  const qaFp = fingerprintFinding(fromQaFinding(qaFinding)).full;
+  assert.notEqual(auditFp, qaFp);
+  assert.match(auditFp, /^[0-9a-f]{40}$/);
+  assert.match(qaFp, /^[0-9a-f]{40}$/);
+});
+
+test('contract: both producers share the closed-Issue regression route', async () => {
+  const auditSha = fingerprintFinding(fromAuditFinding(auditFinding)).full;
+  const qaSha = fingerprintFinding(fromQaFinding(qaFinding)).full;
+  const store = makeIssueStore([
+    { number: 700, state: 'closed', fingerprint: auditSha },
+    { number: 701, state: 'closed', fingerprint: qaSha },
+  ]);
+  const auditResult = await routeFinding(fromAuditFinding(auditFinding), store);
+  const qaResult = await routeFinding(fromQaFinding(qaFinding), store);
+  assert.equal(auditResult.decision, 'regression-of-closed');
+  assert.equal(auditResult.matchedIssue.number, 700);
+  assert.equal(qaResult.decision, 'regression-of-closed');
+  assert.equal(qaResult.matchedIssue.number, 701);
 });

@@ -86,16 +86,28 @@ export function fingerprintFinding(finding) {
 }
 
 /**
- * Render the machine-readable fingerprint footer for a single sha.
+ * Render the machine-readable fingerprint footer for one or more shas.
  *
- * @param {string} sha — full 40-char sha1.
+ * Accepts either a single 40-char sha1 or an array of them, so a footer
+ * can carry every finding sha that a grouped Issue tracks
+ * (`<!-- audit-fingerprints: sha,sha,... -->`). The comma-joined form
+ * round-trips through {@link parseFingerprintFooter}. This is the single
+ * footer renderer shared by `audit-to-stories` and `qa-explore`; neither
+ * consumer defines its own marker.
+ *
+ * @param {string | string[]} shas — full 40-char sha1, or an array of them.
  * @returns {string}
  */
-export function fingerprintFooter(sha) {
-  if (typeof sha !== 'string' || !SHA1_RE.test(sha)) {
-    throw new Error('fingerprintFooter: sha must be a 40-char sha1 hex string');
+export function fingerprintFooter(shas) {
+  const list = Array.isArray(shas) ? shas : [shas];
+  for (const sha of list) {
+    if (typeof sha !== 'string' || !SHA1_RE.test(sha)) {
+      throw new Error(
+        'fingerprintFooter: every sha must be a 40-char sha1 hex string',
+      );
+    }
   }
-  return `<!-- ${MARKER} ${sha} -->`;
+  return `<!-- ${MARKER} ${list.join(',')} -->`;
 }
 
 /**

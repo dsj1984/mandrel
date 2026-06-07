@@ -19,7 +19,7 @@
  */
 
 import { serialize } from '../story-body/story-body.js';
-import { renderFingerprintFooter } from './fingerprint.js';
+import { renderFingerprintFooter } from './finding-adapter.js';
 
 const STATIC_LABELS = Object.freeze(['type::story', 'agent::ready']);
 

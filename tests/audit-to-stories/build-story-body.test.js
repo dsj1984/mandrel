@@ -4,12 +4,10 @@ import path from 'node:path';
 import { test } from 'node:test';
 import url from 'node:url';
 import { buildStoryBody } from '../../.agents/scripts/lib/audit-to-stories/build-story-body.js';
-import {
-  parseFingerprintFooter,
-  withFingerprints,
-} from '../../.agents/scripts/lib/audit-to-stories/fingerprint.js';
+import { withFingerprints } from '../../.agents/scripts/lib/audit-to-stories/finding-adapter.js';
 import { groupFindings } from '../../.agents/scripts/lib/audit-to-stories/group-findings.js';
 import { parseAuditReports } from '../../.agents/scripts/lib/audit-to-stories/parse-audit-md.js';
+import { parseFingerprintFooter } from '../../.agents/scripts/lib/findings/route-finding.js';
 
 const __filename = url.fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
