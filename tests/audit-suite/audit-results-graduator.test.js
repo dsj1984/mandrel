@@ -215,6 +215,149 @@ describe('audit-results graduator (contract)', () => {
       'no-non-blocking-findings skip reason recorded',
     );
   });
+
+  it('reports validation errors for missing required collaborators', async () => {
+    const invalidEpic = await graduateAuditResults({
+      epicId: 0,
+      provider: makeProvider([]),
+      currentRepo: { owner: 'dsj1984', repo: 'mandrel' },
+    });
+    assert.match(invalidEpic.errors[0], /missing or invalid epicId/);
+
+    const invalidProvider = await graduateAuditResults({
+      epicId: 2586,
+      provider: {},
+      currentRepo: { owner: 'dsj1984', repo: 'mandrel' },
+    });
+    assert.match(invalidProvider.errors[0], /provider lacks getTicketComments/);
+
+    const invalidRepo = await graduateAuditResults({
+      epicId: 2586,
+      provider: makeProvider([]),
+      currentRepo: { owner: 'dsj1984' },
+    });
+    assert.match(invalidRepo.errors[0], /missing currentRepo/);
+  });
+
+  it('records provider read failures without throwing', async () => {
+    const result = await graduateAuditResults({
+      epicId: 2586,
+      provider: {
+        async getTicketComments() {
+          throw new Error('api unavailable');
+        },
+      },
+      currentRepo: { owner: 'dsj1984', repo: 'mandrel' },
+    });
+
+    assert.deepEqual(result.filed, []);
+    assert.match(result.errors[0], /getTicketComments failed.*api unavailable/);
+  });
+
+  it('skips removed files before routing or filing', async () => {
+    const provider = makeProvider([{ body: makeMixedFindingsBody() }]);
+    const result = await graduateAuditResults({
+      epicId: 2586,
+      provider,
+      config: {},
+      currentRepo: { owner: 'dsj1984', repo: 'mandrel' },
+      spawnImpl: (cmd, args) =>
+        makeFakeChild((onClose) => {
+          assert.equal(cmd, 'git');
+          assert.equal(args[0], 'cat-file');
+          onClose(1);
+        }),
+    });
+
+    assert.deepEqual(result.filed, []);
+    assert.equal(result.skipped.length, 3);
+    assert.ok(result.skipped.every((s) => s.reason === 'file-removed'));
+  });
+
+  it('defers cross-repo framework findings instead of shelling out across repos', async () => {
+    const provider = makeProvider([{ body: makeMixedFindingsBody() }]);
+    const logLines = [];
+    const result = await graduateAuditResults({
+      epicId: 2586,
+      provider,
+      config: {},
+      currentRepo: { owner: 'consumer', repo: 'app' },
+      frameworkRepo: { owner: 'dsj1984', repo: 'mandrel' },
+      classifier: () => 'framework',
+      logger: { info: (line) => logLines.push(line) },
+      spawnImpl: (cmd, args) =>
+        makeFakeChild((onClose) => {
+          assert.equal(cmd, 'git');
+          assert.equal(args[0], 'cat-file');
+          onClose(0);
+        }),
+    });
+
+    assert.deepEqual(result.filed, []);
+    assert.equal(result.skipped.length, 3);
+    assert.ok(result.skipped.every((s) => s.reason === 'cross-repo-deferred'));
+    assert.ok(
+      logLines.some((line) => line.includes('would file in dsj1984/mandrel')),
+    );
+  });
+
+  it('skips findings whose idempotency marker is already filed', async () => {
+    const provider = makeProvider([{ body: makeMixedFindingsBody() }]);
+    const result = await graduateAuditResults({
+      epicId: 2586,
+      provider,
+      config: {},
+      currentRepo: { owner: 'dsj1984', repo: 'mandrel' },
+      classifier: () => 'consumer',
+      spawnImpl: (cmd, args) =>
+        makeFakeChild((onClose, onData) => {
+          if (cmd === 'git') {
+            onClose(0);
+            return;
+          }
+          assert.equal(args[0], 'search');
+          onData('[{"number":123}]');
+          onClose(0);
+        }),
+    });
+
+    assert.deepEqual(result.filed, []);
+    assert.equal(result.skipped.length, 3);
+    assert.ok(result.skipped.every((s) => s.reason === 'already-filed'));
+  });
+
+  it('records issue creation failures and continues processing', async () => {
+    const provider = makeProvider([{ body: makeMixedFindingsBody() }]);
+    const result = await graduateAuditResults({
+      epicId: 2586,
+      provider,
+      config: {},
+      currentRepo: { owner: 'dsj1984', repo: 'mandrel' },
+      classifier: () => 'consumer',
+      spawnImpl: (cmd, args) =>
+        makeFakeChild((onClose, onData) => {
+          if (cmd === 'git') {
+            onClose(0);
+            return;
+          }
+          if (args[0] === 'search') {
+            onData('[]');
+            onClose(0);
+            return;
+          }
+          assert.equal(args[0], 'issue');
+          onClose(1);
+        }),
+    });
+
+    assert.deepEqual(result.filed, []);
+    assert.equal(result.errors.length, 3);
+    assert.ok(
+      result.errors.every((error) =>
+        error.includes('gh issue create exited 1'),
+      ),
+    );
+  });
 });
 
 describe('Finalizer ↔ audit-results graduator (contract)', () => {

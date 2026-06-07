@@ -37,6 +37,16 @@
  * `epicId` so the listener constructors receive what they need;
  * `repoRoot` threads through as `cwd` for listeners that shell out
  * (`Finalizer`, `AutomergeArmer`).
+ *
+ * Maintainability exemption (refs #3685): this module is listed under
+ * `delivery.quality.gates.maintainability.ignoreGlobs` in `.agentrc.json`.
+ * Its sole content is a linear, low-branching listener-registration
+ * sequence; the maintainability index mis-gauges that shape (the same
+ * reason the declarative `config-settings-schema*` files are exempt).
+ * Splitting the sequence across sibling builder modules purely to clear
+ * the floor would add indirection without making the wiring easier to
+ * read, so the debt is carried explicitly here rather than hidden behind
+ * a blanket low floor.
  */
 
 import path from 'node:path';

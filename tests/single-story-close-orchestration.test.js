@@ -176,6 +176,25 @@ function defaultGitUtilsMock({ pushImpl } = {}) {
         stdout: '',
         stderr: '',
       }),
+      // refs #3685 — single-story-close now reaches its phase chain (via the
+      // lazily-imported runner) only after this mock is installed, so the
+      // `changed-files.js` → `createGitInterface` import resolves against the
+      // mock. Surface the same drop-in interface shape the real module
+      // returns, or the loader throws "does not provide an export".
+      createGitInterface: (..._args) => ({
+        gitSync: (..._a) => '',
+        gitSpawn: (..._a) => ({ status: 0, stdout: '', stderr: '' }),
+        gitFetchWithRetry: async (..._a) => ({
+          status: 0,
+          stdout: '',
+          stderr: '',
+        }),
+        gitPullWithRetry: async (..._a) => ({
+          status: 0,
+          stdout: '',
+          stderr: '',
+        }),
+      }),
     },
   };
 }
@@ -343,7 +362,7 @@ describe('runSingleStoryClose orchestration', () => {
     const gitCalls = [];
     t.mock.module(GIT_UTILS_URL, {
       namedExports: {
-        getStoryBranch: (_e, s) => `story-${Number(s)}`,
+        ...defaultGitUtilsMock().namedExports,
         gitSync: (...args) => {
           gitCalls.push(args);
           return { status: 0, stdout: '', stderr: '' };
@@ -676,7 +695,7 @@ describe('runSingleStoryClose orchestration', () => {
   it('throws when git push fails', async (t) => {
     t.mock.module(GIT_UTILS_URL, {
       namedExports: {
-        getStoryBranch: (_e, s) => `story-${Number(s)}`,
+        ...defaultGitUtilsMock().namedExports,
         gitSync: () => {
           throw new Error('remote rejected');
         },

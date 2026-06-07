@@ -42,6 +42,19 @@ describe('renderBody', () => {
     assert.match(body, /Stories: 2/);
     assert.match(body, /```json[\s\S]+wave\.start[\s\S]+```/);
   });
+  it('renders rich wave.start details from story objects', () => {
+    const body = renderBody('wave.start', {
+      waveIndex: 1,
+      totalWaves: 3,
+      startedAt: '2026-06-06T20:00:00Z',
+      stories: [{ id: 101, title: 'First story' }, { storyId: 102 }],
+    });
+
+    assert.match(body, /Wave 2\/3 starting/);
+    assert.match(body, /Started: `2026-06-06T20:00:00Z`/);
+    assert.match(body, /- #101 — First story/);
+    assert.match(body, /- #102/);
+  });
   it('counts done/skipped/bad outcomes correctly for wave.end', () => {
     const body = renderBody('wave.end', {
       waveIndex: 1,
@@ -49,6 +62,37 @@ describe('renderBody', () => {
     });
     assert.match(body, /2 done · 1 skipped · 1 failed\/blocked/);
     assert.match(body, /Wave 2 halted/);
+  });
+  it('renders wave.end story rows with duration details', () => {
+    const body = renderBody('wave.end', {
+      waveIndex: 0,
+      totalWaves: 2,
+      completedAt: '2026-06-06T20:01:30Z',
+      durationMs: 90000,
+      outcomes: { 1: 'done', 2: 'skipped' },
+      stories: [
+        { storyId: 1, status: 'done', detail: 'merged' },
+        { storyId: 2, status: 'skipped' },
+      ],
+    });
+
+    assert.match(body, /Wave 1\/2 completed/);
+    assert.match(body, /Completed: `2026-06-06T20:01:30Z` \(1m 30s\)/);
+    assert.match(body, /✅ #1 `done` — merged/);
+    assert.match(body, /⏭️ #2 `skipped`/);
+  });
+  it('renders blocker and unblocker events with optional source Story', () => {
+    const blocked = renderBody('epic.blocked', {
+      reason: 'needs operator input',
+      sourceStoryId: 3685,
+    });
+    const unblocked = renderBody('epic.unblocked', { reason: 'resolved' });
+
+    assert.match(blocked, /Epic blocked/);
+    assert.match(blocked, /Reason: `needs operator input`/);
+    assert.match(blocked, /Source: #3685/);
+    assert.match(unblocked, /Epic unblocked/);
+    assert.match(unblocked, /Reason: `resolved`/);
   });
 });
 

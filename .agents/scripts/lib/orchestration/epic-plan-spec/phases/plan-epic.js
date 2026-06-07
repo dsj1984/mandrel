@@ -87,16 +87,11 @@ export async function overwriteContextTicket(
   }
 }
 
-/**
- * Persist the host-authored PRD and Tech Spec under the Epic.
- */
-export async function planEpic(
-  epicId,
-  provider,
-  { prdContent, techSpecContent, acceptanceSpecContent = null },
-  _settings = {},
-  { force = false } = {},
-) {
+export function validatePlanEpicInputs({
+  prdContent,
+  techSpecContent,
+  acceptanceSpecContent,
+}) {
   if (typeof prdContent !== 'string' || prdContent.trim() === '') {
     throw new Error(
       '[Epic Planner] prdContent is required and must be non-empty.',
@@ -116,6 +111,189 @@ export async function planEpic(
       '[Epic Planner] acceptanceSpecContent, when provided, must be a non-empty string.',
     );
   }
+}
+
+export function getExistingArtifactIds(epic) {
+  return {
+    prd: epic.linkedIssues?.prd ?? null,
+    techSpec: epic.linkedIssues?.techSpec ?? null,
+    acceptanceSpec: epic.linkedIssues?.acceptanceSpec ?? null,
+  };
+}
+
+export function hasAllRequestedArtifacts({ existing, wantsAcceptanceSpec }) {
+  return Boolean(
+    existing.prd &&
+      existing.techSpec &&
+      (wantsAcceptanceSpec ? existing.acceptanceSpec : true),
+  );
+}
+
+async function persistPrd({
+  provider,
+  epicId,
+  epic,
+  prdContent,
+  existingId,
+  force,
+}) {
+  if (existingId) {
+    if (force) {
+      Logger.info(
+        `[Epic Planner] --force: Overwriting PRD #${existingId} in place.`,
+      );
+      await overwriteContextTicket(provider, existingId, {
+        title: `[PRD] ${epic.title}`,
+        body: prdContent,
+        artifact: 'PRD',
+      });
+    } else {
+      Logger.info(
+        `[Epic Planner] Reusing existing PRD #${existingId}. Skipping PRD creation.`,
+      );
+    }
+    return existingId;
+  }
+
+  Logger.info(`[Epic Planner] Creating PRD issue for "${epic.title}"...`);
+  const prdTicket = await provider.createTicket(epicId, {
+    title: `[PRD] ${epic.title}`,
+    body: prdContent,
+    labels: ['context::prd'],
+    dependencies: [],
+  });
+  Logger.info(
+    `[Epic Planner] Created PRD Issue #${prdTicket.id} (${prdTicket.url})`,
+  );
+  return prdTicket.id;
+}
+
+async function persistTechSpec({
+  provider,
+  epicId,
+  epic,
+  techSpecContent,
+  prdId,
+  existingId,
+  force,
+}) {
+  if (existingId) {
+    if (force) {
+      Logger.info(
+        `[Epic Planner] --force: Overwriting Tech Spec #${existingId} in place.`,
+      );
+      await overwriteContextTicket(provider, existingId, {
+        title: `[Tech Spec] ${epic.title}`,
+        body: techSpecContent,
+        artifact: 'Tech Spec',
+      });
+    } else {
+      Logger.info(
+        `[Epic Planner] Reusing existing Tech Spec #${existingId}. Skipping Tech Spec creation.`,
+      );
+    }
+    return existingId;
+  }
+
+  Logger.info(
+    `[Epic Planner] Creating Tech Spec issue linking to PRD #${prdId}...`,
+  );
+  const techSpecTicket = await provider.createTicket(epicId, {
+    title: `[Tech Spec] ${epic.title}`,
+    body: techSpecContent,
+    labels: ['context::tech-spec'],
+    dependencies: [prdId],
+  });
+  Logger.info(
+    `[Epic Planner] Created Tech Spec Issue #${techSpecTicket.id} (${techSpecTicket.url})`,
+  );
+  return techSpecTicket.id;
+}
+
+async function persistAcceptanceSpec({
+  provider,
+  epicId,
+  epic,
+  acceptanceSpecContent,
+  techSpecId,
+  existingId,
+  force,
+}) {
+  if (existingId) {
+    if (force) {
+      Logger.info(
+        `[Epic Planner] --force: Overwriting Acceptance Spec #${existingId} in place.`,
+      );
+      await overwriteContextTicket(provider, existingId, {
+        title: `[Acceptance Spec] ${epic.title}`,
+        body: acceptanceSpecContent,
+        artifact: 'Acceptance Spec',
+      });
+    } else {
+      Logger.info(
+        `[Epic Planner] Reusing existing Acceptance Spec #${existingId}. Skipping Acceptance Spec creation.`,
+      );
+    }
+    return existingId;
+  }
+
+  Logger.info(
+    `[Epic Planner] Creating Acceptance Spec issue linking to Tech Spec #${techSpecId}...`,
+  );
+  const acceptanceTicket = await provider.createTicket(epicId, {
+    title: `[Acceptance Spec] ${epic.title}`,
+    body: acceptanceSpecContent,
+    labels: ['context::acceptance-spec'],
+    dependencies: [techSpecId],
+  });
+  Logger.info(
+    `[Epic Planner] Created Acceptance Spec Issue #${acceptanceTicket.id} (${acceptanceTicket.url})`,
+  );
+  return acceptanceTicket.id;
+}
+
+async function closeWaivedAcceptanceSpec({
+  provider,
+  epicId,
+  epic,
+  existingAcceptanceSpecId,
+}) {
+  Logger.info(
+    `[Epic Planner] Acceptance disposition now waived — closing existing Acceptance Spec #${existingAcceptanceSpecId}.`,
+  );
+  try {
+    await provider.updateTicket(existingAcceptanceSpecId, {
+      state: 'closed',
+      state_reason: 'not_planned',
+    });
+  } catch (err) {
+    if (!err.message.includes('404') && !err.message.includes('410')) {
+      throw err;
+    }
+  }
+  try {
+    await provider.removeSubIssue(epicId, existingAcceptanceSpecId);
+  } catch (_err) {
+    // Already detached or unsupported — safe to ignore.
+  }
+  if (epic.linkedIssues) epic.linkedIssues.acceptanceSpec = null;
+}
+
+/**
+ * Persist the host-authored PRD and Tech Spec under the Epic.
+ */
+export async function planEpic(
+  epicId,
+  provider,
+  { prdContent, techSpecContent, acceptanceSpecContent = null },
+  _settings = {},
+  { force = false } = {},
+) {
+  validatePlanEpicInputs({
+    prdContent,
+    techSpecContent,
+    acceptanceSpecContent,
+  });
 
   Logger.info(`[Epic Planner] Fetching Epic #${epicId}...`);
   const epic = await provider.getEpic(epicId);
@@ -139,13 +317,8 @@ export async function planEpic(
           : ' — no acceptance-spec content supplied.'),
   );
 
-  // M-8: Resumable planning — if all artifacts exist, abort to prevent dupes.
-  const hasPrd = Boolean(epic.linkedIssues?.prd);
-  const hasTechSpec = Boolean(epic.linkedIssues?.techSpec);
-  const hasAcceptanceSpec = Boolean(epic.linkedIssues?.acceptanceSpec);
-  const allLinked =
-    hasPrd && hasTechSpec && (wantsAcceptanceSpec ? hasAcceptanceSpec : true);
-  if (!force && allLinked) {
+  const existing = getExistingArtifactIds(epic);
+  if (!force && hasAllRequestedArtifacts({ existing, wantsAcceptanceSpec })) {
     Logger.warn(
       `[Epic Planner] Epic #${epicId} already has all requested planning artifacts. Aborting to prevent duplicates. Use --force to re-plan.`,
     );
@@ -158,131 +331,46 @@ export async function planEpic(
   // paths. The difference: under force we push the freshly-authored body via
   // `provider.updateTicket`, whereas the non-force partial-state reuse keeps
   // the existing body untouched.
-  const existingPrdId = epic.linkedIssues?.prd ?? null;
-  const existingTechSpecId = epic.linkedIssues?.techSpec ?? null;
-  const existingAcceptanceSpecId = epic.linkedIssues?.acceptanceSpec ?? null;
-
-  let prdId;
-  if (existingPrdId) {
-    if (force) {
-      Logger.info(
-        `[Epic Planner] --force: Overwriting PRD #${existingPrdId} in place.`,
-      );
-      await overwriteContextTicket(provider, existingPrdId, {
-        title: `[PRD] ${epic.title}`,
-        body: prdContent,
-        artifact: 'PRD',
-      });
-    } else {
-      Logger.info(
-        `[Epic Planner] Reusing existing PRD #${existingPrdId}. Skipping PRD creation.`,
-      );
-    }
-    prdId = existingPrdId;
-  } else {
-    Logger.info(`[Epic Planner] Creating PRD issue for "${epic.title}"...`);
-    const prdTicket = await provider.createTicket(epicId, {
-      title: `[PRD] ${epic.title}`,
-      body: prdContent,
-      labels: ['context::prd'],
-      dependencies: [],
-    });
-    Logger.info(
-      `[Epic Planner] Created PRD Issue #${prdTicket.id} (${prdTicket.url})`,
-    );
-    prdId = prdTicket.id;
-  }
-
-  let techSpecId;
-  if (existingTechSpecId) {
-    if (force) {
-      Logger.info(
-        `[Epic Planner] --force: Overwriting Tech Spec #${existingTechSpecId} in place.`,
-      );
-      await overwriteContextTicket(provider, existingTechSpecId, {
-        title: `[Tech Spec] ${epic.title}`,
-        body: techSpecContent,
-        artifact: 'Tech Spec',
-      });
-    } else {
-      Logger.info(
-        `[Epic Planner] Reusing existing Tech Spec #${existingTechSpecId}. Skipping Tech Spec creation.`,
-      );
-    }
-    techSpecId = existingTechSpecId;
-  } else {
-    Logger.info(
-      `[Epic Planner] Creating Tech Spec issue linking to PRD #${prdId}...`,
-    );
-    const techSpecTicket = await provider.createTicket(epicId, {
-      title: `[Tech Spec] ${epic.title}`,
-      body: techSpecContent,
-      labels: ['context::tech-spec'],
-      dependencies: [prdId],
-    });
-    Logger.info(
-      `[Epic Planner] Created Tech Spec Issue #${techSpecTicket.id} (${techSpecTicket.url})`,
-    );
-    techSpecId = techSpecTicket.id;
-  }
+  const prdId = await persistPrd({
+    provider,
+    epicId,
+    epic,
+    prdContent,
+    existingId: existing.prd,
+    force,
+  });
+  const techSpecId = await persistTechSpec({
+    provider,
+    epicId,
+    epic,
+    techSpecContent,
+    prdId,
+    existingId: existing.techSpec,
+    force,
+  });
 
   let acceptanceSpecId = null;
   if (wantsAcceptanceSpec) {
-    if (existingAcceptanceSpecId) {
-      if (force) {
-        Logger.info(
-          `[Epic Planner] --force: Overwriting Acceptance Spec #${existingAcceptanceSpecId} in place.`,
-        );
-        await overwriteContextTicket(provider, existingAcceptanceSpecId, {
-          title: `[Acceptance Spec] ${epic.title}`,
-          body: acceptanceSpecContent,
-          artifact: 'Acceptance Spec',
-        });
-      } else {
-        Logger.info(
-          `[Epic Planner] Reusing existing Acceptance Spec #${existingAcceptanceSpecId}. Skipping Acceptance Spec creation.`,
-        );
-      }
-      acceptanceSpecId = existingAcceptanceSpecId;
-    } else {
-      Logger.info(
-        `[Epic Planner] Creating Acceptance Spec issue linking to Tech Spec #${techSpecId}...`,
-      );
-      const acceptanceTicket = await provider.createTicket(epicId, {
-        title: `[Acceptance Spec] ${epic.title}`,
-        body: acceptanceSpecContent,
-        labels: ['context::acceptance-spec'],
-        dependencies: [techSpecId],
-      });
-      Logger.info(
-        `[Epic Planner] Created Acceptance Spec Issue #${acceptanceTicket.id} (${acceptanceTicket.url})`,
-      );
-      acceptanceSpecId = acceptanceTicket.id;
-    }
-  } else if (applyAcceptanceWaiver && existingAcceptanceSpecId) {
+    acceptanceSpecId = await persistAcceptanceSpec({
+      provider,
+      epicId,
+      epic,
+      acceptanceSpecContent,
+      techSpecId,
+      existingId: existing.acceptanceSpec,
+      force,
+    });
+  } else if (applyAcceptanceWaiver && existing.acceptanceSpec) {
     // Acceptance-spec transition: was present, now waived (acceptance::n-a).
     // This is a genuine close — there is no longer an acceptance spec to
     // overwrite — and the stale ticket must be detached so the Epic body's
     // Planning Artifacts section stops referencing it.
-    Logger.info(
-      `[Epic Planner] Acceptance disposition now waived — closing existing Acceptance Spec #${existingAcceptanceSpecId}.`,
-    );
-    try {
-      await provider.updateTicket(existingAcceptanceSpecId, {
-        state: 'closed',
-        state_reason: 'not_planned',
-      });
-    } catch (err) {
-      if (!err.message.includes('404') && !err.message.includes('410')) {
-        throw err;
-      }
-    }
-    try {
-      await provider.removeSubIssue(epicId, existingAcceptanceSpecId);
-    } catch (_err) {
-      // Already detached or unsupported — safe to ignore.
-    }
-    if (epic.linkedIssues) epic.linkedIssues.acceptanceSpec = null;
+    await closeWaivedAcceptanceSpec({
+      provider,
+      epicId,
+      epic,
+      existingAcceptanceSpecId: existing.acceptanceSpec,
+    });
   }
 
   Logger.info(

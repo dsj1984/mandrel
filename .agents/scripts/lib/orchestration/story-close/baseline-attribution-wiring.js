@@ -39,15 +39,17 @@
  *   - phases/scope-discovery.js       — Story-diff scope + projection guard.
  *   - phases/regression-projection.js — per-gate regression projectors.
  *   - phases/refresh-commit.js        — in-process refresh + commit.
- *   - phases/gate-failure.js          — orchestrators (handleBaselineGateFailure,
- *                                       runPreMergeGatesWithAttribution).
+ *   - phases/gate-failure.js          — per-failure classifier
+ *                                       (handleBaselineGateFailure).
+ *   - phases/pre-merge-attribution.js — bounded retry driver
+ *                                       (runPreMergeGatesWithAttribution).
  */
 
 export {
   DEFAULT_GATE_REGISTRY,
   handleBaselineGateFailure,
-  runPreMergeGatesWithAttribution,
 } from './baseline-attribution/phases/gate-failure.js';
+export { runPreMergeGatesWithAttribution } from './baseline-attribution/phases/pre-merge-attribution.js';
 export {
   buildKindScorer,
   runRefreshCommit,

@@ -13,6 +13,11 @@ import {
   resolveReviewRouting,
   TECH_SPEC_SYSTEM_PROMPT,
 } from '../.agents/scripts/epic-plan-spec.js';
+import {
+  getExistingArtifactIds,
+  hasAllRequestedArtifacts,
+  validatePlanEpicInputs,
+} from '../.agents/scripts/lib/orchestration/epic-plan-spec/phases/plan-epic.js';
 import { classifyPlanningRisk } from '../.agents/scripts/lib/orchestration/planning-risk.js';
 
 describe('epic-planner orchestration (v5.6+)', () => {
@@ -85,6 +90,48 @@ describe('epic-planner orchestration (v5.6+)', () => {
           techSpecContent: '   ',
         }),
       { message: /techSpecContent is required/ },
+    );
+  });
+
+  it('rejects empty Acceptance Spec content when supplied', async () => {
+    await assert.rejects(
+      async () =>
+        await planEpic(1, mockProvider, {
+          prdContent: 'x',
+          techSpecContent: 'y',
+          acceptanceSpecContent: '   ',
+        }),
+      { message: /acceptanceSpecContent, when provided/ },
+    );
+  });
+
+  it('exposes pure helpers for artifact preflight decisions', () => {
+    assert.doesNotThrow(() =>
+      validatePlanEpicInputs({
+        prdContent: 'prd',
+        techSpecContent: 'tech',
+        acceptanceSpecContent: null,
+      }),
+    );
+    assert.deepEqual(
+      getExistingArtifactIds({
+        linkedIssues: { prd: 10, techSpec: 11, acceptanceSpec: 12 },
+      }),
+      { prd: 10, techSpec: 11, acceptanceSpec: 12 },
+    );
+    assert.equal(
+      hasAllRequestedArtifacts({
+        existing: { prd: 10, techSpec: 11, acceptanceSpec: null },
+        wantsAcceptanceSpec: false,
+      }),
+      true,
+    );
+    assert.equal(
+      hasAllRequestedArtifacts({
+        existing: { prd: 10, techSpec: 11, acceptanceSpec: null },
+        wantsAcceptanceSpec: true,
+      }),
+      false,
     );
   });
 

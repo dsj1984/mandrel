@@ -39,40 +39,18 @@
  * @see .agents/workflows/single-story-deliver.md
  */
 
-import nodeFs from 'node:fs';
-import path from 'node:path';
 import { runAsCli } from './lib/cli-utils.js';
-import { runCloseValidation } from './lib/close-validation.js';
-import { resolveConfig } from './lib/config-resolver.js';
-import { getStoryBranch, gitSync } from './lib/git-utils.js';
-import { Logger } from './lib/Logger.js';
-import { runCodeReview as runCodeReviewDefault } from './lib/orchestration/code-review.js';
-import {
-  enableAutoMergeWith,
-  runAutoMergePhase,
-} from './lib/orchestration/single-story-close/phases/auto-merge.js';
+import { enableAutoMergeWith } from './lib/orchestration/single-story-close/phases/auto-merge.js';
 import {
   buildSyncFailureCommentBody,
   handleSyncFailure,
-  runBaseSyncPhase,
 } from './lib/orchestration/single-story-close/phases/base-sync.js';
-import { runCloseValidationPhase } from './lib/orchestration/single-story-close/phases/close-validation.js';
 import {
   buildStoryReviewCrossRefBody,
   parsePrNumber,
   runStoryScopeReview,
 } from './lib/orchestration/single-story-close/phases/code-review.js';
-import { runDriftDetectionPhase } from './lib/orchestration/single-story-close/phases/drift-detection.js';
-import { parseCloseOptions } from './lib/orchestration/single-story-close/phases/options.js';
 import { ensurePullRequestWith } from './lib/orchestration/single-story-close/phases/pull-request.js';
-import { pushStoryBranch } from './lib/orchestration/single-story-close/phases/push.js';
-import { reapWorktreePhase } from './lib/orchestration/single-story-close/phases/worktree-reap.js';
-import { runWrongTreeGuardPhase } from './lib/orchestration/single-story-close/phases/wrong-tree-guard.js';
-import { releaseStoryLease } from './lib/orchestration/single-story-lease-guard.js';
-import { buildGatesFromConfig } from './lib/orchestration/story-close/legacy-settings-bag.js';
-import { createProvider } from './lib/provider-factory.js';
-import { flipLabelAndNotify } from './lib/single-story/story-merged-notify.js';
-import { WorktreeManager } from './lib/worktree-manager.js';
 
 // Story #2990 moved the `gh`-spawn boundary into the `lib/gh-exec.js`
 // facade (the same shim the `providers/github/` gateways use). The
@@ -92,267 +70,12 @@ export {
   runStoryScopeReview,
 };
 
-const progress = Logger.createProgress('single-story-close', { stderr: true });
-
-/**
- * Close a standalone Story. Exported for testing.
- */
-export async function runSingleStoryClose({
-  storyId: storyIdParam,
-  cwd: cwdParam,
-  skipValidation: skipValidationParam,
-  skipSync: skipSyncParam,
-  noAutoMerge: noAutoMergeParam,
-  noFullScopeCrap: noFullScopeCrapParam,
-  injectedProvider,
-  injectedConfig,
-  injectedNotify,
-  injectedSync,
-  injectedRunCodeReview,
-  // Story #2990: lets orchestration tests pass a fake `lib/gh-exec.js`
-  // facade through to the PR open / auto-merge phases without touching
-  // module mocks. Defaults to the real `gh` import on each phase.
-  injectedGh,
-  // Story #3260: lets tests inject fakes for plan-vs-actual drift detection.
-  injectedFindStructuredComment,
-  injectedGitSync,
-  // Story #3364: lets tests inject a fake `gitSpawn` for the wrong-tree guard.
-  injectedGitSpawn,
-  // Story #3483: lets tests swap the lease release on clean close.
-  injectedReleaseLease,
-} = {}) {
-  const {
-    storyId,
-    cwd,
-    skipValidation,
-    skipSync,
-    noAutoMerge,
-    noFullScopeCrap,
-  } = parseCloseOptions({
-    storyIdParam,
-    cwdParam,
-    skipValidationParam,
-    skipSyncParam,
-    noAutoMergeParam,
-    noFullScopeCrapParam,
-  });
-
-  if (!storyId) {
-    throw new Error(
-      'Usage: node single-story-close.js --story <STORY_ID> [--cwd <main-repo>] [--skip-validation] [--skip-sync] [--no-auto-merge] [--no-full-scope-crap]',
-    );
-  }
-
-  const config = injectedConfig || resolveConfig({ cwd });
-  const provider = injectedProvider || createProvider(config);
-
-  const baseBranch = config.project?.baseBranch ?? 'main';
-  const storyBranch = getStoryBranch(0, storyId);
-
-  progress('INIT', `Closing standalone Story #${storyId}...`);
-
-  const story = await provider.getTicket(storyId);
-  if (story.state === 'closed') {
-    progress('NOOP', `Story #${storyId} is already closed. Nothing to do.`);
-    return {
-      success: true,
-      result: {
-        storyId,
-        standalone: true,
-        action: 'noop',
-        reason: 'already-closed',
-      },
-    };
-  }
-
-  // Resolve worktree path (read-only check — does the dir exist on disk?).
-  const worktreeRoot = config.delivery?.worktreeIsolation?.root ?? '.worktrees';
-  const worktreePathCandidate = path.resolve(
-    cwd,
-    worktreeRoot,
-    `story-${storyId}`,
+export async function runSingleStoryClose(opts) {
+  const { search } = new URL(import.meta.url);
+  const mod = await import(
+    `./lib/orchestration/single-story-close/runner.js${search}`
   );
-  const worktreePath = nodeFs.existsSync(worktreePathCandidate)
-    ? worktreePathCandidate
-    : null;
-
-  // Step 0.4: wrong-tree guard (Story #3364). When the worktree is the active
-  // work tree, abort if stray tracked-path edits are sitting in the main
-  // checkout — they signal that path-based Edit/Write tools wrote to the wrong
-  // tree (the Bash `cd` only steers the shell). Runs before any gate so a
-  // false-clean worktree never reaches commit. Throws on a confirmed positive.
-  await runWrongTreeGuardPhase({
-    cwd,
-    worktreePath,
-    storyId,
-    provider,
-    progress,
-    gitSpawn: injectedGitSpawn,
-  });
-
-  // Step 0.5: plan-vs-actual drift detection (non-blocking soft findings).
-  await runDriftDetectionPhase({
-    cwd,
-    baseBranch,
-    storyId,
-    provider,
-    progress,
-    injectedFindStructuredComment,
-    injectedGitSync,
-  });
-
-  // Step 1: gates.
-  if (!skipValidation) {
-    await runCloseValidationPhase({
-      cwd,
-      worktreePath,
-      config,
-      baseBranch,
-      noFullScopeCrap,
-      storyId,
-      progress,
-      runCloseValidation,
-      buildGatesFromConfig,
-    });
-  } else {
-    progress('VALIDATE', '⏭ Skipped (--skip-validation).');
-  }
-
-  // Step 1a: pre-push base-sync.
-  if (!skipSync) {
-    await runBaseSyncPhase({
-      cwd,
-      worktreePath,
-      baseBranch,
-      storyBranch,
-      storyId,
-      provider,
-      injectedSync,
-      progress,
-    });
-  } else {
-    progress('SYNC', '⏭ Skipped (--skip-sync).');
-  }
-
-  // Step 2: push the Story branch.
-  pushStoryBranch({ cwd, storyBranch, gitSync, progress });
-
-  // Step 3: open (or reuse) a PR to `baseBranch`.
-  const prUrl = await ensurePullRequest({
-    cwd,
-    storyId,
-    storyTitle: story.title,
-    storyBranch,
-    baseBranch,
-    gh: injectedGh,
-    progress,
-  });
-
-  // Step 3.5: Story-scope code review.
-  const prNumber = parsePrNumber(prUrl);
-  const reviewOutcome = await runStoryScopeReview({
-    cwd,
-    storyId,
-    storyBranch,
-    baseBranch,
-    prUrl,
-    prNumber,
-    provider,
-    runCodeReviewFn: injectedRunCodeReview ?? runCodeReviewDefault,
-    progress,
-  });
-  if (reviewOutcome.halted) {
-    throw new Error(
-      `[single-story-close] Story-scope review reported ${reviewOutcome.severity?.critical ?? 0} critical blocker(s) on PR ${prUrl}. ` +
-        'Auto-merge was not enabled. Remediate the findings posted to the PR and re-run `/single-story-deliver`.',
-    );
-  }
-
-  // Step 3a: enable native auto-merge unless --no-auto-merge.
-  const { autoMergeEnabled, autoMergeReason } = await runAutoMergePhase({
-    cwd,
-    prNumber,
-    prUrl,
-    noAutoMerge,
-    gh: injectedGh,
-    progress,
-  });
-
-  // Step 4: flip Story label to agent::closing (NOT agent::done) and fire
-  // the story-closing notify. Story #3385 — the issue stays OPEN while the
-  // PR is open with auto-merge armed; the agent::done flip (which closes the
-  // issue) is deferred to the post-merge confirmation step
-  // (`single-story-confirm-merge.js`, invoked by the CI-watch loop). This
-  // brings the standalone path to parity with the epic path (#2155).
-  await flipLabelAndNotify({
-    provider,
-    notifyFn: injectedNotify,
-    storyId,
-    story,
-    prUrl,
-    autoMergeEnabled,
-    autoMergeReason,
-    config,
-    progress,
-  });
-
-  // Step 5: reap worktree + clear trace-hook env vars.
-  const worktreeReaped = await reapWorktreePhase({
-    cwd,
-    storyId,
-    worktreePath,
-    wtIsolation: config.delivery?.worktreeIsolation,
-    progress,
-    WorktreeManager,
-  });
-
-  // Step 6: release the Story lease (Story #3483). The init-time lease
-  // serialised concurrent standalone runs; a clean close clears the Story
-  // assignment so the next run sees an unclaimed ticket. The guard no-ops
-  // when the operator no longer holds the claim (a later run took over), so
-  // a late close never yanks a live claim away from its current owner.
-  // Best-effort: a release failure must not fail an otherwise-clean close —
-  // the lease goes stale via TTL regardless.
-  let leaseReleased = false;
-  try {
-    const release = injectedReleaseLease ?? releaseStoryLease;
-    const outcome = await release({ provider, storyId, config });
-    leaseReleased = outcome.released;
-    progress(
-      'LEASE',
-      outcome.released
-        ? `🔓 Story #${storyId} lease released.`
-        : `🔓 Story #${storyId} lease not released (${outcome.reason}).`,
-    );
-  } catch (err) {
-    progress(
-      'LEASE',
-      `⚠️ lease release failed (close continues): ${err?.message ?? err}`,
-    );
-  }
-
-  const result = {
-    storyId,
-    standalone: true,
-    storyBranch,
-    baseBranch,
-    prUrl,
-    prNumber,
-    pushed: true,
-    autoMergeEnabled,
-    autoMergeReason,
-    worktreeReaped,
-    leaseReleased,
-    note: autoMergeEnabled
-      ? 'PR open against baseBranch with auto-merge enabled. Story rests at agent::closing (issue stays OPEN). GitHub will squash-merge when required checks pass; run single-story-confirm-merge.js after the merge confirms to flip agent::done and close the issue (the Closes #<id> footer also auto-closes it).'
-      : 'PR open against baseBranch. Story rests at agent::closing (issue stays OPEN). Operator merges via GitHub UI; run single-story-confirm-merge.js after the merge confirms to flip agent::done (the Closes #<id> footer also auto-closes the issue).',
-  };
-
-  Logger.info(
-    `\n--- STORY CLOSE RESULT ---\n${JSON.stringify(result, null, 2)}\n--- END RESULT ---\n`,
-  );
-  progress('DONE', `✅ Standalone Story #${storyId}: PR ready → ${prUrl}`);
-  return { success: true, result };
+  return mod.runSingleStoryClose(opts);
 }
 
 runAsCli(import.meta.url, runSingleStoryClose, {
