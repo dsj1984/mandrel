@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.53.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.52.0...mandrel-v1.53.0) (2026-06-07)
+
+
+### Added
+
+* Epic [#3686](https://github.com/dsj1984/mandrel/issues/3686) ([#3736](https://github.com/dsj1984/mandrel/issues/3736)) ([ab1e0af](https://github.com/dsj1984/mandrel/commit/ab1e0af4b62a56369e3f7f4b54c0af3b0704136f))
+
+
+### Fixed
+
+* **baselines:** build refreshBaseline default scorers with resolved config (refs [#3694](https://github.com/dsj1984/mandrel/issues/3694)) ([#3728](https://github.com/dsj1984/mandrel/issues/3728)) ([20344fe](https://github.com/dsj1984/mandrel/commit/20344fe30166da4031930702fae2ffef085dc739))
+* **baselines:** scoped refresh includes the change set's own new files (refs [#3695](https://github.com/dsj1984/mandrel/issues/3695)) ([#3727](https://github.com/dsj1984/mandrel/issues/3727)) ([c7ffae6](https://github.com/dsj1984/mandrel/commit/c7ffae60725ed43de263e3ade1ffb399ae7566fe))
+* **bootstrap:** single-fetch Project V2 reuse + transient network-timeout retry (refs [#3730](https://github.com/dsj1984/mandrel/issues/3730)) ([#3733](https://github.com/dsj1984/mandrel/issues/3733)) ([419f24d](https://github.com/dsj1984/mandrel/commit/419f24ddd5281feafdaf25933e905733742ae8d7))
+* **code-review:** score head version of changed files in native review (refs [#3696](https://github.com/dsj1984/mandrel/issues/3696)) ([#3729](https://github.com/dsj1984/mandrel/issues/3729)) ([9e3fa58](https://github.com/dsj1984/mandrel/commit/9e3fa585a224482f66483d8f001673ad60251ae1))
+* **qa:** broaden evidence redaction to full security-baseline taxonomy (refs [#3737](https://github.com/dsj1984/mandrel/issues/3737)) ([#3740](https://github.com/dsj1984/mandrel/issues/3740)) ([1a3c54b](https://github.com/dsj1984/mandrel/commit/1a3c54b8d1eb1f4a4abd68468b943e011e4ea9f4))
+* **qa:** validate captured-but-untriaged qa-ledger items (refs [#3738](https://github.com/dsj1984/mandrel/issues/3738)) ([#3739](https://github.com/dsj1984/mandrel/issues/3739)) ([9eb5839](https://github.com/dsj1984/mandrel/commit/9eb58395b1903af2599c96ac8753b58044b8cc1e))
+
+
+### Changed
+
+* **docs:** relocate consumer reference docs into .agents/docs (refs [#3697](https://github.com/dsj1984/mandrel/issues/3697)) ([#3741](https://github.com/dsj1984/mandrel/issues/3741)) ([38ff417](https://github.com/dsj1984/mandrel/commit/38ff41748904bc72d0a06c58aad75fa941b074da))
+* **quality-gates:** replace repo-wide floor overrides with file-scoped controls ([#3685](https://github.com/dsj1984/mandrel/issues/3685)) ([#3692](https://github.com/dsj1984/mandrel/issues/3692)) ([a78d4b5](https://github.com/dsj1984/mandrel/commit/a78d4b597dbf0222f4be8d38e95df39b72beac67))
+* **story-plan:** retire story-plan acknowledgement feature (refs [#3704](https://github.com/dsj1984/mandrel/issues/3704)) ([#3731](https://github.com/dsj1984/mandrel/issues/3731)) ([03a817d](https://github.com/dsj1984/mandrel/commit/03a817dc84fd85eaea99b02bf3e2ca1b33596833))
+* **workflows:** demote drain-pending-cleanup to a helper (refs [#3706](https://github.com/dsj1984/mandrel/issues/3706)) ([#3732](https://github.com/dsj1984/mandrel/issues/3732)) ([015db5f](https://github.com/dsj1984/mandrel/commit/015db5fd9547e13e216f491ca828eef273ab753a))
+* **workflows:** rename /single-story-plan to /story-plan (refs [#3705](https://github.com/dsj1984/mandrel/issues/3705)) ([#3734](https://github.com/dsj1984/mandrel/issues/3734)) ([326439b](https://github.com/dsj1984/mandrel/commit/326439bce220a7c2fd029f6d25fd4f57f451756d))
+* **workflows:** retire /mandrel; generate, gate, and relocate workflows.md (refs [#3708](https://github.com/dsj1984/mandrel/issues/3708)) ([#3743](https://github.com/dsj1984/mandrel/issues/3743)) ([e16b7ef](https://github.com/dsj1984/mandrel/commit/e16b7ef108654295502a6d9e4344dc1945427040))
+
 ## [1.52.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.51.0...mandrel-v1.52.0) (2026-06-06)
 
 
