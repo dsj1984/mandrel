@@ -110,7 +110,7 @@ describe('config-resolver — loading + legacy shim', () => {
 
 /**
  * Story #3312 — `resolveConfig` must carry the optional top-level `qa`
- * block through `applyDefaults` so `/run-qa-harness` Step 0 can read it
+ * block through `applyDefaults` so `/qa-run-harness` Step 0 can read it
  * off the resolved wrapper. Before the fix, `applyDefaults` returned a
  * fixed `{ project, github, planning, delivery }` reshape that silently
  * discarded `raw.qa`, so the harness resolver fell back to treating the

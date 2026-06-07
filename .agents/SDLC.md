@@ -992,7 +992,7 @@ for the acceptance tier is governed by
 [`rules/gherkin-standards.md`](rules/gherkin-standards.md).
 
 The acceptance tier is executed and reported via
-[`workflows/run-qa-harness.md`](workflows/run-qa-harness.md) and consumed as
+[`workflows/qa-run-harness.md`](workflows/qa-run-harness.md) and consumed as
 epic evidence by
 [`workflows/helpers/epic-testing.md`](workflows/helpers/epic-testing.md).
 

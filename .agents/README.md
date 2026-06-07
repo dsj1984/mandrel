@@ -790,19 +790,19 @@ only affect this repo's own dogfood runs.
 
 ## Adopting the QA harness
 
-The agent-driven QA harness (`/run-qa-harness`) drives a consumer's Gherkin
+The agent-driven QA harness (`/qa-run-harness`) drives a consumer's Gherkin
 `.feature` scenarios through a real browser (the `chrome-devtools` MCP
 surface), captures per-surface console/network into structured `F#` findings,
 and drafts follow-up tickets for operator sign-off. The end-to-end procedure
 is the SSOT in
-[`workflows/run-qa-harness.md`](workflows/run-qa-harness.md); the
+[`workflows/qa-run-harness.md`](workflows/qa-run-harness.md); the
 instrumentation conventions live in the
 [`skills/stack/qa/qa-harness`](skills/stack/qa/qa-harness/SKILL.md) skill; the
 architectural overview (run pipeline, contract fields, finding shape) is in
 [`docs/architecture.md` § Agent-driven QA harness](../docs/architecture.md#agent-driven-qa-harness).
 
 Binding the harness is **opt-in**. A consumer that has not bound it gets a
-loud, actionable failure when `/run-qa-harness` runs — there is no
+loud, actionable failure when `/qa-run-harness` runs — there is no
 auto-detection fallback. To adopt the harness, a consumer project takes three
 concrete steps.
 
@@ -879,7 +879,7 @@ author `personas` as the object map and supply per-persona overrides:
 environment, never inlined) and `{ signInSkill }` points at a per-persona
 sign-in skill.
 
-Once these three are in place, `/run-qa-harness <selector>` resolves the
+Once these three are in place, `/qa-run-harness <selector>` resolves the
 contract and sweeps the selected scenarios. The `chrome-devtools` MCP surface
 is a host-provided runtime dependency; when it is unavailable the harness
 degrades with a clear error rather than falling back to a headless runner.
