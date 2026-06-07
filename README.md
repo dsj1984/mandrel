@@ -65,7 +65,8 @@ For the consumer reference and the end-to-end workflow narrative, see
 [`.agents/README.md`](.agents/README.md) and
 [`.agents/docs/SDLC.md`](.agents/docs/SDLC.md). Every `.agentrc.json` key is
 documented in [`.agents/docs/configuration.md`](.agents/docs/configuration.md), and the
-slash-command index lives in [`docs/workflows.md`](docs/workflows.md).
+slash-command index lives in
+[`.agents/docs/workflows.md`](.agents/docs/workflows.md).
 
 ## Update
 
@@ -144,7 +145,8 @@ Deeper reference material lives in `docs/` rather than inline here:
   layout, state machine, and tech stack.
 - [`.agents/docs/configuration.md`](.agents/docs/configuration.md) — every `.agentrc.json`
   key explained.
-- [`docs/workflows.md`](docs/workflows.md) — slash-command index.
+- [`.agents/docs/workflows.md`](.agents/docs/workflows.md) — slash-command
+  index (auto-generated from the workflow set).
 - [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — release history.
 - [`AGENTS.md`](AGENTS.md) — repository onboarding, the two-package release
   topology, PAT / npm-token setup, and major-version policy. Releases are

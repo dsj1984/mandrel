@@ -18,11 +18,12 @@
 //      path fragments (e.g. `/issues/`, `/blob/`, `/pulls/`).
 //
 //   3. No active doc mentions any retired slash command. The retired-command
-//      blocklist is seeded with `agents-bootstrap-github` and
-//      `single-story-plan` (renamed to `/story-plan`) and takes
-//      precedence over the workflow-resolution check — a retired token is
-//      always a non-zero exit even if a stale workflow file happens to
-//      exist.
+//      blocklist is seeded with `agents-bootstrap-github`,
+//      `single-story-plan` (renamed to `/story-plan`), and `mandrel`
+//      (retired in favor of the generated `.agents/docs/workflows.md`
+//      catalog) and takes precedence over the workflow-resolution check —
+//      a retired token is always a non-zero exit even if a stale workflow
+//      file happens to exist.
 //
 // Exit codes:
 //   0  every link and slash-command token resolves cleanly.
@@ -48,6 +49,7 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..');
 export const RETIRED_COMMANDS = new Set([
   'agents-bootstrap-github',
   'single-story-plan',
+  'mandrel',
 ]);
 
 // Tokens that look like `/foo` in prose but are not slash commands. Tokens

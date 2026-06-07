@@ -12,7 +12,8 @@ import {
 } from '../../.agents/scripts/lib/mandrel-catalog.js';
 
 /**
- * Tests for `lib/mandrel-catalog.js` — the generator behind `/mandrel`.
+ * Tests for `lib/mandrel-catalog.js` — the catalog backend behind the
+ * generated `.agents/docs/workflows.md` (formerly the `/mandrel` command).
  *
  * Covers: inline and folded-block YAML description parsing,
  * vague-description heuristic, top-level-only directory walk (helpers/

@@ -9,7 +9,7 @@ structured, how components interact, and where to find each subsystem.
 > transitions, HITL touchpoints — see [`.agents/docs/SDLC.md`](../.agents/docs/SDLC.md).
 > This file covers the *architecture* (modules, interfaces, data flow) that
 > the workflow runs on top of. The slash-command reference index lives in
-> [`workflows.md`](workflows.md).
+> [`.agents/docs/workflows.md`](../.agents/docs/workflows.md).
 >
 > **Coupling stance.** Mandrel is a **Claude Code-first opinionated
 > workflow framework**. The dispatcher / `.agents/scripts/` library
@@ -760,7 +760,8 @@ silently.
 
 The shipped slash commands (under `.agents/workflows/`) fall into six
 categories — planning, execution, closure, audits, git operations, and
-setup/meta. The canonical reference is [`workflows.md`](workflows.md); the
+setup/meta. The canonical reference is
+[`.agents/docs/workflows.md`](../.agents/docs/workflows.md); the
 workflow narrative that wires them together lives in
 [`.agents/docs/SDLC.md`](../.agents/docs/SDLC.md).
 
