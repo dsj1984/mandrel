@@ -565,8 +565,8 @@ side-effects rather than inline calls at phase boundaries; the
 | -------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | **Whole Epic**                   | `/epic-deliver <epicId>`                                 | Drive an Epic end-to-end. Owns the wave loop and the close-tail; ends with a PR open to main.  |
 | **Epic-attached Story (worker)** | *helper* `helpers/epic-deliver-story <storyId>`          | Per-Story sub-agent called internally by `/epic-deliver`'s wave fan-out; not an operator slash command. |
-| **Standalone Story — plan**      | `/single-story-plan`                                     | Plan a one-off Story that does not belong to an Epic backlog.                                  |
-| **Standalone Story — deliver**   | `/story-deliver <storyId> [<storyId>...]`                | Deliver one or more standalone Stories authored by `/single-story-plan`.                       |
+| **Standalone Story — plan**      | `/story-plan`                                            | Plan a one-off Story that does not belong to an Epic backlog.                                  |
+| **Standalone Story — deliver**   | `/story-deliver <storyId> [<storyId>...]`                | Deliver one or more standalone Stories authored by `/story-plan`.                             |
 | **Standalone Story (worker)**    | *helper* `helpers/single-story-deliver <storyId>`        | Per-Story sub-agent called internally by `/story-deliver`; not an operator slash command.      |
 
 The operator-facing entry points are `/epic-deliver` (for Epics) and
@@ -1223,7 +1223,7 @@ For Stories already in flight, use one of the three options above.
 | `/epic-plan <epicId>`                            | Existing-Epic mode — PRD + Tech Spec + decomposition for an Epic Issue already opened.                                                                                       |
 | `/epic-deliver <epicId>`                                      | Drive an Epic end-to-end. Wave loop → close-validation → code-review → retro → opens PR to `main` with auto-merge armed.                                                       |
 | `/story-deliver <storyId> [<storyId>...]`                     | Deliver one or more standalone Stories (no `Epic: #N` reference). Builds a dependency-aware wave plan and fans out one worker per Story per wave.                              |
-| `/single-story-plan`                                          | Plan a one-off Story outside an Epic backlog.                                                                                                                                  |
+| `/story-plan`                                                 | Plan a one-off Story outside an Epic backlog.                                                                                                                                  |
 | *helper* `workflows/helpers/epic-deliver-story`               | Per-Story worker called by `/epic-deliver`'s wave loop; not an operator slash command. See [`helpers/epic-deliver-story.md`](workflows/helpers/epic-deliver-story.md).         |
 | *helper* `workflows/helpers/single-story-deliver`             | Per-Story worker called by `/story-deliver`; not an operator slash command. See [`helpers/single-story-deliver.md`](workflows/helpers/single-story-deliver.md).                |
 | *helper* `workflows/helpers/code-review.md`                   | Auto-invoked by `/epic-deliver`'s `delivery.code-review` state (scope: epic); not a slash command.                                                                            |

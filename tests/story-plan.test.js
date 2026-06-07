@@ -1,7 +1,7 @@
 /**
- * tests/single-story-plan.test.js — Story #2293.
+ * tests/story-plan.test.js — Story #2293.
  *
- * Covers the pure helpers behind `/single-story-plan`:
+ * Covers the pure helpers behind `/story-plan`:
  *   - rankDuplicateCandidates: Jaccard-overlap ranking + size cap.
  *   - shouldRefine: heuristic + operator override.
  *   - validateStoryBody: required sections, Epic-ref guard, AC checklist.
@@ -31,17 +31,12 @@ import {
   rankDuplicateCandidates,
   shouldRefine,
   validateStoryBody,
-} from '../.agents/scripts/lib/single-story-plan.js';
-import { extractTitle } from '../.agents/scripts/single-story-plan.js';
+} from '../.agents/scripts/lib/story-plan.js';
+import { extractTitle } from '../.agents/scripts/story-plan.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '..');
-const CLI = path.join(
-  PROJECT_ROOT,
-  '.agents',
-  'scripts',
-  'single-story-plan.js',
-);
+const CLI = path.join(PROJECT_ROOT, '.agents', 'scripts', 'story-plan.js');
 
 const VALID_BODY = `# Test standalone story
 
@@ -74,12 +69,12 @@ describe('rankDuplicateCandidates', () => {
 
   it('ranks higher-overlap titles first', () => {
     const ranked = rankDuplicateCandidates({
-      seed: 'add /single-story-plan workflow to author standalone Story drafts',
+      seed: 'add /story-plan workflow to author standalone Story drafts',
       openStories: [
         { id: 10, title: 'unrelated', url: 'u1' },
         {
           id: 20,
-          title: 'author standalone Story drafts via /single-story-plan',
+          title: 'author standalone Story drafts via /story-plan',
           url: 'u2',
         },
         {
@@ -207,7 +202,7 @@ describe('buildContextEnvelope', () => {
       techStack: '## Tech Stack\nNode 22',
     });
 
-    assert.equal(envelope.kind, 'single-story-plan-context');
+    assert.equal(envelope.kind, 'story-plan-context');
     assert.equal(envelope.version, 1);
     assert.equal(envelope.seed, 'seed text');
     assert.equal(envelope.persona, 'engineer');
@@ -249,24 +244,24 @@ describe('extractTitle', () => {
   });
 });
 
-describe('single-story-plan.js CLI: --help', () => {
+describe('story-plan.js CLI: --help', () => {
   it('prints usage and exits 0', () => {
     const r = spawnSync('node', [CLI, '--help'], {
       cwd: PROJECT_ROOT,
       encoding: 'utf8',
     });
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    assert.match(r.stdout, /single-story-plan\.js/);
+    assert.match(r.stdout, /story-plan\.js/);
     assert.match(r.stdout, /--emit-context/);
     assert.match(r.stdout, /--body/);
     assert.match(r.stdout, /--dry-run/);
   });
 });
 
-describe('single-story-plan.js CLI: --dry-run --body', () => {
+describe('story-plan.js CLI: --dry-run --body', () => {
   let tmp;
   beforeEach(() => {
-    tmp = mkdtempSync(path.join(os.tmpdir(), 'single-story-plan-'));
+    tmp = mkdtempSync(path.join(os.tmpdir(), 'story-plan-'));
   });
   afterEach(() => {
     rmSync(tmp, { recursive: true, force: true });
