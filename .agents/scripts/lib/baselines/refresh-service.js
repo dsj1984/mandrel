@@ -10,9 +10,10 @@
  *
  * The service is **scoring-agnostic**: it does not itself walk the
  * filesystem to compute MI / CRAP / coverage scores. Scoring is provided
- * by the per-kind scorer functions registered in the internal
- * `KIND_SCORERS` table (and, in tests, injected via the `scorers` option
- * for hermetic determinism). The service is the policy layer:
+ * by the per-kind default scorers resolved lazily via `resolveDefaultScorer`
+ * (built with the project config resolved against `cwd`) and, in tests or
+ * production wiring, injected via the `scorer` option for hermetic
+ * determinism. The service is the policy layer:
  *
  *   1. Validate the input contract.
  *   2. Resolve the scope (explicit list / diff-derived / full).
@@ -76,6 +77,7 @@ import nodeFs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { getQuality, resolveConfig } from '../config-resolver.js';
 import {
   buildScopePredicate,
   scoreCoverageFinal,
@@ -125,19 +127,45 @@ const KIND_FILE_PREDICATES = Object.freeze({
 });
 
 /**
+ * Resolve the normalized quality block for a kind from a `config` /
+ * `quality` pair. The default scorers MUST read the same canonical,
+ * defaulted shape that the production scorers (`refresh-commit.js#buildKindScorer`,
+ * `update-crap-baseline.js`) consume — i.e. the `getQuality(config)` output,
+ * not the raw `config.delivery.quality.gates.<kind>` path. The raw path is
+ * un-defaulted (e.g. it lacks `requireCoverage` / `coveragePath`), so reading
+ * it directly is exactly the construction inconsistency Story #3694 fixes.
+ *
+ * Precedence: an explicitly supplied `quality` block wins; otherwise derive
+ * it from `config` via `getQuality`; otherwise fall back to `{}`.
+ *
+ * @param {{ quality?: object, config?: object }} opts
+ * @returns {object}
+ */
+function resolveQualityBlock({ quality, config } = {}) {
+  if (quality && typeof quality === 'object') return quality;
+  if (config && typeof config === 'object') return getQuality(config) ?? {};
+  return {};
+}
+
+/**
  * Build the default CRAP scorer. Scans configured target directories
  * (full-scope) or the diff-derived file list, loads coverage-final.json,
  * and runs `scanAndScore` to produce row-shape objects ready for the writer.
  *
- * Exposed for unit tests that need to inspect the built scorer shape; the
- * production caller is the internal `KIND_SCORERS` registry below.
+ * Reads its `targetDirs` / `ignoreGlobs` / `requireCoverage` / `coveragePath`
+ * from the normalized quality block (Story #3694). The lazy default resolver
+ * (`resolveDefaultScorer`) passes the resolved project quality block so the
+ * config-less default no longer silently drops rows.
  *
- * @param {{ cwd: string, config?: object }} opts
+ * Exposed for unit tests that need to inspect the built scorer shape; the
+ * production caller is the internal `resolveDefaultScorer` resolver below.
+ *
+ * @param {{ cwd: string, config?: object, quality?: object }} opts
  * @returns {(files: string[], opts: object) => Promise<object[]>}
  */
-function buildDefaultCrapScorer({ cwd, config } = {}) {
+function buildDefaultCrapScorer({ cwd, config, quality } = {}) {
   // Config is optional: callers that don't pass it get reasonable defaults.
-  const crapCfg = config?.delivery?.quality?.gates?.crap ?? {};
+  const crapCfg = resolveQualityBlock({ quality, config })?.crap ?? {};
   const targetDirs = Array.isArray(crapCfg.targetDirs)
     ? crapCfg.targetDirs
     : [];
@@ -234,11 +262,15 @@ function buildDefaultCoverageScorer({ cwd } = {}) {
  * Build the default maintainability scorer. Full-scope walks all configured
  * target directories; diff-scope resolves just the in-scope files.
  *
- * @param {{ cwd: string, config?: object }} opts
+ * Reads its `targetDirs` / `ignoreGlobs` from the normalized quality block
+ * (Story #3694), mirroring `buildDefaultCrapScorer` and the production
+ * `refresh-commit.js#buildKindScorer`.
+ *
+ * @param {{ cwd: string, config?: object, quality?: object }} opts
  * @returns {(files: string[], opts: object) => Promise<object[]>}
  */
-function buildDefaultMaintainabilityScorer({ cwd, config } = {}) {
-  const miCfg = config?.delivery?.quality?.gates?.maintainability ?? {};
+function buildDefaultMaintainabilityScorer({ cwd, config, quality } = {}) {
+  const miCfg = resolveQualityBlock({ quality, config })?.maintainability ?? {};
   const targetDirs = Array.isArray(miCfg.targetDirs) ? miCfg.targetDirs : [];
   const ignoreGlobs = Array.isArray(miCfg.ignoreGlobs) ? miCfg.ignoreGlobs : [];
   return async (files, opts) => {
@@ -273,20 +305,60 @@ function buildDefaultMaintainabilityScorer({ cwd, config } = {}) {
 }
 
 /**
- * Per-kind scorer registry. Each scorer accepts `(files, opts)` and returns
- * an array of rows in the kind's row shape. Story #3658 completes the Epic
- * #2173 migration by wiring real default scorers for all three kinds so the
- * service is self-contained: callers may still inject a `scorer` via the
- * options bag (used by auto-refresh-runner and tests), but no scorer injection
- * is required for production invocations.
+ * Per-kind default-scorer builders. Story #3658 completes the Epic #2173
+ * migration by wiring real default scorers for all three kinds so the service
+ * is self-contained: callers may still inject a `scorer` via the options bag
+ * (used by auto-refresh-runner and tests), but no scorer injection is required
+ * for production invocations.
  *
- * @type {Record<string, ((files: string[], opts: object) => Promise<object[]> | object[])>}
+ * Story #3694: the builders are invoked **lazily** by `resolveDefaultScorer`
+ * with the project config resolved against the call's `cwd`, rather than being
+ * frozen once at module-load with `{ cwd: process.cwd() }` and no `config`.
+ * The previous eager table built every scorer with no config, so the crap and
+ * maintainability scorers ran with empty `targetDirs`/`ignoreGlobs` and
+ * silently dropped valid rows. Lazy resolution honours both the call's `cwd`
+ * and the resolved `crap.targetDirs`/`ignoreGlobs`/`requireCoverage` (and the
+ * maintainability equivalents).
+ *
+ * @type {Record<string, (input: { cwd: string, config?: object, quality?: object }) => ((files: string[], opts: object) => Promise<object[]> | object[])>}
  */
-const KIND_SCORERS = Object.freeze({
-  maintainability: buildDefaultMaintainabilityScorer({ cwd: process.cwd() }),
-  crap: buildDefaultCrapScorer({ cwd: process.cwd() }),
-  coverage: buildDefaultCoverageScorer({ cwd: process.cwd() }),
+const KIND_SCORER_BUILDERS = Object.freeze({
+  maintainability: buildDefaultMaintainabilityScorer,
+  crap: buildDefaultCrapScorer,
+  coverage: buildDefaultCoverageScorer,
 });
+
+/**
+ * Resolve the default scorer for `kind`, building it with the project config
+ * resolved against `cwd` (Story #3694). This is the production replacement for
+ * the old eager `KIND_SCORERS` table: it guarantees the crap and
+ * maintainability defaults are constructed with the resolved
+ * `targetDirs`/`ignoreGlobs`/`requireCoverage`, so a config-less
+ * `refreshBaseline({ kind: 'crap', ... })` call produces the same rows as the
+ * `update-crap-baseline.js` CLI rather than silently dropping them.
+ *
+ * Config resolution is best-effort: if `resolveConfig` throws (e.g. a
+ * malformed `.agentrc.json` under a tmp `cwd` in tests), we fall back to a
+ * config-less builder so the service still produces a valid (empty) envelope
+ * rather than crashing the refresh. The production crap/maintainability paths
+ * never rely on this fallback — they inject an explicit, configured scorer.
+ *
+ * @param {string} kind
+ * @param {{ cwd: string }} opts
+ * @returns {((files: string[], opts: object) => Promise<object[]> | object[]) | undefined}
+ */
+function resolveDefaultScorer(kind, { cwd } = {}) {
+  const builder = KIND_SCORER_BUILDERS[kind];
+  if (typeof builder !== 'function') return undefined;
+  const effectiveCwd = cwd ?? process.cwd();
+  let quality;
+  try {
+    quality = getQuality(resolveConfig({ cwd: effectiveCwd })) ?? undefined;
+  } catch {
+    quality = undefined;
+  }
+  return builder({ cwd: effectiveCwd, quality });
+}
 
 /**
  * Refresh the on-disk baseline for `kind`. See module preamble for the
@@ -337,12 +409,14 @@ export async function refreshBaseline(opts = {}) {
 
   validateOptions({ kind, scopeFiles, fullScope, writePath });
 
-  // Resolve the kind's scorer. Production defaults are wired by later
-  // Stories; tests inject via `opts.scorer`.
-  const resolvedScorer = scorer ?? KIND_SCORERS[kind];
+  // Resolve the kind's scorer. Tests / production wiring inject via
+  // `opts.scorer`; otherwise build the default scorer lazily with the project
+  // config resolved against `cwd` (Story #3694) so the crap/maintainability
+  // defaults honour the configured targetDirs/ignoreGlobs.
+  const resolvedScorer = scorer ?? resolveDefaultScorer(kind, { cwd });
   if (typeof resolvedScorer !== 'function') {
     throw new Error(
-      `refreshBaseline: no scorer registered for kind "${kind}" (inject one via opts.scorer until Stories 3/4/5 wire defaults)`,
+      `refreshBaseline: no scorer registered for kind "${kind}" (inject one via opts.scorer)`,
     );
   }
 
