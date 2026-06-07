@@ -4,7 +4,12 @@ import { runCloseValidation } from '../../close-validation.js';
 import { resolveConfig } from '../../config-resolver.js';
 import { getStoryBranch, gitSync } from '../../git-utils.js';
 import { Logger } from '../../Logger.js';
+import { createProvider } from '../../provider-factory.js';
+import { flipLabelAndNotify } from '../../single-story/story-merged-notify.js';
+import { WorktreeManager } from '../../worktree-manager.js';
 import { runCodeReview as runCodeReviewDefault } from '../code-review.js';
+import { releaseStoryLease } from '../single-story-lease-guard.js';
+import { buildGatesFromConfig } from '../story-close/legacy-settings-bag.js';
 import { runAutoMergePhase } from './phases/auto-merge.js';
 import { runBaseSyncPhase } from './phases/base-sync.js';
 import { runCloseValidationPhase } from './phases/close-validation.js';
@@ -15,11 +20,6 @@ import { ensurePullRequestWith } from './phases/pull-request.js';
 import { pushStoryBranch } from './phases/push.js';
 import { reapWorktreePhase } from './phases/worktree-reap.js';
 import { runWrongTreeGuardPhase } from './phases/wrong-tree-guard.js';
-import { releaseStoryLease } from '../single-story-lease-guard.js';
-import { buildGatesFromConfig } from '../story-close/legacy-settings-bag.js';
-import { createProvider } from '../../provider-factory.js';
-import { flipLabelAndNotify } from '../../single-story/story-merged-notify.js';
-import { WorktreeManager } from '../../worktree-manager.js';
 
 const progress = Logger.createProgress('single-story-close', { stderr: true });
 
