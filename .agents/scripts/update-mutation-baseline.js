@@ -23,15 +23,35 @@
  * `delivery.quality.gates.mutation` block and no `stryker.conf.*`, so the
  * gate never enters the `check-baselines` pipeline and this refresh
  * self-skips (no Stryker config detected). The dormancy is an evaluated,
- * intentional opt-in — not an oversight. A spike concluded DEFER on
- * activation because turning it on requires a `node --test` Stryker
- * runner integration, reconciling the workspace-keyed snapshot writer
- * (`lib/mutation/baseline-snapshot.js`) with the kernel's path-keyed
- * baseline shape (`lib/baselines/kinds/mutation.js`), and nightly CI
- * plumbing — at a multi-hour full-run cost. See
- * `docs/mutation-testing-spike.md` for the cost model, the baseline-shape
- * fit analysis, the proposed `gates.mutation` config, and the
- * re-evaluation trigger.
+ * intentional opt-in — not an oversight. A spike (Story #3665) concluded
+ * DEFER on activation. The essential rationale, preserved here so it does
+ * not depend on a point-in-time writeup:
+ *
+ *   - Cost model: a full `.agents/scripts` Stryker baseline is a
+ *     tens-of-minutes-to-multi-hour job even under `coverageAnalysis:
+ *     'perTest'` at `concurrency: 8`. Stryker reruns the affected test set
+ *     once per mutant (~5,000–6,500 mutants over ~19k effective LOC), and
+ *     Mandrel's tests live in a sibling `tests/` tree (not colocated with
+ *     source), so there is no cheap per-source-file partition for `perTest`
+ *     to exploit. Activation therefore belongs on a nightly `schedule`
+ *     (never per-PR), with PR-time `check-baselines` consuming the
+ *     nightly-produced baseline as a read-only ratchet.
+ *   - Baseline-shape fit: the kernel/check side keys mutation rows by
+ *     `path` (`lib/baselines/kinds/mutation.js` — per-file rows + per-
+ *     component rollup, the right fit for this single-package repo), but
+ *     this refresh writer (`lib/mutation/baseline-snapshot.js`) emits a
+ *     workspace-keyed `{ workspaces: { '*': score } }` snapshot that
+ *     collapses to one repo-wide number with zero per-file resolution.
+ *     The two shapes do not agree; activation must first reconcile this
+ *     writer to emit the kernel's path-keyed `rows[]`/`rollup` envelope.
+ *   - Prerequisites: a `node --test` Stryker runner integration (no
+ *     first-party `@stryker-mutator` plugin exists for the Node built-in
+ *     runner), the shape reconciliation above, and nightly CI plumbing —
+ *     together an Epic-sized effort, not a config flip.
+ *
+ * Re-evaluate (promote to an activation Epic) when a coverage-gamed
+ * regression ships, the project migrates to a test runner with first-party
+ * Stryker support, or an operator opts in for a specific high-risk subtree.
  */
 
 import path from 'node:path';

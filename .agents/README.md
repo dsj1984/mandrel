@@ -247,8 +247,7 @@ in `runtime-deps.json`.
 | The Epic planning and delivery process | [`docs/SDLC.md`](docs/SDLC.md) |
 | The system prompt loaded by your AI tool | [`instructions.md`](instructions.md) |
 | Every `.agentrc.json` key, default, and override | [`docs/configuration.md`](docs/configuration.md) (under `.agents/`) |
-| Quality-gate runbooks (CRAP, MI, lint, friction) | [`docs/quality-gates.md`](../docs/quality-gates.md) |
-| Baseline envelope, component model, writer/reader contract | [`docs/baselines.md`](../docs/baselines.md) |
+| Quality-gate runbooks (CRAP, MI, lint, friction) plus the baseline envelope, component model, and writer/reader contract | [`docs/quality-gates.md`](../docs/quality-gates.md) |
 | Slash-command workflow definitions | [`workflows/`](workflows/) |
 | Render the signals span-tree (debug helper) | [`workflows/helpers/signals.md`](workflows/helpers/signals.md) |
 | Persona behavior packs | [`personas/`](personas/) |
@@ -484,10 +483,11 @@ envelope, every gate reads through one shared module
 and every refresher writes through one shared writer
 ([`.agents/scripts/lib/baselines/writer.js`](scripts/lib/baselines/writer.js)).
 
-See [`docs/baselines.md`](../docs/baselines.md) for the full reference:
-envelope shape, per-kind axes, component model, path canonicalisation,
-writer/reader contract, kernel-version friction, and — most relevant to
-consumers — the **floor override** path. Consumers add a `floors` block
+See the [Baseline reference](../docs/quality-gates.md#baseline-reference)
+section of `docs/quality-gates.md` for the full reference: envelope shape,
+per-kind axes, component model, path canonicalisation, writer/reader
+contract, kernel-version friction, and — most relevant to consumers — the
+**floor override** path. Consumers add a `floors` block
 (and optional `components`) under their gate in `.agentrc.json`:
 
 ```json
