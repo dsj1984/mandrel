@@ -3,21 +3,24 @@
  *
  * Walks `.agents/workflows/*.md` (top-level only — `helpers/` are
  * path-included modules, not slash commands) and produces the
- * Mandrel-owned slash-command catalog rendered by the `/mandrel`
- * workflow.
+ * Mandrel-owned slash-command catalog.
  *
- * This is the canonical generator. The `/mandrel` workflow runs it at
- * invocation time so the catalog never drifts from the on-disk
- * workflow set — same source-of-truth contract as
+ * This is the canonical catalog backend. The consumer-shipped
+ * `.agents/docs/workflows.md` is generated from it by
+ * `generate-workflows-doc.js`, and `npm run docs:check` gates that doc
+ * against drift — same source-of-truth contract as
  * `sync-claude-commands.js`, just one layer up (catalog of what's
- * synced, not the sync itself).
+ * synced, not the sync itself). The retired `mandrel` discoverability
+ * command used to render this catalog live; Story #3708 replaced it
+ * with the gated, generated `workflows.md` so the catalog is shipped
+ * and drift-checked rather than ephemeral.
  *
  * Pure functions only: no GitHub I/O, no file writes, no provider
- * factory. Callers (the workflow runtime, the unit test) pass an
+ * factory. Callers (the doc generator, the unit test) pass an
  * absolute path to a workflows directory in; the function returns a
- * sorted array of `{ name, description }` entries plus a `render()`
- * helper that produces the human-readable markdown the workflow
- * prints to chat.
+ * sorted array of `{ name, description }` entries plus a
+ * `renderCatalog()` helper that produces a human-readable markdown
+ * bullet list.
  */
 
 import fs from 'node:fs';
@@ -85,9 +88,9 @@ export function extractDescription(source) {
 
 /**
  * Heuristic: treat a description as "vague" when it carries no
- * information beyond the workflow's own name. The `/mandrel` workflow
- * uses this to nudge the operator when a description needs
- * tightening — it does **not** block the catalog from rendering. The
+ * information beyond the workflow's own name. Callers can use this to
+ * nudge the maintainer when a description needs tightening — it does
+ * **not** block the catalog from rendering. The
  * description-frontmatter audit pass (Task #1619 acceptance) is a
  * one-time sweep; this helper exists so the audit doesn't silently
  * regress later.
@@ -138,9 +141,10 @@ export function buildCatalog(workflowsDir) {
 }
 
 /**
- * Render the catalog as the markdown block the `/mandrel` workflow
- * prints. Plain markdown so it's readable in both the Claude Code
- * `/` menu output and a piped terminal.
+ * Render the catalog as a plain-markdown bullet list. Kept as a
+ * lightweight alternative rendering of the same catalog backend that
+ * `generate-workflows-doc.js` renders into the shipped
+ * `.agents/docs/workflows.md` table.
  *
  * @param {Array<{ name: string, description: string | null, vague: boolean }>} catalog
  * @returns {string}

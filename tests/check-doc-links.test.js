@@ -216,3 +216,7 @@ test('static constants: retired blocklist seeded with agents-bootstrap-github; a
   assert.ok(RETIRED_COMMANDS.has('agents-bootstrap-github'));
   assert.ok(SLASH_ALLOWLIST.has('temp'));
 });
+
+test('static constants: retired blocklist includes /mandrel (retired for generated workflows.md)', () => {
+  assert.ok(RETIRED_COMMANDS.has('mandrel'));
+});
