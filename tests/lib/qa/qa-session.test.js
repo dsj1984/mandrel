@@ -3,6 +3,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
+import Ajv from 'ajv';
+import addFormats from 'ajv-formats';
 
 import {
   isUntriaged,
@@ -22,7 +25,46 @@ import {
  * backlog), and on a second run with the same session-id reuses the existing
  * ledger rather than overwriting it. These tests pin those four acceptance
  * criteria.
+ *
+ * Story #3738 adds a round-trip guard: the captured-but-untriaged items that
+ * `readLedger` / `resolveQaSession` carry forward as the rolling backlog MUST
+ * validate against `.agents/schemas/qa-ledger.schema.json`. If they did not,
+ * any validate-on-read or validate-on-resume step would reject exactly the
+ * records the resume path is built to recover.
  */
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const LEDGER_SCHEMA_PATH = path.resolve(
+  __dirname,
+  '..',
+  '..',
+  '..',
+  '.agents',
+  'schemas',
+  'qa-ledger.schema.json',
+);
+
+/** Compile the on-disk qa-ledger schema into an AJV validator. */
+function compileLedgerSchema() {
+  const schema = JSON.parse(fs.readFileSync(LEDGER_SCHEMA_PATH, 'utf8'));
+  const ajv = new Ajv({ allErrors: true, strict: false });
+  addFormats(ajv);
+  return ajv.compile(schema);
+}
+
+/** A schema-complete ledger item with the Capture-phase fields populated. */
+function fullLedgerItem(overrides = {}) {
+  return {
+    id: 'L1',
+    class: 'product-bug',
+    severity: 'high',
+    evidence: 'Save button stays disabled after a valid form is completed',
+    coverage: 'invoices/new',
+    missingTest:
+      'A contract test asserting the save handler enables on valid input',
+    ...overrides,
+  };
+}
 
 let tmpRoot;
 /** A config bag whose tempRoot points at an isolated tmp dir for each test. */
@@ -194,5 +236,66 @@ describe('resolveQaSession — resume contract', () => {
     assert.equal(session.ledgerPath, ledgerPath);
     // … and must not have touched the on-disk ledger.
     assert.deepEqual(fs.readFileSync(ledgerPath), originalBytes);
+  });
+});
+
+describe('untriaged-backlog round-trip — schema validity (Story #3738)', () => {
+  const validate = compileLedgerSchema();
+
+  it('every untriaged item readLedger returns validates against the schema', () => {
+    const config = configFor(tmpRoot);
+    const ledgerPath = ledgerPathFor('round-trip', config);
+    // A realistic mixed ledger: a triaged item plus the captured-but-untriaged
+    // shapes the Capture phase appends (disposition absent / null / sentinel).
+    seedLedger(ledgerPath, [
+      fullLedgerItem({ id: 'L1', disposition: 'file' }),
+      fullLedgerItem({ id: 'L2', class: 'enhancement', missingTest: null }),
+      fullLedgerItem({ id: 'L3', disposition: null }),
+      fullLedgerItem({ id: 'L4', disposition: 'pending' }),
+    ]);
+
+    const { untriaged } = readLedger(ledgerPath);
+
+    // The backlog is exactly the un-triaged subset …
+    assert.deepEqual(
+      untriaged.map((i) => i.id),
+      ['L2', 'L3', 'L4'],
+    );
+    // … and each carried-forward item must satisfy the ledger schema.
+    for (const item of untriaged) {
+      const ok = validate(item);
+      assert.equal(
+        ok,
+        true,
+        `untriaged item ${item.id} failed schema: ${JSON.stringify(validate.errors)}`,
+      );
+      // The predicate the resume path keys off must agree it is untriaged.
+      assert.equal(isUntriaged(item), true);
+    }
+  });
+
+  it('resolveQaSession surfaces a schema-valid untriaged backlog on resume', () => {
+    const config = configFor(tmpRoot);
+    const ledgerPath = ledgerPathFor('resume-backlog', config);
+    seedLedger(ledgerPath, [
+      fullLedgerItem({ id: 'L1', disposition: 'dismiss' }),
+      fullLedgerItem({ id: 'L2', class: 'test-gap' }),
+    ]);
+
+    const session = resolveQaSession({ sessionId: 'resume-backlog', config });
+
+    assert.equal(session.reused, true);
+    assert.deepEqual(
+      session.untriaged.map((i) => i.id),
+      ['L2'],
+    );
+    for (const item of session.untriaged) {
+      const ok = validate(item);
+      assert.equal(
+        ok,
+        true,
+        `resumed item ${item.id} failed schema: ${JSON.stringify(validate.errors)}`,
+      );
+    }
   });
 });

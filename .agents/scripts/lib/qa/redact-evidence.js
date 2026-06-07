@@ -1,13 +1,21 @@
 /**
  * redact-evidence.js — deterministic secrets/PII scrubber for captured evidence.
  *
- * Story #3717 (Feature #3713, Epic #3686). The QA harness captures evidence
- * strings (console text, network bodies, error symptoms) that may carry
- * sensitive material — bearer tokens, session cookies, email addresses. The
- * security baseline (`.agents/rules/security-baseline.md` § Data Leakage &
- * Logging, § Secrets Management) forbids persisting or posting that material
- * to disk or GitHub. This module is the redaction pass that runs **before**
- * any such persistence.
+ * Story #3717 (Feature #3713, Epic #3686), broadened by Story #3737. The QA
+ * harness captures evidence strings (console text, network bodies, error
+ * symptoms) that may carry sensitive material. The security baseline
+ * (`.agents/rules/security-baseline.md` § Data Leakage & Logging, § Secrets
+ * Management) forbids persisting or posting that material to disk or GitHub.
+ * This module is the redaction pass that runs **before** any such persistence.
+ *
+ * The rule set covers the full security-baseline secret/PII taxonomy:
+ * bearer tokens, session cookies, email addresses, **passwords**, **API keys**,
+ * **credit-card numbers (PANs)**, and **SSNs**. Story #3737 added the last four
+ * classes (the #3686 epic-audit + PR #3736 code-review flagged the original
+ * scope as narrower than the baseline it advertises) and tightened the
+ * session-cookie rule so a benign `name=value` pair whose name merely
+ * *contains* a session word (e.g. `author=Jane`, `outside=cold`) is no longer
+ * over-redacted (the M1 cookie over-redaction finding).
  *
  * Like its sibling `console-allowlist.js`, this is the pure, side-effect-free
  * decision layer: given an evidence string, it returns the string with every
@@ -31,9 +39,10 @@
 /**
  * Placeholder tokens substituted for each redacted span. Each is deliberately
  * free of any character that the redaction patterns match (no `@`, no token
- * charset run long enough to re-trigger, no `=` cookie assignment), which is
- * what makes the pass a fixed point — feeding a redacted string back in
- * matches nothing and changes nothing.
+ * charset run long enough to re-trigger, no `=` cookie assignment, no digit
+ * run long enough to read as a PAN/SSN), which is what makes the pass a fixed
+ * point — feeding a redacted string back in matches nothing and changes
+ * nothing.
  *
  * @type {Readonly<Record<string, string>>}
  */
@@ -41,18 +50,76 @@ const PLACEHOLDERS = Object.freeze({
   bearer: '[REDACTED:bearer-token]',
   cookie: '[REDACTED:session-cookie]',
   email: '[REDACTED:email]',
+  password: '[REDACTED:password]',
+  apiKey: '[REDACTED:api-key]',
+  creditCard: '[REDACTED:credit-card]',
+  ssn: '[REDACTED:ssn]',
 });
 
 /**
- * Ordered redaction rules. Order matters: the bearer-token rule runs before
- * the cookie rule so an `Authorization: Bearer …` header is classified as a
- * token rather than swept up by a broader cookie match, and the email rule
- * runs last so an address embedded in an already-redacted span is never
- * re-scrubbed.
+ * Session-secret cookie-name words. A cookie assignment is redacted only when
+ * one of these appears as a whole `_`/`.`/`-`-delimited segment of the cookie
+ * name — so `sessionId`, `connect.sid`, `auth_token`, `csrf_token`, and
+ * `JSESSIONID` match, but `author`, `outside`, `presidency`, and `tokenize`
+ * (which merely *contain* a session substring) do not. This segment anchoring
+ * is the M1 over-redaction fix.
  *
- * Each `pattern` is a global, case-insensitive `RegExp`. The `replace` is a
- * function so a rule can preserve a non-secret prefix (e.g. the `Bearer `
- * keyword or the cookie name) while masking only the secret value.
+ * @type {string}
+ */
+const SESSION_WORDS = 'session|sessionid|sid|auth|token|jsessionid|csrf|xsrf';
+
+/**
+ * Build the case-insensitive session-cookie pattern. The cookie name is one or
+ * more `_`/`.`/`-`-delimited segments where at least one segment *is* a session
+ * word (boundaries `^`, `_`, `.`, `-`, `$` on both sides), followed by `=` and
+ * a value up to the next `;`, whitespace, or end of string.
+ *
+ * @returns {RegExp}
+ */
+function buildCookiePattern() {
+  const segment = '[A-Za-z0-9]+';
+  const sessionSegment = `(?:${SESSION_WORDS})`;
+  // name = optional leading segments, a session segment, optional trailing
+  // segments, all joined by `_`/`.`/`-`. The (?:...) around the whole name is
+  // captured so `replace` can preserve it.
+  const name = `(?:${segment}[._-])*${sessionSegment}(?:[._-]${segment})*`;
+  // The value charset excludes `[` so an already-substituted placeholder
+  // (`[REDACTED:…]`, emitted by an earlier value-masking rule such as
+  // apiKeyAssignment on `access_token=…`) is not re-matched and re-labelled as
+  // a session cookie. This keeps rule order hermetic and the pass idempotent.
+  return new RegExp(`\\b(${name})=([^;\\s[]+)`, 'gi');
+}
+
+/**
+ * Decide whether a digit run (optionally space/hyphen grouped) is a 13–19 digit
+ * credit-card number. Used by the credit-card rule's `replace` to confirm the
+ * digit count after the loose pattern matches, so a longer numeric id is never
+ * partially masked.
+ *
+ * @param {string} candidate
+ * @returns {boolean}
+ */
+function isCreditCard(candidate) {
+  const digits = candidate.replace(/[ -]/g, '');
+  return /^\d{13,19}$/.test(digits);
+}
+
+/**
+ * Ordered redaction rules. Order matters:
+ *   - the bearer-token rule runs before the cookie rule so an
+ *     `Authorization: Bearer …` header is classified as a token rather than
+ *     swept up by a broader cookie match;
+ *   - the password and API-key rules run before the cookie rule so a
+ *     `password=…` / `api_key=…` assignment is classified by its own
+ *     placeholder rather than read as a session cookie;
+ *   - the credit-card and SSN rules run before the email rule so a bare digit
+ *     run is classified before the email pass; the email rule runs last so an
+ *     address embedded in an already-redacted span is never re-scrubbed.
+ *
+ * Each `pattern` is a global `RegExp` (case-insensitive where the surrounding
+ * keywords are alphabetic). The `replace` is a function so a rule can preserve
+ * a non-secret prefix (the `Bearer ` keyword, the key name, the cookie name)
+ * while masking only the secret value.
  *
  * @type {ReadonlyArray<{ name: string, pattern: RegExp, replace: (match: string, ...groups: string[]) => string }>}
  */
@@ -67,15 +134,63 @@ const RULES = Object.freeze([
     pattern: /\b(Bearer)\s+([A-Za-z0-9\-._+/=]{8,})/gi,
     replace: (_match, keyword) => `${keyword} ${PLACEHOLDERS.bearer}`,
   },
-  // Session cookies: a cookie assignment whose name signals a session secret
-  // (`session`, `sessionid`, `sid`, `connect.sid`, `auth`, `token`,
-  // `jsessionid`, …). Preserve the cookie name and `=`; mask the value up to
-  // the next `;`, whitespace, or end of string.
+  // Passwords: a `password` / `passwd` / `pwd` assignment in the common
+  // shapes — `password=...`, `pwd: ...`, JSON `"password": "..."`. Preserve
+  // the key and the assignment punctuation (`=`, `:`, optional quotes); mask
+  // the value up to the next delimiter (`&`, `;`, `,`, whitespace, matching
+  // quote, or end of string). Requires a non-empty value so a bare
+  // `password=` is left alone.
+  {
+    name: 'password',
+    pattern: /\b(passwd|password|pwd)(["']?\s*[:=]\s*)(["']?)([^"'&;,\s]+)\3/gi,
+    replace: (_match, key, sep, quote) =>
+      `${key}${sep}${quote}${PLACEHOLDERS.password}${quote}`,
+  },
+  // API keys (provider-prefixed): Stripe / GitHub `<prefix>_<token>`,
+  // OpenAI/Anthropic `sk-<token>`, Google `AIza<token>`, AWS `AKIA<id>`.
+  // Masked whole.
+  {
+    name: 'apiKeyPrefixed',
+    pattern:
+      /\b(?:sk|pk|rk|ghp|gho|ghs|ghu|ghr)[-_][A-Za-z0-9][A-Za-z0-9_-]{10,}\b|\bAIza[A-Za-z0-9\-_]{20,}\b|\bAKIA[A-Z0-9]{16}\b/g,
+    replace: () => PLACEHOLDERS.apiKey,
+  },
+  // API keys (assignment form): `api_key=...`, `apikey: "..."`,
+  // `access-token=...`, `secret_key=...`. Preserve the key name; mask the
+  // value.
+  {
+    name: 'apiKeyAssignment',
+    pattern:
+      /\b(api[_-]?key|apikey|access[_-]?token|secret[_-]?key)(["']?\s*[:=]\s*)(["']?)([^"'&;,\s]+)\3/gi,
+    replace: (_match, key, sep, quote) =>
+      `${key}${sep}${quote}${PLACEHOLDERS.apiKey}${quote}`,
+  },
+  // Session cookies: a cookie assignment whose name carries a session-secret
+  // word as a whole delimited segment (see SESSION_WORDS / buildCookiePattern).
+  // Preserve the cookie name and `=`; mask the value up to the next `;`,
+  // whitespace, or end of string.
   {
     name: 'cookie',
-    pattern:
-      /\b((?:[A-Za-z0-9_.-]*(?:session|sid|auth|token)[A-Za-z0-9_.-]*))=([^;\s]+)/gi,
+    pattern: buildCookiePattern(),
     replace: (_match, name) => `${name}=${PLACEHOLDERS.cookie}`,
+  },
+  // Credit-card numbers (PANs): 13–19 digit runs, optionally grouped by single
+  // spaces or hyphens (`4111 1111 1111 1111`, `4111-1111-1111-1111`,
+  // `4111111111111111`). The loose pattern matches a digit/separator run; the
+  // `replace` confirms the 13–19 digit count before masking so a longer
+  // numeric id is never partially redacted. Bounded by non-digit edges.
+  {
+    name: 'creditCard',
+    pattern: /(?<![\d-])\d(?:[ -]?\d){12,18}(?![\d-])/g,
+    replace: (match) => (isCreditCard(match) ? PLACEHOLDERS.creditCard : match),
+  },
+  // US Social Security Numbers: `NNN-NN-NNNN`. Masked whole. Hyphen-separated
+  // form only — a bare 9-digit run is intentionally not treated as an SSN to
+  // avoid clobbering benign numeric ids.
+  {
+    name: 'ssn',
+    pattern: /\b\d{3}-\d{2}-\d{4}\b/g,
+    replace: () => PLACEHOLDERS.ssn,
   },
   // Email addresses (RFC 5322 pragmatic subset). Masked whole — the local
   // part and domain are both PII.
@@ -87,8 +202,10 @@ const RULES = Object.freeze([
 ]);
 
 /**
- * Scrub bearer tokens, session cookies, and email addresses from an evidence
- * string before it is persisted to disk or posted to GitHub.
+ * Scrub the full security-baseline secret/PII taxonomy — bearer tokens,
+ * passwords, API keys, session cookies, credit-card numbers, SSNs, and email
+ * addresses — from an evidence string before it is persisted to disk or posted
+ * to GitHub.
  *
  * Contract:
  * - Each matched secret/PII span is replaced by a rule-specific placeholder.
