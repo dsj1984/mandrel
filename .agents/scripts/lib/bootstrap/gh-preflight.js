@@ -29,6 +29,8 @@ const GH_INSTALL_HINT =
   'Install gh: https://cli.github.com/ — then re-run this command.';
 const GH_AUTH_HINT =
   'Run `gh auth login` (choose GitHub.com → HTTPS → login with a web browser), then re-run this command.';
+const GH_PROJECT_SCOPE_HINT =
+  'Grant the Projects scope: run `gh auth refresh -s project` (re-auth in the browser when prompted), then re-run this command.';
 
 /**
  * Framework runtime deps the consumer must have installed in
@@ -177,6 +179,46 @@ export async function preflightGh(opts = {}) {
   }
 
   return { version };
+}
+
+/**
+ * Check that the authenticated `gh` token carries the `project` scope, which
+ * the bootstrap needs to read and modify GitHub Projects V2. Parses the
+ * `Token scopes:` line from `gh auth status` (some gh versions print it to
+ * stderr, others to stdout — we scan both) and looks for a `project` scope.
+ *
+ * Returns a check record `{ name, ok, remedy? }` rather than throwing, so the
+ * preflight aggregator can surface it alongside the other checks. When the
+ * scope line cannot be read (e.g. a fine-grained token that does not report
+ * classic scopes), the check fails closed with the refresh hint so the
+ * operator can grant it explicitly.
+ *
+ * @param {{ runner?: (args: string[]) => {
+ *   status: number|null, stdout: string, stderr: string,
+ *   error?: NodeJS.ErrnoException
+ * } }} [opts]
+ * @returns {Promise<{ name: string, ok: boolean, remedy?: string }>}
+ */
+export async function checkProjectScopes(opts = {}) {
+  const runner = opts.runner ?? defaultGhRunner;
+  const result = runner(['auth', 'status']);
+  const text = `${result.stdout || ''}\n${result.stderr || ''}`;
+  const scopeLine = /Token scopes:([^\n]*)/i.exec(text);
+  if (!scopeLine) {
+    return {
+      name: 'gh-project-scope',
+      ok: false,
+      remedy: `Could not read token scopes from \`gh auth status\`. ${GH_PROJECT_SCOPE_HINT}`,
+    };
+  }
+  if (/\bproject\b/i.test(scopeLine[1])) {
+    return { name: 'gh-project-scope', ok: true };
+  }
+  return {
+    name: 'gh-project-scope',
+    ok: false,
+    remedy: GH_PROJECT_SCOPE_HINT,
+  };
 }
 
 /**

@@ -168,7 +168,7 @@ async function ensureViews(provider, log) {
     const views = await provider.ensureProjectViews(PROJECT_VIEW_DEFS);
     if (views.unavailable) {
       log(
-        `[bootstrap] Projects V2 Views mutation unavailable — skipped ${views.skipped.join(', ')}. ${PROJECTS_DOC_POINTER}`,
+        `[bootstrap] Projects V2 Views unavailable — skipped ${views.skipped.join(', ')}.${views.error ? ` (${views.error})` : ''} ${PROJECTS_DOC_POINTER}`,
       );
     } else {
       log(

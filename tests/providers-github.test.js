@@ -1461,38 +1461,49 @@ describe('GitHubProvider — ensureProjectViews()', () => {
     assert.deepEqual(result.created, []);
   });
 
-  it('reports unavailable + stops after first createProjectV2View failure', async () => {
+  it('reports unavailable + stops after the first view-create failure', async () => {
     let createCount = 0;
-    globalThis.fetch = async (_url, opts) => {
-      const body = JSON.parse(opts.body);
-      if (body.query.includes('views(first')) {
-        return {
-          ok: true,
-          status: 200,
-          headers: { get: () => null },
-          json: async () => ({
-            data: {
-              user: {
-                projectV2: { id: 'PVT_1', views: { nodes: [] } },
+    globalThis.fetch = async (url, opts) => {
+      // GraphQL metadata query: the project exists with no views yet.
+      if (url === 'https://api.github.com/graphql') {
+        const body = JSON.parse(opts.body);
+        if (body.query.includes('views(first')) {
+          return {
+            ok: true,
+            status: 200,
+            headers: { get: () => null },
+            json: async () => ({
+              data: {
+                user: {
+                  projectV2: { id: 'PVT_1', views: { nodes: [] } },
+                },
               },
-            },
-          }),
-          text: async () => '',
-        };
+            }),
+            text: async () => '',
+          };
+        }
+        throw new Error('unexpected graphql call');
       }
-      if (body.query.includes('createProjectV2View')) {
-        createCount += 1;
+      // REST GET /users/{owner}: resolve the owner account.
+      if ((opts.method ?? 'GET') === 'GET') {
         return {
           ok: true,
           status: 200,
           headers: { get: () => null },
-          json: async () => ({
-            errors: [{ message: 'Field createProjectV2View not found' }],
-          }),
+          json: async () => ({ id: 4242, type: 'User' }),
           text: async () => '',
         };
       }
-      throw new Error('unexpected call');
+      // REST POST …/views: the view-create call fails (non-404 → real
+      // failure), so the loop must stop after the first attempt.
+      createCount += 1;
+      return {
+        ok: false,
+        status: 500,
+        headers: { get: () => null },
+        json: async () => ({}),
+        text: async () => 'view creation unavailable',
+      };
     };
 
     const provider = createTestProvider({ projectNumber: 1 });

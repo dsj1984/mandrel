@@ -8,13 +8,23 @@
  */
 import { execSync } from 'node:child_process';
 
-const Q_OWNER = `query($login:String!){user(login:$login){id} organization(login:$login){id}}`;
+// Resolve an owner node id per-scope. Querying `user` and `organization`
+// together in one request makes GitHub return a NOT_FOUND error for whichever
+// the login is NOT (e.g. `organization` for a personal account), and `gql`
+// throws on any `errors` array — discarding the id that *did* resolve. So we
+// probe each scope separately and tolerate the per-scope NOT_FOUND.
+const Q_OWNER_ID = (scope) =>
+  `query($login:String!){${scope}(login:$login){id}}`;
 const Q_PROJ = (scope, fields) =>
   `query($owner:String!,$number:Int!){${scope}(login:$owner){projectV2(number:$number){${fields}}}}`;
 const M_PROJ = `mutation($ownerId:ID!,$title:String!){createProjectV2(input:{ownerId:$ownerId,title:$title}){projectV2{id number}}}`;
 const M_FIELD = `mutation($projectId:ID!,$name:String!,$options:[ProjectV2SingleSelectFieldOptionInput!]!){createProjectV2Field(input:{projectId:$projectId,dataType:SINGLE_SELECT,name:$name,singleSelectOptions:$options}){projectV2Field{... on ProjectV2SingleSelectField{id name}}}}`;
 const M_UPDATE = `mutation($fieldId:ID!,$name:String!,$options:[ProjectV2SingleSelectFieldOptionInput!]!){updateProjectV2Field(input:{fieldId:$fieldId,name:$name,singleSelectOptions:$options}){projectV2Field{... on ProjectV2SingleSelectField{id name}}}}`;
-const M_VIEW = `mutation($projectId:ID!,$name:String!,$filter:String!){createProjectV2View(input:{projectId:$projectId,name:$name,filter:$filter,layout:BOARD_LAYOUT}){projectV2View{id name}}}`;
+// Projects V2 view creation uses the REST API — the GraphQL
+// `createProjectV2View` mutation is not generally available. Endpoints:
+//   org-owned:  POST /orgs/{org}/projectsV2/{number}/views        ({org} login)
+//   user-owned: POST /users/{user_id}/projectsV2/{number}/views   (numeric id)
+const REST_API_VERSION = '2026-03-10';
 const M_ITEM = `mutation($projectId:ID!,$contentId:ID!){addProjectV2ItemById(input:{projectId:$projectId,contentId:$contentId}){item{id}}}`;
 const F_STATUS = `id fields(first:50){nodes{... on ProjectV2SingleSelectField{id name options{id name}}}}`;
 const F_VIEWS = `id views(first:50){nodes{name}}`;
@@ -92,6 +102,87 @@ async function gql(ctx, query, variables) {
   return json.data;
 }
 
+/**
+ * Issue a REST request against api.github.com, reusing the same token and
+ * fetch seam as `gql`. Throws on non-2xx with the response body for context.
+ */
+async function rest(ctx, method, apiPath, body) {
+  const fetchImpl = ctx.fetchImpl ?? globalThis.fetch;
+  const response = await fetchImpl(`https://api.github.com${apiPath}`, {
+    method,
+    headers: {
+      Accept: 'application/vnd.github+json',
+      Authorization: `Bearer ${ctx.token ?? resolveToken()}`,
+      'Content-Type': 'application/json',
+      'User-Agent': 'node.js',
+      'X-GitHub-Api-Version': REST_API_VERSION,
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    const err = new Error(
+      `[GitHubProvider] REST ${method} ${apiPath} → ${response.status}: ${text}`,
+    );
+    err.status = response.status;
+    throw err;
+  }
+  return response.json().catch(() => ({}));
+}
+
+/**
+ * Resolve an owner login to its account type and numeric id via
+ * `GET /users/{login}` (which serves both users and orgs). The REST views
+ * endpoint keys orgs by login but users by numeric id, so we need both.
+ */
+async function resolveOwnerAccount(ctx, owner) {
+  const data = await rest(ctx, 'GET', `/users/${encodeURIComponent(owner)}`);
+  return { id: data?.id ?? null, type: data?.type ?? null };
+}
+
+/**
+ * Build the candidate REST views endpoints to try, in order. Orgs key by
+ * login. For user-owned projects the docs label the path param `{user_id}`
+ * but it's ambiguous (numeric id vs login) and the numeric form was observed
+ * to 404 — so we try the login first (mirroring the org endpoint) then fall
+ * back to the numeric id, treating a 404 as "wrong param, try the next".
+ */
+function viewsEndpoints(account, owner, projectNumber) {
+  if (account.type === 'Organization') {
+    return [
+      `/orgs/${encodeURIComponent(owner)}/projectsV2/${projectNumber}/views`,
+    ];
+  }
+  const candidates = [];
+  if (owner) {
+    candidates.push(
+      `/users/${encodeURIComponent(owner)}/projectsV2/${projectNumber}/views`,
+    );
+  }
+  if (account.id != null) {
+    candidates.push(`/users/${account.id}/projectsV2/${projectNumber}/views`);
+  }
+  return candidates;
+}
+
+/**
+ * POST a view to the first candidate endpoint that does not 404. A 404 means
+ * the path param shape was wrong (login vs numeric id) — try the next. Any
+ * other status is a real failure and propagates.
+ */
+async function createView(ctx, endpoints, body) {
+  let lastError = null;
+  for (const endpoint of endpoints) {
+    try {
+      return await rest(ctx, 'POST', endpoint, body);
+    } catch (err) {
+      lastError = err;
+      if (err.status !== 404) throw err;
+    }
+  }
+  throw lastError ?? new Error('[GitHubProvider] No views endpoint available.');
+}
+
 async function lookupProject(ctx, fragment, strict = false) {
   if (!ctx.projectNumber) return null;
   let lastError = null;
@@ -108,6 +199,29 @@ async function lookupProject(ctx, fragment, strict = false) {
     }
   }
   if (strict && lastError) throw lastError;
+  return null;
+}
+
+/**
+ * Resolve the node id for an owner login, which may be a personal user OR an
+ * organization. Tries `user` first, then `organization`, in separate requests
+ * so a per-scope NOT_FOUND never aborts the lookup. Returns `null` when the
+ * login resolves to neither. Re-throws insufficient-scope errors so the caller
+ * can soft-fail with `{ scopesMissing: true }`.
+ */
+async function resolveOwnerId(ctx, owner) {
+  let lastError = null;
+  for (const scope of ['user', 'organization']) {
+    try {
+      const data = await gql(ctx, Q_OWNER_ID(scope), { login: owner });
+      const id = data?.[scope]?.id;
+      if (id) return id;
+    } catch (err) {
+      if (isInsufficientScopes(err)) throw err;
+      lastError = err; // NOT_FOUND for this scope — try the next.
+    }
+  }
+  if (lastError) throw lastError;
   return null;
 }
 
@@ -134,8 +248,7 @@ export async function resolveOrCreateProject(ctx, opts = {}) {
     );
   }
   try {
-    const ownerResponse = await gql(ctx, Q_OWNER, { login: owner });
-    const ownerId = ownerResponse?.organization?.id ?? ownerResponse?.user?.id;
+    const ownerId = await resolveOwnerId(ctx, owner);
     if (!ownerId)
       throw new Error(
         `[GitHubProvider] Could not resolve owner node id for "${owner}".`,
@@ -239,25 +352,49 @@ export async function ensureProjectViews(ctx, viewDefs) {
   const existingViewNames = new Set(
     (project.views?.nodes ?? []).map((view) => view?.name).filter(Boolean),
   );
+
+  // Resolve the owner account once to pick the right REST endpoint shape.
+  let account;
+  try {
+    account = await resolveOwnerAccount(ctx, ctx.projectOwner);
+  } catch (err) {
+    return {
+      created,
+      skipped: viewDefs.map((view) => view.name),
+      unavailable: true,
+      error: err.message,
+    };
+  }
+
+  const endpoints = viewsEndpoints(
+    account,
+    ctx.projectOwner,
+    ctx.projectNumber,
+  );
   let unavailable = false;
+  let error;
   for (const def of viewDefs) {
     if (existingViewNames.has(def.name) || unavailable) {
       skipped.push(def.name);
       continue;
     }
     try {
-      await gql(ctx, M_VIEW, {
-        projectId: project.id,
+      await createView(ctx, endpoints, {
         name: def.name,
-        filter: def.filter,
+        // PROJECT_VIEW_DEFS predate REST layouts; the GraphQL path always
+        // created board views, so default to 'board' (override via
+        // `def.layout` = 'table' | 'board' | 'roadmap').
+        layout: def.layout ?? 'board',
+        ...(def.filter ? { filter: def.filter } : {}),
       });
       created.push(def.name);
-    } catch {
+    } catch (err) {
       unavailable = true;
+      error = err.message;
       skipped.push(def.name);
     }
   }
-  return { created, skipped, unavailable };
+  return { created, skipped, unavailable, ...(error ? { error } : {}) };
 }
 
 export async function ensureProjectFields(ctx, fieldDefs) {
