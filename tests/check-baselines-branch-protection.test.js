@@ -49,7 +49,9 @@ describe('branchProtection.requiredChecks — Task #1914 invariant', () => {
   });
 
   it('full-agentrc.json carries the same collapsed contract', () => {
-    const names = requiredCheckNames(readJson('.agents/full-agentrc.json'));
+    const names = requiredCheckNames(
+      readJson('.agents/docs/agentrc-reference.json'),
+    );
     assert.ok(names.includes('baselines'));
     for (const kind of ['coverage', 'crap', 'maintainability', 'mutation']) {
       assert.ok(

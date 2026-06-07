@@ -10,7 +10,7 @@ The framework is **Claude Code-first**: `.claude/`, hooks, skills, and
 the slash-command surface lean in on Claude Code as the reference
 runtime, and the dispatcher (`.agents/scripts/`) treats the dispatch
 manifest (md + structured comment) as the cross-runtime contract. See
-ADR 20260512-coupling-stance in [`../docs/decisions.md`](../docs/decisions.md).
+ADR 20260512-coupling-stance in [`../docs/decisions.md`](../../docs/decisions.md).
 
 ---
 
@@ -270,10 +270,10 @@ orchestration engine depends on.
 
 1. **Configure.** Copy `.agents/starter-agentrc.json` to `.agentrc.json` at
    your project root and fill in the `orchestration` block (owner, repo,
-   etc.). See `.agents/full-agentrc.json` for the exhaustive reference of
+   etc.). See `.agents/docs/agentrc-reference.json` for the exhaustive reference of
    every available key.
 2. **Authenticate.** Ensure a valid GitHub token is available (see
-   Authentication in [README.md](README.md)).
+   Authentication in [README.md](../README.md)).
 3. **Run bootstrap.** Execute `/agents-bootstrap-github` (or
    `node .agents/scripts/agents-bootstrap-github.js`). Idempotently creates
    the label taxonomy and optional GitHub Project V2 fields, and — when
@@ -332,7 +332,7 @@ The framework reads the Epic and autonomously builds the entire work breakdown.
 > **Epic Clarity Gate (`/epic-plan` `planning.clarity-gate` state).** Before PRD / Tech Spec /
 > Acceptance Spec authoring kicks off, `/epic-plan` scores the Epic body
 > against the five canonical sections from
-> [`templates/epic-from-idea.md`](templates/epic-from-idea.md) (Context,
+> [`templates/epic-from-idea.md`](../templates/epic-from-idea.md) (Context,
 > Goal, Non-Goals, Scope, Acceptance Criteria). Common legacy heading
 > variants (`Problem`, `Direction`, `MVP Scope`, `Not Doing`,
 > `Out of Scope`) are accepted by the scorer's regex for back-compat.
@@ -355,7 +355,7 @@ The framework reads the Epic and autonomously builds the entire work breakdown.
 > [!TIP] **PRD authoring — acceptance criteria phrasing.** Write acceptance
 > criteria in Gherkin-compatible `Given / When / Then` form so the QA
 > acceptance suite can lift them directly into executable `.feature` files. See
-> [`rules/gherkin-standards.md`](rules/gherkin-standards.md) for the canonical
+> [`rules/gherkin-standards.md`](../rules/gherkin-standards.md) for the canonical
 > clause grammar, tag taxonomy, and forbidden patterns.
 
 ### Acceptance Spec — the third planning context ticket
@@ -530,7 +530,7 @@ finalize, automerge, and cleanup. The `delivery.finalize`,
 typed event via `lifecycle-emit.js` (`epic.close.end`,
 `epic.automerge.start`, `epic.merge.armed`); the matching listeners run
 the side effects. See
-[`docs/LIFECYCLE.md`](../docs/LIFECYCLE.md) for the bus contract,
+[`docs/LIFECYCLE.md`](../../docs/LIFECYCLE.md) for the bus contract,
 event taxonomy, ledger format, and listener model — every phase
 transition, ticket-state flip, and webhook fan-out now flows through
 that bus, and the on-disk ledger at `temp/epic-<id>/lifecycle.ndjson`
@@ -542,7 +542,7 @@ side-effects rather than inline calls at phase boundaries; the
 
 > **Acceptance-spec start gate.** Before a single wave fans out,
 > `/epic-deliver`'s `delivery.snapshot` state
-> ([`lib/orchestration/epic-runner/phases/snapshot.js`](scripts/lib/orchestration/epic-runner/phases/snapshot.js))
+> ([`lib/orchestration/epic-runner/phases/snapshot.js`](../scripts/lib/orchestration/epic-runner/phases/snapshot.js))
 > asserts that the Epic either (a) carries the `acceptance::n-a`
 > waiver label, or (b) has a linked `context::acceptance-spec`
 > ticket. The ticket's GitHub state (open / closed) is not checked
@@ -616,7 +616,7 @@ standalone Stories), the Context Hydrator assembles a self-contained prompt:
 4. **Story branch context.** Automatic checkouts to the Story branch. Under
    worktree isolation, each Story runs in its own `.worktrees/story-<id>/` so
    branch swaps, staging, and reflog activity are isolated per-story. See
-   [`workflows/helpers/worktree-lifecycle.md`](workflows/helpers/worktree-lifecycle.md).
+   [`workflows/helpers/worktree-lifecycle.md`](../workflows/helpers/worktree-lifecycle.md).
 5. Task-specific instructions and subtask checklist.
 
 ### State sync
@@ -706,7 +706,7 @@ non-fast-forward rejection *after* the race has already happened.
 **The assignee-as-lease is the cross-clone layer.** To stop two clones
 from both *starting* to drive the same Epic or Story, the framework takes
 an exclusive, time-bounded claim on the ticket via
-[`ticket-lease.js`](scripts/lib/orchestration/ticket-lease.js). The lease
+[`ticket-lease.js`](../scripts/lib/orchestration/ticket-lease.js). The lease
 rides the ticket's GitHub `assignees` field — a substrate every clone can
 read — so a live foreign claim is visible to, and refuses, a second
 operator regardless of which machine they are on. All three delivery and
@@ -720,7 +720,7 @@ because planning emits no `story.heartbeat`, `/epic-plan` has no
 live-heartbeat source and treats **any** foreign assignee as a live claim.
 A live foreign claim fails the preflight closed (refuse-and-exit, naming
 the owner); `--steal` is the only override. See
-[`README.md` § Multi-developer coordination](README.md#multi-developer-coordination)
+[`README.md` § Multi-developer coordination](../README.md#multi-developer-coordination)
 for the full lease behaviour table.
 
 The two layers are complementary, not redundant: the lease prevents two
@@ -757,7 +757,7 @@ watch / auto-merge / cleanup tail that drives the PR to merge:
    that access. After the GitHub upsert succeeds, the retro body is
    also **mirrored locally** to the per-Epic temp tree at
    `temp/epic-<id>/retro.md` (path resolved via
-   [`lib/config/temp-paths.js`](scripts/lib/config/temp-paths.js)'s
+   [`lib/config/temp-paths.js`](../scripts/lib/config/temp-paths.js)'s
    `epicRetroMirrorPath`) so operators can read the retro without
    re-fetching from GitHub. GitHub remains the source of truth; the
    mirror write is best-effort and a failure only logs a warn.
@@ -966,14 +966,14 @@ Tests are **pyramid-aware**. Every test written during Story delivery
 belongs to exactly one tier — **unit**, **contract**, or **e2e / acceptance** —
 and each tier has distinct scope, dependency, and assertion rules. The canonical
 tier definitions, assertion-placement rules, and coverage thresholds live in
-[`rules/testing-standards.md`](rules/testing-standards.md); Gherkin authoring
+[`rules/testing-standards.md`](../rules/testing-standards.md); Gherkin authoring
 for the acceptance tier is governed by
-[`rules/gherkin-standards.md`](rules/gherkin-standards.md).
+[`rules/gherkin-standards.md`](../rules/gherkin-standards.md).
 
 The acceptance tier is executed and reported via
-[`workflows/qa-run-harness.md`](workflows/qa-run-harness.md) and consumed as
+[`workflows/qa-run-harness.md`](../workflows/qa-run-harness.md) and consumed as
 epic evidence by
-[`workflows/helpers/epic-testing.md`](workflows/helpers/epic-testing.md).
+[`workflows/helpers/epic-testing.md`](../workflows/helpers/epic-testing.md).
 
 ### QA workflows: explore vs. run-harness
 
@@ -981,12 +981,12 @@ Two complementary QA workflows sit alongside the automated test pyramid, both
 adopting the `qa-engineer` persona and both reading the consumer's `qa.*`
 project contract from `.agentrc.json`:
 
-- **[`workflows/qa-explore.md`](workflows/qa-explore.md)** (`/qa-explore`) — an
+- **[`workflows/qa-explore.md`](../workflows/qa-explore.md)** (`/qa-explore`) — an
   open-ended, human-in-the-loop **Plan → Capture → Triage** exploratory sweep.
   The operator names a surface; the agent probes it for product bugs,
   environment-setup friction, tooling/DX gaps, missing tests, and enhancement
   ideas. Each observation is recorded as a `QaLedgerItem` against
-  [`schemas/qa-ledger.schema.json`](schemas/qa-ledger.schema.json) and appended
+  [`schemas/qa-ledger.schema.json`](../schemas/qa-ledger.schema.json) and appended
   to a **session ledger** at `temp/qa/<sessionId>.ndjson` (one item per ndjson
   line, under `project.paths.tempRoot`, gitignored, never committed). Capture
   is strictly **read-only** — the ledger append is its only write — so every
@@ -999,14 +999,14 @@ project contract from `.agentrc.json`:
   make the decisions; the agent never re-derives them in prose. A resumed
   session appends and carries its un-triaged backlog forward as a rolling
   backlog.
-- **[`workflows/qa-run-harness.md`](workflows/qa-run-harness.md)**
+- **[`workflows/qa-run-harness.md`](../workflows/qa-run-harness.md)**
   (`/qa-run-harness`) — the **automated complement**: it steps a *known* set of
   Gherkin `.feature` scenarios through a real browser, asserting `Then`
   outcomes semantically against the accessibility snapshot and bundling
   console/network problems into structured `F#` findings for operator sign-off.
 
 Both workflows resolve the `qa.*` contract through the single seam
-[`scripts/lib/qa/resolve-qa-contract.js`](scripts/lib/qa/resolve-qa-contract.js).
+[`scripts/lib/qa/resolve-qa-contract.js`](../scripts/lib/qa/resolve-qa-contract.js).
 The block is **optional in the schema** (so config validation never breaks a
 non-QA consumer) but enforced at run time: the resolver fails **loudly** with
 "this project has not bound the QA harness" when no `qa` block is present —
@@ -1018,7 +1018,7 @@ authored as a name-only array under a url-template seam or as a per-persona
 credential/skill map under a skill seam); the two optional keys
 `qa.consoleAllowlist` and `qa.designTokens` default to `[]` and `null`.
 Consumer adoption steps are in
-[`README.md` § Adopting the QA harness](README.md#adopting-the-qa-harness).
+[`README.md` § Adopting the QA harness](../README.md#adopting-the-qa-harness).
 
 ---
 
@@ -1094,7 +1094,7 @@ consuming projects:
 
 Every notification — whether a manual orchestration milestone (story merged,
 HITL gate triggered) or an auto-fired ticket-state transition — routes through
-[`notify.js`](scripts/notify.js). Two delivery channels:
+[`notify.js`](../scripts/notify.js). Two delivery channels:
 
 | Channel           | What it does                                                              |
 | ----------------- | ------------------------------------------------------------------------- |
@@ -1206,7 +1206,7 @@ workaround is the canonical pattern.
 **When a workflow file genuinely must change** (a new top-level job, a
 trigger change, a runner-image bump, etc.), the edit must be made by an
 operator with `Workflows: Read and write` PAT permissions. See
-[§ One-time PAT setup](../AGENTS.md#one-time-pat-setup) in the root
+[§ One-time PAT setup](../../AGENTS.md#one-time-pat-setup) in the root
 `AGENTS.md` for how to provision a PAT with the required scope. The same
 operator surface that release-please relies on is the one that authorizes
 workflow edits.
@@ -1244,7 +1244,7 @@ When tuning runtime knobs **mid-Story**:
 3. **Use `.agentrc.local.json`** for per-machine tuning you never want
    to commit. The file is gitignored and layered on top of
    `.agentrc.json` by the config resolver
-   (see [`docs/configuration.md`](../docs/configuration.md#per-machine-local-overrides)).
+   (see [`.agents/docs/configuration.md`](configuration.md#per-machine-local-overrides)).
    Note: the local override is still read relative to the script's
    cwd, so for worktree-bound scripts you must place
    `.agentrc.local.json` inside the worktree directory — or invoke the
@@ -1269,8 +1269,8 @@ For Stories already in flight, use one of the three options above.
 | `/epic-deliver <epicId>`                                      | Drive an Epic end-to-end. Wave loop → close-validation → code-review → retro → opens PR to `main` with auto-merge armed.                                                       |
 | `/story-deliver <storyId> [<storyId>...]`                     | Deliver one or more standalone Stories (no `Epic: #N` reference). Builds a dependency-aware wave plan and fans out one worker per Story per wave.                              |
 | `/story-plan`                                                 | Plan a one-off Story outside an Epic backlog.                                                                                                                                  |
-| *helper* `workflows/helpers/epic-deliver-story`               | Per-Story worker called by `/epic-deliver`'s wave loop; not an operator slash command. See [`helpers/epic-deliver-story.md`](workflows/helpers/epic-deliver-story.md).         |
-| *helper* `workflows/helpers/single-story-deliver`             | Per-Story worker called by `/story-deliver`; not an operator slash command. See [`helpers/single-story-deliver.md`](workflows/helpers/single-story-deliver.md).                |
+| *helper* `workflows/helpers/epic-deliver-story`               | Per-Story worker called by `/epic-deliver`'s wave loop; not an operator slash command. See [`helpers/epic-deliver-story.md`](../workflows/helpers/epic-deliver-story.md).         |
+| *helper* `workflows/helpers/single-story-deliver`             | Per-Story worker called by `/story-deliver`; not an operator slash command. See [`helpers/single-story-deliver.md`](../workflows/helpers/single-story-deliver.md).                |
 | *helper* `workflows/helpers/code-review.md`                   | Auto-invoked by `/epic-deliver`'s `delivery.code-review` state (scope: epic); not a slash command.                                                                            |
 | `/git-commit-all`                                | Stage and commit all changes                                                                                                                                                 |
 | `/git-push`                                      | Stage, commit, and push to remote                                                                                                                                            |

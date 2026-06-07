@@ -1,7 +1,7 @@
 /**
  * Regression test for Story #2573.
  *
- * `.agents/full-agentrc.json` is the exhaustive editor reference that
+ * `.agents/docs/agentrc-reference.json` is the exhaustive editor reference that
  * consumers copy-paste from. If any `delivery.quality.gates.<kind>.floors`
  * block declares an axis that does not exist in the kind's v2 rollup
  * envelope, `check-baselines.js` fails closed with EXIT_CONFIG and the
@@ -51,7 +51,10 @@ function aggregateAxisKeys(kindModule) {
 
 describe('full-agentrc.json floor axes match v2 envelope shapes', () => {
   const raw = JSON.parse(
-    readFileSync(path.join(PROJECT_ROOT, '.agents/full-agentrc.json'), 'utf8'),
+    readFileSync(
+      path.join(PROJECT_ROOT, '.agents/docs/agentrc-reference.json'),
+      'utf8',
+    ),
   );
   const gates = raw?.delivery?.quality?.gates ?? {};
 

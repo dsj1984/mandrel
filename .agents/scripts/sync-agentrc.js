@@ -10,7 +10,7 @@
  * Contract:
  *   - Validates the project config against the framework schema. On
  *     failure, prints diagnostics and exits 1.
- *   - Never auto-fills optional keys from `.agents/full-agentrc.json`.
+ *   - Never auto-fills optional keys from `.agents/docs/agentrc-reference.json`.
  *     The runtime layers framework defaults at read time, so an absent
  *     key resolves to the framework default without being written.
  *   - For every project leaf whose value equals the framework default,

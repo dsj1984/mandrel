@@ -6,7 +6,7 @@ read the same numbers from here so a "high cyclomatic complexity" finding in
 `/audit-clean-code` and a pre-commit refusal cite the same threshold.
 
 > Tunable via `delivery.quality.codingGuardrails` in `.agentrc.json` —
-> see [`full-agentrc.json`](../../full-agentrc.json) for the framework
+> see [`agentrc-reference.json`](../../docs/agentrc-reference.json) for the framework
 > defaults and [`schemas/agentrc.schema.json`](../../schemas/agentrc.schema.json)
 > for the validated shape. Override per-project; never fork this helper to
 > change a number.
@@ -88,7 +88,7 @@ suppress the noise.
 Update three places **in the same commit**:
 
 1. `delivery.quality.codingGuardrails.<key>` in
-   [`full-agentrc.json`](../../full-agentrc.json).
+   [`agentrc-reference.json`](../../docs/agentrc-reference.json).
 2. The matching schema bound in
    [`schemas/agentrc.schema.json`](../../schemas/agentrc.schema.json) and the
    AJV mirror in

@@ -69,7 +69,7 @@ export const PRE_COMMIT_MARKER =
 
 /**
  * Default values seeded into `delivery.quality.{codingGuardrails,autoRefresh}`
- * when the keys are absent. Mirrors `.agents/full-agentrc.json` — keep in
+ * when the keys are absent. Mirrors `.agents/docs/agentrc-reference.json` — keep in
  * sync when those numbers move.
  */
 export const QUALITY_CONFIG_DEFAULTS = Object.freeze({

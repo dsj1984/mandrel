@@ -10,7 +10,7 @@
  * healthcheck reports `ok: false`, unless the operator has applied the
  * `planning::healthcheck-waived` label to the Epic. The waiver scopes
  * to the healthcheck check alone — every other handoff exit condition
- * (see `.agents/SDLC.md`) still applies.
+ * (see `.agents/docs/SDLC.md`) still applies.
  *
  * Three cases are covered:
  *

@@ -46,7 +46,7 @@ sub-blocks read through dedicated accessors:
 ### Benefits
 
 - **Discoverability.** Operators read one reference doc (e.g.
-  `docs/configuration.md`) backed by the schema, not a scattered surface.
+  `.agents/docs/configuration.md`) backed by the schema, not a scattered surface.
 - **Validation fails fast.** Misconfiguration surfaces at startup, not
   three layers down at the call site that needed the missing value.
 - **Editor support is free.** The `$schema` pointer gives autocomplete and
@@ -158,7 +158,7 @@ never has to be flipped per-environment.
 For the architectural map, config keys, node_modules strategies, and the
 Windows path-length notes see
 [`docs/architecture.md`](architecture.md#worktree-isolation),
-[`docs/configuration.md`](configuration.md#orchestrationworktreeisolation),
+[`.agents/docs/configuration.md`](../.agents/docs/configuration.md#orchestrationworktreeisolation),
 and [`.agents/workflows/helpers/worktree-lifecycle.md`](../.agents/workflows/helpers/worktree-lifecycle.md).
 
 ---

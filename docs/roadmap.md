@@ -588,7 +588,7 @@ deferred remainders appear under E-A/E-D/E-F below.
 
 Evidence:
 
-- `.agents/SDLC.md` states the framework is "Claude Code-first" and runs Story
+- `.agents/docs/SDLC.md` states the framework is "Claude Code-first" and runs Story
   sub-agents inside the operator's Claude session.
 - `docs/architecture.md` states the dispatch manifest is the cross-runtime
   contract, but also that the manifest `executor` is fixed to `"claude-code"`
@@ -795,7 +795,7 @@ Deferred remainder: enterprise docs for required permissions.
 
 #### Finding 11 — Configuration surface is large and hard to productize
 
-Evidence: `.agents/full-agentrc.json` is ~274 lines of low-level knobs; the
+Evidence: `.agents/docs/agentrc-reference.json` is ~274 lines of low-level knobs; the
 `starter-agentrc.json` seed is ~21 lines — a large gap between first-look and
 full surface.
 

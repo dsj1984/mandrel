@@ -14,7 +14,7 @@
  *      (default | profile | agentrc) and a one-line meaning.
  *   3. No secret value is printed — only its source is reported.
  *
- * The report is exercised against the real in-repo `full-agentrc.json`
+ * The report is exercised against the real in-repo `agentrc-reference.json`
  * defaults and profile seeds (the same deterministic framework fixtures
  * `profiles.test.js` uses); the CLI is fully isolated via seams.
  */

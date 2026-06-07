@@ -16,7 +16,7 @@ below for the policy and [`decisions.md`](decisions.md) (ADR
 the lift the floor gate represents.
 
 The configuration knobs that drive these gates live in
-[`docs/configuration.md`](configuration.md) under
+[`.agents/docs/configuration.md`](../.agents/docs/configuration.md) under
 `delivery.quality.*` and the framework-internal `DEFAULT_STORY_MERGE_RETRY` constant. This
 file is the runbook side — what the gate does, when it fires, and how to
 bootstrap or refresh it.

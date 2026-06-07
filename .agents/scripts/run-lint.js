@@ -58,7 +58,7 @@ const tasks = [
   },
   {
     // Custom Node-based lint for label-vocabulary citations in
-    // `.agents/SDLC.md` and `.agents/workflows/**/*.md` (Story #2892,
+    // `.agents/docs/SDLC.md` and `.agents/workflows/**/*.md` (Story #2892,
     // Tech Spec F9 under Epic #2880). Greps inline backtick code
     // spans for axis-shaped tokens (`type/epic`, etc.) and asserts
     // only the canonical `<axis>::<value>` separator from

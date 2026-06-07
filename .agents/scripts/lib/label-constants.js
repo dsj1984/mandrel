@@ -137,7 +137,7 @@ export const META_LABELS = {
  * healthcheck (`epic-plan-healthcheck.js`). The persist half of
  * `epic-plan-decompose.js` refuses to flip an Epic to `agent::ready`
  * when the healthcheck returned `ok: false` unless this label is
- * present — see `.agents/SDLC.md` § "`agent::ready` exit conditions"
+ * present — see `.agents/docs/SDLC.md` § "`agent::ready` exit conditions"
  * for the full handoff contract.
  *
  * Future planning-axis waivers (one per failing exit condition) extend

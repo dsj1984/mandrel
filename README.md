@@ -62,8 +62,8 @@ re-run anytime.
 
 For the consumer reference and the end-to-end workflow narrative, see
 [`.agents/README.md`](.agents/README.md) and
-[`.agents/SDLC.md`](.agents/SDLC.md). Every `.agentrc.json` key is
-documented in [`docs/configuration.md`](docs/configuration.md), and the
+[`.agents/docs/SDLC.md`](.agents/docs/SDLC.md). Every `.agentrc.json` key is
+documented in [`.agents/docs/configuration.md`](.agents/docs/configuration.md), and the
 slash-command index lives in [`docs/workflows.md`](docs/workflows.md).
 
 ## Update
@@ -141,7 +141,7 @@ Deeper reference material lives in `docs/` rather than inline here:
 
 - [`docs/architecture.md`](docs/architecture.md) — module map, repo
   layout, state machine, and tech stack.
-- [`docs/configuration.md`](docs/configuration.md) — every `.agentrc.json`
+- [`.agents/docs/configuration.md`](.agents/docs/configuration.md) — every `.agentrc.json`
   key explained.
 - [`docs/workflows.md`](docs/workflows.md) — slash-command index.
 - [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — release history.

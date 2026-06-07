@@ -19,18 +19,41 @@ function agentsPath(...parts) {
 // Core file existence
 // ---------------------------------------------------------------------------
 describe('Core .agents/ files', () => {
-  const coreRequired = [
-    'full-agentrc.json',
-    'starter-agentrc.json',
-    'instructions.md',
-    'README.md',
-  ];
+  const coreRequired = ['starter-agentrc.json', 'instructions.md', 'README.md'];
 
   for (const file of coreRequired) {
     it(`${file} exists`, () => {
       assert.ok(
         fs.existsSync(agentsPath(file)),
         `Missing required file: .agents/${file}`,
+      );
+    });
+  }
+
+  // Consumer-facing reference docs ship under .agents/docs/ (Story #3697).
+  const docsRequired = [
+    'docs/SDLC.md',
+    'docs/configuration.md',
+    'docs/agentrc-reference.json',
+  ];
+
+  for (const file of docsRequired) {
+    it(`${file} exists`, () => {
+      assert.ok(
+        fs.existsSync(agentsPath(file)),
+        `Missing required file: .agents/${file}`,
+      );
+    });
+  }
+
+  // The pre-#3697 locations must be gone (hard cutover, no shim).
+  const removedPaths = ['full-agentrc.json', 'SDLC.md'];
+
+  for (const file of removedPaths) {
+    it(`${file} no longer exists at .agents/ root`, () => {
+      assert.ok(
+        !fs.existsSync(agentsPath(file)),
+        `Stale file must be removed: .agents/${file}`,
       );
     });
   }

@@ -137,7 +137,7 @@ const PROTECTED_EPIC_LABEL_NAMESPACES = Object.freeze([
   // behavior. Before this namespace was protected, Phase 8 decompose
   // diffed the Epic's labels against a spec entry that doesn't carry
   // `acceptance::*`, silently emitting an Update that stripped the
-  // waiver and broke the contract documented in `.agents/SDLC.md`.
+  // waiver and broke the contract documented in `.agents/docs/SDLC.md`.
   'acceptance::',
   // `planning::*` carries operator-applied planning-gate waivers
   // (e.g. `planning::healthcheck-waived`, see persist.js gate). Same

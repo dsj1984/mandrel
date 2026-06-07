@@ -37,5 +37,5 @@
 > ceremony. Commits land on `story-<storyId>` directly from the agent and
 > reference the parent Story via `(refs #<storyId>)`. See
 > [`.agents/instructions.md` § 5.D](.agents/instructions.md) and
-> [`.agents/SDLC.md` § Ticket hierarchy](.agents/SDLC.md) for the full
+> [`.agents/docs/SDLC.md` § Ticket hierarchy](.agents/docs/SDLC.md) for the full
 > contract.

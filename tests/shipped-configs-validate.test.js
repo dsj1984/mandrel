@@ -15,7 +15,7 @@ const PROJECT_ROOT = path.resolve(__dirname, '..');
 const SHIPPED_CONFIGS = [
   '.agentrc.json',
   '.agents/starter-agentrc.json',
-  '.agents/full-agentrc.json',
+  '.agents/docs/agentrc-reference.json',
 ];
 
 function loadAndValidate(relPath) {

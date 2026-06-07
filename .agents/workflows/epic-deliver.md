@@ -101,7 +101,7 @@ Every other runtime modifier is sourced from the Epic's labels or from
 > single Story-implementation phase per Story against the Story's
 > inline `acceptance[]` / `verify[]` fields. See
 > [`.agents/instructions.md` § 5.D](../instructions.md) and
-> [`.agents/SDLC.md` § Ticket hierarchy](../SDLC.md) for the full
+> [`.agents/docs/SDLC.md` § Ticket hierarchy](../docs/SDLC.md) for the full
 > contract.
 
 ---
@@ -264,7 +264,7 @@ the cap, never wait for a whole batch before refilling.
 > in `.agentrc.json` reduces wall-clock time proportionally to the
 > extra concurrency. The safe default is left in place; this is a
 > deliberate operator-tuning knob, not a hidden performance ceiling.
-> See `full-agentrc.json` `delivery.deliverRunner.concurrencyCap` for
+> See `agentrc-reference.json` `delivery.deliverRunner.concurrencyCap` for
 > the configuration surface.
 
 **Ledger the dispatch BEFORE the Agent call.** Immediately before each

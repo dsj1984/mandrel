@@ -143,7 +143,7 @@ describe('spliceRegion — in-place rewrite', () => {
 });
 
 describe('generate-config-docs CLI --check', () => {
-  it('exits 0 against the live docs/configuration.md (already up to date)', () => {
+  it('exits 0 against the live .agents/docs/configuration.md (already up to date)', () => {
     const res = spawnSync(process.execPath, [bin, '--check'], {
       cwd: repoRoot,
       encoding: 'utf8',
@@ -156,7 +156,7 @@ describe('generate-config-docs CLI --check', () => {
   });
 
   it('exits non-zero with a regenerate hint when the doc is doctored', () => {
-    const docPath = path.join(repoRoot, 'docs', 'configuration.md');
+    const docPath = path.join(repoRoot, '.agents', 'docs', 'configuration.md');
     const original = readFileSync(docPath, 'utf8');
     const beginIdx = original.indexOf(REGION_BEGIN);
     assert.ok(beginIdx !== -1, 'expected REGION_BEGIN marker in the live doc');

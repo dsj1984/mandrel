@@ -3,7 +3,7 @@
 
 /**
  * lint-label-vocabulary.js — enforce that GitHub label tokens cited in
- * `.agents/SDLC.md` and every `*.md` under `.agents/workflows/` use the
+ * `.agents/docs/SDLC.md` and every `*.md` under `.agents/workflows/` use the
  * canonical
  * `<axis>::<value>` separator established by
  * `.agents/scripts/lib/label-constants.js`.
@@ -16,7 +16,7 @@
  * cites a known axis with the wrong separator.
  *
  * Scope:
- *   - Files scanned: `.agents/SDLC.md` plus every `*.md` under
+ *   - Files scanned: `.agents/docs/SDLC.md` plus every `*.md` under
  *     `.agents/workflows/`.
  *   - Tokens scanned: inline backtick code spans only (e.g. `type/epic`).
  *     Prose mentions like "planning/audit metadata" are intentionally
@@ -45,7 +45,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 
 const DEFAULT_SCAN_TARGETS = Object.freeze([
-  path.join(REPO_ROOT, '.agents', 'SDLC.md'),
+  path.join(REPO_ROOT, '.agents', 'docs', 'SDLC.md'),
   path.join(REPO_ROOT, '.agents', 'workflows'),
 ]);
 

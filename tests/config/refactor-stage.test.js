@@ -4,7 +4,7 @@
 // (Story #3430, Epic #3418). Asserts the key is recognized by the runtime
 // AJV schema and its static JSON-Schema mirror, that the two agree on shape
 // (mirror-drift contract), and that an unset key resolves to `false` via the
-// framework defaults in `.agents/full-agentrc.json`.
+// framework defaults in `.agents/docs/agentrc-reference.json`.
 
 import assert from 'node:assert/strict';
 import path from 'node:path';
