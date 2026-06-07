@@ -3009,7 +3009,7 @@ The seven-row recategorization matrix from the Epic body (#1184) codifies the sp
 | `epic-plan` / `epic-deliver` → `mandrel-plan` / `mandrel-deliver` | **Keep as `epic-*`** | "Epic" is the domain concept the framework operates on. `mandrel-plan` is strictly less informative ("plan what?"). The noun the workflow acts on is the right primary axis for the name. |
 | `story-deliver` → helper | **Keep as command** | Operator-facing for individual story re-runs and debugging. The documented argument is a Story ID; the workflow is intended to be human-invocable, not just a fan-out target. |
 | `worktree-lifecycle` → helper | **Move to `.agents/workflows/helpers/`** | The file self-describes as "operator and reviewer reference" — it is documentation, not an executable workflow. It is already path-included from `story-deliver.md`. It should not appear in the `/` menu as runnable. After the move, `sync-claude-commands.js` automatically drops `.claude/commands/worktree-lifecycle.md` because the sync filter excludes the `helpers/` subdirectory. |
-| `drain-pending-cleanup` → helper | **Keep as command** | Operator-facing escalation tool for Windows EBUSY. Automatic callers exist, but the manual path is load-bearing — an operator hitting a wedged worktree types `/drain-pending-cleanup` directly. |
+| `drain-pending-cleanup` → helper | ~~**Keep as command**~~ → **Overturned: moved to `helpers/`** (Story #3706) | Original rationale assumed the manual path was load-bearing as a slash command. A later wiring audit (Story #3706) found it is **not** — see [§ Overturn: `drain-pending-cleanup` demoted to a helper](#overturn-drain-pending-cleanup-demoted-to-a-helper) below. |
 
 ### Consequences
 
@@ -3023,3 +3023,68 @@ The seven-row recategorization matrix from the Epic body (#1184) codifies the sp
 - **Brand-prefix every command** (the maximalist position). Rejected — clutters the `/` menu, makes every consumer-facing example longer, reverses the same naming logic that keeps `.agents/` and `.agentrc.json` stable through the rebrand, and offers no information value because the consumer already knows which framework they installed.
 - **No brand prefix anywhere, including a discoverability entry.** Rejected — adopters need *some* affordance to tell Mandrel-owned commands apart from Claude Code built-ins. Without a single entry point, the only path is reading the docs site, which is a worse first-run experience than typing `/mandrel`.
 - **Per-command opt-in: prefix only the "Mandrel-distinctive" commands.** Rejected — every framework command is "Mandrel-distinctive" by virtue of being owned by the framework. Drawing the line by judgment regenerates the same ambiguity the rule is designed to eliminate.
+
+## Overturn: `drain-pending-cleanup` demoted to a helper
+
+**Status:** Accepted (overturns the `drain-pending-cleanup` row of the
+recategorization matrix above).
+**Date:** 2026-06-07
+**Story:** #3706
+
+### Context
+
+The matrix row above kept `/drain-pending-cleanup` as a top-level slash
+command on the rationale that "the manual path is load-bearing — an operator
+hitting a wedged worktree types `/drain-pending-cleanup` directly." A wiring
+audit conducted for Story #3706 tested that assumption against the actual
+call graph and found it does not hold:
+
+- The **three automatic callers** —
+  [`epic-runner.js`](../.agents/scripts/lib/orchestration/epic-runner.js)
+  Phase 7, [`story-close.js`](../.agents/scripts/story-close.js)
+  (`drainPendingCleanupAfterClose`), and
+  [`worktree-sweep.js`](../.agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js)
+  (via `drainPendingCleanupAtBoot`) — all invoke
+  `drain-pending-cleanup.js` (`forceDrainPendingCleanup`) **directly**.
+  None of them resolve or shell out to the slash command. Demoting the
+  `.md` therefore does not touch any automatic path.
+- The **manual escape hatch** survives unchanged as
+  `node .agents/scripts/drain-pending-cleanup.js` (with its
+  `--no-escalate` / `--dry-run` / `--worktree-root` flags). The script is
+  not modified by this change.
+- The only thing the slash command added was `/`-menu ergonomics, which is
+  pure operator-convenience that the operator does not use in practice.
+
+### Decision
+
+Demote `drain-pending-cleanup` from a top-level workflow to a `helpers/`
+reference. Its operator content (when-to-run, manual usage, escalation
+limitations, constraints, last-resort recipe) is folded into the existing
+[`helpers/worktree-lifecycle.md`](../.agents/workflows/helpers/worktree-lifecycle.md),
+which already documents the drain caller table. The standalone
+`.agents/workflows/drain-pending-cleanup.md` is deleted; the next
+`npm run sync:commands` drops the orphan `.claude/commands/drain-pending-cleanup.md`
+because the sync filter excludes content the operator no longer surfaces as
+a command. This mirrors the `worktree-lifecycle` row's treatment.
+
+### Consequences
+
+- **`/drain-pending-cleanup` no longer resolves as a slash command.** The
+  operator runs the drain directly via
+  `node .agents/scripts/drain-pending-cleanup.js` when a wedged worktree
+  needs a manual nudge.
+- **The automatic drain paths are unchanged.** epic-runner Phase 7,
+  story-close post-merge, and the plan-boot sweep continue to call
+  `forceDrainPendingCleanup()` directly — they never depended on the
+  slash command.
+- **The script is the SSOT for the manual path.** No behaviour changed in
+  `drain-pending-cleanup.js`; only the `.md` projection was removed.
+
+### Alternatives considered
+
+- **Keep the standalone `helpers/drain-pending-cleanup.md` file.** Rejected
+  — `worktree-lifecycle.md` already owns the drain caller table, so a
+  separate helper file would duplicate the same when-to-run / escalation
+  content and drift over time. Folding the content into the existing
+  lifecycle reference keeps a single home for worktree-cleanup operator
+  guidance.

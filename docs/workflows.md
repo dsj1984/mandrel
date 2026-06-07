@@ -80,7 +80,6 @@ invoked manually or automatically at `gate1`–`gate4` by the audit orchestrator
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `node .agents/scripts/bootstrap.js` | One-shot consumer setup: wires the local harness (`.claude/commands/` sync hook, `package.json` scripts, hooks, gitignore, Windows git-perf check) **and** initializes the GitHub repo (label taxonomy, project fields, default Kanban board, branch protection when enabled). Not a slash command — runs deterministically with interactive prompts on a TTY and flag-driven non-interactive runs in CI. |
 | `/agents-update`            | Upgrade the installed `@mandrelai/agents` package via the `mandrel update` CLI (bump → sync → migrate → doctor), reconcile `.agentrc.json` against the new defaults, and refresh the Claude Code `.claude/commands/` surface. |
-| `/drain-pending-cleanup`    | Reap any orphan `.worktrees/` residue and prune stale story / epic branches in one pass.                        |
 | `/run-qa-harness`           | Drive a selected set of Gherkin scenarios through a real browser as an agent-driven QA sweep, emitting a sweep summary and structured findings (consumed by the `epic-testing.md` helper). Run pipeline, the `qa` contract fields, and the `F#` finding shape are documented in [`architecture.md` § Agent-driven QA harness](architecture.md#agent-driven-qa-harness); consumer adoption steps are in [`.agents/README.md` § Adopting the QA harness](../.agents/README.md#adopting-the-qa-harness). |
 
 ## Internal / reference-only
@@ -104,9 +103,16 @@ Not invoked directly by operators, but referenced from other workflows:
   for `.agentrc.json`, invoked by `/agents-update` after the package upgrade
   re-materializes `.agents/` (formerly shipped as `/agents-sync-config`).
 - `helpers/worktree-lifecycle.md` — per-story `git worktree` isolation model,
-  including node_modules strategies, Windows notes, and escape hatches. Lives
+  including node_modules strategies, Windows notes, escape hatches, and the
+  pending-cleanup drain (`drain-pending-cleanup.js`) operator guidance. Lives
   under `helpers/` because it is operator and reviewer reference documentation,
   not an executable workflow; path-included from `story-deliver.md`.
+- The drain is **not** a slash command. `drain-pending-cleanup.js` runs
+  automatically from `/epic-deliver` runner Phase 7, `story-close.js`, and the
+  plan-boot `worktree-sweep.js`; the manual escape hatch is
+  `node .agents/scripts/drain-pending-cleanup.js` (documented in
+  `helpers/worktree-lifecycle.md`). The `/drain-pending-cleanup` slash command
+  was demoted by Story #3706 (see `docs/decisions.md`).
 
 The retro is no longer a separate helper — its logic lives inline at
 `lib/orchestration/retro-runner.js` and fires automatically during
