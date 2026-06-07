@@ -16,6 +16,8 @@
  * @see Story #2462 — Split GitHubProvider god class into seven composed gateways.
  */
 
+import { withTransientRetry } from './transient-retry.js';
+
 /**
  * Detect the "label already exists" signal across the surfaces `gh label
  * create` can emit it on. The CLI prints
@@ -91,12 +93,14 @@ export class LabelGateway {
     for (const def of labelDefs) {
       const color = (def.color ?? '').replace(/^#/, '');
       try {
-        await this._gh.label.create(def.name, [
-          '--color',
-          color,
-          '--description',
-          def.description ?? '',
-        ]);
+        await withTransientRetry(() =>
+          this._gh.label.create(def.name, [
+            '--color',
+            color,
+            '--description',
+            def.description ?? '',
+          ]),
+        );
         created.push(def.name);
       } catch (err) {
         if (isLabelAlreadyExistsError(err)) {
