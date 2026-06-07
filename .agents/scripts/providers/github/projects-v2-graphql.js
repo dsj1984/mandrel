@@ -7,6 +7,7 @@
  * `unavailable:true` envelopes. Wave 3 deletes the old submodules.
  */
 import { execSync } from 'node:child_process';
+import { withTransientRetry } from './transient-retry.js';
 
 // Resolve an owner node id per-scope. Querying `user` and `organization`
 // together in one request makes GitHub return a NOT_FOUND error for whichever
@@ -78,56 +79,63 @@ export const isInsufficientScopes = (err) =>
 export const isScopesMissingEnvelope = (value) =>
   Boolean(value) && typeof value === 'object' && value.scopesMissing === true;
 
-async function gql(ctx, query, variables) {
-  const fetchImpl = ctx.fetchImpl ?? globalThis.fetch;
-  const response = await fetchImpl('https://api.github.com/graphql', {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      Authorization: `Bearer ${ctx.token ?? resolveToken()}`,
-      'Content-Type': 'application/json',
-      'User-Agent': 'node.js',
-    },
-    body: JSON.stringify({ query, variables }),
-  });
-  if (!response.ok)
-    throw new Error(
-      `[GitHubProvider] GraphQL ${response.status}: ${await response.text().catch(() => '')}`,
-    );
-  const json = await response.json();
-  if (json.errors?.length)
-    throw new Error(
-      `[GitHubProvider] GraphQL errors: ${JSON.stringify(json.errors)}`,
-    );
-  return json.data;
+async function gql(ctx, query, variables, { retry = false } = {}) {
+  const run = async () => {
+    const fetchImpl = ctx.fetchImpl ?? globalThis.fetch;
+    const response = await fetchImpl('https://api.github.com/graphql', {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${ctx.token ?? resolveToken()}`,
+        'Content-Type': 'application/json',
+        'User-Agent': 'node.js',
+      },
+      body: JSON.stringify({ query, variables }),
+    });
+    if (!response.ok)
+      throw new Error(
+        `[GitHubProvider] GraphQL ${response.status}: ${await response.text().catch(() => '')}`,
+      );
+    const json = await response.json();
+    if (json.errors?.length)
+      throw new Error(
+        `[GitHubProvider] GraphQL errors: ${JSON.stringify(json.errors)}`,
+      );
+    return json.data;
+  };
+  return retry ? withTransientRetry(run) : run();
 }
 
 /**
  * Issue a REST request against api.github.com, reusing the same token and
  * fetch seam as `gql`. Throws on non-2xx with the response body for context.
+ * Pass `{ retry: true }` to retry transient network blips (idempotent calls).
  */
-async function rest(ctx, method, apiPath, body) {
-  const fetchImpl = ctx.fetchImpl ?? globalThis.fetch;
-  const response = await fetchImpl(`https://api.github.com${apiPath}`, {
-    method,
-    headers: {
-      Accept: 'application/vnd.github+json',
-      Authorization: `Bearer ${ctx.token ?? resolveToken()}`,
-      'Content-Type': 'application/json',
-      'User-Agent': 'node.js',
-      'X-GitHub-Api-Version': REST_API_VERSION,
-    },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    const err = new Error(
-      `[GitHubProvider] REST ${method} ${apiPath} → ${response.status}: ${text}`,
-    );
-    err.status = response.status;
-    throw err;
-  }
-  return response.json().catch(() => ({}));
+async function rest(ctx, method, apiPath, body, { retry = false } = {}) {
+  const run = async () => {
+    const fetchImpl = ctx.fetchImpl ?? globalThis.fetch;
+    const response = await fetchImpl(`https://api.github.com${apiPath}`, {
+      method,
+      headers: {
+        Accept: 'application/vnd.github+json',
+        Authorization: `Bearer ${ctx.token ?? resolveToken()}`,
+        'Content-Type': 'application/json',
+        'User-Agent': 'node.js',
+        'X-GitHub-Api-Version': REST_API_VERSION,
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      const err = new Error(
+        `[GitHubProvider] REST ${method} ${apiPath} → ${response.status}: ${text}`,
+      );
+      err.status = response.status;
+      throw err;
+    }
+    return response.json().catch(() => ({}));
+  };
+  return retry ? withTransientRetry(run) : run();
 }
 
 /**
@@ -136,7 +144,13 @@ async function rest(ctx, method, apiPath, body) {
  * endpoint keys orgs by login but users by numeric id, so we need both.
  */
 async function resolveOwnerAccount(ctx, owner) {
-  const data = await rest(ctx, 'GET', `/users/${encodeURIComponent(owner)}`);
+  const data = await rest(
+    ctx,
+    'GET',
+    `/users/${encodeURIComponent(owner)}`,
+    undefined,
+    { retry: true },
+  );
   return { id: data?.id ?? null, type: data?.type ?? null };
 }
 
@@ -174,7 +188,7 @@ async function createView(ctx, endpoints, body) {
   let lastError = null;
   for (const endpoint of endpoints) {
     try {
-      return await rest(ctx, 'POST', endpoint, body);
+      return await rest(ctx, 'POST', endpoint, body, { retry: true });
     } catch (err) {
       lastError = err;
       if (err.status !== 404) throw err;
@@ -188,10 +202,12 @@ async function lookupProject(ctx, fragment, strict = false) {
   let lastError = null;
   for (const scope of ['user', 'organization']) {
     try {
-      const data = await gql(ctx, Q_PROJ(scope, fragment), {
-        owner: ctx.projectOwner,
-        number: ctx.projectNumber,
-      });
+      const data = await gql(
+        ctx,
+        Q_PROJ(scope, fragment),
+        { owner: ctx.projectOwner, number: ctx.projectNumber },
+        { retry: true },
+      );
       if (data?.[scope]?.projectV2) return data[scope].projectV2;
     } catch (err) {
       if (strict && isInsufficientScopes(err)) throw err;
@@ -213,7 +229,14 @@ async function resolveOwnerId(ctx, owner) {
   let lastError = null;
   for (const scope of ['user', 'organization']) {
     try {
-      const data = await gql(ctx, Q_OWNER_ID(scope), { login: owner });
+      const data = await gql(
+        ctx,
+        Q_OWNER_ID(scope),
+        { login: owner },
+        {
+          retry: true,
+        },
+      );
       const id = data?.[scope]?.id;
       if (id) return id;
     } catch (err) {
@@ -292,11 +315,16 @@ export async function ensureStatusField(ctx, optionNames) {
   );
   try {
     if (!statusField) {
-      const createResult = await gql(ctx, M_FIELD, {
-        projectId: project.id,
-        name: 'Status',
-        options: optionNames.map((name) => opt(name)),
-      });
+      const createResult = await gql(
+        ctx,
+        M_FIELD,
+        {
+          projectId: project.id,
+          name: 'Status',
+          options: optionNames.map((name) => opt(name)),
+        },
+        { retry: true },
+      );
       return {
         status: 'created',
         added: [...optionNames],
@@ -315,11 +343,12 @@ export async function ensureStatusField(ctx, optionNames) {
       ),
       ...missing.map((name) => opt(name)),
     ];
-    await gql(ctx, M_UPDATE, {
-      fieldId: statusField.id,
-      name: 'Status',
-      options: merged,
-    });
+    await gql(
+      ctx,
+      M_UPDATE,
+      { fieldId: statusField.id, name: 'Status', options: merged },
+      { retry: true },
+    );
     return { status: 'updated', added: missing, fieldId: statusField.id };
   } catch (err) {
     if (isInsufficientScopes(err))
@@ -415,11 +444,16 @@ export async function ensureProjectFields(ctx, fieldDefs) {
       continue;
     }
     if (def.type === 'single_select')
-      await gql(ctx, M_FIELD, {
-        projectId: project.id,
-        name: def.name,
-        options: (def.options ?? []).map((option) => opt(option)),
-      });
+      await gql(
+        ctx,
+        M_FIELD,
+        {
+          projectId: project.id,
+          name: def.name,
+          options: (def.options ?? []).map((option) => opt(option)),
+        },
+        { retry: true },
+      );
     created.push(def.name);
   }
   return { created, skipped };
