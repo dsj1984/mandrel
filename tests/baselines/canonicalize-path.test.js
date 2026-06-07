@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { canonicalizeBaselinePath } from '../../.agents/scripts/lib/baselines/path-canon.js';
+import {
+  canonicalise,
+  canonicalizeBaselinePath,
+} from '../../.agents/scripts/lib/baselines/path-canon.js';
 
 // ---------------------------------------------------------------------------
 // canonicalize-path.test.js — pin every rule in the
@@ -85,6 +88,62 @@ describe('canonicalizeBaselinePath()', () => {
     });
   });
 
+  // -------------------------------------------------------------------------
+  // Story #3695 — worktree-prefix stripping must match canonicalise().
+  //
+  // The strict canonicaliser (used by the per-kind projectRow) strips the
+  // `.worktrees/<workspace>/` prefix. The permissive coercer builds the
+  // diff-scope `scope.files` membership set, so it MUST strip the prefix too —
+  // otherwise a worktree-rooted run can never match a scored row's path
+  // against its scope entry and a brand-new file's row is dropped.
+  // -------------------------------------------------------------------------
+  describe('worktree-prefix stripping (Story #3695)', () => {
+    it("strips a leading '.worktrees/<workspace>/' prefix", () => {
+      assert.equal(
+        canonicalizeBaselinePath('.worktrees/story-3695/src/foo.js'),
+        'src/foo.js',
+      );
+    });
+
+    it('strips the prefix when the workspace name carries hyphens and digits', () => {
+      assert.equal(
+        canonicalizeBaselinePath(
+          '.worktrees/story-3695-abc/.agents/scripts/x.js',
+        ),
+        '.agents/scripts/x.js',
+      );
+    });
+
+    it('strips a mixed-separator worktree-prefixed path', () => {
+      assert.equal(
+        canonicalizeBaselinePath('.worktrees\\story-3695\\src\\foo.js'),
+        'src/foo.js',
+      );
+    });
+
+    it('only strips a single leading worktree segment (never recursive)', () => {
+      assert.equal(
+        canonicalizeBaselinePath('.worktrees/story-1/.worktrees/inner/foo.js'),
+        '.worktrees/inner/foo.js',
+      );
+    });
+
+    it('does not strip when .worktrees appears mid-stream', () => {
+      assert.equal(
+        canonicalizeBaselinePath('src/.worktrees/story-1/foo.js'),
+        'src/.worktrees/story-1/foo.js',
+      );
+    });
+
+    it('agrees with canonicalise() on a worktree-rooted path', () => {
+      // The two canonicalisers MUST converge on the same repo-relative key —
+      // this is the load-bearing invariant the scope-aware merge relies on.
+      const wt = '.worktrees/story-3695/.agents/scripts/new.js';
+      assert.equal(canonicalizeBaselinePath(wt), canonicalise(wt));
+      assert.equal(canonicalizeBaselinePath(wt), '.agents/scripts/new.js');
+    });
+  });
+
   describe('non-string rejection', () => {
     it('throws TypeError on null', () => {
       assert.throws(() => canonicalizeBaselinePath(null), TypeError);
@@ -114,6 +173,8 @@ describe('canonicalizeBaselinePath()', () => {
       '//server/share/repo/src/foo.js',
       'D:\\proj\\src\\baselines\\foo.js',
       '/abs/path/foo.js',
+      '.worktrees/story-3695/src/foo.js',
+      '.worktrees\\story-3695\\src\\foo.js',
     ];
 
     for (const input of inputs) {
