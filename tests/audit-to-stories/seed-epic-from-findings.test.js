@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import url from 'node:url';
-import { withFingerprints } from '../../.agents/scripts/lib/audit-to-stories/fingerprint.js';
+import { withFingerprints } from '../../.agents/scripts/lib/audit-to-stories/finding-adapter.js';
 import { groupFindings } from '../../.agents/scripts/lib/audit-to-stories/group-findings.js';
 import { parseAuditReports } from '../../.agents/scripts/lib/audit-to-stories/parse-audit-md.js';
 import { buildEpicSeedMarkdown } from '../../.agents/scripts/lib/audit-to-stories/seed-epic-from-findings.js';
