@@ -176,10 +176,10 @@ For non-interactive (CI) installs, pass `--owner`, `--repo`, and
 After bootstrap, every Mandrel command is generated into a flat
 `.claude/commands/` tree by `npm run sync:commands` (the UserPromptSubmit hook
 keeps it current) and loads as a bare `/<command>` slash command — e.g.
-`/epic-plan`, `/single-story-plan`, `/story-deliver`, `/audit-security`. The
+`/epic-plan`, `/story-plan`, `/story-deliver`, `/audit-security`. The
 commands load in every Claude Code environment. The [SDLC guide](SDLC.md) walks
 an end-to-end Epic; standalone Stories pair
-[`/single-story-plan`](workflows/single-story-plan.md) (idea → drafted Story
+[`/story-plan`](workflows/story-plan.md) (idea → drafted Story
 Issue) with [`/story-deliver`](workflows/story-deliver.md) (Story Issue → merged
 PR).
 
