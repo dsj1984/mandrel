@@ -89,6 +89,15 @@ function bareRepoName(slug) {
   return slash === -1 ? slug : slug.slice(slash + 1);
 }
 
+/** Run a list-producing fn, returning [] on any throw. */
+function safeList(fn) {
+  try {
+    return fn() ?? [];
+  } catch {
+    return [];
+  }
+}
+
 /** Resolve the GitHub owner for the pickers: flag → env → inferred default. */
 function resolveOwnerForPicker(defaults, flags, env = process.env) {
   if (typeof flags?.owner === 'string' && flags.owner.length > 0) {
@@ -129,8 +138,12 @@ async function confirmYesNo(message, interactive) {
  * track the repo owner / repo name respectively (see post-processing in
  * `collectAndConfirm`).
  */
-function buildQuestions(defaults, flags, env = process.env) {
+function buildQuestions(defaults, flags, env = process.env, lists = {}) {
   const owner = resolveOwnerForPicker(defaults, flags, env);
+  // Pre-fetched lists (shared with the creation check + summary) win; the
+  // live calls are a fallback for any caller that doesn't pass them.
+  const reposList = lists.reposList;
+  const projectsList = lists.projectsList;
   return [
     {
       key: 'owner',
@@ -164,7 +177,7 @@ function buildQuestions(defaults, flags, env = process.env) {
       default: defaults.repo,
       required: true,
       picker: {
-        list: () => listRepos({ owner }).map(bareRepoName),
+        list: () => reposList ?? listRepos({ owner }).map(bareRepoName),
       },
       validate: (v) =>
         /^[A-Za-z0-9._-]+$/.test(v) ? null : 'Invalid GitHub repo name',
@@ -188,7 +201,7 @@ function buildQuestions(defaults, flags, env = process.env) {
       default: defaults.repo,
       required: false,
       picker: {
-        list: () => listProjects({ owner }),
+        list: () => projectsList ?? listProjects({ owner }),
       },
       // Accept blank (skip), an existing project number, or a new project
       // name (letters/digits/space/._-).
@@ -411,16 +424,14 @@ function renderAnswerSummary(answers, creation, project) {
  * When GitHub is skipped entirely there is nothing to create, so detection
  * is bypassed.
  */
-function detectCreation(answers, skipGithub) {
+function detectCreation(answers, skipGithub, reposList) {
   const creation = { newRepo: false, newProject: false };
   if (skipGithub) return creation;
-  try {
-    const repos = listRepos({ owner: answers.owner }).map(bareRepoName);
-    if (repos.length > 0 && answers.repo && !repos.includes(answers.repo)) {
-      creation.newRepo = true;
-    }
-  } catch {
-    /* cannot determine — assume existing */
+  const repos =
+    reposList ??
+    safeList(() => listRepos({ owner: answers.owner }).map(bareRepoName));
+  if (repos.length > 0 && answers.repo && !repos.includes(answers.repo)) {
+    creation.newRepo = true;
   }
   const pn = answers.projectNumber;
   if (typeof pn === 'string' && pn.length > 0 && !/^\d+$/.test(pn)) {
@@ -435,22 +446,18 @@ function detectCreation(answers, skipGithub) {
  * project (numeric answer) we look the name up in the owner's project list.
  * A typed answer (non-numeric) is a new project name with no number yet.
  */
-function resolveProjectDisplay(answers, skipGithub) {
+function resolveProjectDisplay(answers, skipGithub, projectsList) {
   const pn = answers.projectNumber;
   if (!pn) return { name: '(skip)', number: '(skip)' };
   if (/^\d+$/.test(pn)) {
     let name = '(unknown)';
     if (!skipGithub) {
-      try {
-        const match = listProjects({ owner: answers.owner }).find(
-          (p) => p.value === pn,
-        );
-        if (match) {
-          const m = /^(.*)\s+\(#\d+\)$/.exec(match.label);
-          name = m ? m[1] : match.label;
-        }
-      } catch {
-        /* leave as unknown */
+      const projects =
+        projectsList ?? safeList(() => listProjects({ owner: answers.owner }));
+      const match = projects.find((p) => p.value === pn);
+      if (match) {
+        const m = /^(.*)\s+\(#\d+\)$/.exec(match.label);
+        name = m ? m[1] : match.label;
       }
     }
     return { name, number: pn };
@@ -467,11 +474,26 @@ function resolveProjectDisplay(answers, skipGithub) {
  */
 export async function collectAndConfirm(state) {
   Logger.info('[temp][step3] Collect answers');
+  const skipGithub = Boolean(state.flags['skip-github']);
+  const owner = resolveOwnerForPicker(state.defaults, state.flags);
+  // Fetch the owner's repos + projects ONCE and reuse for the pickers, the
+  // creation check, and the summary display — so the resolved project name
+  // never depends on a second (flaky) `gh` call.
+  const reposList =
+    !skipGithub && owner
+      ? safeList(() => listRepos({ owner }).map(bareRepoName))
+      : [];
+  const projectsList =
+    !skipGithub && owner ? safeList(() => listProjects({ owner })) : [];
+
   let silentAccept = state.silentAccept;
   // Loop until the operator confirms the summary (or we auto-accept).
   for (;;) {
     const { answers, missing } = await collectAnswers({
-      questions: buildQuestions(state.defaults, state.flags),
+      questions: buildQuestions(state.defaults, state.flags, process.env, {
+        reposList,
+        projectsList,
+      }),
       flags: state.flags,
       interactive: state.interactive,
       assumeYes: state.assumeYes,
@@ -486,9 +508,8 @@ export async function collectAndConfirm(state) {
     // Defaults that track another answer: handle ⇐ owner, project ⇐ repo.
     if (!answers.operatorHandle) answers.operatorHandle = answers.owner;
 
-    const skipGithub = Boolean(state.flags['skip-github']);
-    const creation = detectCreation(answers, skipGithub);
-    const project = resolveProjectDisplay(answers, skipGithub);
+    const creation = detectCreation(answers, skipGithub, reposList);
+    const project = resolveProjectDisplay(answers, skipGithub, projectsList);
 
     Logger.info('[temp][step4] Approval');
     Logger.info(renderAnswerSummary(answers, creation, project));

@@ -23,8 +23,10 @@ import {
   createNativeProvider,
   parseLintOutput,
   partitionFilesForLint,
+  readHeadSource,
   runScopedLint,
   SERIAL_THRESHOLD,
+  scoreSourceReport,
 } from '../../../../.agents/scripts/lib/orchestration/review-providers/native.js';
 
 const ALLOWED_SEVERITIES = new Set([
@@ -43,6 +45,8 @@ function fakeDiff(stdout, status = 0) {
         stdout: 'abcdef0123456789abcdef0123456789abcdef01\n',
         stderr: '',
       };
+    if (sub === 'show')
+      return { status: 0, stdout: 'const x = 1;', stderr: '' };
     return { status: 0, stdout: '', stderr: '' };
   };
 }
@@ -136,18 +140,19 @@ test('analyzeChangedFiles: only JS files contribute to maintainability counts', 
     [60, 'warning'],
     [10, 'critical'],
   ]);
-  const reports = new Map([
-    ['a.js', { moduleScore: 80, worstMethod: 50 }],
-    ['b.mjs', { moduleScore: 60, worstMethod: 40 }],
-    ['c.cjs', { moduleScore: 10, worstMethod: 5 }],
+  // Map each path to its head source string; the injected reportFn keys off
+  // the source it receives (Story #3696: scoring is head-source-based).
+  const reportBySource = new Map([
+    ['src:a.js', { moduleScore: 80, worstMethod: 50 }],
+    ['src:b.mjs', { moduleScore: 60, worstMethod: 40 }],
+    ['src:c.cjs', { moduleScore: 10, worstMethod: 5 }],
   ]);
   const out = await analyzeChangedFiles(
     ['a.js', 'b.mjs', 'c.cjs', 'd.md', 'e.txt'],
     {
-      reportFn: (abs) => {
-        const key = [...reports.keys()].find((k) => abs.endsWith(k));
-        return reports.get(key);
-      },
+      headRef: 'story-1',
+      readHeadSourceFn: (relPath) => `src:${relPath}`,
+      reportFn: (source) => reportBySource.get(source),
       classifier: (r) => tiers.get(r.moduleScore),
     },
   );
@@ -204,8 +209,12 @@ test('analyzeChangedFiles: serial and pooled paths produce identical rows and fi
     if (report.moduleScore < 65) return 'warning';
     return 'healthy';
   };
-  const lookup = (abs) => {
-    const key = [...reportByName.keys()].find((k) => abs.endsWith(k));
+  // Story #3696: both paths score the head source string. The injected
+  // readHeadSourceFn maps each path to a `src:<name>` sentinel; the lookup
+  // keys off that sentinel so serial and pooled use identical reports.
+  const readHeadSourceFn = (relPath) => `src:${relPath}`;
+  const lookup = (source) => {
+    const key = [...reportByName.keys()].find((k) => source.endsWith(k));
     return reportByName.get(key);
   };
   const changed = [...reportByName.keys(), 'README.md'];
@@ -216,19 +225,27 @@ test('analyzeChangedFiles: serial and pooled paths produce identical rows and fi
 
   // Serial path: caller injects its own reportFn (forces in-process scoring).
   const serial = await analyzeChangedFiles(changed, {
+    headRef: 'story-1',
+    readHeadSourceFn,
     reportFn: lookup,
     classifier: tierFor,
   });
 
   // Pooled path: omit reportFn (production scorer) and stub runOnPool to
   // return the same fixture reports in input order. The worker boundary is
-  // the only difference, so any divergence is a parity bug.
+  // the only difference, so any divergence is a parity bug. The pool now
+  // receives pre-sourced `{ source, label }` items (Story #3696).
   const jsFiles = changed.filter((f) => /\.(js|mjs|cjs)$/.test(f));
   const pooled = await analyzeChangedFiles(changed, {
+    headRef: 'story-1',
+    readHeadSourceFn,
     classifier: tierFor,
-    runOnPoolFn: async (_worker, absPaths) => {
-      assert.equal(absPaths.length, jsFiles.length);
-      return absPaths.map((abs) => ({ filePath: abs, report: lookup(abs) }));
+    runOnPoolFn: async (_worker, poolItems) => {
+      assert.equal(poolItems.length, jsFiles.length);
+      return poolItems.map((item) => ({
+        filePath: item.label,
+        report: lookup(item.source),
+      }));
     },
   });
 
@@ -242,13 +259,16 @@ test('analyzeChangedFiles: serial and pooled paths produce identical rows and fi
 test('analyzeChangedFiles: pooled path drops files with null report or pool error', async () => {
   const changed = Array.from({ length: 10 }, (_, i) => `f${i}.js`);
   const pooled = await analyzeChangedFiles(changed, {
+    headRef: 'story-1',
+    readHeadSourceFn: (relPath) => `src:${relPath}`,
     classifier: () => 'critical',
-    runOnPoolFn: async (_worker, absPaths) =>
-      absPaths.map((abs, i) => {
+    runOnPoolFn: async (_worker, poolItems) =>
+      poolItems.map((item, i) => {
         if (i === 0) return { __cpuPoolError: true, message: 'crash' };
-        if (i === 1) return { filePath: abs, report: null, error: 'ENOENT' };
+        if (i === 1)
+          return { filePath: item.label, report: null, error: 'ENOENT' };
         return {
-          filePath: abs,
+          filePath: item.label,
           report: {
             moduleScore: 5,
             worstMethod: 10,
@@ -466,5 +486,129 @@ test('runReview: rejects invalid input shapes with TypeError', async () => {
         headRef: 'epic/42',
       }),
     TypeError,
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Story #3696 — the native review scores the HEAD version of each changed
+// file, not the on-disk (base) copy. An MI-improving change must NOT emit a
+// false-positive size/volume warning citing the debt it removes.
+// ---------------------------------------------------------------------------
+
+test('readHeadSource: sources `git show <headRef>:<path>` content', () => {
+  const calls = [];
+  const gitSpawnFn = (_cwd, ...args) => {
+    calls.push(args);
+    return { status: 0, stdout: 'export const answer = 42;', stderr: '' };
+  };
+  const source = readHeadSource('src/foo.js', 'story-99', gitSpawnFn);
+  assert.equal(source, 'export const answer = 42;');
+  assert.deepEqual(calls, [['show', 'story-99:src/foo.js']]);
+});
+
+test('readHeadSource: returns null when the file does not exist at head', () => {
+  const gitSpawnFn = () => ({
+    status: 128,
+    stdout: '',
+    stderr: "fatal: path 'gone.js' does not exist in 'story-99'",
+  });
+  assert.equal(readHeadSource('gone.js', 'story-99', gitSpawnFn), null);
+});
+
+test('scoreSourceReport: scores a healthy source string as healthy-tier', () => {
+  // A short, well-structured module scores well above the warning floor.
+  const report = scoreSourceReport(
+    'export function add(a, b) {\n  return a + b;\n}\n',
+    'add.js',
+  );
+  assert.equal(report.parseError, false);
+  assert.ok(report.moduleScore >= 65, `moduleScore=${report.moduleScore}`);
+});
+
+test('analyzeChangedFiles: scores head content, not the on-disk base copy', async () => {
+  // The diff names a file whose on-disk (base) copy would be a monolith; the
+  // head copy sourced via git is small and healthy. Scoring must reflect head.
+  const headSource = 'export const ok = () => 1;\n';
+  let showRef = null;
+  const gitSpawnFn = (_cwd, sub, refPath) => {
+    if (sub === 'show') {
+      showRef = refPath;
+      return { status: 0, stdout: headSource, stderr: '' };
+    }
+    return { status: 0, stdout: '', stderr: '' };
+  };
+  const out = await analyzeChangedFiles(['big.js'], {
+    headRef: 'story-3696',
+    gitSpawnFn,
+  });
+  // It sourced from the head ref, not from PROJECT_ROOT on disk.
+  assert.equal(showRef, 'story-3696:big.js');
+  // Head is healthy → no critical, no medium warning.
+  assert.equal(out.jsFiles, 1);
+  assert.equal(out.criticalFindings.length, 0);
+  assert.equal(out.mediumFindings.length, 0);
+  assert.equal(out.maintainability[0].tier, 'healthy');
+});
+
+test('analyzeChangedFiles: drops a file deleted at head (null head source)', async () => {
+  const gitSpawnFn = (_cwd, sub) => {
+    if (sub === 'show')
+      return { status: 128, stdout: '', stderr: 'does not exist' };
+    return { status: 0, stdout: '', stderr: '' };
+  };
+  const out = await analyzeChangedFiles(['deleted.js'], {
+    headRef: 'story-3696',
+    gitSpawnFn,
+  });
+  assert.equal(out.jsFiles, 1);
+  assert.equal(out.maintainability.length, 0);
+  assert.equal(out.criticalFindings.length, 0);
+  assert.equal(out.mediumFindings.length, 0);
+});
+
+test('runReview: MI-improving change emits no size/volume warning (head MI healthy)', async () => {
+  // Regression for Story #3696 / PR #3692: a refactor that improves MI from a
+  // below-threshold monolith to a healthy head must produce NO medium
+  // size/volume finding. The base copy would warn; the head copy is healthy.
+  const healthyHead = 'export const noop = () => undefined;\n';
+  const gitSpawnFn = (_cwd, sub, arg) => {
+    if (sub === 'diff')
+      return { status: 0, stdout: 'refactored.js\n', stderr: '' };
+    if (sub === 'rev-parse')
+      return {
+        status: 0,
+        stdout: 'abcdef0123456789abcdef0123456789abcdef01',
+        stderr: '',
+      };
+    if (sub === 'show') {
+      assert.equal(arg, 'story-3696:refactored.js');
+      return { status: 0, stdout: healthyHead, stderr: '' };
+    }
+    return { status: 0, stdout: '', stderr: '' };
+  };
+  const provider = createNativeProvider({
+    gitSpawnFn,
+    runScopedLintFn: () => ({
+      errors: 0,
+      warnings: 0,
+      skipped: false,
+      mode: 'changed-only',
+    }),
+    shouldSkipFn: () => ({ skip: false }),
+    recordPassFn: () => {},
+  });
+
+  const findings = await provider.runReview({
+    scope: 'story',
+    ticketId: 3696,
+    baseRef: 'main',
+    headRef: 'story-3696',
+  });
+
+  const sizeVolume = findings.filter((f) => f.title === 'Size/Volume Warning');
+  assert.equal(
+    sizeVolume.length,
+    0,
+    'an MI-improving change must not emit a size/volume warning for a healthy head file',
   );
 });

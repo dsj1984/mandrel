@@ -565,8 +565,8 @@ side-effects rather than inline calls at phase boundaries; the
 | -------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | **Whole Epic**                   | `/epic-deliver <epicId>`                                 | Drive an Epic end-to-end. Owns the wave loop and the close-tail; ends with a PR open to main.  |
 | **Epic-attached Story (worker)** | *helper* `helpers/epic-deliver-story <storyId>`          | Per-Story sub-agent called internally by `/epic-deliver`'s wave fan-out; not an operator slash command. |
-| **Standalone Story — plan**      | `/single-story-plan`                                     | Plan a one-off Story that does not belong to an Epic backlog.                                  |
-| **Standalone Story — deliver**   | `/story-deliver <storyId> [<storyId>...]`                | Deliver one or more standalone Stories authored by `/single-story-plan`.                       |
+| **Standalone Story — plan**      | `/story-plan`                                            | Plan a one-off Story that does not belong to an Epic backlog.                                  |
+| **Standalone Story — deliver**   | `/story-deliver <storyId> [<storyId>...]`                | Deliver one or more standalone Stories authored by `/story-plan`.                             |
 | **Standalone Story (worker)**    | *helper* `helpers/single-story-deliver <storyId>`        | Per-Story sub-agent called internally by `/story-deliver`; not an operator slash command.      |
 
 The operator-facing entry points are `/epic-deliver` (for Epics) and
@@ -592,27 +592,6 @@ Whether the Story is launched directly by the operator or fanned out by
    - Transitions the Story to `agent::executing`. `story-phase.js`
      upserts the initial `story-run-progress` snapshot at the `init`
      phase.
-1a. **Story-plan checkpoint** (standalone Stories only — Step 0.6 in
-   `helpers/single-story-deliver`): before authoring any commit, the
-   agent evaluates the **always-emit triggering predicate** in
-   `.agents/scripts/lib/story-plan/trigger.js#isNonTrivial`. A Story
-   is non-trivial when any one of: `changes.length >= 3`,
-   `acceptance.length >= 3`, or `sizingProfile === 'atomic-rewrite'`.
-   For non-trivial Stories the agent posts a `story-plan` structured
-   comment via `post-story-plan.js`, recording `files_to_touch`,
-   `ac_mapping`, `open_questions`, and `plan_revision`. When
-   `delivery.storyPlan.requireAcknowledgement` is `true`, the agent
-   polls for the `plan::acknowledged` label before making any commit
-   (timeout: `delivery.storyPlan.ackTimeoutMs`, default 30 min;
-   on timeout the Story transitions to `agent::blocked`). At close
-   time, `single-story-close.js` compares the plan's `files_to_touch`
-   against the actual diff and posts soft findings
-   (`story-plan-files-added` / `story-plan-files-missed`) as advisory
-   signal; these do not gate the close decision. Floors and the
-   acknowledgement gate are configured under `delivery.storyPlan.*`
-   in `.agentrc.json`. See
-   [`helpers/single-story-deliver.md`](workflows/helpers/single-story-deliver.md)
-   Step 0.6 for the full checkpoint contract.
 2. **Story implementation.** The agent executes the Story's inline
    `acceptance[]` / `verify[]` contract on the shared Story branch,
    authoring one or more commits referencing the parent Story via
@@ -1289,7 +1268,7 @@ For Stories already in flight, use one of the three options above.
 | `/epic-plan <epicId>`                            | Existing-Epic mode — PRD + Tech Spec + decomposition for an Epic Issue already opened.                                                                                       |
 | `/epic-deliver <epicId>`                                      | Drive an Epic end-to-end. Wave loop → close-validation → code-review → retro → opens PR to `main` with auto-merge armed.                                                       |
 | `/story-deliver <storyId> [<storyId>...]`                     | Deliver one or more standalone Stories (no `Epic: #N` reference). Builds a dependency-aware wave plan and fans out one worker per Story per wave.                              |
-| `/single-story-plan`                                          | Plan a one-off Story outside an Epic backlog.                                                                                                                                  |
+| `/story-plan`                                                 | Plan a one-off Story outside an Epic backlog.                                                                                                                                  |
 | *helper* `workflows/helpers/epic-deliver-story`               | Per-Story worker called by `/epic-deliver`'s wave loop; not an operator slash command. See [`helpers/epic-deliver-story.md`](workflows/helpers/epic-deliver-story.md).         |
 | *helper* `workflows/helpers/single-story-deliver`             | Per-Story worker called by `/story-deliver`; not an operator slash command. See [`helpers/single-story-deliver.md`](workflows/helpers/single-story-deliver.md).                |
 | *helper* `workflows/helpers/code-review.md`                   | Auto-invoked by `/epic-deliver`'s `delivery.code-review` state (scope: epic); not a slash command.                                                                            |

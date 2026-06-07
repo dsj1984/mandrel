@@ -208,8 +208,17 @@ export function assertCanonical(input) {
  *      equivalent Linux path.
  *   5. Strip a single leading `/` so a path that was absolute after
  *      drive-letter stripping becomes repo-relative.
- *   6. Strip a leading `./` for cosmetic stability.
- *   7. Collapse any `/{2,}` run to a single `/`.
+ *   6. Strip a leading `.worktrees/<workspace>/` prefix so a refresh run
+ *      from inside a worktree produces the same key as a refresh from the
+ *      main checkout. This MUST match the equivalent step in
+ *      `canonicalise()` (Story #3695): the strict canonicaliser used by the
+ *      per-kind `projectRow` strips this prefix, so the permissive coercer
+ *      that builds the diff-scope `scope.files` set MUST strip it too —
+ *      otherwise a scored row's path (`src/new.js`) never matches its
+ *      worktree-prefixed scope entry (`.worktrees/story-1/src/new.js`) and
+ *      a brand-new file's row is silently dropped from the scoped baseline.
+ *   7. Strip a leading `./` for cosmetic stability.
+ *   8. Collapse any `/{2,}` run to a single `/`.
  *
  * The function is **idempotent**: feeding its own output back in produces
  * the same string. Downstream consumers (the refresh service and the gate
@@ -249,12 +258,21 @@ export function canonicalizeBaselinePath(input) {
     working = working.replace(/^\/+/, '');
   }
 
-  // 5. Strip a leading `./`.
+  // 5. Strip a leading `.worktrees/<workspace>/` prefix (Story #3695) so a
+  //    worktree-rooted path collapses to the same repo-relative key the
+  //    strict `canonicalise()` produces. Without this, a scored row path and
+  //    its diff-scope `scope.files` entry diverge inside a worktree and the
+  //    scope-aware merge drops brand-new files. Only a single leading
+  //    segment is stripped — a legitimate inner `.worktrees/` directory the
+  //    user named themselves is preserved (mirrors `canonicalise`).
+  working = working.replace(WORKTREE_PREFIX, '');
+
+  // 6. Strip a leading `./`.
   if (working.startsWith('./')) {
     working = working.slice(2);
   }
 
-  // 6. Collapse redundant separators.
+  // 7. Collapse redundant separators.
   working = working.replace(/\/{2,}/g, '/');
 
   return working;

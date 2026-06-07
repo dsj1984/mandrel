@@ -1,7 +1,7 @@
 /**
- * single-story-plan.js — helpers for `/single-story-plan`.
+ * story-plan.js — helpers for `/story-plan`.
  *
- * Pure functions used by `.agents/scripts/single-story-plan.js` (the CLI).
+ * Pure functions used by `.agents/scripts/story-plan.js` (the CLI).
  * Kept side-effect-free so the CLI stays a thin orchestrator and these
  * helpers are easy to unit-test.
  *
@@ -206,7 +206,7 @@ export function buildContextEnvelope({
   maxResults = DEFAULT_DUPLICATE_MAX_RESULTS,
 }) {
   return {
-    kind: 'single-story-plan-context',
+    kind: 'story-plan-context',
     version: 1,
     seed,
     refine,

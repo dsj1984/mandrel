@@ -21,6 +21,49 @@ describe('handleMaintainabilityReportWorkerMessage — control messages', () => 
     const out = handleMaintainabilityReportWorkerMessage({ item: 42 });
     assert.equal(out.message.ok, false);
   });
+
+  it('rejects a source-item missing source or label', () => {
+    assert.equal(
+      handleMaintainabilityReportWorkerMessage({ item: { source: 'x' } })
+        .message.ok,
+      false,
+    );
+    assert.equal(
+      handleMaintainabilityReportWorkerMessage({ item: { label: 'a.js' } })
+        .message.ok,
+      false,
+    );
+  });
+});
+
+describe('handleMaintainabilityReportWorkerMessage — source-item path (Story #3696)', () => {
+  it('scores a pre-sourced { source, label } item via reportFromSource', () => {
+    const report = {
+      moduleScore: 99,
+      methods: [],
+      worstMethod: null,
+      meanMethod: null,
+      parseError: false,
+    };
+    const out = handleMaintainabilityReportWorkerMessage(
+      { item: { source: 'export const a = 1;', label: 'a.js' } },
+      { reportFromSource: () => report },
+    );
+    assert.equal(out.message.ok, true);
+    assert.deepEqual(out.message.result, { filePath: 'a.js', report });
+  });
+
+  it('scores real source content end-to-end (no injected scorer)', () => {
+    const out = handleMaintainabilityReportWorkerMessage({
+      item: {
+        source: 'export function add(a, b) {\n  return a + b;\n}\n',
+        label: 'add.js',
+      },
+    });
+    assert.equal(out.message.ok, true);
+    assert.equal(out.message.result.report.parseError, false);
+    assert.ok(out.message.result.report.moduleScore > 0);
+  });
 });
 
 describe('handleMaintainabilityReportWorkerMessage — report path', () => {

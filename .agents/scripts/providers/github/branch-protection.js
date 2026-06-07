@@ -14,6 +14,7 @@
  */
 
 import { parseApiJson } from './request-helpers.js';
+import { withTransientRetry } from './transient-retry.js';
 
 /**
  * Detect a 404 across both error surfaces:
@@ -65,7 +66,9 @@ export class BranchProtectionGateway {
   async getBranchProtection(branch) {
     const endpoint = `/repos/${this.owner}/${this.repo}/branches/${encodeURIComponent(branch)}/protection`;
     try {
-      const result = await this._gh.api({ method: 'GET', endpoint });
+      const result = await withTransientRetry(() =>
+        this._gh.api({ method: 'GET', endpoint }),
+      );
       const raw = parseApiJson(result) ?? {};
       return { enabled: true, raw };
     } catch (err) {
@@ -170,7 +173,9 @@ export class BranchProtectionGateway {
           restrictions: null,
         };
 
-    await this._gh.api({ method: 'PUT', endpoint, body });
+    await withTransientRetry(() =>
+      this._gh.api({ method: 'PUT', endpoint, body }),
+    );
 
     return {
       created: !current.enabled,

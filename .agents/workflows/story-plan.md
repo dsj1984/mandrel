@@ -6,11 +6,11 @@ description:
   /single-story-deliver.
 ---
 
-# /single-story-plan
+# /story-plan
 
 ## Overview
 
-`/single-story-plan` is the standalone counterpart to
+`/story-plan` is the standalone counterpart to
 [`/epic-plan`](epic-plan.md) for Stories that are **not** attached to an
 Epic. It closes the gap between "one-line idea" and "well-formed
 standalone Story body ready for [`/single-story-deliver`](helpers/single-story-deliver.md)"
@@ -18,17 +18,17 @@ using the same `host LLM authors + Node wrapper persists` split as
 `/epic-plan`.
 
 ```text
-/single-story-plan --idea "<seed>"
-  → single-story-plan.js --emit-context        (envelope: seed, template, dup candidates)
+/story-plan --idea "<seed>"
+  → story-plan.js --emit-context               (envelope: seed, template, dup candidates)
   → host LLM authors a draft Story body         (in chat, using the envelope)
   → operator confirms (HITL)
-  → single-story-plan.js --body <file>          (validate, gh issue create)
+  → story-plan.js --body <file>                 (validate, gh issue create)
   → "Next: /single-story-deliver <id>"
 ```
 
-**When to use `/single-story-plan` vs. `/epic-plan` Phase 8:**
+**When to use `/story-plan` vs. `/epic-plan` Phase 8:**
 
-| Trait                | `/single-story-plan`                       | `/epic-plan` Phase 8                         |
+| Trait                | `/story-plan`                              | `/epic-plan` Phase 8                         |
 | -------------------- | ------------------------------------------ | -------------------------------------------- |
 | Output               | One standalone Story Issue                 | Decomposed Feature/Story/Task hierarchy      |
 | Parent Epic          | None (no `Epic: #N` in body)               | Required                                     |
@@ -51,13 +51,13 @@ work, use this workflow.
 
 ```bash
 # Seed from an inline string:
-/single-story-plan --idea "rip out the unused TaskBodyMigrator export"
+/story-plan --idea "rip out the unused TaskBodyMigrator export"
 
 # Seed from a notes file:
-/single-story-plan --from-notes temp/single-story-2293-notes.md
+/story-plan --from-notes temp/single-story-2293-notes.md
 
 # Inspect the draft body without creating an Issue:
-/single-story-plan --dry-run --body temp/single-story-draft.md
+/story-plan --dry-run --body temp/single-story-draft.md
 ```
 
 ## Phase 1 — Emit Context
@@ -67,14 +67,14 @@ routes all log lines to stderr so the captured file is unconditionally
 parseable by `JSON.parse`.
 
 ```bash
-node .agents/scripts/single-story-plan.js --emit-context \
+node .agents/scripts/story-plan.js --emit-context \
   --idea "<seed>" \
   [--persona engineer] \
   [--refine | --no-refine] \
   [--pretty] > temp/single-story-context.json
 ```
 
-Envelope fields (`kind: "single-story-plan-context"`, `version: 1`):
+Envelope fields (`kind: "story-plan-context"`, `version: 1`):
 
 | Field                  | Purpose                                                   |
 | ---------------------- | --------------------------------------------------------- |
@@ -119,7 +119,7 @@ HITL gate `/epic-plan` Phase 3 enforces before opening the Epic Issue.
 ## Phase 3 — Persist (`gh issue create`)
 
 ```bash
-node .agents/scripts/single-story-plan.js \
+node .agents/scripts/story-plan.js \
   --body temp/single-story-draft.md \
   [--persona engineer]
 ```
@@ -138,7 +138,7 @@ The script:
 ### `--dry-run`
 
 ```bash
-node .agents/scripts/single-story-plan.js \
+node .agents/scripts/story-plan.js \
   --body temp/single-story-draft.md --dry-run
 ```
 

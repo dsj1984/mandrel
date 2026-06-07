@@ -2,11 +2,11 @@
 /* node:coverage ignore file */
 
 /**
- * single-story-plan.js — Local `/single-story-plan` wrapper.
+ * story-plan.js — Local `/story-plan` wrapper.
  *
  * Standalone counterpart to `/epic-plan` for Stories that do **not**
  * attach to an Epic. The script is deliberately a thin CLI around the
- * pure helpers in `lib/single-story-plan.js`:
+ * pure helpers in `lib/story-plan.js`:
  *
  *   1. `--emit-context` mode — given a `--idea`/`--from-notes` seed,
  *      build the context envelope (seed, refine heuristic, persona,
@@ -41,16 +41,16 @@ import {
   readTechStackSummary,
   shouldRefine,
   validateStoryBody,
-} from './lib/single-story-plan.js';
+} from './lib/story-plan.js';
 
 const HELP = `\
 Usage:
-  single-story-plan.js --emit-context (--idea "<seed>" | --from-notes <file>) \\
+  story-plan.js --emit-context (--idea "<seed>" | --from-notes <file>) \\
     [--persona <name>] [--refine | --no-refine] [--pretty]
 
-  single-story-plan.js --body <file> [--persona <name>] [--dry-run]
+  story-plan.js --body <file> [--persona <name>] [--dry-run]
 
-  single-story-plan.js --help
+  story-plan.js --help
 
 Modes:
   --emit-context   Build the host-LLM authoring envelope and print it as
@@ -263,7 +263,7 @@ async function main() {
   });
 }
 
-runAsCli(import.meta.url, main, { source: 'single-story-plan' });
+runAsCli(import.meta.url, main, { source: 'story-plan' });
 
 // Test surface — exported so unit tests can drive the helpers
 // without importing the CLI side.

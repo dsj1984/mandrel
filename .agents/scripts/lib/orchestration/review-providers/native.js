@@ -32,9 +32,10 @@ import { PROJECT_ROOT } from '../../config-resolver.js';
 import { runOnPool } from '../../cpu-pool.js';
 import { gitSpawn } from '../../git-utils.js';
 import {
-  calculateReportForFile,
+  calculateReport,
   classifyReport,
 } from '../../maintainability-engine.js';
+import { transpileIfNeeded } from '../../maintainability-utils.js';
 import {
   hashCommandConfig,
   recordPass,
@@ -132,6 +133,63 @@ function resolveCurrentSha(cwd, gitSpawnFn = gitSpawn) {
   return sha.length > 0 ? sha : null;
 }
 
+/**
+ * Read a changed file's content as it exists at `headRef` via
+ * `git show <headRef>:<relPath>`, rather than reading the on-disk copy at
+ * `PROJECT_ROOT`.
+ *
+ * This is the fix for Story #3696: the native review previously scored the
+ * working-tree copy at `PROJECT_ROOT`, which — when the review runs from the
+ * main checkout (the common case for story/epic close) — is the **base**
+ * (pre-change) content, not the **head** (PR-branch) content the PR actually
+ * produces. Scoring the base copy made MI-*improving* refactors emit a
+ * false-positive "Size/Volume Warning" citing the very debt they removed.
+ * Sourcing from `headRef` makes the score reflect the PR branch regardless of
+ * which tree happens to be checked out on disk.
+ *
+ * Returns `null` when the file does not exist at `headRef` (deleted by the PR,
+ * a brand-new untracked path not yet committed, or a `git show` failure). A
+ * `null` source is dropped downstream exactly like a `reportFn` throw — the
+ * provider does not warn about a file it cannot read at head.
+ *
+ * @param {string} relPath  Repo-relative path of the changed file.
+ * @param {string} headRef  Git ref under review (e.g. 'story-3696', 'epic/42').
+ * @param {typeof gitSpawn} [gitSpawnFn]  Injected git runner (test seam).
+ * @returns {string|null}
+ */
+export function readHeadSource(relPath, headRef, gitSpawnFn = gitSpawn) {
+  const res = gitSpawnFn(PROJECT_ROOT, 'show', `${headRef}:${relPath}`);
+  if (res.status !== 0) return null;
+  return res.stdout ?? '';
+}
+
+/**
+ * Pure: score a raw source string into a maintainability report, applying the
+ * in-memory TS/TSX transpile shim first so a changed `.ts`/`.tsx` file scores
+ * the same as the JS the engine would otherwise see. Returns a parse-error
+ * report (never throws) when the source cannot be transpiled, matching the
+ * disk-based `calculateReportForFile` contract.
+ *
+ * Exported for testing.
+ *
+ * @param {string} source   File content at head.
+ * @param {string} relPath  Path (used only to pick the transpile mode).
+ * @returns {ReturnType<typeof calculateReport>}
+ */
+export function scoreSourceReport(source, relPath) {
+  const prepared = transpileIfNeeded(relPath, source);
+  if (prepared === null) {
+    return {
+      moduleScore: 0,
+      methods: [],
+      worstMethod: null,
+      meanMethod: null,
+      parseError: true,
+    };
+  }
+  return calculateReport(prepared);
+}
+
 function spawnLintRunner(bin, args, cwd) {
   const result = spawnSync('npx', ['--no', bin, ...args], {
     cwd,
@@ -211,17 +269,16 @@ export function buildLintEvidenceConfig(changedFiles, cwd) {
 
 /**
  * Pure: classify a single file's maintainability report into a row + optional
- * Finding-shaped entries. `reportFn` is the file-classifier (defaults to the
- * engine's `calculateReportForFile`); injected so tests can stub deletion /
- * parse errors without touching disk.
+ * Finding-shaped entries. `reportFn` is the thunk that produces the file's
+ * report (it closes over the file's head-ref source — see
+ * {@link analyzeChangedFiles}); a throw is treated as "drop this file".
  *
  * @returns {{ row: object|null, criticalFinding: Finding|null, mediumFinding: Finding|null }}
  */
 export function classifyChangedFile(relPath, { reportFn, classifier } = {}) {
-  const absPath = path.resolve(PROJECT_ROOT, relPath);
   let report;
   try {
-    report = reportFn(absPath);
+    report = reportFn(relPath);
   } catch (_err) {
     return { row: null, criticalFinding: null, mediumFinding: null };
   }
@@ -303,21 +360,35 @@ function isJsMaintainabilityFile(relPath) {
  * ({@link classifyChangedFile} + {@link classifyReport}) runs in-process, so
  * the two paths emit identical rows and findings.
  *
- * `reportFn` and `classifier` are injected for testability. Passing
+ * **Head sourcing (Story #3696).** Each changed JS file is scored against the
+ * content it has at `headRef` — sourced via `git show <headRef>:<relPath>` —
+ * not the on-disk copy at `PROJECT_ROOT`. When the review runs from the main
+ * checkout (the common story/epic close case) the on-disk copy is the *base*
+ * (pre-change) content, so scoring it made MI-improving refactors emit a
+ * false-positive size/volume warning citing the debt they remove. Sourcing
+ * from head makes the score reflect the PR branch regardless of the checked-out
+ * tree. A file with no content at head (deleted by the PR, or unreadable) is
+ * dropped — the provider never warns about a file it cannot read at head.
+ *
+ * `classifier` is injected for testability. Tests may also inject `reportFn`
+ * to bypass head sourcing entirely (it receives the head source string and the
+ * relPath); production callers omit it and get the git-head scorer. Injecting
  * `reportFn` forces the serial path (the injected scorer cannot cross the
- * worker boundary); production callers omit it and get the pooled path for
- * large sets.
+ * worker boundary).
  *
  * @param {string[]} changedFiles
- * @param {{ reportFn?: Function, classifier?: Function, runOnPoolFn?: typeof runOnPool }} [deps]
+ * @param {{ reportFn?: Function, classifier?: Function, runOnPoolFn?: typeof runOnPool, headRef?: string|null, gitSpawnFn?: typeof gitSpawn, readHeadSourceFn?: typeof readHeadSource }} [deps]
  * @returns {Promise<{ totalFiles: number, jsFiles: number, maintainability: object[], criticalFindings: Finding[], mediumFindings: Finding[] }>}
  */
 export async function analyzeChangedFiles(
   changedFiles,
   {
-    reportFn = calculateReportForFile,
+    reportFn = null,
     classifier = classifyReport,
     runOnPoolFn = runOnPool,
+    headRef = null,
+    gitSpawnFn = gitSpawn,
+    readHeadSourceFn = readHeadSource,
   } = {},
 ) {
   const results = {
@@ -332,34 +403,59 @@ export async function analyzeChangedFiles(
   results.jsFiles = jsFiles.length;
   if (jsFiles.length === 0) return results;
 
-  // Serial path: small batches, or whenever a caller injects its own scorer
-  // (a stubbed reportFn cannot be cloned into a worker thread). Score
-  // in-process via the shared classification core.
-  const customReportFn = reportFn !== calculateReportForFile;
+  // Resolve each file's head-ref source up front. `null` source (deleted at
+  // head / unreadable) is dropped — it carries no head report to warn about.
+  const sources = jsFiles.map((relPath) =>
+    headRef == null ? '' : readHeadSourceFn(relPath, headRef, gitSpawnFn),
+  );
+
+  // Default scorer: score the head source string. A test-injected `reportFn`
+  // overrides it (receives the head source + relPath) and forces the serial
+  // path because the closure cannot be cloned into a worker thread.
+  const scoreReport =
+    reportFn ?? ((source, relPath) => scoreSourceReport(source, relPath));
+  const customReportFn = reportFn != null;
+
+  // Serial path: small batches, or whenever a caller injects its own scorer.
   if (jsFiles.length < SERIAL_THRESHOLD || customReportFn) {
-    for (const relPath of jsFiles) {
+    for (let i = 0; i < jsFiles.length; i += 1) {
+      const relPath = jsFiles[i];
+      const source = sources[i];
+      if (source == null) continue;
       accumulateClassified(
         results,
-        classifyChangedFile(relPath, { reportFn, classifier }),
+        classifyChangedFile(relPath, {
+          reportFn: () => scoreReport(source, relPath),
+          classifier,
+        }),
       );
     }
     return results;
   }
 
-  // Pooled path: offload `calculateReportForFile` to the worker pool, then
-  // classify each report in-process so the tally is assembled by the same
-  // pure core the serial path uses. The pool returns results in input order.
-  const absPaths = jsFiles.map((relPath) =>
-    path.resolve(PROJECT_ROOT, relPath),
-  );
+  // Pooled path: offload `scoreSourceReport` to the worker pool by sending the
+  // pre-sourced head content (not a disk path) so the worker scores the same
+  // head string the serial path does. Files with `null` head source are not
+  // sent to the pool; their slot is reconstructed by mapping pool results back
+  // onto the non-null subset in input order. The pure classification core runs
+  // in-process so both paths emit identical rows and findings.
+  const poolItems = [];
+  const poolIndex = []; // poolItems[k] corresponds to jsFiles[poolIndex[k]]
+  for (let i = 0; i < jsFiles.length; i += 1) {
+    if (sources[i] == null) continue;
+    poolItems.push({ source: sources[i], label: jsFiles[i] });
+    poolIndex.push(i);
+  }
+  if (poolItems.length === 0) return results;
+
   const poolResults = await runOnPoolFn(
     MAINTAINABILITY_REPORT_WORKER_URL,
-    absPaths,
+    poolItems,
   );
-  for (let i = 0; i < jsFiles.length; i += 1) {
-    const relPath = jsFiles[i];
-    const poolEntry = poolResults[i];
-    // A host-level pool error or a null report (the worker's I/O-failure
+  for (let k = 0; k < poolIndex.length; k += 1) {
+    const relPath = jsFiles[poolIndex[k]];
+    const poolEntry = poolResults[k];
+    // A host-level pool error or a null report (the worker's parse/I/O
     // sentinel) maps to the serial path's "reportFn threw" → dropped file.
     if (!poolEntry || poolEntry.__cpuPoolError || poolEntry.report == null) {
       continue;
@@ -645,7 +741,10 @@ export function createNativeProvider(deps = {}) {
       logger?.info?.(
         `[native-review] Analyzing ${changedFiles.length} changed file(s)...`,
       );
-      const results = await analyzeChangedFilesFn(changedFiles);
+      const results = await analyzeChangedFilesFn(changedFiles, {
+        headRef,
+        gitSpawnFn,
+      });
 
       // Epic-scope reviews flow through validation-evidence; story-scope
       // reviews currently share the same gate name, keyed on the storyId.
