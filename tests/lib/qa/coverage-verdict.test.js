@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  acceptanceMatrix,
   classifyTest,
   coverageVerdict,
+  isSkipped,
   TIERS,
 } from '../../../.agents/scripts/lib/qa/coverage-verdict.js';
 
@@ -145,5 +147,149 @@ describe('classifyTest', () => {
     assert.equal(classifyTest('docs/readme.md'), null);
     assert.equal(classifyTest(null), null);
     assert.equal(classifyTest({ name: 'no path' }), null);
+  });
+});
+
+describe('skip / pending awareness', () => {
+  it('isSkipped detects a @skip Gherkin tag in a tags array', () => {
+    assert.equal(
+      isSkipped({ path: 'a.feature', tags: ['@wip', '@skip'] }),
+      true,
+    );
+  });
+
+  it('isSkipped detects a @pending tag in a whitespace string', () => {
+    assert.equal(
+      isSkipped({ path: 'a.feature', tags: '@smoke @pending' }),
+      true,
+    );
+  });
+
+  it('isSkipped honors explicit skipped / pending boolean flags', () => {
+    assert.equal(isSkipped({ path: 'a.test.js', skipped: true }), true);
+    assert.equal(isSkipped({ path: 'a.test.js', pending: true }), true);
+  });
+
+  it('isSkipped detects runner skip markers in a name', () => {
+    assert.equal(
+      isSkipped({ path: 'a.test.js', name: 'it.skip should work' }),
+      true,
+    );
+    assert.equal(isSkipped('xit("pending case")'), true);
+    assert.equal(isSkipped('describe.skip("group")'), true);
+  });
+
+  it('isSkipped is false for a plain, un-skipped test', () => {
+    assert.equal(isSkipped('src/util.test.js'), false);
+    assert.equal(isSkipped({ path: 'a.feature', tags: ['@smoke'] }), false);
+    assert.equal(isSkipped(null), false);
+  });
+
+  it('classifyTest returns null for a @skip-tagged feature', () => {
+    // Without the tag it would classify as acceptance; the tag makes it inert.
+    assert.equal(
+      classifyTest({ path: 'tests/features/login.feature', tags: ['@skip'] }),
+      null,
+    );
+  });
+
+  it('counts a @skip-tagged scenario as absent for its tier', () => {
+    // Arrange — the only acceptance "coverage" is a skipped scenario.
+    const surface = {
+      symbol: 'createInvoice',
+      tests: [
+        'src/invoice.test.js',
+        { path: 'tests/features/invoice.feature', tags: ['@skip'] },
+      ],
+    };
+
+    // Act
+    const verdict = coverageVerdict(surface);
+
+    // Assert — unit still present, acceptance falls back to absent.
+    assert.equal(verdict.unit.status, 'present');
+    assert.equal(verdict.acceptance.status, 'absent');
+  });
+
+  it('counts a @pending unit test as absent for the unit tier', () => {
+    const verdict = coverageVerdict({
+      tests: [{ path: 'a.test.js', tags: '@pending' }],
+    });
+    assert.equal(verdict.unit.status, 'absent');
+  });
+
+  it('counts an explicit skipped: true descriptor as absent', () => {
+    const verdict = coverageVerdict({
+      tests: [{ path: 'a.test.js', skipped: true }],
+    });
+    assert.equal(verdict.unit.status, 'absent');
+  });
+});
+
+describe('acceptanceMatrix', () => {
+  it('maps each criterion to its per-tier verdict (array input)', () => {
+    // Arrange
+    const criteria = [
+      {
+        id: 'AC-1',
+        label: 'parses the row',
+        symbol: 'parseRow',
+        tests: ['src/parse-row.test.js'],
+      },
+      {
+        id: 'AC-2',
+        label: 'renders the report',
+        surface: {
+          symbol: 'renderReport',
+          tests: [
+            'src/render.test.js',
+            'tests/contract/render.test.js',
+            'tests/features/render.feature',
+          ],
+        },
+      },
+    ];
+
+    // Act
+    const matrix = acceptanceMatrix(criteria);
+
+    // Assert
+    assert.deepEqual(matrix.tiers, TIERS);
+    assert.equal(matrix.rows.length, 2);
+    assert.equal(matrix.rows[0].id, 'AC-1');
+    assert.equal(matrix.rows[0].label, 'parses the row');
+    assert.equal(matrix.rows[0].verdict.unit.status, 'present');
+    assert.equal(matrix.rows[0].verdict.contract.status, 'absent');
+    assert.equal(matrix.rows[1].verdict.acceptance.status, 'present');
+  });
+
+  it('treats a skipped acceptance test as absent in the matrix', () => {
+    const matrix = acceptanceMatrix([
+      {
+        id: 'AC-1',
+        tests: [{ path: 'tests/features/x.feature', tags: ['@skip'] }],
+      },
+    ]);
+    assert.equal(matrix.rows[0].verdict.acceptance.status, 'absent');
+  });
+
+  it('accepts an object keyed by criterion id', () => {
+    const matrix = acceptanceMatrix({
+      'AC-1': { symbol: 'foo', tests: ['src/foo.test.js'] },
+    });
+    assert.equal(matrix.rows.length, 1);
+    assert.equal(matrix.rows[0].id, 'AC-1');
+    assert.equal(matrix.rows[0].verdict.unit.status, 'present');
+  });
+
+  it('synthesizes an id when a descriptor omits one', () => {
+    const matrix = acceptanceMatrix([{ tests: [] }]);
+    assert.equal(matrix.rows[0].id, 'AC-1');
+    assert.equal(matrix.rows[0].verdict.unit.status, 'absent');
+  });
+
+  it('throws a TypeError for a non-array, non-object input', () => {
+    assert.throws(() => acceptanceMatrix('nope'), TypeError);
+    assert.throws(() => acceptanceMatrix(null), TypeError);
   });
 });
