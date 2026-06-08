@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.54.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.53.0...mandrel-v1.54.0) (2026-06-08)
+
+
+### Added
+
+* **bootstrap-new:** provision GitHub repo + Projects V2 from a blank folder (refs [#3814](https://github.com/dsj1984/mandrel/issues/3814)) ([#3815](https://github.com/dsj1984/mandrel/issues/3815)) ([555abc9](https://github.com/dsj1984/mandrel/commit/555abc99ac028d1727b49a8995b943badd8f561e))
+* **decompose:** forbid single-Story Features; decompose at deliverable granularity (refs [#3777](https://github.com/dsj1984/mandrel/issues/3777)) ([#3781](https://github.com/dsj1984/mandrel/issues/3781)) ([6358257](https://github.com/dsj1984/mandrel/commit/635825779de789472c3ad4ea498f919fe22dde95))
+* **epic-plan:** add holistic consolidation pass to Phase 8 decompose (refs [#3797](https://github.com/dsj1984/mandrel/issues/3797)) ([#3799](https://github.com/dsj1984/mandrel/issues/3799)) ([4aaeae4](https://github.com/dsj1984/mandrel/commit/4aaeae493f5c9a0947a6193d539b7b165812d140))
+* **qa:** split exploratory QA into /qa-assist + /qa-explore over a shared findings core (closes [#3798](https://github.com/dsj1984/mandrel/issues/3798)) ([#3817](https://github.com/dsj1984/mandrel/issues/3817)) ([a60822a](https://github.com/dsj1984/mandrel/commit/a60822af738c1d38bcdd50be93463326bc9c16de))
+
+
+### Changed
+
+* **findings:** unify severity vocabulary into shared severity.js (refs [#3816](https://github.com/dsj1984/mandrel/issues/3816)) ([#3818](https://github.com/dsj1984/mandrel/issues/3818)) ([e801162](https://github.com/dsj1984/mandrel/commit/e801162e5689b879e47102acc33128cc965e7fdd))
+
 ## [1.53.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.52.0...mandrel-v1.53.0) (2026-06-07)
 
 
