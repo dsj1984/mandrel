@@ -11,14 +11,21 @@
  *   2. `fingerprintFooter(sha)` / `parseFingerprintFooter(body)` — round-trip
  *      the machine-readable `<!-- audit-fingerprints: sha,sha,... -->` marker
  *      stamped into Issue bodies.
- *   3. `routeFinding(finding, { searchIssues })` — classify a finding against
- *      existing Issues into one of `new | update-existing | duplicate |
- *      regression-of-closed`. The `searchIssues` port queries BOTH open and
- *      closed issues; a closed fingerprint match yields `regression-of-closed`.
+ *   3. `routeFinding(finding, { searchIssues, searchCandidates })` — classify a
+ *      finding against existing Issues into one of `new | update-existing |
+ *      duplicate | regression-of-closed`. Routing is a two-stage pass: a
+ *      meaning-first **semantic candidate** pass runs FIRST (when a
+ *      `searchCandidates` port is injected, e.g. wired to
+ *      `semantic-issue-search.js`), then the exact **fingerprint
+ *      confirmation** pass runs SECOND over that candidate pool. When no
+ *      semantic port is injected the helper falls back to a fingerprint-only
+ *      lookup via the `searchIssues` port. Either way the ports query BOTH
+ *      open and closed issues; a closed fingerprint match yields
+ *      `regression-of-closed`.
  *
- * Pure orchestration: no network I/O lives here. The `searchIssues` port is
- * injected by the caller (production wires it to the GitHub provider; tests
- * pass an in-memory stub).
+ * Pure orchestration: no network I/O lives here. The `searchIssues` /
+ * `searchCandidates` ports are injected by the caller (production wires them
+ * to the GitHub provider; tests pass an in-memory stub).
  */
 
 import crypto from 'node:crypto';
@@ -151,36 +158,17 @@ function decisionForIssue(issue) {
 }
 
 /**
- * Route a finding against existing Issues.
+ * Decide the final route from a confirmed-match pool (issues that both
+ * surfaced in the candidate/search pass AND carry the finding's fingerprint
+ * in their footer). Shared by both the semantic-first and fingerprint-only
+ * code paths so the decision enum is identical regardless of how candidates
+ * were gathered.
  *
- * The `searchIssues` port queries BOTH open and closed issues for the
- * finding's fingerprint. Resolution order:
- *   - An open match → `update-existing` (or `duplicate` when more than one
- *     open issue carries the fingerprint).
- *   - A closed match (no open match) → `regression-of-closed`.
- *   - No match → `new`.
- *
- * @param {object} finding
- * @param {{ searchIssues: (sha: string) => Promise<Array<{ number: number, state: string, body?: string }>> }} ports
- * @returns {Promise<{ decision: 'new'|'update-existing'|'duplicate'|'regression-of-closed', matchedIssue: object|null, fingerprint: string }>}
+ * @param {Array<{ number: number, state: string }>} confirmed
+ * @param {string} sha
+ * @returns {{ decision: 'new'|'update-existing'|'duplicate'|'regression-of-closed', matchedIssue: object|null, fingerprint: string }}
  */
-export async function routeFinding(finding, { searchIssues } = {}) {
-  if (typeof searchIssues !== 'function') {
-    throw new Error('routeFinding: searchIssues port is required');
-  }
-
-  const { full: sha } = fingerprintFinding(finding);
-  const hits = await searchIssues(sha);
-  const confirmed = Array.isArray(hits)
-    ? hits.filter(
-        (h) =>
-          h &&
-          typeof h.number === 'number' &&
-          typeof h.state === 'string' &&
-          issueCarriesFingerprint(h, sha),
-      )
-    : [];
-
+function decideFromConfirmed(confirmed, sha) {
   if (confirmed.length === 0) {
     return { decision: 'new', matchedIssue: null, fingerprint: sha };
   }
@@ -205,4 +193,91 @@ export async function routeFinding(finding, { searchIssues } = {}) {
   };
 }
 
-export const __testing = { MARKER, SEP };
+/**
+ * Keep only the issue records that have the right wire shape AND carry the
+ * target fingerprint in their footer. A semantic candidate that merely *looks*
+ * similar but does not carry the sha is dropped here — semantic similarity
+ * widens the net; the fingerprint footer is what confirms identity.
+ *
+ * @param {Array<unknown>} hits
+ * @param {string} sha
+ * @returns {Array<{ number: number, state: string }>}
+ */
+function confirmFingerprint(hits, sha) {
+  if (!Array.isArray(hits)) return [];
+  return hits.filter(
+    (h) =>
+      h &&
+      typeof h.number === 'number' &&
+      typeof h.state === 'string' &&
+      issueCarriesFingerprint(h, sha),
+  );
+}
+
+/**
+ * Route a finding against existing Issues with a two-stage pass.
+ *
+ * **Stage 1 — semantic candidate search (first).** When a `searchCandidates`
+ * port is injected, it runs first to surface issues that *describe the same
+ * problem by meaning* across BOTH open and closed issues (and, when the
+ * caller wires it, an Epic's sub-issues). This widens the net beyond an exact
+ * fingerprint so a reworded title or a moved file does not hide a real
+ * duplicate. When no `searchCandidates` port is supplied the helper skips
+ * straight to Stage 2 over the `searchIssues` lookup — the legacy
+ * fingerprint-only behaviour, preserved verbatim.
+ *
+ * **Stage 2 — fingerprint confirmation (second).** Whatever candidates Stage 1
+ * produced are filtered down to those that actually carry the finding's
+ * fingerprint footer, then resolved:
+ *   - An open match → `update-existing` (or `duplicate` when more than one
+ *     open issue carries the fingerprint).
+ *   - A closed match (no open match) → `regression-of-closed`.
+ *   - No confirmed match → `new`.
+ *
+ * The decision enum is identical on both paths.
+ *
+ * @param {object} finding
+ * @param {object} ports
+ * @param {(sha: string) => Promise<Array<{ number: number, state: string, body?: string }>>} [ports.searchIssues]
+ *   Fingerprint-keyed lookup over open+closed issues. Required when
+ *   `searchCandidates` is not supplied.
+ * @param {(finding: object) => Promise<Array<{ number: number, state: string, title?: string, body?: string }>>} [ports.searchCandidates]
+ *   Meaning-first candidate search over open+closed issues (and Epic
+ *   sub-issues). When supplied, runs FIRST; its candidates are then
+ *   fingerprint-confirmed.
+ * @returns {Promise<{ decision: 'new'|'update-existing'|'duplicate'|'regression-of-closed', matchedIssue: object|null, fingerprint: string }>}
+ */
+export async function routeFinding(
+  finding,
+  { searchIssues, searchCandidates } = {},
+) {
+  if (
+    typeof searchCandidates !== 'function' &&
+    typeof searchIssues !== 'function'
+  ) {
+    throw new Error(
+      'routeFinding: a searchCandidates or searchIssues port is required',
+    );
+  }
+
+  const { full: sha } = fingerprintFinding(finding);
+
+  // Stage 1: semantic candidate pass first (when wired); else fingerprint
+  // lookup. Both yield a candidate pool drawn from open AND closed issues.
+  const hits =
+    typeof searchCandidates === 'function'
+      ? await searchCandidates(finding)
+      : await searchIssues(sha);
+
+  // Stage 2: confirm identity by fingerprint footer over the candidate pool.
+  const confirmed = confirmFingerprint(hits, sha);
+
+  return decideFromConfirmed(confirmed, sha);
+}
+
+export const __testing = {
+  MARKER,
+  SEP,
+  confirmFingerprint,
+  decideFromConfirmed,
+};

@@ -4,6 +4,7 @@ import {
   classifyFinding,
   FINDING_CLASSES,
   FOCUS_LABELS,
+  SEVERITIES,
 } from '../../../.agents/scripts/lib/findings/classify-finding.js';
 import { META_LABELS } from '../../../.agents/scripts/lib/label-constants.js';
 
@@ -100,4 +101,83 @@ test('the returned labels array is a copy and cannot mutate the routing table', 
     FOCUS_LABELS.SCRIPTS,
     META_LABELS.FRAMEWORK_GAP,
   ]);
+});
+
+// --- Severity signal ---
+
+test('classifyFinding carries a severity value for every severity in the enum', () => {
+  for (const severity of SEVERITIES) {
+    const result = classifyFinding({ class: 'product-bug', severity });
+    assert.equal(result.severity, severity);
+  }
+});
+
+test('classifyFinding resolves severity case- and whitespace-insensitively', () => {
+  const result = classifyFinding({ class: 'product-bug', severity: '  High ' });
+  assert.equal(result.severity, 'high');
+});
+
+test('classifyFinding defaults an absent severity to unknown (never silent low)', () => {
+  assert.equal(classifyFinding({ class: 'product-bug' }).severity, 'unknown');
+  assert.equal(
+    classifyFinding({ class: 'product-bug', severity: 42 }).severity,
+    'unknown',
+  );
+  assert.equal(
+    classifyFinding({ class: 'product-bug', severity: 'bogus' }).severity,
+    'unknown',
+  );
+});
+
+test('carrying a severity does not drop the existing class-to-label mapping', () => {
+  const result = classifyFinding({ class: 'tooling-dx', severity: 'critical' });
+  assert.deepEqual(result.labels, [
+    FOCUS_LABELS.SCRIPTS,
+    META_LABELS.FRAMEWORK_GAP,
+  ]);
+  assert.equal(result.severity, 'critical');
+});
+
+// --- Security signal ---
+
+test('classifyFinding flags security when the explicit security flag is set', () => {
+  const result = classifyFinding({ class: 'product-bug', security: true });
+  assert.equal(result.security, true);
+});
+
+test('classifyFinding flags security from a security-relevant area', () => {
+  const result = classifyFinding({ class: 'product-bug', area: 'injection' });
+  assert.equal(result.security, true);
+});
+
+test('classifyFinding flags security from a security-relevant label', () => {
+  const result = classifyFinding({
+    class: 'product-bug',
+    labels: ['regression', 'authz'],
+  });
+  assert.equal(result.security, true);
+});
+
+test('classifyFinding leaves security false for a non-security finding', () => {
+  const result = classifyFinding({
+    class: 'enhancement',
+    area: 'layout',
+    labels: ['ui'],
+  });
+  assert.equal(result.security, false);
+});
+
+test('the security signal is orthogonal to the class route (no label change)', () => {
+  const result = classifyFinding({
+    class: 'tooling-dx',
+    area: 'security',
+    severity: 'high',
+  });
+  // Same class route as always — the security signal rides alongside.
+  assert.deepEqual(result.labels, [
+    FOCUS_LABELS.SCRIPTS,
+    META_LABELS.FRAMEWORK_GAP,
+  ]);
+  assert.equal(result.security, true);
+  assert.equal(result.severity, 'high');
 });
