@@ -302,6 +302,20 @@ test('validateAndNormalizeTickets: freshness gate is opt-in via opts.baseBranchR
       },
       { acceptance: ['a'], verify: ['v'] },
     ),
+    // Valid sibling so F1 has >=2 Stories (Story #3777). It references only
+    // an existing path so it never trips the freshness gate under test.
+    makeStory(
+      'S2',
+      {
+        goal: 'Touch an existing script to do y.',
+        changes: [
+          '.agents/scripts/lib/orchestration/ticket-validator.js: tweak comment',
+        ],
+        acceptance: ['a'],
+        verify: ['v'],
+      },
+      { acceptance: ['a'], verify: ['v'] },
+    ),
   ];
   // Without baseBranchRef the validator's freshness clause is a no-op so
   // legacy callers (and existing tests) keep their semantics.

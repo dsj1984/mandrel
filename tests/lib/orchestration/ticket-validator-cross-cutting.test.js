@@ -53,6 +53,15 @@ function makeStory(slug, body = {}, extras = {}) {
   };
 }
 
+/**
+ * Benign filler sibling so single-Story fixtures still satisfy the
+ * `assertNoSingleStoryFeature` invariant (Story #3777). Touches a unique
+ * path so it adds no registry / conflict / fan-out findings of its own.
+ */
+const SIBLING = makeStory('s-x-filler', {
+  changes: ['src/cross-cutting-filler.js: edit'],
+});
+
 describe('cross-cutting-registries finding (Story #2962)', () => {
   it('emits crossCuttingRegistries when 2+ Stories create new files under the listeners registry directory', () => {
     const tickets = [
@@ -196,6 +205,7 @@ describe('fan-out-warning finding (Story #2962)', () => {
       makeStory('s-a', {
         changes: [{ path: 'lib/legacy/old-shim.js', assumption: 'deletes' }],
       }),
+      SIBLING,
     ];
     const result = validateAndNormalizeTickets(tickets, {
       conflictPolicy: {
@@ -218,6 +228,7 @@ describe('fan-out-warning finding (Story #2962)', () => {
       makeStory('s-a', {
         changes: [{ path: 'lib/legacy/old-shim.js', assumption: 'deletes' }],
       }),
+      SIBLING,
     ];
     const result = validateAndNormalizeTickets(tickets, {
       conflictPolicy: {
@@ -287,6 +298,7 @@ describe('fan-out persist gate (Story #2962)', () => {
     makeStory('s-a', {
       changes: [{ path: 'lib/legacy/widely-used.js', assumption: 'deletes' }],
     }),
+    SIBLING,
   ];
 
   it('throws a deterministic fan-out error when the threshold is exceeded and --allow-large-fan-out is not set', async () => {
@@ -343,6 +355,7 @@ describe('3-tier inline-contract guard (Epic #3238)', () => {
             title: 'Story without inline contract',
             body: { goal: 'Goal.', changes: ['src/x.js: edit'] },
           },
+          SIBLING,
         ]),
       /lack an inline acceptance \+ verify contract/,
     );

@@ -461,6 +461,41 @@ function assertHierarchy({ stories, ticketBySlug }) {
 }
 
 /**
+ * Deterministic invariant (Story #3777): a Feature MUST decompose into at
+ * least two Stories. A single-Story Feature is the work of a Story, not a
+ * Feature — the Feature wrapper is dead weight and signals decomposition at
+ * module/task granularity rather than deliverable granularity. HARD-reject
+ * the decomposition, naming the offending Feature(s) and telling the planner
+ * to collapse them, in the same throw-on-violation style as the surrounding
+ * hierarchy invariants.
+ */
+function assertNoSingleStoryFeature({ features, stories }) {
+  const storyCountByParent = new Map();
+  for (const story of stories) {
+    if (!story.parent_slug) continue;
+    storyCountByParent.set(
+      story.parent_slug,
+      (storyCountByParent.get(story.parent_slug) ?? 0) + 1,
+    );
+  }
+  const undersized = features.filter(
+    (feature) => (storyCountByParent.get(feature.slug) ?? 0) < 2,
+  );
+  if (undersized.length === 0) return;
+  const list = undersized
+    .map((feature) => {
+      const count = storyCountByParent.get(feature.slug) ?? 0;
+      return `"${feature.title}" (${feature.slug}, ${count} ${count === 1 ? 'Story' : 'Stories'})`;
+    })
+    .join(', ');
+  throw new Error(
+    `Cross-Validation Failed: ${undersized.length} Feature(s) decompose into fewer than two Stories: ${list}. ` +
+      'Every Feature MUST contain at least two Stories — a single-Story Feature is the work of a Story, not a Feature. ' +
+      'Collapse each offending Feature: drop the Feature wrapper and attach its lone Story to a sibling Feature, or merge the Feature into another.',
+  );
+}
+
+/**
  * Return true when a Story object carries inline acceptance + verify
  * arrays — the 3-tier shape (Epic #3078) where the Story is itself the
  * implementation unit and acceptance / verify live on the Story body
@@ -547,6 +582,7 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
 
   assertEachTypePresent({ features, stories });
   assertHierarchy({ stories, ticketBySlug });
+  assertNoSingleStoryFeature({ features, stories });
   assertEveryStoryHasInlineContract({ stories });
   assertNoUnknownDeps({ tickets, ticketBySlug });
 
@@ -645,6 +681,7 @@ export const _internal = {
   indexTicketsBySlug,
   assertEachTypePresent,
   assertHierarchy,
+  assertNoSingleStoryFeature,
   assertEveryStoryHasInlineContract,
   assertNoUnknownDeps,
   assertAcyclic,

@@ -167,6 +167,48 @@ describe('skill:epic-plan-decompose-author — smoke', () => {
             'Skill body must not instruct emitting body as a STRUCTURED OBJECT for stories (stale 4-tier shape; Story #3263)',
           );
         }
+        // Story #3777 — the SKILL must carry the deliverable-granularity
+        // definition (shippable slice / capability, not a single module or
+        // file) shared with the decomposer prompt via
+        // DELIVERABLE_GRANULARITY_GUIDANCE.
+        if (
+          !/shippable slice .* reviewer would accept as a single PR/i.test(body)
+        ) {
+          errors.push(
+            'Skill body must define a Story as a shippable slice a reviewer would accept as a single PR (Story #3777)',
+          );
+        }
+        if (!/not a single module or file/i.test(body)) {
+          errors.push(
+            'Skill body must say a Story is NOT a single module or file (Story #3777)',
+          );
+        }
+        if (!/fold module-level slices/i.test(body)) {
+          errors.push(
+            'Skill body must instruct folding module-level slices into the capability (Story #3777)',
+          );
+        }
+        // Story #3777 — the single-consumer merge rule.
+        if (!/single-consumer merge rule/i.test(body)) {
+          errors.push(
+            'Skill body must state the single-consumer merge rule (Story #3777)',
+          );
+        }
+        if (!/merged into that sibling/i.test(body)) {
+          errors.push(
+            'Skill body must say a single-consumer Story is merged into that sibling (Story #3777)',
+          );
+        }
+        // Story #3777 — the single-Story-Feature HARD rejection.
+        if (
+          !/Feature MUST (decompose into|contain) (at least )?(two|TWO)/i.test(
+            body,
+          )
+        ) {
+          errors.push(
+            'Skill body must require every Feature to decompose into at least two Stories (Story #3777)',
+          );
+        }
         // Story #3263 — SKILL must document hyphen-case slug format.
         if (!/hyphen[-\s]case|\\^\\[a-z0-9\\]|a-z0-9.*-/i.test(body)) {
           errors.push(

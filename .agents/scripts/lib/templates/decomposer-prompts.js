@@ -1,5 +1,8 @@
 import { LIMITS_DEFAULTS } from '../config/limits.js';
-import { DEFAULT_TASK_SIZING } from '../orchestration/ticket-validator-sizing.js';
+import {
+  DEFAULT_TASK_SIZING,
+  DELIVERABLE_GRANULARITY_GUIDANCE,
+} from '../orchestration/ticket-validator-sizing.js';
 
 /**
  * Sole source of truth for the prompt's `maxTickets` cap is the resolved
@@ -29,6 +32,12 @@ function render3TierPrompt({ maxTickets }) {
   // (ticket-validator-sizing.js) so the prompt and the validator cannot drift.
   const { softFiles, hardFiles, maxAcceptance, softAcceptanceCount } =
     DEFAULT_TASK_SIZING;
+  // Deliverable-granularity definition + single-consumer merge rule are
+  // sourced from the single DELIVERABLE_GRANULARITY_GUIDANCE constant
+  // (ticket-validator-sizing.js) so the prompt and the authoring SKILL
+  // cannot drift (Story #3777).
+  const { definition: granularityDefinition, singleConsumerRule } =
+    DELIVERABLE_GRANULARITY_GUIDANCE;
   return `You are an expert Senior Project Manager and Orchestrator.
 Your job is to take a Product Requirements Document (PRD) and a Technical Specification and decompose them into a highly-granular 2-level ticket hierarchy for an AI Agent to execute.
 
@@ -82,12 +91,15 @@ For stories, \`body\` is a STRUCTURED OBJECT, not a string. Stories are consumed
 
 #### STORY SIZING — COHESION FIRST (the numeric ceiling is only a backstop):
 
+**Decompose at deliverable granularity, not module/task level.** ${granularityDefinition}
+
 The primary question is **cohesion, not count**: *is this one coherent change with one reason to exist?* File count cannot tell a trivial ${softFiles}-file rename from a hard 3-file parser+caller+config change — so lead with the change's reason, not its size.
 
 - **One Story = one coherent change with one reason to exist.** If you cannot state that reason in a sentence, the Story is probably two Stories — or two Stories that should be one.
-- **Merge a single-consumer downstream Story into its producer.** A Story whose only consumer is the Story right before it is not a separate unit of work; fold it in.
+- ${singleConsumerRule}
 - **Split independent, parallelizable work** into sibling Stories under the same Feature — but only when the pieces genuinely have separate reasons to exist.
 - **Declare \`wide\` with a one-line reason when a change is legitimately broad** (a cohesive cutover that spans many files for one reason). Declaring \`wide\` lifts the hard file-width ceiling — see below.
+- **Every Feature MUST decompose into at least TWO Stories.** A Feature with a single Story is the work of a Story, not a Feature — collapse it (drop the Feature wrapper and attach its lone Story to a sibling Feature, or merge the Feature into another). The validator HARD-rejects a Feature with fewer than two Stories.
 - **Features typically decompose into ≤5 Stories; otherwise split into a sibling Feature.** A Feature stretching past five Stories is a sign the Feature scope is two features.
 
 **Numeric backstop (validator-enforced).** These thresholds are sourced from the single \`DEFAULT_TASK_SIZING\` constant in \`ticket-validator-sizing.js\` — there is no second copy to drift:

@@ -76,6 +76,17 @@ function buildMinimalBacklog() {
       acceptance: ['story X is implemented'],
       verify: ['node --test'],
     },
+    // Story #3777 — a Feature MUST carry >=2 Stories, so the minimal valid
+    // backlog has a second well-formed Story under feat-x.
+    {
+      slug: 'story-x2',
+      type: 'story',
+      title: 'story X2',
+      parent_slug: 'feat-x',
+      depends_on: [],
+      acceptance: ['story X2 is implemented'],
+      verify: ['node --test'],
+    },
   ];
 }
 

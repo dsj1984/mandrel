@@ -35,6 +35,23 @@ function makeHierarchy(storyAcceptance) {
         verify: ['npm test (validate)'],
       },
     },
+    // Valid sibling so F1 has >=2 Stories (Story #3777). Its acceptance
+    // prescribes no commit subject, so it never adds a subject-prefix
+    // violation and never perturbs the assertions under test.
+    {
+      slug: 'S2',
+      type: 'story',
+      title: 'Story 2 — subject-prefix filler sibling',
+      parent_slug: 'F1',
+      acceptance: ['npm test exits 0'],
+      verify: ['npm test (validate)'],
+      body: {
+        goal: 'Make a change for S2.',
+        changes: ['.agents/scripts/bar.js: add helper'],
+        acceptance: ['npm test exits 0'],
+        verify: ['npm test (validate)'],
+      },
+    },
   ];
 }
 
@@ -175,6 +192,22 @@ test('validateAndNormalizeTickets: rejects a Story that lacks an inline acceptan
       body: {
         goal: 'Make a change for S1.',
         changes: ['.agents/scripts/foo.js: add helper'],
+      },
+    },
+    // Valid sibling so F1 has >=2 Stories (Story #3777) — the
+    // inline-contract gate, not the single-Story-Feature gate, is what fires.
+    {
+      slug: 'S2',
+      type: 'story',
+      title: 'Story 2 — valid sibling',
+      parent_slug: 'F1',
+      acceptance: ['npm test exits 0'],
+      verify: ['npm test (validate)'],
+      body: {
+        goal: 'Make a change for S2.',
+        changes: ['.agents/scripts/bar.js: add helper'],
+        acceptance: ['npm test exits 0'],
+        verify: ['npm test (validate)'],
       },
     },
   ];
