@@ -250,6 +250,73 @@ describe('qa-ledger.schema.json — captured-but-untriaged lifecycle (Story #373
   });
 });
 
+describe('qa-ledger.schema.json — routedTo finding-to-issue link (Story #3808)', () => {
+  const validate = compile();
+
+  /** A valid routedTo link recording where Triage filed the item. */
+  function routedTo(overrides = {}) {
+    return {
+      issue: 4242,
+      url: 'https://github.com/dsj1984/mandrel/issues/4242',
+      kind: 'story',
+      ...overrides,
+    };
+  }
+
+  it('still accepts an existing item that omits routedTo', () => {
+    const item = validLedgerItem();
+    delete item.routedTo;
+    const ok = validate(item);
+    assert.equal(ok, true, JSON.stringify(validate.errors));
+  });
+
+  it('accepts an item carrying a valid routedTo link', () => {
+    const ok = validate(validLedgerItem({ routedTo: routedTo() }));
+    assert.equal(ok, true, JSON.stringify(validate.errors));
+  });
+
+  it('accepts every routedTo kind', () => {
+    for (const kind of ['story', 'epic', 'issue']) {
+      const ok = validate(validLedgerItem({ routedTo: routedTo({ kind }) }));
+      assert.equal(
+        ok,
+        true,
+        `expected routedTo kind ${kind} to validate: ${JSON.stringify(validate.errors)}`,
+      );
+    }
+  });
+
+  it('rejects a routedTo kind outside the enum', () => {
+    const ok = validate(
+      validLedgerItem({ routedTo: routedTo({ kind: 'pull-request' }) }),
+    );
+    assert.equal(ok, false, 'expected an out-of-enum routedTo.kind to reject');
+  });
+
+  it('rejects a routedTo missing a required subfield', () => {
+    for (const field of ['issue', 'url', 'kind']) {
+      const link = routedTo();
+      delete link[field];
+      const ok = validate(validLedgerItem({ routedTo: link }));
+      assert.equal(ok, false, `expected routedTo missing ${field} to reject`);
+    }
+  });
+
+  it('rejects a routedTo with a non-integer issue number', () => {
+    const ok = validate(
+      validLedgerItem({ routedTo: routedTo({ issue: 'L1' }) }),
+    );
+    assert.equal(ok, false, 'expected a non-integer routedTo.issue to reject');
+  });
+
+  it('rejects an unknown key inside routedTo (additionalProperties:false)', () => {
+    const ok = validate(
+      validLedgerItem({ routedTo: routedTo({ mystery: true }) }),
+    );
+    assert.equal(ok, false, 'expected an unknown routedTo key to reject');
+  });
+});
+
 describe('qa-ledger.schema.json — distinct from qa-finding.schema.json', () => {
   const findingSchema = JSON.parse(readFileSync(FINDING_SCHEMA_PATH, 'utf8'));
 

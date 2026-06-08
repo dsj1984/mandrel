@@ -61,6 +61,29 @@
         "type": "string",
         "pattern": "^L[0-9]+$"
       }
+    },
+    "routedTo": {
+      "type": "object",
+      "description": "Optional finding-to-issue link recording where Triage routed this item. Populated only after the item is promoted to a follow-up ticket (`disposition: file`); omit while the item is still in Capture or was deferred/dismissed. The same link shape is mirrored on `qa-finding.schema.json`.",
+      "additionalProperties": false,
+      "required": ["issue", "url", "kind"],
+      "properties": {
+        "issue": {
+          "type": "integer",
+          "description": "The GitHub issue number the item was routed to.",
+          "minimum": 1
+        },
+        "url": {
+          "type": "string",
+          "description": "The canonical URL of the routed issue.",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "description": "The kind of ticket the item was routed to: a `story`, an `epic`, or a bare `issue`.",
+          "enum": ["story", "epic", "issue"]
+        }
+      }
     }
   }
 }

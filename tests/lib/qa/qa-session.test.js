@@ -274,6 +274,31 @@ describe('untriaged-backlog round-trip — schema validity (Story #3738)', () =>
     }
   });
 
+  it('round-trips a ledger item carrying a routedTo link without dropping it (Story #3808)', () => {
+    const config = configFor(tmpRoot);
+    const ledgerPath = ledgerPathFor('routed', config);
+    const routedTo = {
+      issue: 4242,
+      url: 'https://github.com/dsj1984/mandrel/issues/4242',
+      kind: 'story',
+    };
+    const filed = fullLedgerItem({ id: 'L1', disposition: 'file', routedTo });
+    seedLedger(ledgerPath, [filed]);
+
+    const { items } = readLedger(ledgerPath);
+
+    // The routedTo link survives the read intact …
+    assert.equal(items.length, 1);
+    assert.deepEqual(items[0].routedTo, routedTo);
+    // … and the round-tripped item still satisfies the ledger schema.
+    const ok = validate(items[0]);
+    assert.equal(
+      ok,
+      true,
+      `routed item failed schema: ${JSON.stringify(validate.errors)}`,
+    );
+  });
+
   it('resolveQaSession surfaces a schema-valid untriaged backlog on resume', () => {
     const config = configFor(tmpRoot);
     const ledgerPath = ledgerPathFor('resume-backlog', config);
