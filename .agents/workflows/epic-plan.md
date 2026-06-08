@@ -485,7 +485,35 @@ for the scoring logic.
    authoritative source of the decomposer prompt; the `systemPrompt`
    field on the emit envelope is a backstop for legacy callers.
 
-3. **Persist to GitHub**: Run the decompose CLI's persist half. It
+   When the Tech Spec carries a `## Delivery Slicing` section (authored by
+   `epic-plan-spec-author` in Phase 7), the decompose-author skill authors
+   toward the Architect's proposed shippable-Story clusters; it degrades
+   gracefully when the section is absent.
+
+3. **Phase 8.3 — Holistic Consolidation (HITL diff gate)**: After the
+   draft `temp/epic-[Epic_ID]/tickets.json` exists and **before** the persist
+   call below, activate the
+   [`epic-plan-consolidate`](../skills/core/epic-plan-consolidate/SKILL.md)
+   skill with `[Epic_ID]` as input. This is a **separate critic pass with
+   fresh context** (not a self-review appended to the author skill): it reads
+   the draft array plus the PRD / Tech Spec, reconciles the draft against the
+   Tech Spec `## Delivery Slicing` target, and emits a **consolidated**
+   `tickets.json` plus a human-readable
+   `temp/epic-[Epic_ID]/consolidation-report.md`. Its operations are
+   scope-preserving only — **merge Stories, collapse single-Story Features
+   into siblings, re-parent, rewire `depends_on`** — and it MUST NOT add scope
+   or invent tickets; it resolves single-Story Features by **collapsing**
+   them, never by splitting a lone Story. It runs **before** the deterministic
+   validator (step 4), so the validator re-checks its output and the critic
+   cannot emit an invalid plan.
+
+   **Show the operator the consolidation report (the before/after diff +
+   rationale) before persisting.** Consolidation is never auto-applied without
+   review: on operator approval, persist the consolidated `tickets.json`; on
+   rejection, persist the draft instead. This is a sub-step of Phase 8 — it
+   does **not** renumber the top-level lifecycle phases (9–12).
+
+4. **Persist to GitHub**: Run the decompose CLI's persist half. It
    validates the ticket array (`validateAndNormalizeTickets`), creates
    the Feature/Story issues, flips the Epic to `agent::ready`, and
    writes the `epic-plan-state` checkpoint.
@@ -500,7 +528,7 @@ for the scoring logic.
      --tickets temp/epic-[Epic_ID]/tickets.json --force
    ```
 
-4. **Cross-Validation**:
+5. **Cross-Validation**:
    - Hierarchy completeness, dependency-DAG acyclicity, and `risk::high`
      labelling are deterministic invariants enforced by
      `validateAndNormalizeTickets` in
@@ -541,12 +569,12 @@ for the scoring logic.
        --force
      ```
 
-5. **Audit**:
+6. **Audit**:
    - Check the Epic's comment thread to ensure the backlog summary was posted.
    - Verify that at least one `type::feature` and `type::story` issue
      was created.
 
-6. **Cleanup**: The wrapper script (`epic-plan-decompose.js`) deletes the
+7. **Cleanup**: The wrapper script (`epic-plan-decompose.js`) deletes the
    Phase 8 temp files automatically on success — no operator action required.
    The cleanup contract lives in
    [`lib/plan-phase-cleanup.js`](../scripts/lib/plan-phase-cleanup.js).

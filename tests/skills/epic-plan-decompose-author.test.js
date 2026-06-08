@@ -215,6 +215,45 @@ describe('skill:epic-plan-decompose-author — smoke', () => {
             'Skill body must document hyphen-case slug format (Story #3263)',
           );
         }
+        // Story #3797 — rec #2: a single-Story Feature is resolved by
+        // COLLAPSING into a sibling, never by manufacturing a second Story.
+        if (!/COLLAPSING, not splitting|collapse.*not split/i.test(body)) {
+          errors.push(
+            'Skill body must say single-Story Features are resolved by collapsing, not splitting (Story #3797)',
+          );
+        }
+        if (
+          !/Do NOT manufacture a second Story|never by manufacturing|not by splitting/i.test(
+            body,
+          )
+        ) {
+          errors.push(
+            'Skill body must forbid manufacturing a second Story to satisfy the rule (Story #3797)',
+          );
+        }
+        // Story #3797 — the decompose-author consumes the Tech Spec
+        // "Delivery Slicing" section as the target grouping when present and
+        // degrades gracefully when absent.
+        if (!/Delivery Slicing/.test(body)) {
+          errors.push(
+            'Skill body must consume the Tech Spec "Delivery Slicing" target grouping (Story #3797)',
+          );
+        }
+        if (
+          !/degrade gracefully|graceful(ly)?[- ]degrade|when .*absent/i.test(
+            body,
+          )
+        ) {
+          errors.push(
+            'Skill body must degrade gracefully when Delivery Slicing is absent (Story #3797)',
+          );
+        }
+        // Story #3797 — name the consolidation pass that reconciles the draft.
+        if (!/epic-plan-consolidate/.test(body)) {
+          errors.push(
+            'Skill body must reference the epic-plan-consolidate Phase 8 pass (Story #3797)',
+          );
+        }
         return { ok: errors.length === 0, errors };
       },
     });

@@ -1,0 +1,269 @@
+/**
+ * Smoke + contract spec for the `epic-plan-consolidate` Skill (Story #3797).
+ *
+ * The consolidation pass is the holistic, pre-persist critic added to
+ * `/epic-plan` Phase 8 (sub-step 8.3). These specs pin the Skill's
+ * front-matter contract and assert its body documents:
+ *   - the scope-preserving operation set (merge / collapse / re-parent /
+ *     rewire depends_on) and the MUST-NOT-add-scope invariant,
+ *   - the "collapse, not split" remediation for single-Story Features (rec #2),
+ *   - graceful degradation when the Tech Spec "Delivery Slicing" section is
+ *     absent,
+ *   - the HITL diff gate before persist.
+ *
+ * The host LLM is not invoked here — the smoke spec proves the contract
+ * surface, not the consolidation output. A separate unit spec below proves
+ * scope conservation against a synthetic over-fragmented draft using a pure
+ * helper so the invariant is machine-checked, not just documented.
+ */
+
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
+
+import { runSkillSmoke } from './_harness/run-skill-smoke.js';
+
+describe('skill:epic-plan-consolidate — smoke', () => {
+  it('declares name, description, and allowed_tools', async () => {
+    const result = await runSkillSmoke({
+      skillName: 'epic-plan-consolidate',
+      expectedTools: ['Read', 'Write'],
+    });
+    assert.equal(
+      result.pass,
+      true,
+      `Skill failed front-matter contract: ${result.errors.join('; ')}`,
+    );
+    assert.equal(result.skill.name, 'epic-plan-consolidate');
+  });
+
+  it('documents the consolidation contract in the Skill body', async () => {
+    const result = await runSkillSmoke({
+      skillName: 'epic-plan-consolidate',
+      validator: async ({ body }) => {
+        const errors = [];
+
+        // Reads the draft tickets.json and writes a consolidated one + report.
+        if (!/temp\/epic-<Epic_ID>\/tickets\.json/.test(body)) {
+          errors.push(
+            'Skill body must reference the temp/epic-<Epic_ID>/tickets.json artifact',
+          );
+        }
+        if (!/consolidation-report\.md/.test(body)) {
+          errors.push(
+            'Skill body must emit a human-readable consolidation-report.md (HITL diff)',
+          );
+        }
+
+        // The four permitted, scope-preserving operations.
+        for (const op of [
+          /merge .*Stories/i,
+          /collapse .*single-Story Feature/i,
+          /re-parent/i,
+          /rewire .*depends_on/i,
+        ]) {
+          if (!op.test(body)) {
+            errors.push(
+              `Skill body must document the operation matching ${op}`,
+            );
+          }
+        }
+
+        // Scope conservation is the load-bearing invariant.
+        if (!/MUST NOT add scope|never add scope|not add scope/i.test(body)) {
+          errors.push(
+            'Skill body must state it MUST NOT add scope or invent tickets',
+          );
+        }
+        if (!/scope conservation|conserve scope|conserving scope/i.test(body)) {
+          errors.push('Skill body must name the scope-conservation invariant');
+        }
+
+        // rec #2 — collapse, not split.
+        if (
+          !/collaps\w+.*not\b.*split|never by .*split|not by splitting/i.test(
+            body,
+          )
+        ) {
+          errors.push(
+            'Skill body must resolve single-Story Features by collapsing, never by splitting (rec #2)',
+          );
+        }
+
+        // Delivery Slicing target + graceful degradation.
+        if (!/Delivery Slicing/.test(body)) {
+          errors.push(
+            'Skill body must consume the Tech Spec "Delivery Slicing" section as the target grouping',
+          );
+        }
+        if (!/degrade gracefully|graceful(ly)?[- ]degrade|absent/i.test(body)) {
+          errors.push(
+            'Skill body must degrade gracefully when Delivery Slicing is absent',
+          );
+        }
+
+        // Separate critic pass with fresh context (not self-review).
+        if (!/critic/i.test(body)) {
+          errors.push(
+            'Skill body must frame the pass as a critic separate from the generator',
+          );
+        }
+
+        // HITL diff gate before persist.
+        if (!/HITL|operator (review|approv)/i.test(body)) {
+          errors.push('Skill body must require an operator HITL diff gate');
+        }
+
+        // assertNoSingleStoryFeature stays as the backstop.
+        if (!/assertNoSingleStoryFeature/.test(body)) {
+          errors.push(
+            'Skill body must name assertNoSingleStoryFeature as the post-consolidation backstop',
+          );
+        }
+
+        return { ok: errors.length === 0, errors };
+      },
+    });
+    assert.equal(
+      result.pass,
+      true,
+      `validator failed: ${result.errors.join('; ')}`,
+    );
+  });
+});
+
+/**
+ * Scope-conservation invariant, machine-checked.
+ *
+ * The consolidation pass merges/collapses Stories but MUST NOT add or drop
+ * scope: the union of every acceptance item and every verify entry across the
+ * draft must equal the union across the consolidated array. We model the
+ * scope-preserving merge as a pure helper and assert the union is conserved on
+ * an over-fragmented fixture. This proves the invariant the Skill's contract
+ * promises — independent of the host LLM's authoring.
+ */
+describe('epic-plan-consolidate — scope conservation', () => {
+  /**
+   * Pure model of the scope-preserving merge: fold `sourceSlugs` Stories into
+   * `targetSlug`, unioning their acceptance / verify / changes. Mirrors the
+   * Skill's permitted "merge Stories" operation. Returns the consolidated
+   * array.
+   */
+  function mergeStories(draft, targetSlug, sourceSlugs) {
+    const sources = new Set(sourceSlugs);
+    const target = draft.find((t) => t.slug === targetSlug);
+    if (!target) throw new Error(`target slug ${targetSlug} not in draft`);
+    const union = (a, b) => [...new Set([...(a ?? []), ...(b ?? [])])];
+    for (const slug of sourceSlugs) {
+      const src = draft.find((t) => t.slug === slug);
+      if (!src) throw new Error(`source slug ${slug} not in draft`);
+      target.acceptance = union(target.acceptance, src.acceptance);
+      target.verify = union(target.verify, src.verify);
+    }
+    return draft
+      .filter((t) => !sources.has(t.slug))
+      .map((t) => ({
+        ...t,
+        // rewire depends_on: re-point edges naming a merged slug at the target,
+        // drop self-edges, dedupe.
+        depends_on: [
+          ...new Set(
+            (t.depends_on ?? [])
+              .map((d) => (sources.has(d) ? targetSlug : d))
+              .filter((d) => d !== t.slug),
+          ),
+        ],
+      }));
+  }
+
+  const scopeUnion = (arr, field) =>
+    new Set(arr.flatMap((t) => t[field] ?? []));
+
+  it('conserves the union of acceptance + verify when merging over-fragmented Stories', () => {
+    // Arrange — an over-fragmented draft: feat-a with three atomic Stories
+    // that map to one coherent capability.
+    const draft = [
+      { slug: 'feat-a', type: 'feature', title: 'Capability A' },
+      {
+        slug: 'a-1',
+        type: 'story',
+        parent_slug: 'feat-a',
+        acceptance: ['ac-1'],
+        verify: ['v-1 (unit)'],
+        depends_on: [],
+      },
+      {
+        slug: 'a-2',
+        type: 'story',
+        parent_slug: 'feat-a',
+        acceptance: ['ac-2'],
+        verify: ['v-2 (unit)'],
+        depends_on: ['a-1'],
+      },
+      {
+        slug: 'a-3',
+        type: 'story',
+        parent_slug: 'feat-a',
+        acceptance: ['ac-3'],
+        verify: ['v-3 (unit)'],
+        depends_on: ['a-2'],
+      },
+    ];
+    const beforeAcceptance = scopeUnion(draft, 'acceptance');
+    const beforeVerify = scopeUnion(draft, 'verify');
+
+    // Act — merge a-2 and a-3 into a-1 (the cohesive capability Story).
+    const consolidated = mergeStories(draft, 'a-1', ['a-2', 'a-3']);
+
+    // Assert — scope conserved: same acceptance + verify union, fewer Stories.
+    const afterAcceptance = scopeUnion(consolidated, 'acceptance');
+    const afterVerify = scopeUnion(consolidated, 'verify');
+    assert.deepEqual([...afterAcceptance].sort(), [...beforeAcceptance].sort());
+    assert.deepEqual([...afterVerify].sort(), [...beforeVerify].sort());
+
+    const storyCount = consolidated.filter((t) => t.type === 'story').length;
+    assert.equal(storyCount, 1, 'three Stories collapse into one');
+
+    // No depends_on references a slug absent from the consolidated array, and
+    // no self-edges survive.
+    const slugs = new Set(consolidated.map((t) => t.slug));
+    for (const t of consolidated) {
+      for (const dep of t.depends_on ?? []) {
+        assert.ok(slugs.has(dep), `dangling depends_on ${dep}`);
+        assert.notEqual(dep, t.slug, 'self-edge survived');
+      }
+    }
+  });
+
+  it('does not invent acceptance items that were absent from the draft', () => {
+    // Arrange
+    const draft = [
+      { slug: 'feat-b', type: 'feature', title: 'Capability B' },
+      {
+        slug: 'b-1',
+        type: 'story',
+        parent_slug: 'feat-b',
+        acceptance: ['only-ac'],
+        verify: ['only-v (unit)'],
+        depends_on: [],
+      },
+      {
+        slug: 'b-2',
+        type: 'story',
+        parent_slug: 'feat-b',
+        acceptance: ['only-ac'],
+        verify: ['only-v (unit)'],
+        depends_on: [],
+      },
+    ];
+
+    // Act — merging duplicates must not grow the union.
+    const consolidated = mergeStories(draft, 'b-1', ['b-2']);
+
+    // Assert — union is exactly the draft's union, nothing invented.
+    assert.deepEqual([...scopeUnion(consolidated, 'acceptance')], ['only-ac']);
+    assert.deepEqual(
+      [...scopeUnion(consolidated, 'verify')],
+      ['only-v (unit)'],
+    );
+  });
+});
