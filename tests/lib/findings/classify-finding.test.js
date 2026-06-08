@@ -117,16 +117,24 @@ test('classifyFinding resolves severity case- and whitespace-insensitively', () 
   assert.equal(result.severity, 'high');
 });
 
-test('classifyFinding defaults an absent severity to unknown (never silent low)', () => {
-  assert.equal(classifyFinding({ class: 'product-bug' }).severity, 'unknown');
+test('classifyFinding defaults an absent/unrecognised severity to the canonical floor (info)', () => {
+  // Story #3816: the canonical vocabulary is `critical|high|medium|low|info`
+  // (matching the qa-ledger/qa-finding schemas); the non-canonical `unknown`
+  // sentinel is gone. An absent or unrecognised severity resolves to `info`,
+  // the canonical floor, identically on the classify and promote paths.
+  assert.equal(classifyFinding({ class: 'product-bug' }).severity, 'info');
   assert.equal(
     classifyFinding({ class: 'product-bug', severity: 42 }).severity,
-    'unknown',
+    'info',
   );
   assert.equal(
     classifyFinding({ class: 'product-bug', severity: 'bogus' }).severity,
-    'unknown',
+    'info',
   );
+});
+
+test('SEVERITIES is the canonical schema vocabulary, highest → lowest', () => {
+  assert.deepEqual(SEVERITIES, ['critical', 'high', 'medium', 'low', 'info']);
 });
 
 test('carrying a severity does not drop the existing class-to-label mapping', () => {

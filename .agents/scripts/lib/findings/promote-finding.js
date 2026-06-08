@@ -27,6 +27,7 @@
  */
 
 import { fingerprintFinding, routeFinding } from './route-finding.js';
+import { highestSeverity as highestSeverityOf } from './severity.js';
 
 /** Triaged dispositions, mirrored from the `disposition` enum in the schema. */
 const TRIAGED_DISPOSITIONS = Object.freeze(['file', 'defer', 'dismiss']);
@@ -84,37 +85,17 @@ function clusterKeyFor(item) {
 }
 
 /**
- * Rank a severity for "highest wins" within a cluster. Mirrors the
- * critical → info ordering of the schema's `severity` enum.
- */
-const SEVERITY_RANK = Object.freeze({
-  critical: 4,
-  high: 3,
-  medium: 2,
-  low: 1,
-  info: 0,
-});
-
-/**
- * The highest severity present across a cluster's items.
+ * The highest severity present across a cluster's items, resolved through the
+ * shared canonical {@link ./severity.js} vocabulary (Story #3816). This module
+ * no longer declares its own severity rank table — the ordering lives in one
+ * place so a cluster severity and a `classify-finding` severity for the same
+ * input are identical, keeping the `fingerprintFinding` identity stable.
  *
  * @param {Array<{ severity?: string }>} items
- * @returns {string}
+ * @returns {string} one of the canonical severities.
  */
 function highestSeverity(items) {
-  let best = 'info';
-  let bestRank = -1;
-  for (const item of items) {
-    const sev = String(item?.severity ?? 'info')
-      .trim()
-      .toLowerCase();
-    const rank = SEVERITY_RANK[sev] ?? -1;
-    if (rank > bestRank) {
-      bestRank = rank;
-      best = sev;
-    }
-  }
-  return best;
+  return highestSeverityOf(items.map((item) => item?.severity));
 }
 
 /**
@@ -215,14 +196,29 @@ function clusterToFinding(cluster) {
 /**
  * Build the `routedTo` link the schema stamps onto a promoted ledger item.
  *
+ * The `routedTo.url` field is `minLength: 1` in both `qa-finding.schema.json`
+ * and `qa-ledger.schema.json`, and the search/create port contract requires a
+ * routed issue to carry its canonical URL. So rather than silently stamp an
+ * empty string (which would persist a schema-invalid ledger item), this guards
+ * the url and throws when it is absent or blank (Story #3816, AC #4).
+ *
  * @param {{ number: number, url?: string }} issue
  * @param {'story'|'epic'|'issue'} kind
  * @returns {{ issue: number, url: string, kind: string }}
+ * @throws {Error} when the routed issue has no non-empty `url`.
  */
 function routedToLink(issue, kind) {
+  const url = typeof issue?.url === 'string' ? issue.url.trim() : '';
+  if (url.length === 0) {
+    throw new Error(
+      `promoteFindings: routed issue #${issue?.number ?? '?'} is missing a url; ` +
+        'the search/create port contract requires a non-empty url ' +
+        '(routedTo.url is minLength:1 in the qa-finding/qa-ledger schemas)',
+    );
+  }
   return {
     issue: issue.number,
-    url: issue.url ?? '',
+    url,
     kind,
   };
 }

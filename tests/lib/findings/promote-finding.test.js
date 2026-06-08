@@ -10,6 +10,7 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { classifyFinding } from '../../../.agents/scripts/lib/findings/classify-finding.js';
 import {
   __testing,
   clusterLedgerItems,
@@ -18,7 +19,11 @@ import {
   promoteFindings,
   targetForCluster,
 } from '../../../.agents/scripts/lib/findings/promote-finding.js';
-import { fingerprintFooter } from '../../../.agents/scripts/lib/findings/route-finding.js';
+import {
+  fingerprintFinding,
+  fingerprintFooter,
+} from '../../../.agents/scripts/lib/findings/route-finding.js';
+import { SEVERITIES } from '../../../.agents/scripts/lib/findings/severity.js';
 
 /** A captured-but-untriaged ledger item (rolling backlog). */
 function untriagedItem(overrides = {}) {
@@ -347,4 +352,85 @@ test('promoteFindings: runs offline through injected ports (AC #3)', async () =>
   });
   assert.equal(networkTouched, false);
   assert.equal(result.promotions[0].issue, 500);
+});
+
+test('AC #3: classify and promote agree on the severity fed to fingerprintFinding → stable SHA', () => {
+  // The same finding, routed through `classify-finding` and through
+  // `promote-finding`, MUST produce the identical severity string, so the
+  // `fingerprintFinding` identity (which includes `severity`) is path-stable.
+  // Cover every canonical level plus unrecognised/absent inputs.
+  const inputs = [...SEVERITIES, 'BoGuS', undefined];
+  for (const severity of inputs) {
+    const label = String(severity);
+    const item = untriagedItem({ id: 'L1', class: 'product-bug', severity });
+
+    // classify path
+    const classifySeverity = classifyFinding({
+      class: item.class,
+      severity,
+    }).severity;
+
+    // promote path — the cluster severity is what clusterToFinding feeds to
+    // fingerprintFinding.
+    const [cluster] = clusterLedgerItems([item]);
+    const promoteSeverity = __testing.clusterToFinding(cluster).severity;
+
+    assert.equal(
+      classifySeverity,
+      promoteSeverity,
+      `severity agrees across paths for input "${label}"`,
+    );
+
+    const base = { title: 't', area: 'a', primaryFile: 'f', labels: ['x'] };
+    const shaFromClassify = fingerprintFinding({
+      ...base,
+      severity: classifySeverity,
+    }).full;
+    const shaFromPromote = fingerprintFinding({
+      ...base,
+      severity: promoteSeverity,
+    }).full;
+    assert.equal(
+      shaFromClassify,
+      shaFromPromote,
+      `fingerprint is stable across paths for input "${label}"`,
+    );
+  }
+});
+
+test('AC #4: a routed issue with no url throws rather than stamping an empty routedTo.url', async () => {
+  const items = [untriagedItem({ id: 'L1' })];
+  const { searchIssues } = makeIssueStore([]); // empty → route is `new`
+  await assert.rejects(
+    () =>
+      promoteFindings(items, {
+        searchIssues,
+        createStory: async () => ({ number: 77 }), // no url — violates contract
+        createEpic: async () => ({ number: 88 }),
+      }),
+    /missing a url/,
+  );
+  // The item must NOT have been stamped with a schema-invalid routedTo.
+  assert.equal(items[0].routedTo, undefined);
+});
+
+test('AC #4: a matched issue with a blank url throws rather than stamping it', async () => {
+  const items = [untriagedItem({ id: 'L1' })];
+  const [cluster] = clusterLedgerItems(items);
+  const { full: sha } = __testing.fingerprintFinding(
+    __testing.clusterToFinding(cluster),
+  );
+  // An open match whose url is blank must be rejected, not persisted empty.
+  const { searchIssues } = makeIssueStore([
+    { number: 42, state: 'open', fingerprint: sha, url: '   ' },
+  ]);
+  await assert.rejects(
+    () =>
+      promoteFindings(items, {
+        searchIssues,
+        createStory: makeCreatePort(101, 'story').port,
+        createEpic: makeCreatePort(201, 'epic').port,
+      }),
+    /missing a url/,
+  );
 });
