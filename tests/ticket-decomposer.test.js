@@ -11,10 +11,13 @@ import {
   orderTicketsForCreation,
   resolveDependencies,
 } from '../.agents/scripts/epic-plan-decompose.js';
+import { DELIVERABLE_GRANULARITY_GUIDANCE } from '../.agents/scripts/lib/orchestration/ticket-validator-sizing.js';
 import { renderDecomposerSystemPrompt } from '../.agents/scripts/lib/templates/decomposer-prompts.js';
 
 // 3-tier (Epic #3238): Feature → Story, with the Story carrying its inline
 // acceptance + verify contract and a structured body. There is no Task tier.
+// Story #3777 — a Feature MUST decompose into >=2 Stories, so the base
+// fixture carries two well-formed Stories under f1.
 const baseTickets = () => [
   {
     slug: 'f1',
@@ -35,6 +38,21 @@ const baseTickets = () => [
       goal: 'Body of Story One',
       changes: ['src/one.js: edit'],
       acceptance: ['Story One is implemented'],
+      verify: ['npm test (unit)'],
+    },
+  },
+  {
+    slug: 's1b',
+    type: 'story',
+    title: 'Story One-B',
+    labels: ['type::story', 'persona::fullstack', 'complexity::fast'],
+    parent_slug: 'f1',
+    acceptance: ['Story One-B is implemented'],
+    verify: ['npm test (unit)'],
+    body: {
+      goal: 'Body of Story One-B',
+      changes: ['src/one-b.js: edit'],
+      acceptance: ['Story One-B is implemented'],
       verify: ['npm test (unit)'],
     },
   },
@@ -124,14 +142,15 @@ describe('ticket-decomposer orchestration (v5.6+)', () => {
 
   it('creates Feature/Story tickets from an authored array', async () => {
     // 3-tier (Epic #3238): the decomposer emits only Features and Stories;
-    // the Story carries its inline acceptance + verify contract. There is
-    // no Task tier, so the authored backlog yields exactly two tickets.
+    // each Story carries its inline acceptance + verify contract. There is
+    // no Task tier. Story #3777 requires >=2 Stories per Feature, so the
+    // base fixture yields one Feature plus two Stories (three tickets).
     await decomposeEpic(1, mockProvider, { tickets: baseTickets() });
 
     assert.equal(
       mockProvider.createdTickets.length,
-      2,
-      'Should create exactly two tickets (Feature, Story)',
+      3,
+      'Should create exactly three tickets (Feature + two Stories)',
     );
 
     const f1 = mockProvider.createdTickets[0];
@@ -360,7 +379,7 @@ describe('ticket-decomposer orchestration (v5.6+)', () => {
     const titles = mockProvider.createdTickets.map((c) => c.ticketData.title);
     assert.deepEqual(
       titles,
-      ['Story One', 'Story Two'],
+      ['Story One', 'Story One-B', 'Story Two'],
       'only the missing stories should be created',
     );
     const s2 = mockProvider.createdTickets.find(
@@ -687,6 +706,57 @@ describe('ticket-decomposer buildDecomposerSystemPrompt', () => {
     assert.ok(
       !/profileCeilings|test.surface.overflow|large.test.surface/i.test(prompt),
       'prompt must not restate the retired profileCeilings / testSurface gates',
+    );
+  });
+
+  it('carries the deliverable-granularity definition from the shared constant (Story #3777)', () => {
+    const prompt = buildDecomposerSystemPrompt([]);
+    assert.ok(
+      /shippable slice .* reviewer would accept as a single PR/i.test(prompt),
+      'prompt must define a Story as a shippable slice a reviewer would accept as a single PR',
+    );
+    assert.ok(
+      /not a single module or file/i.test(prompt),
+      'prompt must say a Story is NOT a single module or file',
+    );
+    assert.ok(
+      /fold module-level slices/i.test(prompt),
+      'prompt must instruct folding module-level slices into the capability',
+    );
+  });
+
+  it('carries the single-consumer merge rule (Story #3777)', () => {
+    const prompt = buildDecomposerSystemPrompt([]);
+    assert.ok(
+      /single-consumer merge rule/i.test(prompt),
+      'prompt must state the single-consumer merge rule',
+    );
+    assert.ok(
+      /merged into that sibling/i.test(prompt),
+      'prompt must say a single-consumer Story is merged into that sibling',
+    );
+  });
+
+  it('forbids single-Story Features (Story #3777)', () => {
+    const prompt = buildDecomposerSystemPrompt([]);
+    assert.ok(
+      /Feature MUST decompose into at least (two|TWO)/i.test(prompt),
+      'prompt must require every Feature to decompose into at least two Stories',
+    );
+  });
+
+  it('sources the deliverable-granularity guidance from the single shared constant — no drift (Story #3777)', () => {
+    // The prompt interpolates DELIVERABLE_GRANULARITY_GUIDANCE verbatim, so
+    // the exact canonical sentences must appear in the rendered prompt. This
+    // proves the prompt and the validator/SKILL share ONE source of truth.
+    const prompt = buildDecomposerSystemPrompt([]);
+    assert.ok(
+      prompt.includes(DELIVERABLE_GRANULARITY_GUIDANCE.definition),
+      'prompt must interpolate the canonical granularity definition verbatim',
+    );
+    assert.ok(
+      prompt.includes(DELIVERABLE_GRANULARITY_GUIDANCE.singleConsumerRule),
+      'prompt must interpolate the canonical single-consumer rule verbatim',
     );
   });
 });

@@ -20,13 +20,16 @@ function makeStory(slug, parentSlug, extras = {}) {
 }
 
 test('ticket-validator: basic valid hierarchy', () => {
+  // Story #3777 — every Feature MUST carry >=2 Stories, so the canonical
+  // valid hierarchy has two Stories under F1.
   const tickets = [
     { slug: 'F1', type: 'feature', title: 'Feature 1' },
     makeStory('S1', 'F1', { labels: ['complexity::fast'] }),
+    makeStory('S2', 'F1', { labels: ['complexity::fast'] }),
   ];
 
   const result = validateAndNormalizeTickets(tickets);
-  assert.equal(result.length, 2);
+  assert.equal(result.length, 3);
 });
 
 test('ticket-validator: fails on missing types', () => {
@@ -91,9 +94,16 @@ test('ticket-validator: accepts a 3-tier Story (inline acceptance + verify)', ()
       acceptance: ['Observable criterion is met.'],
       verify: ['node --test tests/foo.test.js'],
     }),
+    // Story #3777 — second Story so F1 satisfies the >=2-Story invariant.
+    makeStory('S2', 'F1', {
+      title: '3-tier story sibling',
+      labels: ['complexity::fast'],
+      acceptance: ['Another observable criterion is met.'],
+      verify: ['node --test tests/bar.test.js'],
+    }),
   ];
   const result = validateAndNormalizeTickets(tickets);
-  assert.equal(result.length, 2);
+  assert.equal(result.length, 3);
 });
 
 test('ticket-validator: empty inline arrays do not satisfy the contract', () => {
@@ -109,6 +119,9 @@ test('ticket-validator: empty inline arrays do not satisfy the contract', () => 
       acceptance: [],
       verify: [],
     },
+    // Story #3777 — valid sibling so F1 has >=2 Stories; the inline-contract
+    // gate (not the single-Story-Feature gate) is what fires.
+    makeStory('S2', 'F1', { title: 'Well-formed sibling' }),
   ];
   assert.throws(
     () => validateAndNormalizeTickets(tickets),
@@ -125,6 +138,7 @@ test('ticket-validator: empty inline arrays do not satisfy the contract', () => 
       parent_slug: 'F1',
       acceptance: ['Done.'],
     },
+    makeStory('S2', 'F1', { title: 'Well-formed sibling' }),
   ];
   assert.throws(
     () => validateAndNormalizeTickets(onlyAcceptance),
@@ -218,6 +232,9 @@ test('ticket-validator: fails fast on unknown depends_on slug', () => {
       labels: ['complexity::fast'],
       depends_on: ['MISSING'],
     }),
+    // Story #3777 — valid sibling so F1 has >=2 Stories; the unknown-deps
+    // gate (not the single-Story-Feature gate) is what fires.
+    makeStory('S2', 'F1', { labels: ['complexity::fast'] }),
   ];
   assert.throws(() => validateAndNormalizeTickets(tickets), /unknown slugs/);
 });

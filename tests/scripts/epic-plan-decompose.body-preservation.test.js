@@ -208,6 +208,23 @@ function buildFixtureTickets() {
         verify: ['npm test (unit)'],
       },
     },
+    // Story #3777 — a Feature MUST carry >=2 Stories.
+    {
+      slug: 'story-two',
+      type: 'story',
+      title: 'Story Two',
+      labels: ['type::story'],
+      parent_slug: 'feature-a',
+      depends_on: [],
+      acceptance: ['done'],
+      verify: ['npm test (unit)'],
+      body: {
+        goal: 'do another thing',
+        changes: ['README.md: change another thing'],
+        acceptance: ['done'],
+        verify: ['npm test (unit)'],
+      },
+    },
   ];
 }
 

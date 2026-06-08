@@ -58,18 +58,49 @@ function changes(n, verb = 'edit') {
   return Array.from({ length: n }, (_, i) => `src/file${i}.js: ${verb}`);
 }
 
+/**
+ * Benign filler sibling so every fixture Feature carries >=2 Stories
+ * (Story #3777 `assertNoSingleStoryFeature`). It touches a single unique
+ * path, has a minimal inline contract, and declares no glob / wide — so it
+ * adds ZERO sizing or conflict findings and never perturbs the assertions
+ * under test.
+ */
+const SIBLING_FILLER = Object.freeze({
+  type: 'story',
+  slug: 's-sizing-filler',
+  parent_slug: 'f-sizing',
+  title: 'Sizing fixtures — filler sibling',
+  acceptance: ['filler observable criterion'],
+  verify: ['npm test (unit)'],
+  body: {
+    goal: 'Filler sibling so the Feature has two Stories.',
+    changes: ['src/_sizing-filler.js: edit'],
+    acceptance: ['filler observable criterion'],
+    verify: ['npm test (unit)'],
+  },
+});
+
+/**
+ * Validate a single Story under FEATURE while keeping the Feature at >=2
+ * Stories via the benign filler sibling. Tests that need a custom invalid
+ * story (e.g. the missing-inline-contract case) call
+ * `validateAndNormalizeTickets` directly with their own array.
+ */
+function validateStory(story, opts) {
+  return validateAndNormalizeTickets([FEATURE, story, SIBLING_FILLER], opts);
+}
+
 // ---------------------------------------------------------------------------
 // Narrow Story baseline — no findings
 // ---------------------------------------------------------------------------
 
 test('narrow Story with no wide declaration produces no findings', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
+  const result = validateStory(
     makeStory('t-narrow', {
       changes: ['src/a.js: edit', 'src/b.js: edit', 'src/c.js: edit'],
       acceptance: ['criterion 1', 'criterion 2'],
     }),
-  ]);
+  );
   assert.deepEqual(result.findings, []);
   assert.deepEqual(result.errors, []);
 });
@@ -79,24 +110,22 @@ test('narrow Story with no wide declaration produces no findings', () => {
 // ---------------------------------------------------------------------------
 
 test('Story with 8 acceptance items validates clean (maxAcceptance=8)', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
+  const result = validateStory(
     makeStory('t-8ac', {
       acceptance: Array.from({ length: 8 }, (_, i) => `criterion ${i}`),
     }),
-  ]);
+  );
   const hard = result.findings.filter((f) => f.severity === 'hard');
   assert.deepEqual(hard, []);
   assert.deepEqual(result.errors, []);
 });
 
 test('Story with 9 acceptance items trips hard oversized-task (ceiling=8)', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
+  const result = validateStory(
     makeStory('t-9ac', {
       acceptance: Array.from({ length: 9 }, (_, i) => `criterion ${i}`),
     }),
-  ]);
+  );
   const hard = result.findings.filter(
     (f) => f.kind === 'oversized-task' && f.field === 'acceptance',
   );
@@ -110,12 +139,11 @@ test('Story with 9 acceptance items trips hard oversized-task (ceiling=8)', () =
 });
 
 test('Story with 7 acceptance items emits soft-task-width on acceptance field', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
+  const result = validateStory(
     makeStory('t-7ac-soft', {
       acceptance: Array.from({ length: 7 }, (_, i) => `criterion ${i}`),
     }),
-  ]);
+  );
   const hard = result.findings.filter(
     (f) => f.kind === 'oversized-task' && f.field === 'acceptance',
   );
@@ -133,10 +161,7 @@ test('Story with 7 acceptance items emits soft-task-width on acceptance field', 
 // ---------------------------------------------------------------------------
 
 test('5 files (at softFiles) produces no width finding', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
-    makeStory('t-5files', { changes: changes(5) }),
-  ]);
+  const result = validateStory(makeStory('t-5files', { changes: changes(5) }));
   const widthFindings = result.findings.filter(
     (f) => f.kind === 'wide-undeclared' || f.field === 'fileCount',
   );
@@ -145,10 +170,7 @@ test('5 files (at softFiles) produces no width finding', () => {
 });
 
 test('6 files (>softFiles) with no wide declaration emits wide-undeclared (soft, no rejection)', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
-    makeStory('t-6files', { changes: changes(6) }),
-  ]);
+  const result = validateStory(makeStory('t-6files', { changes: changes(6) }));
   const hard = result.findings.filter((f) => f.severity === 'hard');
   assert.deepEqual(hard, []);
   assert.deepEqual(result.errors, []);
@@ -159,10 +181,9 @@ test('6 files (>softFiles) with no wide declaration emits wide-undeclared (soft,
 });
 
 test('16 files (>hardFiles) with no wide declaration trips hard oversized-task on fileCount', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
+  const result = validateStory(
     makeStory('t-16files', { changes: changes(16) }),
-  ]);
+  );
   const hard = result.findings.filter(
     (f) => f.kind === 'oversized-task' && f.field === 'fileCount',
   );
@@ -176,13 +197,12 @@ test('16 files (>hardFiles) with no wide declaration trips hard oversized-task o
 });
 
 test('16 files WITH a wide declaration lifts the hard ceiling (soft-task-width only)', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
+  const result = validateStory(
     makeStory('t-16files-wide', {
       changes: changes(16),
       wide: { reason: 'hard contract cutover across every call site' },
     }),
-  ]);
+  );
   const hard = result.findings.filter((f) => f.severity === 'hard');
   assert.deepEqual(hard, []);
   assert.deepEqual(result.errors, []);
@@ -196,13 +216,12 @@ test('16 files WITH a wide declaration lifts the hard ceiling (soft-task-width o
 });
 
 test('6 files WITH a wide declaration emits soft-task-width, not wide-undeclared', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
+  const result = validateStory(
     makeStory('t-6files-wide', {
       changes: changes(6),
       wide: { reason: 'legitimately broad: scaffold a new package skeleton' },
     }),
-  ]);
+  );
   const nudge = result.findings.filter((f) => f.kind === 'wide-undeclared');
   assert.deepEqual(nudge, []);
   const soft = result.findings.filter(
@@ -215,13 +234,12 @@ test('6 files WITH a wide declaration emits soft-task-width, not wide-undeclared
 });
 
 test('a wide declaration with an empty reason does NOT lift the hard ceiling', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
+  const result = validateStory(
     makeStory('t-wide-empty-reason', {
       changes: changes(16),
       wide: { reason: '   ' },
     }),
-  ]);
+  );
   const hard = result.findings.filter(
     (f) => f.kind === 'oversized-task' && f.field === 'fileCount',
   );
@@ -234,12 +252,11 @@ test('a wide declaration with an empty reason does NOT lift the hard ceiling', (
 // ---------------------------------------------------------------------------
 
 test('glob entry with no wide declaration emits wide-undeclared (soft)', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
+  const result = validateStory(
     makeStory('t-glob-no-wide', {
       changes: ['**/*.ts: update imports'],
     }),
-  ]);
+  );
   const hard = result.findings.filter((f) => f.severity === 'hard');
   assert.deepEqual(hard, []);
   const nudge = result.findings.filter((f) => f.kind === 'wide-undeclared');
@@ -249,26 +266,24 @@ test('glob entry with no wide declaration emits wide-undeclared (soft)', () => {
 });
 
 test('glob entry WITH a wide declaration produces no wide-undeclared finding', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
+  const result = validateStory(
     makeStory('t-glob-wide', {
       changes: ['**/*.ts: update imports'],
       wide: { reason: 'mechanical sweep: rename across every consumer site' },
     }),
-  ]);
+  );
   const nudge = result.findings.filter((f) => f.kind === 'wide-undeclared');
   assert.deepEqual(nudge, []);
   assert.deepEqual(result.errors, []);
 });
 
 test('glob entries skip the numeric ceiling — 100 globs never trip oversized-task', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
+  const result = validateStory(
     makeStory('t-glob-many', {
       changes: Array.from({ length: 100 }, (_, i) => `src/**/${i}.ts: edit`),
       wide: { reason: 'sweep' },
     }),
-  ]);
+  );
   const hard = result.findings.filter(
     (f) => f.kind === 'oversized-task' && f.field === 'fileCount',
   );
@@ -281,8 +296,7 @@ test('glob entries skip the numeric ceiling — 100 globs never trip oversized-t
 
 test('changes[] with PathEntry object form counts files correctly (not zero)', () => {
   // 6 PathEntry objects, no wide → wide-undeclared (fileCount=6 > softFiles=5).
-  const result = validateAndNormalizeTickets([
-    FEATURE,
+  const result = validateStory(
     makeStory('t-pathentry', {
       changes: [
         { path: 'src/a.js', assumption: 'creates' },
@@ -293,7 +307,7 @@ test('changes[] with PathEntry object form counts files correctly (not zero)', (
         { path: 'src/f.js', assumption: 'refactors-existing' },
       ],
     }),
-  ]);
+  );
   const nudge = result.findings.filter((f) => f.kind === 'wide-undeclared');
   assert.equal(
     nudge.length,
@@ -304,12 +318,11 @@ test('changes[] with PathEntry object form counts files correctly (not zero)', (
 });
 
 test('changes[] with a glob PathEntry object triggers wide-undeclared', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
+  const result = validateStory(
     makeStory('t-glob-pathentry', {
       changes: [{ path: '**/*.js', assumption: 'refactors-existing' }],
     }),
-  ]);
+  );
   const nudge = result.findings.filter((f) => f.kind === 'wide-undeclared');
   assert.equal(nudge.length, 1);
 });
@@ -331,6 +344,7 @@ test('rejects a Story that lacks an inline acceptance + verify contract', () => 
           title: 'Story without inline contract',
           body: { goal: 'Goal.', changes: ['src/a.js: edit'] },
         },
+        SIBLING_FILLER,
       ]),
     /lack an inline acceptance \+ verify contract/,
   );

@@ -303,6 +303,11 @@ test('rejects a Story that lacks an inline acceptance + verify contract', () => 
         changes: ['src/x.js: edit'],
       },
     },
+    // Valid sibling so the Feature has two Stories — the inline-contract
+    // gate (not the single-Story-Feature gate, Story #3777) is what fires.
+    makeStory('s-conf-sibling', {
+      changes: ['src/sibling-conf.js: edit'],
+    }),
   ];
   assert.throws(
     () => validateAndNormalizeTickets(tickets),

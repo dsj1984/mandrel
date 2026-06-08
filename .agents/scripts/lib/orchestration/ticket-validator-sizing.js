@@ -39,6 +39,34 @@ export const DEFAULT_TASK_SIZING = Object.freeze({
 });
 
 /**
+ * `DELIVERABLE_GRANULARITY_GUIDANCE` is the **single source of truth** for the
+ * deliverable-granularity definition of a Story (Story #3777). It is stated
+ * ONCE here and consumed by BOTH the decomposer prompt template
+ * (`.agents/scripts/lib/templates/decomposer-prompts.js`, which interpolates
+ * the string verbatim) AND the authoring SKILL
+ * (`.agents/skills/core/epic-plan-decompose-author/SKILL.md`, whose prose
+ * mirrors these sentences). The SKILL cannot import JS, so the
+ * `epic-plan-decompose-author` smoke test and the `ticket-decomposer` prompt
+ * test both assert the canonical phrasing on each surface — a divergent
+ * restatement fails those gates. This reuses the #3760 single-source
+ * mechanism (one constant, two surfaces, drift-gated by tests).
+ *
+ * The definition: a Story is a **shippable slice a reviewer would accept as a
+ * single PR** — a capability or user-visible surface — not a single module or
+ * file. Module-level slices fold into the capability they belong to, and a
+ * Story whose only consumer is one sibling Story is merged into that sibling
+ * (single-consumer merge rule).
+ */
+export const DELIVERABLE_GRANULARITY_GUIDANCE = Object.freeze({
+  // The one-sentence definition of Story granularity.
+  definition:
+    'A Story is a **shippable slice a reviewer would accept as a single PR** — a capability or user-visible surface — **not a single module or file**. Fold module-level slices into the capability they belong to rather than emitting one Story per module.',
+  // The single-consumer merge rule.
+  singleConsumerRule:
+    '**Single-consumer merge rule.** A Story whose only consumer is one sibling Story should be **merged into that sibling** rather than emitted separately — a single-consumer downstream slice is not its own unit of work.',
+});
+
+/**
  * Returns true when a `changes[]` entry is a glob pattern. Handles both the
  * canonical PathEntry object form `{ path, assumption }` and legacy strings.
  */
