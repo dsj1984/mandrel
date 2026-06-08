@@ -61,6 +61,82 @@ const CLASS_TO_LABELS = Object.freeze({
 });
 
 /**
+ * The closed set of severity values a finding can carry, ordered low → high.
+ * Mirrors the High/Medium/Low taxonomy the audit-* workflows emit (plus the
+ * `critical` extreme). The default is `unknown` so a finding that omits a
+ * severity is never silently treated as low-risk — the absence is explicit.
+ */
+export const SEVERITIES = Object.freeze([
+  'unknown',
+  'low',
+  'medium',
+  'high',
+  'critical',
+]);
+
+/**
+ * Tokens that, when present in a finding's `area`, `labels`, or explicit
+ * `security` flag, mark it as security-relevant. The security signal is
+ * orthogonal to the class → label mapping: a `product-bug` and a `tooling-dx`
+ * finding can both be security-relevant, so this never alters the class route.
+ */
+const SECURITY_TOKENS = Object.freeze([
+  'security',
+  'injection',
+  'xss',
+  'csrf',
+  'auth',
+  'authz',
+  'authentication',
+  'authorization',
+  'secret',
+  'secrets',
+  'vulnerability',
+  'vuln',
+  'cve',
+]);
+
+/**
+ * Resolve a finding's severity to one of {@link SEVERITIES}. An absent,
+ * empty, or unrecognised severity resolves to `unknown` (explicit, not a
+ * silent "low"). Case- and whitespace-insensitive.
+ *
+ * @param {object} finding
+ * @returns {string} one of {@link SEVERITIES}
+ */
+function resolveSeverity(finding) {
+  const raw = finding?.severity;
+  if (typeof raw !== 'string') return 'unknown';
+  const normalized = raw.trim().toLowerCase();
+  return SEVERITIES.includes(normalized) ? normalized : 'unknown';
+}
+
+/**
+ * Detect whether a finding is security-relevant. True when the finding sets an
+ * explicit truthy `security` flag, OR when any of its `area` / `labels`
+ * carries a known security token. Pure string inspection — no network I/O.
+ *
+ * @param {object} finding
+ * @returns {boolean}
+ */
+function resolveSecuritySignal(finding) {
+  if (finding?.security === true) return true;
+
+  const haystack = [];
+  if (typeof finding?.area === 'string') haystack.push(finding.area);
+  if (Array.isArray(finding?.labels)) {
+    for (const label of finding.labels) {
+      if (typeof label === 'string') haystack.push(label);
+    }
+  }
+
+  const normalized = haystack.map((s) => s.toLowerCase());
+  return normalized.some((value) =>
+    SECURITY_TOKENS.some((token) => value.includes(token)),
+  );
+}
+
+/**
  * Resolve the raw `class` field of a finding to a known, non-empty class.
  *
  * @param {object} finding
@@ -88,11 +164,22 @@ function resolveClass(finding) {
 }
 
 /**
- * Classify a finding into exactly one class and route it to its label set.
+ * Classify a finding into exactly one class, route it to its label set, and
+ * carry a severity value plus a security signal alongside.
  *
- * @param {object} finding — a ledger item carrying a `class` field.
- * @returns {{ class: string, labels: string[] }} the resolved class and the
- *   ordered, deduplicated GitHub labels Triage should apply.
+ * The class → label routing is unchanged: every class still maps to exactly
+ * the same label set it always did. `severity` and `security` are additive
+ * signal fields the caller can act on (e.g. escalate a high-severity security
+ * finding) — they never alter the label set, so no existing class-to-label
+ * mapping is dropped.
+ *
+ * @param {object} finding — a ledger item carrying a `class` field, and
+ *   optionally `severity` and a `security` flag / security-relevant `area` /
+ *   `labels`.
+ * @returns {{ class: string, labels: string[], severity: string, security: boolean }}
+ *   the resolved class, the ordered GitHub labels Triage should apply, the
+ *   resolved severity (one of {@link SEVERITIES}; `unknown` when absent), and
+ *   whether the finding is security-relevant.
  * @throws {TypeError|RangeError} on a non-object finding or an
  *   unknown/empty class (never silently defaults).
  */
@@ -101,7 +188,13 @@ export function classifyFinding(finding) {
   return {
     class: findingClass,
     labels: [...CLASS_TO_LABELS[findingClass]],
+    severity: resolveSeverity(finding),
+    security: resolveSecuritySignal(finding),
   };
 }
 
-export const __testing = { CLASS_TO_LABELS };
+export const __testing = {
+  CLASS_TO_LABELS,
+  resolveSeverity,
+  resolveSecuritySignal,
+};

@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-07T01:58:40.931Z",
+  "generatedAt": "2026-06-08T18:47:03.818Z",
   "rollup": {
     "*": {
       "min": 70.566,
-      "p50": 104.272,
-      "p95": 122.198
+      "p50": 104.301,
+      "p95": 121.964
     }
   },
   "rows": [
@@ -645,6 +645,22 @@
     {
       "path": ".agents/scripts/lib/feedback-loop/prior-feedback-fetcher.js",
       "mi": 98.411
+    },
+    {
+      "path": ".agents/scripts/lib/findings/classify-finding.js",
+      "mi": 102.248
+    },
+    {
+      "path": ".agents/scripts/lib/findings/promote-finding.js",
+      "mi": 95.354
+    },
+    {
+      "path": ".agents/scripts/lib/findings/route-finding.js",
+      "mi": 106.71
+    },
+    {
+      "path": ".agents/scripts/lib/findings/semantic-issue-search.js",
+      "mi": 107.762
     },
     {
       "path": ".agents/scripts/lib/gates/baseline-store.js",
@@ -1493,6 +1509,22 @@
     {
       "path": ".agents/scripts/lib/qa/console-allowlist.js",
       "mi": 101.876
+    },
+    {
+      "path": ".agents/scripts/lib/qa/coverage-report.js",
+      "mi": 99.596
+    },
+    {
+      "path": ".agents/scripts/lib/qa/coverage-verdict.js",
+      "mi": 97.713
+    },
+    {
+      "path": ".agents/scripts/lib/qa/qa-context-hydrator.js",
+      "mi": 88.97
+    },
+    {
+      "path": ".agents/scripts/lib/qa/qa-session.js",
+      "mi": 103.062
     },
     {
       "path": ".agents/scripts/lib/qa/resolve-qa-contract.js",
@@ -3195,6 +3227,22 @@
       "mi": 97.465
     },
     {
+      "path": "tests/lib/findings/classify-finding.test.js",
+      "mi": 113.263
+    },
+    {
+      "path": "tests/lib/findings/promote-finding.test.js",
+      "mi": 101.305
+    },
+    {
+      "path": "tests/lib/findings/route-finding.test.js",
+      "mi": 109.772
+    },
+    {
+      "path": "tests/lib/findings/semantic-issue-search.test.js",
+      "mi": 112.758
+    },
+    {
       "path": "tests/lib/fs-mock.js",
       "mi": 128.761
     },
@@ -3931,6 +3979,22 @@
       "mi": 106.271
     },
     {
+      "path": "tests/lib/qa/coverage-report.test.js",
+      "mi": 112.671
+    },
+    {
+      "path": "tests/lib/qa/coverage-verdict.test.js",
+      "mi": 110.602
+    },
+    {
+      "path": "tests/lib/qa/qa-context-hydrator.test.js",
+      "mi": 103.235
+    },
+    {
+      "path": "tests/lib/qa/qa-session.test.js",
+      "mi": 104.87
+    },
+    {
       "path": "tests/lib/recut.test.js",
       "mi": 119.942
     },
@@ -4307,12 +4371,24 @@
       "mi": 98.694
     },
     {
+      "path": "tests/qa-assist-rename.test.js",
+      "mi": 94.127
+    },
+    {
+      "path": "tests/qa-assist-workflow.test.js",
+      "mi": 119.128
+    },
+    {
       "path": "tests/qa-contract-validation.test.js",
       "mi": 116.118
     },
     {
+      "path": "tests/qa-explore-workflow.test.js",
+      "mi": 119.454
+    },
+    {
       "path": "tests/qa-finding-shape.test.js",
-      "mi": 109.886
+      "mi": 108.359
     },
     {
       "path": "tests/qa-harness-selection.test.js",
@@ -4321,6 +4397,10 @@
     {
       "path": "tests/qa-instrumentation-allowlist.test.js",
       "mi": 114.96
+    },
+    {
+      "path": "tests/qa-ledger.test.js",
+      "mi": 109.253
     },
     {
       "path": "tests/quality-preview-staged-scope.test.js",

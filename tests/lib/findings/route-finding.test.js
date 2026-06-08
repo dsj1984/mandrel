@@ -186,3 +186,72 @@ test('routeFinding exposes the fingerprint it routed on', async () => {
   });
   assert.equal(result.fingerprint, sha);
 });
+
+// --- Two-stage routing: semantic candidate pass FIRST, fingerprint SECOND ---
+
+test('routeFinding runs the semantic candidate pass first when a searchCandidates port is supplied', async () => {
+  const calls = [];
+  const { full: sha } = fingerprintFinding(baseFinding);
+  const result = await routeFinding(baseFinding, {
+    searchCandidates: async (finding) => {
+      calls.push('semantic');
+      assert.equal(finding.title, baseFinding.title);
+      return [{ number: 42, state: 'open', body: fingerprintFooter(sha) }];
+    },
+    searchIssues: async () => {
+      calls.push('fingerprint');
+      return [];
+    },
+  });
+  // Semantic port ran; the fingerprint-only lookup did NOT (candidates came
+  // from the semantic pass, then were confirmed by footer in-process).
+  assert.deepEqual(calls, ['semantic']);
+  assert.equal(result.decision, 'update-existing');
+  assert.equal(result.matchedIssue.number, 42);
+});
+
+test('routeFinding fingerprint-confirms the semantic candidate pool (drops a similar-but-unrelated hit)', async () => {
+  const result = await routeFinding(baseFinding, {
+    searchCandidates: async () => [
+      // Semantically similar title, but the body carries no fingerprint footer.
+      { number: 7, state: 'open', title: 'SQL injection in login', body: '' },
+    ],
+  });
+  assert.equal(result.decision, 'new');
+  assert.equal(result.matchedIssue, null);
+});
+
+test('routeFinding routes a closed semantic candidate to regression-of-closed', async () => {
+  const { full: sha } = fingerprintFinding(baseFinding);
+  const result = await routeFinding(baseFinding, {
+    searchCandidates: async () => [
+      { number: 99, state: 'closed', body: fingerprintFooter(sha) },
+    ],
+  });
+  assert.equal(result.decision, 'regression-of-closed');
+  assert.equal(result.matchedIssue.number, 99);
+});
+
+test('routeFinding preserves the decision enum across both ports', async () => {
+  const { full: sha } = fingerprintFinding(baseFinding);
+  const footer = fingerprintFooter(sha);
+  const viaSemantic = await routeFinding(baseFinding, {
+    searchCandidates: async () => [
+      { number: 1, state: 'open', body: footer },
+      { number: 2, state: 'open', body: footer },
+    ],
+  });
+  const viaFingerprint = await routeFinding(baseFinding, {
+    searchIssues: async () => [
+      { number: 1, state: 'open', body: footer },
+      { number: 2, state: 'open', body: footer },
+    ],
+  });
+  assert.equal(viaSemantic.decision, 'duplicate');
+  assert.equal(viaFingerprint.decision, 'duplicate');
+});
+
+test('routeFinding throws when neither a searchCandidates nor a searchIssues port is supplied', async () => {
+  await assert.rejects(() => routeFinding(baseFinding, {}));
+  await assert.rejects(() => routeFinding(baseFinding));
+});

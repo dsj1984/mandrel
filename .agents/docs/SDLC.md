@@ -975,37 +975,52 @@ The acceptance tier is executed and reported via
 epic evidence by
 [`workflows/helpers/epic-testing.md`](../workflows/helpers/epic-testing.md).
 
-### QA workflows: explore vs. run-harness
+### QA workflows: explore, assist, and run-harness
 
-Two complementary QA workflows sit alongside the automated test pyramid, both
-adopting the `qa-engineer` persona and both reading the consumer's `qa.*`
-project contract from `.agentrc.json`:
+Three complementary QA workflows sit alongside the automated test pyramid, all
+adopting the `qa-engineer` persona and all reading the consumer's `qa.*`
+project contract from `.agentrc.json`. The first two are exploratory siblings
+that differ on **who drives** the session; the third steps a known scenario
+set:
 
 - **[`workflows/qa-explore.md`](../workflows/qa-explore.md)** (`/qa-explore`) — an
-  open-ended, human-in-the-loop **Plan → Capture → Triage** exploratory sweep.
-  The operator names a surface; the agent probes it for product bugs,
-  environment-setup friction, tooling/DX gaps, missing tests, and enhancement
-  ideas. Each observation is recorded as a `QaLedgerItem` against
+  **agent-led**, open-ended **Plan → Capture → Triage** exploratory sweep.
+  The operator names a surface; the **agent drives** it (through the browser
+  MCP by default, or statically as a documented interim), probing for product
+  bugs, environment-setup friction, tooling/DX gaps, missing tests, and
+  enhancement ideas. Each observation is recorded as a `QaLedgerItem` against
   [`schemas/qa-ledger.schema.json`](../schemas/qa-ledger.schema.json) and appended
   to a **session ledger** at `temp/qa/<sessionId>.ndjson` (one item per ndjson
   line, under `project.paths.tempRoot`, gitignored, never committed). Capture
   is strictly **read-only** — the ledger append is its only write — so every
   state-changing action (filing a follow-up ticket, mutating a label) lands in
-  Triage, and only after explicit operator confirmation. Every phase
-  transition is operator-gated. Deterministic Node helpers under
-  `scripts/lib/qa/` (session resolution, evidence redaction, coverage verdict,
-  missing-test proposal) and `scripts/lib/findings/` (classification,
-  dedup/route — the same dedup implementation shared with `audit-to-stories`)
-  make the decisions; the agent never re-derives them in prose. A resumed
-  session appends and carries its un-triaged backlog forward as a rolling
-  backlog.
+  Triage, and only after explicit operator confirmation. The session is
+  HITL-gated: every phase transition is operator-gated. Deterministic Node
+  helpers under `scripts/lib/qa/` (session resolution, evidence redaction,
+  coverage verdict, missing-test proposal) and `scripts/lib/findings/`
+  (classification, dedup/route — the same dedup implementation shared with
+  `audit-to-stories`) make the decisions; the agent never re-derives them in
+  prose. A resumed session appends and carries its un-triaged backlog forward
+  as a rolling backlog.
+- **[`workflows/qa-assist.md`](../workflows/qa-assist.md)** (`/qa-assist`) — the
+  **human-led** sibling of `/qa-explore`: a single-observation
+  **Intake → Enrich → Record** loop. Here the **human drives** — the operator
+  reports one observation they hit (a bug, a flaky behavior, a "this feels
+  off") and the agent enriches it into a triage-ready `QaLedgerItem` (a clean
+  repro, a `file:line` root-cause locus, a coverage verdict), asking clarifying
+  questions when the observation is ambiguous, then appends it — after explicit
+  operator confirmation — to a persistent, resumable rolling session under
+  `temp/qa/`. It produces the **same** ledger contract `/qa-explore` writes
+  (`qa-ledger.schema.json`) and reuses the same `scripts/lib/qa/` and
+  `scripts/lib/findings/` decision seams, so a `/qa-assist` item flows through
+  the identical dedup, classification, and promotion machinery later.
 - **[`workflows/qa-run-harness.md`](../workflows/qa-run-harness.md)**
   (`/qa-run-harness`) — the **automated complement**: it steps a *known* set of
   Gherkin `.feature` scenarios through a real browser, asserting `Then`
   outcomes semantically against the accessibility snapshot and bundling
   console/network problems into structured `F#` findings for operator sign-off.
 
-Both workflows resolve the `qa.*` contract through the single seam
+All three workflows resolve the `qa.*` contract through the single seam
 [`scripts/lib/qa/resolve-qa-contract.js`](../scripts/lib/qa/resolve-qa-contract.js).
 The block is **optional in the schema** (so config validation never breaks a
 non-QA consumer) but enforced at run time: the resolver fails **loudly** with

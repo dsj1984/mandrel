@@ -259,7 +259,7 @@ in `runtime-deps.json`.
 | Check registry authoring rules | [§ Self-healing checks](#self-healing-checks) |
 | JSON Schema conventions | [§ Schemas](#schemas) |
 | Bootstrap script (project + GitHub setup) | [`scripts/bootstrap.js`](scripts/bootstrap.js) |
-| Adopt the QA workflows (`/qa-explore`, `/qa-run-harness`) in your project | [§ Adopting the QA harness](#adopting-the-qa-harness) |
+| Adopt the QA workflows (`/qa-explore`, `/qa-assist`, `/qa-run-harness`) in your project | [§ Adopting the QA harness](#adopting-the-qa-harness) |
 | Coordinate two operators on the same repo (lease model) | [§ Multi-developer coordination](#multi-developer-coordination) |
 
 ---
@@ -790,25 +790,43 @@ only affect this repo's own dogfood runs.
 
 ## Adopting the QA harness
 
-Mandrel ships **two** complementary QA loops, both adopting the `qa-engineer`
-persona and both reading the same `qa.*` project contract from `.agentrc.json`:
+Mandrel ships **three** complementary QA loops, all adopting the `qa-engineer`
+persona and all reading the same `qa.*` project contract from `.agentrc.json`.
+Two are exploratory siblings that differ on **who drives**; the third steps a
+known scenario set:
 
-- **`/qa-explore <surface>`** — an open-ended, human-in-the-loop
+- **`/qa-explore <surface>`** — an **agent-led**, open-ended
   **Plan → Capture → Triage** exploratory sweep. The operator names a surface;
-  the agent probes it for product bugs, environment-setup friction, tooling/DX
-  gaps, missing tests, and enhancement ideas, recording each observation as a
-  `QaLedgerItem` against the
+  the **agent drives** it (through the browser MCP by default, or statically as
+  a documented interim), probing for product bugs, environment-setup friction,
+  tooling/DX gaps, missing tests, and enhancement ideas, recording each
+  observation as a `QaLedgerItem` against the
   [`qa-ledger.schema.json`](schemas/qa-ledger.schema.json) contract. Capture is
   strictly read-only — the only write it performs is appending ledger lines to
   the session ledger at **`temp/qa/<sessionId>.ndjson`** (session scratch under
   `project.paths.tempRoot`, gitignored, never committed). Triage then
   classifies, dedups, and routes each item into a `file` / `defer` / `dismiss`
-  disposition; every phase transition and every ticket-filing write is
-  operator-gated. A resumed session (`--session-id <id>`) appends and carries
-  its un-triaged backlog forward. The end-to-end procedure is the SSOT in
+  disposition; the session is HITL-gated — every phase transition and every
+  ticket-filing write is operator-gated. A resumed session
+  (`--session-id <id>`) appends and carries its un-triaged backlog forward. The
+  end-to-end procedure is the SSOT in
   [`workflows/qa-explore.md`](workflows/qa-explore.md), with the deterministic
   decision seams under `scripts/lib/qa/` (session, redaction, coverage,
   missing-test) and `scripts/lib/findings/` (classification, dedup/route).
+- **`/qa-assist`** — the **human-led** sibling of `/qa-explore`: a
+  single-observation **Intake → Enrich → Record** loop. Here the **human
+  drives** — the operator reports one thing they observed (a bug, a flaky
+  behavior, a "this feels off") and the agent enriches it into a triage-ready
+  `QaLedgerItem` (a clean repro, a `file:line` root-cause locus, a coverage
+  verdict), asking clarifying questions when the observation is ambiguous, then
+  appends it — after explicit confirmation — to a persistent, resumable rolling
+  session under `temp/qa/`. It writes the **same** ledger contract `/qa-explore`
+  produces, so a `/qa-assist` item flows through the identical dedup,
+  classification, and promotion machinery later. The end-to-end procedure is
+  the SSOT in [`workflows/qa-assist.md`](workflows/qa-assist.md). Reach for
+  `/qa-assist` when you hit something mid-flight and want it captured well
+  without breaking stride; reach for `/qa-explore` when you want the agent to
+  go hunt a named surface.
 - **`/qa-run-harness <selector>`** — the **automated complement**: it drives a
   consumer's Gherkin `.feature` scenarios through a real browser (the
   `chrome-devtools` MCP surface), captures per-surface console/network into
@@ -820,13 +838,14 @@ persona and both reading the same `qa.*` project contract from `.agentrc.json`:
   architectural overview (run pipeline, contract fields, finding shape) is in
   [`docs/architecture.md` § Agent-driven QA harness](../docs/architecture.md#agent-driven-qa-harness).
 
-Reach for `/qa-explore` for ad-hoc exploration of a freshly delivered
-Story/Feature or a structured bug-hunt you want captured into a triageable
-ledger; reach for `/qa-run-harness` to step a **known** scenario set through
-the browser for a regression pass.
+Reach for `/qa-explore` when you want the **agent** to hunt a freshly delivered
+Story/Feature or run a structured bug-hunt captured into a triageable ledger;
+reach for `/qa-assist` when **you** hit something mid-flight and want it
+enriched into a single triage-ready ledger item; reach for `/qa-run-harness` to
+step a **known** scenario set through the browser for a regression pass.
 
-Binding the QA contract is **opt-in**. Both workflows resolve the consumer's
-`qa` block through the single seam
+Binding the QA contract is **opt-in**. All three workflows resolve the
+consumer's `qa` block through the single seam
 [`resolve-qa-contract.js`](scripts/lib/qa/resolve-qa-contract.js); a consumer
 that has not bound it gets a loud, actionable failure ("this project has not
 bound the QA harness") when either workflow runs — there is no auto-detection
@@ -906,11 +925,11 @@ author `personas` as the object map and supply per-persona overrides:
 environment, never inlined) and `{ signInSkill }` points at a per-persona
 sign-in skill.
 
-Once these three `qa.*` keys are in place, both `/qa-explore <surface>` and
-`/qa-run-harness <selector>` resolve the contract and operate against the
-bound surface. For `/qa-run-harness`, the `chrome-devtools` MCP surface is a
-host-provided runtime dependency; when it is unavailable the harness degrades
-with a clear error rather than falling back to a headless runner.
-`/qa-explore` reads the same `qa.*` keys to scope its exploration and to drive
-the deterministic coverage/missing-test verdicts, then records each
-observation into the `temp/qa/` ledger described above.
+Once these three `qa.*` keys are in place, `/qa-explore <surface>`,
+`/qa-assist`, and `/qa-run-harness <selector>` all resolve the contract and
+operate against the bound surface. For `/qa-run-harness`, the `chrome-devtools`
+MCP surface is a host-provided runtime dependency; when it is unavailable the
+harness degrades with a clear error rather than falling back to a headless
+runner. `/qa-explore` and `/qa-assist` read the same `qa.*` keys to scope their
+work and to drive the deterministic coverage/missing-test verdicts, then record
+each observation into the `temp/qa/` ledger described above.

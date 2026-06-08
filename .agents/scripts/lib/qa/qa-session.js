@@ -21,6 +21,12 @@
  * Evidence persisted in the ledger MUST already be scrubbed of secrets and
  * PII per `.agents/rules/security-baseline.md` (see `lib/qa/redact-evidence.js`)
  * before it reaches disk; this module only reads what is already there.
+ *
+ * The ledger round-trip is field-preserving: {@link readLedger} parses each
+ * line as a whole `QaLedgerItem` and returns it untouched, so optional fields
+ * such as the Triage `routedTo` finding-to-issue link
+ * (see `.agents/schemas/qa-ledger.schema.json`) survive a read/append cycle
+ * intact rather than being dropped on resume.
  */
 
 import crypto from 'node:crypto';

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-08T15:30:30.734Z",
+  "generatedAt": "2026-06-08T18:15:37.942Z",
   "generator": "generate-skills-index.js@1",
   "skills": [
     {
@@ -541,6 +541,16 @@
       "policyCapsuleBullets": 7,
       "allowedTools": null,
       "vendor": "playwright"
+    },
+    {
+      "name": "qa-explore-driving",
+      "tier": "stack",
+      "category": "qa",
+      "path": ".agents/skills/stack/qa/qa-explore-driving/SKILL.md",
+      "description": "Conventions for agent-driven exploratory QA driving — how the agent itself drives a surface during `/qa-explore` (agent-led), as opposed to the human-led `/qa-assist`. Use when the agent explores a running app via the browser MCP (navigation-first, the default) or walks a static surface (the documented interim until consumer persona-seeding lands), under a strictly read-only capture invariant. The exploration procedure lives in `.agents/workflows/qa-explore.md`; this skill is the driving-conventions reference it leans on.",
+      "policyCapsuleBullets": 8,
+      "allowedTools": null,
+      "vendor": null
     },
     {
       "name": "qa-harness",

@@ -52,6 +52,33 @@
       "description": "Optional. The id of another finding this one is a duplicate of, or folds into during root-cause bundling. Omit for a standalone finding.",
       "pattern": "^F[0-9]+$"
     },
+    "security": {
+      "type": "boolean",
+      "description": "Optional. `true` when the finding has a security dimension (e.g. a leaked token, an auth boundary failure, an injection-prone request) and MUST be routed with security baseline scrutiny. Omit or `false` for a non-security finding."
+    },
+    "routedTo": {
+      "type": "object",
+      "description": "Optional finding-to-issue link recording where the finding was routed once it is promoted to a follow-up ticket draft. Omit until the finding has been filed. The same link shape is mirrored on `qa-ledger.schema.json`.",
+      "additionalProperties": false,
+      "required": ["issue", "url", "kind"],
+      "properties": {
+        "issue": {
+          "type": "integer",
+          "description": "The GitHub issue number the finding was routed to.",
+          "minimum": 1
+        },
+        "url": {
+          "type": "string",
+          "description": "The canonical URL of the routed issue.",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "description": "The kind of ticket the finding was routed to: a `story`, an `epic`, or a bare `issue`.",
+          "enum": ["story", "epic", "issue"]
+        }
+      }
+    },
     "evidence": {
       "type": "object",
       "description": "Raw signal supporting the finding. Both arrays are always present (possibly empty) so a console-only or network-only finding still carries a well-formed evidence envelope.",
