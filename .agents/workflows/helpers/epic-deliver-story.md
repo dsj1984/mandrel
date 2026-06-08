@@ -174,27 +174,90 @@ Run a single Story-implementation phase against the inline `acceptance[]`
      or body.
    - The `commit-msg` Husky hook enforces commitlint locally.
 
-4. Run the inline `verify[]` commands as advisory pre-flight. The
-   canonical validation chain still fires inside `story-close.js`
-   (Step 2 / Step 3); pre-running here is optional and only useful
-   while iterating on a fix.
+4. After the final commit lands, run the **bounded acceptance self-eval
+   loop** (Step 1a below) **before** flipping to `closing`. The
+   `verify[]` commands are consumed inside that loop as **required
+   evidence** — they are no longer optional advisory pre-flight.
 
-5. After the final commit lands, flip the snapshot to `closing` and
-   proceed to Step 3:
+5. Once the eval loop returns `proceed`, flip the snapshot to `closing`
+   and proceed to Step 3:
 
    ```bash
    node .agents/scripts/story-phase.js \
      --story <storyId> --phase closing
    ```
 
-6. If blocked, flip the snapshot to `blocked`, transition the Story to
-   `agent::blocked`, post a `friction` comment, and exit non-zero:
+6. If blocked (including by the eval loop reaching its round cap with
+   criteria still unmet — Step 1a), flip the snapshot to `blocked`,
+   transition the Story to `agent::blocked`, post a `friction` comment,
+   and exit non-zero:
 
    ```bash
    node .agents/scripts/story-phase.js \
      --story <storyId> --phase blocked \
      --blocker-comment-id <id>
    ```
+
+### Step 1a — Bounded acceptance self-eval loop (**required, not optional**)
+
+After the implementation commits land and **before** the snapshot flips
+to `closing`, run an explicit, **independent** eval pass that scores the
+working diff against **each** `acceptance[]` item individually. This is
+the acceptance gate the close-validation chain does not provide: that
+chain (lint / test / format / maintainability / coverage / crap, run in
+`story-close.js`) proves the code is healthy, not that it satisfies *this
+Story's* acceptance criteria.
+
+The loop is **always on** (a hard cutover — there is no flag to disable
+it) and **bounded** by `delivery.acceptanceEval.maxRounds` (default 2),
+which the resolver clamps into `[1, hard ceiling]` so the cap can never
+be switched off or run unbounded. It is **distinct from** the Epic-level
+acceptance-spec reconciliation in `/epic-deliver` Phase 7.1 (which fires
+once at finalize and only checks `@ac-*` Gherkin tag presence): this loop
+is per-Story, per-criterion, mid-delivery, and evaluates the actual work
+product.
+
+**Per round:**
+
+1. **Eval pass (fresh context, independent of the author).** Run a
+   **separate critic pass** — a fresh-context sub-agent (`Agent` tool,
+   `subagent_type: general-purpose`), *not* a continuation of your
+   implementing turn — so the evaluator does not grade its own homework.
+   The critic:
+   - Inspects the working diff and the Story's inline `acceptance[]` /
+     `verify[]` arrays (`context.acceptance` / `context.verify` from the
+     `story-init` comment).
+   - **Runs the `verify[]` commands** and consumes their output as
+     **required evidence** when scoring the relevant acceptance items. A
+     criterion cannot be scored `met` without the supporting `verify[]`
+     evidence where a `verify[]` command is relevant to it.
+   - Emits a verdict file under `temp/` conforming to
+     [`acceptance-eval-verdict.schema.json`](../../schemas/acceptance-eval-verdict.schema.json):
+     one `{ index, criterion, verdict: met|partial|unmet, evidence,
+     verifyEvidence[] }` record per acceptance item.
+2. **Decide.** Run the gate against the verdict (pass `--epic <epicId>`
+   so the per-criterion signal lands on the Epic-scoped stream):
+
+   ```bash
+   node .agents/scripts/acceptance-eval.js \
+     --story <storyId> --epic <epicId> --verdict <verdict-path>
+   ```
+
+   The gate validates the verdict, applies the round cap, emits the
+   per-criterion `acceptance-eval` signal into the retro / feedback
+   substrate, prints a JSON envelope, and exits:
+   - **`decision: "proceed"`** (every criterion `met`) → exit 0. Flip the
+     snapshot to `closing` (item 5 above).
+   - **`decision: "redraft"`** (some `partial`/`unmet`, rounds remaining)
+     → exit 0. Redraft the flagged criteria (named in `unmetCriteria[]`),
+     commit the fix, and re-run the eval pass for the next round.
+   - **`decision: "block"`** (round cap reached, criteria still unmet) →
+     exit non-zero. Take the blocked path (item 6 above): post a
+     `friction` comment naming the unmet criteria and their evidence,
+     flip the snapshot to `blocked`, and exit non-zero. Never silently
+     proceed to close.
+
+Write the verdict files under `temp/` only — they are scratch artifacts.
 
 The resume guard is expressed at the Story level: re-entering a
 partially-implemented Story picks up from whatever commits are already
