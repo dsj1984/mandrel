@@ -11,8 +11,10 @@
  *   - Adds a Projects V2 permission check to preflight.
  *   - Replaces the phased-approval manifest with a plain summary + confirm
  *     loop (interactive runs can go back and re-answer).
- *   - Reserves a placeholder step for provisioning a new GitHub repo /
- *     project (exits with a message until implemented).
+ *   - Provisions the missing pieces of a cold start: initializes the local
+ *     git repo (with a first commit) when absent, creates the GitHub repo
+ *     (linking + pushing the local tree), and creates the Projects V2 board
+ *     from a typed name — capturing its number for the rest of the run.
  *
  * NOTE: every step is prefixed with `[temp]` logging for development
  * visibility — strip these once the flow is settled.
@@ -23,6 +25,8 @@
  * Flags:
  *   --owner <name>            GitHub owner (default: parsed from origin remote)
  *   --repo <name>             GitHub repo  (default: parsed from origin remote)
+ *   --visibility <v>          Visibility for a newly created repo:
+ *                             private | public | internal (default: private)
  *   --operator-handle <name>  GitHub handle for github.operatorHandle
  *   --base-branch <name>      Base branch (default: origin/HEAD or 'main')
  *   --project-number <n>      Projects V2 number/name (optional)
@@ -35,6 +39,7 @@
  *   --help                    Print this help
  */
 
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline/promises';
@@ -58,6 +63,7 @@ import {
   parseFlags,
 } from './lib/bootstrap/prompt.js';
 import { runAsCli } from './lib/cli-utils.js';
+import { exec, GhNotFoundError } from './lib/gh-exec.js';
 import { Logger } from './lib/Logger.js';
 
 const HELP = `bootstrap-new.js — simplified consumer setup for Mandrel.
@@ -67,6 +73,8 @@ Usage: node .agents/scripts/bootstrap-new.js [flags]
 Flags:
   --owner <name>            GitHub owner (default: parsed from origin remote)
   --repo <name>             GitHub repo  (default: parsed from origin remote)
+  --visibility <v>          Visibility for a newly created repo:
+                            private | public | internal (default: private)
   --operator-handle <name>  GitHub handle for github.operatorHandle
   --base-branch <name>      Base branch (default: origin/HEAD or 'main')
   --project-number <n>      Projects V2 number/name (optional)
@@ -127,6 +135,282 @@ async function confirmYesNo(message, interactive) {
   }
 }
 
+/**
+ * Run a git command in `cwd`. Returns the normalized
+ * `{ ok, status, stdout, stderr, error }` shape (mirroring the bootstrap
+ * preflight/gh-list runners) so callers branch on `ok` without juggling
+ * spawnSync internals.
+ */
+function runGit(args, cwd) {
+  const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+  return {
+    ok: !result.error && result.status === 0,
+    status: result.status,
+    stdout: typeof result.stdout === 'string' ? result.stdout.trim() : '',
+    stderr: typeof result.stderr === 'string' ? result.stderr.trim() : '',
+    error: result.error,
+  };
+}
+
+/**
+ * Surface a `gh`/exec failure with the same detail the GitHub bootstrap
+ * step prints — message plus the real gh stderr/stdout/args carried on a
+ * `GhExecError` — so a bare "gh exited with code 1" is actually diagnosable.
+ */
+function logGhError(label, err) {
+  Logger.error(`[bootstrap-new] ${label} failed: ${err.message}`);
+  if (err.stderr)
+    Logger.error(`[bootstrap-new]   gh stderr: ${String(err.stderr).trim()}`);
+  if (err.stdout)
+    Logger.error(`[bootstrap-new]   gh stdout: ${String(err.stdout).trim()}`);
+  if (Array.isArray(err.args)) {
+    Logger.error(`[bootstrap-new]   gh args: ${err.args.join(' ')}`);
+  }
+}
+
+/**
+ * Per-command git identity args. The first commit fails when neither a repo-
+ * nor global-level `user.name`/`user.email` is configured, which is common on
+ * a freshly provisioned machine. When either is missing we supply a
+ * non-persistent identity via `-c` (derived from the operator handle) so the
+ * commit succeeds without mutating the operator's git config.
+ */
+function gitIdentityArgs(cwd, answers) {
+  const haveName = runGit(['config', 'user.name'], cwd).ok;
+  const haveEmail = runGit(['config', 'user.email'], cwd).ok;
+  if (haveName && haveEmail) return [];
+  const handle = answers.operatorHandle || answers.owner || 'mandrel';
+  return [
+    '-c',
+    `user.name=${handle}`,
+    '-c',
+    `user.email=${handle}@users.noreply.github.com`,
+  ];
+}
+
+/**
+ * Initialize the local git repo when one is not already present, and ensure
+ * at least one commit exists so `gh repo create --source=. --push` has
+ * something to push. Idempotent: a repo that already resolves `HEAD` is left
+ * untouched. Returns `{ ok, initialized, committed }` (or `{ ok:false, error }`
+ * on failure).
+ */
+function ensureGitInitialized(state) {
+  const cwd = state.projectRoot;
+  const branch = state.answers.baseBranch || 'main';
+  let initialized = false;
+  if (!state.gitInitialized) {
+    // `git init -b <branch>` (git ≥ 2.28) sets the initial branch directly;
+    // fall back to a plain init + symbolic-ref for older git.
+    let init = runGit(['init', '-b', branch], cwd);
+    if (!init.ok) {
+      init = runGit(['init'], cwd);
+      if (!init.ok)
+        return { ok: false, error: init.stderr || 'git init failed' };
+      runGit(['symbolic-ref', 'HEAD', `refs/heads/${branch}`], cwd);
+    }
+    initialized = true;
+    state.gitInitialized = true;
+    Logger.info(
+      `[bootstrap-new] Initialized git repo (branch ${branch}) at ${cwd}.`,
+    );
+  }
+
+  // A push needs a commit; create one only when HEAD does not resolve yet.
+  let committed = false;
+  if (!runGit(['rev-parse', '--verify', 'HEAD'], cwd).ok) {
+    runGit(['add', '-A'], cwd);
+    const commit = runGit(
+      [
+        ...gitIdentityArgs(cwd, state.answers),
+        'commit',
+        '--allow-empty',
+        '-m',
+        'Initial commit',
+      ],
+      cwd,
+    );
+    if (!commit.ok) {
+      return { ok: false, error: commit.stderr || 'git commit failed' };
+    }
+    committed = true;
+    Logger.info('[bootstrap-new] Created initial commit.');
+  }
+  return { ok: true, initialized, committed };
+}
+
+/**
+ * Wire the local `origin` remote to owner/repo when it is missing, so the
+ * GitHub bootstrap — which infers the target repo from the local remote —
+ * can run. This is the companion to `createGithubRepo`: that path wires
+ * `origin` itself via `--remote origin`, but a repo that already exists (or
+ * a re-run after a partial failure) leaves the local folder unlinked. Only
+ * acts when the repo actually exists on GitHub; pushes the base branch to
+ * set upstream, downgrading a rejected push to a warning since the bootstrap
+ * only needs the remote to resolve (content sync is the operator's to settle).
+ */
+async function ensureGitRemote(state) {
+  const cwd = state.projectRoot;
+  const { owner, repo } = state.answers;
+  const branch = state.answers.baseBranch || 'main';
+  if (runGit(['remote', 'get-url', 'origin'], cwd).ok) return;
+  if (!(await repoExists(owner, repo))) {
+    Logger.warn(
+      `[bootstrap-new] No 'origin' remote and ${owner}/${repo} does not exist on GitHub — skipping remote wiring.`,
+    );
+    return;
+  }
+  const url = `https://github.com/${owner}/${repo}.git`;
+  const add = runGit(['remote', 'add', 'origin', url], cwd);
+  if (!add.ok) {
+    Logger.warn(`[bootstrap-new] Could not add 'origin' remote: ${add.stderr}`);
+    return;
+  }
+  Logger.info(`[bootstrap-new] Wired 'origin' → ${url}.`);
+  const push = runGit(['push', '-u', 'origin', branch], cwd);
+  if (!push.ok) {
+    Logger.warn(
+      `[bootstrap-new] 'origin' is set but push of '${branch}' failed (resolve manually, e.g. \`git pull --rebase origin ${branch}\`): ${push.stderr}`,
+    );
+  }
+}
+
+/**
+ * Authoritatively check whether `owner/repo` exists, via `gh repo view`.
+ * Returns false on a not-found (so the repo can be created), true when it
+ * resolves, and true on any other error (auth/network/etc.) so a transient
+ * failure never triggers a spurious create attempt. Used instead of an
+ * `is it in the repo-list?` heuristic, which mis-fires for a brand-new
+ * account whose `gh repo list` is empty.
+ */
+async function repoExists(owner, repo) {
+  try {
+    await exec({
+      args: ['repo', 'view', `${owner}/${repo}`, '--json', 'name'],
+    });
+    return true;
+  } catch (err) {
+    if (err instanceof GhNotFoundError) return false;
+    return true;
+  }
+}
+
+/**
+ * Link the repo to the Projects V2 board (`gh project link`) so issues and
+ * PRs from the repo surface on the project. Runs whenever both a numeric
+ * project number and a repo are resolved — a freshly created project or an
+ * existing one picked from the list. Non-fatal and re-run-safe: an
+ * already-linked repo or a transient hiccup is downgraded to a warning so it
+ * never fails the bootstrap.
+ */
+async function ensureProjectLinked(state) {
+  const { owner, repo } = state.answers;
+  const pn = String(state.answers.projectNumber ?? '');
+  if (!/^\d+$/.test(pn) || !repo) return;
+  try {
+    await exec({
+      args: ['project', 'link', pn, '--owner', owner, '--repo', repo],
+    });
+    Logger.info(
+      `[bootstrap-new] Linked repo ${owner}/${repo} to Project V2 #${pn}.`,
+    );
+  } catch (err) {
+    Logger.warn(
+      `[bootstrap-new] Could not link repo ${owner}/${repo} to Project V2 #${pn} (continuing): ${err.message}`,
+    );
+  }
+}
+
+/** Visibilities `gh repo create` accepts; each maps to a `--<v>` flag. */
+export const REPO_VISIBILITIES = Object.freeze([
+  'private',
+  'public',
+  'internal',
+]);
+
+/**
+ * Resolve the new-repo visibility from `--visibility` (default `private`).
+ * Case-insensitive. Returns `null` for an unrecognized value so the caller
+ * can reject it with a clear message instead of silently defaulting.
+ */
+export function resolveRepoVisibility(flags = {}) {
+  const raw = flags.visibility;
+  if (typeof raw !== 'string' || raw.length === 0) return 'private';
+  const value = raw.trim().toLowerCase();
+  return REPO_VISIBILITIES.includes(value) ? value : null;
+}
+
+/**
+ * Create the GitHub repo from the resolved owner/repo. `--source` links the
+ * existing local repo, `--remote origin` wires the remote, and `--push`
+ * uploads the current branch — so the local tree and the new remote stay in
+ * lockstep and Step 1's auto-detection works on a re-run. Visibility comes
+ * from `--visibility` (default private). Throws GhExecError on failure
+ * (surfaced by the caller).
+ */
+async function createGithubRepo(state) {
+  const { owner, repo } = state.answers;
+  const slug = `${owner}/${repo}`;
+  const visibility = resolveRepoVisibility(state.flags);
+  await exec({
+    args: [
+      'repo',
+      'create',
+      slug,
+      `--${visibility}`,
+      '--source',
+      state.projectRoot,
+      '--remote',
+      'origin',
+      '--push',
+    ],
+  });
+  Logger.info(
+    `[bootstrap-new] Created GitHub repo ${slug} (${visibility}) and pushed.`,
+  );
+}
+
+/**
+ * Create a Projects V2 board from the typed name and rewrite
+ * `state.answers.projectNumber` to the assigned numeric id so the downstream
+ * persist + GitHub bootstrap steps treat it as an existing project (and never
+ * create a duplicate). Throws on failure or when gh returns no number.
+ */
+async function createGithubProject(state) {
+  const { owner } = state.answers;
+  const title = String(state.answers.projectNumber);
+  // `gh project create` uses `--format json` (not `--json`), so exec returns
+  // the raw `{ stdout }` envelope — parse the number ourselves.
+  const res = await exec({
+    args: [
+      'project',
+      'create',
+      '--owner',
+      owner,
+      '--title',
+      title,
+      '--format',
+      'json',
+    ],
+  });
+  let number = null;
+  try {
+    number = JSON.parse(res.stdout)?.number ?? null;
+  } catch {
+    /* fall through to the guard below */
+  }
+  if (!Number.isInteger(number)) {
+    throw new Error(
+      `gh project create returned no numeric project number (stdout: ${res.stdout?.trim() ?? ''})`,
+    );
+  }
+  state.answers.projectNumber = String(number);
+  Logger.info(
+    `[bootstrap-new] Created GitHub Project V2 "${title}" (#${number}).`,
+  );
+  return number;
+}
+
 // ---------------------------------------------------------------------------
 // Question list (Step 3) — config profile dropped per the new spec.
 // ---------------------------------------------------------------------------
@@ -140,10 +424,13 @@ async function confirmYesNo(message, interactive) {
  */
 function buildQuestions(defaults, flags, env = process.env, lists = {}) {
   const owner = resolveOwnerForPicker(defaults, flags, env);
-  // Pre-fetched lists (shared with the creation check + summary) win; the
-  // live calls are a fallback for any caller that doesn't pass them.
+  // Pre-fetched lists (shared with the summary display) are a fast path used
+  // only when populated. They're empty when the owner is unknown up front
+  // (a folder with no git remote), so the pickers fall back to a live fetch
+  // keyed off the owner the operator just typed (`answers.owner`).
   const reposList = lists.reposList;
   const projectsList = lists.projectsList;
+  const pickerOwner = (answers) => answers?.owner || owner;
   return [
     {
       key: 'owner',
@@ -177,7 +464,12 @@ function buildQuestions(defaults, flags, env = process.env, lists = {}) {
       default: defaults.repo,
       required: true,
       picker: {
-        list: () => reposList ?? listRepos({ owner }).map(bareRepoName),
+        list: (answers) => {
+          if (Array.isArray(reposList) && reposList.length > 0)
+            return reposList;
+          const o = pickerOwner(answers);
+          return o ? listRepos({ owner: o }).map(bareRepoName) : [];
+        },
       },
       validate: (v) =>
         /^[A-Za-z0-9._-]+$/.test(v) ? null : 'Invalid GitHub repo name',
@@ -201,7 +493,13 @@ function buildQuestions(defaults, flags, env = process.env, lists = {}) {
       default: defaults.repo,
       required: false,
       picker: {
-        list: () => projectsList ?? listProjects({ owner }),
+        list: (answers) => {
+          if (Array.isArray(projectsList) && projectsList.length > 0) {
+            return projectsList;
+          }
+          const o = pickerOwner(answers);
+          return o ? listProjects({ owner: o }) : [];
+        },
       },
       // Accept blank (skip), an existing project number, or a new project
       // name (letters/digits/space/._-).
@@ -333,6 +631,13 @@ export function parseAndValidate(argv, opts = {}) {
       return { ok: false, exit: 1 };
     }
   }
+  if (resolveRepoVisibility(flags) === null) {
+    Logger.error(
+      `[bootstrap-new] invalid --visibility "${flags.visibility}". ` +
+        `Expected one of: ${REPO_VISIBILITIES.join(', ')}.`,
+    );
+    return { ok: false, exit: 1 };
+  }
   return { ok: true, payload: { flags, interactive, assumeYes } };
 }
 
@@ -403,35 +708,44 @@ export async function runPreflightPhase(state, opts = {}) {
 }
 
 /** Render the resolved answers as a human-readable summary block. */
-function renderAnswerSummary(answers, creation, project) {
+function renderAnswerSummary(
+  answers,
+  creation,
+  project,
+  gitInitialized,
+  visibility,
+) {
+  const newRepoNote = creation.newRepo
+    ? `  (NEW — will be created, ${visibility})`
+    : '';
   const lines = [
     '\n=== Review your answers ===',
     `  Repo owner       ${answers.owner}`,
     `  Username/handle  ${answers.operatorHandle || '(none)'}`,
-    `  Repo name        ${answers.repo}${creation.newRepo ? '  (NEW — will be created)' : ''}`,
+    `  Repo name        ${answers.repo}${newRepoNote}`,
     `  Base branch      ${answers.baseBranch}`,
     `  Project V2 name  ${project.name}${creation.newProject ? '  (NEW — will be created)' : ''}`,
     `  Project V2 #     ${project.number}`,
+    `  Local git        ${gitInitialized ? 'initialized' : 'will be initialized'}`,
   ];
   return lines.join('\n');
 }
 
 /**
  * Determine whether the answers ask for resources that do not exist yet.
- * A repo not present in the owner's repo list is treated as "new"; a
- * non-numeric project answer (a typed name, not a picked number) is "new".
- * When a list cannot be fetched we assume the resource exists (do not block).
- * When GitHub is skipped entirely there is nothing to create, so detection
- * is bypassed.
+ * The repo is "new" when `gh repo view owner/repo` reports it does not
+ * exist — an authoritative per-repo probe rather than an "is it in the
+ * repo-list?" check, which mis-fired for a brand-new account whose
+ * `gh repo list` is empty (it then assumed the repo already existed and
+ * skipped creation). A non-numeric project answer (a typed name, not a
+ * picked number) is "new". When GitHub is skipped there is nothing to
+ * create, so detection is bypassed.
  */
-function detectCreation(answers, skipGithub, reposList) {
+async function detectCreation(answers, skipGithub) {
   const creation = { newRepo: false, newProject: false };
   if (skipGithub) return creation;
-  const repos =
-    reposList ??
-    safeList(() => listRepos({ owner: answers.owner }).map(bareRepoName));
-  if (repos.length > 0 && answers.repo && !repos.includes(answers.repo)) {
-    creation.newRepo = true;
+  if (answers.repo && answers.owner) {
+    creation.newRepo = !(await repoExists(answers.owner, answers.repo));
   }
   const pn = answers.projectNumber;
   if (typeof pn === 'string' && pn.length > 0 && !/^\d+$/.test(pn)) {
@@ -476,9 +790,10 @@ export async function collectAndConfirm(state) {
   Logger.info('[temp][step3] Collect answers');
   const skipGithub = Boolean(state.flags['skip-github']);
   const owner = resolveOwnerForPicker(state.defaults, state.flags);
-  // Fetch the owner's repos + projects ONCE and reuse for the pickers, the
-  // creation check, and the summary display — so the resolved project name
-  // never depends on a second (flaky) `gh` call.
+  // Fetch the owner's repos + projects ONCE and reuse for the pickers and
+  // the summary display — so the resolved project name never depends on a
+  // second (flaky) `gh` call. (Repo existence for the creation check is a
+  // separate, authoritative `gh repo view` probe in `detectCreation`.)
   const reposList =
     !skipGithub && owner
       ? safeList(() => listRepos({ owner }).map(bareRepoName))
@@ -508,11 +823,19 @@ export async function collectAndConfirm(state) {
     // Defaults that track another answer: handle ⇐ owner, project ⇐ repo.
     if (!answers.operatorHandle) answers.operatorHandle = answers.owner;
 
-    const creation = detectCreation(answers, skipGithub, reposList);
+    const creation = await detectCreation(answers, skipGithub);
     const project = resolveProjectDisplay(answers, skipGithub, projectsList);
 
     Logger.info('[temp][step4] Approval');
-    Logger.info(renderAnswerSummary(answers, creation, project));
+    Logger.info(
+      renderAnswerSummary(
+        answers,
+        creation,
+        project,
+        state.gitInitialized,
+        resolveRepoVisibility(state.flags),
+      ),
+    );
     const correct = await confirmYesNo('Is this correct?', state.interactive);
     if (!correct) {
       Logger.info('[bootstrap-new] Okay — let’s try again.');
@@ -560,7 +883,8 @@ function renderDryRunPlan(state) {
     `  project number   ${a.projectNumber || '(skip)'}`,
     '',
     'Creation',
-    `  new repo         ${c.newRepo ? 'yes' : 'no'}`,
+    `  git init         ${state.gitInitialized ? 'no' : 'yes'}`,
+    `  new repo         ${c.newRepo ? `yes (${resolveRepoVisibility(state.flags)})` : 'no'}`,
     `  new project      ${c.newProject ? 'yes' : 'no'}`,
     '',
     'Flags',
@@ -579,24 +903,87 @@ export function dryRunPlan(state) {
 }
 
 /**
- * Step 5 — Provision a new GitHub repo / project. Placeholder: until this is
- * implemented, exit with a message when creation is actually required.
+ * Step 5 — Provision the missing pieces of a cold start, in dependency order:
+ *
+ *   1. Local git — `git init` + an initial commit when the folder is not a
+ *      repo yet (so the repo create below has something to push).
+ *   2. GitHub repo — `gh repo create --source --remote --push` when the repo
+ *      does not exist for the owner; otherwise wire the `origin` remote to the
+ *      existing repo when the local folder is not yet linked. Either way the
+ *      GitHub bootstrap can resolve the target from the local remote.
+ *   3. GitHub Project V2 — `gh project create` from the typed name when the
+ *      project answer is a name rather than an existing number; the assigned
+ *      number is written back onto `state.answers.projectNumber`.
+ *   4. Link — `gh project link` ties the repo to the project board so its
+ *      issues/PRs surface there (non-fatal; safe to re-run).
+ *
+ * Every action is idempotent and guarded by the detection done in
+ * `collectAndConfirm`, so a re-run on an already-provisioned project is a
+ * no-op. `--skip-github` suppresses the GitHub mutations but still runs the
+ * local git init. `--dry-run` never reaches this step (it halts earlier).
  */
-export function maybeCreateResources(state) {
-  Logger.info('[temp][step5] Create GH repo/project (placeholder)');
+export async function provisionResources(state) {
+  Logger.info('[temp][step5] Provision git / GitHub resources');
+  const skipGithub = Boolean(state.flags['skip-github']);
+
+  // 1. Local git — initialize + first commit when missing (idempotent).
+  const git = ensureGitInitialized(state);
+  if (!git.ok) {
+    Logger.error(`[bootstrap-new] git initialization failed: ${git.error}`);
+    return { ok: false, exit: 1 };
+  }
+  if (!git.initialized && !git.committed) {
+    Logger.info('[bootstrap-new] git already initialized — leaving as-is.');
+  }
+
   const { newRepo, newProject } = state.creation;
-  if (!newRepo && !newProject) {
-    Logger.info('[bootstrap-new] No new GitHub resources needed — skipping.');
+  if (skipGithub) {
+    if (newRepo || newProject) {
+      Logger.info(
+        '[bootstrap-new] --skip-github set; not creating the GitHub repo/project.',
+      );
+    }
     return { ok: true, payload: {} };
   }
-  const parts = [];
-  if (newRepo) parts.push(`repo "${state.answers.repo}"`);
-  if (newProject) parts.push(`project "${state.answers.projectNumber}"`);
-  Logger.error(
-    `[bootstrap-new] Provisioning ${parts.join(' and ')} is not implemented yet. ` +
-      'Please create it on GitHub, then re-run. Exiting.',
-  );
-  return { ok: false, exit: 0 };
+
+  // 2. GitHub repo — create + link + push when it does not exist yet;
+  //    otherwise ensure the local `origin` remote points at the existing repo
+  //    so the GitHub bootstrap can resolve the target (idempotent re-runs and
+  //    pre-created repos would otherwise leave the folder unlinked).
+  if (newRepo) {
+    try {
+      await createGithubRepo(state);
+    } catch (err) {
+      logGhError('repo create', err);
+      return { ok: false, exit: 1 };
+    }
+  } else {
+    await ensureGitRemote(state);
+  }
+
+  // 3. GitHub Project V2 — create from the typed name; capture its number so
+  //    the persist + GitHub bootstrap steps reuse it instead of duplicating.
+  if (newProject) {
+    try {
+      await createGithubProject(state);
+      // It now exists with a real number; downstream treats it as existing.
+      state.creation.newProject = false;
+    } catch (err) {
+      logGhError('project create', err);
+      return { ok: false, exit: 1 };
+    }
+  }
+
+  if (!newRepo && !newProject) {
+    Logger.info('[bootstrap-new] No new GitHub resources needed.');
+  }
+
+  // 4. Link the repo to the project board so issues/PRs surface on it
+  //    (idempotent + non-fatal; runs for both freshly created and existing
+  //    repo/project pairs).
+  await ensureProjectLinked(state);
+
+  return { ok: true, payload: {} };
 }
 
 /**
@@ -672,16 +1059,9 @@ export async function executeGithubBootstrap(state) {
       ),
     });
   } catch (err) {
-    Logger.error(`[bootstrap-new] GitHub bootstrap failed: ${err.message}`);
     // GhExecError carries the real gh stderr/stdout/exit code — surface it so
     // a generic "gh exited with code 1" is actually diagnosable.
-    if (err.stderr)
-      Logger.error(`[bootstrap-new]   gh stderr: ${err.stderr.trim()}`);
-    if (err.stdout)
-      Logger.error(`[bootstrap-new]   gh stdout: ${err.stdout.trim()}`);
-    if (Array.isArray(err.args)) {
-      Logger.error(`[bootstrap-new]   gh args: ${err.args.join(' ')}`);
-    }
+    logGhError('GitHub bootstrap', err);
     state.report.github = { error: err.message };
   }
   return { ok: true, payload: {} };
@@ -734,7 +1114,7 @@ export async function main(argv = process.argv.slice(2)) {
     (s) => runPreflightPhase(s),
     (s) => collectAndConfirm(s),
     (s) => dryRunPlan(s),
-    (s) => maybeCreateResources(s),
+    (s) => provisionResources(s),
     (s) => executeBootstrap(s),
     (s) => persistProjectNumber(s),
     (s) => executeGithubBootstrap(s),

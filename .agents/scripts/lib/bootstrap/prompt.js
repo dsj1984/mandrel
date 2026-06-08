@@ -33,6 +33,7 @@ export const KNOWN_FLAGS = Object.freeze({
     'operator-handle',
     'base-branch',
     'project-number',
+    'visibility',
     'profile',
   ],
   boolean: [
@@ -218,10 +219,13 @@ export function resolveFromSilent(ctx) {
  * GitHub repos / projects) before falling back to free-text entry.
  *
  * The question opts in by carrying an optional `picker: { list }` field,
- * where `list` is a function returning an array of string choices (commonly
- * a `gh-list` provider bound to the resolved owner). The resolver returns
- * `kind: 'skip'` — falling through to manual entry via `resolveInteractive`
- * — in three cases:
+ * where `list(answers)` is a function returning an array of string choices
+ * (commonly a `gh-list` provider). It receives the answers resolved so far,
+ * so a later question can list against an earlier answer — e.g. the repo /
+ * project pickers fetching the just-entered owner's repos/projects, which is
+ * the only owner available when the folder has no git remote to infer from.
+ * The resolver returns `kind: 'skip'` — falling through to manual entry via
+ * `resolveInteractive` — in three cases:
  *
  *   1. not interactive (`ctx.interactive` is false),
  *   2. the question has no `picker` (or no callable `picker.list`),
@@ -240,7 +244,7 @@ export async function resolveFromPicker(ctx) {
   const picker = ctx.q.picker;
   if (!picker || typeof picker.list !== 'function') return { kind: 'skip' };
 
-  const choices = (await picker.list()) ?? [];
+  const choices = (await picker.list(ctx.answers)) ?? [];
   if (!Array.isArray(choices) || choices.length === 0) return { kind: 'skip' };
 
   const normalized = choices.map(normalizePickerChoice);
@@ -411,6 +415,10 @@ export async function collectAnswers(args) {
         assumeYes,
         getRl,
         output,
+        // Answers resolved so far (questions run in order), so a later
+        // question's picker can key off an earlier answer — e.g. the repo /
+        // project pickers listing against the owner just entered.
+        answers,
       };
       let outcome = { kind: 'skip' };
       for (const resolver of RESOLVERS) {
