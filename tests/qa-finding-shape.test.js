@@ -204,6 +204,87 @@ describe('qa-finding.schema.json — rejects malformed findings', () => {
   });
 });
 
+describe('qa-finding.schema.json — security flag + routedTo link (Story #3808)', () => {
+  const validate = compile();
+
+  /** A valid routedTo link recording where the finding was filed. */
+  function routedTo(overrides = {}) {
+    return {
+      issue: 4242,
+      url: 'https://github.com/dsj1984/mandrel/issues/4242',
+      kind: 'issue',
+      ...overrides,
+    };
+  }
+
+  it('still accepts an existing finding that omits security and routedTo', () => {
+    const finding = validFinding();
+    delete finding.foldsInto;
+    const ok = validate(finding);
+    assert.equal(ok, true, JSON.stringify(validate.errors));
+  });
+
+  it('accepts a finding carrying a security boolean', () => {
+    for (const security of [true, false]) {
+      const ok = validate(validFinding({ security }));
+      assert.equal(
+        ok,
+        true,
+        `expected security=${security} to validate: ${JSON.stringify(validate.errors)}`,
+      );
+    }
+  });
+
+  it('rejects a non-boolean security value', () => {
+    const ok = validate(validFinding({ security: 'yes' }));
+    assert.equal(ok, false, 'expected a non-boolean security to reject');
+  });
+
+  it('accepts a finding carrying a valid routedTo link', () => {
+    const ok = validate(validFinding({ routedTo: routedTo() }));
+    assert.equal(ok, true, JSON.stringify(validate.errors));
+  });
+
+  it('accepts every routedTo kind', () => {
+    for (const kind of ['story', 'epic', 'issue']) {
+      const ok = validate(validFinding({ routedTo: routedTo({ kind }) }));
+      assert.equal(
+        ok,
+        true,
+        `expected routedTo kind ${kind} to validate: ${JSON.stringify(validate.errors)}`,
+      );
+    }
+  });
+
+  it('rejects a routedTo kind outside the enum', () => {
+    const ok = validate(
+      validFinding({ routedTo: routedTo({ kind: 'pull-request' }) }),
+    );
+    assert.equal(ok, false, 'expected an out-of-enum routedTo.kind to reject');
+  });
+
+  it('rejects a routedTo missing a required subfield', () => {
+    for (const field of ['issue', 'url', 'kind']) {
+      const link = routedTo();
+      delete link[field];
+      const ok = validate(validFinding({ routedTo: link }));
+      assert.equal(ok, false, `expected routedTo missing ${field} to reject`);
+    }
+  });
+
+  it('rejects a routedTo with a non-integer issue number', () => {
+    const ok = validate(validFinding({ routedTo: routedTo({ issue: 'F1' }) }));
+    assert.equal(ok, false, 'expected a non-integer routedTo.issue to reject');
+  });
+
+  it('rejects an unknown key inside routedTo (additionalProperties:false)', () => {
+    const ok = validate(
+      validFinding({ routedTo: routedTo({ mystery: true }) }),
+    );
+    assert.equal(ok, false, 'expected an unknown routedTo key to reject');
+  });
+});
+
 describe('qa-finding.schema.json — producer/consumer alignment', () => {
   const validate = compile();
 
