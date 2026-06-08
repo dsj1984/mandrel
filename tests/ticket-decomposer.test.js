@@ -633,68 +633,61 @@ describe('ticket-decomposer buildDecomposerSystemPrompt', () => {
     );
   });
 
-  it('advertises the recalibrated maxAcceptance ceiling of 8 (Story #3231 Recal B)', () => {
-    // Story #3237 — the default maxAcceptance was raised from 6 to 8 in
-    // Story #3231. The prompt must mention the updated ceiling so the
-    // planner biases output correctly.
+  it('advertises the maxAcceptance and hardFiles ceilings from the single sizing constant (Story #3760)', () => {
+    // The prompt sources its threshold sentence from DEFAULT_TASK_SIZING so
+    // the two surfaces cannot drift. The default ceilings are maxAcceptance=8
+    // and hardFiles=15.
     const prompt = buildDecomposerSystemPrompt([]);
     assert.ok(
-      /maxAcceptance:\s*8/.test(prompt),
-      'prompt must advertise maxAcceptance: 8',
+      /maxAcceptance/.test(prompt) && /\b8\b/.test(prompt),
+      'prompt must advertise the maxAcceptance ceiling of 8',
     );
     assert.ok(
-      !/maxAcceptance:\s*6/.test(prompt),
-      'prompt must not advertise the stale maxAcceptance: 6 ceiling',
+      /hardFiles/.test(prompt) && /\b15\b/.test(prompt),
+      'prompt must advertise the hardFiles ceiling of 15',
     );
   });
 
-  it('describes estimated_test_files field and test-surface gates (Story #3235)', () => {
-    // Story #3237 — the estimated_test_files field was added in Story #3235.
-    // The prompt must document it so the planner knows to emit the field.
+  it('leads sizing guidance with a cohesion heuristic, not the numeric ceiling (Story #3760)', () => {
     const prompt = buildDecomposerSystemPrompt([]);
     assert.ok(
-      /estimated_test_files/i.test(prompt),
-      'prompt must document the estimated_test_files field',
+      /cohesion/i.test(prompt),
+      'prompt must lead the sizing section with cohesion',
     );
     assert.ok(
-      /test.surface.overflow|large.test.surface/i.test(prompt),
-      'prompt must mention the test-surface finding names',
+      /one coherent change with one reason to exist/i.test(prompt),
+      'prompt must state the one-coherent-change cohesion rule',
+    );
+    assert.ok(
+      /backstop/i.test(prompt),
+      'prompt must frame the numeric ceiling as a backstop',
     );
   });
 
-  it('describes per-profile change ceilings table (Story #3231 Recal A)', () => {
-    // Story #3237 — per-profile change ceilings replaced the global
-    // maxChanges: 8 default in Story #3231.
+  it('describes the wide declaration that lifts the hard ceiling (Story #3760)', () => {
     const prompt = buildDecomposerSystemPrompt([]);
     assert.ok(
-      /profileCeilings|per-profile change ceiling/i.test(prompt),
-      'prompt must describe per-profile change ceilings',
+      /\bwide\b/i.test(prompt),
+      'prompt must describe the wide declaration',
     );
     assert.ok(
-      /mechanical-sweep/i.test(prompt),
-      'prompt must list the mechanical-sweep profile ceiling',
+      /lifts the .?hardFiles.? rejection/i.test(prompt),
+      'prompt must say declaring wide lifts the hardFiles rejection',
     );
   });
 
-  it('describes sizingProfile as recommended/optional, not a hard rejection (Story #3231 Recal C)', () => {
-    // Story #3237 — sizingProfile is now informational; omitting it on a
-    // wide Story emits missing-sizing-profile-hint, not a hard rejection.
+  it('no longer mentions the retired profile enum or testSurface gates (Story #3760)', () => {
     const prompt = buildDecomposerSystemPrompt([]);
     assert.ok(
-      /missing-sizing-profile-hint/i.test(prompt),
-      'prompt must mention missing-sizing-profile-hint informational finding',
+      !/sizingProfile|atomic-rewrite|scaffolding|mechanical-sweep/i.test(
+        prompt,
+      ),
+      'prompt must not restate the retired sizingProfile enum',
     );
-    // The old hard-rejection wording must be gone.
-    const lines = prompt
-      .split('\n')
-      .filter((l) => /missing-sizing-profile/.test(l));
-    for (const line of lines) {
-      assert.ok(
-        !/\brejection\b|\breject\b|\bre-prompt\b/i.test(line) ||
-          /hint/i.test(line),
-        `prompt must not describe missing-sizing-profile as a hard rejection (line: "${line.trim()}")`,
-      );
-    }
+    assert.ok(
+      !/profileCeilings|test.surface.overflow|large.test.surface/i.test(prompt),
+      'prompt must not restate the retired profileCeilings / testSurface gates',
+    );
   });
 });
 

@@ -1,4 +1,5 @@
 import { LIMITS_DEFAULTS } from '../config/limits.js';
+import { DEFAULT_TASK_SIZING } from '../orchestration/ticket-validator-sizing.js';
 
 /**
  * Sole source of truth for the prompt's `maxTickets` cap is the resolved
@@ -24,6 +25,10 @@ export function renderDecomposerSystemPrompt({
  * Story body so the executing agent has everything it needs in one ticket.
  */
 function render3TierPrompt({ maxTickets }) {
+  // Sizing thresholds are sourced from the single DEFAULT_TASK_SIZING constant
+  // (ticket-validator-sizing.js) so the prompt and the validator cannot drift.
+  const { softFiles, hardFiles, maxAcceptance, softAcceptanceCount } =
+    DEFAULT_TASK_SIZING;
   return `You are an expert Senior Project Manager and Orchestrator.
 Your job is to take a Product Requirements Document (PRD) and a Technical Specification and decompose them into a highly-granular 2-level ticket hierarchy for an AI Agent to execute.
 
@@ -73,36 +78,35 @@ For stories, \`body\` is a STRUCTURED OBJECT, not a string. Stories are consumed
 - **changes**: Each bullet MUST be \`<path-or-glob>: <concrete verb> <object>\`. Acceptable path shapes include explicit files (\`src/components/Foo.tsx\`), glob patterns (\`tests/e2e/*.spec.ts\`, \`**/*.astro\`), and module identifiers that resolve to files. Vague verbs ("clean up", "refactor", "improve", "polish", "tighten") are FORBIDDEN unless paired with a named target — "refactor src/x.ts: extract handleSubmit" is fine, "refactor the form" is not.
 - **acceptance**: Items MUST be observable from outside the agent. Acceptable shapes: a specific command exits 0, a file exists at a given path, a snapshot test matches, a \`data-testid\` resolves under a given selector, a row count in a fixture matches. UNACCEPTABLE: "verify by reading the diff", "looks good", "matches the spec" — push these down into a \`verify\` command instead.
 - **verify**: Each entry MUST name a testing tier in parentheses, drawn from \`unit\` / \`contract\` / \`e2e\` / \`validate\`. Example: \`npm run test -- src/x.test.ts (unit)\`, \`npm run validate (validate)\`. Stories with zero verify entries SHOULD fail validation; if a story is genuinely unverifiable in isolation (e.g., a copy edit auditor will eyeball), the literal entry \`manual:<reason>\` is allowed so the absence is intentional, not lazy. Manual entries without a reason are rejected.
-- **estimated_test_files** (optional): Integer estimate of how many test files this Story creates or modifies. Omit when the number is not estimable. When present, the validator applies per-profile soft/hard gates (see \`planning.taskSizing.testSurface\`). Exceeding the soft gate emits a \`large-test-surface\` informational finding; exceeding the hard gate emits a \`test-surface-overflow\` rejection. Default gates by profile: no-profile soft=5/hard=10, \`atomic-rewrite\` soft=3/hard=6, \`scaffolding\` soft=8/hard=15, \`mechanical-sweep\` soft=15/hard=30.
+- **estimated_test_files** (optional): Integer estimate of how many test files this Story creates or modifies. Omit when the number is not estimable. Informational only — it does not gate the decompose.
 
-#### STORY SIZING HEURISTICS (soft — bias output, validator enforces hard ceilings):
+#### STORY SIZING — COHESION FIRST (the numeric ceiling is only a backstop):
 
-- **Stories typically touch ≤5 files and have ≤8 acceptance items.** A Story that names many more files or stacks more than 8 acceptance criteria is usually doing the work of two Stories — split it.
-- **Features typically decompose into ≤5 Stories; otherwise split into a sibling Feature.** A Feature stretching past five Stories is a sign the Feature scope is two features — promote a coherent subset into a sibling Feature instead of letting one Feature balloon.
-- These are soft heuristics: the validator's hard ceilings (default \`maxAcceptance: 8\` from \`planning.taskSizing\`) are the genuine block. Per-profile change ceilings govern the \`changes[]\` array — see the table below.
+The primary question is **cohesion, not count**: *is this one coherent change with one reason to exist?* File count cannot tell a trivial ${softFiles}-file rename from a hard 3-file parser+caller+config change — so lead with the change's reason, not its size.
 
-##### Per-profile change ceilings (\`planning.taskSizing.profileCeilings\`):
+- **One Story = one coherent change with one reason to exist.** If you cannot state that reason in a sentence, the Story is probably two Stories — or two Stories that should be one.
+- **Merge a single-consumer downstream Story into its producer.** A Story whose only consumer is the Story right before it is not a separate unit of work; fold it in.
+- **Split independent, parallelizable work** into sibling Stories under the same Feature — but only when the pieces genuinely have separate reasons to exist.
+- **Declare \`wide\` with a one-line reason when a change is legitimately broad** (a cohesive cutover that spans many files for one reason). Declaring \`wide\` lifts the hard file-width ceiling — see below.
+- **Features typically decompose into ≤5 Stories; otherwise split into a sibling Feature.** A Feature stretching past five Stories is a sign the Feature scope is two features.
 
-| \`sizingProfile\`     | Soft warn | Hard cap |
-|---|---|---|
-| \`mechanical-sweep\` | 25 | 60 |
-| \`scaffolding\`      | 8  | 15 |
-| \`atomic-rewrite\`   | 2  | 4  |
-| (no profile)         | 3  | 6  |
+**Numeric backstop (validator-enforced).** These thresholds are sourced from the single \`DEFAULT_TASK_SIZING\` constant in \`ticket-validator-sizing.js\` — there is no second copy to drift:
 
-Keep Stories well under the soft thresholds and the hard layer never fires.
+- A Story touching more than **${softFiles} files** (\`softFiles\`) emits an advisory width finding — a nudge to check cohesion or declare \`wide\`.
+- A Story touching more than **${hardFiles} files** (\`hardFiles\`) is **rejected** unless it declares \`wide\` with a reason.
+- A Story with more than **${maxAcceptance} acceptance items** (\`maxAcceptance\`) is **rejected**; more than ${softAcceptanceCount} (\`softAcceptanceCount\`) emits an advisory warning.
 
-#### sizingProfile DECLARATION (recommended on wide Stories):
+#### \`wide\` DECLARATION (optional — for legitimately broad changes):
 
-Stories that touch more files than \`planning.taskSizing.softFileCount\` (default \`3\`) are encouraged to declare \`body.sizingProfile\` so the validator applies the correct per-profile ceiling. The field is **always optional** — omitting it on a wide Story emits only an informational \`missing-sizing-profile-hint\` finding, not a rejection. Allowed values (closed enum):
+A Story whose footprint is legitimately broad declares \`body.wide\` carrying a one-line human-readable reason:
 
-- \`"mechanical-sweep"\` — a single repeated rename or transform across many sites with one logical change (e.g. "rename \`settings\` → \`agentSettings\` across 50 consumer sites"). The Story body's \`changes\` may have a single bullet describing the sweep.
-- \`"atomic-rewrite"\` — one cohesive feature edit that legitimately spans several files (e.g. extracting a helper module and updating its three callers in one logical step).
-- \`"scaffolding"\` — initial-creation work that lays down many files at once (e.g. spinning up a new package skeleton with config, README, and entry-point stubs).
+\`\`\`json
+"wide": { "reason": "hard contract cutover: migrate every <X> call site in one PR" }
+\`\`\`
 
-Omit \`sizingProfile\` for narrow Stories (≤ \`softFileCount\` files). Declaring an unknown value is rejected by the validator. Omitting it on a wide Story emits only an informational hint — it does not trigger a re-prompt.
+Declaring \`wide\` with a non-empty reason **lifts the \`hardFiles\` rejection** — no Story is rejected for width when it states why it is broad. Omit \`wide\` for ordinary Stories; a wide footprint with no \`wide\` declaration emits only an advisory nudge (check cohesion or declare \`wide\`), never a rejection on its own.
 
-**Glob entries** in \`changes[]\` (bullets containing \`*\`) mark the Story footprint as \`unknown-width\`. The numeric ceiling check is skipped for glob entries; the validator emits a \`glob-without-sizing-profile\` informational finding when glob entries appear with no declared profile.
+**Glob entries** in \`changes[]\` (bullets containing \`*\`) mark the Story footprint as \`unknown-width\`: the numeric ceiling cannot bound a glob, so it is skipped. A Story carrying glob changes with no \`wide\` declaration emits an advisory nudge.
 
 #### UI / TESTID INVARIANCE (per CLAUDE.md safety rule):
 

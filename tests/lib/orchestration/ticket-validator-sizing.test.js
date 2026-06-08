@@ -3,31 +3,31 @@ import test from 'node:test';
 import { validateAndNormalizeTickets } from '../../../.agents/scripts/lib/orchestration/ticket-validator.js';
 
 /**
- * Sizing validator fixtures covering Story #3231 recalibrations and
- * Story #3235 test-surface gates (Epic #3211 Features 5 and 6).
+ * Sizing validator fixtures for the collapsed sizing model (Story #3760).
  *
- * Recalibrations covered (Story #3231):
- *   Recal A — Per-profile change ceilings (replace global maxChanges: 8)
- *   Recal B — maxAcceptance raised from 6 to 8
- *   Recal C — sizingProfile recommended-always (informational hint, not hard rejection)
- *   Recal D — SOFT_STORY_TASK_COUNT / soft-story-width removed (inert in 3-tier)
- *   Gap 4   — Glob changes[] entries → unknown-width / glob-without-sizing-profile
+ * The per-profile ceiling matrix, the parallel `testSurface` axis, and the
+ * `sizingProfile` enum (`atomic-rewrite` / `scaffolding` / `mechanical-sweep`)
+ * are gone. The model is now:
  *
- * Test-surface gates (Story #3235, Feature 6):
- *   Per-profile soft/hard gates on `estimated_test_files`:
- *     mechanical-sweep  soft=15 hard=30
- *     scaffolding       soft=8  hard=15
- *     atomic-rewrite    soft=3  hard=6
- *     no-profile        soft=5  hard=10
- *   Findings: large-test-surface (soft), test-surface-overflow (hard)
- *   Null/absent value → no finding (informational; absence ≠ zero)
+ *   - Flat knobs (DEFAULT_TASK_SIZING): softFiles=5, hardFiles=15,
+ *     maxAcceptance=8, softAcceptanceCount=6.
+ *   - A single optional `body.wide = { reason }` declaration. Declaring `wide`
+ *     with a non-empty reason lifts the hardFiles rejection — no Story is
+ *     rejected for width when `wide` is declared.
+ *   - Cohesion is the primary heuristic; the numeric ceiling is a backstop.
  *
- * 3-tier (Epic #3238): each Story is its own implementation unit and
- * carries the `body` (goal / changes / acceptance / verify / sizingProfile
- * / estimated_test_files) that the sizing pass scans, plus the top-level
+ * Findings:
+ *   - oversized-task (hard) — acceptance > maxAcceptance, or fileCount >
+ *     hardFiles when `wide` is not declared.
+ *   - soft-task-width (soft) — acceptance > softAcceptanceCount, or fileCount >
+ *     softFiles (when `wide` IS declared — declared-wide Stories still surface
+ *     the width as advisory signal).
+ *   - wide-undeclared (soft) — fileCount > softFiles with no `wide`
+ *     declaration, or glob changes with no `wide` declaration.
+ *
+ * 3-tier (Epic #3238): each Story is its own implementation unit and carries
+ * the `body` (goal / changes / acceptance / verify / wide) plus the top-level
  * `acceptance[]` + `verify[]` inline contract the validator requires.
- * Sizing findings are keyed by the Story slug, so the `makeStory` helper
- * takes the slug each test asserts on.
  */
 
 const FEATURE = Object.freeze({
@@ -54,11 +54,15 @@ function makeStory(slug = 's-sizing', body) {
   };
 }
 
+function changes(n, verb = 'edit') {
+  return Array.from({ length: n }, (_, i) => `src/file${i}.js: ${verb}`);
+}
+
 // ---------------------------------------------------------------------------
 // Narrow Story baseline — no findings
 // ---------------------------------------------------------------------------
 
-test('narrow Story with no sizingProfile produces no findings', () => {
+test('narrow Story with no wide declaration produces no findings', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
     makeStory('t-narrow', {
@@ -71,28 +75,26 @@ test('narrow Story with no sizingProfile produces no findings', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Recal B — maxAcceptance raised to 8
+// Acceptance ceiling — maxAcceptance=8, softAcceptanceCount=6
 // ---------------------------------------------------------------------------
 
-test('Story with 8 acceptance items validates clean (Recal B: maxAcceptance=8)', () => {
+test('Story with 8 acceptance items validates clean (maxAcceptance=8)', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
     makeStory('t-8ac', {
       acceptance: Array.from({ length: 8 }, (_, i) => `criterion ${i}`),
     }),
   ]);
-  // No hard findings — 8 is the new ceiling.
   const hard = result.findings.filter((f) => f.severity === 'hard');
   assert.deepEqual(hard, []);
   assert.deepEqual(result.errors, []);
 });
 
-test('Story with 9 acceptance items trips hard oversized-task (Recal B: ceiling=8)', () => {
+test('Story with 9 acceptance items trips hard oversized-task (ceiling=8)', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
     makeStory('t-9ac', {
       acceptance: Array.from({ length: 9 }, (_, i) => `criterion ${i}`),
-      sizingProfile: 'scaffolding',
     }),
   ]);
   const hard = result.findings.filter(
@@ -106,309 +108,6 @@ test('Story with 9 acceptance items trips hard oversized-task (Recal B: ceiling=
     1,
   );
 });
-
-// ---------------------------------------------------------------------------
-// Recal C — sizingProfile recommended-always (soft hint, not hard rejection)
-// ---------------------------------------------------------------------------
-
-test('Story with 5 changes and no sizingProfile emits missing-sizing-profile-hint (Recal C: no hard rejection)', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
-    makeStory('t-wide-no-profile', {
-      changes: [
-        'src/a.js: edit',
-        'src/b.js: edit',
-        'src/c.js: edit',
-        'src/d.js: edit',
-        'src/e.js: edit',
-      ],
-    }),
-  ]);
-  // No hard findings — Recal C drops the hard missing-sizing-profile rejection.
-  const hard = result.findings.filter((f) => f.severity === 'hard');
-  assert.deepEqual(hard, []);
-  assert.deepEqual(result.errors, []);
-  // Informational hint fires instead.
-  const hint = result.findings.filter(
-    (f) => f.kind === 'missing-sizing-profile-hint',
-  );
-  assert.equal(hint.length, 1);
-  assert.equal(hint[0].fileCount, 5);
-  assert.equal(hint[0].softFileCount, 3);
-});
-
-test('wide Story with valid sizingProfile emits soft-task-width only (no hard finding)', () => {
-  // Use scaffolding (soft=8, hard=15) with 4 changes so only the fileCount
-  // soft breach fires (fileCount=4 > softFileCount=3), not the changes breach.
-  const result = validateAndNormalizeTickets([
-    FEATURE,
-    makeStory('t-wide-valid', {
-      changes: [
-        'src/a.js: edit',
-        'src/b.js: edit',
-        'src/c.js: edit',
-        'src/d.js: edit',
-      ],
-      sizingProfile: 'scaffolding',
-    }),
-  ]);
-  const hard = result.findings.filter((f) => f.severity === 'hard');
-  assert.deepEqual(hard, []);
-  assert.deepEqual(result.errors, []);
-  // Soft-width signal still emitted so the operator can see the width signal.
-  assert.deepEqual(result.findings, [
-    {
-      kind: 'soft-task-width',
-      severity: 'soft',
-      ticketSlug: 't-wide-valid',
-      field: 'fileCount',
-      observed: 4,
-      soft: 3,
-    },
-  ]);
-});
-
-// ---------------------------------------------------------------------------
-// Recal A — Per-profile change ceilings
-// ---------------------------------------------------------------------------
-
-test('mechanical-sweep: 30 changes is a soft breach (soft=25), no hard finding', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
-    makeStory('t-sweep-soft', {
-      changes: Array.from({ length: 30 }, (_, i) => `src/file${i}.js: rename`),
-      sizingProfile: 'mechanical-sweep',
-    }),
-  ]);
-  const hard = result.findings.filter(
-    (f) => f.kind === 'oversized-task' && f.field === 'changes',
-  );
-  assert.deepEqual(hard, []);
-  const soft = result.findings.filter(
-    (f) => f.kind === 'soft-task-width' && f.field === 'changes',
-  );
-  assert.equal(soft.length, 1);
-  assert.equal(soft[0].observed, 30);
-  assert.equal(soft[0].soft, 25);
-});
-
-test('mechanical-sweep: 61 changes trips hard ceiling (hard=60)', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
-    makeStory('t-sweep-hard', {
-      changes: Array.from({ length: 61 }, (_, i) => `src/file${i}.js: rename`),
-      sizingProfile: 'mechanical-sweep',
-    }),
-  ]);
-  const hard = result.findings.filter(
-    (f) => f.kind === 'oversized-task' && f.field === 'changes',
-  );
-  assert.equal(hard.length, 1);
-  assert.equal(hard[0].observed, 61);
-  assert.equal(hard[0].ceiling, 60);
-  assert.equal(
-    result.errors.filter((e) => e.includes('changes ceiling')).length,
-    1,
-  );
-});
-
-test('scaffolding: 10 changes is a soft breach (soft=8), no hard finding', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
-    makeStory('t-scaffold-soft', {
-      changes: Array.from({ length: 10 }, (_, i) => `src/new${i}.js: create`),
-      sizingProfile: 'scaffolding',
-    }),
-  ]);
-  const hard = result.findings.filter(
-    (f) => f.kind === 'oversized-task' && f.field === 'changes',
-  );
-  assert.deepEqual(hard, []);
-  const soft = result.findings.filter(
-    (f) => f.kind === 'soft-task-width' && f.field === 'changes',
-  );
-  assert.equal(soft.length, 1);
-  assert.equal(soft[0].observed, 10);
-  assert.equal(soft[0].soft, 8);
-});
-
-test('scaffolding: 16 changes trips hard ceiling (hard=15)', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
-    makeStory('t-scaffold-hard', {
-      changes: Array.from({ length: 16 }, (_, i) => `src/new${i}.js: create`),
-      sizingProfile: 'scaffolding',
-    }),
-  ]);
-  const hard = result.findings.filter(
-    (f) => f.kind === 'oversized-task' && f.field === 'changes',
-  );
-  assert.equal(hard.length, 1);
-  assert.equal(hard[0].ceiling, 15);
-  assert.equal(hard[0].observed, 16);
-});
-
-test('atomic-rewrite: 3 changes is a soft breach (soft=2), no hard finding', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
-    makeStory('t-rewrite-soft', {
-      changes: ['src/a.js: rewrite', 'src/b.js: rewrite', 'src/c.js: rewrite'],
-      sizingProfile: 'atomic-rewrite',
-    }),
-  ]);
-  const hard = result.findings.filter(
-    (f) => f.kind === 'oversized-task' && f.field === 'changes',
-  );
-  assert.deepEqual(hard, []);
-  const soft = result.findings.filter(
-    (f) => f.kind === 'soft-task-width' && f.field === 'changes',
-  );
-  assert.equal(soft.length, 1);
-  assert.equal(soft[0].observed, 3);
-  assert.equal(soft[0].soft, 2);
-});
-
-test('atomic-rewrite: 5 changes trips hard ceiling (hard=4)', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
-    makeStory('t-rewrite-hard', {
-      changes: Array.from({ length: 5 }, (_, i) => `src/file${i}.js: rewrite`),
-      sizingProfile: 'atomic-rewrite',
-    }),
-  ]);
-  const hard = result.findings.filter(
-    (f) => f.kind === 'oversized-task' && f.field === 'changes',
-  );
-  assert.equal(hard.length, 1);
-  assert.equal(hard[0].ceiling, 4);
-  assert.equal(hard[0].observed, 5);
-});
-
-test('no-profile: 4 changes is a soft breach (soft=3), no hard finding', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
-    makeStory('t-noprofile-soft', {
-      changes: Array.from({ length: 4 }, (_, i) => `src/f${i}.js: edit`),
-    }),
-  ]);
-  const hard = result.findings.filter(
-    (f) => f.kind === 'oversized-task' && f.field === 'changes',
-  );
-  assert.deepEqual(hard, []);
-  const soft = result.findings.filter(
-    (f) => f.kind === 'soft-task-width' && f.field === 'changes',
-  );
-  assert.equal(soft.length, 1);
-  assert.equal(soft[0].observed, 4);
-  assert.equal(soft[0].soft, 3);
-});
-
-test('no-profile: 7 changes trips hard ceiling (hard=6)', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
-    makeStory('t-noprofile-hard', {
-      changes: Array.from({ length: 7 }, (_, i) => `src/f${i}.js: edit`),
-    }),
-  ]);
-  const hard = result.findings.filter(
-    (f) => f.kind === 'oversized-task' && f.field === 'changes',
-  );
-  assert.equal(hard.length, 1);
-  assert.equal(hard[0].ceiling, 6);
-  assert.equal(hard[0].observed, 7);
-});
-
-// ---------------------------------------------------------------------------
-// Gap 4 — Glob-aware sizing
-// ---------------------------------------------------------------------------
-
-test('glob entry in changes emits glob-without-sizing-profile soft finding when no profile (Gap 4)', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
-    makeStory('t-glob-no-profile', {
-      changes: ['**/*.ts: update imports'],
-    }),
-  ]);
-  const hard = result.findings.filter((f) => f.severity === 'hard');
-  assert.deepEqual(hard, []);
-  const globFindings = result.findings.filter(
-    (f) => f.kind === 'glob-without-sizing-profile',
-  );
-  assert.equal(globFindings.length, 1);
-  assert.equal(globFindings[0].ticketSlug, 't-glob-no-profile');
-});
-
-test('glob entry with valid sizingProfile produces no glob-without-sizing-profile finding (Gap 4)', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
-    makeStory('t-glob-with-profile', {
-      changes: ['**/*.ts: update imports'],
-      sizingProfile: 'mechanical-sweep',
-    }),
-  ]);
-  const globFindings = result.findings.filter(
-    (f) => f.kind === 'glob-without-sizing-profile',
-  );
-  assert.deepEqual(globFindings, []);
-  assert.deepEqual(result.errors, []);
-});
-
-test('glob entries skip numeric ceiling check — unknown-width bypasses oversized-task (Gap 4)', () => {
-  // 100 glob bullets — none are explicit paths, so no oversized-task on changes.
-  const result = validateAndNormalizeTickets([
-    FEATURE,
-    makeStory('t-glob-many', {
-      changes: Array.from({ length: 100 }, (_, i) => `src/**/${i}.ts: edit`),
-      sizingProfile: 'mechanical-sweep',
-    }),
-  ]);
-  const hard = result.findings.filter(
-    (f) => f.kind === 'oversized-task' && f.field === 'changes',
-  );
-  assert.deepEqual(hard, []);
-});
-
-// ---------------------------------------------------------------------------
-// Recal D — soft-story-width never fires (computeStorySizingFindings removed)
-// ---------------------------------------------------------------------------
-
-test('no soft-story-width finding emitted in 3-tier world (Recal D)', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
-    makeStory('s-d1'),
-    makeStory('s-d2'),
-  ]);
-  const storyWidthFindings = result.findings.filter(
-    (f) => f.kind === 'soft-story-width',
-  );
-  assert.deepEqual(storyWidthFindings, []);
-});
-
-// ---------------------------------------------------------------------------
-// 3-tier guard — a Story missing its inline acceptance + verify contract is
-// rejected (Epic #3238 replaces the old assertEveryStoryHasTasks gate).
-// ---------------------------------------------------------------------------
-
-test('rejects a Story that lacks an inline acceptance + verify contract', () => {
-  assert.throws(
-    () =>
-      validateAndNormalizeTickets([
-        FEATURE,
-        {
-          type: 'story',
-          slug: 's-no-contract',
-          parent_slug: 'f-sizing',
-          title: 'Story without inline contract',
-          body: { goal: 'Goal.', changes: ['src/a.js: edit'] },
-        },
-      ]),
-    /lack an inline acceptance \+ verify contract/,
-  );
-});
-
-// ---------------------------------------------------------------------------
-// Soft acceptance breach (softAcceptanceCount=6) still fires
-// ---------------------------------------------------------------------------
 
 test('Story with 7 acceptance items emits soft-task-width on acceptance field', () => {
   const result = validateAndNormalizeTickets([
@@ -430,227 +129,158 @@ test('Story with 7 acceptance items emits soft-task-width on acceptance field', 
 });
 
 // ---------------------------------------------------------------------------
-// Feature 6 — estimated_test_files test-surface gates (Story #3235)
+// File width — single ceiling (softFiles=5, hardFiles=15)
 // ---------------------------------------------------------------------------
 
-test('null estimated_test_files produces no test-surface finding (absent = informational)', () => {
+test('5 files (at softFiles) produces no width finding', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory('t-ts-null', {
-      estimated_test_files: null,
-    }),
+    makeStory('t-5files', { changes: changes(5) }),
   ]);
-  const tsFindings = result.findings.filter(
-    (f) =>
-      f.kind === 'large-test-surface' || f.kind === 'test-surface-overflow',
+  const widthFindings = result.findings.filter(
+    (f) => f.kind === 'wide-undeclared' || f.field === 'fileCount',
   );
-  assert.deepEqual(tsFindings, []);
+  assert.deepEqual(widthFindings, []);
   assert.deepEqual(result.errors, []);
 });
 
-test('absent estimated_test_files (undefined) produces no test-surface finding', () => {
+test('6 files (>softFiles) with no wide declaration emits wide-undeclared (soft, no rejection)', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory('t-ts-absent', {}),
+    makeStory('t-6files', { changes: changes(6) }),
   ]);
-  const tsFindings = result.findings.filter(
-    (f) =>
-      f.kind === 'large-test-surface' || f.kind === 'test-surface-overflow',
-  );
-  assert.deepEqual(tsFindings, []);
+  const hard = result.findings.filter((f) => f.severity === 'hard');
+  assert.deepEqual(hard, []);
   assert.deepEqual(result.errors, []);
+  const nudge = result.findings.filter((f) => f.kind === 'wide-undeclared');
+  assert.equal(nudge.length, 1);
+  assert.equal(nudge[0].fileCount, 6);
+  assert.equal(nudge[0].softFiles, 5);
 });
 
-test('no-profile: estimated_test_files=6 is a soft breach (soft=5), emits large-test-surface', () => {
+test('16 files (>hardFiles) with no wide declaration trips hard oversized-task on fileCount', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory('t-ts-noprofile-soft', {
-      estimated_test_files: 6,
-    }),
+    makeStory('t-16files', { changes: changes(16) }),
   ]);
   const hard = result.findings.filter(
-    (f) => f.kind === 'test-surface-overflow',
-  );
-  assert.deepEqual(hard, []);
-  const soft = result.findings.filter((f) => f.kind === 'large-test-surface');
-  assert.equal(soft.length, 1);
-  assert.equal(soft[0].observed, 6);
-  assert.equal(soft[0].soft, 5);
-  assert.equal(soft[0].ticketSlug, 't-ts-noprofile-soft');
-  assert.equal(soft[0].sizingProfile, null);
-  assert.deepEqual(result.errors, []);
-});
-
-test('no-profile: estimated_test_files=11 trips hard test-surface-overflow (hard=10)', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
-    makeStory('t-ts-noprofile-hard', {
-      estimated_test_files: 11,
-    }),
-  ]);
-  const hard = result.findings.filter(
-    (f) => f.kind === 'test-surface-overflow',
-  );
-  assert.equal(hard.length, 1);
-  assert.equal(hard[0].observed, 11);
-  assert.equal(hard[0].ceiling, 10);
-  assert.equal(hard[0].ticketSlug, 't-ts-noprofile-hard');
-  assert.equal(hard[0].sizingProfile, null);
-  assert.equal(
-    result.errors.filter(
-      (e) => e.includes('test-surface') || e.includes('test surface'),
-    ).length,
-    1,
-  );
-});
-
-test('mechanical-sweep: estimated_test_files=20 is a soft breach (soft=15)', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
-    makeStory('t-ts-sweep-soft', {
-      estimated_test_files: 20,
-      sizingProfile: 'mechanical-sweep',
-    }),
-  ]);
-  const hard = result.findings.filter(
-    (f) => f.kind === 'test-surface-overflow',
-  );
-  assert.deepEqual(hard, []);
-  const soft = result.findings.filter((f) => f.kind === 'large-test-surface');
-  assert.equal(soft.length, 1);
-  assert.equal(soft[0].observed, 20);
-  assert.equal(soft[0].soft, 15);
-  assert.equal(soft[0].sizingProfile, 'mechanical-sweep');
-});
-
-test('mechanical-sweep: estimated_test_files=31 trips hard ceiling (hard=30)', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
-    makeStory('t-ts-sweep-hard', {
-      estimated_test_files: 31,
-      sizingProfile: 'mechanical-sweep',
-    }),
-  ]);
-  const hard = result.findings.filter(
-    (f) => f.kind === 'test-surface-overflow',
-  );
-  assert.equal(hard.length, 1);
-  assert.equal(hard[0].observed, 31);
-  assert.equal(hard[0].ceiling, 30);
-  assert.equal(hard[0].sizingProfile, 'mechanical-sweep');
-});
-
-test('scaffolding: estimated_test_files=10 is a soft breach (soft=8)', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
-    makeStory('t-ts-scaffold-soft', {
-      estimated_test_files: 10,
-      sizingProfile: 'scaffolding',
-    }),
-  ]);
-  const hard = result.findings.filter(
-    (f) => f.kind === 'test-surface-overflow',
-  );
-  assert.deepEqual(hard, []);
-  const soft = result.findings.filter((f) => f.kind === 'large-test-surface');
-  assert.equal(soft.length, 1);
-  assert.equal(soft[0].observed, 10);
-  assert.equal(soft[0].soft, 8);
-  assert.equal(soft[0].sizingProfile, 'scaffolding');
-});
-
-test('scaffolding: estimated_test_files=16 trips hard ceiling (hard=15)', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
-    makeStory('t-ts-scaffold-hard', {
-      estimated_test_files: 16,
-      sizingProfile: 'scaffolding',
-    }),
-  ]);
-  const hard = result.findings.filter(
-    (f) => f.kind === 'test-surface-overflow',
+    (f) => f.kind === 'oversized-task' && f.field === 'fileCount',
   );
   assert.equal(hard.length, 1);
   assert.equal(hard[0].observed, 16);
   assert.equal(hard[0].ceiling, 15);
-  assert.equal(hard[0].sizingProfile, 'scaffolding');
-});
-
-test('atomic-rewrite: estimated_test_files=4 is a soft breach (soft=3)', () => {
-  const result = validateAndNormalizeTickets([
-    FEATURE,
-    makeStory('t-ts-rewrite-soft', {
-      estimated_test_files: 4,
-      sizingProfile: 'atomic-rewrite',
-    }),
-  ]);
-  const hard = result.findings.filter(
-    (f) => f.kind === 'test-surface-overflow',
+  assert.equal(
+    result.errors.filter((e) => e.includes('fileCount ceiling')).length,
+    1,
   );
-  assert.deepEqual(hard, []);
-  const soft = result.findings.filter((f) => f.kind === 'large-test-surface');
-  assert.equal(soft.length, 1);
-  assert.equal(soft[0].observed, 4);
-  assert.equal(soft[0].soft, 3);
-  assert.equal(soft[0].sizingProfile, 'atomic-rewrite');
 });
 
-test('atomic-rewrite: estimated_test_files=7 trips hard ceiling (hard=6)', () => {
+test('16 files WITH a wide declaration lifts the hard ceiling (soft-task-width only)', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
-    makeStory('t-ts-rewrite-hard', {
-      estimated_test_files: 7,
-      sizingProfile: 'atomic-rewrite',
+    makeStory('t-16files-wide', {
+      changes: changes(16),
+      wide: { reason: 'hard contract cutover across every call site' },
+    }),
+  ]);
+  const hard = result.findings.filter((f) => f.severity === 'hard');
+  assert.deepEqual(hard, []);
+  assert.deepEqual(result.errors, []);
+  // Declared-wide Stories still surface the width as advisory signal.
+  const soft = result.findings.filter(
+    (f) => f.kind === 'soft-task-width' && f.field === 'fileCount',
+  );
+  assert.equal(soft.length, 1);
+  assert.equal(soft[0].observed, 16);
+  assert.equal(soft[0].soft, 5);
+});
+
+test('6 files WITH a wide declaration emits soft-task-width, not wide-undeclared', () => {
+  const result = validateAndNormalizeTickets([
+    FEATURE,
+    makeStory('t-6files-wide', {
+      changes: changes(6),
+      wide: { reason: 'legitimately broad: scaffold a new package skeleton' },
+    }),
+  ]);
+  const nudge = result.findings.filter((f) => f.kind === 'wide-undeclared');
+  assert.deepEqual(nudge, []);
+  const soft = result.findings.filter(
+    (f) => f.kind === 'soft-task-width' && f.field === 'fileCount',
+  );
+  assert.equal(soft.length, 1);
+  assert.equal(soft[0].observed, 6);
+  assert.equal(soft[0].soft, 5);
+  assert.deepEqual(result.errors, []);
+});
+
+test('a wide declaration with an empty reason does NOT lift the hard ceiling', () => {
+  const result = validateAndNormalizeTickets([
+    FEATURE,
+    makeStory('t-wide-empty-reason', {
+      changes: changes(16),
+      wide: { reason: '   ' },
     }),
   ]);
   const hard = result.findings.filter(
-    (f) => f.kind === 'test-surface-overflow',
+    (f) => f.kind === 'oversized-task' && f.field === 'fileCount',
   );
   assert.equal(hard.length, 1);
-  assert.equal(hard[0].observed, 7);
-  assert.equal(hard[0].ceiling, 6);
-  assert.equal(hard[0].sizingProfile, 'atomic-rewrite');
-});
-
-test('estimated_test_files exactly at soft threshold produces no finding', () => {
-  // Exactly at the no-profile soft ceiling (5) — no breach.
-  const result = validateAndNormalizeTickets([
-    FEATURE,
-    makeStory('t-ts-at-soft', {
-      estimated_test_files: 5,
-    }),
-  ]);
-  const tsFindings = result.findings.filter(
-    (f) =>
-      f.kind === 'large-test-surface' || f.kind === 'test-surface-overflow',
-  );
-  assert.deepEqual(tsFindings, []);
-  assert.deepEqual(result.errors, []);
-});
-
-test('estimated_test_files exactly at hard threshold produces no finding', () => {
-  // Exactly at the no-profile hard ceiling (10) — no overflow.
-  const result = validateAndNormalizeTickets([
-    FEATURE,
-    makeStory('t-ts-at-hard', {
-      estimated_test_files: 10,
-    }),
-  ]);
-  const hard = result.findings.filter(
-    (f) => f.kind === 'test-surface-overflow',
-  );
-  assert.deepEqual(hard, []);
-  assert.deepEqual(result.errors, []);
+  assert.equal(hard[0].ceiling, 15);
 });
 
 // ---------------------------------------------------------------------------
-// PathEntry object form in changes[] (review finding fix, Epic #3211)
+// Glob-aware sizing — unknown-width bypasses the numeric ceiling
+// ---------------------------------------------------------------------------
+
+test('glob entry with no wide declaration emits wide-undeclared (soft)', () => {
+  const result = validateAndNormalizeTickets([
+    FEATURE,
+    makeStory('t-glob-no-wide', {
+      changes: ['**/*.ts: update imports'],
+    }),
+  ]);
+  const hard = result.findings.filter((f) => f.severity === 'hard');
+  assert.deepEqual(hard, []);
+  const nudge = result.findings.filter((f) => f.kind === 'wide-undeclared');
+  assert.equal(nudge.length, 1);
+  assert.equal(nudge[0].ticketSlug, 't-glob-no-wide');
+  assert.equal(nudge[0].reason, 'glob-changes');
+});
+
+test('glob entry WITH a wide declaration produces no wide-undeclared finding', () => {
+  const result = validateAndNormalizeTickets([
+    FEATURE,
+    makeStory('t-glob-wide', {
+      changes: ['**/*.ts: update imports'],
+      wide: { reason: 'mechanical sweep: rename across every consumer site' },
+    }),
+  ]);
+  const nudge = result.findings.filter((f) => f.kind === 'wide-undeclared');
+  assert.deepEqual(nudge, []);
+  assert.deepEqual(result.errors, []);
+});
+
+test('glob entries skip the numeric ceiling — 100 globs never trip oversized-task', () => {
+  const result = validateAndNormalizeTickets([
+    FEATURE,
+    makeStory('t-glob-many', {
+      changes: Array.from({ length: 100 }, (_, i) => `src/**/${i}.ts: edit`),
+      wide: { reason: 'sweep' },
+    }),
+  ]);
+  const hard = result.findings.filter(
+    (f) => f.kind === 'oversized-task' && f.field === 'fileCount',
+  );
+  assert.deepEqual(hard, []);
+});
+
+// ---------------------------------------------------------------------------
+// PathEntry object form in changes[] counts files correctly
 // ---------------------------------------------------------------------------
 
 test('changes[] with PathEntry object form counts files correctly (not zero)', () => {
-  // Canonical PathEntry form: { path, assumption }. analyseChanges must handle
-  // objects, not only legacy string bullets. A task with 4 PathEntry objects
-  // and no sizingProfile should emit a missing-sizing-profile-hint (fileCount=4 > softFileCount=3).
+  // 6 PathEntry objects, no wide → wide-undeclared (fileCount=6 > softFiles=5).
   const result = validateAndNormalizeTickets([
     FEATURE,
     makeStory('t-pathentry', {
@@ -659,29 +289,45 @@ test('changes[] with PathEntry object form counts files correctly (not zero)', (
         { path: 'src/b.js', assumption: 'refactors-existing' },
         { path: 'src/c.js', assumption: 'exists' },
         { path: 'src/d.js', assumption: 'deletes' },
+        { path: 'src/e.js', assumption: 'refactors-existing' },
+        { path: 'src/f.js', assumption: 'refactors-existing' },
       ],
     }),
   ]);
-  const hint = result.findings.filter(
-    (f) => f.kind === 'missing-sizing-profile-hint',
-  );
-  assert.equal(
-    hint.length,
-    1,
-    'expected missing-sizing-profile-hint for 4 PathEntry changes',
-  );
-  assert.equal(hint[0].fileCount, 4);
+  const nudge = result.findings.filter((f) => f.kind === 'wide-undeclared');
+  assert.equal(nudge.length, 1, 'expected wide-undeclared for 6 PathEntry changes');
+  assert.equal(nudge[0].fileCount, 6);
 });
 
-test('changes[] with glob PathEntry object triggers glob-without-sizing-profile finding', () => {
+test('changes[] with a glob PathEntry object triggers wide-undeclared', () => {
   const result = validateAndNormalizeTickets([
     FEATURE,
     makeStory('t-glob-pathentry', {
       changes: [{ path: '**/*.js', assumption: 'refactors-existing' }],
     }),
   ]);
-  const globFindings = result.findings.filter(
-    (f) => f.kind === 'glob-without-sizing-profile',
+  const nudge = result.findings.filter((f) => f.kind === 'wide-undeclared');
+  assert.equal(nudge.length, 1);
+});
+
+// ---------------------------------------------------------------------------
+// 3-tier guard — a Story missing its inline acceptance + verify contract is
+// rejected (Epic #3238).
+// ---------------------------------------------------------------------------
+
+test('rejects a Story that lacks an inline acceptance + verify contract', () => {
+  assert.throws(
+    () =>
+      validateAndNormalizeTickets([
+        FEATURE,
+        {
+          type: 'story',
+          slug: 's-no-contract',
+          parent_slug: 'f-sizing',
+          title: 'Story without inline contract',
+          body: { goal: 'Goal.', changes: ['src/a.js: edit'] },
+        },
+      ]),
+    /lack an inline acceptance \+ verify contract/,
   );
-  assert.equal(globFindings.length, 1);
 });

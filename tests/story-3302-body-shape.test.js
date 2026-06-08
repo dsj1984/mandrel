@@ -60,7 +60,7 @@ describe('createOp — object body handling (Story #3302)', () => {
       acceptance: ['Feature is implemented.'],
       verify: ['node --test tests/feature.test.js (unit)'],
       references: [],
-      sizingProfile: null,
+      wide: null,
       depends_on: [],
       estimated_test_files: null,
     };
@@ -158,7 +158,7 @@ describe('validateAcFreshness — canonical string body (Story #3302)', () => {
       acceptance: [`${path} passes all assertions`],
       verify: [`node --test ${path} (unit)`],
       references: [],
-      sizingProfile: null,
+      wide: null,
       depends_on: [],
       estimated_test_files: null,
     });
@@ -191,7 +191,7 @@ describe('validateAcFreshness — canonical string body (Story #3302)', () => {
       ],
       verify: ['node --test tests/.agents/scripts/nonexistent.test.js (unit)'],
       references: [],
-      sizingProfile: null,
+      wide: null,
       depends_on: [],
       estimated_test_files: null,
     });
@@ -230,7 +230,7 @@ describe('collectStoryAssumptionEntries — canonical string body (Story #3302)'
       acceptance: ['ac'],
       verify: ['node --test tests/x.test.js (unit)'],
       references: [{ path: 'tests/fixtures/f.json', assumption: 'exists' }],
-      sizingProfile: null,
+      wide: null,
       depends_on: [],
       estimated_test_files: null,
     });

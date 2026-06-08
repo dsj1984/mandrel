@@ -2,19 +2,22 @@
 /**
  * Round-trip tests for the Story-body meta comment block (Story #3487).
  *
- * serialize() writes `sizingProfile` and `estimated_test_files` into a
- * trailing `<!-- meta: {...} -->` comment so the values survive a
- * serialize → parse round-trip. Before this Story, parse()'s markdown
- * branch hardcoded both fields to null and a `## References` section
- * immediately followed by the meta block swallowed the comment as a
- * references entry. These tests pin the corrected behaviour:
+ * serialize() writes `wide` and `estimated_test_files` into a trailing
+ * `<!-- meta: {...} -->` comment so the values survive a serialize → parse
+ * round-trip. Before Story #3487, parse()'s markdown branch hardcoded both
+ * fields to null and a `## References` section immediately followed by the
+ * meta block swallowed the comment as a references entry. These tests pin the
+ * corrected behaviour:
  *
- *   - parse() recovers sizingProfile from the meta block.
+ *   - parse() recovers `wide` from the meta block.
  *   - parse() recovers estimated_test_files from the meta block.
  *   - A References section followed by a meta block does not list the
  *     comment as a references entry.
  *   - serialize(parse(serialize(body)).body) === serialize(body) for a
  *     body carrying both meta fields.
+ *
+ * Story #3760 collapsed the `sizingProfile` enum into the `wide = { reason }`
+ * declaration; these round-trip tests exercise the new field.
  */
 
 import assert from 'node:assert/strict';
@@ -28,6 +31,8 @@ import {
 // Fixtures
 // ---------------------------------------------------------------------------
 
+const WIDE_REASON = 'hard cutover: migrate every call site in one PR';
+
 /** A canonical body carrying both meta fields and a References section. */
 const BODY_WITH_META = {
   goal: 'Recover meta fields on parse.',
@@ -37,12 +42,12 @@ const BODY_WITH_META = {
       assumption: 'refactors-existing',
     },
   ],
-  acceptance: ['parse recovers sizingProfile', 'parse recovers test count'],
+  acceptance: ['parse recovers wide', 'parse recovers test count'],
   verify: [
     'node --test tests/lib/story-body/story-body-meta-round-trip.test.js (unit)',
   ],
   references: [{ path: 'docs/architecture.md', assumption: 'exists' }],
-  sizingProfile: 'mechanical-sweep',
+  wide: { reason: WIDE_REASON },
   depends_on: [],
   estimated_test_files: 3,
 };
@@ -52,10 +57,10 @@ const BODY_WITH_META = {
 // ---------------------------------------------------------------------------
 
 describe('parse() — meta block recovery', () => {
-  it('recovers sizingProfile from a serialized meta block', () => {
+  it('recovers wide from a serialized meta block', () => {
     const md = serialize(BODY_WITH_META);
     const { body } = parse(md);
-    assert.equal(body.sizingProfile, 'mechanical-sweep');
+    assert.deepEqual(body.wide, { reason: WIDE_REASON });
   });
 
   it('recovers estimated_test_files from a serialized meta block', () => {
@@ -76,26 +81,26 @@ describe('parse() — meta block recovery', () => {
   it('still defaults both meta fields to null when no meta block is present', () => {
     const md = serialize({
       ...BODY_WITH_META,
-      sizingProfile: null,
+      wide: null,
       estimated_test_files: null,
     });
     const { body, warnings } = parse(md);
-    assert.equal(body.sizingProfile, null);
+    assert.equal(body.wide, null);
     assert.equal(body.estimated_test_files, null);
     assert.ok(warnings.some((w) => w.startsWith('test-surface-unestimated')));
   });
 
-  it('recovers sizingProfile alone when estimated_test_files is absent', () => {
+  it('recovers wide alone when estimated_test_files is absent', () => {
     const md = serialize({ ...BODY_WITH_META, estimated_test_files: null });
     const { body } = parse(md);
-    assert.equal(body.sizingProfile, 'mechanical-sweep');
+    assert.deepEqual(body.wide, { reason: WIDE_REASON });
     assert.equal(body.estimated_test_files, null);
   });
 
-  it('recovers estimated_test_files alone when sizingProfile is absent', () => {
-    const md = serialize({ ...BODY_WITH_META, sizingProfile: null });
+  it('recovers estimated_test_files alone when wide is absent', () => {
+    const md = serialize({ ...BODY_WITH_META, wide: null });
     const { body } = parse(md);
-    assert.equal(body.sizingProfile, null);
+    assert.equal(body.wide, null);
     assert.equal(body.estimated_test_files, 3);
   });
 });
@@ -115,7 +120,7 @@ describe('parse() — malformed / non-object meta block degrades safely', () => 
   function bodyWithRawMeta(rawMeta) {
     const base = serialize({
       ...BODY_WITH_META,
-      sizingProfile: null,
+      wide: null,
       estimated_test_files: null,
     });
     return `${base}\n\n<!-- meta: ${rawMeta} -->`;
@@ -128,7 +133,7 @@ describe('parse() — malformed / non-object meta block degrades safely', () => 
     assert.doesNotThrow(() => {
       result = parse(md);
     });
-    assert.equal(result.body.sizingProfile, null);
+    assert.equal(result.body.wide, null);
     assert.equal(result.body.estimated_test_files, null);
     // The body itself still parses — Goal survived the corrupt meta comment.
     assert.equal(result.body.goal, BODY_WITH_META.goal);
@@ -140,7 +145,7 @@ describe('parse() — malformed / non-object meta block degrades safely', () => 
       assert.doesNotThrow(() => {
         result = parse(bodyWithRawMeta(raw));
       }, `expected no throw for meta payload ${raw}`);
-      assert.equal(result.body.sizingProfile, null);
+      assert.equal(result.body.wide, null);
       assert.equal(result.body.estimated_test_files, null);
     }
   });
@@ -166,7 +171,7 @@ describe('parse() — References immediately followed by meta block', () => {
       '',
       '## References',
       `- ${JSON.stringify({ path: 'docs/architecture.md', assumption: 'exists' })}`,
-      '<!-- meta: {"sizingProfile":"mechanical-sweep","estimated_test_files":2} -->',
+      '<!-- meta: {"wide":{"reason":"broad cutover"},"estimated_test_files":2} -->',
     ].join('\n');
     const { body } = parse(md);
     assert.equal(body.references.length, 1);
@@ -174,7 +179,7 @@ describe('parse() — References immediately followed by meta block', () => {
       path: 'docs/architecture.md',
       assumption: 'exists',
     });
-    assert.equal(body.sizingProfile, 'mechanical-sweep');
+    assert.deepEqual(body.wide, { reason: 'broad cutover' });
     assert.equal(body.estimated_test_files, 2);
   });
 });
@@ -191,7 +196,7 @@ describe('round-trip: serialize → parse → serialize', () => {
     assert.equal(twice, once);
   });
 
-  it('round-trips a body carrying only sizingProfile', () => {
+  it('round-trips a body carrying only wide', () => {
     const body = { ...BODY_WITH_META, estimated_test_files: null };
     const once = serialize(body);
     const twice = serialize(parse(once).body);
@@ -199,7 +204,7 @@ describe('round-trip: serialize → parse → serialize', () => {
   });
 
   it('round-trips a body carrying only estimated_test_files', () => {
-    const body = { ...BODY_WITH_META, sizingProfile: null };
+    const body = { ...BODY_WITH_META, wide: null };
     const once = serialize(body);
     const twice = serialize(parse(once).body);
     assert.equal(twice, once);
@@ -209,7 +214,7 @@ describe('round-trip: serialize → parse → serialize', () => {
     const once = serialize(BODY_WITH_META);
     const twice = serialize(parse(once).body);
     assert.ok(twice.includes('<!-- meta:'));
-    assert.ok(twice.includes('"sizingProfile":"mechanical-sweep"'));
+    assert.ok(twice.includes(`"wide":{"reason":"${WIDE_REASON}"}`));
     assert.ok(twice.includes('"estimated_test_files":3'));
   });
 });

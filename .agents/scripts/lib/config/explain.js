@@ -56,11 +56,11 @@ const SECRET_SEGMENT_PATTERNS = Object.freeze([
 
 /**
  * Curated one-line meanings keyed by dotted config path. Wildcard floor
- * paths (`...floors.*`) and the no-profile sizing key (`...profileCeilings.`)
- * are covered by the prefix fallbacks below, so this map pins the
- * operator-facing keys that benefit from a bespoke gloss. Any key without an
- * exact entry falls back to the longest matching prefix gloss, then to a
- * top-level block gloss, so every key always reports a non-empty meaning.
+ * paths (`...floors.*`) are covered by the prefix fallbacks below, so this
+ * map pins the operator-facing keys that benefit from a bespoke gloss. Any
+ * key without an exact entry falls back to the longest matching prefix gloss,
+ * then to a top-level block gloss, so every key always reports a non-empty
+ * meaning.
  *
  * @type {Readonly<Record<string, string>>}
  */
@@ -136,8 +136,10 @@ const KEY_MEANINGS = Object.freeze({
     'Hard ceiling on acceptance criteria per Story.',
   'planning.taskSizing.softAcceptanceCount':
     'Acceptance-criteria count above which a Story is flagged as large.',
-  'planning.taskSizing.softFileCount':
+  'planning.taskSizing.softFiles':
     'Touched-file count above which a Story is flagged as large.',
+  'planning.taskSizing.hardFiles':
+    'Touched-file count above which a Story is rejected unless it declares `wide` with a reason.',
   'planning.failOnSharedEditors':
     'Whether shared-editor conflict findings are promoted to hard errors.',
   'planning.requireExplicitCrossStoryDeps':
@@ -230,14 +232,7 @@ const PREFIX_MEANINGS = Object.freeze([
   ['delivery.signals', 'Threshold for a delivery friction/telemetry signal.'],
   ['delivery.lifecycle.timeouts', 'Timeout for a lifecycle-bus phase.'],
   ['delivery.lifecycle', 'Lifecycle-bus configuration.'],
-  [
-    'planning.taskSizing.profileCeilings',
-    'Per-profile change-count ceiling (soft/hard) for Story sizing.',
-  ],
-  [
-    'planning.taskSizing.testSurface',
-    'Per-profile test-file-count gate (soft/hard) for Story sizing.',
-  ],
+  ['planning.taskSizing', 'Story-sizing threshold for the decompose validator.'],
   ['qa.signInSeam', 'QA harness sign-in seam configuration.'],
   ['qa.personas', 'QA harness persona / credential mapping.'],
 ]);

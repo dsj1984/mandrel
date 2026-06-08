@@ -94,37 +94,45 @@ describe('skill:epic-plan-decompose-author — smoke', () => {
             );
           }
         }
-        // Story #3237 — recalibrated thresholds: maxAcceptance raised to 8
-        // (Story #3231 Recal B). The Skill body must advertise the new ceiling.
-        if (!/maxAcceptance:\s*8/.test(body)) {
+        // Story #3760 — sizing thresholds have exactly one definition
+        // (DEFAULT_TASK_SIZING). The Skill body must advertise the ceilings
+        // (maxAcceptance=8, hardFiles=15) and name the single constant.
+        if (!(/maxAcceptance/.test(body) && /\b8\b/.test(body))) {
           errors.push(
-            'Skill body must advertise the recalibrated maxAcceptance ceiling of 8 (Story #3231 Recal B)',
+            'Skill body must advertise the maxAcceptance ceiling of 8 (Story #3760)',
           );
         }
-        // Story #3237 — sizingProfile is now optional / informational hint,
-        // not a hard rejection (Story #3231 Recal C).
-        if (/missing-sizing-profile(?!-hint)/i.test(body)) {
-          // Tolerate `missing-sizing-profile-hint` but not bare `missing-sizing-profile`
-          // as a rejection token.
-          const msp = body.match(/missing-sizing-profile[^\s-]*/g) ?? [];
-          if (msp.some((m) => m === 'missing-sizing-profile')) {
-            errors.push(
-              'Skill body must not describe missing-sizing-profile as a hard rejection; use missing-sizing-profile-hint (Story #3231 Recal C)',
-            );
-          }
-        }
-        // Story #3237 — estimated_test_files field must be documented
-        // (Story #3235 test-surface gates).
-        if (!/estimated_test_files/i.test(body)) {
+        if (!(/hardFiles/.test(body) && /\b15\b/.test(body))) {
           errors.push(
-            'Skill body must document the estimated_test_files field (Story #3235 test-surface gates)',
+            'Skill body must advertise the hardFiles ceiling of 15 (Story #3760)',
           );
         }
-        // Story #3237 — per-profile change ceilings table must be present
-        // (Story #3231 Recal A).
-        if (!/profileCeilings|per-profile change ceiling/i.test(body)) {
+        if (!/DEFAULT_TASK_SIZING/.test(body)) {
           errors.push(
-            'Skill body must describe per-profile change ceilings (Story #3231 Recal A)',
+            'Skill body must name DEFAULT_TASK_SIZING as the single sizing source of truth (Story #3760)',
+          );
+        }
+        // Story #3760 — cohesion is the primary heuristic; the numeric ceiling
+        // is only a backstop.
+        if (!/cohesion/i.test(body)) {
+          errors.push(
+            'Skill body must lead the sizing section with a cohesion heuristic (Story #3760)',
+          );
+        }
+        // Story #3760 — the wide declaration replaced the sizingProfile enum.
+        if (!/\bwide\b/i.test(body)) {
+          errors.push(
+            'Skill body must describe the wide declaration (Story #3760)',
+          );
+        }
+        // Story #3760 — the retired profile enum / testSurface gates must be gone.
+        if (
+          /sizingProfile|atomic-rewrite|scaffolding|mechanical-sweep|profileCeilings|test-surface-overflow|large-test-surface/i.test(
+            body,
+          )
+        ) {
+          errors.push(
+            'Skill body must not restate the retired sizingProfile enum or testSurface gates (Story #3760)',
           );
         }
         // Story #3263 — SKILL must document top-level acceptance[] and verify[]

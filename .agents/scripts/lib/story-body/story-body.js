@@ -15,7 +15,7 @@
  *   acceptance:          string[],         // observable criteria
  *   verify:              string[],         // exact commands / tier annotation
  *   references:          PathEntry[],      // read-only paths (optional)
- *   sizingProfile:       string | null,    // enum; required on wide Stories
+ *   wide:                { reason } | null,// declared-wide footprint (optional)
  *   depends_on:          string[],         // blocker story slugs or #ids
  *   estimated_test_files: number | null,   // absent → null (informational)
  * }
@@ -68,7 +68,7 @@ import { FILE_ASSUMPTION_VALUES } from '../orchestration/file-assumption-enum.js
  * @property {string[]}      acceptance          - Observable acceptance criteria.
  * @property {string[]}      verify              - Exact commands with tier annotation.
  * @property {PathEntry[]}   references          - Read-only paths (may be empty).
- * @property {string|null}   sizingProfile       - Sizing profile or null.
+ * @property {{ reason: string }|null} wide      - Declared-wide footprint (reason), or null.
  * @property {string[]}      depends_on          - Blocking story slugs / issue refs.
  * @property {number|null}   estimated_test_files - Test surface count or null.
  */
@@ -235,10 +235,10 @@ function extractBlockedBy(footerBlock) {
 const META_BLOCK_RE = /<!--\s*meta:\s*(\{[\s\S]*?\})\s*-->/;
 
 /**
- * Extract the `sizingProfile` / `estimated_test_files` fields from the
- * trailing `<!-- meta: {...} -->` comment block written by
- * {@link serialize}. Returns canonical-shaped values (null when absent or
- * malformed) so the parser round-trips the meta block faithfully.
+ * Extract the `wide` / `estimated_test_files` fields from the trailing
+ * `<!-- meta: {...} -->` comment block written by {@link serialize}. Returns
+ * canonical-shaped values (null when absent or malformed) so the parser
+ * round-trips the meta block faithfully.
  *
  * Failing closed here would be wrong: the meta block is an optional,
  * machine-written convenience and a malformed comment must not corrupt an
@@ -246,10 +246,10 @@ const META_BLOCK_RE = /<!--\s*meta:\s*(\{[\s\S]*?\})\s*-->/;
  * defaults instead of throwing.
  *
  * @param {string} markdown
- * @returns {{ sizingProfile: string|null, estimated_test_files: number|null }}
+ * @returns {{ wide: { reason: string }|null, estimated_test_files: number|null }}
  */
 function extractMeta(markdown) {
-  const result = { sizingProfile: null, estimated_test_files: null };
+  const result = { wide: null, estimated_test_files: null };
   const match = markdown.match(META_BLOCK_RE);
   if (!match) return result;
 
@@ -262,16 +262,27 @@ function extractMeta(markdown) {
   }
   if (parsed === null || typeof parsed !== 'object') return result;
 
-  if (
-    typeof parsed.sizingProfile === 'string' &&
-    parsed.sizingProfile.trim().length > 0
-  ) {
-    result.sizingProfile = parsed.sizingProfile.trim();
-  }
+  result.wide = normalizeWide(parsed.wide);
   if (typeof parsed.estimated_test_files === 'number') {
     result.estimated_test_files = parsed.estimated_test_files;
   }
   return result;
+}
+
+/**
+ * Normalize a raw `wide` declaration to the canonical `{ reason }` shape or
+ * `null`. A `wide` declaration is only honoured when it carries a non-empty
+ * one-line reason — the reason is the whole point of the field (it states why
+ * a Story is legitimately broad and lifts the hard file-width ceiling).
+ *
+ * @param {unknown} raw
+ * @returns {{ reason: string }|null}
+ */
+function normalizeWide(raw) {
+  if (raw === null || typeof raw !== 'object') return null;
+  const reason = typeof raw.reason === 'string' ? raw.reason.trim() : '';
+  if (reason.length === 0) return null;
+  return { reason };
 }
 
 /**
@@ -417,7 +428,7 @@ export function parse(input) {
       acceptance: [],
       verify: [],
       references: [],
-      sizingProfile: null,
+      wide: null,
       depends_on: dependsOn,
       estimated_test_files: null,
     };
@@ -483,12 +494,12 @@ export function parse(input) {
   // --- Parse footer ---
   const dependsOn = extractBlockedBy(footer);
 
-  // --- Recover sizingProfile / estimated_test_files from the meta block ---
+  // --- Recover wide / estimated_test_files from the meta block ---
   // serialize() writes these into a trailing `<!-- meta: {...} -->` comment
   // so round-trips preserve them. Absent meta block → canonical null defaults.
   const meta = extractMeta(input);
   const estimated_test_files = meta.estimated_test_files;
-  const sizingProfile = meta.sizingProfile;
+  const wide = meta.wide;
   if (estimated_test_files === null) {
     warnings.push(
       'test-surface-unestimated: estimated_test_files not present.',
@@ -501,7 +512,7 @@ export function parse(input) {
     acceptance,
     verify,
     references,
-    sizingProfile,
+    wide,
     depends_on: dependsOn,
     estimated_test_files,
   };
@@ -559,10 +570,7 @@ function parseStructuredObject(obj) {
     if (entry !== null) references.push(entry);
   }
 
-  const sizingProfile =
-    typeof obj.sizingProfile === 'string' && obj.sizingProfile.trim().length > 0
-      ? obj.sizingProfile.trim()
-      : null;
+  const wide = normalizeWide(obj.wide);
 
   // depends_on: may be at top level or in body
   const rawDeps = Array.isArray(obj.depends_on) ? obj.depends_on : [];
@@ -586,7 +594,7 @@ function parseStructuredObject(obj) {
     acceptance,
     verify,
     references,
-    sizingProfile,
+    wide,
     depends_on,
     estimated_test_files,
   };
@@ -629,7 +637,7 @@ function serializePathEntry(entry) {
  * `## Goal`, `## Changes`, `## Acceptance`, `## Verify`, `## References`
  * (omitted when empty).
  *
- * `sizingProfile` and `estimated_test_files` are emitted as a fenced
+ * `wide` and `estimated_test_files` are emitted as a fenced
  * `<!-- meta -->` comment block so round-trips preserve them without
  * polluting the human-readable body.
  *
@@ -683,11 +691,9 @@ export function serialize(body, opts = {}) {
 
   // Meta block for fields not representable as human-readable sections.
   const metaFields = {};
-  if (
-    typeof body.sizingProfile === 'string' &&
-    body.sizingProfile.trim().length > 0
-  ) {
-    metaFields.sizingProfile = body.sizingProfile;
+  const wide = normalizeWide(body.wide);
+  if (wide !== null) {
+    metaFields.wide = wide;
   }
   if (typeof body.estimated_test_files === 'number') {
     metaFields.estimated_test_files = body.estimated_test_files;
