@@ -222,31 +222,34 @@ describe('planning.* shape', () => {
     );
   });
 
-  it('accepts planning.taskSizing.testSurface operator overrides (Feature 6)', () => {
+  it('accepts the collapsed planning.taskSizing flat knobs (Story #3760)', () => {
     assert.equal(
       validate({
         ...REQ,
         planning: {
           taskSizing: {
+            softFiles: 5,
+            hardFiles: 15,
             maxAcceptance: 8,
             softAcceptanceCount: 6,
-            softFileCount: 3,
-            profileCeilings: {
-              'mechanical-sweep': { soft: 25, hard: 60 },
-              scaffolding: { soft: 8, hard: 15 },
-              'atomic-rewrite': { soft: 2, hard: 4 },
-              '': { soft: 3, hard: 6 },
-            },
-            testSurface: {
-              'mechanical-sweep': { soft: 15, hard: 30 },
-              scaffolding: { soft: 8, hard: 15 },
-              'atomic-rewrite': { soft: 3, hard: 6 },
-              '': { soft: 5, hard: 10 },
-            },
           },
         },
       }),
       true,
+    );
+  });
+
+  it('rejects the retired per-profile taskSizing keys (Story #3760)', () => {
+    expectErrors(
+      {
+        ...REQ,
+        planning: {
+          taskSizing: {
+            profileCeilings: { '': { soft: 3, hard: 6 } },
+          },
+        },
+      },
+      /additional propert/i,
     );
   });
 

@@ -744,10 +744,6 @@
       "symbol": "DEFAULT_TASK_SIZING"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "symbol": "SIZING_PROFILE_VALUES"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "symbol": "_peekStructuredCommentCache"
     },

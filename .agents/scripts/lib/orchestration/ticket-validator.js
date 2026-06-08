@@ -13,12 +13,11 @@ import {
   computeSizingFindings,
   DEFAULT_TASK_SIZING,
   renderHardFindingError,
-  SIZING_PROFILE_VALUES,
 } from './ticket-validator-sizing.js';
 
 // Re-exported for callers that want the constants without reaching into the
 // sizing helper module directly.
-export { DEFAULT_TASK_SIZING, SIZING_PROFILE_VALUES };
+export { DEFAULT_TASK_SIZING };
 
 /**
  * Regex matching code-asset paths the freshness gate cares about. The three

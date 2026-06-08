@@ -13,7 +13,7 @@
  *   - parse(): null/undefined input throws
  *   - serialize(): structured object → markdown
  *   - serialize(): includes footer when opts.includeFooter = true
- *   - serialize(): meta comment block for sizingProfile / estimated_test_files
+ *   - serialize(): meta comment block for wide / estimated_test_files
  *   - serialize(): omits empty sections
  *   - extractChangePaths(): flags glob entries
  *   - round-trip: parse(serialize(body)) reproduces body
@@ -65,7 +65,7 @@ const CANONICAL_BODY = {
   ],
   verify: ['npm test -- tests/lib/story-body/story-body.test.js (unit)'],
   references: [],
-  sizingProfile: null,
+  wide: null,
   depends_on: [],
   estimated_test_files: null,
 };
@@ -125,9 +125,9 @@ describe('parse() — markdown', () => {
     assert.equal(body.estimated_test_files, null);
   });
 
-  it('sets sizingProfile to null when not present in markdown', () => {
+  it('sets wide to null when not present in markdown', () => {
     const { body } = parse(CANONICAL_MARKDOWN);
-    assert.equal(body.sizingProfile, null);
+    assert.equal(body.wide, null);
   });
 });
 
@@ -191,7 +191,7 @@ describe('parse() — structured object input', () => {
       acceptance: ['foo test passes'],
       verify: ['npm test (unit)'],
       depends_on: ['story-abc'],
-      sizingProfile: 'mechanical-sweep',
+      wide: { reason: 'mechanical sweep across every consumer site' },
     };
     const { body, warnings } = parse(obj);
     assert.equal(body.goal, 'Wire X to Y.');
@@ -201,7 +201,9 @@ describe('parse() — structured object input', () => {
     });
     assert.equal(typeof body.changes[1], 'string'); // legacy warning
     assert.ok(warnings.some((w) => w.startsWith('legacy-path-entry')));
-    assert.equal(body.sizingProfile, 'mechanical-sweep');
+    assert.deepEqual(body.wide, {
+      reason: 'mechanical sweep across every consumer site',
+    });
     assert.deepEqual(body.depends_on, ['story-abc']);
     assert.equal(body.estimated_test_files, null);
   });
@@ -320,11 +322,14 @@ describe('serialize()', () => {
     assert.ok(out.includes('blocked by #200'));
   });
 
-  it('emits meta comment block for sizingProfile', () => {
-    const body = { ...CANONICAL_BODY, sizingProfile: 'mechanical-sweep' };
+  it('emits meta comment block for wide', () => {
+    const body = {
+      ...CANONICAL_BODY,
+      wide: { reason: 'broad cutover for one reason' },
+    };
     const out = serialize(body);
     assert.ok(out.includes('<!-- meta:'));
-    assert.ok(out.includes('"sizingProfile":"mechanical-sweep"'));
+    assert.ok(out.includes('"wide":{"reason":"broad cutover for one reason"}'));
   });
 
   it('emits meta comment block for estimated_test_files', () => {
@@ -396,7 +401,7 @@ describe('round-trip: serialize → parse', () => {
       acceptance: ['All tests pass'],
       verify: ['npm test (unit)'],
       references: [{ path: 'docs/arch.md', assumption: 'exists' }],
-      sizingProfile: null,
+      wide: null,
       depends_on: [],
       estimated_test_files: null,
     };

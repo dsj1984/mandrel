@@ -100,7 +100,7 @@ export function buildStoryBody({ group }) {
     acceptance: acceptanceCriteriaFromGroup(group),
     verify: [],
     references: [],
-    sizingProfile: null,
+    wide: null,
     depends_on: [],
     estimated_test_files: null,
   };

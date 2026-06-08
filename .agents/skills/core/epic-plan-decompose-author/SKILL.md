@@ -24,7 +24,7 @@ allowed_tools:
 - **New-File Contract**: any path referenced in `goal`, `acceptance`, or `verify` that does not exist on `main` MUST appear in the Story's `changes[]` with `assumption: "creates"`; otherwise the freshness validator rejects the decompose.
 - Acceptance items MUST be **observable from outside the agent** (command exits 0, file exists, snapshot matches, testid resolves). Items like "verify by reading the diff" or "looks good" are forbidden — push them into `verify` commands instead.
 - Acceptance MUST NOT prescribe a commit subject starting with a non-Conventional-Commits prefix; the literal `baseline-refresh:` leading token is forbidden (use a body trailer instead — see Epic #2501).
-- Wide Stories (files > `softFileCount`, default 3) MUST declare `sizingProfile` (top-level on the ticket object, or inside the serialized body string via the `<!-- meta -->` comment) from the closed enum `mechanical-sweep | atomic-rewrite | scaffolding`. UI-touching Stories MUST end `changes` with a `data-testid invariance:` or `data-testid changes: <old> -> <new>` declaration.
+- A legitimately broad Story (files > `hardFiles`) MUST declare `wide` with a one-line reason (encoded in the serialized body string via the `<!-- meta -->` comment) to lift the `hardFiles` rejection; lead the sizing decision with cohesion, not count. UI-touching Stories MUST end `changes` with a `data-testid invariance:` or `data-testid changes: <old> -> <new>` declaration.
 - A Story's `depends_on` references only **sibling Stories within the same Epic**. Apply the cross-cutting-config-file rule (sequential `depends_on` or a late-wave wiring Story) whenever multiple Stories edit a shared root config file.
 
 ## Role
@@ -191,7 +191,7 @@ The serialized `body` string renders these markdown sections (in order):
     - {"path": "<read-only dependency path>", "assumption": "exists"}
     - ...
 
-Fields `sizingProfile` and `estimated_test_files` are encoded as a `<!-- meta: {...} -->` comment appended to the serialized body string (handled by `serialize()`). They are NOT top-level ticket fields.
+Fields `wide` and `estimated_test_files` are encoded as a `<!-- meta: {...} -->` comment appended to the serialized body string (handled by `serialize()`). They are NOT top-level ticket fields.
 
 #### STORY BODY RULES:
 
@@ -202,37 +202,32 @@ Fields `sizingProfile` and `estimated_test_files` are encoded as a `<!-- meta: {
 - **NEW-FILE CONTRACT (must-follow)**: Any path the Story references in `goal`, `acceptance`, or `verify` that does **not** already exist on `main` MUST also appear in the same Story's `changes` array with `assumption: "creates"`. The freshness validator probes `main` for every referenced code path and rejects the decompose when a missing path is absent from `changes` — even when the Story is the one authoring the file. Example: a Story creating `tests/lib/foo.test.js` whose `verify` runs `node --test tests/lib/foo.test.js` MUST include `{ "path": "tests/lib/foo.test.js", "assumption": "creates" }` in `changes`, otherwise the validator emits a freshness miss and the decompose round trips for a re-emit.
 - **acceptance** (top-level array on ticket object): Items MUST be observable from outside the agent. Acceptable shapes: a specific command exits 0, a file exists at a given path, a snapshot test matches, a `data-testid` resolves under a given selector, a row count in a fixture matches. UNACCEPTABLE: "verify by reading the diff", "looks good", "matches the spec" — push these down into a `verify` command instead.
 - **verify** (top-level array on ticket object): Each entry MUST name a testing tier in parentheses, drawn from `unit` / `contract` / `e2e` / `validate`. Example: `npm run test -- src/x.test.ts (unit)`, `npm run validate (validate)`. Stories with zero verify entries SHOULD fail validation; if a Story is genuinely unverifiable in isolation (e.g., a copy edit auditor will eyeball), the literal entry `manual:<reason>` is allowed so the absence is intentional, not lazy. Manual entries without a reason are rejected.
-- **estimated_test_files** (optional, encoded in body meta comment): Integer estimate of how many test files this Story creates or modifies. Omit when the number is not estimable. When present, the validator applies per-profile soft/hard gates (`planning.taskSizing.testSurface`). Exceeding the soft gate emits `large-test-surface`; exceeding the hard gate emits `test-surface-overflow` (rejection). Default gates by profile: no-profile soft=5/hard=10, `atomic-rewrite` soft=3/hard=6, `scaffolding` soft=8/hard=15, `mechanical-sweep` soft=15/hard=30.
+- **estimated_test_files** (optional, encoded in body meta comment): Integer estimate of how many test files this Story creates or modifies. Omit when the number is not estimable. Informational only — it does not gate the decompose.
 
 #### FORBIDDEN SUBJECT-PREFIX PRESCRIPTIONS (Conventional-Commits only):
 
 - `acceptance` items MUST NOT prescribe a commit subject that begins with a non-Conventional-Commits prefix. The allowed leading types are `feat|fix|chore|refactor|perf|docs|style|test|build|ci|revert` (matching `commitlint.config.js` and `release-please-config.json`). Historic ad-hoc subject prefixes — such as the legacy `baseline-refresh` token used as a leading prefix — are FORBIDDEN as subject prescriptions, because they fail the local `commit-msg` hook and the close-time validator (`ticket-validator.js` → `validateAcceptanceSubjectPrefix`) will reject the decompose with `code: 'forbidden-subject-prefix'`. When a Story needs a baseline-refresh-style classification, prescribe a Conventional-Commits subject (e.g. `chore(baselines): refresh maintainability snapshot`) and, if a machine-readable marker is required, prescribe a body trailer such as `baseline-refresh: true` (note the trailing space and value, not a subject prefix). See Epic #2501 for the rationale.
 
-#### STORY SIZING HEURISTICS (soft — bias output, validator enforces hard ceilings):
+#### STORY SIZING — COHESION FIRST (the numeric ceiling is only a backstop):
 
-- **Stories typically touch <=3 files and have <=6 acceptance items (soft).** A Story that names more files or stacks more acceptance criteria than this is usually doing the work of two Stories — split it into sibling Stories under the same Feature.
-- These are soft heuristics: the validator's hard ceiling is `maxAcceptance: 8` (default from `agentSettings.planning.taskSizing`). Change ceilings are **per-profile** — see the table below.
+The first question is **cohesion, not count**: *is this one coherent change with one reason to exist?* File count cannot tell a trivial 10-file mechanical rename from a hard 3-file parser+caller+config change — so lead with the change's reason, not its size.
 
-##### Per-profile change ceilings (`agentSettings.planning.taskSizing.profileCeilings`):
+- **One Story = one coherent change with one reason to exist.** If you cannot state that reason in a sentence, the Story is probably two Stories.
+- **Merge a single-consumer downstream Story into its producer.** A Story whose only consumer is the Story right before it is not a separate unit of work.
+- **Split independent, parallelizable work** into sibling Stories under the same Feature — but only when the pieces genuinely have separate reasons to exist.
+- **Declare `wide` with a one-line reason when a change is legitimately broad** (a cohesive cutover that spans many files for one reason).
 
-| `sizingProfile`      | Soft warn | Hard cap |
-|---|---|---|
-| `mechanical-sweep`  | 25 | 60 |
-| `scaffolding`       | 8  | 15 |
-| `atomic-rewrite`    | 2  | 4  |
-| (no profile)        | 3  | 6  |
+**Numeric backstop.** The thresholds are defined **once**, in the `DEFAULT_TASK_SIZING` constant in `ticket-validator-sizing.js` (operator-overridable via `agentSettings.planning.taskSizing`). They are a backstop, not the primary rule — do not restate divergent numbers anywhere else. The defaults:
 
-Keep Stories well under the soft thresholds and the hard layer never fires.
+- A Story touching more than **`softFiles` (5)** files emits an advisory width finding — a nudge to check cohesion or declare `wide`.
+- A Story touching more than **`hardFiles` (15)** files is **rejected** unless it declares `wide` with a reason.
+- A Story with more than **`maxAcceptance` (8)** acceptance items is **rejected**; more than **`softAcceptanceCount` (6)** emits an advisory warning.
 
-#### sizingProfile DECLARATION (recommended on wide Stories):
+#### `wide` DECLARATION (optional — for legitimately broad changes):
 
-Stories that touch more files than `agentSettings.planning.taskSizing.softFileCount` (default `3`) are encouraged to declare `sizingProfile`. Encode it in the `<!-- meta: {"sizingProfile": "..."} -->` comment that `serialize()` appends to the body string. The field is **optional** — omitting it on a wide Story emits only an informational `missing-sizing-profile-hint` finding, not a rejection. Allowed values (closed enum):
+A Story whose footprint is legitimately broad declares `wide` carrying a one-line human-readable reason. Encode it in the `<!-- meta: {"wide": {"reason": "..."}} -->` comment that `serialize()` appends to the body string — e.g. `"wide": { "reason": "hard contract cutover: migrate every <X> call site in one PR" }`.
 
-- `"mechanical-sweep"` — a single repeated rename or transform across many sites with one logical change (e.g. "rename `settings` -> `agentSettings` across 50 consumer sites"). The Story body's `changes` may have a single bullet describing the sweep.
-- `"atomic-rewrite"` — one cohesive feature edit that legitimately spans several files (e.g. extracting a helper module and updating its three callers in one logical step).
-- `"scaffolding"` — initial-creation work that lays down many files at once (e.g. spinning up a new package skeleton with config, README, and entry-point stubs).
-
-Omit `sizingProfile` for narrow Stories (<= `softFileCount` files). Declaring an unknown value is rejected by the validator. Omitting it on a wide Story emits only an informational hint — it does not trigger a re-prompt.
+Declaring `wide` with a non-empty reason **lifts the `hardFiles` rejection** — no Story is rejected for width when it states why it is broad. Omit `wide` for ordinary Stories; a wide footprint with no `wide` declaration emits only an advisory nudge (check cohesion or declare `wide`), never a rejection on its own. Glob entries in `changes[]` (bullets containing `*`) are `unknown-width`: the numeric ceiling is skipped, and a glob Story with no `wide` declaration emits the same advisory nudge.
 
 #### UI / TESTID INVARIANCE (per CLAUDE.md safety rule):
 
