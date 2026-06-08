@@ -2,40 +2,75 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/agentrc.schema.json",
   "title": "Mandrel .agentrc",
-  "description": "Static JSON Schema mirror of the authoritative AJV schema in .agents/scripts/lib/config-settings-schema.js. The AJV schema is the runtime source of truth; this file exists for editor tooling and human readers. A drift test (tests/config-schema-mirror-drift.test.js) keeps the two in sync. Top-level reshape: Epic #1720 Story #1739 pivoted from {agentSettings, orchestration} to {project, github, planning, delivery}. Quality gate reshape: Epic #1720 Story #1737 introduced the uniform delivery.quality.gates.<tier> shape with seven gates (lint, coverage, crap, maintainability, mutation, lighthouse, bundleSize), object-shaped { kind, value } tolerances, and workspace-keyed floors objects. Story #2687 (Epic #2646) confirmed that the schema carries no field whose sole purpose is to keep pre-cutover documents validating — every property exposed here corresponds to a canonical reader in the post-reshape config layer. Epic #2880 Story #2935 finalized the cutover by deleting the resolver-side output shim that surfaced agentSettings/orchestration pointers; legacy-shaped documents are rejected by root additionalProperties:false and the canonical blocks are the only supported reads.",
+  "description": "Static JSON Schema mirror of the authoritative AJV schema in .agents/scripts/lib/config-settings-schema.js. The AJV schema is the runtime source of truth; this file exists for editor tooling and human readers. A drift test (tests/config-schema-mirror-drift.test.js) keeps the two in sync. Top-level reshape: Epic #1720 Story #1739 pivoted from {agentSettings, orchestration} to {project, github, planning, delivery}. Quality gate reshape: Epic #1720 Story #1737 introduced the uniform delivery.quality.gates.<tier> shape with seven gates (lint, coverage, crap, maintainability, mutation, lighthouse, bundleSize), object-shaped { kind, value } tolerances, and workspace-keyed floors objects. Story #2687 (Epic #2646) confirmed that the schema carries no field whose sole purpose is to keep pre-cutover documents validating \u2014 every property exposed here corresponds to a canonical reader in the post-reshape config layer. Epic #2880 Story #2935 finalized the cutover by deleting the resolver-side output shim that surfaced agentSettings/orchestration pointers; legacy-shaped documents are rejected by root additionalProperties:false and the canonical blocks are the only supported reads.",
   "type": "object",
   "additionalProperties": false,
   "required": ["project"],
   "properties": {
-    "$schema": { "type": "string" },
-    "project": { "$ref": "#/$defs/project" },
-    "github": { "$ref": "#/$defs/github" },
-    "planning": { "$ref": "#/$defs/planning" },
-    "delivery": { "$ref": "#/$defs/delivery" },
-    "qa": { "$ref": "#/$defs/qa" }
+    "$schema": {
+      "type": "string"
+    },
+    "project": {
+      "$ref": "#/$defs/project"
+    },
+    "github": {
+      "$ref": "#/$defs/github"
+    },
+    "planning": {
+      "$ref": "#/$defs/planning"
+    },
+    "delivery": {
+      "$ref": "#/$defs/delivery"
+    },
+    "qa": {
+      "$ref": "#/$defs/qa"
+    }
   },
   "$defs": {
     "safeString": {
       "type": "string",
-      "not": { "pattern": "[;&|`$<>]" }
+      "not": {
+        "pattern": "[;&|`$<>]"
+      }
     },
     "nullableSafeString": {
       "type": ["string", "null"],
-      "not": { "type": "string", "pattern": "[;&|`$<>]" }
+      "not": {
+        "type": "string",
+        "pattern": "[;&|`$<>]"
+      }
     },
     "nullableNonEmptySafeString": {
       "type": ["string", "null"],
       "minLength": 1,
-      "not": { "type": "string", "pattern": "[;&|`$<>]" }
+      "not": {
+        "type": "string",
+        "pattern": "[;&|`$<>]"
+      }
     },
     "listOrExtenderOfStrings": {
       "oneOf": [
-        { "type": "array", "items": { "type": "string" } },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         {
           "type": "object",
           "properties": {
-            "append": { "type": "array", "items": { "type": "string" } },
-            "prepend": { "type": "array", "items": { "type": "string" } }
+            "append": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "prepend": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
           },
           "additionalProperties": false
         }
@@ -46,13 +81,34 @@
       "required": ["agentRoot", "docsRoot", "tempRoot"],
       "properties": {
         "agentRoot": {
-          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+          "allOf": [
+            {
+              "$ref": "#/$defs/safeString"
+            },
+            {
+              "minLength": 1
+            }
+          ]
         },
         "docsRoot": {
-          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+          "allOf": [
+            {
+              "$ref": "#/$defs/safeString"
+            },
+            {
+              "minLength": 1
+            }
+          ]
         },
         "tempRoot": {
-          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+          "allOf": [
+            {
+              "$ref": "#/$defs/safeString"
+            },
+            {
+              "minLength": 1
+            }
+          ]
         }
       },
       "additionalProperties": false
@@ -61,17 +117,47 @@
       "type": "object",
       "properties": {
         "lintBaseline": {
-          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+          "allOf": [
+            {
+              "$ref": "#/$defs/safeString"
+            },
+            {
+              "minLength": 1
+            }
+          ]
         },
         "test": {
-          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+          "allOf": [
+            {
+              "$ref": "#/$defs/safeString"
+            },
+            {
+              "minLength": 1
+            }
+          ]
         },
-        "typecheck": { "$ref": "#/$defs/nullableNonEmptySafeString" },
+        "typecheck": {
+          "$ref": "#/$defs/nullableNonEmptySafeString"
+        },
         "formatCheck": {
-          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+          "allOf": [
+            {
+              "$ref": "#/$defs/safeString"
+            },
+            {
+              "minLength": 1
+            }
+          ]
         },
         "formatWrite": {
-          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+          "allOf": [
+            {
+              "$ref": "#/$defs/safeString"
+            },
+            {
+              "minLength": 1
+            }
+          ]
         }
       },
       "additionalProperties": false
@@ -80,10 +166,21 @@
       "type": "object",
       "required": ["paths"],
       "properties": {
-        "baseBranch": { "$ref": "#/$defs/safeString" },
-        "paths": { "$ref": "#/$defs/paths" },
-        "docsContextFiles": { "type": "array", "items": { "type": "string" } },
-        "commands": { "$ref": "#/$defs/commands" }
+        "baseBranch": {
+          "$ref": "#/$defs/safeString"
+        },
+        "paths": {
+          "$ref": "#/$defs/paths"
+        },
+        "docsContextFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "commands": {
+          "$ref": "#/$defs/commands"
+        }
       },
       "additionalProperties": false
     },
@@ -91,11 +188,17 @@
       "type": "object",
       "required": ["name", "cmd"],
       "properties": {
-        "name": { "type": "string", "minLength": 1 },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
         "cmd": {
           "type": "array",
           "minItems": 1,
-          "items": { "type": "string", "minLength": 1 }
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         }
       },
       "additionalProperties": false
@@ -103,10 +206,14 @@
     "branchProtection": {
       "type": "object",
       "properties": {
-        "enforce": { "type": "boolean" },
+        "enforce": {
+          "type": "boolean"
+        },
         "requiredChecks": {
           "type": "array",
-          "items": { "$ref": "#/$defs/branchProtectionCheck" }
+          "items": {
+            "$ref": "#/$defs/branchProtectionCheck"
+          }
         }
       },
       "additionalProperties": false
@@ -114,18 +221,30 @@
     "mergeMethods": {
       "type": "object",
       "properties": {
-        "allow_squash_merge": { "type": "boolean" },
-        "allow_rebase_merge": { "type": "boolean" },
-        "allow_merge_commit": { "type": "boolean" },
-        "allow_auto_merge": { "type": "boolean" },
-        "delete_branch_on_merge": { "type": "boolean" }
+        "allow_squash_merge": {
+          "type": "boolean"
+        },
+        "allow_rebase_merge": {
+          "type": "boolean"
+        },
+        "allow_merge_commit": {
+          "type": "boolean"
+        },
+        "allow_auto_merge": {
+          "type": "boolean"
+        },
+        "delete_branch_on_merge": {
+          "type": "boolean"
+        }
       },
       "additionalProperties": false
     },
     "notifications": {
       "type": "object",
       "properties": {
-        "mentionOperator": { "type": "boolean" },
+        "mentionOperator": {
+          "type": "boolean"
+        },
         "commentEvents": {
           "type": "array",
           "items": {
@@ -155,27 +274,54 @@
       "type": "object",
       "required": ["owner", "repo", "operatorHandle"],
       "properties": {
-        "owner": { "type": "string", "minLength": 1 },
-        "repo": { "type": "string", "minLength": 1 },
-        "projectNumber": { "type": ["integer", "null"], "minimum": 1 },
-        "projectOwner": { "type": ["string", "null"], "minLength": 1 },
-        "operatorHandle": { "type": "string", "pattern": "^@.+" },
+        "owner": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repo": {
+          "type": "string",
+          "minLength": 1
+        },
+        "projectNumber": {
+          "type": ["integer", "null"],
+          "minimum": 1
+        },
+        "projectOwner": {
+          "type": ["string", "null"],
+          "minLength": 1
+        },
+        "operatorHandle": {
+          "type": "string",
+          "pattern": "^@.+"
+        },
         "defaultTimeoutMs": {
           "type": "integer",
           "minimum": 1000,
           "description": "Default `timeoutMs` (in milliseconds) applied to every `gh` subprocess spawned by the GitHub provider facade. Caps any single `gh api` / `gh issue ...` / `gh pr ...` invocation so a stalled TCP socket or long-poll cannot hang an orchestration indefinitely. A `GhExecTimeoutError` from a hit ceiling is classified `transient` and retried by `withTransientRetry`. Recommended floor 1000ms; recommended default 60000 (60s). Omit to use the in-code default of 60000. Story #2860."
         },
-        "branchProtection": { "$ref": "#/$defs/branchProtection" },
-        "mergeMethods": { "$ref": "#/$defs/mergeMethods" },
-        "notifications": { "$ref": "#/$defs/notifications" }
+        "branchProtection": {
+          "$ref": "#/$defs/branchProtection"
+        },
+        "mergeMethods": {
+          "$ref": "#/$defs/mergeMethods"
+        },
+        "notifications": {
+          "$ref": "#/$defs/notifications"
+        }
       },
       "additionalProperties": false
     },
     "planningContext": {
       "type": "object",
       "properties": {
-        "maxBytes": { "type": "integer", "minimum": 1024 },
-        "summaryMode": { "type": "string", "enum": ["auto", "always", "never"] }
+        "maxBytes": {
+          "type": "integer",
+          "minimum": 1024
+        },
+        "summaryMode": {
+          "type": "string",
+          "enum": ["auto", "always", "never"]
+        }
       },
       "additionalProperties": false
     },
@@ -209,16 +355,38 @@
     "planning": {
       "type": "object",
       "properties": {
-        "riskHeuristics": { "$ref": "#/$defs/listOrExtenderOfStrings" },
-        "maxTickets": { "type": "integer", "minimum": 1 },
-        "context": { "$ref": "#/$defs/planningContext" },
-        "codebaseSnapshot": { "$ref": "#/$defs/codebaseSnapshot" },
-        "taskSizing": { "$ref": "#/$defs/taskSizing" },
-        "failOnSharedEditors": { "type": "boolean" },
-        "requireExplicitCrossStoryDeps": { "type": "boolean" },
-        "failOnRegistryConflicts": { "type": "boolean" },
-        "failOnLargeFanOut": { "type": "boolean" },
-        "largeFanOutThreshold": { "type": "integer", "minimum": 0 },
+        "riskHeuristics": {
+          "$ref": "#/$defs/listOrExtenderOfStrings"
+        },
+        "maxTickets": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "context": {
+          "$ref": "#/$defs/planningContext"
+        },
+        "codebaseSnapshot": {
+          "$ref": "#/$defs/codebaseSnapshot"
+        },
+        "taskSizing": {
+          "$ref": "#/$defs/taskSizing"
+        },
+        "failOnSharedEditors": {
+          "type": "boolean"
+        },
+        "requireExplicitCrossStoryDeps": {
+          "type": "boolean"
+        },
+        "failOnRegistryConflicts": {
+          "type": "boolean"
+        },
+        "failOnLargeFanOut": {
+          "type": "boolean"
+        },
+        "largeFanOutThreshold": {
+          "type": "integer",
+          "minimum": 0
+        },
         "crossCuttingRegistries": {
           "$ref": "#/$defs/listOrExtenderOfStrings"
         }
@@ -234,28 +402,43 @@
         },
         "include": {
           "type": "array",
-          "items": { "type": "string", "minLength": 1 }
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         },
         "exclude": {
           "type": "array",
-          "items": { "type": "string", "minLength": 1 }
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         },
-        "recentCommitWindow": { "type": "integer", "minimum": 1 }
+        "recentCommitWindow": {
+          "type": "integer",
+          "minimum": 1
+        }
       },
       "additionalProperties": false
     },
     "execution": {
       "type": "object",
       "properties": {
-        "timeoutMs": { "type": "integer", "minimum": 1 }
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1
+        }
       },
       "additionalProperties": false
     },
     "lease": {
       "type": "object",
-      "description": "Story #3480 (Epic #3457). Assignee-as-lease primitive. ttlMs is the staleness window — a ticket claim whose owner has not emitted a story.heartbeat within this many milliseconds is reclaimable by another operator. Defaults to 900000 (15 min) in lib/config/limits.js.",
+      "description": "Story #3480 (Epic #3457). Assignee-as-lease primitive. ttlMs is the staleness window \u2014 a ticket claim whose owner has not emitted a story.heartbeat within this many milliseconds is reclaimable by another operator. Defaults to 900000 (15 min) in lib/config/limits.js.",
       "properties": {
-        "ttlMs": { "type": "integer", "minimum": 1 }
+        "ttlMs": {
+          "type": "integer",
+          "minimum": 1
+        }
       },
       "additionalProperties": false
     },
@@ -265,7 +448,14 @@
         "paths": {
           "type": "array",
           "items": {
-            "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+            "allOf": [
+              {
+                "$ref": "#/$defs/safeString"
+              },
+              {
+                "minLength": 1
+              }
+            ]
           }
         }
       },
@@ -277,13 +467,16 @@
         "concurrencyCap": {
           "type": "integer",
           "minimum": 1,
-          "description": "Maximum Stories dispatched in parallel within one wave. Default 3. Conservative by design — keeps host-quota consumption predictable on small waves and avoids GitHub API saturation. Operators running wide-wave Epics on hosts with adequate parallel-agent quota should raise this value to reduce wall-clock time proportionally. See epic-deliver.md § Phase 2b for the dispatch model and the throughput tradeoff discussion."
+          "description": "Maximum Stories dispatched in parallel within one wave. Default 3. Conservative by design \u2014 keeps host-quota consumption predictable on small waves and avoids GitHub API saturation. Operators running wide-wave Epics on hosts with adequate parallel-agent quota should raise this value to reduce wall-clock time proportionally. See epic-deliver.md \u00a7 Phase 2b for the dispatch model and the throughput tradeoff discussion."
         },
-        "progressReportIntervalSec": { "type": "integer", "minimum": 0 },
+        "progressReportIntervalSec": {
+          "type": "integer",
+          "minimum": 0
+        },
         "verifyConcurrencyCap": {
           "type": "integer",
           "minimum": 1,
-          "description": "Bounded-concurrency cap for the per-wave verifyWaveResults loop (Epic #3019 Tech Spec §1.4). Separate from the wave-execution `concurrencyCap` so operators can tune ticket-verification parallelism independently of Story dispatch parallelism. Default 4."
+          "description": "Bounded-concurrency cap for the per-wave verifyWaveResults loop (Epic #3019 Tech Spec \u00a71.4). Separate from the wave-execution `concurrencyCap` so operators can tune ticket-verification parallelism independently of Story dispatch parallelism. Default 4."
         }
       },
       "additionalProperties": false
@@ -358,7 +551,10 @@
               },
               "scopes": {
                 "type": "array",
-                "items": { "type": "string", "enum": ["story", "epic"] },
+                "items": {
+                  "type": "string",
+                  "enum": ["story", "epic"]
+                },
                 "description": "Invocation scopes this entry fires on. Default (omitted) is both."
               },
               "optional": {
@@ -382,7 +578,10 @@
                   },
                   "labelAny": {
                     "type": "array",
-                    "items": { "type": "string", "minLength": 1 },
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
                     "minItems": 1,
                     "description": "Run when ANY of the listed labels is present."
                   }
@@ -414,19 +613,36 @@
     "worktreeIsolation": {
       "type": "object",
       "properties": {
-        "enabled": { "type": "boolean" },
-        "root": { "type": "string", "minLength": 1 },
+        "enabled": {
+          "type": "boolean"
+        },
+        "root": {
+          "type": "string",
+          "minLength": 1
+        },
         "nodeModulesStrategy": {
           "type": "string",
           "enum": ["per-worktree", "symlink", "pnpm-store"]
         },
-        "primeFromPath": { "type": ["string", "null"], "minLength": 1 },
-        "allowSymlinkOnWindows": { "type": "boolean" },
-        "reapOnSuccess": { "type": "boolean" },
-        "reapOnCancel": { "type": "boolean" },
+        "primeFromPath": {
+          "type": ["string", "null"],
+          "minLength": 1
+        },
+        "allowSymlinkOnWindows": {
+          "type": "boolean"
+        },
+        "reapOnSuccess": {
+          "type": "boolean"
+        },
+        "reapOnCancel": {
+          "type": "boolean"
+        },
         "bootstrapFiles": {
           "type": "array",
-          "items": { "type": "string", "minLength": 1 },
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
           "default": [".env", ".mcp.json"]
         }
       },
@@ -434,10 +650,16 @@
       "allOf": [
         {
           "if": {
-            "properties": { "enabled": { "const": true } },
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            },
             "required": ["enabled"]
           },
-          "then": { "required": ["root"] }
+          "then": {
+            "required": ["root"]
+          }
         }
       ]
     },
@@ -446,17 +668,32 @@
       "properties": {
         "hotspot": {
           "type": "object",
-          "properties": { "p95Multiplier": { "type": "number", "minimum": 0 } },
+          "properties": {
+            "p95Multiplier": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
           "additionalProperties": false
         },
         "rework": {
           "type": "object",
-          "properties": { "editsPerFile": { "type": "integer", "minimum": 1 } },
+          "properties": {
+            "editsPerFile": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
           "additionalProperties": false
         },
         "retry": {
           "type": "object",
-          "properties": { "repeatCount": { "type": "integer", "minimum": 1 } },
+          "properties": {
+            "repeatCount": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
           "additionalProperties": false
         }
       },
@@ -466,8 +703,14 @@
       "type": "object",
       "required": ["kind", "value"],
       "properties": {
-        "kind": { "type": "string", "enum": ["absolute", "percent"] },
-        "value": { "type": "number", "minimum": 0 }
+        "kind": {
+          "type": "string",
+          "enum": ["absolute", "percent"]
+        },
+        "value": {
+          "type": "number",
+          "minimum": 0
+        }
       },
       "additionalProperties": false
     },
@@ -475,69 +718,146 @@
       "type": "object",
       "additionalProperties": {
         "type": "object",
-        "additionalProperties": { "type": "number" }
+        "additionalProperties": {
+          "type": "number"
+        }
       }
     },
     "components": {
       "type": "object",
       "additionalProperties": {
         "type": "array",
-        "items": { "type": "string", "minLength": 1 }
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
     "lintGate": {
       "type": "object",
       "properties": {
-        "enabled": { "type": "boolean" },
-        "baselinePath": {
-          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+        "enabled": {
+          "type": "boolean"
         },
-        "tolerance": { "$ref": "#/$defs/tolerance" },
-        "floors": { "$ref": "#/$defs/floors" },
-        "components": { "$ref": "#/$defs/components" }
+        "baselinePath": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/safeString"
+            },
+            {
+              "minLength": 1
+            }
+          ]
+        },
+        "tolerance": {
+          "$ref": "#/$defs/tolerance"
+        },
+        "floors": {
+          "$ref": "#/$defs/floors"
+        },
+        "components": {
+          "$ref": "#/$defs/components"
+        }
       },
       "additionalProperties": false
     },
     "coverageGate": {
       "type": "object",
       "properties": {
-        "enabled": { "type": "boolean" },
+        "enabled": {
+          "type": "boolean"
+        },
         "baselinePath": {
-          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+          "allOf": [
+            {
+              "$ref": "#/$defs/safeString"
+            },
+            {
+              "minLength": 1
+            }
+          ]
         },
-        "tolerance": { "$ref": "#/$defs/tolerance" },
-        "floors": { "$ref": "#/$defs/floors" },
-        "components": { "$ref": "#/$defs/components" },
+        "tolerance": {
+          "$ref": "#/$defs/tolerance"
+        },
+        "floors": {
+          "$ref": "#/$defs/floors"
+        },
+        "components": {
+          "$ref": "#/$defs/components"
+        },
         "coveragePath": {
-          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+          "allOf": [
+            {
+              "$ref": "#/$defs/safeString"
+            },
+            {
+              "minLength": 1
+            }
+          ]
         },
-        "timeoutMs": { "type": "integer", "minimum": 1 }
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1
+        }
       },
       "additionalProperties": false
     },
     "crapGate": {
       "type": "object",
       "properties": {
-        "enabled": { "type": "boolean" },
-        "baselinePath": {
-          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+        "enabled": {
+          "type": "boolean"
         },
-        "tolerance": { "$ref": "#/$defs/tolerance" },
-        "floors": { "$ref": "#/$defs/floors" },
-        "components": { "$ref": "#/$defs/components" },
+        "baselinePath": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/safeString"
+            },
+            {
+              "minLength": 1
+            }
+          ]
+        },
+        "tolerance": {
+          "$ref": "#/$defs/tolerance"
+        },
+        "floors": {
+          "$ref": "#/$defs/floors"
+        },
+        "components": {
+          "$ref": "#/$defs/components"
+        },
         "targetDirs": {
           "$ref": "#/$defs/listOrExtenderOfStrings",
           "description": "Directories whose JS sources the CRAP gate scores. Mandrel ships a `src/`-centric default; projects whose executable code lives elsewhere (e.g. this repo's `.agents/scripts/`) override here. The framework default is intentionally not auto-discovered, so an override is the explicit, auditable signal."
         },
-        "newMethodCeiling": { "type": "integer", "minimum": 1 },
-        "requireCoverage": { "type": "boolean" },
+        "newMethodCeiling": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "requireCoverage": {
+          "type": "boolean"
+        },
         "friction": {
           "type": "object",
-          "properties": { "markerKey": { "type": "string", "minLength": 1 } },
+          "properties": {
+            "markerKey": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
           "additionalProperties": false
         },
         "refreshTag": {
-          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+          "allOf": [
+            {
+              "$ref": "#/$defs/safeString"
+            },
+            {
+              "minLength": 1
+            }
+          ]
         },
         "refreshTimeoutMs": {
           "type": "integer",
@@ -546,8 +866,11 @@
         },
         "ignoreGlobs": {
           "type": "array",
-          "items": { "type": "string", "minLength": 1 },
-          "description": "Minimatch glob patterns matched against the canonicalised repo-relative path of each discovered file. Files matching any pattern are excluded from CRAP discovery before scoring. Orthogonal to `components` (grouping) — a file excluded here never appears in any component bucket. Absent or empty preserves the existing IGNORED_DIRS-only behaviour (Story #3217)."
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Minimatch glob patterns matched against the canonicalised repo-relative path of each discovered file. Files matching any pattern are excluded from CRAP discovery before scoring. Orthogonal to `components` (grouping) \u2014 a file excluded here never appears in any component bucket. Absent or empty preserves the existing IGNORED_DIRS-only behaviour (Story #3217)."
         }
       },
       "additionalProperties": false
@@ -555,13 +878,28 @@
     "maintainabilityGate": {
       "type": "object",
       "properties": {
-        "enabled": { "type": "boolean" },
-        "baselinePath": {
-          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+        "enabled": {
+          "type": "boolean"
         },
-        "tolerance": { "$ref": "#/$defs/tolerance" },
-        "floors": { "$ref": "#/$defs/floors" },
-        "components": { "$ref": "#/$defs/components" },
+        "baselinePath": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/safeString"
+            },
+            {
+              "minLength": 1
+            }
+          ]
+        },
+        "tolerance": {
+          "$ref": "#/$defs/tolerance"
+        },
+        "floors": {
+          "$ref": "#/$defs/floors"
+        },
+        "components": {
+          "$ref": "#/$defs/components"
+        },
         "targetDirs": {
           "$ref": "#/$defs/listOrExtenderOfStrings",
           "description": "Directories whose JS sources the maintainability gate scores. Mandrel ships a `src/`-centric default; projects whose executable code lives elsewhere (e.g. this repo's `.agents/scripts/` plus `tests/`) override here. The framework default is intentionally not auto-discovered, so an override is the explicit, auditable signal."
@@ -573,8 +911,11 @@
         },
         "ignoreGlobs": {
           "type": "array",
-          "items": { "type": "string", "minLength": 1 },
-          "description": "Minimatch glob patterns matched against the canonicalised repo-relative path of each discovered file. Files matching any pattern are excluded from MI discovery before scoring. Orthogonal to `components` (grouping) — a file excluded here never appears in any component bucket. Absent or empty preserves the existing IGNORED_DIRS-only behaviour (Story #3217)."
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Minimatch glob patterns matched against the canonicalised repo-relative path of each discovered file. Files matching any pattern are excluded from MI discovery before scoring. Orthogonal to `components` (grouping) \u2014 a file excluded here never appears in any component bucket. Absent or empty preserves the existing IGNORED_DIRS-only behaviour (Story #3217)."
         }
       },
       "additionalProperties": false
@@ -582,14 +923,31 @@
     "mutationGate": {
       "type": "object",
       "properties": {
-        "enabled": { "type": "boolean" },
-        "baselinePath": {
-          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+        "enabled": {
+          "type": "boolean"
         },
-        "tolerance": { "$ref": "#/$defs/tolerance" },
-        "floors": { "$ref": "#/$defs/floors" },
-        "components": { "$ref": "#/$defs/components" },
-        "strykerConfigPath": { "$ref": "#/$defs/nullableNonEmptySafeString" }
+        "baselinePath": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/safeString"
+            },
+            {
+              "minLength": 1
+            }
+          ]
+        },
+        "tolerance": {
+          "$ref": "#/$defs/tolerance"
+        },
+        "floors": {
+          "$ref": "#/$defs/floors"
+        },
+        "components": {
+          "$ref": "#/$defs/components"
+        },
+        "strykerConfigPath": {
+          "$ref": "#/$defs/nullableNonEmptySafeString"
+        }
       },
       "additionalProperties": false
     },
@@ -597,25 +955,50 @@
       "type": "object",
       "required": ["path"],
       "properties": {
-        "path": { "type": "string", "minLength": 1 },
-        "formFactor": { "type": "string", "enum": ["mobile", "desktop"] }
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "formFactor": {
+          "type": "string",
+          "enum": ["mobile", "desktop"]
+        }
       },
       "additionalProperties": false
     },
     "lighthouseGate": {
       "type": "object",
       "properties": {
-        "enabled": { "type": "boolean" },
-        "baselinePath": {
-          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+        "enabled": {
+          "type": "boolean"
         },
-        "tolerance": { "$ref": "#/$defs/tolerance" },
-        "floors": { "$ref": "#/$defs/floors" },
-        "components": { "$ref": "#/$defs/components" },
-        "baseUrl": { "$ref": "#/$defs/nullableNonEmptySafeString" },
+        "baselinePath": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/safeString"
+            },
+            {
+              "minLength": 1
+            }
+          ]
+        },
+        "tolerance": {
+          "$ref": "#/$defs/tolerance"
+        },
+        "floors": {
+          "$ref": "#/$defs/floors"
+        },
+        "components": {
+          "$ref": "#/$defs/components"
+        },
+        "baseUrl": {
+          "$ref": "#/$defs/nullableNonEmptySafeString"
+        },
         "routes": {
           "type": "array",
-          "items": { "$ref": "#/$defs/lighthouseRoute" }
+          "items": {
+            "$ref": "#/$defs/lighthouseRoute"
+          }
         }
       },
       "additionalProperties": false
@@ -624,25 +1007,51 @@
       "type": "object",
       "required": ["name", "path", "limit"],
       "properties": {
-        "name": { "type": "string", "minLength": 1 },
-        "path": { "type": "string", "minLength": 1 },
-        "limit": { "type": "string", "minLength": 1 }
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "limit": {
+          "type": "string",
+          "minLength": 1
+        }
       },
       "additionalProperties": false
     },
     "bundleSizeGate": {
       "type": "object",
       "properties": {
-        "enabled": { "type": "boolean" },
-        "baselinePath": {
-          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+        "enabled": {
+          "type": "boolean"
         },
-        "tolerance": { "$ref": "#/$defs/tolerance" },
-        "floors": { "$ref": "#/$defs/floors" },
-        "components": { "$ref": "#/$defs/components" },
+        "baselinePath": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/safeString"
+            },
+            {
+              "minLength": 1
+            }
+          ]
+        },
+        "tolerance": {
+          "$ref": "#/$defs/tolerance"
+        },
+        "floors": {
+          "$ref": "#/$defs/floors"
+        },
+        "components": {
+          "$ref": "#/$defs/components"
+        },
         "bundles": {
           "type": "array",
-          "items": { "$ref": "#/$defs/bundleDeclaration" }
+          "items": {
+            "$ref": "#/$defs/bundleDeclaration"
+          }
         }
       },
       "additionalProperties": false
@@ -650,13 +1059,28 @@
     "duplicationGate": {
       "type": "object",
       "properties": {
-        "enabled": { "type": "boolean" },
-        "baselinePath": {
-          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+        "enabled": {
+          "type": "boolean"
         },
-        "tolerance": { "$ref": "#/$defs/tolerance" },
-        "floors": { "$ref": "#/$defs/floors" },
-        "components": { "$ref": "#/$defs/components" },
+        "baselinePath": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/safeString"
+            },
+            {
+              "minLength": 1
+            }
+          ]
+        },
+        "tolerance": {
+          "$ref": "#/$defs/tolerance"
+        },
+        "floors": {
+          "$ref": "#/$defs/floors"
+        },
+        "components": {
+          "$ref": "#/$defs/components"
+        },
         "targetDirs": {
           "$ref": "#/$defs/listOrExtenderOfStrings",
           "description": "Directories whose JS sources the duplication (DRY) gate scans for copy-paste clones. Mandrel ships a `src/`-centric default; projects whose executable code lives elsewhere (e.g. this repo's `.agents/scripts/`) override here. The framework default is intentionally not auto-discovered, so an override is the explicit, auditable signal (Story #3664)."
@@ -668,7 +1092,10 @@
         },
         "ignoreGlobs": {
           "type": "array",
-          "items": { "type": "string", "minLength": 1 },
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
           "description": "Minimatch glob patterns matched against the canonicalised repo-relative path of each discovered file. Files matching any pattern are excluded from duplication discovery before scanning. Orthogonal to `components` (grouping). Absent or empty preserves the existing behaviour (Story #3664)."
         }
       },
@@ -677,34 +1104,72 @@
     "gates": {
       "type": "object",
       "properties": {
-        "lint": { "$ref": "#/$defs/lintGate" },
-        "coverage": { "$ref": "#/$defs/coverageGate" },
-        "crap": { "$ref": "#/$defs/crapGate" },
-        "maintainability": { "$ref": "#/$defs/maintainabilityGate" },
-        "mutation": { "$ref": "#/$defs/mutationGate" },
-        "lighthouse": { "$ref": "#/$defs/lighthouseGate" },
-        "bundle-size": { "$ref": "#/$defs/bundleSizeGate" },
-        "duplication": { "$ref": "#/$defs/duplicationGate" }
+        "lint": {
+          "$ref": "#/$defs/lintGate"
+        },
+        "coverage": {
+          "$ref": "#/$defs/coverageGate"
+        },
+        "crap": {
+          "$ref": "#/$defs/crapGate"
+        },
+        "maintainability": {
+          "$ref": "#/$defs/maintainabilityGate"
+        },
+        "mutation": {
+          "$ref": "#/$defs/mutationGate"
+        },
+        "lighthouse": {
+          "$ref": "#/$defs/lighthouseGate"
+        },
+        "bundle-size": {
+          "$ref": "#/$defs/bundleSizeGate"
+        },
+        "duplication": {
+          "$ref": "#/$defs/duplicationGate"
+        }
       },
       "additionalProperties": false
     },
     "codingGuardrails": {
       "type": "object",
       "properties": {
-        "cyclomaticFlag": { "type": "integer", "minimum": 1 },
-        "cyclomaticMustFix": { "type": "integer", "minimum": 1 },
-        "miDropMustRefactor": { "type": "number", "minimum": 0 },
-        "requireSiblingTest": { "type": "boolean" }
+        "cyclomaticFlag": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "cyclomaticMustFix": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "miDropMustRefactor": {
+          "type": "number",
+          "minimum": 0
+        },
+        "requireSiblingTest": {
+          "type": "boolean"
+        }
       },
       "additionalProperties": false
     },
     "autoRefresh": {
       "type": "object",
       "properties": {
-        "enabled": { "type": "boolean" },
-        "miDropCap": { "type": "number", "minimum": 0 },
-        "crapJumpCap": { "type": "number", "minimum": 0 },
-        "scope": { "type": "string", "enum": ["diff", "full"] }
+        "enabled": {
+          "type": "boolean"
+        },
+        "miDropCap": {
+          "type": "number",
+          "minimum": 0
+        },
+        "crapJumpCap": {
+          "type": "number",
+          "minimum": 0
+        },
+        "scope": {
+          "type": "string",
+          "enum": ["diff", "full"]
+        }
       },
       "additionalProperties": false
     },
@@ -712,22 +1177,52 @@
       "type": "object",
       "description": "Per-kind epsilon for s-stability-epsilon (Story #1964). Sub-epsilon row deltas resolve to prior bytes so env variance does not rewrite the on-disk baseline.",
       "properties": {
-        "maintainability": { "type": "number", "minimum": 0 },
-        "crap": { "type": "number", "minimum": 0 },
-        "coverage": { "type": "number", "minimum": 0 },
-        "mutation": { "type": "number", "minimum": 0 },
-        "lint": { "type": "number", "minimum": 0 },
-        "lighthouse": { "type": "number", "minimum": 0 },
-        "bundle-size": { "type": "number", "minimum": 0 },
-        "duplication": { "type": "number", "minimum": 0 }
+        "maintainability": {
+          "type": "number",
+          "minimum": 0
+        },
+        "crap": {
+          "type": "number",
+          "minimum": 0
+        },
+        "coverage": {
+          "type": "number",
+          "minimum": 0
+        },
+        "mutation": {
+          "type": "number",
+          "minimum": 0
+        },
+        "lint": {
+          "type": "number",
+          "minimum": 0
+        },
+        "lighthouse": {
+          "type": "number",
+          "minimum": 0
+        },
+        "bundle-size": {
+          "type": "number",
+          "minimum": 0
+        },
+        "duplication": {
+          "type": "number",
+          "minimum": 0
+        }
       },
       "additionalProperties": false
     },
     "gateScoping": {
       "type": "object",
       "properties": {
-        "scope": { "type": "string", "enum": ["diff", "full"] },
-        "diffRef": { "type": "string", "minLength": 1 }
+        "scope": {
+          "type": "string",
+          "enum": ["diff", "full"]
+        },
+        "diffRef": {
+          "type": "string",
+          "minLength": 1
+        }
       },
       "additionalProperties": false
     },
@@ -735,19 +1230,28 @@
       "type": "object",
       "description": "Bounded-timeout knob for the close-time `npx biome format --write` spawn (Story #2165). A SIGKILL fired at the budget boundary maps to exit 124 so the close orchestrator can flip the Story to `agent::blocked` with a friction comment.",
       "properties": {
-        "timeoutMs": { "type": "integer", "minimum": 1 }
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1
+        }
       },
       "additionalProperties": false
     },
     "lifecycle": {
       "type": "object",
-      "description": "Knobs consumed by the lifecycle event bus (Epic #2172). `timeouts` is a per-event budget map (eventName → seconds) used by `TimeoutWatchdog`; missing entries fall back to in-listener defaults. `heartbeatWarnSeconds` is the no-progress threshold consumed by `HeartbeatMonitor`. Story #2227 lays down the keys; consumers land in later stories.",
+      "description": "Knobs consumed by the lifecycle event bus (Epic #2172). `timeouts` is a per-event budget map (eventName \u2192 seconds) used by `TimeoutWatchdog`; missing entries fall back to in-listener defaults. `heartbeatWarnSeconds` is the no-progress threshold consumed by `HeartbeatMonitor`. Story #2227 lays down the keys; consumers land in later stories.",
       "properties": {
         "timeouts": {
           "type": "object",
-          "additionalProperties": { "type": "integer", "minimum": 1 }
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 1
+          }
         },
-        "heartbeatWarnSeconds": { "type": "integer", "minimum": 1 }
+        "heartbeatWarnSeconds": {
+          "type": "integer",
+          "minimum": 1
+        }
       },
       "additionalProperties": false
     },
@@ -773,12 +1277,24 @@
     "quality": {
       "type": "object",
       "properties": {
-        "gateScoping": { "$ref": "#/$defs/gateScoping" },
-        "gates": { "$ref": "#/$defs/gates" },
-        "formatAutofix": { "$ref": "#/$defs/formatAutofix" },
-        "codingGuardrails": { "$ref": "#/$defs/codingGuardrails" },
-        "autoRefresh": { "$ref": "#/$defs/autoRefresh" },
-        "baselineEpsilon": { "$ref": "#/$defs/baselineEpsilon" }
+        "gateScoping": {
+          "$ref": "#/$defs/gateScoping"
+        },
+        "gates": {
+          "$ref": "#/$defs/gates"
+        },
+        "formatAutofix": {
+          "$ref": "#/$defs/formatAutofix"
+        },
+        "codingGuardrails": {
+          "$ref": "#/$defs/codingGuardrails"
+        },
+        "autoRefresh": {
+          "$ref": "#/$defs/autoRefresh"
+        },
+        "baselineEpsilon": {
+          "$ref": "#/$defs/baselineEpsilon"
+        }
       },
       "additionalProperties": false
     },
@@ -796,12 +1312,24 @@
     },
     "refactorStage": {
       "type": "object",
-      "description": "Opt-in, config-gated post-green refactor checkpoint wired into story-deliver (Story #3430, Epic #3418). Strictly additive and default-OFF: when disabled, story-deliver behaves exactly as before. Advisory only — never changes existing close-validation gate semantics.",
+      "description": "Opt-in, config-gated post-green refactor checkpoint wired into story-deliver (Story #3430, Epic #3418). Strictly additive and default-OFF: when disabled, story-deliver behaves exactly as before. Advisory only \u2014 never changes existing close-validation gate semantics.",
       "properties": {
         "enabled": {
           "type": "boolean",
           "default": false,
-          "description": "When true, story-deliver runs an advisory post-green refactor stage (refactorer persona + core/refactoring-discipline skill) after the suite is green. Default false — when unset the stage is skipped and close-validation gate semantics are unchanged."
+          "description": "When true, story-deliver runs an advisory post-green refactor stage (refactorer persona + core/refactoring-discipline skill) after the suite is green. Default false \u2014 when unset the stage is skipped and close-validation gate semantics are unchanged."
+        }
+      },
+      "additionalProperties": false
+    },
+    "acceptanceEval": {
+      "type": "object",
+      "description": "Story #3819. Bounded per-Story acceptance self-eval loop. After the implementation commits land and before the Story-implementation phase flips to `closing`, an independent (fresh-context) critic pass scores the working diff against each inline `acceptance[]` item, redrafts the unmet items, and re-evaluates \u2014 capped at `maxRounds` redraft rounds, then escalates to `agent::blocked` when criteria remain unmet. There is no `enabled` flag: the loop is a hard cutover (always on).",
+      "properties": {
+        "maxRounds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum number of redraft rounds before escalation. Default 2; clamped into [1, hard ceiling] by lib/config/acceptance-eval.js so the cap can never be disabled (maxRounds: 0 clamps up to 1)."
         }
       },
       "additionalProperties": false
@@ -809,21 +1337,55 @@
     "delivery": {
       "type": "object",
       "properties": {
-        "execution": { "$ref": "#/$defs/execution" },
-        "hydration": { "$ref": "#/$defs/hydration" },
-        "maxTokenBudget": { "type": "integer", "minimum": 1 },
-        "lease": { "$ref": "#/$defs/lease" },
-        "docsFreshness": { "$ref": "#/$defs/docsFreshness" },
-        "deliverRunner": { "$ref": "#/$defs/deliverRunner" },
-        "worktreeIsolation": { "$ref": "#/$defs/worktreeIsolation" },
-        "signals": { "$ref": "#/$defs/signals" },
-        "quality": { "$ref": "#/$defs/quality" },
-        "lifecycle": { "$ref": "#/$defs/lifecycle" },
-        "mergeWatch": { "$ref": "#/$defs/mergeWatch" },
-        "epicAudit": { "$ref": "#/$defs/epicAudit" },
-        "codeReview": { "$ref": "#/$defs/codeReview" },
-        "retro": { "$ref": "#/$defs/retro" },
-        "refactorStage": { "$ref": "#/$defs/refactorStage" },
+        "execution": {
+          "$ref": "#/$defs/execution"
+        },
+        "hydration": {
+          "$ref": "#/$defs/hydration"
+        },
+        "maxTokenBudget": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "lease": {
+          "$ref": "#/$defs/lease"
+        },
+        "docsFreshness": {
+          "$ref": "#/$defs/docsFreshness"
+        },
+        "deliverRunner": {
+          "$ref": "#/$defs/deliverRunner"
+        },
+        "worktreeIsolation": {
+          "$ref": "#/$defs/worktreeIsolation"
+        },
+        "signals": {
+          "$ref": "#/$defs/signals"
+        },
+        "quality": {
+          "$ref": "#/$defs/quality"
+        },
+        "lifecycle": {
+          "$ref": "#/$defs/lifecycle"
+        },
+        "mergeWatch": {
+          "$ref": "#/$defs/mergeWatch"
+        },
+        "epicAudit": {
+          "$ref": "#/$defs/epicAudit"
+        },
+        "codeReview": {
+          "$ref": "#/$defs/codeReview"
+        },
+        "retro": {
+          "$ref": "#/$defs/retro"
+        },
+        "refactorStage": {
+          "$ref": "#/$defs/refactorStage"
+        },
+        "acceptanceEval": {
+          "$ref": "#/$defs/acceptanceEval"
+        },
         "ci": {
           "type": "object",
           "properties": {
@@ -838,15 +1400,32 @@
           "type": "object",
           "description": "Story #2899 (Epic #2880, F13). Thresholds consumed by `.agents/scripts/epic-deliver-preflight.js`. When any value is exceeded the preflight envelope flags a breach and /epic-deliver Phase 1 surfaces it via agent::blocked.",
           "properties": {
-            "maxStories": { "type": "integer", "minimum": 1 },
-            "maxWaves": { "type": "integer", "minimum": 1 },
-            "maxInstallCostSeconds": { "type": "integer", "minimum": 1 },
-            "maxGithubApiRequests": { "type": "integer", "minimum": 1 },
-            "maxClaudeQuotaTokens": { "type": "integer", "minimum": 1 }
+            "maxStories": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "maxWaves": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "maxInstallCostSeconds": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "maxGithubApiRequests": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "maxClaudeQuotaTokens": {
+              "type": "integer",
+              "minimum": 1
+            }
           },
           "additionalProperties": false
         },
-        "failOnConcurrencyHazards": { "type": "boolean" },
+        "failOnConcurrencyHazards": {
+          "type": "boolean"
+        },
         "feedbackLoop": {
           "type": "object",
           "properties": {
@@ -874,7 +1453,14 @@
           "additionalProperties": false,
           "properties": {
             "urlTemplate": {
-              "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+              "allOf": [
+                {
+                  "$ref": "#/$defs/safeString"
+                },
+                {
+                  "minLength": 1
+                }
+              ]
             }
           }
         },
@@ -884,20 +1470,34 @@
           "additionalProperties": false,
           "properties": {
             "skill": {
-              "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+              "allOf": [
+                {
+                  "$ref": "#/$defs/safeString"
+                },
+                {
+                  "minLength": 1
+                }
+              ]
             }
           }
         }
       ]
     },
     "qaPersonas": {
-      "description": "Personas the QA-harness sign-in seam accepts. Two accepted shapes: (1) a plain array of persona names — the honest shape for a `urlTemplate` dev-impersonation seam, where the persona name is the sole input the workflow consumes; (2) the object-map form keyed by persona name, where each entry carries per-persona auth material (`credentialRef` or `signInSkill`) consulted only under a `skill`/credential seam.",
+      "description": "Personas the QA-harness sign-in seam accepts. Two accepted shapes: (1) a plain array of persona names \u2014 the honest shape for a `urlTemplate` dev-impersonation seam, where the persona name is the sole input the workflow consumes; (2) the object-map form keyed by persona name, where each entry carries per-persona auth material (`credentialRef` or `signInSkill`) consulted only under a `skill`/credential seam.",
       "oneOf": [
         {
           "type": "array",
           "minItems": 1,
           "items": {
-            "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+            "allOf": [
+              {
+                "$ref": "#/$defs/safeString"
+              },
+              {
+                "minLength": 1
+              }
+            ]
           }
         },
         {
@@ -912,8 +1512,12 @@
                 "properties": {
                   "credentialRef": {
                     "allOf": [
-                      { "$ref": "#/$defs/safeString" },
-                      { "minLength": 1 }
+                      {
+                        "$ref": "#/$defs/safeString"
+                      },
+                      {
+                        "minLength": 1
+                      }
                     ]
                   }
                 }
@@ -925,8 +1529,12 @@
                 "properties": {
                   "signInSkill": {
                     "allOf": [
-                      { "$ref": "#/$defs/safeString" },
-                      { "minLength": 1 }
+                      {
+                        "$ref": "#/$defs/safeString"
+                      },
+                      {
+                        "minLength": 1
+                      }
                     ]
                   }
                 }
@@ -942,19 +1550,47 @@
       "additionalProperties": false,
       "properties": {
         "featureRoot": {
-          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+          "allOf": [
+            {
+              "$ref": "#/$defs/safeString"
+            },
+            {
+              "minLength": 1
+            }
+          ]
         },
         "fixturesManifest": {
-          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+          "allOf": [
+            {
+              "$ref": "#/$defs/safeString"
+            },
+            {
+              "minLength": 1
+            }
+          ]
         },
-        "signInSeam": { "$ref": "#/$defs/qaSignInSeam" },
-        "personas": { "$ref": "#/$defs/qaPersonas" },
+        "signInSeam": {
+          "$ref": "#/$defs/qaSignInSeam"
+        },
+        "personas": {
+          "$ref": "#/$defs/qaPersonas"
+        },
         "consoleAllowlist": {
           "type": "array",
-          "items": { "type": "string", "minLength": 1 }
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         },
         "designTokens": {
-          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+          "allOf": [
+            {
+              "$ref": "#/$defs/safeString"
+            },
+            {
+              "minLength": 1
+            }
+          ]
         }
       }
     }

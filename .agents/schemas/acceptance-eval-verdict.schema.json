@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "acceptance-eval-verdict",
+  "title": "Acceptance Self-Eval Verdict",
+  "description": "Structured output of one independent (fresh-context) acceptance self-eval round (Story #3819). Produced by the critic pass in the Story-implementation phase (helpers/epic-deliver-story.md Step 1 / helpers/single-story-deliver.md Step 1), written under the gitignored temp tree, and consumed by acceptance-eval.js to enforce the bounded round cap and decide whether the Story proceeds to `closing`, redrafts, or escalates to `agent::blocked`. The author MUST NOT be the evaluator — the verdict is an independent judgment of the working diff against each inline acceptance[] item.",
+  "type": "object",
+  "required": ["storyId", "schemaVersion", "round", "criteria"],
+  "properties": {
+    "storyId": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "GitHub Issue number of the Story being evaluated."
+    },
+    "epicId": {
+      "type": ["integer", "null"],
+      "minimum": 1,
+      "description": "Parent Epic id when the Story is Epic-attached; null for standalone Stories."
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "Verdict-record schema version. Bumped on breaking changes to the record shape."
+    },
+    "round": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "1-based index of this eval round. Round 1 is the first evaluation after implementation; rounds 2..N are post-redraft re-evaluations. Bounded by delivery.acceptanceEval.maxRounds (clamped to an undisableable hard ceiling)."
+    },
+    "commitSha": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{7,64}$",
+      "description": "Output of `git rev-parse HEAD` at the moment the diff was evaluated. Optional but recommended for traceability."
+    },
+    "criteria": {
+      "type": "array",
+      "minItems": 1,
+      "description": "One verdict per inline acceptance[] item, in the same order as the Story body. Every acceptance item MUST appear exactly once.",
+      "items": {
+        "type": "object",
+        "required": ["index", "criterion", "verdict", "evidence"],
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "0-based position of this criterion in the Story's acceptance[] array."
+          },
+          "criterion": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The verbatim (or faithfully summarised) acceptance[] item text being scored."
+          },
+          "verdict": {
+            "type": "string",
+            "enum": ["met", "partial", "unmet"],
+            "description": "Per-criterion judgment of the working diff. `met` clears the criterion; `partial` and `unmet` both trigger a redraft round (subject to the cap)."
+          },
+          "evidence": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Short concrete evidence supporting the verdict — file:line references, test names, command output excerpts. Never an empty self-attestation."
+          },
+          "verifyEvidence": {
+            "type": "array",
+            "description": "Required evidence drawn from the Story's verify[] commands the critic ran (or inspected) while scoring this criterion. verify[] is promoted from optional advisory pre-flight to required evidence the eval pass consumes. Empty only when no verify[] command is relevant to this criterion.",
+            "items": {
+              "type": "object",
+              "required": ["command", "outcome"],
+              "properties": {
+                "command": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The verify[] command that was run or inspected."
+                },
+                "outcome": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "skipped"],
+                  "description": "Result of the verify[] command. `skipped` is permitted only with a stated reason and never for a criterion marked `met`."
+                },
+                "detail": {
+                  "type": ["string", "null"],
+                  "description": "Optional excerpt of command output or the reason a command was skipped."
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -237,6 +237,36 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
     );
   });
 
+  it('accepts delivery.acceptanceEval.maxRounds on both sides (Story #3819)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: { acceptanceEval: { maxRounds: 3 } },
+      },
+      'acceptanceEval.maxRounds',
+    );
+  });
+
+  it('rejects delivery.acceptanceEval.maxRounds below 1 on both sides (Story #3819)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: { acceptanceEval: { maxRounds: 0 } },
+      },
+      'acceptanceEval.maxRounds minimum 1',
+    );
+  });
+
+  it('rejects an unknown key under delivery.acceptanceEval on both sides (Story #3819)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: { acceptanceEval: { enabled: true } },
+      },
+      'acceptanceEval has no enabled flag (always-on hard cutover)',
+    );
+  });
+
   it('rejects legacy agentSettings on both sides', () => {
     assertAgree(
       { agentSettings: { paths: REQ.project.paths } },

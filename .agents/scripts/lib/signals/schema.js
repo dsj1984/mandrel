@@ -88,6 +88,12 @@ export const EVENT_KINDS = Object.freeze({
   CHURN: 'churn',
   IDLE: 'idle',
   RETRY: 'retry',
+  // Story #3819 — per-criterion acceptance self-eval signal emitted by
+  // acceptance-eval.js. One record per Story per eval-loop terminus,
+  // carrying which acceptance items needed rework and the round count, so
+  // the retro and /epic-plan Phase 0 feedback fetch can see acceptance
+  // churn alongside friction/hotspot data.
+  ACCEPTANCE_EVAL: 'acceptance-eval',
 });
 
 /**
@@ -207,4 +213,6 @@ export const GUARDS = Object.freeze({
   [EVENT_KINDS.CHURN]: (evt) => isValidSignal(evt, EVENT_KINDS.CHURN),
   [EVENT_KINDS.IDLE]: (evt) => isValidSignal(evt, EVENT_KINDS.IDLE),
   [EVENT_KINDS.RETRY]: (evt) => isValidSignal(evt, EVENT_KINDS.RETRY),
+  [EVENT_KINDS.ACCEPTANCE_EVAL]: (evt) =>
+    isValidSignal(evt, EVENT_KINDS.ACCEPTANCE_EVAL),
 });

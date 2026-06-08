@@ -597,6 +597,38 @@ Whether the Story is launched directly by the operator or fanned out by
    authoring one or more commits referencing the parent Story via
    `(refs #<storyId>)`. Each phase transition (`implementing`,
    `closing`, `done`, `blocked`) is recorded via `story-phase.js`.
+
+   After the implementation commits land and **before** the phase flips
+   to `closing`, a **bounded acceptance self-eval loop** runs (Story
+   #3819). An independent, fresh-context critic pass scores the working
+   diff against **each** `acceptance[]` item — `met | partial | unmet`
+   plus a short evidence string, consuming the Story's `verify[]`
+   commands as **required evidence** (the `verify[]` commands are no
+   longer optional advisory pre-flight). The critic writes its verdict to
+   a verdict file
+   (`.agents/schemas/acceptance-eval-verdict.schema.json`); the
+   `acceptance-eval.js` gate validates it, enforces the bounded round
+   cap, and decides the next action:
+   - **all `met`** → the phase flips to `closing`.
+   - **any `partial`/`unmet`, rounds remaining** → the agent redrafts
+     the flagged criteria and re-runs the critic pass for the next round.
+   - **round cap reached, criteria still unmet** → the Story transitions
+     to `agent::blocked` (not `closing`), posts a `friction` comment
+     naming the unmet criteria and their evidence, and exits non-zero. It
+     never silently proceeds to close.
+
+   The loop is **always on** (a hard cutover — there is no flag toggling
+   it off) and **bounded**: the redraft ceiling is
+   `delivery.acceptanceEval.maxRounds` (default 2), clamped by the
+   resolver into `[1, hard ceiling]` so no configuration can disable the
+   cap or let the loop spin unbounded. Each terminus emits a
+   per-criterion `acceptance-eval` signal into the retro / feedback
+   substrate so the retro and `/epic-plan` Phase 0 feedback fetch see
+   which acceptance items needed rework and the round count. The loop is
+   **additive** and sits below the Epic-level acceptance-spec
+   reconciliation (`/epic-deliver` Phase 7.1) — it evaluates the actual
+   work product per Story mid-delivery, not test-tag presence at
+   finalize.
 3. **Closure** (`story-close.js`):
    - Runs shift-left validation (lint, format, test).
    - Merges the Story branch into `epic/<epicId>`.

@@ -283,6 +283,35 @@ const REFACTOR_STAGE_SCHEMA = {
   additionalProperties: false,
 };
 
+/**
+ * `delivery.acceptanceEval` — bounded per-Story acceptance self-eval loop
+ * (Story #3819). After the implementation commits land and before the
+ * Story-implementation phase flips to `closing`, an independent
+ * (fresh-context) critic pass scores the working diff against each inline
+ * `acceptance[]` item, redrafts the unmet items, and re-evaluates — capped
+ * at `maxRounds` redraft rounds.
+ *
+ * `maxRounds` is the operator-tunable redraft ceiling (default 2 via
+ * `lib/config/acceptance-eval.js`). It is a soft knob inside an
+ * **undisableable** hard cap: `lib/config/acceptance-eval.js` clamps any
+ * configured value into `[1, ACCEPTANCE_EVAL_MAX_ROUNDS_CEILING]`, so no
+ * configuration can switch the loop off (`maxRounds: 0`) or let it spin
+ * unbounded. There is intentionally **no** `enabled` flag — the loop is a
+ * hard cutover, always on, per `rules/git-conventions.md`.
+ */
+const ACCEPTANCE_EVAL_SCHEMA = {
+  type: 'object',
+  properties: {
+    maxRounds: {
+      type: 'integer',
+      minimum: 1,
+      description:
+        'Maximum number of redraft rounds the acceptance self-eval loop runs before escalating to agent::blocked when criteria remain unmet. Default 2; clamped into [1, hard ceiling] by the resolver so the cap can never be disabled.',
+    },
+  },
+  additionalProperties: false,
+};
+
 export const DELIVERY_SCHEMA = {
   type: 'object',
   properties: {
@@ -301,6 +330,7 @@ export const DELIVERY_SCHEMA = {
     codeReview: CODE_REVIEW_SCHEMA,
     retro: RETRO_SCHEMA,
     refactorStage: REFACTOR_STAGE_SCHEMA,
+    acceptanceEval: ACCEPTANCE_EVAL_SCHEMA,
     ci: CI_DELIVERY_SCHEMA,
     preflight: PREFLIGHT_SCHEMA,
     // Cross-Story concurrency-hazard gate (Story #2297). When true,

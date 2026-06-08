@@ -257,6 +257,9 @@
     },
     "refactorStage": {
       "enabled": false
+    },
+    "acceptanceEval": {
+      "maxRounds": 2
     }
   },
   "qa": {

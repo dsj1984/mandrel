@@ -21,6 +21,7 @@
         "churn",
         "idle",
         "retry",
+        "acceptance-eval",
         "trace"
       ]
     },
