@@ -196,6 +196,8 @@ const KEY_MEANINGS = Object.freeze({
     'Maximum files an auto-fix may touch in one attempt.',
   'delivery.refactorStage.enabled':
     'Whether a dedicated refactor stage runs during delivery.',
+  'delivery.acceptanceEval.maxRounds':
+    'Redraft rounds the per-Story acceptance self-eval loop runs before escalating to agent::blocked (default 2; clamped to a hard ceiling that cannot be disabled).',
 
   // qa.*
   'qa.featureRoot': 'Root directory holding the QA harness .feature files.',

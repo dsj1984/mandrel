@@ -35,6 +35,11 @@ import { getWorktreeIsolation } from './config/worktree-isolation.js';
 import { getAgentrcValidator } from './config-schema.js';
 import { loadEnv } from './env-loader.js';
 
+export {
+  ACCEPTANCE_EVAL_DEFAULTS,
+  ACCEPTANCE_EVAL_MAX_ROUNDS_CEILING,
+  getAcceptanceEval,
+} from './config/acceptance-eval.js';
 export { BASELINES_DEFAULTS, getBaselines } from './config/baselines.js';
 export { CI_DELIVERY_DEFAULTS, getCiDelivery } from './config/ci.js';
 export { COMMANDS_DEFAULTS, getCommands } from './config/commands.js';

@@ -44,6 +44,8 @@ describe('signals/schema — EVENT_KINDS enumeration', () => {
       'churn',
       'idle',
       'retry',
+      // Story #3819 — per-criterion acceptance self-eval signal.
+      'acceptance-eval',
     ]);
     const actual = new Set(Object.values(EVENT_KINDS));
     assert.deepEqual(actual, expected);
