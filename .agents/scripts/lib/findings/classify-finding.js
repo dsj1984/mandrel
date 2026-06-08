@@ -19,6 +19,7 @@
  */
 
 import { META_LABELS } from '../label-constants.js';
+import { normalizeSeverity, SEVERITIES } from './severity.js';
 
 /**
  * Focus-axis labels (Story #3721). These scope a finding to the area of the
@@ -61,18 +62,12 @@ const CLASS_TO_LABELS = Object.freeze({
 });
 
 /**
- * The closed set of severity values a finding can carry, ordered low → high.
- * Mirrors the High/Medium/Low taxonomy the audit-* workflows emit (plus the
- * `critical` extreme). The default is `unknown` so a finding that omits a
- * severity is never silently treated as low-risk — the absence is explicit.
+ * The closed set of severity values a finding can carry, re-exported from the
+ * canonical {@link ./severity.js} source of truth (Story #3816) so this module
+ * does not re-declare its own list. Ordered highest → lowest:
+ * `critical | high | medium | low | info`.
  */
-export const SEVERITIES = Object.freeze([
-  'unknown',
-  'low',
-  'medium',
-  'high',
-  'critical',
-]);
+export { SEVERITIES };
 
 /**
  * Tokens that, when present in a finding's `area`, `labels`, or explicit
@@ -97,18 +92,18 @@ const SECURITY_TOKENS = Object.freeze([
 ]);
 
 /**
- * Resolve a finding's severity to one of {@link SEVERITIES}. An absent,
- * empty, or unrecognised severity resolves to `unknown` (explicit, not a
- * silent "low"). Case- and whitespace-insensitive.
+ * Resolve a finding's severity to one of {@link SEVERITIES} via the shared
+ * canonical normaliser. An absent, empty, or unrecognised severity resolves to
+ * the canonical floor (`info`). Case- and whitespace-insensitive. Delegating to
+ * {@link normalizeSeverity} keeps this path bit-for-bit identical to the
+ * `promote-finding` path, so the same finding fingerprints the same regardless
+ * of which path produced its severity (Story #3816).
  *
  * @param {object} finding
  * @returns {string} one of {@link SEVERITIES}
  */
 function resolveSeverity(finding) {
-  const raw = finding?.severity;
-  if (typeof raw !== 'string') return 'unknown';
-  const normalized = raw.trim().toLowerCase();
-  return SEVERITIES.includes(normalized) ? normalized : 'unknown';
+  return normalizeSeverity(finding?.severity);
 }
 
 /**
@@ -178,7 +173,7 @@ function resolveClass(finding) {
  *   `labels`.
  * @returns {{ class: string, labels: string[], severity: string, security: boolean }}
  *   the resolved class, the ordered GitHub labels Triage should apply, the
- *   resolved severity (one of {@link SEVERITIES}; `unknown` when absent), and
+ *   resolved severity (one of {@link SEVERITIES}; `info` when absent), and
  *   whether the finding is security-relevant.
  * @throws {TypeError|RangeError} on a non-object finding or an
  *   unknown/empty class (never silently defaults).
