@@ -232,7 +232,10 @@ const PREFIX_MEANINGS = Object.freeze([
   ['delivery.signals', 'Threshold for a delivery friction/telemetry signal.'],
   ['delivery.lifecycle.timeouts', 'Timeout for a lifecycle-bus phase.'],
   ['delivery.lifecycle', 'Lifecycle-bus configuration.'],
-  ['planning.taskSizing', 'Story-sizing threshold for the decompose validator.'],
+  [
+    'planning.taskSizing',
+    'Story-sizing threshold for the decompose validator.',
+  ],
   ['qa.signInSeam', 'QA harness sign-in seam configuration.'],
   ['qa.personas', 'QA harness persona / credential mapping.'],
 ]);

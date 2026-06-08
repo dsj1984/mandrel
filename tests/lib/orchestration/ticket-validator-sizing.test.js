@@ -295,7 +295,11 @@ test('changes[] with PathEntry object form counts files correctly (not zero)', (
     }),
   ]);
   const nudge = result.findings.filter((f) => f.kind === 'wide-undeclared');
-  assert.equal(nudge.length, 1, 'expected wide-undeclared for 6 PathEntry changes');
+  assert.equal(
+    nudge.length,
+    1,
+    'expected wide-undeclared for 6 PathEntry changes',
+  );
   assert.equal(nudge[0].fileCount, 6);
 });
 
