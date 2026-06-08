@@ -69,6 +69,26 @@ describe('skill:epic-plan-spec-author — smoke', () => {
             'Tech Spec prompt must require "## Technical Overview" heading',
           );
         }
+        // Story #3797 — the Tech Spec must carry a "Delivery Slicing" section
+        // proposing how PRD capabilities cluster into N shippable Stories;
+        // it is the target the Phase 8 consolidation pass reconciles against.
+        if (!/## Delivery Slicing/.test(body)) {
+          errors.push(
+            'Tech Spec prompt must require a "## Delivery Slicing" section (Story #3797)',
+          );
+        }
+        if (!/shippable Stor/i.test(body)) {
+          errors.push(
+            'Delivery Slicing must propose shippable Stories (Story #3797)',
+          );
+        }
+        // Story #3797 — the PRD capability enumeration is NOT coarsened; the
+        // grouping recommendation is the granularity lever.
+        if (!/not coarsen|do not coarsen|without coarsening/i.test(body)) {
+          errors.push(
+            'Skill body must state the PRD enumeration is not coarsened (Story #3797)',
+          );
+        }
         return { ok: errors.length === 0, errors };
       },
     });

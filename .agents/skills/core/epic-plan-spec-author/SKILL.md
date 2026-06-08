@@ -18,6 +18,7 @@ allowed_tools:
 - Run only during `/epic-plan` Phase 7, after `epic-plan-spec.js --emit-context` has written `temp/epic-<Epic_ID>/planner-context.json`; fail loudly if the file is missing rather than fabricating context.
 - Write exactly three artifacts and only inside `temp/epic-<Epic_ID>/`: `prd.md`, `techspec.md`, `acceptance-spec.md`. All three MUST exist on disk before returning.
 - Start each artifact at the correct `##` heading (PRD → `## Overview`, Tech Spec → `## Technical Overview`, Acceptance Spec → `## Acceptance Criteria`) — never emit a top-level `#` heading.
+- The Tech Spec MUST carry a `## Delivery Slicing` section proposing how the PRD's enumerated capabilities cluster into N shippable Stories — the intentional target the Phase 8 consolidation pass (`epic-plan-consolidate`) reconciles the decomposer draft against. Do NOT coarsen the PRD enumeration to produce it; the grouping recommendation is the granularity lever.
 - Cite real module / file names from `codebaseSnapshot.files` and `codebaseSnapshot.signatures` before citing docs-only names; flag any cited path that is missing from the snapshot with a `<!-- DRIFT -->` callout.
 - Assign stable AC IDs of the form `AC-<n>` in document order; reuse existing IDs across re-plans when Outcome wording is materially unchanged and tag every row's `Disposition` with one of `new | updated | unchanged`.
 - Render the AC table with the canonical columns `AC ID | Outcome | Feature File | Scenario | Disposition`; when `bddScenarios` is non-empty, run `findBestScenarioMatch` per AC and annotate matched rows with `<file>:L<line>` (never tag a covered outcome as `new`).
@@ -166,8 +167,43 @@ before reaching for names that appear only in the documentation. Write to
 - Start with `## Technical Overview` — never a top-level `#` heading.
 - Cover Architecture & Design, Data Models (if any), API Changes (if any),
   Core Components, Security & Privacy Considerations.
+- Include a **`## Delivery Slicing`** section (see below) proposing how the
+  PRD's enumerated capabilities cluster into N shippable Stories.
 - Cite the source files / modules it touches by relative path. Avoid
   pseudocode — name real symbols when proposing edits.
+
+#### Delivery Slicing section (authoritative target for Phase 8 consolidation)
+
+The Tech Spec MUST carry a `## Delivery Slicing` section in which the Architect
+— who holds the full design — proposes how the PRD's enumerated capabilities
+**cluster into N shippable Stories**. This section is the intentional target
+grouping the Phase 8 consolidation pass
+([`epic-plan-consolidate`](../epic-plan-consolidate/SKILL.md)) reconciles the
+decomposer's draft against before any GitHub write. Without it, the decompose
+phase maps PRD capabilities to Stories ~1:1 and cannot produce a coarser,
+holistic plan; with it, the consolidation critic has a well-defined target
+instead of a guess.
+
+Author the section as a short list — one bullet per proposed Story — naming the
+capability cluster each Story would deliver and (when relevant) the Feature it
+belongs under. Do **not** coarsen the PRD's capability enumeration to produce
+it: the granularity lever is *this* grouping recommendation, not a dumbed-down
+PRD. Example shape:
+
+```text
+## Delivery Slicing
+
+Proposed shippable Stories (consolidation target for Phase 8):
+
+- **Story: <capability cluster A>** — folds PRD capabilities X + Y (one
+  reviewable PR; they share a reason to exist).
+- **Story: <capability cluster B>** — PRD capability Z standalone.
+- ...
+```
+
+The consolidation pass degrades gracefully when this section is absent (it
+falls back to cohesion + single-Story-Feature rules only), so authoring it is
+how the Architect steers the decomposition toward fewer, right-sized Stories.
 
 #### Tech Spec system prompt (authoritative)
 
@@ -181,11 +217,13 @@ The Tech Spec should outline:
 3. API Changes (if any)
 4. Core Components
 5. Security & Privacy Considerations
+6. Delivery Slicing — propose how the PRD's enumerated capabilities cluster into N shippable Stories (the consolidation target for Phase 8). One bullet per proposed Story, naming the capability cluster it delivers. Do NOT coarsen the PRD enumeration to produce this; the grouping recommendation is the granularity lever.
 
 CRITICAL REQUIREMENTS:
 - Respond ONLY with valid Markdown.
 - Do not use top-level <h1> (# ) tags. Start with ## Technical Overview.
 - Format architectural decisions clearly with bullet points.
+- Include a `## Delivery Slicing` section proposing the shippable-Story grouping.
 ```
 
 ### Step 4 — Author the Acceptance Spec (Acceptance Engineer persona)

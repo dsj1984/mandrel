@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-08T14:23:37.745Z",
+  "generatedAt": "2026-06-08T15:30:30.734Z",
   "generator": "generate-skills-index.js@1",
   "skills": [
     {
@@ -123,6 +123,16 @@
       "vendor": null
     },
     {
+      "name": "epic-plan-consolidate",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/epic-plan-consolidate/SKILL.md",
+      "description": "Run a holistic, pre-persist consolidation pass over the draft Feature/Story ticket array an Epic's decompose phase produced. Use during Phase 8 of `/epic-plan`, after `epic-plan-decompose-author` writes `temp/epic-<Epic_ID>/tickets.json` and before `epic-plan-decompose.js` validates and persists it. Reconciles the draft against the Tech Spec \"Delivery Slicing\" target via scope-preserving operations only.",
+      "policyCapsuleBullets": 9,
+      "allowedTools": ["Read", "Write", "Bash"],
+      "vendor": null
+    },
+    {
       "name": "epic-plan-decompose-author",
       "tier": "core",
       "category": "core",
@@ -138,7 +148,7 @@
       "category": "core",
       "path": ".agents/skills/core/epic-plan-spec-author/SKILL.md",
       "description": "Author the PRD, Tech Spec, and Acceptance Spec markdown for an Epic from the planner authoring context emitted by `epic-plan-spec.js --emit-context`. Use during Phase 7 of `/epic-plan` when the host LLM needs to write the three artifacts before `epic-plan-spec.js` persists them.",
-      "policyCapsuleBullets": 10,
+      "policyCapsuleBullets": 11,
       "allowedTools": ["Read", "Write", "Bash"],
       "vendor": null
     },

@@ -73,6 +73,45 @@ Read `temp/epic-[Epic_ID]/decomposer-context.json`. Produce a JSON array of
 Feature / Story objects that conforms to the schema in the system prompt
 and write it to `temp/epic-[Epic_ID]/tickets.json`.
 
+When the Tech Spec carries a `## Delivery Slicing` section, author toward the
+Architect's proposed shippable-Story clusters rather than mapping PRD
+capabilities 1:1; degrade gracefully (current behaviour) when it is absent.
+
+## Step 2.5 — Phase 8.3: Holistic Consolidation (HITL diff gate)
+
+The decompose phase runs in the sequence **emit-context → author →
+consolidate → validate+persist**. Step 2 is the *author* half; this step is
+the *consolidate* half, a separate critic pass run **before** the
+deterministic validator and **before** the GitHub write.
+
+Activate the
+[`epic-plan-consolidate`](../../skills/core/epic-plan-consolidate/SKILL.md)
+skill with `[Epic_ID]` as input. It reads the draft
+`temp/epic-[Epic_ID]/tickets.json` plus the PRD / Tech Spec from
+`decomposer-context.json`, reconciles the draft against the Tech Spec
+`## Delivery Slicing` target (degrading gracefully when absent), and emits:
+
+- a **consolidated** `temp/epic-[Epic_ID]/tickets.json` (overwriting the draft),
+- a human-readable `temp/epic-[Epic_ID]/consolidation-report.md` (rationale +
+  before/after diff).
+
+The pass is constrained to scope-preserving operations only — **merge Stories,
+collapse single-Story Features into siblings, re-parent, rewire `depends_on`**.
+It MUST NOT add scope or invent tickets. It resolves single-Story Features by
+**collapsing** them (rec #2), never by splitting a lone Story into two; the
+`assertNoSingleStoryFeature` validator stays as the post-consolidation
+backstop.
+
+> **HITL diff gate.** Show the operator
+> `temp/epic-[Epic_ID]/consolidation-report.md` (the before/after diff +
+> rationale) **before** running the persist call in Step 3. Consolidation is
+> never auto-applied without operator review — the operator approves the
+> consolidated plan (or rejects it and the draft is persisted instead). Only
+> after approval proceed to Step 3.
+
+This sub-step does **not** renumber the top-level lifecycle phases (9–12); it
+is a sub-step of Phase 8.
+
 ## Step 3 — Persist and transition
 
 ```bash

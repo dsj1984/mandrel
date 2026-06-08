@@ -219,13 +219,26 @@ The first question is **cohesion, not count**: *is this one coherent change with
 - **Single-consumer merge rule.** A Story whose only consumer is one sibling Story should be **merged into that sibling** rather than emitted separately — a single-consumer downstream slice is not its own unit of work.
 - **Split independent, parallelizable work** into sibling Stories under the same Feature — but only when the pieces genuinely have separate reasons to exist.
 - **Declare `wide` with a one-line reason when a change is legitimately broad** (a cohesive cutover that spans many files for one reason).
-- **Every Feature MUST decompose into at least TWO Stories.** A Feature with a single Story is the work of a Story, not a Feature — collapse it. The validator (`ticket-validator.js` → `assertNoSingleStoryFeature`) HARD-rejects a decomposition containing a Feature with fewer than two Stories, naming the offending Feature.
+- **Every Feature MUST decompose into at least TWO Stories.** A Feature with a single Story is the work of a Story, not a Feature. **Resolve it by COLLAPSING, not splitting** — drop the Feature wrapper and attach its lone Story to a sibling Feature (or merge the Feature into another). Do NOT manufacture a second Story to satisfy the rule; splitting a lone Story into two inflates ticket count and defeats the "fewer, right-sized Stories" goal. The validator (`ticket-validator.js` → `assertNoSingleStoryFeature`) HARD-rejects a decomposition containing a Feature with fewer than two Stories, naming the offending Feature; the Phase 8 consolidation pass (`epic-plan-consolidate`) performs the collapse holistically before the validator runs.
 
 **Numeric backstop.** The thresholds are defined **once**, in the `DEFAULT_TASK_SIZING` constant in `ticket-validator-sizing.js` (operator-overridable via `agentSettings.planning.taskSizing`). They are a backstop, not the primary rule — do not restate divergent numbers anywhere else. The defaults:
 
 - A Story touching more than **`softFiles` (5)** files emits an advisory width finding — a nudge to check cohesion or declare `wide`.
 - A Story touching more than **`hardFiles` (15)** files is **rejected** unless it declares `wide` with a reason.
 - A Story with more than **`maxAcceptance` (8)** acceptance items is **rejected**; more than **`softAcceptanceCount` (6)** emits an advisory warning.
+
+#### DELIVERY SLICING (consume the Tech Spec target grouping when present):
+
+The Tech Spec may carry a `## Delivery Slicing` section authored by the
+Architect, proposing how the PRD's enumerated capabilities cluster into N
+shippable Stories. When that section is **present**, treat it as the **target
+grouping**: prefer emitting Stories that match the Architect's proposed
+clusters rather than mapping PRD capabilities 1:1. When it is **absent**,
+degrade gracefully — decompose at deliverable granularity using the cohesion
+rules above, exactly as before. The Phase 8 holistic consolidation pass
+(`epic-plan-consolidate`) reconciles your draft against this same Delivery
+Slicing target before persist, so aligning to it here reduces the work the
+consolidation critic has to do.
 
 #### `wide` DECLARATION (optional — for legitimately broad changes):
 
