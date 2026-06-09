@@ -54,7 +54,7 @@
  *
  *   Top-level CLI gates (lint/baselines gate and `/git-merge-pr` step
  *   gates):
- *     audit-orchestrator.js, lint-baseline.js, git-pr-quality-gate.js,
+ *     lint-baseline.js, git-pr-quality-gate.js,
  *     validate-docs-freshness.js, detect-merges.js
  *
  *   Top-level orchestration CLIs (already pragma'd; promoted to the c8
@@ -99,7 +99,6 @@ module.exports = {
     '.agents/scripts/epic-plan.js',
     // Story #1702 — top-level CLI gates and orchestrators.
     '.agents/scripts/assert-branch.js',
-    '.agents/scripts/audit-orchestrator.js',
     '.agents/scripts/detect-merges.js',
     '.agents/scripts/diagnose-friction.js',
     '.agents/scripts/dispatcher.js',

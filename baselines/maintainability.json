@@ -5,7 +5,7 @@
   "rollup": {
     "*": {
       "min": 70.566,
-      "p50": 104.301,
+      "p50": 104.319,
       "p95": 121.964
     }
   },
@@ -21,10 +21,6 @@
     {
       "path": ".agents/scripts/audit-labels-bootstrap.js",
       "mi": 87.365
-    },
-    {
-      "path": ".agents/scripts/audit-orchestrator.js",
-      "mi": 97.27
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
@@ -2041,10 +2037,6 @@
     {
       "path": "tests/assert-branch.test.js",
       "mi": 112.975
-    },
-    {
-      "path": "tests/audit-orchestrator.test.js",
-      "mi": 102.354
     },
     {
       "path": "tests/audit-suite/audit-fan-out-retirement.test.js",
