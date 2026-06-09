@@ -27,10 +27,6 @@
       "mi": 97.27
     },
     {
-      "path": ".agents/scripts/audit-strategy.js",
-      "mi": 98.562
-    },
-    {
       "path": ".agents/scripts/audit-to-stories.js",
       "mi": 95.518
     },
@@ -2053,10 +2049,6 @@
     {
       "path": "tests/audit-orchestrator.test.js",
       "mi": 102.354
-    },
-    {
-      "path": "tests/audit-strategy.test.js",
-      "mi": 109.815
     },
     {
       "path": "tests/audit-suite/audit-fan-out-retirement.test.js",

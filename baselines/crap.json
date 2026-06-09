@@ -84,30 +84,6 @@
       "crap": 12
     },
     {
-      "path": ".agents/scripts/audit-strategy.js",
-      "method": "resolveAuditStrategy",
-      "startLine": 68,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/audit-strategy.js",
-      "method": "formatDecisionLine",
-      "startLine": 81,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/audit-strategy.js",
-      "method": "parseArgs",
-      "startLine": 92,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/audit-strategy.js",
-      "method": "main",
-      "startLine": 117,
-      "crap": 2
-    },
-    {
       "path": ".agents/scripts/check-baselines.js",
       "method": "main",
       "startLine": 65,
