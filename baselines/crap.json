@@ -16008,18 +16008,6 @@
       "crap": 7.100333137370175
     },
     {
-      "path": ".agents/scripts/reconcile-sub-issues.js",
-      "method": "parseCliArgs",
-      "startLine": 30,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/reconcile-sub-issues.js",
-      "method": "runReconcileSubIssuesCli",
-      "startLine": 47,
-      "crap": 4
-    },
-    {
       "path": ".agents/scripts/render-manifest.js",
       "method": "extractManifestJson",
       "startLine": 39,
