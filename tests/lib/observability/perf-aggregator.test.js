@@ -349,9 +349,7 @@ describe('computeWaveParallelismRows (Story #3850 fixes)', () => {
     // Old formula: 5000 / (5000 * 3) = 0.33.
     // New formula: 5000 / (5000 * min(1, 3)) = 1.0.
     const events = makeEvents({
-      waves: [
-        { index: 0, stories: [1], startOffset: 0, endOffset: 5000 },
-      ],
+      waves: [{ index: 0, stories: [1], startOffset: 0, endOffset: 5000 }],
       transitions: [
         { storyId: 1, to: 'agent::executing', offset: 0 },
         { storyId: 1, to: 'agent::done', offset: 5000 },
@@ -372,9 +370,7 @@ describe('computeWaveParallelismRows (Story #3850 fixes)', () => {
     // Old formula: 10000 / (5000 * 3) = 0.67.
     // New formula: 10000 / (5000 * min(2,3)) = 10000 / 10000 = 1.0.
     const events = makeEvents({
-      waves: [
-        { index: 0, stories: [1, 2], startOffset: 0, endOffset: 5000 },
-      ],
+      waves: [{ index: 0, stories: [1, 2], startOffset: 0, endOffset: 5000 }],
       transitions: [
         { storyId: 1, to: 'agent::executing', offset: 0 },
         { storyId: 1, to: 'agent::done', offset: 5000 },
