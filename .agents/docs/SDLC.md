@@ -73,7 +73,7 @@ From zero to shipped:
       compute waves and posts the `dispatch-manifest` structured comment
       that `/epic-deliver` consumes.
    10. **Phase 10 — readiness health check** — `epic-plan-healthcheck.js`
-       runs the `--fast` config + git-remote checks; a non-OK result is a
+       runs the default config + git-remote checks; a non-OK result is a
        **blocking** exit condition for the `agent::ready` flip (overridable
        only via the `planning::healthcheck-waived` label).
    11. **Phase 11 — plan comprehension gate** — an opt-in, advisory

@@ -33,8 +33,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 // Story #2205 — `runRefreshCommit` no longer spawns `npm run <kind>:update`,
-// so the baseline-refresh timeout fixture is gone. `REFRESH_TIMEOUT_EXIT_CODE`
-// stays exported as a historical constant; we no longer import it here.
+// so the baseline-refresh timeout fixture is gone; the former
+// `REFRESH_TIMEOUT_EXIT_CODE` constant has been removed with it.
 import {
   FORMAT_AUTOFIX_TIMEOUT_EXIT_CODE,
   runFormatAutofix,
@@ -103,10 +103,9 @@ describe('format-autofix bounded timeout (Story #2165)', () => {
 // Story #2205 — the `baseline-refresh bounded timeout (Story #2165)`
 // tests have been retired. `runRefreshCommit` no longer spawns
 // `npm run <kind>:update`; the refresh runs in-process through
-// `refreshBaseline()` (.agents/scripts/lib/baselines/refresh-service.js). The
-// `REFRESH_TIMEOUT_EXIT_CODE` constant is still exported for callers
-// (and tests) that referenced the historical contract, but the
-// bounded-timeout wall no longer fires from this code path.
+// `refreshBaseline()` (.agents/scripts/lib/baselines/refresh-service.js), so
+// the bounded-timeout wall no longer fires from this code path and the
+// former `REFRESH_TIMEOUT_EXIT_CODE` constant has been removed.
 //
 // The coverage-capture timeout test above retains its full Story #2136
 // fixture coverage — that path still spawns and still tripwires on 124.

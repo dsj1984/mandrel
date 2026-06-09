@@ -10,12 +10,10 @@
  * the next wave, observe in-flight stories, or finalize the Epic.
  *
  * Usage:
- *   node .agents/scripts/wave-tick.js --epic <epicId> [--once]
+ *   node .agents/scripts/wave-tick.js --epic <epicId> [--check-idle <minutes>]
  *
- * `--once` is the default and currently the only mode — the function is
- * stateless, so "loop until terminal" is the caller's job (today: the
- * markdown's wave loop). The flag is reserved for forward compatibility
- * with an internal polling mode.
+ * The tick is stateless — "loop until terminal" is the caller's job
+ * (today: the markdown's wave loop).
  *
  * Output: one JSON object on stdout. Schema in `lib/wave-runner/tick.js`.
  */
@@ -30,7 +28,7 @@ import { Logger } from './lib/Logger.js';
 import { createProvider } from './lib/provider-factory.js';
 import { tick } from './lib/wave-runner/tick.js';
 
-const HELP = `Usage: node .agents/scripts/wave-tick.js --epic <epicId> [--once] [--check-idle <minutes>]
+const HELP = `Usage: node .agents/scripts/wave-tick.js --epic <epicId> [--check-idle <minutes>]
 
 Stateless wave-loop planner. Reads the epic-run-state checkpoint on
 Epic #<id>, evaluates the live story-label state, and prints one
@@ -222,7 +220,6 @@ async function main(argv) {
     args: argv,
     options: {
       epic: { type: 'string' },
-      once: { type: 'boolean', default: true },
       'check-idle': { type: 'string' },
       help: { type: 'boolean', short: 'h' },
     },

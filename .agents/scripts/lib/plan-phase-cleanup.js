@@ -45,15 +45,6 @@ export const PHASE_TEMP_BASENAMES = Object.freeze({
 });
 
 /**
- * Back-compat alias preserved for any external callers introspecting the
- * map shape — the new contract is `PHASE_TEMP_BASENAMES`.
- *
- * @deprecated Use `PHASE_TEMP_BASENAMES` (basenames only) and resolve via
- *   `epicArtifactPath`.
- */
-export const PHASE_TEMP_PATHS = PHASE_TEMP_BASENAMES;
-
-/**
  * Resolve the concrete paths a phase owns for a given Epic.
  *
  * @param {'spec'|'decompose'} phase

@@ -248,7 +248,7 @@ async function runHealthcheckGate({ epicId, epic, runHealthcheckFn }) {
   );
   let result;
   try {
-    result = await runHealthcheckFn({ epicId, fast: true });
+    result = await runHealthcheckFn({ epicId });
   } catch (err) {
     // A throwing healthcheck is itself a failure — surface it as the
     // gate reason rather than letting the throw propagate raw, so the

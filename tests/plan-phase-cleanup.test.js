@@ -2,14 +2,14 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   cleanupPhaseTempFiles,
-  PHASE_TEMP_PATHS,
+  PHASE_TEMP_BASENAMES,
   resolvePhaseTempPaths,
 } from '../.agents/scripts/lib/plan-phase-cleanup.js';
 
 describe('plan-phase-cleanup.resolvePhaseTempPaths', () => {
   it('returns per-Epic paths under temp/epic-<id>/ for the spec phase', () => {
     const paths = resolvePhaseTempPaths('spec', 441, '/repo');
-    assert.equal(paths.length, PHASE_TEMP_PATHS.spec.length);
+    assert.equal(paths.length, PHASE_TEMP_BASENAMES.spec.length);
     assert.ok(paths.every((p) => p.includes('epic-441')));
     assert.ok(paths.some((p) => p.endsWith('prd.md')));
     assert.ok(paths.some((p) => p.endsWith('techspec.md')));
@@ -19,7 +19,7 @@ describe('plan-phase-cleanup.resolvePhaseTempPaths', () => {
 
   it('returns per-Epic paths under temp/epic-<id>/ for the decompose phase', () => {
     const paths = resolvePhaseTempPaths('decompose', 999_007, '/repo');
-    assert.equal(paths.length, PHASE_TEMP_PATHS.decompose.length);
+    assert.equal(paths.length, PHASE_TEMP_BASENAMES.decompose.length);
     assert.ok(paths.every((p) => p.includes('epic-999007')));
     assert.ok(paths.some((p) => p.endsWith('tickets.json')));
     assert.ok(paths.some((p) => p.endsWith('decomposer-context.json')));
@@ -58,7 +58,7 @@ describe('plan-phase-cleanup.cleanupPhaseTempFiles', () => {
     assert.equal(result.deleted.length, 2);
     assert.equal(result.missing.length, 1);
     assert.equal(result.failed.length, 1);
-    assert.equal(unlinked.length, PHASE_TEMP_PATHS.spec.length);
+    assert.equal(unlinked.length, PHASE_TEMP_BASENAMES.spec.length);
   });
 
   it('returns empty buckets when no files match', async () => {
@@ -73,7 +73,7 @@ describe('plan-phase-cleanup.cleanupPhaseTempFiles', () => {
       },
     });
     assert.equal(result.deleted.length, 0);
-    assert.equal(result.missing.length, PHASE_TEMP_PATHS.decompose.length);
+    assert.equal(result.missing.length, PHASE_TEMP_BASENAMES.decompose.length);
     assert.equal(result.failed.length, 0);
   });
 });
