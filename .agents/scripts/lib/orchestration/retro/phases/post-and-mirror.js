@@ -60,13 +60,6 @@ export async function composeAndPostRetro({
     );
   }
 
-  // tasksTotal: every Task descendant. tasksFirstTry: tasks that did not
-  // require a hotfix. (Conservative undercount when the runtime never
-  // flipped status::blocked, but the metric is honest.)
-  const tasksTotal = signals.tasks.length;
-  const hotfixCount = signals.counts.hotfixes;
-  const tasksFirstTry = Math.max(0, tasksTotal - hotfixCount);
-
   const interventions = normalizeInterventionCount(manualInterventions);
   const { body, compact, scorecard } = composeFn({
     epicId,
@@ -76,8 +69,6 @@ export async function composeAndPostRetro({
     epicPerfReport: signals.epicPerfReport,
     parkedFollowOns: signals.parkedFollowOns,
     routedProposals: signals.routedProposals,
-    tasksTotal,
-    tasksFirstTry,
     timestamp,
     forceFull,
     perfThresholds,

@@ -23,8 +23,9 @@
  *        - `'skipped'`  → no per-worktree install was performed (single-tree
  *                         or symlink/pnpm-store strategy); trust the strategy.
  *
- *   3. Upsert the initial `story-run-progress` snapshot with every Task
- *      pinned to `pending` and `phase: 'init'` via `upsertStoryRunProgress`.
+ *   3. Upsert the initial `story-run-progress` snapshot with every Story
+ *      phase (init/implement/validate/close) pinned to `pending` and
+ *      `phase: 'init'` via `upsertStoryRunProgress`.
  *
  * Stdout: a single JSON envelope `{ workCwd, dependenciesInstalled,
  * installAction, snapshot, renderedBody }` so the caller can decide what to
@@ -54,7 +55,7 @@ const HELP = `Usage: node .agents/scripts/story-deliver-prepare.js \\
 
 Reads the story-init structured comment off Story #<id>, runs the install
 command when dependenciesInstalled === 'false', then upserts the initial
-story-run-progress snapshot (phase=init, every Task pending).
+story-run-progress snapshot (phase=init, every Story phase pending).
 `;
 
 const VALID_INSTALLED_STATES = new Set(['true', 'false', 'skipped']);
@@ -122,7 +123,6 @@ export async function readStoryInitComment({ provider, storyId }) {
  *   installCmd?: string,
  *   provider?: object,
  *   runInstall?: (cmd: string, cwd: string) => { status: number, stderr?: string },
- *   tasksOverride?: object[],
  * }} args
  * @returns {Promise<{
  *   storyId: number,
@@ -143,7 +143,6 @@ export async function runStoryDeliverPrepare(args) {
     installCmd: installCmdOverride,
     provider: providerOverride,
     runInstall: runInstallOverride,
-    tasksOverride,
   } = args ?? {};
 
   if (!Number.isInteger(storyId) || storyId <= 0) {
@@ -197,64 +196,21 @@ export async function runStoryDeliverPrepare(args) {
 
   // 3. Upsert the initial story-run-progress snapshot.
   //
-  //    The 3-tier migration (Epic #3078) made the inline-acceptance Story
-  //    the only ticket shape: Stories have no child Tasks, so every
-  //    production `story-init` comment records an empty `tasks[]`, and no
-  //    CLI flag wires `tasksOverride` (it is a DI-only test seam — see
-  //    `parseArgv`, which never sets it). The per-Task `tasks[]` branch
-  //    below is therefore NOT exercised by any production caller; it is
-  //    retained solely so unit-test fixtures that pin `tasksOverride` or a
-  //    non-empty `tasks[]` payload still resolve. Shape selection:
-  //
-  //    - `tasksOverride` or `initPayload.tasks[]` non-empty → per-Task
-  //      `tasks[]` snapshot (test-fixture path only).
-  //    - Otherwise (every production run) → Story-phase `phases[]`
-  //      snapshot (init/implement/validate/close pinned to `pending`).
+  //    Under the 3-tier hierarchy (Epic → Feature → Story) the
+  //    inline-acceptance Story is the only ticket shape: Stories have no
+  //    child Tasks, so the snapshot is always the Story-phase `phases[]`
+  //    shape (init/implement/validate/close pinned to `pending`).
   const hierarchy = String(initPayload.hierarchy ?? '3-tier');
   const branch = String(initPayload.storyBranch ?? `story-${storyId}`);
 
-  const initPayloadTasks = Array.isArray(initPayload.tasks)
-    ? initPayload.tasks
-    : [];
-
-  if (!tasksOverride && initPayloadTasks.length === 0) {
-    const phases = defaultStoryPhases();
-    const { body: renderedBody, payload: snapshot } =
-      await upsertStoryRunProgress({
-        provider,
-        storyId,
-        branch,
-        phase: 'init',
-        phases,
-        notify: notifyFn,
-      });
-    return {
-      storyId,
-      workCwd,
-      dependenciesInstalled,
-      installAction,
-      installCmd,
-      installResult,
-      hierarchy,
-      snapshot,
-      renderedBody,
-    };
-  }
-
-  const tasks =
-    tasksOverride ??
-    initPayloadTasks.map((t) => ({
-      id: Number(t.id ?? t.number),
-      title: String(t.title ?? ''),
-      state: 'pending',
-    }));
+  const phases = defaultStoryPhases();
   const { body: renderedBody, payload: snapshot } =
     await upsertStoryRunProgress({
       provider,
       storyId,
       branch,
       phase: 'init',
-      tasks,
+      phases,
       notify: notifyFn,
     });
 
