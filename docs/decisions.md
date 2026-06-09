@@ -2898,9 +2898,10 @@ When one or more probes fail the validator throws
 **every** miss in a single batched message — operators see the full
 remediation list in one pass rather than fixing one slug at a time. The
 gate is wired into the canonical decompose chain via
-`epic-plan-decompose.js → decomposeEpic → validateAndNormalizeTickets`,
-threading `config.baseBranch` (default `main`) through the call so each
-project's configured base branch is honoured.
+`epic-plan-decompose.js → runDecomposePhase → validateTickets →
+validateAndNormalizeTickets`, threading `config.baseBranch` (default
+`main`) through the call so each project's configured base branch is
+honoured.
 
 ### Consequences
 
