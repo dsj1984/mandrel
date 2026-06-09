@@ -184,21 +184,45 @@ phase maps PRD capabilities to Stories ~1:1 and cannot produce a coarser,
 holistic plan; with it, the consolidation critic has a well-defined target
 instead of a guess.
 
-Author the section as a short list — one bullet per proposed Story — naming the
-capability cluster each Story would deliver and (when relevant) the Feature it
-belongs under. Do **not** coarsen the PRD's capability enumeration to produce
-it: the granularity lever is *this* grouping recommendation, not a dumbed-down
-PRD. Example shape:
+**Write the Delivery Slicing section before any other section — it is the
+primary input to Phase 8 consolidation.** Author it first so the rest of the
+spec (Core Components, API Changes, Data Models) hangs off a deliberate
+slicing decision rather than being reverse-engineered into one at the end.
+Drafting it last is exactly how the model omits it under the weight of the
+other sections.
+
+Author the section as a table — one row per proposed slice — naming the
+capability cluster each slice would deliver, what ships in it, and whether it
+can ship independently. Use **noun phrases** for slice names ("Foundation",
+"Transport seam", "Send helper") so they map cleanly onto Feature titles in the
+resulting decomposition — never verb phrases ("Add transport") or file names
+("`sender.ts`"). Do **not** coarsen the PRD's capability enumeration to produce
+the slicing: the granularity lever is *this* grouping recommendation, not a
+dumbed-down PRD.
+
+**What "Independent?" means:** can this slice ship to production and provide
+value *without the next slice landing*? A `Yes` slice is releasable on its own;
+a `No` slice only becomes valuable once a later slice lands on top of it.
+
+Worked example:
 
 ```text
 ## Delivery Slicing
 
-Proposed shippable Stories (consolidation target for Phase 8):
+Proposed shippable slices (consolidation target for Phase 8):
 
-- **Story: <capability cluster A>** — folds PRD capabilities X + Y (one
-  reviewable PR; they share a reason to exist).
-- **Story: <capability cluster B>** — PRD capability Z standalone.
-- ...
+| Slice          | What ships                                              | Independent? |
+| -------------- | ------------------------------------------------------ | ------------ |
+| Foundation     | Config schema, types, and the no-op default path       | Yes          |
+| Transport seam | The pluggable transport interface + in-memory adapter  | Yes          |
+| Send helper    | The send() helper built on the transport seam          | No           |
+
+- **Foundation** folds PRD capabilities "config surface" + "type model" — they
+  share a reason to exist and ship as one reviewable PR.
+- **Transport seam** is the pluggable boundary; it provides value on its own
+  (in-memory adapter is usable for tests) so it is independently shippable.
+- **Send helper** depends on the transport seam landing first, so it is *not*
+  independent — it is valuable only once Transport seam ships.
 ```
 
 The consolidation pass degrades gracefully when this section is absent (it
@@ -223,7 +247,7 @@ CRITICAL REQUIREMENTS:
 - Respond ONLY with valid Markdown.
 - Do not use top-level <h1> (# ) tags. Start with ## Technical Overview.
 - Format architectural decisions clearly with bullet points.
-- Include a `## Delivery Slicing` section proposing the shippable-Story grouping.
+- Include a `## Delivery Slicing` section proposing the shippable-Story grouping. Write the Delivery Slicing section before any other section — it is the primary input to Phase 8 consolidation. Author it as a markdown table with columns `Slice | What ships | Independent?`, using noun-phrase slice names (e.g. "Foundation", "Transport seam", "Send helper") that map onto Feature titles. "Independent?" answers: can this slice ship to production and provide value without the next slice landing?
 ```
 
 ### Step 4 — Author the Acceptance Spec (Acceptance Engineer persona)
