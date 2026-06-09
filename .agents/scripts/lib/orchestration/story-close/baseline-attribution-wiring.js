@@ -65,17 +65,3 @@ export {
   computeStoryDiffPaths,
   validateProjectionContext,
 } from './baseline-attribution/phases/scope-discovery.js';
-
-/**
- * Story #2165 — exit code surfaced when one of the baseline-refresh spawns
- * is killed by the bounded-timeout watchdog. Matches
- * `COVERAGE_TIMEOUT_EXIT_CODE` and the GNU `timeout(1)` convention so the
- * close orchestrator can branch on "refresh hung" (124) vs. "refresh
- * exited non-zero for some other reason" without inspecting signal names.
- *
- * Story #2205 — the gate-attribution refresh now uses the in-process
- * `refreshBaseline()` service and never spawns a child process, so this
- * timeout no longer fires from this module. Kept as an exported constant
- * for callers (and tests) that still reference the historical contract.
- */
-export const REFRESH_TIMEOUT_EXIT_CODE = 124;

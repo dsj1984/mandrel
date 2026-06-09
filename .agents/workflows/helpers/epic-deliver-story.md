@@ -194,8 +194,7 @@ Run a single Story-implementation phase against the inline `acceptance[]`
 
    ```bash
    node .agents/scripts/story-phase.js \
-     --story <storyId> --phase blocked \
-     --blocker-comment-id <id>
+     --story <storyId> --phase blocked
    ```
 
 ### Step 1a — Bounded acceptance self-eval loop (**required, not optional**)

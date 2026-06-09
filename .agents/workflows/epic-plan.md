@@ -608,17 +608,17 @@ for the scoring logic.
 ## Phase 10: Readiness Health Check
 
 Run the post-plan health check to validate the backlog before handing off to
-`/epic-deliver`. The default `--fast` mode runs only the cheap checks
+`/epic-deliver`. The default mode runs only the cheap checks
 (config + git remote) and targets sub-2-second turnaround. The script itself
 always exits 0; the structured JSON on stdout reports findings.
 
 ```bash
-node .agents/scripts/epic-plan-healthcheck.js --epic [Epic_ID] --fast
+node .agents/scripts/epic-plan-healthcheck.js --epic [Epic_ID]
 ```
 
 **The healthcheck is a blocking exit condition for `agent::ready`.**
 Story #2921 (Epic #2880 F7) wired the persist half of
-`epic-plan-decompose.js` to re-run the same `--fast` check before
+`epic-plan-decompose.js` to re-run the same default check before
 flipping the Epic to `agent::ready`.
 When the inline run reports `ok: false`, the persist phase **refuses the
 flip** and throws with the failing check's `reason`. The Epic stays on its
@@ -642,12 +642,11 @@ The script emits a single line of JSON to stdout:
 }
 ```
 
-Modes (additive — fast checks always run):
+Modes (additive — the fast checks always run):
 
-- **`--fast` (default)** — config validation + git remote check only.
-- **`--paranoid`** — adds ticket-hierarchy + dependency-cycle revalidation.
-  Requires `--epic`. Use this when you want the full backlog audit before
-  execution.
+- **(default)** — config validation + git remote check only.
+- **`--paranoid`** — adds ticket-hierarchy revalidation. Requires `--epic`.
+  Use this when you want the full backlog audit before execution.
 - **`--prime-install`** — adds the pnpm content-addressable-store prime
   (`pnpm install --frozen-lockfile`, up to 300s). Run only when
   `nodeModulesStrategy: 'pnpm-store'` is configured and you want subsequent
