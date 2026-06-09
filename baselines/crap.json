@@ -4662,24 +4662,6 @@
       "crap": 2
     },
     {
-      "path": ".agents/scripts/lib/epic-close-tail-helpers.js",
-      "method": "closePlanningArtifacts",
-      "startLine": 58,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/epic-close-tail-helpers.js",
-      "method": "verifyAndRecoverEpicClose",
-      "startLine": 139,
-      "crap": 3.000845229151014
-    },
-    {
-      "path": ".agents/scripts/lib/epic-close-tail-helpers.js",
-      "method": "emitEpicPerfReport",
-      "startLine": 219,
-      "crap": 5.012301355882782
-    },
-    {
       "path": ".agents/scripts/lib/epic-merge-lock.js",
       "method": "resolveGitCommonDir",
       "startLine": 62,

@@ -877,9 +877,10 @@ required checks fail.
    auto-merge in the GitHub UI to inspect required-checks, the
    `code-review` comment, and the retro before merging by hand, or
    (b) checks fail and need remediation on the Epic branch. There is
-   no separate close command — `epic-close.js` exists in
-   `.agents/scripts/` but is an internal helper, superseded by
-   `/epic-deliver`'s `delivery.finalize` state.
+   no separate close command — the close-out side effects (PR open,
+   planning-ticket close, handoff comment) are owned by `/epic-deliver`'s
+   `delivery.finalize` state (the lifecycle Finalizer listener), whose
+   replay is idempotent.
 
 ### What triggers `agent::blocked`
 
