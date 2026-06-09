@@ -246,26 +246,6 @@ function isThreeTierStoryTask(task) {
 }
 
 /**
- * Truncate a string to fit within a rough token budget.
- * Approximation: 1 token ≈ 4 characters.
- *
- * @param {string} text
- * @param {number|undefined} tokenBudget
- * @returns {string}
- */
-export function truncateToTokenBudget(text, tokenBudget) {
-  if (!tokenBudget) return text;
-  const maxChars = tokenBudget * 4;
-  if (text.length > maxChars) {
-    return (
-      text.substring(0, maxChars) +
-      '\n\n...[Context truncated due to token limits]...'
-    );
-  }
-  return text;
-}
-
-/**
  * Load and substitute placeholders in the agent-protocol template. Extracted
  * from {@link hydrateContext} to keep its complexity manageable.
  *

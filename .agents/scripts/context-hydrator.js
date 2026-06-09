@@ -16,7 +16,6 @@ export {
 export {
   hydrateContext,
   parseHierarchy,
-  truncateToTokenBudget,
 } from './lib/orchestration/context-hydration-engine.js';
 
 async function main() {

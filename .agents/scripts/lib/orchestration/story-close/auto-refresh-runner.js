@@ -118,7 +118,7 @@ function readEnvelope({ absPath, kind, readerLoadFile }) {
  *
  * Pure.
  */
-export function adaptCrapRowsForEvaluator(rows) {
+function adaptCrapRowsForEvaluator(rows) {
   return (rows ?? []).map((row) => {
     if (!row || typeof row !== 'object') return row;
     const { path: p, ...rest } = row;
@@ -790,13 +790,8 @@ export async function runAutoRefresh({
 }
 
 export {
-  buildRefusalSignal,
   commitRefresh,
-  FRICTION_CATEGORY,
-  filterToStoryDiff,
-  priorRefusalSignalExists,
   pushRefresh,
-  RUNNER_SOURCE_TOOL,
   stageRefreshArtifacts,
   validateRefreshAccepted,
 };

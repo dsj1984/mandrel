@@ -38,15 +38,6 @@
 import { FILE_ASSUMPTION_VALUES } from './file-assumption-enum.js';
 
 /**
- * Canonical assumption values a path entry may declare. The enum now lives
- * in the cycle-free leaf {@link ./file-assumption-enum.js} (Story #3331);
- * the runtime semantics that consume it live in {@link ./file-assumptions.js}.
- * Re-exported here so existing callers that reach for the symbol through the
- * validator keep resolving it.
- */
-export { FILE_ASSUMPTION_VALUES };
-
-/**
  * Canonical testing-tier labels that a `verify[]` entry must name (in
  * parentheses) to pass plan-time validation. Mirrors the skill contract in
  * `core/epic-plan-decompose-author/SKILL.md § verify rules`.
