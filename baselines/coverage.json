@@ -107,12 +107,6 @@
       "functions": 57.14
     },
     {
-      "path": ".agents/scripts/epic-plan-edit-flow.js",
-      "lines": 90.5,
-      "branches": 68.42,
-      "functions": 50
-    },
-    {
       "path": ".agents/scripts/evidence-gate.js",
       "lines": 97.87,
       "branches": 85.71,

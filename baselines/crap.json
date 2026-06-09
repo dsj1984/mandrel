@@ -570,24 +570,6 @@
       "crap": 18.223941738734638
     },
     {
-      "path": ".agents/scripts/epic-plan-edit-flow.js",
-      "method": "detectExistingSpec",
-      "startLine": 49,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/epic-plan-edit-flow.js",
-      "method": "runEditFlow",
-      "startLine": 91,
-      "crap": 8.558518216975372
-    },
-    {
-      "path": ".agents/scripts/epic-plan-edit-flow.js",
-      "method": "makeEditResult",
-      "startLine": 202,
-      "crap": 3
-    },
-    {
       "path": ".agents/scripts/evidence-gate.js",
       "method": "splitOnDashDash",
       "startLine": 65,

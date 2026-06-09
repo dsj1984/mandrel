@@ -115,16 +115,8 @@
       "mi": 144.657
     },
     {
-      "path": ".agents/scripts/epic-plan-edit-flow.js",
-      "mi": 82.06
-    },
-    {
       "path": ".agents/scripts/epic-plan-healthcheck.js",
       "mi": 97.622
-    },
-    {
-      "path": ".agents/scripts/epic-plan.js",
-      "mi": 77.214
     },
     {
       "path": ".agents/scripts/epic-reconcile.js",
@@ -4493,10 +4485,6 @@
     {
       "path": "tests/scripts/epic-plan-emit-context-stdout-clean.test.js",
       "mi": 105.713
-    },
-    {
-      "path": "tests/scripts/epic-plan.edit-flow.test.js",
-      "mi": 108.552
     },
     {
       "path": "tests/scripts/epic-plan.spec-flow.test.js",
