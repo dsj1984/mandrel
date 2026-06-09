@@ -1,8 +1,7 @@
 /**
  * dag.js — Phase 2 of the epic-plan-decompose pipeline (Story #2466).
  *
- * Owns the deterministic DAG helpers used by the creation passes:
- *   - `resolveParentId(ticket, slugMap, epicId)`
+ * Owns the deterministic DAG helpers used by the reconciler pipeline:
  *   - `resolveDependencies(ticket, slugMap)`
  *   - `orderTicketsForCreation(validated)` (topological sort within each
  *     (parent_slug, type) group, concatenated in feature → story → task
@@ -14,21 +13,6 @@
  *
  * @module lib/orchestration/epic-plan-decompose/phases/dag
  */
-
-export function resolveParentId(ticket, slugMap, epicId) {
-  if (ticket.type === 'feature') return epicId;
-  if (!ticket.parent_slug) {
-    throw new Error(
-      `[Decomposer] ${ticket.type.toUpperCase()} "${ticket.title}" (${ticket.slug}) has no parent_slug.`,
-    );
-  }
-  if (!slugMap.has(ticket.parent_slug)) {
-    throw new Error(
-      `[Decomposer] ${ticket.type.toUpperCase()} "${ticket.title}" (${ticket.slug}) references parent_slug "${ticket.parent_slug}" which was not created. The parent is missing from the ticket array or the slug is misspelled.`,
-    );
-  }
-  return slugMap.get(ticket.parent_slug);
-}
 
 export function resolveDependencies(ticket, slugMap) {
   const resolved = [];

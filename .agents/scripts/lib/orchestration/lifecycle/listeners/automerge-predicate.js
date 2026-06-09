@@ -196,7 +196,7 @@ function evaluateRetroSignals(retro, reasons) {
     reasons.push('retro structured comment not found on Epic');
   } else if (!retroCompact) {
     reasons.push(
-      'retro is not compact (full retro indicates friction / parked / hotfixes)',
+      'retro is not compact (full retro indicates friction / parked / interventions)',
     );
   }
   return { retroFound, retroCompact };

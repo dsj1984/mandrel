@@ -1,57 +1,16 @@
 /**
- * creation.js — Phase 4 shared infrastructure for the two creation flows
- * (`decompose-legacy.js` direct-create + `persist.js` reconciler-based).
+ * creation.js — sub-issue link reconciliation, Epic label transitions, and
+ * the advisory ticket-cap warning used by the reconciler-based persist flow
+ * (`persist.js`).
  *
- * Exports: `reconcileSubIssueLinks`, `setEpicLabel`, `resolveChildIndex`,
- * `runStagedPasses` (three-pass driver with adaptive RL degrade),
- * `assertEpicHasPlanningArtifacts`, `warnTicketCapNearLimit`.
+ * Exports: `reconcileSubIssueLinks`, `setEpicLabel`,
+ * `warnTicketCapNearLimit`.
  *
  * @module lib/orchestration/epic-plan-decompose/phases/creation
  */
 
 import { Logger } from '../../../Logger.js';
-import { AGENT_LABELS, TYPE_LABELS } from '../../../label-constants.js';
-import { concurrentMap } from '../../../util/concurrent-map.js';
-import { runCreationPass } from './creation-pass.js';
-
-const TYPE_LABEL_TO_TYPE = {
-  [TYPE_LABELS.FEATURE]: 'feature',
-  [TYPE_LABELS.STORY]: 'story',
-};
-
-function indexExistingChildren(existing) {
-  const childTypes = new Set([TYPE_LABELS.FEATURE, TYPE_LABELS.STORY]);
-  const byTitle = new Map();
-  for (const child of existing) {
-    const typeLabel = (child.labels || []).find((l) => childTypes.has(l));
-    if (!typeLabel) continue;
-    byTitle.set(child.title, {
-      id: child.id,
-      state: child.state,
-      type: TYPE_LABEL_TO_TYPE[typeLabel],
-    });
-  }
-  return byTitle;
-}
-
-function attachAdaptiveConcurrencyHook(provider) {
-  let observed = false;
-  const http = provider?._http;
-  if (!http || typeof http !== 'object' || !('onTransientFailure' in http)) {
-    return { wasThrottled: () => false, detach: () => {} };
-  }
-  const prior = http.onTransientFailure;
-  http.onTransientFailure = (info) => {
-    if (info?.kind === 'secondary-rate-limit') observed = true;
-    if (typeof prior === 'function') prior(info);
-  };
-  return {
-    wasThrottled: () => observed,
-    detach: () => {
-      http.onTransientFailure = prior;
-    },
-  };
-}
+import { AGENT_LABELS } from '../../../label-constants.js';
 
 export async function reconcileSubIssueLinks(epicId, provider) {
   if (typeof provider.reconcileSubIssueLinks !== 'function') return;
@@ -85,114 +44,6 @@ export async function setEpicLabel(provider, epicId, targetLabel) {
       remove: planningLabels.filter((l) => l !== targetLabel),
     },
   });
-}
-
-async function loadExistingChildren(provider, epicId) {
-  // Story #3455 — scope resume-indexing to the Epic's sub-issue graph
-  // (`getSubTickets`) instead of `getTickets`'s repo-wide `state=all`
-  // scan. The downstream filter keeps only Feature/Story children, so the
-  // scoped fetch surfaces the same set without paging every issue in the
-  // repo.
-  const existing =
-    typeof provider.getSubTickets === 'function'
-      ? await provider.getSubTickets(epicId)
-      : [];
-  if (existing.length > 0 && typeof provider.primeTicketCache === 'function') {
-    provider.primeTicketCache(existing);
-  }
-  return (existing || []).filter((t) =>
-    (t.labels || []).some((l) =>
-      [TYPE_LABELS.FEATURE, TYPE_LABELS.STORY].includes(l),
-    ),
-  );
-}
-
-async function forceCloseExistingChildren(existingChildren, provider) {
-  Logger.info('[Decomposer] --force: Closing existing child tickets...');
-  const openChildren = existingChildren.filter((c) => c.state !== 'closed');
-  await concurrentMap(
-    openChildren,
-    async (child) => {
-      await provider.updateTicket(child.id, {
-        state: 'closed',
-        state_reason: 'not_planned',
-      });
-      Logger.info(`[Decomposer]   Closed #${child.id}: ${child.title}`);
-    },
-    { concurrency: 3 },
-  );
-  Logger.info(
-    `[Decomposer]   Closed ${existingChildren.length} old ticket(s).`,
-  );
-}
-
-export async function resolveChildIndex({ force, resume, provider, epicId }) {
-  const existingChildren = await loadExistingChildren(provider, epicId);
-  if (force) await forceCloseExistingChildren(existingChildren, provider);
-  const childIndex = force
-    ? new Map()
-    : indexExistingChildren(existingChildren);
-  if (resume && childIndex.size === 0) {
-    throw new Error(
-      `[Decomposer] --resume requires existing child tickets under Epic #${epicId}, but none were found. Run without --resume to perform a fresh decomposition.`,
-    );
-  }
-  return childIndex;
-}
-
-/**
- * Run the staged feature → story creation passes against `provider`.
- *
- * 3-tier (Epic #3078 / #3238): the canonical shape carries only
- * `feature` and `story` tickets — Stories hold inline `acceptance[]` +
- * `verify[]` on their own bodies, so there is no separate task-creation
- * pass. The two passes fire in feature → story order; the slugMap
- * propagates across passes so the story pass's `parent_slug` →
- * Feature-issue-number resolution succeeds. The inline-contract
- * invariant is validated upstream by `assertEachTypePresent` /
- * `assertEveryStoryHasInlineContract` in
- * `lib/orchestration/ticket-validator.js`.
- */
-export async function runStagedPasses({
-  ordered,
-  slugMap,
-  epicId,
-  provider,
-  childIndex,
-  configuredCap,
-}) {
-  let activeCap = configuredCap;
-  const throttle = attachAdaptiveConcurrencyHook(provider);
-  try {
-    for (const passType of ['feature', 'story']) {
-      const passTickets = ordered.filter((t) => t.type === passType);
-      if (passTickets.length === 0) continue;
-      if (throttle.wasThrottled() && activeCap > 1) {
-        Logger.warn(
-          `[Decomposer] secondary rate-limit observed — dropping concurrencyCap from ${activeCap} to 1 for remaining passes`,
-        );
-        activeCap = 1;
-      }
-      await runCreationPass(
-        passTickets,
-        slugMap,
-        epicId,
-        provider,
-        activeCap,
-        childIndex,
-      );
-    }
-  } finally {
-    throttle.detach();
-  }
-}
-
-export function assertEpicHasPlanningArtifacts(epic, epicId) {
-  if (!epic?.linkedIssues?.prd || !epic.linkedIssues.techSpec) {
-    throw new Error(
-      `[Decomposer] Epic #${epicId} is missing linked PRD or Tech Spec. Run the Epic Planner first.`,
-    );
-  }
 }
 
 /**

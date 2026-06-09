@@ -1,10 +1,10 @@
 /**
  * phases/gather-signals.js — retro Phase 1: aggregate retro signals.
  *
- * Reads child Stories' `story-perf-summary` comments, descendant Task
- * labels (hotfixes + HITL events), the Epic's `parked-follow-ons`
- * structured comment, and per-Story `signals.ndjson` streams. Composes
- * the routed-proposal sections via `composeRoutedProposals`.
+ * Reads child Stories' `story-perf-summary` comments, descendant labels
+ * (HITL events), the Epic's `parked-follow-ons` structured comment, and
+ * per-Story `signals.ndjson` streams. Composes the routed-proposal
+ * sections via `composeRoutedProposals`.
  *
  * Exported as `gatherRetroSignals` for the parent sequencer (and tests).
  */
@@ -131,20 +131,17 @@ async function warnIfEpicLooksPopulated({ epicId, provider, logger }) {
  * gracefully — the function never throws on the guard alone.
  *
  * **3-tier ledgers (Story #3151, Story #3200).** Under the 3-tier
- * hierarchy (Epic → Feature → Story; no Task-tier children), `tasks`
- * is always the empty array and the task-derived counts (`hotfixes`,
- * `hitl`) settle at zero. `friction` / `parked` / `recuts` /
- * `storyPerfSummaries` are all Story-scoped, so the function continues
- * to produce a non-empty signals report. The empty-walk guard above
- * is **not** triggered for this shape because `descendants` is
- * populated (it contains the Stories themselves); the guard fires
- * only when the walker returned literally nothing under a body that
- * references children.
+ * hierarchy (Epic → Feature → Story; no Task-tier children), `friction`
+ * / `parked` / `recuts` / `storyPerfSummaries` are all Story-scoped, so
+ * the function continues to produce a non-empty signals report. The
+ * empty-walk guard above is **not** triggered for this shape because
+ * `descendants` is populated (it contains the Stories themselves); the
+ * guard fires only when the walker returned literally nothing under a
+ * body that references children.
  *
  * @returns {Promise<{
  *   stories: Array<{ id: number, body?: string, labels?: string[] }>,
- *   tasks:   Array<{ id: number, labels?: string[] }>,
- *   counts:  { friction: number, parked: number, recuts: number, hotfixes: number, hitl: number },
+ *   counts:  { friction: number, parked: number, recuts: number, hitl: number },
  *   storyPerfSummaries: object[],
  *   epicPerfReport: object|null,
  *   parkedFollowOns: { recuts: object[], parked: object[], present: boolean },
@@ -166,14 +163,6 @@ export async function gatherRetroSignals({
   const stories = descendants.filter((t) =>
     (t.labels ?? []).includes(TYPE_LABELS.STORY),
   );
-  // 3-tier (Epic → Feature → Story): no Task-tier descendants exist,
-  // so `tasks` is always empty and `hotfixes` (which was Task-derived
-  // from `status::blocked`) is always zero. Kept as a stable field on
-  // the returned envelope so downstream consumers and tests that
-  // splice over `[...stories, ...tasks]` remain well-typed.
-  const tasks = [];
-  const hotfixes = 0;
-
   // HITL count: distinct descendants that currently or historically carry
   // `agent::blocked`. We can only see "currently" here without an event
   // stream — counts undercount but never overcount.
@@ -247,7 +236,6 @@ export async function gatherRetroSignals({
     friction: frictionFromSummaries,
     parked: parkedFollowOns.parked.length,
     recuts: parkedFollowOns.recuts.length,
-    hotfixes,
     hitl,
   };
 
@@ -338,7 +326,6 @@ export async function gatherRetroSignals({
 
   return {
     stories,
-    tasks,
     counts,
     storyPerfSummaries,
     epicPerfReport,

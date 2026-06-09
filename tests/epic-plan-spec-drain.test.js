@@ -39,8 +39,11 @@ test('drainPendingCleanupAtBoot: no-op when manifest is absent', async () => {
       git: stubGit,
       logger,
     });
-    assert.deepEqual(result.drained, []);
-    assert.equal(result.remaining, 0);
+    assert.deepEqual(result.drainedPending, []);
+    assert.equal(
+      result.persistentPending.length + result.stillPending.length,
+      0,
+    );
     assert.equal(sink.info.length, 0, 'no log line when manifest is empty');
   } finally {
     fs.rmSync(repoRoot, { recursive: true, force: true });
@@ -69,8 +72,11 @@ test('drainPendingCleanupAtBoot: drains a seeded manifest entry when stage-1 ret
       git: stubGit,
       logger,
     });
-    assert.deepEqual(result.drained, [777]);
-    assert.equal(result.remaining, 0);
+    assert.deepEqual(result.drainedPending, [777]);
+    assert.equal(
+      result.persistentPending.length + result.stillPending.length,
+      0,
+    );
     assert.equal(
       fs.existsSync(manifestPath(worktreeRoot)),
       false,
@@ -120,8 +126,11 @@ test('drainPendingCleanupAtBoot: persistent entries do not block, remaining coun
       fsRm,
       logger,
     });
-    assert.equal(result.drained.length, 0);
-    assert.ok(result.remaining >= 1, 'persistent entry counted in remaining');
+    assert.equal(result.drainedPending.length, 0);
+    assert.ok(
+      result.persistentPending.length + result.stillPending.length >= 1,
+      'persistent entry counted in remaining',
+    );
     assert.ok(
       sink.info.some((m) => m.includes('remaining=')),
       'logs a remaining= count',

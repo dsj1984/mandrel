@@ -11,13 +11,14 @@
  *
  *   1. planning-artifacts — `ensurePlanningArtifacts`,
  *                            `resolveConflictPolicy`.
- *   2. dag                — `resolveParentId`, `resolveDependencies`,
+ *   2. dag                — `resolveDependencies`,
  *                            `orderTicketsForCreation`.
  *   3. context            — `buildDecomposerSystemPrompt`,
  *                            `buildDecompositionContext`.
- *   4. creation           — staged-pass ticket creation engine plus
- *                            `decomposeEpic` (legacy direct-create flow,
- *                            kept for the existing test surface).
+ *   4. creation           — sub-issue link reconciliation, Epic label
+ *                            transitions, and the advisory ticket-cap
+ *                            warning (`reconcileSubIssueLinks`,
+ *                            `setEpicLabel`, `warnTicketCapNearLimit`).
  *   5. persist            — `runDecomposePhase` (reconciler-based flow).
  *   6. cli                — argument parsing + `main()` pipeline.
  *
@@ -58,7 +59,6 @@ import {
   orderTicketsForCreation,
   resolveDependencies,
 } from './lib/orchestration/epic-plan-decompose/phases/dag.js';
-import { decomposeEpic } from './lib/orchestration/epic-plan-decompose/phases/decompose-legacy.js';
 import { runDecomposePhase } from './lib/orchestration/epic-plan-decompose/phases/persist.js';
 import { ensurePlanningArtifacts } from './lib/orchestration/epic-plan-decompose/phases/planning-artifacts.js';
 
@@ -70,7 +70,6 @@ import { ensurePlanningArtifacts } from './lib/orchestration/epic-plan-decompose
 export {
   buildDecomposerSystemPrompt,
   buildDecompositionContext,
-  decomposeEpic,
   ensurePlanningArtifacts,
   orderTicketsForCreation,
   resolveDependencies,

@@ -3,15 +3,15 @@
  *
  * Stateless, async logic for assembling the full execution prompt for an
  * agent task. Extracted from the CLI entry point to enable reuse across
- * consumers (CLI wrappers, MCP server, tests).
+ * consumers (CLI wrappers, tests).
  *
  * This module is the SDK layer — it has no knowledge of CLI arguments,
  * file I/O decisions, or process.exit(). All I/O choices are delegated
  * to the caller.
  *
  * Consumers:
- *   - `.agents/scripts/context-hydrator.js`  — CLI wrapper
- *   - `lib/orchestration/dispatch-engine.js` — import hydrateContext directly
+ *   - `.agents/scripts/hydrate-context.js`   — the only supported CLI wrapper
+ *     (imports hydrateContext; `--emit prompt` writes the raw hydrated prompt)
  *
  * @see .agents/scripts/lib/ITicketingProvider.js
  */
@@ -243,26 +243,6 @@ export function extractStorySections(body) {
 function isThreeTierStoryTask(task) {
   const labels = task?.labels ?? [];
   return labels.includes('type::story');
-}
-
-/**
- * Truncate a string to fit within a rough token budget.
- * Approximation: 1 token ≈ 4 characters.
- *
- * @param {string} text
- * @param {number|undefined} tokenBudget
- * @returns {string}
- */
-export function truncateToTokenBudget(text, tokenBudget) {
-  if (!tokenBudget) return text;
-  const maxChars = tokenBudget * 4;
-  if (text.length > maxChars) {
-    return (
-      text.substring(0, maxChars) +
-      '\n\n...[Context truncated due to token limits]...'
-    );
-  }
-  return text;
 }
 
 /**

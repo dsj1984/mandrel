@@ -9,11 +9,10 @@
  * optionally prime the execution environment before handing off to
  * /epic-deliver.
  *
- * Modes (additive — fast checks always run):
- *   --fast (default)  — config validation + git remote check only.
+ * Modes (additive — the fast checks below always run):
+ *   (default)         — config validation + git remote check only.
  *                       Targets <2s.
- *   --paranoid        — adds ticket-hierarchy + dependency-cycle
- *                       revalidation.
+ *   --paranoid        — adds ticket-hierarchy revalidation.
  *   --prime-install   — adds the pnpm content-addressable-store priming
  *                       path (up to 300s).
  *
@@ -26,7 +25,7 @@
  *
  * Usage:
  *   node epic-plan-healthcheck.js --epic <EPIC_ID> \
- *     [--fast|--paranoid] [--prime-install] [--dry-run]
+ *     [--paranoid] [--prime-install] [--dry-run]
  *
  * @see .agents/workflows/epic-plan.md Phase 10
  */
@@ -59,7 +58,7 @@ const progress = Logger.createProgress('plan-healthcheck', { stderr: true });
  * private flags.
  *
  * @param {string[]} [argv]
- * @returns {{ epicId: number|null, fast: boolean, paranoid: boolean,
+ * @returns {{ epicId: number|null, paranoid: boolean,
  *   primeInstall: boolean, dryRun: boolean }}
  */
 function parseHealthcheckArgs(argv = process.argv) {
@@ -67,7 +66,6 @@ function parseHealthcheckArgs(argv = process.argv) {
     args: argv.slice(2),
     options: {
       epic: { type: 'string', short: 'e' },
-      fast: { type: 'boolean', default: false },
       paranoid: { type: 'boolean', default: false },
       'prime-install': { type: 'boolean', default: false },
       'dry-run': { type: 'boolean', default: false },
@@ -78,7 +76,6 @@ function parseHealthcheckArgs(argv = process.argv) {
 
   return {
     epicId: parseTicketId(values.epic) ?? parseTicketId(positionals[0]),
-    fast: !!values.fast,
     paranoid: !!values.paranoid,
     primeInstall: !!values['prime-install'],
     dryRun: !!values['dry-run'],
@@ -273,8 +270,7 @@ async function timed(name, fn) {
  *
  * @param {object} [opts]
  * @param {number} [opts.epicId]              Epic ID (required for --paranoid).
- * @param {boolean} [opts.fast]               Run fast checks only (default).
- * @param {boolean} [opts.paranoid]           Add hierarchy + dep-cycle checks.
+ * @param {boolean} [opts.paranoid]           Add ticket-hierarchy revalidation.
  * @param {boolean} [opts.primeInstall]       Add pnpm-store priming.
  * @param {boolean} [opts.dryRun]             Skip real install side effects.
  * @param {object}  [opts.injectedProvider]   Test-only injection point.
@@ -284,12 +280,11 @@ async function timed(name, fn) {
  */
 // exported for tests — Story-level reuse runner reserved for future test coverage
 export async function runPlanHealthcheck(opts = {}) {
-  const ARG_KEYS = ['epicId', 'fast', 'paranoid', 'primeInstall', 'dryRun'];
+  const ARG_KEYS = ['epicId', 'paranoid', 'primeInstall', 'dryRun'];
   const hasExplicitArgs = ARG_KEYS.some((k) => Object.hasOwn(opts, k));
   const parsed = hasExplicitArgs
     ? {
         epicId: opts.epicId ?? null,
-        fast: !!opts.fast,
         paranoid: !!opts.paranoid,
         primeInstall: !!opts.primeInstall,
         dryRun: !!opts.dryRun,

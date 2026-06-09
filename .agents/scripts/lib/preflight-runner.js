@@ -2,10 +2,10 @@
  * preflight-runner.js — Shared preflight wrapper around the checks registry.
  *
  * This module is the single implementation of the "run the registry, fail
- * fast on blockers, log auto-fixes" pattern. The three consumer entry
- * points (epic-close.js, story-close.js, the npm test wrapper) call
- * `runPreflight({ scope })` instead of re-implementing the same
- * assemble+run+format+exit-2 dance.
+ * fast on blockers, log auto-fixes" pattern. The consumer entry points
+ * (story-close.js, epic-deliver-preflight.js, the npm test wrapper, and
+ * the bootstrap scripts) call `runPreflight({ scope })` instead of
+ * re-implementing the same assemble+run+format+exit-2 dance.
  *
  * Exit-code contract (shared by every consumer):
  *   - 0 → no blocker findings (warnings/info may have been printed).

@@ -38,12 +38,10 @@ export function normalizeInterventionCount(value) {
  * @param {{
  *   epicId: number,
  *   epicTitle?: string,
- *   counts: { friction: number, parked: number, recuts: number, hotfixes: number, hitl: number, interventions?: number },
+ *   counts: { friction: number, parked: number, recuts: number, hitl: number, interventions?: number },
  *   storyPerfSummaries?: object[],
  *   epicPerfReport?: object|null,
  *   parkedFollowOns?: { recuts: object[], parked: object[] },
- *   tasksTotal?: number,
- *   tasksFirstTry?: number,
  *   timestamp?: string,
  *   forceFull?: boolean,
  * }} input
@@ -58,8 +56,6 @@ export function composeRetroBody(input) {
     epicPerfReport = null,
     parkedFollowOns = { recuts: [], parked: [] },
     routedProposals = null,
-    tasksTotal = 0,
-    tasksFirstTry = 0,
     timestamp = new Date().toISOString(),
     forceFull = false,
     perfThresholds = null,
@@ -70,17 +66,11 @@ export function composeRetroBody(input) {
   const heading = `## 🪞 Sprint Retrospective — Epic #${epicId}: ${epicTitle}`;
   const generatedLine = `_Generated ${timestamp}_`;
   const scorecardRows = [
-    `| Total Tasks                  | ${tasksTotal} |`,
-    `| Tasks Completed First Try    | ${tasksFirstTry} |`,
-    `| Tasks Requiring Hotfix       | ${counts.hotfixes} |`,
     `| agent::blocked Events Raised | ${counts.hitl} |`,
     `| Manual Interventions         | ${interventions} |`,
     `| Friction Events              | ${counts.friction} |`,
   ];
   const scorecard = {
-    tasksTotal,
-    tasksFirstTry,
-    hotfixes: counts.hotfixes,
     hitl: counts.hitl,
     friction: counts.friction,
     parked: counts.parked,
@@ -95,7 +85,7 @@ export function composeRetroBody(input) {
       '',
       generatedLine,
       '',
-      '🟢 Clean sprint — zero friction, zero parked follow-ons, zero recuts, zero hotfixes, zero agent::blocked events, zero manual interventions.',
+      '🟢 Clean sprint — zero friction, zero parked follow-ons, zero recuts, zero agent::blocked events, zero manual interventions.',
       '',
       '### Sprint Scorecard',
       '',

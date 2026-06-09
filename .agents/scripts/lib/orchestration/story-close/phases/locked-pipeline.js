@@ -26,10 +26,6 @@ import {
   loadPhaseTimerState,
 } from '../../../util/phase-timer-state.js';
 import { dispatchRecovery } from '../../story-close-recovery.js';
-import {
-  buildLegacyOrchestrationBag,
-  buildLegacySettingsBag,
-} from '../legacy-settings-bag.js';
 import { runClosePhase } from './close.js';
 import { runStoryCodeReview } from './code-review.js';
 import {
@@ -51,7 +47,7 @@ async function runGatesAndRefresh(ctx) {
     worktreePath: ctx.worktreePath,
     epicBranch: ctx.epicBranch,
     storyBranch: ctx.storyBranch,
-    agentSettings: ctx.agentSettings,
+    config: ctx.config,
     storyId: ctx.storyId,
     epicId: ctx.epicId,
     noEvidenceFlag: ctx.noEvidenceFlag,
@@ -78,7 +74,7 @@ async function runGatesAndRefresh(ctx) {
         spawnCmd: gateOutcome.spawnCmd ?? null,
         timeoutMs: gateOutcome.timeoutMs ?? null,
         exitCode: gateOutcome.exitCode ?? 124,
-        agentSettings: ctx.agentSettings,
+        config: ctx.config,
         provider: ctx.provider,
         progress: ctx.progress,
         bus: ctx.bus,
@@ -92,7 +88,7 @@ async function runGatesAndRefresh(ctx) {
       cwd: ctx.worktreePath || ctx.cwd,
       epicBranch: ctx.epicBranch,
       storyBranch: ctx.storyBranch,
-      agentSettings: ctx.agentSettings,
+      config: ctx.config,
     },
     { progress: ctx.progress },
   );
@@ -123,18 +119,9 @@ export async function runStoryCloseLocked(args) {
     progress,
   } = args;
 
-  // Bridge the canonical config into the legacy bags that the gate
-  // helpers under `lib/orchestration/story-close/**` still expect.
-  // Removed in the follow-on that migrates those helpers (see
-  // `legacy-settings-bag.js` header).
-  const agentSettings = buildLegacySettingsBag(config);
-  const orchestration = buildLegacyOrchestrationBag(config);
-
-  // Augment args downstream so helpers that destructure `agentSettings` /
-  // `orchestration` keep working without each caller site rebuilding the bags.
-  args = { ...args, agentSettings, orchestration };
-
   // Prior-state detection + --resume / --restart dispatch.
+  // `dispatchRecovery` only reads `orchestration.worktreeIsolation`; surface
+  // it from the canonical `delivery.worktreeIsolation` view directly.
   const { resumeFromConflict, resumeFromMerge, resumeFromPostMerge } =
     dispatchRecovery({
       cwd,
@@ -142,7 +129,7 @@ export async function runStoryCloseLocked(args) {
       epicId,
       epicBranch,
       storyBranch,
-      orchestration,
+      orchestration: { worktreeIsolation: config.delivery?.worktreeIsolation },
       resume: resumeFlag,
       restart: restartFlag,
       progress,

@@ -7,10 +7,13 @@
  * Successor to the retired mandrel MCP tools. See ADR 20260424-702a in docs/decisions.md for the migration table.
  *
  * Delegates to `hydrateContext` from `lib/orchestration/context-hydration-engine.js`
- * and emits the `{ prompt }` JSON envelope on stdout.
+ * and emits the `{ prompt }` JSON envelope on stdout. Pass `--emit prompt`
+ * to write the raw hydrated prompt (no JSON wrapper) instead — this is the
+ * sole supported hydration entry point.
  *
  * Usage:
  *   node .agents/scripts/hydrate-context.js --ticket <id> [--epic <id>]
+ *   node .agents/scripts/hydrate-context.js --ticket <id> --emit prompt
  *
  * If `--epic` is omitted, the epic id is parsed from the ticket body
  * (`Epic: #N`). Persona / skills are derived from the ticket's labels.
@@ -36,6 +39,7 @@ Flags:
 
 Output: a single JSON object {"prompt": "..."} on stdout by default.
   --emit envelope  Write {"envelope": {...}} instead (debug / inspection).
+  --emit prompt    Write the raw hydrated prompt (no JSON wrapper) to stdout.
 `;
 
 /**
@@ -124,7 +128,7 @@ export function parseArgv(argv) {
  * Shapes:
  *   - { kind: 'help' }
  *   - { kind: 'usage-error', message }
- *   - { kind: 'run', ticketId, epicId | undefined, emit?: 'envelope' }
+ *   - { kind: 'run', ticketId, epicId | undefined, emit?: 'envelope' | 'prompt' }
  */
 export function classifyCliInvocation(values) {
   if (values?.help) return { kind: 'help' };
@@ -137,8 +141,8 @@ export function classifyCliInvocation(values) {
   }
   const epicId = values?.epic ? Number.parseInt(values.epic, 10) : undefined;
   const intent = { kind: 'run', ticketId, epicId };
-  if (values?.emit === 'envelope') {
-    intent.emit = 'envelope';
+  if (values?.emit === 'envelope' || values?.emit === 'prompt') {
+    intent.emit = values.emit;
   }
   return intent;
 }
@@ -161,6 +165,10 @@ export async function main(argv = process.argv.slice(2)) {
     epicId: intent.epicId,
     provider,
   });
+  if (intent.emit === 'prompt') {
+    process.stdout.write(result.prompt);
+    return;
+  }
   const stdoutPayload =
     intent.emit === 'envelope'
       ? { envelope: result.envelope }

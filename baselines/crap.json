@@ -7,7 +7,7 @@
       "p50": 3,
       "p95": 12,
       "max": 30,
-      "methodsAbove20": 21
+      "methodsAbove20": 20
     }
   },
   "rows": [
@@ -82,30 +82,6 @@
       "method": "main",
       "startLine": 224,
       "crap": 12
-    },
-    {
-      "path": ".agents/scripts/audit-strategy.js",
-      "method": "resolveAuditStrategy",
-      "startLine": 68,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/audit-strategy.js",
-      "method": "formatDecisionLine",
-      "startLine": 81,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/audit-strategy.js",
-      "method": "parseArgs",
-      "startLine": 92,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/audit-strategy.js",
-      "method": "main",
-      "startLine": 117,
-      "crap": 2
     },
     {
       "path": ".agents/scripts/check-baselines.js",
@@ -592,66 +568,6 @@
       "method": "main",
       "startLine": 377,
       "crap": 18.223941738734638
-    },
-    {
-      "path": ".agents/scripts/epic-deliver-reconcile.js",
-      "method": "formatStoryLine",
-      "startLine": 57,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/epic-deliver-reconcile.js",
-      "method": "renderFrictionBody",
-      "startLine": 69,
-      "crap": 3.000250438266967
-    },
-    {
-      "path": ".agents/scripts/epic-deliver-reconcile.js",
-      "method": "buildRecoveryPlan",
-      "startLine": 109,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/epic-deliver-reconcile.js",
-      "method": "writeRecoveryPlan",
-      "startLine": 122,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/epic-deliver-reconcile.js",
-      "method": "parseArgv",
-      "startLine": 130,
-      "crap": 1.800655976676385
-    },
-    {
-      "path": ".agents/scripts/epic-deliver-reconcile.js",
-      "method": "runReconcile",
-      "startLine": 158,
-      "crap": 3.001421436045249
-    },
-    {
-      "path": ".agents/scripts/epic-deliver-reconcile.js",
-      "method": "main",
-      "startLine": 196,
-      "crap": 28.171484375
-    },
-    {
-      "path": ".agents/scripts/epic-plan-edit-flow.js",
-      "method": "detectExistingSpec",
-      "startLine": 49,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/epic-plan-edit-flow.js",
-      "method": "runEditFlow",
-      "startLine": 91,
-      "crap": 8.558518216975372
-    },
-    {
-      "path": ".agents/scripts/epic-plan-edit-flow.js",
-      "method": "makeEditResult",
-      "startLine": 202,
-      "crap": 3
     },
     {
       "path": ".agents/scripts/evidence-gate.js",
@@ -4746,24 +4662,6 @@
       "crap": 2
     },
     {
-      "path": ".agents/scripts/lib/epic-close-tail-helpers.js",
-      "method": "closePlanningArtifacts",
-      "startLine": 58,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/epic-close-tail-helpers.js",
-      "method": "verifyAndRecoverEpicClose",
-      "startLine": 139,
-      "crap": 3.000845229151014
-    },
-    {
-      "path": ".agents/scripts/lib/epic-close-tail-helpers.js",
-      "method": "emitEpicPerfReport",
-      "startLine": 219,
-      "crap": 5.012301355882782
-    },
-    {
       "path": ".agents/scripts/lib/epic-merge-lock.js",
       "method": "resolveGitCommonDir",
       "startLine": 62,
@@ -6918,36 +6816,6 @@
       "crap": 1
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-deliver-reconcile.js",
-      "method": "defaultProbePid",
-      "startLine": 42,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-deliver-reconcile.js",
-      "method": "readDispatchPid",
-      "startLine": 77,
-      "crap": 4.149292899839627
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-deliver-reconcile.js",
-      "method": "classifyStory",
-      "startLine": 105,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-deliver-reconcile.js",
-      "method": "hasReconcileLabel",
-      "startLine": 128,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-deliver-reconcile.js",
-      "method": "reconcileEpicAgentLabels",
-      "startLine": 154,
-      "crap": 9.699135184342285
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/cli.js",
       "method": "parseEpicId",
       "startLine": 47,
@@ -7467,18 +7335,6 @@
       "path": ".agents/scripts/lib/orchestration/epic-run-state-store.js",
       "method": "setPhase",
       "startLine": 285,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner.js",
-      "method": "runEpic",
-      "startLine": 48,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner.js",
-      "method": "runEpicWithContext",
-      "startLine": 57,
       "crap": 1
     },
     {
@@ -8007,102 +7863,6 @@
       "path": ".agents/scripts/lib/orchestration/epic-runner/phases/build-wave-dag.js",
       "method": "buildStoryDag",
       "startLine": 129,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "extractStoryIds",
-      "startLine": 60,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "buildWaveStartStories",
-      "startLine": 81,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "applyCommitAssertion",
-      "startLine": 110,
-      "crap": 4.06103515625
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "resolveDoneSkips",
-      "startLine": 160,
-      "crap": 3.0674056875154103
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "<anon method-10>",
-      "startLine": 171,
-      "crap": 2.0438957475994513
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "sessionRowFor",
-      "startLine": 217,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "dispatchWave",
-      "startLine": 247,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "<anon method-17>",
-      "startLine": 264,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "buildWaveEndOutcomes",
-      "startLine": 288,
-      "crap": 6.062208
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "waveEndStoryEntry",
-      "startLine": 322,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "handleWaveBlocker",
-      "startLine": 350,
-      "crap": 8.249111663066035
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "countDoneStories",
-      "startLine": 448,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "toIsoString",
-      "startLine": 465,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "runIterateWavesPhase",
-      "startLine": 469,
-      "crap": 9
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "<anon method-21>",
-      "startLine": 482,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "<anon method-22>",
-      "startLine": 484,
       "crap": 2
     },
     {
@@ -11778,24 +11538,6 @@
       "crap": 7.124248685199098
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-close/legacy-settings-bag.js",
-      "method": "buildLegacySettingsBag",
-      "startLine": 27,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/legacy-settings-bag.js",
-      "method": "buildGatesFromConfig",
-      "startLine": 54,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/legacy-settings-bag.js",
-      "method": "buildLegacyOrchestrationBag",
-      "startLine": 62,
-      "crap": 1
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "lockPathDisplay",
       "startLine": 64,
@@ -12058,78 +11800,6 @@
       "method": "runPreMergeValidation",
       "startLine": 214,
       "crap": 19.360077389295796
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/lock-wait-classifier.js",
-      "method": "isWindows",
-      "startLine": 46,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/lock-wait-classifier.js",
-      "method": "readCpuMs",
-      "startLine": 57,
-      "crap": 12.192000000000002
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/lock-wait-classifier.js",
-      "method": "readCpuMsWindows",
-      "startLine": 63,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/lock-wait-classifier.js",
-      "method": "readCpuMsPosix",
-      "startLine": 82,
-      "crap": 20
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/lock-wait-classifier.js",
-      "method": "clockTicksPerSecond",
-      "startLine": 107,
-      "crap": 20
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/lock-wait-classifier.js",
-      "method": "processStartTime",
-      "startLine": 131,
-      "crap": 12.192000000000002
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/lock-wait-classifier.js",
-      "method": "processStartTimeWindows",
-      "startLine": 137,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/lock-wait-classifier.js",
-      "method": "processStartTimePosix",
-      "startLine": 156,
-      "crap": 20
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/lock-wait-classifier.js",
-      "method": "defaultSleep",
-      "startLine": 179,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/lock-wait-classifier.js",
-      "method": "sampleCpuOverWindow",
-      "startLine": 197,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/lock-wait-classifier.js",
-      "method": "classifyLockHolder",
-      "startLine": 264,
-      "crap": 9.497210200301192
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/lock-wait-classifier.js",
-      "method": "defaultIsAlive",
-      "startLine": 336,
-      "crap": 12
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/locked-pipeline.js",
@@ -14514,24 +14184,6 @@
       "crap": 2
     },
     {
-      "path": ".agents/scripts/lib/story-init/dispatch-state-writer.js",
-      "method": "dispatchStateFilePath",
-      "startLine": 59,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/story-init/dispatch-state-writer.js",
-      "method": "buildDispatchStatePayload",
-      "startLine": 80,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/story-init/dispatch-state-writer.js",
-      "method": "writeDispatchStateFile",
-      "startLine": 113,
-      "crap": 11.055075102412381
-    },
-    {
       "path": ".agents/scripts/lib/story-init/donor-precheck.js",
       "method": "planDonorAction",
       "startLine": 47,
@@ -16030,18 +15682,6 @@
       "method": "runCli",
       "startLine": 246,
       "crap": 7.100333137370175
-    },
-    {
-      "path": ".agents/scripts/reconcile-sub-issues.js",
-      "method": "parseCliArgs",
-      "startLine": 30,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/reconcile-sub-issues.js",
-      "method": "runReconcileSubIssuesCli",
-      "startLine": 47,
-      "crap": 4
     },
     {
       "path": ".agents/scripts/render-manifest.js",

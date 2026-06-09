@@ -5,8 +5,8 @@
   "rollup": {
     "*": {
       "min": 70.566,
-      "p50": 104.301,
-      "p95": 121.964
+      "p50": 104.328,
+      "p95": 122.198
     }
   },
   "rows": [
@@ -21,14 +21,6 @@
     {
       "path": ".agents/scripts/audit-labels-bootstrap.js",
       "mi": 87.365
-    },
-    {
-      "path": ".agents/scripts/audit-orchestrator.js",
-      "mi": 97.27
-    },
-    {
-      "path": ".agents/scripts/audit-strategy.js",
-      "mi": 98.562
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
@@ -63,10 +55,6 @@
       "mi": 99.892
     },
     {
-      "path": ".agents/scripts/context-hydrator.js",
-      "mi": 96.337
-    },
-    {
       "path": ".agents/scripts/coverage-capture.js",
       "mi": 89.533
     },
@@ -95,10 +83,6 @@
       "mi": 82.519
     },
     {
-      "path": ".agents/scripts/epic-close.js",
-      "mi": 95.131
-    },
-    {
       "path": ".agents/scripts/epic-deliver-note-intervention.js",
       "mi": 86.914
     },
@@ -109,10 +93,6 @@
     {
       "path": ".agents/scripts/epic-deliver-prepare.js",
       "mi": 81.196
-    },
-    {
-      "path": ".agents/scripts/epic-deliver-reconcile.js",
-      "mi": 96.27
     },
     {
       "path": ".agents/scripts/epic-execute-record-wave.js",
@@ -127,16 +107,8 @@
       "mi": 144.657
     },
     {
-      "path": ".agents/scripts/epic-plan-edit-flow.js",
-      "mi": 82.06
-    },
-    {
       "path": ".agents/scripts/epic-plan-healthcheck.js",
       "mi": 97.622
-    },
-    {
-      "path": ".agents/scripts/epic-plan.js",
-      "mi": 77.214
     },
     {
       "path": ".agents/scripts/epic-reconcile.js",
@@ -611,10 +583,6 @@
       "mi": 100.328
     },
     {
-      "path": ".agents/scripts/lib/epic-close-tail-helpers.js",
-      "mi": 80.256
-    },
-    {
       "path": ".agents/scripts/lib/epic-merge-lock.js",
       "mi": 95.935
     },
@@ -863,10 +831,6 @@
       "mi": 101.917
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-deliver-reconcile.js",
-      "mi": 92.503
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/cli.js",
       "mi": 93.301
     },
@@ -939,10 +903,6 @@
       "mi": 95.192
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-runner.js",
-      "mi": 107.269
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/epic-runner/blocker-wait.js",
       "mi": 105.75
     },
@@ -957,10 +917,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/deliver-phases.js",
       "mi": 118.393
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/hotspot-detection.js",
-      "mi": 91.294
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/phases/build-wave-dag.js",
@@ -1379,10 +1335,6 @@
       "mi": 87.336
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-close/legacy-settings-bag.js",
-      "mi": 120.733
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-close/merge-subject.js",
       "mi": 94.043
     },
@@ -1393,10 +1345,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/close.js",
       "mi": 87.145
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/lock-wait-classifier.js",
-      "mi": 88.118
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/locked-pipeline.js",
@@ -1641,10 +1589,6 @@
     {
       "path": ".agents/scripts/lib/story-init/blocker-validator.js",
       "mi": 112.285
-    },
-    {
-      "path": ".agents/scripts/lib/story-init/dispatch-state-writer.js",
-      "mi": 99.256
     },
     {
       "path": ".agents/scripts/lib/story-init/donor-precheck.js",
@@ -1907,10 +1851,6 @@
       "mi": 95.317
     },
     {
-      "path": ".agents/scripts/reconcile-sub-issues.js",
-      "mi": 98.904
-    },
-    {
       "path": ".agents/scripts/run-audit-suite.js",
       "mi": 107.591
     },
@@ -2049,14 +1989,6 @@
     {
       "path": "tests/assert-branch.test.js",
       "mi": 112.975
-    },
-    {
-      "path": "tests/audit-orchestrator.test.js",
-      "mi": 102.354
-    },
-    {
-      "path": "tests/audit-strategy.test.js",
-      "mi": 109.815
     },
     {
       "path": "tests/audit-suite/audit-fan-out-retirement.test.js",
@@ -2631,10 +2563,6 @@
       "mi": 112.059
     },
     {
-      "path": "tests/contract/reconcile-sub-issues.test.js",
-      "mi": 116.972
-    },
-    {
       "path": "tests/contract/retro-routed-sections.test.js",
       "mi": 84.186
     },
@@ -2765,14 +2693,6 @@
     {
       "path": "tests/epic-close-comment-perf-link.test.js",
       "mi": 108.103
-    },
-    {
-      "path": "tests/epic-close-preflight.test.js",
-      "mi": 105.181
-    },
-    {
-      "path": "tests/epic-close-tail-perf-report.test.js",
-      "mi": 107.583
     },
     {
       "path": "tests/epic-deliver-preflight-cache.test.js",
@@ -3819,10 +3739,6 @@
       "mi": 102.61
     },
     {
-      "path": "tests/lib/orchestration/story-close/lock-wait-classifier.test.js",
-      "mi": 115.917
-    },
-    {
       "path": "tests/lib/orchestration/story-close/merge-runner-finalize.test.js",
       "mi": 101.92
     },
@@ -4057,10 +3973,6 @@
     {
       "path": "tests/lib/story-init/context-resolver.test.js",
       "mi": 101.145
-    },
-    {
-      "path": "tests/lib/story-init/dispatch-state-writer.test.js",
-      "mi": 109.175
     },
     {
       "path": "tests/lib/story-init/donor-precheck.test.js",
@@ -4511,20 +4423,8 @@
       "mi": 100.134
     },
     {
-      "path": "tests/scripts/epic-close-planning-artifacts.test.js",
-      "mi": 103.914
-    },
-    {
       "path": "tests/scripts/epic-deliver-note-intervention.test.js",
       "mi": 111.067
-    },
-    {
-      "path": "tests/scripts/epic-deliver-reconcile.dead-classification.test.js",
-      "mi": 106.679
-    },
-    {
-      "path": "tests/scripts/epic-deliver-reconcile.test.js",
-      "mi": 106.189
     },
     {
       "path": "tests/scripts/epic-plan-decompose-pipeline.test.js",
@@ -4541,10 +4441,6 @@
     {
       "path": "tests/scripts/epic-plan-emit-context-stdout-clean.test.js",
       "mi": 105.713
-    },
-    {
-      "path": "tests/scripts/epic-plan.edit-flow.test.js",
-      "mi": 108.552
     },
     {
       "path": "tests/scripts/epic-plan.spec-flow.test.js",

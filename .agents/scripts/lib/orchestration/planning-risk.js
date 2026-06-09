@@ -25,20 +25,6 @@
  * @property {GateDecision} gateDecision
  */
 
-/** Closed axis vocabulary for planning risk classification. */
-export const PLANNING_RISK_AXES = Object.freeze([
-  'visible-behavior',
-  'public-api',
-  'security',
-  'data-migration',
-  'billing',
-  'destructive-mutation',
-  'critical-workflow',
-  'internal-refactor',
-  'docs-only',
-  'test-harness',
-]);
-
 const LEVEL_RANK = Object.freeze({ low: 0, medium: 1, high: 2 });
 
 const REQUIRED_AXES = new Set([

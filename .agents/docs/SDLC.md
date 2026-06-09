@@ -73,7 +73,7 @@ From zero to shipped:
       compute waves and posts the `dispatch-manifest` structured comment
       that `/epic-deliver` consumes.
    10. **Phase 10 — readiness health check** — `epic-plan-healthcheck.js`
-       runs the `--fast` config + git-remote checks; a non-OK result is a
+       runs the default config + git-remote checks; a non-OK result is a
        **blocking** exit condition for the `agent::ready` flip (overridable
        only via the `planning::healthcheck-waived` label).
    11. **Phase 11 — plan comprehension gate** — an opt-in, advisory
@@ -877,9 +877,10 @@ required checks fail.
    auto-merge in the GitHub UI to inspect required-checks, the
    `code-review` comment, and the retro before merging by hand, or
    (b) checks fail and need remediation on the Epic branch. There is
-   no separate close command — `epic-close.js` exists in
-   `.agents/scripts/` but is an internal helper, superseded by
-   `/epic-deliver`'s `delivery.finalize` state.
+   no separate close command — the close-out side effects (PR open,
+   planning-ticket close, handoff comment) are owned by `/epic-deliver`'s
+   `delivery.finalize` state (the lifecycle Finalizer listener), whose
+   replay is idempotent.
 
 ### What triggers `agent::blocked`
 
@@ -1077,7 +1078,8 @@ replaces manual auditing with a CLI-driven system.
 ### Audit triggering
 
 Audits are selectively invoked by the orchestrator at four Epic lifecycle
-gates (`gate1` through `gate4`). The `audit-orchestrator.js` evaluates rules
+gates (`gate1` through `gate4`). The audit orchestrator
+(`lib/dynamic-workflow/audit-orchestrator.js`) evaluates rules
 defined in `.agents/schemas/audit-rules.json` (schema:
 `.agents/schemas/audit-rules.schema.json`) based on:
 

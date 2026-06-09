@@ -1774,7 +1774,7 @@ doesn't carry a framework-shipped entry anymore.
 | Retired MCP tool                               | Successor                                                                                                                                    |
 | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `mcp__mandrel__dispatch_wave`          | `node .agents/scripts/dispatcher.js --epic <id>` (same SDK, same dispatch-manifest output).                                                  |
-| `mcp__mandrel__hydrate_context`        | `node .agents/scripts/hydrate-context.js --ticket <id> --epic <id>` for the JSON envelope; `context-hydrator.js` remains the raw-prompt wrapper. |
+| `mcp__mandrel__hydrate_context`        | `node .agents/scripts/hydrate-context.js --ticket <id> --epic <id>` for the JSON envelope; add `--emit prompt` for the raw prompt. The only supported hydration CLI. |
 | `mcp__mandrel__transition_ticket_state`| `node .agents/scripts/update-ticket-state.js --task <id> --state <state>` (auto-cascades on `agent::done`).                                  |
 | `mcp__mandrel__cascade_completion`     | Inlined into `update-ticket-state.js`; also runs at Story close inside `story-close.js`.                                              |
 | `mcp__mandrel__post_structured_comment`| `node .agents/scripts/post-structured-comment.js --ticket <id> --marker <marker> --body-file <path>`; direct `provider.postComment` in lib code. |
@@ -2898,9 +2898,10 @@ When one or more probes fail the validator throws
 **every** miss in a single batched message — operators see the full
 remediation list in one pass rather than fixing one slug at a time. The
 gate is wired into the canonical decompose chain via
-`epic-plan-decompose.js → decomposeEpic → validateAndNormalizeTickets`,
-threading `config.baseBranch` (default `main`) through the call so each
-project's configured base branch is honoured.
+`epic-plan-decompose.js → runDecomposePhase → validateTickets →
+validateAndNormalizeTickets`, threading `config.baseBranch` (default
+`main`) through the call so each project's configured base branch is
+honoured.
 
 ### Consequences
 
@@ -3040,8 +3041,9 @@ audit conducted for Story #3706 tested that assumption against the actual
 call graph and found it does not hold:
 
 - The **three automatic callers** —
-  [`epic-runner.js`](../.agents/scripts/lib/orchestration/epic-runner.js)
-  Phase 7, [`story-close.js`](../.agents/scripts/story-close.js)
+  the in-process `epic-runner.js` Phase 7 (since retired in Epic #3823 —
+  the live `/epic-deliver` loop owns this via the `Cleaner` lifecycle
+  listener), [`story-close.js`](../.agents/scripts/story-close.js)
   (`drainPendingCleanupAfterClose`), and
   [`worktree-sweep.js`](../.agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js)
   (via `drainPendingCleanupAtBoot`) — all invoke

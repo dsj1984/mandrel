@@ -555,7 +555,3 @@ export class Watcher {
     this.classifications = [];
   }
 }
-
-export function createWatcher(opts) {
-  return new Watcher(opts);
-}

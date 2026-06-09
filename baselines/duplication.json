@@ -5,9 +5,9 @@
   "rollup": {
     "*": {
       "percentage": 10.14,
-      "duplicatedLines": 3452,
-      "totalLines": 34035,
-      "filesWithDuplication": 106
+      "duplicatedLines": 3428,
+      "totalLines": 33798,
+      "filesWithDuplication": 105
     }
   },
   "rows": [
@@ -52,12 +52,6 @@
       "duplicatedLines": 11,
       "totalLines": 407,
       "percentage": 2.7
-    },
-    {
-      "path": ".agents/scripts/epic-deliver-reconcile.js",
-      "duplicatedLines": 24,
-      "totalLines": 237,
-      "percentage": 10.13
     },
     {
       "path": ".agents/scripts/epic-execute-record-wave.js",

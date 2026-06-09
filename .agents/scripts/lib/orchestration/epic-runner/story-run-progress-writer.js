@@ -169,9 +169,6 @@ function normalizeTask(task) {
   if (state === 'done' && task.commitSha != null) {
     row.commitSha = String(task.commitSha);
   }
-  if (state === 'blocked' && task.blockerCommentId != null) {
-    row.blockerCommentId = String(task.blockerCommentId);
-  }
   return row;
 }
 

@@ -126,7 +126,7 @@ PowerShell `Get-CimInstance Win32_Process`, terminating them with
 
 | Trigger          | Caller                                                                       |
 | ---------------- | ---------------------------------------------------------------------------- |
-| `/epic-deliver`    | [`epic-deliver runner`](../../scripts/lib/orchestration/epic-runner.js) Phase 7 (before `wm.gc()`)   |
+| `/epic-deliver`    | [`Cleaner` lifecycle listener](../../scripts/lib/orchestration/lifecycle/listeners/cleaner.js) at the close-tail cleanup phase (before `wm.gc()`)   |
 | `/epic-plan`     | [`drainPendingCleanupAtBoot`](../../scripts/epic-plan-spec.js) → [`worktree-sweep.js`](../../scripts/lib/orchestration/plan-runner/worktree-sweep.js) |
 | Story merge close | [`story-close.js`](../../scripts/story-close.js) (`drainPendingCleanupAfterClose`) |
 

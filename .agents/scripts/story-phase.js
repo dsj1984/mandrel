@@ -27,7 +27,6 @@
  *   --story <id>                        Story ID (required).
  *   --phase <init|implementing|closing|blocked|done>
  *                                       Phase the Story is entering (required).
- *   --blocker-comment-id <id>           Friction comment id (only `blocked`).
  *   --no-heartbeat                      Suppress the lifecycle emit (tests).
  *
  * Stdout: a single JSON envelope
@@ -68,7 +67,7 @@ const VALID_PHASES = new Set([
 
 const HELP = `Usage: node .agents/scripts/story-phase.js \\
   --story <id> --phase <init|implementing|closing|blocked|done> \\
-  [--blocker-comment-id <id>] [--no-heartbeat]
+  [--no-heartbeat]
 
 Flips the story-run-progress snapshot for Story #<id> to the requested
 phase and (unless --no-heartbeat) appends one story.heartbeat record to
@@ -220,7 +219,6 @@ function emitHeartbeatBestEffort({
  * @param {{
  *   storyId: number,
  *   phase: string,
- *   blockerCommentId?: string,
  *   noHeartbeat?: boolean,
  *   provider?: object,
  *   config?: object,
@@ -232,7 +230,6 @@ export async function runStoryPhase(args) {
   const {
     storyId,
     phase,
-    blockerCommentId,
     noHeartbeat = false,
     provider: providerOverride,
     config: configOverride,
@@ -291,7 +288,6 @@ export async function runStoryPhase(args) {
     phase,
     epicId,
     branch,
-    blockerCommentId: blockerCommentId ?? null,
     heartbeatEmitted,
     ledgerPath,
     snapshot,
@@ -305,7 +301,6 @@ export function parseArgv(argv) {
     options: {
       story: { type: 'string' },
       phase: { type: 'string' },
-      'blocker-comment-id': { type: 'string' },
       'no-heartbeat': { type: 'boolean' },
       help: { type: 'boolean' },
     },
@@ -315,7 +310,6 @@ export function parseArgv(argv) {
     help: Boolean(values.help),
     storyId: Number.parseInt(values.story ?? '', 10),
     phase: values.phase,
-    blockerCommentId: values['blocker-comment-id'],
     noHeartbeat: Boolean(values['no-heartbeat']),
   };
 }

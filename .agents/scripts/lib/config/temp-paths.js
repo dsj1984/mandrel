@@ -23,7 +23,6 @@
  *           ├─ manifest.md       (story dispatch manifest)
  *           ├─ signals.ndjson    (append-only signals writer)
  *           ├─ perf-summary.md
- *           ├─ story-init.state.json   (dispatch-state writer)
  *           └─ <name>            (storyArtifactPath escape hatch)
  *
  * Standalone Stories (no parent Epic) follow the same shape under
@@ -245,12 +244,11 @@ export const epicPerfReportPath = (eid, config) =>
 /**
  * `temp/epic-<eid>/epic-perf-report.json` — canonical JSON snapshot of
  * the `epic-perf-report` payload persisted at /epic-deliver close
- * (Epic #3019 / Story #3029 / Task #3040). Written by the
- * `emitEpicPerfReport` close-tail helper alongside the
- * `epic-perf-report` structured comment so the report is discoverable
+ * (Epic #3019 / Story #3029 / Task #3040). When present alongside the
+ * `epic-perf-report` structured comment, the report is discoverable
  * from the file system without round-tripping the ticketing provider,
- * and so the `epic-handoff` structured close comment can link it by
- * relative path.
+ * and the `epic-handoff` structured close comment links it by relative
+ * path.
  *
  * @param {number} eid
  * @param {object} [config]

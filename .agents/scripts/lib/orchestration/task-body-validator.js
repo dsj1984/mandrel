@@ -3,16 +3,14 @@
  *
  * Enforces the four-section structured body shape on 3-tier Stories emitted
  * by the decomposer. String-bodied or undefined-bodied tickets are skipped
- * (Feature bodies and legacy fixtures pass through). When a Story body IS a
- * structured object, we require non-empty `goal`, `changes`, `acceptance`,
- * and `verify` arrays — and that `changes` items name at least one
- * path-shaped token so vague verbs ("clean up", "refactor") can't slip
- * through.
+ * (Feature bodies pass through). When a Story body IS a structured object,
+ * we require non-empty `goal`, `changes`, `acceptance`, and `verify`
+ * arrays — and that `changes` items name at least one path-shaped token so
+ * vague verbs ("clean up", "refactor") can't slip through.
  *
  * There is no `type::task` ticket layer in the 3-tier hierarchy
- * (Epic → Feature → Story). Legacy test fixtures that carry `type: 'task'`
- * are still accepted so existing plans keep parsing, but the decomposer
- * no longer creates `type::task` tickets in practice.
+ * (Epic → Feature → Story); only `type: 'story'` tickets with structured
+ * bodies are validated here.
  *
  * `body.changes` items may be either:
  *   1. A string bullet (legacy shape, e.g. `"src/foo.ts: extract handler"`).
@@ -36,15 +34,6 @@
  */
 
 import { FILE_ASSUMPTION_VALUES } from './file-assumption-enum.js';
-
-/**
- * Canonical assumption values a path entry may declare. The enum now lives
- * in the cycle-free leaf {@link ./file-assumption-enum.js} (Story #3331);
- * the runtime semantics that consume it live in {@link ./file-assumptions.js}.
- * Re-exported here so existing callers that reach for the symbol through the
- * validator keep resolving it.
- */
-export { FILE_ASSUMPTION_VALUES };
 
 /**
  * Canonical testing-tier labels that a `verify[]` entry must name (in
@@ -101,17 +90,16 @@ function vagueVerbWithoutTarget(bullet) {
 
 /**
  * Predicate: should the validator skip this ticket entirely? Skip when:
- *   - it is a Feature (navigational tickets carry string bodies),
- *   - it has no body or its body is a plain string (legacy fixture path),
- *   - or it is a Story whose body is not a structured object (3-tier Stories
- *     must carry an object body — string-bodied Stories pass through).
+ *   - it is not a Story (only `type: 'story'` tickets are validated here),
+ *   - it has no body or its body is a plain string (string-bodied Stories
+ *     pass through — 3-tier Stories must carry an object body to be
+ *     inspected).
  *
  * Under the 3-tier hierarchy (Epic → Feature → Story), Stories carry the
  * implementation scope inline. The validator inspects `type::story` tickets
  * with structured (object) bodies so that `verify[]` tier and `assumption`
- * enum errors surface at planning time. `type::task` tickets are a legacy
- * shape that the decomposer no longer emits; they pass through unchanged to
- * keep existing test fixtures and plan snapshots parseable.
+ * enum errors surface at planning time. There is no `type::task` ticket
+ * layer.
  *
  * Returns `true` when the ticket should be ignored by
  * `collectTaskBodyErrors`, `false` when the body should be inspected.
@@ -121,11 +109,9 @@ function vagueVerbWithoutTarget(bullet) {
  */
 function shouldSkipTicket(ticket) {
   if (!ticket) return true;
-  // Features always use string bodies — never validate them.
-  if (ticket.type === 'feature') return true;
-  // Stories carry structured bodies in the 3-tier world. Legacy task-typed
-  // fixtures are also tolerated here so existing plan snapshots keep parsing.
-  if (ticket.type !== 'task' && ticket.type !== 'story') return true;
+  // Only Stories carry structured bodies in the 3-tier world. Features
+  // (and everything else) use string bodies — never validate them.
+  if (ticket.type !== 'story') return true;
   const body = ticket.body;
   return body == null || typeof body === 'string';
 }
@@ -136,18 +122,13 @@ function shouldSkipTicket(ticket) {
  * `collectTaskBodyErrors` so the iteration stays straight-line and so
  * each section's defensive checks are independently testable.
  *
- * Also accepts legacy `type: 'task'` fixtures (no longer emitted by the
- * decomposer) so existing plan snapshots remain parseable.
- *
  * @param {object} ticket Story whose `body` has already passed the
  *   `shouldSkipTicket` filter (i.e. `body` is an object-ish, non-string).
  * @returns {string[]}
  */
 export function validateTaskBodyShape(ticket) {
   const body = ticket.body;
-  const isStory = ticket.type === 'story';
-  const ticketKind = isStory ? 'Story' : 'Task';
-  const prefix = `${ticketKind} "${ticket.title}" (${ticket.slug})`;
+  const prefix = `Story "${ticket.title}" (${ticket.slug})`;
   if (typeof body !== 'object') {
     return [`${prefix}: body must be an object, got ${typeof body}.`];
   }
@@ -157,11 +138,8 @@ export function validateTaskBodyShape(ticket) {
   }
   errors.push(...collectChangesErrors(prefix, body.changes));
   errors.push(...collectAcceptanceErrors(prefix, body.acceptance));
-  // Tier-suffix validation is enforced on Story tickets (3-tier world).
-  // Legacy task-typed fixtures are tolerated with free-form verify strings.
-  errors.push(
-    ...collectVerifyErrors(prefix, body.verify, { requireTier: isStory }),
-  );
+  // Tier-suffix validation is always enforced on Story bodies (3-tier world).
+  errors.push(...collectVerifyErrors(prefix, body.verify));
   errors.push(...collectReferencesErrors(prefix, body.references));
   return errors;
 }
@@ -290,11 +268,9 @@ const VERIFY_TIER_RE = new RegExp(
 /**
  * @param {string} prefix
  * @param {unknown} rawVerify
- * @param {{ requireTier?: boolean }} [opts]
  * @returns {string[]}
  */
-function collectVerifyErrors(prefix, rawVerify, opts = {}) {
-  const { requireTier = false } = opts;
+function collectVerifyErrors(prefix, rawVerify) {
   const verify = Array.isArray(rawVerify) ? rawVerify : [];
   if (verify.length === 0) {
     return [
@@ -314,7 +290,7 @@ function collectVerifyErrors(prefix, rawVerify, opts = {}) {
       // manual: entries are exempt from the tier-suffix check.
       continue;
     }
-    if (requireTier && !VERIFY_TIER_RE.test(v)) {
+    if (!VERIFY_TIER_RE.test(v)) {
       errors.push(
         `${prefix}: body.verify entry must end with a tier in parentheses — one of (${VERIFY_TIER_VALUES.join('|')}). Got: "${v}".`,
       );
@@ -326,8 +302,7 @@ function collectVerifyErrors(prefix, rawVerify, opts = {}) {
 /**
  * Validate every 3-tier Story in `tickets` whose `body` is a structured
  * object. Returns an array of error strings (one per offending slug); empty
- * array means clean. Legacy `type: 'task'` fixtures are also validated when
- * they carry structured bodies, but the decomposer no longer creates them.
+ * array means clean.
  *
  * @param {object[]} tickets
  * @returns {string[]}

@@ -219,7 +219,7 @@ export function buildContextEnvelope({
     },
     techStack,
     deliverContract: {
-      workflow: '.agents/workflows/single-story-deliver.md',
+      workflow: '.agents/workflows/helpers/single-story-deliver.md',
       requiredLabels: ['type::story', `persona::${persona}`],
       forbidden: ['Epic: #N references in the body'],
     },

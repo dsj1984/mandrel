@@ -127,28 +127,12 @@ const AC1_ALLOWED_RESIDUAL = [
     marker: 'epic-deliver-automerge.js',
   },
   {
-    file: '.agents/scripts/epic-close.js',
-    marker: '@see .agents/scripts/epic-deliver-finalize.js',
-  },
-  {
     file: '.agents/scripts/epic-plan-decompose.js',
     marker: '`epic-deliver-finalize.js`',
   },
   {
-    file: '.agents/scripts/lib/epic-close-tail-helpers.js',
-    marker: 'epic-deliver-finalize.js',
-  },
-  {
     file: '.agents/scripts/lib/issue-link-parser.js',
     marker: 'epic-deliver-finalize.js',
-  },
-  {
-    file: '.agents/scripts/lib/orchestration/epic-runner/hotspot-detection.js',
-    marker: '`epic-deliver-finalize.js`',
-  },
-  {
-    file: '.agents/scripts/lib/orchestration/epic-runner/progress-reporter/transport.js',
-    marker: 'single emit point is now `epic-deliver-finalize.js`',
   },
   {
     file: '.agents/scripts/lib/orchestration/lifecycle/listeners/acceptance-reconciler.js',

@@ -18,7 +18,7 @@ import { buildDefaultGates } from '../.agents/scripts/lib/close-validation.js';
 describe('pre-merge gate chain — Task #1917 contract', () => {
   it('buildDefaultGates includes the unified check-baselines gate', () => {
     const gates = buildDefaultGates({
-      agentSettings: { quality: { crap: { enabled: true } } },
+      config: { delivery: { quality: { gates: { crap: { enabled: true } } } } },
     });
     const names = gates.map((g) => g.name);
     assert.ok(
@@ -29,7 +29,7 @@ describe('pre-merge gate chain — Task #1917 contract', () => {
 
   it('per-kind in-process regression gates are absent (Story #2210 retirement)', () => {
     const gates = buildDefaultGates({
-      agentSettings: { quality: { crap: { enabled: true } } },
+      config: { delivery: { quality: { gates: { crap: { enabled: true } } } } },
     });
     const names = gates.map((g) => g.name);
     for (const kind of [

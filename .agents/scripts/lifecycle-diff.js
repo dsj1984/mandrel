@@ -2,15 +2,11 @@
 /* node:coverage ignore file */
 
 /**
- * lifecycle-diff.js — structural diff between two lifecycle ledger
- * files, and assertion modes for the repeatability invariants.
+ * lifecycle-diff.js — assertion modes over a lifecycle ledger file for
+ * the repeatability invariants. The structural-`diff` helpers below are
+ * exported for unit tests that pin the diff contract.
  *
  * Usage:
- *   node .agents/scripts/lifecycle-diff.js <ledgerA> <ledgerB>
- *       — exits 0 when ledgers are structurally identical (modulo `ts`
- *         and reassigned seqIds); exits 1 with a unified-style diff on
- *         stderr otherwise.
- *
  *   node .agents/scripts/lifecycle-diff.js --assert <mode> <ledger>
  *       — `mode` is one of:
  *           merge-gate-ordering   — epic.merge.armed must be preceded
@@ -23,8 +19,7 @@
  *       — exits 0 on pass; exits 1 with a structured message on fail.
  *
  * Invariants are derived from Tech Spec #2189 § Repeatability Acceptance
- * Criteria. Story 11 will land `--assert timeout-budget`; Story 4 will
- * land `--assert no-silent-skip`.
+ * Criteria.
  */
 
 import { readFileSync } from 'node:fs';
@@ -220,51 +215,32 @@ async function main() {
   });
 
   // --assert <mode> <ledger>
-  if (values.assert) {
-    if (positionals.length !== 1) {
-      process.stderr.write(
-        'lifecycle-diff --assert <mode> requires exactly one positional ledger path\n',
-      );
-      return 2;
-    }
-    const assertion = ASSERTIONS.get(values.assert);
-    if (!assertion) {
-      process.stderr.write(
-        `lifecycle-diff: unknown --assert mode "${values.assert}". Valid: ${[...ASSERTIONS.keys()].join(', ')}\n`,
-      );
-      return 2;
-    }
-    const records = loadLedger(positionals[0]);
-    const result = assertion(records);
-    if (result.ok) {
-      process.stdout.write(`[lifecycle-diff] PASS ${values.assert}\n`);
-      return 0;
-    }
-    process.stderr.write(
-      `[lifecycle-diff] FAIL ${values.assert}: ${result.reason}\n`,
-    );
-    return 1;
+  if (!values.assert) {
+    process.stderr.write('Usage: lifecycle-diff --assert <mode> <ledger>\n');
+    return 2;
   }
-
-  // diff <ledgerA> <ledgerB>
-  if (positionals.length !== 2) {
+  if (positionals.length !== 1) {
     process.stderr.write(
-      'Usage: lifecycle-diff <ledgerA> <ledgerB> [--assert <mode> <ledger>]\n',
+      'lifecycle-diff --assert <mode> requires exactly one positional ledger path\n',
     );
     return 2;
   }
-  const a = loadLedger(positionals[0]);
-  const b = loadLedger(positionals[1]);
-  const mismatches = diff(a, b);
-  if (mismatches.length === 0) {
-    process.stdout.write('[lifecycle-diff] identical (modulo ts/seqId)\n');
+  const assertion = ASSERTIONS.get(values.assert);
+  if (!assertion) {
+    process.stderr.write(
+      `lifecycle-diff: unknown --assert mode "${values.assert}". Valid: ${[...ASSERTIONS.keys()].join(', ')}\n`,
+    );
+    return 2;
+  }
+  const records = loadLedger(positionals[0]);
+  const result = assertion(records);
+  if (result.ok) {
+    process.stdout.write(`[lifecycle-diff] PASS ${values.assert}\n`);
     return 0;
   }
-  for (const m of mismatches) {
-    process.stderr.write(`@@ index ${m.index}\n`);
-    process.stderr.write(`-A: ${JSON.stringify(m.left)}\n`);
-    process.stderr.write(`+B: ${JSON.stringify(m.right)}\n`);
-  }
+  process.stderr.write(
+    `[lifecycle-diff] FAIL ${values.assert}: ${result.reason}\n`,
+  );
   return 1;
 }
 

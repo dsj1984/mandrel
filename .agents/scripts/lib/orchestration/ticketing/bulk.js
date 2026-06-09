@@ -321,7 +321,7 @@ async function processCascadeParentLocked(
     const isEpic = parentSnapshot.labels.includes(TYPE_LABELS.EPIC);
     if (isEpic) {
       logger.warn(
-        `[Ticketing] Cascade reached Epic #${parentId}. Skipping auto-close (Epics close via the operator's PR merge or /epic-close recovery).`,
+        `[Ticketing] Cascade reached Epic #${parentId}. Skipping auto-close (Epics close via the operator's PR merge).`,
       );
       return { cascadedTo, failed };
     }

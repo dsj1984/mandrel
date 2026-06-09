@@ -18,7 +18,6 @@ import { describe, it } from 'node:test';
 import {
   EPIC_PROGRESS_EVENT,
   emitEpicBlocked,
-  emitEpicComplete,
   emitEpicProgress,
   emitEpicStarted,
   emitEpicUnblocked,
@@ -196,36 +195,6 @@ describe('progress-reporter/transport', () => {
       });
       assert.equal(calls[0].payload.event, 'epic-unblocked');
       assert.match(calls[0].payload.message, /rebased on main/);
-    });
-  });
-
-  describe('emitEpicComplete', () => {
-    it('fires an epic-complete event with the PR URL in payload', async () => {
-      const { notify, calls } = recordingNotify();
-      await emitEpicComplete({
-        notify,
-        epicId: 99,
-        totalStories: 5,
-        totalWaves: 2,
-        prUrl: 'https://example.test/pr/1',
-      });
-      assert.equal(calls[0].payload.event, 'epic-complete');
-      assert.equal(calls[0].payload.prUrl, 'https://example.test/pr/1');
-    });
-
-    it('swallows notify failures and still returns null', async () => {
-      const { notify } = recordingNotify('throw-always');
-      const { logger, warnings } = recordingLogger();
-      const result = await emitEpicComplete({
-        notify,
-        epicId: 99,
-        totalStories: 1,
-        totalWaves: 1,
-        prUrl: null,
-        logger,
-      });
-      assert.equal(result, null);
-      assert.ok(warnings.some((w) => w.includes('notify dispatch failed')));
     });
   });
 });

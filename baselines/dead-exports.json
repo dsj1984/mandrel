@@ -404,10 +404,6 @@
       "symbol": "overwriteContextTicket"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/epic-runner.js",
-      "symbol": "runEpicWithContext"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
       "symbol": "registerInterventionRecorder"
     },
@@ -553,10 +549,6 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "symbol": "createWatcher"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
       "symbol": "ghPrChecks"
     },
     {
@@ -580,10 +572,6 @@
       "symbol": "promotePendingToTimedOut"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/planning-risk.js",
-      "symbol": "PLANNING_RISK_AXES"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/post-merge-pipeline.js",
       "symbol": "detectorsPhase"
     },
@@ -594,14 +582,6 @@
     {
       "file": ".agents/scripts/lib/orchestration/reassert-status-column.js",
       "symbol": "DEFAULT_POLL_DELAY_MS"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/retro-runner.js",
-      "symbol": "__INTERNAL_LABEL_REFERENCES"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/retro-runner.js",
-      "symbol": "isCleanManifest"
     },
     {
       "file": ".agents/scripts/lib/orchestration/retro/phases/gather-signals.js",
@@ -638,30 +618,6 @@
     {
       "file": ".agents/scripts/lib/orchestration/skill-capsule-loader.js",
       "symbol": "extractPolicyCapsuleSpan"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
-      "symbol": "adaptCrapRowsForEvaluator"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
-      "symbol": "buildRefusalSignal"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
-      "symbol": "filterToStoryDiff"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
-      "symbol": "FRICTION_CATEGORY"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
-      "symbol": "priorRefusalSignalExists"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
-      "symbol": "RUNNER_SOURCE_TOOL"
     },
     {
       "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
@@ -704,18 +660,6 @@
       "symbol": "emitGateOutcome"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/story-close/phases/lock-wait-classifier.js",
-      "symbol": "processStartTime"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/story-close/phases/lock-wait-classifier.js",
-      "symbol": "readCpuMs"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/story-close/phases/lock-wait-classifier.js",
-      "symbol": "sampleCpuOverWindow"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/story-close/phases/preflight.js",
       "symbol": "runPreflightPhase"
     },
@@ -726,10 +670,6 @@
     {
       "file": ".agents/scripts/lib/orchestration/story-close/phases/timeout-blocked.js",
       "symbol": "SPAWN_TIMEOUT_DESCRIPTORS"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/task-body-validator.js",
-      "symbol": "FILE_ASSUMPTION_VALUES"
     },
     {
       "file": ".agents/scripts/lib/orchestration/ticket-lease.js",
@@ -850,10 +790,6 @@
     {
       "file": ".agents/scripts/lib/story-init/branch-initializer.js",
       "symbol": "bootstrapBranch"
-    },
-    {
-      "file": ".agents/scripts/lib/story-init/dispatch-state-writer.js",
-      "symbol": "DISPATCH_STATE_FILENAME"
     },
     {
       "file": ".agents/scripts/lib/story-plan/trigger.js",

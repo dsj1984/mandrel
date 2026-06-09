@@ -82,25 +82,6 @@ describe('renderStoryRunProgressBody', () => {
     assert.match(body, /\| #915 \| .*pending .*\| C \| — \|/);
   });
 
-  it('carries blockerCommentId on blocked rows only', () => {
-    const { payload } = renderStoryRunProgressBody({
-      storyId: 912,
-      branch: 'story-912',
-      phase: 'blocked',
-      tasks: [
-        {
-          id: 914,
-          title: 'B',
-          state: 'blocked',
-          blockerCommentId: 'IC_kwDO',
-        },
-        { id: 915, title: 'C', state: 'pending' },
-      ],
-    });
-    assert.equal(payload.tasks[0].blockerCommentId, 'IC_kwDO');
-    assert.equal('blockerCommentId' in payload.tasks[1], false);
-  });
-
   it('renders an empty story with a placeholder line and no table', () => {
     const { body, payload } = renderStoryRunProgressBody({
       storyId: 912,

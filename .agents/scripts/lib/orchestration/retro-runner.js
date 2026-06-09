@@ -22,13 +22,12 @@
  *   - `composeRetroBody(input)` (pure, exported for tests).
  *   - `gatherRetroSignals({ epicId, provider })` (exported for tests).
  *   - `appendChecksSection(body, findings)` (pure, exported for tests).
- *   - `isCleanManifest` re-export.
  *
  * Behaviour:
  *   - Reads child Stories' `story-perf-summary` comments to aggregate
  *     `frictionByCategory` totals (Story #1046 unified-summary path).
- *   - Reads child Stories' label sets to count hotfixes (`status::blocked`)
- *     and HITL pause events (`agent::blocked`).
+ *   - Reads child Stories' label sets to count HITL pause events
+ *     (`agent::blocked`).
  *   - Reads the Epic's `parked-follow-ons` structured comment for the
  *     parked + recut counts (with a fallback to per-Story body grep on the
  *     `<!-- recut-of: #N -->` marker).
@@ -44,11 +43,9 @@ import nodeFs from 'node:fs';
 
 import { runChecks } from '../checks/index.js';
 import { assembleState } from '../checks/state.js';
-import { CONTEXT_LABELS } from '../label-constants.js';
 import { composeRetroBody } from './retro/phases/compose-body.js';
 import { gatherRetroSignals } from './retro/phases/gather-signals.js';
 import { composeAndPostRetro } from './retro/phases/post-and-mirror.js';
-import { isCleanManifest } from './retro-heuristics.js';
 import { upsertStructuredComment } from './ticketing.js';
 
 // Re-export phase-level helpers so existing import sites stay unchanged.
@@ -172,13 +169,3 @@ export async function runRetro(opts = {}) {
     throw err;
   }
 }
-
-// Re-export for downstream test convenience — keeps the module's public
-// surface explicit so the deliver runner has a single import target.
-export { isCleanManifest };
-
-// Sanity import so unused-import warnings don't fire in environments where
-// only the constants are used by tests via re-export.
-export const __INTERNAL_LABEL_REFERENCES = Object.freeze({
-  contextLabels: CONTEXT_LABELS,
-});
