@@ -36,7 +36,7 @@
  *
  * Exit codes: 0 ok, 1 error.
  *
- * @see .agents/workflows/single-story-deliver.md
+ * @see .agents/workflows/helpers/single-story-deliver.md
  */
 
 import { runAsCli } from './lib/cli-utils.js';

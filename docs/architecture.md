@@ -1235,7 +1235,7 @@ conventions to follow.
 - **Operator scripts catalog:**
   [`.agents/scripts/README.md`](../.agents/scripts/README.md) documents
   the optional operator-only CLIs (`loc-delta.js`,
-  `retrofit-task-bodies.js`, `validate-docs-freshness.js`,
+  `validate-docs-freshness.js`,
   `update-mutation-baseline.js`) that are not wired into `npm` /
   Husky / CI.
 
