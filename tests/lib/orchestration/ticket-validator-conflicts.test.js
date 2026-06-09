@@ -340,3 +340,137 @@ test('renderHardConflictError: produces a remediation hint per finding kind', ()
   assert.match(implicit, /s-producer/);
   assert.match(implicit, /s-consumer/);
 });
+
+// ---------------------------------------------------------------------------
+// missing-bdd-scaffold (Story #3857)
+// ---------------------------------------------------------------------------
+
+test('emits missing-bdd-scaffold when a Story verifies a .feature created in a same-wave sibling', () => {
+  const tickets = [
+    FEATURE,
+    makeStory('s-scaffold', {
+      changes: [
+        {
+          path: 'tests/features/billing/invoice.feature',
+          assumption: 'creates',
+        },
+      ],
+    }),
+    makeStory('s-impl', {
+      changes: [{ path: 'src/billing.js', assumption: 'creates' }],
+      verify: ['npx bddgen tests/features/billing/invoice.feature (e2e)'],
+    }),
+  ];
+  const result = validateAndNormalizeTickets(tickets);
+  const bdd = result.findings.filter((f) => f.kind === 'missing-bdd-scaffold');
+  assert.equal(bdd.length, 1);
+  assert.equal(bdd[0].path, 'tests/features/billing/invoice.feature');
+  assert.equal(bdd[0].producer.storySlug, 's-scaffold');
+  assert.equal(bdd[0].consumer.storySlug, 's-impl');
+  assert.equal(bdd[0].consumer.sourceField, 'verify');
+  assert.equal(bdd[0].severity, 'soft');
+  assert.deepEqual(result.errors, []);
+});
+
+test('does not emit missing-bdd-scaffold when the consumer depends_on the scaffold Story', () => {
+  const tickets = [
+    FEATURE,
+    makeStory('s-scaffold', {
+      changes: [
+        {
+          path: 'tests/features/billing/invoice.feature',
+          assumption: 'creates',
+        },
+      ],
+    }),
+    makeStory(
+      's-impl',
+      {
+        changes: [{ path: 'src/billing.js', assumption: 'creates' }],
+        verify: ['npx bddgen tests/features/billing/invoice.feature (e2e)'],
+      },
+      { depends_on: ['s-scaffold'] },
+    ),
+  ];
+  const result = validateAndNormalizeTickets(tickets);
+  const bdd = result.findings.filter((f) => f.kind === 'missing-bdd-scaffold');
+  assert.deepEqual(bdd, []);
+});
+
+test('does not emit missing-bdd-scaffold when the same Story creates and verifies the .feature', () => {
+  const tickets = [
+    FEATURE,
+    makeStory('s-self', {
+      changes: [
+        {
+          path: 'tests/features/billing/invoice.feature',
+          assumption: 'creates',
+        },
+      ],
+      verify: ['npx bddgen tests/features/billing/invoice.feature (e2e)'],
+    }),
+    makeStory('s-other', {
+      changes: [{ path: 'src/other.js', assumption: 'creates' }],
+    }),
+  ];
+  const result = validateAndNormalizeTickets(tickets);
+  const bdd = result.findings.filter((f) => f.kind === 'missing-bdd-scaffold');
+  assert.deepEqual(bdd, []);
+});
+
+test('does not emit missing-bdd-scaffold for non-.feature paths', () => {
+  const tickets = [
+    FEATURE,
+    makeStory('s-producer', {
+      changes: [{ path: 'src/schema.json', assumption: 'creates' }],
+    }),
+    makeStory('s-consumer', {
+      changes: [{ path: 'src/consumer.js', assumption: 'creates' }],
+      verify: ['ajv validate -s src/schema.json (contract)'],
+    }),
+  ];
+  const result = validateAndNormalizeTickets(tickets);
+  const bdd = result.findings.filter((f) => f.kind === 'missing-bdd-scaffold');
+  assert.deepEqual(bdd, []);
+});
+
+test('failOnMissingBddScaffold=true upgrades missing-bdd-scaffold to hard severity', () => {
+  const tickets = [
+    FEATURE,
+    makeStory('s-scaffold', {
+      changes: [
+        {
+          path: 'tests/features/billing/invoice.feature',
+          assumption: 'creates',
+        },
+      ],
+    }),
+    makeStory('s-impl', {
+      changes: [{ path: 'src/billing.js', assumption: 'creates' }],
+      verify: ['npx bddgen tests/features/billing/invoice.feature (e2e)'],
+    }),
+  ];
+  const result = validateAndNormalizeTickets(tickets, {
+    conflictPolicy: { failOnMissingBddScaffold: true },
+  });
+  const bdd = result.findings.filter((f) => f.kind === 'missing-bdd-scaffold');
+  assert.equal(bdd.length, 1);
+  assert.equal(bdd[0].severity, 'hard');
+  assert.equal(result.errors.length, 1);
+  assert.match(result.errors[0], /Missing BDD scaffold/);
+  assert.match(result.errors[0], /tests\/features\/billing\/invoice\.feature/);
+});
+
+test('renderHardConflictError: produces a remediation hint for missing-bdd-scaffold', () => {
+  const msg = renderHardConflictError({
+    kind: 'missing-bdd-scaffold',
+    severity: 'hard',
+    path: 'tests/features/billing/invoice.feature',
+    producer: { storySlug: 's-scaffold' },
+    consumer: { storySlug: 's-impl', sourceField: 'verify' },
+  });
+  assert.match(msg, /Missing BDD scaffold/);
+  assert.match(msg, /s-scaffold/);
+  assert.match(msg, /s-impl/);
+  assert.match(msg, /depends_on/);
+});
