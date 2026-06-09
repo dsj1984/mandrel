@@ -164,7 +164,9 @@ test('runCloseValidation', async (t) => {
       // `test` gate stays in the graph so a fresh Story close still runs the
       // suite via the legacy gate.
       const gates = buildDefaultGates({
-        agentSettings: { quality: { crap: { enabled: false } } },
+        config: {
+          delivery: { quality: { gates: { crap: { enabled: false } } } },
+        },
       });
       const names = gates.map((g) => g.name);
       assert.ok(
@@ -193,11 +195,11 @@ test('runCloseValidation', async (t) => {
   );
 
   await t.test(
-    'typecheck gate honours agentSettings.commands.typecheck when configured',
+    'typecheck gate honours project.commands.typecheck when configured',
     () => {
       const gates = buildDefaultGates({
-        agentSettings: {
-          commands: { typecheck: 'pnpm exec turbo run typecheck' },
+        config: {
+          project: { commands: { typecheck: 'pnpm exec turbo run typecheck' } },
         },
       });
       const gate = gates.find((g) => g.name === 'typecheck');
@@ -210,15 +212,17 @@ test('runCloseValidation', async (t) => {
     assert.equal(resolveTypecheckCommand(undefined), 'npm run typecheck');
     assert.equal(resolveTypecheckCommand({}), 'npm run typecheck');
     assert.equal(
-      resolveTypecheckCommand({ commands: { typecheck: null } }),
+      resolveTypecheckCommand({ project: { commands: { typecheck: null } } }),
       'npm run typecheck',
     );
     assert.equal(
-      resolveTypecheckCommand({ commands: { typecheck: '   ' } }),
+      resolveTypecheckCommand({ project: { commands: { typecheck: '   ' } } }),
       'npm run typecheck',
     );
     assert.equal(
-      resolveTypecheckCommand({ commands: { typecheck: 'tsc --noEmit' } }),
+      resolveTypecheckCommand({
+        project: { commands: { typecheck: 'tsc --noEmit' } },
+      }),
       'tsc --noEmit',
     );
   });
@@ -451,13 +455,15 @@ test('runCloseValidation', async (t) => {
   );
 
   await t.test(
-    'format gate honours agentSettings.commands.formatCheck / formatWrite',
+    'format gate honours project.commands.formatCheck / formatWrite',
     () => {
       const gates = buildDefaultGates({
-        agentSettings: {
-          commands: {
-            formatCheck: 'pnpm exec prettier --check .',
-            formatWrite: 'pnpm exec prettier --write .',
+        config: {
+          project: {
+            commands: {
+              formatCheck: 'pnpm exec prettier --check .',
+              formatWrite: 'pnpm exec prettier --write .',
+            },
           },
         },
       });

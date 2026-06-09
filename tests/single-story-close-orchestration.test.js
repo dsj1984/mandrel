@@ -52,18 +52,6 @@ const WORKTREE_MANAGER_URL = pathToFileURL(
 // `lib/gh-exec.js` facade rather than direct `execFileSync('gh', …)`
 // calls. Tests inject a fake `gh` facade via `injectedGh` (or pass it
 // directly to `ensurePullRequest`) instead of mocking the module URL.
-// Epic #2880 / F14B: single-story-close.js now reaches buildDefaultGates
-// indirectly via `legacy-settings-bag.js#buildGatesFromConfig`. Mocks on
-// CLOSE_VALIDATION_URL don't intercept that transitive path, so tests
-// that assert on buildDefaultGates being invoked must also mock the
-// legacy-settings-bag module.
-const LEGACY_SETTINGS_BAG_URL = pathToFileURL(
-  path.resolve(
-    REPO_ROOT,
-    '.agents/scripts/lib/orchestration/story-close/legacy-settings-bag.js',
-  ),
-).href;
-
 /**
  * Build a fake `lib/gh-exec.js` `gh` facade for direct injection into
  * `runSingleStoryClose({ injectedGh })`, `ensurePullRequest({ gh })`,
@@ -579,26 +567,13 @@ describe('runSingleStoryClose orchestration', () => {
 
   it('runs the validation gate when skipValidation is false (happy path)', async (t) => {
     const validationCalls = [];
-    // Mock both the direct gate factory and the legacy-settings-bag
-    // bridge that single-story-close.js now reaches through. Without
-    // the bag mock, buildGatesFromConfig calls the un-mocked
-    // buildDefaultGates and the test never observes its invocation.
-    t.mock.module(LEGACY_SETTINGS_BAG_URL, {
-      namedExports: {
-        buildGatesFromConfig: (config, opts) => {
-          validationCalls.push({
-            agentSettings: config,
-            epicBranch: opts?.epicBranch ?? 'main',
-            phase: 'build',
-          });
-          return [{ name: 'fake-gate' }];
-        },
-      },
-    });
+    // single-story-close.js builds gates directly via `buildDefaultGates`
+    // from the canonical resolved config, so mocking `CLOSE_VALIDATION_URL`
+    // intercepts the gate factory on that path.
     t.mock.module(CLOSE_VALIDATION_URL, {
       namedExports: {
-        buildDefaultGates: ({ agentSettings, epicBranch }) => {
-          validationCalls.push({ agentSettings, epicBranch, phase: 'build' });
+        buildDefaultGates: ({ config, epicBranch }) => {
+          validationCalls.push({ config, epicBranch, phase: 'build' });
           return [{ name: 'fake-gate' }];
         },
         runCloseValidation: async (opts) => {

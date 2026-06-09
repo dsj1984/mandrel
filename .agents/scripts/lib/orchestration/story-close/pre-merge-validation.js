@@ -38,12 +38,6 @@ import {
 import { getBaselines as defaultGetBaselines } from '../../config-resolver.js';
 import { Logger as DefaultLogger } from '../../Logger.js';
 
-// Legacy parameter name on close-validation helpers (`buildDefaultGates`,
-// `buildTestGateEntry`) that have not yet migrated to the canonical
-// `project` / `delivery` pointers. Built from substrings so the
-// migrated-subsystem grep does not match it.
-const LEGACY_SETTINGS_PARAM_KEY = `agent${'Settings'}`;
-
 /**
  * Run the pre-merge validation gate chain. On failure throws an `Error`
  * whose message embeds the first failed gate's name, exit code, hint, and
@@ -100,20 +94,10 @@ export async function runPreMergeGates({
   logger.info?.(
     `[close-validation] Running pre-merge gates (typecheck, lint, test, format, maintainability, crap, baselines)${worktreePath ? ` in ${worktreePath}` : ''}${epicBranch ? ` against baseline ref ${epicBranch}` : ''}...`,
   );
-  // `buildDefaultGates` (in `close-validation.js`) still reads the
-  // legacy-shaped settings bag (`{commands, quality, ...}`). Until that
-  // module is itself migrated, surface the canonical `project` block
-  // (which carries the `commands` map used by every gate command
-  // resolver) and the resolved `delivery.quality` view (which carries
-  // the crap-gate `enabled` toggle).
-  const gatesSettings = {
-    ...(config?.project ?? {}),
-    quality: config?.delivery?.quality,
-  };
-  const gates = buildDefaultGates({
-    [LEGACY_SETTINGS_PARAM_KEY]: gatesSettings,
-    epicBranch,
-  });
+  // `buildDefaultGates` reads the canonical resolved config directly:
+  // gate commands resolve from `project.commands` and the CRAP toggle
+  // from `delivery.quality.gates.crap.enabled`.
+  const gates = buildDefaultGates({ config, epicBranch });
   const gateCount = Array.isArray(gates) ? gates.length : 0;
   // Story #2250 — emit `close-validate.start` only when both an epicId
   // and a storyId are present; the schema requires both, and unit

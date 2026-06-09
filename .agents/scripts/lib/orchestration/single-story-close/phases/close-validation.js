@@ -17,28 +17,34 @@
  * evidence cache for standalone Stories; that's acceptable until/unless
  * the standalone path warrants its own evidence keyspace.
  *
- * `runCloseValidation` and `buildGatesFromConfig` are accepted as injected
+ * `runCloseValidation` and `buildDefaultGates` are accepted as injected
  * dependencies so the parent CLI's cache-busted bindings win in tests
  * that mock the upstream module URLs.
  */
 
-import { runCloseValidation as defaultRunCloseValidation } from '../../../close-validation.js';
+import {
+  buildDefaultGates as defaultBuildDefaultGates,
+  runCloseValidation as defaultRunCloseValidation,
+} from '../../../close-validation.js';
 import { Logger } from '../../../Logger.js';
-import { buildGatesFromConfig as defaultBuildGatesFromConfig } from '../../story-close/legacy-settings-bag.js';
 
 /**
  * Run the close-validation gate chain. Throws on first gate failure.
+ *
+ * Gates are built from the canonical resolved config (`buildDefaultGates`
+ * reads `project.commands` and `delivery.quality.gates.crap.enabled`); the
+ * `baseBranch` is forwarded as the gate `epicBranch` so the format gate's
+ * changed-file scope anchors on it.
  *
  * @param {{
  *   cwd: string,
  *   worktreePath: string|null,
  *   config: object,
  *   baseBranch: string,
- *   noFullScopeCrap: boolean,
  *   storyId: number,
  *   progress: (tag: string, msg: string) => void,
  *   runCloseValidation?: typeof defaultRunCloseValidation,
- *   buildGatesFromConfig?: typeof defaultBuildGatesFromConfig,
+ *   buildDefaultGates?: typeof defaultBuildDefaultGates,
  * }} args
  */
 export async function runCloseValidationPhase({
@@ -46,11 +52,10 @@ export async function runCloseValidationPhase({
   worktreePath,
   config,
   baseBranch,
-  noFullScopeCrap,
   storyId,
   progress,
   runCloseValidation = defaultRunCloseValidation,
-  buildGatesFromConfig = defaultBuildGatesFromConfig,
+  buildDefaultGates = defaultBuildDefaultGates,
 }) {
   progress(
     'VALIDATE',
@@ -59,10 +64,7 @@ export async function runCloseValidationPhase({
   const validation = await runCloseValidation({
     cwd,
     worktreePath,
-    gates: buildGatesFromConfig(config, {
-      epicBranch: baseBranch,
-      fullScopeCrap: !noFullScopeCrap,
-    }),
+    gates: buildDefaultGates({ config, epicBranch: baseBranch }),
     log: (m) => Logger.info(m),
     storyId,
     epicId: null,
