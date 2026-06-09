@@ -13,11 +13,8 @@
  * `lib/audit-suite/selector.js` so the pipeline barrel can re-export
  * the SDK without importing upward from a top-level CLI. This file now
  * contains only argv parsing, provider construction, JSON stdout, and
- * degraded-mode exit-code mapping.
- *
- * The named exports below are preserved as back-compat shims for existing
- * call sites (`audit-orchestrator.js`, the test suite). New callers should
- * import from `lib/audit-suite/index.js`.
+ * degraded-mode exit-code mapping. Callers that need the rule-matching
+ * SDK import it directly from `lib/audit-suite/index.js`.
  *
  * Usage:
  *   node .agents/scripts/select-audits.js \
@@ -37,16 +34,6 @@ import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import { isDegraded } from './lib/degraded-mode.js';
 import { createProvider } from './lib/provider-factory.js';
-
-// --- Back-compat re-exports for existing import sites -----------------------
-// `audit-orchestrator.js`, `tests/select-audits-cli.test.js`, and other
-// callers still import these names from this module path. Keep the shims
-// pointing at `lib/audit-suite/` so the relocation stays internal.
-export {
-  matchesAnyFilePattern,
-  matchesFilePattern,
-  selectAudits,
-} from './lib/audit-suite/index.js';
 
 const HELP = `Usage: node .agents/scripts/select-audits.js \\
   --ticket <id> --gate <gate> [--base-branch main]

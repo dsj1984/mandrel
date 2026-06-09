@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { __setGitRunners } from '../.agents/scripts/lib/git-utils.js';
 import {
   matchesAnyFilePattern,
   matchesFilePattern,
   selectAudits,
-} from '../.agents/scripts/select-audits.js';
+} from '../.agents/scripts/lib/audit-suite/index.js';
+import { __setGitRunners } from '../.agents/scripts/lib/git-utils.js';
 import { MockProvider } from './fixtures/mock-provider.js';
 
 test('matchesFilePattern: pinned glob behaviour (post-relocation parity)', () => {
