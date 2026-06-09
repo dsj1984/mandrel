@@ -7,8 +7,9 @@
  *   - allows manual:<reason> in verify;
  *   - skips legacy string / undefined bodies (Feature/Story compat).
  *
- * Legacy task-typed fixtures are used throughout this file; the decomposer
- * no longer creates type::task tickets in practice (3-tier architecture).
+ * Story-typed fixtures are used throughout this file; under the 3-tier
+ * hierarchy (Epic → Feature → Story) only `type: 'story'` tickets carry
+ * structured bodies the validator inspects.
  */
 
 import assert from 'node:assert/strict';
@@ -19,17 +20,17 @@ import {
   validateTaskBodyShape,
 } from '../.agents/scripts/lib/orchestration/task-body-validator.js';
 
-function task(slug, body) {
+function story(slug, body) {
   return {
     slug,
-    type: 'task',
-    title: `Task ${slug}`,
-    parent_slug: 's1',
+    type: 'story',
+    title: `Story ${slug}`,
+    parent_slug: 'f1',
     body,
   };
 }
 
-const validTaskBody = {
+const validStoryBody = {
   goal: 'Wire X up to Y per story s1.',
   changes: ['src/x.ts: extract handleSubmit'],
   acceptance: ['npm run test exits 0'],
@@ -38,12 +39,12 @@ const validTaskBody = {
 
 describe('collectTaskBodyErrors — empty section detection', () => {
   it('passes a fully populated structured body', () => {
-    assert.deepEqual(collectTaskBodyErrors([task('t1', validTaskBody)]), []);
+    assert.deepEqual(collectTaskBodyErrors([story('t1', validStoryBody)]), []);
   });
 
   it('rejects empty changes[]', () => {
     const errs = collectTaskBodyErrors([
-      task('t1', { ...validTaskBody, changes: [] }),
+      story('t1', { ...validStoryBody, changes: [] }),
     ]);
     assert.equal(errs.length, 1);
     assert.match(errs[0], /body\.changes must list at least one bullet/);
@@ -51,7 +52,7 @@ describe('collectTaskBodyErrors — empty section detection', () => {
 
   it('rejects empty acceptance[]', () => {
     const errs = collectTaskBodyErrors([
-      task('t1', { ...validTaskBody, acceptance: [] }),
+      story('t1', { ...validStoryBody, acceptance: [] }),
     ]);
     assert.equal(errs.length, 1);
     assert.match(errs[0], /body\.acceptance/);
@@ -59,7 +60,7 @@ describe('collectTaskBodyErrors — empty section detection', () => {
 
   it('rejects empty verify[]', () => {
     const errs = collectTaskBodyErrors([
-      task('t1', { ...validTaskBody, verify: [] }),
+      story('t1', { ...validStoryBody, verify: [] }),
     ]);
     assert.equal(errs.length, 1);
     assert.match(errs[0], /body\.verify must list at least one entry/);
@@ -67,7 +68,7 @@ describe('collectTaskBodyErrors — empty section detection', () => {
 
   it('rejects empty goal string', () => {
     const errs = collectTaskBodyErrors([
-      task('t1', { ...validTaskBody, goal: '   ' }),
+      story('t1', { ...validStoryBody, goal: '   ' }),
     ]);
     assert.equal(errs.length, 1);
     assert.match(errs[0], /body\.goal must be a non-empty string/);
@@ -77,8 +78,8 @@ describe('collectTaskBodyErrors — empty section detection', () => {
 describe('collectTaskBodyErrors — path-shape and vague-verb detection', () => {
   it('rejects bullets with no path-shaped token', () => {
     const errs = collectTaskBodyErrors([
-      task('t1', {
-        ...validTaskBody,
+      story('t1', {
+        ...validStoryBody,
         changes: ['the form should be cleaner'],
       }),
     ]);
@@ -90,8 +91,8 @@ describe('collectTaskBodyErrors — path-shape and vague-verb detection', () => 
 
   it('rejects vague verb without a path target', () => {
     const errs = collectTaskBodyErrors([
-      task('t1', {
-        ...validTaskBody,
+      story('t1', {
+        ...validStoryBody,
         changes: ['clean up the form'],
       }),
     ]);
@@ -103,8 +104,8 @@ describe('collectTaskBodyErrors — path-shape and vague-verb detection', () => 
 
   it('accepts vague verb when paired with a named target', () => {
     const errs = collectTaskBodyErrors([
-      task('t1', {
-        ...validTaskBody,
+      story('t1', {
+        ...validStoryBody,
         changes: ['src/components/Form.tsx: refactor handleSubmit'],
       }),
     ]);
@@ -113,8 +114,8 @@ describe('collectTaskBodyErrors — path-shape and vague-verb detection', () => 
 
   it('accepts glob path shapes', () => {
     const errs = collectTaskBodyErrors([
-      task('t1', {
-        ...validTaskBody,
+      story('t1', {
+        ...validStoryBody,
         changes: ['tests/e2e/*.spec.ts: add testid coverage'],
       }),
     ]);
@@ -125,8 +126,8 @@ describe('collectTaskBodyErrors — path-shape and vague-verb detection', () => 
 describe('collectTaskBodyErrors — verify entries', () => {
   it('accepts manual:<reason>', () => {
     const errs = collectTaskBodyErrors([
-      task('t1', {
-        ...validTaskBody,
+      story('t1', {
+        ...validStoryBody,
         verify: ['manual: copy review by brand lead'],
       }),
     ]);
@@ -135,7 +136,7 @@ describe('collectTaskBodyErrors — verify entries', () => {
 
   it('rejects manual: with no reason', () => {
     const errs = collectTaskBodyErrors([
-      task('t1', { ...validTaskBody, verify: ['manual:'] }),
+      story('t1', { ...validStoryBody, verify: ['manual:'] }),
     ]);
     assert.equal(errs.length, 1);
     assert.match(errs[0], /"manual:" entry has no reason/);
@@ -145,13 +146,13 @@ describe('collectTaskBodyErrors — verify entries', () => {
 describe('collectTaskBodyErrors — legacy / non-structured bodies pass through', () => {
   it('skips tasks with string body (legacy)', () => {
     assert.deepEqual(
-      collectTaskBodyErrors([task('t1', 'a plain string body')]),
+      collectTaskBodyErrors([story('t1', 'a plain string body')]),
       [],
     );
   });
 
   it('skips tasks with undefined body', () => {
-    assert.deepEqual(collectTaskBodyErrors([task('t1', undefined)]), []);
+    assert.deepEqual(collectTaskBodyErrors([story('t1', undefined)]), []);
   });
 
   it('skips Feature tickets regardless of body shape', () => {
@@ -188,8 +189,8 @@ describe('collectTaskBodyErrors — legacy / non-structured bodies pass through'
 describe('validateTaskBodies', () => {
   it('throws batched error containing every offending slug', () => {
     const tickets = [
-      task('t1', { ...validTaskBody, changes: [] }),
-      task('t2', { ...validTaskBody, verify: [] }),
+      story('t1', { ...validStoryBody, changes: [] }),
+      story('t2', { ...validStoryBody, verify: [] }),
     ];
     assert.throws(
       () => validateTaskBodies(tickets),
@@ -198,7 +199,7 @@ describe('validateTaskBodies', () => {
   });
 
   it('returns tickets unchanged when clean', () => {
-    const tickets = [task('t1', validTaskBody)];
+    const tickets = [story('t1', validStoryBody)];
     assert.equal(validateTaskBodies(tickets), tickets);
   });
 });
@@ -213,7 +214,7 @@ describe('validateTaskBodyShape (predicate)', () => {
   const cases = [
     {
       name: 'happy path: every section populated',
-      body: validTaskBody,
+      body: validStoryBody,
       expectErrors: 0,
     },
     {
@@ -223,82 +224,82 @@ describe('validateTaskBodyShape (predicate)', () => {
     },
     {
       name: 'goal missing',
-      body: { ...validTaskBody, goal: undefined },
+      body: { ...validStoryBody, goal: undefined },
       expectIncludes: 'body.goal must be a non-empty string',
     },
     {
       name: 'goal blank',
-      body: { ...validTaskBody, goal: '   ' },
+      body: { ...validStoryBody, goal: '   ' },
       expectIncludes: 'body.goal must be a non-empty string',
     },
     {
       name: 'goal non-string',
-      body: { ...validTaskBody, goal: 123 },
+      body: { ...validStoryBody, goal: 123 },
       expectIncludes: 'body.goal must be a non-empty string',
     },
     {
       name: 'changes empty array',
-      body: { ...validTaskBody, changes: [] },
+      body: { ...validStoryBody, changes: [] },
       expectIncludes: 'body.changes must list at least one bullet',
     },
     {
       name: 'changes not an array',
-      body: { ...validTaskBody, changes: 'one bullet' },
+      body: { ...validStoryBody, changes: 'one bullet' },
       expectIncludes: 'body.changes must list at least one bullet',
     },
     {
       name: 'changes bullets name no path',
-      body: { ...validTaskBody, changes: ['do the thing'] },
+      body: { ...validStoryBody, changes: ['do the thing'] },
       expectIncludes: 'name no path-shaped token',
     },
     {
       name: 'changes bullet uses vague verb without target',
       body: {
-        ...validTaskBody,
+        ...validStoryBody,
         changes: ['clean up things', 'src/x.ts: extract handleSubmit'],
       },
       expectIncludes: 'vague verb "clean up"',
     },
     {
       name: 'acceptance empty array',
-      body: { ...validTaskBody, acceptance: [] },
+      body: { ...validStoryBody, acceptance: [] },
       expectIncludes: 'body.acceptance must list at least one criterion',
     },
     {
       name: 'acceptance not an array',
-      body: { ...validTaskBody, acceptance: 'one' },
+      body: { ...validStoryBody, acceptance: 'one' },
       expectIncludes: 'body.acceptance must list at least one criterion',
     },
     {
       name: 'verify empty array',
-      body: { ...validTaskBody, verify: [] },
+      body: { ...validStoryBody, verify: [] },
       expectIncludes: 'body.verify must list at least one entry',
     },
     {
       name: 'verify manual: with no reason',
-      body: { ...validTaskBody, verify: ['manual:'] },
+      body: { ...validStoryBody, verify: ['manual:'] },
       expectIncludes: '"manual:" entry has no reason after the colon',
     },
     {
       name: 'verify manual: with whitespace reason',
-      body: { ...validTaskBody, verify: ['manual:   '] },
+      body: { ...validStoryBody, verify: ['manual:   '] },
       expectIncludes: '"manual:" entry has no reason after the colon',
     },
     {
       name: 'verify manual: with valid reason is clean',
-      body: { ...validTaskBody, verify: ['manual: see PR'] },
+      body: { ...validStoryBody, verify: ['manual: see PR'] },
       expectErrors: 0,
     },
     {
       name: 'verify entries containing non-strings are tolerated',
-      body: { ...validTaskBody, verify: [42, 'npm test'] },
+      body: { ...validStoryBody, verify: [42, 'npm test (unit)'] },
       expectErrors: 0,
     },
   ];
 
   for (const tc of cases) {
     it(tc.name, () => {
-      const errors = validateTaskBodyShape(task('tX', tc.body));
+      const errors = validateTaskBodyShape(story('tX', tc.body));
       if (tc.expectErrors === 0) {
         assert.deepEqual(errors, []);
       } else {
