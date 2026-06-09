@@ -55,7 +55,7 @@ const baseTask = {
 };
 
 describe('buildSkillCapsuleSections', () => {
-  it('loads capsules from skills.index.json with source metadata', () => {
+  it('loads capsules from skills.index.json with source + path metadata', () => {
     const skillsIndex = readSkillsIndex();
     const entries = buildSkillCapsuleSections(
       { skills: ['hydrate-context'], labels: [] },
@@ -65,28 +65,40 @@ describe('buildSkillCapsuleSections', () => {
     assert.equal(entries[0].skill, 'hydrate-context');
     assert.equal(entries[0].source, 'capsule');
     assert.ok(entries[0].capsule.startsWith('## Policy Capsule'));
+    assert.equal(
+      entries[0].path,
+      '.agents/skills/core/hydrate-context/SKILL.md',
+    );
     const rendered = formatSkillCapsulesSection(entries);
     assert.match(rendered, /\(source: capsule\)/);
   });
 
-  it('honours skill::full with full-body-optin', () => {
+  it('emits capsule-only output — never the full SKILL.md body — even with skill::full', () => {
     const skillsIndex = readSkillsIndex();
     const entries = buildSkillCapsuleSections(
       { skills: ['hydrate-context'], labels: ['skill::full', 'type::task'] },
       skillsIndex,
     );
-    assert.equal(entries[0].source, 'full-body-optin');
-    assert.ok(entries[0].capsule.startsWith('---'));
+    // The deleted opt-in label is inert: capsule is the only source.
+    assert.equal(entries[0].source, 'capsule');
+    assert.ok(entries[0].capsule.startsWith('## Policy Capsule'));
+    assert.ok(
+      !entries[0].capsule.startsWith('---'),
+      'must not inline the raw SKILL.md frontmatter / full body',
+    );
   });
 
-  it('honours fullSkillBodies option for every skill', () => {
+  it('renders a Read pointer to the full SKILL.md in the section', () => {
     const skillsIndex = readSkillsIndex();
     const entries = buildSkillCapsuleSections(
       { skills: ['hydrate-context'], labels: [] },
       skillsIndex,
-      { fullSkillBodies: true },
     );
-    assert.equal(entries[0].source, 'full-body-optin');
+    const rendered = formatSkillCapsulesSection(entries);
+    assert.match(
+      rendered,
+      /Read the full playbook on demand: `Read \.agents\/skills\/core\/hydrate-context\/SKILL\.md`\./,
+    );
   });
 });
 
@@ -383,6 +395,11 @@ describe('hydrateContext — skill capsule routing', () => {
     const prompt = envelopeToPrompt(envelope);
     assert.match(prompt, /### Skill: hydrate-context \(source: capsule\)/);
     assert.match(prompt, /## Policy Capsule/);
+    assert.match(
+      prompt,
+      /Read the full playbook on demand: `Read \.agents\/skills\/core\/hydrate-context\/SKILL\.md`\./,
+      'capsule section must point the sub-agent at the full SKILL.md',
+    );
     assert.doesNotMatch(
       prompt,
       /### Skill: hydrate-context\n---/,

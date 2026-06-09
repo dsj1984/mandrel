@@ -219,19 +219,6 @@ const EPIC_AUDIT_SCHEMA = {
   additionalProperties: false,
 };
 
-/**
- * `delivery.hydration` — hydrator settings (Epic #2648). The envelope-first
- * pipeline is the only supported output shape; this object now only carries
- * the skill-body opt-in.
- */
-const HYDRATION_SCHEMA = {
-  type: 'object',
-  properties: {
-    fullSkillBodies: { type: 'boolean' },
-  },
-  additionalProperties: false,
-};
-
 // Story #2899 (Epic #2880) — performance defaults + preflight (F13).
 // `delivery.ci.skipForStoryPushes` (default true via getCiDelivery): when
 // true, pre-push tooling appends a `[skip ci]` trailer to Story-branch
@@ -316,7 +303,6 @@ export const DELIVERY_SCHEMA = {
   type: 'object',
   properties: {
     execution: EXECUTION_SCHEMA,
-    hydration: HYDRATION_SCHEMA,
     maxTokenBudget: { type: 'integer', minimum: 1 },
     lease: LEASE_SCHEMA,
     docsFreshness: DOCS_FRESHNESS_SCHEMA,

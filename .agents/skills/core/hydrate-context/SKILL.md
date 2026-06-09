@@ -97,11 +97,16 @@ the section; `summarize` keeps a head excerpt). Defaults live in
 `context-envelope.js`. Elided section names are recorded in
 `budget.elided`.
 
-**Skill capsules by default.** Activated skills resolve through
-`skills.index.json` and `loadSkillCapsule`, emitting Policy Capsule
-text into the `skillCapsules` section. Full `SKILL.md` bodies load only
-when the ticket carries a `skill::full` label or
-`delivery.hydration.fullSkillBodies` is `true` in `.agentrc.json`.
+**Capsule-only skill loading.** Activated skills resolve through
+`skills.index.json` and `loadSkillCapsule`, emitting only the Policy
+Capsule (the skill's non-negotiables) plus a pointer instruction into the
+`skillCapsules` section. Full `SKILL.md` bodies are never inlined into a
+task prompt — the sub-agent reads the full playbook on demand via the
+rendered `Read <path>` pointer. The full-body injection path, the
+`fullSkillBodies` config flag, and the `skill::full` label were removed in
+a hard cutover (Story #3863); the only residual full-body emission is the
+defensive fallback when a `SKILL.md` is missing its capsule marker (a
+malformed manifest), which also logs a warning.
 
 ## Constraints
 

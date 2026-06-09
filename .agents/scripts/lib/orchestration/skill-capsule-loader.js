@@ -1,8 +1,11 @@
 /**
  * skill-capsule-loader.js — Policy Capsule extraction for skill hydration.
  *
- * Resolves skills via `skills.index.json` and returns either the capsule
- * region or the full SKILL.md body (fallback / opt-in).
+ * Resolves skills via `skills.index.json` and returns the Policy Capsule
+ * region. When a SKILL.md is missing its capsule marker the full body is
+ * returned as a defensive fallback (the manifest is malformed); there is no
+ * caller-facing opt-in to inline full bodies — capsule-only is the contract
+ * (Story #3863, hard cutover).
  *
  * @module lib/orchestration/skill-capsule-loader
  */
@@ -66,21 +69,22 @@ function findSkillEntry(skillsIndex, skillName) {
 }
 
 /**
- * Load a skill's Policy Capsule (or full body on fallback / opt-in).
+ * Load a skill's Policy Capsule. Returns the capsule span when the marker
+ * is present; falls back to the full SKILL.md body (and warns) only when the
+ * marker is missing, which signals a malformed manifest rather than an
+ * operator opt-in.
  *
  * @param {string} skillName
  * @param {{ skills: Array<{ name: string, path: string }> }} skillsIndex
  * @param {{
- *   fullBodyOptIn?: boolean,
  *   repoRoot?: string,
  *   readFile?: (absPath: string) => string,
  *   warn?: (message: string) => void,
  * }} [options]
- * @returns {{ capsule: string, source: 'capsule' | 'full-body-fallback' | 'full-body-optin' }}
+ * @returns {{ capsule: string, source: 'capsule' | 'full-body-fallback', path: string }}
  */
 export function loadSkillCapsule(skillName, skillsIndex, options = {}) {
   const {
-    fullBodyOptIn = false,
     repoRoot = PROJECT_ROOT,
     readFile = (absPath) => fs.readFileSync(absPath, 'utf8'),
     warn = (message) => Logger.warn(message),
@@ -96,15 +100,11 @@ export function loadSkillCapsule(skillName, skillsIndex, options = {}) {
   const absPath = path.join(repoRoot, entry.path);
   const body = readFile(absPath);
 
-  if (fullBodyOptIn) {
-    return { capsule: body, source: 'full-body-optin' };
-  }
-
   const span = extractPolicyCapsuleSpan(body);
   if (span) {
-    return { capsule: span, source: 'capsule' };
+    return { capsule: span, source: 'capsule', path: entry.path };
   }
 
   warn(`capsule marker missing: ${skillName}`);
-  return { capsule: body, source: 'full-body-fallback' };
+  return { capsule: body, source: 'full-body-fallback', path: entry.path };
 }

@@ -152,32 +152,36 @@ Recommendation:
 
 #### 3. Skill Library — Stop Hydrating Full Bodies by Default
 
-**Status:** Simplify
-**Action:** 🔭 **Monitor** — change the hydrator to *stop* loading full
-skill bodies by default and route skill selection through the generated
-manifest, and push remaining stack-specific non-negotiables into validators
-/ lint checks rather than skill prose. Waits until the model can self-select
-context confidently and until validator coverage catches up.
+**Status:** Shipped (capsule-only cutover) — Story #3863
+**Action:** ✅ **Done (skill-loading half)** — the hydrator now emits only
+the Policy Capsule per selected skill (non-negotiables + a `Read <path>`
+pointer to the full `SKILL.md`); no full skill body is ever inlined into a
+task prompt. Per the hard-cutover policy in
+[`git-conventions.md`](../.agents/rules/git-conventions.md), Story #3863
+**deleted** the full-body injection branch, the `fullSkillBodies` config
+flag (schema + resolver), and the `skill::full` label handling in one pass —
+there is no compatibility flag, label, or dual path. The remaining
+validator-coverage tail (push stack-specific non-negotiables into validators
+/ lint checks) stays 🔭 **Monitor**.
 
 **Primary paths:**
 
 - `.agents/scripts/lib/orchestration/context-hydration-engine.js`
+- `.agents/scripts/lib/orchestration/skill-capsule-loader.js`
 - `.agents/skills/skills.index.json`
 - `.agents/skills/stack/`
 
-The skill library now ships a generated manifest (`skills.index.json`) and a
-Policy Capsule per skill, so selection is cheap; the remaining work is the
-behavioral cut-over inside the hydrator and the validator coverage that
-makes it safe.
+The skill library ships a generated manifest (`skills.index.json`) and a
+Policy Capsule per skill, so selection is cheap; the behavioral cut-over
+inside the hydrator landed in Story #3863. The only residual full-body
+emission is the defensive fallback when a `SKILL.md` is missing its capsule
+marker (a malformed manifest), which also logs a warning.
 
-Recommendation (Monitor):
+Remaining recommendation (Monitor):
 
-- Avoid hydrating entire skills into task prompts unless the task is
-  high-risk or the user explicitly asks for the full playbook (today the
-  default is still full bodies via `fullSkillBodies` / `skill::full`
-  opt-out).
 - Move stack-specific non-negotiables into validators or lint checks where
-  feasible.
+  feasible (the capsules already carry the non-negotiables; building new
+  validators is the deliberate non-scope tail of this finding).
 
 #### 4. Per-Task Ritual and Commit Strategy Can Relax
 
@@ -343,9 +347,9 @@ Recommendation:
 These should be removed or made opt-in once future-model assumptions hold:
 
 1. **Mandatory full skill/persona hydration** for common tasks. Replace with
-   compact policy capsules and on-demand deep docs. (Capsules and the
-   manifest already exist; the hydrator default flip is the remaining work
-   under Finding #3.)
+   compact policy capsules and on-demand deep docs. (Skill hydration is now
+   capsule-only with a `Read <path>` pointer — Story #3863 shipped that flip;
+   the parallel persona-hydration cut is Finding #2.)
 2. **Free-form sub-agent JSON extraction heuristics.** Keep schema validation
    and GitHub reconciliation; drop the assumption that malformed returns are
    common.
@@ -355,7 +359,8 @@ These should be removed or made opt-in once future-model assumptions hold:
 These remain useful but should become smaller:
 
 1. **Context hydration**: continue tightening structured, prioritized
-   context envelopes; stop hydrating full skill bodies by default.
+   context envelopes; full skill bodies are no longer hydrated (capsule-only
+   since Story #3863).
 2. **Personas and skills**: concise lenses and policies, not full behavioral
    scripts loaded into the model.
 3. **Code review**: adaptive evidence-first review with structured findings,
@@ -457,11 +462,12 @@ work clusters into two areas:
 
 #### Reduce Prompt Weight Further
 
-- Flip the hydrator default to manifest-driven skill selection; stop
-  hydrating full skill bodies unless `skill::full` / `fullSkillBodies`
-  is set (Finding #3).
+- ✅ **Shipped (Story #3863).** The hydrator now loads capsule-only:
+  manifest-driven skill selection emits the Policy Capsule plus a
+  `Read <path>` pointer, and the full-body path / `fullSkillBodies` flag /
+  `skill::full` label were deleted in a hard cutover (Finding #3).
 - Push remaining stack-specific non-negotiables into validators or lint
-  checks rather than skill prose (Finding #3).
+  checks rather than skill prose (Finding #3, validator-coverage tail).
 
 #### Soften Procedural Defaults
 
@@ -482,8 +488,8 @@ work clusters into two areas:
    protection, lifecycle ledgers, worktree isolation, or state-transition
    scripts just because the model is stronger.
 2. **Shrink the instruction layer further.** Compact policy capsules now
-   exist; the next move is flipping the hydrator default away from full
-   skill bodies.
+   exist and the hydrator loads capsule-only (Story #3863 shipped that flip);
+   the next move is the parallel persona-hydration cut (Finding #2).
 3. **Continue making gates adaptive.** Full ceremony should be reserved for
    work that needs it; the planner-side risk classifier (Epic #2649) is the
    model — extend it rather than reinventing.

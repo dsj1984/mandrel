@@ -1298,18 +1298,6 @@
       },
       "additionalProperties": false
     },
-    "hydration": {
-      "type": "object",
-      "description": "Context hydrator settings (Epic #2648). The envelope-first pipeline is the only supported output shape; this object now only carries the skill-body opt-in.",
-      "properties": {
-        "fullSkillBodies": {
-          "type": "boolean",
-          "default": false,
-          "description": "When true, embed full SKILL.md bodies; when false, prefer policy capsules from skills.index.json."
-        }
-      },
-      "additionalProperties": false
-    },
     "refactorStage": {
       "type": "object",
       "description": "Opt-in, config-gated post-green refactor checkpoint wired into story-deliver (Story #3430, Epic #3418). Strictly additive and default-OFF: when disabled, story-deliver behaves exactly as before. Advisory only \u2014 never changes existing close-validation gate semantics.",
@@ -1339,9 +1327,6 @@
       "properties": {
         "execution": {
           "$ref": "#/$defs/execution"
-        },
-        "hydration": {
-          "$ref": "#/$defs/hydration"
         },
         "maxTokenBudget": {
           "type": "integer",
