@@ -36,7 +36,7 @@ top-level keys are validation errors.
 
 | Top-level key | Required | Purpose                                                                            |
 | ------------- | -------- | ---------------------------------------------------------------------------------- |
-| `project`     | **Yes**  | Project-local paths, base branch, validation commands, and context-hydrator files. |
+| `project`     | **Yes**  | Project-local paths, base branch, validation commands, and context-hydration files. |
 | `github`      | No       | Ticketing provider config: owner/repo, branch protection, merge methods, notifications. |
 | `planning`    | No       | `/epic-plan` tuning: ticket budget, risk heuristics, codebase snapshot, context cap. |
 | `delivery`    | No       | `/epic-deliver` and `/story-deliver` tuning: quality gates, worktree isolation, runners, lifecycle. |
@@ -352,7 +352,7 @@ Read with `getCommands(config)` — see
 
 | Field              | Required | Default | Purpose                                                                                            |
 | ------------------ | -------- | ------- | -------------------------------------------------------------------------------------------------- |
-| `docsContextFiles` | No       | `[]`    | Files the context-hydrator includes when assembling agent prompts. Resolved against `paths.docsRoot`. |
+| `docsContextFiles` | No       | `[]`    | Files the context-hydration engine includes when assembling agent prompts. Resolved against `paths.docsRoot`. |
 
 ---
 

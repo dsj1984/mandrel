@@ -191,7 +191,7 @@ graph TB
         LE["lifecycle-emit.js"]:::script
         SI["story-init.js"]:::script
         SC["story-close.js"]:::script
-        CH["context-hydrator.js"]:::script
+        CH["hydrate-context.js"]:::script
         NO["notify.js"]:::script
         UTS["update-ticket-state.js"]:::script
     end
@@ -233,7 +233,7 @@ graph TB
 | `lifecycle-emit.js`          | Generic argv-driven emit helper. `/epic-deliver` Phase 6 / 7.5 / 8 fire `epic.close.end` / `epic.automerge.start` / `epic.merge.armed` through this CLI; the matching listener chain (`Finalizer`, `AutomergePredicate` + `AutomergeArmer`, `Cleaner`) runs the PR open, auto-merge arm, and branch reap. |
 | `story-init.js`              | Initialises a Story worktree and flips the Story to `agent::executing`.                                                                                                                     |
 | `story-close.js`             | Validates, merges, reaps, and cascades on Story completion. Thin CLI shell over `lib/orchestration/story-close/{merge-runner,cleanup-reconciler,comment-bodies}`. |
-| `context-hydrator.js`        | Assembles self-contained prompts (protocol + persona + skills + hierarchy + task).                                                                                                            |
+| `hydrate-context.js`         | Assembles self-contained prompts (protocol + persona + skills + hierarchy + task). Emits the JSON envelope by default; `--emit prompt` writes the raw prompt. The only supported hydration CLI. |
 | `update-ticket-state.js`     | Syncs ticket status via GitHub labels (`agent::ready` → `agent::done`).                                                                                                                       |
 | `notify.js`                  | Dispatches notifications via @mention and webhook channels.                                                                                                                                   |
 | `analyze-execution.js`       | Reads per-Story `signals.ndjson` and emits the `story-perf-summary` / `epic-perf-report` consumed by the retro. Wired into the post-merge pipeline and into `/epic-deliver` Phase 5.           |
@@ -585,7 +585,7 @@ sequenceDiagram
     participant TD as epic-plan-decompose.js
     participant D as /epic-deliver
     participant EDR as /epic-deliver (in-session)
-    participant CH as context-hydrator.js
+    participant CH as hydrate-context.js
     participant A as Agent (IDE)
     participant GH as GitHub
 
