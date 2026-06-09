@@ -23,7 +23,8 @@ import { sweepStaleStoryWorktrees } from '../../plan-runner/worktree-sweep.js';
  * Exposed for integration tests.
  *
  * @param {{ repoRoot?: string, config?: object, provider?: object, git?: object, logger?: object, fsRm?: function }} [opts]
- * @returns {Promise<object>} Sweep/drain summary with legacy `drained` / `persistent` / `remaining` aliases for callers.
+ * @returns {Promise<object>} Canonical sweep/drain summary keyed on
+ *   `drainedPending` / `persistentPending` / `stillPending`.
  */
 export async function drainPendingCleanupAtBoot(opts = {}) {
   const repoRoot = opts.repoRoot ?? PROJECT_ROOT;
@@ -36,23 +37,6 @@ export async function drainPendingCleanupAtBoot(opts = {}) {
   const logger = opts.logger ?? console;
   const fsRm = opts.fsRm;
   const provider = opts.provider;
-
-  // legacyExtras adds `drained`/`persistent`/`remaining` aliases consumed by
-  // drain-pending-cleanup.js, epic-plan-decompose.js, plan-runner/worktree-sweep.js,
-  // and tests/epic-plan-spec-drain.test.js (Epic #990 Story #1006 triage).
-  const legacyExtras = (base) => {
-    const remaining =
-      (base.persistentPending?.length ?? base.persistent?.length ?? 0) +
-      (base.stillPending?.length ?? 0);
-    const drained = base.drainedPending ?? base.drained ?? [];
-    const persistent = base.persistentPending ?? base.persistent ?? [];
-    return {
-      ...base,
-      remaining,
-      drained,
-      persistent,
-    };
-  };
 
   if (provider?.getTicket) {
     const sweep = await sweepStaleStoryWorktrees({
@@ -69,18 +53,18 @@ export async function drainPendingCleanupAtBoot(opts = {}) {
     logger.info?.(
       `[epic-plan-spec] worktree sweep: reaped=${sweep.reaped.length} drainedPending=${sweep.drainedPending?.length ?? 0} remaining=${remaining}`,
     );
-    return legacyExtras(sweep);
+    return sweep;
   }
 
   const before = readManifest(worktreeRoot).length;
   if (before === 0) {
-    return legacyExtras({
+    return {
       reaped: [],
       skipped: [],
       drainedPending: [],
       persistentPending: [],
       stillPending: [],
-    });
+    };
   }
   const result = await forceDrainPendingCleanup({
     repoRoot,
@@ -94,7 +78,7 @@ export async function drainPendingCleanupAtBoot(opts = {}) {
   logger.info?.(
     `[epic-plan-spec] pending-cleanup drain: reaped=${result.drained?.length ?? 0} remaining=${remaining}`,
   );
-  return legacyExtras({
+  return {
     reaped: [],
     skipped: [],
     drainedPending: result.drained,
@@ -106,5 +90,5 @@ export async function drainPendingCleanupAtBoot(opts = {}) {
     drainedDetails: result.drainedDetails,
     persistentDetails: result.persistentDetails,
     stillPendingDetails: result.stillPendingDetails,
-  });
+  };
 }

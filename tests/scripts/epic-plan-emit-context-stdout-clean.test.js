@@ -301,7 +301,7 @@ Changes /epic-plan gate behavior and acceptance-spec creation for critical workf
     });
   });
 
-  it('STDERR_LOGGER preserves the legacy result shape (drained/persistent/remaining)', async () => {
+  it('STDERR_LOGGER returns the canonical result shape (drainedPending/persistentPending/stillPending)', async () => {
     const repoRoot = tmpRepo();
     try {
       const result = await drainPendingCleanupAtBoot({
@@ -311,9 +311,18 @@ Changes /epic-plan gate behavior and acceptance-spec creation for critical workf
         git: stubGitEmptyWorktreeList(),
         logger: STDERR_LOGGER,
       });
-      assert.ok('drained' in result, 'result has drained alias');
-      assert.ok('persistent' in result, 'result has persistent alias');
-      assert.equal(typeof result.remaining, 'number', 'remaining is numeric');
+      assert.ok(
+        Array.isArray(result.drainedPending),
+        'result carries drainedPending',
+      );
+      assert.ok(
+        Array.isArray(result.persistentPending),
+        'result carries persistentPending',
+      );
+      assert.ok(
+        Array.isArray(result.stillPending),
+        'result carries stillPending',
+      );
     } finally {
       fs.rmSync(repoRoot, { recursive: true, force: true });
     }

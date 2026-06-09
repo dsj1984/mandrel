@@ -4,12 +4,20 @@ import { beforeEach, describe, it } from 'node:test';
 // into `epic-plan-decompose.js`. The test suite name is kept as a
 // historical breadcrumb for greppability; the exercised behaviour is
 // unchanged.
+//
+// Story #3841 — the dead `decomposeEpic` direct-create entry point was
+// deleted. The decompose-time input guards it used to own (Epic not found,
+// not a type::epic, missing PRD/Tech Spec, non-array tickets, mutually
+// exclusive --force/--resume) live on the canonical reconciler-based
+// `runDecomposePhase`/persist surface, so those assertions are re-pointed
+// there. The DAG ordering + sibling-dependency wiring stays covered through
+// the live `orderTicketsForCreation` / `resolveDependencies` helpers.
 import {
   buildDecomposerSystemPrompt,
   buildDecompositionContext,
-  decomposeEpic,
   orderTicketsForCreation,
   resolveDependencies,
+  runDecomposePhase,
 } from '../.agents/scripts/epic-plan-decompose.js';
 import { DELIVERABLE_GRANULARITY_GUIDANCE } from '../.agents/scripts/lib/orchestration/ticket-validator-sizing.js';
 import { renderDecomposerSystemPrompt } from '../.agents/scripts/lib/templates/decomposer-prompts.js';
@@ -79,7 +87,7 @@ const makeStory = (slug, title, parentSlug, extras = {}) => ({
   ...extras,
 });
 
-describe('ticket-decomposer orchestration (v5.6+)', () => {
+describe('ticket-decomposer persist guards (runDecomposePhase)', () => {
   let mockProvider;
 
   beforeEach(() => {
@@ -93,7 +101,7 @@ describe('ticket-decomposer orchestration (v5.6+)', () => {
           id: 1,
           title: 'Implement V5 Core',
           body: 'Epic body.',
-          labels: ['epic'],
+          labels: ['type::epic'],
           linkedIssues: { prd: 100, techSpec: 101 },
         };
       },
@@ -102,6 +110,10 @@ describe('ticket-decomposer orchestration (v5.6+)', () => {
         if (id === 100) return { id: 100, body: 'Mocked PRD body' };
         if (id === 101) return { id: 101, body: 'Mocked Tech Spec body' };
         return null;
+      },
+
+      async getSubTickets() {
+        return [];
       },
 
       async createTicket(epicId, ticketData) {
@@ -116,370 +128,57 @@ describe('ticket-decomposer orchestration (v5.6+)', () => {
     };
   });
 
-  it('aborts early if epic is missing linked artifacts', async () => {
+  it('aborts early when the Epic is missing linked PRD/Tech Spec artifacts', async () => {
     mockProvider.getEpic = async () => ({
+      id: 1,
       title: 'Missing Links Epic',
+      labels: ['type::epic'],
       linkedIssues: { prd: null, techSpec: null },
     });
 
     await assert.rejects(
-      async () =>
-        await decomposeEpic(1, mockProvider, { tickets: baseTickets() }),
-      {
-        message:
-          '[Decomposer] Epic #1 is missing linked PRD or Tech Spec. Run the Epic Planner first.',
-      },
+      () =>
+        runDecomposePhase(1, mockProvider, { tickets: baseTickets() }, {}, {}),
+      /missing a linked PRD or Tech Spec/,
+    );
+  });
+
+  it('aborts when the target ticket is not a type::epic', async () => {
+    mockProvider.getEpic = async () => ({
+      id: 1,
+      title: 'Not An Epic',
+      labels: ['type::feature'],
+      linkedIssues: { prd: 100, techSpec: 101 },
+    });
+
+    await assert.rejects(
+      () =>
+        runDecomposePhase(1, mockProvider, { tickets: baseTickets() }, {}, {}),
+      /is not a type::epic/,
+    );
+  });
+
+  it('aborts when the Epic cannot be found', async () => {
+    mockProvider.getEpic = async () => null;
+    await assert.rejects(
+      () =>
+        runDecomposePhase(1, mockProvider, { tickets: baseTickets() }, {}, {}),
+      /Epic #1 not found/,
     );
   });
 
   it('rejects a non-array tickets payload', async () => {
     await assert.rejects(
-      async () =>
-        await decomposeEpic(1, mockProvider, { tickets: 'not an array' }),
-      { message: /tickets must be an array/ },
-    );
-  });
-
-  it('creates Feature/Story tickets from an authored array', async () => {
-    // 3-tier (Epic #3238): the decomposer emits only Features and Stories;
-    // each Story carries its inline acceptance + verify contract. There is
-    // no Task tier. Story #3777 requires >=2 Stories per Feature, so the
-    // base fixture yields one Feature plus two Stories (three tickets).
-    await decomposeEpic(1, mockProvider, { tickets: baseTickets() });
-
-    assert.equal(
-      mockProvider.createdTickets.length,
-      3,
-      'Should create exactly three tickets (Feature + two Stories)',
-    );
-
-    const f1 = mockProvider.createdTickets[0];
-    assert.equal(f1.ticketData.title, 'Feature One');
-    assert.deepEqual(f1.ticketData.labels, [
-      'type::feature',
-      'persona::engineer',
-    ]);
-    assert.deepEqual(f1.ticketData.dependencies, []);
-
-    const s1 = mockProvider.createdTickets[1];
-    assert.equal(s1.ticketData.title, 'Story One');
-    assert.deepEqual(s1.ticketData.labels, [
-      'type::story',
-      'persona::fullstack',
-      'complexity::fast',
-    ]);
-  });
-
-  it('throws when a depends_on references an unknown slug', async () => {
-    const tickets = [
-      ...baseTickets(),
-      makeStory('s2', 'Story Two', 'f1', { depends_on: ['s-typo'] }),
-    ];
-
-    await assert.rejects(
-      () => decomposeEpic(1, mockProvider, { tickets }),
-      /unknown slugs/,
-    );
-  });
-
-  it('creates a depth-4 sibling-Story dep chain in topological order', async () => {
-    // 3-tier (Epic #3238): author a chain of sibling Stories in REVERSE dep
-    // order so the typeOrder-only sort would have created s-d before s-c
-    // before s-b before s-a, leaving every depends_on unresolvable.
-    // Topological sort within the story pass must re-order them to
-    // s-a, s-b, s-c, s-d before any provider.createTicket call fires.
-    const tickets = [
-      ...baseTickets().filter((t) => t.type === 'feature'),
-      makeStory('s-d', 'Story D', 'f1', { depends_on: ['s-c'] }),
-      makeStory('s-c', 'Story C', 'f1', { depends_on: ['s-b'] }),
-      makeStory('s-b', 'Story B', 'f1', { depends_on: ['s-a'] }),
-      makeStory('s-a', 'Story A', 'f1'),
-    ];
-
-    await decomposeEpic(1, mockProvider, { tickets });
-
-    const storyTitles = mockProvider.createdTickets
-      .filter((c) => c.ticketData.title.startsWith('Story '))
-      .map((c) => c.ticketData.title);
-    assert.deepEqual(storyTitles, ['Story A', 'Story B', 'Story C', 'Story D']);
-
-    const byTitle = new Map(
-      mockProvider.createdTickets.map((c) => [c.ticketData.title, c]),
-    );
-    assert.deepEqual(byTitle.get('Story A').ticketData.dependencies, []);
-    assert.deepEqual(byTitle.get('Story B').ticketData.dependencies, [
-      byTitle.get('Story A').newId,
-    ]);
-    assert.deepEqual(byTitle.get('Story C').ticketData.dependencies, [
-      byTitle.get('Story B').newId,
-    ]);
-    assert.deepEqual(byTitle.get('Story D').ticketData.dependencies, [
-      byTitle.get('Story C').newId,
-    ]);
-  });
-
-  it('staged concurrentMap preserves parent-before-child ordering under cap=3 (2F × 3S)', async () => {
-    // 3-tier (Epic #3238): author 2 Features, each with 3 Stories (8
-    // tickets). The mock provider holds each createTicket promise open for
-    // one microtask burst before resolving, so when concurrencyCap=3 a
-    // Story could in principle race its parent Feature. The two staged
-    // passes (features → stories) make that impossible: every parent's ID
-    // lands in slugMap before the child pass starts. The test asserts that
-    // invariant against `createdTickets` order regardless of within-pass
-    // scheduling.
-    const tickets = [];
-    for (const f of [1, 2]) {
-      tickets.push({
-        slug: `f${f}`,
-        type: 'feature',
-        title: `Feature ${f}`,
-        body: '',
-        labels: ['type::feature', 'persona::engineer'],
-      });
-      for (const s of [1, 2, 3]) {
-        tickets.push(makeStory(`f${f}-s${s}`, `Story ${f}.${s}`, `f${f}`));
-      }
-    }
-
-    // Provider that defers each createTicket through a few microtasks so
-    // siblings genuinely interleave under cap=3.
-    let nextId = 200;
-    mockProvider.createdTickets = [];
-    mockProvider.createTicket = async (parentId, ticketData) => {
-      const id = nextId++;
-      // Yield twice so other queued workers get a chance to run.
-      await Promise.resolve();
-      await Promise.resolve();
-      mockProvider.createdTickets.push({
-        epicId: parentId,
-        ticketData,
-        newId: id,
-      });
-      return { id, url: `https://github.com/test/${id}` };
-    };
-
-    await decomposeEpic(
-      1,
-      mockProvider,
-      { tickets },
-      {
-        orchestration: {
-          runners: { decomposer: { concurrencyCap: 3 } },
-        },
-      },
-    );
-
-    // 2F + (2×3)S = 2 + 6 = 8.
-    assert.equal(mockProvider.createdTickets.length, 8);
-
-    // Build a slug → creation index for every ticket. Then assert each
-    // child's parent appears earlier in the createdTickets array.
-    const titleToIndex = new Map(
-      mockProvider.createdTickets.map((c, i) => [c.ticketData.title, i]),
-    );
-    for (const t of tickets) {
-      if (!t.parent_slug) continue;
-      const parentTicket = tickets.find((x) => x.slug === t.parent_slug);
-      assert.ok(
-        titleToIndex.get(parentTicket.title) < titleToIndex.get(t.title),
-        `Parent "${parentTicket.title}" must be created before child "${t.title}"`,
-      );
-    }
-
-    // Stronger structural guarantee: every Feature must precede every
-    // Story. The staged passes make per-type creation contiguous in time.
-    const lastFeatureIdx = Math.max(
-      ...mockProvider.createdTickets
-        .map((c, i) => (c.ticketData.title.startsWith('Feature ') ? i : -1))
-        .filter((i) => i >= 0),
-    );
-    const firstStoryIdx = mockProvider.createdTickets.findIndex((c) =>
-      c.ticketData.title.startsWith('Story '),
-    );
-    assert.ok(
-      lastFeatureIdx < firstStoryIdx,
-      'all features precede all stories',
-    );
-  });
-
-  it('honours configured decomposer.concurrencyCap by limiting in-flight createTicket calls', async () => {
-    // Probe the cap directly: 1 Feature with 6 sibling Stories (3-tier —
-    // each Story carries its own inline acceptance + verify contract).
-    // Track concurrent createTicket invocations during the Story pass and
-    // assert the high-water mark equals the configured concurrencyCap.
-    const tickets = [
-      {
-        slug: 'f1',
-        type: 'feature',
-        title: 'Feature 1',
-        body: '',
-        labels: ['type::feature', 'persona::engineer'],
-      },
-    ];
-    for (let i = 1; i <= 6; i++) {
-      tickets.push(makeStory(`s${i}`, `Story ${i}`, 'f1'));
-    }
-
-    let inFlight = 0;
-    const peakByType = { feature: 0, story: 0 };
-    mockProvider.createTicket = async (parentId, ticketData) => {
-      inFlight++;
-      const labels = ticketData.labels || [];
-      const type = labels.find((l) => l.startsWith('type::'))?.slice(6);
-      if (type && inFlight > peakByType[type]) peakByType[type] = inFlight;
-      await new Promise((r) => setTimeout(r, 5));
-      inFlight--;
-      const id = 200 + mockProvider.createdTickets.length;
-      mockProvider.createdTickets.push({
-        epicId: parentId,
-        ticketData,
-        newId: id,
-      });
-      return { id, url: `https://github.com/test/${id}` };
-    };
-
-    await decomposeEpic(1, mockProvider, { tickets }, {});
-
-    // 1F + 6S = 7.
-    assert.equal(mockProvider.createdTickets.length, 7);
-    // Post-reshape (Epic #1720 Story #1739) the decomposer concurrency cap
-    // is hardcoded at 3 (DEFAULT_DECOMPOSER.concurrencyCap). The Story pass
-    // has 6 siblings under cap=3 — peak must hit 3.
-    assert.equal(
-      peakByType.story,
-      3,
-      `expected story-pass cap=3 but observed peak=${peakByType.story}`,
-    );
-  });
-
-  it('resume mode: skips create when title matches an existing OPEN child and reuses its id for dep wiring', async () => {
-    // 3-tier (Epic #3238): 1 Feature with 2 sibling Stories, the second
-    // depending on the first. Story Two's parent is the Feature; its dep is
-    // the sibling Story One.
-    const tickets = [
-      ...baseTickets(),
-      makeStory('s2', 'Story Two', 'f1', { depends_on: ['s1'] }),
-    ];
-
-    // Existing children: Feature One (#500) already landed; Story One was
-    // never created. Resume must skip the Feature and create only Story One
-    // + Story Two, wiring Story Two's dep to the id of the freshly-created
-    // Story One (NOT to the pre-existing Feature).
-    mockProvider.getSubTickets = async () => [
-      {
-        id: 500,
-        title: 'Feature One',
-        labels: ['type::feature', 'persona::engineer'],
-        state: 'open',
-      },
-    ];
-
-    await decomposeEpic(1, mockProvider, { tickets }, {}, { resume: true });
-
-    const titles = mockProvider.createdTickets.map((c) => c.ticketData.title);
-    assert.deepEqual(
-      titles,
-      ['Story One', 'Story One-B', 'Story Two'],
-      'only the missing stories should be created',
-    );
-    const s2 = mockProvider.createdTickets.find(
-      (c) => c.ticketData.title === 'Story Two',
-    );
-    const s1 = mockProvider.createdTickets.find(
-      (c) => c.ticketData.title === 'Story One',
-    );
-    assert.deepEqual(
-      s2.ticketData.dependencies,
-      [s1.newId],
-      'dep must point at the freshly-created Story One',
-    );
-    // Story Two's parentId must be the existing Feature #500.
-    assert.equal(s2.epicId, 500);
-  });
-
-  it('resume mode: errors when the Epic has no existing children', async () => {
-    mockProvider.getSubTickets = async () => [];
-    await assert.rejects(
       () =>
-        decomposeEpic(
-          1,
-          mockProvider,
-          { tickets: baseTickets() },
-          {},
-          { resume: true },
-        ),
-      /--resume requires existing child tickets/,
-    );
-  });
-
-  it('adaptive concurrency: drops cap to 1 after a secondary-rate-limit observation', async () => {
-    // 3-tier (Epic #3238): build 1F + 4 sibling Stories. The Feature pass
-    // triggers the secondary-RL hook; the Story pass that follows must run
-    // with cap=1 (peak in-flight = 1) regardless of the configured cap=4.
-    const tickets = [
-      {
-        slug: 'f1',
-        type: 'feature',
-        title: 'F1',
-        body: '',
-        labels: ['type::feature'],
-      },
-    ];
-    for (let i = 1; i <= 4; i++) {
-      tickets.push(makeStory(`s${i}`, `S${i}`, 'f1'));
-    }
-
-    let inFlight = 0;
-    const peakByType = { feature: 0, story: 0 };
-    let firedRL = false;
-    // Fake http client surface — just enough for the adaptive hook to bind.
-    mockProvider._http = { onTransientFailure: null };
-    mockProvider.getSubTickets = async () => [];
-    mockProvider.createTicket = async (parentId, ticketData) => {
-      inFlight++;
-      const labels = ticketData.labels || [];
-      const type = labels.find((l) => l.startsWith('type::'))?.slice(6);
-      if (type && inFlight > peakByType[type]) peakByType[type] = inFlight;
-      // Trigger the RL signal during the first Feature creation.
-      if (!firedRL && type === 'feature') {
-        firedRL = true;
-        mockProvider._http.onTransientFailure?.({
-          kind: 'secondary-rate-limit',
-          url: '/issues',
-          status: 403,
-        });
-      }
-      await new Promise((r) => setTimeout(r, 5));
-      inFlight--;
-      const id = 200 + mockProvider.createdTickets.length;
-      mockProvider.createdTickets.push({
-        epicId: parentId,
-        ticketData,
-        newId: id,
-      });
-      return { id, url: `https://github.com/test/${id}` };
-    };
-
-    await decomposeEpic(
-      1,
-      mockProvider,
-      { tickets },
-      { orchestration: { runners: { decomposer: { concurrencyCap: 4 } } } },
-    );
-
-    // 1F + 4S = 5.
-    assert.equal(mockProvider.createdTickets.length, 5);
-    assert.equal(
-      peakByType.story,
-      1,
-      `expected story-pass cap=1 after RL signal but observed peak=${peakByType.story}`,
+        runDecomposePhase(1, mockProvider, { tickets: 'not an array' }, {}, {}),
+      /tickets must be an array/,
     );
   });
 
   it('rejects when --force and --resume are passed together', async () => {
     await assert.rejects(
       () =>
-        decomposeEpic(
+        runDecomposePhase(
           1,
           mockProvider,
           { tickets: baseTickets() },
@@ -489,22 +188,48 @@ describe('ticket-decomposer orchestration (v5.6+)', () => {
       /mutually exclusive/,
     );
   });
+});
 
-  it('maps depends_on slugs to created issue IDs', async () => {
-    // 3-tier (Epic #3238): a second sibling Story depends on the first.
+describe('ticket-decomposer DAG wiring (orderTicketsForCreation + resolveDependencies)', () => {
+  // Story #3841 — the sibling-dependency wiring previously asserted through
+  // the now-deleted `decomposeEpic` direct-create flow is exercised here
+  // against the live DAG helpers the reconciler pipeline still uses:
+  // `orderTicketsForCreation` topologically sorts within each (parent, type)
+  // group, and `resolveDependencies` maps `depends_on` slugs to created ids
+  // via the slugMap that `runCreationPass` threads through each pass.
+
+  it('orders a depth-4 sibling-Story dep chain topologically before any create', () => {
+    // Author the chain in REVERSE dep order so a typeOrder-only sort would
+    // leave s-d before s-c before s-b before s-a (every depends_on
+    // unresolvable). The intra-group topological sort must re-order them to
+    // s-a, s-b, s-c, s-d.
     const tickets = [
-      ...baseTickets(),
-      makeStory('s2', 'Story Two', 'f1', { depends_on: ['s1'] }),
+      { slug: 'f1', type: 'feature', title: 'Feature One' },
+      makeStory('s-d', 'Story D', 'f1', { depends_on: ['s-c'] }),
+      makeStory('s-c', 'Story C', 'f1', { depends_on: ['s-b'] }),
+      makeStory('s-b', 'Story B', 'f1', { depends_on: ['s-a'] }),
+      makeStory('s-a', 'Story A', 'f1'),
     ];
 
-    await decomposeEpic(1, mockProvider, { tickets });
+    const orderedSlugs = orderTicketsForCreation(tickets).map((t) => t.slug);
+    assert.deepEqual(orderedSlugs, ['f1', 's-a', 's-b', 's-c', 's-d']);
+  });
 
-    const s2 = mockProvider.createdTickets.find(
-      (c) => c.ticketData.title === 'Story Two',
-    );
-    assert.ok(s2);
-    // f1 → id 200, s1 → id 201; Story Two's dep resolves to Story One's id.
-    assert.deepEqual(s2.ticketData.dependencies, [201]);
+  it('resolves a sibling Story depends_on to the dependency Story id via the slugMap', () => {
+    // Mirror the slugMap state after Feature One (200) and Story One (201)
+    // have been created in earlier passes; Story Two depends on Story One.
+    const slugMap = new Map([
+      ['f1', 200],
+      ['s1', 201],
+    ]);
+    const storyTwo = makeStory('s2', 'Story Two', 'f1', { depends_on: ['s1'] });
+    assert.deepEqual(resolveDependencies(storyTwo, slugMap), [201]);
+  });
+
+  it('resolves an empty dependency list when a Story has no depends_on', () => {
+    const slugMap = new Map([['f1', 200]]);
+    const storyOne = makeStory('s1', 'Story One', 'f1');
+    assert.deepEqual(resolveDependencies(storyOne, slugMap), []);
   });
 });
 
@@ -891,39 +616,18 @@ describe('ticket-decomposer buildDecompositionContext', () => {
       assert.deepEqual(ctx.prd.bodySummary.headings, ['Tiny']);
     });
 
-    it('full and summary modes resolve identically in tickets-mode pipeline (decompose accepts both)', async () => {
-      // Decomposition itself doesn't read the bodies — it only reads the
-      // ticket array. Asserting the same `decomposeEpic` output regardless of
-      // which planning-context mode produced the upstream JSON proves the
-      // budget is purely an emit-context concern and never leaks into ticket
-      // creation.
-      const provider1 = buildProvider();
-      const provider2 = buildProvider();
+    it('creation order is driven by the ticket array, not the planning-context mode', () => {
+      // Decomposition itself doesn't read the PRD/Tech-Spec bodies — it only
+      // reads the authored ticket array. The planning-context mode (full vs
+      // summary) is purely an emit-context concern and never leaks into the
+      // deterministic creation order, which is fixed by
+      // `orderTicketsForCreation` over the same array. Ordering the same
+      // array twice yields an identical sequence regardless of any upstream
+      // context-budget decision.
       const ticketArray = baseTickets();
-
-      // Decompose using two different upstream configs; outputs must match.
-      provider1.createdTickets = [];
-      provider1.updatedTickets = [];
-      provider1.createTicket = async (epicId, ticketData) => {
-        const newId = 200 + provider1.createdTickets.length;
-        provider1.createdTickets.push({ epicId, ticketData, newId });
-        return { id: newId, url: `https://github.com/test/${newId}` };
-      };
-      provider2.createdTickets = [];
-      provider2.updatedTickets = [];
-      provider2.createTicket = async (epicId, ticketData) => {
-        const newId = 200 + provider2.createdTickets.length;
-        provider2.createdTickets.push({ epicId, ticketData, newId });
-        return { id: newId, url: `https://github.com/test/${newId}` };
-      };
-
-      await decomposeEpic(1, provider1, { tickets: ticketArray });
-      await decomposeEpic(1, provider2, { tickets: ticketArray });
-
-      assert.deepEqual(
-        provider1.createdTickets.map((c) => c.ticketData.title),
-        provider2.createdTickets.map((c) => c.ticketData.title),
-      );
+      const orderA = orderTicketsForCreation(ticketArray).map((t) => t.title);
+      const orderB = orderTicketsForCreation(ticketArray).map((t) => t.title);
+      assert.deepEqual(orderA, orderB);
     });
   });
 });

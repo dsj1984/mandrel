@@ -16,7 +16,6 @@ import { describe, it } from 'node:test';
 import {
   buildDecomposerSystemPrompt,
   buildDecompositionContext,
-  decomposeEpic,
   ensurePlanningArtifacts,
   orderTicketsForCreation,
   resolveDependencies,
@@ -31,7 +30,6 @@ describe('epic-plan-decompose pipeline — named exports (Story #2466)', () => {
     // Removing any of these breaks downstream tests + the orchestrator.
     assert.equal(typeof buildDecomposerSystemPrompt, 'function');
     assert.equal(typeof buildDecompositionContext, 'function');
-    assert.equal(typeof decomposeEpic, 'function');
     assert.equal(typeof ensurePlanningArtifacts, 'function');
     assert.equal(typeof orderTicketsForCreation, 'function');
     assert.equal(typeof resolveDependencies, 'function');

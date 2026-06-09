@@ -730,10 +730,11 @@ condition.
   Tasks, a Task whose `parent_slug` does not point at a Story, or cross-Story
   Task dependencies (which must be lifted to Story-level dependencies).
 - If decomposition persisted the tickets but the Epic is not on `agent::ready`,
-  you likely imported `decomposeEpic` from `epic-plan-decompose.js` and
-  called it directly — only the CLI surface (`node epic-plan-decompose.js
-  --tickets ...`) flips the lifecycle label. Apply `agent::ready` by hand
-  and re-run via the CLI next time.
+  you likely called `runDecomposePhase` from `epic-plan-decompose.js`
+  directly without completing the persist flow — only the CLI surface
+  (`node epic-plan-decompose.js --tickets ...`) drives the full
+  reconciler pipeline and flips the lifecycle label. Apply `agent::ready`
+  by hand and re-run via the CLI next time.
 - **Secondary rate limit on large Epics**: For backlogs over ~60 tickets,
   GitHub's secondary rate limit (HTTP 403, body contains "secondary rate
   limit") can trip mid-decomposition after ~80 issue creations. The
