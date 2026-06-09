@@ -15,11 +15,6 @@ const SCRIPTS = [
   // conversion. The remaining launcher-shaped CLIs continue to enforce
   // the same orchestration schema contract.
   {
-    name: 'epic-plan',
-    relPath: '.agents/scripts/epic-plan.js',
-    args: ['--epic', '1', '--prd', 'x', '--techspec', 'y', '--tickets', 'z'],
-  },
-  {
     name: 'epic-plan-spec',
     relPath: '.agents/scripts/epic-plan-spec.js',
     args: ['--epic', '1', '--emit-context'],
