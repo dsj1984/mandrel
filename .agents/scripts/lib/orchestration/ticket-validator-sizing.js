@@ -67,6 +67,93 @@ export const DELIVERABLE_GRANULARITY_GUIDANCE = Object.freeze({
 });
 
 /**
+ * Configuration-constant phrase patterns the `unanchored-constant` heuristic
+ * scans Story acceptance criteria for. Each entry matches the *kind* of
+ * tunable an implementing agent would otherwise have to context-hop to the
+ * Tech Spec (or an ADR) to resolve: a retention window, a rate limit, a
+ * timeout, an age cutoff, a bounded window, a per-unit cap, or a quota.
+ *
+ * The list is the single source of truth for the heuristic and intentionally
+ * narrow — it targets the small set of config constants that recur across
+ * Stories and that an author can almost always inline as a concrete value at
+ * authoring time. Anchored with `\b` word boundaries so substrings inside
+ * unrelated prose ("maximum", "timeouts handled elsewhere") don't over-match.
+ *
+ * Covered phrases (acceptance criterion of Story #3855):
+ *   - `retention window`
+ *   - `rate limit` / `rate-limit`
+ *   - `timeout`
+ *   - `older than`
+ *   - `within N` (a bounded count/duration window)
+ *   - `max ... per ...` (a per-unit cap, e.g. "max requests per second")
+ *   - `quota`
+ */
+const UNANCHORED_CONSTANT_PATTERNS = Object.freeze([
+  /\bretention window\b/i,
+  /\brate[ -]limit\b/i,
+  /\btimeout\b/i,
+  /\bolder than\b/i,
+  /\bwithin\b/i,
+  /\bmax\b[^.]*\bper\b/i,
+  /\bquota\b/i,
+]);
+
+/**
+ * Matches a concrete numeric value anywhere in an acceptance criterion. A
+ * bare digit run is enough to count as "anchored": `"older than 90 days"`,
+ * `"5 req/s"`, `"within 30 minutes"`, and `"max 100 per hour"` all carry a
+ * digit, so they are not flagged. Spelled-out small numbers are intentionally
+ * NOT treated as anchors — the heuristic nudges authors toward an explicit
+ * numeral the implementing agent can copy verbatim.
+ */
+const CONCRETE_VALUE_RE = /\d/;
+
+/**
+ * Soft, advisory `unanchored-constant` finding (Story #3855). Surfaces a
+ * Story acceptance criterion that references a configuration constant
+ * (retention window, rate limit, timeout, threshold) without stating a
+ * concrete numeric value inline — so an implementing agent doesn't have to
+ * context-hop to the Tech Spec or guess. Advisory only: `normalizeTickets`
+ * still returns successfully and the finding rides the advisory nudges array
+ * alongside the sizing soft findings.
+ */
+function makeUnanchoredConstant(slug, criterion) {
+  return {
+    kind: 'unanchored-constant',
+    severity: 'soft',
+    ticketSlug: slug,
+    criterion,
+    message: `Acceptance criterion references a configuration constant without a concrete value: "${criterion}". Specify the value inline (e.g. "90 days", "5 req/s", "30 minutes") so the implementing agent doesn't have to read the Tech Spec or guess.`,
+  };
+}
+
+/**
+ * Scan a single Story's acceptance criteria for unanchored configuration
+ * constants. A criterion trips the finding when it matches one of
+ * `UNANCHORED_CONSTANT_PATTERNS` and carries NO concrete numeric value
+ * (`CONCRETE_VALUE_RE`) — the digit is the signal the author already inlined
+ * the value, so a criterion like `"older than 90 days"` is left alone while
+ * `"older than the retention window"` is flagged. One finding per offending
+ * criterion.
+ */
+function computeUnanchoredConstantFindings(story) {
+  const out = [];
+  const body = story.body && typeof story.body === 'object' ? story.body : null;
+  const acceptance = Array.isArray(body?.acceptance) ? body.acceptance : [];
+  for (const item of acceptance) {
+    const criterion = String(item ?? '');
+    if (CONCRETE_VALUE_RE.test(criterion)) continue;
+    const matches = UNANCHORED_CONSTANT_PATTERNS.some((re) =>
+      re.test(criterion),
+    );
+    if (matches) {
+      out.push(makeUnanchoredConstant(story.slug, criterion));
+    }
+  }
+  return out;
+}
+
+/**
  * Returns true when a `changes[]` entry is a glob pattern. Handles both the
  * canonical PathEntry object form `{ path, assumption }` and legacy strings.
  */
@@ -165,6 +252,11 @@ function computeStorySizingFindings(story, sizing) {
   const acceptance = Array.isArray(body?.acceptance) ? body.acceptance : [];
   const changes = Array.isArray(body?.changes) ? body.changes : [];
   const declaredWide = isDeclaredWide(body?.wide ?? null);
+
+  // Soft, advisory: flag acceptance criteria that reference a configuration
+  // constant without inlining a concrete value (Story #3855). Independent of
+  // the numeric sizing layers below — purely an authoring nudge.
+  out.push(...computeUnanchoredConstantFindings(story));
 
   // Acceptance ceiling + soft warn.
   if (acceptance.length > sizing.maxAcceptance) {
