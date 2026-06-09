@@ -10,8 +10,8 @@
  * to the caller.
  *
  * Consumers:
- *   - `.agents/scripts/hydrate-context.js`   — CLI wrapper (imports hydrateContext)
- *   - `.agents/scripts/context-hydrator.js`  — CLI wrapper (re-exports hydrate-context.js)
+ *   - `.agents/scripts/hydrate-context.js`   — the only supported CLI wrapper
+ *     (imports hydrateContext; `--emit prompt` writes the raw hydrated prompt)
  *
  * @see .agents/scripts/lib/ITicketingProvider.js
  */

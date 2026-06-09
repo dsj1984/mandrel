@@ -22,13 +22,6 @@
  *     CLI shell only argv-parses and calls a single provider method
  *     loop. Real coverage requires hitting a live GitHub repo, which
  *     belongs in integration tests, not the unit-test gate.
- *   - context-hydrator.js — thin CLI wrapper around
- *     `lib/orchestration/context-hydration-engine.js` and
- *     `hydrate-context.js`. The engine, hierarchy parser, and token
- *     budgeter are unit-tested under `tests/`; the CLI shell only
- *     parses argv and delegates. End-to-end hydration depends on a
- *     real provider tree and a Story prompt context that only an
- *     integration test can reasonably build.
  *   - epic-plan.js / epic-plan-decompose.js / epic-plan-spec.js /
  *     epic-plan-healthcheck.js — `/epic-plan` slash-command CLIs.
  *     Each exports a `runXPhase` that calls into a real GitHub
@@ -92,7 +85,6 @@ module.exports = {
   exclude: [
     // Pre-Story-#1702 baseline carve-outs.
     '.agents/scripts/agents-bootstrap-github.js',
-    '.agents/scripts/context-hydrator.js',
     '.agents/scripts/epic-plan-decompose.js',
     '.agents/scripts/epic-plan-healthcheck.js',
     '.agents/scripts/epic-plan-spec.js',

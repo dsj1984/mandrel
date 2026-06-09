@@ -115,7 +115,7 @@ The same files-out-of-scope list as before, declared in `.c8rc.cjs`:
   whose meaningful logic (label taxonomy + project field defs) lives
   in `lib/label-taxonomy.js` and is unit-tested there. The CLI shell
   itself is integration-only against a live GitHub repo.
-- `.agents/scripts/context-hydrator.js` — thin wrapper around the
+- `.agents/scripts/hydrate-context.js` — thin wrapper around the
   unit-tested hydration engine; end-to-end coverage requires a real
   provider tree and Story prompt context, which lives in integration
   tests.

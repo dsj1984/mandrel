@@ -55,10 +55,6 @@
       "mi": 99.892
     },
     {
-      "path": ".agents/scripts/context-hydrator.js",
-      "mi": 96.337
-    },
-    {
       "path": ".agents/scripts/coverage-capture.js",
       "mi": 89.533
     },
