@@ -6,7 +6,7 @@
  *   - `composition.js` — structured-comment body builders and the pure
  *     rendering helpers (the legacy ProgressReporter class used these).
  *   - `transport.js` — the curated webhook emit surface (epic-started,
- *     epic-progress, epic-blocked, epic-unblocked, epic-complete).
+ *     epic-progress, epic-blocked, epic-unblocked).
  *   - `signals.js` — pure parse/aggregate over `story-run-progress` and
  *     `phase-timings` structured comments + the shared state lookup
  *     tables (PHASE_TO_STATE, PHASE_ORDER, STATE_EMOJI).
@@ -41,7 +41,6 @@ import {
 import {
   EPIC_PROGRESS_EVENT as EPIC_PROGRESS_EVENT_FROM_TRANSPORT,
   emitEpicBlocked as emitEpicBlockedFromTransport,
-  emitEpicComplete as emitEpicCompleteFromTransport,
   emitEpicProgress as emitEpicProgressFromTransport,
   emitEpicStarted as emitEpicStartedFromTransport,
   emitEpicUnblocked as emitEpicUnblockedFromTransport,
@@ -58,7 +57,6 @@ export const emitEpicProgress = emitEpicProgressFromTransport;
 export const emitEpicStarted = emitEpicStartedFromTransport;
 export const emitEpicBlocked = emitEpicBlockedFromTransport;
 export const emitEpicUnblocked = emitEpicUnblockedFromTransport;
-export const emitEpicComplete = emitEpicCompleteFromTransport;
 export const parseStoryRunProgressComment =
   parseStoryRunProgressCommentFromSignals;
 export const parsePhaseTimingsComment = parsePhaseTimingsCommentFromSignals;

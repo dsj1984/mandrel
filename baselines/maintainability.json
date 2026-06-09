@@ -911,10 +911,6 @@
       "mi": 95.192
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-runner.js",
-      "mi": 107.269
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/epic-runner/blocker-wait.js",
       "mi": 105.75
     },
@@ -929,10 +925,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/deliver-phases.js",
       "mi": 118.393
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/hotspot-detection.js",
-      "mi": 91.294
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/phases/build-wave-dag.js",

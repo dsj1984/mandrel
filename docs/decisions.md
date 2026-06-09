@@ -3041,8 +3041,9 @@ audit conducted for Story #3706 tested that assumption against the actual
 call graph and found it does not hold:
 
 - The **three automatic callers** —
-  [`epic-runner.js`](../.agents/scripts/lib/orchestration/epic-runner.js)
-  Phase 7, [`story-close.js`](../.agents/scripts/story-close.js)
+  the in-process `epic-runner.js` Phase 7 (since retired in Epic #3823 —
+  the live `/epic-deliver` loop owns this via the `Cleaner` lifecycle
+  listener), [`story-close.js`](../.agents/scripts/story-close.js)
   (`drainPendingCleanupAfterClose`), and
   [`worktree-sweep.js`](../.agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js)
   (via `drainPendingCleanupAtBoot`) — all invoke
