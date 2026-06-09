@@ -17,16 +17,23 @@
  *     "renderedBody": <string|undefined>
  *   }
  *
- * In practice, sub-agents sometimes return plain prose mid-task (Domio Epic
- * #604, 2026-05-04: a child returned `"Clean. Now commit Task 622."` after
- * 32 tool calls of real work). Without validation, the wave dispatcher
- * used to silently propagate the fragment and report the wave `complete`.
+ * On the current model tier a sub-agent that does real work returns the
+ * envelope verbatim; a return that fails to parse is a rare protocol error,
+ * not a normal recovery path. Parsing is therefore strict — an already-parsed
+ * object or a return string that is pure JSON — with **no free-form
+ * extraction heuristics**: the prose-wrapped extraction candidates
+ * (fenced ```json``` blocks, balanced-`{...}`-substring scans, chat-prelude
+ * tolerance) were measured to never fire in practice (Story #3864:
+ * zero malformed terminal returns across the sampled delivered Epics) and
+ * were deleted in a hard cutover. A return that does not parse routes
+ * directly to GitHub-state reconciliation plus a friction record — the
+ * stronger backstop that already caught everything the heuristics caught.
  *
  * This module provides the two helpers `/epic-deliver`'s wave dispatcher
  * now uses:
  *
- *   - `parseStoryAgentReturn(raw)` — accept an already-parsed object, a JSON
- *     string, or a fenced ```json ...``` block. Returns
+ *   - `parseStoryAgentReturn(raw)` — accept an already-parsed object or a
+ *     return string that is pure JSON, then schema-validate it. Returns
  *     `{ ok: true, value }` on success, `{ ok: false, error }` otherwise.
  *
  *   - `reconcileStoryFromGitHub({ provider, storyId })` — reads the Story
@@ -37,29 +44,21 @@
  *     (in which case the operator may have manually closed the Story).
  */
 
-import {
-  parseFencedJson,
-  parseFencedJsonComment,
-} from '../structured-comment-parser.js';
+import { parseFencedJsonComment } from '../structured-comment-parser.js';
 import { findStructuredComment } from '../ticketing.js';
 import { STORY_RUN_PROGRESS_TYPE } from './story-run-progress-writer.js';
 
 const VALID_STATUS = new Set(['done', 'blocked', 'failed']);
 
 /**
- * Best-effort extraction of a JSON object from a free-form sub-agent
- * return. Accepts (in order):
- *   1. an object that already looks parsed,
- *   2. a string starting with `{` that JSON-parses cleanly,
- *   3. a string containing a fenced ```json ...``` block,
- *   4. a string containing the first balanced `{...}` substring that
- *      JSON-parses (covers cases where the sub-agent prepended chat
- *      narration to an otherwise-valid envelope).
+ * Strict parse of a per-Story sub-agent return. Accepts:
+ *   1. an object that already looks parsed, or
+ *   2. a return string that is pure JSON.
  *
- * The extraction is intentionally generous on the input side and strict on
- * the output side: callers always get a fully-validated object or `ok:
- * false`. Free-text sentences ("Clean. Now commit Task 622.") fall through
- * to `ok: false` and the caller MUST reconcile from GitHub.
+ * There is no free-form extraction: a string that is not pure JSON (prose,
+ * a fenced block, a chat-prelude + envelope) yields `ok: false` and the
+ * caller MUST reconcile from GitHub. Parsing is strict on both sides —
+ * callers always get a fully-validated object or `ok: false`.
  *
  * @param {unknown} raw
  * @returns {{ ok: true, value: object } | { ok: false, error: string }}
@@ -79,30 +78,22 @@ export function parseStoryAgentReturn(raw) {
     return { ok: false, error: 'empty return text' };
   }
 
-  const candidates = collectJsonCandidates(trimmed);
-  let firstValidationError = null;
-  let anyParsed = false;
-  for (const candidate of candidates) {
-    let parsed;
-    try {
-      parsed = JSON.parse(candidate);
-    } catch {
-      continue;
-    }
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      anyParsed = true;
-      const validated = validateStoryReturnShape(parsed);
-      if (validated.ok) return validated;
-      if (!firstValidationError) firstValidationError = validated.error;
-    }
+  let parsed;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return {
+      ok: false,
+      error: `return text is not a JSON envelope (${quote(trimmed)})`,
+    };
   }
-  if (anyParsed && firstValidationError) {
-    return { ok: false, error: firstValidationError };
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return {
+      ok: false,
+      error: `return text parsed to a non-object (${quote(trimmed)})`,
+    };
   }
-  return {
-    ok: false,
-    error: `no parseable JSON envelope found in return text (${quote(trimmed)})`,
-  };
+  return validateStoryReturnShape(parsed);
 }
 
 /**
@@ -140,41 +131,6 @@ function validateStoryReturnShape(obj) {
   if (typeof obj.renderedBody === 'string')
     value.renderedBody = obj.renderedBody;
   return { ok: true, value };
-}
-
-/**
- * Heuristic candidate extraction. Returns string candidates (in priority
- * order) that the parser will try to JSON.parse. Pure helper — exposed for
- * tests but intentionally not part of the public API.
- *
- * @param {string} text
- * @returns {string[]}
- */
-function collectJsonCandidates(text) {
-  const out = [];
-  if (text.startsWith('{')) out.push(text);
-
-  const fenced = parseFencedJson(text);
-  if (fenced !== null) out.push(JSON.stringify(fenced));
-
-  // First balanced `{...}` substring — naive but adequate for the chat
-  // narration + envelope case.
-  const start = text.indexOf('{');
-  if (start >= 0) {
-    let depth = 0;
-    for (let i = start; i < text.length; i += 1) {
-      const ch = text[i];
-      if (ch === '{') depth += 1;
-      else if (ch === '}') {
-        depth -= 1;
-        if (depth === 0) {
-          out.push(text.slice(start, i + 1));
-          break;
-        }
-      }
-    }
-  }
-  return out;
 }
 
 function quote(text) {
