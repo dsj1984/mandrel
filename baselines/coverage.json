@@ -5,8 +5,8 @@
   "rollup": {
     "*": {
       "lines": 95.09,
-      "branches": 84.14,
-      "functions": 89.21
+      "branches": 84.18,
+      "functions": 89.19
     }
   },
   "rows": [
@@ -848,12 +848,6 @@
       "path": ".agents/scripts/lib/env-loader.js",
       "lines": 100,
       "branches": 93.75,
-      "functions": 100
-    },
-    {
-      "path": ".agents/scripts/lib/epic-close-tail-helpers.js",
-      "lines": 97.28,
-      "branches": 65.96,
       "functions": 100
     },
     {

@@ -5,7 +5,7 @@
   "rollup": {
     "*": {
       "min": 70.566,
-      "p50": 104.319,
+      "p50": 104.328,
       "p95": 122.198
     }
   },
@@ -81,10 +81,6 @@
     {
       "path": ".agents/scripts/epic-audit-prepare.js",
       "mi": 82.519
-    },
-    {
-      "path": ".agents/scripts/epic-close.js",
-      "mi": 95.131
     },
     {
       "path": ".agents/scripts/epic-deliver-note-intervention.js",
@@ -585,10 +581,6 @@
     {
       "path": ".agents/scripts/lib/env-loader.js",
       "mi": 100.328
-    },
-    {
-      "path": ".agents/scripts/lib/epic-close-tail-helpers.js",
-      "mi": 80.256
     },
     {
       "path": ".agents/scripts/lib/epic-merge-lock.js",
@@ -2707,14 +2699,6 @@
       "mi": 108.103
     },
     {
-      "path": "tests/epic-close-preflight.test.js",
-      "mi": 105.181
-    },
-    {
-      "path": "tests/epic-close-tail-perf-report.test.js",
-      "mi": 107.583
-    },
-    {
       "path": "tests/epic-deliver-preflight-cache.test.js",
       "mi": 98.449
     },
@@ -4445,10 +4429,6 @@
     {
       "path": "tests/scripts/dispatcher-fromspec.test.js",
       "mi": 100.134
-    },
-    {
-      "path": "tests/scripts/epic-close-planning-artifacts.test.js",
-      "mi": 103.914
     },
     {
       "path": "tests/scripts/epic-deliver-note-intervention.test.js",

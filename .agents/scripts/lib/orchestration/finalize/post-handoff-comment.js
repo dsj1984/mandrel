@@ -333,8 +333,8 @@ export function renderHandoffBody({
 }
 
 /**
- * Default loader: read the canonical `epic-perf-report.json` written by
- * the close-tail (`emitEpicPerfReport`) from disk and shape it into the
+ * Default loader: read the canonical `epic-perf-report.json` snapshot
+ * from disk (when present) and shape it into the
  * `{ relativePath, waveParallelism }` envelope `renderPerfReportSection`
  * expects. Returns `null` on any failure (missing file, malformed JSON,
  * unreadable directory) so the handoff comment degrades gracefully to
