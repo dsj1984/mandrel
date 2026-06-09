@@ -23,7 +23,6 @@
  *           ├─ manifest.md       (story dispatch manifest)
  *           ├─ signals.ndjson    (append-only signals writer)
  *           ├─ perf-summary.md
- *           ├─ story-init.state.json   (dispatch-state writer)
  *           └─ <name>            (storyArtifactPath escape hatch)
  *
  * Standalone Stories (no parent Epic) follow the same shape under

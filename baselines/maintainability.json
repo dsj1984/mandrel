@@ -6,7 +6,7 @@
     "*": {
       "min": 70.566,
       "p50": 104.319,
-      "p95": 121.964
+      "p95": 122.198
     }
   },
   "rows": [
@@ -101,10 +101,6 @@
     {
       "path": ".agents/scripts/epic-deliver-prepare.js",
       "mi": 81.196
-    },
-    {
-      "path": ".agents/scripts/epic-deliver-reconcile.js",
-      "mi": 96.27
     },
     {
       "path": ".agents/scripts/epic-execute-record-wave.js",
@@ -853,10 +849,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/epic-deliver-lease-guard.js",
       "mi": 101.917
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-deliver-reconcile.js",
-      "mi": 92.503
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/cli.js",
@@ -1633,10 +1625,6 @@
     {
       "path": ".agents/scripts/lib/story-init/blocker-validator.js",
       "mi": 112.285
-    },
-    {
-      "path": ".agents/scripts/lib/story-init/dispatch-state-writer.js",
-      "mi": 99.256
     },
     {
       "path": ".agents/scripts/lib/story-init/donor-precheck.js",
@@ -4035,10 +4023,6 @@
       "mi": 101.145
     },
     {
-      "path": "tests/lib/story-init/dispatch-state-writer.test.js",
-      "mi": 109.175
-    },
-    {
       "path": "tests/lib/story-init/donor-precheck.test.js",
       "mi": 106.622
     },
@@ -4493,14 +4477,6 @@
     {
       "path": "tests/scripts/epic-deliver-note-intervention.test.js",
       "mi": 111.067
-    },
-    {
-      "path": "tests/scripts/epic-deliver-reconcile.dead-classification.test.js",
-      "mi": 106.679
-    },
-    {
-      "path": "tests/scripts/epic-deliver-reconcile.test.js",
-      "mi": 106.189
     },
     {
       "path": "tests/scripts/epic-plan-decompose-pipeline.test.js",

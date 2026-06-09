@@ -808,10 +808,6 @@
       "symbol": "bootstrapBranch"
     },
     {
-      "file": ".agents/scripts/lib/story-init/dispatch-state-writer.js",
-      "symbol": "DISPATCH_STATE_FILENAME"
-    },
-    {
       "file": ".agents/scripts/lib/story-plan/trigger.js",
       "symbol": "ALWAYS_EMIT_SIZING_PROFILE"
     },
