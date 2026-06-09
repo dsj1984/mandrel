@@ -1903,10 +1903,6 @@
       "mi": 95.317
     },
     {
-      "path": ".agents/scripts/reconcile-sub-issues.js",
-      "mi": 98.904
-    },
-    {
       "path": ".agents/scripts/run-audit-suite.js",
       "mi": 107.591
     },
@@ -2621,10 +2617,6 @@
     {
       "path": "tests/contract/quality-report-contract.test.js",
       "mi": 112.059
-    },
-    {
-      "path": "tests/contract/reconcile-sub-issues.test.js",
-      "mi": 116.972
     },
     {
       "path": "tests/contract/retro-routed-sections.test.js",
