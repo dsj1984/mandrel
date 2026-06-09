@@ -86,7 +86,7 @@ describe('providers/github/mappers.js — REST payload shapes', () => {
       id: 9999,
       node_id: 'EPIC_NODE',
       title: 'Epic title',
-      body: 'PRD: #200\nTech Spec: #201',
+      body: '## Planning Artifacts\n- [ ] PRD: #200\n- [ ] Tech Spec: #201\n',
       labels: [{ name: 'type::epic' }],
     });
     assert.strictEqual(epic.id, 100);

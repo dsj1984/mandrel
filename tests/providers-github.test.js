@@ -265,7 +265,7 @@ describe('GitHubProvider — getEpic()', () => {
         json: {
           number: 10,
           title: 'Epic: Build v5',
-          body: 'Goal description\n\nPRD: #11\nTech Spec: #12',
+          body: 'Goal description\n\n## Planning Artifacts\n- [ ] PRD: #11\n- [ ] Tech Spec: #12\n',
           labels: [{ name: 'type::epic' }],
         },
       },
