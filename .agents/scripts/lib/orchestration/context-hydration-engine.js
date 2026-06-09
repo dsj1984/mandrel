@@ -79,25 +79,27 @@ export function __resetContextCache() {
 }
 
 /**
- * Resolve activated skills to capsule payloads via `skills.index.json`.
+ * Resolve activated skills to Policy Capsule payloads via `skills.index.json`.
  *
- * @param {object} task - Normalized task (skills[], labels[]).
+ * Capsule-only is the contract (Story #3863, hard cutover): only the Policy
+ * Capsule is hydrated. The full `SKILL.md` body is never inlined into a task
+ * prompt — the sub-agent reads it on demand via the rendered pointer path.
+ *
+ * @param {object} task - Normalized task (skills[]).
  * @param {object} skillsIndex - Parsed `skills.index.json` body.
- * @param {{ fullSkillBodies?: boolean }} [options]
- * @returns {Array<{ skill: string, capsule: string, source: string }>}
+ * @returns {Array<{ skill: string, capsule: string, source: string, path: string }>}
  */
-export function buildSkillCapsuleSections(task, skillsIndex, options = {}) {
-  const fullBodyOptIn =
-    Boolean(options.fullSkillBodies) ||
-    (task.labels ?? []).includes('skill::full');
+export function buildSkillCapsuleSections(task, skillsIndex) {
   const entries = [];
 
   for (const skill of task.skills ?? []) {
     try {
-      const { capsule, source } = loadSkillCapsule(skill, skillsIndex, {
-        fullBodyOptIn,
-      });
-      entries.push({ skill, capsule, source });
+      const {
+        capsule,
+        source,
+        path: skillPath,
+      } = loadSkillCapsule(skill, skillsIndex);
+      entries.push({ skill, capsule, source, path: skillPath });
     } catch (err) {
       Logger.warn(`[Hydrator] Failed to load skill ${skill}: ${err.message}`);
     }
@@ -107,17 +109,21 @@ export function buildSkillCapsuleSections(task, skillsIndex, options = {}) {
 }
 
 /**
- * Render skill capsule entries for the legacy prose prompt and envelope
- * `skillCapsules` section (source is recorded per skill for auditors).
+ * Render skill capsule entries for the prose prompt and envelope
+ * `skillCapsules` section. Each entry carries its capsule plus a pointer
+ * instruction so the sub-agent knows to `Read` the full `SKILL.md` when the
+ * task needs the playbook beyond the capsule's non-negotiables. The source is
+ * recorded per skill for auditors.
  *
- * @param {Array<{ skill: string, capsule: string, source: string }>} entries
+ * @param {Array<{ skill: string, capsule: string, source: string, path: string }>} entries
  * @returns {string}
  */
 export function formatSkillCapsulesSection(entries) {
   if (!entries.length) return '';
   let out = '## Activated Skills\n\n';
-  for (const { skill, capsule, source } of entries) {
+  for (const { skill, capsule, source, path: skillPath } of entries) {
     out += `### Skill: ${skill} (source: ${source})\n${capsule}\n\n`;
+    out += `Read the full playbook on demand: \`Read ${skillPath}\`.\n\n`;
   }
   return out.trimEnd();
 }
@@ -453,12 +459,7 @@ function buildStaticSections(
   if (task.skills?.length > 0) {
     try {
       const skillsIndex = loadSkillsIndex();
-      const fullSkillBodies = Boolean(
-        agentSettings?.hydration?.fullSkillBodies,
-      );
-      const entries = buildSkillCapsuleSections(task, skillsIndex, {
-        fullSkillBodies,
-      });
+      const entries = buildSkillCapsuleSections(task, skillsIndex);
       const skillsContext = formatSkillCapsulesSection(entries);
       if (skillsContext) {
         sections.push({

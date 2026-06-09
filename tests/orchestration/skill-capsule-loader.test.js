@@ -61,13 +61,9 @@ describe('loadSkillCapsule', () => {
   it('returns the Policy Capsule span through the next ## heading', () => {
     const root = stageFixtureRoot();
     tempRoots.push(root);
+    const rel = '.agents/skills/core/well-formed-skill/SKILL.md';
     const skillsIndex = {
-      skills: [
-        {
-          name: 'well-formed-skill',
-          path: '.agents/skills/core/well-formed-skill/SKILL.md',
-        },
-      ],
+      skills: [{ name: 'well-formed-skill', path: rel }],
     };
 
     const result = loadSkillCapsule('well-formed-skill', skillsIndex, {
@@ -75,6 +71,11 @@ describe('loadSkillCapsule', () => {
     });
 
     assert.equal(result.source, 'capsule');
+    assert.equal(
+      result.path,
+      rel,
+      'returns the skill path for the Read pointer',
+    );
     assert.ok(
       result.capsule.startsWith('## Policy Capsule'),
       'capsule must include the Policy Capsule heading',
@@ -109,20 +110,11 @@ describe('loadSkillCapsule', () => {
     assert.match(warnings[0], /capsule marker missing: no-capsule-skill/);
   });
 
-  it('returns the full SKILL.md when fullBodyOptIn is true', () => {
-    const root = stageFixtureRoot();
-    tempRoots.push(root);
-    const rel = '.agents/skills/core/well-formed-skill/SKILL.md';
-    const abs = path.join(root, rel);
-    const fullBody = fs.readFileSync(abs, 'utf8');
-    const skillsIndex = { skills: [{ name: 'well-formed-skill', path: rel }] };
-
-    const result = loadSkillCapsule('well-formed-skill', skillsIndex, {
-      repoRoot: root,
-      fullBodyOptIn: true,
-    });
-
-    assert.equal(result.source, 'full-body-optin');
-    assert.equal(result.capsule, fullBody);
+  it('throws when the skill is absent from the manifest', () => {
+    const skillsIndex = { skills: [] };
+    assert.throws(
+      () => loadSkillCapsule('missing-skill', skillsIndex),
+      /not found in skills index/,
+    );
   });
 });
