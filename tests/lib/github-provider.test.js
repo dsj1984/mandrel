@@ -82,7 +82,7 @@ test('GitHubProvider: getEpic parses PRD/TechSpec links', async () => {
         id: 111,
         node_id: 'node_1',
         title: 'Epic Title',
-        body: 'PRD: #2\nTech Spec: #3',
+        body: '## Planning Artifacts\n- [ ] PRD: #2\n- [ ] Tech Spec: #3\n',
         labels: [{ name: 'type::epic' }],
       },
     },
