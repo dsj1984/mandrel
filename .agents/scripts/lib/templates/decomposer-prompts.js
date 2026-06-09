@@ -70,6 +70,12 @@ You MUST respond ONLY with a valid JSON array of objects. No prose, no markdown 
 ### FEATURE BODY:
 For Features, \`body\` is a brief string under 2 sentences. Features are navigational — the work happens at the Story level — so dense bodies waste output budget.
 
+#### FEATURE GROUPING — CAPABILITY/STAKEHOLDER, NOT EXECUTION SHAPE:
+
+- **Do not group Stories by technical execution shape (cron jobs, middleware, scripts). Group by the capability or stakeholder they serve.** Two Stories that happen to share a delivery mechanism — both are cron sweeps, both are Express middleware, both are CLI scripts — do NOT belong in the same Feature just because of that shared shape. The Feature axis is the user-facing capability or the stakeholder served, never the implementation vehicle.
+- **Operational/compliance work gets its own Feature.** Retention purges, audit-log sweeps, scheduled cleanups, observability emitters, and other operational/compliance chores serve operators and compliance, not end users. Place them in a dedicated \`compliance-and-observability\` or \`data-retention\` Feature — do NOT fold them into a user-facing Feature (e.g. notification flows) merely because they share a cron/scheduled execution shape with user-facing Stories.
+- **Smell test:** if the only thing two Stories have in common is *how* they run (a scheduled job, a request interceptor, a build step) rather than *whom* they serve or *what* capability they deliver, they are mis-grouped. Re-home the operational/compliance Story into its own capability Feature.
+
 ### STORY BODY SCHEMA (REQUIRED FOR EVERY STORY):
 For stories, \`body\` is a STRUCTURED OBJECT, not a string. Stories are consumed by non-interactive sub-agents that must self-verify from the Story body alone — there is no Task layer below — so the Story itself must carry everything an agent needs to execute and self-verify.
 
