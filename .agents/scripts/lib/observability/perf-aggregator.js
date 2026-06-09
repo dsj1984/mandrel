@@ -573,13 +573,20 @@ function fillMissingWaveEnds(orderedWaves, timedEvents) {
  *
  * Field contract (per the extended `epic-perf-report.schema.json`):
  *   - `waveIndex`: integer ≥ 0, from `wave-start.index`
+ *   - `storyCount`: integer ≥ 0, number of Stories in the wave (from
+ *     `wave-start.stories`). Added under Story #3850.
  *   - `wallClockMs`: integer ≥ 0, `(waveEnd - waveStart)` in ms
  *   - `summedStoryMs`: integer ≥ 0, Σ per-Story `(end - start)`
- *   - `utilisation`: `summedStoryMs / (wallClockMs * concurrencyCap)`,
- *     clamped to `[0, 1]`. Zero when `wallClockMs === 0` or cap is 0.
+ *   - `utilisation`: `summedStoryMs / (wallClockMs * effectiveCap)`,
+ *     where `effectiveCap = min(storyCount, concurrencyCap)`, clamped
+ *     to `[0, 1]`. Zero when `wallClockMs === 0` or effectiveCap is 0.
+ *     Using the effective (not raw) cap means a fully-busy 1-Story wave
+ *     scores 1.0 rather than `1/cap`, eliminating false-positive
+ *     `low-utilisation` signals on serialized/narrow waves (Story #3850).
  *   - `capBinding`: true when `summedStoryMs / wallClockMs >=
  *     concurrencyCap`, false otherwise (and false when wallClockMs
- *     is 0).
+ *     is 0). Still uses the raw cap so the signal fires when the
+ *     configured parallelism ceiling is actually saturated.
  *   - `verifyConcurrencyCap`: forwarded from `opts.verifyConcurrencyCap`
  *     (or the project default 4) so the post-merge close comment can
  *     attribute saturation back to the cap value in force at the time.
@@ -591,6 +598,7 @@ function fillMissingWaveEnds(orderedWaves, timedEvents) {
  * }} [opts]
  * @returns {Array<{
  *   waveIndex: number,
+ *   storyCount: number,
  *   wallClockMs: number,
  *   summedStoryMs: number,
  *   utilisation: number,
@@ -633,6 +641,7 @@ export function computeWaveParallelismRows(events, opts = {}) {
       0,
       Math.floor((rec.endMs ?? rec.startMs) - rec.startMs),
     );
+    const storyCount = rec.stories.length;
     let summedStoryMs = 0;
     for (const sid of rec.stories) {
       const w = storyWindows.get(sid);
@@ -640,14 +649,24 @@ export function computeWaveParallelismRows(events, opts = {}) {
       const dur = w.endMs - w.startMs;
       if (Number.isFinite(dur) && dur > 0) summedStoryMs += Math.floor(dur);
     }
+    // Use the effective cap — min(storyCount, concurrencyCap) — as the
+    // utilisation denominator so a fully-busy 1-Story wave scores 1.0
+    // instead of 1/cap. This eliminates false-positive `low-utilisation`
+    // signals on serialized / narrow-wave Epics (Story #3850).
+    // capBinding still uses the raw concurrencyCap because it signals that
+    // the configured parallelism ceiling is genuinely saturated.
+    const effectiveCap = Math.min(storyCount, concurrencyCap);
     let utilisation = 0;
     let capBinding = false;
+    if (wallClockMs > 0 && effectiveCap > 0) {
+      utilisation = clamp(summedStoryMs / (wallClockMs * effectiveCap), 0, 1);
+    }
     if (wallClockMs > 0 && concurrencyCap > 0) {
-      utilisation = clamp(summedStoryMs / (wallClockMs * concurrencyCap), 0, 1);
       capBinding = summedStoryMs / wallClockMs >= concurrencyCap;
     }
     rows.push({
       waveIndex: idx,
+      storyCount,
       wallClockMs,
       summedStoryMs,
       utilisation,
@@ -677,8 +696,9 @@ function clamp(n, lo, hi) {
 
 /**
  * Coerce a single waveParallelism input row into the schema-canonical
- * shape `{ waveIndex, wallClockMs, summedStoryMs, utilisation,
- * capBinding, verifyConcurrencyCap }` (Story #3025).
+ * shape `{ waveIndex, storyCount, wallClockMs, summedStoryMs, utilisation,
+ * capBinding, verifyConcurrencyCap }` (Story #3025; storyCount added
+ * Story #3850).
  *
  * - Numeric fields are floored to non-negative integers (or clamped
  *   numbers for utilisation) so the JSON-schema `integer` / `minimum: 0`
@@ -689,11 +709,13 @@ function clamp(n, lo, hi) {
  * - `verifyConcurrencyCap` falls back to the project default (4) when the
  *   caller omits it or supplies a non-positive integer; the schema
  *   requires `minimum: 1` so 0 is not a valid carrier value.
+ * - `storyCount` falls back to 0 when absent (older payloads predating
+ *   Story #3850 do not carry the field).
  *
  * Exported for unit-testing the coercer in isolation.
  *
  * @param {object | null | undefined} row
- * @returns {{ waveIndex: number, wallClockMs: number, summedStoryMs: number, utilisation: number, capBinding: boolean, verifyConcurrencyCap: number }}
+ * @returns {{ waveIndex: number, storyCount: number, wallClockMs: number, summedStoryMs: number, utilisation: number, capBinding: boolean, verifyConcurrencyCap: number }}
  */
 export function coerceWaveParallelismRow(row) {
   const src = isObject(row) ? row : {};
@@ -702,6 +724,7 @@ export function coerceWaveParallelismRow(row) {
     Number.isInteger(cap) && cap >= 1 ? cap : DEFAULT_VERIFY_CONCURRENCY_CAP;
   return {
     waveIndex: nonNegativeInt(src.waveIndex),
+    storyCount: nonNegativeInt(src.storyCount),
     wallClockMs: nonNegativeInt(src.wallClockMs),
     summedStoryMs: nonNegativeInt(src.summedStoryMs),
     utilisation: clamp(nonNegativeNumber(src.utilisation), 0, 1),
