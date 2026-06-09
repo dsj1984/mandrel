@@ -14,17 +14,17 @@
  * `child_process.spawn`.
  */
 
-import { spawn as defaultSpawn } from 'node:child_process';
-
 import { META_LABELS } from '../label-constants.js';
+import { runChild } from './graduator-core.js';
 
 const DEFAULT_LIMIT = 50;
 
 /**
  * Spawn the given gh CLI with the supplied args and resolve to
- * `{ code, stdout, stderr, spawnError }`. Mirrors the narrow surface of
- * `gh-exec.js#exec` but stays in-module to keep the dependency graph thin —
- * the fetcher only needs JSON-mode reads and structured error capture.
+ * `{ code, stdout, stderr, spawnError }`. Delegates to the shared
+ * `runChild` helper in `graduator-core.js` (Story #3845 folded the three
+ * feedback-loop spawn copies into one) — the fetcher only needs JSON-mode
+ * reads and structured error capture, which `runChild` provides.
  *
  * Never throws: spawn-time errors are captured as `spawnError` so the caller
  * can classify and surface them through the `errors[]` envelope.
@@ -35,33 +35,8 @@ const DEFAULT_LIMIT = 50;
  * @param {Function} [opts.spawnImpl] — test seam; defaults to node:child_process spawn
  * @returns {Promise<{ code: number|null, stdout: string, stderr: string, spawnError: Error|null }>}
  */
-function runGh({ ghPath, args, spawnImpl = defaultSpawn }) {
-  return new Promise((resolve) => {
-    let child;
-    try {
-      child = spawnImpl(ghPath, args, { stdio: ['ignore', 'pipe', 'pipe'] });
-    } catch (err) {
-      resolve({ code: null, stdout: '', stderr: '', spawnError: err });
-      return;
-    }
-
-    let stdout = '';
-    let stderr = '';
-    let spawnError = null;
-
-    child.stdout?.on('data', (chunk) => {
-      stdout += chunk.toString();
-    });
-    child.stderr?.on('data', (chunk) => {
-      stderr += chunk.toString();
-    });
-    child.on('error', (err) => {
-      spawnError = err;
-    });
-    child.on('close', (code) => {
-      resolve({ code, stdout, stderr, spawnError });
-    });
-  });
+function runGh({ ghPath, args, spawnImpl }) {
+  return runChild({ cmd: ghPath, args, spawnImpl });
 }
 
 /**
