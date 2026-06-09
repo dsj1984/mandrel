@@ -46,6 +46,7 @@ const DEFAULT_POLICY = Object.freeze({
   failOnSharedEditors: false,
   requireExplicitCrossStoryDeps: false,
   failOnRegistryConflicts: false,
+  failOnMissingBddScaffold: false,
   largeFanOutThreshold: 10,
   registries: null, // null = use DEFAULT_REGISTRY_PATTERNS
   fanOutCounter: null, // null = no fan-out probe (skip)
@@ -321,6 +322,94 @@ function indexAssumptionEntries(stories) {
 }
 
 /**
+ * Compute `missing-bdd-scaffold` findings (Story #3857).
+ *
+ * The features-first delivery model requires every `.feature` file a Story
+ * verifies against to already exist when that Story runs. When a Story's
+ * `verify[]` references a `.feature` path that another Story declares with
+ * `assumption: "creates"`, the consumer is correct only if the producer
+ * lands in an *earlier* wave — otherwise the consumer's `verify[]` runs
+ * against a file that does not yet exist and verification fails mid-delivery.
+ *
+ * A finding fires for each consumer/producer pair where:
+ *   - the path ends in `.feature`,
+ *   - a *different* Story declares that path as `assumption: "creates"`, and
+ *   - the consumer Story does not transitively `depends_on` the producer
+ *     (i.e. they share a wave, or the producer runs later).
+ *
+ * The finding is advisory (`'soft'`) — it is a nudge to add a `depends_on`
+ * link to the wave-0 scaffold Story (or to the producing Story), not a hard
+ * block. The remediation is the same shape as `implicit-cross-story-dep`:
+ * order the consumer after the producer so the scaffold lands first.
+ *
+ * @param {object[]} stories
+ * @param {Map<string, Set<string>>} reach  Transitive predecessor sets.
+ * @param {'soft'|'hard'} severity
+ * @returns {object[]} `missing-bdd-scaffold` findings.
+ */
+function computeMissingBddScaffoldFindings(stories, reach, severity) {
+  // Index every `.feature` path declared `creates` to its producing Story.
+  // A path may be created by more than one Story (unusual); pin the first in
+  // declaration order, mirroring the implicit-dep finding's single-producer
+  // shape.
+  const featureCreators = new Map(); // path -> storySlug (first creator)
+  for (const story of stories) {
+    const body = story?.body;
+    if (!body || typeof body !== 'object') continue;
+    const changes = Array.isArray(body.changes) ? body.changes : [];
+    for (const change of changes) {
+      if (
+        change === null ||
+        typeof change !== 'object' ||
+        change.assumption !== 'creates' ||
+        typeof change.path !== 'string' ||
+        !change.path.endsWith('.feature')
+      )
+        continue;
+      if (!featureCreators.has(change.path)) {
+        featureCreators.set(change.path, storySlugOf(story));
+      }
+    }
+  }
+  if (featureCreators.size === 0) return [];
+
+  const creatorPaths = Array.from(featureCreators.keys()).sort(
+    (a, b) => b.length - a.length,
+  );
+  const findings = [];
+  const seen = new Set(); // dedupe `${consumerSlug}::${path}` pairs
+  for (const story of stories) {
+    const body = story?.body;
+    if (!body || typeof body !== 'object') continue;
+    const verifyItems = Array.isArray(body.verify) ? body.verify : [];
+    if (verifyItems.length === 0) continue;
+    const joined = verifyItems.map((it) => String(it ?? '')).join('\n');
+    const consumerSlug = storySlugOf(story);
+    for (const path of creatorPaths) {
+      if (!joined.includes(path)) continue;
+      const producerSlug = featureCreators.get(path);
+      // A Story that creates the file it verifies is fine — no cross-Story gap.
+      if (producerSlug === consumerSlug) continue;
+      // Producer already runs in an earlier wave → consumer is correctly
+      // ordered, scaffold lands first, no finding.
+      const reachable = reach.get(consumerSlug) ?? new Set();
+      if (reachable.has(producerSlug)) continue;
+      const key = `${consumerSlug}::${path}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      findings.push({
+        kind: 'missing-bdd-scaffold',
+        severity,
+        path,
+        producer: { storySlug: producerSlug },
+        consumer: { storySlug: consumerSlug, sourceField: 'verify' },
+      });
+    }
+  }
+  return findings;
+}
+
+/**
  * Compute `cross-cutting-registries` findings (Story #2962).
  *
  * A registry/barrel file (e.g. `lib/orchestration/lifecycle/listeners/index.js`)
@@ -532,6 +621,7 @@ function computeFanOutFindings({
  * @param {boolean}   [input.policy.failOnSharedEditors=false]
  * @param {boolean}   [input.policy.requireExplicitCrossStoryDeps=false]
  * @param {boolean}   [input.policy.failOnRegistryConflicts=false]
+ * @param {boolean}   [input.policy.failOnMissingBddScaffold=false]
  * @param {boolean}   [input.policy.failOnLargeFanOut=false]
  * @param {number}    [input.policy.largeFanOutThreshold=10]
  * @param {string[]}  [input.policy.registries]  Registry patterns (defaults to DEFAULT_REGISTRY_PATTERNS).
@@ -551,6 +641,7 @@ export function computeConflictFindings({ stories, policy } = {}) {
     : 'soft';
   const registrySeverity = merged.failOnRegistryConflicts ? 'hard' : 'soft';
   const fanOutSeverity = merged.failOnLargeFanOut ? 'hard' : 'soft';
+  const bddScaffoldSeverity = merged.failOnMissingBddScaffold ? 'hard' : 'soft';
   const patterns =
     Array.isArray(merged.registries) && merged.registries.length > 0
       ? merged.registries
@@ -577,6 +668,7 @@ export function computeConflictFindings({ stories, policy } = {}) {
       counter: merged.fanOutCounter,
       severity: fanOutSeverity,
     }),
+    ...computeMissingBddScaffoldFindings(storyList, reach, bddScaffoldSeverity),
   ];
 }
 
@@ -600,6 +692,9 @@ export function renderHardConflictError(finding) {
   if (finding.kind === 'fan-out-warning') {
     return `Large fan-out: Task "${finding.taskSlug}" in Story "${finding.storySlug}" deletes "${finding.path}" with ${finding.callSiteCount} call site(s) on the base branch (threshold ${finding.threshold}). Split into a subsystem-by-subsystem migration across multiple Stories, or rerun --allow-large-fan-out after confirming the deletion is intentional.`;
   }
+  if (finding.kind === 'missing-bdd-scaffold') {
+    return `Missing BDD scaffold: Story "${finding.consumer.storySlug}" verifies against "${finding.path}" (created by Story "${finding.producer.storySlug}") via body.${finding.consumer.sourceField}, but "${finding.consumer.storySlug}" has no depends_on path to "${finding.producer.storySlug}" — the .feature file is scaffolded in the same wave (or later), so verification runs before the file exists. Add depends_on: ["${finding.producer.storySlug}"] to the consumer Story so the scaffold lands in an earlier wave.`;
+  }
   return `Conflict finding ${finding.kind} on path "${finding.path ?? '<unknown>'}".`;
 }
 
@@ -612,6 +707,7 @@ export const _internal = {
   inSameWave,
   computeSharedEditorFindings,
   computeImplicitDepFindings,
+  computeMissingBddScaffoldFindings,
   indexAssumptionEntries,
   computeRegistryFindings,
   computeFanOutFindings,

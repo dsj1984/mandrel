@@ -283,6 +283,43 @@ Declaring `wide` with a non-empty reason **lifts the `hardFiles` rejection** —
 
 - Stories that touch user-visible copy, brand assets, or visual style MUST cite the relevant section of `docs/style-guide.md` in `acceptance` (e.g. `"acceptance": ["Hero copy matches docs/style-guide.md §3 (voice & tone)"]`). If `docs/style-guide.md` does not exist or has no relevant section, state that explicitly: `"acceptance": ["docs/style-guide.md absent — copy reviewed against the inline brand brief in PRD §2"]`. Silence on style sourcing is a smell.
 
+### WAVE-0 BDD SCAFFOLD STORY (features-first; emit when the Acceptance Spec has `new`-disposition rows):
+
+The Acceptance Spec's AC table (columns `AC ID | Outcome | Feature File | Scenario | Disposition`) tags each row's `Disposition` with one of `new | updated | unchanged`. A `new` row names a `.feature` file + scenario that does NOT yet exist on `main`. The framework is features-first: implementation Stories reference those `.feature` paths in their `verify[]` lines, so the files MUST already exist when those Stories run — otherwise verification fails mid-delivery on a missing file (observed gap: Epic #18 in `dsj1984/athportal` had 9 `new` rows and no Story tasked with creating the feature files Stories #1457 / #1466 verified against).
+
+When the Acceptance Spec contains **one or more `Disposition: new` rows**, you MUST emit **exactly one** dedicated wave-0 scaffold Story whose sole job is to create those `.feature` files with `@skip`-tagged scenarios BEFORE any implementation Story runs:
+
+- **goal** (in body string): contains the literal token `bdd-scaffold` and names the parent Feature slug.
+- **depends_on**: EMPTY (`[]`) — the scaffold runs first, in wave 0.
+- **changes** (in body string): one `{ path, assumption: "creates" }` entry per distinct `.feature` file named in a `new` row.
+- **acceptance** (top-level array): MUST assert (a) every new `.feature` file exists, and (b) every new scenario within them carries an `@skip` tag. Keep items observable (a command exits 0; a file exists at a path).
+- **verify** (top-level array): a grep/validate command (tier `validate`), NOT an e2e runner — verifying that a file exists with a tag needs no browser/playwright run.
+- Each implementation Story whose `verify[]` references a scaffolded `.feature` path MUST add `depends_on: ["<scaffold-slug>"]` so the scaffold lands in an earlier wave. Omitting the link trips the soft `missing-bdd-scaffold` finding in `ticket-validator-conflicts.js` (advisory, not a hard block).
+
+When the Acceptance Spec contains **zero `new`-disposition rows** (every row is `updated` or `unchanged`), do NOT emit a scaffold Story — there is nothing to create.
+
+**Worked example.** Acceptance Spec with two `new` rows (`AC-1` -> `tests/features/billing/invoice.feature`, `AC-2` -> `tests/features/billing/refund.feature`). The scaffold Story below uses a serialized string `body`, top-level `acceptance`/`verify` arrays, and an empty `depends_on` (the JSON is indented to keep it inside this prompt block):
+
+    {
+      "slug": "scaffold-billing-feature-files",
+      "type": "story",
+      "title": "Scaffold @skip-tagged billing feature files",
+      "parent_slug": "billing-flows",
+      "depends_on": [],
+      "labels": ["type::story", "persona::qa-engineer"],
+      "acceptance": [
+        "tests/features/billing/invoice.feature and tests/features/billing/refund.feature both exist on the branch",
+        "every Scenario in the two new feature files is preceded by an @skip tag (grep for un-skipped scenarios returns zero matches)"
+      ],
+      "verify": [
+        "test -f tests/features/billing/invoice.feature && test -f tests/features/billing/refund.feature (validate)",
+        "test -z \"$(grep -rL '@skip' tests/features/billing/*.feature)\" (validate)"
+      ],
+      "body": "## Goal\nbdd-scaffold: create the @skip-tagged feature files the billing-flows implementation Stories verify against, so wave-0 lands them before any implementation Story runs.\n\n## Changes\n- {\"path\": \"tests/features/billing/invoice.feature\", \"assumption\": \"creates\"}\n- {\"path\": \"tests/features/billing/refund.feature\", \"assumption\": \"creates\"}\n\n## Acceptance\n- [ ] tests/features/billing/invoice.feature and tests/features/billing/refund.feature both exist on the branch\n- [ ] every Scenario in the two new feature files is preceded by an @skip tag\n\n## Verify\n- test -f tests/features/billing/invoice.feature && test -f tests/features/billing/refund.feature (validate)\n- test -z \"$(grep -rL '@skip' tests/features/billing/*.feature)\" (validate)\n"
+    }
+
+The implementation Stories that later un-skip and flesh out these scenarios each carry `depends_on: ["scaffold-billing-feature-files"]`, placing them in a later wave than the scaffold.
+
 ### SCOPE-OVERLAP FLAGGING (docs/runbook downstream of config work):
 When a "docs update" / "runbook" / "README" Story appears downstream of an earlier Story in the same Epic whose AC already covers updating the same document (e.g. a "config + runbook" Story followed by a "docs" Story touching the same runbook), the downstream Story's deliverable may be fully absorbed by the earlier Story. Flag the risk directly in the Story `body.acceptance` by appending an item of the form:
 "Scope verification note: this Story's deliverable may already be satisfied by Story #<slug-or-id>'s AC — before implementing, `git diff main -- <path>` against the upstream Story branch and confirm whether a substantive edit is still required, or whether only a cross-reference remains."
