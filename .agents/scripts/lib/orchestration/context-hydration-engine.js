@@ -3,15 +3,15 @@
  *
  * Stateless, async logic for assembling the full execution prompt for an
  * agent task. Extracted from the CLI entry point to enable reuse across
- * consumers (CLI wrappers, MCP server, tests).
+ * consumers (CLI wrappers, tests).
  *
  * This module is the SDK layer — it has no knowledge of CLI arguments,
  * file I/O decisions, or process.exit(). All I/O choices are delegated
  * to the caller.
  *
  * Consumers:
- *   - `.agents/scripts/context-hydrator.js`  — CLI wrapper
- *   - `lib/orchestration/dispatch-engine.js` — import hydrateContext directly
+ *   - `.agents/scripts/hydrate-context.js`   — CLI wrapper (imports hydrateContext)
+ *   - `.agents/scripts/context-hydrator.js`  — CLI wrapper (re-exports hydrate-context.js)
  *
  * @see .agents/scripts/lib/ITicketingProvider.js
  */

@@ -35,7 +35,7 @@
  * Usage: `node single-story-init.js --story <STORY_ID> [--dry-run]`
  * Exit codes: 0 ok, 1 error.
  *
- * @see .agents/workflows/single-story-deliver.md
+ * @see .agents/workflows/helpers/single-story-deliver.md
  */
 
 import { spawnSync } from 'node:child_process';

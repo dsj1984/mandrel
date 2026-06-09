@@ -211,7 +211,7 @@ describe('buildContextEnvelope', () => {
     assert.equal(envelope.techStack, '## Tech Stack\nNode 22');
     assert.equal(
       envelope.deliverContract.workflow,
-      '.agents/workflows/single-story-deliver.md',
+      '.agents/workflows/helpers/single-story-deliver.md',
     );
     assert.ok(envelope.deliverContract.requiredLabels.includes('type::story'));
     assert.ok(
