@@ -69,26 +69,26 @@ function buildFormatHint(writeCmd) {
 
 /**
  * Resolve a string `project.commands.<key>` with a fallback when the
- * value is missing, empty, or the resolver throws on malformed settings.
+ * value is missing, empty, or the resolver throws on malformed config.
  * Shared engine behind the three resolveX command helpers.
  *
- * @param {{ project?: { commands?: object } } | object | null | undefined} settings
+ * @param {{ project?: { commands?: object } } | null | undefined} config
+ *   Canonical resolved config (or a bare `{ project: { commands } }` bag).
  * @param {string} key
  * @param {string} fallback
  * @returns {string}
  */
-function resolveCommandWithFallback(settings, key, fallback) {
+function resolveCommandWithFallback(config, key, fallback) {
   try {
-    // `settings` here is the legacy-shim view (`agentSettings.*`); under the
-    // post-reshape contract `getCommands` reads `config.project.commands`,
-    // and the shim guarantees `agentSettings.commands === project.commands`.
-    const cmds = getCommands({ project: { commands: settings?.commands } });
+    // `getCommands` reads `config.project.commands` from the canonical
+    // resolved config.
+    const cmds = getCommands(config);
     const value = cmds[key];
     if (typeof value === 'string' && value.trim().length > 0) {
       return value.trim();
     }
   } catch {
-    // Malformed settings — fall through to the framework default.
+    // Malformed config — fall through to the framework default.
   }
   return fallback;
 }
@@ -99,11 +99,11 @@ function resolveCommandWithFallback(settings, key, fallback) {
  * `COMMANDS_DEFAULTS.typecheck` is `null` but this gate is mandatory, so
  * we apply the fallback here. Exported for testing.
  *
- * @param {{ project?: { commands?: object } } | object | null | undefined} settings
+ * @param {{ project?: { commands?: object } } | null | undefined} config
  * @returns {string}
  */
-export function resolveTypecheckCommand(settings) {
-  return resolveCommandWithFallback(settings, 'typecheck', TYPECHECK_FALLBACK);
+export function resolveTypecheckCommand(config) {
+  return resolveCommandWithFallback(config, 'typecheck', TYPECHECK_FALLBACK);
 }
 
 /**
@@ -111,12 +111,12 @@ export function resolveTypecheckCommand(settings) {
  * falls back to `npx biome format .` so existing repos keep working byte-
  * for-byte. Exported for testing.
  *
- * @param {{ project?: { commands?: object } } | object | null | undefined} settings
+ * @param {{ project?: { commands?: object } } | null | undefined} config
  * @returns {string}
  */
-export function resolveFormatCheckCommand(settings) {
+export function resolveFormatCheckCommand(config) {
   return resolveCommandWithFallback(
-    settings,
+    config,
     'formatCheck',
     FORMAT_CHECK_FALLBACK,
   );
@@ -127,12 +127,12 @@ export function resolveFormatCheckCommand(settings) {
  * surfaced in the format-gate hint). Reads `project.commands.formatWrite`;
  * falls back to `npx biome format --write .`. Exported for testing.
  *
- * @param {{ project?: { commands?: object } } | object | null | undefined} settings
+ * @param {{ project?: { commands?: object } } | null | undefined} config
  * @returns {string}
  */
-export function resolveFormatWriteCommand(settings) {
+export function resolveFormatWriteCommand(config) {
   return resolveCommandWithFallback(
-    settings,
+    config,
     'formatWrite',
     FORMAT_WRITE_FALLBACK,
   );
@@ -266,25 +266,19 @@ function applyChangedFileScope({ gate, spawnCwd, log }) {
  * validation graph drops the standalone `test` gate because coverage-
  * capture already runs the suite under c8 instrumentation (Story #1798).
  *
- * Reads `crap.enabled` from any of the shapes call sites pass us (the
- * legacy-shim shape, the canonical `delivery.quality.gates.crap.*` shape,
- * and the raw partial-config shape some unit tests construct directly).
- * Defaults to `true` so an omitted setting matches `CRAP_GATE_DEFAULTS.enabled`.
- * We deliberately do NOT round-trip through `getQuality()` here because that
- * resolver expects the unresolved `gates.crap.*` shape.
+ * Reads the single canonical shape `delivery.quality.gates.crap.enabled`
+ * from the resolved config. Defaults to `true` so an omitted setting
+ * matches `CRAP_GATE_DEFAULTS.enabled`. We deliberately do NOT round-trip
+ * through `getQuality()` here because that resolver expects the unresolved
+ * `gates.crap.*` shape.
  *
- * @param {object|undefined|null} agentSettings
+ * @param {object|undefined|null} config - Canonical resolved config.
  * @returns {boolean}
  */
-function isCrapGateEnabled(agentSettings) {
-  if (!agentSettings || typeof agentSettings !== 'object') return true;
-  const candidates = [
-    agentSettings?.quality?.crap?.enabled,
-    agentSettings?.delivery?.quality?.gates?.crap?.enabled,
-    agentSettings?.quality?.gates?.crap?.enabled,
-  ];
-  const firstBoolean = candidates.find((v) => typeof v === 'boolean');
-  return firstBoolean ?? true;
+function isCrapGateEnabled(config) {
+  if (!config || typeof config !== 'object') return true;
+  const enabled = config?.delivery?.quality?.gates?.crap?.enabled;
+  return typeof enabled === 'boolean' ? enabled : true;
 }
 
 /**
@@ -294,11 +288,11 @@ function isCrapGateEnabled(agentSettings) {
  * gate otherwise. Splitting this out keeps `buildDefaultGates` flat for
  * the CRAP-cyclomatic gate.
  *
- * @param {object|undefined|null} agentSettings - Legacy-shim settings bag or resolved config.
+ * @param {object|undefined|null} config - Canonical resolved config.
  * @returns {Gate[]}
  */
-function buildTestGateEntry(agentSettings) {
-  if (isCrapGateEnabled(agentSettings)) return [];
+function buildTestGateEntry(config) {
+  if (isCrapGateEnabled(config)) return [];
   return [{ name: 'test', cmd: 'npm', args: ['test'] }];
 }
 
@@ -323,22 +317,22 @@ function buildTestGateEntry(agentSettings) {
  * that still pass it; it is currently unused by `buildDefaultGates`
  * itself but is forwarded by callers for downstream wiring.
  *
- * @param {{ agentSettings?: object, epicBranch?: string }} [opts]
+ * @param {{ config?: object, epicBranch?: string }} [opts] - `config` is the
+ *   canonical resolved config (`{ project, delivery, ... }`); gate commands
+ *   resolve from `project.commands` and the CRAP toggle from
+ *   `delivery.quality.gates.crap.enabled`.
  * @returns {Gate[]}
  */
-export function buildDefaultGates({
-  agentSettings,
-  epicBranch: _epicBranch,
-} = {}) {
-  const typecheckCmdString = resolveTypecheckCommand(agentSettings);
+export function buildDefaultGates({ config, epicBranch: _epicBranch } = {}) {
+  const typecheckCmdString = resolveTypecheckCommand(config);
   const [typecheckCmd, ...typecheckArgs] = typecheckCmdString
     .split(/\s+/)
     .filter(Boolean);
-  const formatCheckString = resolveFormatCheckCommand(agentSettings);
+  const formatCheckString = resolveFormatCheckCommand(config);
   const [formatCmd, ...formatArgs] = formatCheckString
     .split(/\s+/)
     .filter(Boolean);
-  const formatWriteString = resolveFormatWriteCommand(agentSettings);
+  const formatWriteString = resolveFormatWriteCommand(config);
   const formatChangedFileScope =
     formatCheckString === FORMAT_CHECK_FALLBACK
       ? buildChangedFileScope(_epicBranch)
@@ -351,7 +345,7 @@ export function buildDefaultGates({
       hint: TYPECHECK_HINT,
     },
     { name: 'lint', cmd: 'npm', args: ['run', 'lint'] },
-    ...buildTestGateEntry(agentSettings),
+    ...buildTestGateEntry(config),
     {
       // Gate name kept generic ("format") so the close-orchestrator log line
       // and the per-gate phase-timer key don't shift when a repo swaps biome
@@ -395,7 +389,7 @@ export function buildDefaultGates({
  * Default gate list resolved with no consumer config — uses the
  * `npm run typecheck` fallback for the typecheck gate. Call sites that have a
  * resolved config object in scope (e.g. `story-close.js`) should
- * prefer `buildDefaultGates({ agentSettings })` so a configured
+ * prefer `buildDefaultGates({ config })` so a configured
  * `project.commands.typecheck` is honoured.
  *
  * @type {Gate[]}

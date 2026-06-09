@@ -1,6 +1,9 @@
 import nodeFs from 'node:fs';
 import path from 'node:path';
-import { runCloseValidation } from '../../close-validation.js';
+import {
+  buildDefaultGates,
+  runCloseValidation,
+} from '../../close-validation.js';
 import { resolveConfig } from '../../config-resolver.js';
 import { getStoryBranch, gitSync } from '../../git-utils.js';
 import { Logger } from '../../Logger.js';
@@ -9,7 +12,6 @@ import { flipLabelAndNotify } from '../../single-story/story-merged-notify.js';
 import { WorktreeManager } from '../../worktree-manager.js';
 import { runCodeReview as runCodeReviewDefault } from '../code-review.js';
 import { releaseStoryLease } from '../single-story-lease-guard.js';
-import { buildGatesFromConfig } from '../story-close/legacy-settings-bag.js';
 import { runAutoMergePhase } from './phases/auto-merge.js';
 import { runBaseSyncPhase } from './phases/base-sync.js';
 import { runCloseValidationPhase } from './phases/close-validation.js';
@@ -50,7 +52,6 @@ async function runPrePushPhases({
   provider,
   skipValidation,
   skipSync,
-  noFullScopeCrap,
   injectedSync,
   injectedGitSpawn,
 }) {
@@ -68,11 +69,10 @@ async function runPrePushPhases({
       worktreePath,
       config,
       baseBranch,
-      noFullScopeCrap,
       storyId,
       progress,
       runCloseValidation,
-      buildGatesFromConfig,
+      buildDefaultGates,
     });
   } else {
     progress('VALIDATE', '⏭ Skipped (--skip-validation).');

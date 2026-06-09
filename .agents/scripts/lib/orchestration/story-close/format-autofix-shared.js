@@ -61,7 +61,9 @@ export function resolveFormatterCmd({
   commands,
   dropTrailingDot = false,
 } = {}) {
-  const writeCmdString = resolveFormatWriteCommand({ commands });
+  // `resolveFormatWriteCommand` reads `config.project.commands`; wrap the
+  // caller-supplied `commands` map into that canonical shape.
+  const writeCmdString = resolveFormatWriteCommand({ project: { commands } });
   const parts = writeCmdString.split(/\s+/).filter(Boolean);
   if (dropTrailingDot && parts[parts.length - 1] === '.') parts.pop();
   const [writeCmd, ...writeArgs] = parts;

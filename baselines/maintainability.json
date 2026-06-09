@@ -1355,10 +1355,6 @@
       "mi": 87.336
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-close/legacy-settings-bag.js",
-      "mi": 120.733
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-close/merge-subject.js",
       "mi": 94.043
     },

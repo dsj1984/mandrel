@@ -436,7 +436,7 @@ describe('runCloseValidation — coverage-capture test-failure contract (Story #
 
   it('failure report carries gate identifier "coverage-capture" when crap.enabled is true', async () => {
     const gates = buildDefaultGates({
-      agentSettings: { quality: { crap: { enabled: true } } },
+      config: { delivery: { quality: { gates: { crap: { enabled: true } } } } },
     });
 
     const runner = (cmd, args) => {
@@ -480,7 +480,7 @@ describe('runCloseValidation — coverage-capture test-failure contract (Story #
 
   it('no separate `test` gate appears in the failure report when crap.enabled is true', async () => {
     const gates = buildDefaultGates({
-      agentSettings: { quality: { crap: { enabled: true } } },
+      config: { delivery: { quality: { gates: { crap: { enabled: true } } } } },
     });
 
     // Sanity check the gate list itself: the standalone `test` gate is
@@ -530,7 +530,9 @@ describe('runCloseValidation — coverage-capture test-failure contract (Story #
     // unconditionally, but in the crap-disabled path it does not gate
     // test failure).
     const gates = buildDefaultGates({
-      agentSettings: { quality: { crap: { enabled: false } } },
+      config: {
+        delivery: { quality: { gates: { crap: { enabled: false } } } },
+      },
     });
     const gateNames = gates.map((g) => g.name);
     assert.ok(
