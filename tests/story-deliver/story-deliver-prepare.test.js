@@ -32,7 +32,6 @@ function makeStoryInitComment({
   storyId,
   workCwd,
   dependenciesInstalled,
-  tasks,
   storyBranch,
   hierarchy,
 }) {
@@ -42,7 +41,6 @@ function makeStoryInitComment({
     storyBranch: storyBranch ?? `story-${storyId}`,
     workCwd,
     dependenciesInstalled,
-    tasks: tasks ?? [],
   };
   if (hierarchy) payload.hierarchy = hierarchy;
   return {
@@ -85,10 +83,6 @@ test('runStoryDeliverPrepare: dependenciesInstalled=true skips install + upserts
       storyId: 42,
       workCwd: '/tmp/.worktrees/story-42',
       dependenciesInstalled: 'true',
-      tasks: [
-        { id: 100, title: 'first', state: 'pending' },
-        { id: 200, title: 'second', state: 'pending' },
-      ],
     }),
   ]);
   let runInstallCalls = 0;
@@ -106,8 +100,8 @@ test('runStoryDeliverPrepare: dependenciesInstalled=true skips install + upserts
   assert.equal(runInstallCalls, 0);
   assert.equal(result.workCwd, '/tmp/.worktrees/story-42');
   assert.equal(result.snapshot.phase, 'init');
-  assert.equal(result.snapshot.tasks.length, 2);
-  assert.ok(result.snapshot.tasks.every((t) => t.state === 'pending'));
+  assert.equal(Array.isArray(result.snapshot.phases), true);
+  assert.ok(result.snapshot.phases.every((p) => p.status === 'pending'));
 
   // The story-run-progress comment was upserted on the same ticket.
   const progressMarker = structuredCommentMarker('story-run-progress');
@@ -116,10 +110,10 @@ test('runStoryDeliverPrepare: dependenciesInstalled=true skips install + upserts
   );
   assert.ok(upserted, 'expected a story-run-progress comment to be upserted');
   // renderedBody is the same markdown body, surfaced for chat relay by
-  // `/story-deliver` so operators see the initial task table before the
-  // first commit lands.
+  // `/story-deliver` so operators see the initial Story-phase table before
+  // the first commit lands.
   assert.ok(result.renderedBody.startsWith('### 📖 Story #42'));
-  assert.match(result.renderedBody, /0\/2 tasks done/);
+  assert.match(result.renderedBody, /0\/4 phases done/);
 });
 
 test('runStoryDeliverPrepare: dependenciesInstalled=false runs install before upserting', async () => {
@@ -128,7 +122,6 @@ test('runStoryDeliverPrepare: dependenciesInstalled=false runs install before up
       storyId: 50,
       workCwd: '/tmp/.worktrees/story-50',
       dependenciesInstalled: 'false',
-      tasks: [{ id: 1, title: 't', state: 'pending' }],
     }),
   ]);
   const installs = [];
@@ -153,7 +146,6 @@ test('runStoryDeliverPrepare: failed install bubbles up as an Error', async () =
       storyId: 51,
       workCwd: '/tmp/.worktrees/story-51',
       dependenciesInstalled: 'false',
-      tasks: [{ id: 1, title: 't', state: 'pending' }],
     }),
   ]);
   await assert.rejects(
@@ -166,79 +158,21 @@ test('runStoryDeliverPrepare: failed install bubbles up as an Error', async () =
   );
 });
 
-test('runStoryDeliverPrepare: legacy story-init payload with no tasks emits the phases[] snapshot (Task #3154)', async () => {
-  // Under 3-tier-only (Task #3154), a story-init payload that omits
-  // `tasks[]` is treated as the inline-acceptance shape — the prepare CLI
-  // seeds the `phases[]` snapshot instead of probing the provider for a
-  // legacy Task fallback that no longer exists.
-  const provider = makeProvider([
-    makeStoryInitComment({
-      storyId: 60,
-      workCwd: '/tmp/.worktrees/story-60',
-      dependenciesInstalled: 'true',
-      tasks: undefined,
-    }),
-  ]);
-
-  const result = await runStoryDeliverPrepare({
-    storyId: 60,
-    provider,
-    runInstall: () => ({ status: 0 }),
-  });
-
-  assert.equal(Array.isArray(result.snapshot.phases), true);
-  assert.deepEqual(
-    result.snapshot.phases.map((p) => p.name),
-    ['init', 'implement', 'validate', 'close'],
-  );
-  assert.equal('tasks' in result.snapshot, false);
-});
-
-test('runStoryDeliverPrepare: prefers payload.tasks when present (no fallback fetch)', async () => {
-  const provider = makeProvider([
-    makeStoryInitComment({
-      storyId: 61,
-      workCwd: '/tmp/.worktrees/story-61',
-      dependenciesInstalled: 'true',
-      tasks: [
-        { id: 70, title: 'embedded-A' },
-        { id: 71, title: 'embedded-B' },
-      ],
-    }),
-  ]);
-  let getSubTicketsCalls = 0;
-  provider.getSubTickets = async () => {
-    getSubTicketsCalls++;
-    return [];
-  };
-  const result = await runStoryDeliverPrepare({
-    storyId: 61,
-    provider,
-    runInstall: () => ({ status: 0 }),
-  });
-  assert.equal(result.snapshot.tasks.length, 2);
-  assert.equal(getSubTicketsCalls, 0); // no fallback needed
-});
-
 test('runStoryDeliverPrepare: 3-tier hierarchy emits phases[] snapshot (init/implement/validate/close)', async () => {
-  // Story #3129 (Epic #3078): when the story-init comment carries
-  // `hierarchy: '3-tier'`, the prepare CLI must seed the initial snapshot
-  // with a `phases[]` array — not a `tasks[]` list — so the parent
-  // `/epic-deliver` aggregator can render a coarse Story-phase progress
-  // bar without walking Task tickets that do not exist in 3-tier shape.
+  // Under the 3-tier hierarchy (Epic → Feature → Story) the
+  // inline-acceptance Story is the only ticket shape, so the prepare CLI
+  // always seeds the initial snapshot with a `phases[]` array — never a
+  // `tasks[]` list — letting the parent `/epic-deliver` aggregator render
+  // a coarse Story-phase progress bar without walking Task tickets that do
+  // not exist.
   const provider = makeProvider([
     makeStoryInitComment({
       storyId: 3129,
       workCwd: '/tmp/.worktrees/story-3129',
       dependenciesInstalled: 'true',
-      tasks: [], // inline-acceptance Story has no child Tasks
       hierarchy: '3-tier',
     }),
   ]);
-  // Belt-and-braces: if the prepare CLI falls back to fetchChildTickets for
-  // an empty list, this stub returns nothing so any regression would
-  // produce an empty `tasks[]` payload rather than silently passing.
-  provider.getSubTickets = async () => [];
 
   const result = await runStoryDeliverPrepare({
     storyId: 3129,
@@ -251,7 +185,7 @@ test('runStoryDeliverPrepare: 3-tier hierarchy emits phases[] snapshot (init/imp
   assert.equal(
     'tasks' in result.snapshot,
     false,
-    '3-tier snapshot must not carry tasks[]',
+    'snapshot must not carry tasks[]',
   );
   assert.equal(Array.isArray(result.snapshot.phases), true);
   assert.deepEqual(
@@ -264,21 +198,19 @@ test('runStoryDeliverPrepare: 3-tier hierarchy emits phases[] snapshot (init/imp
     assert.equal(p.startedAt, null);
     assert.equal(p.endedAt, null);
   }
-  // Rendered body uses phase header instead of task-count header.
+  // Rendered body uses the phase header.
   assert.match(result.renderedBody, /### 📖 Story #3129/);
   assert.match(result.renderedBody, /0\/4 phases done/);
 });
 
-test('runStoryDeliverPrepare: 4-tier hierarchy (or omitted) keeps tasks[] shape (no regression)', async () => {
-  // Without `hierarchy` (legacy comments) or with `hierarchy: '4-tier'`,
-  // the prepare CLI must continue to emit the per-Task list snapshot.
+test('runStoryDeliverPrepare: omitted hierarchy still emits the phases[] snapshot', async () => {
+  // A story-init payload that omits `hierarchy` defaults to the 3-tier
+  // shape, so the snapshot is still the Story-phase `phases[]` array.
   const provider = makeProvider([
     makeStoryInitComment({
       storyId: 200,
       workCwd: '/tmp/.worktrees/story-200',
       dependenciesInstalled: 'true',
-      tasks: [{ id: 201, title: 'only-task', state: 'pending' }],
-      hierarchy: '4-tier',
     }),
   ]);
   const result = await runStoryDeliverPrepare({
@@ -286,10 +218,8 @@ test('runStoryDeliverPrepare: 4-tier hierarchy (or omitted) keeps tasks[] shape 
     provider,
     runInstall: () => ({ status: 0 }),
   });
-  assert.equal(result.hierarchy, '4-tier');
-  assert.equal(Array.isArray(result.snapshot.tasks), true);
-  assert.equal('phases' in result.snapshot, false);
-  assert.equal(result.snapshot.tasks.length, 1);
+  assert.equal(Array.isArray(result.snapshot.phases), true);
+  assert.equal('tasks' in result.snapshot, false);
 });
 
 test('runStoryDeliverPrepare: throws if no story-init comment is found', async () => {

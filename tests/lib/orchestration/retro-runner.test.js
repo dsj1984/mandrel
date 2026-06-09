@@ -225,10 +225,6 @@ test('runRetro: non-clean signals route to the full six-section path', async () 
   assert.match(retroComment.body, /`lint`.*occurrence/);
   // Recut count derived from body marker fallback.
   assert.equal(out.scorecard.recuts, 1);
-  // Story #3200 — Task-tier descendants no longer feed the hotfix
-  // count under the 3-tier hierarchy; `hotfixes` is always 0 even
-  // when a legacy in-fixture Task carries `status::blocked`.
-  assert.equal(out.scorecard.hotfixes, 0);
   assert.equal(out.scorecard.friction, 3);
 });
 
@@ -259,14 +255,12 @@ test('composeRetroBody: deterministic body for a clean manifest', () => {
   const { body, compact, scorecard } = composeRetroBody({
     epicId: 5,
     epicTitle: 'X',
-    counts: { friction: 0, parked: 0, recuts: 0, hotfixes: 0, hitl: 0 },
-    tasksTotal: 3,
-    tasksFirstTry: 3,
+    counts: { friction: 0, parked: 0, recuts: 0, hitl: 0 },
     timestamp: '2026-05-10T00:00:00.000Z',
   });
   assert.equal(compact, true);
-  assert.equal(scorecard.tasksTotal, 3);
-  assert.match(body, /Total Tasks {18}\| 3/);
+  assert.equal(scorecard.friction, 0);
+  assert.doesNotMatch(body, /Total Tasks/);
   assert.match(body, /<!-- retro-complete: 2026-05-10T00:00:00\.000Z -->$/);
 });
 
@@ -357,7 +351,7 @@ test('gatherRetroSignals: warns when descendants empty but Epic body references 
     provider,
     logger: { warn: (msg) => warns.push(msg) },
   });
-  assert.equal(signals.tasks.length, 0);
+  assert.equal(signals.stories.length, 0);
   assert.ok(
     warns.some((line) => /under-report|contract drift|WARNING/i.test(line)),
     `expected a warn line about the empty descendant walk, got: ${warns.join('\n') || '<none>'}`,
@@ -407,12 +401,9 @@ test('composeRetroBody: interventions > 0 routes to full retro and shows scoreca
       friction: 0,
       parked: 0,
       recuts: 0,
-      hotfixes: 0,
       hitl: 0,
       interventions: 5,
     },
-    tasksTotal: 4,
-    tasksFirstTry: 4,
     timestamp: '2026-05-17T01:00:00.000Z',
   });
   assert.equal(compact, false, 'expected full retro when interventions > 0');
@@ -482,9 +473,6 @@ test('gatherRetroSignals: returns routedProposals envelope (empty when no signal
   });
   // Existing behaviour intact.
   assert.equal(signals.storyPerfSummaries.length, 1);
-  // Story #3200 — `tasks` is always `[]` under the 3-tier
-  // hierarchy regardless of legacy fixture seeding.
-  assert.equal(signals.tasks.length, 0);
 });
 
 test('gatherRetroSignals: computes routedProposals from per-Story signals streams', async () => {
@@ -856,7 +844,7 @@ test('gatherRetroSignals: 3-tier ledger (Stories present, zero Tasks) walks with
   // descendant walk surfaces only `type::story` issues; child
   // `type::task` tickets do not exist. `gather-signals.js` must
   // tolerate this shape: produce a non-empty signals report from the
-  // Story-level perf summaries and emit zero hotfix/HITL counts
+  // Story-level perf summaries and emit a zero HITL count
   // without throwing. It must also NOT trigger the
   // "empty-descendant" warn guard, because descendants are not empty
   // (they contain the Stories themselves) — the guard is meant for a
@@ -889,13 +877,7 @@ test('gatherRetroSignals: 3-tier ledger (Stories present, zero Tasks) walks with
     provider,
     logger: { warn: (msg) => warns.push(msg) },
   });
-  assert.equal(signals.tasks.length, 0, 'expected zero tasks under 3-tier');
   assert.equal(signals.stories.length, 2, 'expected two child Stories');
-  assert.equal(
-    signals.counts.hotfixes,
-    0,
-    'hotfixes is task-derived and must be zero under 3-tier',
-  );
   assert.equal(
     signals.counts.hitl,
     0,
