@@ -1,7 +1,7 @@
 # Mandrel Roadmap
 
-> **Not a scheduled roadmap.** This file consolidates Mandrel's two standing
-> forward-looking analyses into one place. Neither is a committed plan — both
+> **Not a scheduled roadmap.** This file consolidates Mandrel's standing
+> forward-looking analyses into one place. None is a committed plan — all
 > are deferred-work catalogs, preserved so the analysis is not lost. Work
 > graduates out of here when it is filed as an epic.
 >
@@ -10,10 +10,17 @@
 > - **Part 2 — Product-Readiness Backlog** catalogs what would be required *if
 >   and when* Mandrel is productized for external customers; it is gated on a
 >   "productize or stay internal?" decision and blocks no internal use today.
+> - **Part 3 — Dynamic-Workflow Orchestration** is the durable home for the
+>   orchestrated-audit evidence and the per-lens cost/precision gate verdicts.
+> - **Part 4 — Frontier-Model Calibration (2026-06-09)** re-prices Part 1's
+>   🔭 Monitor items now that a frontier-tier model is the daily driver, and
+>   scopes the **story-size recalibration** for epic planning/decomposition —
+>   the highest-leverage "tackle now" cluster.
 
 ## Part 1 — Model-Evolution Audit: Mandrel Under a 10x Coding Model
 
-Date: 2026-05-21 (last reviewed 2026-05-21)
+Date: 2026-05-21 (last reviewed 2026-06-09 — frontier-model review; action
+tags below were re-priced, see [Part 4 § 4.1](#41-re-priced-action-tags-for-part-1-findings))
 
 > **Action legend.** Each finding below carries one of two action tags:
 >
@@ -183,27 +190,7 @@ Remaining recommendation (Monitor):
   feasible (the capsules already carry the non-negotiables; building new
   validators is the deliberate non-scope tail of this finding).
 
-#### 4. Per-Task Ritual and Commit Strategy Can Relax
-
-**Status:** Resolved — Epic #3078
-**Action:** ✅ Closed — Epic #3078 collapsed the Task layer into a
-single Story-implementation phase
-(Epic → Feature → Story with inline `acceptance[]` / `verify[]` on the
-Story body). `task-commit.js`, the per-Task `agent::*` lifecycle, the
-`(resolves #<taskId>)` commit convention, and the per-Task sub-loop in
-`/story-deliver` are gone. See
-[`decisions.md` § ADR 20260527-three-tier-hierarchy](decisions.md) for
-the rationale and Consequences.
-
-The original finding (one-commit-per-Task multiplies churn; stronger
-holistic editing justifies fewer commits per Story while keeping
-Story-level boundaries and close validation) is now structurally
-enforced: Stories are the unit of commit boundaries, branch assertions,
-conventional-commit checks, and close validation all operate at the
-Story tier, and `quality:preview` runs once before commit rather than
-per-Task.
-
-#### 5. Sub-Agent Return Repair Can Shrink Substantially
+#### 4. Sub-Agent Return Repair Can Shrink Substantially
 
 **Status:** Simplify
 **Action:** ✅ **Shipped (free-form extraction deleted)** — Story
@@ -255,12 +242,19 @@ Shipped (this finding's deletion):
 - Malformed terminal returns are now treated as rare protocol errors routed
   to reconciliation, not a normal recovery path.
 
-#### 6. Code Review Should Become Evidence-First, Not Ritual-First
+#### 5. Code Review Should Become Evidence-First, Not Ritual-First
 
 **Status:** Reframe
-**Action:** 🔭 Monitor — adaptive review-depth selection is most valuable
-once the model can reliably judge "this diff is risky." Keep the structured
-`code-review` comment contract as-is until then.
+**Action:** 🚀 **Implement now** (re-priced 2026-06-09, was 🔭 Monitor) —
+the model-capability gate is met, and the harness side is cheaper than this
+finding originally assumed: the planner-side risk classifier
+(`lib/orchestration/planning-risk.js`, Epic #2649) already computes a
+per-Epic risk envelope (`axes`, `overallLevel`, `requiresReview`) that
+`code-review.js` does not consult. Reuse it to select review depth rather
+than building a new classifier. This lands naturally **together with** the
+story-size recalibration (Part 4): larger Stories mean larger diffs, which
+is exactly when adaptive depth pays for itself. Keep the structured
+`code-review` comment contract unchanged.
 
 **Primary paths:**
 
@@ -281,7 +275,7 @@ Recommendation:
 - Let the future model perform review directly, then validate that required
   sections, severities, and changed-file coverage exist.
 
-#### 7. Worktree and Branch Isolation Still Matter
+#### 6. Worktree and Branch Isolation Still Matter
 
 **Status:** Keep
 **Action:** 🔭 Monitor — the "Simplify" sublist (demote local worktrees to
@@ -314,7 +308,7 @@ Simplify:
   local worktrees an implementation option rather than the default mental model.
 - Keep the abstraction but reduce operator-facing worktree prose.
 
-#### 8. Anti-Thrashing and FinOps Should Be Softer
+#### 7. Anti-Thrashing and FinOps Should Be Softer
 
 **Status:** Simplify
 **Action:** 🔭 Monitor — further relaxation of per-turn FinOps rituals
@@ -366,9 +360,9 @@ These remain useful but should become smaller:
 3. **Code review**: adaptive evidence-first review with structured findings,
    not a mandatory identical six-pillar ritual every time.
 4. **Telemetry**: keep aggregate signals; reduce control-flow dependence on
-   friction counters.
-5. **Per-Task execution**: preserve close-validation and state tracking, but
-   allow Story-level batching when Tasks are tightly coupled.
+   friction counters. (Numeric step limits and `friction.*` thresholds are
+   already gone from `lib/config/limits.js`; the remainder is keeping it
+   that way as new signals land.)
 
 ### Functionality That Should Stay
 
@@ -453,12 +447,9 @@ every reasoning step.
 
 ### Migration Roadmap
 
-The audit's original five-phase roadmap is largely complete: adaptive
-planning (Epic #2649), structured context envelopes (Epic #2648), skill
-index + policy capsules (Epic #2647), schema-backed docs (Epic #2645),
-hard-cutover compatibility cleanup (Epic #2646), and adaptive audit
-selection (Epic #2586) have all shipped. The remaining forward-looking
-work clusters into two areas:
+The audit's original five-phase roadmap has shipped (Epics #2649, #2648,
+#2647, #2646, #2645, #2586). The remaining forward-looking work clusters
+into three areas:
 
 #### Reduce Prompt Weight Further
 
@@ -480,7 +471,14 @@ work clusters into two areas:
   chat-relay-instruction trim is still open.
 - Make code-review depth adaptive to diff risk (Finding #6).
 - Treat anti-thrashing / FinOps as observability rather than control
-  flow when inference economics permit (Finding #8).
+  flow when inference economics permit (Finding #7).
+
+#### Recalibrate Decomposition Scope (added 2026-06-09)
+
+- Raise the per-Story sizing ceilings and make them risk-adaptive so a
+  frontier-tier model can deliver capability-sized Stories instead of
+  module-sized ones — see [Part 4 § 4.2–4.4](#42-where-the-small-story-bias-comes-from-measured-2026-06-09)
+  for the measured bias map and the candidate epic.
 
 ### Priority Recommendations
 
@@ -546,8 +544,10 @@ theoretical. Until then, the static lint is the supported surface.
 
 ## Part 2 — Product-Readiness Backlog (If/When Mandrel Is Productized)
 
-Last triaged: 2026-06-02 (distribution & onboarding slice filed — see below;
-prior triage 2026-05-30 against framework version 1.40.0).
+Last triaged: 2026-06-09 against framework version 1.54.0 (status refresh:
+all filed epics from the 2026-05-30 and 2026-06-02 triages have **delivered**
+except [#3439](https://github.com/dsj1984/mandrel/issues/3439), which remains
+the sole open in-flight item; prior triages 2026-06-02 and 2026-05-30).
 
 Scope: this document is the **standing backlog** of product-readiness gaps that
 Mandrel would need to close *if and when it is productized* (sold or distributed
@@ -562,37 +562,23 @@ GitHub-first** framework that is dogfooded. Everything below is **deferred until
 a "productize" decision** — none of it blocks internal use. Each item is
 grouped under the candidate epic that would carry it.
 
-### Already filed (do not re-scope here)
+### Already delivered (do not re-scope here)
 
-A 2026-05-30 triage carved the immediately-actionable, internally-valuable work
-into four epics. The slices noted as "filed" below live there:
+Two triages (2026-05-30 and 2026-06-02) carved the immediately-actionable,
+internally-valuable slices into nine epics. **Eight have delivered**
+(all closed 2026-06-05): #3386 (truth & correctness), #3387 (3-tier doc
+cutover), #3388 (config integrity), #3389 (dev-hygiene), #3435
+(`mandrel doctor` + installer/content partition), #3436 (npm distribution —
+supersedes E-B's core), #3437 (auto-update & version lifecycle), #3438
+(consent-first install & onboarding). The sole open filed epic is
+[#3439](https://github.com/dsj1984/mandrel/issues/3439) — GitHub-optional /
+no-mutation (lite) profile, re-scoped 2026-06-03 to include the
+provider-interface segregation slice.
 
-| Epic | Covers | Filed from findings |
-|------|--------|---------------------|
-| [#3386](https://github.com/dsj1984/mandrel/issues/3386) — truth & correctness | license → MIT, Node floor, dangling CHANGELOG ref | 4, 8, 18 (ref) |
-| [#3387](https://github.com/dsj1984/mandrel/issues/3387) — 3-tier doc cutover | scrub stale "Task" concepts | 7 |
-| [#3388](https://github.com/dsj1984/mandrel/issues/3388) — config integrity | `.agentrc.local.json` layer, token-budget honesty | 6 (core) |
-| [#3389](https://github.com/dsj1984/mandrel/issues/3389) — dev-hygiene | Windows CI smoke, SHA-pin Actions | 9 (Windows), 14 (SHA-pin) |
-
-Findings 4, 7, 8 are fully resolved by the above and are **not** repeated below.
-Findings 6, 9, 14, 18 were partially filed; only their deferred remainders
-appear here.
-
-A 2026-06-02 triage filed the **distribution-and-onboarding slice** — the
-internally-valuable remainder of E-B plus the install-experience findings —
-into five epics:
-
-| Epic | Covers | Filed from findings |
-|------|--------|---------------------|
-| [#3435](https://github.com/dsj1984/mandrel/issues/3435) — installer/content partition + `mandrel doctor` | lifecycle/runtime split, readiness command, config-explain seed | 11 (doctor) |
-| [#3436](https://github.com/dsj1984/mandrel/issues/3436) — npm distribution + dep simplification | **supersedes E-B**: npm package, `mandrel sync`, kill the dep-merge hack, release integrity, compat matrix | 3, 18 (remainder) |
-| [#3437](https://github.com/dsj1984/mandrel/issues/3437) — auto-update & version lifecycle | `mandrel update`, migration runner, notify-on-stale, Renovate/Dependabot, config-compat tests | 11 (config migrations), 18 (remainder) |
-| [#3438](https://github.com/dsj1984/mandrel/issues/3438) — consent-first install & onboarding | dry-run manifest, phased approval, uninstall/rollback, config profiles, `/onboard` first-run path | 10, 11 (profiles), 16 |
-| [#3439](https://github.com/dsj1984/mandrel/issues/3439) — GitHub-optional / no-mutation profile | Issues-only lite mode; no Projects/branch-protection mutation | 10 (no-mutation), 2 (partial) |
-
-**E-B is fully filed** (see #3436/#3437). Findings 10, 11, 16 and the
-Projects/branch-protection slice of Finding 2 were partially filed; their
-deferred remainders appear under E-A/E-D/E-F below.
+Findings 3, 4, 7, 8 are fully resolved by the delivered epics and do not
+appear below. Findings 2, 6, 9, 10, 11, 14, 16, 18 were partially filed;
+only their **deferred remainders** appear below — the "filed slice" notes
+on each finding record where the delivered portion went.
 
 ---
 
@@ -715,58 +701,19 @@ produced a leakage map worth recording before any portability work is scoped:
 
 ### Candidate epic E-B — Distribution & release productization
 
-**Findings:** 3, 18 (remainder).
-
-> **Status: filed (2026-06-02).** The internally-valuable core graduated to
-> [#3436](https://github.com/dsj1984/mandrel/issues/3436) (npm distribution +
-> dependency simplification — supersedes Finding 3 and the
-> create-mandrel-versioning / release-integrity / compat-matrix direction) and
-> [#3437](https://github.com/dsj1984/mandrel/issues/3437) (auto-update
-> lifecycle — migration runner, cross-version config-compat tests, rollback /
-> upgrade messaging from the Finding 18 remainder). The detail below is
-> retained as the filed work's source analysis. Still gated on the productize
-> decision (paid-support remainder of Finding 18): a formal version/support
-> policy, deprecation policy, and operator-facing release notes beyond
-> commit-derived changelog entries.
-
-#### Finding 3 — Distribution is not productized
-
-Evidence (point-in-time, **resolved by #3436** — the framework now ships as
-the `@mandrelai/agents` npm package and is no longer distributed via the
-`dist`-branch submodule):
-
-- Root `package.json` had no `bin`, `files`, `publishConfig`, or `workspaces`,
-  and empty `description`/`keywords`/`author` (at the time the framework repo
-  was distributed via the `dist`-branch submodule, not a published package).
-- `create-mandrel/package.json` is version `0.0.0` and is not a root workspace.
-- `create-mandrel/index.js` hardcodes `https://github.com/dsj1984/mandrel.git`.
-- `.github/workflows/ci.yml` then "published" only by copying `.agents/` to the
-  `dist` branch; it did not publish npm packages.
-
-Remediation direction:
-
-- Choose a productized channel: npm package(s), signed release archives,
-  Homebrew/winget, or a hosted CLI updater.
-- Bring `create-mandrel` into the release/versioning model (non-zero version).
-- Add root package metadata + documented install/update/uninstall flows.
-- Provide release integrity: checksums, provenance/SLSA, signed tags, a
-  compatibility matrix.
+**Finding:** 18 (remainder). Finding 3 (distribution not productized) is
+fully resolved — #3436 ships the framework as the `@mandrelai/agents` npm
+package and #3437 covers the update lifecycle.
 
 #### Finding 18 (remainder) — Release process is not ready for paid support
 
-Filed slice: the dangling `docs/upgrade-guide-3-tier.md` reference → #3386.
+Context: `release-please` manages the root package version, and major bumps
+are intentionally capped (`always-bump-minor`).
 
-Deferred remainder:
-
-- `release-please` manages the root package version (`package.json` +
-  `.release-please-manifest.json`); major bumps
-  are intentionally capped (`always-bump-minor`). (The former `dist` sync that
-  copied `.agents/` after main merge is retired — #3436 publishes the
-  `@mandrelai/agents` npm package instead.)
-- Paid products additionally need: a formal version/support policy, deprecation
-  policy, rollback guidance, cross-version config-compatibility tests, automated
-  migration checks for breaking changes, and operator-facing release notes
-  (beyond commit-derived changelog entries).
+Deferred remainder (productize-gated): a formal version/support policy,
+deprecation policy, rollback guidance, and operator-facing release notes
+beyond commit-derived changelog entries. (Cross-version config-compat tests
+and automated migration checks shipped with #3437.)
 
 ---
 
@@ -863,11 +810,12 @@ actuals; policy controls for model selection, concurrency, retry ceilings.
 Filed slice: SHA-pinning GitHub Actions → #3389.
 
 Existing positives: CI runs `npm audit` + TruffleHog; `.npmrc` sets
-`ignore-scripts=true`.
+`ignore-scripts=true`; npm releases publish with signed Sigstore provenance
+(`publishConfig.provenance: true`, via #3436).
 
 Deferred remainder (procurement gates): no `SECURITY.md`, vulnerability-
-disclosure process, SBOM, dependency-license report, signed releases/provenance,
-or enterprise data-handling documentation. Add these plus a hardening guide and
+disclosure process, SBOM, dependency-license report, or enterprise
+data-handling documentation. Add these plus a hardening guide and
 documented data flows / token scopes / retention / redaction.
 
 #### Finding 15 — No hosted or multi-user control plane
@@ -949,8 +897,9 @@ tests.
    narrow" tension.
 2. **E-A portability** — the biggest scope multiplier; decide runtime/ticketing
    neutrality early because it shapes everything else.
-3. **E-C QA harness** — parallel product build. (**E-B distribution is now
-   filed** — see #3436 / #3437.)
+3. **E-C QA harness** — parallel product build. (**E-B distribution
+   delivered** — #3436 / #3437; only the Finding 18 paid-support remainder
+   is left under E-B.)
 4. **E-D enterprise** and **E-E platform matrix** — gate on first enterprise
    prospect.
 
@@ -1093,3 +1042,159 @@ on a host below the 2.1.154 floor, `selectAuditStrategy` returns `sequential`
 and the lens markdown runs turn-by-turn against the identical report
 contract. This is verified by `tests/dynamic-workflow-capability.test.js` and
 the per-lens report-contract conformance tests under `tests/contract/`.
+
+### 3.3 Remaining orchestration surface (added 2026-06-09)
+
+Seven audit lenses are still **sequential-only** with no
+`.claude/workflows/*.workflow.js` artifact: `audit-dependencies`,
+`audit-devops`, `audit-sre`, `audit-privacy`, `audit-seo`, `audit-ux-ui`,
+`audit-lighthouse`. That is not a backlog by default — several are
+externally bound (`audit-lighthouse` drives a browser; `audit-seo` /
+`audit-ux-ui` are page-walk-shaped) or not cleanly dimensionally
+decomposable, so sequential may stay the *correct* default. Any
+generalization must clear the same § 3.2 per-lens cost/precision gate, lens
+by lens; do not batch-convert.
+
+Beyond audits, `runAuditOrchestration`'s fan-out → adversarial cross-check →
+synthesis shape has one obvious next application: **epic-plan
+decomposition** (parallel per-Feature Story drafting + an adversarial
+consolidation pass). That candidate is scoped in
+[Part 4 § 4.5](#45-orchestration-beyond-audits-spike-candidate) rather than
+here, because its payoff is coupled to the story-size recalibration.
+
+## Part 4 — Frontier-Model Calibration: Story Scope & Decomposition
+
+Recorded: 2026-06-09, against framework version 1.54.0.
+
+Part 1 was written against a hypothetical: "what changes when the model is
+~10x stronger?" This part records the first review run **on** a
+frontier-tier model rather than in anticipation of one. Two outputs:
+
+1. A re-pricing of Part 1's 🔭 Monitor tags whose stated gate ("a materially
+   stronger model") is now met (§ 4.1).
+2. A measured map of why Stories come out small in scope today, and a
+   candidate epic to recalibrate decomposition so the planner emits
+   **capability-sized** Stories a frontier model can deliver in one pass
+   (§ 4.2–4.4). This is the operator-reported pain point and the
+   highest-leverage cluster in this part.
+
+### 4.1 Re-priced action tags for Part 1 findings
+
+| Finding | Old tag | New tag (2026-06-09) | Rationale |
+| ------- | ------- | -------------------- | --------- |
+| #3 — hydrator default flip (skill bodies) | 🔭 Monitor | 🚀 **Filed** — Story [#3863](https://github.com/dsj1984/mandrel/issues/3863) | Gate ("model can self-select context") is met; capsules + `skills.index.json` shipped under Epic #2647. Sized as **one standalone Story**: hard cutover, no opt-in flag, no new validators. |
+| #4 — sub-agent return repair shrink | 🔭 Monitor | 🚀 **Filed** — Story [#3864](https://github.com/dsj1984/mandrel/issues/3864) | Sized as **one standalone Story**, evidence-gated with no staging flag: measure malformed-return rate from existing friction records, then hard-cutover delete (reconciliation already backstops) or documented no-go. |
+| #5 — adaptive code-review depth | 🔭 Monitor | 🚀 **Implement now** | Reuse the existing `planning-risk.js` envelope instead of a new classifier; pairs with the story-size recalibration (bigger diffs need depth selection) — carried inside the § 4.3 candidate epic. |
+| #2 — personas → review checklists | 🔭 Monitor | 🔭 Monitor (**next up**) | Sequence after #3: the hydrator flip changes how much persona prose matters; measure role drift on the frontier tier before converting. |
+| #1 — instruction-surface compression | 🔭 Monitor | 🔭 Monitor | Compress opportunistically as #2/#3 land; a standalone rewrite epic is still premature. |
+| #6 — worktree/branch isolation | 🔭 Monitor | 🔭 Monitor (Keep) | Unchanged — concurrency physics, not model capability. |
+| #7 — anti-thrashing / FinOps | 🔭 Monitor | 🔭 Monitor (remainder only) | Numeric step limits already dropped from `lib/config/limits.js`; remainder waits on inference economics. |
+
+### 4.2 Where the small-story bias comes from (measured 2026-06-09)
+
+The "Stories are typically small in scope" effect is not one knob — it is
+eight mechanisms, all verified against current code. The first five are the
+primary drivers:
+
+| # | Mechanism | Kind | Where | Effect |
+| - | --------- | ---- | ----- | ------ |
+| 1 | `DEFAULT_TASK_SIZING.hardFiles: 15` — Story touching >15 files **rejected** unless it declares `wide: { reason }` | Deterministic validator | `lib/orchestration/ticket-validator-sizing.js` | Hard scope ceiling per Story |
+| 2 | `DEFAULT_TASK_SIZING.maxAcceptance: 8` — >8 acceptance criteria **rejected**, no escape hatch (soft warn at 6) | Deterministic validator | same | Hard AC ceiling per Story |
+| 3 | Feature MUST decompose into 2–5 Stories; >5 forces a sibling Feature | Deterministic validator + prompt | `ticket-validator.js`, `lib/templates/decomposer-prompts.js` | Caps Stories per Feature; widens hierarchy instead of deepening Stories |
+| 4 | `softFiles: 5` advisory width finding + the §7 "5-file rule" prose in `instructions.md` | Validator (soft) + prompt prose | `ticket-validator-sizing.js`, `.agents/instructions.md` §7 | Anchors the planner's mental model at ~5 files/Story |
+| 5 | `DELIVERABLE_GRANULARITY_GUIDANCE` — "a shippable slice a reviewer would accept as a single PR" + single-consumer merge rule | Prompt prose (SSOT constant) | `ticket-validator-sizing.js`, interpolated into decomposer prompt | Conceptual definition sized for *today's* review comfort, not frontier delivery capacity |
+| 6 | `maxTickets: 60` reviewability budget — "combine atomic stories into larger, cohesive stories before splitting" | Prompt prose (soft) | `lib/config/limits.js` + decomposer prompt | Attacks story *count*, already aligned with larger stories |
+| 7 | Planning-context budget (`maxBytes: 50000`) summarizes PRD/Tech Spec before decomposition | Deterministic | `lib/orchestration/planning-context-budget.js` | Less spec detail → more conservative slicing |
+| 8 | `delivery.maxTokenBudget: 200000` hydration cap per Story | Deterministic | `lib/config/limits.js` | Large Story bodies risk section elision at delivery time |
+
+Two structural facts make the recalibration cheap:
+
+- **The constants are SSOT and prompt-synced.** The decomposer prompt
+  interpolates `DEFAULT_TASK_SIZING` values rather than hardcoding them, so
+  raising a ceiling automatically updates the guidance the planner reads.
+- **The risk classifier already exists but is not consulted for sizing.**
+  `planning-risk.js` computes the per-Epic envelope and it is already
+  threaded into decomposition context — the decomposer just never reads it
+  when sizing Stories.
+
+**Recent work already moved the count axis.** v1.54.0 shipped a cluster
+that recognized the over-slicing problem: #3764 collapsed the
+decomposition-sizing profile matrix, #3781 forbade single-Story Features
+and anchored "deliverable granularity," #3799 added a holistic
+consolidation pass to Phase 8 decompose, and #3858 grouped Stories by
+capability rather than execution shape. Those reduce story *count*; the
+per-Story *scope* ceilings (#1–#4 above) are untouched and are now the
+binding constraint.
+
+### 4.3 Candidate epic — risk-adaptive story sizing (🚀 Implement now)
+
+One coordinated change, in decomposer + validator + delivery envelope, with
+one dogfood epic as the calibration fixture:
+
+1. **Raise the per-Story ceilings.** Suggested starting points (calibrate
+   during epic planning, don't copy blindly): `softFiles` 5 → 8,
+   `hardFiles` 15 → 30, `softAcceptanceCount` 6 → 10, `maxAcceptance`
+   8 → 14, Feature max Stories 5 → 7. Keep `wide` as the beyond-ceiling
+   escape hatch. Because the constants are SSOT, this is a small diff —
+   the work is calibration, not plumbing.
+2. **Make sizing risk-adaptive.** Have the decomposer read the
+   already-present `planningRisk` envelope: high-risk axes (security,
+   data-migration, destructive-mutation, billing, public-api) keep today's
+   tight thresholds (smaller, more reviewable Stories); low-risk axes
+   (internal-refactor, test-harness, docs-only) get the relaxed profile.
+   This preserves the original rationale for small stories — review safety
+   — exactly where it matters, instead of everywhere.
+3. **Re-anchor the granularity prose.** Rewrite
+   `DELIVERABLE_GRANULARITY_GUIDANCE` and the §7 "5-file rule" framing in
+   `instructions.md` around the capability tier: a Story is a coherent
+   capability slice the model delivers and self-verifies in one pass; the
+   *Feature* is the review conversation unit. Drop the implicit
+   "atomic = good" framing.
+4. **Thread delivery constraints into planning.** Pass
+   `delivery.maxTokenBudget` and any `delivery.preflight.*` ceilings into
+   decomposer context so the planner sizes Stories against the actual
+   delivery envelope instead of discovering breaches post-hoc at preflight.
+5. **Scale the delivery envelope to match.** Larger Stories must not be
+   silently clipped: raise `maxTokenBudget` for relaxed-profile Stories (or
+   scale it off the sizing profile), and lean on the bounded per-Story
+   acceptance self-eval loop (#3820) — it becomes more load-bearing as
+   ACs-per-Story rise.
+
+**Verification fixture.** Plan the same Epic body under old and new
+profiles and compare: Stories emitted, files/Story, ACs/Story, wave count,
+and (after delivery) rework signals and review findings per Story. The
+hypothesis to confirm: fewer waves and less cross-Story coordination
+overhead at equal-or-better review outcomes.
+
+### 4.4 Guardrails that must NOT relax
+
+- **Worktree/branch isolation and the wave model stay as-is** (Part 1
+  Finding #6) — larger Stories increase per-Story wall-clock, which the
+  existing concurrency cap already governs.
+- **Hard ceilings stay hard** — they move up; they do not become advisory.
+  `wide` remains the only beyond-ceiling path and keeps requiring a reason.
+- **Adaptive review depth lands with, not after, larger stories** (Finding
+  #5) — a 30-file Story with fixed-depth review is strictly worse than
+  today; the two changes are one logical unit.
+- **High-risk axes keep small stories.** The recalibration is conditional
+  relaxation, not a global loosening; `rules/security-baseline.md`
+  inviolability is untouched.
+
+### 4.5 Orchestration beyond audits (spike candidate)
+
+**Status:** 🔭 Monitor — spike-sized, sequenced after § 4.3.
+
+The Part 3 pattern (parallel fan-out → adversarial cross-check →
+synthesis) maps onto **epic-plan decomposition**: draft Stories per Feature
+in parallel sub-agents, then run an adversarial consolidation pass that
+applies the single-consumer merge rule, capability grouping (#3858), and
+the holistic consolidation checks (#3799) across the whole plan at once.
+Today's Phase-8 consolidation runs in one context; a fan-out version would
+trade tokens for plan quality the same way the audit lenses do.
+
+Hold it to the same discipline as Part 3: a measured cost/precision gate
+(plan-quality delta vs token multiple) before it becomes a default, and the
+sequential path remains the capability-degraded fallback. Do **not** start
+this before § 4.3 lands — decomposition quality should be re-baselined on
+the new sizing profile first, since over-slicing is currently the dominant
+plan defect and may disappear without orchestration.
