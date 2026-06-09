@@ -10,11 +10,11 @@
  *   - Story tickets with structured bodies are validated; Feature tickets
  *     and string-bodied Story tickets still pass through.
  *   - assumption enum values in changes[] / references[] are validated for
- *     story bodies (and legacy task-typed fixtures).
+ *     story bodies.
  *
  * The root-level tests/task-body-validator.test.js covers the core
- * validation surface using legacy task-typed fixtures; this file extends
- * coverage for the Story-body and tier-suffix paths.
+ * validation surface using Story fixtures; this file extends coverage for
+ * the Story-body and tier-suffix paths.
  */
 
 import assert from 'node:assert/strict';
@@ -34,16 +34,6 @@ function story(slug, body) {
     slug,
     type: 'story',
     title: `Story ${slug}`,
-    body,
-  };
-}
-
-function task(slug, body) {
-  return {
-    slug,
-    type: 'task',
-    title: `Task ${slug}`,
-    parent_slug: 's1',
     body,
   };
 }
@@ -107,10 +97,11 @@ describe('collectTaskBodyErrors — Story ticket routing (3-tier)', () => {
     assert.deepEqual(collectTaskBodyErrors(tickets), []);
   });
 
-  it('still validates Task tickets with structured bodies', () => {
-    const taskBody = { ...VALID_STORY_BODY };
-    const errs = collectTaskBodyErrors([task('t1', taskBody)]);
-    assert.deepEqual(errs, []);
+  it('skips non-Story typed tickets with structured bodies', () => {
+    const tickets = [
+      { slug: 'e1', type: 'epic', title: 'E', body: { weird: true } },
+    ];
+    assert.deepEqual(collectTaskBodyErrors(tickets), []);
   });
 });
 
@@ -157,16 +148,6 @@ describe('collectTaskBodyErrors — Story body required sections', () => {
     ]);
     assert.ok(
       errs.some((e) => /^Story "/.test(e)),
-      errs.join('\n'),
-    );
-  });
-
-  it('prefixes errors with "Task" for task tickets', () => {
-    const errs = collectTaskBodyErrors([
-      task('t1', { ...VALID_STORY_BODY, goal: '' }),
-    ]);
-    assert.ok(
-      errs.some((e) => /^Task "/.test(e)),
       errs.join('\n'),
     );
   });
@@ -256,15 +237,6 @@ describe('collectTaskBodyErrors — verify[] tier-suffix (Story bodies)', () => 
     for (const e of errs) {
       assert.match(e, /must end with a tier in parentheses/);
     }
-  });
-
-  it('does not apply the tier-suffix rule to Task verify[] entries (legacy tier)', () => {
-    // Task tickets are a legacy shape — their verify[] entries may be free-form.
-    // Only Story tickets (3-tier implementation unit) require a tier suffix.
-    const errs = collectTaskBodyErrors([
-      task('t1', { ...VALID_STORY_BODY, verify: ['npm run test'] }),
-    ]);
-    assert.deepEqual(errs, []);
   });
 });
 
@@ -367,16 +339,6 @@ describe('validateTaskBodyShape — Story prefix in error messages', () => {
     );
     assert.ok(
       errors.some((e) => e.startsWith('Story "Story s1" (s1)')),
-      errors.join('\n'),
-    );
-  });
-
-  it('uses "Task" as the prefix for type::task tickets', () => {
-    const errors = validateTaskBodyShape(
-      task('t1', { ...VALID_STORY_BODY, goal: '' }),
-    );
-    assert.ok(
-      errors.some((e) => e.startsWith('Task "Task t1" (t1)')),
       errors.join('\n'),
     );
   });
