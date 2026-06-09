@@ -656,6 +656,7 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
     'implicit-cross-story-dep',
     'cross-cutting-registries',
     'fan-out-warning',
+    'missing-bdd-scaffold',
   ]);
   const errors = findings
     .filter((f) => f.severity === 'hard')
