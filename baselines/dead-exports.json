@@ -404,10 +404,6 @@
       "symbol": "overwriteContextTicket"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/epic-runner.js",
-      "symbol": "runEpicWithContext"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
       "symbol": "registerInterventionRecorder"
     },

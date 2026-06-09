@@ -20,7 +20,6 @@
  *   - `epic-progress` — fired at wave boundaries / blocker transitions
  *   - `epic-blocked`  — wave aggregated to blocked/failed outside halt path
  *   - `epic-unblocked` — operator flipped back to executing
- *   - `epic-complete` — pr-ready boundary, PR opened against `main`
  *
  * Each fire passes `skipComment: true` so the operator-facing GitHub
  * comments stay owned by `composition.js` (`upsertEpicRunProgress` and
@@ -230,69 +229,6 @@ export async function emitEpicUnblocked({
   } catch (err) {
     logger?.warn?.(
       `[emitEpicUnblocked] notify dispatch failed (swallowed): ${err?.message ?? err}`,
-    );
-  }
-  return null;
-}
-
-/**
- * Fire a curated `epic-complete` webhook event at the `pr-ready` boundary
- * of /epic-deliver — the merge PR has been opened against `main` and the
- * operator can click through. Bookends the `epic-started` fire at kickoff.
- * Failures are swallowed.
- *
- * Earlier the fire lived at the post-final-wave / pre-finalize boundary in
- * `epic-execute-record-wave.js`, but that preceded `gh pr create` by minutes
- * — operators got an "Epic complete" ping with nothing to action. The
- * single emit point is now `epic-deliver-finalize.js`, immediately after
- * the PR URL is captured. The legacy dispatcher path's own inline
- * `epic-complete` webhook (`epic-lifecycle-detector.js`) is also gated to
- * the comment surface only for the same reason.
- *
- * @param {{
- *   notify: Function,
- *   epicId: number|string,
- *   totalStories?: number,
- *   totalWaves?: number,
- *   prUrl?: string|null,
- *   logger?: { warn?: Function },
- * }} args
- */
-export async function emitEpicComplete({
-  notify,
-  epicId,
-  totalStories,
-  totalWaves,
-  prUrl,
-  logger,
-}) {
-  if (typeof notify !== 'function') return null;
-  const epicIdNum = Number(epicId);
-  if (!Number.isInteger(epicIdNum) || epicIdNum <= 0) return null;
-  const wavePart = Number.isFinite(Number(totalWaves))
-    ? ` · ${totalWaves} wave${Number(totalWaves) === 1 ? '' : 's'}`
-    : '';
-  const storyPart = Number.isFinite(Number(totalStories))
-    ? ` · ${totalStories} stor${Number(totalStories) === 1 ? 'y' : 'ies'}`
-    : '';
-  const prPart = prUrl ? ` · PR: ${prUrl}` : '';
-  const message = `Epic #${epicIdNum} complete${wavePart}${storyPart}${prPart}.`;
-  try {
-    await notify(
-      epicIdNum,
-      {
-        severity: 'medium',
-        message,
-        event: 'epic-complete',
-        level: 'epic',
-        epicId: epicIdNum,
-        prUrl: prUrl ?? null,
-      },
-      { skipComment: true },
-    );
-  } catch (err) {
-    logger?.warn?.(
-      `[emitEpicComplete] notify dispatch failed (swallowed): ${err?.message ?? err}`,
     );
   }
   return null;

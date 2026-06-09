@@ -20,12 +20,11 @@
  * the Tech Spec's "listener as classifier" contract (Story #2241 /
  * Task #2246).
  *
- * Operator interaction (the runtime pause point — the wait-for-resume
- * loop — remains in `epic-runner/phases/iterate-waves.js`) calls
+ * Operator interaction (the runtime pause point — the `agent::blocked`
+ * HITL gate owned by the `/epic-deliver` markdown wave loop) calls
  * `emitUnblocked(info)` on this instance once the Epic label is back
  * to `agent::executing`. The listener exposes that as a one-shot
- * method so the iterate-waves phase does not need to import the bus
- * directly.
+ * method so the wave loop does not need to import the bus directly.
  *
  * Idempotency contract (Acceptance Spec AC-9 + AC-10):
  *   - Every `story.blocked` received yields exactly one classification
@@ -250,10 +249,11 @@ export class BlockerHandler {
    * `story.blocked` arrives is a no-op (returns
    * `{ emitted: false, reason: 'no-active-cascade' }`).
    *
-   * Iterate-waves calls this after `pollUntil` observes the operator's
-   * label flip from `agent::blocked` back to `agent::executing`. The
-   * runtime pause point remains in iterate-waves; this method is the
-   * single seam that lets the runtime announce the resume on the bus.
+   * The `/epic-deliver` wave loop calls this after it observes the
+   * operator's label flip from `agent::blocked` back to
+   * `agent::executing`. The runtime pause point is the `agent::blocked`
+   * HITL gate; this method is the single seam that lets the runtime
+   * announce the resume on the bus.
    *
    * @param {{ reason?: string, sourceStoryId?: number }} [override]
    *   Optional override fields. When omitted the helper reuses the

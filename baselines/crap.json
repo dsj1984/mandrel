@@ -7356,18 +7356,6 @@
       "crap": 1
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-runner.js",
-      "method": "runEpic",
-      "startLine": 48,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner.js",
-      "method": "runEpicWithContext",
-      "startLine": 57,
-      "crap": 1
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/epic-runner/blocker-wait.js",
       "method": "waitForEpicUnblock",
       "startLine": 52,
@@ -7893,102 +7881,6 @@
       "path": ".agents/scripts/lib/orchestration/epic-runner/phases/build-wave-dag.js",
       "method": "buildStoryDag",
       "startLine": 129,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "extractStoryIds",
-      "startLine": 60,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "buildWaveStartStories",
-      "startLine": 81,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "applyCommitAssertion",
-      "startLine": 110,
-      "crap": 4.06103515625
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "resolveDoneSkips",
-      "startLine": 160,
-      "crap": 3.0674056875154103
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "<anon method-10>",
-      "startLine": 171,
-      "crap": 2.0438957475994513
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "sessionRowFor",
-      "startLine": 217,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "dispatchWave",
-      "startLine": 247,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "<anon method-17>",
-      "startLine": 264,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "buildWaveEndOutcomes",
-      "startLine": 288,
-      "crap": 6.062208
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "waveEndStoryEntry",
-      "startLine": 322,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "handleWaveBlocker",
-      "startLine": 350,
-      "crap": 8.249111663066035
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "countDoneStories",
-      "startLine": 448,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "toIsoString",
-      "startLine": 465,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "runIterateWavesPhase",
-      "startLine": 469,
-      "crap": 9
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "<anon method-21>",
-      "startLine": 482,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "<anon method-22>",
-      "startLine": 484,
       "crap": 2
     },
     {
