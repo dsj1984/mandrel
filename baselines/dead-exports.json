@@ -660,18 +660,6 @@
       "symbol": "emitGateOutcome"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/story-close/phases/lock-wait-classifier.js",
-      "symbol": "processStartTime"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/story-close/phases/lock-wait-classifier.js",
-      "symbol": "readCpuMs"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/story-close/phases/lock-wait-classifier.js",
-      "symbol": "sampleCpuOverWindow"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/story-close/phases/preflight.js",
       "symbol": "runPreflightPhase"
     },

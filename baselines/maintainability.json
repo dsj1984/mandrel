@@ -1347,10 +1347,6 @@
       "mi": 87.145
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/lock-wait-classifier.js",
-      "mi": 88.118
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/locked-pipeline.js",
       "mi": 73.379
     },
@@ -3741,10 +3737,6 @@
     {
       "path": "tests/lib/orchestration/story-close/close-validation.test.js",
       "mi": 102.61
-    },
-    {
-      "path": "tests/lib/orchestration/story-close/lock-wait-classifier.test.js",
-      "mi": 115.917
     },
     {
       "path": "tests/lib/orchestration/story-close/merge-runner-finalize.test.js",
