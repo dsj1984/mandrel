@@ -1,115 +1,24 @@
 // tests/scripts/epic-plan-decompose.3tier-creation-diagnostics.test.js
 //
-// Story #3120 / Task #3132 — contract coverage for creation.js and
-// diagnostics.js phase helpers under the 3-tier hierarchy (Epic #3078).
+// Story #3120 / Task #3132 — contract coverage for the diagnostics.js
+// phase helper under the 3-tier hierarchy (Epic #3078).
 //
-// Two guarantees pinned here:
+// Guarantee pinned here:
 //
-//   1. `runStagedPasses` runs only the passes whose ticket type is
-//      present. A 3-tier backlog (Feature + Story with inline
-//      acceptance/verify) creates the Feature and Story; the pass loop
-//      only walks `feature` and `story` types — there is no
-//      task-creation pass.
-//
-//   2. `reportPartialFailure` (diagnostics.js) emits no log line that
-//      mentions "Tasks" when the Epic carries only Feature + Story
-//      children. The 3-tier diagnostics surface must not surface a
-//      "missing Tasks" warning — diagnostics is type-agnostic and
-//      counts all child types together.
+//   `reportPartialFailure` (diagnostics.js) emits no log line that
+//   mentions "Tasks" when the Epic carries only Feature + Story
+//   children. The 3-tier diagnostics surface must not surface a
+//   "missing Tasks" warning — diagnostics is type-agnostic and
+//   counts all child types together.
 //
 // Run: node --test tests/scripts/epic-plan-decompose.3tier-creation-diagnostics.test.js
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { Logger } from '../../.agents/scripts/lib/Logger.js';
-import { runStagedPasses } from '../../.agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js';
 import { reportPartialFailure } from '../../.agents/scripts/lib/orchestration/epic-plan-decompose/phases/diagnostics.js';
 
 const EPIC_ID = 9120;
-
-// Minimal provider stub: records every createTicket call and returns
-// a monotonic id so subsequent passes can resolve parent_slug edges.
-function buildRecordingProvider() {
-  let nextId = 1000;
-  const created = [];
-  return {
-    created,
-    async createTicket(parentId, ticketData) {
-      const id = ++nextId;
-      created.push({
-        id,
-        parentId,
-        title: ticketData.title,
-        labels: ticketData.labels ?? [],
-      });
-      return { id, url: `https://example.test/issues/${id}` };
-    },
-    // runStagedPasses does not call these in the happy path, but the
-    // attachAdaptiveConcurrencyHook helper probes _http. Provide an
-    // explicit no-op so the hook detaches cleanly.
-    _http: { onTransientFailure: null },
-  };
-}
-
-describe('runStagedPasses — 3-tier (no Tasks) creation (Story #3120)', () => {
-  it('creates Feature + Story when no Tasks are present, skips the task pass entirely', async () => {
-    const provider = buildRecordingProvider();
-    const ordered = [
-      {
-        type: 'feature',
-        slug: 'f1',
-        title: 'F1 — 3-tier feature',
-        labels: ['type::feature'],
-      },
-      {
-        type: 'story',
-        slug: 's1',
-        title: 'S1 — Story with inline acceptance',
-        parent_slug: 'f1',
-        labels: ['type::story'],
-        // The renderer/validator already handles inline acceptance + verify
-        // upstream; runStagedPasses only walks types and dispatches creates,
-        // so we don't need to carry the structured body here.
-      },
-    ];
-    const slugMap = new Map();
-
-    await runStagedPasses({
-      ordered,
-      slugMap,
-      epicId: EPIC_ID,
-      provider,
-      childIndex: new Map(),
-      configuredCap: 2,
-    });
-
-    // Exactly two creates: the Feature first, then the Story rooted at
-    // that Feature. No third create (no Task pass).
-    assert.equal(provider.created.length, 2);
-    assert.equal(provider.created[0].title, 'F1 — 3-tier feature');
-    assert.equal(
-      provider.created[1].title,
-      'S1 — Story with inline acceptance',
-    );
-    // The Story's parent must resolve to the Feature's freshly minted id,
-    // proving the slugMap propagated across passes even when no Task
-    // pass runs.
-    assert.equal(provider.created[1].parentId, provider.created[0].id);
-  });
-
-  it('emits no creates and no throws when every type bucket is empty (defensive)', async () => {
-    const provider = buildRecordingProvider();
-    await runStagedPasses({
-      ordered: [],
-      slugMap: new Map(),
-      epicId: EPIC_ID,
-      provider,
-      childIndex: new Map(),
-      configuredCap: 2,
-    });
-    assert.equal(provider.created.length, 0);
-  });
-});
 
 describe('reportPartialFailure — 3-tier no "missing Tasks" warning (Story #3120)', () => {
   // Capture every Logger.error call without disturbing the singleton.

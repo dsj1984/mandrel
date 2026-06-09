@@ -1,9 +1,9 @@
 /**
- * creation.js — Phase 4 staged-pass ticket-creation engine shared by the
- * reconciler-based persist flow (`persist.js`).
+ * creation.js — sub-issue link reconciliation, Epic label transitions, and
+ * the advisory ticket-cap warning used by the reconciler-based persist flow
+ * (`persist.js`).
  *
  * Exports: `reconcileSubIssueLinks`, `setEpicLabel`,
- * `runStagedPasses` (two-pass driver with adaptive RL degrade),
  * `warnTicketCapNearLimit`.
  *
  * @module lib/orchestration/epic-plan-decompose/phases/creation
@@ -11,26 +11,6 @@
 
 import { Logger } from '../../../Logger.js';
 import { AGENT_LABELS } from '../../../label-constants.js';
-import { runCreationPass } from './creation-pass.js';
-
-function attachAdaptiveConcurrencyHook(provider) {
-  let observed = false;
-  const http = provider?._http;
-  if (!http || typeof http !== 'object' || !('onTransientFailure' in http)) {
-    return { wasThrottled: () => false, detach: () => {} };
-  }
-  const prior = http.onTransientFailure;
-  http.onTransientFailure = (info) => {
-    if (info?.kind === 'secondary-rate-limit') observed = true;
-    if (typeof prior === 'function') prior(info);
-  };
-  return {
-    wasThrottled: () => observed,
-    detach: () => {
-      http.onTransientFailure = prior;
-    },
-  };
-}
 
 export async function reconcileSubIssueLinks(epicId, provider) {
   if (typeof provider.reconcileSubIssueLinks !== 'function') return;
@@ -64,53 +44,6 @@ export async function setEpicLabel(provider, epicId, targetLabel) {
       remove: planningLabels.filter((l) => l !== targetLabel),
     },
   });
-}
-
-/**
- * Run the staged feature → story creation passes against `provider`.
- *
- * 3-tier (Epic #3078 / #3238): the canonical shape carries only
- * `feature` and `story` tickets — Stories hold inline `acceptance[]` +
- * `verify[]` on their own bodies, so there is no separate task-creation
- * pass. The two passes fire in feature → story order; the slugMap
- * propagates across passes so the story pass's `parent_slug` →
- * Feature-issue-number resolution succeeds. The inline-contract
- * invariant is validated upstream by `assertEachTypePresent` /
- * `assertEveryStoryHasInlineContract` in
- * `lib/orchestration/ticket-validator.js`.
- */
-export async function runStagedPasses({
-  ordered,
-  slugMap,
-  epicId,
-  provider,
-  childIndex,
-  configuredCap,
-}) {
-  let activeCap = configuredCap;
-  const throttle = attachAdaptiveConcurrencyHook(provider);
-  try {
-    for (const passType of ['feature', 'story']) {
-      const passTickets = ordered.filter((t) => t.type === passType);
-      if (passTickets.length === 0) continue;
-      if (throttle.wasThrottled() && activeCap > 1) {
-        Logger.warn(
-          `[Decomposer] secondary rate-limit observed — dropping concurrencyCap from ${activeCap} to 1 for remaining passes`,
-        );
-        activeCap = 1;
-      }
-      await runCreationPass(
-        passTickets,
-        slugMap,
-        epicId,
-        provider,
-        activeCap,
-        childIndex,
-      );
-    }
-  } finally {
-    throttle.detach();
-  }
 }
 
 /**

@@ -196,7 +196,7 @@ describe('ticket-decomposer DAG wiring (orderTicketsForCreation + resolveDepende
   // against the live DAG helpers the reconciler pipeline still uses:
   // `orderTicketsForCreation` topologically sorts within each (parent, type)
   // group, and `resolveDependencies` maps `depends_on` slugs to created ids
-  // via the slugMap that `runCreationPass` threads through each pass.
+  // via the slugMap threaded through the reconciler pipeline.
 
   it('orders a depth-4 sibling-Story dep chain topologically before any create', () => {
     // Author the chain in REVERSE dep order so a typeOrder-only sort would
