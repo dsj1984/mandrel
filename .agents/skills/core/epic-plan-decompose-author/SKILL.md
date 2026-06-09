@@ -166,6 +166,32 @@ You MUST respond ONLY with a valid JSON array of objects. No prose, no markdown 
 ### FEATURE BODY:
 For Features, `body` is a brief string under 2 sentences. Features are navigational — the work happens at the Story level — so dense bodies waste output budget.
 
+FEATURE GROUPING — CAPABILITY/STAKEHOLDER, NOT EXECUTION SHAPE:
+
+- Do not group Stories by technical execution shape (cron jobs, middleware, scripts). Group by the capability or stakeholder they serve. Two Stories that happen to share a delivery mechanism — both are cron sweeps, both are Express middleware, both are CLI scripts — do NOT belong in the same Feature just because of that shared shape. The Feature axis is the user-facing capability or the stakeholder served, never the implementation vehicle.
+- Operational/compliance work gets its own Feature. Retention purges, audit-log sweeps, scheduled cleanups, observability emitters, and other operational/compliance chores serve operators and compliance, not end users. Place them in a dedicated `compliance-and-observability` or `data-retention` Feature — do NOT fold them into a user-facing Feature (e.g. notification flows) merely because they share a cron/scheduled execution shape with user-facing Stories.
+
+ANTI-PATTERN (based on Epic #18 -> Feature #1446):
+
+A decomposition produced a Feature "Notification flows: reminders, schedule-change, retention" grouping three Stories. WRONG — grouped by execution shape (all three are cron sweeps):
+
+    Feature: notification-flows  ("Notification flows: reminders, schedule-change, retention")
+      [X] Story: send-appointment-reminders      (user-facing: emails patients)
+      [X] Story: send-schedule-change-notices    (user-facing: emails patients)
+      [X] Story: purge-email-audit-log-retention (compliance: deletes audit rows past retention)
+
+The email audit-log retention purge was folded in only because all three run as scheduled cron jobs — a shared execution shape, not a shared capability. The purge serves compliance/operators, not the patients the other two Stories notify. CORRECT — regroup by capability/stakeholder:
+
+    Feature: notification-flows  ("Patient notification flows")
+      Story: send-appointment-reminders      (user-facing)
+      Story: send-schedule-change-notices    (user-facing)
+    Feature: compliance-and-observability  ("Data-retention and audit-log compliance")
+      Story: purge-email-audit-log-retention (compliance)
+
+The cron shape is the false grouping signal. Once the retention purge has a sibling under a dedicated compliance Feature it ceases to be a lone-Story Feature (which the validator would reject); pair it with other operational/compliance sweeps (e.g. a session-token cleanup or a metrics-rollup job) under the same `compliance-and-observability` Feature.
+
+- Smell test: if the only thing two Stories have in common is how they run (a scheduled job, a request interceptor, a build step) rather than whom they serve or what capability they deliver, they are mis-grouped. Re-home the operational/compliance Story into its own capability Feature.
+
 ### STORY BODY SCHEMA (REQUIRED FOR EVERY STORY):
 For Stories, `body` MUST be a **string** — the serialized markdown produced by calling `serialize()` from `lib/story-body/story-body.js`. Do NOT emit `body` as a JSON object: `createOp` in `epic-spec-reconciler-ops.js` will throw `StoryBodyParseError` when it receives an object body (Story #3302 serialize-or-throw contract), and `composeStoryBody` in the GitHub provider also discards non-string bodies producing an empty issue. The canonical pipeline requires a serialized string body end-to-end. The freshness gate (`collectTaskChangesPaths`) and the assumption gate (`collectStoryAssumptionEntries`) both parse the string body via `story-body.js#parse` to recover `changes[]`/`references[]` — they operate correctly only on the serialized string form.
 
