@@ -7,7 +7,7 @@
       "p50": 3,
       "p95": 12,
       "max": 30,
-      "methodsAbove20": 21
+      "methodsAbove20": 20
     }
   },
   "rows": [
@@ -568,48 +568,6 @@
       "method": "main",
       "startLine": 377,
       "crap": 18.223941738734638
-    },
-    {
-      "path": ".agents/scripts/epic-deliver-reconcile.js",
-      "method": "formatStoryLine",
-      "startLine": 57,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/epic-deliver-reconcile.js",
-      "method": "renderFrictionBody",
-      "startLine": 69,
-      "crap": 3.000250438266967
-    },
-    {
-      "path": ".agents/scripts/epic-deliver-reconcile.js",
-      "method": "buildRecoveryPlan",
-      "startLine": 109,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/epic-deliver-reconcile.js",
-      "method": "writeRecoveryPlan",
-      "startLine": 122,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/epic-deliver-reconcile.js",
-      "method": "parseArgv",
-      "startLine": 130,
-      "crap": 1.800655976676385
-    },
-    {
-      "path": ".agents/scripts/epic-deliver-reconcile.js",
-      "method": "runReconcile",
-      "startLine": 158,
-      "crap": 3.001421436045249
-    },
-    {
-      "path": ".agents/scripts/epic-deliver-reconcile.js",
-      "method": "main",
-      "startLine": 196,
-      "crap": 28.171484375
     },
     {
       "path": ".agents/scripts/epic-plan-edit-flow.js",
@@ -6892,36 +6850,6 @@
       "method": "buildDocsContext",
       "startLine": 90,
       "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-deliver-reconcile.js",
-      "method": "defaultProbePid",
-      "startLine": 42,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-deliver-reconcile.js",
-      "method": "readDispatchPid",
-      "startLine": 77,
-      "crap": 4.149292899839627
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-deliver-reconcile.js",
-      "method": "classifyStory",
-      "startLine": 105,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-deliver-reconcile.js",
-      "method": "hasReconcileLabel",
-      "startLine": 128,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-deliver-reconcile.js",
-      "method": "reconcileEpicAgentLabels",
-      "startLine": 154,
-      "crap": 9.699135184342285
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/cli.js",
@@ -14488,24 +14416,6 @@
       "method": "formatBlockerReport",
       "startLine": 282,
       "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/story-init/dispatch-state-writer.js",
-      "method": "dispatchStateFilePath",
-      "startLine": 59,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/story-init/dispatch-state-writer.js",
-      "method": "buildDispatchStatePayload",
-      "startLine": 80,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/story-init/dispatch-state-writer.js",
-      "method": "writeDispatchStateFile",
-      "startLine": 113,
-      "crap": 11.055075102412381
     },
     {
       "path": ".agents/scripts/lib/story-init/donor-precheck.js",

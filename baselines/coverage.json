@@ -4,9 +4,9 @@
   "generatedAt": "2026-05-30T17:42:29.140Z",
   "rollup": {
     "*": {
-      "lines": 95.05,
+      "lines": 95.08,
       "branches": 84.11,
-      "functions": 89.14
+      "functions": 89.13
     }
   },
   "rows": [
@@ -105,12 +105,6 @@
       "lines": 86.24,
       "branches": 77.78,
       "functions": 57.14
-    },
-    {
-      "path": ".agents/scripts/epic-deliver-reconcile.js",
-      "lines": 76.79,
-      "branches": 80,
-      "functions": 71.43
     },
     {
       "path": ".agents/scripts/epic-plan-edit-flow.js",
@@ -1220,12 +1214,6 @@
       "path": ".agents/scripts/lib/orchestration/doc-reader.js",
       "lines": 92.55,
       "branches": 85.71,
-      "functions": 100
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-deliver-reconcile.js",
-      "lines": 93.75,
-      "branches": 79.49,
       "functions": 100
     },
     {
@@ -2570,12 +2558,6 @@
       "path": ".agents/scripts/lib/story-init/dependency-guard.js",
       "lines": 93.35,
       "branches": 67.9,
-      "functions": 100
-    },
-    {
-      "path": ".agents/scripts/lib/story-init/dispatch-state-writer.js",
-      "lines": 97.56,
-      "branches": 92.86,
       "functions": 100
     },
     {
