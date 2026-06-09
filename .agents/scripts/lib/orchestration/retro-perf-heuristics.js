@@ -134,10 +134,18 @@ function extractRows(report) {
 /**
  * Build the `low-utilisation` signals — one per wave whose `utilisation` is
  * strictly below the threshold. Returns `[]` when no row crosses the gate.
+ *
+ * Waves with `summedStoryMs <= 0` are skipped unconditionally: when no
+ * per-Story timing windows are present the computed utilisation is 0.0%
+ * because the numerator is 0, not because the wave was genuinely idle.
+ * Scoring unknown timing as low would flood the retro with non-actionable
+ * follow-ons (Story #3850).
  */
 function detectLowUtilisation(rows, threshold) {
   const out = [];
   for (const row of rows) {
+    // Skip waves with no timing data — utilisation is unknown, not low.
+    if (row.summedStoryMs <= 0) continue;
     if (row.utilisation < threshold) {
       out.push({
         kind: 'low-utilisation',

@@ -297,18 +297,23 @@ function refComputeWaveParallelismRows(events, opts = {}) {
       const dur = w.endMs - w.startMs;
       if (Number.isFinite(dur) && dur > 0) summedStoryMs += Math.floor(dur);
     }
+    const storyCount = rec.stories.length;
+    const effectiveCap = Math.min(storyCount, concurrencyCap);
     let utilisation = 0;
     let capBinding = false;
-    if (wallClockMs > 0 && concurrencyCap > 0) {
+    if (wallClockMs > 0 && effectiveCap > 0) {
       utilisation = refClamp(
-        summedStoryMs / (wallClockMs * concurrencyCap),
+        summedStoryMs / (wallClockMs * effectiveCap),
         0,
         1,
       );
+    }
+    if (wallClockMs > 0 && concurrencyCap > 0) {
       capBinding = summedStoryMs / wallClockMs >= concurrencyCap;
     }
     rows.push({
       waveIndex: idx,
+      storyCount,
       wallClockMs,
       summedStoryMs,
       utilisation,

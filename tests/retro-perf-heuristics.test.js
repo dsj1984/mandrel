@@ -242,6 +242,70 @@ describe('classifyPerfSignals (Story #3045)', () => {
     assert.equal(signals.filter((s) => s.kind === 'cap-binding-run').length, 1);
   });
 
+  it('Fix A: does not emit low-utilisation for waves with no timing data', () => {
+    // summedStoryMs=0 means timing is unknown, not that the wave was idle.
+    // A run with no per-Story dispatch windows should produce zero signals.
+    const report = makeReport({
+      waveParallelism: [
+        {
+          waveIndex: 0,
+          wallClockMs: 5000,
+          summedStoryMs: 0,
+          utilisation: 0,
+          capBinding: false,
+        },
+        {
+          waveIndex: 1,
+          wallClockMs: 5000,
+          summedStoryMs: 0,
+          utilisation: 0,
+          capBinding: false,
+        },
+      ],
+    });
+    const signals = classifyPerfSignals(report);
+    assert.equal(
+      signals.filter((s) => s.kind === 'low-utilisation').length,
+      0,
+      'expected zero low-utilisation signals for waves with unknown timing',
+    );
+  });
+
+  it('Fix A: emits low-utilisation only for waves that have timing and are genuinely low', () => {
+    // Wave 0: timing present, genuinely low (0.2 < 0.6 threshold).
+    // Wave 1: timing absent (summedStoryMs=0) — should be suppressed.
+    // Wave 2: timing present, above threshold (0.75 >= 0.6) — no signal.
+    const report = makeReport({
+      waveParallelism: [
+        {
+          waveIndex: 0,
+          wallClockMs: 5000,
+          summedStoryMs: 1000,
+          utilisation: 0.2,
+          capBinding: false,
+        },
+        {
+          waveIndex: 1,
+          wallClockMs: 5000,
+          summedStoryMs: 0,
+          utilisation: 0,
+          capBinding: false,
+        },
+        {
+          waveIndex: 2,
+          wallClockMs: 5000,
+          summedStoryMs: 3750,
+          utilisation: 0.75,
+          capBinding: false,
+        },
+      ],
+    });
+    const signals = classifyPerfSignals(report);
+    const lows = signals.filter((s) => s.kind === 'low-utilisation');
+    assert.equal(lows.length, 1);
+    assert.equal(lows[0].waveIndex, 0);
+  });
+
   it('resolvePerfThresholds falls back to documented defaults', () => {
     assert.deepEqual(
       resolvePerfThresholds(undefined),

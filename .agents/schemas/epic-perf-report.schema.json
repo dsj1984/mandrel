@@ -33,7 +33,7 @@
     },
     "waveParallelism": {
       "type": "array",
-      "description": "Per-wave parallelism utilisation. utilisation = summedStoryMs / (wallClockMs * concurrencyCap), clamped to [0,1] (Epic #3019 / Story #3025).",
+      "description": "Per-wave parallelism utilisation. utilisation = summedStoryMs / (wallClockMs * min(storyCount, concurrencyCap)), clamped to [0,1] (Epic #3019 / Story #3025; effective-cap denominator Story #3850).",
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -47,6 +47,11 @@
         ],
         "properties": {
           "waveIndex": { "type": "integer", "minimum": 0 },
+          "storyCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of Stories in the wave (from wave-start.stories). Added Story #3850."
+          },
           "wallClockMs": { "type": "integer", "minimum": 0 },
           "summedStoryMs": { "type": "integer", "minimum": 0 },
           "utilisation": { "type": "number", "minimum": 0, "maximum": 1 },

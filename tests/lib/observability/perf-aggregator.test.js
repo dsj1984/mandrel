@@ -8,9 +8,11 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  coerceWaveParallelismRow,
   collectValidStorySamples,
   computeEpicPerfReport,
   computeStoryPerfSummary,
+  computeWaveParallelismRows,
 } from '../../../.agents/scripts/lib/observability/perf-aggregator.js';
 
 describe('computeStoryPerfSummary', () => {
@@ -253,6 +255,7 @@ describe('computeEpicPerfReport', () => {
       waveParallelism: [
         {
           waveIndex: 1,
+          storyCount: 3,
           wallClockMs: 1000,
           summedStoryMs: 4000,
           utilisation: 0.25,
@@ -272,10 +275,12 @@ describe('computeEpicPerfReport', () => {
     assert.equal(out.waveParallelism.length, 2);
     // First row passes through (already canonical).
     assert.equal(out.waveParallelism[0].waveIndex, 1);
+    assert.equal(out.waveParallelism[0].storyCount, 3);
     assert.equal(out.waveParallelism[0].capBinding, true);
     assert.equal(out.waveParallelism[0].verifyConcurrencyCap, 4);
     // Second row coerces garbage to safe defaults.
     assert.equal(out.waveParallelism[1].waveIndex, 0);
+    assert.equal(out.waveParallelism[1].storyCount, 0);
     assert.equal(out.waveParallelism[1].wallClockMs, 0);
     assert.equal(out.waveParallelism[1].summedStoryMs, 0);
     assert.equal(out.waveParallelism[1].utilisation, 0);
@@ -286,6 +291,171 @@ describe('computeEpicPerfReport', () => {
 
   it('rejects bad epicId', () => {
     assert.throws(() => computeEpicPerfReport([], { epicId: 0 }), /epicId/);
+  });
+});
+
+describe('computeWaveParallelismRows (Story #3850 fixes)', () => {
+  // Helper to build a minimal lifecycle event stream.
+  function makeEvents({ waves = [], transitions = [] } = {}) {
+    const events = [];
+    const base = Date.parse('2026-06-01T00:00:00.000Z');
+    for (const w of waves) {
+      events.push({
+        kind: 'wave-start',
+        index: w.index,
+        stories: w.stories.map((id) => ({ id })),
+        ts: new Date(base + w.startOffset).toISOString(),
+      });
+      if (w.endOffset != null) {
+        events.push({
+          kind: 'wave-complete',
+          index: w.index,
+          ts: new Date(base + w.endOffset).toISOString(),
+        });
+      }
+    }
+    for (const t of transitions) {
+      events.push({
+        kind: 'state-transition',
+        story: t.storyId,
+        details: { to: t.to },
+        ts: new Date(base + t.offset).toISOString(),
+      });
+    }
+    return events;
+  }
+
+  it('emits storyCount matching the wave-start stories array', () => {
+    const events = makeEvents({
+      waves: [
+        { index: 0, stories: [1, 2, 3], startOffset: 0, endOffset: 5000 },
+      ],
+      transitions: [
+        { storyId: 1, to: 'agent::executing', offset: 100 },
+        { storyId: 1, to: 'agent::done', offset: 2000 },
+        { storyId: 2, to: 'agent::executing', offset: 100 },
+        { storyId: 2, to: 'agent::done', offset: 2000 },
+        { storyId: 3, to: 'agent::executing', offset: 100 },
+        { storyId: 3, to: 'agent::done', offset: 2000 },
+      ],
+    });
+    const rows = computeWaveParallelismRows(events, { concurrencyCap: 4 });
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].storyCount, 3);
+  });
+
+  it('Fix C: 1-Story wave with cap=3 scores utilisation 1.0, not 0.33', () => {
+    // Wall=5000ms, story active for 5000ms, storyCount=1, cap=3.
+    // Old formula: 5000 / (5000 * 3) = 0.33.
+    // New formula: 5000 / (5000 * min(1, 3)) = 1.0.
+    const events = makeEvents({
+      waves: [{ index: 0, stories: [1], startOffset: 0, endOffset: 5000 }],
+      transitions: [
+        { storyId: 1, to: 'agent::executing', offset: 0 },
+        { storyId: 1, to: 'agent::done', offset: 5000 },
+      ],
+    });
+    const rows = computeWaveParallelismRows(events, { concurrencyCap: 3 });
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].storyCount, 1);
+    // Utilisation should be clamped to 1.0 for a fully-busy single-story wave.
+    assert.ok(
+      rows[0].utilisation >= 0.99,
+      `expected utilisation ≈ 1.0 but got ${rows[0].utilisation}`,
+    );
+  });
+
+  it('Fix C: 2-Story wave at cap=3 uses min(2,3)=2 as denominator', () => {
+    // Both stories run from 0 to 5000ms (wallClock=5000). summedStoryMs=10000.
+    // Old formula: 10000 / (5000 * 3) = 0.67.
+    // New formula: 10000 / (5000 * min(2,3)) = 10000 / 10000 = 1.0.
+    const events = makeEvents({
+      waves: [{ index: 0, stories: [1, 2], startOffset: 0, endOffset: 5000 }],
+      transitions: [
+        { storyId: 1, to: 'agent::executing', offset: 0 },
+        { storyId: 1, to: 'agent::done', offset: 5000 },
+        { storyId: 2, to: 'agent::executing', offset: 0 },
+        { storyId: 2, to: 'agent::done', offset: 5000 },
+      ],
+    });
+    const rows = computeWaveParallelismRows(events, { concurrencyCap: 3 });
+    assert.equal(rows[0].storyCount, 2);
+    assert.ok(
+      rows[0].utilisation >= 0.99,
+      `expected utilisation ≈ 1.0 but got ${rows[0].utilisation}`,
+    );
+  });
+
+  it('Fix C: wide wave (storyCount >= cap) uses concurrencyCap denominator', () => {
+    // 4 stories, cap=2. effectiveCap = min(4, 2) = 2.
+    // summedStoryMs=4000 (each story 1000ms), wallClock=1000.
+    // utilisation = 4000 / (1000 * 2) = 2.0, clamped to 1.0.
+    const events = makeEvents({
+      waves: [
+        { index: 0, stories: [1, 2, 3, 4], startOffset: 0, endOffset: 1000 },
+      ],
+      transitions: [
+        { storyId: 1, to: 'agent::executing', offset: 0 },
+        { storyId: 1, to: 'agent::done', offset: 1000 },
+        { storyId: 2, to: 'agent::executing', offset: 0 },
+        { storyId: 2, to: 'agent::done', offset: 1000 },
+        { storyId: 3, to: 'agent::executing', offset: 0 },
+        { storyId: 3, to: 'agent::done', offset: 1000 },
+        { storyId: 4, to: 'agent::executing', offset: 0 },
+        { storyId: 4, to: 'agent::done', offset: 1000 },
+      ],
+    });
+    const rows = computeWaveParallelismRows(events, { concurrencyCap: 2 });
+    assert.equal(rows[0].storyCount, 4);
+    // capBinding: summedStoryMs/wallClock = 4000/1000 = 4 >= cap(2) → true.
+    assert.equal(rows[0].capBinding, true);
+    // utilisation clamped to 1.0 (4000 / (1000 * 2) = 2.0).
+    assert.equal(rows[0].utilisation, 1);
+  });
+
+  it('returns empty array on empty event stream', () => {
+    const rows = computeWaveParallelismRows([], { concurrencyCap: 2 });
+    assert.deepEqual(rows, []);
+  });
+});
+
+describe('coerceWaveParallelismRow (Story #3850: storyCount field)', () => {
+  it('passes storyCount through when present', () => {
+    const row = coerceWaveParallelismRow({
+      waveIndex: 0,
+      storyCount: 2,
+      wallClockMs: 1000,
+      summedStoryMs: 2000,
+      utilisation: 0.5,
+      capBinding: false,
+      verifyConcurrencyCap: 4,
+    });
+    assert.equal(row.storyCount, 2);
+  });
+
+  it('defaults storyCount to 0 when absent (older payloads)', () => {
+    const row = coerceWaveParallelismRow({
+      waveIndex: 0,
+      wallClockMs: 1000,
+      summedStoryMs: 2000,
+      utilisation: 0.5,
+      capBinding: false,
+      verifyConcurrencyCap: 4,
+    });
+    assert.equal(row.storyCount, 0);
+  });
+
+  it('coerces negative storyCount to 0', () => {
+    const row = coerceWaveParallelismRow({
+      waveIndex: 0,
+      storyCount: -5,
+      wallClockMs: 0,
+      summedStoryMs: 0,
+      utilisation: 0,
+      capBinding: false,
+      verifyConcurrencyCap: 4,
+    });
+    assert.equal(row.storyCount, 0);
   });
 });
 
