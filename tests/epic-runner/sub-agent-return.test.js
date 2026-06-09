@@ -32,7 +32,10 @@ test('parseStoryAgentReturn — accepts JSON string', () => {
   assert.equal(out.value.status, 'blocked');
 });
 
-test('parseStoryAgentReturn — accepts fenced ```json``` block with prelude', () => {
+test('parseStoryAgentReturn — rejects a fenced ```json``` block (no free-form extraction)', () => {
+  // Story #3864 hard cutover: prose-wrapped extraction heuristics are gone.
+  // A fenced block is no longer pure JSON, so it routes to GitHub-state
+  // reconciliation rather than being unwrapped.
   const text = [
     'Some narration about the wave.',
     '```json',
@@ -41,25 +44,27 @@ test('parseStoryAgentReturn — accepts fenced ```json``` block with prelude', (
     'And more narration after.',
   ].join('\n');
   const out = parseStoryAgentReturn(text);
-  assert.equal(out.ok, true);
-  assert.equal(out.value.storyId, 12);
+  assert.equal(out.ok, false);
+  assert.match(out.error, /not a JSON envelope/);
 });
 
-test('parseStoryAgentReturn — accepts inline {…} substring with chat prelude', () => {
+test('parseStoryAgentReturn — rejects an envelope wrapped in chat prelude (no free-form extraction)', () => {
+  // Story #3864 hard cutover: a chat-prelude + envelope no longer
+  // round-trips through a balanced-substring scan; it routes to
+  // reconciliation.
   const text = `OK done. ${JSON.stringify({ storyId: 99, status: 'failed', detail: 'boom' })}`;
   const out = parseStoryAgentReturn(text);
-  assert.equal(out.ok, true);
-  assert.equal(out.value.storyId, 99);
-  assert.equal(out.value.detail, 'boom');
+  assert.equal(out.ok, false);
+  assert.match(out.error, /not a JSON envelope/);
 });
 
 test('parseStoryAgentReturn — rejects free-text fragment (Epic #604 reproducer)', () => {
   // The exact return text the general-purpose sub-agent emitted on
-  // 2026-05-04 mid-Task-#624. Without this guard the wave dispatcher used
-  // to propagate the fragment into the per-wave results array.
+  // 2026-05-04 mid-Task-#624. A malformed return now routes directly to
+  // GitHub-state reconciliation (Story #3864), not free-form extraction.
   const out = parseStoryAgentReturn('Clean. Now commit Task 622.');
   assert.equal(out.ok, false);
-  assert.match(out.error, /no parseable JSON envelope/);
+  assert.match(out.error, /not a JSON envelope/);
 });
 
 test('parseStoryAgentReturn — rejects empty / non-string / null', () => {

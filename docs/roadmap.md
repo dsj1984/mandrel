@@ -202,9 +202,25 @@ per-Task.
 #### 5. Sub-Agent Return Repair Can Shrink Substantially
 
 **Status:** Simplify
-**Action:** 🔭 Monitor — repair heuristics exist because current sub-agents
-still produce malformed envelopes. Re-evaluate once structured-output
-compliance is rock-solid in the next tier.
+**Action:** ✅ **Shipped (free-form extraction deleted)** — Story
+[#3864](https://github.com/dsj1984/mandrel/issues/3864) (2026-06-09).
+Evidence-gated hard cutover: the malformed-terminal-return rate measured
+from existing friction records (`renderMalformedReturnsFriction` per-wave
+occurrences + `friction` structured comments) across the last delivered
+Epics (#3823, #3798, #3780/#3763/#3744, #3686) was **zero** —
+`malformed-subagent-return` was never posted, and the friction signals that
+did fire were unrelated categories (e.g. `reap-failure`). With the rate at
+~zero, the four free-form extraction candidates (`starts-with-{`, fenced
+```json``` block, balanced-`{...}`-substring scan) and their dedicated tests
+were deleted in one cutover (no flag, no staged legacy path). Schema
+validation and GitHub-state reconciliation are retained unchanged; a
+malformed terminal return now routes directly to reconciliation plus a
+friction record — the stronger backstop that already caught everything the
+heuristics caught.
+
+Still open (separate Finding #4 sub-item, **not** shipped by #3864):
+reduce chat-relay instructions in `epic-deliver.md` / `story-deliver.md`
+now that the canonical progress surface is a structured comment.
 
 **Primary paths:**
 
@@ -214,26 +230,26 @@ compliance is rock-solid in the next tier.
 - `.agents/workflows/epic-deliver.md`
 - `.agents/workflows/story-deliver.md`
 
-The sub-agent return parser exists because current sub-agents sometimes return
-plain prose, partial status, or malformed JSON after doing real work. A much
-stronger model with robust structured-output compliance makes much of this
-repair layer less important.
+The sub-agent return parser existed because earlier sub-agents sometimes
+returned plain prose, partial status, or malformed JSON after doing real
+work. On the current model tier, structured-output compliance is reliable
+enough that the prose-wrapped extraction layer never fired across the
+sampled Epics, so it was removed.
 
-Keep:
+Kept (permanent):
 
 - Schema validation of returned envelopes.
 - Conservative reconciliation from GitHub state when a child result is missing
   or inconsistent.
 - Friction reporting when a child violates the contract.
 
-Simplify:
+Shipped (this finding's deletion):
 
-- Replace free-form JSON extraction heuristics with a single structured-output
-  contract.
-- Treat malformed terminal returns as rare protocol errors rather than a normal
-  recovery path.
-- Reduce chat relay instructions when the canonical progress surface is already
-  a structured comment.
+- Replaced the free-form JSON extraction heuristics with a single
+  structured-output contract: `parseStoryAgentReturn` now accepts only an
+  already-parsed object or a return string that is pure JSON.
+- Malformed terminal returns are now treated as rare protocol errors routed
+  to reconciliation, not a normal recovery path.
 
 #### 6. Code Review Should Become Evidence-First, Not Ritual-First
 
@@ -452,8 +468,10 @@ work clusters into two areas:
 - Convert persona prose into concise review checklists (Finding #2).
 - Reduce per-Task commit ritual when Tasks are tightly coupled
   (Finding #4).
-- Drop sub-agent return repair heuristics once structured-output
-  compliance is reliable (Finding #5).
+- ✅ Dropped the free-form sub-agent return extraction heuristics now that
+  structured-output compliance is reliable (Finding #5, Story #3864). Schema
+  validation and GitHub-state reconciliation are retained; the remaining
+  chat-relay-instruction trim is still open.
 - Make code-review depth adaptive to diff risk (Finding #6).
 - Treat anti-thrashing / FinOps as observability rather than control
   flow when inference economics permit (Finding #8).
