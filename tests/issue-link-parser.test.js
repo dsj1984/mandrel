@@ -84,7 +84,7 @@ describe('parseLinkedIssues — Story #2091 contract', () => {
       'tech spec: #5003',
     ];
     for (const line of techSpecVariants) {
-      const parsed = parseLinkedIssues(`- [ ] ${line}\n`);
+      const parsed = parseLinkedIssues(planningArtifactsBody([line]));
       assert.match(line, /#(\d+)/);
       const expected = Number.parseInt(line.match(/#(\d+)/)[1], 10);
       assert.equal(parsed.techSpec, expected, `failed: ${line}`);
@@ -95,10 +95,67 @@ describe('parseLinkedIssues — Story #2091 contract', () => {
       'accept-spec: #6003',
     ];
     for (const line of acceptanceVariants) {
-      const parsed = parseLinkedIssues(`- [ ] ${line}\n`);
+      const parsed = parseLinkedIssues(planningArtifactsBody([line]));
       assert.match(line, /#(\d+)/);
       const expected = Number.parseInt(line.match(/#(\d+)/)[1], 10);
       assert.equal(parsed.acceptanceSpec, expected, `failed: ${line}`);
     }
+  });
+
+  // Story #3848 — regression guard: prose references in the body must not
+  // shadow the canonical Planning Artifacts section links.
+  it('ignores prose spec references outside the Planning Artifacts section (Story #3848)', () => {
+    // Simulate the live reproduction case: body prose mentions a foreign
+    // Epic's Acceptance Spec #907, but the Planning Artifacts section links
+    // the correct ticket #1442.
+    const body = [
+      '## Summary',
+      '',
+      'Bundled follow-up: AC-8..AC-12 on Acceptance Spec #907 from Epic #11.',
+      'Also references PRD #42 and Tech Spec #43 in passing prose.',
+      '',
+      '## Planning Artifacts',
+      '- [ ] PRD: #100',
+      '- [ ] Tech Spec: #200',
+      '- [ ] Acceptance Spec: #1442',
+      '',
+      '## Other Section',
+      'Some more content referencing Acceptance Spec #999.',
+    ].join('\n');
+
+    const parsed = parseLinkedIssues(body);
+
+    // Must resolve to the Planning Artifacts values, not the prose values.
+    assert.equal(
+      parsed.prd,
+      100,
+      'prd should be 100 from Planning Artifacts, not 42 from prose',
+    );
+    assert.equal(
+      parsed.techSpec,
+      200,
+      'techSpec should be 200 from Planning Artifacts, not 43 from prose',
+    );
+    assert.equal(
+      parsed.acceptanceSpec,
+      1442,
+      'acceptanceSpec should be 1442 from Planning Artifacts, not 907 from prose',
+    );
+  });
+
+  it('returns all-null slots when there is no Planning Artifacts section at all', () => {
+    // Prose references without a Planning Artifacts section must return null
+    // (not the prose value) — plan-epic.js treats null as "not yet linked"
+    // and will create fresh tickets rather than linking foreign ones.
+    const body = [
+      '## Summary',
+      '',
+      'See PRD #42, Tech Spec #43, Acceptance Spec #907 for prior art.',
+    ].join('\n');
+
+    const parsed = parseLinkedIssues(body);
+    assert.equal(parsed.prd, null);
+    assert.equal(parsed.techSpec, null);
+    assert.equal(parsed.acceptanceSpec, null);
   });
 });
