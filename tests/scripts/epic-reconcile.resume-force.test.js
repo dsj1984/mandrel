@@ -32,8 +32,8 @@ import {
   reseedMappingFromGh,
   runReconcile,
 } from '../../.agents/scripts/epic-reconcile.js';
-import { diff as realDiff } from '../../.agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js';
 import { spawnReconcilerApply } from '../../.agents/scripts/lib/orchestration/epic-plan-decompose/phases/reconcile-spawn.js';
+import { diff as realDiff } from '../../.agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js';
 
 const EPIC_ID = 3905;
 
@@ -314,7 +314,11 @@ describe('reseedMappingFromGh — Story #3905 pure recovery', () => {
     const state = {
       epicId: EPIC_ID,
       mapping: {
-        'feature-a': { issueNumber: 100, entity: 'feature', parentSlug: 'epic' },
+        'feature-a': {
+          issueNumber: 100,
+          entity: 'feature',
+          parentSlug: 'epic',
+        },
       },
     };
     const ghState = {

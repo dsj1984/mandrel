@@ -64,16 +64,12 @@ export function spawnReconcilerApply({
 }) {
   const reconcileArgs = [reconcileCli, String(epicId), '--apply', '--yes'];
   if (explicitDelete) reconcileArgs.push('--explicit-delete');
-  const reconcileResult = spawnSync(
-    process.execPath,
-    reconcileArgs,
-    {
-      cwd,
-      stdio: 'pipe',
-      encoding: 'utf-8',
-      env: { ...process.env, EPIC_RECONCILE_INVOKER: 'epic-plan-decompose' },
-    },
-  );
+  const reconcileResult = spawnSync(process.execPath, reconcileArgs, {
+    cwd,
+    stdio: 'pipe',
+    encoding: 'utf-8',
+    env: { ...process.env, EPIC_RECONCILE_INVOKER: 'epic-plan-decompose' },
+  });
   const reconcile = {
     status: reconcileResult.status ?? 1,
     stdout: reconcileResult.stdout ?? '',
