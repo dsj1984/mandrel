@@ -227,11 +227,116 @@ planned.
    different ticket set.
 4. **If user declines**: Abort gracefully.
 
+## Phase 5.5: Story-Sized Advisory (existing-Epic path)
+
+An **advisory** scope-triage check that catches a story-sized scope which was
+hand-opened directly as a `type::epic` issue before any ceremony is paid for.
+Phase 6's Epic Clarity Gate scores section *presence*, not scope *size* — a
+perfectly clear but story-sized Epic (typically a thin, freshly opened issue)
+sails straight through to full planning. This advisory is the size check the
+clarity gate does not make.
+
+### Firing condition (load-bearing)
+
+The advisory runs **only** when **both** hold:
+
+1. **Phase 5 found no planning artifacts** — the Epic body has no
+   `## Planning Artifacts` section linking a PRD / Tech Spec (i.e. Phase 5
+   did **not** enter its re-plan branch).
+2. **The Epic has no open Feature/Story children** — no open `type::feature`
+   or `type::story` sub-issues are linked to this Epic.
+
+If **either** condition fails, **skip this phase silently** and continue to
+Phase 6. It must **never** fire on the re-plan path: recommending a "downgrade
+to a Story" on an Epic that already carries a PRD and a ticket tree is
+nonsense and would collide with the `--force` re-plan flow. The advisory also
+does not fire on the ideation path — that path already ran the Phase 1.5 scope
+triage on the one-pager before the Epic existed.
+
+### Triage
+
+1. **Activate the scope-triage skill**: Read
+   [`<agentRoot>/skills/core/scope-triage/SKILL.md`](../skills/core/scope-triage/SKILL.md)
+   via the `Read` tool (resolve `<agentRoot>` from `project.paths.agentRoot` —
+   default `.agents`) and apply its rubric to the **Epic body**. The skill is
+   artifact-agnostic — it reads the same against an Epic body as against a
+   one-pager or a Story draft — and anchors its sizing judgment **by
+   reference** to `DELIVERABLE_GRANULARITY_GUIDANCE` / `DEFAULT_TASK_SIZING`
+   in
+   [`ticket-validator-sizing.js`](../scripts/lib/orchestration/ticket-validator-sizing.js).
+   It emits one verdict: `epic` | `story` | `borderline`. The verdict is
+   host-LLM judgment — there is **no `--flag`**, no scorer, no schema, and no
+   label transition behind this gate. Do **not** restate the skill's rubric or
+   its sizing thresholds here.
+
+2. **`epic` verdict** → proceed silently. No extra prompt, no HITL stop. The
+   run continues straight to Phase 6. Being wrong in the `epic` direction is
+   cheap (Phase 8.3 consolidation and the sizing validator catch an
+   over-planned Story later), so an `epic` verdict never costs the operator a
+   stop.
+
+3. **`story` or `borderline` verdict** → **STOP** and present a **three-way
+   operator choice**. Never auto-route; the verdict is advisory and the
+   operator always decides.
+
+   - **Recommended: convert to a standalone Story** (with the triage
+     rationale) — run the conversion path below.
+   - **Proceed as Epic anyway** — ignore the recommendation and continue to
+     Phase 6 with the Epic unchanged.
+   - **Abort** — stop planning entirely. The Epic is left exactly as it was;
+     no labels move and nothing is closed.
+
+### Conversion path (close-and-recreate)
+
+Conversion is **close-and-recreate**, not in-place relabeling. A `type::epic`
+body does not satisfy `validateStoryBody` (it lacks the required Story
+sections and would have to drop the Epic shape), and editing or relabeling the
+existing issue violates the workflow's "Do not modify existing issues without
+explicit permission" Constraint. So the conversion seeds a fresh Story and
+closes the Epic in its favor, and **every** issue mutation below happens
+**only after the operator explicitly confirms the conversion in-session**:
+
+1. **Seed a notes file from the Epic body.** Write the Epic's Context / Goal /
+   Scope / Acceptance Criteria into a seed file under
+   `temp/epic-[Epic_ID]/scope-triage-seed.md` (the `temp/` tree is gitignored).
+   This is the same notes-file shape `/story-plan --from-notes` consumes.
+
+2. **Hand off to `/story-plan --from-notes`.** Invoke
+   [`/story-plan --from-notes temp/epic-[Epic_ID]/scope-triage-seed.md`](story-plan.md),
+   **identifying the invocation as a scope-triage handoff** so `/story-plan`
+   skips its own escalation gate (the skill's no-re-triage rule — a handoff is
+   a settled triage decision, and re-running the gate on the receiving side
+   would re-litigate it and risk a ping-pong between the two workflows). The
+   replacement Story's `## Notes` section links back to the closed Epic
+   (`Converted from Epic #[Epic_ID] — scope triaged as a standalone Story`) so
+   the audit trail is bidirectional.
+
+3. **Close the Epic in favor of the replacement.** Once `/story-plan` has
+   created the replacement Story (capture its number as `#N`), close the Epic
+   with a cross-linking comment:
+
+   ```bash
+   gh issue close [Epic_ID] --repo <owner>/<repo> \
+     --comment "Closed in favor of #N — scope triaged as a standalone Story."
+   ```
+
+   This is the only `gh issue close` in the path, and it runs **after** the
+   replacement Story exists, so the conversion never strands a closed Epic
+   with no successor. The replacement-Story back-link plus this close comment
+   give a reviewer the full bidirectional trail.
+
+The conversion mutates two issues (creates the Story, closes the Epic) — both
+behind the single operator confirmation above. After conversion `/epic-plan`
+exits: the work now lives on the standalone Story, which the operator delivers
+via [`/single-story-deliver`](helpers/single-story-deliver.md) or
+[`/story-deliver`](story-deliver.md).
+
 ## Phase 6: Epic Clarity Gate
 
-Runs on every existing-Epic invocation, immediately after Phase 5
-(Re-Plan Detection) and before Phase 7 (PRD, Tech Spec & Acceptance
-Spec). The gate scores the Epic body against the five canonical
+Runs on every existing-Epic invocation, after Phase 5 (Re-Plan
+Detection) and the Phase 5.5 story-sized advisory, and before Phase 7
+(PRD, Tech Spec & Acceptance Spec). The gate scores the Epic body
+against the five canonical
 sections from
 [`.agents/templates/epic-from-idea.md`](../templates/epic-from-idea.md)
 (Context, Goal, Non-Goals, Scope, Acceptance Criteria) and either
@@ -512,7 +617,7 @@ for the scoring logic.
    cleanup contract lives in
    [`lib/plan-phase-cleanup.js`](../scripts/lib/plan-phase-cleanup.js).
    **Run the Phase 7.5 spec-validate gate (below) on
-   `temp/epic-[Epic_ID]/techspec.md` _before_ this cleanup deletes the file** —
+   `temp/epic-[Epic_ID]/techspec.md` *before* this cleanup deletes the file** —
    the gate reads the authored spec from temp.
 
 ## Phase 7.5: Tech Spec Section Gate (`epic-plan-spec-validate.js`)
@@ -796,7 +901,7 @@ triaged it (e.g. a known `origin` outage during a maintenance window).
 An **opt-in, advisory** gate that offers the operator a guided walkthrough of
 the freshly planned backlog before they hand off to `/epic-deliver`. The plan
 is the moment the operator authorizes an autonomous fan-out of subagents — this
-phase exists so they can _understand and endorse_ the approach while it is
+phase exists so they can *understand and endorse* the approach while it is
 still free to change, not after the code lands.
 
 > **Non-blocking by construction.** This phase runs **after** Phase 10 has

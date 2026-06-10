@@ -358,10 +358,28 @@ existing Phase 1 HITL confirmation rather than adding a second stop: an `epic`
 verdict proceeds with a plain confirm, while a `story` / `borderline` verdict
 offers a three-way choice (single Story / plan as Epic anyway / abort). On an
 accepted `story`, `/epic-plan` hands the one-pager off to
-`/story-plan --from-notes` as a scope-triage handoff and exits. The gate runs
-on the ideation path only — it is skipped for the existing-Epic entry (1b) and
+`/story-plan --from-notes` as a scope-triage handoff and exits. Phase 1.5 is
 skipped when `/epic-plan` is itself entered via a scope-triage handoff, so the
 two workflows never ping-pong a settled decision.
+
+The same rubric also guards the **existing-Epic entry** (1b) as the
+**Phase 5.5 story-sized advisory**, which catches a story-sized scope that was
+hand-opened directly as a `type::epic` issue (the Phase 6 Epic Clarity Gate
+scores section *presence*, not scope *size*, so a clear-but-thin Epic would
+otherwise sail through). The advisory fires **only** when Phase 5 found no
+linked PRD / Tech Spec **and** the Epic has no open Feature/Story children, so
+it never re-triages an Epic that is being re-planned. An `epic` verdict
+proceeds silently; a `story` / `borderline` verdict STOPs with the same
+three-way choice (convert to a standalone Story / proceed as Epic anyway /
+abort). Converting is **close-and-recreate** — a `type::epic` body cannot
+satisfy `validateStoryBody`, and editing the issue in place would violate the
+"do not modify existing issues without explicit permission" rule — so, only
+after the operator confirms, the Epic body seeds a notes file,
+`/story-plan --from-notes` opens a replacement Story (identified as a
+scope-triage handoff so it skips its own gate, with a `## Notes` back-link to
+the Epic), and the Epic is closed with `gh issue close --comment` cross-linking
+the replacement. No deterministic scorer, no schema, and no label transition
+sit behind either gate.
 
 ### 1b. Existing-Epic entry
 
