@@ -828,8 +828,12 @@ condition.
     --tickets temp/epic-[Epic_ID]/tickets.json --resume
   ```
 
-  `--resume` is idempotent: planned tickets whose title matches an existing
-  open child of the Epic are skipped (their issue IDs flow through the
-  parent/dep wiring), and only the missing ones are created. To force-throttle
-  from the first call on a known-large Epic, set
-  `(framework constant: decomposer concurrency): 1` in `.agentrc.json`.
+  `--resume` is idempotent: the reconciler recovers the slug→issue map
+  from `temp/epic-[Epic_ID]/[Epic_ID].state.json`, and when that file is
+  missing or incomplete it **reseeds the map from live GitHub state** by
+  matching each spec slug against the open children of the Epic by title.
+  Slugs that resolve to an existing open child diff as Updates/no-ops;
+  only the genuinely-missing children are created — the existing tree is
+  never duplicated. To force-throttle from the first call on a known-large
+  Epic, set `(framework constant: decomposer concurrency): 1` in
+  `.agentrc.json`.

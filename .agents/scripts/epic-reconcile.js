@@ -195,6 +195,143 @@ export async function fetchGhState(provider, epicId) {
 }
 
 /**
+ * Walk the spec depth-first and yield one `{ slug, entity, title,
+ * parentSlug, dependsOn }` record per logical entity (epic → feature →
+ * story → task), mirroring the diff engine's `flattenSpec`. Local to the
+ * CLI so the reseed pass (below) can map spec slugs onto live GH issues
+ * without importing the diff engine's private walker. Pure.
+ *
+ * @param {object} spec
+ * @returns {Array<{slug: string, entity: string, title: string, parentSlug: string|null, dependsOn: string[]}>}
+ */
+export function flattenSpecForReseed(spec) {
+  const out = [];
+  if (!spec || typeof spec !== 'object') return out;
+  if (spec.epic && typeof spec.epic === 'object') {
+    out.push({
+      slug: 'epic',
+      entity: 'epic',
+      title: String(spec.epic.title ?? ''),
+      parentSlug: null,
+      dependsOn: [],
+    });
+  }
+  for (const feature of spec.features ?? []) {
+    out.push({
+      slug: feature.slug,
+      entity: 'feature',
+      title: String(feature.title ?? ''),
+      parentSlug: 'epic',
+      dependsOn: [],
+    });
+    for (const story of feature.stories ?? []) {
+      out.push({
+        slug: story.slug,
+        entity: 'story',
+        title: String(story.title ?? ''),
+        parentSlug: feature.slug,
+        dependsOn: story.dependsOn ?? [],
+      });
+      for (const task of story.tasks ?? []) {
+        out.push({
+          slug: task.slug,
+          entity: 'task',
+          title: String(task.title ?? ''),
+          parentSlug: story.slug,
+          dependsOn: [],
+        });
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Story #3905 — recover the slug→issue mapping from live GitHub state
+ * when `state.json` is missing or incomplete.
+ *
+ * The reconciler's idempotency on `--resume` rests entirely on the
+ * gitignored `temp/epic-<id>/<id>.state.json` slug→issue map. When that
+ * file is absent (a fresh checkout, a reaped temp dir, the exact
+ * situation `--resume` exists to recover from), `loadState` returns an
+ * empty mapping, the diff engine sees every spec slug as unmapped, and
+ * `apply` recreates the entire Feature/Story tree on top of the existing
+ * one — duplicating every child. This is precisely the failure `--resume`
+ * is meant to prevent.
+ *
+ * This pass closes the gap: for every spec slug that is **not** already
+ * in the mapping, it looks for an **open** GH issue whose title matches
+ * the spec entity's title (and whose issue number is not already claimed
+ * by another mapping entry). A match seeds a mapping entry carrying the
+ * structural edges (`entity`, `parentSlug`, `dependsOn`) the diff engine
+ * reads, so the slug diffs as an Update/no-op rather than a Create.
+ *
+ * Pure: it mutates and returns a shallow clone of `state.mapping`; it
+ * performs no I/O (the caller supplies the already-fetched `ghState`).
+ * Title matching is intentionally conservative — an unmatched slug is
+ * left unmapped so a genuinely-missing child is still created (the
+ * partial-persist case `--resume` also serves). Returns the reseeded
+ * state plus the list of slugs it recovered so the caller can log them.
+ *
+ * @param {{epicId: number, mapping: Record<string, object>}} state
+ * @param {object} spec
+ * @param {Record<string|number, {title?: string, state?: string}>} ghState
+ * @returns {{ state: object, reseeded: Array<{slug: string, issueNumber: number}> }}
+ */
+export function reseedMappingFromGh(state, spec, ghState) {
+  const reseeded = [];
+  const mapping = { ...(state?.mapping ?? {}) };
+  if (!spec || typeof spec !== 'object' || !ghState) {
+    return { state: { ...state, mapping }, reseeded };
+  }
+
+  // Issue numbers already claimed by the current mapping must not be
+  // re-bound to a second slug.
+  const claimed = new Set();
+  for (const entry of Object.values(mapping)) {
+    if (entry && typeof entry.issueNumber === 'number') {
+      claimed.add(entry.issueNumber);
+    }
+  }
+
+  // Index OPEN gh issues by title → [issueNumber]. Closed issues are
+  // skipped: a `--force`/`--resume` should never re-bind a slug to a
+  // tombstoned issue.
+  const openByTitle = new Map();
+  for (const [num, obs] of Object.entries(ghState)) {
+    const issueNumber = Number(num);
+    if (!Number.isInteger(issueNumber)) continue;
+    if (obs?.state && obs.state !== 'open') continue;
+    const title = typeof obs?.title === 'string' ? obs.title : null;
+    if (title == null) continue;
+    if (!openByTitle.has(title)) openByTitle.set(title, []);
+    openByTitle.get(title).push(issueNumber);
+  }
+
+  for (const entity of flattenSpecForReseed(spec)) {
+    if (mapping[entity.slug]) continue; // already mapped
+    const candidates = openByTitle.get(entity.title) ?? [];
+    // Pick the lowest unclaimed candidate for determinism.
+    const match = candidates
+      .filter((n) => !claimed.has(n))
+      .sort((a, b) => a - b)[0];
+    if (typeof match !== 'number') continue;
+    claimed.add(match);
+    mapping[entity.slug] = {
+      issueNumber: match,
+      contentHash: '',
+      lastObservedAgentState: null,
+      entity: entity.entity,
+      parentSlug: entity.parentSlug,
+      ...(entity.dependsOn.length > 0 ? { dependsOn: entity.dependsOn } : {}),
+    };
+    reseeded.push({ slug: entity.slug, issueNumber: match });
+  }
+
+  return { state: { ...state, mapping }, reseeded };
+}
+
+/**
  * Prompt the operator for confirmation on the supplied plan. Resolves
  * `true` when the user answers `y`/`yes` (case-insensitive), `false`
  * otherwise. Uses `readline` against `process.stdin`/`process.stdout` so
@@ -386,6 +523,27 @@ export async function runReconcile(args, deps = {}) {
     provider = createProvider(config);
   }
   const ghState = await fetchGhStateFn(provider, args.epicId);
+
+  // 3a. Reseed the slug→issue mapping from live GH state for any spec
+  // slug the state file did not cover (Story #3905). Without this, a
+  // `--resume` (or any apply) run with a missing/empty `state.json` but
+  // open children present would diff every spec slug as a Create and
+  // duplicate the entire Feature/Story tree. Title-matched recovery turns
+  // those spurious Creates into Updates/no-ops. Pure — no I/O.
+  const { state: reseededState, reseeded } = reseedMappingFromGh(
+    state,
+    spec,
+    ghState,
+  );
+  state = reseededState;
+  if (reseeded.length > 0) {
+    stderr(
+      `[epic-reconcile] Reseeded ${reseeded.length} slug→issue mapping(s) from live GitHub state ` +
+        `(state.json was missing/incomplete): ${reseeded
+          .map((r) => `${r.slug}→#${r.issueNumber}`)
+          .join(', ')}.`,
+    );
+  }
 
   // 4. Compute the plan.
   const plan = diffFn({ spec, state, ghState });
