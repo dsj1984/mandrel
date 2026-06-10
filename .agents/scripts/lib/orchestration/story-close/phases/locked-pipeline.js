@@ -25,6 +25,7 @@ import {
   clearPhaseTimerState,
   loadPhaseTimerState,
 } from '../../../util/phase-timer-state.js';
+import { read as readPlanState } from '../../epic-plan-state-store.js';
 import { dispatchRecovery } from '../../story-close-recovery.js';
 import { runClosePhase } from './close.js';
 import { runStoryCodeReview } from './code-review.js';
@@ -93,6 +94,39 @@ async function runGatesAndRefresh(ctx) {
     { progress: ctx.progress },
   );
   return { blocked: null };
+}
+
+/**
+ * Read the parent Epic's judged `planningRisk` envelope off its
+ * `epic-plan-state` checkpoint so the Story-scope review can inherit the
+ * Epic's review depth (Story #3940). Best-effort and total — it reuses the
+ * shared `read` from `epic-plan-state-store.js` (the same reader `/epic-plan
+ * --resume` and `epic-audit-prepare.js`'s `resolveRiskRoutedLenses` use, no
+ * third bespoke reader) and never fails the close:
+ *
+ *   - absent/non-integer `epicId` (a Story that is not Epic-attached) → `null`
+ *   - missing/unparseable checkpoint, no `planningRisk` field → `null`
+ *   - any read throw (provider error, malformed comment) → `null`
+ *
+ * A `null` result threads through `runStoryCodeReview` → `runCodeReview`
+ * unchanged, so depth resolves from diff width alone (`standard`), preserving
+ * today's behaviour for an Epic that skipped `/epic-plan`.
+ *
+ * @param {{ provider: object, epicId: number|null|undefined, readPlanStateFn?: typeof readPlanState }} args
+ * @returns {Promise<{ overallLevel?: string, axes?: Array<object> }|null>}
+ */
+export async function resolveParentEpicPlanningRisk({
+  provider,
+  epicId,
+  readPlanStateFn = readPlanState,
+}) {
+  if (!Number.isInteger(epicId) || epicId <= 0) return null;
+  try {
+    const state = await readPlanStateFn({ provider, epicId });
+    return state?.planningRisk ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -169,6 +203,17 @@ export async function runStoryCloseLocked(args) {
     // into `epic/<id>`. Critical findings short-circuit the close and
     // exit non-zero; non-critical findings post a structured comment
     // and let close proceed.
+    //
+    // Story #3940 — the review inherits the parent Epic's judged review
+    // depth: read the Epic's `planningRisk` envelope best-effort off its
+    // `epic-plan-state` checkpoint and forward it so `runCodeReview`
+    // resolves depth from BOTH that risk and the Story-scope
+    // (`epic/<id>...story-<id>`) changed-file count. A missing/unreadable
+    // checkpoint degrades to `null` (→ `standard`) without failing close.
+    const planningRisk = await resolveParentEpicPlanningRisk({
+      provider: ctx.provider,
+      epicId: ctx.epicId,
+    });
     const review = await runStoryCodeReview({
       storyId: ctx.storyId,
       epicBranch: ctx.epicBranch,
@@ -176,6 +221,7 @@ export async function runStoryCloseLocked(args) {
       provider: ctx.provider,
       bus: ctx.bus,
       progress: ctx.progress,
+      planningRisk,
     });
     if (review.blocked) return review.blocked;
   }

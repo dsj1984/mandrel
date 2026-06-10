@@ -72,6 +72,16 @@ function buildCodeReviewBlockedExtra({ storyId, reviewResult }) {
  *     `refresh.js`).
  *   - Standalone close: propagates throws (a review failure stops the close).
  *
+ * The optional `planningRisk` envelope (Story #3940) is forwarded verbatim to
+ * `runCodeReview`, which folds its `overallLevel` together with the
+ * `baseRef...headRef` changed-file count (which `runCodeReview` enumerates
+ * itself, scoped to the diff under review) into the review depth via the
+ * shared {@link resolveDepth} resolver. It is an **input-only** signal: it
+ * tells the provider how thorough to be and never alters the review's output
+ * envelope or the posted structured-comment body. Absent (`null` / `undefined`,
+ * the standalone close path) → `runCodeReview` resolves the neutral depth from
+ * diff width alone, byte-identical to the pre-#3940 behaviour.
+ *
  * @param {{
  *   storyId: number|string,
  *   baseRef: string,
@@ -80,6 +90,7 @@ function buildCodeReviewBlockedExtra({ storyId, reviewResult }) {
  *   provider: object,
  *   progress: (tag: string, msg: string) => void,
  *   progressTag?: string,
+ *   planningRisk?: { overallLevel?: ('low'|'medium'|'high'), axes?: Array<{ axis?: string, level?: string }> }|null,
  *   runCodeReviewFn?: typeof runCodeReview,
  * }} args
  * @returns {Promise<object>} Raw result envelope from `runCodeReview`.
@@ -92,6 +103,7 @@ export async function runStoryReviewCore({
   provider,
   progress,
   progressTag = 'CODE-REVIEW',
+  planningRisk = null,
   runCodeReviewFn = runCodeReview,
 }) {
   const storyIdNum = Number(storyId);
@@ -109,6 +121,12 @@ export async function runStoryReviewCore({
   if (commentTargetId != null) {
     opts.commentTargetId = commentTargetId;
   }
+  // Forward the parent Epic's judged risk only on the Epic-attached path; the
+  // standalone caller leaves this null so `runCodeReview` resolves depth from
+  // diff width alone (no plan checkpoint exists for a standalone Story).
+  if (planningRisk != null) {
+    opts.planningRisk = planningRisk;
+  }
   return runCodeReviewFn(opts);
 }
 
@@ -119,6 +137,15 @@ export async function runStoryReviewCore({
  * (caller proceeds to merge) or the blocked-envelope (caller returns
  * it verbatim and the CLI exits 1).
  *
+ * The optional `planningRisk` envelope (Story #3940) is the parent Epic's
+ * judged risk, read best-effort off the `epic-plan-state` checkpoint by the
+ * locked pipeline. It is forwarded into `runCodeReview` so the review depth is
+ * resolved from BOTH the Epic-judged risk and the Story's own
+ * `epic/<id>...story-<id>` changed-file count — a small Story under a
+ * high-risk Epic still earns `deep`, a small Story under a low-risk Epic gets
+ * `light`, and an absent envelope resolves `standard` (today's behaviour).
+ * Depth is input-only: it never changes `{ blocked }` or the posted comment.
+ *
  * @param {{
  *   storyId: number|string,
  *   epicBranch: string,
@@ -126,6 +153,7 @@ export async function runStoryReviewCore({
  *   provider: object,
  *   bus: { emit: Function }|null,
  *   progress: (tag: string, msg: string) => void,
+ *   planningRisk?: { overallLevel?: ('low'|'medium'|'high'), axes?: Array<{ axis?: string, level?: string }> }|null,
  *   runCodeReviewFn?: typeof runCodeReview,
  * }} args
  * @returns {Promise<{ blocked: object|null }>}
@@ -138,6 +166,7 @@ export async function runStoryCodeReview(args) {
     provider,
     bus,
     progress,
+    planningRisk = null,
     runCodeReviewFn = runCodeReview,
   } = args;
 
@@ -155,6 +184,7 @@ export async function runStoryCodeReview(args) {
       headRef: storyBranch,
       provider,
       progress,
+      planningRisk,
       runCodeReviewFn,
     });
   } catch (err) {

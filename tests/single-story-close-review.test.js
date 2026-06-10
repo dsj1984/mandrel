@@ -161,6 +161,11 @@ describe('runStoryScopeReview (direct)', () => {
         headRef: opts.headRef,
         commentTargetId: opts.commentTargetId,
       };
+      // Story #3940 — the standalone path has no plan checkpoint, so its
+      // review input MUST NOT carry a `planningRisk` envelope (depth resolves
+      // from diff width alone). Pin the absence so the standalone path stays
+      // out of scope of the Epic-attached depth-inheritance change.
+      seen.hasPlanningRisk = 'planningRisk' in opts;
       // Simulate that runCodeReview already posted to the PR.
       return {
         status: 'ok',
@@ -191,6 +196,11 @@ describe('runStoryScopeReview (direct)', () => {
       headRef: 'story-2839',
       commentTargetId: 123,
     });
+    assert.equal(
+      seen.hasPlanningRisk,
+      false,
+      'standalone Story-scope review input must not carry a planningRisk envelope (Story #3940)',
+    );
     assert.equal(out.halted, false);
     assert.equal(out.crossRefPosted, true);
     // Cross-ref must land on the Story issue, not the PR.
