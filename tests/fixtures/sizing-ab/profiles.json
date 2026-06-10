@@ -1,0 +1,18 @@
+{
+  "description": "Sizing constant values each A/B plan was scored against. The `new` block is the SSOT mirror of DEFAULT_TASK_SIZING in .agents/scripts/lib/orchestration/ticket-validator-sizing.js and is drift-gated by tests/sizing-ab-calibration.test.js. The `old` block is the pre-#3874 profile, retained here only as the comparison baseline.",
+  "old": {
+    "softFiles": 5,
+    "softAcceptanceCount": 6,
+    "hardFiles": 15,
+    "maxAcceptance": 8,
+    "softStoriesPerFeature": 5
+  },
+  "new": {
+    "softFiles": 8,
+    "softAcceptanceCount": 10,
+    "hardFiles": 30,
+    "maxAcceptance": 14,
+    "softStoriesPerFeature": 7
+  },
+  "totalFiles": 58
+}

@@ -1,0 +1,351 @@
+{
+  "profile": "old",
+  "epic": "#3865 — model-evolution recalibration (A/B fixture)",
+  "note": "The decomposition the OLD sizing profile (hardFiles=15, softFiles=5, maxAcceptance=8, softAcceptanceCount=6) forced. The SAME delivered work as plan.new.json (identical 58-file union) is sharded into strictly more, narrower Stories because the old tighter ceilings pushed the wide capabilities apart. Each shard sits within the old hardFiles=15 ceiling.",
+  "stories": [
+    {
+      "slug": "o1",
+      "type": "story",
+      "title": "Recalibration shard 1",
+      "body": {
+        "acceptance": [
+          "Delivers shard 1 of the recalibration within the old ceilings",
+          "Each shard stays under the old hardFiles=15 file ceiling",
+          "The shard is independently reviewable as a narrow slice"
+        ],
+        "changes": [
+          {
+            "path": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": ".agents/scripts/lib/templates/decomposer-prompts.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": ".agents/scripts/lib/config-settings-schema.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": ".agents/schemas/agentrc.schema.json",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": ".agents/skills/core/epic-plan-decompose-author/SKILL.md",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": ".agents/scripts/epic-plan-decompose.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": ".agents/scripts/lib/orchestration/ticket-normalizer.js",
+            "assumption": "delivered slice"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "o2",
+      "type": "story",
+      "title": "Recalibration shard 2",
+      "body": {
+        "acceptance": [
+          "Delivers shard 2 of the recalibration within the old ceilings",
+          "Each shard stays under the old hardFiles=15 file ceiling",
+          "The shard is independently reviewable as a narrow slice"
+        ],
+        "changes": [
+          {
+            "path": ".agents/scripts/lib/config/limits.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": ".agents/docs/SDLC.md",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": ".agents/docs/configuration.md",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": ".agents/README.md",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": "tests/ticket-decomposer.test.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": "tests/ticket-validator-sizing.test.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": "tests/sizing-constants.test.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": "tests/decomposer-prompts.test.js",
+            "assumption": "delivered slice"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "o3",
+      "type": "story",
+      "title": "Recalibration shard 3",
+      "body": {
+        "acceptance": [
+          "Delivers shard 3 of the recalibration within the old ceilings",
+          "Each shard stays under the old hardFiles=15 file ceiling",
+          "The shard is independently reviewable as a narrow slice"
+        ],
+        "changes": [
+          {
+            "path": "tests/epic-plan-decompose.test.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": "docs/roadmap.md",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": ".agents/scripts/lib/orchestration/planning-risk.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": ".agents/schemas/risk-verdict.schema.json",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": ".agents/scripts/epic-plan-spec.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/risk-verdict.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/run-spec-phase.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": ".agents/scripts/lib/orchestration/epic-plan-state-store.js",
+            "assumption": "delivered slice"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "o4",
+      "type": "story",
+      "title": "Recalibration shard 4",
+      "body": {
+        "acceptance": [
+          "Delivers shard 4 of the recalibration within the old ceilings",
+          "Each shard stays under the old hardFiles=15 file ceiling",
+          "The shard is independently reviewable as a narrow slice"
+        ],
+        "changes": [
+          {
+            "path": ".agents/skills/core/epic-plan-spec-author/SKILL.md",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": ".agents/scripts/lib/orchestration/structured-comment.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": ".agents/scripts/post-structured-comment.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": ".agents/workflows/epic-plan.md",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": "tests/planning-risk.test.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": "tests/epic-plan-spec-risk-verdict.test.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": "tests/risk-verdict-schema.test.js",
+            "assumption": "delivered slice"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "o5",
+      "type": "story",
+      "title": "Recalibration shard 5",
+      "body": {
+        "acceptance": [
+          "Delivers shard 5 of the recalibration within the old ceilings",
+          "Each shard stays under the old hardFiles=15 file ceiling",
+          "The shard is independently reviewable as a narrow slice"
+        ],
+        "changes": [
+          {
+            "path": "tests/structured-comment.test.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": "tests/run-spec-phase.test.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": "docs/roadmap.md#part1",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": ".agents/scripts/lib/orchestration/code-review.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": ".agents/scripts/code-review.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": ".agents/scripts/lib/orchestration/code-review-routing.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": ".agents/scripts/lib/orchestration/audit-lens.js",
+            "assumption": "delivered slice"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "o6",
+      "type": "story",
+      "title": "Recalibration shard 6",
+      "body": {
+        "acceptance": [
+          "Delivers shard 6 of the recalibration within the old ceilings",
+          "Each shard stays under the old hardFiles=15 file ceiling",
+          "The shard is independently reviewable as a narrow slice"
+        ],
+        "changes": [
+          {
+            "path": ".agents/scripts/select-audits.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": ".agents/workflows/epic-deliver.md",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": ".agents/workflows/helpers/epic-deliver-audit.md",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": "tests/code-review-audit-routing.test.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": "tests/code-review.test.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": "tests/lib/orchestration/code-review.test.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": "tests/select-audits-cli.test.js",
+            "assumption": "delivered slice"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "o7",
+      "type": "story",
+      "title": "Recalibration shard 7",
+      "body": {
+        "acceptance": [
+          "Delivers shard 7 of the recalibration within the old ceilings",
+          "Each shard stays under the old hardFiles=15 file ceiling",
+          "The shard is independently reviewable as a narrow slice"
+        ],
+        "changes": [
+          {
+            "path": "tests/audit-lens.test.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": ".agents/docs/SDLC.md#review",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": ".agents/scripts/lib/config/limits-defaults.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": ".agents/scripts/epic-deliver-preflight.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": ".agents/scripts/lib/orchestration/hydrate-context.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": ".agents/scripts/lib/orchestration/decomposer-context.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": ".agents/schemas/agentrc.schema.json#delivery",
+            "assumption": "delivered slice"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "o8",
+      "type": "story",
+      "title": "Recalibration shard 8",
+      "body": {
+        "acceptance": [
+          "Delivers shard 8 of the recalibration within the old ceilings",
+          "Each shard stays under the old hardFiles=15 file ceiling",
+          "The shard is independently reviewable as a narrow slice"
+        ],
+        "changes": [
+          {
+            "path": ".agents/docs/configuration.md#budget",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": "tests/limits.test.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": "tests/epic-deliver-preflight.test.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": "tests/hydrate-context.test.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": "tests/decomposer-context.test.js",
+            "assumption": "delivered slice"
+          },
+          {
+            "path": "docs/CHANGELOG.md",
+            "assumption": "delivered slice"
+          }
+        ]
+      }
+    }
+  ]
+}

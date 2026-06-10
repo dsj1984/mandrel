@@ -1,10 +1,11 @@
 ---
 name: epic-plan-spec-author
 description: >-
-  Author the PRD, Tech Spec, and Acceptance Spec markdown for an Epic from the
-  planner authoring context emitted by `epic-plan-spec.js --emit-context`. Use
-  during Phase 7 of `/epic-plan` when the host LLM needs to write the three
-  artifacts before `epic-plan-spec.js` persists them.
+  Author the PRD, Tech Spec, Acceptance Spec markdown, and risk-verdict JSON
+  for an Epic from the planner authoring context emitted by
+  `epic-plan-spec.js --emit-context`. Use during Phase 7 of `/epic-plan` when
+  the host LLM needs to write the four artifacts before `epic-plan-spec.js`
+  persists them.
 allowed_tools:
   - Read
   - Write
@@ -16,8 +17,9 @@ allowed_tools:
 ## Policy Capsule
 
 - Run only during `/epic-plan` Phase 7, after `epic-plan-spec.js --emit-context` has written `temp/epic-<Epic_ID>/planner-context.json`; fail loudly if the file is missing rather than fabricating context.
-- Write exactly three artifacts and only inside `temp/epic-<Epic_ID>/`: `prd.md`, `techspec.md`, `acceptance-spec.md`. All three MUST exist on disk before returning.
-- Start each artifact at the correct `##` heading (PRD → `## Overview`, Tech Spec → `## Technical Overview`, Acceptance Spec → `## Acceptance Criteria`) — never emit a top-level `#` heading.
+- Write exactly four artifacts and only inside `temp/epic-<Epic_ID>/`: `prd.md`, `techspec.md`, `risk-verdict.json`, `acceptance-spec.md`. All four MUST exist on disk before returning.
+- Start each markdown artifact at the correct `##` heading (PRD → `## Overview`, Tech Spec → `## Technical Overview`, Acceptance Spec → `## Acceptance Criteria`) — never emit a top-level `#` heading. `risk-verdict.json` is raw JSON conforming to `.agents/schemas/risk-verdict.schema.json`.
+- Judge risk from what the change *does* (the PRD / Tech Spec you just wrote), never from keyword presence — "out of scope: billing" is not a billing change; "rotate the credential vault" is high-risk even without a security keyword.
 - The Tech Spec MUST carry a `## Delivery Slicing` section proposing how the PRD's enumerated capabilities cluster into N shippable Stories — the intentional target the Phase 8 consolidation pass (`epic-plan-consolidate`) reconciles the decomposer draft against. Do NOT coarsen the PRD enumeration to produce it; the grouping recommendation is the granularity lever.
 - Cite real module / file names from `codebaseSnapshot.files` and `codebaseSnapshot.signatures` before citing docs-only names; flag any cited path that is missing from the snapshot with a `<!-- DRIFT -->` callout.
 - Assign stable AC IDs of the form `AC-<n>` in document order; reuse existing IDs across re-plans when Outcome wording is materially unchanged and tag every row's `Disposition` with one of `new | updated | unchanged`.
@@ -29,10 +31,12 @@ allowed_tools:
 
 ## Role
 
-Technical Product Manager + Engineering Architect + Acceptance Engineer (three
-personas, one Skill — the PRD persona produces the requirements; the Architect
-persona consumes the PRD to produce the Tech Spec; the Acceptance Engineer
-consumes both to produce the Acceptance Spec).
+Technical Product Manager + Engineering Architect + Risk Assessor +
+Acceptance Engineer (four personas, one Skill — the PRD persona produces the
+requirements; the Architect persona consumes the PRD to produce the Tech
+Spec; the Risk Assessor judges the change the two specs describe to produce
+the risk verdict; the Acceptance Engineer consumes all of them to produce
+the Acceptance Spec).
 
 ## When to use
 
@@ -41,8 +45,9 @@ writes `temp/epic-<Epic_ID>/planner-context.json`. This Skill replaces the
 inline "Author the PRD" / "Author the Tech Spec" steps from the legacy
 workflow body — the calling workflow dispatches this Skill via the `Skill`
 tool, supplies the Epic ID, and on completion has `temp/epic-<Epic_ID>/prd.md`,
-`temp/epic-<Epic_ID>/techspec.md`, and `temp/epic-<Epic_ID>/acceptance-spec.md`
-ready for the persist half of the script.
+`temp/epic-<Epic_ID>/techspec.md`, `temp/epic-<Epic_ID>/risk-verdict.json`,
+and `temp/epic-<Epic_ID>/acceptance-spec.md` ready for the persist half of
+the script.
 
 ## Inputs
 
@@ -84,25 +89,13 @@ reads:
     means the project has not adopted BDD; degrade silently and proceed
     as before. Non-empty means the Acceptance Engineer step MUST run
     `findBestScenarioMatch` for each planned AC and annotate the
-    Disposition column accordingly (see Step 4).
-  - `planningRisk` — deterministic risk envelope computed in Phase 7
-    (Epic #2649). Shape: `{ axes[], overallLevel, requiresReview,
-    acceptanceDisposition, gateDecision }`. Use it as authoring
-    signal across all three artifacts:
-    - **PRD** — summarize the risk decision in the Context & Goals
-      section so reviewers see why the gate routing is what it is.
-    - **Tech Spec** — cite `planningRisk.axes` when designing
-      gating behavior (e.g. when the Epic is high-risk on the
-      `critical-workflow` axis, the spec should call out the
-      review-required path explicitly).
-    - **Acceptance Spec** — branch on
-      `planningRisk.acceptanceDisposition`. `required` and
-      `recommended` author the spec normally. `not-applicable`
-      authorizes the persist half to apply `acceptance::n-a` on the
-      Epic; in that case write a one-paragraph waiver rationale to
-      `temp/epic-<Epic_ID>/acceptance-spec.md` instead of the AC
-      table so the audit trail still exists, and start the file with
-      `## Acceptance Criteria — waived (planner-selected)`.
+    Disposition column accordingly (see Step 5).
+  Planning risk is **not** an input — this Skill authors it. The risk
+  verdict (`risk-verdict.json`, Step 4 below) is the fourth planning
+  artifact; the persist half validates it against
+  `.agents/schemas/risk-verdict.schema.json` and derives the deterministic
+  `planningRisk` envelope (`deriveRiskEnvelope`) that drives gate routing
+  and the acceptance disposition (Epic #3865).
 
 ## Outputs
 
@@ -110,13 +103,17 @@ reads:
   (no `<h1>`).
 - `temp/epic-<Epic_ID>/techspec.md` — Tech Spec markdown starting with
   `## Technical Overview` (no `<h1>`).
+- `temp/epic-<Epic_ID>/risk-verdict.json` — planner risk verdict JSON
+  conforming to `.agents/schemas/risk-verdict.schema.json`:
+  `{ axes: [{ axis, level, rationale }], summary }`.
 - `temp/epic-<Epic_ID>/acceptance-spec.md` — Acceptance Spec markdown
   starting with `## Acceptance Criteria` (no `<h1>`).
 
-All three files MUST exist on disk before this Skill returns control. The
+All four files MUST exist on disk before this Skill returns control. The
 caller will invoke
-`epic-plan-spec.js --epic <Epic_ID> --prd ... --techspec ... --acceptance-spec ...`
-next, and the persist half will fail loudly if any file is missing or empty.
+`epic-plan-spec.js --epic <Epic_ID> --prd ... --techspec ... --risk-verdict ... --acceptance-spec ...`
+next, and the persist half will fail loudly if any file is missing, empty,
+or (for the verdict) schema-invalid.
 
 ## Procedure
 
@@ -250,7 +247,54 @@ CRITICAL REQUIREMENTS:
 - Include a `## Delivery Slicing` section proposing the shippable-Story grouping. Write the Delivery Slicing section before any other section — it is the primary input to Phase 8 consolidation. Author it as a markdown table with columns `Slice | What ships | Independent?`, using noun-phrase slice names (e.g. "Foundation", "Transport seam", "Send helper") that map onto Feature titles. "Independent?" answers: can this slice ship to production and provide value without the next slice landing?
 ```
 
-### Step 4 — Author the Acceptance Spec (Acceptance Engineer persona)
+### Step 4 — Author the risk verdict (Risk Assessor persona)
+
+Judge the change described by the PRD and Tech Spec you just wrote —
+grounded in `codebaseSnapshot` where it helps — and write
+`temp/epic-<Epic_ID>/risk-verdict.json` with the `Write` tool. The file
+MUST be valid JSON conforming to
+`.agents/schemas/risk-verdict.schema.json`:
+
+```json
+{
+  "axes": [
+    { "axis": "<axis>", "level": "low|medium|high", "rationale": "<why>" }
+  ],
+  "summary": "<one-paragraph overall risk narrative>"
+}
+```
+
+Axis vocabulary (fixed — the schema rejects anything else):
+
+- **Required axes** (presence forces a `required` acceptance disposition):
+  `visible-behavior`, `public-api`, `security`, `data-migration`,
+  `billing`, `destructive-mutation`, `critical-workflow`.
+- **Not-applicable axes** (when they are the only signals, the acceptance
+  spec is waived): `docs-only`, `test-harness`, `internal-refactor`.
+
+Authoring rules:
+
+- Include an axis only when the change **genuinely exercises it** — judge
+  what the Epic *does*, not which words appear in it. A PRD that says
+  "out of scope: billing" carries no `billing` axis; an Epic that rotates
+  a credential vault carries `security` even if the word never appears.
+- `level` reflects blast radius and reversibility of *this* change on
+  *that* axis. `rationale` cites the PRD / Tech Spec section or code
+  surface that justifies the entry — never an empty self-attestation.
+- An empty `axes` array is a deliberate assertion that no recognized risk
+  axis applies (derives an all-low, auto-proceed envelope) — use it only
+  when you can defend that in `summary`.
+- The harness owns the gate: the persist half derives `overallLevel` /
+  `requiresReview` / `acceptanceDisposition` / `gateDecision`
+  deterministically from your axes (`deriveRiskEnvelope`). You supply
+  judgment, not control flow.
+
+The derivation rules you are feeding (so you can anticipate the
+disposition Step 5 must honor): any required axis ⇒ acceptance spec
+`required`; otherwise any `medium` level ⇒ `recommended`; otherwise
+only not-applicable axes (or no axes) ⇒ `not-applicable` (waived).
+
+### Step 5 — Author the Acceptance Spec (Acceptance Engineer persona)
 
 Apply the Acceptance Spec system prompt below to the PRD + Tech Spec just
 written, plus the **existing BDD scenario index** from
@@ -267,6 +311,14 @@ set `Disposition` to `unchanged` (carried through verbatim) or
 behaviour) — never `new` for an AC whose outcome is already proven by
 an existing scenario. When `bddScenarios` is empty (the project has not
 adopted BDD), proceed exactly as before with no annotation.
+
+Branch on the acceptance disposition your Step 4 verdict derives (see the
+derivation rules there): `required` and `recommended` author the spec
+normally per the rules below. `not-applicable` authorizes the persist half
+to apply `acceptance::n-a` on the Epic; in that case write a one-paragraph
+waiver rationale to `temp/epic-<Epic_ID>/acceptance-spec.md` instead of
+the AC table so the audit trail still exists, and start the file with
+`## Acceptance Criteria — waived (planner-selected)`.
 
 Write to `temp/epic-<Epic_ID>/acceptance-spec.md`. The Acceptance Spec
 MUST:
@@ -314,15 +366,17 @@ CRITICAL REQUIREMENTS:
 - Acceptance Outcomes MUST NOT prescribe a commit subject that begins with a non-Conventional-Commits prefix (allowed leading types: feat|fix|chore|refactor|perf|docs|style|test|build|ci|revert). The legacy `baseline-refresh` token used as a leading subject prescription is forbidden — commitlint will reject it at commit time, and the decompose-time validator (`ticket-validator.js` → `validateAcceptanceSubjectPrefix`) will reject the decompose with `code: 'forbidden-subject-prefix'`. Use a Conventional-Commits subject (e.g. `chore(baselines): refresh ...`) and a body trailer (e.g. `baseline-refresh: true` — trailer with a value, not a subject prefix) when a machine-readable marker is needed. See Epic #2501 for rationale.
 ```
 
-### Step 5 — Hand back to `/epic-plan`
+### Step 6 — Hand back to `/epic-plan`
 
-All three files exist; return. The caller will run
+All four files exist; return. The caller will run
 `node .agents/scripts/epic-plan-spec.js --epic <Epic_ID> --prd
 temp/epic-<Epic_ID>/prd.md --techspec temp/epic-<Epic_ID>/techspec.md
---acceptance-spec temp/epic-<Epic_ID>/acceptance-spec.md`, which persists
-the artifacts, appends the `## Planning Artifacts` section to the Epic
-body, flips the Epic to `agent::review-spec`, and cleans up the temp
-files.
+--risk-verdict temp/epic-<Epic_ID>/risk-verdict.json
+--acceptance-spec temp/epic-<Epic_ID>/acceptance-spec.md`, which validates
+the risk verdict, derives the planningRisk envelope, persists the
+artifacts, records the `risk-verdict` structured comment, appends the
+`## Planning Artifacts` section to the Epic body, flips the Epic to
+`agent::review-spec`, and cleans up the temp files.
 
 ## Constraints
 

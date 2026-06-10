@@ -338,33 +338,40 @@ for the scoring logic.
    `project.paths.agentRoot` — default `.agents`) and execute its
    procedure with `[Epic_ID]` as input. The skill reads
    `temp/epic-[Epic_ID]/planner-context.json`, authors the PRD, Tech
-   Spec, **and Acceptance Spec** markdown against the embedded system
-   prompts, and writes them to `temp/epic-[Epic_ID]/prd.md`,
-   `temp/epic-[Epic_ID]/techspec.md`, and
+   Spec, **risk verdict**, and **Acceptance Spec** against the embedded
+   system prompts, and writes them to `temp/epic-[Epic_ID]/prd.md`,
+   `temp/epic-[Epic_ID]/techspec.md`,
+   `temp/epic-[Epic_ID]/risk-verdict.json`, and
    `temp/epic-[Epic_ID]/acceptance-spec.md`. The skill is the
    authoritative authoring step — do **not** inline the PRD / Tech
-   Spec / Acceptance Spec drafting in the workflow body. The skill
-   front-matter declares `allowed_tools: [Read, Write, Bash]`; it
-   never calls GitHub.
+   Spec / risk-verdict / Acceptance Spec drafting in the workflow
+   body. The skill front-matter declares
+   `allowed_tools: [Read, Write, Bash]`; it never calls GitHub.
 
    The skill body carries the authoritative PRD, Tech Spec, and
    Acceptance Spec system prompts. The `systemPrompts` field on the
    `--emit-context` envelope is a backstop for legacy callers; the
    skill body wins when the two surfaces diverge.
 
-3. **Persist to GitHub**: Run the spec-phase CLI's persist half. It flips
-   the Epic to `agent::review-spec` and writes the `epic-plan-state`
-   checkpoint. The `--acceptance-spec` flag persists the third planning
-   ticket (`context::acceptance-spec`) alongside the PRD and Tech Spec;
-   the persist half fails loudly if the markdown file is missing or
-   empty. Omit `--acceptance-spec` only when the Epic carries the
-   `acceptance::n-a` waiver label.
+3. **Persist to GitHub**: Run the spec-phase CLI's persist half. It
+   schema-validates the planner-authored risk verdict (`--risk-verdict`,
+   required — a missing or malformed verdict fails closed before any
+   GitHub mutation), derives the `planningRisk` envelope from it
+   (`deriveRiskEnvelope`), records a `risk-verdict` structured comment
+   on the Epic, flips the Epic to `agent::review-spec`, and writes the
+   `epic-plan-state` checkpoint (including the `riskVerdict` field).
+   The `--acceptance-spec` flag persists the third planning ticket
+   (`context::acceptance-spec`) alongside the PRD and Tech Spec; the
+   persist half fails loudly if any file is missing or empty. Omit
+   `--acceptance-spec` only when the Epic carries the `acceptance::n-a`
+   waiver label.
 
    ```bash
    # Normal planning (three context tickets)
    node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] \
      --prd temp/epic-[Epic_ID]/prd.md \
      --techspec temp/epic-[Epic_ID]/techspec.md \
+     --risk-verdict temp/epic-[Epic_ID]/risk-verdict.json \
      --acceptance-spec temp/epic-[Epic_ID]/acceptance-spec.md
 
    # Re-planning (--force overwrites the three context tickets IN PLACE —
@@ -374,12 +381,14 @@ for the scoring logic.
    node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] \
      --prd temp/epic-[Epic_ID]/prd.md \
      --techspec temp/epic-[Epic_ID]/techspec.md \
+     --risk-verdict temp/epic-[Epic_ID]/risk-verdict.json \
      --acceptance-spec temp/epic-[Epic_ID]/acceptance-spec.md --force
 
    # Waived (acceptance::n-a label on Epic — no spec authored)
    node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] \
      --prd temp/epic-[Epic_ID]/prd.md \
-     --techspec temp/epic-[Epic_ID]/techspec.md
+     --techspec temp/epic-[Epic_ID]/techspec.md \
+     --risk-verdict temp/epic-[Epic_ID]/risk-verdict.json
    ```
 
 4. **Verification and review routing**:

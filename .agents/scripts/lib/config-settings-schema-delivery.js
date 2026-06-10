@@ -207,8 +207,9 @@ const MERGE_WATCH_SCHEMA = {
  * (epic-audit). `maxFixAttempts` caps how many times the auto-fix loop
  * retries a single finding (Story #2611, Epic #2586). `maxFixScopeFiles`
  * caps how many files a single auto-fix may touch before escalating to
- * `agent::blocked` — matches the 5-file rule in `.agents/instructions.md
- * § 7`.
+ * `agent::blocked` (default 5) — a deliberately narrow bound for
+ * unattended auto-fixes, independent of the Story-sizing thresholds in
+ * `ticket-validator-sizing.js`.
  */
 const EPIC_AUDIT_SCHEMA = {
   type: 'object',

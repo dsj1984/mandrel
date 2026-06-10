@@ -33,12 +33,128 @@
  */
 
 import { resolveConfig } from '../config-resolver.js';
+import { selectAuditStrategy } from '../dynamic-workflow/capability.js';
 import {
   countBySeverity,
   renderFindings,
 } from './review-providers/findings-renderer.js';
 import { createReviewProvider } from './review-providers/review-provider-factory.js';
 import { upsertStructuredComment } from './ticketing.js';
+
+/**
+ * Review depth tiers, ordered light → standard → deep. The depth is derived
+ * from the judged risk envelope's `overallLevel` and threaded into the review
+ * provider's `runReview` input so a high-risk Epic gets a deeper review pass
+ * than a low-risk one. Depth is an **input** signal only — it never changes
+ * the `{ status, severity, posted, report, halted, blockerReason }` output
+ * envelope nor the `code-review` structured-comment body (Story #3876).
+ *
+ * @typedef {'light'|'standard'|'deep'} ReviewDepth
+ */
+
+/**
+ * Map a judged risk `overallLevel` to a review depth. Pure, total over the
+ * three known levels; any unknown/absent level falls back to `standard` so a
+ * malformed or missing envelope never silently downgrades the review to
+ * `light` or escalates it to `deep`.
+ *
+ * @param {('low'|'medium'|'high'|string|null|undefined)} overallLevel
+ * @returns {ReviewDepth}
+ */
+export function resolveReviewDepth(overallLevel) {
+  switch (overallLevel) {
+    case 'low':
+      return 'light';
+    case 'high':
+      return 'deep';
+    default:
+      return 'standard';
+  }
+}
+
+/**
+ * The axes whose presence (at `high` risk) routes a specific post-delivery
+ * audit lens. Mirrors the audit-workflow names under
+ * `.agents/workflows/audit-*.md`. `security` routes the security lens;
+ * `public-api` and `architecture` both route the architecture lens. Any other
+ * axis (or a low/medium-risk axis) contributes no lens (Story #3876).
+ */
+const AXIS_TO_LENS = Object.freeze({
+  security: 'audit-security',
+  'public-api': 'audit-architecture',
+  architecture: 'audit-architecture',
+});
+
+/**
+ * Stable output order for routed lenses so a `public-api` + `architecture`
+ * envelope de-dupes to a single `audit-architecture` and the lens list is
+ * deterministic regardless of axis ordering in the verdict.
+ */
+const LENS_ORDER = Object.freeze(['audit-security', 'audit-architecture']);
+
+/**
+ * Resolve the set of post-delivery audit lenses a judged risk envelope routes.
+ *
+ * High-risk axes map to their audit lens via {@link AXIS_TO_LENS}; only axes
+ * judged `high` contribute (a `low`/`medium` axis carries no lens). The result
+ * is de-duplicated and stably ordered (security before architecture) so a
+ * `public-api` + `architecture` envelope routes `['audit-architecture']` once,
+ * not twice. A low-risk envelope — or any envelope with no high-risk routed
+ * axis — resolves to an empty array (no lens beyond the existing baseline
+ * gates).
+ *
+ * Pure function — no I/O, no side effects.
+ *
+ * @param {{ axes?: Array<{ axis?: string, level?: string }> }} [envelope]
+ * @returns {string[]} Ordered, de-duplicated audit-lens identifiers.
+ */
+export function resolveAuditLenses(envelope = {}) {
+  const axes = Array.isArray(envelope?.axes) ? envelope.axes : [];
+  const matched = new Set();
+  for (const entry of axes) {
+    if (!entry || entry.level !== 'high') continue;
+    const lens = AXIS_TO_LENS[entry.axis];
+    if (lens) matched.add(lens);
+  }
+  return LENS_ORDER.filter((lens) => matched.has(lens));
+}
+
+/**
+ * Build the post-delivery audit-lens execution plan for a judged risk
+ * envelope. Each routed lens (see {@link resolveAuditLenses}) is paired with a
+ * strategy decision from the **existing** `selectAuditStrategy` engine — no new
+ * audit machinery is introduced. A low-risk envelope resolves to an empty
+ * `lenses` array and runs no audit beyond the baseline gates (Story #3876).
+ *
+ * Pure with respect to the injected `selectAuditStrategyFn` (default is the
+ * shared dynamic-workflow engine, which is itself pure over its snapshot).
+ *
+ * @param {{ axes?: Array<{ axis?: string, level?: string }> }} [envelope]
+ * @param {{
+ *   snapshot?: object,
+ *   forceStrategy?: ('orchestrated'|'sequential'|null),
+ *   selectAuditStrategyFn?: typeof selectAuditStrategy,
+ * }} [opts]
+ * @returns {{ lenses: string[], plan: Array<{ lens: string, strategy: string, reason: string, forced: boolean }> }}
+ */
+export function planAuditLenses(envelope = {}, opts = {}) {
+  const {
+    snapshot = {},
+    forceStrategy = null,
+    selectAuditStrategyFn = selectAuditStrategy,
+  } = opts;
+  const lenses = resolveAuditLenses(envelope);
+  const plan = lenses.map((lens) => {
+    const decision = selectAuditStrategyFn({ snapshot, forceStrategy });
+    return {
+      lens,
+      strategy: decision.strategy,
+      reason: decision.reason,
+      forced: decision.forced,
+    };
+  });
+  return { lenses, plan };
+}
 
 /**
  * Build the `code-review.end` payload from the normalized result envelope.
@@ -202,6 +318,7 @@ function resolveScopeEnvelope(opts, config) {
  *   provider: object,
  *   logger?: { info?: Function, warn?: Function, error?: Function, fatal?: Function, createProgress?: Function },
  *   baseBranch?: string|null,
+ *   planningRisk?: { overallLevel?: ('low'|'medium'|'high'), axes?: Array<{ axis?: string, level?: string }> }|null,
  *   storyId?: number|null,
  *   bus?: object|null,
  *   now?: () => number,
@@ -279,12 +396,21 @@ export async function runCodeReview(opts = {}) {
     const ticketLabels = Array.isArray(opts.ticketLabels)
       ? opts.ticketLabels
       : [];
+    // Story #3876 — derive the review depth from the judged risk envelope's
+    // `overallLevel` and thread it into the provider's `runReview` input. The
+    // depth is an input-only signal: it tells the provider how thorough to be
+    // (light → standard → deep) and never touches the output envelope or the
+    // posted structured comment. Absent envelope → `standard` (the neutral
+    // default), preserving the pre-change behaviour for callers that do not
+    // pass a risk envelope.
+    const depth = resolveReviewDepth(opts.planningRisk?.overallLevel);
     const reviewInput = {
       scope,
       ticketId,
       baseRef,
       headRef,
       labels: ticketLabels,
+      depth,
     };
 
     const findings = await reviewProvider.runReview(reviewInput);

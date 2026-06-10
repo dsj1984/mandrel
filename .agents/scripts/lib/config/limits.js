@@ -24,6 +24,8 @@
  * working. New call sites should prefer the specific accessors below.
  */
 
+import { getPreflight } from './preflight.js';
+
 /**
  * Framework defaults for the performance-signal detector thresholds. The two
  * dropped detectors (`churn`, `idle`) are omitted entirely.
@@ -46,10 +48,15 @@ export const LEASE_TTL_MS_DEFAULT = 900000;
 /**
  * Framework defaults for the surviving limits surface. `executionTimeoutMs`
  * bumps from 5 min to 10 min per the Story 1 decisions log.
+ *
+ * `maxTokenBudget` is a **single global value** (Story #3875 — raised once
+ * from 200000 to 300000 so capability-sized Stories are not clipped by
+ * hydration elision). There is intentionally no per-profile or
+ * per-complexity budget branch anywhere in the resolver.
  */
 export const LIMITS_DEFAULTS = Object.freeze({
   maxTickets: 60,
-  maxTokenBudget: 200000,
+  maxTokenBudget: 300000,
   executionTimeoutMs: 600000,
   leaseTtlMs: LEASE_TTL_MS_DEFAULT,
   planningContext: Object.freeze({
@@ -153,6 +160,26 @@ export function getLimits(config) {
  */
 export function getSignals(config) {
   return getLimits(config).signals;
+}
+
+/**
+ * Resolve the configured `delivery.preflight.max*` ceilings as a plain
+ * object holding **only** the keys the operator actually configured
+ * (Story #3875 — plan-time/delivery-time reconciliation). Unconfigured
+ * ceilings (`null` floors, meaning "no cap") are omitted entirely so the
+ * decomposition context can thread a compact, non-null envelope to the
+ * planner. An Epic on a zero-config project yields `{}` — never `null`.
+ *
+ * @param {object | null | undefined} config
+ * @returns {Record<string, number>}
+ */
+export function resolvePreflightCeilings(config) {
+  const resolved = getPreflight(config);
+  const ceilings = {};
+  for (const [key, value] of Object.entries(resolved)) {
+    if (value !== null) ceilings[key] = value;
+  }
+  return ceilings;
 }
 
 /**

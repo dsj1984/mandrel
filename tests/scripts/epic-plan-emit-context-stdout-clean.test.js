@@ -244,10 +244,12 @@ describe('epic-plan --emit-context: stdout is reserved for JSON', () => {
     });
   });
 
-  // Story #2791 — Phase 7 emit-context must surface planningRisk inside the
-  // JSON envelope while keeping stdout reserved for JSON only.
-  describe('planningRisk envelope — Story #2791', () => {
-    const highRiskProvider = {
+  // Epic #3865 — risk is no longer classified at emit-context time; the
+  // epic-plan-spec-author Skill authors the risk verdict as the fourth
+  // planning artifact, so the envelope must stay clean JSON without a
+  // planningRisk field.
+  describe('emit-context envelope after the risk-verdict cutover — Epic #3865', () => {
+    const epicProvider = {
       async getEpic(id) {
         return {
           id,
@@ -261,28 +263,26 @@ Changes /epic-plan gate behavior and acceptance-spec creation for critical workf
       },
     };
 
-    it('buildAuthoringContext attaches planningRisk for a high-risk Epic', async () => {
-      const ctx = await buildAuthoringContext(99, highRiskProvider, {});
+    it('buildAuthoringContext does not attach planningRisk', async () => {
+      const ctx = await buildAuthoringContext(99, epicProvider, {});
 
-      assert.ok(
+      assert.equal(
         Object.hasOwn(ctx, 'planningRisk'),
-        'emit-context envelope must include planningRisk',
+        false,
+        'emit-context envelope must not include planningRisk (the Skill authors the risk verdict)',
       );
-      assert.equal(ctx.planningRisk.overallLevel, 'high');
-      assert.equal(ctx.planningRisk.gateDecision, 'review-required');
       assert.ok(ctx.bddRunner);
       assert.ok(ctx.memoryFreshness);
       assert.ok(ctx.priorFeedback);
     });
 
-    it('stdout JSON payload is parseable and carries planningRisk without logger text', async () => {
+    it('stdout JSON payload is parseable without logger text', async () => {
       routeAllOutputToStderr();
 
-      const ctx = await buildAuthoringContext(99, highRiskProvider, {});
+      const ctx = await buildAuthoringContext(99, epicProvider, {});
       const json = `${JSON.stringify(ctx)}\n`;
       const parsed = JSON.parse(json.trim());
-      assert.equal(parsed.planningRisk.gateDecision, 'review-required');
-      assert.equal(parsed.planningRisk.overallLevel, 'high');
+      assert.equal(parsed.epic.title, 'Adaptive Planning Gate Routing');
 
       const { stdout } = await captureIO(async () => {
         process.stdout.write(json);
@@ -296,8 +296,8 @@ Changes /epic-plan gate behavior and acceptance-spec creation for critical workf
       // node:test may append V8 binary IPC to the captured stdout buffer;
       // assert the envelope fingerprint we wrote is present instead of
       // parsing the whole capture.
-      assert.match(stdout, /"planningRisk"/);
-      assert.match(stdout, /"gateDecision":"review-required"/);
+      assert.match(stdout, /"systemPrompts"/);
+      assert.doesNotMatch(stdout, /"planningRisk"/);
     });
   });
 

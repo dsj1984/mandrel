@@ -2,6 +2,7 @@ import { LIMITS_DEFAULTS } from '../config/limits.js';
 import {
   DEFAULT_TASK_SIZING,
   DELIVERABLE_GRANULARITY_GUIDANCE,
+  SOFT_STORIES_PER_FEATURE,
 } from '../orchestration/ticket-validator-sizing.js';
 
 /**
@@ -106,7 +107,7 @@ The primary question is **cohesion, not count**: *is this one coherent change wi
 - **Split independent, parallelizable work** into sibling Stories under the same Feature — but only when the pieces genuinely have separate reasons to exist.
 - **Declare \`wide\` with a one-line reason when a change is legitimately broad** (a cohesive cutover that spans many files for one reason). Declaring \`wide\` lifts the hard file-width ceiling — see below.
 - **Every Feature MUST decompose into at least TWO Stories.** A Feature with a single Story is the work of a Story, not a Feature — collapse it (drop the Feature wrapper and attach its lone Story to a sibling Feature, or merge the Feature into another). The validator HARD-rejects a Feature with fewer than two Stories.
-- **Features typically decompose into ≤5 Stories; otherwise split into a sibling Feature.** A Feature stretching past five Stories is a sign the Feature scope is two features.
+- **Features typically decompose into ≤${SOFT_STORIES_PER_FEATURE} Stories; otherwise split into a sibling Feature.** A Feature stretching past ${SOFT_STORIES_PER_FEATURE} Stories is a sign the Feature scope is two features.
 
 **Numeric backstop (validator-enforced).** These thresholds are sourced from the single \`DEFAULT_TASK_SIZING\` constant in \`ticket-validator-sizing.js\` — there is no second copy to drift:
 
@@ -161,7 +162,7 @@ IMPORTANT DEPENDENCY RULE: Cross-Feature Story dependencies are allowed via \`de
 
 ### REVIEWABILITY BUDGET (Story #2798):
 \`maxTickets = ${maxTickets}\` is a **reviewability budget**, not a hard authoring cap. It marks the count of tickets a human operator can comfortably review in one planning pass; emitting more than this overflows the operator's review window. Default behaviour:
-- **Stay at or under the budget when possible.** Combine atomic stories into larger, cohesive stories before splitting; small Stories should merge back into siblings rather than spawn their own container.
+- **Stay at or under the budget when possible.** Merge narrow, single-module stories into larger, cohesive capability stories before splitting; small Stories should merge back into siblings rather than spawn their own container.
 - **Do NOT truncate or over-compress to fit.** If the plan genuinely needs more tickets than the budget, emit the full plan anyway and add a compact \`over_budget_rationale\` string at the top of the FIRST Feature's \`body\` explaining (a) why the plan exceeds the budget and (b) what was already merged to keep the count down. The operator will then either accept the plan by re-running the decompose with the explicit \`--allow-over-budget\` override flag, or push back and ask for a re-scope.
 - **Never stop mid-array.** Always emit complete JSON — partial arrays are rejected by the validator.`;
 }

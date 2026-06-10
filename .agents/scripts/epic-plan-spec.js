@@ -13,10 +13,13 @@
  *                       which consumes this envelope and writes the PRD and
  *                       Tech Spec markdown files.
  *
- *   2. (default)        Given author-provided PRD and Tech Spec files,
- *                       persists the two artifact issues, flips the Epic to
- *                       `agent::review-spec`, and upserts the `epic-plan-state`
- *                       structured comment.
+ *   2. (default)        Given author-provided PRD, Tech Spec, and risk-verdict
+ *                       files, validates the risk verdict against
+ *                       `risk-verdict.schema.json`, derives the planningRisk
+ *                       envelope, persists the artifact issues, records the
+ *                       verdict as a `risk-verdict` structured comment, flips
+ *                       the Epic to `agent::review-spec`, and upserts the
+ *                       `epic-plan-state` structured comment.
  *
  * --force regenerates existing PRD/Tech Spec.
  * --steal forcibly transfers a foreign Epic-lease claim (the plan-lease guard
@@ -70,6 +73,10 @@ import {
   PRD_SYSTEM_PROMPT,
   TECH_SPEC_SYSTEM_PROMPT,
 } from './lib/orchestration/epic-plan-spec/phases/prompts.js';
+import {
+  loadRiskVerdict,
+  validateRiskVerdict,
+} from './lib/orchestration/epic-plan-spec/phases/risk-verdict.js';
 import { runSpecPhase } from './lib/orchestration/epic-plan-spec/phases/run-spec-phase.js';
 import { runSpecFreshnessCheck } from './lib/orchestration/epic-plan-spec/phases/spec-freshness.js';
 import { resolveReviewRouting } from './lib/orchestration/plan-review-routing.js';
@@ -81,6 +88,7 @@ export {
   ACCEPTANCE_SPEC_SYSTEM_PROMPT,
   buildAuthoringContext,
   drainPendingCleanupAtBoot,
+  loadRiskVerdict,
   PRD_SYSTEM_PROMPT,
   planEpic,
   resolveAcceptancePersistence,
@@ -89,6 +97,7 @@ export {
   runSpecFreshnessCheck,
   runSpecPhase,
   TECH_SPEC_SYSTEM_PROMPT,
+  validateRiskVerdict,
 };
 
 async function main() {
@@ -149,11 +158,15 @@ async function main() {
     return;
   }
 
-  if (!values.prd || !values.techspec) {
+  if (!values.prd || !values.techspec || !values['risk-verdict']) {
     throw new Error(
-      'Missing --prd and/or --techspec file paths. (Use --emit-context first to gather authoring context.)',
+      'Missing --prd, --techspec, and/or --risk-verdict file paths. (Use --emit-context first to gather authoring context; the epic-plan-spec-author Skill writes all artifacts including risk-verdict.json.)',
     );
   }
+
+  // Read + schema-validate the planner-authored risk verdict before any
+  // GitHub mutation: a malformed verdict fails closed here (Epic #3865).
+  const riskVerdict = loadRiskVerdict(values['risk-verdict']);
 
   const readPromises = [
     readFile(values.prd, 'utf8'),
@@ -175,6 +188,7 @@ async function main() {
       forceReview: values['force-review'],
       steal: values.steal === true,
       config,
+      riskVerdict,
     },
   );
 
