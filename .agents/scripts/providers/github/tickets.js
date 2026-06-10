@@ -60,7 +60,12 @@ import {
  * WITHOUT any pre-appended footer. A caller that also appends a
  * `blocked by` block to `body` would double every dependency line.
  */
-export function composeStoryBody({ body, parentId, epicId, dependencies = [] }) {
+export function composeStoryBody({
+  body,
+  parentId,
+  epicId,
+  dependencies = [],
+}) {
   const head = typeof body === 'string' ? body : '';
   const lines = ['---', `parent: #${parentId}`];
   if (epicId !== undefined && epicId !== null && epicId !== parentId) {
