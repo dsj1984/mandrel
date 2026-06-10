@@ -18,9 +18,12 @@ provisions both as part of a cold start (`git init` → `gh repo create --push`
 - **Node.js** >= 22.22.1 (< 25).
 - **`git`** on your `PATH`.
 - **GitHub CLI `gh`** >= 2.40, authenticated — run `gh auth login` once so
-  orchestration scripts pick up your token from the OS keychain. Cold-start
-  repo and Projects V2 provisioning needs the `project` scope; if your token
-  lacks it, run `gh auth refresh -s project`.
+  orchestration scripts pick up your token from the OS keychain. A vanilla
+  `gh auth login` token does **not** carry the `project` scope needed to
+  provision the GitHub Projects V2 board; bootstrap degrades to
+  warn-and-skip-board in that case (no hard failure). To enable board
+  provisioning, grant the scope with `gh auth refresh -s project` (re-auth
+  in the browser when prompted) before running `bootstrap.js`.
 
 See the [Compatibility matrix](docs/upgrade-major.md#compatibility-matrix)
 section of `docs/upgrade-major.md` for the supported OS / Node /

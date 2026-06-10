@@ -239,12 +239,18 @@ describe('checkProjectScopes', () => {
     assert.equal(res.ok, true);
   });
 
-  it('fails with the refresh remedy when scopes are readable but lack project', async () => {
+  it('warns (ok=true with detail) instead of failing closed when scopes are readable but lack project — the vanilla `gh auth login` case (Story #3893)', async () => {
     const res = await checkProjectScopes({
       runner: authStatusRunner("Token scopes: 'gist', 'repo'"),
     });
-    assert.equal(res.ok, false);
-    assert.match(res.remedy, /gh auth refresh -s project/);
+    assert.equal(
+      res.ok,
+      true,
+      'missing project scope must not block preflight — runtime resolveProject already degrades to warn-and-skip-board',
+    );
+    assert.equal(res.remedy, undefined);
+    assert.match(res.detail, /gh auth refresh -s project/);
+    assert.match(res.detail, /skipping/i);
   });
 
   it('warns (ok=true with detail) instead of failing closed when no scopes line is reported — the fine-grained PAT case', async () => {
