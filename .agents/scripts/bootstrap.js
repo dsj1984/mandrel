@@ -1168,6 +1168,10 @@ export function recordLedger(state) {
     entries,
     approvedGroups: appliedGroups,
     answers: state.answers,
+    // The live execution report lets the ledger record `already-present` vs
+    // `seeded` per entry, so uninstall never deletes a pre-existing
+    // `.agentrc.json` the install merely left in place (Story #3895).
+    report: state.report,
   });
   const result = writeInstallLedger(state.projectRoot, record);
   state.report.ledger = { ...result, approvedGroups: [...appliedGroups] };
