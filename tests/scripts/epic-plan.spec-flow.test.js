@@ -48,6 +48,7 @@ import {
   loadState,
   writeSpec,
 } from '../../.agents/scripts/lib/spec/index.js';
+import { serialize } from '../../.agents/scripts/lib/story-body/story-body.js';
 
 const EPIC_ID = 9998;
 
@@ -217,23 +218,47 @@ function buildFixtureTickets() {
       slug: 'story-one',
       type: 'story',
       title: 'Story One',
-      body: 'First story.',
+      // Canonical serialized structured body — `refactors-existing` against a
+      // path that exists on `main` so the freshness/assumption git probes
+      // pass. The re-pointed task-body validator (Story #3906) parses this
+      // back and validates the sections.
+      body: serialize({
+        goal: 'First story.',
+        changes: [
+          {
+            path: 'tests/scripts/epic-plan.spec-flow.test.js',
+            assumption: 'refactors-existing',
+          },
+        ],
+        acceptance: ['thing done'],
+        verify: ['npm test (validate)'],
+      }),
       labels: ['type::story'],
       parent_slug: 'feature-a',
       depends_on: [],
       acceptance: ['thing done'],
-      verify: ['npm test'],
+      verify: ['npm test (validate)'],
     },
     {
       slug: 'story-two',
       type: 'story',
       title: 'Story Two',
-      body: 'Second story (depends on first).',
+      body: serialize({
+        goal: 'Second story (depends on first).',
+        changes: [
+          {
+            path: 'tests/scripts/epic-plan.spec-flow.test.js',
+            assumption: 'refactors-existing',
+          },
+        ],
+        acceptance: ['another thing done'],
+        verify: ['npm test (validate)'],
+      }),
       labels: ['type::story'],
       parent_slug: 'feature-a',
       depends_on: ['story-one'],
       acceptance: ['another thing done'],
-      verify: ['npm test'],
+      verify: ['npm test (validate)'],
     },
   ];
 }

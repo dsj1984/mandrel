@@ -49,7 +49,6 @@ import {
   planStoryBranchSeed,
 } from './lib/story-init/branch-initializer.js';
 import { resolveContext } from './lib/story-init/context-resolver.js';
-import { runDispatchManifestGuard } from './lib/story-init/dependency-guard.js';
 import { traceHierarchy } from './lib/story-init/hierarchy-tracer.js';
 import { transitionStoryToExecuting } from './lib/story-init/state-transitioner.js';
 import { buildTaskGraph } from './lib/story-init/task-graph-builder.js';
@@ -186,27 +185,6 @@ export async function runStoryInit({
   }
   if (parseBlockedBy(body).length > 0)
     progress('BLOCKERS', '✅ All blockers resolved');
-
-  // Stage 3.5 — dispatch-manifest dependency guard. Runs before any git
-  // mutation so a halt leaves zero partial state behind.
-  if (!dryRun) {
-    const guard = await runDispatchManifestGuard({
-      epicId,
-      storyId,
-      cwd,
-      provider,
-      config,
-      logger: stageLogger,
-    });
-    if (guard.blocked) {
-      return {
-        success: false,
-        blocked: true,
-        reason: 'dispatch-manifest-blockers-unmerged',
-        openBlockers: guard.openBlockers,
-      };
-    }
-  }
 
   // Stage 4 — task graph. Pass the Story body so buildTaskGraph can detect
   // the inline-acceptance 3-tier shape. After Task #3154 collapsed the
