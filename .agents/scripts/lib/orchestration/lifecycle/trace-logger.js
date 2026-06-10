@@ -42,12 +42,10 @@ function formatClock(iso) {
 const PHASE_BY_PREFIX = Object.freeze({
   'epic.snapshot': 'Snapshot',
   'epic.plan': 'Plan',
-  wave: 'Waves',
   'story.dispatch': 'Waves',
   'story.merged': 'Waves',
   'story.blocked': 'Waves',
   'epic.blocked': 'Waves',
-  'epic.unblocked': 'Waves',
   'epic.close': 'Close-tail',
   'acceptance.reconcile': 'Acceptance Reconciliation',
   'epic.finalize': 'Finalize',

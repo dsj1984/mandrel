@@ -94,17 +94,17 @@ const FIXTURE_EVENTS = [
   // Snapshot: enumerate the Epic's stories.
   ['epic.snapshot.start', { epicId: FIXTURE_EPIC_ID }],
   ['epic.snapshot.end', { epicId: FIXTURE_EPIC_ID, storyIds: [9101, 9102] }],
-  // Single wave with both fixture stories.
-  ['wave.start', { waveIndex: 0, storyIds: [9101, 9102] }],
+  // Single wave with both fixture stories. The in-process runner's dotted
+  // wave.start / wave.end / epic.close.start lifecycle events were deleted
+  // in Story #3908 (the dead-runner-stratum cutover); the production wave
+  // loop ledgers story.dispatch.* + hyphenated wave-* signals instead.
   ['story.dispatch.start', { storyId: 9101, waveIndex: 0 }],
   ['story.dispatch.end', { storyId: 9101, outcome: 'done', durationMs: 12345 }],
   ['story.merged', { storyId: 9101, sha: 'abcdef1234567' }],
   ['story.dispatch.start', { storyId: 9102, waveIndex: 0 }],
   ['story.dispatch.end', { storyId: 9102, outcome: 'done', durationMs: 23456 }],
   ['story.merged', { storyId: 9102, sha: '1234567abcdef' }],
-  ['wave.end', { waveIndex: 0, outcomes: { 9101: 'done', 9102: 'done' } }],
   // Close-tail: validate + code-review + retro.
-  ['epic.close.start', { epicId: FIXTURE_EPIC_ID }],
   ['close-validate.start', { epicId: FIXTURE_EPIC_ID, storyId: 9102 }],
   [
     'close-validate.end',

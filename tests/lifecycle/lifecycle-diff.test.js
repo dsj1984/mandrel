@@ -8,7 +8,6 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import {
   assertMergeGateOrdering,
   assertReconcileOrdering,
-  assertWaveCompleteness,
   diff,
   parseLedgerText,
   projectRecord,
@@ -55,7 +54,7 @@ describe('lifecycle-diff/diff', () => {
 
   it('reports a mismatch when event names differ', () => {
     const a = [...NDJSON_MIN];
-    const b = [{ ...NDJSON_MIN[0], event: 'wave.start' }, NDJSON_MIN[1]];
+    const b = [{ ...NDJSON_MIN[0], event: 'epic.close.end' }, NDJSON_MIN[1]];
     const m = diff(a, b);
     assert.equal(m.length, 1);
     assert.equal(m[0].index, 0);
@@ -192,65 +191,6 @@ describe('lifecycle-diff/assertReconcileOrdering', () => {
     const result = assertReconcileOrdering(records);
     assert.equal(result.ok, false);
     assert.match(result.reason, /without preceding acceptance\.reconcile\.ok/);
-  });
-});
-
-describe('lifecycle-diff/assertWaveCompleteness', () => {
-  it('passes when wave.end.outcomes matches wave.start.storyIds', () => {
-    const records = [
-      {
-        kind: 'emitted',
-        seqId: 1,
-        ts: '2026-05-17T10:00:00.000Z',
-        event: 'wave.start',
-        payload: { waveIndex: 0, storyIds: [101, 102] },
-      },
-      {
-        kind: 'emitted',
-        seqId: 2,
-        ts: '2026-05-17T10:00:10.000Z',
-        event: 'wave.end',
-        payload: { waveIndex: 0, outcomes: { 101: 'done', 102: 'blocked' } },
-      },
-    ];
-    assert.deepEqual(assertWaveCompleteness(records), { ok: true });
-  });
-
-  it('fails when outcomes is missing a storyId from start', () => {
-    const records = [
-      {
-        kind: 'emitted',
-        seqId: 1,
-        ts: '2026-05-17T10:00:00.000Z',
-        event: 'wave.start',
-        payload: { waveIndex: 0, storyIds: [101, 102] },
-      },
-      {
-        kind: 'emitted',
-        seqId: 2,
-        ts: '2026-05-17T10:00:10.000Z',
-        event: 'wave.end',
-        payload: { waveIndex: 0, outcomes: { 101: 'done' } },
-      },
-    ];
-    const result = assertWaveCompleteness(records);
-    assert.equal(result.ok, false);
-    assert.match(result.reason, /storyIds count .* != outcomes count/);
-  });
-
-  it('fails when wave.end has no matching wave.start', () => {
-    const records = [
-      {
-        kind: 'emitted',
-        seqId: 1,
-        ts: '2026-05-17T10:00:00.000Z',
-        event: 'wave.end',
-        payload: { waveIndex: 7, outcomes: {} },
-      },
-    ];
-    const result = assertWaveCompleteness(records);
-    assert.equal(result.ok, false);
-    assert.match(result.reason, /without preceding wave\.start/);
   });
 });
 

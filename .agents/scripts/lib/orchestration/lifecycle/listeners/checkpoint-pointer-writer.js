@@ -82,7 +82,6 @@ export const SUBSCRIBED_END_EVENTS = Object.freeze([
   'epic.watch.end',
   'retro.end',
   'story.dispatch.end',
-  'wave.end',
 ]);
 
 /**

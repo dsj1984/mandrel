@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/story.dispatch.end.schema.json",
   "title": "story.dispatch.end",
-  "description": "Emitted by wave-session when a child story sub-agent returns. Sibling ordering within a wave is not guaranteed; ordering between waves is.",
+  "description": "Appended to the Epic ledger by emit-story-dispatch-end.js when a child story sub-agent returns, so /epic-deliver's idle watchdog can subtract completed Stories from the in-flight set. Subscribed by CheckpointPointerWriter via SUBSCRIBED_END_EVENTS. Sibling ordering within a wave is not guaranteed; ordering between waves is.",
   "type": "object",
   "required": ["storyId", "outcome", "durationMs"],
   "properties": {

@@ -47,26 +47,25 @@ describe('NotifyDispatcher', () => {
     });
     dispatcher.register(bus);
 
-    await bus.emit('wave.end', {
-      waveIndex: 0,
-      outcomes: { 1: 'done' },
+    await bus.emit('epic.complete', {
+      epicId: 1234,
+      prUrl: 'https://example.com/pr/1',
     });
     assert.equal(notifyCalls.length, 1);
     assert.equal(notifyCalls[0].ticketId, 1234);
-    assert.equal(notifyCalls[0].payload.event, 'epic-progress');
-    assert.equal(notifyCalls[0].opts.skipComment, true);
+    assert.equal(notifyCalls[0].payload.event, 'epic-complete');
 
     // Replay with the same seqId — no second notify, no second trace.
     await dispatcher.handle({
-      event: 'wave.end',
+      event: 'epic.complete',
       seqId: 1,
-      payload: { waveIndex: 0, outcomes: { 1: 'done' } },
+      payload: { epicId: 1234, prUrl: 'https://example.com/pr/1' },
     });
     assert.equal(notifyCalls.length, 1);
     assert.equal(traceCalls.length, 1);
   });
 
-  it('maps epic.blocked / epic.unblocked / epic.complete to their webhook names', async () => {
+  it('maps epic.blocked / epic.complete to their webhook names', async () => {
     const bus = new Bus();
     const notifyCalls = [];
     const dispatcher = new NotifyDispatcher({
@@ -79,17 +78,12 @@ describe('NotifyDispatcher', () => {
     dispatcher.register(bus);
 
     await bus.emit('epic.blocked', { reason: 'halt' });
-    await bus.emit('epic.unblocked', { reason: 'resume' });
     await bus.emit('epic.complete', {
       epicId: 99,
       prUrl: 'https://example.com/pr/1',
     });
 
-    assert.deepEqual(notifyCalls, [
-      'epic-blocked',
-      'epic-unblocked',
-      'epic-complete',
-    ]);
+    assert.deepEqual(notifyCalls, ['epic-blocked', 'epic-complete']);
   });
 
   it('appends a notification.emitted trace row keyed by seqId', async () => {
@@ -106,14 +100,14 @@ describe('NotifyDispatcher', () => {
     });
     dispatcher.register(bus);
 
-    await bus.emit('wave.end', {
-      waveIndex: 0,
-      outcomes: { 1: 'done' },
+    await bus.emit('epic.complete', {
+      epicId: 1234,
+      prUrl: 'https://example.com/pr/1',
     });
     assert.equal(traceCalls.length, 1);
     assert.equal(traceCalls[0].kind, 'notification.emitted');
-    assert.equal(traceCalls[0].sourceEvent, 'wave.end');
-    assert.equal(traceCalls[0].webhookEvent, 'epic-progress');
+    assert.equal(traceCalls[0].sourceEvent, 'epic.complete');
+    assert.equal(traceCalls[0].webhookEvent, 'epic-complete');
     assert.equal(traceCalls[0].seqId, 1);
   });
 
