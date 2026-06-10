@@ -258,25 +258,32 @@ operator-visible consequences:
     is namespaced as `create-mandrel-vX.Y.Z` (e.g. `create-mandrel-v0.2.0`).
 
   [`release-please.yml`](.github/workflows/release-please.yml) carries **two
-  independent publish jobs**, each gated on its own package's **per-path**
-  release output (`steps.release.outputs['<path>--release_created']`), not the
-  top-level `release_created`:
+  independent publish jobs**, each gated on its own package's release output.
+  The output naming follows release-please-action's `setPathOutput` rule
+  (verified against v5.0.0 `src/index.ts`): the **root** package (manifest path
+  `.`) emits **un-prefixed** outputs (`release_created`, `tag_name`), while
+  **non-root** packages emit `${path}--${key}` (e.g.
+  `create-mandrel--release_created`). There is **no** `.--release_created`
+  output — gating the root publish on that string silently skips it on every
+  release (the bug Story #3891's initial wiring shipped; fixed by reverting the
+  root gate to the un-prefixed `release_created`).
   - **`npm-publish`** checks out the repository root and runs `npm publish`
     against the root `package.json`, publishing **`@mandrelai/agents`**. It is
-    gated on the root component's output (path `.`).
+    gated on the root package's `steps.release.outputs.release_created`.
   - **`npm-publish-launcher`** runs `npm publish` with
     `working-directory: create-mandrel`, publishing the unscoped
-    **`create-mandrel`** launcher. It is gated on the launcher component's
-    output (path `create-mandrel`).
+    **`create-mandrel`** launcher. It is gated on the launcher's
+    `steps.release.outputs['create-mandrel--release_created']`.
 
-  Gating each job on its own package's per-path output is load-bearing: the
-  top-level `release_created` is `true` if **either** package releases, so a
-  launcher-only release would otherwise re-run the root `npm publish` on an
-  already-published version (and fail), and vice versa. Neither job keys off a
-  tag pattern, so neither the `mandrel-*` nor the `create-mandrel-*` tag series
-  triggers a publish by tag. `ci.yml` triggers only on branch `push` /
-  `pull_request` / `workflow_dispatch` events (it has **no** tag-driven step),
-  so neither tag series triggers CI directly.
+  This split is load-bearing: the singular `release_created` is **root-specific**
+  (set only when the root path releases — never on a launcher-only release), so
+  a launcher-only release does not re-run the root `npm publish` on an
+  already-published version, and vice versa. (The "any package released" boolean
+  is the *plural* `releases_created`, which is intentionally **not** used as a
+  gate here.) Neither job keys off a tag pattern, so neither the `mandrel-*` nor
+  the `create-mandrel-*` tag series triggers a publish by tag. `ci.yml` triggers
+  only on branch `push` / `pull_request` / `workflow_dispatch` events (it has
+  **no** tag-driven step), so neither tag series triggers CI directly.
 
 #### One-time PAT setup
 
