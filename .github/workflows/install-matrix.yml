@@ -19,9 +19,12 @@ name: Install Matrix
 #   2. The consumer package.json is not mutated with framework runtime deps.
 #   3. `mandrel doctor` returns a ready verdict.
 #
-# `mandrel doctor` requires an authenticated GitHub CLI (its `gh-auth` check),
-# so each leg exports the workflow's GITHUB_TOKEN as GH_TOKEN — on GitHub-hosted
-# runners `gh` is preinstalled and `gh auth status` authenticates against it.
+# `mandrel doctor`'s `gh-auth` check confirms the GitHub CLI can authenticate,
+# so each leg exports the workflow's GITHUB_TOKEN as GH_TOKEN. `gh auth status`
+# performs live token validation that an Actions installation token cannot pass
+# (`GET /user` → 403 for integration tokens), so the check degrades to
+# warn-and-skip when a token is present in the environment — the runtime
+# authenticates non-interactively with that token regardless.
 # Doctor's `commands-in-sync` check compares `.agents/workflows/` to
 # `.claude/commands/` relative to the installed package, so the leg also runs
 # `mandrel sync-commands` (the same step the bootstrap/postinstall flow runs)
