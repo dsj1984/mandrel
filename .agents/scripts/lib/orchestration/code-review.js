@@ -34,7 +34,9 @@
 
 import { resolveConfig } from '../config-resolver.js';
 import { selectAuditStrategy } from '../dynamic-workflow/capability.js';
+import { gitSpawn } from '../git-utils.js';
 import { read as readPlanState } from './epic-plan-state-store.js';
+import { resolveDepth } from './review-depth.js';
 import {
   countBySeverity,
   renderFindings,
@@ -43,39 +45,71 @@ import { createReviewProvider } from './review-providers/review-provider-factory
 import { upsertStructuredComment } from './ticketing.js';
 
 /**
- * Review depth tiers, ordered light → standard → deep. The depth is derived
- * from the judged risk envelope's `overallLevel` and threaded into the review
- * provider's `runReview` input so a high-risk Epic gets a deeper review pass
- * than a low-risk one. Depth is an **input** signal only — it never changes
- * the `{ status, severity, posted, report, halted, blockerReason }` output
- * envelope nor the `code-review` structured-comment body (Story #3876).
+ * Review depth tiers, ordered light → standard → deep. The depth is resolved
+ * by the shared {@link resolveDepth} resolver from the judged risk envelope's
+ * `overallLevel` **and** the mechanical changed-file count of the diff under
+ * review, then threaded into the review provider's `runReview` input so a
+ * high-risk *or* wide-footprint change gets a deeper pass than a low-risk
+ * small one. Depth is an **input** signal only — it never changes the
+ * `{ status, severity, posted, report, halted, blockerReason }` output
+ * envelope nor the `code-review` structured-comment body (Story #3876,
+ * extended by Story #3938).
  *
- * @typedef {'light'|'standard'|'deep'} ReviewDepth
+ * @typedef {import('./review-depth.js').ReviewDepth} ReviewDepth
  */
 
 /**
- * Map a judged risk `overallLevel` to a review depth. Pure, total over the
- * three known levels; any unknown/absent level falls back to `standard` so a
- * malformed or missing envelope never silently downgrades the review to
- * `light` or escalates it to `deep`.
+ * Count the files changed in the `baseRef...headRef` diff via
+ * `git diff --name-only`. Returns the file count, or `null` when the diff
+ * cannot be enumerated (git failure, missing ref). A `null` count is the
+ * neutral "width unknown" signal {@link resolveDepth} tolerates without
+ * downgrading or escalating the depth. Best-effort — never throws.
  *
- * @param {('low'|'medium'|'high'|string|null|undefined)} overallLevel
- * @returns {ReviewDepth}
+ * @param {{ baseRef: string, headRef: string, gitSpawnFn?: typeof gitSpawn }} args
+ * @returns {number|null}
  */
-export function resolveReviewDepth(overallLevel) {
-  switch (overallLevel) {
-    case 'low':
-      return 'light';
-    case 'high':
-      return 'deep';
-    default:
-      return 'standard';
+function countChangedFiles({ baseRef, headRef, gitSpawnFn = gitSpawn }) {
+  try {
+    const result = gitSpawnFn(
+      process.cwd(),
+      'diff',
+      `${baseRef}...${headRef}`,
+      '--name-only',
+    );
+    if (!result || result.status !== 0 || typeof result.stdout !== 'string') {
+      return null;
+    }
+    return result.stdout
+      .trim()
+      .split('\n')
+      .filter((line) => line.length > 0).length;
+  } catch {
+    return null;
   }
 }
 
 /**
- * Producer-side resolver (Story #3937): read an Epic's judged `planningRisk`
- * envelope off its `epic-plan-state` checkpoint and resolve the review depth.
+ * Resolve the `planning.taskSizing` operator override the same way the ticket
+ * validator does, so an operator who retunes sizing retunes the depth
+ * thresholds with it. Reads `config.planning.taskSizing` first, then the
+ * legacy `config.agentSettings.planning.taskSizing` nest; absent → `undefined`
+ * so {@link resolveDepth} falls back to `DEFAULT_TASK_SIZING`.
+ *
+ * @param {object|null|undefined} config
+ * @returns {object|undefined}
+ */
+function resolveTaskSizing(config) {
+  return (
+    config?.planning?.taskSizing ??
+    config?.agentSettings?.planning?.taskSizing ??
+    undefined
+  );
+}
+
+/**
+ * Producer-side resolver (Story #3937, extended by Story #3938): read an
+ * Epic's judged `planningRisk` envelope off its `epic-plan-state` checkpoint
+ * and resolve the review depth via the shared {@link resolveDepth} resolver.
  * This is the live epic-scope counterpart to `resolveRiskRoutedLenses` in
  * `epic-audit-prepare.js` — it reuses the same best-effort `readPlanState`
  * pattern so the producer never aborts the review on a risk-read failure.
@@ -84,9 +118,11 @@ export function resolveReviewDepth(overallLevel) {
  * `planningRisk` field, a read failure, or a malformed `overallLevel` all
  * degrade to `standard` (never throws). So an Epic that skipped `/epic-plan`
  * (no checkpoint) still gets a passing `standard` review with no new failure
- * mode. The resolved depth is what the `/epic-deliver` Phase 5 review then
- * threads into `runCodeReview` via the `planningRisk` opt so a high-risk Epic
- * gets a `deep` provider pass and a low-risk one a `light` pass.
+ * mode. The producer resolves depth from the judged risk alone (the diff is
+ * not yet enumerated at this point); the full risk + diff-width combination is
+ * applied in `runCodeReview`, which knows the changed-file count. A high-risk
+ * Epic resolves to `deep` here; a low-risk one to `light` (the diff width can
+ * only escalate, never downgrade, that producer-side resolution).
  *
  * @param {{
  *   epicId: number,
@@ -108,7 +144,7 @@ export async function resolveReviewDepthForEpic({
     // review. Degrade to the neutral `standard` depth.
     return 'standard';
   }
-  return resolveReviewDepth(state?.planningRisk?.overallLevel);
+  return resolveDepth({ overallLevel: state?.planningRisk?.overallLevel });
 }
 
 /**
@@ -364,10 +400,12 @@ function resolveScopeEnvelope(opts, config) {
  *   logger?: { info?: Function, warn?: Function, error?: Function, fatal?: Function, createProgress?: Function },
  *   baseBranch?: string|null,
  *   planningRisk?: { overallLevel?: ('low'|'medium'|'high'), axes?: Array<{ axis?: string, level?: string }> }|null,
+ *   changedFileCount?: number|null,
  *   storyId?: number|null,
  *   bus?: object|null,
  *   now?: () => number,
  *   reviewProvider?: { runReview: Function },
+ *   gitSpawnFn?: typeof gitSpawn,
  *   resolveConfigFn?: typeof resolveConfig,
  *   createReviewProviderFn?: typeof createReviewProvider,
  *   upsertCommentFn?: typeof upsertStructuredComment,
@@ -441,14 +479,31 @@ export async function runCodeReview(opts = {}) {
     const ticketLabels = Array.isArray(opts.ticketLabels)
       ? opts.ticketLabels
       : [];
-    // Story #3876 — derive the review depth from the judged risk envelope's
-    // `overallLevel` and thread it into the provider's `runReview` input. The
-    // depth is an input-only signal: it tells the provider how thorough to be
-    // (light → standard → deep) and never touches the output envelope or the
-    // posted structured comment. Absent envelope → `standard` (the neutral
-    // default), preserving the pre-change behaviour for callers that do not
-    // pass a risk envelope.
-    const depth = resolveReviewDepth(opts.planningRisk?.overallLevel);
+    // Story #3876 / #3938 — resolve the review depth from BOTH the judged risk
+    // envelope's `overallLevel` and the mechanical changed-file count of the
+    // diff under review, then thread it into the provider's `runReview` input.
+    // The depth is an input-only signal: it tells the provider how thorough to
+    // be (light → standard → deep) and never touches the output envelope or the
+    // posted structured comment. The changed-file count is enumerated from the
+    // same `baseRef...headRef` diff the native provider reviews; a count that
+    // cannot be determined is the neutral "width unknown" signal that neither
+    // escalates to `deep` nor blocks `light`. The `sizing` thresholds honour
+    // the operator's `planning.taskSizing` override. Absent risk envelope +
+    // unknown width → `standard` (the neutral default), preserving the
+    // pre-change behaviour for callers that pass no risk envelope.
+    const changedFileCount =
+      typeof opts.changedFileCount === 'number'
+        ? opts.changedFileCount
+        : countChangedFiles({
+            baseRef,
+            headRef,
+            gitSpawnFn: opts.gitSpawnFn,
+          });
+    const depth = resolveDepth({
+      overallLevel: opts.planningRisk?.overallLevel,
+      changedFileCount,
+      sizing: resolveTaskSizing(config),
+    });
     const reviewInput = {
       scope,
       ticketId,

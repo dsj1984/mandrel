@@ -2,8 +2,9 @@
  * review-providers/review-depth.js — Shared depth-prompt vocabulary for the
  * LLM-backed review providers.
  *
- * Story #3937 — the risk-derived `depth` lever (`light` / `standard` / `deep`,
- * resolved by `resolveReviewDepth` in `code-review.js`) is threaded into every
+ * Story #3937 / #3938 — the depth lever (`light` / `standard` / `deep`,
+ * resolved from judged risk AND diff width by `resolveDepth` in
+ * `lib/orchestration/review-depth.js`) is threaded into every
  * provider's `runReview` input. LLM-backed providers (codex, security-review,
  * ultrareview) must render that lever into the prompt/instructions they emit so
  * the model actually changes its thoroughness; the native (mechanical) provider
