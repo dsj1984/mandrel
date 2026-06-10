@@ -15,8 +15,24 @@
  *   3. running `selectAudits` at the close-gate (`gate3`),
  *   4. routing the model-judged risk envelope's high-risk axes onto their
  *      mapped audit lenses (Story #3889 — `resolveAuditLenses`) and unioning
- *      them into the change-set selection, and
- *   5. shaping the result into the helper-consumable envelope.
+ *      them into the change-set selection,
+ *   5. resolving the run's audit depth (`light` / `standard` / `deep`) from
+ *      the same risk envelope + the change-set's changed-file count via the
+ *      shared `resolveDepth` resolver (Story #3939), and
+ *   6. shaping the result into the helper-consumable envelope.
+ *
+ * Story #3939 — depth-aware lenses. The `depth` field tells the audit
+ * executor (`helpers/epic-audit.md`) how thorough each selected lens should
+ * be on this Epic without ever skipping a selected (or alwaysRun) lens:
+ * `light` shrinks a lens's sweep to the changed surface + Critical/High
+ * findings, `standard` is today's behavior, and `deep` widens the sweep to
+ * the directly-touched modules. Depth never changes which lenses fire, the
+ * severity taxonomy, the findings shape, or the Phase 4 halting rule — it is
+ * an orthogonal "how deep" signal alongside the "which lenses" selection.
+ * Depth is resolved from the SAME best-effort `planningRisk` checkpoint read
+ * the risk-routed lenses use (a missing/unparseable checkpoint degrades to
+ * `standard`, never an abort) folded with the changed-file count the
+ * change-set diff already produces.
  *
  * Story #3889 — risk-routed lenses. Epic #3865 added `resolveAuditLenses`
  * (axis → audit-lens mapping for the model-judged risk verdict) to
@@ -35,6 +51,7 @@
  *   {
  *     "epicId": 2586,
  *     "epicBranch": "epic/2586",
+ *     "depth": "deep",
  *     "selectedAudits": ["audit-security", "audit-privacy"],
  *     "changeSetAudits": ["audit-privacy"],
  *     "riskRoutedAudits": ["audit-security"],
@@ -47,6 +64,8 @@
  * selection (`changeSetAudits`) plus the risk-routed lenses
  * (`riskRoutedAudits`), de-duplicated. The two source-of-truth arrays are
  * surfaced for observability so the operator can see why each lens fired.
+ * `depth` (`light` / `standard` / `deep`) is the orthogonal "how deep each
+ * selected lens runs" signal (Story #3939).
  *
  * Usage:
  *   node .agents/scripts/epic-audit-prepare.js --epic <epicId> [--base-branch main]
@@ -63,6 +82,7 @@ import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import { resolveAuditLenses } from './lib/orchestration/code-review.js';
 import { read as readPlanState } from './lib/orchestration/epic-plan-state-store.js';
+import { resolveDepth } from './lib/orchestration/review-depth.js';
 import { createProvider } from './lib/provider-factory.js';
 
 const HELP = `Usage: node .agents/scripts/epic-audit-prepare.js --epic <epicId> [--base-branch main]
@@ -73,6 +93,20 @@ Flags:
                  input (default: main).
   --gate         Audit gate label (default: gate3 — Epic close gate).
   --help         Show this message.
+
+Output (JSON envelope on stdout):
+  epicId, epicBranch
+  depth              Audit depth for this run — one of light | standard | deep
+                     (Story #3939). Resolved from the model-judged risk
+                     envelope + the change-set's changed-file count via the
+                     shared resolveDepth resolver; an absent checkpoint
+                     degrades to standard. Tells the audit executor how deep
+                     each SELECTED lens runs; it never changes which lenses
+                     fire, the severity taxonomy, or the Phase 4 halting rule.
+  selectedAudits     De-duplicated union of changeSetAudits + riskRoutedAudits.
+  changeSetAudits    Lenses the change-set selector chose.
+  riskRoutedAudits   Lenses routed from the model-judged high-risk axes.
+  changedFiles, changedFilesCount, substitutionsPayload
 `;
 
 const DEFAULT_GATE = 'gate3';
@@ -132,6 +166,72 @@ export async function resolveRiskRoutedLenses({
 }
 
 /**
+ * Resolve the operator's `planning.taskSizing` override the same way the
+ * ticket validator and the code-review depth resolver do, so retuning sizing
+ * retunes the audit-depth thresholds in lockstep. Reads `config.planning`
+ * first, then the legacy `config.agentSettings.planning` nest; absent →
+ * `undefined` so {@link resolveDepth} falls back to `DEFAULT_TASK_SIZING`.
+ *
+ * @param {object|null|undefined} config
+ * @returns {object|undefined}
+ */
+function resolveTaskSizing(config) {
+  return (
+    config?.planning?.taskSizing ??
+    config?.agentSettings?.planning?.taskSizing ??
+    undefined
+  );
+}
+
+/**
+ * Resolve the run's audit depth (`light` / `standard` / `deep`) for an Epic
+ * via the shared {@link resolveDepth} resolver (Story #3939), folding the
+ * model-judged risk envelope's `overallLevel` (read off the Epic's
+ * `epic-plan-state` checkpoint) with the mechanical changed-file count of the
+ * change set the prepare CLI already enumerated.
+ *
+ * Best-effort and total, mirroring `resolveRiskRoutedLenses`: a
+ * missing/unparseable checkpoint, an absent `planningRisk` field, or a
+ * provider read failure all degrade to `standard` — the neutral default that
+ * preserves today's behavior — so an Epic that skipped `/epic-plan` (no
+ * checkpoint) still gets a passing `standard` pass with no new failure mode.
+ * The changed-file count can only escalate a low-risk Epic to `deep` (a wide
+ * diff) and never downgrades a high-risk one; an unknown/absent count is the
+ * neutral "width unknown" signal {@link resolveDepth} tolerates.
+ *
+ * @param {{
+ *   epicId: number,
+ *   provider: object,
+ *   changedFileCount: number|null,
+ *   sizing?: object|undefined,
+ *   readPlanState?: typeof readPlanState,
+ * }} params
+ * @returns {Promise<import('./lib/orchestration/review-depth.js').ReviewDepth>}
+ */
+export async function resolveRunDepth({
+  epicId,
+  provider,
+  changedFileCount,
+  sizing,
+  readPlanState: readPlanStateFn = readPlanState,
+}) {
+  let state = null;
+  try {
+    state = await readPlanStateFn({ provider, epicId });
+  } catch {
+    // A read failure must not abort the audit. Resolve from the diff width
+    // alone (width can still escalate to `deep`); an unknown width with no
+    // risk signal lands on `standard`.
+    return resolveDepth({ changedFileCount, sizing });
+  }
+  return resolveDepth({
+    overallLevel: state?.planningRisk?.overallLevel,
+    changedFileCount,
+    sizing,
+  });
+}
+
+/**
  * Union two ordered lens lists, de-duplicating while preserving the order of
  * first appearance (change-set selection first, then risk-routed extras).
  *
@@ -163,6 +263,7 @@ function unionAudits(changeSetAudits, riskRoutedAudits) {
  *   selectAudits?: typeof selectAudits,
  *   readPlanState?: typeof readPlanState,
  *   resolveAuditLenses?: typeof resolveAuditLenses,
+ *   resolveRunDepth?: typeof resolveRunDepth,
  *   help?: string,
  * }} [deps]
  * @returns {Promise<{ exitCode: number, result: object }>}
@@ -266,6 +367,20 @@ export async function runEpicAuditPrepare(values, deps = {}) {
   });
   const selectedAudits = unionAudits(changeSetAudits, riskRoutedAudits);
 
+  // Story #3939 — resolve the run's audit depth from the SAME model-judged
+  // risk envelope the lenses route from, folded with the changed-file count
+  // the change set just produced. Best-effort: an absent checkpoint degrades
+  // to `standard`. Depth tells the executor how deep each SELECTED lens runs;
+  // it never changes the lens roster above.
+  const resolveRunDepthFn = deps.resolveRunDepth ?? resolveRunDepth;
+  const depth = await resolveRunDepthFn({
+    epicId,
+    provider,
+    changedFileCount: changedFiles.length,
+    sizing: resolveTaskSizing(cfg),
+    readPlanState: deps.readPlanState,
+  });
+
   return {
     exitCode: 0,
     result: {
@@ -273,6 +388,7 @@ export async function runEpicAuditPrepare(values, deps = {}) {
       envelope: {
         epicId,
         epicBranch,
+        depth,
         selectedAudits,
         changeSetAudits,
         riskRoutedAudits,
