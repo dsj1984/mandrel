@@ -8,11 +8,20 @@
  *   - `RECONCILE_CLI` — the canonical path to `epic-reconcile.js` resolved
  *     against the phases-module location (this file lives four levels
  *     below `.agents/scripts/`).
- *   - `spawnReconcilerApply({ spawnSync, reconcileCli, epicId, cwd })` —
- *     invokes the reconciler in `--apply --yes` mode, surfaces stdout +
- *     stderr to the parent stream, and throws when the child exits
- *     non-zero. Returns the same `{ status, stdout, stderr }` envelope
- *     the legacy in-line invocation produced.
+ *   - `spawnReconcilerApply({ spawnSync, reconcileCli, epicId, cwd,
+ *     explicitDelete })` — invokes the reconciler in `--apply --yes` mode
+ *     (appending `--explicit-delete` when `explicitDelete` is true),
+ *     surfaces stdout + stderr to the parent stream, and throws when the
+ *     child exits non-zero. Returns the same `{ status, stdout, stderr }`
+ *     envelope the legacy in-line invocation produced.
+ *
+ * Story #3905 — a `--force` re-plan with a changed ticket set produces a
+ * plan that carries close ops (the slugs the new plan drops). The
+ * reconciler hard-exits 2 on close ops unless `--explicit-delete` is
+ * passed. The persist phase therefore threads `--force` through to this
+ * helper as `explicitDelete` so a force re-decompose can actually close
+ * the dropped children instead of failing after the spec was already
+ * overwritten.
  *
  * @module lib/orchestration/epic-plan-decompose/phases/reconcile-spawn
  */
@@ -40,19 +49,27 @@ export const RECONCILE_CLI = path.resolve(
  * non-zero. Returns the `{ status, stdout, stderr }` envelope used by
  * the persist phase's return contract.
  *
- * @param {{ spawnSync: Function, reconcileCli: string, epicId: number, cwd: string }} args
+ * When `explicitDelete` is true, `--explicit-delete` is appended so a
+ * plan carrying close ops (the common shape of a `--force` re-plan that
+ * dropped slugs) applies instead of hard-exiting 2 (Story #3905).
+ *
+ * @param {{ spawnSync: Function, reconcileCli: string, epicId: number, cwd: string, explicitDelete?: boolean }} args
  */
-export function spawnReconcilerApply({ spawnSync, reconcileCli, epicId, cwd }) {
-  const reconcileResult = spawnSync(
-    process.execPath,
-    [reconcileCli, String(epicId), '--apply', '--yes'],
-    {
-      cwd,
-      stdio: 'pipe',
-      encoding: 'utf-8',
-      env: { ...process.env, EPIC_RECONCILE_INVOKER: 'epic-plan-decompose' },
-    },
-  );
+export function spawnReconcilerApply({
+  spawnSync,
+  reconcileCli,
+  epicId,
+  cwd,
+  explicitDelete = false,
+}) {
+  const reconcileArgs = [reconcileCli, String(epicId), '--apply', '--yes'];
+  if (explicitDelete) reconcileArgs.push('--explicit-delete');
+  const reconcileResult = spawnSync(process.execPath, reconcileArgs, {
+    cwd,
+    stdio: 'pipe',
+    encoding: 'utf-8',
+    env: { ...process.env, EPIC_RECONCILE_INVOKER: 'epic-plan-decompose' },
+  });
   const reconcile = {
     status: reconcileResult.status ?? 1,
     stdout: reconcileResult.stdout ?? '',

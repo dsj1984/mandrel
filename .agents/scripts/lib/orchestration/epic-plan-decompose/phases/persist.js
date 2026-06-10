@@ -147,11 +147,17 @@ export async function runDecomposePhase(
   Logger.info(
     `[epic-plan-decompose] Spawning epic-reconcile.js --apply --yes for Epic #${epicId}...`,
   );
+  // Story #3905 — a `--force` re-plan with a changed ticket set produces
+  // a plan carrying close ops for the dropped slugs. `epic-reconcile.js`
+  // hard-exits 2 on close ops unless `--explicit-delete` is passed, so a
+  // force re-decompose must thread the flag through or it fails *after*
+  // the spec was already overwritten and plan-state flipped.
   const reconcile = spawnReconcilerApply({
     spawnSync,
     reconcileCli,
     epicId,
     cwd,
+    explicitDelete: force,
   });
 
   // Sub-issue link safety net — Story #2063. The reconciler's apply path
