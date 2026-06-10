@@ -31,7 +31,7 @@ const ghExecMod = await import(
   pathToFileURL(path.join(ROOT, '.agents', 'scripts', 'lib', 'gh-exec.js')).href
 );
 
-const { TicketGateway } = ticketsMod;
+const { TicketGateway, composeStoryBody } = ticketsMod;
 const { createInlineTicketCache } = cacheMod;
 const { createGh } = ghExecMod;
 
@@ -507,6 +507,80 @@ describe('providers/github mappers — Storyless tolerance (Story #3097)', () =>
     assert.equal(out.length, 1);
     assert.equal(out[0].id, 5);
     assert.equal(out[0].state, 'open');
+  });
+});
+
+// Story #3958 — composeStoryBody is the single owner of the `blocked by #N`
+// footer. These tests pin the single-occurrence invariant: each dependency
+// renders exactly once, in the canonical position relative to the
+// `---` / `parent: #N` trailer, regardless of dependency count. The
+// duplication bug arose because the reconciler-apply create path ALSO
+// pre-appended a footer to the body before handing it here; that path no
+// longer does, so the composed body must contain each line exactly once.
+function countOccurrences(haystack, needle) {
+  return haystack.split(needle).length - 1;
+}
+
+describe('composeStoryBody — single blocked-by footer (Story #3958)', () => {
+  it('renders a single dependency exactly once in the canonical position', () => {
+    const out = composeStoryBody({
+      body: '# Story body',
+      parentId: 1477,
+      epicId: 1477,
+      dependencies: [1480],
+    });
+    assert.equal(countOccurrences(out, 'blocked by #1480'), 1);
+    // Canonical position: after the `---` / `parent:` trailer block.
+    assert.match(out, /---\nparent: #1477\n\nblocked by #1480$/);
+  });
+
+  it('renders multiple dependencies each exactly once', () => {
+    const out = composeStoryBody({
+      body: '# Story body',
+      parentId: 1477,
+      epicId: 1490,
+      dependencies: [1480, 1481, 1482],
+    });
+    assert.equal(countOccurrences(out, 'blocked by #1480'), 1);
+    assert.equal(countOccurrences(out, 'blocked by #1481'), 1);
+    assert.equal(countOccurrences(out, 'blocked by #1482'), 1);
+    // Total `blocked by` markers equals the dependency count — no doubling.
+    assert.equal(countOccurrences(out, 'blocked by #'), 3);
+    // Epic line present because epicId !== parentId; footer order stable.
+    assert.match(
+      out,
+      /---\nparent: #1477\nEpic: #1490\n\nblocked by #1480\nblocked by #1481\nblocked by #1482$/,
+    );
+  });
+
+  it('renders no blocked-by line and no stray blank trailer for zero dependencies', () => {
+    const out = composeStoryBody({
+      body: '# Story body',
+      parentId: 1477,
+      epicId: 1477,
+      dependencies: [],
+    });
+    assert.equal(countOccurrences(out, 'blocked by #'), 0);
+    // No trailing blank line after `parent:` when there are no deps.
+    assert.match(out, /---\nparent: #1477$/);
+    assert.doesNotMatch(out, /parent: #1477\n\n/);
+  });
+
+  it('is robust to a body that itself mentions a dependency in prose (no double count)', () => {
+    // A description that happens to say "blocked by #1480" in prose is the
+    // author's content, not a footer. composeStoryBody only adds the
+    // canonical footer once; it must not strip or dedupe prose. The
+    // invariant we pin is that the *footer* adds exactly one line — the
+    // total here is prose(1) + footer(1) = 2, proving the footer itself is
+    // single-write (the duplication bug would have made it 3).
+    const out = composeStoryBody({
+      body: 'This work was blocked by #1480 earlier in the sprint.',
+      parentId: 1477,
+      epicId: 1477,
+      dependencies: [1480],
+    });
+    assert.equal(countOccurrences(out, 'blocked by #1480'), 2);
+    assert.match(out, /---\nparent: #1477\n\nblocked by #1480$/);
   });
 });
 
