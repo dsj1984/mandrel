@@ -555,8 +555,7 @@ describe('agents-materialized check', () => {
     const result = check.run({
       cwd: () => '/fake/project',
       existsSync: () => false,
-      resolvePackage: () =>
-        '/fake/project/node_modules/mandrel/package.json',
+      resolvePackage: () => '/fake/project/node_modules/mandrel/package.json',
     });
     assertResultShape(result, { expectOk: false });
     assert.match(result.remedy, /mandrel sync/);
@@ -582,8 +581,7 @@ describe('agents-materialized check', () => {
     const result = check.run({
       cwd: () => '/fake/project',
       existsSync: () => false,
-      resolvePackage: () =>
-        '/fake/project/node_modules/mandrel/package.json',
+      resolvePackage: () => '/fake/project/node_modules/mandrel/package.json',
     });
     assert.doesNotMatch(result.detail, /\n/);
   });

@@ -113,7 +113,7 @@ describe('checkManifestClean', () => {
     const fs = makeFs({
       '/c/package.json': JSON.stringify({
         dependencies: {
-          'mandrel': 'file:../x.tgz',
+          mandrel: 'file:../x.tgz',
           'left-pad': '^1',
         },
       }),
@@ -142,7 +142,7 @@ describe('checkManifestClean', () => {
   it('fails when a framework runtime dep leaked into the manifest', () => {
     const fs = makeFs({
       '/c/package.json': JSON.stringify({
-        dependencies: { 'mandrel': 'file:../x.tgz', 'js-yaml': '^4' },
+        dependencies: { mandrel: 'file:../x.tgz', 'js-yaml': '^4' },
       }),
     });
     const r = checkManifestClean({
@@ -229,7 +229,7 @@ describe('runAssertions', () => {
     const fs = makeFs({
       '/c/.agents/instructions.md': '# hi',
       '/c/package.json': JSON.stringify({
-        dependencies: { 'mandrel': 'file:../x.tgz' },
+        dependencies: { mandrel: 'file:../x.tgz' },
       }),
     });
     const lines = [];
