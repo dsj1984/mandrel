@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.56.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.55.0...mandrel-v1.56.0) (2026-06-10)
+
+
+### Fixed
+
+* **release:** gate root npm publish on un-prefixed release_created output ([#3952](https://github.com/dsj1984/mandrel/issues/3952)) ([18dfc0f](https://github.com/dsj1984/mandrel/commit/18dfc0fdd1068f7c3f0fa68a46d90f45438690ca))
+
 ## [1.55.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.54.0...mandrel-v1.55.0) (2026-06-10)
 
 
