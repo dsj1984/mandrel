@@ -2,6 +2,56 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.55.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.54.0...mandrel-v1.55.0) (2026-06-10)
+
+
+### Added
+
+* **bootstrap:** harden idempotency, normalize @-handle, minimal .agentrc write (refs [#3700](https://github.com/dsj1984/mandrel/issues/3700)) ([#3884](https://github.com/dsj1984/mandrel/issues/3884)) ([7e2818e](https://github.com/dsj1984/mandrel/commit/7e2818e95bc626ef906963e5784a61cc8607e94c))
+* **bootstrap:** offer commit + push of the wiring at end of run (refs [#3899](https://github.com/dsj1984/mandrel/issues/3899)) ([#3923](https://github.com/dsj1984/mandrel/issues/3923)) ([5a5916f](https://github.com/dsj1984/mandrel/commit/5a5916ff964853105d6959af9c917fd5ee198cf4))
+* **close-validation:** propagate epic baseRef to the baselines gate (refs [#3890](https://github.com/dsj1984/mandrel/issues/3890)) ([#3916](https://github.com/dsj1984/mandrel/issues/3916)) ([0b914ae](https://github.com/dsj1984/mandrel/commit/0b914aef9eaf264702095e293a92807a1afd27f4))
+* **code-review:** make epic review depth a real consumed signal (refs [#3937](https://github.com/dsj1984/mandrel/issues/3937)) ([#3942](https://github.com/dsj1984/mandrel/issues/3942)) ([b1a8eac](https://github.com/dsj1984/mandrel/commit/b1a8eac06eee5df55d7d6ae309224f9908475560))
+* **delivery:** bounded per-Story acceptance self-eval loop in the Story-implementation phase ([#3819](https://github.com/dsj1984/mandrel/issues/3819)) ([#3820](https://github.com/dsj1984/mandrel/issues/3820)) ([b03acdf](https://github.com/dsj1984/mandrel/commit/b03acdf5697e85e86dfe18702e31d8e328ee3fe0))
+* Epic [#3865](https://github.com/dsj1984/mandrel/issues/3865) ([#3888](https://github.com/dsj1984/mandrel/issues/3888)) ([a7ff890](https://github.com/dsj1984/mandrel/commit/a7ff890ee5b92a38bab884ee0f2d3e2b77619432))
+* **epic-audit:** make audit lenses depth-aware + broaden risk-axis routing (refs [#3939](https://github.com/dsj1984/mandrel/issues/3939)) ([#3951](https://github.com/dsj1984/mandrel/issues/3951)) ([2f53885](https://github.com/dsj1984/mandrel/commit/2f53885fb5baa916904323ba5b5b6926d6f9de5a))
+* **epic-deliver:** wire risk-judged audit-lens routing into Phase 4 (refs [#3889](https://github.com/dsj1984/mandrel/issues/3889)) ([#3917](https://github.com/dsj1984/mandrel/issues/3917)) ([5a12dbe](https://github.com/dsj1984/mandrel/commit/5a12dbe8bced3a3b2ad18abfea679a942a574ed6))
+* **hydration:** flip skill loading to capsule-only (hard cutover) (refs [#3863](https://github.com/dsj1984/mandrel/issues/3863)) ([#3869](https://github.com/dsj1984/mandrel/issues/3869)) ([a9a985a](https://github.com/dsj1984/mandrel/commit/a9a985ab39c2141a9b824f35a6e298ed0a20f5ca))
+* **planning:** add core/scope-triage skill and /epic-plan Phase 1.5 ideation gate (refs [#3933](https://github.com/dsj1984/mandrel/issues/3933)) ([#3941](https://github.com/dsj1984/mandrel/issues/3941)) ([7cf4725](https://github.com/dsj1984/mandrel/commit/7cf472580268b4e1b106c96e2a9ad8019b185ecb))
+* **planning:** add Phase 7.5 Tech Spec Delivery Slicing section gate (refs [#3853](https://github.com/dsj1984/mandrel/issues/3853)) ([#3860](https://github.com/dsj1984/mandrel/issues/3860)) ([23102b3](https://github.com/dsj1984/mandrel/commit/23102b3dd90c7ca43e2d624930d2f42f5e6f6c00))
+* **planning:** emit wave-0 BDD scaffold Story for new-disposition specs + missing-bdd-scaffold finding (refs [#3857](https://github.com/dsj1984/mandrel/issues/3857)) ([#3862](https://github.com/dsj1984/mandrel/issues/3862)) ([461bcea](https://github.com/dsj1984/mandrel/commit/461bcea4135c2ac5827bdbc167c73699d5146dad))
+* **planning:** flag acceptance criteria referencing unanchored config constants (refs [#3855](https://github.com/dsj1984/mandrel/issues/3855)) ([#3859](https://github.com/dsj1984/mandrel/issues/3859)) ([8533dc8](https://github.com/dsj1984/mandrel/commit/8533dc87ecf951c7cd8c92c7383218cf094b1041))
+* **retro:** ship retro-run.js CLI for Phase 6 retro (refs [#3903](https://github.com/dsj1984/mandrel/issues/3903)) ([#3924](https://github.com/dsj1984/mandrel/issues/3924)) ([b663840](https://github.com/dsj1984/mandrel/commit/b663840b99de35e00d095a8cff22ed96f9d6b51e))
+* **story-close:** inherit Epic review depth for epic-attached Stories (refs [#3940](https://github.com/dsj1984/mandrel/issues/3940)) ([#3950](https://github.com/dsj1984/mandrel/issues/3950)) ([1eefc39](https://github.com/dsj1984/mandrel/commit/1eefc39638cfc5315a88d2c5c313be2b2eaf386b))
+
+
+### Fixed
+
+* **bootstrap:** dedupe Projects V2 board creation on re-run (refs [#3896](https://github.com/dsj1984/mandrel/issues/3896)) ([#3920](https://github.com/dsj1984/mandrel/issues/3920)) ([84e6e20](https://github.com/dsj1984/mandrel/commit/84e6e20665586d81bf0907838d351da890804ff8))
+* **bootstrap:** exit non-zero when GitHub-side bootstrap fails (refs [#3898](https://github.com/dsj1984/mandrel/issues/3898)) ([#3922](https://github.com/dsj1984/mandrel/issues/3922)) ([0629621](https://github.com/dsj1984/mandrel/commit/062962138967525dce09421140eb87742ee1c39d))
+* **bootstrap:** seal cold-start secret-push hazard (refs [#3894](https://github.com/dsj1984/mandrel/issues/3894)) ([#3918](https://github.com/dsj1984/mandrel/issues/3918)) ([37358d2](https://github.com/dsj1984/mandrel/commit/37358d2d52ac3d0b9bbbc92799f0e5e81b662968))
+* **bootstrap:** stop doctor + preflight false-blocking on auth (refs [#3893](https://github.com/dsj1984/mandrel/issues/3893)) ([#3915](https://github.com/dsj1984/mandrel/issues/3915)) ([e7f12c8](https://github.com/dsj1984/mandrel/commit/e7f12c8ba2bdbdc8233eff48264284d0c0101694))
+* **deliver:** make Phase 8 pr-watch poll CI to green (refs [#3902](https://github.com/dsj1984/mandrel/issues/3902)) ([#3925](https://github.com/dsj1984/mandrel/issues/3925)) ([873fcaa](https://github.com/dsj1984/mandrel/commit/873fcaaf78eb722119112c3e1159f9bf8979582c))
+* **doctor:** degrade gh-auth check to warn-and-skip when an env token is present ([#3944](https://github.com/dsj1984/mandrel/issues/3944)) ([76bea3e](https://github.com/dsj1984/mandrel/commit/76bea3e8d6380912c362c753c8d3ca25d106906f))
+* **lifecycle:** make the Phase 8.5 auto-merge gate reachable + add event-connectivity contract test ([#3901](https://github.com/dsj1984/mandrel/issues/3901)) ([#3932](https://github.com/dsj1984/mandrel/issues/3932)) ([509e0af](https://github.com/dsj1984/mandrel/commit/509e0af24101cde3dbcbb0639367e75afb55ebce))
+* **lifecycle:** propagate finalize/listener failures to lifecycle-emit exit code (refs [#3904](https://github.com/dsj1984/mandrel/issues/3904)) ([#3927](https://github.com/dsj1984/mandrel/issues/3927)) ([588f0ba](https://github.com/dsj1984/mandrel/commit/588f0ba365dd241f3aebeac4cd40cb8c5368584b))
+* **lifecycle:** repair idle-watchdog + Epic-lease via main-checkout ledger path and dispatch-end emission ([#3900](https://github.com/dsj1984/mandrel/issues/3900)) ([#3926](https://github.com/dsj1984/mandrel/issues/3926)) ([daa4434](https://github.com/dsj1984/mandrel/commit/daa4434bb6c2352df16d34ff8cbcf38b9422f7be))
+* **planning:** issue-link-parser matches spec references in Epic body prose, dropping authored acceptance specs ([#3848](https://github.com/dsj1984/mandrel/issues/3848)) ([#3851](https://github.com/dsj1984/mandrel/issues/3851)) ([93fcfb3](https://github.com/dsj1984/mandrel/commit/93fcfb3f1c54b67ca1d0e13413e12ab4f0971984))
+* **plan:** repair --force re-plan (--explicit-delete) and --resume idempotency on missing state.json ([#3905](https://github.com/dsj1984/mandrel/issues/3905)) ([#3928](https://github.com/dsj1984/mandrel/issues/3928)) ([617a121](https://github.com/dsj1984/mandrel/commit/617a12154edd55ce3c82ffc9063f8c369b03c0fb))
+* **retro:** low-utilisation heuristic false-positives on serialized/narrow waves + missing timing ([#3850](https://github.com/dsj1984/mandrel/issues/3850)) ([#3852](https://github.com/dsj1984/mandrel/issues/3852)) ([fb4cb56](https://github.com/dsj1984/mandrel/commit/fb4cb564985786d5d83ad9e2c7ffc5c14c6547c2))
+* **story-close:** correct push-recovery + format-autofix cwd, harden wave loop (refs [#3907](https://github.com/dsj1984/mandrel/issues/3907)) ([#3930](https://github.com/dsj1984/mandrel/issues/3930)) ([7ac053a](https://github.com/dsj1984/mandrel/commit/7ac053a9631017fa0f9d82a6dc6dce3a687f396c))
+* **uninstall:** preserve a pre-existing .agentrc.json (refs [#3895](https://github.com/dsj1984/mandrel/issues/3895)) ([#3919](https://github.com/dsj1984/mandrel/issues/3919)) ([ebdfd37](https://github.com/dsj1984/mandrel/commit/ebdfd37cc2fb1f53778f0723984790aaf32f000a))
+
+
+### Changed
+
+* **deliver:** collapse overlapping run-state/progress surfaces to checkpoint+ledger+one comment ([#3909](https://github.com/dsj1984/mandrel/issues/3909)) ([#3945](https://github.com/dsj1984/mandrel/issues/3945)) ([80b598c](https://github.com/dsj1984/mandrel/commit/80b598c3f7372bdde87a07ac1bc544312408cd0c))
+* **orchestration:** delete free-form sub-agent return extraction heuristics (refs [#3864](https://github.com/dsj1984/mandrel/issues/3864)) ([#3868](https://github.com/dsj1984/mandrel/issues/3868)) ([cbf88cf](https://github.com/dsj1984/mandrel/commit/cbf88cffcc9d8b6501c7eab4a55160281c65c5b0))
+* **orchestration:** delete the dead in-process epic-runner stratum ([#3908](https://github.com/dsj1984/mandrel/issues/3908)) ([#3936](https://github.com/dsj1984/mandrel/issues/3936)) ([fcea717](https://github.com/dsj1984/mandrel/commit/fcea717064e2633d90a7d905914056fe571be4c2))
+* **orchestration:** record keep-the-bus ADR; sweep stale runner refs (refs [#3911](https://github.com/dsj1984/mandrel/issues/3911)) ([#3948](https://github.com/dsj1984/mandrel/issues/3948)) ([037afde](https://github.com/dsj1984/mandrel/commit/037afdec90db3e80b7054eec65c829dd3f835c45))
+* **plan:** re-point task-body validator at string bodies; drop dead guards (refs [#3906](https://github.com/dsj1984/mandrel/issues/3906)) ([#3929](https://github.com/dsj1984/mandrel/issues/3929)) ([59be4fc](https://github.com/dsj1984/mandrel/commit/59be4fcdf7a1ce4b3a71127584c54ea67b2dc36c))
+* **plan:** simplify deterministic planning proxies and sweep stale/duplicated workflow prose ([#3910](https://github.com/dsj1984/mandrel/issues/3910)) ([#3931](https://github.com/dsj1984/mandrel/issues/3931)) ([6b53fa8](https://github.com/dsj1984/mandrel/commit/6b53fa805171ce97002bf8bd876d51dc381e4e68))
+* **scripts:** retire dead/orphan/shim code across planning & delivery (closes [#3823](https://github.com/dsj1984/mandrel/issues/3823)) ([#3849](https://github.com/dsj1984/mandrel/issues/3849)) ([ced6eca](https://github.com/dsj1984/mandrel/commit/ced6eca84f1087d3046c654090c34929aa8f4fcf))
+
 ## [1.54.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.53.0...mandrel-v1.54.0) (2026-06-08)
 
 
