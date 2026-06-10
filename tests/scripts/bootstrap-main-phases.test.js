@@ -179,6 +179,89 @@ describe('main() pipeline shape', () => {
   });
 });
 
+describe('main() — GitHub-side failure exit code (Story #3898)', () => {
+  // A GitHub-side bootstrap failure is recorded as `report.github.error`
+  // (not thrown) so the install ledger can still record the project-side
+  // mutations that already landed. `main()` must detect that recorded error
+  // after the pipeline and exit non-zero — never `Done.` + exit 0.
+
+  /**
+   * Build a minimal injected pipeline whose `executeGithubBootstrap`
+   * stand-in records (rather than throws) a GitHub-side error, and whose
+   * `recordLedger` stand-in proves it still runs after the failure.
+   */
+  function phasesWithGithubError(state, recorded) {
+    return [
+      () => ({
+        ok: true,
+        payload: { report: state.report, answers: {}, flags: {} },
+      }),
+      // executeGithubBootstrap stand-in: catch + record (mirrors source).
+      (s) => {
+        s.report.github = { error: 'gh: project scope missing (exit 1)' };
+        return { ok: true, payload: {} };
+      },
+      // recordLedger stand-in: project-side mutations are still recorded.
+      () => {
+        recorded.ledgerRan = true;
+        return { ok: true, payload: {} };
+      },
+    ];
+  }
+
+  let origError;
+  let errChunks;
+  beforeEach(() => {
+    errChunks = [];
+    origError = console.error;
+    console.error = (...args) => errChunks.push(args.join(' '));
+  });
+  afterEach(() => {
+    console.error = origError;
+  });
+
+  it('returns a non-zero exit code when the GitHub bootstrap step records an error', async () => {
+    const { main } = await import('../../.agents/scripts/bootstrap.js');
+    const report = {};
+    const recorded = {};
+    const code = await main([], {
+      phases: phasesWithGithubError({ report }, recorded),
+    });
+    assert.equal(code, 1, 'a recorded GitHub error must exit non-zero');
+  });
+
+  it('prints a distinct GitHub-failure status line naming remediation (not "Done.")', async () => {
+    const { main } = await import('../../.agents/scripts/bootstrap.js');
+    const report = {};
+    const recorded = {};
+    await main([], { phases: phasesWithGithubError({ report }, recorded) });
+    const joined = errChunks.join('\n');
+    assert.match(joined, /GitHub bootstrap failed/);
+    assert.match(joined, /re-run/);
+    assert.doesNotMatch(joined, /\[bootstrap\] Done\./);
+  });
+
+  it('still runs the ledger phase (project-side mutations surfaced, not rolled back)', async () => {
+    const { main } = await import('../../.agents/scripts/bootstrap.js');
+    const report = {};
+    const recorded = {};
+    await main([], { phases: phasesWithGithubError({ report }, recorded) });
+    assert.equal(
+      recorded.ledgerRan,
+      true,
+      'the ledger phase must run after a GitHub-side failure',
+    );
+  });
+
+  it('returns exit 0 when no GitHub error is recorded', async () => {
+    const { main } = await import('../../.agents/scripts/bootstrap.js');
+    const code = await main([], {
+      phases: [() => ({ ok: true, payload: { report: {} } })],
+    });
+    assert.equal(code, 0);
+  });
+});
+
 describe('runPipeline', () => {
   it('threads accumulated payloads through each phase', async () => {
     const seen = [];
