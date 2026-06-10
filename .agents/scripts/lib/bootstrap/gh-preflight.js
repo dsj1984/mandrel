@@ -137,7 +137,21 @@ export function compareSemver(a, b) {
  */
 export async function preflightGh(opts = {}) {
   const runner = opts.runner ?? defaultGhRunner;
+  const version = resolveGhVersion(runner);
+  assertGhVersionFloor(version);
+  assertGhAuth(runner);
+  return { version };
+}
 
+/**
+ * Resolve the installed `gh` version via `gh --version`, throwing
+ * {@link GhNotInstalledError} for every "not installed correctly" shape
+ * (ENOENT, non-zero exit, unparseable output).
+ *
+ * @param {(args: string[]) => object} runner
+ * @returns {string}
+ */
+function resolveGhVersion(runner) {
   const versionResult = runner(['--version']);
   if (versionResult.error?.code === 'ENOENT') {
     throw new GhNotInstalledError(
@@ -152,20 +166,37 @@ export async function preflightGh(opts = {}) {
       `gh --version failed (exit ${versionResult.status}): ${stderrSnippet}. ${GH_INSTALL_HINT}`,
     );
   }
-
   const version = parseGhVersion(versionResult.stdout);
   if (!version) {
     throw new GhNotInstalledError(
       `Could not parse gh version from output: ${(versionResult.stdout || '').slice(0, 200)}. ${GH_INSTALL_HINT}`,
     );
   }
+  return version;
+}
+
+/**
+ * Enforce the {@link MIN_GH_VERSION} floor, throwing {@link GhVersionError}
+ * with `{ found, required }` when the installed version is older.
+ *
+ * @param {string} version
+ */
+function assertGhVersionFloor(version) {
   if (compareSemver(version, MIN_GH_VERSION) < 0) {
     throw new GhVersionError(
       `gh ${version} is older than required ${MIN_GH_VERSION}. Upgrade with your package manager (e.g. \`brew upgrade gh\`, \`winget upgrade GitHub.cli\`, or see https://cli.github.com/) and re-run this command.`,
       { found: version, required: MIN_GH_VERSION },
     );
   }
+}
 
+/**
+ * Assert `gh auth status` reports a logged-in host, throwing
+ * {@link GhAuthError} (or {@link GhNotInstalledError} on a PATH race).
+ *
+ * @param {(args: string[]) => object} runner
+ */
+function assertGhAuth(runner) {
   const authResult = runner(['auth', 'status']);
   if (authResult.error?.code === 'ENOENT') {
     // Defensive — `gh --version` already passed, so ENOENT here would be a
@@ -179,8 +210,6 @@ export async function preflightGh(opts = {}) {
       `gh auth status failed: not logged in. ${GH_AUTH_HINT}`,
     );
   }
-
-  return { version };
 }
 
 /**
