@@ -66,7 +66,7 @@ jobs:
           manifest-file: .release-please-manifest.json
 
   npm-publish:
-    # Publish the root `@mandrelai/agents` package to the npm registry with
+    # Publish the root `mandrel` package to the npm registry with
     # build provenance once release-please cuts a release for the **root**
     # package. This replaces the retired `dist` branch mirror: consumers now
     # install a versioned, provenance-signed package from npm instead of

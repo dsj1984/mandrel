@@ -1,14 +1,14 @@
 # Mandrel — `.agents/`
 
 This is the framework payload (`.agents/`) consumed by host repos. It ships
-inside the [`@mandrelai/agents`](https://www.npmjs.com/package/@mandrelai/agents)
+inside the [`mandrel`](https://www.npmjs.com/package/mandrel)
 npm package and is materialized into a consumer's `./.agents/` directory by
 `mandrel sync`. It carries a system prompt, a baseline rule pack, a
 two-tier skill library, a slash-command workflow set, and the
 orchestration engine that runs Epic → Feature → Story plans on
 GitHub. The framework version is the version of the installed
-[`@mandrel/agents`](https://www.npmjs.com/package/@mandrel/agents) npm
-package — run `npm ls @mandrel/agents` (or read `package.json`), not a
+[`mandrel`](https://www.npmjs.com/package/mandrel) npm
+package — run `npm ls mandrel` (or read `package.json`), not a
 count here.
 
 > **Ticket hierarchy.** Mandrel uses a **3-tier hierarchy**
@@ -31,10 +31,10 @@ The canonical cold-start path is a single launcher command, run from the
 root of your project (the folder does **not** need to be a git repo yet):
 
 ```bash
-npx create-mandrel        # install @mandrelai/agents → mandrel sync → bootstrap.js
+npx create-mandrel        # install mandrel → mandrel sync → bootstrap.js
 ```
 
-`create-mandrel` installs `@mandrelai/agents`, materializes `./.agents/` via
+`create-mandrel` installs `mandrel`, materializes `./.agents/` via
 `mandrel sync` (skipping the install when `.agents/` already exists), and
 finishes by running `node .agents/scripts/bootstrap.js`, forwarding any flags
 you pass. After it completes, run **`/onboard`** inside Claude Code for the
@@ -50,12 +50,12 @@ From an **empty or existing** project that does not yet have `.agents/`,
 install the package and materialize the framework payload:
 
 ```bash
-npm install @mandrelai/agents
-# pnpm add @mandrelai/agents
-# yarn add @mandrelai/agents
+npm install mandrel
+# pnpm add mandrel
+# yarn add mandrel
 ```
 
-Installing `@mandrelai/agents` pins an exact, provenance-signed version in
+Installing `mandrel` pins an exact, provenance-signed version in
 your lockfile (the npm publish attaches a Sigstore build-provenance
 statement proving the tarball was built from this repo's CI). The package's
 `postinstall` hook runs `mandrel sync` best-effort, which copies the
@@ -78,7 +78,7 @@ node .agents/scripts/bootstrap.js
 ### Upgrading and local additions
 
 Once installed, the ongoing upgrade path is **`mandrel update`** — it bumps
-`@mandrelai/agents` to the newest non-major version, re-runs `mandrel sync`,
+`mandrel` to the newest non-major version, re-runs `mandrel sync`,
 applies version-keyed migrations, and verifies the install with
 `mandrel doctor`. The lockfile bump is left **staged for you to review and
 commit** (the command performs no `git` mutation):

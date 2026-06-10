@@ -33,7 +33,7 @@ import { Logger } from './lib/Logger.js';
 // Resolve the project root from the invocation cwd — the consumer project where
 // `.agents/` is materialized and where Claude Code loads `.claude/commands/`.
 // It MUST NOT use `__dirname/../..`: in an npm-installed consumer this script
-// runs from `node_modules/@mandrelai/agents/.agents/scripts/`, so that climb
+// runs from `node_modules/mandrel/.agents/scripts/`, so that climb
 // lands on the package dir and the commands would be written *inside
 // node_modules* rather than the consumer — leaving `/<name>` commands
 // unloadable and the `commands-in-sync` doctor check (which resolves the same

@@ -278,7 +278,7 @@ The canonical cold-start path is a single launcher command:
 npx create-mandrel
 ```
 
-`create-mandrel` installs `@mandrelai/agents`, materializes `./.agents/` via
+`create-mandrel` installs `mandrel`, materializes `./.agents/` via
 `mandrel sync`, and runs `node .agents/scripts/bootstrap.js`, forwarding any
 flags you pass. `bootstrap.js`:
 
@@ -1404,7 +1404,7 @@ For Stories already in flight, use one of the three options above.
 
 | Command                                          | Purpose                                                                                                                                                                      |
 | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npx create-mandrel`                             | Cold-start launcher — install `@mandrelai/agents`, `mandrel sync`, then run `bootstrap.js` (provisions repo + Projects V2 board, labels, branch protection).                  |
+| `npx create-mandrel`                             | Cold-start launcher — install `mandrel`, `mandrel sync`, then run `bootstrap.js` (provisions repo + Projects V2 board, labels, branch protection).                  |
 | `/onboard`                                       | Guided first run after bootstrap — stack detection, docs scaffolding, `mandrel doctor` readiness gate, started `/epic-plan` handoff.                                          |
 | `/epic-plan`                                     | Ideation entry — sharpen idea, search duplicates, open Epic, then PRD + Tech Spec + decomposition.                                                                            |
 | `/epic-plan --idea "<seed>"`                     | Same ideation entry with pre-supplied seed.                                                                                                                                   |

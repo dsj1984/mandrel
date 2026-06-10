@@ -4,7 +4,7 @@
  * `.agents/runtime-deps.json` is the single source of truth for the
  * third-party npm packages the framework scripts import at runtime
  * (Story #3432). It ships *inside* `.agents/` so it travels with the
- * `@mandrelai/agents` package into consumer projects. This module is the only reader of that
+ * `mandrel` package into consumer projects. This module is the only reader of that
  * file — the bootstrap seeder (`project-bootstrap.js`), the preflight guard
  * (`ensure-installed.js`), and the import-vs-manifest drift test all derive
  * their dependency lists from `loadRuntimeDepsManifest()` so there is exactly

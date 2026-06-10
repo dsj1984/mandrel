@@ -78,9 +78,9 @@ describe('parseArgs', () => {
     ]);
   });
 
-  it('defaults the package name to @mandrelai/agents', () => {
+  it('defaults the package name to mandrel', () => {
     const opts = parseArgs(['--consumer', '/c']);
-    assert.equal(opts.packageName, '@mandrelai/agents');
+    assert.equal(opts.packageName, 'mandrel');
   });
 });
 
@@ -113,14 +113,14 @@ describe('checkManifestClean', () => {
     const fs = makeFs({
       '/c/package.json': JSON.stringify({
         dependencies: {
-          '@mandrelai/agents': 'file:../x.tgz',
+          'mandrel': 'file:../x.tgz',
           'left-pad': '^1',
         },
       }),
     });
     const r = checkManifestClean({
       consumer: '/c',
-      packageName: '@mandrelai/agents',
+      packageName: 'mandrel',
       fs,
     });
     assert.equal(r.ok, true);
@@ -133,7 +133,7 @@ describe('checkManifestClean', () => {
     });
     const r = checkManifestClean({
       consumer: '/c',
-      packageName: '@mandrelai/agents',
+      packageName: 'mandrel',
       fs,
     });
     assert.equal(r.ok, true);
@@ -142,12 +142,12 @@ describe('checkManifestClean', () => {
   it('fails when a framework runtime dep leaked into the manifest', () => {
     const fs = makeFs({
       '/c/package.json': JSON.stringify({
-        dependencies: { '@mandrelai/agents': 'file:../x.tgz', 'js-yaml': '^4' },
+        dependencies: { 'mandrel': 'file:../x.tgz', 'js-yaml': '^4' },
       }),
     });
     const r = checkManifestClean({
       consumer: '/c',
-      packageName: '@mandrelai/agents',
+      packageName: 'mandrel',
       fs,
     });
     assert.equal(r.ok, false);
@@ -163,7 +163,7 @@ describe('checkManifestClean', () => {
     });
     const r = checkManifestClean({
       consumer: '/c',
-      packageName: '@mandrelai/agents',
+      packageName: 'mandrel',
       fs,
     });
     assert.equal(r.ok, false);
@@ -174,7 +174,7 @@ describe('checkManifestClean', () => {
     const fs = makeFs({ '/c/other.json': '{}' });
     const r = checkManifestClean({
       consumer: '/c',
-      packageName: '@mandrelai/agents',
+      packageName: 'mandrel',
       fs,
     });
     assert.equal(r.ok, false);
@@ -229,7 +229,7 @@ describe('runAssertions', () => {
     const fs = makeFs({
       '/c/.agents/instructions.md': '# hi',
       '/c/package.json': JSON.stringify({
-        dependencies: { '@mandrelai/agents': 'file:../x.tgz' },
+        dependencies: { 'mandrel': 'file:../x.tgz' },
       }),
     });
     const lines = [];
