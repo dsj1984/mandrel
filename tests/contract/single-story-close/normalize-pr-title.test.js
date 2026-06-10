@@ -58,15 +58,41 @@ async function assertParsesAsConventional(subject) {
   const load = loadMod.default ?? loadMod.load ?? loadMod;
   const cfg = await load({}, { cwd: process.cwd() });
   const report = await lint(subject, cfg.rules);
-  // A non-conventional header surfaces `subject-empty` / `type-empty`
-  // commitlint errors — the exact failure release-please's parser emits.
-  const typeErrors = report.errors.filter(
+  // Full commitlint validity. A non-conventional header surfaces
+  // `type-empty` / `subject-empty` (the exact "could not be parsed → 0
+  // commits" failure release-please emits); the synthesized titles also
+  // satisfy the style rules (`subject-case`, etc.) so the squash subject
+  // would pass the same gate the commit-msg hook enforces.
+  assert.ok(
+    report.valid,
+    `subject is not a valid Conventional Commit: "${subject}" — ${JSON.stringify(
+      report.errors.map((e) => e.name),
+    )}`,
+  );
+}
+
+/**
+ * Weaker assertion: the subject carries a parseable Conventional-Commit
+ * type + non-empty description, i.e. release-please counts it as a
+ * releasable commit. Style-only rules (`subject-case`, etc.) are ignored
+ * because release-please's parser extracts the type regardless of subject
+ * case — the failure mode #3969 fixes is the `type-empty` / `subject-empty`
+ * "could not be parsed → 0 commits" case, not a style nit.
+ */
+async function assertParsesForReleasePlease(subject) {
+  const lintMod = await import('@commitlint/lint');
+  const loadMod = await import('@commitlint/load');
+  const lint = lintMod.default ?? lintMod.lint ?? lintMod;
+  const load = loadMod.default ?? loadMod.load ?? loadMod;
+  const cfg = await load({}, { cwd: process.cwd() });
+  const report = await lint(subject, cfg.rules);
+  const parseErrors = report.errors.filter(
     (e) => e.name === 'type-empty' || e.name === 'subject-empty',
   );
   assert.deepEqual(
-    typeErrors,
+    parseErrors,
     [],
-    `subject is not a parseable Conventional Commit: "${subject}" — ${JSON.stringify(
+    `subject would not parse for release-please: "${subject}" — ${JSON.stringify(
       report.errors.map((e) => e.name),
     )}`,
   );
@@ -163,7 +189,7 @@ describe('normalizePrTitle', () => {
       gitSpawn: gitSpawnReturning('refactor!: rename the package'),
       logger: silentLogger,
     });
-    assert.equal(title, 'refactor: Rename the published npm package (#3955)');
+    assert.equal(title, 'refactor: rename the published npm package (#3955)');
     await assertParsesAsConventional(title);
   });
 
@@ -176,7 +202,7 @@ describe('normalizePrTitle', () => {
       gitSpawn: gitSpawnReturning('wip\nmore wip'),
       logger: silentLogger,
     });
-    assert.equal(title, 'chore: Some plain description (#42)');
+    assert.equal(title, 'chore: some plain description (#42)');
     await assertParsesAsConventional(title);
   });
 
@@ -222,7 +248,7 @@ describe('normalizePrTitle', () => {
       gitSpawn: gitSpawnReturning('fix: a thing'),
       logger: silentLogger,
     });
-    assert.equal(title, 'fix: Story #99 (#99)');
+    assert.equal(title, 'fix: story #99 (#99)');
     await assertParsesAsConventional(title);
   });
 });
@@ -317,6 +343,13 @@ describe('Epic finalize PR title — regression (already normalized before #3969
     const title = capture.args[titleIdx + 1];
     assert.equal(title, 'feat: Epic #2172');
     assert.ok(isConventionalSubject(title), `not conventional: "${title}"`);
-    await assertParsesAsConventional(title);
+    // The epic-finalize default carries a parseable type (the bug #3969
+    // fixes on the standalone path), so release-please parses it as one
+    // releasable `feat` commit. Asserted via release-please-grade
+    // parseability rather than full commitlint validity: the default
+    // `Epic #<id>` keeps the proper-noun capital and would trip the
+    // style-only `subject-case` rule, which never blocks release-please's
+    // parser (it extracts the type regardless of subject case).
+    await assertParsesForReleasePlease(title);
   });
 });

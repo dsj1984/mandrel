@@ -229,6 +229,13 @@ export function normalizePrTitle({
         })
       : DEFAULT_CONVENTIONAL_TYPE;
 
-  const description = trimmed.length > 0 ? trimmed : `Story #${storyId}`;
+  // Lowercase the leading character of a synthesized description so the
+  // subject satisfies commitlint's `subject-case` rule (matching the
+  // `shapeMergeSubject` behaviour). An already-conventional title is left
+  // untouched (it was preserved verbatim above). The empty-title fallback
+  // uses a lowercased `story #<id>` for the same reason.
+  const rawDescription = trimmed.length > 0 ? trimmed : `Story #${storyId}`;
+  const description =
+    rawDescription.charAt(0).toLowerCase() + rawDescription.slice(1);
   return `${type}: ${description} ${idSuffix}`;
 }
