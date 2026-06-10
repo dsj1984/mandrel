@@ -385,10 +385,17 @@ fails loudly if any is missing or empty.
 
 #### Adaptive planning risk routing
 
-`/epic-plan`'s `planning.spec-authoring` state computes a deterministic **`planningRisk`** envelope
-from the Epic body, labels, and linked context before persisting the
-spec artifacts. The envelope is recorded in the `epic-plan-state`
-checkpoint and consumed by two downstream decisions:
+`/epic-plan`'s `planning.spec-authoring` state derives a deterministic
+**`planningRisk`** envelope from a **planner-authored risk verdict**
+(`risk-verdict.json`, the fourth planning artifact the
+`epic-plan-spec-author` Skill writes from the PRD / Tech Spec it just
+authored). The persist half of `epic-plan-spec.js` validates the verdict
+against `risk-verdict.schema.json` — a malformed verdict fails closed —
+then derives the envelope via `deriveRiskEnvelope`
+(`lib/orchestration/planning-risk.js`). The verdict is recorded as a
+`risk-verdict` structured comment on the Epic, and both the verdict and
+the envelope land in the `epic-plan-state` checkpoint, consumed by two
+downstream decisions:
 
 - **Acceptance disposition** — `acceptanceDisposition` is one of
   `required`, `recommended`, or `not-applicable`. The `not-applicable`
@@ -409,9 +416,10 @@ checkpoint and consumed by two downstream decisions:
 
 The risk envelope is also threaded into the `planning.decompose` state's decomposer context
 so the ticket array can cite the relevant axes when assigning
-`risk::high` labels to Stories. The classifier is local and
-deterministic — it never calls an external LLM or sends Epic content
-off-host.
+`risk::high` labels to Stories. The split is "judgment proposes, harness
+gates": the planner supplies the axes (with per-axis rationale), and the
+envelope derivation — overall level, review requirement, acceptance
+disposition, gate decision — is local and deterministic.
 
 #### Opting out — the `acceptance::n-a` waiver
 
@@ -422,8 +430,9 @@ on the Epic ticket records the waiver. There are two routes to the label:
 - **Operator-applied** — the operator labels the Epic before or during
   `/epic-plan`'s `planning.spec-authoring` state when they already
   know the work does not need a spec.
-- **Planner-selected** — `/epic-plan`'s `planning.spec-authoring` state computes a
-  `planningRisk` envelope (see § Adaptive planning risk routing) and,
+- **Planner-selected** — `/epic-plan`'s `planning.spec-authoring` state derives a
+  `planningRisk` envelope from the planner-authored risk verdict
+  (see § Adaptive planning risk routing) and,
   when `acceptanceDisposition === 'not-applicable'`, the persist half
   of `epic-plan-spec.js` applies `acceptance::n-a` on the Epic and skips
   the Acceptance Spec artifact for that run. The disposition is also

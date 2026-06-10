@@ -14,29 +14,28 @@
 
 import { Logger } from '../../../Logger.js';
 import { ACCEPTANCE_NA } from '../../../label-constants.js';
-import { classifyPlanningRisk } from '../../planning-risk.js';
 import { PlanningStateManager } from '../../planning-state-manager.js';
 
 /**
  * Resolve whether Phase 7 should persist an acceptance-spec ticket or apply
- * the existing `acceptance::n-a` waiver from {@link classifyPlanningRisk}.
+ * the `acceptance::n-a` waiver, from the planningRisk envelope derived off
+ * the planner-authored risk verdict (`deriveRiskEnvelope`, Epic #3865).
  *
- * @param {{ title?: string, body?: string, labels?: string[] }} epic
+ * @param {import('../../planning-risk.js').PlanningRiskEnvelope|null} planningRisk
+ *   Derived envelope; `null` (direct invocations without a verdict) never
+ *   applies the waiver.
  * @param {string|null} acceptanceSpecContent
- * @returns {{ planningRisk: import('../../planning-risk.js').PlanningRiskEnvelope, wantsAcceptanceSpec: boolean, applyAcceptanceWaiver: boolean }}
+ * @returns {{ planningRisk: import('../../planning-risk.js').PlanningRiskEnvelope|null, wantsAcceptanceSpec: boolean, applyAcceptanceWaiver: boolean }}
  */
-export function resolveAcceptancePersistence(epic, acceptanceSpecContent) {
-  const planningRisk = classifyPlanningRisk({
-    title: epic.title,
-    body: epic.body ?? '',
-    labels: epic.labels ?? [],
-  });
-
+export function resolveAcceptancePersistence(
+  planningRisk,
+  acceptanceSpecContent,
+) {
   const hasAcceptanceContent =
     typeof acceptanceSpecContent === 'string' &&
     acceptanceSpecContent.trim() !== '';
 
-  if (planningRisk.acceptanceDisposition === 'not-applicable') {
+  if (planningRisk?.acceptanceDisposition === 'not-applicable') {
     return {
       planningRisk,
       wantsAcceptanceSpec: false,
@@ -45,7 +44,7 @@ export function resolveAcceptancePersistence(epic, acceptanceSpecContent) {
   }
 
   return {
-    planningRisk,
+    planningRisk: planningRisk ?? null,
     wantsAcceptanceSpec: hasAcceptanceContent,
     applyAcceptanceWaiver: false,
   };
@@ -287,7 +286,7 @@ export async function planEpic(
   provider,
   { prdContent, techSpecContent, acceptanceSpecContent = null },
   _settings = {},
-  { force = false } = {},
+  { force = false, planningRisk = null } = {},
 ) {
   validatePlanEpicInputs({
     prdContent,
@@ -305,11 +304,11 @@ export async function planEpic(
   const stateManager = new PlanningStateManager(provider);
   await stateManager.healAndCleanupArtifacts(epic, force);
 
-  const { planningRisk, wantsAcceptanceSpec, applyAcceptanceWaiver } =
-    resolveAcceptancePersistence(epic, acceptanceSpecContent);
+  const { wantsAcceptanceSpec, applyAcceptanceWaiver } =
+    resolveAcceptancePersistence(planningRisk, acceptanceSpecContent);
 
   Logger.info(
-    `[Epic Planner] Acceptance disposition: ${planningRisk.acceptanceDisposition}` +
+    `[Epic Planner] Acceptance disposition: ${planningRisk?.acceptanceDisposition ?? 'unspecified'}` +
       (applyAcceptanceWaiver
         ? ` — applying ${ACCEPTANCE_NA} waiver (no acceptance-spec ticket).`
         : wantsAcceptanceSpec

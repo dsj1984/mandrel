@@ -21,7 +21,6 @@ import { fetchPriorFeedback } from '../../../feedback-loop/prior-feedback-fetche
 import { Logger } from '../../../Logger.js';
 import { buildDocsContext } from '../../doc-reader.js';
 import { applyBudget } from '../../planning-context-budget.js';
-import { classifyPlanningRisk } from '../../planning-risk.js';
 import {
   ACCEPTANCE_SPEC_SYSTEM_PROMPT,
   PRD_SYSTEM_PROMPT,
@@ -151,14 +150,10 @@ export async function buildAuthoringContext(
     Logger.warn(`[epic-plan-spec] codebase snapshot skipped: ${err.message}`);
   }
 
-  // Story #2791 — deterministic planning-risk envelope for gate routing
-  // and acceptance disposition. Pure classification over Epic metadata;
-  // no GitHub mutation on the emit-context path.
-  const planningRisk = classifyPlanningRisk({
-    title: epic.title,
-    body: epic.body ?? '',
-    labels: epic.labels ?? [],
-  });
+  // Epic #3865 — planning risk is no longer classified at emit-context
+  // time. The `epic-plan-spec-author` Skill authors the risk verdict
+  // (`risk-verdict.json`) as the fourth planning artifact, and the persist
+  // half derives the planningRisk envelope from it via deriveRiskEnvelope.
 
   return {
     epic: {
@@ -179,6 +174,5 @@ export async function buildAuthoringContext(
     bddScenarios,
     memoryFreshness,
     priorFeedback,
-    planningRisk,
   };
 }

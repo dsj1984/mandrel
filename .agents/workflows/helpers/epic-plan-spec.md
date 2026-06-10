@@ -77,27 +77,44 @@ Using `systemPrompts.techSpec`, the PRD you just wrote, and `docsContext`,
 write the Tech Spec to `temp/epic-[Epic_ID]/techspec.md`. Start with
 `## Technical Overview` (no `<h1>`).
 
+## Step 3.5 — Author the risk verdict
+
+Judge the change described by the PRD and Tech Spec you just wrote and
+write `temp/epic-[Epic_ID]/risk-verdict.json` conforming to
+[`risk-verdict.schema.json`](../../schemas/risk-verdict.schema.json):
+`{ axes: [{ axis, level, rationale }], summary }`. The authoritative
+authoring rules (axis vocabulary, judgment-not-keywords, derivation
+preview) live in the
+[`epic-plan-spec-author` Skill, Step 4](../../skills/core/epic-plan-spec-author/SKILL.md).
+
 ## Step 4 — Persist and transition
 
 ```bash
 # Normal flow
 node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] \
   --prd temp/epic-[Epic_ID]/prd.md \
-  --techspec temp/epic-[Epic_ID]/techspec.md
+  --techspec temp/epic-[Epic_ID]/techspec.md \
+  --risk-verdict temp/epic-[Epic_ID]/risk-verdict.json
 
 # Re-plan (regenerates an existing PRD / Tech Spec)
 node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] \
   --prd temp/epic-[Epic_ID]/prd.md \
-  --techspec temp/epic-[Epic_ID]/techspec.md --force
+  --techspec temp/epic-[Epic_ID]/techspec.md \
+  --risk-verdict temp/epic-[Epic_ID]/risk-verdict.json --force
 ```
 
 On success the script:
 
+- Validates the risk verdict against `risk-verdict.schema.json` (a
+  malformed verdict fails closed before any GitHub mutation) and derives
+  the `planningRisk` envelope from it.
 - Creates `[PRD]` and `[Tech Spec]` child issues (`context::prd` /
   `context::tech-spec` labels).
 - Appends a `## Planning Artifacts` section to the Epic body.
+- Upserts the `risk-verdict` structured comment recording the verdict and
+  the derived envelope.
 - Upserts the `epic-plan-state` structured comment with the current phase,
-  PRD / Tech Spec IDs, and timestamps.
+  PRD / Tech Spec IDs, the `riskVerdict` field, and timestamps.
 - Flips the Epic to `agent::review-spec`.
 
 ## Step 5 — Cleanup

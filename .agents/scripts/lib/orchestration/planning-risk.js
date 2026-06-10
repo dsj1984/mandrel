@@ -1,8 +1,16 @@
 /**
- * planning-risk.js — deterministic Epic planning risk classifier.
+ * planning-risk.js — derive the Epic planning-risk envelope from a
+ * planner-authored risk verdict.
  *
- * Pure ESM, no I/O. Reads Epic title/body/labels and returns a stable
- * planningRisk envelope for gate routing and acceptance disposition.
+ * Pure ESM, no I/O. The planner (the `epic-plan-spec-author` Skill) judges
+ * the Epic it just specced and supplies a verdict of shape
+ * `{ axes: [{ axis, level, rationale }], summary }`, validated against
+ * `.agents/schemas/risk-verdict.schema.json` before it reaches this module.
+ * This module owns the deterministic control-flow outputs — overall level,
+ * review requirement, acceptance disposition, and gate decision — so the
+ * model supplies the *judgment input* while the harness owns the *gate
+ * decision* (Epic #3865 hard cutover from the retired keyword-regex
+ * classifier; see `docs/roadmap.md` Part 1).
  */
 
 /** @typedef {'low' | 'medium' | 'high'} RiskLevel */
@@ -13,7 +21,13 @@
  * @typedef {Object} PlanningRiskAxis
  * @property {string} axis
  * @property {RiskLevel} level
- * @property {string} evidence
+ * @property {string} rationale
+ */
+
+/**
+ * @typedef {Object} RiskVerdict
+ * @property {PlanningRiskAxis[]} axes
+ * @property {string} summary
  */
 
 /**
@@ -27,7 +41,12 @@
 
 const LEVEL_RANK = Object.freeze({ low: 0, medium: 1, high: 2 });
 
-const REQUIRED_AXES = new Set([
+/**
+ * Axes whose presence forces a `required` acceptance disposition. Mirrored
+ * by the `axis` enum in `.agents/schemas/risk-verdict.schema.json` — keep
+ * the two lists in sync.
+ */
+export const REQUIRED_AXES = new Set([
   'visible-behavior',
   'public-api',
   'security',
@@ -37,128 +56,16 @@ const REQUIRED_AXES = new Set([
   'critical-workflow',
 ]);
 
-const NOT_APPLICABLE_AXES = new Set([
+/**
+ * Axes that, when they are the only signals present, waive the acceptance
+ * spec (`not-applicable`). Mirrored by the `axis` enum in
+ * `.agents/schemas/risk-verdict.schema.json` — keep the two lists in sync.
+ */
+export const NOT_APPLICABLE_AXES = new Set([
   'docs-only',
   'test-harness',
   'internal-refactor',
 ]);
-
-/**
- * @typedef {Object} AxisRule
- * @property {string} axis
- * @property {RiskLevel} level
- * @property {RegExp} pattern
- * @property {(snippet: string) => string} evidenceFor
- */
-
-/** @type {AxisRule[]} */
-const AXIS_RULES = [
-  {
-    axis: 'critical-workflow',
-    level: 'high',
-    pattern:
-      /\b(?:\/epic-plan|epic-plan|orchestrat(?:ion|e)|critical\s+workflow|gate\s+(?:behavior|routing)|acceptance-spec\s+creation)\b/i,
-    evidenceFor: (snippet) =>
-      `Critical workflow signal: ${trimSnippet(snippet)}`,
-  },
-  {
-    axis: 'security',
-    level: 'high',
-    pattern:
-      /\b(?:security|authentication|auth(?:entication)?|authorization)\b/i,
-    evidenceFor: (snippet) => `Security signal: ${trimSnippet(snippet)}`,
-  },
-  {
-    axis: 'public-api',
-    level: 'high',
-    pattern: /\b(?:public\s+api|api\s+contract|breaking\s+api)\b/i,
-    evidenceFor: (snippet) => `Public API signal: ${trimSnippet(snippet)}`,
-  },
-  {
-    axis: 'visible-behavior',
-    level: 'high',
-    pattern:
-      /\b(?:user-facing|operator-visible|visible\s+behavior|ui\s+change)\b/i,
-    evidenceFor: (snippet) =>
-      `Visible behavior signal: ${trimSnippet(snippet)}`,
-  },
-  {
-    axis: 'data-migration',
-    level: 'high',
-    pattern: /\b(?:data\s+migration|schema\s+migration|migrate\s+data)\b/i,
-    evidenceFor: (snippet) => `Data migration signal: ${trimSnippet(snippet)}`,
-  },
-  {
-    axis: 'billing',
-    level: 'high',
-    pattern: /\b(?:billing|payment|stripe|subscription)\b/i,
-    evidenceFor: (snippet) => `Billing signal: ${trimSnippet(snippet)}`,
-  },
-  {
-    axis: 'destructive-mutation',
-    level: 'high',
-    pattern:
-      /\b(?:destructive|drop\s+table|delete\s+user\s+data|irreversible)\b/i,
-    evidenceFor: (snippet) =>
-      `Destructive mutation signal: ${trimSnippet(snippet)}`,
-  },
-  {
-    axis: 'internal-refactor',
-    level: 'low',
-    pattern: /\b(?:internal\s+refactor|refactor(?:ing)?(?:\s+only)?)\b/i,
-    evidenceFor: (snippet) =>
-      `Internal refactor signal: ${trimSnippet(snippet)}`,
-  },
-  {
-    axis: 'test-harness',
-    level: 'low',
-    pattern: /\b(?:test\s+harness|test\s+infrastructure)\b/i,
-    evidenceFor: (snippet) => `Test harness signal: ${trimSnippet(snippet)}`,
-  },
-  {
-    axis: 'docs-only',
-    level: 'low',
-    pattern: /\b(?:docs-only|documentation\s+only|readme|prose\s+cleanup)\b/i,
-    evidenceFor: (snippet) => `Docs-only signal: ${trimSnippet(snippet)}`,
-  },
-];
-
-const CLEANUP_PATTERN = /\b(?:cleanup|chore-only|housekeeping)\b/i;
-
-/**
- * Signals that the deliverable has no browser/UI surface — a CLI, tooling,
- * script, or library Epic. BDD `.feature` acceptance scenarios run through a
- * browser/automation runner, so when there is no visible-behavior axis these
- * Epics cannot satisfy a `required` Acceptance Spec by `.feature` files;
- * their acceptance is contract-tier (unit/contract tests), not e2e. The
- * disposition should therefore not be forced to `required` off a keyword like
- * "security" alone (Story #3362).
- */
-const CLI_TOOLING_PATTERN =
-  /\b(?:cli|command[- ]line|tooling|script(?:s|ing)?|library|sdk|no[- ]ui|headless|backend[- ]only)\b/i;
-
-/**
- * @param {string} text
- * @returns {string}
- */
-function trimSnippet(text) {
-  const collapsed = text.replace(/\s+/g, ' ').trim();
-  if (collapsed.length <= 80) return collapsed;
-  return `${collapsed.slice(0, 77)}...`;
-}
-
-/**
- * @param {string} haystack
- * @param {RegExp} pattern
- * @returns {string|null}
- */
-function firstMatchSnippet(haystack, pattern) {
-  const match = haystack.match(pattern);
-  if (!match || typeof match.index !== 'number') return null;
-  const start = Math.max(0, match.index - 20);
-  const end = Math.min(haystack.length, match.index + match[0].length + 40);
-  return haystack.slice(start, end);
-}
 
 /**
  * @param {PlanningRiskAxis[]} axes
@@ -176,30 +83,11 @@ function resolveOverallLevel(axes) {
 /**
  * @param {PlanningRiskAxis[]} axes
  * @param {RiskLevel} overallLevel
- * @param {boolean} [cliTooling]
- *   True when the Epic scope carries a CLI/tooling/no-UI signal (see
- *   {@link CLI_TOOLING_PATTERN}). When set and there is no `visible-behavior`
- *   axis, a REQUIRED axis that is *not* itself visible-behavior (e.g.
- *   `security` on a CLI epic) is weighted down to `recommended` rather than
- *   forcing a BDD `.feature` Acceptance Spec the deliverable cannot satisfy
- *   (Story #3362). Genuinely user-facing risk (`visible-behavior`) still
- *   forces `required`.
  * @returns {AcceptanceDisposition}
  */
-function resolveAcceptanceDisposition(axes, overallLevel, cliTooling = false) {
-  const hasVisibleBehavior = axes.some(
-    (entry) => entry.axis === 'visible-behavior',
-  );
+function resolveAcceptanceDisposition(axes, overallLevel) {
   const requiredAxes = axes.filter((entry) => REQUIRED_AXES.has(entry.axis));
   if (requiredAxes.length > 0) {
-    // CLI/tooling/no-UI epic with no user-visible surface: BDD `.feature`
-    // scenarios can't satisfy a required Acceptance Spec, so weight the
-    // non-visible required axes down to `recommended` (acceptance is
-    // contract-tier here). A visible-behavior axis overrides this and keeps
-    // the hard requirement.
-    if (cliTooling && !hasVisibleBehavior) {
-      return 'recommended';
-    }
     return 'required';
   }
   if (
@@ -236,49 +124,23 @@ function resolveRequiresReview(overallLevel, axes) {
 }
 
 /**
- * Classify planning risk for an Epic without mutating GitHub state.
+ * Derive the stable planningRisk envelope from a schema-validated planner
+ * verdict. Pure derivation — schema validation happens at the read boundary
+ * (`epic-plan-spec.js`), never here, so a malformed verdict fails closed
+ * before this function runs.
  *
- * @param {{ title?: string, body?: string, labels?: string[] }} [input]
+ * @param {RiskVerdict} [verdict]
  * @returns {PlanningRiskEnvelope}
  */
-export function classifyPlanningRisk(input = {}) {
-  const title = typeof input.title === 'string' ? input.title : '';
-  const body = typeof input.body === 'string' ? input.body : '';
-  const labels = Array.isArray(input.labels) ? input.labels : [];
-  const haystack = `${title}\n${body}\n${labels.join('\n')}`;
-
-  /** @type {PlanningRiskAxis[]} */
-  const axes = [];
-
-  for (const rule of AXIS_RULES) {
-    const snippet = firstMatchSnippet(haystack, rule.pattern);
-    if (!snippet) continue;
-    axes.push({
-      axis: rule.axis,
-      level: rule.level,
-      evidence: rule.evidenceFor(snippet),
-    });
-  }
-
-  if (
-    axes.length === 0 &&
-    CLEANUP_PATTERN.test(haystack) &&
-    !/\b(?:security|auth|api|billing|migration)\b/i.test(haystack)
-  ) {
-    axes.push({
-      axis: 'docs-only',
-      level: 'low',
-      evidence: 'Cleanup-only scope with no high-risk axis signals.',
-    });
-  }
-
-  const cliTooling = CLI_TOOLING_PATTERN.test(haystack);
+export function deriveRiskEnvelope(verdict = {}) {
+  const axes = (Array.isArray(verdict.axes) ? verdict.axes : []).map(
+    ({ axis, level, rationale }) => ({ axis, level, rationale }),
+  );
 
   const overallLevel = resolveOverallLevel(axes);
   const acceptanceDisposition = resolveAcceptanceDisposition(
     axes,
     overallLevel,
-    cliTooling,
   );
   const requiresReview = resolveRequiresReview(overallLevel, axes);
   const gateDecision = requiresReview ? 'review-required' : 'auto-proceed';
