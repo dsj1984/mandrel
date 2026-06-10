@@ -150,10 +150,26 @@ export async function resolveReviewDepthForEpic({
 /**
  * The axes whose presence (at `high` risk) routes a specific post-delivery
  * audit lens. Mirrors the audit-workflow names under
- * `.agents/workflows/audit-*.md`. `security` routes the security lens;
- * `public-api` (the canonical architectural axis) routes the architecture
- * lens. Any other axis (or a low/medium-risk axis) contributes no lens
- * (Story #3876).
+ * `.agents/workflows/audit-*.md`. Story #3939 broadened the routing so every
+ * high-risk REQUIRED axis maps to a lens rather than leaving three of them
+ * (`data-migration`, `destructive-mutation`, `billing`) routing nothing:
+ *
+ *   - `security`             → `audit-security`     (auth/secret boundary)
+ *   - `public-api`           → `audit-architecture` (the canonical
+ *                              architectural axis; a breaking public surface)
+ *   - `data-migration`       → `audit-quality`      (migration correctness +
+ *                              regression coverage)
+ *   - `destructive-mutation` → `audit-security`     (irreversible mutation is
+ *                              an auth/abuse boundary; co-routes with
+ *                              `security`, de-duplicated)
+ *   - `billing`              → `audit-privacy`      (money + the PII/consent
+ *                              surface that travels with it)
+ *   - `critical-workflow`    → `audit-quality`      (the load-bearing path
+ *                              warrants the deepest coverage pass)
+ *
+ * The `visible-behavior` axis intentionally routes NO lens: it forces the
+ * acceptance-spec disposition at plan time and no audit lens maps cleanly to
+ * it. Any other axis (or a low/medium-risk axis) contributes no lens.
  *
  * Every key here MUST be a value in the `axis` enum of
  * `.agents/schemas/risk-verdict.schema.json` — the verdict-derived envelope
@@ -164,25 +180,37 @@ export async function resolveReviewDepthForEpic({
 const AXIS_TO_LENS = Object.freeze({
   security: 'audit-security',
   'public-api': 'audit-architecture',
+  'data-migration': 'audit-quality',
+  'destructive-mutation': 'audit-security',
+  billing: 'audit-privacy',
+  'critical-workflow': 'audit-quality',
 });
 
 /**
- * Stable output order for routed lenses so a `security` + `public-api`
- * envelope always lists `audit-security` before `audit-architecture` and the
- * lens list is deterministic regardless of axis ordering in the verdict.
+ * Stable output order for routed lenses so the lens list is deterministic
+ * regardless of axis ordering in the verdict. Every lens any axis can route
+ * appears here exactly once; `resolveAuditLenses` filters this canonical
+ * order down to the matched set (Story #3939).
  */
-const LENS_ORDER = Object.freeze(['audit-security', 'audit-architecture']);
+const LENS_ORDER = Object.freeze([
+  'audit-security',
+  'audit-architecture',
+  'audit-quality',
+  'audit-privacy',
+]);
 
 /**
  * Resolve the set of post-delivery audit lenses a judged risk envelope routes.
  *
  * High-risk axes map to their audit lens via {@link AXIS_TO_LENS}; only axes
  * judged `high` contribute (a `low`/`medium` axis carries no lens). The result
- * is de-duplicated and stably ordered (security before architecture) so an
- * envelope listing the `public-api` axis more than once routes
- * `['audit-architecture']` once, not twice. A low-risk envelope — or any
- * envelope with no high-risk routed axis — resolves to an empty array (no
- * lens beyond the existing baseline gates).
+ * is de-duplicated and stably ordered by {@link LENS_ORDER} so an envelope
+ * listing the `public-api` axis more than once routes `['audit-architecture']`
+ * once, not twice — and two distinct axes routing the same lens (e.g.
+ * `security` + `destructive-mutation` both → `audit-security`) collapse to a
+ * single entry. A low-risk envelope — or any envelope with no high-risk routed
+ * axis — resolves to an empty array (no lens beyond the existing baseline
+ * gates).
  *
  * Pure function — no I/O, no side effects.
  *
