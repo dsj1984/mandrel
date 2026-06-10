@@ -103,13 +103,14 @@ test('runStoryDeliverPrepare: dependenciesInstalled=true skips install + upserts
   assert.equal(Array.isArray(result.snapshot.phases), true);
   assert.ok(result.snapshot.phases.every((p) => p.status === 'pending'));
 
-  // The story-run-progress comment was upserted on the same ticket.
+  // Story #3909 — the redundant per-Story story-run-progress comment is no
+  // longer posted. The init story-init comment is the only comment present.
   const progressMarker = structuredCommentMarker('story-run-progress');
   const upserted = provider.comments.find(
     (c) => typeof c.body === 'string' && c.body.includes(progressMarker),
   );
-  assert.ok(upserted, 'expected a story-run-progress comment to be upserted');
-  // renderedBody is the same markdown body, surfaced for chat relay by
+  assert.equal(upserted, undefined, 'no story-run-progress comment is posted');
+  // renderedBody is still computed and surfaced for chat relay by
   // `/story-deliver` so operators see the initial Story-phase table before
   // the first commit lands.
   assert.ok(result.renderedBody.startsWith('### 📖 Story #42'));

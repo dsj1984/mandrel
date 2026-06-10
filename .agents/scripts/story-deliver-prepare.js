@@ -23,16 +23,17 @@
  *        - `'skipped'`  → no per-worktree install was performed (single-tree
  *                         or symlink/pnpm-store strategy); trust the strategy.
  *
- *   3. Upsert the initial `story-run-progress` snapshot with every Story
- *      phase (init/implement/validate/close) pinned to `pending` and
- *      `phase: 'init'` via `upsertStoryRunProgress`.
+ *   3. Render the initial Story-phase snapshot with every Story phase
+ *      (init/implement/validate/close) pinned to `pending` and
+ *      `phase: 'init'` via `upsertStoryRunProgress`. Story #3909 — this is
+ *      render-only: no `story-run-progress` comment is posted (that redundant
+ *      mid-flight surface was deleted).
  *
  * Stdout: a single JSON envelope `{ workCwd, dependenciesInstalled,
  * installAction, snapshot, renderedBody }` so the caller can decide what to
- * do next without re-reading the comment. `renderedBody` is the markdown
- * body that was upserted onto the Story ticket — `/story-deliver` relays it
- * as a chat message at the start of each Story so operators see the initial
- * task table before the first commit lands.
+ * do next. `renderedBody` is the markdown body for the initial Story-phase
+ * table — `/story-deliver` relays it as a chat message at the start of each
+ * Story so operators see it before the first commit lands.
  */
 
 import { parseArgs } from 'node:util';
@@ -54,8 +55,9 @@ const HELP = `Usage: node .agents/scripts/story-deliver-prepare.js \\
   --story <id> [--cwd <workCwd>] [--skip-install] [--install-cmd "<cmd>"]
 
 Reads the story-init structured comment off Story #<id>, runs the install
-command when dependenciesInstalled === 'false', then upserts the initial
-story-run-progress snapshot (phase=init, every Story phase pending).
+command when dependenciesInstalled === 'false', then renders the initial
+Story-phase snapshot (phase=init, every Story phase pending) for chat relay.
+No story-run-progress comment is posted (Story #3909).
 `;
 
 const VALID_INSTALLED_STATES = new Set(['true', 'false', 'skipped']);
@@ -194,7 +196,8 @@ export async function runStoryDeliverPrepare(args) {
     }
   }
 
-  // 3. Upsert the initial story-run-progress snapshot.
+  // 3. Render the initial Story-phase snapshot (render-only; Story #3909
+  //    deleted the redundant story-run-progress comment).
   //
   //    Under the 3-tier hierarchy (Epic → Feature → Story) the
   //    inline-acceptance Story is the only ticket shape: Stories have no
