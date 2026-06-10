@@ -220,6 +220,115 @@ describe('providers/github/tickets.js — TicketGateway', () => {
     assert.deepEqual(projectCalls, ['node_200']);
   });
 
+  it('createIssue: POSTs a bare body (no parent footer), surfaces nodeId, and adds the issue to the board when a project number resolves (Story #3822)', async () => {
+    const projectCalls = [];
+    const gh = makeFakeGh({
+      'POST /repos/o/r/issues': {
+        status: 201,
+        json: {
+          number: 400,
+          id: 4000,
+          node_id: 'node_400',
+          html_url: 'https://example/400',
+        },
+      },
+    });
+    const gateway = new TicketGateway({
+      gh,
+      owner: 'o',
+      repo: 'r',
+      hooks: {
+        addItemToProject: async (nodeId) => {
+          projectCalls.push(nodeId);
+        },
+        getProjectNumber: () => 1,
+      },
+    });
+    const out = await gateway.createIssue({
+      title: 'bare issue',
+      body: '# Bare issue body',
+      labels: ['type::epic'],
+    });
+    assert.equal(out.id, 400);
+    assert.equal(out.number, 400);
+    assert.equal(out.nodeId, 'node_400');
+    assert.equal(out.url, 'https://example/400');
+    assert.deepEqual(out.boardAdd, { added: true });
+    assert.deepEqual(projectCalls, ['node_400']);
+    // The POSTed body must be the caller's body verbatim — no
+    // `parent: #N` footer composition on the bare-issue path.
+    const post = gh.__exec.calls.find((c) => c.args[2] === 'POST');
+    const posted = JSON.parse(post.input);
+    assert.equal(posted.body, '# Bare issue body');
+    assert.equal(posted.title, 'bare issue');
+    assert.deepEqual(posted.labels, ['type::epic']);
+  });
+
+  it('createIssue: skips the board add cleanly when no project number is configured (Story #3822)', async () => {
+    const projectCalls = [];
+    const gh = makeFakeGh({
+      'POST /repos/o/r/issues': {
+        status: 201,
+        json: {
+          number: 401,
+          id: 4010,
+          node_id: 'node_401',
+          html_url: 'https://example/401',
+        },
+      },
+    });
+    const gateway = new TicketGateway({
+      gh,
+      owner: 'o',
+      repo: 'r',
+      hooks: {
+        addItemToProject: async (nodeId) => {
+          projectCalls.push(nodeId);
+        },
+        getProjectNumber: () => null,
+      },
+    });
+    const out = await gateway.createIssue({
+      title: 'no board',
+      body: 'b',
+      labels: [],
+    });
+    assert.equal(out.id, 401);
+    assert.deepEqual(out.boardAdd, {
+      added: false,
+      reason: 'no-project-number',
+    });
+    assert.deepEqual(projectCalls, []);
+  });
+
+  it('createIssue: a failing board add is non-fatal and surfaces reason "error" (Story #3822)', async () => {
+    const gh = makeFakeGh({
+      'POST /repos/o/r/issues': {
+        status: 201,
+        json: {
+          number: 402,
+          id: 4020,
+          node_id: 'node_402',
+          html_url: 'https://example/402',
+        },
+      },
+    });
+    const gateway = new TicketGateway({
+      gh,
+      owner: 'o',
+      repo: 'r',
+      hooks: {
+        addItemToProject: async () => {
+          throw new Error('board down');
+        },
+        getProjectNumber: () => 1,
+      },
+    });
+    const out = await gateway.createIssue({ title: 't', body: 'b' });
+    assert.equal(out.id, 402);
+    assert.deepEqual(out.boardAdd, { added: false, reason: 'error' });
+  });
+
   it('createTicket: surfaces subIssueError when the hook throws but still returns the issue', async () => {
     const gh = makeFakeGh({
       'POST /repos/o/r/issues': {
