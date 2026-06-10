@@ -167,10 +167,10 @@ export const STATUS_FIELD_OPTIONS = ['Todo', 'In Progress', 'Done'];
  * search syntax (`label:`, `status:`, `assignee:`). Each is grouped by the
  * Status field to match the board's columnar layout.
  *
- * GitHub's GraphQL surface does not yet expose a public `createProjectV2View`
- * mutation; bootstrap attempts it best-effort and falls back to documenting
- * the filter strings in `docs/project-board.md` when the mutation is
- * unavailable.
+ * GitHub's GraphQL surface does not expose a public `createProjectV2View`
+ * mutation, so bootstrap creates these via the REST Projects V2 views
+ * endpoint best-effort and falls back to documenting the filter strings in
+ * `docs/project-board.md` when the endpoint is unavailable.
  *
  * @type {Array<{ name: string, filter: string, groupBy: string,
  *   layout?: 'table'|'board'|'roadmap' }>}

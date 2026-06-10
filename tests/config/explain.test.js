@@ -8,15 +8,14 @@
  *   - `lib/cli/explain.js` — `runExplain` / `parseArgs`, driven through
  *     injectable seams so no real stdout/exit is touched.
  *
- * Acceptance coverage (per Story #3523 AC):
+ * Acceptance coverage (per Story #3523 AC, profile layer removed by #3690):
  *   1. `node --test tests/config/explain.test.js` exits 0.
  *   2. For each resolved key, the report carries its value, its source
- *      (default | profile | agentrc) and a one-line meaning.
+ *      (default | agentrc) and a one-line meaning.
  *   3. No secret value is printed — only its source is reported.
  *
  * The report is exercised against the real in-repo `agentrc-reference.json`
- * defaults and profile seeds (the same deterministic framework fixtures
- * `profiles.test.js` uses); the CLI is fully isolated via seams.
+ * defaults; the CLI is fully isolated via seams.
  */
 
 import assert from 'node:assert/strict';
@@ -30,10 +29,9 @@ import {
   isSecretKey,
   meaningFor,
 } from '../../.agents/scripts/lib/config/explain.js';
-import { PROFILE_NAMES } from '../../.agents/scripts/lib/config/profiles.js';
 import { parseArgs, runExplain } from '../../lib/cli/explain.js';
 
-const VALID_SOURCES = new Set(['default', 'profile', 'agentrc']);
+const VALID_SOURCES = new Set(['default', 'agentrc']);
 
 // ---------------------------------------------------------------------------
 // explainConfig — shape and per-key contract (AC #2)
@@ -58,7 +56,7 @@ describe('explainConfig — per-key report', () => {
       );
       assert.ok(
         VALID_SOURCES.has(entry.source),
-        `${entry.key} source "${entry.source}" must be one of default|profile|agentrc`,
+        `${entry.key} source "${entry.source}" must be one of default|agentrc`,
       );
       assert.equal(
         typeof entry.meaning,
@@ -91,41 +89,6 @@ describe('explainConfig — per-key report', () => {
     const entry = report.find((e) => e.key === 'delivery.execution.timeoutMs');
     assert.ok(entry, 'expected delivery.execution.timeoutMs in report');
     assert.equal(entry.source, 'default');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// explainConfig — profile attribution
-// ---------------------------------------------------------------------------
-
-describe('explainConfig — profile attribution', () => {
-  it('attributes a key the profile supplies (and agentrc omits) to "profile"', () => {
-    // team-github seeds github.owner; this is the source we attribute when
-    // the resolved agentrc does not already carry it. We compare the same key
-    // with and without the profile to prove the seed shifts attribution.
-    const withProfile = explainConfig({ profile: 'team-github' });
-    const owner = withProfile.find((e) => e.key === 'github.owner');
-    assert.ok(owner, 'github.owner must appear in the report');
-    // When agentrc supplies it, source stays agentrc; when not, the profile
-    // wins over default. Either way it must never silently be "default" while
-    // the profile carries a value.
-    assert.ok(
-      owner.source === 'agentrc' || owner.source === 'profile',
-      `github.owner source was "${owner.source}"`,
-    );
-  });
-
-  it('throws on an unknown profile name', () => {
-    assert.throws(
-      () => explainConfig({ profile: 'does-not-exist' }),
-      /Unknown config profile/,
-    );
-  });
-
-  it('accepts every canonical profile name without throwing', () => {
-    for (const name of PROFILE_NAMES) {
-      assert.doesNotThrow(() => explainConfig({ profile: name }));
-    }
   });
 });
 
@@ -216,22 +179,12 @@ describe('meaningFor', () => {
 // ---------------------------------------------------------------------------
 
 describe('parseArgs', () => {
-  it('defaults to no profile and human output', () => {
-    assert.deepEqual(parseArgs([]), { profile: null, json: false });
+  it('defaults to human output', () => {
+    assert.deepEqual(parseArgs([]), { json: false });
   });
 
-  it('parses --profile <name> and --json', () => {
-    assert.deepEqual(parseArgs(['--profile', 'team-github', '--json']), {
-      profile: 'team-github',
-      json: true,
-    });
-  });
-
-  it('parses --profile=<name>', () => {
-    assert.deepEqual(parseArgs(['--profile=qa-only']), {
-      profile: 'qa-only',
-      json: false,
-    });
+  it('parses --json', () => {
+    assert.deepEqual(parseArgs(['--json']), { json: true });
   });
 });
 
@@ -323,7 +276,7 @@ describe('runExplain — output', () => {
     let exitCode = null;
     runExplain([], {
       explain: () => {
-        throw new Error('Unknown config profile "x".');
+        throw new Error('Failed to resolve .agentrc.json.');
       },
       write: (s) => {
         out += s;
@@ -336,7 +289,7 @@ describe('runExplain — output', () => {
       },
     });
     assert.equal(exitCode, 1);
-    assert.match(err, /Unknown config profile/);
+    assert.match(err, /Failed to resolve/);
     assert.equal(out, '');
   });
 });
