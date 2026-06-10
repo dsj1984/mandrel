@@ -36,9 +36,57 @@ export const LEDGER_RELATIVE_PATH = '.agents/.install-manifest.json';
  * detect a ledger it cannot interpret (hard-cutover contract — no read-side
  * tolerance branch, just a clean refusal).
  *
+ * v2 (Story #3895): each entry now carries `executedAction` — the *live*
+ * outcome of the bootstrap phase that produced it (e.g. `seeded` vs
+ * `already-present` for `.agentrc.json`). Uninstall keys destructive reversal
+ * off this so a pre-existing, operator-authored file the install merely left
+ * in place (`already-present`) is never deleted.
+ *
  * @type {number}
  */
-export const LEDGER_SCHEMA_VERSION = 1;
+export const LEDGER_SCHEMA_VERSION = 2;
+
+/**
+ * Map a mutation-manifest `target` (POSIX-relative path) to the bootstrap
+ * **phase name** whose execution outcome describes that target. Only targets
+ * whose reversal is destructive enough to need the live outcome are mapped;
+ * everything else is reversed content-aware and needs no execution hint.
+ *
+ * The `.agentrc.json` `create` entry is produced by the `agentrc` phase
+ * (`ensureAgentrc`), which returns `{ action: 'seeded' }` when it wrote the
+ * file from the starter and `{ action: 'already-present' }` when an
+ * operator-authored file was left untouched. Recording that distinction lets
+ * uninstall skip deleting a file the install did not create (Story #3895).
+ *
+ * @type {Readonly<Record<string, string>>}
+ */
+const TARGET_TO_PHASE = Object.freeze({
+  '.agentrc.json': 'agentrc',
+});
+
+/**
+ * Resolve the live executed action for a manifest entry from the bootstrap
+ * report, when one is available. Pure — derives entirely from the entry +
+ * report. Returns `undefined` when the target has no mapped phase, the report
+ * is absent, or the phase produced no `action` (so older callers/tests that
+ * omit the report degrade to "no hint" rather than throwing).
+ *
+ * The `.agentrc.json` quality-gates `merge` entry shares the same target as
+ * the repo-config `create` entry but is keyed by phase, not target — both
+ * manifest entries resolve to the same `agentrc` outcome, which is correct:
+ * reversal dedupes them to a single `revertAgentrc` call anyway.
+ *
+ * @param {{ target: string }} entry
+ * @param {Record<string, { action?: string }>} [report]
+ * @returns {string|undefined}
+ */
+export function resolveExecutedAction(entry, report) {
+  if (!report) return undefined;
+  const phaseName = TARGET_TO_PHASE[entry.target];
+  if (!phaseName) return undefined;
+  const action = report[phaseName]?.action;
+  return typeof action === 'string' ? action : undefined;
+}
 
 /**
  * Resolve the absolute ledger path for a project root.
@@ -62,12 +110,18 @@ export function ledgerPath(projectRoot) {
  *   approved (sorted for stable output).
  * @param {{ owner?: string, repo?: string }} [args.answers]
  * @param {string} [args.appliedAt] — ISO-8601 timestamp (default: now).
+ * @param {Record<string, { action?: string }>} [args.report] — the live
+ *   bootstrap execution report (phase name → outcome). When present, each
+ *   entry whose target maps to a phase records that phase's `action` as
+ *   `executedAction` so uninstall can distinguish `seeded` from
+ *   `already-present` (Story #3895).
  * @returns {{ schemaVersion: number, appliedAt: string,
  *   repo: string|null, approvedGroups: string[],
- *   entries: import('./manifest.js').MutationManifestEntry[] }}
+ *   entries: Array<import('./manifest.js').MutationManifestEntry
+ *     & { executedAction?: string }> }}
  */
 export function buildLedgerRecord(args) {
-  const { entries, approvedGroups, answers, appliedAt } = args;
+  const { entries, approvedGroups, answers, appliedAt, report } = args;
   const repo =
     answers?.owner && answers?.repo ? `${answers.owner}/${answers.repo}` : null;
   return {
@@ -75,12 +129,16 @@ export function buildLedgerRecord(args) {
     appliedAt: appliedAt ?? new Date().toISOString(),
     repo,
     approvedGroups: [...approvedGroups].sort(),
-    entries: entries.map((e) => ({
-      phaseGroup: e.phaseGroup,
-      target: e.target,
-      action: e.action,
-      reversible: e.reversible,
-    })),
+    entries: entries.map((e) => {
+      const executedAction = resolveExecutedAction(e, report);
+      return {
+        phaseGroup: e.phaseGroup,
+        target: e.target,
+        action: e.action,
+        reversible: e.reversible,
+        ...(executedAction !== undefined ? { executedAction } : {}),
+      };
+    }),
   };
 }
 

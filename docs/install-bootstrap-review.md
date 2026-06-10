@@ -41,6 +41,20 @@ Two consequences for the launcher:
 
 Also latent in the release workflow: `release_created` fires if *either* package releases, so a launcher-only release would re-run `npm publish` on an already-published root version and fail.
 
+> **Decision (Story #3891): keep the unscoped `create-mandrel` name.** The
+> launcher stays unscoped to preserve the `npm create mandrel` /
+> `npx create-mandrel` convention every doc already advertises, so no
+> documented invocation changes. `create-mandrel/package.json` carries
+> `publishConfig.access: "public"` (+ `provenance: true`); the new
+> `npm-publish-launcher` job in
+> [`release-please.yml`](../.github/workflows/release-please.yml) publishes
+> it on its own release output. Both publish jobs are now gated on their
+> package's **per-path** `release_created` output (`.` for the root,
+> `create-mandrel` for the launcher), closing the latent
+> root-republish-on-launcher-release bug. Publish lands on the next release
+> that bumps the launcher version; until then the name is claimed by the
+> first release cut after this change.
+
 ## A. The front door is broken or misdocumented (highest priority)
 
 1. **The launcher is unpublished and its name unclaimed.** See "npm publication status" above. **→ Story [#3891](https://github.com/dsj1984/mandrel/issues/3891)**

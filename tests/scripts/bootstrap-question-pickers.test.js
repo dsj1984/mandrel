@@ -130,6 +130,39 @@ describe('buildQuestions picker attachment', () => {
 });
 
 // ---------------------------------------------------------------------------
+// buildQuestions — projectNumber default (re-run dedupe, Story #3896)
+// ---------------------------------------------------------------------------
+
+describe('buildQuestions projectNumber default', () => {
+  it('uses the stored numeric projectNumber as the default when present', () => {
+    const questions = buildQuestions(
+      { ...DEFAULTS, projectNumber: '42' },
+      {},
+      {},
+      {},
+    );
+    // An already-provisioned project: --assume-yes resolves "42" (numeric →
+    // existing → no duplicate board), not the repo name.
+    assert.equal(findQuestion(questions, 'projectNumber').default, '42');
+  });
+
+  it('falls back to the repo name when no stored projectNumber exists', () => {
+    const questions = buildQuestions(
+      { ...DEFAULTS, projectNumber: null },
+      {},
+      {},
+      {},
+    );
+    // A genuine first run: the default is the repo name (a typed-name path
+    // that still creates the board).
+    assert.equal(
+      findQuestion(questions, 'projectNumber').default,
+      'inferred-repo',
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Precedence — pickers do not run when values are supplied
 // ---------------------------------------------------------------------------
 
