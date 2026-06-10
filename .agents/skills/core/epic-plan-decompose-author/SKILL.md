@@ -18,9 +18,9 @@ allowed_tools:
 - Run only after `epic-plan-decompose.js --emit-context` has written `temp/epic-<Epic_ID>/decomposer-context.json`; fail loudly if the file is missing.
 - Emit exactly one artifact: `temp/epic-<Epic_ID>/tickets.json` (a JSON array). Do not write anywhere else, and never call the GitHub API from this Skill — persistence belongs to the script.
 - Output is JSON only — no prose, no Markdown fence. The downstream validator (`lib/orchestration/ticket-validator.js`) is the authoritative gate; re-author rather than hand-patching when it rejects.
-- Treat **`maxTickets`** from the context envelope as a **reviewability budget**, not a hard authoring cap (Story #2798). Combine atomic Stories first; if the plan genuinely needs more, emit the full plan and add a compact `over_budget_rationale` field at the top of the first Feature's `body` explaining why the plan exceeds the budget. Operator persistence then requires the explicit `--allow-over-budget` override on `epic-plan-decompose.js`; without it the persist step rejects the over-budget array. Never truncate the JSON array to fit.
+- Treat **`maxTickets`** from the context envelope as a **reviewability budget**, not a hard authoring cap (Story #2798). Merge narrow, single-module Stories into their capability first; if the plan genuinely needs more, emit the full plan and add a compact `over_budget_rationale` field at the top of the first Feature's `body` explaining why the plan exceeds the budget. Operator persistence then requires the explicit `--allow-over-budget` override on `epic-plan-decompose.js`; without it the persist step rejects the over-budget array. Never truncate the JSON array to fit.
 - Honour the two-level hierarchy under each Epic: **Feature → Story**. Stories carry the implementation scope inline; no lower ticket tier exists.
-- **Decompose at deliverable granularity, not module/task level.** A Story is a shippable slice a reviewer would accept as a single PR — a capability or user-visible surface — not a single module or file. Every Feature MUST decompose into at least TWO Stories; the validator HARD-rejects a single-Story Feature. See the STORY SIZING section for the full guidance and the single-consumer merge rule.
+- **Decompose at deliverable granularity, not module/task level.** A Story is a capability slice a frontier model delivers and self-verifies in one pass — a shippable slice a reviewer would accept as a single PR — not a single module or file. Every Feature MUST decompose into at least TWO Stories; the validator HARD-rejects a single-Story Feature. See the STORY SIZING section for the full guidance and the single-consumer merge rule.
 - Every ticket carries `type::[feature|story]` and `persona::*` labels. Every Story ticket object MUST carry top-level `acceptance: string[]` and `verify: string[]` arrays (read by `hasInlineAcceptanceAndVerify` in the validator) and `body` MUST be a **string** produced by `serialize()` from `lib/story-body/story-body.js` — an object body causes `createOp` in `epic-spec-reconciler-ops.js` to throw `StoryBodyParseError` (Story #3302), and is also silently discarded by `composeStoryBody` in the GitHub provider, producing an empty issue body.
 - **New-File Contract**: any path referenced in `goal`, `acceptance`, or `verify` that does not exist on `main` MUST appear in the Story's `changes[]` with `assumption: "creates"`; otherwise the freshness validator rejects the decompose.
 - Acceptance items MUST be **observable from outside the agent** (command exits 0, file exists, snapshot matches, testid resolves). Items like "verify by reading the diff" or "looks good" are forbidden — push them into `verify` commands instead.
@@ -91,9 +91,10 @@ its rules, not for "looks right."
 Read `temp/epic-<Epic_ID>/decomposer-context.json` with the `Read` tool.
 Pin three values explicitly before writing any tickets:
 
-1. `maxTickets` — your reviewability budget. Combine atomic Tasks rather
-   than spilling over the budget; if the plan genuinely needs more, emit
-   the full plan with an `over_budget_rationale` (Story #2798).
+1. `maxTickets` — your reviewability budget. Merge narrow slices into
+   capability Stories rather than spilling over the budget; if the plan
+   genuinely needs more, emit the full plan with an
+   `over_budget_rationale` (Story #2798).
 2. `contextMode` — if `"summary"`, the body strings are bounded; trust
    them, but keep Tasks more conservative because the upstream context
    is partial.
@@ -105,8 +106,9 @@ Pin three values explicitly before writing any tickets:
 Apply the decomposer system prompt below to the PRD + Tech Spec bodies.
 Emit JSON only (no prose, no Markdown fence). The downstream validator
 in [`lib/orchestration/ticket-validator.js`](../../../scripts/lib/orchestration/ticket-validator.js)
-will reject anything off-shape. Combine atomic Stories first; emit one
-Story per logically atomic implementation slice.
+will reject anything off-shape. Merge narrow, single-module slices into
+their capability first; emit one Story per capability slice a frontier
+model can deliver and self-verify in one pass.
 
 ### Step 3 — Write the file
 
@@ -134,7 +136,7 @@ Your job is to take a Product Requirements Document (PRD) and a Technical Specif
 
 ### HIERARCHY RULES:
 1. **Features**: Large functional milestones (e.g., "Authentication Provider Integration"). Features are navigational containers — no implementation work hangs off the Feature body itself.
-2. **Stories**: Atomic, verifiable units of work (e.g., "Implement JWT Token Exchange").
+2. **Stories**: Capability-sized, verifiable units of work (e.g., "Implement JWT Token Exchange").
    - MUST be nested under a Feature via `parent_slug`.
    - **Story-Level Execution**: Each Story is executed on a single Story branch (`story-<storyId>`), implemented in one Story-implementation phase, then merged into the Epic branch. The Story body carries the full execution contract (goal, changes, acceptance, verify).
    - Do NOT emit a lower ticket tier — the validator only accepts `type::feature` and `type::story`.
@@ -237,7 +239,7 @@ Fields `wide` and `estimated_test_files` are encoded as a `<!-- meta: {...} -->`
 
 #### STORY SIZING — DELIVERABLE GRANULARITY, COHESION FIRST (the numeric ceiling is only a backstop):
 
-**Decompose at deliverable granularity, not module/task level.** A Story is a **shippable slice a reviewer would accept as a single PR** — a capability or user-visible surface — **not a single module or file**. Fold module-level slices into the capability they belong to rather than emitting one Story per module. (This definition is the single source of truth in `DELIVERABLE_GRANULARITY_GUIDANCE` in `ticket-validator-sizing.js`; the decomposer prompt interpolates the same string — do not restate a divergent version here.)
+**Decompose at deliverable granularity, not module/task level.** A Story is a **capability slice a frontier model delivers and self-verifies in one pass** — a shippable slice a reviewer would accept as a single PR, a capability or user-visible surface, **not a single module or file**. Fold module-level slices into the capability they belong to rather than emitting one Story per module. (This definition is the single source of truth in `DELIVERABLE_GRANULARITY_GUIDANCE` in `ticket-validator-sizing.js`; the decomposer prompt interpolates the same string — do not restate a divergent version here.)
 
 The first question is **cohesion, not count**: *is this one coherent change with one reason to exist?* File count cannot tell a trivial 10-file mechanical rename from a hard 3-file parser+caller+config change — so lead with the change's reason, not its size.
 
@@ -249,9 +251,9 @@ The first question is **cohesion, not count**: *is this one coherent change with
 
 **Numeric backstop.** The thresholds are defined **once**, in the `DEFAULT_TASK_SIZING` constant in `ticket-validator-sizing.js` (operator-overridable via `agentSettings.planning.taskSizing`). They are a backstop, not the primary rule — do not restate divergent numbers anywhere else. The defaults:
 
-- A Story touching more than **`softFiles` (5)** files emits an advisory width finding — a nudge to check cohesion or declare `wide`.
-- A Story touching more than **`hardFiles` (15)** files is **rejected** unless it declares `wide` with a reason.
-- A Story with more than **`maxAcceptance` (8)** acceptance items is **rejected**; more than **`softAcceptanceCount` (6)** emits an advisory warning.
+- A Story touching more than **`softFiles` (8)** files emits an advisory width finding — a nudge to check cohesion or declare `wide`.
+- A Story touching more than **`hardFiles` (30)** files is **rejected** unless it declares `wide` with a reason.
+- A Story with more than **`maxAcceptance` (14)** acceptance items is **rejected**; more than **`softAcceptanceCount` (10)** emits an advisory warning.
 
 #### DELIVERY SLICING (consume the Tech Spec target grouping when present):
 
@@ -398,7 +400,7 @@ on every Story-to-Epic close after the first.
 
 CRITICAL: Dependencies should follow execution blockers. For hierarchical grouping, strongly strictly use 'parent_slug' (Story parent MUST be a Feature). Features should have no 'parent_slug' (they attach to Epic).
 IMPORTANT DEPENDENCY RULE: A Story's `depends_on` MUST only reference other Stories within the SAME Epic. If two Stories have a logical ordering requirement, express it via Story-level `depends_on`.
-WARNING: You MUST conserve your output limit. Do NOT generate more than ${maxTickets} tickets in total. Combine atomic work into cohesive Stories. Do NOT cut off the JSON array prematurely!
+WARNING: You MUST conserve your output limit. Do NOT generate more than ${maxTickets} tickets in total. Merge narrow work into cohesive capability Stories. Do NOT cut off the JSON array prematurely!
 
 ### RISK HEURISTICS (planning metadata if any apply):
 <rendered from `heuristics[]` in the context envelope; each item prepended with "- ".>

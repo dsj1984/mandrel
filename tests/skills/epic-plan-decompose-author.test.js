@@ -95,16 +95,17 @@ describe('skill:epic-plan-decompose-author — smoke', () => {
           }
         }
         // Story #3760 — sizing thresholds have exactly one definition
-        // (DEFAULT_TASK_SIZING). The Skill body must advertise the ceilings
-        // (maxAcceptance=8, hardFiles=15) and name the single constant.
-        if (!(/maxAcceptance/.test(body) && /\b8\b/.test(body))) {
+        // (DEFAULT_TASK_SIZING). The Skill body must advertise the relaxed
+        // ceilings (maxAcceptance=14, hardFiles=30 — Story #3874) and name
+        // the single constant.
+        if (!(/maxAcceptance/.test(body) && /\b14\b/.test(body))) {
           errors.push(
-            'Skill body must advertise the maxAcceptance ceiling of 8 (Story #3760)',
+            'Skill body must advertise the maxAcceptance ceiling of 14 (Story #3874)',
           );
         }
-        if (!(/hardFiles/.test(body) && /\b15\b/.test(body))) {
+        if (!(/hardFiles/.test(body) && /\b30\b/.test(body))) {
           errors.push(
-            'Skill body must advertise the hardFiles ceiling of 15 (Story #3760)',
+            'Skill body must advertise the hardFiles ceiling of 30 (Story #3874)',
           );
         }
         if (!/DEFAULT_TASK_SIZING/.test(body)) {
@@ -167,15 +168,34 @@ describe('skill:epic-plan-decompose-author — smoke', () => {
             'Skill body must not instruct emitting body as a STRUCTURED OBJECT for stories (stale 4-tier shape; Story #3263)',
           );
         }
-        // Story #3777 — the SKILL must carry the deliverable-granularity
-        // definition (shippable slice / capability, not a single module or
+        // Story #3777 / #3874 — the SKILL must carry the re-anchored
+        // deliverable-granularity definition (capability slice a frontier
+        // model delivers and self-verifies in one pass; shippable slice a
+        // reviewer would accept as a single PR; not a single module or
         // file) shared with the decomposer prompt via
         // DELIVERABLE_GRANULARITY_GUIDANCE.
+        if (
+          !/capability slice a frontier model delivers and self-verifies in one pass/i.test(
+            body,
+          )
+        ) {
+          errors.push(
+            'Skill body must define a Story as a capability slice a frontier model delivers and self-verifies in one pass (Story #3874)',
+          );
+        }
         if (
           !/shippable slice .* reviewer would accept as a single PR/i.test(body)
         ) {
           errors.push(
             'Skill body must define a Story as a shippable slice a reviewer would accept as a single PR (Story #3777)',
+          );
+        }
+        // Story #3874 — the retired sizing framing must be gone: no
+        // "5-file rule" and no atomic-as-target phrasing anywhere in the
+        // Skill body.
+        if (/5-file rule|\batomic\b/i.test(body)) {
+          errors.push(
+            'Skill body must not retain the retired 5-file-rule / atomic framing (Story #3874)',
           );
         }
         if (!/not a single module or file/i.test(body)) {

@@ -16,10 +16,11 @@
  * (`$defs.taskSizing`) and the JS mirror in
  * `.agents/scripts/lib/config-settings-schema.js`.
  *
- * Sizing model (Story #3760 — profile-matrix collapse):
- *   - Flat knobs: `softFiles` (~5), `hardFiles` (~15), `maxAcceptance` (~8),
- *     `softAcceptanceCount` (~6). No per-profile ceiling map, no parallel
- *     `testSurface` axis.
+ * Sizing model (Story #3760 — profile-matrix collapse; Story #3874 — one
+ * uniform relaxed profile):
+ *   - Flat knobs: `softFiles` (~8), `hardFiles` (~30), `maxAcceptance` (~14),
+ *     `softAcceptanceCount` (~10). No per-profile ceiling map, no parallel
+ *     `testSurface` axis, no selector and no second profile.
  *   - The four-profile `sizingProfile` enum is replaced by a single optional
  *     `wide` declaration carrying a one-line human-readable reason. Declaring
  *     `wide` with a reason lifts the `hardFiles` rejection; no Story is
@@ -31,12 +32,21 @@
 
 export const DEFAULT_TASK_SIZING = Object.freeze({
   // Typical-Story warning thresholds (soft — emit advisory findings).
-  softFiles: 5,
-  softAcceptanceCount: 6,
+  softFiles: 8,
+  softAcceptanceCount: 10,
   // Hard ceilings (rejection unless lifted).
-  hardFiles: 15,
-  maxAcceptance: 8,
+  hardFiles: 30,
+  maxAcceptance: 14,
 });
+
+/**
+ * Soft prose guidance for how many Stories a Feature typically decomposes
+ * into before the Feature scope smells like two Features. Rendered into the
+ * decomposer prompt's Feature-count sentence from this single constant so
+ * the prompt prose cannot drift from the SSOT module (Story #3874). Advisory
+ * only — no validator finding keys off it.
+ */
+export const SOFT_STORIES_PER_FEATURE = 7;
 
 /**
  * `DELIVERABLE_GRANULARITY_GUIDANCE` is the **single source of truth** for the
@@ -51,16 +61,16 @@ export const DEFAULT_TASK_SIZING = Object.freeze({
  * restatement fails those gates. This reuses the #3760 single-source
  * mechanism (one constant, two surfaces, drift-gated by tests).
  *
- * The definition: a Story is a **shippable slice a reviewer would accept as a
- * single PR** — a capability or user-visible surface — not a single module or
- * file. Module-level slices fold into the capability they belong to, and a
- * Story whose only consumer is one sibling Story is merged into that sibling
- * (single-consumer merge rule).
+ * The definition: a Story is a **capability slice a frontier model delivers
+ * and self-verifies in one pass** — a shippable slice a reviewer would accept
+ * as a single PR — not a single module or file. Module-level slices fold into
+ * the capability they belong to, and a Story whose only consumer is one
+ * sibling Story is merged into that sibling (single-consumer merge rule).
  */
 export const DELIVERABLE_GRANULARITY_GUIDANCE = Object.freeze({
   // The one-sentence definition of Story granularity.
   definition:
-    'A Story is a **shippable slice a reviewer would accept as a single PR** — a capability or user-visible surface — **not a single module or file**. Fold module-level slices into the capability they belong to rather than emitting one Story per module.',
+    'A Story is a **capability slice a frontier model delivers and self-verifies in one pass** — a shippable slice a reviewer would accept as a single PR, a capability or user-visible surface, **not a single module or file**. Fold module-level slices into the capability they belong to rather than emitting one Story per module.',
   // The single-consumer merge rule.
   singleConsumerRule:
     '**Single-consumer merge rule.** A Story whose only consumer is one sibling Story should be **merged into that sibling** rather than emitted separately — a single-consumer downstream slice is not its own unit of work.',
