@@ -300,7 +300,7 @@ produces. No new runtime dependencies. Runs at three sites:
 `.husky/pre-push`.
 
 If you're a consumer repo that installed the framework via the
-`@mandrelai/agents` npm package (`mandrel sync`), this is what you need to know.
+`mandrel` npm package (`mandrel sync`), this is what you need to know.
 
 ### First-run behavior — bootstrap before the first push
 

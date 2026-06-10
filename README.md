@@ -9,7 +9,7 @@ natively in GitHub Issues, Labels, and Projects V2.
 ## Prerequisites
 
 Mandrel is distributed as the
-[`@mandrelai/agents`](https://www.npmjs.com/package/@mandrelai/agents) npm
+[`mandrel`](https://www.npmjs.com/package/mandrel) npm
 package and wires its orchestration into your project's GitHub repository.
 You do **not** need a pre-created Git repo or GitHub remote — `bootstrap.js`
 provisions both as part of a cold start (`git init` → `gh repo create --push`
@@ -35,7 +35,7 @@ The canonical cold-start path is one launcher command, then two slash
 commands inside Claude Code:
 
 ```bash
-npx create-mandrel        # install @mandrelai/agents → sync → bootstrap
+npx create-mandrel        # install mandrel → sync → bootstrap
 ```
 
 ```text
@@ -44,7 +44,7 @@ npx create-mandrel        # install @mandrelai/agents → sync → bootstrap
 /epic-plan          # ideation -> PRD/Tech Spec -> Epic/Feature/Story hierarchy
 ```
 
-`create-mandrel` installs `@mandrelai/agents`, materializes `./.agents/` via
+`create-mandrel` installs `mandrel`, materializes `./.agents/` via
 `mandrel sync`, and runs `node .agents/scripts/bootstrap.js` for you,
 forwarding any flags you pass. `/onboard` then walks you from a clean
 checkout to a planned Epic (stack detection, docs scaffolding, a
@@ -58,12 +58,12 @@ If you prefer to drive the three steps `create-mandrel` wraps by hand, run
 them from your project root:
 
 ```bash
-npm install @mandrelai/agents   # pin an exact, provenance-signed version
+npm install mandrel   # pin an exact, provenance-signed version
 npx mandrel sync                # materialize ./.agents/ from the package
 node .agents/scripts/bootstrap.js
 ```
 
-`npm install @mandrelai/agents` pins an exact, provenance-signed version in
+`npm install mandrel` pins an exact, provenance-signed version in
 your lockfile. The package's `postinstall` hook runs `mandrel sync`
 best-effort, so `./.agents/` is usually materialized automatically; the
 explicit `npx mandrel sync` above is the belt-and-suspenders step for
@@ -92,7 +92,7 @@ slash-command index lives in
 
 ## Update
 
-Advance `@mandrelai/agents` to the newest published version and
+Advance `mandrel` to the newest published version and
 re-materialize `./.agents/` in one command:
 
 ```bash
@@ -101,7 +101,7 @@ npx mandrel update
 
 `mandrel update` runs an ordered cycle:
 
-1. **Resolve** the newest published version (a `npm view @mandrelai/agents
+1. **Resolve** the newest published version (a `npm view mandrel
    version` registry probe) and the currently installed version.
 2. **Major gate** — if the newest version crosses a major boundary
    (e.g. `1.x → 2.0`), the command declines, prints a pointer to
@@ -131,7 +131,7 @@ npx mandrel update
   (`pnpm-lock.yaml` ⇒ `pnpm add -D …`, `yarn.lock` ⇒ `yarn add -D …`,
   otherwise `npm install …`), so an override is rarely needed. When you do
   pass one, a `{target}` placeholder is substituted with the resolved newest
-  version — e.g. `--install-cmd "pnpm add -D @mandrelai/agents@{target} -w"` —
+  version — e.g. `--install-cmd "pnpm add -D mandrel@{target} -w"` —
   so the override can still consume the auto-probed version. The registry
   probe always stays on `npm view` (it is a PM-agnostic registry query).
 
@@ -140,7 +140,7 @@ npx mandrel update
 If you prefer to drive the steps by hand:
 
 ```bash
-npm install @mandrelai/agents@latest   # or pnpm add / yarn up
+npm install mandrel@latest   # or pnpm add / yarn up
 npx mandrel sync                        # re-materialize ./.agents/
 npx mandrel doctor                      # verify the install
 ```
@@ -148,7 +148,7 @@ npx mandrel doctor                      # verify the install
 ## Contributors
 
 Only `.agents/` is distributed to consumers — it ships inside the
-`@mandrelai/agents` npm package and is materialized into a consumer's
+`mandrel` npm package and is materialized into a consumer's
 `./.agents/` directory by `mandrel sync`. Everything else in this
 repository is internal development tooling.
 
@@ -174,7 +174,7 @@ Deeper reference material lives in `docs/` rather than inline here:
   topology, PAT / npm-token setup, and major-version policy. Releases are
   automated by `release-please`: land Conventional Commits on `main` and it
   opens a combined `chore: release main` PR that squash-merges itself once
-  CI is green, tags `main`, and publishes `@mandrelai/agents` to npm.
+  CI is green, tags `main`, and publishes `mandrel` to npm.
 
 Install scripts are disabled by default: the committed
 [`.npmrc`](.npmrc) sets `ignore-scripts=true`, so `npm install` / `npm ci`

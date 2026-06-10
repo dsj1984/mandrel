@@ -8,7 +8,7 @@ dist
 # NOTE: This is the Mandrel framework SOURCE repo, where ./.agents/ IS the
 # committed product — so it is deliberately NOT ignored here (Story #3489).
 # A blanket `/.agents/` ignore (correct for a *consumer* project, where
-# ./.agents/ is a working copy materialized from node_modules/@mandrelai/agents
+# ./.agents/ is a working copy materialized from node_modules/mandrel
 # by `mandrel sync`) would silently hide newly added framework `.agents/**`
 # source files from `git status`/`git add`. Consumer projects add the
 # `/.agents/` ignore to their OWN .gitignore; the framework repo must not.
