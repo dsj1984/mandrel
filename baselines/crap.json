@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-10T01:04:53.665Z",
+  "generatedAt": "2026-06-10T03:37:43.459Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -6601,21 +6601,39 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
+      "method": "resolveReviewDepth",
+      "startLine": 64,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/code-review.js",
+      "method": "resolveAuditLenses",
+      "startLine": 111,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/code-review.js",
+      "method": "planAuditLenses",
+      "startLine": 140,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/code-review.js",
       "method": "buildCodeReviewEndPayload",
-      "startLine": 58,
+      "startLine": 174,
       "crap": 7
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
       "method": "resolveScopeEnvelope",
-      "startLine": 104,
+      "startLine": 220,
       "crap": 28.63070418428342
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
       "method": "runCodeReview",
-      "startLine": 225,
-      "crap": 25.007592979834563
+      "startLine": 342,
+      "crap": 25.006526896442793
     },
     {
       "path": ".agents/scripts/lib/orchestration/column-sync.js",
