@@ -34,10 +34,6 @@ import {
   assertNoOpenPlanChildren,
   releaseEpicPlanLease,
 } from '../../epic-plan-lease-guard.js';
-import {
-  PLAN_PHASES,
-  setPhase as setPlanPhase,
-} from '../../epic-plan-state-store.js';
 import { renderSpec } from '../../spec-renderer.js';
 import {
   reconcileSubIssueLinks,
@@ -186,7 +182,6 @@ export async function runDecomposePhase(
     `[epic-plan-decompose] Flipping Epic #${epicId} to ${AGENT_LABELS.READY}...`,
   );
   await setEpicLabel(provider, epicId, AGENT_LABELS.READY);
-  await setPlanPhase({ provider, epicId, nextPhase: PLAN_PHASES.READY });
 
   const cleanup = await cleanupPhaseTempFiles({ phase: 'decompose', epicId });
   logCleanupSummary(cleanup, epicId, tickets.length);

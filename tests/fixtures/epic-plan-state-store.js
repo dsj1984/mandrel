@@ -25,21 +25,6 @@ import {
 export const EPIC_PLAN_STATE_TYPE = 'epic-plan-state';
 export const PLAN_CHECKPOINT_SCHEMA_VERSION = 1;
 
-/**
- * Enumeration of lifecycle phase values written to the checkpoint:
- *
- *   planning       — spec work running
- *   review-spec    — spec done; awaiting review (Epic carries agent::review-spec)
- *   decomposing    — decompose work running
- *   ready          — plan complete (Epic carries agent::ready)
- */
-export const PLAN_PHASES = Object.freeze({
-  PLANNING: 'planning',
-  REVIEW_SPEC: 'review-spec',
-  DECOMPOSING: 'decomposing',
-  READY: 'ready',
-});
-
 const JSON_FENCE_RE = /```json\s*\n([\s\S]*?)\n```/;
 
 export class PlanCheckpointer {
@@ -107,7 +92,6 @@ export class PlanCheckpointer {
     const now = new Date().toISOString();
     const skeleton = {
       epicId: this.epicId,
-      phase: PLAN_PHASES.PLANNING,
       startedAt: now,
       spec: {
         prdId: null,
@@ -119,21 +103,6 @@ export class PlanCheckpointer {
       manifestCommentId: null,
     };
     return this.write({ ...skeleton, ...seed });
-  }
-
-  /**
-   * Update only the `phase` field. Creates the checkpoint first if absent.
-   */
-  async setPhase(phase) {
-    if (!Object.values(PLAN_PHASES).includes(phase)) {
-      throw new RangeError(
-        `PlanCheckpointer.setPhase: unknown phase "${phase}". Expected one of: ${Object.values(
-          PLAN_PHASES,
-        ).join(', ')}`,
-      );
-    }
-    const current = (await this.read()) ?? (await this.initialize());
-    return this.write({ ...current, phase });
   }
 
   /**

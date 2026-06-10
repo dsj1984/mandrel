@@ -8,11 +8,11 @@
  * level phase transition (init → implementing → closing → done, or any
  * → blocked). Each call:
  *
- *   1. Flips the `story-run-progress` structured-comment snapshot on
- *      the Story ticket to the requested phase (canonical
- *      init/implement/validate/close progression preserved in the
- *      `phases[]` payload). Idempotent — repeated invocations for the
- *      same phase re-write the same body.
+ *   1. Renders the Story-phase snapshot for the requested phase (canonical
+ *      init/implement/validate/close progression in the `phases[]` payload)
+ *      and returns its markdown body for chat relay. Story #3909 — this no
+ *      longer posts a `story-run-progress` comment (the redundant mid-flight
+ *      progress surface was deleted); the snapshot is render-only.
  *   2. Appends one `story.heartbeat` lifecycle record to
  *      `temp/epic-<epicId>/lifecycle.ndjson` so `/epic-deliver`'s
  *      §2e Idle Watchdog (`wave-tick.js --check-idle 30`) can confirm
@@ -20,8 +20,8 @@
  *
  * The heartbeat emit is best-effort: a missing/unreachable ledger,
  * schema-validation hiccup, or absent `Epic: #N` body reference is
- * logged and swallowed — the snapshot upsert remains the source of
- * truth, the ledger record is observability.
+ * logged and swallowed — the labels remain the source of truth, the
+ * ledger record is observability.
  *
  * CLI:
  *   --story <id>                        Story ID (required).
@@ -69,10 +69,10 @@ const HELP = `Usage: node .agents/scripts/story-phase.js \\
   --story <id> --phase <init|implementing|closing|blocked|done> \\
   [--no-heartbeat]
 
-Flips the story-run-progress snapshot for Story #<id> to the requested
-phase and (unless --no-heartbeat) appends one story.heartbeat record to
-the parent Epic's lifecycle ledger so the Idle Watchdog can confirm the
-Story is alive.
+Renders the Story-phase snapshot for Story #<id> at the requested phase
+(returned as renderedBody for chat relay; no comment is posted) and
+(unless --no-heartbeat) appends one story.heartbeat record to the parent
+Epic's lifecycle ledger so the Idle Watchdog can confirm the Story is alive.
 `;
 
 /**

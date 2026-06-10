@@ -4,7 +4,6 @@ import { structuredCommentMarker } from '../../.agents/scripts/lib/orchestration
 import {
   EPIC_PLAN_STATE_TYPE,
   PLAN_CHECKPOINT_SCHEMA_VERSION,
-  PLAN_PHASES,
   PlanCheckpointer,
 } from '../fixtures/epic-plan-state-store.js';
 
@@ -41,7 +40,11 @@ describe('PlanCheckpointer', () => {
 
     assert.equal(state.version, PLAN_CHECKPOINT_SCHEMA_VERSION);
     assert.equal(state.epicId, 349);
-    assert.equal(state.phase, PLAN_PHASES.PLANNING);
+    assert.equal(
+      state.phase,
+      undefined,
+      'write-only phase telemetry is no longer persisted (Story #3909)',
+    );
     assert.deepEqual(state.spec, {
       prdId: null,
       techSpecId: null,
@@ -64,33 +67,13 @@ describe('PlanCheckpointer', () => {
   it('initialize() is idempotent when state exists', async () => {
     const provider = createFakeProvider();
     const cp = new PlanCheckpointer({ provider, epicId: 349 });
-    await cp.initialize();
-    const second = await cp.initialize({ phase: PLAN_PHASES.READY });
+    const first = await cp.initialize();
+    const second = await cp.initialize({ spec: { prdId: 1 } });
 
     // Seed overrides must not clobber a pre-existing checkpoint.
-    assert.equal(second.phase, PLAN_PHASES.PLANNING);
+    assert.deepEqual(second.spec, first.spec);
     const comments = provider._comments.get(349) ?? [];
     assert.equal(comments.length, 1, 'no duplicate checkpoint comment');
-  });
-
-  it('setPhase() updates only the phase field and preserves schema', async () => {
-    const provider = createFakeProvider();
-    const cp = new PlanCheckpointer({ provider, epicId: 349 });
-    const initial = await cp.initialize();
-
-    const updated = await cp.setPhase(PLAN_PHASES.REVIEW_SPEC);
-
-    assert.equal(updated.phase, PLAN_PHASES.REVIEW_SPEC);
-    assert.equal(updated.startedAt, initial.startedAt);
-    assert.deepEqual(updated.spec, initial.spec);
-    const comments = provider._comments.get(349) ?? [];
-    assert.equal(comments.length, 1, 'upsert keeps exactly one comment');
-  });
-
-  it('setPhase() rejects unknown phase values', async () => {
-    const provider = createFakeProvider();
-    const cp = new PlanCheckpointer({ provider, epicId: 349 });
-    await assert.rejects(() => cp.setPhase('not-a-phase'), /unknown phase/);
   });
 
   it('updateSpec() merges partial spec payloads', async () => {

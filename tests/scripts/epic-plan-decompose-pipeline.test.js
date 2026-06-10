@@ -313,7 +313,6 @@ describe('epic-plan-decompose pipeline — buildDecompositionContext planning ri
     const payload = {
       version: 1,
       epicId: EPIC_ID,
-      phase: 'review-spec',
       ...state,
     };
     return `${marker}\n\n\`\`\`json\n${JSON.stringify(payload, null, 2)}\n\`\`\``;

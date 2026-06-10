@@ -108,11 +108,6 @@ export async function tick(args = {}) {
   const history = Array.isArray(state.waves) ? state.waves : [];
 
   if (totalWaves === 0 || currentWave >= totalWaves) {
-    await emit({
-      kind: 'epic-complete',
-      totalWaves,
-      completedWaves: history.length,
-    });
     return tickResult({
       nextAction: { kind: 'epic-complete' },
       currentWave,
@@ -134,13 +129,6 @@ export async function tick(args = {}) {
       totalWaves,
     });
   }
-
-  const baseTick = {
-    kind: 'wave-tick',
-    index: currentWave,
-    totalWaves,
-    wavePlanSize: wavePlan.length,
-  };
 
   // Story #3026 — match the iterate-waves resume-check cache strategy:
   // only Stories that the checkpoint marks as halted on a prior wave
@@ -230,7 +218,6 @@ export async function tick(args = {}) {
 
   // 6. Decide nextAction.
   let nextAction;
-  let tickDetail;
 
   // Stories that are label-undispatched but recorded in-flight on the ledger
   // (subtracted out of `dispatchable`) must be observed, not re-dispatched —
@@ -241,11 +228,12 @@ export async function tick(args = {}) {
 
   if (blockedStories.length) {
     nextAction = { kind: 'observe', waitingOn: blocked.map((s) => s.id) };
-    tickDetail = { decision: 'observe-blocked' };
   } else if (dispatchable.length) {
-    // First dispatch of this wave fires `wave-start` exactly once. The
-    // ledger in-flight set is consulted alongside the label view so a
-    // dispatched-but-not-yet-executing Story does not re-fire `wave-start`.
+    // First dispatch of this wave fires `wave-start` exactly once — the
+    // perf-aggregator (`waveParallelism` report) brackets each wave's
+    // wall-clock from `wave-start` → `wave-complete`. The ledger in-flight
+    // set is consulted alongside the label view so a dispatched-but-not-yet-
+    // executing Story does not re-fire `wave-start`.
     if (
       executing.length === 0 &&
       done.length === 0 &&
@@ -266,10 +254,6 @@ export async function tick(args = {}) {
         worktree: s.worktree,
       })),
     };
-    tickDetail = {
-      decision: 'dispatch',
-      dispatchableCount: dispatchable.length,
-    };
   } else if (executing.length || inFlightUndispatched.length) {
     // Either a Story is `agent::executing`, or the ledger shows a
     // dispatched-but-unflipped Story we just declined to re-dispatch. Both
@@ -279,22 +263,13 @@ export async function tick(args = {}) {
       ...inFlightUndispatched.map((s) => s.id),
     ].sort((a, b) => a - b);
     nextAction = { kind: 'observe', waitingOn };
-    tickDetail = { decision: 'observe-in-flight' };
   } else if (currentWave + 1 >= totalWaves) {
-    await emit({
-      kind: 'epic-complete',
-      totalWaves,
-      completedWaves: history.length + 1,
-    });
     nextAction = { kind: 'epic-complete' };
-    tickDetail = { decision: 'epic-complete' };
   } else {
+    // Closes the wave window for the perf-aggregator's wall-clock bracket.
     await emit({ kind: 'wave-complete', index: currentWave, totalWaves });
     nextAction = { kind: 'wave-complete', index: currentWave };
-    tickDetail = { decision: 'wave-complete' };
   }
-
-  await emit({ ...baseTick, nextAction: nextAction.kind, ...tickDetail });
 
   // Story #2891 — attach the in-flight ledger reconciliation to the
   // nextAction envelope. Always emit the field (empty array when the
@@ -671,6 +646,13 @@ function readGateFailures(history, currentWave) {
 /**
  * Default emitter — appends to per-Epic `signals.ndjson`. Best-effort;
  * never throws. Tests override via `collaborators.signalEmit`.
+ *
+ * Story #3909 — the planner now emits only the two wave events that have a
+ * live consumer: `wave-start` and `wave-complete`, which the perf-aggregator
+ * (`waveParallelism` report) brackets into per-wave wall-clock. The
+ * write-only `wave-tick` (per-call telemetry) and `epic-complete` (no reader)
+ * emits were dropped — they duplicated the `epic-run-state` checkpoint and the
+ * `epic-run-progress` rollup and nothing consumed them.
  */
 function defaultSignalEmit(epicId, ctx) {
   return async (signal) => {

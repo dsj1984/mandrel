@@ -430,7 +430,7 @@ describe('runEpicDeliverPrepare', () => {
     // index plan[2] of the recomputed plan (which is undefined → empty).
     const result = await tick({
       epic: 120,
-      collaborators: { provider, signalEmit: async () => {} },
+      collaborators: { provider },
       ctx: { config: baseConfig },
     });
     assert.equal(result.currentWave, 0);

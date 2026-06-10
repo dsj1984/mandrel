@@ -8,7 +8,6 @@ import {
   STORY_RUN_PROGRESS_TYPE,
   upsertStoryRunProgress,
 } from '../../.agents/scripts/lib/orchestration/epic-runner/story-run-progress-writer.js';
-import { structuredCommentMarker } from '../../.agents/scripts/lib/orchestration/ticketing.js';
 
 function buildProvider(initialComments = []) {
   const comments = initialComments.map((c, i) => ({ id: c.id ?? i + 1, ...c }));
@@ -149,8 +148,8 @@ describe('renderStoryRunProgressBody', () => {
   });
 });
 
-describe('upsertStoryRunProgress', () => {
-  it('posts a fresh comment with the structured-comment marker on first run', async () => {
+describe('upsertStoryRunProgress (render-only — Story #3909)', () => {
+  it('renders the snapshot WITHOUT posting a story-run-progress comment', async () => {
     const provider = buildProvider();
     const { body, payload } = await upsertStoryRunProgress({
       provider,
@@ -159,63 +158,41 @@ describe('upsertStoryRunProgress', () => {
       phase: 'init',
       tasks: [{ id: 913, title: 'A', state: 'pending' }],
     });
-    assert.equal(provider.comments.length, 1);
-    const written = provider.comments[0];
-    assert.ok(
-      written.body.includes(structuredCommentMarker(STORY_RUN_PROGRESS_TYPE)),
-    );
-    assert.ok(written.body.endsWith(body));
-    const parsed = extractPayload(written.body);
-    assert.deepEqual(parsed.tasks, payload.tasks);
-    assert.equal(parsed.storyId, 912);
-    assert.equal(parsed.phase, 'init');
+    // Story #3909 — the redundant mid-flight comment surface was deleted; the
+    // renderer no longer writes a GitHub comment.
+    assert.equal(provider.comments.length, 0);
+    assert.equal(payload.kind, STORY_RUN_PROGRESS_TYPE);
+    assert.ok(body.includes(`Story #912`));
+    assert.deepEqual(payload.tasks, [
+      { id: 913, title: 'A', state: 'pending' },
+    ]);
+    assert.equal(payload.storyId, 912);
+    assert.equal(payload.phase, 'init');
   });
 
-  it('upserts in place — re-running across Task transitions does not multiply comments', async () => {
+  it('never posts a comment across repeated transitions', async () => {
     const provider = buildProvider();
-    // pending → executing
-    await upsertStoryRunProgress({
-      provider,
-      storyId: 912,
-      branch: 'story-912',
-      phase: 'implementing',
-      tasks: [{ id: 913, title: 'A', state: 'executing' }],
-    });
-    // executing → done
-    await upsertStoryRunProgress({
-      provider,
-      storyId: 912,
-      branch: 'story-912',
-      phase: 'implementing',
-      tasks: [{ id: 913, title: 'A', state: 'done', commitSha: 'abc1234' }],
-    });
-    // implementing → closing
-    await upsertStoryRunProgress({
-      provider,
-      storyId: 912,
-      branch: 'story-912',
-      phase: 'closing',
-      tasks: [{ id: 913, title: 'A', state: 'done', commitSha: 'abc1234' }],
-    });
-    assert.equal(provider.comments.length, 1);
-    const parsed = extractPayload(provider.comments[0].body);
-    assert.equal(parsed.phase, 'closing');
-    assert.equal(parsed.tasks[0].state, 'done');
-    assert.equal(parsed.tasks[0].commitSha, 'abc1234');
+    for (const phase of ['implementing', 'closing']) {
+      await upsertStoryRunProgress({
+        provider,
+        storyId: 912,
+        branch: 'story-912',
+        phase,
+        tasks: [{ id: 913, title: 'A', state: 'done', commitSha: 'abc1234' }],
+      });
+    }
+    assert.equal(provider.comments.length, 0);
   });
 
-  it('rejects providers missing postComment', async () => {
-    await assert.rejects(
-      () =>
-        upsertStoryRunProgress({
-          provider: {},
-          storyId: 1,
-          branch: 'story-1',
-          phase: 'init',
-          tasks: [],
-        }),
-      /provider with postComment/,
-    );
+  it('renders without requiring a provider at all', async () => {
+    const { payload } = await upsertStoryRunProgress({
+      storyId: 1,
+      branch: 'story-1',
+      phase: 'init',
+      tasks: [],
+    });
+    assert.equal(payload.storyId, 1);
+    assert.equal(payload.phase, 'init');
   });
 });
 
@@ -356,7 +333,7 @@ describe('renderStoryRunProgressBody (3-tier phases shape)', () => {
 });
 
 describe('upsertStoryRunProgress (3-tier phases shape)', () => {
-  it('upserts a phases-shaped snapshot through the writer', async () => {
+  it('renders a phases-shaped snapshot through the writer (no comment)', async () => {
     const provider = buildProvider();
     const phases = defaultStoryPhases();
     phases[0].status = 'in-progress';
@@ -368,12 +345,10 @@ describe('upsertStoryRunProgress (3-tier phases shape)', () => {
       phase: 'init',
       phases,
     });
-    assert.equal(provider.comments.length, 1);
-    const parsed = extractPayload(provider.comments[0].body);
-    assert.deepEqual(parsed.phases, payload.phases);
-    assert.equal(parsed.phases.length, 4);
-    assert.equal(parsed.phases[0].status, 'in-progress');
-    assert.equal('tasks' in parsed, false);
+    assert.equal(provider.comments.length, 0);
+    assert.equal(payload.phases.length, 4);
+    assert.equal(payload.phases[0].status, 'in-progress');
+    assert.equal('tasks' in payload, false);
   });
 
   it('notify fan-out reports phase progress when phases[] is the shape', async () => {

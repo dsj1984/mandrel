@@ -5,9 +5,7 @@ import {
   EPIC_PLAN_STATE_TYPE,
   initialize,
   PLAN_CHECKPOINT_SCHEMA_VERSION,
-  PLAN_PHASES,
   read,
-  setPhase,
   write,
 } from '../../../.agents/scripts/lib/orchestration/epic-plan-state-store.js';
 import { structuredCommentMarker } from '../../../.agents/scripts/lib/orchestration/ticketing.js';
@@ -52,7 +50,11 @@ describe('epic-plan-state-store', () => {
 
     assert.equal(state.version, PLAN_CHECKPOINT_SCHEMA_VERSION);
     assert.equal(state.epicId, 349);
-    assert.equal(state.phase, PLAN_PHASES.PLANNING);
+    assert.equal(
+      state.phase,
+      undefined,
+      'write-only phase telemetry is no longer persisted (Story #3909)',
+    );
     assert.deepEqual(state.spec, {
       prdId: null,
       techSpecId: null,
@@ -74,42 +76,17 @@ describe('epic-plan-state-store', () => {
 
   it('initialize() is idempotent when state exists', async () => {
     const provider = createFakeProvider();
-    await initialize({ provider, epicId: 349 });
+    const first = await initialize({ provider, epicId: 349 });
     const second = await initialize({
       provider,
       epicId: 349,
-      seed: { phase: PLAN_PHASES.READY },
+      seed: { spec: { prdId: 1 } },
     });
 
     // Seed overrides must not clobber a pre-existing checkpoint.
-    assert.equal(second.phase, PLAN_PHASES.PLANNING);
+    assert.deepEqual(second.spec, first.spec);
     const comments = provider._comments.get(349) ?? [];
     assert.equal(comments.length, 1, 'no duplicate checkpoint comment');
-  });
-
-  it('setPhase() updates only the phase field and preserves schema', async () => {
-    const provider = createFakeProvider();
-    const initial = await initialize({ provider, epicId: 349 });
-
-    const updated = await setPhase({
-      provider,
-      epicId: 349,
-      nextPhase: PLAN_PHASES.REVIEW_SPEC,
-    });
-
-    assert.equal(updated.phase, PLAN_PHASES.REVIEW_SPEC);
-    assert.equal(updated.startedAt, initial.startedAt);
-    assert.deepEqual(updated.spec, initial.spec);
-    const comments = provider._comments.get(349) ?? [];
-    assert.equal(comments.length, 1, 'upsert keeps exactly one comment');
-  });
-
-  it('setPhase() rejects unknown phase values', async () => {
-    const provider = createFakeProvider();
-    await assert.rejects(
-      () => setPhase({ provider, epicId: 349, nextPhase: 'not-a-phase' }),
-      /unknown phase/,
-    );
   });
 
   it('read() returns null on missing or malformed comment', async () => {
@@ -139,15 +116,6 @@ describe('epic-plan-state-store', () => {
       () => initialize({ provider: null, epicId: 1 }),
       /requires a provider/,
     );
-    await assert.rejects(
-      () =>
-        setPhase({
-          provider: null,
-          epicId: 1,
-          nextPhase: PLAN_PHASES.PLANNING,
-        }),
-      /requires a provider/,
-    );
   });
 
   it('write() produces byte-identical comment body to PlanCheckpointer.write()', async () => {
@@ -156,7 +124,6 @@ describe('epic-plan-state-store', () => {
     // `lastUpdatedAt` timestamp written at the moment of the call).
     const seed = {
       epicId: 777,
-      phase: PLAN_PHASES.DECOMPOSING,
       startedAt: '2026-04-21T20:00:00.000Z',
       spec: {
         prdId: 511,
@@ -191,7 +158,6 @@ describe('epic-plan-state-store', () => {
     const provider = createFakeProvider();
     const seed = {
       epicId: 349,
-      phase: PLAN_PHASES.READY,
       startedAt: '2026-04-21T20:00:00.000Z',
       spec: {
         prdId: 1,
