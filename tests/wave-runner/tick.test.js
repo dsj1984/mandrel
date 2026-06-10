@@ -27,10 +27,21 @@ function fakeProvider(labelsById = new Map()) {
   };
 }
 
-// Story #3909 — the wave-lifecycle signal emits (`wave-start`, `wave-tick`,
-// `wave-complete`, `epic-complete`) were retired; the tick planner now only
-// returns a `nextAction` envelope. These tests assert that surviving planning
-// output, not the deleted telemetry.
+/**
+ * Capture emitted signals via a stub `signalEmit`.
+ *
+ * Story #3909 — the planner emits only the two wave events with a live
+ * consumer: `wave-start` and `wave-complete` (read by the perf-aggregator's
+ * `waveParallelism` report; `wave-start` also anchors span-tree Story spans).
+ * The write-only `wave-tick` / `epic-complete` emits were retired.
+ */
+function captureSignals() {
+  const emitted = [];
+  return {
+    emitted,
+    signalEmit: async (signal) => emitted.push(signal),
+  };
+}
 
 describe('lib/wave-runner/tick', () => {
   it('returns epic-complete when currentWave >= totalWaves', async () => {
@@ -83,7 +94,7 @@ describe('lib/wave-runner/tick', () => {
     assert.equal(result.nextAction.index, 0);
   });
 
-  it('returns dispatch for an undispatched wave', async () => {
+  it('returns dispatch for an undispatched wave (and emits wave-start once)', async () => {
     const checkpointer = fakeCheckpointer({
       epicId: 100,
       currentWave: 0,
@@ -104,12 +115,14 @@ describe('lib/wave-runner/tick', () => {
         [2, ['agent::ready', 'type::story']],
       ]),
     );
+    const sig = captureSignals();
 
     const result = await tick({
       epic: 100,
       collaborators: {
         provider,
         epicRunStateStore: checkpointer,
+        signalEmit: sig.signalEmit,
       },
     });
 
@@ -119,6 +132,73 @@ describe('lib/wave-runner/tick', () => {
       result.nextAction.stories.map((s) => s.id),
       [1, 2],
     );
+    // wave-start fires for the perf-aggregator's wall-clock bracket; the
+    // retired wave-tick is never emitted.
+    assert.ok(sig.emitted.some((e) => e.kind === 'wave-start'));
+    assert.equal(
+      sig.emitted.some((e) => e.kind === 'wave-tick'),
+      false,
+    );
+  });
+
+  it('does NOT emit the retired wave-tick / epic-complete signals', async () => {
+    const checkpointer = fakeCheckpointer({
+      epicId: 100,
+      currentWave: 1,
+      totalWaves: 2,
+      plan: [[{ id: 1 }], [{ id: 2 }]],
+      waves: [{ index: 0, status: 'complete' }],
+    });
+    const provider = fakeProvider(new Map([[2, [AGENT_LABELS.DONE]]]));
+    const sig = captureSignals();
+
+    const result = await tick({
+      epic: 100,
+      collaborators: {
+        provider,
+        epicRunStateStore: checkpointer,
+        signalEmit: sig.signalEmit,
+      },
+    });
+
+    assert.equal(result.nextAction.kind, 'epic-complete');
+    assert.equal(
+      sig.emitted.some((e) => e.kind === 'epic-complete'),
+      false,
+    );
+    assert.equal(
+      sig.emitted.some((e) => e.kind === 'wave-tick'),
+      false,
+    );
+  });
+
+  it('emits wave-complete when a full non-last wave completes', async () => {
+    const checkpointer = fakeCheckpointer({
+      epicId: 100,
+      currentWave: 0,
+      totalWaves: 2,
+      plan: [[{ id: 1 }, { id: 2 }], [{ id: 3 }]],
+      waves: [],
+    });
+    const provider = fakeProvider(
+      new Map([
+        [1, [AGENT_LABELS.DONE]],
+        [2, [AGENT_LABELS.DONE]],
+      ]),
+    );
+    const sig = captureSignals();
+
+    const result = await tick({
+      epic: 100,
+      collaborators: {
+        provider,
+        epicRunStateStore: checkpointer,
+        signalEmit: sig.signalEmit,
+      },
+    });
+
+    assert.equal(result.nextAction.kind, 'wave-complete');
+    assert.ok(sig.emitted.some((e) => e.kind === 'wave-complete'));
   });
 
   it('refills mid-wave: dispatch returns only the still-undispatched stories', async () => {

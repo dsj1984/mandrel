@@ -16,6 +16,7 @@ import { existsSync, readFileSync } from 'node:fs';
 
 import { epicLedgerPath } from '../config/temp-paths.js';
 import { AGENT_LABELS } from '../label-constants.js';
+import { appendEpicSignal } from '../observability/signals-writer.js';
 import * as epicRunStateStoreModule from '../orchestration/epic-run-state-store.js';
 import { detectRecurringFailures } from '../orchestration/recurring-failure-detector.js';
 import { upsertStructuredComment as defaultUpsertStructuredComment } from '../orchestration/ticketing.js';
@@ -54,6 +55,7 @@ import { WaveRunnerError } from './wave-runner-error.js';
  * @property {{
  *   provider?: object,
  *   epicRunStateStore?: { read: () => Promise<object|null> },
+ *   signalEmit?: (signal: object) => Promise<unknown>,
  *   inFlightReader?: () => Promise<number[]>,
  *   recurringFailureReporter?: () => Promise<void>,
  * }} [collaborators]
@@ -66,6 +68,7 @@ export async function tick(args = {}) {
   const {
     provider: collabProvider,
     epicRunStateStore: collabStore,
+    signalEmit,
     inFlightReader: collabInFlightReader,
     recurringFailureReporter: collabRecurringFailureReporter,
   } = args.collaborators ?? {};
@@ -83,6 +86,7 @@ export async function tick(args = {}) {
   const epicRunStateStore = collabStore ?? {
     read: () => epicRunStateStoreModule.read({ provider, epicId }),
   };
+  const emit = signalEmit ?? defaultSignalEmit(epicId, ctx);
   const inFlightReader =
     collabInFlightReader ?? (() => defaultInFlightReader(epicId, ctx?.config));
 
@@ -113,6 +117,12 @@ export async function tick(args = {}) {
 
   const wavePlan = Array.isArray(plan[currentWave]) ? plan[currentWave] : [];
   if (wavePlan.length === 0) {
+    await emit({
+      kind: 'wave-complete',
+      index: currentWave,
+      totalWaves,
+      empty: true,
+    });
     return tickResult({
       nextAction: { kind: 'wave-complete', index: currentWave },
       currentWave,
@@ -162,8 +172,8 @@ export async function tick(args = {}) {
   // GitHub issue is `state === 'closed'`. Reading the closed state (not just
   // the label) means a Story closed manually through the GitHub UI — which
   // closes the issue but does not flip the `agent::*` label — is recognised
-  // as done and is never re-dispatched. `isStoryDone` rides on `isUndispatched`
-  // below, so closed-but-unlabelled Stories are excluded from the dispatch set.
+  // as done and is never re-dispatched.
+  const done = waveStates.filter(isStoryDone);
   const blocked = waveStates.filter((s) =>
     s.labels.includes(AGENT_LABELS.BLOCKED),
   );
@@ -219,6 +229,23 @@ export async function tick(args = {}) {
   if (blockedStories.length) {
     nextAction = { kind: 'observe', waitingOn: blocked.map((s) => s.id) };
   } else if (dispatchable.length) {
+    // First dispatch of this wave fires `wave-start` exactly once — the
+    // perf-aggregator (`waveParallelism` report) brackets each wave's
+    // wall-clock from `wave-start` → `wave-complete`. The ledger in-flight
+    // set is consulted alongside the label view so a dispatched-but-not-yet-
+    // executing Story does not re-fire `wave-start`.
+    if (
+      executing.length === 0 &&
+      done.length === 0 &&
+      inFlightUndispatched.length === 0
+    ) {
+      await emit({
+        kind: 'wave-start',
+        index: currentWave,
+        totalWaves,
+        stories: wavePlan.map((s) => ({ id: storyIdOf(s), title: s.title })),
+      });
+    }
     nextAction = {
       kind: 'dispatch',
       stories: dispatchable.map((s) => ({
@@ -239,6 +266,8 @@ export async function tick(args = {}) {
   } else if (currentWave + 1 >= totalWaves) {
     nextAction = { kind: 'epic-complete' };
   } else {
+    // Closes the wave window for the perf-aggregator's wall-clock bracket.
+    await emit({ kind: 'wave-complete', index: currentWave, totalWaves });
     nextAction = { kind: 'wave-complete', index: currentWave };
   }
 
@@ -612,4 +641,25 @@ function readGateFailures(history, currentWave) {
       gate: s.gate ?? 'unspecified',
       detail: s.detail,
     }));
+}
+
+/**
+ * Default emitter — appends to per-Epic `signals.ndjson`. Best-effort;
+ * never throws. Tests override via `collaborators.signalEmit`.
+ *
+ * Story #3909 — the planner now emits only the two wave events that have a
+ * live consumer: `wave-start` and `wave-complete`, which the perf-aggregator
+ * (`waveParallelism` report) brackets into per-wave wall-clock. The
+ * write-only `wave-tick` (per-call telemetry) and `epic-complete` (no reader)
+ * emits were dropped — they duplicated the `epic-run-state` checkpoint and the
+ * `epic-run-progress` rollup and nothing consumed them.
+ */
+function defaultSignalEmit(epicId, ctx) {
+  return async (signal) => {
+    await appendEpicSignal({
+      epicId,
+      signal: { ts: new Date().toISOString(), epic: epicId, ...signal },
+      config: ctx?.config,
+    });
+  };
 }

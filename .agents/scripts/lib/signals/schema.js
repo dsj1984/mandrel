@@ -23,12 +23,16 @@
  *                        post-merge-pipeline.js, progress-reporter.js,
  *                        auto-refresh-runner.js)
  *   - `dispatched`     — (no live emitter; retained pending Story #3908 sweep)
+ *   - `wave-start` / `wave-complete` — `lib/wave-runner/tick.js` (read by
+ *                        perf-aggregator's `waveParallelism` report;
+ *                        `wave-start` also anchors span-tree Story spans)
+ *   - `wave-end`       — span-tree pairing anchor (no live emitter after the
+ *                        Epic #2646 listener deletion; retained for span-tree)
  *   - `state-transition` — orchestration/ticketing.js
  *
- * The wave-lifecycle kinds (`wave-start`, `wave-end`, `wave-tick`,
- * `wave-complete`, `epic-complete`) were retired in Story #3909 — they were
- * write-only telemetry duplicating the checkpoint + `epic-run-progress` rollup
- * and had no production reader.
+ * Story #3909 retired the write-only wave kinds with no consumer (`wave-tick`,
+ * `epic-complete`) — they duplicated the checkpoint + `epic-run-progress`
+ * rollup and nothing read them back.
  *
  * Signals-writer `appendTrace` call sites (traces.ndjson sibling, but
  * sharing the same envelope shape — `tool-trace-hook.js`):
@@ -74,13 +78,17 @@ export const EVENT_KINDS = Object.freeze({
   FRICTION: 'friction',
   TRACE: 'trace',
   DISPATCHED: 'dispatched',
-  // Story #3909 — the wave-lifecycle signal kinds (`wave-start`, `wave-end`,
-  // `wave-tick`, `wave-complete`, `epic-complete`) were retired. They were
-  // write-only telemetry that duplicated the `epic-run-state` checkpoint and
-  // the `epic-run-progress` rollup; nothing read them back for control flow.
-  // Their last emitters were deleted alongside the dead in-process runner
-  // (Epic #2646 / Story #3908) and the per-wave `lib/wave-runner/tick.js`
-  // signal emits.
+  // Wave-window forensics signals: `wave-start` / `wave-end` anchor the
+  // span-tree's Story spans, and the perf-aggregator brackets each wave's
+  // wall-clock from `wave-start` → `wave-complete` (the `waveParallelism`
+  // report). These are READ — they survive.
+  WAVE_START: 'wave-start',
+  WAVE_END: 'wave-end',
+  WAVE_COMPLETE: 'wave-complete',
+  // Story #3909 — the write-only wave-lifecycle kinds with no consumer
+  // (`wave-tick`, `epic-complete`) were retired. They duplicated the
+  // `epic-run-state` checkpoint and the `epic-run-progress` rollup and nothing
+  // read them back.
   STATE_TRANSITION: 'state-transition',
   HOTSPOT: 'hotspot',
   REWORK: 'rework',
