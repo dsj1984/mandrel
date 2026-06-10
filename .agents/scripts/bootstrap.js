@@ -96,6 +96,26 @@ function bareRepoName(slug) {
   return slash === -1 ? slug : slug.slice(slash + 1);
 }
 
+/**
+ * Normalize an operator handle to the bare login the starter template expects.
+ *
+ * The starter `.agentrc.json` carries `"operatorHandle": "@[USERNAME]"` and the
+ * seed step substitutes `[USERNAME]` with this answer — so the answer MUST be
+ * the bare handle (no leading `@`), or the seeded value becomes `@@foo`. The
+ * interactive validator already rejects a leading `@`, but the
+ * `--operator-handle @x` flag and `GH_OPERATOR_HANDLE=@x` env paths skip that
+ * validator (Story #3700). Stripping a single leading `@` here closes that gap
+ * for every resolution path. Idempotent: a bare handle is returned unchanged,
+ * so a re-run never re-strips or re-accumulates.
+ *
+ * @param {string|undefined|null} handle
+ * @returns {string|undefined|null} the input with a single leading `@` removed
+ */
+export function normalizeHandleAnswer(handle) {
+  if (typeof handle !== 'string') return handle;
+  return handle.replace(/^@/, '');
+}
+
 /** Run a list-producing fn, returning [] on any throw. */
 function safeList(fn) {
   try {
@@ -815,6 +835,11 @@ export async function collectAndConfirm(state) {
     }
     // Defaults that track another answer: handle ⇐ owner, project ⇐ repo.
     if (!answers.operatorHandle) answers.operatorHandle = answers.owner;
+    // Strip a single leading `@` so the starter template's `@[USERNAME]`
+    // substitution yields `@foo`, not `@@foo` (Story #3700). The flag/env
+    // paths bypass the interactive validator that already rejects a leading
+    // `@`, so normalize uniformly here.
+    answers.operatorHandle = normalizeHandleAnswer(answers.operatorHandle);
 
     const creation = await detectCreation(answers, skipGithub);
     const project = resolveProjectDisplay(answers, skipGithub, projectsList);
@@ -1019,13 +1044,16 @@ export function persistProjectNumber(state) {
     return { ok: true, payload: {} };
   }
   config.github = config.github ?? {};
-  if (config.github.projectNumber !== Number(pn)) {
-    config.github.projectNumber = Number(pn);
-    fs.writeFileSync(target, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
-    Logger.info(
-      `[bootstrap] Stored github.projectNumber=${pn} in .agentrc.json`,
-    );
+  // Minimal-write contract (Story #3700): only re-serialize `.agentrc.json`
+  // when the stored number actually changes. When the value is already present
+  // and equal, leave the file byte-for-byte untouched — a re-run must not churn
+  // the consumer's hand-formatting or whitespace.
+  if (config.github.projectNumber === Number(pn)) {
+    return { ok: true, payload: {} };
   }
+  config.github.projectNumber = Number(pn);
+  fs.writeFileSync(target, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+  Logger.info(`[bootstrap] Stored github.projectNumber=${pn} in .agentrc.json`);
   return { ok: true, payload: {} };
 }
 
