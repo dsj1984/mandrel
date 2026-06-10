@@ -234,11 +234,17 @@ Stdout is one `WaveTickResult` envelope:
 }
 ```
 
-The CLI emits `wave-tick` (every call) plus `wave-start` /
-`wave-complete` / `epic-complete` at transitions to the per-Epic
-`signals.ndjson`; the
+The CLI is a pure planner: it returns the `nextAction` envelope above and
+writes nothing of its own. Wave progress is durable on two surviving
+surfaces — the `epic-run-state` checkpoint (resume) and the
+`epic-run-progress` rollup comment (operator-facing), both written by
+`epic-execute-record-wave.js` at the wave boundary. The redundant
+wave-lifecycle `signals.ndjson` events (`wave-start` / `wave-tick` /
+`wave-complete` / `epic-complete`) were retired in Story #3909 — they
+duplicated those surfaces and nothing read them back. The
 [`signals` helper](helpers/signals.md) (`node .agents/scripts/signals-view.js`)
-renders them in the span-tree view when needed.
+still renders the forensics signals (friction, recurring-failure, acceptance
+self-eval) that remain.
 
 ### 2b. Dispatch — fan out per-Story Agent calls
 

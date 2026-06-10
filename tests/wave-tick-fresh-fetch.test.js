@@ -55,7 +55,6 @@ describe('wave-runner tick fresh-fetch policy', () => {
       collaborators: {
         provider,
         epicRunStateStore: { read: async () => checkpoint },
-        signalEmit: async () => {},
         inFlightReader: async () => [],
         recurringFailureReporter: async () => {},
       },
@@ -75,7 +74,6 @@ describe('wave-runner tick fresh-fetch policy', () => {
       collaborators: {
         provider,
         epicRunStateStore: { read: async () => checkpoint },
-        signalEmit: async () => {},
         inFlightReader: async () => [],
         recurringFailureReporter: async () => {},
       },
@@ -100,7 +98,6 @@ describe('wave-runner tick fresh-fetch policy', () => {
       collaborators: {
         provider,
         epicRunStateStore: { read: async () => checkpoint },
-        signalEmit: async () => {},
         inFlightReader: async () => [],
         recurringFailureReporter: async () => {},
       },

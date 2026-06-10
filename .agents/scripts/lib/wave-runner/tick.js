@@ -16,7 +16,6 @@ import { existsSync, readFileSync } from 'node:fs';
 
 import { epicLedgerPath } from '../config/temp-paths.js';
 import { AGENT_LABELS } from '../label-constants.js';
-import { appendEpicSignal } from '../observability/signals-writer.js';
 import * as epicRunStateStoreModule from '../orchestration/epic-run-state-store.js';
 import { detectRecurringFailures } from '../orchestration/recurring-failure-detector.js';
 import { upsertStructuredComment as defaultUpsertStructuredComment } from '../orchestration/ticketing.js';
@@ -55,7 +54,6 @@ import { WaveRunnerError } from './wave-runner-error.js';
  * @property {{
  *   provider?: object,
  *   epicRunStateStore?: { read: () => Promise<object|null> },
- *   signalEmit?: (signal: object) => Promise<unknown>,
  *   inFlightReader?: () => Promise<number[]>,
  *   recurringFailureReporter?: () => Promise<void>,
  * }} [collaborators]
@@ -68,7 +66,6 @@ export async function tick(args = {}) {
   const {
     provider: collabProvider,
     epicRunStateStore: collabStore,
-    signalEmit,
     inFlightReader: collabInFlightReader,
     recurringFailureReporter: collabRecurringFailureReporter,
   } = args.collaborators ?? {};
@@ -86,7 +83,6 @@ export async function tick(args = {}) {
   const epicRunStateStore = collabStore ?? {
     read: () => epicRunStateStoreModule.read({ provider, epicId }),
   };
-  const emit = signalEmit ?? defaultSignalEmit(epicId, ctx);
   const inFlightReader =
     collabInFlightReader ?? (() => defaultInFlightReader(epicId, ctx?.config));
 
@@ -108,11 +104,6 @@ export async function tick(args = {}) {
   const history = Array.isArray(state.waves) ? state.waves : [];
 
   if (totalWaves === 0 || currentWave >= totalWaves) {
-    await emit({
-      kind: 'epic-complete',
-      totalWaves,
-      completedWaves: history.length,
-    });
     return tickResult({
       nextAction: { kind: 'epic-complete' },
       currentWave,
@@ -122,25 +113,12 @@ export async function tick(args = {}) {
 
   const wavePlan = Array.isArray(plan[currentWave]) ? plan[currentWave] : [];
   if (wavePlan.length === 0) {
-    await emit({
-      kind: 'wave-complete',
-      index: currentWave,
-      totalWaves,
-      empty: true,
-    });
     return tickResult({
       nextAction: { kind: 'wave-complete', index: currentWave },
       currentWave,
       totalWaves,
     });
   }
-
-  const baseTick = {
-    kind: 'wave-tick',
-    index: currentWave,
-    totalWaves,
-    wavePlanSize: wavePlan.length,
-  };
 
   // Story #3026 — match the iterate-waves resume-check cache strategy:
   // only Stories that the checkpoint marks as halted on a prior wave
@@ -184,8 +162,8 @@ export async function tick(args = {}) {
   // GitHub issue is `state === 'closed'`. Reading the closed state (not just
   // the label) means a Story closed manually through the GitHub UI — which
   // closes the issue but does not flip the `agent::*` label — is recognised
-  // as done and is never re-dispatched.
-  const done = waveStates.filter(isStoryDone);
+  // as done and is never re-dispatched. `isStoryDone` rides on `isUndispatched`
+  // below, so closed-but-unlabelled Stories are excluded from the dispatch set.
   const blocked = waveStates.filter((s) =>
     s.labels.includes(AGENT_LABELS.BLOCKED),
   );
@@ -230,7 +208,6 @@ export async function tick(args = {}) {
 
   // 6. Decide nextAction.
   let nextAction;
-  let tickDetail;
 
   // Stories that are label-undispatched but recorded in-flight on the ledger
   // (subtracted out of `dispatchable`) must be observed, not re-dispatched —
@@ -241,23 +218,7 @@ export async function tick(args = {}) {
 
   if (blockedStories.length) {
     nextAction = { kind: 'observe', waitingOn: blocked.map((s) => s.id) };
-    tickDetail = { decision: 'observe-blocked' };
   } else if (dispatchable.length) {
-    // First dispatch of this wave fires `wave-start` exactly once. The
-    // ledger in-flight set is consulted alongside the label view so a
-    // dispatched-but-not-yet-executing Story does not re-fire `wave-start`.
-    if (
-      executing.length === 0 &&
-      done.length === 0 &&
-      inFlightUndispatched.length === 0
-    ) {
-      await emit({
-        kind: 'wave-start',
-        index: currentWave,
-        totalWaves,
-        stories: wavePlan.map((s) => ({ id: storyIdOf(s), title: s.title })),
-      });
-    }
     nextAction = {
       kind: 'dispatch',
       stories: dispatchable.map((s) => ({
@@ -265,10 +226,6 @@ export async function tick(args = {}) {
         title: s.title,
         worktree: s.worktree,
       })),
-    };
-    tickDetail = {
-      decision: 'dispatch',
-      dispatchableCount: dispatchable.length,
     };
   } else if (executing.length || inFlightUndispatched.length) {
     // Either a Story is `agent::executing`, or the ledger shows a
@@ -279,22 +236,11 @@ export async function tick(args = {}) {
       ...inFlightUndispatched.map((s) => s.id),
     ].sort((a, b) => a - b);
     nextAction = { kind: 'observe', waitingOn };
-    tickDetail = { decision: 'observe-in-flight' };
   } else if (currentWave + 1 >= totalWaves) {
-    await emit({
-      kind: 'epic-complete',
-      totalWaves,
-      completedWaves: history.length + 1,
-    });
     nextAction = { kind: 'epic-complete' };
-    tickDetail = { decision: 'epic-complete' };
   } else {
-    await emit({ kind: 'wave-complete', index: currentWave, totalWaves });
     nextAction = { kind: 'wave-complete', index: currentWave };
-    tickDetail = { decision: 'wave-complete' };
   }
-
-  await emit({ ...baseTick, nextAction: nextAction.kind, ...tickDetail });
 
   // Story #2891 — attach the in-flight ledger reconciliation to the
   // nextAction envelope. Always emit the field (empty array when the
@@ -666,18 +612,4 @@ function readGateFailures(history, currentWave) {
       gate: s.gate ?? 'unspecified',
       detail: s.detail,
     }));
-}
-
-/**
- * Default emitter — appends to per-Epic `signals.ndjson`. Best-effort;
- * never throws. Tests override via `collaborators.signalEmit`.
- */
-function defaultSignalEmit(epicId, ctx) {
-  return async (signal) => {
-    await appendEpicSignal({
-      epicId,
-      signal: { ts: new Date().toISOString(), epic: epicId, ...signal },
-      config: ctx?.config,
-    });
-  };
 }

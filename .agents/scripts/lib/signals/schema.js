@@ -22,15 +22,13 @@
  *                        check-maintainability.js, diagnose-friction.js,
  *                        post-merge-pipeline.js, progress-reporter.js,
  *                        auto-refresh-runner.js)
- *   - `dispatched`     — wave-dispatcher.js
- *   - `wave-start`     — lifecycle/listeners/structured-comment-poster.js
- *                        (was epic-runner/wave-observer.js prior to Epic
- *                        #2646; the listener took over the rich body and
- *                        marker namespace)
- *   - `wave-end`       — lifecycle/listeners/structured-comment-poster.js
- *                        (was epic-runner/wave-observer.js prior to Epic
- *                        #2646)
+ *   - `dispatched`     — (no live emitter; retained pending Story #3908 sweep)
  *   - `state-transition` — orchestration/ticketing.js
+ *
+ * The wave-lifecycle kinds (`wave-start`, `wave-end`, `wave-tick`,
+ * `wave-complete`, `epic-complete`) were retired in Story #3909 — they were
+ * write-only telemetry duplicating the checkpoint + `epic-run-progress` rollup
+ * and had no production reader.
  *
  * Signals-writer `appendTrace` call sites (traces.ndjson sibling, but
  * sharing the same envelope shape — `tool-trace-hook.js`):
@@ -76,12 +74,13 @@ export const EVENT_KINDS = Object.freeze({
   FRICTION: 'friction',
   TRACE: 'trace',
   DISPATCHED: 'dispatched',
-  WAVE_START: 'wave-start',
-  WAVE_END: 'wave-end',
-  // Story #1430 — wave-runner lifecycle signals emitted by `lib/wave-runner/tick.js`.
-  WAVE_TICK: 'wave-tick',
-  WAVE_COMPLETE: 'wave-complete',
-  EPIC_COMPLETE: 'epic-complete',
+  // Story #3909 — the wave-lifecycle signal kinds (`wave-start`, `wave-end`,
+  // `wave-tick`, `wave-complete`, `epic-complete`) were retired. They were
+  // write-only telemetry that duplicated the `epic-run-state` checkpoint and
+  // the `epic-run-progress` rollup; nothing read them back for control flow.
+  // Their last emitters were deleted alongside the dead in-process runner
+  // (Epic #2646 / Story #3908) and the per-wave `lib/wave-runner/tick.js`
+  // signal emits.
   STATE_TRANSITION: 'state-transition',
   HOTSPOT: 'hotspot',
   REWORK: 'rework',

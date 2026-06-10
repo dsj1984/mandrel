@@ -27,16 +27,10 @@ function fakeProvider(labelsById = new Map()) {
   };
 }
 
-/**
- * Capture emitted signals via a stub `signalEmit`.
- */
-function captureSignals() {
-  const emitted = [];
-  return {
-    emitted,
-    signalEmit: async (signal) => emitted.push(signal),
-  };
-}
+// Story #3909 — the wave-lifecycle signal emits (`wave-start`, `wave-tick`,
+// `wave-complete`, `epic-complete`) were retired; the tick planner now only
+// returns a `nextAction` envelope. These tests assert that surviving planning
+// output, not the deleted telemetry.
 
 describe('lib/wave-runner/tick', () => {
   it('returns epic-complete when currentWave >= totalWaves', async () => {
@@ -51,14 +45,12 @@ describe('lib/wave-runner/tick', () => {
       ],
     });
     const provider = fakeProvider();
-    const sig = captureSignals();
 
     const result = await tick({
       epic: 100,
       collaborators: {
         provider,
         epicRunStateStore: checkpointer,
-        signalEmit: sig.signalEmit,
       },
     });
 
@@ -67,7 +59,6 @@ describe('lib/wave-runner/tick', () => {
     assert.deepEqual(result.gateFailures, []);
     assert.equal(result.currentWave, 2);
     assert.equal(result.totalWaves, 2);
-    assert.ok(sig.emitted.some((e) => e.kind === 'epic-complete'));
   });
 
   it('returns wave-complete for an empty wave plan', async () => {
@@ -79,23 +70,20 @@ describe('lib/wave-runner/tick', () => {
       waves: [],
     });
     const provider = fakeProvider();
-    const sig = captureSignals();
 
     const result = await tick({
       epic: 100,
       collaborators: {
         provider,
         epicRunStateStore: checkpointer,
-        signalEmit: sig.signalEmit,
       },
     });
 
     assert.equal(result.nextAction.kind, 'wave-complete');
     assert.equal(result.nextAction.index, 0);
-    assert.ok(sig.emitted.some((e) => e.kind === 'wave-complete'));
   });
 
-  it('returns dispatch for an undispatched wave (and emits wave-start once)', async () => {
+  it('returns dispatch for an undispatched wave', async () => {
     const checkpointer = fakeCheckpointer({
       epicId: 100,
       currentWave: 0,
@@ -116,14 +104,12 @@ describe('lib/wave-runner/tick', () => {
         [2, ['agent::ready', 'type::story']],
       ]),
     );
-    const sig = captureSignals();
 
     const result = await tick({
       epic: 100,
       collaborators: {
         provider,
         epicRunStateStore: checkpointer,
-        signalEmit: sig.signalEmit,
       },
     });
 
@@ -133,8 +119,6 @@ describe('lib/wave-runner/tick', () => {
       result.nextAction.stories.map((s) => s.id),
       [1, 2],
     );
-    assert.ok(sig.emitted.some((e) => e.kind === 'wave-start'));
-    assert.ok(sig.emitted.some((e) => e.kind === 'wave-tick'));
   });
 
   it('refills mid-wave: dispatch returns only the still-undispatched stories', async () => {
@@ -153,14 +137,12 @@ describe('lib/wave-runner/tick', () => {
         [3, ['agent::ready']],
       ]),
     );
-    const sig = captureSignals();
 
     const result = await tick({
       epic: 100,
       collaborators: {
         provider,
         epicRunStateStore: checkpointer,
-        signalEmit: sig.signalEmit,
       },
     });
 
@@ -168,11 +150,6 @@ describe('lib/wave-runner/tick', () => {
     assert.deepEqual(
       result.nextAction.stories.map((s) => s.id),
       [3],
-    );
-    // wave-start does NOT fire on a refill — done/executing are non-empty.
-    assert.equal(
-      sig.emitted.some((e) => e.kind === 'wave-start'),
-      false,
     );
   });
 
@@ -190,14 +167,12 @@ describe('lib/wave-runner/tick', () => {
         [2, [AGENT_LABELS.BLOCKED]],
       ]),
     );
-    const sig = captureSignals();
 
     const result = await tick({
       epic: 100,
       collaborators: {
         provider,
         epicRunStateStore: checkpointer,
-        signalEmit: sig.signalEmit,
       },
     });
 
@@ -222,20 +197,17 @@ describe('lib/wave-runner/tick', () => {
         [2, [AGENT_LABELS.DONE]],
       ]),
     );
-    const sig = captureSignals();
 
     const result = await tick({
       epic: 100,
       collaborators: {
         provider,
         epicRunStateStore: checkpointer,
-        signalEmit: sig.signalEmit,
       },
     });
 
     assert.equal(result.nextAction.kind, 'wave-complete');
     assert.equal(result.nextAction.index, 0);
-    assert.ok(sig.emitted.some((e) => e.kind === 'wave-complete'));
   });
 
   it('returns epic-complete on full wave done in the last wave', async () => {
@@ -247,19 +219,16 @@ describe('lib/wave-runner/tick', () => {
       waves: [{ index: 0, status: 'complete' }],
     });
     const provider = fakeProvider(new Map([[2, [AGENT_LABELS.DONE]]]));
-    const sig = captureSignals();
 
     const result = await tick({
       epic: 100,
       collaborators: {
         provider,
         epicRunStateStore: checkpointer,
-        signalEmit: sig.signalEmit,
       },
     });
 
     assert.equal(result.nextAction.kind, 'epic-complete');
-    assert.ok(sig.emitted.some((e) => e.kind === 'epic-complete'));
   });
 
   it('throws WaveRunnerError(checkpoint-missing) when no checkpoint exists', async () => {
@@ -336,7 +305,6 @@ describe('lib/wave-runner/tick', () => {
       collaborators: {
         provider,
         epicRunStateStore: checkpointer,
-        signalEmit: async () => {},
       },
     });
     const r2 = await tick({
@@ -344,32 +312,9 @@ describe('lib/wave-runner/tick', () => {
       collaborators: {
         provider,
         epicRunStateStore: checkpointer,
-        signalEmit: async () => {},
       },
     });
     assert.equal(r1.nextAction.kind, r2.nextAction.kind);
-  });
-
-  it('emits a wave-tick signal on every call (one per invocation)', async () => {
-    const checkpointer = fakeCheckpointer({
-      currentWave: 0,
-      totalWaves: 1,
-      plan: [[{ id: 1 }]],
-      waves: [],
-    });
-    const provider = fakeProvider(new Map([[1, ['agent::ready']]]));
-    const sig = captureSignals();
-
-    await tick({
-      epic: 100,
-      collaborators: {
-        provider,
-        epicRunStateStore: checkpointer,
-        signalEmit: sig.signalEmit,
-      },
-    });
-    const tickCount = sig.emitted.filter((e) => e.kind === 'wave-tick').length;
-    assert.equal(tickCount, 1);
   });
 });
 
@@ -410,14 +355,12 @@ describe('lib/wave-runner/tick — Story #3907 resilience', () => {
         [2, ['agent::ready']],
       ]),
     );
-    const sig = captureSignals();
 
     const result = await tick({
       epic: 100,
       collaborators: {
         provider,
         epicRunStateStore: checkpointer,
-        signalEmit: sig.signalEmit,
         inFlightReader: async () => [1],
       },
     });
@@ -440,14 +383,12 @@ describe('lib/wave-runner/tick — Story #3907 resilience', () => {
       waves: [],
     });
     const provider = fakeProvider(new Map([[1, ['agent::ready']]]));
-    const sig = captureSignals();
 
     const result = await tick({
       epic: 100,
       collaborators: {
         provider,
         epicRunStateStore: checkpointer,
-        signalEmit: sig.signalEmit,
         inFlightReader: async () => [1],
       },
     });
@@ -456,38 +397,6 @@ describe('lib/wave-runner/tick — Story #3907 resilience', () => {
     assert.deepEqual(result.nextAction.waitingOn, [1]);
     // Must NOT collapse the wave into wave-complete while a Story is in flight.
     assert.notEqual(result.nextAction.kind, 'wave-complete');
-  });
-
-  it('does not re-fire wave-start when a Story is already in-flight on the ledger', async () => {
-    const checkpointer = fakeCheckpointer({
-      epicId: 100,
-      currentWave: 0,
-      totalWaves: 1,
-      plan: [[{ id: 1 }, { id: 2 }]],
-      waves: [],
-    });
-    const provider = fakeProvider(
-      new Map([
-        [1, ['agent::ready']],
-        [2, ['agent::ready']],
-      ]),
-    );
-    const sig = captureSignals();
-
-    await tick({
-      epic: 100,
-      collaborators: {
-        provider,
-        epicRunStateStore: checkpointer,
-        signalEmit: sig.signalEmit,
-        inFlightReader: async () => [1],
-      },
-    });
-
-    assert.equal(
-      sig.emitted.some((e) => e.kind === 'wave-start'),
-      false,
-    );
   });
 
   it('treats a manually-closed Story (state=closed, no agent::done) as done — not re-dispatched', async () => {
@@ -509,14 +418,12 @@ describe('lib/wave-runner/tick — Story #3907 resilience', () => {
         [2, 'open'],
       ]),
     });
-    const sig = captureSignals();
 
     const result = await tick({
       epic: 100,
       collaborators: {
         provider,
         epicRunStateStore: checkpointer,
-        signalEmit: sig.signalEmit,
       },
     });
 
@@ -540,14 +447,12 @@ describe('lib/wave-runner/tick — Story #3907 resilience', () => {
       labelsById: new Map([[1, ['agent::ready']]]),
       stateById: new Map([[1, 'closed']]),
     });
-    const sig = captureSignals();
 
     const result = await tick({
       epic: 100,
       collaborators: {
         provider,
         epicRunStateStore: checkpointer,
-        signalEmit: sig.signalEmit,
       },
     });
 

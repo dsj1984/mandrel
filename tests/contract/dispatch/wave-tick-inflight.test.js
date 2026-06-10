@@ -50,7 +50,6 @@ describe('contract/dispatch/wave-tick-inflight', () => {
       collaborators: {
         provider,
         epicRunStateStore: checkpointer,
-        signalEmit: async () => {},
         inFlightReader,
       },
     });
@@ -74,7 +73,6 @@ describe('contract/dispatch/wave-tick-inflight', () => {
       collaborators: {
         provider,
         epicRunStateStore: checkpointer,
-        signalEmit: async () => {},
         inFlightReader,
       },
     });
@@ -103,7 +101,6 @@ describe('contract/dispatch/wave-tick-inflight', () => {
       collaborators: {
         provider,
         epicRunStateStore: checkpointer,
-        signalEmit: async () => {},
       },
     });
 
@@ -168,7 +165,6 @@ describe('contract/dispatch/wave-tick-inflight', () => {
         collaborators: {
           provider,
           epicRunStateStore: checkpointer,
-          signalEmit: async () => {},
         },
       });
 
