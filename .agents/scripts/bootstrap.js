@@ -45,6 +45,12 @@ import readline from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 
 // Reused bootstrap library helpers (unchanged).
+import {
+  buildManualInstructions,
+  COMMIT_SUBJECT,
+  resolveStagePaths,
+  stageBootstrapFiles,
+} from './lib/bootstrap/commit-push.js';
 import { listProjects, listRepos } from './lib/bootstrap/gh-list.js';
 import {
   buildLedgerRecord,
@@ -1178,6 +1184,92 @@ export function recordLedger(state) {
   return { ok: true, payload: {} };
 }
 
+/**
+ * Step 7 — Offer to commit + push the bootstrap wiring (Story #3899).
+ *
+ * Story delivery runs in git worktrees that check out **tracked files only**,
+ * so an uncommitted `.agents/` tree means every Story sub-agent breaks. This
+ * step closes that "worked in my checkout, broke in delivery" trap by offering
+ * the commit + push at the end of the run.
+ *
+ * Ordering: this phase runs LAST in the pipeline, after `executeBootstrap`
+ * (which seeds the secret-safe `.gitignore`) and `recordLedger`. The stage
+ * step also uses an explicit allowlist and refuses to stage `.env` /
+ * `.mcp.json` / `.agentrc.local.json` regardless of `.gitignore` state, so the
+ * commit never carries a secret even before the gitignore-ordering Story
+ * (#3894) lands.
+ *
+ * Behaviour:
+ *   - `--dry-run` → no-op (the dry-run gate already halted earlier; this is a
+ *     belt-and-braces guard for direct calls).
+ *   - Interactive + accept → stage the allowlist, commit with a conventional
+ *     subject, push the base branch.
+ *   - Interactive + decline → print the exact manual commands; no git mutation.
+ *   - Non-interactive (`--assume-yes` / no TTY) → the defined safe path is to
+ *     print the manual commands and make NO git mutation, so a CI run never
+ *     surprises the operator with a push it did not ask for.
+ *
+ * `deps.runGit` injects the git seam and `deps.confirm` the yes/no prompt seam
+ * for unit testing; both default to the module's implementations.
+ */
+export async function offerCommitPush(state, deps = {}) {
+  if (state.flags['dry-run']) return { ok: true, payload: {} };
+  const runGitImpl = deps.runGit ?? runGit;
+  const confirmImpl = deps.confirm ?? confirmYesNo;
+  const cwd = state.projectRoot;
+  const branch = state.answers.baseBranch || 'main';
+  const stagePaths = resolveStagePaths(cwd);
+  const instructions = buildManualInstructions({
+    stagePaths,
+    baseBranch: branch,
+  });
+
+  // Non-interactive (--assume-yes / no TTY): never push unprompted. Print the
+  // exact commands and leave the working tree untouched.
+  if (!state.interactive) {
+    Logger.info(`\n[bootstrap] ${instructions}`);
+    return { ok: true, payload: { commitPush: { action: 'instructed' } } };
+  }
+
+  const accepted = await confirmImpl(
+    'Commit and push the Mandrel setup?',
+    state.interactive,
+  );
+  if (!accepted) {
+    Logger.info(`\n[bootstrap] ${instructions}`);
+    return { ok: true, payload: { commitPush: { action: 'declined' } } };
+  }
+
+  const staged = stageBootstrapFiles({ projectRoot: cwd, runGit: runGitImpl });
+  if (!staged.ok) {
+    Logger.warn(`[bootstrap] Could not stage the wiring: ${staged.error}`);
+    Logger.info(`\n[bootstrap] ${instructions}`);
+    return { ok: true, payload: { commitPush: { action: 'stage-failed' } } };
+  }
+  const commit = runGitImpl(
+    [...gitIdentityArgs(cwd, state.answers), 'commit', '-m', COMMIT_SUBJECT],
+    cwd,
+  );
+  if (!commit.ok) {
+    // A "nothing to commit" exit is benign — the wiring is already committed.
+    Logger.warn(
+      `[bootstrap] git commit did not create a commit (already committed?): ${commit.stderr || commit.stdout}`,
+    );
+    Logger.info(`\n[bootstrap] ${instructions}`);
+    return { ok: true, payload: { commitPush: { action: 'commit-skipped' } } };
+  }
+  Logger.info('[bootstrap] Committed the Mandrel wiring.');
+  const push = runGitImpl(['push', '-u', 'origin', branch], cwd);
+  if (!push.ok) {
+    Logger.warn(
+      `[bootstrap] Commit landed but push of '${branch}' failed (push it manually with \`git push -u origin ${branch}\`): ${push.stderr}`,
+    );
+    return { ok: true, payload: { commitPush: { action: 'push-failed' } } };
+  }
+  Logger.info(`[bootstrap] Pushed '${branch}' to origin.`);
+  return { ok: true, payload: { commitPush: { action: 'committed-pushed' } } };
+}
+
 /** Pipeline driver — threads accumulated state through each phase. */
 export async function runPipeline(phases) {
   let state = {};
@@ -1201,6 +1293,7 @@ export async function main(argv = process.argv.slice(2)) {
     (s) => persistProjectNumber(s),
     (s) => executeGithubBootstrap(s),
     (s) => recordLedger(s),
+    (s) => offerCommitPush(s),
   ]);
   if (!result.ok) return result.exit;
   Logger.info('\n[bootstrap] Done.');
