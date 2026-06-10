@@ -145,6 +145,14 @@ npx mandrel sync                        # re-materialize ./.agents/
 npx mandrel doctor                      # verify the install
 ```
 
+### Migrating from `@mandrelai/agents`
+
+The framework package was renamed from the scoped `@mandrelai/agents` to the
+unscoped `mandrel`. Already on the old name? `mandrel update` does **not**
+auto-migrate (it resolves the package by name), so make the one-time manual
+hop documented in
+[`docs/migrate-mandrelai-to-mandrel.md`](docs/migrate-mandrelai-to-mandrel.md).
+
 ## Contributors
 
 Only `.agents/` is distributed to consumers — it ships inside the
