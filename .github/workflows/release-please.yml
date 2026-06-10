@@ -18,16 +18,24 @@ jobs:
   release-please:
     name: Run release-please
     runs-on: ubuntu-latest
-    # Multi-package (manifest) mode emits per-path outputs prefixed with the
-    # package path: `.` for the root `mandrel` package and `create-mandrel`
-    # for the launcher. The top-level `release_created` is true if *either*
-    # package released, so each publish job must key off its OWN package's
-    # per-path output — otherwise a launcher-only release would re-run the
-    # root `npm publish` on an already-published version (and fail), and vice
-    # versa. See release-please-action multi-package outputs.
+    # Multi-package (manifest) output naming — verified against
+    # release-please-action v5.0.0 `src/index.ts#setPathOutput`:
+    #
+    #   if (path === '.') core.setOutput(key, value)           // root: UN-prefixed
+    #   else              core.setOutput(`${path}--${key}`, …)  // non-root: prefixed
+    #
+    # The root `mandrel` package has manifest path `.`, so its outputs are the
+    # **un-prefixed** `release_created` / `tag_name`. Only **non-root** packages
+    # (the launcher, path `create-mandrel`) get the `${path}--${key}` prefix.
+    # There is therefore no `.--release_created` output — keying off it (as the
+    # initial Story #3891 wiring did) silently skips the root publish on every
+    # release. The singular `release_created` is **root-specific** (set only
+    # when the root path releases, never on a launcher-only release), so it is
+    # the correct, drift-proof gate for the root publish; `releases_created`
+    # (plural) is the "any package released" boolean and is NOT used here.
     outputs:
-      root_release_created: ${{ steps.release.outputs['.--release_created'] }}
-      root_tag_name: ${{ steps.release.outputs['.--tag_name'] }}
+      root_release_created: ${{ steps.release.outputs.release_created }}
+      root_tag_name: ${{ steps.release.outputs.tag_name }}
       launcher_release_created: ${{ steps.release.outputs['create-mandrel--release_created'] }}
       launcher_tag_name: ${{ steps.release.outputs['create-mandrel--tag_name'] }}
     steps:
