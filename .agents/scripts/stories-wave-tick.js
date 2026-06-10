@@ -10,6 +10,7 @@
  * Usage:
  *   node .agents/scripts/stories-wave-tick.js --dag '<json>'
  *   node .agents/scripts/stories-wave-tick.js --dag-file <path>
+ *   node .agents/scripts/stories-wave-tick.js --dag '<json>' --concurrency 5
  *
  * DAG input format (JSON):
  *   Array of { id: number, dependsOn: number[] } objects where id is a Story
@@ -20,8 +21,17 @@
  *     kind: 'stories-wave-plan',
  *     waves: Array<{ waveIndex: number, stories: number[] }>,
  *     totalStories: number,
+ *     concurrencyCap: number,
  *     cycleError: string | null
  *   }
+ *
+ * The per-wave concurrency cap is resolved from the same config seam
+ * `/epic-deliver` uses — `resolveConfig` + `getRunners` reading
+ * `delivery.deliverRunner.concurrencyCap` (default 3) — so a
+ * `.agentrc.local.json` override is honored. A `--concurrency <n>` CLI flag
+ * overrides the config-resolved value for that run only. This puts both the
+ * standalone (`/story-deliver`) and Epic (`/epic-deliver`) delivery paths on
+ * one deterministic config source.
  *
  * On cycle detection, exits with code 2 and sets cycleError in the envelope.
  */
@@ -30,13 +40,15 @@ import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 
 import { runAsCli } from './lib/cli-utils.js';
+import { getRunners, resolveConfig } from './lib/config-resolver.js';
 import { assignLayers, detectCycle } from './lib/Graph.js';
 import { Logger } from './lib/Logger.js';
 
-const HELP = `Usage: node .agents/scripts/stories-wave-tick.js --dag '<json>' | --dag-file <path>
+const HELP = `Usage: node .agents/scripts/stories-wave-tick.js --dag '<json>' | --dag-file <path> [--concurrency <n>]
 
 DAG/wave engine for standalone Story delivery. Consumes a dependency graph
-of Story IDs and emits ordered execution waves.
+of Story IDs and emits ordered execution waves plus a resolved per-wave
+concurrency cap.
 
 Input DAG format (JSON array):
   [{ "id": 101, "dependsOn": [] }, { "id": 102, "dependsOn": [101] }]
@@ -45,17 +57,24 @@ Each entry must include:
   id         - Story ticket number (positive integer)
   dependsOn  - Array of Story IDs that must complete before this Story runs
 
+Options:
+  --concurrency <n>  Override the per-wave concurrency cap for this run only.
+                     Must be a positive integer. When omitted, the cap is
+                     resolved from delivery.deliverRunner.concurrencyCap in
+                     .agentrc.json / .agentrc.local.json (default 3).
+
 Output envelope:
   {
     "kind": "stories-wave-plan",
     "waves": [{ "waveIndex": 0, "stories": [101] }, ...],
     "totalStories": 2,
+    "concurrencyCap": 3,
     "cycleError": null
   }
 
 Exit codes:
   0 - Success, waves emitted
-  1 - Invalid input (missing/malformed DAG)
+  1 - Invalid input (missing/malformed DAG, invalid --concurrency)
   2 - Cycle detected in dependency graph
 `;
 
@@ -125,20 +144,51 @@ export function buildAdjacency(nodes) {
 }
 
 /**
+ * Resolve the per-wave concurrency cap.
+ *
+ * Mirrors the `/epic-deliver` seam (`epic-deliver-prepare.js`): resolve the
+ * project config (which deep-merges `.agentrc.local.json` over `.agentrc.json`)
+ * then read `delivery.deliverRunner.concurrencyCap` via `getRunners` (default
+ * 3). An explicit `override` (the `--concurrency <n>` CLI flag) wins over
+ * config for that run only.
+ *
+ * @param {object} [opts]
+ * @param {string} [opts.cwd]       Repo root for config resolution.
+ * @param {object} [opts.config]    Pre-resolved config (injected by tests so
+ *                                   they never depend on a real `.agentrc`).
+ * @param {number} [opts.override]  Validated positive integer from
+ *                                   `--concurrency`; wins over config.
+ * @returns {number} The resolved positive-integer concurrency cap.
+ */
+export function resolveConcurrencyCap({ cwd, config, override } = {}) {
+  if (override != null) {
+    return override;
+  }
+  const resolved = config ?? resolveConfig({ cwd });
+  const { deliverRunner } = getRunners(resolved);
+  return deliverRunner.concurrencyCap;
+}
+
+/**
  * Compute the wave plan from a validated adjacency map.
  *
  * Uses detectCycle from Graph.js to validate the DAG before computing
- * layers via assignLayers. Returns the wave envelope.
+ * layers via assignLayers. Returns the wave envelope, carrying the resolved
+ * per-wave `concurrencyCap` so the `/story-deliver` workflow dispatches
+ * `min(wave.stories.length, concurrencyCap)` from a deterministic field rather
+ * than from recalled prose.
  *
  * @param {Map<number, number[]>} adjacency
+ * @param {number} concurrencyCap Resolved per-wave concurrency cap.
  * @returns {{
  *   kind: 'stories-wave-plan',
  *   waves: Array<{waveIndex: number, stories: number[]}>,
  *   totalStories: number,
+ *   concurrencyCap: number,
  *   cycleError: string|null
  * }}
  */
-export function computeStoriesWavePlan(adjacency) {
+export function computeStoriesWavePlan(adjacency, concurrencyCap) {
   const totalStories = adjacency.size;
 
   if (totalStories === 0) {
@@ -146,6 +196,7 @@ export function computeStoriesWavePlan(adjacency) {
       kind: 'stories-wave-plan',
       waves: [],
       totalStories: 0,
+      concurrencyCap,
       cycleError: null,
     };
   }
@@ -157,6 +208,7 @@ export function computeStoriesWavePlan(adjacency) {
       kind: 'stories-wave-plan',
       waves: [],
       totalStories,
+      concurrencyCap,
       cycleError: `Dependency cycle detected: ${cycle.join(' → ')}. Fix the depends_on declarations before running /story-deliver.`,
     };
   }
@@ -184,24 +236,77 @@ export function computeStoriesWavePlan(adjacency) {
     kind: 'stories-wave-plan',
     waves,
     totalStories,
+    concurrencyCap,
     cycleError: null,
   };
 }
 
 /**
- * Core logic: parse DAG input, validate, and compute the wave plan.
+ * Validate a raw `--concurrency` value into a positive integer.
  *
- * Exported for unit tests; the CLI `main` function is a thin wrapper.
+ * Accepts a number or a numeric string (from the CLI). Rejects anything that
+ * is not a positive integer (zero, negative, fractional, non-numeric).
+ *
+ * @param {unknown} raw
+ * @returns {{ value: number|null, error: string|null }}
+ */
+export function parseConcurrencyOverride(raw) {
+  if (raw == null) {
+    return { value: null, error: null };
+  }
+  const num = typeof raw === 'number' ? raw : Number(raw);
+  if (!Number.isInteger(num) || num <= 0) {
+    return {
+      value: null,
+      error: `--concurrency must be a positive integer, got "${raw}"`,
+    };
+  }
+  return { value: num, error: null };
+}
+
+/**
+ * Core logic: parse DAG input, resolve the concurrency cap, validate, and
+ * compute the wave plan.
+ *
+ * Exported for unit tests; the CLI `main` function is a thin wrapper. Tests
+ * inject `config` so they never depend on a real `.agentrc`.
  *
  * @param {object} args
- * @param {string} [args.dagJson]  Raw JSON string from --dag.
- * @param {string} [args.dagFile]  Path to a JSON file from --dag-file.
+ * @param {string} [args.dagJson]      Raw JSON string from --dag.
+ * @param {string} [args.dagFile]      Path to a JSON file from --dag-file.
+ * @param {string|number} [args.concurrency] Raw --concurrency override.
+ * @param {string} [args.cwd]          Repo root for config resolution.
+ * @param {object} [args.config]       Pre-resolved config (test injection).
  * @returns {{
- *   envelope: {kind: string, waves: object[], totalStories: number, cycleError: string|null},
+ *   envelope: {kind: string, waves: object[], totalStories: number, concurrencyCap: number, cycleError: string|null},
  *   exitCode: number
  * }}
  */
-export function runStoriesWaveTick({ dagJson, dagFile } = {}) {
+export function runStoriesWaveTick({
+  dagJson,
+  dagFile,
+  concurrency,
+  cwd,
+  config,
+} = {}) {
+  // Validate the --concurrency override before resolving config so an invalid
+  // value fails fast with exit code 1 regardless of DAG validity.
+  const { value: override, error: concurrencyError } =
+    parseConcurrencyOverride(concurrency);
+  if (concurrencyError) {
+    const envelope = {
+      kind: 'stories-wave-plan',
+      waves: [],
+      totalStories: 0,
+      concurrencyCap: null,
+      cycleError: null,
+      inputError: concurrencyError,
+    };
+    return { envelope, exitCode: 1 };
+  }
+
+  const concurrencyCap = resolveConcurrencyCap({ cwd, config, override });
+
   let rawJson;
 
   if (dagFile) {
@@ -212,6 +317,7 @@ export function runStoriesWaveTick({ dagJson, dagFile } = {}) {
         kind: 'stories-wave-plan',
         waves: [],
         totalStories: 0,
+        concurrencyCap,
         cycleError: null,
         inputError: `Could not read DAG file "${dagFile}": ${err.message}`,
       };
@@ -224,6 +330,7 @@ export function runStoriesWaveTick({ dagJson, dagFile } = {}) {
       kind: 'stories-wave-plan',
       waves: [],
       totalStories: 0,
+      concurrencyCap,
       cycleError: null,
       inputError: 'Either --dag <json> or --dag-file <path> is required',
     };
@@ -238,6 +345,7 @@ export function runStoriesWaveTick({ dagJson, dagFile } = {}) {
       kind: 'stories-wave-plan',
       waves: [],
       totalStories: 0,
+      concurrencyCap,
       cycleError: null,
       inputError: `Invalid JSON: ${err.message}`,
     };
@@ -250,6 +358,7 @@ export function runStoriesWaveTick({ dagJson, dagFile } = {}) {
       kind: 'stories-wave-plan',
       waves: [],
       totalStories: 0,
+      concurrencyCap,
       cycleError: null,
       inputError: parseError,
     };
@@ -257,7 +366,7 @@ export function runStoriesWaveTick({ dagJson, dagFile } = {}) {
   }
 
   const adjacency = buildAdjacency(nodes);
-  const envelope = computeStoriesWavePlan(adjacency);
+  const envelope = computeStoriesWavePlan(adjacency, concurrencyCap);
 
   // Cycle detection → exit code 2
   if (envelope.cycleError) {
@@ -273,6 +382,7 @@ async function main(argv) {
     options: {
       dag: { type: 'string' },
       'dag-file': { type: 'string' },
+      concurrency: { type: 'string' },
       help: { type: 'boolean', short: 'h' },
     },
     strict: false,
@@ -287,6 +397,7 @@ async function main(argv) {
   const { envelope, exitCode } = runStoriesWaveTick({
     dagJson: values.dag,
     dagFile: values['dag-file'],
+    concurrency: values.concurrency,
   });
 
   process.stdout.write(`${JSON.stringify(envelope, null, 2)}\n`);
