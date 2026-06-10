@@ -26,8 +26,8 @@ export const PLAN_PHASE_NAMES = Object.freeze({
  * `.agents/workflows/helpers/epic-plan-{spec,decompose}.md` and are not
  * directly invokable slash commands.
  *
- * Exported as `PLAN_PHASE_DESCRIPTORS` so it does not collide with the
- * phase-name enum `PLAN_PHASES` in `epic-plan-state-store.js`.
+ * Exported as `PLAN_PHASE_DESCRIPTORS` to make the CLI-routing role explicit
+ * (it describes which wrapper script/slash-command serves each planning phase).
  */
 export const PLAN_PHASE_DESCRIPTORS = Object.freeze({
   [PLAN_PHASE_NAMES.SPEC]: {

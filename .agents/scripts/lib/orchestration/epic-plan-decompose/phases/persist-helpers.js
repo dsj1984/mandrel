@@ -24,9 +24,7 @@ import { Logger } from '../../../Logger.js';
 import { TYPE_LABELS } from '../../../label-constants.js';
 import {
   initialize as initializePlanState,
-  PLAN_PHASES,
   read as readPlanState,
-  setPhase as setPlanPhase,
   write as writePlanState,
 } from '../../epic-plan-state-store.js';
 import { validateTaskBodies } from '../../task-body-validator.js';
@@ -125,7 +123,6 @@ export async function seedPlanState(provider, epicId, epic) {
       },
     },
   });
-  await setPlanPhase({ provider, epicId, nextPhase: PLAN_PHASES.DECOMPOSING });
 }
 
 export async function recordCheckpoint(provider, epicId, tickets) {

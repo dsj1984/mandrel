@@ -14,9 +14,7 @@ import { cleanupPhaseTempFiles } from '../../../plan-phase-cleanup.js';
 import { acquireEpicPlanLease } from '../../epic-plan-lease-guard.js';
 import {
   initialize as initializePlanState,
-  PLAN_PHASES,
   read as readPlanState,
-  setPhase as setPlanPhase,
   write as writePlanState,
 } from '../../epic-plan-state-store.js';
 import { resolveReviewRouting } from '../../plan-review-routing.js';
@@ -120,11 +118,6 @@ export async function runSpecPhase(
   await acquireEpicPlanLease({ provider, epicId, config, steal });
 
   await initializePlanState({ provider, epicId });
-  await setPlanPhase({
-    provider,
-    epicId,
-    nextPhase: PLAN_PHASES.PLANNING,
-  });
 
   await planEpic(
     epicId,
@@ -210,11 +203,6 @@ export async function runSpecPhase(
     `[epic-plan-spec] Flipping Epic #${epicId} to ${AGENT_LABELS.REVIEW_SPEC}...`,
   );
   await setEpicLabel(provider, epicId, AGENT_LABELS.REVIEW_SPEC);
-  await setPlanPhase({
-    provider,
-    epicId,
-    nextPhase: PLAN_PHASES.REVIEW_SPEC,
-  });
 
   const cleanup = await cleanupPhaseTempFiles({ phase: 'spec', epicId });
 

@@ -16,7 +16,6 @@
  * {
  *   "version": 1,
  *   "epicId": 349,
- *   "phase": "review-spec",
  *   "startedAt": "...",
  *   "lastUpdatedAt": "...",
  *   "spec": { "prdId": null, "techSpecId": null, "acceptanceSpecId": null, "completedAt": null },
@@ -26,6 +25,13 @@
  *   "manifestCommentId": null
  * }
  * ```
+ *
+ * The checkpoint no longer carries a write-only `phase` field (Story #3909):
+ * the lifecycle phase is already authoritative on the Epic's `agent::*` labels,
+ * so the duplicate `phase` telemetry (and its `setPhase` round-trips) was
+ * deleted. The fields that survive — `spec`, `decompose`, `planningRisk`,
+ * `reviewRouting`, `manifestCommentId` — are the ones `/epic-plan --resume`
+ * reads to skip already-completed work.
  */
 
 import { parseFencedJsonComment } from './structured-comment-parser.js';
@@ -33,21 +39,6 @@ import { findStructuredComment, upsertStructuredComment } from './ticketing.js';
 
 export const EPIC_PLAN_STATE_TYPE = 'epic-plan-state';
 export const PLAN_CHECKPOINT_SCHEMA_VERSION = 1;
-
-/**
- * Enumeration of lifecycle phase values written to the checkpoint:
- *
- *   planning       — spec work running
- *   review-spec    — spec done; awaiting review (Epic carries agent::review-spec)
- *   decomposing    — decompose work running
- *   ready          — plan complete (Epic carries agent::ready)
- */
-export const PLAN_PHASES = Object.freeze({
-  PLANNING: 'planning',
-  REVIEW_SPEC: 'review-spec',
-  DECOMPOSING: 'decomposing',
-  READY: 'ready',
-});
 
 function assertProvider(provider) {
   if (!provider)
@@ -113,7 +104,6 @@ export async function initialize({ provider, epicId, seed = {} } = {}) {
   const now = new Date().toISOString();
   const skeleton = {
     epicId,
-    phase: PLAN_PHASES.PLANNING,
     startedAt: now,
     spec: {
       prdId: null,
@@ -125,25 +115,4 @@ export async function initialize({ provider, epicId, seed = {} } = {}) {
     manifestCommentId: null,
   };
   return write({ provider, epicId, state: { ...skeleton, ...seed } });
-}
-
-/**
- * Update only the `phase` field. Creates the checkpoint first if absent.
- *
- * @param {{ provider: import('../ITicketingProvider.js').ITicketingProvider, epicId: number, nextPhase: string }} opts
- */
-export async function setPhase({ provider, epicId, nextPhase } = {}) {
-  assertProvider(provider);
-  assertEpicId(epicId);
-  if (!Object.values(PLAN_PHASES).includes(nextPhase)) {
-    throw new RangeError(
-      `epic-plan-state-store.setPhase: unknown phase "${nextPhase}". Expected one of: ${Object.values(
-        PLAN_PHASES,
-      ).join(', ')}`,
-    );
-  }
-  const current =
-    (await read({ provider, epicId })) ??
-    (await initialize({ provider, epicId }));
-  return write({ provider, epicId, state: { ...current, phase: nextPhase } });
 }
