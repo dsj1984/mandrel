@@ -11,26 +11,33 @@ The individual pieces are well-engineered — small entry points, injectable sea
 
 ## High-priority story tracker
 
-Stories were filed for every P0 and P1 recommendation:
+Stories were filed for every P0 and P1 recommendation.
 
-| Story | Priority | Finding | Summary |
-| --- | --- | --- | --- |
-| [#3891](https://github.com/dsj1984/mandrel/issues/3891) | P0 | A.1 | Publish the `create-mandrel` launcher and resolve its package name |
-| [#3892](https://github.com/dsj1984/mandrel/issues/3892) | P0 | A.2, A.3 | Rewrite install quickstart + SDLC Phase 0 around the canonical path |
-| [#3893](https://github.com/dsj1984/mandrel/issues/3893) | P0 | A.4, A.5 | Stop doctor + bootstrap preflight from false-blocking on auth |
-| [#3894](https://github.com/dsj1984/mandrel/issues/3894) | P1 | B.1 | Fix the cold-start secret-push hazard (gitignore before staging) |
-| [#3895](https://github.com/dsj1984/mandrel/issues/3895) | P1 | B.2 | Make `mandrel uninstall` preserve a pre-existing `.agentrc.json` |
-| [#3896](https://github.com/dsj1984/mandrel/issues/3896) | P1 | B.3 | Dedupe Projects V2 board creation on bootstrap re-run |
-| [#3897](https://github.com/dsj1984/mandrel/issues/3897) | P1 | B.4 | Thread a real GitHub-admin consent signal |
-| [#3898](https://github.com/dsj1984/mandrel/issues/3898) | P1 | B.5 | Exit non-zero when the GitHub-side bootstrap fails |
-| [#3899](https://github.com/dsj1984/mandrel/issues/3899) | P0/P1 | A.6 | End bootstrap with an offered commit + push of the wiring |
+**✅ Status: RESOLVED (2026-06-10).** All nine high-priority Stories
+(#3891–#3899) have been delivered and merged to `main`. Every P0 front-door
+break (§A) and every P1 correctness/safety bug (§B.1–B.5) below that carried a
+Story is fixed. The remaining un-storied findings (§B.6–B.9, §C, §D) are P2/P3
+and remain open as future work. The findings text below is retained as the
+historical review record.
+
+| Story | Priority | Finding | Summary | Resolution |
+| --- | --- | --- | --- | --- |
+| [#3891](https://github.com/dsj1984/mandrel/issues/3891) | P0 | A.1 | Publish the `create-mandrel` launcher and resolve its package name | ✅ [PR #3914](https://github.com/dsj1984/mandrel/pull/3914) (`ed46c9e3`) |
+| [#3892](https://github.com/dsj1984/mandrel/issues/3892) | P0 | A.2, A.3 | Rewrite install quickstart + SDLC Phase 0 around the canonical path | ✅ [PR #3913](https://github.com/dsj1984/mandrel/pull/3913) (`cd128d97`) |
+| [#3893](https://github.com/dsj1984/mandrel/issues/3893) | P0 | A.4, A.5 | Stop doctor + bootstrap preflight from false-blocking on auth | ✅ [PR #3915](https://github.com/dsj1984/mandrel/pull/3915) (`e7f12c8`) |
+| [#3894](https://github.com/dsj1984/mandrel/issues/3894) | P1 | B.1 | Fix the cold-start secret-push hazard (gitignore before staging) | ✅ [PR #3918](https://github.com/dsj1984/mandrel/pull/3918) (`37358d2d`) |
+| [#3895](https://github.com/dsj1984/mandrel/issues/3895) | P1 | B.2 | Make `mandrel uninstall` preserve a pre-existing `.agentrc.json` | ✅ [PR #3919](https://github.com/dsj1984/mandrel/pull/3919) (`ebdfd37`) |
+| [#3896](https://github.com/dsj1984/mandrel/issues/3896) | P1 | B.3 | Dedupe Projects V2 board creation on bootstrap re-run | ✅ [PR #3920](https://github.com/dsj1984/mandrel/pull/3920) (`84e6e20`) |
+| [#3897](https://github.com/dsj1984/mandrel/issues/3897) | P1 | B.4 | Thread a real GitHub-admin consent signal | ✅ [PR #3921](https://github.com/dsj1984/mandrel/pull/3921) |
+| [#3898](https://github.com/dsj1984/mandrel/issues/3898) | P1 | B.5 | Exit non-zero when the GitHub-side bootstrap fails | ✅ [PR #3922](https://github.com/dsj1984/mandrel/pull/3922) (`06296213`) |
+| [#3899](https://github.com/dsj1984/mandrel/issues/3899) | P0/P1 | A.6 | End bootstrap with an offered commit + push of the wiring | ✅ [PR #3923](https://github.com/dsj1984/mandrel/pull/3923) |
 
 ## npm publication status (verified)
 
 | Package | Declared name | Registry status |
 | --- | --- | --- |
 | Framework | `@mandrelai/agents` | **Published** — 1.54.0 is `latest`; the only package in the `mandrelai` org (`npm access list packages mandrelai`) |
-| Launcher | `create-mandrel` (unscoped) | **Not published** — E404 for both `create-mandrel` and `@mandrelai/create-mandrel` |
+| Launcher | `create-mandrel` (unscoped) | **Publish wired (Story #3891)** — at review time E404 for both `create-mandrel` and `@mandrelai/create-mandrel`. [PR #3914](https://github.com/dsj1984/mandrel/pull/3914) added the `npm-publish-launcher` job (gated on the launcher's own per-path `release_created`) and set `publishConfig.access: public` + `provenance: true`; the name is claimed on the next release that bumps the launcher version. |
 
 Two consequences for the launcher:
 

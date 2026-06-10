@@ -10,6 +10,16 @@
 > **Remediation tracking:** GitHub Stories #3900–#3911 (see
 > [§6 Recommended sequence](#6-recommended-sequence)). All carry
 > `type::story` + `meta::framework-gap`.
+>
+> **✅ Status: RESOLVED (2026-06-10).** All twelve remediation Stories
+> (#3900–#3911) have been delivered and merged to `main` across a
+> dependency-aware 5-wave `/story-deliver` run. Every §1 defect is repaired,
+> the dead runner stratum (§2.1) is deleted, the state surfaces (§2.2) are
+> collapsed, the resilience gaps (§3) are closed, and the planning/structural
+> simplifications (§4) are landed. Per-Story merge commits are listed in
+> [§6 Recommended sequence](#6-recommended-sequence). The findings below are
+> retained as the historical review record; each is annotated with its
+> resolving Story.
 
 ## TL;DR
 
@@ -283,40 +293,45 @@ only in tests and prose.
 
 ## 6. Recommended sequence
 
-| Step | Work | Stories |
-|---|---|---|
-| **1. Repair (~100 LOC)** | Make the four silently-dead features work again and close the correctness gaps. | #3900, #3901, #3902, #3903, #3904, #3905, #3906, #3907 |
-| **2. Delete the dead stratum** | Remove the unreachable in-process runner + listeners (~10k LOC), consistent with the hard-cutover doctrine. | #3908 |
-| **3. Collapse state surfaces** | Keep checkpoint + ledger + one progress comment; drop the rest. | #3909 |
-| **4. Simplify planning + sweep prose** | Trim deterministic proxies; single-home each procedure; remove Task-era / stale-rename references. | #3910 |
-| **5. Structural (directional)** | Replace the bus with direct calls; collapse the steady-state wave loop. **Depends on steps 1–2.** | #3911 |
+| Step | Work | Stories | Status |
+|---|---|---|---|
+| **1. Repair (~100 LOC)** | Make the four silently-dead features work again and close the correctness gaps. | #3900, #3901, #3902, #3903, #3904, #3905, #3906, #3907 | ✅ Done |
+| **2. Delete the dead stratum** | Remove the unreachable in-process runner + listeners (~10k LOC), consistent with the hard-cutover doctrine. | #3908 | ✅ Done |
+| **3. Collapse state surfaces** | Keep checkpoint + ledger + one progress comment; drop the rest. | #3909 | ✅ Done |
+| **4. Simplify planning + sweep prose** | Trim deterministic proxies; single-home each procedure; remove Task-era / stale-rename references. | #3910 | ✅ Done |
+| **5. Structural (directional)** | Replace the bus with direct calls; collapse the steady-state wave loop. **Depends on steps 1–2.** | #3911 | ✅ Done |
+
+All steps delivered and merged to `main` on 2026-06-10.
 
 ### Step 1 — repair stories
 
-| Story | Title |
-|---|---|
-| [#3900](https://github.com/dsj1984/mandrel/issues/3900) | repair idle-watchdog + Epic-lease via main-checkout ledger path and dispatch-end emission |
-| [#3901](https://github.com/dsj1984/mandrel/issues/3901) | make the Phase 8.5 auto-merge gate reachable + add event-connectivity contract test |
-| [#3902](https://github.com/dsj1984/mandrel/issues/3902) | make Phase 8 pr-watch actually poll CI to green instead of emitting into an empty bus |
-| [#3903](https://github.com/dsj1984/mandrel/issues/3903) | ship `retro-run.js` CLI so Phase 6 retro is executable (remove phantom `epic-deliver.js`) |
-| [#3904](https://github.com/dsj1984/mandrel/issues/3904) | propagate finalize/listener failures to `lifecycle-emit` exit code and ledger |
-| [#3905](https://github.com/dsj1984/mandrel/issues/3905) | repair `--force` re-plan (`--explicit-delete`) and `--resume` idempotency on missing `state.json` |
-| [#3906](https://github.com/dsj1984/mandrel/issues/3906) | re-point or remove vacated validators and dead init guards |
-| [#3907](https://github.com/dsj1984/mandrel/issues/3907) | correct story-close push-failure recovery + format-autofix cwd, and close wave-loop resilience gaps |
+| Story | Title | Resolution |
+|---|---|---|
+| [#3900](https://github.com/dsj1984/mandrel/issues/3900) | repair idle-watchdog + Epic-lease via main-checkout ledger path and dispatch-end emission | ✅ [PR #3926](https://github.com/dsj1984/mandrel/pull/3926) (`9bd172bc`) |
+| [#3901](https://github.com/dsj1984/mandrel/issues/3901) | make the Phase 8.5 auto-merge gate reachable + add event-connectivity contract test | ✅ [PR #3932](https://github.com/dsj1984/mandrel/pull/3932) (`509e0af2`) |
+| [#3902](https://github.com/dsj1984/mandrel/issues/3902) | make Phase 8 pr-watch actually poll CI to green instead of emitting into an empty bus | ✅ [PR #3925](https://github.com/dsj1984/mandrel/pull/3925) (`078a891`) |
+| [#3903](https://github.com/dsj1984/mandrel/issues/3903) | ship `retro-run.js` CLI so Phase 6 retro is executable (remove phantom `epic-deliver.js`) | ✅ [PR #3924](https://github.com/dsj1984/mandrel/pull/3924) (`b663840`) |
+| [#3904](https://github.com/dsj1984/mandrel/issues/3904) | propagate finalize/listener failures to `lifecycle-emit` exit code and ledger | ✅ [PR #3927](https://github.com/dsj1984/mandrel/pull/3927) (`588f0ba3`) |
+| [#3905](https://github.com/dsj1984/mandrel/issues/3905) | repair `--force` re-plan (`--explicit-delete`) and `--resume` idempotency on missing `state.json` | ✅ [PR #3928](https://github.com/dsj1984/mandrel/pull/3928) (`617a1215`) |
+| [#3906](https://github.com/dsj1984/mandrel/issues/3906) | re-point or remove vacated validators and dead init guards | ✅ [PR #3929](https://github.com/dsj1984/mandrel/pull/3929) (`15caad90`) |
+| [#3907](https://github.com/dsj1984/mandrel/issues/3907) | correct story-close push-failure recovery + format-autofix cwd, and close wave-loop resilience gaps | ✅ [PR #3930](https://github.com/dsj1984/mandrel/pull/3930) (`7ac053a9`) |
 
 ### Steps 2–5
 
-| Story | Title |
-|---|---|
-| [#3908](https://github.com/dsj1984/mandrel/issues/3908) | delete the dead in-process epic-runner stratum (bus/listeners/wave-session) |
-| [#3909](https://github.com/dsj1984/mandrel/issues/3909) | collapse overlapping run-state/progress surfaces to checkpoint+ledger+one comment |
-| [#3910](https://github.com/dsj1984/mandrel/issues/3910) | simplify deterministic planning proxies and sweep stale/duplicated workflow prose |
-| [#3911](https://github.com/dsj1984/mandrel/issues/3911) | replace lifecycle bus with direct calls + collapse steady-state wave loop |
+| Story | Title | Resolution |
+|---|---|---|
+| [#3908](https://github.com/dsj1984/mandrel/issues/3908) | delete the dead in-process epic-runner stratum (bus/listeners/wave-session) | ✅ [PR #3936](https://github.com/dsj1984/mandrel/pull/3936) (`fcea7170`; 225 ins / 12,810 del) |
+| [#3909](https://github.com/dsj1984/mandrel/issues/3909) | collapse overlapping run-state/progress surfaces to checkpoint+ledger+one comment | ✅ [PR #3945](https://github.com/dsj1984/mandrel/pull/3945) (`80b598c3`) |
+| [#3910](https://github.com/dsj1984/mandrel/issues/3910) | simplify deterministic planning proxies and sweep stale/duplicated workflow prose | ✅ [PR #3931](https://github.com/dsj1984/mandrel/pull/3931) (`6b53fa80`) |
+| [#3911](https://github.com/dsj1984/mandrel/issues/3911) | replace lifecycle bus with direct calls + collapse steady-state wave loop | ✅ [PR #3948](https://github.com/dsj1984/mandrel/pull/3948) (`037afdec`) — ADR `20260610-lifecycle-bus-retained`: bus **retained** (its schema-validate / ledger-ordering / seqId / secret-strip guarantees are load-bearing for the resume contract; the hot path already uses direct ledger-appends per #3900, and #3901's event-connectivity contract test meets the wrong-emit motive); wave-loop collapse already completed via #3909/#3907/#3900. |
 
-> **Sequencing note:** do steps 1–2 before step 5. Story #3911 (structural) is
-> intentionally last — it should not start until the surviving features work
-> (#3900–#3907) and the dead stratum is removed (#3908), or it will be
-> reimplementing code that is about to be deleted.
+> **Sequencing note (historical):** steps 1–2 ran before step 5. Story #3911
+> (structural) was intentionally last — it did not start until the surviving
+> features worked (#3900–#3907) and the dead stratum was removed (#3908). In
+> delivery, #3911's architect pass concluded the bus should be **kept** (see
+> the resolution note above) rather than replaced, since the wave-loop
+> collapse was already achieved by the earlier repairs and the bus's
+> invariants are load-bearing.
 
 ### Dependencies (encoded in GitHub)
 
