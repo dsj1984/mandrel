@@ -29,8 +29,8 @@ const GH_INSTALL_HINT =
   'Install gh: https://cli.github.com/ — then re-run this command.';
 const GH_AUTH_HINT =
   'Run `gh auth login` (choose GitHub.com → HTTPS → login with a web browser), then re-run this command.';
-const GH_PROJECT_SCOPE_HINT =
-  'Grant the Projects scope: run `gh auth refresh -s project` (re-auth in the browser when prompted), then re-run this command.';
+const GH_PROJECT_SCOPE_NOTE =
+  'token lacks the "project" scope — skipping GitHub Projects V2 board provisioning (matches the runtime `resolveProject` graceful path). To enable board provisioning, run `gh auth refresh -s project` (re-auth in the browser when prompted) and re-run this command.';
 const GH_SCOPES_UNREADABLE_NOTE =
   'token scopes not reported by `gh auth status` (fine-grained PAT?) — skipping the classic project-scope assertion. If Projects V2 provisioning later fails, grant the Projects permission (fine-grained) or run `gh auth refresh -s project` (classic).';
 
@@ -221,9 +221,15 @@ function assertGhAuth(runner) {
  * Returns a check record `{ name, ok, remedy?, detail? }` rather than
  * throwing, so the preflight aggregator can surface it alongside the other
  * checks. An unreadable scopes line — the normal case for fine-grained PATs
- * and for `gh` builds that omit it — PASSES with a warning `detail` instead
- * of failing closed (Story #3690); the check only fails when a scopes line
- * is present and demonstrably lacks `project`.
+ * and for `gh` builds that omit it — PASSES with a warning `detail` (Story
+ * #3690). A present-but-`project`-less scopes line — the normal case for a
+ * vanilla `gh auth login` token — also PASSES with a warning `detail`
+ * (Story #3893, Finding A.5): the bootstrap's runtime `resolveProject`
+ * already degrades to warn-and-skip-board for exactly this condition, so
+ * failing the preflight closed was stricter than the code it guards and
+ * created a guaranteed first-run → browser → re-run loop. The check never
+ * fails the gate on the project scope; the warning `detail` carries the
+ * `gh auth refresh -s project` remediation for operators who want boards.
  *
  * @param {{ runner?: (args: string[]) => {
  *   status: number|null, stdout: string, stderr: string,
@@ -259,8 +265,8 @@ function classifyProjectScopes(scopeLine) {
   }
   return {
     name: 'gh-project-scope',
-    ok: false,
-    remedy: GH_PROJECT_SCOPE_HINT,
+    ok: true,
+    detail: GH_PROJECT_SCOPE_NOTE,
   };
 }
 
