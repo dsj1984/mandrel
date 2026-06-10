@@ -34,10 +34,19 @@ using the same `host LLM authors + Node wrapper persists` split as
 | Parent Epic          | None (no `Epic: #N` in body)               | Required                                     |
 | Downstream workflow  | `/single-story-deliver`                    | `/story-deliver` (per Story)                 |
 | Replan surface       | Out of scope (recreate manually if needed) | `/epic-plan --replan` regenerates everything |
+| Inbound route        | Direct, **or** an `/epic-plan` Phase 1.5 scope-triage handoff | Direct (`<epicId>` or `--idea`)         |
 
 If a Story-under-Epic needs replanning, use `/epic-plan --replan`. If you
 have a refactor, framework-maintenance idea, or any standalone unit of
 work, use this workflow.
+
+**Inbound from `/epic-plan` scope triage.** `/epic-plan` Phase 1.5 runs the
+[`core/scope-triage`](../skills/core/scope-triage/SKILL.md) rubric over the
+sharpened one-pager. On a `story` / `borderline` verdict the operator may route
+the work here via `/story-plan --from-notes <path>`. That invocation is a
+**scope-triage handoff** — the triage decision is already made, so `/story-plan`
+MUST NOT re-triage it (the no-re-triage rule in the skill); it proceeds straight
+to authoring the standalone Story body from the handed-off one-pager.
 
 ## Prerequisites
 
