@@ -1030,7 +1030,7 @@ primary drivers:
 | 5 | `DELIVERABLE_GRANULARITY_GUIDANCE` — "a shippable slice a reviewer would accept as a single PR" + single-consumer merge rule | Prompt prose (SSOT constant) | `ticket-validator-sizing.js`, interpolated into decomposer prompt | Conceptual definition sized for *today's* review comfort, not frontier delivery capacity |
 | 6 | `maxTickets: 60` reviewability budget — "combine atomic stories into larger, cohesive stories before splitting" | Prompt prose (soft) | `lib/config/limits.js` + decomposer prompt | Attacks story *count*, already aligned with larger stories |
 | 7 | Planning-context budget (`maxBytes: 50000`) summarizes PRD/Tech Spec before decomposition | Deterministic | `lib/orchestration/planning-context-budget.js` | Less spec detail → more conservative slicing |
-| 8 | `delivery.maxTokenBudget: 200000` hydration cap per Story | Deterministic | `lib/config/limits.js` | Large Story bodies risk section elision at delivery time |
+| 8 | `delivery.maxTokenBudget: 300000` hydration cap per Story (raised from 200000 by Story #3875) | Deterministic | `lib/config/limits.js` | Large Story bodies risk section elision at delivery time |
 
 Two structural facts make the recalibration cheap:
 
