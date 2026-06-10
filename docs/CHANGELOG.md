@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.58.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.57.0...mandrel-v1.58.0) (2026-06-10)
+
+
+### Fixed
+
+* **delivery:** normalize PR titles to Conventional Commits so squash-merges trigger release-please ([#3969](https://github.com/dsj1984/mandrel/issues/3969)) ([#3971](https://github.com/dsj1984/mandrel/issues/3971)) ([b427522](https://github.com/dsj1984/mandrel/commit/b4275221092091d96ea3b2ed897970477b44ca72))
+
 ## [1.57.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.56.0...mandrel-v1.57.0) (2026-06-10)
 
 
