@@ -269,3 +269,141 @@ describe('buildCodebaseSnapshot — robustness', () => {
     }
   });
 });
+
+describe('buildCodebaseSnapshot — skinny-tier proportional cap (Story #3959)', () => {
+  // The skinny tier caps the file list at 250. Before #3959 the cap was a
+  // flat lexicographic slice, so a large dot-prefixed tree (`.agents/...`,
+  // which sorts ahead of every consumer path) monopolised the budget and
+  // truncated away the consumer's own source. The fix is per-top-level-dir
+  // proportional (round-robin) budgeting. These tests build over-cap and
+  // under-cap git fixtures and assert: consumer paths survive the cap,
+  // truncation is flagged, and an under-cap tree is untouched.
+  function gitInit(dir) {
+    const run = (args) =>
+      execFileSync('git', args, { cwd: dir, stdio: 'pipe' });
+    run(['init', '-q']);
+    run(['config', 'user.email', 'test@example.com']);
+    run(['config', 'user.name', 'Test']);
+    run(['config', 'commit.gpgsign', 'false']);
+  }
+
+  function commitAll(dir) {
+    execFileSync('git', ['add', '-A'], { cwd: dir, stdio: 'pipe' });
+    execFileSync('git', ['commit', '-q', '-m', 'fixture'], {
+      cwd: dir,
+      stdio: 'pipe',
+    });
+  }
+
+  function writeManyUnder(dir, topRel, count) {
+    mkdirSync(path.join(dir, topRel), { recursive: true });
+    for (let i = 0; i < count; i += 1) {
+      const idx = String(i).padStart(4, '0');
+      writeFileSync(
+        path.join(dir, topRel, `f${idx}.js`),
+        `export const v${idx} = ${i};\n`,
+      );
+    }
+  }
+
+  it('keeps consumer source in an over-cap tree dominated by .agents paths', () => {
+    const fixture = mkdtempSync(path.join(tmpdir(), 'snapshot-overcap-'));
+    try {
+      gitInit(fixture);
+      // 400 `.agents/scripts` files (sort ahead of everything) + 100 each
+      // of consumer `src` and `lib`. Total 600 > the 250 skinny cap.
+      writeManyUnder(fixture, '.agents/scripts', 400);
+      writeManyUnder(fixture, 'src', 100);
+      writeManyUnder(fixture, 'lib', 100);
+      writeFileSync(
+        path.join(fixture, 'package.json'),
+        JSON.stringify({ name: 'fix', scripts: { test: 'node --test' } }),
+      );
+      commitAll(fixture);
+
+      const snapshot = buildCodebaseSnapshot({ cwd: fixture });
+
+      assert.equal(snapshot.tier, 'skinny');
+      assert.equal(snapshot.truncated, true);
+      assert.equal(snapshot.fileCount, 600);
+      assert.equal(snapshot.files.length, 250);
+
+      const srcCount = snapshot.files.filter((f) =>
+        f.startsWith('src/'),
+      ).length;
+      const libCount = snapshot.files.filter((f) =>
+        f.startsWith('lib/'),
+      ).length;
+      const consumerCount = srcCount + libCount;
+
+      // The flat-slice bug would yield zero consumer files (250 `.agents`
+      // paths sort first). Proportional budgeting gives consumer source
+      // the clear majority of the kept set.
+      assert.ok(
+        consumerCount > snapshot.files.length / 2,
+        `expected consumer paths to be the majority, got ${consumerCount}/250 ` +
+          `(src=${srcCount}, lib=${libCount})`,
+      );
+      assert.ok(srcCount > 0, 'expected at least one src/ path to survive');
+      assert.ok(libCount > 0, 'expected at least one lib/ path to survive');
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
+  it('degenerates to a flat slice when .agents is the only matching tree (Mandrel dogfood)', () => {
+    const fixture = mkdtempSync(path.join(tmpdir(), 'snapshot-onlyagents-'));
+    try {
+      gitInit(fixture);
+      writeManyUnder(fixture, '.agents/scripts', 400);
+      writeFileSync(
+        path.join(fixture, 'package.json'),
+        JSON.stringify({ name: 'fix', scripts: { test: 'node --test' } }),
+      );
+      commitAll(fixture);
+
+      const snapshot = buildCodebaseSnapshot({ cwd: fixture });
+
+      assert.equal(snapshot.truncated, true);
+      assert.equal(snapshot.fileCount, 400);
+      assert.equal(snapshot.files.length, 250);
+      // With one group, round-robin == the first 250 sorted `.agents` paths,
+      // identical to the old behaviour — the Mandrel-repo snapshot stays useful.
+      assert.ok(snapshot.files.every((f) => f.startsWith('.agents/scripts/')));
+      const expectedFirst = '.agents/scripts/f0000.js';
+      assert.equal(snapshot.files[0], expectedFirst);
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
+  it('leaves an under-cap tree unchanged (no truncation, full lexicographic order)', () => {
+    const fixture = mkdtempSync(path.join(tmpdir(), 'snapshot-undercap-'));
+    try {
+      gitInit(fixture);
+      writeManyUnder(fixture, '.agents/scripts', 40);
+      writeManyUnder(fixture, 'src', 40);
+      writeFileSync(
+        path.join(fixture, 'package.json'),
+        JSON.stringify({ name: 'fix', scripts: { test: 'node --test' } }),
+      );
+      commitAll(fixture);
+
+      const snapshot = buildCodebaseSnapshot({ cwd: fixture });
+
+      assert.equal(snapshot.truncated, false);
+      assert.equal(snapshot.fileCount, 80);
+      assert.equal(snapshot.files.length, 80);
+      // Under the cap the list is the plain sorted filter — assert it is
+      // sorted and includes both trees in full.
+      const sorted = [...snapshot.files].sort();
+      assert.deepEqual(snapshot.files, sorted);
+      assert.equal(
+        snapshot.files.filter((f) => f.startsWith('src/')).length,
+        40,
+      );
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+});
