@@ -248,9 +248,19 @@ function ensureGitInitialized(state) {
   }
 
   // A push needs a commit; create one only when HEAD does not resolve yet.
+  //
+  // SECURITY (Story #3894): do NOT `git add -A` here. `.gitignore` seeding
+  // (`ensureGitignore`) runs two phases later in the pipeline, so at this
+  // point a cold-start folder may still contain secret-bearing files
+  // (`.env`, `.mcp.json`). Staging the whole tree before any gitignore
+  // exists — followed immediately by `gh repo create --push` — would push
+  // those secrets to a brand-new (often public) remote with no per-file
+  // consent, violating `security-baseline.md` § Secrets Management. The
+  // push only needs a commit to *exist*, so we create an empty one; the
+  // operator's own first content commit lands after the gitignore phase has
+  // already excluded the secret-bearing paths.
   let committed = false;
   if (!runGit(['rev-parse', '--verify', 'HEAD'], cwd).ok) {
-    runGit(['add', '-A'], cwd);
     const commit = runGit(
       [
         ...gitIdentityArgs(cwd, state.answers),
@@ -1226,8 +1236,11 @@ export async function runPipeline(phases) {
   return { ok: true, state };
 }
 
-export async function main(argv = process.argv.slice(2)) {
-  const result = await runPipeline([
+export async function main(argv = process.argv.slice(2), deps = {}) {
+  // `deps.phases` lets tests inject a substitute pipeline so the
+  // post-pipeline GitHub-failure detection can be exercised
+  // deterministically without spawning `gh` (Story #3898).
+  const phases = deps.phases ?? [
     () => parseAndValidate(argv),
     (s) => prepareContext(s),
     (s) => runPreflightPhase(s),
@@ -1238,8 +1251,30 @@ export async function main(argv = process.argv.slice(2)) {
     (s) => persistProjectNumber(s),
     (s) => executeGithubBootstrap(s),
     (s) => recordLedger(s),
-  ]);
+  ];
+  const result = await runPipeline(phases);
   if (!result.ok) return result.exit;
+
+  // GitHub-side bootstrap failures are non-fatal to the pipeline (so the
+  // ledger still records the project-side mutations that already landed —
+  // the failure is surfaced, not silently rolled back), but they MUST NOT
+  // exit 0. `executeGithubBootstrap` records `report.github.error` instead
+  // of throwing; detect it here and exit non-zero with a distinct final
+  // status line so `create-mandrel` and CI see the failure (Story #3898).
+  const githubError = result.state?.report?.github?.error;
+  if (githubError) {
+    Logger.error(
+      `\n[bootstrap] GitHub bootstrap failed: ${githubError}. ` +
+        'Project-side setup (labels are GitHub-side; the local .agentrc.json / ' +
+        'quality-gate / workflow files that were applied are recorded in the ' +
+        'install ledger) completed, but the GitHub label/board/views/protection ' +
+        'setup did not. Resolve the cause above (commonly `gh auth login` or a ' +
+        'missing repo/project scope) and re-run `mandrel bootstrap` — the run is ' +
+        'idempotent and will skip what already succeeded.',
+    );
+    return 1;
+  }
+
   Logger.info('\n[bootstrap] Done.');
   return 0;
 }
