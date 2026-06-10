@@ -13,7 +13,22 @@
  *   1. validating `--epic <id>`,
  *   2. resolving the Epic branch name (`epic/<id>`),
  *   3. running `selectAudits` at the close-gate (`gate3`),
- *   4. shaping the result into the helper-consumable envelope.
+ *   4. routing the model-judged risk envelope's high-risk axes onto their
+ *      mapped audit lenses (Story #3889 — `resolveAuditLenses`) and unioning
+ *      them into the change-set selection, and
+ *   5. shaping the result into the helper-consumable envelope.
+ *
+ * Story #3889 — risk-routed lenses. Epic #3865 added `resolveAuditLenses`
+ * (axis → audit-lens mapping for the model-judged risk verdict) to
+ * `lib/orchestration/code-review.js` but nothing invoked it in the live
+ * delivery path. This CLI now reads the `planningRisk` envelope off the
+ * Epic's `epic-plan-state` checkpoint and unions the routed lenses into
+ * `selectedAudits`, so a high-risk Epic auto-runs its mapped lenses
+ * (e.g. a `security`-axis Epic runs `audit-security`) at Phase 4 through the
+ * SAME `runAuditSuite` / `selectAuditStrategy` engine the helper already
+ * dispatches — no new audit machinery. A low-risk Epic routes no extra
+ * lenses. Reading the checkpoint is best-effort: a missing/unparseable
+ * checkpoint degrades to the change-set selection alone (never an abort).
  *
  * Envelope shape (Tech Spec #2588 — API Changes § New CLI):
  *
@@ -21,10 +36,17 @@
  *     "epicId": 2586,
  *     "epicBranch": "epic/2586",
  *     "selectedAudits": ["audit-security", "audit-privacy"],
+ *     "changeSetAudits": ["audit-privacy"],
+ *     "riskRoutedAudits": ["audit-security"],
  *     "changedFiles": ["src/api/admin/users.ts", "..."],
  *     "changedFilesCount": 47,
  *     "substitutionsPayload": "src/api/admin/users.ts\n..."
  *   }
+ *
+ * `selectedAudits` is the union the helper dispatches: the change-set
+ * selection (`changeSetAudits`) plus the risk-routed lenses
+ * (`riskRoutedAudits`), de-duplicated. The two source-of-truth arrays are
+ * surfaced for observability so the operator can see why each lens fired.
  *
  * Usage:
  *   node .agents/scripts/epic-audit-prepare.js --epic <epicId> [--base-branch main]
@@ -39,6 +61,8 @@ import { selectAudits } from './lib/audit-suite/index.js';
 import { defineFlags } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
+import { resolveAuditLenses } from './lib/orchestration/code-review.js';
+import { read as readPlanState } from './lib/orchestration/epic-plan-state-store.js';
 import { createProvider } from './lib/provider-factory.js';
 
 const HELP = `Usage: node .agents/scripts/epic-audit-prepare.js --epic <epicId> [--base-branch main]
@@ -73,6 +97,62 @@ export function parseArgv(argv) {
 }
 
 /**
+ * Resolve the risk-routed audit lenses for an Epic by reading the model-judged
+ * `planningRisk` envelope off the Epic's `epic-plan-state` checkpoint and
+ * mapping its high-risk axes onto audit lenses via `resolveAuditLenses`
+ * (Story #3889). Best-effort: a missing/unparseable checkpoint, an absent
+ * `planningRisk` field, or a provider read failure resolves to an empty array
+ * so the change-set selection is never aborted by a risk-read failure.
+ *
+ * @param {{
+ *   epicId: number,
+ *   provider: object,
+ *   readPlanState?: typeof readPlanState,
+ *   resolveAuditLenses?: typeof resolveAuditLenses,
+ * }} params
+ * @returns {Promise<string[]>} Ordered, de-duplicated risk-routed lens names.
+ */
+export async function resolveRiskRoutedLenses({
+  epicId,
+  provider,
+  readPlanState: readPlanStateFn = readPlanState,
+  resolveAuditLenses: resolveAuditLensesFn = resolveAuditLenses,
+}) {
+  let state = null;
+  try {
+    state = await readPlanStateFn({ provider, epicId });
+  } catch {
+    // A read failure (provider error, malformed comment) must not abort the
+    // change-set audit. Degrade to "no risk-routed lenses".
+    return [];
+  }
+  const planningRisk = state?.planningRisk;
+  if (!planningRisk || !Array.isArray(planningRisk.axes)) return [];
+  return resolveAuditLensesFn(planningRisk);
+}
+
+/**
+ * Union two ordered lens lists, de-duplicating while preserving the order of
+ * first appearance (change-set selection first, then risk-routed extras).
+ *
+ * @param {string[]} changeSetAudits
+ * @param {string[]} riskRoutedAudits
+ * @returns {string[]}
+ */
+function unionAudits(changeSetAudits, riskRoutedAudits) {
+  const seen = new Set();
+  const merged = [];
+  for (const lens of [...changeSetAudits, ...riskRoutedAudits]) {
+    if (typeof lens !== 'string' || lens.length === 0 || seen.has(lens)) {
+      continue;
+    }
+    seen.add(lens);
+    merged.push(lens);
+  }
+  return merged;
+}
+
+/**
  * Orchestration body. Exported as a sibling so tests can drive it
  * without spawning a child process. CLI surface unchanged.
  *
@@ -81,6 +161,8 @@ export function parseArgv(argv) {
  *   resolveConfig?: () => object,
  *   createProvider?: (config: object) => object,
  *   selectAudits?: typeof selectAudits,
+ *   readPlanState?: typeof readPlanState,
+ *   resolveAuditLenses?: typeof resolveAuditLenses,
  *   help?: string,
  * }} [deps]
  * @returns {Promise<{ exitCode: number, result: object }>}
@@ -169,7 +251,20 @@ export async function runEpicAuditPrepare(values, deps = {}) {
   }
 
   const changedFiles = envelope?.context?.changedFiles ?? [];
-  const selectedAudits = envelope?.selectedAudits ?? [];
+  const changeSetAudits = envelope?.selectedAudits ?? [];
+
+  // Story #3889 — union the model-judged risk-routed lenses into the
+  // change-set selection. Read off the Epic's epic-plan-state checkpoint
+  // (best-effort; a read failure yields no extra lenses). A high-risk
+  // `security` axis therefore fires `audit-security` even when the change
+  // set alone did not select it; a low-risk Epic adds nothing.
+  const riskRoutedAudits = await resolveRiskRoutedLenses({
+    epicId,
+    provider,
+    readPlanState: deps.readPlanState,
+    resolveAuditLenses: deps.resolveAuditLenses,
+  });
+  const selectedAudits = unionAudits(changeSetAudits, riskRoutedAudits);
 
   return {
     exitCode: 0,
@@ -179,6 +274,8 @@ export async function runEpicAuditPrepare(values, deps = {}) {
         epicId,
         epicBranch,
         selectedAudits,
+        changeSetAudits,
+        riskRoutedAudits,
         changedFiles,
         changedFilesCount: changedFiles.length,
         substitutionsPayload: changedFiles.join('\n'),
