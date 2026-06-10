@@ -20,9 +20,45 @@ import {
   write as writePlanState,
 } from '../../epic-plan-state-store.js';
 import { resolveReviewRouting } from '../../plan-review-routing.js';
-import { classifyPlanningRisk } from '../../planning-risk.js';
+import { deriveRiskEnvelope } from '../../planning-risk.js';
+import { upsertStructuredComment } from '../../ticketing.js';
 import { planEpic } from './plan-epic.js';
 import { runSpecFreshnessCheck } from './spec-freshness.js';
+
+/**
+ * Render the `risk-verdict` structured-comment body: a reviewer-readable
+ * axis table plus the canonical fenced-JSON record (verdict + derived
+ * envelope) downstream tooling parses.
+ *
+ * @param {{ epicId: number, riskVerdict: import('../../planning-risk.js').RiskVerdict, planningRisk: import('../../planning-risk.js').PlanningRiskEnvelope }} input
+ * @returns {string}
+ */
+function buildRiskVerdictCommentBody({ epicId, riskVerdict, planningRisk }) {
+  const axisRows = planningRisk.axes.map(
+    (entry) => `| ${entry.axis} | ${entry.level} | ${entry.rationale} |`,
+  );
+  const axisTable =
+    axisRows.length > 0
+      ? ['| Axis | Level | Rationale |', '| --- | --- | --- |', ...axisRows]
+      : ['_No risk axes apply (planner-asserted)._'];
+  const record = {
+    kind: 'risk-verdict',
+    epicId,
+    verdict: riskVerdict,
+    planningRisk,
+  };
+  return [
+    `### 🧭 Planning Risk Verdict — ${planningRisk.overallLevel} · ${planningRisk.gateDecision}`,
+    '',
+    riskVerdict.summary,
+    '',
+    ...axisTable,
+    '',
+    '```json',
+    JSON.stringify(record, null, 2),
+    '```',
+  ].join('\n');
+}
 
 async function setEpicLabel(provider, epicId, targetLabel) {
   const planningLabels = [AGENT_LABELS.REVIEW_SPEC, AGENT_LABELS.READY];
@@ -41,7 +77,7 @@ async function setEpicLabel(provider, epicId, targetLabel) {
  * @param {import('../../../ITicketingProvider.js').ITicketingProvider} provider
  * @param {{ prdContent: string, techSpecContent: string, acceptanceSpecContent?: string|null }} artifacts
  * @param {object} settings
- * @param {{ force?: boolean, forceReview?: boolean, steal?: boolean, config?: object }} [opts]
+ * @param {{ force?: boolean, forceReview?: boolean, steal?: boolean, config?: object, riskVerdict?: import('../../planning-risk.js').RiskVerdict }} [opts]
  * @returns {Promise<{ epicId: number, prdId: number|null, techSpecId: number|null, acceptanceSpecId: number|null, checkpoint: object, planningRisk: import('../../planning-risk.js').PlanningRiskEnvelope, reviewRouting: import('../../plan-review-routing.js').ReviewRoutingEnvelope }>}
  */
 export async function runSpecPhase(
@@ -49,8 +85,24 @@ export async function runSpecPhase(
   provider,
   { prdContent, techSpecContent, acceptanceSpecContent = null },
   settings = {},
-  { force = false, forceReview = false, steal = false, config } = {},
+  {
+    force = false,
+    forceReview = false,
+    steal = false,
+    config,
+    riskVerdict,
+  } = {},
 ) {
+  // Hard cutover (Epic #3865): the planner-authored risk verdict is the
+  // sole risk source. Derive the envelope up front so a missing verdict
+  // fails closed before any GitHub mutation.
+  if (!riskVerdict || !Array.isArray(riskVerdict.axes)) {
+    throw new Error(
+      '[epic-plan-spec] risk verdict is required — author risk-verdict.json via the epic-plan-spec-author Skill and pass it with --risk-verdict.',
+    );
+  }
+  const planningRisk = deriveRiskEnvelope(riskVerdict);
+
   const epic = await provider.getEpic(epicId);
   if (!epic) {
     throw new Error(`[epic-plan-spec] Epic #${epicId} not found.`);
@@ -81,6 +133,7 @@ export async function runSpecPhase(
     settings,
     {
       force,
+      planningRisk,
     },
   );
 
@@ -114,12 +167,16 @@ export async function runSpecPhase(
   // `/epic-plan` remains git-state-free. `forkAndCommitEpicSnapshot` and
   // `forkMainToEpic` remain exported for that caller.
 
-  const planningRisk = classifyPlanningRisk({
-    title: afterPlan.title,
-    body: afterPlan.body ?? '',
-    labels: afterPlan.labels ?? [],
-  });
   const reviewRouting = resolveReviewRouting({ planningRisk, forceReview });
+
+  // Record the planner-authored verdict as a structured artifact — the
+  // audit trail the retired regex classifier never produced (Epic #3865).
+  await upsertStructuredComment(
+    provider,
+    epicId,
+    'risk-verdict',
+    buildRiskVerdictCommentBody({ epicId, riskVerdict, planningRisk }),
+  );
 
   const currentState =
     (await readPlanState({ provider, epicId })) ??
@@ -130,6 +187,7 @@ export async function runSpecPhase(
     state: {
       ...currentState,
       planningRisk,
+      riskVerdict,
       reviewRouting: {
         decision: reviewRouting.decision,
         requiresStop: reviewRouting.requiresStop,

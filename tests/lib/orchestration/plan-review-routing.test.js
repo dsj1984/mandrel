@@ -1,15 +1,34 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { resolveReviewRouting } from '../../../.agents/scripts/lib/orchestration/plan-review-routing.js';
-import { classifyPlanningRisk } from '../../../.agents/scripts/lib/orchestration/planning-risk.js';
+import { deriveRiskEnvelope } from '../../../.agents/scripts/lib/orchestration/planning-risk.js';
+
+const HIGH_RISK_VERDICT = {
+  axes: [
+    {
+      axis: 'critical-workflow',
+      level: 'high',
+      rationale:
+        'Changes /epic-plan gate behavior and acceptance-spec creation.',
+    },
+  ],
+  summary: 'High-risk planning-gate change.',
+};
+
+const LOW_RISK_VERDICT = {
+  axes: [
+    {
+      axis: 'docs-only',
+      level: 'low',
+      rationale: 'Documentation-only prose cleanup.',
+    },
+  ],
+  summary: 'Docs-only cleanup.',
+};
 
 describe('resolveReviewRouting — Story #2795', () => {
   it('requires stop for high-risk planning', () => {
-    const planningRisk = classifyPlanningRisk({
-      title: 'Adaptive Planning Gate Routing',
-      body: 'Changes /epic-plan gate behavior and acceptance-spec creation.',
-      labels: ['type::epic'],
-    });
+    const planningRisk = deriveRiskEnvelope(HIGH_RISK_VERDICT);
 
     const routing = resolveReviewRouting({ planningRisk });
 
@@ -21,11 +40,7 @@ describe('resolveReviewRouting — Story #2795', () => {
   });
 
   it('auto-proceeds for low-risk planning', () => {
-    const planningRisk = classifyPlanningRisk({
-      title: 'Docs-only readme cleanup',
-      body: 'Documentation-only prose cleanup.',
-      labels: ['type::epic'],
-    });
+    const planningRisk = deriveRiskEnvelope(LOW_RISK_VERDICT);
 
     const routing = resolveReviewRouting({ planningRisk });
 
@@ -36,11 +51,7 @@ describe('resolveReviewRouting — Story #2795', () => {
   });
 
   it('forces review stop on low-risk Epics when operator override is set', () => {
-    const planningRisk = classifyPlanningRisk({
-      title: 'Docs-only readme cleanup',
-      body: 'Documentation-only prose cleanup.',
-      labels: ['type::epic'],
-    });
+    const planningRisk = deriveRiskEnvelope(LOW_RISK_VERDICT);
 
     const routing = resolveReviewRouting({ planningRisk, forceReview: true });
 

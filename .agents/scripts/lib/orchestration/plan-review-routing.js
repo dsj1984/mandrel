@@ -1,9 +1,10 @@
 /**
  * plan-review-routing.js — resolve Phase 7 review-stop vs auto-proceed.
  *
- * Pure ESM, no I/O. Consumes the shared {@link classifyPlanningRisk}
- * envelope and optional operator overrides to decide whether the plan
- * wrapper should STOP for human review before Phase 8.
+ * Pure ESM, no I/O. Consumes the shared planningRisk envelope (derived
+ * from the planner-authored risk verdict via `deriveRiskEnvelope`) and
+ * optional operator overrides to decide whether the plan wrapper should
+ * STOP for human review before Phase 8.
  */
 
 /**

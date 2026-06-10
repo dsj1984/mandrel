@@ -41,7 +41,7 @@ import {
 } from '../../.agents/scripts/epic-reconcile.js';
 import { ACCEPTANCE_NA } from '../../.agents/scripts/lib/label-constants.js';
 import { resolveReviewRouting } from '../../.agents/scripts/lib/orchestration/plan-review-routing.js';
-import { classifyPlanningRisk } from '../../.agents/scripts/lib/orchestration/planning-risk.js';
+import { deriveRiskEnvelope } from '../../.agents/scripts/lib/orchestration/planning-risk.js';
 import { PlanningStateManager } from '../../.agents/scripts/lib/orchestration/planning-state-manager.js';
 import {
   loadSpec,
@@ -490,6 +490,47 @@ const SPEC_LEASE_CFG = {
   github: { owner: 'o', repo: 'r', operatorHandle: '@ci' },
 };
 
+// Planner-authored risk verdicts (Epic #3865) — runSpecPhase derives the
+// planningRisk envelope from these instead of regex-classifying the body.
+const HIGH_RISK_VERDICT = {
+  axes: [
+    {
+      axis: 'critical-workflow',
+      level: 'high',
+      rationale:
+        'Changes /epic-plan gate behavior and acceptance-spec creation.',
+    },
+  ],
+  summary: 'High-risk planning-gate change.',
+};
+
+const LOW_RISK_VERDICT = {
+  axes: [
+    {
+      axis: 'docs-only',
+      level: 'low',
+      rationale: 'Documentation-only prose cleanup.',
+    },
+  ],
+  summary: 'Docs-only cleanup.',
+};
+
+const REQUIRED_DISPOSITION_VERDICT = {
+  axes: [
+    {
+      axis: 'security',
+      level: 'high',
+      rationale: 'User-facing security changes.',
+    },
+    {
+      axis: 'billing',
+      level: 'high',
+      rationale: 'Touches the Stripe billing integration.',
+    },
+  ],
+  summary: 'User-facing security and billing rollout.',
+};
+
 describe('review routing — Story #2795', () => {
   it('high-risk runSpecPhase records review-required routing in checkpoint', async () => {
     const provider = buildRunSpecPhaseProvider({
@@ -505,7 +546,7 @@ describe('review routing — Story #2795', () => {
         techSpecContent: '## Technical Overview\nNo stale paths here.',
       },
       { baseBranch: 'main', paths: { tempRoot: sandbox } },
-      { config: SPEC_LEASE_CFG },
+      { config: SPEC_LEASE_CFG, riskVerdict: HIGH_RISK_VERDICT },
     );
 
     assert.equal(result.planningRisk.requiresReview, true);
@@ -530,7 +571,7 @@ describe('review routing — Story #2795', () => {
         techSpecContent: '## Technical Overview\nNo stale paths here.',
       },
       { baseBranch: 'main', paths: { tempRoot: sandbox } },
-      { config: SPEC_LEASE_CFG },
+      { config: SPEC_LEASE_CFG, riskVerdict: LOW_RISK_VERDICT },
     );
 
     assert.equal(result.planningRisk.requiresReview, false);
@@ -541,11 +582,7 @@ describe('review routing — Story #2795', () => {
   });
 
   it('operator override forces review stop on a low-risk Epic', async () => {
-    const planningRisk = classifyPlanningRisk({
-      title: 'Docs-only readme cleanup',
-      body: 'Documentation-only prose cleanup.',
-      labels: ['type::epic'],
-    });
+    const planningRisk = deriveRiskEnvelope(LOW_RISK_VERDICT);
     const routing = resolveReviewRouting({ planningRisk, forceReview: true });
 
     assert.equal(routing.decision, 'operator-override-review');
@@ -563,7 +600,11 @@ describe('review routing — Story #2795', () => {
         techSpecContent: '## Technical Overview\nNo stale paths here.',
       },
       { baseBranch: 'main', paths: { tempRoot: sandbox } },
-      { forceReview: true, config: SPEC_LEASE_CFG },
+      {
+        forceReview: true,
+        config: SPEC_LEASE_CFG,
+        riskVerdict: LOW_RISK_VERDICT,
+      },
     );
 
     assert.equal(result.reviewRouting.decision, 'operator-override-review');
@@ -575,11 +616,7 @@ describe('review routing — Story #2795', () => {
 describe('acceptance disposition persistence — Story #2792', () => {
   it('resolveAcceptancePersistence routes required disposition to acceptance-spec', () => {
     const verdict = resolveAcceptancePersistence(
-      {
-        title: 'Security and billing rollout',
-        body: 'User-facing security changes with Stripe billing.',
-        labels: ['type::epic'],
-      },
+      deriveRiskEnvelope(REQUIRED_DISPOSITION_VERDICT),
       '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
     );
 
@@ -590,11 +627,7 @@ describe('acceptance disposition persistence — Story #2792', () => {
 
   it('resolveAcceptancePersistence routes not-applicable disposition to waiver', () => {
     const verdict = resolveAcceptancePersistence(
-      {
-        title: 'Docs-only readme cleanup',
-        body: 'Documentation-only prose cleanup.',
-        labels: ['type::epic'],
-      },
+      deriveRiskEnvelope(LOW_RISK_VERDICT),
       '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
     );
 
@@ -609,12 +642,18 @@ describe('acceptance disposition persistence — Story #2792', () => {
       body: 'Changes /epic-plan gate behavior and acceptance-spec creation.',
     });
 
-    await planEpic(provider.epic.id, provider, {
-      prdContent: '## Overview\nPRD.',
-      techSpecContent: '## Technical Overview\nTS.',
-      acceptanceSpecContent:
-        '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
-    });
+    await planEpic(
+      provider.epic.id,
+      provider,
+      {
+        prdContent: '## Overview\nPRD.',
+        techSpecContent: '## Technical Overview\nTS.',
+        acceptanceSpecContent:
+          '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
+      },
+      {},
+      { planningRisk: deriveRiskEnvelope(HIGH_RISK_VERDICT) },
+    );
 
     assert.equal(provider.createdTickets.length, 3);
     assert.deepEqual(provider.createdTickets[2].ticketData.labels, [
@@ -635,12 +674,18 @@ describe('acceptance disposition persistence — Story #2792', () => {
       body: 'Internal refactor only — docs-only housekeeping.',
     });
 
-    await planEpic(provider.epic.id, provider, {
-      prdContent: '## Overview\nPRD.',
-      techSpecContent: '## Technical Overview\nTS.',
-      acceptanceSpecContent:
-        '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
-    });
+    await planEpic(
+      provider.epic.id,
+      provider,
+      {
+        prdContent: '## Overview\nPRD.',
+        techSpecContent: '## Technical Overview\nTS.',
+        acceptanceSpecContent:
+          '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
+      },
+      {},
+      { planningRisk: deriveRiskEnvelope(LOW_RISK_VERDICT) },
+    );
 
     assert.equal(
       provider.createdTickets.length,
@@ -952,7 +997,7 @@ describe('--force overwrite-in-place — Story #3310', () => {
 
   it('AC-5: present→waived closes the existing Acceptance Spec ticket', async () => {
     const provider = buildOverwriteProvider({
-      // A docs-only Epic resolves to acceptance disposition not-applicable.
+      // A docs-only verdict resolves to acceptance disposition not-applicable.
       epicTitle: 'Docs-only readme cleanup',
       acceptanceSpecId: 6300,
     });
@@ -967,7 +1012,7 @@ describe('--force overwrite-in-place — Story #3310', () => {
           '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
       },
       {},
-      { force: true },
+      { force: true, planningRisk: deriveRiskEnvelope(LOW_RISK_VERDICT) },
     );
 
     // Acceptance spec genuinely closed (not overwritten) and detached.

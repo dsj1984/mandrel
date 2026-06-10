@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "risk-verdict",
+  "title": "Planning Risk Verdict",
+  "description": "Planner-authored risk judgment for an Epic, produced by the epic-plan-spec-author Skill as the fourth planning artifact (risk-verdict.json) alongside the PRD, Tech Spec, and Acceptance Spec (Epic #3865). epic-plan-spec.js validates the verdict against this schema, derives the deterministic planningRisk envelope via deriveRiskEnvelope (lib/orchestration/planning-risk.js), and records the verdict as a risk-verdict structured comment plus the epic-plan-state checkpoint riskVerdict field. The model supplies the judgment input (axes); the harness owns the gate decision. A malformed verdict fails closed to the validation-error path — it is never silently coerced.",
+  "type": "object",
+  "required": ["axes", "summary"],
+  "properties": {
+    "axes": {
+      "type": "array",
+      "description": "Risk axes the planner judges to genuinely apply to the Epic. An empty array asserts no recognized risk axis applies (derives an all-low envelope). Every entry must use the fixed axis vocabulary mirrored from REQUIRED_AXES / NOT_APPLICABLE_AXES in lib/orchestration/planning-risk.js.",
+      "items": {
+        "type": "object",
+        "required": ["axis", "level", "rationale"],
+        "properties": {
+          "axis": {
+            "type": "string",
+            "enum": [
+              "visible-behavior",
+              "public-api",
+              "security",
+              "data-migration",
+              "billing",
+              "destructive-mutation",
+              "critical-workflow",
+              "docs-only",
+              "test-harness",
+              "internal-refactor"
+            ],
+            "description": "Risk axis identifier. The first seven force a required acceptance disposition when present (REQUIRED_AXES); the last three waive the acceptance spec when they are the only signals (NOT_APPLICABLE_AXES)."
+          },
+          "level": {
+            "type": "string",
+            "enum": ["low", "medium", "high"],
+            "description": "Planner-judged severity of this axis for the Epic's actual change, not keyword presence — e.g. a PRD sentence saying 'out of scope: billing' is not a billing change."
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Concrete, reviewer-readable justification grounded in the PRD / Tech Spec the planner just authored. Never an empty self-attestation."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "description": "One-paragraph overall risk narrative for the audit trail (the rationale the retired regex classifier could never produce)."
+    }
+  },
+  "additionalProperties": false
+}

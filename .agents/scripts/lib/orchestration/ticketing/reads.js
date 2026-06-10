@@ -145,6 +145,12 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // the documented remediation actually executable
   // (assertValidStructuredCommentType would otherwise throw).
   'wave-stall',
+  // Story #3873 (Epic #3865) — `epic-plan-spec.js` upserts a `risk-verdict`
+  // comment on the Epic at persist time, recording the planner-authored,
+  // schema-validated risk verdict and the planningRisk envelope derived
+  // from it (`deriveRiskEnvelope`). One entry per Epic; re-plans upsert in
+  // place. Schema: `.agents/schemas/risk-verdict.schema.json`.
+  'risk-verdict',
 ]);
 
 export const WAVE_TYPE_PATTERN = WAVE_MARKER_RE;

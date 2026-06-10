@@ -18,7 +18,7 @@ import {
   hasAllRequestedArtifacts,
   validatePlanEpicInputs,
 } from '../.agents/scripts/lib/orchestration/epic-plan-spec/phases/plan-epic.js';
-import { classifyPlanningRisk } from '../.agents/scripts/lib/orchestration/planning-risk.js';
+import { deriveRiskEnvelope } from '../.agents/scripts/lib/orchestration/planning-risk.js';
 
 describe('epic-planner orchestration (v5.6+)', () => {
   let mockProvider;
@@ -331,50 +331,25 @@ describe('epic-planner buildAuthoringContext', () => {
     assert.equal(typeof ctx.bddRunner.fallback, 'boolean');
     // Exactly one of supported/fallback is true.
     assert.notEqual(ctx.bddRunner.supported, ctx.bddRunner.fallback);
-    // Story #2791 — planningRisk rides alongside the pre-existing envelope
-    // keys without replacing them.
     assert.equal(typeof ctx.memoryFreshness, 'object');
     assert.equal(typeof ctx.priorFeedback, 'object');
     assert.ok(Array.isArray(ctx.bddScenarios));
-    assert.equal(typeof ctx.planningRisk, 'object');
-    assert.ok(ctx.planningRisk);
-    assert.equal(typeof ctx.planningRisk.overallLevel, 'string');
-    assert.equal(typeof ctx.planningRisk.gateDecision, 'string');
+    // Epic #3865 — risk is no longer classified at emit-context time; the
+    // epic-plan-spec-author Skill authors the verdict as the fourth
+    // artifact, so the envelope must not carry a planningRisk field.
+    assert.equal('planningRisk' in ctx, false);
   });
 
-  it('classifies a critical-workflow Epic as high risk in planningRisk', async () => {
-    const provider = {
-      async getEpic(id) {
-        return {
-          id,
-          title: 'Adaptive Planning Gate Routing',
-          body: `## Scope
-
-Changes /epic-plan gate behavior and acceptance-spec creation for critical workflow orchestration.`,
-          labels: ['type::epic'],
-          linkedIssues: { prd: null, techSpec: null },
-        };
-      },
-    };
-
-    const ctx = await buildAuthoringContext(99, provider, {});
-
-    assert.equal(ctx.planningRisk.overallLevel, 'high');
-    assert.equal(ctx.planningRisk.requiresReview, true);
-    assert.equal(ctx.planningRisk.acceptanceDisposition, 'required');
-    assert.equal(ctx.planningRisk.gateDecision, 'review-required');
-    assert.ok(
-      ctx.planningRisk.axes.some(
-        (entry) => entry.axis === 'critical-workflow' && entry.level === 'high',
-      ),
-    );
-  });
-
-  it('branches review routing on planningRisk for low-risk docs-only Epics', () => {
-    const planningRisk = classifyPlanningRisk({
-      title: 'Docs-only readme cleanup',
-      body: 'Documentation-only prose cleanup.',
-      labels: ['type::epic'],
+  it('branches review routing on planningRisk for low-risk docs-only verdicts', () => {
+    const planningRisk = deriveRiskEnvelope({
+      axes: [
+        {
+          axis: 'docs-only',
+          level: 'low',
+          rationale: 'Documentation-only prose cleanup.',
+        },
+      ],
+      summary: 'Docs-only cleanup.',
     });
     const routing = resolveReviewRouting({ planningRisk });
 
