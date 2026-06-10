@@ -464,14 +464,6 @@
       "symbol": "renderProgressTable"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
-      "symbol": "fetchLiveEpic"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
-      "symbol": "makeAgentStateResolver"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/finalize/open-or-locate-pr.js",
       "symbol": "defaultGhSpawn"
     },
