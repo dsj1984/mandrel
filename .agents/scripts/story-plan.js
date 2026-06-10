@@ -14,9 +14,12 @@
  *      print it as JSON on stdout. Logs route to stderr so the
  *      envelope is byte-clean for `JSON.parse`.
  *   2. Persist mode — given a `--body <file>` authored by the host
- *      LLM after operator confirmation, validate the shape and call
- *      `gh issue create` with `type::story` + the chosen persona
- *      label. Prints `Next: /single-story-deliver <id>`.
+ *      LLM after operator confirmation, validate the shape and persist
+ *      via `provider.createIssue` (which also adds the new Story to
+ *      the configured Projects V2 board — Story #3822) with
+ *      `type::story` + the chosen persona label, falling back to
+ *      `gh issue create` when the provider lacks a createIssue
+ *      analogue. Prints `Next: /single-story-deliver <id>`.
  *   3. `--dry-run` — same as persist but exits without touching
  *      GitHub. Echoes the rendered body and the `gh` argv it would
  *      have run.
@@ -162,7 +165,15 @@ async function runEmitContext({ values, provider, projectRoot }) {
   process.stdout.write(`${json}\n`);
 }
 
-async function runPersist({ values, provider, dryRun }) {
+async function runPersist({
+  values,
+  provider,
+  dryRun,
+  // Injectable stdout port so unit tests can capture/silence the summary
+  // JSON without stubbing the process-global stream (raw stdout writes
+  // corrupt the `node --test` runner's structured report stream).
+  write = (s) => process.stdout.write(s),
+}) {
   const bodyPath = values.body;
   if (!bodyPath) {
     throw new Error('--body <file> is required in persist mode.');
@@ -187,15 +198,20 @@ async function runPersist({ values, provider, dryRun }) {
     Logger.info(`gh argv: gh ${argv.join(' ')}`);
     Logger.info('--- BODY ---');
     Logger.info(body);
-    process.stdout.write(
+    write(
       `${JSON.stringify({ dryRun: true, title, labels, argv }, null, 2)}\n`,
     );
     return;
   }
 
   // Persist via the provider when available so I/O stays inside the
-  // injected ticketing surface. Fall back to `gh issue create` only
-  // when the provider doesn't expose a createIssue analogue.
+  // injected ticketing surface. The GitHub provider's `createIssue`
+  // also adds the new Story to the configured Projects V2 board via
+  // the shared `addIssueToBoard` helper (Story #3822) — idempotent,
+  // non-fatal, no-op when no project number is configured — so board
+  // membership never depends on GitHub's "Auto-add to project"
+  // built-in workflow. Fall back to `gh issue create` only when the
+  // provider doesn't expose a createIssue analogue.
   let issueNumber;
   if (typeof provider.createIssue === 'function') {
     const created = await provider.createIssue({ title, body, labels });
@@ -213,9 +229,7 @@ async function runPersist({ values, provider, dryRun }) {
     issueNumber = Number(m[1]);
   }
 
-  process.stdout.write(
-    `${JSON.stringify({ issueNumber, title, labels }, null, 2)}\n`,
-  );
+  write(`${JSON.stringify({ issueNumber, title, labels }, null, 2)}\n`);
   Logger.info(`Next: /single-story-deliver ${issueNumber}`);
 }
 
@@ -267,4 +281,4 @@ runAsCli(import.meta.url, main, { source: 'story-plan' });
 
 // Test surface — exported so unit tests can drive the helpers
 // without importing the CLI side.
-export { fetchOpenStories, renderGhArgv };
+export { fetchOpenStories, renderGhArgv, runPersist };

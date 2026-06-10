@@ -23,7 +23,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-
+import { createGh } from '../.agents/scripts/lib/gh-exec.js';
+import { routeAllOutputToStderr } from '../.agents/scripts/lib/Logger.js';
 import {
   buildContextEnvelope,
   DEFAULT_REFINE_THRESHOLD,
@@ -32,7 +33,8 @@ import {
   shouldRefine,
   validateStoryBody,
 } from '../.agents/scripts/lib/story-plan.js';
-import { extractTitle } from '../.agents/scripts/story-plan.js';
+import { TicketGateway } from '../.agents/scripts/providers/github/tickets.js';
+import { extractTitle, runPersist } from '../.agents/scripts/story-plan.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '..');
@@ -315,5 +317,104 @@ describe('story-plan.js CLI: --dry-run --body', () => {
     });
     assert.notEqual(r.status, 0);
     assert.match(r.stderr, /Epic: #N/);
+  });
+});
+
+/**
+ * Story #3822 — /story-plan persist-path board membership regression.
+ *
+ * Drives `runPersist` with a provider whose `createIssue` is the real
+ * `TicketGateway.createIssue` (fake gh facade, recording hooks) and
+ * proves the created Story is added to the Projects V2 board via the
+ * shared board-add helper with the new issue's `node_id` when a project
+ * number is configured, and that the add is skipped cleanly when it is
+ * not.
+ */
+describe('story-plan.js runPersist: Projects V2 board membership (Story #3822)', () => {
+  // runPersist logs progress via Logger (stdout by default); route it to
+  // stderr so log lines cannot interleave with the runner's report stream.
+  routeAllOutputToStderr();
+
+  let tmp;
+  beforeEach(() => {
+    tmp = mkdtempSync(path.join(os.tmpdir(), 'story-plan-board-'));
+  });
+  afterEach(() => {
+    rmSync(tmp, { recursive: true, force: true });
+  });
+
+  function makeProvider({ projectNumber }) {
+    const projectCalls = [];
+    const exec = async ({ args, input }) => {
+      const method = args[2] ?? 'GET';
+      if (method === 'POST') {
+        const posted = JSON.parse(input);
+        return {
+          stdout: JSON.stringify({
+            number: 8181,
+            id: 81810,
+            node_id: 'node_8181',
+            html_url: 'https://example/8181',
+            title: posted.title,
+          }),
+          stderr: '',
+          code: 0,
+        };
+      }
+      return { stdout: '{}', stderr: '', code: 0 };
+    };
+    const gateway = new TicketGateway({
+      gh: createGh(exec),
+      owner: 'o',
+      repo: 'r',
+      hooks: {
+        addItemToProject: async (nodeId) => {
+          projectCalls.push(nodeId);
+        },
+        getProjectNumber: () => projectNumber,
+      },
+    });
+    const provider = {
+      createIssue: (payload) => gateway.createIssue(payload),
+    };
+    return { provider, projectCalls };
+  }
+
+  it('adds the created Story to the board with its node_id when a project number is set', async () => {
+    const bodyPath = path.join(tmp, 'draft.md');
+    writeFileSync(bodyPath, VALID_BODY);
+    const { provider, projectCalls } = makeProvider({ projectNumber: 1 });
+    const summaries = [];
+
+    await runPersist({
+      values: { body: bodyPath, persona: 'engineer' },
+      provider,
+      dryRun: false,
+      // Capture the summary JSON via the injectable stdout port so raw
+      // writes cannot interleave with the test runner's report stream.
+      write: (s) => summaries.push(s),
+    });
+
+    assert.deepEqual(projectCalls, ['node_8181']);
+    const summary = JSON.parse(summaries.join(''));
+    assert.equal(summary.issueNumber, 8181);
+  });
+
+  it('skips the board add cleanly when no project number is configured', async () => {
+    const bodyPath = path.join(tmp, 'draft.md');
+    writeFileSync(bodyPath, VALID_BODY);
+    const { provider, projectCalls } = makeProvider({ projectNumber: null });
+    const summaries = [];
+
+    await runPersist({
+      values: { body: bodyPath, persona: 'engineer' },
+      provider,
+      dryRun: false,
+      write: (s) => summaries.push(s),
+    });
+
+    assert.deepEqual(projectCalls, []);
+    const summary = JSON.parse(summaries.join(''));
+    assert.equal(summary.issueNumber, 8181);
   });
 });
