@@ -24,11 +24,9 @@ import {
   createCrapDriftDetector,
   normaliseCoveragePath,
 } from '../../../.agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js';
-import {
-  CLEAN_SPRINT_MARKER,
-  deriveAutoMergeVerdict,
-} from '../../../.agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js';
+import { deriveAutoMergeVerdict } from '../../../.agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js';
 import { reconcileHierarchy } from '../../../.agents/scripts/lib/orchestration/reconciler.js';
+import { composeRetroBody } from '../../../.agents/scripts/lib/orchestration/retro/phases/compose-body.js';
 import { runAutoRefresh } from '../../../.agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js';
 import { diffCrapBaselines } from '../../../.agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js';
 import {
@@ -37,6 +35,14 @@ import {
   runFinalizeMerge,
 } from '../../../.agents/scripts/lib/orchestration/story-close/merge-runner.js';
 import { validateAndNormalizeTickets } from '../../../.agents/scripts/lib/orchestration/ticket-validator.js';
+
+// Compact retro body carrying the machine-readable automerge-verdict
+// trailer the predicate now reads (Story #3901). Built from the real
+// composer so the fixture cannot drift from the producer.
+const CLEAN_RETRO_BODY = composeRetroBody({
+  epicId: 1641,
+  counts: { friction: 0, parked: 0, recuts: 0, hitl: 0, interventions: 0 },
+}).body;
 
 // ---------------------------------------------------------------------------
 // phaseToState
@@ -283,7 +289,7 @@ describe('automerge-predicate.deriveAutoMergeVerdict', () => {
         waves: [{ status: 'complete', stories: [{ status: 'done' }] }],
       },
       codeReview: { body: '🔴 Critical Blocker: 0\n🟠 High Risk: 0\n' },
-      retro: { body: `done ${CLEAN_SPRINT_MARKER} okay` },
+      retro: { body: CLEAN_RETRO_BODY },
     });
     assert.equal(verdict.clean, true);
     assert.deepEqual(verdict.reasons, []);
@@ -293,7 +299,7 @@ describe('automerge-predicate.deriveAutoMergeVerdict', () => {
     const v = deriveAutoMergeVerdict({
       state: null,
       codeReview: { body: '🔴 Critical Blocker: 0\n🟠 High Risk: 0\n' },
-      retro: { body: CLEAN_SPRINT_MARKER },
+      retro: { body: CLEAN_RETRO_BODY },
     });
     assert.ok(
       v.reasons.some((r) => r.includes('epic-run-state checkpoint missing')),
@@ -341,7 +347,11 @@ describe('automerge-predicate.deriveAutoMergeVerdict', () => {
     assert.ok(v.reasons.some((r) => r.includes('story-level blocker')));
     assert.ok(v.reasons.some((r) => r.includes('1 🔴 Critical Blocker')));
     assert.ok(v.reasons.some((r) => r.includes('2 🟠 High Risk')));
-    assert.ok(v.reasons.some((r) => r.includes('retro is not compact')));
+    assert.ok(
+      v.reasons.some((r) =>
+        r.includes('missing the machine-readable automerge-verdict trailer'),
+      ),
+    );
     assert.equal(v.clean, false);
   });
 
@@ -349,7 +359,7 @@ describe('automerge-predicate.deriveAutoMergeVerdict', () => {
     const v = deriveAutoMergeVerdict({
       state: { manualInterventions: [], waves: [] },
       codeReview: { body: 'no bullets here' },
-      retro: { body: CLEAN_SPRINT_MARKER },
+      retro: { body: CLEAN_RETRO_BODY },
     });
     assert.ok(
       v.reasons.some((r) =>

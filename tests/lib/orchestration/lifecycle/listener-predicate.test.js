@@ -4,12 +4,17 @@
  * (Story #2256 / Task #2260).
  *
  * Acceptance contract:
- *   - Subscribes to `epic.watch.end` (and ONLY that event).
+ *   - Subscribes to `epic.automerge.start` (production Phase 8.5
+ *     boundary, Story #3901) AND `epic.watch.end` (test-only Watcher
+ *     path).
  *   - Verdict for clean inputs is IDENTICAL to the pre-inlining legacy
  *     `evaluateAutoMergePredicate` output — the listener now owns that
  *     evaluator directly (inlined under Story #2415).
  *   - Required-check failures short-circuit to `epic.merge.blocked`
- *     BEFORE the structured-signal evaluator is consulted.
+ *     BEFORE the structured-signal evaluator is consulted — but only on
+ *     the `epic.watch.end` path, which carries `checkOutcomes`. The
+ *     `epic.automerge.start` path has no `checkOutcomes` (CI is already
+ *     green per Phase 8) and skips the freshness gate.
  *   - `epic.merge.blocked` always carries a non-empty `reason`.
  */
 
@@ -96,7 +101,7 @@ describe('formatCheckFailureReason', () => {
 });
 
 describe('AutomergePredicate (bus integration)', () => {
-  it('subscribes ONLY to epic.watch.end', () => {
+  it('subscribes to epic.automerge.start and epic.watch.end', () => {
     const predicate = new AutomergePredicate({
       bus: new Bus(),
       epicId: 2172,
@@ -108,7 +113,63 @@ describe('AutomergePredicate (bus integration)', () => {
       }),
       logger: quietLogger(),
     });
-    assert.deepEqual([...predicate.events], ['epic.watch.end']);
+    assert.deepEqual(
+      [...predicate.events],
+      ['epic.automerge.start', 'epic.watch.end'],
+    );
+  });
+
+  it('emits epic.merge.ready on epic.automerge.start (production path, no checkOutcomes)', async () => {
+    const { bus, emits } = recordingBus();
+    let evalCalls = 0;
+    const predicate = new AutomergePredicate({
+      bus,
+      epicId: 2172,
+      provider: fakeProvider,
+      evaluatePredicateFn: async () => {
+        evalCalls += 1;
+        return { clean: true, reasons: [], signals: {} };
+      },
+      logger: quietLogger(),
+    });
+    predicate.register();
+
+    // The production Phase 8.5 payload carries prUrl but no checkOutcomes.
+    await bus.emit('epic.automerge.start', {
+      prUrl: 'https://github.com/owner/repo/pull/9',
+      epicId: 2172,
+    });
+    assert.equal(emits.length, 1);
+    assert.equal(emits[0].event, 'epic.merge.ready');
+    assert.equal(
+      evalCalls,
+      1,
+      'structured-signal evaluator consulted (freshness gate skipped — no checkOutcomes)',
+    );
+  });
+
+  it('emits epic.merge.blocked on epic.automerge.start when the verdict is dirty', async () => {
+    const { bus, emits } = recordingBus();
+    const predicate = new AutomergePredicate({
+      bus,
+      epicId: 2172,
+      provider: fakeProvider,
+      evaluatePredicateFn: async () => ({
+        clean: false,
+        reasons: ['manual interventions recorded (1): drift'],
+        signals: {},
+      }),
+      logger: quietLogger(),
+    });
+    predicate.register();
+
+    await bus.emit('epic.automerge.start', {
+      prUrl: 'https://github.com/owner/repo/pull/9',
+      epicId: 2172,
+    });
+    assert.equal(emits.length, 1);
+    assert.equal(emits[0].event, 'epic.merge.blocked');
+    assert.match(emits[0].payload.reason, /manual interventions/);
   });
 
   it('emits epic.merge.ready when every check is green and verdict.clean', async () => {
