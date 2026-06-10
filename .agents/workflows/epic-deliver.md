@@ -292,7 +292,8 @@ node .agents/scripts/lifecycle-emit-story-dispatch.js \
 `<attempt>` starts at 1 for the Story's first dispatch in this wave
 and increments on each retry/refill. The CLI appends exactly one
 NDJSON line to `temp/epic-<epicId>/lifecycle.ndjson`; the matching
-`story.dispatch.end` record is written later by `wave-session`'s bus
+`story.dispatch.end` record is appended later by
+`epic-execute-record-wave.js` (via `emit-story-dispatch-end.js`, Story #3900)
 after the Agent return is recorded in § 2c.
 
 Each Agent call's prompt must (1) name the Story + Epic ids, (2)

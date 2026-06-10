@@ -438,9 +438,10 @@ export async function runLifecycleEmit({
 
 /**
  * Build a thin per-Epic checkpointer facade over `epic-run-state-store`.
- * Mirrors the shape that `epic-runner/factory.js` constructs for the
- * production runner so BranchCleaner sees the same `read()`/`write()`
- * surface in both paths.
+ * Exposes the `read()`/`write()`/`setPhase()`/`appendIntervention()`
+ * surface BranchCleaner expects. (This was previously also constructed by
+ * the in-process `epic-runner/factory.js`, deleted with the dead runner
+ * stratum in Story #3908; this CLI is now the only builder of the facade.)
  */
 function buildEpicCheckpointer({ provider, epicId }) {
   return {

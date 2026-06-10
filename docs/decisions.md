@@ -14,6 +14,117 @@
 > answered at the time; cross-cuts that the Mandrel rebrand supersedes
 > are flagged in the entries themselves.
 
+## ADR 20260610-lifecycle-bus-retained: Keep the lifecycle bus; collapse-by-deletion is already done
+
+**Status:** Accepted
+**Date:** 2026-06-10
+**Scope:** Story #3911 (audit
+[`epic-lifecycle-review.md` §4 / §6 step 5](epic-lifecycle-review.md)).
+**Depends on:** #3908 (dead-stratum deletion), #3909 (state-surface collapse) —
+both merged before this decision was recorded.
+
+### Context
+
+The §4 audit posed a **directional** question (deliberately sequenced last, after
+the repairs #3900–#3907 and the deletions #3908/#3909 landed): should the
+`/epic-deliver` close-tail lifecycle **bus** be replaced with direct named
+function calls plus an `appendLedger()` helper, and should the steady-state wave
+loop be collapsed to a minimal hop set? The audit's stated motive for the
+bus-replacement was that *"the static call graph would mechanically prevent the
+Story #3367 'wrong emit deletes branches' bug class currently fenced with
+prose,"* and that direct calls *"would reproduce it in ~1/4 the code."* The
+acceptance criteria make the replacement **conditional** ("if yes …").
+
+This ADR records the decision; the post-#3908/#3909 codebase was the input to it.
+
+### Decision
+
+**1. KEEP the lifecycle bus. Do NOT replace it with direct calls.** The audit's
+"~1/4 the code" estimate weighed the bus as ceremony, but its surviving
+production value is **load-bearing safety**, not boilerplate:
+
+- **Schema validation before any side effect** — `bus.emit()` validates the
+  payload against `.agents/schemas/lifecycle/<event>.schema.json` and throws
+  *before* a single listener runs, so a malformed close-tail payload never
+  triggers a partial finalize.
+- **`emitted`-before-`completed` NDJSON ordering** — the privileged
+  `onEmitted` / `onCompleted` / `onFailed` hooks that `LedgerWriter` installs
+  are the substrate of the **resume contract**: a crash mid-chain leaves a
+  recoverable trail with monotonic `seqId`, and listeners are idempotent on
+  `(event, seqId)` across replay. Direct calls + a bare `appendLedger()` would
+  have to re-derive this ordering guarantee by hand at every call site.
+- **Secret-strip and one-place observability** — `LedgerWriter` strips the
+  secret denylist from every payload; the ledger is the single forensics
+  system-of-record that `signals-view.js`, the idle watchdog, and resume all
+  read.
+
+Crucially, the **hot path that did not need those guarantees already bypasses
+the bus**: Story #3900 routes `story.dispatch.start` / `story.dispatch.end` /
+`story.heartbeat` through thin direct ledger-append helpers
+(`lifecycle-emit-story-dispatch.js`, `emit-story-dispatch-end.js`,
+`emit-story-heartbeat.js`) precisely because the full listener chain is the wrong
+altitude for a per-Story tick. What remains on the bus is exactly the
+**close-tail** (acceptance-reconcile → finalize → automerge-arm → merge-watch →
+cleanup), where the schema/ordering/resume guarantees matter most. The
+architecture has therefore *already* converged on "direct calls where they're
+cheap and safe; bus where the resume contract is load-bearing" — the audit's
+target end-state, reached by subtraction rather than by a rewrite.
+
+**The audit's one concrete safety motive is already satisfied without the
+rewrite.** Story #3901 shipped
+[`tests/contract/lifecycle/event-connectivity.test.js`](../tests/contract/lifecycle/event-connectivity.test.js):
+a contract test asserting **every schema'd event has ≥1 production emitter and
+≥1 production subscriber (or an explicitly classified terminal/external
+rationale)**. That is the mechanical "no dead wire / no wrong emit" guard the
+audit said a direct call graph would provide — now enforced in CI against the
+bus topology itself. The prose fence is replaced by a test; the bus stays.
+
+A full replacement would also be a multi-thousand-LOC rewrite spanning four
+production callers (`lifecycle-emit.js`, `story-close.js`, `retro-run.js`,
+`epic-deliver-note-intervention.js`), the eight close-tail listeners (~4,600
+LOC), 40 event schemas, and 39 test files — directly contradicting the audit's
+own "~100 LOC new code" framing and churning the surfaces #3901/#3904 stabilized
+days earlier. That is the opposite of a clean hard cutover.
+
+**2. The steady-state wave-loop collapse is ALREADY DONE by the merged
+dependencies.** The loop is a single stateless `tick()` planner
+([`lib/wave-runner/tick.js`](../.agents/scripts/lib/wave-runner/tick.js)) →
+fan-out → `epic-execute-record-wave.js` (the only advancer of `currentWave`) →
+loop. Story #3909 already retired the write-only wave **bus** events with no
+reader (`wave-tick`, `epic-complete`), consolidating durable wave progress to
+**checkpoint + ledger + one `epic-run-progress` comment** — the exact "keep
+three" target of §2.2. The working crash-recovery paths are preserved: Story
+#3907's mode-B empty-returns reconcile (`--returns '[]'` re-derives `plan[N]`
+from GitHub so `currentWave` advances after a post-children/pre-record crash)
+and the §2e idle watchdog with branch-commit liveness (#3900). No further
+hop-set collapse is available without reintroducing a write-only surface or
+removing a crash-recovery branch.
+
+**3. Residual structural cleanup carried by this Story.** The #3908 deletion
+left three stale references to deleted modules in surviving code/prose, which
+this Story corrects: the wave-loop dispatch prose in
+`epic-deliver.md` (the matching `story.dispatch.end` is written by
+`epic-execute-record-wave.js`, not "`wave-session`'s bus"), and the
+`epic-runner/factory.js` references in `lifecycle/listeners/index.js` and
+`lifecycle-emit.js` (the factory was deleted by #3908; `buildDefaultListenerChain`
+is now the sole production wiring path).
+
+### Consequences
+
+- The lifecycle bus, its schema-validation seam, the `LedgerWriter` hook
+  ordering, and the close-tail listener roster are **retained as the canonical
+  architecture**. `docs/LIFECYCLE.md` remains authoritative.
+- The "wrong-emit / dead-wire" bug class is mechanically fenced by the
+  #3901 connectivity contract test rather than by prose — future contributors
+  who add a schema without wiring it (emitter + subscriber) fail CI.
+- The wave loop needs no further collapse; §2.2/§6-step-3 closed it via #3909.
+- The §4 directional question is **resolved as "no rewrite"** with the rationale
+  recorded here, so a future reader does not re-litigate it. Should the resume
+  contract or the close-tail roster ever be redesigned wholesale, this ADR is
+  the entry point to revisit the keep decision.
+
+---
+
 ## ADR 20260610-planning-determinism-dispositions: Per-layer dispositions for the deterministic planning proxies
 
 **Status:** Accepted
