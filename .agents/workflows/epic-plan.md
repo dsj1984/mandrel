@@ -125,8 +125,20 @@ new Epic is genuinely distinct).
 1. **Open the Epic Issue**: Call
    `openEpicFromOnePager({ onePager, template, createIssue })` from the
    same `epic-plan-ideation.js` module. Pass a `createIssue` port that
-   delegates to the resolved ticketing provider (`provider-factory.js`)
-   so the labels and body land via the canonical I/O surface.
+   delegates to the resolved ticketing provider's `createIssue` method
+   (`provider-factory.js`; GitHub: `TicketGateway.createIssue`) so the
+   labels and body land via the canonical I/O surface.
+
+   **Board membership (Story #3822)**: the provider's `createIssue`
+   adds the new Epic to the configured Projects V2 board via the
+   shared `addIssueToBoard` helper
+   ([`providers/github/board-add.js`](../scripts/providers/github/board-add.js))
+   — idempotent, non-fatal (warn-on-error), and a no-op when no
+   project number is configured — so the Epic lands on the board
+   without relying on GitHub's "Auto-add to project" built-in
+   workflow (off by default on fresh boards and not enableable via
+   API). The created issue's GraphQL `node_id` is surfaced as
+   `nodeId` on the returned envelope for follow-up board operations.
 
 2. **Label discipline**: The Issue is opened with **only** the
    `type::epic` label. **Do not** add any `state::*` label at creation

@@ -127,15 +127,23 @@ export function renderEpicBody({ onePager, template }) {
  * `[type::epic]` — no `state::*` label is added at creation time.
  *
  * The `createIssue` port matches the shape
- * `({ title, body, labels }) => Promise<{ id, url }>` so the unit
- * test can pass an in-memory mock and assert on the captured payload.
+ * `({ title, body, labels }) => Promise<{ id, nodeId?, url? }>` so the
+ * unit test can pass an in-memory mock and assert on the captured
+ * payload. In production the port delegates to the ticketing provider's
+ * `createIssue` (GitHub: `TicketGateway.createIssue`), which adds the
+ * new issue to the configured Projects V2 board via the shared
+ * `addIssueToBoard` helper — idempotent, non-fatal, and a no-op when no
+ * project number is configured (Story #3822) — so the Epic lands on the
+ * board without relying on GitHub's "Auto-add to project" workflow. The
+ * created issue's GraphQL `node_id` is surfaced as `nodeId` on the
+ * returned envelope for observability and follow-up board operations.
  *
  * @param {{
  *   onePager: string,
  *   template: string,
- *   createIssue: (payload: { title: string, body: string, labels: string[] }) => Promise<{ id: number, url?: string }>,
+ *   createIssue: (payload: { title: string, body: string, labels: string[] }) => Promise<{ id: number, nodeId?: string, url?: string }>,
  * }} args
- * @returns {Promise<{ id: number, title: string, body: string, labels: string[], url?: string, payload: { title: string, body: string, labels: string[] } }>}
+ * @returns {Promise<{ id: number, nodeId: string|null, title: string, body: string, labels: string[], url?: string, payload: { title: string, body: string, labels: string[] } }>}
  */
 export async function openEpicFromOnePager({
   onePager,
@@ -151,10 +159,18 @@ export async function openEpicFromOnePager({
   const created = await createIssue(payload);
   if (!created || typeof created.id !== 'number') {
     throw new Error(
-      'openEpicFromOnePager: createIssue must return { id: number, url? }',
+      'openEpicFromOnePager: createIssue must return { id: number, nodeId?, url? }',
     );
   }
-  return { id: created.id, title, body, labels, url: created.url, payload };
+  return {
+    id: created.id,
+    nodeId: created.nodeId ?? null,
+    title,
+    body,
+    labels,
+    url: created.url,
+    payload,
+  };
 }
 
 /**
