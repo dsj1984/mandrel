@@ -18,12 +18,12 @@ govern AI coding assistants. The `.claude/` / hook / skill surface
 leans in on Claude Code as the reference runtime, and the dispatcher
 under `.agents/scripts/` treats the dispatch manifest (md + structured
 comment) as the cross-runtime contract. The framework is distributed as
-the [`@mandrelai/agents`](https://www.npmjs.com/package/@mandrelai/agents) npm
+the [`mandrel`](https://www.npmjs.com/package/mandrel) npm
 package and materialized into consumer projects' `.agents/` directories by
 `mandrel sync`.
 
 - **Current Version:** the `version` field of the root
-  [`package.json`](package.json) (run `npm ls @mandrel/agents` in a
+  [`package.json`](package.json) (run `npm ls mandrel` in a
   consumer project)
 - **License:** ISC
 
@@ -142,7 +142,7 @@ the same machine before and after an optimization. Optional flags:
 2. Make changes inside `.agents/` (the distributed product).
 3. Commit — Husky will auto-lint and format staged `.md` files.
 4. Open a PR against `main`. CI validates the change; once merged,
-   release-please cuts the release that publishes `@mandrelai/agents` to npm
+   release-please cuts the release that publishes `mandrel` to npm
    (see the Release Checklist below).
 
 ### Release Checklist
@@ -167,13 +167,13 @@ Releases are automated by
    `Validate and Test` passes, GitHub squash-merges the release PR,
    which triggers the workflow to create the GitHub Release, tag
    `main` with `vX.Y.Z`, and run the matching publish job(s) — `npm-publish`
-   publishes the root `@mandrelai/agents` package and `npm-publish-launcher`
+   publishes the root `mandrel` package and `npm-publish-launcher`
    publishes the unscoped `create-mandrel` launcher, each to npm with build
    provenance (Sigstore) and each gated on its own package's release output
    (so a root-only release does not republish the launcher and vice versa).
    This replaces the retired `dist`-branch mirror: consumers now install a
    versioned, provenance-signed package from npm (`npm install
-   @mandrelai/agents`, then `mandrel sync`) instead of pinning a Git submodule
+   mandrel`, then `mandrel sync`) instead of pinning a Git submodule
    to the `dist` branch, and bootstrap a fresh project with `npx
    create-mandrel`. The publish jobs require the `NPM_TOKEN` secret — see
    [§ npm publish token](#npm-publish-token) below.
@@ -268,7 +268,7 @@ operator-visible consequences:
   release (the bug Story #3891's initial wiring shipped; fixed by reverting the
   root gate to the un-prefixed `release_created`).
   - **`npm-publish`** checks out the repository root and runs `npm publish`
-    against the root `package.json`, publishing **`@mandrelai/agents`**. It is
+    against the root `package.json`, publishing **`mandrel`**. It is
     gated on the root package's `steps.release.outputs.release_created`.
   - **`npm-publish-launcher`** runs `npm publish` with
     `working-directory: create-mandrel`, publishing the unscoped
@@ -325,8 +325,7 @@ publishing), so they need a one-time secret:
 1. Create an **automation** access token at
    <https://www.npmjs.com/settings/~/tokens>. The token owner must be able to
    publish **both**:
-   - the scoped root package under the **`@mandrelai`** scope
-     (`@mandrelai/agents`) — its first publish relies on
+   - the unscoped root package **`mandrel`** — its first publish relies on
      `publishConfig.access: "public"` (already set in the root
      `package.json`); and
    - the **unscoped `create-mandrel`** launcher package. The launcher name is

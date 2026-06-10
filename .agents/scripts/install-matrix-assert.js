@@ -4,7 +4,7 @@
  * Golden-path install assertions for the install matrix (Story #3472).
  *
  * The `.github/workflows/install-matrix.yml` workflow exercises the published
- * package contract — install `@mandrelai/agents`, run `mandrel sync`, run
+ * package contract — install `mandrel`, run `mandrel sync`, run
  * `mandrel doctor` — across {npm, pnpm, yarn} x {ubuntu-latest,
  * windows-latest}. Rather than spread the per-leg invariants across
  * PowerShell-vs-bash shell snippets (which diverge on quoting, `$?`, and
@@ -19,7 +19,7 @@
  *
  *   2. `manifest-clean` — the consumer's `package.json` was NOT mutated with
  *      the framework's internal runtime dependencies. Installing
- *      `@mandrelai/agents` is expected to add exactly that one package to the
+ *      `mandrel` is expected to add exactly that one package to the
  *      consumer manifest (npm/pnpm/yarn all record the installed dep); what
  *      MUST NOT happen is the framework's own runtime deps (ajv, js-yaml,
  *      minimatch, …) leaking into the consumer's declared dependencies. Those
@@ -57,7 +57,7 @@ import path from 'node:path';
 /**
  * The framework's internal runtime dependencies. These are declared in
  * `.agents/runtime-deps.json` and provided by the consumer's install of
- * `@mandrelai/agents` (npm hoists them into node_modules), but they MUST NOT
+ * `mandrel` (npm hoists them into node_modules), but they MUST NOT
  * appear in the consumer's *declared* package.json dependencies. Kept in sync
  * with `.agents/runtime-deps.json` `dependencies` keys.
  */
@@ -84,7 +84,7 @@ const ALL_CHECKS = ['materialized', 'manifest-clean', 'doctor-ready'];
  * @returns {{ consumer?: string, checks: string[], doctorOutput?: string, packageName: string }}
  */
 export function parseArgs(argv) {
-  const opts = { checks: [], packageName: '@mandrelai/agents' };
+  const opts = { checks: [], packageName: 'mandrel' };
   for (let i = 0; i < argv.length; i++) {
     const token = argv[i];
     const eq = token.indexOf('=');
@@ -133,7 +133,7 @@ export function checkMaterialized({ consumer, fs = nodeFs }) {
 
 /**
  * Assert the consumer's package.json was not mutated with framework runtime
- * deps. Installing `@mandrelai/agents` itself is expected; the framework's
+ * deps. Installing `mandrel` itself is expected; the framework's
  * internal runtime packages are not.
  *
  * @param {{ consumer: string, packageName: string, fs?: typeof nodeFs }} opts

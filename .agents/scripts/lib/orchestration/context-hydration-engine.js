@@ -137,7 +137,7 @@ export function formatSkillCapsulesSection(entries) {
  *
  * Under npm distribution `package.json` is the single source of truth for the
  * framework version (the legacy plaintext version marker is retired). This
- * module ships inside the `@mandrelai/agents` package at
+ * module ships inside the `mandrel` package at
  * `<pkgRoot>/.agents/scripts/lib/orchestration/context-hydration-engine.js`,
  * so the package manifest sits four directories up — the same layout in the
  * dev repo and in the published tarball. Read that manifest's `version`.
