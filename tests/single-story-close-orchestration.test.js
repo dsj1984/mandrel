@@ -281,7 +281,12 @@ describe('ensurePullRequest', () => {
     assert.ok(createArgs.includes('--head'));
     assert.ok(createArgs.includes('story-1234'));
     const titleIdx = createArgs.indexOf('--title');
-    assert.match(createArgs[titleIdx + 1], /Test story \(#1234\)/);
+    // Story #3969: a non-conventional storyTitle is normalized to
+    // Conventional-Commit form so the squash subject parses for
+    // release-please. `Test story` is not conventional and `/repo` has no
+    // real branch to derive a type from, so it defaults to `chore` with a
+    // lowercased description, keeping the `(#id)` reference.
+    assert.equal(createArgs[titleIdx + 1], 'chore: test story (#1234)');
     const bodyIdx = createArgs.indexOf('--body');
     assert.match(createArgs[bodyIdx + 1], /Closes #1234/);
   });
@@ -307,8 +312,8 @@ describe('ensurePullRequest', () => {
     const titleIdx = createCall.indexOf('--title');
     assert.equal(
       createCall[titleIdx + 1],
-      'Story #9',
-      'empty storyTitle falls back to the Story #<id> form',
+      'chore: story #9 (#9)',
+      'empty storyTitle falls back to the conventional `chore: story #<id> (#<id>)` form (Story #3969)',
     );
   });
 
