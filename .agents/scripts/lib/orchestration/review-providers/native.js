@@ -21,6 +21,20 @@
  * (paths, runners, evidence store) is injected via the `runReview` arg or
  * the `createNativeProvider({ deps })` overload used by tests.
  *
+ * **Depth is deliberately ignored here (Story #3937).** The pluggable review
+ * contract threads a risk-derived `depth` lever (`light` / `standard` /
+ * `deep`) on `ReviewInput` so LLM-backed providers can dial their thoroughness
+ * up or down with the Epic's judged risk. This native adapter does not read
+ * `input.depth` and does not branch on it: its work is a *mechanical* lint +
+ * maintainability sweep whose cost already scales with the diff — every
+ * changed file is linted once and every changed JS file is scored once,
+ * regardless of risk tier. There is no "review harder" knob a deterministic
+ * scorer can turn: a high-risk diff and a low-risk diff of the same size do
+ * exactly the same amount of work. The contract is therefore explicit rather
+ * than silently dropping the field — `depth` is a no-op for this provider by
+ * design, and the LLM-backed providers (codex, security-review, ultrareview)
+ * are where the lever actually changes behaviour.
+ *
  * @typedef {import('./types.js').Finding} Finding
  * @typedef {import('./types.js').ReviewInput} ReviewInput
  * @typedef {import('./types.js').ReviewProvider} ReviewProvider
