@@ -151,13 +151,14 @@ executing as a Story delivery sub-agent (via `helpers/epic-deliver-story`
 or `helpers/single-story-deliver`), you MUST emit a `story.heartbeat`
 lifecycle event on every Task transition (or whenever you stall on a
 long-running step) so the parent `/epic-deliver` idle watchdog (§ 2e of
-`.agents/workflows/epic-deliver.md`, re-ticked every 10 minutes via
-`wave-tick.js --check-idle 10`) can distinguish a child still making
+`.agents/workflows/epic-deliver.md`, re-ticked every 30 minutes via
+`wave-tick.js --check-idle 30`) can distinguish a child still making
 progress from a dead one. If you genuinely cannot proceed, transition to
 `agent::blocked` and exit non-zero — never fall silent. A child with no
-recent `story.heartbeat` and no `agent::blocked` label is exactly the
-failure mode the idle watchdog is built to catch, and the watchdog will
-re-dispatch (or escalate) the Story without your participation.
+recent `story.heartbeat`, no commit on its `story-<id>` branch, and no
+`agent::blocked` label is exactly the failure mode the idle watchdog is
+built to catch, and the watchdog will re-dispatch (or escalate) the Story
+without your participation.
 
 ### J. HITL Blocker Escalation (Safe Execution)
 

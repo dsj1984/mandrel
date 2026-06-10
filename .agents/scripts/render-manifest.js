@@ -55,13 +55,21 @@ export function writeRenderedManifest({
   config,
 }) {
   // Per-Epic layout (Epic #1030 Story #1040): write under
-  // `<projectRoot>/temp/epic-<eid>/manifest.{md,json}`.
-  const relMd = epicArtifactPath(epicId, 'manifest.md', config);
-  const relJson = epicArtifactPath(epicId, 'manifest.json', config);
-  const mdPath = path.isAbsolute(relMd) ? relMd : path.join(projectRoot, relMd);
-  const jsonPath = path.isAbsolute(relJson)
-    ? relJson
-    : path.join(projectRoot, relJson);
+  // `<projectRoot>/temp/epic-<eid>/manifest.{md,json}`. Bind the artifact
+  // path to the explicit projectRoot (Story #3900): pre-absolutise the
+  // tempRoot against projectRoot so temp-paths honours it verbatim rather
+  // than anchoring a relative tempRoot to the main checkout (correct for the
+  // lifecycle ledger, wrong for this per-project on-disk manifest write).
+  const relTempRoot =
+    config?.project?.paths?.tempRoot &&
+    !path.isAbsolute(config.project.paths.tempRoot)
+      ? config.project.paths.tempRoot
+      : 'temp';
+  const boundConfig = path.isAbsolute(config?.project?.paths?.tempRoot ?? '')
+    ? config
+    : { project: { paths: { tempRoot: path.join(projectRoot, relTempRoot) } } };
+  const mdPath = epicArtifactPath(epicId, 'manifest.md', boundConfig);
+  const jsonPath = epicArtifactPath(epicId, 'manifest.json', boundConfig);
   const epicDir = path.dirname(mdPath);
   if (!fs.existsSync(epicDir)) {
     fs.mkdirSync(epicDir, { recursive: true });

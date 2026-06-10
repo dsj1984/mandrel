@@ -18,6 +18,7 @@
  * Output: one JSON object on stdout. Schema in `lib/wave-runner/tick.js`.
  */
 
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 
@@ -124,7 +125,51 @@ export function readLedgerLastEvents(ledgerPath) {
 }
 
 /**
+ * Deterministic branch-activity resolver (Story #3900). Returns the epoch-ms
+ * timestamp of the most recent commit on `story-<storyId>` via
+ * `git log -1 --format=%cI`, or `null` when the branch does not exist, has no
+ * commits, or git is unavailable.
+ *
+ * This is the secondary liveness signal the idle watchdog consults before
+ * flagging a Story as stalled: a healthy long-running Story routinely exceeds
+ * the heartbeat threshold during `implementing → closing` (heartbeats fire
+ * only at phase transitions), but its branch keeps gaining commits. A recent
+ * commit is hard, deterministic evidence of forward progress that does not
+ * depend on a heartbeat landing in the ledger. Pure-ish (shells out to git)
+ * and injectable so unit tests never spawn a subprocess.
+ *
+ * @param {number} storyId
+ * @param {{ cwd?: string, exec?: typeof execFileSync }} [deps]
+ * @returns {number|null} epoch-ms of the last commit, or null.
+ */
+export function branchLastCommitMs(storyId, deps = {}) {
+  const exec = deps.exec ?? execFileSync;
+  const cwd = deps.cwd ?? process.cwd();
+  try {
+    const out = exec(
+      'git',
+      ['log', '-1', '--format=%cI', `story-${storyId}`, '--'],
+      { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+    ).trim();
+    if (!out) return null;
+    const ms = Date.parse(out);
+    return Number.isFinite(ms) ? ms : null;
+  } catch {
+    // Branch absent / git unavailable — no deterministic signal.
+    return null;
+  }
+}
+
+/**
  * Build the wave-stall envelope. Pure helper — exported for unit tests.
+ *
+ * A Story whose latest ledger event is older than the threshold is *not*
+ * flagged as stalled when its `story-<id>` branch carries a commit newer
+ * than the threshold (Story #3900). Branch commits are deterministic
+ * forward-progress evidence that survives the heartbeat-cadence gap during
+ * `implementing → closing`, so consulting them eliminates the false-positive
+ * re-dispatch hazard (two agents on one branch) the watchdog otherwise
+ * manufactures for every healthy long-running Story.
  *
  * @param {object} args
  * @param {number} args.epicId
@@ -132,6 +177,9 @@ export function readLedgerLastEvents(ledgerPath) {
  * @param {Map<number, string>} args.lastEvents `storyId → ISO-8601 ts`
  *   from {@link readLedgerLastEvents}.
  * @param {Date} args.now Reference clock for the staleness comparison.
+ * @param {(storyId: number) => (number|null)} [args.branchActivity]
+ *   Resolver for the last commit epoch-ms on `story-<id>`. Defaults to
+ *   {@link branchLastCommitMs}. Injected for tests.
  * @returns {{
  *   kind: 'wave-stall',
  *   epicId: number,
@@ -146,6 +194,7 @@ export function buildWaveStallEnvelope({
   thresholdMinutes,
   lastEvents,
   now,
+  branchActivity = branchLastCommitMs,
 }) {
   const checkedAt = now.toISOString();
   const thresholdMs = thresholdMinutes * 60 * 1000;
@@ -156,13 +205,25 @@ export function buildWaveStallEnvelope({
     const eventMs = Date.parse(ts);
     if (!Number.isFinite(eventMs)) continue;
     const idleMs = now.getTime() - eventMs;
-    if (idleMs >= thresholdMs) {
-      stalled.push({
-        storyId,
-        lastEventAt: ts,
-        idleMinutes: Math.floor(idleMs / 60000),
-      });
+    if (idleMs < thresholdMs) continue;
+
+    // Ledger says idle — consult the branch as a deterministic liveness
+    // signal before declaring a stall. A recent commit means the Story is
+    // making progress despite the heartbeat-cadence gap.
+    const commitMs = branchActivity(storyId);
+    if (
+      typeof commitMs === 'number' &&
+      Number.isFinite(commitMs) &&
+      now.getTime() - commitMs < thresholdMs
+    ) {
+      continue;
     }
+
+    stalled.push({
+      storyId,
+      lastEventAt: ts,
+      idleMinutes: Math.floor(idleMs / 60000),
+    });
   }
   inFlight.sort((a, b) => a - b);
   stalled.sort((a, b) => a.storyId - b.storyId);
@@ -187,6 +248,9 @@ export function buildWaveStallEnvelope({
  *   canonical `temp/epic-<id>/lifecycle.ndjson`.
  * @param {Date} [args.now] Override for tests; defaults to wall clock.
  * @param {object} [args.config] Optional resolved config for tempRoot.
+ * @param {(storyId: number) => (number|null)} [args.branchActivity]
+ *   Branch-liveness resolver; defaults to {@link branchLastCommitMs}.
+ *   Injected for tests so the watchdog never spawns git.
  * @returns {{envelope: object, stalledCount: number}}
  */
 export function runCheckIdle({
@@ -195,6 +259,7 @@ export function runCheckIdle({
   ledgerPath,
   now = new Date(),
   config,
+  branchActivity = branchLastCommitMs,
 }) {
   if (!Number.isInteger(epicId) || epicId <= 0) {
     throw new TypeError('runCheckIdle: epicId must be a positive integer');
@@ -211,6 +276,7 @@ export function runCheckIdle({
     thresholdMinutes,
     lastEvents,
     now,
+    branchActivity,
   });
   return { envelope, stalledCount: envelope.stalled.length };
 }

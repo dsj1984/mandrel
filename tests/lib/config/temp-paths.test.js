@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import {
+  _clearMainCheckoutRootCache,
   epicArtifactPath,
   epicManifestPath,
   epicPerfReportPath,
@@ -16,6 +17,7 @@ import {
   epicRetroMirrorPath,
   epicTechSpecPath,
   epicTempDir,
+  mainCheckoutRoot,
   signalsFile,
   storyArtifactPath,
   storyManifestPath,
@@ -25,6 +27,19 @@ import {
 } from '../../../.agents/scripts/lib/config/temp-paths.js';
 
 const SEP = path.sep;
+
+/**
+ * The directory helpers anchor a *relative* tempRoot to the main checkout
+ * root (Story #3900). In the test process — which runs inside the repo
+ * working tree — `mainCheckoutRoot()` resolves to a real path, so the
+ * expected directory is `<root>/<relative-suffix>`. Helper to build the
+ * expected anchored path for a relative-tempRoot suffix.
+ */
+function anchored(...segments) {
+  const root = mainCheckoutRoot();
+  const suffix = path.join(...segments);
+  return root ? path.join(root, suffix) : suffix;
+}
 
 describe('lib/config/temp-paths.js — tempRoot resolution', () => {
   it('returns "temp" when no config is provided', () => {
@@ -66,18 +81,18 @@ describe('lib/config/temp-paths.js — tempRoot resolution', () => {
 
 describe('lib/config/temp-paths.js — Epic / Story directory helpers', () => {
   it('builds the canonical epic dir (default tempRoot)', () => {
-    assert.equal(epicTempDir(1030), path.join('temp', 'epic-1030'));
+    assert.equal(epicTempDir(1030), anchored('temp', 'epic-1030'));
   });
 
   it('honours a custom tempRoot via config bag', () => {
     const cfg = { project: { paths: { tempRoot: 'workspace' } } };
-    assert.equal(epicTempDir(42, cfg), path.join('workspace', 'epic-42'));
+    assert.equal(epicTempDir(42, cfg), anchored('workspace', 'epic-42'));
   });
 
   it('builds the canonical story dir', () => {
     assert.equal(
       storyTempDir(1030, 1042),
-      path.join('temp', 'epic-1030', 'stories', 'story-1042'),
+      anchored('temp', 'epic-1030', 'stories', 'story-1042'),
     );
   });
 
@@ -94,44 +109,38 @@ describe('lib/config/temp-paths.js — signals + canonical artifact paths', () =
   it('signalsFile resolves to stories/story-<sid>/signals.ndjson', () => {
     assert.equal(
       signalsFile(1030, 1042),
-      path.join('temp', 'epic-1030', 'stories', 'story-1042', 'signals.ndjson'),
+      anchored('temp', 'epic-1030', 'stories', 'story-1042', 'signals.ndjson'),
     );
   });
 
   it('Epic-level canonical filenames live directly under the Epic dir', () => {
-    assert.equal(epicPrdPath(1030), path.join('temp', 'epic-1030', 'prd.md'));
+    assert.equal(epicPrdPath(1030), anchored('temp', 'epic-1030', 'prd.md'));
     assert.equal(
       epicTechSpecPath(1030),
-      path.join('temp', 'epic-1030', 'techspec.md'),
+      anchored('temp', 'epic-1030', 'techspec.md'),
     );
     assert.equal(
       epicManifestPath(1030),
-      path.join('temp', 'epic-1030', 'manifest.md'),
+      anchored('temp', 'epic-1030', 'manifest.md'),
     );
     assert.equal(
       epicRetroMirrorPath(1030),
-      path.join('temp', 'epic-1030', 'retro.md'),
+      anchored('temp', 'epic-1030', 'retro.md'),
     );
     assert.equal(
       epicPerfReportPath(1030),
-      path.join('temp', 'epic-1030', 'perf-report.md'),
+      anchored('temp', 'epic-1030', 'perf-report.md'),
     );
   });
 
   it('Story-level canonical filenames live under the Story dir', () => {
     assert.equal(
       storyManifestPath(1030, 1042),
-      path.join('temp', 'epic-1030', 'stories', 'story-1042', 'manifest.md'),
+      anchored('temp', 'epic-1030', 'stories', 'story-1042', 'manifest.md'),
     );
     assert.equal(
       storyPerfSummaryPath(1030, 1042),
-      path.join(
-        'temp',
-        'epic-1030',
-        'stories',
-        'story-1042',
-        'perf-summary.md',
-      ),
+      anchored('temp', 'epic-1030', 'stories', 'story-1042', 'perf-summary.md'),
     );
   });
 });
@@ -140,11 +149,11 @@ describe('lib/config/temp-paths.js — artifact-name guards', () => {
   it('epicArtifactPath / storyArtifactPath accept a leaf name', () => {
     assert.equal(
       epicArtifactPath(1030, 'custom.md'),
-      path.join('temp', 'epic-1030', 'custom.md'),
+      anchored('temp', 'epic-1030', 'custom.md'),
     );
     assert.equal(
       storyArtifactPath(1030, 1042, 'custom.txt'),
-      path.join('temp', 'epic-1030', 'stories', 'story-1042', 'custom.txt'),
+      anchored('temp', 'epic-1030', 'stories', 'story-1042', 'custom.txt'),
     );
   });
 
@@ -212,11 +221,11 @@ describe('lib/config/temp-paths.js — path.join semantics (Windows + POSIX)', (
     };
     assert.equal(
       epicTempDir(1030, cfg),
-      path.join('a', 'b', 'temp', 'epic-1030'),
+      anchored('a', 'b', 'temp', 'epic-1030'),
     );
     assert.equal(
       signalsFile(1030, 1042, cfg),
-      path.join(
+      anchored(
         'a',
         'b',
         'temp',
@@ -226,6 +235,12 @@ describe('lib/config/temp-paths.js — path.join semantics (Windows + POSIX)', (
         'signals.ndjson',
       ),
     );
+  });
+
+  it('honours an absolute tempRoot verbatim (no main-checkout anchoring)', () => {
+    const absRoot = path.resolve(SEP, 'var', 'mandrel-temp');
+    const cfg = { project: { paths: { tempRoot: absRoot } } };
+    assert.equal(epicTempDir(1030, cfg), path.join(absRoot, 'epic-1030'));
   });
 
   it('honours platform-native separators', () => {
@@ -243,20 +258,14 @@ describe('lib/config/temp-paths.js — path.join semantics (Windows + POSIX)', (
 describe('lib/config/temp-paths.js — standalone Story routing (Story #2874)', () => {
   it('storyTempDir(null, sid) routes to <tempRoot>/standalone/stories/story-<sid>', () => {
     const dir = storyTempDir(null, 1042);
-    assert.equal(dir, path.join('temp', 'standalone', 'stories', 'story-1042'));
+    assert.equal(dir, anchored('temp', 'standalone', 'stories', 'story-1042'));
   });
 
   it('signalsFile(null, sid) routes through the standalone parent', () => {
     const file = signalsFile(null, 1042);
     assert.equal(
       file,
-      path.join(
-        'temp',
-        'standalone',
-        'stories',
-        'story-1042',
-        'signals.ndjson',
-      ),
+      anchored('temp', 'standalone', 'stories', 'story-1042', 'signals.ndjson'),
     );
   });
 
@@ -264,7 +273,7 @@ describe('lib/config/temp-paths.js — standalone Story routing (Story #2874)', 
     const file = storyArtifactPath(null, 7, 'manifest.md');
     assert.equal(
       file,
-      path.join('temp', 'standalone', 'stories', 'story-7', 'manifest.md'),
+      anchored('temp', 'standalone', 'stories', 'story-7', 'manifest.md'),
     );
   });
 
@@ -272,7 +281,7 @@ describe('lib/config/temp-paths.js — standalone Story routing (Story #2874)', 
     const cfg = { project: { paths: { tempRoot: path.join('a', 'b') } } };
     assert.equal(
       storyTempDir(null, 7, cfg),
-      path.join('a', 'b', 'standalone', 'stories', 'story-7'),
+      anchored('a', 'b', 'standalone', 'stories', 'story-7'),
     );
   });
 
@@ -285,5 +294,55 @@ describe('lib/config/temp-paths.js — standalone Story routing (Story #2874)', 
       () => storyTempDir(-1, 7),
       /epicId must be a positive integer or null/,
     );
+  });
+});
+
+describe('lib/config/temp-paths.js — main-checkout anchoring (Story #3900)', () => {
+  // Build an ABSOLUTE fake git-common-dir via path.resolve so it carries a
+  // drive letter on Windows. The implementation keeps an absolute
+  // `--git-common-dir` verbatim, so the expected root is exactly its
+  // path.dirname — computed the same way to avoid drive-letter divergence
+  // between path.resolve(SEP, ...) (gets the cwd drive) and the bare `\repo`
+  // path.join produces on Windows (no drive).
+  const REPO_ROOT_ABS = path.resolve(SEP, 'repo');
+  const COMMON_GIT_ABS = path.join(REPO_ROOT_ABS, '.git');
+  const EXPECTED_ROOT = path.dirname(COMMON_GIT_ABS);
+
+  it('mainCheckoutRoot returns the parent of `--git-common-dir`', () => {
+    _clearMainCheckoutRootCache();
+    const fakeExec = () => `${COMMON_GIT_ABS}\n`;
+    const root = mainCheckoutRoot('/anywhere', { exec: fakeExec });
+    assert.equal(root, EXPECTED_ROOT);
+  });
+
+  it('mainCheckoutRoot resolves a relative `--git-common-dir` against cwd', () => {
+    const cwd = path.join(REPO_ROOT_ABS, 'checkout');
+    // A relative `--git-common-dir` output (e.g. `.git`) is resolved against
+    // the cwd, then its parent is taken. Compute the expectation the same way
+    // the implementation does so the drive letter matches on Windows.
+    const relOut = '.git';
+    const fakeExec = () => `${relOut}\n`;
+    const root = mainCheckoutRoot(cwd, { exec: fakeExec });
+    assert.equal(root, path.dirname(path.resolve(cwd, relOut)));
+  });
+
+  it('a worktree cwd and the main-checkout cwd converge on the same ledger root', () => {
+    // The bug: heartbeats written from a worktree cwd and reads from the
+    // main checkout cwd must target the same `temp/epic-N/lifecycle.ndjson`.
+    const fakeExec = () => `${COMMON_GIT_ABS}\n`;
+    const fromWorktree = mainCheckoutRoot(
+      path.join(REPO_ROOT_ABS, '.worktrees', 'story-7'),
+      { exec: fakeExec },
+    );
+    const fromMain = mainCheckoutRoot(REPO_ROOT_ABS, { exec: fakeExec });
+    assert.equal(fromWorktree, fromMain);
+  });
+
+  it('mainCheckoutRoot returns null when git is unavailable / non-repo', () => {
+    const throwingExec = () => {
+      throw new Error('not a git repository');
+    };
+    const root = mainCheckoutRoot('/tmp/not-a-repo', { exec: throwingExec });
+    assert.equal(root, null);
   });
 });

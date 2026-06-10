@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import {
   aggregateWaveStatus,
   classifyWaveOutcome,
+  emitWaveDispatchEnds,
   parseInputArg,
   runEpicExecuteRecordWave,
   validateResults,
@@ -531,5 +532,77 @@ describe('runEpicExecuteRecordWave — curated webhook emits', () => {
       eventNames.includes('epic-progress'),
       'epic-progress must still fire on the finalize boundary',
     );
+  });
+});
+
+describe('emitWaveDispatchEnds (Story #3900)', () => {
+  it('emits one dispatch-end per verified Story, mapping status to outcome', () => {
+    const calls = [];
+    const fakeEmit = (args) => {
+      calls.push(args);
+      return { ledgerPath: '/x', record: {} };
+    };
+    const count = emitWaveDispatchEnds({
+      epicId: 42,
+      verified: [
+        { storyId: 1, status: 'done' },
+        { storyId: 2, status: 'blocked' },
+        { storyId: 3, status: 'failed' },
+      ],
+      emit: fakeEmit,
+    });
+    assert.equal(count, 3);
+    assert.deepEqual(
+      calls.map((c) => [c.storyId, c.outcome, c.epicId]),
+      [
+        [1, 'done', 42],
+        [2, 'blocked', 42],
+        [3, 'failed', 42],
+      ],
+    );
+  });
+
+  it('skips entries without a positive storyId', () => {
+    const calls = [];
+    const fakeEmit = (args) => {
+      calls.push(args);
+      return { ledgerPath: '/x', record: {} };
+    };
+    const count = emitWaveDispatchEnds({
+      epicId: 5,
+      verified: [
+        { storyId: 0, status: 'done' },
+        { status: 'done' },
+        { storyId: 9, status: 'done' },
+      ],
+      emit: fakeEmit,
+    });
+    assert.equal(count, 1);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].storyId, 9);
+  });
+
+  it('is best-effort: one failed emit does not abort the rest', () => {
+    let n = 0;
+    const fakeEmit = () => {
+      n += 1;
+      if (n === 1) throw new Error('append failed');
+      return { ledgerPath: '/x', record: {} };
+    };
+    const count = emitWaveDispatchEnds({
+      epicId: 5,
+      verified: [
+        { storyId: 1, status: 'done' },
+        { storyId: 2, status: 'done' },
+      ],
+      emit: fakeEmit,
+    });
+    // First throws, second succeeds → 1 successful append, no exception.
+    assert.equal(count, 1);
+  });
+
+  it('tolerates an empty / missing verified list', () => {
+    assert.equal(emitWaveDispatchEnds({ epicId: 1, verified: [] }), 0);
+    assert.equal(emitWaveDispatchEnds({ epicId: 1 }), 0);
   });
 });
