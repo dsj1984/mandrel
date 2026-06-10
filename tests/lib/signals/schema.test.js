@@ -24,20 +24,20 @@ import {
 
 describe('signals/schema — EVENT_KINDS enumeration', () => {
   it('covers the kinds emitted by signals-writer appendSignal call sites', () => {
-    // Audit snapshot 2026-05-11: friction, dispatched, wave-start,
-    // wave-end, state-transition are the appendSignal kinds; trace is
-    // the appendTrace kind. The aggregator-consumed kinds (hotspot,
-    // rework, churn, idle, retry) round out the schema.
+    // Audit snapshot 2026-05-11: friction, dispatched, state-transition are
+    // the appendSignal kinds; trace is the appendTrace kind. The
+    // aggregator-consumed kinds (hotspot, rework, churn, idle, retry) round
+    // out the schema. wave-start / wave-end / wave-complete are the
+    // wave-window forensics kinds the span-tree + perf-aggregator read.
+    // Story #3909 retired the write-only wave kinds with no consumer
+    // (wave-tick, epic-complete).
     const expected = new Set([
       'friction',
       'trace',
       'dispatched',
       'wave-start',
       'wave-end',
-      // Story #1430 — wave-runner lifecycle signals emitted by `lib/wave-runner/tick.js`.
-      'wave-tick',
       'wave-complete',
-      'epic-complete',
       'state-transition',
       'hotspot',
       'rework',

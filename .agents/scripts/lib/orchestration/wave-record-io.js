@@ -1,7 +1,6 @@
 /**
  * wave-record-io.js — impure helpers for the record-wave CLI: ticket
- * verification, manifest title lookup, returns reconciliation, and the
- * dispatch-manifest refresh hop.
+ * verification, manifest title lookup, and returns reconciliation.
  *
  * These functions all hit the provider and are intentionally kept out of
  * `wave-record-projection.js`, which is the pure projection layer. The
@@ -9,33 +8,28 @@
  * the projection.
  *
  * Every entry point here is fire-and-forget on the "best-effort" surfaces
- * (manifest lookup, dispatch-manifest refresh) and explicit-throw on the
- * authoritative ones (`verifyWaveResults` and `resolveResolvedResults`
- * decide what `complete` actually means after the network call lands).
+ * (manifest title lookup) and explicit-throw on the authoritative ones
+ * (`verifyWaveResults` and `resolveResolvedResults` decide what `complete`
+ * actually means after the network call lands).
  *
- * Story #3026 — `refreshDispatchManifest` replaced the historical
- * `refreshLocalManifest` subprocess spawn. The refresh runs in-process
- * through `resolveAndDispatch` + the pure `renderManifest` helper, then
- * upserts the `dispatch-manifest` structured comment so the Epic ticket
- * stays in sync with on-disk state without paying the per-wave
- * `node dispatcher.js --dry-run` cold-start cost.
+ * Story #3909 — the per-wave dispatch-manifest refresh hop
+ * (`refreshDispatchManifest`) was deleted. It re-ran the full dispatch
+ * pipeline (re-fetch every ticket, recompute waves) on every wave tick
+ * only to re-render the `dispatch-manifest` comment, which nothing reads
+ * for control flow — `loadManifestTitleMap` reads it for rollup-row titles,
+ * and those are fixed at plan time. The manifest is now written once at
+ * `epic-deliver-prepare` time and left frozen; the surviving operator-facing
+ * surface is the `epic-run-progress` rollup the record-wave CLI re-renders.
  */
 
 import { Logger } from '../Logger.js';
-import { renderManifestFromManifest } from '../presentation/dispatch-manifest-render.js';
-import { persistManifest } from '../presentation/manifest-persistence.js';
 import { concurrentMap } from '../util/concurrent-map.js';
-import { resolveAndDispatch } from './dispatch-engine.js';
 import {
   reconcileStoryFromGitHub,
   renderMalformedReturnsFriction,
 } from './epic-runner/sub-agent-return.js';
 import { parseFencedJsonComment } from './structured-comment-parser.js';
-import {
-  findStructuredComment,
-  postStructuredComment,
-  upsertStructuredComment,
-} from './ticketing.js';
+import { findStructuredComment, postStructuredComment } from './ticketing.js';
 import { normalizeReturnsPure } from './wave-record-projection.js';
 
 /**
@@ -280,78 +274,4 @@ export async function resolveResolvedResults({
     resolvedResults: normalized.results,
     parseFailures: normalized.parseFailures,
   };
-}
-
-/**
- * Re-render the dispatch manifest from live GitHub state and upsert the
- * `dispatch-manifest` structured comment on the Epic.
- *
- * Story #3026 — runs in-process through `resolveAndDispatch` + the pure
- * `renderManifest` helper. The historical subprocess spawn of
- * `dispatcher.js <epicId> --dry-run` is gone: it cost a Node cold start
- * and a full `.agents/` module graph re-import on every wave tick, and
- * produced the same comment body the helper now renders directly.
- *
- * `temp/epic-<id>/manifest.{md,json}` is still re-persisted so the
- * operator-facing on-disk view stays current — the wave-runner
- * architecture (Epic #1182) replaced the dispatcher's per-wave refresh
- * loop and without this hop the manifest is frozen at planning time.
- *
- * The function is fail-soft at the persist + upsert boundary so a
- * transient GitHub blip cannot block the wave loop; the
- * `resolveAndDispatch` call itself throws as before because that signals
- * "we cannot read the Epic at all".
- *
- * @param {{
- *   epicId: number,
- *   provider?: object,
- *   dispatch?: typeof resolveAndDispatch,
- *   upsertComment?: typeof upsertStructuredComment,
- *   persist?: typeof persistManifest,
- * }} opts
- * @returns {Promise<{
- *   epicId: number,
- *   body: string,
- *   posted: boolean,
- *   reason?: string,
- * }>}
- */
-export async function refreshDispatchManifest({
-  epicId,
-  provider,
-  dispatch = resolveAndDispatch,
-  upsertComment = upsertStructuredComment,
-  persist = persistManifest,
-} = {}) {
-  if (!Number.isInteger(epicId) || epicId <= 0) {
-    throw new TypeError(
-      'refreshDispatchManifest: epicId must be a positive integer',
-    );
-  }
-  const manifest = await dispatch({
-    ticketId: epicId,
-    dryRun: true,
-    provider,
-  });
-  try {
-    persist(manifest);
-  } catch (err) {
-    Logger.warn(
-      `[wave-record-io] Non-fatal: could not persist manifest for Epic #${epicId} — ${err?.message ?? 'unknown error'}`,
-    );
-  }
-  const body = renderManifestFromManifest(manifest);
-  if (!provider || typeof provider.postComment !== 'function') {
-    return { epicId, body, posted: false, reason: 'no-provider' };
-  }
-  try {
-    await upsertComment(provider, epicId, 'dispatch-manifest', body);
-    return { epicId, body, posted: true };
-  } catch (err) {
-    const message = err?.message ?? String(err);
-    Logger.warn(
-      `[wave-record-io] Non-fatal: could not upsert dispatch-manifest comment for Epic #${epicId} — ${message}`,
-    );
-    return { epicId, body, posted: false, reason: message };
-  }
 }

@@ -55,14 +55,6 @@ function fakeProvider(labelsById = new Map()) {
   };
 }
 
-function captureSignals() {
-  const emitted = [];
-  return {
-    emitted,
-    signalEmit: async (signal) => emitted.push(signal),
-  };
-}
-
 describe('lib/wave-runner/tick — groupByWave (pure helper)', () => {
   it('buckets stories by wave with slug → issueNumber mapping', () => {
     const spec = {
@@ -242,7 +234,6 @@ describe('lib/wave-runner/tick — spec-driven dispatch', () => {
         [102, ['agent::ready']],
       ]),
     );
-    const sig = captureSignals();
     const spec = {
       features: [
         {
@@ -270,7 +261,6 @@ describe('lib/wave-runner/tick — spec-driven dispatch', () => {
       collaborators: {
         provider,
         epicRunStateStore: checkpointer,
-        signalEmit: sig.signalEmit,
       },
     });
 
@@ -292,7 +282,6 @@ describe('lib/wave-runner/tick — spec-driven dispatch', () => {
       waves: [{ index: 0, status: 'complete' }],
     });
     const provider = fakeProvider(new Map([[103, ['agent::ready']]]));
-    const sig = captureSignals();
     const spec = {
       features: [
         {
@@ -318,7 +307,6 @@ describe('lib/wave-runner/tick — spec-driven dispatch', () => {
       collaborators: {
         provider,
         epicRunStateStore: checkpointer,
-        signalEmit: sig.signalEmit,
       },
     });
 
@@ -342,7 +330,6 @@ describe('lib/wave-runner/tick — spec-driven dispatch', () => {
       ],
     });
     const provider = fakeProvider();
-    const sig = captureSignals();
     const spec = {
       features: [
         {
@@ -368,13 +355,11 @@ describe('lib/wave-runner/tick — spec-driven dispatch', () => {
       collaborators: {
         provider,
         epicRunStateStore: checkpointer,
-        signalEmit: sig.signalEmit,
       },
     });
 
     assert.equal(result.nextAction.kind, 'epic-complete');
     assert.equal(result.totalWaves, 2);
-    assert.ok(sig.emitted.some((e) => e.kind === 'epic-complete'));
   });
 
   it('returns observe with blocked stories from spec-derived wave', async () => {
@@ -390,7 +375,6 @@ describe('lib/wave-runner/tick — spec-driven dispatch', () => {
         [102, [AGENT_LABELS.BLOCKED]],
       ]),
     );
-    const sig = captureSignals();
     const spec = {
       features: [
         {
@@ -416,7 +400,6 @@ describe('lib/wave-runner/tick — spec-driven dispatch', () => {
       collaborators: {
         provider,
         epicRunStateStore: checkpointer,
-        signalEmit: sig.signalEmit,
       },
     });
 
@@ -453,14 +436,12 @@ describe('lib/wave-runner/tick — spec-absent regression parity', () => {
         [2, ['agent::ready']],
       ]),
     );
-    const sig = captureSignals();
 
     const result = await tick({
       epic: 100,
       collaborators: {
         provider,
         epicRunStateStore: checkpointer,
-        signalEmit: sig.signalEmit,
       },
     });
 
@@ -490,21 +471,18 @@ describe('lib/wave-runner/tick — spec-absent regression parity', () => {
         [2, [AGENT_LABELS.DONE]],
       ]),
     );
-    const sig = captureSignals();
 
     const result = await tick({
       epic: 100,
       collaborators: {
         provider,
         epicRunStateStore: checkpointer,
-        signalEmit: sig.signalEmit,
       },
     });
 
     assert.equal(result.nextAction.kind, 'wave-complete');
     assert.equal(result.nextAction.index, 0);
     assert.equal(result.totalWaves, 2);
-    assert.ok(sig.emitted.some((e) => e.kind === 'wave-complete'));
   });
 
   it('spec-omitted: epic-complete decision matches baseline', async () => {
@@ -516,20 +494,17 @@ describe('lib/wave-runner/tick — spec-absent regression parity', () => {
       waves: [{ index: 0, status: 'complete' }],
     });
     const provider = fakeProvider(new Map([[2, [AGENT_LABELS.DONE]]]));
-    const sig = captureSignals();
 
     const result = await tick({
       epic: 100,
       collaborators: {
         provider,
         epicRunStateStore: checkpointer,
-        signalEmit: sig.signalEmit,
       },
     });
 
     assert.equal(result.nextAction.kind, 'epic-complete');
     assert.equal(result.totalWaves, 2);
-    assert.ok(sig.emitted.some((e) => e.kind === 'epic-complete'));
   });
 });
 

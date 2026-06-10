@@ -22,15 +22,17 @@
  *                        check-maintainability.js, diagnose-friction.js,
  *                        post-merge-pipeline.js, progress-reporter.js,
  *                        auto-refresh-runner.js)
- *   - `dispatched`     — wave-dispatcher.js
- *   - `wave-start`     — lifecycle/listeners/structured-comment-poster.js
- *                        (was epic-runner/wave-observer.js prior to Epic
- *                        #2646; the listener took over the rich body and
- *                        marker namespace)
- *   - `wave-end`       — lifecycle/listeners/structured-comment-poster.js
- *                        (was epic-runner/wave-observer.js prior to Epic
- *                        #2646)
+ *   - `dispatched`     — (no live emitter; retained pending Story #3908 sweep)
+ *   - `wave-start` / `wave-complete` — `lib/wave-runner/tick.js` (read by
+ *                        perf-aggregator's `waveParallelism` report;
+ *                        `wave-start` also anchors span-tree Story spans)
+ *   - `wave-end`       — span-tree pairing anchor (no live emitter after the
+ *                        Epic #2646 listener deletion; retained for span-tree)
  *   - `state-transition` — orchestration/ticketing.js
+ *
+ * Story #3909 retired the write-only wave kinds with no consumer (`wave-tick`,
+ * `epic-complete`) — they duplicated the checkpoint + `epic-run-progress`
+ * rollup and nothing read them back.
  *
  * Signals-writer `appendTrace` call sites (traces.ndjson sibling, but
  * sharing the same envelope shape — `tool-trace-hook.js`):
@@ -76,12 +78,17 @@ export const EVENT_KINDS = Object.freeze({
   FRICTION: 'friction',
   TRACE: 'trace',
   DISPATCHED: 'dispatched',
+  // Wave-window forensics signals: `wave-start` / `wave-end` anchor the
+  // span-tree's Story spans, and the perf-aggregator brackets each wave's
+  // wall-clock from `wave-start` → `wave-complete` (the `waveParallelism`
+  // report). These are READ — they survive.
   WAVE_START: 'wave-start',
   WAVE_END: 'wave-end',
-  // Story #1430 — wave-runner lifecycle signals emitted by `lib/wave-runner/tick.js`.
-  WAVE_TICK: 'wave-tick',
   WAVE_COMPLETE: 'wave-complete',
-  EPIC_COMPLETE: 'epic-complete',
+  // Story #3909 — the write-only wave-lifecycle kinds with no consumer
+  // (`wave-tick`, `epic-complete`) were retired. They duplicated the
+  // `epic-run-state` checkpoint and the `epic-run-progress` rollup and nothing
+  // read them back.
   STATE_TRANSITION: 'state-transition',
   HOTSPOT: 'hotspot',
   REWORK: 'rework',

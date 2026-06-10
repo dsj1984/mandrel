@@ -1,26 +1,26 @@
 /**
- * story-run-progress-writer — render and upsert the per-story progress comment.
+ * story-run-progress-writer — render the per-story progress snapshot.
  *
- * `/story-deliver` calls this once per Task transition (`pending → executing`,
- * `executing → done|blocked`) and once per phase transition
- * (`init → implementing → closing → done|blocked`). The comment is upserted on
- * the Story ticket (not on the Epic) so the wave aggregator and the
- * epic-runner progress reporter can read each Story's snapshot directly via
- * the structured-comment marker without re-fetching ticket labels or walking
- * the Task tree per Story.
+ * Story #3909 — this module no longer **posts** a `story-run-progress`
+ * structured comment. That per-Story comment was the redundant mid-flight
+ * progress surface: an Epic run already keeps the operator-facing
+ * `epic-run-progress` rollup (one comment on the Epic) plus the
+ * `epic-run-state` checkpoint and the lifecycle ledger, and the rollup is
+ * rendered from the checkpoint `waves[]` — it never read the per-Story
+ * comment. The per-Story comment fired at five phase transitions each and
+ * duplicated state already on the labels + ledger, so the comment write was
+ * removed.
  *
- * Epic #2646 Story C audit (Task #2691): this writer is RETAINED, not retired.
- * The bus-driven `story.dispatch.start`/`story.dispatch.end` events are emitted
- * by epic-runner at coarser grain (one pair per Story dispatch) and do not
- * carry the per-Task transition snapshot that `/story-deliver`'s loop produces.
- * `story-phase.js`, `story-deliver-prepare.js`, and `sub-agent-return.js`
- * are the active consumers — none of them have a bus equivalent. The duplicate-
- * writer scope in Epic #2646 covers `wave-observer.js` and the polling
- * `epic-runner/progress-reporter.js`; this writer is the sole producer of the
- * `story-run-progress` marker and is preserved.
+ * The renderer survives because its `{ body, payload }` output still feeds
+ * two non-comment contracts: the `renderedBody` markdown the `/story-deliver`
+ * and `single-story-deliver` CLIs (`story-phase.js`, `story-deliver-prepare.js`)
+ * relay to chat so the operator sees the phase table inline, and the snapshot
+ * payload returned in those CLIs' JSON envelopes. `upsertStoryRunProgress`
+ * therefore renders-only: it computes the body/payload and (optionally) mirrors
+ * a low-severity webhook event, but writes no GitHub comment.
  *
- * Payload shape — per tech spec #902 (kept stable; consumers parse the JSON
- * fence directly):
+ * Payload shape — per tech spec #902 (kept stable; the CLI envelopes carry it
+ * verbatim):
  *
  *   {
  *     "kind": "story-run-progress",
@@ -35,8 +35,6 @@
  *     "updatedAt": "<iso8601>"
  *   }
  */
-
-import { upsertStructuredComment } from '../ticketing.js';
 
 export const STORY_RUN_PROGRESS_TYPE = 'story-run-progress';
 
@@ -346,19 +344,20 @@ function renderPhasesBody({ storyId, branch, phase, phases: raw, updatedAt }) {
 }
 
 /**
- * Upsert the story-run-progress structured comment on the Story. Returns
- * `{ body, payload }` so callers can both pass the payload back to
- * `/epic-deliver` and surface the rendered markdown body to chat without
- * re-rendering.
+ * Render the story-run-progress snapshot for one phase transition and return
+ * `{ body, payload }` so callers can surface the markdown body to chat and
+ * carry the payload in their JSON envelope. Story #3909 — this no longer posts
+ * a GitHub comment (the redundant mid-flight progress surface was deleted); it
+ * renders only and, when `notify` is supplied, mirrors a low-severity webhook
+ * event for operators who wire one up.
  *
  * Two shapes are supported, selected by whether `args.phases` (3-tier
  * Story-phase snapshot) or `args.tasks` (legacy 4-tier per-Task list) is
- * provided. When `notify` is supplied, mirrors the upsert to the webhook
- * channel as a typed `story-run-progress` event at `low` severity. The
- * mirror's `done/total` count is computed from whichever shape is active.
+ * provided. The webhook mirror's `done/total` count is computed from whichever
+ * shape is active.
  *
  * @param {{
- *   provider: import('../../ITicketingProvider.js').ITicketingProvider,
+ *   provider?: import('../../ITicketingProvider.js').ITicketingProvider,
  *   storyId: number,
  *   branch: string,
  *   phase: string,
@@ -371,19 +370,8 @@ function renderPhasesBody({ storyId, branch, phase, phases: raw, updatedAt }) {
  * @returns {Promise<{ body: string, payload: object }>}
  */
 export async function upsertStoryRunProgress(args) {
-  const { provider, notify, epicId, ...rest } = args ?? {};
-  if (!provider || typeof provider.postComment !== 'function') {
-    throw new TypeError(
-      'upsertStoryRunProgress requires a provider with postComment',
-    );
-  }
+  const { notify, epicId, provider: _provider, ...rest } = args ?? {};
   const { body, payload } = renderStoryRunProgressBody(rest);
-  await upsertStructuredComment(
-    provider,
-    rest.storyId,
-    STORY_RUN_PROGRESS_TYPE,
-    body,
-  );
   if (typeof notify === 'function') {
     const isPhases = Array.isArray(payload.phases);
     const items = isPhases ? payload.phases : payload.tasks;

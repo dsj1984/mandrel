@@ -145,7 +145,6 @@ describe('wave-tick-recurring-failures', () => {
         collaborators: {
           provider,
           epicRunStateStore: checkpointer,
-          signalEmit: async () => {},
         },
       });
 
@@ -169,7 +168,6 @@ describe('wave-tick-recurring-failures', () => {
         collaborators: {
           provider,
           epicRunStateStore: checkpointer,
-          signalEmit: async () => {},
         },
       });
 
@@ -231,7 +229,6 @@ describe('wave-tick-recurring-failures', () => {
         collaborators: {
           provider,
           epicRunStateStore: checkpointer,
-          signalEmit: async () => {},
         },
       });
 
@@ -267,7 +264,6 @@ describe('wave-tick-recurring-failures', () => {
       collaborators: {
         provider,
         epicRunStateStore: checkpointer,
-        signalEmit: async () => {},
         recurringFailureReporter: async () => {
           calls += 1;
         },
@@ -278,7 +274,6 @@ describe('wave-tick-recurring-failures', () => {
       collaborators: {
         provider,
         epicRunStateStore: checkpointer,
-        signalEmit: async () => {},
         recurringFailureReporter: async () => {
           calls += 1;
         },

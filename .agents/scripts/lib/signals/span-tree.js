@@ -16,8 +16,8 @@
  * ## Lifecycle pairing
  *
  *   The schema audit in `lib/signals/schema.js` confirms that
- *   `signals-writer.js` emits `wave-start` / `wave-end` envelopes that
- *   carry `epicId` + `storyId` and bracket a Story's lifetime in a wave.
+ *   `wave-start` / `wave-end` envelopes carry `epicId` + `storyId` and
+ *   bracket a Story's lifetime in a wave.
  *   Per-Task lifecycle today comes via `state-transition` events
  *   (`agent::executing` → `agent::done`) — we treat the **first**
  *   timestamp we see for a given (story, task) pair as `startedAt` and

@@ -29,8 +29,7 @@
  *     splicing, next-action classification). Re-exported from this file
  *     so existing callers see an unchanged public surface.
  *   - `lib/orchestration/wave-record-io.js` — impure helpers (ticket
- *     verification, manifest title lookup, returns reconciliation, the
- *     dispatcher refresh hop).
+ *     verification, manifest title lookup, returns reconciliation).
  *   - `lib/orchestration/wave-record-notifications.js` — curated webhook
  *     emit chain for the wave boundary.
  */
@@ -50,7 +49,6 @@ import {
 } from './lib/orchestration/lifecycle/emit-story-dispatch-end.js';
 import {
   loadManifestTitleMap,
-  refreshDispatchManifest,
   resolveResolvedResults,
   verifyWaveResults,
 } from './lib/orchestration/wave-record-io.js';
@@ -69,7 +67,6 @@ import { notify } from './notify.js';
 export {
   loadManifestTitleMap,
   normalizeReturns,
-  refreshDispatchManifest,
   resolveResolvedResults,
   verifyWaveResults,
 } from './lib/orchestration/wave-record-io.js';
@@ -151,7 +148,6 @@ export function parseInputArg(value, deps = {}) {
  *   injectedProvider?: object,
  *   injectedConfig?: object,
  *   injectedNotify?: (ticketId: number, payload: object) => Promise<void>,
- *   injectedRefreshDispatchManifest?: (args: { epicId: number, provider?: object }) => Promise<object>,
  *   now?: () => Date,
  * }} args
  */
@@ -165,7 +161,6 @@ export async function runEpicExecuteRecordWave({
   injectedProvider,
   injectedConfig,
   injectedNotify,
-  injectedRefreshDispatchManifest,
   now = () => new Date(),
 } = {}) {
   validateEpicWave(epicId, wave);
@@ -282,20 +277,12 @@ export async function runEpicExecuteRecordWave({
     blockedStoryIds: projection.blockedStoryIds,
   });
 
-  // 8. Refresh the dispatch manifest in-process so the operator-facing
-  //    on-disk view (`temp/epic-<id>/manifest.{md,json}`) and the
-  //    `dispatch-manifest` Epic comment reflect this wave's progress.
-  //    Story #3026 replaced the historical `dispatcher.js --dry-run`
-  //    subprocess spawn with an in-process `resolveAndDispatch` + pure
-  //    `renderManifest` call. Best-effort: failure here must not block
-  //    the wave loop.
-  const refreshManifest =
-    injectedRefreshDispatchManifest ?? refreshDispatchManifest;
-  await refreshManifest({ epicId, provider }).catch((err) => {
-    Logger.warn(
-      `[record-wave] Non-fatal: could not refresh dispatch manifest for Epic #${epicId} — ${err?.message ?? 'unknown error'}`,
-    );
-  });
+  // Note (Story #3909): the per-wave dispatch-manifest refresh hop was
+  // deleted. It re-ran the full dispatch pipeline (re-fetch every ticket,
+  // recompute waves) on every tick only to re-render a comment nothing reads
+  // for control flow. The manifest is written once at prepare time; the
+  // surviving operator-facing surface is the `epic-run-progress` rollup
+  // re-rendered above.
 
   const envelope = {
     epicId,

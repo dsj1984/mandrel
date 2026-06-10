@@ -223,9 +223,11 @@ export async function reconcileStoryFromGitHub({ provider, storyId } = {}) {
     }
   }
 
-  // Cross-look the story-run-progress comment for phase / task counters.
-  // Failure here is non-fatal — a reconciled row with no counters is still
-  // valid.
+  // Cross-look the story-run-progress comment for phase / task counters when
+  // present. Story #3909 retired the per-Story story-run-progress *comment*
+  // (the redundant mid-flight surface), so this read now usually finds nothing
+  // and the reconciled row degrades to label-only — which is fine: the labels
+  // are the authoritative state. Failure here is non-fatal.
   try {
     const comment = await findStructuredComment(
       provider,
