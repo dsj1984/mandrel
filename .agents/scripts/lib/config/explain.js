@@ -3,20 +3,17 @@
  *
  * `explainConfig()` answers the operator question "what does each resolved
  * config key mean, what is its effective value, and where did that value
- * come from?". It pairs with the named config-profile seeds (Story #3518)
- * and the unified config resolver: the resolver decides the *effective*
- * value, this module attributes that value to a *source* layer and pins a
- * one-line *meaning* to every key.
+ * come from?". It pairs with the unified config resolver: the resolver
+ * decides the *effective* value, this module attributes that value to a
+ * *source* layer and pins a one-line *meaning* to every key.
  *
- * Source attribution is three-valued:
+ * Source attribution is two-valued (Story #3690 removed the named
+ * config-profile layer):
  *   - `agentrc`  — the key is present in the project's resolved `.agentrc.json`
  *                  (including any `.agentrc.local.json` overlay). The operator
  *                  set it.
- *   - `profile`  — the key is absent from `.agentrc.json` but present in the
- *                  named profile seed passed via `opts.profile`. The profile
- *                  would supply it.
- *   - `default`  — neither layer carries the key; the framework default from
- *                  `.agents/docs/agentrc-reference.json` applies.
+ *   - `default`  — the project does not carry the key; the framework default
+ *                  from `.agents/docs/agentrc-reference.json` applies.
  *
  * Secret hygiene: no key in the `.agentrc.json` surface is a credential today,
  * but the report is defensive — any key whose dotted path matches a
@@ -31,7 +28,6 @@ import {
   iterDefaultLeaves,
   lookupPath,
 } from './defaults.js';
-import { resolveProfile } from './profiles.js';
 
 /**
  * Dotted-path segment patterns that mark a key as secret-bearing. Matched
@@ -303,18 +299,13 @@ export function meaningFor(dottedPath) {
  *
  * @param {string} dottedPath
  * @param {object|null} rawAgentrc  The resolver's `raw` (merged agentrc+local), or null.
- * @param {object|null} profileSeed The resolved profile delta seed, or null.
  * @param {unknown} defaultValue    The framework default for this key.
- * @returns {{ source: 'agentrc'|'profile'|'default', value: unknown }}
+ * @returns {{ source: 'agentrc'|'default', value: unknown }}
  */
-function attribute(dottedPath, rawAgentrc, profileSeed, defaultValue) {
+function attribute(dottedPath, rawAgentrc, defaultValue) {
   const inAgentrc = lookupPath(rawAgentrc, dottedPath);
   if (inAgentrc.present) {
     return { source: 'agentrc', value: inAgentrc.value };
-  }
-  const inProfile = lookupPath(profileSeed, dottedPath);
-  if (inProfile.present) {
-    return { source: 'profile', value: inProfile.value };
   }
   return { source: 'default', value: defaultValue };
 }
@@ -323,36 +314,27 @@ function attribute(dottedPath, rawAgentrc, profileSeed, defaultValue) {
  * Build the config-explain report: one entry per known config key, each
  * carrying its effective value, source layer, and one-line meaning.
  *
- * @param {{ cwd?: string, profile?: string|null }} [opts]
+ * @param {{ cwd?: string }} [opts]
  *   - `cwd`: project root whose `.agentrc.json` is resolved (default: the
  *     framework root via `resolveConfig`).
- *   - `profile`: a named profile from `listProfiles()` to attribute keys to
- *     when `.agentrc.json` omits them. When set, the profile must be valid or
- *     `resolveProfile` throws.
  * @returns {Array<{
  *   key: string,
  *   value: unknown,
- *   source: 'agentrc'|'profile'|'default',
+ *   source: 'agentrc'|'default',
  *   meaning: string,
  *   redacted: boolean,
  * }>}
  */
 export function explainConfig(opts = {}) {
-  const { cwd, profile = null } = opts;
+  const { cwd } = opts;
 
   const resolved = resolveConfig(cwd ? { cwd } : undefined);
   const rawAgentrc = resolved.raw ?? null;
-  const profileSeed = profile ? resolveProfile(profile) : null;
   const defaults = getAgentrcDefaults();
 
   const report = [];
   for (const [key, defaultValue] of iterDefaultLeaves(defaults)) {
-    const { source, value } = attribute(
-      key,
-      rawAgentrc,
-      profileSeed,
-      defaultValue,
-    );
+    const { source, value } = attribute(key, rawAgentrc, defaultValue);
     const redacted = isSecretKey(key);
     report.push({
       key,

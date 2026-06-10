@@ -8502,66 +8502,6 @@
       "crap": 2
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
-      "method": "parseParentId",
-      "startLine": 78,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
-      "method": "assertEpicQuiescent",
-      "startLine": 145,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
-      "method": "kebabSlug",
-      "startLine": 167,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
-      "method": "deriveSlug",
-      "startLine": 192,
-      "crap": 4.291587694999271
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
-      "method": "classifyTicket",
-      "startLine": 225,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
-      "method": "buildBootstrapInputs",
-      "startLine": 264,
-      "crap": 16.00385367331463
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
-      "method": "buildBootstrapState",
-      "startLine": 374,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
-      "method": "makeAgentStateResolver",
-      "startLine": 452,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
-      "method": "fetchLiveEpic",
-      "startLine": 480,
-      "crap": 9.583984375
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
-      "method": "runReverseBootstrap",
-      "startLine": 519,
-      "crap": 4.002526997413776
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/error-journal.js",
       "method": "serializeError",
       "startLine": 108,

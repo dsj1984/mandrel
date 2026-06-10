@@ -45,8 +45,15 @@ genuinely missing, and `mandrel doctor` is read-only).
 
 ## Prerequisites
 
-1. Mandrel installed into the project (the `.agents/` bundle is present and
-   `mandrel` resolves on the `PATH`, e.g. via `npx mandrel`).
+1. Mandrel installed and bootstrapped into the project. The zero-to-installed
+   path is `npx create-mandrel`, which installs the `@mandrelai/agents`
+   package, runs `mandrel sync` to materialize the `.agents/` bundle, and then
+   execs `.agents/scripts/bootstrap.js` to provision the project (labels,
+   board, `.agentrc.json` seed). `/onboard` runs **after** that bootstrap
+   completes — it does not invoke `bootstrap.js` itself, so the coupling is
+   indirect: bootstrap owns first-time provisioning, `/onboard` owns the
+   guided first-successful-run. By the time you reach `/onboard`, the
+   `.agents/` bundle is present and `mandrel` resolves on the `PATH`.
 2. `GITHUB_TOKEN` available in the project's `.env` (Phase 3 checks this; the
    token value is never echoed).
 

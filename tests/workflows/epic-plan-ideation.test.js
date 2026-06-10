@@ -23,6 +23,8 @@ import {
   parseOnePager,
   renderEpicBody,
 } from '../../.agents/scripts/lib/epic-plan-ideation.js';
+import { createGh } from '../../.agents/scripts/lib/gh-exec.js';
+import { TicketGateway } from '../../.agents/scripts/providers/github/tickets.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_PATH = path.resolve(
@@ -176,6 +178,23 @@ describe('openEpicFromOnePager', () => {
     assert.equal(out.payload, captured);
   });
 
+  it('surfaces nodeId from the createIssue port, defaulting to null when absent (Story #3822)', async () => {
+    const template = fs.readFileSync(TEMPLATE_PATH, 'utf8');
+    const withNode = await openEpicFromOnePager({
+      onePager: CANONICAL_ONE_PAGER,
+      template,
+      createIssue: async () => ({ id: 1, nodeId: 'node_1' }),
+    });
+    assert.equal(withNode.nodeId, 'node_1');
+
+    const withoutNode = await openEpicFromOnePager({
+      onePager: CANONICAL_ONE_PAGER,
+      template,
+      createIssue: async () => ({ id: 2 }),
+    });
+    assert.equal(withoutNode.nodeId, null);
+  });
+
   it('rejects when createIssue is not a function', async () => {
     const template = fs.readFileSync(TEMPLATE_PATH, 'utf8');
     await assert.rejects(
@@ -200,5 +219,80 @@ describe('openEpicFromOnePager', () => {
         }),
       /createIssue must return/,
     );
+  });
+});
+
+/**
+ * Story #3822 — Epic-open path board membership regression.
+ *
+ * Drives `openEpicFromOnePager` through a createIssue port backed by the
+ * real `TicketGateway.createIssue` (fake gh facade, recording hooks) —
+ * the production wiring the `/epic-plan` Phase 4 workflow prescribes —
+ * and proves the board-add helper fires with the new issue's `node_id`
+ * when a project number is configured, and skips cleanly when it is not.
+ */
+describe('openEpicFromOnePager — Projects V2 board membership (Story #3822)', () => {
+  function makeGateway({ projectNumber }) {
+    const projectCalls = [];
+    const exec = async ({ args, input }) => {
+      const method = args[2] ?? 'GET';
+      if (method === 'POST') {
+        const posted = JSON.parse(input);
+        return {
+          stdout: JSON.stringify({
+            number: 5151,
+            id: 51510,
+            node_id: 'node_5151',
+            html_url: 'https://example/5151',
+            title: posted.title,
+          }),
+          stderr: '',
+          code: 0,
+        };
+      }
+      return { stdout: '{}', stderr: '', code: 0 };
+    };
+    const gateway = new TicketGateway({
+      gh: createGh(exec),
+      owner: 'o',
+      repo: 'r',
+      hooks: {
+        addItemToProject: async (nodeId) => {
+          projectCalls.push(nodeId);
+        },
+        getProjectNumber: () => projectNumber,
+      },
+    });
+    return { gateway, projectCalls };
+  }
+
+  it('adds the new Epic to the board with its node_id when a project number is set', async () => {
+    const template = fs.readFileSync(TEMPLATE_PATH, 'utf8');
+    const { gateway, projectCalls } = makeGateway({ projectNumber: 1 });
+
+    const out = await openEpicFromOnePager({
+      onePager: CANONICAL_ONE_PAGER,
+      template,
+      createIssue: (payload) => gateway.createIssue(payload),
+    });
+
+    assert.equal(out.id, 5151);
+    assert.equal(out.nodeId, 'node_5151');
+    assert.deepEqual(projectCalls, ['node_5151']);
+  });
+
+  it('skips the board add cleanly when no project number is configured', async () => {
+    const template = fs.readFileSync(TEMPLATE_PATH, 'utf8');
+    const { gateway, projectCalls } = makeGateway({ projectNumber: null });
+
+    const out = await openEpicFromOnePager({
+      onePager: CANONICAL_ONE_PAGER,
+      template,
+      createIssue: (payload) => gateway.createIssue(payload),
+    });
+
+    assert.equal(out.id, 5151);
+    assert.equal(out.nodeId, 'node_5151');
+    assert.deepEqual(projectCalls, []);
   });
 });

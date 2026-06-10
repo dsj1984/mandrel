@@ -44,13 +44,25 @@ parking labels (review-spec / ready) collapse to `Todo`.
 
 ## Default Views
 
-Bootstrap attempts to create the three views below via
-`createProjectV2View`. That mutation is not generally available on public
-tokens, so expect the bootstrap log to report
-`Projects V2 Views mutation unavailable — see docs/project-board.md`.
-Create them by hand using the filter strings below.
+Bootstrap creates the **four** views below (defined in
+`PROJECT_VIEW_DEFS` in `lib/label-taxonomy.js`) via GitHub's **REST**
+Projects V2 views endpoint — GraphQL has no public `createProjectV2View`
+mutation. View creation is best-effort: when the endpoint is unavailable
+for the token, the bootstrap log reports
+`Projects V2 Views unavailable — see docs/project-board.md` and you
+create them by hand using the filter strings below. Already-existing
+views are skipped by name, never recreated.
 
-### 1. Epic Roadmap
+### 1. Mandrel Board
+
+- **Layout**: Board
+- **Filter**: _(none — every item)_
+- **Group by**: `Status`
+
+The default whole-board view: every Epic, Feature, and Story in one
+kanban, grouped by Status.
+
+### 2. Epic Roadmap
 
 - **Layout**: Board
 - **Filter**: `label:type::epic`
@@ -58,7 +70,7 @@ Create them by hand using the filter strings below.
 
 Gives a single-glance view of every Epic's lifecycle column.
 
-### 2. Active Stories
+### 3. Active Stories
 
 - **Layout**: Board
 - **Filter**: `label:type::story -status:Done`
@@ -72,7 +84,7 @@ Shows Stories still in flight — useful for a daily standup.
 > views). Operators with the legacy view can remove it by hand once the
 > renamed view is verified.
 
-### 3. My Queue
+### 4. My Queue
 
 - **Layout**: Board
 - **Filter**: `assignee:@me`
@@ -84,7 +96,7 @@ Personal filter that works across Epics, Features, Stories, and Tasks.
 
 Use this when bootstrap logs a warning such as
 `token lacks the "project" scope` or
-`Projects V2 Views mutation unavailable`.
+`Projects V2 Views unavailable`.
 
 1. **Create the project.** In GitHub, go to the owner (user or org) →
    Projects → New project → Board layout. Name it `<repo> — Agent
@@ -100,9 +112,9 @@ Use this when bootstrap logs a warning such as
    created without the default field, in which case: Settings → `+ New
    field` → Single select → name `Status` → add the three options from
    the table above in order.
-4. **Create the three views.** For each of Epic Roadmap, Active
-   Stories, My Queue: `+ New view` → Board → paste the filter string →
-   set Group by = Status.
+4. **Create the four views.** For each of Mandrel Board, Epic Roadmap,
+   Active Stories, My Queue: `+ New view` → Board → paste the filter
+   string (Mandrel Board has none) → set Group by = Status.
 5. **Re-run bootstrap** to verify. It is idempotent — it will skip the
    resources you just created and only add anything still missing.
 
@@ -121,6 +133,6 @@ authorised for the token if the project lives under an org.
 ## Extending the board
 
 Teams that want additional Views should add them by hand — bootstrap
-only ships the three above and never removes Views you've created.
+only ships the four above and never removes Views you've created.
 Adding team-specific single-select options to `Status` is also safe:
 bootstrap's option merge preserves any existing options by id.

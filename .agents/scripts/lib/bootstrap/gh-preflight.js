@@ -31,6 +31,8 @@ const GH_AUTH_HINT =
   'Run `gh auth login` (choose GitHub.com → HTTPS → login with a web browser), then re-run this command.';
 const GH_PROJECT_SCOPE_HINT =
   'Grant the Projects scope: run `gh auth refresh -s project` (re-auth in the browser when prompted), then re-run this command.';
+const GH_SCOPES_UNREADABLE_NOTE =
+  'token scopes not reported by `gh auth status` (fine-grained PAT?) — skipping the classic project-scope assertion. If Projects V2 provisioning later fails, grant the Projects permission (fine-grained) or run `gh auth refresh -s project` (classic).';
 
 /**
  * Framework runtime deps the consumer must have installed in
@@ -135,7 +137,21 @@ export function compareSemver(a, b) {
  */
 export async function preflightGh(opts = {}) {
   const runner = opts.runner ?? defaultGhRunner;
+  const version = resolveGhVersion(runner);
+  assertGhVersionFloor(version);
+  assertGhAuth(runner);
+  return { version };
+}
 
+/**
+ * Resolve the installed `gh` version via `gh --version`, throwing
+ * {@link GhNotInstalledError} for every "not installed correctly" shape
+ * (ENOENT, non-zero exit, unparseable output).
+ *
+ * @param {(args: string[]) => object} runner
+ * @returns {string}
+ */
+function resolveGhVersion(runner) {
   const versionResult = runner(['--version']);
   if (versionResult.error?.code === 'ENOENT') {
     throw new GhNotInstalledError(
@@ -150,20 +166,37 @@ export async function preflightGh(opts = {}) {
       `gh --version failed (exit ${versionResult.status}): ${stderrSnippet}. ${GH_INSTALL_HINT}`,
     );
   }
-
   const version = parseGhVersion(versionResult.stdout);
   if (!version) {
     throw new GhNotInstalledError(
       `Could not parse gh version from output: ${(versionResult.stdout || '').slice(0, 200)}. ${GH_INSTALL_HINT}`,
     );
   }
+  return version;
+}
+
+/**
+ * Enforce the {@link MIN_GH_VERSION} floor, throwing {@link GhVersionError}
+ * with `{ found, required }` when the installed version is older.
+ *
+ * @param {string} version
+ */
+function assertGhVersionFloor(version) {
   if (compareSemver(version, MIN_GH_VERSION) < 0) {
     throw new GhVersionError(
       `gh ${version} is older than required ${MIN_GH_VERSION}. Upgrade with your package manager (e.g. \`brew upgrade gh\`, \`winget upgrade GitHub.cli\`, or see https://cli.github.com/) and re-run this command.`,
       { found: version, required: MIN_GH_VERSION },
     );
   }
+}
 
+/**
+ * Assert `gh auth status` reports a logged-in host, throwing
+ * {@link GhAuthError} (or {@link GhNotInstalledError} on a PATH race).
+ *
+ * @param {(args: string[]) => object} runner
+ */
+function assertGhAuth(runner) {
   const authResult = runner(['auth', 'status']);
   if (authResult.error?.code === 'ENOENT') {
     // Defensive — `gh --version` already passed, so ENOENT here would be a
@@ -177,8 +210,6 @@ export async function preflightGh(opts = {}) {
       `gh auth status failed: not logged in. ${GH_AUTH_HINT}`,
     );
   }
-
-  return { version };
 }
 
 /**
@@ -187,28 +218,40 @@ export async function preflightGh(opts = {}) {
  * `Token scopes:` line from `gh auth status` (some gh versions print it to
  * stderr, others to stdout — we scan both) and looks for a `project` scope.
  *
- * Returns a check record `{ name, ok, remedy? }` rather than throwing, so the
- * preflight aggregator can surface it alongside the other checks. When the
- * scope line cannot be read (e.g. a fine-grained token that does not report
- * classic scopes), the check fails closed with the refresh hint so the
- * operator can grant it explicitly.
+ * Returns a check record `{ name, ok, remedy?, detail? }` rather than
+ * throwing, so the preflight aggregator can surface it alongside the other
+ * checks. An unreadable scopes line — the normal case for fine-grained PATs
+ * and for `gh` builds that omit it — PASSES with a warning `detail` instead
+ * of failing closed (Story #3690); the check only fails when a scopes line
+ * is present and demonstrably lacks `project`.
  *
  * @param {{ runner?: (args: string[]) => {
  *   status: number|null, stdout: string, stderr: string,
  *   error?: NodeJS.ErrnoException
  * } }} [opts]
- * @returns {Promise<{ name: string, ok: boolean, remedy?: string }>}
+ * @returns {Promise<{ name: string, ok: boolean, remedy?: string,
+ *   detail?: string }>}
  */
 export async function checkProjectScopes(opts = {}) {
   const runner = opts.runner ?? defaultGhRunner;
   const result = runner(['auth', 'status']);
   const text = `${result.stdout || ''}\n${result.stderr || ''}`;
-  const scopeLine = /Token scopes:([^\n]*)/i.exec(text);
+  return classifyProjectScopes(/Token scopes:([^\n]*)/i.exec(text));
+}
+
+/**
+ * Map a (possibly absent) `Token scopes:` match onto the check record.
+ * Pure — exported only through {@link checkProjectScopes}.
+ *
+ * @param {RegExpExecArray|null} scopeLine
+ * @returns {{ name: string, ok: boolean, remedy?: string, detail?: string }}
+ */
+function classifyProjectScopes(scopeLine) {
   if (!scopeLine) {
     return {
       name: 'gh-project-scope',
-      ok: false,
-      remedy: `Could not read token scopes from \`gh auth status\`. ${GH_PROJECT_SCOPE_HINT}`,
+      ok: true,
+      detail: GH_SCOPES_UNREADABLE_NOTE,
     };
   }
   if (/\bproject\b/i.test(scopeLine[1])) {

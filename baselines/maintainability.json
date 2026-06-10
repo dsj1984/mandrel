@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-10T03:51:31.438Z",
+  "generatedAt": "2026-06-10T04:19:01.345Z",
   "rollup": {
     "*": {
-      "min": 70.566,
-      "p50": 104.331,
-      "p95": 122.422
+      "min": 46.796,
+      "p50": 104.233,
+      "p95": 122.198
     }
   },
   "rows": [
@@ -25,6 +25,10 @@
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "mi": 95.518
+    },
+    {
+      "path": ".agents/scripts/bootstrap.js",
+      "mi": 92.338
     },
     {
       "path": ".agents/scripts/check-baselines.js",
@@ -111,8 +115,12 @@
       "mi": 97.622
     },
     {
+      "path": ".agents/scripts/epic-plan-spec.js",
+      "mi": 77.458
+    },
+    {
       "path": ".agents/scripts/epic-reconcile.js",
-      "mi": 87.056
+      "mi": 90.763
     },
     {
       "path": ".agents/scripts/evidence-gate.js",
@@ -312,7 +320,11 @@
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
-      "mi": 101.665
+      "mi": 103.964
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/manifest.js",
+      "mi": 81.763
     },
     {
       "path": ".agents/scripts/lib/bootstrap/merge-methods.js",
@@ -321,6 +333,14 @@
     {
       "path": ".agents/scripts/lib/bootstrap/preflight.js",
       "mi": 101.211
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
+      "mi": 94.539
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/prompt.js",
+      "mi": 87.51
     },
     {
       "path": ".agents/scripts/lib/bootstrap/summary.js",
@@ -431,6 +451,14 @@
       "mi": 171
     },
     {
+      "path": ".agents/scripts/lib/config-settings-schema-delivery.js",
+      "mi": 46.796
+    },
+    {
+      "path": ".agents/scripts/lib/config-settings-schema.js",
+      "mi": 51.199
+    },
+    {
       "path": ".agents/scripts/lib/config/baselines.js",
       "mi": 105.406
     },
@@ -445,6 +473,10 @@
     {
       "path": ".agents/scripts/lib/config/defaults.js",
       "mi": 96.363
+    },
+    {
+      "path": ".agents/scripts/lib/config/explain.js",
+      "mi": 90.25
     },
     {
       "path": ".agents/scripts/lib/config/gates/bundle-size.schema.js",
@@ -517,6 +549,10 @@
     {
       "path": ".agents/scripts/lib/config/shared.js",
       "mi": 105.208
+    },
+    {
+      "path": ".agents/scripts/lib/config/sync-agentrc.js",
+      "mi": 89.732
     },
     {
       "path": ".agents/scripts/lib/config/validate-orchestration.js",
@@ -888,23 +924,31 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/authoring-context.js",
-      "mi": 79.675
+      "mi": 81.171
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/cli-args.js",
-      "mi": 90.987
+      "mi": 90.045
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/drain.js",
       "mi": 87.346
     },
     {
+      "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/plan-epic.js",
+      "mi": 86.571
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/prompts.js",
       "mi": 138.609
     },
     {
+      "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/risk-verdict.js",
+      "mi": 102.674
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/run-spec-phase.js",
-      "mi": 80.687
+      "mi": 85.088
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-run-state-store.js",
@@ -981,10 +1025,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/epic-spec-reconciler-format.js",
       "mi": 102.961
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
-      "mi": 90.043
     },
     {
       "path": ".agents/scripts/lib/orchestration/error-journal.js",
@@ -1116,7 +1156,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/planning-risk.js",
-      "mi": 105.025
+      "mi": 112.675
     },
     {
       "path": ".agents/scripts/lib/orchestration/planning-state-manager.js",
@@ -1383,6 +1423,10 @@
       "mi": 87.033
     },
     {
+      "path": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
+      "mi": 96.614
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/ticketing.js",
       "mi": 171
     },
@@ -1627,6 +1671,10 @@
       "mi": 146.427
     },
     {
+      "path": ".agents/scripts/lib/templates/decomposer-prompts.js",
+      "mi": 122.053
+    },
+    {
       "path": ".agents/scripts/lib/test-env.js",
       "mi": 130.158
     },
@@ -1795,8 +1843,16 @@
       "mi": 99.151
     },
     {
+      "path": ".agents/scripts/providers/github.js",
+      "mi": 113.952
+    },
+    {
       "path": ".agents/scripts/providers/github/auth.js",
       "mi": 116.469
+    },
+    {
+      "path": ".agents/scripts/providers/github/board-add.js",
+      "mi": 98.588
     },
     {
       "path": ".agents/scripts/providers/github/branch-protection.js",
@@ -1852,7 +1908,7 @@
     },
     {
       "path": ".agents/scripts/providers/github/tickets.js",
-      "mi": 94.98
+      "mi": 93.829
     },
     {
       "path": ".agents/scripts/quality-preview.js",
@@ -1909,6 +1965,10 @@
     {
       "path": ".agents/scripts/story-phase.js",
       "mi": 85.061
+    },
+    {
+      "path": ".agents/scripts/story-plan.js",
+      "mi": 86.721
     },
     {
       "path": ".agents/scripts/sync-agentrc.js",
@@ -2252,7 +2312,7 @@
     },
     {
       "path": "tests/bootstrap/project-bootstrap.test.js",
-      "mi": 107.293
+      "mi": 103.705
     },
     {
       "path": "tests/bootstrap/prompt.test.js",
@@ -2393,6 +2453,10 @@
     {
       "path": "tests/config/agentrc-defaults.test.js",
       "mi": 114.456
+    },
+    {
+      "path": "tests/config/explain.test.js",
+      "mi": 112.579
     },
     {
       "path": "tests/config/lifecycle-defaults-drift.test.js",
@@ -2743,8 +2807,16 @@
       "mi": 102.552
     },
     {
+      "path": "tests/epic-plan-spec-risk-verdict.test.js",
+      "mi": 106.654
+    },
+    {
       "path": "tests/epic-plan-spec-snapshot-fork.test.js",
       "mi": 107.32
+    },
+    {
+      "path": "tests/epic-planner.test.js",
+      "mi": 100.906
     },
     {
       "path": "tests/epic-runner/_build-ctx.js",
@@ -3388,7 +3460,7 @@
     },
     {
       "path": "tests/lib/orchestration/code-review.test.js",
-      "mi": 107.718
+      "mi": 107.749
     },
     {
       "path": "tests/lib/orchestration/column-sync.test.js",
@@ -3668,7 +3740,7 @@
     },
     {
       "path": "tests/lib/orchestration/plan-review-routing.test.js",
-      "mi": 108.047
+      "mi": 107.191
     },
     {
       "path": "tests/lib/orchestration/plan-runner/worktree-sweep.test.js",
@@ -3676,7 +3748,7 @@
     },
     {
       "path": "tests/lib/orchestration/planning-risk.test.js",
-      "mi": 108.026
+      "mi": 103.141
     },
     {
       "path": "tests/lib/orchestration/post-merge-pipeline-stale-registry.test.js",
@@ -4267,6 +4339,10 @@
       "mi": 118.196
     },
     {
+      "path": "tests/providers/github/board-add.test.js",
+      "mi": 117.995
+    },
+    {
       "path": "tests/providers/github/branch-protection.test.js",
       "mi": 97.869
     },
@@ -4300,7 +4376,7 @@
     },
     {
       "path": "tests/providers/github/tickets.test.js",
-      "mi": 89.605
+      "mi": 91.803
     },
     {
       "path": "tests/push-epic-retry.test.js",
@@ -4400,7 +4476,11 @@
     },
     {
       "path": "tests/scripts/bootstrap-main-phases.test.js",
-      "mi": 107.365
+      "mi": 105.142
+    },
+    {
+      "path": "tests/scripts/bootstrap-phases-coverage.test.js",
+      "mi": 98.054
     },
     {
       "path": "tests/scripts/bootstrap-picker-resolver.test.js",
@@ -4411,8 +4491,16 @@
       "mi": 110.036
     },
     {
+      "path": "tests/scripts/bootstrap-provisioning-github.test.js",
+      "mi": 101.07
+    },
+    {
+      "path": "tests/scripts/bootstrap-provisioning.test.js",
+      "mi": 96.769
+    },
+    {
       "path": "tests/scripts/bootstrap-question-pickers.test.js",
-      "mi": 102.573
+      "mi": 104.896
     },
     {
       "path": "tests/scripts/bootstrap-system-prompt-wiring.test.js",
@@ -4472,11 +4560,7 @@
     },
     {
       "path": "tests/scripts/epic-plan.spec-flow.test.js",
-      "mi": 88.281
-    },
-    {
-      "path": "tests/scripts/epic-reconcile.bootstrap.test.js",
-      "mi": 98.542
+      "mi": 87.42
     },
     {
       "path": "tests/scripts/epic-reconcile.cli.test.js",
@@ -4692,7 +4776,7 @@
     },
     {
       "path": "tests/skills/epic-plan-decompose-author.test.js",
-      "mi": 97.193
+      "mi": 85.848
     },
     {
       "path": "tests/skills/epic-plan-spec-author.test.js",
@@ -4775,6 +4859,10 @@
       "mi": 85.901
     },
     {
+      "path": "tests/story-plan.test.js",
+      "mi": 107.272
+    },
+    {
       "path": "tests/structure.test.js",
       "mi": 107.034
     },
@@ -4792,7 +4880,7 @@
     },
     {
       "path": "tests/ticket-decomposer.test.js",
-      "mi": 99.673
+      "mi": 102.577
     },
     {
       "path": "tests/ticketing-provider.test.js",
@@ -4844,7 +4932,7 @@
     },
     {
       "path": "tests/workflows/epic-plan-ideation.test.js",
-      "mi": 110.244
+      "mi": 107.721
     },
     {
       "path": "tests/workflows/lint-baseline-cli.test.js",

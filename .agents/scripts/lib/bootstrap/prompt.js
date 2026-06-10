@@ -34,7 +34,6 @@ export const KNOWN_FLAGS = Object.freeze({
     'base-branch',
     'project-number',
     'visibility',
-    'profile',
   ],
   boolean: [
     'assume-yes',

@@ -14,7 +14,7 @@
  * (from the projects-v2 shim, used by `createTicket` to add the new issue
  * to the configured Project V2).
  *
- * Public surface is unchanged: `GitHubProvider.createTicket / getTicket /
+ * Public surface: `GitHubProvider.createTicket / createIssue / getTicket /
  * getTickets / updateTicket / getTicketDependencies / primeTicketCache /
  * invalidateTicket` all delegate to the same-named methods on this class.
  *
@@ -22,7 +22,7 @@
  */
 
 import { parseBlockedBy, parseBlocks } from '../../lib/dependency-parser.js';
-import { Logger } from '../../lib/Logger.js';
+import { addIssueToBoard } from './board-add.js';
 import { createInlineTicketCache } from './cache.js';
 import { withTransientRetry } from './errors.js';
 import { issueToListItem, issueToTicket } from './mappers.js';
@@ -227,19 +227,12 @@ export class TicketGateway {
       subIssueError = err;
     }
 
-    try {
-      const projectNumber =
-        typeof this._hooks.getProjectNumber === 'function'
-          ? this._hooks.getProjectNumber()
-          : null;
-      if (projectNumber && typeof this._hooks.addItemToProject === 'function') {
-        await this._hooks.addItemToProject(issue.node_id);
-      }
-    } catch (err) {
-      Logger.warn(
-        `[GitHubProvider] Failed to add Issue #${issue.number} to project: ${err.message}`,
-      );
-    }
+    await addIssueToBoard({
+      nodeId: issue.node_id,
+      issueNumber: issue.number,
+      getProjectNumber: this._hooks.getProjectNumber,
+      addItemToProject: this._hooks.addItemToProject,
+    });
 
     return {
       id: issue.number,
@@ -248,6 +241,57 @@ export class TicketGateway {
       url: issue.html_url,
       subIssueLinked,
       subIssueError,
+    };
+  }
+
+  /**
+   * Create a **bare** issue — no `parent: #N` footer composition and no
+   * sub-issue link. Serves the standalone create paths that bypass
+   * `createTicket`'s Story-shaped body rendering: the `/story-plan`
+   * persist step and the `/epic-plan` Phase 4 Epic open
+   * (`openEpicFromOnePager`'s `createIssue` port).
+   *
+   * After the POST, the new issue is added to the configured Project V2
+   * board via the shared `addIssueToBoard` helper (Story #3822) —
+   * idempotent, non-fatal, and a no-op when no project number resolves —
+   * so board membership never depends on GitHub's "Auto-add to project"
+   * built-in workflow.
+   *
+   * @field-manifest POST /repos/{owner}/{repo}/issues: number, id, node_id,
+   *                 html_url
+   *
+   * @param {{ title: string, body: string, labels?: string[] }} payload
+   * @returns {Promise<{
+   *   id: number,
+   *   number: number,
+   *   internalId: number,
+   *   nodeId: string,
+   *   url: string,
+   *   boardAdd: { added: boolean, reason?: string },
+   * }>}
+   */
+  async createIssue({ title, body, labels = [] }) {
+    const result = await this._gh.api({
+      method: 'POST',
+      endpoint: `/repos/${this.owner}/${this.repo}/issues`,
+      body: { title, body, labels },
+    });
+    const issue = parseApiJson(result);
+
+    const boardAdd = await addIssueToBoard({
+      nodeId: issue.node_id,
+      issueNumber: issue.number,
+      getProjectNumber: this._hooks.getProjectNumber,
+      addItemToProject: this._hooks.addItemToProject,
+    });
+
+    return {
+      id: issue.number,
+      number: issue.number,
+      internalId: issue.id,
+      nodeId: issue.node_id,
+      url: issue.html_url,
+      boardAdd,
     };
   }
 
