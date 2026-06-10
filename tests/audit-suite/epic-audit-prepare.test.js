@@ -436,3 +436,153 @@ test('runEpicAuditPrepare: --help yields help payload with exit 0', async () => 
   assert.equal(result.kind, 'help');
   assert.match(result.text, /--epic/);
 });
+
+test('runEpicAuditPrepare: --help documents the depth field (Story #3939)', async () => {
+  const { result } = await runEpicAuditPrepare(
+    { epicId: EPIC_ID, help: true },
+    {
+      resolveConfig: noopConfig,
+      createProvider: noopProviderFactory(makeProvider()),
+      selectAudits: makeFakeSelectAudits({
+        selectedAudits: [],
+        changedFiles: [],
+        ticketTitle: '',
+      }),
+    },
+  );
+  assert.equal(result.kind, 'help');
+  assert.match(result.text, /depth/);
+  assert.match(result.text, /light \| standard \| deep/);
+});
+
+// --- Story #3939: depth-aware audit envelope -------------------------------
+//
+// The default sizing thresholds (DEFAULT_TASK_SIZING) are softFiles=8,
+// hardFiles=30. With the default config (noopConfig → no taskSizing override),
+// `resolveDepth` resolves:
+//   - high risk (any width)                → deep
+//   - low risk + count ≤ 8                  → light
+//   - absent checkpoint + small/unknown     → standard
+//   - low risk + count > 30 (wide)          → deep (width escalation)
+
+/** Build an N-element changed-file list so a test can drive the diff width. */
+function makeChangedFiles(n) {
+  return Array.from({ length: n }, (_, i) => `src/mod/file-${i}.js`);
+}
+
+test('runEpicAuditPrepare: high-risk envelope resolves depth=deep', async () => {
+  const provider = makeProvider();
+  const { exitCode, result } = await runEpicAuditPrepare(
+    { epicId: EPIC_ID, baseBranch: 'main', gate: 'gate3' },
+    {
+      resolveConfig: noopConfig,
+      createProvider: noopProviderFactory(provider),
+      selectAudits: makeFakeSelectAudits({
+        selectedAudits: ['audit-clean-code'],
+        changedFiles: ['src/auth/login.js', 'src/auth/session.js'],
+        ticketTitle: 'x',
+      }),
+      readPlanState: makeFakeReadPlanState({
+        overallLevel: 'high',
+        axes: [{ axis: 'security', level: 'high', rationale: 'auth' }],
+      }),
+    },
+  );
+
+  assert.equal(exitCode, 0);
+  assert.equal(result.envelope.depth, 'deep');
+});
+
+test('runEpicAuditPrepare: low-risk + small change set resolves depth=light', async () => {
+  const provider = makeProvider();
+  const { exitCode, result } = await runEpicAuditPrepare(
+    { epicId: EPIC_ID, baseBranch: 'main', gate: 'gate3' },
+    {
+      resolveConfig: noopConfig,
+      createProvider: noopProviderFactory(provider),
+      selectAudits: makeFakeSelectAudits({
+        selectedAudits: ['audit-clean-code'],
+        // 3 files ≤ softFiles(8) → small.
+        changedFiles: makeChangedFiles(3),
+        ticketTitle: 'x',
+      }),
+      readPlanState: makeFakeReadPlanState({
+        overallLevel: 'low',
+        axes: [{ axis: 'internal-refactor', level: 'low', rationale: 'tidy' }],
+      }),
+    },
+  );
+
+  assert.equal(exitCode, 0);
+  assert.equal(result.envelope.depth, 'light');
+});
+
+test('runEpicAuditPrepare: low-risk but wide change set escalates depth to deep', async () => {
+  const provider = makeProvider();
+  const { exitCode, result } = await runEpicAuditPrepare(
+    { epicId: EPIC_ID, baseBranch: 'main', gate: 'gate3' },
+    {
+      resolveConfig: noopConfig,
+      createProvider: noopProviderFactory(provider),
+      selectAudits: makeFakeSelectAudits({
+        selectedAudits: ['audit-clean-code'],
+        // 40 files > hardFiles(30) → wide; width escalates a low-risk Epic.
+        changedFiles: makeChangedFiles(40),
+        ticketTitle: 'x',
+      }),
+      readPlanState: makeFakeReadPlanState({
+        overallLevel: 'low',
+        axes: [{ axis: 'internal-refactor', level: 'low', rationale: 'tidy' }],
+      }),
+    },
+  );
+
+  assert.equal(exitCode, 0);
+  assert.equal(result.envelope.depth, 'deep');
+});
+
+test('runEpicAuditPrepare: absent checkpoint resolves depth=standard', async () => {
+  const provider = makeProvider();
+  const { exitCode, result } = await runEpicAuditPrepare(
+    { epicId: EPIC_ID, baseBranch: 'main', gate: 'gate3' },
+    {
+      resolveConfig: noopConfig,
+      createProvider: noopProviderFactory(provider),
+      selectAudits: makeFakeSelectAudits({
+        // A mid-width diff (between soft and hard) with no risk verdict must
+        // land on the neutral middle, never light.
+        selectedAudits: ['audit-clean-code'],
+        changedFiles: makeChangedFiles(12),
+        ticketTitle: 'x',
+      }),
+      readPlanState: makeFakeReadPlanState(null),
+    },
+  );
+
+  assert.equal(exitCode, 0);
+  assert.equal(result.envelope.depth, 'standard');
+});
+
+test('runEpicAuditPrepare: a checkpoint-read failure degrades depth to width-only (standard)', async () => {
+  const provider = makeProvider();
+  const { exitCode, result } = await runEpicAuditPrepare(
+    { epicId: EPIC_ID, baseBranch: 'main', gate: 'gate3' },
+    {
+      resolveConfig: noopConfig,
+      createProvider: noopProviderFactory(provider),
+      selectAudits: makeFakeSelectAudits({
+        selectedAudits: ['audit-clean-code'],
+        changedFiles: makeChangedFiles(5),
+        ticketTitle: 'x',
+      }),
+      readPlanState: async () => {
+        throw new Error('provider blew up reading the checkpoint');
+      },
+    },
+  );
+
+  // No risk signal + a small/known width → standard (light requires a
+  // low-risk judgment, which a read failure cannot supply).
+  assert.equal(exitCode, 0);
+  assert.equal(result.envelope.depth, 'standard');
+});

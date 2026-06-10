@@ -70,6 +70,7 @@ envelope:
 {
   "epicId": 2586,
   "epicBranch": "epic/2586",
+  "depth": "deep",
   "selectedAudits": ["audit-security", "audit-privacy"],
   "changeSetAudits": ["audit-privacy"],
   "riskRoutedAudits": ["audit-security"],
@@ -84,6 +85,34 @@ change-set selection) and `riskRoutedAudits` (the model-judged risk-routed
 lenses). The two source arrays are surfaced for observability so the
 operator can see why each lens fired. Dispatch the `selectedAudits` union
 in Step 2.
+
+### The `depth` field (Story #3939)
+
+`depth` is `light`, `standard`, or `deep` — an **orthogonal** signal that
+tells you how thorough each **selected** lens should be on this Epic. It is
+resolved by the shared `resolveDepth` resolver from the Epic's model-judged
+risk envelope (`overallLevel` off the `epic-plan-state` checkpoint) folded
+with `changedFilesCount`: a high-risk **or** wide-footprint Epic resolves to
+`deep`, a low-risk small one to `light`, and everything else — including an
+Epic that skipped `/epic-plan` and has no checkpoint — to `standard`.
+
+Depth changes **how deeply** each lens runs, never **which** lenses fire:
+
+- **`light`** — run each selected lens against the **changed surface only**
+  and report **only Critical/High** findings. Skip the Medium/Suggestion
+  sweep. Light **never skips a selected lens** — including the alwaysRun
+  floor (`audit-clean-code`, `audit-architecture`) — it only **shrinks the
+  selected lens's sweep**. An easy, low-risk Epic still runs its audits;
+  they just run lighter.
+- **`standard`** — today's behavior: walk each selected lens's full
+  procedure over the changed surface at every severity.
+- **`deep`** — run the full lens procedure over the changed surface **plus
+  the modules it directly touches**, at every severity.
+
+Depth never changes the severity taxonomy, the findings-report shape, or the
+Phase 4 halting rule below (a 🔴 Critical Blocker halts at every depth;
+everything else logs). Thread the resolved `depth` into each lens walk in
+Step 2 — it scopes the sweep, it does not gate the roster.
 
 ### Outcomes
 
@@ -150,12 +179,17 @@ After the runner returns:
 1. **Read the descriptor stream** — confirm every requested lens
    appears in `metadata.auditsRun`, then walk each entry in
    `workflows[]` (or each on-disk artifact when `--run-id` was set).
-2. **Execute the lens inline.** Open the lens workflow at
-   `path` (or the per-lens artifact file when `--run-id` produced
-   one) and follow its procedure verbatim against the substituted
-   change set. Each lens declares its own pillars, severity rubric,
-   and remediation prose; treat its body as the canonical execution
-   contract for that pass.
+2. **Execute the lens inline at the run's `depth`.** Open the lens
+   workflow at `path` (or the per-lens artifact file when `--run-id`
+   produced one) and follow its procedure verbatim against the
+   substituted change set, scoping the sweep to the envelope's `depth`
+   (see "The `depth` field" above): `light` walks the changed surface and
+   reports only 🔴/🟠 findings, `standard` walks the full procedure at
+   every severity, and `deep` extends the sweep to the directly-touched
+   modules. Depth scopes the sweep only — never skip a selected lens.
+   Each lens declares its own pillars, severity rubric, and remediation
+   prose; treat its body as the canonical execution contract for that
+   pass.
 3. **Aggregate** by severity (🔴 Critical Blocker / 🟠 High /
    🟡 Medium / 🟢 Suggestion). Hold the aggregate for Step 3
    (auto-fix) and Step 4 (the `audit-results` structured comment).
