@@ -717,7 +717,6 @@ function resolveAppliedGroups(approvedGroups, report) {
  */
 export function parseAndValidate(argv, opts = {}) {
   const stdout = opts.stdout ?? process.stdout;
-  const env = opts.env ?? process.env;
   const stdin = opts.stdin ?? process.stdin;
   const flags = parseFlags(argv);
   if (flags.help) {
@@ -730,26 +729,15 @@ export function parseAndValidate(argv, opts = {}) {
   // A non-TTY run cannot collect operator consent interactively, so it MUST
   // carry an explicit consent signal. This restores parity with the --help
   // text, which has always claimed --assume-yes is required for non-TTY runs.
+  // (owner/repo are resolved from flags/env/git-remote downstream — a consent
+  // signal alone is sufficient to advance, exactly as the pre-Story #3897
+  // `--assume-yes` path did.)
   if (!interactive && !assumeYes && !approveGithubAdmin) {
     Logger.error(
       '[bootstrap] non-TTY run requires --assume-yes or --approve-github-admin ' +
         '(no operator is present to confirm the GitHub-admin mutations).',
     );
     return { ok: false, exit: 1 };
-  }
-  if (!interactive) {
-    const required = ['owner', 'repo'];
-    const missing = required.filter(
-      (k) =>
-        typeof flags[k] !== 'string' &&
-        typeof env[`GH_${k.toUpperCase()}`] !== 'string',
-    );
-    if (missing.length > 0) {
-      Logger.error(
-        `[bootstrap] non-TTY run requires --owner and --repo (or GH_OWNER / GH_REPO). Missing: ${missing.join(', ')}`,
-      );
-      return { ok: false, exit: 1 };
-    }
   }
   // Real GitHub-admin consent: an interactive run confirms it in
   // `collectAndConfirm`; a non-TTY run signals it via flag (above).

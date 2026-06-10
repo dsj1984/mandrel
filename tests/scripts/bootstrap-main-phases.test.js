@@ -113,23 +113,27 @@ describe('parseAndValidate', () => {
     assert.equal(res.payload.githubAdminApproved, true);
   });
 
-  it('halts in non-TTY mode with a consent signal but missing owner/repo (Story #3897)', () => {
-    const res = parseAndValidate(['--approve-github-admin'], {
+  it('advances in non-TTY mode with a consent signal even when owner/repo are absent — they resolve downstream (Story #3897)', () => {
+    // A consent signal alone advances; owner/repo are inferred from the git
+    // remote (or flags/env) by the later phases, matching the pre-Story #3897
+    // `--assume-yes` behaviour the Windows Smoke dry-run relies on.
+    const res = parseAndValidate(['--assume-yes', '--skip-github'], {
       stdout: { write: () => {} },
       env: {},
       stdin: { isTTY: false },
     });
-    assert.equal(res.ok, false);
-    assert.equal(res.exit, 1);
+    assert.equal(res.ok, true);
+    assert.equal(res.payload.githubAdminApproved, true);
   });
 
-  it('honours GH_OWNER / GH_REPO env vars as a substitute for the flags', () => {
+  it('advances with --assume-yes alone; owner/repo (here via GH_OWNER/GH_REPO) are resolved downstream, not at the gate', () => {
     const res = parseAndValidate(['--assume-yes'], {
       stdout: { write: () => {} },
       env: { GH_OWNER: 'acme', GH_REPO: 'widget' },
       stdin: { isTTY: false },
     });
     assert.equal(res.ok, true);
+    assert.equal(res.payload.githubAdminApproved, true);
   });
 
   it('halts with exit 1 on an unrecognized --visibility value', () => {
