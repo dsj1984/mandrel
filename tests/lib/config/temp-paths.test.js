@@ -298,34 +298,43 @@ describe('lib/config/temp-paths.js — standalone Story routing (Story #2874)', 
 });
 
 describe('lib/config/temp-paths.js — main-checkout anchoring (Story #3900)', () => {
+  // Build an ABSOLUTE fake git-common-dir via path.resolve so it carries a
+  // drive letter on Windows. The implementation keeps an absolute
+  // `--git-common-dir` verbatim, so the expected root is exactly its
+  // path.dirname — computed the same way to avoid drive-letter divergence
+  // between path.resolve(SEP, ...) (gets the cwd drive) and the bare `\repo`
+  // path.join produces on Windows (no drive).
+  const REPO_ROOT_ABS = path.resolve(SEP, 'repo');
+  const COMMON_GIT_ABS = path.join(REPO_ROOT_ABS, '.git');
+  const EXPECTED_ROOT = path.dirname(COMMON_GIT_ABS);
+
   it('mainCheckoutRoot returns the parent of `--git-common-dir`', () => {
     _clearMainCheckoutRootCache();
-    const fakeExec = () => `${path.join(SEP, 'repo', '.git')}\n`;
+    const fakeExec = () => `${COMMON_GIT_ABS}\n`;
     const root = mainCheckoutRoot('/anywhere', { exec: fakeExec });
-    assert.equal(root, path.resolve(SEP, 'repo'));
+    assert.equal(root, EXPECTED_ROOT);
   });
 
   it('mainCheckoutRoot resolves a relative `--git-common-dir` against cwd', () => {
-    const cwd = path.resolve(SEP, 'repo', '.worktrees', 'story-7');
-    // In a linked worktree, `--git-common-dir` returns the parent repo's
-    // `.git/` so its parent is the main checkout root — NOT the worktree.
-    const fakeExec = () => `${path.join(SEP, 'repo', '.git')}\n`;
+    const cwd = path.join(REPO_ROOT_ABS, 'checkout');
+    // A relative `--git-common-dir` output (e.g. `.git`) is resolved against
+    // the cwd, then its parent is taken. Compute the expectation the same way
+    // the implementation does so the drive letter matches on Windows.
+    const relOut = '.git';
+    const fakeExec = () => `${relOut}\n`;
     const root = mainCheckoutRoot(cwd, { exec: fakeExec });
-    assert.equal(root, path.resolve(SEP, 'repo'));
+    assert.equal(root, path.dirname(path.resolve(cwd, relOut)));
   });
 
   it('a worktree cwd and the main-checkout cwd converge on the same ledger root', () => {
     // The bug: heartbeats written from a worktree cwd and reads from the
     // main checkout cwd must target the same `temp/epic-N/lifecycle.ndjson`.
-    const commonGit = path.join(SEP, 'repo', '.git');
-    const fakeExec = () => `${commonGit}\n`;
+    const fakeExec = () => `${COMMON_GIT_ABS}\n`;
     const fromWorktree = mainCheckoutRoot(
-      path.resolve(SEP, 'repo', '.worktrees', 'story-7'),
+      path.join(REPO_ROOT_ABS, '.worktrees', 'story-7'),
       { exec: fakeExec },
     );
-    const fromMain = mainCheckoutRoot(path.resolve(SEP, 'repo'), {
-      exec: fakeExec,
-    });
+    const fromMain = mainCheckoutRoot(REPO_ROOT_ABS, { exec: fakeExec });
     assert.equal(fromWorktree, fromMain);
   });
 
