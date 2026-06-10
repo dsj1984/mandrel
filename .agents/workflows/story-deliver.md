@@ -21,7 +21,7 @@ confirms it with the operator, and fans out one Agent call per Story per wave
   → Phase 0 — Validate input & build DAG
   → Phase 1 — stories-wave-tick.js → wave plan + operator confirmation
   → Phase 2 — for each wave:
-        Agent tool × min(wave.stories.length, concurrencyCap) parallel calls
+        Agent tool × min(wave.stories.length, plan.concurrencyCap) parallel calls
           helpers/single-story-deliver <storyId>
   → Phase 3 — Summary
 ```
@@ -39,8 +39,14 @@ their body. Those Stories belong to an Epic's dispatch manifest and must flow
 through `/epic-deliver`. Use `/single-story-deliver` for a single Epic-free
 Story when you want the leaner one-story path without wave machinery.
 
-> **Concurrency cap.** The default is 3 parallel Agent calls per wave.
-> Override via `delivery.deliverRunner.concurrencyCap` in `.agentrc.json`.
+> **Concurrency cap.** The cap is resolved **deterministically in code** by
+> `stories-wave-tick.js` (Phase 1a) — the same `resolveConfig` + `getRunners`
+> seam `/epic-deliver` uses — and emitted as the `concurrencyCap` field on the
+> `stories-wave-plan` envelope. The default is 3; override persistently via
+> `delivery.deliverRunner.concurrencyCap` in `.agentrc.json` (a
+> `.agentrc.local.json` override is honored) or per-run via the `--concurrency`
+> flag below. Phase 2 dispatches `min(wave.stories.length, plan.concurrencyCap)`
+> straight from the emitted field — do **not** re-read or merge config yourself.
 
 ---
 
@@ -60,7 +66,10 @@ Story when you want the leaner one-story path without wave machinery.
 - `--yes` — Skip the operator confirmation in Phase 1 and proceed
   immediately. Safe for scripted / sub-agent invocations.
 - `--concurrency <n>` — Override the per-wave concurrency cap for this run
-  only.
+  only. Passed through to `stories-wave-tick.js` in Phase 1a, which validates
+  it (must be a positive integer) and reflects it in the emitted
+  `concurrencyCap` field. When omitted, the cap is resolved from
+  `delivery.deliverRunner.concurrencyCap` (default 3).
 
 ---
 
@@ -99,7 +108,14 @@ Construct the DAG input array:
 
 ```bash
 node .agents/scripts/stories-wave-tick.js --dag '<dag-json>'
+# with a per-run cap override:
+node .agents/scripts/stories-wave-tick.js --dag '<dag-json>' --concurrency <n>
 ```
+
+When the operator passed `--concurrency <n>` to `/story-deliver`, forward it
+verbatim to `stories-wave-tick.js`. The script resolves the cap from config
+(`delivery.deliverRunner.concurrencyCap`, default 3) and the override wins for
+that run.
 
 Stdout is one JSON envelope:
 
@@ -111,6 +127,7 @@ Stdout is one JSON envelope:
     { "waveIndex": 1, "stories": [102] }
   ],
   "totalStories": 3,
+  "concurrencyCap": 3,
   "cycleError": null
 }
 ```
@@ -119,6 +136,11 @@ Stdout is one JSON envelope:
   exit. The Story set cannot be delivered until the circular dependency is
   resolved.
 - **`waves` empty** → STOP. Zero Stories resolved — report and exit.
+- **`concurrencyCap`** is the resolved per-wave cap. Phase 2 dispatches
+  `min(wave.stories.length, plan.concurrencyCap)` from this field — the
+  workflow never re-reads or merges config to recover the cap.
+- An invalid `--concurrency` value (non-positive / non-integer) makes the
+  script exit non-zero with an `inputError` → STOP and surface the message.
 
 ### 1b. Operator confirmation (skipped with `--yes` or for single-story plans)
 
@@ -151,11 +173,13 @@ For each wave in `waves` (in `waveIndex` order):
 
 ### 2a. Fan out per-Story Agent calls
 
-Emit **one `Agent` tool call per Story** in the wave. When the wave
-contains more Stories than `concurrencyCap`, dispatch the first
-`concurrencyCap` in one turn with `run_in_background: true` and refill
+Emit **one `Agent` tool call per Story** in the wave, capped at
+`plan.concurrencyCap` from the Phase 1a `stories-wave-plan` envelope. When
+the wave contains more Stories than `plan.concurrencyCap`, dispatch the first
+`plan.concurrencyCap` in one turn with `run_in_background: true` and refill
 as each child returns — never exceed the cap, never wait for the whole
-batch before refilling.
+batch before refilling. Do **not** re-derive the cap from config here; the
+envelope field is the single deterministic source.
 
 Each Agent call:
 
@@ -281,7 +305,8 @@ blocked or unstarted Stories execute.
   in Phase 0 and STOP.
 - **Never** advance to the next wave while any Story in the current wave
   is `blocked` or `failed`.
-- **Never** exceed `concurrencyCap` parallel Agent calls at any moment.
+- **Never** exceed `plan.concurrencyCap` (the resolved cap emitted by
+  `stories-wave-tick.js`) parallel Agent calls at any moment.
 - **Always** confirm the wave plan with the operator before dispatching,
   unless `--yes` was passed.
 - **Label transitions**: drive every `agent::*` state change through
