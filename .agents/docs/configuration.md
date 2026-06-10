@@ -453,6 +453,19 @@ The shipped `include` default scans `.agents/scripts/**`, `src/**`,
 `node_modules`, `dist`, `build`, and `coverage`. Override only when the
 project's source layout differs.
 
+The `skinny` tier caps its file list at 250 paths. When the include set
+matches more than that, the cap is applied with **per-top-level-directory
+proportional budgeting** (round-robin across the matched top-level trees)
+rather than a flat lexicographic slice — so a large, dot-prefixed tree like
+`.agents/scripts/**` can no longer monopolise the budget and truncate away
+the consumer's own `src/` / `lib/` source. When `.agents/scripts/**` is the
+only matching tree (the Mandrel-repo dogfood case), the round-robin
+degenerates to taking the first 250 sorted paths, so that snapshot stays
+useful. When truncation occurs, `/epic-plan` Phase 7 emits an
+operator-visible warning naming the dropped file count and suggesting
+`tier: "medium"` and/or a narrowed `include`. Opt into the richer `medium`
+tier or narrow `include` if the partial skinny view is insufficient.
+
 ---
 
 ## `delivery`
