@@ -31,6 +31,7 @@ import {
 } from '../../../.agents/scripts/lib/orchestration/review-providers/review-depth.js';
 import { buildSecurityReviewPrompt } from '../../../.agents/scripts/lib/orchestration/review-providers/security-review.js';
 import { buildUltrareviewMessage } from '../../../.agents/scripts/lib/orchestration/review-providers/ultrareview.js';
+import { DEFAULT_TASK_SIZING } from '../../../.agents/scripts/lib/orchestration/ticket-validator-sizing.js';
 
 // --- Producer segment: checkpoint → depth ---------------------------------
 
@@ -106,12 +107,27 @@ function fakeResolveConfig() {
 }
 
 /**
+ * A fake `gitSpawn` that reports `n` changed files for the diff so the depth
+ * resolver sees a deterministic width with no real git subprocess. The default
+ * (`n === null`) reports a diff that cannot be enumerated (status 1), modelling
+ * the producer-side "width unknown" case where depth is risk-only.
+ */
+function fakeGitSpawn(n = null) {
+  if (n === null) {
+    return () => ({ status: 1, stdout: '', stderr: 'no such ref' });
+  }
+  const stdout = Array.from({ length: n }, (_, i) => `file-${i}.js`).join('\n');
+  return () => ({ status: 0, stdout, stderr: '' });
+}
+
+/**
  * Drive an epic-scope `runCodeReview` with a checkpoint-resolved depth and
  * capture the `runReview` input the provider receives. Mirrors the producer →
  * pipeline handoff: the depth resolved in segment 1 is what the Phase 5 helper
- * forwards as `planningRisk` to `runCodeReview`.
+ * forwards as `planningRisk` to `runCodeReview`. `changedFileCount` injects the
+ * mechanical diff width Story #3938 folds into the depth alongside the risk.
  */
-async function captureProviderDepth(planningRisk) {
+async function captureProviderDepth(planningRisk, changedFileCount = null) {
   const captured = {};
   const bus = { emit: async () => {} };
   await runCodeReview({
@@ -119,6 +135,7 @@ async function captureProviderDepth(planningRisk) {
     provider: {},
     bus,
     planningRisk,
+    gitSpawnFn: fakeGitSpawn(changedFileCount),
     reviewProvider: {
       runReview: async (input) => {
         captured.input = input;
@@ -145,6 +162,18 @@ test('pipeline: low → light reaches the provider runReview input', async () =>
 test('pipeline: absent risk → standard reaches the provider runReview input', async () => {
   const input = await captureProviderDepth(undefined);
   assert.equal(input.depth, 'standard');
+});
+
+test('pipeline: low-risk Epic whose diff exceeds hardFiles → deep (width escalates risk)', async () => {
+  // Story #3938 — the depth folds the mechanical diff width in alongside the
+  // judged risk. A low-risk Epic that produced a wide change set (> hardFiles)
+  // is escalated to a deep provider pass on width alone, closing the gap where
+  // a wide low-risk Epic previously got a light review.
+  const input = await captureProviderDepth(
+    { overallLevel: 'low' },
+    DEFAULT_TASK_SIZING.hardFiles + 1,
+  );
+  assert.equal(input.depth, 'deep');
 });
 
 test('pipeline: end-to-end, a high-risk checkpoint resolves and reaches the provider as deep', async () => {

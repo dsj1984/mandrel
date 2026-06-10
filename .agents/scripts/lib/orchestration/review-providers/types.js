@@ -35,12 +35,14 @@
  * @property {number}      ticketId  - Story or Epic issue number.
  * @property {string}      baseRef   - Git ref to diff against (e.g. 'main', 'epic/2815').
  * @property {string}      headRef   - Git ref under review (e.g. 'story-2820', 'epic/2815').
- * @property {ReviewDepth=} depth    - Risk-derived review thoroughness lever
- *   (Story #3876/#3937). `light` → single-pass review focused on Pillar 1
- *   (spec adherence) with Pillars 2–3 reduced to a quick scan; `standard` →
- *   all pillars at baseline depth; `deep` → all pillars plus a second
- *   adversarial pass over the diff. Resolved from the Epic's judged risk
- *   envelope by `resolveReviewDepth` and threaded into `runReview`. LLM-backed
+ * @property {ReviewDepth=} depth    - Risk-and-width-derived review thoroughness
+ *   lever (Story #3876/#3937/#3938). `light` → single-pass review focused on
+ *   Pillar 1 (spec adherence) with Pillars 2–3 reduced to a quick scan;
+ *   `standard` → all pillars at baseline depth; `deep` → all pillars plus a
+ *   second adversarial pass over the diff. Resolved from the judged risk
+ *   envelope AND the changed-file count of the diff by `resolveDepth`
+ *   (`lib/orchestration/review-depth.js`) and threaded into `runReview`.
+ *   LLM-backed
  *   providers MUST render this into the prompt/instructions they emit; the
  *   native provider documents why its mechanical sweep ignores it. Absent →
  *   providers treat the review as `standard`.
