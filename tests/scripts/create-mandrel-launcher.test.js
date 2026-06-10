@@ -39,7 +39,7 @@ describe('planLaunch', () => {
   it('targets the canonical Mandrel package (never operator-supplied)', () => {
     // The package name is a build-time constant; assert its exact value so a
     // refactor that accidentally parameterizes it fails loudly.
-    assert.equal(CANONICAL_PACKAGE, '@mandrelai/agents');
+    assert.equal(CANONICAL_PACKAGE, 'mandrel');
     assert.equal(AGENTS_PATH, '.agents');
   });
 

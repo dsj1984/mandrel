@@ -14,7 +14,7 @@ description: >-
 
 > **Upgrade owner.** The mechanical upgrade is owned end to end by the
 > [`mandrel update`](../../lib/cli/update.js) CLI under the npm distribution
-> model (`@mandrelai/agents`, #3436/#3437). This workflow wraps that CLI: it
+> model (`mandrel`, #3436/#3437). This workflow wraps that CLI: it
 > runs `mandrel update`, then walks the operator through the
 > **distribution-agnostic judgment steps** the CLI deliberately does **not**
 > perform — config reconciliation, the Epic #1386 quality-gate installs, the
@@ -24,7 +24,7 @@ description: >-
 ## Overview
 
 `/agents-update` advances the consumer repo to the newest non-major
-`@mandrelai/agents` release, re-materializes `.agents/`, and regenerates the
+`mandrel` release, re-materializes `.agents/`, and regenerates the
 flat `.claude/commands/` tree (invoked as `/<name>`) against the new workflow
 set — then reconciles the consumer's own config, harness allowlist, and
 instructions against the change set the upgrade surfaced.
@@ -34,7 +34,7 @@ The upgrade contract:
 - **The version only moves on explicit invocation.** `mandrel update`
   resolves the newest published version and bumps the dependency only when
   you run it. There is no `postinstall` hook and no background drift;
-  teammates work against the exact `@mandrelai/agents` version pinned in the
+  teammates work against the exact `mandrel` version pinned in the
   consumer's `package-lock.json` until someone runs this workflow and commits
   the result.
 - **CI honours the committed lockfile.** Consumer CI runs `npm ci` against
@@ -79,7 +79,7 @@ version before applying.
 
 `mandrel update` (no flags) runs the live cycle:
 
-1. **Resolve target** — the newest published `@mandrelai/agents` version (via
+1. **Resolve target** — the newest published `mandrel` version (via
    the daily freshness cache in `temp/version-check.json`) and the currently
    installed version.
 2. **Major gate** — if the newest version crosses a major boundary, the run
@@ -89,7 +89,7 @@ version before applying.
 3. **No-op short-circuit** — already on the newest version ⇒ prints
    `Already up to date` and exits 0.
 4. **Install** — bumps the dependency (default
-   `npm install @mandrelai/agents@<target>`; pass
+   `npm install mandrel@<target>`; pass
    `--install-cmd "<pm> <args>"` for a pnpm/yarn workspace). The lockfile
    change is left **staged** for review; the CLI never commits.
 5. **runSync** — re-materializes `.agents/` from the freshly installed
@@ -344,7 +344,7 @@ edits, if any) from the consumer repo root:
 
 ```bash
 git add package.json package-lock.json .agentrc.json .claude/settings.json AGENTS.md  # plus any runbook files touched in Step 4
-git commit -m "chore: update @mandrelai/agents to v<NEW_VERSION>
+git commit -m "chore: update mandrel to v<NEW_VERSION>
 
 Upgraded v<OLD_VERSION> → v<NEW_VERSION> via mandrel update.
 
@@ -393,7 +393,7 @@ no-op.
 
 - **Wrong package manager** — the default install is `npm install`. For a
   pnpm or yarn workspace, pass the package manager explicitly:
-  `mandrel update --install-cmd "pnpm add @mandrelai/agents@<target>"`.
+  `mandrel update --install-cmd "pnpm add mandrel@<target>"`.
   The registry probe always stays on `npm view` (a PM-agnostic query); only
   the install seam honours the override.
 
@@ -410,6 +410,6 @@ no-op.
   writes the commit message (Step 5) — the CLI does not know whether the
   bump is release-worthy for the consumer.
 - **No framework-side version bump.** This workflow advances the
-  *consumer's* pinned `@mandrelai/agents` version. It does not tag a release
+  *consumer's* pinned `mandrel` version. It does not tag a release
   on the framework itself — that remains the framework maintainer's call via
   release-please.
