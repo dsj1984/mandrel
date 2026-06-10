@@ -146,6 +146,25 @@ export async function buildAuthoringContext(
       recentCommitWindow:
         settings?.planning?.codebaseSnapshot?.recentCommitWindow,
     });
+    // Story #3959 — when the skinny-tier cap drops files, the degradation
+    // used to be silent (only `truncated: true` on the envelope). Surface
+    // an operator-visible warning naming the dropped count and the two
+    // remedies so the spec author knows the snapshot is partial and can
+    // either opt into the richer `medium` tier or narrow `include`.
+    if (codebaseSnapshot?.truncated) {
+      const dropped = Math.max(
+        0,
+        (codebaseSnapshot.fileCount ?? 0) -
+          (codebaseSnapshot.files?.length ?? 0),
+      );
+      Logger.warn(
+        `[epic-plan-spec] codebase snapshot truncated: ${dropped} of ` +
+          `${codebaseSnapshot.fileCount} matched file(s) dropped from the ` +
+          `skinny-tier view. The spec-author context is partial. To restore ` +
+          `full grounding, set planning.codebaseSnapshot.tier: "medium" ` +
+          `and/or narrow planning.codebaseSnapshot.include in .agentrc.json.`,
+      );
+    }
   } catch (err) {
     Logger.warn(`[epic-plan-spec] codebase snapshot skipped: ${err.message}`);
   }
