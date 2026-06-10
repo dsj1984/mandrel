@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-07T01:58:42.381Z",
+  "generatedAt": "2026-06-10T01:04:53.665Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -3608,43 +3608,43 @@
     {
       "path": ".agents/scripts/lib/config-resolver.js",
       "method": "applyGithubDefaults",
-      "startLine": 77,
+      "startLine": 82,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/config-resolver.js",
       "method": "applyCommandsDefaults",
-      "startLine": 90,
+      "startLine": 95,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config-resolver.js",
       "method": "applyDeliveryDefaults",
-      "startLine": 100,
+      "startLine": 105,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config-resolver.js",
       "method": "deepMergeObjects",
-      "startLine": 125,
+      "startLine": 130,
       "crap": 13.400592592592592
     },
     {
       "path": ".agents/scripts/lib/config-resolver.js",
       "method": "readJsonConfigFile",
-      "startLine": 157,
+      "startLine": 162,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config-resolver.js",
       "method": "applyDefaults",
-      "startLine": 174,
+      "startLine": 179,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/config-resolver.js",
       "method": "resolveConfig",
-      "startLine": 222,
+      "startLine": 227,
       "crap": 14
     },
     {
@@ -3752,31 +3752,37 @@
     {
       "path": ".agents/scripts/lib/config/limits.js",
       "method": "mergeSignals",
-      "startLine": 70,
+      "startLine": 77,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/config/limits.js",
       "method": "resolveLimits",
-      "startLine": 101,
+      "startLine": 108,
       "crap": 11
     },
     {
       "path": ".agents/scripts/lib/config/limits.js",
       "method": "getLimits",
-      "startLine": 141,
+      "startLine": 148,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/limits.js",
       "method": "getSignals",
-      "startLine": 154,
+      "startLine": 161,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/limits.js",
+      "method": "resolvePreflightCeilings",
+      "startLine": 176,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/config/limits.js",
       "method": "resolveLeaseTtlMs",
-      "startLine": 175,
+      "startLine": 202,
       "crap": 4
     },
     {
@@ -6860,37 +6866,37 @@
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/context.js",
       "method": "buildDecomposerSystemPrompt",
-      "startLine": 20,
+      "startLine": 23,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/context.js",
       "method": "resolveHeuristics",
-      "startLine": 32,
+      "startLine": 35,
       "crap": 3.3333333333333335
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/context.js",
       "method": "projectBudgetedEntry",
-      "startLine": 39,
+      "startLine": 42,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/context.js",
       "method": "readPlanningDecision",
-      "startLine": 60,
+      "startLine": 63,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/context.js",
       "method": "fetchPlanningTickets",
-      "startLine": 79,
+      "startLine": 82,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/context.js",
       "method": "buildDecompositionContext",
-      "startLine": 101,
+      "startLine": 104,
       "crap": 1
     },
     {
