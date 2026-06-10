@@ -8,24 +8,17 @@ natively in GitHub Issues, Labels, and Projects V2.
 
 ## Prerequisites
 
-Mandrel is installed **into an existing project** from the
+Mandrel is distributed as the
 [`@mandrelai/agents`](https://www.npmjs.com/package/@mandrelai/agents) npm
-package and wires its orchestration into that project's GitHub repository.
-Before you run `bootstrap.js` you need:
+package and wires its orchestration into your project's GitHub repository.
+You do **not** need a pre-created Git repo or GitHub remote — `bootstrap.js`
+provisions both as part of a cold start (`git init` → `gh repo create --push`
+→ `gh project create`). You need:
 
-- **An existing Git repository** — clone or `cd` into the project you
-  want to add Mandrel to. The framework cannot bootstrap a brand-new,
-  unversioned directory.
-- **A GitHub remote on that repository** — `origin` must point at a
-  GitHub repo that already exists (e.g. `github.com/<owner>/<repo>`).
-  `bootstrap.js` creates labels, Projects V2 fields, and branch
-  protections **on that remote**, so it cannot run against a local-only
-  repo or one whose remote hasn't been created yet. Create the empty
-  GitHub repo first (`gh repo create` or via the web UI) and `git push`
-  at least once so the remote exists.
 - **Node.js** >= 22.22.1 (< 25).
-- **GitHub CLI `gh`** >= 2.40 — run `gh auth login` once so orchestration
-  scripts pick up your token from the OS keychain. A vanilla
+- **`git`** on your `PATH`.
+- **GitHub CLI `gh`** >= 2.40, authenticated — run `gh auth login` once so
+  orchestration scripts pick up your token from the OS keychain. A vanilla
   `gh auth login` token does **not** carry the `project` scope needed to
   provision the GitHub Projects V2 board; bootstrap degrades to
   warn-and-skip-board in that case (no hard failure). To enable board
@@ -36,18 +29,38 @@ See the [Compatibility matrix](docs/upgrade-major.md#compatibility-matrix)
 section of `docs/upgrade-major.md` for the supported OS / Node /
 package-manager combinations.
 
-## Install & Setup
+## Quickstart
 
-From the root of your existing Git repository (with its GitHub remote
-already configured — see Prerequisites):
+The canonical cold-start path is one launcher command, then two slash
+commands inside Claude Code:
 
 ```bash
-npm install @mandrelai/agents
-npx mandrel sync            # materialize ./.agents/ from the installed package
-node .agents/scripts/bootstrap.js
-# in Claude Code — commands load as bare slash commands from .claude/commands/:
+npx create-mandrel        # install @mandrelai/agents → sync → bootstrap
+```
+
+```text
+# then, inside Claude Code (commands load from .claude/commands/):
+/onboard            # guided first run: stack detect → docs → doctor → /epic-plan
 /epic-plan          # ideation -> PRD/Tech Spec -> Epic/Feature/Story hierarchy
-/epic-deliver <id>  # wave loop -> validation -> review -> retro -> open PR
+```
+
+`create-mandrel` installs `@mandrelai/agents`, materializes `./.agents/` via
+`mandrel sync`, and runs `node .agents/scripts/bootstrap.js` for you,
+forwarding any flags you pass. `/onboard` then walks you from a clean
+checkout to a planned Epic (stack detection, docs scaffolding, a
+`mandrel doctor` readiness gate, and a started `/epic-plan`). Once you have a
+planned Epic, deliver it with `/epic-deliver <id>` (wave loop → validation →
+review → retro → open PR).
+
+### Manual equivalent
+
+If you prefer to drive the three steps `create-mandrel` wraps by hand, run
+them from your project root:
+
+```bash
+npm install @mandrelai/agents   # pin an exact, provenance-signed version
+npx mandrel sync                # materialize ./.agents/ from the package
+node .agents/scripts/bootstrap.js
 ```
 
 `npm install @mandrelai/agents` pins an exact, provenance-signed version in
@@ -60,11 +73,15 @@ time to confirm the install is healthy.
 `bootstrap.js` is interactive on a TTY and auto-accepts the
 owner/repo/base branch/operator handle it can infer from your local
 `git remote` and `git config user.name` — you only get prompted for
-fields it can't infer (typically the optional Projects V2 number).
-Override anything inferred with `--owner`, `--repo`, `--base-branch`,
-or `--operator-handle`. For CI / scripted installs pass `--assume-yes`
-plus whichever overrides you need. The script is idempotent — safe to
-re-run anytime.
+fields it can't infer (typically the optional Projects V2 number). When the
+folder is not yet a git repo, or the GitHub repo doesn't exist, it
+provisions them: `git init` plus a first commit, then
+`gh repo create --source=. --push` (use `--visibility private|public|internal`,
+default `private`, to set the new repo's visibility), then `gh project create`
+for the Projects V2 board. Override anything inferred with `--owner`,
+`--repo`, `--base-branch`, or `--operator-handle`. For CI / scripted installs
+pass `--assume-yes` plus whichever overrides you need. The script is
+idempotent — safe to re-run anytime.
 
 For the consumer reference and the end-to-end workflow narrative, see
 [`.agents/README.md`](.agents/README.md) and
