@@ -40,7 +40,11 @@ export { BASELINES_DEFAULTS, getBaselines } from './config/baselines.js';
 export { CI_DELIVERY_DEFAULTS, getCiDelivery } from './config/ci.js';
 export { COMMANDS_DEFAULTS, getCommands } from './config/commands.js';
 export { NOTIFICATIONS_DEFAULTS } from './config/github.js';
-export { getLimits, LIMITS_DEFAULTS } from './config/limits.js';
+export {
+  getLimits,
+  LIMITS_DEFAULTS,
+  resolvePreflightCeilings,
+} from './config/limits.js';
 export { getPaths } from './config/paths.js';
 export { getPreflight, PREFLIGHT_DEFAULTS } from './config/preflight.js';
 export {

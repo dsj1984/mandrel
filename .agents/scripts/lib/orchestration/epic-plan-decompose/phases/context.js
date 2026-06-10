@@ -12,7 +12,10 @@
  * @module lib/orchestration/epic-plan-decompose/phases/context
  */
 
-import { getLimits } from '../../../config-resolver.js';
+import {
+  getLimits,
+  resolvePreflightCeilings,
+} from '../../../config-resolver.js';
 import { renderDecomposerSystemPrompt } from '../../../templates/decomposer-prompts.js';
 import { read as readPlanState } from '../../epic-plan-state-store.js';
 import { applyBudget } from '../../planning-context-budget.js';
@@ -132,6 +135,11 @@ export async function buildDecompositionContext(
     heuristics,
     systemPrompt,
     maxTickets,
+    // Story #3875 — surface the real delivery envelope to the decomposer
+    // so Stories are sized against the hydration budget and the
+    // configured preflight ceilings rather than guessed.
+    maxTokenBudget: limits.maxTokenBudget,
+    preflightCeilings: resolvePreflightCeilings(config),
     contextMode: budgeted.mode,
     // Story #2801 — surface the Phase 7 planning decision so the
     // decomposition authoring step can cite the same risk

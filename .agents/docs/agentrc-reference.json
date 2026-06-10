@@ -99,7 +99,7 @@
   },
   "delivery": {
     "execution": { "timeoutMs": 600000 },
-    "maxTokenBudget": 200000,
+    "maxTokenBudget": 300000,
     "lease": { "ttlMs": 900000 },
     "ci": {
       "skipForStoryPushes": true
