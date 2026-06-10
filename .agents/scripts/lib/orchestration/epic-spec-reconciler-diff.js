@@ -281,10 +281,9 @@ function composeBodyWithFooter(specEntity, specBody, ctx) {
     : [];
   // Strip any orchestrator footer the spec already carries before
   // recomposing. Without the strip we double-wrap when the spec body
-  // round-tripped through `reverse-bootstrap` (which stores the raw GH
-  // body verbatim, footer included) or any other producer that emits a
-  // canonical-form body. With the strip, the function is idempotent
-  // against its own output.
+  // came from a producer that stored the raw GH body verbatim (footer
+  // included) or emits a canonical-form body. With the strip, the
+  // function is idempotent against its own output.
   const head = stripFooter(specBody);
   const footer = renderFooter({ parentId, epicId, dependencies });
   return `${head}\n\n${footer}`;

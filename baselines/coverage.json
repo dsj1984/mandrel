@@ -1463,12 +1463,6 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
-      "lines": 97.13,
-      "branches": 69.07,
-      "functions": 100
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/error-journal.js",
       "lines": 95.68,
       "branches": 84.62,

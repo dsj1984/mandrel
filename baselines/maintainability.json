@@ -975,10 +975,6 @@
       "mi": 102.961
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
-      "mi": 90.043
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/error-journal.js",
       "mi": 99.718
     },
