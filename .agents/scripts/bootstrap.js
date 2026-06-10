@@ -390,14 +390,72 @@ async function createGithubRepo(state, execImpl = exec) {
 }
 
 /**
- * Create a Projects V2 board from the typed name and rewrite
- * `state.answers.projectNumber` to the assigned numeric id so the downstream
- * persist + GitHub bootstrap steps treat it as an existing project (and never
- * create a duplicate). Throws on failure or when gh returns no number.
+ * Find an existing Projects V2 board owned by `owner` whose title matches
+ * `title` exactly (case-insensitive, trimmed), returning its numeric id or
+ * `null` when none matches. Lists through the injected `execImpl` seam (the
+ * same `gh project list --owner X --format json` shape `gh-list` parses) so
+ * the dedupe is unit-testable without spawning a real `gh`. Any non-zero
+ * exit, spawn error, or unparseable payload degrades to `null` (no match) so
+ * a transient list failure never blocks creation.
+ *
+ * @param {string} owner
+ * @param {string} title
+ * @param {typeof exec} execImpl
+ * @returns {Promise<number|null>}
+ */
+async function findExistingProjectNumber(owner, title, execImpl) {
+  const wanted = title.trim().toLowerCase();
+  if (wanted.length === 0) return null;
+  let res;
+  try {
+    res = await execImpl({
+      args: ['project', 'list', '--owner', owner, '--format', 'json'],
+    });
+  } catch {
+    return null;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(res?.stdout ?? '');
+  } catch {
+    return null;
+  }
+  const projects = Array.isArray(parsed)
+    ? parsed
+    : Array.isArray(parsed?.projects)
+      ? parsed.projects
+      : [];
+  for (const item of projects) {
+    if (!item || typeof item !== 'object') continue;
+    if (!Number.isInteger(item.number)) continue;
+    const itemTitle =
+      typeof item.title === 'string' ? item.title.trim().toLowerCase() : '';
+    if (itemTitle === wanted) return item.number;
+  }
+  return null;
+}
+
+/**
+ * Resolve the typed Projects V2 name into a numeric id and rewrite
+ * `state.answers.projectNumber` so the downstream persist + GitHub bootstrap
+ * steps treat it as an existing project (and never create a duplicate). Before
+ * creating, it **dedupes against the owner's existing project titles**: if a
+ * board with the same title already exists, that board is adopted instead of
+ * running `gh project create` — so a re-run that re-types the same name never
+ * spawns a second same-titled board (Story #3896 / review Finding B.3). Throws
+ * on create failure or when gh returns no number.
  */
 async function createGithubProject(state, execImpl = exec) {
   const { owner } = state.answers;
   const title = String(state.answers.projectNumber);
+  const existing = await findExistingProjectNumber(owner, title, execImpl);
+  if (Number.isInteger(existing)) {
+    state.answers.projectNumber = String(existing);
+    Logger.info(
+      `[bootstrap] Reusing existing GitHub Project V2 "${title}" (#${existing}) — no duplicate created.`,
+    );
+    return existing;
+  }
   // `gh project create` uses `--format json` (not `--json`), so exec returns
   // the raw `{ stdout }` envelope — parse the number ourselves.
   const res = await execImpl({
@@ -506,8 +564,12 @@ export function buildQuestions(defaults, flags, env = process.env, lists = {}) {
       env: 'GH_PROJECT_NUMBER',
       message:
         'Github Project V2 name - Select from the list or enter a new name to create one',
-      // Default tracks the repo name; resolved post-collect if left blank.
-      default: defaults.repo,
+      // Prefer the already-stored numeric project number (an
+      // already-provisioned project on a re-run) so `--assume-yes` resolves a
+      // numeric answer that `detectCreation` treats as existing — never a
+      // duplicate board (Story #3896). Falls back to the repo name only on a
+      // genuine first run where nothing is stored yet.
+      default: defaults.projectNumber || defaults.repo,
       required: false,
       picker: {
         list: (answers) => {
