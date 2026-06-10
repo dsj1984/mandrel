@@ -29,10 +29,7 @@ import {
   renderMalformedReturnsFriction,
 } from './epic-runner/sub-agent-return.js';
 import { parseFencedJsonComment } from './structured-comment-parser.js';
-import {
-  findStructuredComment,
-  postStructuredComment,
-} from './ticketing.js';
+import { findStructuredComment, postStructuredComment } from './ticketing.js';
 import { normalizeReturnsPure } from './wave-record-projection.js';
 
 /**
