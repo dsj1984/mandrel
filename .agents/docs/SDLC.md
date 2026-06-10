@@ -381,6 +381,22 @@ the Epic), and the Epic is closed with `gh issue close --comment` cross-linking
 the replacement. No deterministic scorer, no schema, and no label transition
 sit behind either gate.
 
+The rubric also runs in the **escalation direction** — the symmetric
+counterpart in [`/story-plan`](../workflows/story-plan.md). After `/story-plan`
+Phase 2 drafts a standalone Story body (the draft, not the seed, is the honest
+basis for the judgment), the same `core/scope-triage` rubric judges whether the
+scope is actually Epic-sized. The verdict folds into the existing Phase 2
+draft-confirmation HITL stop with no extra stop on a `story` verdict; an `epic`
+verdict offers a three-way choice (escalate to `/epic-plan --idea` as a
+scope-triage handoff / persist as a standalone Story anyway / abort). On an
+accepted escalation, `/story-plan` abandons the draft and hands the notes off to
+`/epic-plan --idea`, marked as a handoff so `/epic-plan` skips its own Phase 1.5
+gate. This gate is itself skipped when `/story-plan` was entered via a
+scope-triage handoff (from `/epic-plan` Phase 1.5 or the Phase 5.5 conversion
+path), so the two workflows never ping-pong a settled decision. As with the
+inbound gates, the verdict is advisory and host-LLM judgment — no auto-routing,
+no scorer, no schema, and no label transition.
+
 ### 1b. Existing-Epic entry
 
 Run `/epic-plan <epicId>` directly when the Epic Issue already exists. The

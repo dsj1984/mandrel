@@ -35,6 +35,7 @@ using the same `host LLM authors + Node wrapper persists` split as
 | Downstream workflow  | `/single-story-deliver`                    | `/story-deliver` (per Story)                 |
 | Replan surface       | Out of scope (recreate manually if needed) | `/epic-plan --replan` regenerates everything |
 | Inbound route        | Direct, **or** an `/epic-plan` Phase 1.5 scope-triage handoff | Direct (`<epicId>` or `--idea`)         |
+| Outbound route       | Phase 2 may **escalate** an epic-sized draft to `/epic-plan --idea` (scope-triage handoff) | n/a — `/epic-plan` is already the Epic tier |
 
 If a Story-under-Epic needs replanning, use `/epic-plan --replan`. If you
 have a refactor, framework-maintenance idea, or any standalone unit of
@@ -119,11 +120,63 @@ Using the envelope above, draft a Story body that:
 
 Write the draft to `temp/single-story-draft.md`.
 
-### HITL — operator confirms the draft
+### Scope-triage escalation gate (symmetric counterpart to `/epic-plan` Phase 1.5)
 
-Display the draft to the operator and **STOP**. Do not call the persist
-phase until the operator explicitly confirms the draft. This mirrors the
-HITL gate `/epic-plan` Phase 3 enforces before opening the Epic Issue.
+Once the draft body exists — and **only** then, because the seed alone is not
+an honest basis for a sizing judgment — run the
+[`core/scope-triage`](../skills/core/scope-triage/SKILL.md) rubric over the
+**drafted Story body** to catch an Epic-sized scope before it is persisted as a
+standalone Story. This is the outbound mirror of `/epic-plan` Phase 1.5's
+inbound downgrade gate: the two planning entry points route toward each other
+instead of each silently accepting wrong-sized work.
+
+**Skip the gate entirely when `/story-plan` was entered via a scope-triage
+handoff** — i.e. from `/epic-plan` Phase 1.5 (the inbound route above) or the
+`/epic-plan` Phase 5.5 existing-Epic conversion path. A handoff is a triage
+decision already made; re-running the rubric here would re-litigate a settled
+call and risk a ping-pong between the two workflows (the skill's no-re-triage
+rule).
+
+Otherwise, activate the skill **by reference** — read its `SKILL.md` via the
+`Read` tool and apply its rubric; do **not** restate its sizing thresholds or
+copy its verdict prose here. The skill anchors its sizing judgment to
+`DELIVERABLE_GRANULARITY_GUIDANCE` / `DEFAULT_TASK_SIZING` in
+[`ticket-validator-sizing.js`](../scripts/lib/orchestration/ticket-validator-sizing.js)
+and emits one verdict — `epic` | `story` | `borderline`. The verdict is
+host-LLM judgment: there is **no `--flag`**, no scorer, no schema, and no label
+transition behind it. (The `refine` heuristic in `story-plan.js` is unchanged —
+it is a deterministic seed-length proxy, not a scope-size judgment.) The verdict
+folds into the **existing** draft-confirmation HITL stop below — it does **not**
+add a second stop.
+
+### HITL — operator confirms the draft (verdict folded in)
+
+Display the draft to the operator and **STOP**. Do not call the persist phase
+until the operator explicitly confirms the draft. This mirrors the HITL gate
+`/epic-plan` Phase 3 enforces before opening the Epic Issue. The scope-triage
+verdict folds into this same stop:
+
+- **`story` verdict (or gate skipped via handoff)** → no extra prompt. The
+  operator confirms the draft as usual and the run proceeds to Phase 3
+  (persist).
+- **`epic` verdict** (multiple independent capabilities, a plausible
+  sizing-ceiling breach, or a real dependency structure) → the confirmation
+  prompt presents a **three-way operator choice**:
+  - **Recommended: escalate to `/epic-plan --idea`** (with the triage
+    rationale) — persist the notes/draft to a notes file and hand off to
+    `/epic-plan --idea` (or `--from-notes <path>`), identifying the invocation
+    as a **scope-triage handoff** so `/epic-plan` skips its own Phase 1.5 gate
+    (the skill's no-re-triage rule). Then **abandon the draft and exit
+    `/story-plan`** — no standalone Story is created.
+  - **Persist as a standalone Story anyway** — ignore the recommendation and
+    proceed to Phase 3 with the draft unchanged. Being wrong in the `epic`
+    direction is cheap to tolerate: if the operator persists an oversized Story,
+    the sizing validator and delivery reality push back later. The gate's value
+    is surfacing the recommendation while the scope is still free to change.
+  - **Abort** — stop planning entirely. No Issue is created.
+
+  **Never auto-route.** The verdict is advisory; the operator always decides,
+  and no `agent::*` / label transition happens on either side of the choice.
 
 ## Phase 3 — Persist (`gh issue create`)
 
