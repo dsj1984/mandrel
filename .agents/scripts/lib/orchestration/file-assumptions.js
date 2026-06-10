@@ -19,6 +19,25 @@
  *   - `exists`             + path **absent** → error (read dependency missing).
  *   - `deletes`            + path **absent** → error (nothing to delete).
  *
+ * Wave awareness (Story #3960): the base-branch-only rules above produce
+ * false signals once an earlier Story in the same epic creates (or deletes)
+ * a file before a later Story touches it. `validateStoryFileAssumptions`
+ * therefore validates each Story against the **simulated post-predecessor
+ * tree** — base-branch existence overlaid with the create/delete delta of
+ * the Story's transitive `depends_on` predecessors (the same reachability
+ * walk the conflict gate uses, imported from `ticket-validator-conflicts.js`
+ * rather than re-derived). Two extra wave-aware rules layer on top of the
+ * base-branch rules:
+ *   - `creates`            + path created by a **predecessor** → mismatch
+ *     (`expected: 'refactors-existing'`) telling the planner to declare
+ *     `refactors-existing` and naming the producing Story.
+ *   - `refactors-existing` + path absent from base but created by a
+ *     **predecessor** → validates clean (no false-positive base-branch
+ *     "absent" mismatch).
+ * Concurrent same-path creates between Stories with no `depends_on` path are
+ * the shared-editor conflict gate's domain — that finding's rendering is
+ * cross-referenced (see `renderMismatch`), not duplicated here.
+ *
  * Legacy compatibility: stories whose `body.changes` items are still bare
  * strings carry no assumption and are skipped silently here. The
  * deprecation signal is emitted *once* per validator invocation through
@@ -30,6 +49,7 @@ import { gitSpawn } from '../git-utils.js';
 import { parse as parseStoryBody } from '../story-body/story-body.js';
 import { FILE_ASSUMPTION_VALUES } from './file-assumption-enum.js';
 import { isObjectPathEntry } from './task-body-validator.js';
+import { computeStoryReachability } from './ticket-validator-conflicts.js';
 
 /**
  * Default git probe — returns `true` when `path` exists at
@@ -131,10 +151,33 @@ export function hasLegacyChangeBullets(story) {
  * Render a single mismatch into a stable error string. Kept pure so
  * tests can pin the exact message shape downstream tooling parses.
  *
- * @param {{ slug: string, source: string, path: string, assumption: string, expected: 'present' | 'absent' }} mismatch
+ * The `expected` discriminator selects the message shape:
+ *   - `'present'`            — base-branch read/refactor/delete target absent.
+ *   - `'absent'`             — base-branch `creates` target already exists.
+ *   - `'refactors-existing'` — wave-aware: a transitive predecessor already
+ *     creates this path, so the dependent Story should declare
+ *     `refactors-existing` (Story #3960). Names the producing Story.
+ *   - `'predecessor-conflict'` — wave-aware: a concurrent Story (no
+ *     `depends_on` ordering) also creates this path. Cross-references the
+ *     shared-editor conflict finding rather than re-deriving its prose.
+ *
+ * @param {{ slug: string, source: string, path: string, assumption: string, expected: string, producerSlug?: string }} mismatch
  * @returns {string}
  */
-function renderMismatch({ slug, source, path, assumption, expected }) {
+function renderMismatch({
+  slug,
+  source,
+  path,
+  assumption,
+  expected,
+  producerSlug,
+}) {
+  if (expected === 'refactors-existing') {
+    return `"${slug}" → body.${source} declares assumption="${assumption}" for ${path} but predecessor Story "${producerSlug}" already creates that path — declare assumption="refactors-existing" instead (the file exists in the simulated post-predecessor tree).`;
+  }
+  if (expected === 'predecessor-conflict') {
+    return `"${slug}" → body.${source} declares assumption="${assumption}" for ${path} but concurrent Story "${producerSlug}" also creates that path with no depends_on ordering between them — see the shared-editor conflict finding for the resolution (add a depends_on chain or split the create into a dedicated late-wave Story).`;
+  }
   if (expected === 'present') {
     return `"${slug}" → body.${source} declares assumption="${assumption}" for ${path} but the path is absent at the base branch.`;
   }
@@ -142,8 +185,68 @@ function renderMismatch({ slug, source, path, assumption, expected }) {
 }
 
 /**
- * Validate every Story's declared file assumptions against the actual
- * state of `baseBranchRef`. Returns an envelope:
+ * Index, across every Story, which Stories declare a `creates` (and which
+ * declare a `deletes`) for each `changes`-sourced path. The maps drive the
+ * wave-aware simulated-tree overlay: a path created by a transitive
+ * predecessor is treated as present, a path deleted by one as absent.
+ *
+ * Only `changes`-sourced entries count — `references` describe read
+ * dependencies, never writes, so they cannot mutate the simulated tree.
+ *
+ * @param {object[]} stories
+ * @returns {{ creators: Map<string, string[]>, deleters: Map<string, string[]> }}
+ */
+function indexPathMutations(stories) {
+  const creators = new Map();
+  const deleters = new Map();
+  for (const story of stories) {
+    const slug = story.slug ?? story.title ?? '<unknown>';
+    for (const { path, assumption, source } of collectStoryAssumptionEntries(
+      story,
+    )) {
+      if (source !== 'changes') continue;
+      const bucket =
+        assumption === 'creates'
+          ? creators
+          : assumption === 'deletes'
+            ? deleters
+            : null;
+      if (!bucket) continue;
+      const existing = bucket.get(path);
+      if (existing) {
+        if (!existing.includes(slug)) existing.push(slug);
+      } else {
+        bucket.set(path, [slug]);
+      }
+    }
+  }
+  return { creators, deleters };
+}
+
+/**
+ * Resolve the first transitive predecessor of `story` that mutates `path`
+ * in the requested way (`creators` or `deleters` index). Returns the
+ * producing Story's slug, or `null` when no predecessor mutates the path.
+ *
+ * @param {Map<string, string[]>} index
+ * @param {string} path
+ * @param {Set<string>} predecessors  Transitive `depends_on` slug set.
+ * @returns {string|null}
+ */
+function predecessorMutator(index, path, predecessors) {
+  const slugs = index.get(path);
+  if (!slugs) return null;
+  for (const slug of slugs) {
+    if (predecessors.has(slug)) return slug;
+  }
+  return null;
+}
+
+/**
+ * Validate every Story's declared file assumptions against the simulated
+ * post-predecessor tree: the actual state of `baseBranchRef` overlaid with
+ * the create/delete delta of the Story's transitive `depends_on`
+ * predecessors (Story #3960). Returns an envelope:
  *
  *   {
  *     errors:    string[]   // one entry per mismatch, batched per Story
@@ -181,6 +284,13 @@ export function validateStoryFileAssumptions(opts) {
   const mismatches = [];
   const probeCache = new Map();
 
+  // Wave-aware setup (Story #3960): transitive predecessor sets over the
+  // story-level `depends_on` graph, plus per-path create/delete indices so
+  // each Story is validated against the simulated post-predecessor tree
+  // rather than the base branch alone.
+  const reach = computeStoryReachability(stories);
+  const { creators, deleters } = indexPathMutations(stories);
+
   for (const story of stories) {
     const slug = story.slug ?? story.title ?? '<unknown>';
     const entries = collectStoryAssumptionEntries(story);
@@ -205,22 +315,71 @@ export function validateStoryFileAssumptions(opts) {
       );
     }
 
+    const predecessors = reach.get(slug) ?? new Set();
+
     for (const { path, assumption, source } of entries) {
-      let exists = probeCache.get(path);
-      if (exists === undefined) {
-        exists = Boolean(gitRunner({ baseBranchRef, path, cwd }));
-        probeCache.set(path, exists);
+      let baseExists = probeCache.get(path);
+      if (baseExists === undefined) {
+        baseExists = Boolean(gitRunner({ baseBranchRef, path, cwd }));
+        probeCache.set(path, baseExists);
       }
+      const predecessorCreator = predecessorMutator(
+        creators,
+        path,
+        predecessors,
+      );
+      const predecessorDeleter = predecessorMutator(
+        deleters,
+        path,
+        predecessors,
+      );
+      // Simulated post-predecessor existence: base state, then a
+      // predecessor `creates` makes the path present, a predecessor
+      // `deletes` (with no predecessor create) makes it absent.
+      let simulatedExists = baseExists;
+      if (predecessorCreator) simulatedExists = true;
+      else if (predecessorDeleter) simulatedExists = false;
       const mismatch = checkAssumption({
         slug,
         source,
         path,
         assumption,
-        exists,
+        baseExists,
+        simulatedExists,
+        predecessorCreator,
       });
       if (mismatch !== null) {
         mismatches.push(mismatch);
         errors.push(renderMismatch(mismatch));
+        continue;
+      }
+      // Wave-aware concurrent-create check (Story #3960): two Stories with
+      // no `depends_on` ordering both declaring `creates` on the same path.
+      // The shared-editor conflict gate owns the canonical resolution; this
+      // gate surfaces the same signal in the assumption channel and
+      // cross-references that finding rather than re-deriving its prose.
+      // Only reached when `checkAssumption` returned clean — a base-branch
+      // clobber or a predecessor-create already produced a richer mismatch.
+      if (assumption === 'creates') {
+        const concurrent = concurrentCoCreator({
+          creators,
+          path,
+          slug,
+          reach,
+        });
+        if (concurrent) {
+          const conflict = {
+            slug,
+            source,
+            path,
+            assumption,
+            expected: 'predecessor-conflict',
+            actual: 'concurrent-creates',
+            producerSlug: concurrent,
+          };
+          mismatches.push(conflict);
+          errors.push(renderMismatch(conflict));
+        }
       }
     }
   }
@@ -228,18 +387,61 @@ export function validateStoryFileAssumptions(opts) {
 }
 
 /**
- * Apply one assumption rule and return a structured mismatch or `null`
- * when the declared assumption matches reality. Extracted from
- * `validateStoryFileAssumptions` so the rules table sits in one place
- * that's trivially unit-testable.
+ * Find the first *concurrent* co-creator of `path` for the Story `slug`:
+ * another Story that declares `creates` on the same path with no
+ * `depends_on` ordering in either direction. Returns that Story's slug, or
+ * `null` when every co-creator is ordered relative to `slug` (predecessor
+ * or successor) — those are handled by the predecessor-create rule, not the
+ * concurrent-conflict rule.
  *
- * @param {{ slug: string, source: string, path: string, assumption: string, exists: boolean }} args
+ * @param {{ creators: Map<string, string[]>, path: string, slug: string, reach: Map<string, Set<string>> }} args
+ * @returns {string|null}
+ */
+function concurrentCoCreator({ creators, path, slug, reach }) {
+  const slugs = creators.get(path);
+  if (!slugs || slugs.length < 2) return null;
+  const myPredecessors = reach.get(slug) ?? new Set();
+  for (const other of slugs) {
+    if (other === slug) continue;
+    const otherPredecessors = reach.get(other) ?? new Set();
+    // Ordered in either direction → not concurrent.
+    if (myPredecessors.has(other)) continue;
+    if (otherPredecessors.has(slug)) continue;
+    return other;
+  }
+  return null;
+}
+
+/**
+ * Apply one assumption rule against the simulated post-predecessor tree and
+ * return a structured mismatch or `null` when the declared assumption
+ * matches. Extracted from `validateStoryFileAssumptions` so the rules table
+ * sits in one place that's trivially unit-testable.
+ *
+ * `baseExists` is the path's existence on the base branch; `simulatedExists`
+ * is `baseExists` overlaid with the create/delete delta of the Story's
+ * transitive predecessors. `predecessorCreator` (when non-null) is the slug
+ * of the predecessor Story that creates the path — used to distinguish a
+ * wave-aware `creates`-on-a-will-exist-path mismatch from the base-branch
+ * "already exists" mismatch, and to name the producing Story in the nudge.
+ *
+ * @param {{ slug: string, source: string, path: string, assumption: string, baseExists: boolean, simulatedExists: boolean, predecessorCreator: string|null }} args
  * @returns {object|null}
  */
-function checkAssumption({ slug, source, path, assumption, exists }) {
+function checkAssumption({
+  slug,
+  source,
+  path,
+  assumption,
+  baseExists,
+  simulatedExists,
+  predecessorCreator,
+}) {
   switch (assumption) {
     case 'creates':
-      if (exists) {
+      // Base-branch clobber — the path already exists before any Story
+      // runs. Unchanged from the base-branch-only rule.
+      if (baseExists) {
         return {
           slug,
           source,
@@ -249,11 +451,29 @@ function checkAssumption({ slug, source, path, assumption, exists }) {
           actual: 'present',
         };
       }
+      // Wave-aware (Story #3960): a transitive predecessor already creates
+      // this path, so it exists in the simulated tree. Nudge the planner to
+      // declare `refactors-existing` and name the producing Story.
+      if (predecessorCreator) {
+        return {
+          slug,
+          source,
+          path,
+          assumption,
+          expected: 'refactors-existing',
+          actual: 'predecessor-creates',
+          producerSlug: predecessorCreator,
+        };
+      }
       return null;
     case 'refactors-existing':
     case 'exists':
     case 'deletes':
-      if (!exists) {
+      // Validate against the simulated tree: a predecessor `creates` makes
+      // an otherwise-absent base path present, so `refactors-existing` /
+      // `exists` / `deletes` against it is no longer a false-positive
+      // mismatch (Story #3960).
+      if (!simulatedExists) {
         return {
           slug,
           source,
@@ -274,7 +494,7 @@ function checkAssumption({ slug, source, path, assumption, exists }) {
         path,
         assumption,
         expected: 'unknown',
-        actual: exists ? 'present' : 'absent',
+        actual: simulatedExists ? 'present' : 'absent',
       };
   }
 }

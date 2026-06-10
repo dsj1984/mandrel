@@ -249,8 +249,12 @@ function indexConsumers(stories, producers) {
  * the key (i.e. every story the key transitively depends on).
  *
  * BFS, no cycles assumed — callers must run `assertAcyclic` first.
+ *
+ * Exported so the wave-aware file-assumption gate
+ * (`file-assumptions.js`) can reuse the same transitive-predecessor walk
+ * rather than re-deriving the `depends_on` closure.
  */
-function computeStoryReachability(stories) {
+export function computeStoryReachability(stories) {
   const reach = new Map();
   for (const story of stories) reach.set(story.slug, new Set());
   for (const story of stories) {
