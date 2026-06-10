@@ -431,3 +431,267 @@ describe('validateStoryFileAssumptions — rules table', () => {
     assert.equal(calls, 1);
   });
 });
+
+describe('validateStoryFileAssumptions — wave-aware predecessor tree (Story #3960)', () => {
+  // Helper: a Story that declares one `{ path, assumption }` change and an
+  // optional `depends_on` link list.
+  function waveStory({ slug, path, assumption, depends_on = [] }) {
+    return {
+      type: 'story',
+      slug,
+      title: slug,
+      depends_on,
+      body: {
+        goal: 'g',
+        changes: [{ path, assumption }],
+        acceptance: ['ac'],
+        verify: ['node --test tests/x.test.js (unit)'],
+      },
+    };
+  }
+
+  // All paths are absent on the base branch unless a test says otherwise —
+  // the wave-aware delta is what should drive the verdicts here.
+  const absentEverywhere = () => false;
+
+  it('graph shape 1 — dependent `creates` on a predecessor-created path → refactors-existing nudge naming the producer', () => {
+    const tickets = [
+      waveStory({
+        slug: 'producer',
+        path: 'src/feed.ts',
+        assumption: 'creates',
+      }),
+      waveStory({
+        slug: 'consumer',
+        path: 'src/feed.ts',
+        assumption: 'creates',
+        depends_on: ['producer'],
+      }),
+    ];
+    const report = validateStoryFileAssumptions({
+      tickets,
+      baseBranchRef: 'main',
+      gitRunner: absentEverywhere,
+    });
+    // Only the dependent Story is flagged; the producer's own `creates`
+    // against an absent base path validates clean.
+    assert.equal(report.mismatches.length, 1);
+    const [m] = report.mismatches;
+    assert.equal(m.slug, 'consumer');
+    assert.equal(m.assumption, 'creates');
+    assert.equal(m.expected, 'refactors-existing');
+    assert.equal(m.producerSlug, 'producer');
+    assert.match(
+      report.errors[0],
+      /predecessor Story "producer" already creates/,
+    );
+    assert.match(report.errors[0], /assumption="refactors-existing" instead/);
+  });
+
+  it('graph shape 2 — dependent `refactors-existing` on a path absent from base but created by a predecessor → clean (no false positive)', () => {
+    const tickets = [
+      waveStory({
+        slug: 'data-model',
+        path: 'src/route.ts',
+        assumption: 'creates',
+      }),
+      waveStory({
+        slug: 'read-path',
+        path: 'src/route.ts',
+        assumption: 'refactors-existing',
+        depends_on: ['data-model'],
+      }),
+    ];
+    const report = validateStoryFileAssumptions({
+      tickets,
+      baseBranchRef: 'main',
+      gitRunner: absentEverywhere,
+    });
+    // Base-branch-only logic would have flagged read-path's
+    // `refactors-existing` as "absent at base"; the predecessor create
+    // makes it clean.
+    assert.deepEqual(report.errors, []);
+    assert.deepEqual(report.mismatches, []);
+  });
+
+  it('graph shape 3 — two concurrent Stories (no depends_on) both `creates` the same path → finding cross-referencing the shared-editor gate', () => {
+    const tickets = [
+      waveStory({
+        slug: 'story-a',
+        path: 'src/barrel.ts',
+        assumption: 'creates',
+      }),
+      waveStory({
+        slug: 'story-b',
+        path: 'src/barrel.ts',
+        assumption: 'creates',
+      }),
+    ];
+    const report = validateStoryFileAssumptions({
+      tickets,
+      baseBranchRef: 'main',
+      gitRunner: absentEverywhere,
+    });
+    // Each Story sees the other as a concurrent co-creator → one
+    // predecessor-conflict mismatch per Story (2 total).
+    const conflicts = report.mismatches.filter(
+      (m) => m.expected === 'predecessor-conflict',
+    );
+    assert.equal(conflicts.length, 2);
+    assert.deepEqual(conflicts.map((m) => m.slug).sort(), [
+      'story-a',
+      'story-b',
+    ]);
+    assert.match(report.errors[0], /concurrent Story/);
+    assert.match(report.errors[0], /shared-editor conflict finding/);
+  });
+
+  it('graph shape 3 — ordered same-path creates do NOT raise a concurrent-conflict (only the predecessor-create nudge fires)', () => {
+    const tickets = [
+      waveStory({ slug: 'first', path: 'src/x.ts', assumption: 'creates' }),
+      waveStory({
+        slug: 'second',
+        path: 'src/x.ts',
+        assumption: 'creates',
+        depends_on: ['first'],
+      }),
+    ];
+    const report = validateStoryFileAssumptions({
+      tickets,
+      baseBranchRef: 'main',
+      gitRunner: absentEverywhere,
+    });
+    // No concurrent-conflict: the two are ordered. The dependent gets the
+    // refactors-existing nudge instead.
+    assert.equal(
+      report.mismatches.filter((m) => m.expected === 'predecessor-conflict')
+        .length,
+      0,
+    );
+    assert.equal(
+      report.mismatches.filter((m) => m.expected === 'refactors-existing')
+        .length,
+      1,
+    );
+  });
+
+  it('graph shape 4 — diamond: two predecessors, one shared created path, dependent refactors it → clean', () => {
+    // a → (b, c) both depend on a; d depends on b and c. `a` creates the
+    // shared path; `d` refactors it. Transitive reachability puts `a` in
+    // `d`'s predecessor set, so the simulated tree has the path present.
+    const tickets = [
+      waveStory({ slug: 'a', path: 'src/shared.ts', assumption: 'creates' }),
+      waveStory({
+        slug: 'b',
+        path: 'src/b.ts',
+        assumption: 'creates',
+        depends_on: ['a'],
+      }),
+      waveStory({
+        slug: 'c',
+        path: 'src/c.ts',
+        assumption: 'creates',
+        depends_on: ['a'],
+      }),
+      waveStory({
+        slug: 'd',
+        path: 'src/shared.ts',
+        assumption: 'refactors-existing',
+        depends_on: ['b', 'c'],
+      }),
+    ];
+    const report = validateStoryFileAssumptions({
+      tickets,
+      baseBranchRef: 'main',
+      gitRunner: absentEverywhere,
+    });
+    assert.deepEqual(report.errors, []);
+    assert.deepEqual(report.mismatches, []);
+  });
+
+  it('diamond — dependent `creates` the diamond-shared path → refactors-existing nudge names the transitive producer', () => {
+    const tickets = [
+      waveStory({ slug: 'a', path: 'src/shared.ts', assumption: 'creates' }),
+      waveStory({
+        slug: 'b',
+        path: 'src/b.ts',
+        assumption: 'creates',
+        depends_on: ['a'],
+      }),
+      waveStory({
+        slug: 'c',
+        path: 'src/c.ts',
+        assumption: 'creates',
+        depends_on: ['a'],
+      }),
+      waveStory({
+        slug: 'd',
+        path: 'src/shared.ts',
+        assumption: 'creates',
+        depends_on: ['b', 'c'],
+      }),
+    ];
+    const report = validateStoryFileAssumptions({
+      tickets,
+      baseBranchRef: 'main',
+      gitRunner: absentEverywhere,
+    });
+    const nudges = report.mismatches.filter(
+      (m) => m.expected === 'refactors-existing',
+    );
+    assert.equal(nudges.length, 1);
+    assert.equal(nudges[0].slug, 'd');
+    assert.equal(nudges[0].producerSlug, 'a');
+  });
+
+  it('predecessor `deletes` removes a base-present path from the simulated tree → dependent `exists` is flagged absent', () => {
+    const tickets = [
+      waveStory({ slug: 'remover', path: 'src/old.ts', assumption: 'deletes' }),
+      waveStory({
+        slug: 'reader',
+        path: 'src/old.ts',
+        assumption: 'exists',
+        depends_on: ['remover'],
+      }),
+    ];
+    // Path is present on the base branch; the predecessor delete removes it.
+    const report = validateStoryFileAssumptions({
+      tickets,
+      baseBranchRef: 'main',
+      gitRunner: () => true,
+    });
+    const readerMismatch = report.mismatches.find((m) => m.slug === 'reader');
+    assert.ok(readerMismatch, 'reader should be flagged');
+    assert.equal(readerMismatch.expected, 'present');
+    assert.equal(readerMismatch.actual, 'absent');
+  });
+
+  it('base-branch `creates`-clobber still fires even when a predecessor also creates the path', () => {
+    // Path exists on the base branch → the dependent Story would clobber a
+    // real file regardless of the predecessor delta. The base-branch
+    // mismatch takes precedence over the wave-aware nudge.
+    const tickets = [
+      waveStory({
+        slug: 'producer',
+        path: 'src/dup.ts',
+        assumption: 'creates',
+      }),
+      waveStory({
+        slug: 'consumer',
+        path: 'src/dup.ts',
+        assumption: 'creates',
+        depends_on: ['producer'],
+      }),
+    ];
+    const report = validateStoryFileAssumptions({
+      tickets,
+      baseBranchRef: 'main',
+      gitRunner: () => true,
+    });
+    const consumerMismatch = report.mismatches.find(
+      (m) => m.slug === 'consumer',
+    );
+    assert.equal(consumerMismatch.expected, 'absent');
+    assert.equal(consumerMismatch.actual, 'present');
+  });
+});
