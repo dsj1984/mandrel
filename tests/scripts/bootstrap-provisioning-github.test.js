@@ -173,6 +173,7 @@ describe('provisionResources — project provisioning (gh project create)', () =
     // view before the project create runs.
     const exec = makeExec({
       'repo view': () => ({ stdout: JSON.stringify({ name: 'widget' }) }),
+      'project list': () => ({ stdout: JSON.stringify({ projects: [] }) }),
       'project create': () => ({ stdout: JSON.stringify({ number: 12 }) }),
       'project link': () => ({ stdout: '' }),
     });
@@ -204,6 +205,7 @@ describe('provisionResources — project provisioning (gh project create)', () =
     const dir = makeTmpDir();
     const exec = makeExec({
       'repo view': () => ({ stdout: JSON.stringify({ name: 'widget' }) }),
+      'project list': () => ({ stdout: JSON.stringify({ projects: [] }) }),
       'project create': () => ({ stdout: '{}' }),
     });
     const res = await provisionResources(
@@ -224,6 +226,7 @@ describe('provisionResources — project provisioning (gh project create)', () =
     const dir = makeTmpDir();
     const exec = makeExec({
       'repo view': () => ({ stdout: JSON.stringify({ name: 'widget' }) }),
+      'project list': () => ({ stdout: JSON.stringify({ projects: [] }) }),
       'project create': () => ({ stdout: JSON.stringify({ number: 5 }) }),
       'project link': () => ({ stdout: '' }),
     });
@@ -255,6 +258,7 @@ describe('ID threading — created project number reaches the github config (no-
     );
     const exec = makeExec({
       'repo view': () => ({ stdout: JSON.stringify({ name: 'widget' }) }),
+      'project list': () => ({ stdout: JSON.stringify({ projects: [] }) }),
       'project create': () => ({ stdout: JSON.stringify({ number: 12 }) }),
       'project link': () => ({ stdout: '' }),
     });
@@ -278,6 +282,159 @@ describe('ID threading — created project number reaches the github config (no-
     // downstream GitHub bootstrap reads — so no second board is created.
     assert.equal(written.github.projectNumber, 12);
     // Exactly one project create fired across the whole run — no duplicate.
+    assert.equal(callsFor(exec, 'project create').length, 1);
+  });
+});
+
+describe('dedupe — typed name matching an existing board adopts it (no duplicate create)', () => {
+  it('reuses the existing board number and never calls `gh project create`', async () => {
+    const dir = makeTmpDir();
+    const exec = makeExec({
+      'repo view': () => ({ stdout: JSON.stringify({ name: 'widget' }) }),
+      'project list': () => ({
+        stdout: JSON.stringify({
+          projects: [
+            { number: 3, title: 'Other' },
+            { number: 7, title: 'Roadmap' },
+          ],
+        }),
+      }),
+      'project link': () => ({ stdout: '' }),
+    });
+    const state = {
+      projectRoot: dir,
+      gitInitialized: false,
+      flags: {},
+      creation: { newRepo: false, newProject: true },
+      answers: { ...ANSWERS, projectNumber: 'Roadmap' },
+    };
+
+    const res = await provisionResources(state, { exec });
+
+    assert.equal(res.ok, true);
+    // Adopted the matching board's number instead of minting a new one.
+    assert.equal(state.answers.projectNumber, '7');
+    assert.equal(state.creation.newProject, false);
+    // Zero `gh project create` calls — the dedupe short-circuited it.
+    assert.equal(callsFor(exec, 'project create').length, 0);
+    // The adopted number flows to link.
+    const links = callsFor(exec, 'project link');
+    assert.equal(links.length, 1);
+    assert.ok(links[0].includes('7'));
+  });
+
+  it('matches the title case-insensitively and trimmed', async () => {
+    const dir = makeTmpDir();
+    const exec = makeExec({
+      'repo view': () => ({ stdout: JSON.stringify({ name: 'widget' }) }),
+      'project list': () => ({
+        stdout: JSON.stringify({ projects: [{ number: 9, title: 'Roadmap' }] }),
+      }),
+      'project link': () => ({ stdout: '' }),
+    });
+    const state = {
+      projectRoot: dir,
+      gitInitialized: false,
+      flags: {},
+      creation: { newRepo: false, newProject: true },
+      answers: { ...ANSWERS, projectNumber: '  roadmap  ' },
+    };
+
+    await provisionResources(state, { exec });
+
+    assert.equal(state.answers.projectNumber, '9');
+    assert.equal(callsFor(exec, 'project create').length, 0);
+  });
+
+  it('still creates when no existing title matches', async () => {
+    const dir = makeTmpDir();
+    const exec = makeExec({
+      'repo view': () => ({ stdout: JSON.stringify({ name: 'widget' }) }),
+      'project list': () => ({
+        stdout: JSON.stringify({ projects: [{ number: 3, title: 'Other' }] }),
+      }),
+      'project create': () => ({ stdout: JSON.stringify({ number: 14 }) }),
+      'project link': () => ({ stdout: '' }),
+    });
+    const state = {
+      projectRoot: dir,
+      gitInitialized: false,
+      flags: {},
+      creation: { newRepo: false, newProject: true },
+      answers: { ...ANSWERS, projectNumber: 'Roadmap' },
+    };
+
+    await provisionResources(state, { exec });
+
+    assert.equal(state.answers.projectNumber, '14');
+    assert.equal(callsFor(exec, 'project create').length, 1);
+  });
+
+  it('falls through to create when the list call throws (degrades to no-match)', async () => {
+    const dir = makeTmpDir();
+    const exec = makeExec({
+      'repo view': () => ({ stdout: JSON.stringify({ name: 'widget' }) }),
+      'project list': () => {
+        throw new Error('gh exploded');
+      },
+      'project create': () => ({ stdout: JSON.stringify({ number: 21 }) }),
+      'project link': () => ({ stdout: '' }),
+    });
+    const state = {
+      projectRoot: dir,
+      gitInitialized: false,
+      flags: {},
+      creation: { newRepo: false, newProject: true },
+      answers: { ...ANSWERS, projectNumber: 'Roadmap' },
+    };
+
+    const res = await provisionResources(state, { exec });
+
+    assert.equal(res.ok, true);
+    assert.equal(state.answers.projectNumber, '21');
+    assert.equal(callsFor(exec, 'project create').length, 1);
+  });
+});
+
+describe('idempotent re-run — two consecutive --assume-yes provisioning passes create exactly one board', () => {
+  it('first pass creates; second pass (same typed name) adopts — single create total', async () => {
+    const dir = makeTmpDir();
+    // A mutable "owner's projects" store the fake `gh` reads/writes so the
+    // second pass sees what the first created — the real-world re-run shape.
+    const boards = [];
+    let nextNumber = 100;
+    const exec = makeExec({
+      'repo view': () => ({ stdout: JSON.stringify({ name: 'widget' }) }),
+      'project list': () => ({ stdout: JSON.stringify({ projects: boards }) }),
+      'project create': (args) => {
+        const title = args[args.indexOf('--title') + 1];
+        const number = nextNumber++;
+        boards.push({ number, title });
+        return { stdout: JSON.stringify({ number }) };
+      },
+      'project link': () => ({ stdout: '' }),
+    });
+
+    const makeState = () => ({
+      projectRoot: dir,
+      gitInitialized: false,
+      flags: {},
+      creation: { newRepo: false, newProject: true },
+      answers: { ...ANSWERS, projectNumber: 'Roadmap' },
+    });
+
+    // Pass 1 — board does not exist yet → create.
+    const first = makeState();
+    await provisionResources(first, { exec });
+    assert.equal(first.answers.projectNumber, '100');
+
+    // Pass 2 — same typed name → dedupe adopts the board pass 1 created.
+    const second = makeState();
+    await provisionResources(second, { exec });
+    assert.equal(second.answers.projectNumber, '100');
+
+    // Exactly one board exists and exactly one create ran across both passes.
+    assert.equal(boards.length, 1);
     assert.equal(callsFor(exec, 'project create').length, 1);
   });
 });
