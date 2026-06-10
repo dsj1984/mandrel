@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-10T01:04:53.515Z",
+  "generatedAt": "2026-06-10T03:37:43.308Z",
   "rollup": {
     "*": {
       "min": 70.566,
@@ -796,7 +796,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
-      "mi": 71.659
+      "mi": 80.209
     },
     {
       "path": ".agents/scripts/lib/orchestration/column-sync.js",
@@ -2359,6 +2359,14 @@
       "mi": 110.031
     },
     {
+      "path": "tests/code-review-audit-routing.test.js",
+      "mi": 101.629
+    },
+    {
+      "path": "tests/code-review.test.js",
+      "mi": 108.731
+    },
+    {
       "path": "tests/codebase-snapshot.test.js",
       "mi": 104.605
     },
@@ -3380,7 +3388,7 @@
     },
     {
       "path": "tests/lib/orchestration/code-review.test.js",
-      "mi": 107.749
+      "mi": 107.718
     },
     {
       "path": "tests/lib/orchestration/column-sync.test.js",

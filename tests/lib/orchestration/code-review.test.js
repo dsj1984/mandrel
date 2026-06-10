@@ -117,12 +117,16 @@ test('runCodeReview: passes scope/ticketId/baseRef/headRef to the adapter', asyn
   // Story #2871 — ReviewInput now carries an optional `labels` field
   // (defaults to []) so chain-entry gate predicates can read ticket
   // labels at invocation time.
+  // Story #3876 — ReviewInput now also carries a `depth` field derived from
+  // the judged risk envelope's overallLevel. With no planningRisk supplied it
+  // resolves to the neutral `standard` default.
   assert.deepEqual(adapter.calls[0], {
     scope: 'epic',
     ticketId: 42,
     baseRef: 'develop',
     headRef: 'epic/42',
     labels: [],
+    depth: 'standard',
   });
 });
 
