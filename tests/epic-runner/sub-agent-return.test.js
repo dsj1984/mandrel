@@ -154,6 +154,42 @@ test('reconcileStoryFromGitHub — story-run-progress fills phase + counters', a
   assert.equal(out.tasksTotal, 2);
 });
 
+test('reconcileStoryFromGitHub — agent::blocked reconciles to blocked (not failed) and recovers blockerCommentId (Story #3907)', async () => {
+  const frictionMarker = structuredCommentMarker('friction');
+  const provider = {
+    async getTicket(id) {
+      return { id, labels: ['type::story', 'agent::blocked'], state: 'open' };
+    },
+    async getTicketComments() {
+      return [
+        {
+          id: 9182,
+          ticketId: 612,
+          body: `${frictionMarker}\n\nBlocked: unresolved merge conflict.`,
+        },
+      ];
+    },
+  };
+  const out = await reconcileStoryFromGitHub({ provider, storyId: 612 });
+  assert.equal(out.status, 'blocked');
+  assert.equal(out.blockerCommentId, '9182');
+  assert.equal(out.reconciledFromGitHub, true);
+});
+
+test('reconcileStoryFromGitHub — agent::blocked with no friction comment is still blocked (no id)', async () => {
+  const provider = {
+    async getTicket(id) {
+      return { id, labels: ['agent::blocked'], state: 'open' };
+    },
+    async getTicketComments() {
+      return [];
+    },
+  };
+  const out = await reconcileStoryFromGitHub({ provider, storyId: 77 });
+  assert.equal(out.status, 'blocked');
+  assert.equal(out.blockerCommentId, undefined);
+});
+
 test('reconcileStoryFromGitHub — getTicket throw is non-fatal, returns failed + reconcileError', async () => {
   const provider = {
     async getTicket() {

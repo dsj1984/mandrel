@@ -190,9 +190,48 @@ export async function loadManifestTitleMap({ provider, epicId }) {
 }
 
 /**
+ * Extract the Story IDs planned for `wave` from the checkpoint `plan`
+ * (`Story[][]` indexed by wave). Returns `[]` when the plan is missing or
+ * the wave index is out of range. Pure helper — exported for unit tests.
+ *
+ * Story #3907 — the wave-complete livelock recovery (below) keys off this:
+ * when mode B records a wave with **no** child returns (the host crashed
+ * after the children finished but before `record-wave` ran), every Story in
+ * `plan[wave]` is reconciled from GitHub so the wave can record and
+ * `currentWave` can advance instead of returning `wave-complete` for the same
+ * index forever.
+ *
+ * @param {object} existing Checkpoint state.
+ * @param {number} wave
+ * @returns {number[]}
+ */
+export function planStoryIdsForWave(existing, wave) {
+  const plan = Array.isArray(existing?.plan) ? existing.plan : [];
+  const entries = Array.isArray(plan[wave]) ? plan[wave] : [];
+  const ids = [];
+  for (const entry of entries) {
+    const id =
+      typeof entry === 'number'
+        ? entry
+        : Number(entry?.id ?? entry?.storyId ?? entry?.number);
+    if (Number.isInteger(id) && id > 0) ids.push(id);
+  }
+  return ids;
+}
+
+/**
  * Parse / reconcile the per-Story returns (or pass `results` through). Posts
  * a single rolled-up friction comment listing every malformed return on
  * failure — non-fatal if the post itself fails.
+ *
+ * Story #3907 — mode B with an **empty** `returns` array is the
+ * wave-complete-livelock recovery path: the host crashed after the wave's
+ * children finished but before `record-wave` ran, so no return text survives.
+ * Rather than recording an empty (falsely-`complete`) wave, every Story in
+ * `plan[wave]` is reconciled from GitHub via {@link reconcileStoryFromGitHub}
+ * so the recorded wave reflects the live ticket state. This requires the
+ * caller to thread the checkpoint `existing` so the wave's planned Story set
+ * is known; without it the empty array degrades to the previous behaviour.
  *
  * @returns {Promise<{ resolvedResults: Array, parseFailures: Array }>}
  */
@@ -202,9 +241,25 @@ export async function resolveResolvedResults({
   wave,
   results,
   returns,
+  existing,
 }) {
   if (returns == null) {
     return { resolvedResults: results, parseFailures: [] };
+  }
+  if (Array.isArray(returns) && returns.length === 0 && existing) {
+    const ids = planStoryIdsForWave(existing, wave);
+    if (ids.length > 0) {
+      const resolvedResults = await concurrentMap(
+        ids,
+        (storyId) => reconcileStoryFromGitHub({ provider, storyId }),
+        { concurrency: DEFAULT_VERIFY_CONCURRENCY_CAP },
+      );
+      Logger.warn(
+        `[wave-record-io] Wave ${wave} recorded with no child returns; ` +
+          `reconciled ${ids.length} Story(ies) from GitHub (livelock recovery).`,
+      );
+      return { resolvedResults, parseFailures: [] };
+    }
   }
   const normalized = await normalizeReturns({ provider, returns });
   if (normalized.parseFailures.length > 0) {

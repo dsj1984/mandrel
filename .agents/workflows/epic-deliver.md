@@ -351,6 +351,16 @@ verbatim, then optionally append a short **Notable** section (0–5
 bullets on newly blocked / failed / slow Stories, friction,
 elapsed-time surprises).
 
+> **Crash recovery — empty mode-B returns (Story #3907).** If the host
+> crashed *after* this wave's children finished but *before* `record-wave`
+> ran, no return text survives. Re-run mode B with an **empty** returns
+> array (`--returns '[]'`): the CLI reconciles **every** Story in
+> `plan[<N>]` directly from GitHub (label + `state`) and records the wave
+> from that live state instead of recording a falsely-`complete` empty
+> wave. This is what lets `currentWave` advance after a crash — only
+> `record-wave` advances it, so without this path the loop would return
+> `wave-complete` for the same index forever.
+
 ### 2d. Loop on `nextAction`
 
 After `2c`, re-run `wave-tick.js`. Branch on the new envelope:

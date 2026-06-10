@@ -160,6 +160,7 @@ export async function tick(args = {}) {
           title: s.title ?? ticket?.title,
           worktree: s.worktree,
           labels: Array.isArray(ticket?.labels) ? ticket.labels : [],
+          state: ticket?.state,
         };
       }),
     );
@@ -167,14 +168,45 @@ export async function tick(args = {}) {
     throw new WaveRunnerError('story-fetch', err);
   }
 
-  const done = waveStates.filter((s) => s.labels.includes(AGENT_LABELS.DONE));
+  // Story #2891 — compute in-flight Stories from the lifecycle ledger.
+  // A Story is "in-flight" when the ledger carries a
+  // `story.dispatch.start` record for it without a matching
+  // `story.dispatch.end`. The reconciliation is purely additive on the
+  // result envelope so callers can surface dispatched-but-uncompleted
+  // Stories that the per-Wave label state alone cannot reveal.
+  //
+  // Story #3907 — the in-flight set is read **before** the dispatch
+  // classification so it can be subtracted from the dispatchable set below.
+  const inFlight = await safeReadInFlight(inFlightReader);
+  const inFlightSet = new Set(inFlight);
+
+  // Story #3907 — a Story is "done" when it carries `agent::done` OR its
+  // GitHub issue is `state === 'closed'`. Reading the closed state (not just
+  // the label) means a Story closed manually through the GitHub UI — which
+  // closes the issue but does not flip the `agent::*` label — is recognised
+  // as done and is never re-dispatched.
+  const done = waveStates.filter(isStoryDone);
   const blocked = waveStates.filter((s) =>
     s.labels.includes(AGENT_LABELS.BLOCKED),
   );
   const executing = waveStates.filter((s) =>
     s.labels.includes(AGENT_LABELS.EXECUTING),
   );
-  const undispatched = waveStates.filter((s) => isUndispatched(s.labels));
+  // Undispatched = no terminal/in-progress label AND not closed. The closed
+  // check rides on `isStoryDone` via the negation in `isUndispatched`.
+  const undispatchedByLabel = waveStates.filter(isUndispatched);
+
+  // Story #3907 — subtract ledger in-flight Stories from the dispatch set.
+  // A Story whose `story.dispatch.start` has been recorded but whose label
+  // has not yet flipped to `agent::executing` (the child is mid-`story-init`,
+  // or the host crashed after the dispatch-ledger write but before the label
+  // flip) still looks "undispatched" by label alone. Re-dispatching it would
+  // put a second agent on the same `story-<id>` branch — the worst failure
+  // mode in the system. The ledger in-flight signal is the authoritative
+  // "already dispatched" record, so it overrides the label view here.
+  const dispatchable = undispatchedByLabel.filter(
+    (s) => !inFlightSet.has(s.id),
+  );
 
   const blockedStories = blocked.map((s) => ({
     storyId: s.id,
@@ -182,14 +214,6 @@ export async function tick(args = {}) {
     detail: s.title,
   }));
   const gateFailures = readGateFailures(history, currentWave);
-
-  // Story #2891 — compute in-flight Stories from the lifecycle ledger.
-  // A Story is "in-flight" when the ledger carries a
-  // `story.dispatch.start` record for it without a matching
-  // `story.dispatch.end`. The reconciliation is purely additive on the
-  // result envelope so callers can surface dispatched-but-uncompleted
-  // Stories that the per-Wave label state alone cannot reveal.
-  const inFlight = await safeReadInFlight(inFlightReader);
 
   // Story #3062 — scan the per-Epic lifecycle ledger for recurring
   // failure classes (≥2 distinct Stories sharing the same
@@ -208,12 +232,25 @@ export async function tick(args = {}) {
   let nextAction;
   let tickDetail;
 
+  // Stories that are label-undispatched but recorded in-flight on the ledger
+  // (subtracted out of `dispatchable`) must be observed, not re-dispatched —
+  // see the in-flight subtraction above.
+  const inFlightUndispatched = undispatchedByLabel.filter((s) =>
+    inFlightSet.has(s.id),
+  );
+
   if (blockedStories.length) {
     nextAction = { kind: 'observe', waitingOn: blocked.map((s) => s.id) };
     tickDetail = { decision: 'observe-blocked' };
-  } else if (undispatched.length) {
-    // First dispatch of this wave fires `wave-start` exactly once.
-    if (executing.length === 0 && done.length === 0) {
+  } else if (dispatchable.length) {
+    // First dispatch of this wave fires `wave-start` exactly once. The
+    // ledger in-flight set is consulted alongside the label view so a
+    // dispatched-but-not-yet-executing Story does not re-fire `wave-start`.
+    if (
+      executing.length === 0 &&
+      done.length === 0 &&
+      inFlightUndispatched.length === 0
+    ) {
       await emit({
         kind: 'wave-start',
         index: currentWave,
@@ -223,7 +260,7 @@ export async function tick(args = {}) {
     }
     nextAction = {
       kind: 'dispatch',
-      stories: undispatched.map((s) => ({
+      stories: dispatchable.map((s) => ({
         id: s.id,
         title: s.title,
         worktree: s.worktree,
@@ -231,10 +268,17 @@ export async function tick(args = {}) {
     };
     tickDetail = {
       decision: 'dispatch',
-      dispatchableCount: undispatched.length,
+      dispatchableCount: dispatchable.length,
     };
-  } else if (executing.length) {
-    nextAction = { kind: 'observe', waitingOn: executing.map((s) => s.id) };
+  } else if (executing.length || inFlightUndispatched.length) {
+    // Either a Story is `agent::executing`, or the ledger shows a
+    // dispatched-but-unflipped Story we just declined to re-dispatch. Both
+    // are in-flight — observe rather than collapse the wave.
+    const waitingOn = [
+      ...executing.map((s) => s.id),
+      ...inFlightUndispatched.map((s) => s.id),
+    ].sort((a, b) => a - b);
+    nextAction = { kind: 'observe', waitingOn };
     tickDetail = { decision: 'observe-in-flight' };
   } else if (currentWave + 1 >= totalWaves) {
     await emit({
@@ -578,9 +622,35 @@ function resolvePlan(state, spec, specState) {
   return { plan, totalWaves: positiveIntOrZero(state.totalWaves) };
 }
 
-function isUndispatched(labels) {
+/**
+ * A Story is "done" when it carries `agent::done` OR its GitHub issue is
+ * `state === 'closed'`. The closed-state arm (Story #3907) is what aligns the
+ * wave planner with the other done-predicates in the codebase
+ * (`reconciler.isDone`, `verifySingleResult`) so a Story closed manually
+ * through the GitHub UI — which closes the issue without flipping the
+ * `agent::*` label — is recognised as done and never re-dispatched.
+ *
+ * @param {{ labels: string[], state?: string }} s
+ * @returns {boolean}
+ */
+export function isStoryDone(s) {
+  const labels = Array.isArray(s?.labels) ? s.labels : [];
+  return labels.includes(AGENT_LABELS.DONE) || s?.state === 'closed';
+}
+
+/**
+ * A wave member is "undispatched" when it carries none of the terminal /
+ * in-progress labels AND is not a closed issue. The closed check (Story
+ * #3907) prevents a manually-closed Story (issue closed, label not flipped)
+ * from being re-dispatched.
+ *
+ * @param {{ labels: string[], state?: string }} s
+ * @returns {boolean}
+ */
+function isUndispatched(s) {
+  const labels = Array.isArray(s?.labels) ? s.labels : [];
   return (
-    !labels.includes(AGENT_LABELS.DONE) &&
+    !isStoryDone(s) &&
     !labels.includes(AGENT_LABELS.BLOCKED) &&
     !labels.includes(AGENT_LABELS.EXECUTING)
   );
