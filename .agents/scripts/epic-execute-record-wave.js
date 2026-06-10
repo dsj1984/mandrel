@@ -189,13 +189,17 @@ export async function runEpicExecuteRecordWave({
     deliverRunner,
   );
 
-  // 1. Parse / reconcile the per-Story returns.
+  // 1. Parse / reconcile the per-Story returns. `existing` is threaded so the
+  //    wave-complete-livelock recovery (Story #3907) can reconcile every
+  //    Story in `plan[wave]` from GitHub when mode B records a wave with no
+  //    child returns.
   const { resolvedResults, parseFailures } = await resolveResolvedResults({
     provider,
     epicId,
     wave,
     results,
     returns,
+    existing,
   });
 
   const validated = validateResults(resolvedResults);

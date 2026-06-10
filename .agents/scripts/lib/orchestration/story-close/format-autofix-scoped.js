@@ -28,6 +28,7 @@ import { diffNameOnly } from '../../changed-files.js';
 import { Logger as DefaultLogger } from '../../Logger.js';
 import {
   commitDirtyPaths,
+  currentBranch,
   listDirtyPaths,
   resolveFormatterCmd,
 } from './format-autofix-shared.js';
@@ -85,8 +86,21 @@ function listChangedFiles({ cwd, epicBranch, storyBranch, git }) {
  *   - `{ ran: true, committed: false }`                   — formatter
  *     was clean.
  *
+ * **Worktree scope (Story #3907).** All git + formatter operations run in
+ * `worktreePath` (the Story worktree where `story-<id>` is checked out), not
+ * `cwd` (the main checkout). The earlier implementation ran every step
+ * against `cwd`, so the `git add -u` + `git commit` could land an unreviewed
+ * `fix(story-close):` commit on whatever branch the main checkout happened to
+ * have out — including `main`. Before committing, the worktree's checked-out
+ * branch is asserted to equal `storyBranch`; a mismatch refuses to commit and
+ * returns `{ ran: true, committed: false, reason: 'wrong-branch' }` so a
+ * stale-state checkout can never absorb the autofix into the wrong history.
+ * `worktreePath` defaults to `cwd` for the resume/legacy callers that have no
+ * separate worktree.
+ *
  * @param {{
  *   cwd: string,
+ *   worktreePath?: string,
  *   storyId: number|string,
  *   epicBranch: string,
  *   storyBranch: string,
@@ -105,6 +119,7 @@ function listChangedFiles({ cwd, epicBranch, storyBranch, git }) {
  */
 export function runScopedFormatAutofix({
   cwd,
+  worktreePath,
   storyId,
   epicBranch,
   storyBranch,
@@ -119,6 +134,11 @@ export function runScopedFormatAutofix({
   if (!storyBranch)
     throw new Error('runScopedFormatAutofix: storyBranch is required');
 
+  // Story #3907 — the formatter writes + the commit must land in the Story
+  // worktree, never the main checkout. Fall back to `cwd` only for callers
+  // that do not run under worktree isolation.
+  const workTree = worktreePath || cwd;
+
   const git = gitSync ?? ((args, opts) => spawnSync('git', args, opts));
 
   // Resolve the formatter base command (e.g. `npx biome format --write`).
@@ -128,7 +148,12 @@ export function runScopedFormatAutofix({
     dropTrailingDot: true,
   });
 
-  const changed = listChangedFiles({ cwd, epicBranch, storyBranch, git });
+  const changed = listChangedFiles({
+    cwd: workTree,
+    epicBranch,
+    storyBranch,
+    git,
+  });
   if (changed.length === 0) {
     logger.info?.(
       `${TAG} skipped — no changed files between ${epicBranch} and ${storyBranch}.`,
@@ -136,7 +161,7 @@ export function runScopedFormatAutofix({
     return { ran: false, committed: false, reason: 'no-changed-files' };
   }
 
-  const dirtyBefore = listDirtyPaths(cwd, git);
+  const dirtyBefore = listDirtyPaths(workTree, git);
   if (dirtyBefore.length) {
     logger.info?.(
       `${TAG} skipped — working tree dirty before scoped autofix (${dirtyBefore.length} paths).`,
@@ -149,7 +174,7 @@ export function runScopedFormatAutofix({
   // "did formatting succeed".
   try {
     spawnSync(writeCmd, [...writeArgs, ...changed], {
-      cwd,
+      cwd: workTree,
       stdio: ['ignore', 'pipe', 'pipe'],
       encoding: 'utf8',
     });
@@ -159,7 +184,7 @@ export function runScopedFormatAutofix({
     );
   }
 
-  const dirtyAfter = listDirtyPaths(cwd, git);
+  const dirtyAfter = listDirtyPaths(workTree, git);
   if (!dirtyAfter.length) {
     logger.info?.(
       `${TAG} no format drift on ${changed.length} changed file(s).`,
@@ -167,10 +192,24 @@ export function runScopedFormatAutofix({
     return { ran: true, committed: false };
   }
 
+  // Story #3907 — assert the worktree is actually on `storyBranch` before we
+  // stage + commit. Without this guard a stale-state checkout (or a
+  // mis-wired `cwd`) could absorb the autofix onto the wrong branch (incl.
+  // `main`). A mismatch refuses to commit and leaves the format drift for the
+  // downstream check gate to surface.
+  const onBranch = currentBranch(workTree, git);
+  if (onBranch !== storyBranch) {
+    logger.warn?.(
+      `${TAG} refusing to commit — worktree ${workTree} is on "${onBranch ?? 'unknown'}", expected "${storyBranch}". ` +
+        `${dirtyAfter.length} format-drift path(s) left for the check gate.`,
+    );
+    return { ran: true, committed: false, reason: 'wrong-branch' };
+  }
+
   // Stage every modified path and commit. Hooks must run; do not pass
   // --no-verify (project policy: never skip git hooks).
   const subject = `fix(story-close): auto-apply biome format in scoped lint (story #${storyId})`;
-  const sha = commitDirtyPaths({ cwd, git, subject });
+  const sha = commitDirtyPaths({ cwd: workTree, git, subject });
 
   // The warn-level emission is the Tech Spec contract — operators read
   // this line in the close transcript to know auto-fix landed in the

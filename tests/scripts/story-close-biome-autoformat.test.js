@@ -44,19 +44,32 @@ function makeGitStub({
   statusBefore = '',
   statusAfter = ' M src/foo.js\n',
   headSha = 'cafebabe',
+  // The branch the worktree reports as checked out (Story #3907 guard).
+  // Defaults to `story-2533` so the happy-path tests commit; override to
+  // exercise the wrong-branch refusal.
+  onBranch = 'story-2533',
 } = {}) {
   const state = { biomeRan: false };
   const calls = [];
+  const cwds = [];
   return {
     calls,
+    cwds,
     state,
-    git(args /*, _opts */) {
+    git(args, opts) {
       calls.push(args);
+      if (opts && typeof opts.cwd === 'string') cwds.push(opts.cwd);
       if (args[0] === 'diff' && args[1] === '--name-only') {
         return `${changedFiles.join('\n')}\n`;
       }
       if (args[0] === 'status') {
         return state.biomeRan ? statusAfter : statusBefore;
+      }
+      // Story #3907 — `rev-parse --abbrev-ref HEAD` resolves the checked-out
+      // branch for the commit-target guard; `rev-parse --short HEAD` returns
+      // the new commit SHA after commitDirtyPaths.
+      if (args[0] === 'rev-parse' && args[1] === '--abbrev-ref') {
+        return `${onBranch}\n`;
       }
       if (args[0] === 'rev-parse') return `${headSha}\n`;
       // add / commit are side-effect-only in the stub.
@@ -66,12 +79,16 @@ function makeGitStub({
 }
 
 function makeBiomeSpawn(state) {
-  return (cmd /*, args, _opts */) => {
+  const spawnCwds = [];
+  const fn = (cmd, _args, opts) => {
     if (cmd === 'npx' || cmd === 'pnpm' || cmd === 'biome') {
       state.biomeRan = true;
     }
+    if (opts && typeof opts.cwd === 'string') spawnCwds.push(opts.cwd);
     return '';
   };
+  fn.spawnCwds = spawnCwds;
+  return fn;
 }
 
 describe('runScopedFormatAutofix — Story #2533 (Task #2536)', () => {
@@ -198,5 +215,74 @@ describe('runScopedFormatAutofix — Story #2533 (Task #2536)', () => {
       gitStub.calls.some((args) => args[0] === 'commit'),
       false,
     );
+  });
+
+  it('Story #3907 — runs git + formatter in worktreePath (not the main checkout cwd)', () => {
+    const logger = makeLogger();
+    const gitStub = makeGitStub({
+      changedFiles: ['src/foo.js'],
+      statusBefore: '',
+      statusAfter: ' M src/foo.js\n',
+      onBranch: 'story-2533',
+    });
+    const spawn = makeBiomeSpawn(gitStub.state);
+
+    const result = runScopedFormatAutofix({
+      cwd: '/tmp/main-checkout',
+      worktreePath: '/tmp/.worktrees/story-2533',
+      storyId: 2533,
+      epicBranch: 'epic/2527',
+      storyBranch: 'story-2533',
+      logger,
+      spawnSync: spawn,
+      gitSync: gitStub.git,
+    });
+
+    assert.equal(result.committed, true);
+    // Every git invocation must target the worktree, never the main checkout.
+    assert.ok(gitStub.cwds.length > 0, 'git was invoked with a cwd');
+    assert.ok(
+      gitStub.cwds.every((c) => c === '/tmp/.worktrees/story-2533'),
+      `all git cwds must be the worktree; got ${JSON.stringify(gitStub.cwds)}`,
+    );
+    // The formatter spawn must also run in the worktree.
+    assert.ok(
+      spawn.spawnCwds.every((c) => c === '/tmp/.worktrees/story-2533'),
+      `all formatter cwds must be the worktree; got ${JSON.stringify(spawn.spawnCwds)}`,
+    );
+  });
+
+  it('Story #3907 — refuses to commit when the worktree is on the wrong branch', () => {
+    const logger = makeLogger();
+    const gitStub = makeGitStub({
+      changedFiles: ['src/foo.js'],
+      statusBefore: '',
+      statusAfter: ' M src/foo.js\n',
+      // The worktree is somehow checked out on `main`, not the story branch.
+      onBranch: 'main',
+    });
+    const spawn = makeBiomeSpawn(gitStub.state);
+
+    const result = runScopedFormatAutofix({
+      cwd: '/tmp/main-checkout',
+      worktreePath: '/tmp/.worktrees/story-2533',
+      storyId: 2533,
+      epicBranch: 'epic/2527',
+      storyBranch: 'story-2533',
+      logger,
+      spawnSync: spawn,
+      gitSync: gitStub.git,
+    });
+
+    assert.equal(result.ran, true);
+    assert.equal(result.committed, false);
+    assert.equal(result.reason, 'wrong-branch');
+    // Critically: no commit was created on the wrong branch.
+    assert.equal(
+      gitStub.calls.some((args) => args[0] === 'commit'),
+      false,
+    );
+    assert.equal(logger.logs.warn.length, 1);
+    assert.match(logger.logs.warn[0], /refusing to commit/);
   });
 });

@@ -71,6 +71,33 @@ export function resolveFormatterCmd({
 }
 
 /**
+ * Resolve the branch currently checked out at `cwd` via
+ * `git rev-parse --abbrev-ref HEAD`. Returns the trimmed branch name, or
+ * `null` when the call fails or the tree is in a detached-HEAD state
+ * (`HEAD`). Used as the commit-target guard before
+ * {@link commitDirtyPaths} writes a scoped-autofix commit, so the commit
+ * can never land on the wrong branch (e.g. the main checkout's `main`).
+ *
+ * @param {string} cwd
+ * @param {(args: string[], opts: object) => string} git
+ * @returns {string|null}
+ */
+export function currentBranch(cwd, git) {
+  try {
+    const out = git(['rev-parse', '--abbrev-ref', 'HEAD'], {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    const branch = (out ?? '').toString().trim();
+    if (!branch || branch === 'HEAD') return null;
+    return branch;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Stage every modified path (`git add -u`), commit with the caller-supplied
  * `subject`, and return the short HEAD SHA. Hooks must run; we never pass
  * `--no-verify` (project policy: never skip git hooks).

@@ -372,3 +372,185 @@ describe('lib/wave-runner/tick', () => {
     assert.equal(tickCount, 1);
   });
 });
+
+/**
+ * Fake provider that also carries a per-id `state` (`'open'` | `'closed'`),
+ * needed for the closed-issue done-predicate tests below.
+ */
+function fakeProviderWithState({
+  labelsById = new Map(),
+  stateById = new Map(),
+}) {
+  return {
+    async getTicket(id) {
+      return {
+        id,
+        labels: labelsById.get(id) ?? [],
+        state: stateById.get(id) ?? 'open',
+        title: `Story #${id}`,
+      };
+    },
+  };
+}
+
+describe('lib/wave-runner/tick — Story #3907 resilience', () => {
+  it('subtracts ledger in-flight Stories from the dispatch set (no double-dispatch)', async () => {
+    const checkpointer = fakeCheckpointer({
+      epicId: 100,
+      currentWave: 0,
+      totalWaves: 1,
+      plan: [[{ id: 1 }, { id: 2 }]],
+      waves: [],
+    });
+    // Both look undispatched by label, but Story 1 is recorded in-flight on
+    // the ledger (dispatched, label not yet flipped to agent::executing).
+    const provider = fakeProvider(
+      new Map([
+        [1, ['agent::ready']],
+        [2, ['agent::ready']],
+      ]),
+    );
+    const sig = captureSignals();
+
+    const result = await tick({
+      epic: 100,
+      collaborators: {
+        provider,
+        epicRunStateStore: checkpointer,
+        signalEmit: sig.signalEmit,
+        inFlightReader: async () => [1],
+      },
+    });
+
+    assert.equal(result.nextAction.kind, 'dispatch');
+    // Only Story 2 is dispatchable — Story 1 is already in flight.
+    assert.deepEqual(
+      result.nextAction.stories.map((s) => s.id),
+      [2],
+    );
+    assert.deepEqual(result.nextAction['in-flight'], [1]);
+  });
+
+  it('observes (does not re-dispatch) when every wave member is in-flight by ledger but unflipped by label', async () => {
+    const checkpointer = fakeCheckpointer({
+      epicId: 100,
+      currentWave: 0,
+      totalWaves: 1,
+      plan: [[{ id: 1 }]],
+      waves: [],
+    });
+    const provider = fakeProvider(new Map([[1, ['agent::ready']]]));
+    const sig = captureSignals();
+
+    const result = await tick({
+      epic: 100,
+      collaborators: {
+        provider,
+        epicRunStateStore: checkpointer,
+        signalEmit: sig.signalEmit,
+        inFlightReader: async () => [1],
+      },
+    });
+
+    assert.equal(result.nextAction.kind, 'observe');
+    assert.deepEqual(result.nextAction.waitingOn, [1]);
+    // Must NOT collapse the wave into wave-complete while a Story is in flight.
+    assert.notEqual(result.nextAction.kind, 'wave-complete');
+  });
+
+  it('does not re-fire wave-start when a Story is already in-flight on the ledger', async () => {
+    const checkpointer = fakeCheckpointer({
+      epicId: 100,
+      currentWave: 0,
+      totalWaves: 1,
+      plan: [[{ id: 1 }, { id: 2 }]],
+      waves: [],
+    });
+    const provider = fakeProvider(
+      new Map([
+        [1, ['agent::ready']],
+        [2, ['agent::ready']],
+      ]),
+    );
+    const sig = captureSignals();
+
+    await tick({
+      epic: 100,
+      collaborators: {
+        provider,
+        epicRunStateStore: checkpointer,
+        signalEmit: sig.signalEmit,
+        inFlightReader: async () => [1],
+      },
+    });
+
+    assert.equal(
+      sig.emitted.some((e) => e.kind === 'wave-start'),
+      false,
+    );
+  });
+
+  it('treats a manually-closed Story (state=closed, no agent::done) as done — not re-dispatched', async () => {
+    const checkpointer = fakeCheckpointer({
+      epicId: 100,
+      currentWave: 0,
+      totalWaves: 1,
+      plan: [[{ id: 1 }, { id: 2 }]],
+      waves: [],
+    });
+    // Story 1: closed issue but label never flipped. Story 2: ready.
+    const provider = fakeProviderWithState({
+      labelsById: new Map([
+        [1, ['agent::ready']],
+        [2, ['agent::ready']],
+      ]),
+      stateById: new Map([
+        [1, 'closed'],
+        [2, 'open'],
+      ]),
+    });
+    const sig = captureSignals();
+
+    const result = await tick({
+      epic: 100,
+      collaborators: {
+        provider,
+        epicRunStateStore: checkpointer,
+        signalEmit: sig.signalEmit,
+      },
+    });
+
+    assert.equal(result.nextAction.kind, 'dispatch');
+    // Closed Story 1 is done; only Story 2 dispatches.
+    assert.deepEqual(
+      result.nextAction.stories.map((s) => s.id),
+      [2],
+    );
+  });
+
+  it('advances to epic-complete when the only wave member is a manually-closed Story', async () => {
+    const checkpointer = fakeCheckpointer({
+      epicId: 100,
+      currentWave: 0,
+      totalWaves: 1,
+      plan: [[{ id: 1 }]],
+      waves: [],
+    });
+    const provider = fakeProviderWithState({
+      labelsById: new Map([[1, ['agent::ready']]]),
+      stateById: new Map([[1, 'closed']]),
+    });
+    const sig = captureSignals();
+
+    const result = await tick({
+      epic: 100,
+      collaborators: {
+        provider,
+        epicRunStateStore: checkpointer,
+        signalEmit: sig.signalEmit,
+      },
+    });
+
+    assert.equal(result.nextAction.kind, 'epic-complete');
+  });
+});
