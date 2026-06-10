@@ -38,11 +38,103 @@
  * framework default shipped in `.agents/docs/agentrc-reference.json`. Note that the
  * AJV schema marks `tempRoot` as required for any loaded `.agentrc.json`, so
  * the fallback only matters in zero-config callers (tests, ad-hoc scripts).
+ *
+ * Main-checkout anchoring (Story #3900): the Epic/Story directory helpers
+ * resolve a *relative* `tempRoot` against the **main checkout root** (the
+ * parent of `git rev-parse --git-common-dir`) rather than `process.cwd()`.
+ * Without this, a story child that `cd`s into `.worktrees/story-<id>/` before
+ * calling `story-phase.js` would append `story.heartbeat` records to
+ * `<worktree>/temp/epic-N/lifecycle.ndjson`, while the `/epic-deliver` host
+ * (running from the main checkout) reads the main-checkout copy — so the
+ * idle-watchdog never sees heartbeats and the Epic-lease guard silently
+ * reclaims live foreign claims (the audit-#3513 bug class). Anchoring the
+ * ledger to the git common dir makes the worktree child writer and the
+ * main-checkout host reader converge on a single file regardless of cwd. An
+ * absolute `tempRoot` is honoured verbatim; only relative roots are anchored.
  */
 
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 
 let _resolveConfig;
+
+/**
+ * Cache the resolved main-checkout root per spawn cwd so the
+ * `git rev-parse` shell-out runs at most once per distinct working
+ * directory in a process. The cache key is the `cwd` the resolution ran
+ * against (defaulting to `process.cwd()`); a `null` value records a prior
+ * miss so we don't re-spawn git on a non-repo path.
+ */
+const _mainCheckoutRootCache = new Map();
+
+/**
+ * Resolve the **main checkout root** for a given working directory by
+ * shelling out to `git rev-parse --git-common-dir` and taking its parent.
+ *
+ * In a linked worktree (`git worktree add`), `--git-common-dir` returns the
+ * *parent* repo's `.git/` (the shared object store), so its parent directory
+ * is the main checkout root — exactly the anchor we want for cwd-independent
+ * lifecycle ledger paths. In the main checkout itself it returns `.git`, so
+ * the parent is the main checkout root too. The two cases converge.
+ *
+ * Returns `null` when the path is not a git repository or git is
+ * unavailable, so callers fall back to the relative (cwd-anchored) path.
+ *
+ * @param {string} [cwd=process.cwd()]
+ * @param {{ exec?: typeof execFileSync }} [deps] Injectable for tests.
+ * @returns {string|null}
+ */
+export function mainCheckoutRoot(cwd = process.cwd(), deps = {}) {
+  const exec = deps.exec ?? execFileSync;
+  // Only memoize the real (non-injected) resolver so tests stay deterministic.
+  const memoize = !deps.exec;
+  if (memoize && _mainCheckoutRootCache.has(cwd)) {
+    return _mainCheckoutRootCache.get(cwd);
+  }
+  let resolved = null;
+  try {
+    const out = exec('git', ['rev-parse', '--git-common-dir'], {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    if (out) {
+      const commonDir = path.isAbsolute(out) ? out : path.resolve(cwd, out);
+      resolved = path.dirname(commonDir);
+    }
+  } catch {
+    // Not a git repo, or git unavailable — fall back to the relative path.
+    resolved = null;
+  }
+  if (memoize) _mainCheckoutRootCache.set(cwd, resolved);
+  return resolved;
+}
+
+/**
+ * Test-only: clear the main-checkout-root memoization cache so a suite can
+ * exercise multiple repo roots in one process without cross-test bleed.
+ */
+export function _clearMainCheckoutRootCache() {
+  _mainCheckoutRootCache.clear();
+}
+
+/**
+ * Anchor a resolved `tempRoot` to the main checkout root when it is a
+ * relative path (Story #3900). Absolute roots are returned verbatim; a
+ * relative root is joined onto the main checkout root so every caller
+ * resolves the same on-disk ledger regardless of the process cwd. When the
+ * main checkout cannot be resolved (non-repo, git unavailable) the relative
+ * root is returned unchanged so behaviour degrades to the prior
+ * cwd-relative semantics rather than throwing.
+ *
+ * @param {string} tempRoot
+ * @returns {string}
+ */
+function anchorTempRoot(tempRoot) {
+  if (path.isAbsolute(tempRoot)) return tempRoot;
+  const root = mainCheckoutRoot();
+  return root ? path.join(root, tempRoot) : tempRoot;
+}
 
 /**
  * Lazy import of `resolveConfig` to side-step a circular module graph
@@ -153,7 +245,7 @@ const artifactName = (name) => {
  * @returns {string}
  */
 export function epicTempDir(eid, config) {
-  return path.join(tempRootFrom(config), `epic-${epicId(eid)}`);
+  return path.join(anchorTempRoot(tempRootFrom(config)), `epic-${epicId(eid)}`);
 }
 
 /**
@@ -180,7 +272,7 @@ export function storyTempDir(eid, sid, config) {
   const checkedEid = storyEpicId(eid);
   const parent =
     checkedEid === null
-      ? path.join(tempRootFrom(config), 'standalone')
+      ? path.join(anchorTempRoot(tempRootFrom(config)), 'standalone')
       : epicTempDir(checkedEid, config);
   return path.join(parent, 'stories', `story-${storyId(sid)}`);
 }
