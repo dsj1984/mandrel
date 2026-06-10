@@ -72,12 +72,87 @@ const SIGNATURE_FILE_EXTS = new Set(['.js', '.mjs', '.cjs', '.ts', '.tsx']);
 /**
  * Hard cap on the file list in the skinny tier. When the include set
  * matches more than `MAX_FILES_SKINNY` tracked files, the result is
- * truncated and a single sentinel entry is appended so the Architect
- * sees that the snapshot is incomplete and can ask for `medium` (or
- * narrow the include globs). 250 entries is roughly 4–6k tokens of
- * paths on typical repos — the upper edge of the Phase 7 budget.
+ * truncated and `truncated: true` is set on the envelope so the
+ * Architect (and the Phase 7 authoring-context warning) sees that the
+ * snapshot is incomplete and can ask for `medium` (or narrow the
+ * include globs). 250 entries is roughly 4–6k tokens of paths on
+ * typical repos — the upper edge of the Phase 7 budget.
  */
 const MAX_FILES_SKINNY = 250;
+
+/**
+ * Group a sorted file list by its top-level directory. The top-level
+ * segment is the first path component (`.agents/scripts/lib/foo.js` →
+ * `.agents`, `src/index.ts` → `src`). Returns an insertion-ordered Map
+ * keyed by top-level dir whose values are the files under it, preserving
+ * the input order within each group. Because the input is pre-sorted
+ * lexicographically and we never reorder, group keys appear in sorted
+ * order and per-group file order is sorted too — the whole operation
+ * is deterministic for a given tree.
+ *
+ * @param {string[]} files - Lexicographically sorted relative paths.
+ * @returns {Map<string, string[]>}
+ */
+function groupByTopLevel(files) {
+  const groups = new Map();
+  for (const file of files) {
+    const slash = file.indexOf('/');
+    const top = slash === -1 ? file : file.slice(0, slash);
+    let bucket = groups.get(top);
+    if (!bucket) {
+      bucket = [];
+      groups.set(top, bucket);
+    }
+    bucket.push(file);
+  }
+  return groups;
+}
+
+/**
+ * Apply the skinny-tier cap with **per-top-level-dir proportional
+ * budgeting** so a large, dot-prefixed tree (e.g. `.agents/scripts/**`)
+ * can no longer monopolise the budget and truncate away the consumer's
+ * own source. The flat `filtered.slice(0, cap)` it replaces kept only
+ * the lexicographically-first `cap` paths, and dot-prefixed paths sort
+ * ahead of every consumer path — so in any consumer repo whose include
+ * set exceeds the cap, the snapshot devolved to mostly `.agents/**`.
+ *
+ * Algorithm (deterministic, no time/randomness):
+ *   1. Group the sorted file list by top-level directory.
+ *   2. Round-robin across the groups (in sorted key order), taking one
+ *      file from each group per pass, until the cap is filled or every
+ *      group is exhausted. Round-robin gives each top-level tree a fair,
+ *      proportional share of the budget regardless of its absolute size.
+ *   3. Re-sort the selected subset so the emitted `files` array stays in
+ *      stable lexicographic order (same shape the rest of the pipeline
+ *      and the golden tests expect).
+ *
+ * When only one top-level group matches (the Mandrel-repo dogfood case,
+ * where `.agents/scripts/**` is the only matching tree), round-robin
+ * degenerates to "take the first `cap` from that one group" — identical
+ * to the old behaviour, so the Mandrel snapshot stays useful.
+ *
+ * @param {string[]} sortedFiles - Lexicographically sorted relative paths.
+ * @param {number} cap - Maximum number of files to keep.
+ * @returns {string[]} The kept subset, lexicographically sorted, length ≤ cap.
+ */
+function proportionalCap(sortedFiles, cap) {
+  if (sortedFiles.length <= cap) return sortedFiles;
+  const groups = [...groupByTopLevel(sortedFiles).values()];
+  const kept = [];
+  let exhausted = false;
+  for (let pass = 0; !exhausted && kept.length < cap; pass += 1) {
+    exhausted = true;
+    for (const bucket of groups) {
+      if (pass >= bucket.length) continue;
+      exhausted = false;
+      kept.push(bucket[pass]);
+      if (kept.length >= cap) break;
+    }
+  }
+  kept.sort();
+  return kept;
+}
 
 /**
  * Resolve the snapshot configuration from a raw `.agentrc.json` block.
@@ -411,7 +486,10 @@ export function buildCodebaseSnapshot(opts = {}) {
   let displayFiles = filtered;
   let truncated = false;
   if (cfg.tier === 'skinny' && filtered.length > MAX_FILES_SKINNY) {
-    displayFiles = filtered.slice(0, MAX_FILES_SKINNY);
+    // Proportional per-top-level-dir budgeting (not a flat lexicographic
+    // slice) so consumer source survives the cap even when a dot-prefixed
+    // tree like `.agents/scripts/**` sorts ahead of it. See `proportionalCap`.
+    displayFiles = proportionalCap(filtered, MAX_FILES_SKINNY);
     truncated = true;
   }
 

@@ -53,8 +53,19 @@ import {
  *   dependencies?: number[],
  * }} opts
  * @returns {string}
+ *
+ * Story #3958 — this is the single owner of the `blocked by #N` footer.
+ * Callers (the reconciler-apply create path, the spec planner) pass
+ * resolved dependency issue numbers via `dependencies` and supply a body
+ * WITHOUT any pre-appended footer. A caller that also appends a
+ * `blocked by` block to `body` would double every dependency line.
  */
-function composeStoryBody({ body, parentId, epicId, dependencies = [] }) {
+export function composeStoryBody({
+  body,
+  parentId,
+  epicId,
+  dependencies = [],
+}) {
   const head = typeof body === 'string' ? body : '';
   const lines = ['---', `parent: #${parentId}`];
   if (epicId !== undefined && epicId !== null && epicId !== parentId) {

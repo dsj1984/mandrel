@@ -185,14 +185,20 @@ describe('reconciler apply — create path', () => {
     assert.equal(result.failure.reason, 'unmapped-parent');
   });
 
-  it('topo-sorts dependsOn within the create batch so footers resolve', async () => {
+  it('topo-sorts dependsOn within the create batch so dependencies resolve', async () => {
     // Regression: before this fix, topoSortCreates only inspected
     // parentSlug, so a dependent sibling (story-b depends_on story-a)
     // landed in the same batch as its dependency and won the alphabetic
-    // race. renderDependsOnFooter then silently dropped the unresolved
+    // race. resolveDependencies then silently dropped the unresolved
     // slug. This test orders the creates with the dependent FIRST and
-    // verifies the dependency lands first anyway, and the `blocked by`
-    // footer is rendered on the dependent.
+    // verifies the dependency lands first anyway, and the resolved
+    // dependency number is handed to createTicket on the dependent.
+    //
+    // Story #3958 — the reconciler no longer pre-appends a `blocked by #N`
+    // footer to the body; it passes resolved numbers via
+    // `ticketData.dependencies` and `composeStoryBody` (inside the real
+    // provider's createTicket, bypassed by StubProvider) owns the footer.
+    // The assertion therefore targets `dependencies`, not `body`.
     const provider = new StubProvider({ startingIssue: 9200 });
     const plan = emptyPlan();
     plan.creates.push(
@@ -233,13 +239,16 @@ describe('reconciler apply — create path', () => {
     assert.equal(typeof aId, 'number');
     assert.equal(typeof bId, 'number');
     assert.ok(aId < bId, 'story-a must be created before story-b');
-    // Find story-b's create call and verify the footer landed.
+    // Find story-b's create call and verify the resolved dependency landed.
     // createTicket(parentId, ticketData) → args[1] is ticketData.
     const bCall = provider.calls.find(
       (c) => c.kind === 'createTicket' && c.args[1]?.title === 'B depends on A',
     );
     assert.ok(bCall, 'story-b createTicket call missing');
-    assert.match(bCall.args[1].body, new RegExp(`blocked by #${aId}`));
+    assert.deepEqual(bCall.args[1].dependencies, [aId]);
+    // The reconciler must NOT pre-append a footer to the body — that is
+    // composeStoryBody's job, and doing both doubled every line (#3958).
+    assert.doesNotMatch(bCall.args[1].body ?? '', /blocked by #/);
   });
 
   it('fails loud when a dependsOn slug cannot be resolved at apply time', async () => {

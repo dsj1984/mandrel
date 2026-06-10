@@ -13,6 +13,7 @@ import {
   resolveReviewRouting,
   TECH_SPEC_SYSTEM_PROMPT,
 } from '../.agents/scripts/epic-plan-spec.js';
+import { Logger } from '../.agents/scripts/lib/Logger.js';
 import {
   getExistingArtifactIds,
   hasAllRequestedArtifacts,
@@ -368,5 +369,52 @@ describe('epic-planner buildAuthoringContext', () => {
       async () => await buildAuthoringContext(404, provider, {}),
       { message: 'Epic #404 not found.' },
     );
+  });
+
+  // Story #3959 — when the skinny-tier codebase snapshot truncates the file
+  // list, the authoring-context phase must surface an operator-visible
+  // warning naming the dropped file count and the two remedies (medium tier
+  // / narrower include). This repo's own include set exceeds the 250-file
+  // skinny cap, so building the context against it reliably truncates.
+  it('emits an operator-visible warning when the codebase snapshot truncates', async () => {
+    const provider = {
+      async getEpic(id) {
+        return {
+          id,
+          title: 'Trunc Epic',
+          body: 'Epic body.',
+          linkedIssues: { prd: null, techSpec: null },
+        };
+      },
+    };
+
+    const warnings = [];
+    const originalWarn = Logger.warn;
+    Logger.warn = (msg) => {
+      warnings.push(String(msg));
+    };
+    try {
+      const ctx = await buildAuthoringContext(8, provider, {});
+      assert.ok(ctx.codebaseSnapshot, 'expected a codebase snapshot');
+      assert.equal(
+        ctx.codebaseSnapshot.truncated,
+        true,
+        'expected this repo snapshot to truncate at the skinny cap',
+      );
+    } finally {
+      Logger.warn = originalWarn;
+    }
+
+    const truncWarn = warnings.find((w) =>
+      /codebase snapshot truncated/.test(w),
+    );
+    assert.ok(
+      truncWarn,
+      `expected a truncation warning, got: ${warnings.join(' | ')}`,
+    );
+    // Names the dropped count and both documented remedies.
+    assert.match(truncWarn, /\d+ of \d+ matched file\(s\) dropped/);
+    assert.match(truncWarn, /tier:\s*"medium"/);
+    assert.match(truncWarn, /include/);
   });
 });
