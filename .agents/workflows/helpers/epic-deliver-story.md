@@ -86,8 +86,8 @@ node .agents/scripts/story-init.js --story <storyId>
 > (`Bash(timeout: 600000)`). Do **not** use `run_in_background` + `Monitor`
 > here: `Monitor`'s return is not equivalent to script exit, and a sub-agent
 > that exits during a `Monitor` wait kills `story-init.js` mid-batch — the
-> worktree is left half-initialized (some child Tasks transitioned, no
-> `story-init` comment, no Story-level `agent::*` label flip) and the parent
+> worktree is left half-initialized (no `story-init` comment, no Story-level
+> `agent::*` label flip) and the parent
 > wave aggregator records the Story as failed. The script is idempotent on
 > partial state, so the recovery is to re-run it synchronously, but
 > prevention is cheaper: just give Bash the 10-minute timeout and block.
@@ -141,17 +141,7 @@ Story-level rollup the parent `/epic-deliver` aggregator reads).
 ## Step 1 — Story implementation
 
 Run a single Story-implementation phase against the inline `acceptance[]`
-/ `verify[]` arrays on the Story body:
-
-> **Re-anchor first (before your first commit).** You received your persona
-> via the hydrated envelope once, then run for many phases — long enough to
-> drift. As your explicit first action in this phase, re-read your assigned
-> persona (`.agents/personas/<role>.md`, resolved from the Story's
-> `persona::*` label; default `engineer.md`) and the global rules in
-> `.agents/rules/` (per
-> [`.agents/instructions.md` § 1.F](../../instructions.md)). This is a cheap
-> self-anchor, not a runtime gate — keep it to a quick re-read so it does
-> not bloat the hydrated prompt (`delivery.maxTokenBudget` elision).
+/ `verify[]` arrays on the Story body.
 
 1. Flip the snapshot to the `implementing` phase:
 
@@ -199,64 +189,28 @@ Run a single Story-implementation phase against the inline `acceptance[]`
 
 ### Step 1a — Bounded acceptance self-eval loop (**required, not optional**)
 
-After the implementation commits land and **before** the snapshot flips
-to `closing`, run an explicit, **independent** eval pass that scores the
-working diff against **each** `acceptance[]` item individually. This is
-the acceptance gate the close-validation chain does not provide: that
-chain (lint / test / format / maintainability / coverage / crap, run in
-`story-close.js`) proves the code is healthy, not that it satisfies *this
-Story's* acceptance criteria.
+After the implementation commits land and **before** the snapshot flips to
+`closing`, run the bounded acceptance self-eval loop. The per-round critic
+mechanic (fresh-context critic, `verify[]`-as-evidence, the verdict schema, and
+the proceed / redraft / block decision) is the single-homed include
+[`acceptance-self-eval.md`](acceptance-self-eval.md) — read it and follow it.
+The critic reads the Story's inline `acceptance[]` / `verify[]` arrays from the
+`story-init` comment (`context.acceptance` / `context.verify`).
 
-The loop is **always on** (a hard cutover — there is no flag to disable
-it) and **bounded** by `delivery.acceptanceEval.maxRounds` (default 2),
-which the resolver clamps into `[1, hard ceiling]` so the cap can never
-be switched off or run unbounded. It is **distinct from** the Epic-level
-acceptance-spec reconciliation in `/epic-deliver` Phase 7.1 (which fires
-once at finalize and only checks `@ac-*` Gherkin tag presence): this loop
-is per-Story, per-criterion, mid-delivery, and evaluates the actual work
-product.
+Epic-attached specifics for this path:
 
-**Per round:**
+- **Gate invocation** (pass `--epic <epicId>` so the per-criterion signal lands
+  on the Epic-scoped stream):
 
-1. **Eval pass (fresh context, independent of the author).** Run a
-   **separate critic pass** — a fresh-context sub-agent (`Agent` tool,
-   `subagent_type: general-purpose`), *not* a continuation of your
-   implementing turn — so the evaluator does not grade its own homework.
-   The critic:
-   - Inspects the working diff and the Story's inline `acceptance[]` /
-     `verify[]` arrays (`context.acceptance` / `context.verify` from the
-     `story-init` comment).
-   - **Runs the `verify[]` commands** and consumes their output as
-     **required evidence** when scoring the relevant acceptance items. A
-     criterion cannot be scored `met` without the supporting `verify[]`
-     evidence where a `verify[]` command is relevant to it.
-   - Emits a verdict file under `temp/` conforming to
-     [`acceptance-eval-verdict.schema.json`](../../schemas/acceptance-eval-verdict.schema.json):
-     one `{ index, criterion, verdict: met|partial|unmet, evidence,
-     verifyEvidence[] }` record per acceptance item.
-2. **Decide.** Run the gate against the verdict (pass `--epic <epicId>`
-   so the per-criterion signal lands on the Epic-scoped stream):
+  ```bash
+  node .agents/scripts/acceptance-eval.js \
+    --story <storyId> --epic <epicId> --verdict <verdict-path>
+  ```
 
-   ```bash
-   node .agents/scripts/acceptance-eval.js \
-     --story <storyId> --epic <epicId> --verdict <verdict-path>
-   ```
-
-   The gate validates the verdict, applies the round cap, emits the
-   per-criterion `acceptance-eval` signal into the retro / feedback
-   substrate, prints a JSON envelope, and exits:
-   - **`decision: "proceed"`** (every criterion `met`) → exit 0. Flip the
-     snapshot to `closing` (item 5 above).
-   - **`decision: "redraft"`** (some `partial`/`unmet`, rounds remaining)
-     → exit 0. Redraft the flagged criteria (named in `unmetCriteria[]`),
-     commit the fix, and re-run the eval pass for the next round.
-   - **`decision: "block"`** (round cap reached, criteria still unmet) →
-     exit non-zero. Take the blocked path (item 6 above): post a
-     `friction` comment naming the unmet criteria and their evidence,
-     flip the snapshot to `blocked`, and exit non-zero. Never silently
-     proceed to close.
-
-Write the verdict files under `temp/` only — they are scratch artifacts.
+- **On `decision: "proceed"`** → flip the snapshot to `closing` (item 5 above).
+- **On `decision: "block"`** → take the blocked path (item 6 above): post a
+  `friction` comment naming the unmet criteria and their evidence, flip the
+  snapshot to `blocked`, and exit non-zero. Never silently proceed to close.
 
 The resume guard is expressed at the Story level: re-entering a
 partially-implemented Story picks up from whatever commits are already
@@ -400,12 +354,17 @@ running this helper against an already-closed Story is safe.
   the only writer that integrates upstream, and only into `epic/<epicId>`.
 - **Never** merge across Story branches; cross-Story dependencies are
   resolved by wave ordering via `blocked by`.
-- **Always** `cd` into the `workCwd` returned by Step 0 before editing.
-- **Always** verify branch identity before each commit (run
-  `git branch --show-current` and confirm `story-<storyId>`).
+- **Always** `cd` into the `workCwd` returned by Step 0 before editing, and
+  prefix every path-based Edit/Write/Read with that absolute `workCwd` root —
+  the Edit tools ignore the shell cwd. The worktree pins the branch to
+  `story-<storyId>`, so there is no need to re-check `git branch` before each
+  commit.
 - **Always** upsert a `story-run-progress` snapshot at every phase
   transition. The wave aggregator depends on this comment, not labels.
 - **Always** pass `--cwd <main-repo>` to `story-close.js` when invoking
   from inside a worktree.
-- **MCP fallback**: if `mandrel` MCP tools fail, fall back to
+- **Label transitions**: drive every `agent::*` state change through
   `node .agents/scripts/update-ticket-state.js --ticket <id> --state <state>`.
+  This CLI is the authoritative mechanism — there is no separate
+  state-mutation MCP server to degrade from (see
+  [`.agents/instructions.md` § 1.D](../../instructions.md)).

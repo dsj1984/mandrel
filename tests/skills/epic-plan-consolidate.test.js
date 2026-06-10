@@ -132,14 +132,18 @@ describe('skill:epic-plan-consolidate — smoke', () => {
 });
 
 /**
- * Scope-conservation invariant, machine-checked.
+ * Scope-conservation invariant — documented against a pure model, NOT the
+ * Skill's runtime output.
  *
  * The consolidation pass merges/collapses Stories but MUST NOT add or drop
  * scope: the union of every acceptance item and every verify entry across the
- * draft must equal the union across the consolidated array. We model the
- * scope-preserving merge as a pure helper and assert the union is conserved on
- * an over-fragmented fixture. This proves the invariant the Skill's contract
- * promises — independent of the host LLM's authoring.
+ * draft must equal the union across the consolidated array. This test models
+ * the scope-preserving merge as a pure helper and asserts the union is
+ * conserved on an over-fragmented fixture — it documents *what the intended
+ * merge looks like*, but it does **not** inspect the host LLM's actual output.
+ * There is no runtime acceptance-union diff on the critic's result (see
+ * Story #3910 and the Skill's Policy Capsule): scope conservation is the
+ * critic's deliberate contract, not a machine-enforced guarantee.
  */
 describe('epic-plan-consolidate — scope conservation', () => {
   /**

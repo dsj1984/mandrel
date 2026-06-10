@@ -55,10 +55,11 @@ From zero to shipped:
       the PRD / Tech Spec / Acceptance Spec in place and recreating the
       Feature/Story tickets.
    6. **Phase 6 — Epic clarity gate** — scores the Epic body against the
-      five canonical sections (threshold ≥ 4 of 5). A `clear` verdict
-      proceeds silently; `needs-refinement` drops into a one-shot
-      refinement loop with a HITL diff before persisting the sharpened
-      body.
+      five canonical sections. A `clear` verdict requires ≥ 4 of 5
+      sections present **and** the Acceptance Criteria section present (AC
+      is required, not optional). A `clear` verdict proceeds silently;
+      `needs-refinement` drops into a one-shot refinement loop with a HITL
+      diff before persisting the sharpened body.
    7. **Phase 7 — PRD, Tech Spec & Acceptance Spec** — the
       `epic-plan-spec-author` skill authors all three planning artifacts
       as linked context tickets, flips the Epic to `agent::review-spec`,
@@ -356,7 +357,9 @@ The framework reads the Epic and autonomously builds the entire work breakdown.
 > Goal, Non-Goals, Scope, Acceptance Criteria). Common legacy heading
 > variants (`Problem`, `Direction`, `MVP Scope`, `Not Doing`,
 > `Out of Scope`) are accepted by the scorer's regex for back-compat.
-> The rubric is deterministic (section-presence; threshold ≥ 4 of 5). A
+> The rubric is deterministic (section-presence): `clear` requires ≥ 4 of 5
+> sections present **and** the Acceptance Criteria section present (AC is
+> required). A
 > `clear` verdict
 > skips fast with no prompt; a `needs-refinement` verdict drops into the
 > `idea-refinement` skill seeded from the current Epic body, surfaces a

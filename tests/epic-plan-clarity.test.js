@@ -6,7 +6,9 @@
  *  - All 5 sections present (canonical headings) → clear
  *  - All 5 sections present (legacy ideation-shape headings) → clear
  *  - All 5 sections present (Epic 2173-style technical-Epic headings) → clear
- *  - 4 present + 1 missing → clear (threshold ≥ 4 of 5)
+ *  - 4 present but Acceptance Criteria missing → needs-refinement
+ *    (Story #3910 — AC is a required section, not one of the optional four)
+ *  - 4 present but Acceptance Criteria placeholder → needs-refinement
  *  - 3 present + 2 placeholder → needs-refinement
  *  - Empty body → needs-refinement with all 5 in gap list
  *  - Heading variants per canonical section
@@ -126,7 +128,7 @@ describe('scoreEpicBody', () => {
     assert.deepEqual(result.missingOrPlaceholder, []);
   });
 
-  it('returns clear when 4 of 5 sections are present (Acceptance Criteria missing)', () => {
+  it('returns needs-refinement when Acceptance Criteria is missing even with the other 4 present (Story #3910 — AC is required)', () => {
     const body = `# Foo
 
 ## Context
@@ -142,10 +144,58 @@ G
 M
 `;
     const result = scoreEpicBody({ body });
-    assert.equal(result.verdict, 'clear');
+    assert.equal(result.verdict, 'needs-refinement');
     assert.deepEqual(result.missingOrPlaceholder, ['acceptanceCriteria']);
     const ac = result.sections.find((s) => s.name === 'acceptanceCriteria');
     assert.equal(ac.status, 'missing');
+  });
+
+  it('returns clear when all 5 present including Acceptance Criteria (AC requirement satisfied)', () => {
+    const body = `# Foo
+
+## Context
+P
+
+## Goal
+G
+
+## Non-Goals
+- N
+
+## Scope
+M
+
+## Acceptance Criteria
+- [ ] A
+`;
+    const result = scoreEpicBody({ body });
+    assert.equal(result.verdict, 'clear');
+    assert.deepEqual(result.missingOrPlaceholder, []);
+  });
+
+  it('returns needs-refinement when 4 present but Acceptance Criteria is a placeholder', () => {
+    const body = `# Foo
+
+## Context
+P
+
+## Goal
+G
+
+## Non-Goals
+- N
+
+## Scope
+M
+
+## Acceptance Criteria
+_(not specified)_
+`;
+    const result = scoreEpicBody({ body });
+    assert.equal(result.verdict, 'needs-refinement');
+    assert.deepEqual(result.missingOrPlaceholder, ['acceptanceCriteria']);
+    const ac = result.sections.find((s) => s.name === 'acceptanceCriteria');
+    assert.equal(ac.status, 'placeholder');
   });
 
   it('returns needs-refinement when 3 present + 2 placeholder', () => {

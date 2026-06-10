@@ -25,9 +25,9 @@ overhead rather than help.
   → single-story-confirm-merge.js  (PR merged → agent::done, issue closes)
 ```
 
-**When to use `/single-story-deliver` vs. `/story-deliver`:**
+**When to use `/single-story-deliver` vs. `/epic-deliver`:**
 
-| Trait                         | `/single-story-deliver`                              | `/story-deliver`                                        |
+| Trait                         | `/single-story-deliver`                              | `/epic-deliver`                                         |
 | ----------------------------- | ---------------------------------------------------- | ------------------------------------------------------- |
 | Parent Epic                   | None (no `Epic: #N` in body)                         | Required (`Epic: #N` in body)                           |
 | Branch base                   | `project.baseBranch` (default `main`)          | `epic/<epicId>`                                         |
@@ -36,8 +36,9 @@ overhead rather than help.
 | Dispatch manifest interaction | None                                                 | Read at init, regenerated at close                      |
 | Story scope                   | Inline `acceptance[]` / `verify[]` on the Story body | Inline `acceptance[]` / `verify[]` on the Story body    |
 
-If the Story has an `Epic: #N` reference, use `/story-deliver`. If it
-doesn't, use this workflow.
+If the Story has an `Epic: #N` reference, use `/epic-deliver`. If it
+doesn't, use this workflow (or `/story-deliver` for several standalone
+Stories at once).
 
 ## Prerequisites
 
@@ -177,16 +178,6 @@ cascade. Work happens in one or more commits on the `story-<id>`
 branch, against the inline `acceptance[]` / `verify[]` arrays on the
 Story body.
 
-> **Re-anchor first (before your first commit).** A delivery sub-agent
-> receives its persona via the hydrated envelope once, then runs for many
-> phases — long enough to drift. As your explicit first action in this
-> step, re-read your assigned persona (`.agents/personas/<role>.md`,
-> resolved from the Story's `persona::*` label; default `engineer.md`) and
-> the global rules in `.agents/rules/` (per
-> [`.agents/instructions.md` § 1.F](../../instructions.md)). This is a cheap
-> self-anchor, not a runtime gate — keep it to a quick re-read so it does
-> not bloat the hydrated prompt (`delivery.maxTokenBudget` elision).
-
 Operator/agent responsibilities while in the worktree:
 
 1. Read the Story body. Treat its acceptance criteria as the contract.
@@ -216,64 +207,31 @@ advisory pre-flight.
 
 ### Step 1a — Bounded acceptance self-eval loop (**required, not optional**)
 
-After the implementation commits land and **before** you proceed to
-close, run an explicit, **independent** eval pass that scores the working
-diff against **each** `acceptance[]` item individually. This is the
-acceptance gate the close-validation chain does not provide: close
-validation proves the code is healthy (lint / test / format /
-maintainability / coverage / crap), not that it satisfies *this Story's*
-acceptance criteria.
+After the implementation commits land and **before** you proceed to close, run
+the bounded acceptance self-eval loop. The per-round critic mechanic (fresh-
+context critic, `verify[]`-as-evidence, the verdict schema, and the
+proceed / redraft / block decision) is the single-homed include
+[`acceptance-self-eval.md`](acceptance-self-eval.md) — read it and follow it.
 
-The loop is **always on** (a hard cutover — there is no flag to disable
-it) and **bounded** by `delivery.acceptanceEval.maxRounds` (default 2),
-which the resolver clamps into `[1, hard ceiling]` so the cap can never
-be switched off or run unbounded.
+Standalone specifics for this path:
 
-**Per round:**
+- **Gate invocation** (omit `--epic` — there is no parent Epic):
 
-1. **Eval pass (fresh context, independent of the author).** Run a
-   **separate critic pass** — a fresh-context sub-agent (`Agent` tool,
-   `subagent_type: general-purpose`), *not* a continuation of your
-   implementing turn — so the evaluator does not grade its own homework.
-   The critic:
-   - Inspects the working diff (`git diff origin/<baseBranch>...HEAD`)
-     and the Story's inline `acceptance[]` / `verify[]` arrays.
-   - **Runs the `verify[]` commands** and consumes their output as
-     **required evidence** when scoring the relevant acceptance items.
-     `verify[]` is no longer optional advisory pre-flight — a criterion
-     cannot be scored `met` without the supporting `verify[]` evidence
-     where a `verify[]` command is relevant to it.
-   - Emits a verdict file under `temp/` conforming to
-     [`acceptance-eval-verdict.schema.json`](../../schemas/acceptance-eval-verdict.schema.json):
-     one `{ index, criterion, verdict: met|partial|unmet, evidence,
-     verifyEvidence[] }` record per acceptance item.
-2. **Decide.** Run the gate against the verdict:
+  ```bash
+  node <main-repo>/.agents/scripts/acceptance-eval.js \
+    --story <storyId> --verdict <verdict-path>
+  ```
 
-   ```bash
-   node <main-repo>/.agents/scripts/acceptance-eval.js \
-     --story <storyId> --verdict <verdict-path>
-   ```
+- **On `decision: "proceed"`** → proceed to Step 3 (close).
+- **On `decision: "block"`** → **do not proceed to close.** Post a `friction`
+  comment naming the unmet criteria, then transition the Story to
+  `agent::blocked`:
 
-   The gate validates the verdict against the schema, applies the round
-   cap, emits the per-criterion `acceptance-eval` signal into the retro /
-   feedback substrate, prints a JSON envelope, and exits:
-   - **`decision: "proceed"`** (every criterion `met`) → exit 0. Proceed
-     to Step 3 (close).
-   - **`decision: "redraft"`** (some `partial`/`unmet`, rounds remaining)
-     → exit 0. Redraft the flagged criteria (named in `unmetCriteria[]`),
-     commit the fix, and re-run the eval pass for the next round.
-   - **`decision: "block"`** (round cap reached, criteria still unmet) →
-     exit non-zero. **Do not proceed to close.** Transition the Story to
-     `agent::blocked` and post a `friction` comment naming the unmet
-     criteria and their evidence:
-
-     ```bash
-     node .agents/scripts/diagnose-friction.js --story <storyId> \
-       --cmd node .agents/scripts/acceptance-eval.js --story <storyId> --verdict <verdict-path>
-     node .agents/scripts/update-ticket-state.js --ticket <storyId> --state agent::blocked
-     ```
-
-Write the verdict files under `temp/` only — they are scratch artifacts.
+  ```bash
+  node .agents/scripts/diagnose-friction.js --story <storyId> \
+    --cmd node .agents/scripts/acceptance-eval.js --story <storyId> --verdict <verdict-path>
+  node .agents/scripts/update-ticket-state.js --ticket <storyId> --state agent::blocked
+  ```
 
 ---
 
@@ -664,9 +622,11 @@ safe.
   contract. Do not narrate the steps you took, and do not prescribe how the
   next stage should do its work. Prose process commentary only bloats the
   hydrated prompt (`delivery.maxTokenBudget` elision).
-- **MCP fallback**: if `mandrel` MCP tools fail, fall back to
-  `node .agents/scripts/update-ticket-state.js --ticket <id> --state <state>`
-  for label transitions.
+- **Label transitions**: drive every `agent::*` state change through
+  `node .agents/scripts/update-ticket-state.js --ticket <id> --state <state>`.
+  This CLI is the authoritative mechanism — there is no separate
+  state-mutation MCP server to degrade from (see
+  [`.agents/instructions.md` § 1.D](../../instructions.md)).
 
 ---
 
