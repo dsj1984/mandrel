@@ -2,15 +2,27 @@
  * Story body schema validator (v5.33+).
  *
  * Enforces the four-section structured body shape on 3-tier Stories emitted
- * by the decomposer. String-bodied or undefined-bodied tickets are skipped
- * (Feature bodies pass through). When a Story body IS a structured object,
- * we require non-empty `goal`, `changes`, `acceptance`, and `verify`
- * arrays — and that `changes` items name at least one path-shaped token so
- * vague verbs ("clean up", "refactor") can't slip through.
+ * by the decomposer. The canonical decomposition serializes every Story
+ * `body` to a **markdown string** via `serialize()` from
+ * `lib/story-body/story-body.js` (the decompose-author skill mandates this,
+ * and `createOp` in `epic-spec-reconciler-ops.js` throws on an object body —
+ * Story #3302). So at plan-time validation the Story body is a string, not an
+ * object. To make the rules below actually fire on canonical plans, a string
+ * body is **parsed** back into its structured form via `parseStoryBody`
+ * before the section checks run (Story #3906 — previously the validator
+ * `shouldSkipTicket`-skipped every string body, so the verify-tier suffix
+ * rule, vague-verb check, and non-empty-goal check never ran on any real
+ * decomposition). A still-structured object body (e.g. a caller that passes
+ * the pre-serialize shape directly) is validated as-is.
  *
- * There is no `type::task` ticket layer in the 3-tier hierarchy
- * (Epic → Feature → Story); only `type: 'story'` tickets with structured
- * bodies are validated here.
+ * Only `type: 'story'` tickets are validated; Feature/Epic tickets and
+ * null/empty bodies pass through. There is no `type::task` ticket layer in
+ * the 3-tier hierarchy (Epic → Feature → Story).
+ *
+ * Required after parse/normalize: a non-empty `goal`, and non-empty
+ * `changes`, `acceptance`, and `verify` arrays — and `changes` items must
+ * name at least one path-shaped token so vague verbs ("clean up",
+ * "refactor") can't slip through.
  *
  * `body.changes` items may be either:
  *   1. A string bullet (legacy shape, e.g. `"src/foo.ts: extract handler"`).
@@ -33,6 +45,10 @@
  * at a time.
  */
 
+import {
+  parse as parseStoryBody,
+  StoryBodyParseError,
+} from '../story-body/story-body.js';
 import { FILE_ASSUMPTION_VALUES } from './file-assumption-enum.js';
 
 /**
@@ -91,15 +107,17 @@ function vagueVerbWithoutTarget(bullet) {
 /**
  * Predicate: should the validator skip this ticket entirely? Skip when:
  *   - it is not a Story (only `type: 'story'` tickets are validated here),
- *   - it has no body or its body is a plain string (string-bodied Stories
- *     pass through — 3-tier Stories must carry an object body to be
- *     inspected).
+ *   - it has no body (null / undefined / empty-or-whitespace string — there
+ *     is nothing to inspect).
  *
  * Under the 3-tier hierarchy (Epic → Feature → Story), Stories carry the
- * implementation scope inline. The validator inspects `type::story` tickets
- * with structured (object) bodies so that `verify[]` tier and `assumption`
- * enum errors surface at planning time. There is no `type::task` ticket
- * layer.
+ * implementation scope inline. A canonical decomposition serializes the
+ * Story body to a markdown string, so a *string* body is NOT skipped here
+ * (Story #3906) — `validateTaskBodyShape` parses it back into structured
+ * form via `parseStoryBody` before applying the section rules. This is what
+ * makes the verify-tier / vague-verb / non-empty-goal checks actually fire
+ * on real plans. Features (and everything else) use narrative string bodies
+ * and are skipped by the `type !== 'story'` guard.
  *
  * Returns `true` when the ticket should be ignored by
  * `collectTaskBodyErrors`, `false` when the body should be inspected.
@@ -109,27 +127,68 @@ function vagueVerbWithoutTarget(bullet) {
  */
 function shouldSkipTicket(ticket) {
   if (!ticket) return true;
-  // Only Stories carry structured bodies in the 3-tier world. Features
-  // (and everything else) use string bodies — never validate them.
+  // Only Stories carry an inline implementation contract in the 3-tier
+  // world. Features (and everything else) use narrative bodies.
   if (ticket.type !== 'story') return true;
   const body = ticket.body;
-  return body == null || typeof body === 'string';
+  if (body == null) return true;
+  // An empty / whitespace-only string body carries no contract to inspect.
+  if (typeof body === 'string' && body.trim() === '') return true;
+  return false;
 }
 
 /**
- * Validate one structured Story body and return every violation it exhibits.
- * Empty array means clean. Splits the per-ticket cascade out of
+ * Resolve a Story ticket's body to the structured object the section rules
+ * operate on. A string body is the canonical serialized form — parse it via
+ * `parseStoryBody` (Story #3906). An object body is already structured and
+ * is returned verbatim (a caller may pass the pre-serialize shape directly).
+ *
+ * @param {object} ticket Story whose body passed `shouldSkipTicket`.
+ * @returns {{ body: object|null, error: string|null }} `body` is the
+ *   structured object when resolvable; `error` is a single message when a
+ *   string body could not be parsed (mutually exclusive with `body`).
+ */
+function resolveStructuredBody(ticket) {
+  const raw = ticket.body;
+  if (typeof raw !== 'string') {
+    return { body: raw, error: null };
+  }
+  const prefix = `Story "${ticket.title}" (${ticket.slug})`;
+  try {
+    return { body: parseStoryBody(raw).body, error: null };
+  } catch (err) {
+    const reason =
+      err instanceof StoryBodyParseError ? err.message : String(err);
+    return {
+      body: null,
+      error: `${prefix}: body string could not be parsed as a structured Story body: ${reason}`,
+    };
+  }
+}
+
+/**
+ * Validate one Story body and return every violation it exhibits. Empty
+ * array means clean. Splits the per-ticket cascade out of
  * `collectTaskBodyErrors` so the iteration stays straight-line and so
  * each section's defensive checks are independently testable.
  *
+ * Accepts both the canonical **serialized string** body (parsed back into
+ * structured form via `parseStoryBody` — Story #3906) and the
+ * pre-serialize **structured object** body. A string body that cannot be
+ * parsed surfaces a single error.
+ *
  * @param {object} ticket Story whose `body` has already passed the
- *   `shouldSkipTicket` filter (i.e. `body` is an object-ish, non-string).
+ *   `shouldSkipTicket` filter (i.e. `body` is a non-empty string or an
+ *   object).
  * @returns {string[]}
  */
 export function validateTaskBodyShape(ticket) {
-  const body = ticket.body;
   const prefix = `Story "${ticket.title}" (${ticket.slug})`;
-  if (typeof body !== 'object') {
+  const { body, error } = resolveStructuredBody(ticket);
+  if (error !== null) {
+    return [error];
+  }
+  if (body === null || typeof body !== 'object') {
     return [`${prefix}: body must be an object, got ${typeof body}.`];
   }
   const errors = [];
