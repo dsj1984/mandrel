@@ -101,6 +101,10 @@ function reversibleEntries() {
       target: '.agentrc.json',
       action: 'create',
       reversible: true,
+      // Schema v2 (Story #3895): the live `agentrc` phase outcome. A fresh
+      // install seeds the file from the starter → `seeded`, which is the only
+      // outcome that authorizes deletion on uninstall.
+      executedAction: 'seeded',
     },
     {
       phaseGroup: 'quality-gates',
@@ -680,7 +684,9 @@ describe('runUninstall — .agentrc.json reversal (Story #3543)', () => {
       github: { owner: 'acme', repo: 'widgets' },
     });
     writeLedger(tmpRoot, {
-      entries: [{ target: '.agentrc.json', reversible: true }],
+      entries: [
+        { target: '.agentrc.json', reversible: true, executedAction: 'seeded' },
+      ],
     });
 
     const cap = makeCapture();
@@ -717,6 +723,123 @@ describe('runUninstall — .agentrc.json reversal (Story #3543)', () => {
     const { fileTargets, manual } = planUninstall(ledger);
     assert.deepEqual(fileTargets, ['.agentrc.json']);
     assert.equal(manual.length, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Story #3895 — uninstall preserves a pre-existing .agentrc.json (data loss)
+// ---------------------------------------------------------------------------
+//
+// The bootstrap records the live `agentrc` phase outcome in the ledger as
+// `executedAction` (schema v2). `seeded` means the install authored the file
+// from the starter; `already-present` means an operator-authored file was left
+// untouched. Uninstall must delete ONLY the `seeded` case — deleting an
+// `already-present` file is the data loss this Story closes.
+// ---------------------------------------------------------------------------
+
+describe('runUninstall — preserves a pre-existing .agentrc.json (Story #3895)', () => {
+  it('does NOT delete an .agentrc.json the install did not create (executedAction=already-present)', () => {
+    // Arrange: the operator hand-authored .agentrc.json before install; the
+    // bootstrap left it untouched and recorded `already-present`.
+    fs.mkdirSync(tmpRoot, { recursive: true });
+    const handAuthored = {
+      $schema: './.agents/schemas/agentrc.schema.json',
+      github: { owner: 'operator', repo: 'their-repo' },
+      delivery: { maxTokenBudget: 99999 }, // operator-specific tuning
+    };
+    writeJson(path.join(tmpRoot, '.agentrc.json'), handAuthored);
+    writeLedger(tmpRoot, {
+      entries: [
+        {
+          target: '.agentrc.json',
+          reversible: true,
+          executedAction: 'already-present',
+        },
+      ],
+    });
+
+    const cap = makeCapture();
+    runUninstall({ projectRoot: tmpRoot, write: cap.write, exit: cap.exit });
+
+    // The pre-existing file MUST survive, byte-for-byte.
+    assert.equal(cap.exitCode, 0);
+    assert.equal(
+      fs.existsSync(path.join(tmpRoot, '.agentrc.json')),
+      true,
+      'pre-existing .agentrc.json must NOT be deleted on uninstall',
+    );
+    assert.deepEqual(
+      readJson(path.join(tmpRoot, '.agentrc.json')),
+      handAuthored,
+      'pre-existing .agentrc.json content must be untouched',
+    );
+    assert.match(cap.text, /pre-existing .agentrc.json preserved/);
+  });
+
+  it('still removes an install-created .agentrc.json (executedAction=seeded)', () => {
+    // Arrange: a fresh install seeded the file from the starter.
+    fs.mkdirSync(tmpRoot, { recursive: true });
+    writeJson(path.join(tmpRoot, '.agentrc.json'), {
+      $schema: './.agents/schemas/agentrc.schema.json',
+      github: { owner: 'acme', repo: 'widgets' },
+    });
+    writeLedger(tmpRoot, {
+      entries: [
+        { target: '.agentrc.json', reversible: true, executedAction: 'seeded' },
+      ],
+    });
+
+    const cap = makeCapture();
+    runUninstall({ projectRoot: tmpRoot, write: cap.write, exit: cap.exit });
+
+    assert.equal(cap.exitCode, 0);
+    assert.equal(
+      fs.existsSync(path.join(tmpRoot, '.agentrc.json')),
+      false,
+      'install-created .agentrc.json must still be removed',
+    );
+  });
+
+  it('fails safe — preserves the file when the ledger carries no executedAction hint', () => {
+    // Arrange: a v2 ledger written by this framework always carries the hint,
+    // but if a malformed/legacy entry omits it, uninstall must not guess and
+    // delete operator content. Absence of the hint → preserve.
+    fs.mkdirSync(tmpRoot, { recursive: true });
+    writeJson(path.join(tmpRoot, '.agentrc.json'), {
+      $schema: './.agents/schemas/agentrc.schema.json',
+      github: { owner: 'operator', repo: 'their-repo' },
+    });
+    writeLedger(tmpRoot, {
+      entries: [{ target: '.agentrc.json', reversible: true }],
+    });
+
+    const cap = makeCapture();
+    runUninstall({ projectRoot: tmpRoot, write: cap.write, exit: cap.exit });
+
+    assert.equal(cap.exitCode, 0);
+    assert.equal(
+      fs.existsSync(path.join(tmpRoot, '.agentrc.json')),
+      true,
+      'no executedAction hint must fail safe and preserve the file',
+    );
+  });
+
+  it('planUninstall threads executedAction onto the per-target map', () => {
+    const ledger = {
+      entries: [
+        // repo-config create + quality-gates merge share the target; the first
+        // defined executedAction wins.
+        {
+          target: '.agentrc.json',
+          reversible: true,
+          executedAction: 'already-present',
+        },
+        { target: '.agentrc.json', reversible: true },
+      ],
+    };
+    const { fileTargets, executedActionByTarget } = planUninstall(ledger);
+    assert.deepEqual(fileTargets, ['.agentrc.json']);
+    assert.equal(executedActionByTarget['.agentrc.json'], 'already-present');
   });
 });
 
@@ -879,7 +1002,7 @@ describe('runUninstall — corrupt target file guard (Story #3544)', () => {
       entries: [
         { target: '.claude/settings.json', reversible: true },
         { target: 'CLAUDE.md', reversible: true },
-        { target: '.agentrc.json', reversible: true },
+        { target: '.agentrc.json', reversible: true, executedAction: 'seeded' },
       ],
     });
 
