@@ -327,27 +327,27 @@
     },
     "taskSizing": {
       "type": "object",
-      "description": "Story-sizing thresholds consumed by ticket-validator-sizing.js. Operator overrides shallow-merge with DEFAULT_TASK_SIZING defaults. Story #3760 collapsed the per-profile matrix and the parallel testSurface axis into a flat set of knobs; the sizingProfile enum was replaced by an optional body-level `wide` declaration that lifts the hardFiles rejection.",
+      "description": "Story-sizing thresholds consumed by ticket-validator-sizing.js. Operator overrides shallow-merge with DEFAULT_TASK_SIZING defaults. Story #3760 collapsed the per-profile matrix and the parallel testSurface axis into a flat set of knobs; the sizingProfile enum was replaced by an optional body-level `wide` declaration that lifts the hardFiles rejection. Story #3874 cut over to one uniform relaxed profile sized for capability slices a frontier model delivers and self-verifies in one pass.",
       "properties": {
         "softFiles": {
           "type": "integer",
           "minimum": 1,
-          "description": "File-count soft-warn threshold above which a typical-Story width finding fires (default 5)."
+          "description": "File-count soft-warn threshold above which a typical-Story width finding fires (default 8)."
         },
         "hardFiles": {
           "type": "integer",
           "minimum": 1,
-          "description": "File-count hard ceiling: a Story exceeding it is rejected unless it declares `wide` with a reason (default 15)."
+          "description": "File-count hard ceiling: a Story exceeding it is rejected unless it declares `wide` with a reason (default 30)."
         },
         "maxAcceptance": {
           "type": "integer",
           "minimum": 1,
-          "description": "Hard ceiling on acceptance[] item count (default 8)."
+          "description": "Hard ceiling on acceptance[] item count (default 14)."
         },
         "softAcceptanceCount": {
           "type": "integer",
           "minimum": 1,
-          "description": "Soft-warn threshold on acceptance[] item count (default 6)."
+          "description": "Soft-warn threshold on acceptance[] item count (default 10)."
         }
       },
       "additionalProperties": false

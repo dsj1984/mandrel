@@ -361,16 +361,23 @@ To keep the repository clean and avoid polluting the Git history:
 
 ## 7. Complexity-Aware Execution
 
-The dispatcher automatically calculates the execution plan for an Epic.
+The dispatcher automatically calculates the execution plan for an Epic. A
+Story is a **capability slice a frontier model delivers and self-verifies in
+one pass** — a broad footprint is normal when the change is cohesive. The
+numeric sizing backstop lives in one place: `DEFAULT_TASK_SIZING` in
+`.agents/scripts/lib/orchestration/ticket-validator-sizing.js` (operator
+override via `planning.taskSizing`). Do not re-slice a capability-sized
+Story into per-module fragments just because it touches many files.
 
 ### A. When You See `⚠️ COMPLEXITY WARNING`
 
 If your task contains a complexity warning or exceeds localized scope:
 
 1. **Plan first.** Read the full instructions, then write a numbered list of
-   atomic sub-steps in a `<!-- DECOMPOSITION -->` comment block.
-2. **5-file rule.** Each sub-step should modify no more than 5 files.
-3. **Commit incrementally.** stage, commit, and push after each logical
+   cohesive sub-steps in a `<!-- DECOMPOSITION -->` comment block — one
+   coherent change with one reason to exist per sub-step, not one file per
+   sub-step.
+2. **Commit incrementally.** Stage, commit, and push after each logical
    sub-step completes successfully.
-4. **Fail fast.** If any sub-step fails validation, STOP and report the
+3. **Fail fast.** If any sub-step fails validation, STOP and report the
    failure.

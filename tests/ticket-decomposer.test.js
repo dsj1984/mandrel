@@ -377,18 +377,32 @@ describe('ticket-decomposer buildDecomposerSystemPrompt', () => {
     );
   });
 
-  it('advertises the maxAcceptance and hardFiles ceilings from the single sizing constant (Story #3760)', () => {
+  it('advertises the maxAcceptance and hardFiles ceilings from the single sizing constant (Story #3760, relaxed by Story #3874)', () => {
     // The prompt sources its threshold sentence from DEFAULT_TASK_SIZING so
-    // the two surfaces cannot drift. The default ceilings are maxAcceptance=8
-    // and hardFiles=15.
+    // the two surfaces cannot drift. The relaxed default ceilings are
+    // maxAcceptance=14 and hardFiles=30.
     const prompt = buildDecomposerSystemPrompt([]);
     assert.ok(
-      /maxAcceptance/.test(prompt) && /\b8\b/.test(prompt),
-      'prompt must advertise the maxAcceptance ceiling of 8',
+      /maxAcceptance/.test(prompt) && /\b14\b/.test(prompt),
+      'prompt must advertise the maxAcceptance ceiling of 14',
     );
     assert.ok(
-      /hardFiles/.test(prompt) && /\b15\b/.test(prompt),
-      'prompt must advertise the hardFiles ceiling of 15',
+      /hardFiles/.test(prompt) && /\b30\b/.test(prompt),
+      'prompt must advertise the hardFiles ceiling of 30',
+    );
+  });
+
+  it('renders the ≤7 soft Feature-count guidance from the SSOT constant (Story #3874)', () => {
+    // The Feature-count sentence interpolates SOFT_STORIES_PER_FEATURE from
+    // ticket-validator-sizing.js — the prose cannot drift from the constant.
+    const prompt = buildDecomposerSystemPrompt([]);
+    assert.ok(
+      /Features typically decompose into ≤7 Stories/.test(prompt),
+      'prompt must advertise the ≤7 Stories-per-Feature soft guidance',
+    );
+    assert.ok(
+      !/≤5 Stories|past five Stories/.test(prompt),
+      'prompt must not retain the retired ≤5 Feature-count guidance',
     );
   });
 
