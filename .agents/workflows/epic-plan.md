@@ -195,8 +195,11 @@ hand-authored Epics that predate the canonical headings continue to
 pass without rewording.
 
 The rubric is deterministic: section-presence against the five
-canonical headings. The threshold is ≥ 4 of 5 sections present →
-`clear`. See
+canonical headings. A `clear` verdict requires **both** ≥ 4 of 5
+sections present **and** the **Acceptance Criteria** section present —
+AC is a required section, not one of the four optional passers, so an
+Epic with no Acceptance Criteria is always `needs-refinement` (it would
+otherwise hard-fail the `/epic-deliver` start gate downstream). See
 [`lib/epic-plan-clarity.js`](../scripts/lib/epic-plan-clarity.js)
 for the scoring logic.
 
@@ -559,8 +562,11 @@ node .agents/scripts/epic-plan-spec-validate.js \
 
    The `maxTickets` cap (`planning.maxTickets` in
    `.agentrc.json`; framework default in
-   `.agents/scripts/lib/config/limits.js`) is the hard ceiling. The
-   `epic-plan-decompose.js` script also logs the resolved cap to stderr
+   `.agents/scripts/lib/config/limits.js`) is a **reviewability budget**,
+   not a hard authoring ceiling: a draft over budget warns at authoring
+   time and is rejected at persist unless rerun with `--allow-over-budget`
+   (after confirming the over-budget rationale on the Epic). The
+   `epic-plan-decompose.js` script also logs the resolved budget to stderr
    so a misconfigured key surfaces immediately. The skill body is the
    authoritative source of the decomposer prompt; the `systemPrompt`
    field on the emit envelope is a backstop for legacy callers.
@@ -806,9 +812,9 @@ condition.
 - If `epic-plan-spec.js --emit-context` fails, confirm the Epic exists and
   has a body with enough initial context.
 - If `epic-plan-decompose.js` rejects the tickets file, re-read the
-  validator's error message — the most common causes are a Story with no child
-  Tasks, a Task whose `parent_slug` does not point at a Story, or cross-Story
-  Task dependencies (which must be lifted to Story-level dependencies).
+  validator's error message — the most common causes are a Story with no
+  `parent_slug`, a Story whose `parent_slug` does not point at a Feature, or a
+  dependency cycle in the Story `depends_on` graph.
 - If decomposition persisted the tickets but the Epic is not on `agent::ready`,
   you likely called `runDecomposePhase` from `epic-plan-decompose.js`
   directly without completing the persist flow — only the CLI surface

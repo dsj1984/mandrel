@@ -16,8 +16,9 @@ current work unit. You must follow these rules strictly.
 
 ## 1. Pre-Flight Verification
 
-Before writing any code, verify that all dependencies are resolved. If the task
-is blocked by other tasks, you must STOP and report that the task is blocked.
+Before writing any code, verify that all dependencies are resolved. If the
+Story is blocked by other Stories, you must STOP and report that the Story is
+blocked.
 
 ## 2. Branching Convention
 
@@ -30,14 +31,14 @@ Do not push directly to any protected branch ({{PROTECTED_BRANCHES}}).
 
 If you encounter ambiguity where you need human input before proceeding, or
 hit an unrecoverable blocker, STOP execution, apply `agent::blocked` to this
-task, and post a friction comment naming the decision required. `risk::high`
+Story, and post a friction comment naming the decision required. `risk::high`
 is informational metadata only — it does not pause execution on its own.
 
 ## 4. Error Recovery
 
 If you hit an unrecoverable error during implementation:
 
-1. Apply the `agent::blocked` label to this task (Issue #{{TASK_ID}}).
+1. Apply the `agent::blocked` label to this Story (Issue #{{TASK_ID}}).
 2. Report the friction to the operator clearly.
 
 ## 5. Close-Out Protocol

@@ -14,6 +14,79 @@
 > answered at the time; cross-cuts that the Mandrel rebrand supersedes
 > are flagged in the entries themselves.
 
+## ADR 20260610-planning-determinism-dispositions: Per-layer dispositions for the deterministic planning proxies
+
+**Status:** Accepted
+**Date:** 2026-06-10
+**Scope:** Story #3910 (audit
+[`epic-lifecycle-review.md` §4](epic-lifecycle-review.md)).
+
+### Context
+
+The planning pipeline carries several deterministic keyword / regex / Jaccard
+proxies for judgment the host frontier model already makes. The §4 audit asked,
+per layer, to either simplify/delete the proxy or **explicitly keep it with a
+recorded justification**, and flagged two validators that *advertised a
+guarantee they did not provide*. This ADR is the single home for those
+dispositions so a future reader does not re-litigate each one.
+
+### Decision
+
+**Simplified in Story #3910:**
+
+- **Clarity gate** (`lib/epic-plan-clarity.js`): Acceptance Criteria is now a
+  **required** section — `clear` requires `≥ 4/5` sections present **and** the
+  AC section present. The pre-#3910 `≥ 4/5` rule passed an Epic with *no*
+  Acceptance Criteria, which then hard-failed the `/epic-deliver` start gate
+  downstream: the gate advertised a clarity guarantee it did not provide. The
+  idempotent persist CLI is unchanged.
+- **Consolidate critic "scope-preserving" claim**
+  (`skills/core/epic-plan-consolidate/SKILL.md`): the claim that scope
+  conservation is "asserted by a test that checks the acceptance/verify union"
+  overstated coverage — the unit test exercises a *pure model* of the merge, not
+  the critic's actual LLM output, and **no runtime acceptance-union diff** runs
+  on the result (the only post-consolidation runtime backstop is
+  `assertNoSingleStoryFeature`). The Skill now states this plainly rather than
+  promising a machine guarantee. Adding a real runtime acceptance-union diff is
+  deferred (it is net-new validation, not a sweep).
+
+**Explicitly kept (high-value determinism — cheap, hard, catches real
+hallucinations):**
+
+- **Ticket structural validation** (hierarchy, cycles, dependency resolution in
+  `lib/orchestration/ticket-validator*.js`), **file-assumption git probes**, and
+  the **`maxTickets` reviewability budget** (soft, `--allow-over-budget`) — the
+  highest-value determinism in the pipeline; they catch real authoring
+  hallucinations a model cannot self-check.
+- **Epic/Story lease + checkout guards**, the **evidence-gate** skip cache, and
+  the **PR open/locate** probes — coordination/idempotence primitives with no
+  LLM-judgment substitute.
+
+**Kept for now, simplification deferred to a follow-up (each is net-new
+deletion/refactor beyond a prose-and-guarantee sweep, and several touch live
+test surfaces or the dead-stratum boundary owned by #3908/#3909/#3911):**
+
+- **Spec-freshness "net-new cue" keyword classifier** — the decompose-side git
+  probes are the real gate; the cue classifier is a candidate for deletion.
+- **BDD `findBestScenarioMatch` Jaccard matcher** — keep the scanner index;
+  the model authors the Disposition column either way, so the matcher is
+  removable.
+- **Risk-verdict derivation/routing (~180 LOC)** — the schema + audit comment
+  stay; the model authors the axes, so the derivation/routing collapse is a
+  follow-up.
+- **Phase 7.5 section gate** — right check, wrong altitude: fold the one-line
+  call inside `runSpecPhase` and delete the standalone CLI + manual phase.
+
+### Consequences
+
+Story #3910 closes the two advertised-guarantee gaps and records keep/defer
+rationale for the rest. The deferred simplifications remain tracked by the §4
+audit table; they are intentionally **not** bundled into this sweep so the
+hard-cutover doctrine (one in-tree migration per contract change) is preserved
+and the change set stays reviewable.
+
+---
+
 ## ADR 20260604-flat-command-projection-revert: Revert the plugin cutover — project workflows as flat `/<name>` commands
 
 **Status:** Accepted

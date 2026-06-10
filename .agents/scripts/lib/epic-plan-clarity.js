@@ -4,8 +4,17 @@
  * Pure, deterministic rubric: parse the Epic body for the five canonical
  * sections defined by `.agents/templates/epic-from-idea.md` (Context,
  * Goal, Non-Goals, Scope, Acceptance Criteria) and emit a verdict of
- * `clear` (≥ 4 of 5 sections present) or `needs-refinement` along with a
- * gap list for the refinement loop seed.
+ * `clear` or `needs-refinement` along with a gap list for the refinement
+ * loop seed.
+ *
+ * Verdict rule: `clear` requires **both** (a) ≥ 4 of 5 canonical sections
+ * present, **and** (b) the **Acceptance Criteria** section present. The
+ * Acceptance-Criteria requirement is load-bearing: a downstream
+ * `/epic-deliver` start gate and the close-time acceptance-spec reconciler
+ * both assume the Epic carries acceptance criteria, so a gate that passed an
+ * Epic with no Acceptance Criteria (the pre-Story-#3910 `≥ 4 of 5` behaviour)
+ * advertised a clarity guarantee it did not provide. AC is now a required
+ * section, not one of the four optional passers.
  *
  * Heading variants accepted per canonical section (back-compat with the
  * pre-canonical-headings ideation shape):
@@ -73,6 +82,8 @@ function classify(content) {
  *   missingOrPlaceholder: string[],
  * }}
  */
+const REQUIRED_SECTION = 'acceptanceCriteria';
+
 export function scoreEpicBody({ body } = {}) {
   const source = typeof body === 'string' ? body : '';
 
@@ -119,8 +130,13 @@ export function scoreEpicBody({ body } = {}) {
     .map((s) => s.name);
 
   const presentCount = sections.filter((s) => s.status === 'present').length;
+  const requiredPresent = sections.some(
+    (s) => s.name === REQUIRED_SECTION && s.status === 'present',
+  );
   const verdict =
-    presentCount >= CLEAR_THRESHOLD ? 'clear' : 'needs-refinement';
+    presentCount >= CLEAR_THRESHOLD && requiredPresent
+      ? 'clear'
+      : 'needs-refinement';
 
   return { verdict, sections, missingOrPlaceholder };
 }

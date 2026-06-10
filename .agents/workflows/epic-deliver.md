@@ -294,12 +294,11 @@ instruct the child to invoke `helpers/epic-deliver-story <storyId>`, (3) state t
 **return contract** below, (4) remind the child of the
 **non-interactive contract** (no clarifying questions; transition to
 `agent::blocked` and exit if stuck), (5) ask the child to suppress
-per-Task chat relay and include its **terminal** `renderedBody` in the
-JSON return, and (6) include the literal directive
-**Heartbeat or block.** — the child MUST emit a `story.heartbeat` lifecycle event at
-least once per Story-level phase transition via
+per-Story chat relay and include its **terminal** `renderedBody` in the
+JSON return, and (6) require the child to emit a `story.heartbeat`
+lifecycle event at least once per Story-level phase transition via
 `node .agents/scripts/story-phase.js` (or whenever it stalls on a
-long-running step), and if it cannot make progress it MUST transition
+long-running step), and if it cannot make progress to transition
 to `agent::blocked` rather than fall silent. The pairing of
 `story.heartbeat` and `agent::blocked` is what lets the §2e Idle
 Watchdog distinguish a working child from a dead one; a silent child
@@ -311,7 +310,6 @@ watchdog is built to catch.
   "storyId": <number>,
   "status": "done" | "blocked" | "failed",
   "phase": "init|implementing|closing|blocked|done",
-  "tasksDone": <number>, "tasksTotal": <number>,
   "branchDeleted": <boolean>,
   "blockerCommentId": <string|null>,
   "detail": <string|undefined>,

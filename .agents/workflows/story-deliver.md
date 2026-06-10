@@ -284,9 +284,11 @@ blocked or unstarted Stories execute.
 - **Never** exceed `concurrencyCap` parallel Agent calls at any moment.
 - **Always** confirm the wave plan with the operator before dispatching,
   unless `--yes` was passed.
-- **MCP fallback**: if `mandrel` MCP tools fail, fall back to
-  `node .agents/scripts/update-ticket-state.js --ticket <id> --state <state>`
-  for label transitions.
+- **Label transitions**: drive every `agent::*` state change through
+  `node .agents/scripts/update-ticket-state.js --ticket <id> --state <state>`.
+  This CLI is the authoritative mechanism — there is no separate
+  state-mutation MCP server to degrade from (see
+  [`.agents/instructions.md` § 1.D](../instructions.md)).
 
 ---
 

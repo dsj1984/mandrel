@@ -8,8 +8,8 @@ description: >-
 # Epic Audit (helper)
 
 > **Helper module.** Not a slash command. Invoked automatically from
-> `/epic-deliver` Phase 4 and from the Bookend Lifecycle when all Tasks reach
-> `agent::done`. To run an audit directly, use `/epic-deliver [Epic_ID]` — it
+> `/epic-deliver` Phase 4 once the wave loop completes (all Stories at
+> `agent::done`). To run an audit directly, use `/epic-deliver [Epic_ID]` — it
 > delegates here (or pass `--skip-epic-audit` to bypass).
 
 This helper runs the **change-set-aware audit pass** on an Epic branch
@@ -32,8 +32,8 @@ change-set selection. Both lens sources fire through the **same**
 `runAuditSuite` dispatch below — no new audit machinery.
 
 > **When to run**: After Phase 3 close-validation passes and before Phase 5
-> code-review. The Bookend Lifecycle in `/epic-deliver` invokes this
-> automatically when all Tasks reach `agent::done`.
+> code-review. `/epic-deliver` invokes this automatically once the wave loop
+> completes and all Stories reach `agent::done`.
 >
 > **Persona**: `architect` · **Skills**: `core/code-review-and-quality`,
 > `core/security-and-hardening`

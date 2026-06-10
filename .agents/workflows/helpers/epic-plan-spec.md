@@ -17,11 +17,18 @@ Director / Architect
 
 ## Context
 
-This helper is the **spec phase** of the split planning pipeline. It produces a
-Product Requirements Document and a Technical Specification for an Epic,
-persists them as `context::prd` and `context::tech-spec` issues under the
-Epic, and flips the Epic to `agent::review-spec` (parking) so a human reviewer
-can read the artifacts on GitHub before decomposition.
+This helper is the **spec phase** of the split planning pipeline. It produces
+**three** planning artifacts for an Epic — a Product Requirements Document, a
+Technical Specification, and an Acceptance Spec — persists them as
+`context::prd`, `context::tech-spec`, and `context::acceptance-spec` issues
+under the Epic, and flips the Epic to `agent::review-spec` (parking) so a human
+reviewer can read the artifacts on GitHub before decomposition.
+
+> **Single prose home.** The canonical, full-detail spec-phase contract
+> (idempotent context tickets, the three-ticket rationale, the
+> `acceptance::n-a` waiver, the Epic-lease preflight) lives in
+> [`epic-plan.md` § Phase 7](../epic-plan.md). This helper carries only the
+> operational step list; when the two disagree, `epic-plan.md` wins.
 
 The PRD and Tech Spec are authored **directly by you, the host LLM**.
 `epic-plan-spec.js` is a deterministic wrapper that (a) emits the authoring
@@ -35,7 +42,8 @@ wrapper chains both helpers with a confirmation gate in between.
 ## Constraint
 
 - **Do not** create or modify tickets outside the `context::prd` /
-  `context::tech-spec` contract — decomposition belongs to
+  `context::tech-spec` / `context::acceptance-spec` contract —
+  decomposition belongs to
   [`epic-plan-decompose.md`](epic-plan-decompose.md).
 - **Do not** flip the Epic to `agent::ready` from this skill. The terminal
   label for the spec phase is `agent::review-spec`.
@@ -87,20 +95,40 @@ authoring rules (axis vocabulary, judgment-not-keywords, derivation
 preview) live in the
 [`epic-plan-spec-author` Skill, Step 4](../../skills/core/epic-plan-spec-author/SKILL.md).
 
+## Step 3.6 — Author the Acceptance Spec
+
+Using `systemPrompts.acceptanceSpec`, the PRD, and the Tech Spec, write the
+Acceptance Spec to `temp/epic-[Epic_ID]/acceptance-spec.md`. It captures the
+stable-ID acceptance criteria table
+(`| AC ID | Outcome | Feature File | Scenario | Disposition |`) that drives
+close-time reconciliation in `/epic-deliver` Phase 6.
+
+**Skip this step only** when the Epic carries the `acceptance::n-a` waiver
+label (refactor-only or docs-only Epics); in that case omit `--acceptance-spec`
+from Step 4.
+
 ## Step 4 — Persist and transition
 
 ```bash
-# Normal flow
+# Normal flow (three context tickets)
+node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] \
+  --prd temp/epic-[Epic_ID]/prd.md \
+  --techspec temp/epic-[Epic_ID]/techspec.md \
+  --risk-verdict temp/epic-[Epic_ID]/risk-verdict.json \
+  --acceptance-spec temp/epic-[Epic_ID]/acceptance-spec.md
+
+# Re-plan (--force overwrites the three context tickets in place)
+node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] \
+  --prd temp/epic-[Epic_ID]/prd.md \
+  --techspec temp/epic-[Epic_ID]/techspec.md \
+  --risk-verdict temp/epic-[Epic_ID]/risk-verdict.json \
+  --acceptance-spec temp/epic-[Epic_ID]/acceptance-spec.md --force
+
+# Waived (acceptance::n-a label on Epic — no Acceptance Spec authored)
 node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] \
   --prd temp/epic-[Epic_ID]/prd.md \
   --techspec temp/epic-[Epic_ID]/techspec.md \
   --risk-verdict temp/epic-[Epic_ID]/risk-verdict.json
-
-# Re-plan (regenerates an existing PRD / Tech Spec)
-node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] \
-  --prd temp/epic-[Epic_ID]/prd.md \
-  --techspec temp/epic-[Epic_ID]/techspec.md \
-  --risk-verdict temp/epic-[Epic_ID]/risk-verdict.json --force
 ```
 
 On success the script:
@@ -108,13 +136,16 @@ On success the script:
 - Validates the risk verdict against `risk-verdict.schema.json` (a
   malformed verdict fails closed before any GitHub mutation) and derives
   the `planningRisk` envelope from it.
-- Creates `[PRD]` and `[Tech Spec]` child issues (`context::prd` /
-  `context::tech-spec` labels).
+- Creates `[PRD]`, `[Tech Spec]`, and `[Acceptance Spec]` child issues
+  (`context::prd` / `context::tech-spec` / `context::acceptance-spec`
+  labels). The Acceptance Spec is skipped when `--acceptance-spec` is
+  omitted under the `acceptance::n-a` waiver.
 - Appends a `## Planning Artifacts` section to the Epic body.
 - Upserts the `risk-verdict` structured comment recording the verdict and
   the derived envelope.
 - Upserts the `epic-plan-state` structured comment with the current phase,
-  PRD / Tech Spec IDs, the `riskVerdict` field, and timestamps.
+  PRD / Tech Spec / Acceptance Spec IDs, the `riskVerdict` field, and
+  timestamps.
 - Flips the Epic to `agent::review-spec`.
 
 ## Step 5 — Cleanup
