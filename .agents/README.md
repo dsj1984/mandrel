@@ -25,7 +25,26 @@ cross-directory authoring conventions. The process narrative for
 
 ## Activation
 
-### Cold start — install the npm package
+### Cold start — `npx create-mandrel`
+
+The canonical cold-start path is a single launcher command, run from the
+root of your project (the folder does **not** need to be a git repo yet):
+
+```bash
+npx create-mandrel        # install @mandrelai/agents → mandrel sync → bootstrap.js
+```
+
+`create-mandrel` installs `@mandrelai/agents`, materializes `./.agents/` via
+`mandrel sync` (skipping the install when `.agents/` already exists), and
+finishes by running `node .agents/scripts/bootstrap.js`, forwarding any flags
+you pass. After it completes, run **`/onboard`** inside Claude Code for the
+guided first run — stack detection, docs scaffolding, a `mandrel doctor`
+readiness gate, and a started `/epic-plan` handoff.
+
+The remainder of this section documents the manual steps `create-mandrel`
+wraps, for operators who prefer to drive them by hand.
+
+### Manual cold start — install the npm package
 
 From an **empty or existing** project that does not yet have `.agents/`,
 install the package and materialize the framework payload:
