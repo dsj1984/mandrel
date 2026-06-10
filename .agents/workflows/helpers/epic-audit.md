@@ -20,6 +20,17 @@ lenses are actually relevant to **this** Epic's change set, then dispatches
 only the matching audit workflows. Docs-only Epics select zero lenses and
 exit cleanly.
 
+In addition to the change-set selection, `epic-audit-prepare.js` unions in
+the **risk-routed lenses** (Story #3889): it reads the Epic's model-judged
+`planningRisk` envelope off the `epic-plan-state` checkpoint and routes each
+high-risk axis to its mapped lens via
+[`resolveAuditLenses`](../../scripts/lib/orchestration/code-review.js)
+(`security` → `audit-security`, `public-api` → `audit-architecture`). A
+high-risk Epic therefore auto-runs its mapped lenses even when the change
+set alone did not select them; a low-risk Epic adds nothing beyond the
+change-set selection. Both lens sources fire through the **same**
+`runAuditSuite` dispatch below — no new audit machinery.
+
 > **When to run**: After Phase 3 close-validation passes and before Phase 5
 > code-review. The Bookend Lifecycle in `/epic-deliver` invokes this
 > automatically when all Tasks reach `agent::done`.
@@ -60,17 +71,26 @@ envelope:
   "epicId": 2586,
   "epicBranch": "epic/2586",
   "selectedAudits": ["audit-security", "audit-privacy"],
+  "changeSetAudits": ["audit-privacy"],
+  "riskRoutedAudits": ["audit-security"],
   "changedFiles": ["src/api/admin/users.ts", "..."],
   "changedFilesCount": 47,
   "substitutionsPayload": "src/api/admin/users.ts\n..."
 }
 ```
 
+`selectedAudits` is the de-duplicated **union** of `changeSetAudits` (the
+change-set selection) and `riskRoutedAudits` (the model-judged risk-routed
+lenses). The two source arrays are surfaced for observability so the
+operator can see why each lens fired. Dispatch the `selectedAudits` union
+in Step 2.
+
 ### Outcomes
 
 - **`selectedAudits` is non-empty** — continue to Step 2.
-- **`selectedAudits` is empty** (docs-only or no-lens change set) — skip
-  Step 2 and write the docs-only marker described in Step 4.
+- **`selectedAudits` is empty** (docs-only or no-lens change set, and no
+  high-risk axis routed a lens) — skip Step 2 and write the docs-only
+  marker described in Step 4.
 - **`degraded: true`** — the selector aborted. Possible `reason` codes:
   `GIT_DIFF_TIMEOUT` (git-diff timed out), `HEAD_REF_UNRESOLVED` (the
   Epic's branch `refs/heads/epic/<id>` is not present in this checkout),
