@@ -3,12 +3,13 @@
  * Default listener-chain builder for the standalone `lifecycle-emit`
  * CLI surface (Story #2510, Epic #2501).
  *
- * `lib/orchestration/epic-runner/factory.js` already wires the full
- * close-tail chain when the production runner constructs an Epic. That
- * path stays canonical for the runner. This module mirrors the same
- * roster — in the same documented order — for callers that emit
- * lifecycle events OUTSIDE the runner (the `lifecycle-emit.js` CLI
- * shells in `/epic-deliver`'s Phase 6 / 7.5 / 8 markdown invocations).
+ * This is the SOLE production wiring path for the close-tail listener
+ * roster. (The in-process `epic-runner/factory.js` that previously
+ * mirrored this roster for an in-session runner was deleted with the
+ * dead epic-runner stratum in Story #3908; the host-LLM-drives-CLIs
+ * model reaches every close-tail listener through the `lifecycle-emit.js`
+ * CLI shells in `/epic-deliver`'s Phase 6 / 7.5 / 8 markdown invocations,
+ * which call this builder.)
  *
  * Canonical roster (registration order):
  *   1. LedgerWriter            (privileged hooks via `register(bus)`)
