@@ -16,10 +16,17 @@
  *   --------------------   ---------------------
  *   `epic-started`         (emitted at /epic-deliver kickoff;
  *                          this listener handles `epic.snapshot.start`)
- *   `epic-progress`        `wave.end` (boundary fire)
  *   `epic-blocked`         `epic.blocked`
- *   `epic-unblocked`       `epic.unblocked`
  *   `epic-complete`        `epic.complete`
+ *
+ * The `epic-progress` and `epic-unblocked` webhook events are NOT mapped
+ * here: their former dotted lifecycle triggers (`wave.end` /
+ * `epic.unblocked`) belonged to the in-process runner stratum deleted in
+ * Story #3908. The production wave loop fires those curated webhooks
+ * directly through `progress-reporter/transport.js`
+ * (`wave-record-notifications.js`), so the webhook names stay valid in
+ * `NOTIFICATIONS_DEFAULTS` — only the redundant lifecycle-bus subscription
+ * is gone.
  *
  * Why per-event subscriptions instead of a wildcard listener? The
  * wildcard would receive every event the bus carries, forcing the
@@ -46,9 +53,7 @@
  */
 export const LIFECYCLE_TO_WEBHOOK_EVENT = Object.freeze({
   'epic.snapshot.start': 'epic-started',
-  'wave.end': 'epic-progress',
   'epic.blocked': 'epic-blocked',
-  'epic.unblocked': 'epic-unblocked',
   'epic.complete': 'epic-complete',
 });
 

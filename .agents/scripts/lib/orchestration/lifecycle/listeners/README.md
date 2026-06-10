@@ -1,23 +1,39 @@
 # Lifecycle Listeners
 
 Each listener in this directory subscribes to one or more lifecycle bus
-events and performs a single side effect:
+events and performs a single side effect. The canonical close-tail roster
+— in registration order — is wired by
+[`index.js`](./index.js) (`buildDefaultListenerChain`), the production
+entrypoint the standalone `lifecycle-emit.js` CLI shells in for
+`/epic-deliver`'s Phase 6 / 7.5 / 8 / 8.5 markdown invocations:
 
-- `label-transitioner.js` — flips ticket `agent::*` labels via
-  `transitionTicketState` in response to `wave.end`, `story.merged`,
-  `story.blocked`, `epic.blocked`, `epic.unblocked`, `epic.complete`.
-- `structured-comment-poster.js` — upserts `wave-<n>-start` /
-  `wave-<n>-end` and `lifecycle-epic-blocked` / `lifecycle-epic-unblocked`
-  structured comments on the Epic ticket. Owns the rich wave-boundary
-  body (per-story bullets, duration, commit-assertion reclassification
-  detail) inherited from the retired `wave-observer.js` writer
-  (Epic #2646 Story C).
-- `progress-reporter.js` _(Task #2244)_ — composes the
-  `epic-run-progress` comment off `wave.end` / `story.dispatch.end`.
-- `signals-appender.js` _(Task #2244)_ — appends idempotent rows to
-  `temp/epic-<id>/signals.ndjson`.
-- `notify-dispatcher.js` _(Task #2244)_ — fans out the curated webhook
-  event subset.
+- `ledger-writer.js` — privileged `onEmitted` hook that lands every
+  `emitted` record on disk before any listener body runs (MUST be first).
+- `acceptance-reconciler.js` — gates Finalize on close-time acceptance
+  coverage (`epic.close.end → acceptance.reconcile.*`).
+- `finalizer.js` — opens the PR on `acceptance.reconcile.{ok,waived}` and
+  emits `epic.merge.ready`.
+- `automerge-armer.js` — arms `gh pr merge --auto --squash --delete-branch`
+  on `epic.merge.ready`.
+- `automerge-predicate.js` — evaluates the clean-sprint predicate and
+  emits `epic.merge.{ready,blocked}`.
+- `branch-cleaner.js` — reaps story/epic branches on `epic.cleanup.start`.
+- `merge-watcher.js` — polls `gh pr view` after `epic.merge.armed` until
+  the PR's `mergeCommit` is observed, then emits `epic.merge.confirmed`.
+- `cleaner.js` — archives `temp/epic-<id>/` and emits the terminal
+  `epic.cleanup.* → epic.complete` sequence on `epic.merge.confirmed`.
+- `checkpoint-pointer-writer.js` — persists `{ lastCompletedSeqId, phase }`
+  on every `*.end` event.
+
+Two further listeners are activated outside the close-tail chain by their
+own CLI entrypoints rather than `buildDefaultListenerChain`:
+
+- `notify-dispatcher.js` — fans out the curated webhook event subset
+  (driven by `notify.js`).
+- `intervention-recorder.js` — appends operator-intervention payloads to
+  the epic-run-state (driven by `epic-deliver-note-intervention.js`).
+- `watcher.js` — the CI-poll loop (`watchPrToTerminal`) driven by
+  `pr-watch-with-update.js`.
 
 ## Idempotency contract
 

@@ -164,19 +164,9 @@ const EVENT_CLASSIFICATION = Object.freeze({
 
   // --- epic lifecycle ---
   'epic.blocked': {
-    kind: 'connected',
-    emitter: 'blocker-handler.js',
-    subscriber: 'label-transitioner.js',
-  },
-  'epic.unblocked': {
-    kind: 'connected',
-    emitter: 'blocker-handler.js',
-    subscriber: 'label-transitioner.js',
-  },
-  'epic.close.start': {
     kind: 'terminal',
-    emitter: 'epic-deliver-close-tail.js',
-    why: 'phase-boundary trace',
+    emitter: 'acceptance-reconciler.js',
+    why: 'blocker signal emitted by AcceptanceReconciler / MergeWatcher; consumed only by the wildcard NotifyDispatcher (dynamic this.events) which fans it to the curated webhook. Its former dedicated subscribers (BlockerHandler / LabelTransitioner) were part of the in-process runner stratum deleted in Story #3908.',
   },
   'epic.close.end': {
     kind: 'connected',
@@ -194,9 +184,9 @@ const EVENT_CLASSIFICATION = Object.freeze({
     why: 'finalize end trace; the auto-merge arm re-enters via Phase 8.5',
   },
   'epic.complete': {
-    kind: 'connected',
+    kind: 'terminal',
     emitter: 'cleaner.js',
-    subscriber: 'label-transitioner.js',
+    why: 'terminal success event emitted by Cleaner; consumed only by the wildcard NotifyDispatcher (dynamic this.events) which fans it to the curated webhook. Its former dedicated subscriber (LabelTransitioner) was part of the in-process runner stratum deleted in Story #3908; the agent::done flip is driven by the post-merge close path, not a bus subscriber.',
   },
   'epic.snapshot.start': {
     kind: 'terminal',
@@ -287,9 +277,9 @@ const EVENT_CLASSIFICATION = Object.freeze({
     why: 'ledger-append dispatch marker; consumed by the idle watchdog reading the ledger, not a bus subscriber',
   },
   'story.dispatch.end': {
-    kind: 'connected',
+    kind: 'terminal',
     emitter: 'emit-story-dispatch-end.js',
-    subscriber: 'progress-reporter.js',
+    why: 'ledger-append dispatch-end marker consumed by the idle watchdog reading the ledger and by CheckpointPointerWriter (which subscribes via the dynamic SUBSCRIBED_END_EVENTS array, so the connectivity extractor classifies it as a wildcard observer, not a dedicated literal subscriber). Its former dedicated subscriber (ProgressReporter) was part of the in-process runner stratum deleted in Story #3908.',
   },
   'story.heartbeat': {
     kind: 'terminal',
@@ -297,35 +287,26 @@ const EVENT_CLASSIFICATION = Object.freeze({
     why: 'ledger-append heartbeat; consumed by the idle watchdog reading the ledger (wave-tick --check-idle), not a bus subscriber',
   },
   'story.blocked': {
-    kind: 'connected',
+    kind: 'terminal',
     emitter: 'pre-merge-validation.js',
-    subscriber: 'blocker-handler.js',
+    why: 'blocker signal surfaced via the story-close label flip + friction comment; its former dedicated subscriber (BlockerHandler) was part of the in-process runner stratum deleted in Story #3908. Consumed by wildcard observers (LedgerWriter) only.',
   },
   'story.merged': {
-    kind: 'connected',
+    kind: 'terminal',
     emitter: 'post-merge-close.js',
-    subscriber: 'label-transitioner.js',
+    why: 'merge signal surfaced via the post-merge label flip; its former dedicated subscriber (LabelTransitioner) was part of the in-process runner stratum deleted in Story #3908. Consumed by wildcard observers (LedgerWriter) only.',
   },
 
   // --- wave lifecycle ---
-  // The lifecycle `wave.start` / `wave.end` events are subscribed by
-  // several production listeners (StructuredCommentPoster, LabelTransitioner,
-  // ProgressReporter, SignalsAppender) but their ONLY emitter today is the
-  // in-process `wave-session.js` runner — part of the dead runner stratum
-  // the review (§2.1) slates for deletion under Story #3908, which the
-  // dependency graph deliberately runs AFTER this Story (#3908 blocked by
-  // #3901). The production wave loop emits `story.dispatch.end` +
-  // wave-boundary notifications instead, not lifecycle `wave.*`. Classified
-  // `external` (not `connected`) so the test stays truthful about the
-  // missing production emitter; #3908 owns resolving the runner stratum.
-  'wave.start': {
-    kind: 'external',
-    why: 'emitted only by the dead in-process runner (wave-session.js); production wave loop uses story.dispatch.end + notifications. Resolution belongs to Story #3908 (blocked by this Story).',
-  },
-  'wave.end': {
-    kind: 'external',
-    why: 'emitted only by the dead in-process runner (wave-session.js); production wave loop uses story.dispatch.end + notifications. Resolution belongs to Story #3908 (blocked by this Story).',
-  },
+  // The dotted lifecycle `wave.start` / `wave.end` events and their
+  // `epic.close.start` / `epic.unblocked` siblings were emitted only by the
+  // in-process runner stratum (wave-session.js / epic-deliver-close-tail.js /
+  // the runner factory) deleted in Story #3908. Their schemas were removed in
+  // the same cutover, so they no longer appear in the schema set the coverage
+  // assertion enforces. The production wave loop emits `story.dispatch.end` +
+  // hyphenated `wave-start` / `wave-end` SIGNAL records (not bus events) and
+  // fires the curated wave-boundary webhooks through
+  // progress-reporter/transport.js instead.
 
   // --- pure ledger / observer envelopes ---
   'checkpoint.written': {

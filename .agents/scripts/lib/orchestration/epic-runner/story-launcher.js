@@ -22,7 +22,7 @@ const DEFAULT_TIMEOUT_MS = 6 * 60 * 60 * 1000;
 export class StoryLauncher {
   /**
    * @param {{
-   *   ctx?: import('../context.js').EpicRunnerContext,
+   *   ctx?: { dispatch?: Function, concurrencyCap?: number, worktreeResolver?: (storyId: number) => string, logger?: object },
    *   concurrencyCap?: number,
    *   dispatch?: (args: { plan: Array<{ storyId: number, worktree?: string }>, concurrencyCap: number, signal?: AbortSignal }) => Promise<Array<{ storyId: number, status: string, detail?: string }>>,
    *   worktreeResolver?: (storyId: number) => string,

@@ -63,8 +63,11 @@ describe('resolvePointerPath', () => {
 describe('buildPointerPayload', () => {
   it('passes through lastCompletedSeqId and phase verbatim', () => {
     assert.deepEqual(
-      buildPointerPayload({ lastCompletedSeqId: 7, phase: 'wave.end' }),
-      { lastCompletedSeqId: 7, phase: 'wave.end' },
+      buildPointerPayload({
+        lastCompletedSeqId: 7,
+        phase: 'story.dispatch.end',
+      }),
+      { lastCompletedSeqId: 7, phase: 'story.dispatch.end' },
     );
   });
 });
@@ -156,15 +159,19 @@ describe('CheckpointPointerWriter — pointer write + self-emit', () => {
       observed.push({ seqId: ctx.seqId, payload: ctx.payload });
     });
 
-    await bus.emit('wave.end', { waveIndex: 0, outcomes: {} });
+    await bus.emit('story.dispatch.end', {
+      storyId: 9001,
+      outcome: 'done',
+      durationMs: 1,
+    });
 
     const pointer = readPointer(writer.pointerPath);
-    assert.equal(pointer.phase, 'wave.end');
+    assert.equal(pointer.phase, 'story.dispatch.end');
     assert.equal(typeof pointer.lastCompletedSeqId, 'number');
     assert.equal(pointer.lastCompletedSeqId >= 1, true);
     // Self-emit landed exactly once.
     assert.equal(observed.length, 1);
-    assert.equal(observed[0].payload.phase, 'wave.end');
+    assert.equal(observed[0].payload.phase, 'story.dispatch.end');
     assert.equal(
       observed[0].payload.lastCompletedSeqId,
       pointer.lastCompletedSeqId,
@@ -188,14 +195,22 @@ describe('CheckpointPointerWriter — pointer write + self-emit', () => {
 
     await bus.emit('epic.plan.end', { waves: [[1]] });
     const afterPlan = readPointer(writer.pointerPath);
-    await bus.emit('wave.end', { waveIndex: 0, outcomes: {} });
+    await bus.emit('story.dispatch.end', {
+      storyId: 9001,
+      outcome: 'done',
+      durationMs: 1,
+    });
     const afterWave1 = readPointer(writer.pointerPath);
-    await bus.emit('wave.end', { waveIndex: 1, outcomes: {} });
+    await bus.emit('story.dispatch.end', {
+      storyId: 9002,
+      outcome: 'done',
+      durationMs: 1,
+    });
     const afterWave2 = readPointer(writer.pointerPath);
 
     assert.equal(afterPlan.phase, 'epic.plan.end');
-    assert.equal(afterWave1.phase, 'wave.end');
-    assert.equal(afterWave2.phase, 'wave.end');
+    assert.equal(afterWave1.phase, 'story.dispatch.end');
+    assert.equal(afterWave2.phase, 'story.dispatch.end');
     assert.equal(
       afterPlan.lastCompletedSeqId < afterWave1.lastCompletedSeqId,
       true,
@@ -227,16 +242,20 @@ describe('CheckpointPointerWriter — pointer write + self-emit', () => {
       count += 1;
     });
 
-    await bus.emit('wave.end', { waveIndex: 0, outcomes: {} });
+    await bus.emit('story.dispatch.end', {
+      storyId: 9001,
+      outcome: 'done',
+      durationMs: 1,
+    });
     // Replay the same context via the handler directly to exercise
     // the seqId guard — the bus would assign a different seqId on a
     // fresh emit, so we hit the handle() seam directly to model a
     // resume re-delivery.
     const lastSeqId = readPointer(writer.pointerPath).lastCompletedSeqId;
     await writer.handle({
-      event: 'wave.end',
+      event: 'story.dispatch.end',
       seqId: lastSeqId,
-      payload: { waveIndex: 0, outcomes: {} },
+      payload: { storyId: 9001, outcome: 'done', durationMs: 1 },
     });
 
     assert.equal(count, 1, 'self-emit must fire exactly once');
@@ -257,15 +276,19 @@ describe('CheckpointPointerWriter — pointer write + self-emit', () => {
       count += 1;
     });
 
-    await bus.emit('wave.end', { waveIndex: 0, outcomes: {} });
+    await bus.emit('story.dispatch.end', {
+      storyId: 9001,
+      outcome: 'done',
+      durationMs: 1,
+    });
     const advanced = readPointer(writer.pointerPath).lastCompletedSeqId;
 
     // Replay with a smaller seqId — should NOT advance the pointer
     // and MUST NOT re-emit checkpoint.written.
     await writer.handle({
-      event: 'wave.end',
+      event: 'story.dispatch.end',
       seqId: 0,
-      payload: { waveIndex: 0, outcomes: {} },
+      payload: { storyId: 9001, outcome: 'done', durationMs: 1 },
     });
     const replayed = readPointer(writer.pointerPath).lastCompletedSeqId;
 
@@ -285,9 +308,13 @@ describe('CheckpointPointerWriter — pointer write + self-emit', () => {
 
     await bus.emit('epic.snapshot.end', { epicId: 2172, storyIds: [] });
     await bus.emit('epic.plan.end', { waves: [[1]] });
-    await bus.emit('wave.end', { waveIndex: 0, outcomes: {} });
+    await bus.emit('story.dispatch.end', {
+      storyId: 9001,
+      outcome: 'done',
+      durationMs: 1,
+    });
 
     const finalPointer = readPointer(writer.pointerPath);
-    assert.equal(finalPointer.phase, 'wave.end');
+    assert.equal(finalPointer.phase, 'story.dispatch.end');
   });
 });

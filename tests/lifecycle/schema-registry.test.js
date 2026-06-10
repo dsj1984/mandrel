@@ -32,15 +32,11 @@ const REQUIRED_EVENTS = Object.freeze([
   'epic.snapshot.end',
   'epic.plan.start',
   'epic.plan.end',
-  'wave.start',
-  'wave.end',
   'story.dispatch.start',
   'story.dispatch.end',
   'story.merged',
   'story.blocked',
   'epic.blocked',
-  'epic.unblocked',
-  'epic.close.start',
   'epic.close.end',
   'acceptance.reconcile.start',
   'acceptance.reconcile.ok',
@@ -150,17 +146,6 @@ describe('lifecycle/schema-registry', () => {
       event: 'epic.snapshot.start',
     });
     assert.equal(ok, false);
-  });
-
-  it('wave.end schema accepts a balanced outcomes object', () => {
-    const ajv = new Ajv2020({ allErrors: true });
-    addFormats(ajv);
-    const validate = ajv.compile(readSchema('wave.end'));
-    const ok = validate({
-      waveIndex: 0,
-      outcomes: { 2227: 'done', 2228: 'blocked' },
-    });
-    assert.equal(ok, true, JSON.stringify(validate.errors));
   });
 
   it('agentrc.schema accepts new delivery.lifecycle keys', () => {

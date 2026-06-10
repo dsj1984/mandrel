@@ -14,8 +14,6 @@
  *                                   chain; armed.seqId > ready.seqId).
  *           reconcile-ordering    — pr.created must be preceded by
  *                                   acceptance.reconcile.ok.
- *           wave-completeness     — every wave.end.outcomes set ===
- *                                   wave.start.storyIds set.
  *       — exits 0 on pass; exits 1 with a structured message on fail.
  *
  * Invariants are derived from Tech Spec #2189 § Repeatability Acceptance
@@ -154,51 +152,9 @@ export function assertReconcileOrdering(records) {
   return { ok: true };
 }
 
-/**
- * Assert: every wave.end.outcomes set === wave.start.storyIds set.
- */
-export function assertWaveCompleteness(records) {
-  const startsByWave = new Map();
-  for (const rec of records) {
-    if (rec.kind !== 'emitted') continue;
-    if (rec.event === 'wave.start') {
-      startsByWave.set(rec.payload.waveIndex, rec.payload.storyIds || []);
-    } else if (rec.event === 'wave.end') {
-      const startIds = startsByWave.get(rec.payload.waveIndex);
-      if (!startIds) {
-        return {
-          ok: false,
-          reason: `wave.end waveIndex=${rec.payload.waveIndex} without preceding wave.start`,
-        };
-      }
-      const outcomeIds = Object.keys(rec.payload.outcomes || {}).map((k) =>
-        Number(k),
-      );
-      const startSet = new Set(startIds);
-      const outcomeSet = new Set(outcomeIds);
-      if (startSet.size !== outcomeSet.size) {
-        return {
-          ok: false,
-          reason: `wave waveIndex=${rec.payload.waveIndex}: storyIds count (${startSet.size}) != outcomes count (${outcomeSet.size})`,
-        };
-      }
-      for (const id of startSet) {
-        if (!outcomeSet.has(id)) {
-          return {
-            ok: false,
-            reason: `wave waveIndex=${rec.payload.waveIndex}: storyId ${id} in wave.start but not in wave.end.outcomes`,
-          };
-        }
-      }
-    }
-  }
-  return { ok: true };
-}
-
 const ASSERTIONS = new Map([
   ['merge-gate-ordering', assertMergeGateOrdering],
   ['reconcile-ordering', assertReconcileOrdering],
-  ['wave-completeness', assertWaveCompleteness],
 ]);
 
 function loadLedger(p) {

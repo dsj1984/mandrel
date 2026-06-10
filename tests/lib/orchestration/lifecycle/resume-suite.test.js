@@ -106,7 +106,6 @@ const PAYLOAD_BY_EVENT = Object.freeze({
   'epic.cleanup.end': { epicId: 9999 },
   'epic.cleanup.start': { epicId: 9999 },
   'epic.close.end': { epicId: 9999 },
-  'epic.close.start': { epicId: 9999 },
   'epic.complete': { epicId: 9999, prUrl: 'https://example.test/pr/1' },
   'epic.finalize.end': {
     epicId: 9999,
@@ -131,7 +130,6 @@ const PAYLOAD_BY_EVENT = Object.freeze({
   'epic.plan.start': { epicId: 9999 },
   'epic.snapshot.end': { epicId: 9999, storyIds: [] },
   'epic.snapshot.start': { epicId: 9999 },
-  'epic.unblocked': { reason: 'fixture' },
   'epic.watch.end': {
     prUrl: 'https://example.test/pr/1',
     checkOutcomes: {},
@@ -142,7 +140,7 @@ const PAYLOAD_BY_EVENT = Object.freeze({
   },
   'intervention.recorded': { epicId: 9999, reason: 'fixture' },
   'notification.emitted': {
-    event: 'wave.end',
+    event: 'epic.complete',
     channel: 'webhook',
     severity: 'info',
     ok: true,
@@ -169,8 +167,6 @@ const PAYLOAD_BY_EVENT = Object.freeze({
     timestamp: '2026-05-26T00:00:00.000Z',
   },
   'story.merged': { storyId: 9999, sha: 'abcdef1' },
-  'wave.end': { waveIndex: 0, outcomes: {} },
-  'wave.start': { waveIndex: 0, storyIds: [] },
 });
 
 function readNdjson(p) {
@@ -320,42 +316,51 @@ describe('lifecycle/resume-suite (per-event consolidated)', () => {
   }
 
   it('the resume suffix preserves event ordering across two distinct emits', async () => {
-    // Multi-event crash → resume sanity check. Emit `wave.start`
-    // followed by `wave.end`. Crash on `wave.start`'s listener; the
-    // resumed run re-emits both events on a fresh bus. The final
-    // ledger must record both events in order, with the crash
+    // Multi-event crash → resume sanity check. Emit `story.dispatch.start`
+    // followed by `story.dispatch.end`. Crash on `story.dispatch.start`'s
+    // listener; the resumed run re-emits both events on a fresh bus. The
+    // final ledger must record both events in order, with the crash
     // preamble preserved verbatim at the head.
     const bus = new Bus();
     const writer = new LedgerWriter({ epicId: 9999, tempRoot });
     writer.register(bus);
-    bus.on('wave.start', () => {
+    bus.on('story.dispatch.start', () => {
       throw new Error('simulated-kill-during-listener');
     });
     await assert.rejects(() =>
-      bus.emit('wave.start', PAYLOAD_BY_EVENT['wave.start']),
+      bus.emit(
+        'story.dispatch.start',
+        PAYLOAD_BY_EVENT['story.dispatch.start'],
+      ),
     );
 
     const resumeBus = new Bus();
     const resumeWriter = new LedgerWriter({ epicId: 9999, tempRoot });
     resumeWriter.register(resumeBus);
-    await resumeBus.emit('wave.start', PAYLOAD_BY_EVENT['wave.start']);
-    await resumeBus.emit('wave.end', PAYLOAD_BY_EVENT['wave.end']);
+    await resumeBus.emit(
+      'story.dispatch.start',
+      PAYLOAD_BY_EVENT['story.dispatch.start'],
+    );
+    await resumeBus.emit(
+      'story.dispatch.end',
+      PAYLOAD_BY_EVENT['story.dispatch.end'],
+    );
 
     const records = readNdjson(resumeWriter.ledgerPath);
-    // Preamble: emitted(wave.start) + failed(wave.start).
-    // Resumed:  emitted(wave.start) + completed(wave.start) +
-    //           emitted(wave.end)  + completed(wave.end).
+    // Preamble: emitted(story.dispatch.start) + failed(story.dispatch.start).
+    // Resumed:  emitted(story.dispatch.start) + completed(story.dispatch.start) +
+    //           emitted(story.dispatch.end)  + completed(story.dispatch.end).
     assert.equal(records.length, 6);
     assert.equal(records[0].kind, 'emitted');
-    assert.equal(records[0].event, 'wave.start');
+    assert.equal(records[0].event, 'story.dispatch.start');
     assert.equal(records[1].kind, 'failed');
     assert.equal(records[2].kind, 'emitted');
-    assert.equal(records[2].event, 'wave.start');
+    assert.equal(records[2].event, 'story.dispatch.start');
     assert.equal(records[3].kind, 'completed');
-    assert.equal(records[3].event, 'wave.start');
+    assert.equal(records[3].event, 'story.dispatch.start');
     assert.equal(records[4].kind, 'emitted');
-    assert.equal(records[4].event, 'wave.end');
+    assert.equal(records[4].event, 'story.dispatch.end');
     assert.equal(records[5].kind, 'completed');
-    assert.equal(records[5].event, 'wave.end');
+    assert.equal(records[5].event, 'story.dispatch.end');
   });
 });
