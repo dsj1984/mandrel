@@ -35,6 +35,7 @@ import {
   releaseEpicPlanLease,
 } from '../../epic-plan-lease-guard.js';
 import { renderSpec } from '../../spec-renderer.js';
+import { renderHardConflictError } from '../../ticket-validator-conflicts.js';
 import {
   reconcileSubIssueLinks,
   setEpicLabel,
@@ -117,6 +118,14 @@ export async function runDecomposePhase(
   // by re-prompting, so this gate sits at persist time (like
   // `--allow-over-budget`) rather than in the auto-redrive loop.
   enforceFanOutGate(validated.findings, allowLargeFanOut);
+
+  // Story #3957 — surface soft cross-Story conflict findings on the
+  // validator's warning channel. `failOnSharedEditors` defaults to `false`,
+  // so a real shared-editor / implicit-dep hazard lands as `'soft'` and would
+  // otherwise be invisible during the Phase-8 operator review. Logging each
+  // soft finding here puts it in the same decompose output the operator reads
+  // before approving the plan.
+  surfaceSoftConflictFindings(validated.findings);
 
   // Workflow-guards (Story #3481): refuse to persist when the Epic already has
   // open Feature/Story children unless this is a deliberate re-decompose
@@ -241,6 +250,39 @@ function enforceFanOutGate(findings, allowLargeFanOut) {
       `Split each deletion into a subsystem-by-subsystem migration across multiple Stories, ` +
       `or rerun --allow-large-fan-out after confirming the deletion is intentional.`,
   );
+}
+
+/**
+ * Story #3957 — log every `'soft'` cross-Story conflict finding on the
+ * validator's warning channel so it is visible during the Phase-8 operator
+ * review even when its policy flag (e.g. `failOnSharedEditors`) is `false`
+ * and the finding never reaches the AC-visible `errors[]` path.
+ *
+ * `fan-out-warning` findings are excluded: `enforceFanOutGate` already emits
+ * a dedicated warn/throw line for those, and double-logging would be noise.
+ * Hard findings are excluded too — they are already rendered into `errors[]`
+ * and block the decompose, so they need no advisory echo here.
+ *
+ * Each line reuses `renderHardConflictError` for the message body (the
+ * remediation hint is identical regardless of severity) under a `soft
+ * conflict:` prefix so the operator can tell advisory findings apart from
+ * blocking ones.
+ *
+ * @param {object[]} findings
+ */
+function surfaceSoftConflictFindings(findings) {
+  const soft = (findings ?? []).filter(
+    (f) => f?.severity === 'soft' && f?.kind !== 'fan-out-warning',
+  );
+  if (soft.length === 0) return;
+  Logger.warn(
+    `[epic-plan-decompose] ${soft.length} soft cross-Story conflict finding(s) — review before approving the plan:`,
+  );
+  for (const finding of soft) {
+    Logger.warn(
+      `[epic-plan-decompose] soft conflict: ${renderHardConflictError(finding)}`,
+    );
+  }
 }
 
 async function runHealthcheckGate({ epicId, epic, runHealthcheckFn }) {

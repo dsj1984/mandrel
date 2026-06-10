@@ -342,6 +342,101 @@ describe('fan-out persist gate (Story #2962)', () => {
   });
 });
 
+describe('soft conflict surfacing in Phase 8 (Story #3957)', () => {
+  // A real shared-editor hazard lands as `'soft'` because
+  // `failOnSharedEditors` defaults to `false`. `runDecomposePhase` MUST log
+  // each soft cross-Story conflict finding on the Logger.warn channel so the
+  // operator sees it during the Phase-8 review, even though it never reaches
+  // the AC-visible `errors[]` path.
+  const buildEpic = () => ({
+    id: 1,
+    title: 'E',
+    body: '',
+    labels: ['type::epic'],
+    linkedIssues: { prd: 10, techSpec: 11 },
+  });
+
+  const buildProvider = (epic) => ({
+    async getEpic() {
+      return epic;
+    },
+    async getTicket(id) {
+      return { id, body: 'b' };
+    },
+    async updateTicket() {},
+    async createTicket() {
+      return { id: 999, url: 'u' };
+    },
+    async getTickets() {
+      return [];
+    },
+    async getTicketComments() {
+      return [];
+    },
+    async createTicketComment() {
+      return { id: 1 };
+    },
+    async updateTicketComment() {
+      return { id: 1 };
+    },
+  });
+
+  it('logs object-form shared-editor soft findings on the warn channel', async () => {
+    const epic = buildEpic();
+    const provider = buildProvider(epic);
+    const tickets = [
+      FEATURE,
+      makeStory('s-a', {
+        changes: [
+          {
+            path: 'apps/api/src/routes/v1/teams/feed.ts',
+            assumption: 'creates',
+          },
+        ],
+      }),
+      makeStory('s-b', {
+        changes: [
+          {
+            path: 'apps/api/src/routes/v1/teams/feed.ts',
+            assumption: 'refactors-existing',
+          },
+        ],
+      }),
+    ];
+
+    const warned = [];
+    const originalWarn = console.warn;
+    console.warn = (msg) => warned.push(String(msg));
+    try {
+      // Run will throw downstream (no spec writer wired); the soft-finding
+      // surfacing runs before that throw, so we only need to capture warnings.
+      await runDecomposePhase(
+        1,
+        provider,
+        { tickets },
+        { planning: { maxTickets: 60 } },
+        { fanOutCounter: () => 0 },
+      ).catch(() => {});
+    } finally {
+      console.warn = originalWarn;
+    }
+
+    const softLines = warned.filter((l) => /soft conflict:/.test(l));
+    assert.ok(
+      softLines.length >= 1,
+      `expected a soft-conflict warn line, got: ${JSON.stringify(warned)}`,
+    );
+    assert.ok(
+      softLines.some(
+        (l) =>
+          /Shared-editor conflict/.test(l) &&
+          /apps\/api\/src\/routes\/v1\/teams\/feed\.ts/.test(l),
+      ),
+      `expected shared-editor soft line for the feed route, got: ${JSON.stringify(softLines)}`,
+    );
+  });
+});
+
 describe('3-tier inline-contract guard (Epic #3238)', () => {
   it('rejects a Story that lacks an inline acceptance + verify contract', () => {
     assert.throws(
