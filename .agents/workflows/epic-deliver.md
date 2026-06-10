@@ -485,10 +485,19 @@ with the argument envelope `{ scope: 'epic', ticketId: <epicId>, baseRef:
 Skip when `--skip-retro`. Otherwise post the `epic-perf-report` via
 `node .agents/scripts/analyze-execution.js --epic <epicId>` (failure →
 warn and continue; the retro runner falls back). Then invoke the retro
-runner inline — the canonical surface lives at
-[`.agents/scripts/lib/orchestration/retro-runner.js`](../scripts/lib/orchestration/retro-runner.js)
-and is driven by `epic-deliver.js`. Propagate `--full-retro` to bypass
-the compact-path heuristic.
+runner via its CLI wrapper:
+
+```bash
+node .agents/scripts/retro-run.js --epic <epicId>
+```
+
+[`retro-run.js`](../scripts/retro-run.js) resolves the config/provider,
+constructs a lifecycle bus with a `LedgerWriter` (so the run's
+`retro.start` / `retro.end` boundaries land in
+`temp/epic-<epicId>/lifecycle.ndjson`), and calls `runRetro` — the
+canonical compose-and-post surface at
+[`.agents/scripts/lib/orchestration/retro-runner.js`](../scripts/lib/orchestration/retro-runner.js).
+Propagate `--full-retro` to bypass the compact-path heuristic.
 
 Retro fires here (before the PR opens) so it stays in the operator's
 local session with full env access (env vars, credentials, MCP).

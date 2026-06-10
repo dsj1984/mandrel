@@ -6,10 +6,8 @@
  * "pure emit shim" shape: <50 source lines, exactly one `bus.emit`
  * call site, no leakage of removed helpers. This test file is the
  * load-bearing check that pins those invariants in tree for the shims
- * that still exist.
- *
- * Currently exercised:
- *   - `pr-watch-with-update.js`      (Story #2327 / Task #2332)
+ * that still exist — and pins the un-shimming of any that have grown
+ * real behaviour back.
  *
  * Historical entries that were deleted with their backing scripts in
  * Epic #2307 (Story #2432 / Task #2442) once the `/epic-deliver`
@@ -19,8 +17,18 @@
  *   - `epic-deliver-automerge.js`    (Story #2336 / Task #2340)
  *   - `epic-deliver-cleanup.js`      (Story #2338 / Task #2342)
  *
- * Each addition appends an entry to the `SHIM_INVARIANTS` table below
- * so the same assertions guard them.
+ * `pr-watch-with-update.js` was a fourth shim until Story #3902
+ * un-shimmed it. The empty-bus emit watched nothing, so Phase 8
+ * advanced to auto-merge with CI red or still running. It now polls the
+ * required checks to a terminal state via the shared `watchPrToTerminal`
+ * primitive and exits non-zero unless every required check is green. The
+ * `UN_SHIMMED` table below pins that it is NO LONGER a thin emit shim, so
+ * a future regression that re-collapses it to an empty bus fails here.
+ * Its real behaviour is pinned by
+ * `tests/lib/orchestration/lifecycle/pr-watch-with-update.test.js`.
+ *
+ * The `SHIM_INVARIANTS` table is now empty; it stays in tree so a future
+ * legitimate shim can append an entry and inherit the same assertions.
  */
 
 import assert from 'node:assert/strict';
@@ -41,30 +49,22 @@ const SCRIPTS_DIR = path.resolve(
   'scripts',
 );
 
-const SHIM_INVARIANTS = [
+/** @type {Array<{label: string, file: string, event: string, forbiddenIdentifiers: string[]}>} */
+const SHIM_INVARIANTS = [];
+
+/**
+ * Former shims that have been un-shimmed back into real implementations.
+ * Each entry pins that the file is no longer a thin emit shim, so a
+ * regression that re-collapses it (the exact defect Story #3902 fixed)
+ * fails here loudly.
+ */
+const UN_SHIMMED = [
   {
-    // Story #2327 / Task #2332 — collapsed from 371 lines to a thin
-    // emit shim. The Watcher listener owns the required-check poll
-    // loop AND the mergeStateStatus: BEHIND auto-recovery.
     label: 'pr-watch-with-update.js',
     file: path.join(SCRIPTS_DIR, 'pr-watch-with-update.js'),
-    event: 'pr.created',
-    forbiddenIdentifiers: [
-      // Legacy helper exports that lived in the watch-and-recover CLI.
-      'runPrWatchWithUpdate',
-      'parsePrWatchArgs',
-      'classifyPrWatchInvocation',
-      'classifyPollResult',
-      'normalizeCheckResult',
-      'BEHIND_MERGE_STATE',
-      'CLEAN_MERGE_STATES',
-      'GREEN_RESULTS',
-      'FAILURE_RESULTS',
-      'DEFAULT_MAX_UPDATES',
-      'DEFAULT_POLL_INTERVAL_MS',
-      // Side-effect surface that must not survive the neutering.
-      'update-branch',
-    ],
+    // The real CLI delegates the poll + BEHIND-recovery loop to the
+    // shared primitive; a re-shimmed empty-bus version would lose this.
+    requiredIdentifier: 'watchPrToTerminal',
   },
 ];
 
@@ -105,6 +105,28 @@ describe('close-tail legacy CLI shim invariants', () => {
           );
         });
       }
+    });
+  }
+});
+
+describe('un-shimmed close-tail CLIs are not empty emit shims', () => {
+  for (const { label, file, requiredIdentifier } of UN_SHIMMED) {
+    describe(label, () => {
+      const source = readFileSync(file, 'utf8');
+
+      it('does not emit into a lifecycle bus (no empty-bus shim)', () => {
+        assert.ok(
+          !source.includes('createBus') && !/\.emit\s*\(/.test(source),
+          `${label} must not re-collapse to a lifecycle-bus emit shim.`,
+        );
+      });
+
+      it(`references ${requiredIdentifier} (real watch behaviour)`, () => {
+        assert.ok(
+          source.includes(requiredIdentifier),
+          `${label} must delegate to '${requiredIdentifier}'.`,
+        );
+      });
     });
   }
 });
