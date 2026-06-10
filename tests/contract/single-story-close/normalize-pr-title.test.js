@@ -32,7 +32,6 @@ import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
 import { openOrLocatePr } from '../../../.agents/scripts/lib/orchestration/finalize/open-or-locate-pr.js';
-import { ensurePullRequestWith } from '../../../.agents/scripts/lib/orchestration/single-story-close/phases/pull-request.js';
 import {
   DEFAULT_CONVENTIONAL_TYPE,
   deriveTypeFromBranchCommits,
@@ -41,6 +40,7 @@ import {
   parseConventionalType,
   pickDominantType,
 } from '../../../.agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js';
+import { ensurePullRequestWith } from '../../../.agents/scripts/lib/orchestration/single-story-close/phases/pull-request.js';
 
 const silentLogger = { warn: () => {} };
 
@@ -83,7 +83,10 @@ describe('isConventionalSubject', () => {
   });
 
   it('accepts a scoped, breaking subject', () => {
-    assert.equal(isConventionalSubject('refactor(core)!: rename package'), true);
+    assert.equal(
+      isConventionalSubject('refactor(core)!: rename package'),
+      true,
+    );
   });
 
   it('rejects a raw human title', () => {
@@ -160,10 +163,7 @@ describe('normalizePrTitle', () => {
       gitSpawn: gitSpawnReturning('refactor!: rename the package'),
       logger: silentLogger,
     });
-    assert.equal(
-      title,
-      'refactor: Rename the published npm package (#3955)',
-    );
+    assert.equal(title, 'refactor: Rename the published npm package (#3955)');
     await assertParsesAsConventional(title);
   });
 
@@ -190,7 +190,9 @@ describe('normalizePrTitle', () => {
       baseBranch: 'main',
       // gitSpawn must NOT be consulted on the already-conventional path.
       gitSpawn: () => {
-        throw new Error('gitSpawn should not be called for a conventional title');
+        throw new Error(
+          'gitSpawn should not be called for a conventional title',
+        );
       },
       logger: silentLogger,
     });

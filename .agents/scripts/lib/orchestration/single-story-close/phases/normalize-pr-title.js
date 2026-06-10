@@ -88,7 +88,9 @@ const TYPE_GROUP = CONVENTIONAL_TYPES.join('|');
 const CONVENTIONAL_HEADER_RE = new RegExp(
   `^(?:${TYPE_GROUP})(?:\\([^()\\r\\n]+\\))?!?: \\S.*$`,
 );
-const LEADING_TYPE_RE = new RegExp(`^(${TYPE_GROUP})(?:\\([^()\\r\\n]+\\))?!?:`);
+const LEADING_TYPE_RE = new RegExp(
+  `^(${TYPE_GROUP})(?:\\([^()\\r\\n]+\\))?!?:`,
+);
 
 /**
  * True iff `subject` is a parseable Conventional Commit subject under the
