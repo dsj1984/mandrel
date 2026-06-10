@@ -474,3 +474,180 @@ test('renderHardConflictError: produces a remediation hint for missing-bdd-scaff
   assert.match(msg, /s-impl/);
   assert.match(msg, /depends_on/);
 });
+
+// ---------------------------------------------------------------------------
+// Object-form `changes` producer extraction (Story #3957)
+//
+// The decomposer emits object-form entries (`{ path, assumption }`). The
+// conflict detector must extract producer paths from them — not only from the
+// legacy `"<path>: <verb> ..."` string bullets — or the shared-editor and
+// implicit-cross-story-dep findings can never fire under the modern contract.
+// ---------------------------------------------------------------------------
+
+test('emits shared-editor finding for object-form creates on the same path in the same wave', () => {
+  const tickets = [
+    FEATURE,
+    makeStory('s-a', {
+      changes: [
+        { path: 'apps/api/src/routes/v1/teams/feed.ts', assumption: 'creates' },
+      ],
+    }),
+    makeStory('s-b', {
+      changes: [
+        {
+          path: 'apps/api/src/routes/v1/teams/feed.ts',
+          assumption: 'refactors-existing',
+        },
+      ],
+    }),
+  ];
+  const result = validateAndNormalizeTickets(tickets);
+  const shared = result.findings.filter((f) => f.kind === 'shared-editor');
+  assert.equal(shared.length, 1);
+  assert.equal(shared[0].path, 'apps/api/src/routes/v1/teams/feed.ts');
+  assert.deepEqual(shared[0].storySlugs, ['s-a', 's-b']);
+  assert.equal(shared[0].severity, 'soft');
+  assert.deepEqual(result.errors, []);
+});
+
+test('object-form `exists` entries do not produce shared-editor findings', () => {
+  const tickets = [
+    FEATURE,
+    makeStory('s-a', {
+      changes: [
+        { path: 'apps/api/src/queries/feed.queries.ts', assumption: 'exists' },
+      ],
+    }),
+    makeStory('s-b', {
+      changes: [
+        { path: 'apps/api/src/queries/feed.queries.ts', assumption: 'exists' },
+      ],
+    }),
+  ];
+  const result = validateAndNormalizeTickets(tickets);
+  const shared = result.findings.filter((f) => f.kind === 'shared-editor');
+  assert.deepEqual(shared, []);
+});
+
+test('object-form `deletes` counts as a producer for shared-editor findings', () => {
+  const tickets = [
+    FEATURE,
+    makeStory('s-a', {
+      changes: [{ path: 'apps/web/src/legacy/old.tsx', assumption: 'deletes' }],
+    }),
+    makeStory('s-b', {
+      changes: [
+        {
+          path: 'apps/web/src/legacy/old.tsx',
+          assumption: 'refactors-existing',
+        },
+      ],
+    }),
+  ];
+  const result = validateAndNormalizeTickets(tickets);
+  const shared = result.findings.filter((f) => f.kind === 'shared-editor');
+  assert.equal(shared.length, 1);
+  assert.equal(shared[0].path, 'apps/web/src/legacy/old.tsx');
+});
+
+test('emits implicit-cross-story-dep when a consumer verifies a path created object-form by another Story', () => {
+  const tickets = [
+    FEATURE,
+    makeStory('s-producer', {
+      changes: [
+        { path: 'apps/api/src/queries/feed.queries.ts', assumption: 'creates' },
+      ],
+    }),
+    makeStory('s-consumer', {
+      changes: [
+        {
+          path: 'apps/web/src/components/feed/PostCard.tsx',
+          assumption: 'creates',
+        },
+      ],
+      verify: ['npm test -- apps/api/src/queries/feed.queries.ts (contract)'],
+    }),
+  ];
+  const result = validateAndNormalizeTickets(tickets);
+  const implicit = result.findings.filter(
+    (f) => f.kind === 'implicit-cross-story-dep',
+  );
+  assert.equal(implicit.length, 1);
+  assert.equal(implicit[0].path, 'apps/api/src/queries/feed.queries.ts');
+  assert.equal(implicit[0].producer.storySlug, 's-producer');
+  assert.equal(implicit[0].consumer.storySlug, 's-consumer');
+  assert.equal(implicit[0].consumer.sourceField, 'verify');
+  assert.equal(implicit[0].severity, 'soft');
+});
+
+test('mixed legacy string + object-form bodies both surface as shared-editor producers', () => {
+  const tickets = [
+    FEATURE,
+    // Legacy string bullet on the shared path.
+    makeStory('s-legacy', {
+      changes: ['packages/config/index.ts: tighten exports'],
+    }),
+    // Object-form create on the same shared path.
+    makeStory('s-object', {
+      changes: [
+        { path: 'packages/config/index.ts', assumption: 'refactors-existing' },
+      ],
+    }),
+  ];
+  const result = validateAndNormalizeTickets(tickets);
+  const shared = result.findings.filter((f) => f.kind === 'shared-editor');
+  assert.equal(shared.length, 1);
+  assert.equal(shared[0].path, 'packages/config/index.ts');
+  assert.deepEqual(shared[0].storySlugs, ['s-legacy', 's-object']);
+});
+
+test('does not emit shared-editor for object-form writers serialised by depends_on', () => {
+  const tickets = [
+    FEATURE,
+    makeStory('s-a', {
+      changes: [
+        { path: 'apps/api/src/routes/v1/teams/feed.ts', assumption: 'creates' },
+      ],
+    }),
+    makeStory(
+      's-b',
+      {
+        changes: [
+          {
+            path: 'apps/api/src/routes/v1/teams/feed.ts',
+            assumption: 'refactors-existing',
+          },
+        ],
+      },
+      { depends_on: ['s-a'] },
+    ),
+  ];
+  const result = validateAndNormalizeTickets(tickets);
+  const shared = result.findings.filter((f) => f.kind === 'shared-editor');
+  assert.deepEqual(shared, []);
+});
+
+test('collectStoryProducerPaths: object-form writes + legacy bullets, dropping reads', () => {
+  const { collectStoryProducerPaths } = _internal;
+  const story = {
+    type: 'story',
+    slug: 's-mix',
+    body: {
+      changes: [
+        { path: 'src/created.ts', assumption: 'creates' },
+        { path: 'src/refactored.ts', assumption: 'refactors-existing' },
+        { path: 'src/removed.ts', assumption: 'deletes' },
+        { path: 'src/read-only.ts', assumption: 'exists' },
+        'src/legacy.ts: edit in place',
+      ],
+      references: [{ path: 'src/dependency.ts', assumption: 'exists' }],
+    },
+  };
+  const paths = collectStoryProducerPaths(story).sort();
+  assert.deepEqual(paths, [
+    'src/created.ts',
+    'src/legacy.ts',
+    'src/refactored.ts',
+    'src/removed.ts',
+  ]);
+});
