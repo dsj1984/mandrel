@@ -19,6 +19,7 @@
 
 import { gh as defaultGh } from '../../../gh-exec.js';
 import { Logger } from '../../../Logger.js';
+import { normalizePrTitle } from './normalize-pr-title.js';
 
 /**
  * Probe for an existing open PR with `head = storyBranch`; create one if
@@ -76,9 +77,21 @@ export async function ensurePullRequestWith({
   }
 
   progress('PR', `Opening PR for ${storyBranch} → ${baseBranch}...`);
-  const title = storyTitle?.trim()
-    ? `${storyTitle} (#${storyId})`
-    : `Story #${storyId}`;
+  // The repo squash-merges and GitHub uses the PR title as the squash
+  // subject on `main`. A raw human issue title is not a Conventional
+  // Commit, so release-please silently counts it as 0 releasable commits
+  // (Story #3969). Normalize the title to conventional form: preserve an
+  // already-conventional `storyTitle` verbatim, otherwise synthesize a
+  // type derived from the branch's own commit subjects (default `chore`).
+  // `gh-exec` spawns `gh` against the current process cwd (the worktree),
+  // so the branch-commit read uses the same cwd.
+  const title = normalizePrTitle({
+    storyTitle,
+    storyId,
+    storyBranch,
+    baseBranch,
+    cwd: _cwd ?? process.cwd(),
+  });
   const body = [
     `Closes #${storyId}`,
     '',
