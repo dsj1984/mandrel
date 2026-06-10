@@ -151,13 +151,16 @@ describe('provisionResources — local git provisioning (no network)', () => {
 });
 
 describe('recordLedger — applied phase groups', () => {
-  function ledgerState(dir, { flags = {}, github } = {}) {
+  function ledgerState(dir, { flags = {}, github, agentrc } = {}) {
+    const report = {};
+    if (github !== undefined) report.github = github;
+    if (agentrc !== undefined) report.agentrc = agentrc;
     return {
       projectRoot: dir,
       flags,
       answers: { ...ANSWERS },
       approvedGroups: new Set(Object.values(PHASE_GROUPS)),
-      report: github === undefined ? {} : { github },
+      report,
     };
   }
 
@@ -165,6 +168,10 @@ describe('recordLedger — applied phase groups', () => {
     return JSON.parse(
       fs.readFileSync(path.join(dir, LEDGER_RELATIVE_PATH), 'utf8'),
     );
+  }
+
+  function agentrcEntries(dir) {
+    return readLedger(dir).entries.filter((e) => e.target === '.agentrc.json');
   }
 
   it('records every approved group when the GitHub bootstrap succeeded', () => {
@@ -218,5 +225,58 @@ describe('recordLedger — applied phase groups', () => {
     assert.ok(
       !state.report.ledger.approvedGroups.includes(PHASE_GROUPS.GITHUB_ADMIN),
     );
+  });
+
+  // Story #3895 — the live agentrc phase outcome is recorded as
+  // `executedAction` so uninstall can distinguish a seeded file from a
+  // pre-existing one and never delete operator content.
+  it('records executedAction=seeded for .agentrc.json when the install authored it', () => {
+    const dir = makeTmpDir();
+    const state = ledgerState(dir, {
+      github: {
+        branchProtection: { status: 'configured' },
+        mergeMethods: { status: 'configured' },
+      },
+      agentrc: { action: 'seeded' },
+    });
+    recordLedger(state);
+    for (const entry of agentrcEntries(dir)) {
+      assert.equal(entry.executedAction, 'seeded');
+    }
+  });
+
+  it('records executedAction=already-present for a pre-existing .agentrc.json', () => {
+    const dir = makeTmpDir();
+    const state = ledgerState(dir, {
+      github: {
+        branchProtection: { status: 'configured' },
+        mergeMethods: { status: 'configured' },
+      },
+      agentrc: { action: 'already-present' },
+    });
+    recordLedger(state);
+    const entries = agentrcEntries(dir);
+    assert.ok(entries.length > 0, 'expected at least one .agentrc.json entry');
+    for (const entry of entries) {
+      assert.equal(entry.executedAction, 'already-present');
+    }
+  });
+
+  it('omits executedAction when the report has no agentrc outcome', () => {
+    const dir = makeTmpDir();
+    const state = ledgerState(dir, {
+      github: {
+        branchProtection: { status: 'configured' },
+        mergeMethods: { status: 'configured' },
+      },
+    });
+    recordLedger(state);
+    for (const entry of agentrcEntries(dir)) {
+      assert.equal(
+        Object.hasOwn(entry, 'executedAction'),
+        false,
+        'no agentrc outcome → no executedAction key',
+      );
+    }
   });
 });
