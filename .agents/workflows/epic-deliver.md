@@ -705,6 +705,14 @@ node .agents/scripts/lifecycle-emit.js --epic <epicId> \
   --event epic.automerge.start --pr-url <prUrl>
 ```
 
+`AutomergePredicate` subscribes to `epic.automerge.start` (Story #3901 —
+before that this event had **zero** subscribers and the entire Phase 8.5
+gate was a dead wire). It evaluates the structured-signal verdict and
+emits `epic.merge.ready` on a clean verdict or `epic.merge.blocked`
+otherwise. The CI-freshness gate is skipped on this event because Phase 8
+already polled every required check to green — `epic.automerge.start`
+carries `prUrl` but no `checkOutcomes`.
+
 The `AutomergeArmer` listener subscribes to the downstream
 `epic.merge.ready` outcome and fires `gh pr merge --auto --squash
 --delete-branch` only when `clean: true`. `clean: true` requires
@@ -714,12 +722,25 @@ The `AutomergeArmer` listener subscribes to the downstream
 - every wave's `status === "complete"`;
 - no story envelope carries a `blockerCommentId` or non-`done` status;
 - code-review reports `0` 🔴 + `0` 🟠 findings;
-- the retro is the compact "🟢 Clean sprint" body.
+- the retro's machine-readable `automerge-verdict` trailer reports
+  `cleanSprint: true` (Story #3901 — the predicate reads the parsed JSON
+  trailer `retro-run.js` writes into the retro body, **not** an emoji
+  string-match on the human-facing "🟢 Clean sprint" prose).
 
 When clean, the listener fires `gh pr merge --squash --delete-branch`.
 Otherwise the listener records disqualifying reasons via
 `epic.merge.blocked` and exits without merging — operator merges
 manually.
+
+Close the phase wrapper by emitting `epic.automerge.end` (records the
+arm outcome on the ledger; `merged: true` once GitHub completes the
+squash, `merged: false` with a reason for predicate-blocked or
+armed-but-pending):
+
+```bash
+node .agents/scripts/lifecycle-emit.js --epic <epicId> \
+  --event epic.automerge.end --pr-url <prUrl> --merged <true|false>
+```
 
 ### Recording manual interventions
 

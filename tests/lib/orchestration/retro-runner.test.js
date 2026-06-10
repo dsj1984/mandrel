@@ -261,7 +261,13 @@ test('composeRetroBody: deterministic body for a clean manifest', () => {
   assert.equal(compact, true);
   assert.equal(scorecard.friction, 0);
   assert.doesNotMatch(body, /Total Tasks/);
-  assert.match(body, /<!-- retro-complete: 2026-05-10T00:00:00\.000Z -->$/);
+  assert.match(body, /<!-- retro-complete: 2026-05-10T00:00:00\.000Z -->/);
+  // Story #3901 — the machine-readable automerge-verdict trailer now
+  // closes the body, immediately after the retro-complete marker.
+  assert.match(
+    body,
+    /<!-- automerge-verdict: \{"cleanSprint":true,[\s\S]*\} -->$/,
+  );
 });
 
 test('gatherRetroSignals: aggregates friction across stories', async () => {

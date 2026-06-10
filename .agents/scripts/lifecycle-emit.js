@@ -84,11 +84,16 @@ function toCamelCase(kebab) {
 
 /**
  * Best-effort coercion: argv strings that look like positive integers
- * are parsed; everything else is forwarded as-is. Schema validation in
+ * are parsed; the literals `true` / `false` coerce to booleans (so
+ * boolean-typed payload fields like `epic.automerge.end`'s `merged` flag
+ * pass schema validation from the workflow's `--merged true` invocation,
+ * Story #3901); everything else is forwarded as-is. Schema validation in
  * the bus catches genuine type mismatches.
  */
 function coerceValue(raw) {
   if (typeof raw !== 'string') return raw;
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
   if (/^-?\d+$/.test(raw)) {
     const n = Number.parseInt(raw, 10);
     if (Number.isInteger(n)) return n;
