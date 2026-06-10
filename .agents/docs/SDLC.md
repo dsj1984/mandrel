@@ -224,7 +224,9 @@ graph LR
 
     subgraph Phase0 ["Phase 0: Bootstrap"]
         direction TB
-        Z["👤 /agents-bootstrap-github"]:::manual
+        Z["👤 npx create-mandrel<br/>(install → sync → bootstrap.js)"]:::manual
+        Z2["👤 /onboard (guided first run)"]:::manual
+        Z --> Z2
     end
 
     subgraph Phase1 ["Phase 1: Initiation"]
@@ -254,7 +256,7 @@ graph LR
         H["🤖 Auto-merge armed → PR lands when checks pass<br/>(👤 operator may disarm to merge manually)"]:::agentic
     end
 
-    Z --> A
+    Z2 --> A
     A --> C
     D --> E
     G --> H
@@ -264,24 +266,42 @@ graph LR
 
 ## Phase 0: Bootstrap (One-Time Setup)
 
-Before any Epic workflow, bootstrap your GitHub repository to create the
-labels, project fields, and (when enabled) main-branch protection the
-orchestration engine depends on.
+Before any Epic workflow, bootstrap your project to seed `.agentrc.json`,
+wire the framework system prompt, and create the GitHub labels, Projects V2
+fields, and (when enabled) main-branch protection the orchestration engine
+depends on.
 
-1. **Configure.** Copy `.agents/starter-agentrc.json` to `.agentrc.json` at
-   your project root and fill in the `orchestration` block (owner, repo,
-   etc.). See `.agents/docs/agentrc-reference.json` for the exhaustive reference of
-   every available key.
-2. **Authenticate.** Ensure a valid GitHub token is available (see
-   Authentication in [README.md](../README.md)).
-3. **Run bootstrap.** Execute `/agents-bootstrap-github` (or
-   `node .agents/scripts/agents-bootstrap-github.js`). Idempotently creates
-   the label taxonomy and optional GitHub Project V2 fields, and — when
-   `github.branchProtection.enforce` is `true`
-   (default) — creates or merges branch protection on `main` with the
-   project's `github.branchProtection.requiredChecks` as required status checks. This step is
-   load-bearing for the SDL because PR merges to `main` are the sole
+The canonical cold-start path is a single launcher command:
+
+```bash
+npx create-mandrel
+```
+
+`create-mandrel` installs `@mandrelai/agents`, materializes `./.agents/` via
+`mandrel sync`, and runs `node .agents/scripts/bootstrap.js`, forwarding any
+flags you pass. `bootstrap.js`:
+
+1. **Provisions a cold start.** Initializes the local git repo (with a first
+   commit) when absent, creates the GitHub repo (`gh repo create --source=.
+   --push`; choose visibility with `--visibility private|public|internal`,
+   default `private`), and creates the Projects V2 board (`gh project
+   create`) when it doesn't exist. No pre-created repo or remote is required.
+2. **Seeds `.agentrc.json`** from `.agents/starter-agentrc.json` (the `github`
+   section carries owner, repo, base branch, operator handle, and project
+   number — inferred from your local `git` config where possible). See
+   `.agents/docs/agentrc-reference.json` for the exhaustive reference of every
+   available key.
+3. **Creates the label taxonomy and Projects V2 fields**, and — when
+   `github.branchProtection.enforce` is `true` (default) — creates or merges
+   branch protection on `main` with the project's
+   `github.branchProtection.requiredChecks` as required status checks. This
+   step is load-bearing for the SDL because PR merges to `main` are the sole
    promotion gate.
+
+When `.agents/` is already materialized you can run the bootstrap directly
+(`node .agents/scripts/bootstrap.js`). After bootstrap, run **`/onboard`**
+inside Claude Code for the guided first run — stack detection, docs
+scaffolding, a `mandrel doctor` readiness gate, and a started `/epic-plan`.
 
 > [!NOTE] Bootstrap runs once per repository. It is safe to re-run — existing
 > labels, fields, and branch-protection entries are preserved; missing ones
@@ -1320,7 +1340,8 @@ For Stories already in flight, use one of the three options above.
 
 | Command                                          | Purpose                                                                                                                                                                      |
 | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/agents-bootstrap-github`                       | Initialize repo labels, project fields, and (when enabled) main-branch protection.                                                                                            |
+| `npx create-mandrel`                             | Cold-start launcher — install `@mandrelai/agents`, `mandrel sync`, then run `bootstrap.js` (provisions repo + Projects V2 board, labels, branch protection).                  |
+| `/onboard`                                       | Guided first run after bootstrap — stack detection, docs scaffolding, `mandrel doctor` readiness gate, started `/epic-plan` handoff.                                          |
 | `/epic-plan`                                     | Ideation entry — sharpen idea, search duplicates, open Epic, then PRD + Tech Spec + decomposition.                                                                            |
 | `/epic-plan --idea "<seed>"`                     | Same ideation entry with pre-supplied seed.                                                                                                                                   |
 | `/epic-plan <epicId>`                            | Existing-Epic mode — PRD + Tech Spec + decomposition for an Epic Issue already opened.                                                                                       |
