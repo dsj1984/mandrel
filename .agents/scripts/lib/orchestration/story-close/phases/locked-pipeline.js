@@ -41,9 +41,28 @@ import { emitSpawnTimeoutBlockedResult } from './timeout-blocked-emitter.js';
  * Run pre-merge gates and, on a clean outcome, the bounded baseline
  * auto-refresh. Returns `{ blocked }` so the locked pipeline can
  * short-circuit on a `blocked` / `blocked-timeout` gate outcome.
+ *
+ * `runPreMergeValidation` is an injectable seam (Story #3973): the
+ * forwarding of `config: ctx.config` into the gate builder is load-bearing
+ * — without it the typecheck gate ignores `project.commands.typecheck` and
+ * falls back to the hardcoded `npm run typecheck`, blocking every close for
+ * any consumer with a non-default typecheck command. The default is the
+ * module-level `runPreMergeValidation`; tests inject a spy to pin that
+ * `config` reaches the gate builder through this call site.
+ *
+ * @param {object} ctx - The locked-pipeline context bundle.
+ * @param {object} [deps] - Injectable collaborators.
+ * @param {typeof runPreMergeValidation} [deps.runPreMergeValidationFn]
+ * @param {typeof runAutoRefreshSafely} [deps.runAutoRefreshSafelyFn]
  */
-async function runGatesAndRefresh(ctx) {
-  const gateOutcome = await runPreMergeValidation({
+export async function runGatesAndRefresh(
+  ctx,
+  {
+    runPreMergeValidationFn = runPreMergeValidation,
+    runAutoRefreshSafelyFn = runAutoRefreshSafely,
+  } = {},
+) {
+  const gateOutcome = await runPreMergeValidationFn({
     cwd: ctx.cwd,
     worktreePath: ctx.worktreePath,
     epicBranch: ctx.epicBranch,
@@ -82,7 +101,7 @@ async function runGatesAndRefresh(ctx) {
       }),
     };
   }
-  await runAutoRefreshSafely(
+  await runAutoRefreshSafelyFn(
     {
       storyId: ctx.storyId,
       epicId: ctx.epicId,
