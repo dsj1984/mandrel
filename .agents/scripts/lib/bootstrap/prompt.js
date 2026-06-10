@@ -20,6 +20,8 @@
  */
 
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 import readline from 'node:readline/promises';
 
 /**
@@ -111,12 +113,46 @@ function runGit(args, cwd) {
 }
 
 /**
+ * Read the already-stored `github.projectNumber` from an existing
+ * `.agentrc.json` in `projectRoot`, returned as a numeric string (the shape
+ * the `projectNumber` question default expects). Returns `null` when the
+ * file is missing, unparseable, or carries no integer project number.
+ *
+ * This is the authoritative default for an already-provisioned project on a
+ * bootstrap re-run: surfacing the stored number (rather than the repo name)
+ * means an `--assume-yes` re-run resolves a numeric answer, which
+ * `detectCreation` classifies as an *existing* project — so no duplicate
+ * board is created (Story #3896 / review Finding B.3).
+ *
+ * @param {string} projectRoot
+ * @returns {string|null}
+ */
+export function inferStoredProjectNumber(projectRoot) {
+  if (typeof projectRoot !== 'string' || projectRoot.length === 0) return null;
+  let raw;
+  try {
+    raw = fs.readFileSync(path.join(projectRoot, '.agentrc.json'), 'utf8');
+  } catch {
+    return null;
+  }
+  let config;
+  try {
+    config = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  const number = config?.github?.projectNumber;
+  return Number.isInteger(number) ? String(number) : null;
+}
+
+/**
  * Derive defaults for the interactive prompts from the project's git
- * config. No network calls — only inspects the local remote/config.
+ * config. No network calls — only inspects the local remote/config and the
+ * stored `.agentrc.json` (for the already-provisioned project number).
  *
  * @param {string} projectRoot
  * @returns {{ owner: string|null, repo: string|null, baseBranch: string,
- *             operatorHandle: string|null }}
+ *             operatorHandle: string|null, projectNumber: string|null }}
  */
 export function inferDefaults(projectRoot) {
   const remoteUrl = runGit(['remote', 'get-url', 'origin'], projectRoot);
@@ -134,6 +170,7 @@ export function inferDefaults(projectRoot) {
     repo: parsed?.repo ?? null,
     baseBranch: headRef,
     operatorHandle,
+    projectNumber: inferStoredProjectNumber(projectRoot),
   };
 }
 

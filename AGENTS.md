@@ -166,13 +166,17 @@ Releases are automated by
    [§ One-time PAT setup](#one-time-pat-setup) below). Once
    `Validate and Test` passes, GitHub squash-merges the release PR,
    which triggers the workflow to create the GitHub Release, tag
-   `main` with `vX.Y.Z`, and run the `npm-publish` job — publishing
-   `@mandrelai/agents` to npm with build provenance (Sigstore) once the
-   release is cut. This replaces the retired `dist`-branch mirror:
-   consumers now install a versioned, provenance-signed package from npm
-   (`npm install @mandrelai/agents`, then `mandrel sync`) instead of pinning
-   a Git submodule to the `dist` branch. The `npm-publish` job requires the
-   `NPM_TOKEN` secret — see [§ npm publish token](#npm-publish-token) below.
+   `main` with `vX.Y.Z`, and run the matching publish job(s) — `npm-publish`
+   publishes the root `@mandrelai/agents` package and `npm-publish-launcher`
+   publishes the unscoped `create-mandrel` launcher, each to npm with build
+   provenance (Sigstore) and each gated on its own package's release output
+   (so a root-only release does not republish the launcher and vice versa).
+   This replaces the retired `dist`-branch mirror: consumers now install a
+   versioned, provenance-signed package from npm (`npm install
+   @mandrelai/agents`, then `mandrel sync`) instead of pinning a Git submodule
+   to the `dist` branch, and bootstrap a fresh project with `npx
+   create-mandrel`. The publish jobs require the `NPM_TOKEN` secret — see
+   [§ npm publish token](#npm-publish-token) below.
 4. **Breaking-change releases** ship a consumer-upgrade runbook under
    `docs/` (describing the migration steps and the major-version bump
    operator step). Link any future breaking-release runbook from
@@ -253,14 +257,26 @@ operator-visible consequences:
   - **`create-mandrel`** uses `component: "create-mandrel"`, so its tag
     is namespaced as `create-mandrel-vX.Y.Z` (e.g. `create-mandrel-v0.2.0`).
 
-  The `npm-publish` job in
-  [`release-please.yml`](.github/workflows/release-please.yml) checks out
-  the repository root and runs `npm publish` against the root `package.json`
-  — it publishes the **`mandrel` package only** and does not key off any
-  tag pattern, so neither the `mandrel-*` nor the `create-mandrel-*` tag
-  series triggers a publish by tag. `ci.yml` triggers only on branch `push` /
-  `pull_request` / `workflow_dispatch` events (it has **no** tag-driven
-  step), so neither tag series triggers CI directly.
+  [`release-please.yml`](.github/workflows/release-please.yml) carries **two
+  independent publish jobs**, each gated on its own package's **per-path**
+  release output (`steps.release.outputs['<path>--release_created']`), not the
+  top-level `release_created`:
+  - **`npm-publish`** checks out the repository root and runs `npm publish`
+    against the root `package.json`, publishing **`@mandrelai/agents`**. It is
+    gated on the root component's output (path `.`).
+  - **`npm-publish-launcher`** runs `npm publish` with
+    `working-directory: create-mandrel`, publishing the unscoped
+    **`create-mandrel`** launcher. It is gated on the launcher component's
+    output (path `create-mandrel`).
+
+  Gating each job on its own package's per-path output is load-bearing: the
+  top-level `release_created` is `true` if **either** package releases, so a
+  launcher-only release would otherwise re-run the root `npm publish` on an
+  already-published version (and fail), and vice versa. Neither job keys off a
+  tag pattern, so neither the `mandrel-*` nor the `create-mandrel-*` tag series
+  triggers a publish by tag. `ci.yml` triggers only on branch `push` /
+  `pull_request` / `workflow_dispatch` events (it has **no** tag-driven step),
+  so neither tag series triggers CI directly.
 
 #### One-time PAT setup
 
@@ -294,25 +310,32 @@ ceiling on automation throughput than PATs.
 
 #### npm publish token
 
-The `npm-publish` job in
-[`release-please.yml`](.github/workflows/release-please.yml) authenticates
+Both the `npm-publish` and `npm-publish-launcher` jobs in
+[`release-please.yml`](.github/workflows/release-please.yml) authenticate
 to the npm registry with an automation token (rather than OIDC trusted
-publishing), so it needs a one-time secret:
+publishing), so they need a one-time secret:
 
-1. Create an **automation** access token with publish rights on the
-   `@mandrelai` scope at <https://www.npmjs.com/settings/~/tokens>. The
-   token owner must be able to publish under `@mandrelai`; the first
-   publish of the scoped package relies on `publishConfig.access:
-   "public"` (already set in `package.json`) so the public registry
-   accepts it.
+1. Create an **automation** access token at
+   <https://www.npmjs.com/settings/~/tokens>. The token owner must be able to
+   publish **both**:
+   - the scoped root package under the **`@mandrelai`** scope
+     (`@mandrelai/agents`) — its first publish relies on
+     `publishConfig.access: "public"` (already set in the root
+     `package.json`); and
+   - the **unscoped `create-mandrel`** launcher package. The launcher name is
+     deliberately unscoped to preserve the `npm create mandrel` /
+     `npx create-mandrel` convention the docs advertise; its
+     `package.json#publishConfig.access: "public"` lets the public registry
+     accept the first publish. Publish promptly to claim the name — an
+     unpublished unscoped name is squattable.
 2. Add it as a repository secret named **`NPM_TOKEN`** at
    <https://github.com/dsj1984/mandrel/settings/secrets/actions>.
-3. No further setup is required: the job declares `id-token: write` and
-   `package.json#publishConfig.provenance: true`, so npm attaches a
+3. No further setup is required: each publish job declares `id-token: write`
+   and each package sets `publishConfig.provenance: true`, so npm attaches a
    signed Sigstore provenance statement automatically.
 
 Without `NPM_TOKEN`, release-please still tags `main` and creates the
-GitHub Release, but the `npm-publish` job fails and the package is not
+GitHub Release, but the publish jobs fail and the affected package is not
 published until the secret is configured and the job re-run.
 
 #### Major-version policy
