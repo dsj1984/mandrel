@@ -116,6 +116,23 @@ function captureError(t) {
 }
 
 /**
+ * Spread a real ESM module's named exports while dropping the `default`
+ * binding. `mock.module`'s `namedExports` cannot carry a key named `default`
+ * (it would generate an illegal `export default` *named* export and fail
+ * module compilation with `SyntaxError: Unexpected token 'default'`), so the
+ * spread of any module that has a default export (e.g. `node:child_process`,
+ * `gh-exec.js`) MUST strip it. The SUT under test imports these seams by their
+ * named bindings, so the default is never needed by the mock.
+ *
+ * @param {Record<string, unknown>} mod — a `import * as mod` namespace object.
+ * @returns {Record<string, unknown>} the named exports minus `default`.
+ */
+function namedOnly(mod) {
+  const { default: _default, ...named } = mod;
+  return named;
+}
+
+/**
  * Mock `node:child_process.spawnSync` (the seam bootstrap.js#runGit shells
  * git through) so `provisionResources` never touches a real repo. Spreads the
  * real module so every other child_process export the graph imports survives.
@@ -127,7 +144,7 @@ function captureError(t) {
 function fakeGitSpawnViaModule(t, handler) {
   t.mock.module('node:child_process', {
     namedExports: {
-      ...realChildProcess,
+      ...namedOnly(realChildProcess),
       spawnSync: (cmd, args) => {
         const r = handler(cmd, args) ?? {};
         return {
@@ -391,7 +408,7 @@ describe('collectAndConfirm — creation approval (gh seams mocked)', () => {
     // `repoExists` → exec(repo view) throws GhNotFoundError → repo is "new".
     t.mock.module(GH_EXEC_URL, {
       namedExports: {
-        ...realGh,
+        ...namedOnly(realGh),
         exec: async () => {
           const err = new realGh.GhNotFoundError('not found', { args: [] });
           throw err;
@@ -419,7 +436,7 @@ describe('collectAndConfirm — creation approval (gh seams mocked)', () => {
     // Repo already exists → not a new repo, so no creation prompt at all.
     t.mock.module(GH_EXEC_URL, {
       namedExports: {
-        ...realGh,
+        ...namedOnly(realGh),
         exec: async () => ({ stdout: '{"name":"widget"}' }),
       },
     });
@@ -449,7 +466,7 @@ describe('executeBootstrap — project-side bootstrap (lib seam mocked)', () => 
     let received = null;
     t.mock.module(PROJECT_BOOTSTRAP_URL, {
       namedExports: {
-        ...realPb,
+        ...namedOnly(realPb),
         applyProjectBootstrap: async (ctx) => {
           received = ctx;
           return { applied: true };
@@ -480,7 +497,7 @@ describe('executeBootstrap — project-side bootstrap (lib seam mocked)', () => 
     let received = null;
     t.mock.module(PROJECT_BOOTSTRAP_URL, {
       namedExports: {
-        ...realPb,
+        ...namedOnly(realPb),
         applyProjectBootstrap: async (ctx) => {
           received = ctx;
           return { applied: true };
@@ -512,7 +529,7 @@ describe('executeGithubBootstrap — GhExecError surfacing', () => {
     // surfaces every diagnostic field.
     t.mock.module(GH_BOOTSTRAP_URL, {
       namedExports: {
-        ...realGhBootstrap,
+        ...namedOnly(realGhBootstrap),
         preflightGh: async () => {
           throw new realGhExec.GhExecError('gh exited with code 1', {
             args: ['repo', 'view', 'acme/widget'],
@@ -568,7 +585,7 @@ describe('provisionResources — gh-backed creation (seams mocked)', () => {
     let execCalled = false;
     t.mock.module(GH_EXEC_URL, {
       namedExports: {
-        ...realGhExec,
+        ...namedOnly(realGhExec),
         exec: async () => {
           execCalled = true;
           return { stdout: '' };
@@ -602,7 +619,7 @@ describe('provisionResources — gh-backed creation (seams mocked)', () => {
     const execArgs = [];
     t.mock.module(GH_EXEC_URL, {
       namedExports: {
-        ...realGhExec,
+        ...namedOnly(realGhExec),
         exec: async ({ args }) => {
           execArgs.push(args);
           return { stdout: '' };
@@ -641,7 +658,7 @@ describe('provisionResources — gh-backed creation (seams mocked)', () => {
     const realGhExec = await import(GH_EXEC_URL);
     t.mock.module(GH_EXEC_URL, {
       namedExports: {
-        ...realGhExec,
+        ...namedOnly(realGhExec),
         exec: async ({ args }) => {
           if (args[0] === 'repo' && args[1] === 'create') {
             throw new realGhExec.GhExecError('repo create blew up', {
