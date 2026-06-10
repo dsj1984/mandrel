@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-08T18:47:03.818Z",
+  "generatedAt": "2026-06-10T01:04:53.515Z",
   "rollup": {
     "*": {
       "min": 70.566,
@@ -419,6 +419,10 @@
       "mi": 96.56
     },
     {
+      "path": ".agents/scripts/lib/config-resolver.js",
+      "mi": 90.965
+    },
+    {
       "path": ".agents/scripts/lib/config-schema-shared.js",
       "mi": 138.317
     },
@@ -489,6 +493,10 @@
     {
       "path": ".agents/scripts/lib/config/lifecycle.js",
       "mi": 111.715
+    },
+    {
+      "path": ".agents/scripts/lib/config/limits.js",
+      "mi": 102.668
     },
     {
       "path": ".agents/scripts/lib/config/paths.js",
@@ -836,7 +844,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/context.js",
-      "mi": 95.083
+      "mi": 94.518
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation-pass.js",
@@ -2359,6 +2367,10 @@
       "mi": 111.515
     },
     {
+      "path": "tests/config-limits.test.js",
+      "mi": 118.104
+    },
+    {
       "path": "tests/config-orchestration.test.js",
       "mi": 120.985
     },
@@ -2713,6 +2725,10 @@
     {
       "path": "tests/epic-plan-clarity.test.js",
       "mi": 112
+    },
+    {
+      "path": "tests/epic-plan-decompose-context.test.js",
+      "mi": 111.618
     },
     {
       "path": "tests/epic-plan-spec-drain.test.js",
