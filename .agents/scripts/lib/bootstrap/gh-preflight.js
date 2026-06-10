@@ -31,6 +31,8 @@ const GH_AUTH_HINT =
   'Run `gh auth login` (choose GitHub.com → HTTPS → login with a web browser), then re-run this command.';
 const GH_PROJECT_SCOPE_HINT =
   'Grant the Projects scope: run `gh auth refresh -s project` (re-auth in the browser when prompted), then re-run this command.';
+const GH_SCOPES_UNREADABLE_NOTE =
+  'token scopes not reported by `gh auth status` (fine-grained PAT?) — skipping the classic project-scope assertion. If Projects V2 provisioning later fails, grant the Projects permission (fine-grained) or run `gh auth refresh -s project` (classic).';
 
 /**
  * Framework runtime deps the consumer must have installed in
@@ -189,13 +191,10 @@ export async function preflightGh(opts = {}) {
  *
  * Returns a check record `{ name, ok, remedy?, detail? }` rather than
  * throwing, so the preflight aggregator can surface it alongside the other
- * checks. When the scope line cannot be read — the normal case for
- * fine-grained PATs (GitHub's recommended token type) and for `gh` builds
- * that omit the `Token scopes:` line — the check PASSES with a warning
- * `detail` instead of failing closed (Story #3690): a valid fine-grained
- * token must never be blocked at preflight just because classic scopes are
- * not reported. The classic-scope assertion only fails when a scopes line IS
- * present and demonstrably lacks `project`.
+ * checks. An unreadable scopes line — the normal case for fine-grained PATs
+ * and for `gh` builds that omit it — PASSES with a warning `detail` instead
+ * of failing closed (Story #3690); the check only fails when a scopes line
+ * is present and demonstrably lacks `project`.
  *
  * @param {{ runner?: (args: string[]) => {
  *   status: number|null, stdout: string, stderr: string,
@@ -208,13 +207,22 @@ export async function checkProjectScopes(opts = {}) {
   const runner = opts.runner ?? defaultGhRunner;
   const result = runner(['auth', 'status']);
   const text = `${result.stdout || ''}\n${result.stderr || ''}`;
-  const scopeLine = /Token scopes:([^\n]*)/i.exec(text);
+  return classifyProjectScopes(/Token scopes:([^\n]*)/i.exec(text));
+}
+
+/**
+ * Map a (possibly absent) `Token scopes:` match onto the check record.
+ * Pure — exported only through {@link checkProjectScopes}.
+ *
+ * @param {RegExpExecArray|null} scopeLine
+ * @returns {{ name: string, ok: boolean, remedy?: string, detail?: string }}
+ */
+function classifyProjectScopes(scopeLine) {
   if (!scopeLine) {
     return {
       name: 'gh-project-scope',
       ok: true,
-      detail:
-        'token scopes not reported by `gh auth status` (fine-grained PAT?) — skipping the classic project-scope assertion. If Projects V2 provisioning later fails, grant the Projects permission (fine-grained) or run `gh auth refresh -s project` (classic).',
+      detail: GH_SCOPES_UNREADABLE_NOTE,
     };
   }
   if (/\bproject\b/i.test(scopeLine[1])) {
