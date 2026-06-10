@@ -187,17 +187,22 @@ export async function preflightGh(opts = {}) {
  * `Token scopes:` line from `gh auth status` (some gh versions print it to
  * stderr, others to stdout — we scan both) and looks for a `project` scope.
  *
- * Returns a check record `{ name, ok, remedy? }` rather than throwing, so the
- * preflight aggregator can surface it alongside the other checks. When the
- * scope line cannot be read (e.g. a fine-grained token that does not report
- * classic scopes), the check fails closed with the refresh hint so the
- * operator can grant it explicitly.
+ * Returns a check record `{ name, ok, remedy?, detail? }` rather than
+ * throwing, so the preflight aggregator can surface it alongside the other
+ * checks. When the scope line cannot be read — the normal case for
+ * fine-grained PATs (GitHub's recommended token type) and for `gh` builds
+ * that omit the `Token scopes:` line — the check PASSES with a warning
+ * `detail` instead of failing closed (Story #3690): a valid fine-grained
+ * token must never be blocked at preflight just because classic scopes are
+ * not reported. The classic-scope assertion only fails when a scopes line IS
+ * present and demonstrably lacks `project`.
  *
  * @param {{ runner?: (args: string[]) => {
  *   status: number|null, stdout: string, stderr: string,
  *   error?: NodeJS.ErrnoException
  * } }} [opts]
- * @returns {Promise<{ name: string, ok: boolean, remedy?: string }>}
+ * @returns {Promise<{ name: string, ok: boolean, remedy?: string,
+ *   detail?: string }>}
  */
 export async function checkProjectScopes(opts = {}) {
   const runner = opts.runner ?? defaultGhRunner;
@@ -207,8 +212,9 @@ export async function checkProjectScopes(opts = {}) {
   if (!scopeLine) {
     return {
       name: 'gh-project-scope',
-      ok: false,
-      remedy: `Could not read token scopes from \`gh auth status\`. ${GH_PROJECT_SCOPE_HINT}`,
+      ok: true,
+      detail:
+        'token scopes not reported by `gh auth status` (fine-grained PAT?) — skipping the classic project-scope assertion. If Projects V2 provisioning later fails, grant the Projects permission (fine-grained) or run `gh auth refresh -s project` (classic).',
     };
   }
   if (/\bproject\b/i.test(scopeLine[1])) {

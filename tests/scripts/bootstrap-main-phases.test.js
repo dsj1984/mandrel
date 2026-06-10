@@ -1,15 +1,18 @@
 /**
- * bootstrap-main-phases.test — Story #2459 / Task #2471
+ * bootstrap-main-phases.test — Story #2459 / Task #2471, repointed at the
+ * collapsed orchestrator by Story #3690.
  *
- * Exercises the five phase helpers extracted out of `bootstrap.main()`:
+ * Exercises the phase helpers exported by `bootstrap.js` (the single
+ * bootstrap orchestrator):
  *
  *   1. parseAndValidate
  *   2. prepareContext
- *   3. collectAndValidateAnswers
- *   4. executeBootstrap          (smoke — heavy lifting lives in
- *                                 bootstrap/project-bootstrap.js, which has
- *                                 its own test surface)
- *   5. executeGithubBootstrap    (smoke — capture error / skip behaviour)
+ *   3. collectAndConfirm        (flag/assume-yes resolution; no gh spawned —
+ *                                exercised with --skip-github)
+ *   4. dryRunPlan               (the --dry-run halt gate)
+ *   5. executeGithubBootstrap   (smoke — skip behaviour)
+ *   6. runPipeline              (short-circuit semantics that gate the
+ *                                fail-before-mutate contract)
  *
  * The driver `main()` is the trivial composer over these phases; its
  * end-to-end behaviour is already covered by `tests/bootstrap.test.js`.
@@ -21,6 +24,7 @@ import { describe, it } from 'node:test';
 import {
   parseAndValidate,
   prepareContext,
+  runPipeline,
 } from '../../.agents/scripts/bootstrap.js';
 
 describe('parseAndValidate', () => {
@@ -57,10 +61,7 @@ describe('parseAndValidate', () => {
     assert.equal(res.exit, 1);
   });
 
-  it('advances in non-TTY mode without --assume-yes when owner+repo flags are supplied (parity with pre-refactor)', () => {
-    // Original main() validated owner/repo presence ONLY when neither
-    // interactive nor assumeYes was set; the flags themselves satisfy
-    // the gate. Keeping this contract pins the regression surface.
+  it('advances in non-TTY mode without --assume-yes when owner+repo flags are supplied', () => {
     const res = parseAndValidate(['--owner', 'acme', '--repo', 'widget'], {
       stdout: { write: () => {} },
       env: {},
@@ -91,6 +92,27 @@ describe('parseAndValidate', () => {
     });
     assert.equal(res.ok, true);
   });
+
+  it('halts with exit 1 on an unrecognized --visibility value', () => {
+    const res = parseAndValidate(
+      [
+        '--assume-yes',
+        '--owner',
+        'acme',
+        '--repo',
+        'widget',
+        '--visibility',
+        'secret',
+      ],
+      {
+        stdout: { write: () => {} },
+        env: {},
+        stdin: { isTTY: false },
+      },
+    );
+    assert.equal(res.ok, false);
+    assert.equal(res.exit, 1);
+  });
 });
 
 describe('prepareContext', () => {
@@ -120,13 +142,19 @@ describe('prepareContext', () => {
 });
 
 describe('main() pipeline shape', () => {
-  it('exports the five phase helpers', async () => {
+  it('exports the pipeline phase helpers', async () => {
     const mod = await import('../../.agents/scripts/bootstrap.js');
     assert.equal(typeof mod.parseAndValidate, 'function');
     assert.equal(typeof mod.prepareContext, 'function');
-    assert.equal(typeof mod.collectAndValidateAnswers, 'function');
+    assert.equal(typeof mod.runPreflightPhase, 'function');
+    assert.equal(typeof mod.collectAndConfirm, 'function');
+    assert.equal(typeof mod.dryRunPlan, 'function');
+    assert.equal(typeof mod.provisionResources, 'function');
     assert.equal(typeof mod.executeBootstrap, 'function');
+    assert.equal(typeof mod.persistProjectNumber, 'function');
     assert.equal(typeof mod.executeGithubBootstrap, 'function');
+    assert.equal(typeof mod.recordLedger, 'function');
+    assert.equal(typeof mod.runPipeline, 'function');
     assert.equal(typeof mod.main, 'function');
   });
 
@@ -145,65 +173,101 @@ describe('main() pipeline shape', () => {
   });
 });
 
-describe('collectAndValidateAnswers', () => {
-  it('halts with exit 1 when collectAnswers reports missing required fields', async () => {
-    const { collectAndValidateAnswers } = await import(
+describe('runPipeline', () => {
+  it('threads accumulated payloads through each phase', async () => {
+    const seen = [];
+    const res = await runPipeline([
+      () => ({ ok: true, payload: { a: 1 } }),
+      (s) => {
+        seen.push(s.a);
+        return { ok: true, payload: { b: s.a + 1 } };
+      },
+    ]);
+    assert.equal(res.ok, true);
+    assert.deepEqual(seen, [1]);
+    assert.equal(res.state.b, 2);
+  });
+
+  it('short-circuits on the first halting phase — later phases never run (fail-before-mutate)', async () => {
+    let mutated = false;
+    const res = await runPipeline([
+      () => ({ ok: true, payload: {} }),
+      () => ({ ok: false, exit: 1 }),
+      () => {
+        mutated = true;
+        return { ok: true, payload: {} };
+      },
+    ]);
+    assert.equal(res.ok, false);
+    assert.equal(res.exit, 1);
+    assert.equal(mutated, false, 'phases after the halt must not run');
+  });
+});
+
+describe('collectAndConfirm', () => {
+  it('halts with exit 1 when required answers are missing under --assume-yes', async () => {
+    const { collectAndConfirm } = await import(
       '../../.agents/scripts/bootstrap.js'
     );
-    const res = await collectAndValidateAnswers({
-      flags: { 'assume-yes': true },
+    const res = await collectAndConfirm({
+      flags: { 'assume-yes': true, 'skip-github': true },
       interactive: false,
       assumeYes: true,
       defaults: { owner: null, repo: null, baseBranch: null },
       silentAccept: [],
+      gitInitialized: true,
     });
     assert.equal(res.ok, false);
     assert.equal(res.exit, 1);
   });
 
-  it('halts with exit 0 when --dry-run is set', async () => {
-    const { collectAndValidateAnswers } = await import(
+  it('advances with the resolved answers when flags satisfy every required field', async () => {
+    const { collectAndConfirm } = await import(
       '../../.agents/scripts/bootstrap.js'
     );
-    const res = await collectAndValidateAnswers({
-      flags: {
-        'dry-run': true,
-        owner: 'acme',
-        repo: 'widget',
-        'base-branch': 'main',
-      },
-      interactive: false,
-      assumeYes: false,
-      defaults: {
-        owner: 'acme',
-        repo: 'widget',
-        baseBranch: 'main',
-        operatorHandle: null,
-      },
-      silentAccept: [],
-    });
-    assert.equal(res.ok, false);
-    assert.equal(res.exit, 0);
-  });
-
-  it('advances with the resolved answers when no required field is missing', async () => {
-    const { collectAndValidateAnswers } = await import(
-      '../../.agents/scripts/bootstrap.js'
-    );
-    const res = await collectAndValidateAnswers({
+    const res = await collectAndConfirm({
       flags: {
         owner: 'acme',
         repo: 'widget',
         'base-branch': 'main',
+        'skip-github': true,
       },
       interactive: false,
       assumeYes: false,
       defaults: { owner: null, repo: null, baseBranch: null },
       silentAccept: [],
+      gitInitialized: true,
     });
     assert.equal(res.ok, true);
     assert.equal(res.payload.answers.owner, 'acme');
     assert.equal(res.payload.answers.repo, 'widget');
+    // operatorHandle defaults to the owner when left blank.
+    assert.equal(res.payload.answers.operatorHandle, 'acme');
+    // --skip-github bypasses creation detection entirely.
+    assert.deepEqual(res.payload.creation, {
+      newRepo: false,
+      newProject: false,
+    });
+  });
+});
+
+describe('dryRunPlan', () => {
+  it('halts with exit 0 when --dry-run is set', async () => {
+    const { dryRunPlan } = await import('../../.agents/scripts/bootstrap.js');
+    const res = dryRunPlan({
+      flags: { 'dry-run': true },
+      answers: { owner: 'acme', repo: 'widget', baseBranch: 'main' },
+      creation: { newRepo: false, newProject: false },
+      gitInitialized: true,
+    });
+    assert.equal(res.ok, false);
+    assert.equal(res.exit, 0);
+  });
+
+  it('advances (no-op) when --dry-run is not set', async () => {
+    const { dryRunPlan } = await import('../../.agents/scripts/bootstrap.js');
+    const res = dryRunPlan({ flags: {} });
+    assert.equal(res.ok, true);
   });
 });
 
@@ -222,27 +286,5 @@ describe('executeGithubBootstrap', () => {
     const res = await executeGithubBootstrap(state);
     assert.equal(res.ok, true);
     assert.equal(report.github, undefined);
-  });
-});
-
-describe('main() preflight gating (fail-before-mutate)', () => {
-  it('short-circuits with exit 1 when preflight fails, before any mutation phase runs', async () => {
-    const { main } = await import('../../.agents/scripts/bootstrap.js');
-    // A failing preflight must halt the pipeline at phase 2 — before
-    // prepareContext / executeBootstrap / executeGithubBootstrap. We inject
-    // a failing preflight runner and assert main returns exit 1. Because the
-    // pipeline short-circuits on the first {ok:false}, none of the mutation
-    // phases execute (they would otherwise need owner/repo answers and would
-    // touch the filesystem). Passing valid flags proves the halt is the
-    // preflight, not a missing-answers bail.
-    const failingPreflight = async () => ({
-      ok: false,
-      checks: [{ name: 'gh', ok: false, remedy: 'Install the GitHub CLI.' }],
-    });
-    const exit = await main(
-      ['--owner', 'acme', '--repo', 'widget', '--assume-yes', '--skip-github'],
-      { preflightRun: failingPreflight },
-    );
-    assert.equal(exit, 1);
   });
 });

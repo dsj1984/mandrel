@@ -16,6 +16,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { runPreflightPhase } from '../../.agents/scripts/bootstrap.js';
+import { checkProjectScopes } from '../../.agents/scripts/lib/bootstrap/gh-preflight.js';
 import { runPreflight } from '../../.agents/scripts/lib/bootstrap/preflight.js';
 
 // --- Stub runners -----------------------------------------------------------
@@ -205,5 +206,56 @@ describe('runPreflightPhase', () => {
       },
     );
     assert.equal(seen, true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// checkProjectScopes — fine-grained-PAT-safe project-scope probe (Story #3690)
+// ---------------------------------------------------------------------------
+
+describe('checkProjectScopes', () => {
+  function authStatusRunner(text, { onStderr = false } = {}) {
+    return () => ({
+      status: 0,
+      stdout: onStderr ? '' : text,
+      stderr: onStderr ? text : '',
+      error: undefined,
+    });
+  }
+
+  it('passes when the token scopes line carries the project scope', async () => {
+    const res = await checkProjectScopes({
+      runner: authStatusRunner("  - Token scopes: 'gist', 'project', 'repo'"),
+    });
+    assert.deepEqual(res, { name: 'gh-project-scope', ok: true });
+  });
+
+  it('reads the scopes line from stderr as well as stdout', async () => {
+    const res = await checkProjectScopes({
+      runner: authStatusRunner("Token scopes: 'project', 'repo'", {
+        onStderr: true,
+      }),
+    });
+    assert.equal(res.ok, true);
+  });
+
+  it('fails with the refresh remedy when scopes are readable but lack project', async () => {
+    const res = await checkProjectScopes({
+      runner: authStatusRunner("Token scopes: 'gist', 'repo'"),
+    });
+    assert.equal(res.ok, false);
+    assert.match(res.remedy, /gh auth refresh -s project/);
+  });
+
+  it('warns (ok=true with detail) instead of failing closed when no scopes line is reported — the fine-grained PAT case', async () => {
+    const res = await checkProjectScopes({
+      runner: authStatusRunner(
+        'Logged in to github.com account octo (keyring)',
+      ),
+    });
+    assert.equal(res.ok, true, 'unreadable scopes must not block preflight');
+    assert.equal(res.remedy, undefined);
+    assert.match(res.detail, /fine-grained/i);
+    assert.match(res.detail, /skipping the classic project-scope assertion/i);
   });
 });

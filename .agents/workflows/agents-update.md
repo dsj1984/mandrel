@@ -175,8 +175,8 @@ fix the validation error and re-run before proceeding.
 A framework bump that crosses the Epic #1386 boundary requires four
 additive installs on the consumer project so the new gate behaviour is
 actually wired into the consumer's commit / push / CI surfaces. The
-installs share the same idempotent helpers
-[`bootstrap.js`](../scripts/bootstrap.js) Step 7.5 uses,
+installs share the same idempotent helpers the quality-gates phase of
+[`bootstrap.js`](../scripts/bootstrap.js) uses,
 so a project that already ran the bootstrap on a post-Epic #1386
 framework version sees `no-change` everywhere here.
 
