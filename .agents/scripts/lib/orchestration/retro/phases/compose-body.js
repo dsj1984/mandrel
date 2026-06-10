@@ -78,6 +78,19 @@ export function composeRetroBody(input) {
     interventions,
   };
   const completeMarker = `<!-- retro-complete: ${timestamp} -->`;
+  // Machine-readable auto-merge verdict trailer (Story #3901). The
+  // Phase 8.5 `AutomergePredicate` reads `cleanSprint` from THIS trailer
+  // — a parsed JSON boolean — rather than string-matching the human-facing
+  // "🟢 Clean sprint" prose, which was a brittle emoji `.includes()` that
+  // false-positived on any retro body that happened to quote the marker
+  // and false-negatived on any compact-body copy edit. `cleanSprint`
+  // tracks the compact shape exactly (a full/forced retro is never a
+  // clean sprint); the scorecard is mirrored so the predicate can surface
+  // the disqualifying counts without re-parsing the markdown table.
+  const automergeTrailer = `<!-- automerge-verdict: ${JSON.stringify({
+    cleanSprint: compact,
+    scorecard,
+  })} -->`;
 
   if (compact) {
     const body = [
@@ -102,6 +115,7 @@ export function composeRetroBody(input) {
       '_None._',
       '',
       completeMarker,
+      automergeTrailer,
     ].join('\n');
     return { body, compact: true, scorecard };
   }
@@ -198,6 +212,7 @@ export function composeRetroBody(input) {
     ...perfSignalsSection,
     ...followOnsSection,
     completeMarker,
+    automergeTrailer,
   ].join('\n');
   return { body, compact: false, scorecard };
 }

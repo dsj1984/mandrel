@@ -2,11 +2,24 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
-  CLEAN_SPRINT_MARKER,
   deriveAutoMergeVerdict,
   evaluateAutoMergePredicate,
+  parseAutomergeVerdictTrailer,
   parseSeverityCounts,
 } from '../../../.agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js';
+import { composeRetroBody } from '../../../.agents/scripts/lib/orchestration/retro/phases/compose-body.js';
+
+// Build the compact retro body from the real composer so the predicate
+// test exercises the actual machine-readable automerge-verdict trailer
+// contract (Story #3901) rather than a hand-rolled fixture that can drift
+// from the producer.
+const COMPACT_COUNTS = {
+  friction: 0,
+  parked: 0,
+  recuts: 0,
+  hitl: 0,
+  interventions: 0,
+};
 
 const cleanState = {
   epicId: 1178,
@@ -39,13 +52,7 @@ const cleanReview = {
 };
 
 const cleanRetro = {
-  body: [
-    '## Sprint Retro',
-    '',
-    `${CLEAN_SPRINT_MARKER} — zero friction, zero parked follow-ons, zero recuts, zero hotfixes, zero agent::blocked events.`,
-    '',
-    '### Sprint Scorecard',
-  ].join('\n'),
+  body: composeRetroBody({ epicId: 1178, counts: { ...COMPACT_COUNTS } }).body,
 };
 
 describe('parseSeverityCounts', () => {
@@ -84,6 +91,42 @@ describe('parseSeverityCounts', () => {
       medium: null,
       suggestion: null,
     });
+  });
+});
+
+describe('parseAutomergeVerdictTrailer', () => {
+  it('extracts cleanSprint + scorecard from a compact retro body', () => {
+    const body = composeRetroBody({
+      epicId: 7,
+      counts: { ...COMPACT_COUNTS },
+    }).body;
+    const trailer = parseAutomergeVerdictTrailer(body);
+    assert.equal(trailer.cleanSprint, true);
+    assert.equal(trailer.scorecard.interventions, 0);
+  });
+
+  it('reports cleanSprint=false for a full retro body', () => {
+    const body = composeRetroBody({
+      epicId: 7,
+      counts: { friction: 2, parked: 0, recuts: 0, hitl: 0, interventions: 0 },
+    }).body;
+    assert.equal(parseAutomergeVerdictTrailer(body).cleanSprint, false);
+  });
+
+  it('returns null when the trailer is absent', () => {
+    assert.equal(parseAutomergeVerdictTrailer('## Retro\nNo trailer.'), null);
+  });
+
+  it('returns null on malformed trailer JSON', () => {
+    assert.equal(
+      parseAutomergeVerdictTrailer('<!-- automerge-verdict: {not json} -->'),
+      null,
+    );
+  });
+
+  it('returns null on non-string input', () => {
+    assert.equal(parseAutomergeVerdictTrailer(null), null);
+    assert.equal(parseAutomergeVerdictTrailer(undefined), null);
   });
 });
 
@@ -184,14 +227,48 @@ describe('deriveAutoMergeVerdict', () => {
     assert.ok(verdict.reasons.some((r) => r.includes('High Risk')));
   });
 
-  it('returns clean=false when retro is not compact', () => {
+  it('returns clean=false when the retro trailer reports cleanSprint=false', () => {
+    // A full (non-compact) retro carries a trailer with cleanSprint=false.
+    const fullRetroBody = composeRetroBody({
+      epicId: 1178,
+      counts: { friction: 3, parked: 1, recuts: 0, hitl: 0, interventions: 0 },
+    }).body;
+    const verdict = deriveAutoMergeVerdict({
+      state: cleanState,
+      codeReview: cleanReview,
+      retro: { body: fullRetroBody },
+    });
+    assert.equal(verdict.clean, false);
+    assert.ok(verdict.reasons.some((r) => r.includes('cleanSprint=false')));
+  });
+
+  it('returns clean=false when the retro trailer is missing entirely', () => {
     const verdict = deriveAutoMergeVerdict({
       state: cleanState,
       codeReview: cleanReview,
       retro: { body: '## Full retro\nFriction, parked, recuts.' },
     });
     assert.equal(verdict.clean, false);
-    assert.ok(verdict.reasons.some((r) => r.includes('not compact')));
+    assert.ok(
+      verdict.reasons.some((r) =>
+        r.includes('missing the machine-readable automerge-verdict trailer'),
+      ),
+    );
+  });
+
+  it('does not false-positive on a body that merely quotes the legacy 🟢 Clean sprint prose', () => {
+    // Pre-#3901 the predicate string-matched "🟢 Clean sprint"; a retro
+    // body that quotes that phrase (e.g. in an action item) but carries
+    // no trailer must NOT be certified clean.
+    const verdict = deriveAutoMergeVerdict({
+      state: cleanState,
+      codeReview: cleanReview,
+      retro: {
+        body: '## Full retro\nAction: aim for a 🟢 Clean sprint next time.',
+      },
+    });
+    assert.equal(verdict.clean, false);
+    assert.equal(verdict.signals.retroCompact, false);
   });
 
   it('returns clean=false when state / code-review / retro are missing', () => {

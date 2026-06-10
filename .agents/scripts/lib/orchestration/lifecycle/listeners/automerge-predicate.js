@@ -6,12 +6,25 @@
  * legacy `automerge-predicate` module in Story #2415 (Epic #2307).
  *
  * Subscribes to:
- *   - `epic.watch.end` → evaluate the verdict. If every required
- *     check finished green AND `evaluateAutoMergePredicate` reports
- *     `clean: true` (no manual interventions, no incomplete waves,
- *     no story blockers, no critical/high review findings, compact
- *     retro), emit `epic.merge.ready`. Otherwise emit
- *     `epic.merge.blocked` with a non-empty reason.
+ *   - `epic.automerge.start` (production path, Story #3901) → the
+ *     `/epic-deliver` Phase 8.5 boundary that the `lifecycle-emit.js`
+ *     CLI actually fires. This event carries `prUrl` but NO
+ *     `checkOutcomes` (Phase 8's `pr-watch-with-update.js` has already
+ *     polled every required check to green before Phase 8.5 runs), so
+ *     the CI-freshness gate is skipped and the verdict is decided by
+ *     the structured-signal evaluator alone. Before Story #3901 the
+ *     listener subscribed ONLY to `epic.watch.end`, which no production
+ *     emitter fires — making the entire Phase 8.5 auto-merge gate a
+ *     dead wire (epic-lifecycle-review.md §1.1).
+ *   - `epic.watch.end` (test-only `Watcher` path) → carries an
+ *     all-settled `checkOutcomes` map. Any non-passing required check
+ *     is a hard block evaluated BEFORE the structured-signal evaluator.
+ *
+ * Either trigger evaluates the same verdict: if `evaluateAutoMergePredicate`
+ * reports `clean: true` (no manual interventions, no incomplete waves,
+ * no story blockers, no critical/high review findings, machine-readable
+ * "clean sprint" retro trailer), emit `epic.merge.ready`. Otherwise emit
+ * `epic.merge.blocked` with a non-empty reason.
  *
  * Critical contract:
  *   - The verdict for any given input set is byte-identical to the
@@ -55,12 +68,43 @@ export const NON_FAILING_CHECK_OUTCOMES = Object.freeze(
 );
 
 /**
- * Marker string used by the compact retro to advertise a clean sprint.
- * Pure — exported so tests and downstream consumers (e.g. the predicate
- * test suite migrated from the legacy module path) can build fixtures
- * without re-asserting the literal.
+ * Regex that extracts the machine-readable auto-merge verdict trailer
+ * emitted by the retro body composer (`retro/phases/compose-body.js`,
+ * Story #3901). Shape:
+ *   `<!-- automerge-verdict: {"cleanSprint":true,"scorecard":{…}} -->`
+ *
+ * Reading a parsed JSON boolean replaces the pre-#3901 emoji
+ * `.includes('🟢 Clean sprint')` string-match — a brittle prose scan
+ * that false-positived on any retro that quoted the marker and
+ * false-negatived on any compact-body copy edit. Pure — exported for
+ * tests so the trailer contract is reviewable as code.
  */
-export const CLEAN_SPRINT_MARKER = '🟢 Clean sprint';
+export const AUTOMERGE_VERDICT_TRAILER_RE =
+  /<!--\s*automerge-verdict:\s*(\{[\s\S]*?\})\s*-->/;
+
+/**
+ * Parse the machine-readable auto-merge verdict trailer out of a retro
+ * body. Returns the decoded object on success, or `null` when the
+ * trailer is absent or its JSON payload is malformed (a malformed
+ * trailer is treated as "no verdict", which downstream disqualifies
+ * the Epic rather than silently passing). Pure — exported for tests.
+ *
+ * @param {string} body
+ * @returns {{ cleanSprint?: boolean, scorecard?: object } | null}
+ */
+export function parseAutomergeVerdictTrailer(body) {
+  if (typeof body !== 'string' || body.length === 0) return null;
+  const m = AUTOMERGE_VERDICT_TRAILER_RE.exec(body);
+  if (!m) return null;
+  try {
+    const parsed = JSON.parse(m[1]);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed
+      : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Reduce a `checkOutcomes` map to the list of names that did NOT pass.
@@ -189,14 +233,25 @@ function evaluateCodeReviewSignals(codeReview, reasons) {
 
 function evaluateRetroSignals(retro, reasons) {
   const retroFound = !!retro && typeof retro.body === 'string';
-  const retroCompact = retroFound
-    ? retro.body.includes(CLEAN_SPRINT_MARKER)
-    : false;
   if (!retroFound) {
     reasons.push('retro structured comment not found on Epic');
-  } else if (!retroCompact) {
+    return { retroFound, retroCompact: false };
+  }
+  // Read the machine-readable verdict trailer instead of string-matching
+  // the human-facing "🟢 Clean sprint" prose (Story #3901). A missing or
+  // malformed trailer is a hard disqualifier — we never arm auto-merge on
+  // a retro whose verdict we cannot read.
+  const verdict = parseAutomergeVerdictTrailer(retro.body);
+  if (!verdict) {
     reasons.push(
-      'retro is not compact (full retro indicates friction / parked / interventions)',
+      'retro is missing the machine-readable automerge-verdict trailer (cannot certify clean sprint)',
+    );
+    return { retroFound, retroCompact: false };
+  }
+  const retroCompact = verdict.cleanSprint === true;
+  if (!retroCompact) {
+    reasons.push(
+      'retro automerge-verdict trailer reports cleanSprint=false (full retro indicates friction / parked / interventions)',
     );
   }
   return { retroFound, retroCompact };
@@ -339,7 +394,7 @@ export class AutomergePredicate {
      * surface.
      */
     this.classifications = [];
-    this.events = Object.freeze(['epic.watch.end']);
+    this.events = Object.freeze(['epic.automerge.start', 'epic.watch.end']);
   }
 
   register() {
@@ -374,18 +429,26 @@ export class AutomergePredicate {
       });
       return;
     }
-    const checkOutcomes = payload?.checkOutcomes ?? {};
-
     // Gate 1 — required-check freshness. Any non-passing required
     // check is a hard block: short-circuit before consulting the
     // structured-signal evaluator so the operator sees the CI failure
     // as the reason, not a downstream signal.
-    const failures = listFailingChecks(checkOutcomes);
-    if (failures.length > 0) {
-      const reason = formatCheckFailureReason(failures);
-      this.classifications.push({ event, seqId, outcome: 'blocked', reason });
-      await this._emitBlocked(prUrl, reason);
-      return;
+    //
+    // `checkOutcomes` is only present on the `epic.watch.end` payload
+    // (the test-only `Watcher` path). The production `epic.automerge.start`
+    // payload omits it because Phase 8 (`pr-watch-with-update.js`) has
+    // already polled every required check to green before Phase 8.5 fires
+    // (Story #3901). When the map is absent, skip this gate entirely
+    // rather than treating an empty map as "all green by vacuous truth" —
+    // CI greenness is proven upstream, not re-derived here.
+    if (payload?.checkOutcomes !== undefined) {
+      const failures = listFailingChecks(payload.checkOutcomes);
+      if (failures.length > 0) {
+        const reason = formatCheckFailureReason(failures);
+        this.classifications.push({ event, seqId, outcome: 'blocked', reason });
+        await this._emitBlocked(prUrl, reason);
+        return;
+      }
     }
 
     // Gate 2 — structured-signal verdict. Wraps
