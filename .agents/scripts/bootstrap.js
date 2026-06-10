@@ -268,12 +268,12 @@ function ensureGitInitialized(state) {
  * set upstream, downgrading a rejected push to a warning since the bootstrap
  * only needs the remote to resolve (content sync is the operator's to settle).
  */
-async function ensureGitRemote(state) {
+async function ensureGitRemote(state, execImpl = exec) {
   const cwd = state.projectRoot;
   const { owner, repo } = state.answers;
   const branch = state.answers.baseBranch || 'main';
   if (runGit(['remote', 'get-url', 'origin'], cwd).ok) return;
-  if (!(await repoExists(owner, repo))) {
+  if (!(await repoExists(owner, repo, execImpl))) {
     Logger.warn(
       `[bootstrap] No 'origin' remote and ${owner}/${repo} does not exist on GitHub — skipping remote wiring.`,
     );
@@ -302,9 +302,9 @@ async function ensureGitRemote(state) {
  * `is it in the repo-list?` heuristic, which mis-fires for a brand-new
  * account whose `gh repo list` is empty.
  */
-async function repoExists(owner, repo) {
+async function repoExists(owner, repo, execImpl = exec) {
   try {
-    await exec({
+    await execImpl({
       args: ['repo', 'view', `${owner}/${repo}`, '--json', 'name'],
     });
     return true;
@@ -322,12 +322,12 @@ async function repoExists(owner, repo) {
  * already-linked repo or a transient hiccup is downgraded to a warning so it
  * never fails the bootstrap.
  */
-async function ensureProjectLinked(state) {
+async function ensureProjectLinked(state, execImpl = exec) {
   const { owner, repo } = state.answers;
   const pn = String(state.answers.projectNumber ?? '');
   if (!/^\d+$/.test(pn) || !repo) return;
   try {
-    await exec({
+    await execImpl({
       args: ['project', 'link', pn, '--owner', owner, '--repo', repo],
     });
     Logger.info(
@@ -367,11 +367,11 @@ export function resolveRepoVisibility(flags = {}) {
  * from `--visibility` (default private). Throws GhExecError on failure
  * (surfaced by the caller).
  */
-async function createGithubRepo(state) {
+async function createGithubRepo(state, execImpl = exec) {
   const { owner, repo } = state.answers;
   const slug = `${owner}/${repo}`;
   const visibility = resolveRepoVisibility(state.flags);
-  await exec({
+  await execImpl({
     args: [
       'repo',
       'create',
@@ -395,12 +395,12 @@ async function createGithubRepo(state) {
  * persist + GitHub bootstrap steps treat it as an existing project (and never
  * create a duplicate). Throws on failure or when gh returns no number.
  */
-async function createGithubProject(state) {
+async function createGithubProject(state, execImpl = exec) {
   const { owner } = state.answers;
   const title = String(state.answers.projectNumber);
   // `gh project create` uses `--format json` (not `--json`), so exec returns
   // the raw `{ stdout }` envelope — parse the number ourselves.
-  const res = await exec({
+  const res = await execImpl({
     args: [
       'project',
       'create',
@@ -936,8 +936,13 @@ export function dryRunPlan(state) {
  * `collectAndConfirm`, so a re-run on an already-provisioned project is a
  * no-op. `--skip-github` suppresses the GitHub mutations but still runs the
  * local git init. `--dry-run` never reaches this step (it halts earlier).
+ *
+ * `deps.exec` injects the `gh-exec` seam so the GitHub-touching branches
+ * (`gh repo create`, `gh project create`, `gh project link`) are unit-testable
+ * without spawning a real `gh`; it defaults to the module's `exec`.
  */
-export async function provisionResources(state) {
+export async function provisionResources(state, deps = {}) {
+  const execImpl = deps.exec ?? exec;
   const skipGithub = Boolean(state.flags['skip-github']);
 
   // 1. Local git — initialize + first commit when missing (idempotent).
@@ -966,20 +971,20 @@ export async function provisionResources(state) {
   //    pre-created repos would otherwise leave the folder unlinked).
   if (newRepo) {
     try {
-      await createGithubRepo(state);
+      await createGithubRepo(state, execImpl);
     } catch (err) {
       logGhError('repo create', err);
       return { ok: false, exit: 1 };
     }
   } else {
-    await ensureGitRemote(state);
+    await ensureGitRemote(state, execImpl);
   }
 
   // 3. GitHub Project V2 — create from the typed name; capture its number so
   //    the persist + GitHub bootstrap steps reuse it instead of duplicating.
   if (newProject) {
     try {
-      await createGithubProject(state);
+      await createGithubProject(state, execImpl);
       // It now exists with a real number; downstream treats it as existing.
       state.creation.newProject = false;
     } catch (err) {
@@ -995,7 +1000,7 @@ export async function provisionResources(state) {
   // 4. Link the repo to the project board so issues/PRs surface on it
   //    (idempotent + non-fatal; runs for both freshly created and existing
   //    repo/project pairs).
-  await ensureProjectLinked(state);
+  await ensureProjectLinked(state, execImpl);
 
   return { ok: true, payload: {} };
 }
