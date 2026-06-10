@@ -22,7 +22,9 @@ import { fileURLToPath } from 'node:url';
 import {
   buildAdjacency,
   computeStoriesWavePlan,
+  parseConcurrencyOverride,
   parseDag,
+  resolveConcurrencyCap,
   runStoriesWaveTick,
 } from '../../.agents/scripts/stories-wave-tick.js';
 
@@ -134,18 +136,20 @@ describe('buildAdjacency', () => {
 
 describe('computeStoriesWavePlan', () => {
   it('returns empty waves for empty adjacency', () => {
-    const plan = computeStoriesWavePlan(new Map());
+    const plan = computeStoriesWavePlan(new Map(), 3);
     assert.strictEqual(plan.kind, 'stories-wave-plan');
     assert.deepEqual(plan.waves, []);
     assert.strictEqual(plan.totalStories, 0);
+    assert.strictEqual(plan.concurrencyCap, 3);
     assert.strictEqual(plan.cycleError, null);
   });
 
   it('single story with no dependencies → wave 0', () => {
     const adj = new Map([[101, []]]);
-    const plan = computeStoriesWavePlan(adj);
+    const plan = computeStoriesWavePlan(adj, 3);
     assert.strictEqual(plan.cycleError, null);
     assert.strictEqual(plan.totalStories, 1);
+    assert.strictEqual(plan.concurrencyCap, 3);
     assert.strictEqual(plan.waves.length, 1);
     assert.strictEqual(plan.waves[0].waveIndex, 0);
     assert.deepEqual(plan.waves[0].stories, [101]);
@@ -305,6 +309,141 @@ describe('runStoriesWaveTick', () => {
     assert.strictEqual(exitCode, 1);
     assert.ok(envelope.inputError);
   });
+
+  // -------------------------------------------------------------------------
+  // concurrencyCap resolution (Story #3961)
+  // -------------------------------------------------------------------------
+
+  it('(a) default config (no override) → concurrencyCap 3 in the envelope', () => {
+    const dagJson = JSON.stringify([{ id: 1, dependsOn: [] }]);
+    // Inject an empty config so getRunners falls back to the default of 3 —
+    // never depends on a real .agentrc on disk.
+    const { envelope, exitCode } = runStoriesWaveTick({ dagJson, config: {} });
+    assert.strictEqual(exitCode, 0);
+    assert.strictEqual(envelope.concurrencyCap, 3);
+  });
+
+  it('(b) a delivery.deliverRunner.concurrencyCap config override is reflected', () => {
+    const dagJson = JSON.stringify([{ id: 1, dependsOn: [] }]);
+    const config = { delivery: { deliverRunner: { concurrencyCap: 7 } } };
+    const { envelope, exitCode } = runStoriesWaveTick({ dagJson, config });
+    assert.strictEqual(exitCode, 0);
+    assert.strictEqual(envelope.concurrencyCap, 7);
+  });
+
+  it('(c) --concurrency CLI flag takes precedence over config', () => {
+    const dagJson = JSON.stringify([{ id: 1, dependsOn: [] }]);
+    const config = { delivery: { deliverRunner: { concurrencyCap: 7 } } };
+    const { envelope, exitCode } = runStoriesWaveTick({
+      dagJson,
+      config,
+      concurrency: '2',
+    });
+    assert.strictEqual(exitCode, 0);
+    assert.strictEqual(envelope.concurrencyCap, 2);
+  });
+
+  it('rejects a non-positive --concurrency with exitCode 1 and a clear message', () => {
+    const dagJson = JSON.stringify([{ id: 1, dependsOn: [] }]);
+    const { envelope, exitCode } = runStoriesWaveTick({
+      dagJson,
+      config: {},
+      concurrency: '0',
+    });
+    assert.strictEqual(exitCode, 1);
+    assert.ok(envelope.inputError);
+    assert.ok(envelope.inputError.includes('--concurrency'));
+  });
+
+  it('rejects a non-numeric --concurrency with exitCode 1', () => {
+    const dagJson = JSON.stringify([{ id: 1, dependsOn: [] }]);
+    const { envelope, exitCode } = runStoriesWaveTick({
+      dagJson,
+      config: {},
+      concurrency: 'abc',
+    });
+    assert.strictEqual(exitCode, 1);
+    assert.ok(envelope.inputError);
+  });
+
+  it('carries concurrencyCap through a cyclic-DAG envelope (exitCode 2)', () => {
+    const dagJson = JSON.stringify([
+      { id: 1, dependsOn: [2] },
+      { id: 2, dependsOn: [1] },
+    ]);
+    const { envelope, exitCode } = runStoriesWaveTick({ dagJson, config: {} });
+    assert.strictEqual(exitCode, 2);
+    assert.strictEqual(envelope.concurrencyCap, 3);
+    assert.ok(envelope.cycleError);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveConcurrencyCap (Story #3961)
+// ---------------------------------------------------------------------------
+
+describe('resolveConcurrencyCap', () => {
+  it('falls back to the default of 3 for an empty config', () => {
+    assert.strictEqual(resolveConcurrencyCap({ config: {} }), 3);
+  });
+
+  it('reads delivery.deliverRunner.concurrencyCap from config', () => {
+    const config = { delivery: { deliverRunner: { concurrencyCap: 9 } } };
+    assert.strictEqual(resolveConcurrencyCap({ config }), 9);
+  });
+
+  it('an override wins over config', () => {
+    const config = { delivery: { deliverRunner: { concurrencyCap: 9 } } };
+    assert.strictEqual(resolveConcurrencyCap({ config, override: 4 }), 4);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseConcurrencyOverride (Story #3961)
+// ---------------------------------------------------------------------------
+
+describe('parseConcurrencyOverride', () => {
+  it('returns null/null for an absent value', () => {
+    const { value, error } = parseConcurrencyOverride(undefined);
+    assert.strictEqual(value, null);
+    assert.strictEqual(error, null);
+  });
+
+  it('accepts a positive integer string', () => {
+    const { value, error } = parseConcurrencyOverride('5');
+    assert.strictEqual(value, 5);
+    assert.strictEqual(error, null);
+  });
+
+  it('accepts a positive integer number', () => {
+    const { value, error } = parseConcurrencyOverride(5);
+    assert.strictEqual(value, 5);
+    assert.strictEqual(error, null);
+  });
+
+  it('rejects zero', () => {
+    const { value, error } = parseConcurrencyOverride('0');
+    assert.strictEqual(value, null);
+    assert.ok(error);
+  });
+
+  it('rejects a negative value', () => {
+    const { value, error } = parseConcurrencyOverride('-3');
+    assert.strictEqual(value, null);
+    assert.ok(error);
+  });
+
+  it('rejects a fractional value', () => {
+    const { value, error } = parseConcurrencyOverride('2.5');
+    assert.strictEqual(value, null);
+    assert.ok(error);
+  });
+
+  it('rejects a non-numeric value', () => {
+    const { value, error } = parseConcurrencyOverride('abc');
+    assert.strictEqual(value, null);
+    assert.ok(error);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -364,5 +503,41 @@ describe('CLI', () => {
     const envelope = JSON.parse(result.stdout);
     assert.strictEqual(envelope.waves.length, 1);
     assert.deepEqual(envelope.waves[0].stories, [50]);
+  });
+
+  it('--dag emits a numeric concurrencyCap in the envelope', () => {
+    const dag = JSON.stringify([{ id: 101, dependsOn: [] }]);
+    const result = spawnSync(process.execPath, [CLI, '--dag', dag], {
+      encoding: 'utf8',
+      cwd: REPO_ROOT,
+    });
+    assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+    const envelope = JSON.parse(result.stdout);
+    assert.strictEqual(typeof envelope.concurrencyCap, 'number');
+    assert.ok(envelope.concurrencyCap >= 1);
+  });
+
+  it('--concurrency overrides the resolved cap', () => {
+    const dag = JSON.stringify([{ id: 101, dependsOn: [] }]);
+    const result = spawnSync(
+      process.execPath,
+      [CLI, '--dag', dag, '--concurrency', '8'],
+      { encoding: 'utf8', cwd: REPO_ROOT },
+    );
+    assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+    const envelope = JSON.parse(result.stdout);
+    assert.strictEqual(envelope.concurrencyCap, 8);
+  });
+
+  it('an invalid --concurrency exits 1', () => {
+    const dag = JSON.stringify([{ id: 101, dependsOn: [] }]);
+    const result = spawnSync(
+      process.execPath,
+      [CLI, '--dag', dag, '--concurrency', '0'],
+      { encoding: 'utf8', cwd: REPO_ROOT },
+    );
+    assert.strictEqual(result.status, 1, `stderr: ${result.stderr}`);
+    const envelope = JSON.parse(result.stdout);
+    assert.ok(envelope.inputError);
   });
 });
