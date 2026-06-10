@@ -225,9 +225,21 @@ describe('gh-available check', () => {
 // ---------------------------------------------------------------------------
 
 describe('github-token check', () => {
+  // A runner stub that mimics `gh auth token` returning nothing (not
+  // authenticated). Lets env-only branches assert without spawning a real gh.
+  const noGhToken = () => ({
+    status: 1,
+    stdout: '',
+    stderr: 'not logged in',
+    error: undefined,
+  });
+
   it('returns ok=true when GITHUB_TOKEN is set', () => {
     const check = findCheck('github-token');
-    const result = check.run({ env: { GITHUB_TOKEN: 'ghp_supersecret' } });
+    const result = check.run({
+      env: { GITHUB_TOKEN: 'ghp_supersecret' },
+      runner: noGhToken,
+    });
     assertResultShape(result, { expectOk: true });
     // Token value must never appear in detail or remedy.
     assert.doesNotMatch(result.detail, /ghp_supersecret/);
@@ -236,23 +248,83 @@ describe('github-token check', () => {
     }
   });
 
-  it('returns ok=false when GITHUB_TOKEN is absent', () => {
+  it('returns ok=true when GH_TOKEN is set (env alias, parity with runtime resolver)', () => {
     const check = findCheck('github-token');
-    const result = check.run({ env: {} });
-    assertResultShape(result, { expectOk: false });
-    assert.match(result.remedy, /GITHUB_TOKEN/);
+    const result = check.run({
+      env: { GH_TOKEN: 'gho_aliassecret' },
+      runner: noGhToken,
+    });
+    assertResultShape(result, { expectOk: true });
+    assert.doesNotMatch(result.detail, /gho_aliassecret/);
   });
 
-  it('returns ok=false when GITHUB_TOKEN is empty string', () => {
+  it('returns ok=true via the `gh auth token` fallback when env is unset (Story #3893)', () => {
     const check = findCheck('github-token');
-    const result = check.run({ env: { GITHUB_TOKEN: '' } });
+    const result = check.run({
+      env: {},
+      runner: (cmd, args) => {
+        assert.equal(cmd, 'gh');
+        assert.deepEqual(args, ['auth', 'token']);
+        return {
+          status: 0,
+          stdout: 'ghp_resolvedviaghcli\n',
+          stderr: '',
+          error: undefined,
+        };
+      },
+    });
+    assertResultShape(result, { expectOk: true });
+    assert.match(result.detail, /gh auth token/);
+    // The resolved token value must never leak into detail.
+    assert.doesNotMatch(result.detail, /ghp_resolvedviaghcli/);
+  });
+
+  it('returns ok=false with an accurate remedy when env is unset and gh has no token', () => {
+    const check = findCheck('github-token');
+    const result = check.run({ env: {}, runner: noGhToken });
     assertResultShape(result, { expectOk: false });
+    // Remedy must point at the path the runtime actually uses (gh auth login)
+    // and must not promise a `.env` path the CLI cannot read (Finding A.4).
+    assert.match(result.remedy, /gh auth login/);
+    assert.doesNotMatch(result.remedy, /\.env/);
+  });
+
+  it('returns ok=false when gh CLI is missing (ENOENT) and env is unset', () => {
+    const check = findCheck('github-token');
+    const result = check.run({
+      env: {},
+      runner: () => ({
+        status: null,
+        stdout: '',
+        stderr: '',
+        error: Object.assign(new Error('spawn gh ENOENT'), { code: 'ENOENT' }),
+      }),
+    });
+    assertResultShape(result, { expectOk: false });
+  });
+
+  it('treats an empty GITHUB_TOKEN as unset and falls through to gh fallback', () => {
+    const check = findCheck('github-token');
+    const result = check.run({
+      env: { GITHUB_TOKEN: '' },
+      runner: () => ({
+        status: 0,
+        stdout: 'ghp_fromgh\n',
+        stderr: '',
+        error: undefined,
+      }),
+    });
+    assertResultShape(result, { expectOk: true });
+    assert.match(result.detail, /gh auth token/);
   });
 
   it('never echoes a real-looking token value in detail or remedy', () => {
     const sensitiveToken = 'ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ012345';
     const check = findCheck('github-token');
-    const result = check.run({ env: { GITHUB_TOKEN: sensitiveToken } });
+    const result = check.run({
+      env: { GITHUB_TOKEN: sensitiveToken },
+      runner: noGhToken,
+    });
     assert.doesNotMatch(result.detail, /ghp_/i);
     if (result.remedy) {
       assert.doesNotMatch(result.remedy, new RegExp(sensitiveToken));

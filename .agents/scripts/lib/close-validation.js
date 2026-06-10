@@ -35,7 +35,12 @@ import {
  * @property {string[]} args  - Arguments passed to `cmd`.
  * @property {string}   [hint] - Remediation hint shown on failure.
  * @property {{ baseRef: string }} [changedFileScope] - Optional Story-diff scope.
- * @property {(cmd: string, args: string[], opts: { cwd: string, gateName?: string, log?: (m: string) => void, signal?: AbortSignal }) => Promise<{ status: number }> | { status: number }} [run]
+ * @property {Record<string, string>} [env] - Optional per-gate environment
+ *   overlay. Merged over `process.env` for this gate's spawned child only.
+ *   Used to thread the epic baseRef into the `check-baselines` gate via
+ *   `BASELINE_REF` (Story #3890) so baseline regressions compare against the
+ *   epic integration branch rather than `origin/main`.
+ * @property {(cmd: string, args: string[], opts: { cwd: string, gateName?: string, log?: (m: string) => void, signal?: AbortSignal, env?: Record<string, string> }) => Promise<{ status: number }> | { status: number }} [run]
  *   - Optional in-process runner. Story #1973: when present, the gate
  *     executes via this callable instead of spawning `cmd`/`args` through
  *     the default runner — used for per-kind baseline gates that import
@@ -179,6 +184,31 @@ function buildChangedFileScope(baseRef) {
 }
 
 /**
+ * Derive the per-gate `env` overlay that pins the `check-baselines`
+ * regression-compare base to the close run's integration branch
+ * (Story #3890).
+ *
+ * The baselines gate resolves its compare ref through `resolveScope`,
+ * whose environment layer reads `BASELINE_REF`. Threading
+ * `origin/<epicBranch>` here makes the gate diff head against the epic
+ * integration branch instead of the framework-default `origin/main`, so
+ * drift that already landed on `main` but is outside the Story's own diff
+ * does not surface as a phantom regression. The same convention
+ * (`origin/<epicBranch>`) is used by the baseline-attribution and
+ * auto-refresh paths, keeping read/compare bases aligned.
+ *
+ * Returns `null` when no integration branch is supplied (the gate then
+ * keeps its existing default-ref / consumer-config behaviour untouched).
+ *
+ * @param {string|undefined|null} epicBranch
+ * @returns {{ BASELINE_REF: string } | null}
+ */
+function buildBaselinesGateEnv(epicBranch) {
+  if (typeof epicBranch !== 'string' || epicBranch.length === 0) return null;
+  return { BASELINE_REF: `origin/${epicBranch}` };
+}
+
+/**
  * File extensions Biome's formatter can process. Used to filter the
  * changed-file scope down to the formatter-eligible subset (Story #3410):
  * passing only ineligible paths (e.g. a docs-only Story whose diff is all
@@ -313,17 +343,24 @@ function buildTestGateEntry(config) {
  * shared `buildInProcessBaselineGate` runner. The unified
  * `check-baselines` gate is now the single source of truth for per-kind
  * regression enforcement (attribution-wired floor + tolerance + schema).
- * The `epicBranch` parameter is retained on the signature for callers
- * that still pass it; it is currently unused by `buildDefaultGates`
- * itself but is forwarded by callers for downstream wiring.
+ * The `epicBranch` parameter threads the close run's integration branch
+ * into two gates: the `format` gate's `changedFileScope` (existing) and —
+ * since Story #3890 — the `check-baselines` gate's `BASELINE_REF` env, so
+ * the baselines regression compare diffs head against the epic integration
+ * branch (`origin/<epicBranch>`) rather than the framework-default
+ * `origin/main`. Without this, every child Story on an `epic/<id>` branch
+ * re-discovered inherited main-vs-epic drift in untouched files as phantom
+ * regressions and worked around it by hand-setting `BASELINE_REF`.
  *
  * @param {{ config?: object, epicBranch?: string }} [opts] - `config` is the
  *   canonical resolved config (`{ project, delivery, ... }`); gate commands
  *   resolve from `project.commands` and the CRAP toggle from
- *   `delivery.quality.gates.crap.enabled`.
+ *   `delivery.quality.gates.crap.enabled`. `epicBranch` is the close run's
+ *   integration branch (`epic/<id>` for Epic-attached Stories, the base
+ *   branch for standalone Stories).
  * @returns {Gate[]}
  */
-export function buildDefaultGates({ config, epicBranch: _epicBranch } = {}) {
+export function buildDefaultGates({ config, epicBranch } = {}) {
   const typecheckCmdString = resolveTypecheckCommand(config);
   const [typecheckCmd, ...typecheckArgs] = typecheckCmdString
     .split(/\s+/)
@@ -335,8 +372,9 @@ export function buildDefaultGates({ config, epicBranch: _epicBranch } = {}) {
   const formatWriteString = resolveFormatWriteCommand(config);
   const formatChangedFileScope =
     formatCheckString === FORMAT_CHECK_FALLBACK
-      ? buildChangedFileScope(_epicBranch)
+      ? buildChangedFileScope(epicBranch)
       : null;
+  const baselinesGateEnv = buildBaselinesGateEnv(epicBranch);
   return [
     {
       name: 'typecheck',
@@ -381,6 +419,7 @@ export function buildDefaultGates({ config, epicBranch: _epicBranch } = {}) {
       cmd: 'node',
       args: ['.agents/scripts/check-baselines.js', '--format', 'text'],
       hint: 'Unified baselines gate breached. Inspect the JSON report (`node .agents/scripts/check-baselines.js`) to see which kind/component/axis fell below floor; remediate the underlying file(s) or — when the regression is intentional — refresh the relevant baseline through its per-kind update script and commit with a `baseline-refresh:` tagged subject.',
+      ...(baselinesGateEnv ? { env: baselinesGateEnv } : {}),
     },
   ];
 }
@@ -458,7 +497,7 @@ function pipePrefixed(stream, prefix, emit) {
  *
  * @param {string} cmd
  * @param {string[]} args
- * @param {{ cwd: string, signal?: AbortSignal, gateName?: string, log?: (m: string) => void }} opts
+ * @param {{ cwd: string, signal?: AbortSignal, gateName?: string, log?: (m: string) => void, env?: Record<string, string> }} opts
  * @returns {Promise<{ status: number }>}
  */
 /** Wire the AbortSignal so an abort kills the child. Returns the cleanup fn. */
@@ -486,11 +525,15 @@ export function gateExitCode(code, sig) {
 }
 
 function defaultGateRunner(cmd, args, opts = {}) {
-  const { cwd, signal, gateName, log } = opts;
+  const { cwd, signal, gateName, log, env } = opts;
   const child = spawn(cmd, args, {
     cwd,
     shell: process.platform === 'win32',
     stdio: ['ignore', 'pipe', 'pipe'],
+    // Per-gate env overlay (Story #3890): merged over the inherited
+    // environment so a gate-scoped `BASELINE_REF` reaches the spawned
+    // `check-baselines` child without mutating the parent process env.
+    ...(env ? { env: { ...process.env, ...env } } : {}),
   });
   const prefix = gateName ? `[${gateName}] ` : '';
   const emit =
@@ -643,6 +686,7 @@ export async function runCloseValidation({
       gateName: gate.name,
       log,
       signal,
+      ...(gate.env ? { env: gate.env } : {}),
     });
     return { status: result?.status ?? 1 };
   };
