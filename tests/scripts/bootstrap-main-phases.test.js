@@ -55,9 +55,12 @@ describe('parseAndValidate', () => {
     assert.equal(res.ok, true);
     assert.equal(res.payload.interactive, true);
     assert.equal(res.payload.assumeYes, false);
+    // An interactive run consents via the summary confirm loop, so the
+    // GitHub-admin phase is approved (Story #3897).
+    assert.equal(res.payload.githubAdminApproved, true);
   });
 
-  it('halts with exit 1 in non-TTY mode without --assume-yes when owner/repo are missing', () => {
+  it('halts with exit 1 in non-TTY mode without a consent signal when owner/repo are missing', () => {
     const res = parseAndValidate([], {
       stdout: { write: () => {} },
       env: {},
@@ -67,13 +70,16 @@ describe('parseAndValidate', () => {
     assert.equal(res.exit, 1);
   });
 
-  it('advances in non-TTY mode without --assume-yes when owner+repo flags are supplied', () => {
+  it('halts in non-TTY mode without a consent signal even when owner+repo flags are supplied (Story #3897)', () => {
+    // Previously this advanced and silently applied GitHub-admin mutations
+    // with no consent flag, contradicting the --help contract.
     const res = parseAndValidate(['--owner', 'acme', '--repo', 'widget'], {
       stdout: { write: () => {} },
       env: {},
       stdin: { isTTY: false },
     });
-    assert.equal(res.ok, true);
+    assert.equal(res.ok, false);
+    assert.equal(res.exit, 1);
   });
 
   it('advances in non-TTY mode when --assume-yes plus owner/repo are present', () => {
@@ -88,6 +94,33 @@ describe('parseAndValidate', () => {
     assert.equal(res.ok, true);
     assert.equal(res.payload.assumeYes, true);
     assert.equal(res.payload.interactive, false);
+    assert.equal(res.payload.githubAdminApproved, true);
+  });
+
+  it('advances in non-TTY mode when --approve-github-admin (without --assume-yes) plus owner/repo are present (Story #3897)', () => {
+    const res = parseAndValidate(
+      ['--approve-github-admin', '--owner', 'acme', '--repo', 'widget'],
+      {
+        stdout: { write: () => {} },
+        env: {},
+        stdin: { isTTY: false },
+      },
+    );
+    assert.equal(res.ok, true);
+    assert.equal(res.payload.assumeYes, false);
+    assert.equal(res.payload.interactive, false);
+    // The dedicated consent flag approves the GitHub-admin phase.
+    assert.equal(res.payload.githubAdminApproved, true);
+  });
+
+  it('halts in non-TTY mode with a consent signal but missing owner/repo (Story #3897)', () => {
+    const res = parseAndValidate(['--approve-github-admin'], {
+      stdout: { write: () => {} },
+      env: {},
+      stdin: { isTTY: false },
+    });
+    assert.equal(res.ok, false);
+    assert.equal(res.exit, 1);
   });
 
   it('honours GH_OWNER / GH_REPO env vars as a substitute for the flags', () => {
