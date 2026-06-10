@@ -379,10 +379,12 @@ export function ensureCiWorkflow(args) {
  * mutation manifest. The whole sequence is now **explicit opt-in**: unless
  * `opts.githubAdminApproved === true`, `runBootstrap` short-circuits before
  * touching the provider and issues **zero** GitHub mutations. This is the
- * boundary-level enforcement of the consent gate the `bootstrap.js`
- * orchestrator already collects (`approvePhases` → `executeGithubBootstrap`):
- * a direct caller cannot silently reconfigure a repo by skipping the phased
- * approval flow. Even additive branch-protection / merge-method changes that
+ * boundary-level enforcement of the consent signal the `bootstrap.js`
+ * orchestrator threads from `parseAndValidate` (interactive operator
+ * confirmation, `--assume-yes`, or `--approve-github-admin`) down through
+ * `executeGithubBootstrap`: a direct caller cannot silently reconfigure a
+ * repo by skipping that consent. Even additive branch-protection /
+ * merge-method changes that
  * previously applied without a prompt are gated — they are enumerated in the
  * manifest's `github-admin` group and only land once that group is approved.
  *

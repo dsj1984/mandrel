@@ -80,6 +80,11 @@ const GH_BOOTSTRAP_PATH = path.resolve(
   '.agents/scripts/agents-bootstrap-github.js',
 );
 const GH_BOOTSTRAP_URL = pathToFileURL(GH_BOOTSTRAP_PATH).href;
+const CONFIG_RESOLVER_PATH = path.resolve(
+  ROOT,
+  '.agents/scripts/lib/config-resolver.js',
+);
+const CONFIG_RESOLVER_URL = pathToFileURL(CONFIG_RESOLVER_PATH).href;
 
 /** Track scratch dirs so afterEach can reap them. */
 const scratchDirs = [];
@@ -570,6 +575,78 @@ describe('executeGithubBootstrap — GhExecError surfacing', () => {
     });
     assert.equal(res.ok, true);
     assert.equal(report.github, undefined);
+  });
+
+  // -------------------------------------------------------------------------
+  // Story #3897 — the consent signal (no longer a hardcoded `true`) is threaded
+  // verbatim into the boundary gate. Mock every seam runGithubBootstrap pulls
+  // in so we capture the exact `githubAdminApproved` opt the orchestrator
+  // forwards to `runBootstrap` — no real gh call, no real config read.
+  // -------------------------------------------------------------------------
+  async function loadSutWithCapturedRunBootstrap(t, tag) {
+    const realGhBootstrap = await import(GH_BOOTSTRAP_URL);
+    const realResolver = await import(CONFIG_RESOLVER_URL);
+    const captured = {};
+    t.mock.module(GH_BOOTSTRAP_URL, {
+      namedExports: {
+        ...namedOnly(realGhBootstrap),
+        preflightGh: async () => {},
+        preflightRuntimeDeps: async () => {},
+        runBootstrap: async (_config, opts) => {
+          captured.opts = opts;
+          return { skipped: opts.githubAdminApproved !== true };
+        },
+      },
+    });
+    t.mock.module(CONFIG_RESOLVER_URL, {
+      namedExports: {
+        ...namedOnly(realResolver),
+        resolveConfig: () => ({ project: {}, github: {} }),
+        validateOrchestrationConfig: () => {},
+      },
+    });
+    const mod = await import(`${SUT_URL}?t=${tag}`);
+    return { mod, captured };
+  }
+
+  it('threads githubAdminApproved=true into runBootstrap when consent is present (Story #3897)', async (t) => {
+    captureInfo(t);
+    const { mod, captured } = await loadSutWithCapturedRunBootstrap(
+      t,
+      'egb-consent-yes',
+    );
+    const report = {};
+    const res = await mod.executeGithubBootstrap({
+      report,
+      answers: { owner: 'acme', repo: 'widget', baseBranch: 'main' },
+      flags: {},
+      assumeYes: true,
+      githubAdminApproved: true,
+    });
+    assert.equal(res.ok, true);
+    assert.equal(captured.opts.githubAdminApproved, true);
+    assert.equal(report.github.skipped, false);
+  });
+
+  it('threads githubAdminApproved=false into runBootstrap so the GitHub-admin phase is a verified no-op without consent (Story #3897)', async (t) => {
+    captureInfo(t);
+    const { mod, captured } = await loadSutWithCapturedRunBootstrap(
+      t,
+      'egb-consent-no',
+    );
+    const report = {};
+    const res = await mod.executeGithubBootstrap({
+      report,
+      answers: { owner: 'acme', repo: 'widget', baseBranch: 'main' },
+      flags: {},
+      assumeYes: false,
+      // No consent signal computed by parseAndValidate → not approved.
+      githubAdminApproved: false,
+    });
+    assert.equal(res.ok, true);
+    // The boundary received a strict `false`, never a hardcoded `true`.
+    assert.equal(captured.opts.githubAdminApproved, false);
+    assert.equal(report.github.skipped, true);
   });
 });
 
