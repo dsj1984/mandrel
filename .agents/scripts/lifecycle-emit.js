@@ -55,9 +55,14 @@ import { fileURLToPath } from 'node:url';
 import { runAsCli } from './lib/cli-utils.js';
 import { epicLedgerPath } from './lib/config/temp-paths.js';
 import { resolveConfig } from './lib/config-resolver.js';
+import { appendEpicSignal } from './lib/observability/signals-writer.js';
 import * as epicRunStateStoreModule from './lib/orchestration/epic-run-state-store.js';
 import { createBus } from './lib/orchestration/lifecycle/bus.js';
 import { buildDefaultListenerChain } from './lib/orchestration/lifecycle/listeners/index.js';
+import {
+  STATE_LABELS,
+  transitionTicketState,
+} from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -144,6 +149,129 @@ export function buildPayload(parsed) {
 }
 
 /**
+ * The listener-chain keys (as returned by `buildDefaultListenerChain`)
+ * whose listener instances carry a `classifications` array. Each listener
+ * records one `{ event, seqId, outcome, reason? }` entry per invocation
+ * (the "no silent skip" contract). We flatten every listener's
+ * classifications into a single `outcomes[]` array so the CLI can surface
+ * them and decide its exit code.
+ */
+const CLASSIFYING_LISTENER_KEYS = Object.freeze([
+  'acceptanceReconciler',
+  'finalizer',
+  'automergeArmer',
+  'automergePredicate',
+  'branchCleaner',
+  'mergeWatcher',
+  'cleaner',
+]);
+
+/**
+ * Flatten the listener-chain's per-listener `classifications` arrays into
+ * a single ordered `outcomes[]` list. Each entry is tagged with the
+ * `listener` key it came from so an operator (or the retro substrate) can
+ * see WHICH listener classified WHAT.
+ *
+ * A `null`/`undefined` chain (caller-supplied bus, or no chain wired)
+ * yields an empty array — the CLI then has nothing to fail on, preserving
+ * the injected-bus test contract.
+ *
+ * @param {object|null} chain result of `buildDefaultListenerChain`
+ * @returns {Array<{ listener: string, event?: string, seqId?: number,
+ *   outcome: string, reason?: string }>}
+ */
+export function collectOutcomes(chain) {
+  if (!chain || typeof chain !== 'object') return [];
+  const outcomes = [];
+  for (const key of CLASSIFYING_LISTENER_KEYS) {
+    const listener = chain[key];
+    const classifications = listener?.classifications;
+    if (!Array.isArray(classifications)) continue;
+    for (const c of classifications) {
+      if (!c || typeof c !== 'object') continue;
+      outcomes.push({ listener: key, ...c });
+    }
+  }
+  return outcomes;
+}
+
+/**
+ * Default operator-visible blocker signal. Fired by `runLifecycleEmit`
+ * when one or more listener classifications came back `failed` and an
+ * `epicId` is resolvable. It does two things, each best-effort:
+ *
+ *   1. Flips the Epic ticket to `agent::blocked` (the authoritative HITL
+ *      runtime pause point per `instructions.md` § 1.J) via the canonical
+ *      `transitionTicketState` API — but only when a `provider` is wired
+ *      in. The standalone CLI is usable in repos with no `github` block,
+ *      so a missing provider degrades to "signal-only".
+ *   2. Appends a `friction` signal to the per-Epic `signals.ndjson` stream
+ *      so the failure is recorded out-of-band even when no provider is
+ *      configured (the no-ticket fallback from § 1.H).
+ *
+ * Neither step throws: the CLI must still print its `outcomes[]` envelope
+ * and exit non-zero on the underlying failure regardless of whether the
+ * side-effect plumbing succeeded.
+ *
+ * @param {object} args
+ * @param {number} args.epicId resolved Epic id
+ * @param {string} args.event the lifecycle event that produced the failure
+ * @param {Array<object>} args.failedOutcomes the `outcome: 'failed'` entries
+ * @param {object|null} [args.provider] ticketing provider (label flip)
+ * @param {object} [args.config] resolved agent config (signal path)
+ * @param {object} [args.logger] logger surface
+ * @returns {Promise<{ labelFlipped: boolean, signalAppended: boolean }>}
+ */
+export async function emitBlockedSignal({
+  epicId,
+  event,
+  failedOutcomes,
+  provider,
+  config,
+  logger,
+} = {}) {
+  const log = logger ?? console;
+  const reasons = (failedOutcomes ?? [])
+    .map((o) => `${o.listener}:${o.reason ?? o.outcome}`)
+    .join('; ');
+  let labelFlipped = false;
+  if (provider) {
+    try {
+      await transitionTicketState(provider, epicId, STATE_LABELS.BLOCKED);
+      labelFlipped = true;
+    } catch (err) {
+      log?.warn?.(
+        `[lifecycle-emit] failed to flip Epic #${epicId} to agent::blocked: ${err?.message ?? err}`,
+      );
+    }
+  } else {
+    log?.debug?.(
+      `[lifecycle-emit] no provider wired — skipping agent::blocked flip for Epic #${epicId} (signal-only)`,
+    );
+  }
+  let signalAppended = false;
+  try {
+    signalAppended = await appendEpicSignal({
+      epicId,
+      config,
+      signal: {
+        kind: 'friction',
+        severity: 'high',
+        event,
+        message: `lifecycle-emit: ${event} produced failed listener classification(s): ${reasons}`,
+        outcomes: failedOutcomes,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (err) {
+    log?.warn?.(
+      `[lifecycle-emit] failed to append friction signal for Epic #${epicId}: ${err?.message ?? err}`,
+    );
+  }
+  return { labelFlipped, signalAppended };
+}
+
+/**
  * Programmatic entry point. Tests inject `bus` to assert payload
  * shape without triggering real schema validation.
  *
@@ -179,6 +307,21 @@ export function buildPayload(parsed) {
  *   `null` to explicitly skip BranchCleaner.
  * @param {object} [opts.config] override resolved config (defaults to
  *   `resolveConfig()`).
+ * @param {(args: object) => Promise<unknown>} [opts.emitBlockedSignalFn]
+ *   override the operator-visible blocker signal (defaults to
+ *   `emitBlockedSignal`). Tests inject a spy to assert it fires on a
+ *   `failed` classification without touching GitHub or the filesystem.
+ * @param {object} [opts.chain] override the listener chain whose
+ *   `classifications` arrays are collected into `outcomes[]`. Only honoured
+ *   alongside an injected `bus` (when the caller owns listener wiring) —
+ *   lets a test inject a bus + a chain carrying a `failed`-classifying
+ *   listener to exercise the non-zero-exit path without the real roster.
+ *
+ * @returns {Promise<{ event: string, payload: object, seqId: number,
+ *   outcomes: Array<object>, failed: boolean }>} The `outcomes[]` array
+ *   carries every listener classification (tagged with its listener key);
+ *   `failed` is `true` when any classification's `outcome` is `'failed'`.
+ *   The CLI maps `failed` to a non-zero exit code.
  */
 export async function runLifecycleEmit({
   event,
@@ -190,6 +333,8 @@ export async function runLifecycleEmit({
   provider,
   checkpointer,
   config,
+  emitBlockedSignalFn = emitBlockedSignal,
+  chain: injectedChain,
 } = {}) {
   if (typeof event !== 'string' || event.length === 0) {
     throw new Error('lifecycle-emit: --event is required');
@@ -202,60 +347,88 @@ export async function runLifecycleEmit({
   }
   const callerSuppliedBus = Boolean(bus);
   const targetBus = bus ?? createBus({ schemaDir });
+  const epicId = Number(payload?.epicId);
+  const hasEpicId = Number.isInteger(epicId) && epicId > 0;
+  // An injected chain is only meaningful when the caller also injected the
+  // bus (otherwise we build the chain ourselves below).
+  let chain = callerSuppliedBus ? (injectedChain ?? null) : null;
+  let resolvedConfig = config;
+  let resolvedProvider = provider;
   // Wire the default listener chain only when we constructed the bus
   // ourselves. Callers that inject a bus own its listener wiring.
-  if (!callerSuppliedBus) {
-    const epicId = Number(payload?.epicId);
-    if (Number.isInteger(epicId) && epicId > 0) {
-      const ledgerPath = epicLedgerPath(epicId);
-      // Resolve config + provider + checkpointer so the full canonical
-      // listener roster subscribes (Story #2531). The CLI swallows
-      // resolution errors (missing/invalid .agentrc.json or
-      // unconfigured provider) and falls back to the skip-cleanly
-      // behaviour — the standalone CLI MUST remain usable in repos
-      // that have not configured the github block yet, just
-      // with a reduced listener roster.
-      let resolvedConfig = config;
-      let resolvedProvider = provider;
-      let resolvedCheckpointer = checkpointer;
-      if (resolvedConfig === undefined) {
-        try {
-          resolvedConfig = resolveConfig();
-        } catch (err) {
-          (logger ?? console)?.debug?.(
-            `[lifecycle-emit] resolveConfig failed (continuing with skipped collaborators): ${err?.message ?? err}`,
-          );
-          resolvedConfig = null;
-        }
+  if (!callerSuppliedBus && hasEpicId) {
+    const ledgerPath = epicLedgerPath(epicId);
+    // Resolve config + provider + checkpointer so the full canonical
+    // listener roster subscribes (Story #2531). The CLI swallows
+    // resolution errors (missing/invalid .agentrc.json or
+    // unconfigured provider) and falls back to the skip-cleanly
+    // behaviour — the standalone CLI MUST remain usable in repos
+    // that have not configured the github block yet, just
+    // with a reduced listener roster.
+    let resolvedCheckpointer = checkpointer;
+    if (resolvedConfig === undefined) {
+      try {
+        resolvedConfig = resolveConfig();
+      } catch (err) {
+        (logger ?? console)?.debug?.(
+          `[lifecycle-emit] resolveConfig failed (continuing with skipped collaborators): ${err?.message ?? err}`,
+        );
+        resolvedConfig = null;
       }
-      if (resolvedProvider === undefined) {
-        try {
-          resolvedProvider = createProvider(resolvedConfig);
-        } catch (err) {
-          (logger ?? console)?.debug?.(
-            `[lifecycle-emit] createProvider skipped (no provider configured): ${err?.message ?? err}`,
-          );
-          resolvedProvider = null;
-        }
-      }
-      if (resolvedCheckpointer === undefined) {
-        resolvedCheckpointer = resolvedProvider
-          ? buildEpicCheckpointer({ provider: resolvedProvider, epicId })
-          : null;
-      }
-      await buildDefaultListenerChain({
-        bus: targetBus,
-        ledgerPath,
-        repoRoot: repoRoot ?? process.cwd(),
-        provider: resolvedProvider,
-        checkpointer: resolvedCheckpointer,
-        config: resolvedConfig,
-        logger,
-      });
     }
+    if (resolvedProvider === undefined) {
+      try {
+        resolvedProvider = createProvider(resolvedConfig);
+      } catch (err) {
+        (logger ?? console)?.debug?.(
+          `[lifecycle-emit] createProvider skipped (no provider configured): ${err?.message ?? err}`,
+        );
+        resolvedProvider = null;
+      }
+    }
+    if (resolvedCheckpointer === undefined) {
+      resolvedCheckpointer = resolvedProvider
+        ? buildEpicCheckpointer({ provider: resolvedProvider, epicId })
+        : null;
+    }
+    chain = await buildDefaultListenerChain({
+      bus: targetBus,
+      ledgerPath,
+      repoRoot: repoRoot ?? process.cwd(),
+      provider: resolvedProvider,
+      checkpointer: resolvedCheckpointer,
+      config: resolvedConfig,
+      logger,
+    });
   }
   const { seqId } = await targetBus.emit(event, payload ?? {});
-  return { event, payload: payload ?? {}, seqId };
+
+  // Collect every listener classification the chain recorded. Listeners
+  // record `failed` classifications instead of throwing (the bus's
+  // `onFailed` boundary already persists the originating event), so the
+  // bus emit resolves cleanly even when a downstream side effect — e.g.
+  // an acceptance-reconcile gap or a `closePlanningTickets` throw inside
+  // the Finalizer — failed. Without surfacing these, the CLI would exit 0
+  // with success-shaped JSON despite a partial finalize (Story #3904).
+  const outcomes = collectOutcomes(chain);
+  const failedOutcomes = outcomes.filter((o) => o.outcome === 'failed');
+  const failed = failedOutcomes.length > 0;
+
+  // Operator-visible signal: a failed classification surfaces an
+  // `agent::blocked` flip + friction signal rather than a silent exit 0.
+  // Fired only when we own the chain AND have a target Epic to flag.
+  if (failed && hasEpicId) {
+    await emitBlockedSignalFn({
+      epicId,
+      event,
+      failedOutcomes,
+      provider: resolvedProvider ?? null,
+      config: resolvedConfig ?? undefined,
+      logger,
+    });
+  }
+
+  return { event, payload: payload ?? {}, seqId, outcomes, failed };
 }
 
 /**
@@ -287,6 +460,14 @@ async function main() {
   const payload = buildPayload(parsed);
   const out = await runLifecycleEmit({ event, payload });
   process.stdout.write(`${JSON.stringify(out)}\n`);
+  // Exit non-zero when any listener classification came back `failed` so
+  // the workflow's "re-run on non-zero" loop closes the partial-finalize
+  // gap (Story #3904). `runAsCli`'s `propagateExitCode` maps this return
+  // value to `process.exit`.
+  return out.failed ? 1 : 0;
 }
 
-runAsCli(import.meta.url, main, { source: 'lifecycle-emit' });
+runAsCli(import.meta.url, main, {
+  source: 'lifecycle-emit',
+  propagateExitCode: true,
+});

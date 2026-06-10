@@ -26,6 +26,7 @@ import { describe, it } from 'node:test';
 import { Bus } from '../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
 import {
   buildPayload,
+  collectOutcomes,
   parseArgv,
   runLifecycleEmit,
 } from '../../.agents/scripts/lifecycle-emit.js';
@@ -211,5 +212,139 @@ describe('lifecycle-emit ↔ epic.automerge.start schema (Story #2855)', () => {
     });
     assert.equal(out.event, 'epic.automerge.start');
     assert.equal(typeof out.seqId, 'number');
+  });
+});
+
+// Story #3904 — `runLifecycleEmit` previously returned `{ event, payload,
+// seqId }` and the CLI always exited 0, even when a listener (e.g. the
+// Finalizer on a `closePlanningTickets` throw, or the AcceptanceReconciler
+// on an unmet AC gap) classified its invocation `failed`. Listeners record
+// `failed` into `this.classifications` rather than throwing, so the bus
+// emit resolves cleanly and the partial-finalize failure was swallowed at
+// the CLI boundary. The fix collects every listener's classifications into
+// `outcomes[]`, sets `failed` when any is `failed`, and fires an
+// operator-visible blocker signal.
+describe('runLifecycleEmit failure propagation (Story #3904)', () => {
+  it('returns outcomes[] flattened from the listener chain classifications', () => {
+    const chain = {
+      acceptanceReconciler: {
+        classifications: [{ event: 'epic.close.end', seqId: 1, outcome: 'ok' }],
+      },
+      finalizer: {
+        classifications: [
+          {
+            event: 'acceptance.reconcile.ok',
+            seqId: 2,
+            outcome: 'failed',
+            reason: 'finalize-threw:boom',
+          },
+        ],
+      },
+    };
+    const outcomes = collectOutcomes(chain);
+    assert.equal(outcomes.length, 2);
+    assert.deepEqual(outcomes[0], {
+      listener: 'acceptanceReconciler',
+      event: 'epic.close.end',
+      seqId: 1,
+      outcome: 'ok',
+    });
+    assert.equal(outcomes[1].listener, 'finalizer');
+    assert.equal(outcomes[1].outcome, 'failed');
+    assert.equal(outcomes[1].reason, 'finalize-threw:boom');
+  });
+
+  it('collectOutcomes tolerates a null/undefined chain (injected-bus path)', () => {
+    assert.deepEqual(collectOutcomes(null), []);
+    assert.deepEqual(collectOutcomes(undefined), []);
+    assert.deepEqual(collectOutcomes({}), []);
+  });
+
+  it('happy path — no failed classification → failed:false, empty outcomes, signal not fired', async () => {
+    let signalFired = false;
+    const out = await runLifecycleEmit({
+      event: 'epic.close.end',
+      payload: { epicId: 9999 },
+      bus: new Bus(),
+      emitBlockedSignalFn: async () => {
+        signalFired = true;
+      },
+    });
+    assert.equal(out.failed, false);
+    assert.deepEqual(out.outcomes, []);
+    assert.equal(signalFired, false);
+  });
+
+  it('failing listener → failed:true, outcomes[] surfaced, blocker signal fired', async () => {
+    // Inject a bus (so the helper does not wire the real chain) plus a
+    // fake chain whose listener classified `failed` — the canonical
+    // partial-finalize shape.
+    const bus = new Bus();
+    const chain = {
+      finalizer: {
+        classifications: [
+          {
+            event: 'acceptance.reconcile.ok',
+            seqId: 1,
+            outcome: 'failed',
+            reason: 'finalize-threw:closePlanningTickets',
+          },
+        ],
+      },
+    };
+    let signalArgs = null;
+    const out = await runLifecycleEmit({
+      event: 'epic.close.end',
+      payload: { epicId: 4242 },
+      bus,
+      chain,
+      emitBlockedSignalFn: async (args) => {
+        signalArgs = args;
+      },
+    });
+
+    assert.equal(out.failed, true);
+    assert.equal(out.outcomes.length, 1);
+    assert.equal(out.outcomes[0].listener, 'finalizer');
+    assert.equal(out.outcomes[0].outcome, 'failed');
+
+    // Operator-visible signal fired with the Epic id + failed outcomes.
+    assert.ok(
+      signalArgs,
+      'emitBlockedSignalFn should fire on a failed outcome',
+    );
+    assert.equal(signalArgs.epicId, 4242);
+    assert.equal(signalArgs.event, 'epic.close.end');
+    assert.equal(signalArgs.failedOutcomes.length, 1);
+    assert.equal(
+      signalArgs.failedOutcomes[0].reason,
+      'finalize-threw:closePlanningTickets',
+    );
+  });
+
+  it('ignores an injected chain when no bus is supplied (helper owns the chain)', async () => {
+    // Without an injected bus the helper builds (or skips) the chain itself,
+    // so a caller-supplied `chain` override is intentionally not honoured.
+    // With no epicId in the payload the real chain is skipped entirely, so
+    // outcomes stay empty and `failed` is false.
+    const chain = {
+      finalizer: {
+        classifications: [{ event: 'x', seqId: 1, outcome: 'failed' }],
+      },
+    };
+    let signalFired = false;
+    const out = await runLifecycleEmit({
+      // `acceptance.reconcile.ok` requires only `baseRead` (no epicId), so
+      // the helper skips the real chain entirely.
+      event: 'acceptance.reconcile.ok',
+      payload: { baseRead: true },
+      chain,
+      emitBlockedSignalFn: async () => {
+        signalFired = true;
+      },
+    });
+    assert.deepEqual(out.outcomes, []);
+    assert.equal(out.failed, false);
+    assert.equal(signalFired, false);
   });
 });
