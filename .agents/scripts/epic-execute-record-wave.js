@@ -43,6 +43,10 @@ import { getRunners } from './lib/config/runners.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
 import * as epicRunStateStore from './lib/orchestration/epic-run-state-store.js';
+import {
+  emitStoryDispatchEnd,
+  storyStatusToDispatchOutcome,
+} from './lib/orchestration/lifecycle/emit-story-dispatch-end.js';
 import { upsertEpicRunProgress } from './lib/orchestration/epic-runner/progress-reporter.js';
 import {
   loadManifestTitleMap,
@@ -230,6 +234,15 @@ export async function runEpicExecuteRecordWave({
     },
   });
 
+  // 5a. Emit one `story.dispatch.end` per recorded Story (Story #3900).
+  //     Closes the start/end pairing the wave-tick reconciler and the
+  //     `--check-idle` watchdog use to derive in-flight Stories. Before this
+  //     the only producer was `wave-session.js`, which the host-LLM driven
+  //     /epic-deliver path never imports — so every dispatched Story stayed
+  //     "in-flight" forever and completed Stories tripped the watchdog.
+  //     Best-effort: a failed append must not block the wave loop.
+  emitWaveDispatchEnds({ epicId, verified, config });
+
   // 6. Re-render the unified `epic-run-progress` rollup from the checkpoint
   //    state. This is the only operator-facing summary — there is no
   //    separate per-wave structured comment.
@@ -301,6 +314,51 @@ export async function runEpicExecuteRecordWave({
     }));
   }
   return envelope;
+}
+
+/**
+ * Append one `story.dispatch.end` lifecycle record per recorded Story
+ * (Story #3900). Each emit is independent and best-effort: a single failed
+ * append is logged and swallowed so one bad record never aborts the wave
+ * loop. The Story status taxonomy (`done`/`blocked`/`failed`) maps directly
+ * onto the `story.dispatch.end` outcome enum.
+ *
+ * Exported for unit testing.
+ *
+ * @param {{
+ *   epicId: number,
+ *   verified: Array<{ storyId: number, status: string }>,
+ *   config?: object,
+ *   emit?: typeof emitStoryDispatchEnd,
+ * }} args
+ * @returns {number} count of records successfully appended.
+ */
+export function emitWaveDispatchEnds({
+  epicId,
+  verified,
+  config,
+  emit = emitStoryDispatchEnd,
+}) {
+  let emitted = 0;
+  for (const result of verified ?? []) {
+    const storyId = result?.storyId;
+    const status = result?.status;
+    if (!Number.isInteger(storyId) || storyId <= 0) continue;
+    try {
+      emit({
+        epicId,
+        storyId,
+        outcome: storyStatusToDispatchOutcome(status),
+        config,
+      });
+      emitted += 1;
+    } catch (err) {
+      Logger.warn(
+        `[record-wave] Non-fatal: could not emit story.dispatch.end for Story #${storyId} — ${err?.message ?? 'unknown error'}`,
+      );
+    }
+  }
+  return emitted;
 }
 
 /**
