@@ -19,10 +19,16 @@
  */
 
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import {
+  collectAndConfirm,
+  normalizeHandleAnswer,
   parseAndValidate,
+  persistProjectNumber,
   prepareContext,
   runPipeline,
 } from '../../.agents/scripts/bootstrap.js';
@@ -286,5 +292,133 @@ describe('executeGithubBootstrap', () => {
     const res = await executeGithubBootstrap(state);
     assert.equal(res.ok, true);
     assert.equal(report.github, undefined);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Story #3700 — bootstrap hardening
+// ---------------------------------------------------------------------------
+
+describe('normalizeHandleAnswer (Story #3700 — @-handle normalization)', () => {
+  it('strips a single leading @ so the template never doubles it', () => {
+    assert.equal(normalizeHandleAnswer('@foo'), 'foo');
+  });
+
+  it('leaves a bare handle untouched (idempotent)', () => {
+    assert.equal(normalizeHandleAnswer('foo'), 'foo');
+    assert.equal(normalizeHandleAnswer(normalizeHandleAnswer('@foo')), 'foo');
+  });
+
+  it('strips only ONE leading @ (does not collapse @@)', () => {
+    // A double-@ collapses by exactly one; the result is what the starter
+    // template re-prepends, so a single round-trip stays single-@.
+    assert.equal(normalizeHandleAnswer('@@foo'), '@foo');
+  });
+
+  it('passes non-string values through unchanged', () => {
+    assert.equal(normalizeHandleAnswer(undefined), undefined);
+    assert.equal(normalizeHandleAnswer(null), null);
+  });
+});
+
+describe('collectAndConfirm — @-handle normalization (Story #3700)', () => {
+  it('strips a leading @ from --operator-handle so it persists bare', async () => {
+    const res = await collectAndConfirm({
+      flags: {
+        owner: 'acme',
+        repo: 'widget',
+        'base-branch': 'main',
+        'operator-handle': '@foo',
+        'skip-github': true,
+      },
+      interactive: false,
+      assumeYes: false,
+      defaults: { owner: null, repo: null, baseBranch: null },
+      silentAccept: [],
+      gitInitialized: true,
+    });
+    assert.equal(res.ok, true);
+    // The starter template carries "@[USERNAME]"; substituting a bare handle
+    // yields "@foo", not "@@foo".
+    assert.equal(res.payload.answers.operatorHandle, 'foo');
+  });
+
+  it('strips a leading @ from GH_OPERATOR_HANDLE env (flag/env bypass the validator)', async () => {
+    const prev = process.env.GH_OPERATOR_HANDLE;
+    process.env.GH_OPERATOR_HANDLE = '@bar';
+    try {
+      const res = await collectAndConfirm({
+        flags: {
+          owner: 'acme',
+          repo: 'widget',
+          'base-branch': 'main',
+          'skip-github': true,
+        },
+        interactive: false,
+        assumeYes: false,
+        defaults: { owner: null, repo: null, baseBranch: null },
+        silentAccept: [],
+        gitInitialized: true,
+      });
+      assert.equal(res.ok, true);
+      assert.equal(res.payload.answers.operatorHandle, 'bar');
+    } finally {
+      if (prev === undefined) delete process.env.GH_OPERATOR_HANDLE;
+      else process.env.GH_OPERATOR_HANDLE = prev;
+    }
+  });
+});
+
+describe('persistProjectNumber — minimal write (Story #3700)', () => {
+  let dir;
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bootstrap-persist-'));
+  });
+  afterEach(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('does not rewrite .agentrc.json when the number is already set', () => {
+    const target = path.join(dir, '.agentrc.json');
+    // A hand-formatted file with tabs + trailing spacing the writer would churn.
+    const original = '{\n\t"github": {\n\t\t"projectNumber": 7\n\t}\n}\n';
+    fs.writeFileSync(target, original, 'utf8');
+    const before = fs.statSync(target).mtimeMs;
+
+    const res = persistProjectNumber({
+      projectRoot: dir,
+      answers: { projectNumber: '7' },
+    });
+    assert.equal(res.ok, true);
+    // Byte-for-byte identical — no reformatting churn.
+    assert.equal(fs.readFileSync(target, 'utf8'), original);
+    assert.equal(fs.statSync(target).mtimeMs, before);
+  });
+
+  it('writes the number when it differs (and is a clean re-run no-op after)', () => {
+    const target = path.join(dir, '.agentrc.json');
+    fs.writeFileSync(target, '{\n  "github": {}\n}\n', 'utf8');
+
+    persistProjectNumber({
+      projectRoot: dir,
+      answers: { projectNumber: '12' },
+    });
+    const afterFirst = fs.readFileSync(target, 'utf8');
+    assert.match(afterFirst, /"projectNumber": 12/);
+
+    // Second run with the same number must not mutate the file again.
+    persistProjectNumber({
+      projectRoot: dir,
+      answers: { projectNumber: '12' },
+    });
+    assert.equal(fs.readFileSync(target, 'utf8'), afterFirst);
+  });
+
+  it('no-ops for a blank/non-numeric (new-project) answer', () => {
+    const target = path.join(dir, '.agentrc.json');
+    const original = '{\n  "github": {}\n}\n';
+    fs.writeFileSync(target, original, 'utf8');
+    persistProjectNumber({ projectRoot: dir, answers: { projectNumber: '' } });
+    assert.equal(fs.readFileSync(target, 'utf8'), original);
   });
 });
