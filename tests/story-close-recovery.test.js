@@ -336,8 +336,17 @@ test('detectPriorPhase', async (t) => {
   );
 
   await t.test(
-    'merge-commit-message scan falls back to local epic/<id> when origin/epic/<id> yields no match',
+    'merge-commit-message scan does NOT classify a local-only (unpushed) epic merge as already-merged (Story #3907 — "merged locally, push failed")',
     () => {
+      // The prior close created the `(resolves #<id>)` integration merge commit
+      // on the LOCAL `epic/<id>` branch, but the subsequent `git push` failed,
+      // so `origin/epic/<id>` does NOT carry it. The merge-commit scan is now
+      // restricted to the origin ref, so this unpushed merge is NOT recovered
+      // as ALREADY_MERGED. (If it were, the resumed close would skip the push,
+      // flip the ticket done, and reap the branch — the merge would survive in
+      // one clone only and a sibling `pull --rebase` could linearize it away.)
+      // With both Story refs reaped and no remote epic match, detection falls
+      // through to FRESH; the local-only merge is unpushed work.
       const result = detectPriorPhase({
         cwd: CWD,
         storyId: 100,
@@ -347,18 +356,15 @@ test('detectPriorPhase', async (t) => {
           localStoryExists: false,
           ancestorExit: 1,
           logGrepByRef: {
-            // origin epic ref unreachable / no match...
+            // origin epic ref does NOT carry the merge (push failed)...
             'origin/epic/42': { status: 1, stdout: '' },
-            // ...but the local epic branch carries the integration commit.
+            // ...the local epic branch DOES, but it must be ignored now.
             'epic/42': { status: 0, stdout: 'cafebabe1234\n' },
           },
         }),
         fs: makeFs([]),
       });
-      assert.strictEqual(result.phase, RECOVERY_STATES.ALREADY_MERGED);
-      assert.strictEqual(result.detail.via, 'merge-commit-message');
-      assert.strictEqual(result.detail.mergeCommit, 'cafebabe1234');
-      assert.strictEqual(result.detail.remoteEpicRef, 'epic/42');
+      assert.strictEqual(result.phase, RECOVERY_STATES.FRESH);
     },
   );
 

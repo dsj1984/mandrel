@@ -147,16 +147,25 @@ function quote(text) {
  * are best-effort, sourced from the Story's `story-run-progress` comment;
  * absence of the comment is non-fatal.
  *
+ * Story #3907 — a Story carrying `agent::blocked` reconciles to
+ * `status: 'blocked'`, not `failed`. A garbled / unparseable return from a
+ * genuinely blocked child previously collapsed to `failed`, which erased the
+ * `blockerCommentId` and steered the operator toward the wrong remediation
+ * (re-run vs. resolve-the-blocker). The blocked arm recovers the blocker
+ * comment id from the Story's latest `friction` structured comment so the
+ * wave row carries it through to `epic-run-progress`.
+ *
  * @param {{
  *   provider: { getTicket: Function, getTicketComments: Function },
  *   storyId: number,
  * }} args
  * @returns {Promise<{
  *   storyId: number,
- *   status: 'done' | 'failed',
+ *   status: 'done' | 'blocked' | 'failed',
  *   phase?: string,
  *   tasksDone?: number,
  *   tasksTotal?: number,
+ *   blockerCommentId?: string,
  *   reconciledFromGitHub: true,
  *   reconcileError?: string,
  * }>}
@@ -187,13 +196,36 @@ export async function reconcileStoryFromGitHub({ provider, storyId } = {}) {
 
   const labels = Array.isArray(ticket?.labels) ? ticket.labels : [];
   const isDone = labels.includes('agent::done') || ticket?.state === 'closed';
-  const status = isDone ? 'done' : 'failed';
+  const isBlocked = !isDone && labels.includes('agent::blocked');
+  let status = 'failed';
+  if (isDone) status = 'done';
+  else if (isBlocked) status = 'blocked';
 
   const out = { storyId, status, reconciledFromGitHub: true };
 
+  // Story #3907 — for a blocked Story, recover the blocker comment id from
+  // the latest `friction` structured comment so the operator is routed to the
+  // blocker (and its evidence), not a blind re-run. Best-effort: a missing
+  // friction comment leaves `status: 'blocked'` with no id, which is still
+  // strictly more accurate than the old `failed` downgrade.
+  if (isBlocked) {
+    try {
+      const friction = await findStructuredComment(
+        provider,
+        storyId,
+        'friction',
+      );
+      if (friction && friction.id != null) {
+        out.blockerCommentId = String(friction.id);
+      }
+    } catch (err) {
+      out.reconcileError = err?.message ?? String(err);
+    }
+  }
+
   // Cross-look the story-run-progress comment for phase / task counters.
-  // Failure here is non-fatal — `failed` with no counters is still a valid
-  // reconciled row.
+  // Failure here is non-fatal — a reconciled row with no counters is still
+  // valid.
   try {
     const comment = await findStructuredComment(
       provider,
