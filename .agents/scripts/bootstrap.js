@@ -29,7 +29,13 @@
  *   --operator-handle <name>  GitHub handle for github.operatorHandle
  *   --base-branch <name>      Base branch (default: origin/HEAD or 'main')
  *   --project-number <n>      Projects V2 number/name (optional)
- *   --assume-yes              Accept every default; required for non-TTY runs
+ *   --assume-yes              Accept every default + approve GitHub-admin
+ *                             mutations. A non-TTY run requires this (or
+ *                             --approve-github-admin) — there is no operator
+ *                             to confirm the summary.
+ *   --approve-github-admin    Consent to the irreversible GitHub-admin phase
+ *                             (labels, Projects V2, branch protection, merge
+ *                             methods) without accepting every other default.
  *   --skip-github             Skip the GitHub-side bootstrap entirely
  *   --skip-quality            Skip the quality-gates bootstrap
  *   --dry-run                 Collect info and print the plan; change nothing
@@ -83,7 +89,13 @@ Flags:
   --operator-handle <name>  GitHub handle for github.operatorHandle
   --base-branch <name>      Base branch (default: origin/HEAD or 'main')
   --project-number <n>      Projects V2 number/name (optional)
-  --assume-yes              Accept every default; required for non-TTY runs
+  --assume-yes              Accept every default + approve GitHub-admin
+                            mutations. A non-TTY run requires this (or
+                            --approve-github-admin) — there is no operator
+                            to confirm the summary.
+  --approve-github-admin    Consent to the irreversible GitHub-admin phase
+                            (labels, Projects V2, branch protection, merge
+                            methods) without accepting every other default.
   --skip-github             Skip the GitHub-side bootstrap entirely
   --skip-quality            Skip the quality-gates bootstrap
   --dry-run                 Collect info and print the plan; change nothing
@@ -662,7 +674,10 @@ async function runGithubBootstrap(answers, opts) {
     github: config.github,
     assumeYes: opts.assumeYes,
     baseBranch: answers.baseBranch,
-    githubAdminApproved: true,
+    // Real consent signal threaded from `parseAndValidate` (Story #3897):
+    // interactive operator confirmation, `--assume-yes`, or
+    // `--approve-github-admin`. Default-deny at the boundary gate when absent.
+    githubAdminApproved: opts.githubAdminApproved === true,
     // Opt-in: delete the Projects V2 built-in workflows that race against the
     // orchestrator's ColumnSync (e.g. "Pull request merged"). Off by default.
     reapConflictingWorkflows: Boolean(opts.reapConflictingWorkflows),
@@ -697,12 +712,27 @@ function resolveAppliedGroups(approvedGroups, report) {
 // ---------------------------------------------------------------------------
 
 /**
- * Step 1 — Parse argv, handle `--help`, and enforce the non-TTY contract
- * (`--owner`/`--repo` or env equivalents + `--assume-yes`).
+ * Step 1 — Parse argv, handle `--help`, and enforce the non-TTY contract.
+ *
+ * Consent contract (Story #3897). A non-TTY run has no operator to confirm
+ * the summary loop in `collectAndConfirm`, so the irreversible GitHub-admin
+ * mutations cannot ride on a real confirmation — they need an explicit
+ * up-front signal. The gate therefore requires **either** `--assume-yes`
+ * **or** `--approve-github-admin` on any non-TTY run (matching the
+ * `--help` text), and computes `githubAdminApproved` once for the whole run:
+ *
+ *   - **interactive (TTY)** → consent is the operator's `Is this correct?`
+ *     confirmation in `collectAndConfirm`, so the run is approved.
+ *   - **non-TTY** → consent is `--assume-yes` or `--approve-github-admin`;
+ *     without one of those the run halts before any mutation.
+ *
+ * `githubAdminApproved` flows down to `runGithubBootstrap`, which forwards it
+ * to the boundary gate in `agents-bootstrap-github.js#runBootstrap`. That
+ * gate is default-deny, so a non-approved value makes the GitHub-admin phase
+ * a verified no-op instead of a silent mutation.
  */
 export function parseAndValidate(argv, opts = {}) {
   const stdout = opts.stdout ?? process.stdout;
-  const env = opts.env ?? process.env;
   const stdin = opts.stdin ?? process.stdin;
   const flags = parseFlags(argv);
   if (flags.help) {
@@ -711,20 +741,23 @@ export function parseAndValidate(argv, opts = {}) {
   }
   const interactive = Boolean(stdin.isTTY) && !flags['assume-yes'];
   const assumeYes = Boolean(flags['assume-yes']);
-  if (!interactive && !assumeYes) {
-    const required = ['owner', 'repo'];
-    const missing = required.filter(
-      (k) =>
-        typeof flags[k] !== 'string' &&
-        typeof env[`GH_${k.toUpperCase()}`] !== 'string',
+  const approveGithubAdmin = Boolean(flags['approve-github-admin']);
+  // A non-TTY run cannot collect operator consent interactively, so it MUST
+  // carry an explicit consent signal. This restores parity with the --help
+  // text, which has always claimed --assume-yes is required for non-TTY runs.
+  // (owner/repo are resolved from flags/env/git-remote downstream — a consent
+  // signal alone is sufficient to advance, exactly as the pre-Story #3897
+  // `--assume-yes` path did.)
+  if (!interactive && !assumeYes && !approveGithubAdmin) {
+    Logger.error(
+      '[bootstrap] non-TTY run requires --assume-yes or --approve-github-admin ' +
+        '(no operator is present to confirm the GitHub-admin mutations).',
     );
-    if (missing.length > 0) {
-      Logger.error(
-        `[bootstrap] non-TTY run requires --owner and --repo (or GH_OWNER / GH_REPO) and --assume-yes. Missing: ${missing.join(', ')}`,
-      );
-      return { ok: false, exit: 1 };
-    }
+    return { ok: false, exit: 1 };
   }
+  // Real GitHub-admin consent: an interactive run confirms it in
+  // `collectAndConfirm`; a non-TTY run signals it via flag (above).
+  const githubAdminApproved = interactive || assumeYes || approveGithubAdmin;
   if (resolveRepoVisibility(flags) === null) {
     Logger.error(
       `[bootstrap] invalid --visibility "${flags.visibility}". ` +
@@ -732,7 +765,10 @@ export function parseAndValidate(argv, opts = {}) {
     );
     return { ok: false, exit: 1 };
   }
-  return { ok: true, payload: { flags, interactive, assumeYes } };
+  return {
+    ok: true,
+    payload: { flags, interactive, assumeYes, githubAdminApproved },
+  };
 }
 
 /**
@@ -1149,6 +1185,7 @@ export async function executeGithubBootstrap(state) {
   try {
     state.report.github = await runGithubBootstrap(state.answers, {
       assumeYes: state.assumeYes,
+      githubAdminApproved: state.githubAdminApproved === true,
       reapConflictingWorkflows: Boolean(
         state.flags['reap-conflicting-workflows'],
       ),
