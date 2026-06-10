@@ -72,14 +72,6 @@
       "symbol": "diffProtection"
     },
     {
-      "file": ".agents/scripts/lib/bootstrap/phased-approval.js",
-      "symbol": "PHASE_GROUP_LABELS"
-    },
-    {
-      "file": ".agents/scripts/lib/bootstrap/phased-approval.js",
-      "symbol": "renderEntryLine"
-    },
-    {
       "file": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "symbol": "checkParity"
     },
