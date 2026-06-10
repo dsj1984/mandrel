@@ -447,9 +447,15 @@ Skip when `--skip-epic-audit`. Otherwise auto-invoke
 [`helpers/epic-audit.md`](helpers/epic-audit.md) inline. The helper runs
 [`epic-audit-prepare.js`](../scripts/epic-audit-prepare.js) to ask the
 [`selectAudits`](../scripts/lib/audit-suite/index.js) SDK which lenses fire
-at the `gate3` close gate, then dispatches each selected lens through
-[`runAuditSuite`](../scripts/lib/audit-suite/index.js). Findings are
-persisted as an `audit-results` structured comment on the Epic.
+at the `gate3` close gate, **unions in the model-judged risk-routed lenses**
+(Story #3889 — `epic-audit-prepare.js` reads the Epic's `planningRisk`
+envelope off the `epic-plan-state` checkpoint and maps each high-risk axis to
+its lens via `resolveAuditLenses`), then dispatches each selected lens through
+[`runAuditSuite`](../scripts/lib/audit-suite/index.js). A high-risk Epic
+therefore auto-runs its mapped lenses (e.g. a `security`-axis Epic runs
+`audit-security`) even when the change set alone did not select them; a
+low-risk Epic adds nothing. Findings are persisted as an `audit-results`
+structured comment on the Epic.
 
 - **Any 🔴 Critical Blocker** — STOP. Relay to the operator.
 - **Only 🟠/🟡/🟢** — log as non-blocking and continue.
