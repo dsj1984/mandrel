@@ -32,6 +32,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
+import { renderDepthDirective } from './review-depth.js';
 
 /**
  * Canonical install/remediation guidance baked into every probe
@@ -208,11 +209,15 @@ export function parseSecurityReviewFindings(rawStdout) {
  * array. Any prose preface or trailing commentary is parseable as
  * "garbage before/after JSON" — `parseSecurityReviewFindings` uses
  * the first JSON-shaped substring rather than the whole stdout.
+ *
+ * The `{depthDirective}` slot renders the risk-derived thoroughness lever
+ * (Story #3937) so a high-risk Epic instructs the model toward a deeper
+ * second-pass review while a low-risk one keeps it light.
  */
 export const SECURITY_REVIEW_INVOKE_PROMPT =
   'Run /security-review against the diff `{baseRef}`...`{headRef}` ' +
-  'for {scopeLabel} #{ticketId}. After the review, emit ONLY a JSON ' +
-  'array of findings on stdout with this exact shape:\n\n' +
+  'for {scopeLabel} #{ticketId}. {depthDirective} After the review, emit ' +
+  'ONLY a JSON array of findings on stdout with this exact shape:\n\n' +
   '```\n[{"severity":"critical|high|medium|suggestion","title":"...",' +
   '"body":"...","file":"...","line":1,"category":"security"}]\n```\n\n' +
   'Use severity "critical" for blockers (must fix before merge), ' +
@@ -221,7 +226,11 @@ export const SECURITY_REVIEW_INVOKE_PROMPT =
   'No prose around the JSON.';
 
 /**
- * Build the `claude --print` prompt for a specific review input.
+ * Build the `claude --print` prompt for a specific review input. The
+ * risk-derived `depth` lever (Story #3937) is rendered into the prompt via
+ * `renderDepthDirective` so the model's thoroughness tracks the Epic's judged
+ * risk; an absent depth renders the `standard` directive.
+ *
  * Exported for testing.
  *
  * @param {ReviewInput} input
@@ -238,7 +247,8 @@ export function buildSecurityReviewPrompt(input) {
   return SECURITY_REVIEW_INVOKE_PROMPT.replace('{baseRef}', baseRef)
     .replace('{headRef}', headRef)
     .replace('{scopeLabel}', scopeLabel)
-    .replace('{ticketId}', ticketId);
+    .replace('{ticketId}', ticketId)
+    .replace('{depthDirective}', renderDepthDirective(input?.depth));
 }
 
 /**
