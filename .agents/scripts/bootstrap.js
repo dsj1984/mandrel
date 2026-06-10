@@ -29,7 +29,13 @@
  *   --operator-handle <name>  GitHub handle for github.operatorHandle
  *   --base-branch <name>      Base branch (default: origin/HEAD or 'main')
  *   --project-number <n>      Projects V2 number/name (optional)
- *   --assume-yes              Accept every default; required for non-TTY runs
+ *   --assume-yes              Accept every default + approve GitHub-admin
+ *                             mutations. A non-TTY run requires this (or
+ *                             --approve-github-admin) — there is no operator
+ *                             to confirm the summary.
+ *   --approve-github-admin    Consent to the irreversible GitHub-admin phase
+ *                             (labels, Projects V2, branch protection, merge
+ *                             methods) without accepting every other default.
  *   --skip-github             Skip the GitHub-side bootstrap entirely
  *   --skip-quality            Skip the quality-gates bootstrap
  *   --dry-run                 Collect info and print the plan; change nothing
@@ -45,6 +51,12 @@ import readline from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 
 // Reused bootstrap library helpers (unchanged).
+import {
+  buildManualInstructions,
+  COMMIT_SUBJECT,
+  resolveStagePaths,
+  stageBootstrapFiles,
+} from './lib/bootstrap/commit-push.js';
 import { listProjects, listRepos } from './lib/bootstrap/gh-list.js';
 import {
   buildLedgerRecord,
@@ -77,7 +89,13 @@ Flags:
   --operator-handle <name>  GitHub handle for github.operatorHandle
   --base-branch <name>      Base branch (default: origin/HEAD or 'main')
   --project-number <n>      Projects V2 number/name (optional)
-  --assume-yes              Accept every default; required for non-TTY runs
+  --assume-yes              Accept every default + approve GitHub-admin
+                            mutations. A non-TTY run requires this (or
+                            --approve-github-admin) — there is no operator
+                            to confirm the summary.
+  --approve-github-admin    Consent to the irreversible GitHub-admin phase
+                            (labels, Projects V2, branch protection, merge
+                            methods) without accepting every other default.
   --skip-github             Skip the GitHub-side bootstrap entirely
   --skip-quality            Skip the quality-gates bootstrap
   --dry-run                 Collect info and print the plan; change nothing
@@ -236,9 +254,19 @@ function ensureGitInitialized(state) {
   }
 
   // A push needs a commit; create one only when HEAD does not resolve yet.
+  //
+  // SECURITY (Story #3894): do NOT `git add -A` here. `.gitignore` seeding
+  // (`ensureGitignore`) runs two phases later in the pipeline, so at this
+  // point a cold-start folder may still contain secret-bearing files
+  // (`.env`, `.mcp.json`). Staging the whole tree before any gitignore
+  // exists — followed immediately by `gh repo create --push` — would push
+  // those secrets to a brand-new (often public) remote with no per-file
+  // consent, violating `security-baseline.md` § Secrets Management. The
+  // push only needs a commit to *exist*, so we create an empty one; the
+  // operator's own first content commit lands after the gitignore phase has
+  // already excluded the secret-bearing paths.
   let committed = false;
   if (!runGit(['rev-parse', '--verify', 'HEAD'], cwd).ok) {
-    runGit(['add', '-A'], cwd);
     const commit = runGit(
       [
         ...gitIdentityArgs(cwd, state.answers),
@@ -646,7 +674,10 @@ async function runGithubBootstrap(answers, opts) {
     github: config.github,
     assumeYes: opts.assumeYes,
     baseBranch: answers.baseBranch,
-    githubAdminApproved: true,
+    // Real consent signal threaded from `parseAndValidate` (Story #3897):
+    // interactive operator confirmation, `--assume-yes`, or
+    // `--approve-github-admin`. Default-deny at the boundary gate when absent.
+    githubAdminApproved: opts.githubAdminApproved === true,
     // Opt-in: delete the Projects V2 built-in workflows that race against the
     // orchestrator's ColumnSync (e.g. "Pull request merged"). Off by default.
     reapConflictingWorkflows: Boolean(opts.reapConflictingWorkflows),
@@ -681,12 +712,27 @@ function resolveAppliedGroups(approvedGroups, report) {
 // ---------------------------------------------------------------------------
 
 /**
- * Step 1 — Parse argv, handle `--help`, and enforce the non-TTY contract
- * (`--owner`/`--repo` or env equivalents + `--assume-yes`).
+ * Step 1 — Parse argv, handle `--help`, and enforce the non-TTY contract.
+ *
+ * Consent contract (Story #3897). A non-TTY run has no operator to confirm
+ * the summary loop in `collectAndConfirm`, so the irreversible GitHub-admin
+ * mutations cannot ride on a real confirmation — they need an explicit
+ * up-front signal. The gate therefore requires **either** `--assume-yes`
+ * **or** `--approve-github-admin` on any non-TTY run (matching the
+ * `--help` text), and computes `githubAdminApproved` once for the whole run:
+ *
+ *   - **interactive (TTY)** → consent is the operator's `Is this correct?`
+ *     confirmation in `collectAndConfirm`, so the run is approved.
+ *   - **non-TTY** → consent is `--assume-yes` or `--approve-github-admin`;
+ *     without one of those the run halts before any mutation.
+ *
+ * `githubAdminApproved` flows down to `runGithubBootstrap`, which forwards it
+ * to the boundary gate in `agents-bootstrap-github.js#runBootstrap`. That
+ * gate is default-deny, so a non-approved value makes the GitHub-admin phase
+ * a verified no-op instead of a silent mutation.
  */
 export function parseAndValidate(argv, opts = {}) {
   const stdout = opts.stdout ?? process.stdout;
-  const env = opts.env ?? process.env;
   const stdin = opts.stdin ?? process.stdin;
   const flags = parseFlags(argv);
   if (flags.help) {
@@ -695,20 +741,23 @@ export function parseAndValidate(argv, opts = {}) {
   }
   const interactive = Boolean(stdin.isTTY) && !flags['assume-yes'];
   const assumeYes = Boolean(flags['assume-yes']);
-  if (!interactive && !assumeYes) {
-    const required = ['owner', 'repo'];
-    const missing = required.filter(
-      (k) =>
-        typeof flags[k] !== 'string' &&
-        typeof env[`GH_${k.toUpperCase()}`] !== 'string',
+  const approveGithubAdmin = Boolean(flags['approve-github-admin']);
+  // A non-TTY run cannot collect operator consent interactively, so it MUST
+  // carry an explicit consent signal. This restores parity with the --help
+  // text, which has always claimed --assume-yes is required for non-TTY runs.
+  // (owner/repo are resolved from flags/env/git-remote downstream — a consent
+  // signal alone is sufficient to advance, exactly as the pre-Story #3897
+  // `--assume-yes` path did.)
+  if (!interactive && !assumeYes && !approveGithubAdmin) {
+    Logger.error(
+      '[bootstrap] non-TTY run requires --assume-yes or --approve-github-admin ' +
+        '(no operator is present to confirm the GitHub-admin mutations).',
     );
-    if (missing.length > 0) {
-      Logger.error(
-        `[bootstrap] non-TTY run requires --owner and --repo (or GH_OWNER / GH_REPO) and --assume-yes. Missing: ${missing.join(', ')}`,
-      );
-      return { ok: false, exit: 1 };
-    }
+    return { ok: false, exit: 1 };
   }
+  // Real GitHub-admin consent: an interactive run confirms it in
+  // `collectAndConfirm`; a non-TTY run signals it via flag (above).
+  const githubAdminApproved = interactive || assumeYes || approveGithubAdmin;
   if (resolveRepoVisibility(flags) === null) {
     Logger.error(
       `[bootstrap] invalid --visibility "${flags.visibility}". ` +
@@ -716,7 +765,10 @@ export function parseAndValidate(argv, opts = {}) {
     );
     return { ok: false, exit: 1 };
   }
-  return { ok: true, payload: { flags, interactive, assumeYes } };
+  return {
+    ok: true,
+    payload: { flags, interactive, assumeYes, githubAdminApproved },
+  };
 }
 
 /**
@@ -1133,6 +1185,7 @@ export async function executeGithubBootstrap(state) {
   try {
     state.report.github = await runGithubBootstrap(state.answers, {
       assumeYes: state.assumeYes,
+      githubAdminApproved: state.githubAdminApproved === true,
       reapConflictingWorkflows: Boolean(
         state.flags['reap-conflicting-workflows'],
       ),
@@ -1178,6 +1231,92 @@ export function recordLedger(state) {
   return { ok: true, payload: {} };
 }
 
+/**
+ * Step 7 — Offer to commit + push the bootstrap wiring (Story #3899).
+ *
+ * Story delivery runs in git worktrees that check out **tracked files only**,
+ * so an uncommitted `.agents/` tree means every Story sub-agent breaks. This
+ * step closes that "worked in my checkout, broke in delivery" trap by offering
+ * the commit + push at the end of the run.
+ *
+ * Ordering: this phase runs LAST in the pipeline, after `executeBootstrap`
+ * (which seeds the secret-safe `.gitignore`) and `recordLedger`. The stage
+ * step also uses an explicit allowlist and refuses to stage `.env` /
+ * `.mcp.json` / `.agentrc.local.json` regardless of `.gitignore` state, so the
+ * commit never carries a secret even before the gitignore-ordering Story
+ * (#3894) lands.
+ *
+ * Behaviour:
+ *   - `--dry-run` → no-op (the dry-run gate already halted earlier; this is a
+ *     belt-and-braces guard for direct calls).
+ *   - Interactive + accept → stage the allowlist, commit with a conventional
+ *     subject, push the base branch.
+ *   - Interactive + decline → print the exact manual commands; no git mutation.
+ *   - Non-interactive (`--assume-yes` / no TTY) → the defined safe path is to
+ *     print the manual commands and make NO git mutation, so a CI run never
+ *     surprises the operator with a push it did not ask for.
+ *
+ * `deps.runGit` injects the git seam and `deps.confirm` the yes/no prompt seam
+ * for unit testing; both default to the module's implementations.
+ */
+export async function offerCommitPush(state, deps = {}) {
+  if (state.flags['dry-run']) return { ok: true, payload: {} };
+  const runGitImpl = deps.runGit ?? runGit;
+  const confirmImpl = deps.confirm ?? confirmYesNo;
+  const cwd = state.projectRoot;
+  const branch = state.answers.baseBranch || 'main';
+  const stagePaths = resolveStagePaths(cwd);
+  const instructions = buildManualInstructions({
+    stagePaths,
+    baseBranch: branch,
+  });
+
+  // Non-interactive (--assume-yes / no TTY): never push unprompted. Print the
+  // exact commands and leave the working tree untouched.
+  if (!state.interactive) {
+    Logger.info(`\n[bootstrap] ${instructions}`);
+    return { ok: true, payload: { commitPush: { action: 'instructed' } } };
+  }
+
+  const accepted = await confirmImpl(
+    'Commit and push the Mandrel setup?',
+    state.interactive,
+  );
+  if (!accepted) {
+    Logger.info(`\n[bootstrap] ${instructions}`);
+    return { ok: true, payload: { commitPush: { action: 'declined' } } };
+  }
+
+  const staged = stageBootstrapFiles({ projectRoot: cwd, runGit: runGitImpl });
+  if (!staged.ok) {
+    Logger.warn(`[bootstrap] Could not stage the wiring: ${staged.error}`);
+    Logger.info(`\n[bootstrap] ${instructions}`);
+    return { ok: true, payload: { commitPush: { action: 'stage-failed' } } };
+  }
+  const commit = runGitImpl(
+    [...gitIdentityArgs(cwd, state.answers), 'commit', '-m', COMMIT_SUBJECT],
+    cwd,
+  );
+  if (!commit.ok) {
+    // A "nothing to commit" exit is benign — the wiring is already committed.
+    Logger.warn(
+      `[bootstrap] git commit did not create a commit (already committed?): ${commit.stderr || commit.stdout}`,
+    );
+    Logger.info(`\n[bootstrap] ${instructions}`);
+    return { ok: true, payload: { commitPush: { action: 'commit-skipped' } } };
+  }
+  Logger.info('[bootstrap] Committed the Mandrel wiring.');
+  const push = runGitImpl(['push', '-u', 'origin', branch], cwd);
+  if (!push.ok) {
+    Logger.warn(
+      `[bootstrap] Commit landed but push of '${branch}' failed (push it manually with \`git push -u origin ${branch}\`): ${push.stderr}`,
+    );
+    return { ok: true, payload: { commitPush: { action: 'push-failed' } } };
+  }
+  Logger.info(`[bootstrap] Pushed '${branch}' to origin.`);
+  return { ok: true, payload: { commitPush: { action: 'committed-pushed' } } };
+}
+
 /** Pipeline driver — threads accumulated state through each phase. */
 export async function runPipeline(phases) {
   let state = {};
@@ -1189,8 +1328,11 @@ export async function runPipeline(phases) {
   return { ok: true, state };
 }
 
-export async function main(argv = process.argv.slice(2)) {
-  const result = await runPipeline([
+export async function main(argv = process.argv.slice(2), deps = {}) {
+  // `deps.phases` lets tests inject a substitute pipeline so the
+  // post-pipeline GitHub-failure detection can be exercised
+  // deterministically without spawning `gh` (Story #3898).
+  const phases = deps.phases ?? [
     () => parseAndValidate(argv),
     (s) => prepareContext(s),
     (s) => runPreflightPhase(s),
@@ -1201,8 +1343,31 @@ export async function main(argv = process.argv.slice(2)) {
     (s) => persistProjectNumber(s),
     (s) => executeGithubBootstrap(s),
     (s) => recordLedger(s),
-  ]);
+    (s) => offerCommitPush(s),
+  ];
+  const result = await runPipeline(phases);
   if (!result.ok) return result.exit;
+
+  // GitHub-side bootstrap failures are non-fatal to the pipeline (so the
+  // ledger still records the project-side mutations that already landed —
+  // the failure is surfaced, not silently rolled back), but they MUST NOT
+  // exit 0. `executeGithubBootstrap` records `report.github.error` instead
+  // of throwing; detect it here and exit non-zero with a distinct final
+  // status line so `create-mandrel` and CI see the failure (Story #3898).
+  const githubError = result.state?.report?.github?.error;
+  if (githubError) {
+    Logger.error(
+      `\n[bootstrap] GitHub bootstrap failed: ${githubError}. ` +
+        'Project-side setup (labels are GitHub-side; the local .agentrc.json / ' +
+        'quality-gate / workflow files that were applied are recorded in the ' +
+        'install ledger) completed, but the GitHub label/board/views/protection ' +
+        'setup did not. Resolve the cause above (commonly `gh auth login` or a ' +
+        'missing repo/project scope) and re-run `mandrel bootstrap` — the run is ' +
+        'idempotent and will skip what already succeeded.',
+    );
+    return 1;
+  }
+
   Logger.info('\n[bootstrap] Done.');
   return 0;
 }

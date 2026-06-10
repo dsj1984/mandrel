@@ -341,6 +341,159 @@ export async function pollUntilTerminal({
 }
 
 /**
+ * Run the full required-check watch loop for an open PR: poll every
+ * required check to a terminal state, then — when every check is green
+ * AND the PR is `mergeStateStatus: BEHIND` — issue a bounded number of
+ * `gh pr update-branch` fast-forwards, re-polling the freshly-rebased
+ * commit after each. Plain async function with NO bus coupling: it
+ * shells out to `gh` (via injectable spawns) and returns the verdict.
+ *
+ * This is the load-bearing primitive shared by the `Watcher` lifecycle
+ * listener (`handle()`) and the `pr-watch-with-update.js` CLI, so both
+ * paths perform identical polling and BEHIND-recovery. Story #3902.
+ *
+ * @param {object} opts
+ * @param {string} opts.prUrl              PR URL or number (passed to `gh` verbatim).
+ * @param {string} opts.cwd
+ * @param {number} opts.maxPolls           Hard cap on total poll iterations.
+ * @param {number} opts.maxUpdates         Cap on `gh pr update-branch` recovery calls.
+ * @param {number} opts.pollIntervalMs     Delay between poll ticks.
+ * @param {Function} opts.ghPrChecksFn
+ * @param {Function} opts.ghPrViewFn
+ * @param {Function} opts.ghPrUpdateBranchFn
+ * @param {Function} opts.sleepFn
+ * @param {{ info?: Function, warn?: Function, debug?: Function }} opts.logger
+ * @param {{status:number,stdout:string,stderr:string}} [opts.firstProbe]
+ *   Optional already-issued `gh pr checks` result. When the caller (the
+ *   `Watcher` listener) has already probed once to resolve the required
+ *   names for `epic.watch.start`, it threads that result here so the
+ *   loop does not double-spend the first `gh pr checks` call. Omit it
+ *   (the CLI path) and the loop issues the first probe itself.
+ * @returns {Promise<{
+ *   outcomes: object,
+ *   requiredChecks: string[],
+ *   polls: number,
+ *   updatesApplied: number,
+ *   terminal: boolean,
+ *   green: boolean,
+ *   error?: string,
+ * }>}
+ *   `outcomes` is schema-valid (no `'pending'` — leftover pending is
+ *   promoted to `'timed_out'` when the cap fires). `error` is set only
+ *   when the first probe could not resolve the required-check set.
+ */
+export async function watchPrToTerminal({
+  prUrl,
+  cwd,
+  maxPolls,
+  maxUpdates,
+  pollIntervalMs,
+  ghPrChecksFn,
+  ghPrViewFn,
+  ghPrUpdateBranchFn,
+  sleepFn,
+  logger,
+  firstProbe,
+}) {
+  // First probe: resolve the required-check name set at runtime. Reuse a
+  // caller-supplied probe (the listener already issued one for
+  // `epic.watch.start`) so we never double-spend the first `gh` call.
+  const first = firstProbe ?? ghPrChecksFn({ prUrl, cwd });
+  // `gh` exits 8 when checks are still pending; this is expected and
+  // does not indicate failure. Any other non-zero status with no
+  // parseable JSON body is a genuine failure.
+  const firstEntries = parseGhPrChecks(first.stdout);
+  if (firstEntries.length === 0 && first.status !== 0 && first.status !== 8) {
+    logger.warn?.(
+      `[Watcher] gh pr checks failed (status=${first.status}): ${first.stderr}`,
+    );
+    return {
+      outcomes: {},
+      requiredChecks: [],
+      polls: 0,
+      updatesApplied: 0,
+      terminal: false,
+      green: false,
+      error: `gh-checks-failed:status=${first.status}`,
+    };
+  }
+
+  const requiredChecks = firstEntries.map((e) => e.name);
+
+  // Poll loop. The first probe already produced entries; reduce them
+  // for the initial outcome map, then iterate until every required
+  // check is terminal or the iteration cap fires. After the checks
+  // converge, the BEHIND-recovery loop may re-enter the poll loop AFTER
+  // issuing `gh pr update-branch`.
+  let outcomes = reduceOutcomes(firstEntries);
+  let polls = 0;
+  let updatesApplied = 0;
+  while (polls < maxPolls) {
+    ({ outcomes, polls } = await pollUntilTerminal({
+      prUrl,
+      cwd,
+      outcomes,
+      polls,
+      maxPolls,
+      ghPrChecksFn,
+      pollIntervalMs,
+      sleepFn,
+      logger,
+    }));
+    // Checks have either all gone terminal or we hit the iteration cap.
+    // BEHIND-recovery (Story #2327): when every required check is green
+    // AND the PR is BEHIND its base, issue ONE `gh pr update-branch`
+    // call and re-poll the checks against the freshly-rebased commit. A
+    // red check is a hard block — stop here regardless of merge state.
+    // Bounded by `maxUpdates` so a racing base branch can't ping-pong
+    // indefinitely.
+    if (!allTerminal(outcomes) || !allGreen(outcomes)) break;
+    if (updatesApplied >= maxUpdates) break;
+    const view = ghPrViewFn({ prUrl, cwd });
+    if (view.status !== 0) {
+      logger.warn?.(
+        `[Watcher] gh pr view failed (status=${view.status}): ${view.stderr}`,
+      );
+      break;
+    }
+    const mergeStateStatus = parseMergeStateStatus(view.stdout);
+    if (mergeStateStatus !== 'BEHIND') break;
+    const update = ghPrUpdateBranchFn({ prUrl, cwd });
+    if (update.status !== 0) {
+      logger.warn?.(
+        `[Watcher] gh pr update-branch failed (status=${update.status}): ${update.stderr}`,
+      );
+      break;
+    }
+    updatesApplied += 1;
+    logger.info?.(
+      `[Watcher] PR BEHIND base — issued gh pr update-branch (#${updatesApplied}/${maxUpdates}); re-polling required checks.`,
+    );
+    await sleepFn(pollIntervalMs);
+    // After update-branch, the freshly-rebased commit invalidates the
+    // previous terminal outcomes. Reset to force the inner poll loop to
+    // re-evaluate the new CI cycle.
+    outcomes = {};
+    for (const name of requiredChecks) outcomes[name] = 'pending';
+  }
+
+  const terminal = allTerminal(outcomes);
+  // The schema enum forbids `'pending'`; promote any leftover pending
+  // entries (cap-fire path) to `'timed_out'` for the returned map.
+  const finalOutcomes = terminal
+    ? outcomes
+    : promotePendingToTimedOut(outcomes);
+  return {
+    outcomes: finalOutcomes,
+    requiredChecks,
+    polls,
+    updatesApplied,
+    terminal,
+    green: terminal && allGreen(finalOutcomes),
+  };
+}
+
+/**
  * Watcher listener.
  */
 export class Watcher {
@@ -429,11 +582,12 @@ export class Watcher {
       return;
     }
 
-    // First probe: resolve the required-check name set at runtime.
+    // First probe: resolve the required-check name set at runtime, so we
+    // can carry the list on `epic.watch.start` BEFORE the (potentially
+    // long) poll loop runs. We thread this probe into `watchPrToTerminal`
+    // (via `firstProbe`) so the shared loop reuses it instead of
+    // double-spending the first `gh pr checks` call.
     const first = this.ghPrChecksFn({ prUrl, cwd: this.cwd });
-    // `gh` exits 8 when checks are still pending; this is expected and
-    // does not indicate failure. Any other non-zero status with no
-    // parseable JSON body is a genuine failure.
     const firstEntries = parseGhPrChecks(first.stdout);
     if (firstEntries.length === 0 && first.status !== 0 && first.status !== 8) {
       this.classifications.push({
@@ -465,79 +619,36 @@ export class Watcher {
       return;
     }
 
-    // Poll loop. The first probe already produced entries; reduce them
-    // for the initial outcome map, then iterate until every required
-    // check is terminal or the iteration cap fires. After the checks
-    // converge, the BEHIND-recovery loop (legacy pr-watch parity) may
-    // re-enter this poll loop AFTER issuing `gh pr update-branch`.
-    let outcomes = reduceOutcomes(firstEntries);
-    let polls = 0;
-    let updatesApplied = 0;
-    while (polls < this.maxPolls) {
-      ({ outcomes, polls } = await pollUntilTerminal({
-        prUrl,
-        cwd: this.cwd,
-        outcomes,
-        polls,
-        maxPolls: this.maxPolls,
-        ghPrChecksFn: this.ghPrChecksFn,
-        pollIntervalMs: this.pollIntervalMs,
-        sleepFn: this.sleepFn,
-        logger: this.logger,
-      }));
-      // Checks have either all gone terminal or we hit the iteration
-      // cap. BEHIND-recovery (legacy pr-watch parity, Story #2327):
-      // when every required check is green AND the PR is BEHIND its
-      // base, issue ONE `gh pr update-branch` call and re-poll the
-      // checks against the freshly-rebased commit. A red check is a
-      // hard block — the predicate stops here regardless of merge
-      // state. Bounded by `maxUpdates` so a racing base branch can't
-      // ping-pong indefinitely.
-      if (!allTerminal(outcomes) || !allGreen(outcomes)) break;
-      if (updatesApplied >= this.maxUpdates) break;
-      const view = this.ghPrViewFn({ prUrl, cwd: this.cwd });
-      if (view.status !== 0) {
-        this.logger.warn?.(
-          `[Watcher] gh pr view failed (status=${view.status}): ${view.stderr}`,
-        );
-        break;
-      }
-      const mergeStateStatus = parseMergeStateStatus(view.stdout);
-      if (mergeStateStatus !== 'BEHIND') break;
-      const update = this.ghPrUpdateBranchFn({ prUrl, cwd: this.cwd });
-      if (update.status !== 0) {
-        this.logger.warn?.(
-          `[Watcher] gh pr update-branch failed (status=${update.status}): ${update.stderr}`,
-        );
-        break;
-      }
-      updatesApplied += 1;
-      this.logger.info?.(
-        `[Watcher] PR BEHIND base — issued gh pr update-branch (#${updatesApplied}/${this.maxUpdates}); re-polling required checks.`,
-      );
-      await this.sleepFn(this.pollIntervalMs);
-      // After update-branch, the freshly-rebased commit invalidates the
-      // previous terminal outcomes. Reset to force the inner poll loop
-      // to re-evaluate the new CI cycle.
-      outcomes = {};
-      for (const name of requiredChecks) outcomes[name] = 'pending';
-    }
+    // Delegate the poll + BEHIND-recovery loop to the shared plain
+    // primitive so the CLI (`pr-watch-with-update.js`) and this listener
+    // run identical logic.
+    const {
+      outcomes: emitOutcomes,
+      polls,
+      updatesApplied,
+      terminal,
+    } = await watchPrToTerminal({
+      prUrl,
+      cwd: this.cwd,
+      maxPolls: this.maxPolls,
+      maxUpdates: this.maxUpdates,
+      pollIntervalMs: this.pollIntervalMs,
+      ghPrChecksFn: this.ghPrChecksFn,
+      ghPrViewFn: this.ghPrViewFn,
+      ghPrUpdateBranchFn: this.ghPrUpdateBranchFn,
+      sleepFn: this.sleepFn,
+      logger: this.logger,
+      firstProbe: first,
+    });
 
-    const isTerminal = allTerminal(outcomes);
-    const outcome = isTerminal ? 'watched' : 'timed-out';
     this.classifications.push({
       event,
       seqId,
-      outcome,
+      outcome: terminal ? 'watched' : 'timed-out',
       polls,
       updatesApplied,
       requiredChecks: requiredChecks.length,
     });
-    // The schema enum forbids `'pending'`; promote any leftover
-    // pending entries (cap-fire path) to `'timed_out'` before emit.
-    const emitOutcomes = isTerminal
-      ? outcomes
-      : promotePendingToTimedOut(outcomes);
     try {
       await this.bus.emit('epic.watch.end', {
         prUrl,
