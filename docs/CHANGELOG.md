@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.57.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.56.0...mandrel-v1.57.0) (2026-06-10)
+
+
+### Added
+
+* **file-assumptions:** validate against the simulated post-predecessor tree (refs [#3960](https://github.com/dsj1984/mandrel/issues/3960)) ([#3968](https://github.com/dsj1984/mandrel/issues/3968)) ([26bf1b3](https://github.com/dsj1984/mandrel/commit/26bf1b3bd80cb8b0ac38bb27d4a0ff119c860322))
+
+
+### Fixed
+
+* **codebase-snapshot:** proportional skinny-tier cap so consumer source survives truncation (refs [#3959](https://github.com/dsj1984/mandrel/issues/3959)) ([#3964](https://github.com/dsj1984/mandrel/issues/3964)) ([6dbec63](https://github.com/dsj1984/mandrel/commit/6dbec6311efe6a50a7c61c43f5bdf28039b9f3bf))
+* **conflicts:** extract object-form changes paths in cross-Story detector (refs [#3957](https://github.com/dsj1984/mandrel/issues/3957)) ([#3966](https://github.com/dsj1984/mandrel/issues/3966)) ([052bc57](https://github.com/dsj1984/mandrel/commit/052bc576adccfa4b9bce2a62e9ab1f8806a8f492))
+* **story-deliver:** resolve concurrencyCap deterministically (refs [#3961](https://github.com/dsj1984/mandrel/issues/3961)) ([#3963](https://github.com/dsj1984/mandrel/issues/3963)) ([b14f254](https://github.com/dsj1984/mandrel/commit/b14f25483d342a8c1c02215ed420b688f733562e))
+
 ## [1.56.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.55.0...mandrel-v1.56.0) (2026-06-10)
 
 
