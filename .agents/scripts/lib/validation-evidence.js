@@ -123,12 +123,22 @@ export function evidencePath(scopeId, opts = {}) {
   const { cwd, tempDir } = resolveOpts(opts);
   const epicId = requirePositiveInt(opts.epicId, 'epicId');
   const scope = requirePositiveInt(scopeId, 'scopeId');
-  const configBag = { paths: { tempRoot: tempDir } };
+  // Bind the temp tree to the explicit `cwd` (Story #3900): pre-absolutise
+  // the tempRoot under `cwd` and pass it through the canonical
+  // `project.paths.tempRoot` shape so `temp-paths` honours it verbatim rather
+  // than (a) ignoring the legacy bare-`paths` bag and falling back to the
+  // default, then (b) anchoring that default to the main checkout. The
+  // evidence file is a per-cwd artifact, not a main-checkout lifecycle ledger,
+  // so it must stay rooted at the caller's `cwd`.
+  const absTempRoot = path.isAbsolute(tempDir)
+    ? tempDir
+    : path.join(cwd, tempDir);
+  const configBag = { project: { paths: { tempRoot: absTempRoot } } };
   const dir =
     scope === epicId
       ? epicTempDir(epicId, configBag)
       : storyTempDir(epicId, scope, configBag);
-  return path.join(cwd, dir, EVIDENCE_FILENAME);
+  return path.join(dir, EVIDENCE_FILENAME);
 }
 
 /**

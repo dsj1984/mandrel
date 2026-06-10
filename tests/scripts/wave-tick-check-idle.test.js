@@ -192,10 +192,7 @@ test('branchLastCommitMs returns null for an absent branch / git error', () => {
 test('branchLastCommitMs parses %cI output into epoch-ms', () => {
   const iso = '2026-05-26T19:00:00.000Z';
   const fakeExec = () => `${iso}\n`;
-  assert.equal(
-    branchLastCommitMs(7, { exec: fakeExec }),
-    Date.parse(iso),
-  );
+  assert.equal(branchLastCommitMs(7, { exec: fakeExec }), Date.parse(iso));
 });
 
 test('runCheckIdle reports stalled in-flight story (non-zero stalledCount)', () => {

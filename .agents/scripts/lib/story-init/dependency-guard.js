@@ -57,8 +57,13 @@ export async function loadDispatchManifest({
 
   // Per-Epic layout (Epic #1030 Story #1040): manifest moved from
   // `temp/dispatch-manifest-<eid>.json` to `temp/epic-<eid>/manifest.json`.
-  const rel = epicArtifactPath(epicId, 'manifest.json');
-  const diskPath = path.isAbsolute(rel) ? rel : path.join(projectRoot, rel);
+  // Bind the artifact path to the explicit projectRoot (Story #3900): pass an
+  // absolute `tempRoot` so temp-paths honours it verbatim instead of anchoring
+  // a relative tempRoot to the main checkout (correct for the lifecycle ledger,
+  // wrong for this per-project on-disk manifest read).
+  const diskPath = epicArtifactPath(epicId, 'manifest.json', {
+    project: { paths: { tempRoot: path.join(projectRoot, 'temp') } },
+  });
 
   if (fsImpl.existsSync(diskPath)) {
     try {

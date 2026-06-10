@@ -18,7 +18,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { epicArtifactPath, storyArtifactPath } from '../config/temp-paths.js';
+import {
+  epicArtifactPath,
+  storyArtifactPath,
+  tempRootFrom,
+} from '../config/temp-paths.js';
 import { resolveConfig } from '../config-resolver.js';
 import {
   formatManifestMarkdown,
@@ -28,6 +32,32 @@ import {
 function getProjectRoot() {
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   return path.resolve(__dirname, '../../../..');
+}
+
+/**
+ * Build a config bag whose `tempRoot` is an ABSOLUTE path anchored to the
+ * caller-supplied `projectRoot` (Story #3900).
+ *
+ * The on-disk dispatch / story manifests are a per-Epic *operator view*
+ * bound to a specific project root the caller already knows — not a
+ * lifecycle ledger that must be cwd-independent. The `temp-paths` helpers
+ * now anchor a *relative* `tempRoot` to the main checkout (the git common
+ * dir's parent), which is correct for the ledger but wrong here: it would
+ * ignore the explicit `projectRoot` (e.g. a test tmpdir, or a sandboxed
+ * dispatcher root). Pre-absolutising the `tempRoot` against `projectRoot`
+ * makes the helpers honour it verbatim (absolute roots skip git anchoring),
+ * so manifest writes always land under the project root the caller named.
+ *
+ * @param {string} projectRoot
+ * @param {object|undefined} resolved Resolved config (or undefined).
+ * @returns {object} A config bag with an absolute `project.paths.tempRoot`.
+ */
+function absoluteTempRootConfig(projectRoot, resolved) {
+  const tempRoot = tempRootFrom(resolved);
+  const absoluteTempRoot = path.isAbsolute(tempRoot)
+    ? tempRoot
+    : path.join(projectRoot, tempRoot);
+  return { project: { paths: { tempRoot: absoluteTempRoot } } };
 }
 
 /**
@@ -70,9 +100,10 @@ export function deleteLegacyFlatManifest(epicId, opts = {}) {
   const projectRoot = opts.projectRoot ?? getProjectRoot();
   const resolved = opts.config ?? safeResolveConfig(projectRoot);
   const logger = opts.logger ?? console;
+  const tempPathsConfig = absoluteTempRootConfig(projectRoot, resolved);
 
   const targets = ['md', 'json'].map((ext) =>
-    legacyOrphanPath(epicId, ext, projectRoot, resolved),
+    legacyOrphanPath(epicId, ext, projectRoot, tempPathsConfig),
   );
   const removed = targets.map(sweepOne).filter(Boolean);
 
@@ -133,7 +164,10 @@ export function atomicWrite(finalPath, content) {
 export function persistManifest(manifest, opts = {}) {
   const projectRoot = opts.projectRoot ?? getProjectRoot();
   const resolved = opts.config ?? safeResolveConfig(projectRoot);
-  const tempPathsConfig = resolved;
+  // Anchor manifest artifact paths to the explicit projectRoot (Story #3900)
+  // rather than letting temp-paths anchor a relative tempRoot to the main
+  // checkout — these manifests are a per-project operator view.
+  const tempPathsConfig = absoluteTempRootConfig(projectRoot, resolved);
 
   let jsonPath = null;
   let mdPath = null;

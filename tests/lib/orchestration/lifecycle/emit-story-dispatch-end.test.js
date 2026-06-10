@@ -66,7 +66,12 @@ describe('emit-story-dispatch-end', () => {
 
   it('closes the start/end pairing the in-flight reconciler reads', () => {
     // A start without an end is in-flight; emitting the end clears it.
-    emitStoryDispatchEnd({ epicId: 1, storyId: 7, outcome: 'done', ledgerPath });
+    emitStoryDispatchEnd({
+      epicId: 1,
+      storyId: 7,
+      outcome: 'done',
+      ledgerPath,
+    });
     const raw = readFileSync(ledgerPath, 'utf8');
     const ended = new Set();
     for (const line of raw.split(/\r?\n/)) {

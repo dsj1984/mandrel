@@ -43,11 +43,11 @@ import { getRunners } from './lib/config/runners.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
 import * as epicRunStateStore from './lib/orchestration/epic-run-state-store.js';
+import { upsertEpicRunProgress } from './lib/orchestration/epic-runner/progress-reporter.js';
 import {
   emitStoryDispatchEnd,
   storyStatusToDispatchOutcome,
 } from './lib/orchestration/lifecycle/emit-story-dispatch-end.js';
-import { upsertEpicRunProgress } from './lib/orchestration/epic-runner/progress-reporter.js';
 import {
   loadManifestTitleMap,
   refreshDispatchManifest,

@@ -265,13 +265,7 @@ describe('lib/config/temp-paths.js — standalone Story routing (Story #2874)', 
     const file = signalsFile(null, 1042);
     assert.equal(
       file,
-      anchored(
-        'temp',
-        'standalone',
-        'stories',
-        'story-1042',
-        'signals.ndjson',
-      ),
+      anchored('temp', 'standalone', 'stories', 'story-1042', 'signals.ndjson'),
     );
   });
 
