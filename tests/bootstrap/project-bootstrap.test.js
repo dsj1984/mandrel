@@ -104,7 +104,7 @@ describe('ensurePackageJson', () => {
 
   it('never seeds framework runtime deps into the consumer manifest', () => {
     // Story #3466: the dependency-merge loop was removed — framework deps
-    // arrive transitively via @mandrelai/agents, so bootstrap must leave the
+    // arrive transitively via mandrel, so bootstrap must leave the
     // consumer manifest's dependency surface entirely untouched.
     const outcome = ensurePackageJson({ projectRoot: tmpRoot });
     assert.equal(Object.hasOwn(outcome, 'deps'), false);

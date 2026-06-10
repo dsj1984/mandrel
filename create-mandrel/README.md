@@ -14,13 +14,13 @@ npx create-mandrel [bootstrap flags...]
 The launcher performs the minimum work needed to get Mandrel installed, then
 hands off to the in-tree bootstrap:
 
-1. **Installs `@mandrelai/agents` and materializes `.agents` (when absent).** If
+1. **Installs `mandrel` and materializes `.agents` (when absent).** If
    your project does not already have an `.agents` directory, the launcher
    installs Mandrel's distributed npm package and then copies the payload into
    `./.agents/`:
 
    ```bash
-   npm install @mandrelai/agents
+   npm install mandrel
    npx mandrel sync
    ```
 
@@ -56,7 +56,7 @@ npx create-mandrel --assume-yes --owner acme --repo widget
 
 ## Why the package name is hardcoded
 
-The installed package name (`@mandrelai/agents`) is a build-time constant. It is
+The installed package name (`mandrel`) is a build-time constant. It is
 **never** read from an environment variable, a flag, or any other
 operator-supplied input. The launcher's whole purpose is to make the provenance
 of `.agents/` non-negotiable — accepting an operator-supplied package would let

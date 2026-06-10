@@ -19,7 +19,7 @@
  * **Source-checkout guard (Story #3489, fixed in #3580).** In the Mandrel
  * framework repo itself, `./.agents/` is not a regenerated working copy — it
  * *is* the committed product, and `mandrel sync` would clobber that source of
- * truth with a copy of `node_modules/@mandrelai/agents/.agents/`. Today the
+ * truth with a copy of `node_modules/mandrel/.agents/`. Today the
  * repo `.npmrc` (`ignore-scripts=true`) masks this, but a contributor running
  * `npm install --ignore-scripts=false` (or a tool that re-enables scripts)
  * would overwrite the source tree. To make the guard intrinsic rather than
@@ -41,7 +41,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runSync } from '../lib/cli/sync.js';
 
-const PACKAGE_NAME = '@mandrelai/agents';
+const PACKAGE_NAME = 'mandrel';
 
 const HINT =
   'mandrel: could not materialize ./.agents/ during install — run `mandrel sync` to finish setup.\n';
@@ -55,19 +55,19 @@ const HINT =
  *
  * 1. **`node_modules` path guard (primary).** When the package is installed as
  *    a dependency this module lives at
- *    `<consumer>/node_modules/@mandrelai/agents/bin/postinstall.js`, so its own
+ *    `<consumer>/node_modules/mandrel/bin/postinstall.js`, so its own
  *    resolved path contains a `node_modules` segment. That is true *by
  *    construction* for every dependency install and needs no env var, so a
  *    `node_modules` ancestor is treated as an unambiguous consumer install →
  *    return `false` (run the sync). This is the signal the original guard
  *    (Story #3489) was missing: it resolved the package's **own**
- *    `package.json` (always named `@mandrelai/agents`) instead of the consumer
+ *    `package.json` (always named `mandrel`) instead of the consumer
  *    root, so it misfired on every consumer install and skipped the sync
  *    (Story #3580).
  *
  * 2. **`INIT_CWD`-rooted name check (source-repo signal).** Outside
  *    `node_modules`, resolve the **invoking project root** and compare its
- *    `package.json#name` to `@mandrelai/agents`. npm sets `INIT_CWD` to the
+ *    `package.json#name` to `mandrel`. npm sets `INIT_CWD` to the
  *    directory where `npm install` was invoked — the framework repo root when
  *    a contributor installs the framework itself. When `INIT_CWD` is unset
  *    (e.g. the hook is run directly via `node`, outside npm), fall back to the
@@ -79,7 +79,7 @@ const HINT =
  * `package.json` never strands a consumer without their `.agents/` payload.
  *
  * @param {{ fs?: typeof nodeFs, initCwd?: string, moduleUrl?: string }} [opts]
- * @returns {boolean} `true` when running in the `@mandrelai/agents` source repo.
+ * @returns {boolean} `true` when running in the `mandrel` source repo.
  */
 export function isSourceCheckout({
   fs = nodeFs,
@@ -121,7 +121,7 @@ export function isSourceCheckout({
  *
  * **Destination root (Story #3584).** `runSync` derives its destination from
  * `process.cwd()`, but npm runs a dependency's lifecycle scripts with cwd set
- * to the **package's own directory** (`node_modules/@mandrelai/agents`), not
+ * to the **package's own directory** (`node_modules/mandrel`), not
  * the consumer project root. Left unset, the materializer would copy
  * `.agents/` back onto the package's own payload and the consumer's project
  * root would get nothing. We pass `runSync` a `cwd` resolving to `INIT_CWD` —

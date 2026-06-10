@@ -1,4 +1,4 @@
-# Example consumer .github/dependabot.yml — scoped to the @mandrelai/agents
+# Example consumer .github/dependabot.yml — scoped to the mandrel
 # framework lifecycle. Drop this into your consumer project's .github/
 # directory (merge the `updates` entry with your existing config). The
 # `mandrel doctor` CI gate and the auto-merge workflow live alongside it; see
@@ -10,7 +10,7 @@ updates:
     schedule:
       interval: "weekly"
     allow:
-      - dependency-name: "@mandrelai/agents"
+      - dependency-name: "mandrel"
     labels:
       - "mandrel"
       - "dependencies"
@@ -19,5 +19,5 @@ updates:
       include: "scope"
     # Hold the deliberate 1.x -> 2.0 major for manual review (see docs/upgrade-major.md).
     ignore:
-      - dependency-name: "@mandrelai/agents"
+      - dependency-name: "mandrel"
         update-types: ["version-update:semver-major"]

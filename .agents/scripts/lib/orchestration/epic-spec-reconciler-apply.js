@@ -307,34 +307,42 @@ function resolveParentId(slug, slugToIssue) {
 }
 
 /**
- * Build the `blocked by` body footer from a dependsOn slug list. The
- * reconciler prepends this to the create body so the dispatch manifest
- * can read the dependency graph back via the same path the rest of the
- * orchestration uses (body regex). Returns `''` when no deps.
+ * Resolve a dependsOn slug list to its issue numbers, failing loud on any
+ * unresolved slug. The reconciler hands the resolved numbers to
+ * `createTicket` as `ticketData.dependencies`; the provider's
+ * `composeStoryBody` is the single owner that renders the canonical
+ * `blocked by #N` footer from them (Story #3958). The reconciler must NOT
+ * also pre-append a footer to the body — doing so doubled every dependency
+ * line, since `composeStoryBody` appends from `dependencies` independently.
+ *
+ * Fail-loud is preserved here (not delegated to the body composer): an
+ * unresolved slug means `topoSortCreates` failed to order a dependency
+ * ahead of its dependent, which would otherwise be silently dropped by
+ * `dependencies`' number filter. Returns `[]` when no deps.
  *
  * @param {string[]|undefined} dependsOn
  * @param {Record<string, number>} slugToIssue
- * @returns {string}
+ * @returns {number[]}
  */
-function renderDependsOnFooter(dependsOn, slugToIssue) {
-  if (!Array.isArray(dependsOn) || dependsOn.length === 0) return '';
-  const lines = [];
+function resolveDependencies(dependsOn, slugToIssue) {
+  if (!Array.isArray(dependsOn) || dependsOn.length === 0) return [];
+  const resolved = [];
   const unresolved = [];
   for (const slug of dependsOn) {
     const issueNumber = slugToIssue[slug];
     if (typeof issueNumber === 'number') {
-      lines.push(`blocked by #${issueNumber}`);
+      resolved.push(issueNumber);
     } else {
       unresolved.push(slug);
     }
   }
   if (unresolved.length > 0) {
     throw new Error(
-      `[reconciler] renderDependsOnFooter: unresolved dependsOn slugs: ${unresolved.join(', ')}. ` +
+      `[reconciler] resolveDependencies: unresolved dependsOn slugs: ${unresolved.join(', ')}. ` +
         `topoSortCreates must order dependencies ahead of dependents.`,
     );
   }
-  return lines.length ? `\n\n${lines.join('\n')}` : '';
+  return resolved;
 }
 
 /**
@@ -351,15 +359,17 @@ function renderDependsOnFooter(dependsOn, slugToIssue) {
 async function applyCreate(op, provider, opts, slugToIssue) {
   const parentId = resolveParentId(op.parentSlug, slugToIssue);
   const epicId = typeof opts.epicId === 'number' ? opts.epicId : parentId;
-  const body = `${op.body ?? ''}${renderDependsOnFooter(op.dependsOn, slugToIssue)}`;
+  // Story #3958 — resolve (and fail-loud validate) the dependency issue
+  // numbers, but do NOT pre-append a `blocked by #N` footer to the body.
+  // `composeStoryBody` (the provider's createTicket renderer) is the single
+  // owner of that footer; appending here too doubled every dependency line.
+  const dependencies = resolveDependencies(op.dependsOn, slugToIssue);
   const ticketData = {
     epicId,
     title: op.title,
-    body,
+    body: op.body ?? '',
     labels: op.labels ?? [],
-    dependencies: (op.dependsOn ?? [])
-      .map((slug) => slugToIssue[slug])
-      .filter((id) => typeof id === 'number'),
+    dependencies,
   };
   // Epic-level create has no parent — the provider's createTicket
   // expects a parent for sub-issue linkage. For the epic op we route to

@@ -12,7 +12,7 @@
  * `.agents/` source — even under `npm install --ignore-scripts=false`.
  *
  * Story #3580 fixes that guard: it previously resolved the package's **own**
- * `package.json` (always named `@mandrelai/agents`) instead of the consumer
+ * `package.json` (always named `mandrel`) instead of the consumer
  * root, so it misfired on every consumer install and skipped the sync.
  * `isSourceCheckout` now keys off two fail-safe signals — a `node_modules`
  * ancestor in the module path (→ consumer install) and, outside
@@ -82,7 +82,7 @@ describe('postinstall hook — destination root (Story #3584)', () => {
   // npm runs the postinstall lifecycle with cwd set to the package dir, not
   // the consumer root. runPostinstall must hand runSync a cwd resolving to
   // INIT_CWD (where `npm install` ran) so .agents/ lands in the consumer
-  // project, not back onto node_modules/@mandrelai/agents.
+  // project, not back onto node_modules/mandrel.
   it('passes sync a cwd resolving to INIT_CWD when it is set', () => {
     let received;
     runPostinstall({
@@ -233,14 +233,13 @@ describe('isSourceCheckout — consumer vs. source-repo detection (Story #3580)'
   const sourceModuleUrl = import.meta.url;
 
   // A path that mimics a dependency install:
-  // <consumer>/node_modules/@mandrelai/agents/bin/postinstall.js. Derived from
+  // <consumer>/node_modules/mandrel/bin/postinstall.js. Derived from
   // the test dir so `pathToFileURL` produces a host-valid URL on every OS.
   const consumerModuleUrl = pathToFileURL(
     path.join(
       path.dirname(fileURLToPath(import.meta.url)),
       'node_modules',
-      '@mandrelai',
-      'agents',
+      'mandrel',
       'bin',
       'postinstall.js',
     ),
@@ -254,8 +253,8 @@ describe('isSourceCheckout — consumer vs. source-repo detection (Story #3580)'
     },
   });
 
-  it('returns true in the source repo (INIT_CWD root name is @mandrelai/agents)', () => {
-    const fs = makeFs(JSON.stringify({ name: '@mandrelai/agents' }));
+  it('returns true in the source repo (INIT_CWD root name is mandrel)', () => {
+    const fs = makeFs(JSON.stringify({ name: 'mandrel' }));
     assert.equal(
       isSourceCheckout({ fs, initCwd: '/repo', moduleUrl: sourceModuleUrl }),
       true,
@@ -263,10 +262,10 @@ describe('isSourceCheckout — consumer vs. source-repo detection (Story #3580)'
   });
 
   it('returns false for a consumer install detected via the node_modules path guard', () => {
-    // The fake fs would report @mandrelai/agents (as the package's own
+    // The fake fs would report mandrel (as the package's own
     // package.json does), proving the node_modules path guard wins and the
     // name check never runs — the exact bug Story #3580 fixes.
-    const fs = makeFs(JSON.stringify({ name: '@mandrelai/agents' }));
+    const fs = makeFs(JSON.stringify({ name: 'mandrel' }));
     assert.equal(
       isSourceCheckout({
         fs,
@@ -290,7 +289,7 @@ describe('isSourceCheckout — consumer vs. source-repo detection (Story #3580)'
   });
 
   it('falls back to the module-relative root when INIT_CWD is unset', () => {
-    const fs = makeFs(JSON.stringify({ name: '@mandrelai/agents' }));
+    const fs = makeFs(JSON.stringify({ name: 'mandrel' }));
     assert.equal(
       isSourceCheckout({ fs, initCwd: undefined, moduleUrl: sourceModuleUrl }),
       true,
