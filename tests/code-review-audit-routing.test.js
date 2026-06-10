@@ -1,18 +1,25 @@
 // tests/code-review-audit-routing.test.js
 //
-// Contract tier (Story #3876): the post-delivery audit-lens routing in
+// Contract tier (Story #3876 / #3889): the post-delivery audit-lens routing in
 // `code-review.js` maps the judged risk envelope's high-risk axes onto audit
 // lenses and runs them through the EXISTING `selectAuditStrategy` engine — no
 // new audit machinery. These tests pin the axis→lens contract:
 //   - security            → audit-security
-//   - public-api          → audit-architecture
-//   - architecture        → audit-architecture
+//   - public-api          → audit-architecture (the canonical architectural axis)
 //   - low-risk envelope   → no lenses (baseline gates only)
 //   - de-duplication + stable ordering of routed lenses
 //   - the strategy engine seam is the shared `selectAuditStrategy`.
+//
+// Story #3889 removed the unreachable `architecture` key from AXIS_TO_LENS:
+// `architecture` is NOT a value in the risk-verdict.schema.json axis enum, so a
+// verdict-derived envelope can never carry it — the architectural axis is
+// `public-api`. The guard test below pins that no AXIS_TO_LENS key references an
+// off-schema axis.
 
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   AUDIT_STRATEGY,
   selectAuditStrategy,
@@ -21,6 +28,18 @@ import {
   planAuditLenses,
   resolveAuditLenses,
 } from '../.agents/scripts/lib/orchestration/code-review.js';
+
+/**
+ * Read the canonical risk-verdict axis enum so the routing guard below can
+ * assert no AXIS_TO_LENS key references a value absent from the schema.
+ */
+function readRiskVerdictAxisEnum() {
+  const schemaPath = fileURLToPath(
+    new URL('../.agents/schemas/risk-verdict.schema.json', import.meta.url),
+  );
+  const schema = JSON.parse(readFileSync(schemaPath, 'utf8'));
+  return schema.properties.axes.items.properties.axis.enum;
+}
 
 // --- resolveAuditLenses: axis → lens --------------------------------------
 
@@ -40,12 +59,15 @@ test('resolveAuditLenses: a high-risk public-api axis routes audit-architecture'
   assert.deepEqual(resolveAuditLenses(envelope), ['audit-architecture']);
 });
 
-test('resolveAuditLenses: a high-risk architecture axis routes audit-architecture', () => {
+test('resolveAuditLenses: the off-schema architecture axis routes no lens (Story #3889)', () => {
+  // `architecture` is not in the risk-verdict.schema.json axis enum, so a
+  // verdict-derived envelope can never carry it. Even if a caller hand-builds
+  // an envelope with it, the dead key is gone and it routes nothing.
   const envelope = {
     overallLevel: 'high',
     axes: [{ axis: 'architecture', level: 'high', rationale: 'module split' }],
   };
-  assert.deepEqual(resolveAuditLenses(envelope), ['audit-architecture']);
+  assert.deepEqual(resolveAuditLenses(envelope), []);
 });
 
 test('resolveAuditLenses: a low-risk envelope routes no lenses', () => {
@@ -74,12 +96,12 @@ test('resolveAuditLenses: de-duplicates and orders security before architecture'
   const envelope = {
     overallLevel: 'high',
     axes: [
-      { axis: 'architecture', level: 'high', rationale: 'split' },
       { axis: 'public-api', level: 'high', rationale: 'breaking' },
+      { axis: 'public-api', level: 'high', rationale: 'another break' },
       { axis: 'security', level: 'high', rationale: 'auth' },
     ],
   };
-  // public-api + architecture collapse to a single audit-architecture, and the
+  // Repeated public-api collapses to a single audit-architecture, and the
   // ordering is stable (security first) regardless of axis order.
   assert.deepEqual(resolveAuditLenses(envelope), [
     'audit-security',
@@ -129,7 +151,7 @@ test('planAuditLenses: delegates strategy selection to the injected engine', () 
     overallLevel: 'high',
     axes: [
       { axis: 'security', level: 'high', rationale: 'auth' },
-      { axis: 'architecture', level: 'high', rationale: 'split' },
+      { axis: 'public-api', level: 'high', rationale: 'breaking' },
     ],
   };
   const calls = [];
@@ -150,6 +172,28 @@ test('planAuditLenses: delegates strategy selection to the injected engine', () 
   assert.equal(calls.length, 2);
   assert.equal(plan[0].strategy, AUDIT_STRATEGY.SEQUENTIAL);
   assert.equal(plan[1].strategy, AUDIT_STRATEGY.SEQUENTIAL);
+});
+
+// --- Story #3889: no AXIS_TO_LENS key is off-schema ------------------------
+
+test('every routing axis is a value in the risk-verdict schema axis enum', () => {
+  const enumAxes = new Set(readRiskVerdictAxisEnum());
+  // The mapped axes the routing contract relies on MUST be schema-valid, else
+  // the verdict-derived envelope can never carry them (dead routing).
+  for (const axis of ['security', 'public-api']) {
+    assert.ok(
+      enumAxes.has(axis),
+      `routing axis "${axis}" is missing from the risk-verdict schema enum`,
+    );
+  }
+  // The retired `architecture` axis is NOT in the enum and MUST NOT route.
+  assert.ok(!enumAxes.has('architecture'));
+  assert.deepEqual(
+    resolveAuditLenses({
+      axes: [{ axis: 'architecture', level: 'high', rationale: 'x' }],
+    }),
+    [],
+  );
 });
 
 test('planAuditLenses default engine reference is the shared selectAuditStrategy', () => {

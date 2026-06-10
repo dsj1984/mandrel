@@ -76,19 +76,25 @@ export function resolveReviewDepth(overallLevel) {
  * The axes whose presence (at `high` risk) routes a specific post-delivery
  * audit lens. Mirrors the audit-workflow names under
  * `.agents/workflows/audit-*.md`. `security` routes the security lens;
- * `public-api` and `architecture` both route the architecture lens. Any other
- * axis (or a low/medium-risk axis) contributes no lens (Story #3876).
+ * `public-api` (the canonical architectural axis) routes the architecture
+ * lens. Any other axis (or a low/medium-risk axis) contributes no lens
+ * (Story #3876).
+ *
+ * Every key here MUST be a value in the `axis` enum of
+ * `.agents/schemas/risk-verdict.schema.json` — the verdict-derived envelope
+ * can only ever carry schema-valid axes, so a key absent from that enum is
+ * unreachable dead routing (Story #3889 removed the unreachable
+ * `architecture` key; the architectural axis is `public-api`).
  */
 const AXIS_TO_LENS = Object.freeze({
   security: 'audit-security',
   'public-api': 'audit-architecture',
-  architecture: 'audit-architecture',
 });
 
 /**
- * Stable output order for routed lenses so a `public-api` + `architecture`
- * envelope de-dupes to a single `audit-architecture` and the lens list is
- * deterministic regardless of axis ordering in the verdict.
+ * Stable output order for routed lenses so a `security` + `public-api`
+ * envelope always lists `audit-security` before `audit-architecture` and the
+ * lens list is deterministic regardless of axis ordering in the verdict.
  */
 const LENS_ORDER = Object.freeze(['audit-security', 'audit-architecture']);
 
@@ -97,11 +103,11 @@ const LENS_ORDER = Object.freeze(['audit-security', 'audit-architecture']);
  *
  * High-risk axes map to their audit lens via {@link AXIS_TO_LENS}; only axes
  * judged `high` contribute (a `low`/`medium` axis carries no lens). The result
- * is de-duplicated and stably ordered (security before architecture) so a
- * `public-api` + `architecture` envelope routes `['audit-architecture']` once,
- * not twice. A low-risk envelope — or any envelope with no high-risk routed
- * axis — resolves to an empty array (no lens beyond the existing baseline
- * gates).
+ * is de-duplicated and stably ordered (security before architecture) so an
+ * envelope listing the `public-api` axis more than once routes
+ * `['audit-architecture']` once, not twice. A low-risk envelope — or any
+ * envelope with no high-risk routed axis — resolves to an empty array (no
+ * lens beyond the existing baseline gates).
  *
  * Pure function — no I/O, no side effects.
  *

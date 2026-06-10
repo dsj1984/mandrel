@@ -66,6 +66,15 @@ function makeFakeSelectAudits({ selectedAudits, changedFiles, ticketTitle }) {
 const noopConfig = () => ({});
 const noopProviderFactory = (provider) => () => provider;
 
+/**
+ * Fake `readPlanState` that returns a checkpoint whose `planningRisk`
+ * envelope carries the supplied axes — the model-judged risk verdict the
+ * delivery path routes audit lenses from (Story #3889).
+ */
+function makeFakeReadPlanState(planningRisk) {
+  return async () => (planningRisk === null ? null : { planningRisk });
+}
+
 test('parseArgv: accepts --epic and defaults base-branch to main + gate to gate3', () => {
   const v = parseArgv(['--epic', '2586']);
   assert.equal(v.epicId, 2586);
@@ -254,6 +263,159 @@ test('runEpicAuditPrepare: degrades when selector resolves a different ref than 
   assert.equal(result.envelope.reason, 'EPIC_REF_MISMATCH');
   assert.equal(result.envelope.epicId, EPIC_ID);
   assert.equal(result.envelope.epicBranch, `epic/${EPIC_ID}`);
+});
+
+// --- Story #3889: risk-routed audit lenses in the live delivery path -------
+
+test('runEpicAuditPrepare: a high-risk security envelope routes audit-security into selectedAudits', async () => {
+  const provider = makeProvider();
+  // The change-set selector picks NOTHING (a docs-only-ish diff), proving the
+  // audit-security lens fires purely from the model-judged risk verdict, not
+  // from the change-set selection — the half of the rigor-routing capability
+  // this Story wires into the live path.
+  const changedFiles = ['docs/CHANGELOG.md'];
+
+  const { exitCode, result } = await runEpicAuditPrepare(
+    { epicId: EPIC_ID, baseBranch: 'main', gate: 'gate3' },
+    {
+      resolveConfig: noopConfig,
+      createProvider: noopProviderFactory(provider),
+      selectAudits: makeFakeSelectAudits({
+        selectedAudits: [],
+        changedFiles,
+        ticketTitle: 'x',
+      }),
+      // Real resolveAuditLenses runs (not injected) — only the checkpoint read
+      // is faked, so this proves the genuine axis→lens wiring end-to-end.
+      readPlanState: makeFakeReadPlanState({
+        overallLevel: 'high',
+        axes: [{ axis: 'security', level: 'high', rationale: 'auth boundary' }],
+      }),
+    },
+  );
+
+  assert.equal(exitCode, 0);
+  assert.equal(result.kind, 'envelope');
+  assert.deepEqual(result.envelope.changeSetAudits, []);
+  assert.deepEqual(result.envelope.riskRoutedAudits, ['audit-security']);
+  assert.deepEqual(result.envelope.selectedAudits, ['audit-security']);
+});
+
+test('runEpicAuditPrepare: risk-routed lenses union with change-set lenses, de-duplicated', async () => {
+  const provider = makeProvider();
+  const changedFiles = ['src/auth/login.js'];
+
+  const { exitCode, result } = await runEpicAuditPrepare(
+    { epicId: EPIC_ID, baseBranch: 'main', gate: 'gate3' },
+    {
+      resolveConfig: noopConfig,
+      createProvider: noopProviderFactory(provider),
+      selectAudits: makeFakeSelectAudits({
+        // Change set already selects audit-security + audit-privacy.
+        selectedAudits: ['audit-security', 'audit-privacy'],
+        changedFiles,
+        ticketTitle: 'x',
+      }),
+      readPlanState: makeFakeReadPlanState({
+        overallLevel: 'high',
+        axes: [
+          { axis: 'security', level: 'high', rationale: 'auth' },
+          { axis: 'public-api', level: 'high', rationale: 'breaking api' },
+        ],
+      }),
+    },
+  );
+
+  assert.equal(exitCode, 0);
+  // audit-security is in both sources — it must appear once. audit-architecture
+  // is risk-only and appended after the change-set selection.
+  assert.deepEqual(result.envelope.changeSetAudits, [
+    'audit-security',
+    'audit-privacy',
+  ]);
+  assert.deepEqual(result.envelope.riskRoutedAudits, [
+    'audit-security',
+    'audit-architecture',
+  ]);
+  assert.deepEqual(result.envelope.selectedAudits, [
+    'audit-security',
+    'audit-privacy',
+    'audit-architecture',
+  ]);
+});
+
+test('runEpicAuditPrepare: a low-risk envelope routes no extra lenses (change-set only)', async () => {
+  const provider = makeProvider();
+  const changedFiles = ['src/util/format.js'];
+
+  const { exitCode, result } = await runEpicAuditPrepare(
+    { epicId: EPIC_ID, baseBranch: 'main', gate: 'gate3' },
+    {
+      resolveConfig: noopConfig,
+      createProvider: noopProviderFactory(provider),
+      selectAudits: makeFakeSelectAudits({
+        selectedAudits: ['audit-clean-code'],
+        changedFiles,
+        ticketTitle: 'x',
+      }),
+      readPlanState: makeFakeReadPlanState({
+        overallLevel: 'low',
+        axes: [{ axis: 'internal-refactor', level: 'low', rationale: 'tidy' }],
+      }),
+    },
+  );
+
+  assert.equal(exitCode, 0);
+  assert.deepEqual(result.envelope.riskRoutedAudits, []);
+  assert.deepEqual(result.envelope.selectedAudits, ['audit-clean-code']);
+});
+
+test('runEpicAuditPrepare: a missing checkpoint degrades to change-set selection (no abort)', async () => {
+  const provider = makeProvider();
+  const changedFiles = ['src/auth/login.js'];
+
+  const { exitCode, result } = await runEpicAuditPrepare(
+    { epicId: EPIC_ID, baseBranch: 'main', gate: 'gate3' },
+    {
+      resolveConfig: noopConfig,
+      createProvider: noopProviderFactory(provider),
+      selectAudits: makeFakeSelectAudits({
+        selectedAudits: ['audit-security'],
+        changedFiles,
+        ticketTitle: 'x',
+      }),
+      readPlanState: makeFakeReadPlanState(null),
+    },
+  );
+
+  assert.equal(exitCode, 0);
+  assert.deepEqual(result.envelope.riskRoutedAudits, []);
+  assert.deepEqual(result.envelope.selectedAudits, ['audit-security']);
+});
+
+test('runEpicAuditPrepare: a checkpoint-read failure degrades to change-set selection', async () => {
+  const provider = makeProvider();
+  const changedFiles = ['src/auth/login.js'];
+
+  const { exitCode, result } = await runEpicAuditPrepare(
+    { epicId: EPIC_ID, baseBranch: 'main', gate: 'gate3' },
+    {
+      resolveConfig: noopConfig,
+      createProvider: noopProviderFactory(provider),
+      selectAudits: makeFakeSelectAudits({
+        selectedAudits: ['audit-privacy'],
+        changedFiles,
+        ticketTitle: 'x',
+      }),
+      readPlanState: async () => {
+        throw new Error('provider blew up reading the checkpoint');
+      },
+    },
+  );
+
+  assert.equal(exitCode, 0);
+  assert.deepEqual(result.envelope.riskRoutedAudits, []);
+  assert.deepEqual(result.envelope.selectedAudits, ['audit-privacy']);
 });
 
 test('runEpicAuditPrepare: --help yields help payload with exit 0', async () => {
