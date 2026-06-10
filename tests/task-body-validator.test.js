@@ -19,6 +19,7 @@ import {
   validateTaskBodies,
   validateTaskBodyShape,
 } from '../.agents/scripts/lib/orchestration/task-body-validator.js';
+import { serialize } from '../.agents/scripts/lib/story-body/story-body.js';
 
 function story(slug, body) {
   return {
@@ -143,16 +144,17 @@ describe('collectTaskBodyErrors — verify entries', () => {
   });
 });
 
-describe('collectTaskBodyErrors — legacy / non-structured bodies pass through', () => {
-  it('skips tasks with string body (legacy)', () => {
-    assert.deepEqual(
-      collectTaskBodyErrors([story('t1', 'a plain string body')]),
-      [],
-    );
+describe('collectTaskBodyErrors — body routing (Story #3906)', () => {
+  it('skips Story tickets with undefined body', () => {
+    assert.deepEqual(collectTaskBodyErrors([story('t1', undefined)]), []);
   });
 
-  it('skips tasks with undefined body', () => {
-    assert.deepEqual(collectTaskBodyErrors([story('t1', undefined)]), []);
+  it('skips Story tickets with null body', () => {
+    assert.deepEqual(collectTaskBodyErrors([story('t1', null)]), []);
+  });
+
+  it('skips Story tickets with an empty / whitespace-only string body', () => {
+    assert.deepEqual(collectTaskBodyErrors([story('t1', '   ')]), []);
   });
 
   it('skips Feature tickets regardless of body shape', () => {
@@ -163,7 +165,7 @@ describe('collectTaskBodyErrors — legacy / non-structured bodies pass through'
     assert.deepEqual(collectTaskBodyErrors(tickets), []);
   });
 
-  it('validates Story tickets with structured bodies (3-tier)', () => {
+  it('validates Story tickets with structured (object) bodies (3-tier)', () => {
     // Under the 3-tier hierarchy Stories carry the implementation scope inline.
     // A Story with a structured body that violates the schema IS an error.
     const tickets = [
@@ -176,12 +178,36 @@ describe('collectTaskBodyErrors — legacy / non-structured bodies pass through'
     );
   });
 
-  it('skips Story tickets with string bodies (legacy pass-through)', () => {
-    assert.deepEqual(
-      collectTaskBodyErrors([
-        { slug: 's1', type: 'story', title: 'S', body: 'string body' },
-      ]),
-      [],
+  it('validates a serialized (string) Story body — the canonical decompose shape', () => {
+    // Story #3906: the canonical decomposition serializes the body to a
+    // markdown string. The validator now parses it back and validates the
+    // sections rather than skipping it.
+    const serialized = serialize(validStoryBody);
+    assert.deepEqual(collectTaskBodyErrors([story('s1', serialized)]), []);
+  });
+
+  it('rejects a serialized string body whose verify entry lacks a tier suffix', () => {
+    const serialized = serialize({
+      ...validStoryBody,
+      verify: ['npm run test'],
+    });
+    const errs = collectTaskBodyErrors([story('s1', serialized)]);
+    assert.ok(
+      errs.some((e) => e.includes('tier in parentheses')),
+      `expected a verify tier-suffix error, got: ${JSON.stringify(errs)}`,
+    );
+  });
+
+  it('rejects a legacy unstructured string body (no sections → empty arrays)', () => {
+    // A free-text string body with no `## Goal/Changes/Acceptance/Verify`
+    // sections parses to empty arrays and now fails the section checks —
+    // the skill mandates a serialized structured body end-to-end.
+    const errs = collectTaskBodyErrors([
+      { slug: 's1', type: 'story', title: 'S', body: 'a plain string body' },
+    ]);
+    assert.ok(
+      errs.some((e) => e.includes('body.changes')),
+      `expected a missing-changes error, got: ${JSON.stringify(errs)}`,
     );
   });
 });

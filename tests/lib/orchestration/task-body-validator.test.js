@@ -24,6 +24,7 @@ import {
   VERIFY_TIER_VALUES,
   validateTaskBodyShape,
 } from '../../../.agents/scripts/lib/orchestration/task-body-validator.js';
+import { serialize } from '../../../.agents/scripts/lib/story-body/story-body.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -75,9 +76,22 @@ describe('collectTaskBodyErrors — Story ticket routing (3-tier)', () => {
     assert.deepEqual(errs, []);
   });
 
-  it('skips a Story with a string body (legacy pass-through)', () => {
-    const errs = collectTaskBodyErrors([story('s1', 'a plain string body')]);
+  it('validates a serialized string body — parses then applies section rules (Story #3906)', () => {
+    const serialized = serialize(VALID_STORY_BODY);
+    const errs = collectTaskBodyErrors([story('s1', serialized)]);
     assert.deepEqual(errs, []);
+  });
+
+  it('rejects a legacy unstructured string body (no sections → empty arrays)', () => {
+    const errs = collectTaskBodyErrors([story('s1', 'a plain string body')]);
+    assert.ok(
+      errs.some((e) => e.includes('body.changes')),
+      `expected a missing-changes error, got: ${JSON.stringify(errs)}`,
+    );
+  });
+
+  it('skips a Story with an empty / whitespace-only string body', () => {
+    assert.deepEqual(collectTaskBodyErrors([story('s1', '   ')]), []);
   });
 
   it('skips a Story with a null body', () => {

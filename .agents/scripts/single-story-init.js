@@ -24,8 +24,6 @@
  *
  * What this script does NOT do (and why):
  *   - Skips `traceHierarchy` — no Epic → no PRD/Tech-Spec.
- *   - Skips `runDispatchManifestGuard` — no dispatch manifest exists for a
- *     standalone Story.
  *   - Skips `validateBlockers` against the body's `Blocked by:` markers —
  *     pre-flight is still the operator's responsibility, but the Epic-scope
  *     blocker chain doesn't fit.
