@@ -120,6 +120,40 @@ describe('provisionResources — local git provisioning (no network)', () => {
     assert.equal(res.exit, 1);
   });
 
+  it('does NOT stage a pre-existing .env into the cold-start initial commit (Story #3894)', async () => {
+    // Arrange — a cold-start folder that already carries secret-bearing files
+    // BEFORE any .gitignore is seeded (gitignore seeding runs two phases later
+    // in executeBootstrap, not in provisionResources).
+    const dir = makeTmpDir();
+    fs.writeFileSync(
+      path.join(dir, '.env'),
+      'GITHUB_TOKEN=ghp_supersecret\n',
+      'utf8',
+    );
+    fs.writeFileSync(path.join(dir, '.mcp.json'), '{"servers":{}}\n', 'utf8');
+    fs.writeFileSync(path.join(dir, 'README.md'), '# real project\n', 'utf8');
+
+    // Act — the cold-start provisioning phase (git init + initial commit).
+    const res = await provisionResources({
+      projectRoot: dir,
+      gitInitialized: false,
+      flags: { 'skip-github': true },
+      creation: { newRepo: true, newProject: true },
+      answers: { ...ANSWERS },
+    });
+    assert.equal(res.ok, true);
+
+    // Assert — the initial commit is EMPTY: no tracked files at all, so the
+    // immediately-following `gh repo create --push` cannot leak the secret.
+    const tracked = git(['ls-files'], dir).stdout.trim();
+    assert.equal(tracked, '', 'initial commit must track zero files');
+    // The secret file is untracked (still present on disk, never committed).
+    const status = git(['status', '--porcelain', '--', '.env'], dir).stdout;
+    assert.match(status, /^\?\? \.env$/m);
+    // HEAD resolves (the push has a commit to upload).
+    assert.equal(git(['rev-parse', '--verify', 'HEAD'], dir).status, 0);
+  });
+
   it('returns ok on an existing repo with a wired origin remote without spawning gh', async () => {
     const dir = makeTmpDir();
     await provisionResources({
