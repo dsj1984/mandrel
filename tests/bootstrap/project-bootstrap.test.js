@@ -14,6 +14,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import { normalizeHandleAnswer } from '../../.agents/scripts/bootstrap.js';
+import { LEDGER_RELATIVE_PATH } from '../../.agents/scripts/lib/bootstrap/install-ledger.js';
 import {
   checkNodeVersion,
   detectPackageManager,
@@ -21,6 +22,7 @@ import {
   ensureClaudeSettings,
   ensureGitignore,
   ensurePackageJson,
+  GITIGNORE_BLOCKS,
   REQUIRED_NODE_FLOOR,
   SYNC_COMMAND,
   satisfiesNodeEngine,
@@ -175,24 +177,55 @@ describe('ensureClaudeSettings', () => {
 });
 
 describe('ensureGitignore', () => {
-  it('creates a fresh .gitignore with both blocks', () => {
+  it('creates a fresh .gitignore with every secret-bearing block', () => {
     const outcome = ensureGitignore({ projectRoot: tmpRoot });
     assert.equal(outcome.commands, 'added');
     assert.equal(outcome.mcp, 'added');
+    assert.equal(outcome.env, 'added');
+    assert.equal(outcome.installLedger, 'added');
     const body = fs.readFileSync(path.join(tmpRoot, '.gitignore'), 'utf8');
     // The flat .claude/commands/ tree is the ignored generated path.
     assert.ok(body.includes('.claude/commands/'));
     assert.ok(body.includes('.mcp.json'));
+    // Story #3894: .env (secrets) and the install ledger are now ignored.
+    assert.ok(/^\.env$/m.test(body));
+    assert.ok(body.includes(LEDGER_RELATIVE_PATH));
   });
 
-  it('skips already-present entries', () => {
+  it('skips already-present entries (idempotent re-run adds nothing)', () => {
     writeFile(
       path.join(tmpRoot, '.gitignore'),
-      'node_modules/\n.claude/commands/\n.mcp.json\n',
+      `node_modules/\n.claude/commands/\n.mcp.json\n.env\n${LEDGER_RELATIVE_PATH}\n`,
     );
     const outcome = ensureGitignore({ projectRoot: tmpRoot });
     assert.equal(outcome.commands, 'already-present');
     assert.equal(outcome.mcp, 'already-present');
+    assert.equal(outcome.env, 'already-present');
+    assert.equal(outcome.installLedger, 'already-present');
+  });
+
+  it('is idempotent across two writes — no duplicate blocks (marker-keyed)', () => {
+    ensureGitignore({ projectRoot: tmpRoot });
+    const first = fs.readFileSync(path.join(tmpRoot, '.gitignore'), 'utf8');
+    const second = ensureGitignore({ projectRoot: tmpRoot });
+    const after = fs.readFileSync(path.join(tmpRoot, '.gitignore'), 'utf8');
+    assert.equal(after, first);
+    for (const key of Object.keys(GITIGNORE_BLOCKS)) {
+      assert.equal(second[key], 'already-present');
+    }
+    // Exactly one occurrence of each ignored path.
+    assert.equal((after.match(/^\.env$/gm) ?? []).length, 1);
+    assert.equal((after.match(/^\.mcp\.json$/gm) ?? []).length, 1);
+  });
+
+  it('does not treat a pre-existing .env.example as the .env block', () => {
+    // .env.example is the committed placeholder — it must NOT satisfy the
+    // .env presence pattern, so the bare .env block is still added.
+    writeFile(path.join(tmpRoot, '.gitignore'), '.env.example\n');
+    const outcome = ensureGitignore({ projectRoot: tmpRoot });
+    assert.equal(outcome.env, 'added');
+    const body = fs.readFileSync(path.join(tmpRoot, '.gitignore'), 'utf8');
+    assert.ok(/^\.env$/m.test(body));
   });
 });
 

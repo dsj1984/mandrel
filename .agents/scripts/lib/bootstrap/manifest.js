@@ -143,7 +143,7 @@ export function buildMutationManifest(ctx = {}) {
       target: rel('.gitignore'),
       action: 'merge',
       detail:
-        'Ignore .claude/commands/ (generated) and .mcp.json (carries secrets).',
+        'Ignore .claude/commands/ (generated), .mcp.json + .env (carry secrets), and the per-clone install ledger.',
       reversible: true,
     },
   );

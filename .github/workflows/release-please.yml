@@ -18,9 +18,18 @@ jobs:
   release-please:
     name: Run release-please
     runs-on: ubuntu-latest
+    # Multi-package (manifest) mode emits per-path outputs prefixed with the
+    # package path: `.` for the root `mandrel` package and `create-mandrel`
+    # for the launcher. The top-level `release_created` is true if *either*
+    # package released, so each publish job must key off its OWN package's
+    # per-path output — otherwise a launcher-only release would re-run the
+    # root `npm publish` on an already-published version (and fail), and vice
+    # versa. See release-please-action multi-package outputs.
     outputs:
-      release_created: ${{ steps.release.outputs.release_created }}
-      tag_name: ${{ steps.release.outputs.tag_name }}
+      root_release_created: ${{ steps.release.outputs['.--release_created'] }}
+      root_tag_name: ${{ steps.release.outputs['.--tag_name'] }}
+      launcher_release_created: ${{ steps.release.outputs['create-mandrel--release_created'] }}
+      launcher_tag_name: ${{ steps.release.outputs['create-mandrel--tag_name'] }}
     steps:
       # Pinned to an exact release tag rather than a floating major (`@v5`)
       # or the moving `@main` ref — a third-party action's default branch
@@ -49,19 +58,23 @@ jobs:
           manifest-file: .release-please-manifest.json
 
   npm-publish:
-    # Publish the package to the npm registry with build provenance once
-    # release-please cuts a release. This replaces the retired `dist`
-    # branch mirror: consumers now install a versioned, provenance-signed
-    # package from npm instead of pinning a Git submodule to the `dist`
-    # branch. `id-token: write` lets npm attach a signed provenance
-    # statement (Sigstore) proving the tarball was built from this repo's
-    # CI run; `package.json#publishConfig.provenance` opts the publish in.
-    # Auth uses the `NPM_TOKEN` automation token rather than OIDC token
-    # exchange so the publish works against the public registry without
-    # additional trusted-publisher configuration.
+    # Publish the root `@mandrelai/agents` package to the npm registry with
+    # build provenance once release-please cuts a release for the **root**
+    # package. This replaces the retired `dist` branch mirror: consumers now
+    # install a versioned, provenance-signed package from npm instead of
+    # pinning a Git submodule to the `dist` branch. `id-token: write` lets
+    # npm attach a signed provenance statement (Sigstore) proving the tarball
+    # was built from this repo's CI run; `package.json#publishConfig.provenance`
+    # opts the publish in. Auth uses the `NPM_TOKEN` automation token rather
+    # than OIDC token exchange so the publish works against the public registry
+    # without additional trusted-publisher configuration.
+    #
+    # Gated on the **root** component's per-path release output (not the
+    # top-level `release_created`) so a launcher-only release never re-runs
+    # this publish on an already-published root version.
     name: Publish to npm
     needs: release-please
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    if: ${{ needs.release-please.outputs.root_release_created == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -81,5 +94,46 @@ jobs:
 
       - name: Publish package
         run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  npm-publish-launcher:
+    # Publish the `create-mandrel` cold-start launcher to the npm registry
+    # once release-please cuts a release for the **create-mandrel** package.
+    # `npx create-mandrel` is the advertised cold-start entry point; without
+    # this step the launcher was never published under any name, so the
+    # documented cold start failed for every user (Story #3891, review
+    # Finding A.1). The name is kept unscoped (`create-mandrel`) to preserve
+    # the `npm create mandrel` / `npx create-mandrel` convention the docs
+    # advertise.
+    #
+    # Gated on the **launcher** component's per-path release output so a
+    # root-only release does not attempt to republish the launcher version,
+    # and a launcher-only release publishes the launcher without touching the
+    # root publish job above. `working-directory: create-mandrel` scopes the
+    # publish to the launcher package manifest; provenance + public access
+    # come from the launcher's `package.json#publishConfig`, and `NPM_TOKEN`
+    # auth mirrors the root publish job. No `npm ci` runs because the launcher
+    # has zero dependencies and no build/prepublish scripts.
+    name: Publish create-mandrel to npm
+    needs: release-please
+    if: ${{ needs.release-please.outputs.launcher_release_created == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Publish launcher package
+        run: npm publish
+        working-directory: create-mandrel
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

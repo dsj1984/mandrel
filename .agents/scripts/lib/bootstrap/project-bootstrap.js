@@ -16,6 +16,7 @@ import { spawnSync as defaultSpawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { LEDGER_RELATIVE_PATH } from './install-ledger.js';
 import { PHASE_GROUPS, previewMutationManifest } from './manifest.js';
 import { applyQualityBootstrap } from './quality-bootstrap.js';
 
@@ -59,6 +60,28 @@ export const GITIGNORE_BLOCKS = Object.freeze({
     pattern: /^\s*\.mcp\.json\s*$/m,
     block:
       '\n# Project-scoped MCP config carries secrets — keep out of git.\n.mcp.json\n',
+  },
+  // Story #3894: `.env` holds real secrets (`/onboard` instructs operators to
+  // put `GITHUB_TOKEN` here). It MUST be ignored by default so a cold-start
+  // provision never stages/pushes it. The pattern matches a bare `.env` (with
+  // an optional trailing slash) but deliberately NOT `.env.example`, the
+  // committed placeholder that `security-baseline.md` § Secrets Management
+  // exempts.
+  env: {
+    pattern: /^\s*\.env\/?\s*$/m,
+    block:
+      '\n# Secrets live in .env (e.g. GITHUB_TOKEN) — never commit it. Only .env.example (placeholders) is checked in.\n.env\n',
+  },
+  // Story #3894: the install ledger is a per-clone install record, not a
+  // checked-in source artifact. `install-ledger.js` documents that the
+  // bootstrap `.gitignore` step ignores it — key the entry off the exact
+  // `LEDGER_RELATIVE_PATH` constant so the doc and code never drift again.
+  installLedger: {
+    pattern: new RegExp(
+      `^\\s*${LEDGER_RELATIVE_PATH.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`,
+      'm',
+    ),
+    block: `\n# Per-clone install record written by bootstrap — not a source artifact.\n${LEDGER_RELATIVE_PATH}\n`,
   },
 });
 
@@ -364,8 +387,11 @@ export function ensureClaudeSettings(ctx) {
 }
 
 /**
- * Step 4 + Step 8 — Ensure `.gitignore` carries the `.claude/commands/`
- * and `.mcp.json` entries. Returns a per-block outcome.
+ * Step 4 + Step 8 — Ensure `.gitignore` carries every {@link GITIGNORE_BLOCKS}
+ * entry (`.claude/commands/`, `.mcp.json`, `.env`, and the per-clone install
+ * ledger). Each block is marker-keyed off a presence pattern, so a re-run is a
+ * zero-mutation no-op and never appends a duplicate block. Returns a per-block
+ * outcome (`added` | `already-present`).
  *
  * @param {object} ctx
  * @param {typeof fs} [ctx.fsImpl]

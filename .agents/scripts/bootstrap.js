@@ -242,9 +242,19 @@ function ensureGitInitialized(state) {
   }
 
   // A push needs a commit; create one only when HEAD does not resolve yet.
+  //
+  // SECURITY (Story #3894): do NOT `git add -A` here. `.gitignore` seeding
+  // (`ensureGitignore`) runs two phases later in the pipeline, so at this
+  // point a cold-start folder may still contain secret-bearing files
+  // (`.env`, `.mcp.json`). Staging the whole tree before any gitignore
+  // exists — followed immediately by `gh repo create --push` — would push
+  // those secrets to a brand-new (often public) remote with no per-file
+  // consent, violating `security-baseline.md` § Secrets Management. The
+  // push only needs a commit to *exist*, so we create an empty one; the
+  // operator's own first content commit lands after the gitignore phase has
+  // already excluded the secret-bearing paths.
   let committed = false;
   if (!runGit(['rev-parse', '--verify', 'HEAD'], cwd).ok) {
-    runGit(['add', '-A'], cwd);
     const commit = runGit(
       [
         ...gitIdentityArgs(cwd, state.answers),
