@@ -323,18 +323,45 @@ mode:
    convergent → sharpen loop and emits a markdown one-pager with the
    five canonical Epic sections (Context, Goal, Non-Goals, Scope,
    Acceptance Criteria).
-2. **Cross-Epic duplicate search.** `lib/duplicate-search.js` queries the
+2. **Scope triage (Phase 1.5).** Before the ceremony is paid for, the
+   one-pager is judged against the story-vs-epic rubric (see the
+   subsection below). On a `story` / `borderline` verdict the operator may
+   route the work to `/story-plan` instead of opening an Epic.
+3. **Cross-Epic duplicate search.** `lib/duplicate-search.js` queries the
    open Epics in the repo, scores by title + body keyword overlap, and
    surfaces matches above a threshold. The operator either confirms the
    new idea is genuinely distinct or folds it into an existing Epic
    (`/epic-plan` exits and the operator resumes work on the existing
    id).
-3. **Render and confirm the Epic body.** The one-pager is rendered into
+4. **Render and confirm the Epic body.** The one-pager is rendered into
    the canonical Epic-from-idea template; the operator confirms before
    the GitHub Issue is opened.
-4. **Open the Epic.** The Issue is opened with **only** the `type::epic`
+5. **Open the Epic.** The Issue is opened with **only** the `type::epic`
    label — no `state::*` label is applied at creation. PRD authoring in
    Phase 1b advances it to `agent::review-spec`.
+
+#### Scope triage
+
+`/epic-plan` Phase 1.5 runs the
+[`core/scope-triage`](../skills/core/scope-triage/SKILL.md) rubric over the
+sharpened one-pager so a story-sized scope is not pushed through the full Epic
+ceremony (PRD + Tech Spec + Acceptance Spec + Feature/Story tree +
+`epic/<id>` integration branch) only to land as a degenerate one-Feature,
+one-Story output. The rubric anchors its sizing judgment **by reference** to
+the existing sizing SSOT (`DELIVERABLE_GRANULARITY_GUIDANCE` /
+`DEFAULT_TASK_SIZING` in `ticket-validator-sizing.js`) and emits one of three
+verdicts — `epic` | `story` | `borderline`.
+
+The verdict is **host-LLM judgment** (no scorer, no schema, no label
+transition) and **advisory** — the operator always decides. It folds into the
+existing Phase 1 HITL confirmation rather than adding a second stop: an `epic`
+verdict proceeds with a plain confirm, while a `story` / `borderline` verdict
+offers a three-way choice (single Story / plan as Epic anyway / abort). On an
+accepted `story`, `/epic-plan` hands the one-pager off to
+`/story-plan --from-notes` as a scope-triage handoff and exits. The gate runs
+on the ideation path only — it is skipped for the existing-Epic entry (1b) and
+skipped when `/epic-plan` is itself entered via a scope-triage handoff, so the
+two workflows never ping-pong a settled decision.
 
 ### 1b. Existing-Epic entry
 

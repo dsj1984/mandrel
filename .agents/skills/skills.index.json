@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-10T01:18:33.408Z",
+  "generatedAt": "2026-06-10T15:27:53.874Z",
   "generator": "generate-skills-index.js@1",
   "skills": [
     {
@@ -279,6 +279,16 @@
       "path": ".agents/skills/core/refactoring-discipline/SKILL.md",
       "description": "Run a post-green refactor pass that lowers CRAP and removes duplication without changing behaviour. Use after tests pass and gates are green, when a function's CRAP score is high but well-covered, or when the same logic is duplicated across files. Pairs with the `refactorer` persona and the opt-in `delivery.refactorStage` checkpoint; complements `core/code-simplification` (clarity) by focusing on the measured CRAP/duplication axes.",
       "policyCapsuleBullets": 9,
+      "allowedTools": null,
+      "vendor": null
+    },
+    {
+      "name": "scope-triage",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/scope-triage/SKILL.md",
+      "description": "Judge whether a piece of planned work is epic-sized or story-sized before the planning ceremony is paid for. Emits one of three verdicts — `epic` | `story` | `borderline` — over any planning artifact (a one-pager, an Epic body, or a Story draft). Use from `/epic-plan` Phase 1.5 and any other planning gate that needs the canonical story-vs-epic rubric.",
+      "policyCapsuleBullets": 1,
       "allowedTools": null,
       "vendor": null
     },

@@ -24,21 +24,30 @@
  * @typedef {import('./types.js').ReviewInput}          ReviewInput
  */
 
+import { renderDepthDirective } from './review-depth.js';
+
 /**
  * Canonical suggestion string. Exported so tests can assert against
  * the exact wording rather than free-text matching, and so doc
  * tooling can lift the line without spawning a fake review.
+ *
+ * The `{depthDirective}` slot renders the risk-derived thoroughness lever
+ * (Story #3937) so the operator nudge tells the human reviewer how deep to go
+ * when they trigger `/ultrareview` — a high-risk Epic asks for a deep
+ * second-pass review, a low-risk one keeps it light.
  */
 export const ULTRAREVIEW_PROMPT_TEMPLATE =
   '💡 **Suggested:** Consider running `/ultrareview` on this ' +
   '{scopeLabel} (`{baseRef}`…`{headRef}`) before merging — ' +
   "Anthropic's multi-agent cloud review surfaces issues that " +
   'single-pass review can miss. This is operator-triggered ' +
-  '(billed by Anthropic); not a blocker.';
+  '(billed by Anthropic); not a blocker. {depthDirective}';
 
 /**
  * Render the canonical suggestion string with the live scope/baseRef/
- * headRef substituted.
+ * headRef substituted, and the risk-derived `depth` lever (Story #3937)
+ * rendered into the nudge via `renderDepthDirective` (absent depth → the
+ * `standard` directive).
  *
  * Pure — exported for testing.
  *
@@ -51,7 +60,8 @@ export function buildUltrareviewMessage(input) {
   const headRef = typeof input?.headRef === 'string' ? input.headRef : '?';
   return ULTRAREVIEW_PROMPT_TEMPLATE.replace('{scopeLabel}', scopeLabel)
     .replace('{baseRef}', baseRef)
-    .replace('{headRef}', headRef);
+    .replace('{headRef}', headRef)
+    .replace('{depthDirective}', renderDepthDirective(input?.depth));
 }
 
 /**

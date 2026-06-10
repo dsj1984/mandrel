@@ -34,6 +34,7 @@
 
 import { resolveConfig } from '../config-resolver.js';
 import { selectAuditStrategy } from '../dynamic-workflow/capability.js';
+import { read as readPlanState } from './epic-plan-state-store.js';
 import {
   countBySeverity,
   renderFindings,
@@ -70,6 +71,44 @@ export function resolveReviewDepth(overallLevel) {
     default:
       return 'standard';
   }
+}
+
+/**
+ * Producer-side resolver (Story #3937): read an Epic's judged `planningRisk`
+ * envelope off its `epic-plan-state` checkpoint and resolve the review depth.
+ * This is the live epic-scope counterpart to `resolveRiskRoutedLenses` in
+ * `epic-audit-prepare.js` — it reuses the same best-effort `readPlanState`
+ * pattern so the producer never aborts the review on a risk-read failure.
+ *
+ * Best-effort and total: a missing/unparseable checkpoint, an absent
+ * `planningRisk` field, a read failure, or a malformed `overallLevel` all
+ * degrade to `standard` (never throws). So an Epic that skipped `/epic-plan`
+ * (no checkpoint) still gets a passing `standard` review with no new failure
+ * mode. The resolved depth is what the `/epic-deliver` Phase 5 review then
+ * threads into `runCodeReview` via the `planningRisk` opt so a high-risk Epic
+ * gets a `deep` provider pass and a low-risk one a `light` pass.
+ *
+ * @param {{
+ *   epicId: number,
+ *   provider: object,
+ *   readPlanState?: typeof readPlanState,
+ * }} params
+ * @returns {Promise<ReviewDepth>}
+ */
+export async function resolveReviewDepthForEpic({
+  epicId,
+  provider,
+  readPlanState: readPlanStateFn = readPlanState,
+}) {
+  let state = null;
+  try {
+    state = await readPlanStateFn({ provider, epicId });
+  } catch {
+    // A read failure (provider error, malformed comment) must not abort the
+    // review. Degrade to the neutral `standard` depth.
+    return 'standard';
+  }
+  return resolveReviewDepth(state?.planningRisk?.overallLevel);
 }
 
 /**

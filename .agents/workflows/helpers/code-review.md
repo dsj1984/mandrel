@@ -27,16 +27,53 @@ is merged upstream. It runs in two scopes:
 The caller passes the following arguments (Story workflows pass
 `scope: story`; Epic workflows pass `scope: epic`):
 
-| Argument    | Type                  | Required | Meaning                                                                                          |
-| ----------- | --------------------- | -------- | ------------------------------------------------------------------------------------------------ |
-| `scope`     | `"story"` \| `"epic"` | yes      | Selects the integration-pillar diff base and the structured-comment target ticket.               |
-| `ticketId`  | integer               | yes      | GitHub issue number of the Story (when `scope === 'story'`) or Epic (when `scope === 'epic'`).   |
-| `baseRef`   | string (git ref)      | yes      | The diff base. Story scope: `epic/<epicId>`. Epic scope: `main` (or `project.baseBranch`).       |
-| `headRef`   | string (git ref)      | yes      | The branch tip under review. Story scope: `story-<storyId>`. Epic scope: `epic/<epicId>`.        |
+| Argument    | Type                                  | Required | Meaning                                                                                          |
+| ----------- | ------------------------------------- | -------- | ------------------------------------------------------------------------------------------------ |
+| `scope`     | `"story"` \| `"epic"`                 | yes      | Selects the integration-pillar diff base and the structured-comment target ticket.               |
+| `ticketId`  | integer                               | yes      | GitHub issue number of the Story (when `scope === 'story'`) or Epic (when `scope === 'epic'`).   |
+| `baseRef`   | string (git ref)                      | yes      | The diff base. Story scope: `epic/<epicId>`. Epic scope: `main` (or `project.baseBranch`).       |
+| `headRef`   | string (git ref)                      | yes      | The branch tip under review. Story scope: `story-<storyId>`. Epic scope: `epic/<epicId>`.        |
+| `depth`     | `"light"` \| `"standard"` \| `"deep"` | no       | Risk-derived review thoroughness lever. Absent → `standard`. See **Review depth** below.         |
 
-All scope-dependent behavior in this helper branches off these four
+All scope-dependent behavior in this helper branches off the first four
 arguments. Do not hard-code branch names or ticket types — read them from
 the argument envelope.
+
+### Review depth (`depth`)
+
+`depth` is the risk-derived thoroughness lever introduced by Story #3876 and
+made a live consumed signal end to end by Story #3937. The Epic caller
+(`/epic-deliver` Phase 5) resolves it from the Epic's judged `planningRisk`
+envelope via
+[`resolveReviewDepthForEpic`](../../scripts/lib/orchestration/code-review.js)
+(`high` → `deep`, `low` → `light`, everything else — including a missing
+`epic-plan-state` checkpoint — → `standard`) and passes it in this envelope.
+`runCodeReview` forwards `depth` to every provider's `runReview` input.
+
+It is an **input-only** signal: it changes *how thorough* the review is, never
+the findings envelope (`{ status, severity, posted, report, halted,
+blockerReason }`) nor the posted `code-review` structured-comment body. An
+absent or malformed `depth` is treated as `standard`, so an Epic that skipped
+`/epic-plan` still gets a passing review with no new failure mode.
+
+How each tier changes the review protocol:
+
+- **`light`** — single-pass review focused on Pillar 1 (Spec Adherence) over
+  the changed surface; Pillars 2–3 (Integration, Documentation Integrity) are
+  reduced to a quick scan for obvious breakage rather than exhaustively
+  re-walked.
+- **`standard`** — the default: all three pillars at today's depth.
+- **`deep`** — all three pillars at full depth, **plus** an explicit second
+  adversarial pass over the diff hunting for integration regressions and
+  security-relevant edges before findings are finalized.
+
+The LLM-backed review providers (codex, security-review, ultrareview) render
+the resolved `depth` into the prompt/instructions they emit so the underlying
+model actually changes thoroughness. The native provider deliberately ignores
+`depth` — its mechanical lint + maintainability sweep already scales with diff
+size, and there is no "review harder" knob a deterministic scorer can turn (its
+module JSDoc documents this). When you (the host LLM) perform the Step 2 pillar
+review yourself, honor the `depth` semantics above directly.
 
 ## Step 0 — Resolve Context
 
@@ -54,9 +91,11 @@ the argument envelope.
 
 The caller invokes the in-process code-review pipeline
 (`runCodeReview` in `.agents/scripts/lib/orchestration/code-review.js`)
-with the resolved `{ scope, ticketId, baseRef, headRef }` envelope. The
+with the resolved `{ scope, ticketId, baseRef, headRef, depth }` envelope
+(`depth` defaults to `standard` when the caller omits it). The
 pluggable `ReviewProvider` adapter chain (Epic #2815) runs against the
-diff `baseRef..headRef` and posts a structured summary to `[TICKET_ID]`.
+diff `baseRef..headRef`, with the LLM-backed providers honoring `depth`
+(see **Review depth** above), and posts a structured summary to `[TICKET_ID]`.
 The pipeline will:
 
 - Generate a `git diff baseRef..headRef`.
@@ -71,6 +110,13 @@ middle pillar (**Integration Review**) deliberately defers the security /
 performance / quality / coverage sweeps to the change-set-scoped audits
 that already ran upstream — re-walking them here is duplication, not
 defense-in-depth.
+
+**Apply the `depth` lever** (see **Review depth** above) to how hard you walk
+these pillars: at `light`, focus on Pillar 1 and reduce Pillars 2–3 to a quick
+scan for obvious breakage; at `standard`, cover all three at today's depth; at
+`deep`, cover all three at full depth and then make a second adversarial pass
+over the diff hunting for integration regressions and security-relevant edges
+before finalizing findings.
 
 ### Pillar 1: Spec Adherence
 
@@ -132,7 +178,7 @@ Verify documentation stays synchronized with code:
 - All new public APIs have JSDoc/TSDoc comments.
 - Updated interfaces have updated documentation.
 - README and CHANGELOG reflect the changes if applicable.
-- Inline comments explain _why_, not _what_.
+- Inline comments explain *why*, not *what*.
 
 ## Step 3 — Maintainability Ratchet
 
@@ -188,7 +234,7 @@ paths and keep the `code-review` structured comment authoritative for
 anything not fixed in-place.
 
 1. **Apply a focused fix on `[HEAD_REF]`.** Permitted only when the
-   finding is unambiguously _fixable_ (clean remediation, no scope
+   finding is unambiguously *fixable* (clean remediation, no scope
    creep, no spec deviation, no secret exposure):
    - Call [`assert-branch.js`](../../scripts/assert-branch.js) with
      `--expected [HEAD_REF]` before touching the working tree.
@@ -215,8 +261,8 @@ anything not fixed in-place.
      attempt (the equivalent of the prior loop's
      `validation-regression` / `thrash-detected` exits).
 
-Do not invent a programmatic retry budget. The host LLM applies _at most
-one_ focused-fix attempt per finding before escalating to the operator.
+Do not invent a programmatic retry budget. The host LLM applies *at most
+one* focused-fix attempt per finding before escalating to the operator.
 Escalated findings remain on the `code-review` structured comment with
 their reason recorded, so Step 5 (and downstream consumers) see exactly
 why each one was not auto-remediated.

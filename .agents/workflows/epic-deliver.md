@@ -496,11 +496,26 @@ structured comment on the Epic.
 
 ## Phase 5 — Code review
 
-Skip when `--skip-code-review`. Otherwise auto-invoke
+Skip when `--skip-code-review`. Otherwise resolve the **risk-derived review
+depth** for this Epic, then auto-invoke
 [`helpers/code-review.md`](helpers/code-review.md) inline (read-only audit)
 with the argument envelope `{ scope: 'epic', ticketId: <epicId>, baseRef:
-'main', headRef: 'epic/<epicId>' }`. The helper persists findings as a
-`code-review` structured comment on the Epic.
+'main', headRef: 'epic/<epicId>', depth: <reviewDepth> }`. The helper
+persists findings as a `code-review` structured comment on the Epic.
+
+The `depth` is the live epic-scope producer for Story #3876's review-depth
+lever (Story #3937). Resolve it from the Epic's judged risk envelope the same
+best-effort way Phase 4 routes audit lenses — via
+[`resolveReviewDepthForEpic`](../scripts/lib/orchestration/code-review.js),
+which reads `planningRisk.overallLevel` off the Epic's `epic-plan-state`
+checkpoint and maps it: `high` → `deep`, `low` → `light`, everything else
+(including a missing/unparseable checkpoint, or an Epic that skipped
+`/epic-plan`) → `standard`. The helper threads `depth` into `runCodeReview`,
+which forwards it to every provider's `runReview` input; the LLM-backed
+providers (codex, security-review, ultrareview) render it into the prompt they
+emit so a high-risk Epic gets a deeper adversarial pass and a low-risk one a
+lighter one. Depth is **input-only** — it never changes the findings envelope
+or the posted comment shape.
 
 - **Any 🔴 Critical Blocker** — STOP. Relay to the operator.
 - **Only 🟠/🟡/🟢** — log as non-blocking and continue.

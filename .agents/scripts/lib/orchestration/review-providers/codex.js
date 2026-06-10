@@ -31,6 +31,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { renderDepthDirective } from './review-depth.js';
 
 /**
  * Canonical install/remediation guidance baked into every probe failure.
@@ -235,6 +236,27 @@ export function parseCodexFindings(rawStdout) {
 }
 
 /**
+ * Build the `claude --print` prompt that invokes the `/codex:review` slash
+ * command for a review input. The risk-derived `depth` lever (Story #3937) is
+ * appended via `renderDepthDirective` so a high-risk Epic instructs Codex
+ * toward a deeper second-pass review while a low-risk one keeps it light; an
+ * absent depth renders the `standard` directive. The `/codex:review` slash
+ * command and its `--wait` flag are unchanged — the directive rides as
+ * trailing prompt prose the plugin's wrapping model reads.
+ *
+ * Pure. Exported for testing.
+ *
+ * @param {{ baseRef: string, headRef: string, depth?: import('./types.js').ReviewDepth }} args
+ * @returns {string}
+ */
+export function buildCodexReviewPrompt({ baseRef, headRef, depth }) {
+  return (
+    `/codex:review --base ${baseRef} --head ${headRef} --wait ` +
+    `${renderDepthDirective(depth)}`
+  );
+}
+
+/**
  * Default invoker: shell out to the host's `claude` CLI to run the
  * `/codex:review` slash command. The plugin is expected to print a
  * JSON document to stdout when `--wait` is passed; non-zero exits
@@ -244,13 +266,13 @@ export function parseCodexFindings(rawStdout) {
  * Exported for testing — the production adapter accepts an
  * `invokeFn` override so tests never spawn a real process.
  *
- * @param {{ baseRef: string, headRef: string }} args
+ * @param {{ baseRef: string, headRef: string, depth?: import('./types.js').ReviewDepth }} args
  * @returns {{ status: number, stdout: string, stderr: string }}
  */
-export function defaultInvokeCodexReview({ baseRef, headRef }) {
+export function defaultInvokeCodexReview({ baseRef, headRef, depth }) {
   const cliArgs = [
     '--print',
-    `/codex:review --base ${baseRef} --head ${headRef} --wait`,
+    buildCodexReviewPrompt({ baseRef, headRef, depth }),
   ];
   const result = spawnSync('claude', cliArgs, {
     encoding: 'utf-8',
@@ -274,7 +296,7 @@ export function defaultInvokeCodexReview({ baseRef, headRef }) {
  *
  * @param {{
  *   probeFn?: () => boolean,
- *   invokeFn?: (args: { baseRef: string, headRef: string, scope: string, ticketId: number }) => { status: number, stdout: string, stderr: string },
+ *   invokeFn?: (args: { baseRef: string, headRef: string, scope: string, ticketId: number, depth?: import('./types.js').ReviewDepth }) => { status: number, stdout: string, stderr: string },
  *   logger?: { info?: Function, warn?: Function, error?: Function },
  * }} [deps]
  * @returns {ReviewProvider}
@@ -294,7 +316,7 @@ export function createCodexProvider(deps = {}) {
      * @returns {Promise<Finding[]>}
      */
     async runReview(input) {
-      const { scope, ticketId, baseRef, headRef } = input ?? {};
+      const { scope, ticketId, baseRef, headRef, depth } = input ?? {};
       if (!baseRef || !headRef) {
         throw new TypeError(
           '[codex-review] runReview requires baseRef and headRef.',
@@ -311,7 +333,7 @@ export function createCodexProvider(deps = {}) {
           `for ${scope} #${ticketId}...`,
       );
 
-      const result = invokeFn({ baseRef, headRef, scope, ticketId });
+      const result = invokeFn({ baseRef, headRef, scope, ticketId, depth });
       if (result.status !== 0) {
         throw new Error(
           `[codex-review] /codex:review exited with status ${result.status}: ${
