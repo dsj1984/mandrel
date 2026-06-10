@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-10T03:37:43.308Z",
+  "generatedAt": "2026-06-10T03:51:31.438Z",
   "rollup": {
     "*": {
       "min": 70.566,
-      "p50": 104.328,
-      "p95": 122.198
+      "p50": 104.331,
+      "p95": 122.422
     }
   },
   "rows": [
@@ -4367,6 +4367,10 @@
       "mi": 92.979
     },
     {
+      "path": "tests/risk-verdict-regression.test.js",
+      "mi": 122.82
+    },
+    {
       "path": "tests/run-audit-suite-cli.test.js",
       "mi": 106.961
     },
@@ -4665,6 +4669,10 @@
     {
       "path": "tests/single-story-plan.test.js",
       "mi": 109.76
+    },
+    {
+      "path": "tests/sizing-ab-calibration.test.js",
+      "mi": 114.153
     },
     {
       "path": "tests/skills/_harness/run-skill-smoke.js",
