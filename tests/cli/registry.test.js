@@ -359,13 +359,38 @@ describe('gh-auth check', () => {
     assert.equal(result.detail, 'logged in');
   });
 
-  it('returns ok=false when gh auth status exits non-zero', () => {
+  it('returns ok=false when gh auth status exits non-zero and no env token is present', () => {
     const check = findCheck('gh-auth');
     const result = check.run({
       runner: () => ({ status: 1, stdout: '', stderr: 'not logged in' }),
+      env: {},
     });
     assertResultShape(result, { expectOk: false });
     assert.match(result.remedy, /gh auth login/);
+  });
+
+  it('degrades to ok=true when gh auth status fails but GITHUB_TOKEN is set (CI installation token)', () => {
+    const check = findCheck('gh-auth');
+    const result = check.run({
+      runner: () => ({
+        status: 1,
+        stdout: '',
+        stderr: 'The token in GH_TOKEN is invalid.',
+      }),
+      env: { GITHUB_TOKEN: 'ghs_actions_installation_token' },
+    });
+    assertResultShape(result, { expectOk: true });
+    assert.match(result.detail, /GITHUB_TOKEN\/GH_TOKEN is set/);
+    assert.equal(result.remedy, undefined);
+  });
+
+  it('degrades to ok=true when gh auth status fails but GH_TOKEN is set', () => {
+    const check = findCheck('gh-auth');
+    const result = check.run({
+      runner: () => ({ status: 1, stdout: '', stderr: 'not logged in' }),
+      env: { GH_TOKEN: 'gho_some_token' },
+    });
+    assertResultShape(result, { expectOk: true });
   });
 });
 
