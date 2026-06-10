@@ -13,6 +13,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
+import { normalizeHandleAnswer } from '../../.agents/scripts/bootstrap.js';
 import {
   checkNodeVersion,
   detectPackageManager,
@@ -256,5 +257,51 @@ describe('ensureAgentrc', () => {
     assert.equal(seeded.github.repo, 'widget');
     assert.equal(seeded.github.operatorHandle, '@me');
     assert.equal(seeded.project.baseBranch, 'trunk');
+  });
+
+  // Story #3700 — a flag/env-supplied `@`-prefixed handle, after the
+  // bootstrap's `normalizeHandleAnswer`, seeds a single-`@` value (not `@@me`)
+  // and a second seed run is a no-op (operator wins).
+  it('seeds a single-@ handle from an @-prefixed answer and is idempotent', () => {
+    const fakeAgentRoot = path.join(tmpRoot, '.agents');
+    writeFile(
+      path.join(fakeAgentRoot, 'starter-agentrc.json'),
+      JSON.stringify({
+        project: { baseBranch: 'main' },
+        github: {
+          owner: '[OWNER]',
+          repo: '[REPO]',
+          operatorHandle: '@[USERNAME]',
+        },
+      }),
+    );
+    const answers = {
+      owner: 'acme',
+      repo: 'widget',
+      // The starter prepends `@`; the bootstrap strips one leading `@` first.
+      operatorHandle: normalizeHandleAnswer('@me'),
+      baseBranch: 'main',
+    };
+    const first = ensureAgentrc({
+      projectRoot: tmpRoot,
+      agentRoot: fakeAgentRoot,
+      answers,
+    });
+    assert.equal(first.action, 'seeded');
+    const seeded = readJson(path.join(tmpRoot, '.agentrc.json'));
+    assert.equal(seeded.github.operatorHandle, '@me');
+
+    // Second run: the file already exists → no-op, no double-@ accumulation.
+    const before = fs.readFileSync(path.join(tmpRoot, '.agentrc.json'), 'utf8');
+    const second = ensureAgentrc({
+      projectRoot: tmpRoot,
+      agentRoot: fakeAgentRoot,
+      answers,
+    });
+    assert.equal(second.action, 'already-present');
+    assert.equal(
+      fs.readFileSync(path.join(tmpRoot, '.agentrc.json'), 'utf8'),
+      before,
+    );
   });
 });
