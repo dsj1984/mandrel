@@ -236,8 +236,12 @@ export async function runPreMergeValidation({
   // for resume/legacy callers that cannot supply a diff anchor.
   let formatAutofixOutcome = null;
   if (epicBranch && storyBranch) {
+    // Story #3907 — pass `worktreePath` so the formatter writes + the scoped
+    // `fix(story-close):` commit land in the Story worktree (where
+    // `story-<id>` is checked out), never the main checkout's current branch.
     formatAutofixOutcome = runScopedFormatAutofix({
       cwd,
+      worktreePath,
       storyId,
       epicBranch,
       storyBranch,

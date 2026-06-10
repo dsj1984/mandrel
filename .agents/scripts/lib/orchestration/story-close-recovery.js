@@ -83,18 +83,29 @@ const DEFAULT_FS_ADAPTER = {
  * The closing paren in the pattern disambiguates `#<id>` from a longer id that
  * shares the same prefix (e.g. `#3327` must not match `(resolves #33270)`).
  *
+ * **origin-only scope (Story #3907).** The probe is restricted to the
+ * **remote** `origin/epic/<id>` ref. The earlier implementation also searched
+ * the **local** `epic/<id>` ref, which mis-classifies the
+ * "merged locally, push failed" recovery state: when a prior close created the
+ * integration merge commit on the local Epic branch but the `git push` failed,
+ * the local-ref scan finds that commit and reports ALREADY_MERGED. The resumed
+ * close then skips the push, flips the ticket done, and reaps the branch — so
+ * the merge survives in one clone only, and a sibling's `pull --rebase` can
+ * linearize away the `(resolves #<id>)` commit that four subsystems depend on.
+ * "Already merged" means "merged on the remote integration branch"; a
+ * local-only merge is unpushed work, which the `pushed-unmerged` /
+ * resume-from-post-merge paths re-push instead.
+ *
  * @returns {{ sha: string, epicRef: string } | null}
  */
 function findMergeCommitForStory({ cwd, storyId, epicId, git }) {
   if (!git.logGrep) return null;
   const grepArgs = resolvesOrRefsGrepArgs(storyId);
-  const epicRefs = [`origin/epic/${epicId}`, `epic/${epicId}`];
-  for (const epicRef of epicRefs) {
-    const res = git.logGrep(cwd, epicRef, grepArgs);
-    if (!res || res.status !== 0) continue;
-    const sha = (res.stdout ?? '').toString().trim().split('\n')[0]?.trim();
-    if (sha) return { sha, epicRef };
-  }
+  const epicRef = `origin/epic/${epicId}`;
+  const res = git.logGrep(cwd, epicRef, grepArgs);
+  if (!res || res.status !== 0) return null;
+  const sha = (res.stdout ?? '').toString().trim().split('\n')[0]?.trim();
+  if (sha) return { sha, epicRef };
   return null;
 }
 
