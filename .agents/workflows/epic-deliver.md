@@ -374,11 +374,20 @@ return). The Idle Watchdog closes that gap.
 
 **Cadence.** While any wave is in flight (i.e. `nextAction.kind` is
 `observe` or the most recent dispatch's `in-flight` list is non-empty),
-re-tick every **10 minutes** with the watchdog flag:
+re-tick every **30 minutes** with the watchdog flag:
 
 ```bash
-node .agents/scripts/wave-tick.js --epic <epicId> --check-idle 10
+node .agents/scripts/wave-tick.js --epic <epicId> --check-idle 30
 ```
+
+> **Why 30, not 10 (Story #3900).** Heartbeats fire only at Story-level
+> phase transitions, and `implementing → closing` routinely exceeds 10
+> minutes for a healthy Story. A 10-minute threshold therefore tripped the
+> watchdog on every long-running Story, whose prescribed remediation —
+> re-dispatch — put two agents on one `story-<id>` branch (the worst
+> failure mode in the system). The threshold is widened to 30 minutes and
+> the staleness test now also consults a deterministic branch-commit
+> signal (below), so a Story still gaining commits is never flagged.
 
 The `--check-idle <minutes>` mode scans the per-Epic lifecycle ledger
 (`temp/epic-<epicId>/lifecycle.ndjson`) for Stories that carry a
@@ -387,9 +396,13 @@ canonical in-flight list — see § 2a's `nextAction['in-flight']`), and
 compares each in-flight Story's most recent ledger event (any
 `story.*` event, notably the `story.heartbeat` records emitted by
 `story-phase.js` at each Story-level phase transition) against the
-threshold. The CLI emits one envelope on stdout and exits non-zero
-when at least one in-flight Story has been silent for ≥ the
-threshold:
+threshold. **Before flagging a stall, it also checks the last commit on
+`story-<id>` via `git log` (Story #3900): a Story whose branch carries a
+commit newer than the threshold is making forward progress and is left
+in-flight, never stalled — deterministic protection against the
+false-positive re-dispatch hazard even when no heartbeat has landed.**
+The CLI emits one envelope on stdout and exits non-zero when at least
+one in-flight Story has been silent for ≥ the threshold:
 
 ```json
 {

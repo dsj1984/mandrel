@@ -22,6 +22,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import {
+  branchLastCommitMs,
   buildWaveStallEnvelope,
   readLedgerLastEvents,
   runCheckIdle,
@@ -104,6 +105,8 @@ test('buildWaveStallEnvelope reports stalled stories past threshold', () => {
     thresholdMinutes: 10,
     lastEvents,
     now: new Date('2026-05-26T19:15:00.000Z'),
+    // No branch activity for either Story → ledger staleness governs.
+    branchActivity: () => null,
   });
 
   assert.equal(envelope.kind, 'wave-stall');
@@ -118,6 +121,81 @@ test('buildWaveStallEnvelope reports stalled stories past threshold', () => {
       idleMinutes: 15,
     },
   ]);
+});
+
+test('buildWaveStallEnvelope: recent branch commit downgrades a ledger-idle Story (Story #3900)', () => {
+  const now = new Date('2026-05-26T19:15:00.000Z');
+  const lastEvents = new Map([
+    [100, '2026-05-26T19:00:00.000Z'], // 15 min idle in the ledger
+  ]);
+  // Branch committed 2 minutes ago — healthy long-running Story.
+  const recentCommitMs = now.getTime() - 2 * 60 * 1000;
+  const envelope = buildWaveStallEnvelope({
+    epicId: 9,
+    thresholdMinutes: 10,
+    lastEvents,
+    now,
+    branchActivity: (storyId) => (storyId === 100 ? recentCommitMs : null),
+  });
+
+  // Still in-flight, but NOT stalled — no spurious re-dispatch.
+  assert.deepEqual(envelope.inFlight, [100]);
+  assert.deepEqual(envelope.stalled, []);
+});
+
+test('buildWaveStallEnvelope: stale branch commit still flags a stalled Story (Story #3900)', () => {
+  const now = new Date('2026-05-26T19:15:00.000Z');
+  const lastEvents = new Map([[100, '2026-05-26T19:00:00.000Z']]);
+  // Branch last committed 40 minutes ago — past threshold → genuinely stalled.
+  const staleCommitMs = now.getTime() - 40 * 60 * 1000;
+  const envelope = buildWaveStallEnvelope({
+    epicId: 9,
+    thresholdMinutes: 10,
+    lastEvents,
+    now,
+    branchActivity: () => staleCommitMs,
+  });
+
+  assert.equal(envelope.stalled.length, 1);
+  assert.equal(envelope.stalled[0].storyId, 100);
+});
+
+test('runCheckIdle: a recent branch commit clears the stall (Story #3900)', () => {
+  const tmp = makeTmpDir();
+  const ledger = path.join(tmp, 'lifecycle.ndjson');
+  writeLedger(ledger, [
+    emitted(
+      'story.dispatch.start',
+      { storyId: 300, epicId: 9 },
+      '2026-05-26T18:00:00.000Z',
+    ),
+  ]);
+  const now = new Date('2026-05-26T19:00:00.000Z');
+  const { stalledCount, envelope } = runCheckIdle({
+    epicId: 9,
+    thresholdMinutes: 10,
+    ledgerPath: ledger,
+    now,
+    branchActivity: () => now.getTime() - 60 * 1000, // committed 1 min ago
+  });
+  assert.equal(stalledCount, 0);
+  assert.deepEqual(envelope.inFlight, [300]);
+});
+
+test('branchLastCommitMs returns null for an absent branch / git error', () => {
+  const throwingExec = () => {
+    throw new Error('unknown revision');
+  };
+  assert.equal(branchLastCommitMs(999999, { exec: throwingExec }), null);
+});
+
+test('branchLastCommitMs parses %cI output into epoch-ms', () => {
+  const iso = '2026-05-26T19:00:00.000Z';
+  const fakeExec = () => `${iso}\n`;
+  assert.equal(
+    branchLastCommitMs(7, { exec: fakeExec }),
+    Date.parse(iso),
+  );
 });
 
 test('runCheckIdle reports stalled in-flight story (non-zero stalledCount)', () => {
