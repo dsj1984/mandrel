@@ -70,11 +70,59 @@ Phase 5 (Re-Plan Detection).
    `<agentRoot>/instructions.md` section 1.B, not entries in the
    host's harness-level skill registry.
 
-2. **HITL stop — confirm the sharpened one-pager**: Display the one-pager
+2. **Run Phase 1.5 (Scope Triage) before the HITL stop**: The sharpened
+   one-pager feeds the scope-triage gate below, whose verdict folds into
+   the **same** Phase 1 HITL confirmation. Do not stop twice.
+
+3. **HITL stop — confirm the sharpened one-pager**: Display the one-pager
    to the operator and **STOP**. Do not proceed to Phase 2 until the
    user explicitly confirms the direction. This is the same gate the
    skill's own Phase 3 enforces; surfacing it here makes the wait
-   contract visible to `/epic-plan` callers.
+   contract visible to `/epic-plan` callers. When the Phase 1.5 verdict is
+   `story` or `borderline`, this stop carries the three-way choice the
+   triage gate defines (below) instead of a plain confirm.
+
+## Phase 1.5: Scope Triage (ideation path only)
+
+This phase runs **only** on the ideation path, immediately after Phase 1
+produces the sharpened one-pager. It is **skipped entirely** when an Epic ID
+argument was supplied (the existing-Epic path jumps straight to Phase 5), and
+it is **skipped** when `/epic-plan` was entered via a scope-triage handoff from
+[`/story-plan`](story-plan.md) — a handoff is a triage decision already made,
+and re-triaging it would re-litigate a settled call (the no-re-triage rule the
+skill states once).
+
+1. **Activate the scope-triage skill**: Read
+   [`<agentRoot>/skills/core/scope-triage/SKILL.md`](../skills/core/scope-triage/SKILL.md)
+   via the `Read` tool (resolve `<agentRoot>` from `project.paths.agentRoot` —
+   default `.agents`) and apply its rubric to the Phase 1 one-pager. The skill
+   anchors its sizing judgment **by reference** to
+   `DELIVERABLE_GRANULARITY_GUIDANCE` / `DEFAULT_TASK_SIZING` in
+   [`ticket-validator-sizing.js`](../scripts/lib/orchestration/ticket-validator-sizing.js)
+   and emits one verdict: `epic` | `story` | `borderline`. The verdict is
+   host-LLM judgment — there is **no `--flag`**, no scorer, no schema, and no
+   label transition.
+
+2. **Fold the verdict into the existing Phase 1 HITL stop** — do **not** add a
+   second stop:
+   - **`epic` verdict** → no extra prompt. The Phase 1 confirmation proceeds
+     as a plain one-pager confirm and the run continues to Phase 2.
+   - **`story` or `borderline` verdict** → the Phase 1 confirmation prompt
+     presents a **three-way operator choice**:
+     - **Recommended: single Story** (with the triage rationale) — persist the
+       one-pager to a notes file and hand off to
+       `/story-plan --from-notes <path>`, identifying the invocation as a
+       scope-triage handoff so `/story-plan` skips its own gate. Then **exit
+       `/epic-plan`**.
+     - **Plan as Epic anyway** — ignore the recommendation and continue to
+       Phase 2 with the one-pager.
+     - **Abort** — stop planning entirely.
+
+   **Never auto-route.** The verdict is advisory; the operator always decides.
+   Being wrong in the `epic` direction is cheap (Phase 8.3 consolidation and
+   the sizing validator catch an over-planned Story later); the gate exists to
+   avoid the ceremony tax of pushing a story-sized scope through the full Epic
+   pipeline.
 
 ## Phase 2: Cross-Epic Duplicate Search
 
