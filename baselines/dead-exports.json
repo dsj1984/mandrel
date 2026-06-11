@@ -1,7 +1,7 @@
 {
   "$schema": "https://mandrel.dev/baselines/dead-exports.schema.json",
   "kernelVersion": "6.14.0",
-  "generatedAt": "2026-06-11T02:01:25.909Z",
+  "generatedAt": "2026-06-11T02:14:53.443Z",
   "rows": [
     {
       "file": ".agents/scripts/lib/audit-suite/findings.js",
@@ -194,30 +194,6 @@
     {
       "file": ".agents/scripts/lib/config/paths.js",
       "symbol": "PATHS_DEFAULTS"
-    },
-    {
-      "file": ".agents/scripts/lib/config/quality.js",
-      "symbol": "AUTO_REFRESH_DEFAULTS"
-    },
-    {
-      "file": ".agents/scripts/lib/config/quality.js",
-      "symbol": "FORMAT_AUTOFIX_DEFAULTS"
-    },
-    {
-      "file": ".agents/scripts/lib/config/quality.js",
-      "symbol": "resolveAutoRefresh"
-    },
-    {
-      "file": ".agents/scripts/lib/config/quality.js",
-      "symbol": "resolveCoverageGate"
-    },
-    {
-      "file": ".agents/scripts/lib/config/quality.js",
-      "symbol": "resolveFormatAutofix"
-    },
-    {
-      "file": ".agents/scripts/lib/config/quality.js",
-      "symbol": "resolveMaintainabilityQuality"
     },
     {
       "file": ".agents/scripts/lib/config/retro.js",
@@ -486,34 +462,6 @@
     {
       "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/notify-dispatcher.js",
       "symbol": "LIFECYCLE_TO_WEBHOOK_EVENT"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "symbol": "allGreen"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "symbol": "ghPrChecks"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "symbol": "ghPrUpdateBranch"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "symbol": "ghPrView"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "symbol": "GREEN_CHECK_OUTCOMES"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "symbol": "parseMergeStateStatus"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "symbol": "promotePendingToTimedOut"
     },
     {
       "file": ".agents/scripts/lib/orchestration/lifecycle/trace-logger.js",
