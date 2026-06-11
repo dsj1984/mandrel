@@ -54,9 +54,9 @@ function findStillRegisteredEntry(entries, storyId) {
   });
 }
 
-function resolveWorktreeRoot(repoRoot, orchestration) {
+function resolveWorktreeRoot(repoRoot, delivery) {
   if (!repoRoot) return null;
-  const configuredRoot = orchestration?.worktreeIsolation?.root ?? '.worktrees';
+  const configuredRoot = delivery?.worktreeIsolation?.root ?? '.worktrees';
   return path.join(repoRoot, configuredRoot);
 }
 
@@ -263,7 +263,7 @@ function logStaleRegistryEntry({ state, stillRegistered, logger }) {
 
 export async function worktreeReapPhase(ctx) {
   const {
-    orchestration,
+    delivery,
     storyId,
     epicId,
     epicBranch,
@@ -276,7 +276,7 @@ export async function worktreeReapPhase(ctx) {
     recordPendingCleanupFn = recordPendingCleanup,
     pathExistsFn = fs.existsSync,
   } = ctx;
-  const wtConfig = orchestration?.worktreeIsolation;
+  const wtConfig = delivery?.worktreeIsolation;
   const log = reapPhaseLogger(progress);
   const skipState = resolveSkipState(wtConfig, log);
   if (skipState) return skipState;
@@ -309,7 +309,7 @@ export async function worktreeReapPhase(ctx) {
     stillRegistered,
     reapResult,
     storyId,
-    orchestration,
+    delivery,
     repoRoot,
     logger,
     recordPendingCleanupFn,
@@ -352,7 +352,7 @@ function applyStillRegisteredState({
   stillRegistered,
   reapResult,
   storyId,
-  orchestration,
+  delivery,
   repoRoot,
   logger,
   recordPendingCleanupFn,
@@ -370,7 +370,7 @@ function applyStillRegisteredState({
       reason: 'still-registered-after-reap',
     };
   }
-  const worktreeRoot = resolveWorktreeRoot(repoRoot, orchestration);
+  const worktreeRoot = resolveWorktreeRoot(repoRoot, delivery);
   let manifestEntry = null;
   if (worktreeRoot) {
     try {

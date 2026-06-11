@@ -4,9 +4,12 @@ import { describe, it } from 'node:test';
 import {
   anyChangedUnderTargets,
   COVERAGE_TIMEOUT_EXIT_CODE,
+  captureStampPath,
+  computeContentDigest,
   isCoverageFresh,
   newestSourceMtime,
   runCapture,
+  writeCaptureStamp,
 } from '../../.agents/scripts/lib/coverage-capture.js';
 
 // `path.resolve` is platform-specific (Windows prepends a drive letter when
@@ -151,6 +154,210 @@ describe('isCoverageFresh', () => {
     });
     const r = isCoverageFresh({ coveragePath, targetDirs, cwd, ...fs });
     assert.deepEqual(r, { fresh: true, reason: 'no-sources' });
+  });
+
+  describe('content-digest stamp (Story #3982)', () => {
+    const stampAbs = captureStampPath(cwd, coveragePath);
+    // Artifact mtime OLDER than the source — the mtime heuristic would say
+    // 'stale'. The digest must override it.
+    const baseFs = () =>
+      makeFsStub({
+        files: {
+          [repoPath('coverage/coverage-final.json')]: 100,
+          [stampAbs]: 100,
+          [repoPath('src/a.js')]: 500,
+        },
+        dirs: { [repoPath('src')]: [{ name: 'a.js', kind: 'file' }] },
+      });
+    const stampJson = JSON.stringify({ digest: 'abc123' });
+
+    it('is fresh on digest match even when mtimes say stale', () => {
+      const r = isCoverageFresh({
+        coveragePath,
+        targetDirs,
+        cwd,
+        ...baseFs(),
+        readFileSync: () => stampJson,
+        computeDigest: () => 'abc123',
+      });
+      assert.deepEqual(r, { fresh: true, reason: 'fresh' });
+    });
+
+    it('is stale on digest mismatch even when mtimes say fresh', () => {
+      const fs = makeFsStub({
+        files: {
+          [repoPath('coverage/coverage-final.json')]: 1000,
+          [stampAbs]: 1000,
+          [repoPath('src/a.js')]: 100,
+        },
+        dirs: { [repoPath('src')]: [{ name: 'a.js', kind: 'file' }] },
+      });
+      const r = isCoverageFresh({
+        coveragePath,
+        targetDirs,
+        cwd,
+        ...fs,
+        readFileSync: () => stampJson,
+        computeDigest: () => 'different',
+      });
+      assert.deepEqual(r, { fresh: false, reason: 'stale' });
+    });
+
+    it('falls back to the mtime heuristic when the stamp is corrupt', () => {
+      const r = isCoverageFresh({
+        coveragePath,
+        targetDirs,
+        cwd,
+        ...baseFs(),
+        readFileSync: () => 'not-json{',
+        computeDigest: () => 'abc123',
+      });
+      assert.deepEqual(r, { fresh: false, reason: 'stale' });
+    });
+
+    it('falls back to the mtime heuristic when the digest is unavailable', () => {
+      const r = isCoverageFresh({
+        coveragePath,
+        targetDirs,
+        cwd,
+        ...baseFs(),
+        readFileSync: () => stampJson,
+        computeDigest: () => null,
+      });
+      assert.deepEqual(r, { fresh: false, reason: 'stale' });
+    });
+
+    it('uses the mtime heuristic when no stamp exists (existing contract)', () => {
+      const fs = makeFsStub({
+        files: {
+          [repoPath('coverage/coverage-final.json')]: 1000,
+          [repoPath('src/a.js')]: 100,
+        },
+        dirs: { [repoPath('src')]: [{ name: 'a.js', kind: 'file' }] },
+      });
+      const r = isCoverageFresh({
+        coveragePath,
+        targetDirs,
+        cwd,
+        ...fs,
+        computeDigest: () => {
+          throw new Error('must not compute a digest without a stamp');
+        },
+      });
+      assert.deepEqual(r, { fresh: true, reason: 'fresh' });
+    });
+  });
+});
+
+describe('computeContentDigest', () => {
+  const lsFiles = '100644 aaa111 0\tsrc/a.js\n100644 bbb222 0\tsrc/b.mjs\n';
+  const makeSpawn =
+    ({ ls = lsFiles, status = '' } = {}) =>
+    (_cmd, args) => ({
+      status: 0,
+      stdout: args[0] === 'ls-files' ? ls : status,
+    });
+
+  it('is stable across calls for identical content', () => {
+    const io = { spawnSync: makeSpawn(), readFileSync: () => '' };
+    const d1 = computeContentDigest(FAKE_REPO, ['src'], io);
+    const d2 = computeContentDigest(FAKE_REPO, ['src'], io);
+    assert.equal(typeof d1, 'string');
+    assert.equal(d1, d2);
+  });
+
+  it('changes when a tracked blob SHA changes', () => {
+    const d1 = computeContentDigest(FAKE_REPO, ['src'], {
+      spawnSync: makeSpawn(),
+    });
+    const d2 = computeContentDigest(FAKE_REPO, ['src'], {
+      spawnSync: makeSpawn({
+        ls: lsFiles.replace('aaa111', 'ccc333'),
+      }),
+    });
+    assert.notEqual(d1, d2);
+  });
+
+  it('folds dirty working-tree file bytes into the digest', () => {
+    const dirty = ' M src/a.js\n';
+    const d1 = computeContentDigest(FAKE_REPO, ['src'], {
+      spawnSync: makeSpawn({ status: dirty }),
+      readFileSync: () => 'content-v1',
+    });
+    const d2 = computeContentDigest(FAKE_REPO, ['src'], {
+      spawnSync: makeSpawn({ status: dirty }),
+      readFileSync: () => 'content-v2',
+    });
+    assert.notEqual(d1, d2);
+  });
+
+  it('ignores non-source dirty files (e.g. markdown)', () => {
+    const d1 = computeContentDigest(FAKE_REPO, ['src'], {
+      spawnSync: makeSpawn(),
+    });
+    const d2 = computeContentDigest(FAKE_REPO, ['src'], {
+      spawnSync: makeSpawn({ status: ' M src/readme.md\n' }),
+      readFileSync: () => 'docs',
+    });
+    assert.equal(d1, d2);
+  });
+
+  it('returns null when git fails or target dirs are empty', () => {
+    assert.equal(
+      computeContentDigest(FAKE_REPO, ['src'], {
+        spawnSync: () => ({ status: 128, stdout: '', stderr: 'not a repo' }),
+      }),
+      null,
+    );
+    assert.equal(computeContentDigest(FAKE_REPO, [], {}), null);
+  });
+});
+
+describe('writeCaptureStamp / captureStampPath', () => {
+  it('writes a JSON stamp next to the coverage artifact', () => {
+    const writes = [];
+    const ok = writeCaptureStamp({
+      cwd: FAKE_REPO,
+      coveragePath: 'coverage/coverage-final.json',
+      digest: 'abc123',
+      writeFileSync: (p, body) => writes.push({ p, body }),
+    });
+    assert.equal(ok, true);
+    assert.equal(writes.length, 1);
+    assert.equal(
+      writes[0].p,
+      captureStampPath(FAKE_REPO, 'coverage/coverage-final.json'),
+    );
+    assert.equal(
+      norm(writes[0].p),
+      norm(repoPath('coverage/.capture-stamp.json')),
+    );
+    const parsed = JSON.parse(writes[0].body);
+    assert.equal(parsed.digest, 'abc123');
+    assert.equal(typeof parsed.capturedAt, 'string');
+  });
+
+  it('returns false on an empty digest or a write failure', () => {
+    assert.equal(
+      writeCaptureStamp({
+        cwd: FAKE_REPO,
+        coveragePath: 'coverage/coverage-final.json',
+        digest: '',
+        writeFileSync: () => {},
+      }),
+      false,
+    );
+    assert.equal(
+      writeCaptureStamp({
+        cwd: FAKE_REPO,
+        coveragePath: 'coverage/coverage-final.json',
+        digest: 'abc',
+        writeFileSync: () => {
+          throw new Error('EACCES');
+        },
+      }),
+      false,
+    );
   });
 });
 

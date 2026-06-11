@@ -16,7 +16,7 @@
  * chain are unchanged.
  *
  * Public API:
- *   - `runCodeReview({ epicId, provider, logger, bus, ... })` →
+ *   - `runCodeReview({ scope, ticketId, provider, logger, bus, ... })` →
  *       `{ status, severity, posted, report, halted, blockerReason }`.
  *
  * Behaviour:
@@ -302,86 +302,102 @@ function buildCodeReviewEndPayload({ epicId, result, durationMs }) {
 }
 
 /**
- * Resolve the scope envelope from the (legacy `epicId` + optional
- * `baseBranch`) shape OR the (new `scope`/`ticketId`/`headRef`/
- * `commentTargetId`) shape into a single normalized record. Extracted to
- * keep `runCodeReview` body below the CRAP-cyclomatic ceiling.
+ * Resolve the project base branch fallback used when a caller omits
+ * `baseRef`.
+ */
+function resolveConfigBase(config) {
+  return (
+    config?.project?.baseBranch ?? config?.agentSettings?.baseBranch ?? 'main'
+  );
+}
+
+/** Positive-integer override, else the supplied default. */
+function resolveCommentTargetId(commentTargetId, fallback) {
+  return Number.isInteger(commentTargetId) && commentTargetId > 0
+    ? commentTargetId
+    : fallback;
+}
+
+/**
+ * Resolve the Story-scope envelope from the parameterized
+ * `{ scope: 'story', ticketId, baseRef, headRef, commentTargetId }` shape.
  *
- * @param {{
- *   epicId?: number,
- *   scope?: 'epic'|'story',
- *   ticketId?: number,
- *   baseBranch?: string|null,
- *   baseRef?: string|null,
- *   headRef?: string|null,
- *   commentTargetId?: number|null,
- * }} opts
- * @param {object} config
  * @returns {{
- *   scope: 'epic'|'story',
+ *   scope: 'story',
  *   ticketId: number,
  *   baseRef: string,
  *   headRef: string,
  *   commentTargetId: number,
- *   epicIdForLedger: number|null,
+ *   epicIdForLedger: null,
  * }}
  */
-function resolveScopeEnvelope(opts, config) {
-  const explicitScope = opts.scope;
-  const epicIdLegacy = opts.epicId;
-  const configBase =
-    config?.project?.baseBranch ?? config?.agentSettings?.baseBranch ?? 'main';
-
-  if (explicitScope === 'story') {
-    if (!Number.isInteger(opts.ticketId) || opts.ticketId <= 0) {
-      throw new TypeError(
-        'runCodeReview: ticketId is required (positive integer) when scope="story".',
-      );
-    }
-    if (typeof opts.headRef !== 'string' || opts.headRef.length === 0) {
-      throw new TypeError(
-        'runCodeReview: headRef is required (non-empty string) when scope="story".',
-      );
-    }
-    const baseRef = opts.baseRef ?? opts.baseBranch ?? configBase;
-    const commentTargetId =
-      Number.isInteger(opts.commentTargetId) && opts.commentTargetId > 0
-        ? opts.commentTargetId
-        : opts.ticketId;
-    return {
-      scope: 'story',
-      ticketId: opts.ticketId,
-      baseRef,
-      headRef: opts.headRef,
-      commentTargetId,
-      epicIdForLedger: null,
-    };
-  }
-
-  // Epic scope (default + legacy `epicId` callers).
-  const effectiveEpicId =
-    Number.isInteger(opts.ticketId) && opts.ticketId > 0
-      ? opts.ticketId
-      : epicIdLegacy;
-  if (!Number.isInteger(effectiveEpicId) || effectiveEpicId <= 0) {
+function resolveStoryScope(opts, config) {
+  if (!Number.isInteger(opts.ticketId) || opts.ticketId <= 0) {
     throw new TypeError(
-      'runCodeReview: epicId is required (positive integer).',
+      'runCodeReview: ticketId is required (positive integer) when scope="story".',
     );
   }
-  const baseRef = opts.baseRef ?? opts.baseBranch ?? configBase;
-  const headRef = opts.headRef ?? `epic/${effectiveEpicId}`;
-  const commentTargetId =
-    Number.isInteger(opts.commentTargetId) && opts.commentTargetId > 0
-      ? opts.commentTargetId
-      : effectiveEpicId;
+  if (typeof opts.headRef !== 'string' || opts.headRef.length === 0) {
+    throw new TypeError(
+      'runCodeReview: headRef is required (non-empty string) when scope="story".',
+    );
+  }
+  return {
+    scope: 'story',
+    ticketId: opts.ticketId,
+    baseRef: opts.baseRef ?? resolveConfigBase(config),
+    headRef: opts.headRef,
+    commentTargetId: resolveCommentTargetId(
+      opts.commentTargetId,
+      opts.ticketId,
+    ),
+    epicIdForLedger: null,
+  };
+}
+
+/**
+ * Resolve the Epic-scope envelope from the parameterized
+ * `{ scope: 'epic', ticketId, baseRef, headRef, commentTargetId }` shape.
+ * `headRef` defaults to `epic/<ticketId>` and `baseRef` to the project
+ * base branch.
+ *
+ * @returns {{
+ *   scope: 'epic',
+ *   ticketId: number,
+ *   baseRef: string,
+ *   headRef: string,
+ *   commentTargetId: number,
+ *   epicIdForLedger: number,
+ * }}
+ */
+function resolveEpicScope(opts, config) {
+  if (!Number.isInteger(opts.ticketId) || opts.ticketId <= 0) {
+    throw new TypeError(
+      'runCodeReview: ticketId is required (positive integer) when scope="epic".',
+    );
+  }
   return {
     scope: 'epic',
-    ticketId: effectiveEpicId,
-    baseRef,
-    headRef,
-    commentTargetId,
-    epicIdForLedger: effectiveEpicId,
+    ticketId: opts.ticketId,
+    baseRef: opts.baseRef ?? resolveConfigBase(config),
+    headRef: opts.headRef ?? `epic/${opts.ticketId}`,
+    commentTargetId: resolveCommentTargetId(
+      opts.commentTargetId,
+      opts.ticketId,
+    ),
+    epicIdForLedger: opts.ticketId,
   };
+}
+
+/**
+ * Dispatch the parameterized scope envelope
+ * (`{ scope, ticketId, baseRef, headRef, commentTargetId }`) to the
+ * matching pure resolver. `scope` defaults to `'epic'`.
+ */
+function resolveScopeEnvelope(opts, config) {
+  return opts.scope === 'story'
+    ? resolveStoryScope(opts, config)
+    : resolveEpicScope(opts, config);
 }
 
 /**
@@ -407,26 +423,23 @@ function resolveScopeEnvelope(opts, config) {
  * `scope: 'epic'` because the `code-review.end` schema requires
  * `epicId` and the ledger only spans Epic lifecycles.
  *
- * Argument shapes:
- *   - Legacy (Epic):
- *       `{ epicId, provider, bus, [baseBranch] }`
- *   - Parameterized (Epic or Story):
- *       `{ scope, ticketId, baseRef, headRef, [commentTargetId],
- *          provider, bus }`
- *     For `scope === 'story'`, `commentTargetId` overrides the post
- *     target (e.g. PR number) while `ticketId` continues to label the
- *     rendered header ("Story #N").
+ * Argument shape (parameterized, Epic or Story):
+ *   `{ scope, ticketId, baseRef, headRef, [commentTargetId],
+ *      provider, bus }`
+ *   `scope` defaults to `'epic'`; `baseRef` defaults to the project base
+ *   branch and (Epic scope only) `headRef` defaults to `epic/<ticketId>`.
+ *   For `scope === 'story'`, `commentTargetId` overrides the post
+ *   target (e.g. PR number) while `ticketId` continues to label the
+ *   rendered header ("Story #N").
  *
  * @param {{
- *   epicId?: number,
  *   scope?: 'epic'|'story',
- *   ticketId?: number,
+ *   ticketId: number,
  *   baseRef?: string|null,
  *   headRef?: string|null,
  *   commentTargetId?: number|null,
  *   provider: object,
  *   logger?: { info?: Function, warn?: Function, error?: Function, fatal?: Function, createProgress?: Function },
- *   baseBranch?: string|null,
  *   planningRisk?: { overallLevel?: ('low'|'medium'|'high'), axes?: Array<{ axis?: string, level?: string }> }|null,
  *   changedFileCount?: number|null,
  *   storyId?: number|null,

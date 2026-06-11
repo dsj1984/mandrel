@@ -53,10 +53,10 @@ const SEEDED_FINDINGS = [
 test('runCodeReview renders a known Finding[] to the committed snapshot body', async () => {
   let postedBody = null;
   await runCodeReview({
-    epicId: 4242,
+    ticketId: 4242,
     provider: { kind: 'github' },
     bus: { emit: async () => {} },
-    baseBranch: 'main',
+    baseRef: 'main',
     reviewProvider: { runReview: async () => SEEDED_FINDINGS },
     resolveConfigFn: () => ({
       project: { baseBranch: 'main' },

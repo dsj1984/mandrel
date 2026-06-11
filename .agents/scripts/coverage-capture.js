@@ -9,9 +9,11 @@
  *   2. With `--skip-when-no-crap-files`: read `git diff --name-only <ref>...HEAD`
  *      (default ref `main`) and exit 0 if no changed file lives under
  *      `crap.targetDirs`.
- *   3. Compare the coverage artifact mtime against the newest mtime in
- *      `crap.targetDirs`. Exit 0 when fresh.
- *   4. Otherwise spawn `npm run test:coverage` and propagate its exit code.
+ *   3. Test freshness: content digest of `crap.targetDirs` vs. the persisted
+ *      capture stamp (`coverage/.capture-stamp.json`), falling back to the
+ *      artifact-mtime heuristic when no stamp exists. Exit 0 when fresh.
+ *   4. Otherwise spawn `npm run test:coverage`, write a fresh capture stamp
+ *      on success, and propagate the exit code.
  *
  * Exit codes:
  *   0 — coverage is fresh (or capture skipped/succeeded).
@@ -24,8 +26,10 @@ import { getChangedFiles } from './lib/changed-files.js';
 import { getQuality, resolveConfig } from './lib/config-resolver.js';
 import {
   anyChangedUnderTargets,
+  computeContentDigest,
   isCoverageFresh,
   runCapture,
+  writeCaptureStamp,
 } from './lib/coverage-capture.js';
 
 import { Logger } from './lib/Logger.js';
@@ -99,6 +103,23 @@ function main() {
     Logger.error(
       `[coverage-capture] ✖ npm run test:coverage exited ${code}. Fix failing tests or coverage-threshold breaches before re-running the CRAP gate.`,
     );
+    return code;
+  }
+
+  // Persist the content digest next to the fresh artifact so subsequent
+  // freshness checks are content-aware (mtime churn from branch switches no
+  // longer invalidates). Best-effort — a missing stamp just means the next
+  // check falls back to the mtime heuristic.
+  const digest = computeContentDigest(args.cwd, crap.targetDirs);
+  if (
+    digest &&
+    writeCaptureStamp({
+      cwd: args.cwd,
+      coveragePath: crap.coveragePath,
+      digest,
+    })
+  ) {
+    Logger.info('[coverage-capture] Wrote content-digest capture stamp.');
   }
   return code;
 }

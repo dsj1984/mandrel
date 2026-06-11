@@ -231,25 +231,28 @@ export function __setSleep(fn, opts = {}) {
 }
 
 /**
- * Run `git fetch …` with a bounded retry loop that only triggers on known
- * packed-refs lock-contention signatures. Non-contention failures surface
- * immediately (no retry). Success short-circuits the loop.
+ * Shared bounded retry loop for git commands that can hit packed-refs lock
+ * contention. Only contention signatures trigger a retry — non-contention
+ * failures surface immediately, and success short-circuits the loop.
  *
  * Backoff schedule: 250ms, 500ms, 1000ms (3 retries → 4 attempts total).
  * Deliberately no global lock — a mutex would erase the parallelism the
- * worktree-isolation model is designed to enable.
+ * worktree-isolation model is designed to enable. The schedule and the
+ * jitter policy (`_sleep` / `_jitterFactor` seams) live only here so a
+ * backoff tuning change has a single point of application.
  *
  * @param {string} cwd
- * @param {...string} args - Arguments after `fetch` (e.g. `'origin'`).
+ * @param {string[]} argvPrefix - Leading git argv (e.g. `['fetch']`).
+ * @param {string[]} args - Trailing arguments (e.g. `['origin']`).
  * @returns {Promise<{ status: number, stdout: string, stderr: string, attempts: number }>}
  */
-export async function gitFetchWithRetry(cwd, ...args) {
+async function gitWithContentionRetry(cwd, argvPrefix, args) {
   const backoff = [250, 500, 1000];
   let attempt = 0;
   let last;
   for (;;) {
     attempt++;
-    last = gitSpawn(cwd, 'fetch', ...args);
+    last = gitSpawn(cwd, ...argvPrefix, ...args);
     if (last.status === 0) return { ...last, attempts: attempt };
     if (!isPackedRefsContention(last.stderr))
       return { ...last, attempts: attempt };
@@ -261,6 +264,18 @@ export async function gitFetchWithRetry(cwd, ...args) {
 }
 
 /**
+ * Run `git fetch …` with the bounded packed-refs-contention retry loop
+ * (see `gitWithContentionRetry`).
+ *
+ * @param {string} cwd
+ * @param {...string} args - Arguments after `fetch` (e.g. `'origin'`).
+ * @returns {Promise<{ status: number, stdout: string, stderr: string, attempts: number }>}
+ */
+export function gitFetchWithRetry(cwd, ...args) {
+  return gitWithContentionRetry(cwd, ['fetch'], args);
+}
+
+/**
  * Run `git pull --rebase …` with the same bounded retry loop as
  * `gitFetchWithRetry`. Packed-refs contention can occur during pulls
  * just as during fetches — particularly in multi-worktree setups.
@@ -269,21 +284,8 @@ export async function gitFetchWithRetry(cwd, ...args) {
  * @param {...string} args - Arguments after `pull --rebase` (e.g. `'origin', 'main'`).
  * @returns {Promise<{ status: number, stdout: string, stderr: string, attempts: number }>}
  */
-export async function gitPullWithRetry(cwd, ...args) {
-  const backoff = [250, 500, 1000];
-  let attempt = 0;
-  let last;
-  for (;;) {
-    attempt++;
-    last = gitSpawn(cwd, 'pull', '--rebase', ...args);
-    if (last.status === 0) return { ...last, attempts: attempt };
-    if (!isPackedRefsContention(last.stderr))
-      return { ...last, attempts: attempt };
-    if (attempt > backoff.length) return { ...last, attempts: attempt };
-    const base = backoff[attempt - 1];
-    const jitter = Math.floor(Math.random() * base * _jitterFactor);
-    await _sleep(base + jitter);
-  }
+export function gitPullWithRetry(cwd, ...args) {
+  return gitWithContentionRetry(cwd, ['pull', '--rebase'], args);
 }
 
 /**
