@@ -401,7 +401,10 @@ export async function planEpic(
   // here with a body that may still carry a stale section — without the
   // strip, every rerun stacked a duplicate section onto the Epic body.
   const appendBody = `\n\n## Planning Artifacts\n${artifactLines.join('\n')}\n`;
-  const strippedBody = epic.body.replace(/\n*## Planning Artifacts[\s\S]*$/, '');
+  const strippedBody = epic.body.replace(
+    /\n*## Planning Artifacts[\s\S]*$/,
+    '',
+  );
   const newBody = strippedBody + appendBody;
 
   /** @type {{ add?: string[], remove?: string[] }} */

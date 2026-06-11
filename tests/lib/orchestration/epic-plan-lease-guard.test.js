@@ -355,10 +355,7 @@ describe('epic-plan-lease-guard — parsePlanLeaseClaim', () => {
   it('returns null for a body with no readable record', () => {
     assert.equal(parsePlanLeaseClaim('no json here'), null);
     assert.equal(parsePlanLeaseClaim(null), null);
-    assert.equal(
-      parsePlanLeaseClaim('```json\n{"kind":"other"}\n```'),
-      null,
-    );
+    assert.equal(parsePlanLeaseClaim('```json\n{"kind":"other"}\n```'), null);
   });
 });
 

@@ -202,7 +202,8 @@ describe('buildAcceptanceEvalSignal', () => {
 
 describe('deriveAcceptanceEvalRound — ledger-derived round (Story #4019)', () => {
   const line = (obj) => `${JSON.stringify(obj)}\n`;
-  const resolver = (eid, sid) => `/fake/${eid ?? 'standalone'}/story-${sid}/signals.ndjson`;
+  const resolver = (eid, sid) =>
+    `/fake/${eid ?? 'standalone'}/story-${sid}/signals.ndjson`;
 
   it('returns 1 when the signals ledger is missing', () => {
     const round = deriveAcceptanceEvalRound({
