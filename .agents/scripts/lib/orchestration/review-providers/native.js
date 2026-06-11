@@ -48,8 +48,8 @@ import {
   calculateReport,
   classifyReport,
 } from '../../maintainability-engine.js';
-import { transpileIfNeeded } from '../../maintainability-utils.js';
 import { PROJECT_ROOT } from '../../project-root.js';
+import { transpileIfNeeded } from '../../transpile.js';
 import {
   hashCommandConfig,
   recordPass,

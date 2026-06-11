@@ -1,4 +1,5 @@
 import { collectStoryAssumptionEntries } from './file-assumptions.js';
+import { computeStoryReachability } from './story-reachability.js';
 
 /**
  * Cross-Story path-conflict & implicit-dependency findings.
@@ -240,38 +241,6 @@ function indexConsumers(stories, producers) {
     }
   }
   return consumers;
-}
-
-/**
- * Compute transitive predecessor sets over the story-level `depends_on`
- * graph. The returned map is `Map<storySlug, Set<storySlug>>`, where the
- * set contains every story reachable by following `depends_on` edges from
- * the key (i.e. every story the key transitively depends on).
- *
- * BFS, no cycles assumed — callers must run `assertAcyclic` first.
- *
- * Exported so the wave-aware file-assumption gate
- * (`file-assumptions.js`) can reuse the same transitive-predecessor walk
- * rather than re-deriving the `depends_on` closure.
- */
-export function computeStoryReachability(stories) {
-  const reach = new Map();
-  for (const story of stories) reach.set(story.slug, new Set());
-  for (const story of stories) {
-    const visited = reach.get(story.slug);
-    const stack = [...(story.depends_on ?? [])];
-    while (stack.length > 0) {
-      const next = stack.pop();
-      if (!reach.has(next)) continue;
-      if (visited.has(next)) continue;
-      visited.add(next);
-      const nextStory = stories.find((s) => s.slug === next);
-      if (nextStory && Array.isArray(nextStory.depends_on)) {
-        for (const dep of nextStory.depends_on) stack.push(dep);
-      }
-    }
-  }
-  return reach;
 }
 
 function inSameWave(reach, slugA, slugB) {

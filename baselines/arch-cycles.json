@@ -1,22 +1,5 @@
 {
   "$schema": "https://mandrel.dev/baselines/arch-cycles.schema.json",
   "generatedAt": "2026-06-11T00:00:00.000Z",
-  "cycles": [
-    [
-      "lib/baselines/kernel.js",
-      "lib/baselines/kinds/crap.js",
-      "lib/crap-utils.js",
-      "lib/maintainability-utils.js",
-      "lib/baselines/writer.js"
-    ],
-    ["lib/maintainability-engine.js", "lib/maintainability-utils.js"],
-    [
-      "lib/orchestration/file-assumptions.js",
-      "lib/orchestration/ticket-validator-conflicts.js"
-    ],
-    [
-      "lib/orchestration/ticketing/bulk.js",
-      "lib/orchestration/ticketing/state.js"
-    ]
-  ]
+  "cycles": []
 }

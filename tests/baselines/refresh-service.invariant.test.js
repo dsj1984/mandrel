@@ -79,7 +79,11 @@ const MIGRATION_ALLOWLIST = Object.freeze(
     '.agents/scripts/lint-baseline.js',
     '.agents/scripts/lib/coverage-baseline.js',
     '.agents/scripts/lib/mutation/baseline-snapshot.js',
-    '.agents/scripts/lib/maintainability-utils.js',
+    // Story #3995 relocated `saveBaseline` from `maintainability-utils.js`
+    // into the `lib/baselines/` package to break the baselines import
+    // cycle; the pre-migration allowlist entry is re-attributed to the new
+    // home rather than left as a phantom on the old path.
+    '.agents/scripts/lib/baselines/maintainability-baseline-save.js',
     '.agents/scripts/lib/baseline-snapshot.js',
     '.agents/scripts/lib/gates/baseline-store.js',
 

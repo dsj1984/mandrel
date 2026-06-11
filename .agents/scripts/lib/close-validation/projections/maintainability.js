@@ -15,11 +15,11 @@
  * pre-push time.
  */
 
+import { getBaseline } from '../../baselines/maintainability-baseline-io.js';
 import { diffNameOnly } from '../../changed-files.js';
 import { cachedGitFetchSync } from '../../git/cached-fetch.js';
 import { gitSpawn as defaultGitSpawn } from '../../git-utils.js';
 import { calculateForSource } from '../../maintainability-engine.js';
-import { getBaseline } from '../../maintainability-utils.js';
 import { MISSING_ARG_REASONS, validateProjectionInputs } from './inputs.js';
 
 /**

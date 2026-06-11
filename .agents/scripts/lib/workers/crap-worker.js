@@ -29,7 +29,7 @@
 import fs from 'node:fs';
 import { parentPort } from 'node:worker_threads';
 import { calculateCrapForSource } from '../crap-engine.js';
-import { transpileIfNeeded } from '../maintainability-utils.js';
+import { transpileIfNeeded } from '../transpile.js';
 
 /**
  * Pure handler for a single inbound worker message. Exported so unit

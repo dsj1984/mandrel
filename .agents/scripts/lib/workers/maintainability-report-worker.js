@@ -39,7 +39,7 @@ import {
   calculateReport,
   calculateReportForFile,
 } from '../maintainability-engine.js';
-import { transpileIfNeeded } from '../maintainability-utils.js';
+import { transpileIfNeeded } from '../transpile.js';
 
 /**
  * Score a pre-sourced content string (Story #3696). Mirrors
