@@ -1,7 +1,7 @@
 // .agents/scripts/lib/orchestration/lifecycle/listeners/branch-cleaner.js
 /**
  * BranchCleaner — lifecycle listener that owns post-merge **branch** reap
- * for `/epic-deliver`. Story #2398 (companion to Cleaner, which owns the
+ * for `/deliver`. Story #2398 (companion to Cleaner, which owns the
  * temp-tree archival half of end-of-Epic cleanup).
  *
  * Subscribes to:

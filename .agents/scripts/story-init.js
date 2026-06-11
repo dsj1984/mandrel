@@ -25,7 +25,7 @@
  *   0 — Initialization complete. Agent can start implementation.
  *   1 — Blocked or error (details in stderr).
  *
- * @see .agents/workflows/story-deliver.md
+ * @see .agents/workflows/helpers/deliver-stories.md
  */
 
 import path from 'node:path';

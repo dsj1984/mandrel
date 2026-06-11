@@ -10,16 +10,16 @@ description: >-
   inspects the surface area.
 ---
 
-# /epic-deliver #[Epic ID]
+# /deliver #[Epic ID]
 
 ## Overview
 
-`/epic-deliver` is the **single SDL execution command** in the 5.40 surface.
+`/deliver` is the **single SDL execution command** in the 5.40 surface.
 It opens a PR against `main` and auto-merges when every signal certifies a
 clean run; otherwise it falls back to the operator-merges-button path.
 
 ```text
-/epic-deliver <epicId>
+/deliver <epicId>
   → Phase 1 — prepare              (epic-deliver-prepare.js)
   → Phase 2 — wave loop            (wave-tick.js + Agent fan-out × concurrencyCap)
   → Phase 3 — close-validation     (lint + test + ratchets on epic/<id>)
@@ -33,7 +33,7 @@ clean run; otherwise it falls back to the operator-merges-button path.
 ```
 
 The argument is always an Epic ID (`type::epic`). Story IDs go to
-[`/story-deliver`](story-deliver.md) (standalone) or the
+[`/deliver`](deliver-stories.md) (standalone) or the
 [`helpers/epic-deliver-story`](helpers/epic-deliver-story.md) helper
 (Epic-attached, invoked by this workflow's fan-out); Tasks are not directly
 executable.
@@ -45,11 +45,11 @@ spawned.
 ## Arguments
 
 ```text
-/epic-deliver <epicId> [--skip-epic-audit] [--skip-code-review] [--skip-retro] [--full-retro]
+/deliver <epicId> [--skip-epic-audit] [--skip-code-review] [--skip-retro] [--full-retro]
 ```
 
 - `epicId` — must carry `type::epic`. Otherwise STOP and tell the operator
-  to use `/story-deliver <id>` (standalone Story) or open the parent Epic.
+  to use `/deliver <id>` (standalone Story) or open the parent Epic.
 - `--skip-epic-audit` — skip Phase 4 (log the override). Use only when the
   change-set audits are known to be irrelevant (e.g., docs-only Epic).
 - `--skip-code-review` — skip Phase 5 (log the override).
@@ -91,7 +91,7 @@ Every other runtime modifier is sourced from the Epic's labels or from
   [`docs/LIFECYCLE.md`](../../docs/LIFECYCLE.md) for the bus
   contract, event taxonomy, ledger format, and listener model.
 
-> **Hierarchy.** `/epic-deliver` operates over the 2-tier hierarchy
+> **Hierarchy.** `/deliver` operates over the 2-tier hierarchy
 > (Epic → Story). The fan-out is one `Agent` tool call per
 > Story per wave (§ 2b); Story branches merge into `epic/<id>` with
 > `--no-ff` via `story-close.js`; the close-validation chain
@@ -132,7 +132,7 @@ flip the Epic to `agent::blocked`, surface the envelope in chat for the
 operator, and halt before Phase 1's `epic-deliver-prepare.js` call.
 Resume after the operator unblocks (raising the threshold in
 `.agentrc.json`, splitting the Epic, or accepting the cost) by re-running
-`/epic-deliver <epicId>` — the preflight is idempotent and the second
+`/deliver <epicId>` — the preflight is idempotent and the second
 run upserts the same comment in place.
 
 Threshold defaults live in `delivery.preflight.*` in `.agentrc.json`
@@ -193,12 +193,12 @@ Once the preflight guards pass, the snapshot phase applies one more gate:
 > label **or** has a linked `context::acceptance-spec` ticket. The
 > ticket's GitHub state (open / closed) is **not** checked —
 > presence is sufficient, matching the PRD and Tech Spec contract.
-> The reviewer's OK during `/epic-plan` Phase 7 is the approval
+> The reviewer's OK during `/plan` Phase 7 is the approval
 > signal, not a manual ticket-close action. Neither condition met →
 > the snapshot throws a clear error
 > (`[epic-deliver] Epic #<id> cannot launch: …`) and `runAsCli`
 > maps it to `process.exit(1)`. Operator remediation: either run
-> `/epic-plan` Phase 7 to author the spec, or apply the
+> `/plan` Phase 7 to author the spec, or apply the
 > `acceptance::n-a` label to opt out.
 
 ---
@@ -504,7 +504,7 @@ best-effort way Phase 4 routes audit lenses — via
 which reads `planningRisk.overallLevel` off the Epic's `epic-plan-state`
 checkpoint and maps it: `high` → `deep`, `low` → `light`, everything else
 (including a missing/unparseable checkpoint, or an Epic that skipped
-`/epic-plan`) → `standard`. The helper threads `depth` into `runCodeReview`,
+`/plan`) → `standard`. The helper threads `depth` into `runCodeReview`,
 which forwards it to every provider's `runReview` input; the LLM-backed
 providers (codex, security-review, ultrareview) render it into the prompt they
 emit so a high-risk Epic gets a deeper adversarial pass and a low-risk one a
@@ -592,7 +592,7 @@ responsibility below runs inside the listener chain — the operator
 shells nothing manually. The `Finalizer` listener (Story #2894 —
 bus-owned finalize) composes three helpers under
 `.agents/scripts/lib/orchestration/finalize/` and emits the canonical
-chain.** Treat this section as a runtime contract — `/epic-deliver`
+chain.** Treat this section as a runtime contract — `/deliver`
 just fires the emit and reads the resulting ledger.
 
 1. **Acceptance-spec reconciliation — bus-driven.** The
@@ -614,7 +614,7 @@ just fires the emit and reads the resulting ledger.
    [`openOrLocatePr`](../scripts/lib/orchestration/finalize/open-or-locate-pr.js)
    with `{ epicId, headBranch: 'epic/<id>', baseBranch: 'main' }`.
    The helper probes for an existing open PR on the head branch
-   first (idempotent locate path — a re-run of `/epic-deliver`
+   first (idempotent locate path — a re-run of `/deliver`
    on the same branch short-circuits without opening a duplicate)
    and only opens a new PR when none exists. The listener then
    emits `pr.created` → `epic.finalize.end` and **stops** (Story

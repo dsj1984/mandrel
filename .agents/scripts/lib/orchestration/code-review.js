@@ -3,7 +3,7 @@
  *
  * Story #1155 (Epic #1142, 5.40.0) — extracted the helper-driven
  * `epic-code-review` invocation into a callable module so the
- * `/epic-deliver` runner can run Phase D without spawning a child
+ * `/deliver` runner can run Phase D without spawning a child
  * process or routing through an LLM-driven helper.
  *
  * Story #2831 (Epic #2815, Pluggable Code Review) — refactored to load
@@ -25,11 +25,11 @@
  *   - Always posts the structured `code-review` comment on the Epic
  *     issue (the adapter never posts; the orchestrator owns persistence).
  *   - Treats severity.critical > 0 as a halting blocker — the merged
- *     `/epic-deliver` runner consults `halted` and refuses to advance
+ *     `/deliver` runner consults `halted` and refuses to advance
  *     to Phase E (retro) when set.
  *
  * Halting on critical findings is the in-process replacement for the
- * helper's "operator must remediate before /epic-deliver" gate.
+ * helper's "operator must remediate before /deliver" gate.
  */
 
 import { resolveConfig } from '../config-resolver.js';
@@ -116,7 +116,7 @@ function resolveTaskSizing(config) {
  *
  * Best-effort and total: a missing/unparseable checkpoint, an absent
  * `planningRisk` field, a read failure, or a malformed `overallLevel` all
- * degrade to `standard` (never throws). So an Epic that skipped `/epic-plan`
+ * degrade to `standard` (never throws). So an Epic that skipped `/plan`
  * (no checkpoint) still gets a passing `standard` review with no new failure
  * mode. The producer resolves depth from the judged risk alone (the diff is
  * not yet enumerated at this point); the full risk + diff-width combination is
@@ -401,7 +401,7 @@ function resolveScopeEnvelope(opts, config) {
 }
 
 /**
- * In-process wrapper that the `/epic-deliver` runner and the
+ * In-process wrapper that the `/deliver` runner and the
  * `/single-story-deliver` close path consume.
  *
  * Story #2252 — emits `code-review.start` immediately on entry and

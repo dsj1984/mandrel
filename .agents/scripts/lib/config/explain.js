@@ -113,7 +113,7 @@ const KEY_MEANINGS = Object.freeze({
 
   // planning.*
   'planning.maxTickets':
-    'Upper bound on tickets a single /epic-plan run may create.',
+    'Upper bound on tickets a single /plan run may create.',
   'planning.context.maxBytes':
     'Byte budget for the planning-context payload before summary mode kicks in.',
   'planning.context.summaryMode':

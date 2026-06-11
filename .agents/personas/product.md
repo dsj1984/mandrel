@@ -43,7 +43,7 @@ UI copy, metadata, and structural assumptions align with it.
 ### B. Epic Lifecycle & Retrospectives
 
 - **Retrospectives:** Own the Epic retrospective process. Phase 5 of
-  `/epic-deliver` runs `lib/orchestration/retro-runner.js` in-process
+  `/deliver` runs `lib/orchestration/retro-runner.js` in-process
   to generate retro structured comments, analyze execution, and
   formulate action items.
 - **Epic Definition:** Lock upcoming features into a clear Epic scope.

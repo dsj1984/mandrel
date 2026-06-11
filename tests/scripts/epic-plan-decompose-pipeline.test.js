@@ -292,7 +292,7 @@ describe('epic-plan-decompose pipeline — buildDecompositionContext planning ri
       {
         axis: 'critical-workflow',
         level: 'high',
-        evidence: 'Touches /epic-plan gate routing.',
+        evidence: 'Touches /plan gate routing.',
       },
     ],
     overallLevel: 'high',

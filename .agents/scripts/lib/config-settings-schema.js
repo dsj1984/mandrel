@@ -205,7 +205,7 @@ const GITHUB_SCHEMA = {
 };
 
 // ---------------------------------------------------------------------------
-// planning.* — inputs to /epic-plan
+// planning.* — inputs to /plan
 // ---------------------------------------------------------------------------
 
 /**
@@ -224,7 +224,7 @@ const PLANNING_CONTEXT_SCHEMA = {
 
 /**
  * Story #2634 — `planning.codebaseSnapshot` controls the structural
- * view of the consumer repo threaded into `/epic-plan` Phase 7 spec
+ * view of the consumer repo threaded into `/plan` Phase 7 spec
  * authoring. Absent / partial entries resolve to defaults inside
  * `lib/codebase-snapshot.js#resolveSnapshotConfig` — the schema only
  * enforces shape (correct enum value, well-formed glob arrays).
@@ -287,7 +287,7 @@ const PLANNING_SCHEMA = {
 };
 
 // ---------------------------------------------------------------------------
-// delivery.* — /epic-deliver + story-deliver consume. The full block of
+// delivery.* — /deliver + story-deliver consume. The full block of
 // per-key sub-schemas lives in `config-settings-schema-delivery.js` (refs
 // #3457); DELIVERY_SCHEMA is imported above and referenced unchanged below.
 // ---------------------------------------------------------------------------

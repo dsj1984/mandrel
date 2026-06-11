@@ -3,7 +3,7 @@ name: epic-plan-decompose-author
 description: >-
   Author the Story ticket JSON for an Epic from the decomposer
   authoring context emitted by `epic-plan-decompose.js --emit-context`. Use
-  during Phase 8 of `/epic-plan` when the host LLM needs to write the ticket
+  during Phase 8 of `/plan` when the host LLM needs to write the ticket
   array before `epic-plan-decompose.js` validates and persists it.
 allowed_tools:
   - Read
@@ -36,7 +36,7 @@ autonomously.
 
 ## When to use
 
-`/epic-plan` Phase 8, immediately after
+`/plan` Phase 8, immediately after
 `epic-plan-decompose.js --emit-context` writes
 `temp/epic-<Epic_ID>/decomposer-context.json`. The Skill replaces the
 inline "Author the Ticket Array" step in the legacy workflow body —
@@ -116,7 +116,7 @@ Write the final JSON array to `temp/epic-<Epic_ID>/tickets.json` with
 the `Write` tool. Do not pretty-print past 2-space indent — the file is
 machine-consumed.
 
-### Step 4 — Hand back to `/epic-plan`
+### Step 4 — Hand back to `/plan`
 
 Return control. The caller invokes
 `node .agents/scripts/epic-plan-decompose.js --epic <Epic_ID> --tickets

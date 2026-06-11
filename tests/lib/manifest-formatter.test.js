@@ -337,5 +337,5 @@ test('renderProceduresAndLegendDetails: emits exactly one <details>/</details> p
   assert.match(md, /Operating Procedures/);
   assert.match(md, /Symbol legend/);
   // Epic id substituted into the deliver/close examples.
-  assert.match(md, /\/epic-deliver 42/);
+  assert.match(md, /\/deliver 42/);
 });

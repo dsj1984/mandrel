@@ -3,9 +3,9 @@
 
 /**
  * epic-deliver-note-intervention.js — record a manual-intervention event
- * against the active `/epic-deliver` run-state checkpoint.
+ * against the active `/deliver` run-state checkpoint.
  *
- * The host LLM driving `/epic-deliver` invokes this CLI whenever it does
+ * The host LLM driving `/deliver` invokes this CLI whenever it does
  * something out-of-band that disqualifies the Epic from auto-merge:
  *
  *   - `AskUserQuestion` to the operator mid-run

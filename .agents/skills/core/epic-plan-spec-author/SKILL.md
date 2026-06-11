@@ -3,7 +3,7 @@ name: epic-plan-spec-author
 description: >-
   Author the PRD, Tech Spec, Acceptance Spec markdown, and risk-verdict JSON
   for an Epic from the planner authoring context emitted by
-  `epic-plan-spec.js --emit-context`. Use during Phase 7 of `/epic-plan` when
+  `epic-plan-spec.js --emit-context`. Use during Phase 7 of `/plan` when
   the host LLM needs to write the four artifacts before `epic-plan-spec.js`
   persists them.
 allowed_tools:
@@ -16,7 +16,7 @@ allowed_tools:
 
 ## Policy Capsule
 
-- Run only during `/epic-plan` Phase 7, after `epic-plan-spec.js --emit-context` has written `temp/epic-<Epic_ID>/planner-context.json`; fail loudly if the file is missing rather than fabricating context.
+- Run only during `/plan` Phase 7, after `epic-plan-spec.js --emit-context` has written `temp/epic-<Epic_ID>/planner-context.json`; fail loudly if the file is missing rather than fabricating context.
 - Write exactly four artifacts and only inside `temp/epic-<Epic_ID>/`: `prd.md`, `techspec.md`, `risk-verdict.json`, `acceptance-spec.md`. All four MUST exist on disk before returning.
 - Start each markdown artifact at the correct `##` heading (PRD → `## Overview`, Tech Spec → `## Technical Overview`, Acceptance Spec → `## Acceptance Criteria`) — never emit a top-level `#` heading. `risk-verdict.json` is raw JSON conforming to `.agents/schemas/risk-verdict.schema.json`.
 - Judge risk from what the change *does* (the PRD / Tech Spec you just wrote), never from keyword presence — "out of scope: billing" is not a billing change; "rotate the credential vault" is high-risk even without a security keyword.
@@ -40,7 +40,7 @@ the Acceptance Spec).
 
 ## When to use
 
-`/epic-plan` Phase 7, immediately after `epic-plan-spec.js --emit-context`
+`/plan` Phase 7, immediately after `epic-plan-spec.js --emit-context`
 writes `temp/epic-<Epic_ID>/planner-context.json`. This Skill replaces the
 inline "Author the PRD" / "Author the Tech Spec" steps from the legacy
 workflow body — the calling workflow dispatches this Skill via the `Skill`
@@ -366,7 +366,7 @@ CRITICAL REQUIREMENTS:
 - Acceptance Outcomes MUST NOT prescribe a commit subject that begins with a non-Conventional-Commits prefix (allowed leading types: feat|fix|chore|refactor|perf|docs|style|test|build|ci|revert). The legacy `baseline-refresh` token used as a leading subject prescription is forbidden — commitlint will reject it at commit time, and the decompose-time validator (`ticket-validator.js` → `validateAcceptanceSubjectPrefix`) will reject the decompose with `code: 'forbidden-subject-prefix'`. Use a Conventional-Commits subject (e.g. `chore(baselines): refresh ...`) and a body trailer (e.g. `baseline-refresh: true` — trailer with a value, not a subject prefix) when a machine-readable marker is needed. See Epic #2501 for rationale.
 ```
 
-### Step 6 — Hand back to `/epic-plan`
+### Step 6 — Hand back to `/plan`
 
 All four files exist; return. The caller will run
 `node .agents/scripts/epic-plan-spec.js --epic <Epic_ID> --prd

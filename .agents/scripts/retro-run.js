@@ -2,9 +2,9 @@
 /* node:coverage ignore file */
 
 /**
- * retro-run.js — execute the `/epic-deliver` Phase 6 retro from a CLI.
+ * retro-run.js — execute the `/deliver` Phase 6 retro from a CLI.
  *
- * Phase 6 of `/epic-deliver` posts the Epic retro by invoking the
+ * Phase 6 of `/deliver` posts the Epic retro by invoking the
  * in-process retro module (`lib/orchestration/retro-runner.js`'s
  * `runRetro`). That module is a library entry point — it has no CLI
  * wrapper and hard-requires both a GitHub `provider` and a lifecycle

@@ -11,7 +11,7 @@
  * `body: <17KB body> → ""`. The reconciler apply phase then wiped the
  * GH issue body — taking the hand-authored Epic spec AND the
  * `## Planning Artifacts` section with it, which broke
- * `/epic-deliver`'s start gate (parseLinkedIssues → null) and the
+ * `/deliver`'s start gate (parseLinkedIssues → null) and the
  * cascade-close walk in `epic-deliver-finalize.js`.
  *
  * The fix lives in two cooperating places (defence in depth):

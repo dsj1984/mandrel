@@ -7,7 +7,7 @@
       "tier": "core",
       "category": "core",
       "path": ".agents/skills/core/analyze-execution/SKILL.md",
-      "description": "Aggregate per-Story or per-Epic execution signals into a structured perf-summary or perf-report and upsert it onto the corresponding GitHub ticket. Use after a Story closes (Story mode) or as part of `/epic-deliver` Phase 6 (Epic mode). Reads NDJSON via `lib/signals/read` and writes a single structured comment.",
+      "description": "Aggregate per-Story or per-Epic execution signals into a structured perf-summary or perf-report and upsert it onto the corresponding GitHub ticket. Use after a Story closes (Story mode) or as part of `/deliver` Phase 6 (Epic mode). Reads NDJSON via `lib/signals/read` and writes a single structured comment.",
       "policyCapsuleBullets": 8,
       "allowedTools": ["Read", "Bash"],
       "vendor": null
@@ -127,7 +127,7 @@
       "tier": "core",
       "category": "core",
       "path": ".agents/skills/core/epic-plan-consolidate/SKILL.md",
-      "description": "Run a holistic, pre-persist consolidation pass over the draft Story ticket array an Epic's decompose phase produced. Use during Phase 8 of `/epic-plan`, after `epic-plan-decompose-author` writes `temp/epic-<Epic_ID>/tickets.json` and before `epic-plan-decompose.js` validates and persists it. Reconciles the draft against the Tech Spec \"Delivery Slicing\" target via scope-preserving operations only.",
+      "description": "Run a holistic, pre-persist consolidation pass over the draft Story ticket array an Epic's decompose phase produced. Use during Phase 8 of `/plan`, after `epic-plan-decompose-author` writes `temp/epic-<Epic_ID>/tickets.json` and before `epic-plan-decompose.js` validates and persists it. Reconciles the draft against the Tech Spec \"Delivery Slicing\" target via scope-preserving operations only.",
       "policyCapsuleBullets": 8,
       "allowedTools": ["Read", "Write", "Bash"],
       "vendor": null
@@ -137,7 +137,7 @@
       "tier": "core",
       "category": "core",
       "path": ".agents/skills/core/epic-plan-decompose-author/SKILL.md",
-      "description": "Author the Story ticket JSON for an Epic from the decomposer authoring context emitted by `epic-plan-decompose.js --emit-context`. Use during Phase 8 of `/epic-plan` when the host LLM needs to write the ticket array before `epic-plan-decompose.js` validates and persists it.",
+      "description": "Author the Story ticket JSON for an Epic from the decomposer authoring context emitted by `epic-plan-decompose.js --emit-context`. Use during Phase 8 of `/plan` when the host LLM needs to write the ticket array before `epic-plan-decompose.js` validates and persists it.",
       "policyCapsuleBullets": 12,
       "allowedTools": ["Read", "Write", "Bash"],
       "vendor": null
@@ -147,7 +147,7 @@
       "tier": "core",
       "category": "core",
       "path": ".agents/skills/core/epic-plan-spec-author/SKILL.md",
-      "description": "Author the PRD, Tech Spec, Acceptance Spec markdown, and risk-verdict JSON for an Epic from the planner authoring context emitted by `epic-plan-spec.js --emit-context`. Use during Phase 7 of `/epic-plan` when the host LLM needs to write the four artifacts before `epic-plan-spec.js` persists them.",
+      "description": "Author the PRD, Tech Spec, Acceptance Spec markdown, and risk-verdict JSON for an Epic from the planner authoring context emitted by `epic-plan-spec.js --emit-context`. Use during Phase 7 of `/plan` when the host LLM needs to write the four artifacts before `epic-plan-spec.js` persists them.",
       "policyCapsuleBullets": 12,
       "allowedTools": ["Read", "Write", "Bash"],
       "vendor": null
@@ -287,7 +287,7 @@
       "tier": "core",
       "category": "core",
       "path": ".agents/skills/core/scope-triage/SKILL.md",
-      "description": "Judge whether a piece of planned work is epic-sized or story-sized before the planning ceremony is paid for. Emits one of three verdicts — `epic` | `story` | `borderline` — over any planning artifact (a one-pager, an Epic body, or a Story draft). Use from `/epic-plan` Phase 1.5 and any other planning gate that needs the canonical story-vs-epic rubric.",
+      "description": "Judge whether a piece of planned work is epic-sized or story-sized before the planning ceremony is paid for. Emits one of three verdicts — `epic` | `story` | `borderline` — over any planning artifact (a one-pager, an Epic body, or a Story draft). Use from `/plan` Phase 1.5 and any other planning gate that needs the canonical story-vs-epic rubric.",
       "policyCapsuleBullets": 1,
       "allowedTools": null,
       "vendor": null

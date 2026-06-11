@@ -56,7 +56,7 @@ const EXPECTED_BODY = [
   '- **Stories:** 2',
   `- **Generated:** ${FIXTURE_GENERATED_AT}`,
   '',
-  'Source of truth for the wave-completeness gate run at `/epic-deliver`.',
+  'Source of truth for the wave-completeness gate run at `/deliver`.',
   '',
   '```json',
   JSON.stringify(

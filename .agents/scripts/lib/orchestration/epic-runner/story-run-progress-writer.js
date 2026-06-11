@@ -12,7 +12,7 @@
  * removed.
  *
  * The renderer survives because its `{ body, payload }` output still feeds
- * two non-comment contracts: the `renderedBody` markdown the `/story-deliver`
+ * two non-comment contracts: the `renderedBody` markdown the `/deliver`
  * and `single-story-deliver` CLIs (`story-phase.js`, the inline `story-init.js` prepare step)
  * relay to chat so the operator sees the phase table inline, and the snapshot
  * payload returned in those CLIs' JSON envelopes. `upsertStoryRunProgress`
@@ -74,7 +74,7 @@ const PHASE_EMOJI = {
  * Canonical 2-tier Story-phase order. The Story-phase snapshot replaces the
  * 4-tier per-Task list when the Story carries inline acceptance (no child
  * Tasks). Each entry tracks `status` + `startedAt` / `endedAt` so the parent
- * `/epic-deliver` aggregator can render a coarse progress bar without
+ * `/deliver` aggregator can render a coarse progress bar without
  * walking Task tickets.
  */
 export const STORY_PHASE_ORDER = ['init', 'implement', 'validate', 'close'];

@@ -29,7 +29,7 @@ export const DEFAULT_DECOMPOSER = Object.freeze({
  * host has adequate parallel-agent quota, operators should raise
  * `delivery.deliverRunner.concurrencyCap` — wall-clock time falls
  * proportionally to the extra concurrency. The safe default is a tuning
- * knob, not a performance ceiling. See `epic-deliver.md` § Phase 2b and
+ * knob, not a performance ceiling. See `helpers/deliver-epic.md` § Phase 2b and
  * `agentrc-reference.json` `delivery.deliverRunner.concurrencyCap` for details.
  *
  * **`verifyConcurrencyCap`** (Epic #3019 Tech Spec §1.4 / Story #3024) is a
@@ -44,7 +44,7 @@ const DEFAULT_DELIVER_RUNNER = Object.freeze({
 });
 
 /**
- * Default auto-fix loop ceilings for /epic-deliver Phase 4 (epic-audit)
+ * Default auto-fix loop ceilings for /deliver Phase 4 (epic-audit)
  * and Phase 5 (code-review). Operators override via
  * `delivery.epicAudit.*` and `delivery.codeReview.*` in `.agentrc.json`
  * (Story #2611, Epic #2586).

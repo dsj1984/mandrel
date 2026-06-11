@@ -3,7 +3,7 @@
 /**
  * epic-plan-spec-validate.js — Phase 7.5 Tech Spec post-authoring gate CLI.
  *
- * `/epic-plan` Phase 7 authors the Tech Spec; Phase 8.3 (Holistic
+ * `/plan` Phase 7 authors the Tech Spec; Phase 8.3 (Holistic
  * Consolidation) reconciles the draft ticket array against the Tech Spec's
  * `## Delivery Slicing` section, which the decompose-author skill uses as the
  * capability-boundary anchor. When that section is absent the consolidation

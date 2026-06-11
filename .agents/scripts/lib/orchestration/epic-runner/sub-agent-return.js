@@ -1,9 +1,9 @@
 /**
  * sub-agent-return.js — parse and reconcile per-Story sub-agent return text.
  *
- * `/epic-deliver` Step 2 dispatches one `Agent` tool call per Story per
+ * `/deliver` Step 2 dispatches one `Agent` tool call per Story per
  * wave. Each sub-agent owes its parent the JSON return contract documented
- * in `.agents/workflows/epic-deliver.md`:
+ * in `.agents/workflows/helpers/deliver-epic.md`:
  *
  *   {
  *     "storyId": <number>,
@@ -27,7 +27,7 @@
  * directly to GitHub-state reconciliation plus a friction record — the
  * stronger backstop that already caught everything the heuristics caught.
  *
- * This module provides the two helpers `/epic-deliver`'s wave dispatcher
+ * This module provides the two helpers `/deliver`'s wave dispatcher
  * now uses:
  *
  *   - `parseStoryAgentReturn(raw)` — accept an already-parsed object or a
@@ -257,7 +257,7 @@ export function renderMalformedReturnsFriction({ epicId, wave, failures }) {
     '',
     `**Reason:** \`malformed-subagent-return\``,
     '',
-    `${failures.length} sub-agent return(s) did not match the /story-deliver return contract.`,
+    `${failures.length} sub-agent return(s) did not match the /deliver return contract.`,
     'Each Story below was reconciled from GitHub (labels + `story-run-progress`)',
     'and its wave-row downgraded to `failed` unless the live ticket already carried',
     '`agent::done`.',

@@ -1,5 +1,5 @@
 /**
- * plan-phase-cleanup.js — Post-phase temp-file cleanup for `/epic-plan`.
+ * plan-phase-cleanup.js — Post-phase temp-file cleanup for `/plan`.
  *
  * The spec and decompose phases write several Epic-scoped temp files under
  * the per-Epic tree (`temp/epic-<id>/planner-context.json`,

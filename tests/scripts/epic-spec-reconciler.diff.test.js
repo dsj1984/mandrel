@@ -306,7 +306,7 @@ describe('reconciler diff — purity', () => {
 });
 
 describe('reconciler diff — Epic protected-label preservation (Story #2056)', () => {
-  // Reproduces the Epic #1994 / 2026-05-16 sequence: `/epic-plan` runs
+  // Reproduces the Epic #1994 / 2026-05-16 sequence: `/plan` runs
   // `epic-plan-decompose.js`, which renders the Epic spec entry from
   // `{ id, title }` only (labels are not threaded through). The pre-fix
   // diff engine emitted `labels: [type::epic, risk::medium, ...] → []`
@@ -524,7 +524,7 @@ describe('reconciler diff — Epic protected-label preservation (Story #2056)', 
 });
 
 describe('reconciler diff — Epic body preservation when spec omits body (Story #2283)', () => {
-  // Reproduces the Epic #2173 / 2026-05-17 sequence: `/epic-plan` Phase
+  // Reproduces the Epic #2173 / 2026-05-17 sequence: `/plan` Phase
   // 8 ran `epic-plan-decompose.js`, which (pre-fix) rendered the Epic
   // spec entry from `{ id, title }` only. The diff engine's
   // `fieldChanges` previously normalised an undefined `specEntity.body`

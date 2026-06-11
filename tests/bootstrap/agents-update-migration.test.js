@@ -19,7 +19,7 @@
  *      `baselines/snapshots/<id>/` tree, or the committed
  *      `baselines/epic/<id>/` subdirectory layout is migrated into the
  *      `temp/epic/<id>/baselines/` namespace (Story #1467: ephemeral
- *      scratch state, no commit, reaped on /epic-deliver merge). The
+ *      scratch state, no commit, reaped on /deliver merge). The
  *      main-tracked baselines at the root are NOT touched — that's the
  *      contract regression guard.
  */

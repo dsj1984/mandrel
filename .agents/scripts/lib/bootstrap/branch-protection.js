@@ -7,7 +7,7 @@
  *   - `enforce_admins: true` — admins do not bypass the prGate suite.
  *   - `required_pull_request_reviews.required_approving_review_count: 0` —
  *     CI is the gate; the operator monitors and iterates the open PR
- *     to green via `/epic-deliver`'s Phase 7 watch loop.
+ *     to green via `/deliver`'s Phase 7 watch loop.
  *
  * Behaviour rules
  * ---------------

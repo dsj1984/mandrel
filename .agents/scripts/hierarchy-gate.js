@@ -159,7 +159,7 @@ export async function runHierarchyGate({ epicId, injectedProvider } = {}) {
         Logger.error(`    - #${item.id} (${item.reason}) — ${item.title}`);
       }
     }
-    Logger.error('\nClose the open descendants and re-run `/epic-deliver`.');
+    Logger.error('\nClose the open descendants and re-run `/deliver`.');
     process.exit(1);
   }
 

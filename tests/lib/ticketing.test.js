@@ -349,7 +349,7 @@ test('ticketing.js', async (t) => {
       // would otherwise silently drop every fire. Both intermediate
       // tickets are tagged `type::story` rather than `type::epic` because
       // `cascadeCompletion` deliberately *skips* auto-close on Epics
-      // (their close path is `/epic-deliver`, not the cascade).
+      // (their close path is `/deliver`, not the cascade).
       mock.tickets[1].labels = ['agent::executing', 'type::story'];
       mock.tickets[2].labels = ['agent::executing', 'type::story'];
       mock.tickets[3].labels = ['agent::done'];
@@ -749,7 +749,7 @@ test('ticketing.js', async (t) => {
       //   - Story auto-closes via cascade
       //   - Feature auto-closes via cascade (pinned behavior — Features are
       //     purely hierarchical groupings with no standalone branch/merge)
-      //   - Epic does NOT auto-close via cascade (reserved for /epic-deliver)
+      //   - Epic does NOT auto-close via cascade (reserved for /deliver)
       // This test pins that contract so a future edit that adds Feature to
       // the exclusion list or drops Epic from it fails loudly.
       mock.tickets[10] = {
@@ -802,7 +802,7 @@ test('ticketing.js', async (t) => {
       );
       assert.ok(
         !mock.tickets[10].labels.includes('agent::done'),
-        'Epic must NOT auto-close via cascade — reserved for /epic-deliver',
+        'Epic must NOT auto-close via cascade — reserved for /deliver',
       );
       assert.ok(
         mock.tickets[10].labels.includes('agent::executing'),

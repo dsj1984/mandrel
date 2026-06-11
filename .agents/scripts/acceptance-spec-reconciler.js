@@ -420,7 +420,7 @@ export async function reconcileAcceptanceSpec({
     }
     // Defence in depth — the start gate would normally catch this.
     throw new Error(
-      `[acceptance-spec-reconciler] Epic #${epicId} has no linked context::acceptance-spec ticket and no acceptance::n-a waiver label. Re-run /epic-plan Phase 7 or apply the waiver.`,
+      `[acceptance-spec-reconciler] Epic #${epicId} has no linked context::acceptance-spec ticket and no acceptance::n-a waiver label. Re-run /plan Phase 7 or apply the waiver.`,
     );
   }
 

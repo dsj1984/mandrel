@@ -4,7 +4,7 @@
  * request, or locates the existing one when finalize is replaying after
  * a crash between `gh pr create` and the `pr.created` emit.
  *
- * Extracted from `/epic-deliver` Phase 7.1 prose so the lifecycle
+ * Extracted from `/deliver` Phase 7.1 prose so the lifecycle
  * Finalizer listener has a single async helper that returns the
  * `{ prNumber, url, created }` envelope it needs to compose
  * downstream emits.
@@ -26,7 +26,7 @@
  * the same head branch: the second call short-circuits at the probe and
  * does not attempt to create a duplicate PR. This is the AC-10
  * idempotency contract the Finalizer relies on for cross-process
- * re-runs of `/epic-deliver`.
+ * re-runs of `/deliver`.
  */
 
 import { spawnSync } from 'node:child_process';

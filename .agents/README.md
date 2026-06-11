@@ -4,7 +4,7 @@ An opinionated workflow framework for AI coding assistants built on
 Epic-centric GitHub orchestration. Planning, execution, and state all live natively in GitHub Issues, Labels, and Projects V2.
 
 This is the consumer README inside the distributed `.agents/` bundle. It explains what each part of the bundle is for and captures the cross-directory authoring conventions. The process narrative for
-`/epic-plan` and `/epic-deliver` stays in [`docs/SDLC.md`](docs/SDLC.md).
+`/plan` and `/deliver` stays in [`docs/SDLC.md`](docs/SDLC.md).
 
 The framework payload (`.agents/`) is consumed by host repos. It ships inside the [`mandrel`](https://www.npmjs.com/package/mandrel)
 npm package and is materialized into a consumer's `./.agents/` directory by `mandrel sync`. It carries a system prompt, a baseline rule pack, a two-tier skill library, a slash-command workflow set, and the orchestration engine that runs Epic → Story plans on GitHub.
@@ -44,7 +44,7 @@ unattended.
 
 After it completes, run **`/onboard`** inside Claude Code for the guided first
 run — stack detection, docs scaffolding, a `mandrel doctor` readiness gate, and
-a started `/epic-plan` handoff.
+a started `/plan` handoff.
 
 ### Manual Install
 
@@ -187,11 +187,11 @@ For non-interactive (CI) installs, pass `--owner`, `--repo`, and
 After bootstrap, every Mandrel command is generated into a flat
 `.claude/commands/` tree by `npm run sync:commands` (the UserPromptSubmit hook
 keeps it current) and loads as a bare `/<command>` slash command — e.g.
-`/epic-plan`, `/story-plan`, `/story-deliver`, `/audit-security`. The
+`/plan`, `/plan`, `/deliver`, `/audit-security`. The
 commands load in every Claude Code environment. The [SDLC guide](docs/SDLC.md) walks
 an end-to-end Epic; standalone Stories pair
-[`/story-plan`](workflows/story-plan.md) (idea → drafted Story
-Issue) with [`/story-deliver`](workflows/story-deliver.md) (Story Issue → merged
+[`/plan`](workflows/helpers/plan-story.md) (idea → drafted Story
+Issue) with [`/deliver`](workflows/helpers/deliver-stories.md) (Story Issue → merged
 PR).
 
 ---
@@ -244,7 +244,7 @@ See [`docs/SDLC.md` § Ticket hierarchy](docs/SDLC.md) for the diagram and execu
 | Path | Purpose |
 | ---- | ------- |
 | [`instructions.md`](instructions.md) | Primary system prompt loaded by the host AI tool. |
-| [`docs/SDLC.md`](docs/SDLC.md) | Operator process for `/epic-plan` and `/epic-deliver`. |
+| [`docs/SDLC.md`](docs/SDLC.md) | Operator process for `/plan` and `/deliver`. |
 | [`starter-agentrc.json`](starter-agentrc.json) | Bootstrap delta-seed copied to the consumer repo root as `.agentrc.json`. |
 | [`agentrc-reference.json`](docs/agentrc-reference.json) | Exhaustive editor reference enumerating every schema key with its framework default. |
 | [`personas/`](personas/) | Role-specific behavior packs selected by task persona or explicit user instruction. |
@@ -445,7 +445,7 @@ sessions, `gh auth login` is sufficient.
 ## Self-Healing Checks
 
 `scripts/lib/checks/` is the discovery-based registry of named checks
-consumed by preflight guards (`/epic-deliver`, `/story-close`, `npm test`),
+consumed by preflight guards (`/deliver`, `/story-close`, `npm test`),
 the `diagnose.js` ad-hoc viewer, and the retro surface. Use one check per
 file. The runner (`index.js`) loads checks at process start and filters by
 scope at each call site.
@@ -569,7 +569,7 @@ Schema conventions:
 ## Code review providers (pluggable chain)
 
 `runCodeReview()` (invoked at the end of `helpers/epic-deliver-story`,
-`helpers/single-story-deliver`, and `/epic-deliver`'s `delivery.code-review`
+`helpers/single-story-deliver`, and `/deliver`'s `delivery.code-review`
 state) loads its review backend through a pluggable registry. Two configuration shapes are supported:
 
 - **Legacy single provider** — `delivery.codeReview.provider: "native"`
@@ -721,7 +721,7 @@ falls from minutes to under a second.
 ## Multi-developer coordination
 
 Two operators can drive the same repository at once — one running
-`/epic-deliver <id>`, another running `/single-story-deliver <id>`, or two
+`/deliver <id>`, another running `/single-story-deliver <id>`, or two
 operators on the same Epic from separate clones. The framework keeps those
 runs from clobbering one another with **two distinct coordination layers**.
 They solve different problems and must not be confused:
@@ -763,7 +763,7 @@ yanks the claim back from whoever legitimately took over.
 
 **Where it's wired:**
 
-- **`/epic-deliver`** acquires the lease on the **Epic** ticket during its
+- **`/deliver`** acquires the lease on the **Epic** ticket during its
   prepare phase, before any mutating git work
   ([`epic-deliver-lease-guard.js`](scripts/lib/orchestration/epic-deliver-lease-guard.js)).
   A live foreign claim refuses the run; pass `--steal` to override and
@@ -776,7 +776,7 @@ yanks the claim back from whoever legitimately took over.
   ([`single-story-lease-guard.js`](scripts/lib/orchestration/single-story-lease-guard.js)).
   The standalone path requires `github.operatorHandle` to be set — without
   an operator identity the lease has no owner to record.
-- **`/epic-plan`** acquires the lease on the **Epic** ticket before Phase 7
+- **`/plan`** acquires the lease on the **Epic** ticket before Phase 7
   (spec) and releases it after Phase 8 (decompose)
   ([`epic-plan-lease-guard.js`](scripts/lib/orchestration/epic-plan-lease-guard.js)).
   Because planning emits no `story.heartbeat` (heartbeats are a
@@ -795,7 +795,7 @@ confuse:
 
 | File                              | Audience                          | Role                                                                                                                              |
 | --------------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `.agentrc.json` (repo root)       | The framework dogfooding itself   | Live config used when running `/epic-*`, `/story-deliver` against this repo. Exercises the framework end-to-end. |
+| `.agentrc.json` (repo root)       | The framework dogfooding itself   | Live config used when running `/epic-*`, `/deliver` against this repo. Exercises the framework end-to-end. |
 | `.agents/starter-agentrc.json`    | Downstream consumer repos         | Bootstrap delta-seed a consumer copies via `cp .agents/starter-agentrc.json .agentrc.json`. Minimum schema-required keys.        |
 | `.agents/docs/agentrc-reference.json`       | Operators and reviewers           | Exhaustive editor reference enumerating every schema key with its framework default. Not a copy target.                          |
 

@@ -6,7 +6,7 @@
  *
  * Replaces the three single-purpose emit shims
  * (`epic-deliver-finalize.js`, `epic-deliver-automerge.js`,
- * `epic-deliver-cleanup.js`) that the `/epic-deliver` workflow markdown
+ * `epic-deliver-cleanup.js`) that the `/deliver` workflow markdown
  * invoked in Phase 6, 7.5, and 8. Those shims each did exactly one
  * thing: construct a bus and emit one event. Collapsing them into a
  * single argv-driven CLI lets the workflow stay declarative ("fire

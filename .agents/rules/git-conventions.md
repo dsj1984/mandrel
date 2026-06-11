@@ -111,7 +111,7 @@ rejected by `pre-push` hooks):
 ## Meta Labels (Retrospective Signal Routing)
 
 Two `meta::*` labels route retrospective signals into durable substrates so
-the `/epic-plan` Phase 0 fetcher (see
+the `/plan` Phase 0 fetcher (see
 [`prior-feedback-fetcher.js`](../scripts/lib/feedback-loop/prior-feedback-fetcher.js))
 can surface open feedback issues to the planner. Both labels live in
 [`label-constants.js`](../scripts/lib/label-constants.js) under the

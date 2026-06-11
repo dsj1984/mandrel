@@ -2,11 +2,11 @@
  * Unit tests for the (relaxed) acceptance-spec start gate enforced by
  * `runSnapshotPhase`.
  *
- * The gate refuses to launch /epic-deliver when an Epic has neither the
+ * The gate refuses to launch /deliver when an Epic has neither the
  * `acceptance::n-a` waiver label nor a linked `context::acceptance-spec`
  * ticket. Ticket state is **not** checked — presence is sufficient.
  * Closure is no longer required as the approval signal; the reviewer's
- * OK during /epic-plan Phase 7 is the approval contract.
+ * OK during /plan Phase 7 is the approval contract.
  */
 
 import assert from 'node:assert/strict';

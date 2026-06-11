@@ -5,7 +5,7 @@
 /**
  * epic-plan-healthcheck.js — Post-Plan Readiness Check
  *
- * Runs at the end of /epic-plan (Phase 10) to validate the backlog and
+ * Runs at the end of /plan (Phase 10) to validate the backlog and
  * optionally prime the execution environment before handing off to
  * /epic-deliver.
  *
@@ -27,7 +27,7 @@
  *   node epic-plan-healthcheck.js --epic <EPIC_ID> \
  *     [--paranoid] [--prime-install] [--dry-run]
  *
- * @see .agents/workflows/epic-plan.md Phase 10
+ * @see .agents/workflows/helpers/plan-epic.md Phase 10
  */
 
 import { spawnSync } from 'node:child_process';

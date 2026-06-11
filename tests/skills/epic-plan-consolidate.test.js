@@ -2,7 +2,7 @@
  * Smoke + contract spec for the `epic-plan-consolidate` Skill (Story #3797).
  *
  * The consolidation pass is the holistic, pre-persist critic added to
- * `/epic-plan` Phase 8 (sub-step 8.3). These specs pin the Skill's
+ * `/plan` Phase 8 (sub-step 8.3). These specs pin the Skill's
  * front-matter contract and assert its body documents:
  *   - the scope-preserving operation set (merge / collapse / re-parent /
  *     rewire depends_on) and the MUST-NOT-add-scope invariant,

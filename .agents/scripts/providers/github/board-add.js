@@ -3,7 +3,7 @@
  *
  * Story #3822 — single source of truth for the post-create board-add
  * step. Issues created through any create path (`createTicket`,
- * `createIssue` — which backs `/story-plan` persist and the `/epic-plan`
+ * `createIssue` — which backs `/plan` persist and the `/plan`
  * Phase 4 Epic open) must land on the configured Projects V2 board
  * without relying on GitHub's "Auto-add to project" built-in workflow,
  * which is off by default on fresh boards and cannot be enabled via API.

@@ -1,5 +1,5 @@
 /**
- * epic-plan-ideation.js — Phase 3/4 helpers for /epic-plan
+ * epic-plan-ideation.js — Phase 3/4 helpers for /plan
  *
  * Phase 3: render an Epic body from a sharpened ideation one-pager
  * using the canonical template at `.agents/templates/epic-from-idea.md`.

@@ -152,7 +152,7 @@ export function decideAcceptanceEval({ verdict, maxRounds, round: roundIn }) {
 /**
  * Build the per-criterion acceptance-eval signal payload for the retro /
  * feedback substrate. Carries which acceptance items needed rework and the
- * round count so `/epic-plan` Phase 0 feedback fetch and the retro can
+ * round count so `/plan` Phase 0 feedback fetch and the retro can
  * surface acceptance churn. PII-free by construction — it carries only
  * acceptance-item indices, verdicts, and the terminal decision.
  *

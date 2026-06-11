@@ -28,8 +28,8 @@ import { calculateAll, scanDirectory } from './maintainability-utils.js';
  * baseline-snapshot.js — per-Epic baseline lifecycle helpers.
  *
  * Story #1396 (Epic #1386). The Epic-snapshot scheme freezes the maintainability
- * and crap baselines at /epic-plan time and reconciles them back to `main`
- * at /epic-deliver time. Two helpers, both pure-ish (deterministic given the
+ * and crap baselines at /plan time and reconciles them back to `main`
+ * at /deliver time. Two helpers, both pure-ish (deterministic given the
  * working tree + injected I/O):
  *
  *   - forkMainToEpic({ epicId, cwd }) — copies the tracked main baselines
@@ -37,20 +37,20 @@ import { calculateAll, scanDirectory } from './maintainability-utils.js';
  *     source content produces the same destination bytes (no fs churn). When
  *     the source baseline is missing, emits a warn through the injected
  *     logger and returns `{ written: false, reason: 'source-missing' }` for
- *     that file — callers (e.g. /epic-plan Phase 7) treat the absence as
+ *     that file — callers (e.g. /plan Phase 7) treat the absence as
  *     non-fatal and stay in `--full-scope` mode.
  *
  *   - regenerateMainFromTree({ cwd }) — re-scores maintainability + crap
  *     against the current working tree and writes the result to the tracked
  *     main baseline paths. Returns `{ didChange, paths }` where `didChange`
  *     is true iff any baseline file's content differs from what's already on
- *     disk. Callers in /epic-deliver use `didChange === false` to skip the
+ *     disk. Callers in /deliver use `didChange === false` to skip the
  *     `baseline-refresh: epic-<id>` commit.
  *
  * Lifecycle note (Story #1467): per-epic ratchet snapshots are ephemeral
  * scratch state under the `temp/epic-<id>/baselines/` namespace, NOT committed
  * artifacts. They inherit the existing per-epic temp-tree cleanup contract —
- * `/epic-deliver` reaps the parent `temp/epic-<id>/` directory on merge, so
+ * `/deliver` reaps the parent `temp/epic-<id>/` directory on merge, so
  * no manual prune is required. Earlier versions of this module wrote under
  * `baselines/epic/<id>/`, which committed them to git and accumulated obsolete
  * snapshots forever.
@@ -103,7 +103,7 @@ export function epicSnapshotPathFor({ epicId, kind, cwd = process.cwd() }) {
  *   - Source baseline missing → returned per-file `{ written: false,
  *     reason: 'source-missing' }`. Logger warn fires once per missing file.
  *     Caller stays in `--full-scope` mode.
- *   - Source unreadable / not parseable → throws. Re-running /epic-plan
+ *   - Source unreadable / not parseable → throws. Re-running /plan
  *     with `--force` after fixing the source recovers.
  *
  * @param {{
@@ -428,7 +428,7 @@ export function commitSnapshotsToEpicBranch({
  * via `delivery.quality.gates.crap.coveragePath`. When coverage is missing and
  * `requireCoverage` is true, the crap regeneration is skipped (didChange stays
  * false for that file) and a warn is emitted — the operator is expected to run
- * `npm run test:coverage` before /epic-deliver if a refresh is anticipated.
+ * `npm run test:coverage` before /deliver if a refresh is anticipated.
  *
  * @param {{
  *   cwd?: string,

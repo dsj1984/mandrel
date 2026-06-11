@@ -49,7 +49,7 @@ that the file was meaningfully updated during this Epic's lifecycle
 
 **When to run.** Optional. Useful as a pre-merge spot check when an
 Epic should have produced documentation updates; the standard
-`/epic-deliver` flow does **not** invoke this gate today.
+`/deliver` flow does **not** invoke this gate today.
 
 **Usage.**
 

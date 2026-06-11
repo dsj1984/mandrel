@@ -60,7 +60,7 @@ export function matchesAnyFilePattern(patterns, files) {
  *   callers MUST pass the requested Epic's own branch ref (e.g.
  *   `refs/heads/epic/<id>`) so the change set is pinned to that Epic's branch
  *   rather than whatever HEAD the shared checkout happens to sit on. Under two
- *   concurrent `/epic-deliver` runs sharing one checkout, diffing against
+ *   concurrent `/deliver` runs sharing one checkout, diffing against
  *   `HEAD` silently resolves the *other* Epic's change set (Story #3362). When
  *   `headRef` cannot be resolved in the repo, the selector returns a
  *   `degraded: true` envelope (or hard-fails in gate-mode) instead of diffing

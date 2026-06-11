@@ -6,7 +6,7 @@
  * advance the `epic-run-state` checkpoint, and re-render the unified
  * `epic-run-progress` rollup on the Epic.
  *
- * The slash-command (`/epic-deliver`) calls this CLI once per wave, after
+ * The slash-command (`/deliver`) calls this CLI once per wave, after
  * its host-level Agent-tool fan-out drains. It is the only writer of the
  * `epic-run-progress` structured comment for the wave-completion path —
  * there is no separate `/wave-execute` skill, no `wave-run-progress`
@@ -95,7 +95,7 @@ const HELP = `Usage: node .agents/scripts/epic-execute-record-wave.js \\
 
 Records the wave's per-Story outcomes, advances the epic-run-state
 checkpoint, and upserts the unified epic-run-progress rollup on the Epic.
-Prints the next action for the /epic-deliver slash command.
+Prints the next action for the /deliver slash command.
 `;
 
 /**
@@ -237,7 +237,7 @@ export async function runEpicExecuteRecordWave({
   //     Closes the start/end pairing the wave-tick reconciler and the
   //     `--check-idle` watchdog use to derive in-flight Stories. Before this
   //     the only producer was `wave-session.js`, which the host-LLM driven
-  //     /epic-deliver path never imports — so every dispatched Story stayed
+  //     /deliver path never imports — so every dispatched Story stayed
   //     "in-flight" forever and completed Stories tripped the watchdog.
   //     Best-effort: a failed append must not block the wave loop.
   emitWaveDispatchEnds({ epicId, verified, config });
@@ -257,7 +257,7 @@ export async function runEpicExecuteRecordWave({
 
   // 7. Fire the curated webhook events for this wave boundary. Mirrors the
   //    wave-loop emits in `lib/orchestration/epic-runner/phases/iterate-waves.js`
-  //    for the host-LLM driven /epic-deliver path (which does not pass
+  //    for the host-LLM driven /deliver path (which does not pass
   //    through `runEpic`). Each helper is fire-and-forget — webhook
   //    misconfig or a transient Slack outage must not block the wave loop.
   await emitWaveBoundaryNotifications({

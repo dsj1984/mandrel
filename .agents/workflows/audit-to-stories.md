@@ -3,7 +3,7 @@ description:
   Convert findings produced by the audit-* workflows into actionable
   GitHub Stories. Reads temp/audits/audit-*-results.md, groups findings
   cross-audit, deduplicates against existing Issues by fingerprint, and
-  either chains into /epic-plan --idea or opens standalone Stories.
+  either chains into /plan --idea or opens standalone Stories.
 ---
 
 # /audit-to-stories [audit-file-or-glob]
@@ -22,7 +22,7 @@ Dimension / Category, Current State, Recommendation, Agent Prompt).
 `/audit-to-stories` closes the loop: it parses those reports, groups
 related findings (including across audit dimensions), classifies each
 group as eligible-to-create or already-tracked, and — at the operator's
-choice — either chains into `/epic-plan --idea` for a single planned
+choice — either chains into `/plan --idea` for a single planned
 Epic or opens standalone Stories directly.
 
 The audit producers themselves are **not modified** by this workflow.
@@ -117,8 +117,8 @@ Ask:
 
 > How would you like these `<M>` Stories created?
 >
-> - **Single Epic via `/epic-plan`** **[Recommended]** — opens one Epic,
->   then chains into `/epic-plan --idea` so the standard PRD / Tech Spec
+> - **Single Epic via `/plan`** **[Recommended]** — opens one Epic,
+>   then chains into `/plan --idea` so the standard PRD / Tech Spec
 >   / WBS authoring handles decomposition. Grouped Stories become the
 >   seed for Phase 7 decomposition.
 > - **Individual standalone Stories** — opens one GitHub Issue per
@@ -128,7 +128,7 @@ Ask:
 
 ## Phase 5a — Single-Epic path
 
-Build the `/epic-plan` idea seed from the filtered plan envelope:
+Build the `/plan` idea seed from the filtered plan envelope:
 
 ```bash
 node .agents/scripts/audit-to-stories.js --emit-epic-seed \
@@ -138,16 +138,16 @@ node .agents/scripts/audit-to-stories.js --emit-epic-seed \
 
 The seed renders the canonical one-pager sections — Problem Statement,
 Recommended Direction, Key Assumptions (with links to every source
-report), MVP Scope (the M proposed Stories), Key Files (so `/epic-plan`
+report), MVP Scope (the M proposed Stories), Key Files (so `/plan`
 Phase 7 decompose has concrete anchors), Not Doing.
 
 Chain into the existing planning entrypoint:
 
 ```text
-/epic-plan --idea "<path-to-seed>"
+/plan --idea "<path-to-seed>"
 ```
 
-`/epic-plan` then runs ideation → duplicate-search → render Epic body
+`/plan` then runs ideation → duplicate-search → render Epic body
 → open Epic → Phase 7 / 8 decompose, as documented in its workflow.
 Each Story it spawns from the seed carries `context::audit:
 <reportLink>` and `audit-fingerprint: <sha>` in its body so future
@@ -225,7 +225,7 @@ summarising the run:
 - Final tally: `"<M> groups planned · <K> created · <J> skipped (open)
   · <L> skipped (re-occurring)"`.
 
-When the Single-Epic path ran, link the Epic the chained `/epic-plan`
+When the Single-Epic path ran, link the Epic the chained `/plan`
 opened. When the Standalone-Stories path ran, list every Issue URL.
 
 ## Constraints
@@ -250,7 +250,7 @@ opened. When the Standalone-Stories path ran, list every Issue URL.
 
 ## See also
 
-- [`/epic-plan`](epic-plan.md) — the planning pipeline `/audit-to-stories`
+- [`/plan`](helpers/plan-epic.md) — the planning pipeline `/audit-to-stories`
   chains into for the Single-Epic grouping mode.
 - [`lib/findings/route-finding.js`](../scripts/lib/findings/route-finding.js) —
   the shared fingerprint/dedup/route helper this workflow and `qa-explore`

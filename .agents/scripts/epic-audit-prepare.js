@@ -2,7 +2,7 @@
 /* node:coverage ignore file */
 
 /**
- * epic-audit-prepare.js — Phase 4 prepare CLI for `/epic-deliver`.
+ * epic-audit-prepare.js — Phase 4 prepare CLI for `/deliver`.
  *
  * Thin glue around the audit-suite `selectAudits` SDK. Reads the Epic
  * ticket, runs the change-set selector against the Epic branch diff
@@ -193,7 +193,7 @@ function resolveTaskSizing(config) {
  * Best-effort and total, mirroring `resolveRiskRoutedLenses`: a
  * missing/unparseable checkpoint, an absent `planningRisk` field, or a
  * provider read failure all degrade to `standard` — the neutral default that
- * preserves today's behavior — so an Epic that skipped `/epic-plan` (no
+ * preserves today's behavior — so an Epic that skipped `/plan` (no
  * checkpoint) still gets a passing `standard` pass with no new failure mode.
  * The changed-file count can only escalate a low-risk Epic to `deep` (a wide
  * diff) and never downgrades a high-risk one; an unknown/absent count is the
@@ -295,7 +295,7 @@ export async function runEpicAuditPrepare(values, deps = {}) {
   const runner = deps.selectAudits ?? selectAudits;
 
   // Pin the change set to the requested Epic's own branch rather than the
-  // shared checkout's HEAD (Story #3362). Under two concurrent /epic-deliver
+  // shared checkout's HEAD (Story #3362). Under two concurrent /deliver
   // runs sharing one working copy, a HEAD-relative diff silently reports the
   // *other* Epic's change set; `refs/heads/epic/<id>` is unambiguous.
   const epicBranch = `epic/${epicId}`;

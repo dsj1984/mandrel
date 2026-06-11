@@ -227,7 +227,7 @@ describe('openEpicFromOnePager', () => {
  *
  * Drives `openEpicFromOnePager` through a createIssue port backed by the
  * real `TicketGateway.createIssue` (fake gh facade, recording hooks) —
- * the production wiring the `/epic-plan` Phase 4 workflow prescribes —
+ * the production wiring the `/plan` Phase 4 workflow prescribes —
  * and proves the board-add helper fires with the new issue's `node_id`
  * when a project number is configured, and skips cleanly when it is not.
  */

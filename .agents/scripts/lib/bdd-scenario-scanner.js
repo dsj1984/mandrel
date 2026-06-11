@@ -1,5 +1,5 @@
 /**
- * bdd-scenario-scanner.js — Gherkin scenario index for /epic-plan Phase 7.
+ * bdd-scenario-scanner.js — Gherkin scenario index for /plan Phase 7.
  *
  * Story #2637 (sibling to #2634 codebase-snapshot, #2635 spec-freshness,
  * #2636 file-assumption gate). The Acceptance Engineer step of
@@ -7,7 +7,7 @@
  * alone — it never inspects the consumer project's existing `.feature`
  * files. Planned ACs frequently duplicate scenarios that already exist or
  * re-specify behaviour the codebase already proves; the duplication is
- * only discovered (at best) during `/story-deliver` or (at worst) after
+ * only discovered (at best) during `/deliver` or (at worst) after
  * a redundant PR ships.
  *
  * `scanBddScenarios` walks every configured feature root, parses each
@@ -20,7 +20,7 @@
  * have a matching scenario.
  *
  * Determinism is load-bearing: the matcher is keyword-based, not
- * embedding-based, so re-running `/epic-plan` against the same
+ * embedding-based, so re-running `/plan` against the same
  * acceptance spec produces the same disposition annotations.
  */
 

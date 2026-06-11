@@ -1,7 +1,7 @@
 ---
 description: >-
   Helper — not a slash command. Execute one Epic-attached Story end-to-end on
-  behalf of `/epic-deliver`. Calls `story-init.js`, `cd`s into the worktree,
+  behalf of `/deliver`. Calls `story-init.js`, `cd`s into the worktree,
   runs the Story-implementation phase against the inline acceptance[] /
   verify[] arrays, writes a `story-run-progress` snapshot per transition, and
   finally calls `story-close.js` to merge into the Epic branch and reap the
@@ -13,19 +13,19 @@ caller: epic-deliver.md
 
 > **Not a slash command.** This file lives in `helpers/` and is not projected
 > into the mandrel plugin command tree. It is invoked exclusively by the
-> [`/epic-deliver`](../epic-deliver.md) per-wave fan-out via an `Agent` tool
-> call (`subagent_type: general-purpose`). Run `/epic-deliver <epicId>` from
+> [`/deliver`](deliver-epic.md) per-wave fan-out via an `Agent` tool
+> call (`subagent_type: general-purpose`). Run `/deliver <epicId>` from
 > the operator surface, not this helper directly.
 
 ## Overview
 
 `epic-deliver-story` is the **single-Story worker** for Epic-attached Stories.
-It sits below [`/epic-deliver`](../epic-deliver.md) (which fans out one Story
+It sits below [`/deliver`](deliver-epic.md) (which fans out one Story
 sub-agent per slot, per wave) and runs one Story from init to close in one
 invocation.
 
 ```text
-/epic-deliver <epicId>
+/deliver <epicId>
   → for each wave N:
       Agent tool × concurrencyCap parallel calls (one assistant turn):
         helpers/epic-deliver-story <storyId>
@@ -36,10 +36,10 @@ invocation.
 ```
 
 The argument is always a **Story ID** (`type::story`). Epic IDs go through
-[`/epic-deliver`](../epic-deliver.md).
+[`/deliver`](deliver-epic.md).
 
 **Standalone Stories** (no `Epic: #N` in body) use
-[`/story-deliver`](../story-deliver.md) instead — that workflow's helper
+[`/deliver`](deliver-stories.md) instead — that workflow's helper
 branches from `main`, opens its PR directly to `main`, and skips the
 Epic-scoped machinery (cascade, dispatch manifest, dashboard regen). This
 helper requires a parent Epic and will refuse to initialize a Story that lacks
@@ -56,7 +56,7 @@ the `Epic: #N` reference.
 
 ## Non-interactive execution contract
 
-`epic-deliver-story` runs as a sub-agent of `/epic-deliver`'s per-wave fan-out
+`epic-deliver-story` runs as a sub-agent of `/deliver`'s per-wave fan-out
 (common case) or interactively for a single Story. Sub-agent runs share
 the parent's permissions but have **no input channel** mid-run.
 
@@ -130,7 +130,7 @@ The Step 0 result envelope carries a `prepare.renderedBody` field — the
 markdown body for the initial Story-phase table. **Relay it verbatim to
 chat** so operators see the initial progress block before the first commit
 lands. Do the same after every transition in Step 1 / Step 3 (the body is
-the Story-level rollup the parent `/epic-deliver` aggregator reads).
+the Story-level rollup the parent `/deliver` aggregator reads).
 
 ---
 
@@ -291,7 +291,7 @@ When run as a sub-agent, return one JSON object:
 > existing `storyId` / `branchDeleted` / `phase` / `detail` /
 > `renderedBody` fields — do **not** add new envelope fields). Do not
 > narrate the steps you took to get there, and do not prescribe how
-> `/epic-deliver`'s aggregator should do its job downstream. The parent
+> `/deliver`'s aggregator should do its job downstream. The parent
 > reads structured state from this envelope and the `story-run-progress`
 > snapshot; prose process commentary only bloats the hydrated prompt
 > (`delivery.maxTokenBudget` elision).
@@ -307,7 +307,7 @@ regardless of the reap status.
 `renderedBody` is the **most recent** `renderedBody` returned by
 `story-phase.js` (typically the `phase: 'done'` snapshot at close,
 or the `phase: 'blocked'` snapshot on a blocker). The parent
-`/epic-deliver` may inline a digest of this in its wave-level Notable
+`/deliver` may inline a digest of this in its wave-level Notable
 section. When run interactively (no parent), omit it — the chat already
 has the latest body relayed during Step 1 / Step 3.
 
@@ -328,7 +328,7 @@ running this helper against an already-closed Story is safe.
   only integration target is the parent Epic's integration branch. If
   `story-close.js` short-circuits, no-ops, or otherwise fails to merge,
   **do NOT** fall back to `gh pr create --base main`, **do NOT** invoke
-  `/story-deliver` on the same Story, and **do NOT** open a PR by
+  `/deliver` on the same Story, and **do NOT** open a PR by
   hand against `main`. Such a PR orphans the change on `main` and forces
   a manual `git merge origin/main` back into `epic/<id>` to recover (the
   Epic #2880 wave-5 / Story #2960 friction note). The framework refuses

@@ -65,8 +65,8 @@ export async function resolveAndDispatch(options) {
     throw new Error(
       `[Dispatcher] Ticket #${ticketId} is a **Story**. Stories are dispatched ` +
         'through the Story delivery path, not directly via the dispatcher. ' +
-        `Run \`/story-deliver ${ticketId}\` to execute this Story, ` +
-        `or dispatch its parent Epic with \`/epic-deliver #<epicId>\`.`,
+        `Run \`/deliver ${ticketId}\` to execute this Story, ` +
+        `or dispatch its parent Epic with \`/deliver #<epicId>\`.`,
     );
   }
 
@@ -96,8 +96,8 @@ export async function dispatch(options) {
   // Every Epic is 2-tier (Epic → Story). Compute Story-level
   // waves directly from the Story tickets and emit a 2-tier-shaped
   // manifest with `waves[].stories[]` so downstream consumers (manifest
-  // renderer, /epic-deliver wave planner) see the correct execution plan.
-  // Per-Story execution is owned by `/story-deliver` (story-init →
+  // renderer, /deliver wave planner) see the correct execution plan.
+  // Per-Story execution is owned by `/deliver` (story-init →
   // story-close), not by this dispatcher.
   if (isTwoTierDispatch(fetched.allTickets)) {
     Logger.info(
@@ -119,7 +119,7 @@ export async function dispatch(options) {
   }
 
   // No Story tickets under the Epic — nothing to dispatch. Emit an empty
-  // manifest so callers (renderer, /epic-deliver) get a well-formed
+  // manifest so callers (renderer, /deliver) get a well-formed
   // artifact instead of a throw.
   Logger.info('No Story tickets found under the Epic. Nothing to dispatch.');
   return buildManifest({

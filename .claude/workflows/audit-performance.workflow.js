@@ -33,7 +33,7 @@
  * in `lib/dynamic-workflow/performance-report-contract.js`. The orchestrated
  * path assembles its cross-checked findings into exactly that skeleton and
  * self-verifies with `assertReportContract` before writing, so downstream
- * consumers (`/epic-deliver` Phase 4 epic-audit, `audit-to-stories`) cannot
+ * consumers (`/deliver` Phase 4 epic-audit, `audit-to-stories`) cannot
  * tell which path produced the report.
  *
  * ## Shared orchestration engine
@@ -60,7 +60,7 @@
  *
  * Honours the lens's `## Scope (Epic mode)` `{{changedFiles}}` contract:
  * when `inputs.changedFiles` is a non-empty newline-delimited list (Epic-mode
- * invocation from `/epic-deliver` Phase 4) the scan is restricted to those
+ * invocation from `/deliver` Phase 4) the scan is restricted to those
  * files; otherwise it is a full codebase-wide scan, identical to a manual
  * `/audit-performance`.
  *

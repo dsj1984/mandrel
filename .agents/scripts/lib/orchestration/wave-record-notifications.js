@@ -3,7 +3,7 @@
  * `epic-execute-record-wave.js`.
  *
  * The CLI fires curated webhook events at every wave boundary (started,
- * progress, blocked, unblocked) so the host-LLM-driven `/epic-deliver` path
+ * progress, blocked, unblocked) so the host-LLM-driven `/deliver` path
  * mirrors the wave-loop emits in
  * `lib/orchestration/epic-runner/phases/iterate-waves.js`. Each helper here
  * is fire-and-forget — webhook misconfig or a transient Slack outage must
@@ -45,7 +45,7 @@ export function buildNotifyFn(injectedNotify, config, provider, defaultNotify) {
  * fire-and-forget (the emit helpers swallow webhook misconfiguration), but
  * we still serialise them so the order matches the wave-loop emits in
  * `lib/orchestration/epic-runner/phases/iterate-waves.js` for the host-LLM
- * driven /epic-deliver path.
+ * driven /deliver path.
  */
 export async function emitWaveBoundaryNotifications({
   injectedNotify,

@@ -5,7 +5,7 @@
  *
  * The wrapper was dry-run-only after Wave 6 and emitted a hard error
  * in non-dry-run mode. Story #2259 deletes it outright; the
- * `/epic-deliver` slash command (driving the lifecycle bus listener
+ * `/deliver` slash command (driving the lifecycle bus listener
  * chain) is the sole entry point for Epic delivery from this Story
  * forward.
  *
@@ -141,21 +141,21 @@ describe('Deliver-runner CLI retirement (Task #2264)', () => {
       hits,
       [],
       `Found stale references to '${FORBIDDEN_LITERAL}' in:\n  ${hits.join('\n  ')}\n` +
-        '/epic-deliver is the sole entry point — these files must be updated.',
+        '/deliver is the sole entry point — these files must be updated.',
     );
   });
 
-  it('/epic-deliver slash command remains the documented entry point', () => {
+  it('/deliver slash command remains the documented entry point', () => {
     const docPath = path.join(
       PROJECT_ROOT,
       '.agents',
       'workflows',
-      'epic-deliver.md',
+      'deliver.md',
     );
     assert.equal(
       existsSync(docPath),
       true,
-      'epic-deliver workflow markdown must remain on disk.',
+      'deliver workflow markdown must remain on disk.',
     );
   });
 });

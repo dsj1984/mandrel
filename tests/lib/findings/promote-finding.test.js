@@ -4,8 +4,8 @@
  * Every GitHub side-effect flows through an injected port; these tests pass
  * in-memory stubs so the whole suite runs with NO network. The `searchIssues`
  * stub models a fingerprint-keyed issue index (the contract `routeFinding`
- * expects); `createStory` / `createEpic` model the `/story-plan` and
- * `/epic-plan --idea` surfaces by handing back a fresh issue record.
+ * expects); `createStory` / `createEpic` model the `/plan` and
+ * `/plan --idea` surfaces by handing back a fresh issue record.
  */
 
 import assert from 'node:assert/strict';
@@ -181,7 +181,7 @@ test('targetForCluster: broad cluster (>2 surfaces) routes to an Epic', () => {
   );
 });
 
-test('promoteFindings: new tight cluster opens a Story via /story-plan port', async () => {
+test('promoteFindings: new tight cluster opens a Story via /plan port', async () => {
   const items = [untriagedItem({ id: 'L1' }), untriagedItem({ id: 'L2' })];
   const { searchIssues } = makeIssueStore([]); // empty → every route is `new`
   const story = makeCreatePort(101, 'story');
@@ -204,7 +204,7 @@ test('promoteFindings: new tight cluster opens a Story via /story-plan port', as
   assert.equal(epic.calls.length, 0);
 });
 
-test('promoteFindings: broad cluster opens an Epic via /epic-plan --idea port', async () => {
+test('promoteFindings: broad cluster opens an Epic via /plan --idea port', async () => {
   const items = [
     untriagedItem({ id: 'L1', coverage: 'a' }),
     untriagedItem({ id: 'L2', coverage: 'b' }),
@@ -342,7 +342,7 @@ test('promoteFindings: runs offline through injected ports (AC #3)', async () =>
       return searchIssues(sha);
     },
     createStory: async (cluster) => {
-      assert.ok(cluster.title, 'cluster carries a title for /story-plan');
+      assert.ok(cluster.title, 'cluster carries a title for /plan');
       return { number: 500, url: 'https://github.com/o/r/issues/500' };
     },
     createEpic: async () => {

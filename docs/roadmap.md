@@ -693,7 +693,7 @@ failure dashboards; retention, redaction, and support-bundle tooling.
 
 Evidence: the instruction layer formerly mandated active token tracking + hard
 stops, but the implementation mostly estimates prompt-hydration budget and
-pre-dispatch preflight (`epic-deliver-preflight.js`); `/epic-deliver` runs
+pre-dispatch preflight (`epic-deliver-preflight.js`); `/deliver` runs
 inside the operator's Claude Max session and quota exhaustion becomes
 `agent::blocked`. Instruction-text honesty was remediated in #3398.
 

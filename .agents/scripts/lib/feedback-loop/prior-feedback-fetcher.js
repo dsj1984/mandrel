@@ -1,6 +1,6 @@
 /**
  * prior-feedback-fetcher.js — gh-CLI-backed fetcher for open meta feedback
- * issues that feed the `/epic-plan` Phase 0 planner context.
+ * issues that feed the `/plan` Phase 0 planner context.
  *
  * Story #2554 / Epic #2547. Tech Spec #2550 specifies that the fetcher MUST
  * return open issues carrying the `meta::framework-gap` and

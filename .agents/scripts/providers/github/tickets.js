@@ -361,8 +361,8 @@ export class TicketGateway {
   /**
    * Create a **bare** issue — no `parent: #N` footer composition and no
    * sub-issue link. Serves the standalone create paths that bypass
-   * `createTicket`'s Story-shaped body rendering: the `/story-plan`
-   * persist step and the `/epic-plan` Phase 4 Epic open
+   * `createTicket`'s Story-shaped body rendering: the `/plan`
+   * persist step and the `/plan` Phase 4 Epic open
    * (`openEpicFromOnePager`'s `createIssue` port).
    *
    * After the POST, the new issue is added to the configured Project V2

@@ -96,7 +96,7 @@ export function normalizeOperatorHandle(raw) {
  * observability artifact never wedges the lease preflight.
  *
  * This is the shared liveness source the lease guards thread into
- * `acquireLease` via `heartbeatAt`; `/epic-plan` and `/epic-deliver` both
+ * `acquireLease` via `heartbeatAt`; `/plan` and `/deliver` both
  * reuse it so a live foreign claim actually refuses.
  *
  * @param {object} args

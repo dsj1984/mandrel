@@ -16,7 +16,7 @@
  *      and the resolved, undisableable round cap
  *      (`delivery.acceptanceEval.maxRounds`, clamped to `[1, ceiling]`).
  *   3. Emit one per-criterion `acceptance-eval` signal into the retro /
- *      feedback substrate so the retro and `/epic-plan` Phase 0 feedback
+ *      feedback substrate so the retro and `/plan` Phase 0 feedback
  *      fetch can see which acceptance items needed rework and the round
  *      count.
  *   4. Print a single JSON envelope and exit:

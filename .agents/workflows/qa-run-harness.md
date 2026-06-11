@@ -22,7 +22,7 @@ console filtering.
 
 > **When to run**: During sprint testing to exercise a targeted slice of the
 > acceptance suite (a feature, a tag expression, or a domain), for regression
-> passes before `/epic-deliver`, or on demand while debugging a Story's
+> passes before `/deliver`, or on demand while debugging a Story's
 > user-visible behavior in a live browser.
 >
 > **Persona**: `qa-engineer` · **Skills**: `stack/qa/gherkin-authoring`,

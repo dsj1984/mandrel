@@ -39,9 +39,9 @@ describe('story-init-not-backgrounded.detect', () => {
 
   it('returns null for synchronous Bash(timeout) invocations of story-init.js', () => {
     fixture.write(
-      'workflows/story-deliver.md',
+      'workflows/helpers/deliver-stories.md',
       [
-        '# /story-deliver',
+        '# /deliver',
         '',
         'Run story-init.js synchronously with the Bash tool:',
         '',
@@ -140,9 +140,9 @@ describe('story-init-not-backgrounded.detect', () => {
     // story-init.js AND Monitor — but only as a warning against the
     // antipattern. The check must not false-positive here.
     fixture.write(
-      'workflows/story-deliver.md',
+      'workflows/helpers/deliver-stories.md',
       [
-        '# /story-deliver',
+        '# /deliver',
         '',
         'Run story-init.js synchronously with Bash(timeout: 600000).',
         'Do **not** use run_in_background + Monitor here: Monitor will',

@@ -115,7 +115,7 @@ describe('epic-plan-lease-guard — resolveOperator', () => {
 // ---------------------------------------------------------------------------
 // acquireEpicPlanLease — claim-time liveness (Story #4019)
 //
-// `/epic-plan` emits no story.heartbeat, so the lease records its own
+// `/plan` emits no story.heartbeat, so the lease records its own
 // claim-time in a `plan-lease` structured comment at acquire time. A foreign
 // claim fresher than the lease TTL (default 15 min) refuses unless `--steal`;
 // a stale or record-less claim is reclaimed automatically — which is what
@@ -228,7 +228,7 @@ describe('epic-plan-lease-guard — acquireEpicPlanLease (claim-time liveness)',
     assert.deepEqual(provider.state.assignees, [OPERATOR]);
   });
 
-  it('records the claim-time on acquire (the liveness signal /epic-plan emits)', async () => {
+  it('records the claim-time on acquire (the liveness signal /plan emits)', async () => {
     const provider = makeProvider({ assignees: [] });
 
     await acquireEpicPlanLease({

@@ -19,7 +19,7 @@
  *
  *   - **Operator candidates** — each surface supplies its own ordered
  *     candidate list (e.g. `--as` flag → `github.operatorHandle` →
- *     `git user.email` for `/epic-deliver`; bare `operatorHandle` for the
+ *     `git user.email` for `/deliver`; bare `operatorHandle` for the
  *     plan/standalone paths).
  *   - **Missing-handle behaviour** — `'null'` (return null; the caller fails
  *     closed at acquire time) vs `'throw'` (refuse immediately with surface
@@ -31,7 +31,7 @@
  *     message via `renderRefusal(result, ticketId)`.
  *   - **Liveness anchoring** — the plan/standalone paths have no heartbeat
  *     ledger, so they anchor `heartbeatAt` to `now` (fail-closed: every
- *     foreign claim reads live). `/epic-deliver` threads a real
+ *     foreign claim reads live). `/deliver` threads a real
  *     `heartbeatAt` through from the lifecycle ledger, so it opts out of
  *     anchoring.
  *
@@ -91,7 +91,7 @@ export function resolveOperatorFromCandidates({
  * same resolved clock value so `isClaimLive` returns true for ANY foreign
  * owner — `acquireLease` then refuses a foreign assignee unless `steal` is
  * set, while unclaimed and self-held tickets still proceed without a write.
- * When unset (`/epic-deliver`), the caller-supplied `heartbeatAt` / `now`
+ * When unset (`/deliver`), the caller-supplied `heartbeatAt` / `now`
  * pass through untouched.
  *
  * @param {object} opts

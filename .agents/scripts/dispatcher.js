@@ -72,7 +72,7 @@ import { loadSpec, loadState } from './lib/spec/index.js';
  * loaded state mapping. The spec-aware renderer (`buildManifestFromSpec`)
  * looks up each Story's status via `state.mapping[slug].lastObservedAgentState`;
  * that field is only refreshed by the structural reconciler, so during
- * `/epic-deliver` execution it stays `null` and every Story renders as ⬜
+ * `/deliver` execution it stays `null` and every Story renders as ⬜
  * pending even after the Story merges. The wave-runner replaced the
  * dispatcher-per-wave refresh loop and the local state.json never sees
  * the progress signal.

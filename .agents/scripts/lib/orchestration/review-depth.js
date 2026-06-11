@@ -22,7 +22,7 @@
  *                  is enumerated).
  *   - `standard` — everything else, including absent/malformed risk envelopes
  *                  and a `medium` level. Fail toward the middle, never toward
- *                  `light`: an Epic that skipped `/epic-plan` has no risk
+ *                  `light`: an Epic that skipped `/plan` has no risk
  *                  verdict, and treating it as `light` would under-review
  *                  unjudged work while `standard` preserves today's behaviour.
  *

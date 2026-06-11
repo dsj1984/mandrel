@@ -4,7 +4,7 @@
  * story-phase.js — phase snapshot + heartbeat writer (2-tier).
  *
  * Replaces the deleted per-Task progress writer from the 4-tier era
- * (removed under #3157). `/story-deliver` calls this CLI at each Story-
+ * (removed under #3157). `/deliver` calls this CLI at each Story-
  * level phase transition (init → implementing → closing → done, or any
  * → blocked). Each call:
  *
@@ -14,7 +14,7 @@
  *      longer posts a `story-run-progress` comment (the redundant mid-flight
  *      progress surface was deleted); the snapshot is render-only.
  *   2. Appends one `story.heartbeat` lifecycle record to
- *      `temp/epic-<epicId>/lifecycle.ndjson` so `/epic-deliver`'s
+ *      `temp/epic-<epicId>/lifecycle.ndjson` so `/deliver`'s
  *      §2e Idle Watchdog (`wave-tick.js --check-idle 30`) can confirm
  *      forward progress without polling the Story comment.
  *
@@ -35,7 +35,7 @@
  *
  * `renderedBody` is the markdown body upserted onto the Story so the
  * caller can relay it to chat verbatim (mirrors the contract the deleted
- * per-Task progress writer exposed and that `/story-deliver` Step 1 / 3
+ * per-Task progress writer exposed and that `/deliver` Step 1 / 3
  * already documents).
  */
 
@@ -175,7 +175,7 @@ async function resolveStoryBranch({ provider, storyId }) {
  * lease-owner handle the SAME way the lease primitive does
  * (`normalizeOperatorHandle(github.operatorHandle)`) and stamps it as
  * `operator` so `latestHeartbeatForOwner({ epicId, owner })` resolves a real
- * heartbeat — without it `isClaimLive(null)` is false and /epic-deliver
+ * heartbeat — without it `isClaimLive(null)` is false and /deliver
  * silently reclaims a live foreign claim (audit #3513). The field is attached
  * only when a handle resolves, preserving the "omit when absent" shape for
  * repos that have not configured `github.operatorHandle`. A failed append is

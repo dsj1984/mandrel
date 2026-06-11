@@ -1,7 +1,7 @@
 /**
  * tests/scripts/epic-plan.spec-flow.test.js — Story #1498 / Task #1528.
  *
- * End-to-end integration test for the rewritten /epic-plan persist
+ * End-to-end integration test for the rewritten /plan persist
  * halves. Locks in the AC for the spec-write + reconcile pipeline:
  *
  *   - `runDecomposePhase` no longer calls `provider.createTicket`
@@ -510,8 +510,7 @@ const HIGH_RISK_VERDICT = {
     {
       axis: 'critical-workflow',
       level: 'high',
-      rationale:
-        'Changes /epic-plan gate behavior and acceptance-spec creation.',
+      rationale: 'Changes /plan gate behavior and acceptance-spec creation.',
     },
   ],
   summary: 'High-risk planning-gate change.',
@@ -548,7 +547,7 @@ describe('review routing — Story #2795', () => {
   it('high-risk runSpecPhase records review-required routing in checkpoint', async () => {
     const provider = buildRunSpecPhaseProvider({
       title: 'Adaptive planning gate routing',
-      body: 'Changes /epic-plan gate behavior and acceptance-spec creation.',
+      body: 'Changes /plan gate behavior and acceptance-spec creation.',
     });
 
     const result = await runSpecPhase(
@@ -652,7 +651,7 @@ describe('acceptance disposition persistence — Story #2792', () => {
   it('required disposition creates and links context::acceptance-spec', async () => {
     const provider = buildPlanEpicProvider({
       title: 'Adaptive planning gate routing',
-      body: 'Changes /epic-plan gate behavior and acceptance-spec creation.',
+      body: 'Changes /plan gate behavior and acceptance-spec creation.',
     });
 
     await planEpic(

@@ -115,7 +115,7 @@ function labelsEqual(a, b) {
  * a naive replace-style label diff would propose removing operator-
  * managed metadata that lives in these namespaces.
  *
- * Why: Story #2056 / Epic #1994 — `/epic-plan` was silently stripping
+ * Why: Story #2056 / Epic #1994 — `/plan` was silently stripping
  * `type::epic` and `risk::*` from the parent Epic on every decompose,
  * which then broke `dispatcher.js` (`type "unknown"`). Defence-in-depth
  * lives here in the diff engine: even if a future spec author drops
@@ -133,7 +133,7 @@ const PROTECTED_EPIC_LABEL_NAMESPACES = Object.freeze([
   'risk::',
   // Story #3050 — `acceptance::*` is set by Phase 7 spec-persist when
   // `planningRisk.acceptanceDisposition='not-applicable'` (or another
-  // disposition) and gates downstream `/epic-deliver` start/finalize
+  // disposition) and gates downstream `/deliver` start/finalize
   // behavior. Before this namespace was protected, Phase 8 decompose
   // diffed the Epic's labels against a spec entry that doesn't carry
   // `acceptance::*`, silently emitting an Update that stripped the
@@ -325,7 +325,7 @@ function fieldChanges(specEntity, obs, mapping, ctx = {}) {
   // feature/story/task body fields): "When omitted, the GH issue body
   // is left untouched". Pre-Story-#2283 the engine treated `undefined`
   // as `""`, which emitted a destructive `body: <existing> → ""` Update
-  // on every `/epic-plan` Phase 8 because the decomposer's renderer
+  // on every `/plan` Phase 8 because the decomposer's renderer
   // projects the Epic spec entry from `{ id, title }` only. Skip the
   // body diff entirely when the spec did not carry a body string. An
   // explicit `body: ""` in the spec still produces a clear-op when the

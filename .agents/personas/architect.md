@@ -51,7 +51,7 @@ Before permitting any code generation, you must enforce this workflow:
 ### C. Protocol Evolution (Self-Healing)
 
 - **Friction Analysis:** During the retro phase (Phase 5 of
-  `/epic-deliver`, driven by `lib/orchestration/retro-runner.js`), you
+  `/deliver`, driven by `lib/orchestration/retro-runner.js`), you
   MUST analyze the
   `agent-friction-log.json` to identify systemic bottlenecks, repetitive tool
   failures, or prompt ambiguities.

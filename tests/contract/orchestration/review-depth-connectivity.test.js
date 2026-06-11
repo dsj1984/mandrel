@@ -71,7 +71,7 @@ test('producer: medium-risk checkpoint → standard', async () => {
   assert.equal(depth, 'standard');
 });
 
-test('producer: missing checkpoint → standard (Epic skipped /epic-plan)', async () => {
+test('producer: missing checkpoint → standard (Epic skipped /plan)', async () => {
   const depth = await resolveReviewDepthForEpic({
     epicId: 100,
     provider: {},

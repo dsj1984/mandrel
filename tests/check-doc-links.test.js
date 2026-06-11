@@ -30,14 +30,21 @@ function makeFakeRepo() {
   fs.mkdirSync(path.join(root, 'docs', 'archive'), { recursive: true });
   fs.mkdirSync(path.join(root, '.agents'), { recursive: true });
   fs.mkdirSync(path.join(root, '.agents', 'workflows'), { recursive: true });
-  // Seed two workflow files so /epic-plan and /story-deliver resolve.
+  // Seed two workflow files so /plan and /deliver resolve.
+  fs.mkdirSync(path.join(root, '.agents', 'workflows', 'helpers'), {
+    recursive: true,
+  });
   fs.writeFileSync(
-    path.join(root, '.agents', 'workflows', 'epic-plan.md'),
-    '# epic-plan\n',
+    path.join(root, '.agents', 'workflows', 'plan.md'),
+    '# plan\n',
   );
   fs.writeFileSync(
-    path.join(root, '.agents', 'workflows', 'story-deliver.md'),
-    '# story-deliver\n',
+    path.join(root, '.agents', 'workflows', 'deliver.md'),
+    '# deliver\n',
+  );
+  fs.writeFileSync(
+    path.join(root, '.agents', 'workflows', 'helpers', 'plan-epic.md'),
+    '# plan-epic\n',
   );
   return root;
 }
@@ -57,7 +64,7 @@ test('runCheck (a) passing fixture: clean tree exits 0 with zero violations', ()
     root,
     'docs/intro.md',
     '# Intro\n\n' +
-      'See [the spec](spec.md) and run [/epic-plan](../.agents/workflows/epic-plan.md).\n\n' +
+      'See [the spec](spec.md) and run [/plan](../.agents/workflows/helpers/plan-epic.md).\n\n' +
       'Visit https://example.com/issues/1 for context, store scratch in /temp/.\n\n' +
       'Jump to [later](#later).\n\n' +
       '## later\n',

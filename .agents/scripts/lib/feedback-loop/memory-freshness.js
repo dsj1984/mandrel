@@ -1,5 +1,5 @@
 /**
- * memory-freshness.js — walker + verifier for the `/epic-plan` Phase 0
+ * memory-freshness.js — walker + verifier for the `/plan` Phase 0
  * memory-freshness pre-flight. Story #2557 / Epic #2547. Tech Spec #2550.
  *
  * Walks every `.md` file under a memory directory (typically

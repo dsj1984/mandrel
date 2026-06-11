@@ -30,7 +30,7 @@ const VALID_VERDICT = {
     {
       axis: 'critical-workflow',
       level: 'high',
-      rationale: 'Rewrites the /epic-plan gate routing path.',
+      rationale: 'Rewrites the /plan gate routing path.',
     },
   ],
   summary: 'High-risk planning-gate change.',

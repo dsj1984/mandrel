@@ -34,7 +34,7 @@ const RECONCILE_CONCURRENCY = 4;
  * container are done, closes the container and applies `agent::done`.
  *
  * Epic auto-closure is intentionally excluded — Epics close only through
- * the formal `/epic-deliver` workflow.
+ * the formal `/deliver` workflow.
  *
  * Per-ticket provider failures are logged and swallowed so a single bad
  * ticket cannot halt reconciliation across the rest of the graph.
@@ -126,5 +126,5 @@ export async function reconcileHierarchy(
   });
 
   // EXCLUSION: Epic auto-closure removed.
-  // The Epic ticket now stays open until the formal /epic-deliver workflow is executed.
+  // The Epic ticket now stays open until the formal /deliver workflow is executed.
 }

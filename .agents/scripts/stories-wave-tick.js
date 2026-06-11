@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * stories-wave-tick.js — DAG/wave engine for the top-level /story-deliver workflow.
+ * stories-wave-tick.js — DAG/wave engine for the top-level /deliver workflow.
  *
  * Consumes an operator-supplied dependency DAG of standalone Story IDs and
  * emits ordered execution waves. Analogous to wave-tick.js but for standalone
@@ -26,11 +26,11 @@
  *   }
  *
  * The per-wave concurrency cap is resolved from the same config seam
- * `/epic-deliver` uses — `resolveConfig` + `getRunners` reading
+ * `/deliver` uses — `resolveConfig` + `getRunners` reading
  * `delivery.deliverRunner.concurrencyCap` (default 3) — so a
  * `.agentrc.local.json` override is honored. A `--concurrency <n>` CLI flag
  * overrides the config-resolved value for that run only. This puts both the
- * standalone (`/story-deliver`) and Epic (`/epic-deliver`) delivery paths on
+ * standalone (`/deliver`) and Epic (`/deliver`) delivery paths on
  * one deterministic config source.
  *
  * On cycle detection, exits with code 2 and sets cycleError in the envelope.
@@ -149,7 +149,7 @@ export function buildAdjacency(nodes) {
 /**
  * Resolve the per-wave concurrency cap.
  *
- * Mirrors the `/epic-deliver` seam (`epic-deliver-prepare.js`): resolve the
+ * Mirrors the `/deliver` seam (`epic-deliver-prepare.js`): resolve the
  * project config (which deep-merges `.agentrc.local.json` over `.agentrc.json`)
  * then read `delivery.deliverRunner.concurrencyCap` via `getRunners` (default
  * 3). An explicit `override` (the `--concurrency <n>` CLI flag) wins over
@@ -177,7 +177,7 @@ export function resolveConcurrencyCap({ cwd, config, override } = {}) {
  *
  * Uses detectCycle from Graph.js to validate the DAG before computing
  * layers via assignLayers. Returns the wave envelope, carrying the resolved
- * per-wave `concurrencyCap` so the `/story-deliver` workflow dispatches
+ * per-wave `concurrencyCap` so the `/deliver` workflow dispatches
  * `min(wave.stories.length, concurrencyCap)` from a deterministic field rather
  * than from recalled prose.
  *

@@ -7,7 +7,7 @@
  *
  * Subscribes to:
  *   - `epic.automerge.start` (production path, Story #3901) → the
- *     `/epic-deliver` Phase 8.5 boundary that the `lifecycle-emit.js`
+ *     `/deliver` Phase 8.5 boundary that the `lifecycle-emit.js`
  *     CLI actually fires. This event carries `prUrl` but NO
  *     `checkOutcomes` (Phase 8's `pr-watch-with-update.js` has already
  *     polled every required check to green before Phase 8.5 runs), so

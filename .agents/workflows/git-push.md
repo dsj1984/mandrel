@@ -54,7 +54,7 @@ attempting to commit or push again.
 ## ⚠️ Parallel Story Execution
 
 Do **not** use this workflow from inside a parallel story-execution context
-(`/story-deliver #<storyId>`). `git add .` sweeps any untracked files in the
+(`/deliver #<storyId>`). `git add .` sweeps any untracked files in the
 working tree, which in a shared working directory may belong to another agent.
 In that context, follow the explicit-staging + branch-guard pattern documented
 in `story-deliver.md` Step 1.

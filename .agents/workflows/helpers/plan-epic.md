@@ -4,7 +4,7 @@ description:
   Work Breakdown) for a GitHub Epic.
 ---
 
-# /epic-plan [Epic ID]
+# /plan [Epic ID]
 
 ## Role
 
@@ -16,7 +16,7 @@ You are the master orchestrator for the v5 Epic-Centric ticketing pipeline. Your
 goal is to transform a high-level Epic into a fully decomposed, ready-to-execute
 backlog of Features and Stories.
 
-`/epic-plan` is the unified planning entry point. It delegates to the two
+`/plan` is the unified planning entry point. It delegates to the two
 phase helpers — [`helpers/epic-plan-spec.md`](helpers/epic-plan-spec.md) and
 [`helpers/epic-plan-decompose.md`](helpers/epic-plan-decompose.md) — and runs
 both phases sequentially with a human confirmation gate between them. The Epic
@@ -78,7 +78,7 @@ Phase 5 (Re-Plan Detection).
    to the operator and **STOP**. Do not proceed to Phase 2 until the
    user explicitly confirms the direction. This is the same gate the
    skill's own Phase 3 enforces; surfacing it here makes the wait
-   contract visible to `/epic-plan` callers. When the Phase 1.5 verdict is
+   contract visible to `/plan` callers. When the Phase 1.5 verdict is
    `story` or `borderline`, this stop carries the three-way choice the
    triage gate defines (below) instead of a plain confirm.
 
@@ -87,8 +87,8 @@ Phase 5 (Re-Plan Detection).
 This phase runs **only** on the ideation path, immediately after Phase 1
 produces the sharpened one-pager. It is **skipped entirely** when an Epic ID
 argument was supplied (the existing-Epic path jumps straight to Phase 5), and
-it is **skipped** when `/epic-plan` was entered via a scope-triage handoff from
-[`/story-plan`](story-plan.md) — a handoff is a triage decision already made,
+it is **skipped** when `/plan` was entered via a scope-triage handoff from
+[`/plan`](plan-story.md) — a handoff is a triage decision already made,
 and re-triaging it would re-litigate a settled call (the no-re-triage rule the
 skill states once).
 
@@ -111,9 +111,9 @@ skill states once).
      presents a **three-way operator choice**:
      - **Recommended: single Story** (with the triage rationale) — persist the
        one-pager to a notes file and hand off to
-       `/story-plan --from-notes <path>`, identifying the invocation as a
-       scope-triage handoff so `/story-plan` skips its own gate. Then **exit
-       `/epic-plan`**.
+       `/plan --from-notes <path>`, identifying the invocation as a
+       scope-triage handoff so `/plan` skips its own gate. Then **exit
+       `/plan`**.
      - **Plan as Epic anyway** — ignore the recommendation and continue to
        Phase 2 with the one-pager.
      - **Abort** — stop planning entirely.
@@ -142,7 +142,7 @@ opening a duplicate.
    list, render the candidates (id, title, score, URL) and **STOP**. Do
    not proceed to Phase 3 until the user either (a) confirms the new
    Epic is genuinely distinct or (b) chooses to fold the idea into one of
-   the existing Epics, in which case `/epic-plan` exits and the operator
+   the existing Epics, in which case `/plan` exits and the operator
    resumes work on the existing Epic ID.
 
 3. **No-match fast path**: If the module returns `[]`, proceed
@@ -299,11 +299,11 @@ closes the Epic in its favor, and **every** issue mutation below happens
 1. **Seed a notes file from the Epic body.** Write the Epic's Context / Goal /
    Scope / Acceptance Criteria into a seed file under
    `temp/epic-[Epic_ID]/scope-triage-seed.md` (the `temp/` tree is gitignored).
-   This is the same notes-file shape `/story-plan --from-notes` consumes.
+   This is the same notes-file shape `/plan --from-notes` consumes.
 
-2. **Hand off to `/story-plan --from-notes`.** Invoke
-   [`/story-plan --from-notes temp/epic-[Epic_ID]/scope-triage-seed.md`](story-plan.md),
-   **identifying the invocation as a scope-triage handoff** so `/story-plan`
+2. **Hand off to `/plan --from-notes`.** Invoke
+   [`/plan --from-notes temp/epic-[Epic_ID]/scope-triage-seed.md`](plan-story.md),
+   **identifying the invocation as a scope-triage handoff** so `/plan`
    skips its own escalation gate (the skill's no-re-triage rule — a handoff is
    a settled triage decision, and re-running the gate on the receiving side
    would re-litigate it and risk a ping-pong between the two workflows). The
@@ -311,7 +311,7 @@ closes the Epic in its favor, and **every** issue mutation below happens
    (`Converted from Epic #[Epic_ID] — scope triaged as a standalone Story`) so
    the audit trail is bidirectional.
 
-3. **Close the Epic in favor of the replacement.** Once `/story-plan` has
+3. **Close the Epic in favor of the replacement.** Once `/plan` has
    created the replacement Story (capture its number as `#N`), close the Epic
    with a cross-linking comment:
 
@@ -326,10 +326,10 @@ closes the Epic in its favor, and **every** issue mutation below happens
    give a reviewer the full bidirectional trail.
 
 The conversion mutates two issues (creates the Story, closes the Epic) — both
-behind the single operator confirmation above. After conversion `/epic-plan`
+behind the single operator confirmation above. After conversion `/plan`
 exits: the work now lives on the standalone Story, which the operator delivers
 via [`/single-story-deliver`](helpers/single-story-deliver.md) or
-[`/story-deliver`](story-deliver.md).
+[`/deliver`](deliver-stories.md).
 
 ## Phase 6: Epic Clarity Gate
 
@@ -352,7 +352,7 @@ canonical headings. A `clear` verdict requires **both** ≥ 4 of 5
 sections present **and** the **Acceptance Criteria** section present —
 AC is a required section, not one of the four optional passers, so an
 Epic with no Acceptance Criteria is always `needs-refinement` (it would
-otherwise hard-fail the `/epic-deliver` start gate downstream). See
+otherwise hard-fail the `/deliver` start gate downstream). See
 [`lib/epic-plan-clarity.js`](../scripts/lib/epic-plan-clarity.js)
 for the scoring logic.
 
@@ -421,11 +421,11 @@ for the scoring logic.
 > `lib/orchestration/epic-plan-lease-guard.js`). The lease rides the Epic's
 > single assignee: the operator (`github.operatorHandle` in `.agentrc.json`)
 > claims the Epic for the duration of the plan. The guard **fails closed**:
-> `/epic-plan` emits no `story.heartbeat` during its run (heartbeats are a
+> `/plan` emits no `story.heartbeat` during its run (heartbeats are a
 > delivery-time signal), so there is no live-heartbeat source to judge a
 > concurrent plan's liveness from. Any **foreign assignee** is therefore
 > treated as a live claim — the persist half **exits non-zero and names the
-> current owner**, so two `/epic-plan` runs cannot drive the same Epic
+> current owner**, so two `/plan` runs cannot drive the same Epic
 > concurrently. Pass **`--steal`** to forcibly transfer a foreign claim once
 > you have confirmed the other run is dead. An **unassigned** Epic, or one
 > **already held by this operator**, is taken (or re-affirmed) silently. The
@@ -448,7 +448,7 @@ for the scoring logic.
 > (`context::acceptance-spec`). The Acceptance Spec captures the
 > stable-ID acceptance criteria table (`| AC ID | Outcome | Feature
 > File | Scenario | Disposition |`) that drives close-time
-> reconciliation during `/epic-deliver` Phase 6. Operators may opt out
+> reconciliation during `/deliver` Phase 6. Operators may opt out
 > for refactor-only or docs-only Epics by applying the
 > `acceptance::n-a` label to the Epic ticket — when present, the
 > `epic-plan-spec-author` skill skips the Acceptance Spec output and
@@ -560,7 +560,7 @@ for the scoring logic.
        PRD, Tech Spec, and Acceptance Spec on GitHub. Approval is the
        user's verbal OK in this session — the three context tickets stay
        **open** through delivery and are closed automatically by
-       `/epic-deliver` when the Epic PR opens. Do NOT proceed
+       `/deliver` when the Epic PR opens. Do NOT proceed
        to decomposition until the user confirms the plan is accurate.
      - **Low risk** (`requiresReview === false` and no `--force-review`):
        Emit the auto-proceed message from the persist stdout
@@ -834,19 +834,19 @@ node .agents/scripts/epic-plan-spec-validate.js \
    > **Manifest persistence (v5.9.0):** the dispatcher also posts the manifest
    > as a `dispatch-manifest` structured comment on the Epic (idempotent —
    > re-runs replace the prior comment). That comment is the source of truth for
-   > the Wave Completeness Gate in `/epic-deliver` Step 0.5 and for any external
+   > the Wave Completeness Gate in `/deliver` Step 0.5 and for any external
    > wave-tracking tooling.
 
 3. **Handoff**: Provide the user with the recommended next step:
 
-   > "Planning is complete. Run `/epic-deliver #[Epic ID]` to start the wave
-   > loop, or pick a single Story from Wave 0 and run `/story-deliver #[Story
+   > "Planning is complete. Run `/deliver #[Epic ID]` to start the wave
+   > loop, or pick a single Story from Wave 0 and run `/deliver #[Story
    > ID]` to drive it directly."
 
 ## Phase 10: Readiness Health Check
 
 Run the post-plan health check to validate the backlog before handing off to
-`/epic-deliver`. The default mode runs only the cheap checks
+`/deliver`. The default mode runs only the cheap checks
 (config + git remote) and targets sub-2-second turnaround. The script itself
 always exits 0; the structured JSON on stdout reports findings.
 
@@ -898,7 +898,7 @@ triaged it (e.g. a known `origin` outage during a maintenance window).
 ## Phase 11: Plan Comprehension Gate
 
 An **opt-in, advisory** gate that offers the operator a guided walkthrough of
-the freshly planned backlog before they hand off to `/epic-deliver`. The plan
+the freshly planned backlog before they hand off to `/deliver`. The plan
 is the moment the operator authorizes an autonomous fan-out of subagents — this
 phase exists so they can *understand and endorse* the approach while it is
 still free to change, not after the code lands.
@@ -938,7 +938,7 @@ method (restate-first, the why-ladder, mastery gates, depth levels, optional
 quizzing, the persistent `temp/comprehension-*.md` checklist).
 
 **Interruptible at every checkpoint.** Each step MUST offer an explicit
-"I'm good — proceed to `/epic-deliver`" exit. The instant the operator takes
+"I'm good — proceed to `/deliver`" exit. The instant the operator takes
 it, stop the walkthrough and advance to Phase 12. Never trap the operator in
 the loop.
 

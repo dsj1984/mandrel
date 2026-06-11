@@ -36,7 +36,7 @@ it once and reuse the context as you read through any individual gate.
 
 ## Concurrent close safety
 
-`/epic-deliver`'s wave loop may close multiple Stories into the same
+`/deliver`'s wave loop may close multiple Stories into the same
 `epic/<epicId>` branch in quick succession. The push step inside `story-close.js` retries
 on a non-fast-forward rejection — fetch, replay the story merge on top of
 the new remote tip, push again — bounded by
@@ -425,7 +425,7 @@ should land in a commit whose:
 The CI guardrail that mechanically rejected unlabeled baseline edits was
 removed in 5.42 alongside the bot-approver pipeline. The convention is
 preserved so the operator can grep refresh commits in PR diff, but
-self-policing is the operator's job during `/epic-deliver`'s Phase 7
+self-policing is the operator's job during `/deliver`'s Phase 7
 watch loop — an unjustified baseline ratchet is no longer caught by CI.
 
 ---

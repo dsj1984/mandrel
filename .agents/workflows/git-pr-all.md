@@ -7,7 +7,7 @@ description: >-
 # /git-pr-all [Message] [--draft] [--no-auto-merge] [--branch <name>] [--base <branch>]
 
 This workflow is the **ad-hoc PR ergonomics** counterpart to the heavyweight
-`/epic-deliver` pipeline. Use it when you have outstanding changes that do not
+`/deliver` pipeline. Use it when you have outstanding changes that do not
 belong to a planned Epic (typo fixes, file deletions, doc tweaks, dependency
 bumps, operator housekeeping) and you want a single command to take them from
 the working tree to a PR queued for auto-merge.
@@ -19,7 +19,7 @@ names. Quality gates remain enforced by the existing pre-push hook; this
 workflow does not bypass them.
 
 > **When to run**: After making changes on `main` (or any base branch) that
-> are too small or too out-of-band for `/epic-plan` + `/epic-deliver` but
+> are too small or too out-of-band for `/plan` + `/deliver` but
 > still need to land via the PR-required flow.
 >
 > **Persona**: `devops-engineer` · **Skills**:
@@ -123,7 +123,7 @@ git add -A
 
 > **Why `-A` and not explicit paths?** `/git-pr-all` is operator-driven
 > (not parallel-agent-driven), so the single-tree assumption that
-> blocks `git add .` inside `/story-deliver` does not apply here. See
+> blocks `git add .` inside `/deliver` does not apply here. See
 > the parallel-execution warning at the bottom of this file.
 
 Commit:
@@ -210,7 +210,7 @@ Print a single block to the operator:
    auto-merge: <enabled | draft | disabled>
 ```
 
-Do **not** poll CI. That is the `/epic-deliver` Phase 7 job and is
+Do **not** poll CI. That is the `/deliver` Phase 7 job and is
 overkill for ad-hoc changes. The operator (or GitHub's email
 notification) is the next watcher.
 
@@ -253,13 +253,13 @@ notification) is the next watcher.
 - **Never** force-push from `/git-pr-all`. This workflow is for opening
   new PRs, not for rewriting history. Force-pushes belong to
   `/git-merge-pr` (with `--force-with-lease` after a rebase) and
-  `/epic-deliver` Phase 7 (with the operator's explicit context).
+  `/deliver` Phase 7 (with the operator's explicit context).
 - **Always** delete the head branch on merge (Step 6's
   `--delete-branch` flag handles this for `--auto` mode; for
   `--no-auto-merge` PRs the operator is responsible for the cleanup).
 - **Always** prefer `--auto --squash --delete-branch` unless the
   operator explicitly opts out. The squash + auto-merge default gives
-  the same merge ergonomics `/epic-deliver` produces, so main's commit
+  the same merge ergonomics `/deliver` produces, so main's commit
   history stays uniform across both surfaces.
 
 ---
@@ -267,7 +267,7 @@ notification) is the next watcher.
 ## ⚠️ Parallel Story Execution
 
 Do **not** use this workflow from inside a parallel story-execution
-context (`/story-deliver #<storyId>`, `/epic-deliver` wave dispatch).
+context (`/deliver #<storyId>`, `/deliver` wave dispatch).
 `git add -A` sweeps any untracked files in the working tree, which in
 a shared working directory may belong to another agent. Use the
 explicit-staging + branch-guard pattern documented in

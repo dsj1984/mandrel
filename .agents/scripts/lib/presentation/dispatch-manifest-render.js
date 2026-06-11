@@ -70,7 +70,7 @@ export function renderManifest({ epicId, stories, generatedAt }) {
     `- **Stories:** ${list.length}`,
     `- **Generated:** ${generatedAt}`,
     '',
-    'Source of truth for the wave-completeness gate run at `/epic-deliver`.',
+    'Source of truth for the wave-completeness gate run at `/deliver`.',
     '',
     '```json',
     JSON.stringify({ stories: list }, null, 2),

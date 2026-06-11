@@ -291,7 +291,7 @@ async function processCascadeParentLocked(
     if (!allDone) return { cascadedTo, failed };
 
     // EXCLUSION: Epics do not auto-close via cascade. Epics close via
-    // formal /epic-deliver (its own machinery handles branch merges,
+    // formal /deliver (its own machinery handles branch merges,
     // PR-driven `Closes #N` auto-close, and a recovery transition in
     // `epic-deliver-finalize.js`).
     //

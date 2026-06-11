@@ -203,7 +203,7 @@ describe('upsertStoryRunProgress (render-only — Story #3909)', () => {
 // `story-run-progress` comment carries a `phases[]` array (init / implement /
 // validate / close) instead of `tasks[]`. The two shapes are mutually
 // exclusive (callers MUST pass exactly one) so the snapshot stays small and
-// the parent `/epic-deliver` aggregator never has to merge them.
+// the parent `/deliver` aggregator never has to merge them.
 // ---------------------------------------------------------------------------
 
 describe('renderStoryRunProgressBody (2-tier phases shape)', () => {

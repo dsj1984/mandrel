@@ -10,7 +10,7 @@
  * real behaviour back.
  *
  * Historical entries that were deleted with their backing scripts in
- * Epic #2307 (Story #2432 / Task #2442) once the `/epic-deliver`
+ * Epic #2307 (Story #2432 / Task #2442) once the `/deliver`
  * workflow markdown was rewritten (Story #2425) to invoke
  * `lifecycle-emit.js` directly instead of the shim CLIs:
  *   - `epic-deliver-finalize.js`     (Story #2319 / Task #2329)

@@ -60,7 +60,7 @@ test('renderManifestMarkdown', async (t) => {
     const manifest = makeBaseManifest();
     const output = renderManifestMarkdown(manifest);
     assert.match(output, /Agent Operating Procedures/);
-    assert.match(output, /\/epic-deliver/);
+    assert.match(output, /\/deliver/);
   });
 
   await t.test('header meta line carries done/total story counts', () => {

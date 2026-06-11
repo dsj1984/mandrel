@@ -112,7 +112,7 @@ export async function runSpecPhase(
   }
 
   // Workflow-guards (Story #3481): acquire the Epic-lease before any Phase 7
-  // mutation so two concurrent /epic-plan runs cannot both drive this Epic. The
+  // mutation so two concurrent /plan runs cannot both drive this Epic. The
   // guard fails closed (audit #3513) — any foreign assignee refuses here and
   // the CLI exits non-zero naming the owner, unless `--steal` transfers it.
   await acquireEpicPlanLease({ provider, epicId, config, steal });
@@ -158,7 +158,7 @@ export async function runSpecPhase(
   // Story #1585 (Epic #1471): the baseline-snapshot fork was previously
   // performed here at plan-time. It now runs at first-story-init time
   // inside `lib/story-init/branch-initializer.js#bootstrapWorktree` so
-  // `/epic-plan` remains git-state-free. `forkAndCommitEpicSnapshot` and
+  // `/plan` remains git-state-free. `forkAndCommitEpicSnapshot` and
   // `forkMainToEpic` remain exported for that caller.
 
   const reviewRouting = resolveReviewRouting({ planningRisk, forceReview });

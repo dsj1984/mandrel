@@ -3,7 +3,7 @@ name: epic-plan-consolidate
 description: >-
   Run a holistic, pre-persist consolidation pass over the draft Story
   ticket array an Epic's decompose phase produced. Use during Phase 8 of
-  `/epic-plan`, after `epic-plan-decompose-author` writes
+  `/plan`, after `epic-plan-decompose-author` writes
   `temp/epic-<Epic_ID>/tickets.json` and before `epic-plan-decompose.js`
   validates and persists it. Reconciles the draft against the Tech Spec
   "Delivery Slicing" target via scope-preserving operations only.
@@ -37,7 +37,7 @@ against the Tech Spec's intentional grouping before any GitHub write.
 
 ## When to use
 
-`/epic-plan` Phase 8, as the **8.3 — Holistic Consolidation** sub-step:
+`/plan` Phase 8, as the **8.3 — Holistic Consolidation** sub-step:
 immediately after `epic-plan-decompose-author` writes
 `temp/epic-<Epic_ID>/tickets.json` and **before**
 `epic-plan-decompose.js --tickets …` validates and persists. The pass operates
@@ -116,7 +116,7 @@ Write the consolidated array to `temp/epic-<Epic_ID>/tickets.json` (2-space
 indent, machine-consumed) and the rationale + before/after diff to
 `temp/epic-<Epic_ID>/consolidation-report.md`.
 
-### Step 5 — Hand back to `/epic-plan`
+### Step 5 — Hand back to `/plan`
 
 Return control. The workflow shows the operator the consolidation report at the
 HITL diff gate; on approval it runs

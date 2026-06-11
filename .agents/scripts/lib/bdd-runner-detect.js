@@ -13,7 +13,7 @@
  * The verification is **static**: we inspect `package.json` for a known BDD
  * runner dependency, and consult a small lookup table of which runners
  * support which pending/skip tag. We do not boot the runner. This keeps
- * `/epic-plan` Phase 7 hermetic and offline.
+ * `/plan` Phase 7 hermetic and offline.
  *
  * **Workspace awareness (Story #2956).** In a pnpm / npm / yarn monorepo the
  * BDD runner is rarely a root devDependency — it lives in the workspace

@@ -8,7 +8,7 @@
  * mirrored this roster for an in-session runner was deleted with the
  * dead epic-runner stratum in Story #3908; the host-LLM-drives-CLIs
  * model reaches every close-tail listener through the `lifecycle-emit.js`
- * CLI shells in `/epic-deliver`'s Phase 6 / 7.5 / 8 markdown invocations,
+ * CLI shells in `/deliver`'s Phase 6 / 7.5 / 8 markdown invocations,
  * which call this builder.)
  *
  * Canonical roster (registration order):

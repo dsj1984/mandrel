@@ -6,7 +6,7 @@
  * `tasks: []` on every Story, which `.agents/schemas/epic-spec.schema.json`
  * (v3.0.0, `additionalProperties: false` on Story) rejects with
  * `SpecRenderValidationError` at `/features/0/stories/0`. That broke
- * `/epic-plan` Phase 8 for every 2-tier decompose.
+ * `/plan` Phase 8 for every 2-tier decompose.
  *
  * This test pins the surgical fix:
  *   1. A 2-tier ticket array (Stories with inline acceptance[] / verify[]

@@ -14,7 +14,7 @@ description: >-
 Onboarding guide. You walk a first-time operator from a freshly installed
 Mandrel to their first planned Epic, composing the building blocks shipped by
 the guided-onboard Feature (#3514): stack detection, docs scaffolding, the
-`mandrel doctor` readiness check, and a started `/epic-plan` handoff.
+`mandrel doctor` readiness check, and a started `/plan` handoff.
 
 ## Overview
 
@@ -27,7 +27,7 @@ block, then hands the operator off to planning:
   → Phase 1 — Detect stack          (lib/onboard/detect-stack.js#detectStack)
   → Phase 2 — Offer docs scaffolding (lib/onboard/scaffold-docs.js#scaffoldDocs)
   → Phase 3 — Readiness gate         (mandrel doctor → lib/cli/doctor.js)
-  → Phase 4 — Handoff to /epic-plan  (started, not auto-run)
+  → Phase 4 — Handoff to /plan  (started, not auto-run)
 ```
 
 Each phase is **advisory and resumable**: re-running `/onboard` on an
@@ -40,8 +40,8 @@ genuinely missing, and `mandrel doctor` is read-only).
 | Scenario | Command |
 | --- | --- |
 | First run after installing Mandrel into a project | `/onboard` |
-| Plan a new Epic once onboarded | `/epic-plan <epicId>` or `/epic-plan --idea "<seed>"` |
-| Deliver Epic-attached Stories | `/epic-deliver <epicId>` |
+| Plan a new Epic once onboarded | `/plan <epicId>` or `/plan --idea "<seed>"` |
+| Deliver Epic-attached Stories | `/deliver <epicId>` |
 
 ## Prerequisites
 
@@ -68,7 +68,7 @@ planned Epic in roughly **15 minutes**. The budget breaks down as:
 | Detect the stack and confirm the report | Phase 1 | ~1 min |
 | Review the missing-docs offer and accept the scaffold | Phase 2 | ~3 min |
 | Run `mandrel doctor` and clear any ✘ checks | Phase 3 | ~5 min |
-| Start `/epic-plan` and describe the first Epic idea | Phase 4 | ~6 min |
+| Start `/plan` and describe the first Epic idea | Phase 4 | ~6 min |
 
 If any single phase blows its budget — most often a Phase 3 remedy such as
 authenticating `gh` or installing runtime deps — clear that one check and
@@ -161,45 +161,45 @@ the command exits:
   through the `→` remedies (e.g. authenticate `gh`, set `GITHUB_TOKEN`,
   install runtime deps), then re-run `mandrel doctor` until it is green.
 
-Do **not** hand off to `/epic-plan` while the doctor is red — planning needs a
+Do **not** hand off to `/plan` while the doctor is red — planning needs a
 working `gh` / `GITHUB_TOKEN` and a materialized `.agents/` bundle, exactly
 what the gate verifies. The `github-token` check never echoes the token value
 (security baseline § Secrets Management).
 
-## Phase 4 — Handoff to a started `/epic-plan`
+## Phase 4 — Handoff to a started `/plan`
 
 With a green readiness gate, hand the operator off to planning. `/onboard`
 **starts** the handoff — it surfaces the entry point and the idea-refinement
-path — but does **not** auto-run `/epic-plan`, because Epic planning authors
+path — but does **not** auto-run `/plan`, because Epic planning authors
 GitHub artifacts and must stay under explicit operator control.
 
-Present the operator with the two `/epic-plan` entry shapes:
+Present the operator with the two `/plan` entry shapes:
 
 - **From an idea** (no Epic exists yet):
 
   ```text
-  /epic-plan --idea "<one-line description of the first thing to build>"
+  /plan --idea "<one-line description of the first thing to build>"
   ```
 
-  This enters [`/epic-plan`](epic-plan.md) at Phase 1 (Idea Refinement),
+  This enters [`/plan`](helpers/plan-epic.md) at Phase 1 (Idea Refinement),
   which refines the seed into a PRD, Tech Spec, and a decomposed
   Epic → Story backlog.
 
 - **From an existing Epic** (a `type::epic` issue already exists):
 
   ```text
-  /epic-plan <epicId>
+  /plan <epicId>
   ```
 
-Stop here and let the operator invoke `/epic-plan` themselves. Once they have
-a planned Epic, the natural next step is `/epic-deliver <epicId>` to execute
+Stop here and let the operator invoke `/plan` themselves. Once they have
+a planned Epic, the natural next step is `/deliver <epicId>` to execute
 it — but that is beyond the onboarding path.
 
 ## Constraints
 
 - **Read-before-write.** Phases 1 and 3 are read-only; Phase 2 writes only
   files that are genuinely missing and only on explicit operator acceptance.
-- **Do not auto-run `/epic-plan`.** Phase 4 starts the handoff; the operator
+- **Do not auto-run `/plan`.** Phase 4 starts the handoff; the operator
   invokes planning. Planning authors GitHub artifacts and stays under human
   control.
 - **Never echo secrets.** The `github-token` check and any token-related

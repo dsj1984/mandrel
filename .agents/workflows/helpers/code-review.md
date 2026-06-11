@@ -7,7 +7,7 @@ description: >-
 # Code Review (helper)
 
 > **Helper module.** Not a slash command. Invoked automatically from
-> `/story-deliver` (Story scope) and `/epic-deliver` Phase 5 (Epic scope).
+> `/deliver` (Story scope) and `/deliver` Phase 5 (Epic scope).
 > To run a review directly, invoke the parent workflow — operators do not
 > call this helper by hand.
 
@@ -17,7 +17,7 @@ is merged upstream. It runs in two scopes:
 - **Story scope** — reviews the diff between a Story branch and its parent
   Epic branch, before `story-close.js` merges the Story into the Epic.
 - **Epic scope** — reviews the cumulative diff between an Epic branch and
-  `main`, before `/epic-deliver` opens the integration pull request.
+  `main`, before `/deliver` opens the integration pull request.
 
 > **Persona**: `architect` · **Skills**: `core/code-review-and-quality`,
 > `core/security-and-hardening`
@@ -43,7 +43,7 @@ the argument envelope.
 
 `depth` is the risk-derived thoroughness lever introduced by Story #3876 and
 made a live consumed signal end to end by Story #3937. The Epic caller
-(`/epic-deliver` Phase 5) resolves it from the Epic's judged `planningRisk`
+(`/deliver` Phase 5) resolves it from the Epic's judged `planningRisk`
 envelope via
 [`resolveReviewDepthForEpic`](../../scripts/lib/orchestration/code-review.js)
 (`high` → `deep`, `low` → `light`, everything else — including a missing
@@ -54,7 +54,7 @@ It is an **input-only** signal: it changes *how thorough* the review is, never
 the findings envelope (`{ status, severity, posted, report, halted,
 blockerReason }`) nor the posted `code-review` structured-comment body. An
 absent or malformed `depth` is treated as `standard`, so an Epic that skipped
-`/epic-plan` still gets a passing review with no new failure mode.
+`/plan` still gets a passing review with no new failure mode.
 
 How each tier changes the review protocol:
 
@@ -307,7 +307,7 @@ When `selectedAudits` is non-empty:
 2. **Append** a `## Cross-phase re-check` section to the **existing**
    `audit-results` structured comment on the Epic ticket. Do **not** post
    a new comment; the comment is idempotent and downstream consumers
-   (the code-review trim, `/epic-deliver` Pillar 2, the retro helper)
+   (the code-review trim, `/deliver` Pillar 2, the retro helper)
    read it once. The append carries the re-checked lens names, the new
    findings (if any), and the focused-fix commit SHAs that triggered the
    re-run, so reviewers can trace each finding back to the change set

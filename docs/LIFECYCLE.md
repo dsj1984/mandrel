@@ -1,6 +1,6 @@
 # Lifecycle Event Bus — Reference
 
-This document is the canonical reference for the `/epic-deliver` lifecycle
+This document is the canonical reference for the `/deliver` lifecycle
 event bus introduced by Epic #2172. It supersedes the prior "runner CLI
 shells emit comments inline" model: a single typed event bus inside the
 operator's session is now the only authorised emitter of phase
@@ -71,9 +71,9 @@ contract.
 
 | Event                       | Emitted when                                                |
 | --------------------------- | ----------------------------------------------------------- |
-| `epic.plan.start`           | `/epic-plan` Phase 1 begins.                                |
-| `epic.plan.end`             | `/epic-plan` Phase 7 closes the planning run.               |
-| `epic.snapshot.start`       | `/epic-deliver` Phase 1 — snapshot phase opens.             |
+| `epic.plan.start`           | `/plan` Phase 1 begins.                                |
+| `epic.plan.end`             | `/plan` Phase 7 closes the planning run.               |
+| `epic.snapshot.start`       | `/deliver` Phase 1 — snapshot phase opens.             |
 | `epic.snapshot.end`         | Snapshot complete; wave plan persisted.                     |
 | `epic.finalize.start`       | Phase 6 finalize begins (PR-open).                          |
 | `epic.finalize.end`         | Finalize completed; PR opened (or skipped).                 |
@@ -176,9 +176,9 @@ a lifecycle schema; the drift gate is
 | `retro.end` | [`retro.end.schema.json`](../.agents/schemas/lifecycle/retro.end.schema.json) | Emitted at the end of the retro sub-phase. `posted` indicates whether the retro structured comment was upserted onto the Epic; `retroPath` is the local mirror path under temp/epic-<id>/ when written. Story #2252. | `epicId`, `posted` |
 | `retro.start` | [`retro.start.schema.json`](../.agents/schemas/lifecycle/retro.start.schema.json) | Emitted at the start of the retro sub-phase (Phase E of the close-tail). Story #2252. | `epicId` |
 | `story.blocked` | [`story.blocked.schema.json`](../.agents/schemas/lifecycle/story.blocked.schema.json) | Emitted from the story-close path when a Story transitions to agent::blocked. | `storyId`, `reason` |
-| `story.dispatch.end` | [`story.dispatch.end.schema.json`](../.agents/schemas/lifecycle/story.dispatch.end.schema.json) | Appended to the Epic ledger by emit-story-dispatch-end.js when a child story sub-agent returns, so /epic-deliver's idle watchdog can subtract completed Stories from the in-flight set. Subscribed by CheckpointPointerWriter via SUBSCRIBED_END_EVENTS. Sibling ordering within a wave is not guaranteed; ordering between waves is. | `storyId`, `outcome`, `durationMs` |
-| `story.dispatch.start` | [`story.dispatch.start.schema.json`](../.agents/schemas/lifecycle/story.dispatch.start.schema.json) | Emitted before a story is handed to the host-LLM for Agent-tool fanout. lifecycle-emit-story-dispatch.js appends the {storyId, waveIndex, dispatchedAt, attempt} shape to the Epic ledger so /epic-deliver's host loop can durably ledger every dispatch attempt for in-flight reconciliation (Story #2891). | `storyId`, `waveIndex` |
-| `story.heartbeat` | [`story.heartbeat.schema.json`](../.agents/schemas/lifecycle/story.heartbeat.schema.json) | Emitted by story-phase.js inside a Story's implementation loop. Surfaces the in-progress Story as an inspectable ledger event so /epic-deliver's host-loop reconciler can confirm a long Story is still making forward progress between dispatch and merge — distinct from story.dispatch.start (one per Story per attempt) and story.merged (one per Story per close). The 2-tier hierarchy has no child Task tickets, so the heartbeat carries phase info only. The optional operator field (Story #3480) records the handle holding the assignee-as-lease claim on the Story so the ticket-lease primitive can decide claim liveness from the most-recent heartbeat for a given owner. | `event`, `storyId`, `epicId`, `phase`, `timestamp` |
+| `story.dispatch.end` | [`story.dispatch.end.schema.json`](../.agents/schemas/lifecycle/story.dispatch.end.schema.json) | Appended to the Epic ledger by emit-story-dispatch-end.js when a child story sub-agent returns, so /deliver's idle watchdog can subtract completed Stories from the in-flight set. Subscribed by CheckpointPointerWriter via SUBSCRIBED_END_EVENTS. Sibling ordering within a wave is not guaranteed; ordering between waves is. | `storyId`, `outcome`, `durationMs` |
+| `story.dispatch.start` | [`story.dispatch.start.schema.json`](../.agents/schemas/lifecycle/story.dispatch.start.schema.json) | Emitted before a story is handed to the host-LLM for Agent-tool fanout. lifecycle-emit-story-dispatch.js appends the {storyId, waveIndex, dispatchedAt, attempt} shape to the Epic ledger so /deliver's host loop can durably ledger every dispatch attempt for in-flight reconciliation (Story #2891). | `storyId`, `waveIndex` |
+| `story.heartbeat` | [`story.heartbeat.schema.json`](../.agents/schemas/lifecycle/story.heartbeat.schema.json) | Emitted by story-phase.js inside a Story's implementation loop. Surfaces the in-progress Story as an inspectable ledger event so /deliver's host-loop reconciler can confirm a long Story is still making forward progress between dispatch and merge — distinct from story.dispatch.start (one per Story per attempt) and story.merged (one per Story per close). The 2-tier hierarchy has no child Task tickets, so the heartbeat carries phase info only. The optional operator field (Story #3480) records the handle holding the assignee-as-lease claim on the Story so the ticket-lease primitive can decide claim liveness from the most-recent heartbeat for a given owner. | `event`, `storyId`, `epicId`, `phase`, `timestamp` |
 | `story.merged` | [`story.merged.schema.json`](../.agents/schemas/lifecycle/story.merged.schema.json) | Emitted from the story-close path after a Story branch successfully merges into epic/<id>. | `storyId`, `sha` |
 
 <!-- END GENERATED:lifecycle-events -->
@@ -273,7 +273,7 @@ lint.
 
 The lifecycle bus is the sole runtime; every side effect at a phase
 boundary is owned by a listener that subscribes to a typed event. The
-`/epic-deliver` workflow markdown reaches the bus through a single
+`/deliver` workflow markdown reaches the bus through a single
 generic CLI — there are no per-phase shim scripts.
 
 - [`.agents/scripts/lifecycle-emit.js`](../.agents/scripts/lifecycle-emit.js)
@@ -302,7 +302,7 @@ re-enter the same chain. The ledger writes (`emitted` → listener fan-out
 - [`.agents/docs/SDLC.md`](../.agents/docs/SDLC.md) — end-to-end SDLC narrative;
   the Phase 3 (Delivery) section names the bus as the runtime
   coordinator.
-- [`.agents/workflows/epic-deliver.md`](../.agents/workflows/epic-deliver.md)
-  — operator-facing `/epic-deliver` runbook.
+- [`.agents/workflows/helpers/deliver-epic.md`](../.agents/workflows/helpers/deliver-epic.md)
+  — operator-facing `/deliver` runbook.
 - [`docs/decisions.md`](decisions.md) — architectural decisions log;
   the Epic #2172 entry records the rationale for the bus refit.

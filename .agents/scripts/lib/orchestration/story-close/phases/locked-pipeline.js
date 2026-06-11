@@ -127,7 +127,7 @@ export async function runGatesAndRefresh(
  * Read the parent Epic's judged `planningRisk` envelope off its
  * `epic-plan-state` checkpoint so the Story-scope review can inherit the
  * Epic's review depth (Story #3940). Best-effort and total — it reuses the
- * shared `read` from `epic-plan-state-store.js` (the same reader `/epic-plan
+ * shared `read` from `epic-plan-state-store.js` (the same reader `/plan
  * --resume` and `epic-audit-prepare.js`'s `resolveRiskRoutedLenses` use, no
  * third bespoke reader) and never fails the close:
  *
@@ -137,7 +137,7 @@ export async function runGatesAndRefresh(
  *
  * A `null` result threads through `runStoryCodeReview` → `runCodeReview`
  * unchanged, so depth resolves from diff width alone (`standard`), preserving
- * today's behaviour for an Epic that skipped `/epic-plan`.
+ * today's behaviour for an Epic that skipped `/plan`.
  *
  * @param {{ provider: object, epicId: number|null|undefined, readPlanStateFn?: typeof readPlanState }} args
  * @returns {Promise<{ overallLevel?: string, axes?: Array<object> }|null>}

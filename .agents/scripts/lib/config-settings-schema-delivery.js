@@ -203,7 +203,7 @@ const MERGE_WATCH_SCHEMA = {
 };
 
 /**
- * `delivery.epicAudit` — bounded-retry knobs for /epic-deliver Phase 4
+ * `delivery.epicAudit` — bounded-retry knobs for /deliver Phase 4
  * (epic-audit). `maxFixAttempts` caps how many times the auto-fix loop
  * retries a single finding (Story #2611, Epic #2586). `maxFixScopeFiles`
  * caps how many files a single auto-fix may touch before escalating to
@@ -237,7 +237,7 @@ const CI_DELIVERY_SCHEMA = {
 // Story #2899 (Epic #2880) — `delivery.preflight.*` thresholds consumed
 // by `epic-deliver-preflight.js`. When any value is exceeded the CLI
 // surfaces a breach in its envelope and the workflow flips the Epic to
-// `agent::blocked` (see /epic-deliver Phase 1 prelude).
+// `agent::blocked` (see /deliver Phase 1 prelude).
 const PREFLIGHT_SCHEMA = {
   type: 'object',
   properties: {

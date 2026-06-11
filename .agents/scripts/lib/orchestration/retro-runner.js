@@ -3,10 +3,10 @@
  *
  * Story #1155 (Epic #1142, 5.40.0) — extracts the helper-driven
  * `epic-retro` invocation into a callable module so the
- * `/epic-deliver` runner can fire Phase E without a separate LLM
+ * `/deliver` runner can fire Phase E without a separate LLM
  * helper turn. (Story #2259, Epic #2172: the legacy deliver-runner
  * CLI was retired once delivery moved entirely into the slash
- * command.) The retro fires before `/epic-deliver`'s finalize step
+ * command.) The retro fires before `/deliver`'s finalize step
  * opens the PR — the operator's PR-merge is the final human gate, not
  * the retro itself.
  *
@@ -56,7 +56,7 @@ export { gatherRetroSignals } from './retro/phases/gather-signals.js';
 /**
  * Public: compose and post the retro structured comment on the Epic.
  *
- * Story #1290 (Epic #1143) — at /epic-deliver Phase 5, the runner invokes
+ * Story #1290 (Epic #1143) — at /deliver Phase 5, the runner invokes
  * the self-healing checks registry with `scope: 'retro'` and
  * `autoFix: false`. The retro is **read-only by construction**: the
  * registry runner enforces the invariant by throwing if any caller flips

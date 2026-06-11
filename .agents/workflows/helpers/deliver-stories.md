@@ -4,20 +4,20 @@ description: >-
   computes a dependency-aware wave plan via `stories-wave-tick.js`, asks the
   operator to confirm the plan, then fans out parallel Agent calls per wave
   — each delegating to `helpers/single-story-deliver`. Stories without an
-  `Epic: #N` reference only; Epic-attached Stories use `/epic-deliver`.
+  `Epic: #N` reference only; Epic-attached Stories use `/deliver`.
 ---
 
-# /story-deliver [Story IDs...]
+# /deliver [Story IDs...]
 
 ## Overview
 
-`/story-deliver` is the **operator-facing multi-Story delivery command**. It
+`/deliver` is the **operator-facing multi-Story delivery command**. It
 takes one or more Story IDs, builds a dependency-aware wave plan, optionally
 confirms it with the operator, and fans out one Agent call per Story per wave
 — parallel within each wave, serialised across waves.
 
 ```text
-/story-deliver 101 102 103
+/deliver 101 102 103
   → Phase 0 — Validate input & build DAG
   → Phase 1 — stories-wave-tick.js → wave plan + operator confirmation
   → Phase 2 — for each wave:
@@ -26,22 +26,22 @@ confirms it with the operator, and fans out one Agent call per Story per wave
   → Phase 3 — Summary
 ```
 
-**When to use `/story-deliver` vs. other commands:**
+**When to use `/deliver` vs. other commands:**
 
 | Scenario | Command |
 | --- | --- |
-| 1+ standalone Stories (no `Epic: #N` in body) | `/story-deliver <id> [<id>...]` |
+| 1+ standalone Stories (no `Epic: #N` in body) | `/deliver <id> [<id>...]` |
 | Exactly one standalone Story (lighter path) | `/single-story-deliver <id>` |
-| Epic-attached Stories (have `Epic: #N`) | `/epic-deliver <epicId>` |
+| Epic-attached Stories (have `Epic: #N`) | `/deliver <epicId>` |
 
-`/story-deliver` **refuses** Stories that carry an `Epic: #N` reference in
+`/deliver` **refuses** Stories that carry an `Epic: #N` reference in
 their body. Those Stories belong to an Epic's dispatch manifest and must flow
-through `/epic-deliver`. Use `/single-story-deliver` for a single Epic-free
+through `/deliver`. Use `/single-story-deliver` for a single Epic-free
 Story when you want the leaner one-story path without wave machinery.
 
 > **Concurrency cap.** The cap is resolved **deterministically in code** by
 > `stories-wave-tick.js` (Phase 1a) — the same `resolveConfig` + `getRunners`
-> seam `/epic-deliver` uses — and emitted as the `concurrencyCap` field on the
+> seam `/deliver` uses — and emitted as the `concurrencyCap` field on the
 > `stories-wave-plan` envelope. The default is 3; override persistently via
 > `delivery.deliverRunner.concurrencyCap` in `.agentrc.json` (a
 > `.agentrc.local.json` override is honored) or per-run via the `--concurrency`
@@ -53,7 +53,7 @@ Story when you want the leaner one-story path without wave machinery.
 ## Arguments
 
 ```text
-/story-deliver <storyId> [<storyId> ...] [--dep <fromId>:<toId> ...] [--yes] [--concurrency <n>]
+/deliver <storyId> [<storyId> ...] [--dep <fromId>:<toId> ...] [--yes] [--concurrency <n>]
 ```
 
 - `storyId` — One or more GitHub issue numbers carrying `type::story` and
@@ -79,7 +79,7 @@ For each supplied Story ID:
 
 1. Confirm the issue exists and carries the `type::story` label.
 2. Confirm the issue body does **not** contain an `Epic: #N` reference. If
-   it does, STOP and tell the operator to use `/epic-deliver <epicId>`
+   it does, STOP and tell the operator to use `/deliver <epicId>`
    instead.
 3. Collect `blocked by #N` references between the supplied Story IDs.
    References to Story IDs outside the supplied set are advisory warnings
@@ -112,7 +112,7 @@ node .agents/scripts/stories-wave-tick.js --dag '<dag-json>'
 node .agents/scripts/stories-wave-tick.js --dag '<dag-json>' --concurrency <n>
 ```
 
-When the operator passed `--concurrency <n>` to `/story-deliver`, forward it
+When the operator passed `--concurrency <n>` to `/deliver`, forward it
 verbatim to `stories-wave-tick.js`. The script resolves the cap from config
 (`delivery.deliverRunner.concurrencyCap`, default 3) and the override wins for
 that run.
@@ -226,7 +226,7 @@ After every Story in a wave returns:
 - **Any `status === 'blocked'`** → STOP the wave loop. Post a summary
   of blocked Stories and their `blockerCommentId` references. Do not
   dispatch the next wave. Wait for the operator to resolve each blocker
-  and re-run `/story-deliver` with the same set (already-done Stories
+  and re-run `/deliver` with the same set (already-done Stories
   will short-circuit because `single-story-close.js` is idempotent).
 - **Any `status === 'failed'`** → STOP the wave loop. Report the
   failures. The operator must fix the failing Stories before re-running.
@@ -238,7 +238,7 @@ After every Story in a wave returns:
 Print a final run summary:
 
 ```text
-/story-deliver — 3 Stories delivered in 2 waves
+/deliver — 3 Stories delivered in 2 waves
 
   Wave 0: #101 ✅ done, #103 ✅ done
   Wave 1: #102 ✅ done
@@ -293,7 +293,7 @@ duplication on the files the Story already touched:
 `/single-story-deliver` is idempotent at every phase:
 `single-story-init.js` reuses an existing worktree and
 `single-story-close.js` short-circuits when the Story is already closed.
-Re-running `/story-deliver` with the same Story set after a partial
+Re-running `/deliver` with the same Story set after a partial
 failure is safe — already-done Stories produce no-op outcomes; only the
 blocked or unstarted Stories execute.
 
@@ -321,7 +321,7 @@ blocked or unstarted Stories execute.
 
 - [`helpers/single-story-deliver`](helpers/single-story-deliver.md) — the
   per-Story worker this command delegates to.
-- [`/epic-deliver`](epic-deliver.md) — full Epic wave loop for
+- [`/deliver`](deliver-epic.md) — full Epic wave loop for
   Epic-attached Stories.
 - [`helpers/epic-deliver-story`](helpers/epic-deliver-story.md) — the
-  per-Story worker `/epic-deliver` uses internally.
+  per-Story worker `/deliver` uses internally.

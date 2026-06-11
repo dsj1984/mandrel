@@ -30,7 +30,7 @@ SQL, or UI components — stop immediately.
    `.agents/personas/` for each Story based on its complexity and
    domain, and tag the issue with the matching `persona::` label.
 4. **Format:** Generate the Story backlog using the
-   `/epic-plan` workflow.
+   `/plan` workflow.
 5. **Validate:** Ensure every Acceptance Criterion from the PRD has a
    corresponding Story-body acceptance bullet. Do not drop business
    logic.
@@ -44,7 +44,7 @@ SQL, or UI components — stop immediately.
   waves automatically.
 - **Issue Linkage:** Every Story GitHub Issue must declare
   its `parent` and (where applicable) `blocked by` relationships in the
-  body so `/epic-plan` can build a clean dispatch manifest.
+  body so `/plan` can build a clean dispatch manifest.
 - **Dependency Mapping:** Explicitly declare blockers via `blocked by` on
   the GitHub Issue body. Ensure no Story references work that hasn't
   been completed by a predecessor Story.
@@ -68,7 +68,7 @@ SQL, or UI components — stop immediately.
 - **QA Tasks:** Delegate QA Stories to the `/audit-quality` workflow. Do not
   write custom QA instructions.
 - **Retro Tasks:** Delegate the Epic retro to Phase 5 of
-  `/epic-deliver`, which runs `lib/orchestration/retro-runner.js`
+  `/deliver`, which runs `lib/orchestration/retro-runner.js`
   in-process. Do not write custom retro instructions.
 - **Story Finalization:** Ensure every Story's body incorporates a step
   to self-verify its own context (PRD/Tech Spec linkage, parent
@@ -80,15 +80,15 @@ SQL, or UI components — stop immediately.
   every Acceptance Criterion in the PRD against the generated
   Story-body acceptance bullets. Any missed AC is a planning failure.
 - **Format Compliance:** Use the exact Issue body templates, label taxonomy,
-  and parent/blocked-by linkage rules required by `/epic-plan` so the
+  and parent/blocked-by linkage rules required by `/plan` so the
   generated dispatch manifest validates against the schema.
 
 ## 4. Output Artifacts
 
 - The GitHub Issue hierarchy under the parent Epic generated and linked
-  by `/epic-plan` — a flat Story backlog.
+  by `/plan` — a flat Story backlog.
 - The Epic dispatch manifest (`temp/dispatch-manifest-<epicId>.json`)
-  emitted by `/epic-plan` for the runner to consume.
+  emitted by `/plan` for the runner to consume.
 
 ## 5. Scope Boundaries
 

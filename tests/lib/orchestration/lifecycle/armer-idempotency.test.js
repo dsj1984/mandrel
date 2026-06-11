@@ -9,7 +9,7 @@
  *      within the same process.
  *
  *   2. `gh pr view --json autoMergeRequest` probe — defeats
- *      cross-process re-runs (`/epic-deliver` restarted on the same
+ *      cross-process re-runs (`/deliver` restarted on the same
  *      PR after a crash between `gh pr merge --auto` and the
  *      `epic.merge.armed` emit).
  *

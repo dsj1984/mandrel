@@ -22,7 +22,7 @@
  *   1  error
  *   2  prior-state (pass --resume / --restart) OR preflight refused
  *
- * @see .agents/workflows/story-deliver.md
+ * @see .agents/workflows/helpers/deliver-stories.md
  */
 
 import { runAsCli } from './lib/cli-utils.js';

@@ -12,7 +12,7 @@
  * (`emitStoryDispatchStart`) so the assertions stay focused on the
  * record shape rather than on argv plumbing; a sibling end-to-end
  * harness can shell out the CLI when the dispatch flow is wired up in
- * /epic-deliver Phase 2.
+ * /deliver Phase 2.
  */
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';

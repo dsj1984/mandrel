@@ -19,7 +19,7 @@ existing external APIs or business logic.
 ## Execution strategy (dual-path)
 
 This lens runs along one of two execution paths. Both emit the **identical**
-report contract (Step 3); downstream consumers (`/epic-deliver` Phase 4
+report contract (Step 3); downstream consumers (`/deliver` Phase 4
 epic-audit, `audit-to-stories`) are agnostic to which path produced it.
 
 - **Orchestrated (dynamic-workflow) path.** When Claude Code's
@@ -72,7 +72,7 @@ degrade to the sequential path.
 
 ## Scope (Epic mode)
 
-When this lens is invoked from `/epic-deliver` Phase 4 (epic-audit), the
+When this lens is invoked from `/deliver` Phase 4 (epic-audit), the
 following block is populated with the Epic's change-set file list.
 Otherwise — for any manual `/audit-<dimension>` invocation — the block
 renders the literal substitution token and you MUST treat it as **no

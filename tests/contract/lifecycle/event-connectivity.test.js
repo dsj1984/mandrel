@@ -153,12 +153,12 @@ const EVENT_CLASSIFICATION = Object.freeze({
   // --- epic automerge wrapper (the §1.1 repair) ---
   'epic.automerge.start': {
     kind: 'connected',
-    emitter: 'epic-deliver.md',
+    emitter: 'deliver-epic.md',
     subscriber: 'automerge-predicate.js',
   },
   'epic.automerge.end': {
     kind: 'terminal',
-    emitter: 'epic-deliver.md',
+    emitter: 'deliver-epic.md',
     why: 'phase-wrapper end trace emitted by Phase 8.5 (Story #3901); consumed by wildcard observers + CheckpointPointerWriter SUBSCRIBED_END_EVENTS',
   },
 
@@ -170,7 +170,7 @@ const EVENT_CLASSIFICATION = Object.freeze({
   },
   'epic.close.end': {
     kind: 'connected',
-    emitter: 'epic-deliver.md',
+    emitter: 'deliver-epic.md',
     subscriber: 'acceptance-reconciler.js',
   },
   'epic.finalize.start': {
