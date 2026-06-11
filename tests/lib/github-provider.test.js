@@ -32,6 +32,24 @@ function makeFakeGh(routes) {
     }
     const final = matched ?? { status: 200, json: {} };
     if (final.status >= 200 && final.status < 300) {
+      // Search-first `getTickets` (Story #3988) hits `/search/issues?q=...`,
+      // which returns a `{ total_count, items }` envelope rather than a bare
+      // array. Wrap an array-shaped route payload into that envelope so a
+      // route keyed on `GET /issues` (matched here by substring) serves the
+      // search path correctly; page>1 returns an empty batch to stop the loop.
+      if (endpoint.startsWith('/search/issues?')) {
+        const items = Array.isArray(final.json) ? final.json : [];
+        const pageMatch = /\bpage=(\d+)\b/.exec(endpoint);
+        const page = pageMatch ? Number(pageMatch[1]) : 1;
+        return {
+          stdout: JSON.stringify({
+            total_count: items.length,
+            items: page === 1 ? items : [],
+          }),
+          stderr: '',
+          code: 0,
+        };
+      }
       return {
         stdout: JSON.stringify(final.json ?? {}),
         stderr: '',
