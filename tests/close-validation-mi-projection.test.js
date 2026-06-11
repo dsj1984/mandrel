@@ -190,7 +190,6 @@ describe('formatMaintainabilityProjection', () => {
 });
 
 describe('projections/maintainability helpers (Story #1850 / Task #1874)', () => {
-
   it('predicate-extracted helper still normalises fine-grained missing-arg reasons to "missing-args"', () => {
     const result = projectMaintainabilityRegressions({
       cwd: '/repo',

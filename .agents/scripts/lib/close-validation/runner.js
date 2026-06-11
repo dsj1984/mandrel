@@ -9,17 +9,17 @@
  */
 
 import {
-  isFormatterEligible,
-  listChangedFilesForFormatGate,
-} from './commands.js';
-import { DEFAULT_GATES, partitionGates } from './gates.js';
-import { defaultGetHeadSha } from './projections/head-sha.js';
-import { defaultGateRunner } from './process.js';
-import {
   recordPass as defaultRecordPass,
   shouldSkip as defaultShouldSkip,
   hashCommandConfig,
 } from '../validation-evidence.js';
+import {
+  isFormatterEligible,
+  listChangedFilesForFormatGate,
+} from './commands.js';
+import { DEFAULT_GATES, partitionGates } from './gates.js';
+import { defaultGateRunner } from './process.js';
+import { defaultGetHeadSha } from './projections/head-sha.js';
 
 /** @typedef {import('./gates.js').Gate} Gate */
 

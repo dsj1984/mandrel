@@ -123,5 +123,4 @@ describe('close-validation — no in-process per-kind regression gate (Story #22
       `Forbidden references to the retired in-process per-kind regression gate found:\n  - ${offenders.join('\n  - ')}`,
     );
   });
-
 });
