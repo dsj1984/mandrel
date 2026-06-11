@@ -23,7 +23,7 @@
 ## Part 1 — Model-Evolution Audit: Mandrel Under a 10x Coding Model
 
 Date: 2026-05-21 (last reviewed 2026-06-09 — frontier-model review; action
-tags below were re-priced, see [Part 4 § 4.1](#41-re-priced-action-tags-for-part-1-findings))
+tags below were re-priced, see [Part 4 § 4.1](#41-still-parked-monitor-findings-part-1))
 
 > **Action legend.** Each finding below carries one of two action tags:
 >
@@ -171,45 +171,7 @@ Recommendation:
   implementation task.
 - Preserve security and release personas as optional high-risk review modes.
 
-#### 3. Code Review Should Become Evidence-First, Not Ritual-First
-
-**Status:** Reframe
-**Action:** ✅ **Shipped** — delivered inside Epic
-[#3865](https://github.com/dsj1984/mandrel/issues/3865) (Story
-`s-risk-rigor`, 2026-06-09). Review depth is selected from the per-Epic
-risk envelope — which #3865 also reworked from regex keyword-matching to a
-planner-supplied, schema-validated verdict. `planning-risk.js`'s
-`AXIS_RULES` regex is **deleted**; the model now authors a
-`risk-verdict.json` artifact (validated against
-[`risk-verdict.schema.json`](../.agents/schemas/risk-verdict.schema.json))
-and the pure helper `deriveRiskEnvelope` derives the gate-routing envelope
-deterministically. The judged envelope routes code-review depth AND
-post-delivery audit lenses; the structured `code-review` comment contract
-is unchanged. Both empirical-probe control cases (the billing-mention
-false positive and the credential-rotation false negative) are locked in
-as risk-verdict regression ACs. See § 4.3 for the shipped sizing/risk
-decision and its evidence.
-
-**Primary paths:**
-
-- `.agents/scripts/lib/orchestration/code-review.js`
-- `.agents/skills/core/code-review-and-quality/SKILL.md`
-
-The current code-review helper asks the model to walk review pillars and produce
-severity-grouped findings. That remains a good review shape, but the future
-harness should avoid forcing every Epic through identical prose when the model
-can infer the right review depth.
-
-Recommendation:
-
-- Keep the structured `code-review` comment as an artifact.
-- Keep blocking on critical security, data loss, and broken functionality.
-- Make review depth adaptive: tiny docs-only change, light review; shared
-  runtime or security change, deep multi-axis review.
-- Let the future model perform review directly, then validate that required
-  sections, severities, and changed-file coverage exist.
-
-#### 4. Worktree and Branch Isolation Still Matter
+#### 3. Worktree and Branch Isolation Still Matter
 
 **Status:** Keep
 **Action:** 🔭 Monitor — the "Simplify" sublist (demote local worktrees to
@@ -242,7 +204,7 @@ Simplify:
   local worktrees an implementation option rather than the default mental model.
 - Keep the abstraction but reduce operator-facing worktree prose.
 
-#### 5. Anti-Thrashing and FinOps Should Be Softer
+#### 4. Anti-Thrashing and FinOps Should Be Softer
 
 **Status:** Simplify
 **Action:** 🔭 Monitor — further relaxation of per-turn FinOps rituals
@@ -290,7 +252,8 @@ These remain useful but should become smaller:
 2. **Personas and skills**: concise lenses and policies, not full behavioral
    scripts loaded into the model.
 3. **Code review**: adaptive evidence-first review with structured findings,
-   not a mandatory identical six-pillar ritual every time.
+   not a mandatory identical six-pillar ritual every time (adaptive depth
+   shipped in Epic #3865; depth now routes off the judged risk envelope).
 4. **Telemetry**: keep aggregate signals; reduce control-flow dependence on
    friction counters. (Numeric step limits and `friction.*` thresholds are
    already gone from `lib/config/limits.js`; the remainder is keeping it
@@ -396,18 +359,8 @@ into three areas:
 #### Soften Procedural Defaults
 
 - Convert persona prose into concise review checklists (Finding #2).
-- Make code-review depth adaptive to judged risk (Finding #3 — ✅ shipped
-  inside Epic #3865; the model-judged risk envelope now routes review depth
-  and audit lenses).
 - Treat anti-thrashing / FinOps as observability rather than control
-  flow when inference economics permit (Finding #5).
-
-#### Recalibrate Decomposition Scope (added 2026-06-09)
-
-- 🚀 **Filed — Epic [#3865](https://github.com/dsj1984/mandrel/issues/3865)**
-  (capability-sized Stories + model-judged risk routing). The measured bias
-  map stays in [Part 4 § 4.2](#42-where-the-small-story-bias-comes-from-measured-2026-06-09);
-  the filed scope and its two planning-time reframes are recorded in § 4.3.
+  flow when inference economics permit (Finding #4).
 
 ### Priority Recommendations
 
@@ -473,10 +426,14 @@ theoretical. Until then, the static lint is the supported surface.
 
 ## Part 2 — Product-Readiness Backlog (If/When Mandrel Is Productized)
 
-Last triaged: 2026-06-09 against framework version 1.54.0 (status refresh:
-all filed epics from the 2026-05-30 and 2026-06-02 triages have **delivered**
-except [#3439](https://github.com/dsj1984/mandrel/issues/3439), which remains
-the sole open in-flight item; prior triages 2026-06-02 and 2026-05-30).
+Last triaged: 2026-06-11 against framework version 1.59.0 (status refresh:
+every filed epic from the 2026-05-30 and 2026-06-02 triages has now resolved.
+Eight **delivered**; [#3439](https://github.com/dsj1984/mandrel/issues/3439)
+(GitHub-optional / no-mutation lite profile) was **closed unbuilt as
+`NOT_PLANNED` on 2026-06-07** — its lite-mode and provider-interface
+segregation slices were never delivered and have reverted to the deferred
+backlog below. No filed epic remains open; prior triages 2026-06-02 and
+2026-05-30).
 
 Scope: this document is the **standing backlog** of product-readiness gaps that
 Mandrel would need to close *if and when it is productized* (sold or distributed
@@ -494,15 +451,17 @@ grouped under the candidate epic that would carry it.
 ### Already delivered (do not re-scope here)
 
 Two triages (2026-05-30 and 2026-06-02) carved the immediately-actionable,
-internally-valuable slices into nine epics. **Eight have delivered**
+internally-valuable slices into nine epics. **Eight delivered**
 (all closed 2026-06-05): #3386 (truth & correctness), #3387 (3-tier doc
 cutover), #3388 (config integrity), #3389 (dev-hygiene), #3435
 (`mandrel doctor` + installer/content partition), #3436 (npm distribution —
 supersedes E-B's core), #3437 (auto-update & version lifecycle), #3438
-(consent-first install & onboarding). The sole open filed epic is
+(consent-first install & onboarding). The ninth,
 [#3439](https://github.com/dsj1984/mandrel/issues/3439) — GitHub-optional /
 no-mutation (lite) profile, re-scoped 2026-06-03 to include the
-provider-interface segregation slice.
+provider-interface segregation slice — was **closed `NOT_PLANNED`
+(2026-06-07) without being built**; its scope reverts to the deferred
+remainders under Finding 2 / E-A and Finding 10 / E-D below.
 
 Findings 3, 4, 7, 8 are fully resolved by the delivered epics and do not
 appear below. Findings 2, 6, 9, 10, 11, 14, 16, 18 were partially filed;
@@ -569,17 +528,19 @@ Remediation direction:
 - Separate "required issue-tracker state" from GitHub-specific affordances
   (Projects V2 columns, Sub-Issues).
 
-**Filed slice (2026-06-02, expanded 2026-06-03):** the Projects-V2 /
-branch-protection decoupling — an Issues-only "no-mutation" (lite) mode — →
-[#3439](https://github.com/dsj1984/mandrel/issues/3439). Following the
-architecture review below, #3439 was re-scoped to also perform the
+**Filed then dropped (2026-06-02 → 2026-06-07):** the Projects-V2 /
+branch-protection decoupling — an Issues-only "no-mutation" (lite) mode —
+was filed as [#3439](https://github.com/dsj1984/mandrel/issues/3439) and,
+following the architecture review below, re-scoped to also perform the
 **provider-interface segregation slice**: splitting `ITicketingProvider` into a
 core ticketing contract plus optional, nullable `IProjectBoardProvider` /
 `IRepoConfigProvider` capability accessors, with lite mode expressed as a GitHub
-provider missing those two capabilities. The full provider-abstraction remainder
-(a provider conformance suite, a non-GitHub provider implementation, the
-labels-as-state lifecycle layer, and the VCS/delivery-axis split below) stays
-gated on the productize decision.
+provider missing those two capabilities. **#3439 was closed `NOT_PLANNED` on
+2026-06-07 without being built** — none of that landed (no capability-seam
+split, no lite mode), so the entire slice is back on this deferred list. The
+full provider-abstraction remainder (a provider conformance suite, a non-GitHub
+provider implementation, the labels-as-state lifecycle layer, and the
+VCS/delivery-axis split below) likewise stays gated on the productize decision.
 
 ##### Architecture review (2026-06-03) — how deep the GitHub lock goes
 
@@ -618,12 +579,15 @@ produced a leakage map worth recording before any portability work is scoped:
      `Number.isInteger`); Jira keys are strings. Wide but mechanical.
   6. **Git branch / worktree / epic→main-PR model** is hardcoded across ~149
      files plus workflow markdown — the VCS axis again.
-- **Sequencing decision (2026-06-03).** The board / repo-config **interface
-  segregation** (blocker #4's cheap half — the gateways are already isolated) is
-  being done now inside #3439, because lite mode needs the capability seam
-  anyway. The expensive remainder — an abstract labels-as-state lifecycle layer
-  (#2), the VCS/delivery-axis split (#1, #3, #6), string IDs (#5), a provider
-  conformance suite, and any non-GitHub implementation — stays **gated** on the
+- **Sequencing decision (2026-06-03, since voided).** The board / repo-config
+  **interface segregation** (blocker #4's cheap half — the gateways are already
+  isolated) was slated to be done first inside #3439, because lite mode needed
+  the capability seam anyway. That epic was abandoned (`NOT_PLANNED`,
+  2026-06-07), so even this cheap half is **unstarted** and joins the deferred
+  remainder. The expensive remainder — an abstract labels-as-state lifecycle
+  layer (#2), the VCS/delivery-axis split (#1, #3, #6), string IDs (#5), a
+  provider conformance suite, and any non-GitHub implementation — stays
+  **gated** on the
   productize decision (this Finding 2 / E-A).
 
 ---
@@ -689,9 +653,12 @@ required permissions.
 
 **Filed slice (2026-06-02):** machine-readable dry-run / mutation manifest,
 phased independently-approved mutation stages, and uninstall/rollback →
-[#3438](https://github.com/dsj1984/mandrel/issues/3438); the minimal/no-mutation
-(Issues-only) profile → [#3439](https://github.com/dsj1984/mandrel/issues/3439).
-Deferred remainder: enterprise docs for required permissions.
+[#3438](https://github.com/dsj1984/mandrel/issues/3438) (delivered). The
+minimal/no-mutation (Issues-only) profile was filed as
+[#3439](https://github.com/dsj1984/mandrel/issues/3439) but **closed
+`NOT_PLANNED` (2026-06-07) without being built**, so it is deferred again.
+Deferred remainder: the minimal/no-mutation profile, plus enterprise docs for
+required permissions.
 
 #### Finding 11 — Configuration surface is large and hard to productize
 
@@ -993,123 +960,78 @@ here, because its payoff is coupled to the story-size recalibration.
 
 ## Part 4 — Frontier-Model Calibration: Story Scope & Decomposition
 
-Recorded: 2026-06-09, against framework version 1.54.0.
+Recorded: 2026-06-09, against framework version 1.54.0 (status refreshed
+2026-06-11).
 
 Part 1 was written against a hypothetical: "what changes when the model is
 ~10x stronger?" This part records the first review run **on** a
-frontier-tier model rather than in anticipation of one. Two outputs:
+frontier-tier model rather than in anticipation of one. Its "tackle now"
+cluster has since shipped — the three re-priced findings all landed (hydrator
+flip #3863, sub-agent return-repair shrink #3864, and the story-scope /
+risk-routing recalibration #3865). What remains forward-looking:
+the still-parked Monitor findings (§ 4.1), the guardrails that constrain any
+future scope relaxation (§ 4.4), and one unblocked spike candidate (§ 4.5).
 
-1. A re-pricing of Part 1's 🔭 Monitor tags whose stated gate ("a materially
-   stronger model") is now met (§ 4.1).
-2. A measured map of why Stories come out small in scope today, and a
-   candidate epic to recalibrate decomposition so the planner emits
-   **capability-sized** Stories a frontier model can deliver in one pass
-   (§ 4.2–4.4). This is the operator-reported pain point and the
-   highest-leverage cluster in this part — since filed as Epic #3865
-   (§ 4.3).
+### 4.1 Still-parked Monitor findings (Part 1)
 
-### 4.1 Re-priced action tags for Part 1 findings
+> Finding numbers here are **point-in-time** against the audit as of
+> 2026-06-09, per the Part 1 numbering convention. The three rows re-priced
+> to ✅ Shipped (hydrator flip #3863, sub-agent return-repair #3864, adaptive
+> code-review depth #3865) have since been deleted from Part 1 and the
+> survivors renumbered (worktree is now Finding #3, anti-thrashing #4). The
+> rows below stay on 🔭 Monitor.
 
-> Finding numbers in this table are **point-in-time** against the audit as
-> of 2026-06-09, per the Part 1 numbering convention. The two shipped rows
-> have since been deleted from Part 1 and the survivors renumbered
-> (code review is now Finding #3, worktree #4, anti-thrashing #5).
+| Finding | Status | Why it stays parked |
+| ------- | ------ | ------------------- |
+| #2 — personas → review checklists | 🔭 Monitor (**next up**) | Sequence after the capsule-only hydration flip's effect is measured: it changes how much persona prose matters; measure role drift on the frontier tier before converting. |
+| #1 — instruction-surface compression | 🔭 Monitor | Compress opportunistically as #2 lands; a standalone rewrite epic is still premature. |
+| worktree/branch isolation | 🔭 Monitor (Keep) | Unchanged — concurrency physics, not model capability. |
+| anti-thrashing / FinOps | 🔭 Monitor (remainder only) | Numeric step limits already dropped from `lib/config/limits.js`; remainder waits on inference economics. |
 
-| Finding | Old tag | Outcome (as of this branch) | Rationale |
-| ------- | ------- | --------------------------- | --------- |
-| #3 — hydrator default flip (skill bodies) | 🔭 Monitor | ✅ **Shipped** — Story [#3863](https://github.com/dsj1984/mandrel/issues/3863) ([PR #3869](https://github.com/dsj1984/mandrel/pull/3869), 2026-06-09) | Gate ("model can self-select context") was met; capsule-only hard cutover landed — full-body path, `fullSkillBodies` flag, and `skill::full` label deleted in one pass. Validator-coverage tail carried in Finding #1. |
-| #4 — sub-agent return repair shrink | 🔭 Monitor | ✅ **Shipped** — Story [#3864](https://github.com/dsj1984/mandrel/issues/3864) ([PR #3868](https://github.com/dsj1984/mandrel/pull/3868), 2026-06-09) | Evidence gate passed: measured malformed-return rate across recent delivered Epics was **zero**, so the four free-form extraction candidates and their tests were deleted; schema validation + GitHub reconciliation retained. Chat-relay trim carried in Finding #1. |
-| #5 — adaptive code-review depth | 🔭 Monitor | ✅ **Shipped** — Epic [#3865](https://github.com/dsj1984/mandrel/issues/3865) (`s-risk-rigor`) | Depth selects off the risk envelope — which #3865 also reworked to a model-judged, schema-validated verdict (`deriveRiskEnvelope` + `risk-verdict.schema.json`; the `AXIS_RULES` regex is deleted). See § 4.3. |
-| #2 — personas → review checklists | 🔭 Monitor | 🔭 Monitor (**next up**) | Sequence after the hydrator flip's effect is measured: capsule-only hydration changes how much persona prose matters; measure role drift on the frontier tier before converting. |
-| #1 — instruction-surface compression | 🔭 Monitor | 🔭 Monitor | Compress opportunistically as #2 lands; a standalone rewrite epic is still premature. |
-| #6 — worktree/branch isolation | 🔭 Monitor | 🔭 Monitor (Keep) | Unchanged — concurrency physics, not model capability. |
-| #7 — anti-thrashing / FinOps | 🔭 Monitor | 🔭 Monitor (remainder only) | Numeric step limits already dropped from `lib/config/limits.js`; remainder waits on inference economics. |
+### 4.2 Residual sizing levers (post-recalibration)
 
-### 4.2 Where the small-story bias comes from (measured 2026-06-09)
+The small-story-bias analysis that drove the recalibration is complete — its
+primary drivers (the per-Story file/acceptance ceilings and the
+Feature-fan-out cap) were relaxed by Epic #3865 (§ 4.3). Three softer levers
+were **not** touched and remain the only knobs left if a future review ever
+wants to push Story scope wider still:
 
-The "Stories are typically small in scope" effect is not one knob — it is
-eight mechanisms, all verified against current code. The first five are the
-primary drivers:
+- `maxTickets: 60` reviewability budget (`lib/config/limits.js` + decomposer
+  prompt) — attacks story *count*, already aligned with larger stories.
+- Planning-context budget (`maxBytes: 50000`,
+  `lib/orchestration/planning-context-budget.js`) — summarizes PRD/Tech Spec
+  before decomposition, so less spec detail nudges toward conservative
+  slicing.
+- `delivery.maxTokenBudget: 300000` per-Story hydration cap
+  (`lib/config/limits.js`) — large Story bodies risk section elision at
+  delivery time.
 
-| # | Mechanism | Kind | Where | Effect |
-| - | --------- | ---- | ----- | ------ |
-| 1 | `DEFAULT_TASK_SIZING.hardFiles: 15` — Story touching >15 files **rejected** unless it declares `wide: { reason }` | Deterministic validator | `lib/orchestration/ticket-validator-sizing.js` | Hard scope ceiling per Story |
-| 2 | `DEFAULT_TASK_SIZING.maxAcceptance: 8` — >8 acceptance criteria **rejected**, no escape hatch (soft warn at 6) | Deterministic validator | same | Hard AC ceiling per Story |
-| 3 | Feature MUST decompose into 2–5 Stories; >5 forces a sibling Feature | Deterministic validator + prompt | `ticket-validator.js`, `lib/templates/decomposer-prompts.js` | Caps Stories per Feature; widens hierarchy instead of deepening Stories |
-| 4 | `softFiles: 5` advisory width finding + the §7 "5-file rule" prose in `instructions.md` | Validator (soft) + prompt prose | `ticket-validator-sizing.js`, `.agents/instructions.md` §7 | Anchors the planner's mental model at ~5 files/Story |
-| 5 | `DELIVERABLE_GRANULARITY_GUIDANCE` — "a shippable slice a reviewer would accept as a single PR" + single-consumer merge rule | Prompt prose (SSOT constant) | `ticket-validator-sizing.js`, interpolated into decomposer prompt | Conceptual definition sized for *today's* review comfort, not frontier delivery capacity |
-| 6 | `maxTickets: 60` reviewability budget — "combine atomic stories into larger, cohesive stories before splitting" | Prompt prose (soft) | `lib/config/limits.js` + decomposer prompt | Attacks story *count*, already aligned with larger stories |
-| 7 | Planning-context budget (`maxBytes: 50000`) summarizes PRD/Tech Spec before decomposition | Deterministic | `lib/orchestration/planning-context-budget.js` | Less spec detail → more conservative slicing |
-| 8 | `delivery.maxTokenBudget: 300000` hydration cap per Story (raised from 200000 by Story #3875) | Deterministic | `lib/config/limits.js` | Large Story bodies risk section elision at delivery time |
-
-Two structural facts make the recalibration cheap:
-
-- **The constants are SSOT and prompt-synced.** The decomposer prompt
-  interpolates `DEFAULT_TASK_SIZING` values rather than hardcoding them, so
-  raising a ceiling automatically updates the guidance the planner reads.
-- **The risk classifier already exists but is not consulted for sizing.**
-  `planning-risk.js` computes the per-Epic envelope and it is already
-  threaded into decomposition context — the decomposer just never reads it
-  when sizing Stories.
-
-**Recent work already moved the count axis.** v1.54.0 shipped a cluster
-that recognized the over-slicing problem: #3764 collapsed the
-decomposition-sizing profile matrix, #3781 forbade single-Story Features
-and anchored "deliverable granularity," #3799 added a holistic
-consolidation pass to Phase 8 decompose, and #3858 grouped Stories by
-capability rather than execution shape. Those reduce story *count*; the
-per-Story *scope* ceilings (#1–#4 above) are untouched and are now the
-binding constraint.
+None is currently a binding constraint, and the sizing constants are SSOT
+and prompt-synced (the decomposer prompt interpolates `DEFAULT_TASK_SIZING`
+rather than hardcoding it), so any further relaxation stays a one-line
+constant change rather than a prompt rewrite.
 
 ### 4.3 Story-scope recalibration — shipped as Epic #3865
 
 **Status:** ✅ **Shipped** — Epic
 [#3865](https://github.com/dsj1984/mandrel/issues/3865) "Capability-Sized
-Stories & Model-Judged Risk Routing" (2026-06-09; PRD #3866, Tech
-Spec #3867, `acceptance::n-a`; 3 Features / 6 Stories). The Epic body is the
-SSOT for scope; this section records what actually shipped, which differs
-from the originally-sketched candidate in two ways decided during planning.
+Stories & Model-Judged Risk Routing" (2026-06-09). Recorded here only because
+§ 4.4 and § 4.5 build on its two design decisions:
 
-- **One uniform sizing profile — sizing decoupled from risk (NOT
-  risk-adaptive).** The original candidate proposed *two* sizing profiles
-  selected by Epic risk, with a tight high-risk profile keeping risky
-  Stories small. That was **dropped.** What shipped: **every** Epic — at
-  any risk level — plans under one relaxed `DEFAULT_TASK_SIZING`. The
-  finalized constants in
-  [`ticket-validator-sizing.js`](../.agents/scripts/lib/orchestration/ticket-validator-sizing.js)
-  are `softFiles: 8` (was 5), `hardFiles: 30` (was 15),
-  `softAcceptanceCount: 10` (was 6), `maxAcceptance: 14` (was 8), and
-  `SOFT_STORIES_PER_FEATURE: 7` (Feature-count prose ≤5 → ≤7). `wide` is
-  unchanged and remains the only beyond-ceiling path, still requiring a
-  reason. Story size measures uniform delivery capacity; risk routes
-  *rigor*, not scope. Rationale: the real promotion unit is the Epic→main
-  PR (Story size doesn't change rollback granularity at `main`), and
-  fragmenting risky work can hide cross-cutting issues a holistic review
-  would catch.
-- **Risk is model-judged; the regex is deleted.** An empirical probe showed
-  `planning-risk.js`'s keyword regex was presence-detection, not risk
-  assessment: it flagged an Epic that merely *named* "billing"/"security"
-  in an Out-of-Scope line (false positive) and rated "rotate the customer
-  credential vault and re-issue all active session cookies" **low / no
-  review** (false negative — the dangerous direction). #3865 **deleted**
-  `AXIS_RULES` and replaced axis *production* with a planner-supplied risk
-  verdict (`risk-verdict.json`), validated against
-  [`risk-verdict.schema.json`](../.agents/schemas/risk-verdict.schema.json);
-  the retained pure helper `deriveRiskEnvelope` still derives gate routing
+- **One uniform sizing profile — sizing decoupled from risk.** Every Epic, at
+  any risk level, plans under one relaxed `DEFAULT_TASK_SIZING`
+  ([`ticket-validator-sizing.js`](../.agents/scripts/lib/orchestration/ticket-validator-sizing.js)):
+  `softFiles: 8`, `hardFiles: 30`, `softAcceptanceCount: 10`,
+  `maxAcceptance: 14`, `SOFT_STORIES_PER_FEATURE: 7`. `wide` (with a reason)
+  remains the only beyond-ceiling path. Story size measures uniform delivery
+  capacity; risk routes *rigor*, not scope.
+- **Risk is model-judged; the keyword regex is deleted.** `AXIS_RULES` is
+  gone; the planner authors a `risk-verdict.json` (validated against
+  [`risk-verdict.schema.json`](../.agents/schemas/risk-verdict.schema.json))
+  and the pure helper `deriveRiskEnvelope` derives gate routing
   deterministically. The judged envelope routes code-review depth **and**
-  post-delivery audit lenses — high-risk work gets enhanced reviews and
-  audits, not smaller Stories. Both probe control cases are locked in as
-  risk-verdict regression ACs.
-
-**Delivery evidence.** The A/B re-plan fixture confirms the profile
-relaxation collapses over-slicing on a representative Epic: the **old**
-profile produced **8 Stories at 7.25 files/Story**, the **new** profile
-produces **4 Stories at 14.5 files/Story** — same capability, half the
-Story count, each Story carrying a cohesive PR-sized slice. The
-risk-verdict regression fixture pins the two probe control cases (the
-billing-mention false positive now rates low; the credential-rotation
-false negative now rates high) so the model-judged path can never regress
-to the deleted regex's blind spots.
+  post-delivery audit lenses — high-risk work gets deeper review/audit, not
+  smaller Stories.
 
 ### 4.4 Guardrails that must NOT relax
 
@@ -1118,19 +1040,14 @@ to the deleted regex's blind spots.
   the existing concurrency cap already governs.
 - **Hard ceilings stay hard** — they move up; they do not become advisory.
   `wide` remains the only beyond-ceiling path and keeps requiring a reason.
-- **Adaptive review depth shipped *with*, not after, larger stories**
-  (Story `s-risk-rigor` inside Epic #3865, now ✅ delivered) — a 30-file
-  Story with fixed-depth review would be strictly worse than today, so the
-  two changes landed as one logical unit (expressed as a `depends_on` edge
-  in the Epic's wave plan). The judged risk envelope routes review depth
-  and audit lenses on the same relaxed profile.
-- **Rigor follows risk.** *(Superseded wording — this bullet originally
-  read "high-risk axes keep small stories"; the § 4.3 decoupling decision
-  replaced conditional sizing with risk-routed rigor.)* High-risk work gets
-  deeper review and auto-run audit lenses, never silently lighter
-  treatment; the model-judged verdict is schema-validated and the harness
-  still owns the gate decision deterministically.
-  `rules/security-baseline.md` inviolability is untouched.
+- **Adaptive review depth must stay coupled to Story scope.** A wide Story
+  under fixed-depth review would be strictly worse than today; depth must
+  keep routing off the judged risk envelope (§ 4.3) so larger Stories never
+  get shallower review.
+- **Rigor follows risk, never scope.** High-risk work gets deeper review and
+  auto-run audit lenses, never silently lighter treatment; the model-judged
+  verdict stays schema-validated and the harness still owns the gate decision
+  deterministically. `rules/security-baseline.md` inviolability is untouched.
 
 ### 4.5 Orchestration beyond audits (spike candidate)
 
@@ -1148,8 +1065,7 @@ trade tokens for plan quality the same way the audit lenses do.
 
 Hold it to the same discipline as Part 3: a measured cost/precision gate
 (plan-quality delta vs token multiple) before it becomes a default, and the
-sequential path remains the capability-degraded fallback. § 4.3
-(Epic #3865) has now shipped, so the prerequisite is met: re-baseline
-decomposition quality on the new uniform sizing profile first, since
-over-slicing was the dominant plan defect and may disappear without
-orchestration.
+sequential path remains the capability-degraded fallback. The prerequisite
+is met — re-baseline decomposition quality on the new uniform sizing profile
+first, since over-slicing was the dominant plan defect and may disappear
+without orchestration.
