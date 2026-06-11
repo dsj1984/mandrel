@@ -30,10 +30,7 @@
 
 import { Logger } from '../../../Logger.js';
 import { runPreMergeGatesWithAttribution } from '../baseline-attribution-wiring.js';
-import {
-  runFormatAutofix,
-  runScopedFormatAutofix,
-} from '../format-autofix.js';
+import { runFormatAutofix, runScopedFormatAutofix } from '../format-autofix.js';
 import { emitBlockedCloseResult } from '../merge-runner.js';
 import { emitMaintainabilityProjection } from '../pre-merge-validation.js';
 
@@ -225,6 +222,7 @@ export async function runPreMergeValidation({
   phaseTimer,
   provider,
   bus = null,
+  cycleState = null,
 }) {
   // Story #2533: scope-narrowed biome-format auto-apply on the Epic→Story
   // diff. The scoped step folds format drift introduced by Story commits
@@ -275,6 +273,7 @@ export async function runPreMergeValidation({
     config,
     storyId,
     epicId,
+    cycleState,
     useEvidence: !noEvidenceFlag,
     phaseTimer,
     provider,

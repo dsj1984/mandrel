@@ -629,7 +629,8 @@ describe('auto-refresh-runner.runAutoRefresh — Story #2205 contract', () => {
     });
     assert.equal(out.status, 'failed');
     assert.equal(out.reason, 'refresh-service-threw');
-    assert.equal(out.detail, 'boom');
+    // Story #4017 — the detail now carries the funnel's per-kind prefix.
+    assert.match(out.detail, /refreshBaseline\(maintainability\) failed: boom/);
   });
 
   it('happy path under cap → status=committed with sha', async () => {

@@ -27,33 +27,30 @@
 
 ## 1. Sub-findings not covered by the remediation stories
 
-### 1.1 Story-close redundancy (was §2.3) — untouched
+### 1.1 Story-close redundancy (was §2.3) — **resolved by Story #4017**
 
-Neither #3907 nor #3909 touched this cluster; `git log` shows zero commits on
-these files since the review.
+Story #4017 collapsed the cluster:
 
-- **Two baseline-refresh strata both live:**
-  [`auto-refresh-baselines.js`](../.agents/scripts/lib/auto-refresh-baselines.js)
-  (~300 LOC) + [`lib/baselines/refresh-service.js`](../.agents/scripts/lib/baselines/refresh-service.js)
-  (~730 LOC), and on the story-close side both `auto-refresh-runner.js` and
-  the `baseline-attribution*` chain (~2,000 LOC combined) independently
-  invoke `refreshBaseline` and emit the identical
-  `chore(baselines): refresh <kind> for story-<id>` subject
-  ([auto-refresh-runner.js:24](../.agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js),
-  [refresh-commit.js:369](../.agents/scripts/lib/orchestration/story-close/baseline-attribution/phases/refresh-commit.js)).
-  A clean close still scores MI/CRAP multiple times.
-- **Three format-autofix modules remain** (two forks + one shared); #3907
-  only added the worktree-cwd fix and branch assert to the scoped fork.
-- **Cascade machinery sized for fan-out > 1** that cannot exist under 3-tier:
-  [`cascade-grouping.js`](../.agents/scripts/lib/orchestration/cascade-grouping.js)
-  (275 LOC) still consumed by `ticketing/bulk.js`.
-- **`story-deliver-prepare.js`** is still a standalone process whose first
-  step re-reads the structured comment `story-init` wrote seconds earlier
-  ([story-deliver-prepare.js:110](../.agents/scripts/story-deliver-prepare.js)).
-
-*Recommendation (unchanged):* collapse to one refresh funnel and one autofix
-module, delete the cascade grouping, inline prepare into its caller. This is
-now the largest remaining LOC win in the layer.
+- **One baseline-refresh funnel.** The standalone delta-cap evaluator module
+  was deleted (the evaluator now lives inside
+  [`auto-refresh-runner.js`](../.agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js)),
+  and both story-close call paths — the gate-failure attribution retry and
+  the post-gates bounded auto-refresh — route through the single
+  `runRefreshCommit` funnel in
+  [`refresh-commit.js`](../.agents/scripts/lib/orchestration/story-close/baseline-attribution/phases/refresh-commit.js),
+  sharing one per-close `cycleState` idempotency token. A clean close
+  computes each baseline kind once and emits at most one
+  `chore(baselines): refresh <kind> for story-<id>` subject per kind.
+- **One format-autofix module.**
+  [`format-autofix.js`](../.agents/scripts/lib/orchestration/story-close/format-autofix.js)
+  now hosts both the whole-tree and scoped entry points plus the shared
+  plumbing; the two redundant siblings were deleted (the #3907 worktree-cwd
+  fix and branch assert are preserved).
+- **Cascade grouping deleted.** `ticketing/bulk.js` walks parents
+  sequentially (fan-out ≤ 1 under the 3-tier hierarchy).
+- **Prepare inlined.** The standalone prepare CLI is gone; `story-init.js`
+  applies the install tri-state and renders the initial Story-phase
+  snapshot in-process, consuming its own init result.
 
 ### 1.2 Wave/DAG computation (was §2.4) — partially mitigated by structure
 
