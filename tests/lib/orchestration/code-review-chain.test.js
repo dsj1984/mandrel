@@ -66,7 +66,7 @@ test('runCodeReview: chain provider with prompt → comment body contains sugges
   });
   const upsert = recordingUpsert();
   const out = await runCodeReview({
-    epicId: 42,
+    ticketId: 42,
     provider: {},
     bus: stubBus,
     reviewProvider: chain,
@@ -100,7 +100,7 @@ test('runCodeReview: empty prompt list omits the suggestions section', async () 
   });
   const upsert = recordingUpsert();
   await runCodeReview({
-    epicId: 42,
+    ticketId: 42,
     provider: {},
     bus: stubBus,
     reviewProvider: chain,
@@ -120,7 +120,7 @@ test('runCodeReview: ticketLabels opt is forwarded into ReviewInput.labels', asy
     },
   };
   await runCodeReview({
-    epicId: 42,
+    ticketId: 42,
     provider: {},
     bus: stubBus,
     reviewProvider: adapter,
@@ -152,7 +152,7 @@ test('runCodeReview: chain critical finding triggers halted=true', async () => {
     prompts: [],
   });
   const out = await runCodeReview({
-    epicId: 42,
+    ticketId: 42,
     provider: {},
     bus: stubBus,
     reviewProvider: chain,
@@ -173,7 +173,7 @@ test('runCodeReview: getPromptMessages throw is swallowed (treated as empty)', a
   };
   const upsert = recordingUpsert();
   const out = await runCodeReview({
-    epicId: 42,
+    ticketId: 42,
     provider: {},
     bus: stubBus,
     reviewProvider: chain,
@@ -191,7 +191,7 @@ test('runCodeReview: provider name in comment reflects chain shape when configur
   };
   const upsert = recordingUpsert();
   await runCodeReview({
-    epicId: 42,
+    ticketId: 42,
     provider: {},
     bus: stubBus,
     reviewProvider: adapter, // legacy injection seam
