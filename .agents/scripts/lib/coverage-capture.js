@@ -11,6 +11,7 @@
  * `isCoverageFresh` and decide whether to delegate to `runCapture`.
  */
 import { spawnSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -65,10 +66,130 @@ export function newestSourceMtime(cwd, targetDirs, io = {}) {
 }
 
 /**
- * Decide whether the existing coverage artifact is "fresh" — present and at
- * least as new as the newest source file under `targetDirs`. Missing files,
- * missing target dirs, or any IO error resolve to `false` so the caller
- * captures rather than trusting stale data.
+ * Resolve the capture-stamp path that sits next to the coverage artifact.
+ * The stamp persists the content digest of the CRAP-target sources at the
+ * moment coverage was last captured, so freshness can be decided by content
+ * rather than mtime (mtime churns on branch switches / checkouts even when
+ * content is unchanged).
+ *
+ * @param {string} cwd Absolute repo root.
+ * @param {string} coveragePath Repo-relative coverage artifact path.
+ * @returns {string} Absolute stamp path (`<coverage-dir>/.capture-stamp.json`).
+ */
+export function captureStampPath(cwd, coveragePath) {
+  return path.join(
+    path.dirname(path.resolve(cwd, coveragePath)),
+    '.capture-stamp.json',
+  );
+}
+
+const SOURCE_EXT_RE = /\.(?:js|mjs)$/;
+
+/**
+ * Compute a stable content digest of the `.js`/`.mjs` sources under
+ * `targetDirs`: the `git ls-files -s` listing (mode + blob SHA + path) of
+ * tracked content, plus the on-disk bytes of any dirty working-tree files.
+ * Checkout/branch churn leaves blob SHAs untouched, so the digest only moves
+ * when content actually changes.
+ *
+ * Returns `null` when the digest cannot be computed (git unavailable, not a
+ * repo, empty target list) so callers can fall back to the mtime heuristic.
+ *
+ * @param {string} cwd Absolute repo root.
+ * @param {string[]} targetDirs Repo-relative directories to digest.
+ * @param {{ spawnSync?: typeof spawnSync, readFileSync?: typeof fs.readFileSync }} [io]
+ * @returns {string | null} Hex SHA-256 digest, or null when unavailable.
+ */
+export function computeContentDigest(cwd, targetDirs, io = {}) {
+  const spawn = io.spawnSync ?? spawnSync;
+  const readFileSync = io.readFileSync ?? fs.readFileSync;
+  const dirs = (targetDirs ?? []).filter(
+    (d) => typeof d === 'string' && d.length > 0,
+  );
+  if (dirs.length === 0) return null;
+
+  const git = (...args) => {
+    const res = spawn('git', args, { cwd, encoding: 'utf8' });
+    if (res?.error || res?.status !== 0) {
+      throw res?.error ?? new Error(res?.stderr || `git ${args[0]} failed`);
+    }
+    return res.stdout ?? '';
+  };
+
+  try {
+    const hash = crypto.createHash('sha256');
+    const tracked = git('ls-files', '-s', '--', ...dirs)
+      .split('\n')
+      .filter((line) => SOURCE_EXT_RE.test(line.trimEnd()));
+    hash.update(tracked.join('\n'));
+
+    // Dirty working-tree files are not represented by their index blob SHA,
+    // so fold in their on-disk bytes (or absence) explicitly.
+    const dirty = git('status', '--porcelain', '--', ...dirs)
+      .split('\n')
+      .filter((line) => line.length > 3);
+    for (const line of dirty) {
+      let file = line.slice(3).trim();
+      if (file.includes(' -> ')) file = file.split(' -> ').pop();
+      file = file.replace(/^"|"$/g, '');
+      if (!SOURCE_EXT_RE.test(file)) continue;
+      hash.update(`\0${file}\0`);
+      try {
+        hash.update(readFileSync(path.resolve(cwd, file)));
+      } catch {
+        hash.update('<absent>');
+      }
+    }
+    return hash.digest('hex');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Persist the capture stamp next to the coverage artifact. Best-effort: a
+ * write failure returns `false` rather than throwing — the worst case is a
+ * fall back to the mtime heuristic on the next freshness check.
+ *
+ * @param {{
+ *   cwd: string,
+ *   coveragePath: string,
+ *   digest: string,
+ *   writeFileSync?: typeof fs.writeFileSync,
+ * }} opts
+ * @returns {boolean} True when the stamp was written.
+ */
+export function writeCaptureStamp({
+  cwd,
+  coveragePath,
+  digest,
+  writeFileSync = fs.writeFileSync,
+}) {
+  if (typeof digest !== 'string' || digest.length === 0) return false;
+  try {
+    writeFileSync(
+      captureStampPath(cwd, coveragePath),
+      `${JSON.stringify({ digest, capturedAt: new Date().toISOString() }, null, 2)}\n`,
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Decide whether the existing coverage artifact is "fresh".
+ *
+ * Primary test (content-aware, Story #3982): when a capture stamp exists
+ * next to the artifact, compare its persisted digest against the current
+ * content digest of `targetDirs`. Equal digests → fresh; different → stale.
+ * Branch switches and checkouts that bump mtimes without changing content
+ * no longer invalidate coverage.
+ *
+ * Fallback (stamp absent / unreadable / digest unavailable): the original
+ * mtime heuristic — artifact at least as new as the newest source file
+ * under `targetDirs`. Missing files, missing target dirs, or any IO error
+ * resolve to `false` so the caller captures rather than trusting stale data.
  *
  * @param {{
  *   coveragePath: string,
@@ -77,6 +198,8 @@ export function newestSourceMtime(cwd, targetDirs, io = {}) {
  *   statSync?: typeof fs.statSync,
  *   readdirSync?: typeof fs.readdirSync,
  *   existsSync?: typeof fs.existsSync,
+ *   readFileSync?: typeof fs.readFileSync,
+ *   computeDigest?: typeof computeContentDigest,
  * }} opts
  * @returns {{ fresh: boolean, reason: 'missing' | 'stale' | 'fresh' | 'no-sources' }}
  */
@@ -87,9 +210,29 @@ export function isCoverageFresh({
   statSync = fs.statSync,
   readdirSync = fs.readdirSync,
   existsSync = fs.existsSync,
+  readFileSync = fs.readFileSync,
+  computeDigest = computeContentDigest,
 }) {
   const absCoverage = path.resolve(cwd, coveragePath);
   if (!existsSync(absCoverage)) return { fresh: false, reason: 'missing' };
+
+  const stampPath = captureStampPath(cwd, coveragePath);
+  if (existsSync(stampPath)) {
+    let stamp = null;
+    try {
+      stamp = JSON.parse(readFileSync(stampPath, 'utf8'));
+    } catch {
+      // Corrupt/unreadable stamp → fall through to the mtime heuristic.
+    }
+    if (typeof stamp?.digest === 'string' && stamp.digest.length > 0) {
+      const current = computeDigest(cwd, targetDirs);
+      if (typeof current === 'string' && current.length > 0) {
+        return current === stamp.digest
+          ? { fresh: true, reason: 'fresh' }
+          : { fresh: false, reason: 'stale' };
+      }
+    }
+  }
 
   let coverageMtime;
   try {
