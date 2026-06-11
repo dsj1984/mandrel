@@ -7,10 +7,10 @@
  */
 
 import path from 'node:path';
-import { PROJECT_ROOT } from '../../../config-resolver.js';
 import { Logger } from '../../../Logger.js';
 import { AGENT_LABELS, TYPE_LABELS } from '../../../label-constants.js';
 import { cleanupPhaseTempFiles } from '../../../plan-phase-cleanup.js';
+import { PROJECT_ROOT } from '../../../project-root.js';
 import { acquireEpicPlanLease } from '../../epic-plan-lease-guard.js';
 import {
   initialize as initializePlanState,
