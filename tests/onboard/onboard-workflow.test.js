@@ -21,16 +21,20 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 
 const { runInitTail, PLAN_HANDOFF_TEXT } = await import(
-  `${REPO_ROOT}/.agents/scripts/lib/onboard/init-tail.js`
+  pathToFileURL(
+    path.resolve(REPO_ROOT, '.agents/scripts/lib/onboard/init-tail.js'),
+  ).href
 );
 const { STUB_MARKER } = await import(
-  `${REPO_ROOT}/.agents/scripts/lib/onboard/scaffold-docs.js`
+  pathToFileURL(
+    path.resolve(REPO_ROOT, '.agents/scripts/lib/onboard/scaffold-docs.js'),
+  ).href
 );
 
 // ---------------------------------------------------------------------------
