@@ -285,7 +285,7 @@ describe('ticketing/reads — per-ticketId raw-comments cache (Story #2465)', ()
 });
 
 // Story #3097 (Wave-0 additive, Epic #3078 Strategy B) — Storyless
-// snapshot helper. The 3-tier hierarchy collapses to Epic → Feature →
+// snapshot helper. The 2-tier hierarchy collapses to Epic → Feature →
 // Story (no Task children), so reading a Story snapshot must surface a
 // well-formed object with `subTickets: []` instead of throwing.
 describe('ticketing/reads — buildStorylessTicketSnapshot (Story #3097)', () => {

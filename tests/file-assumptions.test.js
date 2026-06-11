@@ -16,7 +16,7 @@ import {
 /**
  * Story #2636 — Phase 8 path-assumption gate.
  *
- * Story #3276 reworked the gate onto the 3-tier Story inline contract:
+ * Story #3276 reworked the gate onto the 2-tier Story inline contract:
  * the validator inspects each Story's body.changes and body.references
  * for object-form `{ path, assumption }` entries and verifies them
  * against `baseBranchRef`. Legacy string-form bullets are tolerated and
@@ -273,7 +273,7 @@ describe('validateStoryFileAssumptions — rules table', () => {
   }
 
   it('only scans type==="story" tickets — Features and Epics are skipped', () => {
-    // 3-tier regression (Story #3276): the gate partitions on the Story
+    // 2-tier regression (Story #3276): the gate partitions on the Story
     // tier. A non-Story ticket carrying a mismatched assumption must be
     // ignored so the gate never fires on narrative Feature/Epic bodies.
     const tickets = [

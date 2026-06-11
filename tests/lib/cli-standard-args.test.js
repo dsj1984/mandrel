@@ -41,7 +41,7 @@ describe('parseStandardCliArgs — deterministic shape', () => {
     assert.deepEqual(Object.keys(values).sort(), expectedKeys);
   });
 
-  it('no longer recognises the Task-tier --task flag (3-tier hierarchy)', () => {
+  it('no longer recognises the Task-tier --task flag (2-tier hierarchy)', () => {
     // Epic #3163 removed the Task tier: the standard parser must not carry
     // a --task / taskId surface. Passing it now surfaces as UNKNOWN_FLAG.
     assert.equal(Object.hasOwn(SUPPORTED_FLAGS, 'task'), false);

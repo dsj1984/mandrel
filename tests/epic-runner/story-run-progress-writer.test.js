@@ -197,16 +197,16 @@ describe('upsertStoryRunProgress (render-only — Story #3909)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 3-tier Story-phase snapshot — Story #3129.
+// 2-tier Story-phase snapshot — Story #3129.
 //
-// Under `planning.hierarchy: '3-tier'` the Story has no child Tasks; the
+// Under `planning.hierarchy: '2-tier'` the Story has no child Tasks; the
 // `story-run-progress` comment carries a `phases[]` array (init / implement /
 // validate / close) instead of `tasks[]`. The two shapes are mutually
 // exclusive (callers MUST pass exactly one) so the snapshot stays small and
 // the parent `/epic-deliver` aggregator never has to merge them.
 // ---------------------------------------------------------------------------
 
-describe('renderStoryRunProgressBody (3-tier phases shape)', () => {
+describe('renderStoryRunProgressBody (2-tier phases shape)', () => {
   it('defaultStoryPhases seeds the canonical init/implement/validate/close shape', () => {
     const phases = defaultStoryPhases();
     assert.deepEqual(
@@ -320,7 +320,7 @@ describe('renderStoryRunProgressBody (3-tier phases shape)', () => {
   it('4-tier tasks shape still renders with no regression', () => {
     // Sanity guard: the tasks[] path must keep emitting `tasks` in the
     // payload (not `phases`) so the parent aggregator's 4-tier readers
-    // continue to work alongside the new 3-tier shape.
+    // continue to work alongside the new 2-tier shape.
     const { payload } = renderStoryRunProgressBody({
       storyId: 912,
       branch: 'story-912',
@@ -332,7 +332,7 @@ describe('renderStoryRunProgressBody (3-tier phases shape)', () => {
   });
 });
 
-describe('upsertStoryRunProgress (3-tier phases shape)', () => {
+describe('upsertStoryRunProgress (2-tier phases shape)', () => {
   it('renders a phases-shaped snapshot through the writer (no comment)', async () => {
     const provider = buildProvider();
     const phases = defaultStoryPhases();

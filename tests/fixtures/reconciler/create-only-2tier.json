@@ -1,0 +1,36 @@
+{
+  "case": "create-only-2tier",
+  "description": "Fresh 2-tier epic (Story #4041). Stories carry inline acceptance[]/verify[] and attach directly to the Epic. diff() should yield 2 creates (epic + story) with no phantom ops.",
+  "spec": {
+    "version": "4.0.0",
+    "epic": {
+      "id": 9101,
+      "title": "Greenfield 2-tier Epic",
+      "labels": [
+        "type::epic"
+      ]
+    },
+    "stories": [
+      {
+        "slug": "story-one",
+        "title": "First Story (2-tier inline)",
+        "wave": 0,
+        "labels": [
+          "type::story",
+          "persona::engineer"
+        ],
+        "acceptance": [
+          "A specific observable passes"
+        ],
+        "verify": [
+          "node --test tests/foo.test.js (contract)"
+        ]
+      }
+    ]
+  },
+  "state": {
+    "epicId": 9101,
+    "mapping": {}
+  },
+  "ghState": {}
+}

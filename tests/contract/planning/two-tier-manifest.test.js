@@ -1,11 +1,11 @@
 /**
- * tests/contract/planning/three-tier-manifest.test.js
+ * tests/contract/planning/two-tier-manifest.test.js
  *
  * Contract: dispatch-manifest.json schema and `buildManifest()` agree on
- * the 3-tier Story-centric shape (Epic #3078).
+ * the 2-tier Story-centric shape (Epic #3078).
  *
  * Asserts:
- *   - `buildManifest()` invoked on a 3-tier ticket graph (zero Tasks,
+ *   - `buildManifest()` invoked on a 2-tier ticket graph (zero Tasks,
  *     N Stories) emits a manifest whose `waves[].stories[]` entries
  *     validate against `.agents/schemas/dispatch-manifest.json`.
  *   - The summary block reports `totalStories` and `doneStories`
@@ -14,7 +14,7 @@
  *     field declared by the schema (`storyId`, `title`, `persona`,
  *     `acceptance`, `verify`, `dependsOn`).
  *   - The schema rejects a wave entry that has neither `tasks[]` nor
- *     `stories[]` (load-bearing for the 3-tier additive shape).
+ *     `stories[]` (load-bearing for the 2-tier additive shape).
  *
  * Story #3136 (Epic #3078, Feature #3093). Complements
  * tests/enforcement/manifest-schema.test.js which exercises the same
@@ -59,8 +59,8 @@ function formatErrors(errors) {
     .join('\n');
 }
 
-/** Build a minimal 3-tier ticket graph: one Epic, one Feature, two Stories. */
-function threeTierTickets() {
+/** Build a minimal 2-tier ticket graph: one Epic, one Feature, two Stories. */
+function twoTierTickets() {
   const epic = {
     id: 9000,
     title: 'Epic 9000',
@@ -102,11 +102,11 @@ function threeTierTickets() {
   return { epic, feature, storyA, storyB };
 }
 
-describe('dispatch-manifest schema — 3-tier shape (Story #3136)', () => {
-  it('a hand-built 3-tier manifest with waves[].stories[] validates against the schema', () => {
+describe('dispatch-manifest schema — 2-tier shape (Story #3136)', () => {
+  it('a hand-built 2-tier manifest with waves[].stories[] validates against the schema', () => {
     // Arrange — exercise the schema contract directly. The summary block
     // accepts both Task-centric (totalTasks/doneTasks) and Story-centric
-    // (totalStories/doneStories) counts under the 3-tier additive shape;
+    // (totalStories/doneStories) counts under the 2-tier additive shape;
     // both are required by the schema and reported here so the contract
     // is exercised end-to-end.
     const validate = compileSchema();
@@ -163,16 +163,16 @@ describe('dispatch-manifest schema — 3-tier shape (Story #3136)', () => {
     assert.equal(
       ok,
       true,
-      `3-tier manifest failed schema validation:\n${formatErrors(validate.errors)}`,
+      `2-tier manifest failed schema validation:\n${formatErrors(validate.errors)}`,
     );
   });
 
-  it('buildManifest() output for a 3-tier ticket graph emits Story-centric waves', () => {
+  it('buildManifest() output for a 2-tier ticket graph emits Story-centric waves', () => {
     // Arrange — exercise the producer surface separately from the
     // schema validation above. The producer's waves[].stories[] shape
     // is the contract under test here; the summary count gap is
     // covered in the dedicated "reports totalStories" test below.
-    const { epic, feature, storyA, storyB } = threeTierTickets();
+    const { epic, feature, storyA, storyB } = twoTierTickets();
     const allTickets = [epic, feature, storyA, storyB];
     const waves = [[storyA], [storyB]];
 
@@ -185,11 +185,11 @@ describe('dispatch-manifest schema — 3-tier shape (Story #3136)', () => {
       waves,
       dispatched: [],
       dryRun: false,
-      hierarchy: '3-tier',
+      hierarchy: '2-tier',
     });
 
     // Assert
-    assert.equal(manifest.hierarchy, '3-tier');
+    assert.equal(manifest.hierarchy, '2-tier');
     assert.equal(manifest.waves.length, 2);
     assert.ok(Array.isArray(manifest.waves[0].stories));
     assert.equal(manifest.waves[0].stories[0].storyId, 9010);
@@ -198,7 +198,7 @@ describe('dispatch-manifest schema — 3-tier shape (Story #3136)', () => {
 
   it('reports totalStories and doneStories in summary (Story-centric counts)', () => {
     // Arrange
-    const { epic, feature, storyA, storyB } = threeTierTickets();
+    const { epic, feature, storyA, storyB } = twoTierTickets();
     // Mark Story A as done so doneStories > 0 exercises the count path.
     storyA.labels = [...storyA.labels, 'agent::done'];
 
@@ -211,7 +211,7 @@ describe('dispatch-manifest schema — 3-tier shape (Story #3136)', () => {
       waves: [[storyA, storyB]],
       dispatched: [],
       dryRun: false,
-      hierarchy: '3-tier',
+      hierarchy: '2-tier',
     });
 
     // Assert
@@ -221,13 +221,13 @@ describe('dispatch-manifest schema — 3-tier shape (Story #3136)', () => {
     assert.equal(
       manifest.summary.totalTasks,
       undefined,
-      'totalTasks must not appear in 3-tier summary',
+      'totalTasks must not appear in 2-tier summary',
     );
   });
 
   it('each waves[].stories[] entry carries every schema-required field', () => {
     // Arrange
-    const { epic, feature, storyA, storyB } = threeTierTickets();
+    const { epic, feature, storyA, storyB } = twoTierTickets();
 
     // Act
     const manifest = buildManifest({
@@ -238,7 +238,7 @@ describe('dispatch-manifest schema — 3-tier shape (Story #3136)', () => {
       waves: [[storyA], [storyB]],
       dispatched: [],
       dryRun: false,
-      hierarchy: '3-tier',
+      hierarchy: '2-tier',
     });
 
     // Assert
@@ -264,7 +264,7 @@ describe('dispatch-manifest schema — 3-tier shape (Story #3136)', () => {
   });
 
   it('schema rejects a wave entry that has neither tasks[] nor stories[]', () => {
-    // Arrange — load-bearing for the 3-tier additive shape: a wave
+    // Arrange — load-bearing for the 2-tier additive shape: a wave
     // entry must declare at least one of the two collections.
     const validate = compileSchema();
     const bad = {

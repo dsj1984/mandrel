@@ -50,7 +50,7 @@ test('cascadeCompletion sequential dispatch (Story #4017)', async (t) => {
   await t.test('two disjoint parents run strictly sequentially', async () => {
     // Trigger #100 has two parents (#41, #42) that share NO ancestors.
     // Story #4017 deleted the shared-ancestor grouping / parallel
-    // dispatch (fan-out <= 1 under the 3-tier hierarchy), so all parents
+    // dispatch (fan-out <= 1 under the 2-tier hierarchy), so all parents
     // — disjoint or not — run strictly sequentially in input order.
     const tickets = {
       41: {

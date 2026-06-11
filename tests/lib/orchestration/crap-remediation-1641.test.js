@@ -131,7 +131,7 @@ describe('ticket-validator.validateAndNormalizeTickets — error branches', () =
   });
 
   it('throws when a Story lacks an inline acceptance + verify contract', () => {
-    // 3-tier (Epic #3238): a Story with no top-level acceptance/verify is
+    // 2-tier (Epic #3238): a Story with no top-level acceptance/verify is
     // the legacy 4-tier shape that expected child Tasks — now rejected.
     const b = buildMinimalBacklog();
     const story = b.find((t) => t.type === 'story');

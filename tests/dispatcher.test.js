@@ -8,7 +8,7 @@
  * branch creation (tested separately in integration tests).
  *
  * Note: Epic #3163 / Story #3205 removed the Task-tier dispatch runtime;
- * `dispatch()` is now 3-tier-only and emits a Story-level wave plan. The
+ * `dispatch()` is now 2-tier-only and emits a Story-level wave plan. The
  * legacy Task-tier cases below are skipped under TODO(#3209).
  */
 
@@ -122,7 +122,7 @@ describe('dispatch() — manifest schema compliance', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 3-tier hierarchy — Story-level wave computation
+// 2-tier hierarchy — Story-level wave computation
 // (Epic #3078 Story #3128 — dispatch-engine + dependency-analyzer)
 // ---------------------------------------------------------------------------
 
@@ -138,7 +138,7 @@ function makeStoryTicket(id, overrides = {}) {
   };
 }
 
-describe('dispatch() — 3-tier hierarchy (Story-level wave plan)', () => {
+describe('dispatch() — 2-tier hierarchy (Story-level wave plan)', () => {
   it('emits waves[].stories[] keyed by storyId when no Tasks are present', async () => {
     const story100 = makeStoryTicket(100, { title: 'First Story' });
     const story200 = makeStoryTicket(200, { title: 'Second Story' });
@@ -151,8 +151,8 @@ describe('dispatch() — 3-tier hierarchy (Story-level wave plan)', () => {
 
     assert.equal(
       manifest.hierarchy,
-      '3-tier',
-      'manifest should declare 3-tier hierarchy',
+      '2-tier',
+      'manifest should declare 2-tier hierarchy',
     );
     assert.ok(Array.isArray(manifest.waves), 'waves must be present');
     // Independent Stories collapse into a single wave.
@@ -165,7 +165,7 @@ describe('dispatch() — 3-tier hierarchy (Story-level wave plan)', () => {
       .map((s) => s.storyId)
       .sort((a, b) => a - b);
     assert.deepEqual(storyIds, [100, 200]);
-    // Summary uses Story counts under 3-tier.
+    // Summary uses Story counts under 2-tier.
     assert.equal(manifest.summary.totalStories, 2);
   });
 
@@ -182,7 +182,7 @@ describe('dispatch() — 3-tier hierarchy (Story-level wave plan)', () => {
 
     const manifest = await dispatch({ epicId: 1, dryRun: true, provider });
 
-    assert.equal(manifest.hierarchy, '3-tier');
+    assert.equal(manifest.hierarchy, '2-tier');
     assert.equal(
       manifest.waves.length,
       2,

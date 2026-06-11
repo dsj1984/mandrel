@@ -3,7 +3,7 @@
  * `renderNestedWaveSections` plus branch coverage of the private
  * `validateWaveSection` predicate (exposed via `__testables`).
  *
- * Story #3413 (3-tier cutover, final): the residual per-Task rendering
+ * Story #3413 (2-tier cutover, final): the residual per-Task rendering
  * has been deleted. Each wave counts Stories (done/total), renders one
  * H3 per Story with no task suffix, and emits no `_(no tasks)_` marker
  * or `Child Tasks` feature-table column. A Story is "done" when its
@@ -166,8 +166,8 @@ test('renderNestedWaveSections: Story title falls back to storySlug when storyTi
   assert.ok(md.includes('### ⬜ #101 — slug-only'));
 });
 
-test('renderNestedWaveSections: Stories never emit per-Task checkbox rows (3-tier)', () => {
-  // Under the 3-tier hierarchy Stories are leaves; the renderer no
+test('renderNestedWaveSections: Stories never emit per-Task checkbox rows (2-tier)', () => {
+  // Under the 2-tier hierarchy Stories are leaves; the renderer no
   // longer projects child Task tickets even when a legacy caller still
   // hands in a populated `tasks` array.
   const stories = [

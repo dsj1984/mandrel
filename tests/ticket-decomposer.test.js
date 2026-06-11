@@ -22,7 +22,7 @@ import {
 import { DELIVERABLE_GRANULARITY_GUIDANCE } from '../.agents/scripts/lib/orchestration/ticket-validator-sizing.js';
 import { renderDecomposerSystemPrompt } from '../.agents/scripts/lib/templates/decomposer-prompts.js';
 
-// 3-tier (Epic #3238): Feature → Story, with the Story carrying its inline
+// 2-tier (Epic #3238): Feature → Story, with the Story carrying its inline
 // acceptance + verify contract and a structured body. There is no Task tier.
 // Story #3777 — a Feature MUST decompose into >=2 Stories, so the base
 // fixture carries two well-formed Stories under f1.
@@ -66,7 +66,7 @@ const baseTickets = () => [
   },
 ];
 
-// 3-tier (Epic #3238): a Story is its own implementation unit. It carries
+// 2-tier (Epic #3238): a Story is its own implementation unit. It carries
 // the top-level inline contract (acceptance[] + verify[]) the validator
 // requires plus a structured body. Used to build the multi-Story fixtures
 // the orchestration concurrency / ordering tests exercise.

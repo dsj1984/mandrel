@@ -1,6 +1,6 @@
 /**
  * tests/scripts/spec-renderer.test.js — Story #1495 / Task #1524,
- * rewritten under Epic #3163 / Story #3192 for the 3-tier shape.
+ * rewritten under Epic #3163 / Story #3192 for the 2-tier shape.
  *
  * Verifies `lib/orchestration/spec-renderer.js`'s projection of the
  * decomposer's flat ticket array shape into the structural spec
@@ -9,7 +9,7 @@
  * canonical AC: anything the renderer writes must be parseable by the
  * spec-loader and structurally identical on reload.
  *
- * Under the 3-tier hierarchy (Epic #3078), Stories have no Task
+ * Under the 2-tier hierarchy (Epic #3078), Stories have no Task
  * children — `acceptance[]` / `verify[]` arrays live inline on the
  * Story. The renderer's previous Task emission code path (the
  * `tasks: [...]` array on each Story) has been deleted in Story #3192.
@@ -27,7 +27,7 @@
  *   - Inline `acceptance[]` / `verify[]` arrays (top-level on the
  *     Story ticket, or nested under a structured `body`) project
  *     onto the rendered Story.
- *   - A `type: 'task'` ticket raises immediately (3-tier guard).
+ *   - A `type: 'task'` ticket raises immediately (2-tier guard).
  *   - Schema-invalid inputs raise `SpecRenderValidationError`.
  *   - Gates are passed through verbatim when provided.
  *
@@ -170,14 +170,14 @@ describe('lib/orchestration/spec-renderer.js — basic projection', () => {
     assert.equal(story.slug, 'schema-author');
   });
 
-  it('never emits a `tasks` key on any Story (3-tier shape)', () => {
+  it('never emits a `tasks` key on any Story (2-tier shape)', () => {
     const spec = renderSpec(buildFixtureTickets(), { epic: FIXTURE_EPIC });
     for (const f of spec.features) {
       for (const s of f.stories) {
         assert.equal(
           Object.hasOwn(s, 'tasks'),
           false,
-          `Story ${s.slug} must not carry a tasks[] key under the 3-tier shape`,
+          `Story ${s.slug} must not carry a tasks[] key under the 2-tier shape`,
         );
       }
     }
@@ -294,11 +294,11 @@ describe('lib/orchestration/spec-renderer.js — dependsOn / wave layering', () 
   });
 });
 
-describe('lib/orchestration/spec-renderer.js — 3-tier guard', () => {
+describe('lib/orchestration/spec-renderer.js — 2-tier guard', () => {
   it('rejects a ticket of type "task" with an unknown-type message', () => {
     // Epic #3238 / Story #3272 dropped the dedicated `type === 'task'`
     // render arm. A Task ticket now falls through to the generic
-    // unknown-type guard rather than a Task-specific 3-tier message.
+    // unknown-type guard rather than a Task-specific 2-tier message.
     const tickets = buildFixtureTickets();
     tickets.push({
       slug: 'orphan-task',

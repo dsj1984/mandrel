@@ -150,20 +150,10 @@ function buildStubProvider({ epicId, epicLabels }) {
 function buildFixtureTickets() {
   return [
     {
-      slug: 'feature-a',
-      type: 'feature',
-      title: 'Feature A',
-      body: 'feature body',
-      labels: ['type::feature'],
-      parent_slug: '',
-      depends_on: [],
-    },
-    {
       slug: 'story-one',
       type: 'story',
       title: 'Story One',
       labels: ['type::story'],
-      parent_slug: 'feature-a',
       depends_on: [],
       acceptance: ['done'],
       verify: ['npm test (unit)'],
@@ -174,13 +164,11 @@ function buildFixtureTickets() {
         verify: ['npm test (unit)'],
       },
     },
-    // Story #3777 — a Feature MUST carry >=2 Stories.
     {
       slug: 'story-two',
       type: 'story',
       title: 'Story Two',
       labels: ['type::story'],
-      parent_slug: 'feature-a',
       depends_on: [],
       acceptance: ['done'],
       verify: ['npm test (unit)'],
@@ -197,7 +185,7 @@ function buildFixtureTickets() {
 const stubSpawnSync = () => ({ status: 0, stdout: '', stderr: '' });
 const stubRenderSpec = (_tickets, opts) => ({
   epic: { id: opts.epic.id, title: opts.epic.title, body: opts.epic.body },
-  features: [],
+  stories: [],
 });
 
 describe('agent::ready handoff gate — healthcheck (Story #2921 F7)', () => {

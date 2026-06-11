@@ -25,17 +25,6 @@ function makeStory(storyId, status = 'agent::ready', wave = 0) {
   };
 }
 
-function makeFeature(featureId) {
-  return {
-    storyId: featureId,
-    storyTitle: `Feature ${featureId}`,
-    storySlug: `feature-${featureId}`,
-    type: 'feature',
-    branchName: `feature-${featureId}`,
-    earliestWave: -1,
-  };
-}
-
 function makeBaseManifest(overrides = {}) {
   return {
     epicId: 100,
@@ -158,7 +147,7 @@ test('renderManifestMarkdown', async (t) => {
     assert.doesNotMatch(output, /## Execution Plan/);
     assert.match(output, /^## .* Wave 0/m); // per-wave H2
     assert.match(output, /^### .* #10/m); // per-Story H3 with id
-    // Under the 3-tier hierarchy (Epic #3163, Story #3413) Stories are
+    // Under the 2-tier hierarchy (Epic #3163, Story #3413) Stories are
     // leaves; no per-Task body or checkbox row is emitted.
     assert.doesNotMatch(output, /_\(no tasks\)_/);
     assert.doesNotMatch(output, /- \[ \]/);
@@ -171,38 +160,15 @@ test('renderManifestMarkdown', async (t) => {
     assert.match(output, /✅/);
   });
 
-  await t.test('excludes features from execution plan waves', () => {
-    const feature = makeFeature(50);
+  await t.test('never renders a Feature Containers section (2-tier)', () => {
     const story = makeStory(10, 'agent::ready', 0);
-    const manifest = makeBaseManifest({ storyManifest: [feature, story] });
+    const manifest = makeBaseManifest({ storyManifest: [story] });
     const output = renderManifestMarkdown(manifest);
-    // Feature should be in a separate section, not in wave execution
-    assert.match(output, /Feature Containers/);
-    assert.match(output, /#50/);
-    // Wave 0 should only contain the story
+    assert.doesNotMatch(output, /Feature Containers/);
+    // No residual Child Tasks column either.
+    assert.doesNotMatch(output, /Child Tasks/);
     assert.match(output, /Wave 0/);
   });
-
-  await t.test('renders feature containers section', () => {
-    const feature = makeFeature(50);
-    const manifest = makeBaseManifest({ storyManifest: [feature] });
-    const output = renderManifestMarkdown(manifest);
-    assert.match(output, /Feature Containers/);
-    assert.match(output, /not directly executable/);
-    assert.match(output, /#50/);
-    // No residual Child Tasks column.
-    assert.doesNotMatch(output, /Child Tasks/);
-  });
-
-  await t.test(
-    'does not render Feature Containers section when no features',
-    () => {
-      const story = makeStory(10, 'agent::ready', 0);
-      const manifest = makeBaseManifest({ storyManifest: [story] });
-      const output = renderManifestMarkdown(manifest);
-      assert.doesNotMatch(output, /Feature Containers/);
-    },
-  );
 
   await t.test('renders multiple waves in correct order', () => {
     const s0 = makeStory(10, 'agent::done', 0);

@@ -188,7 +188,7 @@ test('layout fixture: exactly one bottom <details> block, no other HTML tags any
 
 // The per-Task checkbox / HTML-free assertion was removed when Epic
 // #3163 (Story #3196) collapsed the per-Story Task projection: under
-// the 3-tier hierarchy Stories are leaves, so the renderer no longer
+// the 2-tier hierarchy Stories are leaves, so the renderer no longer
 // emits any `- [ ] #N — title` rows beneath a Story H3.
 
 test('layout fixture: wave summary status reflects per-wave readiness', () => {

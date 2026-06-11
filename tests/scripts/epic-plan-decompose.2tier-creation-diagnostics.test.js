@@ -1,17 +1,17 @@
-// tests/scripts/epic-plan-decompose.3tier-creation-diagnostics.test.js
+// tests/scripts/epic-plan-decompose.2tier-creation-diagnostics.test.js
 //
 // Story #3120 / Task #3132 — contract coverage for the diagnostics.js
-// phase helper under the 3-tier hierarchy (Epic #3078).
+// phase helper under the 2-tier hierarchy (Epic #3078).
 //
 // Guarantee pinned here:
 //
 //   `reportPartialFailure` (diagnostics.js) emits no log line that
 //   mentions "Tasks" when the Epic carries only Feature + Story
-//   children. The 3-tier diagnostics surface must not surface a
+//   children. The 2-tier diagnostics surface must not surface a
 //   "missing Tasks" warning — diagnostics is type-agnostic and
 //   counts all child types together.
 //
-// Run: node --test tests/scripts/epic-plan-decompose.3tier-creation-diagnostics.test.js
+// Run: node --test tests/scripts/epic-plan-decompose.2tier-creation-diagnostics.test.js
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
@@ -20,7 +20,7 @@ import { reportPartialFailure } from '../../.agents/scripts/lib/orchestration/ep
 
 const EPIC_ID = 9120;
 
-describe('reportPartialFailure — 3-tier no "missing Tasks" warning (Story #3120)', () => {
+describe('reportPartialFailure — 2-tier no "missing Tasks" warning (Story #3120)', () => {
   // Capture every Logger.error call without disturbing the singleton.
   function captureErrors() {
     const lines = [];
@@ -36,13 +36,13 @@ describe('reportPartialFailure — 3-tier no "missing Tasks" warning (Story #312
     };
   }
 
-  it('does not emit any "Tasks" wording when the Epic has only Feature + Story children (3-tier)', async () => {
+  it('does not emit any "Tasks" wording when the Epic has only Feature + Story children (2-tier)', async () => {
     const provider = {
       async getEpic() {
         return { id: EPIC_ID, labels: ['type::epic', 'agent::executing'] };
       },
       async getSubTickets() {
-        // 3-tier: Feature + Story only, no Task children.
+        // 2-tier: Feature + Story only, no Task children.
         return [
           { id: 9121, title: 'F1', labels: ['type::feature'], state: 'open' },
           { id: 9122, title: 'S1', labels: ['type::story'], state: 'open' },
@@ -61,14 +61,14 @@ describe('reportPartialFailure — 3-tier no "missing Tasks" warning (Story #312
       cap.restore();
     }
 
-    // The diagnostics surface must be 3-tier-clean: no warning that
+    // The diagnostics surface must be 2-tier-clean: no warning that
     // implies Tasks should exist, no log line whose only purpose is to
     // observe the absence of Tasks.
     const taskMentions = cap.lines.filter((l) => /\btask(s)?\b/i.test(l));
     assert.deepEqual(
       taskMentions,
       [],
-      `diagnostics emitted Task-mentioning lines under 3-tier:\n${taskMentions.join('\n')}`,
+      `diagnostics emitted Task-mentioning lines under 2-tier:\n${taskMentions.join('\n')}`,
     );
     // The "to resume" hint is still emitted (cwd-hint contract).
     assert.ok(
@@ -76,7 +76,7 @@ describe('reportPartialFailure — 3-tier no "missing Tasks" warning (Story #312
       'reportPartialFailure must still emit the resume hint',
     );
     // The open-children count IS still emitted and reflects the 2 open
-    // 3-tier children — proving the diagnostic surface is type-agnostic.
+    // 2-tier children — proving the diagnostic surface is type-agnostic.
     assert.ok(
       cap.lines.some((l) => /Children currently open under Epic: 2/.test(l)),
       'reportPartialFailure must still report total open children',

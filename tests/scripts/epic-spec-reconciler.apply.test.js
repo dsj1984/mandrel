@@ -36,27 +36,26 @@ import {
 import { StubProvider } from '../fixtures/reconciler/stub-provider.mjs';
 
 /**
- * Build a minimal spec with a single feature + story so apply has
- * something to project state from. Slugs are stable across tests.
+ * Build a minimal spec with two stories so apply has something to
+ * project state from. Slugs are stable across tests.
  */
 function makeSpec({ epicId = 9000, storyTitle = 'Story One' } = {}) {
   return {
     epic: { id: epicId, title: 'Test Epic', labels: ['type::epic'] },
-    features: [
+    stories: [
       {
-        slug: 'feat-alpha',
-        title: 'Alpha',
-        labels: ['type::feature'],
-        stories: [
-          {
-            slug: 'story-one',
-            title: storyTitle,
-            wave: 0,
-            dependsOn: [],
-            labels: ['type::story'],
-            tasks: [],
-          },
-        ],
+        slug: 'story-one',
+        title: storyTitle,
+        wave: 0,
+        dependsOn: [],
+        labels: ['type::story'],
+      },
+      {
+        slug: 'story-two',
+        title: 'Story Two',
+        wave: 1,
+        dependsOn: ['story-one'],
+        labels: ['type::story'],
       },
     ],
   };
@@ -138,20 +137,22 @@ describe('reconciler apply — create path', () => {
     const plan = emptyPlan();
     plan.creates.push(
       createOp({
-        slug: 'feat-alpha',
-        entity: ENTITY_KINDS.FEATURE,
-        title: 'Alpha',
-        labels: ['type::feature'],
-        parentSlug: 'epic',
-      }),
-      createOp({
         slug: 'story-one',
         entity: ENTITY_KINDS.STORY,
         title: 'Story One',
         labels: ['type::story'],
-        parentSlug: 'feat-alpha',
+        parentSlug: 'epic',
         wave: 0,
         dependsOn: [],
+      }),
+      createOp({
+        slug: 'story-two',
+        entity: ENTITY_KINDS.STORY,
+        title: 'Story Two',
+        labels: ['type::story'],
+        parentSlug: 'epic',
+        wave: 1,
+        dependsOn: ['story-one'],
       }),
     );
     const result = await apply(plan, provider, {
@@ -160,10 +161,10 @@ describe('reconciler apply — create path', () => {
     });
     assert.equal(result.failure, undefined);
     assert.equal(result.created.length, 2);
-    // feat-alpha created first (parent), story-one second
+    // story-one created first (dependency), story-two second
     assert.equal(provider.calls[0].kind, 'createTicket');
-    assert.equal(result.slugToIssue['feat-alpha'], 9100);
-    assert.equal(result.slugToIssue['story-one'], 9101);
+    assert.equal(result.slugToIssue['story-one'], 9100);
+    assert.equal(result.slugToIssue['story-two'], 9101);
   });
 
   it('rejects creates whose parent slug is unmapped', async () => {
@@ -171,10 +172,10 @@ describe('reconciler apply — create path', () => {
     const plan = emptyPlan();
     plan.creates.push(
       createOp({
-        slug: 'orphan-task',
-        entity: ENTITY_KINDS.TASK,
+        slug: 'orphan-story',
+        entity: ENTITY_KINDS.STORY,
         title: 'Orphan',
-        parentSlug: 'missing-story',
+        parentSlug: 'missing-parent',
       }),
     );
     const result = await apply(plan, provider, { epicId: 9000 });
@@ -202,20 +203,13 @@ describe('reconciler apply — create path', () => {
     const provider = new StubProvider({ startingIssue: 9200 });
     const plan = emptyPlan();
     plan.creates.push(
-      createOp({
-        slug: 'feat-parent',
-        entity: ENTITY_KINDS.FEATURE,
-        title: 'Parent Feature',
-        labels: ['type::feature'],
-        parentSlug: 'epic',
-      }),
       // Dependent listed BEFORE its dependency.
       createOp({
         slug: 'story-b',
         entity: ENTITY_KINDS.STORY,
         title: 'B depends on A',
         labels: ['type::story'],
-        parentSlug: 'feat-parent',
+        parentSlug: 'epic',
         wave: 1,
         dependsOn: ['story-a'],
       }),
@@ -224,7 +218,7 @@ describe('reconciler apply — create path', () => {
         entity: ENTITY_KINDS.STORY,
         title: 'A (foundation)',
         labels: ['type::story'],
-        parentSlug: 'feat-parent',
+        parentSlug: 'epic',
         wave: 0,
         dependsOn: [],
       }),
@@ -441,7 +435,7 @@ describe('reconciler apply — idempotency (state writer)', () => {
     };
 
     const plan1 = diff({ spec, state: priorState, ghState: {} });
-    // Plan includes 'epic', 'feat-alpha', 'story-one' creates.
+    // Plan includes 'epic', 'story-one', 'story-two' creates.
     assert.equal(plan1.creates.length, 3);
     const result1 = await apply(plan1, provider, {
       epicId: 9000,
@@ -454,9 +448,9 @@ describe('reconciler apply — idempotency (state writer)', () => {
     assert.equal(result1.failure, undefined);
     assert.ok(writtenState, 'state was written');
     assert.equal(writtenState.epicId, 9000);
-    // feat-alpha + story-one mapped to new IDs; epic preserves 9000.
+    // story-one + story-two mapped to new IDs; epic preserves 9000.
     assert.equal(
-      typeof writtenState.mapping['feat-alpha'].issueNumber,
+      typeof writtenState.mapping['story-one'].issueNumber,
       'number',
     );
 
@@ -509,8 +503,8 @@ describe('reconciler apply — partial failure', () => {
       failOn: (call) => {
         if (call.kind === 'createTicket') {
           calls += 1;
-          // Fail on the third createTicket so epic/feat-alpha land but
-          // story-one's create rejects.
+          // Fail on the third createTicket so epic/story-one land but
+          // story-two's create rejects.
           return calls === 3;
         }
         return false;
@@ -542,12 +536,12 @@ describe('reconciler apply — partial failure', () => {
     // state.json captured the completed creates; the failed one is
     // recorded as issueNumber:null via projectMapping's default.
     assert.ok(writtenState, 'partial state was persisted');
-    // feat-alpha was created successfully and should have a numeric id.
-    const feat = writtenState.mapping['feat-alpha'];
-    assert.equal(typeof feat.issueNumber, 'number');
-    // story-one never got an id (its create rejected).
-    const story = writtenState.mapping['story-one'];
-    assert.equal(story.issueNumber, null);
+    // story-one was created successfully and should have a numeric id.
+    const first = writtenState.mapping['story-one'];
+    assert.equal(typeof first.issueNumber, 'number');
+    // story-two never got an id (its create rejected).
+    const second = writtenState.mapping['story-two'];
+    assert.equal(second.issueNumber, null);
   });
 });
 
@@ -587,87 +581,66 @@ describe('reconciler apply — bounded concurrency', () => {
   });
 });
 
-describe('reconciler apply — 3-tier hierarchy (Story #3117 / Epic #3078)', () => {
-  it('applies a 3-tier create plan (Feature + Story only, no Tasks) without phantom task ops', async () => {
+describe('reconciler apply — 2-tier hierarchy (Story #3117 / Epic #3078)', () => {
+  it('applies a 2-tier create plan (Stories only, no Features/Tasks) without phantom ops', async () => {
     const provider = new StubProvider({ startingIssue: 9200 });
     const plan = emptyPlan();
     plan.creates.push(
       createOp({
-        slug: 'feat-3tier',
-        entity: ENTITY_KINDS.FEATURE,
-        title: '3-tier Feature',
-        labels: ['type::feature'],
-        parentSlug: 'epic',
-      }),
-      createOp({
-        slug: 'story-3tier',
+        slug: 'story-2tier',
         entity: ENTITY_KINDS.STORY,
         title: 'Story with inline acceptance/verify',
         labels: ['type::story', 'persona::engineer'],
-        parentSlug: 'feat-3tier',
+        parentSlug: 'epic',
         wave: 0,
         dependsOn: [],
       }),
     );
-    const spec3tier = {
-      version: '2.0.0',
+    const spec2tier = {
+      version: '4.0.0',
       epic: { id: 9000, title: 'E', labels: ['type::epic'] },
-      features: [
+      stories: [
         {
-          slug: 'feat-3tier',
-          title: '3-tier Feature',
-          labels: ['type::feature'],
-          stories: [
-            {
-              slug: 'story-3tier',
-              title: 'Story with inline acceptance/verify',
-              wave: 0,
-              labels: ['type::story', 'persona::engineer'],
-              acceptance: ['outcome holds'],
-              verify: ['node --test foo (contract)'],
-            },
-          ],
+          slug: 'story-2tier',
+          title: 'Story with inline acceptance/verify',
+          wave: 0,
+          labels: ['type::story', 'persona::engineer'],
+          acceptance: ['outcome holds'],
+          verify: ['node --test foo (contract)'],
         },
       ],
     };
     const result = await apply(plan, provider, {
       epicId: 9000,
       slugToIssue: { epic: 9000 },
-      spec: spec3tier,
+      spec: spec2tier,
     });
     assert.equal(result.failure, undefined);
-    assert.equal(result.created.length, 2);
+    assert.equal(result.created.length, 1);
     // No createTicket call for any task
     for (const call of provider.calls) {
       if (call.kind !== 'createTicket') continue;
       const labels = call.payload?.labels ?? [];
       assert.equal(
-        labels.includes('type::task'),
+        labels.includes('type::task') || labels.includes('type::feature'),
         false,
-        `apply must not create type::task tickets under 3-tier; saw call ${JSON.stringify(call)}`,
+        `apply must not create feature/task tickets under 2-tier; saw call ${JSON.stringify(call)}`,
       );
     }
   });
 
-  it('round-trips a 3-tier spec through diff → apply with an empty plan on re-run (idempotent)', async () => {
+  it('round-trips a 2-tier spec through diff → apply with an empty plan on re-run (idempotent)', async () => {
     const spec = {
-      version: '2.0.0',
-      epic: { id: 9300, title: '3-tier E', labels: ['type::epic'] },
-      features: [
+      version: '4.0.0',
+      epic: { id: 9300, title: '2-tier E', labels: ['type::epic'] },
+      stories: [
         {
-          slug: 'feat-r',
-          title: 'F',
-          labels: ['type::feature'],
-          stories: [
-            {
-              slug: 'story-r',
-              title: 'S',
-              wave: 0,
-              labels: ['type::story', 'persona::engineer'],
-              acceptance: ['x'],
-              verify: ['y (unit)'],
-            },
-          ],
+          slug: 'story-r',
+          title: 'S',
+          wave: 0,
+          labels: ['type::story', 'persona::engineer'],
+          acceptance: ['x'],
+          verify: ['y (unit)'],
         },
       ],
     };
@@ -675,23 +648,17 @@ describe('reconciler apply — 3-tier hierarchy (Story #3117 / Epic #3078)', () 
       epicId: 9300,
       mapping: {
         epic: { issueNumber: 9300, entity: 'epic', parentSlug: null },
-        'feat-r': {
-          issueNumber: 9301,
-          entity: 'feature',
-          parentSlug: 'epic',
-        },
         'story-r': {
           issueNumber: 9302,
           entity: 'story',
-          parentSlug: 'feat-r',
+          parentSlug: 'epic',
           wave: 0,
           dependsOn: [],
         },
       },
     };
     const ghState = {
-      9300: { title: '3-tier E', body: '', labels: ['type::epic'] },
-      9301: { title: 'F', body: '', labels: ['type::feature'] },
+      9300: { title: '2-tier E', body: '', labels: ['type::epic'] },
       9302: {
         title: 'S',
         body: '',

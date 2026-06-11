@@ -206,15 +206,15 @@ describe('runHierarchyGate', () => {
     assert.deepStrictEqual(provider.calls.sort(), [100, 200]);
   });
 
-  it('passes for a 3-tier tree (Feature → Story with no Tasks) (Story #3127)', async () => {
-    // Under the 3-tier hierarchy a Story has zero child Tasks — acceptance
+  it('passes for a 2-tier tree (Feature → Story with no Tasks) (Story #3127)', async () => {
+    // Under the 2-tier hierarchy a Story has zero child Tasks — acceptance
     // criteria live inline on the Story body. The gate must accept this
     // shape as well-formed when every Feature and Story is closed.
     const provider = new GraphProvider({
       100: [
         {
           id: 200,
-          title: 'Feature 3-tier',
+          title: 'Feature 2-tier',
           state: 'closed',
           labels: ['type::feature'],
         },
@@ -227,7 +227,7 @@ describe('runHierarchyGate', () => {
           labels: ['type::story'],
         },
       ],
-      // Story 300 has NO child Tasks (3-tier shape).
+      // Story 300 has NO child Tasks (2-tier shape).
       300: [],
     });
     const result = await runHierarchyGate({

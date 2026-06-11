@@ -6,29 +6,23 @@ import {
 } from '../../../.agents/scripts/lib/orchestration/ticket-validator.js';
 
 /**
- * Single-Story-Feature rejection (Story #3777).
+ * Stories-only backlog invariant (Story #4041).
  *
- * `assertNoSingleStoryFeature` is a deterministic, HARD invariant: a Feature
- * MUST decompose into at least two Stories. A Feature with a single Story is
- * the work of a Story, not a Feature — it signals decomposition at
- * module/task granularity rather than deliverable granularity. The check
- * throws (matching the surrounding `assertHierarchy` / `assertEachTypePresent`
- * style) and names the offending Feature so the planner can collapse it.
+ * `assertAllTicketsAreStories` is a deterministic, HARD invariant under the
+ * 2-tier hierarchy (Epic → Story): every ticket the decomposer emits must
+ * be `type: "story"` and at least one Story must be present. Any other type
+ * (the retired `feature` / `task` tiers, or planner hallucinations) rejects
+ * the decomposition with a throw that names the offending tickets.
  *
- * 3-tier (Epic #3238): every Story carries its top-level inline contract
- * (`acceptance[]` + `verify[]`) plus a structured body.
+ * Every Story carries its top-level inline contract (`acceptance[]` +
+ * `verify[]`) plus a structured body.
  */
 
-function feature(slug, title = `Feature ${slug}`) {
-  return { slug, type: 'feature', title, body: 'feature body' };
-}
-
-function story(slug, parentSlug, title = `Story ${slug}`) {
+function story(slug, title = `Story ${slug}`) {
   return {
     slug,
     type: 'story',
     title,
-    parent_slug: parentSlug,
     acceptance: [`${title} is implemented`],
     verify: ['npm test (unit)'],
     body: {
@@ -40,56 +34,40 @@ function story(slug, parentSlug, title = `Story ${slug}`) {
   };
 }
 
-describe('ticket-validator: single-Story-Feature rejection (Story #3777)', () => {
-  it('REJECTS a backlog whose Feature contains a single Story', () => {
-    const backlog = [feature('f1'), story('s1', 'f1')];
-    assert.throws(
-      () => validateAndNormalizeTickets(backlog),
-      /decompose into fewer than two Stories/,
-    );
-  });
-
-  it('names the offending Feature and tells the planner to collapse it', () => {
-    const backlog = [
-      feature('f-lonely', 'Lonely Feature'),
-      story('s1', 'f-lonely'),
-    ];
-    let caught;
-    try {
-      validateAndNormalizeTickets(backlog);
-    } catch (err) {
-      caught = err;
-    }
-    assert.ok(caught, 'expected a throw');
-    assert.match(caught.message, /"Lonely Feature" \(f-lonely, 1 Story\)/);
-    assert.match(caught.message, /[Cc]ollapse/);
-  });
-
-  it('PASSES a backlog whose Feature contains two Stories', () => {
-    const backlog = [feature('f1'), story('s1', 'f1'), story('s2', 'f1')];
+describe('ticket-validator: Stories-only backlog (Story #4041)', () => {
+  it('PASSES a backlog containing only Stories', () => {
+    const backlog = [story('s1'), story('s2')];
     assert.doesNotThrow(() => validateAndNormalizeTickets(backlog));
   });
 
-  it('rejects when ANY Feature in a multi-Feature backlog has a single Story', () => {
+  it('REJECTS a backlog carrying a retired Feature ticket', () => {
     const backlog = [
-      feature('f-ok'),
-      story('s1', 'f-ok'),
-      story('s2', 'f-ok'),
-      feature('f-bad'),
-      story('s3', 'f-bad'),
+      { slug: 'f1', type: 'feature', title: 'Retired Feature' },
+      story('s1'),
+      story('s2'),
     ];
     assert.throws(
       () => validateAndNormalizeTickets(backlog),
-      /"Feature f-bad" \(f-bad, 1 Story\)/,
+      /are not Stories/,
     );
   });
 
-  it('names every offending Feature when several are undersized', () => {
+  it('REJECTS a backlog carrying a retired Task ticket', () => {
     const backlog = [
-      feature('f-a'),
-      story('s1', 'f-a'),
-      feature('f-b'),
-      story('s2', 'f-b'),
+      story('s1'),
+      { slug: 't1', type: 'task', title: 'Retired Task' },
+    ];
+    assert.throws(
+      () => validateAndNormalizeTickets(backlog),
+      /are not Stories/,
+    );
+  });
+
+  it('names every offending non-Story ticket with slug and type', () => {
+    const backlog = [
+      { slug: 'f-a', type: 'feature', title: 'Feature A' },
+      { slug: 't-b', type: 'task', title: 'Task B' },
+      story('s1'),
     ];
     let caught;
     try {
@@ -98,105 +76,49 @@ describe('ticket-validator: single-Story-Feature rejection (Story #3777)', () =>
       caught = err;
     }
     assert.ok(caught, 'expected a throw');
-    assert.match(caught.message, /2 Feature\(s\)/);
-    assert.match(caught.message, /f-a/);
-    assert.match(caught.message, /f-b/);
+    assert.match(caught.message, /2 ticket\(s\) are not Stories/);
+    assert.match(caught.message, /"Feature A" \(f-a, type: feature\)/);
+    assert.match(caught.message, /"Task B" \(t-b, type: task\)/);
+    assert.match(caught.message, /admits type "story" only/);
+  });
+
+  it('REJECTS an empty backlog (at least one Story required)', () => {
+    assert.throws(
+      () => validateAndNormalizeTickets([]),
+      /at least one Story/,
+    );
   });
 });
 
-describe('assertNoSingleStoryFeature unit (Story #3777)', () => {
-  const { assertNoSingleStoryFeature } = _internal;
+describe('assertAllTicketsAreStories unit (Story #4041)', () => {
+  const { assertAllTicketsAreStories } = _internal;
 
-  it('throws on a zero-Story Feature', () => {
+  it('throws when a non-Story ticket is present', () => {
+    const tickets = [
+      { slug: 'f1', type: 'feature', title: 'F' },
+      story('s1'),
+    ];
     assert.throws(
       () =>
-        assertNoSingleStoryFeature({
-          features: [feature('f-empty')],
-          stories: [],
+        assertAllTicketsAreStories({
+          tickets,
+          stories: tickets.filter((t) => t.type === 'story'),
         }),
-      /fewer than two Stories/,
+      /are not Stories/,
     );
   });
 
-  it('throws on a one-Story Feature', () => {
+  it('throws when the backlog has zero Stories', () => {
     assert.throws(
-      () =>
-        assertNoSingleStoryFeature({
-          features: [feature('f1')],
-          stories: [story('s1', 'f1')],
-        }),
-      /fewer than two Stories/,
+      () => assertAllTicketsAreStories({ tickets: [], stories: [] }),
+      /at least one Story/,
     );
   });
 
-  it('does not throw when every Feature has at least two Stories', () => {
+  it('does not throw on a Stories-only backlog', () => {
+    const tickets = [story('s1'), story('s2')];
     assert.doesNotThrow(() =>
-      assertNoSingleStoryFeature({
-        features: [feature('f1'), feature('f2')],
-        stories: [
-          story('s1', 'f1'),
-          story('s2', 'f1'),
-          story('s3', 'f2'),
-          story('s4', 'f2'),
-        ],
-      }),
-    );
-  });
-});
-
-describe('re-decompose to deliverable granularity yields a coarser hierarchy (Story #3777)', () => {
-  // AC #6 — the deliverable-granularity guidance asks the planner to fold
-  // module-level slices (one Story per file) into the capability they belong
-  // to. This demo proves the SHAPE difference: a fine-grained backlog with a
-  // single-Story-per-module Feature is REJECTED, and re-decomposing the same
-  // work at deliverable granularity (one capability Feature with cohesive
-  // sibling Stories) is ACCEPTED and produces fewer, coarser tickets. We do
-  // NOT re-decompose in production — this is a test/demo only.
-
-  // Fine-grained (module/task level): three Features, each wrapping exactly
-  // one module-scoped Story. This is the anti-pattern the invariant forbids.
-  const fineGrained = [
-    feature('f-parser', 'Parser module'),
-    story('s-parser', 'f-parser', 'Edit parser.js'),
-    feature('f-caller', 'Caller module'),
-    story('s-caller', 'f-caller', 'Edit caller.js'),
-    feature('f-config', 'Config module'),
-    story('s-config', 'f-config', 'Edit config.js'),
-  ];
-
-  // Coarse (deliverable granularity): one capability Feature whose cohesive
-  // sibling Stories deliver shippable slices a reviewer would accept.
-  const coarse = [
-    feature('f-capability', 'Wire the new parser end to end'),
-    story(
-      's-parse-and-call',
-      'f-capability',
-      'Parse input and route to caller',
-    ),
-    story('s-config-surface', 'f-capability', 'Expose the config surface'),
-  ];
-
-  it('rejects the fine-grained, module-level decomposition', () => {
-    assert.throws(
-      () => validateAndNormalizeTickets(fineGrained),
-      /fewer than two Stories/,
-    );
-  });
-
-  it('accepts the coarser, deliverable-granularity decomposition', () => {
-    assert.doesNotThrow(() => validateAndNormalizeTickets(coarse));
-  });
-
-  it('the coarse hierarchy has strictly fewer Features and tickets', () => {
-    const fineFeatures = fineGrained.filter((t) => t.type === 'feature').length;
-    const coarseFeatures = coarse.filter((t) => t.type === 'feature').length;
-    assert.ok(
-      coarseFeatures < fineFeatures,
-      'deliverable-granularity decomposition collapses module Features',
-    );
-    assert.ok(
-      coarse.length < fineGrained.length,
-      'the coarser hierarchy is fewer tickets overall',
+      assertAllTicketsAreStories({ tickets, stories: tickets }),
     );
   });
 });

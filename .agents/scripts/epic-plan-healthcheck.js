@@ -210,7 +210,7 @@ async function checkTickets(provider, epicId) {
 
   return {
     ok: true,
-    detail: `${features.length} features, ${stories.length} stories (2-tier, inline acceptance) — hierarchy valid${advisory}.`,
+    detail: `${stories.length} stories (2-tier, inline acceptance) — hierarchy valid${advisory}.`,
   };
 }
 

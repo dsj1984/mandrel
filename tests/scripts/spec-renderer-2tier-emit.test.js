@@ -1,19 +1,19 @@
 /**
- * tests/scripts/spec-renderer-3tier-emit.test.js — hotfix for the
- * 3-tier (Epic #3078) decompose bootstrap blocker.
+ * tests/scripts/spec-renderer-2tier-emit.test.js — hotfix for the
+ * 2-tier (Epic #3078) decompose bootstrap blocker.
  *
  * Bug: `lib/orchestration/spec-renderer.js` unconditionally emitted
  * `tasks: []` on every Story, which `.agents/schemas/epic-spec.schema.json`
  * (v3.0.0, `additionalProperties: false` on Story) rejects with
  * `SpecRenderValidationError` at `/features/0/stories/0`. That broke
- * `/epic-plan` Phase 8 for every 3-tier decompose.
+ * `/epic-plan` Phase 8 for every 2-tier decompose.
  *
  * This test pins the surgical fix:
- *   1. A 3-tier ticket array (Stories with inline acceptance[] / verify[]
+ *   1. A 2-tier ticket array (Stories with inline acceptance[] / verify[]
  *      and no Task children) renders to a spec that validates against the
  *      live schema — the `tasks` field is omitted entirely.
  *   2. The Story's inline `acceptance` and `verify` arrays are projected
- *      onto the rendered Story output (so the 3-tier execution loop has
+ *      onto the rendered Story output (so the 2-tier execution loop has
  *      the Goal/Changes/Acceptance/Verify surface it expects).
  *   3. A 4-tier ticket array (Stories with `type::task` children) now
  *      raises an unknown-type guard error in `indexTickets`. Epic #3163
@@ -48,7 +48,7 @@ function buildAjv() {
 
 const EPIC = {
   id: 3163,
-  title: 'Hotfix bootstrap — 3-tier spec rendering',
+  title: 'Hotfix bootstrap — 2-tier spec rendering',
   body: 'Bootstrap fixture.',
   labels: ['type::epic'],
 };
@@ -70,10 +70,10 @@ function build3TierTickets() {
       title: 'Story 1 — top-level acceptance/verify',
       body: 'Inline body for Story 1.',
       acceptance: [
-        'Spec-renderer omits tasks for 3-tier Stories',
+        'Spec-renderer omits tasks for 2-tier Stories',
         'Spec validates against epic-spec.schema.json v3.0.0',
       ],
-      verify: ['node --test tests/scripts/spec-renderer-3tier-emit.test.js'],
+      verify: ['node --test tests/scripts/spec-renderer-2tier-emit.test.js'],
       labels: ['type::story', 'persona::engineer'],
       parent_slug: 'feat-a',
       depends_on: [],
@@ -135,7 +135,7 @@ function build4TierTickets() {
   ];
 }
 
-describe('spec-renderer — 3-tier emission (hotfix for Epic #3163 blocker)', () => {
+describe('spec-renderer — 2-tier emission (hotfix for Epic #3163 blocker)', () => {
   it('omits the tasks field on Stories with no Task children', () => {
     const spec = renderSpec(build3TierTickets(), { epic: EPIC });
 
@@ -145,16 +145,16 @@ describe('spec-renderer — 3-tier emission (hotfix for Epic #3163 blocker)', ()
     assert.equal(
       Object.hasOwn(story1, 'tasks'),
       false,
-      'story-1 should not carry a tasks field under 3-tier',
+      'story-1 should not carry a tasks field under 2-tier',
     );
     assert.equal(
       Object.hasOwn(story2, 'tasks'),
       false,
-      'story-2 should not carry a tasks field under 3-tier',
+      'story-2 should not carry a tasks field under 2-tier',
     );
   });
 
-  it('renders a 3-tier spec that validates against epic-spec.schema.json', () => {
+  it('renders a 2-tier spec that validates against epic-spec.schema.json', () => {
     const spec = renderSpec(build3TierTickets(), { epic: EPIC });
     const validate = buildAjv();
     const ok = validate(spec);
@@ -170,11 +170,11 @@ describe('spec-renderer — 3-tier emission (hotfix for Epic #3163 blocker)', ()
     const story1 = spec.features[0].stories[0];
 
     assert.deepEqual(story1.acceptance, [
-      'Spec-renderer omits tasks for 3-tier Stories',
+      'Spec-renderer omits tasks for 2-tier Stories',
       'Spec validates against epic-spec.schema.json v3.0.0',
     ]);
     assert.deepEqual(story1.verify, [
-      'node --test tests/scripts/spec-renderer-3tier-emit.test.js',
+      'node --test tests/scripts/spec-renderer-2tier-emit.test.js',
     ]);
   });
 

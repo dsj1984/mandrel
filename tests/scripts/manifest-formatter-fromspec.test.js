@@ -9,7 +9,7 @@
  * The fixture pair is constructed in-file so the round-trip relationship
  * is obvious at a glance: we hand-author a manifest, then derive the
  * spec + state that — by construction — describe the same Stories /
- * wave layout / status labels. Under the 3-tier hierarchy (Epic #3163,
+ * wave layout / status labels. Under the 2-tier hierarchy (Epic #3163,
  * Story #3413) Stories are leaves with no child Tasks. `fromSpec` is
  * expected to produce the same Markdown the renderer would emit for the
  * manifest directly.
@@ -201,7 +201,7 @@ test('fromSpec falls back to slug:<slug> ids + agent::ready when state mapping i
   __resetManifestFormatterCache();
   const md = fromSpec(spec, { generatedAt: GENERATED_AT });
   // The Story id surfaces as the slug-sentinel string and the renderer
-  // emits it verbatim into the H3. No throw. Under the 3-tier hierarchy
+  // emits it verbatim into the H3. No throw. Under the 2-tier hierarchy
   // (Epic #3163, Story #3413) Stories are leaves; the renderer emits no
   // per-Task body or checkbox rows.
   assert.match(md, /Lonely Story/);

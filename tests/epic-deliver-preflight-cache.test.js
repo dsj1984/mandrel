@@ -4,7 +4,7 @@
  *
  * `epic-deliver-preflight.js` MUST persist its snapshot/DAG result to
  * `temp/epic-<id>/preflight-snapshot.json` so `epic-deliver-prepare.js`
- * can reuse the envelope instead of re-walking Epic → Feature → Story.
+ * can reuse the envelope instead of re-walking Epic → Story.
  *
  * Acceptance:
  *   - Running the preflight writes the cache file with `epic`, `stories`,

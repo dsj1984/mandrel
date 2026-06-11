@@ -1,16 +1,16 @@
 /**
  * tests/e2e-story-only-epic.test.js
  *
- * E2E (Story #3144, Feature #3093, Epic #3078): exercises the 3-tier
+ * E2E (Story #3144, Feature #3093, Epic #3078): exercises the 2-tier
  * Story-only Epic execution model end-to-end against a synthetic ticket
  * graph and asserts that no Task-keyed code path is engaged.
  *
- * The test synthesizes a 3-tier Epic (one Epic, one Feature, two
+ * The test synthesizes a 2-tier Epic (one Epic, one Feature, two
  * Stories — Story B depends on Story A) and walks the canonical
  * pipeline:
  *
  *   plan        → dispatch() returns a Story-centric manifest
- *                 (`waves[].stories[]`, `hierarchy: '3-tier'`,
+ *                 (`waves[].stories[]`, `hierarchy: '2-tier'`,
  *                 totalStories/doneStories in the summary).
  *   dispatch    → second dispatch after Story A completes; only
  *                 Story B remains.
@@ -63,7 +63,7 @@ const { renderStoryRunProgressBody, defaultStoryPhases } = await import(
 // ---------------------------------------------------------------------------
 // Mock Provider — minimal contract surface needed by dispatch() + cascade().
 // Modelled after tests/e2e-story-lifecycle.test.js but with no Task tickets
-// in the fixture, so we exercise the 3-tier branch end-to-end.
+// in the fixture, so we exercise the 2-tier branch end-to-end.
 // ---------------------------------------------------------------------------
 
 class StoryOnlyMockProvider extends ITicketingProvider {
@@ -143,7 +143,7 @@ function buildStoryOnlyEpicFixture() {
   const epic = {
     id: EPIC_ID,
     title: 'Story-only Epic 9000',
-    body: 'Synthetic 3-tier Epic for end-to-end E2E coverage (Story #3144).',
+    body: 'Synthetic 2-tier Epic for end-to-end E2E coverage (Story #3144).',
     labels: ['type::epic'],
     linkedIssues: { prd: null, techSpec: null },
     state: 'open',
@@ -191,9 +191,9 @@ function buildStoryOnlyEpicFixture() {
   return { epic, feature, storyA, storyB };
 }
 
-test('e2e-story-only-epic — 3-tier Epic walks plan → dispatch → deliver → merge without Task-keyed paths', async () => {
+test('e2e-story-only-epic — 2-tier Epic walks plan → dispatch → deliver → merge without Task-keyed paths', async () => {
   // -------------------------------------------------------------------------
-  // ARRANGE: synthetic 3-tier ticket graph (no Tasks).
+  // ARRANGE: synthetic 2-tier ticket graph (no Tasks).
   // -------------------------------------------------------------------------
   const { epic, feature, storyA, storyB } = buildStoryOnlyEpicFixture();
   const tickets = [epic, feature, storyA, storyB];
@@ -203,13 +203,13 @@ test('e2e-story-only-epic — 3-tier Epic walks plan → dispatch → deliver �
   for (const t of tickets) {
     assert.ok(
       !(t.labels ?? []).includes('type::task'),
-      `Fixture violation: ticket #${t.id} carries type::task — the 3-tier ` +
+      `Fixture violation: ticket #${t.id} carries type::task — the 2-tier ` +
         'E2E must never include a Task issue.',
     );
   }
 
   // -------------------------------------------------------------------------
-  // PHASE 1 — PLAN: dispatch() against the 3-tier graph returns a
+  // PHASE 1 — PLAN: dispatch() against the 2-tier graph returns a
   // Story-centric manifest. Acceptance #1 (no type::task issue created at
   // any stage) is validated below by re-inspecting the ticket store and
   // every updateTicket() call.
@@ -220,13 +220,13 @@ test('e2e-story-only-epic — 3-tier Epic walks plan → dispatch → deliver �
     provider,
   });
 
-  assert.equal(planManifest.hierarchy, '3-tier');
+  assert.equal(planManifest.hierarchy, '2-tier');
   assert.equal(planManifest.summary.totalStories, 2);
   assert.equal(planManifest.summary.doneStories, 0);
   assert.equal(
     planManifest.summary.totalTasks,
     undefined,
-    'totalTasks must be absent from a 3-tier summary',
+    'totalTasks must be absent from a 2-tier summary',
   );
   assert.equal(planManifest.waves.length, 2);
   assert.ok(Array.isArray(planManifest.waves[0].stories));
@@ -236,7 +236,7 @@ test('e2e-story-only-epic — 3-tier Epic walks plan → dispatch → deliver �
 
   // -------------------------------------------------------------------------
   // PHASE 2 — DELIVER (Story A): emit a story-run-progress snapshot whose
-  // payload carries phases[] (3-tier shape), not tasks[] (4-tier shape).
+  // payload carries phases[] (2-tier shape), not tasks[] (4-tier shape).
   // -------------------------------------------------------------------------
   const initialPhases = defaultStoryPhases();
   const initSnapshot = renderStoryRunProgressBody({
@@ -255,7 +255,7 @@ test('e2e-story-only-epic — 3-tier Epic walks plan → dispatch → deliver �
   assert.equal(
     initSnapshot.payload.tasks,
     undefined,
-    'story-run-progress payload must NOT carry tasks[] in 3-tier mode',
+    'story-run-progress payload must NOT carry tasks[] in 2-tier mode',
   );
   assert.deepEqual(
     initSnapshot.payload.phases.map((p) => p.name),
@@ -305,7 +305,7 @@ test('e2e-story-only-epic — 3-tier Epic walks plan → dispatch → deliver �
     dryRun: true,
     provider,
   });
-  assert.equal(dispatch2.hierarchy, '3-tier');
+  assert.equal(dispatch2.hierarchy, '2-tier');
   // After Story A closes, the manifest reflects the done count and Story
   // B remains scheduled (waves[1].stories[]). The dispatch graph keeps
   // closed Stories visible in the manifest for full-graph rendering, so
@@ -356,7 +356,7 @@ test('e2e-story-only-epic — 3-tier Epic walks plan → dispatch → deliver �
 
   // Epic remains open by design: cascade explicitly skips Epic auto-close
   // (Epics close via the operator's PR merge or /epic-close recovery).
-  // The 3-tier cascade reaching the Epic is the all-children-done signal.
+  // The 2-tier cascade reaching the Epic is the all-children-done signal.
   const epicFinal = await provider.getTicket(EPIC_ID);
   assert.equal(
     epicFinal.state,
@@ -373,7 +373,7 @@ test('e2e-story-only-epic — 3-tier Epic walks plan → dispatch → deliver �
   for (const t of provider._tickets) {
     assert.ok(
       !(t.labels ?? []).includes('type::task'),
-      `Post-run: ticket #${t.id} acquired type::task — 3-tier path must never ` +
+      `Post-run: ticket #${t.id} acquired type::task — 2-tier path must never ` +
         'create or label a Task issue.',
     );
   }
@@ -382,7 +382,7 @@ test('e2e-story-only-epic — 3-tier Epic walks plan → dispatch → deliver �
     assert.ok(
       !adds.includes('type::task'),
       `Mutation on #${ticketId} attempted to add type::task — forbidden in ` +
-        '3-tier execution.',
+        '2-tier execution.',
     );
   }
 });

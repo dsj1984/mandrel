@@ -138,7 +138,7 @@ describe('lifecycle/phase-plan', () => {
   });
 
   it('discovers Stories nested under Features (v5 three-level hierarchy)', async () => {
-    // Reproduces Story #2980: Epic → Feature → Story. getSubTickets(epic)
+    // Reproduces Story #2980: Epic → Story. getSubTickets(epic)
     // returns Features + closed reverse-ref Story; getSubTickets(feature)
     // returns the real open Stories. Plan must include all open Stories
     // and exclude the closed reverse-ref.

@@ -327,7 +327,7 @@ test('renderNestedWaveSections: H2 anchors match the TOC link slugs', () => {
 
 // The legacy per-Task topo-sort / `*(after #N)*` callout tests were
 // removed when Epic #3163 collapsed the per-Story Task rendering: under
-// the 3-tier hierarchy Stories are leaves with no child Task tickets, so
+// the 2-tier hierarchy Stories are leaves with no child Task tickets, so
 // `renderNestedWaveSections` no longer projects a Task-level checkbox
 // list and the `topoSortTasks` helper was deleted as dead code.
 

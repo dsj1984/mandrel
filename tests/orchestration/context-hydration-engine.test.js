@@ -189,7 +189,7 @@ describe('hydrateContext — envelope return shape', () => {
   });
 });
 
-describe('extractStorySections — inline Story body parsing (3-tier)', () => {
+describe('extractStorySections — inline Story body parsing (2-tier)', () => {
   it('parses ## Acceptance and ## Verify checklists', () => {
     const body = [
       'Story narrative paragraph.',
@@ -237,7 +237,7 @@ describe('extractStorySections — inline Story body parsing (3-tier)', () => {
   });
 });
 
-describe('hydrateContext — 3-tier Story body hydration', () => {
+describe('hydrateContext — 2-tier Story body hydration', () => {
   it('emits acceptanceCriteria + verificationCommands sections from Story body when task carries type::story', async () => {
     const provider = new HierarchyProvider({
       1: {
@@ -248,7 +248,7 @@ describe('hydrateContext — 3-tier Story body hydration', () => {
       },
       300: {
         id: 300,
-        title: 'Story 3-tier',
+        title: 'Story 2-tier',
         body: '> Epic: #1\n\nStory narrative.\n\n## Acceptance\n- [ ] Inline AC #1\n- [ ] Inline AC #2\n\n## Verify\n- node --test tests/foo.test.js\n',
         updatedAt: '2026-01-02T00:00:00.000Z',
       },
@@ -257,7 +257,7 @@ describe('hydrateContext — 3-tier Story body hydration', () => {
     const envelope = await hydrateContext(
       {
         id: 300,
-        title: 'Story 3-tier',
+        title: 'Story 2-tier',
         body: '> Epic: #1\n\nStory narrative.\n\n## Acceptance\n- [ ] Inline AC #1\n- [ ] Inline AC #2\n\n## Verify\n- node --test tests/foo.test.js\n',
         labels: ['type::story', 'persona::engineer'],
       },

@@ -523,7 +523,7 @@ describe('providers/github/tickets.js — TicketGateway', () => {
 });
 
 // Story #3097 (Wave-0 additive, Epic #3078 Strategy B) — Storyless mapper
-// guard. In 3-tier mode a Story can legitimately have zero Task children,
+// guard. In 2-tier mode a Story can legitimately have zero Task children,
 // which surfaces at the provider boundary as an empty/missing sub-issue
 // node in the GraphQL response. The mappers must return `null` (or an
 // empty list) instead of throwing on missing children — pinned here so

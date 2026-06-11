@@ -200,7 +200,7 @@ function buildStubProvider({ epicId, epicTitle }) {
 /**
  * Tickets fixture covering the minimum spec shape the renderer accepts:
  * one Feature and two Stories (one with an inter-Story dep). Under the
- * 3-tier hierarchy (Epic #3078) Stories carry inline acceptance[] /
+ * 2-tier hierarchy (Epic #3078) Stories carry inline acceptance[] /
  * verify[] arrays directly — there is no Task tier.
  */
 function buildFixtureTickets() {
@@ -401,7 +401,7 @@ describe('epic-plan spec-flow integration', () => {
       state.mapping && typeof state.mapping === 'object',
       'state.mapping must be present',
     );
-    // Spec slugs are: feature-a, story-one, story-two (3-tier — no Task tier).
+    // Spec slugs are: feature-a, story-one, story-two (2-tier — no Task tier).
     const expectedSlugs = ['feature-a', 'story-one', 'story-two'];
     for (const slug of expectedSlugs) {
       assert.ok(

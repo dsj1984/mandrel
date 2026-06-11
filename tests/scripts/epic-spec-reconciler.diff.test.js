@@ -75,15 +75,10 @@ describe('reconciler diff — create-only fixture', () => {
     assert.equal(plan.updates.length, 0);
     assert.equal(plan.closes.length, 0);
     assert.equal(plan.relinks.length, 0);
-    // epic + feat-alpha + story-one + task-one-a = 4 creates
-    assert.equal(plan.creates.length, 4);
+    // epic + story-one + story-two = 3 creates
+    assert.equal(plan.creates.length, 3);
     const slugs = plan.creates.map((op) => op.slug);
-    assert.deepEqual([...slugs].sort(), [
-      'epic',
-      'feat-alpha',
-      'story-one',
-      'task-one-a',
-    ]);
+    assert.deepEqual([...slugs].sort(), ['epic', 'story-one', 'story-two']);
     // Every op carries kind=create
     for (const op of plan.creates) {
       assert.equal(op.kind, OP_KINDS.CREATE);
@@ -95,9 +90,8 @@ describe('reconciler diff — create-only fixture', () => {
     const plan = diff({ spec, state, ghState });
     const byslug = Object.fromEntries(plan.creates.map((op) => [op.slug, op]));
     assert.equal(byslug.epic.parentSlug, undefined);
-    assert.equal(byslug['feat-alpha'].parentSlug, 'epic');
-    assert.equal(byslug['story-one'].parentSlug, 'feat-alpha');
-    assert.equal(byslug['task-one-a'].parentSlug, 'story-one');
+    assert.equal(byslug['story-one'].parentSlug, 'epic');
+    assert.equal(byslug['story-two'].parentSlug, 'epic');
   });
 
   it('records wave and dependsOn on story creates', () => {
@@ -117,25 +111,25 @@ describe('reconciler diff — update-only fixture', () => {
     assert.equal(plan.creates.length, 0);
     assert.equal(plan.closes.length, 0);
     assert.equal(plan.relinks.length, 0);
-    // feat-alpha (labels drift) + story-one (title drift) = 2 updates
+    // story-one (labels drift) + story-two (title drift) = 2 updates
     assert.equal(plan.updates.length, 2);
     const bySlug = Object.fromEntries(plan.updates.map((op) => [op.slug, op]));
-    assert.ok(bySlug['feat-alpha']);
     assert.ok(bySlug['story-one']);
+    assert.ok(bySlug['story-two']);
 
-    assert.deepEqual(Object.keys(bySlug['feat-alpha'].changes).sort(), [
+    assert.deepEqual(Object.keys(bySlug['story-one'].changes).sort(), [
       'labels',
     ]);
-    assert.deepEqual(Object.keys(bySlug['story-one'].changes).sort(), [
+    assert.deepEqual(Object.keys(bySlug['story-two'].changes).sort(), [
       'title',
     ]);
-    assert.deepEqual(bySlug['story-one'].changes.title, {
+    assert.deepEqual(bySlug['story-two'].changes.title, {
       before: 'Original Story Title',
       after: 'Renamed Story',
     });
-    assert.deepEqual(bySlug['feat-alpha'].changes.labels, {
-      before: ['type::feature'],
-      after: ['area::core', 'type::feature'],
+    assert.deepEqual(bySlug['story-one'].changes.labels, {
+      before: ['type::story'],
+      after: ['area::core', 'type::story'],
     });
   });
 
@@ -157,15 +151,15 @@ describe('reconciler diff — close-only fixture', () => {
     assert.equal(plan.updates.length, 0);
     assert.equal(plan.relinks.length, 0);
     assert.equal(plan.closes.length, 1);
-    assert.equal(plan.closes[0].slug, 'task-one-b');
+    assert.equal(plan.closes[0].slug, 'story-dropped');
     assert.equal(plan.closes[0].kind, OP_KINDS.CLOSE);
     assert.equal(plan.closes[0].issueNumber, 203);
-    assert.equal(plan.closes[0].entity, ENTITY_KINDS.TASK);
+    assert.equal(plan.closes[0].entity, ENTITY_KINDS.STORY);
   });
 });
 
 describe('reconciler diff — relink-only fixture', () => {
-  it('emits Relink ops for changed parent and dependsOn edges', () => {
+  it('emits Relink ops for changed dependsOn edges', () => {
     const { spec, state, ghState } = loadFixture('relink-only');
     const plan = diff({ spec, state, ghState });
     assert.equal(plan.creates.length, 0);
@@ -182,11 +176,11 @@ describe('reconciler diff — relink-only fixture', () => {
     });
     assert.equal(bySlug['story-one'].parent, undefined);
 
-    // task-shared: parent story-two → story-one
-    assert.ok(bySlug['task-shared'].parent);
-    assert.deepEqual(bySlug['task-shared'].parent, {
-      before: 'story-two',
-      after: 'story-one',
+    // story-two: dependsOn [] → [story-three]
+    assert.ok(bySlug['story-two'].dependsOn);
+    assert.deepEqual(bySlug['story-two'].dependsOn, {
+      before: [],
+      after: ['story-three'],
     });
   });
 });
@@ -209,21 +203,21 @@ describe('reconciler diff — mixed fixture (all four kinds)', () => {
     assert.equal(created.entity, ENTITY_KINDS.STORY);
   });
 
-  it('names the drifted Feature as an Update with title change', () => {
+  it('names the drifted Story as an Update with title change', () => {
     const { spec, state, ghState } = loadFixture('mixed');
     const plan = diff({ spec, state, ghState });
-    const updated = plan.updates.find((op) => op.slug === 'feat-alpha');
+    const updated = plan.updates.find((op) => op.slug === 'story-three');
     assert.ok(updated);
     assert.deepEqual(updated.changes.title, {
-      before: 'Alpha Old Title',
-      after: 'Alpha Renamed',
+      before: 'Third Old Title',
+      after: 'Third Renamed',
     });
   });
 
-  it('names the orphan Task as a Close', () => {
+  it('names the orphan Story as a Close', () => {
     const { spec, state, ghState } = loadFixture('mixed');
     const plan = diff({ spec, state, ghState });
-    const closed = plan.closes.find((op) => op.slug === 'task-dropped');
+    const closed = plan.closes.find((op) => op.slug === 'story-dropped');
     assert.ok(closed);
     assert.equal(closed.issueNumber, 503);
   });
@@ -328,18 +322,11 @@ describe('reconciler diff — Epic protected-label preservation (Story #2056)', 
   function buildInputs({ obsEpicLabels, specEpicLabels }) {
     const spec = {
       epic: { id: EPIC_ISSUE, title: 'Some Epic' },
-      features: [
+      stories: [
         {
-          slug: 'feat-x',
-          title: 'feat x',
-          stories: [
-            {
-              slug: 'story-x',
-              title: 'story x',
-              wave: 0,
-              tasks: [],
-            },
-          ],
+          slug: 'story-x',
+          title: 'story x',
+          wave: 0,
         },
       ],
     };
@@ -350,15 +337,10 @@ describe('reconciler diff — Epic protected-label preservation (Story #2056)', 
       epicId: EPIC_ISSUE,
       mapping: {
         epic: { issueNumber: EPIC_ISSUE, entity: 'epic' },
-        'feat-x': {
-          issueNumber: EPIC_ISSUE + 1,
-          entity: 'feature',
-          parentSlug: 'epic',
-        },
         'story-x': {
           issueNumber: STORY_ISSUE,
           entity: 'story',
-          parentSlug: 'feat-x',
+          parentSlug: 'epic',
         },
       },
     };
@@ -367,11 +349,6 @@ describe('reconciler diff — Epic protected-label preservation (Story #2056)', 
         title: 'Some Epic',
         body: '',
         labels: obsEpicLabels,
-      },
-      [EPIC_ISSUE + 1]: {
-        title: 'feat x',
-        body: '',
-        labels: [],
       },
       [STORY_ISSUE]: {
         title: 'story x',
@@ -448,24 +425,17 @@ describe('reconciler diff — Epic protected-label preservation (Story #2056)', 
     }
   });
 
-  it('does not protect type::/risk:: namespaces on Feature/Story entities (scope: Epic only)', () => {
+  it('does not protect type::/risk:: namespaces on Story entities (scope: Epic only)', () => {
     // Sibling entities go through the existing replace-style diff —
     // this keeps the fix surgical and aligned with the Story body's
     // explicit scope ("from parent Epic").
     const spec = {
       epic: { id: EPIC_ISSUE, title: 'Some Epic', labels: ['type::epic'] },
-      features: [
+      stories: [
         {
-          slug: 'feat-x',
-          title: 'feat x',
-          stories: [
-            {
-              slug: 'story-x',
-              title: 'story x',
-              wave: 0,
-              tasks: [],
-            },
-          ],
+          slug: 'story-x',
+          title: 'story x',
+          wave: 0,
         },
       ],
     };
@@ -473,15 +443,10 @@ describe('reconciler diff — Epic protected-label preservation (Story #2056)', 
       epicId: EPIC_ISSUE,
       mapping: {
         epic: { issueNumber: EPIC_ISSUE, entity: 'epic' },
-        'feat-x': {
-          issueNumber: EPIC_ISSUE + 1,
-          entity: 'feature',
-          parentSlug: 'epic',
-        },
         'story-x': {
           issueNumber: STORY_ISSUE,
           entity: 'story',
-          parentSlug: 'feat-x',
+          parentSlug: 'epic',
         },
       },
     };
@@ -491,11 +456,6 @@ describe('reconciler diff — Epic protected-label preservation (Story #2056)', 
         body: '',
         labels: ['type::epic'],
       },
-      [EPIC_ISSUE + 1]: {
-        title: 'feat x',
-        body: '',
-        labels: ['risk::medium'],
-      },
       [STORY_ISSUE]: {
         title: 'story x',
         body: '',
@@ -503,13 +463,7 @@ describe('reconciler diff — Epic protected-label preservation (Story #2056)', 
       },
     };
     const plan = diff({ spec, state, ghState });
-    const featUpdate = plan.updates.find((op) => op.slug === 'feat-x');
     const storyUpdate = plan.updates.find((op) => op.slug === 'story-x');
-    assert.ok(
-      featUpdate,
-      'Feature with observed risk:: drift should emit an Update',
-    );
-    assert.deepEqual(featUpdate.changes.labels.after, []);
     assert.ok(
       storyUpdate,
       'Story with observed type:: drift should emit an Update',
@@ -591,7 +545,7 @@ describe('reconciler diff — Epic body preservation when spec omits body (Story
   function buildInputs({ specBody, obsBody }) {
     const spec = {
       epic: { id: EPIC_ISSUE, title: 'Some Epic' },
-      features: [],
+      stories: [],
     };
     if (specBody !== undefined) spec.epic.body = specBody;
     const state = {
@@ -704,31 +658,22 @@ describe('reconciler diff — orchestrator footer preservation (Story #2982)', (
         labels: ['type::epic'],
         body: 'epic body',
       },
-      features: [
+      stories: [
         {
-          slug: 'feat-cascade',
-          title: 'Cascade Feature',
-          labels: ['type::feature'],
-          stories: [
-            {
-              slug: 'story-cascade',
-              title: 'Cascade Story',
-              labels: ['type::story'],
-              body: specBody,
-              wave: 0,
-              dependsOn: ['story-dep'],
-              tasks: [],
-            },
-            {
-              slug: 'story-dep',
-              title: 'Dep Story',
-              labels: ['type::story'],
-              body: 'dep description',
-              wave: 0,
-              dependsOn: [],
-              tasks: [],
-            },
-          ],
+          slug: 'story-cascade',
+          title: 'Cascade Story',
+          labels: ['type::story'],
+          body: specBody,
+          wave: 0,
+          dependsOn: ['story-dep'],
+        },
+        {
+          slug: 'story-dep',
+          title: 'Dep Story',
+          labels: ['type::story'],
+          body: 'dep description',
+          wave: 0,
+          dependsOn: [],
         },
       ],
     };
@@ -736,21 +681,16 @@ describe('reconciler diff — orchestrator footer preservation (Story #2982)', (
       epicId: 7000,
       mapping: {
         epic: { issueNumber: 7000, entity: 'epic', parentSlug: null },
-        'feat-cascade': {
-          issueNumber: 7100,
-          entity: 'feature',
-          parentSlug: 'epic',
-        },
         'story-cascade': {
           issueNumber: 7200,
           entity: 'story',
-          parentSlug: 'feat-cascade',
+          parentSlug: 'epic',
           dependsOn: ['story-dep'],
         },
         'story-dep': {
           issueNumber: 7201,
           entity: 'story',
-          parentSlug: 'feat-cascade',
+          parentSlug: 'epic',
           dependsOn: [],
         },
       },
@@ -760,11 +700,6 @@ describe('reconciler diff — orchestrator footer preservation (Story #2982)', (
         title: 'Cascade Epic',
         body: 'epic body',
         labels: ['type::epic'],
-      },
-      7100: {
-        title: 'Cascade Feature',
-        body: '',
-        labels: ['type::feature'],
       },
       7200: {
         title: 'Cascade Story',
@@ -780,8 +715,7 @@ describe('reconciler diff — orchestrator footer preservation (Story #2982)', (
     return { spec, state, ghState };
   }
 
-  const canonicalFooter =
-    '\n\n---\nparent: #7100\nEpic: #7000\n\nblocked by #7201';
+  const canonicalFooter = '\n\n---\nparent: #7000\n\nblocked by #7201';
 
   it('does not flap when GH already carries the canonical footer (description match)', () => {
     const description = 'story description';
@@ -808,8 +742,7 @@ describe('reconciler diff — orchestrator footer preservation (Story #2982)', (
     assert.ok(storyUpdate, 'an Update should fire when description changes');
     assert.ok(storyUpdate.changes.body);
     assert.match(storyUpdate.changes.body.after, /^new description/);
-    assert.match(storyUpdate.changes.body.after, /\n---\nparent: #7100\n/);
-    assert.match(storyUpdate.changes.body.after, /Epic: #7000/);
+    assert.match(storyUpdate.changes.body.after, /\n---\nparent: #7000\n/);
     assert.match(storyUpdate.changes.body.after, /blocked by #7201/);
   });
 
@@ -817,7 +750,7 @@ describe('reconciler diff — orchestrator footer preservation (Story #2982)', (
     const description = 'story description';
     // Epic #775 reproduction: dup `blocked by` lines outside the
     // separator plus the canonical footer underneath.
-    const obsBody = `${description}\n\nblocked by #7201\n\n---\nparent: #7100\nEpic: #7000\n\nblocked by #7201`;
+    const obsBody = `${description}\n\nblocked by #7201\n\n---\nparent: #7000\n\nblocked by #7201`;
     const { spec, state, ghState } = buildInputs({
       specBody: description,
       obsBody,
@@ -829,8 +762,8 @@ describe('reconciler diff — orchestrator footer preservation (Story #2982)', (
       'an Update should fire to collapse the duplicated trailer',
     );
     const after = storyUpdate.changes.body.after;
-    assert.match(after, /^story description\n\n---\nparent: #7100\n/);
-    const parentMatches = after.match(/parent: #7100/g) ?? [];
+    assert.match(after, /^story description\n\n---\nparent: #7000\n/);
+    const parentMatches = after.match(/parent: #7000/g) ?? [];
     assert.equal(
       parentMatches.length,
       1,
@@ -856,46 +789,40 @@ describe('reconciler diff — orchestrator footer preservation (Story #2982)', (
       storyUpdate,
       'an Update should fire to restore the missing footer',
     );
-    assert.match(storyUpdate.changes.body.after, /\n---\nparent: #7100\n/);
+    assert.match(storyUpdate.changes.body.after, /\n---\nparent: #7000\n/);
   });
 });
 
-describe('reconciler diff — 3-tier hierarchy walk (Story #3117 / Epic #3078)', () => {
-  it('walks a 3-tier spec (Story with inline acceptance[]/verify[], no tasks[]) without emitting phantom task ops', () => {
-    const { spec, state, ghState } = loadFixture('create-only-3tier');
+describe('reconciler diff — 2-tier hierarchy walk (Story #3117 / Epic #3078)', () => {
+  it('walks a 2-tier spec (Story with inline acceptance[]/verify[], no tasks[]) without emitting phantom task ops', () => {
+    const { spec, state, ghState } = loadFixture('create-only-2tier');
     const plan = diff({ spec, state, ghState });
     assert.equal(plan.updates.length, 0);
     assert.equal(plan.closes.length, 0);
     assert.equal(plan.relinks.length, 0);
-    // epic + feat-alpha + story-one = 3 creates. No task ops.
-    assert.equal(plan.creates.length, 3);
+    // epic + story-one = 2 creates. No phantom ops.
+    assert.equal(plan.creates.length, 2);
     const slugs = plan.creates.map((op) => op.slug).sort();
-    assert.deepEqual(slugs, ['epic', 'feat-alpha', 'story-one']);
+    assert.deepEqual(slugs, ['epic', 'story-one']);
     for (const op of plan.creates) {
-      assert.notEqual(
-        op.entity,
-        ENTITY_KINDS.TASK,
-        `3-tier spec must not generate task entities; got ${op.slug} as task`,
+      assert.ok(
+        op.entity === ENTITY_KINDS.EPIC || op.entity === ENTITY_KINDS.STORY,
+        `2-tier spec must only generate epic/story entities; got ${op.slug} as ${op.entity}`,
       );
     }
   });
 
-  it('produces an empty diff for a stable 3-tier spec (no false-positive missing-task)', () => {
-    const { spec } = loadFixture('create-only-3tier');
-    // Pre-seed state + ghState as if the 3-tier tree were already materialised.
+  it('produces an empty diff for a stable 2-tier spec (no false-positive missing-task)', () => {
+    const { spec } = loadFixture('create-only-2tier');
+    // Pre-seed state + ghState as if the 2-tier tree were already materialised.
     const state = {
       epicId: spec.epic.id,
       mapping: {
         epic: { issueNumber: 9101, entity: 'epic', parentSlug: null },
-        'feat-alpha': {
-          issueNumber: 9102,
-          entity: 'feature',
-          parentSlug: 'epic',
-        },
         'story-one': {
           issueNumber: 9103,
           entity: 'story',
-          parentSlug: 'feat-alpha',
+          parentSlug: 'epic',
           wave: 0,
           dependsOn: [],
         },
@@ -903,30 +830,29 @@ describe('reconciler diff — 3-tier hierarchy walk (Story #3117 / Epic #3078)',
     };
     const ghState = {
       9101: {
-        title: 'Greenfield 3-tier Epic',
+        title: 'Greenfield 2-tier Epic',
         body: '',
         labels: ['type::epic'],
       },
-      9102: { title: 'Alpha Feature', body: '', labels: ['type::feature'] },
       9103: {
-        title: 'First Story (3-tier inline)',
+        title: 'First Story (2-tier inline)',
         body: '',
         labels: ['type::story', 'persona::engineer'],
       },
     };
     const plan = diff({ spec, state, ghState });
-    assert.equal(plan.creates.length, 0, 'no creates for stable 3-tier tree');
+    assert.equal(plan.creates.length, 0, 'no creates for stable 2-tier tree');
     assert.equal(plan.closes.length, 0, 'no closes — no phantom missing tasks');
     assert.equal(plan.relinks.length, 0);
   });
 
-  it('produces unchanged behavior on the legacy 4-tier create-only fixture (no regression)', () => {
+  it('produces unchanged behavior on the create-only fixture (no regression)', () => {
     const { spec, state, ghState } = loadFixture('create-only');
     const plan = diff({ spec, state, ghState });
-    assert.equal(plan.creates.length, 4);
+    assert.equal(plan.creates.length, 3);
     const slugs = plan.creates.map((op) => op.slug).sort();
-    assert.deepEqual(slugs, ['epic', 'feat-alpha', 'story-one', 'task-one-a']);
-    const taskOp = plan.creates.find((op) => op.slug === 'task-one-a');
-    assert.equal(taskOp.entity, ENTITY_KINDS.TASK);
+    assert.deepEqual(slugs, ['epic', 'story-one', 'story-two']);
+    const storyOp = plan.creates.find((op) => op.slug === 'story-two');
+    assert.equal(storyOp.entity, ENTITY_KINDS.STORY);
   });
 });

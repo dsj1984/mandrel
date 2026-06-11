@@ -8,7 +8,7 @@ import { computeStoryWaves } from '../../.agents/scripts/lib/orchestration/depen
 //
 // Story #3906 removed the focus-overlap engine: a Story's `focusAreas` /
 // `scope` no longer influence wave assignment (the engine added zero edges
-// on every 3-tier plan because Stories carry no child tasks). Wave order is
+// on every 2-tier plan because Stories carry no child tasks). Wave order is
 // driven solely by explicit story-to-story deps and cross-story task deps.
 // ---------------------------------------------------------------------------
 

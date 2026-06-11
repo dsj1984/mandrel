@@ -274,8 +274,8 @@ test('renderStoryInitCommentBody coerces missing tasks to []', () => {
   assert.deepStrictEqual(payload.tasks, []);
 });
 
-test('runStoryInit dry-run accepts a 3-tier Story with inline acceptance and zero child Tasks', async () => {
-  // AC1 + AC3 for Story #3121: a Story authored in the 3-tier shape
+test('runStoryInit dry-run accepts a 2-tier Story with inline acceptance and zero child Tasks', async () => {
+  // AC1 + AC3 for Story #3121: a Story authored in the 2-tier shape
   // (inline `## Acceptance` body, no child Task tickets) must flow through
   // the pipeline cleanly and resolve to an empty `tasks[]`, without
   // raising an error from task-graph-builder.

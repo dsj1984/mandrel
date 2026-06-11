@@ -18,12 +18,6 @@ import { validateAndNormalizeTickets } from '../../../.agents/scripts/lib/orches
  * to find the value — a preventable delivery friction point.
  */
 
-const FEATURE = Object.freeze({
-  type: 'feature',
-  slug: 'f-uc',
-  title: 'Unanchored-constant fixtures',
-});
-
 const SIBLING_FILLER = Object.freeze({
   type: 'story',
   slug: 's-uc-filler',
@@ -43,7 +37,6 @@ function makeStory(slug, acceptance) {
   return {
     type: 'story',
     slug,
-    parent_slug: 'f-uc',
     title: `Unanchored-constant story ${slug}`,
     acceptance,
     verify: ['npm test (unit)'],
@@ -58,7 +51,7 @@ function makeStory(slug, acceptance) {
 
 function validateStory(slug, acceptance, opts) {
   return validateAndNormalizeTickets(
-    [FEATURE, makeStory(slug, acceptance), SIBLING_FILLER],
+    [makeStory(slug, acceptance), SIBLING_FILLER],
     opts,
   );
 }

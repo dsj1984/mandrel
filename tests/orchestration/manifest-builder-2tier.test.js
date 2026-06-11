@@ -38,7 +38,7 @@ function makeStory(id, overrides = {}) {
   };
 }
 
-test('3-tier: buildManifest emits waves[].stories[] when input has only Stories', () => {
+test('2-tier: buildManifest emits waves[].stories[] when input has only Stories', () => {
   const epic = makeEpic();
   const storyA = makeStory(3098);
   const storyB = makeStory(3099, {
@@ -68,7 +68,7 @@ test('3-tier: buildManifest emits waves[].stories[] when input has only Stories'
   // Story-only waves: no tasks key, stories key present.
   assert.equal(manifest.waves.length, 2);
   for (const wave of manifest.waves) {
-    assert.equal(wave.tasks, undefined, 'no waves[].tasks[] in 3-tier');
+    assert.equal(wave.tasks, undefined, 'no waves[].tasks[] in 2-tier');
     assert.ok(Array.isArray(wave.stories), 'waves[].stories[] present');
   }
 
@@ -91,7 +91,7 @@ test('3-tier: buildManifest emits waves[].stories[] when input has only Stories'
   assert.equal(manifest.summary.totalStories, 2);
   assert.equal(manifest.summary.doneStories, 0);
   assert.equal(manifest.summary.totalWaves, 2);
-  assert.equal(manifest.hierarchy, '3-tier');
+  assert.equal(manifest.hierarchy, '2-tier');
 
   // storyManifest is Story-only (no Task children).
   assert.equal(manifest.storyManifest.length, 2);
@@ -101,10 +101,10 @@ test('3-tier: buildManifest emits waves[].stories[] when input has only Stories'
   }
 });
 
-test('3-tier: story-grouper is bypassed (Stories with no `parent: #N` Feature ref still appear)', () => {
+test('2-tier: story-grouper is bypassed (Stories with no `parent: #N` Feature ref still appear)', () => {
   // The legacy 4-tier `groupTasksByStory` walked each Task's `parent: #N`
   // line to find its Story container; a Story with no Task child would
-  // not appear in `storyManifest` at all. The 3-tier producer reads
+  // not appear in `storyManifest` at all. The 2-tier producer reads
   // Stories directly from `allTickets`, so a Story with NO `parent: #N`
   // body marker (and no children of any kind) MUST still surface in
   // both `storyManifest` and `waves[].stories[]`.
@@ -142,7 +142,7 @@ test('3-tier: story-grouper is bypassed (Stories with no `parent: #N` Feature re
   );
 });
 
-test('Story-only graph emits the 3-tier manifest shape unconditionally', () => {
+test('Story-only graph emits the 2-tier manifest shape unconditionally', () => {
   const epic = makeEpic();
   const story = makeStory(3098);
 
@@ -155,7 +155,7 @@ test('Story-only graph emits the 3-tier manifest shape unconditionally', () => {
     dryRun: false,
   });
 
-  assert.equal(manifest.hierarchy, '3-tier');
+  assert.equal(manifest.hierarchy, '2-tier');
   assert.ok(Array.isArray(manifest.waves[0].stories));
   assert.equal(manifest.summary.totalStories, 1);
   assert.equal(manifest.summary.totalTasks, undefined);
@@ -164,7 +164,7 @@ test('Story-only graph emits the 3-tier manifest shape unconditionally', () => {
 test('Task-bearing inputs are ignored — producer is Story-only', () => {
   // Epic #3163 deleted the 4-tier branch. Even if a caller still passes
   // Task tickets in `allTickets`, the producer filters to `type::story`
-  // and emits the 3-tier shape. No `waves[].tasks[]` is ever produced.
+  // and emits the 2-tier shape. No `waves[].tasks[]` is ever produced.
   const epic = makeEpic();
   const story = makeStory(100, { id: 100, title: 'Parent Story' });
   const taskTicket = {
@@ -184,7 +184,7 @@ test('Task-bearing inputs are ignored — producer is Story-only', () => {
     dryRun: false,
   });
 
-  assert.equal(manifest.hierarchy, '3-tier');
+  assert.equal(manifest.hierarchy, '2-tier');
   assert.equal(manifest.summary.totalStories, 1);
   assert.equal(manifest.summary.totalTasks, undefined);
   assert.ok(Array.isArray(manifest.waves[0].stories));

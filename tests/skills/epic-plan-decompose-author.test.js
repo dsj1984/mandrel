@@ -54,7 +54,7 @@ describe('skill:epic-plan-decompose-author — smoke', () => {
           );
         }
         // The two hierarchy levels are non-negotiable inputs to the
-        // ticket validator (3-tier: Feature → Story, no Task tier).
+        // ticket validator (2-tier: Feature → Story, no Task tier).
         for (const level of ['Features', 'Stories']) {
           if (!new RegExp(`\\b${level}\\b`).test(body)) {
             errors.push(

@@ -1,5 +1,5 @@
 /**
- * Schema validation tests for the structured Story body (3-tier world).
+ * Schema validation tests for the structured Story body (2-tier world).
  *
  *   - rejects each empty-section variant (changes / acceptance / verify);
  *   - rejects bullets that name no path-shaped token;
@@ -7,8 +7,8 @@
  *   - allows manual:<reason> in verify;
  *   - skips legacy string / undefined bodies (Feature/Story compat).
  *
- * Story-typed fixtures are used throughout this file; under the 3-tier
- * hierarchy (Epic → Feature → Story) only `type: 'story'` tickets carry
+ * Story-typed fixtures are used throughout this file; under the 2-tier
+ * hierarchy (Epic → Story) only `type: 'story'` tickets carry
  * structured bodies the validator inspects.
  */
 
@@ -165,8 +165,8 @@ describe('collectTaskBodyErrors — body routing (Story #3906)', () => {
     assert.deepEqual(collectTaskBodyErrors(tickets), []);
   });
 
-  it('validates Story tickets with structured (object) bodies (3-tier)', () => {
-    // Under the 3-tier hierarchy Stories carry the implementation scope inline.
+  it('validates Story tickets with structured (object) bodies (2-tier)', () => {
+    // Under the 2-tier hierarchy Stories carry the implementation scope inline.
     // A Story with a structured body that violates the schema IS an error.
     const tickets = [
       { slug: 's1', type: 'story', title: 'S', body: { weird: true } },

@@ -62,7 +62,7 @@ describe('story-lifecycle', () => {
       );
     });
 
-    it('returns [] for 3-tier Stories with no children', async () => {
+    it('returns [] for 2-tier Stories with no children', async () => {
       const provider = {
         getSubTickets: async () => [],
       };

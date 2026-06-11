@@ -1,31 +1,21 @@
 {
   "case": "close-only",
-  "description": "Mapping carries a dropped-from-spec slug → exactly one Close op (the orphaned Task); everything else in the spec already matches ghState.",
+  "description": "Mapping carries a dropped-from-spec slug \u2192 exactly one Close op (the orphaned Story); everything else in the spec already matches ghState.",
   "spec": {
     "epic": {
       "id": 9003,
       "title": "Trimming Epic",
-      "labels": ["type::epic"]
+      "labels": [
+        "type::epic"
+      ]
     },
-    "features": [
+    "stories": [
       {
-        "slug": "feat-alpha",
-        "title": "Alpha Feature",
-        "labels": ["type::feature"],
-        "stories": [
-          {
-            "slug": "story-one",
-            "title": "First Story",
-            "wave": 0,
-            "labels": ["type::story"],
-            "tasks": [
-              {
-                "slug": "task-one-a",
-                "title": "Task one A",
-                "labels": ["type::task"]
-              }
-            ]
-          }
+        "slug": "story-one",
+        "title": "First Story",
+        "wave": 0,
+        "labels": [
+          "type::story"
         ]
       }
     ]
@@ -33,56 +23,46 @@
   "state": {
     "epicId": 9003,
     "mapping": {
-      "epic": { "issueNumber": 9003, "entity": "epic", "parentSlug": null },
-      "feat-alpha": {
-        "issueNumber": 200,
-        "entity": "feature",
-        "parentSlug": "epic"
+      "epic": {
+        "issueNumber": 9003,
+        "entity": "epic",
+        "parentSlug": null
       },
       "story-one": {
         "issueNumber": 201,
         "entity": "story",
-        "parentSlug": "feat-alpha",
+        "parentSlug": "epic",
         "dependsOn": [],
         "wave": 0
       },
-      "task-one-a": {
-        "issueNumber": 202,
-        "entity": "task",
-        "parentSlug": "story-one"
-      },
-      "task-one-b": {
+      "story-dropped": {
         "issueNumber": 203,
-        "entity": "task",
-        "parentSlug": "story-one",
-        "title": "Dropped Task"
+        "entity": "story",
+        "parentSlug": "epic",
+        "title": "Dropped Story"
       }
     }
   },
   "ghState": {
     "9003": {
       "title": "Trimming Epic",
-      "labels": ["type::epic"],
-      "state": "open"
-    },
-    "200": {
-      "title": "Alpha Feature",
-      "labels": ["type::feature"],
+      "labels": [
+        "type::epic"
+      ],
       "state": "open"
     },
     "201": {
       "title": "First Story",
-      "labels": ["type::story"],
-      "state": "open"
-    },
-    "202": {
-      "title": "Task one A",
-      "labels": ["type::task"],
+      "labels": [
+        "type::story"
+      ],
       "state": "open"
     },
     "203": {
-      "title": "Dropped Task",
-      "labels": ["type::task"],
+      "title": "Dropped Story",
+      "labels": [
+        "type::story"
+      ],
       "state": "open"
     }
   }

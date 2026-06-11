@@ -5,11 +5,11 @@
  * Contract:
  *   - Positive fixtures (minimal + full Epic) validate without errors.
  *   - Negative fixtures produce errors at expected JSON-Schema paths:
- *       missing-features      → required at `/features`
+ *       missing-stories       → required at `/stories`
  *       missing-parent (epic) → required at `/epic`
  *       unknown-property      → additionalProperties under `/epic`
  *       bad-slug              → pattern violation under
- *                               `/features/0/slug`
+ *                               `/stories/0/slug`
  *
  * The schema is draft 2020-12, so the test uses Ajv2020 (the project's
  * existing ajv setup at version ^8.18.0). No new validator dependency
@@ -58,8 +58,8 @@ describe('epic-spec.schema.json — structural metadata', () => {
     assert.match(schema.$id, /epic-spec\.schema\.json$/);
   });
 
-  it('requires the top-level `epic` and `features` keys', () => {
-    assert.deepEqual(schema.required, ['epic', 'features']);
+  it('requires the top-level `epic` and `stories` keys', () => {
+    assert.deepEqual(schema.required, ['epic', 'stories']);
   });
 
   it('disallows additional top-level properties (closed contract)', () => {
@@ -100,14 +100,14 @@ describe('epic-spec.schema.json — structural metadata', () => {
 });
 
 describe('epic-spec.schema.json — positive fixtures', () => {
-  it('validates the minimal Epic fixture (epic + empty features)', () => {
+  it('validates the minimal Epic fixture (epic + empty stories)', () => {
     const validate = compileSchema();
     const fixture = loadFixture('minimal');
     const ok = validate(fixture);
     assert.equal(ok, true, JSON.stringify(validate.errors));
   });
 
-  it('validates the full Epic fixture (multi-feature, wave deps, gates, labels)', () => {
+  it('validates the full Epic fixture (multi-story, wave deps, gates, labels)', () => {
     const validate = compileSchema();
     const fixture = loadFixture('full');
     const ok = validate(fixture);
@@ -116,7 +116,7 @@ describe('epic-spec.schema.json — positive fixtures', () => {
 });
 
 describe('epic-spec.schema.json — Story inline acceptance/verify (Epic #3078)', () => {
-  it('validates a Story carrying inline acceptance[] and verify[] (3-tier shape)', () => {
+  it('validates a Story carrying inline acceptance[] and verify[] (2-tier shape)', () => {
     const validate = compileSchema();
     const fixture = loadFixture('story-inline-acceptance');
     const ok = validate(fixture);
@@ -126,22 +126,16 @@ describe('epic-spec.schema.json — Story inline acceptance/verify (Epic #3078)'
   it('rejects a Story that contains a tasks[] field (4-tier shape removed)', () => {
     const validate = compileSchema();
     const spec = {
-      version: '3.0.0',
+      version: '4.0.0',
       epic: { id: 3078, title: 'E', labels: ['type::epic'] },
-      features: [
+      stories: [
         {
-          slug: 'f1',
-          title: 'Feature 1',
-          stories: [
-            {
-              slug: 's-with-tasks',
-              title: 'Story illegally carrying tasks[]',
-              wave: 0,
-              acceptance: ['something'],
-              verify: ['node --test'],
-              tasks: [{ slug: 't1', title: 'A task' }],
-            },
-          ],
+          slug: 's-with-tasks',
+          title: 'Story illegally carrying tasks[]',
+          wave: 0,
+          acceptance: ['something'],
+          verify: ['node --test'],
+          tasks: [{ slug: 't1', title: 'A task' }],
         },
       ],
     };
@@ -166,28 +160,28 @@ describe('epic-spec.schema.json — Story inline acceptance/verify (Epic #3078)'
     // accepts strings matching semver triplet.
     const validate = compileSchema();
     const ok = validate({
-      version: '3.0.0',
+      version: '4.0.0',
       epic: { id: 1, title: 'v' },
-      features: [],
+      stories: [],
     });
     assert.equal(ok, true, JSON.stringify(validate.errors));
   });
 });
 
 describe('epic-spec.schema.json — negative fixtures', () => {
-  it('rejects a spec missing the top-level features array (required violation)', () => {
+  it('rejects a spec missing the top-level stories array (required violation)', () => {
     const validate = compileSchema();
-    const fixture = loadFixture('invalid-missing-features');
+    const fixture = loadFixture('invalid-missing-stories');
     const ok = validate(fixture);
     assert.equal(ok, false);
     const errors = validate.errors ?? [];
     const required = errors.find(
       (e) =>
-        e.keyword === 'required' && e.params?.missingProperty === 'features',
+        e.keyword === 'required' && e.params?.missingProperty === 'stories',
     );
     assert.ok(
       required,
-      `Expected a required-violation for "features", got: ${JSON.stringify(errors)}`,
+      `Expected a required-violation for "stories", got: ${JSON.stringify(errors)}`,
     );
   });
 
@@ -233,11 +227,11 @@ describe('epic-spec.schema.json — negative fixtures', () => {
     const patternErr = errors.find(
       (e) =>
         e.keyword === 'pattern' &&
-        String(e.instancePath ?? '').includes('/features/0/slug'),
+        String(e.instancePath ?? '').includes('/stories/0/slug'),
     );
     assert.ok(
       patternErr,
-      `Expected a pattern violation under /features/0/slug, got: ${JSON.stringify(errors)}`,
+      `Expected a pattern violation under /stories/0/slug, got: ${JSON.stringify(errors)}`,
     );
   });
 });
