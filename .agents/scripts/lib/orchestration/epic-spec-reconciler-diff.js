@@ -444,6 +444,24 @@ function flattenSpec(spec) {
   }
 
   const epicAnchor = spec.epic ? epicSlug(spec.epic) : null;
+  // Duplicate-slug guard. The schema cannot express slug uniqueness across
+  // a hand-edited spec, and two same-slug Creates would orphan one GH
+  // issue (the second create overwrites the first's mapping entry).
+  // flattenSpec is the chokepoint both the loader path and the diff path
+  // flow through, so the check lives here.
+  const seenSlugs = new Set();
+  const duplicateSlugs = new Set();
+  for (const story of spec.stories ?? []) {
+    if (seenSlugs.has(story.slug)) duplicateSlugs.add(story.slug);
+    seenSlugs.add(story.slug);
+  }
+  if (duplicateSlugs.size > 0) {
+    throw new Error(
+      `spec contains duplicate story slug(s): ${[...duplicateSlugs].join(', ')}. ` +
+        `Each story slug must be unique — rename the duplicated entries in ` +
+        `the spec and re-run.`,
+    );
+  }
   for (const story of spec.stories ?? []) {
     out.push({
       slug: story.slug,
@@ -488,6 +506,40 @@ function dependsOnEqual(a, b) {
 }
 
 /**
+ * Entity kinds that only exist in pre-v4 (3-tier) state files. The v4
+ * hard cutover (v1.60.0) removed the Feature/Task tiers; encountering one
+ * of these in `state.mapping` means the state file predates the cutover
+ * and must be migrated by the operator — there is deliberately no legacy
+ * close-op support (hard-cutover policy, git-conventions.md).
+ */
+const LEGACY_ENTITY_KINDS = Object.freeze(new Set(['feature', 'task']));
+
+/**
+ * Throw a loud, actionable error when the state mapping carries legacy
+ * Feature/Task entries. Raised early in `diff()` so the operator sees a
+ * migration instruction instead of `unknown entity kind: feature` from
+ * deep inside `closeOp`.
+ *
+ * @param {Record<string, StateMappingEntry>} mapping
+ */
+function assertNoLegacyEntities(mapping) {
+  const legacy = Object.entries(mapping).filter(([, entry]) =>
+    LEGACY_ENTITY_KINDS.has(entry?.entity),
+  );
+  if (legacy.length === 0) return;
+  const summary = legacy
+    .map(([slug, entry]) => `${slug} (#${entry.issueNumber}, ${entry.entity})`)
+    .join(', ');
+  throw new Error(
+    `diff: the epic state file is pre-v4 — it carries legacy Feature/Task ` +
+      `mapping entries: ${summary}. The 2-tier reconciler cannot process ` +
+      `these. Close the legacy Feature issues manually, then delete (or ` +
+      `reseed) the .agents/epics/<epicId>.state.json file per the v1.60.0 ` +
+      `migration notes, and re-run.`,
+  );
+}
+
+/**
  * Diff `(spec, state, ghState)` into a `Plan`. See the module header for
  * the full contract.
  *
@@ -501,6 +553,7 @@ export function diff({ spec, state, ghState } = {}) {
     throw new TypeError('diff: state argument is required');
   }
   const mapping = state.mapping ?? {};
+  assertNoLegacyEntities(mapping);
   const seenSpecSlugs = new Set();
 
   for (const entity of flattenSpec(spec)) {

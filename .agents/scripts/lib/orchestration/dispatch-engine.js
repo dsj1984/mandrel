@@ -21,7 +21,6 @@ import {
   buildStoryDispatchGraph,
   fetchEpicContext,
   isTwoTierDispatch,
-  reconcileEpicState,
   resolveDispatchContext,
 } from './dispatch-pipeline.js';
 import { buildManifest } from './manifest-builder.js';
@@ -91,7 +90,6 @@ export async function dispatch(options) {
   const { epicId, dryRun } = ctx;
 
   const fetched = await fetchEpicContext(ctx);
-  await reconcileEpicState(ctx, fetched);
 
   // Every Epic is 2-tier (Epic → Story). Compute Story-level
   // waves directly from the Story tickets and emit a 2-tier-shaped
@@ -118,18 +116,21 @@ export async function dispatch(options) {
     });
   }
 
-  // No Story tickets under the Epic — nothing to dispatch. Emit an empty
-  // manifest so callers (renderer, /deliver) get a well-formed
-  // artifact instead of a throw.
-  Logger.info('No Story tickets found under the Epic. Nothing to dispatch.');
-  return buildManifest({
-    epicId,
-    epic: fetched.epic,
-    tasks: [],
-    allTickets: fetched.allTickets,
-    waves: [],
-    dispatched: [],
-    dryRun,
-    hierarchy: '2-tier',
-  });
+  // No Story tickets under the Epic — throw loudly rather than emit an
+  // empty manifest, matching the wave-loop's behavior (build-wave-dag.js
+  // throws the same message shape on this input). A silently-empty
+  // manifest masks a pre-cutover Epic whose children are legacy Features.
+  const typedChildren = (fetched.allTickets ?? [])
+    .map((t) => (t.labels ?? []).find((l) => l.startsWith('type::')))
+    .filter(Boolean);
+  const legacyHint =
+    typedChildren.length > 0
+      ? ` Found ${typedChildren.length} non-Story child ticket(s) ` +
+        `(${[...new Set(typedChildren)].join(', ')}) — this Epic looks ` +
+        `pre-cutover (legacy Feature children) and needs migration to the ` +
+        `2-tier (Epic → Story) hierarchy before dispatch.`
+      : '';
+  throw new Error(
+    `Epic #${epicId} has no child stories to dispatch.${legacyHint}`,
+  );
 }

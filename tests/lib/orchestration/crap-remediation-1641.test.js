@@ -10,7 +10,6 @@
  *   - spec-renderer.renderSpec (+ extracted helpers)
  *   - merge-runner.{rebaseStoryOnEpic, runFinalizeMerge, finalizeMergeIfPending}
  *   - automerge-predicate.deriveAutoMergeVerdict (+ extracted helpers)
- *   - reconciler.maybeClose (exercised via reconcileHierarchy)
  *   - crap-drift.findCoverageEntry (+ normaliseCoveragePath / coverageKeyMatches)
  *   - auto-refresh-runner.runAutoRefresh
  *   - baseline-attribution-wiring.diffCrapBaselines
@@ -25,7 +24,6 @@ import {
   normaliseCoveragePath,
 } from '../../../.agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js';
 import { deriveAutoMergeVerdict } from '../../../.agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js';
-import { reconcileHierarchy } from '../../../.agents/scripts/lib/orchestration/reconciler.js';
 import { composeRetroBody } from '../../../.agents/scripts/lib/orchestration/retro/phases/compose-body.js';
 import { runAutoRefresh } from '../../../.agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js';
 import { diffCrapBaselines } from '../../../.agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js';
@@ -345,63 +343,6 @@ describe('automerge-predicate.deriveAutoMergeVerdict', () => {
     assert.ok(
       v.reasons.some((r) => r.includes('retro structured comment not found')),
     );
-  });
-});
-
-// ---------------------------------------------------------------------------
-// reconciler.maybeClose (via reconcileHierarchy)
-// ---------------------------------------------------------------------------
-
-describe('reconciler.maybeClose', () => {
-  const STORY_LABEL = 'type::story';
-  const PARENT_LABEL = 'type::story';
-
-  function makeTicket(id, type, extra = {}) {
-    return {
-      id,
-      type,
-      title: `T${id}`,
-      labels: [type === 'story' ? STORY_LABEL : PARENT_LABEL],
-      labelSet: new Set([type === 'story' ? STORY_LABEL : PARENT_LABEL]),
-      state: 'open',
-      body: extra.body ?? null,
-      ...extra,
-    };
-  }
-
-  it('dry-run flips state to closed without provider calls', async () => {
-    const provider = {
-      updateTicket: async () => {
-        throw new Error('should not be called in dry-run');
-      },
-    };
-    const story = makeTicket(10, 'story', { body: 'parent: #1' });
-    const all = [
-      story,
-      {
-        id: 100,
-        type: 'task',
-        state: 'closed',
-        title: 'tA',
-        body: 'parent: #10',
-        labels: ['agent::done'],
-        labelSet: new Set(['agent::done']),
-      },
-    ];
-    await reconcileHierarchy(provider, 1, null, all, true);
-    assert.equal(story.state, 'closed');
-  });
-
-  it('skips already-closed and parent-less tickets', async () => {
-    let updates = 0;
-    const provider = {
-      updateTicket: async () => {
-        updates += 1;
-      },
-    };
-    const closedStory = makeTicket(11, 'story', { state: 'closed' });
-    await reconcileHierarchy(provider, 1, null, [closedStory], false);
-    assert.equal(updates, 0);
   });
 });
 

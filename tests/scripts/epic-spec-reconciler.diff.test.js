@@ -856,3 +856,82 @@ describe('reconciler diff — 2-tier hierarchy walk (Story #3117 / Epic #3078)',
     assert.equal(storyOp.entity, ENTITY_KINDS.STORY);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Legacy pre-v4 state detection (v1.60.0 hard cutover)
+// ---------------------------------------------------------------------------
+
+describe('reconciler diff — legacy pre-v4 state entries', () => {
+  function v4Spec() {
+    return {
+      epic: { id: 9101, title: 'Cutover Epic' },
+      stories: [
+        { slug: 'story-one', title: 'Story One', wave: 1, dependsOn: [] },
+      ],
+    };
+  }
+
+  it('throws an actionable migration error when state carries a feature entry', () => {
+    const state = {
+      epicId: 9101,
+      mapping: {
+        epic: { issueNumber: 9101, entity: 'epic' },
+        'story-one': { issueNumber: 9103, entity: 'story' },
+        'feature-auth': { issueNumber: 9102, entity: 'feature' },
+      },
+    };
+    assert.throws(
+      () => diff({ spec: v4Spec(), state, ghState: {} }),
+      (err) => {
+        assert.match(err.message, /pre-v4/);
+        assert.match(err.message, /legacy Feature\/Task/);
+        assert.match(err.message, /feature-auth \(#9102, feature\)/);
+        assert.match(err.message, /Close the legacy Feature issues manually/);
+        assert.match(err.message, /\.agents\/epics\/<epicId>\.state\.json/);
+        assert.match(err.message, /v1\.60\.0 migration notes/);
+        return true;
+      },
+    );
+  });
+
+  it('throws the same error for legacy task entries', () => {
+    const state = {
+      epicId: 9101,
+      mapping: {
+        'task-old': { issueNumber: 9105, entity: 'task' },
+      },
+    };
+    assert.throws(
+      () => diff({ spec: v4Spec(), state, ghState: {} }),
+      /pre-v4/,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Duplicate story slugs (hand-edited spec)
+// ---------------------------------------------------------------------------
+
+describe('reconciler diff — duplicate story slugs', () => {
+  it('throws naming the duplicated slug(s)', () => {
+    const spec = {
+      epic: { id: 9101, title: 'Dup Epic' },
+      stories: [
+        { slug: 'story-one', title: 'A', wave: 1 },
+        { slug: 'story-one', title: 'B', wave: 1 },
+        { slug: 'story-two', title: 'C', wave: 1 },
+        { slug: 'story-two', title: 'D', wave: 2 },
+      ],
+    };
+    const state = { epicId: 9101, mapping: {} };
+    assert.throws(
+      () => diff({ spec, state, ghState: {} }),
+      (err) => {
+        assert.match(err.message, /duplicate story slug/);
+        assert.match(err.message, /story-one/);
+        assert.match(err.message, /story-two/);
+        return true;
+      },
+    );
+  });
+});

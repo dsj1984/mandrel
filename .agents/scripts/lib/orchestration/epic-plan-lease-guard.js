@@ -341,7 +341,15 @@ export async function assertNoOpenPlanChildren({
   const openChildren = (children ?? []).filter((t) => {
     const labels = Array.isArray(t.labels) ? t.labels : [];
     const isOpen = t.state === undefined || t.state === 'open';
-    return isOpen && labels.includes(TYPE_LABELS.STORY);
+    // Any open typed plan ticket counts — `type::story` plus pre-v4
+    // `type::feature` leftovers. The prefix check is legacy-data
+    // detection, not compat support: the guard only refuses, it never
+    // processes the legacy tier. Context tickets (`context::*`) are
+    // untouched.
+    return (
+      isOpen &&
+      labels.some((l) => typeof l === 'string' && l.startsWith('type::'))
+    );
   });
 
   if (openChildren.length > 0) {
@@ -353,12 +361,21 @@ export async function assertNoOpenPlanChildren({
       openChildren.length > 10
         ? `\n  …and ${openChildren.length - 10} more`
         : '';
+    const legacyCount = openChildren.filter(
+      (t) => !(t.labels ?? []).includes(TYPE_LABELS.STORY),
+    ).length;
+    const legacyHint =
+      legacyCount > 0
+        ? `\n${legacyCount} of these are not type::story — they look like ` +
+          `legacy pre-v4 Feature tickets; migrate or close them per the ` +
+          `v1.60.0 migration notes before re-planning.`
+        : '';
     throw new Error(
       `[epic-plan-decompose] Epic #${epicId} already has ` +
-        `${openChildren.length} open Story child ticket(s):\n${summary}${more}\n\n` +
+        `${openChildren.length} open plan child ticket(s):\n${summary}${more}\n\n` +
         `Persisting now would duplicate the breakdown. Re-run with --force to ` +
         `close the existing tree and re-decompose, or close the stale children ` +
-        `by hand first.`,
+        `by hand first.${legacyHint}`,
     );
   }
 

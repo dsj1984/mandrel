@@ -414,8 +414,34 @@ describe('epic-plan-lease-guard — assertNoOpenPlanChildren', () => {
     await assert.rejects(
       assertNoOpenPlanChildren({ provider, epicId: 9, force: false }),
       (err) => {
-        assert.match(err.message, /already has 2 open Story/);
+        assert.match(err.message, /already has 2 open plan child/);
         assert.match(err.message, /--force/);
+        return true;
+      },
+    );
+  });
+
+  it('throws with a migration hint when the Epic has open legacy Feature children', async () => {
+    const provider = makeProvider({
+      children: [
+        {
+          id: 21,
+          title: 'Legacy Feature',
+          labels: ['type::feature'],
+          state: 'open',
+        },
+        { id: 22, title: 'Story C', labels: ['type::story'], state: 'open' },
+      ],
+    });
+
+    await assert.rejects(
+      assertNoOpenPlanChildren({ provider, epicId: 9, force: false }),
+      (err) => {
+        assert.match(err.message, /already has 2 open plan child/);
+        assert.match(err.message, /#21 Legacy Feature/);
+        assert.match(err.message, /not type::story/);
+        assert.match(err.message, /legacy pre-v4 Feature/);
+        assert.match(err.message, /v1\.60\.0 migration notes/);
         return true;
       },
     );

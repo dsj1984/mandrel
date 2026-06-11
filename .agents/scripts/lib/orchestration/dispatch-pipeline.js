@@ -3,7 +3,7 @@
  *
  * Internal pipeline helpers composed by `dispatch-engine.js::dispatch()`.
  * Keeping these out of the coordinator keeps the public entry point compact
- * and focused on the 2-tier flow: resolve → fetch → reconcile → Story-graph.
+ * and focused on the 2-tier flow: resolve → fetch → Story-graph.
  */
 
 import { PROJECT_ROOT, resolveConfig } from '../config-resolver.js';
@@ -14,13 +14,12 @@ import { createProvider } from '../provider-factory.js';
 import { buildStoryAdjacency } from '../story-adjacency.js';
 import { WorktreeManager } from '../worktree-manager.js';
 import { computeStoryWaves } from './dependency-analyzer.js';
-import { reconcileHierarchy } from './reconciler.js';
 
 /**
  * Runtime context for a single dispatch cycle.
  *
  * Produced by {@link resolveDispatchContext} and consumed by every pipeline
- * stage (fetch → reconcile → graph → scaffold → GC → dispatch). All fields
+ * stage (fetch → graph → scaffold → GC → dispatch). All fields
  * are resolved once up-front so downstream helpers can stay free of
  * configuration look-ups.
  *
@@ -103,21 +102,6 @@ export async function fetchEpicContext(ctx) {
   provider.primeTicketCache(allTickets);
 
   return { epic, allTickets, allTicketsById };
-}
-
-/**
- * Propagate already-done work up the hierarchy so the manifest reflects
- * reality before dispatch. Walks Stories bottom-up.
- *
- * @param {DispatchContext} ctx  Dispatch context.
- * @param {FetchedEpic} fetched  Result of {@link fetchEpicContext}.
- * @returns {Promise<void>}
- */
-export async function reconcileEpicState(ctx, fetched) {
-  const { provider, dryRun, epicId } = ctx;
-  const { epic, allTickets } = fetched;
-
-  await reconcileHierarchy(provider, epicId, epic, allTickets, dryRun);
 }
 
 /**

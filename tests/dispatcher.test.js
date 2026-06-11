@@ -95,9 +95,24 @@ const EPIC = { id: 1, title: 'Test Epic', body: '', labels: ['type::epic'] };
 // Tests
 // ---------------------------------------------------------------------------
 
+function makeStoryTicket(id, overrides = {}) {
+  return {
+    id,
+    title: `Story ${id}`,
+    body: '',
+    labels: ['type::story', 'agent::ready'],
+    state: 'open',
+    assignees: [],
+    ...overrides,
+  };
+}
+
 describe('dispatch() — manifest schema compliance', () => {
   it('manifest contains all required top-level fields', async () => {
-    const provider = new MockProvider({ epic: EPIC, tasks: [makeTask(5)] });
+    const provider = new MockProvider({
+      epic: EPIC,
+      tasks: [makeStoryTicket(5)],
+    });
     const manifest = await dispatch({
       epicId: 1,
       dryRun: true,
@@ -125,18 +140,6 @@ describe('dispatch() — manifest schema compliance', () => {
 // 2-tier hierarchy — Story-level wave computation
 // (Epic #3078 Story #3128 — dispatch-engine + dependency-analyzer)
 // ---------------------------------------------------------------------------
-
-function makeStoryTicket(id, overrides = {}) {
-  return {
-    id,
-    title: `Story ${id}`,
-    body: '',
-    labels: ['type::story', 'agent::ready'],
-    state: 'open',
-    assignees: [],
-    ...overrides,
-  };
-}
 
 describe('dispatch() — 2-tier hierarchy (Story-level wave plan)', () => {
   it('emits waves[].stories[] keyed by storyId when no Tasks are present', async () => {
@@ -195,6 +198,41 @@ describe('dispatch() — 2-tier hierarchy (Story-level wave plan)', () => {
     assert.deepEqual(
       manifest.waves[1].stories.map((s) => s.storyId),
       [200],
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Zero-Story Epics throw (no silent empty manifest)
+// ---------------------------------------------------------------------------
+
+describe('dispatch() — zero-Story Epic throws', () => {
+  it('throws when the Epic has no children at all', async () => {
+    const provider = new MockProvider({ epic: EPIC, tasks: [] });
+    await assert.rejects(
+      dispatch({ epicId: 1, dryRun: true, provider }),
+      /Epic #1 has no child stories to dispatch\./,
+    );
+  });
+
+  it('throws with a pre-cutover migration hint when children exist but none are Stories', async () => {
+    const provider = new MockProvider({
+      epic: EPIC,
+      tasks: [
+        makeTask(5),
+        makeTask(6, { labels: ['type::feature', 'agent::ready'] }),
+      ],
+    });
+    await assert.rejects(
+      dispatch({ epicId: 1, dryRun: true, provider }),
+      (err) => {
+        assert.match(err.message, /Epic #1 has no child stories to dispatch\./);
+        assert.match(err.message, /pre-cutover/);
+        assert.match(err.message, /type::feature/);
+        assert.match(err.message, /type::task/);
+        assert.match(err.message, /migration/);
+        return true;
+      },
     );
   });
 });
