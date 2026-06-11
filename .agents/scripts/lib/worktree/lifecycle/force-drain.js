@@ -119,9 +119,88 @@ export function findHoldersInPath(wtPath, opts = {}) {
 }
 
 /**
+ * Pure: compute the set of pids that must never be killed — `selfPid` plus
+ * its full ancestor chain — from a process table of `{ pid, ppid }` rows.
+ * Cycle-guarded (a corrupt/raced table cannot loop forever). `selfPid` is
+ * always included even when the table is empty or missing its row, so the
+ * guard fails safe.
+ *
+ * @param {number} selfPid
+ * @param {Array<{ pid: number, ppid?: number }>} table
+ * @returns {Set<number>}
+ */
+export function computeProtectedPids(selfPid, table) {
+  const protectedPids = new Set([selfPid]);
+  if (!Array.isArray(table) || table.length === 0) return protectedPids;
+  const parentOf = new Map();
+  for (const row of table) {
+    if (row && typeof row.pid === 'number' && typeof row.ppid === 'number') {
+      parentOf.set(row.pid, row.ppid);
+    }
+  }
+  let cursor = selfPid;
+  while (parentOf.has(cursor)) {
+    const ppid = parentOf.get(cursor);
+    if (protectedPids.has(ppid)) break; // cycle guard
+    protectedPids.add(ppid);
+    cursor = ppid;
+  }
+  return protectedPids;
+}
+
+/**
+ * Enumerate the full Windows process table as `{ pid, ppid }` rows so the
+ * kill set can exclude the invoking shell / orchestrator ancestry.
+ * Best-effort: any failure returns `[]` (callers still protect `selfPid`).
+ *
+ * @param {object} [opts]
+ * @param {Function} [opts.spawn] Injection point for tests (default `spawnSync`).
+ * @param {string} [opts.platform] Override `process.platform` for tests.
+ * @returns {Array<{ pid: number, ppid: number }>}
+ */
+export function fetchProcessTable(opts = {}) {
+  const spawn = opts.spawn ?? spawnSync;
+  const platform = opts.platform ?? process.platform;
+  if (platform !== 'win32') return [];
+
+  const script =
+    'Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId | ConvertTo-Json -Compress';
+  let res;
+  try {
+    res = spawn(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command', script],
+      { encoding: 'utf8', timeout: 15_000 },
+    );
+  } catch {
+    return [];
+  }
+  if (!res || res.status !== 0 || !res.stdout) return [];
+  let parsed;
+  try {
+    parsed = JSON.parse(String(res.stdout).trim());
+  } catch {
+    return [];
+  }
+  const list = Array.isArray(parsed) ? parsed : [parsed];
+  return list
+    .filter((p) => p && typeof p.ProcessId === 'number')
+    .map((p) => ({
+      pid: p.ProcessId,
+      ppid: typeof p.ParentProcessId === 'number' ? p.ParentProcessId : -1,
+    }));
+}
+
+/**
  * `taskkill /T /F /PID <pid>` for each holder. Returns the pids reported
  * as terminated. Per-pid failures are logged but do not throw — caller
  * decides whether the partial kill is enough to retry.
+ *
+ * Self-preservation (Story #4018): holders are matched by command-line
+ * substring, which can select the invoking shell or the orchestrator's own
+ * ancestor chain (any ancestor whose command line mentions the worktree
+ * path). Before any `taskkill /T /F`, the kill set excludes `selfPid` and
+ * its full ancestor chain — `/T` on an ancestor would kill this process too.
  */
 export function terminateHolders(holders, opts = {}) {
   const spawn = opts.spawn ?? spawnSync;
@@ -130,9 +209,20 @@ export function terminateHolders(holders, opts = {}) {
   if (platform !== 'win32') return [];
   if (!Array.isArray(holders) || holders.length === 0) return [];
 
+  const selfPid = opts.selfPid ?? process.pid;
+  const protectedPids =
+    opts.protectedPids ??
+    computeProtectedPids(selfPid, fetchProcessTable({ spawn, platform }));
+
   const killed = [];
   for (const h of holders) {
     if (!h || typeof h.pid !== 'number') continue;
+    if (protectedPids.has(h.pid)) {
+      logger.warn(
+        `force-drain: skipping pid=${h.pid} name=${h.name ?? '?'} — self/ancestor of this process (never killed)`,
+      );
+      continue;
+    }
     let res;
     try {
       res = spawn('taskkill.exe', ['/T', '/F', '/PID', String(h.pid)], {

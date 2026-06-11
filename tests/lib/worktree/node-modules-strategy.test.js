@@ -8,6 +8,7 @@ import {
   describeAttemptFailure,
   installDependencies,
   installRetryPolicy,
+  probeReusedInstall,
   runInstallWithRetry,
   selectInstallCommand,
 } from '../../../.agents/scripts/lib/worktree/node-modules-strategy.js';
@@ -263,4 +264,99 @@ test('installDependencies: no package.json in worktree reports skipped', () => {
     ),
     { status: 'skipped', reason: 'no-package-json' },
   );
+});
+
+// ---- probeReusedInstall (Story #4018: reuse must not defeat install retry) ----
+
+function probeFsLike({ files = [], mtimes = {} } = {}) {
+  return {
+    existsSync: (p) => files.some((f) => p.endsWith(f)),
+    statSync: (p) => {
+      const hit = Object.keys(mtimes).find((k) => p.endsWith(k));
+      if (hit === undefined) throw new Error(`ENOENT: ${p}`);
+      return { mtimeMs: mtimes[hit] };
+    },
+  };
+}
+
+test('probeReusedInstall: symlink strategy always skips', () => {
+  assert.deepEqual(probeReusedInstall('symlink', '/wt', probeFsLike()), {
+    status: 'skipped',
+    reason: 'worktree-reused',
+  });
+});
+
+test('probeReusedInstall: no package.json skips (nothing to install)', () => {
+  assert.deepEqual(probeReusedInstall('per-worktree', '/wt', probeFsLike()), {
+    status: 'skipped',
+    reason: 'no-package-json',
+  });
+});
+
+test('probeReusedInstall: missing node_modules after prior failed install reports failed', () => {
+  const fsLike = probeFsLike({ files: ['package.json'] });
+  assert.deepEqual(probeReusedInstall('per-worktree', '/wt', fsLike), {
+    status: 'failed',
+    reason: 'reuse-node-modules-missing',
+  });
+});
+
+test('probeReusedInstall: node_modules without a completion marker reports failed', () => {
+  const fsLike = probeFsLike({ files: ['package.json', 'node_modules'] });
+  assert.deepEqual(probeReusedInstall('per-worktree', '/wt', fsLike), {
+    status: 'failed',
+    reason: 'reuse-install-incomplete',
+  });
+});
+
+test('probeReusedInstall: lockfile newer than install marker reports failed (stale)', () => {
+  const fsLike = probeFsLike({
+    files: [
+      'package.json',
+      'node_modules',
+      path.join('node_modules', '.package-lock.json'),
+      'package-lock.json',
+    ],
+    mtimes: {
+      [path.join('node_modules', '.package-lock.json')]: 100,
+      'package-lock.json': 200,
+    },
+  });
+  assert.deepEqual(probeReusedInstall('per-worktree', '/wt', fsLike), {
+    status: 'failed',
+    reason: 'reuse-node-modules-stale',
+  });
+});
+
+test('probeReusedInstall: completed up-to-date install skips (reuse after success)', () => {
+  const fsLike = probeFsLike({
+    files: [
+      'package.json',
+      'node_modules',
+      path.join('node_modules', '.package-lock.json'),
+      'package-lock.json',
+    ],
+    mtimes: {
+      [path.join('node_modules', '.package-lock.json')]: 300,
+      'package-lock.json': 200,
+    },
+  });
+  assert.deepEqual(probeReusedInstall('per-worktree', '/wt', fsLike), {
+    status: 'skipped',
+    reason: 'worktree-reused',
+  });
+});
+
+test('probeReusedInstall: pnpm marker (.modules.yaml) counts as completed install', () => {
+  const fsLike = probeFsLike({
+    files: [
+      'package.json',
+      'node_modules',
+      path.join('node_modules', '.modules.yaml'),
+    ],
+  });
+  assert.deepEqual(probeReusedInstall('pnpm-store', '/wt', fsLike), {
+    status: 'skipped',
+    reason: 'worktree-reused',
+  });
 });

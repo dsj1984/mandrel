@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import {
   applyNodeModulesStrategy,
   installDependencies,
+  probeReusedInstall,
 } from '../node-modules-strategy.js';
 import {
   findByPath,
@@ -41,6 +42,23 @@ export async function ensure(ctx, storyId, branch) {
     if (typeof ctx.onPhase === 'function') ctx.onPhase(name);
   };
 
+  // Reuse must not blindly skip the install: when the prior run's install
+  // failed (or was interrupted), `skipped/worktree-reused` defeats the
+  // retry exactly when it matters — `deriveInstallAction('skipped')` skips.
+  // Probe for a completed install; on a failed probe, retry the install
+  // here and surface its real outcome.
+  const reuseInstallStatus = () => {
+    const strategy = ctx.config?.nodeModulesStrategy ?? 'per-worktree';
+    const probe = probeReusedInstall(strategy, wtPath);
+    if (probe.status !== 'failed') return probe;
+    ctx.logger.warn(
+      `worktree.reuse install probe failed (${probe.reason}) — retrying install in ${wtPath}`,
+    );
+    // `ctx.installDependencies` is a test-injection seam; production ctx
+    // bags leave it unset and get the real installer.
+    return (ctx.installDependencies ?? installDependencies)(ctx, wtPath);
+  };
+
   if (existing) {
     if (existing.branch && existing.branch !== br) {
       throw new Error(
@@ -53,7 +71,7 @@ export async function ensure(ctx, storyId, branch) {
     return {
       path: wtPath,
       created: false,
-      installStatus: { status: 'skipped', reason: 'worktree-reused' },
+      installStatus: reuseInstallStatus(),
     };
   }
 
@@ -87,7 +105,7 @@ export async function ensure(ctx, storyId, branch) {
         return {
           path: wtPath,
           created: false,
-          installStatus: { status: 'skipped', reason: 'worktree-reused' },
+          installStatus: reuseInstallStatus(),
         };
       }
     }
