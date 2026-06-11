@@ -120,21 +120,17 @@ tri-state carries one of three values:
 
 ### Step 0.6 — Initial `story-run-progress` snapshot
 
-Re-read the `story-init` comment, apply the install tri-state, and upsert
-the initial snapshot (`phase: "init"`):
+Story #4017 inlined the former standalone prepare CLI into
+`story-init.js`: Step 0's init run already applied the install tri-state
+in-process (retrying the install command when
+`dependenciesInstalled === 'false'`, default `npm ci`) and rendered the
+initial snapshot (`phase: "init"`). There is no separate command to run.
 
-```bash
-node .agents/scripts/story-deliver-prepare.js --story <storyId> --cwd .
-```
-
-The CLI runs the install command when `dependenciesInstalled === 'false'`
-(default `npm ci`; override with `--install-cmd "<cmd>"`).
-
-The CLI's stdout JSON envelope carries a `renderedBody` field — the markdown
-body that was upserted onto the Story ticket. **Relay it verbatim to chat**
-so operators see the initial progress block before the first commit lands.
-Do the same after every transition in Step 1 / Step 3 (the body is the
-Story-level rollup the parent `/epic-deliver` aggregator reads).
+The Step 0 result envelope carries a `prepare.renderedBody` field — the
+markdown body for the initial Story-phase table. **Relay it verbatim to
+chat** so operators see the initial progress block before the first commit
+lands. Do the same after every transition in Step 1 / Step 3 (the body is
+the Story-level rollup the parent `/epic-deliver` aggregator reads).
 
 ---
 

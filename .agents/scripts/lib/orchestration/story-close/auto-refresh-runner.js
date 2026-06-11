@@ -1,7 +1,8 @@
 /**
  * auto-refresh-runner.js — bounded baseline auto-refresh at story-close
  * (Story #1398, Epic #1386; rerouted to `refreshBaseline()` by Story
- * #2205, Epic #2173).
+ * #2205; collapsed onto the single `runRefreshCommit` funnel by Story
+ * #4017).
  *
  * Runs *after* `runPreMergeGatesWithAttribution` returns `{ status: 'ok' }`
  * and *before* the merge into `epic/<id>`. For each baseline kind
@@ -9,64 +10,52 @@
  *
  *   1. Snapshots the prior on-disk envelope (so cap evaluation can compare
  *      regenerated rows against the pre-refresh baseline).
- *   2. Calls `refreshBaseline({ kind, baseRef, headRef, fullScope: false,
- *      ... })` — the unified service walks the story-diff scope, scores
- *      the in-scope files, scope-merges with out-of-scope prior rows, and
- *      writes the envelope atomically.
- *   3. Re-reads the (now scope-merged) envelope and evaluates the rows
- *      against the configured caps via `evaluateAutoRefresh`.
+ *   2. Delegates the refresh → stage → commit sequence to
+ *      `runRefreshCommit()` (`baseline-attribution/phases/refresh-commit.js`)
+ *      — the **single** story-close refresh funnel — injecting a `capCheck`
+ *      that re-reads the refreshed envelope and evaluates the row deltas
+ *      against the configured caps via {@link evaluateAutoRefresh}.
  *
- *   - **Under-cap path** — stages the baseline file, runs
- *     `git diff --cached --exit-code`, and either:
- *       · empty diff → logs "no baseline drift to fold in" and skips the
- *         commit entirely; OR
- *       · non-empty diff → emits one canonical commit
- *         `chore(baselines): refresh <kind> for story-<id>`. NO `--amend`,
- *         NO `--allow-empty`.
+ *   - **Under-cap path** — the funnel emits one canonical commit
+ *     `chore(baselines): refresh <kind> for story-<id>` per kind that
+ *     actually drifted. NO `--amend`, NO `--allow-empty`.
  *
- *   - **Over-cap path** — restores the baseline files to HEAD (the staged
- *     drift is unstaged + working-tree-reverted) and appends a single
- *     `baseline-refresh-regression` friction signal to the per-Story
- *     NDJSON. The runner returns `{ status: 'refused', ... }`.
+ *   - **Over-cap path** — the funnel restores the kind's baseline file to
+ *     HEAD; the runner appends a single `baseline-refresh-regression`
+ *     friction signal to the per-Story NDJSON and returns
+ *     `{ status: 'refused', ... }`.
  *
- *   - **Skipped paths** — `enabled: false` in `quality.autoRefresh`,
- *     `refreshBaseline()` reports `wrote: false` for every configured
- *     kind, or staging produced an empty diff. The runner returns
+ *   - **Skipped paths** — `enabled: false` in `quality.autoRefresh`, or
+ *     no configured kind produced drift. The runner returns
  *     `{ status: 'skipped', reason }` without touching the branch tip.
  *
- * Story #2205 — every baseline write goes through `refreshBaseline()` in
- * `.agents/scripts/lib/baselines/refresh-service.js`. The legacy
- * `regenerateMainFromTree` + `writeScopeMergedBaseline` +
- * `loadPriorEnvelope` + `amendBaselinesIntoHead` chain is gone. The
- * `--amend` / `--allow-empty` shortcut is gone. The commit subject is
- * `chore(baselines): refresh <kind> for story-<id>` per the new
- * commit-hygiene contract (AC-8).
+ * Each-kind-once contract (Story #4017): the caller threads the close
+ * cycle's shared `cycleState` (created in `runGatesAndRefresh`) into the
+ * funnel, so a kind already refreshed by the gate-failure attribution
+ * retry (`gate-failure.js` → `runRefreshCommit`) is **not re-scored or
+ * re-committed** here — the funnel short-circuits on the idempotency
+ * token. A clean close therefore computes each baseline kind exactly once
+ * and emits at most one `chore(baselines): refresh` subject per kind.
  *
  * Dedup contract (AC3 — idempotent re-run):
  *   On re-entry after an over-cap refusal, the runner scans the per-Story
  *   `signals.ndjson` for any prior `baseline-refresh-regression` signal
  *   tagged `source.tool === 'auto-refresh-runner'` and skips the append if
- *   one exists. The runner does not edit the on-disk file — it just doesn't
- *   write a duplicate. Two scenarios produce identical on-disk state:
- *
- *     - First run, over-cap → friction signal appended.
- *     - Second run, same caps + same diff → friction signal NOT re-appended.
- *
- *   The on-disk friction-signal file therefore carries one row per
- *   (story, refusal-cause) regardless of how many times story-close runs.
+ *   one exists. The on-disk friction-signal file therefore carries one row
+ *   per (story, refusal-cause) regardless of how many times story-close
+ *   runs.
  *
  * The runner is dependency-injection-friendly: every git invocation, every
  * fs touch, the refresh-service handle, the evaluator, and the signal
  * writer are injectable seams. Production callers omit the seams; tests
  * inject mocks.
  *
- * @see .agents/scripts/lib/baselines/refresh-service.js (the unified write funnel)
- * @see .agents/scripts/lib/auto-refresh-baselines.js (evaluator)
+ * @see .agents/scripts/lib/baselines/refresh-service.js (the unified write path)
+ * @see ./baseline-attribution/phases/refresh-commit.js (the commit funnel)
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { evaluateAutoRefresh as defaultEvaluateAutoRefresh } from '../../auto-refresh-baselines.js';
 import { loadFile as defaultReaderLoadFile } from '../../baselines/reader.js';
 import { refreshBaseline as defaultRefreshBaseline } from '../../baselines/refresh-service.js';
 import {
@@ -82,11 +71,260 @@ import {
 import {
   buildKindScorer,
   computeStoryDiffPaths,
-  stageAndCheckBaselineDrift,
+  runRefreshCommit as defaultRunRefreshCommit,
 } from './baseline-attribution-wiring.js';
 
 const RUNNER_SOURCE_TOOL = 'auto-refresh-runner';
 const FRICTION_CATEGORY = 'baseline-refresh-regression';
+
+// ---------------------------------------------------------------------------
+// Pure delta-cap evaluator (Story #1398; folded in from the deleted
+// standalone evaluator module by Story #4017).
+// ---------------------------------------------------------------------------
+
+/**
+ * Numeric guard — accepts finite numbers only. Strings, NaN, Infinity, null,
+ * undefined all fail. The evaluator runs against scored rows produced by the
+ * MI / CRAP scanners (which always emit numeric scores) and baseline rows
+ * loaded from the on-disk JSON (which JSON-parses numeric fields), so a
+ * non-finite value here signals upstream corruption — we exclude the row
+ * conservatively rather than coercing.
+ */
+function isFiniteNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+/**
+ * Index `baseline.mi` rows by `path` for O(1) lookup. Bad rows (missing
+ * `path`, non-string `path`, non-finite `mi`) are skipped — their absence
+ * causes the matching scored row to be treated as "new", which never blocks
+ * auto-refresh.
+ */
+function indexMiBaseline(rows) {
+  const byPath = new Map();
+  if (!Array.isArray(rows)) return byPath;
+  for (const row of rows) {
+    if (!row || typeof row.path !== 'string' || row.path.length === 0) continue;
+    if (!isFiniteNumber(row.mi)) continue;
+    byPath.set(row.path, row);
+  }
+  return byPath;
+}
+
+/**
+ * Index `baseline.crap` rows by `${file}::${method}` for O(1) lookup.
+ * `startLine` is *not* part of the key — the scored row may have shifted
+ * lines vs the baseline (legitimate refactor), and we want the closest match
+ * by method name. When the same method appears multiple times in the same
+ * file (e.g. nested helpers), we pick the closest startLine at lookup time.
+ *
+ * Bad rows (missing `file`/`method`, non-finite `crap`) are skipped — their
+ * absence causes the matching scored row to be treated as "new".
+ */
+function indexCrapBaseline(rows) {
+  const byMethod = new Map();
+  if (!Array.isArray(rows)) return byMethod;
+  for (const row of rows) {
+    if (!row || typeof row.file !== 'string' || row.file.length === 0) {
+      continue;
+    }
+    if (typeof row.method !== 'string' || row.method.length === 0) continue;
+    if (!isFiniteNumber(row.crap)) continue;
+    const key = `${row.file}::${row.method}`;
+    if (!byMethod.has(key)) byMethod.set(key, []);
+    byMethod.get(key).push(row);
+  }
+  return byMethod;
+}
+
+/**
+ * Pick the closest baseline candidate by `startLine` distance. When the
+ * scored row's `startLine` is missing or all candidates have missing line
+ * info, returns the first candidate — matches `baseline-attribution-wiring`'s
+ * `diffCrapBaselines` resolution policy.
+ */
+function pickClosestBaseline(candidates, scoredStartLine) {
+  if (!Array.isArray(candidates) || candidates.length === 0) return null;
+  if (candidates.length === 1) return candidates[0];
+  const target = isFiniteNumber(scoredStartLine) ? scoredStartLine : 0;
+  let best = candidates[0];
+  let bestDist = Math.abs((best.startLine ?? 0) - target);
+  for (let i = 1; i < candidates.length; i += 1) {
+    const c = candidates[i];
+    const dist = Math.abs((c?.startLine ?? 0) - target);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = c;
+    }
+  }
+  return best;
+}
+
+/**
+ * Evaluate every MI scored row against the MI cap. Returns the over-cap
+ * subset; rows under the cap (or new) are simply omitted from the result.
+ *
+ * MI is higher-is-better, so drift = baseline.mi − scored.mi. A positive
+ * drift is a regression; a drift greater than `miDropCap` breaches the cap.
+ */
+function evaluateMiRows({ scoredRows, baselineIndex, miDropCap }) {
+  const overCap = [];
+  if (!Array.isArray(scoredRows)) return overCap;
+  for (const row of scoredRows) {
+    if (!row || typeof row.path !== 'string' || row.path.length === 0) {
+      continue;
+    }
+    if (!isFiniteNumber(row.mi)) continue;
+    const baselineRow = baselineIndex.get(row.path);
+    if (!baselineRow) continue; // new path — never breaches
+    const drop = baselineRow.mi - row.mi;
+    if (drop > miDropCap) {
+      overCap.push({
+        path: row.path,
+        baseline: baselineRow.mi,
+        scored: row.mi,
+        delta: drop,
+      });
+    }
+  }
+  return overCap;
+}
+
+/**
+ * Evaluate every CRAP scored row against the CRAP cap. Returns the over-cap
+ * subset; rows under the cap (or new) are simply omitted from the result.
+ *
+ * CRAP is lower-is-better, so jump = scored.crap − baseline.crap. A positive
+ * jump is a regression; a jump greater than `crapJumpCap` breaches the cap.
+ */
+function evaluateCrapRows({ scoredRows, baselineIndex, crapJumpCap }) {
+  const overCap = [];
+  if (!Array.isArray(scoredRows)) return overCap;
+  for (const row of scoredRows) {
+    if (!row || typeof row.file !== 'string' || row.file.length === 0) {
+      continue;
+    }
+    if (typeof row.method !== 'string' || row.method.length === 0) continue;
+    if (!isFiniteNumber(row.crap)) continue;
+    const candidates = baselineIndex.get(`${row.file}::${row.method}`);
+    const baselineRow = pickClosestBaseline(candidates, row.startLine);
+    if (!baselineRow) continue; // new method — never breaches
+    const jump = row.crap - baselineRow.crap;
+    if (jump > crapJumpCap) {
+      overCap.push({
+        file: row.file,
+        method: row.method,
+        startLine: row.startLine,
+        baseline: baselineRow.crap,
+        scored: row.crap,
+        delta: jump,
+      });
+    }
+  }
+  return overCap;
+}
+
+/**
+ * Build the human-readable refusal reasons array. Stable formatting so the
+ * friction-signal renderer (and unit tests) can pin the strings exactly.
+ *
+ * Each reason names the kind, the file/path/method, and the absolute delta
+ * vs the cap. Numbers are formatted to 3 decimal places to match the
+ * baseline JSON's float precision without trailing-zero noise.
+ */
+function buildRefusalReasons({ miOverCap, crapOverCap, caps }) {
+  const reasons = [];
+  for (const r of miOverCap) {
+    reasons.push(
+      `MI drop ${r.delta.toFixed(3)} > cap ${caps.miDropCap} on ${r.path} (baseline ${r.baseline.toFixed(3)} → scored ${r.scored.toFixed(3)})`,
+    );
+  }
+  for (const r of crapOverCap) {
+    reasons.push(
+      `CRAP jump ${r.delta.toFixed(3)} > cap ${caps.crapJumpCap} on ${r.file}::${r.method} (baseline ${r.baseline.toFixed(3)} → scored ${r.scored.toFixed(3)})`,
+    );
+  }
+  return reasons;
+}
+
+/**
+ * Pure delta-cap evaluator. Decides whether the regenerated rows can be
+ * silently committed (under-cap) or whether the close must refuse the
+ * refresh and surface a `baseline-refresh-regression` friction signal
+ * (over-cap).
+ *
+ * Cap semantics:
+ *
+ *   - MI is "higher is better". A *drop* (baseline.mi − scored.mi) greater
+ *     than `miDropCap` breaches the cap. Improvements never breach.
+ *   - CRAP is "lower is better". A *jump* (scored.crap − baseline.crap)
+ *     greater than `crapJumpCap` breaches the cap. Improvements never
+ *     breach.
+ *   - Equality at the cap (delta === cap) is *under* the cap — the cap is
+ *     the maximum allowed delta, not the strict maximum.
+ *   - Missing baseline rows (path/method new in the scored set) never push
+ *     `canAutoRefresh` to `false` and are not surfaced in the over-cap
+ *     arrays.
+ *
+ * @param {object} input
+ * @param {{
+ *   mi?: Array<{ path: string, mi: number }>,
+ *   crap?: Array<{ file: string, method: string, startLine?: number, crap: number }>,
+ * }} input.scoredRows  Just-regenerated rows for the Story diff.
+ * @param {{
+ *   mi?: Array<{ path: string, mi: number }>,
+ *   crap?: Array<{ file: string, method: string, startLine?: number, crap: number }>,
+ * }} input.baseline    Previously committed rows.
+ * @param {{ miDropCap: number, crapJumpCap: number }} input.caps
+ *   Bounded delta caps (defaults: miDropCap=1.5, crapJumpCap=5 — see
+ *   `.agents/docs/agentrc-reference.json` under `delivery.quality.autoRefresh`).
+ * @returns {{
+ *   canAutoRefresh: boolean,
+ *   miOverCap:   Array<{ path: string, baseline: number, scored: number, delta: number }>,
+ *   crapOverCap: Array<{ file: string, method: string, startLine?: number, baseline: number, scored: number, delta: number }>,
+ *   refusalReasons: string[],
+ * }}
+ */
+export function evaluateAutoRefresh({
+  scoredRows = {},
+  baseline = {},
+  caps,
+} = {}) {
+  if (
+    !caps ||
+    !isFiniteNumber(caps.miDropCap) ||
+    !isFiniteNumber(caps.crapJumpCap)
+  ) {
+    throw new TypeError(
+      'evaluateAutoRefresh: caps.{miDropCap,crapJumpCap} must be finite numbers',
+    );
+  }
+
+  const miBaselineIdx = indexMiBaseline(baseline?.mi);
+  const crapBaselineIdx = indexCrapBaseline(baseline?.crap);
+
+  const miOverCap = evaluateMiRows({
+    scoredRows: scoredRows?.mi,
+    baselineIndex: miBaselineIdx,
+    miDropCap: caps.miDropCap,
+  });
+  const crapOverCap = evaluateCrapRows({
+    scoredRows: scoredRows?.crap,
+    baselineIndex: crapBaselineIdx,
+    crapJumpCap: caps.crapJumpCap,
+  });
+
+  const canAutoRefresh = miOverCap.length === 0 && crapOverCap.length === 0;
+  const refusalReasons = canAutoRefresh
+    ? []
+    : buildRefusalReasons({ miOverCap, crapOverCap, caps });
+
+  return { canAutoRefresh, miOverCap, crapOverCap, refusalReasons };
+}
+
+// ---------------------------------------------------------------------------
+// Runner plumbing
+// ---------------------------------------------------------------------------
 
 /**
  * Load + parse the baseline envelope at `absPath` via the injected
@@ -99,13 +337,7 @@ function readEnvelope({ absPath, kind, readerLoadFile }) {
   try {
     const parsed = readerLoadFile(absPath, { kind });
     if (!parsed || !Array.isArray(parsed.rows)) return null;
-    return {
-      $schema: `.agents/schemas/baselines/${kind}.schema.json`,
-      kernelVersion: parsed.kernelVersion,
-      generatedAt: parsed.generatedAt,
-      rollup: parsed.rollup,
-      rows: parsed.rows,
-    };
+    return { rows: parsed.rows };
   } catch {
     return null;
   }
@@ -140,25 +372,6 @@ function filterToStoryDiff({ miRows, crapRows, storyDiffPaths }) {
   const mi = (miRows ?? []).filter((r) => scope.has(r.path));
   const crap = (crapRows ?? []).filter((r) => scope.has(r.file));
   return { mi, crap };
-}
-
-function normalizeTargetDir(dir) {
-  if (typeof dir !== 'string' || dir.length === 0) return null;
-  return dir.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '');
-}
-
-function buildRequiredScopeFilePredicate({
-  kind,
-  config,
-  getQuality = defaultGetQuality,
-}) {
-  const quality = getQuality(config) ?? {};
-  const targetDirs = Array.isArray(quality?.[kind]?.targetDirs)
-    ? quality[kind].targetDirs.map(normalizeTargetDir).filter(Boolean)
-    : [];
-  if (targetDirs.length === 0) return () => true;
-  return (file) =>
-    targetDirs.some((dir) => file === dir || file.startsWith(`${dir}/`));
 }
 
 /**
@@ -218,14 +431,6 @@ function resolveBaselineAbs(cwd, p) {
   return path.isAbsolute(p) ? p : path.resolve(cwd, p);
 }
 
-function resolveBaselineAbsPaths({ cwd, config, getBaselines }) {
-  const baselines = getBaselines(config);
-  return {
-    miAbs: resolveBaselineAbs(cwd, baselines?.maintainability?.path),
-    crapAbs: resolveBaselineAbs(cwd, baselines?.crap?.path),
-  };
-}
-
 async function probeDedup({ epicId, storyId, forEachLine, logger }) {
   try {
     return await priorRefusalSignalExists({ epicId, storyId, forEachLine });
@@ -266,39 +471,111 @@ async function maybeAppendRefusalSignal({
   }
 }
 
-/**
- * Restore the baseline files to HEAD's content. Used on over-cap
- * refusal to drop the refresh's write so the merge consumes the
- * pre-refresh baseline unchanged.
- */
-function rollbackBaselineFiles({ cwd, baselineFiles, gitRunner, logger }) {
-  for (const filePath of baselineFiles) {
-    const rel = path.isAbsolute(filePath)
-      ? path.relative(cwd, filePath)
-      : filePath;
-    const posixRel = rel.split(path.sep).join('/');
-    const res = gitRunner.gitSpawn(cwd, 'checkout', 'HEAD', '--', posixRel);
-    if (res.status !== 0) {
-      logger.warn?.(
-        `[auto-refresh-runner] failed to restore ${rel} after refusal: ${res.stderr || res.stdout}`,
-      );
-    }
-  }
+function resolveAutoRefreshDeps(deps) {
+  return {
+    logger: deps.logger ?? DefaultLogger,
+    getQuality: deps.getQuality ?? defaultGetQuality,
+    getBaselines: deps.getBaselines ?? defaultGetBaselines,
+    evaluateAutoRefresh: deps.evaluateAutoRefresh ?? evaluateAutoRefresh,
+    refreshBaseline: deps.refreshBaseline ?? defaultRefreshBaseline,
+    scorerBuilder: deps.scorerBuilder ?? buildKindScorer,
+    runRefreshCommit: deps.runRefreshCommit ?? defaultRunRefreshCommit,
+    gitRunner: deps.gitRunner ?? { gitSpawn: defaultGitSpawn },
+    fsImpl: deps.fsImpl ?? fs,
+    appendSignal: deps.appendSignal ?? defaultAppendSignal,
+    forEachLine: deps.forEachLine ?? defaultForEachLine,
+    computeDiffPaths: deps.computeStoryDiffPaths ?? computeStoryDiffPaths,
+    readerLoadFile: deps.readerLoadFile ?? defaultReaderLoadFile,
+  };
 }
 
-async function handleRefusal({
-  verdict,
+/**
+ * Build the per-kind `capCheck` closure the funnel invokes after drift is
+ * staged and before the commit lands. Re-reads the refreshed envelope,
+ * narrows to the Story diff (unless `quality.autoRefresh.scope === 'full'`),
+ * and evaluates the single kind's rows against the configured caps with the
+ * prior (pre-refresh) snapshot as the baseline.
+ */
+function buildCapCheck({
+  kind,
+  priorEnv,
+  autoRefresh,
+  caps,
+  cwd,
+  epicBranch,
+  storyBranch,
+  evaluate,
+  gitRunner,
+  computeDiffPaths,
+  readerLoadFile,
+}) {
+  return ({ writePath }) => {
+    const finalEnv = readEnvelope({ absPath: writePath, kind, readerLoadFile });
+    const isMi = kind === 'maintainability';
+    const finalRows = isMi
+      ? (finalEnv?.rows ?? [])
+      : adaptCrapRowsForEvaluator(finalEnv?.rows ?? []);
+    const priorRows = isMi
+      ? (priorEnv?.rows ?? [])
+      : adaptCrapRowsForEvaluator(priorEnv?.rows ?? []);
+
+    let scoped;
+    if ((autoRefresh.scope ?? 'diff') === 'full') {
+      scoped = isMi ? { mi: finalRows } : { crap: finalRows };
+    } else {
+      const storyDiffPaths = computeDiffPaths({
+        cwd,
+        epicBranch,
+        storyBranch,
+        gitRunner,
+      });
+      const filtered = filterToStoryDiff({
+        miRows: isMi ? finalRows : [],
+        crapRows: isMi ? [] : finalRows,
+        storyDiffPaths,
+      });
+      scoped = isMi ? { mi: filtered.mi } : { crap: filtered.crap };
+    }
+
+    return evaluate({
+      scoredRows: scoped,
+      baseline: isMi ? { mi: priorRows } : { crap: priorRows },
+      caps,
+    });
+  };
+}
+
+/**
+ * Map a funnel failure string back onto the runner's historical failure
+ * vocabulary so `phases/refresh.js` keeps logging the same reason labels.
+ */
+function classifyFunnelError(error) {
+  return typeof error === 'string' && error.startsWith('refreshBaseline(')
+    ? 'refresh-service-threw'
+    : 'commit-failed';
+}
+
+/**
+ * Aggregate per-kind refused verdicts into the single refusal envelope the
+ * close pipeline consumes, appending the friction signal (dedup-aware,
+ * AC3) as the publish step. The funnel already rolled the refused kinds'
+ * files back to HEAD.
+ */
+async function publishRefusal({
+  refusedVerdicts,
   caps,
   epicId,
   storyId,
-  cwd,
-  baselineFiles,
-  gitRunner,
   appendSignal,
   forEachLine,
   config,
   logger,
 }) {
+  const verdict = {
+    miOverCap: refusedVerdicts.flatMap((v) => v.miOverCap ?? []),
+    crapOverCap: refusedVerdicts.flatMap((v) => v.crapOverCap ?? []),
+    refusalReasons: refusedVerdicts.flatMap((v) => v.refusalReasons ?? []),
+  };
   const dedup = await probeDedup({ epicId, storyId, forEachLine, logger });
   const signalAppended = await maybeAppendRefusalSignal({
     dedup,
@@ -310,7 +587,6 @@ async function handleRefusal({
     config,
     logger,
   });
-  rollbackBaselineFiles({ cwd, baselineFiles, gitRunner, logger });
   logger.info?.(
     `[auto-refresh-runner] refused — ${verdict.refusalReasons.length} cap breach(es); friction signal ${dedup ? 'already present (dedup)' : signalAppended ? 'appended' : 'append failed'}.`,
   );
@@ -325,379 +601,23 @@ async function handleRefusal({
 }
 
 /**
- * Run `refreshBaseline()` for a single kind. Returns the resolved write
- * path and a flag noting whether the service actually persisted bytes.
- * Throws on a service error (the caller surfaces it as a `failed` status).
- */
-async function runRefreshForKind({
-  kind,
-  cwd,
-  epicBranch,
-  storyBranch,
-  writePath,
-  config,
-  getQuality,
-  refreshBaseline,
-  scorer,
-  fsImpl,
-}) {
-  if (!writePath) return { writePath: null, wrote: false };
-  const baseRef = epicBranch ? `origin/${epicBranch}` : 'origin/main';
-  const headRef = storyBranch ?? 'HEAD';
-  const result = await refreshBaseline({
-    kind,
-    baseRef,
-    headRef,
-    scopeFiles: null,
-    fullScope: false,
-    writePath,
-    scorer,
-    fs: fsImpl,
-    cwd,
-    requireRowsForScopeFiles: true,
-    requiredScopeFilePredicate: buildRequiredScopeFilePredicate({
-      kind,
-      config,
-      getQuality,
-    }),
-  });
-  return { writePath, wrote: result?.wrote === true };
-}
-
-/**
- * Commit hygiene (AC-8): stage every refreshed baseline file, ask
- * `git diff --cached --exit-code` whether any drift survived. Drift →
- * emit one canonical commit per kind. No drift → log + skip. No
- * `--amend`, no `--allow-empty`.
- */
-function commitRefreshedBaselines({
-  cwd,
-  storyId,
-  refreshed,
-  gitRunner,
-  logger,
-}) {
-  const committed = [];
-  let lastSha = '';
-  for (const { kind, writePath } of refreshed) {
-    if (!writePath) continue;
-    const drift = stageAndCheckBaselineDrift({
-      cwd,
-      baselineFile: writePath,
-      gitRunner,
-    });
-    if (drift.error) {
-      return { ok: false, error: drift.error };
-    }
-    if (!drift.hasDrift) {
-      logger?.info?.(
-        `[auto-refresh-runner] no baseline drift to fold in for kind=${kind} (story-${storyId}).`,
-      );
-      continue;
-    }
-    const subject = `chore(baselines): refresh ${kind} for story-${storyId}`;
-    const commitRes = gitRunner.gitSpawn(cwd, 'commit', '-m', subject);
-    if (commitRes.status !== 0) {
-      return {
-        ok: false,
-        error: `git commit failed for kind=${kind}: ${commitRes.stderr || commitRes.stdout}`,
-      };
-    }
-    const headRes = gitRunner.gitSpawn(cwd, 'rev-parse', '--short', 'HEAD');
-    const sha = headRes.status === 0 ? (headRes.stdout || '').trim() : '';
-    lastSha = sha;
-    committed.push({ kind, sha });
-    logger?.info?.(`[auto-refresh-runner] committed ${subject} (${sha}).`);
-  }
-  return { ok: true, committed, lastSha };
-}
-
-function resolveAutoRefreshDeps(deps) {
-  return {
-    logger: deps.logger ?? DefaultLogger,
-    getQuality: deps.getQuality ?? defaultGetQuality,
-    getBaselines: deps.getBaselines ?? defaultGetBaselines,
-    evaluateAutoRefresh: deps.evaluateAutoRefresh ?? defaultEvaluateAutoRefresh,
-    refreshBaseline: deps.refreshBaseline ?? defaultRefreshBaseline,
-    scorerBuilder: deps.scorerBuilder ?? buildKindScorer,
-    gitRunner: deps.gitRunner ?? { gitSpawn: defaultGitSpawn },
-    fsImpl: deps.fsImpl ?? fs,
-    appendSignal: deps.appendSignal ?? defaultAppendSignal,
-    forEachLine: deps.forEachLine ?? defaultForEachLine,
-    computeDiffPaths: deps.computeStoryDiffPaths ?? computeStoryDiffPaths,
-    readerLoadFile: deps.readerLoadFile ?? defaultReaderLoadFile,
-  };
-}
-
-/**
- * Step 1 of the four-step pipeline: snapshot the prior on-disk envelopes
- * and dispatch one `refreshBaseline()` call per configured baseline kind.
+ * Bounded baseline auto-refresh. Delegates the per-kind refresh → stage →
+ * commit mechanics to the single `runRefreshCommit` funnel; this function
+ * owns only the config gating, the prior-envelope snapshot, the cap-check
+ * closure, and the refusal publication.
  *
- * Returns an opaque "stage" object the next steps consume. The shape is
- * intentionally minimal — it carries the resolved write paths, the
- * snapshot envelopes, and the per-kind refresh result records. Callers
- * never inspect the shape directly; they pass it through to `validate`
- * and `commit`.
- *
- * Failure mode: a thrown `refreshBaseline` propagates here as a
- * `{ ok: false, status: 'failed', reason: 'refresh-service-threw' }`
- * envelope so the caller can short-circuit without try/catching at the
- * top of `runAutoRefresh`.
+ * @param {object} args
+ * @param {{ refreshedKinds?: Set<string>, lastRefreshSha?: string|null } | null} [args.cycleState]
+ *   The close cycle's shared idempotency token (Story #4017). When the
+ *   gate-failure attribution retry already refreshed a kind this cycle,
+ *   the funnel short-circuits and the kind is not re-scored here.
+ * @returns {Promise<
+ *   | { status: 'committed', sha: string, files: string[], committed: Array<{ kind: string, sha: string }> }
+ *   | { status: 'refused', refusalReasons: string[], signalAppended: boolean, dedup: boolean, miOverCap: Array, crapOverCap: Array }
+ *   | { status: 'skipped', reason: string }
+ *   | { status: 'failed', reason: string, detail?: string }
+ * >}
  */
-async function stageRefreshArtifacts({
-  cwd,
-  epicBranch,
-  storyBranch,
-  config,
-  getQuality,
-  getBaselines,
-  refreshBaseline,
-  scorerBuilder,
-  fsImpl,
-  readerLoadFile,
-}) {
-  const { miAbs, crapAbs } = resolveBaselineAbsPaths({
-    cwd,
-    config,
-    getBaselines,
-  });
-
-  // Snapshot the prior envelopes BEFORE refreshBaseline overwrites them.
-  // Reader-routed: every read goes through `reader.loadFile`, which schema-
-  // validates against the per-kind envelope.
-  const priorMiEnv = miAbs
-    ? readEnvelope({
-        absPath: miAbs,
-        kind: 'maintainability',
-        readerLoadFile,
-      })
-    : null;
-  const priorCrapEnv = crapAbs
-    ? readEnvelope({ absPath: crapAbs, kind: 'crap', readerLoadFile })
-    : null;
-
-  // Dispatch one refreshBaseline() call per configured kind. The service
-  // handles diff-scope derivation, scope-merge with out-of-scope prior
-  // rows (Task #2209), and atomic envelope persistence.
-  let miRefreshed;
-  let crapRefreshed;
-  try {
-    if (miAbs) {
-      const scorer = scorerBuilder({
-        kind: 'maintainability',
-        cwd,
-        config,
-      });
-      miRefreshed = await runRefreshForKind({
-        kind: 'maintainability',
-        cwd,
-        epicBranch,
-        storyBranch,
-        writePath: miAbs,
-        config,
-        getQuality,
-        refreshBaseline,
-        scorer,
-        fsImpl,
-      });
-    }
-    if (crapAbs) {
-      const scorer = scorerBuilder({ kind: 'crap', cwd, config });
-      crapRefreshed = await runRefreshForKind({
-        kind: 'crap',
-        cwd,
-        epicBranch,
-        storyBranch,
-        writePath: crapAbs,
-        config,
-        getQuality,
-        refreshBaseline,
-        scorer,
-        fsImpl,
-      });
-    }
-  } catch (err) {
-    return {
-      ok: false,
-      status: 'failed',
-      reason: 'refresh-service-threw',
-      detail: err?.message ?? String(err),
-    };
-  }
-
-  return {
-    ok: true,
-    miAbs,
-    crapAbs,
-    priorMiEnv,
-    priorCrapEnv,
-    miRefreshed,
-    crapRefreshed,
-  };
-}
-
-/**
- * Step 2 of the four-step pipeline: re-read the (scope-merged) envelopes
- * the refresh service just wrote and evaluate whether the row deltas sit
- * at or below the configured caps. Returns `{ accepted, verdict, baselineFiles }`:
- *
- *   - `accepted: true`  → caps are satisfied; commitRefresh writes one
- *     canonical commit per kind that actually drifted.
- *   - `accepted: false` → at least one row breaches a cap; pushRefresh
- *     rolls back the working-tree edits + appends a friction signal.
- *
- * The function also folds in the early-exit when no kind wrote — when
- * every `refreshBaseline()` reports `wrote:false` there's nothing to
- * validate, the caller short-circuits via the `noDrift: true` flag.
- */
-function validateRefreshAccepted({
-  stage,
-  autoRefresh,
-  caps,
-  cwd,
-  epicBranch,
-  storyBranch,
-  evaluateAutoRefresh,
-  gitRunner,
-  computeDiffPaths,
-  readerLoadFile,
-}) {
-  const {
-    miAbs,
-    crapAbs,
-    priorMiEnv,
-    priorCrapEnv,
-    miRefreshed,
-    crapRefreshed,
-  } = stage;
-
-  const anyWrote = miRefreshed?.wrote === true || crapRefreshed?.wrote === true;
-  if (!anyWrote) return { noDrift: true };
-
-  // Re-read the (scope-merged) envelopes for verdict evaluation.
-  const finalMiEnv = miAbs
-    ? readEnvelope({
-        absPath: miAbs,
-        kind: 'maintainability',
-        readerLoadFile,
-      })
-    : null;
-  const finalCrapEnv = crapAbs
-    ? readEnvelope({ absPath: crapAbs, kind: 'crap', readerLoadFile })
-    : null;
-
-  const finalMiRows = finalMiEnv?.rows ?? [];
-  const finalCrapRows = adaptCrapRowsForEvaluator(finalCrapEnv?.rows ?? []);
-  const priorMiRows = priorMiEnv?.rows ?? [];
-  const priorCrapRows = adaptCrapRowsForEvaluator(priorCrapEnv?.rows ?? []);
-
-  let scoped;
-  if ((autoRefresh.scope ?? 'diff') === 'full') {
-    scoped = { mi: finalMiRows, crap: finalCrapRows };
-  } else {
-    const storyDiffPaths = computeDiffPaths({
-      cwd,
-      epicBranch,
-      storyBranch,
-      gitRunner,
-    });
-    scoped = filterToStoryDiff({
-      miRows: finalMiRows,
-      crapRows: finalCrapRows,
-      storyDiffPaths,
-    });
-  }
-
-  const verdict = evaluateAutoRefresh({
-    scoredRows: scoped,
-    baseline: { mi: priorMiRows, crap: priorCrapRows },
-    caps,
-  });
-
-  return {
-    noDrift: false,
-    accepted: verdict.canAutoRefresh === true,
-    verdict,
-    baselineFiles: [miAbs, crapAbs].filter(Boolean),
-  };
-}
-
-/**
- * Step 3a of the four-step pipeline (accepted path): emit one canonical
- * `chore(baselines): refresh <kind> for story-<id>` commit per kind that
- * actually drifted (AC-8 commit hygiene). Empty diff → no commit. No
- * `--amend`, no `--allow-empty`.
- *
- * Returns the canonical close-result envelope `runAutoRefresh` returns
- * to its caller — `committed` / `failed` / `skipped` — so the pipeline
- * top stays at one level of abstraction.
- */
-function commitRefresh({ stage, cwd, storyId, gitRunner, logger }) {
-  const { miAbs, crapAbs, miRefreshed, crapRefreshed } = stage;
-  const refreshed = [
-    miRefreshed?.wrote === true
-      ? { kind: 'maintainability', writePath: miAbs }
-      : null,
-    crapRefreshed?.wrote === true ? { kind: 'crap', writePath: crapAbs } : null,
-  ].filter(Boolean);
-  const commit = commitRefreshedBaselines({
-    cwd,
-    storyId,
-    refreshed,
-    gitRunner,
-    logger,
-  });
-  if (!commit.ok) {
-    return { status: 'failed', reason: 'commit-failed', detail: commit.error };
-  }
-  if (commit.committed.length === 0) {
-    return { status: 'skipped', reason: 'no-baseline-drift' };
-  }
-  return {
-    status: 'committed',
-    sha: commit.lastSha,
-    files: [miAbs, crapAbs].filter(Boolean),
-    committed: commit.committed,
-  };
-}
-
-/**
- * Step 3b of the four-step pipeline (refused path): roll back the baseline
- * working-tree edits the refresh service just wrote and push a single
- * `baseline-refresh-regression` friction signal onto the Story's NDJSON
- * stream (dedup-aware — AC3 idempotent re-run contract). The "push" here
- * is the friction-signal write + the rollback that publishes the refusal
- * outcome past the in-process pipeline boundary.
- *
- * Returns the canonical `{ status: 'refused', ... }` envelope.
- */
-async function pushRefresh({
-  validation,
-  caps,
-  epicId,
-  storyId,
-  cwd,
-  gitRunner,
-  appendSignal,
-  forEachLine,
-  config,
-  logger,
-}) {
-  return handleRefusal({
-    verdict: validation.verdict,
-    caps,
-    epicId,
-    storyId,
-    cwd,
-    baselineFiles: validation.baselineFiles,
-    gitRunner,
-    appendSignal,
-    forEachLine,
-    config,
-    logger,
-  });
-}
-
 export async function runAutoRefresh({
   storyId,
   epicId,
@@ -705,22 +625,25 @@ export async function runAutoRefresh({
   epicBranch,
   storyBranch,
   config,
+  cycleState = null,
   deps = {},
 } = {}) {
+  const resolved = resolveAutoRefreshDeps(deps);
   const {
     logger,
     getQuality,
     getBaselines,
-    evaluateAutoRefresh,
+    evaluateAutoRefresh: evaluate,
     refreshBaseline,
     scorerBuilder,
+    runRefreshCommit,
     gitRunner,
     fsImpl,
     appendSignal,
     forEachLine,
     computeDiffPaths,
     readerLoadFile,
-  } = resolveAutoRefreshDeps(deps);
+  } = resolved;
 
   const autoRefresh = getQuality(config)?.autoRefresh;
   if (!autoRefresh || autoRefresh.enabled === false) {
@@ -731,67 +654,92 @@ export async function runAutoRefresh({
     crapJumpCap: autoRefresh.crapJumpCap,
   };
 
-  // Step 1 — stage refresh artifacts (snapshot + refreshBaseline per kind).
-  const stage = await stageRefreshArtifacts({
-    cwd,
-    epicBranch,
-    storyBranch,
-    config,
-    getQuality,
-    getBaselines,
-    refreshBaseline,
-    scorerBuilder,
-    fsImpl,
-    readerLoadFile,
-  });
-  if (stage.ok !== true) {
-    return {
-      status: stage.status,
-      reason: stage.reason,
-      detail: stage.detail,
-    };
+  const baselines = getBaselines(config);
+  const kinds = [
+    {
+      kind: 'maintainability',
+      abs: resolveBaselineAbs(cwd, baselines?.maintainability?.path),
+    },
+    { kind: 'crap', abs: resolveBaselineAbs(cwd, baselines?.crap?.path) },
+  ].filter((k) => k.abs);
+
+  const committed = [];
+  const refusedVerdicts = [];
+  let lastSha = '';
+
+  for (const { kind, abs } of kinds) {
+    // Snapshot the prior envelope BEFORE the funnel's refreshBaseline()
+    // overwrites it — the cap evaluator compares against the pre-refresh
+    // rows. Reader-routed: schema-validated via `reader.loadFile`.
+    const priorEnv = readEnvelope({ absPath: abs, kind, readerLoadFile });
+    const capCheck = buildCapCheck({
+      kind,
+      priorEnv,
+      autoRefresh,
+      caps,
+      cwd,
+      epicBranch,
+      storyBranch,
+      evaluate,
+      gitRunner,
+      computeDiffPaths,
+      readerLoadFile,
+    });
+
+    const res = await runRefreshCommit({
+      cwd,
+      kind,
+      storyId,
+      epicBranch,
+      storyBranch,
+      config,
+      cycleState,
+      capCheck,
+      refreshBaseline,
+      scorerBuilder,
+      getBaselines,
+      getQuality,
+      fsImpl,
+      gitRunner,
+      logger,
+    });
+
+    if (res.ok !== true) {
+      return {
+        status: 'failed',
+        reason: classifyFunnelError(res.error),
+        detail: res.error,
+      };
+    }
+    if (res.refused) {
+      refusedVerdicts.push(res.verdict);
+      continue;
+    }
+    if (!res.skipped && res.sha) {
+      committed.push({ kind, sha: res.sha });
+      lastSha = res.sha;
+    }
   }
 
-  // Step 2 — validate that the refreshed envelopes satisfy the configured
-  // caps (and short-circuit when no kind wrote).
-  const validation = validateRefreshAccepted({
-    stage,
-    autoRefresh,
-    caps,
-    cwd,
-    epicBranch,
-    storyBranch,
-    evaluateAutoRefresh,
-    gitRunner,
-    computeDiffPaths,
-    readerLoadFile,
-  });
-  if (validation.noDrift) {
-    return { status: 'skipped', reason: 'no-baseline-drift' };
-  }
-
-  // Step 3 — fan out to the accepted (commit) or refused (push) terminal
-  // step. The pipeline-top stays at one level of abstraction.
-  if (!validation.accepted) {
-    return pushRefresh({
-      validation,
+  if (refusedVerdicts.length > 0) {
+    return publishRefusal({
+      refusedVerdicts,
       caps,
       epicId,
       storyId,
-      cwd,
-      gitRunner,
       appendSignal,
       forEachLine,
       config,
       logger,
     });
   }
-  return commitRefresh({ stage, cwd, storyId, gitRunner, logger });
+  if (committed.length === 0) {
+    return { status: 'skipped', reason: 'no-baseline-drift' };
+  }
+  return {
+    status: 'committed',
+    sha: lastSha,
+    files: kinds.map((k) => k.abs),
+    committed,
+  };
 }
-
-export {
-  commitRefresh,
-  pushRefresh,
-  stageRefreshArtifacts,
-  validateRefreshAccepted,
-};

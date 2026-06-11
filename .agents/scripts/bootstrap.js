@@ -1353,7 +1353,7 @@ export async function main(argv = process.argv.slice(2), deps = {}) {
   // the failure is surfaced, not silently rolled back), but they MUST NOT
   // exit 0. `executeGithubBootstrap` records `report.github.error` instead
   // of throwing; detect it here and exit non-zero with a distinct final
-  // status line so `create-mandrel` and CI see the failure (Story #3898).
+  // status line so `mandrel init` and CI see the failure (Story #3898).
   const githubError = result.state?.report?.github?.error;
   if (githubError) {
     Logger.error(

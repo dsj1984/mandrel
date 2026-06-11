@@ -261,8 +261,17 @@ export function stageAndCheckBaselineDrift({
  * Story branch — this helper does NOT re-check the branch. story-close.js
  * holds that invariant via `withEpicMergeLock`.
  *
+ * Story #4017 — this helper is the **single refresh→stage→commit funnel**
+ * for story-close. Both call paths route through it: the gate-failure
+ * attribution retry (`gate-failure.js`, no `capCheck`) and the post-gates
+ * bounded auto-refresh (`auto-refresh-runner.js`, which injects a
+ * `capCheck` evaluating the refreshed envelope against the configured
+ * delta caps). When `capCheck` returns `{ canAutoRefresh: false }`, the
+ * staged refresh is rolled back to HEAD and the helper returns
+ * `{ ok: true, refused: true, verdict }` without committing.
+ *
  * @returns {Promise<
- *   | { ok: true, sha: string, skipped?: boolean, reason?: string }
+ *   | { ok: true, sha: string, skipped?: boolean, reason?: string, refused?: boolean, verdict?: object }
  *   | { ok: false, error: string }
  * >}
  */
@@ -274,9 +283,11 @@ export async function runRefreshCommit({
   storyBranch,
   config,
   cycleState = null,
+  capCheck = null,
   refreshBaseline = defaultRefreshBaseline,
   scorerBuilder = buildKindScorer,
   getBaselines: getBaselinesImpl = defaultGetBaselines,
+  getQuality: getQualityImpl = defaultGetQuality,
   fsImpl = fs,
   gitRunner = { gitSpawn: defaultGitSpawn },
   logger = DefaultLogger,
@@ -326,8 +337,9 @@ export async function runRefreshCommit({
     };
   }
 
+  let refreshResult;
   try {
-    await refreshBaseline({
+    refreshResult = await refreshBaseline({
       kind,
       baseRef,
       headRef,
@@ -341,6 +353,7 @@ export async function runRefreshCommit({
       requiredScopeFilePredicate: buildRequiredScopeFilePredicate({
         kind,
         config,
+        getQuality: getQualityImpl,
       }),
     });
   } catch (err) {
@@ -348,6 +361,18 @@ export async function runRefreshCommit({
       ok: false,
       error: `refreshBaseline(${kind}) failed: ${err?.message ?? err}`,
     };
+  }
+
+  // Story #4017 — when the service reports it persisted nothing, skip the
+  // stage/diff round-trip entirely: there is no drift to fold in.
+  if (refreshResult?.wrote === false) {
+    if (cycleState?.refreshedKinds instanceof Set) {
+      cycleState.refreshedKinds.add(kind);
+    }
+    logger?.info?.(
+      `[baseline-attribution-wiring] refresh wrote nothing for kind=${kind} (story-${storyId}); skipping.`,
+    );
+    return { ok: true, sha: '', skipped: true, reason: 'no-baseline-drift' };
   }
 
   const drift = stageAndCheckBaselineDrift({
@@ -364,6 +389,26 @@ export async function runRefreshCommit({
       `[baseline-attribution-wiring] no baseline drift to fold in for kind=${kind} (story-${storyId}).`,
     );
     return { ok: true, sha: '', skipped: true, reason: 'no-baseline-drift' };
+  }
+
+  // Story #4017 — optional bounded-delta cap check (injected by the
+  // post-gates auto-refresh path). A refusal rolls the staged refresh back
+  // to HEAD so the merge consumes the pre-refresh baseline unchanged.
+  if (typeof capCheck === 'function') {
+    const verdict = await capCheck({ kind, writePath });
+    if (verdict && verdict.canAutoRefresh === false) {
+      const rel = path.isAbsolute(writePath)
+        ? path.relative(cwd, writePath)
+        : writePath;
+      const posixRel = rel.split(path.sep).join('/');
+      const res = gitRunner.gitSpawn(cwd, 'checkout', 'HEAD', '--', posixRel);
+      if (res.status !== 0) {
+        logger?.warn?.(
+          `[baseline-attribution-wiring] failed to restore ${rel} after cap refusal: ${res.stderr || res.stdout}`,
+        );
+      }
+      return { ok: true, sha: '', refused: true, verdict };
+    }
   }
 
   const subject = `chore(baselines): refresh ${kind} for story-${storyId}`;

@@ -324,10 +324,17 @@ describe('runAutoRefresh — Story #2205 routing through refreshBaseline()', () 
     });
 
     const appendCalls = [];
+    // Story #4017 — cap evaluation now runs inside the `runRefreshCommit`
+    // funnel, after the refreshed file is staged and git-visible drift is
+    // confirmed. Simulate that drift so the capCheck fires.
     const { gitRunner } = makeRecordingGit({
       'diff --name-only origin/epic/2173...story-2205': {
         status: 0,
         stdout: 'a.js\n',
+      },
+      'diff --cached --exit-code -- baselines/maintainability.json': {
+        status: 1,
+        stdout: 'M baselines/maintainability.json\n',
       },
     });
 

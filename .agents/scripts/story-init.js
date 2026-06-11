@@ -38,8 +38,13 @@ import {
 } from './lib/config-resolver.js';
 import { parseBlockedBy } from './lib/dependency-parser.js';
 import { getEpicBranch, getStoryBranch } from './lib/git-utils.js';
+import { runInstallCommand } from './lib/install-cmd-parser.js';
 import { Logger } from './lib/Logger.js';
 import { setActiveStoryEnv } from './lib/observability/active-story-env.js';
+import {
+  defaultStoryPhases,
+  upsertStoryRunProgress,
+} from './lib/orchestration/epic-runner/story-run-progress-writer.js';
 import { upsertStructuredComment } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
 import { validateBlockers } from './lib/story-init/blocker-validator.js';
@@ -330,11 +335,6 @@ export async function runStoryInit({
     hierarchy: hierarchyMode,
   });
 
-  emitStoryInitResult(result, {
-    storyId,
-    dryRun,
-  });
-
   if (!dryRun) {
     await postStoryInitComment({
       provider,
@@ -342,9 +342,151 @@ export async function runStoryInit({
       result,
       logger: stageLogger,
     });
+
+    // Story #4017 — the formerly standalone prepare CLI (which
+    // re-read the story-init structured comment seconds after this process
+    // wrote it) is inlined here: apply the install tri-state and render the
+    // initial Story-phase snapshot in-process, off the result we already
+    // hold.
+    result.prepare = await runStoryInitPrepare({
+      provider,
+      storyId,
+      result,
+      notify: _notifyFn,
+      logger: stageLogger,
+    });
   }
 
+  emitStoryInitResult(result, {
+    storyId,
+    dryRun,
+  });
+
   return { success: true, result };
+}
+
+const VALID_INSTALLED_STATES = new Set(['true', 'false', 'skipped']);
+
+/**
+ * Apply the dependenciesInstalled tri-state to derive the next install
+ * action. Pure helper — exposes the Step 0.5 truth table as data so tests
+ * can pin each branch without spinning up a child process.
+ *
+ * @param {'true' | 'false' | 'skipped'} dependenciesInstalled
+ * @param {{ skipInstall?: boolean }} [options]
+ * @returns {'skip' | 'install'}
+ */
+export function deriveInstallAction(dependenciesInstalled, options = {}) {
+  if (!VALID_INSTALLED_STATES.has(dependenciesInstalled)) {
+    throw new RangeError(
+      `deriveInstallAction: dependenciesInstalled "${dependenciesInstalled}" must be one of: ${[...VALID_INSTALLED_STATES].join(', ')}`,
+    );
+  }
+  if (options.skipInstall) return 'skip';
+  return dependenciesInstalled === 'false' ? 'install' : 'skip';
+}
+
+/**
+ * Resolve the install command to run when `dependenciesInstalled === 'false'`.
+ * `project.commands` does not currently carry a dedicated install key,
+ * so this defaults to `npm ci`. Operators can override per-invocation via
+ * the `installCmd` option.
+ *
+ * @param {{ override?: string }} [options]
+ * @returns {string}
+ */
+export function resolveInstallCommand(options = {}) {
+  const trimmed = options.override?.trim();
+  if (trimmed) {
+    return trimmed;
+  }
+  return 'npm ci';
+}
+
+/**
+ * Post-init prepare step (Story #4017 — formerly a standalone prepare
+ * CLI, now consuming the in-process init result
+ * instead of re-reading the `story-init` structured comment):
+ *
+ *   1. Apply the `dependenciesInstalled` tri-state truth table — `'false'`
+ *      (install attempted and failed) retries the install command in the
+ *      worktree; `'true'` / `'skipped'` proceed.
+ *   2. Render the initial Story-phase snapshot with every phase pinned to
+ *      `pending` and `phase: 'init'` via `upsertStoryRunProgress`
+ *      (render-only since Story #3909 — no comment is posted). The
+ *      `renderedBody` markdown is relayed to chat by the delivery
+ *      workflows so operators see the initial progress block before the
+ *      first commit lands.
+ *
+ * Install failure throws (init exits non-zero); a snapshot-render failure
+ * is non-fatal observability loss and only warns.
+ *
+ * @param {{
+ *   provider: object,
+ *   storyId: number,
+ *   result: { workCwd?: string, dependenciesInstalled?: string, storyBranch?: string },
+ *   notify?: Function | null,
+ *   runInstall?: (cmd: string, cwd: string) => { status: number, stderr?: string },
+ *   skipInstall?: boolean,
+ *   installCmd?: string,
+ *   logger?: object,
+ * }} args
+ * @returns {Promise<{
+ *   installAction: 'skip' | 'install',
+ *   installCmd: string | null,
+ *   installResult: { status: number, stderr?: string } | null,
+ *   snapshot: object | null,
+ *   renderedBody: string | null,
+ * }>}
+ */
+export async function runStoryInitPrepare({
+  provider,
+  storyId,
+  result,
+  notify: notifyFn = null,
+  runInstall = runInstallCommand,
+  skipInstall = false,
+  installCmd: installCmdOverride,
+  logger = stageLogger,
+}) {
+  const dependenciesInstalled = String(
+    result?.dependenciesInstalled ?? 'skipped',
+  );
+  const installAction = deriveInstallAction(dependenciesInstalled, {
+    skipInstall,
+  });
+  let installCmd = null;
+  let installResult = null;
+  if (installAction === 'install') {
+    installCmd = resolveInstallCommand({ override: installCmdOverride });
+    installResult = runInstall(installCmd, result.workCwd);
+    if (installResult.status !== 0) {
+      throw new Error(
+        `runStoryInitPrepare: install command \`${installCmd}\` failed with status ${installResult.status}: ${installResult.stderr ?? ''}`,
+      );
+    }
+  }
+
+  let snapshot = null;
+  let renderedBody = null;
+  try {
+    const { body, payload } = await upsertStoryRunProgress({
+      provider,
+      storyId,
+      branch: result?.storyBranch ?? `story-${storyId}`,
+      phase: 'init',
+      phases: defaultStoryPhases(),
+      notify: notifyFn,
+    });
+    snapshot = payload;
+    renderedBody = body;
+  } catch (err) {
+    logger?.warn?.(
+      `[story-init] ⚠️ Failed to render initial story-run-progress snapshot: ${err?.message ?? err}`,
+    );
+  }
+
+  return { installAction, installCmd, installResult, snapshot, renderedBody };
 }
 
 function buildStoryInitResult({
@@ -458,11 +600,8 @@ export function renderStoryInitCommentBody(result) {
     worktreeCreated: result.worktreeCreated,
     dependenciesInstalled: result.dependenciesInstalled,
     installStatus: result.installStatus,
-    // Embed the canonical task list so `story-deliver-prepare.js` can seed the
-    // initial `story-run-progress` snapshot without re-fetching the task graph.
-    // Without this field, the prepare CLI silently seeded an empty snapshot,
-    // breaking every subsequent phase-writer call (it asserts the
-    // task id is present in the snapshot).
+    // Embed the canonical task list so downstream snapshot consumers can
+    // seed phase-writer calls without re-fetching the task graph.
     tasks: Array.isArray(result.tasks)
       ? result.tasks.map((t) => ({ id: t.id, title: t.title }))
       : [],

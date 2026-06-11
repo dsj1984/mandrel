@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { evaluateAutoRefresh } from '../../.agents/scripts/lib/auto-refresh-baselines.js';
+import { evaluateAutoRefresh } from '../../.agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js';
 
 /**
  * Story #1398 (Epic #1386). Unit coverage for the pure delta-cap evaluator
