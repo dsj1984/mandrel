@@ -56,15 +56,6 @@ const EPIC = {
 function build3TierTickets() {
   return [
     {
-      slug: 'feat-a',
-      type: 'feature',
-      title: 'Feature A',
-      body: 'Feature body.',
-      labels: ['type::feature'],
-      parent_slug: '',
-      depends_on: [],
-    },
-    {
       slug: 'story-1',
       type: 'story',
       title: 'Story 1 — top-level acceptance/verify',
@@ -75,7 +66,6 @@ function build3TierTickets() {
       ],
       verify: ['node --test tests/scripts/spec-renderer-2tier-emit.test.js'],
       labels: ['type::story', 'persona::engineer'],
-      parent_slug: 'feat-a',
       depends_on: [],
     },
     {
@@ -84,7 +74,6 @@ function build3TierTickets() {
       title: 'Story 2 — no acceptance, depends on story-1',
       body: 'Plain string body.',
       labels: ['type::story'],
-      parent_slug: 'feat-a',
       depends_on: ['story-1'],
     },
   ];
@@ -93,20 +82,11 @@ function build3TierTickets() {
 function build4TierTickets() {
   return [
     {
-      slug: 'feat-b',
-      type: 'feature',
-      title: 'Feature B',
-      labels: ['type::feature'],
-      parent_slug: '',
-      depends_on: [],
-    },
-    {
       slug: 'story-x',
       type: 'story',
       title: 'Story X with Task children',
       body: 'Has Task children.',
       labels: ['type::story'],
-      parent_slug: 'feat-b',
       depends_on: [],
     },
     {
@@ -120,7 +100,6 @@ function build4TierTickets() {
         verify: ['npm test'],
       },
       labels: ['type::task'],
-      parent_slug: 'story-x',
       depends_on: [],
     },
     {
@@ -129,7 +108,6 @@ function build4TierTickets() {
       title: 'Task X2',
       body: 'Plain string body.',
       labels: ['type::task'],
-      parent_slug: 'story-x',
       depends_on: ['task-x1'],
     },
   ];
@@ -139,8 +117,8 @@ describe('spec-renderer — 2-tier emission (hotfix for Epic #3163 blocker)', ()
   it('omits the tasks field on Stories with no Task children', () => {
     const spec = renderSpec(build3TierTickets(), { epic: EPIC });
 
-    const story1 = spec.features[0].stories[0];
-    const story2 = spec.features[0].stories[1];
+    const story1 = spec.stories[0];
+    const story2 = spec.stories[1];
 
     assert.equal(
       Object.hasOwn(story1, 'tasks'),
@@ -167,7 +145,7 @@ describe('spec-renderer — 2-tier emission (hotfix for Epic #3163 blocker)', ()
 
   it('projects top-level Story acceptance[] and verify[] onto the rendered Story', () => {
     const spec = renderSpec(build3TierTickets(), { epic: EPIC });
-    const story1 = spec.features[0].stories[0];
+    const story1 = spec.stories[0];
 
     assert.deepEqual(story1.acceptance, [
       'Spec-renderer omits tasks for 2-tier Stories',
@@ -180,7 +158,7 @@ describe('spec-renderer — 2-tier emission (hotfix for Epic #3163 blocker)', ()
 
   it('omits acceptance/verify when the Story did not declare them', () => {
     const spec = renderSpec(build3TierTickets(), { epic: EPIC });
-    const story2 = spec.features[0].stories[1];
+    const story2 = spec.stories[1];
 
     assert.equal(
       Object.hasOwn(story2, 'acceptance'),
@@ -196,7 +174,7 @@ describe('spec-renderer — 2-tier emission (hotfix for Epic #3163 blocker)', ()
 
   it('preserves the inter-Story dependsOn projection', () => {
     const spec = renderSpec(build3TierTickets(), { epic: EPIC });
-    const story2 = spec.features[0].stories[1];
+    const story2 = spec.stories[1];
     assert.deepEqual(story2.dependsOn, ['story-1']);
   });
 });

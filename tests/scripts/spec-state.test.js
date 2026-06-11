@@ -33,33 +33,17 @@ import {
 
 const SAMPLE_SPEC = Object.freeze({
   epic: { id: 1182, title: 'Epic 1182' },
-  features: [
+  stories: [
     {
-      slug: 'feat-a',
-      title: 'Feature A',
-      stories: [
-        {
-          slug: 'story-a',
-          title: 'Story A',
-          wave: 0,
-          tasks: [
-            { slug: 'task-a1', title: 'Task A1' },
-            { slug: 'task-a2', title: 'Task A2' },
-          ],
-        },
-        {
-          slug: 'story-b',
-          title: 'Story B',
-          wave: 1,
-          dependsOn: ['story-a'],
-          tasks: [],
-        },
-      ],
+      slug: 'story-a',
+      title: 'Story A',
+      wave: 0,
     },
     {
-      slug: 'feat-b',
-      title: 'Feature B',
-      stories: [],
+      slug: 'story-b',
+      title: 'Story B',
+      wave: 1,
+      dependsOn: ['story-a'],
     },
   ],
 });
@@ -139,28 +123,21 @@ describe('lib/spec/state.js — hashSpecEntry', () => {
 });
 
 describe('lib/spec/state.js — iterSpecEntries', () => {
-  it('yields every slug-bearing entity in feature-major order', () => {
+  it('yields every slug-bearing Story in spec order', () => {
     const slugs = [...iterSpecEntries(SAMPLE_SPEC)].map(([slug]) => slug);
-    assert.deepEqual(slugs, [
-      'feat-a',
-      'story-a',
-      'task-a1',
-      'task-a2',
-      'story-b',
-      'feat-b',
-    ]);
+    assert.deepEqual(slugs, ['story-a', 'story-b']);
   });
 
-  it('tolerates a spec missing features (yields nothing)', () => {
+  it('tolerates a spec missing stories (yields nothing)', () => {
     const slugs = [...iterSpecEntries({})].map(([slug]) => slug);
     assert.deepEqual(slugs, []);
   });
 
   it('skips entries without a slug', () => {
     const spec = {
-      features: [
-        { title: 'no slug', stories: [] },
-        { slug: 'has-slug', title: 'ok', stories: [] },
+      stories: [
+        { title: 'no slug' },
+        { slug: 'has-slug', title: 'ok' },
       ],
     };
     const slugs = [...iterSpecEntries(spec)].map(([slug]) => slug);
@@ -171,14 +148,7 @@ describe('lib/spec/state.js — iterSpecEntries', () => {
 describe('lib/spec/state.js — projectMapping', () => {
   it('emits an entry per slug with a deterministic contentHash', () => {
     const mapping = projectMapping(SAMPLE_SPEC);
-    assert.deepEqual(Object.keys(mapping).sort(), [
-      'feat-a',
-      'feat-b',
-      'story-a',
-      'story-b',
-      'task-a1',
-      'task-a2',
-    ]);
+    assert.deepEqual(Object.keys(mapping).sort(), ['story-a', 'story-b']);
     for (const entry of Object.values(mapping)) {
       assert.match(entry.contentHash, /^sha256:[0-9a-f]{64}$/);
       assert.equal(entry.issueNumber, null);
@@ -219,7 +189,7 @@ describe('lib/spec/state.js — projectMapping', () => {
 
   it('tolerates an undefined prior mapping', () => {
     const mapping = projectMapping(SAMPLE_SPEC);
-    assert.ok(mapping['feat-a']);
+    assert.ok(mapping['story-a']);
   });
 });
 
@@ -233,12 +203,12 @@ describe('lib/spec/state.js — buildState', () => {
     assert.equal(state.epicId, 1182);
     assert.equal(state.lastReconciledAt, '2026-05-12T00:00:00.000Z');
     assert.equal(typeof state.mapping, 'object');
-    assert.ok(state.mapping['feat-a']);
+    assert.ok(state.mapping['story-a']);
   });
 
   it('falls back to prior.epicId when spec.epic.id is missing', () => {
     const state = buildState(
-      { features: [] },
+      { stories: [] },
       { epicId: 1182, mapping: {} },
       { now: '2026-05-12T00:00:00.000Z' },
     );
