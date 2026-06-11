@@ -5,7 +5,7 @@
 // Story #2662 — Internal-link and slash-command resolver for active docs.
 //
 // Scans every `*.md` under `docs/` and `.agents/` (excluding
-// `docs/CHANGELOG.md` and anything under `docs/archive/**`) and validates:
+// `docs/CHANGELOG.md`) and validates:
 //
 //   1. Every Markdown relative-path link `[text](relative/path[#anchor])`
 //      resolves to a real file on disk (anchors are not validated, only
@@ -125,7 +125,6 @@ export const SLASH_ALLOWLIST = new Set([
 
 function isExcludedRelPath(relPath) {
   if (relPath === 'docs/CHANGELOG.md') return true;
-  if (relPath.startsWith('docs/archive/')) return true;
   return false;
 }
 

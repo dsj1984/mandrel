@@ -2090,8 +2090,7 @@ config is read-only at runtime; no workflow writes it.
 ## Earlier ADRs (001 / 002 / 003)
 
 ADRs 001–003 (April 9–17, 2026) predate the Epic-#900 terminology rework
-and have been moved to
-[`archive/decisions-pre-900.md`](archive/decisions-pre-900.md). ADR 004
+and are preserved in the project's Git history. ADR 004
 (Gherkin Standards) remains active and is documented below.
 
 ## ADR 004: Gherkin Standards as Sole SSOT for BDD Tags & Forbidden Patterns

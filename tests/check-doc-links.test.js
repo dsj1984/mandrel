@@ -63,12 +63,6 @@ test('runCheck (a) passing fixture: clean tree exits 0 with zero violations', ()
       '## later\n',
   );
   write(root, 'docs/spec.md', '# Spec\n');
-  // Archive content is excluded even when malformed.
-  write(
-    root,
-    'docs/archive/old.md',
-    '[dangling](./does-not-exist.md) and /agents-bootstrap-github should be ignored here\n',
-  );
   // CHANGELOG.md is excluded even when malformed.
   write(root, 'docs/CHANGELOG.md', '[dangling](./nope.md)\n');
 
@@ -191,18 +185,16 @@ test('extractSlashTokens: ignores tokens prefixed by word chars or colons (URL p
   assert.deepEqual(names, ['bar']);
 });
 
-test('discoverMarkdown: skips docs/archive/** and docs/CHANGELOG.md', () => {
+test('discoverMarkdown: skips docs/CHANGELOG.md', () => {
   const root = makeFakeRepo();
   write(root, 'docs/keep.md', '# keep\n');
   write(root, 'docs/CHANGELOG.md', '# changelog\n');
-  write(root, 'docs/archive/old.md', '# old\n');
   const files = discoverMarkdown(root, ['docs']);
   const rels = files.map((f) =>
     path.relative(root, f).split(path.sep).join('/'),
   );
   assert.ok(rels.includes('docs/keep.md'));
   assert.equal(rels.includes('docs/CHANGELOG.md'), false);
-  assert.equal(rels.includes('docs/archive/old.md'), false);
 });
 
 test('checkFile: anchor-only and protocol-relative targets are skipped', () => {

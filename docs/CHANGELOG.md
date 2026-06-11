@@ -1037,8 +1037,8 @@ All notable changes to this project will be documented in this file.
 **Mandrel 1.0 — rebrand + clean slate.** The framework relaunches under the
 **Mandrel** name with a fresh major-version line. The pre-rebrand version
 history (v1.x – v5.41.x under the old name, plus the transitional `6.0.0`
-cut-over tag) is preserved verbatim in
-[`archive/CHANGELOG-pre-v6.md`](archive/CHANGELOG-pre-v6.md) and is **not
+cut-over tag) is preserved in the project's Git history (the pre-rebrand
+tags) and is **not
 comparable** to entries under this line — file structure, package name,
 and configuration shapes all changed at the rebrand boundary. New
 adopters target the **`mandrel`** package / **`mandrel.git`** submodule
@@ -1129,4 +1129,4 @@ runtime defaults in code (`LIMITS_DEFAULTS`, `*_GATE_DEFAULTS`,
 ---
 
 Pre-rebrand history (the old-name v1.x–v5.41.x line and the 6.0.0 cut-over
-tag) is preserved in [`archive/CHANGELOG-pre-v6.md`](archive/CHANGELOG-pre-v6.md).
+tag) is preserved in the project's Git history (the pre-rebrand tags).

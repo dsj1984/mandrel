@@ -14,9 +14,6 @@
  *      re-runs. The assertion tolerates the directory being absent (a fresh
  *      checkout that has not run the sync yet).
  *   3. No live `.agents/` or `docs/` file references `run-bdd-suite`.
- *
- * `docs/archive/` is excluded: archived CHANGELOG breadcrumbs are historical
- * references to the retired workflow, not live consumers.
  */
 
 import assert from 'node:assert/strict';
@@ -39,7 +36,7 @@ const SCAN_ROOTS = [
 
 // Directories that hold historical breadcrumbs, generated mirrors, or
 // installed dependencies — none of which are live consumers.
-const EXCLUDED_DIRS = new Set(['node_modules', '.worktrees', 'archive']);
+const EXCLUDED_DIRS = new Set(['node_modules', '.worktrees']);
 
 const REFERENCE = /run-bdd-suite/;
 
