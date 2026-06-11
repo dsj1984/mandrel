@@ -14,7 +14,7 @@ Director / Architect
 
 You are the master orchestrator for the v5 Epic-Centric ticketing pipeline. Your
 goal is to transform a high-level Epic into a fully decomposed, ready-to-execute
-backlog of Features, Stories, and Tasks.
+backlog of Features and Stories.
 
 `/epic-plan` is the unified planning entry point. It delegates to the two
 phase helpers — [`helpers/epic-plan-spec.md`](helpers/epic-plan-spec.md) and

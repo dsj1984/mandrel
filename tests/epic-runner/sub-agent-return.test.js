@@ -13,14 +13,11 @@ test('parseStoryAgentReturn — accepts canonical envelope object', () => {
     storyId: 612,
     status: 'done',
     phase: 'done',
-    tasksDone: 2,
-    tasksTotal: 2,
     branchDeleted: true,
   });
   assert.equal(out.ok, true);
   assert.equal(out.value.storyId, 612);
   assert.equal(out.value.status, 'done');
-  assert.equal(out.value.tasksDone, 2);
   assert.equal(out.value.branchDeleted, true);
 });
 
@@ -127,10 +124,6 @@ test('reconcileStoryFromGitHub — story-run-progress fills phase + counters', a
     kind: 'story-run-progress',
     storyId: 612,
     phase: 'closing',
-    tasks: [
-      { id: 622, state: 'done' },
-      { id: 624, state: 'executing' },
-    ],
     updatedAt: '2026-05-04T00:00:00Z',
   };
   const provider = {
@@ -150,8 +143,6 @@ test('reconcileStoryFromGitHub — story-run-progress fills phase + counters', a
   const out = await reconcileStoryFromGitHub({ provider, storyId: 612 });
   assert.equal(out.status, 'failed');
   assert.equal(out.phase, 'closing');
-  assert.equal(out.tasksDone, 1);
-  assert.equal(out.tasksTotal, 2);
 });
 
 test('reconcileStoryFromGitHub — agent::blocked reconciles to blocked (not failed) and recovers blockerCommentId (Story #3907)', async () => {

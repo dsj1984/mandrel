@@ -297,32 +297,25 @@ NDJSON line to `temp/epic-<epicId>/lifecycle.ndjson`; the matching
 after the Agent return is recorded in § 2c.
 
 Each Agent call's prompt must (1) name the Story + Epic ids, (2)
-instruct the child to invoke `helpers/epic-deliver-story <storyId>`, (3) state the
-**return contract** below, (4) remind the child of the
-**non-interactive contract** (no clarifying questions; transition to
-`agent::blocked` and exit if stuck), (5) ask the child to suppress
-per-Story chat relay and include its **terminal** `renderedBody` in the
-JSON return, and (6) require the child to emit a `story.heartbeat`
-lifecycle event at least once per Story-level phase transition via
-`node .agents/scripts/story-phase.js` (or whenever it stalls on a
-long-running step), and if it cannot make progress to transition
-to `agent::blocked` rather than fall silent. The pairing of
+instruct the child to invoke `helpers/epic-deliver-story <storyId>`
+(whose Step 4 defines the child's return shape), (3) remind the child
+of the **non-interactive contract** (no clarifying questions;
+transition to `agent::blocked` and exit if stuck), (4) ask the child to
+suppress per-Story chat relay, and (5) require the child to emit a
+`story.heartbeat` lifecycle event at least once per Story-level phase
+transition via `node .agents/scripts/story-phase.js` (or whenever it
+stalls on a long-running step), and if it cannot make progress to
+transition to `agent::blocked` rather than fall silent. The pairing of
 `story.heartbeat` and `agent::blocked` is what lets the §2e Idle
 Watchdog distinguish a working child from a dead one; a silent child
 with no recent heartbeat and no blocker label is the failure mode the
 watchdog is built to catch.
 
-```json
-{
-  "storyId": <number>,
-  "status": "done" | "blocked" | "failed",
-  "phase": "init|implementing|closing|blocked|done",
-  "branchDeleted": <boolean>,
-  "blockerCommentId": <string|null>,
-  "detail": <string|undefined>,
-  "renderedBody": <string|undefined>
-}
-```
+There is **no per-child JSON return-parsing ceremony** for the parent
+to enforce. GitHub state is the contract: `epic-execute-record-wave.js`
+(§ 2c, mode B) treats each child's raw return text as a best-effort
+hint and reconciles any unparseable, empty, or missing return directly
+from the Story's live labels and comments (Story #3907).
 
 **Sub-agent dispatch.** `Agent` calls emit no `model:` argument by
 default — children inherit from the `general-purpose` sub-agent
@@ -349,8 +342,8 @@ node .agents/scripts/epic-execute-record-wave.js \
 # `<inline-json>` shape: [{ "storyId": <n>, "returnText": "<raw text>" }]
 ```
 
-**Prefer mode B** when the host LLM can't fully verify every child's
-return is a parseable envelope. The CLI reconciles parse failures from
+**Mode B is the default path** — pipe the raw return texts through
+without inspecting them. The CLI reconciles parse failures from
 GitHub, aggregates terminal status, appends to `state.waves[]`,
 re-renders `epic-run-progress`, and prints
 `{ status, nextAction, renderedBody, ... }`. Print `renderedBody`
