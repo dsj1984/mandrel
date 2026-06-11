@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.60.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.59.0...mandrel-v1.60.0) (2026-06-11)
+
+
+### ⚠ BREAKING CHANGES
+
+* collapse ticket hierarchy to 2-tier (Epic → Story) and commands to /plan and /deliver (refs #4041) ([#4043](https://github.com/dsj1984/mandrel/issues/4043))
+
+### Added
+
+* collapse ticket hierarchy to 2-tier (Epic → Story) and commands to /plan and /deliver (refs [#4041](https://github.com/dsj1984/mandrel/issues/4041)) ([#4043](https://github.com/dsj1984/mandrel/issues/4043)) ([80adbfd](https://github.com/dsj1984/mandrel/commit/80adbfd93f626f4dc59528dfcf56fee859de6855))
+
+
+### Fixed
+
+* **cli:** re-exec post-install phases from newly-installed bin (refs [#4034](https://github.com/dsj1984/mandrel/issues/4034)) ([#4037](https://github.com/dsj1984/mandrel/issues/4037)) ([838d16e](https://github.com/dsj1984/mandrel/commit/838d16eeafb0ac612203a78d629c67e5a866a1c7))
+* **cli:** ship docs/CHANGELOG.md in tarball + GitHub fetch fallback (refs [#4035](https://github.com/dsj1984/mandrel/issues/4035)) ([#4036](https://github.com/dsj1984/mandrel/issues/4036)) ([9b65a76](https://github.com/dsj1984/mandrel/commit/9b65a765ffccbe44b25706ad3030c0036f375e44))
+
 ## [1.59.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.58.0...mandrel-v1.59.0) (2026-06-11)
 
 
