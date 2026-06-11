@@ -200,9 +200,8 @@ function makeMemoizedGitRunner(runner) {
  * path was deleted between planning and decomposition) — refuse to decompose
  * because the resulting Task would be unimplementable as written.
  *
- * Only Tasks are scanned; Features and Stories carry narrative copy, not
- * implementation paths, and their bodies routinely reference docs/templates
- * the freshness regex would (correctly) ignore.
+ * Only Stories are scanned — they are the implementation unit; the Epic
+ * carries narrative copy, not implementation paths.
  *
  * @param {object}   opts
  * @param {object[]} opts.tickets         - Validated ticket hierarchy.
@@ -416,7 +415,6 @@ function renderMissLine({ slug, path }) {
 
 function indexTicketsBySlug(tickets) {
   const ticketBySlug = new Map();
-  const features = [];
   const stories = [];
   const slugAdjacency = new Map();
   for (const t of tickets) {
@@ -429,75 +427,37 @@ function indexTicketsBySlug(tickets) {
       ticketBySlug.set(t.slug, t);
     }
     slugAdjacency.set(t.slug, t.depends_on ?? []);
-    if (t.type === 'feature') features.push(t);
-    else if (t.type === 'story') stories.push(t);
+    if (t.type === 'story') stories.push(t);
   }
-  return { ticketBySlug, features, stories, slugAdjacency };
+  return { ticketBySlug, stories, slugAdjacency };
 }
 
-function assertEachTypePresent({ features, stories }) {
-  if (features.length === 0)
+/**
+ * 2-tier invariant (Story #4041): the decomposer emits Stories only — every
+ * ticket in the backlog must be `type: "story"` and at least one must be
+ * present. Any other type (the retired `feature`/`task` tiers, or planner
+ * hallucinations) HARD-rejects the decomposition.
+ */
+function assertAllTicketsAreStories({ tickets, stories }) {
+  const nonStories = (tickets ?? []).filter((t) => t.type !== 'story');
+  if (nonStories.length > 0) {
+    const list = nonStories
+      .map((t) => `"${t.title}" (${t.slug ?? '<no slug>'}, type: ${t.type})`)
+      .join(', ');
     throw new Error(
-      'Cross-Validation Failed: Backlog must contain at least one Feature.',
+      `Cross-Validation Failed: ${nonStories.length} ticket(s) are not Stories: ${list}. ` +
+        'The 2-tier hierarchy (Epic → Story) admits type "story" only — there is no Feature or Task tier.',
     );
+  }
   if (stories.length === 0)
     throw new Error(
       'Cross-Validation Failed: Backlog must contain at least one Story.',
     );
 }
 
-function assertHierarchy({ stories, ticketBySlug }) {
-  for (const story of stories) {
-    if (!story.parent_slug)
-      throw new Error(
-        `Cross-Validation Failed: Story "${story.title}" must have a parent_slug.`,
-      );
-    const parent = ticketBySlug.get(story.parent_slug);
-    if (!parent || parent.type !== 'feature')
-      throw new Error(
-        `Cross-Validation Failed: Story "${story.title}" parent must be a Feature.`,
-      );
-  }
-}
-
-/**
- * Deterministic invariant (Story #3777): a Feature MUST decompose into at
- * least two Stories. A single-Story Feature is the work of a Story, not a
- * Feature — the Feature wrapper is dead weight and signals decomposition at
- * module/task granularity rather than deliverable granularity. HARD-reject
- * the decomposition, naming the offending Feature(s) and telling the planner
- * to collapse them, in the same throw-on-violation style as the surrounding
- * hierarchy invariants.
- */
-function assertNoSingleStoryFeature({ features, stories }) {
-  const storyCountByParent = new Map();
-  for (const story of stories) {
-    if (!story.parent_slug) continue;
-    storyCountByParent.set(
-      story.parent_slug,
-      (storyCountByParent.get(story.parent_slug) ?? 0) + 1,
-    );
-  }
-  const undersized = features.filter(
-    (feature) => (storyCountByParent.get(feature.slug) ?? 0) < 2,
-  );
-  if (undersized.length === 0) return;
-  const list = undersized
-    .map((feature) => {
-      const count = storyCountByParent.get(feature.slug) ?? 0;
-      return `"${feature.title}" (${feature.slug}, ${count} ${count === 1 ? 'Story' : 'Stories'})`;
-    })
-    .join(', ');
-  throw new Error(
-    `Cross-Validation Failed: ${undersized.length} Feature(s) decompose into fewer than two Stories: ${list}. ` +
-      'Every Feature MUST contain at least two Stories — a single-Story Feature is the work of a Story, not a Feature. ' +
-      'Collapse each offending Feature: drop the Feature wrapper and attach its lone Story to a sibling Feature, or merge the Feature into another.',
-  );
-}
-
 /**
  * Return true when a Story object carries inline acceptance + verify
- * arrays — the 3-tier shape (Epic #3078) where the Story is itself the
+ * arrays — the inline-contract shape (Epic #3078) where the Story is itself the
  * implementation unit and acceptance / verify live on the Story body
  * rather than in child Task tickets.
  *
@@ -506,7 +466,7 @@ function assertNoSingleStoryFeature({ features, stories }) {
  * `acceptance[]` (no `verify[]`) cannot be implemented without a
  * verification handle, and a Story with only `verify[]` (no
  * `acceptance[]`) carries no observable criterion. Requiring both is the
- * inline-contract invariant every Story must satisfy in the 3-tier model.
+ * inline-contract invariant every Story must satisfy.
  */
 function hasInlineAcceptanceAndVerify(story) {
   if (story === null || typeof story !== 'object') return false;
@@ -520,7 +480,7 @@ function hasInlineAcceptanceAndVerify(story) {
 }
 
 function assertEveryStoryHasInlineContract({ stories }) {
-  // 3-tier (Epic #3078 / #3238): every Story is its own implementation
+  // Every Story is its own implementation
   // unit and MUST carry a non-empty inline contract — top-level
   // `acceptance[]` AND `verify[]`. A Story missing either is the legacy
   // 4-tier shape that expected child Tasks; there is no Task tier any
@@ -577,12 +537,10 @@ function attachFindingsAndErrors(tickets, findings, errors) {
 }
 
 export function validateAndNormalizeTickets(tickets, opts = {}) {
-  const { ticketBySlug, features, stories, slugAdjacency } =
+  const { ticketBySlug, stories, slugAdjacency } =
     indexTicketsBySlug(tickets);
 
-  assertEachTypePresent({ features, stories });
-  assertHierarchy({ stories, ticketBySlug });
-  assertNoSingleStoryFeature({ features, stories });
+  assertAllTicketsAreStories({ tickets, stories });
   assertEveryStoryHasInlineContract({ stories });
   assertNoUnknownDeps({ tickets, ticketBySlug });
 
@@ -680,9 +638,7 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
 // Internal helpers exposed for unit tests; not part of the public surface.
 export const _internal = {
   indexTicketsBySlug,
-  assertEachTypePresent,
-  assertHierarchy,
-  assertNoSingleStoryFeature,
+  assertAllTicketsAreStories,
   assertEveryStoryHasInlineContract,
   assertNoUnknownDeps,
   assertAcyclic,

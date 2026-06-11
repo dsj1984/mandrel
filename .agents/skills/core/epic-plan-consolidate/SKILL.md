@@ -1,7 +1,7 @@
 ---
 name: epic-plan-consolidate
 description: >-
-  Run a holistic, pre-persist consolidation pass over the draft Feature/Story
+  Run a holistic, pre-persist consolidation pass over the draft Story
   ticket array an Epic's decompose phase produced. Use during Phase 8 of
   `/epic-plan`, after `epic-plan-decompose-author` writes
   `temp/epic-<Epic_ID>/tickets.json` and before `epic-plan-decompose.js`
@@ -19,13 +19,12 @@ allowed_tools:
 
 - Run only after `epic-plan-decompose-author` has written `temp/epic-<Epic_ID>/tickets.json`; fail loudly if the draft array is missing. Read the PRD / Tech Spec from `temp/epic-<Epic_ID>/decomposer-context.json` (the same envelope the author skill consumed) — never re-fetch from GitHub, and never call the GitHub API from this Skill.
 - Emit exactly two artifacts inside `temp/epic-<Epic_ID>/`: the **consolidated** `tickets.json` (overwriting the draft array in place) and a human-readable `consolidation-report.md` (the rationale + before/after diff the operator reviews at the HITL gate). Both MUST exist before returning.
-- **Scope conservation is the load-bearing invariant.** You are a *critic*, not a second author: you MUST NOT add scope, invent tickets, or drop acceptance criteria. Every acceptance item and every `verify` entry present in the draft MUST survive into the consolidated array (possibly re-homed onto a merged Story). **This is your contract, not a machine guarantee:** there is **no runtime acceptance-union diff** on your output. The only deterministic runtime backstop the validator applies after you run is `assertNoSingleStoryFeature` (Story #3777) plus the standard ticket-structure validation — neither re-derives the pre-consolidation acceptance/verify union, so a critic that silently dropped an acceptance item would **not** be caught downstream. (The repo's unit test exercises a *pure model* of the merge over an over-fragmented fixture to document the intended invariant; it does not inspect this Skill's actual output.) Conserve scope yourself, deliberately, on every merge.
-- Your operations are constrained to exactly four shapes: **(1) merge two or more Stories** into one (union their `changes`/`acceptance`/`verify`/`references`, keep one coherent `goal`); **(2) collapse a single-Story Feature** into a sibling Feature (re-parent its lone Story, drop the empty Feature) — **never** by manufacturing a second Story; **(3) re-parent** a Story to a different sibling Feature; **(4) rewire `depends_on`** so the edges still reference surviving sibling-Story slugs. No other mutation is permitted.
-- Consume the Tech Spec **"Delivery Slicing"** section as the authoritative target grouping when one is present: cluster the draft's Stories toward the N shippable Stories the Architect proposed. When the section is **absent**, degrade gracefully — apply only the cohesion + single-Story-Feature rules below and leave the rest of the draft shape intact.
-- Implement rec #2: resolve every single-Story Feature by **collapsing** it into a sibling (operation 2), not by splitting its lone Story into two. The `assertNoSingleStoryFeature` validator from Story #3777 stays as the post-consolidation backstop — your output must already satisfy it.
+- **Scope conservation is the load-bearing invariant.** You are a *critic*, not a second author: you MUST NOT add scope, invent tickets, or drop acceptance criteria. Every acceptance item and every `verify` entry present in the draft MUST survive into the consolidated array (possibly re-homed onto a merged Story). **This is your contract, not a machine guarantee:** there is **no runtime acceptance-union diff** on your output. The only deterministic runtime backstop the validator applies after you run is the standard ticket-structure validation — it does not re-derive the pre-consolidation acceptance/verify union, so a critic that silently dropped an acceptance item would **not** be caught downstream. (The repo's unit test exercises a *pure model* of the merge over an over-fragmented fixture to document the intended invariant; it does not inspect this Skill's actual output.) Conserve scope yourself, deliberately, on every merge.
+- Your operations are constrained to exactly two shapes: **(1) merge two or more Stories** into one (union their `changes`/`acceptance`/`verify`/`references`, keep one coherent `goal`); **(2) rewire `depends_on`** so the edges still reference surviving sibling-Story slugs. No other mutation is permitted.
+- Consume the Tech Spec **"Delivery Slicing"** section as the authoritative target grouping when one is present: cluster the draft's Stories toward the N shippable Stories the Architect proposed. When the section is **absent**, degrade gracefully — apply only the cohesion rules below and leave the rest of the draft shape intact.
 - Apply the same cohesion heuristic the author skill leads with: **one Story = one coherent change with one reason to exist**, and the **single-consumer merge rule** (a Story whose only consumer is one sibling Story is merged into that sibling). Lead every merge decision with the change's reason, not its file count.
-- After every merge / collapse / re-parent, **rewire `depends_on`**: drop self-edges, collapse edges that now point at the absorbing Story onto itself, and re-point any edge that named a now-deleted slug at its surviving successor. Never leave a `depends_on` referencing a slug absent from the consolidated array — the validator HARD-rejects unknown deps.
-- The consolidation report MUST name each operation applied (merged slugs → surviving slug, collapsed Feature → sibling, re-parented Story, rewired edges) with a one-line reason, plus a before/after Story-count line, so the operator can approve or reject at the HITL diff gate before the persist call.
+- After every merge, **rewire `depends_on`**: drop self-edges, collapse edges that now point at the absorbing Story onto itself, and re-point any edge that named a now-deleted slug at its surviving successor. Never leave a `depends_on` referencing a slug absent from the consolidated array — the validator HARD-rejects unknown deps.
+- The consolidation report MUST name each operation applied (merged slugs → surviving slug, rewired edges) with a one-line reason, plus a before/after Story-count line, so the operator can approve or reject at the HITL diff gate before the persist call.
 
 ## Role
 
@@ -51,7 +50,7 @@ emit a plan the validator would reject.
 The dispatcher passes the Epic ID as the Skill argument. The Skill itself
 reads:
 
-- `temp/epic-<Epic_ID>/tickets.json` — the **draft** Feature/Story array the
+- `temp/epic-<Epic_ID>/tickets.json` — the **draft** Story array the
   `epic-plan-decompose-author` Skill wrote. This is the consolidation input.
 - `temp/epic-<Epic_ID>/decomposer-context.json` — the authoring envelope
   emitted by `epic-plan-decompose.js --emit-context`. Read `prd.body` /
@@ -62,7 +61,7 @@ reads:
 ## Outputs
 
 - `temp/epic-<Epic_ID>/tickets.json` — the **consolidated** array, overwriting
-  the draft. Same schema as the author skill emits (Feature → Story; Stories
+  the draft. Same schema as the author skill emits (flat Story array; Stories
   carry top-level `acceptance[]` / `verify[]`; `body` is a serialized string).
   The downstream `epic-plan-decompose.js --tickets …` validator is the final
   gate — author for its rules, not for "looks right."
@@ -83,21 +82,18 @@ anything:
 
 1. The **target grouping** — the N shippable Stories the Architect proposed in
    Delivery Slicing, or `null` when the section is absent (graceful-degrade
-   mode: cohesion + single-Story-Feature rules only).
-2. The **draft Story count per Feature** — so you can spot single-Story
-   Features and over-fragmented capability clusters.
+   mode: cohesion rules only).
+2. The **draft Story count** — so you can spot over-fragmented capability
+   clusters.
 
 ### Step 2 — Plan the consolidation
 
-For each Feature, decide which Stories merge, which collapse, which re-parent:
+Across the draft Story array, decide which Stories merge:
 
-- **Single-Story Feature** → collapse its lone Story into a sibling Feature
-  whose capability is closest (Delivery-Slicing target, else thematic
-  proximity). Drop the now-empty Feature. Never split the lone Story.
 - **Over-fragmented capability** → when several draft Stories map to one
   Delivery-Slicing target (or one coherent reason to exist), merge them into a
   single Story: union their `changes` / `acceptance` / `verify` / `references`,
-  write one `goal` naming the parent Feature, and keep the union of labels.
+  write one coherent `goal`, and keep the union of labels.
 - **Single-consumer Story** → merge into the one sibling that consumes it.
 
 Record each decision with its one-line reason for the report.
@@ -133,13 +129,12 @@ persists the hierarchy, and flips the Epic to `agent::ready`.
 - Do **not** call the GitHub API from this Skill. It reads two temp artifacts
   and writes two temp artifacts; persistence belongs to the script.
 - Do **not** write outside `temp/epic-<Epic_ID>/`.
-- Do **not** add scope or invent tickets. The four permitted operations (merge
-  Stories, collapse single-Story Features, re-parent, rewire `depends_on`) are
-  exhaustive — anything else is out of contract.
+- Do **not** add scope or invent tickets. The two permitted operations (merge
+  Stories, rewire `depends_on`) are exhaustive — anything else is out of
+  contract.
 - If `temp/epic-<Epic_ID>/tickets.json` is missing, fail loudly and instruct
   the caller to run the `epic-plan-decompose-author` Skill first.
 - The validator
   ([`lib/orchestration/ticket-validator.js`](../../../scripts/lib/orchestration/ticket-validator.js))
-  is the authoritative post-consolidation gate — including
-  `assertNoSingleStoryFeature`. Re-consolidate when it rejects rather than
-  patching tickets by hand.
+  is the authoritative post-consolidation gate. Re-consolidate when it
+  rejects rather than patching tickets by hand.

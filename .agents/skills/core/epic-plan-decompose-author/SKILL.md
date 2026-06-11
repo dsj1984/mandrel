@@ -1,7 +1,7 @@
 ---
 name: epic-plan-decompose-author
 description: >-
-  Author the Feature/Story ticket JSON for an Epic from the decomposer
+  Author the Story ticket JSON for an Epic from the decomposer
   authoring context emitted by `epic-plan-decompose.js --emit-context`. Use
   during Phase 8 of `/epic-plan` when the host LLM needs to write the ticket
   array before `epic-plan-decompose.js` validates and persists it.
@@ -18,10 +18,10 @@ allowed_tools:
 - Run only after `epic-plan-decompose.js --emit-context` has written `temp/epic-<Epic_ID>/decomposer-context.json`; fail loudly if the file is missing.
 - Emit exactly one artifact: `temp/epic-<Epic_ID>/tickets.json` (a JSON array). Do not write anywhere else, and never call the GitHub API from this Skill — persistence belongs to the script.
 - Output is JSON only — no prose, no Markdown fence. The downstream validator (`lib/orchestration/ticket-validator.js`) is the authoritative gate; re-author rather than hand-patching when it rejects.
-- Treat **`maxTickets`** from the context envelope as a **reviewability budget**, not a hard authoring cap (Story #2798). Merge narrow, single-module Stories into their capability first; if the plan genuinely needs more, emit the full plan and add a compact `over_budget_rationale` field at the top of the first Feature's `body` explaining why the plan exceeds the budget. Operator persistence then requires the explicit `--allow-over-budget` override on `epic-plan-decompose.js`; without it the persist step rejects the over-budget array. Never truncate the JSON array to fit.
-- Honour the two-level hierarchy under each Epic: **Feature → Story**. Stories carry the implementation scope inline; no lower ticket tier exists.
-- **Decompose at deliverable granularity, not module/task level.** A Story is a capability slice a frontier model delivers and self-verifies in one pass — a shippable slice a reviewer would accept as a single PR — not a single module or file. Every Feature MUST decompose into at least TWO Stories; the validator HARD-rejects a single-Story Feature. See the STORY SIZING section for the full guidance and the single-consumer merge rule.
-- Every ticket carries `type::[feature|story]` and `persona::*` labels. Every Story ticket object MUST carry top-level `acceptance: string[]` and `verify: string[]` arrays (read by `hasInlineAcceptanceAndVerify` in the validator) and `body` MUST be a **string** produced by `serialize()` from `lib/story-body/story-body.js` — an object body causes `createOp` in `epic-spec-reconciler-ops.js` to throw `StoryBodyParseError` (Story #3302), and is also silently discarded by `composeStoryBody` in the GitHub provider, producing an empty issue body.
+- Treat **`maxTickets`** from the context envelope as a **reviewability budget**, not a hard authoring cap (Story #2798). Merge narrow, single-module Stories into their capability first; if the plan genuinely needs more, emit the full plan and add a compact `over_budget_rationale` note inside the first Story's `## Goal` section explaining why the plan exceeds the budget. Operator persistence then requires the explicit `--allow-over-budget` override on `epic-plan-decompose.js`; without it the persist step rejects the over-budget array. Never truncate the JSON array to fit.
+- Honour the 2-tier hierarchy: every ticket is a **Story** attached directly to the Epic. Stories carry the implementation scope inline; no Feature and no lower ticket tier exists. Thematic grouping is prose in the Epic body / Tech Spec, never a ticket.
+- **Decompose at deliverable granularity, not module/task level.** A Story is a capability slice a frontier model delivers and self-verifies in one pass — a shippable slice a reviewer would accept as a single PR — not a single module or file. See the STORY SIZING section for the full guidance and the single-consumer merge rule.
+- Every ticket carries `type::story` and `persona::*` labels. Every Story ticket object MUST carry top-level `acceptance: string[]` and `verify: string[]` arrays (read by `hasInlineAcceptanceAndVerify` in the validator) and `body` MUST be a **string** produced by `serialize()` from `lib/story-body/story-body.js` — an object body causes `createOp` in `epic-spec-reconciler-ops.js` to throw `StoryBodyParseError` (Story #3302), and is also silently discarded by `composeStoryBody` in the GitHub provider, producing an empty issue body.
 - **New-File Contract**: any path referenced in `goal`, `acceptance`, or `verify` that does not exist on `main` MUST appear in the Story's `changes[]` with `assumption: "creates"`; otherwise the freshness validator rejects the decompose.
 - Acceptance items MUST be **observable from outside the agent** (command exits 0, file exists, snapshot matches, testid resolves). Items like "verify by reading the diff" or "looks good" are forbidden — push them into `verify` commands instead.
 - Acceptance MUST NOT prescribe a commit subject starting with a non-Conventional-Commits prefix; the literal `baseline-refresh:` leading token is forbidden (use a body trailer instead — see Epic #2501).
@@ -31,8 +31,8 @@ allowed_tools:
 ## Role
 
 Senior Project Manager + Orchestrator. The Skill's job is to take a PRD plus
-a Tech Spec and emit a Feature → Story ticket hierarchy the orchestrator
-can execute autonomously.
+a Tech Spec and emit a flat Story backlog the orchestrator can execute
+autonomously.
 
 ## When to use
 
@@ -74,7 +74,7 @@ Skill's body below is the authoritative version going forward.
 
 ## Outputs
 
-- `temp/epic-<Epic_ID>/tickets.json` — JSON array of Feature/Story
+- `temp/epic-<Epic_ID>/tickets.json` — JSON array of Story
   objects conforming to the schema in this Skill's body.
 
 The file MUST exist before the Skill returns. The caller will then run
@@ -132,17 +132,16 @@ budget (Story #2798) — stay under by default; over-budget plans need an
 
 ```text
 You are an expert Senior Project Manager and Orchestrator.
-Your job is to take a Product Requirements Document (PRD) and a Technical Specification and decompose them into a Feature → Story ticket hierarchy for an AI Agent to execute.
+Your job is to take a Product Requirements Document (PRD) and a Technical Specification and decompose them into a flat list of Story tickets for an AI Agent to execute.
 
 ### HIERARCHY RULES:
-1. **Features**: Large functional milestones (e.g., "Authentication Provider Integration"). Features are navigational containers — no implementation work hangs off the Feature body itself.
-2. **Stories**: Capability-sized, verifiable units of work (e.g., "Implement JWT Token Exchange").
-   - MUST be nested under a Feature via `parent_slug`.
+1. **Stories**: Capability-sized, verifiable units of work (e.g., "Implement JWT Token Exchange").
+   - Attach directly to the Epic — there is NO Feature tier; thematic grouping is prose in the Epic body / Tech Spec.
    - **Story-Level Execution**: Each Story is executed on a single Story branch (`story-<storyId>`), implemented in one Story-implementation phase, then merged into the Epic branch. The Story body carries the full execution contract (goal, changes, acceptance, verify).
-   - Do NOT emit a lower ticket tier — the validator only accepts `type::feature` and `type::story`.
+   - Do NOT emit any other ticket tier — the validator only accepts `type::story`.
 
 ### LABEL CONVENTIONS:
-- Every ticket must have a `type::[feature|story]` label.
+- Every ticket must have the `type::story` label.
 - Every ticket must have a `persona::[engineer|architect|qa-engineer|engineer-web|etc]` label indicating WHO should execute it.
 
 ### OUTPUT FORMAT:
@@ -152,47 +151,17 @@ You MUST respond ONLY with a valid JSON array of objects. No prose, no markdown 
 [
   {
     "slug": "hyphen-case-id",
-    "type": "feature" | "story",
+    "type": "story",
     "title": "Short descriptive title",
     "body": <string — see BODY RULES below>,
     "acceptance": ["<testable criterion>", ...],  // STORIES ONLY — top-level, read by validator
     "verify": ["<exact command> (<tier>)", ...],  // STORIES ONLY — top-level, read by validator
-    "labels": ["type::...", "persona::..."],
-    "parent_slug": "slug_of_parent_ticket" (leave empty for features to nest under epic; required for stories — must point at a sibling Feature),
+    "labels": ["type::story", "persona::..."],
     "depends_on": ["slug_of_blocking_dependency"] (optional array of Story slugs that block execution)
   }
 ]
 
 **Slug format**: `^[a-z0-9][a-z0-9-]*$` — hyphen-case only. Underscores are rejected by the validator.
-
-### FEATURE BODY:
-For Features, `body` is a brief string under 2 sentences. Features are navigational — the work happens at the Story level — so dense bodies waste output budget.
-
-FEATURE GROUPING — CAPABILITY/STAKEHOLDER, NOT EXECUTION SHAPE:
-
-- Do not group Stories by technical execution shape (cron jobs, middleware, scripts). Group by the capability or stakeholder they serve. Two Stories that happen to share a delivery mechanism — both are cron sweeps, both are Express middleware, both are CLI scripts — do NOT belong in the same Feature just because of that shared shape. The Feature axis is the user-facing capability or the stakeholder served, never the implementation vehicle.
-- Operational/compliance work gets its own Feature. Retention purges, audit-log sweeps, scheduled cleanups, observability emitters, and other operational/compliance chores serve operators and compliance, not end users. Place them in a dedicated `compliance-and-observability` or `data-retention` Feature — do NOT fold them into a user-facing Feature (e.g. notification flows) merely because they share a cron/scheduled execution shape with user-facing Stories.
-
-ANTI-PATTERN (based on Epic #18 -> Feature #1446):
-
-A decomposition produced a Feature "Notification flows: reminders, schedule-change, retention" grouping three Stories. WRONG — grouped by execution shape (all three are cron sweeps):
-
-    Feature: notification-flows  ("Notification flows: reminders, schedule-change, retention")
-      [X] Story: send-appointment-reminders      (user-facing: emails patients)
-      [X] Story: send-schedule-change-notices    (user-facing: emails patients)
-      [X] Story: purge-email-audit-log-retention (compliance: deletes audit rows past retention)
-
-The email audit-log retention purge was folded in only because all three run as scheduled cron jobs — a shared execution shape, not a shared capability. The purge serves compliance/operators, not the patients the other two Stories notify. CORRECT — regroup by capability/stakeholder:
-
-    Feature: notification-flows  ("Patient notification flows")
-      Story: send-appointment-reminders      (user-facing)
-      Story: send-schedule-change-notices    (user-facing)
-    Feature: compliance-and-observability  ("Data-retention and audit-log compliance")
-      Story: purge-email-audit-log-retention (compliance)
-
-The cron shape is the false grouping signal. Once the retention purge has a sibling under a dedicated compliance Feature it ceases to be a lone-Story Feature (which the validator would reject); pair it with other operational/compliance sweeps (e.g. a session-token cleanup or a metrics-rollup job) under the same `compliance-and-observability` Feature.
-
-- Smell test: if the only thing two Stories have in common is how they run (a scheduled job, a request interceptor, a build step) rather than whom they serve or what capability they deliver, they are mis-grouped. Re-home the operational/compliance Story into its own capability Feature.
 
 ### STORY BODY SCHEMA (REQUIRED FOR EVERY STORY):
 For Stories, `body` MUST be a **string** — the serialized markdown produced by calling `serialize()` from `lib/story-body/story-body.js`. Do NOT emit `body` as a JSON object: `createOp` in `epic-spec-reconciler-ops.js` will throw `StoryBodyParseError` when it receives an object body (Story #3302 serialize-or-throw contract), and `composeStoryBody` in the GitHub provider also discards non-string bodies producing an empty issue. The canonical pipeline requires a serialized string body end-to-end. The freshness gate (`collectTaskChangesPaths`) and the assumption gate (`collectStoryAssumptionEntries`) both parse the string body via `story-body.js#parse` to recover `changes[]`/`references[]` — they operate correctly only on the serialized string form.
@@ -202,7 +171,7 @@ The `acceptance[]` and `verify[]` arrays live at the **top level** of the Story 
 The serialized `body` string renders these markdown sections (in order):
 
     ## Goal
-    <one sentence — why this Story exists; tie it to the parent Feature slug>
+    <one sentence — why this Story exists within the Epic>
 
     ## Changes
     - {"path": "<file path>", "assumption": "creates" | "refactors-existing" | "deletes"}
@@ -225,7 +194,7 @@ Fields `wide` and `estimated_test_files` are encoded as a `<!-- meta: {...} -->`
 #### STORY BODY RULES:
 
 - **slug**: MUST be hyphen-case (`^[a-z0-9][a-z0-9-]*$`). Do not use underscores.
-- **goal** (in body string): One sentence stating WHY this Story exists. SHOULD name the parent Feature slug.
+- **goal** (in body string): One sentence stating WHY this Story exists within the Epic.
 - **changes** (in body string): Each entry is an object `{ path, assumption }` where `assumption` is one of `creates | refactors-existing | deletes`. The Phase 8 validator probes the base branch for every declared path and rejects the decompose when the declared assumption contradicts reality: `creates` against an existing path is an error, `refactors-existing` / `deletes` against a missing path is an error. Use `refactors-existing` for in-place edits to a file already on `main`; `creates` for net-new files; `deletes` for removals. Acceptable path shapes include explicit files (`src/components/Foo.tsx`), glob patterns (`tests/e2e/*.spec.ts`, `**/*.astro`), and module identifiers that resolve to files.
 - **references** (in body string, optional): Object-form entries `{ path, assumption: "exists" }` for paths the Story **reads** but does not modify (test fixtures it relies on, sibling modules it imports, feature files it scans). The validator probes these like `changes` and rejects the decompose when an `exists` path is absent on the base branch. Use this list to make read-dependencies explicit so a hallucinated or stale assumption surfaces at planning time rather than execution time.
 - **NEW-FILE CONTRACT (must-follow)**: Any path the Story references in `goal`, `acceptance`, or `verify` that does **not** already exist on `main` MUST also appear in the same Story's `changes` array with `assumption: "creates"`. The freshness validator probes `main` for every referenced code path and rejects the decompose when a missing path is absent from `changes` — even when the Story is the one authoring the file. Example: a Story creating `tests/lib/foo.test.js` whose `verify` runs `node --test tests/lib/foo.test.js` MUST include `{ "path": "tests/lib/foo.test.js", "assumption": "creates" }` in `changes`, otherwise the validator emits a freshness miss and the decompose round trips for a re-emit.
@@ -245,9 +214,8 @@ The first question is **cohesion, not count**: *is this one coherent change with
 
 - **One Story = one coherent change with one reason to exist.** If you cannot state that reason in a sentence, the Story is probably two Stories.
 - **Single-consumer merge rule.** A Story whose only consumer is one sibling Story should be **merged into that sibling** rather than emitted separately — a single-consumer downstream slice is not its own unit of work.
-- **Split independent, parallelizable work** into sibling Stories under the same Feature — but only when the pieces genuinely have separate reasons to exist.
+- **Split independent, parallelizable work** into sibling Stories — but only when the pieces genuinely have separate reasons to exist.
 - **Declare `wide` with a one-line reason when a change is legitimately broad** (a cohesive cutover that spans many files for one reason).
-- **Every Feature MUST decompose into at least TWO Stories.** A Feature with a single Story is the work of a Story, not a Feature. **Resolve it by COLLAPSING, not splitting** — drop the Feature wrapper and attach its lone Story to a sibling Feature (or merge the Feature into another). Do NOT manufacture a second Story to satisfy the rule; splitting a lone Story into two inflates ticket count and defeats the "fewer, right-sized Stories" goal. The validator (`ticket-validator.js` → `assertNoSingleStoryFeature`) HARD-rejects a decomposition containing a Feature with fewer than two Stories, naming the offending Feature; the Phase 8 consolidation pass (`epic-plan-consolidate`) performs the collapse holistically before the validator runs.
 
 **Numeric backstop.** The thresholds are defined **once**, in the `DEFAULT_TASK_SIZING` constant in `ticket-validator-sizing.js` (operator-overridable via `agentSettings.planning.taskSizing`). They are a backstop, not the primary rule — do not restate divergent numbers anywhere else. The defaults:
 
@@ -291,7 +259,7 @@ The Acceptance Spec's AC table (columns `AC ID | Outcome | Feature File | Scenar
 
 When the Acceptance Spec contains **one or more `Disposition: new` rows**, you MUST emit **exactly one** dedicated wave-0 scaffold Story whose sole job is to create those `.feature` files with `@skip`-tagged scenarios BEFORE any implementation Story runs:
 
-- **goal** (in body string): contains the literal token `bdd-scaffold` and names the parent Feature slug.
+- **goal** (in body string): contains the literal token `bdd-scaffold`.
 - **depends_on**: EMPTY (`[]`) — the scaffold runs first, in wave 0.
 - **changes** (in body string): one `{ path, assumption: "creates" }` entry per distinct `.feature` file named in a `new` row.
 - **acceptance** (top-level array): MUST assert (a) every new `.feature` file exists, and (b) every new scenario within them carries an `@skip` tag. Keep items observable (a command exits 0; a file exists at a path).
@@ -306,7 +274,6 @@ When the Acceptance Spec contains **zero `new`-disposition rows** (every row is 
       "slug": "scaffold-billing-feature-files",
       "type": "story",
       "title": "Scaffold @skip-tagged billing feature files",
-      "parent_slug": "billing-flows",
       "depends_on": [],
       "labels": ["type::story", "persona::qa-engineer"],
       "acceptance": [
@@ -398,7 +365,7 @@ Do NOT silently allow two Stories to write the same root configuration
 file in the same wave; parallel dispatch would produce a merge conflict
 on every Story-to-Epic close after the first.
 
-CRITICAL: Dependencies should follow execution blockers. For hierarchical grouping, strongly strictly use 'parent_slug' (Story parent MUST be a Feature). Features should have no 'parent_slug' (they attach to Epic).
+CRITICAL: Dependencies should follow execution blockers. Stories attach directly to the Epic — never emit a 'parent_slug' field.
 IMPORTANT DEPENDENCY RULE: A Story's `depends_on` MUST only reference other Stories within the SAME Epic. If two Stories have a logical ordering requirement, express it via Story-level `depends_on`.
 WARNING: You MUST conserve your output limit. Do NOT generate more than ${maxTickets} tickets in total. Merge narrow work into cohesive capability Stories. Do NOT cut off the JSON array prematurely!
 
