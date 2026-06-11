@@ -13,11 +13,12 @@ import { fileURLToPath } from 'node:url';
 // regression enforcement. Story #2210 then retired the legacy in-process
 // per-kind regression-compare arm — the `buildInProcessBaselineGate` helper
 // under `.agents/scripts/lib/close-validation/in-process-baseline-gate.js`
-// and its three `Gate.run` wirings in `lib/close-validation.js`.
+// and its three `Gate.run` wirings in the close-validation gate modules
+// (Story #3994 split the old `lib/close-validation.js` monolith into
+// `lib/close-validation/{commands,gates,process,runner,telemetry}.js`).
 //
 // This test prevents accidental reintroduction. It scans the production
-// source under `.agents/scripts/lib/close-validation/` and `.agents/scripts/
-// lib/close-validation.js` and asserts that:
+// source under `.agents/scripts/lib/close-validation/` and asserts that:
 //
 //   1. No source file exports or imports `buildInProcessBaselineGate`.
 //   2. No source file defines or references the deleted module path
@@ -41,14 +42,6 @@ const CLOSE_VALIDATION_DIR = path.join(
   'lib',
   'close-validation',
 );
-const CLOSE_VALIDATION_AGGREGATOR = path.join(
-  REPO_ROOT,
-  '.agents',
-  'scripts',
-  'lib',
-  'close-validation.js',
-);
-
 /**
  * Recursively enumerate every `.js` file under `dir`. Returns absolute
  * paths so the per-file scan can build a stable error message.
@@ -131,22 +124,4 @@ describe('close-validation — no in-process per-kind regression gate (Story #22
     );
   });
 
-  it('the close-validation aggregator (`close-validation.js`) does not import or reference the retired gate', () => {
-    const body = stripJsComments(
-      readFileSync(CLOSE_VALIDATION_AGGREGATOR, 'utf8'),
-    );
-    const offenders = [];
-    for (const { pattern, description } of FORBIDDEN_PATTERNS) {
-      if (pattern.test(body)) {
-        offenders.push(description);
-      }
-    }
-    assert.deepEqual(
-      offenders,
-      [],
-      `\`close-validation.js\` still references the retired gate:\n  - ${offenders.join('\n  - ')}\n\n` +
-        'Remove the import and the `Gate.run` wirings for `check-maintainability`, ' +
-        '`check-crap`, and `check-mutation` so the unified `check-baselines` gate is the only regression path.',
-    );
-  });
 });

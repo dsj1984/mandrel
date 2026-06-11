@@ -22,7 +22,7 @@
  */
 
 import { mkdir, writeFile } from 'node:fs/promises';
-import { emitGhSpawnCount as defaultEmitGhSpawnCount } from '../../close-validation.js';
+import { emitGhSpawnCount as defaultEmitGhSpawnCount } from '../../close-validation/telemetry.js';
 import { storyArtifactPath, storyTempDir } from '../../config/temp-paths.js';
 import { gitSpawn as defaultGitSpawn } from '../../git-utils.js';
 import { clearActiveStoryEnv as defaultClearActiveStoryEnv } from '../../observability/active-story-env.js';

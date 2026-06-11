@@ -15,7 +15,7 @@
  * unit tests pin behaviour without spawning git.
  */
 
-import { resolveFormatWriteCommand } from '../../close-validation.js';
+import { resolveFormatWriteCommand } from '../../close-validation/commands.js';
 
 /**
  * Run `git status --porcelain` and return the list of changed paths.
