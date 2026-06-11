@@ -3,7 +3,7 @@
  *
  * Internal pipeline helpers composed by `dispatch-engine.js::dispatch()`.
  * Keeping these out of the coordinator keeps the public entry point compact
- * and focused on the 3-tier flow: resolve → fetch → reconcile → Story-graph.
+ * and focused on the 2-tier flow: resolve → fetch → reconcile → Story-graph.
  */
 
 import { PROJECT_ROOT, resolveConfig } from '../config-resolver.js';
@@ -40,7 +40,7 @@ import { reconcileHierarchy } from './reconciler.js';
  *
  * @typedef {object} FetchedEpic
  * @property {object} epic                 The Epic ticket record.
- * @property {object[]} allTickets         Every ticket under the Epic (stories + features + health).
+ * @property {object[]} allTickets         Every ticket under the Epic (stories + health).
  * @property {Map<number, object>} allTicketsById  Index of `allTickets` by ticket id.
  */
 
@@ -107,7 +107,7 @@ export async function fetchEpicContext(ctx) {
 
 /**
  * Propagate already-done work up the hierarchy so the manifest reflects
- * reality before dispatch. Walks Stories → Features bottom-up.
+ * reality before dispatch. Walks Stories bottom-up.
  *
  * @param {DispatchContext} ctx  Dispatch context.
  * @param {FetchedEpic} fetched  Result of {@link fetchEpicContext}.
@@ -121,15 +121,15 @@ export async function reconcileEpicState(ctx, fetched) {
 }
 
 /**
- * Detect 3-tier hierarchy from the fetched ticket graph. After Epic #3163's
+ * Detect 2-tier hierarchy from the fetched ticket graph. After Epic #3163's
  * hard cutover deleted the `type::task` ticket layer, shape selection is
  * purely structural: any Epic carrying at least one `type::story` ticket
- * resolves to 3-tier.
+ * resolves to 2-tier.
  *
  * @param {object[]} allTickets
  * @returns {boolean}
  */
-export function isThreeTierDispatch(allTickets) {
+export function isTwoTierDispatch(allTickets) {
   if (!Array.isArray(allTickets) || allTickets.length === 0) return false;
   return allTickets.some((t) =>
     (t.labelSet ?? new Set(t.labels ?? [])).has(TYPE_LABELS.STORY),
@@ -137,7 +137,7 @@ export function isThreeTierDispatch(allTickets) {
 }
 
 /**
- * Build the Story-level dispatch graph for a 3-tier Epic. Reads story
+ * Build the Story-level dispatch graph for a 2-tier Epic. Reads story
  * tickets from `allTickets`, parses cross-Story `blocked by` references
  * from each Story body (also honoring an optional `dependencies[]`
  * field set by fixture providers), and computes wave indices via
@@ -151,7 +151,7 @@ export function isThreeTierDispatch(allTickets) {
  * are placed in their own trailing wave so they remain visible in the
  * manifest output.
  *
- * @param {object[]} allTickets  Fetched ticket graph (Epic + Features + Stories).
+ * @param {object[]} allTickets  Fetched ticket graph (Epic + Stories).
  * @returns {{ allWaves: object[][], storyMap: Map<number, object> }}
  * @throws {Error} When the Story dependency graph contains a cycle.
  */
@@ -193,7 +193,7 @@ export function buildStoryDispatchGraph(allTickets) {
   if (byWave.has(-1)) allWaves.push(byWave.get(-1));
 
   Logger.info(
-    `Computed ${allWaves.length} Story-level execution wave(s) (3-tier).`,
+    `Computed ${allWaves.length} Story-level execution wave(s) (2-tier).`,
   );
   return { allWaves, storyMap };
 }

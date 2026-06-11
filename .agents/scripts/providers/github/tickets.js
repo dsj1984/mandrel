@@ -42,8 +42,8 @@ import {
 const SEARCH_PAGE_CAP = 10;
 
 /**
- * Compose the final markdown body for a created ticket. Under the 3-tier
- * hierarchy (Epic → Feature → Story), `body` is always a string supplied
+ * Compose the final markdown body for a created ticket. Under the 2-tier
+ * hierarchy (Epic → Story), `body` is always a string supplied
  * by the caller (the decomposer, the spec planner, or the reconciler-apply
  * engine). This helper appends the canonical orchestrator footer
  * (`parent: #<n>` / `Epic: #<m>` / `blocked by #<x>`) byte-stable with the

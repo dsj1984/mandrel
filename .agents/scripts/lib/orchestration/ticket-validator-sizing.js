@@ -330,7 +330,7 @@ function computeStorySizingFindings(story, sizing) {
  * `findings`; the AC-visible `errors[]` channel is the rendered
  * subset where `severity === 'hard'`.
  *
- * 3-tier (Epic #3238): each Story is its own implementation unit and
+ * 2-tier (Epic #3238): each Story is its own implementation unit and
  * carries the `body` (acceptance / changes / wide) that the sizing layers
  * score. There is no Task tier, so findings are computed directly over
  * `stories`.

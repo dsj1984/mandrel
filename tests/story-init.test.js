@@ -118,7 +118,7 @@ test('runStoryInit dry-run composes all stages end-to-end', async () => {
   assert.strictEqual(r.dependenciesInstalled, 'skipped');
   assert.strictEqual(r.installFailed, false);
   assert.deepStrictEqual(r.context, {
-    featureId: 500,
+    parentId: 500,
     prdId: 401,
     techSpecId: 402,
   });
@@ -321,7 +321,7 @@ test('runStoryInit dry-run accepts a 3-tier Story with inline acceptance and zer
   // No child Tasks — the pipeline returns an empty list cleanly.
   assert.deepStrictEqual(out.result.tasks, []);
   // Pipeline still resolved hierarchy correctly.
-  assert.strictEqual(out.result.context.featureId, 500);
+  assert.strictEqual(out.result.context.parentId, 500);
   // The task-graph stage was invoked exactly once (no retry).
   assert.deepStrictEqual(provider.calls.getSubTickets, [712]);
 });

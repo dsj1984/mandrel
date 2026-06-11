@@ -3,7 +3,7 @@
  *
  * Cache adapter for the snapshot/DAG envelope produced by
  * `epic-deliver-preflight.js` so `epic-deliver-prepare.js` can skip the
- * second walk of Epic → Feature → Story when the underlying Epic ticket
+ * second walk of Epic → Story when the underlying Epic ticket
  * has not drifted between the two operator invocations.
  *
  * Contract:

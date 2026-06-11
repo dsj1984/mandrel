@@ -71,7 +71,7 @@ const PHASE_EMOJI = {
 };
 
 /**
- * Canonical 3-tier Story-phase order. The Story-phase snapshot replaces the
+ * Canonical 2-tier Story-phase order. The Story-phase snapshot replaces the
  * 4-tier per-Task list when the Story carries inline acceptance (no child
  * Tasks). Each entry tracks `status` + `startedAt` / `endedAt` so the parent
  * `/epic-deliver` aggregator can render a coarse progress bar without
@@ -89,7 +89,7 @@ const STORY_PHASE_STATUS_EMOJI = {
 
 /**
  * Build the canonical default `phases[]` array for a freshly-initialized
- * 3-tier Story snapshot. All entries are `pending`; timestamps are null.
+ * 2-tier Story snapshot. All entries are `pending`; timestamps are null.
  * Exported so call sites (the story-init prepare step, story-phase) and
  * tests can build the same shape without re-implementing it.
  *
@@ -175,7 +175,7 @@ function normalizeTask(task) {
  * Exported so tests can pin the rendered shape without going through the
  * upsert path.
  *
- * Two shapes are supported, selected by whether `input.phases` (3-tier
+ * Two shapes are supported, selected by whether `input.phases` (2-tier
  * Story-phase snapshot) or `input.tasks` (legacy 4-tier per-Task list) is
  * provided. Callers MUST pass exactly one of the two — passing both is
  * rejected as a contract violation so a mistake at the call site fails
@@ -216,7 +216,7 @@ export function renderStoryRunProgressBody(input) {
   const hasTasks = Array.isArray(input.tasks);
   if (hasPhases && hasTasks) {
     throw new TypeError(
-      'renderStoryRunProgressBody: pass either `phases` (3-tier) or `tasks` ' +
+      'renderStoryRunProgressBody: pass either `phases` (2-tier) or `tasks` ' +
         '(4-tier), not both — the snapshot shape is mutually exclusive.',
     );
   }
@@ -296,7 +296,7 @@ function renderTasksBody({
 }
 
 /**
- * Render the 3-tier Story-phase body. Pure helper for
+ * Render the 2-tier Story-phase body. Pure helper for
  * `renderStoryRunProgressBody`. Emits a `phases[]` payload whose entries
  * carry `{ name, status, startedAt, endedAt }` for init/implement/validate/close.
  */
@@ -351,7 +351,7 @@ function renderPhasesBody({ storyId, branch, phase, phases: raw, updatedAt }) {
  * renders only and, when `notify` is supplied, mirrors a low-severity webhook
  * event for operators who wire one up.
  *
- * Two shapes are supported, selected by whether `args.phases` (3-tier
+ * Two shapes are supported, selected by whether `args.phases` (2-tier
  * Story-phase snapshot) or `args.tasks` (legacy 4-tier per-Task list) is
  * provided. The webhook mirror's `done/total` count is computed from whichever
  * shape is active.

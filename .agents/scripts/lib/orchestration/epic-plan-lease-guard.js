@@ -341,11 +341,7 @@ export async function assertNoOpenPlanChildren({
   const openChildren = (children ?? []).filter((t) => {
     const labels = Array.isArray(t.labels) ? t.labels : [];
     const isOpen = t.state === undefined || t.state === 'open';
-    return (
-      isOpen &&
-      (labels.includes(TYPE_LABELS.FEATURE) ||
-        labels.includes(TYPE_LABELS.STORY))
-    );
+    return isOpen && labels.includes(TYPE_LABELS.STORY);
   });
 
   if (openChildren.length > 0) {

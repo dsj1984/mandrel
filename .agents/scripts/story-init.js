@@ -15,7 +15,7 @@
  *   5. branch-initializer   — materialise the story branch (single-tree
  *                             checkout or isolated worktree).
  *   6. state-transitioner   — flip the Story to `agent::executing`. Under
- *                             the 3-tier hierarchy the Story has inline
+ *                             the 2-tier hierarchy the Story has inline
  *                             acceptance and no child Task lifecycle.
  *
  * Usage:
@@ -141,7 +141,7 @@ export async function runStoryInit({
   progress('INIT', `Initializing Story #${storyId}...`);
 
   // Stage 1 — context.
-  const { story, body, epicId, featureId } = await resolveContext({
+  const { story, body, epicId, parentId } = await resolveContext({
     provider,
     logger: stageLogger,
     input: { storyId, recutOf, dryRun },
@@ -156,7 +156,7 @@ export async function runStoryInit({
 
   progress(
     'CONTEXT',
-    `Epic: #${epicId}, Feature/Parent: #${featureId ?? 'none'}`,
+    `Epic: #${epicId}, Parent: #${parentId ?? 'none'}`,
   );
   progress(
     'CONTEXT',
@@ -192,8 +192,8 @@ export async function runStoryInit({
     progress('BLOCKERS', '✅ All blockers resolved');
 
   // Stage 4 — task graph. Pass the Story body so buildTaskGraph can detect
-  // the inline-acceptance 3-tier shape. After Task #3154 collapsed the
-  // hierarchy flag, 3-tier is the only supported shape.
+  // the inline-acceptance 2-tier shape. After Task #3154 collapsed the
+  // hierarchy flag, 2-tier is the only supported shape.
   const { sortedTasks, mode: hierarchyMode } = await buildTaskGraph({
     provider,
     logger: stageLogger,
@@ -327,7 +327,7 @@ export async function runStoryInit({
     worktreeCreated,
     installStatus,
     sortedTasks,
-    featureId,
+    parentId,
     prdId,
     techSpecId,
     dryRun,
@@ -500,7 +500,7 @@ function buildStoryInitResult({
   worktreeCreated,
   installStatus,
   sortedTasks,
-  featureId,
+  parentId,
   prdId,
   techSpecId,
   dryRun,
@@ -514,11 +514,11 @@ function buildStoryInitResult({
     storyBranch,
     epicBranch,
     storyTitle: story.title,
-    // Hierarchy mode resolved by buildTaskGraph. 3-tier is the only
+    // Hierarchy mode resolved by buildTaskGraph. 2-tier is the only
     // supported shape after Task #3154 deleted the `planning.hierarchy`
     // flag; this is retained as a constant marker for downstream
     // consumers and persisted artefacts.
-    hierarchy: hierarchy ?? '3-tier',
+    hierarchy: hierarchy ?? '2-tier',
     worktreeEnabled,
     workCwd,
     worktreeCreated,
@@ -534,7 +534,7 @@ function buildStoryInitResult({
       labels: t.labels,
       dependencies: t.dependsOn ?? parseBlockedBy(t.body ?? ''),
     })),
-    context: { featureId, prdId, techSpecId },
+    context: { parentId, prdId, techSpecId },
     dryRun,
   };
 }
@@ -591,10 +591,10 @@ export function renderStoryInitCommentBody(result) {
     epicId: result.epicId,
     storyBranch: result.storyBranch,
     epicBranch: result.epicBranch,
-    // Hierarchy mode is always `'3-tier'` after Task #3154 deleted the
+    // Hierarchy mode is always `'2-tier'` after Task #3154 deleted the
     // `planning.hierarchy` flag. Persisted so resumed runs can read it
     // without re-resolving anything in the worker.
-    hierarchy: result.hierarchy ?? '3-tier',
+    hierarchy: result.hierarchy ?? '2-tier',
     worktreeEnabled: result.worktreeEnabled,
     workCwd: result.workCwd,
     worktreeCreated: result.worktreeCreated,

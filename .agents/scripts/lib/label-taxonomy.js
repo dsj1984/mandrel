@@ -54,14 +54,9 @@ export const LABEL_TAXONOMY = [
     description: 'Epic-level work item',
   },
   {
-    name: TYPE_LABELS.FEATURE,
-    color: LABEL_COLORS.TYPE,
-    description: 'Feature under an Epic',
-  },
-  {
     name: TYPE_LABELS.STORY,
     color: LABEL_COLORS.TYPE,
-    description: 'User story under a Feature',
+    description: 'User story under an Epic',
   },
 
   // Agent State
@@ -120,7 +115,7 @@ export const LABEL_TAXONOMY = [
     description: 'Acceptance Specification (Gherkin scenarios)',
   },
 
-  // Acceptance axis — explicit opt-out signal for Stories/Features that
+  // Acceptance axis — explicit opt-out signal for Stories that
   // intentionally have no acceptance-spec coverage.
   {
     name: ACCEPTANCE_LABELS.N_A,

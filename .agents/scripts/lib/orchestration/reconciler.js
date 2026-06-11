@@ -11,7 +11,7 @@ const AGENT_DONE_LABEL = STATE_LABELS.DONE;
 
 // Inlined parent-id parser. The reconciler only needs the direct parent
 // reference scraped from a ticket body's `parent: #N` trailer; pulling the
-// helper inline keeps reconciler.js self-contained for the 3-tier
+// helper inline keeps reconciler.js self-contained for the 2-tier
 // hierarchy walk (Stories → Features).
 const PARENT_ID_PATTERN = /^parent:\s*#(\d+)/m;
 
@@ -118,19 +118,12 @@ export async function reconcileHierarchy(
   const storyIds = allTickets
     .filter((t) => (t.labelSet ?? new Set(t.labels)).has(TYPE_LABELS.STORY))
     .map((t) => t.id);
-  const featureIds = allTickets
-    .filter((t) => (t.labelSet ?? new Set(t.labels)).has(TYPE_LABELS.FEATURE))
-    .map((t) => t.id);
 
-  // cap=4 — Stories are container leaves of this reconcile (their children
-  // are Tasks already settled by reconcileClosedTasks); independent close
-  // mutations can fan out without ordering. Features stay sequential because
-  // a Feature may parent another Feature, and bottom-up close depends on
-  // child-Feature state already being mutated in the same pass.
+  // cap=4 — Stories are the leaves of this reconcile; independent close
+  // mutations can fan out without ordering.
   await concurrentMap(storyIds, (id) => maybeClose(id, 'Story'), {
     concurrency: RECONCILE_CONCURRENCY,
   });
-  for (const id of featureIds) await maybeClose(id, 'Feature');
 
   // EXCLUSION: Epic auto-closure removed.
   // The Epic ticket now stays open until the formal /epic-deliver workflow is executed.

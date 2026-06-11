@@ -16,8 +16,8 @@ import { TYPE_LABELS } from '../../../label-constants.js';
 
 /**
  * Count open child tickets under the Epic without distinguishing by
- * type. Under the 3-tier hierarchy (Epic → Feature → Story), child
- * tickets are always Feature or Story.
+ * type. Under the 2-tier hierarchy (Epic → Story), child
+ * tickets are always Stories.
  */
 async function emitOpenChildrenDiagnostic(provider, epicId) {
   if (typeof provider.getSubTickets !== 'function') return;
@@ -27,7 +27,7 @@ async function emitOpenChildrenDiagnostic(provider, epicId) {
   // closed children) yields the same open-child count without paging
   // every issue in the repo.
   const existing = await provider.getSubTickets(epicId);
-  const childTypes = [TYPE_LABELS.FEATURE, TYPE_LABELS.STORY];
+  const childTypes = [TYPE_LABELS.STORY];
   const created = (existing || []).filter(
     (t) =>
       (t.labels || []).some((l) => childTypes.includes(l)) &&

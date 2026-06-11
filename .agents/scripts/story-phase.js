@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * story-phase.js — phase snapshot + heartbeat writer (3-tier).
+ * story-phase.js — phase snapshot + heartbeat writer (2-tier).
  *
  * Replaces the deleted per-Task progress writer from the 4-tier era
  * (removed under #3157). `/story-deliver` calls this CLI at each Story-

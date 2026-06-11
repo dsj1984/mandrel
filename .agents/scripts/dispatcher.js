@@ -77,7 +77,7 @@ import { loadSpec, loadState } from './lib/spec/index.js';
  * dispatcher-per-wave refresh loop and the local state.json never sees
  * the progress signal.
  *
- * Under the 3-tier hierarchy (Epic #3163) the runtime manifest's wave
+ * Under the 2-tier hierarchy (Epic #3163) the runtime manifest's wave
  * records carry `stories[]` (each with the live `storyId` + `status` from
  * `fetchEpicContext`'s GH query), not the retired `tasks[]` shape. The
  * overlay walks `manifest.waves[].stories[]` and copies each Story's

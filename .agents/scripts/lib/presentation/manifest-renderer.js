@@ -139,7 +139,7 @@ export async function postParkedFollowOnsComment(manifest, provider) {
 
   const storyManifest = manifest.storyManifest ?? [];
   const manifestStoryIds = storyManifest
-    .filter((s) => s.type !== 'feature' && s.storyId !== '__ungrouped__')
+    .filter((s) => s.storyId !== '__ungrouped__')
     .map((s) => Number(s.storyId))
     .filter((n) => Number.isFinite(n));
 

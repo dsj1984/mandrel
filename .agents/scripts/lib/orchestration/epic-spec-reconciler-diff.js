@@ -18,12 +18,12 @@
  *
  * @typedef {object} SpecInput
  *   The parsed YAML returned by `lib/spec/loader.js#loadSpec`. Shape is
- *   `{ epic: {...}, features: [{slug, stories: [...]}], gates?: {...} }`
+ *   `{ epic: {...}, stories: [...], gates?: {...} }`
  *   per `.agents/schemas/epic-spec.schema.json`.
  *
  * @typedef {object} StateMappingEntry
  * @property {number} issueNumber          GH issue number this slug maps to.
- * @property {string} entity               'epic'|'feature'|'story'|'task'.
+ * @property {string} entity               'epic'|'story'.
  * @property {string} [contentHash]        Content hash captured at last
  *                                         reconcile; absence forces an
  *                                         update when ghState carries
@@ -190,7 +190,7 @@ function normaliseBody(value) {
  * duplicate footer blocks and trailing `blocked by` lines are removed in
  * a single pass. Kept local to this module so the diff engine does not
  * depend on the Task-body renderer (Story #3185 / Epic #3163: the renderer
- * is going away with the 3-tier producer cutover).
+ * is going away with the 2-tier producer cutover).
  */
 const ORCHESTRATOR_FOOTER_RE = /\n?---[ \t]*\r?\n+parent:\s*#\d+[\s\S]*$/;
 
@@ -247,9 +247,8 @@ function renderFooter({ parentId, epicId, dependencies = [] }) {
  * `parent: #N` / `Epic: #M` / `blocked by #X` and breaking the cascade.
  *
  * Story #3185 — the footer compose/strip logic is inlined here rather
- * than reused from the legacy Task-body renderer module. Under the
- * 3-tier hierarchy (Epic → Feature → Story) that renderer is being
- * removed, so the diff engine carries its own footer shape. The shape
+ * than reused from the legacy Task-body renderer module. That renderer
+ * was removed, so the diff engine carries its own footer shape. The shape
  * is byte-identical to the legacy renderer's `parent: #<n>` /
  * `Epic: #<m>` / `blocked by #<x>` output so cascade-readers continue
  * to parse it unchanged.
@@ -413,9 +412,8 @@ function sortBySlug(ops) {
 
 /**
  * Walk the spec and yield one structural-entity record per visited
- * node. The walker is iterative-via-recursion but bounded by the spec's
- * nesting (epic → features → stories → tasks); the depth never exceeds
- * 4 so an explicit work-queue would just obscure the shape.
+ * node. The spec is 2-tier (epic → stories), so the walk is a single
+ * flat pass over `spec.stories` after the Epic record.
  *
  * @param {SpecInput} spec
  * @returns {Array<{
@@ -446,37 +444,17 @@ function flattenSpec(spec) {
   }
 
   const epicAnchor = spec.epic ? epicSlug(spec.epic) : null;
-  for (const feature of spec.features ?? []) {
+  for (const story of spec.stories ?? []) {
     out.push({
-      slug: feature.slug,
-      entity: ENTITY_KINDS.FEATURE,
-      title: String(feature.title ?? ''),
-      body: feature.body,
-      labels: feature.labels,
+      slug: story.slug,
+      entity: ENTITY_KINDS.STORY,
+      title: String(story.title ?? ''),
+      body: story.body,
+      labels: story.labels,
+      wave: story.wave,
       parentSlug: epicAnchor,
+      dependsOn: story.dependsOn ?? [],
     });
-    for (const story of feature.stories ?? []) {
-      out.push({
-        slug: story.slug,
-        entity: ENTITY_KINDS.STORY,
-        title: String(story.title ?? ''),
-        body: story.body,
-        labels: story.labels,
-        wave: story.wave,
-        parentSlug: feature.slug,
-        dependsOn: story.dependsOn ?? [],
-      });
-      for (const task of story.tasks ?? []) {
-        out.push({
-          slug: task.slug,
-          entity: ENTITY_KINDS.TASK,
-          title: String(task.title ?? ''),
-          body: task.body,
-          labels: task.labels,
-          parentSlug: story.slug,
-        });
-      }
-    }
   }
   return out;
 }
@@ -595,7 +573,7 @@ export function diff({ spec, state, ghState } = {}) {
     plan.closes.push(
       closeOp({
         slug,
-        entity: mapped.entity ?? ENTITY_KINDS.TASK,
+        entity: mapped.entity ?? ENTITY_KINDS.STORY,
         issueNumber: mapped.issueNumber,
         title: mapped.title,
       }),

@@ -14,32 +14,32 @@ describe('story-lifecycle', () => {
         'Some story description\n\n---\nparent: #42\nEpic: #7\n\nblocked by #5';
       assert.deepEqual(resolveStoryHierarchy(body), {
         epicId: 7,
-        featureId: 42,
+        parentId: 42,
       });
     });
 
     it('returns null for missing references', () => {
       assert.deepEqual(resolveStoryHierarchy('no refs here'), {
         epicId: null,
-        featureId: null,
+        parentId: null,
       });
     });
 
     it('handles undefined/null body gracefully', () => {
       assert.deepEqual(resolveStoryHierarchy(undefined), {
         epicId: null,
-        featureId: null,
+        parentId: null,
       });
       assert.deepEqual(resolveStoryHierarchy(null), {
         epicId: null,
-        featureId: null,
+        parentId: null,
       });
     });
 
     it('is case-insensitive for "Epic:" and "parent:"', () => {
       assert.deepEqual(resolveStoryHierarchy('EPIC: #1\nPARENT: #2'), {
         epicId: 1,
-        featureId: 2,
+        parentId: 2,
       });
     });
   });

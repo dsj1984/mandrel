@@ -2,14 +2,14 @@
  * phases/ticket-closure.js — post-merge ticket transition + cascade phase.
  *
  * Transitions the Story to `agent::done`, then runs cascade completion
- * so any parent Feature/Epic that is now fully resolved closes too.
+ * so any parent Epic-side rollup that is now fully resolved closes too.
  *
- * **3-tier closure (Story #3127).** Under the 3-tier hierarchy a Story
+ * **2-tier closure (Story #3127).** Under the 2-tier hierarchy a Story
  * is the leaf unit of execution and has no child tickets — `tasks`
  * arrives as an empty array. `batchTransitionTickets` handles the empty
  * input cleanly (the loop trivially completes), the Story is
  * transitioned alone, and cascade completion walks upward to
- * Feature/Epic. No branch on hierarchy mode is required here.
+ * parent. No branch on hierarchy mode is required here.
  *
  * Notifications are intentionally
  * NOT routed through the per-ticket transitions here — `notificationPhase`

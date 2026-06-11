@@ -10,7 +10,7 @@
  * (branch bootstrap, merge, cascade, notifications). Expanding this module to
  * cover those would over-abstract — they are genuinely different concerns.
  *
- * Under the 3-tier hierarchy (Epic #3078) Stories have no child tickets, so
+ * Under the 2-tier hierarchy (Epic #3078) Stories have no child tickets, so
  * `fetchChildTickets` typically returns `[]` — but the helper remains in
  * place so legacy callers still resolve the Story's direct children cleanly.
  */
@@ -24,7 +24,7 @@ import {
  * Parse the `Epic: #N` and `parent: #N` references from a Story body.
  *
  * @param {string} body  Raw Story body Markdown.
- * @returns {{ epicId: number|null, featureId: number|null }}
+ * @returns {{ epicId: number|null, parentId: number|null }}
  */
 export function resolveStoryHierarchy(body) {
   const source = body ?? '';
@@ -32,17 +32,17 @@ export function resolveStoryHierarchy(body) {
   const parentMatch = source.match(/(?:^\s*parent:\s*#(\d+))/im);
   return {
     epicId: epicMatch ? Number.parseInt(epicMatch[1], 10) : null,
-    featureId: parentMatch ? Number.parseInt(parentMatch[1], 10) : null,
+    parentId: parentMatch ? Number.parseInt(parentMatch[1], 10) : null,
   };
 }
 
 /**
  * Fetch the Story's direct child tickets via the provider.
  *
- * Under the 3-tier hierarchy (Epic #3078) Stories no longer enumerate
+ * Under the 2-tier hierarchy (Epic #3078) Stories no longer enumerate
  * child Task tickets — acceptance criteria and verification steps live
- * inline on the Story body, and decomposers emit only Epic / Feature /
- * Story issues. For those Stories this helper resolves to an empty
+ * inline on the Story body, and decomposers emit only Epic / Story
+ * issues. For those Stories this helper resolves to an empty
  * array because `provider.getSubTickets(storyId)` itself returns no
  * rows. The helper is retained as a thin pass-through so the three
  * orchestration callers (`story-init` prepare, `task-graph-builder`,
@@ -50,7 +50,7 @@ export function resolveStoryHierarchy(body) {
  * hydration that is easy to mock in tests and to instrument in the
  * provider layer.
  *
- * Legacy ticket trees that were planned before the 3-tier cutover may
+ * Legacy ticket trees that were planned before the 2-tier cutover may
  * still carry sub-tickets (PRD/Tech-Spec links recorded as direct
  * children, for example). The helper deliberately does **not** filter
  * those out — the caller is responsible for classifying anything that
@@ -59,7 +59,7 @@ export function resolveStoryHierarchy(body) {
  *
  * @param {object} provider  ITicketingProvider instance.
  * @param {number} storyId   Story ticket number to hydrate children for.
- * @returns {Promise<object[]>} Array of child tickets (empty under 3-tier).
+ * @returns {Promise<object[]>} Array of child tickets (empty under 2-tier).
  */
 export async function fetchChildTickets(provider, storyId) {
   return provider.getSubTickets(storyId);

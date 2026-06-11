@@ -1,7 +1,7 @@
 /**
  * Story body schema validator (v5.33+).
  *
- * Enforces the four-section structured body shape on 3-tier Stories emitted
+ * Enforces the four-section structured body shape on 2-tier Stories emitted
  * by the decomposer. The canonical decomposition serializes every Story
  * `body` to a **markdown string** via `serialize()` from
  * `lib/story-body/story-body.js` (the decompose-author skill mandates this,
@@ -17,7 +17,7 @@
  *
  * Only `type: 'story'` tickets are validated; Feature/Epic tickets and
  * null/empty bodies pass through. There is no `type::task` ticket layer in
- * the 3-tier hierarchy (Epic → Feature → Story).
+ * the 2-tier hierarchy (Epic → Story).
  *
  * Required after parse/normalize: a non-empty `goal`, and non-empty
  * `changes`, `acceptance`, and `verify` arrays — and `changes` items must
@@ -110,7 +110,7 @@ function vagueVerbWithoutTarget(bullet) {
  *   - it has no body (null / undefined / empty-or-whitespace string — there
  *     is nothing to inspect).
  *
- * Under the 3-tier hierarchy (Epic → Feature → Story), Stories carry the
+ * Under the 2-tier hierarchy (Epic → Story), Stories carry the
  * implementation scope inline. A canonical decomposition serializes the
  * Story body to a markdown string, so a *string* body is NOT skipped here
  * (Story #3906) — `validateTaskBodyShape` parses it back into structured
@@ -127,7 +127,7 @@ function vagueVerbWithoutTarget(bullet) {
  */
 function shouldSkipTicket(ticket) {
   if (!ticket) return true;
-  // Only Stories carry an inline implementation contract in the 3-tier
+  // Only Stories carry an inline implementation contract in the 2-tier
   // world. Features (and everything else) use narrative bodies.
   if (ticket.type !== 'story') return true;
   const body = ticket.body;
@@ -197,7 +197,7 @@ export function validateTaskBodyShape(ticket) {
   }
   errors.push(...collectChangesErrors(prefix, body.changes));
   errors.push(...collectAcceptanceErrors(prefix, body.acceptance));
-  // Tier-suffix validation is always enforced on Story bodies (3-tier world).
+  // Tier-suffix validation is always enforced on Story bodies (2-tier world).
   errors.push(...collectVerifyErrors(prefix, body.verify));
   errors.push(...collectReferencesErrors(prefix, body.references));
   return errors;
@@ -359,7 +359,7 @@ function collectVerifyErrors(prefix, rawVerify) {
 }
 
 /**
- * Validate every 3-tier Story in `tickets` whose `body` is a structured
+ * Validate every 2-tier Story in `tickets` whose `body` is a structured
  * object. Returns an array of error strings (one per offending slug); empty
  * array means clean.
  *

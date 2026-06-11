@@ -66,8 +66,8 @@ export async function runSnapshotPhase(ctx, collaborators, state) {
 /**
  * Enumerate the Story IDs owned by an Epic. Delegates to
  * `discoverOpenStories` so the snapshot.end payload and the wave DAG
- * input set never disagree — both now walk Epic → Feature → Story and
- * exclude closed reverse-referenced tickets.
+ * input set never disagree — both enumerate the Epic's direct Story
+ * children and exclude closed reverse-referenced tickets.
  *
  * Returns a sorted array of positive integers (sort order makes the
  * ledger record deterministic across runs and platform iteration

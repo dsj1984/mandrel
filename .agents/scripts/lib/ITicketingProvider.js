@@ -154,7 +154,7 @@ export class ITicketingProvider {
   /**
    * Create a child ticket within an Epic's structural hierarchy.
    *
-   * @param {number} parentId - GitHub Issue number of the immediate structural parent (e.g. Epic, Feature, or Story).
+   * @param {number} parentId - GitHub Issue number of the immediate structural parent (e.g. Epic or Story).
    * @param {{
    *   epicId: number,
    *   title: string,

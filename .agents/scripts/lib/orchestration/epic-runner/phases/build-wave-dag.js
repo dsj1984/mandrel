@@ -2,13 +2,9 @@
  * Build the wave DAG from the Epic's open child Stories.
  *
  * `getSubTickets` returns the **direct** children of a parent ticket via
- * native sub-issues + checklist links + body reverse-lookup (despite an
- * older docstring claiming "every descendant"). The v5 canonical Epic
- * hierarchy is Epic → Feature → Story → Task, so Stories live as
- * **grandchildren** of the Epic. We therefore walk one level deeper from
- * each `type::feature` direct child to collect the real Story set, and
- * union with any direct-child Stories (some Epics still carry Stories
- * directly while migrating).
+ * native sub-issues + checklist links + body reverse-lookup. The
+ * canonical 2-tier hierarchy is Epic → Story, so the Epic's direct
+ * `type::story` children are the complete Story set.
  *
  * We additionally filter out closed Stories — `getSubTickets`'s reverse-
  * reference search can surface closed-as-obsolete tickets whose body
@@ -25,8 +21,8 @@ import { buildStoryAdjacency } from '../../../story-adjacency.js';
 import { WaveScheduler } from '../wave-scheduler.js';
 
 /**
- * Walk Epic → Feature → Story (one descent past the Epic's direct
- * children) and return the open `type::story` tickets, deduped by id.
+ * Collect the Epic's direct `type::story` children and return the open
+ * ones, deduped by id.
  *
  * Exported so `snapshot.js#discoverStoryIds` and `epic-deliver-preflight`
  * can share the same enumeration contract — the snapshot.end payload,
@@ -34,20 +30,9 @@ import { WaveScheduler } from '../wave-scheduler.js';
  */
 export async function discoverOpenStories({ epicId, provider }) {
   const descendants = (await provider.getSubTickets(epicId)) ?? [];
-  const features = descendants.filter((t) =>
-    (t.labels ?? []).includes(TYPE_LABELS.FEATURE),
-  );
-  const grandchildren = (
-    await Promise.all(
-      features.map(async (f) => {
-        const id = f.id ?? f.number;
-        return id == null ? [] : ((await provider.getSubTickets(id)) ?? []);
-      }),
-    )
-  ).flat();
   const seen = new Set();
   const stories = [];
-  for (const t of [...descendants, ...grandchildren]) {
+  for (const t of descendants) {
     const labels = t.labels ?? [];
     if (!labels.includes(TYPE_LABELS.STORY)) continue;
     const rawState = t.state ?? 'open';

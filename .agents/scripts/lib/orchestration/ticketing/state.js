@@ -66,13 +66,13 @@ registerCascadeRunner(async (provider, ticketId, opts) => {
 /**
  * Transition a Story ticket directly to a new `agent::*` state without
  * walking a Task cascade. Story #3097 (Wave-0 additive, Epic #3078
- * Strategy B) — in the 3-tier hierarchy a Story has no Task children, so
+ * Strategy B) — in the 2-tier hierarchy a Story has no Task children, so
  * the canonical `transitionTicketState` upward-cascade path
  * (`cascadeParentState`) is the only meaningful walk. This helper is a
- * thin wrapper that pins `cascade: true` (so the parent Feature/Epic
+ * thin wrapper that pins `cascade: true` (so the parent Epic
  * still receives derived-state updates) and is intentionally a no-op
  * difference from `transitionTicketState` in 4-tier mode — the helper
- * exists so 3-tier callers can opt into a name that documents intent
+ * exists so 2-tier callers can opt into a name that documents intent
  * (and so F8 can pivot the implementation to skip the now-impossible
  * Task-fan-in without rewriting call sites). The wrapper preserves every
  * `opts` field the caller supplies; only `cascade` defaults to `true`

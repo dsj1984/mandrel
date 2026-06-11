@@ -268,8 +268,8 @@ export const _structuredCommentCache = new WeakMap();
 /**
  * Build a well-formed ticket snapshot for a Story that has zero child
  * Tasks. Story #3097 (Wave-0 additive, Epic #3078 Strategy B) — the
- * 3-tier hierarchy collapses Epic → Feature → Story → Task into
- * Epic → Feature → Story, so a Story may legitimately have no Task
+ * 2-tier hierarchy collapses Epic → Story → Task into
+ * Epic → Story, so a Story may legitimately have no Task
  * children. Read-side callers that expect a `subTickets` array on the
  * Story can route through this helper to materialise an empty-children
  * snapshot without paying a provider round-trip and without risk of

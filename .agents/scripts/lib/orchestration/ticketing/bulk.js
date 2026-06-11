@@ -305,13 +305,6 @@ async function processCascadeParentLocked(
     // defense-in-depth path when a Story's tasklist references a
     // planning ticket directly.
     //
-    // Features auto-close via cascade. A Feature is a purely
-    // hierarchical grouping — no standalone branch, no merge step.
-    // When its last child Story closes, the Feature is complete by
-    // definition. Operators who need Feature-level AC verification
-    // should encode it in the final child Story, not rely on a manual
-    // close step.
-    //
     // Reuse the parentSnapshot from the idempotency check above — it is
     // a fresh read (cache was invalidated before the getTicket call) and
     // the parent's type label is invariant within a single cascade lock
@@ -371,7 +364,7 @@ async function processCascadeParentLocked(
  * If yes, transitions parent to DONE and cascades up.
  *
  * Parents run strictly sequentially in input order (Story #4017 —
- * fan-out is <= 1 under the 3-tier hierarchy, so the former
+ * fan-out is <= 1 under the 2-tier hierarchy, so the former
  * shared-ancestor grouping / parallel dispatch was deleted); concurrent
  * transitions against a shared ancestor would race the "all children
  * done?" check. Within each parent, sibling reads fan out via
@@ -415,7 +408,7 @@ export async function cascadeCompletion(provider, ticketId, opts = {}) {
   // resume reconciler can strip the `parent: #N` orchestrator footer
   // from a Story body (see Issue 2 in #2982); without the body marker
   // the cascade silently returned `{ cascadedTo: [], failed: [] }` and
-  // left intermediate Feature tickets stranded OPEN. The native link is
+  // left intermediate parent tickets stranded OPEN. The native link is
   // independent of body text, so consult it when the first two
   // strategies came back empty.
   if (
@@ -442,7 +435,7 @@ export async function cascadeCompletion(provider, ticketId, opts = {}) {
     return { cascadedTo: [], failed: [] };
   }
 
-  // Story #4017 — under the 3-tier hierarchy a ticket has at most one
+  // Story #4017 — under the 2-tier hierarchy a ticket has at most one
   // parent, so the shared-ancestor grouping / parallel-group dispatch
   // machinery was deleted. Parents (fan-out <= 1
   // in practice; the loop stays general for the body-reference fallback)
@@ -557,7 +550,7 @@ export async function cascadeParentState(provider, ticketId, opts = {}) {
   if (parsedParents.length === 0) return { cascadedTo: [], failed: [] };
 
   // Story #4017 — sequential per-parent walk (fan-out <= 1 under the
-  // 3-tier hierarchy); see cascadeCompletion for the rationale.
+  // 2-tier hierarchy); see cascadeCompletion for the rationale.
   const cascadedTo = [];
   const failed = [];
   for (const parentId of parsedParents) {

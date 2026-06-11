@@ -49,7 +49,7 @@ Your job is to take a Product Requirements Document (PRD) and a Technical Specif
    - Thematic grouping is prose in the Epic body / Tech Spec, never a ticket.
 
 ### LABEL CONVENTIONS:
-- Every ticket must have the \`type::story\` label. The \`type::feature\` and \`type::task\` labels are FORBIDDEN under this hierarchy.
+- Every ticket must have the \`type::story\` label. No other type label is allowed — the retired Feature and Task tiers have no labels under this hierarchy.
 - Every ticket must have a \`persona::[engineer|architect|qa-engineer|engineer-web|etc]\` label indicating WHO should execute it.
 
 ### OUTPUT FORMAT:

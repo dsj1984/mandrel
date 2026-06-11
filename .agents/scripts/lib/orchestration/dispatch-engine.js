@@ -4,8 +4,8 @@
  * Thin facade composing:
  *   - `dispatch-pipeline.js` — internal resolve/fetch/reconcile/graph helpers
  *
- * Every Epic is 3-tier (Epic → Feature → Story); `dispatch()` computes a
- * Story-level wave plan and emits a 3-tier manifest. The legacy Task-tier
+ * Every Epic is 2-tier (Epic → Story); `dispatch()` computes a
+ * Story-level wave plan and emits a 2-tier manifest. The legacy Task-tier
  * dispatch runtime (Task fetcher, single-Story executor, the per-Task
  * wave fan-out, and the Epic-completion detector) was removed in Epic
  * #3163.
@@ -20,7 +20,7 @@ import { createProvider } from '../provider-factory.js';
 import {
   buildStoryDispatchGraph,
   fetchEpicContext,
-  isThreeTierDispatch,
+  isTwoTierDispatch,
   reconcileEpicState,
   resolveDispatchContext,
 } from './dispatch-pipeline.js';
@@ -60,12 +60,11 @@ export async function resolveAndDispatch(options) {
 
   const isStory = labels.includes(TYPE_LABELS.STORY);
   const isEpic = labels.includes(TYPE_LABELS.EPIC);
-  const isFeature = labels.includes(TYPE_LABELS.FEATURE);
 
   if (isStory) {
     throw new Error(
       `[Dispatcher] Ticket #${ticketId} is a **Story**. Stories are dispatched ` +
-        'through the 3-tier Story path, not directly via the dispatcher. ' +
+        'through the Story delivery path, not directly via the dispatcher. ' +
         `Run \`/story-deliver ${ticketId}\` to execute this Story, ` +
         `or dispatch its parent Epic with \`/epic-deliver #<epicId>\`.`,
     );
@@ -73,14 +72,6 @@ export async function resolveAndDispatch(options) {
 
   if (isEpic) {
     return dispatch({ epicId: ticketId, dryRun, provider });
-  }
-
-  if (isFeature) {
-    throw new Error(
-      `[Dispatcher] Ticket #${ticketId} is a **Feature**. Features are containers and cannot be executed directly. ` +
-        `Please execute individual Stories within this Feature using \`/epic-deliver #[Story ID]\`, ` +
-        `or dispatch the entire Epic using \`/epic-deliver #${ticket.body?.match(/^parent:\s*#(\d+)/m)?.[1] || 'ID'}\`.`,
-    );
   }
 
   const typeLabel = labels.find((l) => l.startsWith('type::')) || 'unknown';
@@ -102,15 +93,15 @@ export async function dispatch(options) {
   const fetched = await fetchEpicContext(ctx);
   await reconcileEpicState(ctx, fetched);
 
-  // Every Epic is 3-tier (Epic → Feature → Story). Compute Story-level
-  // waves directly from the Story tickets and emit a 3-tier-shaped
+  // Every Epic is 2-tier (Epic → Story). Compute Story-level
+  // waves directly from the Story tickets and emit a 2-tier-shaped
   // manifest with `waves[].stories[]` so downstream consumers (manifest
   // renderer, /epic-deliver wave planner) see the correct execution plan.
   // Per-Story execution is owned by `/story-deliver` (story-init →
   // story-close), not by this dispatcher.
-  if (isThreeTierDispatch(fetched.allTickets)) {
+  if (isTwoTierDispatch(fetched.allTickets)) {
     Logger.info(
-      'Detected 3-tier hierarchy — computing Story-level execution waves.',
+      'Detected 2-tier hierarchy — computing Story-level execution waves.',
     );
     const { allWaves: storyWaves } = buildStoryDispatchGraph(
       fetched.allTickets,
@@ -123,7 +114,7 @@ export async function dispatch(options) {
       waves: storyWaves,
       dispatched: [],
       dryRun,
-      hierarchy: '3-tier',
+      hierarchy: '2-tier',
     });
   }
 
@@ -139,6 +130,6 @@ export async function dispatch(options) {
     waves: [],
     dispatched: [],
     dryRun,
-    hierarchy: '3-tier',
+    hierarchy: '2-tier',
   });
 }

@@ -6,8 +6,8 @@ import { assignLayers, detectCycle } from '../Graph.js';
  *
  * Sources of story dependencies:
  *   1. **Implicit (cross-story tasks)**: Task T in Story A depends on Task T'
- *      in Story B → Story A depends on Story B. Under the 3-tier hierarchy
- *      (Epic → Feature → Story) Stories carry no child Tasks, so this source
+ *      in Story B → Story A depends on Story B. Under the 2-tier hierarchy
+ *      (Epic → Story) Stories carry no child Tasks, so this source
  *      is empty in practice; it is retained for callers that adapt a
  *      task-bearing shape into `storyGroups`.
  *   2. **Explicit (story body)**: Story A body contains `blocked by #B` →
@@ -18,7 +18,7 @@ import { assignLayers, detectCycle } from '../Graph.js';
  * > **Focus-overlap engine removed (Story #3906).** A third source — a
  * > focus-area overlap engine that rolled task-level `focusAreas` / `scope`
  * > up to the Story level and serialized "overlapping" Stories — was deleted
- * > because Task deletion in the 3-tier migration left every Story's task
+ * > because Task deletion in the 2-tier migration left every Story's task
  * > list empty, so the rollup produced empty focus bags and the engine added
  * > **zero** edges on every real plan. It advertised file-contention
  * > serialization it never delivered. Cross-Story prerequisites are carried

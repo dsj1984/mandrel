@@ -76,7 +76,6 @@ export function isValidTransition(fromState, toState) {
 
 export const TYPE_LABELS = {
   EPIC: 'type::epic',
-  FEATURE: 'type::feature',
   STORY: 'type::story',
 };
 
@@ -104,7 +103,7 @@ export const CONTEXT_LABELS = {
 export const CONTEXT_ACCEPTANCE_SPEC = CONTEXT_LABELS.ACCEPTANCE_SPEC;
 
 /**
- * Acceptance-axis labels for opt-out signalling on Stories and Features that
+ * Acceptance-axis labels for opt-out signalling on Stories that
  * intentionally have no acceptance-spec coverage. Separate namespace from
  * `context::` because it expresses absence rather than a linked context
  * ticket.
