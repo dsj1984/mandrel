@@ -31,6 +31,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { parseProviderFindings } from './parse-findings.js';
 import { renderDepthDirective } from './review-depth.js';
 
 /**
@@ -173,66 +174,10 @@ export function mapCodexSeverity(raw) {
  * @throws {Error} when stdout is not parseable JSON.
  */
 export function parseCodexFindings(rawStdout) {
-  const text = (rawStdout ?? '').trim();
-  if (text.length === 0) return [];
-
-  let parsed;
-  try {
-    parsed = JSON.parse(text);
-  } catch (err) {
-    throw new Error(
-      `[codex-review] Failed to parse /codex:review stdout as JSON: ${
-        err?.message ?? err
-      }`,
-    );
-  }
-
-  // Unwrap a single layer of envelope when present.
-  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-    if (Array.isArray(parsed.findings)) parsed = parsed.findings;
-    else if (parsed.result !== undefined) parsed = parsed.result;
-    else if (parsed.data !== undefined) parsed = parsed.data;
-  }
-  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-    if (Array.isArray(parsed.findings)) parsed = parsed.findings;
-  }
-
-  if (!Array.isArray(parsed)) return [];
-
-  /** @type {Finding[]} */
-  const findings = [];
-  for (const entry of parsed) {
-    if (!entry || typeof entry !== 'object') continue;
-    const title =
-      typeof entry.title === 'string' && entry.title.trim().length > 0
-        ? entry.title.trim()
-        : null;
-    const body =
-      typeof entry.body === 'string' && entry.body.trim().length > 0
-        ? entry.body
-        : typeof entry.message === 'string' && entry.message.trim().length > 0
-          ? entry.message
-          : null;
-    if (!title || !body) continue;
-
-    /** @type {Finding} */
-    const finding = {
-      severity: mapCodexSeverity(entry.severity),
-      title,
-      body,
-    };
-    if (typeof entry.file === 'string' && entry.file.length > 0) {
-      finding.file = entry.file;
-    }
-    if (Number.isInteger(entry.line) && entry.line > 0) {
-      finding.line = entry.line;
-    }
-    if (typeof entry.category === 'string' && entry.category.length > 0) {
-      finding.category = entry.category;
-    }
-    findings.push(finding);
-  }
-  return findings;
+  return parseProviderFindings(rawStdout, {
+    errorPrefix: '[codex-review] Failed to parse /codex:review stdout as JSON',
+    mapSeverity: mapCodexSeverity,
+  });
 }
 
 /**
