@@ -131,7 +131,7 @@ async function captureProviderDepth(planningRisk, changedFileCount = null) {
   const captured = {};
   const bus = { emit: async () => {} };
   await runCodeReview({
-    epicId: 100,
+    ticketId: 100,
     provider: {},
     bus,
     planningRisk,
@@ -279,7 +279,7 @@ test('consumer: an omitted depth still renders the standard marker (no silent dr
 test('absent planningRisk yields a passing review run (status ok, standard depth)', async () => {
   const captured = {};
   const result = await runCodeReview({
-    epicId: 100,
+    ticketId: 100,
     provider: {},
     bus: { emit: async () => {} },
     // no planningRisk at all

@@ -21,7 +21,7 @@ export async function notificationPhase(ctx, state) {
     storyId,
     story,
     epicBranch,
-    orchestration,
+    config,
     progress,
     provider,
     notifyFn = notify,
@@ -39,7 +39,7 @@ export async function notificationPhase(ctx, state) {
       level: 'story',
       epicId,
     },
-    { orchestration },
+    { config },
   );
   // Fire a rolled-up `epic-progress` webhook so operators see the Epic's
   // overall stories-done count tick up at each story-close, without
@@ -66,7 +66,7 @@ export async function notificationPhase(ctx, state) {
           level: 'epic',
           epicId,
         },
-        { orchestration, skipComment: true },
+        { config, skipComment: true },
       );
     } catch (err) {
       logger?.warn?.(

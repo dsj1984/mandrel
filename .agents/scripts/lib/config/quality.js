@@ -121,7 +121,7 @@ export const MAINTAINABILITY_GATE_DEFAULTS = Object.freeze({
  * --write` autofix spawn. The SIGKILL → exit 124 mapping mirrors
  * `gates.coverage.timeoutMs` (Story #2142).
  */
-export const FORMAT_AUTOFIX_DEFAULTS = Object.freeze({
+const FORMAT_AUTOFIX_DEFAULTS = Object.freeze({
   timeoutMs: 60_000,
 });
 
@@ -259,7 +259,7 @@ export function resolveMaintainabilityCrap(
  * `targetDirs` + a scalar `tolerance` (when set) + scoping inherited
  * from `gateScoping`.
  */
-export function resolveMaintainabilityQuality(userBlock, gateScoping) {
+function resolveMaintainabilityQuality(userBlock, gateScoping) {
   const defaults = MAINTAINABILITY_GATE_DEFAULTS;
   const scoping = {
     defaultScope: gateScoping?.scope ?? DEFAULT_GATE_SCOPING.scope,
@@ -321,7 +321,7 @@ function resolvePositiveIntegerMs(value, defaultMs) {
  */
 const FORMAT_AUTOFIX_KEYS = new Set(['timeoutMs']);
 
-export function resolveFormatAutofix(userBlock) {
+function resolveFormatAutofix(userBlock) {
   const defaults = FORMAT_AUTOFIX_DEFAULTS;
   if (userBlock == null || typeof userBlock !== 'object') {
     return { timeoutMs: defaults.timeoutMs };
@@ -336,7 +336,7 @@ export function resolveFormatAutofix(userBlock) {
 }
 
 /** Resolve the coverage gate. Owns `coveragePath` and `timeoutMs`. */
-export function resolveCoverageGate(userBlock) {
+function resolveCoverageGate(userBlock) {
   const defaults = COVERAGE_GATE_DEFAULTS;
   if (userBlock == null || typeof userBlock !== 'object') {
     return {
@@ -402,7 +402,7 @@ export function resolveCodingGuardrails(userBlock) {
   };
 }
 
-export const AUTO_REFRESH_DEFAULTS = Object.freeze({
+const AUTO_REFRESH_DEFAULTS = Object.freeze({
   enabled: true,
   miDropCap: 1.5,
   crapJumpCap: 5,
@@ -411,7 +411,7 @@ export const AUTO_REFRESH_DEFAULTS = Object.freeze({
 
 const AUTO_REFRESH_KEYS = new Set(Object.keys(AUTO_REFRESH_DEFAULTS));
 
-export function resolveAutoRefresh(userBlock) {
+function resolveAutoRefresh(userBlock) {
   const defaults = AUTO_REFRESH_DEFAULTS;
   if (userBlock == null || typeof userBlock !== 'object') {
     return {
