@@ -100,7 +100,6 @@ export function phaseToState(phase) {
  *     storyId: number,
  *     branch?: string,
  *     phase: 'init'|'implementing'|'closing'|'blocked'|'done',
- *     tasks?: [{ id, title?, state, commitSha? }],
  *     title?: string,
  *     updatedAt?: string,
  *   }
@@ -109,16 +108,11 @@ export function parseStoryRunProgressComment(comment) {
   const payload = parseFencedJsonComment(comment);
   if (!payload || typeof payload !== 'object') return null;
   const phase = typeof payload.phase === 'string' ? payload.phase : undefined;
-  const tasks = Array.isArray(payload.tasks) ? payload.tasks : [];
-  const tasksTotal = tasks.length;
-  const tasksDone = tasks.filter((t) => t && t.state === 'done').length;
   return {
     storyId: Number(payload.storyId),
     title: typeof payload.title === 'string' ? payload.title : '',
     phase,
     state: phaseToState(phase),
-    tasksDone,
-    tasksTotal,
   };
 }
 

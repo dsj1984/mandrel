@@ -119,6 +119,80 @@ export function selectInstallCommand(strategy, wtPath, fsLike = fs) {
   return { cmd: 'npm', args: ['ci'] };
 }
 
+/**
+ * Per-package-manager "install completed" marker files written into
+ * `node_modules/` by the install command itself. Their presence (and
+ * freshness relative to the lockfile) is the cheapest reliable signal that a
+ * prior install ran to completion — a failed/interrupted install leaves
+ * `node_modules` partially populated without (or with a stale) marker.
+ */
+const INSTALL_MARKERS = [
+  '.package-lock.json', // npm ci / npm install
+  '.modules.yaml', // pnpm
+  '.yarn-state.yml', // yarn berry (node-modules linker)
+  '.yarn-integrity', // yarn classic
+];
+
+const LOCKFILES = ['package-lock.json', 'pnpm-lock.yaml', 'yarn.lock'];
+
+function safeMtimeMs(fsLike, p) {
+  try {
+    return fsLike.statSync(p).mtimeMs;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Pure: probe whether a **reused** worktree already carries a completed,
+ * up-to-date install. Worktree reuse must not blindly report
+ * `skipped/worktree-reused` — when the prior run's install *failed*, that
+ * status defeats the install retry exactly when it matters
+ * (`deriveInstallAction('skipped')` treats it as "nothing to do").
+ *
+ * Returns the same shape as `installDependencies`:
+ *   - `{ status: 'skipped', reason: 'worktree-reused' }` — a completed
+ *     install was detected (or the strategy never installs per-tree);
+ *     safe to skip.
+ *   - `{ status: 'failed', reason }` — missing/incomplete/stale install
+ *     detected; callers should retry the install.
+ *
+ * @param {string} strategy One of `per-worktree | pnpm-store | symlink`.
+ * @param {string} wtPath Absolute worktree path.
+ * @param {{ existsSync: Function, statSync: Function }} [fsLike] Injectable for tests.
+ * @returns {{ status: 'skipped' | 'failed', reason: string }}
+ */
+export function probeReusedInstall(strategy, wtPath, fsLike = fs) {
+  // `symlink` re-points node_modules at a donor — no per-tree install to probe.
+  if (strategy === 'symlink') {
+    return { status: 'skipped', reason: 'worktree-reused' };
+  }
+  if (!fsLike.existsSync(path.join(wtPath, 'package.json'))) {
+    return { status: 'skipped', reason: 'no-package-json' };
+  }
+  const nmPath = path.join(wtPath, 'node_modules');
+  if (!fsLike.existsSync(nmPath)) {
+    return { status: 'failed', reason: 'reuse-node-modules-missing' };
+  }
+  const marker = INSTALL_MARKERS.map((m) => path.join(nmPath, m)).find((p) =>
+    fsLike.existsSync(p),
+  );
+  if (!marker) {
+    return { status: 'failed', reason: 'reuse-install-incomplete' };
+  }
+  const markerMtime = safeMtimeMs(fsLike, marker);
+  const lockfile = LOCKFILES.map((l) => path.join(wtPath, l)).find((p) =>
+    fsLike.existsSync(p),
+  );
+  if (lockfile && markerMtime !== null) {
+    const lockMtime = safeMtimeMs(fsLike, lockfile);
+    if (lockMtime !== null && lockMtime > markerMtime) {
+      return { status: 'failed', reason: 'reuse-node-modules-stale' };
+    }
+  }
+  return { status: 'skipped', reason: 'worktree-reused' };
+}
+
 /** Pure: retry policy keyed off the chosen command. pnpm gets 3× + 5min. */
 export function installRetryPolicy(cmd) {
   const isPnpm = cmd === 'pnpm';
