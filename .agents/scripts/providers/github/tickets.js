@@ -21,8 +21,8 @@
  * @see Story #2462 — Split GitHubProvider god class into seven composed gateways.
  */
 
-import { Logger } from '../../lib/Logger.js';
 import { parseBlockedBy, parseBlocks } from '../../lib/dependency-parser.js';
+import { Logger } from '../../lib/Logger.js';
 import { addIssueToBoard } from './board-add.js';
 import { createInlineTicketCache } from './cache.js';
 import { withTransientRetry } from './errors.js';
