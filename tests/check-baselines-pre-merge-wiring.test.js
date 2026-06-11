@@ -13,10 +13,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import {
-  buildDefaultGates,
-  runCloseValidation,
-} from '../.agents/scripts/lib/close-validation.js';
+import { buildDefaultGates } from '../.agents/scripts/lib/close-validation/gates.js';
+import { runCloseValidation } from '../.agents/scripts/lib/close-validation/runner.js';
 
 describe('pre-merge gate chain — Task #1917 contract', () => {
   it('buildDefaultGates includes the unified check-baselines gate', () => {

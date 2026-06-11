@@ -277,7 +277,7 @@ duplication on the files the Story already touched:
   must be reverted.
 - **Advisory, not a gate.** This stage does **not** introduce a new
   close-validation gate and does **not** change the semantics of the existing
-  [close-validation](../scripts/lib/close-validation.js) chain (typecheck,
+  [close-validation](../scripts/lib/close-validation/runner.js) chain (typecheck,
   lint, test, format, maintainability, coverage, crap). The canonical gates
   remain the single source of pass/fail at close; the refactor stage only adds
   an extra behaviour-preserving cleanup commit when enabled.

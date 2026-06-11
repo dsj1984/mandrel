@@ -22,10 +22,8 @@
  * that mock the upstream module URLs.
  */
 
-import {
-  buildDefaultGates as defaultBuildDefaultGates,
-  runCloseValidation as defaultRunCloseValidation,
-} from '../../../close-validation.js';
+import { buildDefaultGates as defaultBuildDefaultGates } from '../../../close-validation/gates.js';
+import { runCloseValidation as defaultRunCloseValidation } from '../../../close-validation/runner.js';
 import { Logger } from '../../../Logger.js';
 
 /**

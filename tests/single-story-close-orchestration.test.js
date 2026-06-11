@@ -18,7 +18,7 @@
  * Notes on mocking strategy:
  *   - We mock `node:child_process` (for `execFileSync` calls inside
  *     `ensurePullRequest`) and the SUT's internal dependencies
- *     (`./lib/git-utils.js`, `./lib/close-validation.js`,
+ *     (`./lib/git-utils.js`, `./lib/close-validation/` modules,
  *     `./lib/worktree-manager.js`). Each test re-imports the SUT with a
  *     cache-busting query string so it picks up its own mocks. The
  *     `childProcessMock` helper spreads the real builtin's exports so
@@ -42,9 +42,28 @@ const SUT_URL = pathToFileURL(
 const GIT_UTILS_URL = pathToFileURL(
   path.resolve(REPO_ROOT, '.agents/scripts/lib/git-utils.js'),
 ).href;
-const CLOSE_VALIDATION_URL = pathToFileURL(
-  path.resolve(REPO_ROOT, '.agents/scripts/lib/close-validation.js'),
+const CLOSE_VALIDATION_GATES_URL = pathToFileURL(
+  path.resolve(REPO_ROOT, '.agents/scripts/lib/close-validation/gates.js'),
 ).href;
+const CLOSE_VALIDATION_RUNNER_URL = pathToFileURL(
+  path.resolve(REPO_ROOT, '.agents/scripts/lib/close-validation/runner.js'),
+).href;
+
+/**
+ * Apply a close-validation mock across the split modules (Story #3994):
+ * `buildDefaultGates` now lives in `close-validation/gates.js` and
+ * `runCloseValidation` in `close-validation/runner.js`, so a single
+ * legacy-shaped `{ namedExports }` bag is fanned out to both URLs.
+ */
+function mockCloseValidation(t, { namedExports }) {
+  const { buildDefaultGates, runCloseValidation } = namedExports;
+  t.mock.module(CLOSE_VALIDATION_GATES_URL, {
+    namedExports: { buildDefaultGates },
+  });
+  t.mock.module(CLOSE_VALIDATION_RUNNER_URL, {
+    namedExports: { runCloseValidation },
+  });
+}
 const WORKTREE_MANAGER_URL = pathToFileURL(
   path.resolve(REPO_ROOT, '.agents/scripts/lib/worktree-manager.js'),
 ).href;
@@ -362,7 +381,7 @@ describe('runSingleStoryClose orchestration', () => {
         },
       },
     });
-    t.mock.module(CLOSE_VALIDATION_URL, defaultCloseValidationMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
     t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
 
     const { runSingleStoryClose } = await import(`${SUT_URL}?t=happy`);
@@ -432,7 +451,7 @@ describe('runSingleStoryClose orchestration', () => {
       throw new Error('gh must not be invoked when noop');
     });
     t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
-    t.mock.module(CLOSE_VALIDATION_URL, defaultCloseValidationMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
     t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
 
     const { runSingleStoryClose } = await import(`${SUT_URL}?t=noop`);
@@ -473,7 +492,7 @@ describe('runSingleStoryClose orchestration', () => {
       throw new Error(`gh merge must not run with --no-auto-merge`);
     });
     t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
-    t.mock.module(CLOSE_VALIDATION_URL, defaultCloseValidationMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
     t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
 
     const { runSingleStoryClose } = await import(`${SUT_URL}?t=no-auto-merge`);
@@ -511,7 +530,7 @@ describe('runSingleStoryClose orchestration', () => {
       throw new Error('merge must not run when PR number is unparseable');
     });
     t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
-    t.mock.module(CLOSE_VALIDATION_URL, defaultCloseValidationMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
     t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
 
     const { runSingleStoryClose } = await import(`${SUT_URL}?t=unparseable`);
@@ -548,7 +567,7 @@ describe('runSingleStoryClose orchestration', () => {
       throw new Error('unreachable');
     });
     t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
-    t.mock.module(CLOSE_VALIDATION_URL, defaultCloseValidationMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
     t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
 
     const { runSingleStoryClose } = await import(`${SUT_URL}?t=auto-fail`);
@@ -573,9 +592,9 @@ describe('runSingleStoryClose orchestration', () => {
   it('runs the validation gate when skipValidation is false (happy path)', async (t) => {
     const validationCalls = [];
     // single-story-close.js builds gates directly via `buildDefaultGates`
-    // from the canonical resolved config, so mocking `CLOSE_VALIDATION_URL`
+    // from the canonical resolved config, so mocking the close-validation modules
     // intercepts the gate factory on that path.
-    t.mock.module(CLOSE_VALIDATION_URL, {
+    mockCloseValidation(t, {
       namedExports: {
         buildDefaultGates: ({ config, epicBranch }) => {
           validationCalls.push({ config, epicBranch, phase: 'build' });
@@ -628,7 +647,7 @@ describe('runSingleStoryClose orchestration', () => {
   });
 
   it('throws when a validation gate fails', async (t) => {
-    t.mock.module(CLOSE_VALIDATION_URL, {
+    mockCloseValidation(t, {
       namedExports: {
         buildDefaultGates: () => [],
         runCloseValidation: async () => ({
@@ -681,7 +700,7 @@ describe('runSingleStoryClose orchestration', () => {
         },
       },
     });
-    t.mock.module(CLOSE_VALIDATION_URL, defaultCloseValidationMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
     const gh = makeFakeGh(() => {
       throw new Error('gh must not run when push fails');
     });
@@ -728,7 +747,7 @@ describe('runSingleStoryClose orchestration', () => {
       throw new Error(`unexpected gh: ${args.join(' ')}`);
     });
     t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
-    t.mock.module(CLOSE_VALIDATION_URL, defaultCloseValidationMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
     t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
 
     const graphqlCalls = [];
@@ -820,7 +839,7 @@ describe('runSingleStoryClose orchestration', () => {
       throw new Error('unreachable');
     });
     t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
-    t.mock.module(CLOSE_VALIDATION_URL, defaultCloseValidationMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
     t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
 
     const { runSingleStoryClose } = await import(`${SUT_URL}?t=label-fail`);
@@ -861,7 +880,7 @@ describe('runSingleStoryClose story-closing notify dispatch', () => {
 
   function happyMocks(t) {
     t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
-    t.mock.module(CLOSE_VALIDATION_URL, defaultCloseValidationMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
     t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
   }
 
@@ -911,7 +930,7 @@ describe('runSingleStoryClose story-closing notify dispatch', () => {
       throw new Error('gh must not run on noop');
     });
     t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
-    t.mock.module(CLOSE_VALIDATION_URL, defaultCloseValidationMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
     t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
 
     const calls = [];

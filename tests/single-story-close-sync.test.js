@@ -29,9 +29,28 @@ const SUT_URL = pathToFileURL(
 const GIT_UTILS_URL = pathToFileURL(
   path.resolve(REPO_ROOT, '.agents/scripts/lib/git-utils.js'),
 ).href;
-const CLOSE_VALIDATION_URL = pathToFileURL(
-  path.resolve(REPO_ROOT, '.agents/scripts/lib/close-validation.js'),
+const CLOSE_VALIDATION_GATES_URL = pathToFileURL(
+  path.resolve(REPO_ROOT, '.agents/scripts/lib/close-validation/gates.js'),
 ).href;
+const CLOSE_VALIDATION_RUNNER_URL = pathToFileURL(
+  path.resolve(REPO_ROOT, '.agents/scripts/lib/close-validation/runner.js'),
+).href;
+
+/**
+ * Apply a close-validation mock across the split modules (Story #3994):
+ * `buildDefaultGates` now lives in `close-validation/gates.js` and
+ * `runCloseValidation` in `close-validation/runner.js`, so a single
+ * legacy-shaped `{ namedExports }` bag is fanned out to both URLs.
+ */
+function mockCloseValidation(t, { namedExports }) {
+  const { buildDefaultGates, runCloseValidation } = namedExports;
+  t.mock.module(CLOSE_VALIDATION_GATES_URL, {
+    namedExports: { buildDefaultGates },
+  });
+  t.mock.module(CLOSE_VALIDATION_RUNNER_URL, {
+    namedExports: { runCloseValidation },
+  });
+}
 const WORKTREE_MANAGER_URL = pathToFileURL(
   path.resolve(REPO_ROOT, '.agents/scripts/lib/worktree-manager.js'),
 ).href;
@@ -281,7 +300,7 @@ describe('runSingleStoryClose — sync integration', () => {
         },
       },
     });
-    t.mock.module(CLOSE_VALIDATION_URL, closeValidationMock());
+    mockCloseValidation(t, closeValidationMock());
     t.mock.module(WORKTREE_MANAGER_URL, worktreeManagerMock());
     const gh = makeFakeGh(() => {
       throw new Error('gh should not be invoked when sync fails');
@@ -323,7 +342,7 @@ describe('runSingleStoryClose — sync integration', () => {
         },
       },
     });
-    t.mock.module(CLOSE_VALIDATION_URL, closeValidationMock());
+    mockCloseValidation(t, closeValidationMock());
     t.mock.module(WORKTREE_MANAGER_URL, worktreeManagerMock());
     const gh = makeFakeGh((args) => {
       if (args[1] === 'list') return [];
@@ -361,7 +380,7 @@ describe('runSingleStoryClose — sync integration', () => {
   it('skips the sync step when skipSync=true', async (t) => {
     let syncInvoked = false;
     t.mock.module(GIT_UTILS_URL, gitUtilsMock());
-    t.mock.module(CLOSE_VALIDATION_URL, closeValidationMock());
+    mockCloseValidation(t, closeValidationMock());
     t.mock.module(WORKTREE_MANAGER_URL, worktreeManagerMock());
     const gh = makeFakeGh((args) => {
       if (args[1] === 'list') return [];
