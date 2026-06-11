@@ -89,12 +89,6 @@ const AC1_ALLOWED_RESIDUAL = [
     file: 'docs/CHANGELOG.md',
     marker: '`epic-complete` webhook',
   },
-  // Archived pre-v6 changelog snapshot. The archive directory is
-  // immutable history and must keep its references intact.
-  {
-    file: 'docs/archive/CHANGELOG-pre-v6.md',
-    marker: 'epic-deliver-finalize.js',
-  },
   // Operator decisions log — documents the rename history
   // (epic-finalize.js → epic-deliver-finalize.js) as a permanent
   // operator-visible audit trail.
