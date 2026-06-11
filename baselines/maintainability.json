@@ -951,10 +951,6 @@
       "mi": 108.796
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
-      "mi": 103.88
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/composition.js",
       "mi": 98.512
     },

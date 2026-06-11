@@ -1373,12 +1373,6 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
-      "lines": 100,
-      "branches": 100,
-      "functions": 0
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/composition.js",
       "lines": 84.44,
       "branches": 87.8,

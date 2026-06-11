@@ -1,15 +1,11 @@
 {
   "$schema": "https://mandrel.dev/baselines/dead-exports.schema.json",
   "kernelVersion": "6.14.0",
-  "generatedAt": "2026-06-05T16:22:20.899Z",
+  "generatedAt": "2026-06-11T02:01:25.909Z",
   "rows": [
     {
       "file": ".agents/scripts/lib/audit-suite/findings.js",
       "symbol": "KNOWN_SEVERITIES"
-    },
-    {
-      "file": ".agents/scripts/lib/audit-to-stories/fingerprint.js",
-      "symbol": "__testing"
     },
     {
       "file": ".agents/scripts/lib/baseline-schema-registry.js",
@@ -22,6 +18,10 @@
     {
       "file": ".agents/scripts/lib/baselines/diff-scope-cli.js",
       "symbol": "readPriorBaselineRows"
+    },
+    {
+      "file": ".agents/scripts/lib/baselines/duplication-scanner.js",
+      "symbol": "readLineCount"
     },
     {
       "file": ".agents/scripts/lib/baselines/env-overrides.js",
@@ -70,6 +70,14 @@
     {
       "file": ".agents/scripts/lib/bootstrap/branch-protection.js",
       "symbol": "diffProtection"
+    },
+    {
+      "file": ".agents/scripts/lib/bootstrap/install-ledger.js",
+      "symbol": "readInstallLedger"
+    },
+    {
+      "file": ".agents/scripts/lib/bootstrap/install-ledger.js",
+      "symbol": "resolveExecutedAction"
     },
     {
       "file": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
@@ -193,15 +201,7 @@
     },
     {
       "file": ".agents/scripts/lib/config/quality.js",
-      "symbol": "CRAP_GATE_DEFAULTS"
-    },
-    {
-      "file": ".agents/scripts/lib/config/quality.js",
       "symbol": "FORMAT_AUTOFIX_DEFAULTS"
-    },
-    {
-      "file": ".agents/scripts/lib/config/quality.js",
-      "symbol": "MAINTAINABILITY_QUALITY_DEFAULTS"
     },
     {
       "file": ".agents/scripts/lib/config/quality.js",
@@ -256,20 +256,16 @@
       "symbol": "__test"
     },
     {
+      "file": ".agents/scripts/lib/dynamic-workflow/report-contract-core.js",
+      "symbol": "escapeRegExp"
+    },
+    {
       "file": ".agents/scripts/lib/epic-plan-ideation.js",
       "symbol": "__test"
     },
     {
       "file": ".agents/scripts/lib/feedback-loop/audit-results-graduator.js",
-      "symbol": "buildIdempotencyMarker"
-    },
-    {
-      "file": ".agents/scripts/lib/feedback-loop/audit-results-graduator.js",
       "symbol": "default"
-    },
-    {
-      "file": ".agents/scripts/lib/feedback-loop/audit-results-graduator.js",
-      "symbol": "parseFindings"
     },
     {
       "file": ".agents/scripts/lib/feedback-loop/audit-results-graduator.js",
@@ -304,20 +300,16 @@
       "symbol": "default"
     },
     {
+      "file": ".agents/scripts/lib/findings/classify-finding.js",
+      "symbol": "__testing"
+    },
+    {
+      "file": ".agents/scripts/lib/findings/route-finding.js",
+      "symbol": "__testing"
+    },
+    {
       "file": ".agents/scripts/lib/git-branch-cleanup.js",
       "symbol": "deleteBranchEverywhere"
-    },
-    {
-      "file": ".agents/scripts/lib/git/cached-fetch.js",
-      "symbol": "__DEFAULT_WINDOW_MS"
-    },
-    {
-      "file": ".agents/scripts/lib/git/cached-fetch.js",
-      "symbol": "__moduleCacheSize"
-    },
-    {
-      "file": ".agents/scripts/lib/git/cached-fetch.js",
-      "symbol": "__resetModuleCache"
     },
     {
       "file": ".agents/scripts/lib/observability/perf-report-render.js",
@@ -380,10 +372,6 @@
       "symbol": "ensureBranch"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/epic-deliver-close-tail.js",
-      "symbol": "DELIVER_PHASES"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/epic-deliver-lease-guard.js",
       "symbol": "renderLeaseRefusal"
     },
@@ -396,52 +384,16 @@
       "symbol": "overwriteContextTicket"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "symbol": "registerInterventionRecorder"
+      "file": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/risk-verdict.js",
+      "symbol": "RISK_VERDICT_SCHEMA_PATH"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
-      "symbol": "aggregatePhaseTimings"
+      "file": ".agents/scripts/lib/orchestration/epic-run-state-store.js",
+      "symbol": "DELIVER_PHASES"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
-      "symbol": "deriveState"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
-      "symbol": "emitEpicComplete"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
-      "symbol": "EPIC_PROGRESS_EVENT"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
-      "symbol": "parsePhaseTimingsComment"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
-      "symbol": "parseStoryRunProgressComment"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
-      "symbol": "PHASE_TIMINGS_TYPE"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
-      "symbol": "renderPhaseTimingsSection"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
-      "symbol": "renderProgressBody"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
-      "symbol": "STORY_RUN_PROGRESS_TYPE"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
-      "symbol": "truncate"
+      "file": ".agents/scripts/lib/orchestration/epic-run-state-store.js",
+      "symbol": "phaseIndex"
     },
     {
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/composition.js",
@@ -450,6 +402,10 @@
     {
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/composition.js",
       "symbol": "formatElapsed"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/composition.js",
+      "symbol": "renderProgressBody"
     },
     {
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/composition.js",
@@ -466,6 +422,10 @@
     {
       "file": ".agents/scripts/lib/orchestration/finalize/post-handoff-comment.js",
       "symbol": "renderPerfReportSection"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/finalize/post-handoff-comment.js",
+      "symbol": "RUN_TRACE_MAX_BYTES"
     },
     {
       "file": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
@@ -492,12 +452,12 @@
       "symbol": "ghPrViewAutoMerge"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/cleaner.js",
-      "symbol": "defaultNow"
+      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
+      "symbol": "AUTOMERGE_VERDICT_TRAILER_RE"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/finalizer.js",
-      "symbol": "extractPrNumber"
+      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/cleaner.js",
+      "symbol": "defaultNow"
     },
     {
       "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/finalizer.js",
@@ -556,6 +516,10 @@
       "symbol": "promotePendingToTimedOut"
     },
     {
+      "file": ".agents/scripts/lib/orchestration/lifecycle/trace-logger.js",
+      "symbol": "createTraceLogger"
+    },
+    {
       "file": ".agents/scripts/lib/orchestration/post-merge-pipeline.js",
       "symbol": "detectorsPhase"
     },
@@ -588,6 +552,10 @@
       "symbol": "buildLintEvidenceConfig"
     },
     {
+      "file": ".agents/scripts/lib/orchestration/review-providers/review-depth.js",
+      "symbol": "normalizeDepth"
+    },
+    {
       "file": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
       "symbol": "defaultInvokeSecurityReview"
     },
@@ -598,6 +566,18 @@
     {
       "file": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
       "symbol": "SECURITY_REVIEW_INVOKE_PROMPT"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/auto-merge.js",
+      "symbol": "runAutoMergePhase"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js",
+      "symbol": "runBaseSyncPhase"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
+      "symbol": "CONVENTIONAL_TYPES"
     },
     {
       "file": ".agents/scripts/lib/orchestration/skill-capsule-loader.js",
@@ -614,10 +594,6 @@
     {
       "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
       "symbol": "projectRegressionsForGate"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
-      "symbol": "REFRESH_TIMEOUT_EXIT_CODE"
     },
     {
       "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution/phases/gate-failure.js",
@@ -661,10 +637,6 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "symbol": "_internal"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "symbol": "DEFAULT_TASK_SIZING"
     },
     {
@@ -700,10 +672,6 @@
       "symbol": "LIFECYCLE_TYPE_PATTERN"
     },
     {
-      "file": ".agents/scripts/lib/plan-phase-cleanup.js",
-      "symbol": "PHASE_TEMP_BASENAMES"
-    },
-    {
       "file": ".agents/scripts/lib/preflight-runner.js",
       "symbol": "logBlockers"
     },
@@ -736,6 +704,14 @@
       "symbol": "fromManifest"
     },
     {
+      "file": ".agents/scripts/lib/qa/qa-context-hydrator.js",
+      "symbol": "DEFAULT_LOG_MAX_COUNT"
+    },
+    {
+      "file": ".agents/scripts/lib/qa/qa-session.js",
+      "symbol": "QA_LEDGER_DIRNAME"
+    },
+    {
       "file": ".agents/scripts/lib/runtime-deps/manifest.js",
       "symbol": "MANIFEST_PATH"
     },
@@ -748,20 +724,16 @@
       "symbol": "listJsFiles"
     },
     {
-      "file": ".agents/scripts/lib/single-story-plan.js",
-      "symbol": "DEFAULT_DUPLICATE_MAX_RESULTS"
-    },
-    {
-      "file": ".agents/scripts/lib/single-story-plan.js",
-      "symbol": "DEFAULT_DUPLICATE_MIN_SCORE"
-    },
-    {
       "file": ".agents/scripts/lib/single-story/confirm-merge.js",
       "symbol": "readPrMergeState"
     },
     {
       "file": ".agents/scripts/lib/skills/walk-skill-files.js",
       "symbol": "walkSkillFiles"
+    },
+    {
+      "file": ".agents/scripts/lib/spec/loader.js",
+      "symbol": "_resetValidatorCacheForTests"
     },
     {
       "file": ".agents/scripts/lib/spec/loader.js",
@@ -776,8 +748,12 @@
       "symbol": "bootstrapBranch"
     },
     {
-      "file": ".agents/scripts/lib/story-plan/trigger.js",
-      "symbol": "ALWAYS_EMIT_SIZING_PROFILE"
+      "file": ".agents/scripts/lib/story-plan.js",
+      "symbol": "DEFAULT_DUPLICATE_MAX_RESULTS"
+    },
+    {
+      "file": ".agents/scripts/lib/story-plan.js",
+      "symbol": "DEFAULT_DUPLICATE_MIN_SCORE"
     },
     {
       "file": ".agents/scripts/lib/test-isolate/list-files.js",
@@ -806,6 +782,10 @@
     {
       "file": ".agents/scripts/lib/test-reserved-epic-temp-ids.js",
       "symbol": "TEST_EPIC_TEMP_ID_MIN"
+    },
+    {
+      "file": ".agents/scripts/lib/wave-runner/tick.js",
+      "symbol": "isStoryDone"
     },
     {
       "file": ".agents/scripts/lib/wave-runner/tick.js",
@@ -866,6 +846,14 @@
     {
       "file": ".agents/scripts/providers/github/request-helpers.js",
       "symbol": "DEFAULT_PER_PAGE"
+    },
+    {
+      "file": ".agents/scripts/providers/github/tickets.js",
+      "symbol": "composeStoryBody"
+    },
+    {
+      "file": ".agents/scripts/providers/github/transient-retry.js",
+      "symbol": "isTransientNetworkError"
     }
   ]
 }

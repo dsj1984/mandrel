@@ -21,7 +21,7 @@ import {
   emitEpicProgress,
   emitEpicStarted,
   emitEpicUnblocked,
-} from './epic-runner/progress-reporter.js';
+} from './epic-runner/progress-reporter/transport.js';
 import { countDoneStories } from './wave-record-projection.js';
 
 /**
