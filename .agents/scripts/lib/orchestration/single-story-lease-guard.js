@@ -39,16 +39,20 @@
  */
 
 import {
-  acquireLease,
-  normalizeOperatorHandle,
-  releaseLease,
-} from './ticket-lease.js';
+  acquireLeaseFailClosed,
+  resolveOperatorFromCandidates,
+} from './lease-guard-shared.js';
+import { releaseLease } from './ticket-lease.js';
 
 /**
  * Resolve the operator handle used as the lease owner from resolved config.
- * Routes through the shared `normalizeOperatorHandle` so a leading `@` is
+ * Routes through the shared lease-guard kernel
+ * (`lease-guard-shared.resolveOperatorFromCandidates`) so a leading `@` is
  * stripped (the assignees API expects bare logins, not `@`-prefixed mentions)
- * and the self-held-claim comparison matches.
+ * and the self-held-claim comparison matches. The standalone surface's
+ * missing-handle policy is `'throw'` (intentional divergence from the plan
+ * path's `'null'`): init has no best-effort leg that can degrade, so an
+ * unowned lease must refuse immediately.
  *
  * @param {object} config Resolved `.agentrc.json` config.
  * @returns {string} Bare operator handle.
@@ -58,17 +62,16 @@ import {
  *   path cannot safely serialise concurrent runs.
  */
 export function resolveOperator(config) {
-  const handle = normalizeOperatorHandle(config?.github?.operatorHandle);
-  if (handle === null) {
-    throw new Error(
+  return resolveOperatorFromCandidates({
+    candidates: [config?.github?.operatorHandle],
+    missingHandleBehavior: 'throw',
+    missingHandleMessage:
       'single-story lease: no operator identity is configured. ' +
-        'github.operatorHandle is unset or still the shipped `@[USERNAME]` ' +
-        'placeholder, so the standalone Story lease has no owner. Set your own ' +
-        'handle in .agentrc.local.json (e.g. { "github": { "operatorHandle": ' +
-        '"@your-login" } }) and re-run.',
-    );
-  }
-  return handle;
+      'github.operatorHandle is unset or still the shipped `@[USERNAME]` ' +
+      'placeholder, so the standalone Story lease has no owner. Set your own ' +
+      'handle in .agentrc.local.json (e.g. { "github": { "operatorHandle": ' +
+      '"@your-login" } }) and re-run.',
+  });
 }
 
 /**
@@ -99,31 +102,25 @@ export async function acquireStoryLease({
   now,
 }) {
   const owner = operator ?? resolveOperator(config);
-  // Fail closed: with no live-heartbeat source on the standalone path, treat a
-  // foreign assignee as a live claim. Anchoring `heartbeatAt` to the same
-  // `now` the primitive evaluates against makes `isClaimLive` return true for
-  // any foreign owner, so `acquireLease` refuses unless `steal` is set.
-  const resolvedNow =
-    typeof now === 'number' && Number.isFinite(now) ? now : Date.now();
-  const result = await acquireLease({
+  // Fail closed: with no live-heartbeat source on the standalone path, the
+  // shared kernel anchors `heartbeatAt` to the same `now` the primitive
+  // evaluates against, so `isClaimLive` returns true for any foreign owner
+  // and `acquireLease` refuses unless `steal` is set.
+  return acquireLeaseFailClosed({
     provider,
     ticketId: storyId,
     operator: owner,
-    heartbeatAt: resolvedNow,
     steal,
     config,
-    now: resolvedNow,
-  });
-  if (!result.acquired) {
-    throw new Error(
+    now,
+    anchorHeartbeatToNow: true,
+    renderRefusal: (result) =>
       `single-story lease: Story #${storyId} is currently held by @${result.owner}. ` +
-        'Another /single-story-deliver run owns this Story. Coordinate with that ' +
-        'operator, or re-run with --steal to forcibly transfer the claim once you ' +
-        'have confirmed the other run is dead. (The standalone path has no Epic ' +
-        'heartbeat ledger, so a foreign assignee always blocks unless stolen.)',
-    );
-  }
-  return result;
+      'Another /single-story-deliver run owns this Story. Coordinate with that ' +
+      'operator, or re-run with --steal to forcibly transfer the claim once you ' +
+      'have confirmed the other run is dead. (The standalone path has no Epic ' +
+      'heartbeat ledger, so a foreign assignee always blocks unless stolen.)',
+  });
 }
 
 /**
