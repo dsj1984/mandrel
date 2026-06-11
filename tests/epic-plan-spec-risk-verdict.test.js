@@ -247,3 +247,60 @@ describe('runSpecPhase risk-verdict recording', () => {
     assert.ok(!provider.epic.labels.includes('agent::review-spec'));
   });
 });
+
+describe('runSpecPhase rerun demotion guard (Story #4019)', () => {
+  it('does not demote a fully-planned agent::ready Epic when the spec is unchanged', async () => {
+    const provider = buildSpecPhaseProvider();
+    // Fully decomposed + planned: artifacts linked, Epic at agent::ready.
+    provider.epic.labels = ['type::epic', 'agent::ready'];
+    provider.epic.linkedIssues = {
+      prd: 801,
+      techSpec: 802,
+      acceptanceSpec: null,
+    };
+
+    const result = await runSpecPhase(
+      provider.epic.id,
+      provider,
+      {
+        prdContent: '## Overview\nPRD.',
+        techSpecContent: '## Technical Overview\nTS.',
+      },
+      { baseBranch: 'main', paths: { tempRoot: sandbox } },
+      { config: SPEC_LEASE_CFG, riskVerdict: VALID_VERDICT },
+    );
+
+    assert.equal(result.specChanged, false);
+    assert.equal(result.labelTransition, 'kept-ready');
+    assert.ok(
+      provider.epic.labels.includes('agent::ready'),
+      'agent::ready must survive a no-op spec rerun',
+    );
+    assert.ok(
+      !provider.epic.labels.includes('agent::review-spec'),
+      'no demotion to agent::review-spec when the spec did not change',
+    );
+  });
+
+  it('still flips to agent::review-spec when the spec actually persists', async () => {
+    const provider = buildSpecPhaseProvider();
+    provider.epic.labels = ['type::epic', 'agent::ready'];
+    // No artifacts yet → planEpic persists → demotion is legitimate.
+
+    const result = await runSpecPhase(
+      provider.epic.id,
+      provider,
+      {
+        prdContent: '## Overview\nPRD.',
+        techSpecContent: '## Technical Overview\nTS.',
+      },
+      { baseBranch: 'main', paths: { tempRoot: sandbox } },
+      { config: SPEC_LEASE_CFG, riskVerdict: VALID_VERDICT },
+    );
+
+    assert.equal(result.specChanged, true);
+    assert.equal(result.labelTransition, 'review-spec');
+    assert.ok(provider.epic.labels.includes('agent::review-spec'));
+    assert.ok(!provider.epic.labels.includes('agent::ready'));
+  });
+});

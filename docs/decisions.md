@@ -18,8 +18,7 @@
 
 **Status:** Accepted
 **Date:** 2026-06-10
-**Scope:** Story #3911 (audit
-[`epic-lifecycle-review.md` §4 / §6 step 5](epic-lifecycle-review.md)).
+**Scope:** Story #3911 (audit findings — see git history at `409e0529`).
 **Depends on:** #3908 (dead-stratum deletion), #3909 (state-surface collapse) —
 both merged before this decision was recorded.
 
@@ -129,8 +128,7 @@ is now the sole production wiring path).
 
 **Status:** Accepted
 **Date:** 2026-06-10
-**Scope:** Story #3910 (audit
-[`epic-lifecycle-review.md` §4](epic-lifecycle-review.md)).
+**Scope:** Story #3910 (audit findings — see git history at `409e0529`).
 
 ### Context
 
@@ -2092,8 +2090,7 @@ config is read-only at runtime; no workflow writes it.
 ## Earlier ADRs (001 / 002 / 003)
 
 ADRs 001–003 (April 9–17, 2026) predate the Epic-#900 terminology rework
-and have been moved to
-[`archive/decisions-pre-900.md`](archive/decisions-pre-900.md). ADR 004
+and are preserved in the project's Git history. ADR 004
 (Gherkin Standards) remains active and is documented below.
 
 ## ADR 004: Gherkin Standards as Sole SSOT for BDD Tags & Forbidden Patterns

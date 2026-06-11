@@ -276,7 +276,7 @@ function detectAlreadyMerged({ cwd, storyId, epicId, lsrOut, detail, git }) {
   //    from the Epic history itself: locate the integration commit whose
   //    subject carries `(resolves #<id>)` / `(refs #<id>)`. Without this
   //    branch, detection falls to FRESH and the resumed close re-enters the
-  //    pre-merge gate chain, which crashes in `format-autofix-scoped.js` on
+  //    pre-merge gate chain, which crashes in the scoped format-autofix step on
   //    `git diff <epicBranch>...story-<id>` because the Story ref is gone.
   if (!resolvedDetail) {
     const mc = findMergeCommitForStory({ cwd, storyId, epicId, git });

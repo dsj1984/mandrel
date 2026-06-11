@@ -62,6 +62,12 @@ export async function runGatesAndRefresh(
     runAutoRefreshSafelyFn = runAutoRefreshSafely,
   } = {},
 ) {
+  // Story #4017 — one shared cycle-state object per close cycle. The
+  // gate-failure attribution retry and the post-gates auto-refresh both
+  // funnel through `runRefreshCommit`, which keys its idempotency token
+  // off this object so each baseline kind is refreshed (scored +
+  // committed) at most once per close.
+  const cycleState = { refreshedKinds: new Set(), lastRefreshSha: null };
   const gateOutcome = await runPreMergeValidationFn({
     cwd: ctx.cwd,
     worktreePath: ctx.worktreePath,
@@ -74,6 +80,7 @@ export async function runGatesAndRefresh(
     phaseTimer: ctx.phaseTimer,
     provider: ctx.provider,
     bus: ctx.bus,
+    cycleState,
   });
   if (gateOutcome?.status === 'blocked') {
     return {
@@ -109,6 +116,7 @@ export async function runGatesAndRefresh(
       epicBranch: ctx.epicBranch,
       storyBranch: ctx.storyBranch,
       config: ctx.config,
+      cycleState,
     },
     { progress: ctx.progress },
   );

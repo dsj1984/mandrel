@@ -8,19 +8,18 @@
  * silently duplicate the Feature/Story tree:
  *
  *   - `acquireEpicPlanLease`   — claim the Epic before Phase 7 (spec). Refuses
- *                                (throws, exit non-zero) when a foreign claim
- *                                already holds the Epic, naming the current
- *                                owner. **Fail-closed (audit #3513):**
- *                                `/epic-plan` emits no `story.heartbeat` during
- *                                its run (heartbeats are a delivery-time
- *                                signal), so there is no live-heartbeat source
- *                                to judge a concurrent plan's liveness from.
- *                                Defaulting liveness to "stale" made every
- *                                foreign claim look reclaimable, leaving the
- *                                guard inert. We therefore treat ANY foreign
- *                                assignee as a live claim and refuse the take
- *                                unless `--steal` forcibly transfers it. An
- *                                unassigned or self-held Epic still proceeds.
+ *                                (throws, exit non-zero) when a live foreign
+ *                                claim already holds the Epic, naming the
+ *                                current owner. **Claim-time liveness
+ *                                (Story #4019):** `/epic-plan` emits no
+ *                                `story.heartbeat`, so the lease records its
+ *                                own claim-time in a `plan-lease` structured
+ *                                comment on the Epic at acquire time. A
+ *                                foreign claim fresher than the lease TTL
+ *                                refuses (unless `--steal`); a stale or
+ *                                record-less claim is reclaimed
+ *                                automatically. An unassigned or self-held
+ *                                Epic still proceeds.
  *   - `releaseEpicPlanLease`   — release the claim after Phase 8 (decompose).
  *                                Best-effort and self-scoped: a no-op once the
  *                                Epic was reassigned elsewhere.
@@ -35,13 +34,15 @@
  */
 
 import { getGitHub } from '../config/github.js';
+import { resolveLeaseTtlMs } from '../config/limits.js';
 import { Logger } from '../Logger.js';
 import { TYPE_LABELS } from '../label-constants.js';
 import {
   acquireLeaseFailClosed,
   resolveOperatorFromCandidates,
 } from './lease-guard-shared.js';
-import { releaseLease } from './ticket-lease.js';
+import { currentOwner, releaseLease } from './ticket-lease.js';
+import { findStructuredComment, upsertStructuredComment } from './ticketing.js';
 
 /**
  * Resolve the operator handle that owns this `/epic-plan` run from
@@ -73,17 +74,94 @@ export function resolveOperator(config) {
 }
 
 /**
+ * Structured-comment type carrying the plan-lease claim-time record.
+ * Registered in `ticketing/reads.js` `STRUCTURED_COMMENT_TYPES`.
+ */
+export const PLAN_LEASE_COMMENT_TYPE = 'plan-lease';
+
+/**
+ * Render the `plan-lease` structured-comment body: a one-line human
+ * summary plus the canonical fenced-JSON record `parsePlanLeaseClaim`
+ * reads back.
+ *
+ * @param {{ epicId: number, owner: string, claimedAt: string }} input
+ *   `claimedAt` is an ISO-8601 timestamp.
+ * @returns {string}
+ */
+export function buildPlanLeaseCommentBody({ epicId, owner, claimedAt }) {
+  const record = {
+    kind: PLAN_LEASE_COMMENT_TYPE,
+    epicId,
+    owner,
+    claimedAt,
+  };
+  return [
+    `### 🔒 Plan Lease — claimed by \`${owner}\``,
+    '',
+    `This Epic is being planned by \`${owner}\` (claimed ${claimedAt}). A`,
+    'concurrent `/epic-plan` run refuses while this claim is fresher than the',
+    'lease TTL, and reclaims automatically once it goes stale.',
+    '',
+    '```json',
+    JSON.stringify(record, null, 2),
+    '```',
+  ].join('\n');
+}
+
+/**
+ * Parse the claim record out of a `plan-lease` comment body. Returns
+ * `{ owner, claimedAtMs }` or `null` when the body carries no readable
+ * record — which callers treat as "no claim-time recorded" (stale,
+ * reclaimable).
+ *
+ * @param {string|undefined|null} body
+ * @returns {{ owner: string, claimedAtMs: number } | null}
+ */
+export function parsePlanLeaseClaim(body) {
+  if (typeof body !== 'string') return null;
+  const match = body.match(/```json\s*\n([\s\S]*?)\n\s*```/);
+  if (!match) return null;
+  let record;
+  try {
+    record = JSON.parse(match[1]);
+  } catch (_err) {
+    return null;
+  }
+  if (!record || record.kind !== PLAN_LEASE_COMMENT_TYPE) return null;
+  const owner =
+    typeof record.owner === 'string' && record.owner.length > 0
+      ? record.owner
+      : null;
+  const claimedAtMs = Date.parse(record.claimedAt ?? '');
+  if (owner === null || !Number.isFinite(claimedAtMs)) return null;
+  return { owner, claimedAtMs };
+}
+
+/**
  * Acquire the Epic-lease before Phase 7.
  *
- * **Fail-closed (audit #3513).** `/epic-plan` emits no `story.heartbeat`
- * during its run, so there is no live-heartbeat source to judge a concurrent
- * plan's liveness from. Rather than default liveness to "stale" (which made
- * every foreign claim look reclaimable and left this guard inert), we anchor
- * `heartbeatAt` to the same `now` the lease primitive evaluates against. That
- * makes `isClaimLive` return true for ANY foreign owner, so `acquireLease`
- * refuses a foreign assignee unless `steal` is set — naming the current owner.
- * An unassigned Epic (`unclaimed`) or a self-held claim (`already-held`) still
- * proceeds without a write. This mirrors `single-story-lease-guard.js`.
+ * **Claim-time liveness (Story #4019, superseding the audit-#3513
+ * fail-closed anchor).** `/epic-plan` emits no `story.heartbeat`, so the
+ * old guard treated EVERY foreign assignee as live — which made the
+ * documented "`--steal` once you have confirmed the other run is dead"
+ * contract undecidable (there was no in-band liveness signal to confirm
+ * against). The lease now records its own claim-time: on every successful
+ * acquire the guard upserts a `plan-lease` structured comment on the Epic
+ * carrying `{ owner, claimedAt }`. A subsequent run judges a foreign
+ * claim's liveness from that claim-time against the lease TTL
+ * (`resolveLeaseTtlMs`):
+ *
+ *   - **Fresh foreign claim** (claim-time within TTL) → refuse, naming the
+ *     owner and the claim age; `--steal` force-transfers.
+ *   - **Stale foreign claim** (claim-time older than TTL) → reclaim
+ *     automatically.
+ *   - **No claim-time record** (foreign assignee but no readable
+ *     `plan-lease` comment, or the comment names a different owner) →
+ *     treated as stale and reclaimed — the assignee predates this
+ *     mechanism or was set out-of-band, so there is nothing to wait on.
+ *
+ * An unassigned Epic (`unclaimed`) or a self-held claim (`already-held`)
+ * proceeds; both refresh the claim-time record.
  *
  * A refused claim throws (caught at the CLI boundary → exit non-zero).
  *
@@ -91,7 +169,7 @@ export function resolveOperator(config) {
  * @param {import('../ITicketingProvider.js').ITicketingProvider} args.provider
  * @param {number} args.epicId
  * @param {object} [args.config]
- * @param {boolean} [args.steal=false]   Force-transfer a foreign claim.
+ * @param {boolean} [args.steal=false]   Force-transfer a live foreign claim.
  * @param {number} [args.now]            Injectable clock (epoch ms; tests).
  * @returns {Promise<{ acquired: boolean, owner: string|null, previousOwner: string|null, reason: string }>}
  */
@@ -114,27 +192,84 @@ export async function acquireEpicPlanLease({
     );
   }
 
-  // Fail closed: with no live-heartbeat source on the plan path, the shared
-  // kernel anchors `heartbeatAt` to the same `now` the primitive evaluates
-  // against (`isClaimLive` → true for any owner). `acquireLease` then refuses
-  // a foreign claim unless `steal` is set; an unassigned or self-held Epic
-  // proceeds without a write.
+  const resolvedNow =
+    typeof now === 'number' && Number.isFinite(now) ? now : Date.now();
+  const ttlMs = resolveLeaseTtlMs(config);
+
+  // Resolve the current assignee and the recorded claim-time. The
+  // claim-time only counts when the `plan-lease` record names the same
+  // owner as the assignee — a mismatched or missing record means the claim
+  // has no liveness signal and is treated as stale (reclaimable).
+  const ticket = await provider.getTicket(epicId);
+  const owner = currentOwner(ticket?.assignees);
+  let heartbeatAt = null;
+  if (owner !== null && owner !== operator) {
+    let claim = null;
+    try {
+      const comment = await findStructuredComment(
+        provider,
+        epicId,
+        PLAN_LEASE_COMMENT_TYPE,
+      );
+      claim = comment ? parsePlanLeaseClaim(comment.body) : null;
+    } catch (err) {
+      Logger.warn(
+        `[epic-plan] Could not read plan-lease claim record on #${epicId} ` +
+          `(treating foreign claim as stale): ${err.message}`,
+      );
+    }
+    if (claim && claim.owner === owner) {
+      heartbeatAt = claim.claimedAtMs;
+    }
+  }
+
   const result = await acquireLeaseFailClosed({
     provider,
     ticketId: epicId,
     operator,
+    heartbeatAt,
     steal,
     config,
-    now,
-    anchorHeartbeatToNow: true,
-    renderRefusal: (refused) =>
-      `[epic-plan] Epic #${epicId} is currently claimed by '${refused.owner}'. ` +
-      `Refusing to plan concurrently — another /epic-plan run owns this Epic ` +
-      `(the plan path has no heartbeat ledger, so a foreign assignee always ` +
-      `blocks unless stolen). Wait for that run to finish, or re-run with ` +
-      `--steal to forcibly transfer the claim once you have confirmed the ` +
-      `other run is dead.`,
+    now: resolvedNow,
+    renderRefusal: (refused) => {
+      const ageMinutes =
+        heartbeatAt !== null
+          ? Math.round((resolvedNow - heartbeatAt) / 60000)
+          : null;
+      const ageNote =
+        ageMinutes !== null
+          ? `Its plan-lease claim is ~${ageMinutes} minute(s) old (TTL ${Math.round(ttlMs / 60000)} minute(s)), so the run is presumed live. `
+          : '';
+      return (
+        `[epic-plan] Epic #${epicId} is currently claimed by '${refused.owner}'. ` +
+        `Refusing to plan concurrently — another /epic-plan run owns this Epic. ` +
+        `${ageNote}Wait for that run to finish (the claim auto-expires at the ` +
+        `lease TTL), or re-run with --steal to forcibly transfer the claim.`
+      );
+    },
   });
+
+  // Record (or refresh) the claim-time so the next run can judge this
+  // claim's liveness. Best-effort: a comment failure degrades to a
+  // record-less claim (which a later run treats as stale) — it never
+  // fails the plan.
+  try {
+    await upsertStructuredComment(
+      provider,
+      epicId,
+      PLAN_LEASE_COMMENT_TYPE,
+      buildPlanLeaseCommentBody({
+        epicId,
+        owner: operator,
+        claimedAt: new Date(resolvedNow).toISOString(),
+      }),
+    );
+  } catch (err) {
+    Logger.warn(
+      `[epic-plan] Failed to record plan-lease claim-time on #${epicId} ` +
+        `(non-fatal; a later run will treat this claim as stale): ${err.message}`,
+    );
+  }
 
   Logger.info(
     `[epic-plan] Acquired Epic-lease on #${epicId} for '${operator}' ` +

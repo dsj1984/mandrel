@@ -27,11 +27,11 @@ describe('redactErrorMessage', () => {
   it('rewrites repo-root absolute paths to repo-relative form', () => {
     const repoRoot = '/repo/root';
     const msg =
-      'runStoryDeliverPrepare: install command `npm ci` failed at /repo/root/.agents/scripts/story-deliver-prepare.js';
+      'runStoryInitPrepare: install command `npm ci` failed at /repo/root/.agents/scripts/story-init.js';
     const out = redactErrorMessage(msg, { repoRoot, home: null });
     assert.equal(
       out,
-      'runStoryDeliverPrepare: install command `npm ci` failed at .agents/scripts/story-deliver-prepare.js',
+      'runStoryInitPrepare: install command `npm ci` failed at .agents/scripts/story-init.js',
     );
   });
 
@@ -81,10 +81,10 @@ describe('redactErrorMessage', () => {
     assert.equal(redactErrorMessage(null), '');
   });
 
-  it('redacts a representative story-deliver-prepare.js install-failure envelope', () => {
+  it('redacts a representative story-init prepare install-failure envelope', () => {
     const repoRoot = '/repo/root';
     const msg =
-      'runStoryDeliverPrepare: install command `npm ci --prefix /repo/root/.worktrees/story-999` failed with status 1: ' +
+      'runStoryInitPrepare: install command `npm ci --prefix /repo/root/.worktrees/story-999` failed with status 1: ' +
       'npm warn EBADENGINE at /repo/root/.worktrees/story-999/node_modules/some-pkg';
     const out = redactErrorMessage(msg, { repoRoot, home: null });
     assert.match(

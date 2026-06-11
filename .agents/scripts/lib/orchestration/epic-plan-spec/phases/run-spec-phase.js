@@ -119,7 +119,7 @@ export async function runSpecPhase(
 
   await initializePlanState({ provider, epicId });
 
-  await planEpic(
+  const planResult = await planEpic(
     epicId,
     provider,
     { prdContent, techSpecContent, acceptanceSpecContent },
@@ -129,6 +129,7 @@ export async function runSpecPhase(
       planningRisk,
     },
   );
+  const specChanged = planResult?.persisted !== false;
 
   const afterPlan = await provider.getEpic(epicId);
   const prdId = afterPlan.linkedIssues?.prd ?? null;
@@ -199,10 +200,27 @@ export async function runSpecPhase(
   Logger.info(`[epic-plan-spec] Review routing: ${reviewRouting.decision}.`);
   Logger.info(`[epic-plan-spec] ${reviewRouting.operatorMessage}`);
 
-  Logger.info(
-    `[epic-plan-spec] Flipping Epic #${epicId} to ${AGENT_LABELS.REVIEW_SPEC}...`,
-  );
-  await setEpicLabel(provider, epicId, AGENT_LABELS.REVIEW_SPEC);
+  // Story #4019 (refining #3905): a spec-phase rerun that changed nothing
+  // (planEpic short-circuited on `already-planned`) MUST NOT demote a
+  // fully-decomposed `agent::ready` Epic back to `agent::review-spec` —
+  // there is no new spec content to review. The demotion fires only when
+  // the spec actually persisted/changed, or when the Epic is not at
+  // `agent::ready` (where the flip is the normal forward transition).
+  const epicLabels = afterPlan.labels ?? [];
+  const skipDemotion = !specChanged && epicLabels.includes(AGENT_LABELS.READY);
+  let labelTransition;
+  if (skipDemotion) {
+    labelTransition = 'kept-ready';
+    Logger.info(
+      `[epic-plan-spec] Spec unchanged (${planResult?.reason ?? 'already-planned'}) and Epic #${epicId} is ${AGENT_LABELS.READY} — keeping ${AGENT_LABELS.READY} (no demotion to ${AGENT_LABELS.REVIEW_SPEC}).`,
+    );
+  } else {
+    labelTransition = 'review-spec';
+    Logger.info(
+      `[epic-plan-spec] Flipping Epic #${epicId} to ${AGENT_LABELS.REVIEW_SPEC}...`,
+    );
+    await setEpicLabel(provider, epicId, AGENT_LABELS.REVIEW_SPEC);
+  }
 
   const cleanup = await cleanupPhaseTempFiles({ phase: 'spec', epicId });
 
@@ -231,5 +249,7 @@ export async function runSpecPhase(
     freshness,
     planningRisk,
     reviewRouting,
+    specChanged,
+    labelTransition,
   };
 }
