@@ -25,23 +25,40 @@ cross-directory authoring conventions. The process narrative for
 
 ## Activation
 
-### Cold start — `npx create-mandrel`
+### Cold start — `npx mandrel init`
 
-The canonical cold-start path is a single launcher command, run from the
+The canonical cold-start path is a single subcommand, run from the
 root of your project (the folder does **not** need to be a git repo yet):
 
 ```bash
-npx create-mandrel        # install mandrel → mandrel sync → bootstrap.js
+npx mandrel init        # install (if absent) → prompt: configure now, or just the files
 ```
 
-`create-mandrel` installs `mandrel`, materializes `./.agents/` via
-`mandrel sync` (skipping the install when `.agents/` already exists), and
-finishes by running `node .agents/scripts/bootstrap.js`, forwarding any flags
-you pass. After it completes, run **`/onboard`** inside Claude Code for the
-guided first run — stack detection, docs scaffolding, a `mandrel doctor`
-readiness gate, and a started `/epic-plan` handoff.
+`mandrel init` first **installs the framework if `./.agents/` is absent** —
+`npm install mandrel --ignore-scripts` followed by an explicit `mandrel sync`,
+so the materialization is a single deterministic step rather than a
+postinstall-then-init double sync. When `./.agents/` already exists (you ran
+`npm install mandrel` first), it skips straight to the prompt — the one
+subcommand is idempotent across both entry points.
 
-The remainder of this section documents the manual steps `create-mandrel`
+It then shows a **two-option prompt**:
+
+1. **Configure now** — runs `node .agents/scripts/bootstrap.js`, forwarding any
+   passthrough flags unchanged, to wire the project and GitHub side (creates the
+   GitHub repo + Projects board).
+2. **Just the files** — stops after materialization and prints a re-run hint
+   (`mandrel init`) so you can configure later.
+
+`--assume-yes` skips the prompt and configures non-interactively (the flag is
+also forwarded to `bootstrap.js`); a non-TTY run without `--assume-yes` defaults
+to **files-only**, so the side-effecting GitHub provisioning never runs
+unattended.
+
+After it completes, run **`/onboard`** inside Claude Code for the guided first
+run — stack detection, docs scaffolding, a `mandrel doctor` readiness gate, and
+a started `/epic-plan` handoff.
+
+The remainder of this section documents the manual steps `mandrel init`
 wraps, for operators who prefer to drive them by hand.
 
 ### Manual cold start — install the npm package
