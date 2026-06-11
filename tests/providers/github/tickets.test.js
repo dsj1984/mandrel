@@ -117,35 +117,88 @@ describe('providers/github/tickets.js — TicketGateway', () => {
     assert.equal(gh.__exec.calls.length, 2);
   });
 
-  it('getTickets: filters by Epic body reference', async () => {
+  it('getTickets: searches server-side and post-filters by Epic body reference', async () => {
     const gh = makeFakeGh({
-      'GET /issues': {
+      'GET /search/issues': {
+        status: 200,
+        json: {
+          total_count: 3,
+          items: [
+            {
+              number: 100,
+              id: 1000,
+              title: 'in-scope',
+              body: 'Epic: #10',
+              labels: [{ name: 'type::task' }],
+              state: 'open',
+            },
+            {
+              // Search tokenization false positive — the regex post-filter
+              // must drop it (#10 must not match #101).
+              number: 101,
+              id: 1010,
+              title: 'wrong-epic',
+              body: 'Epic: #101',
+              labels: [{ name: 'type::task' }],
+              state: 'open',
+            },
+            {
+              number: 102,
+              id: 1020,
+              title: 'a-pr',
+              body: 'Epic: #10',
+              labels: [],
+              state: 'open',
+              pull_request: { url: 'pr' },
+            },
+          ],
+        },
+      },
+    });
+    const gateway = new TicketGateway({ gh, owner: 'o', repo: 'r' });
+    const tickets = await gateway.getTickets(10);
+    assert.equal(tickets.length, 1);
+    assert.equal(tickets[0].id, 100);
+    // Search path only: two search queries (Epic + parent), no repo-wide list.
+    const endpoints = gh.__exec.calls.map((c) => c.args[3]);
+    assert.ok(endpoints.every((e) => e.startsWith('/search/issues?')));
+    assert.equal(endpoints.length, 2);
+  });
+
+  it('getTickets: dedupes issues matched by both Epic and parent queries', async () => {
+    const issue = {
+      number: 200,
+      id: 2000,
+      title: 'both-refs',
+      body: 'parent: #10\nEpic: #10',
+      labels: [],
+      state: 'open',
+    };
+    const gh = makeFakeGh({
+      'GET /search/issues': {
+        status: 200,
+        json: { total_count: 1, items: [issue] },
+      },
+    });
+    const gateway = new TicketGateway({ gh, owner: 'o', repo: 'r' });
+    const tickets = await gateway.getTickets(10);
+    assert.equal(tickets.length, 1);
+    assert.equal(tickets[0].id, 200);
+  });
+
+  it('getTickets: falls back to the repo-wide listing when search fails', async () => {
+    const gh = makeFakeGh({
+      'GET /search/issues': { status: 422 },
+      'GET /repos/o/r/issues': {
         status: 200,
         json: [
           {
-            number: 100,
-            id: 1000,
-            title: 'in-scope',
+            number: 300,
+            id: 3000,
+            title: 'via-fallback',
             body: 'Epic: #10',
-            labels: [{ name: 'type::task' }],
-            state: 'open',
-          },
-          {
-            number: 101,
-            id: 1010,
-            title: 'wrong-epic',
-            body: 'Epic: #11',
-            labels: [{ name: 'type::task' }],
-            state: 'open',
-          },
-          {
-            number: 102,
-            id: 1020,
-            title: 'not-a-task',
-            body: 'unrelated',
             labels: [],
             state: 'open',
-            pull_request: { url: 'pr' },
           },
         ],
       },
@@ -153,7 +206,47 @@ describe('providers/github/tickets.js — TicketGateway', () => {
     const gateway = new TicketGateway({ gh, owner: 'o', repo: 'r' });
     const tickets = await gateway.getTickets(10);
     assert.equal(tickets.length, 1);
-    assert.equal(tickets[0].id, 100);
+    assert.equal(tickets[0].id, 300);
+  });
+
+  it('getTickets: memoizes per epic+filters and clears the memo on writes', async () => {
+    const gh = makeFakeGh({
+      'GET /search/issues': {
+        status: 200,
+        json: {
+          total_count: 1,
+          items: [
+            {
+              number: 400,
+              id: 4000,
+              title: 'memoized',
+              body: 'Epic: #10',
+              labels: [],
+              state: 'open',
+            },
+          ],
+        },
+      },
+      'POST /repos/o/r/issues': {
+        status: 201,
+        json: { number: 401, id: 4010, node_id: 'n401', html_url: 'u' },
+      },
+    });
+    const gateway = new TicketGateway({ gh, owner: 'o', repo: 'r' });
+    await gateway.getTickets(10);
+    const callsAfterFirst = gh.__exec.calls.length;
+    const second = await gateway.getTickets(10);
+    assert.equal(second.length, 1);
+    // Memo hit: no additional gh calls.
+    assert.equal(gh.__exec.calls.length, callsAfterFirst);
+    // Different filters miss the memo.
+    await gateway.getTickets(10, { state: 'open' });
+    assert.ok(gh.__exec.calls.length > callsAfterFirst);
+    // A write clears the memo.
+    const callsBeforeWrite = gh.__exec.calls.length;
+    await gateway.createIssue({ title: 't', body: 'b' });
+    await gateway.getTickets(10);
+    assert.ok(gh.__exec.calls.length > callsBeforeWrite + 1);
   });
 
   it('getTicketDependencies: parses blocks/blocked-by from body', async () => {

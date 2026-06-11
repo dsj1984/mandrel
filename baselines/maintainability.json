@@ -5,8 +5,8 @@
   "rollup": {
     "*": {
       "min": 70.566,
-      "p50": 104.21,
-      "p95": 121.809
+      "p50": 104.227,
+      "p95": 121.964
     }
   },
   "rows": [
@@ -925,10 +925,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/phases/snapshot.js",
       "mi": 108.796
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
-      "mi": 103.88
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/composition.js",

@@ -18,7 +18,7 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { phaseToState } from '../../../.agents/scripts/lib/orchestration/epic-runner/progress-reporter.js';
+import { phaseToState } from '../../../.agents/scripts/lib/orchestration/epic-runner/progress-reporter/signals.js';
 import {
   coverageKeyMatches,
   createCrapDriftDetector,
