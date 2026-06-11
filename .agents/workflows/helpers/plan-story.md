@@ -13,7 +13,7 @@ description:
 `/plan` is the standalone counterpart to
 [`/plan`](plan-epic.md) for Stories that are **not** attached to an
 Epic. It closes the gap between "one-line idea" and "well-formed
-standalone Story body ready for [`/single-story-deliver`](helpers/single-story-deliver.md)"
+standalone Story body ready for [`/single-story-deliver`](single-story-deliver.md)"
 using the same `host LLM authors + Node wrapper persists` split as
 `/plan`.
 
@@ -42,7 +42,7 @@ have a refactor, framework-maintenance idea, or any standalone unit of
 work, use this workflow.
 
 **Inbound from `/plan` scope triage.** `/plan` Phase 1.5 runs the
-[`core/scope-triage`](../skills/core/scope-triage/SKILL.md) rubric over the
+[`core/scope-triage`](../../skills/core/scope-triage/SKILL.md) rubric over the
 sharpened one-pager. On a `story` / `borderline` verdict the operator may route
 the work here via `/plan --from-notes <path>`. That invocation is a
 **scope-triage handoff** — the triage decision is already made, so `/plan`
@@ -54,7 +54,7 @@ to authoring the standalone Story body from the handed-off one-pager.
 1. `GITHUB_TOKEN` or `gh auth status` clean — `gh issue create` runs at
    persist time.
 2. The `type::story` label and the chosen `persona::*` label exist in the
-   repo. Run [`agents-bootstrap-github.js`](../scripts/agents-bootstrap-github.js)
+   repo. Run [`agents-bootstrap-github.js`](../../scripts/agents-bootstrap-github.js)
    once to provision them.
 
 ## Invocation shapes
@@ -102,7 +102,7 @@ Envelope fields (`kind: "story-plan-context"`, `version: 1`):
 `refine.refine` is `true` when the seed is shorter than 200 characters
 (or empty). Pass `--refine` / `--no-refine` to override. When the
 envelope advises refinement, activate the
-[`core/idea-refinement`](../skills/core/idea-refinement/SKILL.md) skill
+[`core/idea-refinement`](../../skills/core/idea-refinement/SKILL.md) skill
 before drafting the body — same skill `/plan` Phase 1 drives.
 
 ## Phase 2 — Host LLM Authors a Draft Body
@@ -124,7 +124,7 @@ Write the draft to `temp/single-story-draft.md`.
 
 Once the draft body exists — and **only** then, because the seed alone is not
 an honest basis for a sizing judgment — run the
-[`core/scope-triage`](../skills/core/scope-triage/SKILL.md) rubric over the
+[`core/scope-triage`](../../skills/core/scope-triage/SKILL.md) rubric over the
 **drafted Story body** to catch an Epic-sized scope before it is persisted as a
 standalone Story. This is the outbound mirror of `/plan` Phase 1.5's
 inbound downgrade gate: the two planning entry points route toward each other
@@ -141,7 +141,7 @@ Otherwise, activate the skill **by reference** — read its `SKILL.md` via the
 `Read` tool and apply its rubric; do **not** restate its sizing thresholds or
 copy its verdict prose here. The skill anchors its sizing judgment to
 `DELIVERABLE_GRANULARITY_GUIDANCE` / `DEFAULT_TASK_SIZING` in
-[`ticket-validator-sizing.js`](../scripts/lib/orchestration/ticket-validator-sizing.js)
+[`ticket-validator-sizing.js`](../../scripts/lib/orchestration/ticket-validator-sizing.js)
 and emits one verdict — `epic` | `story` | `borderline`. The verdict is
 host-LLM judgment: there is **no `--flag`**, no scorer, no schema, and no label
 transition behind it. (The `refine` heuristic in `story-plan.js` is unchanged —
@@ -221,13 +221,13 @@ exact `gh issue create` shape that would run.
 - **Atomic by contract.** A Story is the leaf of the 2-tier hierarchy — it
   has no child tickets. Its acceptance criteria and verification steps live
   inline on the Story body
-  ([`single-story-deliver.md`](helpers/single-story-deliver.md)).
+  ([`single-story-deliver.md`](single-story-deliver.md)).
 
 ## See also
 
-- [`/single-story-deliver`](helpers/single-story-deliver.md) — the consumer
+- [`/single-story-deliver`](single-story-deliver.md) — the consumer
   workflow that picks the Story up after this one creates it.
 - [`/plan`](plan-epic.md) — the Epic-tier equivalent. Phases 1–4
   inspired the seed-capture + envelope-emit pattern used here.
-- [`core/idea-refinement`](../skills/core/idea-refinement/SKILL.md) —
+- [`core/idea-refinement`](../../skills/core/idea-refinement/SKILL.md) —
   optional pre-authoring skill activated when the seed is short.

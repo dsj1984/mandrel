@@ -184,7 +184,7 @@ envelope field is the single deterministic source.
 Each Agent call:
 
 1. Names the Story ID and instructs the child to invoke
-   [`helpers/single-story-deliver`](helpers/single-story-deliver.md)
+   [`helpers/single-story-deliver`](single-story-deliver.md)
    for that Story.
 2. States the **return contract** (see § 2c).
 3. Reminds the child of the **non-interactive contract**: no clarifying
@@ -265,8 +265,8 @@ Story's suite is green and the close-validation gates already pass — and
 key is unset or `false`, story-deliver behaves exactly as documented above
 and this stage is skipped entirely.
 
-The stage adopts the [`refactorer`](../personas/refactorer.md) persona and the
-[`core/refactoring-discipline`](../skills/core/refactoring-discipline/SKILL.md)
+The stage adopts the [`refactorer`](../../personas/refactorer.md) persona and the
+[`core/refactoring-discipline`](../../skills/core/refactoring-discipline/SKILL.md)
 skill to drive a behaviour-preserving pass that lowers CRAP and removes
 duplication on the files the Story already touched:
 
@@ -277,7 +277,7 @@ duplication on the files the Story already touched:
   must be reverted.
 - **Advisory, not a gate.** This stage does **not** introduce a new
   close-validation gate and does **not** change the semantics of the existing
-  [close-validation](../scripts/lib/close-validation/runner.js) chain (typecheck,
+  [close-validation](../../scripts/lib/close-validation/runner.js) chain (typecheck,
   lint, test, format, maintainability, coverage, crap). The canonical gates
   remain the single source of pass/fail at close; the refactor stage only adds
   an extra behaviour-preserving cleanup commit when enabled.
@@ -313,15 +313,15 @@ blocked or unstarted Stories execute.
   `node .agents/scripts/update-ticket-state.js --ticket <id> --state <state>`.
   This CLI is the authoritative mechanism — there is no separate
   state-mutation MCP server to degrade from (see
-  [`.agents/instructions.md` § 1.D](../instructions.md)).
+  [`.agents/instructions.md` § 1.D](../../instructions.md)).
 
 ---
 
 ## See also
 
-- [`helpers/single-story-deliver`](helpers/single-story-deliver.md) — the
+- [`helpers/single-story-deliver`](single-story-deliver.md) — the
   per-Story worker this command delegates to.
 - [`/deliver`](deliver-epic.md) — full Epic wave loop for
   Epic-attached Stories.
-- [`helpers/epic-deliver-story`](helpers/epic-deliver-story.md) — the
+- [`helpers/epic-deliver-story`](epic-deliver-story.md) — the
   per-Story worker `/deliver` uses internally.

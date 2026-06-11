@@ -17,8 +17,8 @@ goal is to transform a high-level Epic into a fully decomposed, ready-to-execute
 backlog of Features and Stories.
 
 `/plan` is the unified planning entry point. It delegates to the two
-phase helpers — [`helpers/epic-plan-spec.md`](helpers/epic-plan-spec.md) and
-[`helpers/epic-plan-decompose.md`](helpers/epic-plan-decompose.md) — and runs
+phase helpers — [`helpers/epic-plan-spec.md`](epic-plan-spec.md) and
+[`helpers/epic-plan-decompose.md`](epic-plan-decompose.md) — and runs
 both phases sequentially with a human confirmation gate between them. The Epic
 ID is the single positional argument.
 
@@ -34,12 +34,12 @@ artifacts you author.
 - Wait for user validation before migrating to Phase 8 when
   `planningRisk.requiresReview` is true (or the operator passes
   `--force-review`). Low-risk Epics auto-proceed after spec validation.
-  See [SDLC § Adaptive planning risk routing](../docs/SDLC.md#adaptive-planning-risk-routing)
+  See [SDLC § Adaptive planning risk routing](../../docs/SDLC.md#adaptive-planning-risk-routing)
   for the full envelope shape and the planner-selected
   `acceptance::n-a` route.
 - Delegate Phase 7 and Phase 8 to the
-  [`helpers/epic-plan-spec.md`](helpers/epic-plan-spec.md) and
-  [`helpers/epic-plan-decompose.md`](helpers/epic-plan-decompose.md)
+  [`helpers/epic-plan-spec.md`](epic-plan-spec.md) and
+  [`helpers/epic-plan-decompose.md`](epic-plan-decompose.md)
   procedures respectively — they own the Epic lifecycle label transitions and
   the `epic-plan-state` checkpoint. This wrapper must not apply those labels
   directly.
@@ -93,12 +93,12 @@ and re-triaging it would re-litigate a settled call (the no-re-triage rule the
 skill states once).
 
 1. **Activate the scope-triage skill**: Read
-   [`<agentRoot>/skills/core/scope-triage/SKILL.md`](../skills/core/scope-triage/SKILL.md)
+   [`<agentRoot>/skills/core/scope-triage/SKILL.md`](../../skills/core/scope-triage/SKILL.md)
    via the `Read` tool (resolve `<agentRoot>` from `project.paths.agentRoot` —
    default `.agents`) and apply its rubric to the Phase 1 one-pager. The skill
    anchors its sizing judgment **by reference** to
    `DELIVERABLE_GRANULARITY_GUIDANCE` / `DEFAULT_TASK_SIZING` in
-   [`ticket-validator-sizing.js`](../scripts/lib/orchestration/ticket-validator-sizing.js)
+   [`ticket-validator-sizing.js`](../../scripts/lib/orchestration/ticket-validator-sizing.js)
    and emits one verdict: `epic` | `story` | `borderline`. The verdict is
    host-LLM judgment — there is **no `--flag`**, no scorer, no schema, and no
    label transition.
@@ -133,7 +133,7 @@ opening a duplicate.
 
 1. **Invoke the duplicate-search module**: Call
    `findSimilarOpenEpics({ onePager, provider })` exported from
-   [`.agents/scripts/lib/duplicate-search.js`](../scripts/lib/duplicate-search.js).
+   [`.agents/scripts/lib/duplicate-search.js`](../../scripts/lib/duplicate-search.js).
    The `provider` is the resolved ticketing provider
    (`provider-factory.js`), and `onePager` is the markdown returned by
    Phase 1.
@@ -155,9 +155,9 @@ new Epic is genuinely distinct).
 
 1. **Render the body**: Call
    `renderEpicBody({ onePager, template })` exported from
-   [`.agents/scripts/lib/epic-plan-ideation.js`](../scripts/lib/epic-plan-ideation.js).
+   [`.agents/scripts/lib/epic-plan-ideation.js`](../../scripts/lib/epic-plan-ideation.js).
    The `template` argument is the contents of
-   [`.agents/templates/epic-from-idea.md`](../templates/epic-from-idea.md),
+   [`.agents/templates/epic-from-idea.md`](../../templates/epic-from-idea.md),
    which carries the five canonical sections (Context, Goal, Non-Goals,
    Scope, Acceptance Criteria). Sections missing from the one-pager are
    rendered as `_(not specified)_` rather than left as raw `{{token}}`
@@ -180,7 +180,7 @@ new Epic is genuinely distinct).
    **Board membership (Story #3822)**: the provider's `createIssue`
    adds the new Epic to the configured Projects V2 board via the
    shared `addIssueToBoard` helper
-   ([`providers/github/board-add.js`](../scripts/providers/github/board-add.js))
+   ([`providers/github/board-add.js`](../../scripts/providers/github/board-add.js))
    — idempotent, non-fatal (warn-on-error), and a no-op when no
    project number is configured — so the Epic lands on the board
    without relying on GitHub's "Auto-add to project" built-in
@@ -256,14 +256,14 @@ triage on the one-pager before the Epic existed.
 ### Triage
 
 1. **Activate the scope-triage skill**: Read
-   [`<agentRoot>/skills/core/scope-triage/SKILL.md`](../skills/core/scope-triage/SKILL.md)
+   [`<agentRoot>/skills/core/scope-triage/SKILL.md`](../../skills/core/scope-triage/SKILL.md)
    via the `Read` tool (resolve `<agentRoot>` from `project.paths.agentRoot` —
    default `.agents`) and apply its rubric to the **Epic body**. The skill is
    artifact-agnostic — it reads the same against an Epic body as against a
    one-pager or a Story draft — and anchors its sizing judgment **by
    reference** to `DELIVERABLE_GRANULARITY_GUIDANCE` / `DEFAULT_TASK_SIZING`
    in
-   [`ticket-validator-sizing.js`](../scripts/lib/orchestration/ticket-validator-sizing.js).
+   [`ticket-validator-sizing.js`](../../scripts/lib/orchestration/ticket-validator-sizing.js).
    It emits one verdict: `epic` | `story` | `borderline`. The verdict is
    host-LLM judgment — there is **no `--flag`**, no scorer, no schema, and no
    label transition behind this gate. Do **not** restate the skill's rubric or
@@ -328,7 +328,7 @@ closes the Epic in its favor, and **every** issue mutation below happens
 The conversion mutates two issues (creates the Story, closes the Epic) — both
 behind the single operator confirmation above. After conversion `/plan`
 exits: the work now lives on the standalone Story, which the operator delivers
-via [`/single-story-deliver`](helpers/single-story-deliver.md) or
+via [`/single-story-deliver`](single-story-deliver.md) or
 [`/deliver`](deliver-stories.md).
 
 ## Phase 6: Epic Clarity Gate
@@ -338,7 +338,7 @@ Detection) and the Phase 5.5 story-sized advisory, and before Phase 7
 (PRD, Tech Spec & Acceptance Spec). The gate scores the Epic body
 against the five canonical
 sections from
-[`.agents/templates/epic-from-idea.md`](../templates/epic-from-idea.md)
+[`.agents/templates/epic-from-idea.md`](../../templates/epic-from-idea.md)
 (Context, Goal, Non-Goals, Scope, Acceptance Criteria) and either
 skips fast (when the Epic body is already clear) or drops into a
 refinement loop seeded from the current Epic body. The scorer also
@@ -353,7 +353,7 @@ sections present **and** the **Acceptance Criteria** section present —
 AC is a required section, not one of the four optional passers, so an
 Epic with no Acceptance Criteria is always `needs-refinement` (it would
 otherwise hard-fail the `/deliver` start gate downstream). See
-[`lib/epic-plan-clarity.js`](../scripts/lib/epic-plan-clarity.js)
+[`lib/epic-plan-clarity.js`](../../scripts/lib/epic-plan-clarity.js)
 for the scoring logic.
 
 1. **Score the body**: Run the clarity-check CLI in context-emission
@@ -373,7 +373,7 @@ for the scoring logic.
 
 3. **Needs-refinement path**: When `verdict === 'needs-refinement'`,
    activate the
-   [`core/idea-refinement`](../skills/core/idea-refinement/SKILL.md)
+   [`core/idea-refinement`](../../skills/core/idea-refinement/SKILL.md)
    skill **seeded from the current Epic body** (not a blank seed),
    with `missingOrPlaceholder` as the convergence target. The skill
    runs its three-phase divergent → convergent → sharpen loop and
@@ -381,9 +381,9 @@ for the scoring logic.
 
 4. **Re-render the body**: Call
    `renderEpicBody({ onePager, template })` from
-   [`lib/epic-plan-ideation.js`](../scripts/lib/epic-plan-ideation.js)
+   [`lib/epic-plan-ideation.js`](../../scripts/lib/epic-plan-ideation.js)
    (the same helper Phase 3 uses), passing the contents of
-   [`.agents/templates/epic-from-idea.md`](../templates/epic-from-idea.md).
+   [`.agents/templates/epic-from-idea.md`](../../templates/epic-from-idea.md).
    Write the result to `temp/epic-[Epic_ID]/clarity-update.md`.
 
 5. **HITL stop — confirm the diff**: Display the diff between the
@@ -455,7 +455,7 @@ for the scoring logic.
 > the runtime gates (start gate, finalize reconciler) honour the
 > waiver — the spec ticket itself need not be authored or approved when
 > the waiver is set. See [SDLC § Acceptance Spec — the third planning
-> context ticket](../docs/SDLC.md#acceptance-spec--the-third-planning-context-ticket)
+> context ticket](../../docs/SDLC.md#acceptance-spec--the-third-planning-context-ticket)
 > for the full lifecycle.
 
 <!-- separator: adjacent blockquotes -->
@@ -475,7 +475,7 @@ for the scoring logic.
 > **Durability.** The per-Epic tree is durable across runs: only the
 > wrapper scripts perform intra-phase cleanup of files they wrote in
 > the same invocation (see
-> [`lib/plan-phase-cleanup.js`](../scripts/lib/plan-phase-cleanup.js)).
+> [`lib/plan-phase-cleanup.js`](../../scripts/lib/plan-phase-cleanup.js)).
 > Nothing else garbage-collects the tree, so cross-Epic artifacts —
 > retros, perf reports, signals, manifests — accumulate until an
 > operator explicitly removes them.
@@ -489,7 +489,7 @@ for the scoring logic.
    ```
 
 2. **Activate the `epic-plan-spec-author` skill**: Read
-   [`<agentRoot>/skills/core/epic-plan-spec-author/SKILL.md`](../skills/core/epic-plan-spec-author/SKILL.md)
+   [`<agentRoot>/skills/core/epic-plan-spec-author/SKILL.md`](../../skills/core/epic-plan-spec-author/SKILL.md)
    via the `Read` tool (resolve `<agentRoot>` from
    `project.paths.agentRoot` — default `.agents`) and execute its
    procedure with `[Epic_ID]` as input. The skill reads
@@ -571,7 +571,7 @@ for the scoring logic.
 
 5. **Tech Spec freshness check (advisory)**: After the Tech Spec issue
    is created, `epic-plan-spec.js` runs
-   [`validateSpecFreshness`](../scripts/lib/orchestration/spec-freshness.js)
+   [`validateSpecFreshness`](../../scripts/lib/orchestration/spec-freshness.js)
    against the authored Tech Spec body, probing every cited path-shape
    reference (backticked paths, `// header` lines in code blocks, and
    inline mentions of paths under `.agents/`, `src/`, `lib/`, `app/`,
@@ -598,11 +598,11 @@ for the scoring logic.
 6. **BDD scenario cross-reference (advisory)**: When the project has
    adopted BDD, `epic-plan-spec.js` populates the planner-context
    envelope with `bddScenarios` — the output of
-   [`scanBddScenarios`](../scripts/lib/bdd-scenario-scanner.js) over
+   [`scanBddScenarios`](../../scripts/lib/bdd-scenario-scanner.js) over
    the canonical feature roots resolved by
-   [`resolveFeatureRoots`](../scripts/lib/bdd-runner-detect.js)
+   [`resolveFeatureRoots`](../../scripts/lib/bdd-runner-detect.js)
    (`tests/features`, `features`, `test/features`). The Acceptance
-   Engineer step in the [`epic-plan-spec-author`](../skills/core/epic-plan-spec-author/SKILL.md)
+   Engineer step in the [`epic-plan-spec-author`](../../skills/core/epic-plan-spec-author/SKILL.md)
    skill scores each planned AC against the scenario index via
    `findBestScenarioMatch`; when an existing scenario covers an AC's
    outcome, the AC's `Scenario` column is annotated with `<file>:L<line>`
@@ -615,7 +615,7 @@ for the scoring logic.
 7. **Cleanup**: The wrapper script (`epic-plan-spec.js`) deletes the Phase 7
    temp files automatically on success — no operator action required. The
    cleanup contract lives in
-   [`lib/plan-phase-cleanup.js`](../scripts/lib/plan-phase-cleanup.js).
+   [`lib/plan-phase-cleanup.js`](../../scripts/lib/plan-phase-cleanup.js).
    **Run the Phase 7.5 spec-validate gate (below) on
    `temp/epic-[Epic_ID]/techspec.md` *before* this cleanup deletes the file** —
    the gate reads the authored spec from temp.
@@ -631,7 +631,7 @@ for the scoring logic.
 
 **Why this gate exists.** Phase 8.3 (Holistic Consolidation) reconciles the
 draft ticket array against the Tech Spec's `## Delivery Slicing` section, which
-the [`epic-plan-decompose-author`](../skills/core/epic-plan-decompose-author/SKILL.md)
+the [`epic-plan-decompose-author`](../../skills/core/epic-plan-decompose-author/SKILL.md)
 skill uses as the capability-boundary anchor (see Phase 8 step 2 below). When
 the authored Tech Spec omits that section, the consolidation pass runs against a
 void and produces groupings that reflect **technical shape** (e.g. cron jobs
@@ -651,7 +651,7 @@ node .agents/scripts/epic-plan-spec-validate.js \
   insensitive; the gate also accepts the variant `## Delivery slicing` and the
   shorthand `## Slicing`). Continue to Phase 8.
 - **Exit non-zero** — the required section is missing. The gate is implemented
-  by [`lib/orchestration/spec-section-validator.js`](../scripts/lib/orchestration/spec-section-validator.js)
+  by [`lib/orchestration/spec-section-validator.js`](../../scripts/lib/orchestration/spec-section-validator.js)
   and prints an operator-visible message naming the missing section and the two
   recovery paths:
 
@@ -693,7 +693,7 @@ node .agents/scripts/epic-plan-spec-validate.js \
 > Acceptance criteria and verification steps are inlined on each Story
 > body (`acceptance[]` / `verify[]` fields) and resolved against the
 > Acceptance Spec context ticket at close time. See
-> [`.agents/instructions.md` § 5.D](../instructions.md) for the full
+> [`.agents/instructions.md` § 5.D](../../instructions.md) for the full
 > contract.
 
 1. **Gather Decomposition Context**:
@@ -703,7 +703,7 @@ node .agents/scripts/epic-plan-spec-validate.js \
    ```
 
 2. **Activate the `epic-plan-decompose-author` skill**: Read
-   [`<agentRoot>/skills/core/epic-plan-decompose-author/SKILL.md`](../skills/core/epic-plan-decompose-author/SKILL.md)
+   [`<agentRoot>/skills/core/epic-plan-decompose-author/SKILL.md`](../../skills/core/epic-plan-decompose-author/SKILL.md)
    via the `Read` tool (resolve `<agentRoot>` from
    `project.paths.agentRoot` — default `.agents`) and execute its
    procedure with `[Epic_ID]` as input. The skill reads
@@ -732,7 +732,7 @@ node .agents/scripts/epic-plan-spec-validate.js \
 3. **Phase 8.3 — Holistic Consolidation (HITL diff gate)**: After the
    draft `temp/epic-[Epic_ID]/tickets.json` exists and **before** the persist
    call below, activate the
-   [`epic-plan-consolidate`](../skills/core/epic-plan-consolidate/SKILL.md)
+   [`epic-plan-consolidate`](../../skills/core/epic-plan-consolidate/SKILL.md)
    skill with `[Epic_ID]` as input. This is a **separate critic pass with
    fresh context** (not a self-review appended to the author skill): it reads
    the draft array plus the PRD / Tech Spec, reconciles the draft against the
@@ -771,7 +771,7 @@ node .agents/scripts/epic-plan-spec-validate.js \
    - Hierarchy completeness, dependency-DAG acyclicity, and `risk::high`
      labelling are deterministic invariants enforced by
      `validateAndNormalizeTickets` in
-     [`lib/orchestration/ticket-validator.js`](../scripts/lib/orchestration/ticket-validator.js);
+     [`lib/orchestration/ticket-validator.js`](../../scripts/lib/orchestration/ticket-validator.js);
      its output during decomposition is the canonical proof — no manual
      re-check needed.
    - **File-assumption gate (Story #2636)**: Each Story's `body.changes`
@@ -815,7 +815,7 @@ node .agents/scripts/epic-plan-spec-validate.js \
 7. **Cleanup**: The wrapper script (`epic-plan-decompose.js`) deletes the
    Phase 8 temp files automatically on success — no operator action required.
    The cleanup contract lives in
-   [`lib/plan-phase-cleanup.js`](../scripts/lib/plan-phase-cleanup.js).
+   [`lib/plan-phase-cleanup.js`](../../scripts/lib/plan-phase-cleanup.js).
 
 ## Phase 9: Execution Roadmap (Story Dispatch)
 
@@ -930,7 +930,7 @@ forcing the walkthrough.
 ### 2. Run the walkthrough (when offered and accepted)
 
 Activate the
-[`core/knowledge-transfer`](../skills/core/knowledge-transfer/SKILL.md) skill
+[`core/knowledge-transfer`](../../skills/core/knowledge-transfer/SKILL.md) skill
 with the **plan** as the subject — the Epic body, the linked PRD / Tech Spec
 context tickets, the decomposition (Features/Stories with inline
 `acceptance[]` / `verify[]`), and the Phase 9 wave roadmap. The skill owns the

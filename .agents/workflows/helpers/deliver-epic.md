@@ -34,7 +34,7 @@ clean run; otherwise it falls back to the operator-merges-button path.
 
 The argument is always an Epic ID (`type::epic`). Story IDs go to
 [`/deliver`](deliver-stories.md) (standalone) or the
-[`helpers/epic-deliver-story`](helpers/epic-deliver-story.md) helper
+[`helpers/epic-deliver-story`](epic-deliver-story.md) helper
 (Epic-attached, invoked by this workflow's fan-out); Tasks are not directly
 executable.
 Story dispatch is in-session via the Agent tool — no subprocess is
@@ -79,7 +79,7 @@ Every other runtime modifier is sourced from the Epic's labels or from
   typed events on the in-session lifecycle bus; a fixed roster of
   listeners performs the side effects. Phase 7, 8.5, and 9 each fire
   exactly one lifecycle event via the generic
-  [`lifecycle-emit.js`](../scripts/lifecycle-emit.js) CLI
+  [`lifecycle-emit.js`](../../scripts/lifecycle-emit.js) CLI
   (`--event epic.close.end` / `--event epic.automerge.start` /
   `--event epic.merge.armed`); the matching listener chain runs the
   bus-driven side effects (acceptance reconcile, automerge-armer,
@@ -88,7 +88,7 @@ Every other runtime modifier is sourced from the Epic's labels or from
   the canonical manual sequence and `finalizer.js` for the listener's
   no-op disclaimer. The append-only NDJSON ledger at
   `temp/epic-<id>/lifecycle.ndjson` is the resume target. See
-  [`docs/LIFECYCLE.md`](../../docs/LIFECYCLE.md) for the bus
+  [`docs/LIFECYCLE.md`](../../../docs/LIFECYCLE.md) for the bus
   contract, event taxonomy, ledger format, and listener model.
 
 > **Hierarchy.** `/deliver` operates over the 2-tier hierarchy
@@ -97,11 +97,11 @@ Every other runtime modifier is sourced from the Epic's labels or from
 > `--no-ff` via `story-close.js`; the close-validation chain
 > (Phase 3), epic-audit, code-review, retro, finalize, and auto-merge
 > gates all operate on Story-level units.
-> [`helpers/epic-deliver-story`](helpers/epic-deliver-story.md) runs a
+> [`helpers/epic-deliver-story`](epic-deliver-story.md) runs a
 > single Story-implementation phase per Story against the Story's
 > inline `acceptance[]` / `verify[]` fields. See
-> [`.agents/instructions.md` § 5.D](../instructions.md) and
-> [`.agents/docs/SDLC.md` § Ticket hierarchy](../docs/SDLC.md) for the full
+> [`.agents/instructions.md` § 5.D](../../instructions.md) and
+> [`.agents/docs/SDLC.md` § Ticket hierarchy](../../docs/SDLC.md) for the full
 > contract.
 
 ---
@@ -157,7 +157,7 @@ and upserts the `epic-run-state` checkpoint. Treat the printed JSON as
 > **Preflight guards (Story #3482 / F-workflow-guards).** Before the
 > snapshot phase runs — and before any worktree is created — prepare runs
 > two **fail-closed** guards
-> ([`lib/orchestration/epic-deliver-lease-guard.js`](../scripts/lib/orchestration/epic-deliver-lease-guard.js)):
+> ([`lib/orchestration/epic-deliver-lease-guard.js`](../../scripts/lib/orchestration/epic-deliver-lease-guard.js)):
 >
 > 1. **Checkout safety.** Prepare refuses to start when the working tree is
 >    dirty or HEAD is on a branch other than the expected one (`epic/<id>`
@@ -182,13 +182,13 @@ and upserts the `epic-run-state` checkpoint. Treat the printed JSON as
 >    `epic-merge-lock.js` continues to serialize same-machine sessions.
 >
 > Both guards throw on failure, which `runAsCli` maps to `process.exit(1)`
-> per [`orchestration-error-handling.md`](../rules/orchestration-error-handling.md).
+> per [`orchestration-error-handling.md`](../../rules/orchestration-error-handling.md).
 
 Once the preflight guards pass, the snapshot phase applies one more gate:
 
 > **Acceptance-spec start gate.** Before the wave loop fans out, the
 > snapshot phase
-> ([`lib/orchestration/epic-runner/phases/snapshot.js`](../scripts/lib/orchestration/epic-runner/phases/snapshot.js))
+> ([`lib/orchestration/epic-runner/phases/snapshot.js`](../../scripts/lib/orchestration/epic-runner/phases/snapshot.js))
 > asserts that the Epic either carries the `acceptance::n-a` waiver
 > label **or** has a linked `context::acceptance-spec` ticket. The
 > ticket's GitHub state (open / closed) is **not** checked —
@@ -206,7 +206,7 @@ Once the preflight guards pass, the snapshot phase applies one more gate:
 ## Phase 2 — Wave loop
 
 The wave-loop state machine lives in
-[`lib/wave-runner/tick.js`](../scripts/lib/wave-runner/tick.js) — one
+[`lib/wave-runner/tick.js`](../../scripts/lib/wave-runner/tick.js) — one
 stateless `tick({ epic })` call returns one `WaveTickResult` describing
 the next action. The slash command's job is to call `tick()` via its CLI
 shim, dispatch from `nextAction.stories` via the Agent tool, persist the
@@ -243,7 +243,7 @@ only the two wave-window forensics signals that have a live consumer —
 `waveParallelism` report (and `wave-start` anchors span-tree Story spans).
 Story #3909 retired the write-only wave events with no reader (`wave-tick`,
 `epic-complete`) — they duplicated the checkpoint + rollup. The
-[`signals` helper](helpers/signals.md) (`node .agents/scripts/signals-view.js`)
+[`signals` helper](signals.md) (`node .agents/scripts/signals-view.js`)
 renders the forensics signals in the span-tree view.
 
 ### 2b. Dispatch — fan out per-Story Agent calls
@@ -252,7 +252,7 @@ renders the forensics signals in the span-tree view.
 invoke `helpers/epic-deliver-story` yourself. Emit **one `Agent` tool call per
 Story** in `nextAction.stories` (even when `length === 1` — the
 parent-child boundary keeps the return-parser uniform). The *children*
-run [`helpers/epic-deliver-story`](helpers/epic-deliver-story.md). Use
+run [`helpers/epic-deliver-story`](epic-deliver-story.md). Use
 `subagent_type: general-purpose`.
 
 Emit **one assistant turn** with **N parallel `Agent` calls** where
@@ -276,7 +276,7 @@ the cap, never wait for a whole batch before refilling.
 **Ledger the dispatch BEFORE the Agent call.** Immediately before each
 per-Story `Agent` tool call (one shell-out per Story, every attempt —
 including retries from a refill), invoke
-[`lifecycle-emit-story-dispatch.js`](../scripts/lifecycle-emit-story-dispatch.js)
+[`lifecycle-emit-story-dispatch.js`](../../scripts/lifecycle-emit-story-dispatch.js)
 so the lifecycle ledger durably records the dispatch attempt. The
 emit must happen **before** the Agent call fires — never after — so
 that a host-process crash mid-Agent leaves a `story.dispatch.start`
@@ -425,7 +425,7 @@ one in-flight Story has been silent for ≥ the threshold:
 
 **On a stall.** When the watchdog exits non-zero, post the envelope
 verbatim as a `wave-stall` structured comment on the Epic (use
-[`post-structured-comment.js`](../scripts/post-structured-comment.js)
+[`post-structured-comment.js`](../../scripts/post-structured-comment.js)
 with `--kind wave-stall`), then re-evaluate the affected Stories: if a
 child sub-agent has crashed (no `story.dispatch.end`, no recent
 heartbeat, no commit on `story-<id>`), re-dispatch the Story per § 2b
@@ -465,14 +465,14 @@ the Epic branch; if any drifts, refresh and commit
 ## Phase 4 — Epic audit (change-set lenses)
 
 Skip when `--skip-epic-audit`. Otherwise auto-invoke
-[`helpers/epic-audit.md`](helpers/epic-audit.md) inline. The helper runs
-[`epic-audit-prepare.js`](../scripts/epic-audit-prepare.js) to ask the
-[`selectAudits`](../scripts/lib/audit-suite/index.js) SDK which lenses fire
+[`helpers/epic-audit.md`](epic-audit.md) inline. The helper runs
+[`epic-audit-prepare.js`](../../scripts/epic-audit-prepare.js) to ask the
+[`selectAudits`](../../scripts/lib/audit-suite/index.js) SDK which lenses fire
 at the `gate3` close gate, **unions in the model-judged risk-routed lenses**
 (Story #3889 — `epic-audit-prepare.js` reads the Epic's `planningRisk`
 envelope off the `epic-plan-state` checkpoint and maps each high-risk axis to
 its lens via `resolveAuditLenses`), then dispatches each selected lens through
-[`runAuditSuite`](../scripts/lib/audit-suite/index.js). A high-risk Epic
+[`runAuditSuite`](../../scripts/lib/audit-suite/index.js). A high-risk Epic
 therefore auto-runs its mapped lenses (e.g. a `security`-axis Epic runs
 `audit-security`) even when the change set alone did not select them; a
 low-risk Epic adds nothing. Findings are persisted as an `audit-results`
@@ -492,7 +492,7 @@ structured comment on the Epic.
 
 Skip when `--skip-code-review`. Otherwise resolve the **risk-derived review
 depth** for this Epic, then auto-invoke
-[`helpers/code-review.md`](helpers/code-review.md) inline (read-only audit)
+[`helpers/code-review.md`](code-review.md) inline (read-only audit)
 with the argument envelope `{ scope: 'epic', ticketId: <epicId>, baseRef:
 'main', headRef: 'epic/<epicId>', depth: <reviewDepth> }`. The helper
 persists findings as a `code-review` structured comment on the Epic.
@@ -500,7 +500,7 @@ persists findings as a `code-review` structured comment on the Epic.
 The `depth` is the live epic-scope producer for Story #3876's review-depth
 lever (Story #3937). Resolve it from the Epic's judged risk envelope the same
 best-effort way Phase 4 routes audit lenses — via
-[`resolveReviewDepthForEpic`](../scripts/lib/orchestration/code-review.js),
+[`resolveReviewDepthForEpic`](../../scripts/lib/orchestration/code-review.js),
 which reads `planningRisk.overallLevel` off the Epic's `epic-plan-state`
 checkpoint and maps it: `high` → `deep`, `low` → `light`, everything else
 (including a missing/unparseable checkpoint, or an Epic that skipped
@@ -527,12 +527,12 @@ runner via its CLI wrapper:
 node .agents/scripts/retro-run.js --epic <epicId>
 ```
 
-[`retro-run.js`](../scripts/retro-run.js) resolves the config/provider,
+[`retro-run.js`](../../scripts/retro-run.js) resolves the config/provider,
 constructs a lifecycle bus with a `LedgerWriter` (so the run's
 `retro.start` / `retro.end` boundaries land in
 `temp/epic-<epicId>/lifecycle.ndjson`), and calls `runRetro` — the
 canonical compose-and-post surface at
-[`.agents/scripts/lib/orchestration/retro-runner.js`](../scripts/lib/orchestration/retro-runner.js).
+[`.agents/scripts/lib/orchestration/retro-runner.js`](../../scripts/lib/orchestration/retro-runner.js).
 Propagate `--full-retro` to bypass the compact-path heuristic.
 
 Retro fires here (before the PR opens) so it stays in the operator's
@@ -541,7 +541,7 @@ local session with full env access (env vars, credentials, MCP).
 After the GitHub upsert succeeds, the retro body is also **mirrored
 locally** to the per-Epic temp tree at `temp/epic-<epicId>/retro.md`
 (path resolved via
-[`lib/config/temp-paths.js`](../scripts/lib/config/temp-paths.js)'s
+[`lib/config/temp-paths.js`](../../scripts/lib/config/temp-paths.js)'s
 `epicRetroMirrorPath`, which honours `project.paths.tempRoot`).
 Operators can read the retro without re-fetching from GitHub. GitHub
 remains the source of truth — a mirror-write failure only logs a warn
@@ -597,11 +597,11 @@ just fires the emit and reads the resulting ledger.
 
 1. **Acceptance-spec reconciliation — bus-driven.** The
    `AcceptanceReconciler` listener invokes
-   [`acceptance-spec-reconciler.js`](../scripts/acceptance-spec-reconciler.js)
+   [`acceptance-spec-reconciler.js`](../../scripts/acceptance-spec-reconciler.js)
    to diff the AC IDs declared in the linked `context::acceptance-spec`
    body against `@ac-*` / `@pending` tags in `tests/features/**`. A
    non-OK reconciliation throws (per
-   [`rules/orchestration-error-handling.md`](../rules/orchestration-error-handling.md)),
+   [`rules/orchestration-error-handling.md`](../../rules/orchestration-error-handling.md)),
    aborting finalize **before** any PR is opened or planning artifacts
    are closed — so the PRD, Tech Spec, and Acceptance Spec stay open
    until the AC coverage gap is fixed. The reconciler returns
@@ -611,7 +611,7 @@ just fires the emit and reads the resulting ledger.
    start gate in Phase 1 would normally catch that first).
 2. **PR open — bus-driven (Story #2894).** On
    `acceptance.reconcile.ok` the `Finalizer` listener invokes
-   [`openOrLocatePr`](../scripts/lib/orchestration/finalize/open-or-locate-pr.js)
+   [`openOrLocatePr`](../../scripts/lib/orchestration/finalize/open-or-locate-pr.js)
    with `{ epicId, headBranch: 'epic/<id>', baseBranch: 'main' }`.
    The helper probes for an existing open PR on the head branch
    first (idempotent locate path — a re-run of `/deliver`
@@ -627,17 +627,17 @@ just fires the emit and reads the resulting ledger.
    driven later from the gated watch path (`pr.created` → `Watcher`
    → `epic.watch.end` → `AutomergePredicate` → `epic.merge.ready` →
    `AutomergeArmer`) re-entered in Phase 8.5. The merge-lockout rule
-   in [`check-lifecycle-lint.js`](../scripts/check-lifecycle-lint.js)
+   in [`check-lifecycle-lint.js`](../../scripts/check-lifecycle-lint.js)
    keeps `gh pr merge --auto --squash --delete-branch` confined to
    `AutomergeArmer` — Phase 7 never shells the merge command.
 3. **Planning-artifact close + hand-off — bus-driven (Story
    #2894).** After `openOrLocatePr` returns, the `Finalizer` chains
-   [`closePlanningTickets`](../scripts/lib/orchestration/finalize/close-planning-tickets.js)
+   [`closePlanningTickets`](../../scripts/lib/orchestration/finalize/close-planning-tickets.js)
    to close the three planning context tickets
    (`context::prd`, `context::tech-spec`, `context::acceptance-spec`)
    so the Epic's `Closes #<id>` auto-close path is not blocked by
    open sub-issues, then
-   [`postHandoffComment`](../scripts/lib/orchestration/finalize/post-handoff-comment.js)
+   [`postHandoffComment`](../../scripts/lib/orchestration/finalize/post-handoff-comment.js)
    to upsert the canonical `epic-handoff` structured comment naming
    the PR URL. Both helpers are idempotent — already-closed tickets
    are counted under `alreadyClosed`, and the handoff comment is

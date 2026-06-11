@@ -832,7 +832,7 @@ name without rewriting this ADR text.
 
 ---
 
-## ADR 20260510-sdl-collapse: 5.40.0 — collapse to /epic-plan + /epic-deliver, fold retro into deliver tail
+## ADR 20260510-sdl-collapse: 5.40.0 — collapse to `/epic-plan` + `/epic-deliver`, fold retro into deliver tail
 
 **Status:** Accepted
 **Date:** 2026-05-10
