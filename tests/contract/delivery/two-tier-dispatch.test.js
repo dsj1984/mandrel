@@ -1,16 +1,16 @@
 /**
- * tests/contract/delivery/three-tier-dispatch.test.js
+ * tests/contract/delivery/two-tier-dispatch.test.js
  *
- * Contract: dispatch wave computation for a 3-tier Epic. After Epic #3163's
+ * Contract: dispatch wave computation for a 2-tier Epic. After Epic #3163's
  * hard cutover deleted the `type::task` ticket layer, shape selection is
  * purely structural — any Epic carrying at least one `type::story` ticket
- * resolves to the 3-tier path.
+ * resolves to the 2-tier path.
  *
  * Asserts:
- *   - `isThreeTierDispatch` returns true when at least one Story is
+ *   - `isTwoTierDispatch` returns true when at least one Story is
  *     present.
- *   - `isThreeTierDispatch` returns false on an empty ticket graph.
- *   - `isThreeTierDispatch` returns false when no Story is present.
+ *   - `isTwoTierDispatch` returns false on an empty ticket graph.
+ *   - `isTwoTierDispatch` returns false when no Story is present.
  *   - `buildStoryDispatchGraph` computes the expected Story-level wave
  *     ordering when Story B is `blocked by #<storyA-id>`.
  *   - `buildStoryDispatchGraph` places independent Stories in wave 0
@@ -25,7 +25,7 @@ import { describe, it } from 'node:test';
 
 import {
   buildStoryDispatchGraph,
-  isThreeTierDispatch,
+  isTwoTierDispatch,
 } from '../../../.agents/scripts/lib/orchestration/dispatch-pipeline.js';
 
 function storyTicket(id, { dependsOnIds = [], extraLabels = [] } = {}) {
@@ -41,19 +41,19 @@ function storyTicket(id, { dependsOnIds = [], extraLabels = [] } = {}) {
 function nonStoryTicket(id) {
   return {
     id,
-    title: `Feature ${id}`,
+    title: `PRD ${id}`,
     body: '',
-    labels: ['type::feature'],
+    labels: ['context::prd'],
   };
 }
 
-describe('isThreeTierDispatch — structural detection (Story #3193)', () => {
+describe('isTwoTierDispatch — structural detection (Story #3193)', () => {
   it('returns true when at least one Story is present', () => {
     // Arrange
     const allTickets = [storyTicket(100), storyTicket(101)];
 
     // Act
-    const result = isThreeTierDispatch(allTickets);
+    const result = isTwoTierDispatch(allTickets);
 
     // Assert
     assert.equal(result, true);
@@ -61,7 +61,7 @@ describe('isThreeTierDispatch — structural detection (Story #3193)', () => {
 
   it('returns false on an empty ticket graph', () => {
     // Arrange / Act
-    const result = isThreeTierDispatch([]);
+    const result = isTwoTierDispatch([]);
 
     // Assert
     assert.equal(result, false);
@@ -69,7 +69,7 @@ describe('isThreeTierDispatch — structural detection (Story #3193)', () => {
 
   it('returns false when no Story is present', () => {
     // Arrange / Act
-    const result = isThreeTierDispatch([nonStoryTicket(1)]);
+    const result = isTwoTierDispatch([nonStoryTicket(1)]);
 
     // Assert
     assert.equal(result, false);

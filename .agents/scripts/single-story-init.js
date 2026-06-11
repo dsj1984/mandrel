@@ -139,7 +139,7 @@ export function makeGhRunner(cwd) {
 export function assertDeliverableStory(story, storyId) {
   if (!story.labels.includes(TYPE_LABELS.STORY)) {
     throw new Error(
-      `Issue #${storyId} is not a Story (labels: ${story.labels.join(', ')}). Use /story-deliver or /epic-deliver for Epic-attached work.`,
+      `Issue #${storyId} is not a Story (labels: ${story.labels.join(', ')}). Use /deliver or /deliver for Epic-attached work.`,
     );
   }
   if (story.state === 'closed') {

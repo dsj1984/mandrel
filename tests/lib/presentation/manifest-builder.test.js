@@ -3,10 +3,10 @@
  * `buildManifestFromSpec` plus branch coverage of the private
  * `validateSpecShape` predicate (exposed via `__testables`).
  *
- * Story #3413 (3-tier cutover, final): the residual per-Task projection
- * has been deleted. The walker (`projectFeatures`) counts Stories
+ * Story #3413 (2-tier cutover, final): the residual per-Task projection
+ * has been deleted. The walker (`projectStories`) counts Stories
  * directly, each Story entry surfaces a `status` field resolved from the
- * Story's own `agent::*` label (the 3-tier invariant), and `summary`
+ * Story's own `agent::*` label (the 2-tier invariant), and `summary`
  * carries Story-tier counts only (`totalStories` / `doneStories` /
  * `progressPercent`). Story entries no longer carry a `tasks[]` array.
  *
@@ -30,15 +30,6 @@ const { validateSpecShape } = __testables;
 // validateSpecShape — per-level guard predicate branch coverage
 // ---------------------------------------------------------------------------
 
-test('validateSpecShape: features level accepts only arrays', () => {
-  assert.equal(validateSpecShape('features', []), true);
-  assert.equal(validateSpecShape('features', [{}]), true);
-  assert.equal(validateSpecShape('features', null), false);
-  assert.equal(validateSpecShape('features', undefined), false);
-  assert.equal(validateSpecShape('features', {}), false);
-  assert.equal(validateSpecShape('features', 'features'), false);
-});
-
 test('validateSpecShape: stories level accepts only arrays', () => {
   assert.equal(validateSpecShape('stories', []), true);
   assert.equal(validateSpecShape('stories', [{}]), true);
@@ -56,7 +47,8 @@ test('validateSpecShape: story level accepts only non-null objects', () => {
   assert.equal(validateSpecShape('story', 42), false);
 });
 
-test('validateSpecShape: removed task levels fall through to false', () => {
+test('validateSpecShape: removed feature/task levels fall through to false', () => {
+  assert.equal(validateSpecShape('features', []), false);
   assert.equal(validateSpecShape('tasks', []), false);
   assert.equal(validateSpecShape('task', { slug: 'x' }), false);
 });
@@ -73,15 +65,9 @@ test('validateSpecShape: unknown level falls through to false', () => {
 function specFixture(overrides = {}) {
   return {
     epic: { id: 99, title: 'Test Epic' },
-    features: [
-      {
-        slug: 'feat-a',
-        title: 'Feature A',
-        stories: [
-          { slug: 'story-a1', title: 'Story A1', wave: 0 },
-          { slug: 'story-a2', title: 'Story A2', wave: 1 },
-        ],
-      },
+    stories: [
+      { slug: 'story-a1', title: 'Story A1', wave: 0 },
+      { slug: 'story-a2', title: 'Story A2', wave: 1 },
     ],
     ...overrides,
   };
@@ -109,7 +95,7 @@ test('buildManifestFromSpec: storyEntry carries no residual tasks array', () => 
   assert.equal(mf.storyManifest[0].tasks, undefined);
 });
 
-test('buildManifestFromSpec: each storyEntry carries its own resolved Story status (3-tier)', () => {
+test('buildManifestFromSpec: each storyEntry carries its own resolved Story status (2-tier)', () => {
   const state = stateFixture({
     'story-a1': { lastObservedAgentState: 'agent::executing' },
     'story-a2': { lastObservedAgentState: 'agent::done' },
@@ -151,31 +137,17 @@ test('buildManifestFromSpec: defaults Story status to agent::ready when un-mappe
   assert.equal(mf.storyManifest[1].status, 'agent::ready');
 });
 
-test('buildManifestFromSpec: ignores non-array features (validateSpecShape guard)', () => {
-  const spec = { epic: { id: 1, title: 'x' }, features: 'not-an-array' };
+test('buildManifestFromSpec: ignores non-array stories (validateSpecShape guard)', () => {
+  const spec = { epic: { id: 1, title: 'x' }, stories: 'not-an-array' };
   const mf = buildManifestFromSpec(spec);
   assert.deepEqual(mf.storyManifest, []);
   assert.equal(mf.summary.totalStories, 0);
 });
 
-test('buildManifestFromSpec: ignores non-array stories inside a feature', () => {
-  const spec = {
-    epic: { id: 1, title: 'x' },
-    features: [{ slug: 'f', stories: null }],
-  };
-  const mf = buildManifestFromSpec(spec);
-  assert.deepEqual(mf.storyManifest, []);
-});
-
 test('buildManifestFromSpec: skips non-object stories', () => {
   const spec = {
     epic: { id: 1, title: 'x' },
-    features: [
-      {
-        slug: 'f',
-        stories: [null, 'not-an-object', { slug: 's' }],
-      },
-    ],
+    stories: [null, 'not-an-object', { slug: 's' }],
   };
   const mf = buildManifestFromSpec(spec);
   assert.equal(mf.storyManifest.length, 1);
@@ -185,12 +157,7 @@ test('buildManifestFromSpec: skips non-object stories', () => {
 test('buildManifestFromSpec: stories without a wave land in earliestWave=-1', () => {
   const spec = {
     epic: { id: 1, title: 'x' },
-    features: [
-      {
-        slug: 'f',
-        stories: [{ slug: 's' }],
-      },
-    ],
+    stories: [{ slug: 's' }],
   };
   const mf = buildManifestFromSpec(spec);
   assert.equal(mf.storyManifest[0].earliestWave, -1);
@@ -198,7 +165,7 @@ test('buildManifestFromSpec: stories without a wave land in earliestWave=-1', ()
 });
 
 test('buildManifestFromSpec: missing epic block yields null epicId and empty title', () => {
-  const mf = buildManifestFromSpec({ features: [] });
+  const mf = buildManifestFromSpec({ stories: [] });
   assert.equal(mf.epicId, null);
   assert.equal(mf.epicTitle, '');
 });
@@ -220,15 +187,10 @@ test('buildManifestFromSpec: honours opts.executor / dryRun / generatedAt / agen
 test('buildManifestFromSpec: progressPercent rounds doneStories/totalStories to nearest integer', () => {
   const spec = {
     epic: { id: 1, title: 'x' },
-    features: [
-      {
-        slug: 'f',
-        stories: [
-          { slug: 's1', wave: 0 },
-          { slug: 's2', wave: 0 },
-          { slug: 's3', wave: 0 },
-        ],
-      },
+    stories: [
+      { slug: 's1', wave: 0 },
+      { slug: 's2', wave: 0 },
+      { slug: 's3', wave: 0 },
     ],
   };
   const state = stateFixture({

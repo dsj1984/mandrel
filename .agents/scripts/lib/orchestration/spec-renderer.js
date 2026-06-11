@@ -1,30 +1,29 @@
 /**
  * lib/orchestration/spec-renderer.js — tickets.json → epic-spec.yaml
- * projection (3-tier shape, Epic #3163).
+ * projection (2-tier shape, Story #4041).
  *
  * The decomposer (`epic-plan-decompose-author`) produces a flat array
- * of ticket objects of two shapes (feature / story) keyed by stable
- * `slug`s and linked by `parent_slug` + `depends_on`. The spec
- * reconciler consumes the declarative structural representation
- * defined by `.agents/schemas/epic-spec.schema.json` — a nested
- * `{ epic, features: [{ stories: [...] }] }` tree with Story-level
- * `wave`, `dependsOn`, and inline `acceptance[]` / `verify[]` arrays
+ * of Story ticket objects keyed by stable `slug`s and linked by
+ * `depends_on`. The spec reconciler consumes the declarative
+ * structural representation defined by
+ * `.agents/schemas/epic-spec.schema.json` — a flat
+ * `{ epic, stories: [...] }` shape with Story-level `wave`,
+ * `dependsOn`, and inline `acceptance[]` / `verify[]` arrays
  * projected from the decomposer's edges.
  *
- * Under the 3-tier hierarchy (Epic #3078), Stories have no Task
- * children — acceptance and verify steps live inline on the Story.
- * Epic #3163 deletes the historical 4-tier Task emission code path
- * from this renderer (and its companion producers / consumers) in a
- * single hard cutover (see `.agents/rules/git-conventions.md` §
- * "Contract Cutovers — No Shim Layer"). A `task` ticket in the
- * decomposer input is rejected at index time.
+ * Under the 2-tier hierarchy (Story #4041), Stories have no Feature
+ * parent and no Task children — acceptance and verify steps live
+ * inline on the Story, and Stories attach directly to the Epic. Any
+ * `feature` or `task` ticket in the decomposer input is rejected at
+ * index time (hard cutover; see `.agents/rules/git-conventions.md` §
+ * "Contract Cutovers — No Shim Layer").
  *
  * `renderSpec(tickets, opts)` is the pure projection between those
  * two shapes. It:
  *
- *   1. Indexes the flat array by slug, partitioning into features /
- *      stories. Any unrecognised type (including the historical
- *      `task`) raises immediately.
+ *   1. Indexes the flat array by slug. Any unrecognised type
+ *      (including the historical `feature` / `task`) raises
+ *      immediately.
  *   2. Filters Story `depends_on` edges down to inter-Story
  *      references in the same Epic.
  *   3. Layers Stories into waves via `Graph.assignLayers` (depth in
@@ -33,9 +32,9 @@
  *      convention (`build-wave-dag.js` produces the same layering at
  *      dispatch time from the live GH state, so the spec's waves are
  *      observationally identical to what dispatch will compute).
- *   4. Walks the hierarchy in decomposer-declared order (feature →
- *      story), preserving the order the LLM emitted so the
- *      reconciler's diff stays human-readable.
+ *   4. Walks the Stories in decomposer-declared order, preserving
+ *      the order the LLM emitted so the reconciler's diff stays
+ *      human-readable.
  *   5. Strips `agent::*` labels from every entity. The decomposer
  *      doesn't normally write them, but they can leak via reverse-
  *      bootstrap from live GH state — and the schema forbids them
@@ -162,7 +161,7 @@ function sanitizeLabels(labels) {
  * Convert a decomposer body value into a spec `body` string. The
  * decomposer schema admits two shapes for a Story body:
  *
- *   - A short string (preferred under the 3-tier hierarchy).
+ *   - A short string (preferred under the 2-tier hierarchy).
  *   - A structured object (`{ goal, changes[], acceptance[],
  *     verify[] }`) carried over from the legacy 4-tier Task body
  *     shape, when the decomposer chooses to inline the Story's
@@ -215,16 +214,12 @@ function assignNonEmpty(target, key, value) {
 }
 
 /**
- * Partition the flat ticket array into per-type maps keyed by slug.
- * Returns the ordered slug lists alongside the lookup map so the
- * renderer can walk the hierarchy in the decomposer's emit order
- * (parents-before-children is guaranteed by the validator's
- * topological sort, but we don't need that invariant here — we walk
- * features in array order, then look up their children by parent_slug
- * in the order the decomposer emitted them).
+ * Index the flat ticket array by slug. Returns the ordered Story slug
+ * list alongside the lookup map so the renderer can walk Stories in
+ * the decomposer's emit order.
  *
- * Under the 3-tier hierarchy (Epic #3078), only `feature` and `story`
- * types are recognised. Any other type — including the historical
+ * Under the 2-tier hierarchy (Story #4041), only the `story` type is
+ * recognised. Any other type — including the historical `feature` /
  * `task` — falls through to the unknown-type guard and raises
  * immediately; there is no silent drop.
  *
@@ -232,7 +227,6 @@ function assignNonEmpty(target, key, value) {
  */
 function indexTickets(tickets) {
   const bySlug = new Map();
-  const featureSlugs = [];
   const storySlugs = [];
 
   for (const t of tickets) {
@@ -247,15 +241,14 @@ function indexTickets(tickets) {
       throw new Error(`[spec-renderer] duplicate slug "${slug}"`);
     }
     bySlug.set(slug, t);
-    if (t.type === 'feature') featureSlugs.push(slug);
-    else if (t.type === 'story') storySlugs.push(slug);
+    if (t.type === 'story') storySlugs.push(slug);
     else {
       throw new Error(
         `[spec-renderer] ticket "${slug}" has unknown type "${t.type}"`,
       );
     }
   }
-  return { bySlug, featureSlugs, storySlugs };
+  return { bySlug, storySlugs };
 }
 
 /**
@@ -283,9 +276,8 @@ function layerStories(storySlugs, bySlug) {
  * Project the decomposer ticket array into the structural spec object.
  *
  * @param {Array<object>} tickets — flat ticket array as emitted by the
- *   decomposer Skill (`type` ∈ {feature, story}, `slug`,
- *   `parent_slug`, `depends_on`, `title`, `body`, `labels`,
- *   `acceptance`, `verify`).
+ *   decomposer Skill (`type` = story, `slug`, `depends_on`, `title`,
+ *   `body`, `labels`, `acceptance`, `verify`).
  * @param {object}        opts
  * @param {{id: number, title: string, body?: string, labels?: string[]}} opts.epic
  *   — Epic descriptor (the decomposer doesn't emit the Epic row; it's
@@ -297,7 +289,7 @@ function layerStories(storySlugs, bySlug) {
  * @param {boolean} [opts.validate=true] — when `false`, skip final
  *   schema validation (used by tests that intentionally craft invalid
  *   inputs).
- * @returns {object} spec — `{ epic, features, gates? }` matching
+ * @returns {object} spec — `{ epic, stories, gates? }` matching
  *   `.agents/schemas/epic-spec.schema.json`.
  */
 function validateRenderSpecInputs(tickets, opts) {
@@ -318,18 +310,6 @@ function validateRenderSpecInputs(tickets, opts) {
   }
 }
 
-function bucketStoriesByFeature({ storySlugs, bySlug }) {
-  const storiesByFeature = new Map();
-  for (const slug of storySlugs) {
-    const story = bySlug.get(slug);
-    const parent = story.parent_slug;
-    if (typeof parent !== 'string' || !bySlug.has(parent)) continue;
-    if (!storiesByFeature.has(parent)) storiesByFeature.set(parent, []);
-    storiesByFeature.get(parent).push(slug);
-  }
-  return storiesByFeature;
-}
-
 function pickStringArray(primary, fallback) {
   const src = Array.isArray(primary)
     ? primary
@@ -342,7 +322,7 @@ function pickStringArray(primary, fallback) {
 }
 
 function extractStoryAcceptanceVerify(story) {
-  // Under the 3-tier hierarchy (Epic #3078), Stories carry inline
+  // Stories carry inline
   // acceptance[] / verify[] arrays directly on the ticket. The
   // decomposer may emit these either at the top level of the ticket
   // (preferred) or nested under a structured `body` object (legacy
@@ -377,20 +357,6 @@ function buildStoryOut({ story, layers, storySet }) {
   const av = extractStoryAcceptanceVerify(story);
   if (av.acceptance) out.acceptance = av.acceptance;
   if (av.verify) out.verify = av.verify;
-  return out;
-}
-
-function buildFeatureOut({ feature, storySlugs, bySlug, layers, storySet }) {
-  const stories = storySlugs.map((storySlug) =>
-    buildStoryOut({
-      story: bySlug.get(storySlug),
-      layers,
-      storySet,
-    }),
-  );
-  const out = { slug: feature.slug, title: feature.title, stories };
-  assignNonEmpty(out, 'body', renderBody(feature.body));
-  assignNonEmpty(out, 'labels', sanitizeLabels(feature.labels));
   return out;
 }
 
@@ -432,22 +398,19 @@ export function renderSpec(tickets, opts = {}) {
   validateRenderSpecInputs(tickets, opts);
   const { epic, gates, schemaPath, validate = true } = opts;
 
-  const { bySlug, featureSlugs, storySlugs } = indexTickets(tickets);
+  const { bySlug, storySlugs } = indexTickets(tickets);
   const { layers } = layerStories(storySlugs, bySlug);
-  const storiesByFeature = bucketStoriesByFeature({ storySlugs, bySlug });
   const storySet = new Set(storySlugs);
 
-  const features = featureSlugs.map((featureSlug) =>
-    buildFeatureOut({
-      feature: bySlug.get(featureSlug),
-      storySlugs: storiesByFeature.get(featureSlug) ?? [],
-      bySlug,
+  const stories = storySlugs.map((storySlug) =>
+    buildStoryOut({
+      story: bySlug.get(storySlug),
       layers,
       storySet,
     }),
   );
 
-  const spec = { epic: buildEpicOut(epic), features };
+  const spec = { epic: buildEpicOut(epic), stories };
   const gatesOut = buildGatesOut(gates);
   if (gatesOut) spec.gates = gatesOut;
 

@@ -20,7 +20,7 @@
  *      `{ epicId, prNumber, mergeCommitSha, mergedAt, pollAttempts }`.
  *   4. If the budget is exceeded without observing a merge, return
  *      a `failed` classification with reason `budget-exceeded` and
- *      do NOT emit `epic.merge.confirmed`. The /epic-deliver
+ *      do NOT emit `epic.merge.confirmed`. The /deliver
  *      blocker-handler flow surfaces this via `agent::blocked`.
  *
  * Resume contract (AC of Task #2907): the ledger is the source of

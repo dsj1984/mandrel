@@ -2,7 +2,7 @@
  * spec-freshness.js — Tech Spec post-author cross-validation against the
  * current codebase.
  *
- * `/epic-plan` Phase 7 authors PRD + Tech Spec from documentation alone.
+ * `/plan` Phase 7 authors PRD + Tech Spec from documentation alone.
  * When `project.docsContextFiles` (architecture.md, etc.) drift from
  * the real source tree, the Architect persona happily cites modules and
  * paths that no longer exist. The mismatch only surfaces at delivery time,

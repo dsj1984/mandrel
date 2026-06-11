@@ -86,7 +86,7 @@ function buildE2EFixture() {
       decompositionNotes: [
         {
           kind: 'inferred-file-contention',
-          file: '.agents/workflows/epic-deliver.md',
+          file: '.agents/workflows/helpers/deliver-epic.md',
           stories: [200, 201],
         },
       ],
@@ -151,7 +151,7 @@ test('e2e fixture: every Wave Summary TOC link round-trips to a real H2 anchor',
 // The in-Story dep callout (`*(after #N)*`) and the per-Task checkbox
 // rendering assertions were removed when Epic #3163 (Story #3196)
 // collapsed the per-Story Task projection: Stories are leaves under
-// the 3-tier hierarchy, so the renderer no longer emits checkbox rows
+// the 2-tier hierarchy, so the renderer no longer emits checkbox rows
 // or dep callouts beneath a Story H3.
 
 test('e2e fixture: exactly one bottom <details> block; no other HTML tags anywhere', () => {

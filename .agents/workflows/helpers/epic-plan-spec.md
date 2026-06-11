@@ -7,8 +7,8 @@ description: >-
 
 # Sprint Plan — Spec Phase (helper)
 
-> **Helper module.** Not a slash command. Invoked by `/epic-plan` (Phase 7).
-> To run the spec phase interactively, use `/epic-plan [Epic_ID]` — it
+> **Helper module.** Not a slash command. Invoked by `/plan` (Phase 7).
+> To run the spec phase interactively, use `/plan [Epic_ID]` — it
 > delegates here.
 
 ## Role
@@ -27,7 +27,7 @@ reviewer can read the artifacts on GitHub before decomposition.
 > **Single prose home.** The canonical, full-detail spec-phase contract
 > (idempotent context tickets, the three-ticket rationale, the
 > `acceptance::n-a` waiver, the Epic-lease preflight) lives in
-> [`epic-plan.md` § Phase 7](../epic-plan.md). This helper carries only the
+> [`epic-plan.md` § Phase 7](plan-epic.md). This helper carries only the
 > operational step list; when the two disagree, `epic-plan.md` wins.
 
 The PRD and Tech Spec are authored **directly by you, the host LLM**.
@@ -36,7 +36,7 @@ context you need and (b) persists the artifacts and transitions the Epic
 lifecycle state.
 
 The complementary Phase 8 helper is
-[`epic-plan-decompose.md`](epic-plan-decompose.md). The `/epic-plan`
+[`epic-plan-decompose.md`](epic-plan-decompose.md). The `/plan`
 wrapper chains both helpers with a confirmation gate in between.
 
 ## Constraint
@@ -101,7 +101,7 @@ Using `systemPrompts.acceptanceSpec`, the PRD, and the Tech Spec, write the
 Acceptance Spec to `temp/epic-[Epic_ID]/acceptance-spec.md`. It captures the
 stable-ID acceptance criteria table
 (`| AC ID | Outcome | Feature File | Scenario | Disposition |`) that drives
-close-time reconciliation in `/epic-deliver` Phase 6.
+close-time reconciliation in `/deliver` Phase 6.
 
 **Skip this step only** when the Epic carries the `acceptance::n-a` waiver
 label (refactor-only or docs-only Epics); in that case omit `--acceptance-spec`
@@ -166,7 +166,7 @@ JSON (`planningRisk`, `reviewRouting`):
   URLs to the operator:
 
   > "Spec phase complete for Epic #[ID]. Review PRD (#XX) and Tech Spec (#YY)
-  > on GitHub. When you're ready, re-run `/epic-plan [Epic_ID]` — the wrapper
+  > on GitHub. When you're ready, re-run `/plan [Epic_ID]` — the wrapper
   > will pick up where it left off and run the decompose phase."
 
 - **Low risk — auto-proceed.** Relay `reviewRouting.operatorMessage` and

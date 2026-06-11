@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "dispatch-manifest",
   "title": "Dispatch Manifest",
-  "description": "Output of dispatcher.js (epic-dispatch variant) and orchestration/story-executor.js (story-execution variant). Written to temp/dispatch-manifest-<epicId>.json for the epic-dispatch variant. The two variants are discriminated by the `type` field. 3-tier shape only (Epic #3078): manifests are Story-only — there is no Task-level fan-out. Open-root by design — the AJV fixture drift test is the enforcement boundary; see docs/decisions.md ADR 20260427-868a.",
+  "description": "Output of dispatcher.js (epic-dispatch variant) and orchestration/story-executor.js (story-execution variant). Written to temp/dispatch-manifest-<epicId>.json for the epic-dispatch variant. The two variants are discriminated by the `type` field. 2-tier shape only (Epic #3078): manifests are Story-only — there is no Task-level fan-out. Open-root by design — the AJV fixture drift test is the enforcement boundary; see docs/decisions.md ADR 20260427-868a.",
   "type": "object",
   "required": ["generatedAt", "dryRun"],
   "properties": {
@@ -50,8 +50,8 @@
     },
     "hierarchy": {
       "type": "string",
-      "const": "3-tier",
-      "description": "Hierarchy identifier. 3-tier is the only supported shape (Epic #3078)."
+      "const": "2-tier",
+      "description": "Hierarchy identifier. 2-tier is the only supported shape (Epic #3078)."
     },
     "summary": {
       "type": "object",
@@ -66,7 +66,7 @@
         "totalStories": {
           "type": "integer",
           "minimum": 0,
-          "description": "Story-centric count for the 3-tier shape (Epic #3078)."
+          "description": "Story-centric count for the 2-tier shape (Epic #3078)."
         },
         "doneStories": {
           "type": "integer",

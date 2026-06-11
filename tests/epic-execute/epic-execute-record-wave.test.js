@@ -163,7 +163,7 @@ describe('aggregateWaveStatus', () => {
 });
 
 describe('validateResults', () => {
-  it('accepts canonical /story-deliver return rows', () => {
+  it('accepts canonical /deliver return rows', () => {
     const out = validateResults([
       { storyId: 1, status: 'done' },
       { storyId: 2, status: 'blocked', blockerCommentId: 'c-99' },
@@ -398,7 +398,7 @@ describe('runEpicExecuteRecordWave', () => {
 });
 
 describe('runEpicExecuteRecordWave — curated webhook emits', () => {
-  // The /epic-deliver host-LLM loop drives wave-boundary webhook events
+  // The /deliver host-LLM loop drives wave-boundary webhook events
   // through this CLI (it does not pass through `runEpic`). Each emit goes
   // through the injected notify; tests capture the event sequence to
   // pin the kickoff / complete / blocked / unblocked / finalize routing.

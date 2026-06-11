@@ -76,7 +76,7 @@ test('buildTaskGraph returns topologically-sorted tasks from the provider', asyn
 });
 
 // ---------------------------------------------------------------------------
-// 3-tier (inline-acceptance) behaviour — Story #3121.
+// 2-tier (inline-acceptance) behaviour — Story #3121.
 // ---------------------------------------------------------------------------
 
 test('hasInlineAcceptance detects `## Acceptance` heading with bullets', () => {
@@ -122,9 +122,9 @@ test('buildTaskGraph treats empty Task list as expected when Story has inline ac
     },
   });
   assert.deepStrictEqual(out.sortedTasks, []);
-  assert.strictEqual(out.mode, '3-tier');
+  assert.strictEqual(out.mode, '2-tier');
   // Must NOT emit the scary "no child Tasks" warning when the Story
-  // is authored in the 3-tier shape.
+  // is authored in the 2-tier shape.
   assert.deepStrictEqual(warnings, []);
   // Must instead emit a TASKS progress message that names inline acceptance.
   assert.ok(

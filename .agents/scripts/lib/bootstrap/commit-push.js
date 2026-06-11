@@ -112,8 +112,8 @@ export function buildManualInstructions({ stagePaths, baseBranch }) {
     `  git push -u origin ${baseBranch}`,
     '',
     'Story delivery runs in git worktrees that check out tracked files only,',
-    'so the .agents/ wiring MUST be committed before any /story-deliver or',
-    '/epic-deliver run — otherwise the worktree has no scripts and breaks.',
+    'so the .agents/ wiring MUST be committed before any /deliver or',
+    '/deliver run — otherwise the worktree has no scripts and breaks.',
   ].join('\n');
 }
 

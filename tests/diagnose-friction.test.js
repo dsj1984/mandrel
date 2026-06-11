@@ -142,7 +142,7 @@ describe('diagnose-friction.js — appends friction signal to NDJSON', () => {
     assert.equal(
       signal.taskId,
       null,
-      'signal.taskId is always null (3-tier: no Task tier)',
+      'signal.taskId is always null (2-tier: no Task tier)',
     );
     assert.ok(
       typeof signal.category === 'string' && signal.category.length > 0,

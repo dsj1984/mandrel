@@ -40,15 +40,6 @@ export const DEFAULT_TASK_SIZING = Object.freeze({
 });
 
 /**
- * Soft prose guidance for how many Stories a Feature typically decomposes
- * into before the Feature scope smells like two Features. Rendered into the
- * decomposer prompt's Feature-count sentence from this single constant so
- * the prompt prose cannot drift from the SSOT module (Story #3874). Advisory
- * only — no validator finding keys off it.
- */
-export const SOFT_STORIES_PER_FEATURE = 7;
-
-/**
  * `DELIVERABLE_GRANULARITY_GUIDANCE` is the **single source of truth** for the
  * deliverable-granularity definition of a Story (Story #3777). It is stated
  * ONCE here and consumed by BOTH the decomposer prompt template
@@ -339,7 +330,7 @@ function computeStorySizingFindings(story, sizing) {
  * `findings`; the AC-visible `errors[]` channel is the rendered
  * subset where `severity === 'hard'`.
  *
- * 3-tier (Epic #3238): each Story is its own implementation unit and
+ * 2-tier (Epic #3238): each Story is its own implementation unit and
  * carries the `body` (acceptance / changes / wide) that the sizing layers
  * score. There is no Task tier, so findings are computed directly over
  * `stories`.

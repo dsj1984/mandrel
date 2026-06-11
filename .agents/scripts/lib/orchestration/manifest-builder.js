@@ -1,7 +1,7 @@
 /**
  * lib/orchestration/manifest-builder.js — Manifest Building Logic
  *
- * 3-tier-only producer. Reads Story tickets from `allTickets` directly,
+ * 2-tier-only producer. Reads Story tickets from `allTickets` directly,
  * computes Story-scoped waves, and emits the `waves[].stories[]` /
  * Story-only `storyManifest` shape. The pre-Epic-#3163 Task-tier branch
  * has been removed; the framework no longer carries a Task-tier
@@ -48,7 +48,7 @@ function extractSectionList(body, heading) {
 
 /**
  * Project a Story ticket into the inline-acceptance/verify shape required by
- * the 3-tier waves[].stories[] schema. Reads `## Acceptance` /
+ * the 2-tier waves[].stories[] schema. Reads `## Acceptance` /
  * `## Acceptance Criteria` and `## Verify` sections from the body.
  *
  * @param {object} story
@@ -95,7 +95,7 @@ function projectStoryForWave(story, epicId) {
 const AGENT_DONE_LABEL = STATE_LABELS.DONE;
 
 /**
- * Build the Story-only manifest array used by the 3-tier hierarchy path.
+ * Build the Story-only manifest array used by the 2-tier hierarchy path.
  * Reads Story tickets directly from `allTickets`; there is no Task tier
  * to walk. Each entry exposes an empty `tasks: []` to keep downstream
  * consumers (renderers, dispatch helpers) on a single per-Story shape
@@ -145,7 +145,7 @@ function buildStoryOnlyManifest(stories, epicId) {
 }
 
 /**
- * Build the wave records for a 3-tier manifest. Each wave entry exposes a
+ * Build the wave records for a 2-tier manifest. Each wave entry exposes a
  * `stories[]` projection (instead of the legacy `tasks[]`) so dispatch
  * consumers can fan Story execution out wave-by-wave without ever seeing
  * a `type::task` ticket.
@@ -200,7 +200,7 @@ export function buildManifest({
     epicTitle: epic?.title ?? '',
     executor: 'claude-code',
     dryRun,
-    hierarchy: '3-tier',
+    hierarchy: '2-tier',
     summary: {
       totalStories,
       doneStories,

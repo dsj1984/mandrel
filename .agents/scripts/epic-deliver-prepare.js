@@ -2,7 +2,7 @@
 /* node:coverage ignore file */
 
 /**
- * epic-deliver-prepare.js — Step 0/1 of the operator-driven `/epic-deliver`.
+ * epic-deliver-prepare.js — Step 0/1 of the operator-driven `/deliver`.
  *
  * Composes the existing engine phases that the in-process epic-runner used to
  * call sequentially, but does NOT dispatch any waves. The CLI is the single

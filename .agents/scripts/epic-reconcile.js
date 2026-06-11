@@ -195,11 +195,11 @@ export async function fetchGhState(provider, epicId) {
 }
 
 /**
- * Walk the spec depth-first and yield one `{ slug, entity, title,
- * parentSlug, dependsOn }` record per logical entity (epic → feature →
- * story → task), mirroring the diff engine's `flattenSpec`. Local to the
- * CLI so the reseed pass (below) can map spec slugs onto live GH issues
- * without importing the diff engine's private walker. Pure.
+ * Walk the spec and yield one `{ slug, entity, title, parentSlug,
+ * dependsOn }` record per logical entity (epic → story), mirroring the
+ * diff engine's `flattenSpec`. Local to the CLI so the reseed pass
+ * (below) can map spec slugs onto live GH issues without importing the
+ * diff engine's private walker. Pure.
  *
  * @param {object} spec
  * @returns {Array<{slug: string, entity: string, title: string, parentSlug: string|null, dependsOn: string[]}>}
@@ -216,32 +216,14 @@ export function flattenSpecForReseed(spec) {
       dependsOn: [],
     });
   }
-  for (const feature of spec.features ?? []) {
+  for (const story of spec.stories ?? []) {
     out.push({
-      slug: feature.slug,
-      entity: 'feature',
-      title: String(feature.title ?? ''),
+      slug: story.slug,
+      entity: 'story',
+      title: String(story.title ?? ''),
       parentSlug: 'epic',
-      dependsOn: [],
+      dependsOn: story.dependsOn ?? [],
     });
-    for (const story of feature.stories ?? []) {
-      out.push({
-        slug: story.slug,
-        entity: 'story',
-        title: String(story.title ?? ''),
-        parentSlug: feature.slug,
-        dependsOn: story.dependsOn ?? [],
-      });
-      for (const task of story.tasks ?? []) {
-        out.push({
-          slug: task.slug,
-          entity: 'task',
-          title: String(task.title ?? ''),
-          parentSlug: story.slug,
-          dependsOn: [],
-        });
-      }
-    }
   }
   return out;
 }
@@ -255,7 +237,7 @@ export function flattenSpecForReseed(spec) {
  * file is absent (a fresh checkout, a reaped temp dir, the exact
  * situation `--resume` exists to recover from), `loadState` returns an
  * empty mapping, the diff engine sees every spec slug as unmapped, and
- * `apply` recreates the entire Feature/Story tree on top of the existing
+ * `apply` recreates the entire Story set on top of the existing
  * one — duplicating every child. This is precisely the failure `--resume`
  * is meant to prevent.
  *

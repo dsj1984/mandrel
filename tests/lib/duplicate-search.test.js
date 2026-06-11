@@ -1,6 +1,6 @@
 /**
  * tests/lib/duplicate-search.test.js — unit tests for the cross-Epic
- * duplicate detector used by `/epic-plan` Phase 0b.
+ * duplicate detector used by `/plan` Phase 0b.
  *
  * Covers:
  *  - overlap scoring (Jaccard) returns expected ordering and respects

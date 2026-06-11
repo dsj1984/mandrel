@@ -108,11 +108,11 @@ describe('signal-event.schema.json', () => {
   });
 
   // Story #3203 — `taskId` removed from the signal-event schema as part
-  // of the Epic #3163 Task-tier producer rewrite. Under the 3-tier
+  // of the Epic #3163 Task-tier producer rewrite. Under the 2-tier
   // hierarchy there is no parent Task ticket, so the field has no
   // referent. `additionalProperties: false` means any leftover emitter
   // that still ships `taskId` MUST be rejected.
-  it('accepts a 3-tier signal event with taskId omitted (Storyless)', () => {
+  it('accepts a 2-tier signal event with taskId omitted (Storyless)', () => {
     const validate = compile(schema);
     const ok = validate({
       ts: '2026-05-27T16:00:00.000Z',
@@ -279,7 +279,7 @@ describe('epic-perf-report.schema.json', () => {
   });
 });
 
-describe('story.heartbeat.schema.json (Epic #3078 — 3-tier shape only)', () => {
+describe('story.heartbeat.schema.json (Epic #3078 — 2-tier shape only)', () => {
   const schema = loadLifecycleSchema('story.heartbeat.schema.json');
 
   const compile2020 = (s) => {
@@ -292,7 +292,7 @@ describe('story.heartbeat.schema.json (Epic #3078 — 3-tier shape only)', () =>
     assert.doesNotThrow(() => compile2020(schema));
   });
 
-  it('accepts a 3-tier heartbeat (phase info only)', () => {
+  it('accepts a 2-tier heartbeat (phase info only)', () => {
     const validate = compile2020(schema);
     const ok = validate({
       event: 'story.heartbeat',

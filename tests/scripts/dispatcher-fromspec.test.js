@@ -36,18 +36,11 @@ import { SpecNotFoundError } from '../../.agents/scripts/lib/spec/index.js';
 
 const MINIMAL_SPEC = {
   epic: { id: 7777, title: 'Dispatcher Routing Fixture' },
-  features: [
+  stories: [
     {
-      slug: 'feat-routing',
-      title: 'Routing Feature',
-      stories: [
-        {
-          slug: 'story-routing',
-          title: 'Routing Story',
-          wave: 0,
-          tasks: [{ slug: 'task-routing', title: 'Routing Task' }],
-        },
-      ],
+      slug: 'story-routing',
+      title: 'Routing Story',
+      wave: 0,
     },
   ],
 };
@@ -152,7 +145,7 @@ test('tryRenderFromSpec returns spec-rendered Markdown when the spec is present'
   // Spec-routed render exercises the slug→issueNumber mapping in state.
   assert.match(md, /Routing Story/);
   assert.match(md, /#5001/);
-  // Under the 3-tier hierarchy (Epic #3163, Story #3413) Stories are
+  // Under the 2-tier hierarchy (Epic #3163, Story #3413) Stories are
   // leaves; the renderer emits no per-Task body or checkbox rows.
   assert.doesNotMatch(md, /_\(no tasks\)_/);
   assert.doesNotMatch(md, /- \[ \]/);
@@ -219,10 +212,10 @@ afterEach(() => {
 });
 
 test('tryRenderFromSpec round-trips through the real loader against a sandbox spec', () => {
-  // Epic #3163: Stories are leaves under the 3-tier hierarchy, so the
+  // Epic #3163: Stories are leaves under the 2-tier hierarchy, so the
   // on-disk spec carries no Story.tasks[]. The real-loader round-trip
   // surfaces the Story with no per-Task body.
-  const yaml = `epic:\n  id: 7777\n  title: 'Dispatcher Routing Fixture'\nfeatures:\n  - slug: feat-routing\n    title: 'Routing Feature'\n    stories:\n      - slug: story-routing\n        title: 'Routing Story'\n        wave: 0\n`;
+  const yaml = `epic:\n  id: 7777\n  title: 'Dispatcher Routing Fixture'\nstories:\n  - slug: story-routing\n    title: 'Routing Story'\n    wave: 0\n`;
   writeFileSync(path.join(sandbox, '7777.yaml'), yaml, 'utf8');
   writeFileSync(
     path.join(sandbox, '7777.state.json'),
@@ -249,7 +242,7 @@ test('tryRenderFromSpec returns null when the sandbox spec is missing', () => {
 });
 
 // ---------------------------------------------------------------------------
-// overlayLiveTaskStateFromManifest — 3-tier overlay (Epic #3163, Story #3206).
+// overlayLiveTaskStateFromManifest — 2-tier overlay (Epic #3163, Story #3206).
 // The runtime manifest's wave records carry `stories[]` (each with a live
 // `storyId` + `status`), not the retired Task-tier `tasks[]` shape. The
 // overlay must copy each Story's status onto the matching slug.

@@ -18,8 +18,8 @@ All tasks within a Story MUST be committed to a shared **Story branch**:
 `story-<storyId>` (e.g., `story-104`). The runtime owns Story branch
 creation via `story-init.js`; agents commit on the active Story branch only.
 
-> **Commit subjects.** Under the 3-tier hierarchy
-> (Epic → Feature → Story), Stories have no child tickets. Commits
+> **Commit subjects.** Under the 2-tier hierarchy
+> (Epic → Story), Stories have no child tickets. Commits
 > land on `story-<storyId>` directly from the agent and the
 > Conventional Commit subject references the parent Story via
 > `(refs #<storyId>)`. See
@@ -111,7 +111,7 @@ rejected by `pre-push` hooks):
 ## Meta Labels (Retrospective Signal Routing)
 
 Two `meta::*` labels route retrospective signals into durable substrates so
-the `/epic-plan` Phase 0 fetcher (see
+the `/plan` Phase 0 fetcher (see
 [`prior-feedback-fetcher.js`](../scripts/lib/feedback-loop/prior-feedback-fetcher.js))
 can surface open feedback issues to the planner. Both labels live in
 [`label-constants.js`](../scripts/lib/label-constants.js) under the

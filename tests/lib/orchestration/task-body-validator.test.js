@@ -1,7 +1,7 @@
 /**
  * tests/lib/orchestration/task-body-validator.test.js
  *
- * Plan-time validation coverage for the Story-body shape (3-tier world) and
+ * Plan-time validation coverage for the Story-body shape (2-tier world) and
  * the verify[] tier-suffix contract introduced by Story #3232:
  *
  *   - verify[] entries must name a testing tier in parentheses drawn from
@@ -70,7 +70,7 @@ describe('VERIFY_TIER_VALUES — exported constant', () => {
 // Story body: shouldSkipTicket routing
 // ---------------------------------------------------------------------------
 
-describe('collectTaskBodyErrors — Story ticket routing (3-tier)', () => {
+describe('collectTaskBodyErrors — Story ticket routing (2-tier)', () => {
   it('validates a Story with a structured body', () => {
     const errs = collectTaskBodyErrors([story('s1', VALID_STORY_BODY)]);
     assert.deepEqual(errs, []);

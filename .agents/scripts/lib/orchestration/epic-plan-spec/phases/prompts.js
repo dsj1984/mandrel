@@ -1,6 +1,6 @@
 /**
  * phases/prompts.js — Canonical PRD / Tech Spec / Acceptance Spec system
- * prompts for the spec phase of `/epic-plan`.
+ * prompts for the spec phase of `/plan`.
  *
  * These ride along on the `--emit-context` envelope as a backstop. The
  * `epic-plan-spec-author` Skill

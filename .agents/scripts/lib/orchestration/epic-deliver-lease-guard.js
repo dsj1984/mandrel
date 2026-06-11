@@ -1,8 +1,8 @@
 /**
- * epic-deliver-lease-guard.js — preflight guards for `/epic-deliver`
+ * epic-deliver-lease-guard.js — preflight guards for `/deliver`
  * (Story #3482, Epic #3457).
  *
- * `/epic-deliver`'s prepare phase used to checkout `epic/<id>` over whatever
+ * `/deliver`'s prepare phase used to checkout `epic/<id>` over whatever
  * the operator had checked out, yanking HEAD and resetting baselines under a
  * live working session (the documented "epic-deliver shares the main checkout"
  * footgun). This module supplies the two preflight guards the Tech Spec
@@ -60,7 +60,7 @@ export function resolveOperator({ asFlag, config, gitUserEmail } = {}) {
 }
 
 /**
- * Normalise the expected-branch argument into a non-empty list. `/epic-deliver`
+ * Normalise the expected-branch argument into a non-empty list. `/deliver`
  * may legitimately start from either the Epic integration branch (`epic/<id>`,
  * on a resume) or the project base branch (`main`, on a fresh run), so the
  * guard accepts a set rather than a single name.
@@ -153,20 +153,20 @@ export function renderCheckoutRefusal(result) {
   if (result.reason === 'dirty') {
     return (
       `[epic-deliver] Refusing to start: the working tree is dirty. ` +
-      `/epic-deliver will not check out ${expected} over uncommitted ` +
+      `/deliver will not check out ${expected} over uncommitted ` +
       `or untracked changes — commit, stash, or clean them, then re-run.\n` +
       `--- dirty entries ---\n${result.dirtyEntries ?? '(unavailable)'}`
     );
   }
   if (result.reason === 'detached-head') {
     return (
-      `[epic-deliver] Refusing to start: HEAD is detached. /epic-deliver ` +
+      `[epic-deliver] Refusing to start: HEAD is detached. /deliver ` +
       `expects HEAD on ${expected}. Check one out before re-running.`
     );
   }
   return (
     `[epic-deliver] Refusing to start: HEAD is on '${result.currentBranch}', ` +
-    `not the expected ${expected}. /epic-deliver will not yank HEAD ` +
+    `not the expected ${expected}. /deliver will not yank HEAD ` +
     `away from your branch — switch to ${expected} yourself before re-running.`
   );
 }
@@ -182,7 +182,7 @@ export function renderLeaseRefusal(lease, epicId) {
   return (
     `[epic-deliver] Refusing to start: Epic #${epicId} is already claimed by ` +
     `'${lease.owner}' with a live lease (recent heartbeat within the TTL). ` +
-    `Another /epic-deliver run is driving this Epic. Wait for it to finish, ` +
+    `Another /deliver run is driving this Epic. Wait for it to finish, ` +
     `or pass --steal to forcibly transfer the claim.`
   );
 }
@@ -281,7 +281,7 @@ export async function runPrepareGuards({
       '[epic-deliver] Refusing to start: no operator identity could be ' +
         'resolved. --as, github.operatorHandle (unset or still the shipped ' +
         '`@[USERNAME]` placeholder), and git user.email are all empty, so the ' +
-        'Epic-lease has no owner and concurrent /epic-deliver runs cannot be ' +
+        'Epic-lease has no owner and concurrent /deliver runs cannot be ' +
         'serialised. Set your own handle in .agentrc.local.json (e.g. ' +
         '{ "github": { "operatorHandle": "@your-login" } }), pass --as <handle>, ' +
         'or configure git user.email, then re-run.',

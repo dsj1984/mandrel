@@ -144,7 +144,6 @@ function renderManifestHeader(manifest) {
 
 /**
  * Private: emit the Wave Summary table plus the per-wave H2 sections.
- * Filters Feature containers out of the wave-eligible set.
  *
  * @param {object} manifest
  * @returns {string[]}
@@ -155,7 +154,7 @@ function renderManifestBody(manifest) {
     manifest.stories ||
     manifest.summary?.stories ||
     [];
-  const waveEligible = allItems.filter((s) => s.type !== 'feature');
+  const waveEligible = allItems;
   const lines = [];
   const waveBlock = renderWaveSections(waveEligible);
   if (waveBlock) lines.push(waveBlock);
@@ -165,7 +164,7 @@ function renderManifestBody(manifest) {
     if (nestedBlock) lines.push(nestedBlock);
   }
   // Cross-Story concurrency hazards block — only emitted when the caller
-  // attaches `concurrencyFindings` to the manifest (i.e. `/epic-plan`
+  // attaches `concurrencyFindings` to the manifest (i.e. `/plan`
   // Phase 9 dispatcher dry-run forwards the validator's findings array).
   // Absent for live progress-reporter manifests where the block would
   // duplicate Story-level state already shown above.
@@ -178,7 +177,7 @@ function renderManifestBody(manifest) {
 
 /**
  * Private: emit the agent-telemetry trailer (friction count + recent
- * friction list) when the manifest carries one. Under the 3-tier
+ * friction list) when the manifest carries one. Under the 2-tier
  * hierarchy (Epic #3163) friction records are Story-scoped, so each
  * recent-friction item is keyed by its `storyId`.
  *

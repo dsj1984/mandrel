@@ -3,7 +3,7 @@
 This rule governs the shape of per-release entries in the project CHANGELOG
 (typically `docs/CHANGELOG.md` or `CHANGELOG.md`). It applies whenever a
 release entry is authored or edited — most commonly inside Story #N's
-docs sweep before `/epic-deliver` opens the release PR.
+docs sweep before `/deliver` opens the release PR.
 
 The contract is **guidance-tier** in v1: no automated gate fails a close when
 an entry drifts off-template. It still binds every author.
@@ -166,7 +166,7 @@ applies.
 
 ### Deliver tail auto-invokes pre-merge gates
 
-`/epic-deliver` auto-invokes the code-review module (Phase 4) and
+`/deliver` auto-invokes the code-review module (Phase 4) and
 the retro runner (Phase 5) inline instead of halting to ask the
 operator to run them separately. `--skip-code-review` available as
 an override.
@@ -183,7 +183,7 @@ or a title starting with `📉 Epic Health:`, in addition to
 well-known lock files (`index.lock`, `HEAD.lock`, `packed-refs.lock`,
 `config.lock`, `shallow.lock`) whose mtime exceeds the threshold.
 Fresh locks belonging to in-flight ops are skipped. Runs at
-`/epic-deliver` start, before worktree GC.
+`/deliver` start, before worktree GC.
 ```
 
 Contract violations: five separate `###` sub-sections where one theme
@@ -210,12 +210,12 @@ worktree cleanup.
 - **Shared-store worktrees.** Per-story worktrees link a shared
   `node_modules` store, so parallel waves no longer duplicate installs
   or leave residue that blocks reap.
-- **`/epic-deliver` auto-invokes pre-merge gates** (code review, retro)
+- **`/deliver` auto-invokes pre-merge gates** (code review, retro)
   inline. `--skip-code-review` is available as an override.
 - **Closure sweep covers Epic Health tickets** in addition to PRD and
   Tech Spec tickets.
 - **Stale-lock sweep** on the shared `.git/` directory runs at
-  `/epic-deliver` start, clearing lock files left behind by interrupted
+  `/deliver` start, clearing lock files left behind by interrupted
   operations.
 ```
 

@@ -8,8 +8,8 @@ description: >-
 # Epic Audit (helper)
 
 > **Helper module.** Not a slash command. Invoked automatically from
-> `/epic-deliver` Phase 4 once the wave loop completes (all Stories at
-> `agent::done`). To run an audit directly, use `/epic-deliver [Epic_ID]` — it
+> `/deliver` Phase 4 once the wave loop completes (all Stories at
+> `agent::done`). To run an audit directly, use `/deliver [Epic_ID]` — it
 > delegates here (or pass `--skip-epic-audit` to bypass).
 
 This helper runs the **change-set-aware audit pass** on an Epic branch
@@ -32,7 +32,7 @@ change-set selection. Both lens sources fire through the **same**
 `runAuditSuite` dispatch below — no new audit machinery.
 
 > **When to run**: After Phase 3 close-validation passes and before Phase 5
-> code-review. `/epic-deliver` invokes this automatically once the wave loop
+> code-review. `/deliver` invokes this automatically once the wave loop
 > completes and all Stories reach `agent::done`.
 >
 > **Persona**: `architect` · **Skills**: `core/code-review-and-quality`,
@@ -94,7 +94,7 @@ resolved by the shared `resolveDepth` resolver from the Epic's model-judged
 risk envelope (`overallLevel` off the `epic-plan-state` checkpoint) folded
 with `changedFilesCount`: a high-risk **or** wide-footprint Epic resolves to
 `deep`, a low-risk small one to `light`, and everything else — including an
-Epic that skipped `/epic-plan` and has no checkpoint — to `standard`.
+Epic that skipped `/plan` and has no checkpoint — to `standard`.
 
 Depth changes **how deeply** each lens runs, never **which** lenses fire:
 
@@ -274,8 +274,8 @@ The body MUST include:
 ### Severity gating
 
 - **Any 🔴 Critical Blocker** → STOP. Relay to the operator and let
-  `/epic-deliver` Phase 4 record a manual intervention.
-- **Only 🟠/🟡/🟢** → log as non-blocking and return to `/epic-deliver`
+  `/deliver` Phase 4 record a manual intervention.
+- **Only 🟠/🟡/🟢** → log as non-blocking and return to `/deliver`
   Phase 5 (code-review).
 
 ## Constraints

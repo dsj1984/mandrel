@@ -108,11 +108,10 @@ class MockProvider extends ITicketingProvider {
 describe('Bootstrap — LABEL_TAXONOMY', () => {
   it('contains all required type labels', () => {
     const names = LABEL_TAXONOMY.map((l) => l.name);
-    assert.ok(names.includes('type::epic'));
-    assert.ok(names.includes('type::feature'));
-    assert.ok(names.includes('type::story'));
-    // Epic #3078 Task #3155 — `type::task` removed from the 3-tier taxonomy.
-    assert.ok(!names.includes('type::task'));
+    // Story #4041 / Epic #3078 — the retired Feature and Task tier
+    // labels are gone; the type axis is exactly Epic + Story.
+    const typeLabels = names.filter((n) => n.startsWith('type::')).sort();
+    assert.deepEqual(typeLabels, ['type::epic', 'type::story']);
   });
 
   it('contains all required agent state labels', () => {
@@ -141,10 +140,11 @@ describe('Bootstrap — LABEL_TAXONOMY', () => {
     // intermediate state between executing and done.
     // Story #2921 (Epic #2880 F7) — added `planning::healthcheck-waived`
     // as the operator override for the post-plan readiness healthcheck.
-    // Epic #3078 Task #3155 — `type::task` removed (3-tier hard cutover).
+    // Epic #3078 Task #3155 — `type::task` removed (2-tier hard cutover).
     // Story #3704 — removed `plan::acknowledged` (story-plan ack feature
     // retired in a hard cutover).
-    const nonPersonaBase = 14;
+    // Story #4041 — removed the Feature tier label (2-tier hard cutover).
+    const nonPersonaBase = 13;
     assert.equal(LABEL_TAXONOMY.length, nonPersonaBase + PERSONA_NAMES.length);
   });
 

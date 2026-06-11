@@ -1,7 +1,7 @@
 /**
  * lib/audit-to-stories/seed-epic-from-findings.js
  *
- * Build the `--idea`-shaped seed markdown that `/epic-plan` Phase 1
+ * Build the `--idea`-shaped seed markdown that `/plan` Phase 1
  * consumes when the operator picks the Single-Epic grouping mode.
  *
  * The seed renders the canonical one-pager sections so the idea-refinement
@@ -10,7 +10,7 @@
  *   - Recommended Direction (rollup of recommendations by dimension)
  *   - Key Assumptions (carries the source-report links forward)
  *   - MVP Scope (the proposed Stories, one bullet per group)
- *   - Key Files (explicit file paths so /epic-plan Phase 7 decompose
+ *   - Key Files (explicit file paths so /plan Phase 7 decompose
  *     has concrete anchors)
  *   - Not Doing (out-of-scope items by convention)
  *

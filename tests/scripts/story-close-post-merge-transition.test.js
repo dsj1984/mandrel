@@ -234,8 +234,8 @@ describe('ticketClosurePhase — post-merge label transition (Story #2534)', () 
     );
   });
 
-  it('3-tier Storyless closure: empty tasks list transitions Story alone (Story #3127)', async () => {
-    // Under the 3-tier hierarchy a Story has zero child Tasks (acceptance is
+  it('2-tier Storyless closure: empty tasks list transitions Story alone (Story #3127)', async () => {
+    // Under the 2-tier hierarchy a Story has zero child Tasks (acceptance is
     // inline on the Story body). `ticketClosurePhase` must accept an empty
     // `tasks` array, skip the batch transition cleanly, transition the Story
     // to agent::done + closed, and still surface the Story in closedTickets.
@@ -261,11 +261,11 @@ describe('ticketClosurePhase — post-merge label transition (Story #2534)', () 
     assert.equal(
       story.state,
       'closed',
-      'Storyless 3-tier close must still close the Story issue',
+      'Storyless 2-tier close must still close the Story issue',
     );
     assert.ok(
       story.labels.includes(STATE_LABELS.DONE),
-      'Storyless 3-tier close must apply agent::done to the Story',
+      'Storyless 2-tier close must apply agent::done to the Story',
     );
     assert.deepEqual(
       result.closedTickets,

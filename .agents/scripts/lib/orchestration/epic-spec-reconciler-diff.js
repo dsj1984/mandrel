@@ -18,12 +18,12 @@
  *
  * @typedef {object} SpecInput
  *   The parsed YAML returned by `lib/spec/loader.js#loadSpec`. Shape is
- *   `{ epic: {...}, features: [{slug, stories: [...]}], gates?: {...} }`
+ *   `{ epic: {...}, stories: [...], gates?: {...} }`
  *   per `.agents/schemas/epic-spec.schema.json`.
  *
  * @typedef {object} StateMappingEntry
  * @property {number} issueNumber          GH issue number this slug maps to.
- * @property {string} entity               'epic'|'feature'|'story'|'task'.
+ * @property {string} entity               'epic'|'story'.
  * @property {string} [contentHash]        Content hash captured at last
  *                                         reconcile; absence forces an
  *                                         update when ghState carries
@@ -115,7 +115,7 @@ function labelsEqual(a, b) {
  * a naive replace-style label diff would propose removing operator-
  * managed metadata that lives in these namespaces.
  *
- * Why: Story #2056 / Epic #1994 — `/epic-plan` was silently stripping
+ * Why: Story #2056 / Epic #1994 — `/plan` was silently stripping
  * `type::epic` and `risk::*` from the parent Epic on every decompose,
  * which then broke `dispatcher.js` (`type "unknown"`). Defence-in-depth
  * lives here in the diff engine: even if a future spec author drops
@@ -133,7 +133,7 @@ const PROTECTED_EPIC_LABEL_NAMESPACES = Object.freeze([
   'risk::',
   // Story #3050 — `acceptance::*` is set by Phase 7 spec-persist when
   // `planningRisk.acceptanceDisposition='not-applicable'` (or another
-  // disposition) and gates downstream `/epic-deliver` start/finalize
+  // disposition) and gates downstream `/deliver` start/finalize
   // behavior. Before this namespace was protected, Phase 8 decompose
   // diffed the Epic's labels against a spec entry that doesn't carry
   // `acceptance::*`, silently emitting an Update that stripped the
@@ -190,7 +190,7 @@ function normaliseBody(value) {
  * duplicate footer blocks and trailing `blocked by` lines are removed in
  * a single pass. Kept local to this module so the diff engine does not
  * depend on the Task-body renderer (Story #3185 / Epic #3163: the renderer
- * is going away with the 3-tier producer cutover).
+ * is going away with the 2-tier producer cutover).
  */
 const ORCHESTRATOR_FOOTER_RE = /\n?---[ \t]*\r?\n+parent:\s*#\d+[\s\S]*$/;
 
@@ -247,9 +247,8 @@ function renderFooter({ parentId, epicId, dependencies = [] }) {
  * `parent: #N` / `Epic: #M` / `blocked by #X` and breaking the cascade.
  *
  * Story #3185 — the footer compose/strip logic is inlined here rather
- * than reused from the legacy Task-body renderer module. Under the
- * 3-tier hierarchy (Epic → Feature → Story) that renderer is being
- * removed, so the diff engine carries its own footer shape. The shape
+ * than reused from the legacy Task-body renderer module. That renderer
+ * was removed, so the diff engine carries its own footer shape. The shape
  * is byte-identical to the legacy renderer's `parent: #<n>` /
  * `Epic: #<m>` / `blocked by #<x>` output so cascade-readers continue
  * to parse it unchanged.
@@ -326,7 +325,7 @@ function fieldChanges(specEntity, obs, mapping, ctx = {}) {
   // feature/story/task body fields): "When omitted, the GH issue body
   // is left untouched". Pre-Story-#2283 the engine treated `undefined`
   // as `""`, which emitted a destructive `body: <existing> → ""` Update
-  // on every `/epic-plan` Phase 8 because the decomposer's renderer
+  // on every `/plan` Phase 8 because the decomposer's renderer
   // projects the Epic spec entry from `{ id, title }` only. Skip the
   // body diff entirely when the spec did not carry a body string. An
   // explicit `body: ""` in the spec still produces a clear-op when the
@@ -413,9 +412,8 @@ function sortBySlug(ops) {
 
 /**
  * Walk the spec and yield one structural-entity record per visited
- * node. The walker is iterative-via-recursion but bounded by the spec's
- * nesting (epic → features → stories → tasks); the depth never exceeds
- * 4 so an explicit work-queue would just obscure the shape.
+ * node. The spec is 2-tier (epic → stories), so the walk is a single
+ * flat pass over `spec.stories` after the Epic record.
  *
  * @param {SpecInput} spec
  * @returns {Array<{
@@ -446,37 +444,35 @@ function flattenSpec(spec) {
   }
 
   const epicAnchor = spec.epic ? epicSlug(spec.epic) : null;
-  for (const feature of spec.features ?? []) {
+  // Duplicate-slug guard. The schema cannot express slug uniqueness across
+  // a hand-edited spec, and two same-slug Creates would orphan one GH
+  // issue (the second create overwrites the first's mapping entry).
+  // flattenSpec is the chokepoint both the loader path and the diff path
+  // flow through, so the check lives here.
+  const seenSlugs = new Set();
+  const duplicateSlugs = new Set();
+  for (const story of spec.stories ?? []) {
+    if (seenSlugs.has(story.slug)) duplicateSlugs.add(story.slug);
+    seenSlugs.add(story.slug);
+  }
+  if (duplicateSlugs.size > 0) {
+    throw new Error(
+      `spec contains duplicate story slug(s): ${[...duplicateSlugs].join(', ')}. ` +
+        `Each story slug must be unique — rename the duplicated entries in ` +
+        `the spec and re-run.`,
+    );
+  }
+  for (const story of spec.stories ?? []) {
     out.push({
-      slug: feature.slug,
-      entity: ENTITY_KINDS.FEATURE,
-      title: String(feature.title ?? ''),
-      body: feature.body,
-      labels: feature.labels,
+      slug: story.slug,
+      entity: ENTITY_KINDS.STORY,
+      title: String(story.title ?? ''),
+      body: story.body,
+      labels: story.labels,
+      wave: story.wave,
       parentSlug: epicAnchor,
+      dependsOn: story.dependsOn ?? [],
     });
-    for (const story of feature.stories ?? []) {
-      out.push({
-        slug: story.slug,
-        entity: ENTITY_KINDS.STORY,
-        title: String(story.title ?? ''),
-        body: story.body,
-        labels: story.labels,
-        wave: story.wave,
-        parentSlug: feature.slug,
-        dependsOn: story.dependsOn ?? [],
-      });
-      for (const task of story.tasks ?? []) {
-        out.push({
-          slug: task.slug,
-          entity: ENTITY_KINDS.TASK,
-          title: String(task.title ?? ''),
-          body: task.body,
-          labels: task.labels,
-          parentSlug: story.slug,
-        });
-      }
-    }
   }
   return out;
 }
@@ -510,6 +506,40 @@ function dependsOnEqual(a, b) {
 }
 
 /**
+ * Entity kinds that only exist in pre-v4 (3-tier) state files. The v4
+ * hard cutover (v1.60.0) removed the Feature/Task tiers; encountering one
+ * of these in `state.mapping` means the state file predates the cutover
+ * and must be migrated by the operator — there is deliberately no legacy
+ * close-op support (hard-cutover policy, git-conventions.md).
+ */
+const LEGACY_ENTITY_KINDS = Object.freeze(new Set(['feature', 'task']));
+
+/**
+ * Throw a loud, actionable error when the state mapping carries legacy
+ * Feature/Task entries. Raised early in `diff()` so the operator sees a
+ * migration instruction instead of `unknown entity kind: feature` from
+ * deep inside `closeOp`.
+ *
+ * @param {Record<string, StateMappingEntry>} mapping
+ */
+function assertNoLegacyEntities(mapping) {
+  const legacy = Object.entries(mapping).filter(([, entry]) =>
+    LEGACY_ENTITY_KINDS.has(entry?.entity),
+  );
+  if (legacy.length === 0) return;
+  const summary = legacy
+    .map(([slug, entry]) => `${slug} (#${entry.issueNumber}, ${entry.entity})`)
+    .join(', ');
+  throw new Error(
+    `diff: the epic state file is pre-v4 — it carries legacy Feature/Task ` +
+      `mapping entries: ${summary}. The 2-tier reconciler cannot process ` +
+      `these. Close the legacy Feature issues manually, then delete (or ` +
+      `reseed) the .agents/epics/<epicId>.state.json file per the v1.60.0 ` +
+      `migration notes, and re-run.`,
+  );
+}
+
+/**
  * Diff `(spec, state, ghState)` into a `Plan`. See the module header for
  * the full contract.
  *
@@ -523,6 +553,7 @@ export function diff({ spec, state, ghState } = {}) {
     throw new TypeError('diff: state argument is required');
   }
   const mapping = state.mapping ?? {};
+  assertNoLegacyEntities(mapping);
   const seenSpecSlugs = new Set();
 
   for (const entity of flattenSpec(spec)) {
@@ -595,7 +626,7 @@ export function diff({ spec, state, ghState } = {}) {
     plan.closes.push(
       closeOp({
         slug,
-        entity: mapped.entity ?? ENTITY_KINDS.TASK,
+        entity: mapped.entity ?? ENTITY_KINDS.STORY,
         issueNumber: mapped.issueNumber,
         title: mapped.title,
       }),

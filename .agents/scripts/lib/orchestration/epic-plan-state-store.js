@@ -30,7 +30,7 @@
  * the lifecycle phase is already authoritative on the Epic's `agent::*` labels,
  * so the duplicate `phase` telemetry (and its `setPhase` round-trips) was
  * deleted. The fields that survive — `spec`, `decompose`, `planningRisk`,
- * `reviewRouting`, `manifestCommentId` — are the ones `/epic-plan --resume`
+ * `reviewRouting`, `manifestCommentId` — are the ones `/plan --resume`
  * reads to skip already-completed work.
  */
 

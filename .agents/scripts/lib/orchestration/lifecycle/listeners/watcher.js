@@ -23,7 +23,7 @@
  * Idempotency contract (AC-10): per-instance `Set<string>` of
  * `${event}:${seqId}` keys. A repeat `(event, seqId)` short-circuits
  * without re-polling and emits nothing. Combined with the bus-level
- * replay defence, this is sufficient — re-running `/epic-deliver` after
+ * replay defence, this is sufficient — re-running `/deliver` after
  * a crash will produce a NEW seqId and the listener legitimately
  * re-runs the poll loop (which is itself idempotent: the outcome map
  * always reflects the live GitHub state).

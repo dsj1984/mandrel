@@ -324,7 +324,7 @@ describe('runEpicDeliverPrepare — lease/checkout preflight', () => {
 
 // ---------------------------------------------------------------------------
 // runEpicDeliverPrepare — production liveness wiring (audit #3513).
-// Proves the /epic-deliver path REFUSES a live foreign claim WITHOUT injecting
+// Proves the /deliver path REFUSES a live foreign claim WITHOUT injecting
 // heartbeatAt directly: a fresh story.heartbeat for the foreign owner is seeded
 // into a tmpdir Epic ledger and the prepare resolves it via the shared
 // latestHeartbeatForOwner. Before the fix this was inert — heartbeatAt

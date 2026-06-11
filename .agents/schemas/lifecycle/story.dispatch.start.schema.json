@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/story.dispatch.start.schema.json",
   "title": "story.dispatch.start",
-  "description": "Emitted before a story is handed to the host-LLM for Agent-tool fanout. lifecycle-emit-story-dispatch.js appends the {storyId, waveIndex, dispatchedAt, attempt} shape to the Epic ledger so /epic-deliver's host loop can durably ledger every dispatch attempt for in-flight reconciliation (Story #2891).",
+  "description": "Emitted before a story is handed to the host-LLM for Agent-tool fanout. lifecycle-emit-story-dispatch.js appends the {storyId, waveIndex, dispatchedAt, attempt} shape to the Epic ledger so /deliver's host loop can durably ledger every dispatch attempt for in-flight reconciliation (Story #2891).",
   "type": "object",
   "required": ["storyId", "waveIndex"],
   "properties": {

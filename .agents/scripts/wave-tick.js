@@ -6,7 +6,7 @@
  *
  * Reads the `epic-run-state` checkpoint plus fresh Story labels and
  * prints one `WaveTickResult` envelope. The slash-command operator
- * (`/epic-deliver`) consumes the envelope to decide whether to dispatch
+ * (`/deliver`) consumes the envelope to decide whether to dispatch
  * the next wave, observe in-flight stories, or finalize the Epic.
  *
  * Usage:

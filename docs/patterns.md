@@ -940,9 +940,9 @@ one flag away.
    automated retro agent uses the same truth.
 2. **Preserved downstream contract.** The compact body is still a
    `type: 'retro'` comment and still ends with `<!-- retro-complete:
-   <ISO> -->`. `/epic-deliver` Phase 6's completion gate is
+   <ISO> -->`. `/deliver` Phase 6's completion gate is
    unchanged. No consumer sees a shape difference beyond length.
-3. **Operator override.** A new `--full-retro` flag on `/epic-deliver`
+3. **Operator override.** A new `--full-retro` flag on `/deliver`
    (and a note in the helper) forces the six-section body when the
    operator disagrees with the predicate. Mirrors `--skip-retro` /
    `--skip-code-review`.
@@ -1047,7 +1047,7 @@ Pattern shape:
    close-validation chain is the source of truth — when it passes, it
    writes evidence.
 2. **Subsequent phases consult evidence.** `epic-code-review`,
-   `/epic-deliver` Phase 3 (close-validation), and any other downstream
+   `/deliver` Phase 3 (close-validation), and any other downstream
    caller wrap the same gate via `evidence-gate.js`. They skip when the
    recorded SHA still matches `HEAD` and the command config hash is
    unchanged.

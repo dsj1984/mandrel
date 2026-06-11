@@ -57,7 +57,7 @@ export function issueToEpic(issue) {
 export function subIssueNodeToTicket(node) {
   // Story #3097 (Wave-0 additive, Epic #3078 Strategy B) — return `null`
   // for absent sub-issue nodes instead of dereferencing properties on
-  // `null`/`undefined`. In 3-tier mode a Story can legitimately have zero
+  // `null`/`undefined`. In 2-tier mode a Story can legitimately have zero
   // Task children, which surfaces as an empty / missing sub-issue node
   // when callers iterate the GraphQL response and pass each entry through
   // this mapper. The legacy 4-tier path also benefits — a transient
@@ -83,7 +83,7 @@ export function subIssueNodeToTicket(node) {
  * any null/undefined entries. Story #3097 (Wave-0 additive, Epic #3078
  * Strategy B) — gives callers a single Storyless-tolerant entry point so
  * the existing per-node mappers can stay strict for the 4-tier path while
- * the 3-tier path (Storyless: a Story with zero child Tasks) gets a
+ * the 2-tier path (Storyless: a Story with zero child Tasks) gets a
  * well-defined empty-array result.
  *
  * @param {Array<object|null|undefined>|null|undefined} nodes

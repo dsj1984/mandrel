@@ -5,7 +5,7 @@ events and performs a single side effect. The canonical close-tail roster
 — in registration order — is wired by
 [`index.js`](./index.js) (`buildDefaultListenerChain`), the production
 entrypoint the standalone `lifecycle-emit.js` CLI shells in for
-`/epic-deliver`'s Phase 6 / 7.5 / 8 / 8.5 markdown invocations:
+`/deliver`'s Phase 6 / 7.5 / 8 / 8.5 markdown invocations:
 
 - `ledger-writer.js` — privileged `onEmitted` hook that lands every
   `emitted` record on disk before any listener body runs (MUST be first).

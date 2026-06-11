@@ -5,7 +5,7 @@
  *
  * Thin host-loop CLI that appends a single `story.dispatch.start`
  * NDJSON record to `temp/epic-<id>/lifecycle.ndjson`. Invoked by
- * `/epic-deliver` Phase 2 immediately BEFORE each per-Story Agent
+ * `/deliver` Phase 2 immediately BEFORE each per-Story Agent
  * tool call so the lifecycle ledger durably records every dispatch
  * attempt. The `wave-tick.js` reconciler (Story #2891 Task #2901)
  * then derives `nextAction['in-flight']` from this ledger to surface

@@ -102,7 +102,7 @@ export const QUALITY_SCHEMA = {
 
 /**
  * `delivery.codeReview` — sibling to `delivery.epicAudit`. Same bounded
- * retry + scope cap, applied to /epic-deliver Phase 5 (code-review).
+ * retry + scope cap, applied to /deliver Phase 5 (code-review).
  */
 export const CODE_REVIEW_SCHEMA = {
   type: 'object',

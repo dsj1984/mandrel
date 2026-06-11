@@ -1,7 +1,7 @@
 /**
  * phases/wrong-tree-guard.js — detect worktree/main-checkout edit divergence.
  *
- * Story #3364 — `/single-story-deliver` (and `/story-deliver`) materializes a
+ * Story #3364 — `/single-story-deliver` (and `/deliver`) materializes a
  * per-Story worktree and instructs the agent to `cd` into it before editing.
  * On Windows that guidance is silently insufficient: `cd <workCwd>` steers the
  * Bash tool's working directory, but the path-based Edit/Write tools operate on

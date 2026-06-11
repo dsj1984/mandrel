@@ -18,7 +18,7 @@ import {
  *   (d) consumer Story has transitive depends_on to producer → no finding
  *   (e) flag upgrade path rejects on finding                → severity 'hard' + errors[] populated
  *
- * 3-tier (Epic #3238): each Story is its own implementation unit and
+ * 2-tier (Epic #3238): each Story is its own implementation unit and
  * carries the `body` (goal / changes / acceptance / verify) that the
  * conflict pass scans, plus the top-level `acceptance[]` + `verify[]`
  * inline contract the validator requires. The conflict pass is exercised
@@ -26,17 +26,10 @@ import {
  * surface (findings + errors stitched onto the array) is also covered.
  */
 
-const FEATURE = Object.freeze({
-  type: 'feature',
-  slug: 'f-conf',
-  title: 'Conflict fixtures',
-});
-
 function makeStory(slug, body = {}, extras = {}) {
   return {
     type: 'story',
     slug,
-    parent_slug: 'f-conf',
     title: `Story ${slug}`,
     acceptance: ['observable criterion'],
     verify: ['npm test (unit)'],
@@ -57,7 +50,6 @@ function makeStory(slug, body = {}, extras = {}) {
 
 test('emits shared-editor finding when two Stories in the same wave write the same path', () => {
   const tickets = [
-    FEATURE,
     makeStory('s-a', {
       changes: ['.github/workflows/quality.yml: tighten lint job'],
     }),
@@ -80,7 +72,6 @@ test('emits shared-editor finding when two Stories in the same wave write the sa
 
 test('does not emit shared-editor finding when depends_on serialises the writers', () => {
   const tickets = [
-    FEATURE,
     makeStory('s-a', {
       changes: ['.github/workflows/quality.yml: tighten lint job'],
     }),
@@ -101,7 +92,6 @@ test('does not emit shared-editor finding when depends_on serialises the writers
 
 test("emits implicit-cross-story-dep when a Story verifies against another Story's declared path", () => {
   const tickets = [
-    FEATURE,
     makeStory('s-producer', {
       changes: [
         '.agents/schemas/baselines/coverage.schema.json: introduce schema',
@@ -135,7 +125,6 @@ test("emits implicit-cross-story-dep when a Story verifies against another Story
 
 test('does not emit implicit-cross-story-dep when consumer Story transitively depends on producer', () => {
   const tickets = [
-    FEATURE,
     makeStory('s-producer', {
       changes: [
         '.agents/schemas/baselines/coverage.schema.json: introduce schema',
@@ -170,7 +159,6 @@ test('does not emit implicit-cross-story-dep when consumer Story transitively de
 
 test('failOnSharedEditors=true upgrades shared-editor findings to hard severity', () => {
   const tickets = [
-    FEATURE,
     makeStory('s-a', {
       changes: ['.github/workflows/quality.yml: tighten lint job'],
     }),
@@ -191,7 +179,6 @@ test('failOnSharedEditors=true upgrades shared-editor findings to hard severity'
 
 test('requireExplicitCrossStoryDeps=true upgrades implicit-cross-story-dep to hard severity', () => {
   const tickets = [
-    FEATURE,
     makeStory('s-producer', {
       changes: [
         '.agents/schemas/baselines/coverage.schema.json: introduce schema',
@@ -223,7 +210,6 @@ test('requireExplicitCrossStoryDeps=true upgrades implicit-cross-story-dep to ha
 
 test('emits no conflict findings on a spec with non-overlapping paths', () => {
   const tickets = [
-    FEATURE,
     makeStory('s-a', { changes: ['src/a.js: edit'] }),
     makeStory('s-b', { changes: ['src/b.js: edit'] }),
   ];
@@ -240,7 +226,6 @@ test('emits no conflict findings on a spec with non-overlapping paths', () => {
 
 test('shared-editor cluster surfaces every concurrent writer of the path', () => {
   const tickets = [
-    FEATURE,
     makeStory('s-a', { changes: ['package.json: bump deps'] }),
     makeStory('s-b', { changes: ['package.json: add script'] }),
     makeStory('s-c', { changes: ['package.json: edit engines field'] }),
@@ -286,25 +271,22 @@ test('computeConflictFindings: empty inputs return empty findings', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 3-tier guard: a Story missing its inline acceptance + verify contract is
+// 2-tier guard: a Story missing its inline acceptance + verify contract is
 // rejected before the conflict pass runs (Epic #3238).
 // ---------------------------------------------------------------------------
 
 test('rejects a Story that lacks an inline acceptance + verify contract', () => {
   const tickets = [
-    FEATURE,
     {
       type: 'story',
       slug: 's-no-contract',
-      parent_slug: 'f-conf',
       title: 'Story without inline contract',
       body: {
         goal: 'Goal.',
         changes: ['src/x.js: edit'],
       },
     },
-    // Valid sibling so the Feature has two Stories — the inline-contract
-    // gate (not the single-Story-Feature gate, Story #3777) is what fires.
+    // Valid sibling Story — the inline-contract gate is what fires.
     makeStory('s-conf-sibling', {
       changes: ['src/sibling-conf.js: edit'],
     }),
@@ -347,7 +329,6 @@ test('renderHardConflictError: produces a remediation hint per finding kind', ()
 
 test('emits missing-bdd-scaffold when a Story verifies a .feature created in a same-wave sibling', () => {
   const tickets = [
-    FEATURE,
     makeStory('s-scaffold', {
       changes: [
         {
@@ -374,7 +355,6 @@ test('emits missing-bdd-scaffold when a Story verifies a .feature created in a s
 
 test('does not emit missing-bdd-scaffold when the consumer depends_on the scaffold Story', () => {
   const tickets = [
-    FEATURE,
     makeStory('s-scaffold', {
       changes: [
         {
@@ -399,7 +379,6 @@ test('does not emit missing-bdd-scaffold when the consumer depends_on the scaffo
 
 test('does not emit missing-bdd-scaffold when the same Story creates and verifies the .feature', () => {
   const tickets = [
-    FEATURE,
     makeStory('s-self', {
       changes: [
         {
@@ -420,7 +399,6 @@ test('does not emit missing-bdd-scaffold when the same Story creates and verifie
 
 test('does not emit missing-bdd-scaffold for non-.feature paths', () => {
   const tickets = [
-    FEATURE,
     makeStory('s-producer', {
       changes: [{ path: 'src/schema.json', assumption: 'creates' }],
     }),
@@ -436,7 +414,6 @@ test('does not emit missing-bdd-scaffold for non-.feature paths', () => {
 
 test('failOnMissingBddScaffold=true upgrades missing-bdd-scaffold to hard severity', () => {
   const tickets = [
-    FEATURE,
     makeStory('s-scaffold', {
       changes: [
         {
@@ -486,7 +463,6 @@ test('renderHardConflictError: produces a remediation hint for missing-bdd-scaff
 
 test('emits shared-editor finding for object-form creates on the same path in the same wave', () => {
   const tickets = [
-    FEATURE,
     makeStory('s-a', {
       changes: [
         { path: 'apps/api/src/routes/v1/teams/feed.ts', assumption: 'creates' },
@@ -512,7 +488,6 @@ test('emits shared-editor finding for object-form creates on the same path in th
 
 test('object-form `exists` entries do not produce shared-editor findings', () => {
   const tickets = [
-    FEATURE,
     makeStory('s-a', {
       changes: [
         { path: 'apps/api/src/queries/feed.queries.ts', assumption: 'exists' },
@@ -531,7 +506,6 @@ test('object-form `exists` entries do not produce shared-editor findings', () =>
 
 test('object-form `deletes` counts as a producer for shared-editor findings', () => {
   const tickets = [
-    FEATURE,
     makeStory('s-a', {
       changes: [{ path: 'apps/web/src/legacy/old.tsx', assumption: 'deletes' }],
     }),
@@ -552,7 +526,6 @@ test('object-form `deletes` counts as a producer for shared-editor findings', ()
 
 test('emits implicit-cross-story-dep when a consumer verifies a path created object-form by another Story', () => {
   const tickets = [
-    FEATURE,
     makeStory('s-producer', {
       changes: [
         { path: 'apps/api/src/queries/feed.queries.ts', assumption: 'creates' },
@@ -582,7 +555,6 @@ test('emits implicit-cross-story-dep when a consumer verifies a path created obj
 
 test('mixed legacy string + object-form bodies both surface as shared-editor producers', () => {
   const tickets = [
-    FEATURE,
     // Legacy string bullet on the shared path.
     makeStory('s-legacy', {
       changes: ['packages/config/index.ts: tighten exports'],
@@ -603,7 +575,6 @@ test('mixed legacy string + object-form bodies both surface as shared-editor pro
 
 test('does not emit shared-editor for object-form writers serialised by depends_on', () => {
   const tickets = [
-    FEATURE,
     makeStory('s-a', {
       changes: [
         { path: 'apps/api/src/routes/v1/teams/feed.ts', assumption: 'creates' },

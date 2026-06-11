@@ -835,7 +835,7 @@ test('collectDescendants: walks each BFS level concurrently', async () => {
 
   // Sanity: the descendant set is the same as the serial walker would
   // produce. Story #3200 — `out.tasks` is always `[]` under the
-  // 3-tier hierarchy, so the sanity set reads from `out.stories`.
+  // 2-tier hierarchy, so the sanity set reads from `out.stories`.
   const descendantIds = new Set();
   for (const sub of out.stories) {
     descendantIds.add(sub.id ?? sub.number);
@@ -845,8 +845,8 @@ test('collectDescendants: walks each BFS level concurrently', async () => {
   }
 });
 
-test('gatherRetroSignals: 3-tier ledger (Stories present, zero Tasks) walks without error', async () => {
-  // Story #3151 (Epic #3078) — under the 3-tier hierarchy, the
+test('gatherRetroSignals: 2-tier ledger (Stories present, zero Tasks) walks without error', async () => {
+  // Story #3151 (Epic #3078) — under the 2-tier hierarchy, the
   // descendant walk surfaces only `type::story` issues; child
   // `type::task` tickets do not exist. `gather-signals.js` must
   // tolerate this shape: produce a non-empty signals report from the
@@ -856,7 +856,7 @@ test('gatherRetroSignals: 3-tier ledger (Stories present, zero Tasks) walks with
   // (they contain the Stories themselves) — the guard is meant for a
   // genuinely empty walk under a populated Epic.
   const provider = makeProvider({
-    epic: { id: 3078, title: '3-tier Epic' },
+    epic: { id: 3078, title: '2-tier Epic' },
     stories: [
       {
         id: 3088,
@@ -898,7 +898,7 @@ test('gatherRetroSignals: 3-tier ledger (Stories present, zero Tasks) walks with
   assert.equal(
     warns.length,
     0,
-    `3-tier walk is not empty, guard must stay silent; got: ${warns.join('\n')}`,
+    `2-tier walk is not empty, guard must stay silent; got: ${warns.join('\n')}`,
   );
   assert.ok(signals.routedProposals, 'routedProposals envelope present');
 });

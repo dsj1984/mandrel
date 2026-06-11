@@ -5,7 +5,7 @@
 /**
  * epic-plan-healthcheck.js — Post-Plan Readiness Check
  *
- * Runs at the end of /epic-plan (Phase 10) to validate the backlog and
+ * Runs at the end of /plan (Phase 10) to validate the backlog and
  * optionally prime the execution environment before handing off to
  * /epic-deliver.
  *
@@ -27,7 +27,7 @@
  *   node epic-plan-healthcheck.js --epic <EPIC_ID> \
  *     [--paranoid] [--prime-install] [--dry-run]
  *
- * @see .agents/workflows/epic-plan.md Phase 10
+ * @see .agents/workflows/helpers/plan-epic.md Phase 10
  */
 
 import { spawnSync } from 'node:child_process';
@@ -131,7 +131,7 @@ function checkGitRemote(baseBranch, cwd) {
 
 /**
  * Detect whether a Story body carries an inline `## Acceptance` section with
- * at least one checklist item. Epic #3078 — under 3-tier hierarchy, Stories
+ * at least one checklist item. Epic #3078 — under 2-tier hierarchy, Stories
  * carry acceptance inline, so the hierarchy check uses this signal as the
  * mark of a complete, executable Story.
  *
@@ -152,7 +152,7 @@ function hasInlineAcceptance(body) {
 }
 
 /**
- * Validate Epic ticket hierarchy. 3-tier is the only supported hierarchy
+ * Validate Epic ticket hierarchy. 2-tier is the only supported hierarchy
  * after Task #3154 deleted `planning.hierarchy`: every Story must carry an
  * inline `## Acceptance` checklist; there is no Task layer to graph.
  *
@@ -181,13 +181,9 @@ async function checkTickets(provider, epicId) {
     return { ok: false, detail: `Epic #${epicId} has no child tickets.` };
   }
 
-  const features = tickets.filter((t) =>
-    t.labels.includes(TYPE_LABELS.FEATURE),
-  );
   const stories = tickets.filter((t) => t.labels.includes(TYPE_LABELS.STORY));
 
   const errors = [];
-  if (features.length === 0) errors.push('no type::feature tickets');
   if (stories.length === 0) errors.push('no type::story tickets');
 
   const missingAcceptance = stories.filter(
@@ -214,7 +210,7 @@ async function checkTickets(provider, epicId) {
 
   return {
     ok: true,
-    detail: `${features.length} features, ${stories.length} stories (3-tier, inline acceptance) — hierarchy valid${advisory}.`,
+    detail: `${stories.length} stories (2-tier, inline acceptance) — hierarchy valid${advisory}.`,
   };
 }
 
@@ -313,7 +309,7 @@ export async function runPlanHealthcheck(opts = {}) {
     await timed('git-remote', async () => checkGitRemote(baseBranch, cwd)),
   );
 
-  // Paranoid lane: ticket-hierarchy revalidation (3-tier only).
+  // Paranoid lane: ticket-hierarchy revalidation (2-tier only).
   if (paranoid) {
     const provider = opts.injectedProvider || createProvider(config);
     progress('CHECK', 'Validating ticket hierarchy...');

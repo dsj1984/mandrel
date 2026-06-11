@@ -130,8 +130,8 @@ async function warnIfEpicLooksPopulated({ epicId, provider, logger }) {
  * `logger` so the silent failure becomes visible. Probe failure degrades
  * gracefully — the function never throws on the guard alone.
  *
- * **3-tier ledgers (Story #3151, Story #3200).** Under the 3-tier
- * hierarchy (Epic → Feature → Story; no Task-tier children), `friction`
+ * **2-tier ledgers (Story #3151, Story #3200).** Under the 2-tier
+ * hierarchy (Epic → Story; no Task-tier children), `friction`
  * / `parked` / `recuts` / `storyPerfSummaries` are all Story-scoped, so
  * the function continues to produce a non-empty signals report. The
  * empty-walk guard above is **not** triggered for this shape because

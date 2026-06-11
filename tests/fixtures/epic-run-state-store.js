@@ -156,7 +156,7 @@ export class Checkpointer {
   }
 
   /**
-   * Advance the checkpoint's `phase` field to the next `/epic-deliver`
+   * Advance the checkpoint's `phase` field to the next `/deliver`
    * phase. Reads the current state first; other state fields are preserved.
    *
    * @param {string} nextPhase - One of `DELIVER_PHASES` or `'done'`.

@@ -1,5 +1,5 @@
 /**
- * deliver-phases.js — phase enum and ordering utility for `/epic-deliver`.
+ * deliver-phases.js — phase enum and ordering utility for `/deliver`.
  *
  * Story #1155 (Epic #1142, 5.40.0). Originally extracted from the
  * legacy class-based checkpoint module so the phase enum and close-tail
@@ -11,7 +11,7 @@
  */
 
 /**
- * Ordered list of `/epic-deliver` phases. The checkpoint's `phase` field
+ * Ordered list of `/deliver` phases. The checkpoint's `phase` field
  * stores the **next phase to run**, so a mid-flight crash during
  * `code-review` resumes by reading `phase === 'code-review'` and re-
  * entering Phase D from the start.
@@ -44,7 +44,7 @@ export function assertValidDeliverPhase(nextPhase) {
   if (nextPhase === 'done') return;
   if (phaseIndex(nextPhase) >= 0) return;
   throw new Error(
-    `Invalid /epic-deliver phase ${JSON.stringify(nextPhase)}. ` +
+    `Invalid /deliver phase ${JSON.stringify(nextPhase)}. ` +
       `Expected one of ${DELIVER_PHASES.join(', ')} or 'done'.`,
   );
 }

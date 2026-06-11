@@ -96,10 +96,10 @@ const AC1_ALLOWED_RESIDUAL = [
     file: 'docs/decisions.md',
     marker: 'epic-deliver-finalize.js',
   },
-  // /epic-plan workflow comment describing planning-ticket auto-close
+  // /plan workflow comment describing planning-ticket auto-close
   // behavior. Refers to the historical close point; not an invocation.
   {
-    file: '.agents/workflows/epic-plan.md',
+    file: '.agents/workflows/helpers/plan-epic.md',
     marker: 'closed automatically by',
   },
   // The following entries are inline JSDoc/comment references inside

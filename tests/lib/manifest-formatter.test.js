@@ -52,18 +52,10 @@ function epicManifest(overrides = {}) {
   };
 }
 
-test('formatter: feature containers row when features present', () => {
+test('formatter: never renders a Feature Containers section (2-tier)', () => {
   const manifest = epicManifest();
-  manifest.storyManifest.push({
-    storyId: 300,
-    storySlug: 'container',
-    type: 'feature',
-    earliestWave: -1,
-    branchName: 'feature-300',
-  });
   const md = formatManifestMarkdown(manifest);
-  assert.ok(md.includes('## Feature Containers'));
-  assert.ok(md.includes('#300'));
+  assert.ok(!md.includes('## Feature Containers'));
 });
 
 test('formatter: renderManifestMarkdown alias matches formatManifestMarkdown', () => {
@@ -124,19 +116,13 @@ test('formatter: printStoryDispatchTable writes to injected logger', () => {
         type: 'story',
         earliestWave: 0,
       },
-      {
-        storyId: 200,
-        storySlug: 'container',
-        type: 'feature',
-        earliestWave: -1,
-      },
     ],
     { logger },
   );
   const flat = lines.join('\n');
   assert.ok(flat.includes('📋 STORY DISPATCH TABLE'));
   assert.ok(flat.includes('#101'));
-  assert.ok(flat.includes('📦 Feature Containers'));
+  assert.ok(!flat.includes('📦 Feature Containers'));
   // No residual Tasks column or orphaned-tasks feature line.
   assert.ok(!flat.includes('Tasks'));
   assert.ok(!flat.includes('orphaned'));
@@ -327,7 +313,7 @@ test('renderNestedWaveSections: H2 anchors match the TOC link slugs', () => {
 
 // The legacy per-Task topo-sort / `*(after #N)*` callout tests were
 // removed when Epic #3163 collapsed the per-Story Task rendering: under
-// the 3-tier hierarchy Stories are leaves with no child Task tickets, so
+// the 2-tier hierarchy Stories are leaves with no child Task tickets, so
 // `renderNestedWaveSections` no longer projects a Task-level checkbox
 // list and the `topoSortTasks` helper was deleted as dead code.
 
@@ -351,5 +337,5 @@ test('renderProceduresAndLegendDetails: emits exactly one <details>/</details> p
   assert.match(md, /Operating Procedures/);
   assert.match(md, /Symbol legend/);
   // Epic id substituted into the deliver/close examples.
-  assert.match(md, /\/epic-deliver 42/);
+  assert.match(md, /\/deliver 42/);
 });

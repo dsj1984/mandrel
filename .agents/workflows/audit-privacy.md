@@ -17,7 +17,7 @@ insecure storage, or unnecessary collection of sensitive data.
 
 ## Scope (Epic mode)
 
-When this lens is invoked from `/epic-deliver` Phase 4 (epic-audit), the
+When this lens is invoked from `/deliver` Phase 4 (epic-audit), the
 following block is populated with the Epic's change-set file list.
 Otherwise — for any manual `/audit-<dimension>` invocation — the block
 renders the literal substitution token and you MUST treat it as **no

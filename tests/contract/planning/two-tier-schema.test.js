@@ -1,7 +1,7 @@
 /**
- * tests/contract/planning/three-tier-schema.test.js
+ * tests/contract/planning/two-tier-schema.test.js
  *
- * Contract: `.agents/schemas/epic-spec.schema.json` accepts the 3-tier
+ * Contract: `.agents/schemas/epic-spec.schema.json` accepts the 2-tier
  * collapse shape (Epic #3078): a Story object that carries inline
  * `acceptance[]` and `verify[]` arrays with no `tasks[]`, plus the
  * coexistence case where a Story carries both shapes simultaneously.
@@ -52,30 +52,24 @@ function formatErrors(errors) {
   return JSON.stringify(errors ?? [], null, 2);
 }
 
-describe('epic-spec.schema.json — 3-tier Story shape (Story #3136)', () => {
+describe('epic-spec.schema.json — 2-tier Story shape (Story #3136)', () => {
   it('accepts a Story with inline acceptance[] + verify[] and no tasks[]', () => {
     // Arrange
     const validate = compileSchema();
     const spec = {
-      version: '2.0.0',
+      version: '4.0.0',
       epic: { id: 3078, title: 'E', labels: ['type::epic'] },
-      features: [
+      stories: [
         {
-          slug: 'f1',
-          title: 'Feature 1',
-          stories: [
-            {
-              slug: 's1',
-              title: 'Inline-only Story',
-              wave: 0,
-              acceptance: [
-                'A Story with inline acceptance validates',
-                'A second criterion proves arrays are accepted',
-              ],
-              verify: [
-                'node --test tests/contract/planning/three-tier-schema.test.js',
-              ],
-            },
+          slug: 's1',
+          title: 'Inline-only Story',
+          wave: 0,
+          acceptance: [
+            'A Story with inline acceptance validates',
+            'A second criterion proves arrays are accepted',
+          ],
+          verify: [
+            'node --test tests/contract/planning/two-tier-schema.test.js',
           ],
         },
       ],
@@ -94,26 +88,20 @@ describe('epic-spec.schema.json — 3-tier Story shape (Story #3136)', () => {
     // surfaced loudly so consumers regenerate their specs.
     const validate = compileSchema();
     const spec = {
-      version: '3.0.0',
+      version: '4.0.0',
       epic: { id: 3078, title: 'E', labels: ['type::epic'] },
-      features: [
+      stories: [
         {
-          slug: 'f1',
-          title: 'Feature 1',
-          stories: [
+          slug: 's-with-tasks',
+          title: 'Story illegally carrying tasks[]',
+          wave: 0,
+          acceptance: ['something'],
+          verify: ['node --test'],
+          tasks: [
             {
-              slug: 's-with-tasks',
-              title: 'Story illegally carrying tasks[]',
-              wave: 0,
-              acceptance: ['something'],
-              verify: ['node --test'],
-              tasks: [
-                {
-                  slug: 't1',
-                  title: 'Decomposed task',
-                  labels: ['type::task'],
-                },
-              ],
+              slug: 't1',
+              title: 'Decomposed task',
+              labels: ['type::task'],
             },
           ],
         },
@@ -143,21 +131,15 @@ describe('epic-spec.schema.json — 3-tier Story shape (Story #3136)', () => {
     // lines cannot sneak through.
     const validate = compileSchema();
     const spec = {
-      version: '2.0.0',
+      version: '4.0.0',
       epic: { id: 3078, title: 'E', labels: ['type::epic'] },
-      features: [
+      stories: [
         {
-          slug: 'f1',
-          title: 'Feature 1',
-          stories: [
-            {
-              slug: 's-bad',
-              title: 'Story with empty acceptance entry',
-              wave: 0,
-              acceptance: [''],
-              verify: ['node --test'],
-            },
-          ],
+          slug: 's-bad',
+          title: 'Story with empty acceptance entry',
+          wave: 0,
+          acceptance: [''],
+          verify: ['node --test'],
         },
       ],
     };
@@ -175,7 +157,7 @@ describe('epic-spec.schema.json — 3-tier Story shape (Story #3136)', () => {
     );
     assert.ok(
       minLen,
-      `Expected a minLength violation under /features/0/stories/0/acceptance/0, got: ${formatErrors(errors)}`,
+      `Expected a minLength violation under /stories/0/acceptance/0, got: ${formatErrors(errors)}`,
     );
   });
 });

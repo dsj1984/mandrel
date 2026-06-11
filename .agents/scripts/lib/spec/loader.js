@@ -8,7 +8,7 @@
  *   - `temp/epic-<epic-id>/<epic-id>.state.json`  — slug→issue mapping (observed)
  *
  * Both files live under the per-Epic ephemeral tree `temp/epic-<id>/`
- * (already gitignored) so /epic-plan reruns don't churn a tracked path
+ * (already gitignored) so /plan reruns don't churn a tracked path
  * and so concurrent Epics never collide on a single shared directory.
  * Tests inject `opts.epicsDir` to point at a sandbox; the default for
  * production callers is derived from `lib/config/temp-paths.js#epicTempDir`.
@@ -382,7 +382,7 @@ export function writeState(epicId, state, opts = {}) {
  * the schema from the file itself.
  *
  * Story #1498 / Task #1525 introduced this writer so the rewritten
- * `/epic-plan` halves can persist the spec from the decomposer's
+ * `/plan` halves can persist the spec from the decomposer's
  * ticket-array projection (`renderSpec`) without reaching into raw
  * `js-yaml` calls scattered across the planning scripts.
  *

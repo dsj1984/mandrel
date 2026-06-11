@@ -222,7 +222,7 @@ The four `quality-bootstrap` outcomes:
 
 The `baselines-layout-migration` step relocates per-Epic snapshots
 into the `temp/epic/<id>/baselines/` namespace (Story #1467: ephemeral
-scratch state, not committed, reaped on `/epic-deliver` merge with the
+scratch state, not committed, reaped on `/deliver` merge with the
 rest of the per-Epic temp tree):
 
 - Loose `baselines/epic-<id>-{maintainability,crap}.json` files →
@@ -246,7 +246,7 @@ guarantee `agents-update`'s idempotence contract requires.
 A framework bump frequently introduces new helper scripts and `node
 .agents/scripts/<name>.js` invocations the consumer's
 `.claude/settings.json` allowlist has never seen. Left alone, the next
-`/story-deliver` or `/epic-deliver` run trips a fresh wave of
+`/deliver` or `/deliver` run trips a fresh wave of
 permission prompts that operators answer by hand — and those hand-tuned
 allowlists drift across projects.
 

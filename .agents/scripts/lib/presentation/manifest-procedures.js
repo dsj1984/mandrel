@@ -16,7 +16,7 @@
  * the only HTML the manifest emits by AC — every other section is plain
  * Markdown.
  *
- * @param {number|string} epicId  the Epic id used to substitute `/epic-deliver` examples.
+ * @param {number|string} epicId  the Epic id used to substitute `/deliver` examples.
  * @returns {string}
  */
 export function renderProceduresAndLegendDetails(epicId) {
@@ -28,13 +28,13 @@ export function renderProceduresAndLegendDetails(epicId) {
   lines.push('### Operating Procedures');
   lines.push('');
   lines.push(
-    `1. **Deliver**: Run \`/epic-deliver ${epicId}\`. The runner iterates waves in order, fans Stories out in parallel via \`/story-deliver\`, and only pauses when the Epic flips to \`agent::blocked\`.`,
+    `1. **Deliver**: Run \`/deliver ${epicId}\`. The runner iterates waves in order, fans Stories out in parallel via \`/deliver\`, and only pauses when the Epic flips to \`agent::blocked\`.`,
   );
   lines.push(
-    '2. **Resume (granular, optional)**: Re-running `/epic-deliver` resumes from the checkpointed wave. To re-drive a single Story, run `/story-deliver <storyId>`. Re-runs are checkpoint-idempotent.',
+    '2. **Resume (granular, optional)**: Re-running `/deliver` resumes from the checkpointed wave. To re-drive a single Story, run `/deliver <storyId>`. Re-runs are checkpoint-idempotent.',
   );
   lines.push(
-    `3. **Close**: \`/epic-deliver ${epicId}\` runs close-validation, code-review, retro, and PR-create in its tail. Operators merge the PR via the GitHub UI.`,
+    `3. **Close**: \`/deliver ${epicId}\` runs close-validation, code-review, retro, and PR-create in its tail. Operators merge the PR via the GitHub UI.`,
   );
   lines.push('');
   lines.push('### Symbol legend');

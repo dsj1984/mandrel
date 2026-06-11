@@ -42,7 +42,7 @@
  * defined in `lib/dynamic-workflow/documentation-report-contract.js`. The
  * orchestrated path assembles its verified findings into exactly that
  * skeleton and self-verifies with `assertReportContract` before writing, so
- * downstream consumers (`/epic-deliver` Phase 4 epic-audit,
+ * downstream consumers (`/deliver` Phase 4 epic-audit,
  * `audit-to-stories`) cannot tell which path produced the report.
  *
  * ## Shared orchestration engine

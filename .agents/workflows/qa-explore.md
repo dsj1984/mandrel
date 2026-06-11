@@ -33,7 +33,7 @@ resolution, redaction, coverage verdict, missing-test proposal, classification,
 and dedup/route decisions. The agent never invents those decisions in prose.
 
 > **When to run**: ad-hoc agent-driven exploration of a freshly delivered Story
-> or Feature, a regression sweep over a risky surface before `/epic-deliver`, or
+> or Feature, a regression sweep over a risky surface before `/deliver`, or
 > a structured agent-driven bug-hunt the operator wants captured into a
 > triageable ledger.
 >

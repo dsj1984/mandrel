@@ -37,7 +37,7 @@ import { WaveRunnerError } from './wave-runner-error.js';
  *   totalWaves:     number
  *
  * Wave grouping comes from the checkpoint's `state.plan` (the GH-derived
- * dependency-DAG grouping originally seeded by /epic-plan).
+ * dependency-DAG grouping originally seeded by /plan).
  *
  * @typedef {object} WaveTickArgs
  * @property {number | { id: number }} epic

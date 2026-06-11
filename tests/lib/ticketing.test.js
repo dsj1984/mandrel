@@ -349,7 +349,7 @@ test('ticketing.js', async (t) => {
       // would otherwise silently drop every fire. Both intermediate
       // tickets are tagged `type::story` rather than `type::epic` because
       // `cascadeCompletion` deliberately *skips* auto-close on Epics
-      // (their close path is `/epic-deliver`, not the cascade).
+      // (their close path is `/deliver`, not the cascade).
       mock.tickets[1].labels = ['agent::executing', 'type::story'];
       mock.tickets[2].labels = ['agent::executing', 'type::story'];
       mock.tickets[3].labels = ['agent::done'];
@@ -591,7 +591,7 @@ test('ticketing.js', async (t) => {
       // Feature because at least one sibling remains open.
       mock.tickets[20] = {
         id: 20,
-        labels: ['agent::executing', 'type::feature'],
+        labels: ['agent::executing', 'type::story'],
         body: 'Feature body\n- [ ] #21\n- [ ] #22',
         state: 'open',
       };
@@ -674,7 +674,7 @@ test('ticketing.js', async (t) => {
       const tickets = {
         30: {
           id: 30,
-          labels: ['agent::executing', 'type::feature'],
+          labels: ['agent::executing', 'type::story'],
           body: 'Feature body\n- [ ] #31\n- [ ] #32',
           state: 'open',
         },
@@ -749,7 +749,7 @@ test('ticketing.js', async (t) => {
       //   - Story auto-closes via cascade
       //   - Feature auto-closes via cascade (pinned behavior — Features are
       //     purely hierarchical groupings with no standalone branch/merge)
-      //   - Epic does NOT auto-close via cascade (reserved for /epic-deliver)
+      //   - Epic does NOT auto-close via cascade (reserved for /deliver)
       // This test pins that contract so a future edit that adds Feature to
       // the exclusion list or drops Epic from it fails loudly.
       mock.tickets[10] = {
@@ -760,7 +760,7 @@ test('ticketing.js', async (t) => {
       };
       mock.tickets[11] = {
         id: 11,
-        labels: ['agent::executing', 'type::feature'],
+        labels: ['agent::executing', 'type::story'],
         body: 'Feature body\n\nparent: #10\n- [ ] #12',
         state: 'open',
       };
@@ -802,7 +802,7 @@ test('ticketing.js', async (t) => {
       );
       assert.ok(
         !mock.tickets[10].labels.includes('agent::done'),
-        'Epic must NOT auto-close via cascade — reserved for /epic-deliver',
+        'Epic must NOT auto-close via cascade — reserved for /deliver',
       );
       assert.ok(
         mock.tickets[10].labels.includes('agent::executing'),
@@ -831,20 +831,20 @@ test('ticketing.js', async (t) => {
       const tickets = {
         40: {
           id: 40,
-          labels: ['agent::executing', 'type::feature'],
-          body: 'Feature 40\n- [ ] #41\n- [ ] #42',
+          labels: ['agent::executing', 'type::story'],
+          body: 'Parent 40\n- [ ] #41\n- [ ] #42',
           state: 'open',
         },
         41: {
           id: 41,
-          labels: ['agent::executing', 'type::feature'],
-          body: 'Feature 41\nparent: #40\n- [ ] #50',
+          labels: ['agent::executing', 'type::story'],
+          body: 'Parent 41\nparent: #40\n- [ ] #50',
           state: 'open',
         },
         42: {
           id: 42,
-          labels: ['agent::executing', 'type::feature'],
-          body: 'Feature 42\nparent: #40\n- [ ] #50',
+          labels: ['agent::executing', 'type::story'],
+          body: 'Parent 42\nparent: #40\n- [ ] #50',
           state: 'open',
         },
         50: {

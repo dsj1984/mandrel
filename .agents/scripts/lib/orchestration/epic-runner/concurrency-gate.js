@@ -1,10 +1,10 @@
 /**
  * Cross-Story conflict-finding gate for `epic-deliver-prepare.js`.
  *
- * Story #2297 — when the bounded `/epic-plan` flow emitted concurrency
+ * Story #2297 — when the bounded `/plan` flow emitted concurrency
  * findings (Story #2296's validator pass), the operator may have shipped
- * them through to `/epic-deliver` without resolving the underlying
- * `depends_on` gaps. This gate runs at Phase 1 of `/epic-deliver` and
+ * them through to `/deliver` without resolving the underlying
+ * `depends_on` gaps. This gate runs at Phase 1 of `/deliver` and
  * refuses to flip the Epic to `agent::executing` when the upcoming
  * waves still contain unresolved conflicts — surfacing the exact
  * remediation commands the operator should run before retrying.
@@ -138,7 +138,7 @@ export function renderGateErrorMessage(findings, ownerRepo) {
     lines.push('');
   }
   lines.push(
-    'Resolve the listed conflicts and re-run `/epic-deliver`, or pass `--ignore-concurrency-hazards` to bypass this gate.',
+    'Resolve the listed conflicts and re-run `/deliver`, or pass `--ignore-concurrency-hazards` to bypass this gate.',
   );
   return lines.join('\n');
 }

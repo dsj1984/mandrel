@@ -240,7 +240,7 @@ export async function renderProgressBody({
 /**
  * Render and upsert the rolled-up `epic-run-progress` comment on the Epic.
  *
- * Called by `/epic-deliver` Step 2b (`epic-execute-record-wave.js`) after
+ * Called by `/deliver` Step 2b (`epic-execute-record-wave.js`) after
  * each wave completes. The caller folds `state.waves[]` from the
  * `epic-run-state` checkpoint into the per-wave rows and persists the
  * unified rollup as a fenced-JSON payload on the Epic ticket via

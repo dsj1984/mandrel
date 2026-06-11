@@ -13,12 +13,12 @@ import { runStoryPhase } from '../../../.agents/scripts/story-phase.js';
 // ---------------------------------------------------------------------------
 // Contract-style regression guard for audit #3513 (Critical).
 //
-// The Epic-lease liveness check (`/epic-deliver`) resolves a foreign owner's
+// The Epic-lease liveness check (`/deliver`) resolves a foreign owner's
 // last `story.heartbeat` via `latestHeartbeatForOwner({ epicId, owner })`,
 // which matches records on `payload.operator === owner`. The only production
 // heartbeat emitter is `story-phase.js` (`runStoryPhase`). If that producer
 // never stamps `operator` onto the record, `latestHeartbeatForOwner` always
-// returns null → `isClaimLive(null)` is false → a live foreign /epic-deliver
+// returns null → `isClaimLive(null)` is false → a live foreign /deliver
 // claim is silently reclaimed.
 //
 // This test drives the REAL `runStoryPhase` emit path (no hand-seeded

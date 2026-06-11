@@ -1,17 +1,17 @@
 /**
- * epic-plan-lease-guard.js — `/epic-plan` workflow guards (Story #3481,
+ * epic-plan-lease-guard.js — `/plan` workflow guards (Story #3481,
  * Epic #3457).
  *
  * Wires the assignee-as-lease primitive (`ticket-lease.js`, Story #3480) and a
  * decompose-idempotency guard into the split planning flow so two concurrent
- * `/epic-plan` runs cannot both drive the same Epic, and so a re-run does not
+ * `/plan` runs cannot both drive the same Epic, and so a re-run does not
  * silently duplicate the Feature/Story tree:
  *
  *   - `acquireEpicPlanLease`   — claim the Epic before Phase 7 (spec). Refuses
  *                                (throws, exit non-zero) when a live foreign
  *                                claim already holds the Epic, naming the
  *                                current owner. **Claim-time liveness
- *                                (Story #4019):** `/epic-plan` emits no
+ *                                (Story #4019):** `/plan` emits no
  *                                `story.heartbeat`, so the lease records its
  *                                own claim-time in a `plan-lease` structured
  *                                comment on the Epic at acquire time. A
@@ -24,7 +24,7 @@
  *                                Best-effort and self-scoped: a no-op once the
  *                                Epic was reassigned elsewhere.
  *   - `assertNoOpenPlanChildren` — refuse Phase 8 persist when the Epic already
- *                                has open Feature/Story children, unless the
+ *                                has open Story children, unless the
  *                                operator passed `--force` (a deliberate
  *                                re-decompose that closes the old tree).
  *
@@ -45,7 +45,7 @@ import { currentOwner, releaseLease } from './ticket-lease.js';
 import { findStructuredComment, upsertStructuredComment } from './ticketing.js';
 
 /**
- * Resolve the operator handle that owns this `/epic-plan` run from
+ * Resolve the operator handle that owns this `/plan` run from
  * `github.operatorHandle`. The assignee-as-lease primitive is single-holder
  * keyed on a non-empty string; when no operator is configured (unset, or the
  * shipped `@[USERNAME]` placeholder, both of which `normalizeOperatorHandle`
@@ -99,7 +99,7 @@ export function buildPlanLeaseCommentBody({ epicId, owner, claimedAt }) {
     `### 🔒 Plan Lease — claimed by \`${owner}\``,
     '',
     `This Epic is being planned by \`${owner}\` (claimed ${claimedAt}). A`,
-    'concurrent `/epic-plan` run refuses while this claim is fresher than the',
+    'concurrent `/plan` run refuses while this claim is fresher than the',
     'lease TTL, and reclaims automatically once it goes stale.',
     '',
     '```json',
@@ -141,7 +141,7 @@ export function parsePlanLeaseClaim(body) {
  * Acquire the Epic-lease before Phase 7.
  *
  * **Claim-time liveness (Story #4019, superseding the audit-#3513
- * fail-closed anchor).** `/epic-plan` emits no `story.heartbeat`, so the
+ * fail-closed anchor).** `/plan` emits no `story.heartbeat`, so the
  * old guard treated EVERY foreign assignee as live — which made the
  * documented "`--steal` once you have confirmed the other run is dead"
  * contract undecidable (there was no in-band liveness signal to confirm
@@ -186,7 +186,7 @@ export async function acquireEpicPlanLease({
       `[epic-plan] Refusing to plan Epic #${epicId}: no operator identity is ` +
         'configured. github.operatorHandle is unset or still the shipped ' +
         '`@[USERNAME]` placeholder, so the Epic-lease has no owner and ' +
-        'concurrent /epic-plan runs cannot be serialised. Set your own handle ' +
+        'concurrent /plan runs cannot be serialised. Set your own handle ' +
         'in .agentrc.local.json (e.g. { "github": { "operatorHandle": ' +
         '"@your-login" } }) and re-run.',
     );
@@ -242,7 +242,7 @@ export async function acquireEpicPlanLease({
           : '';
       return (
         `[epic-plan] Epic #${epicId} is currently claimed by '${refused.owner}'. ` +
-        `Refusing to plan concurrently — another /epic-plan run owns this Epic. ` +
+        `Refusing to plan concurrently — another /plan run owns this Epic. ` +
         `${ageNote}Wait for that run to finish (the claim auto-expires at the ` +
         `lease TTL), or re-run with --steal to forcibly transfer the claim.`
       );
@@ -341,10 +341,14 @@ export async function assertNoOpenPlanChildren({
   const openChildren = (children ?? []).filter((t) => {
     const labels = Array.isArray(t.labels) ? t.labels : [];
     const isOpen = t.state === undefined || t.state === 'open';
+    // Any open typed plan ticket counts — `type::story` plus pre-v4
+    // `type::feature` leftovers. The prefix check is legacy-data
+    // detection, not compat support: the guard only refuses, it never
+    // processes the legacy tier. Context tickets (`context::*`) are
+    // untouched.
     return (
       isOpen &&
-      (labels.includes(TYPE_LABELS.FEATURE) ||
-        labels.includes(TYPE_LABELS.STORY))
+      labels.some((l) => typeof l === 'string' && l.startsWith('type::'))
     );
   });
 
@@ -357,12 +361,21 @@ export async function assertNoOpenPlanChildren({
       openChildren.length > 10
         ? `\n  …and ${openChildren.length - 10} more`
         : '';
+    const legacyCount = openChildren.filter(
+      (t) => !(t.labels ?? []).includes(TYPE_LABELS.STORY),
+    ).length;
+    const legacyHint =
+      legacyCount > 0
+        ? `\n${legacyCount} of these are not type::story — they look like ` +
+          `legacy pre-v4 Feature tickets; migrate or close them per the ` +
+          `v1.60.0 migration notes before re-planning.`
+        : '';
     throw new Error(
       `[epic-plan-decompose] Epic #${epicId} already has ` +
-        `${openChildren.length} open Feature/Story child ticket(s):\n${summary}${more}\n\n` +
+        `${openChildren.length} open plan child ticket(s):\n${summary}${more}\n\n` +
         `Persisting now would duplicate the breakdown. Re-run with --force to ` +
         `close the existing tree and re-decompose, or close the stale children ` +
-        `by hand first.`,
+        `by hand first.${legacyHint}`,
     );
   }
 

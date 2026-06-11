@@ -98,7 +98,7 @@ export const EVENT_KINDS = Object.freeze({
   // Story #3819 — per-criterion acceptance self-eval signal emitted by
   // acceptance-eval.js. One record per Story per eval-loop terminus,
   // carrying which acceptance items needed rework and the round count, so
-  // the retro and /epic-plan Phase 0 feedback fetch can see acceptance
+  // the retro and /plan Phase 0 feedback fetch can see acceptance
   // churn alongside friction/hotspot data.
   ACCEPTANCE_EVAL: 'acceptance-eval',
 });

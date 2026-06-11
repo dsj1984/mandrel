@@ -6,7 +6,7 @@
  * `close-validate.end` `emitted` records and groups them by `failedGate`.
  * Returns one finding per gate that appears in **two or more distinct
  * Stories** within the same Epic. Findings are the substrate
- * `/epic-deliver` consumes when upserting the cross-Story
+ * `/deliver` consumes when upserting the cross-Story
  * `recurring-failure-class` structured comment on the Epic ticket.
  *
  * The helper is intentionally pure: no GitHub I/O, no global state. It

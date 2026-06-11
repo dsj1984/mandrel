@@ -115,7 +115,7 @@ describe('epic-plan-lease-guard — resolveOperator', () => {
 // ---------------------------------------------------------------------------
 // acquireEpicPlanLease — claim-time liveness (Story #4019)
 //
-// `/epic-plan` emits no story.heartbeat, so the lease records its own
+// `/plan` emits no story.heartbeat, so the lease records its own
 // claim-time in a `plan-lease` structured comment at acquire time. A foreign
 // claim fresher than the lease TTL (default 15 min) refuses unless `--steal`;
 // a stale or record-less claim is reclaimed automatically — which is what
@@ -228,7 +228,7 @@ describe('epic-plan-lease-guard — acquireEpicPlanLease (claim-time liveness)',
     assert.deepEqual(provider.state.assignees, [OPERATOR]);
   });
 
-  it('records the claim-time on acquire (the liveness signal /epic-plan emits)', async () => {
+  it('records the claim-time on acquire (the liveness signal /plan emits)', async () => {
     const provider = makeProvider({ assignees: [] });
 
     await acquireEpicPlanLease({
@@ -403,15 +403,10 @@ describe('epic-plan-lease-guard — releaseEpicPlanLease', () => {
 // ---------------------------------------------------------------------------
 
 describe('epic-plan-lease-guard — assertNoOpenPlanChildren', () => {
-  it('throws when the Epic has open Feature/Story children and force is absent (AC3)', async () => {
+  it('throws when the Epic has open Story children and force is absent (AC3)', async () => {
     const provider = makeProvider({
       children: [
-        {
-          id: 11,
-          title: 'Feature A',
-          labels: ['type::feature'],
-          state: 'open',
-        },
+        { id: 11, title: 'Story A', labels: ['type::story'], state: 'open' },
         { id: 12, title: 'Story B', labels: ['type::story'], state: 'open' },
       ],
     });
@@ -419,8 +414,34 @@ describe('epic-plan-lease-guard — assertNoOpenPlanChildren', () => {
     await assert.rejects(
       assertNoOpenPlanChildren({ provider, epicId: 9, force: false }),
       (err) => {
-        assert.match(err.message, /already has 2 open Feature\/Story/);
+        assert.match(err.message, /already has 2 open plan child/);
         assert.match(err.message, /--force/);
+        return true;
+      },
+    );
+  });
+
+  it('throws with a migration hint when the Epic has open legacy Feature children', async () => {
+    const provider = makeProvider({
+      children: [
+        {
+          id: 21,
+          title: 'Legacy Feature',
+          labels: ['type::feature'],
+          state: 'open',
+        },
+        { id: 22, title: 'Story C', labels: ['type::story'], state: 'open' },
+      ],
+    });
+
+    await assert.rejects(
+      assertNoOpenPlanChildren({ provider, epicId: 9, force: false }),
+      (err) => {
+        assert.match(err.message, /already has 2 open plan child/);
+        assert.match(err.message, /#21 Legacy Feature/);
+        assert.match(err.message, /not type::story/);
+        assert.match(err.message, /legacy pre-v4 Feature/);
+        assert.match(err.message, /v1\.60\.0 migration notes/);
         return true;
       },
     );
@@ -429,12 +450,7 @@ describe('epic-plan-lease-guard — assertNoOpenPlanChildren', () => {
   it('passes when force is set even with open children', async () => {
     const provider = makeProvider({
       children: [
-        {
-          id: 11,
-          title: 'Feature A',
-          labels: ['type::feature'],
-          state: 'open',
-        },
+        { id: 11, title: 'Story A', labels: ['type::story'], state: 'open' },
       ],
     });
     const result = await assertNoOpenPlanChildren({
@@ -445,10 +461,10 @@ describe('epic-plan-lease-guard — assertNoOpenPlanChildren', () => {
     assert.deepEqual(result.openChildren, []);
   });
 
-  it('passes when the Epic has no open Feature/Story children', async () => {
+  it('passes when the Epic has no open Story children', async () => {
     const provider = makeProvider({
       children: [
-        // context tickets are not Feature/Story — they must not trip the guard
+        // context tickets are not Stories — they must not trip the guard
         { id: 13, title: 'PRD', labels: ['context::prd'], state: 'open' },
       ],
     });

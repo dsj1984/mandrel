@@ -8,8 +8,7 @@ const HIGH_RISK_VERDICT = {
     {
       axis: 'critical-workflow',
       level: 'high',
-      rationale:
-        'Changes /epic-plan gate behavior and acceptance-spec creation.',
+      rationale: 'Changes /plan gate behavior and acceptance-spec creation.',
     },
   ],
   summary: 'High-risk planning-gate change.',

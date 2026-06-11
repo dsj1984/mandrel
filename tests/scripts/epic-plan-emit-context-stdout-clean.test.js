@@ -256,7 +256,7 @@ describe('epic-plan --emit-context: stdout is reserved for JSON', () => {
           title: 'Adaptive Planning Gate Routing',
           body: `## Scope
 
-Changes /epic-plan gate behavior and acceptance-spec creation for critical workflow orchestration.`,
+Changes /plan gate behavior and acceptance-spec creation for critical workflow orchestration.`,
           labels: ['type::epic'],
           linkedIssues: { prd: null, techSpec: null },
         };

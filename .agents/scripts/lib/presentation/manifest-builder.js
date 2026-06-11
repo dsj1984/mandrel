@@ -9,19 +9,19 @@
  * Extracted from `manifest-formatter.js` (Story #1849 Task #1869). The
  * shape projection used to be inlined in the formatter; pulling it out
  * isolates the spec → manifest projection from the Markdown renderer and
- * lets the per-feature / per-story guard cascade live behind a single
+ * lets the per-story guard cascade live behind a single
  * private predicate (`validateSpecShape`) so the orchestrator function's
  * CRAP score drops below 12.
  *
- * Story #3413 (3-tier cutover, final): the residual per-Task projection
+ * Story #3413 (2-tier cutover, final): the residual per-Task projection
  * (the Task projector, the per-Story Task array, and the Task-count
- * rollup) has been deleted. The walker (`projectFeatures`) now counts
+ * rollup) has been deleted. The walker (`projectStories`) counts
  * Stories directly, and `summary` carries Story-tier counts only
  * (`totalStories` / `doneStories` / `progressPercent`), matching the
  * canonical producer in `lib/orchestration/manifest-builder.js`.
  *
  * Story-level status surfaces on each `storyEntry.status` so downstream
- * renderers read the Story's own `agent::*` label directly — the 3-tier
+ * renderers read the Story's own `agent::*` label directly — the
  * "Stories are first-class lifecycle units" invariant.
  *
  * No fs / network access; pure transform. Caller supplies `state` from
@@ -38,8 +38,7 @@ import { AGENT_LABELS } from '../label-constants.js';
  * "is this thing iterable / object-shaped?" decisions.
  *
  * `level` describes which spec node we are validating:
- *   - `'features'` → the spec-level `features` array
- *   - `'stories'`  → a feature's `stories` array
+ *   - `'stories'`  → the spec-level `stories` array
  *   - `'story'`    → a single Story object (must be a non-null object)
  *
  * Returns `true` when the node satisfies the shape contract for that
@@ -52,7 +51,6 @@ import { AGENT_LABELS } from '../label-constants.js';
  */
 function validateSpecShape(level, value) {
   switch (level) {
-    case 'features':
     case 'stories':
       return Array.isArray(value);
     case 'story':
@@ -102,8 +100,8 @@ function buildResolvers(state) {
  * Private: project a single spec Story into a manifest Story entry. The
  * Story's status is resolved directly from the Story-level label
  * (`state.mapping[slug].lastObservedAgentState`) and surfaces on
- * `storyEntry.status` — under the 3-tier hierarchy Stories carry their
- * own lifecycle state and are leaves with no child Task tickets. Caller
+ * `storyEntry.status` — Stories carry their own lifecycle state and are
+ * leaves with no child tickets. Caller
  * filters non-object stories with `validateSpecShape('story', ...)`
  * before invoking.
  *
@@ -129,16 +127,17 @@ function projectStory(story, resolvers) {
 }
 
 /**
- * Private: walk every feature → story pair in a spec and collect the
- * per-story projections + Story-tier roll-up counters. Keeps the loop
- * machinery out of `buildManifestFromSpec` so the entry point reads as a
- * straight assembly of the result envelope.
+ * Private: walk every Story in a spec and collect the per-story
+ * projections + Story-tier roll-up counters. Keeps the loop machinery
+ * out of `buildManifestFromSpec` so the entry point reads as a straight
+ * assembly of the result envelope.
  *
- * Under the 3-tier hierarchy (Epic #3163) Stories are leaves, so the
- * rollup counts Stories directly: `totalStories` is every projected
- * Story and `doneStories` is the subset carrying `agent::done`.
+ * Under the 2-tier hierarchy (Story #4041) Stories are direct Epic
+ * children and leaves, so the rollup counts Stories directly:
+ * `totalStories` is every projected Story and `doneStories` is the
+ * subset carrying `agent::done`.
  *
- * @param {object[]} features
+ * @param {object[]} stories
  * @param {{ resolveId: Function, resolveStatus: Function }} resolvers
  * @returns {{
  *   storyManifest: object[],
@@ -147,23 +146,18 @@ function projectStory(story, resolvers) {
  *   waveSet: Set<number>,
  * }}
  */
-function projectFeatures(features, resolvers) {
+function projectStories(stories, resolvers) {
   const storyManifest = [];
   let totalStories = 0;
   let doneStories = 0;
   const waveSet = new Set();
-  for (const feature of features) {
-    const stories = validateSpecShape('stories', feature?.stories)
-      ? feature.stories
-      : [];
-    for (const story of stories) {
-      if (!validateSpecShape('story', story)) continue;
-      const { storyEntry, wave } = projectStory(story, resolvers);
-      storyManifest.push(storyEntry);
-      totalStories++;
-      if (storyEntry.status === AGENT_LABELS.DONE) doneStories++;
-      if (wave >= 0) waveSet.add(wave);
-    }
+  for (const story of stories) {
+    if (!validateSpecShape('story', story)) continue;
+    const { storyEntry, wave } = projectStory(story, resolvers);
+    storyManifest.push(storyEntry);
+    totalStories++;
+    if (storyEntry.status === AGENT_LABELS.DONE) doneStories++;
+    if (wave >= 0) waveSet.add(wave);
   }
   return { storyManifest, totalStories, doneStories, waveSet };
 }
@@ -199,12 +193,12 @@ export function buildManifestFromSpec(spec, opts = {}) {
     spec?.epic && typeof spec.epic.id === 'number' ? spec.epic.id : null;
   const epicTitle =
     spec?.epic && typeof spec.epic.title === 'string' ? spec.epic.title : '';
-  const features = validateSpecShape('features', spec?.features)
-    ? spec.features
+  const stories = validateSpecShape('stories', spec?.stories)
+    ? spec.stories
     : [];
 
-  const { storyManifest, totalStories, doneStories, waveSet } = projectFeatures(
-    features,
+  const { storyManifest, totalStories, doneStories, waveSet } = projectStories(
+    stories,
     resolvers,
   );
 

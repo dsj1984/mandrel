@@ -12,7 +12,7 @@ const HIGH_RISK_CRITICAL_WORKFLOW_VERDICT = {
       axis: 'critical-workflow',
       level: 'high',
       rationale:
-        'Rewrites /epic-plan gate routing — a failure mis-routes every plan.',
+        'Rewrites /plan gate routing — a failure mis-routes every plan.',
     },
   ],
   summary: 'High-risk orchestration change to the planning gate path.',

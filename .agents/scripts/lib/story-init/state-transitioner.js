@@ -2,8 +2,8 @@
  * state-transitioner.js — Stage 6 of the story-init pipeline.
  *
  * Flips the Story ticket to `agent::executing` at init time. Under the
- * 3-tier hierarchy the Story has inline acceptance and no child Task
- * lifecycle — `/story-deliver` runs a single Story-implementation phase.
+ * 2-tier hierarchy the Story has inline acceptance and no child Task
+ * lifecycle — `/deliver` runs a single Story-implementation phase.
  */
 
 import {

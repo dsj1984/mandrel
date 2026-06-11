@@ -3,7 +3,7 @@
  * Contract test — Story #2891 Task #2901.
  *
  * wave-tick.js MUST surface `nextAction['in-flight']` derived from the
- * lifecycle ledger so /epic-deliver can reconcile dispatched-but-
+ * lifecycle ledger so /deliver can reconcile dispatched-but-
  * uncompleted Stories. The field is always present (empty array when
  * the ledger is silent) so callers never need an existence check.
  *

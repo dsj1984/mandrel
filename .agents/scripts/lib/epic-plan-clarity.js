@@ -10,7 +10,7 @@
  * Verdict rule: `clear` requires **both** (a) ≥ 4 of 5 canonical sections
  * present, **and** (b) the **Acceptance Criteria** section present. The
  * Acceptance-Criteria requirement is load-bearing: a downstream
- * `/epic-deliver` start gate and the close-time acceptance-spec reconciler
+ * `/deliver` start gate and the close-time acceptance-spec reconciler
  * both assume the Epic carries acceptance criteria, so a gate that passed an
  * Epic with no Acceptance Criteria (the pre-Story-#3910 `≥ 4 of 5` behaviour)
  * advertised a clarity guarantee it did not provide. AC is now a required

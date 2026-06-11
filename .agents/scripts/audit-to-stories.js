@@ -13,7 +13,7 @@
  *     stdout when --json is set).
  *
  *   --emit-epic-seed --plan <plan.json> --out <path>
- *     Read the plan envelope from disk, render the `/epic-plan --idea`
+ *     Read the plan envelope from disk, render the `/plan --idea`
  *     seed markdown, persist to --out.
  *
  *   --emit-stories --plan <plan.json>

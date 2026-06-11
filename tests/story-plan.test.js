@@ -1,7 +1,7 @@
 /**
  * tests/story-plan.test.js — Story #2293.
  *
- * Covers the pure helpers behind `/story-plan`:
+ * Covers the pure helpers behind `/plan`:
  *   - rankDuplicateCandidates: Jaccard-overlap ranking + size cap.
  *   - shouldRefine: heuristic + operator override.
  *   - validateStoryBody: required sections, Epic-ref guard, AC checklist.
@@ -71,12 +71,12 @@ describe('rankDuplicateCandidates', () => {
 
   it('ranks higher-overlap titles first', () => {
     const ranked = rankDuplicateCandidates({
-      seed: 'add /story-plan workflow to author standalone Story drafts',
+      seed: 'add /plan workflow to author standalone Story drafts',
       openStories: [
         { id: 10, title: 'unrelated', url: 'u1' },
         {
           id: 20,
-          title: 'author standalone Story drafts via /story-plan',
+          title: 'author standalone Story drafts via /plan',
           url: 'u2',
         },
         {
@@ -253,7 +253,7 @@ describe('story-plan.js CLI: --help', () => {
       encoding: 'utf8',
     });
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    assert.match(r.stdout, /story-plan\.js/);
+    assert.match(r.stdout, /plan\.js/);
     assert.match(r.stdout, /--emit-context/);
     assert.match(r.stdout, /--body/);
     assert.match(r.stdout, /--dry-run/);
@@ -321,7 +321,7 @@ describe('story-plan.js CLI: --dry-run --body', () => {
 });
 
 /**
- * Story #3822 — /story-plan persist-path board membership regression.
+ * Story #3822 — /plan persist-path board membership regression.
  *
  * Drives `runPersist` with a provider whose `createIssue` is the real
  * `TicketGateway.createIssue` (fake gh facade, recording hooks) and

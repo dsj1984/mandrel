@@ -10,7 +10,6 @@
  *   - spec-renderer.renderSpec (+ extracted helpers)
  *   - merge-runner.{rebaseStoryOnEpic, runFinalizeMerge, finalizeMergeIfPending}
  *   - automerge-predicate.deriveAutoMergeVerdict (+ extracted helpers)
- *   - reconciler.maybeClose (exercised via reconcileHierarchy)
  *   - crap-drift.findCoverageEntry (+ normaliseCoveragePath / coverageKeyMatches)
  *   - auto-refresh-runner.runAutoRefresh
  *   - baseline-attribution-wiring.diffCrapBaselines
@@ -25,7 +24,6 @@ import {
   normaliseCoveragePath,
 } from '../../../.agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js';
 import { deriveAutoMergeVerdict } from '../../../.agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js';
-import { reconcileHierarchy } from '../../../.agents/scripts/lib/orchestration/reconciler.js';
 import { composeRetroBody } from '../../../.agents/scripts/lib/orchestration/retro/phases/compose-body.js';
 import { runAutoRefresh } from '../../../.agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js';
 import { diffCrapBaselines } from '../../../.agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js';
@@ -68,27 +66,17 @@ describe('progress-reporter.phaseToState', () => {
 function buildMinimalBacklog() {
   return [
     {
-      slug: 'feat-x',
-      type: 'feature',
-      title: 'feat X',
-      depends_on: [],
-    },
-    {
       slug: 'story-x',
       type: 'story',
       title: 'story X',
-      parent_slug: 'feat-x',
       depends_on: [],
       acceptance: ['story X is implemented'],
       verify: ['node --test'],
     },
-    // Story #3777 — a Feature MUST carry >=2 Stories, so the minimal valid
-    // backlog has a second well-formed Story under feat-x.
     {
       slug: 'story-x2',
       type: 'story',
       title: 'story X2',
-      parent_slug: 'feat-x',
       depends_on: [],
       acceptance: ['story X2 is implemented'],
       verify: ['node --test'],
@@ -113,25 +101,24 @@ describe('ticket-validator.validateAndNormalizeTickets — error branches', () =
       slug: 'story-x',
       type: 'story',
       title: 'dup',
-      parent_slug: 'feat-x',
       acceptance: ['a'],
       verify: ['v'],
     });
     assert.throws(() => validateAndNormalizeTickets(b), /Duplicate slug/);
   });
 
-  it('throws when no Feature is present', () => {
-    const b = buildMinimalBacklog().filter((t) => t.type !== 'feature');
-    assert.throws(() => validateAndNormalizeTickets(b), /at least one Feature/);
+  it('throws when a non-Story ticket is present', () => {
+    const b = buildMinimalBacklog();
+    b.push({ slug: 'feat-x', type: 'feature', title: 'feat X' });
+    assert.throws(() => validateAndNormalizeTickets(b), /are not Stories/);
   });
 
   it('throws when no Story is present', () => {
-    const b = buildMinimalBacklog().filter((t) => t.type !== 'story');
-    assert.throws(() => validateAndNormalizeTickets(b), /at least one Story/);
+    assert.throws(() => validateAndNormalizeTickets([]), /at least one Story/);
   });
 
   it('throws when a Story lacks an inline acceptance + verify contract', () => {
-    // 3-tier (Epic #3238): a Story with no top-level acceptance/verify is
+    // 2-tier (Epic #3238): a Story with no top-level acceptance/verify is
     // the legacy 4-tier shape that expected child Tasks — now rejected.
     const b = buildMinimalBacklog();
     const story = b.find((t) => t.type === 'story');
@@ -140,31 +127,6 @@ describe('ticket-validator.validateAndNormalizeTickets — error branches', () =
     assert.throws(
       () => validateAndNormalizeTickets(b),
       /lack an inline acceptance \+ verify contract/,
-    );
-  });
-
-  it('throws on Story without parent_slug', () => {
-    const b = buildMinimalBacklog();
-    b.find((t) => t.type === 'story').parent_slug = undefined;
-    assert.throws(
-      () => validateAndNormalizeTickets(b),
-      /Story "story X" must have a parent_slug/,
-    );
-  });
-
-  it('throws on Story whose parent is not a Feature', () => {
-    const b = buildMinimalBacklog();
-    b.push({
-      slug: 'story-z',
-      type: 'story',
-      title: 'story Z',
-      parent_slug: 'story-x',
-      acceptance: ['a'],
-      verify: ['v'],
-    });
-    assert.throws(
-      () => validateAndNormalizeTickets(b),
-      /Story "story Z" parent must be a Feature/,
     );
   });
 
@@ -184,7 +146,6 @@ describe('ticket-validator.validateAndNormalizeTickets — error branches', () =
       slug: 'story-y',
       type: 'story',
       title: 'story Y',
-      parent_slug: 'feat-x',
       depends_on: ['story-x'],
       acceptance: ['a'],
       verify: ['v'],
@@ -382,63 +343,6 @@ describe('automerge-predicate.deriveAutoMergeVerdict', () => {
     assert.ok(
       v.reasons.some((r) => r.includes('retro structured comment not found')),
     );
-  });
-});
-
-// ---------------------------------------------------------------------------
-// reconciler.maybeClose (via reconcileHierarchy)
-// ---------------------------------------------------------------------------
-
-describe('reconciler.maybeClose', () => {
-  const STORY_LABEL = 'type::story';
-  const FEATURE_LABEL = 'type::feature';
-
-  function makeTicket(id, type, extra = {}) {
-    return {
-      id,
-      type,
-      title: `T${id}`,
-      labels: [type === 'story' ? STORY_LABEL : FEATURE_LABEL],
-      labelSet: new Set([type === 'story' ? STORY_LABEL : FEATURE_LABEL]),
-      state: 'open',
-      body: extra.body ?? null,
-      ...extra,
-    };
-  }
-
-  it('dry-run flips state to closed without provider calls', async () => {
-    const provider = {
-      updateTicket: async () => {
-        throw new Error('should not be called in dry-run');
-      },
-    };
-    const story = makeTicket(10, 'story', { body: 'parent: #1' });
-    const all = [
-      story,
-      {
-        id: 100,
-        type: 'task',
-        state: 'closed',
-        title: 'tA',
-        body: 'parent: #10',
-        labels: ['agent::done'],
-        labelSet: new Set(['agent::done']),
-      },
-    ];
-    await reconcileHierarchy(provider, 1, null, all, true);
-    assert.equal(story.state, 'closed');
-  });
-
-  it('skips already-closed and parent-less tickets', async () => {
-    let updates = 0;
-    const provider = {
-      updateTicket: async () => {
-        updates += 1;
-      },
-    };
-    const closedStory = makeTicket(11, 'story', { state: 'closed' });
-    await reconcileHierarchy(provider, 1, null, [closedStory], false);
-    assert.equal(updates, 0);
   });
 });
 

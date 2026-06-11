@@ -152,9 +152,9 @@ This skill is the engine behind two operator-facing entry points:
 
 - [`/explain`](../../../workflows/explain.md) — runs the loop over a realized
   change (a PR, branch, or diff).
-- [`/epic-plan`](../../../workflows/epic-plan.md) **Phase 11 — Plan
+- [`/plan`](../../../workflows/helpers/plan-epic.md) **Phase 11 — Plan
   Comprehension Gate** — runs the loop over a freshly planned backlog before
-  the operator hands off to `/epic-deliver`. That phase decides *whether* to
+  the operator hands off to `/deliver`. That phase decides *whether* to
   run via an LM-judgment predicate; this skill owns *how* it runs once
   invoked.
 

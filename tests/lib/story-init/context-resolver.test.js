@@ -30,7 +30,7 @@ test('resolveContext returns hierarchy for a valid Story body', async () => {
     input: { storyId: 7 },
   });
   assert.strictEqual(out.epicId, 2);
-  assert.strictEqual(out.featureId, 5);
+  assert.strictEqual(out.parentId, 5);
   assert.strictEqual(out.story.id, 7);
 });
 

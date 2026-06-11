@@ -78,7 +78,7 @@ export async function overwriteContextTicket(
   try {
     await provider.postComment(ticketId, {
       type: 'notification',
-      body: `♻️ **Regeneration Audit**: This ${artifact} body was regenerated in place by a \`/epic-plan --force\` re-plan. The issue number and prior discussion history are preserved.`,
+      body: `♻️ **Regeneration Audit**: This ${artifact} body was regenerated in place by a \`/plan --force\` re-plan. The issue number and prior discussion history are preserved.`,
     });
   } catch (_err) {
     // Audit comment is best-effort — never fail the overwrite on a comment

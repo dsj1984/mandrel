@@ -44,7 +44,7 @@
  * apply pipeline. Arrays are always present (never undefined); an empty
  * plan has all four arrays at length 0.
  *
- * @typedef {'epic'|'feature'|'story'|'task'} EntityKind
+ * @typedef {'epic'|'story'} EntityKind
  *   The structural entity kind. Matches schema $defs — agent-execution
  *   labels (agent::*) are owned by the wave-runner and never appear in
  *   the structural surface.
@@ -87,7 +87,7 @@
  * @typedef {object} RelinkOp
  * @property {'relink'} kind
  * @property {string}   slug
- * @property {EntityKind} entity     'story' (dependsOn) or 'feature'|'story'|'task' (parent).
+ * @property {EntityKind} entity     'story' (dependsOn / parent).
  * @property {number}   issueNumber
  * @property {{ before: string|null, after: string|null }} [parent]
  *   Parent slug change. `null` on either side means "no parent" (epic
@@ -117,9 +117,7 @@ export const OP_KINDS = Object.freeze({
 /** Entity-kind discriminator values, matching the schema $defs. */
 export const ENTITY_KINDS = Object.freeze({
   EPIC: 'epic',
-  FEATURE: 'feature',
   STORY: 'story',
-  TASK: 'task',
 });
 
 const VALID_OP_KINDS = new Set(Object.values(OP_KINDS));

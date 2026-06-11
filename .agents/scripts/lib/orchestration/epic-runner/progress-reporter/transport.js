@@ -1,6 +1,6 @@
 /**
  * progress-reporter/transport.js — outbound I/O for the
- * `/epic-deliver` progress narrative.
+ * `/deliver` progress narrative.
  *
  * Extracted from the parent `progress-reporter.js` so the
  * GitHub-comment posting surface (in `composition.js`) and the
@@ -16,7 +16,7 @@
  *
  * The webhook events emitted from this module are:
  *
- *   - `epic-started`  — fired once at /epic-deliver kickoff
+ *   - `epic-started`  — fired once at /deliver kickoff
  *   - `epic-progress` — fired at wave boundaries / blocker transitions
  *   - `epic-blocked`  — wave aggregated to blocked/failed outside halt path
  *   - `epic-unblocked` — operator flipped back to executing
@@ -118,7 +118,7 @@ export async function emitEpicProgress({
 }
 
 /**
- * Fire a curated `epic-started` webhook event at /epic-deliver kickoff.
+ * Fire a curated `epic-started` webhook event at /deliver kickoff.
  * The Slack consumer anchors the rest of the epic narrative to this fire.
  * Failures are swallowed.
  */
@@ -157,7 +157,7 @@ export async function emitEpicStarted({
 /**
  * Fire a curated `epic-blocked` webhook event when a wave aggregates to
  * `blocked` or `failed` outside the `BlockerHandler.halt` code path (the
- * /epic-deliver host-LLM loop has no handler instance — it calls this
+ * /deliver host-LLM loop has no handler instance — it calls this
  * helper directly from `epic-execute-record-wave.js`). The payload shape
  * matches the inline emit in `BlockerHandler.halt` so downstream consumers
  * see one canonical envelope regardless of which entry point fired.

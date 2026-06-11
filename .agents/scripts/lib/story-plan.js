@@ -1,5 +1,5 @@
 /**
- * story-plan.js — helpers for `/story-plan`.
+ * story-plan.js — helpers for `/plan`.
  *
  * Pure functions used by `.agents/scripts/story-plan.js` (the CLI).
  * Kept side-effect-free so the CLI stays a thin orchestrator and these

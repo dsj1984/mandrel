@@ -26,7 +26,7 @@ The loop is **always on** (a hard cutover — there is no flag to disable it) an
 **bounded** by `delivery.acceptanceEval.maxRounds` (default 2), which the
 resolver clamps into `[1, hard ceiling]` so the cap can never be switched off or
 run unbounded. It is **distinct from** the Epic-level acceptance-spec
-reconciliation in `/epic-deliver` Phase 7.1 (which fires once at finalize and
+reconciliation in `/deliver` Phase 7.1 (which fires once at finalize and
 only checks `@ac-*` Gherkin tag presence): this loop is per-Story,
 per-criterion, mid-delivery, and evaluates the actual work product.
 

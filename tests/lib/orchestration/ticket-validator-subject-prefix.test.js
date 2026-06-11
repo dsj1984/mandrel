@@ -7,25 +7,17 @@ import {
 } from '../../../.agents/scripts/lib/orchestration/ticket-validator.js';
 
 /**
- * Minimal 3-tier hierarchy (Feature → Story) used to drive the full
- * `validateAndNormalizeTickets` path. Under Epic #3238 the Story is the
- * implementation unit and carries the top-level `acceptance[]` array that
- * the subject-prefix pass scans, so the per-test variable lives there.
+ * Minimal 2-tier backlog (Stories only) used to drive the full
+ * `validateAndNormalizeTickets` path. The Story is the implementation
+ * unit and carries the top-level `acceptance[]` array that the
+ * subject-prefix pass scans, so the per-test variable lives there.
  */
 function makeHierarchy(storyAcceptance) {
   return [
     {
-      slug: 'F1',
-      type: 'feature',
-      title: 'Feature 1',
-      body: 'Feature body',
-      parent_slug: undefined,
-    },
-    {
       slug: 'S1',
       type: 'story',
       title: 'Story 1',
-      parent_slug: 'F1',
       acceptance: storyAcceptance,
       verify: ['npm test (validate)'],
       body: {
@@ -35,14 +27,13 @@ function makeHierarchy(storyAcceptance) {
         verify: ['npm test (validate)'],
       },
     },
-    // Valid sibling so F1 has >=2 Stories (Story #3777). Its acceptance
-    // prescribes no commit subject, so it never adds a subject-prefix
-    // violation and never perturbs the assertions under test.
+    // Valid sibling Story. Its acceptance prescribes no commit subject,
+    // so it never adds a subject-prefix violation and never perturbs the
+    // assertions under test.
     {
       slug: 'S2',
       type: 'story',
       title: 'Story 2 — subject-prefix filler sibling',
-      parent_slug: 'F1',
       acceptance: ['npm test exits 0'],
       verify: ['npm test (validate)'],
       body: {
@@ -143,7 +134,6 @@ test('validateAcceptanceSubjectPrefix: skips Stories with string-shaped bodies',
       slug: 'S1',
       type: 'story',
       title: 'Story 1',
-      parent_slug: 'F1',
       // String body — no structured acceptance array to scan, so the
       // subject-prefix pass skips it entirely.
       body: "Commit subject begins with 'baseline-refresh:' (this should be ignored — it is not a structured acceptance array)",
@@ -175,32 +165,23 @@ test('validateAndNormalizeTickets: passes when acceptance prescribes a valid Con
 });
 
 test('validateAndNormalizeTickets: rejects a Story that lacks an inline acceptance + verify contract', () => {
-  // 3-tier (Epic #3238): a Story missing top-level acceptance/verify is the
+  // 2-tier (Epic #3238): a Story missing top-level acceptance/verify is the
   // legacy 4-tier shape and is rejected outright.
   const tickets = [
-    {
-      slug: 'F1',
-      type: 'feature',
-      title: 'Feature 1',
-      body: 'Feature body',
-    },
     {
       slug: 'S1',
       type: 'story',
       title: 'Story without inline contract',
-      parent_slug: 'F1',
       body: {
         goal: 'Make a change for S1.',
         changes: ['.agents/scripts/foo.js: add helper'],
       },
     },
-    // Valid sibling so F1 has >=2 Stories (Story #3777) — the
-    // inline-contract gate, not the single-Story-Feature gate, is what fires.
+    // Valid sibling Story — the inline-contract gate is what fires.
     {
       slug: 'S2',
       type: 'story',
       title: 'Story 2 — valid sibling',
-      parent_slug: 'F1',
       acceptance: ['npm test exits 0'],
       verify: ['npm test (validate)'],
       body: {

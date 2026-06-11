@@ -19,7 +19,7 @@
 //
 //   3. No active doc mentions any retired slash command. The retired-command
 //      blocklist is seeded with `agents-bootstrap-github`,
-//      `single-story-plan` (renamed to `/story-plan`), and `mandrel`
+//      `single-story-plan` (renamed to `/plan`), and `mandrel`
 //      (retired in favor of the generated `.agents/docs/workflows.md`
 //      catalog) and takes precedence over the workflow-resolution check —
 //      a retired token is always a non-zero exit even if a stale workflow

@@ -328,7 +328,7 @@ function followOnBody(s) {
     ``,
     `Trigger: ${trigger}.`,
     ``,
-    `Apply the meta::framework-gap label so /epic-plan Phase 0 surfaces it on the next planning pass.`,
+    `Apply the meta::framework-gap label so /plan Phase 0 surfaces it on the next planning pass.`,
   ].join('\n');
 }
 

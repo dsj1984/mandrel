@@ -29,8 +29,8 @@
  *   (`detectors: rework=N retry=M`) is the only stdout signal — one
  *   line per Story rather than two per detector + N per event.
  *
- * - **3-tier (Storyless) closure (Story #3127).** When `tasks` is
- *   empty (the 3-tier hierarchy shape), `resolveLastTaskId` returns
+ * - **2-tier (Storyless) closure (Story #3127).** When `tasks` is
+ *   empty (the 2-tier hierarchy shape), `resolveLastTaskId` returns
  *   `null` and both detectors run with `taskId: null`. The detector
  *   modules already accept a nullable `taskId` (see
  *   `lib/signals/detectors/{rework,retry}.js`), so no branching on

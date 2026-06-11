@@ -38,25 +38,19 @@ import { diff as realDiff } from '../../.agents/scripts/lib/orchestration/epic-s
 const EPIC_ID = 3905;
 
 /**
- * A spec with one feature and two stories. The titles are deliberately
- * the ones that will appear on the live GH issues so the reseed pass can
- * match by title.
+ * A spec with two stories. The titles are deliberately the ones that
+ * will appear on the live GH issues so the reseed pass can match by
+ * title.
  */
 function specWithStories({ storyTwoSlug = 'story-two', storyTwoTitle } = {}) {
   return {
     epic: { id: EPIC_ID, title: 'Resume/Force Epic' },
-    features: [
+    stories: [
+      { slug: 'story-one', title: 'Story One', wave: 1 },
       {
-        slug: 'feature-a',
-        title: 'Feature A',
-        stories: [
-          { slug: 'story-one', title: 'Story One', wave: 1 },
-          {
-            slug: storyTwoSlug,
-            title: storyTwoTitle ?? 'Story Two',
-            wave: 1,
-          },
-        ],
+        slug: storyTwoSlug,
+        title: storyTwoTitle ?? 'Story Two',
+        wave: 1,
       },
     ],
   };
@@ -148,39 +142,27 @@ describe('runReconcile — Story #3905 changed-slug force re-plan', () => {
       epicId: EPIC_ID,
       mapping: {
         epic: { issueNumber: EPIC_ID, entity: 'epic', parentSlug: null },
-        'feature-a': {
-          issueNumber: 100,
-          entity: 'feature',
-          parentSlug: 'epic',
-        },
         'story-one': {
           issueNumber: 101,
           entity: 'story',
-          parentSlug: 'feature-a',
+          parentSlug: 'epic',
         },
         'story-two': {
           issueNumber: 102,
           entity: 'story',
-          parentSlug: 'feature-a',
+          parentSlug: 'epic',
         },
       },
     };
     const spec = {
       epic: { id: EPIC_ID, title: 'Resume/Force Epic' },
-      features: [
-        {
-          slug: 'feature-a',
-          title: 'Feature A',
-          stories: [
-            { slug: 'story-one', title: 'Story One', wave: 1 },
-            { slug: 'story-three', title: 'Story Three', wave: 1 },
-          ],
-        },
+      stories: [
+        { slug: 'story-one', title: 'Story One', wave: 1 },
+        { slug: 'story-three', title: 'Story Three', wave: 1 },
       ],
     };
     const ghState = {
       [EPIC_ID]: { title: 'Resume/Force Epic', state: 'open' },
-      100: { title: 'Feature A', state: 'open' },
       101: { title: 'Story One', state: 'open' },
       102: { title: 'Story Two', state: 'open' },
     };
@@ -217,31 +199,19 @@ describe('runReconcile — Story #3905 changed-slug force re-plan', () => {
       epicId: EPIC_ID,
       mapping: {
         epic: { issueNumber: EPIC_ID, entity: 'epic', parentSlug: null },
-        'feature-a': {
-          issueNumber: 100,
-          entity: 'feature',
-          parentSlug: 'epic',
-        },
         'story-two': {
           issueNumber: 102,
           entity: 'story',
-          parentSlug: 'feature-a',
+          parentSlug: 'epic',
         },
       },
     };
     const spec = {
       epic: { id: EPIC_ID, title: 'Resume/Force Epic' },
-      features: [
-        {
-          slug: 'feature-a',
-          title: 'Feature A',
-          stories: [{ slug: 'story-three', title: 'Story Three', wave: 1 }],
-        },
-      ],
+      stories: [{ slug: 'story-three', title: 'Story Three', wave: 1 }],
     };
     const ghState = {
       [EPIC_ID]: { title: 'Resume/Force Epic', state: 'open' },
-      100: { title: 'Feature A', state: 'open' },
       102: { title: 'Story Two', state: 'open' },
     };
     const applySpy = { calls: 0, plan: null };
@@ -273,7 +243,6 @@ describe('reseedMappingFromGh — Story #3905 pure recovery', () => {
     const emptyState = { epicId: EPIC_ID, mapping: {} };
     const ghState = {
       [EPIC_ID]: { title: 'Resume/Force Epic', state: 'open' },
-      100: { title: 'Feature A', state: 'open' },
       101: { title: 'Story One', state: 'open' },
       // Story Two is genuinely missing on GH (partial persist) — no entry.
     };
@@ -281,13 +250,12 @@ describe('reseedMappingFromGh — Story #3905 pure recovery', () => {
     const { state, reseeded } = reseedMappingFromGh(emptyState, spec, ghState);
 
     assert.equal(state.mapping.epic.issueNumber, EPIC_ID);
-    assert.equal(state.mapping['feature-a'].issueNumber, 100);
     assert.equal(state.mapping['story-one'].issueNumber, 101);
     assert.ok(
       !('story-two' in state.mapping),
       'a slug with no matching open GH issue stays unmapped (still created)',
     );
-    assert.equal(reseeded.length, 3); // epic, feature-a, story-one
+    assert.equal(reseeded.length, 2); // epic, story-one
   });
 
   it('never re-binds a slug to a closed GH issue', () => {
@@ -295,7 +263,6 @@ describe('reseedMappingFromGh — Story #3905 pure recovery', () => {
     const emptyState = { epicId: EPIC_ID, mapping: {} };
     const ghState = {
       [EPIC_ID]: { title: 'Resume/Force Epic', state: 'open' },
-      100: { title: 'Feature A', state: 'open' },
       101: { title: 'Story One', state: 'closed' }, // tombstoned
     };
 
@@ -308,15 +275,15 @@ describe('reseedMappingFromGh — Story #3905 pure recovery', () => {
 
   it('does not re-bind an issue number already claimed by the mapping', () => {
     const spec = specWithStories();
-    // feature-a already mapped to #100; an open GH issue #100 also matches
-    // "Feature A" — the reseed must not double-bind it to story-one even if
+    // story-two already mapped to #100; an open GH issue #100 also titled
+    // "Story One" — the reseed must not double-bind it to story-one even if
     // titles collided. Use a title collision to prove the claim guard.
     const state = {
       epicId: EPIC_ID,
       mapping: {
-        'feature-a': {
+        'story-two': {
           issueNumber: 100,
-          entity: 'feature',
+          entity: 'story',
           parentSlug: 'epic',
         },
       },

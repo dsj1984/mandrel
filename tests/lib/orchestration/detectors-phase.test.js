@@ -218,8 +218,8 @@ describe('detectorsPhase', () => {
     assert.deepEqual(result, { rework: 0, retry: 0 });
   });
 
-  it('Storyless 3-tier closure: empty tasks invokes detectors with taskId=null (Story #3127)', async () => {
-    // Under the 3-tier hierarchy a Story has no child Tasks. The detector
+  it('Storyless 2-tier closure: empty tasks invokes detectors with taskId=null (Story #3127)', async () => {
+    // Under the 2-tier hierarchy a Story has no child Tasks. The detector
     // phase must still fire both detectors, threading taskId=null into the
     // detector args rather than attempting to resolve a "last Task".
     const logger = makeLogger();
@@ -250,12 +250,12 @@ describe('detectorsPhase', () => {
     assert.strictEqual(
       reworkArgs[0].taskId,
       null,
-      'detectRework must receive taskId=null in Storyless 3-tier shape',
+      'detectRework must receive taskId=null in Storyless 2-tier shape',
     );
     assert.strictEqual(
       retryArgs[0].taskId,
       null,
-      'detectRetry must receive taskId=null in Storyless 3-tier shape',
+      'detectRetry must receive taskId=null in Storyless 2-tier shape',
     );
     assert.equal(
       logger.warnings.length,

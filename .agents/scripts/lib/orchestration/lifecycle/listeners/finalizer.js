@@ -49,7 +49,7 @@
  *      level replays short-circuit.
  *   2. The `gh pr list --head` probe + `openOrLocatePr`'s internal
  *      locate path — both defend against cross-process re-runs
- *      (`/epic-deliver` restarted on the same branch after a crash).
+ *      (`/deliver` restarted on the same branch after a crash).
  *
  * Side-effect firewall: the listener emits on the bus, shells out to
  * `gh`/`git` (via the helpers), and upserts the `epic-handoff`

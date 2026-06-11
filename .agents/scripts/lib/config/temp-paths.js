@@ -44,7 +44,7 @@
  * parent of `git rev-parse --git-common-dir`) rather than `process.cwd()`.
  * Without this, a story child that `cd`s into `.worktrees/story-<id>/` before
  * calling `story-phase.js` would append `story.heartbeat` records to
- * `<worktree>/temp/epic-N/lifecycle.ndjson`, while the `/epic-deliver` host
+ * `<worktree>/temp/epic-N/lifecycle.ndjson`, while the `/deliver` host
  * (running from the main checkout) reads the main-checkout copy — so the
  * idle-watchdog never sees heartbeats and the Epic-lease guard silently
  * reclaims live foreign claims (the audit-#3513 bug class). Anchoring the
@@ -335,7 +335,7 @@ export const epicPerfReportPath = (eid, config) =>
 
 /**
  * `temp/epic-<eid>/epic-perf-report.json` — canonical JSON snapshot of
- * the `epic-perf-report` payload persisted at /epic-deliver close
+ * the `epic-perf-report` payload persisted at /deliver close
  * (Epic #3019 / Story #3029 / Task #3040). When present alongside the
  * `epic-perf-report` structured comment, the report is discoverable
  * from the file system without round-tripping the ticketing provider,

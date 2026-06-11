@@ -41,7 +41,7 @@ function makeInitResult({ storyId, workCwd, dependenciesInstalled }) {
     storyBranch: `story-${storyId}`,
     workCwd,
     dependenciesInstalled,
-    hierarchy: '3-tier',
+    hierarchy: '2-tier',
   };
 }
 
@@ -148,7 +148,7 @@ test('runStoryInitPrepare: failed install bubbles up as an Error', async () => {
   );
 });
 
-test('runStoryInitPrepare: 3-tier snapshot carries phases[] (init/implement/validate/close), never tasks[]', async () => {
+test('runStoryInitPrepare: 2-tier snapshot carries phases[] (init/implement/validate/close), never tasks[]', async () => {
   const provider = makeProvider();
   const result = await runStoryInitPrepare({
     provider,

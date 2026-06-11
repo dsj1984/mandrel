@@ -41,7 +41,7 @@
  *      This is the bus-level replay defence.
  *   2. The `gh pr view` probe — short-circuits across process
  *      boundaries when a prior run already armed auto-merge. This is
- *      the recovery defence: `/epic-deliver` restarted on the same PR
+ *      the recovery defence: `/deliver` restarted on the same PR
  *      will see the existing arm and emit `epic.merge.armed` exactly
  *      once.
  *

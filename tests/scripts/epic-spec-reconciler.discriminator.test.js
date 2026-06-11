@@ -350,19 +350,12 @@ describe('diff engine — wires the diff-time assertion', () => {
     // must reject the plan at construction time, not let it through.
     const spec = {
       epic: { id: 9999, title: 'Epic', labels: ['type::epic'] },
-      features: [
+      stories: [
         {
-          slug: 'feat',
-          title: 'Feat',
-          labels: ['type::feature'],
-          stories: [
-            {
-              slug: 'story-leak',
-              title: 'Leaky',
-              wave: 0,
-              labels: ['type::story', AGENT_LABELS.EXECUTING],
-            },
-          ],
+          slug: 'story-leak',
+          title: 'Leaky',
+          wave: 0,
+          labels: ['type::story', AGENT_LABELS.EXECUTING],
         },
       ],
     };
@@ -380,19 +373,12 @@ describe('diff engine — wires the diff-time assertion', () => {
     // carries the smuggled agent::* label. The assertion catches it.
     const spec = {
       epic: { id: 9999, title: 'Epic', labels: ['type::epic'] },
-      features: [
+      stories: [
         {
-          slug: 'feat',
-          title: 'Feat',
-          labels: ['type::feature'],
-          stories: [
-            {
-              slug: 'story-mapped',
-              title: 'Mapped',
-              wave: 0,
-              labels: ['type::story', AGENT_LABELS.DONE],
-            },
-          ],
+          slug: 'story-mapped',
+          title: 'Mapped',
+          wave: 0,
+          labels: ['type::story', AGENT_LABELS.DONE],
         },
       ],
     };
@@ -400,11 +386,10 @@ describe('diff engine — wires the diff-time assertion', () => {
       epicId: 9999,
       mapping: {
         epic: { issueNumber: 9999, entity: 'epic', parentSlug: null },
-        feat: { issueNumber: 100, entity: 'feature', parentSlug: 'epic' },
         'story-mapped': {
           issueNumber: 101,
           entity: 'story',
-          parentSlug: 'feat',
+          parentSlug: 'epic',
           dependsOn: [],
           wave: 0,
         },
@@ -412,7 +397,6 @@ describe('diff engine — wires the diff-time assertion', () => {
     };
     const ghState = {
       9999: { title: 'Epic', labels: ['type::epic'], state: 'open' },
-      100: { title: 'Feat', labels: ['type::feature'], state: 'open' },
       101: {
         title: 'Mapped',
         labels: ['type::story'],
@@ -442,28 +426,16 @@ describe('regression — destructive replan: merged Story dropped from spec', ()
   it('emits a Close op for the dropped Story (diff is structural)', () => {
     const spec = {
       epic: { id: 9003, title: 'Epic After Replan', labels: ['type::epic'] },
-      features: [
-        {
-          slug: 'feat-alpha',
-          title: 'Alpha',
-          labels: ['type::feature'],
-          stories: [],
-        },
-      ],
+      stories: [],
     };
     const state = {
       epicId: 9003,
       mapping: {
         epic: { issueNumber: 9003, entity: 'epic', parentSlug: null },
-        'feat-alpha': {
-          issueNumber: 200,
-          entity: 'feature',
-          parentSlug: 'epic',
-        },
         'story-merged': {
           issueNumber: 201,
           entity: 'story',
-          parentSlug: 'feat-alpha',
+          parentSlug: 'epic',
           dependsOn: [],
           wave: 0,
           title: 'Already-Merged Story',
@@ -476,7 +448,6 @@ describe('regression — destructive replan: merged Story dropped from spec', ()
         labels: ['type::epic'],
         state: 'open',
       },
-      200: { title: 'Alpha', labels: ['type::feature'], state: 'open' },
       // 201 is closed and PR has merged — wave-runner moved on.
       201: {
         title: 'Already-Merged Story',

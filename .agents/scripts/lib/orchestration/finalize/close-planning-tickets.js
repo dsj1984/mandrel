@@ -4,7 +4,7 @@
  * planning context tickets (PRD / Tech Spec / Acceptance Spec) linked
  * from the Epic body's `## Planning Artifacts` section.
  *
- * Extracted from `/epic-deliver` Phase 7.1 prose (the `gh issue close`
+ * Extracted from `/deliver` Phase 7.1 prose (the `gh issue close`
  * sequence) so the lifecycle Finalizer listener has a single async
  * helper to call. Reuses `parseLinkedIssues` so the three planning ids
  * are read from the same canonical body shape that `epic-plan` writes

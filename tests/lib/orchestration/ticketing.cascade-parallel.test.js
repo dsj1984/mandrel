@@ -50,19 +50,19 @@ test('cascadeCompletion sequential dispatch (Story #4017)', async (t) => {
   await t.test('two disjoint parents run strictly sequentially', async () => {
     // Trigger #100 has two parents (#41, #42) that share NO ancestors.
     // Story #4017 deleted the shared-ancestor grouping / parallel
-    // dispatch (fan-out <= 1 under the 3-tier hierarchy), so all parents
+    // dispatch (fan-out <= 1 under the 2-tier hierarchy), so all parents
     // — disjoint or not — run strictly sequentially in input order.
     const tickets = {
       41: {
         id: 41,
-        labels: ['agent::executing', 'type::feature'],
-        body: 'Feature 41',
+        labels: ['agent::executing', 'type::story'],
+        body: 'Parent 41',
         state: 'open',
       },
       42: {
         id: 42,
-        labels: ['agent::executing', 'type::feature'],
-        body: 'Feature 42',
+        labels: ['agent::executing', 'type::story'],
+        body: 'Parent 42',
         state: 'open',
       },
       100: {
@@ -104,20 +104,20 @@ test('cascadeCompletion sequential dispatch (Story #4017)', async (t) => {
       const tickets = {
         40: {
           id: 40,
-          labels: ['agent::executing', 'type::feature'],
-          body: 'Feature 40',
+          labels: ['agent::executing', 'type::story'],
+          body: 'Parent 40',
           state: 'open',
         },
         41: {
           id: 41,
-          labels: ['agent::executing', 'type::feature'],
-          body: 'Feature 41\nparent: #40',
+          labels: ['agent::executing', 'type::story'],
+          body: 'Parent 41\nparent: #40',
           state: 'open',
         },
         42: {
           id: 42,
-          labels: ['agent::executing', 'type::feature'],
-          body: 'Feature 42\nparent: #40',
+          labels: ['agent::executing', 'type::story'],
+          body: 'Parent 42\nparent: #40',
           state: 'open',
         },
         100: {

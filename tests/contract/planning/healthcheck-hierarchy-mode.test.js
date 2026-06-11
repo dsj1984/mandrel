@@ -4,7 +4,7 @@
  * Contract: `epic-plan-healthcheck.js --paranoid` hierarchy validation.
  *
  * Task #3154 (Epic #3078) deleted the `planning.hierarchy` flag and
- * collapsed every reader to 3-tier-only. The post-plan healthcheck now
+ * collapsed every reader to 2-tier-only. The post-plan healthcheck now
  * accepts an Epic when every Story carries an inline `## Acceptance`
  * checklist and rejects it when any Story is missing one. There is no
  * 4-tier branch to exercise.
@@ -27,15 +27,6 @@ function buildStubProvider(tickets) {
     async getSubTickets() {
       return tickets;
     },
-  };
-}
-
-function feature(id) {
-  return {
-    id,
-    title: `Feature ${id}`,
-    body: 'feature body',
-    labels: ['type::feature'],
   };
 }
 
@@ -76,11 +67,10 @@ function minimalConfig() {
   };
 }
 
-describe('epic-plan-healthcheck — 3-tier-only hierarchy validation (Task #3154)', () => {
+describe('epic-plan-healthcheck — 2-tier-only hierarchy validation (Task #3154)', () => {
   it('passes when Stories carry inline acceptance', async () => {
     // Arrange
     const tickets = [
-      feature(100),
       storyWithInlineAcceptance(101),
       storyWithInlineAcceptance(102),
     ];
@@ -108,14 +98,13 @@ describe('epic-plan-healthcheck — 3-tier-only hierarchy validation (Task #3154
       true,
       `expected ticket-hierarchy.ok=true, got detail="${hierarchyCheck.detail}"`,
     );
-    assert.match(hierarchyCheck.detail, /3-tier/);
+    assert.match(hierarchyCheck.detail, /2-tier/);
     assert.match(hierarchyCheck.detail, /inline acceptance/);
   });
 
   it('fails when any Story is missing its inline acceptance section', async () => {
     // Arrange
     const tickets = [
-      feature(200),
       storyWithInlineAcceptance(201),
       storyWithoutAcceptance(202),
     ];

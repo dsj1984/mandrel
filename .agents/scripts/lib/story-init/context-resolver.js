@@ -21,7 +21,7 @@ import { resolveStoryHierarchy } from '../story-lifecycle.js';
  * @param {number} deps.input.storyId
  * @param {number|null} [deps.input.recutOf]
  * @param {boolean} [deps.input.dryRun]
- * @returns {Promise<{ story: object, body: string, epicId: number, featureId: number|null }>}
+ * @returns {Promise<{ story: object, body: string, epicId: number, parentId: number|null }>}
  */
 export async function resolveContext({ provider, logger, input }) {
   const { storyId, recutOf = null, dryRun = false } = input;
@@ -43,7 +43,7 @@ export async function resolveContext({ provider, logger, input }) {
   }
 
   let body = story.body ?? '';
-  const { epicId, featureId } = resolveStoryHierarchy(body);
+  const { epicId, parentId } = resolveStoryHierarchy(body);
 
   if (!epicId) {
     throw new Error(
@@ -88,5 +88,5 @@ export async function resolveContext({ provider, logger, input }) {
     }
   }
 
-  return { story, body, epicId, featureId };
+  return { story, body, epicId, parentId };
 }

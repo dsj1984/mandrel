@@ -38,8 +38,8 @@ top-level keys are validation errors.
 | ------------- | -------- | ---------------------------------------------------------------------------------- |
 | `project`     | **Yes**  | Project-local paths, base branch, validation commands, and context-hydration files. |
 | `github`      | No       | Ticketing provider config: owner/repo, branch protection, merge methods, notifications. |
-| `planning`    | No       | `/epic-plan` tuning: ticket budget, risk heuristics, codebase snapshot, context cap. |
-| `delivery`    | No       | `/epic-deliver` and `/story-deliver` tuning: quality gates, worktree isolation, runners, lifecycle. |
+| `planning`    | No       | `/plan` tuning: ticket budget, risk heuristics, codebase snapshot, context cap. |
+| `delivery`    | No       | `/deliver` and `/deliver` tuning: quality gates, worktree isolation, runners, lifecycle. |
 | `$schema`     | No       | JSON Schema pointer for editor tooling.                                            |
 
 ---
@@ -266,13 +266,13 @@ top-level keys are validation errors.
 | `mergeWatch.intervalSeconds` | No | `integer` | `30` | Seconds between MergeWatcher polls. Default 30. |
 | `mergeWatch.maxBudgetSeconds` | No | `integer` | `3600` | Total wall-clock budget (seconds) for the MergeWatcher poll loop. Default 3600 (60 minutes). |
 | `epicAudit` | No | `object` | — | Nested configuration block. |
-| `epicAudit.maxFixAttempts` | No | `integer` | — | Maximum auto-fix retry attempts per finding in /epic-deliver Phase 4 (epic-audit). 0 disables auto-fix. Default 3. |
+| `epicAudit.maxFixAttempts` | No | `integer` | — | Maximum auto-fix retry attempts per finding in /deliver Phase 4 (epic-audit). 0 disables auto-fix. Default 3. |
 | `epicAudit.maxFixScopeFiles` | No | `integer` | — | Maximum file count a single auto-fix may modify before escalating to agent::blocked. Default 5. |
 | `codeReview` | No | `object` | — | Nested configuration block. |
 | `codeReview.provider` | No | `"native"` \| `"codex"` \| `"security-review"` | `"native"` | Legacy single-adapter selection. ReviewProvider that produces the Finding[] consumed by runCodeReview(). Story #2833 registered `native` (in-process maintainability/lint); Story #2830 added `codex` (invokes `/codex:review` plugin); Story #2871 added `security-review` (shells out to `claude --print /security-review`). When `providers` (chain shape) is set this field is ignored with a warning. Selecting an adapter whose probe fails hard-fails at factory construction unless declared `optional: true` in the chain. |
 | `codeReview.providers[]` | No | `array<object>` | — | Multi-provider chain (Story #2871). When set and non-empty, takes precedence over the legacy `provider` field. The orchestrator iterates inline entries in declaration order and merges their Finding[] before posting one structured comment; manual-prompt entries (e.g. ultrareview) contribute a trailing 'Manual review suggestions' section. Each item has: name, scopes, optional, manualPrompt, when. |
 | `codeReview.providerConfig` | No | `object` | — | Optional escape hatch for adapter-specific configuration. No documented keys in Epic #2815; reserved so future adapters can be configured without another schema migration. |
-| `codeReview.maxFixAttempts` | No | `integer` | — | Maximum auto-fix retry attempts per finding in /epic-deliver Phase 5 (code-review). 0 disables auto-fix. Default 3. |
+| `codeReview.maxFixAttempts` | No | `integer` | — | Maximum auto-fix retry attempts per finding in /deliver Phase 5 (code-review). 0 disables auto-fix. Default 3. |
 | `codeReview.maxFixScopeFiles` | No | `integer` | — | Maximum file count a single auto-fix may modify before escalating to agent::blocked. Default 5. |
 | `retro` | No | `object` | — | Story #3042 (Epic #3019). Operator-tunable retro behaviour. Currently exposes `perfThresholds`, the gates the retro perf-signals classifier uses to decide which signals to surface in the `## Performance Signals` / `## Recommended Follow-Ons` retro sections. |
 | `retro.perfThresholds` | No | `object` | — | Gates for `classifyPerfSignals` (lib/orchestration/retro-perf-heuristics.js). Defaults are 0.6 / 0.4 / 2. |
@@ -285,7 +285,7 @@ top-level keys are validation errors.
 | `acceptanceEval.maxRounds` | No | `integer` | — | Maximum number of redraft rounds before escalation. Default 2; clamped into [1, hard ceiling] by lib/config/acceptance-eval.js so the cap can never be disabled (maxRounds: 0 clamps up to 1). |
 | `ci` | No | `object` | — | Nested configuration block. |
 | `ci.skipForStoryPushes` | No | `boolean` | — | Story #2899 (Epic #2880, F13). When true (default), pre-push tooling appends a '[skip ci]' trailer to Story-branch commit subjects so intermediate pushes do not stampede the CI fleet. The Epic-branch merge commit produced by story-close.js never carries the marker, regardless of this flag. |
-| `preflight` | No | `object` | — | Story #2899 (Epic #2880, F13). Thresholds consumed by `.agents/scripts/epic-deliver-preflight.js`. When any value is exceeded the preflight envelope flags a breach and /epic-deliver Phase 1 surfaces it via agent::blocked. |
+| `preflight` | No | `object` | — | Story #2899 (Epic #2880, F13). Thresholds consumed by `.agents/scripts/epic-deliver-preflight.js`. When any value is exceeded the preflight envelope flags a breach and /deliver Phase 1 surfaces it via agent::blocked. |
 | `preflight.maxStories` | No | `integer` | — | — |
 | `preflight.maxWaves` | No | `integer` | — | — |
 | `preflight.maxInstallCostSeconds` | No | `integer` | — | — |
@@ -418,7 +418,7 @@ suppress a channel entirely, set its array to `[]`.
 
 ## `planning`
 
-`/epic-plan` tuning. All fields optional.
+`/plan` tuning. All fields optional.
 
 | Field                          | Required | Default    | Purpose                                                                                          |
 | ------------------------------ | -------- | ---------- | ------------------------------------------------------------------------------------------------ |
@@ -429,7 +429,7 @@ suppress a channel entirely, set its array to `[]`.
 
 ### `planning.context`
 
-Caps the size of `--emit-context` JSON payloads emitted during `/epic-plan`
+Caps the size of `--emit-context` JSON payloads emitted during `/plan`
 so a runaway PRD / Tech Spec can't blow the planning agent's context budget.
 
 | Field         | Required | Default  | Purpose                                                                                       |
@@ -461,7 +461,7 @@ rather than a flat lexicographic slice — so a large, dot-prefixed tree like
 the consumer's own `src/` / `lib/` source. When `.agents/scripts/**` is the
 only matching tree (the Mandrel-repo dogfood case), the round-robin
 degenerates to taking the first 250 sorted paths, so that snapshot stays
-useful. When truncation occurs, `/epic-plan` Phase 7 emits an
+useful. When truncation occurs, `/plan` Phase 7 emits an
 operator-visible warning naming the dropped file count and suggesting
 `tier: "medium"` and/or a narrowed `include`. Opt into the richer `medium`
 tier or narrow `include` if the partial skinny view is insufficient.
@@ -470,7 +470,7 @@ tier or narrow `include` if the partial skinny view is insufficient.
 
 ## `delivery`
 
-`/epic-deliver` and `/story-deliver` tuning. All sub-blocks are optional and
+`/deliver` and `/deliver` tuning. All sub-blocks are optional and
 fall back to documented defaults (or are no-ops when omitted).
 
 ### `delivery.execution`
@@ -500,7 +500,7 @@ fall back to documented defaults (or are no-ops when omitted).
 
 ### `delivery.worktreeIsolation`
 
-Story-level worktree isolation. When `enabled: true`, `/story-deliver` runs
+Story-level worktree isolation. When `enabled: true`, `/deliver` runs
 each Story inside `.worktrees/story-<id>/` instead of moving the main
 checkout's HEAD.
 
@@ -664,7 +664,7 @@ missing entries fall back to in-listener defaults.
 
 ### `delivery.epicAudit`
 
-`/epic-deliver` Phase 4 (epic-audit) auto-fix budget.
+`/deliver` Phase 4 (epic-audit) auto-fix budget.
 
 | Field              | Required | Default | Purpose                                                              |
 | ------------------ | -------- | ------- | -------------------------------------------------------------------- |
@@ -674,7 +674,7 @@ missing entries fall back to in-listener defaults.
 ### `delivery.codeReview`
 
 Configuration block for the code-review pipeline that runs at **both**
-Story-close (`story-close.js`) and Epic-close (`/epic-deliver` Phase 5).
+Story-close (`story-close.js`) and Epic-close (`/deliver` Phase 5).
 Selects the review backend, exposes an escape-hatch for adapter-specific
 configuration, and sets the auto-fix budget enforced at each close scope.
 
@@ -700,7 +700,7 @@ points in the SDLC, using the **same configured values** for both scopes:
 - **Story-close** — `story-close.js` runs `runCodeReview()` against the
   Story branch's diff and applies the budget per finding before merging
   into `epic/<epicId>`.
-- **Epic-close** — `/epic-deliver` Phase 5 runs `runCodeReview()` against
+- **Epic-close** — `/deliver` Phase 5 runs `runCodeReview()` against
   the integrated Epic branch and applies the same per-finding budget
   before opening the PR to `main`.
 
@@ -730,7 +730,7 @@ number of keys.
 
 | File                              | Audience                            | Role                                                                                                                                |
 | --------------------------------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `.agentrc.json` (repo root)       | The framework dogfooding itself     | Live config used when running `/epic-*` and `/story-deliver` workflows against this repo. Exercises the framework end-to-end on its own source tree. |
+| `.agentrc.json` (repo root)       | The framework dogfooding itself     | Live config used when running `/epic-*` and `/deliver` workflows against this repo. Exercises the framework end-to-end on its own source tree. |
 | `.agents/starter-agentrc.json`    | Downstream consumer repos           | Bootstrap delta-seed a consumer copies via `cp .agents/starter-agentrc.json .agentrc.json`. Minimum schema-required keys only.      |
 | `.agents/docs/agentrc-reference.json`       | Operators and reviewers             | Exhaustive editor reference enumerating every schema key with its framework default. Not a copy target.                             |
 
@@ -874,8 +874,8 @@ under one identity. So each contributor sets their own in `.agentrc.local.json`:
 carries only the non-personal placeholder `@[USERNAME]` (so CI and fresh clones
 validate without naming a real person). The placeholder is **not** a usable
 identity: [`normalizeOperatorHandle`](../scripts/lib/orchestration/ticket-lease.js)
-resolves `@[USERNAME]` to `null`, and the lease guards (`/epic-plan`,
-`/epic-deliver`, `/story-deliver`) **fail closed** — they throw with a
+resolves `@[USERNAME]` to `null`, and the lease guards (`/plan`,
+`/deliver`, `/deliver`) **fail closed** — they throw with a
 "set your own handle in `.agentrc.local.json`" message rather than running an
 ownerless, unguarded workflow. Your local overlay replaces the placeholder with
 your real handle, and the guards proceed. By contrast, `github.owner` / `repo`

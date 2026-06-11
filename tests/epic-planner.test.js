@@ -234,7 +234,7 @@ describe('epic-planner orchestration (v5.6+)', () => {
       return {
         id: 1,
         title: 'Implement V5 Core',
-        body: 'User-facing security changes and /epic-plan gate routing.',
+        body: 'User-facing security changes and /plan gate routing.',
         labels: ['epic'],
         linkedIssues: { prd: null, techSpec: null },
       };

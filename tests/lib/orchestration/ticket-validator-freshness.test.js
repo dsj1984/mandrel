@@ -21,7 +21,6 @@ function makeStory(slug, body, extras = {}) {
     slug,
     type: 'story',
     title: `Story ${slug}`,
-    parent_slug: 'F1',
     body,
     ...extras,
   };
@@ -291,7 +290,6 @@ test('validateAndNormalizeTickets: freshness gate is opt-in via opts.baseBranchR
   // expected-new short-circuit doesn't apply and the freshness clause
   // throws when the runner reports the path missing.
   const tickets = [
-    { slug: 'F1', type: 'feature', title: 'F' },
     makeStory(
       'S1',
       {
@@ -302,8 +300,8 @@ test('validateAndNormalizeTickets: freshness gate is opt-in via opts.baseBranchR
       },
       { acceptance: ['a'], verify: ['v'] },
     ),
-    // Valid sibling so F1 has >=2 Stories (Story #3777). It references only
-    // an existing path so it never trips the freshness gate under test.
+    // Valid sibling Story. It references only an existing path so it
+    // never trips the freshness gate under test.
     makeStory(
       'S2',
       {

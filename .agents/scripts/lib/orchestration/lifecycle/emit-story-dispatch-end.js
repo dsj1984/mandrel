@@ -12,7 +12,7 @@
  *   `lib/orchestration/wave-session.js`, which nothing imports outside
  *   tests — so every dispatched Story stayed "in-flight" forever and the
  *   idle watchdog flagged completed Stories as stalled. The host-LLM driven
- *   `/epic-deliver` path closes a wave through `epic-execute-record-wave.js`,
+ *   `/deliver` path closes a wave through `epic-execute-record-wave.js`,
  *   so that CLI is the correct place to emit the matching dispatch-end per
  *   recorded Story.
  *

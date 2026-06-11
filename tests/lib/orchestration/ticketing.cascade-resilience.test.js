@@ -80,8 +80,8 @@ test('cascadeCompletion resilience (Story #1817)', async (t) => {
       const tickets = {
         41: {
           id: 41,
-          labels: ['agent::executing', 'type::feature'],
-          body: 'Feature 41',
+          labels: ['agent::executing', 'type::story'],
+          body: 'Parent 41',
           state: 'open',
         },
         100: {
@@ -99,7 +99,7 @@ test('cascadeCompletion resilience (Story #1817)', async (t) => {
           41: async () => {
             attempts += 1;
             if (attempts < 3) throw makeRateLimitError();
-            tickets[41].labels = ['agent::done', 'type::feature'];
+            tickets[41].labels = ['agent::done', 'type::story'];
             tickets[41].state = 'closed';
           },
         },
@@ -140,8 +140,8 @@ test('cascadeCompletion resilience (Story #1817)', async (t) => {
       const tickets = {
         41: {
           id: 41,
-          labels: ['agent::executing', 'type::feature'],
-          body: 'Feature 41',
+          labels: ['agent::executing', 'type::story'],
+          body: 'Parent 41',
           state: 'open',
         },
         100: {
@@ -197,8 +197,8 @@ test('cascadeCompletion resilience (Story #1817)', async (t) => {
       const tickets = {
         41: {
           id: 41,
-          labels: ['agent::executing', 'type::feature'],
-          body: 'Feature 41',
+          labels: ['agent::executing', 'type::story'],
+          body: 'Parent 41',
           state: 'open',
         },
         100: {
@@ -224,7 +224,7 @@ test('cascadeCompletion resilience (Story #1817)', async (t) => {
             await new Promise((resolve) => setTimeout(resolve, 25));
             const finishedAt = Date.now();
             transitions.push({ startedAt, finishedAt });
-            tickets[41].labels = ['agent::done', 'type::feature'];
+            tickets[41].labels = ['agent::done', 'type::story'];
             tickets[41].state = 'closed';
           },
         },
@@ -259,8 +259,8 @@ test('cascadeCompletion resilience (Story #1817)', async (t) => {
       const tickets = {
         41: {
           id: 41,
-          labels: ['agent::executing', 'type::feature'],
-          body: 'Feature 41',
+          labels: ['agent::executing', 'type::story'],
+          body: 'Parent 41',
           state: 'open',
         },
         100: {
@@ -287,7 +287,7 @@ test('cascadeCompletion resilience (Story #1817)', async (t) => {
               err.status = 429;
               throw err;
             }
-            tickets[41].labels = ['agent::done', 'type::feature'];
+            tickets[41].labels = ['agent::done', 'type::story'];
             tickets[41].state = 'closed';
           },
         },
@@ -305,8 +305,8 @@ test('cascadeCompletion resilience (Story #1817)', async (t) => {
       const tickets = {
         41: {
           id: 41,
-          labels: ['agent::executing', 'type::feature'],
-          body: 'Feature 41',
+          labels: ['agent::executing', 'type::story'],
+          body: 'Parent 41',
           state: 'open',
         },
         100: {
@@ -345,8 +345,8 @@ test('cascadeCompletion resilience (Story #1817)', async (t) => {
       const tickets = {
         41: {
           id: 41,
-          labels: ['agent::executing', 'type::feature'],
-          body: 'Feature 41',
+          labels: ['agent::executing', 'type::story'],
+          body: 'Parent 41',
           state: 'open',
         },
         100: {
@@ -361,7 +361,7 @@ test('cascadeCompletion resilience (Story #1817)', async (t) => {
           return tickets[id];
         },
         async updateTicket(id) {
-          tickets[id].labels = ['agent::done', 'type::feature'];
+          tickets[id].labels = ['agent::done', 'type::story'];
           tickets[id].state = 'closed';
         },
         async postComment() {},
@@ -398,8 +398,8 @@ test('cascadeCompletion resilience (Story #1817)', async (t) => {
         const tickets = {
           41: {
             id: 41,
-            labels: ['agent::executing', 'type::feature'],
-            body: 'Feature 41',
+            labels: ['agent::executing', 'type::story'],
+            body: 'Parent 41',
             state: 'open',
           },
           100: {
@@ -419,7 +419,7 @@ test('cascadeCompletion resilience (Story #1817)', async (t) => {
               if (attempts === 1) {
                 throw makeRateLimitError();
               }
-              tickets[41].labels = ['agent::done', 'type::feature'];
+              tickets[41].labels = ['agent::done', 'type::story'];
               tickets[41].state = 'closed';
             },
           },
@@ -439,8 +439,8 @@ test('cascadeCompletion resilience (Story #1817)', async (t) => {
       const tickets = {
         41: {
           id: 41,
-          labels: ['agent::done', 'type::feature'],
-          body: 'Feature 41',
+          labels: ['agent::done', 'type::story'],
+          body: 'Parent 41',
           state: 'closed',
         },
         100: {

@@ -3,9 +3,8 @@
  *
  * Owns the deterministic DAG helpers used by the reconciler pipeline:
  *   - `resolveDependencies(ticket, slugMap)`
- *   - `orderTicketsForCreation(validated)` (topological sort within each
- *     (parent_slug, type) group, concatenated in feature → story → task
- *     order so parents always exist before their children get created)
+ *   - `orderTicketsForCreation(validated)` (topological sort of the
+ *     Story set so dependency producers are created before consumers)
  *
  * Extracted verbatim from `epic-plan-decompose.js` so the named exports
  * (`resolveDependencies`, `orderTicketsForCreation`) that the
@@ -53,26 +52,13 @@ function topoSortGroup(group) {
 }
 
 /**
- * Topologically sort tickets within each (parent_slug, type) group, then
- * concatenate groups in typeOrder so parents are always created before
- * children (Feature → Story → Task) and intra-group dep chains resolve
- * before their dependents are created.
+ * Topologically sort the Story set so intra-set dep chains resolve
+ * before their dependents are created. The 2-tier hierarchy has a
+ * single ticket type (story) attached directly to the Epic, so there
+ * is no parent-type ordering to interleave.
  */
 export function orderTicketsForCreation(validated) {
-  const typeOrder = { feature: 0, story: 1, task: 2 };
-  const groups = new Map();
-  for (const t of validated) {
-    const parentKey = t.parent_slug ?? '__epic__';
-    const key = `${t.type}::${parentKey}`;
-    if (!groups.has(key)) groups.set(key, { type: t.type, items: [] });
-    groups.get(key).items.push(t);
-  }
-  const ordered = [...groups.values()].sort(
-    (a, b) => typeOrder[a.type] - typeOrder[b.type],
-  );
   const result = [];
-  for (const group of ordered) {
-    for (const t of topoSortGroup(group.items)) result.push(t);
-  }
+  for (const t of topoSortGroup([...validated])) result.push(t);
   return result;
 }

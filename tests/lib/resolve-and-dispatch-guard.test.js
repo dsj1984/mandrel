@@ -39,7 +39,7 @@ describe('resolveAndDispatch — conflicting type-label guard', () => {
     );
   });
 
-  it('refuses to dispatch a Story directly and points at /story-deliver', async () => {
+  it('refuses to dispatch a Story directly and points at /deliver', async () => {
     const provider = new MockProvider({
       tickets: {
         104: { id: 104, labels: ['type::story'], body: '', state: 'open' },
@@ -50,18 +50,18 @@ describe('resolveAndDispatch — conflicting type-label guard', () => {
       () => resolveAndDispatch({ ticketId: 104, provider, dryRun: true }),
       (err) => {
         assert.match(err.message, /Story/);
-        assert.match(err.message, /story-deliver 104/);
+        assert.match(err.message, /deliver 104/);
         return true;
       },
     );
   });
 
-  it('refuses to dispatch a Feature container directly', async () => {
+  it('refuses to dispatch a ticket with a retired tier label (unrecognised type)', async () => {
     const provider = new MockProvider({
       tickets: {
         77: {
           id: 77,
-          labels: ['type::feature'],
+          labels: ['type::task'],
           body: 'parent: #70',
           state: 'open',
         },
@@ -71,8 +71,7 @@ describe('resolveAndDispatch — conflicting type-label guard', () => {
     await assert.rejects(
       () => resolveAndDispatch({ ticketId: 77, provider, dryRun: true }),
       (err) => {
-        assert.match(err.message, /Feature/);
-        assert.match(err.message, /cannot be executed directly/);
+        assert.match(err.message, /Only "epic" or "story" tickets/);
         return true;
       },
     );
