@@ -31,31 +31,29 @@ package-manager combinations.
 
 ## Quickstart
 
-The canonical cold-start path is one command, then two slash
-commands inside Claude Code:
+The canonical cold-start path is one command, then one slash command:
 
 ```bash
-npx mandrel init        # install mandrel → sync → prompt → bootstrap
+npx mandrel init        # install mandrel → sync → prompt → bootstrap → onboarding tail → /plan handoff
 ```
 
 ```text
 # then, inside Claude Code (commands load from .claude/commands/):
-/onboard            # guided first run: stack detect → docs → doctor → /plan
 /plan          # ideation -> PRD/Tech Spec -> Epic with child Stories
 ```
 
 `npx mandrel init` installs `mandrel` (when `./.agents/` is absent),
 materializes it via `mandrel sync`, then asks whether to **configure now**
-(option 1 → runs `node .agents/scripts/bootstrap.js`, forwarding any flags you
-pass) or stop at **just the files** (option 2 → re-run `mandrel init` any time
-to configure). Pass `--assume-yes` for a non-interactive run that proceeds
-straight to configure (and forwards the flag to bootstrap). When `./.agents/`
-is already present (you ran `npm install mandrel` first), `init` skips the
-install/sync and goes straight to the prompt. `/onboard` then walks you from a
-clean checkout to a planned Epic (stack detection, docs scaffolding, a
-`mandrel doctor` readiness gate, and a started `/plan`). Once you have a
-planned Epic, deliver it with `/deliver <id>` (wave loop → validation →
-review → retro → open PR).
+(option 1 → runs `bootstrap.js`, then the onboarding tail: stack detection,
+docs scaffolding offer, `mandrel doctor` readiness gate, and a `/plan`
+handoff) or stop at **just the files** (option 2 → re-run `mandrel init`
+any time to configure). Pass `--assume-yes` for a non-interactive run that
+proceeds straight to configure (and forwards the flag to bootstrap). When
+`./.agents/` is already present (you ran `npm install mandrel` first), `init`
+skips the install/sync and goes straight to the prompt. Once `mandrel init`
+completes, you land at the `/plan` handoff — run `/plan --idea "<seed>"` to
+start planning your first Epic, then deliver it with `/deliver <id>` (wave
+loop → validation → review → retro → open PR).
 
 ### Manual equivalent
 

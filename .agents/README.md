@@ -42,9 +42,9 @@ also forwarded to `bootstrap.js`); a non-TTY run without `--assume-yes` defaults
 to **files-only**, so the side-effecting GitHub provisioning never runs
 unattended.
 
-After it completes, run **`/onboard`** inside Claude Code for the guided first
-run — stack detection, docs scaffolding, a `mandrel doctor` readiness gate, and
-a started `/plan` handoff.
+After it completes, `mandrel init` runs the onboarding tail automatically —
+stack detection, docs scaffolding offer, a `mandrel doctor` readiness gate,
+and a printed `/plan` handoff — so you land at planning in one command.
 
 ### Manual Install
 
