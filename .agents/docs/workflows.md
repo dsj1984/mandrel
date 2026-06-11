@@ -25,7 +25,7 @@ by `node .agents/scripts/generate-workflows-doc.js`; `npm run docs:check`
 fails when it drifts from the on-disk workflow set. To change a command’s
 description, edit the workflow file’s front-matter and regenerate.
 
-## Commands (28)
+## Commands (29)
 
 | Command | Description |
 | --- | --- |
@@ -34,6 +34,7 @@ description, edit the workflow file’s front-matter and regenerate.
 | `/audit-clean-code` | Audit code smells, dead code, complexity hotspots, and maintainability-index outliers; emit a structured findings report. |
 | `/audit-dependencies` | Audit `package.json` for unused, outdated, and major-version-stale dependencies; surface Node-engine drift and propose upgrade batches. |
 | `/audit-devops` | Audit CI/CD workflows, container images, infrastructure-as-code, and deployment pipelines; surface failure modes and hardening gaps. |
+| `/audit-documentation` | Audit the repository's main documentation for staleness, semantic drift, and completeness; emit a structured High/Medium/Low findings report. |
 | `/audit-lighthouse` | Run a Lighthouse audit (Performance / Accessibility / Best Practices / SEO) and produce a structured findings report |
 | `/audit-performance` | Audit hot paths, algorithmic complexity, and I/O bottlenecks in the tooling surface (`epic-close`, dispatcher, gates); propose remediations. |
 | `/audit-privacy` | Audit logs, telemetry, and persistence paths for PII leakage and retention violations; surface secrets exposure and consent gaps. |
