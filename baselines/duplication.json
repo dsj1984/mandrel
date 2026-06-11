@@ -1,13 +1,13 @@
 {
   "$schema": ".agents/schemas/baselines/duplication.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-06-05T15:15:07.617Z",
+  "generatedAt": "2026-06-11T02:02:25.924Z",
   "rollup": {
     "*": {
-      "percentage": 10.14,
-      "duplicatedLines": 3428,
-      "totalLines": 33798,
-      "filesWithDuplication": 105
+      "percentage": 8.38,
+      "duplicatedLines": 2702,
+      "totalLines": 32254,
+      "filesWithDuplication": 97
     }
   },
   "rows": [
@@ -102,28 +102,16 @@
       "percentage": 8.92
     },
     {
-      "path": ".agents/scripts/lib/baselines/kinds/coverage.js",
-      "duplicatedLines": 117,
-      "totalLines": 194,
-      "percentage": 60.31
-    },
-    {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
       "duplicatedLines": 69,
       "totalLines": 595,
       "percentage": 11.6
     },
     {
-      "path": ".agents/scripts/lib/baselines/kinds/duplication.js",
-      "duplicatedLines": 80,
-      "totalLines": 197,
-      "percentage": 40.61
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/lighthouse.js",
-      "duplicatedLines": 85,
-      "totalLines": 185,
-      "percentage": 45.95
+      "path": ".agents/scripts/lib/baselines/kinds/kind-factory.js",
+      "duplicatedLines": 14,
+      "totalLines": 192,
+      "percentage": 7.29
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/lint.js",
@@ -133,15 +121,9 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/maintainability.js",
-      "duplicatedLines": 158,
-      "totalLines": 340,
-      "percentage": 46.47
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/mutation.js",
-      "duplicatedLines": 92,
-      "totalLines": 153,
-      "percentage": 60.13
+      "duplicatedLines": 9,
+      "totalLines": 247,
+      "percentage": 3.64
     },
     {
       "path": ".agents/scripts/lib/baselines/preview-gates.js",
@@ -366,28 +348,10 @@
       "percentage": 10.78
     },
     {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/progress-reporter.js",
-      "duplicatedLines": 12,
-      "totalLines": 121,
-      "percentage": 9.92
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/signals-appender.js",
-      "duplicatedLines": 18,
-      "totalLines": 113,
-      "percentage": 15.93
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/structured-comment-poster.js",
-      "duplicatedLines": 27,
-      "totalLines": 279,
-      "percentage": 9.68
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "duplicatedLines": 159,
-      "totalLines": 513,
-      "percentage": 30.99
+      "duplicatedLines": 35,
+      "totalLines": 668,
+      "percentage": 5.24
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/trace-logger.js",
@@ -416,8 +380,8 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/codex.js",
       "duplicatedLines": 49,
-      "totalLines": 341,
-      "percentage": 14.37
+      "totalLines": 363,
+      "percentage": 13.5
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/native.js",
@@ -428,8 +392,8 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
       "duplicatedLines": 48,
-      "totalLines": 363,
-      "percentage": 13.22
+      "totalLines": 373,
+      "percentage": 12.87
     },
     {
       "path": ".agents/scripts/lib/orchestration/spec-freshness.js",
@@ -460,12 +424,6 @@
       "duplicatedLines": 6,
       "totalLines": 50,
       "percentage": 12
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/lock-wait-classifier.js",
-      "duplicatedLines": 24,
-      "totalLines": 344,
-      "percentage": 6.98
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
@@ -556,12 +514,6 @@
       "duplicatedLines": 22,
       "totalLines": 237,
       "percentage": 9.28
-    },
-    {
-      "path": ".agents/scripts/post-story-plan.js",
-      "duplicatedLines": 12,
-      "totalLines": 244,
-      "percentage": 4.92
     },
     {
       "path": ".agents/scripts/post-structured-comment.js",
