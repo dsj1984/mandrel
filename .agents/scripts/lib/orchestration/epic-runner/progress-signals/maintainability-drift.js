@@ -1,9 +1,12 @@
 import nodeFs from 'node:fs';
 import path from 'node:path';
 
-import { resolveComponents } from '../../../baselines/components.js';
 import { calculateForSource } from '../../../maintainability-engine.js';
-import { componentOrder, formatNumber } from './_bullet-format.js';
+import { formatNumber } from './_bullet-format.js';
+import {
+  createSnapshotStore,
+  walkComponentRegressions,
+} from './component-drift.js';
 
 const DEFAULT_THRESHOLD = 2.0;
 // Distinct from the canonical ratchet baseline at `baselines/maintainability.json`
@@ -11,6 +14,35 @@ const DEFAULT_THRESHOLD = 2.0;
 // committed score baseline. Filename intentionally differs so a repo-wide
 // grep for the canonical baseline no longer hits the snapshot.
 const BASELINE_FILENAME = 'wave-mi-snapshot.json';
+
+/**
+ * Detect per-component maintainability regressions from a baseline rollup
+ * against the gate's configured floors. Pure — the caller loads the
+ * baseline via `lib/baselines/reader.js#load('maintainability')` and passes
+ * the resulting `{ rollup }` plus the gate config block.
+ *
+ * Bullet shape (Task #1919, Epic #1786):
+ *
+ *   📉 maintainability: <component> <axis> <value> < floor <floor>
+ *
+ * Maintainability is "higher is better" — every axis breach reports when
+ * `value < floor`. Component-scoped breaches do NOT trigger a `*` bullet
+ * unless `*` itself breaches. The walk itself is the shared
+ * `component-drift.js` helper (Story #3984).
+ *
+ * @param {{
+ *   rollup?: Record<string, Record<string, number>>,
+ *   gateConfig?: { floors?: Record<string, Record<string, number>> } & object,
+ * }} params
+ * @returns {string[]}
+ */
+export function detectComponentRegressions(params = {}) {
+  return walkComponentRegressions(params, {
+    isBreach: (value, target) => value < target,
+    formatBullet: (name, axis, value, target) =>
+      `📉 maintainability: ${name} ${axis} ${formatNumber(value)} < floor ${formatNumber(target)}`,
+  });
+}
 
 /**
  * Detects per-file maintainability drop versus a wave-start baseline.
@@ -40,56 +72,6 @@ const BASELINE_FILENAME = 'wave-mi-snapshot.json';
  *   baselineDir?: string,           // directory (under cwd) to persist snapshot
  * }} [opts]
  */
-/**
- * Detect per-component maintainability regressions from a baseline rollup
- * against the gate's configured floors. Pure — the caller loads the
- * baseline via `lib/baselines/reader.js#load('maintainability')` and passes
- * the resulting `{ rollup }` plus the gate config block.
- *
- * Bullet shape (Task #1919, Epic #1786):
- *
- *   📉 maintainability: <component> <axis> <value> < floor <floor>
- *
- * Maintainability is "higher is better" — every axis breach reports when
- * `value < floor`. Component-scoped breaches do NOT trigger a `*` bullet
- * unless `*` itself breaches.
- *
- * @param {{
- *   rollup?: Record<string, Record<string, number>>,
- *   gateConfig?: { floors?: Record<string, Record<string, number>> } & object,
- * }} params
- * @returns {string[]}
- */
-export function detectComponentRegressions(params = {}) {
-  const rollup = params.rollup ?? {};
-  const gateConfig = params.gateConfig ?? {};
-  const floors = gateConfig.floors ?? {};
-  const components = resolveComponents(gateConfig);
-  const names = new Set([
-    ...Object.keys(components),
-    ...Object.keys(floors),
-    ...Object.keys(rollup),
-  ]);
-  const bullets = [];
-  for (const name of [...names].sort(componentOrder)) {
-    const aggregate = rollup[name];
-    if (!aggregate || typeof aggregate !== 'object') continue;
-    const floor = floors[name] ?? floors['*'];
-    if (!floor || typeof floor !== 'object') continue;
-    for (const axis of Object.keys(floor).sort()) {
-      const target = floor[axis];
-      const value = aggregate[axis];
-      if (typeof target !== 'number' || !Number.isFinite(target)) continue;
-      if (typeof value !== 'number' || !Number.isFinite(value)) continue;
-      if (value >= target) continue;
-      bullets.push(
-        `📉 maintainability: ${name} ${axis} ${formatNumber(value)} < floor ${formatNumber(target)}`,
-      );
-    }
-  }
-  return bullets;
-}
-
 export function createMaintainabilityDriftDetector(opts = {}) {
   const fs = opts.fs ?? nodeFs;
   const cwd = opts.cwd ?? process.cwd();
@@ -100,6 +82,7 @@ export function createMaintainabilityDriftDetector(opts = {}) {
     : DEFAULT_THRESHOLD;
   const baselineDir = opts.baselineDir ?? '.agents/state';
   const baselinePath = path.join(cwd, baselineDir, BASELINE_FILENAME);
+  const store = createSnapshotStore({ fs, baselinePath });
 
   let baseline = null;
 
@@ -126,34 +109,13 @@ export function createMaintainabilityDriftDetector(opts = {}) {
         if (s != null) snapshot[f] = s;
       }
       baseline = snapshot;
-      if (fs.writeFileSync) {
-        try {
-          fs.mkdirSync?.(path.dirname(baselinePath), { recursive: true });
-          fs.writeFileSync(
-            baselinePath,
-            JSON.stringify(
-              { capturedAt: new Date().toISOString(), scores: snapshot },
-              null,
-              2,
-            ),
-          );
-        } catch {
-          // persistence is best-effort; the in-memory baseline still works
-        }
-      }
+      store.persist(snapshot);
       return snapshot;
     },
 
     loadBaseline() {
-      if (!fs.readFileSync) return null;
-      try {
-        const raw = fs.readFileSync(baselinePath, 'utf-8');
-        const parsed = JSON.parse(raw);
-        baseline = parsed?.scores ?? null;
-        return baseline;
-      } catch {
-        return null;
-      }
+      baseline = store.load();
+      return baseline;
     },
 
     async detect() {
