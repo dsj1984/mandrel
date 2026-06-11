@@ -431,24 +431,35 @@ export function computeRecoveryMode({ state, resume, restart } = {}) {
   };
 }
 
-function dropWorktreeIfPresent({ cwd, wtPath, progress, logger }) {
+function dropWorktreeIfPresent({
+  cwd,
+  wtPath,
+  progress,
+  logger,
+  gitSpawnFn = gitSpawn,
+}) {
   if (!fs.existsSync(wtPath)) return;
   progress('RESTART', `Removing worktree ${wtPath}`);
-  const remove = gitSpawn(cwd, 'worktree', 'remove', '--force', wtPath);
+  const remove = gitSpawnFn(cwd, 'worktree', 'remove', '--force', wtPath);
   if (remove.status !== 0) {
     logger.error(
       `[story-close] Worktree remove failed: ${remove.stderr || 'unknown'}. ` +
         'Attempting prune to clean stale registration.',
     );
   }
-  gitSpawn(cwd, 'worktree', 'prune');
+  gitSpawnFn(cwd, 'worktree', 'prune');
 }
 
-function recreateStoryBranchRef({ cwd, storyBranch, epicBranch, logger }) {
-  gitSpawn(cwd, 'branch', '-D', storyBranch);
-  const create = gitSpawn(cwd, 'branch', storyBranch, epicBranch);
+function recreateStoryBranchRef({
+  cwd,
+  storyBranch,
+  epicBranch,
+  gitSpawnFn = gitSpawn,
+}) {
+  gitSpawnFn(cwd, 'branch', '-D', storyBranch);
+  const create = gitSpawnFn(cwd, 'branch', storyBranch, epicBranch);
   if (create.status !== 0) {
-    logger.fatal(
+    throw new Error(
       `Failed to recreate ${storyBranch} from ${epicBranch}: ${create.stderr || 'unknown'}`,
     );
   }
@@ -460,13 +471,13 @@ function reseedWorktreeIfNeeded({
   storyId,
   storyBranch,
   progress,
-  logger,
+  gitSpawnFn = gitSpawn,
 }) {
   if (!wtConfig?.enabled) return;
   const wtPath = storyWorktreePath(cwd, storyId, wtConfig.root);
-  const add = gitSpawn(cwd, 'worktree', 'add', wtPath, storyBranch);
+  const add = gitSpawnFn(cwd, 'worktree', 'add', wtPath, storyBranch);
   if (add.status !== 0) {
-    logger.fatal(
+    throw new Error(
       `Failed to re-seed worktree at ${wtPath}: ${add.stderr || 'unknown'}`,
     );
   }
@@ -477,8 +488,12 @@ function reseedWorktreeIfNeeded({
  * Restart path: abort any in-progress merge, drop the worktree, delete the
  * story branch ref, and re-seed branch + worktree from the Epic branch. The
  * caller then falls through to the normal fresh-close flow.
+ *
+ * Throws (never `logger.fatal`) on a failed branch recreate or worktree
+ * re-seed, per `rules/orchestration-error-handling.md` — a failed recreate
+ * MUST NOT fall through into the worktree re-seed.
  */
-function restartStoryState({
+export function restartStoryState({
   cwd,
   orchestration,
   storyId,
@@ -486,9 +501,10 @@ function restartStoryState({
   storyBranch,
   progress = () => {},
   logger = Logger,
+  gitSpawnFn = gitSpawn,
 } = {}) {
   progress('RESTART', `Resetting prior state for Story #${storyId}...`);
-  gitSpawn(cwd, 'merge', '--abort');
+  gitSpawnFn(cwd, 'merge', '--abort');
 
   const wtConfig = orchestration?.worktreeIsolation;
   if (wtConfig?.enabled) {
@@ -497,17 +513,18 @@ function restartStoryState({
       wtPath: storyWorktreePath(cwd, storyId, wtConfig.root),
       progress,
       logger,
+      gitSpawnFn,
     });
   }
 
-  recreateStoryBranchRef({ cwd, storyBranch, epicBranch, logger });
+  recreateStoryBranchRef({ cwd, storyBranch, epicBranch, gitSpawnFn });
   reseedWorktreeIfNeeded({
     cwd,
     wtConfig,
     storyId,
     storyBranch,
     progress,
-    logger,
+    gitSpawnFn,
   });
 }
 
@@ -563,7 +580,7 @@ export function dispatchRecovery({
   restartFn = restartStoryState,
 } = {}) {
   if (resume && restart) {
-    logger.fatal('--resume and --restart are mutually exclusive');
+    throw new Error('--resume and --restart are mutually exclusive');
   }
 
   const priorPhase = detectFn({ cwd, storyId, epicId });
