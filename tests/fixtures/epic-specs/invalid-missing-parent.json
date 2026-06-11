@@ -1,9 +1,9 @@
 {
-  "features": [
+  "stories": [
     {
       "slug": "orphan",
-      "title": "Feature without an Epic parent — negative fixture",
-      "stories": []
+      "title": "Story without an Epic parent \u2014 negative fixture",
+      "wave": 0
     }
   ]
 }

@@ -108,7 +108,7 @@ export function sha256Hex(input) {
 }
 
 /**
- * Hash a spec entry (a Feature, Story, or Task object) deterministically.
+ * Hash a spec entry (a Story object) deterministically.
  * The entry is canonicalised (recursive key-sort), serialised, and
  * sha256'd. Equivalent entries (any key order, equivalent nested order
  * for the object-valued fields) hash to the same digest.
@@ -126,10 +126,9 @@ export function hashSpecEntry(entry) {
 
 /**
  * Iterate every slug-bearing entity in the spec. Yields tuples of
- * `[slug, entry]` where `entry` is the raw object as authored in the
- * spec (feature/story/task). Order is feature-major, story-minor,
- * task-tertiary — the natural read order, useful for deterministic
- * mapping iteration.
+ * `[slug, entry]` where `entry` is the raw Story object as authored in
+ * the spec. Order follows `spec.stories[]` — the natural read order,
+ * useful for deterministic mapping iteration.
  *
  * Exported for tests; the reconciler diff path uses `projectMapping`
  * (below) rather than this generator directly.
@@ -138,17 +137,9 @@ export function hashSpecEntry(entry) {
  * @returns {Generator<[string, object]>}
  */
 export function* iterSpecEntries(spec) {
-  if (!spec || !Array.isArray(spec.features)) return;
-  for (const feature of spec.features) {
-    if (feature?.slug) yield [feature.slug, feature];
-    if (!Array.isArray(feature?.stories)) continue;
-    for (const story of feature.stories) {
-      if (story?.slug) yield [story.slug, story];
-      if (!Array.isArray(story?.tasks)) continue;
-      for (const task of story.tasks) {
-        if (task?.slug) yield [task.slug, task];
-      }
-    }
+  if (!spec || !Array.isArray(spec.stories)) return;
+  for (const story of spec.stories) {
+    if (story?.slug) yield [story.slug, story];
   }
 }
 

@@ -8,7 +8,7 @@
  * are batched per-Story and surfaced through the same error envelope the
  * decompose loop already uses.
  *
- * Under the 3-tier hierarchy (Epic → Feature → Story; Epic #3078 / #3238)
+ * Under the 2-tier hierarchy (Epic → Story; Epic #3078 / #3238)
  * the Story is the implementation unit — there is no `type::task` ticket
  * layer — so the gate scans `type === 'story'` tickets and reads the
  * `{ path, assumption }` entries inlined on each Story body.
@@ -255,7 +255,7 @@ function predecessorMutator(index, path, predecessors) {
  *     mismatches: object[]  // structured payload for downstream tooling
  *   }
  *
- * Under the 3-tier hierarchy the Story is the implementation unit, so the
+ * Under the 2-tier hierarchy the Story is the implementation unit, so the
  * gate scans `type === 'story'` tickets and reads the inline
  * `{ path, assumption }` entries on each Story body.
  *

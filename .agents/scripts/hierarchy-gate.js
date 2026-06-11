@@ -3,7 +3,7 @@
 /**
  * .agents/scripts/hierarchy-gate.js — Hierarchy Completeness Gate
  *
- * Walks the Epic's full sub-issue graph (Features → Stories) and verifies
+ * Walks the Epic's full sub-issue graph (Stories) and verifies
  * every descendant is closed. Where the wave gate asks "did the sprint
  * complete what it committed to?" (manifest view), this gate asks "is
  * anything still open under this Epic?" (live GitHub graph view).
@@ -16,14 +16,13 @@
  *     top-level Stories outside the Epic's sub-issue graph.
  *
  * Per ticket type the rule is:
- *   - Features  — must be closed.
  *   - Stories   — must be closed.
  *   - Auxiliary (context::prd, context::tech-spec) — ignored.
  *     These are closed by the operator after the Epic PR merges, so
  *     requiring them closed here would block every Epic.
  *
- * **3-tier hierarchy (Epic #3078).** Mandrel ships only Epic / Feature /
- * Story tickets. `getSubTickets(<storyId>)` returns `[]`; the walk
+ * **2-tier hierarchy (Story #4041).** Mandrel ships only Epic / Story
+ * tickets. `getSubTickets(<storyId>)` returns `[]`; the walk
  * terminates at the Story. Acceptance criteria live inline on the
  * Story body.
  *
@@ -53,7 +52,6 @@ const SUB_TICKET_FETCH_CONCURRENCY = 4;
 function classify(ticket) {
   const labels = ticket.labels ?? [];
   if (labels.includes(TYPE_LABELS.STORY)) return 'story';
-  if (labels.includes(TYPE_LABELS.FEATURE)) return 'feature';
   if (
     labels.includes(CONTEXT_LABELS.PRD) ||
     labels.includes(CONTEXT_LABELS.TECH_SPEC)
@@ -80,7 +78,7 @@ async function collectDescendants(provider, epicId) {
   const out = [];
   // Level-order BFS: each round fetches the whole frontier's children with a
   // bounded-parallel map instead of one awaited round-trip per node. Stories
-  // are 3-tier leaves (no sub-issues by contract), so they are never expanded
+  // are leaves (no sub-issues by contract), so they are never expanded
   // — that skip alone removes the largest class of wasted GraphQL calls.
   let frontier = [epicId];
   while (frontier.length > 0) {
@@ -126,7 +124,7 @@ export async function runHierarchyGate({ epicId, injectedProvider } = {}) {
     process.exit(2);
   }
 
-  const failures = { feature: [], story: [], other: [] };
+  const failures = { story: [], other: [] };
   let auxiliaryDeferred = 0;
   for (const ticket of descendants) {
     const kind = classify(ticket);
@@ -144,15 +142,13 @@ export async function runHierarchyGate({ epicId, injectedProvider } = {}) {
     }
   }
 
-  const totalOpen =
-    failures.feature.length + failures.story.length + failures.other.length;
+  const totalOpen = failures.story.length + failures.other.length;
 
   if (totalOpen > 0) {
     Logger.error(
       `[hierarchy-gate] ❌ Hierarchy-completeness gate FAILED for Epic #${epicId}: ${totalOpen} descendant(s) incomplete.`,
     );
     const sections = [
-      ['feature', 'Features'],
       ['story', 'Stories'],
       ['other', 'Untyped descendants'],
     ];
@@ -163,7 +159,7 @@ export async function runHierarchyGate({ epicId, injectedProvider } = {}) {
         Logger.error(`    - #${item.id} (${item.reason}) — ${item.title}`);
       }
     }
-    Logger.error('\nClose the open descendants and re-run `/epic-deliver`.');
+    Logger.error('\nClose the open descendants and re-run `/deliver`.');
     process.exit(1);
   }
 

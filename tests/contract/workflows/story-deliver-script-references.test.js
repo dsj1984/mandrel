@@ -6,7 +6,7 @@
  * corresponding script file exists on disk.
  *
  * Background: Task #3157 deleted `.agents/scripts/story-task-progress.js`
- * but `/story-deliver` and `/epic-deliver` continued to reference it,
+ * but `/deliver` and `/deliver` continued to reference it,
  * MODULE_NOT_FOUND-ing every Story sub-agent. This test prevents that
  * drift by tying the workflow prose to the on-disk script surface.
  */

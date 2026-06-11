@@ -91,7 +91,7 @@ export function renderWorkflowsDoc(catalog) {
     'Every command file lives at `.agents/workflows/<name>.md` and is projected',
     'into a flat `.claude/commands/` tree by `npm run sync:commands` (the',
     'UserPromptSubmit hook keeps it current) so it shows up as a bare `/<name>`',
-    'slash command (e.g. `/epic-deliver`). The projection writes only',
+    'slash command (e.g. `/deliver`). The projection writes only',
     '`.claude/commands/<name>.md` — there is no plugin manifest and no',
     'marketplace listing. The commands load in every Claude Code environment.',
     '',

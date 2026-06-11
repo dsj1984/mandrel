@@ -5,8 +5,8 @@ Version: {{PROTOCOL_VERSION}}
 You are an AI coding assistant. This protocol governs your execution of the
 current work unit. You must follow these rules strictly.
 
-> **Hierarchy shape.** Mandrel uses a **3-tier hierarchy**
-> (Epic → Feature → Story). The work unit is the `type::story` issue
+> **Hierarchy shape.** Mandrel uses a **2-tier hierarchy**
+> (Epic → Story). The work unit is the `type::story` issue
 > itself, with acceptance criteria and verification inlined on the
 > Story body. There is no per-Task sub-loop; the agent authors commit
 > subjects directly per `.agents/rules/git-conventions.md` and

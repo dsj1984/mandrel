@@ -166,10 +166,10 @@ taxonomy.
 
 | Term                       | Kind                | Definition                                                                                                                          |
 | -------------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `epic-run-state`           | Structured comment  | HTML-marker-scoped JSON checkpoint on the Epic; single SSOT for wave progress and resume across all six `/epic-deliver` phases.    |
+| `epic-run-state`           | Structured comment  | HTML-marker-scoped JSON checkpoint on the Epic; single SSOT for wave progress and resume across all six `/deliver` phases.    |
 | `wave-<N>-start`           | Structured comment  | Per-wave start marker with wave manifest and start timestamp.                                                                       |
 | `wave-<N>-end`             | Structured comment  | Per-wave end marker with story outcomes and duration.                                                                               |
-| `concurrencyCap`           | Config (integer)    | `delivery.deliverRunner.concurrencyCap`; max parallel `/story-deliver <storyId>` sub-agents per wave.                  |
+| `concurrencyCap`           | Config (integer)    | `delivery.deliverRunner.concurrencyCap`; max parallel `/deliver <storyId>` sub-agents per wave.                  |
 | Blocker-escalation         | Flow state          | Runtime pause driven by `agent::blocked`; the sole HITL touchpoint during a run.                                                    |
 | Status (Projects v2)       | Project field       | Single-select custom field driven by `ColumnSync` from `agent::` labels.                                                            |
 
@@ -189,12 +189,12 @@ any prior comment of the same type.
 | `epic-run-progress` | `ProgressReporter`                                  | Periodic operator-facing wave roll-up.                                   |
 | `wave-<N>-start`    | `WaveObserver.waveStart`                            | Per-wave start manifest + timestamp.                                     |
 | `wave-<N>-end`      | `WaveObserver.waveEnd`                              | Per-wave outcomes + duration.                                            |
-| `epic-plan-state`   | `/epic-plan` checkpoint                             | Phase 1/2 progress so re-plans resume cleanly.                           |
-| `dispatch-manifest` | `/epic-plan` / dispatcher                           | Frozen Story manifest for the wave-gate.                                 |
+| `epic-plan-state`   | `/plan` checkpoint                             | Phase 1/2 progress so re-plans resume cleanly.                           |
+| `dispatch-manifest` | `/plan` / dispatcher                           | Frozen Story manifest for the wave-gate.                                 |
 | `parked-follow-ons` | dispatcher                                          | Out-of-manifest Stories surfaced at the deliver-tail gate (recuts + parked). |
 | `story-init`        | `story-init.js`                                     | Initial Story metadata snapshot.                                         |
-| `story-run-progress`| `/story-deliver`                                    | Per-Story label transitions during `/story-deliver`.                   |
-| `epic-run-progress` | `/epic-deliver` (`epic-execute-record-wave.js`)     | Cross-wave Story-level rollup, grouped by wave. Single comment, upserted in place after each wave. |
+| `story-run-progress`| `/deliver`                                    | Per-Story label transitions during `/deliver`.                   |
+| `epic-run-progress` | `/deliver` (`epic-execute-record-wave.js`)     | Cross-wave Story-level rollup, grouped by wave. Single comment, upserted in place after each wave. |
 | `code-review`       | `lib/orchestration/code-review.js` (Phase 4)        | Findings report posted on the Epic.                                      |
 | `retro`             | `lib/orchestration/retro-runner.js` (Phase 5)       | Final retrospective body with the `retro-complete` marker.               |
 | `retro-partial`     | `epic-retro` helper                                 | Mid-run checkpoint so a crashed retro can resume without re-collecting.  |
@@ -245,14 +245,14 @@ the Epic is the SSOT; the on-disk file is a renderer cache regenerable via
 | `CommitAssertion`                                   | Class    | Post-wave guard wired into `wave-observer`; reclassifies a `done` wave with zero new commits on `origin/story-<id>` as `halted`. Lives at `lib/orchestration/epic-runner/commit-assertion.js`. Falls back to a `resolves #<storyId>` grep on `origin/epic/<id>` when `origin/story-<id>` is already deleted by `story-close`. |
 | `detectPriorPhase()`                                | Function | Recovery-state detector exported by `lib/orchestration/story-close-recovery.js`; classifies the close-time situation as `clean` / `unmerged-story-branch` / `merge-in-progress` / `dirty-worktree` so `--resume` and `--restart` can branch. |
 | `--resume` / `--restart`                            | CLI flag | `story-close.js` flags. `--resume` picks up at the merge-resolution step from a failed prior close without re-running init/implement/validate; `--restart` aborts any partial state and re-inits. |
-| `hierarchy-gate.js`                                 | Script   | `/epic-deliver` Phase 1.2 gate; walks the Epic's full sub-issue graph (Features → Stories plus auxiliary tickets) and exits non-zero if any descendant is open or any Story is closed without `agent::done`. Pairs with `wave-gate.js` (manifest view) for the Phase 1 Feature Completeness Check. |
+| `hierarchy-gate.js`                                 | Script   | `/deliver` Phase 1.2 gate; walks the Epic's full sub-issue graph (Features → Stories plus auxiliary tickets) and exits non-zero if any descendant is open or any Story is closed without `agent::done`. Pairs with `wave-gate.js` (manifest view) for the Phase 1 Feature Completeness Check. |
 | `setPlan({ waves })`                                | Method   | `ProgressReporter` API. Called once at runner start so each fire renders every wave + story (queued / in-flight / done / blocked) with a `Wave` column rather than only the active wave.                |
 | `progress-signals/stalled-worktree.js`              | Detector | Mechanical `ProgressReporter` detector; flags Stories where `agent::done` ships with a live `.worktrees/story-<id>/` directory still on disk.                                                          |
 | `progress-signals/maintainability-drift.js`         | Detector | Mechanical detector; emits a Notable bullet when the maintainability score for any tracked file drifts negatively from the wave-start baseline.                                                        |
 | `progress-signals/crap-drift.js`                    | Detector | Mechanical detector; per-method CRAP drift versus a wave-start baseline. Surfaces a `🧨 CRAP drift: <file>::<method> <score> (ceiling <N>)` bullet when a method crosses the configured ceiling or rises by ≥ threshold. |
 | `signals-writer.appendSignal`                       | Helper   | Append-only NDJSON writer at `lib/observability/signals-writer.js`. Writes one JSON record per line to `temp/epic-<eid>/stories/story-<sid>/signals.ndjson`. Consumers: `diagnose-friction.js`, `story-close.js` reap-failure (via `post-merge-pipeline.js`), `epic-runner/progress-reporter.js` poller-failure, `check-maintainability.js`, and `check-crap.js`. Replaced the deleted in-process emitter class in Epic #1030 Story #1042. |
-| `--reap-discard-after-merge` / `--no-reap-discard-after-merge` | CLI flag | `/epic-deliver` Phase 7 flag. Default force-reaps worktrees whose Story branch is already merged into `epic/<id>` (per `git merge-base --is-ancestor`), discarding uncommitted post-merge drift; the `--no-` form preserves prior skip-on-uncommitted behavior. Force-reap emits a `friction` comment listing discarded paths. |
-| Version-bump-intent snapshot                        | Checkpoint | `/epic-deliver` Phase 0.5 parses the Epic body for `Release target:` / `--segment` directives and posts a `notification` structured comment on the Epic (marker `<!-- notification: version-bump-intent -->`) when they disagree with `release.autoVersionBump`.            |
+| `--reap-discard-after-merge` / `--no-reap-discard-after-merge` | CLI flag | `/deliver` Phase 7 flag. Default force-reaps worktrees whose Story branch is already merged into `epic/<id>` (per `git merge-base --is-ancestor`), discarding uncommitted post-merge drift; the `--no-` form preserves prior skip-on-uncommitted behavior. Force-reap emits a `friction` comment listing discarded paths. |
+| Version-bump-intent snapshot                        | Checkpoint | `/deliver` Phase 0.5 parses the Epic body for `Release target:` / `--segment` directives and posts a `notification` structured comment on the Epic (marker `<!-- notification: version-bump-intent -->`) when they disagree with `release.autoVersionBump`.            |
 | Launcher-level config validation                    | Contract | `validateOrchestrationConfig(config)` runs in `main()` of `epic-runner.js`, `plan-runner.js`, `epic-plan-spec.js`, and `epic-plan-decompose.js` — a schema-invalid `.agentrc.json` exits non-zero before any long-running flow begins. |
 
 ---
@@ -323,7 +323,7 @@ ratchet.
 | `--changed-since <ref>`                             | CLI flag           | On `check-crap.js` and `check-maintainability.js`. Limits scoring + comparison to files in `git diff --name-only <ref>...HEAD`. Bad ref → non-zero exit (no silent degradation to "no regressions").                                                                                                                                                                          |
 | `--json <path>`                                     | CLI flag           | On both gates. Writes `{ kernelVersion, summary, violations }`; CRAP envelope adds `fixGuidance` per violation.                                                                                                                                                                                                                                                              |
 | `CRAP_NEW_METHOD_CEILING` / `CRAP_TOLERANCE` / `CRAP_REFRESH_TAG` | Env vars | Override `crap.newMethodCeiling`, `crap.tolerance`, and `crap.refreshTag` respectively at runtime. Malformed values warn and fall back to config — a typo must never silently relax the gate. Originally consumed by the (since-removed) baseline-refresh CI guardrail; still available for local re-runs that need to force base-branch values.                                |
-| `refreshTag` (commit-message convention)            | Operator convention | A baseline edit should land in a commit whose subject starts with the configured `refreshTag` (default `baseline-refresh:`) and whose body is non-empty. The CI guardrail that mechanically enforced this was removed in 5.42; the operator is now the gate during `/epic-deliver` Phase 7.                                                                                  |
+| `refreshTag` (commit-message convention)            | Operator convention | A baseline edit should land in a commit whose subject starts with the configured `refreshTag` (default `baseline-refresh:`) and whose body is non-empty. The CI guardrail that mechanically enforced this was removed in 5.42; the operator is now the gate during `/deliver` Phase 7.                                                                                  |
 
 ---
 
@@ -368,7 +368,7 @@ authoritative SDK.
 | `select-audits.js` / `run-audit-suite.js`  | CLI      | Selection reads `audit-rules.json` (manifest schema: `audit-rules.schema.json`); suite execution loads the selected workflow prompts.                              |
 | `hydrate-context.js`                       | CLI      | `hydrate-context.js --ticket <id> [--epic <id>]` emits the `{"prompt": …}` JSON envelope. `--emit envelope` emits the raw envelope; `--emit prompt` writes the raw hydrated prompt (no JSON wrapper). The only supported hydration entry point. |
 | `update-ticket-state.js`                   | CLI      | Covers ticket state transitions and cascade-completion. Cascade runs inline at the SDK layer when a Story reaches `agent::done`.                                    |
-| `dispatcher.js`                            | CLI      | Builds the dependency DAG, computes execution waves, dispatches stories. Invoked by `/epic-plan` Phase 3.                                                           |
+| `dispatcher.js`                            | CLI      | Builds the dependency DAG, computes execution waves, dispatches stories. Invoked by `/plan` Phase 3.                                                           |
 | `process.env`-only secrets resolution      | Contract | `notifier.js` `resolveWebhookUrl()` and the GitHub provider's `GITHUB_TOKEN` lookup read **only** from `process.env`. `.mcp.json` is not consulted as a secrets backstop.       |
 
 ---
@@ -392,7 +392,7 @@ tree at `temp/epic-<epicId>/validation-evidence.json` (Epic-scoped) or
 `temp/epic-<epicId>/stories/story-<storyId>/validation-evidence.json`
 (Story-scoped). Callers must thread both the scope id and the owning Epic
 id through the wrapper. The wrapper at `evidence-gate.js` is the only
-writer; close-validation, `epic-code-review`, and `/epic-deliver` Phase 4
+writer; close-validation, `epic-code-review`, and `/deliver` Phase 4
 are the readers. `--no-evidence` on any wrapper invocation forces a re-run
 and overwrites the record on success.
 
@@ -413,4 +413,4 @@ longer operator-tunable; the bus owns the refresh schedule.
 | Term                       | Kind     | Definition                                                                                                                                                |
 | -------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `isCleanManifest(signals)` | Predicate | `lib/orchestration/retro-heuristics.js`. Returns `true` iff `friction === 0 && parked === 0 && recuts === 0 && hotfixes === 0 && hitl === 0`. Drives the compact-retro branch of the `epic-retro` helper. |
-| `--full-retro`             | CLI flag | `/epic-deliver` override forcing the six-section retro body regardless of `isCleanManifest`. Mirrors `--skip-retro` / `--skip-code-review`.                 |
+| `--full-retro`             | CLI flag | `/deliver` override forcing the six-section retro body regardless of `isCleanManifest`. Mirrors `--skip-retro` / `--skip-code-review`.                 |

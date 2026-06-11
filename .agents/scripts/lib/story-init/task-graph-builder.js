@@ -14,7 +14,7 @@ import { fetchChildTickets } from '../story-lifecycle.js';
 
 /**
  * Detect whether a Story body carries inline acceptance criteria, the
- * structural signal that the Story is authored in the 3-tier
+ * structural signal that the Story is authored in the 2-tier
  * (Story-with-inline-acceptance) shape and therefore should not be expected
  * to enumerate child Task tickets. Recognises both `## Acceptance` and
  * `## Acceptance Criteria` headings, with at least one list bullet under
@@ -67,15 +67,15 @@ function sortTasksByDependencies(tasks) {
  * @param {object} deps.input
  * @param {number} deps.input.storyId
  * @param {string} [deps.input.storyBody]   Story body — used to detect
- *   whether the Story carries inline acceptance (3-tier shape) so the
+ *   whether the Story carries inline acceptance (2-tier shape) so the
  *   empty-Task-list path is treated as expected rather than as a warning.
  *
  * Task #3154 (Epic #3078) deleted the `planning.hierarchy` flag; the
- * 3-tier vs 4-tier mode is now derived entirely from the ticket shape —
- * inline acceptance + zero Tasks resolves to `'3-tier'`, otherwise
+ * 2-tier vs 4-tier mode is now derived entirely from the ticket shape —
+ * inline acceptance + zero Tasks resolves to `'2-tier'`, otherwise
  * `'4-tier'`.
  *
- * @returns {Promise<{ sortedTasks: Array<object>, mode: '3-tier'|'4-tier' }>}
+ * @returns {Promise<{ sortedTasks: Array<object>, mode: '2-tier'|'4-tier' }>}
  */
 export async function buildTaskGraph({ provider, logger, input }) {
   const { storyId, storyBody = '' } = input;
@@ -85,13 +85,13 @@ export async function buildTaskGraph({ provider, logger, input }) {
   const tasks = await fetchChildTickets(provider, storyId);
 
   const inlineAcceptance = hasInlineAcceptance(storyBody);
-  const mode = tasks.length === 0 && inlineAcceptance ? '3-tier' : '4-tier';
+  const mode = tasks.length === 0 && inlineAcceptance ? '2-tier' : '4-tier';
 
   if (tasks.length === 0) {
     if (inlineAcceptance) {
       progress(
         'TASKS',
-        `Story #${storyId} has inline acceptance — no child Tasks expected (3-tier shape).`,
+        `Story #${storyId} has inline acceptance — no child Tasks expected (2-tier shape).`,
       );
     } else {
       warn(

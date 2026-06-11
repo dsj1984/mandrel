@@ -150,8 +150,8 @@ This protocol is not soft-prompt-only — it has a runtime substrate. While
 executing as a Story delivery sub-agent (via `helpers/epic-deliver-story`
 or `helpers/single-story-deliver`), you MUST emit a `story.heartbeat`
 lifecycle event on every Task transition (or whenever you stall on a
-long-running step) so the parent `/epic-deliver` idle watchdog (§ 2e of
-`.agents/workflows/epic-deliver.md`, re-ticked every 30 minutes via
+long-running step) so the parent `/deliver` idle watchdog (§ 2e of
+`.agents/workflows/helpers/deliver-epic.md`, re-ticked every 30 minutes via
 `wave-tick.js --check-idle 30`) can distinguish a child still making
 progress from a dead one. If you genuinely cannot proceed, transition to
 `agent::blocked` and exit non-zero — never fall silent. A child with no
@@ -219,7 +219,7 @@ stops.
   estimate (≈4 characters per token) and applies section-aware elision
   (`elideEnvelope`) so oversized envelopes drop or summarize
   lower-priority sections before you receive the prompt.
-- **`delivery.preflight.*`** (optional): before `/epic-deliver` fan-out,
+- **`delivery.preflight.*`** (optional): before `/deliver` fan-out,
   `epic-deliver-preflight.js` compares **estimated** story count, waves,
   install time, GitHub API volume, and Claude quota tokens against
   configured ceilings (`maxClaudeQuotaTokens`, etc.). A breach surfaces
@@ -303,7 +303,7 @@ them automatically; agents commit on the execution branch only.
 | Purpose          | Format                       | Owner                  | Notes                                                                                         |
 | ---------------- | ---------------------------- | ---------------------- | --------------------------------------------------------------------------------------------- |
 | Story execution  | `story-<storyId>`            | `story-init.js` | Per-Story worktree at `.worktrees/story-<storyId>/`. All Story implementation commits land here. |
-| Epic integration | `epic/<epicId>`              | `/epic-deliver` slash command | Story branches merge into this branch with `--no-ff`. Pushed per wave.                       |
+| Epic integration | `epic/<epicId>`              | `/deliver` slash command | Story branches merge into this branch with `--no-ff`. Pushed per wave.                       |
 
 - **Verification**: After `story-init.js` returns, confirm
   `git branch --show-current` reports `story-<storyId>` before making any
@@ -324,18 +324,19 @@ prompted.
 Prioritize a clean `epic/[EPIC_ID]` branch. Story branches are merged into
 the Epic branch automatically by `helpers/epic-deliver-story` (via
 `story-close.js`); the Epic branch reaches `main` via the pull request that
-`/epic-deliver` opens at the end of its run — the operator merges through
+`/deliver` opens at the end of its run — the operator merges through
 the GitHub UI. There is no in-script merge to `main`.
 
-### D. Ticket hierarchy (3-tier)
+### D. Ticket hierarchy (2-tier)
 
-Mandrel uses a **3-tier ticket hierarchy** (Epic → Feature → Story).
+Mandrel uses a **2-tier ticket hierarchy** (Epic → Story).
 Acceptance criteria and verification steps live inline on the Story
-body (`acceptance[]` / `verify[]`); there is no `type::task` ticket
-layer.
+body (`acceptance[]` / `verify[]`); there is no Feature tier and no
+`type::task` ticket layer. Thematic grouping lives as prose in the
+Epic body / Tech Spec.
 
-- The decomposer emits only `type::epic`, `type::feature`, and
-  `type::story` issues.
+- The decomposer emits only `type::epic` and `type::story` issues;
+  Stories attach directly to the Epic.
 - Each Story-implementation phase is executed by
   `helpers/epic-deliver-story` (Epic-attached) or
   `helpers/single-story-deliver` (standalone). There is no per-Task

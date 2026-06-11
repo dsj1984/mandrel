@@ -1,14 +1,14 @@
 ---
 description: >-
   Phase 8 of sprint planning — decompose an Epic's PRD and Tech Spec into a
-  Feature/Story hierarchy, persist the backlog, and flip the Epic to
+  backlog of child Stories, persist the backlog, and flip the Epic to
   `agent::ready`. Host-LLM authored; no external API calls.
 ---
 
 # Sprint Plan — Decompose Phase (helper)
 
-> **Helper module.** Not a slash command. Invoked by `/epic-plan` (Phase 8).
-> To run the decompose phase interactively, use `/epic-plan [Epic_ID]` — it
+> **Helper module.** Not a slash command. Invoked by `/plan` (Phase 8).
+> To run the decompose phase interactively, use `/plan [Epic_ID]` — it
 > delegates here after the spec phase.
 
 ## Role
@@ -19,9 +19,9 @@ Director / Architect
 
 This helper is the **decompose phase** of the split planning pipeline. It
 reads the PRD and Tech Spec previously produced by the spec phase helper
-([`epic-plan-spec.md`](epic-plan-spec.md)), generates the Feature /
-Story ticket hierarchy, persists it to GitHub, and flips the Epic to
-`agent::ready` (parking) so a human can run `/epic-deliver` when
+([`epic-plan-spec.md`](epic-plan-spec.md)), generates the Epic's child
+Story tickets, persists them to GitHub, and flips the Epic to
+`agent::ready` (parking) so a human can run `/deliver` when
 execution should begin.
 
 The ticket array is authored **directly by you, the host LLM**.
@@ -29,8 +29,8 @@ The ticket array is authored **directly by you, the host LLM**.
 authoring context you need and (b) validates, persists, and transitions the
 Epic lifecycle state.
 
-The ticket array contains `type::feature` and `type::story` tickets
-only — no `type::task` children. Acceptance criteria and verification
+The ticket array contains `type::story` tickets only — no Feature
+containers and no `type::task` children. Acceptance criteria and verification
 steps are inlined on each Story body via the `acceptance[]` and
 `verify[]` fields. The decomposer system prompt lives in the
 [`epic-plan-decompose-author`](../../skills/core/epic-plan-decompose-author/SKILL.md)
@@ -41,13 +41,13 @@ skill.
 - **Do not** run this skill until the spec phase is complete. The Epic must
   have linked `context::prd` and `context::tech-spec` issues; the script will
   refuse to proceed otherwise.
-- **Do not** reassign Story parents across Features after the
-  decomposition writes — the `epic-plan-state` checkpoint records the
-  structure as committed. Use `--force` to rebuild from scratch.
+- **Do not** restructure the Story set after the decomposition
+  writes — the `epic-plan-state` checkpoint records the structure as
+  committed. Use `--force` to rebuild from scratch.
 - **Every** temp file must include the Epic ID in its name. Multiple Epics
   may be decomposed concurrently; bare names will collide.
 - **Do not** flip the Epic past `agent::ready` from this helper. Execution
-  begins when an operator runs `/epic-deliver [Epic_ID]`.
+  begins when an operator runs `/deliver [Epic_ID]`.
 
 ## Prerequisites
 
@@ -70,7 +70,7 @@ decomposer system prompt, and the `maxTickets` **reviewability budget**
 ## Step 2 — Author the ticket array
 
 Read `temp/epic-[Epic_ID]/decomposer-context.json`. Produce a JSON array of
-Feature / Story objects that conforms to the schema in the system prompt
+Story objects that conforms to the schema in the system prompt
 and write it to `temp/epic-[Epic_ID]/tickets.json`.
 
 When the Tech Spec carries a `## Delivery Slicing` section, author toward the
@@ -95,12 +95,12 @@ skill with `[Epic_ID]` as input. It reads the draft
 - a human-readable `temp/epic-[Epic_ID]/consolidation-report.md` (rationale +
   before/after diff).
 
-The pass is constrained to scope-preserving operations only — **merge Stories,
-collapse single-Story Features into siblings, re-parent, rewire `depends_on`**.
-It MUST NOT add scope or invent tickets. It resolves single-Story Features by
-**collapsing** them (rec #2), never by splitting a lone Story into two; the
-`assertNoSingleStoryFeature` validator stays as the post-consolidation
-backstop.
+The pass is constrained to scope-preserving operations only — **merge sibling
+Stories and rewire `depends_on`**. It MUST NOT add scope or invent tickets.
+It consolidates fragmented slices by merging them into a cohesive Story,
+never by splitting one into two; the `assertAllTicketsAreStories` validator
+(in `lib/orchestration/ticket-validator.js`) stays as the post-consolidation
+backstop that rejects any non-Story ticket the pass might emit.
 
 > **HITL diff gate.** Show the operator
 > `temp/epic-[Epic_ID]/consolidation-report.md` (the before/after diff +
@@ -141,7 +141,7 @@ On success the script:
 Delegate the structural invariants (hierarchy completeness, dependency DAG
 acyclicity, missing complexity labels) to `epic-plan-healthcheck.js`. It is
 the single source of truth for post-decompose validation — the Phase 10 run
-inside `/epic-plan` calls the same script, so local and remote flows agree.
+inside `/plan` calls the same script, so local and remote flows agree.
 
 ```bash
 node .agents/scripts/epic-plan-healthcheck.js --epic [Epic_ID] --paranoid
@@ -156,7 +156,7 @@ checks without performing any I/O — it is not a substitute for
 The script exits 0 regardless of findings (non-blocking), but lists any
 `ERR`-level findings that must be addressed before execution:
 
-- Missing `type::feature` / `type::story` tickets.
+- Missing `type::story` tickets.
 - Stories without `complexity::` labels.
 - Dependency cycles across Stories.
 
@@ -183,11 +183,11 @@ is the single source of truth for which temp paths this phase owns.
 - Surface the backlog summary and the Wave 0 candidates to the operator:
 
   > "Decomposition complete. Epic #[ID] is on `agent::ready` with NN ticket(s)
-  > across MM Stories. Run `/epic-deliver [Epic_ID]` to begin execution."
+  > across MM Stories. Run `/deliver [Epic_ID]` to begin execution."
 
 ## Troubleshooting
 
-- "Epic #N is missing a linked PRD or Tech Spec" — run `/epic-plan [Epic_ID]`
+- "Epic #N is missing a linked PRD or Tech Spec" — run `/plan [Epic_ID]`
   first (it will run the spec phase if the PRD / Tech Spec are missing).
 - Validator rejects the tickets file — the most common causes are a
   Story whose `parent_slug` does not point at a Feature, a missing

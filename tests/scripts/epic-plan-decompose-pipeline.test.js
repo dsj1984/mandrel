@@ -74,29 +74,27 @@ describe('epic-plan-decompose pipeline — ensurePlanningArtifacts (Story #2466)
 });
 
 describe('epic-plan-decompose pipeline — orderTicketsForCreation (Story #2466)', () => {
-  it('emits features before stories before tasks', () => {
+  it('orders dependency producers before consumers', () => {
     const tickets = [
-      { type: 'task', slug: 't', title: 't', parent_slug: 's' },
-      { type: 'story', slug: 's', title: 's', parent_slug: 'f' },
-      { type: 'feature', slug: 'f', title: 'f' },
+      { type: 'story', slug: 'b', title: 'b', depends_on: ['a'] },
+      { type: 'story', slug: 'a', title: 'a' },
     ];
     const ordered = orderTicketsForCreation(tickets);
     assert.deepEqual(
-      ordered.map((t) => t.type),
-      ['feature', 'story', 'task'],
+      ordered.map((t) => t.slug),
+      ['a', 'b'],
     );
   });
 
-  it('respects intra-group depends_on (topological order)', () => {
+  it('respects depends_on among sibling Stories (topological order)', () => {
     const tickets = [
       {
-        type: 'task',
+        type: 'story',
         slug: 'b',
         title: 'b',
-        parent_slug: 's',
         depends_on: ['a'],
       },
-      { type: 'task', slug: 'a', title: 'a', parent_slug: 's' },
+      { type: 'story', slug: 'a', title: 'a' },
     ];
     const ordered = orderTicketsForCreation(tickets);
     assert.deepEqual(
@@ -194,10 +192,10 @@ describe('epic-plan-decompose pipeline — runDecomposePhase over-budget gate (S
     const provider = buildProvider(epic);
     const tickets = new Array(65).fill(null).map((_, i) => ({
       slug: `s${i}`,
-      type: 'feature',
+      type: 'story',
       title: `T${i}`,
       body: 'b',
-      labels: ['type::feature'],
+      labels: ['type::story'],
     }));
     await assert.rejects(
       () =>
@@ -220,10 +218,10 @@ describe('epic-plan-decompose pipeline — runDecomposePhase over-budget gate (S
     const provider = buildProvider(epic);
     const tickets = new Array(5).fill(null).map((_, i) => ({
       slug: `s${i}`,
-      type: 'feature',
+      type: 'story',
       title: `T${i}`,
       body: 'b',
-      labels: ['type::feature'],
+      labels: ['type::story'],
     }));
     let err;
     try {
@@ -293,7 +291,7 @@ describe('epic-plan-decompose pipeline — buildDecompositionContext planning ri
       {
         axis: 'critical-workflow',
         level: 'high',
-        evidence: 'Touches /epic-plan gate routing.',
+        evidence: 'Touches /plan gate routing.',
       },
     ],
     overallLevel: 'high',

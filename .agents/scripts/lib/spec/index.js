@@ -2,7 +2,7 @@
  * lib/spec/index.js — public surface for the spec I/O module.
  *
  * Re-exports the loader (and, in Wave 1, future spec utilities) so
- * downstream consumers — the reconciler, the rewritten /epic-plan, the
+ * downstream consumers — the reconciler, the rewritten /plan, the
  * wave-runner — can `import * from '../lib/spec/index.js'` without
  * reaching into individual submodules.
  *

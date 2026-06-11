@@ -76,7 +76,6 @@ export function isValidTransition(fromState, toState) {
 
 export const TYPE_LABELS = {
   EPIC: 'type::epic',
-  FEATURE: 'type::feature',
   STORY: 'type::story',
 };
 
@@ -104,7 +103,7 @@ export const CONTEXT_LABELS = {
 export const CONTEXT_ACCEPTANCE_SPEC = CONTEXT_LABELS.ACCEPTANCE_SPEC;
 
 /**
- * Acceptance-axis labels for opt-out signalling on Stories and Features that
+ * Acceptance-axis labels for opt-out signalling on Stories that
  * intentionally have no acceptance-spec coverage. Separate namespace from
  * `context::` because it expresses absence rather than a linked context
  * ticket.
@@ -120,7 +119,7 @@ export const ACCEPTANCE_NA = ACCEPTANCE_LABELS.N_A;
  * loop). `meta::framework-gap` is applied to issues that surface a defect or
  * missing capability in the framework itself; `meta::consumer-improvement`
  * is applied to issues that surface improvements to a consumer project
- * (workflow tweaks, ergonomic asks, doc polish). The `/epic-plan` Phase 0
+ * (workflow tweaks, ergonomic asks, doc polish). The `/plan` Phase 0
  * fetcher (see `lib/feedback-loop/prior-feedback-fetcher.js`) reads open
  * issues carrying either label and surfaces them to the planner so retro
  * signals are routed into durable substrates rather than lost in chat.
@@ -133,7 +132,7 @@ export const META_LABELS = {
 /**
  * Planning-axis labels (Epic #2880 F7). Currently scoped to the
  * `planning::healthcheck-waived` operator-applied waiver, which is the
- * documented escape hatch for the `/epic-plan` Phase 10 readiness
+ * documented escape hatch for the `/plan` Phase 10 readiness
  * healthcheck (`epic-plan-healthcheck.js`). The persist half of
  * `epic-plan-decompose.js` refuses to flip an Epic to `agent::ready`
  * when the healthcheck returned `ok: false` unless this label is

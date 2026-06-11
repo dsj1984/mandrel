@@ -5,7 +5,7 @@ description: QA Epic-testing workflow — ingest the agent-driven QA harness swe
 # Epic Testing (helper)
 
 > **Helper module.** Not a slash command. Invoked from the QA gate during
-> `/epic-deliver` or directly by an operator when the Epic-testing ticket
+> `/deliver` or directly by an operator when the Epic-testing ticket
 > needs refreshed evidence. For ad-hoc acceptance runs use `/qa-run-harness` —
 > this helper owns the Epic-evidence ticket lifecycle on top of it.
 
@@ -15,7 +15,7 @@ evidence artifact is the **agent-driven QA harness sweep report** produced by
 findings), **not** a hand-ticked markdown checklist.
 
 > **When to run**: During the QA phase of an Epic, after all Story merges
-> have landed on the Epic branch and before `/epic-deliver`. Also run ad-hoc
+> have landed on the Epic branch and before `/deliver`. Also run ad-hoc
 > when a regression is suspected mid-Epic.
 >
 > **Persona**: `qa-engineer` · **Skills**:
@@ -84,7 +84,7 @@ do not paste — large artifacts.
    - One-line symptom.
    - Link to the failing scenario's snapshot or trace.
 
-Do not close the Epic-testing ticket on a failed run. `/epic-deliver`
+Do not close the Epic-testing ticket on a failed run. `/deliver`
 depends on green evidence.
 
 ## Deprecated — Markdown Checklist Flow

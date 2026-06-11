@@ -2,7 +2,7 @@
  * Epic snapshot phase — fetch Epic ticket and enforce the acceptance-spec
  * start gate.
  *
- * Auto-close is now the default for `/epic-deliver` (the human PR-merge is
+ * Auto-close is now the default for `/deliver` (the human PR-merge is
  * the gate); no per-Epic label snapshot is required.
  *
  * Acceptance-spec start gate (relaxed): an Epic may be delivered when
@@ -11,9 +11,9 @@
  * `context::acceptance-spec` ticket is linked to the Epic. The ticket's
  * GitHub state (open / closed) is **not** checked — presence is
  * sufficient, matching the PRD and Tech Spec contract. The reviewer's
- * OK during /epic-plan Phase 7 is the approval signal, not a manual
+ * OK during /plan Phase 7 is the approval signal, not a manual
  * ticket-close action. This still refuses to launch Epics that skipped
- * the /epic-plan Phase 7 acceptance-spec authoring step (or didn't
+ * the /plan Phase 7 acceptance-spec authoring step (or didn't
  * waive), surfacing the gap at delivery time rather than letting Story
  * dispatch race ahead without a spec at all.
  */
@@ -66,8 +66,8 @@ export async function runSnapshotPhase(ctx, collaborators, state) {
 /**
  * Enumerate the Story IDs owned by an Epic. Delegates to
  * `discoverOpenStories` so the snapshot.end payload and the wave DAG
- * input set never disagree — both now walk Epic → Feature → Story and
- * exclude closed reverse-referenced tickets.
+ * input set never disagree — both enumerate the Epic's direct Story
+ * children and exclude closed reverse-referenced tickets.
  *
  * Returns a sorted array of positive integers (sort order makes the
  * ledger record deterministic across runs and platform iteration
@@ -82,7 +82,7 @@ async function discoverStoryIds({ epicId, provider }) {
 }
 
 /**
- * Refuse to launch /epic-deliver when the acceptance-spec precondition has
+ * Refuse to launch /deliver when the acceptance-spec precondition has
  * not been satisfied. Throws a clear `Error` (per
  * orchestration-error-handling rule) so the `runAsCli` boundary maps it to
  * `process.exit(1)` with the operator-visible message intact.
@@ -104,7 +104,7 @@ function assertAcceptanceSpecGate({ epic, epicId }) {
   if (!acceptanceSpecId) {
     throw new Error(
       `[epic-deliver] Epic #${epicId} cannot launch: no context::acceptance-spec is linked and the acceptance::n-a waiver label is absent. ` +
-        'Run /epic-plan Phase 7 to author an acceptance-spec, or apply the acceptance::n-a label to the Epic to opt out.',
+        'Run /plan Phase 7 to author an acceptance-spec, or apply the acceptance::n-a label to the Epic to opt out.',
     );
   }
 }

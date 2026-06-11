@@ -92,7 +92,7 @@ targets squash-only + auto-merge + delete-on-merge, which differs from GitHub
 repo defaults, so a default repo always shows drift. On decline / non-TTY the
 gate returns `status: 'skipped', reason: 'hitl-declined'` and writes nothing
 ([merge-methods.js:93–98](../.agents/scripts/lib/bootstrap/merge-methods.js)),
-leaving the auto-merge half of the `/epic-deliver` pipeline disabled — which
+leaving the auto-merge half of the `/deliver` pipeline disabled — which
 surfaces weeks later as warn-only failures. Only `--assume-yes` pre-approves the
 gate; an interactive operator who declines (or runs non-TTY) gets it silently
 skipped.

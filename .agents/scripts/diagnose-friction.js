@@ -134,7 +134,7 @@ function buildFrictionSignal({
     timestamp: new Date().toISOString(),
     epicId: epicId ?? null,
     storyId: storyId ?? null,
-    // 3-tier hierarchy (Epic #3163): no Task tier, so friction signals
+    // 2-tier hierarchy (Epic #3163): no Task tier, so friction signals
     // carry no Task id. The field is retained for schema compatibility
     // and always null.
     taskId: null,

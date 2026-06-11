@@ -5,13 +5,13 @@
  *
  * AC-8 (PRD #2399) reads:
  *
- *   A /epic-deliver run on a fixture Epic produces a lifecycle ledger
+ *   A /deliver run on a fixture Epic produces a lifecycle ledger
  *   byte-identical (modulo `ts` and `seqId` fields) to a D-1-era
  *   ledger of the same Epic.
  *
  * Baseline-capture strategy
  * -------------------------
- * A *true* D-1-era ledger (captured from a real /epic-deliver run
+ * A *true* D-1-era ledger (captured from a real /deliver run
  * against #2172's runtime before D-2 landed) was never persisted as
  * a test fixture — the D-1 Epic's `lifecycle.ndjson` lives in the
  * Epic's temp directory, which is reaped on close. Capturing one
@@ -76,7 +76,7 @@ const BASELINE_PATH = path.join(
  * Deterministic fixture Epic event sequence.
  *
  * The sequence is intentionally a *minimal* representative slice of a
- * /epic-deliver run — enough events to exercise the major lifecycle
+ * /deliver run — enough events to exercise the major lifecycle
  * boundaries (snapshot, wave dispatch, close-tail, finalize, automerge,
  * complete) but small enough to keep the baseline file reviewable.
  *

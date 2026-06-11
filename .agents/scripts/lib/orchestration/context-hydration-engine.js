@@ -163,7 +163,7 @@ function getVersion() {
 /**
  * Parse the work-breakdown hierarchy from a Task ticket body.
  *
- * Looks for patterns like: `Epic: #1`, `Feature: #2`, `Story: #3`,
+ * Looks for patterns like: `Epic: #1`, `Story: #3`,
  * `PRD: #4`, `Tech Spec: #5`.
  *
  * @param {string} body
@@ -177,7 +177,7 @@ export function parseHierarchy(body) {
   for (const match of matches) {
     const key = match[1].trim().toLowerCase().replace(/\s+/g, '');
     const val = Number.parseInt(match[2], 10);
-    result[key] = val; // e.g. { epic: 1, feature: 2, story: 3, prd: 4, techspec: 5 }
+    result[key] = val; // e.g. { epic: 1, story: 3, prd: 4, techspec: 5 }
   }
   return result;
 }
@@ -217,9 +217,9 @@ function extractSectionList(body, heading) {
 
 /**
  * Extract the inline `## Acceptance` / `## Acceptance Criteria` and
- * `## Verify` checklists from a Story body. Used by 3-tier hydration to
+ * `## Verify` checklists from a Story body. Used by 2-tier hydration to
  * populate the `acceptanceCriteria` and `verificationCommands` envelope
- * sections directly from the dispatched Story ticket — under 3-tier the
+ * sections directly from the dispatched Story ticket — under 2-tier the
  * Story IS the unit of execution and carries acceptance/verify inline
  * (no child tickets to walk).
  *
@@ -235,18 +235,18 @@ export function extractStorySections(body) {
 }
 
 /**
- * Detect whether the dispatched unit is a 3-tier Story (Story is the
+ * Detect whether the dispatched unit is a 2-tier Story (Story is the
  * leaf, carries inline acceptance/verify) vs. a 4-tier Task (Task is
  * the leaf, Story is one level up). The decision is made off the
  * `type::*` label the dispatcher already stamps on every ticket; it
  * does not depend on `planning.hierarchy`, so this engine
- * stays correct even when a 4-tier Epic ships in a 3-tier-default repo
+ * stays correct even when a 4-tier Epic ships in a 2-tier-default repo
  * (or vice versa) during the Epic #3078 dual-shape window.
  *
  * @param {object} task
  * @returns {boolean}
  */
-function isThreeTierStoryTask(task) {
+function isTwoTierStoryTask(task) {
   const labels = task?.labels ?? [];
   return labels.includes('type::story');
 }
@@ -355,7 +355,6 @@ async function buildHierarchySections(task, provider, epicId, agentSettings) {
     idsToFetch.push({ key: 'Epic', id: epicId || hierarchyKeys.epic });
     idsToFetch.push({ key: 'PRD', id: hierarchyKeys.prd });
     idsToFetch.push({ key: 'Tech Spec', id: hierarchyKeys.techspec });
-    idsToFetch.push({ key: 'Feature', id: hierarchyKeys.feature });
     idsToFetch.push({ key: 'Story', id: hierarchyKeys.story });
   } else if (depth === 'standard') {
     idsToFetch.push({ key: 'Epic', id: epicId || hierarchyKeys.epic });
@@ -475,7 +474,7 @@ function buildStaticSections(
     }
   }
 
-  if (isThreeTierStoryTask(task)) {
+  if (isTwoTierStoryTask(task)) {
     const { acceptance, verify } = extractStorySections(task.body ?? '');
     if (acceptance.length > 0) {
       sections.push({

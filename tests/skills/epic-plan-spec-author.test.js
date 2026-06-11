@@ -7,7 +7,7 @@
  * body references the two output artifacts the persist script reads back
  * (prd.md, techspec.md). The tests intentionally do *not* call the host
  * LLM — they prove the Skill's contract is intact so the dispatcher in
- * /epic-plan keeps wiring up correctly.
+ * /plan keeps wiring up correctly.
  */
 
 import assert from 'node:assert/strict';

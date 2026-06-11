@@ -83,9 +83,7 @@ export function printStoryDispatchTable(storyManifest, opts = {}) {
   const log = opts.logger?.log ?? ((line) => Logger.info(line));
   if (!storyManifest || storyManifest.length === 0) return;
 
-  // Split into wave-eligible Stories and Feature containers
-  const stories = storyManifest.filter((s) => s.type !== 'feature');
-  const features = storyManifest.filter((s) => s.type === 'feature');
+  const stories = storyManifest;
 
   log('\n┌─────────┬──────────────────────────────────────┬──────┐');
   log('│                  📋 STORY DISPATCH TABLE                 │');
@@ -106,14 +104,7 @@ export function printStoryDispatchTable(storyManifest, opts = {}) {
   log('└─────────┴──────────────────────────────────────┴──────┘');
   log('');
   log('  💡 Stories in the same [Wave] can be executed in parallel.');
-  log('  💡 Use /epic-deliver #[Story ID] to execute a Story.');
+  log('  💡 Use /deliver #[Story ID] to execute a Story.');
 
-  if (features.length > 0) {
-    log('');
-    log('  📦 Feature Containers (not directly executable):');
-    for (const f of features) {
-      log(`     #${f.storyId} — ${f.storySlug}`);
-    }
-  }
   log('');
 }

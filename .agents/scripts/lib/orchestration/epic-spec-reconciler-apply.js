@@ -730,21 +730,13 @@ function collectStructuralEdges(spec) {
   const out = {};
   if (!spec || typeof spec !== 'object') return out;
   const epicSlug = 'epic';
-  for (const feature of spec.features ?? []) {
-    if (!feature?.slug) continue;
-    out[feature.slug] = { entity: 'feature', parentSlug: epicSlug };
-    for (const story of feature.stories ?? []) {
-      if (!story?.slug) continue;
-      out[story.slug] = {
-        entity: 'story',
-        parentSlug: feature.slug,
-        dependsOn: [...(story.dependsOn ?? [])].sort(),
-      };
-      for (const task of story.tasks ?? []) {
-        if (!task?.slug) continue;
-        out[task.slug] = { entity: 'task', parentSlug: story.slug };
-      }
-    }
+  for (const story of spec.stories ?? []) {
+    if (!story?.slug) continue;
+    out[story.slug] = {
+      entity: 'story',
+      parentSlug: epicSlug,
+      dependsOn: [...(story.dependsOn ?? [])].sort(),
+    };
   }
   return out;
 }

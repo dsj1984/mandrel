@@ -109,7 +109,7 @@ export function classifyGithubError(err) {
 // callers (paginateRest, getTicket, getNativeSubIssues, …) absorb the same
 // jittered exponential backoff on transient GitHub errors instead of
 // bubbling a one-shot 502/429/ECONNRESET that kills a longer pipeline
-// (e.g. the /epic-deliver Phase E retro).
+// (e.g. the /deliver Phase E retro).
 
 export const TRANSIENT_RETRY_DEFAULTS = Object.freeze({
   maxAttempts: 6,

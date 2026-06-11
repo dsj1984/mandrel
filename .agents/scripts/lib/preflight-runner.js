@@ -13,7 +13,7 @@
  *         auto-fixes. The wrapper prints a human-readable blocker table
  *         (`id · summary · fixCommand`) before returning. Code 2 is the
  *         project-wide "preflight refused" reservation — see
- *         .agents/workflows/epic-deliver.md for the rationale.
+ *         .agents/workflows/helpers/deliver-epic.md for the rationale.
  *
  * Auto-fixes are logged via `logFixes` before the blocker check so the
  * operator sees the "we corrected X" line even when a separate blocker

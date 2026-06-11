@@ -4,7 +4,7 @@
  * `[skip ci]` markers (and the four variant spellings GitHub honours)
  * from a text payload.
  *
- * Story #3165: `/epic-deliver` Phase 7 opens a PR squashed into `main`
+ * Story #3165: `/deliver` Phase 7 opens a PR squashed into `main`
  * via `gh pr merge --squash`. Story commits legitimately carry
  * `[skip ci]` markers under `delivery.ci.skipForStoryPushes: true` to
  * keep CI from firing on the wave's intermediate pushes. When GitHub

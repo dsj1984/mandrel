@@ -11,7 +11,7 @@
  * `body: <17KB body> → ""`. The reconciler apply phase then wiped the
  * GH issue body — taking the hand-authored Epic spec AND the
  * `## Planning Artifacts` section with it, which broke
- * `/epic-deliver`'s start gate (parseLinkedIssues → null) and the
+ * `/deliver`'s start gate (parseLinkedIssues → null) and the
  * cascade-close walk in `epic-deliver-finalize.js`.
  *
  * The fix lives in two cooperating places (defence in depth):
@@ -184,20 +184,10 @@ function buildStubProvider({ epicId, epicBody }) {
 function buildFixtureTickets() {
   return [
     {
-      slug: 'feature-a',
-      type: 'feature',
-      title: 'Feature A',
-      body: 'feature body',
-      labels: ['type::feature'],
-      parent_slug: '',
-      depends_on: [],
-    },
-    {
       slug: 'story-one',
       type: 'story',
       title: 'Story One',
       labels: ['type::story'],
-      parent_slug: 'feature-a',
       depends_on: [],
       acceptance: ['done'],
       verify: ['npm test (unit)'],
@@ -214,7 +204,6 @@ function buildFixtureTickets() {
       type: 'story',
       title: 'Story Two',
       labels: ['type::story'],
-      parent_slug: 'feature-a',
       depends_on: [],
       acceptance: ['done'],
       verify: ['npm test (unit)'],
@@ -317,7 +306,7 @@ describe('runDecomposePhase — Epic body preservation (Story #2283)', () => {
           title: opts.epic.title,
           body: opts.epic.body,
         },
-        features: [],
+        stories: [],
       };
     };
 
@@ -362,7 +351,7 @@ describe('runDecomposePhase — Epic body preservation (Story #2283)', () => {
           title: opts.epic.title,
           body: opts.epic.body,
         },
-        features: [],
+        stories: [],
       };
     };
 

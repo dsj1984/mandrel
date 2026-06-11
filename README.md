@@ -40,8 +40,8 @@ npx mandrel init        # install mandrel → sync → prompt → bootstrap
 
 ```text
 # then, inside Claude Code (commands load from .claude/commands/):
-/onboard            # guided first run: stack detect → docs → doctor → /epic-plan
-/epic-plan          # ideation -> PRD/Tech Spec -> Epic/Feature/Story hierarchy
+/onboard            # guided first run: stack detect → docs → doctor → /plan
+/plan          # ideation -> PRD/Tech Spec -> Epic with child Stories
 ```
 
 `npx mandrel init` installs `mandrel` (when `./.agents/` is absent),
@@ -53,8 +53,8 @@ straight to configure (and forwards the flag to bootstrap). When `./.agents/`
 is already present (you ran `npm install mandrel` first), `init` skips the
 install/sync and goes straight to the prompt. `/onboard` then walks you from a
 clean checkout to a planned Epic (stack detection, docs scaffolding, a
-`mandrel doctor` readiness gate, and a started `/epic-plan`). Once you have a
-planned Epic, deliver it with `/epic-deliver <id>` (wave loop → validation →
+`mandrel doctor` readiness gate, and a started `/plan`). Once you have a
+planned Epic, deliver it with `/deliver <id>` (wave loop → validation →
 review → retro → open PR).
 
 ### Manual equivalent

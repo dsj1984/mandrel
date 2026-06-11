@@ -59,8 +59,8 @@ graph TB
         PRJ["Projects V2"]:::data
     end
 
-    H -->|"/epic-plan (ideation or existing Epic)"| IDE
-    H -->|"/epic-deliver"| IDE
+    H -->|"/plan (ideation or existing Epic)"| IDE
+    H -->|"/deliver"| IDE
     IDE --> INS
     INS --> PER & RUL & SKL
     IDE --> SCR
@@ -162,16 +162,16 @@ Each skill contains a `SKILL.md` file with constraints and an optional
 The orchestration engine is the **runtime brain** — a set of JavaScript ESM
 scripts that automate the entire SDLC from planning through integration. The
 operator-facing surface is two slash commands on the SDL critical
-path — `/epic-plan` (with optional ideation entry) and `/epic-deliver` —
-plus `/story-deliver` for single-Story drives off the dispatch table.
-Planning is **git-state-free**: `/epic-plan` produces a declarative
+path — `/plan` (with optional ideation entry) and `/deliver` —
+plus `/deliver` for single-Story drives off the dispatch table.
+Planning is **git-state-free**: `/plan` produces a declarative
 `epic.yaml` artifact (Epic #1182) that is diff-able, replayable,
 and reconcilable against GitHub via `epic-reconcile.js`; the Epic branch
 is no longer created at plan time.
-`/epic-deliver`'s host LLM owns the wave loop and fans Story sub-agents
+`/deliver`'s host LLM owns the wave loop and fans Story sub-agents
 out directly via the Agent tool inside the operator's Claude session —
 there is no intermediate wave skill, no subprocess spawn pathway, and no
-GitHub Actions runner. The PR opened by `/epic-deliver` Phase 6 is the
+GitHub Actions runner. The PR opened by `/deliver` Phase 6 is the
 sole promotion gate to `main`; the workflow never executes `git merge`
 against `main` itself.
 
@@ -227,38 +227,38 @@ graph TB
 | Script                       | Responsibility                                                                                                                                                                              |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `epic-plan-spec.js`          | Authoring wrapper for PRD + Tech Spec; flips Epic to `agent::review-spec` and writes the `epic-plan-state` checkpoint. Threads `docsContext` and a `codebaseSnapshot` (Story #2634, see below) into the spec-author envelope so the Architect persona cites real modules instead of doc-only names. |
-| `epic-plan-decompose.js`     | Authoring wrapper for the Feature/Story ticket hierarchy; flips Epic to `agent::ready` and posts the dispatch manifest.                                                                       |
-| `dispatcher.js`              | Builds dependency DAG, computes execution waves, posts the dispatch manifest (consumed by `/epic-deliver`).                                                                                   |
-| `epic-deliver-prepare.js`    | Snapshots the Epic, builds the wave plan, and initialises the `epic-run-state` checkpoint at the start of `/epic-deliver` Phase 1.                                                            |
-| `lifecycle-emit.js`          | Generic argv-driven emit helper. `/epic-deliver` Phase 6 / 7.5 / 8 fire `epic.close.end` / `epic.automerge.start` / `epic.merge.armed` through this CLI; the matching listener chain (`Finalizer`, `AutomergePredicate` + `AutomergeArmer`, `Cleaner`) runs the PR open, auto-merge arm, and branch reap. |
+| `epic-plan-decompose.js`     | Authoring wrapper for the Epic's child-Story backlog; flips Epic to `agent::ready` and posts the dispatch manifest.                                                                       |
+| `dispatcher.js`              | Builds dependency DAG, computes execution waves, posts the dispatch manifest (consumed by `/deliver`).                                                                                   |
+| `epic-deliver-prepare.js`    | Snapshots the Epic, builds the wave plan, and initialises the `epic-run-state` checkpoint at the start of `/deliver` Phase 1.                                                            |
+| `lifecycle-emit.js`          | Generic argv-driven emit helper. `/deliver` Phase 6 / 7.5 / 8 fire `epic.close.end` / `epic.automerge.start` / `epic.merge.armed` through this CLI; the matching listener chain (`Finalizer`, `AutomergePredicate` + `AutomergeArmer`, `Cleaner`) runs the PR open, auto-merge arm, and branch reap. |
 | `story-init.js`              | Initialises a Story worktree and flips the Story to `agent::executing`.                                                                                                                     |
 | `story-close.js`             | Validates, merges, reaps, and cascades on Story completion. Thin CLI shell over `lib/orchestration/story-close/{merge-runner,cleanup-reconciler,comment-bodies}`. |
 | `hydrate-context.js`         | Assembles self-contained prompts (protocol + persona + skills + hierarchy + task). Emits the JSON envelope by default; `--emit prompt` writes the raw prompt. The only supported hydration CLI. |
 | `update-ticket-state.js`     | Syncs ticket status via GitHub labels (`agent::ready` → `agent::done`).                                                                                                                       |
 | `notify.js`                  | Dispatches notifications via @mention and webhook channels.                                                                                                                                   |
-| `analyze-execution.js`       | Reads per-Story `signals.ndjson` and emits the `story-perf-summary` / `epic-perf-report` consumed by the retro. Wired into the post-merge pipeline and into `/epic-deliver` Phase 5.           |
+| `analyze-execution.js`       | Reads per-Story `signals.ndjson` and emits the `story-perf-summary` / `epic-perf-report` consumed by the retro. Wired into the post-merge pipeline and into `/deliver` Phase 5.           |
 
 #### In-process orchestration modules
 
 These modules fold the close-tail into the deliver runner so
-`/epic-deliver` runs end-to-end without spawning helper sessions:
+`/deliver` runs end-to-end without spawning helper sessions:
 
 | Module                                   | Role                                                                                                                                                              |
 | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `lib/orchestration/code-review.js`       | Phase 4 inline audit. Extracted from `helpers/epic-code-review.md`; halts the runner on critical findings and persists results as a `code-review` structured comment. |
 | `lib/orchestration/retro-runner.js`      | Phase 5 retro authoring. Extracted from the (now-deleted) retro helper; aggregates perf signals, friction, hotfixes, recuts, parked stories, and HITL count.        |
-| `lib/duplicate-search.js`                | `/epic-plan` ideation entry — cross-Epic title + body keyword search; returns a ranked list of overlapping open Epics or `[]`.                                     |
+| `lib/duplicate-search.js`                | `/plan` ideation entry — cross-Epic title + body keyword search; returns a ranked list of overlapping open Epics or `[]`.                                     |
 
 #### Dispatch Engine Submodules
 
-`lib/orchestration/dispatch-engine.js` is a coordinator for the 3-tier
+`lib/orchestration/dispatch-engine.js` is a coordinator for the 2-tier
 dispatch path. Consumers (`dispatcher.js`, tests) import `dispatch`,
 `resolveAndDispatch`, and the `AGENT_*` constants from the coordinator
-path. Every Epic is 3-tier (Epic → Feature → Story); `dispatch()`
-computes a Story-level wave plan and emits a 3-tier manifest. The legacy
+path. Every Epic is 2-tier (Epic → Story); `dispatch()`
+computes a Story-level wave plan and emits a 2-tier manifest. The legacy
 The retired 4-tier dispatch runtime (legacy fetcher, wave fan-out, and
 Epic-completion detector) was removed in Epic #3163; per-Story
-execution is owned by `/story-deliver`
+execution is owned by `/deliver`
 (`story-init` → `story-close`).
 
 | Submodule                     | Responsibility                                                                            |
@@ -415,8 +415,8 @@ or CI pipelines and must remain at their `.agents/scripts/<name>` paths
 - `dispatcher.js` — DAG computation and dispatch manifest
 - And all other scripts under `.agents/scripts/` not listed above
 
-**The rule:** a script is _lifecycle_ if it is only ever invoked by a human
-operator at the terminal; it is _runtime_ if it is invoked by an agent
+**The rule:** a script is *lifecycle* if it is only ever invoked by a human
+operator at the terminal; it is *runtime* if it is invoked by an agent
 session, a git hook, or a CI step via the `.agents/scripts/<name>` path.
 Moving a lifecycle script to `bin/` without updating the hook or CI
 invocation site breaks the calling surface; moving a runtime script away
@@ -482,7 +482,7 @@ symbol consumers previously imported.
 
 ### 4. Execution Path
 
-Mandrel runs Claude-Code-in-session: `/epic-deliver` fans out via the
+Mandrel runs Claude-Code-in-session: `/deliver` fans out via the
 `Agent` tool over a wave of Story sub-agents, each driving the per-Story
 implementation loop directly from the Story worktree. There is no separate
 adapter abstraction — `wave-dispatcher.js` synthesizes the
@@ -580,23 +580,23 @@ synthetic dependency edges between tasks with overlapping `focusAreas`.
 ```mermaid
 sequenceDiagram
     participant H as Human
-    participant P as /epic-plan
+    participant P as /plan
     participant EP as epic-plan-spec.js
     participant TD as epic-plan-decompose.js
-    participant D as /epic-deliver
-    participant EDR as /epic-deliver (in-session)
+    participant D as /deliver
+    participant EDR as /deliver (in-session)
     participant CH as hydrate-context.js
     participant A as Agent (IDE)
     participant GH as GitHub
 
-    H->>P: /epic-plan (ideation) or /epic-plan #EPIC
+    H->>P: /plan (ideation) or /plan #EPIC
     P->>GH: Open Epic (ideation path) / read existing Epic
     P->>EP: Generate PRD + Tech Spec
     EP->>GH: Create linked context issues
     EP->>TD: Decompose into Stories
-    TD->>GH: Create Feature → Story hierarchy
+    TD->>GH: Create the Story backlog
 
-    H->>D: /epic-deliver #EPIC
+    H->>D: /deliver #EPIC
     D->>EDR: Build DAG, compute waves, run all six phases
     EDR->>GH: Create epic/ and story/ branches
     EDR->>CH: Hydrate story context
@@ -611,7 +611,7 @@ sequenceDiagram
 
 ## Epic Deliver Runner
 
-The `/epic-deliver <epicId>` slash command is the sole entry point for
+The `/deliver <epicId>` slash command is the sole entry point for
 Epic delivery. It runs end-to-end inside the operator's Claude session,
 composing the orchestration primitives into a six-phase execution
 coordinator with the lifecycle bus chain at its core. There is no
@@ -633,7 +633,7 @@ inline-emit comments" framing is retired.
 ### State machine (Epic labels)
 
 ```text
-        /epic-plan ideation creates the Epic with type::epic only
+        /plan ideation creates the Epic with type::epic only
                               (no state::* label at creation)
                                        │
                                        │ PRD + Tech Spec authored
@@ -642,9 +642,9 @@ inline-emit comments" framing is retired.
                                        │
                                        │ operator confirms; decomposition runs
                                        ▼
-                                 agent::ready  ◄── /epic-plan terminates here
+                                 agent::ready  ◄── /plan terminates here
                                        │
-                                       │ operator runs /epic-deliver <id>
+                                       │ operator runs /deliver <id>
                                        ▼
                               agent::executing  ◄── wave loop + close-validation +
                                        │              code-review + retro + finalize
@@ -653,10 +653,10 @@ inline-emit comments" framing is retired.
                               agent::blocked  ──── operator flips back ───┐
                                        │                                  │
                                        └─────────────────────────────────┘
-                                       │ /epic-deliver Phase 6 opens PR to main
+                                       │ /deliver Phase 6 opens PR to main
                                        │ Epic stays at agent::executing
                                        │ (PR's existence is the merge signal;
-                                       │  /epic-deliver terminates here)
+                                       │  /deliver terminates here)
                                        │ operator merges PR via GitHub UI
                                        ▼
                               agent::done  ◄── set via standard label-transition
@@ -669,7 +669,7 @@ inline-emit comments" framing is retired.
 | Module              | Role                                                                                                |
 | ------------------- | --------------------------------------------------------------------------------------------------- |
 | `wave-scheduler`    | Iterates waves from `Graph.computeWaves()`; never spawns workers.                                   |
-| `story-launcher`    | Fans out up to `concurrencyCap` `/story-deliver <storyId>` Agent-tool sub-agents in one message.    |
+| `story-launcher`    | Fans out up to `concurrencyCap` `/deliver <storyId>` Agent-tool sub-agents in one message.    |
 | `checkpointer`      | Upserts the `epic-run-state` structured comment; handles phase-granular resume across the six phases. |
 | `blocker-handler`   | The sole runtime pause point; halts on `agent::blocked`, waits to resume.                           |
 | `notification-hook` | Fire-and-forget webhook; never blocks execution.                                                    |
@@ -689,23 +689,22 @@ guard now that the operator's PR merge is the sole promotion gate.
 
 ## Ticket Hierarchy
 
-The framework uses a **3-tier GitHub Issue hierarchy**
-(Epic → Feature → Story) with label-based typing and `blocked by #NNN`
-dependency wiring:
+The framework uses a **2-tier GitHub Issue hierarchy**
+(Epic → Story) with label-based typing and `blocked by #NNN`
+dependency wiring. Thematic grouping lives as prose in the Epic body /
+Tech Spec, never as a ticket:
 
 ```text
 Epic (type::epic)
 ├── PRD (context::prd)
 ├── Tech Spec (context::tech-spec)
-├── Feature (type::feature)
-│   ├── Story (type::story)
-│   │   ├── acceptance[]            ← inline on Story body
-│   │   └── verify[]                ← inline on Story body
-│   └── Story (type::story)
-└── Feature (type::feature)
+├── Story (type::story)
+│   ├── acceptance[]            ← inline on Story body
+│   └── verify[]                ← inline on Story body
+└── Story (type::story)
 ```
 
-`/story-deliver` runs a single Story-implementation phase per Story.
+`/deliver` runs a single Story-implementation phase per Story.
 The state machine, cascade behavior, and worktree-isolation contract
 documented below apply at the Story tier.
 
@@ -732,19 +731,13 @@ the authoritative contract:
 
 | Parent tier                                     | Auto-closes via cascade? | How it closes                                                    |
 | ----------------------------------------------- | ------------------------ | ---------------------------------------------------------------- |
-| Feature (`type::feature`)                       | Yes                      | Last Story → `agent::done` cascades.                             |
-| Epic (`type::epic`)                             | **No** — cascade stops.  | Operator merges the `/epic-deliver` PR via the GitHub UI.        |
+| Epic (`type::epic`)                             | **No** — cascade stops.  | Operator merges the `/deliver` PR via the GitHub UI.        |
 | Planning (`context::prd`, `context::tech-spec`) | **No** — cascade stops.  | Operator close after the Epic PR is merged.                      |
 
-**Why Features auto-close but Epics and Planning don't.** A Feature is a
-purely hierarchical grouping — no standalone branch, no merge step, no
-release artefacts. When its last child Story closes, the Feature is complete
-by definition; a manual Feature-close step would be pure ceremony. Operators
-who need Feature-level acceptance-criteria verification should encode it in
-the final child Story, not add a manual gate. Epics, by contrast, gate on a
-real pull-request merge — cascade must not pre-empt the operator's
-required-checks review. Planning tickets (PRD, Tech Spec) are narrative
-artefacts the operator closes once the Epic PR is merged.
+**Why neither tier auto-closes.** Epics gate on a real pull-request
+merge — cascade must not pre-empt the operator's required-checks review.
+Planning tickets (PRD, Tech Spec) are narrative artefacts the operator
+closes once the Epic PR is merged.
 
 Implementation: [`.agents/scripts/lib/orchestration/ticketing.js`](../.agents/scripts/lib/orchestration/ticketing.js)
 — `cascadeCompletion()` explicitly skips `type::epic`, `context::prd`, and
@@ -815,7 +808,7 @@ and escape hatches.
 
 ### Execution-model modes
 
-The two-skill execution surface (`/epic-deliver` and `/story-deliver`) runs
+The two-skill execution surface (`/deliver` and `/deliver`) runs
 in two execution-model modes that share one codepath and differ only in
 whether worktrees are created. The `resolveWorktreeEnabled` function in
 `lib/config-resolver.js` selects the mode at startup based on
@@ -846,17 +839,17 @@ whether worktrees are created. The `resolveWorktreeEnabled` function in
                             ▲                                         ▲
                             │                                         │
                             └────────── shared launch primitive ──────┘
-                              operator picks Story id from /epic-plan
+                              operator picks Story id from /plan
                                   dispatch table, one session per id
 ```
 
 Both modes share:
 
-- The same `/story-deliver` Agent-tool sub-agent contract and the same
-  parent-driven dispatch logic out of `/epic-deliver`'s wave loop.
+- The same `/deliver` Agent-tool sub-agent contract and the same
+  parent-driven dispatch logic out of `/deliver`'s wave loop.
 - The launch-time dependency guard (`runDispatchManifestGuard`) that refuses
   a story with unmerged blockers.
-- Deterministic, operator-driven story assignment — `/story-deliver` always
+- Deterministic, operator-driven story assignment — `/deliver` always
   takes an explicit Story id. There is no per-launch label race.
 - The bounded retry on the epic-branch push (`lib/push-epic-retry.js`,
   using the framework-internal `DEFAULT_STORY_MERGE_RETRY` constant) so concurrent closes from
@@ -955,7 +948,7 @@ The model has three layers:
    [`structured:story-perf-summary`](../.agents/schemas/story-perf-summary.schema.json)
    comment carrying friction counts by category, phase timings,
    top-slow phases vs baseline, a rework score, and retry density. At
-   `/epic-deliver` Phase 5, `analyze-execution.js` aggregates every
+   `/deliver` Phase 5, `analyze-execution.js` aggregates every
    Story's NDJSON into one
    [`structured:epic-perf-report`](../.agents/schemas/epic-perf-report.schema.json)
    comment alongside the retro: per-kind signal counts, per-wave
@@ -1045,7 +1038,7 @@ The baseline-refresh CI guardrail was removed alongside the bot-approver
 pipeline; the `baseline-refresh:` commit subject + non-empty body
 convention is preserved (the pre-push hook and local close-validation
 still consume it) but it is no longer machine-enforced on PRs. The
-operator owns refresh justification during `/epic-deliver`'s Phase 7
+operator owns refresh justification during `/deliver`'s Phase 7
 watch loop.
 
 ### Quality-gate diagram
@@ -1075,7 +1068,7 @@ CI    ▶ │ ci.yml:                               │
 
 ### Evidence-aware gate caching
 
-Local close-validation, `epic-code-review`, and `/epic-deliver` Phase 3
+Local close-validation, `epic-code-review`, and `/deliver` Phase 3
 (close-validation) wrap each gate in `evidence-gate.js`. On a successful
 run the wrapper records
 `{ gateName, commitSha, commandConfigHash, timestamp }` under the per-Epic
@@ -1139,7 +1132,7 @@ live LLM metering:
   envelope exceeds the cap (`elideEnvelope` in `context-envelope.js`).
 - **`delivery.preflight.*`** (optional): `epic-deliver-preflight.js` compares
   pre-dispatch estimates (stories, waves, install time, GitHub API calls,
-  Claude quota tokens) to configured ceilings before `/epic-deliver` fan-out.
+  Claude quota tokens) to configured ceilings before `/deliver` fan-out.
 - **Host runtime**: session quota and billing hard stops are enforced by the
   operator's editor / CLI provider, not by Mandrel scripts.
 
@@ -1243,7 +1236,7 @@ conventions to follow.
 
 - **Ticketing provider:** GitHub (Issues, Labels, Projects V2, Sub-Issues API)
 - **CI:** GitHub Actions
-- **Distribution:** GitHub Releases (tagged from `main` post-PR-merge; tagging is operator-driven since `/epic-deliver` exits at PR-open).
+- **Distribution:** GitHub Releases (tagged from `main` post-PR-merge; tagging is operator-driven since `/deliver` exits at PR-open).
 
 ### Testing Contract
 

@@ -2,7 +2,7 @@
  * plan-router — given an Epic's current labels, decide which plan-phase CLI
  * should run next.
  *
- * Used by the local `/epic-plan` wrapper (chains spec → decompose).
+ * Used by the local `/plan` wrapper (chains spec → decompose).
  *
  * The router is intentionally stateless. Callers feed the current label set
  * (a string array, usually from `provider.getEpic(id).labels`) and receive a
@@ -21,7 +21,7 @@ export const PLAN_PHASE_NAMES = Object.freeze({
  * path used by the local wrapper; `command` is the slash-command invocation
  * operators fire.
  *
- * Spec and Decompose are served by the unified `/epic-plan` wrapper with a
+ * Spec and Decompose are served by the unified `/plan` wrapper with a
  * `--phase` flag — the phase workflows themselves live at
  * `.agents/workflows/helpers/epic-plan-{spec,decompose}.md` and are not
  * directly invokable slash commands.
@@ -33,20 +33,20 @@ export const PLAN_PHASE_DESCRIPTORS = Object.freeze({
   [PLAN_PHASE_NAMES.SPEC]: {
     phase: PLAN_PHASE_NAMES.SPEC,
     script: '.agents/scripts/epic-plan-spec.js',
-    command: '/epic-plan --phase spec',
+    command: '/plan --phase spec',
     parkingLabel: AGENT_LABELS.REVIEW_SPEC,
   },
   [PLAN_PHASE_NAMES.DECOMPOSE]: {
     phase: PLAN_PHASE_NAMES.DECOMPOSE,
     script: '.agents/scripts/epic-plan-decompose.js',
-    command: '/epic-plan --phase decompose',
+    command: '/plan --phase decompose',
     parkingLabel: AGENT_LABELS.READY,
   },
 });
 
 /**
  * Given the Epic's current labels, pick the next plan phase to run in the
- * local `/epic-plan` wrapper.
+ * local `/plan` wrapper.
  *
  * Precedence:
  *   1. If the Epic already carries `agent::ready`, there is nothing left to

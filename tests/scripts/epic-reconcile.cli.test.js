@@ -67,7 +67,7 @@ function buildDeps(overrides = {}) {
     },
     loadSpec: () => ({
       epic: { id: 1000, title: 'Test Epic' },
-      features: [],
+      stories: [],
     }),
     loadState: () => ({ epicId: 1000, mapping: {} }),
     fetchGhState: () => {
@@ -246,8 +246,8 @@ describe('runReconcile — apply gates', () => {
         ...emptyPlan(),
         creates: [
           createOp({
-            slug: 'feature-a',
-            entity: 'feature',
+            slug: 'story-a',
+            entity: 'story',
             title: 'Feature A',
           }),
         ],
@@ -271,8 +271,8 @@ describe('runReconcile — apply gates', () => {
         ...emptyPlan(),
         creates: [
           createOp({
-            slug: 'feature-a',
-            entity: 'feature',
+            slug: 'story-a',
+            entity: 'story',
             title: 'Feature A',
           }),
         ],
@@ -297,8 +297,8 @@ describe('runReconcile — apply gates', () => {
         ...emptyPlan(),
         creates: [
           createOp({
-            slug: 'feature-a',
-            entity: 'feature',
+            slug: 'story-a',
+            entity: 'story',
             title: 'Feature A',
           }),
         ],
@@ -360,8 +360,8 @@ describe('exit-code contract — 0 / 1 / 2', () => {
         ...emptyPlan(),
         creates: [
           createOp({
-            slug: 'feature-a',
-            entity: 'feature',
+            slug: 'story-a',
+            entity: 'story',
             title: 'Feature A',
           }),
         ],
@@ -581,7 +581,7 @@ describe('runReconcile — bootstrap state.mapping.epic', () => {
     // bootstrap seed the diff engine emits a Create op for the synthetic
     // `epic` slug (and applyCreate would materialise a duplicate GH
     // issue). With the seed in place, the only Create ops should be for
-    // the spec's features/stories/tasks — never `entity: 'epic'`.
+    // the spec's stories — never `entity: 'epic'`.
     const { diff: realDiff } = await import(
       '../../.agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js'
     );
@@ -589,11 +589,11 @@ describe('runReconcile — bootstrap state.mapping.epic', () => {
     const { deps } = buildDeps({
       loadSpec: () => ({
         epic: { id: 1820, title: 'Duplicate-Epic Regression' },
-        features: [
+        stories: [
           {
-            slug: 'feat-only',
-            title: 'Feature only',
-            stories: [],
+            slug: 'story-only',
+            title: 'Story only',
+            wave: 0,
           },
         ],
       }),
@@ -689,8 +689,8 @@ describe('fetchGhState — scoped child enumeration (Story #3455)', () => {
   });
 
   it('re-reconcile with a closed/delivered child emits no spurious Update/Close op', async () => {
-    // A partially-delivered Epic: feature-a + story-one already mapped and
-    // delivered (story-one closed on GH). The structural fields the diff
+    // A partially-delivered Epic: story-one already mapped and
+    // delivered (closed on GH). The structural fields the diff
     // engine is authoritative over (title/body/labels) match the spec; the
     // only "drift" is the closed GH state — exactly the over-fetch the
     // legacy repo-wide `getTickets` pulled in and the scoped `getSubTickets`
@@ -698,30 +698,21 @@ describe('fetchGhState — scoped child enumeration (Story #3455)', () => {
     // the closed child must produce neither an Update nor a Close op.
     const epicId = 900;
     const epicIssue = 900;
-    const featureIssue = 910;
     const storyIssue = 911;
 
     // Compose the canonical orchestrator footer the diff engine expects on
     // non-epic bodies so the body comparison is a no-op.
-    const storyBody = `A delivered story.\n\n---\nparent: #${featureIssue}\nEpic: #${epicId}`;
-    const featureBody = `A feature.\n\n---\nparent: #${epicIssue}`;
+    const storyBody = `A delivered story.\n\n---\nparent: #${epicIssue}`;
 
     const spec = {
       epic: { id: epicId, title: 'Partially Delivered Epic', body: '' },
-      features: [
+      stories: [
         {
-          slug: 'feature-a',
-          title: 'Feature A',
-          body: 'A feature.',
-          labels: ['type::feature'],
-          stories: [
-            {
-              slug: 'story-one',
-              title: 'Story One',
-              body: 'A delivered story.',
-              labels: ['type::story'],
-            },
-          ],
+          slug: 'story-one',
+          title: 'Story One',
+          body: 'A delivered story.',
+          labels: ['type::story'],
+          wave: 0,
         },
       ],
     };
@@ -730,15 +721,10 @@ describe('fetchGhState — scoped child enumeration (Story #3455)', () => {
       epicId,
       mapping: {
         epic: { issueNumber: epicIssue, entity: 'epic', parentSlug: null },
-        'feature-a': {
-          issueNumber: featureIssue,
-          entity: 'feature',
-          parentSlug: 'epic',
-        },
         'story-one': {
           issueNumber: storyIssue,
           entity: 'story',
-          parentSlug: 'feature-a',
+          parentSlug: 'epic',
         },
       },
     };
@@ -754,13 +740,6 @@ describe('fetchGhState — scoped child enumeration (Story #3455)', () => {
         labels: ['type::epic'],
       },
       children: [
-        {
-          id: featureIssue,
-          title: 'Feature A',
-          body: featureBody,
-          labels: ['type::feature'],
-          state: 'open',
-        },
         {
           id: storyIssue,
           title: 'Story One',

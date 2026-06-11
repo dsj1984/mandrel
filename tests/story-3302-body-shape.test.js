@@ -311,7 +311,7 @@ describe('updateOp — factory and validation (Story #3629)', () => {
   it('accepts an empty changes object', () => {
     const op = updateOp({
       slug: 'empty-changes',
-      entity: ENTITY_KINDS.FEATURE,
+      entity: ENTITY_KINDS.STORY,
       issueNumber: 7,
       changes: {},
     });
@@ -537,7 +537,7 @@ describe('emptyPlan / isPlan / planSize / isEmptyPlan / isOperation (Story #3629
   it('isOperation returns true for a valid UpdateOp', () => {
     const op = updateOp({
       slug: 'up-op',
-      entity: ENTITY_KINDS.FEATURE,
+      entity: ENTITY_KINDS.STORY,
       issueNumber: 5,
       changes: { title: { before: 'A', after: 'B' } },
     });

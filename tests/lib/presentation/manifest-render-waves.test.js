@@ -3,7 +3,7 @@
  * `renderNestedWaveSections` plus branch coverage of the private
  * `validateWaveSection` predicate (exposed via `__testables`).
  *
- * Story #3413 (3-tier cutover, final): the residual per-Task rendering
+ * Story #3413 (2-tier cutover, final): the residual per-Task rendering
  * has been deleted. Each wave counts Stories (done/total), renders one
  * H3 per Story with no task suffix, and emits no `_(no tasks)_` marker
  * or `Child Tasks` feature-table column. A Story is "done" when its
@@ -135,22 +135,12 @@ test('renderNestedWaveSections: Blocked wave emits the gating tail naming the la
   assert.ok(md.includes('· gated on Wave 0'));
 });
 
-test('renderNestedWaveSections: Feature Containers section emits a Story-only column set', () => {
-  const stories = [
-    {
-      storyId: 101,
-      storyTitle: 'A',
-      type: 'story',
-      earliestWave: 0,
-      status: 'agent::done',
-    },
-    { storyId: 300, storySlug: 'container', type: 'feature', earliestWave: -1 },
-  ];
-  const md = renderNestedWaveSections(stories);
-  assert.ok(md.includes('## Feature Containers'));
-  assert.ok(md.includes('| Feature | Title |'));
-  assert.ok(md.includes('| #300 | container |'));
-  assert.ok(!md.includes('Child Tasks'));
+test('renderNestedWaveSections: never emits a Feature Containers section (2-tier)', () => {
+  const md = renderNestedWaveSections([
+    { storyId: 100, storySlug: 'alpha', type: 'story', earliestWave: 0 },
+  ]);
+  assert.ok(!md.includes('## Feature Containers'));
+  assert.ok(!md.includes('| Feature | Title |'));
 });
 
 test('renderNestedWaveSections: Story title falls back to storySlug when storyTitle missing', () => {
@@ -166,8 +156,8 @@ test('renderNestedWaveSections: Story title falls back to storySlug when storyTi
   assert.ok(md.includes('### ⬜ #101 — slug-only'));
 });
 
-test('renderNestedWaveSections: Stories never emit per-Task checkbox rows (3-tier)', () => {
-  // Under the 3-tier hierarchy Stories are leaves; the renderer no
+test('renderNestedWaveSections: Stories never emit per-Task checkbox rows (2-tier)', () => {
+  // Under the 2-tier hierarchy Stories are leaves; the renderer no
   // longer projects child Task tickets even when a legacy caller still
   // hands in a populated `tasks` array.
   const stories = [

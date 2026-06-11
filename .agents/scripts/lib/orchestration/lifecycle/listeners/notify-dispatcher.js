@@ -14,7 +14,7 @@
  *
  *   webhookEvents entry    lifecycle event
  *   --------------------   ---------------------
- *   `epic-started`         (emitted at /epic-deliver kickoff;
+ *   `epic-started`         (emitted at /deliver kickoff;
  *                          this listener handles `epic.snapshot.start`)
  *   `epic-blocked`         `epic.blocked`
  *   `epic-complete`        `epic.complete`

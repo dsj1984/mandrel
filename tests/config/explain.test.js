@@ -170,7 +170,7 @@ describe('meaningFor', () => {
   });
 
   it('falls back to a block gloss for an unmapped key under a known block', () => {
-    assert.match(meaningFor('planning.somethingNew'), /epic-plan/);
+    assert.match(meaningFor('planning.somethingNew'), /plan/);
   });
 });
 

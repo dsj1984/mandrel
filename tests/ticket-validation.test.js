@@ -3,58 +3,48 @@ import test from 'node:test';
 import { validateAndNormalizeTickets } from '../.agents/scripts/lib/orchestration/ticket-validator.js';
 
 /**
- * 3-tier ticket hierarchy (Epic #3238): the backlog is
- * Feature → Story, with every Story carrying its own inline
- * `acceptance[]` + `verify[]` contract. There is no Task tier.
+ * 2-tier ticket hierarchy (Story #4041): the backlog is a flat Story
+ * array attached directly to the Epic, with every Story carrying its own
+ * inline `acceptance[]` + `verify[]` contract. There is no Feature or
+ * Task tier.
  */
-function makeStory(slug, parentSlug, extras = {}) {
+function makeStory(slug, extras = {}) {
   return {
     slug,
     type: 'story',
     title: `Story ${slug}`,
-    parent_slug: parentSlug,
     acceptance: ['Observable criterion is met.'],
     verify: ['node --test'],
     ...extras,
   };
 }
 
-test('ticket-validator: basic valid hierarchy', () => {
-  // Story #3777 — every Feature MUST carry >=2 Stories, so the canonical
-  // valid hierarchy has two Stories under F1.
+test('ticket-validator: basic valid backlog', () => {
   const tickets = [
-    { slug: 'F1', type: 'feature', title: 'Feature 1' },
-    makeStory('S1', 'F1', { labels: ['complexity::fast'] }),
-    makeStory('S2', 'F1', { labels: ['complexity::fast'] }),
+    makeStory('S1', { labels: ['complexity::fast'] }),
+    makeStory('S2', { labels: ['complexity::fast'] }),
   ];
 
   const result = validateAndNormalizeTickets(tickets);
-  assert.equal(result.length, 3);
+  assert.equal(result.length, 2);
 });
 
-test('ticket-validator: fails on missing types', () => {
+test('ticket-validator: fails on a retired Feature ticket', () => {
   assert.throws(
-    () => validateAndNormalizeTickets([{ slug: 'F1', type: 'feature' }]),
-    /must contain at least one Story/,
-  );
-});
-
-test('ticket-validator: fails on missing parent', () => {
-  const tickets = [
-    { slug: 'F1', type: 'feature', title: 'Feature 1' },
-    makeStory('S1', undefined, { labels: ['complexity::fast'] }),
-  ];
-  assert.throws(
-    () => validateAndNormalizeTickets(tickets),
-    /must have a parent_slug/,
+    () =>
+      validateAndNormalizeTickets([
+        { slug: 'F1', type: 'feature', title: 'Feature 1' },
+        makeStory('S1'),
+        makeStory('S2'),
+      ]),
+    /are not Stories/,
   );
 });
 
 test('ticket-validator: fails on duplicate slug', () => {
   const tickets = [
-    { slug: 'F1', type: 'feature', title: 'Feature 1' },
-    makeStory('S1', 'F1', { labels: ['complexity::fast'] }),
-    makeStory('S1', 'F1', { title: 'Story 1 duplicate' }),
+    makeStory('S1', { labels: ['complexity::fast'] }),
+    makeStory('S1', { title: 'Story 1 duplicate' }),
   ];
   assert.throws(
     () => validateAndNormalizeTickets(tickets),
@@ -63,19 +53,17 @@ test('ticket-validator: fails on duplicate slug', () => {
 });
 
 test('ticket-validator: fails when a Story lacks an inline acceptance + verify contract', () => {
-  // 3-tier (Epic #3238): a Story with no top-level acceptance/verify is
-  // the legacy 4-tier shape that expected child Tasks. With the Task tier
-  // removed, such a Story is unimplementable and is rejected outright.
+  // A Story with no top-level acceptance/verify is the legacy shape that
+  // expected child Tasks. With the Task tier removed, such a Story is
+  // unimplementable and is rejected outright.
   const tickets = [
-    { slug: 'F1', type: 'feature', title: 'Feature 1' },
     {
       slug: 'S1',
       type: 'story',
       title: 'Story with no inline contract',
-      parent_slug: 'F1',
       labels: ['complexity::fast'],
     },
-    makeStory('S2', 'F1', { title: 'Well-formed story' }),
+    makeStory('S2', { title: 'Well-formed story' }),
   ];
   assert.throws(
     () => validateAndNormalizeTickets(tickets),
@@ -83,45 +71,41 @@ test('ticket-validator: fails when a Story lacks an inline acceptance + verify c
   );
 });
 
-test('ticket-validator: accepts a 3-tier Story (inline acceptance + verify)', () => {
-  // The canonical 3-tier Story carries inline acceptance + verify and is
+test('ticket-validator: accepts a 2-tier Story (inline acceptance + verify)', () => {
+  // The canonical 2-tier Story carries inline acceptance + verify and is
   // the implementation unit itself.
   const tickets = [
-    { slug: 'F1', type: 'feature', title: 'Feature 1' },
-    makeStory('S1', 'F1', {
-      title: '3-tier story',
+    makeStory('S1', {
+      title: '2-tier story',
       labels: ['complexity::fast'],
       acceptance: ['Observable criterion is met.'],
       verify: ['node --test tests/foo.test.js'],
     }),
-    // Story #3777 — second Story so F1 satisfies the >=2-Story invariant.
-    makeStory('S2', 'F1', {
-      title: '3-tier story sibling',
+    // Second well-formed Story.
+    makeStory('S2', {
+      title: '2-tier story sibling',
       labels: ['complexity::fast'],
       acceptance: ['Another observable criterion is met.'],
       verify: ['node --test tests/bar.test.js'],
     }),
   ];
   const result = validateAndNormalizeTickets(tickets);
-  assert.equal(result.length, 3);
+  assert.equal(result.length, 2);
 });
 
 test('ticket-validator: empty inline arrays do not satisfy the contract', () => {
   // Empty `acceptance` / `verify` arrays must not satisfy the inline
   // contract — both arrays must be non-empty.
   const tickets = [
-    { slug: 'F1', type: 'feature', title: 'Feature 1' },
     {
       slug: 'S1',
       type: 'story',
       title: 'Empty arrays',
-      parent_slug: 'F1',
       acceptance: [],
       verify: [],
     },
-    // Story #3777 — valid sibling so F1 has >=2 Stories; the inline-contract
-    // gate (not the single-Story-Feature gate) is what fires.
-    makeStory('S2', 'F1', { title: 'Well-formed sibling' }),
+    // Valid sibling Story; the inline-contract gate is what fires.
+    makeStory('S2', { title: 'Well-formed sibling' }),
   ];
   assert.throws(
     () => validateAndNormalizeTickets(tickets),
@@ -130,15 +114,13 @@ test('ticket-validator: empty inline arrays do not satisfy the contract', () => 
   // A Story with only `acceptance` (no `verify`) is incomplete and must
   // still fail — the contract requires both arrays.
   const onlyAcceptance = [
-    { slug: 'F1', type: 'feature', title: 'Feature' },
     {
       slug: 'S1',
       type: 'story',
       title: 'Incomplete',
-      parent_slug: 'F1',
       acceptance: ['Done.'],
     },
-    makeStory('S2', 'F1', { title: 'Well-formed sibling' }),
+    makeStory('S2', { title: 'Well-formed sibling' }),
   ];
   assert.throws(
     () => validateAndNormalizeTickets(onlyAcceptance),
@@ -148,22 +130,19 @@ test('ticket-validator: empty inline arrays do not satisfy the contract', () => 
 
 test('ticket-validator: reports all contract-less stories in one error', () => {
   const tickets = [
-    { slug: 'F1', type: 'feature', title: 'Feature 1' },
     {
       slug: 'S1',
       type: 'story',
       title: 'Empty A',
-      parent_slug: 'F1',
       labels: ['complexity::fast'],
     },
     {
       slug: 'S2',
       type: 'story',
       title: 'Empty B',
-      parent_slug: 'F1',
       labels: ['complexity::fast'],
     },
-    makeStory('S3', 'F1', { title: 'Well-formed' }),
+    makeStory('S3', { title: 'Well-formed' }),
   ];
   assert.throws(
     () => validateAndNormalizeTickets(tickets),
@@ -173,9 +152,8 @@ test('ticket-validator: reports all contract-less stories in one error', () => {
 
 test('ticket-validator: honors explicit cross-story dependencies', () => {
   const tickets = [
-    { slug: 'F1', type: 'feature', title: 'Feature' },
-    makeStory('S1', 'F1', { labels: ['complexity::fast'] }),
-    makeStory('S2', 'F1', {
+    makeStory('S1', { labels: ['complexity::fast'] }),
+    makeStory('S2', {
       labels: ['complexity::fast'],
       depends_on: ['S1'],
     }),
@@ -189,12 +167,11 @@ test('ticket-validator: honors explicit cross-story dependencies', () => {
 
 test('ticket-validator: detects cycles', () => {
   const tickets = [
-    { slug: 'F1', type: 'feature', title: 'Feature' },
-    makeStory('S1', 'F1', {
+    makeStory('S1', {
       labels: ['complexity::fast'],
       depends_on: ['S2'],
     }),
-    makeStory('S2', 'F1', {
+    makeStory('S2', {
       labels: ['complexity::fast'],
       depends_on: ['S1'],
     }),
@@ -206,35 +183,14 @@ test('ticket-validator: detects cycles', () => {
   );
 });
 
-test('ticket-validator: fails on missing Feature', () => {
-  assert.throws(
-    () => validateAndNormalizeTickets([{ slug: 'S1', type: 'story' }]),
-    /must contain at least one Feature/,
-  );
-});
-
-test('ticket-validator: fails if story parent is not a feature', () => {
-  const tickets = [
-    { slug: 'F1', type: 'feature' },
-    makeStory('S0', 'F1'),
-    makeStory('S1', 'S0', { labels: ['complexity::fast'] }),
-  ];
-  assert.throws(
-    () => validateAndNormalizeTickets(tickets),
-    /parent must be a Feature/,
-  );
-});
-
 test('ticket-validator: fails fast on unknown depends_on slug', () => {
   const tickets = [
-    { slug: 'F1', type: 'feature', title: 'Feature 1' },
-    makeStory('S1', 'F1', {
+    makeStory('S1', {
       labels: ['complexity::fast'],
       depends_on: ['MISSING'],
     }),
-    // Story #3777 — valid sibling so F1 has >=2 Stories; the unknown-deps
-    // gate (not the single-Story-Feature gate) is what fires.
-    makeStory('S2', 'F1', { labels: ['complexity::fast'] }),
+    // Valid sibling Story; the unknown-deps gate is what fires.
+    makeStory('S2', { labels: ['complexity::fast'] }),
   ];
   assert.throws(() => validateAndNormalizeTickets(tickets), /unknown slugs/);
 });
@@ -255,8 +211,7 @@ test('ticket-validator: shared probe cache — each path probed once across both
   const sharedPath = '.agents/scripts/lib/orchestration/ticket-validator.js';
 
   const tickets = [
-    { slug: 'F1', type: 'feature', title: 'Feature 1' },
-    makeStory('S1', 'F1', {
+    makeStory('S1', {
       // body.changes object-form triggers validateStoryFileAssumptions
       body: {
         goal: 'refactor the validator',
@@ -267,7 +222,7 @@ test('ticket-validator: shared probe cache — each path probed once across both
       acceptance: ['Observable outcome is met.'],
       verify: ['node --test'],
     }),
-    makeStory('S2', 'F1', {
+    makeStory('S2', {
       // AC text references the same path — triggers validateAcFreshness
       acceptance: [`The change is consistent with \`${sharedPath}\` exports.`],
       verify: ['node --test'],

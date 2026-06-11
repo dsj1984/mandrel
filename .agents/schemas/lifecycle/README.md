@@ -1,7 +1,7 @@
 # Lifecycle event schemas
 
 JSON Schemas for the lifecycle event taxonomy consumed by the
-`/epic-deliver` lifecycle bus
+`/deliver` lifecycle bus
 (`lib/orchestration/lifecycle/bus.js`). The bus validates every
 emit payload against one of these schemas before invoking
 listeners; a schema mismatch fails the emit and propagates the

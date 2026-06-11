@@ -5,7 +5,7 @@
  *
  * The Finalizer's listener-level `(event, seqId)` guard already prevents
  * a single-process replay from opening a second PR, but a cross-process
- * re-run of `/epic-deliver` after a crash mints fresh seqIds — the
+ * re-run of `/deliver` after a crash mints fresh seqIds — the
  * `gh pr list --head` probe is the load-bearing defence for that case.
  * This file drives the probe explicitly with a stubbed `gh` CLI that
  * records call counts, and asserts:
@@ -125,7 +125,7 @@ describe('Finalizer cross-process idempotency — gh pr list --head probe', () =
       };
 
       // Cross-process shape: two distinct (bus, Finalizer) pairs (each
-      // emit comes from a separate `/epic-deliver` invocation, so the
+      // emit comes from a separate `/deliver` invocation, so the
       // listener-level seqId cache is empty and the in-memory bus
       // state is fresh on each). The shared ledger captures both runs.
       const buildRun = () => {

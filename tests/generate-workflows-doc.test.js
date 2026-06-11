@@ -30,7 +30,7 @@ const SAMPLE_WORKFLOW = path.join(
   REPO_ROOT,
   '.agents',
   'workflows',
-  'epic-deliver.md',
+  'deliver.md',
 );
 
 describe('renderWorkflowsDoc', () => {

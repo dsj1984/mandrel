@@ -13,7 +13,7 @@
  *
  * The "same (event, seqId)" guard would already prevent a re-run from
  * within the same bus instance — but cross-process re-runs of
- * `/epic-deliver` after a crash carry fresh seqIds. The probe is the
+ * `/deliver` after a crash carry fresh seqIds. The probe is the
  * defence for that case. We exercise both:
  *   - Fresh listener instance + existing PR → short-circuit fires.
  *   - Same listener instance + repeat seqId → listener short-circuits

@@ -141,7 +141,7 @@
             "assumption": "delivered slice"
           },
           {
-            "path": ".agents/workflows/epic-plan.md",
+            "path": ".agents/workflows/helpers/plan-epic.md",
             "assumption": "delivered slice"
           },
           {
@@ -203,7 +203,7 @@
             "assumption": "delivered slice"
           },
           {
-            "path": ".agents/workflows/epic-deliver.md",
+            "path": ".agents/workflows/helpers/deliver-epic.md",
             "assumption": "delivered slice"
           },
           {

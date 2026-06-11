@@ -57,7 +57,7 @@ the same shape as Rule 1 but at the sub-agent layer.
 
 - **Tool primitives:** `Agent` (one call per independent unit, all in one
   turn).
-- **When:** wave-level Story fan-out from `/epic-deliver`, per-dimension
+- **When:** wave-level Story fan-out from `/deliver`, per-dimension
   audit dispatch, any "for each X in Xs run /Y X" loop where the Xs do not
   share write paths.
 - **Anti-pattern:** serial `Agent` calls (`Agent` → wait → `Agent` → wait)

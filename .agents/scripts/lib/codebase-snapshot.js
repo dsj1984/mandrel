@@ -1,7 +1,7 @@
 /**
  * codebase-snapshot.js — Bounded structural view of the consumer repo.
  *
- * Story #2634 (sibling to #2635 spec-freshness). `/epic-plan` Phase 7
+ * Story #2634 (sibling to #2635 spec-freshness). `/plan` Phase 7
  * authors PRD + Tech Spec from documentation alone — `architecture.md`,
  * `data-dictionary.md`, `decisions.md`, `patterns.md`. When those docs
  * drift from the real source tree, the Architect persona cites modules

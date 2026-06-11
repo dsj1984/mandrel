@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
  *
  * The `/onboard` workflow is a markdown document that composes four
  * already-shipped building blocks (stack detection, docs scaffolding, the
- * `mandrel doctor` readiness gate, and a started /epic-plan handoff) into a
+ * `mandrel doctor` readiness gate, and a started /plan handoff) into a
  * single guided first-successful-run path. These unit tests assert the
  * document exists and documents each required composition point so the
  * workflow cannot silently drop a phase or its first-run framing.
@@ -100,9 +100,9 @@ describe('/onboard workflow document', () => {
     );
   });
 
-  it('documents a started /epic-plan handoff that is not auto-run', () => {
+  it('documents a started /plan handoff that is not auto-run', () => {
     const body = readOnboard();
-    assert.match(body, /\/epic-plan/, 'should hand off to /epic-plan');
+    assert.match(body, /\/plan/, 'should hand off to /plan');
     assert.match(body, /handoff/i, 'should describe the planning handoff');
     assert.match(
       body,

@@ -301,7 +301,7 @@ export function renderBlockerMessage({
     lines.push(`  Pending (@pending-only coverage): ${pending.join(', ')}`);
   }
   lines.push(
-    `Author or de-pend scenarios under tests/features/** tagged @epic-${epicId}-ac-<n> so every AC ID is satisfied, then re-run /epic-deliver.`,
+    `Author or de-pend scenarios under tests/features/** tagged @epic-${epicId}-ac-<n> so every AC ID is satisfied, then re-run /deliver.`,
   );
   return lines.join('\n');
 }
@@ -420,7 +420,7 @@ export async function reconcileAcceptanceSpec({
     }
     // Defence in depth — the start gate would normally catch this.
     throw new Error(
-      `[acceptance-spec-reconciler] Epic #${epicId} has no linked context::acceptance-spec ticket and no acceptance::n-a waiver label. Re-run /epic-plan Phase 7 or apply the waiver.`,
+      `[acceptance-spec-reconciler] Epic #${epicId} has no linked context::acceptance-spec ticket and no acceptance::n-a waiver label. Re-run /plan Phase 7 or apply the waiver.`,
     );
   }
 

@@ -69,6 +69,6 @@ export function warnTicketCapNearLimit(
 ) {
   if (tickets.length < maxTickets) return;
   logger.warn(
-    `[${tag}] ⚠️  Received ${tickets.length} tickets against a reviewability budget of ${maxTickets}. Review the Feature/Story split before persisting; over-budget persistence requires --allow-over-budget.`,
+    `[${tag}] ⚠️  Received ${tickets.length} tickets against a reviewability budget of ${maxTickets}. Review the Story decomposition before persisting; over-budget persistence requires --allow-over-budget.`,
   );
 }

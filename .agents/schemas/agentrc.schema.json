@@ -518,7 +518,7 @@
         "maxFixAttempts": {
           "type": "integer",
           "minimum": 0,
-          "description": "Maximum auto-fix retry attempts per finding in /epic-deliver Phase 4 (epic-audit). 0 disables auto-fix. Default 3."
+          "description": "Maximum auto-fix retry attempts per finding in /deliver Phase 4 (epic-audit). 0 disables auto-fix. Default 3."
         },
         "maxFixScopeFiles": {
           "type": "integer",
@@ -600,7 +600,7 @@
         "maxFixAttempts": {
           "type": "integer",
           "minimum": 0,
-          "description": "Maximum auto-fix retry attempts per finding in /epic-deliver Phase 5 (code-review). 0 disables auto-fix. Default 3."
+          "description": "Maximum auto-fix retry attempts per finding in /deliver Phase 5 (code-review). 0 disables auto-fix. Default 3."
         },
         "maxFixScopeFiles": {
           "type": "integer",
@@ -1383,7 +1383,7 @@
         },
         "preflight": {
           "type": "object",
-          "description": "Story #2899 (Epic #2880, F13). Thresholds consumed by `.agents/scripts/epic-deliver-preflight.js`. When any value is exceeded the preflight envelope flags a breach and /epic-deliver Phase 1 surfaces it via agent::blocked.",
+          "description": "Story #2899 (Epic #2880, F13). Thresholds consumed by `.agents/scripts/epic-deliver-preflight.js`. When any value is exceeded the preflight envelope flags a breach and /deliver Phase 1 surfaces it via agent::blocked.",
           "properties": {
             "maxStories": {
               "type": "integer",

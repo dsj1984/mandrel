@@ -5,7 +5,7 @@
  * resync-status-column.js — re-assert the GitHub Projects v2 Status
  * column for a ticket after auto-merge has fired (Story #2845).
  *
- * The `/single-story-deliver` and `/story-deliver` workflow docs call
+ * The `/single-story-deliver` and `/deliver` workflow docs call
  * this CLI after Step 5 confirms `state: "MERGED"` so the orchestrator
  * wins the race against the GitHub built-in `Pull request merged`
  * workflow, which would otherwise overwrite Status to whatever value

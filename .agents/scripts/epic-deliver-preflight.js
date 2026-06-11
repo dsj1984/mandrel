@@ -4,7 +4,7 @@
 /**
  * epic-deliver-preflight.js — Story #2899 (Epic #2880, F13).
  *
- * Estimates the cost of an upcoming `/epic-deliver` run *before* Story
+ * Estimates the cost of an upcoming `/deliver` run *before* Story
  * fan-out and surfaces the result to the operator on two channels:
  *
  *   1. A JSON envelope on stdout (always) with the keys
@@ -19,7 +19,7 @@
  *
  * The CLI is intentionally side-effect-light when `--dry-run` is set: no
  * comment write, no lifecycle emit. The slash-command workflow
- * (`/epic-deliver` Phase 1) calls the CLI without `--dry-run` so the
+ * (`/deliver` Phase 1) calls the CLI without `--dry-run` so the
  * comment is upserted; if any threshold is breached, the workflow flips
  * the Epic to `agent::blocked` and surfaces the envelope in chat for
  * operator review. The CLI itself does NOT flip labels — the workflow
@@ -70,7 +70,7 @@ const HELP = `Usage: node .agents/scripts/epic-deliver-preflight.js \\
   [--per-story-claude-tokens <n>]
 
 Estimates Story count, install cost, wave count, GitHub API request volume,
-and Claude Max quota burn for an Epic *before* /epic-deliver fan-out.
+and Claude Max quota burn for an Epic *before* /deliver fan-out.
 
 Flags:
   --dry-run                        Compute the estimate and print the JSON
@@ -103,7 +103,7 @@ const DEFAULTS = Object.freeze({
   perStoryApiRequests: 25,
   perStoryClaudeTokens: 200_000,
   // Base GH API budget: snapshot getTicket + getSubTickets + plan/manifest
-  // reads/writes that happen once per /epic-deliver run regardless of
+  // reads/writes that happen once per /deliver run regardless of
   // Story count. Empirical observation from a 5-Story Epic shows ~30
   // requests for the non-per-Story floor.
   baseApiRequests: 30,
@@ -240,7 +240,7 @@ export function renderPreflightBody({
     );
   } else {
     lines.push(
-      '⛔ **Threshold breaches** — `/epic-deliver` will flip the Epic to `agent::blocked` for operator review:',
+      '⛔ **Threshold breaches** — `/deliver` will flip the Epic to `agent::blocked` for operator review:',
     );
     for (const b of breaches) {
       lines.push(`- \`${b.key}\` = ${b.observed} (max ${b.max})`);
@@ -284,7 +284,7 @@ export async function runPreflight({
   const provider = injectedProvider ?? createProvider(config);
   const thresholds = getPreflight(config);
 
-  // Compose the same two phases /epic-deliver Phase 1 runs so the
+  // Compose the same two phases /deliver Phase 1 runs so the
   // preflight numbers match the actual dispatch plan.
   const ctx = { epicId, provider };
   let state = {};

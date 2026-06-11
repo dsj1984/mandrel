@@ -5,10 +5,10 @@
  * After Story #908, in-session Agent-tool fan-out replaces the subprocess
  * spawn pipeline. The launcher's primary responsibility is `planWave(stories)`:
  * given a wave's Story tickets it returns a stable list of
- * `{ storyId, worktree }` entries. The `/epic-deliver` skill consumes that
+ * `{ storyId, worktree }` entries. The `/deliver` skill consumes that
  * list (one wave at a time) to format one assistant turn containing N
  * parallel `Agent` tool calls (subagent_type `general-purpose`), each of
- * which drives `/story-deliver <storyId>` for one Story.
+ * which drives `/deliver <storyId>` for one Story.
  *
  * `launchWave(stories)` is a convenience for callers that already hold a
  * concrete dispatch adapter (tests, future programmatic harnesses). It calls
@@ -46,7 +46,7 @@ export class StoryLauncher {
 
   /**
    * Produce the dispatch plan for a wave. Pure: no side effects, no IO. The
-   * caller (the `/epic-deliver` skill's wave loop, or `launchWave` below)
+   * caller (the `/deliver` skill's wave loop, or `launchWave` below)
    * decides what to do with the plan.
    *
    * @param {Array<number|{id?:number,storyId?:number,number?:number}>} stories
@@ -78,7 +78,7 @@ export class StoryLauncher {
   async launchWave(stories, signal) {
     if (typeof this.dispatch !== 'function') {
       throw new TypeError(
-        'StoryLauncher.launchWave requires a dispatch adapter (in-session Agent-tool fan-out is the responsibility of the /epic-deliver skill).',
+        'StoryLauncher.launchWave requires a dispatch adapter (in-session Agent-tool fan-out is the responsibility of the /deliver skill).',
       );
     }
     const plan = this.planWave(stories);

@@ -42,8 +42,8 @@ import {
 const SEARCH_PAGE_CAP = 10;
 
 /**
- * Compose the final markdown body for a created ticket. Under the 3-tier
- * hierarchy (Epic → Feature → Story), `body` is always a string supplied
+ * Compose the final markdown body for a created ticket. Under the 2-tier
+ * hierarchy (Epic → Story), `body` is always a string supplied
  * by the caller (the decomposer, the spec planner, or the reconciler-apply
  * engine). This helper appends the canonical orchestrator footer
  * (`parent: #<n>` / `Epic: #<m>` / `blocked by #<x>`) byte-stable with the
@@ -361,8 +361,8 @@ export class TicketGateway {
   /**
    * Create a **bare** issue — no `parent: #N` footer composition and no
    * sub-issue link. Serves the standalone create paths that bypass
-   * `createTicket`'s Story-shaped body rendering: the `/story-plan`
-   * persist step and the `/epic-plan` Phase 4 Epic open
+   * `createTicket`'s Story-shaped body rendering: the `/plan`
+   * persist step and the `/plan` Phase 4 Epic open
    * (`openEpicFromOnePager`'s `createIssue` port).
    *
    * After the POST, the new issue is added to the configured Project V2

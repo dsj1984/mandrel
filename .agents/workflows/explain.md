@@ -14,7 +14,7 @@ description:
 landed (or is about to) and you want to be sure you actually understand it —
 the problem it solves, why it was solved this way, the design decisions, the
 edge cases, and the blast radius. It is the after-the-fact counterpart to
-[`/epic-plan`](epic-plan.md) Phase 11 (which walks the operator through a
+[`/plan`](helpers/plan-epic.md) Phase 11 (which walks the operator through a
 *plan* before delivery); both drive the same engine.
 
 ```text
@@ -39,7 +39,7 @@ contract.
 | Understand a change that already merged | `/explain <PR#>` |
 | Understand a branch before merging it | `/explain <branch>` |
 | Understand what you are about to commit | `/explain --staged` |
-| Understand a freshly planned Epic backlog | `/epic-plan` Phase 11 (automatic) |
+| Understand a freshly planned Epic backlog | `/plan` Phase 11 (automatic) |
 
 ## Step 1 — Resolve the subject
 
@@ -111,7 +111,7 @@ structured-question mechanism when it sharpens understanding.
 
 - [`core/knowledge-transfer`](../skills/core/knowledge-transfer/SKILL.md) —
   the comprehension engine this command drives.
-- [`/epic-plan`](epic-plan.md) — Phase 11 runs the same engine over a plan
+- [`/plan`](helpers/plan-epic.md) — Phase 11 runs the same engine over a plan
   before delivery.
 - `/code-review` (Claude Code built-in) — correctness review of a diff. A
   different concern: `/explain` builds *operator* understanding, not a defect

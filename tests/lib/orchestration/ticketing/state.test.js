@@ -408,7 +408,7 @@ describe('ticketing/state — upsertStructuredComment', () => {
 });
 
 // Story #3097 (Wave-0 additive, Epic #3078 Strategy B) — Storyless direct
-// Story transition. In 3-tier mode the Story has no Task children, so the
+// Story transition. In 2-tier mode the Story has no Task children, so the
 // canonical `transitionTicketState` Task-fan-in path is not exercised; the
 // helper documents the intent and pins the label set still flips
 // correctly (one agent::* label on the ticket, closed/open mirrored).

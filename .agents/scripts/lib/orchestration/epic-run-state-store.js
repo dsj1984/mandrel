@@ -1,6 +1,6 @@
 /**
  * epic-run-state-store — stateless functions for reading and writing the
- * `epic-run-state` structured comment used by `/epic-deliver`.
+ * `epic-run-state` structured comment used by `/deliver`.
  *
  * This module is the function-based replacement for the legacy
  * `Checkpointer` class that previously lived at
@@ -133,7 +133,7 @@ export async function initialize({
  * Reconcile the resume pointer (`currentWave` + `waves[]` history) against
  * a freshly-recomputed wave plan.
  *
- * Story #3358 — when `/epic-deliver` is resumed on a partially-complete
+ * Story #3358 — when `/deliver` is resumed on a partially-complete
  * Epic, `epic-deliver-prepare.js` recomputes the wave DAG over only the
  * **not-done** Stories (`build-wave-dag.js#discoverOpenStories` drops the
  * closed/merged Stories). The recomputed plan is therefore *shorter* and
@@ -270,7 +270,7 @@ export async function appendIntervention({ provider, epicId, entry } = {}) {
 }
 
 /**
- * Advance the checkpoint's `phase` field to the next `/epic-deliver`
+ * Advance the checkpoint's `phase` field to the next `/deliver`
  * phase. Reads the current state first so the caller does not need to
  * keep an in-memory copy. Other state fields are preserved verbatim.
  *

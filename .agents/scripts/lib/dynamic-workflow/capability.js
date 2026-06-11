@@ -26,7 +26,7 @@
  *
  * Both paths MUST emit the identical per-lens report contract
  * (`{{auditOutputDir}}/<lens>-results.md`), so downstream consumers
- * (`/epic-deliver` Phase 4 epic-audit, `audit-to-stories`) are agnostic to
+ * (`/deliver` Phase 4 epic-audit, `audit-to-stories`) are agnostic to
  * which path produced it.
  *
  * ## Why this is capability-degradation, not a contract shim

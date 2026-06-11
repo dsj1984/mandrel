@@ -87,10 +87,10 @@ describe('lib/spec/loader.js — loadSpec', () => {
     plantFixture(1182, 'full');
     const spec = loadSpec(1182, { epicsDir: sandbox });
     assert.equal(spec.epic.id, 1182);
-    assert.equal(spec.features.length, 2);
+    assert.equal(spec.stories.length, 2);
   });
 
-  it('parses + validates a real YAML spec authored by hand (3-tier shape)', () => {
+  it('parses + validates a real YAML spec authored by hand (2-tier shape)', () => {
     plantSpec(
       8888,
       [
@@ -99,25 +99,22 @@ describe('lib/spec/loader.js — loadSpec', () => {
         '  title: Hand-authored YAML',
         '  labels:',
         '    - type::epic',
-        'features:',
-        '  - slug: feat-a',
-        '    title: Feature A',
-        '    stories:',
-        '      - slug: story-a',
-        '        title: Story A',
-        '        wave: 0',
-        '        acceptance:',
-        '          - Story A delivers feature A',
-        '        verify:',
-        '          - node --test',
+        'stories:',
+        '  - slug: story-a',
+        '    title: Story A',
+        '    wave: 0',
+        '    acceptance:',
+        '      - Story A delivers the capability',
+        '    verify:',
+        '      - node --test',
         '',
       ].join('\n'),
     );
     const spec = loadSpec(8888, { epicsDir: sandbox });
     assert.equal(spec.epic.id, 8888);
-    assert.equal(spec.features[0].stories[0].slug, 'story-a');
-    assert.deepEqual(spec.features[0].stories[0].acceptance, [
-      'Story A delivers feature A',
+    assert.equal(spec.stories[0].slug, 'story-a');
+    assert.deepEqual(spec.stories[0].acceptance, [
+      'Story A delivers the capability',
     ]);
   });
 
@@ -147,17 +144,17 @@ describe('lib/spec/loader.js — loadSpec', () => {
     );
   });
 
-  it('throws SpecValidationError naming the offending JSON path on missing-features', () => {
-    plantFixture(5555, 'invalid-missing-features');
+  it('throws SpecValidationError naming the offending JSON path on missing-stories', () => {
+    plantFixture(5555, 'invalid-missing-stories');
     assert.throws(
       () => loadSpec(5555, { epicsDir: sandbox }),
       (err) => {
         assert.ok(err instanceof SpecValidationError);
         assert.equal(err.epicId, '5555');
-        const featureErr = err.issues.find((i) => i.path === '/features');
+        const storiesErr = err.issues.find((i) => i.path === '/stories');
         assert.ok(
-          featureErr,
-          `expected an issue at /features, got: ${JSON.stringify(err.issues)}`,
+          storiesErr,
+          `expected an issue at /stories, got: ${JSON.stringify(err.issues)}`,
         );
         return true;
       },
@@ -171,11 +168,11 @@ describe('lib/spec/loader.js — loadSpec', () => {
       (err) => {
         assert.ok(err instanceof SpecValidationError);
         const slugErr = err.issues.find((i) =>
-          i.path.startsWith('/features/0/slug'),
+          i.path.startsWith('/stories/0/slug'),
         );
         assert.ok(
           slugErr,
-          `expected a /features/0/slug issue, got: ${JSON.stringify(err.issues)}`,
+          `expected a /stories/0/slug issue, got: ${JSON.stringify(err.issues)}`,
         );
         return true;
       },

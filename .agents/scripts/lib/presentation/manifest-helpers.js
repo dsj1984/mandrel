@@ -8,7 +8,7 @@
  * re-exports every name here so existing call-sites' import paths stay
  * unchanged.
  *
- * Post-3-tier (Story #3194 / #3413, Epic #3163): the helpers consume the
+ * Post-2-tier (Story #3194 / #3413, Epic #3163): the helpers consume the
  * Story-only manifest shape. Stories carry their lifecycle state on a
  * top-level `status` field (the parent Story's `agent::*` label) — the
  * old per-Story Task array, the per-Task id indirection, and the

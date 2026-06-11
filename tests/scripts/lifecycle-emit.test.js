@@ -5,7 +5,7 @@
  * Epic #2307).
  *
  * The helper replaces the three single-purpose shim scripts the
- * `/epic-deliver` workflow previously invoked at Phase 6, 7.5, and 8.
+ * `/deliver` workflow previously invoked at Phase 6, 7.5, and 8.
  * These tests pin three behaviours:
  *
  *   1. Happy path — `--epic <id> --event epic.close.end` emits
@@ -196,7 +196,7 @@ describe('lifecycle-emit ↔ epic.merge.* schemas (Story #2681)', () => {
 
 // Story #2855 — `epic.automerge.start` had the same shape as the #2681
 // schemas (additionalProperties: false, no `epicId` property), so the
-// documented `/epic-deliver` Phase 8.5 invocation
+// documented `/deliver` Phase 8.5 invocation
 // `lifecycle-emit --epic <id> --event epic.automerge.start --pr-url <url>`
 // failed schema validation. The schema now accepts `epicId` as an optional
 // integer. This test pins the relaxation against future re-tightening.

@@ -372,7 +372,7 @@ class NativeParentMock extends ITicketingProvider {
       200: {
         id: 200,
         nodeId: 'NODE_FEAT_200',
-        labels: ['agent::executing', 'type::feature'],
+        labels: ['agent::executing', 'type::story'],
         body: 'Feature body',
         state: 'open',
       },
@@ -467,7 +467,7 @@ describe('ticketing/bulk — cascadeCompletion native parent fallback (Story #29
 
 /**
  * Story #3097 (Wave-0 additive, Epic #3078 Strategy B) — Storyless
- * cascade fixtures. In 3-tier mode (Epic → Feature → Story, no Task
+ * cascade fixtures. In 2-tier mode (Epic → Story, no Task
  * children) a Story that flips to `agent::done` must still cascade
  * upward without throwing when `getSubTickets(storyId)` returns the
  * empty array. `deriveParentState([])` returns `null` (no-op), which is
@@ -485,17 +485,17 @@ class StorylessHierarchyMock extends ITicketingProvider {
     super();
     this.updates = [];
     this.comments = [];
-    // 3-tier hierarchy: Epic 300 ← Feature 30 ← Story 3 (NO Tasks).
+    // 2-tier hierarchy: Epic 300 ← Feature 30 ← Story 3 (NO Tasks).
     this.tickets = {
       3: {
         id: 3,
         labels: ['agent::done', 'type::story'],
-        body: 'Story body — Storyless (3-tier)\nparent: #30',
+        body: 'Story body — Storyless (2-tier)\nparent: #30',
         state: 'closed',
       },
       30: {
         id: 30,
-        labels: ['agent::executing', 'type::feature'],
+        labels: ['agent::executing', 'type::story'],
         body: 'Feature body\n- [ ] #3\nparent: #300',
         state: 'open',
       },

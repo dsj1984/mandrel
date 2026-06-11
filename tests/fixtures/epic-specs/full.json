@@ -1,48 +1,35 @@
 {
   "$schema": "../../../.agents/schemas/epic-spec.schema.json",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "epic": {
     "id": 1182,
-    "title": "v6 Epic D — Declarative epic.yaml + reconciler",
+    "title": "v6 Epic D \u2014 Declarative epic.yaml + reconciler",
     "body": "Structural SSOT migration. See PRD #1482 / Tech Spec #1483.",
     "labels": ["type::epic"]
   },
-  "features": [
+  "stories": [
     {
-      "slug": "spec-and-schema",
-      "title": "Spec format + JSON Schema",
-      "labels": ["type::feature"],
-      "stories": [
-        {
-          "slug": "schema-author",
-          "title": "Author epic-spec.schema.json",
-          "body": "Define the canonical structural schema.",
-          "wave": 0,
-          "dependsOn": [],
-          "labels": ["type::story", "persona::architect"],
-          "acceptance": [
-            "Schema skeleton declares Epic, Feature, Story shapes",
-            "Schema ships with fixture tests covering positive and negative cases"
-          ],
-          "verify": ["node --test tests/scripts/epic-spec-schema.test.js"]
-        }
-      ]
+      "slug": "schema-author",
+      "title": "Author epic-spec.schema.json",
+      "body": "Define the canonical structural schema.",
+      "wave": 0,
+      "dependsOn": [],
+      "labels": ["type::story", "persona::architect"],
+      "acceptance": [
+        "Schema skeleton declares Epic and Story shapes",
+        "Schema ships with fixture tests covering positive and negative cases"
+      ],
+      "verify": ["node --test tests/scripts/epic-spec-schema.test.js"]
     },
     {
-      "slug": "reconciler-core",
-      "title": "Reconciler diff + apply",
-      "stories": [
-        {
-          "slug": "diff-engine",
-          "title": "Diff engine + drift discriminator",
-          "wave": 1,
-          "dependsOn": ["schema-author"],
-          "acceptance": [
-            "Pure-function diff returns Create/Update/Close/Relink ops"
-          ],
-          "verify": ["node --test tests/scripts/epic-reconcile.test.js"]
-        }
-      ]
+      "slug": "diff-engine",
+      "title": "Diff engine + drift discriminator",
+      "wave": 1,
+      "dependsOn": ["schema-author"],
+      "acceptance": [
+        "Pure-function diff returns Create/Update/Close/Relink ops"
+      ],
+      "verify": ["node --test tests/scripts/epic-reconcile.test.js"]
     }
   ],
   "gates": {

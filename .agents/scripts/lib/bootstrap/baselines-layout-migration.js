@@ -15,7 +15,7 @@
  *
  * All three shapes are relocated under `<repoRoot>/temp/epic/<id>/baselines/`,
  * where they inherit the existing per-epic temp-tree cleanup contract:
- * `/epic-deliver` reaps `temp/epic/<id>/` on merge, so the ratchet snapshots
+ * `/deliver` reaps `temp/epic/<id>/` on merge, so the ratchet snapshots
  * are ephemeral scratch state — never committed, no manual prune.
  *
  * The main-tracked `baselines/{maintainability,crap}.json` files are NOT

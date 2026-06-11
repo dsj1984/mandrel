@@ -22,24 +22,15 @@ import {
 import { DELIVERABLE_GRANULARITY_GUIDANCE } from '../.agents/scripts/lib/orchestration/ticket-validator-sizing.js';
 import { renderDecomposerSystemPrompt } from '../.agents/scripts/lib/templates/decomposer-prompts.js';
 
-// 3-tier (Epic #3238): Feature → Story, with the Story carrying its inline
-// acceptance + verify contract and a structured body. There is no Task tier.
-// Story #3777 — a Feature MUST decompose into >=2 Stories, so the base
-// fixture carries two well-formed Stories under f1.
+// 2-tier (Story #4041): a flat Story backlog attached directly to the Epic,
+// with every Story carrying its inline acceptance + verify contract and a
+// structured body. There is no Feature or Task tier.
 const baseTickets = () => [
-  {
-    slug: 'f1',
-    type: 'feature',
-    title: 'Feature One',
-    body: 'Body of Feature One',
-    labels: ['type::feature', 'persona::engineer'],
-  },
   {
     slug: 's1',
     type: 'story',
     title: 'Story One',
     labels: ['type::story', 'persona::fullstack', 'complexity::fast'],
-    parent_slug: 'f1',
     acceptance: ['Story One is implemented'],
     verify: ['npm test (unit)'],
     body: {
@@ -54,7 +45,6 @@ const baseTickets = () => [
     type: 'story',
     title: 'Story One-B',
     labels: ['type::story', 'persona::fullstack', 'complexity::fast'],
-    parent_slug: 'f1',
     acceptance: ['Story One-B is implemented'],
     verify: ['npm test (unit)'],
     body: {
@@ -66,15 +56,14 @@ const baseTickets = () => [
   },
 ];
 
-// 3-tier (Epic #3238): a Story is its own implementation unit. It carries
+// 2-tier (Epic #3238): a Story is its own implementation unit. It carries
 // the top-level inline contract (acceptance[] + verify[]) the validator
 // requires plus a structured body. Used to build the multi-Story fixtures
 // the orchestration concurrency / ordering tests exercise.
-const makeStory = (slug, title, parentSlug, extras = {}) => ({
+const makeStory = (slug, title, extras = {}) => ({
   slug,
   type: 'story',
   title,
-  parent_slug: parentSlug,
   labels: ['type::story', 'persona::fullstack', 'complexity::fast'],
   acceptance: [`${title} is implemented`],
   verify: ['npm test (unit)'],
@@ -147,7 +136,7 @@ describe('ticket-decomposer persist guards (runDecomposePhase)', () => {
     mockProvider.getEpic = async () => ({
       id: 1,
       title: 'Not An Epic',
-      labels: ['type::feature'],
+      labels: ['type::story'],
       linkedIssues: { prd: 100, techSpec: 101 },
     });
 
@@ -204,31 +193,27 @@ describe('ticket-decomposer DAG wiring (orderTicketsForCreation + resolveDepende
     // unresolvable). The intra-group topological sort must re-order them to
     // s-a, s-b, s-c, s-d.
     const tickets = [
-      { slug: 'f1', type: 'feature', title: 'Feature One' },
-      makeStory('s-d', 'Story D', 'f1', { depends_on: ['s-c'] }),
-      makeStory('s-c', 'Story C', 'f1', { depends_on: ['s-b'] }),
-      makeStory('s-b', 'Story B', 'f1', { depends_on: ['s-a'] }),
-      makeStory('s-a', 'Story A', 'f1'),
+      makeStory('s-d', 'Story D', { depends_on: ['s-c'] }),
+      makeStory('s-c', 'Story C', { depends_on: ['s-b'] }),
+      makeStory('s-b', 'Story B', { depends_on: ['s-a'] }),
+      makeStory('s-a', 'Story A'),
     ];
 
     const orderedSlugs = orderTicketsForCreation(tickets).map((t) => t.slug);
-    assert.deepEqual(orderedSlugs, ['f1', 's-a', 's-b', 's-c', 's-d']);
+    assert.deepEqual(orderedSlugs, ['s-a', 's-b', 's-c', 's-d']);
   });
 
   it('resolves a sibling Story depends_on to the dependency Story id via the slugMap', () => {
-    // Mirror the slugMap state after Feature One (200) and Story One (201)
-    // have been created in earlier passes; Story Two depends on Story One.
-    const slugMap = new Map([
-      ['f1', 200],
-      ['s1', 201],
-    ]);
-    const storyTwo = makeStory('s2', 'Story Two', 'f1', { depends_on: ['s1'] });
+    // Mirror the slugMap state after Story One (201) has been created in
+    // an earlier pass; Story Two depends on Story One.
+    const slugMap = new Map([['s1', 201]]);
+    const storyTwo = makeStory('s2', 'Story Two', { depends_on: ['s1'] });
     assert.deepEqual(resolveDependencies(storyTwo, slugMap), [201]);
   });
 
   it('resolves an empty dependency list when a Story has no depends_on', () => {
-    const slugMap = new Map([['f1', 200]]);
-    const storyOne = makeStory('s1', 'Story One', 'f1');
+    const slugMap = new Map();
+    const storyOne = makeStory('s1', 'Story One');
     assert.deepEqual(resolveDependencies(storyOne, slugMap), []);
   });
 });
@@ -271,59 +256,38 @@ describe('ticket-decomposer resolveDependencies', () => {
 });
 
 describe('ticket-decomposer orderTicketsForCreation', () => {
-  it('places features before stories before tasks regardless of input order', () => {
+  it('topologically sorts the Story set', () => {
     const tickets = [
-      { slug: 't1', type: 'task', title: 'T', parent_slug: 's1' },
-      { slug: 's1', type: 'story', title: 'S', parent_slug: 'f1' },
-      { slug: 'f1', type: 'feature', title: 'F' },
-    ];
-    const order = orderTicketsForCreation(tickets).map((t) => t.slug);
-    assert.deepEqual(order, ['f1', 's1', 't1']);
-  });
-
-  it('topologically sorts within a (parent_slug, type) group', () => {
-    const tickets = [
-      { slug: 'f1', type: 'feature', title: 'F' },
-      { slug: 's1', type: 'story', title: 'S', parent_slug: 'f1' },
       {
-        slug: 't-c',
-        type: 'task',
+        slug: 's-c',
+        type: 'story',
         title: 'C',
-        parent_slug: 's1',
-        depends_on: ['t-b'],
+        depends_on: ['s-b'],
       },
       {
-        slug: 't-b',
-        type: 'task',
+        slug: 's-b',
+        type: 'story',
         title: 'B',
-        parent_slug: 's1',
-        depends_on: ['t-a'],
+        depends_on: ['s-a'],
       },
-      { slug: 't-a', type: 'task', title: 'A', parent_slug: 's1' },
+      { slug: 's-a', type: 'story', title: 'A' },
     ];
     const order = orderTicketsForCreation(tickets).map((t) => t.slug);
-    assert.deepEqual(order, ['f1', 's1', 't-a', 't-b', 't-c']);
+    assert.deepEqual(order, ['s-a', 's-b', 's-c']);
   });
 
-  it('ignores cross-group deps when ordering within a group', () => {
-    // Cross-feature story dep — outside the (feature_slug, story) group, so
-    // the intra-group sort skips the edge. The typeOrder concatenation still
-    // guarantees both stories come after both features.
+  it('orders dependency producers before consumers across the whole set', () => {
     const tickets = [
-      { slug: 'f1', type: 'feature', title: 'F1' },
-      { slug: 'f2', type: 'feature', title: 'F2' },
       {
         slug: 's1',
         type: 'story',
         title: 'S1',
-        parent_slug: 'f1',
         depends_on: ['s2'],
       },
-      { slug: 's2', type: 'story', title: 'S2', parent_slug: 'f2' },
+      { slug: 's2', type: 'story', title: 'S2' },
     ];
     const order = orderTicketsForCreation(tickets).map((t) => t.slug);
-    assert.equal(order.indexOf('f1') < order.indexOf('s1'), true);
-    assert.equal(order.indexOf('f2') < order.indexOf('s2'), true);
+    assert.equal(order.indexOf('s2') < order.indexOf('s1'), true);
   });
 });
 
@@ -389,20 +353,6 @@ describe('ticket-decomposer buildDecomposerSystemPrompt', () => {
     assert.ok(
       /hardFiles/.test(prompt) && /\b30\b/.test(prompt),
       'prompt must advertise the hardFiles ceiling of 30',
-    );
-  });
-
-  it('renders the ≤7 soft Feature-count guidance from the SSOT constant (Story #3874)', () => {
-    // The Feature-count sentence interpolates SOFT_STORIES_PER_FEATURE from
-    // ticket-validator-sizing.js — the prose cannot drift from the constant.
-    const prompt = buildDecomposerSystemPrompt([]);
-    assert.ok(
-      /Features typically decompose into ≤7 Stories/.test(prompt),
-      'prompt must advertise the ≤7 Stories-per-Feature soft guidance',
-    );
-    assert.ok(
-      !/≤5 Stories|past five Stories/.test(prompt),
-      'prompt must not retain the retired ≤5 Feature-count guidance',
     );
   });
 
@@ -476,11 +426,19 @@ describe('ticket-decomposer buildDecomposerSystemPrompt', () => {
     );
   });
 
-  it('forbids single-Story Features (Story #3777)', () => {
+  it('emits Stories only — no Feature tier (Story #4041)', () => {
     const prompt = buildDecomposerSystemPrompt([]);
     assert.ok(
-      /Feature MUST decompose into at least (two|TWO)/i.test(prompt),
-      'prompt must require every Feature to decompose into at least two Stories',
+      /NO Feature tier/i.test(prompt),
+      'prompt must state there is no Feature tier',
+    );
+    assert.ok(
+      /"type": "story"/.test(prompt),
+      'prompt schema must pin type to story',
+    );
+    assert.ok(
+      !/parent_slug": "slug_of_parent_ticket/.test(prompt),
+      'prompt must not offer a parent_slug field',
     );
   });
 

@@ -6,7 +6,7 @@
  *
  * Use this from workflow markdown when the operator needs to sync a
  * working branch with `origin/<baseBranch>` before opening a PR — for
- * example as a pre-Phase-6 step in `/epic-deliver` so the Epic→main PR
+ * example as a pre-Phase-6 step in `/deliver` so the Epic→main PR
  * opens with the latest `main` commits already integrated.
  *
  * For `/single-story-deliver`, the sync runs in-process inside

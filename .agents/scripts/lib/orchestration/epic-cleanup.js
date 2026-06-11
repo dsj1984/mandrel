@@ -1,7 +1,7 @@
 /* node:coverage ignore file -- MI 0 orchestration glue; reaps live worktrees + runs `git branch -D` — testing requires mocking real worktree/git state to the point of asserting only the mock structure */
 
 /**
- * Epic-cleanup primitives — local branch + worktree reap for `/epic-deliver`
+ * Epic-cleanup primitives — local branch + worktree reap for `/deliver`
  * Phase 8.
  *
  * Once a PR has merged (auto or operator-button), the Epic branch and every

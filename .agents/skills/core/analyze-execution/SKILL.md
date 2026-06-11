@@ -4,7 +4,7 @@ description: >-
   Aggregate per-Story or per-Epic execution signals into a structured
   perf-summary or perf-report and upsert it onto the corresponding GitHub
   ticket. Use after a Story closes (Story mode) or as part of
-  `/epic-deliver` Phase 6 (Epic mode). Reads NDJSON via
+  `/deliver` Phase 6 (Epic mode). Reads NDJSON via
   `lib/signals/read` and writes a single structured comment.
 allowed_tools:
   - Read
@@ -36,7 +36,7 @@ into the Epic dashboard.
   pipeline dispatches this Skill (or the wrapping script) to roll up the
   Story's NDJSON signals into a single `<!-- structured:story-perf-summary -->`
   marker comment on the Story ticket.
-- **Epic mode** — during `/epic-deliver` Phase 6.0 (or the retro
+- **Epic mode** — during `/deliver` Phase 6.0 (or the retro
   composer), the Skill fans out across every Story under the Epic,
   reads each Story's structured perf summary, and posts a single
   `<!-- structured:epic-perf-report -->` marker on the Epic ticket.

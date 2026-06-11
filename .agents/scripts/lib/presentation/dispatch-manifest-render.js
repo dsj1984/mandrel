@@ -12,9 +12,8 @@
 
 /**
  * Pure: project a full dispatch manifest into the `{ stories }` shape
- * `renderManifest` accepts. Returns the canonical, non-feature,
- * non-ungrouped story rows used by the Epic-level dispatch-manifest
- * comment.
+ * `renderManifest` accepts. Returns the canonical, non-ungrouped story
+ * rows used by the Epic-level dispatch-manifest comment.
  *
  * @param {object} manifest
  * @returns {{ storyId: number|string, wave: number, title: string }[]}
@@ -22,7 +21,7 @@
 export function projectStoriesFromManifest(manifest) {
   const storyManifest = manifest?.storyManifest ?? [];
   return storyManifest
-    .filter((s) => s && s.type !== 'feature' && s.storyId !== '__ungrouped__')
+    .filter((s) => s && s.storyId !== '__ungrouped__')
     .map((s) => ({
       storyId: s.storyId,
       wave: s.earliestWave ?? -1,
@@ -71,7 +70,7 @@ export function renderManifest({ epicId, stories, generatedAt }) {
     `- **Stories:** ${list.length}`,
     `- **Generated:** ${generatedAt}`,
     '',
-    'Source of truth for the wave-completeness gate run at `/epic-deliver`.',
+    'Source of truth for the wave-completeness gate run at `/deliver`.',
     '',
     '```json',
     JSON.stringify({ stories: list }, null, 2),

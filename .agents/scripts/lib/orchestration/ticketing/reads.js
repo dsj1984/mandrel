@@ -76,8 +76,8 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // downstream workflow steps don't have to infer install state from
   // node_modules presence.
   'story-init',
-  // Story #908 — /story-deliver upserts a `story-run-progress` snapshot
-  // on each Story per Task transition. The /epic-deliver aggregator and
+  // Story #908 — /deliver upserts a `story-run-progress` snapshot
+  // on each Story per Task transition. The /deliver aggregator and
   // the epic-runner progress reporter both read this comment to derive
   // Story-level state without re-fetching ticket labels.
   'story-run-progress',
@@ -98,7 +98,7 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // operator can correct drift before Phase 8 decomposes from a stale
   // spec. Advisory: the run continues regardless of the report contents.
   'spec-freshness',
-  // Story #2681 — `/epic-deliver` Phase 4 epic-audit helper upserts an
+  // Story #2681 — `/deliver` Phase 4 epic-audit helper upserts an
   // `audit-results` comment on the Epic listing the per-lens findings
   // returned by the change-set audit pass. The marker was prescribed by
   // `helpers/epic-audit.md` Step 4 long before it was added to this
@@ -126,7 +126,7 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   'epic-handoff',
   // Story #2899 (Epic #2880, F13) — `epic-deliver-preflight.js` upserts a
   // `delivery-preflight` comment on the Epic at the start of
-  // /epic-deliver Phase 1, surfacing estimated story count, install cost,
+  // /deliver Phase 1, surfacing estimated story count, install cost,
   // wave count, GitHub API request volume, Claude quota burn, and any
   // threshold breaches against `delivery.preflight.max*`. One entry per
   // Epic; re-runs replace prior content.
@@ -137,7 +137,7 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // `close-validate.end`. One entry per Epic; re-ticks with the same
   // findings upsert in place (`upsertStructuredComment` diffs by body).
   'recurring-failure-class',
-  // Story #3061 (Epic #3051) — the /epic-deliver §2e Idle Watchdog
+  // Story #3061 (Epic #3051) — the /deliver §2e Idle Watchdog
   // subsection instructs the parent host LLM to upsert a `wave-stall`
   // comment on the Epic whenever an in-flight Story has been silent for
   // longer than the configured cadence. `wave-tick.js --check-idle`
@@ -153,7 +153,7 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   'risk-verdict',
   // Story #4019 — `epic-plan-lease-guard.js` upserts a `plan-lease`
   // comment on the Epic at lease-acquire time, recording the claiming
-  // operator and the claim timestamp. `/epic-plan` emits no
+  // operator and the claim timestamp. `/plan` emits no
   // `story.heartbeat`, so this claim-time is the liveness signal that
   // makes the documented `--steal` contract decidable: a foreign claim
   // older than the lease TTL is reclaimed automatically; a fresh one
@@ -268,8 +268,8 @@ export const _structuredCommentCache = new WeakMap();
 /**
  * Build a well-formed ticket snapshot for a Story that has zero child
  * Tasks. Story #3097 (Wave-0 additive, Epic #3078 Strategy B) — the
- * 3-tier hierarchy collapses Epic → Feature → Story → Task into
- * Epic → Feature → Story, so a Story may legitimately have no Task
+ * 2-tier hierarchy collapses Epic → Story → Task into
+ * Epic → Story, so a Story may legitimately have no Task
  * children. Read-side callers that expect a `subTickets` array on the
  * Story can route through this helper to materialise an empty-children
  * snapshot without paying a provider round-trip and without risk of

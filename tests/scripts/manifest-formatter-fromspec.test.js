@@ -9,7 +9,7 @@
  * The fixture pair is constructed in-file so the round-trip relationship
  * is obvious at a glance: we hand-author a manifest, then derive the
  * spec + state that — by construction — describe the same Stories /
- * wave layout / status labels. Under the 3-tier hierarchy (Epic #3163,
+ * wave layout / status labels. Under the 2-tier hierarchy (Epic #3163,
  * Story #3413) Stories are leaves with no child Tasks. `fromSpec` is
  * expected to produce the same Markdown the renderer would emit for the
  * manifest directly.
@@ -19,7 +19,7 @@
  *     (same identity, byte-identical output).
  *   - Missing `state.mapping[slug]` entries fall back to `slug:<slug>`
  *     ids + `agent::ready` status without throwing.
- *   - Empty spec (no features) renders a header-only manifest cleanly.
+ *   - Empty spec (no stories) renders a header-only manifest cleanly.
  */
 
 import assert from 'node:assert/strict';
@@ -42,27 +42,16 @@ const GENERATED_AT = '2026-05-12T00:00:00.000Z';
 function buildFixturePair() {
   const spec = {
     epic: { id: 4242, title: 'Parity Fixture Epic' },
-    features: [
+    stories: [
       {
-        slug: 'feat-a',
-        title: 'Feature A',
-        stories: [
-          {
-            slug: 'story-alpha',
-            title: 'Alpha Story',
-            wave: 0,
-            tasks: [
-              { slug: 'task-a1', title: 'Task A1' },
-              { slug: 'task-a2', title: 'Task A2' },
-            ],
-          },
-          {
-            slug: 'story-beta',
-            title: 'Beta Story',
-            wave: 1,
-            tasks: [{ slug: 'task-b1', title: 'Task B1' }],
-          },
-        ],
+        slug: 'story-alpha',
+        title: 'Alpha Story',
+        wave: 0,
+      },
+      {
+        slug: 'story-beta',
+        title: 'Beta Story',
+        wave: 1,
       },
     ],
   };
@@ -78,21 +67,6 @@ function buildFixturePair() {
       'story-beta': {
         issueNumber: 102,
         contentHash: 'sha256:y',
-        lastObservedAgentState: 'agent::ready',
-      },
-      'task-a1': {
-        issueNumber: 201,
-        contentHash: 'sha256:a1',
-        lastObservedAgentState: 'agent::done',
-      },
-      'task-a2': {
-        issueNumber: 202,
-        contentHash: 'sha256:a2',
-        lastObservedAgentState: 'agent::ready',
-      },
-      'task-b1': {
-        issueNumber: 203,
-        contentHash: 'sha256:b1',
         lastObservedAgentState: 'agent::ready',
       },
     },
@@ -183,25 +157,18 @@ test('fromSpec output is byte-identical to fromManifest for a round-tripped fixt
 test('fromSpec falls back to slug:<slug> ids + agent::ready when state mapping is absent', () => {
   const spec = {
     epic: { id: 9000, title: 'Fresh Epic' },
-    features: [
+    stories: [
       {
-        slug: 'feat-x',
-        title: 'Feature X',
-        stories: [
-          {
-            slug: 'lonely-story',
-            title: 'Lonely Story',
-            wave: 0,
-            tasks: [{ slug: 'lonely-task', title: 'Lonely Task' }],
-          },
-        ],
+        slug: 'lonely-story',
+        title: 'Lonely Story',
+        wave: 0,
       },
     ],
   };
   __resetManifestFormatterCache();
   const md = fromSpec(spec, { generatedAt: GENERATED_AT });
   // The Story id surfaces as the slug-sentinel string and the renderer
-  // emits it verbatim into the H3. No throw. Under the 3-tier hierarchy
+  // emits it verbatim into the H3. No throw. Under the 2-tier hierarchy
   // (Epic #3163, Story #3413) Stories are leaves; the renderer emits no
   // per-Task body or checkbox rows.
   assert.match(md, /Lonely Story/);
@@ -215,7 +182,7 @@ test('fromSpec falls back to slug:<slug> ids + agent::ready when state mapping i
 test('fromSpec on an empty spec emits the header-only manifest cleanly', () => {
   const spec = {
     epic: { id: 1, title: 'Empty Epic' },
-    features: [],
+    stories: [],
   };
   __resetManifestFormatterCache();
   const md = fromSpec(spec, { generatedAt: GENERATED_AT });
@@ -228,18 +195,11 @@ test('fromSpec on an empty spec emits the header-only manifest cleanly', () => {
 test('buildManifestFromSpec tolerates absent / malformed state without throwing', () => {
   const spec = {
     epic: { id: 2, title: 'No-state Epic' },
-    features: [
+    stories: [
       {
-        slug: 'f',
-        title: 'F',
-        stories: [
-          {
-            slug: 's',
-            title: 'S',
-            wave: 0,
-            tasks: [{ slug: 't', title: 'T' }],
-          },
-        ],
+        slug: 's',
+        title: 'S',
+        wave: 0,
       },
     ],
   };
@@ -260,7 +220,7 @@ test('buildManifestFromSpec tolerates absent / malformed state without throwing'
 });
 
 test('buildManifestFromSpec passes executor / dryRun / agentTelemetry through to the manifest envelope', () => {
-  const spec = { epic: { id: 3, title: 'X' }, features: [] };
+  const spec = { epic: { id: 3, title: 'X' }, stories: [] };
   const telemetry = { totalFriction: 0, recentFriction: [] };
   const m = buildManifestFromSpec(spec, {
     generatedAt: GENERATED_AT,
@@ -282,29 +242,18 @@ test('buildManifestFromSpec passes executor / dryRun / agentTelemetry through to
 test('buildManifestFromSpec skips malformed Story entries without crashing', () => {
   const spec = {
     epic: { id: 4, title: 'Malformed' },
-    features: [
+    stories: [
+      null, // skipped
+      'not-an-object', // skipped (typeof !== 'object')
       {
-        slug: 'f',
-        title: 'F',
-        stories: [
-          null, // skipped
-          'not-an-object', // skipped (typeof !== 'object')
-          {
-            slug: 'good',
-            title: 'Good',
-            wave: 'bad-wave', // non-integer → earliestWave = -1, not counted into totalWaves
-          },
-          {
-            slug: 'waved',
-            title: 'Waved',
-            wave: 0,
-          },
-        ],
+        slug: 'good',
+        title: 'Good',
+        wave: 'bad-wave', // non-integer → earliestWave = -1, not counted into totalWaves
       },
       {
-        // Missing stories array → handled by Array.isArray guard.
-        slug: 'no-stories',
-        title: 'No Stories',
+        slug: 'waved',
+        title: 'Waved',
+        wave: 0,
       },
     ],
   };
@@ -322,7 +271,7 @@ test('buildManifestFromSpec skips malformed Story entries without crashing', () 
 });
 
 test('fromSpec without explicit generatedAt populates a fresh ISO timestamp', () => {
-  const spec = { epic: { id: 5, title: 'Auto-stamp' }, features: [] };
+  const spec = { epic: { id: 5, title: 'Auto-stamp' }, stories: [] };
   __resetManifestFormatterCache();
   const before = Date.now();
   const md = fromSpec(spec);

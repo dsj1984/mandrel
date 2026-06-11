@@ -4,7 +4,7 @@ description:
   Judge whether a piece of planned work is epic-sized or story-sized before the
   planning ceremony is paid for. Emits one of three verdicts —
   `epic` | `story` | `borderline` — over any planning artifact (a one-pager, an
-  Epic body, or a Story draft). Use from `/epic-plan` Phase 1.5 and any other
+  Epic body, or a Story draft). Use from `/plan` Phase 1.5 and any other
   planning gate that needs the canonical story-vs-epic rubric.
 ---
 
@@ -32,9 +32,8 @@ description:
   wrong in the `epic` direction is cheap — the Phase 8.3 consolidation pass and
   the sizing validator catch an over-planned Story later. Being wrong in the
   `story` direction is expensive — a story-sized scope pushed through the full
-  Epic ceremony pays a PRD + Tech Spec + Acceptance Spec + Feature/Story tree +
-  `epic/<id>` integration-branch tax for a degenerate one-Feature-one-Story
-  output.
+  Epic ceremony pays a PRD + Tech Spec + Acceptance Spec + Story backlog +
+  `epic/<id>` integration-branch tax for a degenerate one-Story output.
 - Keep the rubric prose **artifact-agnostic**. The thing under judgment may be a
   sharpened one-pager, an existing Epic body, or a draft Story — the rubric
   reads the same against all three so every consumer reuses it verbatim.
@@ -62,7 +61,7 @@ The work is a single shippable capability. Signals:
   architectural decision and matches none of the `planning.riskHeuristics` in
   `.agentrc.json` (destructive/irreversible changes, shared auth/security,
   CI/CD gate changes, monorepo-wide rewrites, destructive migrations).
-- **Decomposition would degenerate.** Running it through `/epic-plan` would
+- **Decomposition would degenerate.** Running it through `/plan` would
   plausibly yield exactly **one Feature with one Story** — the shape the Phase
   8.3 consolidation skill flags only after all the spec authoring is already
   sunk cost.
@@ -90,18 +89,18 @@ option; a borderline scope surfaced as borderline is the correct output.
 A workflow entered via a scope-triage **handoff** MUST NOT re-triage. A handoff
 *is* a triage decision already made — re-running this gate on the receiving side
 would re-litigate a settled call and risk a ping-pong between two planning
-workflows. Handoff invocations identify themselves as such (e.g. `/epic-plan`
-entered via a `/story-plan` scope-triage escalation, or `/story-plan` entered
-via an `/epic-plan` Phase 1.5 handoff), and the receiving workflow skips its own
+workflows. Handoff invocations identify themselves as such (e.g. `/plan`
+entered via a `/plan` scope-triage escalation, or `/plan` entered
+via an `/plan` Phase 1.5 handoff), and the receiving workflow skips its own
 scope-triage gate when it detects the handoff marker.
 
 ## When to use
 
-- **`/epic-plan` Phase 1.5** (ideation path only) — judge the sharpened
+- **`/plan` Phase 1.5** (ideation path only) — judge the sharpened
   one-pager Phase 1 produced before the Epic ceremony is paid for. The verdict
   folds into the existing Phase 1 HITL stop; on a `story` / `borderline`
   verdict the operator may hand off to
-  [`/story-plan --from-notes`](../../../workflows/story-plan.md).
+  [`/plan --from-notes`](../../../workflows/helpers/plan-story.md).
 - Any other planning gate that needs the canonical story-vs-epic rubric. Keep
   the rubric here as the SSOT; consumers reference this file rather than
   forking the prose.

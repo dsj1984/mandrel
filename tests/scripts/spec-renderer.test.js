@@ -1,6 +1,6 @@
 /**
  * tests/scripts/spec-renderer.test.js — Story #1495 / Task #1524,
- * rewritten under Epic #3163 / Story #3192 for the 3-tier shape.
+ * rewritten under Epic #3163 / Story #3192 for the 2-tier shape.
  *
  * Verifies `lib/orchestration/spec-renderer.js`'s projection of the
  * decomposer's flat ticket array shape into the structural spec
@@ -9,7 +9,7 @@
  * canonical AC: anything the renderer writes must be parseable by the
  * spec-loader and structurally identical on reload.
  *
- * Under the 3-tier hierarchy (Epic #3078), Stories have no Task
+ * Under the 2-tier hierarchy (Epic #3078), Stories have no Task
  * children — `acceptance[]` / `verify[]` arrays live inline on the
  * Story. The renderer's previous Task emission code path (the
  * `tasks: [...]` array on each Story) has been deleted in Story #3192.
@@ -17,7 +17,7 @@
  * raises immediately if such a ticket appears.
  *
  * Coverage:
- *   - Hierarchy walk preserves feature/story ordering and slugs.
+ *   - The Story walk preserves decomposer ordering and slugs.
  *   - Inter-Story `depends_on` edges round-trip as `dependsOn` (slug to
  *     slug, no GH issue numbers leaking through).
  *   - Wave layering matches the depth in the story-only DAG, so
@@ -27,7 +27,7 @@
  *   - Inline `acceptance[]` / `verify[]` arrays (top-level on the
  *     Story ticket, or nested under a structured `body`) project
  *     onto the rendered Story.
- *   - A `type: 'task'` ticket raises immediately (3-tier guard).
+ *   - A `type: 'task'` ticket raises immediately (2-tier guard).
  *   - Schema-invalid inputs raise `SpecRenderValidationError`.
  *   - Gates are passed through verbatim when provided.
  *
@@ -70,42 +70,23 @@ function plantSpec(epicId, specObject) {
 }
 
 /**
- * Minimal valid ticket-array fixture covering two Features and three
- * Stories — one with inter-Story deps, one with an `agent::*` label
- * that must be stripped, and one with a structured body object that
- * carries nested `acceptance` / `verify` arrays. The fixture also
- * exercises the top-level vs body-nested precedence for the inline
- * arrays.
+ * Minimal valid ticket-array fixture covering three Stories — one with
+ * inter-Story deps, one with an `agent::*` label that must be stripped,
+ * and one with a structured body object that carries nested
+ * `acceptance` / `verify` arrays. The fixture also exercises the
+ * top-level vs body-nested precedence for the inline arrays.
  */
 function buildFixtureTickets() {
   return [
-    {
-      slug: 'spec-and-schema',
-      type: 'feature',
-      title: 'Spec format + JSON Schema',
-      body: 'Spec format milestone.',
-      labels: ['type::feature'],
-      parent_slug: '',
-      depends_on: [],
-    },
     {
       slug: 'schema-author',
       type: 'story',
       title: 'Author epic-spec.schema.json',
       body: 'Define the canonical structural schema.',
       labels: ['type::story', 'persona::architect', 'agent::done'],
-      parent_slug: 'spec-and-schema',
       depends_on: [],
       acceptance: ['Schema parses as JSON', 'Top-level required keys set'],
       verify: ['node --test tests/scripts/epic-spec-schema.test.js'],
-    },
-    {
-      slug: 'reconciler-core',
-      type: 'feature',
-      title: 'Reconciler diff + apply',
-      labels: ['type::feature'],
-      parent_slug: '',
-      depends_on: [],
     },
     {
       slug: 'diff-engine',
@@ -121,7 +102,6 @@ function buildFixtureTickets() {
         verify: ['npm test (unit)'],
       },
       labels: ['type::story', 'persona::engineer'],
-      parent_slug: 'reconciler-core',
       depends_on: ['schema-author'],
     },
     {
@@ -130,7 +110,6 @@ function buildFixtureTickets() {
       title: 'Apply engine',
       body: 'Mutator side.',
       labels: ['type::story'],
-      parent_slug: 'reconciler-core',
       depends_on: ['diff-engine'],
       acceptance: ['runner is testable'],
       verify: ['npm test (unit)'],
@@ -154,32 +133,21 @@ describe('lib/orchestration/spec-renderer.js — basic projection', () => {
       'v6 Epic D — Declarative epic.yaml + reconciler',
     );
     assert.deepEqual(spec.epic.labels, ['type::epic']); // agent::* stripped
-    assert.equal(spec.features.length, 2);
+    assert.equal(spec.stories.length, 3);
     assert.deepEqual(
-      spec.features.map((f) => f.slug),
-      ['spec-and-schema', 'reconciler-core'],
+      spec.stories.map((st) => st.slug),
+      ['schema-author', 'diff-engine', 'apply-engine'],
     );
   });
 
-  it('preserves Story slugs under the correct Feature', () => {
+  it('never emits a `tasks` key on any Story (2-tier shape)', () => {
     const spec = renderSpec(buildFixtureTickets(), { epic: FIXTURE_EPIC });
-    const feature = spec.features.find((f) => f.slug === 'spec-and-schema');
-    assert.ok(feature, 'feature spec-and-schema present');
-    assert.equal(feature.stories.length, 1);
-    const story = feature.stories[0];
-    assert.equal(story.slug, 'schema-author');
-  });
-
-  it('never emits a `tasks` key on any Story (3-tier shape)', () => {
-    const spec = renderSpec(buildFixtureTickets(), { epic: FIXTURE_EPIC });
-    for (const f of spec.features) {
-      for (const s of f.stories) {
-        assert.equal(
-          Object.hasOwn(s, 'tasks'),
-          false,
-          `Story ${s.slug} must not carry a tasks[] key under the 3-tier shape`,
-        );
-      }
+    for (const s of spec.stories) {
+      assert.equal(
+        Object.hasOwn(s, 'tasks'),
+        false,
+        `Story ${s.slug} must not carry a tasks[] key under the 2-tier shape`,
+      );
     }
   });
 
@@ -188,7 +156,7 @@ describe('lib/orchestration/spec-renderer.js — basic projection', () => {
     // The fixture intentionally seeds an agent::done on the
     // schema-author Story and agent::executing on the Epic.
     const spec = renderSpec(tickets, { epic: FIXTURE_EPIC });
-    const story = spec.features[0].stories[0];
+    const story = spec.stories[0];
     assert.ok(
       !story.labels?.some((l) => l.startsWith('agent::')),
       'no agent::* labels on Story',
@@ -201,7 +169,7 @@ describe('lib/orchestration/spec-renderer.js — basic projection', () => {
 
   it('projects top-level inline acceptance/verify onto the Story', () => {
     const spec = renderSpec(buildFixtureTickets(), { epic: FIXTURE_EPIC });
-    const story = spec.features[0].stories[0];
+    const story = spec.stories[0];
     assert.deepEqual(story.acceptance, [
       'Schema parses as JSON',
       'Top-level required keys set',
@@ -213,18 +181,14 @@ describe('lib/orchestration/spec-renderer.js — basic projection', () => {
 
   it('falls back to body-nested acceptance/verify when no top-level fields', () => {
     const spec = renderSpec(buildFixtureTickets(), { epic: FIXTURE_EPIC });
-    const diffEngine = spec.features
-      .find((f) => f.slug === 'reconciler-core')
-      .stories.find((s) => s.slug === 'diff-engine');
+    const diffEngine = spec.stories.find((s) => s.slug === 'diff-engine');
     assert.deepEqual(diffEngine.acceptance, ['diff is pure (no I/O)']);
     assert.deepEqual(diffEngine.verify, ['npm test (unit)']);
   });
 
   it('renders structured Story bodies into the markdown projection', () => {
     const spec = renderSpec(buildFixtureTickets(), { epic: FIXTURE_EPIC });
-    const diffEngine = spec.features
-      .find((f) => f.slug === 'reconciler-core')
-      .stories.find((s) => s.slug === 'diff-engine');
+    const diffEngine = spec.stories.find((s) => s.slug === 'diff-engine');
     assert.ok(diffEngine.body, 'Story body present');
     assert.match(diffEngine.body, /## Goal/);
     assert.match(diffEngine.body, /## Changes/);
@@ -248,24 +212,19 @@ describe('lib/orchestration/spec-renderer.js — basic projection', () => {
 describe('lib/orchestration/spec-renderer.js — dependsOn / wave layering', () => {
   it('projects inter-Story depends_on edges as dependsOn (slug to slug)', () => {
     const spec = renderSpec(buildFixtureTickets(), { epic: FIXTURE_EPIC });
-    const diffEngine = spec.features
-      .find((f) => f.slug === 'reconciler-core')
-      .stories.find((s) => s.slug === 'diff-engine');
+    const diffEngine = spec.stories.find((s) => s.slug === 'diff-engine');
     assert.deepEqual(diffEngine.dependsOn, ['schema-author']);
   });
 
   it('assigns wave 0 to Stories with no inbound edges', () => {
     const spec = renderSpec(buildFixtureTickets(), { epic: FIXTURE_EPIC });
-    const schemaAuthor = spec.features[0].stories[0];
+    const schemaAuthor = spec.stories[0];
     assert.equal(schemaAuthor.wave, 0);
   });
 
   it('layers Stories by DAG depth (wave === max(depDepths) + 1)', () => {
     const spec = renderSpec(buildFixtureTickets(), { epic: FIXTURE_EPIC });
-    const stories = new Map();
-    for (const f of spec.features) {
-      for (const s of f.stories) stories.set(s.slug, s);
-    }
+    const stories = new Map(spec.stories.map((s) => [s.slug, s]));
     assert.equal(stories.get('schema-author').wave, 0);
     assert.equal(stories.get('diff-engine').wave, 1);
     assert.equal(stories.get('apply-engine').wave, 2);
@@ -281,30 +240,27 @@ describe('lib/orchestration/spec-renderer.js — dependsOn / wave layering', () 
       'does-not-exist',
     ];
     const spec = renderSpec(tickets, { epic: FIXTURE_EPIC });
-    const projected = spec.features
-      .find((f) => f.slug === 'reconciler-core')
-      .stories.find((s) => s.slug === 'diff-engine');
+    const projected = spec.stories.find((s) => s.slug === 'diff-engine');
     assert.deepEqual(projected.dependsOn, ['schema-author']);
   });
 
   it('omits dependsOn when no real inter-Story edges exist', () => {
     const spec = renderSpec(buildFixtureTickets(), { epic: FIXTURE_EPIC });
-    const schemaAuthor = spec.features[0].stories[0];
+    const schemaAuthor = spec.stories[0];
     assert.equal(schemaAuthor.dependsOn, undefined);
   });
 });
 
-describe('lib/orchestration/spec-renderer.js — 3-tier guard', () => {
+describe('lib/orchestration/spec-renderer.js — 2-tier guard', () => {
   it('rejects a ticket of type "task" with an unknown-type message', () => {
     // Epic #3238 / Story #3272 dropped the dedicated `type === 'task'`
     // render arm. A Task ticket now falls through to the generic
-    // unknown-type guard rather than a Task-specific 3-tier message.
+    // unknown-type guard rather than a Task-specific 2-tier message.
     const tickets = buildFixtureTickets();
     tickets.push({
       slug: 'orphan-task',
       type: 'task',
       title: 'Should not be accepted',
-      parent_slug: 'schema-author',
       depends_on: [],
     });
     assert.throws(
@@ -340,9 +296,7 @@ describe('lib/orchestration/spec-renderer.js — schema validation', () => {
       validate: false,
     });
     // The invalid slug survives because validation was skipped.
-    const projected = spec.features
-      .find((f) => f.slug === 'reconciler-core')
-      .stories.find((s) => s.slug === 'Invalid Slug!');
+    const projected = spec.stories.find((s) => s.slug === 'Invalid Slug!');
     assert.ok(projected, 'invalid-slug Story present in unvalidated output');
   });
 
@@ -364,7 +318,7 @@ describe('lib/orchestration/spec-renderer.js — round-trip via loader', () => {
     plantSpec(FIXTURE_EPIC.id, spec);
     const reloaded = loadSpec(FIXTURE_EPIC.id, { epicsDir: sandbox });
     assert.equal(reloaded.epic.id, FIXTURE_EPIC.id);
-    assert.equal(reloaded.features.length, spec.features.length);
+    assert.equal(reloaded.stories.length, spec.stories.length);
   });
 
   it('round-trip preserves slugs and hierarchy exactly', () => {
@@ -373,13 +327,7 @@ describe('lib/orchestration/spec-renderer.js — round-trip via loader', () => {
     const reloaded = loadSpec(FIXTURE_EPIC.id, { epicsDir: sandbox });
 
     const flatten = (s) =>
-      s.features.flatMap((f) =>
-        f.stories.map((st) => ({
-          kind: 'story',
-          slug: st.slug,
-          parent: f.slug,
-        })),
-      );
+      s.stories.map((st) => ({ kind: 'story', slug: st.slug }));
 
     assert.deepEqual(flatten(reloaded), flatten(spec));
   });
@@ -389,8 +337,7 @@ describe('lib/orchestration/spec-renderer.js — round-trip via loader', () => {
     plantSpec(FIXTURE_EPIC.id, spec);
     const reloaded = loadSpec(FIXTURE_EPIC.id, { epicsDir: sandbox });
 
-    const findStory = (root, slug) =>
-      root.features.flatMap((f) => f.stories).find((s) => s.slug === slug);
+    const findStory = (root, slug) => root.stories.find((s) => s.slug === slug);
 
     const original = findStory(spec, 'diff-engine');
     const reread = findStory(reloaded, 'diff-engine');
@@ -406,10 +353,7 @@ describe('lib/orchestration/spec-renderer.js — round-trip via loader', () => {
     plantSpec(FIXTURE_EPIC.id, spec);
     const reloaded = loadSpec(FIXTURE_EPIC.id, { epicsDir: sandbox });
 
-    const waves = new Map();
-    for (const f of reloaded.features) {
-      for (const s of f.stories) waves.set(s.slug, s.wave);
-    }
+    const waves = new Map(reloaded.stories.map((s) => [s.slug, s.wave]));
     assert.equal(waves.get('schema-author'), 0);
     assert.equal(waves.get('diff-engine'), 1);
     assert.equal(waves.get('apply-engine'), 2);
@@ -420,7 +364,7 @@ describe('lib/orchestration/spec-renderer.js — round-trip via loader', () => {
     plantSpec(FIXTURE_EPIC.id, spec);
     const reloaded = loadSpec(FIXTURE_EPIC.id, { epicsDir: sandbox });
 
-    const schemaAuthor = reloaded.features[0].stories[0];
+    const schemaAuthor = reloaded.stories[0];
     assert.deepEqual(schemaAuthor.labels, [
       'type::story',
       'persona::architect',
@@ -436,8 +380,7 @@ describe('lib/orchestration/spec-renderer.js — round-trip via loader', () => {
     plantSpec(FIXTURE_EPIC.id, spec);
     const reloaded = loadSpec(FIXTURE_EPIC.id, { epicsDir: sandbox });
 
-    const findStory = (root, slug) =>
-      root.features.flatMap((f) => f.stories).find((s) => s.slug === slug);
+    const findStory = (root, slug) => root.stories.find((s) => s.slug === slug);
 
     const schemaAuthor = findStory(reloaded, 'schema-author');
     assert.deepEqual(schemaAuthor.acceptance, [

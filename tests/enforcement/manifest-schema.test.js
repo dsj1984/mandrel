@@ -11,7 +11,7 @@ import addFormats from 'ajv-formats';
  * Exercises representative manifest payloads against the dispatch-manifest
  * schema. The schema is the open-root variant adopted in ADR 20260427-868a
  * — the AJV drift test here is the enforcement boundary. After Epic #3078
- * Task #3156 the schema only admits the 3-tier Story-centric shape; the
+ * Task #3156 the schema only admits the 2-tier Story-centric shape; the
  * legacy 4-tier Task-centric shape (waves[].tasks[], storyManifest[],
  * stories[].tasks[]) is rejected.
  *
@@ -52,13 +52,13 @@ function assertValid(validator, payload, label) {
 }
 
 describe('dispatch-manifest schema drift (AJV fixture)', () => {
-  it('accepts an epic-dispatch manifest with waves[].stories[] (3-tier)', () => {
+  it('accepts an epic-dispatch manifest with waves[].stories[] (2-tier)', () => {
     const validator = loadValidator();
     const manifest = {
       type: 'epic-dispatch',
       schemaVersion: '2.0.0',
       epicId: 3078,
-      epicTitle: 'Collapse to 3-tier',
+      epicTitle: 'Collapse to 2-tier',
       executor: 'manual',
       generatedAt: new Date().toISOString(),
       dryRun: false,

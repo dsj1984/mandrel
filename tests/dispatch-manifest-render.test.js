@@ -39,13 +39,6 @@ function makeFixtureManifest() {
         earliestWave: 1,
       },
       {
-        // feature rows are filtered out
-        storyId: 9000,
-        storyTitle: 'Parent feature',
-        type: 'feature',
-        earliestWave: 0,
-      },
-      {
         // ungrouped sentinel is filtered out
         storyId: '__ungrouped__',
         storyTitle: 'Ungrouped',
@@ -63,7 +56,7 @@ const EXPECTED_BODY = [
   '- **Stories:** 2',
   `- **Generated:** ${FIXTURE_GENERATED_AT}`,
   '',
-  'Source of truth for the wave-completeness gate run at `/epic-deliver`.',
+  'Source of truth for the wave-completeness gate run at `/deliver`.',
   '',
   '```json',
   JSON.stringify(
@@ -118,7 +111,7 @@ describe('renderManifest', () => {
 });
 
 describe('projectStoriesFromManifest', () => {
-  it('filters features and the ungrouped sentinel, projects {storyId, wave, title}', () => {
+  it('filters the ungrouped sentinel, projects {storyId, wave, title}', () => {
     const projected = projectStoriesFromManifest(makeFixtureManifest());
     assert.deepEqual(projected, [
       { storyId: 9002, wave: 0, title: 'First story' },

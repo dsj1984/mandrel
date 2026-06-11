@@ -3,7 +3,7 @@
  *
  * Presentation-only: emits the per-wave `## <emoji> Wave N` H2 sections
  * (with nested per-Story H3 headings) that sit beneath the Wave Summary
- * table in the dispatch manifest. Under the 3-tier hierarchy (Epic
+ * table in the dispatch manifest. Under the 2-tier hierarchy (Epic
  * #3163) Stories are leaves with no child Task tickets, so each wave
  * counts Stories (done/total) and renders one H3 per Story. The TOC
  * links emitted by `renderWaveSections` jump directly into the H2
@@ -85,7 +85,7 @@ function pickWaveTail(status, waveIdx, sortedWaves, storyCount) {
 /**
  * Group Stories into per-wave buckets and accumulate per-wave Story
  * totals. Pure helper — keeps the bookkeeping outside the main render
- * loop. Under the 3-tier hierarchy (Epic #3163) Stories are leaves with
+ * loop. Under the 2-tier hierarchy (Epic #3163) Stories are leaves with
  * no child Task tickets, so each wave's `total` / `done` counts Stories
  * (a Story is "done" when it carries `agent::done`) — the unit
  * `deriveWaveStatus` consumes.
@@ -122,11 +122,8 @@ export function renderNestedWaveSections(storyManifest) {
   if (!validateWaveSection('storyManifest', storyManifest)) return '';
   if (storyManifest.length === 0) return '';
 
-  const waveStories = storyManifest.filter(
-    (s) => validateWaveSection('story', s) && s.type !== 'feature',
-  );
-  const featureItems = storyManifest.filter(
-    (s) => validateWaveSection('story', s) && s.type === 'feature',
+  const waveStories = storyManifest.filter((s) =>
+    validateWaveSection('story', s),
   );
 
   const { waveGroups, waveStats } = groupStoriesByWave(waveStories);
@@ -156,22 +153,6 @@ export function renderNestedWaveSections(storyManifest) {
       lines.push(`### ${symbol} #${story.storyId} — ${titleCandidate}`);
       lines.push('');
     }
-  }
-
-  if (featureItems.length > 0) {
-    lines.push('## Feature Containers');
-    lines.push('');
-    lines.push(
-      '> Features are organizational groupings and are **not directly executable**.',
-    );
-    lines.push('> Execute the Stories within each Feature instead.');
-    lines.push('');
-    lines.push('| Feature | Title |');
-    lines.push('| :--- | :--- |');
-    for (const f of featureItems) {
-      lines.push(`| #${f.storyId} | ${f.storySlug} |`);
-    }
-    lines.push('');
   }
 
   return lines.join('\n');

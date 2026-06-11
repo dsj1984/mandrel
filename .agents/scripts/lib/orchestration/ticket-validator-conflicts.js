@@ -170,7 +170,7 @@ function collectStoryProducerPaths(story) {
 }
 
 /**
- * Resolve the Story-identifying slug for a 3-tier Story. A Story is its
+ * Resolve the Story-identifying slug for a 2-tier Story. A Story is its
  * own implementation unit (Epic #3238) — there is no parent Task — so the
  * producer/consumer indices key on the Story's own `slug`.
  */
@@ -187,7 +187,7 @@ function storySlugOf(story) {
  * producers.
  *
  * `taskSlug` is retained in the entry shape for finding/render
- * compatibility; in the 3-tier model it carries the Story's own slug since
+ * compatibility; in the 2-tier model it carries the Story's own slug since
  * the Story is the implementation unit.
  */
 function indexProducers(stories) {

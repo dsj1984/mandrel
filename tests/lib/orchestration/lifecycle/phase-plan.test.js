@@ -137,19 +137,19 @@ describe('lifecycle/phase-plan', () => {
     // No throw, no ledger to inspect (no bus → no writer wired here).
   });
 
-  it('discovers Stories nested under Features (v5 three-level hierarchy)', async () => {
-    // Reproduces Story #2980: Epic → Feature → Story. getSubTickets(epic)
-    // returns Features + closed reverse-ref Story; getSubTickets(feature)
-    // returns the real open Stories. Plan must include all open Stories
-    // and exclude the closed reverse-ref.
+  it('discovers the Epic direct-child Stories (2-tier hierarchy)', async () => {
+    // getSubTickets(epic) returns the direct Story children plus a
+    // context ticket and a closed reverse-ref Story. Plan must include
+    // all open Stories and exclude the closed reverse-ref.
     const epicId = 775;
     const childrenByParent = new Map([
       [
         775,
         [
           { id: 781, labels: ['context::prd'], body: '', state: 'open' },
-          { id: 784, labels: ['type::feature'], body: '', state: 'open' },
-          { id: 785, labels: ['type::feature'], body: '', state: 'open' },
+          { id: 787, labels: ['type::story'], body: '', state: 'open' },
+          { id: 791, labels: ['type::story'], body: '', state: 'open' },
+          { id: 799, labels: ['type::story'], body: '', state: 'open' },
           // closed reverse-referenced Story — must be filtered out.
           {
             id: 774,
@@ -159,14 +159,6 @@ describe('lifecycle/phase-plan', () => {
           },
         ],
       ],
-      [
-        784,
-        [
-          { id: 787, labels: ['type::story'], body: '', state: 'open' },
-          { id: 791, labels: ['type::story'], body: '', state: 'open' },
-        ],
-      ],
-      [785, [{ id: 799, labels: ['type::story'], body: '', state: 'open' }]],
     ]);
     const provider = {
       async getSubTickets(parentId) {

@@ -3,7 +3,7 @@
 /**
  * evidence-gate.js — evidence-aware wrapper around a single shell gate.
  *
- * Tech Spec #819 §"Evidence record (Story 7)" — `/epic-deliver` Phase 3
+ * Tech Spec #819 §"Evidence record (Story 7)" — `/deliver` Phase 3
  * (close-validation) runs `npm run lint` and `npm test` against the Epic
  * branch before opening the PR.
  * If the same gate has already passed against the current `git rev-parse

@@ -92,20 +92,6 @@ describe('postManifestEpicComment', () => {
     const body = provider.postComment.mock.calls[0].arguments[1].body;
     assert.equal(body.includes('__ungrouped__'), false);
   });
-
-  it('skips feature stories from the wave / story counts', async () => {
-    const provider = buildProvider();
-    const manifestWithFeature = {
-      ...baseManifest,
-      storyManifest: [
-        ...baseManifest.storyManifest,
-        { storyId: 200, type: 'feature', storyTitle: 'F', earliestWave: 5 },
-      ],
-    };
-    await postManifestEpicComment(manifestWithFeature, provider);
-    const body = provider.postComment.mock.calls[0].arguments[1].body;
-    assert.match(body, /\*\*Stories:\*\* 2/);
-  });
 });
 
 describe('postParkedFollowOnsComment', () => {

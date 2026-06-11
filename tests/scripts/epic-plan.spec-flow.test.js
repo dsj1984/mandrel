@@ -1,7 +1,7 @@
 /**
  * tests/scripts/epic-plan.spec-flow.test.js — Story #1498 / Task #1528.
  *
- * End-to-end integration test for the rewritten /epic-plan persist
+ * End-to-end integration test for the rewritten /plan persist
  * halves. Locks in the AC for the spec-write + reconcile pipeline:
  *
  *   - `runDecomposePhase` no longer calls `provider.createTicket`
@@ -199,21 +199,12 @@ function buildStubProvider({ epicId, epicTitle }) {
 
 /**
  * Tickets fixture covering the minimum spec shape the renderer accepts:
- * one Feature and two Stories (one with an inter-Story dep). Under the
- * 3-tier hierarchy (Epic #3078) Stories carry inline acceptance[] /
- * verify[] arrays directly — there is no Task tier.
+ * two Stories (one with an inter-Story dep). Under the 2-tier hierarchy
+ * (Story #4041) Stories carry inline acceptance[] / verify[] arrays
+ * directly — there is no Feature or Task tier.
  */
 function buildFixtureTickets() {
   return [
-    {
-      slug: 'feature-a',
-      type: 'feature',
-      title: 'Feature A',
-      body: 'A test feature.',
-      labels: ['type::feature'],
-      parent_slug: '',
-      depends_on: [],
-    },
     {
       slug: 'story-one',
       type: 'story',
@@ -234,7 +225,6 @@ function buildFixtureTickets() {
         verify: ['npm test (validate)'],
       }),
       labels: ['type::story'],
-      parent_slug: 'feature-a',
       depends_on: [],
       acceptance: ['thing done'],
       verify: ['npm test (validate)'],
@@ -255,7 +245,6 @@ function buildFixtureTickets() {
         verify: ['npm test (validate)'],
       }),
       labels: ['type::story'],
-      parent_slug: 'feature-a',
       depends_on: ['story-one'],
       acceptance: ['another thing done'],
       verify: ['npm test (validate)'],
@@ -303,8 +292,7 @@ describe('epic-plan spec-flow integration', () => {
     const reloaded = loadSpec(EPIC_ID, { epicsDir });
     assert.equal(reloaded.epic.id, EPIC_ID);
     assert.equal(reloaded.epic.title, 'Spec Flow Test Epic');
-    assert.equal(reloaded.features.length, 1);
-    assert.equal(reloaded.features[0].stories.length, 2);
+    assert.equal(reloaded.stories.length, 2);
 
     // Reconciler was spawned with the canonical flag set.
     assert.equal(spawnCalls.length, 1);
@@ -401,8 +389,8 @@ describe('epic-plan spec-flow integration', () => {
       state.mapping && typeof state.mapping === 'object',
       'state.mapping must be present',
     );
-    // Spec slugs are: feature-a, story-one, story-two (3-tier — no Task tier).
-    const expectedSlugs = ['feature-a', 'story-one', 'story-two'];
+    // Spec slugs are: story-one, story-two (2-tier — no Feature/Task tier).
+    const expectedSlugs = ['story-one', 'story-two'];
     for (const slug of expectedSlugs) {
       assert.ok(
         slug in state.mapping,
@@ -522,8 +510,7 @@ const HIGH_RISK_VERDICT = {
     {
       axis: 'critical-workflow',
       level: 'high',
-      rationale:
-        'Changes /epic-plan gate behavior and acceptance-spec creation.',
+      rationale: 'Changes /plan gate behavior and acceptance-spec creation.',
     },
   ],
   summary: 'High-risk planning-gate change.',
@@ -560,7 +547,7 @@ describe('review routing — Story #2795', () => {
   it('high-risk runSpecPhase records review-required routing in checkpoint', async () => {
     const provider = buildRunSpecPhaseProvider({
       title: 'Adaptive planning gate routing',
-      body: 'Changes /epic-plan gate behavior and acceptance-spec creation.',
+      body: 'Changes /plan gate behavior and acceptance-spec creation.',
     });
 
     const result = await runSpecPhase(
@@ -664,7 +651,7 @@ describe('acceptance disposition persistence — Story #2792', () => {
   it('required disposition creates and links context::acceptance-spec', async () => {
     const provider = buildPlanEpicProvider({
       title: 'Adaptive planning gate routing',
-      body: 'Changes /epic-plan gate behavior and acceptance-spec creation.',
+      body: 'Changes /plan gate behavior and acceptance-spec creation.',
     });
 
     await planEpic(

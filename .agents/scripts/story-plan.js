@@ -2,9 +2,9 @@
 /* node:coverage ignore file */
 
 /**
- * story-plan.js — Local `/story-plan` wrapper.
+ * story-plan.js — Local `/plan` wrapper.
  *
- * Standalone counterpart to `/epic-plan` for Stories that do **not**
+ * Standalone counterpart to `/plan` for Stories that do **not**
  * attach to an Epic. The script is deliberately a thin CLI around the
  * pure helpers in `lib/story-plan.js`:
  *
@@ -24,7 +24,7 @@
  *      GitHub. Echoes the rendered body and the `gh` argv it would
  *      have run.
  *
- * Mirrors the `/epic-plan` pattern: deterministic Node I/O wrappers
+ * Mirrors the `/plan` pattern: deterministic Node I/O wrappers
  * with HITL gating handled by the host LLM in chat. No external LLM
  * APIs are called from this script.
  */

@@ -27,12 +27,13 @@ package and materialized into consumer projects' `.agents/` directories by
   consumer project)
 - **License:** ISC
 
-> **Ticket hierarchy.** Mandrel ships a **3-tier ticket hierarchy**
-> (Epic → Feature → Story). Acceptance criteria and verification
+> **Ticket hierarchy.** Mandrel ships a **2-tier ticket hierarchy**
+> (Epic → Story). Acceptance criteria and verification
 > steps are inlined on the Story body (`acceptance[]` / `verify[]`).
-> Epic-attached Stories are delivered via `/epic-deliver` (which fans
-> out `helpers/epic-deliver-story` per wave); standalone Stories use
-> `/story-deliver`. There is no `type::task` ticket layer and no
+> All delivery flows through `/deliver`, which routes Epic vs
+> standalone-Story input — Epic-attached Stories are delivered as part
+> of their Epic (the Epic path fans out `helpers/epic-deliver-story`
+> per wave). There is no `type::task` ticket layer and no
 > per-Task commit ceremony. See
 > [`.agents/docs/SDLC.md` § Ticket hierarchy](.agents/docs/SDLC.md) for the
 > diagram and execution-model implications.

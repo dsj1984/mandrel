@@ -693,7 +693,7 @@ failure dashboards; retention, redaction, and support-bundle tooling.
 
 Evidence: the instruction layer formerly mandated active token tracking + hard
 stops, but the implementation mostly estimates prompt-hydration budget and
-pre-dispatch preflight (`epic-deliver-preflight.js`); `/epic-deliver` runs
+pre-dispatch preflight (`epic-deliver-preflight.js`); `/deliver` runs
 inside the operator's Claude Max session and quota exhaustion becomes
 `agent::blocked`. Instruction-text honesty was remediated in #3398.
 
@@ -953,8 +953,8 @@ by lens; do not batch-convert.
 
 Beyond audits, `runAuditOrchestration`'s fan-out → adversarial cross-check →
 synthesis shape has one obvious next application: **epic-plan
-decomposition** (parallel per-Feature Story drafting + an adversarial
-consolidation pass). That candidate is scoped in
+decomposition** (parallel per-Story drafting across capability slices +
+an adversarial consolidation pass). That candidate is scoped in
 [Part 4 § 4.5](#45-orchestration-beyond-audits-spike-candidate) rather than
 here, because its payoff is coupled to the story-size recalibration.
 

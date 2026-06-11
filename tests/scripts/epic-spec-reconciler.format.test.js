@@ -70,16 +70,16 @@ describe('formatPlan — per-section rendering', () => {
     plan.creates.push(
       createOp({
         slug: 'feat-alpha',
-        entity: ENTITY_KINDS.FEATURE,
+        entity: ENTITY_KINDS.STORY,
         title: 'Alpha Feature',
         parentSlug: 'epic',
-        labels: ['type::feature'],
+        labels: ['type::story'],
       }),
     );
     const md = formatPlan(plan);
     assert.match(md, /## Creates/);
-    assert.match(md, /`feat-alpha` \[feature\]: Alpha Feature/);
-    assert.match(md, /labels=\[type::feature\]/);
+    assert.match(md, /`feat-alpha` \[story\]: Alpha Feature/);
+    assert.match(md, /labels=\[type::story\]/);
     assert.match(md, /parent=epic/);
   });
 
@@ -112,14 +112,14 @@ describe('formatPlan — per-section rendering', () => {
     const plan = emptyPlan();
     plan.closes.push(
       closeOp({
-        slug: 'task-dropped',
-        entity: ENTITY_KINDS.TASK,
+        slug: 'story-dropped',
+        entity: ENTITY_KINDS.STORY,
         issueNumber: 503,
         title: 'Dropped Task',
       }),
     );
     const md = formatPlan(plan);
-    assert.match(md, /`task-dropped` \[task\] \(#503\): Dropped Task/);
+    assert.match(md, /`story-dropped` \[story\] \(#503\): Dropped Task/);
   });
 
   it('renders RelinkOp with parent and dependsOn deltas', () => {
@@ -144,9 +144,9 @@ describe('formatPlan — determinism (sort by slug)', () => {
   it('sorts each section by slug even if input is unsorted', () => {
     const plan = emptyPlan();
     plan.creates.push(
-      createOp({ slug: 'zebra', entity: ENTITY_KINDS.TASK, title: 'Z' }),
-      createOp({ slug: 'apple', entity: ENTITY_KINDS.TASK, title: 'A' }),
-      createOp({ slug: 'mango', entity: ENTITY_KINDS.TASK, title: 'M' }),
+      createOp({ slug: 'zebra', entity: ENTITY_KINDS.STORY, title: 'Z' }),
+      createOp({ slug: 'apple', entity: ENTITY_KINDS.STORY, title: 'A' }),
+      createOp({ slug: 'mango', entity: ENTITY_KINDS.STORY, title: 'M' }),
     );
     const md = formatPlan(plan);
     const idxApple = md.indexOf('`apple`');
@@ -160,12 +160,12 @@ describe('formatPlan — determinism (sort by slug)', () => {
     const a = emptyPlan();
     const b = emptyPlan();
     a.creates.push(
-      createOp({ slug: 'beta', entity: ENTITY_KINDS.TASK, title: 'B' }),
-      createOp({ slug: 'alpha', entity: ENTITY_KINDS.TASK, title: 'A' }),
+      createOp({ slug: 'beta', entity: ENTITY_KINDS.STORY, title: 'B' }),
+      createOp({ slug: 'alpha', entity: ENTITY_KINDS.STORY, title: 'A' }),
     );
     b.creates.push(
-      createOp({ slug: 'alpha', entity: ENTITY_KINDS.TASK, title: 'A' }),
-      createOp({ slug: 'beta', entity: ENTITY_KINDS.TASK, title: 'B' }),
+      createOp({ slug: 'alpha', entity: ENTITY_KINDS.STORY, title: 'A' }),
+      createOp({ slug: 'beta', entity: ENTITY_KINDS.STORY, title: 'B' }),
     );
     assert.equal(formatPlan(a), formatPlan(b));
   });

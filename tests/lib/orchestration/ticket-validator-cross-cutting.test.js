@@ -11,7 +11,7 @@
 //      call-site fan-out exceeds the configured threshold (counted via
 //      the injectable `fanOutCounter` probe).
 //
-// 3-tier (Epic #3238): each Story is its own implementation unit and
+// 2-tier (Epic #3238): each Story is its own implementation unit and
 // carries the `body` (goal / changes / acceptance / verify) that the
 // conflict pass scans, plus the top-level `acceptance[]` + `verify[]`
 // inline contract the validator requires. Registry / fan-out findings are
@@ -28,17 +28,10 @@ import {
   computeConflictFindings,
 } from '../../../.agents/scripts/lib/orchestration/ticket-validator-conflicts.js';
 
-const FEATURE = Object.freeze({
-  type: 'feature',
-  slug: 'f-x',
-  title: 'Feature',
-});
-
 function makeStory(slug, body = {}, extras = {}) {
   return {
     type: 'story',
     slug,
-    parent_slug: 'f-x',
     title: `Story ${slug}`,
     acceptance: ['observable criterion'],
     verify: ['npm test (unit)'],
@@ -54,9 +47,9 @@ function makeStory(slug, body = {}, extras = {}) {
 }
 
 /**
- * Benign filler sibling so single-Story fixtures still satisfy the
- * `assertNoSingleStoryFeature` invariant (Story #3777). Touches a unique
- * path so it adds no registry / conflict / fan-out findings of its own.
+ * Benign filler sibling so single-Story fixtures still exercise a
+ * multi-Story backlog. Touches a unique path so it adds no registry /
+ * conflict / fan-out findings of its own.
  */
 const SIBLING = makeStory('s-x-filler', {
   changes: ['src/cross-cutting-filler.js: edit'],
@@ -65,7 +58,6 @@ const SIBLING = makeStory('s-x-filler', {
 describe('cross-cutting-registries finding (Story #2962)', () => {
   it('emits crossCuttingRegistries when 2+ Stories create new files under the listeners registry directory', () => {
     const tickets = [
-      FEATURE,
       makeStory('s-a', {
         changes: [
           {
@@ -105,7 +97,6 @@ describe('cross-cutting-registries finding (Story #2962)', () => {
 
   it('suppresses the finding when a depends_on chain serialises the Stories', () => {
     const tickets = [
-      FEATURE,
       makeStory('s-a', {
         changes: [
           {
@@ -140,7 +131,6 @@ describe('cross-cutting-registries finding (Story #2962)', () => {
 
   it('failOnRegistryConflicts=true upgrades the finding to hard and renders an errors[] line', () => {
     const tickets = [
-      FEATURE,
       makeStory('s-a', {
         changes: [
           {
@@ -201,7 +191,6 @@ describe('cross-cutting-registries finding (Story #2962)', () => {
 describe('fan-out-warning finding (Story #2962)', () => {
   it('emits fan-out-warning when a deletes-assumption Story exceeds the threshold', () => {
     const tickets = [
-      FEATURE,
       makeStory('s-a', {
         changes: [{ path: 'lib/legacy/old-shim.js', assumption: 'deletes' }],
       }),
@@ -224,7 +213,6 @@ describe('fan-out-warning finding (Story #2962)', () => {
 
   it('does not emit when the call-site count is within the threshold', () => {
     const tickets = [
-      FEATURE,
       makeStory('s-a', {
         changes: [{ path: 'lib/legacy/old-shim.js', assumption: 'deletes' }],
       }),
@@ -294,7 +282,6 @@ describe('fan-out persist gate (Story #2962)', () => {
   });
 
   const buildFanOutTickets = () => [
-    FEATURE,
     makeStory('s-a', {
       changes: [{ path: 'lib/legacy/widely-used.js', assumption: 'deletes' }],
     }),
@@ -385,7 +372,6 @@ describe('soft conflict surfacing in Phase 8 (Story #3957)', () => {
     const epic = buildEpic();
     const provider = buildProvider(epic);
     const tickets = [
-      FEATURE,
       makeStory('s-a', {
         changes: [
           {
@@ -437,16 +423,14 @@ describe('soft conflict surfacing in Phase 8 (Story #3957)', () => {
   });
 });
 
-describe('3-tier inline-contract guard (Epic #3238)', () => {
+describe('2-tier inline-contract guard (Epic #3238)', () => {
   it('rejects a Story that lacks an inline acceptance + verify contract', () => {
     assert.throws(
       () =>
         validateAndNormalizeTickets([
-          FEATURE,
           {
             type: 'story',
             slug: 's-no-contract',
-            parent_slug: 'f-x',
             title: 'Story without inline contract',
             body: { goal: 'Goal.', changes: ['src/x.js: edit'] },
           },

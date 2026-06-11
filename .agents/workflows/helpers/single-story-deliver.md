@@ -10,7 +10,7 @@ description:
 ## Overview
 
 `/single-story-deliver` is the standalone counterpart to
-[`/story-deliver`](../story-deliver.md). Use it for a Story that is **not**
+[`/deliver`](deliver-stories.md). Use it for a Story that is **not**
 attached to an Epic — refactors carved out of closed Epics, framework
 maintenance, or any work small enough that the Epic-Centric ceremony
 (PRD + Tech Spec + decomposition + dispatch manifest + cascade) would be
@@ -25,19 +25,19 @@ overhead rather than help.
   → single-story-confirm-merge.js  (PR merged → agent::done, issue closes)
 ```
 
-**When to use `/single-story-deliver` vs. `/epic-deliver`:**
+**When to use `/single-story-deliver` vs. `/deliver`:**
 
-| Trait                         | `/single-story-deliver`                              | `/epic-deliver`                                         |
+| Trait                         | `/single-story-deliver`                              | `/deliver`                                         |
 | ----------------------------- | ---------------------------------------------------- | ------------------------------------------------------- |
 | Parent Epic                   | None (no `Epic: #N` in body)                         | Required (`Epic: #N` in body)                           |
 | Branch base                   | `project.baseBranch` (default `main`)          | `epic/<epicId>`                                         |
 | Merge target                  | `main` via PR                                        | `epic/<epicId>` via `--no-ff` merge                     |
-| Cascade up to Feature/Epic    | No                                                   | Yes                                                     |
+| Epic-branch integration       | No                                                   | Yes — merged into `epic/<epicId>` at close              |
 | Dispatch manifest interaction | None                                                 | Read at init, regenerated at close                      |
 | Story scope                   | Inline `acceptance[]` / `verify[]` on the Story body | Inline `acceptance[]` / `verify[]` on the Story body    |
 
-If the Story has an `Epic: #N` reference, use `/epic-deliver`. If it
-doesn't, use this workflow (or `/story-deliver` for several standalone
+If the Story has an `Epic: #N` reference, use `/deliver`. If it
+doesn't, use this workflow (or `/deliver` for several standalone
 Stories at once).
 
 ## Prerequisites
@@ -82,7 +82,7 @@ the Story to `agent::executing`.
 > is the only guard against a concurrent `single-story-init` clobbering an
 > in-flight run.
 >
-> **Fail-closed (audit #3513).** Unlike `/epic-deliver`, the standalone path
+> **Fail-closed (audit #3513).** Unlike `/deliver`, the standalone path
 > has **no Epic-scoped lifecycle ledger** to read a per-owner
 > `story.heartbeat` from, so there is no live-heartbeat source to decide
 > whether a foreign claim is stale. Rather than silently reclaim every
@@ -290,7 +290,7 @@ The script:
    `gh pr merge <prNumber> --auto --squash --delete-branch`. Once CI's
    required checks turn green, GitHub squash-merges the PR and deletes
    the source branch — the operator does not need to babysit the merge
-   button. Mirrors the `/epic-deliver` finalize path. Failure is
+   button. Mirrors the `/deliver` finalize path. Failure is
    non-fatal: the operator retains the manual merge surface in the
    GitHub UI. Pass `--no-auto-merge` to opt out when the PR needs a
    pre-merge eyeball.
@@ -614,7 +614,7 @@ safe.
   invoking from inside a worktree (worktree-local branch deletion fails
   when run from inside the worktree).
 - **Handoff discipline — report state, not process.** When you hand back to
-  your caller (the `/story-deliver` aggregator or the interactive operator),
+  your caller (the `/deliver` aggregator or the interactive operator),
   report essential terminal state only: the Story branch, the closing commit
   SHA, what changed, and what was verified. Mirror the fields the close
   pipeline already emits (`single-story-close.js` / `story-phase.js`
@@ -632,6 +632,6 @@ safe.
 
 ## See also
 
-- [`/story-deliver`](../story-deliver.md) — several standalone Stories at
+- [`/deliver`](deliver-stories.md) — several standalone Stories at
   once (dependency-aware waves).
-- [`/epic-deliver`](../epic-deliver.md) — full Epic wave loop.
+- [`/deliver`](deliver-epic.md) — full Epic wave loop.

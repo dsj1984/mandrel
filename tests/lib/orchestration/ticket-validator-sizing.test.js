@@ -26,22 +26,15 @@ import { validateAndNormalizeTickets } from '../../../.agents/scripts/lib/orches
  *   - wide-undeclared (soft) — fileCount > softFiles with no `wide`
  *     declaration, or glob changes with no `wide` declaration.
  *
- * 3-tier (Epic #3238): each Story is its own implementation unit and carries
+ * 2-tier (Epic #3238): each Story is its own implementation unit and carries
  * the `body` (goal / changes / acceptance / verify / wide) plus the top-level
  * `acceptance[]` + `verify[]` inline contract the validator requires.
  */
-
-const FEATURE = Object.freeze({
-  type: 'feature',
-  slug: 'f-sizing',
-  title: 'Sizing fixtures',
-});
 
 function makeStory(slug = 's-sizing', body) {
   return {
     type: 'story',
     slug,
-    parent_slug: 'f-sizing',
     title: `Sizing story ${slug}`,
     acceptance: ['observable criterion'],
     verify: ['npm test (unit)'],
@@ -60,16 +53,14 @@ function changes(n, verb = 'edit') {
 }
 
 /**
- * Benign filler sibling so every fixture Feature carries >=2 Stories
- * (Story #3777 `assertNoSingleStoryFeature`). It touches a single unique
- * path, has a minimal inline contract, and declares no glob / wide — so it
- * adds ZERO sizing or conflict findings and never perturbs the assertions
- * under test.
+ * Benign filler sibling Story. It touches a single unique path, has a
+ * minimal inline contract, and declares no glob / wide — so it adds ZERO
+ * sizing or conflict findings and never perturbs the assertions under
+ * test.
  */
 const SIBLING_FILLER = Object.freeze({
   type: 'story',
   slug: 's-sizing-filler',
-  parent_slug: 'f-sizing',
   title: 'Sizing fixtures — filler sibling',
   acceptance: ['filler observable criterion'],
   verify: ['npm test (unit)'],
@@ -82,13 +73,13 @@ const SIBLING_FILLER = Object.freeze({
 });
 
 /**
- * Validate a single Story under FEATURE while keeping the Feature at >=2
- * Stories via the benign filler sibling. Tests that need a custom invalid
+ * Validate a single Story alongside the benign filler sibling.
+ * Tests that need a custom invalid
  * story (e.g. the missing-inline-contract case) call
  * `validateAndNormalizeTickets` directly with their own array.
  */
 function validateStory(story, opts) {
-  return validateAndNormalizeTickets([FEATURE, story, SIBLING_FILLER], opts);
+  return validateAndNormalizeTickets([story, SIBLING_FILLER], opts);
 }
 
 // ---------------------------------------------------------------------------
@@ -351,7 +342,7 @@ test('changes[] with a glob PathEntry object triggers wide-undeclared', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 3-tier guard — a Story missing its inline acceptance + verify contract is
+// 2-tier guard — a Story missing its inline acceptance + verify contract is
 // rejected (Epic #3238).
 // ---------------------------------------------------------------------------
 
@@ -359,11 +350,9 @@ test('rejects a Story that lacks an inline acceptance + verify contract', () => 
   assert.throws(
     () =>
       validateAndNormalizeTickets([
-        FEATURE,
         {
           type: 'story',
           slug: 's-no-contract',
-          parent_slug: 'f-sizing',
           title: 'Story without inline contract',
           body: { goal: 'Goal.', changes: ['src/a.js: edit'] },
         },
