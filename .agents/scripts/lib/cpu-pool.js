@@ -55,6 +55,20 @@ import { Worker } from 'node:worker_threads';
 const defaultWorkerFactory = (script, options) => new Worker(script, options);
 
 /**
+ * Pool-vs-serial cutover for `runOnPool` callers.
+ *
+ * Below this batch size the pool's worker spawn overhead dominates, so
+ * callers fall back to in-process serial scoring. Tuned against the test
+ * suite's tmpdir fixtures (n=2 stays serial; the full repo n≈200–470
+ * takes the pool path). Single-sourced here so the maintainability
+ * baseline scan (`maintainability-utils.js`), the CRAP scanner
+ * (`crap-utils.js`), and the native review provider
+ * (`review-providers/native.js`) cannot silently desynchronize on a
+ * retune.
+ */
+export const POOL_SERIAL_THRESHOLD = 8;
+
+/**
  * @template TItem, TResult
  * @param {string|URL} workerScript - File URL or path to the worker entry.
  * @param {TItem[]} items

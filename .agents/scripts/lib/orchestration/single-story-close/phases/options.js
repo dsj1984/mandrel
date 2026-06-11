@@ -10,7 +10,7 @@
 
 import path from 'node:path';
 import { parseSprintArgs } from '../../../cli-args.js';
-import { PROJECT_ROOT } from '../../../config-resolver.js';
+import { PROJECT_ROOT } from '../../../project-root.js';
 
 /**
  * Resolve a flag value from an explicit override, a parsed CLI arg, or a

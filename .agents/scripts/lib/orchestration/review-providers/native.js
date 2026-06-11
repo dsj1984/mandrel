@@ -42,14 +42,14 @@
 
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
-import { PROJECT_ROOT } from '../../config-resolver.js';
-import { runOnPool } from '../../cpu-pool.js';
+import { POOL_SERIAL_THRESHOLD, runOnPool } from '../../cpu-pool.js';
 import { gitSpawn } from '../../git-utils.js';
 import {
   calculateReport,
   classifyReport,
 } from '../../maintainability-engine.js';
 import { transpileIfNeeded } from '../../maintainability-utils.js';
+import { PROJECT_ROOT } from '../../project-root.js';
 import {
   hashCommandConfig,
   recordPass,
@@ -67,10 +67,11 @@ const MAINTAINABILITY_REPORT_WORKER_URL = new URL(
  * `analyzeChangedFiles` scores in-process (the pre-pool serial path). At or
  * above it, per-file `calculateReportForFile` scoring is offloaded to the
  * shared worker pool so the event loop is not blocked during epic-scoped
- * reviews (f-performance). Tuned to match the `SERIAL_THRESHOLD` used by the
- * maintainability baseline scan in `maintainability-utils.js`.
+ * reviews (f-performance). Single-sourced in `cpu-pool.js` (see the
+ * `POOL_SERIAL_THRESHOLD` docstring for the tuning rationale); the
+ * `SERIAL_THRESHOLD` export name is preserved as this module's public API.
  */
-export const SERIAL_THRESHOLD = 8;
+export const SERIAL_THRESHOLD = POOL_SERIAL_THRESHOLD;
 
 const JS_MAINTAINABILITY_EXTS = new Set(['.js', '.mjs', '.cjs']);
 
