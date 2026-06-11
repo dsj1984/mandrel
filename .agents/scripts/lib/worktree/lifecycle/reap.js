@@ -134,7 +134,7 @@ async function fsRmWithRetry(
       return { success: true, attempts: attempt };
     } catch (err) {
       lastErr = err;
-      if (attempt < maxRetries) {
+      if (attempt < maxRetries && retryDelay > 0) {
         await new Promise((r) => setTimeout(r, retryDelay));
       }
     }
@@ -160,8 +160,8 @@ function handleRemoveFailure(
   classification,
   attempt,
   maxAttempts,
+  { retryDelaysMs = [0, 150, 350, 700, 1200, 2000], sleepFn = sleepSync } = {},
 ) {
-  const retryDelaysMs = [0, 150, 350, 700, 1200, 2000];
   const { isLockLike, isCwdLike } = classification;
   if ((isLockLike || isCwdLike) && attempt < maxAttempts) {
     const delay = retryDelaysMs[attempt] ?? 300;
@@ -169,13 +169,13 @@ function handleRemoveFailure(
     ctx.logger.warn(
       `worktree.reap remove hit ${reasonClass} error; retrying in ${delay}ms (${attempt}/${maxAttempts})`,
     );
-    sleepSync(delay);
+    sleepFn(delay);
     return 'continue';
   }
   return 'break';
 }
 
-async function runGitWorktreeRemoveLoop(ctx, wtPath) {
+async function runGitWorktreeRemoveLoop(ctx, wtPath, retryOpts = {}) {
   const maxAttempts = ctx.platform === 'win32' ? 6 : 2;
   let lastReason = 'worktree-remove-failed';
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -193,6 +193,7 @@ async function runGitWorktreeRemoveLoop(ctx, wtPath) {
       classification,
       attempt,
       maxAttempts,
+      retryOpts,
     );
     if (action === 'break') break;
   }
@@ -205,6 +206,7 @@ function tryForceRemoveFallback(
   lastReason,
   forceRemoveBackoffMs,
   maxAttempts,
+  sleepFn = sleepSync,
 ) {
   if (!(WINDOWS_LOCK_RE.test(lastReason) || WINDOWS_CWD_RE.test(lastReason))) {
     return { handled: false, lastReason };
@@ -212,7 +214,7 @@ function tryForceRemoveFallback(
   ctx.logger.warn(
     `worktree.reap remove exhausted Windows lock retry; retrying with --force in ${forceRemoveBackoffMs}ms path=${wtPath}`,
   );
-  sleepSync(forceRemoveBackoffMs);
+  sleepFn(forceRemoveBackoffMs);
   const forced = ctx.git.gitSpawn(
     ctx.repoRoot,
     'worktree',
@@ -248,8 +250,9 @@ async function tryStage15WindowsFsRm({
   push,
   lastReason,
   priorAttempts,
+  sleepFn = sleepSync,
 }) {
-  sleepSync(forceRemoveBackoffMs);
+  sleepFn(forceRemoveBackoffMs);
   try {
     await fsRm(wtPath, {
       recursive: true,
@@ -304,6 +307,7 @@ async function handleFsRmFailure({
   lastReason,
   forceRemoveBackoffMs,
   fsRm,
+  sleepFn,
 }) {
   // Stage 1.5 — coverage-leak quiesce + extended fs.rm budget (Windows only).
   if (ctx.platform === 'win32') {
@@ -316,6 +320,7 @@ async function handleFsRmFailure({
       push,
       lastReason,
       priorAttempts: rmResult.attempts,
+      sleepFn,
     });
     if (stage15) return stage15;
   }
@@ -347,7 +352,12 @@ async function handleFsRmFailure({
 export async function removeWorktreeWithRecovery(ctx, wtPath, opts = {}) {
   const { storyId = null, branch = null, push = false } = opts;
   const forceRemoveBackoffMs = opts.forceRemoveBackoffMs ?? 3000;
-  const removeLoop = await runGitWorktreeRemoveLoop(ctx, wtPath);
+  const retryDelay = opts.retryDelay ?? 200;
+  const { retryDelaysMs, sleepFn } = opts;
+  const removeLoop = await runGitWorktreeRemoveLoop(ctx, wtPath, {
+    ...(retryDelaysMs ? { retryDelaysMs } : {}),
+    ...(sleepFn ? { sleepFn } : {}),
+  });
   if (removeLoop.removed) return { removed: true };
   let { lastReason } = removeLoop;
   if (ctx.platform === 'win32' && opts.forceRemoveFallback !== false) {
@@ -357,6 +367,7 @@ export async function removeWorktreeWithRecovery(ctx, wtPath, opts = {}) {
       lastReason,
       forceRemoveBackoffMs,
       removeLoop.maxAttempts,
+      sleepFn,
     );
     if (fallback.handled) return fallback.result;
     lastReason = fallback.lastReason;
@@ -367,7 +378,7 @@ export async function removeWorktreeWithRecovery(ctx, wtPath, opts = {}) {
   const fsRm = ctx.fsRm ?? fsPromisesRm;
   const rmResult = await fsRmWithRetry(fsRm, wtPath, {
     maxRetries: 5,
-    retryDelay: 200,
+    retryDelay,
   });
   if (!rmResult.success) {
     return handleFsRmFailure({
@@ -380,6 +391,7 @@ export async function removeWorktreeWithRecovery(ctx, wtPath, opts = {}) {
       lastReason,
       forceRemoveBackoffMs,
       fsRm,
+      sleepFn,
     });
   }
   finalizeGitWorktreeRemove(ctx);
@@ -571,6 +583,12 @@ export async function reap(ctx, storyId, opts = {}) {
     storyId: storyIdN,
     branch,
     push: opts.push === true,
+    ...(opts.retryDelaysMs ? { retryDelaysMs: opts.retryDelaysMs } : {}),
+    ...(opts.retryDelay !== undefined ? { retryDelay: opts.retryDelay } : {}),
+    ...(opts.sleepFn ? { sleepFn: opts.sleepFn } : {}),
+    ...(opts.forceRemoveBackoffMs !== undefined
+      ? { forceRemoveBackoffMs: opts.forceRemoveBackoffMs }
+      : {}),
   });
   if (!removeResult.removed) {
     return {
