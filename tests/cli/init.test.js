@@ -97,12 +97,66 @@ describe('init — install when .agents/ is absent', () => {
       isTTY: true,
     });
 
-    // First two steps are install then sync, in that order.
+    // First two steps are install then sync, in that order. The sync step is
+    // dispatched against the locally installed bin via process.execPath, NOT a
+    // bare `mandrel` on PATH (Story #4016).
     assert.equal(calls[0].cmd, 'npm');
     assert.deepEqual(calls[0].args, ['install', 'mandrel', '--ignore-scripts']);
-    assert.equal(calls[1].cmd, 'mandrel');
-    assert.deepEqual(calls[1].args, ['sync']);
+    assert.equal(calls[1].cmd, process.execPath);
+    assert.equal(calls[1].args.length, 2);
+    assert.ok(
+      calls[1].args[0].endsWith(
+        path.join('node_modules', 'mandrel', 'bin', 'mandrel.js'),
+      ),
+      `expected the resolved local bin path, got ${calls[1].args[0]}`,
+    );
+    assert.equal(calls[1].args[1], 'sync');
     assert.equal(result.installed, true);
+  });
+
+  it('resolves the sync step to the local bin, never a bare `mandrel` on PATH (Story #4016)', () => {
+    // Regression guard for the post-install (non-npx) cold start: reached via a
+    // documented `npm install mandrel` then `mandrel init`, or a plain
+    // `node bin/mandrel.js init`, the freshly installed binary lives at
+    // ./node_modules/mandrel/bin/mandrel.js and is NOT on PATH. A bare
+    // spawnSync('mandrel', ['sync']) dies with ENOENT and leaves .agents/
+    // un-materialized. The sync step must instead spawn process.execPath against
+    // the resolved local entrypoint.
+    const { calls, runStep } = makeRunStep();
+    const { confirm } = makeConfirm('2');
+    const { write } = makeStdout();
+
+    planInit({
+      argv: [],
+      exists: () => false, // .agents/ absent → install + sync path
+      runStep,
+      confirm,
+      stdout: write,
+      isTTY: true,
+    });
+
+    // No step may invoke a bare `mandrel` (the PATH-dependent shape).
+    const bareMandrel = calls.find((c) => c.cmd === 'mandrel');
+    assert.equal(
+      bareMandrel,
+      undefined,
+      'sync must not spawn a bare `mandrel` on PATH',
+    );
+
+    // The sync step is process.execPath + the cwd-relative local bin + `sync`.
+    const syncCall = calls.find((c) => c.args.includes('sync'));
+    assert.ok(syncCall, 'expected a sync step');
+    assert.equal(
+      syncCall.cmd,
+      process.execPath,
+      'sync must be dispatched through process.execPath (node)',
+    );
+    assert.equal(
+      syncCall.args[0],
+      path.join('node_modules', 'mandrel', 'bin', 'mandrel.js'),
+      'sync must target the resolved local Mandrel entrypoint',
+    );
+    assert.equal(syncCall.args[1], 'sync');
   });
 
   it('targets the hardcoded package name even when argv supplies a different name', () => {
@@ -164,7 +218,7 @@ describe('init — skip install when .agents/ is present', () => {
     });
 
     const installOrSync = calls.filter(
-      (c) => c.cmd === 'npm' || (c.cmd === 'mandrel' && c.args[0] === 'sync'),
+      (c) => c.cmd === 'npm' || c.args.includes('sync'),
     );
     assert.equal(
       installOrSync.length,
