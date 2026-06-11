@@ -244,8 +244,7 @@ export class TicketGateway {
     try {
       issues = await this._searchEpicChildren(epicId, filters);
     } catch (err) {
-      const msg =
-        typeof err?.message === 'string' ? err.message : String(err);
+      const msg = typeof err?.message === 'string' ? err.message : String(err);
       Logger.warn(
         `[TicketGateway] search-based getTickets(#${epicId}) failed (${msg}); ` +
           'falling back to repo-wide issue listing',
