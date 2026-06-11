@@ -13,9 +13,9 @@
  *   - `.agents/` absent → install `mandrel --ignore-scripts` then `sync`, in
  *     that order, against the hardcoded `mandrel` package name.
  *   - `.agents/` present → no install/sync steps run.
- *   - The two-option numbered prompt renders both options.
- *   - Choosing 1 → bootstrap step is execPath + bootstrap.js + forwarded argv.
- *   - Choosing 2 → no bootstrap, hint printed, ranBootstrap false, exit 0.
+ *   - The yes/no prompt renders the question and `[Y/n]` hint.
+ *   - Answering yes → bootstrap step is execPath + bootstrap.js + forwarded argv.
+ *   - Answering no → no bootstrap, hint printed, ranBootstrap false, exit 0.
  *   - `--assume-yes` → confirm seam not consulted, bootstrap carries the flag.
  *   - Non-TTY without `--assume-yes` → files-only, exit 0.
  *   - Bin dispatch: `mandrel init --help` reaches the module (integration).
@@ -57,12 +57,15 @@ function makeStdout() {
   return { out, write: (s) => out.push(s) };
 }
 
-/** A `confirm` seam that records whether it was consulted and returns `choice`. */
-function makeConfirm(choice) {
+/**
+ * A `confirm` seam that records whether it was consulted and returns `answer`
+ * (a boolean — true = configure now / yes, false = files-only / no).
+ */
+function makeConfirm(answer) {
   const state = { consulted: false };
   const confirm = () => {
     state.consulted = true;
-    return choice;
+    return answer;
   };
   return { state, confirm };
 }
@@ -85,7 +88,7 @@ describe('init — module shape', () => {
 describe('init — install when .agents/ is absent', () => {
   it('installs the hardcoded `mandrel` with --ignore-scripts, then syncs, in order', () => {
     const { calls, runStep } = makeRunStep();
-    const { confirm } = makeConfirm('2');
+    const { confirm } = makeConfirm(false);
     const { write } = makeStdout();
 
     const result = planInit({
@@ -123,7 +126,7 @@ describe('init — install when .agents/ is absent', () => {
     // un-materialized. The sync step must instead spawn process.execPath against
     // the resolved local entrypoint.
     const { calls, runStep } = makeRunStep();
-    const { confirm } = makeConfirm('2');
+    const { confirm } = makeConfirm(false);
     const { write } = makeStdout();
 
     planInit({
@@ -161,7 +164,7 @@ describe('init — install when .agents/ is absent', () => {
 
   it('targets the hardcoded package name even when argv supplies a different name', () => {
     const { calls, runStep } = makeRunStep();
-    const { confirm } = makeConfirm('2');
+    const { confirm } = makeConfirm(false);
     const { write } = makeStdout();
 
     planInit({
@@ -179,7 +182,7 @@ describe('init — install when .agents/ is absent', () => {
 
   it('short-circuits with the install exit code when install fails', () => {
     const { calls, runStep } = makeRunStep({ statuses: [7] });
-    const { confirm, state } = makeConfirm('1');
+    const { confirm, state } = makeConfirm(true);
     const { write } = makeStdout();
 
     const result = planInit({
@@ -205,7 +208,7 @@ describe('init — install when .agents/ is absent', () => {
 describe('init — skip install when .agents/ is present', () => {
   it('runs no install/sync steps and goes straight to the prompt', () => {
     const { calls, runStep } = makeRunStep();
-    const { confirm } = makeConfirm('2');
+    const { confirm } = makeConfirm(false);
     const { write } = makeStdout();
 
     const result = planInit({
@@ -230,13 +233,13 @@ describe('init — skip install when .agents/ is present', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Step 2 — two-option prompt
+// Step 2 — yes/no prompt
 // ---------------------------------------------------------------------------
 
-describe('init — two-option prompt rendering', () => {
-  it('renders both numbered options on a TTY without --assume-yes', () => {
+describe('init — yes/no prompt rendering', () => {
+  it('renders the yes/no question on a TTY without --assume-yes', () => {
     const { runStep } = makeRunStep();
-    const { confirm } = makeConfirm('2');
+    const { confirm } = makeConfirm(false);
     const { out, write } = makeStdout();
 
     planInit({
@@ -249,19 +252,19 @@ describe('init — two-option prompt rendering', () => {
     });
 
     const prompt = out.join('');
-    assert.match(prompt, /1\) Configure my environment now/);
-    assert.match(prompt, /2\) Just the files/);
+    assert.match(prompt, /begin the interactive process to setup/);
+    assert.match(prompt, /\[Y\/n\]:/);
   });
 });
 
 // ---------------------------------------------------------------------------
-// Option 1 — configure (run bootstrap)
+// Answering yes — configure (run bootstrap)
 // ---------------------------------------------------------------------------
 
-describe('init — option 1 runs bootstrap.js with forwarded argv', () => {
+describe('init — answering yes runs bootstrap.js with forwarded argv', () => {
   it('invokes process.execPath + bootstrap.js + forwarded flags', () => {
     const { calls, runStep } = makeRunStep();
-    const { confirm } = makeConfirm('1');
+    const { confirm } = makeConfirm(true);
     const { write } = makeStdout();
 
     const result = planInit({
@@ -292,13 +295,13 @@ describe('init — option 1 runs bootstrap.js with forwarded argv', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Option 2 — files-only
+// Answering no — files-only
 // ---------------------------------------------------------------------------
 
-describe('init — option 2 skips bootstrap and prints the hint', () => {
+describe('init — answering no skips bootstrap and prints the hint', () => {
   it('runs no bootstrap step, prints the re-run hint, sets ranBootstrap false, exits 0', () => {
     const { calls, runStep } = makeRunStep();
-    const { confirm } = makeConfirm('2');
+    const { confirm } = makeConfirm(false);
     const { out, write } = makeStdout();
 
     const result = planInit({
@@ -312,7 +315,7 @@ describe('init — option 2 skips bootstrap and prints the hint', () => {
 
     const bootstrapCall = calls.find((c) => c.cmd === process.execPath);
     assert.equal(bootstrapCall, undefined, 'no bootstrap step on files-only');
-    assert.match(out.join(''), /Configure any time with: mandrel init/);
+    assert.match(out.join(''), /Configure any time with: npx mandrel init/);
     assert.equal(result.ranBootstrap, false);
     assert.equal(result.exitCode, 0);
   });
@@ -325,7 +328,7 @@ describe('init — option 2 skips bootstrap and prints the hint', () => {
 describe('init — --assume-yes skips the prompt and forwards the flag', () => {
   it('does not consult confirm and forwards --assume-yes to bootstrap', () => {
     const { calls, runStep } = makeRunStep();
-    const { confirm, state } = makeConfirm('2'); // would choose files-only if consulted
+    const { confirm, state } = makeConfirm(false); // would choose files-only if consulted
     const { write } = makeStdout();
 
     const result = planInit({
@@ -348,7 +351,7 @@ describe('init — --assume-yes skips the prompt and forwards the flag', () => {
 
   it('does not duplicate --assume-yes when argv already carries it once', () => {
     const { calls, runStep } = makeRunStep();
-    const { confirm } = makeConfirm('1');
+    const { confirm } = makeConfirm(true);
     const { write } = makeStdout();
 
     planInit({
@@ -375,7 +378,7 @@ describe('init — --assume-yes skips the prompt and forwards the flag', () => {
 describe('init — non-TTY stdin defaults to files-only', () => {
   it('chooses files-only (no bootstrap) and exits 0 when stdin is not a TTY', () => {
     const { calls, runStep } = makeRunStep();
-    const { confirm, state } = makeConfirm('1'); // would configure if consulted
+    const { confirm, state } = makeConfirm(true); // would configure if consulted
     const { out, write } = makeStdout();
 
     const result = planInit({
@@ -394,7 +397,7 @@ describe('init — non-TTY stdin defaults to files-only', () => {
     );
     const bootstrapCall = calls.find((c) => c.cmd === process.execPath);
     assert.equal(bootstrapCall, undefined, 'must never provision unattended');
-    assert.match(out.join(''), /Configure any time with: mandrel init/);
+    assert.match(out.join(''), /Configure any time with: npx mandrel init/);
     assert.equal(result.ranBootstrap, false);
     assert.equal(result.exitCode, 0);
   });
