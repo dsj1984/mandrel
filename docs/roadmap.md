@@ -953,8 +953,8 @@ by lens; do not batch-convert.
 
 Beyond audits, `runAuditOrchestration`'s fan-out → adversarial cross-check →
 synthesis shape has one obvious next application: **epic-plan
-decomposition** (parallel per-Feature Story drafting + an adversarial
-consolidation pass). That candidate is scoped in
+decomposition** (parallel per-Story drafting across capability slices +
+an adversarial consolidation pass). That candidate is scoped in
 [Part 4 § 4.5](#45-orchestration-beyond-audits-spike-candidate) rather than
 here, because its payoff is coupled to the story-size recalibration.
 

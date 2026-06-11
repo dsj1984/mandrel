@@ -93,7 +93,7 @@ node .agents/scripts/story-init.js --story <storyId>
 > prevention is cheaper: just give Bash the 10-minute timeout and block.
 
 The script validates `type::story`, checks blockers, traces the
-Feature → Epic → PRD/Tech-Spec hierarchy, seeds `story-<id>` from the
+Epic → PRD/Tech-Spec hierarchy, seeds `story-<id>` from the
 Epic branch, and (when worktree isolation is on) runs `git worktree add`
 at `.worktrees/story-<id>/`. The Story flips to `agent::executing`. A
 `story-init` structured comment is upserted with the Story's inline

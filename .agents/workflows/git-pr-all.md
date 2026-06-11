@@ -269,9 +269,12 @@ notification) is the next watcher.
 Do **not** use this workflow from inside a parallel story-execution
 context (`/deliver #<storyId>`, `/deliver` wave dispatch).
 `git add -A` sweeps any untracked files in the working tree, which in
-a shared working directory may belong to another agent. Use the
-explicit-staging + branch-guard pattern documented in
-`story-deliver.md` Step 1 in those contexts.
+a shared working directory may belong to another agent. In those
+contexts stage explicit paths only and confirm
+`git branch --show-current` reports the expected `story-<id>` branch
+before committing — see
+[`helpers/worktree-lifecycle.md`](helpers/worktree-lifecycle.md) for the
+shared-tree hazard and the worktree-isolation model that contains it.
 
 The same warning applies to any workflow that calls `git add .` or
 `git add -A`; this is not unique to `/git-pr-all` (see

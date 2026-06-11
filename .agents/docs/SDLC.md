@@ -53,7 +53,7 @@ From zero to shipped:
    5. **Phase 5 — re-plan detection** — checks whether the Epic already
       carries planning artifacts and, if so, prompts before overwriting
       the PRD / Tech Spec / Acceptance Spec in place and recreating the
-      Feature/Story tickets.
+      child Story tickets.
    6. **Phase 6 — Epic clarity gate** — scores the Epic body against the
       five canonical sections. A `clear` verdict requires ≥ 4 of 5
       sections present **and** the Acceptance Criteria section present (AC
@@ -349,9 +349,9 @@ mode:
 `/plan` Phase 1.5 runs the
 [`core/scope-triage`](../skills/core/scope-triage/SKILL.md) rubric over the
 sharpened one-pager so a story-sized scope is not pushed through the full Epic
-ceremony (PRD + Tech Spec + Acceptance Spec + Feature/Story tree +
-`epic/<id>` integration branch) only to land as a degenerate one-Feature,
-one-Story output. The rubric anchors its sizing judgment **by reference** to
+ceremony (PRD + Tech Spec + Acceptance Spec + Story backlog +
+`epic/<id>` integration branch) only to land as a degenerate one-Story
+output. The rubric anchors its sizing judgment **by reference** to
 the existing sizing SSOT (`DELIVERABLE_GRANULARITY_GUIDANCE` /
 `DEFAULT_TASK_SIZING` in `ticket-validator-sizing.js`) and emits one of three
 verdicts — `epic` | `story` | `borderline`.
@@ -371,7 +371,7 @@ The same rubric also guards the **existing-Epic entry** (1b) as the
 hand-opened directly as a `type::epic` issue (the Phase 6 Epic Clarity Gate
 scores section *presence*, not scope *size*, so a clear-but-thin Epic would
 otherwise sail through). The advisory fires **only** when Phase 5 found no
-linked PRD / Tech Spec **and** the Epic has no open Feature/Story children, so
+linked PRD / Tech Spec **and** the Epic has no open Story children, so
 it never re-triages an Epic that is being re-planned. An `epic` verdict
 proceeds silently; a `story` / `borderline` verdict STOPs with the same
 three-way choice (convert to a standalone Story / proceed as Epic anyway /
@@ -586,7 +586,7 @@ hopeful signal.
   `acceptance::n-a` waiver label. Missing-without-waiver fails the
   handoff.
 - **Decomposition persisted.** The structural reconciler has applied
-  the Feature/Story/Task hierarchy and written the spec to
+  the Epic's child-Story backlog and written the spec to
   `.agents/epics/<epicId>.yaml`. The `epic-plan-state` checkpoint
   comment records `phase: ready`.
 - **Dispatch manifest posted.** A single `epic-dispatch` structured
@@ -728,8 +728,9 @@ Whether the Story is launched directly by the operator or fanned out by
 3. **Closure** (`story-close.js`):
    - Runs shift-left validation (lint, format, test).
    - Merges the Story branch into `epic/<epicId>`.
-   - Transitions the Story → `agent::done`; cascades up Story → Feature
-     (Epics and context tickets are excluded from auto-cascade).
+   - Transitions the Story → `agent::done`. There is no upward
+     auto-cascade — the Epic flips only when the operator merges the
+     `epic/<id>` PR to `main`.
    - Reaps the Story worktree and cleans up the merged Story branch.
 
 ### Context hydration
@@ -740,7 +741,7 @@ standalone Stories), the Context Hydrator assembles a self-contained prompt:
 
 1. `agent-protocol.md` (universal rules).
 2. Persona and skill directives (from Task labels).
-3. Hierarchy context (Story → Feature → Epic → PRD → Tech Spec).
+3. Hierarchy context (Story → Epic → PRD → Tech Spec).
 4. **Story branch context.** Automatic checkouts to the Story branch. Under
    worktree isolation, each Story runs in its own `.worktrees/story-<id>/` so
    branch swaps, staging, and reflog activity are isolated per-story. See
@@ -1058,16 +1059,11 @@ action.
 1. **Story merging.** Stories merge into `epic/<epicId>` automatically
    during Story closure (`story-close.js`). The Epic branch is the rolling
    integration target.
-2. **Completion cascade.** When the last Task in a Story reaches
-   `agent::done`, status cascades upward:
-
-   ```text
-   Task Done → Story Done → Feature Done
-   ```
-
-   Epics, PRDs, and Tech Specs are explicitly excluded from auto-cascade —
-   the Epic only flips to `agent::done` when the operator merges the PR
-   to `main`.
+2. **Completion.** Each Story flips to `agent::done` at its own closure
+   (`story-close.js`); the wave loop tracks Epic-level progress as
+   Stories complete. There is no upward auto-cascade — Epics, PRDs, and
+   Tech Specs are never flipped by Story closure; the Epic only flips to
+   `agent::done` when the operator merges the PR to `main`.
 
 3. **PR merge — the sole promotion gate.** When the PR merges (auto or
    manual):

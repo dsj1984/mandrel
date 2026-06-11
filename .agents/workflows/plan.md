@@ -46,6 +46,7 @@ forwards them to the active path helper:
 | `--allow-over-budget` | Epic | Permit a decomposition that exceeds `planning.maxTickets`. |
 | `--steal` | Epic | Forcibly transfer a foreign Epic-lease. |
 | `--dry-run` | both | Author + validate without GitHub writes. |
+| `--body <path>` | Story | Pre-authored Story body file; validate (and create, unless `--dry-run`) without re-authoring. |
 | `--persona <name>` | Story | Override the persona label on the drafted Story. |
 | `--refine` / `--no-refine` | Story | Toggle the draft refinement loop. |
 
@@ -59,8 +60,9 @@ helpers, no command hop and no operator re-entry.
 
 ## Procedure
 
-1. **Parse args.** Exactly one of `<epicId>`, `--idea`, or `--from-notes`
-   must be present; anything else is a usage error naming the three forms.
+1. **Parse args.** Exactly one of `<epicId>`, `--idea`, `--from-notes`, or
+   `--body` must be present; anything else is a usage error naming the four
+   forms. A `--body` invocation routes to the story path (no triage).
 2. **Triage (idea path only).** Run the
    [`core/scope-triage`](../skills/core/scope-triage/SKILL.md) skill on the
    seed. Record the verdict in chat (one line).

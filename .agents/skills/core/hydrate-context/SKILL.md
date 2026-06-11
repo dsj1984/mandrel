@@ -25,8 +25,8 @@ allowed_tools:
 
 ## Role
 
-Context aggregator. Resolves a ticket's hierarchy (Task → Story →
-Feature → Epic) and stitches the linked planning artifacts into a
+Context aggregator. Resolves a ticket's hierarchy (Story → Epic)
+and stitches the linked planning artifacts into a
 single prompt the executor consumes.
 
 ## When to use

@@ -56,5 +56,8 @@ attempting to commit or push again.
 Do **not** use this workflow from inside a parallel story-execution context
 (`/deliver #<storyId>`). `git add .` sweeps any untracked files in the
 working tree, which in a shared working directory may belong to another agent.
-In that context, follow the explicit-staging + branch-guard pattern documented
-in `story-deliver.md` Step 1.
+In that context, stage explicit paths only and confirm
+`git branch --show-current` reports the expected `story-<id>` branch before
+committing — see
+[`helpers/worktree-lifecycle.md`](helpers/worktree-lifecycle.md) for the
+shared-tree hazard and the worktree-isolation model that contains it.

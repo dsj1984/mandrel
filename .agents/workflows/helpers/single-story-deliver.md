@@ -32,7 +32,7 @@ overhead rather than help.
 | Parent Epic                   | None (no `Epic: #N` in body)                         | Required (`Epic: #N` in body)                           |
 | Branch base                   | `project.baseBranch` (default `main`)          | `epic/<epicId>`                                         |
 | Merge target                  | `main` via PR                                        | `epic/<epicId>` via `--no-ff` merge                     |
-| Cascade up to Feature/Epic    | No                                                   | Yes                                                     |
+| Epic-branch integration       | No                                                   | Yes — merged into `epic/<epicId>` at close              |
 | Dispatch manifest interaction | None                                                 | Read at init, regenerated at close                      |
 | Story scope                   | Inline `acceptance[]` / `verify[]` on the Story body | Inline `acceptance[]` / `verify[]` on the Story body    |
 

@@ -30,9 +30,10 @@
 
 > Mandrel uses a **2-tier ticket hierarchy** (Epic → Story),
 > with acceptance criteria and verification steps inlined on the Story
-> body (`acceptance[]` / `verify[]`). Epic-attached Stories are delivered
-> via `/deliver` (which fans out `helpers/epic-deliver-story` per
-> wave); standalone Stories use `/deliver`. There is no `type::task`
+> body (`acceptance[]` / `verify[]`). All delivery flows through
+> `/deliver`, which routes Epic vs standalone-Story input — Epic-attached
+> Stories are delivered as part of their Epic (the Epic path fans out
+> `helpers/epic-deliver-story` per wave). There is no `type::task`
 > ticket layer, no per-Task `agent::*` lifecycle, and no `task-commit.js`
 > ceremony. Commits land on `story-<storyId>` directly from the agent and
 > reference the parent Story via `(refs #<storyId>)`. See

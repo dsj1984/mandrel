@@ -23,21 +23,21 @@ using the same `host LLM authors + Node wrapper persists` split as
   → host LLM authors a draft Story body         (in chat, using the envelope)
   → operator confirms (HITL)
   → story-plan.js --body <file>                 (validate, gh issue create)
-  → "Next: /single-story-deliver <id>"
+  → "Next: /deliver <id>"
 ```
 
-**When to use `/plan` vs. `/plan` Phase 8:**
+**The two paths of `/plan` — when each applies:**
 
-| Trait                | `/plan`                              | `/plan` Phase 8                         |
+| Trait                | Standalone-Story path (this helper)        | Epic decomposition path (`helpers/plan-epic.md`) |
 | -------------------- | ------------------------------------------ | -------------------------------------------- |
-| Output               | One standalone Story Issue                 | Decomposed Feature/Story/Task hierarchy      |
+| Output               | One standalone Story Issue                 | Epic with child Stories                      |
 | Parent Epic          | None (no `Epic: #N` in body)               | Required                                     |
-| Downstream workflow  | `/single-story-deliver`                    | `/deliver` (per Story)                 |
-| Replan surface       | Out of scope (recreate manually if needed) | `/plan --replan` regenerates everything |
-| Inbound route        | Direct, **or** an `/plan` Phase 1.5 scope-triage handoff | Direct (`<epicId>` or `--idea`)         |
-| Outbound route       | Phase 2 may **escalate** an epic-sized draft to `/plan --idea` (scope-triage handoff) | n/a — `/plan` is already the Epic tier |
+| Downstream workflow  | `/deliver <storyId>`                       | `/deliver <epicId>`                          |
+| Replan surface       | Out of scope (recreate manually if needed) | `/plan <epicId> --force` regenerates the backlog |
+| Inbound route        | `--idea` with a `story` triage verdict, `--body`, **or** a scope-triage handoff from the Epic path | Direct (`<epicId>`, or `--idea` with an `epic` verdict) |
+| Outbound route       | Phase 2 may **escalate** an epic-sized draft to the Epic path (internal branch switch) | The story-sized advisory may **convert** a one-Story Epic to this path |
 
-If a Story-under-Epic needs replanning, use `/plan --replan`. If you
+If a Story-under-Epic needs replanning, use `/plan <epicId> --force`. If you
 have a refactor, framework-maintenance idea, or any standalone unit of
 work, use this workflow.
 

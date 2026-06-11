@@ -1,7 +1,7 @@
 ---
 description: >-
   Phase 8 of sprint planning — decompose an Epic's PRD and Tech Spec into a
-  Feature/Story hierarchy, persist the backlog, and flip the Epic to
+  backlog of child Stories, persist the backlog, and flip the Epic to
   `agent::ready`. Host-LLM authored; no external API calls.
 ---
 
@@ -19,8 +19,8 @@ Director / Architect
 
 This helper is the **decompose phase** of the split planning pipeline. It
 reads the PRD and Tech Spec previously produced by the spec phase helper
-([`epic-plan-spec.md`](epic-plan-spec.md)), generates the Feature /
-Story ticket hierarchy, persists it to GitHub, and flips the Epic to
+([`epic-plan-spec.md`](epic-plan-spec.md)), generates the Epic's child
+Story tickets, persists them to GitHub, and flips the Epic to
 `agent::ready` (parking) so a human can run `/deliver` when
 execution should begin.
 
@@ -41,9 +41,9 @@ skill.
 - **Do not** run this skill until the spec phase is complete. The Epic must
   have linked `context::prd` and `context::tech-spec` issues; the script will
   refuse to proceed otherwise.
-- **Do not** reassign Story parents across Features after the
-  decomposition writes — the `epic-plan-state` checkpoint records the
-  structure as committed. Use `--force` to rebuild from scratch.
+- **Do not** restructure the Story set after the decomposition
+  writes — the `epic-plan-state` checkpoint records the structure as
+  committed. Use `--force` to rebuild from scratch.
 - **Every** temp file must include the Epic ID in its name. Multiple Epics
   may be decomposed concurrently; bare names will collide.
 - **Do not** flip the Epic past `agent::ready` from this helper. Execution
@@ -70,7 +70,7 @@ decomposer system prompt, and the `maxTickets` **reviewability budget**
 ## Step 2 — Author the ticket array
 
 Read `temp/epic-[Epic_ID]/decomposer-context.json`. Produce a JSON array of
-Feature / Story objects that conforms to the schema in the system prompt
+Story objects that conforms to the schema in the system prompt
 and write it to `temp/epic-[Epic_ID]/tickets.json`.
 
 When the Tech Spec carries a `## Delivery Slicing` section, author toward the
@@ -95,12 +95,12 @@ skill with `[Epic_ID]` as input. It reads the draft
 - a human-readable `temp/epic-[Epic_ID]/consolidation-report.md` (rationale +
   before/after diff).
 
-The pass is constrained to scope-preserving operations only — **merge Stories,
-collapse single-Story Features into siblings, re-parent, rewire `depends_on`**.
-It MUST NOT add scope or invent tickets. It resolves single-Story Features by
-**collapsing** them (rec #2), never by splitting a lone Story into two; the
-`assertNoSingleStoryFeature` validator stays as the post-consolidation
-backstop.
+The pass is constrained to scope-preserving operations only — **merge sibling
+Stories and rewire `depends_on`**. It MUST NOT add scope or invent tickets.
+It consolidates fragmented slices by merging them into a cohesive Story,
+never by splitting one into two; the `assertAllTicketsAreStories` validator
+(in `lib/orchestration/ticket-validator.js`) stays as the post-consolidation
+backstop that rejects any non-Story ticket the pass might emit.
 
 > **HITL diff gate.** Show the operator
 > `temp/epic-[Epic_ID]/consolidation-report.md` (the before/after diff +

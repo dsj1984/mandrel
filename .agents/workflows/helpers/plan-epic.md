@@ -14,7 +14,7 @@ Director / Architect
 
 You are the master orchestrator for the v5 Epic-Centric ticketing pipeline. Your
 goal is to transform a high-level Epic into a fully decomposed, ready-to-execute
-backlog of Features and Stories.
+backlog of Stories.
 
 `/plan` is the unified planning entry point. It delegates to the two
 phase helpers — [`helpers/epic-plan-spec.md`](epic-plan-spec.md) and
@@ -216,13 +216,13 @@ planned.
    > tickets. Do you want to **re-plan**? This will **overwrite the PRD,
    > Tech Spec, and Acceptance Spec in place** (same issue numbers, refreshed
    > bodies, comment history preserved) and **close-and-recreate** all
-   > Feature/Story tickets."
+   > child Story tickets."
 
 3. **If user confirms re-plan**: Pass `--force` to all subsequent script
    invocations. Under `--force`, the three context tickets (PRD, Tech Spec,
    Acceptance Spec) are overwritten in place — their issue numbers, Epic
    sub-issue links, and prior discussion are preserved, and each receives a
-   one-line regeneration audit comment. Feature/Story child tickets are still
+   one-line regeneration audit comment. Child Story tickets are still
    closed and recreated, because a re-decomposition can legitimately produce a
    different ticket set.
 4. **If user declines**: Abort gracefully.
@@ -532,8 +532,8 @@ for the scoring logic.
 
    # Re-planning (--force overwrites the three context tickets IN PLACE —
    # same PRD / Tech Spec / Acceptance Spec issue numbers, refreshed bodies,
-   # tickets kept open, one regeneration audit comment each. Feature/Story
-   # child tickets are still close-and-recreate at decomposition time.)
+   # tickets kept open, one regeneration audit comment each. Child Story
+   # tickets are still close-and-recreate at decomposition time.)
    node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] \
      --prd temp/epic-[Epic_ID]/prd.md \
      --techspec temp/epic-[Epic_ID]/techspec.md \
@@ -739,10 +739,10 @@ node .agents/scripts/epic-plan-spec-validate.js \
    Tech Spec `## Delivery Slicing` target, and emits a **consolidated**
    `tickets.json` plus a human-readable
    `temp/epic-[Epic_ID]/consolidation-report.md`. Its operations are
-   scope-preserving only — **merge Stories, collapse single-Story Features
-   into siblings, re-parent, rewire `depends_on`** — and it MUST NOT add scope
-   or invent tickets; it resolves single-Story Features by **collapsing**
-   them, never by splitting a lone Story. It runs **before** the deterministic
+   scope-preserving only — **merge sibling Stories and rewire
+   `depends_on`** — and it MUST NOT add scope or invent tickets; it
+   consolidates fragmented slices by merging them into a cohesive Story,
+   never by splitting one. It runs **before** the deterministic
    validator (step 4), so the validator re-checks its output and the critic
    cannot emit an invalid plan.
 
@@ -754,7 +754,7 @@ node .agents/scripts/epic-plan-spec-validate.js \
 
 4. **Persist to GitHub**: Run the decompose CLI's persist half. It
    validates the ticket array (`validateAndNormalizeTickets`), creates
-   the Feature/Story issues, flips the Epic to `agent::ready`, and
+   the Story issues, flips the Epic to `agent::ready`, and
    writes the `epic-plan-state` checkpoint.
 
    ```bash
@@ -932,7 +932,7 @@ forcing the walkthrough.
 Activate the
 [`core/knowledge-transfer`](../../skills/core/knowledge-transfer/SKILL.md) skill
 with the **plan** as the subject — the Epic body, the linked PRD / Tech Spec
-context tickets, the decomposition (Features/Stories with inline
+context tickets, the decomposition (Stories with inline
 `acceptance[]` / `verify[]`), and the Phase 9 wave roadmap. The skill owns the
 method (restate-first, the why-ladder, mastery gates, depth levels, optional
 quizzing, the persistent `temp/comprehension-*.md` checklist).
@@ -956,7 +956,7 @@ condition.
      the notification script:
 
    ```bash
-   node .agents/scripts/notify.js [Epic_ID] "Planning complete, review tickets. Backlog decomposition complete. Epic is ready for /epic-deliver." --action
+   node .agents/scripts/notify.js [Epic_ID] "Planning complete, review tickets. Backlog decomposition complete. Epic is ready for /deliver." --action
    ```
 
 ## Troubleshooting
@@ -964,9 +964,10 @@ condition.
 - If `epic-plan-spec.js --emit-context` fails, confirm the Epic exists and
   has a body with enough initial context.
 - If `epic-plan-decompose.js` rejects the tickets file, re-read the
-  validator's error message — the most common causes are a Story with no
-  `parent_slug`, a Story whose `parent_slug` does not point at a Feature, or a
-  dependency cycle in the Story `depends_on` graph.
+  validator's error message — the most common causes are a ticket whose
+  `type` is not `story`, a Story missing its inline `acceptance[]` /
+  `verify[]` contract, or a dependency cycle in the Story `depends_on`
+  graph.
 - If decomposition persisted the tickets but the Epic is not on `agent::ready`,
   you likely called `runDecomposePhase` from `epic-plan-decompose.js`
   directly without completing the persist flow — only the CLI surface

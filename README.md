@@ -41,7 +41,7 @@ npx mandrel init        # install mandrel → sync → prompt → bootstrap
 ```text
 # then, inside Claude Code (commands load from .claude/commands/):
 /onboard            # guided first run: stack detect → docs → doctor → /plan
-/plan          # ideation -> PRD/Tech Spec -> Epic/Feature/Story hierarchy
+/plan          # ideation -> PRD/Tech Spec -> Epic with child Stories
 ```
 
 `npx mandrel init` installs `mandrel` (when `./.agents/` is absent),

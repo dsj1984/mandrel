@@ -227,7 +227,7 @@ graph TB
 | Script                       | Responsibility                                                                                                                                                                              |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `epic-plan-spec.js`          | Authoring wrapper for PRD + Tech Spec; flips Epic to `agent::review-spec` and writes the `epic-plan-state` checkpoint. Threads `docsContext` and a `codebaseSnapshot` (Story #2634, see below) into the spec-author envelope so the Architect persona cites real modules instead of doc-only names. |
-| `epic-plan-decompose.js`     | Authoring wrapper for the Feature/Story ticket hierarchy; flips Epic to `agent::ready` and posts the dispatch manifest.                                                                       |
+| `epic-plan-decompose.js`     | Authoring wrapper for the Epic's child-Story backlog; flips Epic to `agent::ready` and posts the dispatch manifest.                                                                       |
 | `dispatcher.js`              | Builds dependency DAG, computes execution waves, posts the dispatch manifest (consumed by `/deliver`).                                                                                   |
 | `epic-deliver-prepare.js`    | Snapshots the Epic, builds the wave plan, and initialises the `epic-run-state` checkpoint at the start of `/deliver` Phase 1.                                                            |
 | `lifecycle-emit.js`          | Generic argv-driven emit helper. `/deliver` Phase 6 / 7.5 / 8 fire `epic.close.end` / `epic.automerge.start` / `epic.merge.armed` through this CLI; the matching listener chain (`Finalizer`, `AutomergePredicate` + `AutomergeArmer`, `Cleaner`) runs the PR open, auto-merge arm, and branch reap. |
@@ -415,8 +415,8 @@ or CI pipelines and must remain at their `.agents/scripts/<name>` paths
 - `dispatcher.js` — DAG computation and dispatch manifest
 - And all other scripts under `.agents/scripts/` not listed above
 
-**The rule:** a script is _lifecycle_ if it is only ever invoked by a human
-operator at the terminal; it is _runtime_ if it is invoked by an agent
+**The rule:** a script is *lifecycle* if it is only ever invoked by a human
+operator at the terminal; it is *runtime* if it is invoked by an agent
 session, a git hook, or a CI step via the `.agents/scripts/<name>` path.
 Moving a lifecycle script to `bin/` without updating the hook or CI
 invocation site breaks the calling surface; moving a runtime script away
@@ -734,15 +734,10 @@ the authoritative contract:
 | Epic (`type::epic`)                             | **No** — cascade stops.  | Operator merges the `/deliver` PR via the GitHub UI.        |
 | Planning (`context::prd`, `context::tech-spec`) | **No** — cascade stops.  | Operator close after the Epic PR is merged.                      |
 
-**Why Features auto-close but Epics and Planning don't.** A Feature is a
-purely hierarchical grouping — no standalone branch, no merge step, no
-release artefacts. When its last child Story closes, the Feature is complete
-by definition; a manual Feature-close step would be pure ceremony. Operators
-who need Feature-level acceptance-criteria verification should encode it in
-the final child Story, not add a manual gate. Epics, by contrast, gate on a
-real pull-request merge — cascade must not pre-empt the operator's
-required-checks review. Planning tickets (PRD, Tech Spec) are narrative
-artefacts the operator closes once the Epic PR is merged.
+**Why neither tier auto-closes.** Epics gate on a real pull-request
+merge — cascade must not pre-empt the operator's required-checks review.
+Planning tickets (PRD, Tech Spec) are narrative artefacts the operator
+closes once the Epic PR is merged.
 
 Implementation: [`.agents/scripts/lib/orchestration/ticketing.js`](../.agents/scripts/lib/orchestration/ticketing.js)
 — `cascadeCompletion()` explicitly skips `type::epic`, `context::prd`, and

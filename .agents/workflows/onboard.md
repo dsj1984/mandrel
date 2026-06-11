@@ -2,7 +2,7 @@
 description: >-
   Guided first-run onboarding for a freshly installed Mandrel. Detects the
   consumer stack, offers to scaffold any missing docsContextFiles, runs
-  `mandrel doctor` as a readiness gate, and hands off to a started /epic-plan.
+  `mandrel doctor` as a readiness gate, and hands off to a started /plan.
   The whole path is designed to take about 15 minutes from a clean checkout to
   a planned Epic.
 ---

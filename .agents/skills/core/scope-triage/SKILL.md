@@ -32,9 +32,8 @@ description:
   wrong in the `epic` direction is cheap — the Phase 8.3 consolidation pass and
   the sizing validator catch an over-planned Story later. Being wrong in the
   `story` direction is expensive — a story-sized scope pushed through the full
-  Epic ceremony pays a PRD + Tech Spec + Acceptance Spec + Feature/Story tree +
-  `epic/<id>` integration-branch tax for a degenerate one-Feature-one-Story
-  output.
+  Epic ceremony pays a PRD + Tech Spec + Acceptance Spec + Story backlog +
+  `epic/<id>` integration-branch tax for a degenerate one-Story output.
 - Keep the rubric prose **artifact-agnostic**. The thing under judgment may be a
   sharpened one-pager, an existing Epic body, or a draft Story — the rubric
   reads the same against all three so every consumer reuses it verbatim.
