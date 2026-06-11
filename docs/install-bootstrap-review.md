@@ -170,7 +170,7 @@ and the publish job claims the name. Until that happens, `mandrel init`
    consumer root — which would immediately expose the pnpm free-ride breakage
    that finding B.2 is masking.
 3. **`create-mandrel` still installs floating `latest`** with lifecycle
-   scripts enabled ([index.js:68](../create-mandrel/index.js)), then runs the
+   scripts enabled (`create-mandrel/index.js:68`, since removed), then runs the
    sync the postinstall already did. The version-sync pre-commit guard still
    checks only the root manifest entry
    ([check-version-sync.js:42](../scripts/check-version-sync.js)), and the
