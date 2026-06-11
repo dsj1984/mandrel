@@ -276,6 +276,67 @@ describe('epic-planner orchestration (v5.6+)', () => {
     );
   });
 
+  it('does not duplicate Planning Artifacts on a partial-recovery rerun (Story #4019)', async () => {
+    // PRD present, Tech Spec missing — and the Epic body already carries a
+    // stale `## Planning Artifacts` section from the earlier partial run.
+    mockProvider.getEpic = async () => ({
+      id: 1,
+      title: 'Partial Epic',
+      body: 'Epic body.\n\n## Planning Artifacts\n- [ ] PRD: #42\n',
+      linkedIssues: { prd: 42, techSpec: null },
+    });
+    mockProvider.getTicket = async (id) => ({ id, body: 'PRD body' });
+
+    await planEpic(1, mockProvider, {
+      prdContent: '## Overview\nignored',
+      techSpecContent: '## Technical Overview\nauthored tech spec',
+    });
+
+    const update = mockProvider.updatedTickets.find((u) =>
+      u.mutations?.body?.includes('## Planning Artifacts'),
+    );
+    assert.ok(update, 'Epic body update expected');
+    const sections =
+      update.mutations.body.match(/## Planning Artifacts/g) ?? [];
+    assert.equal(
+      sections.length,
+      1,
+      'rerun must not stack a duplicate Planning Artifacts section',
+    );
+    assert.ok(update.mutations.body.includes('- [ ] PRD: #42'));
+    assert.ok(update.mutations.body.includes('- [ ] Tech Spec: #100'));
+    assert.ok(update.mutations.body.startsWith('Epic body.'));
+  });
+
+  it('returns persisted:false when all artifacts already exist (Story #4019)', async () => {
+    mockProvider.getEpic = async () => ({
+      id: 1,
+      title: 'Fully Linked Epic',
+      body: '',
+      linkedIssues: { prd: 42, techSpec: 43 },
+    });
+
+    const result = await planEpic(1, mockProvider, {
+      prdContent: '## Overview\nx',
+      techSpecContent: '## Technical Overview\ny',
+    });
+
+    assert.equal(result.persisted, false);
+    assert.equal(result.reason, 'already-planned');
+    assert.equal(result.prdId, 42);
+    assert.equal(result.techSpecId, 43);
+  });
+
+  it('returns persisted:true when artifacts are created', async () => {
+    const result = await planEpic(1, mockProvider, {
+      prdContent: '## Overview\nAuthored PRD.',
+      techSpecContent: '## Technical Overview\nAuthored Tech Spec.',
+    });
+    assert.equal(result.persisted, true);
+    assert.equal(result.prdId, 100);
+    assert.equal(result.techSpecId, 101);
+  });
+
   it('rejects an empty acceptanceSpecContent string when the flag is supplied', async () => {
     await assert.rejects(
       async () =>

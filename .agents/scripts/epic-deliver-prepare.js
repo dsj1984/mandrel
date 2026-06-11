@@ -226,16 +226,24 @@ export async function runEpicDeliverPrepare({
 
   // Story #3027: try the preflight cache first so we don't re-walk Epic
   // → Feature → Story when `epic-deliver-preflight.js` already did. The
-  // cache key is a deterministic fingerprint of the Epic ticket; a
-  // single getTicket(epicId) round-trip confirms the cache is still
-  // valid. Cache miss or baseSha mismatch → fall back to a fresh pass.
+  // cache key is a deterministic fingerprint of the Epic ticket plus the
+  // cached Story snapshots (Story #4019): the Epic re-fetch plus one
+  // getTicket per cached Story is still far cheaper than the full
+  // hierarchy BFS, and a Story-dependency edit now invalidates the cache.
+  // Cache miss or baseSha mismatch → fall back to a fresh pass.
   const ctx = { epicId, provider };
   let state = {};
   let cacheStatus = 'miss';
   const cached = await readPreflightCache({ epicId, cwd });
   if (cached) {
     const freshEpic = await provider.getTicket(epicId);
-    const freshBaseSha = computeBaseSha(freshEpic);
+    const cachedStoryIds = cached.stories
+      .map((s) => Number(s?.id ?? s?.number))
+      .filter((id) => Number.isInteger(id) && id > 0);
+    const freshStories = await Promise.all(
+      cachedStoryIds.map((id) => provider.getTicket(id)),
+    );
+    const freshBaseSha = computeBaseSha(freshEpic, freshStories);
     if (freshBaseSha === cached.baseSha) {
       state = {
         epic: cached.epic,
