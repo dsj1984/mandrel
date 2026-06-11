@@ -75,7 +75,7 @@ const FAST_SLEEP = () => Promise.resolve();
 
 function callReapPhase(factory, overrides = {}) {
   return worktreeReapPhase({
-    orchestration: { worktreeIsolation: { enabled: true, root: '.worktrees' } },
+    delivery: { worktreeIsolation: { enabled: true, root: '.worktrees' } },
     storyId: 1,
     epicId: 9,
     epicBranch: 'epic/9',
