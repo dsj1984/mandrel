@@ -61,7 +61,15 @@ test('removeWorktreeWithRecovery: Stage 1 fs-rm-retry recovers from Windows lock
   const res = await removeWorktreeWithRecovery(
     ctx,
     '/repo/.worktrees/story-1',
-    { storyId: 1, branch: 'story-1', push: false, forceRemoveBackoffMs: 0 },
+    {
+      storyId: 1,
+      branch: 'story-1',
+      push: false,
+      forceRemoveBackoffMs: 0,
+      retryDelaysMs: [0, 0, 0, 0, 0, 0],
+      retryDelay: 0,
+      sleepFn: () => {},
+    },
   );
   assert.equal(res.removed, true);
   assert.equal(res.success, true);
@@ -122,6 +130,9 @@ test('removeWorktreeWithRecovery: Stage 1 fs-rm-retry also recovers from cwd-lik
       branch: 'story-566',
       push: false,
       forceRemoveBackoffMs: 0,
+      retryDelaysMs: [0, 0, 0, 0, 0, 0],
+      retryDelay: 0,
+      sleepFn: () => {},
     },
   );
   assert.equal(res.removed, true);
@@ -169,7 +180,15 @@ test('removeWorktreeWithRecovery: Stage 1 retries fs.rm and succeeds on attempt 
   const res = await removeWorktreeWithRecovery(
     ctx,
     '/repo/.worktrees/story-7',
-    { storyId: 7, branch: 'story-7', push: true, forceRemoveBackoffMs: 0 },
+    {
+      storyId: 7,
+      branch: 'story-7',
+      push: true,
+      forceRemoveBackoffMs: 0,
+      retryDelaysMs: [0, 0, 0, 0, 0, 0],
+      retryDelay: 0,
+      sleepFn: () => {},
+    },
   );
   assert.equal(res.removed, true);
   assert.equal(res.method, 'fs-rm-retry');
@@ -212,6 +231,9 @@ test('removeWorktreeWithRecovery: Stage 1 defers to sweep and writes pending-cle
       branch: 'story-9',
       push: false,
       forceRemoveBackoffMs: 0,
+      retryDelaysMs: [0, 0, 0, 0, 0, 0],
+      retryDelay: 0,
+      sleepFn: () => {},
     });
     assert.equal(res.removed, false);
     assert.equal(res.method, 'deferred-to-sweep');
@@ -372,6 +394,9 @@ test('removeWorktreeWithRecovery: Windows lock failures retry with --force befor
       branch: 'story-310',
       push: false,
       forceRemoveBackoffMs: 0,
+      retryDelaysMs: [0, 0, 0, 0, 0, 0],
+      retryDelay: 0,
+      sleepFn: () => {},
     },
   );
 
