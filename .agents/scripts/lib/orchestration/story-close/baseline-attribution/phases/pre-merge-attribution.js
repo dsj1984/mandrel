@@ -55,13 +55,19 @@ export async function runPreMergeGatesWithAttribution({
   projectRegressionsFn = projectRegressionsForGate,
   logger = DefaultLogger,
   maxAttempts = 2,
+  cycleState: cycleStateParam = null,
 } = {}) {
   let attempt = 0;
   const gateCwd = worktreePath || cwd;
   // Story #2205: single mutable cycle state object — `refreshedKinds`
   // gates the idempotency token enforcing AC-9 (one refresh commit per
-  // kind per close cycle).
-  const cycleState = { refreshedKinds: new Set(), lastRefreshSha: null };
+  // kind per close cycle). Story #4017: the caller may thread the close
+  // cycle's shared object so the post-gates auto-refresh sees the kinds
+  // already refreshed by this retry loop and never re-scores them.
+  const cycleState = cycleStateParam ?? {
+    refreshedKinds: new Set(),
+    lastRefreshSha: null,
+  };
   while (attempt < maxAttempts) {
     attempt += 1;
     try {

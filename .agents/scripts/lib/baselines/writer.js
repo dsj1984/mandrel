@@ -3,7 +3,7 @@
  *
  * Every legacy baseline-refresh script (`update-crap-baseline.js`,
  * `update-maintainability-baseline.js`, `lib/coverage-baseline.js`,
- * `lib/auto-refresh-baselines.js`) used to assemble its own envelope and
+ * the auto-refresh evaluator, now inside `auto-refresh-runner.js`) used to assemble its own envelope and
  * call `fs.writeFileSync`. That meant the path canonicalisation, rollup
  * math, kernel-version stamping, and JSON-serialisation conventions were
  * duplicated five-ish times, each with subtly different rules. The

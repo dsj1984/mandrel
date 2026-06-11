@@ -52,7 +52,7 @@
  *
  *   Top-level orchestration CLIs (already pragma'd; promoted to the c8
  *   exclude list to keep `c8 report` and the per-file baseline in sync):
- *     story-close.js, story-init.js, story-deliver-prepare.js,
+ *     story-close.js, story-init.js,
  *     run-audit-suite.js,
  *     post-structured-comment.js, hydrate-context.js, assert-branch.js,
  *     epic-deliver-prepare.js,
@@ -117,7 +117,6 @@ module.exports = {
     // `ensurePullRequest` is exercised through `execFileSync` module mocks.
     '.agents/scripts/single-story-init.js',
     '.agents/scripts/story-close.js',
-    '.agents/scripts/story-deliver-prepare.js',
     '.agents/scripts/story-init.js',
     '.agents/scripts/test-wrapper.js',
     '.agents/scripts/validate-docs-freshness.js',

@@ -45,7 +45,7 @@ export function resolveStoryHierarchy(body) {
  * Story issues. For those Stories this helper resolves to an empty
  * array because `provider.getSubTickets(storyId)` itself returns no
  * rows. The helper is retained as a thin pass-through so the three
- * orchestration callers (`story-deliver-prepare`, `task-graph-builder`,
+ * orchestration callers (`story-init` prepare, `task-graph-builder`,
  * and `locked-pipeline`) keep a single, named seam for sub-ticket
  * hydration that is easy to mock in tests and to instrument in the
  * provider layer.
