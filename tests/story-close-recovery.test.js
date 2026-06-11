@@ -8,6 +8,7 @@ import {
   dispatchRecovery,
   RECOVERY_ACTIONS,
   RECOVERY_STATES,
+  restartStoryState,
 } from '../.agents/scripts/lib/orchestration/story-close-recovery.js';
 
 function makeGit({
@@ -683,18 +684,124 @@ test('dispatchRecovery', async (t) => {
     }
   });
 
-  await t.test('--resume + --restart together calls logger.fatal', () => {
-    const logger = makeStubLogger();
-    assert.throws(
-      () =>
-        dispatchRecovery({
-          ...DISPATCH_BASE,
-          resume: true,
-          restart: true,
-          detectFn: () => ({ phase: RECOVERY_STATES.FRESH, detail: {} }),
-          logger,
-        }),
-      /mutually exclusive/,
-    );
-  });
+  await t.test(
+    '--resume + --restart together throws (never logger.fatal)',
+    () => {
+      const logger = makeStubLogger();
+      // Inert fatal: proves the guard is a throw, not a log-and-continue.
+      logger.fatal = () => {};
+      assert.throws(
+        () =>
+          dispatchRecovery({
+            ...DISPATCH_BASE,
+            resume: true,
+            restart: true,
+            detectFn: () => ({ phase: RECOVERY_STATES.FRESH, detail: {} }),
+            logger,
+          }),
+        /mutually exclusive/,
+      );
+    },
+  );
+});
+
+/**
+ * Fake gitSpawn for restartStoryState: every call succeeds except the
+ * argv prefixes listed in `failOn`. Records each invocation's args.
+ */
+function makeRestartGit({ failOn = [] } = {}) {
+  const calls = [];
+  const fn = (_cwd, ...args) => {
+    calls.push(args);
+    const key = args.slice(0, 2).join(' ');
+    if (failOn.some((prefix) => key.startsWith(prefix))) {
+      return { status: 1, stdout: '', stderr: `boom: ${key}` };
+    }
+    return { status: 0, stdout: '', stderr: '' };
+  };
+  return { calls, fn };
+}
+
+const RESTART_BASE = {
+  cwd: '/repo',
+  storyId: 100,
+  epicBranch: 'epic/9',
+  storyBranch: 'story-100',
+  orchestration: { worktreeIsolation: { enabled: true, root: '.worktrees' } },
+};
+
+test('restartStoryState', async (t) => {
+  await t.test(
+    'throws when the branch recreate fails (never logger.fatal)',
+    () => {
+      const git = makeRestartGit({ failOn: ['branch story-100'] });
+      const logger = makeStubLogger();
+      logger.fatal = () => {}; // inert — a fatal-based guard would fall through
+      assert.throws(
+        () =>
+          restartStoryState({
+            ...RESTART_BASE,
+            logger,
+            gitSpawnFn: git.fn,
+          }),
+        /Failed to recreate story-100 from epic\/9/,
+      );
+    },
+  );
+
+  await t.test(
+    'a failed branch recreate does NOT proceed to the worktree re-seed',
+    () => {
+      const git = makeRestartGit({ failOn: ['branch story-100'] });
+      const logger = makeStubLogger();
+      logger.fatal = () => {};
+      assert.throws(() =>
+        restartStoryState({ ...RESTART_BASE, logger, gitSpawnFn: git.fn }),
+      );
+      assert.ok(
+        !git.calls.some((args) => args[0] === 'worktree' && args[1] === 'add'),
+        `worktree add must not run after a failed recreate; calls: ${JSON.stringify(git.calls)}`,
+      );
+    },
+  );
+
+  await t.test(
+    'throws when the worktree re-seed fails (never logger.fatal)',
+    () => {
+      const git = makeRestartGit({ failOn: ['worktree add'] });
+      const logger = makeStubLogger();
+      logger.fatal = () => {};
+      assert.throws(
+        () =>
+          restartStoryState({
+            ...RESTART_BASE,
+            logger,
+            gitSpawnFn: git.fn,
+          }),
+        /Failed to re-seed worktree at /,
+      );
+    },
+  );
+
+  await t.test(
+    'clean restart recreates the branch then re-seeds the worktree',
+    () => {
+      const git = makeRestartGit();
+      const { events, fn: progress } = captureProgress();
+      restartStoryState({
+        ...RESTART_BASE,
+        logger: makeStubLogger(),
+        progress,
+        gitSpawnFn: git.fn,
+      });
+      const branchIdx = git.calls.findIndex(
+        (args) => args[0] === 'branch' && args[1] === 'story-100',
+      );
+      const addIdx = git.calls.findIndex(
+        (args) => args[0] === 'worktree' && args[1] === 'add',
+      );
+      assert.ok(branchIdx >= 0 && addIdx > branchIdx);
+      assert.ok(events.some((e) => e.msg.includes('Re-seeded worktree')));
+    },
+  );
 });

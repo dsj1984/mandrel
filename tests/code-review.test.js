@@ -71,7 +71,7 @@ function buildOpts({
   gitSpawnFn,
 } = {}) {
   return {
-    epicId: 100,
+    ticketId: 100,
     provider: {},
     bus: makeBus(),
     planningRisk,
