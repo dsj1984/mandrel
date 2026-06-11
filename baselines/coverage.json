@@ -197,12 +197,6 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/audit-to-stories/fingerprint.js",
-      "lines": 97.89,
-      "branches": 77.27,
-      "functions": 100
-    },
-    {
       "path": ".agents/scripts/lib/audit-to-stories/group-findings.js",
       "lines": 94.34,
       "branches": 69.05,
@@ -695,12 +689,6 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/config/hydration.js",
-      "lines": 70.59,
-      "branches": 100,
-      "functions": 0
-    },
-    {
       "path": ".agents/scripts/lib/config/lifecycle.js",
       "lines": 100,
       "branches": 77.78,
@@ -1151,12 +1139,6 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/orchestration/concurrency.js",
-      "lines": 100,
-      "branches": 100,
-      "functions": 100
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/context-envelope.js",
       "lines": 98.57,
       "branches": 74.42,
@@ -1167,12 +1149,6 @@
       "lines": 94.54,
       "branches": 69.86,
       "functions": 94.12
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/context.js",
-      "lines": 100,
-      "branches": 86.67,
-      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/orchestration/dependency-analyzer.js",
@@ -1217,12 +1193,6 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation-pass.js",
-      "lines": 93.22,
-      "branches": 75,
-      "functions": 100
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
       "lines": 87.16,
       "branches": 81.13,
@@ -1232,12 +1202,6 @@
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/dag.js",
       "lines": 91.49,
       "branches": 93.75,
-      "functions": 100
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/decompose-legacy.js",
-      "lines": 92.92,
-      "branches": 84.21,
       "functions": 100
     },
     {
@@ -1319,24 +1283,6 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-runner.js",
-      "lines": 100,
-      "branches": 50,
-      "functions": 100
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/blocker-wait.js",
-      "lines": 95,
-      "branches": 61.54,
-      "functions": 100
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/commit-assertion.js",
-      "lines": 96.55,
-      "branches": 88.1,
-      "functions": 100
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/epic-runner/concurrency-gate.js",
       "lines": 100,
       "branches": 83.33,
@@ -1349,22 +1295,10 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "lines": 95.85,
-      "branches": 60,
-      "functions": 88.24
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/epic-runner/phases/build-wave-dag.js",
       "lines": 100,
       "branches": 67.92,
       "functions": 100
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "lines": 95.3,
-      "branches": 63.72,
-      "functions": 92.86
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/phases/snapshot.js",
@@ -1619,12 +1553,6 @@
       "functions": 87.5
     },
     {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/blocker-handler.js",
-      "lines": 85.71,
-      "branches": 82.5,
-      "functions": 71.43
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/branch-cleaner.js",
       "lines": 100,
       "branches": 91.67,
@@ -1649,12 +1577,6 @@
       "functions": 85.71
     },
     {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/heartbeat-monitor.js",
-      "lines": 100,
-      "branches": 93.1,
-      "functions": 100
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/index.js",
       "lines": 97.81,
       "branches": 77.78,
@@ -1667,12 +1589,6 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/label-transitioner.js",
-      "lines": 92.16,
-      "branches": 77.36,
-      "functions": 66.67
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/merge-watcher.js",
       "lines": 82.12,
       "branches": 69.7,
@@ -1683,30 +1599,6 @@
       "lines": 92.81,
       "branches": 65.22,
       "functions": 66.67
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/progress-reporter.js",
-      "lines": 95.04,
-      "branches": 83.33,
-      "functions": 66.67
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/signals-appender.js",
-      "lines": 89.38,
-      "branches": 76.47,
-      "functions": 60
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/structured-comment-poster.js",
-      "lines": 93.55,
-      "branches": 77.89,
-      "functions": 90
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/timeout-watchdog.js",
-      "lines": 99,
-      "branches": 96.15,
-      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
@@ -1979,12 +1871,6 @@
       "functions": 60
     },
     {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/drift-detection.js",
-      "lines": 97.75,
-      "branches": 89.8,
-      "functions": 100
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
       "lines": 100,
       "branches": 44.44,
@@ -2123,12 +2009,6 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-close/legacy-settings-bag.js",
-      "lines": 95.65,
-      "branches": 90,
-      "functions": 100
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "lines": 95.18,
       "branches": 93.24,
@@ -2163,12 +2043,6 @@
       "lines": 56.27,
       "branches": 80,
       "functions": 40
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/lock-wait-classifier.js",
-      "lines": 61.34,
-      "branches": 45.83,
-      "functions": 16.67
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/locked-pipeline.js",
@@ -2288,12 +2162,6 @@
       "path": ".agents/scripts/lib/orchestration/wave-record-projection.js",
       "lines": 99.05,
       "branches": 90.55,
-      "functions": 100
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-session.js",
-      "lines": 94.4,
-      "branches": 82.46,
       "functions": 100
     },
     {
@@ -2459,12 +2327,6 @@
       "functions": 0
     },
     {
-      "path": ".agents/scripts/lib/single-story-plan.js",
-      "lines": 91.87,
-      "branches": 88.89,
-      "functions": 71.43
-    },
-    {
       "path": ".agents/scripts/lib/single-story-sweep.js",
       "lines": 96.66,
       "branches": 84.62,
@@ -2537,12 +2399,6 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/story-init/dependency-guard.js",
-      "lines": 93.35,
-      "branches": 67.9,
-      "functions": 100
-    },
-    {
       "path": ".agents/scripts/lib/story-init/donor-precheck.js",
       "lines": 89.86,
       "branches": 78.79,
@@ -2576,12 +2432,6 @@
       "path": ".agents/scripts/lib/story-lifecycle.js",
       "lines": 98.92,
       "branches": 85.19,
-      "functions": 100
-    },
-    {
-      "path": ".agents/scripts/lib/story-plan/trigger.js",
-      "lines": 95.05,
-      "branches": 95.24,
       "functions": 100
     },
     {
@@ -2837,12 +2687,6 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/post-story-plan.js",
-      "lines": 78.28,
-      "branches": 84.62,
-      "functions": 62.5
-    },
-    {
       "path": ".agents/scripts/providers/github.js",
       "lines": 98.88,
       "branches": 91.3,
@@ -2987,12 +2831,6 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/single-story-plan.js",
-      "lines": 65.93,
-      "branches": 68.42,
-      "functions": 57.14
-    },
-    {
       "path": ".agents/scripts/stories-wave-tick.js",
       "lines": 98.36,
       "branches": 94.34,
@@ -3021,12 +2859,6 @@
       "lines": 76.26,
       "branches": 44.74,
       "functions": 92.31
-    },
-    {
-      "path": ".agents/scripts/wave-gate.js",
-      "lines": 88.42,
-      "branches": 79.66,
-      "functions": 75
     },
     {
       "path": ".agents/scripts/wave-tick.js",

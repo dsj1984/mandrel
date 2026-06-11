@@ -39,22 +39,31 @@ export function projectRow(row) {
   };
 }
 
+function meanOf(rows, axis) {
+  let sum = 0;
+  for (const r of rows) sum += r[axis] ?? 0;
+  return Number((sum / rows.length).toFixed(2));
+}
+
 function aggregate(rows) {
   if (!rows || rows.length === 0) {
     return { performance: 0, accessibility: 0, bestPractices: 0, seo: 0 };
   }
-  const sum = { performance: 0, accessibility: 0, bestPractices: 0, seo: 0 };
-  for (const r of rows) {
-    sum.performance += r.performance ?? 0;
-    sum.accessibility += r.accessibility ?? 0;
-    sum.bestPractices += r.bestPractices ?? 0;
-    sum.seo += r.seo ?? 0;
-  }
   return {
-    performance: Number((sum.performance / rows.length).toFixed(2)),
-    accessibility: Number((sum.accessibility / rows.length).toFixed(2)),
-    bestPractices: Number((sum.bestPractices / rows.length).toFixed(2)),
-    seo: Number((sum.seo / rows.length).toFixed(2)),
+    performance: meanOf(rows, 'performance'),
+    accessibility: meanOf(rows, 'accessibility'),
+    bestPractices: meanOf(rows, 'bestPractices'),
+    seo: meanOf(rows, 'seo'),
+  };
+}
+
+function perfectLighthouseRow(route) {
+  return {
+    route,
+    performance: 100,
+    accessibility: 100,
+    bestPractices: 100,
+    seo: 100,
   };
 }
 
@@ -73,11 +82,5 @@ export const {
   aggregate,
   missingBasePolicy: 'perfect',
   removedRowPolicy: { kind: 'perfect-head' },
-  perfectRow: (route) => ({
-    route,
-    performance: 100,
-    accessibility: 100,
-    bestPractices: 100,
-    seo: 100,
-  }),
+  perfectRow: perfectLighthouseRow,
 });

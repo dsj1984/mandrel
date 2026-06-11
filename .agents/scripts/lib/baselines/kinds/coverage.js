@@ -38,23 +38,25 @@ function roundPct(v) {
   return Number(v.toFixed(2));
 }
 
+function meanOf(rows, axis) {
+  let sum = 0;
+  for (const r of rows) sum += r[axis] ?? 0;
+  return Number((sum / rows.length).toFixed(2));
+}
+
 function aggregate(rows) {
   if (!rows || rows.length === 0) {
     return { lines: 0, branches: 0, functions: 0 };
   }
-  let l = 0;
-  let b = 0;
-  let f = 0;
-  for (const row of rows) {
-    l += row.lines ?? 0;
-    b += row.branches ?? 0;
-    f += row.functions ?? 0;
-  }
   return {
-    lines: Number((l / rows.length).toFixed(2)),
-    branches: Number((b / rows.length).toFixed(2)),
-    functions: Number((f / rows.length).toFixed(2)),
+    lines: meanOf(rows, 'lines'),
+    branches: meanOf(rows, 'branches'),
+    functions: meanOf(rows, 'functions'),
   };
+}
+
+function perfectCoverageRow(path) {
+  return { path, lines: 100, branches: 100, functions: 100 };
 }
 
 export const {
@@ -72,5 +74,5 @@ export const {
   aggregate,
   missingBasePolicy: 'addition',
   removedRowPolicy: { kind: 'perfect-head' },
-  perfectRow: (path) => ({ path, lines: 100, branches: 100, functions: 100 }),
+  perfectRow: perfectCoverageRow,
 });
