@@ -18,26 +18,22 @@ jobs:
   release-please:
     name: Run release-please
     runs-on: ubuntu-latest
-    # Multi-package (manifest) output naming — verified against
+    # Single-package (manifest) output naming — verified against
     # release-please-action v5.0.0 `src/index.ts#setPathOutput`:
     #
     #   if (path === '.') core.setOutput(key, value)           // root: UN-prefixed
     #   else              core.setOutput(`${path}--${key}`, …)  // non-root: prefixed
     #
     # The root `mandrel` package has manifest path `.`, so its outputs are the
-    # **un-prefixed** `release_created` / `tag_name`. Only **non-root** packages
-    # (the launcher, path `create-mandrel`) get the `${path}--${key}` prefix.
-    # There is therefore no `.--release_created` output — keying off it (as the
-    # initial Story #3891 wiring did) silently skips the root publish on every
-    # release. The singular `release_created` is **root-specific** (set only
-    # when the root path releases, never on a launcher-only release), so it is
+    # **un-prefixed** `release_created` / `tag_name`. There is no
+    # `.--release_created` output — keying off it (as the initial Story #3891
+    # wiring did) silently skips the root publish on every release. The
+    # singular `release_created` is set when the root path releases, so it is
     # the correct, drift-proof gate for the root publish; `releases_created`
     # (plural) is the "any package released" boolean and is NOT used here.
     outputs:
       root_release_created: ${{ steps.release.outputs.release_created }}
       root_tag_name: ${{ steps.release.outputs.tag_name }}
-      launcher_release_created: ${{ steps.release.outputs['create-mandrel--release_created'] }}
-      launcher_tag_name: ${{ steps.release.outputs['create-mandrel--tag_name'] }}
     steps:
       # Pinned to an exact release tag rather than a floating major (`@v5`)
       # or the moving `@main` ref — a third-party action's default branch
@@ -77,9 +73,8 @@ jobs:
     # than OIDC token exchange so the publish works against the public registry
     # without additional trusted-publisher configuration.
     #
-    # Gated on the **root** component's per-path release output (not the
-    # top-level `release_created`) so a launcher-only release never re-runs
-    # this publish on an already-published root version.
+    # Gated on the root component's release output so the publish runs only
+    # when release-please cuts a new root release.
     name: Publish to npm
     needs: release-please
     if: ${{ needs.release-please.outputs.root_release_created == 'true' }}
@@ -102,46 +97,5 @@ jobs:
 
       - name: Publish package
         run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-  npm-publish-launcher:
-    # Publish the `create-mandrel` cold-start launcher to the npm registry
-    # once release-please cuts a release for the **create-mandrel** package.
-    # `npx create-mandrel` is the advertised cold-start entry point; without
-    # this step the launcher was never published under any name, so the
-    # documented cold start failed for every user (Story #3891, review
-    # Finding A.1). The name is kept unscoped (`create-mandrel`) to preserve
-    # the `npm create mandrel` / `npx create-mandrel` convention the docs
-    # advertise.
-    #
-    # Gated on the **launcher** component's per-path release output so a
-    # root-only release does not attempt to republish the launcher version,
-    # and a launcher-only release publishes the launcher without touching the
-    # root publish job above. `working-directory: create-mandrel` scopes the
-    # publish to the launcher package manifest; provenance + public access
-    # come from the launcher's `package.json#publishConfig`, and `NPM_TOKEN`
-    # auth mirrors the root publish job. No `npm ci` runs because the launcher
-    # has zero dependencies and no build/prepublish scripts.
-    name: Publish create-mandrel to npm
-    needs: release-please
-    if: ${{ needs.release-please.outputs.launcher_release_created == 'true' }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          registry-url: 'https://registry.npmjs.org'
-
-      - name: Publish launcher package
-        run: npm publish
-        working-directory: create-mandrel
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

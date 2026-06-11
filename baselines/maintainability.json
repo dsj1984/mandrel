@@ -4263,10 +4263,6 @@
       "mi": 87.516
     },
     {
-      "path": "tests/scripts/create-mandrel-launcher.test.js",
-      "mi": 113.079
-    },
-    {
       "path": "tests/scripts/dispatcher-fromspec.test.js",
       "mi": 100.134
     },
