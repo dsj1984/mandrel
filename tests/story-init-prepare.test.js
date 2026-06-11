@@ -9,7 +9,7 @@ import {
 } from '../.agents/scripts/story-init.js';
 
 /**
- * Story #4017 — the standalone `story-deliver-prepare.js` CLI was inlined
+ * Story #4017 — the formerly standalone prepare CLI was inlined
  * into `story-init.js`. The prepare step now consumes the in-process init
  * result directly (no structured-comment re-read), so these tests drive
  * `runStoryInitPrepare` with a result-shaped object.

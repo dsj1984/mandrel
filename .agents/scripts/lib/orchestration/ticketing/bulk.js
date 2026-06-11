@@ -444,7 +444,7 @@ export async function cascadeCompletion(provider, ticketId, opts = {}) {
 
   // Story #4017 — under the 3-tier hierarchy a ticket has at most one
   // parent, so the shared-ancestor grouping / parallel-group dispatch
-  // machinery (`cascade-grouping.js`) was deleted. Parents (fan-out <= 1
+  // machinery was deleted. Parents (fan-out <= 1
   // in practice; the loop stays general for the body-reference fallback)
   // run strictly sequentially, which trivially preserves the
   // shared-ancestor safety invariant the grouping used to enforce.

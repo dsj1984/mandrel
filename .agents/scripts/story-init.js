@@ -343,7 +343,7 @@ export async function runStoryInit({
       logger: stageLogger,
     });
 
-    // Story #4017 — the standalone `story-deliver-prepare.js` CLI (which
+    // Story #4017 — the formerly standalone prepare CLI (which
     // re-read the story-init structured comment seconds after this process
     // wrote it) is inlined here: apply the install tri-state and render the
     // initial Story-phase snapshot in-process, off the result we already
@@ -404,8 +404,8 @@ export function resolveInstallCommand(options = {}) {
 }
 
 /**
- * Post-init prepare step (Story #4017 — formerly the standalone
- * `story-deliver-prepare.js` CLI, now consuming the in-process init result
+ * Post-init prepare step (Story #4017 — formerly a standalone prepare
+ * CLI, now consuming the in-process init result
  * instead of re-reading the `story-init` structured comment):
  *
  *   1. Apply the `dependenciesInstalled` tri-state truth table — `'false'`

@@ -1,11 +1,11 @@
 /**
  * format-autofix.js — self-healing biome-format step for story-close.
  *
- * Story #4017 collapsed the historical three-module split
- * (`format-autofix.js` whole-tree fork, `format-autofix-scoped.js`
- * changed-file fork, `format-autofix-shared.js` plumbing) into this single
- * module. The two entry points differ only in file-scope, commit subject,
- * and log level; the git/formatter plumbing is shared below.
+ * Story #4017 collapsed the historical three-module split (a whole-tree
+ * fork, a scoped changed-file fork, and a shared plumbing module) into
+ * this single module. The two entry points differ only in file-scope,
+ * commit subject, and log level; the git/formatter plumbing is shared
+ * below.
  *
  * Background. The pre-merge `biome format` gate is check-only — it fails
  * the close when the working tree has any format drift. In practice
