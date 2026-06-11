@@ -23,8 +23,8 @@
  *
  * The schema declares `additionalProperties: false`, so this emitter's
  * signature is deliberately narrow: only the schema-allowed fields are
- * accepted. Earlier per-child counters (`taskId`, `tasksDone`,
- * `tasksTotal`, `currentTaskId`) were dropped under Epic #3078's
+ * accepted. The earlier per-child Task id and progress counters
+ * were dropped under Epic #3078's
  * 3-tier hard cutover — they would fail strict validation and have no
  * meaning now that the Story is the leaf execution unit with no child
  * tickets. The optional `operator` field (Story #3480) records the handle

@@ -48,8 +48,8 @@ describe('upsertEpicRunProgress', () => {
           wave: 0,
           concurrencyCap: 2,
           stories: [
-            { id: 912, title: 'A', state: 'done', tasksDone: 3, tasksTotal: 3 },
-            { id: 913, title: 'B', state: 'done', tasksDone: 1, tasksTotal: 1 },
+            { id: 912, title: 'A', state: 'done' },
+            { id: 913, title: 'B', state: 'done' },
           ],
         },
         {
@@ -122,7 +122,7 @@ describe('upsertEpicRunProgress', () => {
       waves: [
         {
           wave: 0,
-          stories: [{ id: 912, state: 'done', tasksDone: 1, tasksTotal: 1 }],
+          stories: [{ id: 912, state: 'done' }],
         },
       ],
       currentWave: 1,

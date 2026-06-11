@@ -84,8 +84,8 @@ sweep:
   Features, Stories, and Tasks".
 - [`helpers/epic-deliver-story.md:314`](../.agents/workflows/helpers/epic-deliver-story.md)
   — "when all Tasks are closed".
-- [`lib/task-utils.js:22`](../.agents/scripts/lib/task-utils.js) —
-  `isBookendTask` survives.
+- `lib/task-utils.js:22` — the bookend-task predicate survived (module
+  deleted by Story #4021).
 - [`epic-runner/sub-agent-return.js`](../.agents/scripts/lib/orchestration/epic-runner/sub-agent-return.js)
   still parses `tasksDone`/`tasksTotal` from child returns.
 
