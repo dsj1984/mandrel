@@ -64,8 +64,6 @@ describe('validateResults', () => {
         storyId: 1,
         status: 'done',
         phase: 'done',
-        tasksDone: 2,
-        tasksTotal: 2,
       },
     ]);
     assert.deepEqual(out, [
@@ -73,8 +71,6 @@ describe('validateResults', () => {
         storyId: 1,
         status: 'done',
         phase: 'done',
-        tasksDone: 2,
-        tasksTotal: 2,
       },
     ]);
   });
@@ -264,17 +260,15 @@ describe('classifyWaveOutcome', () => {
 });
 
 describe('toRollupRow', () => {
-  it('builds a done row with task counts', () => {
+  it('builds a done row', () => {
     const out = toRollupRow(
-      { storyId: 1, status: 'done', tasksDone: 3, tasksTotal: 3 },
+      { storyId: 1, status: 'done' },
       new Map([[1, 'Story title']]),
     );
     assert.deepEqual(out, {
       id: 1,
       title: 'Story title',
       state: 'done',
-      tasksDone: 3,
-      tasksTotal: 3,
     });
   });
 
@@ -389,8 +383,6 @@ describe('normalizeReturnsPure', () => {
     const envelopeText = JSON.stringify({
       storyId: 1,
       status: 'done',
-      tasksDone: 2,
-      tasksTotal: 2,
       branchDeleted: true,
     });
     const out = await normalizeReturnsPure({
@@ -437,8 +429,8 @@ describe('normalizeReturnsPure', () => {
 describe('projectWaveRecord — happy path', () => {
   it('appends a new wave record and advances currentWave on complete', () => {
     const verified = [
-      { storyId: 10, status: 'done', tasksDone: 2, tasksTotal: 2 },
-      { storyId: 11, status: 'done', tasksDone: 1, tasksTotal: 1 },
+      { storyId: 10, status: 'done' },
+      { storyId: 11, status: 'done' },
     ];
     const existing = {
       currentWave: 0,
@@ -476,8 +468,6 @@ describe('projectWaveRecord — happy path', () => {
       id: 10,
       title: 'Ten',
       state: 'done',
-      tasksDone: 2,
-      tasksTotal: 2,
     });
     assert.equal(out.rollupWaves[0].wave, 0);
     assert.equal(out.rollupWaves[0].concurrencyCap, 2);
