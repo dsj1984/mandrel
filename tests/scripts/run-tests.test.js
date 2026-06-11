@@ -5,6 +5,8 @@ import {
   buildNodeTestArgs,
   chunkTestTargets,
   MAX_TARGET_CHARS,
+  POSIX_MAX_TARGET_CHARS,
+  resolveMaxTargetChars,
   resolveTestConcurrency,
   runTestSuite,
   TEST_CONCURRENCY_MAX,
@@ -159,6 +161,28 @@ test('the real quick tier never exceeds the Windows arg budget per chunk', () =>
   }
   // Sanity: all live targets are still covered.
   assert.equal(chunks.flat().length, targets.length);
+});
+
+// ---------------------------------------------------------------------------
+// resolveMaxTargetChars — platform-aware target budget (Story #3989): the
+// 8 000-char Windows CreateProcess guard must not serialize POSIX runs.
+// ---------------------------------------------------------------------------
+
+test('resolveMaxTargetChars keeps the Windows budget on win32', () => {
+  assert.equal(resolveMaxTargetChars('win32'), MAX_TARGET_CHARS);
+});
+
+test('resolveMaxTargetChars uses the larger POSIX budget elsewhere', () => {
+  assert.equal(resolveMaxTargetChars('darwin'), POSIX_MAX_TARGET_CHARS);
+  assert.equal(resolveMaxTargetChars('linux'), POSIX_MAX_TARGET_CHARS);
+  assert.ok(POSIX_MAX_TARGET_CHARS > MAX_TARGET_CHARS);
+});
+
+test('the real quick tier collapses to a single chunk under the POSIX budget', () => {
+  const targets = listTestFilesForTier('quick', process.cwd());
+  const chunks = chunkTestTargets(targets, POSIX_MAX_TARGET_CHARS);
+  assert.equal(chunks.length, 1, 'POSIX quick tier must be a single spawn');
+  assert.deepEqual(chunks.flat(), targets);
 });
 
 test('runTestSuite issues one spawn per chunk and never builds an unbounded argv', () => {
