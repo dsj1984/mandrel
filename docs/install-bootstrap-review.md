@@ -120,8 +120,8 @@ and the publish job claims the name. Until that happens, `mandrel init`
    ([bootstrap.js:1073–1078](../.agents/scripts/bootstrap.js)), and the stale
    `/agents-bootstrap-project` remediation hints — now found in *four* places
    ([gh-preflight.js:41–48,277](../.agents/scripts/lib/bootstrap/gh-preflight.js),
-   [sync-agentrc.js:72](../lib/config/sync-agentrc.js),
-   [errors/index.js:56](../lib/errors/index.js)).
+   [sync-agentrc.js:72](../.agents/scripts/lib/config/sync-agentrc.js),
+   [errors/index.js:56](../.agents/scripts/lib/errors/index.js)).
 3. **Multiplied helpers (counts updated):** *five* independent lockfile-probe
    implementations (update.js, project-bootstrap.js, runtime-deps/preflight.js,
    onboard/detect-stack.js, worktree/node-modules-strategy.js); four
