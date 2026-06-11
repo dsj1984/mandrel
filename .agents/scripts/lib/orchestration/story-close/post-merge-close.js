@@ -21,12 +21,6 @@
  * read it; this helper writes the file and hands the path to the pipeline.
  */
 
-// Legacy key on the post-merge-pipeline / cleanup-reconciler input bag.
-// Built from substrings so the migrated-subsystem grep does not match it;
-// the downstream helpers live outside the migrated subsystem and will
-// rename their parameters when their own subsystems are swept.
-const LEGACY_PIPELINE_CONFIG_KEY = `orches${'tration'}`;
-
 import { mkdir, writeFile } from 'node:fs/promises';
 import { emitGhSpawnCount as defaultEmitGhSpawnCount } from '../../close-validation.js';
 import { storyArtifactPath, storyTempDir } from '../../config/temp-paths.js';
@@ -340,18 +334,11 @@ export async function runPostMergeClose({
   // in this order — see post-merge-pipeline.js. The `perf-summary` phase
   // inside the pipeline shells out to analyze-execution.js, which is the
   // single writer of the `<!-- structured:story-perf-summary -->` comment.
-  // Build the legacy-shape view that downstream out-of-subsystem helpers
-  // (post-merge-pipeline.js) still consume. The migrated cleanup-reconciler
-  // takes `delivery` directly.
-  const legacyPipelineBlock = {
-    provider: 'github',
-    github: config?.github,
-    notifications: config?.github?.notifications,
-    worktreeIsolation: deliveryBlock?.worktreeIsolation,
-    runners: { deliverRunner: deliveryBlock?.deliverRunner ?? {} },
-  };
+  // The pipeline phases take the resolved `delivery` block directly, same
+  // as the cleanup-reconciler (Story #3986 — the legacy `orchestration`-keyed
+  // input bag is gone).
   const pipelineState = await runPostMergePipeline({
-    [LEGACY_PIPELINE_CONFIG_KEY]: legacyPipelineBlock,
+    delivery: deliveryBlock,
     storyId,
     epicId,
     story,

@@ -21,6 +21,7 @@ import {
   runEpicMode,
   runStoryMode,
 } from '../.agents/scripts/analyze-execution.js';
+import { collectStorySummaries } from '../.agents/scripts/lib/observability/perf-report-readers.js';
 
 // In-memory ticketing provider that satisfies the slice of the
 // ITicketingProvider surface analyze-execution touches. Comments are
@@ -595,6 +596,88 @@ describe('runStoryMode — back-compat with source-tagged streams (Story #2553)'
     assert.equal(result.payload.phaseTimingsMs.install, 1500);
     assert.equal(result.payload.phaseTimingsMs.test, 3500);
     assert.equal(result.payload.retryDensity.retries, 1);
+  });
+});
+
+describe('collectStorySummaries — bounded-parallel fetch (Story #3990)', () => {
+  const summaryBody = (storyId) =>
+    [
+      '<!-- ap:structured-comment type="story-perf-summary" -->',
+      '',
+      '```json',
+      JSON.stringify({ kind: 'story-perf-summary', storyId }, null, 2),
+      '```',
+    ].join('\n');
+
+  const storyTicket = (id) => ({ id, labels: ['type::story'] });
+
+  it('keeps summaries in input Story order even when later fetches resolve first', async () => {
+    const ids = [201, 202, 203, 204, 205, 206];
+    const provider = {
+      async getSubTickets() {
+        return ids.map(storyTicket);
+      },
+      getTicketComments(ticketId) {
+        // Later inputs resolve before earlier ones — output must still
+        // follow input order, not completion order.
+        return new Promise((resolve) => {
+          setTimeout(
+            () =>
+              resolve([{ id: ticketId, body: summaryBody(Number(ticketId)) }]),
+            (206 - Number(ticketId)) * 5,
+          );
+        });
+      },
+    };
+    const out = await collectStorySummaries(provider, 1, { warn() {} });
+    assert.deepEqual(
+      out.map((s) => s.storyId),
+      ids,
+    );
+  });
+
+  it('caps in-flight getTicketComments calls at 4', async () => {
+    const ids = Array.from({ length: 10 }, (_, i) => 300 + i);
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const provider = {
+      async getSubTickets() {
+        return ids.map(storyTicket);
+      },
+      async getTicketComments(ticketId) {
+        inFlight++;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        inFlight--;
+        return [{ id: ticketId, body: summaryBody(Number(ticketId)) }];
+      },
+    };
+    const out = await collectStorySummaries(provider, 1, { warn() {} });
+    assert.equal(out.length, 10);
+    assert.ok(maxInFlight <= 4, `maxInFlight=${maxInFlight} exceeds cap 4`);
+    assert.ok(maxInFlight > 1, 'expected parallel fetches');
+  });
+
+  it('warns and skips a rejecting getTicketComments without aborting the batch', async () => {
+    const warned = [];
+    const provider = {
+      async getSubTickets() {
+        return [storyTicket(401), storyTicket(402), storyTicket(403)];
+      },
+      async getTicketComments(ticketId) {
+        if (Number(ticketId) === 402) throw new Error('boom 402');
+        return [{ id: ticketId, body: summaryBody(Number(ticketId)) }];
+      },
+    };
+    const out = await collectStorySummaries(provider, 1, {
+      warn: (msg) => warned.push(msg),
+    });
+    assert.deepEqual(
+      out.map((s) => s.storyId),
+      [401, 403],
+    );
+    assert.equal(warned.length, 1);
+    assert.match(warned[0], /getTicketComments\(402\) failed: boom 402/);
   });
 });
 

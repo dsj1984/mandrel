@@ -1,34 +1,24 @@
-# Mandrel — `.agents/`
+# Mandrel Framework
 
-This is the framework payload (`.agents/`) consumed by host repos. It ships
-inside the [`mandrel`](https://www.npmjs.com/package/mandrel)
-npm package and is materialized into a consumer's `./.agents/` directory by
-`mandrel sync`. It carries a system prompt, a baseline rule pack, a
-two-tier skill library, a slash-command workflow set, and the
-orchestration engine that runs Epic → Feature → Story plans on
-GitHub. The framework version is the version of the installed
-[`mandrel`](https://www.npmjs.com/package/mandrel) npm
-package — run `npm ls mandrel` (or read `package.json`), not a
-count here.
+An opinionated workflow framework for AI coding assistants built on
+Epic-centric GitHub orchestration. Planning, execution, and state all live natively in GitHub Issues, Labels, and Projects V2.
 
-> **Ticket hierarchy.** Mandrel uses a **3-tier hierarchy**
-> (Epic → Feature → Story) with inline `acceptance[]` / `verify[]` on
-> Story bodies. See [`docs/SDLC.md` § Ticket hierarchy](docs/SDLC.md) for the
-> diagram and execution-model implications.
-
-This is the only README inside the distributed `.agents/` bundle. It
-explains what each part of the bundle is for and captures the
-cross-directory authoring conventions. The process narrative for
+This is the consumer README inside the distributed `.agents/` bundle. It explains what each part of the bundle is for and captures the cross-directory authoring conventions. The process narrative for
 `/epic-plan` and `/epic-deliver` stays in [`docs/SDLC.md`](docs/SDLC.md).
+
+The framework payload (`.agents/`) is consumed by host repos. It ships inside the [`mandrel`](https://www.npmjs.com/package/mandrel)
+npm package and is materialized into a consumer's `./.agents/` directory by `mandrel sync`. It carries a system prompt, a baseline rule pack, a two-tier skill library, a slash-command workflow set, and the orchestration engine that runs Epic → Feature → Story plans on GitHub.
+
+The framework version is the version of the installed [`mandrel`](https://www.npmjs.com/package/mandrel) npm package — run `npm ls mandrel` (or read `package.json`), not a
+count here.
 
 ---
 
 ## Activation
 
-### Cold start — `npx mandrel init`
+### All-in-one Install
 
-The canonical cold-start path is a single subcommand, run from the
-root of your project (the folder does **not** need to be a git repo yet):
+From an **empty or existing** local directory, run:
 
 ```bash
 npx mandrel init        # install (if absent) → prompt: configure now, or just the files
@@ -37,9 +27,7 @@ npx mandrel init        # install (if absent) → prompt: configure now, or just
 `mandrel init` first **installs the framework if `./.agents/` is absent** —
 `npm install mandrel --ignore-scripts` followed by an explicit `mandrel sync`,
 so the materialization is a single deterministic step rather than a
-postinstall-then-init double sync. When `./.agents/` already exists (you ran
-`npm install mandrel` first), it skips straight to the prompt — the one
-subcommand is idempotent across both entry points.
+postinstall-then-init double sync. When `./.agents/` already exists from a prior install, it skips straight to the prompt — the one subcommand is idempotent across both entry points.
 
 It then shows a **two-option prompt**:
 
@@ -58,18 +46,17 @@ After it completes, run **`/onboard`** inside Claude Code for the guided first
 run — stack detection, docs scaffolding, a `mandrel doctor` readiness gate, and
 a started `/epic-plan` handoff.
 
-The remainder of this section documents the manual steps `mandrel init`
-wraps, for operators who prefer to drive them by hand.
+### Manual Install
 
-### Manual cold start — install the npm package
+This section documents the manual steps `mandrel init` wraps, for operators who prefer to drive them by hand.
+
+#### Mandrel Package
 
 From an **empty or existing** project that does not yet have `.agents/`,
 install the package and materialize the framework payload:
 
 ```bash
 npm install mandrel
-# pnpm add mandrel
-# yarn add mandrel
 ```
 
 Installing `mandrel` pins an exact, provenance-signed version in
@@ -86,59 +73,9 @@ npx mandrel sync --dry-run # preview the planned copies, write nothing
 npx mandrel doctor         # confirm the install is healthy
 ```
 
-Then run the bootstrap to wire the project and GitHub side:
+#### Bootstrap Config
 
-```bash
-node .agents/scripts/bootstrap.js
-```
-
-### Upgrading and local additions
-
-Once installed, the ongoing upgrade path is **`mandrel update`** — it bumps
-`mandrel` to the newest non-major version, re-runs `mandrel sync`,
-applies version-keyed migrations, and verifies the install with
-`mandrel doctor`. The lockfile bump is left **staged for you to review and
-commit** (the command performs no `git` mutation):
-
-```bash
-npx mandrel update           # update → sync → migrate → doctor
-npx mandrel update --dry-run # preview the target version + ordered steps
-```
-
-A **major** crossing (e.g. `1.x → 2.0`) is **gated**: Mandrel lives on the
-1.x line under release-please `always-bump-minor`, so a major is a deliberate
-operator decision. `mandrel update` refuses a major bump, points at the
-[`docs/upgrade-major.md`](../docs/upgrade-major.md) runbook, and exits
-without touching anything — re-run with `--major` to adopt it. Minor and
-patch bumps are never gated. Migrations can also be run on their own:
-
-```bash
-npx mandrel migrate --from <version> --to <version> [--dry-run]
-```
-
-**Local additions survive upgrades only inside `.agents/local/`.** Because
-`mandrel sync` overwrites `./.agents/` in place from the package payload,
-hand edits to synced framework files are clobbered on the next upgrade — and
-`mandrel doctor`'s drift check flags them. The **`.agents/local/`** zone is
-the consumer-owned space `mandrel sync` never copies into nor prunes and the
-drift check treats as sanctioned, so keep project-specific skills and local
-workflow fragments there rather than editing synced files in place.
-
-### Run the unified bootstrap directly
-
-When `.agents/` is already materialized, run the bootstrap straight from the
-host repo root:
-
-```bash
-node .agents/scripts/bootstrap.js
-# bootstrap also seeds a discoverable npm alias, so after the first run:
-npm run bootstrap
-```
-
-The bootstrap adds an `npm run bootstrap` script to the consumer's
-`package.json` (pointing at `node .agents/scripts/bootstrap.js`) the
-first time it runs — an operator-defined `bootstrap` script always wins,
-so the seed is skipped when the key already exists.
+To wire the local directory and GitHub, run `npx mandrel init` again or use the bootstrapper directly: `node .agents/scripts/bootstrap.js`
 
 The bootstrap pipeline, in order:
 
@@ -170,7 +107,43 @@ The bootstrap pipeline, in order:
 The bootstrap is idempotent — safe to re-run; an already-configured
 clone produces zero file mutations.
 
-### Automatic system-prompt wiring
+---
+
+## Upgrading and local additions
+
+Once installed, the ongoing upgrade path is **`mandrel update`** — it bumps
+`mandrel` to the newest non-major version, re-runs `mandrel sync`,
+applies version-keyed migrations, and verifies the install with
+`mandrel doctor`. The lockfile bump is left **staged for you to review and
+commit** (the command performs no `git` mutation):
+
+```bash
+npx mandrel update           # update → sync → migrate → doctor
+npx mandrel update --dry-run # preview the target version + ordered steps
+```
+
+A **major** crossing (e.g. `1.x → 2.0`) is **gated**: Mandrel lives on the
+1.x line under release-please `always-bump-minor`, so a major is a deliberate
+operator decision. `mandrel update` refuses a major bump, points at the
+[`docs/upgrade-major.md`](../docs/upgrade-major.md) runbook, and exits
+without touching anything — re-run with `--major` to adopt it. Minor and
+patch bumps are never gated. Migrations can also be run on their own:
+
+```bash
+npx mandrel migrate --from <version> --to <version> [--dry-run]
+```
+
+**Local additions survive upgrades only inside `.agents/local/`.** Because
+`mandrel sync` overwrites `./.agents/` in place from the package payload,
+hand edits to synced framework files are clobbered on the next upgrade — and
+`mandrel doctor`'s drift check flags them. The **`.agents/local/`** zone is
+the consumer-owned space `mandrel sync` never copies into nor prunes and the
+drift check treats as sanctioned, so keep project-specific skills and local
+workflow fragments there rather than editing synced files in place.
+
+---
+
+## Automatic system-prompt wiring
 
 The bootstrap wires the framework system prompt into a project-root
 `CLAUDE.md` automatically, so there is no manual "load the system prompt"
@@ -187,7 +160,9 @@ If your AI tool is not Claude Code, load
 [`instructions.md`](instructions.md) verbatim through that tool's own
 system-prompt mechanism (`.cursorrules`, Custom Instructions, etc.).
 
-### Interactive repo / project pickers
+---
+
+## Interactive repo / project pickers
 
 When the bootstrap runs interactively (a TTY, and `--assume-yes` is not
 set), the **repo** and **project-number** questions render a live,
@@ -219,7 +194,9 @@ an end-to-end Epic; standalone Stories pair
 Issue) with [`/story-deliver`](workflows/story-deliver.md) (Story Issue → merged
 PR).
 
-### Runtime dependencies
+---
+
+## Runtime dependencies
 
 The framework scripts under `.agents/scripts/` import a small set of
 third-party npm packages at runtime. The materialized `./.agents/` tree
@@ -251,6 +228,14 @@ raw `ERR_MODULE_NOT_FOUND` deep inside a workflow. A drift test
 (`tests/scripts/runtime-deps-drift.test.js`) keeps the manifest honest: it
 fails if any third-party import under `.agents/scripts/**` is not declared
 in `runtime-deps.json`.
+
+---
+
+## Ticket Hierarchy
+
+Mandrel uses a **3-tier hierarchy**, (Epic → Feature → Story) with inline `acceptance[]` / `verify[]` on story bodies.
+
+See [`docs/SDLC.md` § Ticket hierarchy](docs/SDLC.md) for the diagram and execution-model implications.
 
 ---
 

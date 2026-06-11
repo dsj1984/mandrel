@@ -60,7 +60,7 @@ function assertNoForbiddenTokens(lines) {
 
 test('off-branch e2e: AP_WORKTREE_ENABLED=false routes through resolveRuntime as env-override', () => {
   const runtime = resolveRuntime(
-    { config: { orchestration: { worktreeIsolation: { enabled: true } } } },
+    { config: { delivery: { worktreeIsolation: { enabled: true } } } },
     { AP_WORKTREE_ENABLED: 'false' },
   );
   assert.equal(runtime.worktreeEnabled, false);
@@ -70,7 +70,7 @@ test('off-branch e2e: AP_WORKTREE_ENABLED=false routes through resolveRuntime as
 
 test('off-branch e2e: CLAUDE_CODE_REMOTE auto-detect lands at worktreeEnabled=false', () => {
   const runtime = resolveRuntime(
-    { config: { orchestration: { worktreeIsolation: { enabled: true } } } },
+    { config: { delivery: { worktreeIsolation: { enabled: true } } } },
     { CLAUDE_CODE_REMOTE: 'true' },
   );
   assert.equal(runtime.worktreeEnabled, false);
@@ -120,7 +120,7 @@ test('off-branch e2e: worktreeReapPhase returns skipped-disabled without emittin
   // emitReapFailureFriction is ever reached, so the absence of any signal
   // write under `temp/epic-100/story-101/` is the post-cutover invariant.
   const state = await worktreeReapPhase({
-    orchestration: { worktreeIsolation: { enabled: false } },
+    delivery: { worktreeIsolation: { enabled: false } },
     storyId: 101,
     epicId: 100,
     epicBranch: 'epic/100',

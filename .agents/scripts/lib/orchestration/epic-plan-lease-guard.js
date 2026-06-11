@@ -38,10 +38,10 @@ import { getGitHub } from '../config/github.js';
 import { Logger } from '../Logger.js';
 import { TYPE_LABELS } from '../label-constants.js';
 import {
-  acquireLease,
-  normalizeOperatorHandle,
-  releaseLease,
-} from './ticket-lease.js';
+  acquireLeaseFailClosed,
+  resolveOperatorFromCandidates,
+} from './lease-guard-shared.js';
+import { releaseLease } from './ticket-lease.js';
 
 /**
  * Resolve the operator handle that owns this `/epic-plan` run from
@@ -52,18 +52,24 @@ import {
  * (`acquireEpicPlanLease`) then fails closed by throwing rather than running an
  * ownerless, unguarded plan.
  *
- * The `@`-prefix some operators carry on `operatorHandle` is stripped so the
- * value matches the bare login GitHub writes to (and returns from) a ticket's
- * `assignees` — otherwise the assignee PATCH is rejected (HTTP 422, invalid
- * assignee) and the self-held-claim comparison (`owner === operator`) never
- * matches. This mirrors the sibling lease guards
- * (`single-story-lease-guard.js`, `epic-deliver-lease-guard.js`).
+ * The `@`-prefix some operators carry on `operatorHandle` is stripped (via
+ * the shared lease-guard kernel) so the value matches the bare login GitHub
+ * writes to (and returns from) a ticket's `assignees` — otherwise the
+ * assignee PATCH is rejected (HTTP 422, invalid assignee) and the
+ * self-held-claim comparison (`owner === operator`) never matches.
+ *
+ * The plan surface's missing-handle policy is `'null'` (intentional
+ * divergence from the standalone path's `'throw'`): `releaseEpicPlanLease`
+ * is best-effort and must degrade to a `no-operator` no-op rather than
+ * throw, so the throw-on-missing decision lives in `acquireEpicPlanLease`.
  *
  * @param {object} config Resolved config bag.
  * @returns {string|null}
  */
 export function resolveOperator(config) {
-  return normalizeOperatorHandle(getGitHub(config).operatorHandle);
+  return resolveOperatorFromCandidates({
+    candidates: [getGitHub(config).operatorHandle],
+  });
 }
 
 /**
@@ -108,33 +114,27 @@ export async function acquireEpicPlanLease({
     );
   }
 
-  // Fail closed: with no live-heartbeat source on the plan path, treat any
-  // foreign assignee as a live claim by anchoring `heartbeatAt` to the same
-  // `now` the primitive evaluates against (`isClaimLive` → true for any owner).
-  // `acquireLease` then refuses a foreign claim unless `steal` is set; an
-  // unassigned or self-held Epic proceeds without a write.
-  const resolvedNow =
-    typeof now === 'number' && Number.isFinite(now) ? now : Date.now();
-  const result = await acquireLease({
+  // Fail closed: with no live-heartbeat source on the plan path, the shared
+  // kernel anchors `heartbeatAt` to the same `now` the primitive evaluates
+  // against (`isClaimLive` → true for any owner). `acquireLease` then refuses
+  // a foreign claim unless `steal` is set; an unassigned or self-held Epic
+  // proceeds without a write.
+  const result = await acquireLeaseFailClosed({
     provider,
     ticketId: epicId,
     operator,
-    heartbeatAt: resolvedNow,
     steal,
     config,
-    now: resolvedNow,
+    now,
+    anchorHeartbeatToNow: true,
+    renderRefusal: (refused) =>
+      `[epic-plan] Epic #${epicId} is currently claimed by '${refused.owner}'. ` +
+      `Refusing to plan concurrently — another /epic-plan run owns this Epic ` +
+      `(the plan path has no heartbeat ledger, so a foreign assignee always ` +
+      `blocks unless stolen). Wait for that run to finish, or re-run with ` +
+      `--steal to forcibly transfer the claim once you have confirmed the ` +
+      `other run is dead.`,
   });
-
-  if (!result.acquired) {
-    throw new Error(
-      `[epic-plan] Epic #${epicId} is currently claimed by '${result.owner}'. ` +
-        `Refusing to plan concurrently — another /epic-plan run owns this Epic ` +
-        `(the plan path has no heartbeat ledger, so a foreign assignee always ` +
-        `blocks unless stolen). Wait for that run to finish, or re-run with ` +
-        `--steal to forcibly transfer the claim once you have confirmed the ` +
-        `other run is dead.`,
-    );
-  }
 
   Logger.info(
     `[epic-plan] Acquired Epic-lease on #${epicId} for '${operator}' ` +
