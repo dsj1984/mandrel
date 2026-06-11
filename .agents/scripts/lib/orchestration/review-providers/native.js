@@ -43,13 +43,13 @@
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { POOL_SERIAL_THRESHOLD, runOnPool } from '../../cpu-pool.js';
-import { PROJECT_ROOT } from '../../project-root.js';
 import { gitSpawn } from '../../git-utils.js';
 import {
   calculateReport,
   classifyReport,
 } from '../../maintainability-engine.js';
 import { transpileIfNeeded } from '../../maintainability-utils.js';
+import { PROJECT_ROOT } from '../../project-root.js';
 import {
   hashCommandConfig,
   recordPass,

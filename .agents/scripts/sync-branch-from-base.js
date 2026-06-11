@@ -31,10 +31,10 @@
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
-import { PROJECT_ROOT } from './lib/project-root.js';
 import { syncBranchFromBase } from './lib/git/sync-from-base.js';
 import { gitSpawn, gitSync } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
+import { PROJECT_ROOT } from './lib/project-root.js';
 
 const progress = Logger.createProgress('sync-branch-from-base', {
   stderr: true,

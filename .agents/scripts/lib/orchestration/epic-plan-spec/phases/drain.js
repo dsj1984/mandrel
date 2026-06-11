@@ -8,8 +8,8 @@
  */
 
 import path from 'node:path';
-import { PROJECT_ROOT } from '../../../project-root.js';
 import * as gitUtils from '../../../git-utils.js';
+import { PROJECT_ROOT } from '../../../project-root.js';
 import { forceDrainPendingCleanup } from '../../../worktree/lifecycle/force-drain.js';
 import { readManifest } from '../../../worktree/lifecycle/pending-cleanup.js';
 import { sweepStaleStoryWorktrees } from '../../plan-runner/worktree-sweep.js';

@@ -35,8 +35,6 @@ import { getAgentrcValidator } from './config-schema.js';
 import { loadEnv } from './env-loader.js';
 import { PROJECT_ROOT } from './project-root.js';
 
-export { PROJECT_ROOT } from './project-root.js';
-
 export { getAcceptanceEval } from './config/acceptance-eval.js';
 export { BASELINES_DEFAULTS, getBaselines } from './config/baselines.js';
 export { CI_DELIVERY_DEFAULTS, getCiDelivery } from './config/ci.js';
@@ -66,6 +64,7 @@ export {
 export { resolveListValue } from './config/shared.js';
 export { validateOrchestrationConfig } from './config/validate-orchestration.js';
 export { WORKTREE_ISOLATION_DEFAULTS } from './config/worktree-isolation.js';
+export { PROJECT_ROOT } from './project-root.js';
 
 // Cache keyed by absolute root path so callers passing different cwds
 // (e.g. per-worktree) each get their own resolved config.
