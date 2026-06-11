@@ -36,6 +36,7 @@
     "format:check": "biome ci .",
     "maintainability:check": "node .agents/scripts/check-baselines.js --gate maintainability",
     "maintainability:update": "node .agents/scripts/update-maintainability-baseline.js",
+    "check:arch": "node .agents/scripts/check-arch-cycles.js",
     "crap:check": "node .agents/scripts/check-baselines.js --gate crap",
     "crap:update": "node .agents/scripts/update-crap-baseline.js",
     "duplication:check": "node .agents/scripts/check-baselines.js --gate duplication",
