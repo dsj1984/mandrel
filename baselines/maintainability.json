@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-11T02:02:24.878Z",
+  "generatedAt": "2026-06-11T20:33:24.048Z",
   "rollup": {
     "*": {
       "min": 70.566,
-      "p50": 104.21,
-      "p95": 121.964
+      "p50": 104.227,
+      "p95": 121.809
     }
   },
   "rows": [
@@ -783,10 +783,6 @@
       "mi": 94.002
     },
     {
-      "path": ".agents/scripts/lib/orchestration/cascade-grouping.js",
-      "mi": 97.534
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/compare.js",
       "mi": 102.545
     },
@@ -1319,14 +1315,6 @@
       "mi": 119.885
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-close/format-autofix-scoped.js",
-      "mi": 98.632
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/format-autofix-shared.js",
-      "mi": 111.479
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
       "mi": 87.336
     },
@@ -1599,10 +1587,6 @@
       "mi": 93.77
     },
     {
-      "path": ".agents/scripts/lib/task-utils.js",
-      "mi": 146.427
-    },
-    {
       "path": ".agents/scripts/lib/test-env.js",
       "mi": 130.158
     },
@@ -1869,10 +1853,6 @@
     {
       "path": ".agents/scripts/stories-wave-tick.js",
       "mi": 82.021
-    },
-    {
-      "path": ".agents/scripts/story-deliver-prepare.js",
-      "mi": 88.71
     },
     {
       "path": ".agents/scripts/story-init.js",
@@ -2859,10 +2839,6 @@
       "mi": 110.889
     },
     {
-      "path": "tests/lib/auto-refresh-baselines.test.js",
-      "mi": 96.054
-    },
-    {
       "path": "tests/lib/baseline-loader.test.js",
       "mi": 104.272
     },
@@ -3683,10 +3659,6 @@
       "mi": 100.518
     },
     {
-      "path": "tests/lib/orchestration/ticketing.groupbyancestor.test.js",
-      "mi": 105.484
-    },
-    {
       "path": "tests/lib/orchestration/ticketing.structured-comment-cache.test.js",
       "mi": 103.218
     },
@@ -3865,10 +3837,6 @@
     {
       "path": "tests/lib/story-lifecycle.test.js",
       "mi": 109.113
-    },
-    {
-      "path": "tests/lib/task-utils.test.js",
-      "mi": 121.479
     },
     {
       "path": "tests/lib/test-env.test.js",
@@ -4559,10 +4527,6 @@
       "mi": 103.683
     },
     {
-      "path": "tests/story-deliver/story-deliver-prepare.test.js",
-      "mi": 104.059
-    },
-    {
       "path": "tests/story-init.test.js",
       "mi": 88.055
     },
@@ -4613,10 +4577,6 @@
     {
       "path": "tests/wave-record-io-verify-concurrency.test.js",
       "mi": 93.749
-    },
-    {
-      "path": "tests/wave-runner/tick-spec.test.js",
-      "mi": 89.233
     },
     {
       "path": "tests/wave-runner/tick.test.js",

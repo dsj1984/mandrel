@@ -1,13 +1,13 @@
 {
   "$schema": ".agents/schemas/baselines/duplication.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-06-11T02:02:25.924Z",
+  "generatedAt": "2026-06-11T20:33:24.060Z",
   "rollup": {
     "*": {
-      "percentage": 8.38,
-      "duplicatedLines": 2702,
-      "totalLines": 32254,
-      "filesWithDuplication": 97
+      "percentage": 8.62,
+      "duplicatedLines": 2655,
+      "totalLines": 30785,
+      "filesWithDuplication": 94
     }
   },
   "rows": [
@@ -82,12 +82,6 @@
       "duplicatedLines": 12,
       "totalLines": 252,
       "percentage": 4.76
-    },
-    {
-      "path": ".agents/scripts/lib/auto-refresh-baselines.js",
-      "duplicatedLines": 14,
-      "totalLines": 308,
-      "percentage": 4.55
     },
     {
       "path": ".agents/scripts/lib/baseline-snapshot.js",
@@ -172,12 +166,6 @@
       "duplicatedLines": 20,
       "totalLines": 370,
       "percentage": 5.41
-    },
-    {
-      "path": ".agents/scripts/lib/close-validation.js",
-      "duplicatedLines": 22,
-      "totalLines": 853,
-      "percentage": 2.58
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/maintainability.js",
@@ -556,12 +544,6 @@
       "duplicatedLines": 92,
       "totalLines": 168,
       "percentage": 54.76
-    },
-    {
-      "path": ".agents/scripts/story-deliver-prepare.js",
-      "duplicatedLines": 11,
-      "totalLines": 308,
-      "percentage": 3.57
     },
     {
       "path": ".agents/scripts/story-phase.js",
