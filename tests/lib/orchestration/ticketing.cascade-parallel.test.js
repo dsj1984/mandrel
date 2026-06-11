@@ -46,12 +46,12 @@ function makeProvider({ tickets, subTicketsMap, parentLatencyMs = {} }) {
   };
 }
 
-test('cascadeCompletion parallel dispatch', async (t) => {
-  await t.test('two disjoint parents overlap in time', async () => {
+test('cascadeCompletion sequential dispatch (Story #4017)', async (t) => {
+  await t.test('two disjoint parents run strictly sequentially', async () => {
     // Trigger #100 has two parents (#41, #42) that share NO ancestors.
-    // The cascade groups them disjointly and runs them in parallel via
-    // Promise.all, so their transitionTicketState durations (the only
-    // observable latency we control) must overlap.
+    // Story #4017 deleted the shared-ancestor grouping / parallel
+    // dispatch (fan-out <= 1 under the 3-tier hierarchy), so all parents
+    // — disjoint or not — run strictly sequentially in input order.
     const tickets = {
       41: {
         id: 41,
@@ -88,12 +88,10 @@ test('cascadeCompletion parallel dispatch', async (t) => {
     const u41 = provider.updateRecords.find((r) => r.id === 41);
     const u42 = provider.updateRecords.find((r) => r.id === 42);
     assert.ok(u41 && u42, 'both parents must have been updated');
-    // Overlap iff each window's start precedes the other's finish.
-    const overlap =
-      u41.startedAt < u42.finishedAt && u42.startedAt < u41.finishedAt;
+    // Strict sequencing: #41 must finish before #42 starts.
     assert.ok(
-      overlap,
-      `disjoint parents must overlap; #41=${u41.startedAt}-${u41.finishedAt} #42=${u42.startedAt}-${u42.finishedAt}`,
+      u41.finishedAt <= u42.startedAt,
+      `parents must run sequentially; #41=${u41.startedAt}-${u41.finishedAt} #42=${u42.startedAt}-${u42.finishedAt}`,
     );
   });
 
@@ -188,10 +186,9 @@ test('cascadeCompletion parallel dispatch', async (t) => {
       };
       const subTicketsMap = { 1: [3], 2: [3], 3: [] };
 
-      // Capture mode: pass a buffered logger via the internal `_logger`
-      // hook. The two parents are disjoint (no shared ancestor) so they
-      // dispatch in parallel groups; the buffered flush must still emit
-      // in input order (#1 before #2).
+      // Capture mode: pass a capture logger via the internal `_logger`
+      // hook. Parents run sequentially, so emission follows input order
+      // (#1 before #2).
       const captured = [];
       const captureLogger = {
         debug(m) {

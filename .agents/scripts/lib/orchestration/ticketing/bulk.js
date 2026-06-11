@@ -21,17 +21,12 @@
 
 import { Logger } from '../../Logger.js';
 import { TYPE_LABELS } from '../../label-constants.js';
-import { dispatchCascadeGroups, groupByAncestor } from '../cascade-grouping.js';
 import { ALL_STATES, STATE_LABELS } from './reads.js';
 import {
   postStructuredComment,
   toggleTasklistCheckbox,
   transitionTicketState,
 } from './transition.js';
-
-// Re-export `groupByAncestor` so external callers that imported it from
-// the ticketing facade continue to work after the verb-family split.
-export { groupByAncestor };
 
 /**
  * Retry budget for transient `gh` failures (rate limit, secondary rate limit,
@@ -221,9 +216,8 @@ export function logCascadePartialFailures(ticketId, cascade) {
 
 /**
  * Per-parent body of {@link cascadeCompletion}. Pulled out so the outer
- * function can dispatch disjoint groups in parallel while each parent
- * still runs against its own captured logger, ensuring byte-identical
- * log output across serial and parallel execution paths.
+ * walk stays a thin sequential loop while the per-parent work runs under
+ * the per-parent cascade lock.
  *
  * @param {import('../../ITicketingProvider.js').ITicketingProvider} provider
  * @param {number} ticketId  - The ticket whose `agent::done` transition
@@ -376,19 +370,13 @@ async function processCascadeParentLocked(
  * Then checks if parent's sub-tickets are ALL DONE.
  * If yes, transitions parent to DONE and cascades up.
  *
- * Parents are partitioned into disjoint groups by shared ancestor
- * ({@link groupByAncestor}). Groups run in parallel via `Promise.all`,
- * but parents **within** a group run strictly sequentially in input
- * order — concurrent transitions against a shared ancestor would race
- * the "all children done?" check. Within each parent, sibling reads
- * fan out via `getSubTickets(parentId, { fresh: true })` with the
- * concurrency cap (8) applied inside `getSubTickets`.
- *
- * Log output is captured per parent into a buffered logger and flushed
- * to the real {@link Logger} after all groups resolve, in the original
- * `parsedParents` order. The visible log stream is therefore
- * byte-identical to a serial baseline; only the I/O between parents in
- * disjoint groups overlaps.
+ * Parents run strictly sequentially in input order (Story #4017 —
+ * fan-out is <= 1 under the 3-tier hierarchy, so the former
+ * shared-ancestor grouping / parallel dispatch was deleted); concurrent
+ * transitions against a shared ancestor would race the "all children
+ * done?" check. Within each parent, sibling reads fan out via
+ * `getSubTickets(parentId, { fresh: true })` with the concurrency cap
+ * (8) applied inside `getSubTickets`.
  *
  * Per-parent errors are isolated: a failure updating one parent (network,
  * permission, stale ticket) never discards progress on sibling parents.
@@ -454,26 +442,19 @@ export async function cascadeCompletion(provider, ticketId, opts = {}) {
     return { cascadedTo: [], failed: [] };
   }
 
-  // Partition parents by shared ancestor (disjoint groups run in
-  // parallel; within-group parents stay sequential to avoid racing the
-  // shared ancestor's "all children done?" check), then dispatch the
-  // per-parent work via `dispatchCascadeGroups` so the buffered-flush
-  // bookkeeping lives in `cascade-grouping.js`.
-  const groups = await groupByAncestor(parsedParents, provider);
-  const results = await dispatchCascadeGroups({
-    parsedParents,
-    groups,
-    flushLogger: opts._logger ?? Logger,
-    processParent: (parentId, logger) =>
-      processCascadeParent(provider, ticketId, parentId, {
-        notify: opts.notify,
-        _logger: logger,
-      }),
-  });
-
+  // Story #4017 — under the 3-tier hierarchy a ticket has at most one
+  // parent, so the shared-ancestor grouping / parallel-group dispatch
+  // machinery (`cascade-grouping.js`) was deleted. Parents (fan-out <= 1
+  // in practice; the loop stays general for the body-reference fallback)
+  // run strictly sequentially, which trivially preserves the
+  // shared-ancestor safety invariant the grouping used to enforce.
   const cascadedTo = [];
   const failed = [];
-  for (const r of results) {
+  for (const parentId of parsedParents) {
+    const r = await processCascadeParent(provider, ticketId, parentId, {
+      notify: opts.notify,
+      _logger: opts._logger,
+    });
     cascadedTo.push(...r.cascadedTo);
     failed.push(...r.failed);
   }
@@ -534,12 +515,11 @@ export function deriveParentState(siblings) {
  * recursive cascade" progress comment, Epic exclusion) are preserved
  * verbatim.
  *
- * Resilience matches {@link cascadeCompletion}: disjoint parent groups
- * run in parallel via {@link dispatchCascadeGroups}; parents within a
- * group run sequentially; the per-parent lock from
- * {@link withParentCascadeLock} prevents races on shared ancestors; and
- * per-parent errors are isolated so a sibling parent's failure does not
- * discard work on the others.
+ * Resilience matches {@link cascadeCompletion}: parents run
+ * sequentially; the per-parent lock from {@link withParentCascadeLock}
+ * prevents races on shared ancestors; and per-parent errors are
+ * isolated so a sibling parent's failure does not discard work on the
+ * others.
  *
  * @param {import('../../ITicketingProvider.js').ITicketingProvider} provider
  * @param {number} ticketId
@@ -576,21 +556,15 @@ export async function cascadeParentState(provider, ticketId, opts = {}) {
   const parsedParents = await resolveParentIds(provider, ticket, ticketId);
   if (parsedParents.length === 0) return { cascadedTo: [], failed: [] };
 
-  const groups = await groupByAncestor(parsedParents, provider);
-  const results = await dispatchCascadeGroups({
-    parsedParents,
-    groups,
-    flushLogger: opts._logger ?? Logger,
-    processParent: (parentId, logger) =>
-      processStateCascadeParent(provider, parentId, {
-        notify: opts.notify,
-        _logger: logger,
-      }),
-  });
-
+  // Story #4017 — sequential per-parent walk (fan-out <= 1 under the
+  // 3-tier hierarchy); see cascadeCompletion for the rationale.
   const cascadedTo = [];
   const failed = [];
-  for (const r of results) {
+  for (const parentId of parsedParents) {
+    const r = await processStateCascadeParent(provider, parentId, {
+      notify: opts.notify,
+      _logger: opts._logger,
+    });
     cascadedTo.push(...r.cascadedTo);
     failed.push(...r.failed);
   }
