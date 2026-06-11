@@ -225,7 +225,7 @@ graph LR
 
     subgraph Phase0 ["Phase 0: Bootstrap"]
         direction TB
-        Z["👤 npx create-mandrel<br/>(install → sync → bootstrap.js)"]:::manual
+        Z["👤 npx mandrel init<br/>(install → sync → prompt → bootstrap.js)"]:::manual
         Z2["👤 /onboard (guided first run)"]:::manual
         Z --> Z2
     end
@@ -272,15 +272,19 @@ wire the framework system prompt, and create the GitHub labels, Projects V2
 fields, and (when enabled) main-branch protection the orchestration engine
 depends on.
 
-The canonical cold-start path is a single launcher command:
+The canonical cold-start path is a single command:
 
 ```bash
-npx create-mandrel
+npx mandrel init
 ```
 
-`create-mandrel` installs `mandrel`, materializes `./.agents/` via
-`mandrel sync`, and runs `node .agents/scripts/bootstrap.js`, forwarding any
-flags you pass. `bootstrap.js`:
+`mandrel init` installs `mandrel` (when `./.agents/` is absent), materializes
+`./.agents/` via `mandrel sync`, then presents a two-option prompt: **configure
+now** (option 1 → runs `node .agents/scripts/bootstrap.js`, forwarding any flags
+you pass) or **just the files** (option 2 → re-run `mandrel init` any time to
+configure later). `--assume-yes` skips the prompt and proceeds straight to
+configure (and is forwarded to bootstrap); a non-TTY run without it defaults to
+files-only so the GitHub provisioning never runs unattended. `bootstrap.js`:
 
 1. **Provisions a cold start.** Initializes the local git repo (with a first
    commit) when absent, creates the GitHub repo (`gh repo create --source=.
@@ -1404,7 +1408,7 @@ For Stories already in flight, use one of the three options above.
 
 | Command                                          | Purpose                                                                                                                                                                      |
 | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npx create-mandrel`                             | Cold-start launcher — install `mandrel`, `mandrel sync`, then run `bootstrap.js` (provisions repo + Projects V2 board, labels, branch protection).                  |
+| `npx mandrel init`                               | Cold-start command — install `mandrel` (if absent), `mandrel sync`, then prompt to run `bootstrap.js` (provisions repo + Projects V2 board, labels, branch protection).        |
 | `/onboard`                                       | Guided first run after bootstrap — stack detection, docs scaffolding, `mandrel doctor` readiness gate, started `/epic-plan` handoff.                                          |
 | `/epic-plan`                                     | Ideation entry — sharpen idea, search duplicates, open Epic, then PRD + Tech Spec + decomposition.                                                                            |
 | `/epic-plan --idea "<seed>"`                     | Same ideation entry with pre-supplied seed.                                                                                                                                   |

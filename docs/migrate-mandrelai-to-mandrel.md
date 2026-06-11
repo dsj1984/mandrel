@@ -43,32 +43,37 @@ a deliberate, documented manual hop you make **once** — after this, ordinary
 Run these from your consumer project root, on a branch with a clean working
 tree so the whole migration lands as one reviewable commit.
 
-### 1. Swap the dependency
+### 1. Drop the old scoped package, then install + configure in one command
 
 ```bash
 npm rm @mandrelai/agents
-npm install mandrel
+npx mandrel init
 ```
 
-`npm rm` drops the old scoped dependency from `package.json` and the lockfile;
-`npm install mandrel` adds the new unscoped package, resolving to the newest
-published version (currently `mandrel@1.57.0`). Pin an exact version if your
-policy requires it — the install is provenance-signed either way.
+`npm rm` drops the old scoped dependency from `package.json` and the lockfile.
+`npx mandrel init` then installs the new unscoped `mandrel` package (resolving
+to the newest published version), re-materializes `./.agents/` via
+`mandrel sync`, and prompts whether to configure now (runs
+`node .agents/scripts/bootstrap.js`) or stop at just the files. Pass
+`--assume-yes` for a non-interactive run that proceeds straight to configure.
+This folds the former two-step install + bootstrap into a single command; pin
+an exact version if your policy requires it — the install is provenance-signed
+either way.
 
-> Using pnpm or yarn? Substitute the equivalent remove/add pair —
-> `pnpm remove @mandrelai/agents && pnpm add -D mandrel`, or
-> `yarn remove @mandrelai/agents && yarn add -D mandrel`.
+> Using pnpm or yarn? Run the remove with your package manager —
+> `pnpm remove @mandrelai/agents` or `yarn remove @mandrelai/agents` — then
+> `npx mandrel init` to install and configure the new package.
 
-### 2. Re-materialize `./.agents/`
+### 2. Re-materialize `./.agents/` (only if you skipped `mandrel init`)
 
 ```bash
 npx mandrel sync
 ```
 
-`mandrel sync` re-materializes `./.agents/` from the freshly installed
-`mandrel` payload. The package's `postinstall` hook usually runs this for you,
-but run it explicitly so the materialization is unambiguous (and to cover
-`--ignore-scripts` / sandboxed-CI installs).
+`mandrel init` in step 1 already runs `mandrel sync` for you. Run `sync`
+explicitly only when you installed `mandrel` by hand instead — it
+re-materializes `./.agents/` from the freshly installed `mandrel` payload (and
+covers `--ignore-scripts` / sandboxed-CI installs).
 
 ### 3. Verify and commit
 
