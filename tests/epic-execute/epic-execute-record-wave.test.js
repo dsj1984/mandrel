@@ -165,14 +165,12 @@ describe('aggregateWaveStatus', () => {
 describe('validateResults', () => {
   it('accepts canonical /story-deliver return rows', () => {
     const out = validateResults([
-      { storyId: 1, status: 'done', tasksDone: 3, tasksTotal: 3 },
+      { storyId: 1, status: 'done' },
       { storyId: 2, status: 'blocked', blockerCommentId: 'c-99' },
     ]);
     assert.deepEqual(out[0], {
       storyId: 1,
       status: 'done',
-      tasksDone: 3,
-      tasksTotal: 3,
     });
     assert.equal(out[1].blockerCommentId, 'c-99');
   });

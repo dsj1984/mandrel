@@ -73,6 +73,26 @@
       "triggers": { "gates": ["gate4"] },
       "substitutionKeys": []
     },
+    "audit-documentation": {
+      "triggers": {
+        "gates": ["gate1", "gate3"],
+        "keywords": [
+          "documentation",
+          "docs",
+          "readme",
+          "changelog",
+          "runbook",
+          "stale docs"
+        ],
+        "filePatterns": [
+          "**/*.md",
+          "docs/**",
+          ".agents/docs/**",
+          ".agents/workflows/**"
+        ]
+      },
+      "substitutionKeys": []
+    },
     "audit-dependencies": {
       "triggers": {
         "gates": ["gate1", "gate3"],
