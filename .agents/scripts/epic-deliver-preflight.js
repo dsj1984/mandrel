@@ -297,9 +297,11 @@ export async function runPreflight({
   // Persist the snapshot/DAG envelope so `epic-deliver-prepare.js` can
   // reuse it instead of re-walking the hierarchy. The cache key is a
   // deterministic fingerprint of the Epic ticket returned by the same
-  // `getTicket(epicId)` call that drove `runSnapshotPhase`, so any drift
-  // (label, body, updatedAt) forces a cache miss in prepare.
-  const baseSha = computeBaseSha(state.epic);
+  // `getTicket(epicId)` call that drove `runSnapshotPhase` **plus** the
+  // Story snapshots that drove the wave DAG (Story #4019), so any drift —
+  // Epic label/body/updatedAt or a Story-dependency edit — forces a cache
+  // miss in prepare.
+  const baseSha = computeBaseSha(state.epic, state.stories);
   let cacheWritten = false;
   if (!dryRun) {
     await writePreflightCache({

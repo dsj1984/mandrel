@@ -4,6 +4,8 @@ import { describe, it } from 'node:test';
 import {
   acquireEpicPlanLease,
   assertNoOpenPlanChildren,
+  buildPlanLeaseCommentBody,
+  parsePlanLeaseClaim,
   releaseEpicPlanLease,
   resolveOperator,
 } from '../../../.agents/scripts/lib/orchestration/epic-plan-lease-guard.js';
@@ -24,9 +26,17 @@ const NOW = 1_000_000_000_000;
  * Fake provider exposing the lease/guard surface: getTicket (assignees),
  * updateTicket (records assignee writes), getEpic, getTickets (children).
  */
-function makeProvider({ assignees = [], children = [], epic = {} } = {}) {
-  const state = { assignees: [...assignees] };
+const PLAN_LEASE_MARKER = '<!-- ap:structured-comment type="plan-lease" -->';
+
+function makeProvider({
+  assignees = [],
+  children = [],
+  epic = {},
+  comments = [],
+} = {}) {
+  const state = { assignees: [...assignees], comments: [...comments] };
   const updateCalls = [];
+  let nextCommentId = 100;
   return {
     state,
     updateCalls,
@@ -51,6 +61,30 @@ function makeProvider({ assignees = [], children = [], epic = {} } = {}) {
     async getSubTickets(_epicId) {
       return children;
     },
+    // Structured-comment surface for the plan-lease claim record.
+    async getTicketComments(_ticketId) {
+      return [...state.comments];
+    },
+    async postComment(_ticketId, payload) {
+      const id = nextCommentId++;
+      state.comments.push({ id, body: payload.body });
+      return { id };
+    },
+    async deleteComment(id) {
+      state.comments = state.comments.filter((c) => c.id !== id);
+    },
+  };
+}
+
+/** Seed a marker-annotated plan-lease comment as the real upsert writes it. */
+function planLeaseComment({ epicId = 9, owner, claimedAtMs }) {
+  return {
+    id: 1,
+    body: `${PLAN_LEASE_MARKER}\n\n${buildPlanLeaseCommentBody({
+      epicId,
+      owner,
+      claimedAt: new Date(claimedAtMs).toISOString(),
+    })}`,
   };
 }
 
@@ -79,18 +113,25 @@ describe('epic-plan-lease-guard — resolveOperator', () => {
 });
 
 // ---------------------------------------------------------------------------
-// acquireEpicPlanLease — fail-closed (audit #3513)
+// acquireEpicPlanLease — claim-time liveness (Story #4019)
 //
-// `/epic-plan` emits no story.heartbeat during its run, so there is no
-// live-heartbeat source to judge a concurrent plan's liveness from. The guard
-// therefore fails closed: ANY foreign assignee is treated as a live claim and
-// refuses the take (naming the owner) unless `--steal` transfers it. There is
-// no ledger plumbing on this path any more — liveness is anchored to `now`.
+// `/epic-plan` emits no story.heartbeat, so the lease records its own
+// claim-time in a `plan-lease` structured comment at acquire time. A foreign
+// claim fresher than the lease TTL (default 15 min) refuses unless `--steal`;
+// a stale or record-less claim is reclaimed automatically — which is what
+// makes the documented `--steal` contract decidable.
 // ---------------------------------------------------------------------------
 
-describe('epic-plan-lease-guard — acquireEpicPlanLease (fail-closed)', () => {
-  it('refuses ANY foreign assignee and names the current owner — no heartbeat needed', async () => {
-    const provider = makeProvider({ assignees: [FOREIGN] });
+const TTL_MS = 900_000; // LEASE_TTL_MS_DEFAULT
+
+describe('epic-plan-lease-guard — acquireEpicPlanLease (claim-time liveness)', () => {
+  it('refuses a foreign claim whose recorded claim-time is within the TTL', async () => {
+    const provider = makeProvider({
+      assignees: [FOREIGN],
+      comments: [
+        planLeaseComment({ owner: FOREIGN, claimedAtMs: NOW - 60_000 }),
+      ],
+    });
 
     await assert.rejects(
       acquireEpicPlanLease({
@@ -103,6 +144,7 @@ describe('epic-plan-lease-guard — acquireEpicPlanLease (fail-closed)', () => {
         assert.match(err.message, /claimed by 'bob'/);
         assert.match(err.message, /#9/);
         assert.match(err.message, /--steal/);
+        assert.match(err.message, /minute\(s\) old/);
         return true;
       },
     );
@@ -110,8 +152,67 @@ describe('epic-plan-lease-guard — acquireEpicPlanLease (fail-closed)', () => {
     assert.equal(provider.updateCalls.length, 0);
   });
 
-  it('transfers a foreign claim when steal is set', async () => {
+  it('reclaims a foreign claim whose claim-time is older than the TTL', async () => {
+    const provider = makeProvider({
+      assignees: [FOREIGN],
+      comments: [
+        planLeaseComment({ owner: FOREIGN, claimedAtMs: NOW - TTL_MS - 1 }),
+      ],
+    });
+
+    const result = await acquireEpicPlanLease({
+      provider,
+      epicId: 9,
+      config: CONFIG,
+      now: NOW,
+    });
+
+    assert.equal(result.acquired, true);
+    assert.equal(result.reason, 'reclaimed');
+    assert.deepEqual(provider.state.assignees, [OPERATOR]);
+  });
+
+  it('reclaims a foreign claim with no plan-lease record (nothing to wait on)', async () => {
     const provider = makeProvider({ assignees: [FOREIGN] });
+
+    const result = await acquireEpicPlanLease({
+      provider,
+      epicId: 9,
+      config: CONFIG,
+      now: NOW,
+    });
+
+    assert.equal(result.acquired, true);
+    assert.equal(result.reason, 'reclaimed');
+    assert.deepEqual(provider.state.assignees, [OPERATOR]);
+  });
+
+  it('ignores a plan-lease record naming a different owner than the assignee', async () => {
+    const provider = makeProvider({
+      assignees: [FOREIGN],
+      comments: [
+        planLeaseComment({ owner: 'carol', claimedAtMs: NOW - 1_000 }),
+      ],
+    });
+
+    const result = await acquireEpicPlanLease({
+      provider,
+      epicId: 9,
+      config: CONFIG,
+      now: NOW,
+    });
+
+    assert.equal(result.acquired, true);
+    assert.equal(result.reason, 'reclaimed');
+  });
+
+  it('transfers a live foreign claim when steal is set', async () => {
+    const provider = makeProvider({
+      assignees: [FOREIGN],
+      comments: [
+        planLeaseComment({ owner: FOREIGN, claimedAtMs: NOW - 60_000 }),
+      ],
+    });
 
     const result = await acquireEpicPlanLease({
       provider,
@@ -125,6 +226,26 @@ describe('epic-plan-lease-guard — acquireEpicPlanLease (fail-closed)', () => {
     assert.equal(result.reason, 'stolen');
     assert.equal(result.previousOwner, FOREIGN);
     assert.deepEqual(provider.state.assignees, [OPERATOR]);
+  });
+
+  it('records the claim-time on acquire (the liveness signal /epic-plan emits)', async () => {
+    const provider = makeProvider({ assignees: [] });
+
+    await acquireEpicPlanLease({
+      provider,
+      epicId: 9,
+      config: CONFIG,
+      now: NOW,
+    });
+
+    const leaseComments = provider.state.comments.filter((c) =>
+      c.body.includes(PLAN_LEASE_MARKER),
+    );
+    assert.equal(leaseComments.length, 1);
+    const claim = parsePlanLeaseClaim(leaseComments[0].body);
+    assert.ok(claim);
+    assert.equal(claim.owner, OPERATOR);
+    assert.equal(claim.claimedAtMs, NOW);
   });
 
   it('claims an unassigned Epic', async () => {
@@ -174,7 +295,7 @@ describe('epic-plan-lease-guard — acquireEpicPlanLease (fail-closed)', () => {
     assert.equal(provider.updateCalls.length, 0);
   });
 
-  it('re-affirms a self-held claim without re-writing', async () => {
+  it('re-affirms a self-held claim without re-writing assignees', async () => {
     const provider = makeProvider({ assignees: [OPERATOR] });
 
     const result = await acquireEpicPlanLease({
@@ -186,7 +307,10 @@ describe('epic-plan-lease-guard — acquireEpicPlanLease (fail-closed)', () => {
 
     assert.equal(result.acquired, true);
     assert.equal(result.reason, 'already-held');
-    assert.equal(provider.updateCalls.length, 0);
+    assert.equal(
+      provider.updateCalls.filter((c) => c.mutations?.assignees).length,
+      0,
+    );
   });
 
   // Audit #3513 — the '@'-strip bug: when operatorHandle carries a leading
@@ -206,8 +330,32 @@ describe('epic-plan-lease-guard — acquireEpicPlanLease (fail-closed)', () => {
 
     assert.equal(result.acquired, true);
     assert.equal(result.reason, 'already-held');
-    assert.equal(provider.updateCalls.length, 0);
+    assert.equal(
+      provider.updateCalls.filter((c) => c.mutations?.assignees).length,
+      0,
+    );
     assert.deepEqual(provider.state.assignees, [OPERATOR]);
+  });
+});
+
+describe('epic-plan-lease-guard — parsePlanLeaseClaim', () => {
+  it('round-trips the body buildPlanLeaseCommentBody renders', () => {
+    const body = buildPlanLeaseCommentBody({
+      epicId: 9,
+      owner: 'alice',
+      claimedAt: '2026-06-11T10:00:00.000Z',
+    });
+    const claim = parsePlanLeaseClaim(body);
+    assert.deepEqual(claim, {
+      owner: 'alice',
+      claimedAtMs: Date.parse('2026-06-11T10:00:00.000Z'),
+    });
+  });
+
+  it('returns null for a body with no readable record', () => {
+    assert.equal(parsePlanLeaseClaim('no json here'), null);
+    assert.equal(parsePlanLeaseClaim(null), null);
+    assert.equal(parsePlanLeaseClaim('```json\n{"kind":"other"}\n```'), null);
   });
 });
 

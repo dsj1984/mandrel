@@ -154,28 +154,24 @@ Releases are automated by
 1. Land Conventional Commits on `main` (the rules in
    [`.agents/rules/git-conventions.md`](.agents/rules/git-conventions.md)
    already enforce the commit-message contract).
-2. release-please opens a **single combined** release PR with
-   auto-merge enabled (squash). Review the auto-generated entry in
-   `docs/CHANGELOG.md` and the bump to `package.json` (the framework
-   version SSOT) if you want; otherwise no operator action is
-   needed. See [§ Two-package release topology](#two-package-release-topology)
-   below for the combined-PR title/branch shape and the tag namespace
-   each package uses.
+2. release-please opens a release PR with auto-merge enabled (squash).
+   Review the auto-generated entry in `docs/CHANGELOG.md` and the bump to
+   `package.json` (the framework version SSOT) if you want; otherwise no
+   operator action is needed. See [§ Release topology](#release-topology)
+   below for the release-PR title/branch shape and the tag namespace.
 3. CI fires on the release PR automatically (because release-please
    uses the operator-managed `RELEASE_PLEASE_TOKEN` PAT — see
    [§ One-time PAT setup](#one-time-pat-setup) below). Once
    `Validate and Test` passes, GitHub squash-merges the release PR,
    which triggers the workflow to create the GitHub Release, tag
-   `main` with `vX.Y.Z`, and run the matching publish job(s) — `npm-publish`
-   publishes the root `mandrel` package and `npm-publish-launcher`
-   publishes the unscoped `create-mandrel` launcher, each to npm with build
-   provenance (Sigstore) and each gated on its own package's release output
-   (so a root-only release does not republish the launcher and vice versa).
-   This replaces the retired `dist`-branch mirror: consumers now install a
-   versioned, provenance-signed package from npm (`npm install
-   mandrel`, then `mandrel sync`) instead of pinning a Git submodule
-   to the `dist` branch, and bootstrap a fresh project with `npx
-   create-mandrel`. The publish jobs require the `NPM_TOKEN` secret — see
+   `main` with `mandrel-vX.Y.Z`, and run the `npm-publish` job, which
+   publishes the root `mandrel` package to npm with build provenance
+   (Sigstore), gated on the package's release output. This replaces the
+   retired `dist`-branch mirror: consumers now install a versioned,
+   provenance-signed package from npm (`npm install mandrel`, then
+   `mandrel sync`) instead of pinning a Git submodule to the `dist`
+   branch, and bootstrap a fresh project with `npx mandrel init`. The
+   publish job requires the `NPM_TOKEN` secret — see
    [§ npm publish token](#npm-publish-token) below.
 4. **Breaking-change releases** ship a consumer-upgrade runbook under
    `docs/` (describing the migration steps and the major-version bump
@@ -220,70 +216,54 @@ protection is a GitHub UI / `gh api` admin action; the workflow ships the
 gate but cannot self-register as required. Add the two job names above to the
 required-status-check set on `main` once.
 
-#### Two-package release topology
+#### Release topology
 
-`release-please-config.json` declares **two** packages — the root
-`mandrel` package (`.`) and `create-mandrel` (the bootstrap CLI). This
-puts release-please in **multi-package manifest mode**, which has two
-operator-visible consequences:
+`release-please-config.json` declares a **single** package — the root
+`mandrel` package (`.`). This keeps release-please in **single-package
+manifest mode**, which has two operator-visible consequences:
 
-- **One combined release PR.** With `separate-pull-requests` left at its
-  default (`false`), release-please opens a **single** combined PR for
-  both packages rather than one PR per package. The combined PR uses:
+- **One release PR.** release-please opens a single PR that bumps the
+  root package. The PR uses:
   - **Branch:** `release-please--branches--main`
   - **Title:** `chore: release main`
 
-  This differs from the legacy single-package shape
-  (`chore(main): release X.Y.Z` on
-  `release-please--branches--main--components--mandrel`). When the
-  package set changed from one to two, the old per-component PR was
-  **orphaned** — release-please no longer manages that branch shape, so
-  it does not auto-close it. If you ever see two open
-  `autorelease: pending` PRs, the one on the per-component branch is the
-  stale orphan; close it and keep the combined `release-please--branches--main`
-  PR as the live one. There should be **exactly one** open release PR at
-  a time.
+  There should be **exactly one** open release PR at a time. (The repo
+  briefly ran a two-package topology when the `create-mandrel` launcher
+  existed; that launcher was removed once `mandrel init` superseded it,
+  reverting release-please to single-package mode. A package-set change
+  can briefly orphan the prior release-PR branch shape — if you ever see
+  two open `autorelease: pending` PRs, close the stale orphan and keep
+  the live `release-please--branches--main` PR; it self-resolves on the
+  next release run.)
 
-- **Namespaced tags (`include-component-in-tag: true`).** Each package
-  gets a distinct tag namespace so the two version series never collide:
-  - **`mandrel` (root, `.`)** has `package-name: "mandrel"` with
-    `component: ""`. Because `include-component-in-tag` is `true`,
-    release-please prefixes the tag with the package name, so the root
-    package's tags are **namespaced** as `mandrel-vX.Y.Z` (e.g.
-    `mandrel-v1.44.0`). Releases through `v1.43.0` predate the
-    two-package topology and carry the older **bare `vX.Y.Z`** tags; the
-    series became namespaced at `mandrel-v1.44.0`, the first release cut
-    after `create-mandrel` was added.
-  - **`create-mandrel`** uses `component: "create-mandrel"`, so its tag
-    is namespaced as `create-mandrel-vX.Y.Z` (e.g. `create-mandrel-v0.2.0`).
+- **Namespaced tags (`include-component-in-tag: true`).** The root
+  `mandrel` package has `package-name: "mandrel"` with `component: ""`.
+  Because `include-component-in-tag` is `true`, release-please prefixes
+  the tag with the package name, so the root package's tags are
+  **namespaced** as `mandrel-vX.Y.Z` (e.g. `mandrel-v1.44.0`). Releases
+  through `v1.43.0` predate the namespaced topology and carry the older
+  **bare `vX.Y.Z`** tags; the series became namespaced at
+  `mandrel-v1.44.0`. The flag is kept on for tag continuity even though
+  there is now only one package.
 
-  [`release-please.yml`](.github/workflows/release-please.yml) carries **two
-  independent publish jobs**, each gated on its own package's release output.
-  The output naming follows release-please-action's `setPathOutput` rule
-  (verified against v5.0.0 `src/index.ts`): the **root** package (manifest path
-  `.`) emits **un-prefixed** outputs (`release_created`, `tag_name`), while
-  **non-root** packages emit `${path}--${key}` (e.g.
-  `create-mandrel--release_created`). There is **no** `.--release_created`
-  output — gating the root publish on that string silently skips it on every
-  release (the bug Story #3891's initial wiring shipped; fixed by reverting the
-  root gate to the un-prefixed `release_created`).
-  - **`npm-publish`** checks out the repository root and runs `npm publish`
-    against the root `package.json`, publishing **`mandrel`**. It is
-    gated on the root package's `steps.release.outputs.release_created`.
-  - **`npm-publish-launcher`** runs `npm publish` with
-    `working-directory: create-mandrel`, publishing the unscoped
-    **`create-mandrel`** launcher. It is gated on the launcher's
-    `steps.release.outputs['create-mandrel--release_created']`.
-
-  This split is load-bearing: the singular `release_created` is **root-specific**
-  (set only when the root path releases — never on a launcher-only release), so
-  a launcher-only release does not re-run the root `npm publish` on an
-  already-published version, and vice versa. (The "any package released" boolean
-  is the *plural* `releases_created`, which is intentionally **not** used as a
-  gate here.) Neither job keys off a tag pattern, so neither the `mandrel-*` nor
-  the `create-mandrel-*` tag series triggers a publish by tag. `ci.yml` triggers
-  only on branch `push` / `pull_request` / `workflow_dispatch` events (it has
-  **no** tag-driven step), so neither tag series triggers CI directly.
+  [`release-please.yml`](.github/workflows/release-please.yml) carries a
+  single publish job gated on the package's release output. The output
+  naming follows release-please-action's `setPathOutput` rule (verified
+  against v5.0.0 `src/index.ts`): the root package (manifest path `.`)
+  emits **un-prefixed** outputs (`release_created`, `tag_name`). There is
+  **no** `.--release_created` output — gating the root publish on that
+  string silently skips it on every release (the bug Story #3891's
+  initial wiring shipped; fixed by reverting the root gate to the
+  un-prefixed `release_created`). The `npm-publish` job checks out the
+  repository root and runs `npm publish` against the root `package.json`,
+  publishing **`mandrel`**, gated on
+  `steps.release.outputs.release_created`. (The "any package released"
+  boolean is the *plural* `releases_created`, which is intentionally
+  **not** used as a gate here.) The job does not key off a tag pattern,
+  so the `mandrel-*` tag series does not trigger a publish by tag.
+  `ci.yml` triggers only on branch `push` / `pull_request` /
+  `workflow_dispatch` events (it has **no** tag-driven step), so the tag
+  series does not trigger CI directly.
 
 #### One-time PAT setup
 
@@ -317,31 +297,24 @@ ceiling on automation throughput than PATs.
 
 #### npm publish token
 
-Both the `npm-publish` and `npm-publish-launcher` jobs in
-[`release-please.yml`](.github/workflows/release-please.yml) authenticate
+The `npm-publish` job in
+[`release-please.yml`](.github/workflows/release-please.yml) authenticates
 to the npm registry with an automation token (rather than OIDC trusted
-publishing), so they need a one-time secret:
+publishing), so it needs a one-time secret:
 
 1. Create an **automation** access token at
    <https://www.npmjs.com/settings/~/tokens>. The token owner must be able to
-   publish **both**:
-   - the unscoped root package **`mandrel`** — its first publish relies on
-     `publishConfig.access: "public"` (already set in the root
-     `package.json`); and
-   - the **unscoped `create-mandrel`** launcher package. The launcher name is
-     deliberately unscoped to preserve the `npm create mandrel` /
-     `npx create-mandrel` convention the docs advertise; its
-     `package.json#publishConfig.access: "public"` lets the public registry
-     accept the first publish. Publish promptly to claim the name — an
-     unpublished unscoped name is squattable.
+   publish the unscoped root package **`mandrel`** — its first publish relies
+   on `publishConfig.access: "public"` (already set in the root
+   `package.json`).
 2. Add it as a repository secret named **`NPM_TOKEN`** at
    <https://github.com/dsj1984/mandrel/settings/secrets/actions>.
-3. No further setup is required: each publish job declares `id-token: write`
-   and each package sets `publishConfig.provenance: true`, so npm attaches a
+3. No further setup is required: the publish job declares `id-token: write`
+   and the package sets `publishConfig.provenance: true`, so npm attaches a
    signed Sigstore provenance statement automatically.
 
 Without `NPM_TOKEN`, release-please still tags `main` and creates the
-GitHub Release, but the publish jobs fail and the affected package is not
+GitHub Release, but the publish job fails and the package is not
 published until the secret is configured and the job re-run.
 
 #### Major-version policy

@@ -53,28 +53,51 @@ export function preflightCachePath({ epicId, cwd }) {
 }
 
 /**
- * Stable string fingerprint of an Epic snapshot. The hash is keyed on the
- * exact fields `runSnapshotPhase` reads (`getTicket(epicId)` return value)
- * so that any drift the snapshot phase would observe forces a cache miss.
+ * Per-ticket fingerprint fields shared by the Epic and each Story in the
+ * cache key: id, body, sorted labels, and updatedAt. Story bodies carry
+ * the dependency edges, so hashing them means a Story-dependency edit
+ * forces a cache miss (Story #4019 — the previous Epic-only key let
+ * dependency edits slip through unnoticed).
+ *
+ * @param {{ id?: number|string, number?: number|string, body?: string, labels?: string[], updatedAt?: string }} ticket
+ * @returns {{ id: number|string|null, body: string, labels: string[], updatedAt: string|null }}
+ */
+function ticketFingerprint(ticket) {
+  const t = ticket && typeof ticket === 'object' ? ticket : {};
+  return {
+    id: t.id ?? t.number ?? null,
+    body: typeof t.body === 'string' ? t.body : '',
+    labels: Array.isArray(t.labels) ? [...t.labels].map(String).sort() : [],
+    updatedAt: typeof t.updatedAt === 'string' ? t.updatedAt : null,
+  };
+}
+
+/**
+ * Stable string fingerprint of an Epic snapshot **plus its Story
+ * dependency state**. The hash is keyed on the exact fields
+ * `runSnapshotPhase` reads (`getTicket(epicId)` return value) and on each
+ * Story's id/body/labels/updatedAt, so that any drift the snapshot or
+ * wave-DAG phases would observe — including a Story-dependency edit —
+ * forces a cache miss (Story #4019).
  *
  * Labels are sorted to absorb GitHub's non-deterministic label order
- * across responses. The hash is sha256; we return the full hex digest so
+ * across responses; stories are sorted by id so enumeration order never
+ * perturbs the key. The hash is sha256; we return the full hex digest so
  * the cache key is collision-resistant for the lifetime of a delivery.
  *
  * @param {{ id?: number|string, number?: number|string, body?: string, labels?: string[], updatedAt?: string }} epic
+ * @param {Array<{ id?: number|string, number?: number|string, body?: string, labels?: string[], updatedAt?: string }>} [stories]
  * @returns {string}
  */
-export function computeBaseSha(epic) {
+export function computeBaseSha(epic, stories = []) {
   if (!epic || typeof epic !== 'object') {
     throw new TypeError('computeBaseSha: epic snapshot must be an object');
   }
-  const id = epic.id ?? epic.number ?? null;
-  const body = typeof epic.body === 'string' ? epic.body : '';
-  const labels = Array.isArray(epic.labels)
-    ? [...epic.labels].map(String).sort()
-    : [];
-  const updatedAt = typeof epic.updatedAt === 'string' ? epic.updatedAt : null;
-  const payload = JSON.stringify({ id, body, labels, updatedAt });
+  const epicPrint = ticketFingerprint(epic);
+  const storyPrints = (Array.isArray(stories) ? stories : [])
+    .map(ticketFingerprint)
+    .sort((a, b) => Number(a.id ?? 0) - Number(b.id ?? 0));
+  const payload = JSON.stringify({ ...epicPrint, stories: storyPrints });
   return createHash('sha256').update(payload).digest('hex');
 }
 

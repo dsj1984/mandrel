@@ -880,10 +880,7 @@ test('ticketing.js', async (t) => {
 
       // Sequential semantics: the entire #41 sub-flow (toggle → fresh-read →
       // parent get → updateTicket) must complete before #42 begins.
-      // `groupByAncestor` reads both parents up front to walk their chains;
-      // those reads are intentionally excluded from the ordering invariant
-      // because they precede the per-group dispatch and do not represent
-      // interleaved cascade work. The invariant is: once #41 starts its
+      // The invariant is: once #41 starts its
       // per-parent body, all of its update calls must complete before any
       // update on #42.
       const updates42 = order

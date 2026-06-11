@@ -13,7 +13,8 @@
  * by docstring promise ("This mirrors the sibling lease guards…").
  *
  * This module is the single home for the kernel, modelled on the
- * `story-close/format-autofix-shared.js` extraction (Story #3332). The
+ * shared plumbing inside `story-close/format-autofix.js` (Story #3332,
+ * consolidated by Story #4017). The
  * per-surface guards now differ only in injected **policy**:
  *
  *   - **Operator candidates** — each surface supplies its own ordered
