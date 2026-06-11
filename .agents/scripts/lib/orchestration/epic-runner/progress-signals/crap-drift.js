@@ -1,9 +1,12 @@
 import nodeFs from 'node:fs';
 import path from 'node:path';
-import { resolveComponents } from '../../../baselines/components.js';
 import { loadCoverage as defaultLoadCoverage } from '../../../coverage-utils.js';
 import { calculateCrapForSource } from '../../../crap-engine.js';
-import { componentOrder, formatNumber } from './_bullet-format.js';
+import { formatNumber } from './_bullet-format.js';
+import {
+  createSnapshotStore,
+  walkComponentRegressions,
+} from './component-drift.js';
 
 const DEFAULT_THRESHOLD = 5.0;
 const DEFAULT_CEILING = 30;
@@ -43,11 +46,10 @@ export function coverageKeyMatches(key, suffix) {
  *
  *   🧨 crap: <component> <axis> <value> > floor <floor>
  *
- * Only components whose rollup exceeds the configured floor surface — a
- * breach in a component-scoped floor does NOT report against `*` unless
- * `*` itself breaches. This keeps the rollout narrowly targeted: when an
- * operator wires up a per-component floor for `api`, regressing `api`
- * names `api` — not `*`.
+ * CRAP is a "lower is better" gate — every axis breach reports when
+ * `value > floor`. Component-scoped breaches do NOT trigger a `*` bullet
+ * unless `*` itself breaches. The walk itself is the shared
+ * `component-drift.js` helper (Story #3984).
  *
  * @param {{
  *   rollup?: Record<string, Record<string, number>>,
@@ -56,34 +58,11 @@ export function coverageKeyMatches(key, suffix) {
  * @returns {string[]}
  */
 export function detectComponentRegressions(params = {}) {
-  const rollup = params.rollup ?? {};
-  const gateConfig = params.gateConfig ?? {};
-  const floors = gateConfig.floors ?? {};
-  const components = resolveComponents(gateConfig);
-  const names = new Set([
-    ...Object.keys(components),
-    ...Object.keys(floors),
-    ...Object.keys(rollup),
-  ]);
-  const bullets = [];
-  // CRAP is a "lower is better" gate — every axis under crap is ≤ floor.
-  for (const name of [...names].sort(componentOrder)) {
-    const aggregate = rollup[name];
-    if (!aggregate || typeof aggregate !== 'object') continue;
-    const floor = floors[name] ?? floors['*'];
-    if (!floor || typeof floor !== 'object') continue;
-    for (const axis of Object.keys(floor).sort()) {
-      const cap = floor[axis];
-      const value = aggregate[axis];
-      if (typeof cap !== 'number' || !Number.isFinite(cap)) continue;
-      if (typeof value !== 'number' || !Number.isFinite(value)) continue;
-      if (value <= cap) continue;
-      bullets.push(
-        `🧨 crap: ${name} ${axis} ${formatNumber(value)} > floor ${formatNumber(cap)}`,
-      );
-    }
-  }
-  return bullets;
+  return walkComponentRegressions(params, {
+    isBreach: (value, cap) => value > cap,
+    formatBullet: (name, axis, value, cap) =>
+      `🧨 crap: ${name} ${axis} ${formatNumber(value)} > floor ${formatNumber(cap)}`,
+  });
 }
 
 /**
@@ -141,6 +120,11 @@ export function createCrapDriftDetector(opts = {}) {
   const baselineDir = opts.baselineDir ?? '.agents/state';
   const baselinePath = path.join(cwd, baselineDir, BASELINE_FILENAME);
   const logger = opts.logger ?? null;
+  const store = createSnapshotStore({
+    fs,
+    baselinePath,
+    metadata: { ceiling, threshold },
+  });
 
   let baseline = null;
 
@@ -220,39 +204,13 @@ export function createCrapDriftDetector(opts = {}) {
         }
       }
       baseline = snapshot;
-      if (fs.writeFileSync) {
-        try {
-          fs.mkdirSync?.(path.dirname(baselinePath), { recursive: true });
-          fs.writeFileSync(
-            baselinePath,
-            JSON.stringify(
-              {
-                capturedAt: new Date().toISOString(),
-                ceiling,
-                threshold,
-                scores: snapshot,
-              },
-              null,
-              2,
-            ),
-          );
-        } catch {
-          // persistence is best-effort; the in-memory baseline still works
-        }
-      }
+      store.persist(snapshot);
       return snapshot;
     },
 
     loadBaseline() {
-      if (!fs.readFileSync) return null;
-      try {
-        const raw = fs.readFileSync(baselinePath, 'utf-8');
-        const parsed = JSON.parse(raw);
-        baseline = parsed?.scores ?? null;
-        return baseline;
-      } catch {
-        return null;
-      }
+      baseline = store.load();
+      return baseline;
     },
 
     async detect() {
