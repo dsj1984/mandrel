@@ -622,9 +622,9 @@ describe('reconciler apply — 2-tier hierarchy (Story #3117 / Epic #3078)', () 
       if (call.kind !== 'createTicket') continue;
       const labels = call.payload?.labels ?? [];
       assert.equal(
-        labels.includes('type::task') || labels.includes('type::feature'),
+        labels.some((l) => l.startsWith('type::') && l !== 'type::story'),
         false,
-        `apply must not create feature/task tickets under 2-tier; saw call ${JSON.stringify(call)}`,
+        `apply must only create type::story tickets under 2-tier; saw call ${JSON.stringify(call)}`,
       );
     }
   });

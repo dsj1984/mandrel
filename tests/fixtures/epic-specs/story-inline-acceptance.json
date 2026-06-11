@@ -4,9 +4,7 @@
   "epic": {
     "id": 3078,
     "title": "2-tier collapse fixture Epic",
-    "labels": [
-      "type::epic"
-    ]
+    "labels": ["type::epic"]
   },
   "stories": [
     {
@@ -14,31 +12,22 @@
       "title": "Story carries inline acceptance/verify (2-tier shape)",
       "wave": 0,
       "dependsOn": [],
-      "labels": [
-        "type::story",
-        "persona::engineer"
-      ],
+      "labels": ["type::story", "persona::engineer"],
       "acceptance": [
         "A Story object containing inline acceptance[] and verify[] string arrays validates against the schema",
         "A Story object whose tasks[] field is set is rejected by the schema"
       ],
-      "verify": [
-        "node --test tests/scripts/epic-spec-schema.test.js"
-      ]
+      "verify": ["node --test tests/scripts/epic-spec-schema.test.js"]
     },
     {
       "slug": "second-inline-story",
       "title": "A second Story with inline acceptance/verify",
       "wave": 0,
-      "labels": [
-        "type::story"
-      ],
+      "labels": ["type::story"],
       "acceptance": [
         "Multiple Stories with inline shape coexist within an Epic"
       ],
-      "verify": [
-        "node --test tests/scripts/epic-spec-schema.test.js"
-      ]
+      "verify": ["node --test tests/scripts/epic-spec-schema.test.js"]
     }
   ]
 }

@@ -280,7 +280,7 @@ test('rejects a Story that lacks an inline acceptance + verify contract', () => 
     {
       type: 'story',
       slug: 's-no-contract',
-        title: 'Story without inline contract',
+      title: 'Story without inline contract',
       body: {
         goal: 'Goal.',
         changes: ['src/x.js: edit'],

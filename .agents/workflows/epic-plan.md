@@ -243,8 +243,8 @@ The advisory runs **only** when **both** hold:
 1. **Phase 5 found no planning artifacts** — the Epic body has no
    `## Planning Artifacts` section linking a PRD / Tech Spec (i.e. Phase 5
    did **not** enter its re-plan branch).
-2. **The Epic has no open Feature/Story children** — no open `type::feature`
-   or `type::story` sub-issues are linked to this Epic.
+2. **The Epic has no open Story children** — no open `type::story`
+   sub-issues are linked to this Epic.
 
 If **either** condition fails, **skip this phase silently** and continue to
 Phase 6. It must **never** fire on the re-plan path: recommending a "downgrade
@@ -680,16 +680,16 @@ node .agents/scripts/epic-plan-spec-validate.js \
 
 > **Open-children guard (workflow guard).** Before persisting the breakdown,
 > `epic-plan-decompose.js` refuses to run when the Epic **already has open
-> Feature/Story children**, unless `--force` (close + recreate the tree) or
+> Story children**, unless `--force` (close + recreate the tree) or
 > `--resume` (continue a partial persist) is set. This stops a re-run from
-> stacking a duplicate Feature/Story tree on top of an existing one — the
+> stacking a duplicate Story set on top of an existing one — the
 > phase exits non-zero and lists the open children. Once persist completes,
 > the Epic-lease acquired in Phase 7 is **released** (best-effort; a release
 > failure never fails decompose).
 
 <!-- separator: adjacent blockquotes -->
 
-> **Hierarchy.** The decomposer emits an Epic → Feature → Story tree.
+> **Hierarchy.** The decomposer emits a flat Story backlog under the Epic.
 > Acceptance criteria and verification steps are inlined on each Story
 > body (`acceptance[]` / `verify[]` fields) and resolved against the
 > Acceptance Spec context ticket at close time. See
@@ -810,8 +810,7 @@ node .agents/scripts/epic-plan-spec-validate.js \
 
 6. **Audit**:
    - Check the Epic's comment thread to ensure the backlog summary was posted.
-   - Verify that at least one `type::feature` and `type::story` issue
-     was created.
+   - Verify that at least one `type::story` issue was created.
 
 7. **Cleanup**: The wrapper script (`epic-plan-decompose.js`) deletes the
    Phase 8 temp files automatically on success — no operator action required.

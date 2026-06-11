@@ -537,8 +537,7 @@ function attachFindingsAndErrors(tickets, findings, errors) {
 }
 
 export function validateAndNormalizeTickets(tickets, opts = {}) {
-  const { ticketBySlug, stories, slugAdjacency } =
-    indexTicketsBySlug(tickets);
+  const { ticketBySlug, stories, slugAdjacency } = indexTicketsBySlug(tickets);
 
   assertAllTicketsAreStories({ tickets, stories });
   assertEveryStoryHasInlineContract({ stories });

@@ -337,8 +337,7 @@ describe('lib/orchestration/spec-renderer.js — round-trip via loader', () => {
     plantSpec(FIXTURE_EPIC.id, spec);
     const reloaded = loadSpec(FIXTURE_EPIC.id, { epicsDir: sandbox });
 
-    const findStory = (root, slug) =>
-      root.stories.find((s) => s.slug === slug);
+    const findStory = (root, slug) => root.stories.find((s) => s.slug === slug);
 
     const original = findStory(spec, 'diff-engine');
     const reread = findStory(reloaded, 'diff-engine');
@@ -381,8 +380,7 @@ describe('lib/orchestration/spec-renderer.js — round-trip via loader', () => {
     plantSpec(FIXTURE_EPIC.id, spec);
     const reloaded = loadSpec(FIXTURE_EPIC.id, { epicsDir: sandbox });
 
-    const findStory = (root, slug) =>
-      root.stories.find((s) => s.slug === slug);
+    const findStory = (root, slug) => root.stories.find((s) => s.slug === slug);
 
     const schemaAuthor = findStory(reloaded, 'schema-author');
     assert.deepEqual(schemaAuthor.acceptance, [

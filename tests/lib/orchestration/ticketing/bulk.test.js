@@ -372,7 +372,7 @@ class NativeParentMock extends ITicketingProvider {
       200: {
         id: 200,
         nodeId: 'NODE_FEAT_200',
-        labels: ['agent::executing', 'type::feature'],
+        labels: ['agent::executing', 'type::story'],
         body: 'Feature body',
         state: 'open',
       },
@@ -495,7 +495,7 @@ class StorylessHierarchyMock extends ITicketingProvider {
       },
       30: {
         id: 30,
-        labels: ['agent::executing', 'type::feature'],
+        labels: ['agent::executing', 'type::story'],
         body: 'Feature body\n- [ ] #3\nparent: #300',
         state: 'open',
       },

@@ -41,9 +41,9 @@ function storyTicket(id, { dependsOnIds = [], extraLabels = [] } = {}) {
 function nonStoryTicket(id) {
   return {
     id,
-    title: `Feature ${id}`,
+    title: `PRD ${id}`,
     body: '',
-    labels: ['type::feature'],
+    labels: ['context::prd'],
   };
 }
 

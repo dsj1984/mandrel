@@ -218,7 +218,7 @@ exact `gh issue create` shape that would run.
 - **Idempotent.** Re-running `--emit-context` is safe. Re-running
   `--body` opens a new Issue (it is not aware of prior runs); use
   `--dry-run` first when iterating on the draft.
-- **Atomic by contract.** A Story is the leaf of the 3-tier hierarchy — it
+- **Atomic by contract.** A Story is the leaf of the 2-tier hierarchy — it
   has no child tickets. Its acceptance criteria and verification steps live
   inline on the Story body
   ([`single-story-deliver.md`](helpers/single-story-deliver.md)).

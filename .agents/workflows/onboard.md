@@ -183,7 +183,7 @@ Present the operator with the two `/epic-plan` entry shapes:
 
   This enters [`/epic-plan`](epic-plan.md) at Phase 1 (Idea Refinement),
   which refines the seed into a PRD, Tech Spec, and a decomposed
-  Epic → Feature → Story backlog.
+  Epic → Story backlog.
 
 - **From an existing Epic** (a `type::epic` issue already exists):
 

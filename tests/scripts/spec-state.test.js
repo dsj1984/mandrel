@@ -135,10 +135,7 @@ describe('lib/spec/state.js — iterSpecEntries', () => {
 
   it('skips entries without a slug', () => {
     const spec = {
-      stories: [
-        { title: 'no slug' },
-        { slug: 'has-slug', title: 'ok' },
-      ],
+      stories: [{ title: 'no slug' }, { slug: 'has-slug', title: 'ok' }],
     };
     const slugs = [...iterSpecEntries(spec)].map(([slug]) => slug);
     assert.deepEqual(slugs, ['has-slug']);

@@ -29,8 +29,8 @@ The ticket array is authored **directly by you, the host LLM**.
 authoring context you need and (b) validates, persists, and transitions the
 Epic lifecycle state.
 
-The ticket array contains `type::feature` and `type::story` tickets
-only — no `type::task` children. Acceptance criteria and verification
+The ticket array contains `type::story` tickets only — no Feature
+containers and no `type::task` children. Acceptance criteria and verification
 steps are inlined on each Story body via the `acceptance[]` and
 `verify[]` fields. The decomposer system prompt lives in the
 [`epic-plan-decompose-author`](../../skills/core/epic-plan-decompose-author/SKILL.md)
@@ -156,7 +156,7 @@ checks without performing any I/O — it is not a substitute for
 The script exits 0 regardless of findings (non-blocking), but lists any
 `ERR`-level findings that must be addressed before execution:
 
-- Missing `type::feature` / `type::story` tickets.
+- Missing `type::story` tickets.
 - Stories without `complexity::` labels.
 - Dependency cycles across Stories.
 

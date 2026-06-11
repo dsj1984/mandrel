@@ -59,19 +59,13 @@ function formatErrors(errors) {
     .join('\n');
 }
 
-/** Build a minimal 2-tier ticket graph: one Epic, one Feature, two Stories. */
+/** Build a minimal 2-tier ticket graph: one Epic, two Stories. */
 function twoTierTickets() {
   const epic = {
     id: 9000,
     title: 'Epic 9000',
     body: '',
     labels: ['type::epic'],
-  };
-  const feature = {
-    id: 9001,
-    title: 'Feature 9001',
-    body: 'parent: #9000',
-    labels: ['type::feature'],
   };
   const storyA = {
     id: 9010,
@@ -99,7 +93,7 @@ function twoTierTickets() {
     ].join('\n'),
     labels: ['type::story', 'persona::engineer'],
   };
-  return { epic, feature, storyA, storyB };
+  return { epic, storyA, storyB };
 }
 
 describe('dispatch-manifest schema — 2-tier shape (Story #3136)', () => {
@@ -172,8 +166,8 @@ describe('dispatch-manifest schema — 2-tier shape (Story #3136)', () => {
     // schema validation above. The producer's waves[].stories[] shape
     // is the contract under test here; the summary count gap is
     // covered in the dedicated "reports totalStories" test below.
-    const { epic, feature, storyA, storyB } = twoTierTickets();
-    const allTickets = [epic, feature, storyA, storyB];
+    const { epic, storyA, storyB } = twoTierTickets();
+    const allTickets = [epic, storyA, storyB];
     const waves = [[storyA], [storyB]];
 
     // Act
@@ -198,7 +192,7 @@ describe('dispatch-manifest schema — 2-tier shape (Story #3136)', () => {
 
   it('reports totalStories and doneStories in summary (Story-centric counts)', () => {
     // Arrange
-    const { epic, feature, storyA, storyB } = twoTierTickets();
+    const { epic, storyA, storyB } = twoTierTickets();
     // Mark Story A as done so doneStories > 0 exercises the count path.
     storyA.labels = [...storyA.labels, 'agent::done'];
 
@@ -207,7 +201,7 @@ describe('dispatch-manifest schema — 2-tier shape (Story #3136)', () => {
       epicId: 9000,
       epic,
       tasks: [],
-      allTickets: [epic, feature, storyA, storyB],
+      allTickets: [epic, storyA, storyB],
       waves: [[storyA, storyB]],
       dispatched: [],
       dryRun: false,
@@ -227,14 +221,14 @@ describe('dispatch-manifest schema — 2-tier shape (Story #3136)', () => {
 
   it('each waves[].stories[] entry carries every schema-required field', () => {
     // Arrange
-    const { epic, feature, storyA, storyB } = twoTierTickets();
+    const { epic, storyA, storyB } = twoTierTickets();
 
     // Act
     const manifest = buildManifest({
       epicId: 9000,
       epic,
       tasks: [],
-      allTickets: [epic, feature, storyA, storyB],
+      allTickets: [epic, storyA, storyB],
       waves: [[storyA], [storyB]],
       dispatched: [],
       dryRun: false,

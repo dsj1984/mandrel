@@ -13,7 +13,7 @@ description:
 > teaches how to slice and order work into verifiable units, independent
 > of any particular ticket hierarchy. The word "task" below refers to a
 > generic unit of work, not specifically to a Mandrel ticket. Under
-> Mandrel's 3-tier hierarchy (Epic → Feature → Story), these units map
+> Mandrel's 2-tier hierarchy (Epic → Story), these units map
 > onto acceptance/verification bullets inlined on the Story body, or
 > onto sequential sibling Stories. The principles — vertical slicing,
 > dependency ordering, sizing caps, explicit acceptance and

@@ -7,7 +7,7 @@ This is the consumer README inside the distributed `.agents/` bundle. It explain
 `/epic-plan` and `/epic-deliver` stays in [`docs/SDLC.md`](docs/SDLC.md).
 
 The framework payload (`.agents/`) is consumed by host repos. It ships inside the [`mandrel`](https://www.npmjs.com/package/mandrel)
-npm package and is materialized into a consumer's `./.agents/` directory by `mandrel sync`. It carries a system prompt, a baseline rule pack, a two-tier skill library, a slash-command workflow set, and the orchestration engine that runs Epic → Feature → Story plans on GitHub.
+npm package and is materialized into a consumer's `./.agents/` directory by `mandrel sync`. It carries a system prompt, a baseline rule pack, a two-tier skill library, a slash-command workflow set, and the orchestration engine that runs Epic → Story plans on GitHub.
 
 The framework version is the version of the installed [`mandrel`](https://www.npmjs.com/package/mandrel) npm package — run `npm ls mandrel` (or read `package.json`), not a
 count here.
@@ -233,7 +233,7 @@ in `runtime-deps.json`.
 
 ## Ticket Hierarchy
 
-Mandrel uses a **3-tier hierarchy**, (Epic → Feature → Story) with inline `acceptance[]` / `verify[]` on story bodies.
+Mandrel uses a **2-tier hierarchy** (Epic → Story) with inline `acceptance[]` / `verify[]` on story bodies.
 
 See [`docs/SDLC.md` § Ticket hierarchy](docs/SDLC.md) for the diagram and execution-model implications.
 

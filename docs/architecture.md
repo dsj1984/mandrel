@@ -251,11 +251,11 @@ These modules fold the close-tail into the deliver runner so
 
 #### Dispatch Engine Submodules
 
-`lib/orchestration/dispatch-engine.js` is a coordinator for the 3-tier
+`lib/orchestration/dispatch-engine.js` is a coordinator for the 2-tier
 dispatch path. Consumers (`dispatcher.js`, tests) import `dispatch`,
 `resolveAndDispatch`, and the `AGENT_*` constants from the coordinator
-path. Every Epic is 3-tier (Epic → Feature → Story); `dispatch()`
-computes a Story-level wave plan and emits a 3-tier manifest. The legacy
+path. Every Epic is 2-tier (Epic → Story); `dispatch()`
+computes a Story-level wave plan and emits a 2-tier manifest. The legacy
 The retired 4-tier dispatch runtime (legacy fetcher, wave fan-out, and
 Epic-completion detector) was removed in Epic #3163; per-Story
 execution is owned by `/story-deliver`
@@ -594,7 +594,7 @@ sequenceDiagram
     P->>EP: Generate PRD + Tech Spec
     EP->>GH: Create linked context issues
     EP->>TD: Decompose into Stories
-    TD->>GH: Create Feature → Story hierarchy
+    TD->>GH: Create the Story backlog
 
     H->>D: /epic-deliver #EPIC
     D->>EDR: Build DAG, compute waves, run all six phases
@@ -689,20 +689,19 @@ guard now that the operator's PR merge is the sole promotion gate.
 
 ## Ticket Hierarchy
 
-The framework uses a **3-tier GitHub Issue hierarchy**
-(Epic → Feature → Story) with label-based typing and `blocked by #NNN`
-dependency wiring:
+The framework uses a **2-tier GitHub Issue hierarchy**
+(Epic → Story) with label-based typing and `blocked by #NNN`
+dependency wiring. Thematic grouping lives as prose in the Epic body /
+Tech Spec, never as a ticket:
 
 ```text
 Epic (type::epic)
 ├── PRD (context::prd)
 ├── Tech Spec (context::tech-spec)
-├── Feature (type::feature)
-│   ├── Story (type::story)
-│   │   ├── acceptance[]            ← inline on Story body
-│   │   └── verify[]                ← inline on Story body
-│   └── Story (type::story)
-└── Feature (type::feature)
+├── Story (type::story)
+│   ├── acceptance[]            ← inline on Story body
+│   └── verify[]                ← inline on Story body
+└── Story (type::story)
 ```
 
 `/story-deliver` runs a single Story-implementation phase per Story.
@@ -732,7 +731,6 @@ the authoritative contract:
 
 | Parent tier                                     | Auto-closes via cascade? | How it closes                                                    |
 | ----------------------------------------------- | ------------------------ | ---------------------------------------------------------------- |
-| Feature (`type::feature`)                       | Yes                      | Last Story → `agent::done` cascades.                             |
 | Epic (`type::epic`)                             | **No** — cascade stops.  | Operator merges the `/epic-deliver` PR via the GitHub UI.        |
 | Planning (`context::prd`, `context::tech-spec`) | **No** — cascade stops.  | Operator close after the Epic PR is merged.                      |
 

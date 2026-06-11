@@ -27,8 +27,8 @@ package and materialized into consumer projects' `.agents/` directories by
   consumer project)
 - **License:** ISC
 
-> **Ticket hierarchy.** Mandrel ships a **3-tier ticket hierarchy**
-> (Epic → Feature → Story). Acceptance criteria and verification
+> **Ticket hierarchy.** Mandrel ships a **2-tier ticket hierarchy**
+> (Epic → Story). Acceptance criteria and verification
 > steps are inlined on the Story body (`acceptance[]` / `verify[]`).
 > Epic-attached Stories are delivered via `/epic-deliver` (which fans
 > out `helpers/epic-deliver-story` per wave); standalone Stories use

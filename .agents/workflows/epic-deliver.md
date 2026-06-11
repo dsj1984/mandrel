@@ -91,8 +91,8 @@ Every other runtime modifier is sourced from the Epic's labels or from
   [`docs/LIFECYCLE.md`](../../docs/LIFECYCLE.md) for the bus
   contract, event taxonomy, ledger format, and listener model.
 
-> **Hierarchy.** `/epic-deliver` operates over the 3-tier hierarchy
-> (Epic → Feature → Story). The fan-out is one `Agent` tool call per
+> **Hierarchy.** `/epic-deliver` operates over the 2-tier hierarchy
+> (Epic → Story). The fan-out is one `Agent` tool call per
 > Story per wave (§ 2b); Story branches merge into `epic/<id>` with
 > `--no-ff` via `story-close.js`; the close-validation chain
 > (Phase 3), epic-audit, code-review, retro, finalize, and auto-merge

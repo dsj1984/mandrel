@@ -5,9 +5,7 @@
     "epic": {
       "id": 9002,
       "title": "Mature Epic",
-      "labels": [
-        "type::epic"
-      ]
+      "labels": ["type::epic"]
     },
     "stories": [
       {
@@ -15,19 +13,14 @@
         "title": "First Story",
         "wave": 0,
         "dependsOn": [],
-        "labels": [
-          "type::story",
-          "area::core"
-        ]
+        "labels": ["type::story", "area::core"]
       },
       {
         "slug": "story-two",
         "title": "Renamed Story",
         "wave": 0,
         "dependsOn": [],
-        "labels": [
-          "type::story"
-        ]
+        "labels": ["type::story"]
       }
     ]
   },
@@ -58,23 +51,17 @@
   "ghState": {
     "9002": {
       "title": "Mature Epic",
-      "labels": [
-        "type::epic"
-      ],
+      "labels": ["type::epic"],
       "state": "open"
     },
     "100": {
       "title": "First Story",
-      "labels": [
-        "type::story"
-      ],
+      "labels": ["type::story"],
       "state": "open"
     },
     "101": {
       "title": "Original Story Title",
-      "labels": [
-        "type::story"
-      ],
+      "labels": ["type::story"],
       "state": "open"
     }
   }

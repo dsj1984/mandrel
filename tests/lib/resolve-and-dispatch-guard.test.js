@@ -56,12 +56,12 @@ describe('resolveAndDispatch — conflicting type-label guard', () => {
     );
   });
 
-  it('refuses to dispatch a retired type::feature ticket (unrecognised type)', async () => {
+  it('refuses to dispatch a ticket with a retired tier label (unrecognised type)', async () => {
     const provider = new MockProvider({
       tickets: {
         77: {
           id: 77,
-          labels: ['type::feature'],
+          labels: ['type::task'],
           body: 'parent: #70',
           state: 'open',
         },

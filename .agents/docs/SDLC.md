@@ -20,7 +20,7 @@ From zero to shipped:
 
 1. **Plan the work.** Run `/epic-plan` in your agentic IDE. The framework
    generates a PRD, a Tech Spec, and an Acceptance Spec, decomposes the
-   work into the full Feature → Story hierarchy under the Epic, and
+   work into the flat Story backlog under the Epic, and
    transitions the Epic to `agent::ready`.
 
    The entry point you use selects where the run begins:
@@ -66,7 +66,7 @@ From zero to shipped:
       and routes high-risk Epics to a HITL review stop (low-risk Epics
       auto-proceed).
    8. **Phase 8 — work-breakdown decomposition** — the
-      `epic-plan-decompose-author` skill emits the Epic → Feature → Story
+      `epic-plan-decompose-author` skill emits the Epic → Story
       tree (with inline `acceptance[]` / `verify[]` per Story); the
       validator enforces hierarchy, DAG acyclicity, and file-assumption
       invariants.
@@ -541,19 +541,17 @@ warrants spec coverage, remove the label and run `/epic-plan`'s
 `planning.spec-authoring` state to author the spec.
 
 1. **Ticket Decomposer** (`epic-plan-decompose.js`):
-   - Recursively decomposes specs into the **3-tier hierarchy**
-     (Epic → Feature → Story):
+   - Decomposes specs into the **2-tier hierarchy**
+     (Epic → Story):
 
      ```text
      Epic (type::epic)
      ├── PRD (context::prd)
      ├── Tech Spec (context::tech-spec)
-     ├── Feature (type::feature)
-     │   ├── Story (type::story)
-     │   │   ├── acceptance[]            ← inline on Story body
-     │   │   └── verify[]                ← inline on Story body
-     │   └── Story (type::story)
-     └── Feature (type::feature)
+     ├── Story (type::story)
+     │   ├── acceptance[]            ← inline on Story body
+     │   └── verify[]                ← inline on Story body
+     └── Story (type::story)
      ```
 
    - **Wiring.** Each ticket is linked using `blocked by #NNN` syntax and
@@ -563,9 +561,10 @@ warrants spec coverage, remove the label and run `/epic-plan`'s
      arrays the executing sub-agent reads.
 
 `/story-deliver` runs a **single** Story-implementation phase per
-Story. The wave-loop fan-out in `/epic-deliver`, the Epic → Feature
-thematic frame, and the Story-branch → Epic-branch merge model are
-unchanged from the prior 4-tier shape; only the Task layer is gone.
+Story. The wave-loop fan-out in `/epic-deliver` and the
+Story-branch → Epic-branch merge model are unchanged; the Feature and
+Task layers are gone, and thematic grouping lives as prose in the Epic
+body / Tech Spec.
 
 When decomposition completes the Epic flips to `agent::ready` and the
 dispatch manifest is posted as a structured comment on the Epic. That

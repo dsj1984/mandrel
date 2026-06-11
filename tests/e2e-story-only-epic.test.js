@@ -135,7 +135,6 @@ class StoryOnlyMockProvider extends ITicketingProvider {
 }
 
 const EPIC_ID = 9000;
-const FEATURE_ID = 9001;
 const STORY_A_ID = 9010;
 const STORY_B_ID = 9011;
 
@@ -148,18 +147,11 @@ function buildStoryOnlyEpicFixture() {
     linkedIssues: { prd: null, techSpec: null },
     state: 'open',
   };
-  const feature = {
-    id: FEATURE_ID,
-    title: 'Feature 9001',
-    body: 'parent: #9000',
-    labels: ['type::feature'],
-    state: 'open',
-  };
   const storyA = {
     id: STORY_A_ID,
     title: 'Story A — implement plan/dispatch shape',
     body: [
-      'parent: #9001',
+      `parent: #${EPIC_ID}`,
       `Epic: #${EPIC_ID}`,
       '',
       '## Acceptance',
@@ -175,7 +167,7 @@ function buildStoryOnlyEpicFixture() {
     id: STORY_B_ID,
     title: 'Story B — implement deliver/merge shape',
     body: [
-      'parent: #9001',
+      `parent: #${EPIC_ID}`,
       `Epic: #${EPIC_ID}`,
       'blocked by #9010',
       '',
@@ -188,15 +180,15 @@ function buildStoryOnlyEpicFixture() {
     labels: ['type::story', 'persona::engineer'],
     state: 'open',
   };
-  return { epic, feature, storyA, storyB };
+  return { epic, storyA, storyB };
 }
 
 test('e2e-story-only-epic — 2-tier Epic walks plan → dispatch → deliver → merge without Task-keyed paths', async () => {
   // -------------------------------------------------------------------------
   // ARRANGE: synthetic 2-tier ticket graph (no Tasks).
   // -------------------------------------------------------------------------
-  const { epic, feature, storyA, storyB } = buildStoryOnlyEpicFixture();
-  const tickets = [epic, feature, storyA, storyB];
+  const { epic, storyA, storyB } = buildStoryOnlyEpicFixture();
+  const tickets = [epic, storyA, storyB];
   const provider = new StoryOnlyMockProvider({ epic, tickets });
 
   // Assertion #1 setup: no `type::task` ticket anywhere in the fixture.
@@ -347,13 +339,6 @@ test('e2e-story-only-epic — 2-tier Epic walks plan → dispatch → deliver �
   assert.ok(bFinal.labels.includes('agent::done'));
   assert.equal(bFinal.state, 'closed');
 
-  // Feature done.
-  const featureFinal = await provider.getTicket(FEATURE_ID);
-  assert.ok(
-    featureFinal.labels.includes('agent::done'),
-    'Feature must close after every child Story closes',
-  );
-
   // Epic remains open by design: cascade explicitly skips Epic auto-close
   // (Epics close via the operator's PR merge or /epic-close recovery).
   // The 2-tier cascade reaching the Epic is the all-children-done signal.
@@ -362,7 +347,7 @@ test('e2e-story-only-epic — 2-tier Epic walks plan → dispatch → deliver �
     epicFinal.state,
     'open',
     'Epic stays open until the operator merges the integration PR — the ' +
-      'cascade explicitly skips Epic auto-close even when every Feature is done.',
+      'cascade explicitly skips Epic auto-close even when every Story is done.',
   );
 
   // -------------------------------------------------------------------------

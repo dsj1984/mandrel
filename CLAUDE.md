@@ -28,7 +28,7 @@
 
 ## Ticket hierarchy
 
-> Mandrel uses a **3-tier ticket hierarchy** (Epic → Feature → Story),
+> Mandrel uses a **2-tier ticket hierarchy** (Epic → Story),
 > with acceptance criteria and verification steps inlined on the Story
 > body (`acceptance[]` / `verify[]`). Epic-attached Stories are delivered
 > via `/epic-deliver` (which fans out `helpers/epic-deliver-story` per

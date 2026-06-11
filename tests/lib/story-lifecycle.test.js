@@ -51,7 +51,7 @@ describe('story-lifecycle', () => {
           assert.equal(id, 100);
           return [
             { id: 1, labels: ['type::story'] },
-            { id: 2, labels: ['type::feature'] },
+            { id: 2, labels: ['type::story'] },
           ];
         },
       };

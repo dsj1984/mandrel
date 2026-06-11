@@ -354,15 +354,15 @@ describe('automerge-predicate.deriveAutoMergeVerdict', () => {
 
 describe('reconciler.maybeClose', () => {
   const STORY_LABEL = 'type::story';
-  const FEATURE_LABEL = 'type::feature';
+  const PARENT_LABEL = 'type::story';
 
   function makeTicket(id, type, extra = {}) {
     return {
       id,
       type,
       title: `T${id}`,
-      labels: [type === 'story' ? STORY_LABEL : FEATURE_LABEL],
-      labelSet: new Set([type === 'story' ? STORY_LABEL : FEATURE_LABEL]),
+      labels: [type === 'story' ? STORY_LABEL : PARENT_LABEL],
+      labelSet: new Set([type === 'story' ? STORY_LABEL : PARENT_LABEL]),
       state: 'open',
       body: extra.body ?? null,
       ...extra,

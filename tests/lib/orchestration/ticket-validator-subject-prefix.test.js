@@ -18,7 +18,7 @@ function makeHierarchy(storyAcceptance) {
       slug: 'S1',
       type: 'story',
       title: 'Story 1',
-        acceptance: storyAcceptance,
+      acceptance: storyAcceptance,
       verify: ['npm test (validate)'],
       body: {
         goal: 'Make a change for S1.',
@@ -34,7 +34,7 @@ function makeHierarchy(storyAcceptance) {
       slug: 'S2',
       type: 'story',
       title: 'Story 2 — subject-prefix filler sibling',
-        acceptance: ['npm test exits 0'],
+      acceptance: ['npm test exits 0'],
       verify: ['npm test (validate)'],
       body: {
         goal: 'Make a change for S2.',
@@ -134,7 +134,7 @@ test('validateAcceptanceSubjectPrefix: skips Stories with string-shaped bodies',
       slug: 'S1',
       type: 'story',
       title: 'Story 1',
-        // String body — no structured acceptance array to scan, so the
+      // String body — no structured acceptance array to scan, so the
       // subject-prefix pass skips it entirely.
       body: "Commit subject begins with 'baseline-refresh:' (this should be ignored — it is not a structured acceptance array)",
     },
@@ -172,7 +172,7 @@ test('validateAndNormalizeTickets: rejects a Story that lacks an inline acceptan
       slug: 'S1',
       type: 'story',
       title: 'Story without inline contract',
-        body: {
+      body: {
         goal: 'Make a change for S1.',
         changes: ['.agents/scripts/foo.js: add helper'],
       },
@@ -182,7 +182,7 @@ test('validateAndNormalizeTickets: rejects a Story that lacks an inline acceptan
       slug: 'S2',
       type: 'story',
       title: 'Story 2 — valid sibling',
-        acceptance: ['npm test exits 0'],
+      acceptance: ['npm test exits 0'],
       verify: ['npm test (validate)'],
       body: {
         goal: 'Make a change for S2.',

@@ -154,10 +154,7 @@ export async function runStoryInit({
     input: { epicId },
   });
 
-  progress(
-    'CONTEXT',
-    `Epic: #${epicId}, Parent: #${parentId ?? 'none'}`,
-  );
+  progress('CONTEXT', `Epic: #${epicId}, Parent: #${parentId ?? 'none'}`);
   progress(
     'CONTEXT',
     `PRD: #${prdId ?? 'none'}, Tech Spec: #${techSpecId ?? 'none'}`,

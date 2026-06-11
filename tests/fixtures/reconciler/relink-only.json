@@ -5,40 +5,28 @@
     "epic": {
       "id": 9004,
       "title": "Reshuffling Epic",
-      "labels": [
-        "type::epic"
-      ]
+      "labels": ["type::epic"]
     },
     "stories": [
       {
         "slug": "story-one",
         "title": "First Story",
         "wave": 0,
-        "labels": [
-          "type::story"
-        ],
-        "dependsOn": [
-          "story-two"
-        ]
+        "labels": ["type::story"],
+        "dependsOn": ["story-two"]
       },
       {
         "slug": "story-two",
         "title": "Second Story",
         "wave": 0,
-        "labels": [
-          "type::story"
-        ],
-        "dependsOn": [
-          "story-three"
-        ]
+        "labels": ["type::story"],
+        "dependsOn": ["story-three"]
       },
       {
         "slug": "story-three",
         "title": "Third Story",
         "wave": 0,
-        "labels": [
-          "type::story"
-        ],
+        "labels": ["type::story"],
         "dependsOn": []
       }
     ]
@@ -77,30 +65,22 @@
   "ghState": {
     "9004": {
       "title": "Reshuffling Epic",
-      "labels": [
-        "type::epic"
-      ],
+      "labels": ["type::epic"],
       "state": "open"
     },
     "301": {
       "title": "First Story",
-      "labels": [
-        "type::story"
-      ],
+      "labels": ["type::story"],
       "state": "open"
     },
     "302": {
       "title": "Second Story",
-      "labels": [
-        "type::story"
-      ],
+      "labels": ["type::story"],
       "state": "open"
     },
     "303": {
       "title": "Third Story",
-      "labels": [
-        "type::story"
-      ],
+      "labels": ["type::story"],
       "state": "open"
     }
   }

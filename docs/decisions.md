@@ -3279,3 +3279,73 @@ a command. This mirrors the `worktree-lifecycle` row's treatment.
   content and drift over time. Folding the content into the existing
   lifecycle reference keeps a single home for worktree-cleanup operator
   guidance.
+
+## ADR 20260611-two-tier-hierarchy: Remove the Feature tier (Epic → Story)
+
+**Date:** 2026-06-11
+**Status:** Accepted — supersedes
+[ADR 20260527-three-tier-hierarchy](#adr-20260527-three-tier-hierarchy-collapse-the-task-level-epic--feature--story)
+**Driver:** Story #4041 (hard cutover; single PR with the `/plan` +
+`/deliver` command collapse)
+
+### Context
+
+The 3-tier hierarchy (Epic → Feature → Story) kept the Feature tier as a
+"thematic frame", but a survey for Story #4041 confirmed the tier is
+semantics-free at runtime:
+
+- Nothing dispatches on `type::feature` beyond a pass-through traversal in
+  the wave-DAG (`build-wave-dag.js` walked one level past the Epic's direct
+  children to collect grandchild Stories).
+- Nothing closes Feature issues except the generic completion cascade —
+  `finalize/close-planning-tickets.js` closes only the three planning
+  context tickets.
+- Every load-bearing contract (waves, `dependsOn`, inline `acceptance[]` /
+  `verify[]`, Story branches, the Epic-branch merge model) lives on the
+  Story or the Epic. The Feature carried only a title and a two-sentence
+  body — planning ceremony with no execution payload, plus a planner-facing
+  invariant (`assertNoSingleStoryFeature`) whose only job was policing the
+  tier's own existence.
+
+### Decision
+
+Adopt a **2-tier hierarchy** (Epic → Story) as the only published shape:
+
+- `epic-spec.schema.json` v4.0.0: `$defs/feature` deleted, `stories[]` at
+  the spec root, required set `["epic", "stories"]`, Story slugs unique
+  epic-wide.
+- The decomposer emits `type::story` tickets only; `parent_slug` is gone
+  from the planner contract. Thematic grouping moves to prose in the Epic
+  body / Tech Spec.
+- The runtime Feature surface is deleted end to end: `TYPE_LABELS.FEATURE`,
+  the label-taxonomy entry and bootstrap seeding, the dispatcher's Feature
+  routing branch, the wave-DAG Feature descent (Stories are now direct Epic
+  children; `snapshot.js` stays in lockstep), the reconciler's Feature
+  close loop, the spec renderer's Feature layer, and the manifest
+  presentation's "Feature Containers" sections.
+- Per the hard-cutover policy in
+  [`git-conventions.md` § Contract Cutovers](../.agents/rules/git-conventions.md),
+  no tolerance branch and no preflight guard ship. Pre-cutover Epics with
+  Feature-nested Stories must be drained or manually re-parented before
+  upgrading (migration notes ride in the v1.60.0 release-PR body).
+
+### Consequences
+
+- A pre-cutover Epic with Feature-nested Stories dispatches **zero**
+  stories post-upgrade — the wave-DAG reads direct children only. Operators
+  reconcile by re-parenting Stories to the Epic via sub-issue moves and
+  closing the Feature issues.
+- v3 epic-spec YAMLs with `features[]` fail validation; flatten by moving
+  each feature's `stories[]` to the root (slugs must stay unique
+  epic-wide).
+- The planner loses one degree of freedom (no ticket-level grouping) and
+  gains a simpler contract: one ticket type to author, one invariant set to
+  satisfy, no single-Story-Feature policing.
+
+### Alternatives considered
+
+- **Keep Feature as an optional grouping tier.** Rejected — an optional
+  tier means every consumer keeps both code paths alive forever, which is
+  exactly the shim layer the hard-cutover policy forbids.
+- **Generalize to an arbitrary ticket graph.** Rejected in design — fixed
+  tiers are what keep the orchestration deterministic.

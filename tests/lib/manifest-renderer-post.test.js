@@ -92,7 +92,6 @@ describe('postManifestEpicComment', () => {
     const body = provider.postComment.mock.calls[0].arguments[1].body;
     assert.equal(body.includes('__ungrouped__'), false);
   });
-
 });
 
 describe('postParkedFollowOnsComment', () => {

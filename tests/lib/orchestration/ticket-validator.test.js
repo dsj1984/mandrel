@@ -83,10 +83,7 @@ describe('ticket-validator: Stories-only backlog (Story #4041)', () => {
   });
 
   it('REJECTS an empty backlog (at least one Story required)', () => {
-    assert.throws(
-      () => validateAndNormalizeTickets([]),
-      /at least one Story/,
-    );
+    assert.throws(() => validateAndNormalizeTickets([]), /at least one Story/);
   });
 });
 
@@ -94,10 +91,7 @@ describe('assertAllTicketsAreStories unit (Story #4041)', () => {
   const { assertAllTicketsAreStories } = _internal;
 
   it('throws when a non-Story ticket is present', () => {
-    const tickets = [
-      { slug: 'f1', type: 'feature', title: 'F' },
-      story('s1'),
-    ];
+    const tickets = [{ slug: 'f1', type: 'feature', title: 'F' }, story('s1')];
     assert.throws(
       () =>
         assertAllTicketsAreStories({

@@ -136,7 +136,7 @@ describe('ticket-decomposer persist guards (runDecomposePhase)', () => {
     mockProvider.getEpic = async () => ({
       id: 1,
       title: 'Not An Epic',
-      labels: ['type::feature'],
+      labels: ['type::story'],
       linkedIssues: { prd: 100, techSpec: 101 },
     });
 

@@ -327,15 +327,16 @@ the Epic branch automatically by `helpers/epic-deliver-story` (via
 `/epic-deliver` opens at the end of its run — the operator merges through
 the GitHub UI. There is no in-script merge to `main`.
 
-### D. Ticket hierarchy (3-tier)
+### D. Ticket hierarchy (2-tier)
 
-Mandrel uses a **3-tier ticket hierarchy** (Epic → Feature → Story).
+Mandrel uses a **2-tier ticket hierarchy** (Epic → Story).
 Acceptance criteria and verification steps live inline on the Story
-body (`acceptance[]` / `verify[]`); there is no `type::task` ticket
-layer.
+body (`acceptance[]` / `verify[]`); there is no Feature tier and no
+`type::task` ticket layer. Thematic grouping lives as prose in the
+Epic body / Tech Spec.
 
-- The decomposer emits only `type::epic`, `type::feature`, and
-  `type::story` issues.
+- The decomposer emits only `type::epic` and `type::story` issues;
+  Stories attach directly to the Epic.
 - Each Story-implementation phase is executed by
   `helpers/epic-deliver-story` (Epic-attached) or
   `helpers/single-story-deliver` (standalone). There is no per-Task

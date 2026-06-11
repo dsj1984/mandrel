@@ -6,25 +6,16 @@
     "epic": {
       "id": 9101,
       "title": "Greenfield 2-tier Epic",
-      "labels": [
-        "type::epic"
-      ]
+      "labels": ["type::epic"]
     },
     "stories": [
       {
         "slug": "story-one",
         "title": "First Story (2-tier inline)",
         "wave": 0,
-        "labels": [
-          "type::story",
-          "persona::engineer"
-        ],
-        "acceptance": [
-          "A specific observable passes"
-        ],
-        "verify": [
-          "node --test tests/foo.test.js (contract)"
-        ]
+        "labels": ["type::story", "persona::engineer"],
+        "acceptance": ["A specific observable passes"],
+        "verify": ["node --test tests/foo.test.js (contract)"]
       }
     ]
   },

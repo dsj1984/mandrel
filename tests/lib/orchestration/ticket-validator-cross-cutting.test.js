@@ -431,7 +431,7 @@ describe('2-tier inline-contract guard (Epic #3238)', () => {
           {
             type: 'story',
             slug: 's-no-contract',
-                    title: 'Story without inline contract',
+            title: 'Story without inline contract',
             body: { goal: 'Goal.', changes: ['src/x.js: edit'] },
           },
           SIBLING,

@@ -591,7 +591,7 @@ test('ticketing.js', async (t) => {
       // Feature because at least one sibling remains open.
       mock.tickets[20] = {
         id: 20,
-        labels: ['agent::executing', 'type::feature'],
+        labels: ['agent::executing', 'type::story'],
         body: 'Feature body\n- [ ] #21\n- [ ] #22',
         state: 'open',
       };
@@ -674,7 +674,7 @@ test('ticketing.js', async (t) => {
       const tickets = {
         30: {
           id: 30,
-          labels: ['agent::executing', 'type::feature'],
+          labels: ['agent::executing', 'type::story'],
           body: 'Feature body\n- [ ] #31\n- [ ] #32',
           state: 'open',
         },
@@ -760,7 +760,7 @@ test('ticketing.js', async (t) => {
       };
       mock.tickets[11] = {
         id: 11,
-        labels: ['agent::executing', 'type::feature'],
+        labels: ['agent::executing', 'type::story'],
         body: 'Feature body\n\nparent: #10\n- [ ] #12',
         state: 'open',
       };
@@ -831,20 +831,20 @@ test('ticketing.js', async (t) => {
       const tickets = {
         40: {
           id: 40,
-          labels: ['agent::executing', 'type::feature'],
-          body: 'Feature 40\n- [ ] #41\n- [ ] #42',
+          labels: ['agent::executing', 'type::story'],
+          body: 'Parent 40\n- [ ] #41\n- [ ] #42',
           state: 'open',
         },
         41: {
           id: 41,
-          labels: ['agent::executing', 'type::feature'],
-          body: 'Feature 41\nparent: #40\n- [ ] #50',
+          labels: ['agent::executing', 'type::story'],
+          body: 'Parent 41\nparent: #40\n- [ ] #50',
           state: 'open',
         },
         42: {
           id: 42,
-          labels: ['agent::executing', 'type::feature'],
-          body: 'Feature 42\nparent: #40\n- [ ] #50',
+          labels: ['agent::executing', 'type::story'],
+          body: 'Parent 42\nparent: #40\n- [ ] #50',
           state: 'open',
         },
         50: {
