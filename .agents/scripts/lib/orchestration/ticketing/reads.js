@@ -151,6 +151,15 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // from it (`deriveRiskEnvelope`). One entry per Epic; re-plans upsert in
   // place. Schema: `.agents/schemas/risk-verdict.schema.json`.
   'risk-verdict',
+  // Story #4019 — `epic-plan-lease-guard.js` upserts a `plan-lease`
+  // comment on the Epic at lease-acquire time, recording the claiming
+  // operator and the claim timestamp. `/epic-plan` emits no
+  // `story.heartbeat`, so this claim-time is the liveness signal that
+  // makes the documented `--steal` contract decidable: a foreign claim
+  // older than the lease TTL is reclaimed automatically; a fresh one
+  // refuses with the claim age. One entry per Epic; re-acquires upsert
+  // in place.
+  'plan-lease',
 ]);
 
 export const WAVE_TYPE_PATTERN = WAVE_MARKER_RE;

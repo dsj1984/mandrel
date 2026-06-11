@@ -169,6 +169,7 @@ describe('runAcceptanceEval — decision → exit-code mapping + signal emission
       verdict,
       config,
       emitSignal: false,
+      round: 1,
     });
     assert.equal(envelope.decision, 'redraft');
     assert.equal(exitCode, 0);
@@ -183,13 +184,20 @@ describe('runAcceptanceEval — decision → exit-code mapping + signal emission
         { index: 0, criterion: 'a', verdict: 'partial', evidence: 'half' },
       ],
     });
-    const { envelope, exitCode } = await runAcceptanceEval({
-      storyId: 3819,
-      epicId: null,
-      verdict,
-      config,
-      emitSignal: false,
-    });
+    // Round 2 is derived from the signals ledger (one prior round on
+    // disk), not from the verdict's self-reported value (Story #4019).
+    const { envelope, exitCode } = await runAcceptanceEval(
+      {
+        storyId: 3819,
+        epicId: null,
+        verdict,
+        config,
+        emitSignal: false,
+      },
+      {
+        deriveRoundFn: () => 2,
+      },
+    );
     assert.equal(envelope.decision, 'block');
     assert.equal(envelope.capReached, true);
     assert.equal(exitCode, 1);

@@ -128,10 +128,11 @@ describe('epic-deliver-preflight cache write', () => {
     const cachePath = preflightCachePath({ epicId: 7777, cwd: workCwd });
     const cached = JSON.parse(await readFile(cachePath, 'utf8'));
 
-    // Re-deriving the digest off the persisted epic snapshot reproduces
-    // the stored baseSha byte-for-byte. This is the cache key prepare
+    // Re-deriving the digest off the persisted epic + story snapshots
+    // reproduces the stored baseSha byte-for-byte (Story #4019: the key
+    // now covers Story dependency state). This is the cache key prepare
     // will compare against.
-    const recomputed = computeBaseSha(cached.epic);
+    const recomputed = computeBaseSha(cached.epic, cached.stories);
     assert.equal(recomputed, envelope.baseSha);
     assert.equal(recomputed, cached.baseSha);
   });
@@ -200,5 +201,47 @@ describe('epic-deliver-preflight cache write', () => {
       updatedAt: '2026-05-26T00:00:00Z',
     });
     assert.equal(a, b);
+  });
+});
+
+describe('computeBaseSha — Story dependency state in the cache key (Story #4019)', () => {
+  const epic = {
+    id: 1,
+    body: '',
+    labels: ['type::epic'],
+    updatedAt: '2026-05-26T00:00:00Z',
+  };
+  const story = (id, overrides = {}) => ({
+    id,
+    body: '',
+    labels: ['type::story'],
+    updatedAt: '2026-05-26T00:00:00Z',
+    ...overrides,
+  });
+
+  it('a Story body (dependency) edit changes the baseSha', () => {
+    const a = computeBaseSha(epic, [story(11)]);
+    const b = computeBaseSha(epic, [story(11, { body: 'Depends on: #12' })]);
+    assert.notEqual(a, b);
+  });
+
+  it('a Story updatedAt bump changes the baseSha', () => {
+    const a = computeBaseSha(epic, [story(11)]);
+    const b = computeBaseSha(epic, [
+      story(11, { updatedAt: '2026-05-27T00:00:00Z' }),
+    ]);
+    assert.notEqual(a, b);
+  });
+
+  it('story enumeration order does not affect the baseSha', () => {
+    const a = computeBaseSha(epic, [story(11), story(12)]);
+    const b = computeBaseSha(epic, [story(12), story(11)]);
+    assert.equal(a, b);
+  });
+
+  it('an added or removed Story changes the baseSha', () => {
+    const a = computeBaseSha(epic, [story(11)]);
+    const b = computeBaseSha(epic, [story(11), story(12)]);
+    assert.notEqual(a, b);
   });
 });

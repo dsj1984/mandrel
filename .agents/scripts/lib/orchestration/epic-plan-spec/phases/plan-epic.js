@@ -321,7 +321,13 @@ export async function planEpic(
     Logger.warn(
       `[Epic Planner] Epic #${epicId} already has all requested planning artifacts. Aborting to prevent duplicates. Use --force to re-plan.`,
     );
-    return;
+    return {
+      persisted: false,
+      reason: 'already-planned',
+      prdId: existing.prd,
+      techSpecId: existing.techSpec,
+      acceptanceSpecId: existing.acceptanceSpec,
+    };
   }
   // Under --force we now OVERWRITE the canonical context tickets in place
   // (same issue numbers, refreshed bodies) rather than closing + recreating
@@ -388,8 +394,15 @@ export async function planEpic(
   if (acceptanceSpecId !== null) {
     artifactLines.push(`- [ ] Acceptance Spec: #${acceptanceSpecId}`);
   }
+  // Idempotent append (Story #4019): strip any pre-existing
+  // `## Planning Artifacts` section before re-appending. The `--force`
+  // path already stripped it in `healAndCleanupArtifacts`, but the
+  // partial-recovery rerun (e.g. PRD present, Tech Spec missing) reaches
+  // here with a body that may still carry a stale section — without the
+  // strip, every rerun stacked a duplicate section onto the Epic body.
   const appendBody = `\n\n## Planning Artifacts\n${artifactLines.join('\n')}\n`;
-  const newBody = epic.body + appendBody;
+  const strippedBody = epic.body.replace(/\n*## Planning Artifacts[\s\S]*$/, '');
+  const newBody = strippedBody + appendBody;
 
   /** @type {{ add?: string[], remove?: string[] }} */
   const labelMutations = {};
@@ -411,4 +424,12 @@ export async function planEpic(
 
   Logger.info(`[Epic Planner] Epic #${epicId} updated successfully.`);
   Logger.info(`[Epic Planner] Planning pipeline complete!`);
+
+  return {
+    persisted: true,
+    reason: force ? 'force-replan' : 'persisted',
+    prdId,
+    techSpecId,
+    acceptanceSpecId,
+  };
 }

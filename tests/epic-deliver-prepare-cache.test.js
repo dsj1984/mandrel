@@ -35,7 +35,11 @@ function buildCountingProvider({ epicId, stories, epicOverrides = {} }) {
   const provider = {
     async getTicket(id) {
       counts.getTicket++;
-      if (id !== epicId) return null;
+      if (id !== epicId) {
+        // Story #4019: prepare re-fetches cached Story ids to validate
+        // the dependency-aware cache key.
+        return stories.find((s) => s.id === id) ?? null;
+      }
       return {
         id: epicId,
         number: epicId,
@@ -112,7 +116,7 @@ describe('epic-deliver-prepare cache read', () => {
       title: `Epic #${epicId}`,
       updatedAt: '2026-05-26T00:00:00Z',
     };
-    const baseSha = computeBaseSha(epicSnapshot);
+    const baseSha = computeBaseSha(epicSnapshot, stories);
     await writePreflightCache({
       epicId,
       baseSha,
@@ -211,6 +215,53 @@ describe('epic-deliver-prepare cache read', () => {
     // empty wave the stale cache carried.
     assert.equal(result.totalWaves, 1);
     assert.equal(result.plan[0].stories.length, 2);
+    assert.ok(provider._counts.getSubTickets >= 1);
+  });
+
+  it('a Story-dependency edit invalidates the cache (Story #4019)', async () => {
+    const epicId = 9004;
+    const cachedStories = [41, 42].map((id) => ({
+      id,
+      number: id,
+      labels: ['type::story'],
+      body: '',
+      title: `Story #${id}`,
+      state: 'open',
+    }));
+    const epicSnapshot = {
+      id: epicId,
+      number: epicId,
+      labels: ['type::epic', 'acceptance::n-a'],
+      body: '',
+      title: `Epic #${epicId}`,
+      updatedAt: '2026-05-26T00:00:00Z',
+    };
+    // Cache key derived from the pre-edit Story snapshots.
+    await writePreflightCache({
+      epicId,
+      baseSha: computeBaseSha(epicSnapshot, cachedStories),
+      epic: epicSnapshot,
+      stories: cachedStories,
+      waves: [cachedStories],
+      cwd: workCwd,
+    });
+
+    // The live provider now serves Story #42 with an edited body (a new
+    // dependency edge) while the Epic ticket itself is unchanged — the
+    // pre-#4019 Epic-only key would have reported a false cache hit.
+    const editedStories = [
+      cachedStories[0],
+      { ...cachedStories[1], body: 'Depends on: #41' },
+    ];
+    const provider = buildCountingProvider({ epicId, stories: editedStories });
+    const result = await runEpicDeliverPrepare({
+      epicId,
+      cwd: workCwd,
+      injectedProvider: provider,
+      injectedConfig: FAKE_CONFIG,
+    });
+
+    assert.equal(result.preflightCache, 'stale');
     assert.ok(provider._counts.getSubTickets >= 1);
   });
 });

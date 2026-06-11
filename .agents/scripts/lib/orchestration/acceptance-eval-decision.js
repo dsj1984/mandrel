@@ -1,11 +1,21 @@
 /**
  * Acceptance self-eval decision core (Story #3819).
  *
- * Pure, I/O-free reducer that turns one round's critic verdict plus the
- * resolved round cap into the loop's next action. The CLI wrapper
+ * Pure reducer that turns one round's critic verdict plus the resolved
+ * round cap into the loop's next action. The CLI wrapper
  * (`acceptance-eval.js`) owns the file reads, schema validation, signal
  * emission, and ticket transitions; this module owns the *decision* so it
  * can be unit-tested in isolation.
+ *
+ * ## Round derivation (Story #4019)
+ *
+ * The round number is **derived from the signals ledger**, not from the
+ * critic's self-reported `verdict.round`: every prior round appended one
+ * `acceptance-eval` signal to the Story's `signals.ndjson`, so the
+ * current round is `count(prior signals) + 1`. This survives a subagent
+ * restart (the ledger is on disk) and removes the critic's scratch value
+ * from the cap enforcement path — a critic that always reports `round: 1`
+ * can no longer defeat the bounded-loop guarantee.
  *
  * ## The three terminal actions
  *
@@ -28,6 +38,10 @@
  * When `round >= effectiveCap` and criteria remain unmet, the only
  * possible action is `block`.
  */
+
+import { readFileSync } from 'node:fs';
+
+import { signalsFile } from '../config/temp-paths.js';
 
 /**
  * Verdicts that clear a criterion. Anything else (`partial`, `unmet`, or
@@ -87,11 +101,16 @@ function partitionCriteria(criteria) {
  * Decide the next loop action from a single round's verdict.
  *
  * @param {object} args
- * @param {{ round?: number, criteria?: Array<object> }} args.verdict
+ * @param {{ criteria?: Array<object> }} args.verdict
  *   A verdict already validated against the acceptance-eval-verdict schema.
+ *   Its `round` field, when present, is ignored — the round is supplied by
+ *   the caller (derived from the signals ledger; Story #4019).
  * @param {number} args.maxRounds
  *   The resolved (already-clamped) redraft ceiling from
  *   `getAcceptanceEval(config).maxRounds`.
+ * @param {number} [args.round]
+ *   The current round number, derived via `deriveAcceptanceEvalRound`.
+ *   Defaults to 1 when absent or invalid.
  * @returns {{
  *   decision: 'proceed' | 'redraft' | 'block',
  *   round: number,
@@ -102,10 +121,9 @@ function partitionCriteria(criteria) {
  *   capReached: boolean,
  * }}
  */
-export function decideAcceptanceEval({ verdict, maxRounds }) {
+export function decideAcceptanceEval({ verdict, maxRounds, round: roundIn }) {
   const cap = effectiveCap(maxRounds);
-  const round =
-    Number.isInteger(verdict?.round) && verdict.round >= 1 ? verdict.round : 1;
+  const round = Number.isInteger(roundIn) && roundIn >= 1 ? roundIn : 1;
   const { metCount, notMet } = partitionCriteria(verdict?.criteria);
   const totalCriteria = metCount + notMet.length;
   const allMet = notMet.length === 0;
@@ -170,4 +188,60 @@ export function buildAcceptanceEvalSignal({
       })),
     },
   };
+}
+
+/**
+ * Derive the current acceptance-eval round for a Story by counting the
+ * `acceptance-eval` signals already appended to the Story's
+ * `signals.ndjson` (Story #4019). Round = prior-signal count + 1, so the
+ * first run reports round 1 and each completed round (which appends one
+ * signal via `acceptance-eval.js`) advances the derived round by one.
+ *
+ * The derivation is restart-safe: the ledger lives on disk, so a subagent
+ * that dies mid-loop and restarts still observes every prior round. A
+ * missing or malformed ledger degrades to round 1 (no prior rounds), and
+ * malformed lines are skipped — observability corruption never wedges the
+ * gate.
+ *
+ * @param {object} args
+ * @param {number|null} args.epicId   Parent Epic ID, or `null` for a
+ *   standalone Story (routes to `<tempRoot>/standalone/stories/...`).
+ * @param {number} args.storyId
+ * @param {object} [args.config]      Resolved config (tempRoot resolution).
+ * @param {(p: string) => string} [args.readFile]  Injectable reader (tests).
+ * @param {(eid: number|null, sid: number, config?: object) => string} [args.signalsPathResolver]
+ *   Injectable path resolver (tests). Defaults to `signalsFile`.
+ * @returns {number} The 1-based current round.
+ */
+export function deriveAcceptanceEvalRound({
+  epicId,
+  storyId,
+  config,
+  readFile = (p) => readFileSync(p, 'utf8'),
+  signalsPathResolver = signalsFile,
+}) {
+  let text;
+  try {
+    text = readFile(signalsPathResolver(epicId ?? null, storyId, config));
+  } catch (_err) {
+    // No ledger yet → no prior rounds.
+    return 1;
+  }
+
+  let priorRounds = 0;
+  for (const line of String(text).split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed === '') continue;
+    let record;
+    try {
+      record = JSON.parse(trimmed);
+    } catch (_err) {
+      continue; // Malformed line — skip, never throw.
+    }
+    if (!record || typeof record !== 'object') continue;
+    if (record.kind !== 'acceptance-eval') continue;
+    if (record.storyId !== storyId) continue;
+    priorRounds += 1;
+  }
+  return priorRounds + 1;
 }

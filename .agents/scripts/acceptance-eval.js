@@ -61,6 +61,7 @@ import { appendSignal } from './lib/observability/signals-writer.js';
 import {
   buildAcceptanceEvalSignal,
   decideAcceptanceEval,
+  deriveAcceptanceEvalRound,
 } from './lib/orchestration/acceptance-eval-decision.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -152,17 +153,33 @@ function parseCliArgs(argv) {
  * @param {object} args.verdict — validated verdict object.
  * @param {object} args.config — resolved `.agentrc.json`.
  * @param {boolean} args.emitSignal
+ * @param {number} [args.round] — explicit round override (tests). When
+ *   absent, the round is derived by counting prior `acceptance-eval`
+ *   signals in the Story's `signals.ndjson` (Story #4019); the verdict's
+ *   self-reported `round` is never load-bearing for the cap.
  * @param {object} [deps]
  * @param {Function} [deps.appendSignalFn]
+ * @param {Function} [deps.deriveRoundFn]
  * @returns {Promise<{ envelope: object, exitCode: number }>}
  */
 export async function runAcceptanceEval(
-  { storyId, epicId, verdict, config, emitSignal },
+  { storyId, epicId, verdict, config, emitSignal, round },
   deps = {},
 ) {
-  const { appendSignalFn = appendSignal } = deps;
+  const {
+    appendSignalFn = appendSignal,
+    deriveRoundFn = deriveAcceptanceEvalRound,
+  } = deps;
   const { maxRounds } = getAcceptanceEval(config);
-  const outcome = decideAcceptanceEval({ verdict, maxRounds });
+  const resolvedRound =
+    Number.isInteger(round) && round >= 1
+      ? round
+      : deriveRoundFn({ epicId: epicId ?? null, storyId, config });
+  const outcome = decideAcceptanceEval({
+    verdict,
+    maxRounds,
+    round: resolvedRound,
+  });
 
   let signalEmitted = false;
   if (emitSignal) {
