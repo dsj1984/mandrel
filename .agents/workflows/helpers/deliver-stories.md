@@ -7,7 +7,7 @@ description: >-
   `Epic: #N` reference only; Epic-attached Stories use `/deliver`.
 ---
 
-# /deliver [Story IDs...]
+# helpers/deliver-stories — multi-Story delivery path (invoked by /deliver)
 
 ## Overview
 

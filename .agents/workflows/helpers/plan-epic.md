@@ -4,7 +4,7 @@ description:
   Work Breakdown) for a GitHub Epic.
 ---
 
-# /plan [Epic ID]
+# helpers/plan-epic — Epic planning path (invoked by /plan)
 
 ## Role
 

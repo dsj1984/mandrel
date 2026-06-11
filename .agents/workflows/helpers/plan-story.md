@@ -6,7 +6,7 @@ description:
   /single-story-deliver.
 ---
 
-# /plan
+# helpers/plan-story — standalone-Story planning path (invoked by /plan)
 
 ## Overview
 

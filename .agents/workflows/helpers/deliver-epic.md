@@ -10,7 +10,7 @@ description: >-
   inspects the surface area.
 ---
 
-# /deliver #[Epic ID]
+# helpers/deliver-epic — Epic delivery path (invoked by /deliver)
 
 ## Overview
 
