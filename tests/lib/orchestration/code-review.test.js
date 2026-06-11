@@ -48,25 +48,25 @@ function baseResolveConfig() {
   };
 }
 
-test('runCodeReview: rejects missing/invalid epicId', async () => {
+test('runCodeReview: rejects missing/invalid ticketId', async () => {
   await assert.rejects(
     () => runCodeReview({ provider: {}, bus: stubBus }),
-    /epicId is required/,
+    /ticketId is required/,
   );
   await assert.rejects(
     () =>
       runCodeReview({
-        epicId: 0,
+        ticketId: 0,
         provider: {},
         bus: stubBus,
       }),
-    /epicId is required/,
+    /ticketId is required/,
   );
 });
 
 test('runCodeReview: rejects missing bus', async () => {
   await assert.rejects(
-    () => runCodeReview({ epicId: 42, provider: {} }),
+    () => runCodeReview({ ticketId: 42, provider: {} }),
     /bus is required/,
   );
 });
@@ -76,7 +76,7 @@ test('runCodeReview: clean run posts the structured comment and reports posted=t
   const upsert = recordingUpsert();
 
   const out = await runCodeReview({
-    epicId: 42,
+    ticketId: 42,
     provider: { kind: 'github' },
     bus: stubBus,
     reviewProvider: adapter,
@@ -105,10 +105,10 @@ test('runCodeReview: clean run posts the structured comment and reports posted=t
 test('runCodeReview: passes scope/ticketId/baseRef/headRef to the adapter', async () => {
   const adapter = fakeAdapter([]);
   await runCodeReview({
-    epicId: 42,
+    ticketId: 42,
     provider: {},
     bus: stubBus,
-    baseBranch: 'develop',
+    baseRef: 'develop',
     reviewProvider: adapter,
     resolveConfigFn: baseResolveConfig,
     upsertCommentFn: noopUpsert(),
@@ -140,7 +140,7 @@ test('runCodeReview: critical findings set halted=true with a reason', async () 
     { severity: 'high', title: 'Lint check failed', body: 'high body' },
   ]);
   const out = await runCodeReview({
-    epicId: 42,
+    ticketId: 42,
     provider: {},
     bus: stubBus,
     reviewProvider: adapter,
@@ -153,10 +153,10 @@ test('runCodeReview: critical findings set halted=true with a reason', async () 
   assert.match(out.blockerReason, /1 critical/);
 });
 
-test('runCodeReview: defaults baseBranch to project.baseBranch when arg is null', async () => {
+test('runCodeReview: defaults baseRef to project.baseBranch when arg is null', async () => {
   const adapter = fakeAdapter([]);
   await runCodeReview({
-    epicId: 7,
+    ticketId: 7,
     provider: {},
     bus: stubBus,
     reviewProvider: adapter,
@@ -172,7 +172,7 @@ test('runCodeReview: defaults baseBranch to project.baseBranch when arg is null'
 test('runCodeReview: surfaces upsert failure as posted=false but still returns ok', async () => {
   const adapter = fakeAdapter([]);
   const out = await runCodeReview({
-    epicId: 42,
+    ticketId: 42,
     provider: {},
     bus: stubBus,
     reviewProvider: adapter,
@@ -195,7 +195,7 @@ test('runCodeReview: adapter throw emits code-review.end with status=invalid and
   await assert.rejects(
     () =>
       runCodeReview({
-        epicId: 42,
+        ticketId: 42,
         provider: {},
         bus,
         reviewProvider: {
@@ -223,7 +223,7 @@ test('runCodeReview: adapter returning non-array throws TypeError and emits inva
   await assert.rejects(
     () =>
       runCodeReview({
-        epicId: 42,
+        ticketId: 42,
         provider: {},
         bus,
         reviewProvider: { runReview: async () => 'not-an-array' },
@@ -244,7 +244,7 @@ test('runCodeReview: emits code-review.start then code-review.end on clean run',
     },
   };
   const out = await runCodeReview({
-    epicId: 42,
+    ticketId: 42,
     provider: {},
     bus,
     reviewProvider: fakeAdapter([
@@ -266,7 +266,7 @@ test('runCodeReview: routes provider name from delivery.codeReview to the factor
   const factoryCalls = [];
   const adapter = fakeAdapter([]);
   await runCodeReview({
-    epicId: 42,
+    ticketId: 42,
     provider: {},
     bus: stubBus,
     resolveConfigFn: () => ({
