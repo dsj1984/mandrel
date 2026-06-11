@@ -42,6 +42,13 @@ import { resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
 import { CONTEXT_LABELS, TYPE_LABELS } from './lib/label-constants.js';
 import { createProvider } from './lib/provider-factory.js';
+import { concurrentMap } from './lib/util/concurrent-map.js';
+
+/**
+ * Bounded fan-out for per-level `getSubTickets` calls. Matches the
+ * wave-record-io.js precedent (Story #3024).
+ */
+const SUB_TICKET_FETCH_CONCURRENCY = 4;
 
 function classify(ticket) {
   const labels = ticket.labels ?? [];
@@ -70,22 +77,35 @@ function ticketIsComplete(ticket) {
  */
 async function collectDescendants(provider, epicId) {
   const visited = new Set([epicId]);
-  const queue = [epicId];
   const out = [];
-  while (queue.length > 0) {
-    const parentId = queue.shift();
-    let children;
-    try {
-      children = await provider.getSubTickets(parentId);
-    } catch (err) {
-      throw new Error(`getSubTickets(#${parentId}) failed: ${err.message}`);
+  // Level-order BFS: each round fetches the whole frontier's children with a
+  // bounded-parallel map instead of one awaited round-trip per node. Stories
+  // are 3-tier leaves (no sub-issues by contract), so they are never expanded
+  // — that skip alone removes the largest class of wasted GraphQL calls.
+  let frontier = [epicId];
+  while (frontier.length > 0) {
+    const levels = await concurrentMap(
+      frontier,
+      async (parentId) => {
+        try {
+          return await provider.getSubTickets(parentId);
+        } catch (err) {
+          throw new Error(`getSubTickets(#${parentId}) failed: ${err.message}`);
+        }
+      },
+      { concurrency: SUB_TICKET_FETCH_CONCURRENCY },
+    );
+    const next = [];
+    for (const children of levels) {
+      for (const child of children) {
+        if (visited.has(child.id)) continue;
+        visited.add(child.id);
+        out.push(child);
+        const labels = child.labels ?? [];
+        if (!labels.includes(TYPE_LABELS.STORY)) next.push(child.id);
+      }
     }
-    for (const child of children) {
-      if (visited.has(child.id)) continue;
-      visited.add(child.id);
-      out.push(child);
-      queue.push(child.id);
-    }
+    frontier = next;
   }
   return out;
 }
