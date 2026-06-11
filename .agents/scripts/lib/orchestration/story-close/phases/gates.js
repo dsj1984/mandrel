@@ -30,8 +30,10 @@
 
 import { Logger } from '../../../Logger.js';
 import { runPreMergeGatesWithAttribution } from '../baseline-attribution-wiring.js';
-import { runFormatAutofix } from '../format-autofix.js';
-import { runScopedFormatAutofix } from '../format-autofix-scoped.js';
+import {
+  runFormatAutofix,
+  runScopedFormatAutofix,
+} from '../format-autofix.js';
 import { emitBlockedCloseResult } from '../merge-runner.js';
 import { emitMaintainabilityProjection } from '../pre-merge-validation.js';
 

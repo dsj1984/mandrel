@@ -21,7 +21,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { runScopedFormatAutofix } from '../../.agents/scripts/lib/orchestration/story-close/format-autofix-scoped.js';
+import { runScopedFormatAutofix } from '../../.agents/scripts/lib/orchestration/story-close/format-autofix.js';
 
 function makeLogger() {
   const logs = { info: [], warn: [], error: [] };
