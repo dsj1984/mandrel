@@ -901,10 +901,7 @@ describe('reconciler diff — legacy pre-v4 state entries', () => {
         'task-old': { issueNumber: 9105, entity: 'task' },
       },
     };
-    assert.throws(
-      () => diff({ spec: v4Spec(), state, ghState: {} }),
-      /pre-v4/,
-    );
+    assert.throws(() => diff({ spec: v4Spec(), state, ghState: {} }), /pre-v4/);
   });
 });
 
