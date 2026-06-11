@@ -16,6 +16,7 @@ import { storyArtifactPath } from '../config/temp-paths.js';
 import { gitSpawn } from '../git-utils.js';
 import { Logger } from '../Logger.js';
 import { read as readSignals } from '../signals/read.js';
+import { concurrentMap } from '../util/concurrent-map.js';
 import { extractStoryPerfSummaryFromComment } from './perf-report-render.js';
 import { forEachLine } from './signals-writer.js';
 
@@ -154,30 +155,38 @@ export async function collectStorySummaries(provider, epicId, logger) {
       ),
   );
 
-  const summaries = [];
-  for (const ticket of storyTickets) {
-    const id = Number(ticket.id ?? ticket.number);
-    if (!Number.isInteger(id) || id < 1) continue;
-    let comments;
-    try {
-      comments = (await provider.getTicketComments(id)) ?? [];
-    } catch (err) {
-      logger.warn?.(
-        `[analyze-execution] getTicketComments(${id}) failed: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
-      continue;
-    }
-    for (const c of comments) {
-      const parsed = extractStoryPerfSummaryFromComment(c?.body);
-      if (parsed) {
-        summaries.push(parsed);
-        break;
+  // Bounded-parallel comment fetch (Story #3990). Each Story's comment
+  // thread is an independent paginated REST read through a fresh `gh`
+  // spawn, so a serial loop pays N sequential round-trips. concurrentMap
+  // preserves input→output index, keeping summaries in Story order; the
+  // per-Story try/catch stays inside the mapper so one failed fetch
+  // degrades to warn-and-skip without aborting the batch (mirrors
+  // verifySingleResult in lib/orchestration/wave-record-io.js, #3024).
+  const perStory = await concurrentMap(
+    storyTickets,
+    async (ticket) => {
+      const id = Number(ticket.id ?? ticket.number);
+      if (!Number.isInteger(id) || id < 1) return null;
+      let comments;
+      try {
+        comments = (await provider.getTicketComments(id)) ?? [];
+      } catch (err) {
+        logger.warn?.(
+          `[analyze-execution] getTicketComments(${id}) failed: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+        return null;
       }
-    }
-  }
-  return summaries;
+      for (const c of comments) {
+        const parsed = extractStoryPerfSummaryFromComment(c?.body);
+        if (parsed) return parsed;
+      }
+      return null;
+    },
+    { concurrency: 4 },
+  );
+  return perStory.filter((s) => s !== null);
 }
 
 /**
