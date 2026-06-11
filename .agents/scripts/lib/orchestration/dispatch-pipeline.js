@@ -7,11 +7,11 @@
  */
 
 import { PROJECT_ROOT, resolveConfig } from '../config-resolver.js';
-import { parseBlockedBy } from '../dependency-parser.js';
 import { getEpicBranch } from '../git-utils.js';
 import { Logger } from '../Logger.js';
 import { TYPE_LABELS } from '../label-constants.js';
 import { createProvider } from '../provider-factory.js';
+import { buildStoryAdjacency } from '../story-adjacency.js';
 import { WorktreeManager } from '../worktree-manager.js';
 import { computeStoryWaves } from './dependency-analyzer.js';
 import { reconcileHierarchy } from './reconciler.js';
@@ -161,17 +161,10 @@ export function buildStoryDispatchGraph(allTickets) {
   );
   const storyMap = new Map(stories.map((s) => [s.id, s]));
 
-  const explicitDeps = new Map();
-  for (const story of stories) {
-    const fromBody = parseBlockedBy(story.body ?? '');
-    const fromField = Array.isArray(story.dependencies)
-      ? story.dependencies.map(Number)
-      : [];
-    const merged = [...new Set([...fromBody, ...fromField])].filter(
-      (id) => Number.isInteger(id) && id !== story.id && storyMap.has(id),
-    );
-    if (merged.length > 0) explicitDeps.set(story.id, merged);
-  }
+  // Shared story-level adjacency builder (lib/story-adjacency.js) owns the
+  // dependency-source ordering contract: body `blocked by` references via
+  // `parseBlockedBy`, then explicit `dependencies[]`, foreign edges dropped.
+  const explicitDeps = buildStoryAdjacency(stories);
 
   // computeStoryWaves expects a Map<storyId, { tasks: [] }>; with no Tasks
   // present, only explicitDeps + focus-area rollup (no-op for empty

@@ -19,9 +19,9 @@
  * Throws if no open Stories are found.
  */
 
-import { parseBlockedBy } from '../../../dependency-parser.js';
 import { computeWaves } from '../../../Graph.js';
 import { TYPE_LABELS } from '../../../label-constants.js';
+import { buildStoryAdjacency } from '../../../story-adjacency.js';
 import { WaveScheduler } from '../wave-scheduler.js';
 
 /**
@@ -116,30 +116,17 @@ function normalizeWavesForEmit(waves) {
  * Convert an ordered list of story tickets into the adjacency/taskMap shape
  * that `Graph.computeWaves()` expects.
  *
- * Dependency source order (must match manifest-builder.js so dispatch manifest
- * and runtime wave scheduling never disagree):
- *   1. Canonical: `blocked by #NNN` / `depends on #NNN` parsed from the story
- *      ticket body via `parseBlockedBy` (same parser the dispatcher uses).
- *   2. Fallback: explicit `dependencies` array on the provider-returned story
- *      object (present in fixture / test payloads; optional in live GitHub
- *      payloads).
- * Only edges to other stories in this Epic are retained — foreign IDs are
- * dropped so the DAG stays closed over the scheduled set.
+ * The adjacency comes from the shared story-level builder
+ * (`lib/story-adjacency.js#buildStoryAdjacency`), which owns the
+ * dependency-source ordering contract (body `blocked by` references via
+ * `parseBlockedBy`, then explicit `dependencies[]`) and drops foreign
+ * edges so the DAG stays closed over the scheduled set.
  */
 function buildStoryDag(stories) {
-  const adjacency = new Map();
+  const adjacency = buildStoryAdjacency(stories);
   const taskMap = new Map();
-  const storyIds = new Set(stories.map((s) => Number(s.id ?? s.number)));
   for (const s of stories) {
     const id = Number(s.id ?? s.number);
-    const fromBody = parseBlockedBy(s.body ?? '');
-    const fromField = Array.isArray(s.dependencies)
-      ? s.dependencies.map(Number)
-      : [];
-    const merged = [...new Set([...fromBody, ...fromField])]
-      .map(Number)
-      .filter((dep) => dep !== id && storyIds.has(dep));
-    adjacency.set(id, merged);
     taskMap.set(id, { ...s, id });
   }
   return { adjacency, taskMap };
