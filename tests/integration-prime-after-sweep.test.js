@@ -33,6 +33,18 @@ function ghForSweep(issues, calls) {
   const exec = async ({ args, input }) => {
     calls.push({ args, input });
     const endpoint = args[3] ?? '';
+    // Search-first sweep (Story #3988) — search responses are
+    // `{ total_count, items }` envelopes, page=1 carries the issues.
+    if (endpoint.startsWith('/search/issues?')) {
+      const pageMatch = /\bpage=(\d+)\b/.exec(endpoint);
+      const page = pageMatch ? Number(pageMatch[1]) : 1;
+      const items = page === 1 ? issues : [];
+      return {
+        stdout: JSON.stringify({ total_count: issues.length, items }),
+        stderr: '',
+        code: 0,
+      };
+    }
     // Paginated list — page=1 returns the issues, page>1 stops the loop.
     if (/\/issues\?/.test(endpoint)) {
       const pageMatch = /\bpage=(\d+)\b/.exec(endpoint);

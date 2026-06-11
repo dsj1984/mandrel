@@ -26,8 +26,10 @@ function trapExit() {
 class GraphProvider {
   constructor(graph) {
     this.graph = graph;
+    this.calls = [];
   }
   async getSubTickets(parentId) {
+    this.calls.push(parentId);
     return this.graph[parentId] ?? [];
   }
 }
@@ -177,6 +179,31 @@ describe('runHierarchyGate', () => {
     assert.strictEqual(result.success, true);
     // Story 300 only counted once despite appearing under two parents.
     assert.strictEqual(result.total, 3);
+  });
+
+  it('never expands type::story leaves — no getSubTickets call per Story (Story #3989)', async () => {
+    const provider = new GraphProvider({
+      100: [
+        {
+          id: 200,
+          title: 'Feature A',
+          state: 'closed',
+          labels: ['type::feature'],
+        },
+      ],
+      200: [
+        { id: 300, title: 'Story 1', state: 'closed', labels: ['type::story'] },
+        { id: 301, title: 'Story 2', state: 'closed', labels: ['type::story'] },
+      ],
+    });
+    const result = await runHierarchyGate({
+      epicId: 100,
+      injectedProvider: provider,
+    });
+    assert.strictEqual(result.success, true);
+    assert.strictEqual(result.total, 3);
+    // Only the Epic and the Feature are expanded — never the leaf Stories.
+    assert.deepStrictEqual(provider.calls.sort(), [100, 200]);
   });
 
   it('passes for a 3-tier tree (Feature → Story with no Tasks) (Story #3127)', async () => {

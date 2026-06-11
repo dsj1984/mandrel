@@ -84,11 +84,31 @@ export const TEST_RUNNER_FLAGS = Object.freeze([
  * quoting). Budgeting the targets to 8 000 chars keeps every spawn's full
  * command line at roughly a quarter of the ceiling — ample headroom for the
  * exe path and any pass-through `--test-name-pattern` args — while keeping
- * the chunk count (and thus the extra `node` start-ups) low. POSIX limits are
- * far higher, so this only ever splits work that would otherwise fail on
- * Windows.
+ * the chunk count (and thus the extra `node` start-ups) low.
+ *
+ * `MAX_TARGET_CHARS` is the **Windows** budget. On POSIX hosts `ARG_MAX` is
+ * far higher (~256 KB on macOS, ~1 MB on Linux), so applying the Windows
+ * budget there needlessly serializes the quick tier into several sequential
+ * `node --test` spawns — each chunk pays a fresh runner start-up, and cores
+ * idle at every chunk's tail. `POSIX_MAX_TARGET_CHARS` (100 000) lets the
+ * whole quick-tier target list (~33 000 chars today) collapse into a single
+ * spawn on POSIX while staying far below `ARG_MAX`.
+ * `resolveMaxTargetChars` picks the budget per platform; the Windows
+ * semantics of `MAX_TARGET_CHARS` are unchanged.
  */
 export const MAX_TARGET_CHARS = 8000;
+export const POSIX_MAX_TARGET_CHARS = 100_000;
+
+/**
+ * Resolve the per-spawn target-character budget for the host platform.
+ * The `platform` parameter is injected in tests.
+ *
+ * @param {NodeJS.Platform} [platform]
+ * @returns {number}
+ */
+export function resolveMaxTargetChars(platform = process.platform) {
+  return platform === 'win32' ? MAX_TARGET_CHARS : POSIX_MAX_TARGET_CHARS;
+}
 
 /**
  * Partition an ordered list of test-file targets into chunks whose joined
@@ -144,7 +164,7 @@ export function runTestSuite({
   spawn = spawnSync,
   cleanup = cleanupRepoTestTempArtifacts,
   listTargets = listTestFilesForTier,
-  maxTargetChars = MAX_TARGET_CHARS,
+  maxTargetChars = resolveMaxTargetChars(),
 } = {}) {
   const { tier, rest } = parseTierArgv(argv);
   const targets = listTargets(tier, cwd);

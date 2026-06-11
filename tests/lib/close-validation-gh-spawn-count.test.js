@@ -12,7 +12,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { defaultGetHeadSha } from '../../.agents/scripts/lib/close-validation/projections/head-sha.js';
-import { emitGhSpawnCount } from '../../.agents/scripts/lib/close-validation.js';
+import { emitGhSpawnCount } from '../../.agents/scripts/lib/close-validation/telemetry.js';
 
 describe('emitGhSpawnCount — happy path', () => {
   it('writes the counter to story-scoped temp path and returns ok', async () => {
