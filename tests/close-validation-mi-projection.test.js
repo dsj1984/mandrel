@@ -1,13 +1,9 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  formatMaintainabilityProjection as formatFromSubmodule,
-  projectMaintainabilityRegressions as projectFromSubmodule,
-} from '../.agents/scripts/lib/close-validation/projections/maintainability.js';
-import {
   formatMaintainabilityProjection,
   projectMaintainabilityRegressions,
-} from '../.agents/scripts/lib/close-validation.js';
+} from '../.agents/scripts/lib/close-validation/projections/maintainability.js';
 import { emitMaintainabilityProjection } from '../.agents/scripts/lib/orchestration/story-close/pre-merge-validation.js';
 
 /**
@@ -193,14 +189,9 @@ describe('formatMaintainabilityProjection', () => {
   });
 });
 
-describe('projections/maintainability re-export (Story #1850 / Task #1874)', () => {
-  it('parent close-validation re-export is identical to the sub-module export', () => {
-    assert.equal(projectMaintainabilityRegressions, projectFromSubmodule);
-    assert.equal(formatMaintainabilityProjection, formatFromSubmodule);
-  });
-
+describe('projections/maintainability helpers (Story #1850 / Task #1874)', () => {
   it('predicate-extracted helper still normalises fine-grained missing-arg reasons to "missing-args"', () => {
-    const result = projectFromSubmodule({
+    const result = projectMaintainabilityRegressions({
       cwd: '/repo',
       epicBranch: 'epic/1831',
       // missing storyBranch
@@ -214,7 +205,7 @@ describe('projections/maintainability re-export (Story #1850 / Task #1874)', () 
 
   it('predicate-extracted helper short-circuits on no-baseline before any git call', () => {
     const calls = [];
-    const result = projectFromSubmodule({
+    const result = projectMaintainabilityRegressions({
       ...baseOpts,
       git: {
         gitSpawn: (...args) => {

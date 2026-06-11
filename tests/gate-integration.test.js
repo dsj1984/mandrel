@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_GATES } from '../.agents/scripts/lib/close-validation.js';
+import { DEFAULT_GATES } from '../.agents/scripts/lib/close-validation/gates.js';
 
 /**
  * End-to-end gate integration tests for Story #611. Originally exercised

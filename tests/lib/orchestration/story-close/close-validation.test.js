@@ -1,15 +1,13 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import {
-  buildDefaultGates,
-  runCloseValidation,
-} from '../../../../.agents/scripts/lib/close-validation.js';
+import { buildDefaultGates } from '../../../../.agents/scripts/lib/close-validation/gates.js';
+import { runCloseValidation } from '../../../../.agents/scripts/lib/close-validation/runner.js';
 import { runPreMergeGates } from '../../../../.agents/scripts/lib/orchestration/story-close/pre-merge-validation.js';
 
 /**
  * Story #1120 — close-validation gate spawn locality.
  *
- * The acceptance criterion is "every gate invocation in close-validation.js
+ * The acceptance criterion is "every gate invocation in close-validation/runner.js
  * receives `{ cwd: worktreePath }` in its spawn options". These tests pin
  * that contract via an injected `runner` (the spawn seam) so we don't need
  * to actually fork a subprocess.

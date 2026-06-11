@@ -10,14 +10,14 @@
  * Two projectors live here:
  *
  *   - `projectMaintainabilityForGate` — reuses the MI projection from
- *     `close-validation.js` (Story #874).
+ *     `close-validation/projections/maintainability.js` (Story #874).
  *   - `projectCrapForGate` / `projectCrapRegressions` — diff CRAP envelopes
  *     at `origin/<epicBranch>` vs `storyBranch`, optionally scoped to the
  *     Story's touched files (Story #1124).
  */
 
 import { readBaselineAtRef as defaultReadBaselineAtRef } from '../../../../baseline-loader.js';
-import { projectMaintainabilityRegressions as defaultProjectMaintainabilityRegressions } from '../../../../close-validation.js';
+import { projectMaintainabilityRegressions as defaultProjectMaintainabilityRegressions } from '../../../../close-validation/projections/maintainability.js';
 import { getBaselines as defaultGetBaselines } from '../../../../config-resolver.js';
 import {
   computeStoryDiffPaths,

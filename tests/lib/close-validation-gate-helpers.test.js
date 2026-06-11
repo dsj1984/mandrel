@@ -11,7 +11,7 @@ import { describe, it } from 'node:test';
 import {
   attachGateAbortHandler,
   gateExitCode,
-} from '../../.agents/scripts/lib/close-validation.js';
+} from '../../.agents/scripts/lib/close-validation/process.js';
 
 describe('gateExitCode', () => {
   it('returns numeric exit codes verbatim', () => {

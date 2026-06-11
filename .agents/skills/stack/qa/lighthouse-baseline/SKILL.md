@@ -58,7 +58,7 @@ The five pieces every baseline of this shape carries:
 3. **`<name>:check` npm script** — runs the measurement, compares against
    `baselines/<name>.json` with a tolerance, exits non-zero on regression.
    Wired into the close-validation gate chain (see `buildDefaultGates` in
-   `lib/close-validation.js`) and into the PR gate.
+   `lib/close-validation/gates.js`) and into the PR gate.
 4. **`--self-test` flag** — every check script accepts `--self-test`,
    which runs the comparator against synthetic inputs (a known-good and a
    known-regression fixture) and asserts the gate's verdict matches. CI

@@ -22,6 +22,7 @@
  */
 
 import { parseBlockedBy, parseBlocks } from '../../lib/dependency-parser.js';
+import { Logger } from '../../lib/Logger.js';
 import { addIssueToBoard } from './board-add.js';
 import { createInlineTicketCache } from './cache.js';
 import { withTransientRetry } from './errors.js';
@@ -31,6 +32,14 @@ import {
   paginateRest,
   parseApiJson,
 } from './request-helpers.js';
+
+/**
+ * GitHub Search API hard ceiling is 1000 results per query; at
+ * `per_page=100` that is 10 pages. An Epic never has anywhere near 1000
+ * children, so hitting this cap means the query is degenerate — we stop
+ * rather than throw (the regex post-filter keeps results correct).
+ */
+const SEARCH_PAGE_CAP = 10;
 
 /**
  * Compose the final markdown body for a created ticket. Under the 3-tier
@@ -100,6 +109,14 @@ export class TicketGateway {
     this.repo = repo;
     this._hooks = hooks;
     this._cache = cache ?? createInlineTicketCache();
+    /**
+     * Per-instance memo of `getTickets(epicId, filters)` results (Story
+     * #3988). The planning-state-manager fetches the same child list twice
+     * per planning pass; without this memo each fetch re-pays the full
+     * search/list round-trip. Invalidated on every write surface.
+     * @type {Map<string, object[]>}
+     */
+    this._listCache = new Map();
   }
 
   /**
@@ -142,29 +159,113 @@ export class TicketGateway {
   }
 
   /**
+   * Run one Search API query (`/search/issues`) to completion, returning
+   * the raw issue items. Search responses are `{ total_count, items }`
+   * envelopes rather than bare arrays, so this paginates manually instead
+   * of going through `paginateRest`.
+   */
+  async _searchIssues(query) {
+    const items = [];
+    for (let page = 1; page <= SEARCH_PAGE_CAP; page++) {
+      const params = new URLSearchParams({
+        q: query,
+        per_page: '100',
+        page: String(page),
+      });
+      const result = await withTransientRetry(
+        () =>
+          this._gh.api({
+            method: 'GET',
+            endpoint: `/search/issues?${params}`,
+          }),
+        { label: `searchIssues page ${page}`, onRetry: defaultRetryWarn },
+      );
+      const parsed = parseApiJson(result);
+      const batch = Array.isArray(parsed?.items) ? parsed.items : [];
+      items.push(...batch);
+      if (batch.length < 100) break;
+    }
+    return items;
+  }
+
+  /**
+   * Server-side narrowed child lookup (Story #3988): two Search API
+   * queries — `"Epic: #N" in:body` and `"parent: #N" in:body` — deduped
+   * by issue number. Replaces the repo-wide `state=all` pagination that
+   * cost ~1 spawn per 100 repo issues and hard-failed past the
+   * `paginateRest` page cap. Search tokenization can over-match (e.g.
+   * `#10` vs `#100`), so callers MUST keep the word-boundary regex
+   * post-filter.
+   */
+  async _searchEpicChildren(epicId, filters) {
+    const qualifiers = [`repo:${this.owner}/${this.repo}`, 'is:issue'];
+    const state = filters.state ?? 'all';
+    if (state === 'open' || state === 'closed') {
+      qualifiers.push(`state:${state}`);
+    }
+    if (filters.label) qualifiers.push(`label:"${filters.label}"`);
+    const base = qualifiers.join(' ');
+
+    const [epicRefs, parentRefs] = await Promise.all([
+      this._searchIssues(`${base} "Epic: #${epicId}" in:body`),
+      this._searchIssues(`${base} "parent: #${epicId}" in:body`),
+    ]);
+
+    const byNumber = new Map();
+    for (const issue of [...epicRefs, ...parentRefs]) {
+      if (!byNumber.has(issue.number)) byNumber.set(issue.number, issue);
+    }
+    return Array.from(byNumber.values());
+  }
+
+  /**
+   * Repo-wide listing fallback — the pre-#3988 shape. Only used when the
+   * Search API path fails (search outage, search-specific rate limit).
+   */
+  /* node:coverage ignore next */
+  async _listAllIssues(filters) {
+    const params = new URLSearchParams({ state: filters.state ?? 'all' });
+    if (filters.label) params.set('labels', filters.label);
+    const endpoint = `/repos/${this.owner}/${this.repo}/issues?${params}`;
+    return paginateRest(this._gh, endpoint);
+  }
+
+  /**
+   * @field-manifest /search/issues?q=...: number, id, node_id, title,
+   *                 body, labels, state, pull_request
    * @field-manifest /repos/{owner}/{repo}/issues?state=...&labels=...:
    *                 number, body, labels, state, pull_request
    */
-  /* node:coverage ignore next */
   async getTickets(epicId, filters = {}) {
-    const params = new URLSearchParams({ state: filters.state ?? 'all' });
-    if (filters.label) params.set('labels', filters.label);
+    const memoKey = `${epicId}|${filters.state ?? 'all'}|${filters.label ?? ''}`;
+    if (this._listCache.has(memoKey)) return this._listCache.get(memoKey);
 
-    const endpoint = `/repos/${this.owner}/${this.repo}/issues?${params}`;
-    const issues = await paginateRest(this._gh, endpoint);
+    let issues;
+    try {
+      issues = await this._searchEpicChildren(epicId, filters);
+    } catch (err) {
+      const msg = typeof err?.message === 'string' ? err.message : String(err);
+      Logger.warn(
+        `[TicketGateway] search-based getTickets(#${epicId}) failed (${msg}); ` +
+          'falling back to repo-wide issue listing',
+      );
+      issues = await this._listAllIssues(filters);
+    }
 
     // Word-boundary regex prevents #1 matching #10, #100, etc.
     const epicRefRe = new RegExp(
       `(?:Epic:\\s*#${epicId}|parent:\\s*#${epicId})(?:\\s|$|[,.)\\]])`,
     );
 
-    return issues
+    const tickets = issues
       .filter((issue) => {
         if (issue.pull_request) return false;
         const body = issue.body ?? '';
         return epicRefRe.test(body);
       })
       .map(issueToListItem);
+    this._listCache.set(memoKey, tickets);
+    return tickets;
   }
 
   /* node:coverage ignore next */
@@ -187,6 +288,7 @@ export class TicketGateway {
 
   invalidateTicket(ticketId) {
     this._cache.invalidate(ticketId);
+    this._listCache.clear();
   }
 
   // ---------------------------------------------------------------------------
@@ -226,6 +328,7 @@ export class TicketGateway {
       },
     });
     const issue = parseApiJson(result);
+    this._listCache.clear();
 
     let subIssueLinked = false;
     let subIssueError = null;
@@ -288,6 +391,7 @@ export class TicketGateway {
       body: { title, body, labels },
     });
     const issue = parseApiJson(result);
+    this._listCache.clear();
 
     const boardAdd = await addIssueToBoard({
       nodeId: issue.node_id,

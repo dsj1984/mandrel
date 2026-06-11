@@ -29,12 +29,12 @@
 // no-spawn spy proves the projection path never reaches a per-kind CLI
 // subprocess.
 import * as maintainabilityKind from '../../baselines/kinds/maintainability.js';
+import { buildDefaultGates as defaultBuildDefaultGates } from '../../close-validation/gates.js';
 import {
-  buildDefaultGates as defaultBuildDefaultGates,
   formatMaintainabilityProjection as defaultFormatMaintainabilityProjection,
   projectMaintainabilityRegressions as defaultProjectMaintainabilityRegressions,
-  runCloseValidation as defaultRunCloseValidation,
-} from '../../close-validation.js';
+} from '../../close-validation/projections/maintainability.js';
+import { runCloseValidation as defaultRunCloseValidation } from '../../close-validation/runner.js';
 import { getBaselines as defaultGetBaselines } from '../../config-resolver.js';
 import { Logger as DefaultLogger } from '../../Logger.js';
 

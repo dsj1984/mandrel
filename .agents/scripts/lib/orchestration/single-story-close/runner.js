@@ -1,9 +1,7 @@
 import nodeFs from 'node:fs';
 import path from 'node:path';
-import {
-  buildDefaultGates,
-  runCloseValidation,
-} from '../../close-validation.js';
+import { buildDefaultGates } from '../../close-validation/gates.js';
+import { runCloseValidation } from '../../close-validation/runner.js';
 import { resolveConfig } from '../../config-resolver.js';
 import { getStoryBranch, gitSync } from '../../git-utils.js';
 import { Logger } from '../../Logger.js';

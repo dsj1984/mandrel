@@ -5,12 +5,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import {
-  buildDefaultGates,
-  DEFAULT_GATES,
   isFormatterEligible,
   resolveTypecheckCommand,
-  runCloseValidation as runCloseValidationOnly,
-} from '../.agents/scripts/lib/close-validation.js';
+} from '../.agents/scripts/lib/close-validation/commands.js';
+import {
+  buildDefaultGates,
+  DEFAULT_GATES,
+} from '../.agents/scripts/lib/close-validation/gates.js';
+import { runCloseValidation as runCloseValidationOnly } from '../.agents/scripts/lib/close-validation/runner.js';
 import {
   drainPendingCleanupAfterClose,
   getCloseDrainStatus,
