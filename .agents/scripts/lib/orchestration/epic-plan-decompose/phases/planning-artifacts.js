@@ -11,7 +11,7 @@
  */
 
 import { resolveListValue } from '../../../config/shared.js';
-import { _internal as conflictInternal } from '../../ticket-validator-conflicts.js';
+import { DEFAULT_REGISTRY_PATTERNS } from '../../ticket-validator-conflicts.js';
 
 /**
  * Ensure the supplied Epic body carries a `## Planning Artifacts` section.
@@ -67,7 +67,7 @@ export function resolveConflictPolicy(cfg) {
   }
   if (planning?.crossCuttingRegistries !== undefined) {
     policy.registries = resolveListValue(
-      conflictInternal.DEFAULT_REGISTRY_PATTERNS,
+      DEFAULT_REGISTRY_PATTERNS,
       planning.crossCuttingRegistries,
     );
   }

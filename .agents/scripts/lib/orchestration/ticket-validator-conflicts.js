@@ -66,7 +66,7 @@ const DEFAULT_POLICY = Object.freeze({
  *   - exact path  — `lib/orchestration/lifecycle/listeners/index.js`
  *   - `**` suffix — `**\/listeners/index.js` (matches any depth)
  */
-const DEFAULT_REGISTRY_PATTERNS = Object.freeze([
+export const DEFAULT_REGISTRY_PATTERNS = Object.freeze([
   'lib/orchestration/lifecycle/listeners/index.js',
   '**/listeners/index.js',
   '**/handlers/index.js',

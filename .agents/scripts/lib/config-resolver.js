@@ -24,7 +24,6 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { getCiDelivery } from './config/ci.js';
 import { getCommands } from './config/commands.js';
 import { getGitHub } from './config/github.js';
@@ -34,6 +33,7 @@ import { validateOrchestrationConfig } from './config/validate-orchestration.js'
 import { getWorktreeIsolation } from './config/worktree-isolation.js';
 import { getAgentrcValidator } from './config-schema.js';
 import { loadEnv } from './env-loader.js';
+import { PROJECT_ROOT } from './project-root.js';
 
 export { getAcceptanceEval } from './config/acceptance-eval.js';
 export { BASELINES_DEFAULTS, getBaselines } from './config/baselines.js';
@@ -64,10 +64,7 @@ export {
 export { resolveListValue } from './config/shared.js';
 export { validateOrchestrationConfig } from './config/validate-orchestration.js';
 export { WORKTREE_ISOLATION_DEFAULTS } from './config/worktree-isolation.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// scripts/lib/ → scripts/ → .agents/ → project root
-export const PROJECT_ROOT = path.resolve(__dirname, '../../..');
+export { PROJECT_ROOT } from './project-root.js';
 
 // Cache keyed by absolute root path so callers passing different cwds
 // (e.g. per-worktree) each get their own resolved config.
