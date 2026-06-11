@@ -6,6 +6,7 @@
   "files": [
     ".agents/",
     "bin/",
+    "docs/CHANGELOG.md",
     "lib/"
   ],
   "publishConfig": {
