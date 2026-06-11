@@ -13,7 +13,7 @@
  *
  * The renderer survives because its `{ body, payload }` output still feeds
  * two non-comment contracts: the `renderedBody` markdown the `/story-deliver`
- * and `single-story-deliver` CLIs (`story-phase.js`, `story-deliver-prepare.js`)
+ * and `single-story-deliver` CLIs (`story-phase.js`, the inline `story-init.js` prepare step)
  * relay to chat so the operator sees the phase table inline, and the snapshot
  * payload returned in those CLIs' JSON envelopes. `upsertStoryRunProgress`
  * therefore renders-only: it computes the body/payload and (optionally) mirrors
@@ -90,7 +90,7 @@ const STORY_PHASE_STATUS_EMOJI = {
 /**
  * Build the canonical default `phases[]` array for a freshly-initialized
  * 3-tier Story snapshot. All entries are `pending`; timestamps are null.
- * Exported so call sites (story-deliver-prepare, story-phase) and
+ * Exported so call sites (the story-init prepare step, story-phase) and
  * tests can build the same shape without re-implementing it.
  *
  * @returns {Array<{ name: string, status: 'pending', startedAt: null, endedAt: null }>}

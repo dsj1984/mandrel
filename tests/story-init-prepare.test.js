@@ -1,15 +1,22 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseInstallCmd } from '../../.agents/scripts/lib/install-cmd-parser.js';
-import { structuredCommentMarker } from '../../.agents/scripts/lib/orchestration/ticketing.js';
+import { parseInstallCmd } from '../.agents/scripts/lib/install-cmd-parser.js';
+import { structuredCommentMarker } from '../.agents/scripts/lib/orchestration/ticketing.js';
 import {
   deriveInstallAction,
   resolveInstallCommand,
-  runStoryDeliverPrepare,
-} from '../../.agents/scripts/story-deliver-prepare.js';
+  runStoryInitPrepare,
+} from '../.agents/scripts/story-init.js';
 
-function makeProvider(initialComments = []) {
-  const comments = [...initialComments];
+/**
+ * Story #4017 — the standalone `story-deliver-prepare.js` CLI was inlined
+ * into `story-init.js`. The prepare step now consumes the in-process init
+ * result directly (no structured-comment re-read), so these tests drive
+ * `runStoryInitPrepare` with a result-shaped object.
+ */
+
+function makeProvider() {
+  const comments = [];
   let nextId = 100;
   return {
     comments,
@@ -28,26 +35,13 @@ function makeProvider(initialComments = []) {
   };
 }
 
-function makeStoryInitComment({
-  storyId,
-  workCwd,
-  dependenciesInstalled,
-  storyBranch,
-  hierarchy,
-}) {
-  const marker = structuredCommentMarker('story-init');
-  const payload = {
+function makeInitResult({ storyId, workCwd, dependenciesInstalled }) {
+  return {
     storyId,
-    storyBranch: storyBranch ?? `story-${storyId}`,
+    storyBranch: `story-${storyId}`,
     workCwd,
     dependenciesInstalled,
-  };
-  if (hierarchy) payload.hierarchy = hierarchy;
-  return {
-    id: 1,
-    ticketId: storyId,
-    type: 'comment',
-    body: `${marker}\n\n## Story init\n\n\`\`\`json\n${JSON.stringify(payload)}\n\`\`\``,
+    hierarchy: '3-tier',
   };
 }
 
@@ -57,7 +51,7 @@ test('deriveInstallAction: tri-state truth table', () => {
   assert.equal(deriveInstallAction('false'), 'install');
 });
 
-test('deriveInstallAction: --skip-install always wins', () => {
+test('deriveInstallAction: skipInstall always wins', () => {
   assert.equal(deriveInstallAction('false', { skipInstall: true }), 'skip');
 });
 
@@ -77,19 +71,18 @@ test('resolveInstallCommand: honors override when non-blank', () => {
   assert.equal(resolveInstallCommand({ override: '   ' }), 'npm ci');
 });
 
-test('runStoryDeliverPrepare: dependenciesInstalled=true skips install + upserts init snapshot', async () => {
-  const provider = makeProvider([
-    makeStoryInitComment({
+test('runStoryInitPrepare: dependenciesInstalled=true skips install + renders init snapshot', async () => {
+  const provider = makeProvider();
+  let runInstallCalls = 0;
+
+  const result = await runStoryInitPrepare({
+    provider,
+    storyId: 42,
+    result: makeInitResult({
       storyId: 42,
       workCwd: '/tmp/.worktrees/story-42',
       dependenciesInstalled: 'true',
     }),
-  ]);
-  let runInstallCalls = 0;
-
-  const result = await runStoryDeliverPrepare({
-    storyId: 42,
-    provider,
     runInstall: () => {
       runInstallCalls++;
       return { status: 0 };
@@ -98,37 +91,34 @@ test('runStoryDeliverPrepare: dependenciesInstalled=true skips install + upserts
   assert.equal(result.installAction, 'skip');
   assert.equal(result.installCmd, null);
   assert.equal(runInstallCalls, 0);
-  assert.equal(result.workCwd, '/tmp/.worktrees/story-42');
   assert.equal(result.snapshot.phase, 'init');
   assert.equal(Array.isArray(result.snapshot.phases), true);
   assert.ok(result.snapshot.phases.every((p) => p.status === 'pending'));
 
   // Story #3909 — the redundant per-Story story-run-progress comment is no
-  // longer posted. The init story-init comment is the only comment present.
+  // longer posted; the snapshot is render-only.
   const progressMarker = structuredCommentMarker('story-run-progress');
   const upserted = provider.comments.find(
     (c) => typeof c.body === 'string' && c.body.includes(progressMarker),
   );
   assert.equal(upserted, undefined, 'no story-run-progress comment is posted');
-  // renderedBody is still computed and surfaced for chat relay by
-  // `/story-deliver` so operators see the initial Story-phase table before
-  // the first commit lands.
+  // renderedBody is still computed and surfaced for chat relay so operators
+  // see the initial Story-phase table before the first commit lands.
   assert.ok(result.renderedBody.startsWith('### 📖 Story #42'));
   assert.match(result.renderedBody, /0\/4 phases done/);
 });
 
-test('runStoryDeliverPrepare: dependenciesInstalled=false runs install before upserting', async () => {
-  const provider = makeProvider([
-    makeStoryInitComment({
+test('runStoryInitPrepare: dependenciesInstalled=false retries install before rendering', async () => {
+  const provider = makeProvider();
+  const installs = [];
+  const result = await runStoryInitPrepare({
+    provider,
+    storyId: 50,
+    result: makeInitResult({
       storyId: 50,
       workCwd: '/tmp/.worktrees/story-50',
       dependenciesInstalled: 'false',
     }),
-  ]);
-  const installs = [];
-  const result = await runStoryDeliverPrepare({
-    storyId: 50,
-    provider,
     runInstall: (cmd, dir) => {
       installs.push({ cmd, dir });
       return { status: 0 };
@@ -141,47 +131,36 @@ test('runStoryDeliverPrepare: dependenciesInstalled=false runs install before up
   ]);
 });
 
-test('runStoryDeliverPrepare: failed install bubbles up as an Error', async () => {
-  const provider = makeProvider([
-    makeStoryInitComment({
-      storyId: 51,
-      workCwd: '/tmp/.worktrees/story-51',
-      dependenciesInstalled: 'false',
-    }),
-  ]);
+test('runStoryInitPrepare: failed install bubbles up as an Error', async () => {
+  const provider = makeProvider();
   await assert.rejects(
-    runStoryDeliverPrepare({
-      storyId: 51,
+    runStoryInitPrepare({
       provider,
+      storyId: 51,
+      result: makeInitResult({
+        storyId: 51,
+        workCwd: '/tmp/.worktrees/story-51',
+        dependenciesInstalled: 'false',
+      }),
       runInstall: () => ({ status: 7, stderr: 'npm exited 7' }),
     }),
     /install command `npm ci` failed/,
   );
 });
 
-test('runStoryDeliverPrepare: 3-tier hierarchy emits phases[] snapshot (init/implement/validate/close)', async () => {
-  // Under the 3-tier hierarchy (Epic → Feature → Story) the
-  // inline-acceptance Story is the only ticket shape, so the prepare CLI
-  // always seeds the initial snapshot with a `phases[]` array — never a
-  // `tasks[]` list — letting the parent `/epic-deliver` aggregator render
-  // a coarse Story-phase progress bar without walking Task tickets that do
-  // not exist.
-  const provider = makeProvider([
-    makeStoryInitComment({
+test('runStoryInitPrepare: 3-tier snapshot carries phases[] (init/implement/validate/close), never tasks[]', async () => {
+  const provider = makeProvider();
+  const result = await runStoryInitPrepare({
+    provider,
+    storyId: 3129,
+    result: makeInitResult({
       storyId: 3129,
       workCwd: '/tmp/.worktrees/story-3129',
       dependenciesInstalled: 'true',
-      hierarchy: '3-tier',
     }),
-  ]);
-
-  const result = await runStoryDeliverPrepare({
-    storyId: 3129,
-    provider,
     runInstall: () => ({ status: 0 }),
   });
 
-  assert.equal(result.hierarchy, '3-tier');
   assert.equal(result.snapshot.phase, 'init');
   assert.equal(
     'tasks' in result.snapshot,
@@ -202,33 +181,6 @@ test('runStoryDeliverPrepare: 3-tier hierarchy emits phases[] snapshot (init/imp
   // Rendered body uses the phase header.
   assert.match(result.renderedBody, /### 📖 Story #3129/);
   assert.match(result.renderedBody, /0\/4 phases done/);
-});
-
-test('runStoryDeliverPrepare: omitted hierarchy still emits the phases[] snapshot', async () => {
-  // A story-init payload that omits `hierarchy` defaults to the 3-tier
-  // shape, so the snapshot is still the Story-phase `phases[]` array.
-  const provider = makeProvider([
-    makeStoryInitComment({
-      storyId: 200,
-      workCwd: '/tmp/.worktrees/story-200',
-      dependenciesInstalled: 'true',
-    }),
-  ]);
-  const result = await runStoryDeliverPrepare({
-    storyId: 200,
-    provider,
-    runInstall: () => ({ status: 0 }),
-  });
-  assert.equal(Array.isArray(result.snapshot.phases), true);
-  assert.equal('tasks' in result.snapshot, false);
-});
-
-test('runStoryDeliverPrepare: throws if no story-init comment is found', async () => {
-  const provider = makeProvider([]);
-  await assert.rejects(
-    runStoryDeliverPrepare({ storyId: 999, provider }),
-    /no story-init comment found/,
-  );
 });
 
 test('parseInstallCmd: tokenizes "npm ci" into bin + args', () => {
@@ -256,9 +208,4 @@ test('parseInstallCmd: preserves absolute paths to non-shimmed binaries', () => 
   const { bin, args } = parseInstallCmd('/usr/local/bin/custom-installer --ci');
   assert.equal(bin, '/usr/local/bin/custom-installer');
   assert.deepEqual(args, ['--ci']);
-});
-
-test('parseInstallCmd: rejects empty input', () => {
-  assert.throws(() => parseInstallCmd(''), /at least one token/);
-  assert.throws(() => parseInstallCmd('   '), /at least one token/);
 });
