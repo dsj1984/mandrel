@@ -623,9 +623,7 @@ describe('collectStorySummaries — bounded-parallel fetch (Story #3990)', () =>
         return new Promise((resolve) => {
           setTimeout(
             () =>
-              resolve([
-                { id: ticketId, body: summaryBody(Number(ticketId)) },
-              ]),
+              resolve([{ id: ticketId, body: summaryBody(Number(ticketId)) }]),
             (206 - Number(ticketId)) * 5,
           );
         });
