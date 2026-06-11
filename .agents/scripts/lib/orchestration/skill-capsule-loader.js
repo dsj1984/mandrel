@@ -13,7 +13,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { PROJECT_ROOT } from '../config-resolver.js';
+import { PROJECT_ROOT } from '../project-root.js';
 import { Logger } from '../Logger.js';
 
 const POLICY_HEADING_RE = /^## Policy Capsule\s*$/;

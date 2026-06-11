@@ -21,7 +21,7 @@
 
 import { fileURLToPath } from 'node:url';
 
-import { PROJECT_ROOT } from './lib/config-resolver.js';
+import { PROJECT_ROOT } from './lib/project-root.js';
 import { gitSpawn } from './lib/git-utils.js';
 
 import { Logger } from './lib/Logger.js';

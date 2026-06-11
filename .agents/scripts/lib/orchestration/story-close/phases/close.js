@@ -20,7 +20,7 @@
  * CC < 12 phase-file budget).
  */
 
-import { PROJECT_ROOT } from '../../../config-resolver.js';
+import { PROJECT_ROOT } from '../../../project-root.js';
 import { Logger } from '../../../Logger.js';
 import { STATE_LABELS } from '../../ticketing.js';
 import { runFinalizeMerge, runResumeMerge } from '../merge-runner.js';

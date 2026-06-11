@@ -8,7 +8,7 @@
  */
 
 import path from 'node:path';
-import { PROJECT_ROOT } from '../../../config-resolver.js';
+import { PROJECT_ROOT } from '../../../project-root.js';
 import * as gitUtils from '../../../git-utils.js';
 import { forceDrainPendingCleanup } from '../../../worktree/lifecycle/force-drain.js';
 import { readManifest } from '../../../worktree/lifecycle/pending-cleanup.js';
