@@ -632,5 +632,6 @@ safe.
 
 ## See also
 
-- [`/story-deliver`](../story-deliver.md) — Epic-attached Story execution.
+- [`/story-deliver`](../story-deliver.md) — several standalone Stories at
+  once (dependency-aware waves).
 - [`/epic-deliver`](../epic-deliver.md) — full Epic wave loop.

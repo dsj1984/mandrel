@@ -74,11 +74,6 @@ describe('progress-reporter/signals', () => {
           kind: 'story-run-progress',
           storyId: 101,
           phase: 'implementing',
-          tasks: [
-            { id: 1, state: 'done' },
-            { id: 2, state: 'executing' },
-            { id: 3, state: 'pending' },
-          ],
           title: 'Test Story',
         }),
         '```',
@@ -88,8 +83,6 @@ describe('progress-reporter/signals', () => {
       assert.equal(parsed.storyId, 101);
       assert.equal(parsed.phase, 'implementing');
       assert.equal(parsed.state, 'in-flight');
-      assert.equal(parsed.tasksTotal, 3);
-      assert.equal(parsed.tasksDone, 1);
       assert.equal(parsed.title, 'Test Story');
     });
 

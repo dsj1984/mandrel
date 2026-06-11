@@ -272,7 +272,6 @@ export async function renderProgressBody({
  *     wave: number,
  *     concurrencyCap?: number,
  *     stories?: Array<{ id: number, title?: string, state?: string,
- *                       tasksDone?: number, tasksTotal?: number,
  *                       blockerCommentId?: string }>,
  *   }>,
  *   currentWave: number,

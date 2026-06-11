@@ -9,8 +9,6 @@
  *     "storyId": <number>,
  *     "status": "done" | "blocked" | "failed",
  *     "phase": "init|implementing|closing|blocked|done",
- *     "tasksDone": <number>,
- *     "tasksTotal": <number>,
  *     "branchDeleted": <boolean>,
  *     "blockerCommentId": <string|null>,
  *     "detail": <string|undefined>,
@@ -119,8 +117,6 @@ function validateStoryReturnShape(obj) {
   }
   const value = { storyId, status };
   if (typeof obj.phase === 'string') value.phase = obj.phase;
-  if (Number.isInteger(obj.tasksDone)) value.tasksDone = obj.tasksDone;
-  if (Number.isInteger(obj.tasksTotal)) value.tasksTotal = obj.tasksTotal;
   if (typeof obj.branchDeleted === 'boolean') {
     value.branchDeleted = obj.branchDeleted;
   }
@@ -143,8 +139,8 @@ function quote(text) {
  * Story ticket's live state when the sub-agent return cannot be trusted.
  *
  * The result is always conservative — `status: 'failed'` unless the live
- * ticket carries `agent::done` (or `state: 'closed'`). The phase / counters
- * are best-effort, sourced from the Story's `story-run-progress` comment;
+ * ticket carries `agent::done` (or `state: 'closed'`). The phase is
+ * best-effort, sourced from the Story's `story-run-progress` comment;
  * absence of the comment is non-fatal.
  *
  * Story #3907 — a Story carrying `agent::blocked` reconciles to
@@ -163,8 +159,6 @@ function quote(text) {
  *   storyId: number,
  *   status: 'done' | 'blocked' | 'failed',
  *   phase?: string,
- *   tasksDone?: number,
- *   tasksTotal?: number,
  *   blockerCommentId?: string,
  *   reconciledFromGitHub: true,
  *   reconcileError?: string,
@@ -223,8 +217,8 @@ export async function reconcileStoryFromGitHub({ provider, storyId } = {}) {
     }
   }
 
-  // Cross-look the story-run-progress comment for phase / task counters when
-  // present. Story #3909 retired the per-Story story-run-progress *comment*
+  // Cross-look the story-run-progress comment for the phase when present.
+  // Story #3909 retired the per-Story story-run-progress *comment*
   // (the redundant mid-flight surface), so this read now usually finds nothing
   // and the reconciled row degrades to label-only — which is fine: the labels
   // are the authoritative state. Failure here is non-fatal.
@@ -237,12 +231,6 @@ export async function reconcileStoryFromGitHub({ provider, storyId } = {}) {
     const payload = comment ? parseFencedJsonComment(comment) : null;
     if (payload && typeof payload === 'object') {
       if (typeof payload.phase === 'string') out.phase = payload.phase;
-      if (Array.isArray(payload.tasks)) {
-        out.tasksTotal = payload.tasks.length;
-        out.tasksDone = payload.tasks.filter(
-          (t) => t && t.state === 'done',
-        ).length;
-      }
     }
   } catch (err) {
     out.reconcileError = err?.message ?? String(err);

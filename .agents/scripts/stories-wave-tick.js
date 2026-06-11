@@ -43,6 +43,7 @@ import { runAsCli } from './lib/cli-utils.js';
 import { getRunners, resolveConfig } from './lib/config-resolver.js';
 import { assignLayers, detectCycle } from './lib/Graph.js';
 import { Logger } from './lib/Logger.js';
+import { buildStoryAdjacency } from './lib/story-adjacency.js';
 
 const HELP = `Usage: node .agents/scripts/stories-wave-tick.js --dag '<json>' | --dag-file <path> [--concurrency <n>]
 
@@ -132,15 +133,17 @@ export function parseDag(raw) {
  * Build an adjacency map from parsed DAG nodes.
  * Returns Map<id, id[]> where each id maps to its dependencies.
  *
+ * Delegates to the shared story-level builder
+ * (`lib/story-adjacency.js#buildStoryAdjacency`) with `dropForeign: false`
+ * to preserve the operator-DAG contract: a `dependsOn` id absent from the
+ * input set still deepens the dependent's layer (assignLayers treats the
+ * unknown id as a root).
+ *
  * @param {Array<{id: number, dependsOn: number[]}>} nodes
  * @returns {Map<number, number[]>}
  */
 export function buildAdjacency(nodes) {
-  const adjacency = new Map();
-  for (const node of nodes) {
-    adjacency.set(node.id, [...node.dependsOn]);
-  }
-  return adjacency;
+  return buildStoryAdjacency(nodes, { dropForeign: false });
 }
 
 /**
