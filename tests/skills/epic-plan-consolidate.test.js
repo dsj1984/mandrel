@@ -54,13 +54,8 @@ describe('skill:epic-plan-consolidate — smoke', () => {
           );
         }
 
-        // The four permitted, scope-preserving operations.
-        for (const op of [
-          /merge .*Stories/i,
-          /collapse .*single-Story Feature/i,
-          /re-parent/i,
-          /rewire .*depends_on/i,
-        ]) {
+        // The two permitted, scope-preserving operations.
+        for (const op of [/merge .*Stories/i, /rewire .*depends_on/i]) {
           if (!op.test(body)) {
             errors.push(
               `Skill body must document the operation matching ${op}`,
@@ -76,17 +71,6 @@ describe('skill:epic-plan-consolidate — smoke', () => {
         }
         if (!/scope conservation|conserve scope|conserving scope/i.test(body)) {
           errors.push('Skill body must name the scope-conservation invariant');
-        }
-
-        // rec #2 — collapse, not split.
-        if (
-          !/collaps\w+.*not\b.*split|never by .*split|not by splitting/i.test(
-            body,
-          )
-        ) {
-          errors.push(
-            'Skill body must resolve single-Story Features by collapsing, never by splitting (rec #2)',
-          );
         }
 
         // Delivery Slicing target + graceful degradation.
@@ -113,10 +97,10 @@ describe('skill:epic-plan-consolidate — smoke', () => {
           errors.push('Skill body must require an operator HITL diff gate');
         }
 
-        // assertNoSingleStoryFeature stays as the backstop.
-        if (!/assertNoSingleStoryFeature/.test(body)) {
+        // The deterministic validator stays as the backstop.
+        if (!/ticket-validator/.test(body)) {
           errors.push(
-            'Skill body must name assertNoSingleStoryFeature as the post-consolidation backstop',
+            'Skill body must name the ticket validator as the post-consolidation backstop',
           );
         }
 

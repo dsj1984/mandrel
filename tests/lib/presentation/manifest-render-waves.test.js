@@ -135,22 +135,12 @@ test('renderNestedWaveSections: Blocked wave emits the gating tail naming the la
   assert.ok(md.includes('· gated on Wave 0'));
 });
 
-test('renderNestedWaveSections: Feature Containers section emits a Story-only column set', () => {
-  const stories = [
-    {
-      storyId: 101,
-      storyTitle: 'A',
-      type: 'story',
-      earliestWave: 0,
-      status: 'agent::done',
-    },
-    { storyId: 300, storySlug: 'container', type: 'feature', earliestWave: -1 },
-  ];
-  const md = renderNestedWaveSections(stories);
-  assert.ok(md.includes('## Feature Containers'));
-  assert.ok(md.includes('| Feature | Title |'));
-  assert.ok(md.includes('| #300 | container |'));
-  assert.ok(!md.includes('Child Tasks'));
+test('renderNestedWaveSections: never emits a Feature Containers section (2-tier)', () => {
+  const md = renderNestedWaveSections([
+    { storyId: 100, storySlug: 'alpha', type: 'story', earliestWave: 0 },
+  ]);
+  assert.ok(!md.includes('## Feature Containers'));
+  assert.ok(!md.includes('| Feature | Title |'));
 });
 
 test('renderNestedWaveSections: Story title falls back to storySlug when storyTitle missing', () => {

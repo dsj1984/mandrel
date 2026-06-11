@@ -184,20 +184,10 @@ function buildStubProvider({ epicId, epicBody }) {
 function buildFixtureTickets() {
   return [
     {
-      slug: 'feature-a',
-      type: 'feature',
-      title: 'Feature A',
-      body: 'feature body',
-      labels: ['type::feature'],
-      parent_slug: '',
-      depends_on: [],
-    },
-    {
       slug: 'story-one',
       type: 'story',
       title: 'Story One',
       labels: ['type::story'],
-      parent_slug: 'feature-a',
       depends_on: [],
       acceptance: ['done'],
       verify: ['npm test (unit)'],
@@ -214,7 +204,6 @@ function buildFixtureTickets() {
       type: 'story',
       title: 'Story Two',
       labels: ['type::story'],
-      parent_slug: 'feature-a',
       depends_on: [],
       acceptance: ['done'],
       verify: ['npm test (unit)'],
@@ -317,7 +306,7 @@ describe('runDecomposePhase — Epic body preservation (Story #2283)', () => {
           title: opts.epic.title,
           body: opts.epic.body,
         },
-        features: [],
+        stories: [],
       };
     };
 
@@ -362,7 +351,7 @@ describe('runDecomposePhase — Epic body preservation (Story #2283)', () => {
           title: opts.epic.title,
           body: opts.epic.body,
         },
-        features: [],
+        stories: [],
       };
     };
 

@@ -52,18 +52,10 @@ function epicManifest(overrides = {}) {
   };
 }
 
-test('formatter: feature containers row when features present', () => {
+test('formatter: never renders a Feature Containers section (2-tier)', () => {
   const manifest = epicManifest();
-  manifest.storyManifest.push({
-    storyId: 300,
-    storySlug: 'container',
-    type: 'feature',
-    earliestWave: -1,
-    branchName: 'feature-300',
-  });
   const md = formatManifestMarkdown(manifest);
-  assert.ok(md.includes('## Feature Containers'));
-  assert.ok(md.includes('#300'));
+  assert.ok(!md.includes('## Feature Containers'));
 });
 
 test('formatter: renderManifestMarkdown alias matches formatManifestMarkdown', () => {
@@ -124,19 +116,13 @@ test('formatter: printStoryDispatchTable writes to injected logger', () => {
         type: 'story',
         earliestWave: 0,
       },
-      {
-        storyId: 200,
-        storySlug: 'container',
-        type: 'feature',
-        earliestWave: -1,
-      },
     ],
     { logger },
   );
   const flat = lines.join('\n');
   assert.ok(flat.includes('📋 STORY DISPATCH TABLE'));
   assert.ok(flat.includes('#101'));
-  assert.ok(flat.includes('📦 Feature Containers'));
+  assert.ok(!flat.includes('📦 Feature Containers'));
   // No residual Tasks column or orphaned-tasks feature line.
   assert.ok(!flat.includes('Tasks'));
   assert.ok(!flat.includes('orphaned'));

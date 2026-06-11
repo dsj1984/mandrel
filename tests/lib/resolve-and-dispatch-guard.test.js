@@ -56,7 +56,7 @@ describe('resolveAndDispatch — conflicting type-label guard', () => {
     );
   });
 
-  it('refuses to dispatch a Feature container directly', async () => {
+  it('refuses to dispatch a retired type::feature ticket (unrecognised type)', async () => {
     const provider = new MockProvider({
       tickets: {
         77: {
@@ -71,8 +71,7 @@ describe('resolveAndDispatch — conflicting type-label guard', () => {
     await assert.rejects(
       () => resolveAndDispatch({ ticketId: 77, provider, dryRun: true }),
       (err) => {
-        assert.match(err.message, /Feature/);
-        assert.match(err.message, /cannot be executed directly/);
+        assert.match(err.message, /Only "epic" or "story" tickets/);
         return true;
       },
     );

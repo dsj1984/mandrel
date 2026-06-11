@@ -24,7 +24,7 @@
  *                                Best-effort and self-scoped: a no-op once the
  *                                Epic was reassigned elsewhere.
  *   - `assertNoOpenPlanChildren` — refuse Phase 8 persist when the Epic already
- *                                has open Feature/Story children, unless the
+ *                                has open Story children, unless the
  *                                operator passed `--force` (a deliberate
  *                                re-decompose that closes the old tree).
  *
@@ -355,7 +355,7 @@ export async function assertNoOpenPlanChildren({
         : '';
     throw new Error(
       `[epic-plan-decompose] Epic #${epicId} already has ` +
-        `${openChildren.length} open Feature/Story child ticket(s):\n${summary}${more}\n\n` +
+        `${openChildren.length} open Story child ticket(s):\n${summary}${more}\n\n` +
         `Persisting now would duplicate the breakdown. Re-run with --force to ` +
         `close the existing tree and re-decompose, or close the stale children ` +
         `by hand first.`,

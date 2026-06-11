@@ -403,15 +403,10 @@ describe('epic-plan-lease-guard — releaseEpicPlanLease', () => {
 // ---------------------------------------------------------------------------
 
 describe('epic-plan-lease-guard — assertNoOpenPlanChildren', () => {
-  it('throws when the Epic has open Feature/Story children and force is absent (AC3)', async () => {
+  it('throws when the Epic has open Story children and force is absent (AC3)', async () => {
     const provider = makeProvider({
       children: [
-        {
-          id: 11,
-          title: 'Feature A',
-          labels: ['type::feature'],
-          state: 'open',
-        },
+        { id: 11, title: 'Story A', labels: ['type::story'], state: 'open' },
         { id: 12, title: 'Story B', labels: ['type::story'], state: 'open' },
       ],
     });
@@ -419,7 +414,7 @@ describe('epic-plan-lease-guard — assertNoOpenPlanChildren', () => {
     await assert.rejects(
       assertNoOpenPlanChildren({ provider, epicId: 9, force: false }),
       (err) => {
-        assert.match(err.message, /already has 2 open Feature\/Story/);
+        assert.match(err.message, /already has 2 open Story/);
         assert.match(err.message, /--force/);
         return true;
       },
@@ -429,12 +424,7 @@ describe('epic-plan-lease-guard — assertNoOpenPlanChildren', () => {
   it('passes when force is set even with open children', async () => {
     const provider = makeProvider({
       children: [
-        {
-          id: 11,
-          title: 'Feature A',
-          labels: ['type::feature'],
-          state: 'open',
-        },
+        { id: 11, title: 'Story A', labels: ['type::story'], state: 'open' },
       ],
     });
     const result = await assertNoOpenPlanChildren({
@@ -445,10 +435,10 @@ describe('epic-plan-lease-guard — assertNoOpenPlanChildren', () => {
     assert.deepEqual(result.openChildren, []);
   });
 
-  it('passes when the Epic has no open Feature/Story children', async () => {
+  it('passes when the Epic has no open Story children', async () => {
     const provider = makeProvider({
       children: [
-        // context tickets are not Feature/Story — they must not trip the guard
+        // context tickets are not Stories — they must not trip the guard
         { id: 13, title: 'PRD', labels: ['context::prd'], state: 'open' },
       ],
     });

@@ -36,18 +36,11 @@ import { SpecNotFoundError } from '../../.agents/scripts/lib/spec/index.js';
 
 const MINIMAL_SPEC = {
   epic: { id: 7777, title: 'Dispatcher Routing Fixture' },
-  features: [
+  stories: [
     {
-      slug: 'feat-routing',
-      title: 'Routing Feature',
-      stories: [
-        {
-          slug: 'story-routing',
-          title: 'Routing Story',
-          wave: 0,
-          tasks: [{ slug: 'task-routing', title: 'Routing Task' }],
-        },
-      ],
+      slug: 'story-routing',
+      title: 'Routing Story',
+      wave: 0,
     },
   ],
 };
@@ -222,7 +215,7 @@ test('tryRenderFromSpec round-trips through the real loader against a sandbox sp
   // Epic #3163: Stories are leaves under the 2-tier hierarchy, so the
   // on-disk spec carries no Story.tasks[]. The real-loader round-trip
   // surfaces the Story with no per-Task body.
-  const yaml = `epic:\n  id: 7777\n  title: 'Dispatcher Routing Fixture'\nfeatures:\n  - slug: feat-routing\n    title: 'Routing Feature'\n    stories:\n      - slug: story-routing\n        title: 'Routing Story'\n        wave: 0\n`;
+  const yaml = `epic:\n  id: 7777\n  title: 'Dispatcher Routing Fixture'\nstories:\n  - slug: story-routing\n    title: 'Routing Story'\n    wave: 0\n`;
   writeFileSync(path.join(sandbox, '7777.yaml'), yaml, 'utf8');
   writeFileSync(
     path.join(sandbox, '7777.state.json'),

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-10T15:27:53.874Z",
+  "generatedAt": "2026-06-11T19:47:29.752Z",
   "generator": "generate-skills-index.js@1",
   "skills": [
     {
@@ -9,7 +9,10 @@
       "path": ".agents/skills/core/analyze-execution/SKILL.md",
       "description": "Aggregate per-Story or per-Epic execution signals into a structured perf-summary or perf-report and upsert it onto the corresponding GitHub ticket. Use after a Story closes (Story mode) or as part of `/epic-deliver` Phase 6 (Epic mode). Reads NDJSON via `lib/signals/read` and writes a single structured comment.",
       "policyCapsuleBullets": 8,
-      "allowedTools": ["Read", "Bash"],
+      "allowedTools": [
+        "Read",
+        "Bash"
+      ],
       "vendor": null
     },
     {
@@ -29,7 +32,11 @@
       "path": ".agents/skills/core/baseline-refresh/SKILL.md",
       "description": "Author a refresh commit for any of the unified-baseline snapshots (CRAP, maintainability, dead-exports, lighthouse). Use whenever an intentional code change resets a baseline key (rename, deliberate complexity bump, perf regression with operator sign-off) and the close-validation chain needs the refreshed snapshot to land on the same Story branch as the triggering edit.",
       "policyCapsuleBullets": 10,
-      "allowedTools": ["Read", "Write", "Bash"],
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Bash"
+      ],
       "vendor": null
     },
     {
@@ -109,7 +116,10 @@
       "path": ".agents/skills/core/diagnose-friction/SKILL.md",
       "description": "Wrap a shell command with diagnostic capture. On failure, print static suggestions and append a structured `friction` record to the per-Story signals.ndjson stream. Use whenever a script in the orchestration loop invokes a tool whose failure shape we want the analyzer to attribute.",
       "policyCapsuleBullets": 8,
-      "allowedTools": ["Bash", "Read"],
+      "allowedTools": [
+        "Bash",
+        "Read"
+      ],
       "vendor": null
     },
     {
@@ -127,9 +137,13 @@
       "tier": "core",
       "category": "core",
       "path": ".agents/skills/core/epic-plan-consolidate/SKILL.md",
-      "description": "Run a holistic, pre-persist consolidation pass over the draft Feature/Story ticket array an Epic's decompose phase produced. Use during Phase 8 of `/epic-plan`, after `epic-plan-decompose-author` writes `temp/epic-<Epic_ID>/tickets.json` and before `epic-plan-decompose.js` validates and persists it. Reconciles the draft against the Tech Spec \"Delivery Slicing\" target via scope-preserving operations only.",
-      "policyCapsuleBullets": 9,
-      "allowedTools": ["Read", "Write", "Bash"],
+      "description": "Run a holistic, pre-persist consolidation pass over the draft Story ticket array an Epic's decompose phase produced. Use during Phase 8 of `/epic-plan`, after `epic-plan-decompose-author` writes `temp/epic-<Epic_ID>/tickets.json` and before `epic-plan-decompose.js` validates and persists it. Reconciles the draft against the Tech Spec \"Delivery Slicing\" target via scope-preserving operations only.",
+      "policyCapsuleBullets": 8,
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Bash"
+      ],
       "vendor": null
     },
     {
@@ -137,9 +151,13 @@
       "tier": "core",
       "category": "core",
       "path": ".agents/skills/core/epic-plan-decompose-author/SKILL.md",
-      "description": "Author the Feature/Story ticket JSON for an Epic from the decomposer authoring context emitted by `epic-plan-decompose.js --emit-context`. Use during Phase 8 of `/epic-plan` when the host LLM needs to write the ticket array before `epic-plan-decompose.js` validates and persists it.",
+      "description": "Author the Story ticket JSON for an Epic from the decomposer authoring context emitted by `epic-plan-decompose.js --emit-context`. Use during Phase 8 of `/epic-plan` when the host LLM needs to write the ticket array before `epic-plan-decompose.js` validates and persists it.",
       "policyCapsuleBullets": 12,
-      "allowedTools": ["Read", "Write", "Bash"],
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Bash"
+      ],
       "vendor": null
     },
     {
@@ -149,7 +167,11 @@
       "path": ".agents/skills/core/epic-plan-spec-author/SKILL.md",
       "description": "Author the PRD, Tech Spec, Acceptance Spec markdown, and risk-verdict JSON for an Epic from the planner authoring context emitted by `epic-plan-spec.js --emit-context`. Use during Phase 7 of `/epic-plan` when the host LLM needs to write the four artifacts before `epic-plan-spec.js` persists them.",
       "policyCapsuleBullets": 12,
-      "allowedTools": ["Read", "Write", "Bash"],
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Bash"
+      ],
       "vendor": null
     },
     {
@@ -179,7 +201,10 @@
       "path": ".agents/skills/core/hydrate-context/SKILL.md",
       "description": "Hydrate a Task or Story ticket into a structured ContextEnvelope (or the legacy `{ prompt }` stdout wrapper). Reads the ticket body, parses Feature / Epic hierarchy, fetches the Tech Spec + PRD, and assembles named sections with provenance and section-aware elision. Successor to the retired mandrel MCP `context.hydrate` tool.",
       "policyCapsuleBullets": 7,
-      "allowedTools": ["Read", "Bash"],
+      "allowedTools": [
+        "Read",
+        "Bash"
+      ],
       "vendor": null
     },
     {
@@ -269,7 +294,10 @@
       "path": ".agents/skills/core/qa-coverage-mapping/SKILL.md",
       "description": "Map a quality finding to a per-tier coverage verdict (unit / contract / acceptance) aligned to `.agents/rules/testing-standards.md`. Use when a finding points at a symbol or surface and you need to know which test tiers already cover it and which are missing, so remediation lands the right tier. Delegates the verdict to the deterministic `lib/qa/coverage-verdict.js#coverageVerdict` helper.",
       "policyCapsuleBullets": 7,
-      "allowedTools": ["Read", "Bash"],
+      "allowedTools": [
+        "Read",
+        "Bash"
+      ],
       "vendor": null
     },
     {

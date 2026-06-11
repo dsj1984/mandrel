@@ -53,14 +53,17 @@ describe('skill:epic-plan-decompose-author — smoke', () => {
             'Skill body must reference temp/epic-<Epic_ID>/tickets.json output path',
           );
         }
-        // The two hierarchy levels are non-negotiable inputs to the
-        // ticket validator (2-tier: Feature → Story, no Task tier).
-        for (const level of ['Features', 'Stories']) {
-          if (!new RegExp(`\\b${level}\\b`).test(body)) {
-            errors.push(
-              `Skill body must describe the "${level}" level of the hierarchy`,
-            );
-          }
+        // The Story level is the only ticket tier the validator accepts
+        // (2-tier: Epic → Story, no Feature or Task tier).
+        if (!/\bStories\b/.test(body)) {
+          errors.push(
+            'Skill body must describe the "Stories" level of the hierarchy',
+          );
+        }
+        if (!/no Feature/i.test(body)) {
+          errors.push(
+            'Skill body must state there is no Feature tier (Story #4041)',
+          );
         }
         if (!/JSON array/i.test(body)) {
           errors.push('Skill body must require a JSON-array output shape');
@@ -219,36 +222,10 @@ describe('skill:epic-plan-decompose-author — smoke', () => {
             'Skill body must say a single-consumer Story is merged into that sibling (Story #3777)',
           );
         }
-        // Story #3777 — the single-Story-Feature HARD rejection.
-        if (
-          !/Feature MUST (decompose into|contain) (at least )?(two|TWO)/i.test(
-            body,
-          )
-        ) {
-          errors.push(
-            'Skill body must require every Feature to decompose into at least two Stories (Story #3777)',
-          );
-        }
         // Story #3263 — SKILL must document hyphen-case slug format.
         if (!/hyphen[-\s]case|\\^\\[a-z0-9\\]|a-z0-9.*-/i.test(body)) {
           errors.push(
             'Skill body must document hyphen-case slug format (Story #3263)',
-          );
-        }
-        // Story #3797 — rec #2: a single-Story Feature is resolved by
-        // COLLAPSING into a sibling, never by manufacturing a second Story.
-        if (!/COLLAPSING, not splitting|collapse.*not split/i.test(body)) {
-          errors.push(
-            'Skill body must say single-Story Features are resolved by collapsing, not splitting (Story #3797)',
-          );
-        }
-        if (
-          !/Do NOT manufacture a second Story|never by manufacturing|not by splitting/i.test(
-            body,
-          )
-        ) {
-          errors.push(
-            'Skill body must forbid manufacturing a second Story to satisfy the rule (Story #3797)',
           );
         }
         // Story #3797 — the decompose-author consumes the Tech Spec

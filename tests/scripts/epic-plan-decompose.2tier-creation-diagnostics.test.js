@@ -6,7 +6,7 @@
 // Guarantee pinned here:
 //
 //   `reportPartialFailure` (diagnostics.js) emits no log line that
-//   mentions "Tasks" when the Epic carries only Feature + Story
+//   mentions "Tasks" when the Epic carries only Story
 //   children. The 2-tier diagnostics surface must not surface a
 //   "missing Tasks" warning — diagnostics is type-agnostic and
 //   counts all child types together.
@@ -36,15 +36,15 @@ describe('reportPartialFailure — 2-tier no "missing Tasks" warning (Story #312
     };
   }
 
-  it('does not emit any "Tasks" wording when the Epic has only Feature + Story children (2-tier)', async () => {
+  it('does not emit any "Tasks" wording when the Epic has only Story children (2-tier)', async () => {
     const provider = {
       async getEpic() {
         return { id: EPIC_ID, labels: ['type::epic', 'agent::executing'] };
       },
       async getSubTickets() {
-        // 2-tier: Feature + Story only, no Task children.
+        // 2-tier: Stories only, no Feature or Task children.
         return [
-          { id: 9121, title: 'F1', labels: ['type::feature'], state: 'open' },
+          { id: 9121, title: 'S0', labels: ['type::story'], state: 'open' },
           { id: 9122, title: 'S1', labels: ['type::story'], state: 'open' },
         ];
       },
