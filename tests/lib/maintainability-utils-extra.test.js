@@ -11,14 +11,16 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
+import { getBaseline } from '../../.agents/scripts/lib/baselines/maintainability-baseline-io.js';
+import { saveBaseline } from '../../.agents/scripts/lib/baselines/maintainability-baseline-save.js';
 import {
   calculateAll,
-  getBaseline,
-  resolveTsTranspilerVersion,
-  saveBaseline,
   scanDirectory,
-  transpileIfNeeded,
 } from '../../.agents/scripts/lib/maintainability-utils.js';
+import {
+  resolveTsTranspilerVersion,
+  transpileIfNeeded,
+} from '../../.agents/scripts/lib/transpile.js';
 
 let tmp;
 beforeEach(() => {

@@ -7,7 +7,7 @@ import {
   calculateForFile,
   calculateReportForFile,
 } from '../.agents/scripts/lib/maintainability-engine.js';
-import { transpileIfNeeded } from '../.agents/scripts/lib/maintainability-utils.js';
+import { transpileIfNeeded } from '../.agents/scripts/lib/transpile.js';
 
 /**
  * Acceptance criterion (Story #829, 5.29.0): the maintainability score

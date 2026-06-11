@@ -15,9 +15,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
-
+import { saveBaseline } from '../../.agents/scripts/lib/baselines/maintainability-baseline-save.js';
 import { loadFile as loadBaselineFile } from '../../.agents/scripts/lib/baselines/reader.js';
-import { saveBaseline } from '../../.agents/scripts/lib/maintainability-utils.js';
 
 describe('maintainability writer/reader round-trip', () => {
   let dir;

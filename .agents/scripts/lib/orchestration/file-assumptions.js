@@ -25,8 +25,9 @@
  * therefore validates each Story against the **simulated post-predecessor
  * tree** — base-branch existence overlaid with the create/delete delta of
  * the Story's transitive `depends_on` predecessors (the same reachability
- * walk the conflict gate uses, imported from `ticket-validator-conflicts.js`
- * rather than re-derived). Two extra wave-aware rules layer on top of the
+ * walk the conflict gate uses, imported from the shared
+ * `story-reachability.js` leaf rather than re-derived). Two extra
+ * wave-aware rules layer on top of the
  * base-branch rules:
  *   - `creates`            + path created by a **predecessor** → mismatch
  *     (`expected: 'refactors-existing'`) telling the planner to declare
@@ -48,8 +49,8 @@
 import { gitSpawn } from '../git-utils.js';
 import { parse as parseStoryBody } from '../story-body/story-body.js';
 import { FILE_ASSUMPTION_VALUES } from './file-assumption-enum.js';
+import { computeStoryReachability } from './story-reachability.js';
 import { isObjectPathEntry } from './task-body-validator.js';
-import { computeStoryReachability } from './ticket-validator-conflicts.js';
 
 /**
  * Default git probe — returns `true` when `path` exists at

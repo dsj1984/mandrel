@@ -9,11 +9,8 @@ import {
 import { POOL_SERIAL_THRESHOLD, runOnPool } from './cpu-pool.js';
 import { crapFormula } from './crap-engine.js';
 import { Logger } from './Logger.js';
-import {
-  resolveTsTranspilerVersion,
-  scanDirectory,
-  transpileIfNeeded,
-} from './maintainability-utils.js';
+import { scanDirectory } from './maintainability-utils.js';
+import { resolveTsTranspilerVersion, transpileIfNeeded } from './transpile.js';
 
 const CRAP_WORKER_URL = new URL('./workers/crap-worker.js', import.meta.url);
 

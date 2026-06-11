@@ -20,7 +20,7 @@
 
 import { readBaselineAtRef } from '../../baseline-loader.js';
 import { loadBaseline } from '../../gates/baseline-store.js';
-import { getBaseline } from '../../maintainability-utils.js';
+import { getBaseline } from '../maintainability-baseline-io.js';
 import { canonicalise } from '../path-canon.js';
 import { percentile } from './_shared-metric.js';
 import { kernelVersion as crapKernelVersion } from './crap.js';

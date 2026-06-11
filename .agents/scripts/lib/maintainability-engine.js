@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import escomplex from 'typhonjs-escomplex';
-import { transpileIfNeeded } from './maintainability-utils.js';
+import { transpileIfNeeded } from './transpile.js';
 
 /**
  * Calculates the maintainability score of a JavaScript source file or string.

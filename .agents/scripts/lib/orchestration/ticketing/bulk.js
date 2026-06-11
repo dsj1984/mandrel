@@ -8,11 +8,15 @@
  * Story #1848 so the verb-family split (`reads` / `state` / `bulk`) is
  * complete and the parent collapses to a pure re-export facade.
  *
- * Note on the cycle with `./state.js`: `cascadeCompletion` recursively
- * calls `transitionTicketState`, which in turn — when the cascade flag is
- * on — calls back into `cascadeCompletion`. ESM tolerates the cycle
- * because every binding is resolved at call-time. Both modules complete
- * evaluation before any of their exported functions run.
+ * Story #3995 — the single-ticket mutators (`transitionTicketState`,
+ * `toggleTasklistCheckbox`, `postStructuredComment`) moved to the leaf
+ * `./transition.js`, so this module now depends **downward** on
+ * `transition.js` and the former `state.js ↔ bulk.js` import cycle is
+ * gone. `cascadeCompletion` still recursively transitions parents via
+ * the imported `transitionTicketState`; the reverse call
+ * (`transitionTicketState → cascadeParentState`) is injected into
+ * `transition.js` by `state.js` via `registerCascadeRunner` rather than
+ * imported, which is what keeps the graph acyclic.
  */
 
 import { Logger } from '../../Logger.js';
@@ -23,7 +27,7 @@ import {
   postStructuredComment,
   toggleTasklistCheckbox,
   transitionTicketState,
-} from './state.js';
+} from './transition.js';
 
 // Re-export `groupByAncestor` so external callers that imported it from
 // the ticketing facade continue to work after the verb-family split.
