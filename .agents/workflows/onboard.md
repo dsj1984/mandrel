@@ -46,9 +46,10 @@ genuinely missing, and `mandrel doctor` is read-only).
 ## Prerequisites
 
 1. Mandrel installed and bootstrapped into the project. The zero-to-installed
-   path is `npx create-mandrel`, which installs the `mandrel`
-   package, runs `mandrel sync` to materialize the `.agents/` bundle, and then
-   execs `.agents/scripts/bootstrap.js` to provision the project (labels,
+   path is `npx mandrel init`, which installs the `mandrel`
+   package (when absent), runs `mandrel sync` to materialize the `.agents/`
+   bundle, and then — on the **configure now** prompt option — execs
+   `.agents/scripts/bootstrap.js` to provision the project (labels,
    board, `.agentrc.json` seed). `/onboard` runs **after** that bootstrap
    completes — it does not invoke `bootstrap.js` itself, so the coupling is
    indirect: bootstrap owns first-time provisioning, `/onboard` owns the

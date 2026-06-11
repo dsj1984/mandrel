@@ -31,11 +31,11 @@ package-manager combinations.
 
 ## Quickstart
 
-The canonical cold-start path is one launcher command, then two slash
+The canonical cold-start path is one command, then two slash
 commands inside Claude Code:
 
 ```bash
-npx create-mandrel        # install mandrel → sync → bootstrap
+npx mandrel init        # install mandrel → sync → prompt → bootstrap
 ```
 
 ```text
@@ -44,18 +44,23 @@ npx create-mandrel        # install mandrel → sync → bootstrap
 /epic-plan          # ideation -> PRD/Tech Spec -> Epic/Feature/Story hierarchy
 ```
 
-`create-mandrel` installs `mandrel`, materializes `./.agents/` via
-`mandrel sync`, and runs `node .agents/scripts/bootstrap.js` for you,
-forwarding any flags you pass. `/onboard` then walks you from a clean
-checkout to a planned Epic (stack detection, docs scaffolding, a
+`npx mandrel init` installs `mandrel` (when `./.agents/` is absent),
+materializes it via `mandrel sync`, then asks whether to **configure now**
+(option 1 → runs `node .agents/scripts/bootstrap.js`, forwarding any flags you
+pass) or stop at **just the files** (option 2 → re-run `mandrel init` any time
+to configure). Pass `--assume-yes` for a non-interactive run that proceeds
+straight to configure (and forwards the flag to bootstrap). When `./.agents/`
+is already present (you ran `npm install mandrel` first), `init` skips the
+install/sync and goes straight to the prompt. `/onboard` then walks you from a
+clean checkout to a planned Epic (stack detection, docs scaffolding, a
 `mandrel doctor` readiness gate, and a started `/epic-plan`). Once you have a
 planned Epic, deliver it with `/epic-deliver <id>` (wave loop → validation →
 review → retro → open PR).
 
 ### Manual equivalent
 
-If you prefer to drive the three steps `create-mandrel` wraps by hand, run
-them from your project root:
+If you prefer to drive the steps `mandrel init` wraps by hand, run them from
+your project root:
 
 ```bash
 npm install mandrel   # pin an exact, provenance-signed version
