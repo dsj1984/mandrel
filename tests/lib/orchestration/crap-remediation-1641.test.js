@@ -68,27 +68,17 @@ describe('progress-reporter.phaseToState', () => {
 function buildMinimalBacklog() {
   return [
     {
-      slug: 'feat-x',
-      type: 'feature',
-      title: 'feat X',
-      depends_on: [],
-    },
-    {
       slug: 'story-x',
       type: 'story',
       title: 'story X',
-      parent_slug: 'feat-x',
       depends_on: [],
       acceptance: ['story X is implemented'],
       verify: ['node --test'],
     },
-    // Story #3777 — a Feature MUST carry >=2 Stories, so the minimal valid
-    // backlog has a second well-formed Story under feat-x.
     {
       slug: 'story-x2',
       type: 'story',
       title: 'story X2',
-      parent_slug: 'feat-x',
       depends_on: [],
       acceptance: ['story X2 is implemented'],
       verify: ['node --test'],
@@ -113,21 +103,20 @@ describe('ticket-validator.validateAndNormalizeTickets — error branches', () =
       slug: 'story-x',
       type: 'story',
       title: 'dup',
-      parent_slug: 'feat-x',
       acceptance: ['a'],
       verify: ['v'],
     });
     assert.throws(() => validateAndNormalizeTickets(b), /Duplicate slug/);
   });
 
-  it('throws when no Feature is present', () => {
-    const b = buildMinimalBacklog().filter((t) => t.type !== 'feature');
-    assert.throws(() => validateAndNormalizeTickets(b), /at least one Feature/);
+  it('throws when a non-Story ticket is present', () => {
+    const b = buildMinimalBacklog();
+    b.push({ slug: 'feat-x', type: 'feature', title: 'feat X' });
+    assert.throws(() => validateAndNormalizeTickets(b), /are not Stories/);
   });
 
   it('throws when no Story is present', () => {
-    const b = buildMinimalBacklog().filter((t) => t.type !== 'story');
-    assert.throws(() => validateAndNormalizeTickets(b), /at least one Story/);
+    assert.throws(() => validateAndNormalizeTickets([]), /at least one Story/);
   });
 
   it('throws when a Story lacks an inline acceptance + verify contract', () => {
@@ -140,31 +129,6 @@ describe('ticket-validator.validateAndNormalizeTickets — error branches', () =
     assert.throws(
       () => validateAndNormalizeTickets(b),
       /lack an inline acceptance \+ verify contract/,
-    );
-  });
-
-  it('throws on Story without parent_slug', () => {
-    const b = buildMinimalBacklog();
-    b.find((t) => t.type === 'story').parent_slug = undefined;
-    assert.throws(
-      () => validateAndNormalizeTickets(b),
-      /Story "story X" must have a parent_slug/,
-    );
-  });
-
-  it('throws on Story whose parent is not a Feature', () => {
-    const b = buildMinimalBacklog();
-    b.push({
-      slug: 'story-z',
-      type: 'story',
-      title: 'story Z',
-      parent_slug: 'story-x',
-      acceptance: ['a'],
-      verify: ['v'],
-    });
-    assert.throws(
-      () => validateAndNormalizeTickets(b),
-      /Story "story Z" parent must be a Feature/,
     );
   });
 
@@ -184,7 +148,6 @@ describe('ticket-validator.validateAndNormalizeTickets — error branches', () =
       slug: 'story-y',
       type: 'story',
       title: 'story Y',
-      parent_slug: 'feat-x',
       depends_on: ['story-x'],
       acceptance: ['a'],
       verify: ['v'],
