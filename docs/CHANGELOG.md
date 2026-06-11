@@ -2,6 +2,45 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.59.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.58.0...mandrel-v1.59.0) (2026-06-11)
+
+
+### Added
+
+* **cli:** add `mandrel init` one-command cold start (refs [#3975](https://github.com/dsj1984/mandrel/issues/3975)) ([#3976](https://github.com/dsj1984/mandrel/issues/3976)) ([158ebc7](https://github.com/dsj1984/mandrel/commit/158ebc75eed659e31037950dcfbedf7900bd77a7))
+* **quality:** add check:arch import-cycle ratchet gate to the lint surface (refs [#3991](https://github.com/dsj1984/mandrel/issues/3991)) ([#4010](https://github.com/dsj1984/mandrel/issues/4010)) ([dec347a](https://github.com/dsj1984/mandrel/commit/dec347aa0a6e9d74b2eeef9ee1b9cfe5df081abb))
+* **workflows:** add /audit-documentation lens for doc staleness, drift, and completeness (refs [#4024](https://github.com/dsj1984/mandrel/issues/4024)) ([#4029](https://github.com/dsj1984/mandrel/issues/4029)) ([b2087d1](https://github.com/dsj1984/mandrel/commit/b2087d1982b9c60148a52ae6ae972f3b5580429b))
+
+
+### Fixed
+
+* **cli:** resolve `mandrel init` sync step to the local bin (refs [#4016](https://github.com/dsj1984/mandrel/issues/4016)) ([#4022](https://github.com/dsj1984/mandrel/issues/4022)) ([f97e207](https://github.com/dsj1984/mandrel/commit/f97e20707f54bbe56089f573bbe66ae60c710f70))
+* **worktree:** probe reused worktrees for completed installs and shield self/ancestors from force-drain taskkill (refs [#4018](https://github.com/dsj1984/mandrel/issues/4018)) ([#4025](https://github.com/dsj1984/mandrel/issues/4025)) ([d015375](https://github.com/dsj1984/mandrel/commit/d015375d52d31a181a1c4e0fb89540d6498aab63))
+
+
+### Performance
+
+* `analyze-execution` retro reader fetches Story comments N+1 and serially ([#3990](https://github.com/dsj1984/mandrel/issues/3990)) ([#4009](https://github.com/dsj1984/mandrel/issues/4009)) ([6962d22](https://github.com/dsj1984/mandrel/commit/6962d22d541a58609125441c01f28722ba098ff8))
+* `getTickets(epicId)` paginates the entire repository's issues and hits a hard cap cliff at ~5 000 issues ([#3988](https://github.com/dsj1984/mandrel/issues/3988)) ([#4005](https://github.com/dsj1984/mandrel/issues/4005)) ([fd57005](https://github.com/dsj1984/mandrel/commit/fd57005d5b75ad12265b9efbab25b1f137e833fc))
+* finish the stalled decomposition of lib/close-validation.js ([#3994](https://github.com/dsj1984/mandrel/issues/3994)) ([#4014](https://github.com/dsj1984/mandrel/issues/4014)) ([9e712dd](https://github.com/dsj1984/mandrel/commit/9e712dd4480e0c59c914a7277a391c5ff86239af))
+* **scripts:** platform-aware test chunking and parallel hierarchy-gate BFS (refs [#3989](https://github.com/dsj1984/mandrel/issues/3989)) ([#4013](https://github.com/dsj1984/mandrel/issues/4013)) ([f008da3](https://github.com/dsj1984/mandrel/commit/f008da31b50e07ad773fd8a10067fa31c8b2d502))
+* **test:** make worktree-reap retry timing injectable to kill real sleeps (refs [#3987](https://github.com/dsj1984/mandrel/issues/3987)) ([#4001](https://github.com/dsj1984/mandrel/issues/4001)) ([18390e8](https://github.com/dsj1984/mandrel/commit/18390e8e6e7d3593960984995bb63550f508375a))
+
+
+### Changed
+
+* `progress-reporter.js` facade is a live shim with a mostly-dead surface ([#3985](https://github.com/dsj1984/mandrel/issues/3985)) ([#4002](https://github.com/dsj1984/mandrel/issues/4002)) ([bb7fd6d](https://github.com/dsj1984/mandrel/commit/bb7fd6d6c6ba095c7e9c06dc9408fe43d1dc1688))
+* **arch:** break the four import cycles under .agents/scripts; ratchet allowlist 4 → 0 (refs [#3995](https://github.com/dsj1984/mandrel/issues/3995)) ([#4015](https://github.com/dsj1984/mandrel/issues/4015)) ([e29d9d1](https://github.com/dsj1984/mandrel/commit/e29d9d128beb1a4d43d1b63a8e1ddfc9e1f30a2c))
+* architecture quick wins: _internal promotion, SERIAL_THRESHOLD hoist, PROJECT_ROOT leaf ([#3993](https://github.com/dsj1984/mandrel/issues/3993)) ([#4012](https://github.com/dsj1984/mandrel/issues/4012)) ([728b9b2](https://github.com/dsj1984/mandrel/commit/728b9b208cdf2b48ea0ac50e3997d6ec2720bb9b))
+* **orchestration:** extract shared lease-acquisition kernel from the three lease guards (refs [#3992](https://github.com/dsj1984/mandrel/issues/3992)) ([#4011](https://github.com/dsj1984/mandrel/issues/4011)) ([f93509d](https://github.com/dsj1984/mandrel/commit/f93509deac44bf64208fd889d1517419dc3f0096))
+* **orchestration:** throw instead of logger.fatal in story-close-recovery; hard-cutover runCodeReview to parameterized scope envelope (refs [#3980](https://github.com/dsj1984/mandrel/issues/3980)) ([#4000](https://github.com/dsj1984/mandrel/issues/4000)) ([ba68d09](https://github.com/dsj1984/mandrel/commit/ba68d09f59fac1b10b5ccc4b8652e9311066bc33))
+* **progress-signals:** extract shared component-drift walk from crap/maintainability detectors (refs [#3984](https://github.com/dsj1984/mandrel/issues/3984)) ([#3997](https://github.com/dsj1984/mandrel/issues/3997)) ([04b177c](https://github.com/dsj1984/mandrel/commit/04b177c2aea9f7e5f511ff86860a88880cbf3418))
+* **quality:** dedupe git retry loop and make coverage freshness content-aware (refs [#3982](https://github.com/dsj1984/mandrel/issues/3982)) ([#3998](https://github.com/dsj1984/mandrel/issues/3998)) ([91c0d07](https://github.com/dsj1984/mandrel/commit/91c0d07cf9e1f03401ff257cef59d70d739a6449))
+* remediate dead code / dead code (stale quality metadata) / dry / solid findings in baselines/duplication.json ([#3983](https://github.com/dsj1984/mandrel/issues/3983)) ([#4004](https://github.com/dsj1984/mandrel/issues/4004)) ([581204e](https://github.com/dsj1984/mandrel/commit/581204ec624b9a5c73d7753b0d556146246ce0e0))
+* **review-providers:** extract shared parseProviderFindings parser (refs [#3981](https://github.com/dsj1984/mandrel/issues/3981)) ([#3996](https://github.com/dsj1984/mandrel/issues/3996)) ([1f2a362](https://github.com/dsj1984/mandrel/commit/1f2a362c882aec63cf3ae7927dc6517111c5a9dd))
+* **story-close:** finish delivery-key rename, drop grep-evading legacy pipeline key (refs [#3986](https://github.com/dsj1984/mandrel/issues/3986)) ([#4003](https://github.com/dsj1984/mandrel/issues/4003)) ([dfdab6c](https://github.com/dsj1984/mandrel/commit/dfdab6c568568a392c5fe23e729b5e15c94f29d1))
+* **waves:** delete dead tick spec-path; extract shared story-adjacency builder (refs [#4020](https://github.com/dsj1984/mandrel/issues/4020)) ([#4026](https://github.com/dsj1984/mandrel/issues/4026)) ([963a777](https://github.com/dsj1984/mandrel/commit/963a7774e5e9f8c333b5de342edce5f7105b6bcc))
+
 ## [1.58.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.57.0...mandrel-v1.58.0) (2026-06-10)
 
 
