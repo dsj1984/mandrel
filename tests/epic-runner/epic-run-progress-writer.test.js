@@ -1,10 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import {
-  EPIC_RUN_PROGRESS_TYPE,
-  upsertEpicRunProgress,
-} from '../../.agents/scripts/lib/orchestration/epic-runner/progress-reporter.js';
+import { upsertEpicRunProgress } from '../../.agents/scripts/lib/orchestration/epic-runner/progress-reporter/composition.js';
+import { EPIC_RUN_PROGRESS_TYPE } from '../../.agents/scripts/lib/orchestration/epic-runner/progress-reporter/signals.js';
 import { structuredCommentMarker } from '../../.agents/scripts/lib/orchestration/ticketing.js';
 
 function buildProvider(initialComments = []) {

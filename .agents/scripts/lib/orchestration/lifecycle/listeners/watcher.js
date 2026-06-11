@@ -109,7 +109,7 @@ export const extractPrNumber = parsePrNumberFromUrl;
  *
  * Exported so tests can stub.
  */
-export function ghPrChecks({ prUrl, cwd, spawnFn = spawnSync }) {
+function ghPrChecks({ prUrl, cwd, spawnFn = spawnSync }) {
   const result = spawnFn(
     'gh',
     [
@@ -134,7 +134,7 @@ export function ghPrChecks({ prUrl, cwd, spawnFn = spawnSync }) {
  * can detect the BEHIND condition (PR head is behind its base branch)
  * AFTER every required check is green. Exported so tests can stub.
  */
-export function ghPrView({ prUrl, cwd, spawnFn = spawnSync }) {
+function ghPrView({ prUrl, cwd, spawnFn = spawnSync }) {
   const result = spawnFn(
     'gh',
     ['pr', 'view', prUrl, '--json', 'mergeStateStatus'],
@@ -154,7 +154,7 @@ export function ghPrView({ prUrl, cwd, spawnFn = spawnSync }) {
  * BEHIND" (the conservative recovery branch). Pure — exported for
  * tests.
  */
-export function parseMergeStateStatus(stdout) {
+function parseMergeStateStatus(stdout) {
   const trimmed = String(stdout ?? '').trim();
   if (trimmed.length === 0) return '';
   try {
@@ -172,7 +172,7 @@ export function parseMergeStateStatus(stdout) {
  * loop to fast-forward the PR head with its base branch. Exported so
  * tests can stub and assert call counts.
  */
-export function ghPrUpdateBranch({ prUrl, cwd, spawnFn = spawnSync }) {
+function ghPrUpdateBranch({ prUrl, cwd, spawnFn = spawnSync }) {
   const result = spawnFn('gh', ['pr', 'update-branch', prUrl], {
     cwd,
     encoding: 'utf-8',
@@ -192,7 +192,7 @@ export function ghPrUpdateBranch({ prUrl, cwd, spawnFn = spawnSync }) {
  * the same definition as the downstream predicate. Pure — exported
  * for tests.
  */
-export const GREEN_CHECK_OUTCOMES = Object.freeze(
+const GREEN_CHECK_OUTCOMES = Object.freeze(
   new Set(['success', 'neutral', 'skipped']),
 );
 
@@ -202,7 +202,7 @@ export const GREEN_CHECK_OUTCOMES = Object.freeze(
  * regardless of mergeStateStatus, so we never auto-recover into a
  * failing PR.
  */
-export function allGreen(outcomes) {
+function allGreen(outcomes) {
   const values = Object.values(outcomes);
   if (values.length === 0) return false;
   for (const v of values) {
@@ -271,7 +271,7 @@ export function allTerminal(outcomes) {
  * behaviour is reviewable. Called only when the poll loop exits via
  * the iteration cap.
  */
-export function promotePendingToTimedOut(outcomes) {
+function promotePendingToTimedOut(outcomes) {
   const out = {};
   for (const [k, v] of Object.entries(outcomes)) {
     out[k] = v === 'pending' ? 'timed_out' : v;

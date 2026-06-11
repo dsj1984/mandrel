@@ -24,7 +24,7 @@ import { EPIC_RUN_PROGRESS_TYPE, STATE_EMOJI } from './signals.js';
  * (`…`) when the string was longer. Returns the empty string for any
  * falsy input so table cells never render `undefined`/`null`.
  */
-export function truncate(s, n) {
+function truncate(s, n) {
   if (!s) return '';
   return s.length > n ? `${s.slice(0, n - 1)}…` : s;
 }

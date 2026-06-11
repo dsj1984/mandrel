@@ -6,7 +6,7 @@ import {
   coverageForMethodInEntry,
   findCoverageEntry,
 } from './coverage-utils.js';
-import { runOnPool } from './cpu-pool.js';
+import { POOL_SERIAL_THRESHOLD, runOnPool } from './cpu-pool.js';
 import { crapFormula } from './crap-engine.js';
 import { Logger } from './Logger.js';
 import {
@@ -17,11 +17,9 @@ import {
 
 const CRAP_WORKER_URL = new URL('./workers/crap-worker.js', import.meta.url);
 
-// Below this batch size the pool's spawn overhead dominates — fall
-// back to in-process serial scoring. The full repo (~200+ files)
-// always takes the pool path; tests with handful-of-files fixtures
-// stay serial and remain byte-identical to the pre-pool output.
-const SERIAL_THRESHOLD = 8;
+// Pool-vs-serial cutover — single-sourced in cpu-pool.js (see the
+// POOL_SERIAL_THRESHOLD docstring for the tuning rationale).
+const SERIAL_THRESHOLD = POOL_SERIAL_THRESHOLD;
 // 1.1.0 — TypeScript support landed in 5.29.0. Bumped from 1.0.0 because
 // the scanner now emits CRAP rows for TS/TSX paths that the previous
 // kernel could never reach. The CRAP formula and per-method scoring

@@ -69,6 +69,15 @@ const tasks = [
     cmd: 'node',
     args: ['.agents/scripts/lint-label-vocabulary.js'],
   },
+  {
+    // Architecture cycle ratchet (Story #3991). Detects directed import
+    // cycles under `.agents/scripts/` and fails on any cycle not in the
+    // committed allowlist (`baselines/arch-cycles.json`). Mirrors the
+    // ratchet-down semantics of `check-dead-exports.js`.
+    name: 'arch-cycles',
+    cmd: 'node',
+    args: ['.agents/scripts/check-arch-cycles.js'],
+  },
 ];
 
 function runTask({ name, cmd, args }) {

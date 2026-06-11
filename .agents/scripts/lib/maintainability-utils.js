@@ -7,7 +7,7 @@ import {
   write as writeBaselineEnvelope,
   writeFile as writeBaselineFile,
 } from './baselines/writer.js';
-import { runOnPool } from './cpu-pool.js';
+import { POOL_SERIAL_THRESHOLD, runOnPool } from './cpu-pool.js';
 import { Logger } from './Logger.js';
 import { calculateForFile } from './maintainability-engine.js';
 
@@ -18,11 +18,9 @@ const MAINTAINABILITY_WORKER_URL = new URL(
   import.meta.url,
 );
 
-// Below this batch size the pool's spawn overhead dominates — fall back
-// to in-process serial scoring for `--changed-since` runs that touch
-// only a handful of files. Tuned against the test suite's tmpdir
-// fixtures (n=2 stays serial; the full repo n≈470 takes the pool path).
-const SERIAL_THRESHOLD = 8;
+// Pool-vs-serial cutover — single-sourced in cpu-pool.js (see the
+// POOL_SERIAL_THRESHOLD docstring for the tuning rationale).
+const SERIAL_THRESHOLD = POOL_SERIAL_THRESHOLD;
 
 const JS_EXTS = new Set(['.js', '.mjs', '.cjs']);
 const TS_EXTS = new Set(['.ts', '.tsx', '.mts', '.cts']);

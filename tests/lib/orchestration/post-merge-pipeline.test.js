@@ -301,7 +301,7 @@ describe('worktreeReapPhase', () => {
     const { factory, calls } = makeWmFactory();
     const { events, fn } = captureProgress();
     const result = await worktreeReapPhase({
-      orchestration: { worktreeIsolation: { enabled: false } },
+      delivery: { worktreeIsolation: { enabled: false } },
       storyId: 1,
       epicBranch: 'epic/9',
       repoRoot: '/repo',
@@ -323,7 +323,7 @@ describe('worktreeReapPhase', () => {
     const { factory, calls } = makeWmFactory();
     const { events, fn } = captureProgress();
     const result = await worktreeReapPhase({
-      orchestration: {
+      delivery: {
         worktreeIsolation: { enabled: true, reapOnSuccess: false },
       },
       storyId: 1,
@@ -352,7 +352,7 @@ describe('worktreeReapPhase', () => {
     });
     const logger = makeLogger();
     const result = await worktreeReapPhase({
-      orchestration: { worktreeIsolation: { enabled: true } },
+      delivery: { worktreeIsolation: { enabled: true } },
       storyId: 1,
       epicId: 9,
       epicBranch: 'epic/9',
@@ -384,7 +384,7 @@ describe('worktreeReapPhase', () => {
       },
     });
     const result = await worktreeReapPhase({
-      orchestration: { worktreeIsolation: { enabled: true } },
+      delivery: { worktreeIsolation: { enabled: true } },
       storyId: 1,
       epicId: 9,
       epicBranch: 'epic/9',
@@ -408,7 +408,7 @@ describe('worktreeReapPhase', () => {
     });
     const logger = makeLogger();
     await worktreeReapPhase({
-      orchestration: { worktreeIsolation: { enabled: true } },
+      delivery: { worktreeIsolation: { enabled: true } },
       storyId: 1,
       epicId: 9,
       epicBranch: 'epic/9',
@@ -431,7 +431,7 @@ describe('worktreeReapPhase', () => {
     });
     const logger = makeLogger();
     const result = await worktreeReapPhase({
-      orchestration: { worktreeIsolation: { enabled: true } },
+      delivery: { worktreeIsolation: { enabled: true } },
       storyId: 1,
       epicId: 9,
       epicBranch: 'epic/9',
@@ -475,7 +475,7 @@ describe('worktreeReapPhase', () => {
         },
       });
       await worktreeReapPhase({
-        orchestration: { worktreeIsolation: { enabled: true } },
+        delivery: { worktreeIsolation: { enabled: true } },
         storyId: 1,
         epicId: 9,
         epicBranch: 'epic/9',
@@ -594,7 +594,7 @@ describe('dashboardRefreshPhase / notificationPhase', () => {
         storyId: 100,
         story: { title: 'My Story' },
         epicBranch: 'epic/9',
-        orchestration: {},
+        config: {},
         progress: () => {},
         notifyFn: async (epicId, payload, opts) => {
           captured.push({ epicId, payload, opts });
@@ -631,7 +631,7 @@ describe('dashboardRefreshPhase / notificationPhase', () => {
         storyId: 100,
         story: { title: 'My Story' },
         epicBranch: 'epic/9',
-        orchestration: {},
+        config: {},
         progress: () => {},
         provider,
         notifyFn: async (epicId, payload, opts) => {
@@ -664,7 +664,7 @@ describe('dashboardRefreshPhase / notificationPhase', () => {
         storyId: 100,
         story: { title: 'My Story' },
         epicBranch: 'epic/9',
-        orchestration: {},
+        config: {},
         progress: () => {},
         provider,
         notifyFn: async (epicId, payload, opts) => {

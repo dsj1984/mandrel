@@ -29,7 +29,10 @@
  * `process.exit(1)` by the `runAsCli` boundary), never `Logger.fatal`.
  */
 
-import { acquireLease, normalizeOperatorHandle } from './ticket-lease.js';
+import {
+  acquireLeaseFailClosed,
+  resolveOperatorFromCandidates,
+} from './lease-guard-shared.js';
 
 /**
  * Resolve the acquiring operator's identity. Precedence (Tech Spec #3476):
@@ -37,8 +40,11 @@ import { acquireLease, normalizeOperatorHandle } from './ticket-lease.js';
  *   2. `github.operatorHandle` in `.agentrc.json`.
  *   3. The local `git config user.email`.
  *
- * The `@`-prefix some operators carry on `operatorHandle` is stripped so the
- * value matches the bare login written to a ticket's `assignees`.
+ * The `@`-prefix some operators carry on `operatorHandle` is stripped (via
+ * the shared lease-guard kernel) so the value matches the bare login written
+ * to a ticket's `assignees`. This surface's missing-handle policy is `'null'`
+ * — `runPrepareGuards` fails closed on a null operator with deliver-specific
+ * wording after the (cheap, local) checkout-safety guard has run.
  *
  * @param {object} args
  * @param {string} [args.asFlag]        Explicit `--as` value.
@@ -48,12 +54,9 @@ import { acquireLease, normalizeOperatorHandle } from './ticket-lease.js';
  *   be determined.
  */
 export function resolveOperator({ asFlag, config, gitUserEmail } = {}) {
-  const candidates = [asFlag, config?.github?.operatorHandle, gitUserEmail];
-  for (const raw of candidates) {
-    const normalized = normalizeOperatorHandle(raw);
-    if (normalized !== null) return normalized;
-  }
-  return null;
+  return resolveOperatorFromCandidates({
+    candidates: [asFlag, config?.github?.operatorHandle, gitUserEmail],
+  });
 }
 
 /**
@@ -208,7 +211,7 @@ export async function acquireEpicLease({
   config,
   now,
 }) {
-  const result = await acquireLease({
+  return acquireLeaseFailClosed({
     provider,
     ticketId: epicId,
     operator,
@@ -216,11 +219,8 @@ export async function acquireEpicLease({
     steal,
     config,
     now,
+    renderRefusal: renderLeaseRefusal,
   });
-  if (!result.acquired) {
-    throw new Error(renderLeaseRefusal(result, epicId));
-  }
-  return result;
 }
 
 /**

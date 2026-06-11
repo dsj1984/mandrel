@@ -40,9 +40,9 @@
 
 import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
-import { PROJECT_ROOT } from './lib/config-resolver.js';
 import { gitSpawn } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
+import { PROJECT_ROOT } from './lib/project-root.js';
 
 function currentBranch(cwd) {
   const res = gitSpawn(cwd, 'rev-parse', '--abbrev-ref', 'HEAD');

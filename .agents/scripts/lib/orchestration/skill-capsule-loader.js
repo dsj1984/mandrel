@@ -12,9 +12,8 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-
-import { PROJECT_ROOT } from '../config-resolver.js';
 import { Logger } from '../Logger.js';
+import { PROJECT_ROOT } from '../project-root.js';
 
 const POLICY_HEADING_RE = /^## Policy Capsule\s*$/;
 const ANY_H2_RE = /^## /;
