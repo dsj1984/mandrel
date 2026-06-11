@@ -77,8 +77,6 @@ export function validateResults(raw) {
     }
     const out = { storyId, status };
     if (typeof entry.phase === 'string') out.phase = entry.phase;
-    if (Number.isInteger(entry.tasksDone)) out.tasksDone = entry.tasksDone;
-    if (Number.isInteger(entry.tasksTotal)) out.tasksTotal = entry.tasksTotal;
     if (entry.blockerCommentId != null) {
       out.blockerCommentId = String(entry.blockerCommentId);
     }
@@ -185,8 +183,7 @@ export function classifyWaveOutcome({ resultStatus, currentWave, totalWaves }) {
 
 /**
  * Build the rollup-row shape the unified `epic-run-progress` writer
- * consumes. Returns `{ id, title, state, tasksDone?, tasksTotal?,
- * blockerCommentId? }`.
+ * consumes. Returns `{ id, title, state, blockerCommentId? }`.
  */
 export function toRollupRow(verified, titleById) {
   const row = {
@@ -194,9 +191,6 @@ export function toRollupRow(verified, titleById) {
     title: titleById.get(verified.storyId) ?? '',
     state: STORY_STATUS_TO_ROW_STATE[verified.status] ?? 'unknown',
   };
-  if (Number.isInteger(verified.tasksDone)) row.tasksDone = verified.tasksDone;
-  if (Number.isInteger(verified.tasksTotal))
-    row.tasksTotal = verified.tasksTotal;
   if (verified.status === 'blocked' && verified.blockerCommentId != null) {
     row.blockerCommentId = String(verified.blockerCommentId);
   }

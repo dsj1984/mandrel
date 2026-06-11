@@ -172,6 +172,14 @@ hallucinations):**
 - **Epic/Story lease + checkout guards**, the **evidence-gate** skip cache, and
   the **PR open/locate** probes — coordination/idempotence primitives with no
   LLM-judgment substitute.
+- **`duplicate-search` token-Jaccard ranking** (`lib/duplicate-search.js`,
+  consumed by `/epic-plan` Phase 2 and `story-plan.js`) — **explicitly kept**
+  (omitted from the original sweep table; added by Story #4021). It is a
+  pre-creation triage signal over the open-Epic/Story corpus the model does
+  not otherwise see in context; the scoring is pure and cheap, the result is
+  HITL-confirmed before any ticket is created, and there is no LLM-judgment
+  substitute that does not first require fetching the same corpus. Not a
+  guarantee surface — it ranks candidates, it does not block creation.
 
 **Kept for now, simplification deferred to a follow-up (each is net-new
 deletion/refactor beyond a prose-and-guarantee sweep, and several touch live
