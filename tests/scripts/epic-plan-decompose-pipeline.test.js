@@ -86,16 +86,15 @@ describe('epic-plan-decompose pipeline — orderTicketsForCreation (Story #2466)
     );
   });
 
-  it('respects intra-group depends_on (topological order)', () => {
+  it('respects depends_on among sibling Stories (topological order)', () => {
     const tickets = [
       {
-        type: 'task',
+        type: 'story',
         slug: 'b',
         title: 'b',
-        parent_slug: 's',
         depends_on: ['a'],
       },
-      { type: 'task', slug: 'a', title: 'a', parent_slug: 's' },
+      { type: 'story', slug: 'a', title: 'a' },
     ];
     const ordered = orderTicketsForCreation(tickets);
     assert.deepEqual(

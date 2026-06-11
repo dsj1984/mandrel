@@ -47,9 +47,9 @@ function makeStory(slug, body = {}, extras = {}) {
 }
 
 /**
- * Benign filler sibling so single-Story fixtures still satisfy the
- * `assertNoSingleStoryFeature` invariant (Story #3777). Touches a unique
- * path so it adds no registry / conflict / fan-out findings of its own.
+ * Benign filler sibling so single-Story fixtures still exercise a
+ * multi-Story backlog. Touches a unique path so it adds no registry /
+ * conflict / fan-out findings of its own.
  */
 const SIBLING = makeStory('s-x-filler', {
   changes: ['src/cross-cutting-filler.js: edit'],

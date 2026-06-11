@@ -4,9 +4,8 @@
  * The consolidation pass is the holistic, pre-persist critic added to
  * `/plan` Phase 8 (sub-step 8.3). These specs pin the Skill's
  * front-matter contract and assert its body documents:
- *   - the scope-preserving operation set (merge / collapse / re-parent /
- *     rewire depends_on) and the MUST-NOT-add-scope invariant,
- *   - the "collapse, not split" remediation for single-Story Features (rec #2),
+ *   - the scope-preserving operation set (merge Stories / rewire depends_on)
+ *     and the MUST-NOT-add-scope invariant,
  *   - graceful degradation when the Tech Spec "Delivery Slicing" section is
  *     absent,
  *   - the HITL diff gate before persist.
@@ -167,14 +166,12 @@ describe('epic-plan-consolidate — scope conservation', () => {
     new Set(arr.flatMap((t) => t[field] ?? []));
 
   it('conserves the union of acceptance + verify when merging over-fragmented Stories', () => {
-    // Arrange — an over-fragmented draft: feat-a with three atomic Stories
-    // that map to one coherent capability.
+    // Arrange — an over-fragmented 2-tier draft: three sibling atomic
+    // Stories (chained via depends_on) that map to one coherent capability.
     const draft = [
-      { slug: 'feat-a', type: 'feature', title: 'Capability A' },
       {
         slug: 'a-1',
         type: 'story',
-        parent_slug: 'feat-a',
         acceptance: ['ac-1'],
         verify: ['v-1 (unit)'],
         depends_on: [],
@@ -182,7 +179,6 @@ describe('epic-plan-consolidate — scope conservation', () => {
       {
         slug: 'a-2',
         type: 'story',
-        parent_slug: 'feat-a',
         acceptance: ['ac-2'],
         verify: ['v-2 (unit)'],
         depends_on: ['a-1'],
@@ -190,7 +186,6 @@ describe('epic-plan-consolidate — scope conservation', () => {
       {
         slug: 'a-3',
         type: 'story',
-        parent_slug: 'feat-a',
         acceptance: ['ac-3'],
         verify: ['v-3 (unit)'],
         depends_on: ['a-2'],
@@ -225,11 +220,9 @@ describe('epic-plan-consolidate — scope conservation', () => {
   it('does not invent acceptance items that were absent from the draft', () => {
     // Arrange
     const draft = [
-      { slug: 'feat-b', type: 'feature', title: 'Capability B' },
       {
         slug: 'b-1',
         type: 'story',
-        parent_slug: 'feat-b',
         acceptance: ['only-ac'],
         verify: ['only-v (unit)'],
         depends_on: [],
@@ -237,7 +230,6 @@ describe('epic-plan-consolidate — scope conservation', () => {
       {
         slug: 'b-2',
         type: 'story',
-        parent_slug: 'feat-b',
         acceptance: ['only-ac'],
         verify: ['only-v (unit)'],
         depends_on: [],

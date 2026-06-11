@@ -21,12 +21,11 @@ import { validateAndNormalizeTickets } from '../../../.agents/scripts/lib/orches
 const SIBLING_FILLER = Object.freeze({
   type: 'story',
   slug: 's-uc-filler',
-  parent_slug: 'f-uc',
   title: 'Unanchored-constant fixtures — filler sibling',
   acceptance: ['filler observable criterion'],
   verify: ['npm test (unit)'],
   body: {
-    goal: 'Filler sibling so the Feature has two Stories.',
+    goal: 'Benign filler sibling so the fixtures exercise a multi-Story backlog and the finding attaches only to the Story under test.',
     changes: ['src/_uc-filler.js: edit'],
     acceptance: ['filler observable criterion'],
     verify: ['npm test (unit)'],

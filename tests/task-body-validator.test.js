@@ -5,7 +5,8 @@
  *   - rejects bullets that name no path-shaped token;
  *   - rejects vague verbs without a named target;
  *   - allows manual:<reason> in verify;
- *   - skips legacy string / undefined bodies (Feature/Story compat).
+ *   - skips legacy string / undefined bodies (only structured object
+ *     bodies are inspected).
  *
  * Story-typed fixtures are used throughout this file; under the 2-tier
  * hierarchy (Epic → Story) only `type: 'story'` tickets carry
@@ -26,7 +27,6 @@ function story(slug, body) {
     slug,
     type: 'story',
     title: `Story ${slug}`,
-    parent_slug: 'f1',
     body,
   };
 }
