@@ -303,9 +303,14 @@ The install matrix runs every package manager against every OS:
 | Windows (`windows-latest`) | ✅ Supported | ✅ Supported | ✅ Supported |
 | macOS | ⚠️ Expected to work, not CI-gated | ⚠️ Expected to work, not CI-gated | ⚠️ Expected to work, not CI-gated |
 
-- **Linux and Windows** are first-class: each `{npm, pnpm, yarn} × {linux,
-  windows}` leg runs on every pull request that touches the install surface
-  and on every push to `main`.
+- **Linux and Windows** are first-class, gated through a two-profile split
+  (Story #3564). On every pull request to `main` and every push to `main`
+  (no path filter), a 2-leg required **gate** runs:
+  `install (npm / ubuntu-latest)` and `install (yarn / windows-latest)`.
+  The full 6-leg `{npm, pnpm, yarn} × {linux, windows}` sweep runs only on
+  the nightly `schedule` and on `workflow_dispatch` as non-blocking
+  **coverage**, so pnpm and npm-on-Windows regressions are still caught
+  within ~24 hours without taxing every PR.
 - **macOS** is not part of the CI matrix. The package payload is plain,
   cross-platform JavaScript and a copy-only `mandrel sync` (no symlinks, no
   native build steps), so macOS is expected to work, but it is not gated and

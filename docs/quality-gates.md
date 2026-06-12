@@ -51,24 +51,26 @@ with a clear error and leaves the local tree clean for manual resolution.
 
 ## Test runner concurrency
 
-`npm test` pins the Node test runner to `--test-concurrency=8`. Without
-the flag, Node defaults to `os.availableParallelism()`, which on
-modern dev hosts (12–16 logical cores) over-subscribes the suite and
-reliably surfaces flakes from shared FS fixtures (`memfs` mounts,
-`temp/` snapshot dirs, the `coverage/` artifact directory shared with
-the CRAP gate). On the GitHub Actions 2-vCPU runner, oversubscription
-goes the other way — the default of 2 leaves wall-clock on the table
-because most test files spend their time awaiting `setImmediate` /
-mocked HTTP, not on CPU.
+`npm test` (via [`.agents/scripts/run-tests.js`](../.agents/scripts/run-tests.js))
+derives `--test-concurrency` from `os.availableParallelism()` at startup,
+clamped into the `[TEST_CONCURRENCY_MIN, TEST_CONCURRENCY_MAX]` range of
+`[1, 16]` (`resolveTestConcurrency`). The clamp keeps the value sane at
+both extremes: on the GitHub Actions 2-vCPU runner the derived value
+matches the host instead of leaving wall-clock on the table, and on
+very-wide dev hosts the cap of 16 bounds the filesystem-race surface
+from shared FS fixtures (`memfs` mounts, `temp/` snapshot dirs, the
+`coverage/` artifact directory shared with the CRAP gate).
 
-Pinning at 8 lands a stable middle: high enough to keep the local
-244-file suite under ~30 s on a 12-core host, low enough to avoid the
-filesystem-race surface that the cap=4 / cap=8 orchestration helpers
-(`SUBTICKET_HYDRATION_CONCURRENCY`, the wave-gate, the link-reconciler)
-already settled on as the project house-style ceiling. Any change to
-this number must be paired with a benchmark run on both a Windows dev
-host and a GitHub Actions runner to confirm it doesn't reintroduce the
-flakes the pin is preventing.
+The coverage run is the exception: `npm run test:coverage`
+([`.agents/scripts/run-coverage.js`](../.agents/scripts/run-coverage.js))
+still pins `--test-concurrency=8` so coverage timings stay comparable
+across hosts. That fixed 8 sits in the same neighborhood as the cap=8
+orchestration helpers (`SUBTICKET_HYDRATION_CONCURRENCY`, and
+historically the since-deleted wave-gate helper, removed in PR #3936)
+that settled on 8 as the project house-style ceiling. Any change to the
+clamp bounds or the coverage pin must be paired with a benchmark run on
+both a Windows dev host and a GitHub Actions runner to confirm it
+doesn't reintroduce concurrency flakes.
 
 ---
 
@@ -119,11 +121,15 @@ The same files-out-of-scope list as before, declared in `.c8rc.cjs`:
   unit-tested hydration engine; end-to-end coverage requires a real
   provider tree and Story prompt context, which lives in integration
   tests.
-- `epic-plan.js`, `epic-plan-decompose.js`, `epic-plan-spec.js`,
-  `epic-plan-healthcheck.js`, `retrofit-task-bodies.js` — top-level
-  CLI shells with no unit-test seam; the meaningful orchestration
-  logic lives in `lib/orchestration/*` and `lib/retrofit/`
-  respectively, and is unit-tested there.
+- `epic-plan-decompose.js`, `epic-plan-spec.js`,
+  `epic-plan-healthcheck.js` — `/epic-plan` slash-command CLI shells
+  with no unit-test seam; the meaningful orchestration logic lives in
+  `lib/orchestration/plan-runner/*` and is unit-tested there.
+- A larger Story #1702 carve-out of top-level CLI gates, orchestration
+  CLIs, git-manipulation CLIs, and `lib/*` glue (e.g. `lint-baseline.js`,
+  `story-close.js`, `dispatcher.js`, `run-tests.js`,
+  `lib/config-schema.js`) — see the `.c8rc.cjs` header comment for the
+  per-category rationale and the authoritative entry list.
 
 Each excluded file also carries `/* node:coverage ignore file */` at
 the top of its source as a second line of defence; the full
@@ -173,20 +179,25 @@ baseline still trips the gate.
   lint, docs generation checks, and the complete test suite are **not**
   run on push; use `npm run verify` locally before a PR. CI enforces the
   authoritative full gate set on every PR.
-- **CI** (`.github/workflows/ci.yml`): the floor block is enabled by
-  default inside each checker, so the existing **Maintainability Check**
-  and **CRAP Check** steps already enforce floors. Epic #1184 added an
-  explicit **Coverage Baseline + Floor Check** step (diff-scoped on
-  PRs, `--full-scope` on push-to-main) to complete the three-axis
-  coverage of the floor-gate contract.
+- **CI** (`.github/workflows/ci.yml`): the `validate` job runs
+  **Lint and Format** (`npm run lint`), a **Maintainability Check**
+  (`npm run maintainability:check` → `check-baselines.js --gate
+  maintainability`, diff-scoped on PRs via
+  `delivery.quality.gateScoping`, full scope on push-to-main via
+  `BASELINE_SCOPE=full`), and **Run Tests with Coverage**
+  (`npm run test:coverage`), uploading the `test-results` and
+  `coverage-final` artifacts. A separate required **baselines** job runs
+  the unified `node .agents/scripts/check-baselines.js --format text`,
+  which enforces floors across every configured gate.
 
 ### Opt-out
 
-The floor block accepts a single opt-out: `--floor=off`. This is used
-exclusively by the `*:update` baseline-snap scripts, which deliberately
-snapshot whatever the current numbers are without regard to the floor.
-**Do not pass `--floor=off` in normal close-validation or push flows.**
-The audit suite scans for accidental uses of the flag.
+There is no floor opt-out flag on the check path. The `*:update`
+baseline-snap scripts snapshot whatever the current numbers are without
+floor enforcement **by construction** — they are writers, not gates —
+so no disable switch exists or is needed (the floors phase at
+[`lib/orchestration/check-baselines/phases/floors.js`](../.agents/scripts/lib/orchestration/check-baselines/phases/floors.js)
+has no off switch).
 
 ### No silent excludes (`.c8rc.cjs` policy)
 
@@ -244,6 +255,38 @@ the trace.
 
 ---
 
+## Per-Story acceptance self-eval gate
+
+After a Story's implementation commits land and **before** the Story
+proceeds to close, delivery runs a bounded acceptance self-eval loop
+(Step 1a of
+[`helpers/epic-deliver-story`](../.agents/workflows/helpers/epic-deliver-story.md)
+and `helpers/single-story-deliver`; the shared per-round mechanic lives
+in
+[`helpers/acceptance-self-eval`](../.agents/workflows/helpers/acceptance-self-eval.md),
+with the gate CLI at
+[`.agents/scripts/acceptance-eval.js`](../.agents/scripts/acceptance-eval.js)).
+Each round, a fresh-context **critic pass** — independent of the
+implementing agent — scores the working diff against every inline
+`acceptance[]` item, using `verify[]` output as evidence, and yields one
+of three decisions:
+
+- **proceed** — all criteria met; the Story continues to close.
+- **redraft** — unmet criteria are redrafted and re-implemented, then
+  re-evaluated in the next round.
+- **block** — criteria remain unmet after the round cap; the Story
+  escalates to the blocked path (`agent::blocked`) for operator review.
+
+The loop is always on (hard cutover, no enable flag) and bounded by
+`delivery.acceptanceEval.maxRounds` (default 2, clamped to a minimum of
+1 so the cap cannot be disabled). This gate is complementary to the
+close-validation chain above: that chain proves the code is *healthy*;
+this loop proves it satisfies *this Story's* acceptance criteria. See
+[`.agents/docs/configuration.md`](../.agents/docs/configuration.md) for
+the `delivery.acceptanceEval` field reference.
+
+---
+
 ## Lint baseline ratchet
 
 > Baseline envelope, axes, and component model: see the
@@ -257,13 +300,13 @@ The canonical baseline file lives at `baselines/lint.json` (override via
 `delivery.quality.gates.lint.baselinePath`). Refresh with:
 
 ```bash
-node .agents/scripts/lint-baseline.js --refresh
+node .agents/scripts/lint-baseline.js capture
 ```
 
 Refresh commits should use a `baseline-refresh:` subject + non-empty body so
 the operator can spot baseline edits in review — same convention as the CRAP
 and maintainability ratchets. The CI guardrail that mechanically enforced
-this was removed in 5.42; the operator is now the gate.
+this was removed in a pre-npm-era release; the operator is now the gate.
 
 ---
 
@@ -277,8 +320,7 @@ on cyclomatic complexity, file length, and dependency counts. The
 `baselines/maintainability.json` baseline prevents score degradation
 between Epics.
 
-Refresh with `npm run maintainability:update` (or the `refreshCommand`
-configured in `delivery.quality.gates.maintainability.refreshCommand`).
+Refresh with `npm run maintainability:update`.
 
 `delivery.quality.gates.maintainability.targetDirs` controls the scanned
 directories — defaults to `["src"]`, accepts `{ "append": [...] }` /
@@ -286,7 +328,7 @@ directories — defaults to `["src"]`, accepts `{ "append": [...] }` /
 
 ---
 
-## CRAP gate (v5.22.0+) — Consumer onboarding
+## CRAP gate — Consumer onboarding
 
 > Baseline envelope, axes, and component model: see the
 > [Baseline reference](#baseline-reference) section below.
@@ -306,10 +348,11 @@ If you're a consumer repo that installed the framework via the
 
 As of Story #791 the gate is hard-enforcing across all three firing sites
 (close-validation, pre-push, CI). With `crap.enabled: true` and no
-`baselines/crap.json` on disk, `check-crap` prints:
+`baselines/crap.json` on disk, the CRAP gate (`npm run crap:check`)
+prints:
 
 ```text
-[CRAP] no baseline found — run 'npm run crap:update' and commit with a 'baseline-refresh:' subject to bootstrap
+[CRAP] ❌ no baseline found — run the matching baseline-update command and commit with a 'baseline-refresh:' subject to bootstrap
 ```
 
 …and exits `1`. Bootstrap explicitly: run `npm run test:coverage` to
@@ -330,9 +373,11 @@ If your repo doesn't run coverage, set `enabled: false` in your
 
 ```jsonc
 {
-  "agentSettings": {
+  "delivery": {
     "quality": {
-      "crap": { "enabled": false }
+      "gates": {
+        "crap": { "enabled": false }
+      }
     }
   }
 }
@@ -348,10 +393,12 @@ own source dirs to the framework default (`["src"]`):
 
 ```jsonc
 {
-  "agentSettings": {
+  "delivery": {
     "quality": {
-      "crap": {
-        "targetDirs": { "append": ["packages/foo/src", "packages/bar/src"] }
+      "gates": {
+        "crap": {
+          "targetDirs": { "append": ["packages/foo/src", "packages/bar/src"] }
+        }
       }
     }
   }
@@ -361,57 +408,32 @@ own source dirs to the framework default (`["src"]`):
 `{ "append": [...] }` and `{ "prepend": [...] }` are the deep-merge forms.
 Passing a plain array replaces the default entirely — useful when you
 want exactly your dirs and not the framework's. Unknown keys under
-`quality.crap` warn but don't fail resolution, so you can extend
-forward-compatibly.
+`delivery.quality.gates.crap` warn but don't fail resolution, so you can
+extend forward-compatibly.
 
-### Interpreting the `--json` artifact
+### Interpreting the JSON report
 
-`npm run crap:check -- --json temp/crap-report.json` (or the `crap-report`
-artifact uploaded by the framework's `ci.yml`) writes:
+`npm run crap:check` runs the unified dispatcher
+(`check-baselines.js --gate crap`), which emits its structured report on
+**stdout** — `--format json` is the default (pass `--format text` for the
+human-readable summary). There is no file-writing flag; to capture a file
+artifact, redirect:
 
-```jsonc
-{
-  "kernelVersion": "1.0.0",       // Bumps when the CRAP formula changes.
-  "escomplexVersion": "7.3.2",    // Bumps with the typhonjs-escomplex dep.
-  "summary": {
-    "total": 412,
-    "regressions": 2,             // Tracked methods over baseline + tolerance.
-    "newViolations": 1,           // New methods over `newMethodCeiling`.
-    "drifted": 5,                 // Same method, shifted line — informational.
-    "removed": 3,                 // Baseline rows absent from current scan.
-    "skippedNoCoverage": 8        // Methods skipped under `requireCoverage`.
-  },
-  "violations": [
-    {
-      "file": ".agents/scripts/foo.js",
-      "method": "doWork",
-      "startLine": 42,
-      "cyclomatic": 8,
-      "coverage": 0.2,
-      "crap": 45.3,
-      "baseline": 18.0,
-      "kind": "regression",
-      "fixGuidance": {
-        "crapCeiling": 18.0,
-        "minComplexityAt100Cov": 4,             // floor(sqrt(target))
-        "minCoverageAtCurrentComplexity": 0.74  // 1 − ((target − c) / c²)^(1/3)
-      }
-    }
-  ]
-}
+```bash
+npm run crap:check > temp/crap-report.json
 ```
 
-Pick the cheaper axis from `fixGuidance` per offender:
+CI does **not** upload a `crap-report` artifact — `ci.yml` uploads only
+`test-results` (the test/coverage run log) and `coverage-final`
+(`coverage/coverage-final.json`).
 
-- **`minComplexityAt100Cov`** — refactor the method down to ≤ this many
-  branches and your existing coverage takes you under target.
-- **`minCoverageAtCurrentComplexity`** — leave the structure alone and
-  add tests until coverage reaches this fraction (`null` means
-  unachievable at the current cyclomatic — refactor first).
-
-The round-trip property: applying either single-axis fix re-scores the
-method under target. Verified by unit test, so an agent can commit either
-strategy without re-running the gate to check.
+The JSON envelope is the unified check-baselines report (see
+[`lib/orchestration/check-baselines/phases/report.js`](../.agents/scripts/lib/orchestration/check-baselines/phases/report.js)):
+top-level totals (`totalBreaches`, `totalRegressions`,
+`kernelDriftCount`, `schemaErrors`) plus a `gates[]` array where each
+gate entry carries its `kind`, breach/regression counts,
+kernel-version match info, and per-`components[]` floor `violations[]`
+(`axis`, `value`, `floor`, `direction`).
 
 ### Refreshing the baseline (when the drift is justified)
 
@@ -423,7 +445,7 @@ should land in a commit whose:
 2. Body is non-empty and explains why the refresh is justified.
 
 The CI guardrail that mechanically rejected unlabeled baseline edits was
-removed in 5.42 alongside the bot-approver pipeline. The convention is
+removed in a pre-npm-era release alongside the bot-approver pipeline. The convention is
 preserved so the operator can grep refresh commits in PR diff, but
 self-policing is the operator's job during `/deliver`'s Phase 7
 watch loop — an unjustified baseline ratchet is no longer caught by CI.
@@ -629,10 +651,13 @@ The single funnel for **reading** a baseline is
 4. Apply the defensive path canonicalisation pass to `rows[]`.
 5. Return `{ rollup, rows, kernelVersion, generatedAt }`.
 
-Every gate (`check-lint.js`, `check-coverage-baseline.js`, `check-crap.js`,
-`check-maintainability.js`, `check-mutation.js`, the unified
-`check-baselines.js`, the audit-suite delta emitter, and the per-component
-drift signals) reads through this module — no gate opens
+Every gate reads through this module — the unified
+[`check-baselines.js`](../.agents/scripts/check-baselines.js) dispatcher
+(whose per-kind gate logic lives in
+[`.agents/scripts/lib/baselines/kinds/`](../.agents/scripts/lib/baselines/kinds/)
+— `lint.js`, `coverage.js`, `crap.js`, `maintainability.js`,
+`mutation.js`, etc.), the audit-suite delta emitter, and the
+per-component drift signals. No gate opens
 `JSON.parse(readFileSync(...))` of a baseline directly.
 
 `loadFile(absolutePath, { kind? })` is the same contract for ad-hoc
@@ -722,13 +747,15 @@ and types) see [`.agents/docs/configuration.md`](../.agents/docs/configuration.m
 #### Shipped surface vs follow-up
 
 The unified [`check-baselines.js`](../.agents/scripts/check-baselines.js)
-currently ships **floor + tolerance + schema + kernel-mismatch** logic
-only. It does **not** absorb the full regression-detection / scope /
-git-base-ref logic that still lives in the per-kind `check-<kind>.js`
-CLIs — those remain operational and branch protection requires both.
-Full regression absorption and per-kind CLI deletion are tracked in
-follow-up **Epic #1943**. Until then, consumers wire both `baselines`
-and the per-kind checks into their branch protection (see
+ships **floor + tolerance + schema + kernel-mismatch** logic and is the
+**only** baseline gate. Epic #1943 (Story #1981) absorbed the per-kind
+regression / scope / git-base-ref logic and deleted the per-kind
+`check-<kind>.js` CLIs (no `check-coverage.js`, `check-crap.js`, or
+`check-maintainability.js` exists in `.agents/scripts/`; see the
+`baselines` job comment in `.github/workflows/ci.yml` and the
+Story #2210 note in
+`.agents/scripts/lib/close-validation/gates.js`). Consumers wire only
+the unified `baselines` status check into branch protection (see
 `.agentrc.json` → `github.branchProtection.requiredChecks`).
 
 ### Kernel-version friction
@@ -746,12 +773,13 @@ workflow for the kind in question.
 
 Refresh paths:
 
-- `npm run test:coverage` — rewrites `baselines/coverage.json`.
+- `npm run test:coverage` then `npm run coverage:update` — rewrites
+  `baselines/coverage.json`.
 - `node .agents/scripts/update-crap-baseline.js` — rewrites
   `baselines/crap.json`.
 - `node .agents/scripts/update-maintainability-baseline.js` — rewrites
   `baselines/maintainability.json`.
-- `node .agents/scripts/lint-baseline.js --write` — rewrites
+- `node .agents/scripts/lint-baseline.js capture` — rewrites
   `baselines/lint.json`.
 
 After a kernel bump, regenerate every baseline whose `kernelVersion`

@@ -27,8 +27,8 @@ states is safe.
 
 `lib/orchestration/column-sync.js` drives the Status column on every
 label transition via the `LABEL_TO_COLUMN` table. The sync is invoked
-from inside `transitionTicketState` (Story #2548), so every Epic,
-Story, and Task flip mirrors onto the board automatically — no need
+from inside `transitionTicketState` (Story #2548), so every Epic
+and Story flip mirrors onto the board automatically — no need
 for callers to opt in. Terminal `Done` wins unconditionally; in-flight
 labels (executing / closing / blocked) collapse to `In Progress`;
 parking labels (review-spec / ready) collapse to `Todo`.
@@ -59,7 +59,7 @@ views are skipped by name, never recreated.
 - **Filter**: _(none — every item)_
 - **Group by**: `Status`
 
-The default whole-board view: every Epic, Feature, and Story in one
+The default whole-board view: every Epic and Story in one
 kanban, grouped by Status.
 
 ### 2. Epic Roadmap
@@ -90,7 +90,7 @@ Shows Stories still in flight — useful for a daily standup.
 - **Filter**: `assignee:@me`
 - **Group by**: `Status`
 
-Personal filter that works across Epics, Features, Stories, and Tasks.
+Personal filter that works across Epics and Stories.
 
 ## Manual setup checklist
 

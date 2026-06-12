@@ -770,7 +770,7 @@ the lint ratchet, and the CRAP/MI gates.
 
 | File                              | Owner                                | Refresh                                                                |
 | --------------------------------- | ------------------------------------ | ---------------------------------------------------------------------- |
-| `baselines/lint.json`             | `lint-baseline.js`                   | `node .agents/scripts/lint-baseline.js --refresh`                       |
+| `baselines/lint.json`             | `lint-baseline.js`                   | `node .agents/scripts/lint-baseline.js capture`                       |
 | `baselines/crap.json`             | `update-crap-baseline.js`            | `npm run crap:update`                                                   |
 | `baselines/maintainability.json`  | `update-maintainability-baseline.js` | `npm run maintainability:update`                                        |
 

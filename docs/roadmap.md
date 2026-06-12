@@ -139,7 +139,10 @@ per the numbering convention):
   checks rather than skill prose — the capsule-only hydration cutover
   (Story #3863) deliberately did not build new validators; capsules carry
   the non-negotiables for now.
-- Trim chat-relay instructions in `epic-deliver.md` / `story-deliver.md`
+- Trim chat-relay instructions in `helpers/epic-deliver-story.md` and the
+  relay-suppression plumbing in `helpers/deliver-epic.md` /
+  `helpers/deliver-stories.md` (the former `epic-deliver.md` /
+  `story-deliver.md` were consolidated into the `/deliver` helper set)
   now that the canonical progress surface is a structured comment — the
   open remainder of the return-extraction deletion (Story #3864).
 
@@ -352,7 +355,10 @@ into three areas:
 - Push remaining stack-specific non-negotiables into validators or lint
   checks rather than skill prose (carried tail of the shipped capsule-only
   cutover, Story #3863 — see Finding #1).
-- Trim chat-relay instructions in `epic-deliver.md` / `story-deliver.md`
+- Trim chat-relay instructions in `helpers/epic-deliver-story.md` and the
+  relay-suppression plumbing in `helpers/deliver-epic.md` /
+  `helpers/deliver-stories.md` (the former `epic-deliver.md` /
+  `story-deliver.md` were consolidated into the `/deliver` helper set)
   now that the canonical progress surface is a structured comment (carried
   tail of Story #3864 — see Finding #1).
 
@@ -734,20 +740,36 @@ Filed slice: one Windows CI smoke leg → #3389.
 
 #### Finding 9 (remainder) — Cross-platform support is under-proven
 
-CI is `ubuntu-latest`/Node 22 only (matrix retired in PR #1348); there is
-genuine Windows/worktree path & lock-handling code (e.g.
-`node-modules-strategy.js` junction-vs-dir symlinks). Beyond the filed Windows
-smoke leg, productization needs a full OS×Node×package-manager matrix and a
-published support matrix (OS, shell, Node, git, GitHub CLI, package manager,
-agent host), treating unsupported environments as explicit preflight failures.
+At audit time, CI was `ubuntu-latest`/Node 22 only (matrix retired in
+PR #1348), despite genuine Windows/worktree path & lock-handling code (e.g.
+`node-modules-strategy.js` junction-vs-dir symlinks).
+
+> **Shipped since the audit snapshot:** the Windows CI smoke leg (#3389)
+> shipped as the `windows-smoke` job in `.github/workflows/ci.yml`, and
+> `.github/workflows/install-matrix.yml` (Story #3472, Epic #3436) now runs
+> golden-path pack → install → `mandrel sync` → `mandrel doctor` tests
+> across `{npm, pnpm, yarn} × {ubuntu-latest, windows-latest}` — a 2-leg
+> required gate on every PR plus the full 6-leg nightly sweep.
+
+Residual gap: macOS legs, a multi-Node-version axis, and a published support
+matrix (OS, shell, Node, git, GitHub CLI, package manager, agent host),
+treating unsupported environments as explicit preflight failures.
 
 #### Finding 17 — Testing is broad but product confidence is narrow
 
 There are ~700 Node test files (714 `*.test.js`) — a strength — but they are
-unit/contract-heavy with sparse e2e, and CI is single-leg. Productization needs:
-smoke tests against disposable GitHub repos (credential-gated); golden-path
-install/update/uninstall tests; nightly end-to-end dogfood runs with artifacts;
-and compatibility tests across npm/pnpm/yarn and Windows/macOS/Linux.
+unit/contract-heavy with sparse e2e, and at audit time CI was single-leg.
+
+> **Shipped since the audit snapshot:** CI is no longer single-leg — the
+> `windows-smoke` job (#3389) runs in `.github/workflows/ci.yml`, and
+> `.github/workflows/install-matrix.yml` (Story #3472, Epic #3436) covers
+> golden-path install compatibility across
+> `{npm, pnpm, yarn} × {ubuntu-latest, windows-latest}` (2 required gate
+> legs per PR, full 6-leg nightly sweep).
+
+Residual gap: smoke tests against disposable GitHub repos
+(credential-gated); nightly end-to-end dogfood runs with artifacts; macOS
+legs and a multi-Node-version axis; and a published support matrix.
 
 ---
 

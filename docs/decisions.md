@@ -14,6 +14,78 @@
 > answered at the time; cross-cuts that the Mandrel rebrand supersedes
 > are flagged in the entries themselves.
 
+## ADR 20260611-two-tier-hierarchy: Remove the Feature tier (Epic → Story)
+
+**Date:** 2026-06-11
+**Status:** Accepted — supersedes
+[ADR 20260527-three-tier-hierarchy](#adr-20260527-three-tier-hierarchy-collapse-the-task-level-epic--feature--story-superseded-by-adr-20260611-two-tier-hierarchy)
+**Driver:** Story #4041 (hard cutover; single PR with the `/plan` +
+`/deliver` command collapse)
+
+### Context
+
+The 3-tier hierarchy (Epic → Feature → Story) kept the Feature tier as a
+"thematic frame", but a survey for Story #4041 confirmed the tier is
+semantics-free at runtime:
+
+- Nothing dispatches on `type::feature` beyond a pass-through traversal in
+  the wave-DAG (`build-wave-dag.js` walked one level past the Epic's direct
+  children to collect grandchild Stories).
+- Nothing closes Feature issues except the generic completion cascade —
+  `finalize/close-planning-tickets.js` closes only the three planning
+  context tickets.
+- Every load-bearing contract (waves, `dependsOn`, inline `acceptance[]` /
+  `verify[]`, Story branches, the Epic-branch merge model) lives on the
+  Story or the Epic. The Feature carried only a title and a two-sentence
+  body — planning ceremony with no execution payload, plus a planner-facing
+  invariant (`assertNoSingleStoryFeature`) whose only job was policing the
+  tier's own existence.
+
+### Decision
+
+Adopt a **2-tier hierarchy** (Epic → Story) as the only published shape:
+
+- `epic-spec.schema.json` v4.0.0: `$defs/feature` deleted, `stories[]` at
+  the spec root, required set `["epic", "stories"]`, Story slugs unique
+  epic-wide.
+- The decomposer emits `type::story` tickets only; `parent_slug` is gone
+  from the planner contract. Thematic grouping moves to prose in the Epic
+  body / Tech Spec.
+- The runtime Feature surface is deleted end to end: `TYPE_LABELS.FEATURE`,
+  the label-taxonomy entry and bootstrap seeding, the dispatcher's Feature
+  routing branch, the wave-DAG Feature descent (Stories are now direct Epic
+  children; `snapshot.js` stays in lockstep), the reconciler's Feature
+  close loop, the spec renderer's Feature layer, and the manifest
+  presentation's "Feature Containers" sections.
+- Per the hard-cutover policy in
+  [`git-conventions.md` § Contract Cutovers](../.agents/rules/git-conventions.md),
+  no tolerance branch and no preflight guard ship. Pre-cutover Epics with
+  Feature-nested Stories must be drained or manually re-parented before
+  upgrading (migration notes ride in the v1.60.0 release-PR body).
+
+### Consequences
+
+- A pre-cutover Epic with Feature-nested Stories dispatches **zero**
+  stories post-upgrade — the wave-DAG reads direct children only. Operators
+  reconcile by re-parenting Stories to the Epic via sub-issue moves and
+  closing the Feature issues.
+- v3 epic-spec YAMLs with `features[]` fail validation; flatten by moving
+  each feature's `stories[]` to the root (slugs must stay unique
+  epic-wide).
+- The planner loses one degree of freedom (no ticket-level grouping) and
+  gains a simpler contract: one ticket type to author, one invariant set to
+  satisfy, no single-Story-Feature policing.
+
+### Alternatives considered
+
+- **Keep Feature as an optional grouping tier.** Rejected — an optional
+  tier means every consumer keeps both code paths alive forever, which is
+  exactly the shim layer the hard-cutover policy forbids.
+- **Generalize to an arbitrary ticket graph.** Rejected in design — fixed
+  tiers are what keep the orchestration deterministic.
+
+---
+
 ## ADR 20260610-lifecycle-bus-retained: Keep the lifecycle bus; collapse-by-deletion is already done
 
 **Status:** Accepted
@@ -204,12 +276,80 @@ and the change set stays reviewable.
 
 ---
 
+## Overturn: `drain-pending-cleanup` demoted to a helper
+
+**Status:** Accepted (overturns the `drain-pending-cleanup` row of the
+recategorization matrix above).
+**Date:** 2026-06-07
+**Story:** #3706
+
+### Context
+
+The matrix row above kept `/drain-pending-cleanup` as a top-level slash
+command on the rationale that "the manual path is load-bearing — an operator
+hitting a wedged worktree types `/drain-pending-cleanup` directly." A wiring
+audit conducted for Story #3706 tested that assumption against the actual
+call graph and found it does not hold:
+
+- The **three automatic callers** —
+  the in-process `epic-runner.js` Phase 7 (since retired in Epic #3823 —
+  the live `/epic-deliver` loop owns this via the `Cleaner` lifecycle
+  listener), [`story-close.js`](../.agents/scripts/story-close.js)
+  (`drainPendingCleanupAfterClose`), and
+  [`worktree-sweep.js`](../.agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js)
+  (via `drainPendingCleanupAtBoot`) — all invoke
+  `drain-pending-cleanup.js` (`forceDrainPendingCleanup`) **directly**.
+  None of them resolve or shell out to the slash command. Demoting the
+  `.md` therefore does not touch any automatic path.
+- The **manual escape hatch** survives unchanged as
+  `node .agents/scripts/drain-pending-cleanup.js` (with its
+  `--no-escalate` / `--dry-run` / `--worktree-root` flags). The script is
+  not modified by this change.
+- The only thing the slash command added was `/`-menu ergonomics, which is
+  pure operator-convenience that the operator does not use in practice.
+
+### Decision
+
+Demote `drain-pending-cleanup` from a top-level workflow to a `helpers/`
+reference. Its operator content (when-to-run, manual usage, escalation
+limitations, constraints, last-resort recipe) is folded into the existing
+[`helpers/worktree-lifecycle.md`](../.agents/workflows/helpers/worktree-lifecycle.md),
+which already documents the drain caller table. The standalone
+`.agents/workflows/drain-pending-cleanup.md` is deleted; the next
+`npm run sync:commands` drops the orphan `.claude/commands/drain-pending-cleanup.md`
+because the sync filter excludes content the operator no longer surfaces as
+a command. This mirrors the `worktree-lifecycle` row's treatment.
+
+### Consequences
+
+- **`/drain-pending-cleanup` no longer resolves as a slash command.** The
+  operator runs the drain directly via
+  `node .agents/scripts/drain-pending-cleanup.js` when a wedged worktree
+  needs a manual nudge.
+- **The automatic drain paths are unchanged.** epic-runner Phase 7,
+  story-close post-merge, and the plan-boot sweep continue to call
+  `forceDrainPendingCleanup()` directly — they never depended on the
+  slash command.
+- **The script is the SSOT for the manual path.** No behaviour changed in
+  `drain-pending-cleanup.js`; only the `.md` projection was removed.
+
+### Alternatives considered
+
+- **Keep the standalone `helpers/drain-pending-cleanup.md` file.** Rejected
+  — `worktree-lifecycle.md` already owns the drain caller table, so a
+  separate helper file would duplicate the same when-to-run / escalation
+  content and drift over time. Folding the content into the existing
+  lifecycle reference keeps a single home for worktree-cleanup operator
+  guidance.
+
+---
+
 ## ADR 20260604-flat-command-projection-revert: Revert the plugin cutover — project workflows as flat `/<name>` commands
 
 **Status:** Accepted
 **Date:** 2026-06-04
 **Supersedes:**
-[`20260603-plugin-namespace-cutover`](#adr-20260603-plugin-namespace-cutover-project-workflows-as-a-claude-code-plugin-mandrelname)
+[`20260603-plugin-namespace-cutover`](#adr-20260603-plugin-namespace-cutover-project-workflows-as-a-claude-code-plugin-mandrelname-superseded)
 — reverts the plugin projection back to a flat `.claude/commands/` surface.
 
 ### Context
@@ -256,7 +396,7 @@ namespace to protect.
 
 ---
 
-## ADR 20260603-plugin-namespace-cutover: Project workflows as a Claude Code plugin (`/mandrel:<name>`)
+## ADR 20260603-plugin-namespace-cutover: Project workflows as a Claude Code plugin (`/mandrel:<name>`) (superseded)
 
 **Status:** Superseded by
 [`20260604-flat-command-projection-revert`](#adr-20260604-flat-command-projection-revert-revert-the-plugin-cutover--project-workflows-as-flat-name-commands)
@@ -387,9 +527,11 @@ of once as the `/mandrel` discoverability entry.
 - **Hosted plugin marketplace** — rejected; repo-local/settings-based
   enablement keeps the framework self-contained with no external hosting.
 
-## ADR 20260527-three-tier-hierarchy: Collapse the Task level (Epic → Feature → Story)
+## ADR 20260527-three-tier-hierarchy: Collapse the Task level (Epic → Feature → Story) (superseded by ADR 20260611-two-tier-hierarchy)
 
-**Status:** Accepted (cutover complete)
+**Status:** Superseded by
+[ADR 20260611-two-tier-hierarchy](#adr-20260611-two-tier-hierarchy-remove-the-feature-tier-epic--story)
+(was: Accepted, cutover complete)
 **Date:** 2026-05-27
 **Epic:** [#3078](https://github.com/dsj1984/mandrel/issues/3078) —
 Collapse Task level — adopt 3-tier hierarchy (Epic / Feature / Story)
@@ -3166,7 +3308,7 @@ The Story-level verdict therefore collapses the four candidate outcomes into one
 ## ADR 20260513-command-naming-discipline: Domain-vocabulary command names; single Mandrel-prefixed discoverability entry
 
 **Status:** Accepted — **superseded on the collision axis** by
-[`20260603-plugin-namespace-cutover`](#adr-20260603-plugin-namespace-cutover-project-workflows-as-a-claude-code-plugin-mandrelname).
+[`20260603-plugin-namespace-cutover`](#adr-20260603-plugin-namespace-cutover-project-workflows-as-a-claude-code-plugin-mandrelname-superseded).
 The base-name naming discipline below still holds (descriptive names, no
 `mandrel-` filename prefix); the *single brand affordance* is now the
 plugin namespace `/mandrel:<name>` rather than the lone `/mandrel`
@@ -3214,138 +3356,3 @@ The seven-row recategorization matrix from the Epic body (#1184) codifies the sp
 - **No brand prefix anywhere, including a discoverability entry.** Rejected — adopters need *some* affordance to tell Mandrel-owned commands apart from Claude Code built-ins. Without a single entry point, the only path is reading the docs site, which is a worse first-run experience than typing `/mandrel`.
 - **Per-command opt-in: prefix only the "Mandrel-distinctive" commands.** Rejected — every framework command is "Mandrel-distinctive" by virtue of being owned by the framework. Drawing the line by judgment regenerates the same ambiguity the rule is designed to eliminate.
 
-## Overturn: `drain-pending-cleanup` demoted to a helper
-
-**Status:** Accepted (overturns the `drain-pending-cleanup` row of the
-recategorization matrix above).
-**Date:** 2026-06-07
-**Story:** #3706
-
-### Context
-
-The matrix row above kept `/drain-pending-cleanup` as a top-level slash
-command on the rationale that "the manual path is load-bearing — an operator
-hitting a wedged worktree types `/drain-pending-cleanup` directly." A wiring
-audit conducted for Story #3706 tested that assumption against the actual
-call graph and found it does not hold:
-
-- The **three automatic callers** —
-  the in-process `epic-runner.js` Phase 7 (since retired in Epic #3823 —
-  the live `/epic-deliver` loop owns this via the `Cleaner` lifecycle
-  listener), [`story-close.js`](../.agents/scripts/story-close.js)
-  (`drainPendingCleanupAfterClose`), and
-  [`worktree-sweep.js`](../.agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js)
-  (via `drainPendingCleanupAtBoot`) — all invoke
-  `drain-pending-cleanup.js` (`forceDrainPendingCleanup`) **directly**.
-  None of them resolve or shell out to the slash command. Demoting the
-  `.md` therefore does not touch any automatic path.
-- The **manual escape hatch** survives unchanged as
-  `node .agents/scripts/drain-pending-cleanup.js` (with its
-  `--no-escalate` / `--dry-run` / `--worktree-root` flags). The script is
-  not modified by this change.
-- The only thing the slash command added was `/`-menu ergonomics, which is
-  pure operator-convenience that the operator does not use in practice.
-
-### Decision
-
-Demote `drain-pending-cleanup` from a top-level workflow to a `helpers/`
-reference. Its operator content (when-to-run, manual usage, escalation
-limitations, constraints, last-resort recipe) is folded into the existing
-[`helpers/worktree-lifecycle.md`](../.agents/workflows/helpers/worktree-lifecycle.md),
-which already documents the drain caller table. The standalone
-`.agents/workflows/drain-pending-cleanup.md` is deleted; the next
-`npm run sync:commands` drops the orphan `.claude/commands/drain-pending-cleanup.md`
-because the sync filter excludes content the operator no longer surfaces as
-a command. This mirrors the `worktree-lifecycle` row's treatment.
-
-### Consequences
-
-- **`/drain-pending-cleanup` no longer resolves as a slash command.** The
-  operator runs the drain directly via
-  `node .agents/scripts/drain-pending-cleanup.js` when a wedged worktree
-  needs a manual nudge.
-- **The automatic drain paths are unchanged.** epic-runner Phase 7,
-  story-close post-merge, and the plan-boot sweep continue to call
-  `forceDrainPendingCleanup()` directly — they never depended on the
-  slash command.
-- **The script is the SSOT for the manual path.** No behaviour changed in
-  `drain-pending-cleanup.js`; only the `.md` projection was removed.
-
-### Alternatives considered
-
-- **Keep the standalone `helpers/drain-pending-cleanup.md` file.** Rejected
-  — `worktree-lifecycle.md` already owns the drain caller table, so a
-  separate helper file would duplicate the same when-to-run / escalation
-  content and drift over time. Folding the content into the existing
-  lifecycle reference keeps a single home for worktree-cleanup operator
-  guidance.
-
-## ADR 20260611-two-tier-hierarchy: Remove the Feature tier (Epic → Story)
-
-**Date:** 2026-06-11
-**Status:** Accepted — supersedes
-[ADR 20260527-three-tier-hierarchy](#adr-20260527-three-tier-hierarchy-collapse-the-task-level-epic--feature--story)
-**Driver:** Story #4041 (hard cutover; single PR with the `/plan` +
-`/deliver` command collapse)
-
-### Context
-
-The 3-tier hierarchy (Epic → Feature → Story) kept the Feature tier as a
-"thematic frame", but a survey for Story #4041 confirmed the tier is
-semantics-free at runtime:
-
-- Nothing dispatches on `type::feature` beyond a pass-through traversal in
-  the wave-DAG (`build-wave-dag.js` walked one level past the Epic's direct
-  children to collect grandchild Stories).
-- Nothing closes Feature issues except the generic completion cascade —
-  `finalize/close-planning-tickets.js` closes only the three planning
-  context tickets.
-- Every load-bearing contract (waves, `dependsOn`, inline `acceptance[]` /
-  `verify[]`, Story branches, the Epic-branch merge model) lives on the
-  Story or the Epic. The Feature carried only a title and a two-sentence
-  body — planning ceremony with no execution payload, plus a planner-facing
-  invariant (`assertNoSingleStoryFeature`) whose only job was policing the
-  tier's own existence.
-
-### Decision
-
-Adopt a **2-tier hierarchy** (Epic → Story) as the only published shape:
-
-- `epic-spec.schema.json` v4.0.0: `$defs/feature` deleted, `stories[]` at
-  the spec root, required set `["epic", "stories"]`, Story slugs unique
-  epic-wide.
-- The decomposer emits `type::story` tickets only; `parent_slug` is gone
-  from the planner contract. Thematic grouping moves to prose in the Epic
-  body / Tech Spec.
-- The runtime Feature surface is deleted end to end: `TYPE_LABELS.FEATURE`,
-  the label-taxonomy entry and bootstrap seeding, the dispatcher's Feature
-  routing branch, the wave-DAG Feature descent (Stories are now direct Epic
-  children; `snapshot.js` stays in lockstep), the reconciler's Feature
-  close loop, the spec renderer's Feature layer, and the manifest
-  presentation's "Feature Containers" sections.
-- Per the hard-cutover policy in
-  [`git-conventions.md` § Contract Cutovers](../.agents/rules/git-conventions.md),
-  no tolerance branch and no preflight guard ship. Pre-cutover Epics with
-  Feature-nested Stories must be drained or manually re-parented before
-  upgrading (migration notes ride in the v1.60.0 release-PR body).
-
-### Consequences
-
-- A pre-cutover Epic with Feature-nested Stories dispatches **zero**
-  stories post-upgrade — the wave-DAG reads direct children only. Operators
-  reconcile by re-parenting Stories to the Epic via sub-issue moves and
-  closing the Feature issues.
-- v3 epic-spec YAMLs with `features[]` fail validation; flatten by moving
-  each feature's `stories[]` to the root (slugs must stay unique
-  epic-wide).
-- The planner loses one degree of freedom (no ticket-level grouping) and
-  gains a simpler contract: one ticket type to author, one invariant set to
-  satisfy, no single-Story-Feature policing.
-
-### Alternatives considered
-
-- **Keep Feature as an optional grouping tier.** Rejected — an optional
-  tier means every consumer keeps both code paths alive forever, which is
-  exactly the shim layer the hard-cutover policy forbids.
-- **Generalize to an arbitrary ticket graph.** Rejected in design — fixed
-  tiers are what keep the orchestration deterministic.
