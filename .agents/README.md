@@ -148,7 +148,7 @@ Run `mandrel --help` for a subcommand list. Each subcommand supports
 | Subcommand | Purpose | Key flags |
 | ---------- | ------- | --------- |
 | `init` | Install + configure mandrel in the current project (cold-start). | `--assume-yes`, `--skip-github`, `--dry-run` |
-| `sync` | Re-materialize `.agents/` from the installed package payload. | `--dry-run`, `--force` |
+| `sync` | Re-materialize `.agents/` from the installed package payload. | `--dry-run` |
 | `sync-commands` | Regenerate `.claude/commands/` from `.agents/workflows/`. | — |
 | `doctor` | Run readiness checks and print per-check remedies. | — |
 | `update` | Upgrade mandrel to the newest published version. | `--dry-run`, `--install-cmd` |

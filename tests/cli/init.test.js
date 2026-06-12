@@ -489,6 +489,47 @@ describe('init — afterBootstrap seam called after successful bootstrap', () =>
       'afterBootstrap must not run on the files-only path',
     );
   });
+
+  it('exits 1 when the init tail reports ok: false (doctor gate failed)', async () => {
+    const { runStep } = makeRunStep({ statuses: [0] }); // bootstrap exits 0
+    const { confirm } = makeConfirm(true);
+    const { write } = makeStdout();
+
+    const result = await planInit({
+      argv: [],
+      exists: () => true,
+      runStep,
+      confirm,
+      stdout: write,
+      isTTY: true,
+      afterBootstrap: async () => ({ ok: false }),
+    });
+
+    assert.equal(result.ranBootstrap, true);
+    assert.equal(
+      result.exitCode,
+      1,
+      'a failed init tail must propagate a non-zero exit code',
+    );
+  });
+
+  it('exits 0 when the init tail reports ok: true', async () => {
+    const { runStep } = makeRunStep({ statuses: [0] });
+    const { confirm } = makeConfirm(true);
+    const { write } = makeStdout();
+
+    const result = await planInit({
+      argv: [],
+      exists: () => true,
+      runStep,
+      confirm,
+      stdout: write,
+      isTTY: true,
+      afterBootstrap: async () => ({ ok: true }),
+    });
+
+    assert.equal(result.exitCode, 0);
+  });
 });
 
 // ---------------------------------------------------------------------------

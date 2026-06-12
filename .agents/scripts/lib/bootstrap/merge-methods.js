@@ -17,10 +17,13 @@
  * No drift (live settings already match the target): no-op, returns
  * `{ status: 'unchanged' }`.
  *
- * Drift (any field differs from the target stance): routes the proposed
- * payload through `hitlConfirm`. On approval, PATCH is issued. On
- * decline or non-TTY (the gate returns false), the module returns
- * `{ status: 'skipped', reason: 'hitl-declined' }` without writing.
+ * Drift (any field differs from the target stance): when a `hitlConfirm`
+ * gate is supplied, the proposed payload routes through it — on approval
+ * the PATCH is issued; on decline the module returns
+ * `{ status: 'skipped', reason: 'hitl-declined' }` without writing (a loud
+ * decline, never silent). When NO gate is supplied (non-TTY, no operator
+ * present — Story #4045 A4), the framework stance is default-applied with
+ * an explicit log line.
  */
 
 export const TARGET_MERGE_METHODS = Object.freeze({
