@@ -291,6 +291,7 @@ async function ensureProjectFields(provider, project, log) {
  *   github?: object,
  *   baseBranch?: string,
  *   githubAdminApproved?: boolean,
+ *   isTTY?: boolean,
  * }} [opts] - `githubAdminApproved` MUST be `true` for any GitHub mutation to
  *   occur; any other value (absent / `false`) is treated as "not approved"
  *   and the run is a verified no-op.
@@ -357,8 +358,11 @@ export async function runBootstrap(config, opts = {}) {
   // Consumer-facing bootstrap promotes the framework's CI-gates-only
   // stance: branch protection with enforce_admins + 0-approval-count and
   // the squash-only merge-method allowlist. Behavior-shifting drift on
-  // either step routes through the HITL confirm gate — non-TTY runs abort
-  // with a clear stderr message rather than silently apply.
+  // branch protection routes through the HITL confirm gate — non-TTY runs
+  // abort with a clear stderr message rather than silently apply. The
+  // merge-method step differs by design (Story #4045 A4): non-TTY without an
+  // assume override default-applies the framework stance with an explicit
+  // log line (see mergeMethodsHitlConfirm below).
   //
   // Post-reshape: bootstrap reads from the new `project` + `github` blocks
   // exclusively. The legacy "agent settings" opt was removed in Epic #2880.
@@ -384,10 +388,22 @@ export async function runBootstrap(config, opts = {}) {
     hitlConfirm,
     log,
   });
+
+  // Merge-methods gate (Story #4045 A4): under non-TTY without an explicit
+  // assume override there is no operator to consult, and the default HITL
+  // gate declines every non-TTY prompt — which would make applyMergeMethods'
+  // documented non-TTY default-apply branch unreachable. Skip the gate in
+  // that case so the merge-method stance default-applies with its explicit
+  // log line. Interactive runs (and explicit --assume-yes/--assume-no, and
+  // injected gates) keep the loud confirm/decline behaviour.
+  const stdoutIsTTY = opts.isTTY ?? Boolean(process.stdout.isTTY);
+  const mergeMethodsHitlConfirm =
+    opts.hitlConfirm ??
+    (stdoutIsTTY || opts.assumeYes || opts.assumeNo ? hitlConfirm : undefined);
   const mergeMethods = await applyMergeMethods({
     provider,
     settings,
-    hitlConfirm,
+    hitlConfirm: mergeMethodsHitlConfirm,
     log,
   });
 

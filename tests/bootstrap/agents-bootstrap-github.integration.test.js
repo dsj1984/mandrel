@@ -198,6 +198,42 @@ describe('agents-bootstrap-github — end-to-end integration', () => {
   it('(d) drifted with --assume-yes → every step applies', async () => {
     /* placeholder */
   });
+
+  it('(e) drifted, non-TTY, no assume flags → merge methods default-apply; branch protection declines loudly', async () => {
+    // Story #4045 A4: with no operator present (non-TTY) and no explicit
+    // assume override, the merge-method step must reach applyMergeMethods'
+    // default-apply branch — not be silently declined by the non-TTY HITL
+    // gate. Branch protection keeps the abort-on-non-TTY stance.
+    const provider = makeMockProvider({
+      protection: {
+        required_status_checks: {
+          strict: true,
+          contexts: ['lint'],
+        },
+        enforce_admins: { enabled: false }, // diverges
+        required_pull_request_reviews: {
+          required_approving_review_count: 2, // diverges
+        },
+        restrictions: null,
+      },
+      mergeState: { ...TARGET_MERGE_METHODS, allow_merge_commit: true },
+    });
+
+    const result = await runBootstrap(ORCHESTRATION, {
+      providerOverride: provider,
+      project: PROJECT_BLOCK,
+      githubAdminApproved: true,
+      isTTY: false,
+      quiet: true,
+    });
+
+    assert.equal(result.mergeMethods.status, 'patched');
+    assert.equal(provider.calls.setMergeMethods.length, 1);
+    // Branch protection still declines loudly under non-TTY.
+    assert.equal(result.branchProtection.status, 'skipped');
+    assert.equal(result.branchProtection.reason, 'hitl-declined');
+    assert.equal(provider.calls.setBranchProtection.length, 0);
+  });
 });
 
 describe('agents-bootstrap-github — CI workflow template (Story #1401)', () => {

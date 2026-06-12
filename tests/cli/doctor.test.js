@@ -17,7 +17,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import doctor, { runDoctor } from '../../lib/cli/doctor.js';
+import doctor, {
+  runDoctor,
+  writeDoctorResultCache,
+} from '../../lib/cli/doctor.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -89,13 +92,23 @@ describe('runDoctor — all checks pass', () => {
 
   it('does not call exit when all checks pass', async () => {
     const cap = makeCapture();
-    await runDoctor({ checks, write: cap.write, exit: cap.exit });
+    await runDoctor({
+      checks,
+      write: cap.write,
+      exit: cap.exit,
+      writeResultCache: () => {},
+    });
     assert.equal(cap.exitCode, null);
   });
 
   it('emits a ✔ line for each passing check', async () => {
     const cap = makeCapture();
-    await runDoctor({ checks, write: cap.write, exit: cap.exit });
+    await runDoctor({
+      checks,
+      write: cap.write,
+      exit: cap.exit,
+      writeResultCache: () => {},
+    });
     const joined = cap.lines.join('');
     assert.match(joined, /✔/);
     for (const check of checks) {
@@ -105,21 +118,36 @@ describe('runDoctor — all checks pass', () => {
 
   it('does not emit any ✘ lines', async () => {
     const cap = makeCapture();
-    await runDoctor({ checks, write: cap.write, exit: cap.exit });
+    await runDoctor({
+      checks,
+      write: cap.write,
+      exit: cap.exit,
+      writeResultCache: () => {},
+    });
     const joined = cap.lines.join('');
     assert.doesNotMatch(joined, /✘/);
   });
 
   it('emits the ✅ Ready summary line', async () => {
     const cap = makeCapture();
-    await runDoctor({ checks, write: cap.write, exit: cap.exit });
+    await runDoctor({
+      checks,
+      write: cap.write,
+      exit: cap.exit,
+      writeResultCache: () => {},
+    });
     const joined = cap.lines.join('');
     assert.match(joined, /✅\s+Ready \(7\/7 checks passed\)/);
   });
 
   it('includes the detail string in each ✔ line', async () => {
     const cap = makeCapture();
-    await runDoctor({ checks, write: cap.write, exit: cap.exit });
+    await runDoctor({
+      checks,
+      write: cap.write,
+      exit: cap.exit,
+      writeResultCache: () => {},
+    });
     const joined = cap.lines.join('');
     assert.match(joined, /v22\.22\.1/);
     assert.match(joined, /git version 2\.49\.0/);
@@ -150,13 +178,23 @@ describe('runDoctor — github-token fails', () => {
 
   it('calls exit(1) when github-token fails', async () => {
     const cap = makeCapture();
-    await runDoctor({ checks, write: cap.write, exit: cap.exit });
+    await runDoctor({
+      checks,
+      write: cap.write,
+      exit: cap.exit,
+      writeResultCache: () => {},
+    });
     assert.equal(cap.exitCode, 1);
   });
 
   it('emits a ✘ line for github-token', async () => {
     const cap = makeCapture();
-    await runDoctor({ checks, write: cap.write, exit: cap.exit });
+    await runDoctor({
+      checks,
+      write: cap.write,
+      exit: cap.exit,
+      writeResultCache: () => {},
+    });
     const joined = cap.lines.join('');
     assert.match(joined, /✘/);
     assert.match(joined, /github-token/);
@@ -165,14 +203,24 @@ describe('runDoctor — github-token fails', () => {
 
   it('emits the remedy line for github-token', async () => {
     const cap = makeCapture();
-    await runDoctor({ checks, write: cap.write, exit: cap.exit });
+    await runDoctor({
+      checks,
+      write: cap.write,
+      exit: cap.exit,
+      writeResultCache: () => {},
+    });
     const joined = cap.lines.join('');
     assert.match(joined, /→.*GITHUB_TOKEN/);
   });
 
   it('emits the ❌ Not ready summary line with correct counts', async () => {
     const cap = makeCapture();
-    await runDoctor({ checks, write: cap.write, exit: cap.exit });
+    await runDoctor({
+      checks,
+      write: cap.write,
+      exit: cap.exit,
+      writeResultCache: () => {},
+    });
     const joined = cap.lines.join('');
     assert.match(joined, /❌\s+Not ready \(1\/7 checks failed\)/);
   });
@@ -204,13 +252,23 @@ describe('runDoctor — gh-available fails', () => {
 
   it('calls exit(1) when gh-available fails', async () => {
     const cap = makeCapture();
-    await runDoctor({ checks, write: cap.write, exit: cap.exit });
+    await runDoctor({
+      checks,
+      write: cap.write,
+      exit: cap.exit,
+      writeResultCache: () => {},
+    });
     assert.equal(cap.exitCode, 1);
   });
 
   it('emits a ✘ line for gh-available with detail', async () => {
     const cap = makeCapture();
-    await runDoctor({ checks, write: cap.write, exit: cap.exit });
+    await runDoctor({
+      checks,
+      write: cap.write,
+      exit: cap.exit,
+      writeResultCache: () => {},
+    });
     const joined = cap.lines.join('');
     assert.match(joined, /✘/);
     assert.match(joined, /gh-available/);
@@ -219,14 +277,24 @@ describe('runDoctor — gh-available fails', () => {
 
   it('emits the remedy line for gh-available', async () => {
     const cap = makeCapture();
-    await runDoctor({ checks, write: cap.write, exit: cap.exit });
+    await runDoctor({
+      checks,
+      write: cap.write,
+      exit: cap.exit,
+      writeResultCache: () => {},
+    });
     const joined = cap.lines.join('');
     assert.match(joined, /→.*cli\.github\.com/);
   });
 
   it('emits the ❌ Not ready summary with 1/7 failed', async () => {
     const cap = makeCapture();
-    await runDoctor({ checks, write: cap.write, exit: cap.exit });
+    await runDoctor({
+      checks,
+      write: cap.write,
+      exit: cap.exit,
+      writeResultCache: () => {},
+    });
     const joined = cap.lines.join('');
     assert.match(joined, /❌\s+Not ready \(1\/7 checks failed\)/);
   });
@@ -253,20 +321,35 @@ describe('runDoctor — multiple checks fail', () => {
 
   it('calls exit(1)', async () => {
     const cap = makeCapture();
-    await runDoctor({ checks, write: cap.write, exit: cap.exit });
+    await runDoctor({
+      checks,
+      write: cap.write,
+      exit: cap.exit,
+      writeResultCache: () => {},
+    });
     assert.equal(cap.exitCode, 1);
   });
 
   it('emits the ❌ Not ready summary with 2/3 failed', async () => {
     const cap = makeCapture();
-    await runDoctor({ checks, write: cap.write, exit: cap.exit });
+    await runDoctor({
+      checks,
+      write: cap.write,
+      exit: cap.exit,
+      writeResultCache: () => {},
+    });
     const joined = cap.lines.join('');
     assert.match(joined, /❌\s+Not ready \(2\/3 checks failed\)/);
   });
 
   it('emits remedy lines for each failed check', async () => {
     const cap = makeCapture();
-    await runDoctor({ checks, write: cap.write, exit: cap.exit });
+    await runDoctor({
+      checks,
+      write: cap.write,
+      exit: cap.exit,
+      writeResultCache: () => {},
+    });
     const joined = cap.lines.join('');
     assert.match(joined, /→.*fix a/);
     assert.match(joined, /→.*fix c/);
@@ -284,13 +367,23 @@ describe('runDoctor — failed check with no remedy', () => {
 
   it('calls exit(1)', async () => {
     const cap = makeCapture();
-    await runDoctor({ checks, write: cap.write, exit: cap.exit });
+    await runDoctor({
+      checks,
+      write: cap.write,
+      exit: cap.exit,
+      writeResultCache: () => {},
+    });
     assert.equal(cap.exitCode, 1);
   });
 
   it('does not emit a → line when remedy is absent', async () => {
     const cap = makeCapture();
-    await runDoctor({ checks, write: cap.write, exit: cap.exit });
+    await runDoctor({
+      checks,
+      write: cap.write,
+      exit: cap.exit,
+      writeResultCache: () => {},
+    });
     const joined = cap.lines.join('');
     assert.doesNotMatch(joined, /→/);
   });
@@ -308,7 +401,12 @@ describe('runDoctor — summary N/N counts', () => {
       fakeCheck('c', { ok: false, detail: 'fail', remedy: 'r' }),
     ];
     const cap = makeCapture();
-    await runDoctor({ checks, write: cap.write, exit: cap.exit });
+    await runDoctor({
+      checks,
+      write: cap.write,
+      exit: cap.exit,
+      writeResultCache: () => {},
+    });
     assert.match(cap.lines.join(''), /❌\s+Not ready \(3\/3 checks failed\)/);
   });
 
@@ -319,7 +417,12 @@ describe('runDoctor — summary N/N counts', () => {
       fakeCheck('c', { ok: true, detail: 'ok' }),
     ];
     const cap = makeCapture();
-    await runDoctor({ checks, write: cap.write, exit: cap.exit });
+    await runDoctor({
+      checks,
+      write: cap.write,
+      exit: cap.exit,
+      writeResultCache: () => {},
+    });
     assert.match(cap.lines.join(''), /✅\s+Ready \(3\/3 checks passed\)/);
   });
 
@@ -330,7 +433,101 @@ describe('runDoctor — summary N/N counts', () => {
       fakeCheck('c', { ok: true, detail: 'ok' }),
     ];
     const cap = makeCapture();
-    await runDoctor({ checks, write: cap.write, exit: cap.exit });
+    await runDoctor({
+      checks,
+      write: cap.write,
+      exit: cap.exit,
+      writeResultCache: () => {},
+    });
     assert.match(cap.lines.join(''), /❌\s+Not ready \(1\/3 checks failed\)/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Result cache (temp/doctor-result.json)
+// ---------------------------------------------------------------------------
+
+describe('runDoctor — result cache verdict', () => {
+  it('records "ready" when all checks pass', async () => {
+    const checks = [fakeCheck('a', { ok: true, detail: 'ok' })];
+    const cap = makeCapture();
+    let recorded = null;
+    await runDoctor({
+      checks,
+      write: cap.write,
+      exit: cap.exit,
+      writeResultCache: (verdict) => {
+        recorded = verdict;
+      },
+    });
+    assert.equal(recorded, 'ready');
+  });
+
+  it('records "unready" when any check fails', async () => {
+    const checks = [
+      fakeCheck('a', { ok: true, detail: 'ok' }),
+      fakeCheck('b', { ok: false, detail: 'fail', remedy: 'r' }),
+    ];
+    const cap = makeCapture();
+    let recorded = null;
+    await runDoctor({
+      checks,
+      write: cap.write,
+      exit: cap.exit,
+      writeResultCache: (verdict) => {
+        recorded = verdict;
+      },
+    });
+    assert.equal(recorded, 'unready');
+  });
+});
+
+describe('writeDoctorResultCache', () => {
+  /** In-memory fs fake covering mkdirSync + writeFileSync. */
+  function makeFakeFs() {
+    const writes = new Map();
+    const dirs = [];
+    return {
+      writes,
+      dirs,
+      mkdirSync(dir, opts) {
+        dirs.push({ dir, opts });
+      },
+      writeFileSync(p, content) {
+        writes.set(p, content);
+      },
+    };
+  }
+
+  it('writes { verdict, checkedAt } to <cwd>/temp/doctor-result.json', () => {
+    const fakeFs = makeFakeFs();
+    writeDoctorResultCache('ready', { fs: fakeFs, cwd: () => '/proj' });
+
+    const [dir] = fakeFs.dirs;
+    assert.ok(dir.dir.endsWith('temp'), 'creates the temp/ scratch dir');
+    assert.deepEqual(dir.opts, { recursive: true });
+
+    const [[file, content]] = [...fakeFs.writes.entries()];
+    assert.ok(file.endsWith('doctor-result.json'));
+    const parsed = JSON.parse(content);
+    assert.equal(parsed.verdict, 'ready');
+    assert.ok(
+      !Number.isNaN(Date.parse(parsed.checkedAt)),
+      'checkedAt is a parseable ISO timestamp',
+    );
+  });
+
+  it('swallows write failures (best-effort, never throws)', () => {
+    const throwingFs = {
+      mkdirSync() {
+        throw new Error('EACCES');
+      },
+      writeFileSync() {
+        throw new Error('EACCES');
+      },
+    };
+    assert.doesNotThrow(() =>
+      writeDoctorResultCache('unready', { fs: throwingFs, cwd: () => '/x' }),
+    );
   });
 });

@@ -149,6 +149,13 @@ describe('mandrel CLI — unknown-flag rejection', () => {
     assert.match(stderr, /unknown flag/);
   });
 
+  it('rejects "--force" for "sync" (no longer a known flag — sync never read it)', () => {
+    const { status, stderr } = runMandrel(['sync', '--force']);
+    assert.equal(status, 1);
+    assert.match(stderr, /unknown flag/);
+    assert.match(stderr, /--force/);
+  });
+
   it('rejects unknown flags for "doctor" and exits 1', () => {
     const { status, stderr } = runMandrel(['doctor', '--verbose']);
     assert.equal(status, 1);
