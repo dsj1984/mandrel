@@ -12,7 +12,7 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { describe, it } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TRANSPILE_PATH = path.resolve(
@@ -26,14 +26,18 @@ const TRANSPILE_PATH = path.resolve(
 
 describe('transpile.js — real TS present', () => {
   it('transpileIfNeeded returns the original source for .js files (no-op)', async () => {
-    const { transpileIfNeeded } = await import(TRANSPILE_PATH);
+    const { transpileIfNeeded } = await import(
+      pathToFileURL(TRANSPILE_PATH).href
+    );
     const src = 'const x = 1;';
     const result = transpileIfNeeded('foo.js', src);
     assert.equal(result, src, '.js files must pass through unchanged');
   });
 
   it('transpileIfNeeded transpiles a .ts source to JS', async () => {
-    const { transpileIfNeeded } = await import(TRANSPILE_PATH);
+    const { transpileIfNeeded } = await import(
+      pathToFileURL(TRANSPILE_PATH).href
+    );
     const tsSrc = 'const x: number = 1;\nexport default x;\n';
     const result = transpileIfNeeded('foo.ts', tsSrc);
     assert.notEqual(result, null, 'must produce output when TS is present');
@@ -43,7 +47,9 @@ describe('transpile.js — real TS present', () => {
   });
 
   it('resolveTsTranspilerVersion returns a semver string when TS is present', async () => {
-    const { resolveTsTranspilerVersion } = await import(TRANSPILE_PATH);
+    const { resolveTsTranspilerVersion } = await import(
+      pathToFileURL(TRANSPILE_PATH).href
+    );
     const v = resolveTsTranspilerVersion();
     assert.match(
       v,
