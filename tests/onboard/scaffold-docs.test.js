@@ -81,7 +81,8 @@ test('on acceptance, creates a stub for each missing docsContextFile under the d
     const target = path.join(root, 'docs', fileName);
     assert.strictEqual(fs.existsSync(target), true, `${fileName} created`);
     const body = fs.readFileSync(target, 'utf8');
-    assert.match(body, /^# /, `${fileName} has a heading`);
+    // The MANDREL:STUB marker is prepended before the heading — match anywhere.
+    assert.match(body, /# /, `${fileName} has a heading`);
     assert.ok(body.length > 0, `${fileName} is non-empty`);
   }
 });
@@ -104,8 +105,32 @@ test('a docsContextFile without a dedicated template gets a generic stub', () =>
     'utf8',
   );
   // Title is derived from the slug.
-  assert.match(body, /^# Data Dictionary/);
-  assert.match(body, /guided onboarding/);
+  assert.match(body, /# Data Dictionary/);
+  assert.match(body, /mandrel init/);
+});
+
+test('every scaffolded stub carries the MANDREL:STUB marker', async () => {
+  const { STUB_MARKER } = await import(
+    '../../.agents/scripts/lib/onboard/scaffold-docs.js'
+  );
+  const root = track(
+    makeProject({
+      project: {
+        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+        docsContextFiles: ['architecture.md', 'decisions.md'],
+      },
+    }),
+  );
+
+  scaffoldDocs({ root, write: true });
+
+  for (const fileName of ['architecture.md', 'decisions.md']) {
+    const body = fs.readFileSync(path.join(root, 'docs', fileName), 'utf8');
+    assert.ok(
+      body.includes(STUB_MARKER),
+      `${fileName} should carry the MANDREL:STUB marker`,
+    );
+  }
 });
 
 test('does not overwrite an already-present docsContextFile', () => {

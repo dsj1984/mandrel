@@ -225,9 +225,7 @@ graph LR
 
     subgraph Phase0 ["Phase 0: Bootstrap"]
         direction TB
-        Z["👤 npx mandrel init<br/>(install → sync → prompt → bootstrap.js)"]:::manual
-        Z2["👤 /onboard (guided first run)"]:::manual
-        Z --> Z2
+        Z["👤 npx mandrel init<br/>(install → sync → prompt → bootstrap.js → onboarding tail → /plan handoff)"]:::manual
     end
 
     subgraph Phase1 ["Phase 1: Initiation"]
@@ -257,7 +255,7 @@ graph LR
         H["🤖 Auto-merge armed → PR lands when checks pass<br/>(👤 operator may disarm to merge manually)"]:::agentic
     end
 
-    Z2 --> A
+    Z --> A
     A --> C
     D --> E
     G --> H
@@ -304,9 +302,11 @@ files-only so the GitHub provisioning never runs unattended. `bootstrap.js`:
    promotion gate.
 
 When `.agents/` is already materialized you can run the bootstrap directly
-(`node .agents/scripts/bootstrap.js`). After bootstrap, run **`/onboard`**
-inside Claude Code for the guided first run — stack detection, docs
-scaffolding, a `mandrel doctor` readiness gate, and a started `/plan`.
+(`node .agents/scripts/bootstrap.js`). The guided first-run steps (stack
+detection, docs scaffolding, `mandrel doctor` readiness gate, and `/plan`
+handoff) are now part of `mandrel init`'s configure path — run
+`mandrel init` again to pick them up if you bootstrapped via the script
+directly.
 
 > [!NOTE] Bootstrap runs once per repository. It is safe to re-run — existing
 > labels, fields, and branch-protection entries are preserved; missing ones
@@ -1403,8 +1403,7 @@ For Stories already in flight, use one of the three options above.
 
 | Command                                          | Purpose                                                                                                                                                                      |
 | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npx mandrel init`                               | Cold-start command — install `mandrel` (if absent), `mandrel sync`, then prompt to run `bootstrap.js` (provisions repo + Projects V2 board, labels, branch protection).        |
-| `/onboard`                                       | Guided first run after bootstrap — stack detection, docs scaffolding, `mandrel doctor` readiness gate, started `/plan` handoff.                                          |
+| `npx mandrel init`                               | Cold-start command — install `mandrel` (if absent), `mandrel sync`, bootstrap.js (provisions repo + Projects V2 board, labels, branch protection), then onboarding tail (stack detection, docs scaffolding, doctor gate, `/plan` handoff). |
 | `/plan`                                     | Ideation entry — sharpen idea, search duplicates, open Epic, then PRD + Tech Spec + decomposition.                                                                            |
 | `/plan --idea "<seed>"`                     | Same ideation entry with pre-supplied seed.                                                                                                                                   |
 | `/plan <epicId>`                            | Existing-Epic mode — PRD + Tech Spec + decomposition for an Epic Issue already opened.                                                                                       |

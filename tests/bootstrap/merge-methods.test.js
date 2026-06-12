@@ -126,13 +126,45 @@ describe('bootstrap/applyMergeMethods', () => {
     assert.equal(result.status, 'unchanged');
   });
 
-  it('non-TTY default (no hitlConfirm) aborts on drift', async () => {
+  it('A4: non-TTY default (no hitlConfirm) auto-applies on drift', async () => {
     const provider = makeProvider({
       current: { ...TARGET_MERGE_METHODS, allow_merge_commit: true },
     });
-    const result = await applyMergeMethods({ provider, settings: {} });
+    const logs = [];
+    const result = await applyMergeMethods({
+      provider,
+      settings: {},
+      log: (msg) => logs.push(msg),
+    });
+    // Under non-TTY the framework stance must be applied (A4 defused)
+    assert.equal(result.status, 'patched');
+    assert.equal(provider.calls.setMergeMethods.length, 1);
+    // An explicit log line must announce the non-TTY default-apply
+    const autoLog = logs.find((m) => /non-TTY/i.test(m));
+    assert.ok(autoLog, 'should log a non-TTY auto-apply message');
+  });
+
+  it('A4: HITL decline logs consequence and returns skipped', async () => {
+    const provider = makeProvider({
+      current: { ...TARGET_MERGE_METHODS, allow_merge_commit: true },
+    });
+    const logs = [];
+    const result = await applyMergeMethods({
+      provider,
+      settings: {},
+      hitlConfirm: async () => false,
+      log: (msg) => logs.push(msg),
+    });
     assert.equal(result.status, 'skipped');
     assert.equal(result.reason, 'hitl-declined');
+    // Decline must be loud: logs must mention the consequence (auto-merge)
+    const declineLog = logs.find(
+      (m) => /auto.?merge/i.test(m) || /consequence/i.test(m),
+    );
+    assert.ok(
+      declineLog,
+      'decline log must name the consequence (auto-merge disabled)',
+    );
   });
 
   it('read failure: returns failed without throwing', async () => {

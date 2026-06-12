@@ -118,6 +118,36 @@ describe('buildMutationManifest', () => {
     const labels = manifest.find((e) => e.target === 'acme/widget labels');
     assert.ok(labels, 'expected a labels entry scoped to acme/widget');
   });
+
+  it('B1: includes a git-init entry in the repo-config group', () => {
+    const manifest = buildMutationManifest(CTX);
+    const gitInit = manifest.find(
+      (e) =>
+        e.phaseGroup === PHASE_GROUPS.REPO_CONFIG &&
+        e.target === '.git' &&
+        e.action === 'run',
+    );
+    assert.ok(
+      gitInit,
+      'manifest must include a git-init entry so the uninstall ledger records it',
+    );
+    assert.strictEqual(gitInit.reversible, false);
+  });
+
+  it('B1: includes a repo-creation entry in the github-admin group', () => {
+    const manifest = buildMutationManifest(CTX);
+    const repoCreate = manifest.find(
+      (e) =>
+        e.phaseGroup === PHASE_GROUPS.GITHUB_ADMIN &&
+        e.target === 'acme/widget (repo)' &&
+        e.action === 'create',
+    );
+    assert.ok(
+      repoCreate,
+      'manifest must include a GitHub repo-creation entry so the ledger records it',
+    );
+    assert.strictEqual(repoCreate.reversible, false);
+  });
 });
 
 describe('previewMutationManifest', () => {

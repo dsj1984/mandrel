@@ -1,11 +1,12 @@
 /**
- * detect-stack.js — Consumer stack detection for `/onboard`
+ * detect-stack.js — Consumer stack detection for `mandrel init`
  *
  * Inspects a consumer repository root and reports the package manager,
  * test runner, and primary language it can infer from on-disk signals
  * (lockfiles, `package.json` contents, and source-file extensions). The
- * guided `/onboard` flow (Feature #3514) uses this to tell the operator
- * what it found before scaffolding missing `docsContextFiles`.
+ * `mandrel init` configure-path tail (Feature #3514, Story #4045) uses
+ * this to tell the operator what it found before scaffolding missing
+ * `docsContextFiles`.
  *
  * The detection functions are seam-injectable: each takes an injected
  * filesystem facade (`exists` / `readFile` / `listExtensions`) so they

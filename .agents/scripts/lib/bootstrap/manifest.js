@@ -150,7 +150,17 @@ export function buildMutationManifest(ctx = {}) {
 
   // --- repo-config ------------------------------------------------------
   // Local repository configuration files the bootstrap seeds or extends.
+  // Also includes git-init, which is the most irreversible local mutation
+  // the bootstrap performs (B1 — uninstall ledger must record it).
   entries.push(
+    {
+      phaseGroup: PHASE_GROUPS.REPO_CONFIG,
+      target: rel('.git'),
+      action: 'run',
+      detail:
+        'Initialize the local git repository (git init + first commit) when absent. No-op when already a git repo.',
+      reversible: false,
+    },
     {
       phaseGroup: PHASE_GROUPS.REPO_CONFIG,
       target: rel('package.json'),
@@ -210,6 +220,16 @@ export function buildMutationManifest(ctx = {}) {
         : 'the GitHub repository';
     entries.push(
       {
+        // B1: GitHub repo creation is the most irreversible remote mutation —
+        // record it so the uninstall ledger always lists it.
+        phaseGroup: PHASE_GROUPS.GITHUB_ADMIN,
+        target: `${repoSlug} (repo)`,
+        action: 'create',
+        detail:
+          'Create the GitHub repository (gh repo create --source=. --push) when absent. No-op when already pushed.',
+        reversible: false,
+      },
+      {
         phaseGroup: PHASE_GROUPS.GITHUB_ADMIN,
         target: `${repoSlug} labels`,
         action: 'create',
@@ -238,7 +258,7 @@ export function buildMutationManifest(ctx = {}) {
         target: `${repoSlug} merge methods`,
         action: 'configure',
         detail:
-          'Set the allowed pull-request merge methods to the framework stance.',
+          'Set the allowed pull-request merge methods to the framework stance (squash-only, auto-merge enabled).',
         reversible: false,
       },
     );

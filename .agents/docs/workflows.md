@@ -25,7 +25,7 @@ by `node .agents/scripts/generate-workflows-doc.js`; `npm run docs:check`
 fails when it drifts from the on-disk workflow set. To change a command’s
 description, edit the workflow file’s front-matter and regenerate.
 
-## Commands (27)
+## Commands (26)
 
 | Command | Description |
 | --- | --- |
@@ -51,7 +51,6 @@ description, edit the workflow file’s front-matter and regenerate.
 | `/git-merge-pr` | Analyze, validate, resolve conflicts, and merge a given pull request by number. |
 | `/git-pr-all` | Stage all outstanding changes, commit, push to a feature branch, and open a pull request with native auto-merge enabled. |
 | `/git-push` | Commit all outstanding changes then push to the remote repository. |
-| `/onboard` | Guided first-run onboarding for a freshly installed Mandrel. Detects the consumer stack, offers to scaffold any missing docsContextFiles, runs `mandrel doctor` as a readiness gate, and hands off to a started /plan. The whole path is designed to take about 15 minutes from a clean checkout to a planned Epic. |
 | `/plan` | Unified planning entry point. Routes a seed idea (via scope triage) or an existing Epic ID to the right planning path — the full Epic pipeline (PRD, Tech Spec, Acceptance Spec, decomposition) or the standalone-Story authoring path — and absorbs every planning flag. |
 | `/qa-assist` | Human-led QA assist loop — ingest one operator observation, enrich it with repro + root-cause (file:line) + a coverage verdict, ask clarifying questions when it is ambiguous, and append a redacted ledger item to a persistent, resumable rolling session under temp/qa/ |
 | `/qa-explore` | Agent-led exploratory-QA loop — the agent Plans a surface with an explicit static-vs-drive method choice, drives it (browser MCP or static), and captures ledger items read-only, then Triages — a bounded per-surface session, HITL-gated at every phase transition, routed through the shared dedup/coverage/classification/missing-test/redaction/session core under temp/qa/ |

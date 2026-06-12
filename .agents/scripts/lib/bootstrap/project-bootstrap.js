@@ -61,8 +61,8 @@ export const GITIGNORE_BLOCKS = Object.freeze({
     block:
       '\n# Project-scoped MCP config carries secrets — keep out of git.\n.mcp.json\n',
   },
-  // Story #3894: `.env` holds real secrets (`/onboard` instructs operators to
-  // put `GITHUB_TOKEN` here). It MUST be ignored by default so a cold-start
+  // Story #3894: `.env` holds real secrets (`mandrel init` instructs operators
+  // to put `GITHUB_TOKEN` here). It MUST be ignored by default so a cold-start
   // provision never stages/pushes it. The pattern matches a bare `.env` (with
   // an optional trailing slash) but deliberately NOT `.env.example`, the
   // committed placeholder that `security-baseline.md` § Secrets Management

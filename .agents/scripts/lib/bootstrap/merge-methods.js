@@ -81,20 +81,32 @@ export async function applyMergeMethods({
     return { status: 'unchanged' };
   }
 
-  const approved =
-    typeof hitlConfirm === 'function'
-      ? await hitlConfirm({
-          summary:
-            'Repo merge-method settings diverge from the framework hands-off-pipeline stance.',
-          current,
-          proposed: target,
-        })
-      : false;
-  if (!approved) {
+  let approved;
+  if (typeof hitlConfirm === 'function') {
+    approved = await hitlConfirm({
+      summary:
+        'Repo merge-method settings diverge from the framework hands-off-pipeline stance.',
+      current,
+      proposed: target,
+    });
+    if (!approved) {
+      log(
+        '[bootstrap] Merge methods: HITL declined — leaving operator settings ' +
+          'untouched. Note: auto-merge will remain disabled until the merge-method ' +
+          'settings match the framework stance (allow_squash_merge: true, ' +
+          'allow_auto_merge: true, delete_branch_on_merge: true).',
+      );
+      return { status: 'skipped', reason: 'hitl-declined', diff };
+    }
+  } else {
+    // Non-TTY: no operator present to confirm. Default-apply the framework
+    // stance and log explicitly so the consequence is never silent.
     log(
-      '[bootstrap] Merge methods: drift detected; HITL declined / non-TTY — leaving operator settings untouched.',
+      '[bootstrap] Merge methods: non-TTY — applying framework stance automatically ' +
+        '(allow_squash_merge, allow_auto_merge, delete_branch_on_merge). ' +
+        'To opt out, pass a hitlConfirm gate or set github.mergeMethods overrides in .agentrc.json.',
     );
-    return { status: 'skipped', reason: 'hitl-declined', diff };
+    approved = true;
   }
 
   try {

@@ -75,7 +75,7 @@ function makeConfirm(answer) {
 // ---------------------------------------------------------------------------
 
 describe('init — module shape', () => {
-  it('exports planInit (named) and a default run function', () => {
+  it('exports planInit (named) and a default run function', async () => {
     assert.equal(typeof planInit, 'function');
     assert.equal(typeof init, 'function');
   });
@@ -86,12 +86,12 @@ describe('init — module shape', () => {
 // ---------------------------------------------------------------------------
 
 describe('init — install when .agents/ is absent', () => {
-  it('installs the hardcoded `mandrel` with --ignore-scripts, then syncs, in order', () => {
+  it('installs the hardcoded `mandrel` with --ignore-scripts, then syncs, in order', async () => {
     const { calls, runStep } = makeRunStep();
     const { confirm } = makeConfirm(false);
     const { write } = makeStdout();
 
-    const result = planInit({
+    const result = await planInit({
       argv: [],
       exists: () => false, // .agents/ absent
       runStep,
@@ -117,7 +117,7 @@ describe('init — install when .agents/ is absent', () => {
     assert.equal(result.installed, true);
   });
 
-  it('resolves the sync step to the local bin, never a bare `mandrel` on PATH (Story #4016)', () => {
+  it('resolves the sync step to the local bin, never a bare `mandrel` on PATH (Story #4016)', async () => {
     // Regression guard for the post-install (non-npx) cold start: reached via a
     // documented `npm install mandrel` then `mandrel init`, or a plain
     // `node bin/mandrel.js init`, the freshly installed binary lives at
@@ -129,7 +129,7 @@ describe('init — install when .agents/ is absent', () => {
     const { confirm } = makeConfirm(false);
     const { write } = makeStdout();
 
-    planInit({
+    await planInit({
       argv: [],
       exists: () => false, // .agents/ absent → install + sync path
       runStep,
@@ -162,12 +162,12 @@ describe('init — install when .agents/ is absent', () => {
     assert.equal(syncCall.args[1], 'sync');
   });
 
-  it('targets the hardcoded package name even when argv supplies a different name', () => {
+  it('targets the hardcoded package name even when argv supplies a different name', async () => {
     const { calls, runStep } = makeRunStep();
     const { confirm } = makeConfirm(false);
     const { write } = makeStdout();
 
-    planInit({
+    await planInit({
       // An attacker-influenced flag must NOT redirect the install target.
       argv: ['--package', 'evil-pkg', 'evil-pkg'],
       exists: () => false,
@@ -180,12 +180,12 @@ describe('init — install when .agents/ is absent', () => {
     assert.deepEqual(calls[0].args, ['install', 'mandrel', '--ignore-scripts']);
   });
 
-  it('short-circuits with the install exit code when install fails', () => {
+  it('short-circuits with the install exit code when install fails', async () => {
     const { calls, runStep } = makeRunStep({ statuses: [7] });
     const { confirm, state } = makeConfirm(true);
     const { write } = makeStdout();
 
-    const result = planInit({
+    const result = await planInit({
       argv: [],
       exists: () => false,
       runStep,
@@ -206,12 +206,12 @@ describe('init — install when .agents/ is absent', () => {
 });
 
 describe('init — skip install when .agents/ is present', () => {
-  it('runs no install/sync steps and goes straight to the prompt', () => {
+  it('runs no install/sync steps and goes straight to the prompt', async () => {
     const { calls, runStep } = makeRunStep();
     const { confirm } = makeConfirm(false);
     const { write } = makeStdout();
 
-    const result = planInit({
+    const result = await planInit({
       argv: [],
       exists: () => true, // .agents/ present
       runStep,
@@ -237,12 +237,12 @@ describe('init — skip install when .agents/ is present', () => {
 // ---------------------------------------------------------------------------
 
 describe('init — yes/no prompt rendering', () => {
-  it('renders the yes/no question on a TTY without --assume-yes', () => {
+  it('renders the yes/no question on a TTY without --assume-yes', async () => {
     const { runStep } = makeRunStep();
     const { confirm } = makeConfirm(false);
     const { out, write } = makeStdout();
 
-    planInit({
+    await planInit({
       argv: [],
       exists: () => true,
       runStep,
@@ -262,12 +262,12 @@ describe('init — yes/no prompt rendering', () => {
 // ---------------------------------------------------------------------------
 
 describe('init — answering yes runs bootstrap.js with forwarded argv', () => {
-  it('invokes process.execPath + bootstrap.js + forwarded flags', () => {
+  it('invokes process.execPath + bootstrap.js + forwarded flags', async () => {
     const { calls, runStep } = makeRunStep();
     const { confirm } = makeConfirm(true);
     const { write } = makeStdout();
 
-    const result = planInit({
+    const result = await planInit({
       argv: ['--owner', 'acme', '--repo', 'widgets'],
       exists: () => true,
       runStep,
@@ -299,12 +299,12 @@ describe('init — answering yes runs bootstrap.js with forwarded argv', () => {
 // ---------------------------------------------------------------------------
 
 describe('init — answering no skips bootstrap and prints the hint', () => {
-  it('runs no bootstrap step, prints the re-run hint, sets ranBootstrap false, exits 0', () => {
+  it('runs no bootstrap step, prints the re-run hint, sets ranBootstrap false, exits 0', async () => {
     const { calls, runStep } = makeRunStep();
     const { confirm } = makeConfirm(false);
     const { out, write } = makeStdout();
 
-    const result = planInit({
+    const result = await planInit({
       argv: [],
       exists: () => true,
       runStep,
@@ -326,12 +326,12 @@ describe('init — answering no skips bootstrap and prints the hint', () => {
 // ---------------------------------------------------------------------------
 
 describe('init — --assume-yes skips the prompt and forwards the flag', () => {
-  it('does not consult confirm and forwards --assume-yes to bootstrap', () => {
+  it('does not consult confirm and forwards --assume-yes to bootstrap', async () => {
     const { calls, runStep } = makeRunStep();
     const { confirm, state } = makeConfirm(false); // would choose files-only if consulted
     const { write } = makeStdout();
 
-    const result = planInit({
+    const result = await planInit({
       argv: ['--assume-yes', '--owner', 'acme'],
       exists: () => true,
       runStep,
@@ -349,12 +349,12 @@ describe('init — --assume-yes skips the prompt and forwards the flag', () => {
     assert.equal(result.ranBootstrap, true);
   });
 
-  it('does not duplicate --assume-yes when argv already carries it once', () => {
+  it('does not duplicate --assume-yes when argv already carries it once', async () => {
     const { calls, runStep } = makeRunStep();
     const { confirm } = makeConfirm(true);
     const { write } = makeStdout();
 
-    planInit({
+    await planInit({
       argv: ['--assume-yes'],
       exists: () => true,
       runStep,
@@ -376,12 +376,12 @@ describe('init — --assume-yes skips the prompt and forwards the flag', () => {
 // ---------------------------------------------------------------------------
 
 describe('init — non-TTY stdin defaults to files-only', () => {
-  it('chooses files-only (no bootstrap) and exits 0 when stdin is not a TTY', () => {
+  it('chooses files-only (no bootstrap) and exits 0 when stdin is not a TTY', async () => {
     const { calls, runStep } = makeRunStep();
     const { confirm, state } = makeConfirm(true); // would configure if consulted
     const { out, write } = makeStdout();
 
-    const result = planInit({
+    const result = await planInit({
       argv: [],
       exists: () => true,
       runStep,
@@ -404,11 +404,99 @@ describe('init — non-TTY stdin defaults to files-only', () => {
 });
 
 // ---------------------------------------------------------------------------
+// afterBootstrap seam — init tail is called after bootstrap succeeds
+// ---------------------------------------------------------------------------
+
+describe('init — afterBootstrap seam called after successful bootstrap', () => {
+  it('calls afterBootstrap with the cwd when bootstrap exits 0', async () => {
+    const { runStep } = makeRunStep({ statuses: [0] }); // bootstrap exits 0
+    const { confirm } = makeConfirm(true);
+    const { write } = makeStdout();
+
+    let afterBootstrapCalled = false;
+    let afterBootstrapRoot = null;
+
+    await planInit({
+      argv: [],
+      exists: () => true, // .agents/ present — no install/sync
+      runStep,
+      confirm,
+      stdout: write,
+      isTTY: true,
+      afterBootstrap: async (root) => {
+        afterBootstrapCalled = true;
+        afterBootstrapRoot = root;
+      },
+    });
+
+    assert.equal(
+      afterBootstrapCalled,
+      true,
+      'afterBootstrap must be called when bootstrap exits 0',
+    );
+    assert.equal(typeof afterBootstrapRoot, 'string');
+  });
+
+  it('does not call afterBootstrap when bootstrap exits non-zero', async () => {
+    const { runStep } = makeRunStep({ statuses: [1] }); // bootstrap fails
+    const { confirm } = makeConfirm(true);
+    const { write } = makeStdout();
+
+    let afterBootstrapCalled = false;
+
+    const result = await planInit({
+      argv: [],
+      exists: () => true,
+      runStep,
+      confirm,
+      stdout: write,
+      isTTY: true,
+      afterBootstrap: async () => {
+        afterBootstrapCalled = true;
+      },
+    });
+
+    assert.equal(
+      afterBootstrapCalled,
+      false,
+      'afterBootstrap must not run when bootstrap fails',
+    );
+    assert.equal(result.exitCode, 1);
+  });
+
+  it('does not call afterBootstrap on the files-only path', async () => {
+    const { runStep } = makeRunStep();
+    const { confirm } = makeConfirm(false); // files-only
+    const { write } = makeStdout();
+
+    let afterBootstrapCalled = false;
+
+    await planInit({
+      argv: [],
+      exists: () => true,
+      runStep,
+      confirm,
+      stdout: write,
+      isTTY: true,
+      afterBootstrap: async () => {
+        afterBootstrapCalled = true;
+      },
+    });
+
+    assert.equal(
+      afterBootstrapCalled,
+      false,
+      'afterBootstrap must not run on the files-only path',
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Bin dispatch integration — mandrel init --help reaches the module
 // ---------------------------------------------------------------------------
 
 describe('mandrel init — bin dispatch integration', () => {
-  it('dispatches `mandrel init --help` to the module and exits 0', () => {
+  it('dispatches `mandrel init --help` to the module and exits 0', async () => {
     const result = spawnSync(process.execPath, [BIN, 'init', '--help'], {
       cwd: REPO_ROOT,
       encoding: 'utf8',
