@@ -18,7 +18,7 @@ function makeFixture({
   );
   const manifest = manifestEntries ?? {
     '.': manifestVersion,
-    'create-mandrel': '0.2.0',
+    'some-other-pkg': '0.2.0',
   };
   writeFileSync(
     join(root, '.release-please-manifest.json'),
@@ -47,7 +47,7 @@ test('checkVersionSync', async (t) => {
     () => {
       const root = makeFixture({
         pkgVersion: '5.5.1',
-        manifestEntries: { '.': '5.5.1', 'create-mandrel': '9.9.9' },
+        manifestEntries: { '.': '5.5.1', 'some-other-pkg': '9.9.9' },
       });
       try {
         const result = checkVersionSync(root);
@@ -77,7 +77,7 @@ test('checkVersionSync', async (t) => {
   await t.test('throws when the manifest has no root-package entry', () => {
     const root = makeFixture({
       pkgVersion: '1.0.0',
-      manifestEntries: { 'create-mandrel': '0.2.0' },
+      manifestEntries: { 'some-other-pkg': '0.2.0' },
     });
     try {
       assert.throws(() => checkVersionSync(root), /no "\." root-package entry/);

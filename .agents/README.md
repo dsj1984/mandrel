@@ -846,22 +846,11 @@ yanks the claim back from whoever legitimately took over.
 
 ## Root config vs distributed templates
 
-Three `.agentrc`-shaped files live in this repository and are easy to
-confuse:
-
-| File                              | Audience                          | Role                                                                                                                              |
-| --------------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `.agentrc.json` (repo root)       | The framework dogfooding itself   | Live config used when running `/epic-*`, `/deliver` against this repo. Exercises the framework end-to-end. |
-| `.agents/starter-agentrc.json`    | Downstream consumer repos         | Bootstrap delta-seed a consumer copies via `cp .agents/starter-agentrc.json .agentrc.json`. Minimum schema-required keys.        |
-| `.agents/docs/agentrc-reference.json`       | Operators and reviewers           | Exhaustive editor reference enumerating every schema key with its framework default. Not a copy target.                          |
-
-The three files share a schema; where they legitimately diverge (target
-dirs, repo identifiers, version-file pointer) is documented in
-[`docs/configuration.md` § Root dogfood vs distributed template](docs/configuration.md#root-dogfood-vs-distributed-template).
-Edit `agentrc-reference.json` when a framework default changes; edit
-`starter-agentrc.json` only when the bootstrap seed itself needs new
-schema-required keys; edit the root `.agentrc.json` for changes that
-only affect this repo's own dogfood runs.
+Three `.agentrc`-shaped files live in this repository and serve different
+audiences. Their roles, audiences, and the keys where they legitimately
+diverge are documented in
+[`docs/configuration.md` § Root dogfood vs distributed templates](docs/configuration.md#root-dogfood-vs-distributed-templates)
+— that section is the canonical single home for this table.
 
 ---
 
