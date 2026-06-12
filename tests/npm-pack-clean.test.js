@@ -18,6 +18,7 @@ test('npm-pack-clean', async (t) => {
     const result = spawnSync('npm', ['pack', '--dry-run'], {
       cwd: repoRoot,
       encoding: 'utf-8',
+      shell: true,
     });
     assert.strictEqual(
       result.status,
