@@ -1108,3 +1108,86 @@ describe('revertPackageJson — prepare-removal reporting (Story #3545)', () => 
     assert.equal(pkg.scripts['sync:commands'], undefined);
   });
 });
+
+// ---------------------------------------------------------------------------
+// runUninstall — --dry-run (Story #4047 B6)
+// ---------------------------------------------------------------------------
+
+describe('runUninstall — --dry-run', () => {
+  it('exits 0 in dry-run mode', () => {
+    seedFreshInstall(tmpRoot);
+    const cap = makeCapture();
+    runUninstall({
+      projectRoot: tmpRoot,
+      write: cap.write,
+      exit: cap.exit,
+      dryRun: true,
+    });
+    assert.equal(cap.exitCode, 0);
+  });
+
+  it('does NOT write any files in dry-run mode (CLAUDE.md survives)', () => {
+    seedFreshInstall(tmpRoot);
+    const originalClaude = fs.readFileSync(
+      path.join(tmpRoot, 'CLAUDE.md'),
+      'utf8',
+    );
+    const cap = makeCapture();
+    runUninstall({
+      projectRoot: tmpRoot,
+      write: cap.write,
+      exit: cap.exit,
+      dryRun: true,
+    });
+    // File must be unchanged
+    const afterClaude = fs.readFileSync(
+      path.join(tmpRoot, 'CLAUDE.md'),
+      'utf8',
+    );
+    assert.equal(
+      afterClaude,
+      originalClaude,
+      'CLAUDE.md must not change in dry-run',
+    );
+  });
+
+  it('does NOT remove the install ledger in dry-run mode', () => {
+    seedFreshInstall(tmpRoot);
+    const lp = ledgerPath(tmpRoot);
+    assert.ok(fs.existsSync(lp), 'ledger must exist before dry-run');
+    const cap = makeCapture();
+    runUninstall({
+      projectRoot: tmpRoot,
+      write: cap.write,
+      exit: cap.exit,
+      dryRun: true,
+    });
+    assert.ok(fs.existsSync(lp), 'ledger must still exist after dry-run');
+  });
+
+  it('prints the planned reversal targets to output', () => {
+    seedFreshInstall(tmpRoot);
+    const cap = makeCapture();
+    runUninstall({
+      projectRoot: tmpRoot,
+      write: cap.write,
+      exit: cap.exit,
+      dryRun: true,
+    });
+    assert.match(cap.text, /dry run/i);
+    // Should show some file targets
+    assert.match(cap.text, /CLAUDE\.md/);
+  });
+
+  it('returns ledgerFound: true and revertedCount: 0', () => {
+    seedFreshInstall(tmpRoot);
+    const result = runUninstall({
+      projectRoot: tmpRoot,
+      write: () => {},
+      exit: () => {},
+      dryRun: true,
+    });
+    assert.equal(result.ledgerFound, true);
+    assert.equal(result.revertedCount, 0);
+  });
+});

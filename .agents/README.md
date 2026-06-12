@@ -143,6 +143,61 @@ workflow fragments there rather than editing synced files in place.
 
 ---
 
+## CLI subcommand reference
+
+Run `mandrel --help` for a subcommand list. Each subcommand supports
+`--dry-run` (where noted) to preview without writing.
+
+| Subcommand | Purpose | Key flags |
+| ---------- | ------- | --------- |
+| `init` | Install + configure mandrel in the current project (cold-start). | `--assume-yes`, `--skip-github`, `--dry-run` |
+| `sync` | Re-materialize `.agents/` from the installed package payload. | `--dry-run`, `--force` |
+| `sync-commands` | Regenerate `.claude/commands/` from `.agents/workflows/`. | — |
+| `doctor` | Run readiness checks and print per-check remedies. | — |
+| `update` | Upgrade mandrel to the newest non-major version. | `--dry-run`, `--major`, `--install-cmd` |
+| `migrate` | Apply version-keyed migrations for a version range. | `--from`, `--to`, `--dry-run` |
+| `explain` | Print resolved config values with their sources. | `--json` |
+| `uninstall` | Reverse a recorded install using the install ledger. | `--include-github`, `--dry-run` |
+
+### `mandrel explain`
+
+Prints every resolved `.agentrc.json` config key — its effective value, the
+source layer it came from (`[agentrc]` or `[default]`), and a one-line
+meaning. Secret-shaped keys are redacted. Useful for debugging unexpected
+behavior when multiple config sources overlap.
+
+```bash
+mandrel explain            # human-readable config report
+mandrel explain --json     # same report as JSON
+```
+
+### `mandrel sync-commands`
+
+Regenerates the flat `.claude/commands/` projection from `.agents/workflows/`.
+The bootstrap wires a `UserPromptSubmit` hook that runs this automatically on
+every Claude Code prompt submission, so manual runs are rarely needed.
+
+```bash
+mandrel sync-commands      # rebuild .claude/commands/
+```
+
+### `mandrel uninstall`
+
+Reverses a recorded install using the install ledger
+(`.agents/.install-manifest.json`). Each ledger entry is a
+mutation-manifest record; uninstall walks reversible entries and undoes
+exactly what the install applied, without touching pre-existing operator
+content. GitHub-side state (labels, branch protection, Projects board)
+requires manual reversal and is surfaced as a follow-up checklist.
+
+```bash
+mandrel uninstall                      # reverse all local install mutations
+mandrel uninstall --dry-run            # preview what would be reversed
+mandrel uninstall --include-github     # acknowledge GitHub-side manual steps
+```
+
+---
+
 ## Automatic system-prompt wiring
 
 The bootstrap wires the framework system prompt into a project-root
@@ -209,9 +264,10 @@ a single vendored manifest that ships inside the bundle:
 - **[`runtime-deps.json`](runtime-deps.json)** — the single source of
   truth. Its `dependencies` block lists the **required** packages (`ajv`,
   `ajv-formats`, `js-yaml`, `minimatch`, `picomatch`, `string-argv`,
-  `typescript`, `typhonjs-escomplex`); its `optionalDependencies` block
-  lists packages used only behind graceful-degradation paths (`chokidar`
-  for `quality:watch`, `@commitlint/load` for commit-subject sizing).
+  `typhonjs-escomplex`); its `optionalDependencies` block lists packages
+  used behind graceful-degradation paths (`typescript` for TS-source
+  scoring in the maintainability engine, `chokidar` for `quality:watch`,
+  `@commitlint/load` for commit-subject sizing).
 
 **How a consumer satisfies them:** `bootstrap` (above) merges the required
 set into your `package.json` `dependencies` and runs your package manager's

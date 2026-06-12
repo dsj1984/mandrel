@@ -233,7 +233,10 @@ describe('mandrel update entrypoint — freshness-cache population', () => {
     assert.equal(typeof record.checkedAt, 'string');
   });
 
-  it('honours a fresh cache: resolves the target with no network probe', async () => {
+  it('always probes the registry on explicit update even when cache is fresh (A1b)', async () => {
+    // Story #4046 A1b: an explicit `mandrel update` bypasses the 24h cache so
+    // the resolved target is always fresh from the registry. A fresh cache must
+    // NOT suppress the probe on an explicit update call.
     const freshCache = `${JSON.stringify(
       { latestVersion: TARGET_VERSION, checkedAt: '2026-06-02T23:30:00.000Z' },
       null,
@@ -248,24 +251,29 @@ describe('mandrel update entrypoint — freshness-cache population', () => {
 
     await run([], deps);
 
-    // Fresh cache (< 24h old relative to the injected `now`) → no npm view.
-    assert.ok(!calls.includes('npm-view'), 'fresh cache must skip the probe');
-    // The install still ran at the cached target.
+    // Fresh cache present, but the bypass must still issue one registry probe.
+    assert.ok(
+      calls.includes('npm-view'),
+      'explicit update must probe registry even with a fresh cache (A1b)',
+    );
+    // The install still ran at the probed target.
     assert.ok(
       calls.includes(`npm install mandrel@${TARGET_VERSION}`),
-      'expected install at the cached target',
+      'expected install at the probed target',
     );
   });
 });
 
 // ---------------------------------------------------------------------------
-// (c) — --dry-run writes nothing and runs no effectful seam
+// (c) — --dry-run does not install or run effectful phases
 // ---------------------------------------------------------------------------
 
 describe('mandrel update entrypoint — --dry-run', () => {
-  it('writes nothing to disk and never installs', async () => {
-    // Fresh cache so resolving the target needs no probe either; the dry-run
-    // must touch neither the npm install boundary nor the filesystem.
+  it('never installs and prints the step plan (A1b, A1c)', async () => {
+    // Story #4046 A1b: the cache is bypassed even on dry-run — the version is
+    // resolved fresh from the registry to show the real available version in
+    // the plan. However, no npm install, no sync, no migrate, and no doctor
+    // run — those effectful seams never fire.
     const freshCache = `${JSON.stringify(
       { latestVersion: TARGET_VERSION, checkedAt: '2026-06-02T23:30:00.000Z' },
       null,
@@ -280,18 +288,25 @@ describe('mandrel update entrypoint — --dry-run', () => {
 
     await run(['--dry-run'], deps);
 
-    // No install, no changelog surface — runUpdate short-circuits the dry run
-    // before any effectful seam.
+    // No install — the dry-run never bumps the dependency.
     assert.ok(
       !calls.some((c) => c.startsWith('npm install')),
       'dry-run must not install',
     );
-    // No filesystem writes occurred (the fresh cache was only read).
-    assert.deepEqual(fsFake.writes, [], 'dry-run must write nothing to disk');
-    // The plan was printed.
+    // No sync/migrate/doctor seams run.
+    assert.ok(!calls.includes('runSync'), 'dry-run must not run sync');
+    assert.ok(
+      !calls.some((c) => c.startsWith('runMigrations')),
+      'dry-run must not run migrations',
+    );
+    assert.ok(!calls.includes('runDoctor'), 'dry-run must not run doctor');
+
+    // The plan was printed with the A1c step list.
     const joined = cap.out.join('');
     assert.match(joined, /planned upgrade v1\.43\.0 → v1\.44\.0/);
     assert.match(joined, /Dry run: no files written/);
+    // sync-commands appears in the plan (A1c).
+    assert.match(joined, /sync-commands/);
     assert.equal(cap.exitCode, null);
   });
 });

@@ -112,7 +112,23 @@ function writeJson(p, obj, fsImpl = fs) {
   fsImpl.writeFileSync(p, `${JSON.stringify(obj, null, 2)}\n`, 'utf8');
 }
 
-/** Matches root `package.json` `engines.node`. */
+/**
+ * The minimum Node.js patch version mandrel requires.
+ *
+ * Rationale: `22.22.1` is the Node 22 LTS patch that ships with the
+ * `node:sqlite` built-in (`--experimental-sqlite` removed from flag
+ * requirement in 22.5.0, but the module stabilised at 22.22.1 per the
+ * Node 22 LTS changelog). Pinning to this patch prevents silent failures on
+ * older 22.x installs that lack the built-in. CI exercises `node-version: 22`
+ * which resolves to the latest 22.x (always ≥ 22.22.1 in the current GHA
+ * environment), so CI validates the contract without exercising the exact
+ * patch floor — the floor is enforced at install time, not in CI.
+ *
+ * Single source of truth: `registry.js` and any other consumer MUST import
+ * this constant rather than duplicating it.
+ *
+ * Matches `package.json` `engines.node` (`>=22.22.1 <25`).
+ */
 export const REQUIRED_NODE_FLOOR = '22.22.1';
 export const REQUIRED_NODE_CEILING_MAJOR = 25;
 

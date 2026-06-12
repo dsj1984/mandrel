@@ -28,7 +28,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..', '..');
 const SCRIPTS_DIR = path.join(REPO_ROOT, '.agents', 'scripts');
 
-// The required runtime packages the Story enumerates explicitly.
+// The required runtime packages (fail-fast enforced at install time).
 const REQUIRED_NAMED = [
   'ajv',
   'ajv-formats',
@@ -36,7 +36,6 @@ const REQUIRED_NAMED = [
   'minimatch',
   'picomatch',
   'string-argv',
-  'typescript',
   'typhonjs-escomplex',
 ];
 
@@ -66,6 +65,16 @@ describe('runtime-deps drift', () => {
     }
     // The historical gap: minimatch was imported but never declared.
     assert.ok(dependencies.minimatch, 'minimatch must be declared');
+  });
+
+  it('declares typescript as an optional dependency (graceful-degradation path)', () => {
+    // typescript is imported behind a try/catch in transpile.js — it must be
+    // declared as optional, not required (B4: the hard dep is removed).
+    const { optionalDependencies } = loadRuntimeDepsManifest();
+    assert.ok(
+      Object.hasOwn(optionalDependencies, 'typescript'),
+      'typescript must be in optionalDependencies (not dependencies)',
+    );
   });
 
   it('fails the drift check when a declaration is removed (negative control)', () => {

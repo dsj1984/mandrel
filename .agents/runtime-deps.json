@@ -7,12 +7,12 @@
     "minimatch": "^10.0.0",
     "picomatch": "^4.0.4",
     "string-argv": "^0.3.2",
-    "typescript": ">=5.0.0",
     "typhonjs-escomplex": "^0.1.0"
   },
   "optionalDependencies": {
     "@commitlint/load": "^21.0.0",
     "chokidar": "^5.0.0",
-    "jscpd": "^4.0.0"
+    "jscpd": "^4.0.0",
+    "typescript": ">=5.0.0"
   }
 }
