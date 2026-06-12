@@ -6,7 +6,7 @@
  * it lives per-file in [`baselines/coverage.json`](./baselines/coverage.json),
  * checked by `.agents/scripts/check-baselines.js` (coverage kind) and
  * updated via `npm run coverage:update`. See
- * [`docs/quality-gates.md`](./docs/quality-gates.md) for the full ratchet
+ * [`.agents/docs/quality-gates.md`](./.agents/docs/quality-gates.md) for the full ratchet
  * workflow.
  *
  * The `exclude` list below removes thin CLI shells whose meaningful
@@ -22,7 +22,7 @@
  *     CLI shell only argv-parses and calls a single provider method
  *     loop. Real coverage requires hitting a live GitHub repo, which
  *     belongs in integration tests, not the unit-test gate.
- *   - epic-plan.js / epic-plan-decompose.js / epic-plan-spec.js /
+ *   - epic-plan-decompose.js / epic-plan-spec.js /
  *     epic-plan-healthcheck.js — `/epic-plan` slash-command CLIs.
  *     Each exports a `runXPhase` that calls into a real GitHub
  *     provider, reads PRD/Tech Spec bodies, drives `lib/orchestration/
@@ -88,7 +88,6 @@ module.exports = {
     '.agents/scripts/epic-plan-decompose.js',
     '.agents/scripts/epic-plan-healthcheck.js',
     '.agents/scripts/epic-plan-spec.js',
-    '.agents/scripts/epic-plan.js',
     // Story #1702 — top-level CLI gates and orchestrators.
     '.agents/scripts/assert-branch.js',
     '.agents/scripts/detect-merges.js',

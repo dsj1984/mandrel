@@ -112,7 +112,7 @@ clone produces zero file mutations.
 ## Upgrading and local additions
 
 Once installed, the ongoing upgrade path is **`mandrel update`** — it bumps
-`mandrel` to the newest non-major version, re-runs `mandrel sync`,
+`mandrel` to the newest published version, re-runs `mandrel sync`,
 applies version-keyed migrations, and verifies the install with
 `mandrel doctor`. The lockfile bump is left **staged for you to review and
 commit** (the command performs no `git` mutation):
@@ -122,12 +122,9 @@ npx mandrel update           # update → sync → migrate → doctor
 npx mandrel update --dry-run # preview the target version + ordered steps
 ```
 
-A **major** crossing (e.g. `1.x → 2.0`) is **gated**: Mandrel lives on the
-1.x line under release-please `always-bump-minor`, so a major is a deliberate
-operator decision. `mandrel update` refuses a major bump, points at the
-[`docs/upgrade-major.md`](../docs/upgrade-major.md) runbook, and exits
-without touching anything — re-run with `--major` to adopt it. Minor and
-patch bumps are never gated. Migrations can also be run on their own:
+Major crossings are applied like any other bump — Mandrel ships hard
+cutovers, so the release notes in the surfaced changelog are the migration
+guide. Migrations can also be run on their own:
 
 ```bash
 npx mandrel migrate --from <version> --to <version> [--dry-run]
@@ -154,7 +151,7 @@ Run `mandrel --help` for a subcommand list. Each subcommand supports
 | `sync` | Re-materialize `.agents/` from the installed package payload. | `--dry-run` |
 | `sync-commands` | Regenerate `.claude/commands/` from `.agents/workflows/`. | — |
 | `doctor` | Run readiness checks and print per-check remedies. | — |
-| `update` | Upgrade mandrel to the newest non-major version. | `--dry-run`, `--major`, `--install-cmd` |
+| `update` | Upgrade mandrel to the newest published version. | `--dry-run`, `--install-cmd` |
 | `migrate` | Apply version-keyed migrations for a version range. | `--from`, `--to`, `--dry-run` |
 | `explain` | Print resolved config values with their sources. | `--json` |
 | `uninstall` | Reverse a recorded install using the install ledger. | `--include-github`, `--dry-run` |
@@ -324,7 +321,7 @@ See [`docs/SDLC.md` § Ticket hierarchy](docs/SDLC.md) for the diagram and execu
 | The Epic planning and delivery process | [`docs/SDLC.md`](docs/SDLC.md) |
 | The system prompt loaded by your AI tool | [`instructions.md`](instructions.md) |
 | Every `.agentrc.json` key, default, and override | [`docs/configuration.md`](docs/configuration.md) (under `.agents/`) |
-| Quality-gate runbooks (CRAP, MI, lint, friction) plus the baseline envelope, component model, and writer/reader contract | [`docs/quality-gates.md`](../docs/quality-gates.md) |
+| Quality-gate runbooks (CRAP, MI, lint, friction) plus the baseline envelope, component model, and writer/reader contract | [`.agents/docs/quality-gates.md`](docs/quality-gates.md) |
 | Slash-command workflow definitions | [`workflows/`](workflows/) |
 | Render the signals span-tree (debug helper) | [`workflows/helpers/signals.md`](workflows/helpers/signals.md) |
 | Persona behavior packs | [`personas/`](personas/) |
@@ -560,8 +557,8 @@ envelope, every gate reads through one shared module
 and every refresher writes through one shared writer
 ([`.agents/scripts/lib/baselines/writer.js`](scripts/lib/baselines/writer.js)).
 
-See the [Baseline reference](../docs/quality-gates.md#baseline-reference)
-section of `docs/quality-gates.md` for the full reference: envelope shape,
+See the [Baseline reference](docs/quality-gates.md#baseline-reference)
+section of `.agents/docs/quality-gates.md` for the full reference: envelope shape,
 per-kind axes, component model, path canonicalisation, writer/reader
 contract, kernel-version friction, and — most relevant to consumers — the
 **floor override** path. Consumers add a `floors` block

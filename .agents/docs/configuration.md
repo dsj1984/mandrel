@@ -770,14 +770,14 @@ the lint ratchet, and the CRAP/MI gates.
 
 | File                              | Owner                                | Refresh                                                                |
 | --------------------------------- | ------------------------------------ | ---------------------------------------------------------------------- |
-| `baselines/lint.json`             | `lint-baseline.js`                   | `node .agents/scripts/lint-baseline.js --refresh`                       |
+| `baselines/lint.json`             | `lint-baseline.js`                   | `node .agents/scripts/lint-baseline.js capture`                       |
 | `baselines/crap.json`             | `update-crap-baseline.js`            | `npm run crap:update`                                                   |
 | `baselines/maintainability.json`  | `update-maintainability-baseline.js` | `npm run maintainability:update`                                        |
 
 These files are the contract. They are read by every gate (Story close, push
 hook, CI) and are regenerated only via tagged `baseline-refresh:` commits
 with a non-empty body. The convention is operator-enforced; see the CRAP
-section of [`docs/quality-gates.md`](../../docs/quality-gates.md) for the policy.
+section of [`quality-gates.md`](quality-gates.md) for the policy.
 
 Paths are configured in `delivery.quality.gates.<tier>.baselinePath`. The
 default values match the canonical layout above; override only when a
@@ -1036,7 +1036,7 @@ below covers every dispatch-visible subcommand:
 | `sync` | Re-materialize `.agents/` from the installed package payload. | `--dry-run`, `--force` |
 | `sync-commands` | Rebuild `.claude/commands/` from `.agents/workflows/`. | — |
 | `doctor` | Run readiness checks and report remedies. | — |
-| `update` | Upgrade mandrel to the newest non-major version. | `--dry-run`, `--major`, `--install-cmd` |
+| `update` | Upgrade mandrel to the newest published version. | `--dry-run`, `--install-cmd` |
 | `migrate` | Apply version-keyed migrations for a version range. | `--from`, `--to`, `--dry-run` |
 | `explain` | Print resolved config values with sources. | `--json` |
 | `uninstall` | Reverse a recorded install using the install ledger. | `--include-github`, `--dry-run` |
@@ -1092,6 +1092,6 @@ mandrel uninstall --include-github # acknowledge GitHub-side follow-ups
 - Bootstrap script —
   [`bootstrap.js`](../scripts/bootstrap.js)
 - Quality gates runbook (CRAP onboarding, MI ratchet, lint ratchet) —
-  [`docs/quality-gates.md`](../../docs/quality-gates.md)
+  [`quality-gates.md`](quality-gates.md)
 - Activation pointers (slash commands, personas, skills) —
   [`.agents/README.md`](../README.md)

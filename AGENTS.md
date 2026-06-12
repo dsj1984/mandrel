@@ -46,8 +46,8 @@ package and materialized into consumer projects' `.agents/` directories by
 mandrel/
 ├── .agents/                  # Distributed bundle (the "product")
 │   ├── instructions.md       # ★ Primary system prompt — load this first
-│   ├── personas/             # 12 role-specific behavior constraints
-│   ├── rules/                # 8 domain-agnostic coding/ops rules
+│   ├── personas/             # Role-specific behavior constraints
+│   ├── rules/                # Domain-agnostic coding/ops rules
 │   ├── skills/               # Two-tier skill library (core/ + stack/)
 │   ├── workflows/            # SDLC & audit slash-command workflows
 │   ├── scripts/              # Deterministic JS tooling (orchestration engine)
@@ -105,7 +105,10 @@ mandrel/
 ### Key Commands
 
 ```text
-npm run lint              # Check all markdown for lint errors
+npm run lint              # Markdown lint + generated-doc drift gate (docs:check);
+                          #   if it fails on drift, run docs:gen to regenerate
+npm run docs:gen          # Regenerate config/lifecycle/workflows docs
+npm run skills:index      # Regenerate the skills index
 npm run format            # Auto-format all markdown files
 npm run format:check      # Verify formatting without modifying files
 npm run test:quick        # TDD loop — excludes slow integration-style suites
@@ -174,13 +177,11 @@ Releases are automated by
    branch, and bootstrap a fresh project with `npx mandrel init`. The
    publish job requires the `NPM_TOKEN` secret — see
    [§ npm publish token](#npm-publish-token) below.
-4. **Breaking-change releases** ship a consumer-upgrade runbook under
-   `docs/` (describing the migration steps and the major-version bump
-   operator step). Link any future breaking-release runbook from
-   this checklist and from the **release PR body** release-please opens
-   (which becomes the squash-commit body and the versioned
+4. **Breaking-change releases** document their migration steps in the
+   **release PR body** release-please opens (which becomes the
+   squash-commit body and the versioned
    [`docs/CHANGELOG.md`](docs/CHANGELOG.md) entry on merge) so consumers
-   find it on upgrade. Do **not** hand-maintain an `## Unreleased`
+   find them on upgrade. Do **not** hand-maintain an `## Unreleased`
    section in `docs/CHANGELOG.md` — release-please is the sole writer of
    that file and generates version sections from Conventional Commit
    subjects; a bracket-less `## Unreleased` block is never promoted to a

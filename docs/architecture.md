@@ -171,9 +171,11 @@ is no longer created at plan time.
 `/deliver`'s host LLM owns the wave loop and fans Story sub-agents
 out directly via the Agent tool inside the operator's Claude session —
 there is no intermediate wave skill, no subprocess spawn pathway, and no
-GitHub Actions runner. The PR opened by `/deliver` Phase 6 is the
+GitHub Actions runner. The PR opened by `/deliver` Phase 7 is the
 sole promotion gate to `main`; the workflow never executes `git merge`
-against `main` itself.
+against `main` itself. When the run is end-to-end clean, Phase 8.5's
+auto-merge gate arms `gh pr merge --auto --squash --delete-branch`
+(Story #3901); otherwise the operator merges via the GitHub UI.
 
 #### Component Diagram
 
@@ -230,13 +232,13 @@ graph TB
 | `epic-plan-decompose.js`     | Authoring wrapper for the Epic's child-Story backlog; flips Epic to `agent::ready` and posts the dispatch manifest.                                                                       |
 | `dispatcher.js`              | Builds dependency DAG, computes execution waves, posts the dispatch manifest (consumed by `/deliver`).                                                                                   |
 | `epic-deliver-prepare.js`    | Snapshots the Epic, builds the wave plan, and initialises the `epic-run-state` checkpoint at the start of `/deliver` Phase 1.                                                            |
-| `lifecycle-emit.js`          | Generic argv-driven emit helper. `/deliver` Phase 6 / 7.5 / 8 fire `epic.close.end` / `epic.automerge.start` / `epic.merge.armed` through this CLI; the matching listener chain (`Finalizer`, `AutomergePredicate` + `AutomergeArmer`, `Cleaner`) runs the PR open, auto-merge arm, and branch reap. |
+| `lifecycle-emit.js`          | Generic argv-driven emit helper. `/deliver` Phase 7 / 8.5 / 9 fire `epic.close.end` / `epic.automerge.start` / `epic.merge.armed` through this CLI; the matching listener chain (`Finalizer`, `AutomergePredicate` + `AutomergeArmer`, `Cleaner`) runs the PR open, auto-merge arm, and branch reap. |
 | `story-init.js`              | Initialises a Story worktree and flips the Story to `agent::executing`.                                                                                                                     |
 | `story-close.js`             | Validates, merges, reaps, and cascades on Story completion. Thin CLI shell over `lib/orchestration/story-close/{merge-runner,cleanup-reconciler,comment-bodies}`. |
 | `hydrate-context.js`         | Assembles self-contained prompts (protocol + persona + skills + hierarchy + task). Emits the JSON envelope by default; `--emit prompt` writes the raw prompt. The only supported hydration CLI. |
 | `update-ticket-state.js`     | Syncs ticket status via GitHub labels (`agent::ready` → `agent::done`).                                                                                                                       |
 | `notify.js`                  | Dispatches notifications via @mention and webhook channels.                                                                                                                                   |
-| `analyze-execution.js`       | Reads per-Story `signals.ndjson` and emits the `story-perf-summary` / `epic-perf-report` consumed by the retro. Wired into the post-merge pipeline and into `/deliver` Phase 5.           |
+| `analyze-execution.js`       | Reads per-Story `signals.ndjson` and emits the `story-perf-summary` / `epic-perf-report` consumed by the retro. Wired into the post-merge pipeline and into `/deliver` Phase 6.           |
 
 #### In-process orchestration modules
 
@@ -245,8 +247,8 @@ These modules fold the close-tail into the deliver runner so
 
 | Module                                   | Role                                                                                                                                                              |
 | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lib/orchestration/code-review.js`       | Phase 4 inline audit. Extracted from `helpers/epic-code-review.md`; halts the runner on critical findings and persists results as a `code-review` structured comment. |
-| `lib/orchestration/retro-runner.js`      | Phase 5 retro authoring. Extracted from the (now-deleted) retro helper; aggregates perf signals, friction, hotfixes, recuts, parked stories, and HITL count.        |
+| `lib/orchestration/code-review.js`       | Phase 5 inline review. Companion to `helpers/code-review.md`; halts the runner on critical findings and persists results as a `code-review` structured comment. |
+| `lib/orchestration/retro-runner.js`      | Phase 6 retro authoring. Extracted from the (now-deleted) retro helper; aggregates perf signals, friction, hotfixes, recuts, parked stories, and HITL count.        |
 | `lib/duplicate-search.js`                | `/plan` ideation entry — cross-Epic title + body keyword search; returns a ranked list of overlapping open Epics or `[]`.                                     |
 
 #### Dispatch Engine Submodules
@@ -282,29 +284,25 @@ consumers continue to import `renderManifestMarkdown`,
 `postManifestEpicComment`, and `postParkedFollowOnsComment` from
 `lib/presentation/manifest-renderer.js`.
 
-#### Orchestration Context + ErrorJournal
+#### ErrorJournal
 
-The deliver-runner and plan-runner thread an explicit typed context through every
-submodule:
+`ErrorJournal` (`lib/orchestration/error-journal.js`) writes structured
+JSONL to `temp/epic-<id>-errors.log` via
+`errorJournal?.record({ phase, error, context })`, so failure sites that
+would otherwise be silent `catch (err) { logger.warn(...) }` blocks stay
+auditable after a run completes. See [`docs/patterns.md`](patterns.md)
+for the pattern and the `errorJournal?.record(...)` idiom. The typed
+context classes that once threaded it through an in-process runner
+(`OrchestrationContext` / `EpicRunnerContext` / `PlanRunnerContext` in
+`lib/orchestration/context.js`) were deleted with the dead in-process
+epic-runner stratum (#3908) — the host LLM drives the CLIs directly.
 
-| Context                | Path                            | Consumers                                                       |
-| ---------------------- | ------------------------------- | --------------------------------------------------------------- |
-| `OrchestrationContext` | `lib/orchestration/context.js`  | Shared base — provider, settings, logger, `errorJournal`.       |
-| `EpicRunnerContext`    | `lib/orchestration/context.js`  | Every `epic-runner/*` submodule accepts `ctx` as first arg.     |
-| `PlanRunnerContext`    | `lib/orchestration/context.js`  | `epic-plan-spec.js` / `epic-plan-decompose.js` drivers.         |
-
-The `errorJournal` field on each context is an `ErrorJournal` instance
-(`lib/orchestration/error-journal.js`) that writes structured JSONL to
-`temp/epic-<id>-errors.log`. Sites that previously did silent
-`catch (err) { logger.warn(...) }` in the deliver runner and the blocker
-handler now also call `errorJournal?.record({ phase, error, context })`
-so the error surface is auditable after a run completes. See
-[`docs/patterns.md`](patterns.md) for the pattern and the
-`errorJournal?.record(...)` idiom.
-
-`lib/orchestration/epic-runner/progress-reporter.js` emits a periodic
-`epic-run-progress` structured comment on the Epic, driven by
-`delivery.deliverRunner.progressReportIntervalSec`.
+Progress reporting is helper-based, not class-based:
+`lib/orchestration/epic-runner/progress-reporter/` holds the
+`composition.js` / `signals.js` / `transport.js` helpers consumed by
+`epic-execute-record-wave.js`, `lib/orchestration/wave-record-notifications.js`,
+and the `NotifyDispatcher` lifecycle listener to render and post wave-record
+progress surfaces.
 
 #### Codebase snapshot (Phase 7)
 
@@ -332,44 +330,38 @@ envelope so Phase 7 stays non-blocking.
 
 | Module                                              | Role                                                                                                                                                  |
 | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lib/orchestration/epic-runner/commit-assertion.js` | Post-wave guard — a "done" wave whose stories produced zero commits on `origin/story-<id>` is reclassified as `halted` instead of silently passing.   |
-| `lib/observability/signals-writer.js`               | Append-only NDJSON writer for `friction` / trace records under `temp/epic-<eid>/stories/story-<sid>/signals.ndjson`. The single producer for the telemetry pipeline; the consolidated reader (`lib/observability/signals-reader.js`) is the sole consumer. |
+| `lib/orchestration/wave-record-io.js`               | `verifySingleResult` — the zero-commit "done" guard. Each "done" claim in a wave record is re-fetched from the provider and downgraded (`verify-error`) when the ticket is not actually at `agent::done`/closed. |
+| `lib/observability/signals-writer.js`               | Append-only NDJSON writer for `friction` / trace records under `temp/epic-<eid>/stories/story-<sid>/signals.ndjson`. The single producer for the telemetry pipeline; readers are the `read()` async generator in `lib/signals/read.js` and the perf-report readers in `lib/observability/perf-report-readers.js`. |
 | `lib/orchestration/column-sync.js`                  | Drives the Projects v2 Status column from `agent::` labels (best-effort). Invoked from inside `transitionTicketState` (Story #2548) so every label flip — Epic and Story — mirrors onto the board.                  |
 
-`CommitAssertion`'s default git adapter falls back to a `resolves #<storyId>`
-grep on `origin/epic/<id>` when `origin/story-<id>` has already been deleted
-by `story-close` — closing the window where a successfully-merged Story was
-misreported as a zero-delta failure.
+The earlier `CommitAssertion` post-wave guard was epic-runner-scoped and
+was deleted with the in-process epic-runner stratum (#3908);
+`verifySingleResult` in `wave-record-io.js` is the surviving guard against
+a Story being reported "done" without verifiable completion.
 
 #### Throughput primitives
 
 | Module                                                     | Role                                                                                                                                                 |
 | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lib/util/concurrent-map.js`                               | `concurrentMap(items, fn, { concurrency })` bounded-concurrency fanout. Adopted in `wave-gate`, wave-end `commit-assertion`, and `ProgressReporter`. |
-| `providers/github/cache-manager.js`                        | `getTicket(id, { maxAgeMs })` treats entries older than the caller's max age as cache misses; `primeTicketCache` after every `getTickets(epicId)`.   |
+| `lib/util/concurrent-map.js`                               | `concurrentMap(items, fn, { concurrency })` bounded-concurrency fanout. Adopters: `detect-merges.js`, `hierarchy-gate.js`, `providers/github/issues.js`, `providers/github/sub-issues.js`, `lib/observability/perf-report-readers.js`, `lib/orchestration/wave-record-io.js`. |
+| `providers/github/cache.js`                                | Per-instance ticket cache; `peekFresh(ticketId, maxAgeMs)` treats entries older than the caller's max age as cache misses, and the cache is primed after bulk ticket fetches.   |
 | `providers/github/issues.js`                               | Bulk `GET /issues?labels=agent::*&state=open` path replaces per-ticket probes when the tracked-story set is large; per-ticket fallback on errors.    |
 | `lib/util/phase-timer.js` + `phase-timer-state.js`         | Records `{ phase, elapsedMs }` spans across the `story-init` → sub-agent → `story-close` boundaries. Posts `phase-timings` comments on Story close.  |
-| `ProgressReporter.setPlan({ waves })`                      | With a plan set, each fire renders every wave + story (queued / in-flight / done / blocked) with a `Wave` column. Reads `phase-timings` to render p50/p95. |
 
-#### Tunable concurrency caps
+#### Concurrency caps
 
-The three `concurrentMap` adoption sites use the framework-internal
-`DEFAULT_CONCURRENCY` constant exported by
-`lib/orchestration/concurrency.js` and threaded through
-`ctx.concurrency`:
-
-| Key                | Default        | Semantics                                                                                                                       |
-| ------------------ | -------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `waveGate`         | `0` (uncapped) | `wave-gate` retains the `Promise.all` fanout when omitted; a positive integer routes through `concurrentMap` with that cap.     |
-| `commitAssertion`  | `4`            | Wave-end `CommitAssertion.check` concurrent git-read cap.                                                                       |
-| `progressReporter` | `8`            | Progress-reporter concurrent `provider.getTicket` cap.                                                                          |
-
-`resolveConcurrency(source)` is retained as a call-site stable export but
-always returns `DEFAULT_CONCURRENCY` post-reshape — the caps are no longer
-operator-tunable via `.agentrc.json`. Consumers monitoring throughput
-read the `epic-perf-report` structured comment posted by
-`analyze-execution.js` at Epic close — it surfaces per-phase p50/p95 and
-the workload signals the retro consumes.
+The wave fan-out cap is resolved deterministically by
+`resolveConcurrencyCap` in `lib/orchestration/wave-record-projection.js`
+and surfaced on the wave-plan envelopes that `wave-tick.js` and
+`stories-wave-tick.js` emit. The epic-runner-era concurrency surface —
+`wave-gate.js`, `lib/orchestration/concurrency.js`
+(`DEFAULT_CONCURRENCY` / `resolveConcurrency`), `CommitAssertion`, and
+the `ProgressReporter` listener class — was deleted with the dead
+in-process stratum (#3908); do not confuse the surviving
+`resolveConcurrencyCap` with the deleted `resolveConcurrency`. Consumers
+monitoring throughput read the `epic-perf-report` structured comment
+posted by `analyze-execution.js` at Epic close — it surfaces per-phase
+p50/p95 and the workload signals the retro consumes.
 
 #### Direct CLIs (no MCP server)
 
@@ -474,7 +466,7 @@ provider-selector key; the factory's `PROVIDERS` map is the registry.
 **Internal layout**: `providers/github.js` is a thin façade over focused
 modules under `providers/github/`: `ticket-mapper.js` (REST/GraphQL payload →
 ticket shape), `graphql-builder.js` (named query + mutation strings),
-`cache-manager.js` (per-instance ticket cache), and
+`cache.js` (per-instance ticket cache), and
 `error-classifier.js` (GraphQL error → category). The façade re-exports every
 symbol consumers previously imported.
 
@@ -597,14 +589,15 @@ sequenceDiagram
     TD->>GH: Create the Story backlog
 
     H->>D: /deliver #EPIC
-    D->>EDR: Build DAG, compute waves, run all six phases
+    D->>EDR: Build DAG, compute waves, run the nine-phase flow
     EDR->>GH: Create epic/ and story/ branches
     EDR->>CH: Hydrate story context
     CH-->>EDR: Self-contained prompt
     EDR->>A: Dispatch story (Agent-tool sub-agent)
     A->>GH: Update labels (agent::executing → done)
-    EDR->>GH: Open PR to main, post hand-off comment
-    H->>GH: Merge PR via GitHub UI → Epic flips to agent::done
+    EDR->>GH: Open PR to main (Phase 7), iterate CI to green (Phase 8)
+    EDR->>GH: Clean run → Phase 8.5 arms gh pr merge --auto --squash
+    H->>GH: Otherwise operator merges via GitHub UI → Epic flips to agent::done
 ```
 
 ---
@@ -613,8 +606,11 @@ sequenceDiagram
 
 The `/deliver <epicId>` slash command is the sole entry point for
 Epic delivery. It runs end-to-end inside the operator's Claude session,
-composing the orchestration primitives into a six-phase execution
-coordinator with the lifecycle bus chain at its core. There is no
+composing the orchestration primitives into a nine-phase execution
+coordinator (Phases 1–9, with the Phase 8.5 auto-merge gate between
+watch-and-iterate and cleanup — see
+[`helpers/deliver-epic.md`](../.agents/workflows/helpers/deliver-epic.md))
+with the lifecycle bus chain at its core. There is no
 remote-trigger surface — delivery only ever runs locally, in the
 operator's session, with Story sub-agents launched through the Agent
 tool. Story #2259 (Epic #2172) retired the legacy deliver-runner CLI
@@ -647,17 +643,20 @@ inline-emit comments" framing is retired.
                                        │ operator runs /deliver <id>
                                        ▼
                               agent::executing  ◄── wave loop + close-validation +
-                                       │              code-review + retro + finalize
+                                       │              epic-audit + code-review +
+                                       │              retro + finalize
                                        │ wave halts on blocker
                                        ▼
                               agent::blocked  ──── operator flips back ───┐
                                        │                                  │
                                        └─────────────────────────────────┘
-                                       │ /deliver Phase 6 opens PR to main
+                                       │ /deliver Phase 7 opens PR to main;
+                                       │ Phase 8 iterates CI to green;
                                        │ Epic stays at agent::executing
-                                       │ (PR's existence is the merge signal;
-                                       │  /deliver terminates here)
-                                       │ operator merges PR via GitHub UI
+                                       │ Phase 8.5 — clean run? AutomergeArmer
+                                       │ fires gh pr merge --auto --squash
+                                       │ --delete-branch; otherwise the
+                                       │ operator merges via the GitHub UI
                                        ▼
                               agent::done  ◄── set via standard label-transition
                                                 pathway when the PR merge fires
@@ -670,20 +669,122 @@ inline-emit comments" framing is retired.
 | ------------------- | --------------------------------------------------------------------------------------------------- |
 | `wave-scheduler`    | Iterates waves from `Graph.computeWaves()`; never spawns workers.                                   |
 | `story-launcher`    | Fans out up to `concurrencyCap` `/deliver <storyId>` Agent-tool sub-agents in one message.    |
-| `checkpointer`      | Upserts the `epic-run-state` structured comment; handles phase-granular resume across the six phases. |
-| `blocker-handler`   | The sole runtime pause point; halts on `agent::blocked`, waits to resume.                           |
+| `checkpointer`      | Upserts the `epic-run-state` structured comment; handles phase-granular resume across the phases. |
 | `notification-hook` | Fire-and-forget webhook; never blocks execution.                                                    |
-| `wave-observer`     | Emits `wave-N-start` / `wave-N-end` structured comments each boundary.                              |
 | `column-sync`       | Drives the Projects v2 Status column from `agent::` labels (best-effort).                           |
-| `code-review`       | `lib/orchestration/code-review.js` — Phase 4 inline audit (extracted from the helper).              |
-| `retro-runner`      | `lib/orchestration/retro-runner.js` — Phase 5 retro authoring (extracted from the helper).          |
+| `code-review`       | `lib/orchestration/code-review.js` — Phase 5 inline review (companion to `helpers/code-review.md`). |
+| `retro-runner`      | `lib/orchestration/retro-runner.js` — Phase 6 retro authoring (extracted from the helper).          |
+
+The epic-runner-era `blocker-handler` and `wave-observer` listeners were
+deleted with the in-process stratum (#3908); `agent::blocked` remains the
+sole runtime pause point, enforced by the workflow prose rather than a
+resident listener.
+
+### Phase 4 — epic-audit (change-set lenses)
+
+Between close-validation (Phase 3) and code-review (Phase 5), `/deliver`
+runs an inline **epic-audit** stage
+([`helpers/epic-audit.md`](../.agents/workflows/helpers/epic-audit.md)).
+`epic-audit-prepare.js` wraps the audit-suite `selectAudits` SDK: it
+diffs `main..epic/<id>`, selects the audit lenses whose file patterns or
+keyword triggers match the change-set, unions in lenses mapped from the
+Epic's model-judged high-risk axes (Story #3889), and resolves an audit
+depth (`light` / `standard` / `deep`, Story #3939). Findings feed a
+bounded auto-fix loop governed by `delivery.epicAudit`
+(`maxFixAttempts` retry cap per finding; `maxFixScopeFiles` files per
+auto-fix before escalating to `agent::blocked`).
+`epic-audit-recheck.js` re-selects only the lenses whose patterns
+overlap files touched by the later code-review auto-fix tail. Operators
+can skip the stage with `--skip-epic-audit` (logged override; for
+known-irrelevant change-sets such as docs-only Epics).
 
 ### HITL touchpoints
 
 One runtime pause point — `agent::blocked` on the Epic. `risk::high` is
 metadata; mid-run changes are ignored. Branch protection on `main` (set up
 during `node .agents/scripts/bootstrap.js`) is the load-bearing destructive-action
-guard now that the operator's PR merge is the sole promotion gate.
+guard on the promotion path: the Epic PR merges either via the Phase 8.5
+auto-merge gate (armed only when the clean-run predicate passes — zero
+manual interventions, zero 🔴/🟠 review findings, compact retro;
+Story #3901) or via the operator's GitHub-UI merge on the fallback path.
+Either way, required status checks gate the squash onto `main`.
+
+### Per-Story acceptance self-eval
+
+Inside each Story delivery (Epic-attached `helpers/epic-deliver-story`
+Step 1a, and the standalone path alike), a bounded **acceptance
+self-eval** loop runs after the implementation commits land and before
+the Story proceeds to close. A **fresh-context critic** sub-agent —
+independent of the implementing turn — scores the working diff against
+each inline `acceptance[]` item, using `verify[]` as evidence;
+`acceptance-eval.js` records the per-criterion verdict (pass `--epic` on
+the Epic-attached path so the signal lands on the Epic-scoped stream).
+On `proceed` the Story flips to `closing`; unmet criteria trigger a
+redraft round, bounded by `delivery.acceptanceEval.maxRounds`
+(default 2, clamped into `[1, hard ceiling]` — the loop cannot be
+disabled). If the round cap is reached with criteria still unmet, the
+Story escalates: `agent::blocked`, a `friction` comment naming the unmet
+criteria, and a non-zero exit. The single prose home for the mechanic is
+[`helpers/acceptance-self-eval.md`](../.agents/workflows/helpers/acceptance-self-eval.md).
+
+### Standalone multi-Story delivery (no Epic)
+
+Stories without an `Epic: #N` reference do not enter the Epic wave loop.
+`/deliver <id> [<id>...]` routes them to
+[`helpers/deliver-stories.md`](../.agents/workflows/helpers/deliver-stories.md),
+which builds a dependency-aware wave plan and fans out one
+`helpers/single-story-deliver` Agent call per Story per wave — parallel
+within a wave, serialised across waves. The script surface parallels the
+Epic-attached trio (`story-init.js` / `wave-tick.js` / `story-close.js`):
+
+| Script                         | Responsibility                                                                                                   |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `single-story-init.js`         | Validates the standalone Story, branches directly from `main` (no `epic/<id>` seed, no dispatch-manifest gate).   |
+| `stories-wave-tick.js`         | DAG/wave engine for the standalone fan-out; resolves the `concurrencyCap` (default 3) on the `stories-wave-plan` envelope. |
+| `story-phase.js`               | Phase snapshot + heartbeat writer at each Story-level transition (init → implementing → closing → done / blocked). |
+| `single-story-close.js`        | Runs the canonical close-validation gate chain against the base branch, opens the PR straight to `main` with auto-merge armed, and rests the Story at `agent::closing`. |
+| `single-story-confirm-merge.js` | Post-merge confirmation: once `gh pr checks --watch` exits green and the PR merges, flips `agent::closing → agent::done` and closes the issue. |
+
+The exit contract differs from the Epic path: each standalone Story
+reaches `main` via its own human-visible PR (auto-merge armed at close),
+and the deferred confirm-merge step — not an in-script merge — performs
+the terminal label flip after GitHub's asynchronous auto-merge completes.
+
+### Operator-tunable delivery knobs
+
+Several schema-declared `delivery.*` blocks tune the runner without
+changing its shape (full per-field reference:
+[`.agents/docs/configuration.md`](../.agents/docs/configuration.md)):
+
+- **`delivery.codeReview.providers` / `provider` / `providerConfig`** —
+  pluggable review backend for Phase 5. The legacy single-string
+  `provider` selects one of `native` / `codex` / `security-review`; the
+  `providers: []` chain shape (which wins when non-empty) sequences
+  multiple providers with per-entry scopes, label conditions, and the
+  `ultrareview` manual-prompt entry. `providerConfig` is an open-shape
+  escape hatch for adapter-specific options. Tune when you want an
+  external or layered review chain instead of the native single pass.
+- **`delivery.mergeWatch.{intervalSeconds,maxBudgetSeconds}`** — poll
+  cadence and total wall-clock budget for the `MergeWatcher` lifecycle
+  listener after `epic.merge.armed` (defaults 30s / 3600s); exceeding
+  the budget surfaces `agent::blocked` with reason `budget-exceeded`.
+  Tune on repos with slow required checks.
+- **`delivery.refactorStage.enabled`** — opt-in (default off) advisory
+  post-green refactor checkpoint in story-deliver (`refactorer` persona +
+  `core/refactoring-discipline` skill); never alters close-validation
+  gate semantics.
+- **`delivery.feedbackLoop.{codeReviewAutoFile,auditResultsAutoFile}`** —
+  both default `true`: the Epic finalize listener auto-files
+  non-blocking code-review / audit findings as follow-up issues (routed
+  via `lib/feedback-loop/`). Set `false` to keep findings only in the
+  Epic's structured comments.
+- **`delivery.ci.skipForStoryPushes`** — default `true`: pre-push
+  tooling appends `[skip ci]` to Story-branch commit subjects so
+  intermediate pushes don't stampede CI; the Epic-branch merge commit
+  never carries the marker.
+- **`delivery.failOnConcurrencyHazards`** — default off: when `true`,
+  `epic-deliver-prepare` refuses to flip the Epic to `agent::executing`
+  while the upcoming waves carry an unresolved conflict finding.
 
 ---
 
@@ -731,7 +832,7 @@ the authoritative contract:
 
 | Parent tier                                     | Auto-closes via cascade? | How it closes                                                    |
 | ----------------------------------------------- | ------------------------ | ---------------------------------------------------------------- |
-| Epic (`type::epic`)                             | **No** — cascade stops.  | Operator merges the `/deliver` PR via the GitHub UI.        |
+| Epic (`type::epic`)                             | **No** — cascade stops.  | The `/deliver` PR merges — auto-merge when the Phase 8.5 clean-run gate armed it, otherwise the operator merges via the GitHub UI. |
 | Planning (`context::prd`, `context::tech-spec`) | **No** — cascade stops.  | Operator close after the Epic PR is merged.                      |
 
 **Why neither tier auto-closes.** Epics gate on a real pull-request
@@ -847,7 +948,8 @@ Both modes share:
 
 - The same `/deliver` Agent-tool sub-agent contract and the same
   parent-driven dispatch logic out of `/deliver`'s wave loop.
-- The launch-time dependency guard (`runDispatchManifestGuard`) that refuses
+- The launch-time blocker pre-flight (`validateBlockers` in
+  `lib/story-init/blocker-validator.js`, run by `story-init.js`) that refuses
   a story with unmerged blockers.
 - Deterministic, operator-driven story assignment — `/deliver` always
   takes an explicit Story id. There is no per-launch label race.
@@ -935,8 +1037,10 @@ The model has three layers:
 2. **Detectors — `diagnose-friction.js` and the per-detector pure
    modules under `lib/signals/detectors/` (`rework.js`, `retry.js`,
    `hotspot.js`).** Rework + retry run inside the post-Story close
-   pipeline (`lib/orchestration/post-merge-pipeline.js`); hotspot runs
-   at Epic close from `lib/orchestration/epic-runner/progress-reporter.js`.
+   pipeline (`lib/orchestration/post-merge-pipeline.js`); hotspot signals
+   are aggregated at Epic close by the retro's signal-gathering phase
+   (`lib/orchestration/retro/phases/gather-signals.js`) and the
+   epic-perf-report pipeline.
    Each call site resolves thresholds via `getSignals(config)`
    (defaults: `hotspot.p95Multiplier=1.25`, `rework.editsPerFile=5`,
    `retry.repeatCount=3`). Operators override individual keys in
@@ -948,7 +1052,7 @@ The model has three layers:
    [`structured:story-perf-summary`](../.agents/schemas/story-perf-summary.schema.json)
    comment carrying friction counts by category, phase timings,
    top-slow phases vs baseline, a rework score, and retry density. At
-   `/deliver` Phase 5, `analyze-execution.js` aggregates every
+   `/deliver` Phase 6, `analyze-execution.js` aggregates every
    Story's NDJSON into one
    [`structured:epic-perf-report`](../.agents/schemas/epic-perf-report.schema.json)
    comment alongside the retro: per-kind signal counts, per-wave
@@ -1016,17 +1120,24 @@ runner-integration tests. Run with `npm test`.
 
 ## CI/CD Pipeline
 
-A single GitHub Actions workflow (`ci.yml`) runs on every push and PR:
+A single GitHub Actions workflow (`ci.yml`) runs on every push and PR,
+with three jobs:
 
-1. **Lint** — Biome (JavaScript) + markdownlint (Markdown).
-2. **Format Check** — Biome format verification.
-3. **Test** — Full test suite via `npm test`.
-4. **Maintainability Check** — `check-maintainability.js` no-regression gate
-   on the per-file MI baseline.
-5. **CRAP Check** — `check-crap.js` (per-method complexity × coverage risk).
-   Diff-scoped on PRs (`--changed-since origin/<base_ref>`); full-repo scan on
-   push-to-main so a regression in an untouched file cannot ride in alongside
-   an unrelated PR. JSON report uploaded as the `crap-report` artifact.
+1. **Validate and Test** — the main job, in step order: `npm audit`
+   (SCA), TruffleHog secret scanning, **Lint and Format** via
+   `npm run lint` (which folds in the Biome format check — Story #1829),
+   **Maintainability Check** via `npm run maintainability:check`
+   (`node .agents/scripts/check-baselines.js --gate maintainability`;
+   diff-scoped on PRs, `BASELINE_SCOPE=full` on push-to-main), and
+   **Run Tests with Coverage** via `npm run test:coverage`. Artifacts:
+   `test-results` (test output) and `coverage-final` (c8 coverage map).
+2. **baselines** — `node .agents/scripts/check-baselines.js --format text`,
+   surfaced as its own required status check (Epic #1943 / Story #1981);
+   the unified floor + tolerance + schema gate that replaced the retired
+   per-kind `check-maintainability` / `check-crap` / `check-mutation`
+   scripts.
+3. **Windows Smoke** — advisory (non-required) Windows leg (Story #3389):
+   bootstrap dry-run, command sync, and config-resolution tests.
 
 Distribution is **not** handled by `ci.yml`. A separate `release-please.yml`
 workflow cuts releases and runs the `npm-publish` job that publishes
@@ -1038,8 +1149,8 @@ The baseline-refresh CI guardrail was removed alongside the bot-approver
 pipeline; the `baseline-refresh:` commit subject + non-empty body
 convention is preserved (the pre-push hook and local close-validation
 still consume it) but it is no longer machine-enforced on PRs. The
-operator owns refresh justification during `/deliver`'s Phase 7
-watch loop.
+operator owns refresh justification during `/deliver`'s Phase 8
+watch-and-iterate loop.
 
 ### Quality-gate diagram
 
@@ -1053,22 +1164,25 @@ local ▶ │ pre-push (.husky/pre-push):           │
                             │
         ┌───────────────────▼───────────────────┐
 close ▶ │ close-validation DEFAULT_GATES:       │
-        │   lint → test → biome format →        │
-        │   check-maintainability → check-crap  │
-        │   (each gate skips when SHA-keyed     │
+        │   typecheck → lint → test → format →  │
+        │   coverage-capture → check-baselines  │
+        │   (test drops when crap.enabled;      │
+        │    each gate skips when SHA-keyed     │
         │    evidence still matches)            │
         └───────────────────┬───────────────────┘
                             │
         ┌───────────────────▼───────────────────┐
 CI    ▶ │ ci.yml:                               │
-        │   lint+format → MI → test:coverage →  │
-        │   check-crap → upload crap-report     │
+        │   audit+secrets → lint+format → MI    │
+        │   (check-baselines --gate maint.) →   │
+        │   test:coverage → baselines job       │
+        │   (check-baselines --format text)     │
         └───────────────────────────────────────┘
 ```
 
 ### Evidence-aware gate caching
 
-Local close-validation, `epic-code-review`, and `/deliver` Phase 3
+Local close-validation, the `helpers/code-review.md` review pass, and `/deliver` Phase 3
 (close-validation) wrap each gate in `evidence-gate.js`. On a successful
 run the wrapper records
 `{ gateName, commitSha, commandConfigHash, timestamp }` under the per-Epic
@@ -1080,9 +1194,10 @@ both `--scope-id` and `--epic-id`. Subsequent invocations against the same
 `--no-evidence` forces a re-run; pre-push and CI ignore the evidence file
 entirely so independent verification is never bypassed.
 
-All three sites converge on the same `check-crap.js` binary and the same
-`baselines/crap.json` artifact, so a regression caught at any one site fails
-the gate identically at the others.
+All three sites converge on the same `check-baselines.js` runner (per-kind
+invocations use `--gate <kind>`, e.g. `check-baselines.js --gate crap`) and
+the same `baselines/` artifacts, so a regression caught at any one site
+fails the gate identically at the others.
 
 ### Local Hooks
 
@@ -1209,7 +1324,7 @@ conventions to follow.
 - **Test file pattern:** `tests/**/*.test.js`
 - **Coverage:** `node --experimental-test-coverage` with absolute
   floors enforced per-file: lines ≥ 90, branches ≥ 85, functions ≥ 90,
-  MI ≥ 70, CRAP ≤ 20. See [`quality-gates.md`](quality-gates.md) for the
+  MI ≥ 70, CRAP ≤ 20. See [`.agents/docs/quality-gates.md`](../.agents/docs/quality-gates.md) for the
   ratchet-plus-floor policy.
 
 ### Key Scripts
@@ -1267,11 +1382,15 @@ The E2E/Acceptance tier is executed by the **agent-driven QA harness**
 earlier headless BDD runner (now retired): rather than a
 Node orchestrator running Cucumber headlessly, the harness is a **prose
 workflow** the host LLM executes against a **real browser** through the
-`chrome-devtools` MCP surface, with a human observing. Deterministic Node
-helpers under `.agents/scripts/lib/qa/` do only contract resolution
-(`resolve-qa-contract.js`), scenario selection (`resolve-selection.js`), and
-console filtering (`console-allowlist.js`); the LLM owns navigation,
-assertion, and triage. The full run procedure is the SSOT in
+`chrome-devtools` MCP surface, with a human observing. For the harness,
+the deterministic Node helpers under `.agents/scripts/lib/qa/` do contract
+resolution (`resolve-qa-contract.js`), scenario selection
+(`resolve-selection.js`), and console filtering (`console-allowlist.js`);
+the LLM owns navigation, assertion, and triage. The same `lib/qa/`
+directory also houses the shared exploratory-QA core consumed by
+`/qa-assist` and `/qa-explore` (see below): `qa-session.js`,
+`redact-evidence.js`, `coverage-verdict.js`, `coverage-report.js`,
+`propose-missing-test.js`, and `qa-context-hydrator.js`. The full run procedure is the SSOT in
 [`.agents/workflows/qa-run-harness.md`](../.agents/workflows/qa-run-harness.md);
 the instrumentation conventions live in the
 `skills/stack/qa/qa-harness` skill.
@@ -1331,6 +1450,37 @@ structured finding validated against
 network[] } }`. Captured evidence is scrubbed of tokens, session cookies, and
 PII before any finding is rendered, because findings are posted to GitHub at
 approval time.
+
+#### Exploratory QA: `/qa-assist` and `/qa-explore`
+
+Two sibling prose workflows complement the scenario-stepping harness with
+open-ended QA, both routed through the same shared core under
+`.agents/scripts/lib/qa/` and `.agents/scripts/lib/findings/`:
+
+- **`/qa-assist`** — **human-led**, single-observation-at-a-time
+  (Intake → Enrich → Record). The operator reports one observation; the
+  agent enriches it into a triage-ready ledger item — clean repro,
+  root-cause locus (`file:line`), and a coverage verdict — asking
+  clarifying questions when the observation is ambiguous, and appends it
+  only after explicit operator confirmation.
+- **`/qa-explore`** — **agent-led**, bounded per-surface exploration
+  (Plan → Capture → Triage), HITL-gated at every phase transition. The
+  agent plans an explicit static-vs-drive method choice, drives the
+  surface (browser MCP or static) under a strictly read-only capture
+  invariant, then triages the ledger into routed, classified, dedup'd
+  follow-up dispositions.
+
+Both record observations as `QaLedgerItem`s
+(`.agents/schemas/qa-ledger.schema.json`) in a **persistent, resumable
+rolling session under `temp/qa/`** (`qa-session.js` owns session/ledger
+resolution), so items from either entry point flow through the identical
+machinery: dedup/classification/routing (`lib/findings/`), coverage
+verdicts (`coverage-verdict.js` / `coverage-report.js`), missing-test
+proposals (`propose-missing-test.js`), context hydration
+(`qa-context-hydrator.js`), and evidence redaction
+(`redact-evidence.js`). Procedure SSOT remains the workflow files:
+[`qa-assist.md`](../.agents/workflows/qa-assist.md) and
+[`qa-explore.md`](../.agents/workflows/qa-explore.md).
 
 ### What the Agent Should **Not** Assume
 

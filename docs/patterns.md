@@ -306,21 +306,20 @@ The result is **idempotent by marker**: re-running the upsert replaces
 the prior comment, so checkpoints and wave-boundary reports never
 accumulate as clutter.
 
-**Consumers in the epic runner:**
+**Consumers in the delivery flow:**
 
 | Type                 | Writer                      | Purpose                                                     |
 | -------------------- | --------------------------- | ----------------------------------------------------------- |
-| `epic-run-state`     | `Checkpointer`              | JSON checkpoint (`currentWave`, `phase`, wave history).     |
-| `wave-<N>-start`     | `WaveObserver.waveStart`    | Per-wave start manifest + timestamp.                        |
-| `wave-<N>-end`       | `WaveObserver.waveEnd`      | Per-wave outcomes + duration.                               |
-| `dispatch-manifest`  | `epic-plan` / dispatcher    | Frozen Story manifest for the wave-gate.                    |
+| `epic-run-state`     | `lib/orchestration/epic-run-state-store.js` (advanced by `epic-execute-record-wave.js`) | JSON checkpoint (`currentWave`, `phase`, wave history). |
+| `wave-<N>-start` / `wave-<N>-end` | `/deliver` wave loop (markers parsed by `lib/orchestration/wave-marker.js`) | Per-wave boundary records on the Epic ticket. |
+| `dispatch-manifest`  | `epic-plan` / dispatcher    | Frozen Story manifest consumed by the wave loop (`wave-tick.js`, `dispatcher.js`). |
 | `parked-follow-ons`  | dispatcher                  | Out-of-manifest Stories surfaced at the deliver-tail gate.  |
 | `retro`              | `lib/orchestration/retro-runner.js` | Final retrospective body with `retro-complete` marker. |
 | `code-review`        | `lib/orchestration/code-review.js`  | Findings report from the in-process Phase 4 module.    |
 
 **When to reach for this pattern:** orchestrator state that must
 survive restarts, be human-readable on the issue, and be
-machine-parseable by downstream tooling (wave-gate, retro aggregator).
+machine-parseable by downstream tooling (wave-tick, retro aggregator).
 Prefer a local file only when the state is ephemeral and recoverable
 (e.g. `temp/dispatch-manifest-<id>.{md,json}` is a view, not an SSOT).
 
@@ -359,7 +358,7 @@ surfaced via `Logger.fatal()` at the CLI boundary.
 ### Why it matters
 
 1.  **Library code stays pure.** `lib/orchestration/**` and
-    `lib/worktree/**` are imported by the epic runner and multiple CLI
+    `lib/worktree/**` are imported by multiple CLI
     scripts. If any of them called `process.exit()`, they would kill a
     long-running parent process on a recoverable error. The only way
     library code ends a process is by throwing and letting the top-level
@@ -379,10 +378,12 @@ surfaced via `Logger.fatal()` at the CLI boundary.
 *   **`lib/cli-utils.js`** — `runAsCli` is the default CLI error
     handler; its `process.exit(exitCode)` implements the contract for
     all entry-point scripts.
-*   **Orchestrator CLIs that print their own summary** (e.g.
-    `story-close.js`, `epic-runner.js`) may call
-    `Logger.fatal()` explicitly when the error has already been logged
-    in a structured form and a raw stack trace would add noise.
+*   **One-shot utility CLIs** (e.g. `update-ticket-state.js`,
+    `generate-lifecycle-docs.js`) may call `Logger.fatal()` explicitly
+    when the error has already been logged in a structured form and a
+    raw stack trace would add noise. Orchestration scripts MUST `throw`
+    instead — see
+    [`rules/orchestration-error-handling.md`](../.agents/rules/orchestration-error-handling.md).
 
 ### Quick sweep
 
@@ -398,81 +399,19 @@ Both queries should return no results when the convention holds.
 
 ---
 
-## OrchestrationContext Dependency Injection
+## Historical note: OrchestrationContext Dependency Injection (retired)
 
-### Problem
-
-A loosely-shaped `opts` bag accumulates `provider`, `logger`, `settings`,
-ad-hoc feature flags, injected adapters, and unrelated siblings. Each
-submodule picks a slightly different subset. Adding a new cross-cutting
-concern (`ErrorJournal` was the canonical example) requires editing every
-call site and hoping no path silently drops the new field.
-
-### Pattern
-
-`lib/orchestration/context.js` exports three typed context constructors:
-
-- `OrchestrationContext` — the shared base. Holds `provider`, `settings`,
-  `logger`, and `errorJournal`.
-- `EpicRunnerContext extends OrchestrationContext` — adds epic-runner
-  specifics (`epicId`, `concurrencyCap`, `runSkill` adapter, …).
-- `PlanRunnerContext extends OrchestrationContext` — adds plan-runner
-  specifics (`phase`, `decomposerAdapter`, …).
-
-Every orchestration submodule takes `ctx` as its first argument:
-
-```js
-export async function dispatchWave(ctx, waveNumber) {
-  const { provider, logger, errorJournal } = ctx;
-  // …
-}
-```
-
-Tests construct a minimal `ctx` with stub injectables rather than
-reaching into a shared module state. Composition (epic-runner calling
-into dispatch-engine) passes `ctx` through unchanged — submodules never
-reconstruct a new context from an opts bag.
-
-### The `errorJournal?.record(...)` idiom
-
-Alongside the ctx refactor, every silent-catch site in the orchestration
-layer now records to the journal:
-
-```js
-try {
-  await doRiskyThing();
-} catch (err) {
-  logger.warn(`[epic-runner] ${err.message}`);
-  errorJournal?.record({
-    phase: 'blocker-handler',
-    error: err,
-    context: { storyId, label },
-  });
-}
-```
-
-The optional chaining (`errorJournal?.record`) is deliberate: older test
-fixtures may construct a bare ctx without a journal, and that must
-remain valid. In production the journal is always wired by the runner
-entry points. The resulting `temp/epic-<id>-errors.log` is a JSONL
-stream consumable by the retro aggregator (and, planned, by the
-Epic-health dashboard).
-
-### Benefits
-
-*   Adding a new cross-cutting concern is a **one-line ctx extension** plus
-    grep-safe call-site updates.
-*   Every submodule's first argument is typed and discoverable — no
-    more "what's in `opts`?" guessing.
-*   Tests no longer need to guess which `opts` keys a submodule peeks
-    at; they build a stub ctx that matches the constructor shape.
-
-### Trade-offs
-
-*   Converting the initial call sites is a one-time grind — every
-    `epic-runner/*` file accepts `ctx` as its first arg.
-*   The ctx constructor is the boundary where validation lives; don't
-    sprinkle `if (!ctx.provider) …` checks across submodules.
+This document previously taught an `OrchestrationContext` /
+`EpicRunnerContext` / `PlanRunnerContext` typed-ctx DI pattern backed by
+`lib/orchestration/context.js`. That substrate was deleted with the
+in-process epic-runner stratum (PR #3936; the host-LLM-drives-CLIs model
+superseded it), and no live module demonstrates the pattern. Do **not**
+re-introduce a shared ctx object for new orchestration code — the
+surviving style is **explicit named arguments**: each module declares
+the collaborators it needs (`provider`, `logger`, `config`, …) as plain
+destructured parameters, and tests pass stubs directly. See
+[`rules/git-conventions.md` § Contract Cutovers](../.agents/rules/git-conventions.md)
+for why the old stratum was removed wholesale rather than shimmed.
 
 ---
 
@@ -480,8 +419,8 @@ Epic-health dashboard).
 
 ### Problem
 
-Several runner-side modules (e.g. `blocker-handler.js`, the legacy
-state-poll path) each carried their own
+Several runner-side modules (since deleted with the in-process
+epic-runner stratum) each carried their own
 `while (true) { await new Promise(r => setTimeout(r, ms)); … }` loops
 with slightly different jitter, timeout, and abort handling. Adding a
 timeout budget to one did not automatically apply to the other, and
@@ -495,17 +434,20 @@ A shared helper at `lib/util/poll-loop.js`:
 ```js
 import { pollUntil, sleep } from '../util/poll-loop.js';
 
-const label = await pollUntil(
-  () => provider.getLabel(ticketId),
-  (labelValue) => labelValue === 'agent::done',
-  { intervalMs: 30_000, timeoutMs: 15 * 60_000 },
-);
+const label = await pollUntil({
+  fn: () => provider.getLabel(ticketId),
+  predicate: (labelValue) => labelValue === 'agent::done',
+  intervalMs: 30_000,
+  timeoutMs: 15 * 60_000,
+});
 ```
 
-`pollUntil(fn, predicate, opts)` runs `fn`, tests `predicate(result)`,
-and sleeps `intervalMs` between attempts until either the predicate
-passes or `timeoutMs` elapses. `sleep(ms)` is the trivial awaitable
-`setTimeout` wrapper used elsewhere.
+`pollUntil({ fn, predicate, intervalMs, timeoutMs, signal, logger })`
+runs `fn`, tests `predicate(result)`, and sleeps `intervalMs` between
+attempts until either the predicate passes, the optional `signal`
+aborts, or `timeoutMs` elapses. `sleep(ms, signal)` is the cancellable
+awaitable `setTimeout` wrapper used internally and exported for callers
+that own their own cadence.
 
 ### When to reach for it
 
@@ -529,16 +471,19 @@ passes or `timeoutMs` elapses. `sleep(ms)` is the trivial awaitable
 *   Test fixtures can inject a fake clock against one module instead of
     three.
 
-## Whole-epic progress reporting via `setPlan`
+## Whole-epic progress reporting via `epic-run-progress`
 
-The `ProgressReporter` (`lib/orchestration/epic-runner/progress-reporter.js`)
-emits a periodic `epic-run-progress` snapshot covering every story across
-every wave — queued, in-flight, done, blocked — so operators see the full
-Epic at a glance.
+The progress-reporter module
+(`lib/orchestration/epic-runner/progress-reporter/composition.js`,
+`renderProgressBody` / `upsertEpicRunProgress`) renders the
+`epic-run-progress` snapshot covering every story across every wave —
+queued, in-flight, done, blocked — so operators see the full Epic at a
+glance.
 
-`setPlan({ waves })` is called once at runner start with the full wave
-DAG. With a plan present, each fire fetches state for every story in
-every wave and renders a single grouped table:
+`upsertEpicRunProgress` is called by `/deliver` Step 2b
+(`epic-execute-record-wave.js`) after each wave completes, folding the
+`epic-run-state` checkpoint's `waves[]` into per-wave rows and
+rendering a single grouped table:
 
 ```text
 ### 📊 Progress — Wave 2/2 · 5/6 closed · 38m elapsed
@@ -552,12 +497,12 @@ every wave and renders a single grouped table:
 | 2    | #424| 🔧 in-flight | ProgressReporter detectors + CI Node matrix   |
 ```
 
-The pattern is back-compat — callers that don't migrate to `setPlan`
-still see the prior single-wave table via `setWave({ stories })`. The
-`Wave` column appears only when a plan is set.
+There is no separate per-wave structured comment — `epic-run-progress`
+is the single operator-facing summary, grouped by wave, and the upsert
+is idempotent by marker (see the structured-comment pattern above).
 
 **Why it matters:** the progress signal is what operators read while
-the runner runs. A snapshot that only shows the active wave hides
+the delivery loop runs. A snapshot that only shows the active wave hides
 "is the epic 20% done or 80% done?" — exactly the question the
 operator is trying to answer when checking in. The grouped table
 collapses that question into a single glance.
@@ -592,10 +537,12 @@ must not halt the runner) and are picked up out-of-band by the analyzer
    category, source: { tool }, details, ... }` — callers own the rest of
    the payload.
 2. **Consumers.** `diagnose-friction.js` (per-failure detector),
-   `story-close.js` reap failure (via `post-merge-pipeline.js`),
-   `epic-runner/progress-reporter.js` wave-poller `getTicket` failure,
-   `check-maintainability.js` baseline-refresh, and `check-crap.js`
-   baseline-refresh.
+   `story-close.js` reap failure (via
+   `lib/orchestration/post-merge/phases/worktree-reap.js`), and the
+   baseline auto-refresh path
+   (`lib/orchestration/story-close/auto-refresh-runner.js`, which fronts
+   the unified `check-baselines.js` gate and its per-kind logic under
+   `lib/baselines/kinds/`).
 3. **Replaced.** Story #1042 (Epic #1030) cut the in-process cooldown
    module and its `upsertStructuredComment` round-trip — friction now
    lives on disk, not in GitHub comments.
@@ -613,8 +560,9 @@ downstream, so callers do not need their own cooldown logic.
 ### Problem
 
 `validateOrchestrationConfig` is wired into `resolveConfig()`, but CLI
-launchers (`epic-runner.js`, `plan-runner.js`, `epic-plan-spec.js`,
-`epic-plan-decompose.js`) call `resolveConfig()` and immediately dispatch
+launchers (`epic-plan-healthcheck.js`, `bootstrap.js`,
+`agents-bootstrap-github.js`, `epic-plan-spec.js`,
+`epic-plan-clarity.js`) call `resolveConfig()` and immediately dispatch
 to long-running flows. A schema-invalid `.agentrc.json` would otherwise
 surface deep inside the dispatch chain instead of at launcher startup,
 producing a confusing stack trace instead of a clear schema error.
@@ -623,9 +571,10 @@ producing a confusing stack trace instead of a clear schema error.
 
 Each launcher's `main()` now calls `validateOrchestrationConfig` after
 `resolveConfig()` returns and exits non-zero on validation failure
-before any provider call, GitHub I/O, or wave-loop begins. The
-fixture test removes a required `delivery.deliverRunner` field and
-asserts the launcher exits with a schema error before work starts.
+before any provider call, GitHub I/O, or wave-loop begins (the same
+check also runs inside `lib/config/runtime.js`). The fixture test
+removes a required `delivery` field and asserts the launcher exits
+with a schema error before work starts.
 
 ### Why the explicit call (vs relying on `resolveConfig`)
 
@@ -650,33 +599,27 @@ branches risky.
 ### Solution
 
 The coordinator becomes a **thin dispatcher** that calls into one
-phase module per step. The engine reduces to:
+phase module per step, with a uniform contract per phase:
+`(ctx, collaborators, state) -> Promise<state>`. Each phase is a
+stand-alone module under a sibling `phases/` directory.
 
-```js
-let state = {};
-state = await runSmokeTestPhase(ctx, collaborators, state);
-if (state.halted) return state.halted;
-state = await runSnapshotPhase(ctx, collaborators, state);
-state = await runBuildWaveDagPhase(ctx, collaborators, state);
-state = await runIterateWavesPhase(ctx, collaborators, state);
-return runFinalizePhase(ctx, collaborators, state);
-```
-
-Each phase is a stand-alone module under
-`.agents/scripts/lib/orchestration/epic-runner/phases/`. The contract
-is uniform: `(ctx, collaborators, state) -> Promise<state>`.
+The in-process epic-runner coordinator that motivated the pattern was
+later deleted wholesale (PR #3936 — the host-LLM-drives-CLIs model
+superseded it; only `phases/build-wave-dag.js` and `phases/snapshot.js`
+survive under `lib/orchestration/epic-runner/phases/`, consumed by the
+`/deliver` prepare/preflight CLIs), but the decomposition layout it
+established is the live convention.
 
 ### Benefits
 
 - **Test surface**: each phase is independently importable and
   mockable. Collaborator fakes are constructed once and passed in.
-- **Review scope**: a change to the iterate-waves loop touches only
-  `iterate-waves.js`; the coordinator, snapshot, and finalize phases
-  stay unchanged.
+- **Review scope**: a change to one step touches only that phase
+  module; the coordinator and sibling phases stay unchanged.
 - **Pattern reuse**: the same coordinator-plus-phases layout is used
   by `story-init.js` (six injectable stages under
   `lib/story-init/`) and by `story-close.js`'s post-merge
-  pipeline.
+  pipeline (`lib/orchestration/post-merge/phases/`).
 
 ## Atomic file write via tmp + rename
 
@@ -751,11 +694,10 @@ at the protocol boundary.
 
 ### Problem
 
-Framework hot paths that read many tickets per tick — `wave-gate`
-(`getTicket` per story / recut / parked), `ProgressReporter` (per-story
-label read on every cadence tick), wave-end `commit-assertion` (per-story
-git probe) — were serial `for..of` loops over `await`. On a 20-story
-epic the wall-clock compounded linearly. Converting to naked
+Framework hot paths that read many tickets per pass — wave-record
+verification (`getTicket` per "done" claim), hierarchy gating, bulk
+issue/sub-issue reads — were serial `for..of` loops over `await`. On a
+20-story epic the wall-clock compounded linearly. Converting to naked
 `Promise.all` would swap that for an unbounded thundering herd against
 the GitHub API and risk secondary rate limits.
 
@@ -763,26 +705,31 @@ the GitHub API and risk secondary rate limits.
 
 One primitive at `lib/util/concurrent-map.js`:
 `concurrentMap(items, fn, { concurrency })`. Result order is preserved;
-the first unhandled rejection aggregates out. Three adoption points,
-each chosen for its bottleneck:
+the first unhandled rejection aggregates out. Live adoption points
+include:
 
-- `wave-gate.js` — no explicit cap (the story count *is* the
-  cap); three prior serial fanouts become one outer `concurrentMap`.
-- wave-end `commit-assertion.js` — cap **4**. Git is CPU/disk-bound;
-  higher caps don't help and can contend on the repo lock.
-- `progress-reporter.js` — cap **8**, layered over a 10-second TTL
-  (`getTicket(id, { maxAgeMs: 10_000 })`) so repeated ticks inside the
-  window serve from cache instead of fanning out at all.
+- `detect-merges.js` and `hierarchy-gate.js` — CLI-level ticket fanouts.
+- `providers/github/issues.js` and `providers/github/sub-issues.js` —
+  provider-side bulk reads.
+- `lib/orchestration/wave-record-io.js` — per-Story re-verification of
+  "done" claims at wave record time.
+- `lib/observability/perf-report-readers.js` — signals-stream reads for
+  the perf report.
+
+Each site picks a cap for its bottleneck: GitHub-API fanouts cap to
+stay under secondary rate limits; disk-bound fanouts cap low because
+higher parallelism doesn't help and can contend on locks.
 
 ### Consequences
 
 - One primitive, one reviewer surface. New fanouts reuse the helper
   instead of re-rolling `Promise.all` + semaphore.
-- TTL + cap are orthogonal: the TTL handles the tight ticks; the cap
-  handles the wide waves.
-- Caps are constants for now. The phase-timer surface shipped in the
-  same Epic is the measurement that will justify an `agentSettings`
-  override — not premature configurability.
+- Provider-level caching (see the ticket-cache pattern below) and the
+  cap are orthogonal: the cache handles repeated reads; the cap handles
+  the wide fanouts.
+- Caps are constants for now. The phase-timer surface is the
+  measurement that will justify an `agentSettings` override — not
+  premature configurability.
 
 ## Prime the ticket cache after every `getTickets` sweep
 
@@ -829,9 +776,9 @@ state survives the `story-init` → sub-agent →
 `story-close` boundary (where three separate phases handle
 one Story). Per-phase lines are emitted during the lifecycle; on
 close, a `phase-timings` structured comment is posted to the Story
-ticket. `ProgressReporter.setPlan()` reads closed-story timings and
-renders median / p95 per phase into the Epic's `epic-run-progress`
-comment.
+ticket. `analyze-execution.js` aggregates closed-story timings and
+renders median / p95 per phase into the Epic's `epic-perf-report`
+structured comment.
 
 ### Consequences
 
@@ -857,10 +804,14 @@ test next?" without conflating them.
 Ship two sibling gates with complementary signals, reading from the same
 upstream artefacts the test runner already produces:
 
-| Gate                    | Granularity | Signal                                       | Answers                     |
-| ----------------------- | ----------- | -------------------------------------------- | --------------------------- |
-| `check-maintainability` | Per-file    | Composite MI score vs. baseline              | "What should I refactor?"   |
-| `check-crap`            | Per-method  | `c² · (1 − cov)³ + c` vs. baseline + ceiling | "What should I test next?"  |
+| Gate kind         | Granularity | Signal                                       | Answers                     |
+| ----------------- | ----------- | -------------------------------------------- | --------------------------- |
+| `maintainability` | Per-file    | Composite MI score vs. baseline              | "What should I refactor?"   |
+| `crap`            | Per-method  | `c² · (1 − cov)³ + c` vs. baseline + ceiling | "What should I test next?"  |
+
+Both run as kinds of the unified `check-baselines.js` gate, with
+per-kind logic under `lib/baselines/kinds/` (`maintainability.js`,
+`crap.js`).
 
 Both gates run at the same three sites (pre-push, close-validation, CI)
 and emit a shared envelope shape (`{ kernelVersion, summary, violations }`)
@@ -872,7 +823,7 @@ from the base branch and re-applied via env-var overrides; baseline-only
 PRs auto-label `review::baseline-refresh` for human review.
 
 For the runbook (bootstrap, refresh procedure, `--json` envelope, opt-out)
-see [`docs/quality-gates.md`](quality-gates.md).
+see [`.agents/docs/quality-gates.md`](../.agents/docs/quality-gates.md).
 
 ---
 
@@ -900,8 +851,8 @@ observability surface. Three principles:
    typos. Regression tests assert the no-config path observably matches
    pre-tuning fanout (e.g. `Promise.all` vs `concurrentMap` with cap=0).
 2. **One resolver, one shape.** A small helper
-   (`lib/orchestration/concurrency.js#resolveConcurrency`) handles
-   coercion, per-field fallback, and freezing. Every reader goes
+   (`lib/orchestration/wave-record-projection.js#resolveConcurrencyCap`)
+   handles coercion, per-field fallback, and freezing. Every reader goes
    through the same shape; no adoption site re-invents defaults or
    reads concurrency caps from the resolved config directly.
 3. **Tuning data comes from inside.** The `analyze-execution.js`

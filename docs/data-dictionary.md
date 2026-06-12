@@ -195,8 +195,9 @@ any prior comment of the same type.
 | `story-init`        | `story-init.js`                                     | Initial Story metadata snapshot.                                         |
 | `story-run-progress`| `/deliver`                                    | Per-Story label transitions during `/deliver`.                   |
 | `epic-run-progress` | `/deliver` (`epic-execute-record-wave.js`)     | Cross-wave Story-level rollup, grouped by wave. Single comment, upserted in place after each wave. |
-| `code-review`       | `lib/orchestration/code-review.js` (Phase 4)        | Findings report posted on the Epic.                                      |
-| `retro`             | `lib/orchestration/retro-runner.js` (Phase 5)       | Final retrospective body with the `retro-complete` marker.               |
+| `code-review`       | `lib/orchestration/code-review.js` (Phase 5)        | Findings report posted on the Epic.                                      |
+| `retro`             | `lib/orchestration/retro-runner.js` (Phase 6)       | Final retrospective body with the `retro-complete` marker.               |
+| `audit-results`     | `helpers/epic-audit` (Phase 4)                      | Per-lens audit findings posted on the Epic. Read by `lib/feedback-loop/audit-results-graduator.js`, which auto-graduates non-blocking findings (severity high/medium/low/suggestion — anything not a 🔴 Critical Blocker) into routed follow-up issues carrying `meta::audit-finding`, `meta::framework-gap`/`meta::consumer-improvement`, `audit-results::<severity>`, and `domain::<lens>` labels, with an `<!-- audit-results-followup: epic-<id>-finding-<idx> -->` idempotency marker. Toggle: `delivery.feedbackLoop.auditResultsAutoFile` (default `true`). |
 | `retro-partial`     | `epic-retro` helper                                 | Mid-run checkpoint so a crashed retro can resume without re-collecting.  |
 | `phase-timings`     | `phase-timer` (on `story-close`)                    | Per-phase elapsed-time spans for the closed Story.                       |
 | `friction`          | `signals-writer.appendSignal` (NDJSON, on disk)     | Per-Story friction observation appended to `signals.ndjson` (no GitHub round-trip post Story #1042). |
@@ -242,36 +243,14 @@ the Epic is the SSOT; the on-disk file is a renderer cache regenerable via
 
 | Term                                                | Kind     | Definition                                                                                                                                                                       |
 | --------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CommitAssertion`                                   | Class    | Post-wave guard wired into `wave-observer`; reclassifies a `done` wave with zero new commits on `origin/story-<id>` as `halted`. Lives at `lib/orchestration/epic-runner/commit-assertion.js`. Falls back to a `resolves #<storyId>` grep on `origin/epic/<id>` when `origin/story-<id>` is already deleted by `story-close`. |
+| `verifyWaveResults({ provider, results, concurrencyCap })` | Function | Post-wave claim guard in `lib/orchestration/wave-record-io.js` (the surviving successor to the deleted `CommitAssertion` class, removed with the in-process epic-runner stratum in PR #3936). Re-fetches each Story ticket fresh and downgrades any `status: 'done'` claim whose ticket has not reached `agent::done` (or `closed`) to `failed`, returning the verified rows plus a `discrepancies` list. Network failures during verification become `verify-error` discrepancies. Per-row checks run through `concurrentMap` under a bounded cap (default 4, override via `delivery.deliverRunner.verifyConcurrencyCap`). |
 | `detectPriorPhase()`                                | Function | Recovery-state detector exported by `lib/orchestration/story-close-recovery.js`; classifies the close-time situation as `clean` / `unmerged-story-branch` / `merge-in-progress` / `dirty-worktree` so `--resume` and `--restart` can branch. |
 | `--resume` / `--restart`                            | CLI flag | `story-close.js` flags. `--resume` picks up at the merge-resolution step from a failed prior close without re-running init/implement/validate; `--restart` aborts any partial state and re-inits. |
-| `hierarchy-gate.js`                                 | Script   | `/deliver` Phase 1.2 gate; walks the Epic's full sub-issue graph (Features → Stories plus auxiliary tickets) and exits non-zero if any descendant is open or any Story is closed without `agent::done`. Pairs with `wave-gate.js` (manifest view) for the Phase 1 Feature Completeness Check. |
-| `setPlan({ waves })`                                | Method   | `ProgressReporter` API. Called once at runner start so each fire renders every wave + story (queued / in-flight / done / blocked) with a `Wave` column rather than only the active wave.                |
-| `progress-signals/stalled-worktree.js`              | Detector | Mechanical `ProgressReporter` detector; flags Stories where `agent::done` ships with a live `.worktrees/story-<id>/` directory still on disk.                                                          |
-| `progress-signals/maintainability-drift.js`         | Detector | Mechanical detector; emits a Notable bullet when the maintainability score for any tracked file drifts negatively from the wave-start baseline.                                                        |
-| `progress-signals/crap-drift.js`                    | Detector | Mechanical detector; per-method CRAP drift versus a wave-start baseline. Surfaces a `🧨 CRAP drift: <file>::<method> <score> (ceiling <N>)` bullet when a method crosses the configured ceiling or rises by ≥ threshold. |
-| `signals-writer.appendSignal`                       | Helper   | Append-only NDJSON writer at `lib/observability/signals-writer.js`. Writes one JSON record per line to `temp/epic-<eid>/stories/story-<sid>/signals.ndjson`. Consumers: `diagnose-friction.js`, `story-close.js` reap-failure (via `post-merge-pipeline.js`), `epic-runner/progress-reporter.js` poller-failure, `check-maintainability.js`, and `check-crap.js`. Replaced the deleted in-process emitter class in Epic #1030 Story #1042. |
+| `hierarchy-gate.js`                                 | Script   | Standalone hierarchy-completeness CLI (`node .agents/scripts/hierarchy-gate.js --epic <EPIC_ID>`). Walks the Epic's live Story sub-issue graph (2-tier: Epic → Story, Story #4041 — `getSubTickets(<storyId>)` returns `[]`, so the walk terminates at the Story) and requires every Story closed; auxiliary `context::prd` / `context::tech-spec` tickets are ignored (the operator closes them after the Epic PR merges). Exits 0 when every descendant is closed, 1 when any is open, 2 on configuration/provider error. |
+| `signals-writer.appendSignal`                       | Helper   | Append-only NDJSON writer at `lib/observability/signals-writer.js`. Writes one JSON record per line to `temp/epic-<eid>/stories/story-<sid>/signals.ndjson`. Consumers: `diagnose-friction.js`, `story-close.js` reap-failure (via `post-merge-pipeline.js`), `analyze-execution.js`, and the retro signal gatherer (`lib/orchestration/retro/phases/gather-signals.js`). Per-kind quality-gate logic formerly in `check-crap.js` / `check-maintainability.js` now lives in `lib/baselines/kinds/{lint,coverage,crap,maintainability,mutation}.js` behind `check-baselines.js`. Replaced the deleted in-process emitter class in Epic #1030 Story #1042. |
 | `--reap-discard-after-merge` / `--no-reap-discard-after-merge` | CLI flag | `/deliver` Phase 7 flag. Default force-reaps worktrees whose Story branch is already merged into `epic/<id>` (per `git merge-base --is-ancestor`), discarding uncommitted post-merge drift; the `--no-` form preserves prior skip-on-uncommitted behavior. Force-reap emits a `friction` comment listing discarded paths. |
 | Version-bump-intent snapshot                        | Checkpoint | `/deliver` Phase 0.5 parses the Epic body for `Release target:` / `--segment` directives and posts a `notification` structured comment on the Epic (marker `<!-- notification: version-bump-intent -->`) when they disagree with `release.autoVersionBump`.            |
-| Launcher-level config validation                    | Contract | `validateOrchestrationConfig(config)` runs in `main()` of `epic-runner.js`, `plan-runner.js`, `epic-plan-spec.js`, and `epic-plan-decompose.js` — a schema-invalid `.agentrc.json` exits non-zero before any long-running flow begins. |
-
----
-
-## Runtime Context
-
-The unified runtime-context object is owned by
-`.agents/scripts/lib/orchestration/context.js`. It exports three typed
-constructors — `OrchestrationContext` (shared base: `provider`, `settings`,
-`logger`, `errorJournal`), `EpicRunnerContext` (adds `epicId`,
-`concurrencyCap`, `runSkill`), and `PlanRunnerContext` (adds `phase`,
-`decomposerAdapter`) — that orchestration submodules accept as the first
-argument, replacing hand-rolled opts-bags.
-
-| Term                | Kind             | Definition                                                                                                                  |
-| ------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `ctx`               | Object           | Unified runtime context. Frozen on creation; submodules accept it as the first argument.                                    |
-| `ctx.concurrency`   | Frozen object    | `{ waveGate, commitAssertion, progressReporter }`. `CommitAssertion` and `ProgressReporter` read their cap through this.     |
-| `ctx.errorJournal`  | `ErrorJournal`   | Writes structured JSONL to `temp/epic-<id>-errors.log` (one JSON object per line: `{ ts, phase, error, context }`).         |
+| Launcher-level config validation                    | Contract | `validateOrchestrationConfig(config)` (from `lib/config/validate-orchestration.js`) runs at launcher startup in `epic-plan-spec.js`, `epic-plan-clarity.js`, `epic-plan-healthcheck.js`, `bootstrap.js`, `agents-bootstrap-github.js`, and the `epic-plan-decompose` CLI phase — a schema-invalid `.agentrc.json` exits non-zero before any long-running flow begins. |
 
 ---
 
@@ -320,8 +299,8 @@ ratchet.
 | `delivery.quality.gates.crap`                       | Config block       | `{ enabled, targetDirs, newMethodCeiling, coveragePath, tolerance, requireCoverage, friction.markerKey, refreshTag }`. Defaults: `enabled: true`, `targetDirs: ["src"]`, `newMethodCeiling: 30`, `coveragePath: "coverage/coverage-final.json"`, `tolerance: 0.05`, `requireCoverage: true`, `refreshTag: "baseline-refresh:"`. List-valued keys accept `{ append }` / `{ prepend }`. |
 | Hybrid enforcement                                  | Decision contract  | `compareCrap()` resolves each scanned row through four match paths: exact `(file, method, startLine)`, line-drift fallback (same `(file, method)`, shifted `startLine`), new (no match → ceiling check), removed (baseline row absent → reported, never a failure).                                                                                                          |
 | `fixGuidance`                                       | Report field       | Per-violation block in the `--json` envelope: `{ crapCeiling, minComplexityAt100Cov, minCoverageAtCurrentComplexity }`. Derived deterministically from the formula; `null` when unachievable at current complexity. Round-trip property: applying either single-axis fix re-scores under target.                                                                              |
-| `--changed-since <ref>`                             | CLI flag           | On `check-crap.js` and `check-maintainability.js`. Limits scoring + comparison to files in `git diff --name-only <ref>...HEAD`. Bad ref → non-zero exit (no silent degradation to "no regressions").                                                                                                                                                                          |
-| `--json <path>`                                     | CLI flag           | On both gates. Writes `{ kernelVersion, summary, violations }`; CRAP envelope adds `fixGuidance` per violation.                                                                                                                                                                                                                                                              |
+| `--changed-since <ref>`                             | CLI flag           | On `quality-preview.js` (defaults to `HEAD` when omitted). Limits scoring + comparison to files changed relative to `<ref>`. For the unified gate (`check-baselines.js`), diff scoping is config-driven via `delivery.quality.gateScoping` rather than a CLI flag.                                                                                                            |
+| `--json` / `--format json`                          | CLI flag           | `quality-preview.js` takes boolean `--json` (emits the merged machine-readable envelope on stdout); `check-baselines.js` takes `--format json\|text` and emits the JSON report on stdout. The standalone per-gate `--json <path>` file writers went away with `check-crap.js` / `check-maintainability.js` — per-kind gate logic now lives in `lib/baselines/kinds/`.        |
 | `CRAP_NEW_METHOD_CEILING` / `CRAP_TOLERANCE` / `CRAP_REFRESH_TAG` | Env vars | Override `crap.newMethodCeiling`, `crap.tolerance`, and `crap.refreshTag` respectively at runtime. Malformed values warn and fall back to config — a typo must never silently relax the gate. Originally consumed by the (since-removed) baseline-refresh CI guardrail; still available for local re-runs that need to force base-branch values.                                |
 | `refreshTag` (commit-message convention)            | Operator convention | A baseline edit should land in a commit whose subject starts with the configured `refreshTag` (default `baseline-refresh:`) and whose body is non-empty. The CI guardrail that mechanically enforced this was removed in 5.42; the operator is now the gate during `/deliver` Phase 7.                                                                                  |
 
@@ -331,8 +310,6 @@ ratchet.
 
 | Term                            | Kind             | Definition                                                                                                                                          |
 | ------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DEFAULT_CONCURRENCY`           | Framework constant | `{ waveGate: 0, commitAssertion: 4, progressReporter: 8 }`, exported from `.agents/scripts/lib/orchestration/concurrency.js`. No `.agentrc.json` knob post-reshape — the values are framework-internal constants. |
-| `resolveConcurrency(source)`    | Helper           | `lib/orchestration/concurrency.js`. Returns a frozen `{ waveGate, commitAssertion, progressReporter }`. Falls back to defaults on missing/malformed values. |
 | `concurrentMap(items, fn, opts)` | Utility         | `lib/util/concurrent-map.js`; bounded-concurrency fanout helper. Preserves result order; rejects aggregate on the first thrown error unless the callback swallows it. |
 | `analyze-execution.js`          | CLI              | Reads per-Story `signals.ndjson` and emits the `story-perf-summary` (Story-mode) / `epic-perf-report` (Epic-mode) structured comments. The retro composer reads these for phase p50/p95 and concurrency hints. Wired into `post-merge-pipeline` (Story mode) and Epic close Phase 6.0 (Epic mode) in Epic #1114. |
 | `lib/baseline-loader.js`        | Helper           | `readBaselineAtRef(ref, path)` resolves a baseline JSON file at an arbitrary git ref (`git show <ref>:<path>`). Used by every close-validation gate so the gate compares Story-touched files in the worktree against shared baselines on the Epic ref, eliminating cross-Story drift on the main checkout as a close-blocker. Added in Epic #1114. |
@@ -352,7 +329,7 @@ ratchet.
 | `resolveRuntime(opts, env)`       | Helper        | `lib/config-resolver.js`. Returns `{ worktreeEnabled, sessionId, isRemote }` plus the source attribution string used in the startup log line.                                                                        |
 | `DEFAULT_STORY_MERGE_RETRY`     | Framework constant | `{ maxAttempts: 3, backoffMs: [250, 500, 1000] }`, exported from `.agents/scripts/lib/config/runners.js`. Drives the bounded retry on the epic-branch push at story close. Post-reshape this is a framework-internal constant — no `.agentrc.json` override. See `docs/CHANGELOG.md` for the rename history. |
 | `pushEpicWithRetry(...)`          | Helper        | `lib/push-epic-retry.js`. Wraps the `git push origin epic/<id>` step with fetch-replay-push retry on non-fast-forward rejection. Aborts cleanly on real content conflicts; never destroys local work.                |
-| `runDispatchManifestGuard(opts)`  | Helper        | `lib/story-init/dependency-guard.js`. Pre-flight blocker check at `story-init.js` startup. Refuses launch if any of the story's blockers are unmerged.                                                              |
+| `validateBlockers({ provider, logger, input })` | Helper | `lib/story-init/blocker-validator.js` (Stage 3 of the story-init pipeline). Parses `blocked by #N` references from the Story body and verifies each is resolved (`agent::done` label or GitHub state `closed`). Returns `{ openBlockers }`; fetch failures are treated as blocking (`fetchError: true`) so an agent never proceeds past a dependency whose state is unknown. |
 
 ---
 
@@ -400,11 +377,36 @@ and overwrites the record on success.
 
 ## Health-Monitor Refresh Cadence
 
-Post-reshape the Epic Health structured comment is refreshed at
-wave-boundary by the lifecycle-bus-driven structured-comment poster
-(`lib/orchestration/lifecycle/listeners/structured-comment-poster.js`).
+Post-reshape the Epic Health (`epic-run-progress`) structured comment is
+composed and upserted at wave-boundary by
+`lib/orchestration/epic-runner/progress-reporter/composition.js`
+(`upsertEpicRunProgress`, invoked via `epic-execute-record-wave.js`).
 The historic `every-close` / `every-n-closes` cadence selector is no
-longer operator-tunable; the bus owns the refresh schedule.
+longer operator-tunable, and the former lifecycle-bus
+`structured-comment-poster` listener is deleted — the live listener
+roster under `lib/orchestration/lifecycle/listeners/` is:
+acceptance-reconciler, automerge-armer, automerge-predicate,
+branch-cleaner, checkpoint-pointer-writer, cleaner, finalizer,
+intervention-recorder, merge-watcher, notify-dispatcher, watcher.
+
+---
+
+## QA Session & Ledger Artifacts
+
+`/qa-assist` (human-led) and `/qa-explore` (agent-led) share a persistent,
+resumable rolling-session substrate under `<tempRoot>/qa/` (default
+`temp/qa/`), owned by `lib/qa/qa-session.js`. Each session writes exactly
+one append-only ndjson ledger; resume runs with the same session-id append
+to — never overwrite — the existing file. Evidence MUST be scrubbed of
+secrets/PII per `rules/security-baseline.md` (via `lib/qa/redact-evidence.js`)
+before it reaches disk.
+
+| Term                                     | Kind          | Definition                                                                                                                                                |
+| ---------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `temp/qa/<sessionId>.ndjson`             | Temp artefact | The session ledger: one `QaLedgerItem` JSON object per line, validated by `.agents/schemas/qa-ledger.schema.json`. Append-only; malformed lines are skipped on read so a crashed run still resumes. |
+| `resolveQaSession({ sessionId, config, env })` | Helper  | `lib/qa/qa-session.js`. Resolves `{ sessionId, ledgerPath, reused, untriaged }`. Session-id precedence: explicit `--session-id` → `QA_SESSION_ID` env var → derived `qa-<YYYY-MM-DD>-<hex8>`. Ids are slugified (path-traversal safe). `reused: true` signals an existing ledger that must be appended to. |
+| `QaLedgerItem`                           | Record shape  | Required: `id` (`L1`, `L2`, … in capture order), `class` (`product-bug` \| `environment-setup` \| `tooling-dx` \| `test-gap` \| `enhancement`), `severity` (`critical` \| `high` \| `medium` \| `low` \| `info`), `evidence` (one-line, scrubbed), `coverage` (surface/scenario label, `unknown` fallback), `missingTest` (string or `null`). Optional: `disposition`, `relates` (ids of folded-in items). |
+| `disposition`                            | Field         | Two-phase lifecycle marker. Capture phase: absent, `null`, or a `pending`/`untriaged` sentinel — these items form the rolling backlog (`untriaged`) a resume run carries forward. Triage phase: `file` (promote to follow-up ticket), `defer` (park), or `dismiss` (non-actionable). `TRIAGED_DISPOSITIONS` in `qa-session.js` is the SSOT. |
 
 ---
 

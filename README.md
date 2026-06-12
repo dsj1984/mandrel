@@ -25,10 +25,6 @@ provisions both as part of a cold start (`git init` → `gh repo create --push`
   provisioning, grant the scope with `gh auth refresh -s project` (re-auth
   in the browser when prompted) before running `bootstrap.js`.
 
-See the [Compatibility matrix](docs/upgrade-major.md#compatibility-matrix)
-section of `docs/upgrade-major.md` for the supported OS / Node /
-package-manager combinations.
-
 ## Quickstart
 
 The canonical cold-start path is one command, then one slash command:
@@ -106,29 +102,23 @@ npx mandrel update
 
 1. **Resolve** the newest published version (a `npm view mandrel
    version` registry probe) and the currently installed version.
-2. **Major gate** — if the newest version crosses a major boundary
-   (e.g. `1.x → 2.0`), the command declines, prints a pointer to
-   [`docs/upgrade-major.md`](docs/upgrade-major.md), and exits non-zero
-   without touching anything. Re-run with `--major` to apply it.
-3. **No-op short-circuit** — already on the newest version ⇒ nothing to do.
-4. **Install** the target version with the project's package manager —
+2. **No-op short-circuit** — already on the newest version ⇒ nothing to do.
+3. **Install** the target version with the project's package manager —
    auto-detected from the lockfile (`pnpm-lock.yaml` ⇒ pnpm, `yarn.lock` ⇒
    yarn, otherwise npm) so the bump lands in your real lockfile. The
    dependency bump is left **staged** on disk — `mandrel update` performs no
    `git add` / `git commit`, so you review and commit the lockfile change
    yourself.
-5. **Sync** — re-materialize `./.agents/` from the freshly installed payload.
-6. **Migrate** — apply version-keyed migration steps for the crossed range.
-7. **Doctor** — run the check registry to verify the resulting install.
-8. **Surface** the target changelog section.
+4. **Sync** — re-materialize `./.agents/` from the freshly installed payload.
+5. **Migrate** — apply version-keyed migration steps for the crossed range.
+6. **Doctor** — run the check registry to verify the resulting install.
+7. **Surface** the target changelog section.
 
 ### Flags
 
 - `--dry-run` — print the resolved target version and the ordered step
   plan, then exit. No dependency is bumped, no file is written, no seam
   runs.
-- `--major` — apply a major-version crossing that the gate would otherwise
-  refuse. Review [`docs/upgrade-major.md`](docs/upgrade-major.md) first.
 - `--install-cmd "<cmd>"` — override the auto-detected install command. The
   package manager is normally detected from your lockfile
   (`pnpm-lock.yaml` ⇒ `pnpm add -D …`, `yarn.lock` ⇒ `yarn add -D …`,
