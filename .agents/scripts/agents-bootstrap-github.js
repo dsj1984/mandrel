@@ -49,7 +49,7 @@ import {
 import { createProvider } from './lib/provider-factory.js';
 
 const PROJECTS_DOC_POINTER =
-  'See docs/project-board.md for the manual Projects V2 setup checklist.';
+  'See .agents/docs/project-board.md for the manual Projects V2 setup checklist.';
 
 /**
  * Detect that an error is a not-found / 404 signal across the surfaces

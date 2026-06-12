@@ -49,7 +49,7 @@ Bootstrap creates the **four** views below (defined in
 Projects V2 views endpoint — GraphQL has no public `createProjectV2View`
 mutation. View creation is best-effort: when the endpoint is unavailable
 for the token, the bootstrap log reports
-`Projects V2 Views unavailable — see docs/project-board.md` and you
+`Projects V2 Views unavailable — see .agents/docs/project-board.md` and you
 create them by hand using the filter strings below. Already-existing
 views are skipped by name, never recreated.
 

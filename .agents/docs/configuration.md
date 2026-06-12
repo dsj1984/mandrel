@@ -777,7 +777,7 @@ the lint ratchet, and the CRAP/MI gates.
 These files are the contract. They are read by every gate (Story close, push
 hook, CI) and are regenerated only via tagged `baseline-refresh:` commits
 with a non-empty body. The convention is operator-enforced; see the CRAP
-section of [`docs/quality-gates.md`](../../docs/quality-gates.md) for the policy.
+section of [`quality-gates.md`](quality-gates.md) for the policy.
 
 Paths are configured in `delivery.quality.gates.<tier>.baselinePath`. The
 default values match the canonical layout above; override only when a
@@ -1092,6 +1092,6 @@ mandrel uninstall --include-github # acknowledge GitHub-side follow-ups
 - Bootstrap script —
   [`bootstrap.js`](../scripts/bootstrap.js)
 - Quality gates runbook (CRAP onboarding, MI ratchet, lint ratchet) —
-  [`docs/quality-gates.md`](../../docs/quality-gates.md)
+  [`quality-gates.md`](quality-gates.md)
 - Activation pointers (slash commands, personas, skills) —
   [`.agents/README.md`](../README.md)

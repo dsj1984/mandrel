@@ -823,7 +823,7 @@ from the base branch and re-applied via env-var overrides; baseline-only
 PRs auto-label `review::baseline-refresh` for human review.
 
 For the runbook (bootstrap, refresh procedure, `--json` envelope, opt-out)
-see [`docs/quality-gates.md`](quality-gates.md).
+see [`.agents/docs/quality-gates.md`](../.agents/docs/quality-gates.md).
 
 ---
 

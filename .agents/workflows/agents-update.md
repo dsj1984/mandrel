@@ -42,7 +42,7 @@ The upgrade contract:
   lockfile pins — never "whatever the registry's newest is today."
 - **The major axis is gated.** `mandrel update` refuses to cross a major
   boundary (e.g. `1.x → 2.0`) without an explicit `--major`, printing a
-  pointer to `docs/upgrade-major.md` and exiting non-zero without touching
+  pointer to `.agents/docs/upgrade-major.md` and exiting non-zero without touching
   anything. Routine minor/patch bumps within the current major are never
   gated.
 - **The CLI never commits.** The npm bump rewrites `package.json` /
@@ -82,7 +82,7 @@ version before applying.
    the daily freshness cache in `temp/version-check.json`) and the currently
    installed version.
 2. **Major gate** — if the newest version crosses a major boundary, the run
-   declines, prints the `docs/upgrade-major.md` pointer, and exits non-zero
+   declines, prints the `.agents/docs/upgrade-major.md` pointer, and exits non-zero
    without touching anything. Re-run with `--major` only after reviewing that
    runbook.
 3. **No-op short-circuit** — already on the newest version ⇒ prints
@@ -372,7 +372,7 @@ no-op.
 
 - **`a newer MAJOR version (X.0.0) is available`** — `mandrel update`
   hit the major gate and exited non-zero without touching anything. A
-  major crossing is a breaking upgrade. Read `docs/upgrade-major.md`,
+  major crossing is a breaking upgrade. Read `.agents/docs/upgrade-major.md`,
   then re-run `mandrel update --major` only after you have absorbed the
   migration steps that runbook describes.
 

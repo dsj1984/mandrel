@@ -25,8 +25,8 @@ provisions both as part of a cold start (`git init` → `gh repo create --push`
   provisioning, grant the scope with `gh auth refresh -s project` (re-auth
   in the browser when prompted) before running `bootstrap.js`.
 
-See the [Compatibility matrix](docs/upgrade-major.md#compatibility-matrix)
-section of `docs/upgrade-major.md` for the supported OS / Node /
+See the [Compatibility matrix](.agents/docs/upgrade-major.md#compatibility-matrix)
+section of `.agents/docs/upgrade-major.md` for the supported OS / Node /
 package-manager combinations.
 
 ## Quickstart
@@ -108,7 +108,7 @@ npx mandrel update
    version` registry probe) and the currently installed version.
 2. **Major gate** — if the newest version crosses a major boundary
    (e.g. `1.x → 2.0`), the command declines, prints a pointer to
-   [`docs/upgrade-major.md`](docs/upgrade-major.md), and exits non-zero
+   [`.agents/docs/upgrade-major.md`](.agents/docs/upgrade-major.md), and exits non-zero
    without touching anything. Re-run with `--major` to apply it.
 3. **No-op short-circuit** — already on the newest version ⇒ nothing to do.
 4. **Install** the target version with the project's package manager —
@@ -128,7 +128,7 @@ npx mandrel update
   plan, then exit. No dependency is bumped, no file is written, no seam
   runs.
 - `--major` — apply a major-version crossing that the gate would otherwise
-  refuse. Review [`docs/upgrade-major.md`](docs/upgrade-major.md) first.
+  refuse. Review [`.agents/docs/upgrade-major.md`](.agents/docs/upgrade-major.md) first.
 - `--install-cmd "<cmd>"` — override the auto-detected install command. The
   package manager is normally detected from your lockfile
   (`pnpm-lock.yaml` ⇒ `pnpm add -D …`, `yarn.lock` ⇒ `yarn add -D …`,

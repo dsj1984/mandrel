@@ -19,13 +19,13 @@ combinations.
 
 This is the runbook the `mandrel update` **major gate** points you at. When the newest published `mandrel` crosses a major boundary (for example `1.x → 2.0`), `mandrel update` **refuses to apply it automatically** — it prints the available version, a pointer to this section, and exits non-zero without mutating anything. You cross the boundary deliberately, with this runbook in hand, by re-running with `--major`.
 
-> **Why a major is gated.** Mandrel lives on the **1.x** line and is released by `release-please` with `versioning: always-bump-minor` — routine work only ever advances the **minor** axis, even when a commit carries a `BREAKING CHANGE:` footer. A **major release is a deliberate, manual operator decision** on the framework side ([AGENTS.md § Major-version policy](../AGENTS.md)): an operator sets the version explicitly via a `Release-As: X.0.0` trailer or an in-place version edit on the release PR. The consumer-side major gate is the mirror image of that manual step: just as a major release cannot be cut by reflex, a major upgrade cannot be **adopted** by reflex. Minor and patch bumps within the 1.x line are never gated — only the rare major crossing is.
+> **Why a major is gated.** Mandrel lives on the **1.x** line and is released by `release-please` with `versioning: always-bump-minor` — routine work only ever advances the **minor** axis, even when a commit carries a `BREAKING CHANGE:` footer. A **major release is a deliberate, manual operator decision** on the framework side ([AGENTS.md § Major-version policy](../../AGENTS.md)): an operator sets the version explicitly via a `Release-As: X.0.0` trailer or an in-place version edit on the release PR. The consumer-side major gate is the mirror image of that manual step: just as a major release cannot be cut by reflex, a major upgrade cannot be **adopted** by reflex. Minor and patch bumps within the 1.x line are never gated — only the rare major crossing is.
 
 ---
 
 ### What "breaking" means here, in npm terms
 
-Mandrel follows a **hard-cutover contract** ([`.agents/rules/git-conventions.md` § Contract Cutovers](../.agents/rules/git-conventions.md)): there is **no shim layer** and **no parallel old-shape support**. When a contract changes — a config shape, a baseline shape, a JSON schema, a lifecycle payload, a ticket label, a dispatch artifact, or the public API of a script — the change ships as a single in-tree migration that moves every producer and consumer in one pass. The old shape is deleted in the same release; it is not kept alive behind a flag for a deprecation window.
+Mandrel follows a **hard-cutover contract** ([`.agents/rules/git-conventions.md` § Contract Cutovers](../rules/git-conventions.md)): there is **no shim layer** and **no parallel old-shape support**. When a contract changes — a config shape, a baseline shape, a JSON schema, a lifecycle payload, a ticket label, a dispatch artifact, or the public API of a script — the change ships as a single in-tree migration that moves every producer and consumer in one pass. The old shape is deleted in the same release; it is not kept alive behind a flag for a deprecation window.
 
 In npm terms this means:
 
@@ -48,7 +48,7 @@ Running a plain update against a major surfaces the refusal:
 ```bash
 npx mandrel update
 # → declines: "a newer MAJOR version (2.0.0) is available; this is a breaking
-#   upgrade. Review docs/upgrade-major.md, then re-run with --major." (exit 1)
+#   upgrade. Review .agents/docs/upgrade-major.md, then re-run with --major." (exit 1)
 ```
 
 Inspect the plan without writing anything:
@@ -125,8 +125,8 @@ Then revert any config edits the forward migrations made (your version-control h
 | --- | --- |
 | [Renovate / Dependabot integration](#renovate--dependabot-integration) | Dependency-bot config that gates Mandrel bumps on `mandrel doctor` and holds majors for manual review |
 | [Compatibility matrix](#compatibility-matrix) | Supported OS / Node / package-manager combinations |
-| [AGENTS.md § Major-version policy](../AGENTS.md) | The framework-side manual major-release step this gate mirrors |
-| [`.agents/rules/git-conventions.md` § Contract Cutovers](../.agents/rules/git-conventions.md) | The hard-cutover / no-shim policy a major expresses |
+| [AGENTS.md § Major-version policy](../../AGENTS.md) | The framework-side manual major-release step this gate mirrors |
+| [`.agents/rules/git-conventions.md` § Contract Cutovers](../rules/git-conventions.md) | The hard-cutover / no-shim policy a major expresses |
 
 ---
 
@@ -138,7 +138,7 @@ This guide gives you a drop-in config for **both** bots. Pick whichever your pro
 
 - **Scopes to `mandrel`** so the rules here only govern the framework dependency (your other packages keep their existing update policy).
 - **Runs `mandrel doctor` as the CI gate** so a bump only goes green when `.agents/` re-materializes cleanly, the consumer manifest is unpolluted, the slash commands are in sync, and `gh` is authenticated.
-- **Respects the versioning model.** Mandrel lives on the **1.x** line and is released by `release-please` with `versioning: always-bump-minor`, so routine releases only advance the **minor** axis. A **major (1.x → 2.0) is a deliberate, manual operator decision** ([AGENTS.md § Major-version policy](../AGENTS.md)) and is the rare, runbook-backed event documented in [§ Upgrading across a major version](#upgrading-across-a-major-version) above. The bot configs below therefore let minor/patch bumps flow automatically but **always hold a major for manual review**.
+- **Respects the versioning model.** Mandrel lives on the **1.x** line and is released by `release-please` with `versioning: always-bump-minor`, so routine releases only advance the **minor** axis. A **major (1.x → 2.0) is a deliberate, manual operator decision** ([AGENTS.md § Major-version policy](../../AGENTS.md)) and is the rare, runbook-backed event documented in [§ Upgrading across a major version](#upgrading-across-a-major-version) above. The bot configs below therefore let minor/patch bumps flow automatically but **always hold a major for manual review**.
 
 > **These are example consumer configs.** They belong in the project that *depends on* `mandrel`, not in this repository. (This repository is the framework itself; its own root `renovate.json` governs Mandrel's own dependencies and is unrelated to the consumer examples here.) Copy the block for your bot into your consumer project root. The two configs below are also shipped verbatim as parseable example files at [`examples/renovate.json`](examples/renovate.json) and [`examples/dependabot.yml`](examples/dependabot.yml) so you can copy them straight from disk.
 
@@ -174,7 +174,7 @@ Add a `renovate.json` (or a `renovate` key in `package.json`) to your consumer p
       "platformAutomerge": true
     },
     {
-      "description": "Mandrel framework: hold the deliberate 1.x -> 2.0 major for manual review (see docs/upgrade-major.md)",
+      "description": "Mandrel framework: hold the deliberate 1.x -> 2.0 major for manual review (see .agents/docs/upgrade-major.md)",
       "matchPackageNames": ["mandrel"],
       "matchUpdateTypes": ["major"],
       "automerge": false,
@@ -229,7 +229,7 @@ updates:
     commit-message:
       prefix: "chore"
       include: "scope"
-    # Hold the deliberate 1.x -> 2.0 major for manual review (see docs/upgrade-major.md).
+    # Hold the deliberate 1.x -> 2.0 major for manual review (see .agents/docs/upgrade-major.md).
     ignore:
       - dependency-name: "mandrel"
         update-types: ["version-update:semver-major"]
@@ -286,7 +286,7 @@ operating systems, Node.js versions, and package managers that the framework is
 tested and supported against.
 
 A combination is **supported** only when it is exercised by the
-[`Install Matrix`](../.github/workflows/install-matrix.yml) CI workflow, which
+[`Install Matrix`](../../.github/workflows/install-matrix.yml) CI workflow, which
 packs this repo into a tarball, installs it into a throwaway consumer project
 with each package manager on each OS, materializes `./.agents/` via
 `mandrel sync`, and asserts the golden-path invariants
@@ -332,7 +332,7 @@ Yarn Berry (PnP) is not exercised by the matrix; if you use Berry, install in
 | >= 25 | ❌ Unsupported | Above the `engines` ceiling. |
 
 The supported range is declared in the package's
-[`engines`](../package.json) field as `>=22.22.1 <25` and enforced by the
+[`engines`](../../package.json) field as `>=22.22.1 <25` and enforced by the
 bootstrap/orchestration preflight (Node major-version gate). The CI install
 matrix pins **Node 22** as the representative tested version; 23 and 24 fall
 within the declared range but are not separately gated.

@@ -12,7 +12,7 @@
       "platformAutomerge": true
     },
     {
-      "description": "Mandrel framework: hold the deliberate 1.x -> 2.0 major for manual review (see docs/upgrade-major.md)",
+      "description": "Mandrel framework: hold the deliberate 1.x -> 2.0 major for manual review (see .agents/docs/upgrade-major.md)",
       "matchPackageNames": ["mandrel"],
       "matchUpdateTypes": ["major"],
       "automerge": false,

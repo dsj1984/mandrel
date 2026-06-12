@@ -87,7 +87,7 @@ when Stryker itself fails to run.
 - [`/docs/architecture.md`](../../docs/architecture.md) — system
   architecture; the "Key Scripts" section lists the standard
   orchestration entrypoints.
-- [`/docs/quality-gates.md`](../../docs/quality-gates.md) — coverage,
+- [`.agents/docs/quality-gates.md`](../docs/quality-gates.md) — coverage,
   CRAP, and maintainability baselines + floors.
 - `package.json` `scripts` — the canonical list of standard CLIs
   (`test`, `verify`, `coverage:update`, …).

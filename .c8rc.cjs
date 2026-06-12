@@ -6,7 +6,7 @@
  * it lives per-file in [`baselines/coverage.json`](./baselines/coverage.json),
  * checked by `.agents/scripts/check-baselines.js` (coverage kind) and
  * updated via `npm run coverage:update`. See
- * [`docs/quality-gates.md`](./docs/quality-gates.md) for the full ratchet
+ * [`.agents/docs/quality-gates.md`](./.agents/docs/quality-gates.md) for the full ratchet
  * workflow.
  *
  * The `exclude` list below removes thin CLI shells whose meaningful

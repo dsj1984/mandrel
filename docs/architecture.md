@@ -1324,7 +1324,7 @@ conventions to follow.
 - **Test file pattern:** `tests/**/*.test.js`
 - **Coverage:** `node --experimental-test-coverage` with absolute
   floors enforced per-file: lines ≥ 90, branches ≥ 85, functions ≥ 90,
-  MI ≥ 70, CRAP ≤ 20. See [`quality-gates.md`](quality-gates.md) for the
+  MI ≥ 70, CRAP ≤ 20. See [`.agents/docs/quality-gates.md`](../.agents/docs/quality-gates.md) for the
   ratchet-plus-floor policy.
 
 ### Key Scripts

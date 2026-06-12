@@ -7,7 +7,7 @@
 > - [`20260512-destructive-replan-retired`](#adr-20260512-destructive-replan-retired-epic-1182--retire-delete-epicjs-re-plan--edit-spec--reconcile) — declarative `epic.yaml` + reconciler (Epic D).
 > - [`20260512-loop-adoption`](#adr-20260512-loop-adoption-adopt-built-in-loop-no-homegrown-surface-to-reconcile) — adopt built-in `/loop`; no homegrown surface to reconcile (Epic G).
 > - The absolute quality floors and floor-vs-ratchet policy live in
->   [`quality-gates.md`](quality-gates.md) (Epic F Story #1602) — they
+>   [`quality-gates.md`](../.agents/docs/quality-gates.md) (Epic F Story #1602) — they
 >   are tooling commitments rather than architectural ADRs.
 >
 > Older ADRs remain authoritative on the architectural question they
@@ -1454,7 +1454,7 @@ inline so the Epic could complete.
    STOP gate is preserved unchanged.
 3. **Slim `.agents/README.md`** to ≤ 150 lines: activation + a single
    "where to look" pointer table. Detailed reference content moves to
-   `.agents/docs/configuration.md`, new `docs/quality-gates.md`, and the
+   `.agents/docs/configuration.md`, new `.agents/docs/quality-gates.md`, and the
    root `.agents/README.md` sections for distributed-submodule
    conventions. (Windows git-perf guidance was historically a fourth
    target; superseded by `.agents/scripts/check-windows-git-perf.js` in
