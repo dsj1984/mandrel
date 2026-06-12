@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.62.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.61.0...mandrel-v1.62.0) (2026-06-12)
+
+
+### Added
+
+* /deliver composes a sequential segment plan over mixed Epic and standalone-Story ID sets (refs [#4062](https://github.com/dsj1984/mandrel/issues/4062)) ([#4063](https://github.com/dsj1984/mandrel/issues/4063)) ([a83d29e](https://github.com/dsj1984/mandrel/commit/a83d29e032b7f6b6846d7988f071d6b6416df2f9))
+
+
+### Fixed
+
+* make mandrel update no-op short-circuit drift-aware (refs [#4065](https://github.com/dsj1984/mandrel/issues/4065)) ([#4066](https://github.com/dsj1984/mandrel/issues/4066)) ([693f1cf](https://github.com/dsj1984/mandrel/commit/693f1cf5bf8fd7d29fed910659708ffceb7a54cb))
+
 ## [1.61.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.60.0...mandrel-v1.61.0) (2026-06-12)
 
 
