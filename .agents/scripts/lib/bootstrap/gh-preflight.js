@@ -38,14 +38,12 @@ const GH_SCOPES_UNREADABLE_NOTE =
  * Framework runtime deps the consumer must have installed in
  * `node_modules/` before this script reaches the dynamic
  * `config-resolver` import. `ajv` is the sentinel — if it cannot
- * resolve, the operator skipped `/agents-bootstrap-project` (or its
- * Step 2c/2d dependency-install never ran). The list mirrors the floor
- * in `agents-bootstrap-project.md` Step 2c; keep them in sync.
+ * resolve, the framework runtime dependencies are not installed.
  */
 const REQUIRED_RUNTIME_DEPS = Object.freeze(['ajv']);
 
 const RUNTIME_DEPS_HINT =
-  'Run `/agents-bootstrap-project` (or `node .agents/scripts/agents-bootstrap-project.js` when present) to merge the framework runtime dependencies into your package.json and install them, then re-run this command.';
+  'Run `mandrel init` (for a fresh project) or `npm install mandrel` (for an existing one) to install the framework runtime dependencies, then re-run this command.';
 
 /**
  * Default runner: synchronously execs `gh <args>` and returns
@@ -273,12 +271,12 @@ function classifyProjectScopes(scopeLine) {
 /**
  * Preflight the framework's runtime dependencies before dynamic-importing
  * `config-resolver.js` (which transitively pulls in `ajv` via
- * `config-settings-schema.js`). A fresh consumer who skipped
- * `/agents-bootstrap-project` will not have `ajv` installed, and the
- * raw `ERR_MODULE_NOT_FOUND` from the dynamic import is opaque. This
+ * `config-settings-schema.js`). A consumer who has not installed the
+ * framework runtime deps will not have `ajv` available, and the raw
+ * `ERR_MODULE_NOT_FOUND` from the dynamic import is opaque. This
  * preflight converts that into a {@link MissingRuntimeDepsError} that
- * names the missing packages and points the operator at the right
- * workflow.
+ * names the missing packages and points the operator at the correct
+ * remediation (`mandrel init` / `npm install mandrel`).
  *
  * The `resolver` seam lets tests inject a stub without touching the real
  * module graph; production uses `import.meta.resolve(specifier)`.

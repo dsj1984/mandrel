@@ -20,6 +20,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { detectPackageManager as detectPm } from '../detect-package-manager.js';
 
 /**
  * Filesystem facade. Pure detection logic talks to disk only through
@@ -164,18 +165,16 @@ export const defaultFsFacade = {
  * when no lockfile is found but a `package.json` exists, and `null` when
  * the repo has no Node manifest at all.
  *
+ * Delegates to the shared `detectPackageManager` helper
+ * (Story #4048 B3 — one implementation per concept). The `fsFacade.exists`
+ * seam is forwarded directly.
+ *
  * @param {string} root - Repository root.
  * @param {FsFacade} [fsFacade=defaultFsFacade]
  * @returns {'pnpm'|'yarn'|'bun'|'npm'|null}
  */
 export function detectPackageManager(root, fsFacade = defaultFsFacade) {
-  const { exists } = fsFacade;
-  if (exists(path.join(root, 'pnpm-lock.yaml'))) return 'pnpm';
-  if (exists(path.join(root, 'yarn.lock'))) return 'yarn';
-  if (exists(path.join(root, 'bun.lockb'))) return 'bun';
-  if (exists(path.join(root, 'package-lock.json'))) return 'npm';
-  if (exists(path.join(root, 'package.json'))) return 'npm';
-  return null;
+  return detectPm(root, fsFacade.exists);
 }
 
 /**

@@ -28,6 +28,9 @@
  * @module bootstrap/ci-workflow-template
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
+
 /**
  * @typedef {object} CiTemplateOptions
  * @property {string} [nodeVersion='22'] - Node major to install via setup-node.
@@ -169,3 +172,46 @@ ${crapBlock}`;
  * path without re-deriving it.
  */
 export const CI_WORKFLOW_RELATIVE_PATH = '.github/workflows/ci.yml';
+
+/**
+ * Render the stabilized-quality-gates CI workflow template into a project
+ * checkout. Idempotent on the byte level: when `.github/workflows/ci.yml`
+ * already matches the rendered template, no write occurs and the action is
+ * `unchanged`. When the file is absent the action is `created`. When the
+ * file exists with operator-authored differences the helper preserves it
+ * and returns `custom-workflow-skip` along with the rendered body so the
+ * bootstrap caller (or `/agents-update`) can offer a side-by-side diff.
+ *
+ * Network-free; safe to invoke under tests with a tmp `projectRoot`.
+ *
+ * Moved from `agents-bootstrap-github.js` to this module so it lives
+ * alongside `renderCiWorkflow` and `CI_WORKFLOW_RELATIVE_PATH`
+ * (Story #4048 B2 — dead-code deletion from the bootstrap entry point).
+ *
+ * @param {object} args
+ * @param {string} args.projectRoot - Repo root (must contain or accept
+ *   `.github/workflows/`).
+ * @param {object} [args.template] - Forwarded to `renderCiWorkflow`.
+ * @param {boolean} [args.write=true] - When `false`, the helper computes
+ *   the would-be action without touching disk. Used by the
+ *   bootstrap CLI's dry-run mode.
+ * @returns {{ action: 'created'|'unchanged'|'custom-workflow-skip',
+ *             path: string, rendered: string }}
+ */
+export function ensureCiWorkflow(args) {
+  const projectRoot = args.projectRoot;
+  const rendered = renderCiWorkflow(args.template);
+  const target = path.join(projectRoot, CI_WORKFLOW_RELATIVE_PATH);
+  if (!fs.existsSync(target)) {
+    if (args.write !== false) {
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, rendered, 'utf8');
+    }
+    return { action: 'created', path: target, rendered };
+  }
+  const existing = fs.readFileSync(target, 'utf8');
+  if (existing === rendered) {
+    return { action: 'unchanged', path: target, rendered };
+  }
+  return { action: 'custom-workflow-skip', path: target, rendered };
+}

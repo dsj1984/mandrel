@@ -52,10 +52,10 @@ export class GhVersionError extends Error {
 /**
  * Raised when a framework runtime dependency (e.g. `ajv`) cannot be
  * resolved from the consumer's `node_modules/`. Surfaces during the
- * `/agents-bootstrap-github` preflight to redirect operators to
- * `/agents-bootstrap-project`, which is the workflow responsible for
- * merging and installing the framework's runtime deps. `missing` carries
- * the package specifiers that failed to resolve so the CLI can render an
+ * `agents-bootstrap-github` preflight to redirect operators to the
+ * correct remediation (`mandrel init` for new projects, or
+ * `npm install mandrel` for existing ones). `missing` carries the
+ * package specifiers that failed to resolve so the CLI can render an
  * actionable hint.
  */
 export class MissingRuntimeDepsError extends Error {

@@ -20,7 +20,6 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import {
   compareSemver,
-  ensureCiWorkflow,
   MIN_GH_VERSION,
   parseGhVersion,
   preflightGh,
@@ -29,6 +28,7 @@ import {
 } from '../../.agents/scripts/agents-bootstrap-github.js';
 import {
   CI_WORKFLOW_RELATIVE_PATH,
+  ensureCiWorkflow,
   renderCiWorkflow,
 } from '../../.agents/scripts/lib/bootstrap/ci-workflow-template.js';
 import { TARGET_MERGE_METHODS } from '../../.agents/scripts/lib/bootstrap/merge-methods.js';
@@ -453,7 +453,7 @@ describe('agents-bootstrap-github — runtime-deps preflight (Story #2057)', () 
         err instanceof MissingRuntimeDepsError &&
         Array.isArray(err.missing) &&
         err.missing.includes('ajv') &&
-        /\/agents-bootstrap-project/.test(err.message),
+        /mandrel init|npm install mandrel/.test(err.message),
     );
   });
 });

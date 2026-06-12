@@ -20,6 +20,7 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { detectPackageManager } from '../detect-package-manager.js';
 
 function sleepSync(ms) {
   if (!Number.isFinite(ms) || ms <= 0) return;
@@ -110,10 +111,12 @@ export function selectInstallCommand(strategy, wtPath, fsLike = fs) {
   if (strategy === 'pnpm-store') {
     return { cmd: 'pnpm', args: ['install', '--frozen-lockfile'] };
   }
-  if (fsLike.existsSync(path.join(wtPath, 'pnpm-lock.yaml'))) {
+  // Shared lockfile probe (Story #4048 B3 — one implementation per concept).
+  const pm = detectPackageManager(wtPath, (p) => fsLike.existsSync(p)) ?? 'npm';
+  if (pm === 'pnpm') {
     return { cmd: 'pnpm', args: ['install', '--frozen-lockfile'] };
   }
-  if (fsLike.existsSync(path.join(wtPath, 'yarn.lock'))) {
+  if (pm === 'yarn') {
     return { cmd: 'yarn', args: ['install', '--frozen-lockfile'] };
   }
   return { cmd: 'npm', args: ['ci'] };

@@ -55,8 +55,7 @@ The upgrade contract:
   authoritative writer of the generated flat command tree
   (`.claude/commands/`) is
   [`sync-claude-commands.js`](../scripts/sync-claude-commands.js), which
-  prepends the `<!-- AUTO-GENERATED -->` header that
-  `/agents-bootstrap-project` parity-checks. Nothing else copies workflow
+  prepends the `<!-- AUTO-GENERATED -->` header. Nothing else copies workflow
   files.
 
 > **Persona**: `devops-engineer` · **Skills**:

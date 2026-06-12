@@ -1,6 +1,5 @@
 /**
- * bootstrap/project-bootstrap — deterministic port of the
- * `/agents-bootstrap-project` workflow (Story #2074, hard cutover).
+ * bootstrap/project-bootstrap — deterministic project bootstrap steps.
  *
  * Each exported `ensure*` function is one step of the bootstrap. Every step
  * is idempotent and additive — re-running on an already-bootstrapped clone
@@ -16,6 +15,7 @@ import { spawnSync as defaultSpawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { detectPackageManager as detectPm } from '../detect-package-manager.js';
 import { LEDGER_RELATIVE_PATH } from './install-ledger.js';
 import { PHASE_GROUPS, previewMutationManifest } from './manifest.js';
 import { applyQualityBootstrap } from './quality-bootstrap.js';
@@ -168,16 +168,18 @@ export function checkNodeVersion(version = process.versions.node) {
 
 /**
  * Detect the package manager based on lockfile presence. Defaults to
- * `npm` when no lock is found.
+ * `npm` when no lock is found (including the `null` case from the shared
+ * helper where no Node manifest exists at all).
+ *
+ * Delegates to the shared `detectPackageManager` helper
+ * (Story #4048 B3 — one implementation per concept).
  *
  * @param {string} projectRoot
  * @param {typeof fs} [fsImpl]
+ * @returns {'pnpm'|'yarn'|'npm'}
  */
 export function detectPackageManager(projectRoot, fsImpl = fs) {
-  if (fsImpl.existsSync(path.join(projectRoot, 'pnpm-lock.yaml')))
-    return 'pnpm';
-  if (fsImpl.existsSync(path.join(projectRoot, 'yarn.lock'))) return 'yarn';
-  return 'npm';
+  return detectPm(projectRoot, (p) => fsImpl.existsSync(p)) ?? 'npm';
 }
 
 /**
