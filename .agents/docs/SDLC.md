@@ -143,6 +143,11 @@ From zero to shipped:
    a halt), re-run `/deliver <epicId>` — the wave loop picks up
    incomplete Stories from the dispatch manifest automatically. Standalone
    Stories (no `Epic: #N` reference) use `/deliver <storyId>` instead.
+   Mixed input — several Epics, or Epics plus standalone Stories — is
+   accepted in one invocation: `/deliver` composes a **sequential segment
+   plan** (the standalone-Story set as one segment, delivered first, then
+   each Epic as its own segment in input order) and executes the segments
+   one at a time through the same two path helpers, never interleaved.
 
 That is the whole happy path. Everything below is **detail** — branching
 conventions, HITL escalation, audit gates — that you only need when the
@@ -664,10 +669,12 @@ side-effects rather than inline calls at phase boundaries; the
 | **Standalone Story — plan**      | `/plan`                                            | Plan a one-off Story that does not belong to an Epic backlog.                                  |
 | **Standalone Story — deliver**   | `/deliver <storyId> [<storyId>...]`                | Deliver one or more standalone Stories authored by `/plan`.                             |
 | **Standalone Story (worker)**    | *helper* `helpers/single-story-deliver <storyId>`        | Per-Story sub-agent called internally by `/deliver`; not an operator slash command.      |
+| **Mixed set**                    | `/deliver <ids...>`                                | Any mix of ≥1 Epics and standalone Stories. The router composes a sequential segment plan — standalone segment first, then Epic segments in input order — delegating each segment to the path helpers above. |
 
-The operator-facing entry points are `/deliver` (for Epics) and
-`/deliver` (for standalone Stories). The `helpers/` layer sits below
-both and is never invoked directly by the operator.
+The single operator-facing entry point is `/deliver` — it routes a lone
+Epic, a standalone-Story set, or a mixed set (via the sequential segment
+plan) to the right path helper(s). The `helpers/` layer sits below it and
+is never invoked directly by the operator.
 
 ### Story-centric branching
 

@@ -126,6 +126,8 @@ stubbed docs, or an unready doctor verdict).
 
 ## See also
 
-- [`/deliver`](deliver.md) — the unified delivery entry point.
+- [`/deliver`](deliver.md) — the unified delivery entry point. Accepts a
+  single Epic, one or more standalone Stories, or any mix of ≥1 Epics and
+  standalone Stories — mixed sets compose a sequential segment plan.
 - [`helpers/plan-epic.md`](helpers/plan-epic.md) /
   [`helpers/plan-story.md`](helpers/plan-story.md) — the path helpers.

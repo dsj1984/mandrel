@@ -11,10 +11,14 @@ description: >-
 
 ## Overview
 
-`/deliver` is the **operator-facing multi-Story delivery command**. It
-takes one or more Story IDs, builds a dependency-aware wave plan, optionally
-confirms it with the operator, and fans out one Agent call per Story per wave
-— parallel within each wave, serialised across waves.
+This helper is the **standalone multi-Story delivery path** behind
+`/deliver`. The router delegates to it whenever the supplied IDs include
+standalone Stories — either as the sole route (Story-only input) or as the
+**standalone segment** of a mixed segment plan (run first, before any Epic
+segments; see [`deliver.md`](../deliver.md)). It takes one or more Story
+IDs, builds a dependency-aware wave plan, optionally confirms it with the
+operator, and fans out one Agent call per Story per wave — parallel within
+each wave, serialised across waves.
 
 ```text
 /deliver 101 102 103
@@ -33,11 +37,13 @@ confirms it with the operator, and fans out one Agent call per Story per wave
 | 1+ standalone Stories (no `Epic: #N` in body) | `/deliver <id> [<id>...]` |
 | Exactly one standalone Story (lighter path) | `/single-story-deliver <id>` |
 | Epic-attached Stories (have `Epic: #N`) | `/deliver <epicId>` |
+| Mixed Epics + standalone Stories | `/deliver <ids...>` — the router composes a sequential segment plan; this helper delivers the standalone segment first |
 
-`/deliver` **refuses** Stories that carry an `Epic: #N` reference in
+This helper **refuses** Stories that carry an `Epic: #N` reference in
 their body. Those Stories belong to an Epic's dispatch manifest and must flow
-through `/deliver`. Use `/single-story-deliver` for a single Epic-free
-Story when you want the leaner one-story path without wave machinery.
+through `/deliver <epicId>`. Use `/single-story-deliver` for a single
+Epic-free Story when you want the leaner one-story path without wave
+machinery.
 
 > **Concurrency cap.** The cap is resolved **deterministically in code** by
 > `stories-wave-tick.js` (Phase 1a) — the same `resolveConfig` + `getRunners`
