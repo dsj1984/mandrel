@@ -1024,6 +1024,63 @@ move and the allowlist response in the same diff.
 
 ---
 
+## CLI subcommand quick-reference
+
+`mandrel --help` prints the full subcommand list. Each subcommand that
+mutates state supports `--dry-run` to preview without writing. The table
+below covers every dispatch-visible subcommand:
+
+| Subcommand | What it does | Key flags |
+| ---------- | ------------ | --------- |
+| `init` | Install and configure mandrel in the current project. | `--assume-yes`, `--skip-github`, `--dry-run` |
+| `sync` | Re-materialize `.agents/` from the installed package payload. | `--dry-run`, `--force` |
+| `sync-commands` | Rebuild `.claude/commands/` from `.agents/workflows/`. | — |
+| `doctor` | Run readiness checks and report remedies. | — |
+| `update` | Upgrade mandrel to the newest non-major version. | `--dry-run`, `--major`, `--install-cmd` |
+| `migrate` | Apply version-keyed migrations for a version range. | `--from`, `--to`, `--dry-run` |
+| `explain` | Print resolved config values with sources. | `--json` |
+| `uninstall` | Reverse a recorded install using the install ledger. | `--include-github`, `--dry-run` |
+
+### `mandrel explain`
+
+Prints every resolved config key — its effective value, its source layer
+(`[agentrc]` or `[default]`), and a one-line description. Secret-shaped
+values are shown as `<redacted>`. Useful when debugging unexpected behavior
+caused by config layering.
+
+```bash
+mandrel explain          # human-readable report
+mandrel explain --json   # JSON report for scripting
+```
+
+### `mandrel sync-commands`
+
+Regenerates the flat `.claude/commands/` tree from `.agents/workflows/`. The
+bootstrap wires a `UserPromptSubmit` hook so this runs automatically on every
+Claude Code prompt; manual invocations are only needed when the hook is absent
+or the commands/ tree is manually deleted.
+
+```bash
+mandrel sync-commands
+```
+
+### `mandrel uninstall`
+
+Reverses a recorded install using the install ledger
+(`.agents/.install-manifest.json`). Restoration is marker-based and
+non-destructive: operator-authored content that pre-existed the install
+is preserved; only install-created files and framework additions are removed.
+GitHub-side state is never acted on automatically; it is surfaced as a
+manual checklist.
+
+```bash
+mandrel uninstall                  # reverse all local mutations
+mandrel uninstall --dry-run        # preview without writing
+mandrel uninstall --include-github # acknowledge GitHub-side follow-ups
+```
+
+---
+
 ## Cross-references
 
 - JSON Schema mirror —
