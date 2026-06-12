@@ -71,8 +71,10 @@ The preflight runs when **any** of these is true:
    configured `docsRoot`.
 2. One or more present `docsContextFiles` still carry the
    `<!-- MANDREL:STUB -->` marker (i.e. they are un-edited scaffolded stubs).
-3. The last `mandrel doctor` verdict cached in `.agents/doctor-result.json`
-   is non-ready (or the file is absent, implying the gate was never run).
+3. The last `mandrel doctor` verdict cached in `temp/doctor-result.json`
+   records `"verdict": "unready"`. An **absent** cache file is no signal —
+   doctor may simply never have run; only an explicit recorded unready
+   verdict fires this signal.
 
 ### Preflight procedure
 

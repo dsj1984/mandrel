@@ -50,7 +50,7 @@ const SUBCOMMANDS = new Map([
     'sync',
     {
       description: 'materialize .agents/ payload from installed package',
-      knownFlags: new Set(['--dry-run', '--force']),
+      knownFlags: new Set(['--dry-run']),
     },
   ],
   [

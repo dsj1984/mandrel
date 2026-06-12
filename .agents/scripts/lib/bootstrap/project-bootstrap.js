@@ -15,6 +15,7 @@ import { spawnSync as defaultSpawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { detectPackageManager as detectPm } from '../detect-package-manager.js';
 import { LEDGER_RELATIVE_PATH } from './install-ledger.js';
 import { PHASE_GROUPS, previewMutationManifest } from './manifest.js';
@@ -346,7 +347,9 @@ export async function validateAgentrc(ctx) {
   if (!fsImpl.existsSync(schemaModule)) {
     return { ok: false, errors: ['config-settings-schema.js not found'] };
   }
-  const mod = await import(`file://${schemaModule.replace(/\\/g, '/')}`);
+  // pathToFileURL handles Windows drive letters and percent-encoding
+  // correctly (same fix as commit 2e3d210b in lib/transpile.js).
+  const mod = await import(pathToFileURL(schemaModule).href);
   const validate = mod.getAgentrcValidator();
   const data = readJsonIfExists(
     path.join(ctx.projectRoot, '.agentrc.json'),
