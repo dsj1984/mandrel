@@ -1,21 +1,19 @@
 /**
  * tests/cli/mandrel.test.js — unit tests for bin/mandrel.js dispatch routing
  *
- * Tests are process-spawn based so we can assert on exit codes and stderr
+ * Tests are process-spawn based so we can assert on exit codes and stdout/stderr
  * without importing the entry point directly (it calls process.exit).
  */
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import fs from 'node:fs';
 import path from 'node:path';
-import { afterEach, describe, it } from 'node:test';
+import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const BIN = path.join(REPO_ROOT, 'bin', 'mandrel.js');
-const LIB_CLI = path.join(REPO_ROOT, 'lib', 'cli');
 
 /** Run the mandrel bin synchronously and return { status, stdout, stderr }. */
 function runMandrel(args = [], env = {}) {
@@ -31,30 +29,66 @@ function runMandrel(args = [], env = {}) {
   };
 }
 
-/** Write a temporary subcommand module and return its cleanup function. */
-function writeTempSub(name, content) {
-  const file = path.join(LIB_CLI, `${name}.js`);
-  fs.writeFileSync(file, content, 'utf8');
-  return () => {
-    try {
-      fs.unlinkSync(file);
-    } catch {
-      // ignore
-    }
-  };
-}
+// ---------------------------------------------------------------------------
+// Help / version output (B6)
+// ---------------------------------------------------------------------------
 
-describe('mandrel CLI — no subcommand', () => {
-  it('exits 1 when called with no arguments', () => {
+describe('mandrel CLI — bare invocation prints help', () => {
+  it('exits 0 when called with no arguments', () => {
     const { status } = runMandrel([]);
-    assert.equal(status, 1);
+    assert.equal(status, 0);
   });
 
-  it('prints usage to stderr when called with no arguments', () => {
-    const { stderr } = runMandrel([]);
-    assert.match(stderr, /Usage: mandrel <subcommand>/);
+  it('prints subcommand list to stdout for bare invocation', () => {
+    const { stdout } = runMandrel([]);
+    assert.match(stdout, /Usage: mandrel <subcommand>/);
+    assert.match(stdout, /sync\s/);
+    assert.match(stdout, /doctor\s/);
+    assert.match(stdout, /update\s/);
+    assert.match(stdout, /uninstall\s/);
   });
 });
+
+describe('mandrel CLI — --help / -h', () => {
+  it('--help exits 0', () => {
+    const { status } = runMandrel(['--help']);
+    assert.equal(status, 0);
+  });
+
+  it('--help prints subcommand list to stdout', () => {
+    const { stdout } = runMandrel(['--help']);
+    assert.match(stdout, /Usage: mandrel <subcommand>/);
+    assert.match(stdout, /sync\s/);
+    assert.match(stdout, /doctor\s/);
+  });
+
+  it('-h exits 0', () => {
+    const { status } = runMandrel(['-h']);
+    assert.equal(status, 0);
+  });
+
+  it('-h output matches --help output', () => {
+    const help = runMandrel(['--help']).stdout;
+    const h = runMandrel(['-h']).stdout;
+    assert.equal(h, help);
+  });
+});
+
+describe('mandrel CLI — --version', () => {
+  it('exits 0', () => {
+    const { status } = runMandrel(['--version']);
+    assert.equal(status, 0);
+  });
+
+  it('prints a semver string to stdout', () => {
+    const { stdout } = runMandrel(['--version']);
+    assert.match(stdout.trim(), /^\d+\.\d+\.\d+$/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Unknown-subcommand rejection (B6)
+// ---------------------------------------------------------------------------
 
 describe('mandrel CLI — unknown subcommand', () => {
   it('exits 1 for an unrecognised subcommand', () => {
@@ -62,51 +96,107 @@ describe('mandrel CLI — unknown subcommand', () => {
     assert.equal(status, 1);
   });
 
-  it('names the bad subcommand in the error output', () => {
+  it('names the bad subcommand in stderr', () => {
     const { stderr } = runMandrel(['unknown-sub']);
     assert.match(stderr, /unknown-sub/);
   });
 
-  it('includes usage hint in the error output', () => {
+  it('lists available subcommands in stderr', () => {
     const { stderr } = runMandrel(['does-not-exist']);
-    assert.match(stderr, /Usage:/);
+    assert.match(stderr, /Available subcommands:/);
+  });
+
+  it('does NOT dispatch registry.js as a subcommand', () => {
+    const { status, stderr } = runMandrel(['registry']);
+    assert.equal(status, 1);
+    assert.match(stderr, /unknown subcommand/);
+  });
+
+  it('does NOT dispatch version-check.js as a subcommand', () => {
+    const { status, stderr } = runMandrel(['version-check']);
+    assert.equal(status, 1);
+    assert.match(stderr, /unknown subcommand/);
+  });
+
+  it('suggests a did-you-mean hint for typos', () => {
+    const { stderr } = runMandrel(['dcotor']);
+    // "dcotor" is within edit distance 2 of "doctor"
+    assert.match(stderr, /Did you mean/i);
   });
 });
 
-describe('mandrel CLI — convention-based dispatch', () => {
-  let cleanup;
+// ---------------------------------------------------------------------------
+// Unknown-flag rejection per subcommand (B6)
+// ---------------------------------------------------------------------------
 
-  afterEach(() => {
-    if (cleanup) {
-      cleanup();
-      cleanup = null;
-    }
-  });
-
-  it('dispatches to lib/cli/<name>.js by path convention', () => {
-    cleanup = writeTempSub(
-      '_test-sub',
-      `export default function run() { process.stdout.write('dispatched\\n'); }`,
-    );
-    const { status, stdout } = runMandrel(['_test-sub']);
-    assert.equal(status, 0);
-    assert.match(stdout, /dispatched/);
-  });
-
-  it('passes remaining argv to the subcommand', () => {
-    cleanup = writeTempSub(
-      '_test-argv',
-      `export default function run(argv) { process.stdout.write(argv.join(',') + '\\n'); }`,
-    );
-    const { status, stdout } = runMandrel(['_test-argv', 'a', 'b']);
-    assert.equal(status, 0);
-    assert.match(stdout, /a,b/);
-  });
-
-  it('exits 1 when the module exists but has no default export function', () => {
-    cleanup = writeTempSub('_test-no-default', `export const notDefault = 42;`);
-    const { status, stderr } = runMandrel(['_test-no-default']);
+describe('mandrel CLI — unknown-flag rejection', () => {
+  it('rejects unknown flags for "update" and exits 1', () => {
+    const { status, stderr } = runMandrel(['update', '--dryrun']);
     assert.equal(status, 1);
-    assert.match(stderr, /does not export a default function/);
+    assert.match(stderr, /unknown flag/);
+    assert.match(stderr, /--dryrun/);
+  });
+
+  it('includes the known flags in the error message', () => {
+    const { stderr } = runMandrel(['update', '--dryrun']);
+    assert.match(stderr, /Known flags:/);
+    assert.match(stderr, /--dry-run/);
+  });
+
+  it('rejects unknown flags for "sync" and exits 1', () => {
+    const { status, stderr } = runMandrel(['sync', '--unknown-flag']);
+    assert.equal(status, 1);
+    assert.match(stderr, /unknown flag/);
+  });
+
+  it('rejects unknown flags for "doctor" and exits 1', () => {
+    const { status, stderr } = runMandrel(['doctor', '--verbose']);
+    assert.equal(status, 1);
+    assert.match(stderr, /unknown flag/);
+  });
+
+  it('rejects unknown flags for "uninstall" and exits 1', () => {
+    const { status, stderr } = runMandrel(['uninstall', '--badFlag']);
+    assert.equal(status, 1);
+    assert.match(stderr, /unknown flag/);
+  });
+
+  it('accepts known flags for "update" (--dry-run)', () => {
+    // --dry-run is known; should NOT be rejected by the flag validator
+    // (it may error later when resolveTargetVersion seam is absent, but
+    // that is a different failure, not a flag-rejection failure)
+    const { stderr } = runMandrel(['update', '--dry-run']);
+    assert.doesNotMatch(stderr, /unknown flag/);
+  });
+
+  it('accepts known flags for "migrate" (--from, --to)', () => {
+    const { stderr } = runMandrel([
+      'migrate',
+      '--from',
+      '1.0.0',
+      '--to',
+      '1.1.0',
+    ]);
+    assert.doesNotMatch(stderr, /unknown flag/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Allowlist — non-command modules are NOT dispatchable (B6)
+// ---------------------------------------------------------------------------
+
+describe('mandrel CLI — allowlist dispatch only', () => {
+  it('does not dispatch any non-registered path even if the file exists', () => {
+    // init.js exists but is in SUBCOMMANDS; registry.js exists but is not
+    const { status } = runMandrel(['registry']);
+    assert.equal(status, 1);
+  });
+
+  it('dispatches all registered real subcommands (smoke: sync --dry-run)', () => {
+    // sync --dry-run is a known subcommand + known flag — should not be
+    // flag-rejected; any failure beyond that is about the sync logic, not dispatch
+    const { stderr } = runMandrel(['sync', '--dry-run']);
+    assert.doesNotMatch(stderr, /unknown subcommand/);
+    assert.doesNotMatch(stderr, /unknown flag/);
   });
 });
