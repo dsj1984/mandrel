@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.61.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.60.0...mandrel-v1.61.0) (2026-06-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* mandrel update no longer refuses major version bumps and the --major flag is removed; major upgrades apply like any other update.
+
+### Added
+
+* **init:** fold onboarding into mandrel init, retire /onboard (refs [#4045](https://github.com/dsj1984/mandrel/issues/4045)) ([#4050](https://github.com/dsj1984/mandrel/issues/4050)) ([2b2c115](https://github.com/dsj1984/mandrel/commit/2b2c115ad4f5394cefb2ecfcc72ddbd0dae6683a))
+* make the CLI behave like a CLI: dispatcher, help, flag rejection, TS peer, engines floor ([#4047](https://github.com/dsj1984/mandrel/issues/4047)) ([#4053](https://github.com/dsj1984/mandrel/issues/4053)) ([c625573](https://github.com/dsj1984/mandrel/commit/c625573c9feb0908d897bb0f2778c2b22ee28b04))
+* one implementation per concept: install-surface dead-code deletion and helper unification ([#4048](https://github.com/dsj1984/mandrel/issues/4048)) ([#4054](https://github.com/dsj1984/mandrel/issues/4054)) ([ffb5dc7](https://github.com/dsj1984/mandrel/commit/ffb5dc72f25fedc70829dd70c64e14e3dfa18c72))
+* remediate documentation audit, remove the major-upgrade gate, and retire stranded consumer runbooks ([#4061](https://github.com/dsj1984/mandrel/issues/4061)) ([fa429e4](https://github.com/dsj1984/mandrel/commit/fa429e490b7d410938eeec24ef44ffc7857cf470))
+* **update:** make upgrade loop truthful — cache bypass, sync prune, cwd anchoring (refs [#4046](https://github.com/dsj1984/mandrel/issues/4046)) ([#4051](https://github.com/dsj1984/mandrel/issues/4051)) ([1a89a7c](https://github.com/dsj1984/mandrel/commit/1a89a7cc1150f26d87a93f58e2fd940670604381))
+
+
+### Fixed
+
+* close the 9 post-merge review findings on the install/bootstrap batch ([#4060](https://github.com/dsj1984/mandrel/issues/4060)) ([4e76441](https://github.com/dsj1984/mandrel/commit/4e76441c1620481e49ac33e4884e604dc8366f48))
+* packaging and CI prove the install contract; retire the install-bootstrap review doc ([#4049](https://github.com/dsj1984/mandrel/issues/4049)) ([#4057](https://github.com/dsj1984/mandrel/issues/4057)) ([1051ed1](https://github.com/dsj1984/mandrel/commit/1051ed130f5720edcb3ca8e4cfe898ec00495eb5))
+* **tests:** add shell:true to spawnSync for Windows npm.cmd compat (refs [#4049](https://github.com/dsj1984/mandrel/issues/4049)) ([#4059](https://github.com/dsj1984/mandrel/issues/4059)) ([f5abcd5](https://github.com/dsj1984/mandrel/commit/f5abcd550e7e4110372b35c56abe55931ce3058a))
+* **transpile:** add typescript to devDependencies so Windows CI finds it ([#4055](https://github.com/dsj1984/mandrel/issues/4055)) ([8f0a6bd](https://github.com/dsj1984/mandrel/commit/8f0a6bdf6681286d8b691e1b9163639613ce8f9f))
+* **transpile:** use pathToFileURL for ESM import on Windows ([#4056](https://github.com/dsj1984/mandrel/issues/4056)) ([2e3d210](https://github.com/dsj1984/mandrel/commit/2e3d210b8e351e8b23ae4e5272ff7d950792b29b))
+
 ## [1.60.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.59.0...mandrel-v1.60.0) (2026-06-11)
 
 
