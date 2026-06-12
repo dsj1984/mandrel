@@ -1,7 +1,7 @@
 ---
 description: >-
   npm-era upgrade wraparound for a Mandrel consumer. Runs `mandrel update`
-  (resolve newest non-major version → install → re-materialize `.agents/` →
+  (resolve newest published version → install → re-materialize `.agents/` →
   migrate → doctor → surface changelog) as the single mechanical step, then
   walks the operator through the judgment wraparound the CLI deliberately
   leaves unowned: reconcile `.agentrc.json`, install the Epic #1386
@@ -23,7 +23,7 @@ description: >-
 
 ## Overview
 
-`/agents-update` advances the consumer repo to the newest non-major
+`/agents-update` advances the consumer repo to the newest published
 `mandrel` release, re-materializes `.agents/`, and regenerates the
 flat `.claude/commands/` tree (invoked as `/<name>`) against the new workflow
 set — then reconciles the consumer's own config, harness allowlist, and
@@ -40,11 +40,10 @@ The upgrade contract:
 - **CI honours the committed lockfile.** Consumer CI runs `npm ci` against
   the committed `package-lock.json`, so it installs exactly the version the
   lockfile pins — never "whatever the registry's newest is today."
-- **The major axis is gated.** `mandrel update` refuses to cross a major
-  boundary (e.g. `1.x → 2.0`) without an explicit `--major`, printing a
-  pointer to `.agents/docs/upgrade-major.md` and exiting non-zero without touching
-  anything. Routine minor/patch bumps within the current major are never
-  gated.
+- **Majors apply like any other bump.** Mandrel ships hard cutovers
+  (`.agents/rules/git-conventions.md` § Contract Cutovers), so a major
+  crossing is applied directly — the surfaced changelog is the migration
+  guide.
 - **The CLI never commits.** The npm bump rewrites `package.json` /
   `package-lock.json` and leaves them **staged on disk** for operator review;
   `mandrel update` performs no `git add` / `git commit`. Staging and
@@ -70,7 +69,7 @@ mandrel update --dry-run
 mandrel update
 ```
 
-`mandrel update --dry-run` resolves the newest non-major version and prints
+`mandrel update --dry-run` resolves the newest published version and prints
 the ordered step plan (`npm-update → runSync → runMigrations → doctor →
 surface changelog`) without invoking any effectful seam — no dependency bump,
 no sync, no migrations, no doctor, nothing written. Read the planned target
@@ -81,23 +80,19 @@ version before applying.
 1. **Resolve target** — the newest published `mandrel` version (via
    the daily freshness cache in `temp/version-check.json`) and the currently
    installed version.
-2. **Major gate** — if the newest version crosses a major boundary, the run
-   declines, prints the `.agents/docs/upgrade-major.md` pointer, and exits non-zero
-   without touching anything. Re-run with `--major` only after reviewing that
-   runbook.
-3. **No-op short-circuit** — already on the newest version ⇒ prints
+2. **No-op short-circuit** — already on the newest version ⇒ prints
    `Already up to date` and exits 0.
-4. **Install** — bumps the dependency (default
+3. **Install** — bumps the dependency (default
    `npm install mandrel@<target>`; pass
    `--install-cmd "<pm> <args>"` for a pnpm/yarn workspace). The lockfile
    change is left **staged** for review; the CLI never commits.
-5. **runSync** — re-materializes `.agents/` from the freshly installed
+4. **runSync** — re-materializes `.agents/` from the freshly installed
    payload, which also regenerates the flat `.claude/commands/` tree via
    `sync-claude-commands.js`.
-6. **runMigrations** — applies any version-keyed migration steps for the
+5. **runMigrations** — applies any version-keyed migration steps for the
    crossed range.
-7. **doctor** — runs the check registry to verify the resulting install.
-8. **Surface changelog** — prints the `docs/CHANGELOG.md` section(s) covering
+6. **doctor** — runs the check registry to verify the resulting install.
+7. **Surface changelog** — prints the `docs/CHANGELOG.md` section(s) covering
    the applied range `(current, target]`. Capture this output — Step 4
    reconciles the consumer's own instructions against it.
 
@@ -370,12 +365,6 @@ no-op.
 
 ## Troubleshooting
 
-- **`a newer MAJOR version (X.0.0) is available`** — `mandrel update`
-  hit the major gate and exited non-zero without touching anything. A
-  major crossing is a breaking upgrade. Read `.agents/docs/upgrade-major.md`,
-  then re-run `mandrel update --major` only after you have absorbed the
-  migration steps that runbook describes.
-
 - **`doctor reported failures: …`** — the dependency bumped and `.agents/`
   re-materialized, but a doctor check failed (and the run exited
   non-zero). Run `mandrel doctor` for the per-check remedies. The lockfile
@@ -401,9 +390,6 @@ no-op.
 - **Idempotent.** A second `mandrel update` immediately after a successful
   run resolves the same newest version, hits the no-op short-circuit, and
   prints `Already up to date` — exit 0, nothing bumped.
-- **Non-major only by default.** The major axis is gated behind an explicit
-  `--major`; routine minor/patch bumps within the current major apply
-  without a gate.
 - **No auto-commit.** `mandrel update` leaves the lockfile bump staged on
   disk and never runs git. The operator reviews the surfaced changelog and
   writes the commit message (Step 5) — the CLI does not know whether the

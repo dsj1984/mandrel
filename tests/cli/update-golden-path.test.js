@@ -4,12 +4,12 @@
  * Story #3506, Epic #3437 — Auto-Update & Version Lifecycle).
  *
  * This is the **integration-flavored** counterpart to the per-branch unit
- * tests in `lib/cli/__tests__/update.test.js` / `update-major.test.js`. Those
+ * tests in `lib/cli/__tests__/update.test.js` / `update-version-resolution.test.js`. Those
  * files prove each branch of `runUpdate` in isolation; this file proves the
  * single end-to-end happy path that an operator actually walks: a minor-ahead
  * release drives the full ordered cycle
  *
- *     resolve → major-gate → npm-update → runSync → runMigrations → doctor
+ *     resolve → npm-update → runSync → runMigrations → doctor
  *     → surfaceChangelog
  *
  * against one cohesive, **stateful** fixture and asserts two things the
@@ -188,7 +188,7 @@ function makeCapture() {
 // ---------------------------------------------------------------------------
 
 describe('update golden path — full cycle, doctor-pass, staged lockfile', () => {
-  it('drives resolve → major-gate → npm-update → sync → migrate → doctor → changelog and reports success', async () => {
+  it('drives resolve → npm-update → sync → migrate → doctor → changelog and reports success', async () => {
     // Arrange
     const tree = makeWorkingTree();
     const seams = makeGoldenPathSeams(tree);
@@ -203,9 +203,8 @@ describe('update golden path — full cycle, doctor-pass, staged lockfile', () =
       exit: cap.exit,
     });
 
-    // Assert — the full ordered cycle ran exactly once, in order. The
-    // major-gate is a non-crossing pass-through on a minor bump, so it emits
-    // no seam call; resolve is its observable entry point.
+    // Assert — the full ordered cycle ran exactly once, in order; resolve is
+    // the observable entry point.
     assert.deepEqual(seams.calls, [
       'resolve',
       `npm-update:${TARGET_VERSION}`,
@@ -218,7 +217,6 @@ describe('update golden path — full cycle, doctor-pass, staged lockfile', () =
     // Assert — doctor-pass success path.
     assert.equal(result.ok, true);
     assert.equal(result.action, 'updated');
-    assert.equal(result.major, false);
     assert.equal(result.targetVersion, TARGET_VERSION);
     assert.deepEqual(result.stepsRun, [
       'npm-update',

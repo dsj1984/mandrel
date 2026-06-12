@@ -1036,7 +1036,7 @@ below covers every dispatch-visible subcommand:
 | `sync` | Re-materialize `.agents/` from the installed package payload. | `--dry-run`, `--force` |
 | `sync-commands` | Rebuild `.claude/commands/` from `.agents/workflows/`. | — |
 | `doctor` | Run readiness checks and report remedies. | — |
-| `update` | Upgrade mandrel to the newest non-major version. | `--dry-run`, `--major`, `--install-cmd` |
+| `update` | Upgrade mandrel to the newest published version. | `--dry-run`, `--install-cmd` |
 | `migrate` | Apply version-keyed migrations for a version range. | `--from`, `--to`, `--dry-run` |
 | `explain` | Print resolved config values with sources. | `--json` |
 | `uninstall` | Reverse a recorded install using the install ledger. | `--include-github`, `--dry-run` |

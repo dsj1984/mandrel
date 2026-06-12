@@ -112,7 +112,7 @@ clone produces zero file mutations.
 ## Upgrading and local additions
 
 Once installed, the ongoing upgrade path is **`mandrel update`** — it bumps
-`mandrel` to the newest non-major version, re-runs `mandrel sync`,
+`mandrel` to the newest published version, re-runs `mandrel sync`,
 applies version-keyed migrations, and verifies the install with
 `mandrel doctor`. The lockfile bump is left **staged for you to review and
 commit** (the command performs no `git` mutation):
@@ -122,12 +122,9 @@ npx mandrel update           # update → sync → migrate → doctor
 npx mandrel update --dry-run # preview the target version + ordered steps
 ```
 
-A **major** crossing (e.g. `1.x → 2.0`) is **gated**: Mandrel lives on the
-1.x line under release-please `always-bump-minor`, so a major is a deliberate
-operator decision. `mandrel update` refuses a major bump, points at the
-[`docs/upgrade-major.md`](docs/upgrade-major.md) runbook, and exits
-without touching anything — re-run with `--major` to adopt it. Minor and
-patch bumps are never gated. Migrations can also be run on their own:
+Major crossings are applied like any other bump — Mandrel ships hard
+cutovers, so the release notes in the surfaced changelog are the migration
+guide. Migrations can also be run on their own:
 
 ```bash
 npx mandrel migrate --from <version> --to <version> [--dry-run]
@@ -154,7 +151,7 @@ Run `mandrel --help` for a subcommand list. Each subcommand supports
 | `sync` | Re-materialize `.agents/` from the installed package payload. | `--dry-run`, `--force` |
 | `sync-commands` | Regenerate `.claude/commands/` from `.agents/workflows/`. | — |
 | `doctor` | Run readiness checks and print per-check remedies. | — |
-| `update` | Upgrade mandrel to the newest non-major version. | `--dry-run`, `--major`, `--install-cmd` |
+| `update` | Upgrade mandrel to the newest published version. | `--dry-run`, `--install-cmd` |
 | `migrate` | Apply version-keyed migrations for a version range. | `--from`, `--to`, `--dry-run` |
 | `explain` | Print resolved config values with their sources. | `--json` |
 | `uninstall` | Reverse a recorded install using the install ledger. | `--include-github`, `--dry-run` |

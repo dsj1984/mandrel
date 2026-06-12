@@ -70,8 +70,8 @@ const SUBCOMMANDS = new Map([
   [
     'update',
     {
-      description: 'upgrade mandrel to the newest non-major version',
-      knownFlags: new Set(['--dry-run', '--major', '--install-cmd']),
+      description: 'upgrade mandrel to the newest published version',
+      knownFlags: new Set(['--dry-run', '--install-cmd']),
     },
   ],
   [

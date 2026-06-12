@@ -177,13 +177,11 @@ Releases are automated by
    branch, and bootstrap a fresh project with `npx mandrel init`. The
    publish job requires the `NPM_TOKEN` secret — see
    [§ npm publish token](#npm-publish-token) below.
-4. **Breaking-change releases** ship a consumer-upgrade runbook under
-   `docs/` (describing the migration steps and the major-version bump
-   operator step). Link any future breaking-release runbook from
-   this checklist and from the **release PR body** release-please opens
-   (which becomes the squash-commit body and the versioned
+4. **Breaking-change releases** document their migration steps in the
+   **release PR body** release-please opens (which becomes the
+   squash-commit body and the versioned
    [`docs/CHANGELOG.md`](docs/CHANGELOG.md) entry on merge) so consumers
-   find it on upgrade. Do **not** hand-maintain an `## Unreleased`
+   find them on upgrade. Do **not** hand-maintain an `## Unreleased`
    section in `docs/CHANGELOG.md` — release-please is the sole writer of
    that file and generates version sections from Conventional Commit
    subjects; a bracket-less `## Unreleased` block is never promoted to a
