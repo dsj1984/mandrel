@@ -25,7 +25,7 @@ package and materialized into consumer projects' `.agents/` directories by
 - **Current Version:** the `version` field of the root
   [`package.json`](package.json) (run `npm ls mandrel` in a
   consumer project)
-- **License:** ISC
+- **License:** MIT
 
 > **Ticket hierarchy.** Mandrel ships a **2-tier ticket hierarchy**
 > (Epic → Story). Acceptance criteria and verification

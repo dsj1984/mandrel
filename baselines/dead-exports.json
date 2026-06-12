@@ -1,7 +1,7 @@
 {
   "$schema": "https://mandrel.dev/baselines/dead-exports.schema.json",
   "kernelVersion": "6.14.0",
-  "generatedAt": "2026-06-11T02:14:53.443Z",
+  "generatedAt": "2026-06-12T00:49:00.688Z",
   "rows": [
     {
       "file": ".agents/scripts/lib/audit-suite/findings.js",
@@ -73,10 +73,6 @@
     },
     {
       "file": ".agents/scripts/lib/bootstrap/install-ledger.js",
-      "symbol": "readInstallLedger"
-    },
-    {
-      "file": ".agents/scripts/lib/bootstrap/install-ledger.js",
       "symbol": "resolveExecutedAction"
     },
     {
@@ -90,10 +86,6 @@
     {
       "file": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "symbol": "ensureDependenciesInstalled"
-    },
-    {
-      "file": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
-      "symbol": "REQUIRED_NODE_CEILING_MAJOR"
     },
     {
       "file": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
@@ -116,20 +108,8 @@
       "symbol": "QUALITY_CONFIG_DEFAULTS"
     },
     {
-      "file": ".agents/scripts/lib/close-validation.js",
+      "file": ".agents/scripts/lib/close-validation/gates.js",
       "symbol": "INDEPENDENT_GATE_NAMES"
-    },
-    {
-      "file": ".agents/scripts/lib/close-validation.js",
-      "symbol": "listChangedFilesForFormatGate"
-    },
-    {
-      "file": ".agents/scripts/lib/close-validation.js",
-      "symbol": "partitionGates"
-    },
-    {
-      "file": ".agents/scripts/lib/close-validation.js",
-      "symbol": "resolveFormatCheckCommand"
     },
     {
       "file": ".agents/scripts/lib/config-schema-shared.js",
@@ -312,14 +292,6 @@
       "symbol": "defaultFsFacade"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/cascade-grouping.js",
-      "symbol": "createBufferedLogger"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/cascade-grouping.js",
-      "symbol": "walkAncestorChain"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/column-sync.js",
       "symbol": "LABEL_TO_COLUMN"
     },
@@ -354,6 +326,10 @@
     {
       "file": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/persist-helpers.js",
       "symbol": "makeDefaultFanOutCounter"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/epic-plan-lease-guard.js",
+      "symbol": "PLAN_LEASE_COMMENT_TYPE"
     },
     {
       "file": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/plan-epic.js",
@@ -554,6 +530,22 @@
     {
       "file": ".agents/scripts/lib/orchestration/story-close/close-inputs.js",
       "symbol": "resolveWorktreePath"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
+      "symbol": "commitDirtyPaths"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
+      "symbol": "currentBranch"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
+      "symbol": "listDirtyPaths"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
+      "symbol": "resolveFormatterCmd"
     },
     {
       "file": ".agents/scripts/lib/orchestration/story-close/phases/close.js",

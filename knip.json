@@ -1,6 +1,9 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": [
+    "bin/*.js",
+    "lib/cli/*.js",
+    "lib/migrations/index.js",
     ".agents/scripts/*.js",
     "scripts/**/*.js",
     "tests/**/*.{js,mjs,cjs}",
@@ -8,6 +11,8 @@
     ".husky/**"
   ],
   "project": [
+    "bin/**/*.js",
+    "lib/**/*.js",
     ".agents/scripts/**/*.js",
     "scripts/**/*.js",
     "tests/**/*.{js,mjs,cjs}"
@@ -18,11 +23,12 @@
     "coverage/**",
     "temp/**",
     "baselines/**",
-    ".claude/**"
+    ".claude/**",
+    "lib/**/__tests__/**"
   ],
   "ignoreDependencies": ["typescript", "c8"],
   "rules": {
-    "files": "off",
+    "files": "warn",
     "duplicates": "off",
     "dependencies": "off",
     "devDependencies": "off",
