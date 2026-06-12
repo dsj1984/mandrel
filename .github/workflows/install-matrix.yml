@@ -65,7 +65,7 @@ name: Install Matrix
 #      install time. Asserts .agents/ is materialized and doctor is ready
 #      WITHOUT a manual `mandrel sync` step.
 #   2. cold-start — exercises the Story #4045 `mandrel init` single-command
-#      path end-to-end: npm install → mandrel init --yes (non-interactive)
+#      path end-to-end: npm install → mandrel init --assume-yes (non-interactive)
 #      → doctor ready.
 #   3. materialized-script-run (pnpm) — installs with pnpm (isolated
 #      layout), mandrel sync, then runs a materialized .agents/scripts/*.js
@@ -386,20 +386,20 @@ jobs:
 
       # ── Leg: cold-start ───────────────────────────────────────────────────────
       # Exercises the Story #4045 single-command path end-to-end:
-      #   npm install --ignore-scripts → mandrel init --yes → doctor ready.
+      #   npm install --ignore-scripts → mandrel init --assume-yes → doctor ready.
       - name: "[cold-start] Install npm with --ignore-scripts"
         if: matrix.leg == 'cold-start'
         shell: bash
         working-directory: ${{ env.CONSUMER_DIR }}
         run: npm install --ignore-scripts "$TARBALL_PATH"
 
-      - name: "[cold-start] Run mandrel init --yes (cold-start bootstrap)"
+      - name: "[cold-start] Run mandrel init --assume-yes (cold-start bootstrap)"
         if: matrix.leg == 'cold-start'
         shell: bash
         working-directory: ${{ env.CONSUMER_DIR }}
-        # --yes accepts all prompts non-interactively, exercising the full
+        # --assume-yes accepts all prompts non-interactively, exercising the full
         # single-command bootstrap path introduced in Story #4045.
-        run: node "$MANDREL_BIN" init --yes
+        run: node "$MANDREL_BIN" init --assume-yes
 
       - name: "[cold-start] Assert materialization after mandrel init"
         if: matrix.leg == 'cold-start'
@@ -459,3 +459,18 @@ jobs:
             --consumer "$CONSUMER_DIR" \
             --check doctor-ready \
             --doctor-output "$RUNNER_TEMP/doctor-output.txt"
+
+      - name: "[script-run] Execute a materialized consumer script (pnpm free-ride guard)"
+        if: matrix.leg == 'materialized-script-run'
+        shell: bash
+        working-directory: ${{ env.CONSUMER_DIR }}
+        # Regression class: pnpm free-ride / dependency anchoring (Story #4046).
+        # The previous step runs the *packaged* doctor bin; this step executes
+        # a file genuinely materialized under $CONSUMER_DIR/.agents/scripts/
+        # with cwd=$CONSUMER_DIR. validate-skills.js imports third-party deps
+        # (ajv, ajv-formats) at module top, so even its read-only `--help` run
+        # (exits 0) proves materialized scripts resolve runtime deps through
+        # the package-root anchoring rather than free-riding on the consumer's
+        # node_modules layout — under pnpm's isolated layout a free-ride
+        # regression dies here with ERR_MODULE_NOT_FOUND.
+        run: node ./.agents/scripts/validate-skills.js --help
