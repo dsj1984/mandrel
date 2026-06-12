@@ -14,9 +14,14 @@ description: >-
 
 ## Overview
 
-`/deliver` is the **single SDL execution command** in the 5.40 surface.
-It opens a PR against `main` and auto-merges when every signal certifies a
-clean run; otherwise it falls back to the operator-merges-button path.
+This helper is the **Epic delivery path** behind `/deliver` — the router
+delegates to it once per Epic ID, either as the sole route (single-Epic
+input) or as one **Epic segment** of the sequential segment plan `/deliver`
+composes over mixed Epic / standalone-Story input (Epic segments run in
+input order, after the standalone segment; see
+[`deliver.md`](../deliver.md)). Each invocation opens a PR against `main`
+and auto-merges when every signal certifies a clean run; otherwise it falls
+back to the operator-merges-button path.
 
 ```text
 /deliver <epicId>
@@ -32,8 +37,10 @@ clean run; otherwise it falls back to the operator-merges-button path.
   → Phase 9 — cleanup              (BranchCleaner + Cleaner lifecycle listeners on epic.cleanup.start / epic.merge.armed; fire via lifecycle-emit → epic.merge.armed)
 ```
 
-The argument is always an Epic ID (`type::epic`). Story IDs go to
-[`/deliver`](deliver-stories.md) (standalone) or the
+The argument is always a single Epic ID (`type::epic`) — multi-Epic or
+mixed input is segmented by the `/deliver` router before this helper runs.
+Story IDs go to
+[`helpers/deliver-stories`](deliver-stories.md) (standalone) or the
 [`helpers/epic-deliver-story`](epic-deliver-story.md) helper
 (Epic-attached, invoked by this workflow's fan-out); Tasks are not directly
 executable.
