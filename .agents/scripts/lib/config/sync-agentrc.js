@@ -69,7 +69,7 @@ export function syncAgentrc(opts) {
       status: 'missing-config',
       changes: [],
       errors: [
-        `No .agentrc.json at ${configPath}. Run /agents-bootstrap-project first.`,
+        `No .agentrc.json at ${configPath}. Run \`mandrel init\` (new project) or \`node .agents/scripts/bootstrap.js\` to create it.`,
       ],
       configPath,
       wrote: false,

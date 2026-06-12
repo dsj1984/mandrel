@@ -12,7 +12,7 @@
  */
 
 import fs from 'node:fs';
-import path from 'node:path';
+import { detectPackageManager as detectPm } from '../detect-package-manager.js';
 
 /**
  * Resolve each required package via the injected `resolve` seam and collect
@@ -38,17 +38,17 @@ export function checkRuntimeDeps({ required, resolve }) {
 /**
  * Detect the consumer's package manager from lockfile presence so the
  * remediation message names the right install command. Defaults to `npm`.
- * Mirrors `bootstrap/project-bootstrap.js#detectPackageManager` but stays
- * decoupled (and seam-injectable) so the preflight imports nothing heavy.
+ *
+ * Delegates to the shared `detectPackageManager` helper
+ * (Story #4048 B3 — one implementation per concept). The `exists` seam
+ * is forwarded directly; `null` (no manifest) coerces to `'npm'`.
  *
  * @param {string} root
  * @param {(p: string) => boolean} [exists=fs.existsSync]
  * @returns {'pnpm'|'yarn'|'npm'}
  */
 export function detectPackageManager(root, exists = fs.existsSync) {
-  if (exists(path.join(root, 'pnpm-lock.yaml'))) return 'pnpm';
-  if (exists(path.join(root, 'yarn.lock'))) return 'yarn';
-  return 'npm';
+  return detectPm(root, exists) ?? 'npm';
 }
 
 /** Map a detected package manager to its install command. */

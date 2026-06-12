@@ -68,8 +68,9 @@ node .agents/scripts/sync-agentrc.js
 The script:
 
 1. Reads `.agentrc.json` from the working directory (`--cwd <path>` to
-   override). When the file is missing, prints a pointer to
-   `/agents-bootstrap-project` and exits 1.
+   override). When the file is missing, prints an error asking the
+   operator to run `mandrel init` (new project) or
+   `node .agents/scripts/bootstrap.js` (existing project) and exits 1.
 2. Validates the parsed config against the framework AJV schema
    (`getAgentrcValidator()`). On any failure, prints a single-line error
    list and exits 1 — the operator must fix the typo / missing required

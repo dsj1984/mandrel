@@ -267,7 +267,7 @@ describe('formatSyncReport', () => {
       status: 'missing-config',
       changes: [],
       errors: [
-        'No .agentrc.json at /tmp/.agentrc.json. Run /agents-bootstrap-project first.',
+        'No .agentrc.json at /tmp/.agentrc.json. Run `mandrel init` (new project) or `node .agents/scripts/bootstrap.js` to create it.',
       ],
       configPath: '/tmp/.agentrc.json',
       wrote: false,

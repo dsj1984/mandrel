@@ -15,13 +15,7 @@
  * @see docs/v5-implementation-plan.md Sprint 1C
  */
 
-import fs from 'node:fs';
-import path from 'node:path';
 import { applyBranchProtection } from './lib/bootstrap/branch-protection.js';
-import {
-  CI_WORKFLOW_RELATIVE_PATH,
-  renderCiWorkflow,
-} from './lib/bootstrap/ci-workflow-template.js';
 import {
   compareSemver,
   MIN_GH_VERSION,
@@ -267,106 +261,6 @@ async function ensureProjectFields(provider, project, log) {
 }
 
 /**
- * Create or additively-merge branch protection on `baseBranch` (typically
- * `main`) so the `delivery.quality.prGate.checks` suite is required
- * before merge. Behaviour rules:
- *
- *   - `enforceBranchProtection: false` → skip, log the opt-out, return a
- *     `{ status: 'skipped' }` summary.
- *   - `prGate.checks` empty or absent → skip with a clear log, since there
- *     is nothing to enforce.
- *   - Existing protection rule → preserve every existing required-check
- *     context and append only the missing prGate names.
- *   - No existing rule → create a fresh one carrying just the prGate
- *     contexts plus minimal sensible defaults (strict status checks).
- *
- * Errors (insufficient scopes, repo permission denied, etc.) are logged
- * and return a `{ status: 'failed' }` summary so the bootstrap CLI
- * surfaces a non-fatal warning rather than aborting the entire run —
- * matching how the project-board provisioning steps degrade.
- */
-async function ensureMainBranchProtection(
-  provider,
-  { baseBranch, prGate },
-  log,
-) {
-  if (prGate?.enforceBranchProtection === false) {
-    log(
-      `[bootstrap] Branch protection on '${baseBranch}': skipped (delivery.quality.prGate.enforceBranchProtection=false).`,
-    );
-    return { status: 'skipped', reason: 'opt-out' };
-  }
-
-  const checkNames = (prGate?.checks ?? [])
-    .map((c) => c?.name)
-    .filter((n) => typeof n === 'string' && n.length > 0);
-  if (checkNames.length === 0) {
-    log(
-      `[bootstrap] Branch protection on '${baseBranch}': skipped (no prGate.checks configured).`,
-    );
-    return { status: 'skipped', reason: 'no-checks' };
-  }
-
-  try {
-    const result = await provider.setBranchProtection(baseBranch, {
-      contexts: checkNames,
-    });
-    const verb = result.created ? 'Created' : 'Updated';
-    const addedSuffix = result.added.length
-      ? ` (added: ${result.added.join(', ')})`
-      : ' (all required checks already present)';
-    log(
-      `[bootstrap] Branch protection on '${baseBranch}': ${verb} rule${addedSuffix}.`,
-    );
-    return { status: result.created ? 'created' : 'merged', ...result };
-  } catch (err) {
-    log(
-      `[bootstrap] Branch protection on '${baseBranch}': failed — ${err.message}. Proceeding without it.`,
-    );
-    return { status: 'failed', reason: err.message };
-  }
-}
-
-/**
- * Render the stabilized-quality-gates CI workflow template into a project
- * checkout. Idempotent on the byte level: when `.github/workflows/ci.yml`
- * already matches the rendered template, no write occurs and the action is
- * `unchanged`. When the file is absent the action is `created`. When the
- * file exists with operator-authored differences the helper preserves it
- * and returns `custom-workflow-skip` along with the rendered body so the
- * bootstrap caller (or `/agents-update`) can offer a side-by-side diff.
- *
- * Network-free; safe to invoke under tests with a tmp `projectRoot`.
- *
- * @param {object} args
- * @param {string} args.projectRoot - Repo root (must contain or accept
- *   `.github/workflows/`).
- * @param {object} [args.template] - Forwarded to `renderCiWorkflow`.
- * @param {boolean} [args.write=true] - When `false`, the helper computes
- *   the would-be action without touching disk. Used by the
- *   bootstrap CLI's dry-run mode.
- * @returns {{ action: 'created'|'unchanged'|'custom-workflow-skip',
- *             path: string, rendered: string }}
- */
-export function ensureCiWorkflow(args) {
-  const projectRoot = args.projectRoot;
-  const rendered = renderCiWorkflow(args.template);
-  const target = path.join(projectRoot, CI_WORKFLOW_RELATIVE_PATH);
-  if (!fs.existsSync(target)) {
-    if (args.write !== false) {
-      fs.mkdirSync(path.dirname(target), { recursive: true });
-      fs.writeFileSync(target, rendered, 'utf8');
-    }
-    return { action: 'created', path: target, rendered };
-  }
-  const existing = fs.readFileSync(target, 'utf8');
-  if (existing === rendered) {
-    return { action: 'unchanged', path: target, rendered };
-  }
-  return { action: 'custom-workflow-skip', path: target, rendered };
-}
-
-/**
  * Run the idempotent bootstrap sequence.
  *
  * Accepts the canonical resolved config (output of `resolveConfig()` —
@@ -466,9 +360,6 @@ export async function runBootstrap(config, opts = {}) {
   // either step routes through the HITL confirm gate — non-TTY runs abort
   // with a clear stderr message rather than silently apply.
   //
-  // The legacy `ensureMainBranchProtection` helper is preserved (re-
-  // exported below) so the Epic #1142 Story #1157 contract tests stay
-  // green; `applyBranchProtection` is its consumer-parity successor.
   // Post-reshape: bootstrap reads from the new `project` + `github` blocks
   // exclusively. The legacy "agent settings" opt was removed in Epic #2880.
   const projectCfg = opts.project ?? config.project ?? {};
@@ -539,8 +430,9 @@ async function main() {
   }
 
   // Preflight runtime deps before the dynamic config-resolver import so
-  // a green-field consumer who skipped `/agents-bootstrap-project` gets
-  // a workflow hint instead of a raw `ERR_MODULE_NOT_FOUND`.
+  // a consumer who hasn't installed framework runtime deps yet gets a
+  // clear hint (`run mandrel init` or `npm install mandrel`) instead of
+  // a raw `ERR_MODULE_NOT_FOUND`.
   try {
     await preflightRuntimeDeps();
   } catch (err) {
@@ -569,7 +461,6 @@ async function main() {
     process.exit(1);
   }
 
-  const installWorkflows = process.argv.includes('--install-workflows');
   // Epic #1235 Story 5 — flags let CI / non-interactive callers pin the
   // HITL gate's answer deterministically. The bootstrap is non-interactive
   // by default in non-TTY contexts (the gate returns false and aborts);
@@ -594,7 +485,6 @@ async function main() {
 
   try {
     const result = await runBootstrap(config, {
-      installWorkflows,
       project: config.project,
       github: config.github,
       assumeYes,
@@ -617,12 +507,10 @@ async function main() {
   }
 }
 
-// Re-export internal helpers for test consumers (no production caller imports them).
 // Re-export the gh-preflight surface so existing test consumers can keep
 // importing it from this module after the Story #3349 split.
 export {
   compareSemver,
-  ensureMainBranchProtection,
   isApiAccessNotFoundError,
   MIN_GH_VERSION,
   parseGhVersion,

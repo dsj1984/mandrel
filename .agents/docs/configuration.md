@@ -376,7 +376,7 @@ branch protection on the base branch.
 
 | Field            | Required | Default | Purpose                                                                 |
 | ---------------- | -------- | ------- | ----------------------------------------------------------------------- |
-| `enforce`        | No       | `true`  | When `true`, `node .agents/scripts/bootstrap.js` calls `ensureMainBranchProtection(...)`. |
+| `enforce`        | No       | `true`  | When `true`, `node .agents/scripts/bootstrap.js` calls `applyBranchProtection(...)`. |
 | `requiredChecks` | No       | `[]`    | Array of `{ name, cmd[] }` entries used both as required-status-check expectations on the PR and as local close-validation gate invocations. |
 
 Each `requiredChecks` entry takes the shape:
