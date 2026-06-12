@@ -29,7 +29,7 @@ import {
   PLANNING_HEALTHCHECK_WAIVED,
 } from '../../../label-constants.js';
 import { cleanupPhaseTempFiles } from '../../../plan-phase-cleanup.js';
-import { writeSpec } from '../../../spec/index.js';
+import { loadState, writeSpec } from '../../../spec/index.js';
 import {
   assertNoOpenPlanChildren,
   releaseEpicPlanLease,
@@ -38,6 +38,7 @@ import { renderSpec } from '../../spec-renderer.js';
 import { renderHardConflictError } from '../../ticket-validator-conflicts.js';
 import {
   reconcileSubIssueLinks,
+  setBlockedByDependencies,
   setEpicLabel,
   warnTicketCapNearLimit,
 } from './creation.js';
@@ -59,7 +60,7 @@ import { RECONCILE_CLI, spawnReconcilerApply } from './reconcile-spawn.js';
  * @param {import('../../../ITicketingProvider.js').ITicketingProvider} provider
  * @param {{ tickets: Array<object> }} payload
  * @param {object} config
- * @param {{ force?: boolean, resume?: boolean, allowOverBudget?: boolean, allowLargeFanOut?: boolean, fanOutCounter?: (arg: { path: string }) => number, spawnSync?: typeof defaultSpawnSync, reconcileCli?: string, writeSpecFn?: typeof writeSpec, renderSpecFn?: typeof renderSpec, cwd?: string, runHealthcheckFn?: typeof defaultRunPlanHealthcheck, skipHealthcheck?: boolean }} [opts]
+ * @param {{ force?: boolean, resume?: boolean, allowOverBudget?: boolean, allowLargeFanOut?: boolean, fanOutCounter?: (arg: { path: string }) => number, spawnSync?: typeof defaultSpawnSync, reconcileCli?: string, writeSpecFn?: typeof writeSpec, renderSpecFn?: typeof renderSpec, loadStateFn?: typeof loadState, cwd?: string, runHealthcheckFn?: typeof defaultRunPlanHealthcheck, skipHealthcheck?: boolean }} [opts]
  */
 export async function runDecomposePhase(
   epicId,
@@ -76,6 +77,7 @@ export async function runDecomposePhase(
     reconcileCli = RECONCILE_CLI,
     writeSpecFn = writeSpec,
     renderSpecFn = renderSpec,
+    loadStateFn = loadState,
     cwd = PROJECT_ROOT,
     runHealthcheckFn = defaultRunPlanHealthcheck,
     skipHealthcheck = false,
@@ -169,6 +171,18 @@ export async function runDecomposePhase(
   // opportunistically calls `addSubIssue` and swallows transient failures;
   // re-establish missing native links before flipping the Epic to ready.
   await reconcileSubIssueLinks(epicId, provider);
+
+  // Story #4067 — translate `depends_on` edges into native GitHub "blocked
+  // by" dependencies so maintainers see blocking relationships in the UI.
+  // Best-effort and non-fatal: the reconciler has already written the state
+  // file, so we load it here to get the authoritative slug→issueNumber map.
+  const postReconcileState = loadStateFn(epicId);
+  await setBlockedByDependencies(
+    epicId,
+    provider,
+    spec,
+    postReconcileState.mapping,
+  );
 
   const checkpoint = await recordCheckpoint(provider, epicId, tickets);
 
