@@ -30,11 +30,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 
-const { detectPackageManager, detectPackageManagerWithWorkspace } = await import(
-  pathToFileURL(
-    path.join(ROOT, '.agents', 'scripts', 'lib', 'detect-package-manager.js'),
-  ).href
-);
+const { detectPackageManager, detectPackageManagerWithWorkspace } =
+  await import(
+    pathToFileURL(
+      path.join(ROOT, '.agents', 'scripts', 'lib', 'detect-package-manager.js'),
+    ).href
+  );
 
 /**
  * Build a fake `exists` function that reports only the given basenames.
