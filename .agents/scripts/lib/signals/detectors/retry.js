@@ -82,7 +82,7 @@ import { createReadStream } from 'node:fs';
 import fs from 'node:fs/promises';
 import { createInterface } from 'node:readline';
 
-import { extractTool, isPositiveInt } from './common.js';
+import { extractTool, validateDetectorArgs } from './common.js';
 
 /**
  * Documented argv-normalisation rules — emitted verbatim onto every
@@ -220,45 +220,8 @@ async function tallyFailuresByIdentity(tracesPath) {
  *   to `.agents/schemas/signal-event.schema.json`.
  */
 export async function detectRetry(args) {
-  if (args == null || typeof args !== 'object') {
-    throw new TypeError(
-      `detectRetry: args must be an object with at minimum { tracesPath, epicId, storyId, threshold }; got ${args}`,
-    );
-  }
-  const { tracesPath, epicId, storyId, threshold } = args;
-  const taskId = args.taskId ?? null;
-  if (args.nowFn != null && typeof args.nowFn !== 'function') {
-    throw new TypeError(
-      `detectRetry: nowFn, when provided, must be a function (got ${typeof args.nowFn})`,
-    );
-  }
-  const nowFn = args.nowFn ?? (() => new Date().toISOString());
-
-  if (typeof tracesPath !== 'string' || tracesPath.length === 0) {
-    throw new TypeError(
-      `detectRetry: tracesPath must be a non-empty string (got ${tracesPath})`,
-    );
-  }
-  if (!isPositiveInt(epicId)) {
-    throw new RangeError(
-      `detectRetry: epicId must be a positive integer (got ${epicId})`,
-    );
-  }
-  if (!isPositiveInt(storyId)) {
-    throw new RangeError(
-      `detectRetry: storyId must be a positive integer (got ${storyId})`,
-    );
-  }
-  if (taskId !== null && !isPositiveInt(taskId)) {
-    throw new RangeError(
-      `detectRetry: taskId must be a positive integer or null (got ${taskId})`,
-    );
-  }
-  if (!Number.isInteger(threshold) || threshold < 0) {
-    throw new RangeError(
-      `detectRetry: threshold must be a non-negative integer (got ${threshold})`,
-    );
-  }
+  const { tracesPath, epicId, storyId, taskId, threshold, nowFn } =
+    validateDetectorArgs(args, { fnName: 'detectRetry' });
 
   const counts = await tallyFailuresByIdentity(tracesPath);
 

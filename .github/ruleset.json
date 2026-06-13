@@ -28,7 +28,19 @@
         "do_not_enforce_on_create": false,
         "required_status_checks": [
           {
-            "context": "Validate and Test (ubuntu-latest, node 22)",
+            "context": "Validate and Test",
+            "integration_id": 15368
+          },
+          {
+            "context": "baselines",
+            "integration_id": 15368
+          },
+          {
+            "context": "install (npm / ubuntu-latest)",
+            "integration_id": 15368
+          },
+          {
+            "context": "install (yarn / windows-latest)",
             "integration_id": 15368
           }
         ]

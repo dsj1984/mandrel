@@ -152,6 +152,76 @@ const ISO_8601_RE =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 
 /**
+ * Per-field validators for {@link validateModelAttributionPayload}. Each
+ * returns an array of error strings for its field (empty when the field is
+ * valid), so the top-level validator collapses to a flat-map over the field
+ * list — no per-field branching in the orchestrating body. Story #4075
+ * (CLI-orchestration CC reduction): keeps each validator pure and
+ * single-responsibility.
+ */
+function validateKind(payload) {
+  return payload.kind === MODEL_ATTRIBUTION_TYPE
+    ? []
+    : [`kind must be "${MODEL_ATTRIBUTION_TYPE}"`];
+}
+
+function validateTicketId(payload) {
+  return Number.isInteger(payload.ticketId) && payload.ticketId > 0
+    ? []
+    : ['ticketId must be a positive integer'];
+}
+
+function validateModel(payload) {
+  const { model } = payload;
+  if (!model || typeof model !== 'object' || Array.isArray(model)) {
+    return ['model must be an object'];
+  }
+  const errors = [];
+  if (typeof model.id !== 'string' || model.id.length === 0) {
+    errors.push('model.id must be a non-empty string');
+  }
+  if (
+    model.family !== undefined &&
+    (typeof model.family !== 'string' || model.family.length === 0)
+  ) {
+    errors.push('model.family, when present, must be a non-empty string');
+  }
+  return errors;
+}
+
+function validateSource(payload) {
+  return typeof payload.source === 'string' && VALID_SOURCES.has(payload.source)
+    ? []
+    : [`source must be one of: ${[...VALID_SOURCES].join(', ')}`];
+}
+
+function validateRecordedAt(payload) {
+  return typeof payload.recordedAt === 'string' &&
+    ISO_8601_RE.test(payload.recordedAt)
+    ? []
+    : ['recordedAt must be an ISO-8601 timestamp string'];
+}
+
+function validateSdkMetadata(payload) {
+  const { sdkMetadata } = payload;
+  if (sdkMetadata === undefined) return [];
+  const valid =
+    sdkMetadata !== null &&
+    typeof sdkMetadata === 'object' &&
+    !Array.isArray(sdkMetadata);
+  return valid ? [] : ['sdkMetadata, when present, must be an object'];
+}
+
+const PAYLOAD_FIELD_VALIDATORS = Object.freeze([
+  validateKind,
+  validateTicketId,
+  validateModel,
+  validateSource,
+  validateRecordedAt,
+  validateSdkMetadata,
+]);
+
+/**
  * Hand-rolled validator matching
  * `.agents/schemas/model-attribution.schema.json`. Returns
  * `{ ok: true }` on success, `{ ok: false, errors: string[] }` on
@@ -168,7 +238,6 @@ const ISO_8601_RE =
  * @returns {{ ok: true } | { ok: false, errors: string[] }}
  */
 export function validateModelAttributionPayload(payload) {
-  const errors = [];
   if (
     payload === null ||
     typeof payload !== 'object' ||
@@ -176,50 +245,9 @@ export function validateModelAttributionPayload(payload) {
   ) {
     return { ok: false, errors: ['payload must be a plain object'] };
   }
-  if (payload.kind !== MODEL_ATTRIBUTION_TYPE) {
-    errors.push(`kind must be "${MODEL_ATTRIBUTION_TYPE}"`);
-  }
-  if (!Number.isInteger(payload.ticketId) || payload.ticketId <= 0) {
-    errors.push('ticketId must be a positive integer');
-  }
-  if (
-    !payload.model ||
-    typeof payload.model !== 'object' ||
-    Array.isArray(payload.model)
-  ) {
-    errors.push('model must be an object');
-  } else {
-    if (typeof payload.model.id !== 'string' || payload.model.id.length === 0) {
-      errors.push('model.id must be a non-empty string');
-    }
-    if (
-      payload.model.family !== undefined &&
-      (typeof payload.model.family !== 'string' ||
-        payload.model.family.length === 0)
-    ) {
-      errors.push('model.family, when present, must be a non-empty string');
-    }
-  }
-  if (
-    typeof payload.source !== 'string' ||
-    !VALID_SOURCES.has(payload.source)
-  ) {
-    errors.push(`source must be one of: ${[...VALID_SOURCES].join(', ')}`);
-  }
-  if (
-    typeof payload.recordedAt !== 'string' ||
-    !ISO_8601_RE.test(payload.recordedAt)
-  ) {
-    errors.push('recordedAt must be an ISO-8601 timestamp string');
-  }
-  if (
-    payload.sdkMetadata !== undefined &&
-    (payload.sdkMetadata === null ||
-      typeof payload.sdkMetadata !== 'object' ||
-      Array.isArray(payload.sdkMetadata))
-  ) {
-    errors.push('sdkMetadata, when present, must be an object');
-  }
+  const errors = PAYLOAD_FIELD_VALIDATORS.flatMap((validate) =>
+    validate(payload),
+  );
   return errors.length ? { ok: false, errors } : { ok: true };
 }
 

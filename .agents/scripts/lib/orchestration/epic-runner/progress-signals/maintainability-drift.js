@@ -4,7 +4,7 @@ import path from 'node:path';
 import { calculateForSource } from '../../../maintainability-engine.js';
 import { formatNumber } from './_bullet-format.js';
 import {
-  createSnapshotStore,
+  createDriftDetector,
   walkComponentRegressions,
 } from './component-drift.js';
 
@@ -75,16 +75,10 @@ export function detectComponentRegressions(params = {}) {
 export function createMaintainabilityDriftDetector(opts = {}) {
   const fs = opts.fs ?? nodeFs;
   const cwd = opts.cwd ?? process.cwd();
-  const files = Array.isArray(opts.files) ? [...opts.files] : [];
   const calculate = opts.calculate ?? calculateForSource;
   const threshold = Number.isFinite(opts.threshold)
     ? opts.threshold
     : DEFAULT_THRESHOLD;
-  const baselineDir = opts.baselineDir ?? '.agents/state';
-  const baselinePath = path.join(cwd, baselineDir, BASELINE_FILENAME);
-  const store = createSnapshotStore({ fs, baselinePath });
-
-  let baseline = null;
 
   function scoreFile(relPath) {
     try {
@@ -97,32 +91,18 @@ export function createMaintainabilityDriftDetector(opts = {}) {
     }
   }
 
-  return {
-    get baselinePath() {
-      return baselinePath;
-    },
-
-    captureBaseline() {
-      const snapshot = {};
-      for (const f of files) {
-        const s = scoreFile(f);
-        if (s != null) snapshot[f] = s;
-      }
-      baseline = snapshot;
-      store.persist(snapshot);
-      return snapshot;
-    },
-
-    loadBaseline() {
-      baseline = store.load();
-      return baseline;
-    },
-
-    async detect() {
-      if (!baseline) return [];
+  return createDriftDetector({
+    fs,
+    cwd,
+    files: opts.files,
+    baselineDir: opts.baselineDir,
+    baselineFilename: BASELINE_FILENAME,
+    scoreFile,
+    captureScore: (score) => score,
+    async detect({ baseline, scoreFile: score }) {
       const bullets = [];
       for (const [relPath, baseScore] of Object.entries(baseline)) {
-        const current = scoreFile(relPath);
+        const current = score(relPath);
         if (current == null) continue;
         const drop = baseScore - current;
         if (drop >= threshold) {
@@ -133,5 +113,5 @@ export function createMaintainabilityDriftDetector(opts = {}) {
       }
       return bullets;
     },
-  };
+  });
 }

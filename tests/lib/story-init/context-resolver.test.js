@@ -1,6 +1,7 @@
 import assert from 'node:assert';
 import { test } from 'node:test';
 import { resolveContext } from '../../../.agents/scripts/lib/story-init/context-resolver.js';
+import { composeStoryBody } from '../../../.agents/scripts/providers/github/tickets.js';
 
 function makeProvider({ tickets = {}, onUpdate } = {}) {
   return {
@@ -54,6 +55,27 @@ test('resolveContext throws when Epic reference is missing', async () => {
     resolveContext({ provider, input: { storyId: 4 } }),
     /Epic: #N/,
   );
+});
+
+// Story #4102 — a body produced by composeStoryBody for a directly-attached
+// 2-tier Story (epicId === parentId) carries an `Epic: #N` line, so
+// resolveContext must resolve the hierarchy rather than throw
+// `has no "Epic: #N" reference`.
+test('resolveContext resolves a directly-attached 2-tier Story body without throwing', async () => {
+  const body = composeStoryBody({
+    body: '# Story body',
+    parentId: 23,
+    epicId: 23,
+    dependencies: [],
+  });
+  const provider = makeProvider({
+    tickets: {
+      23: { id: 23, labels: ['type::story'], body, title: 'S' },
+    },
+  });
+  const out = await resolveContext({ provider, input: { storyId: 23 } });
+  assert.strictEqual(out.epicId, 23);
+  assert.strictEqual(out.parentId, 23);
 });
 
 test('resolveContext rejects self-referential recut', async () => {

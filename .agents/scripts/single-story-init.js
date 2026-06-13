@@ -36,7 +36,7 @@
  * @see .agents/workflows/helpers/single-story-deliver.md
  */
 
-import { spawnSync } from 'node:child_process';
+import { spawnSync as defaultSpawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { parseSprintArgs } from './lib/cli-args.js';
@@ -109,12 +109,25 @@ const progress = Logger.createProgress('single-story-init', { stderr: true });
  * ripple into the single-story-sweep planner, which is intentionally out
  * of scope for the callers-only provider migration.
  *
+ * Story #4073: the `spawnImpl` seam injects the `spawnSync` boundary so the
+ * runner's success/error handling can be unit-tested without a live `gh`
+ * binary. It defaults to `child_process.spawnSync` (mirroring the
+ * `spawnImpl` seam in `lib/gh-exec.js` and the `runner` seam in
+ * `lib/bootstrap/gh-preflight.js`), so the production CLI path is unchanged.
+ * The synchronous `spawnSync` shape is preserved deliberately — the
+ * candidate-filter loop in `executeCleanup` is synchronous, so converting
+ * this to the async `lib/gh-exec.js` facade would ripple into the
+ * single-story-sweep planner.
+ *
  * @param {string} cwd Repo root used as the default spawn cwd.
+ * @param {typeof defaultSpawnSync} [spawnImpl] Injectable spawn boundary —
+ *   defaults to `child_process.spawnSync`. Tests pass a fake to assert the
+ *   error/exit-code handling without spawning a real child process.
  * @returns {(args: string[], opts?: { cwd?: string }) => string}
  */
-export function makeGhRunner(cwd) {
+export function makeGhRunner(cwd, spawnImpl = defaultSpawnSync) {
   return (args, opts) => {
-    const result = spawnSync('gh', args, {
+    const result = spawnImpl('gh', args, {
       cwd: opts?.cwd ?? cwd,
       encoding: 'utf-8',
       shell: false,

@@ -452,6 +452,219 @@ export function commitSnapshotsToEpicBranch({
  *   files: Array<{ kind: 'maintainability'|'crap', path: string, didChange: boolean, reason?: 'no-coverage'|'unchanged'|'updated' }>,
  * }>}
  */
+/**
+ * Build the `files[]` entry for a baseline write, choosing between the
+ * structural-equality short-circuit (no write, `reason: 'unchanged'`) and
+ * the stamp-and-write path (`reason: 'updated'`). Story #4075 — collapses
+ * the duplicated short-circuit branch shared by the MI and CRAP passes.
+ *
+ * @returns {{ entry: object, wrote: boolean }}
+ */
+function commitBaselineEnvelope({
+  kind,
+  abs,
+  envelope,
+  priorEnvelope,
+  writeFileFn,
+  fsImpl,
+}) {
+  if (priorEnvelope && envelope === priorEnvelope) {
+    return {
+      entry: { kind, path: abs, didChange: false, reason: 'unchanged' },
+      wrote: false,
+    };
+  }
+  writeFileFn(abs, envelope, { fsImpl });
+  return {
+    entry: { kind, path: abs, didChange: true, reason: 'updated' },
+    wrote: true,
+  };
+}
+
+/**
+ * Regenerate the maintainability baseline from a fresh tree scan. Returns
+ * `null` when no maintainability baseline path is configured. The scanned
+ * source list is returned so the CRAP pass can reuse it when the two passes
+ * target the same dirs (Story #3663). Story #4075 — extracted from
+ * `regenerateMainFromTree`.
+ */
+async function regenerateMaintainability({
+  cwd,
+  baselines,
+  quality,
+  scanDirectoryFn,
+  calculateAllFn,
+  writeFn,
+  writeFileFn,
+  loadPriorFn,
+  fsImpl,
+}) {
+  const miPath = baselines?.maintainability?.path;
+  if (typeof miPath !== 'string' || miPath.length === 0) return null;
+
+  const miTargetDirs = quality?.maintainability?.targetDirs ?? [];
+  const miIgnoreGlobs = quality?.maintainability?.ignoreGlobs ?? [];
+  const miAbs = path.isAbsolute(miPath) ? miPath : path.resolve(cwd, miPath);
+  const miSourceList = [];
+  for (const dir of miTargetDirs) {
+    const abs = path.isAbsolute(dir) ? dir : path.resolve(cwd, dir);
+    scanDirectoryFn(abs, miSourceList, { cwd, ignoreGlobs: miIgnoreGlobs });
+  }
+  const scores = await calculateAllFn(miSourceList);
+
+  // Project the scoring helper's `{path: mi}` map onto the writer's
+  // canonical row shape. Story #2079 path-canon defence stays in place —
+  // the writer would canonicalise again, but doing it here keeps any
+  // pre-canonicalised comparison inside the function meaningful.
+  const miRows = filterExcludedRows(
+    Object.entries(scores).map(([key, mi]) => {
+      const rel = path.isAbsolute(key) ? path.relative(cwd, key) : key;
+      const posixRel = rel.split(path.sep).join('/');
+      return { path: canonicalisePath(posixRel), mi };
+    }),
+  );
+
+  const priorMi = loadPriorFn(miAbs, 'maintainability');
+  const envelope = writeFn({
+    kind: 'maintainability',
+    rows: miRows,
+    priorEnvelope: priorMi,
+  });
+  const { entry, wrote } = commitBaselineEnvelope({
+    kind: 'maintainability',
+    abs: miAbs,
+    envelope,
+    priorEnvelope: priorMi,
+    writeFileFn,
+    fsImpl,
+  });
+  return { entry, wrote, miSourceList, miTargetDirs, miIgnoreGlobs };
+}
+
+/**
+ * Decide whether the CRAP pass can reuse the MI scan's file list — true only
+ * when both passes target the same dirs with the same ignore globs
+ * (Story #3663).
+ */
+function crapDirsMatchMi({
+  miSourceList,
+  crapTargetDirs,
+  crapIgnoreGlobs,
+  miTargetDirs,
+  miIgnoreGlobs,
+}) {
+  return (
+    miSourceList !== null &&
+    crapTargetDirs.length === miTargetDirs.length &&
+    crapTargetDirs.every((d, i) => d === miTargetDirs[i]) &&
+    crapIgnoreGlobs.length === miIgnoreGlobs.length &&
+    crapIgnoreGlobs.every((g, i) => g === miIgnoreGlobs[i])
+  );
+}
+
+/**
+ * Regenerate the CRAP baseline from a fresh tree scan + coverage map.
+ * Returns `null` when no CRAP baseline path is configured. Story #4075 —
+ * extracted from `regenerateMainFromTree`.
+ */
+async function regenerateCrap({
+  cwd,
+  baselines,
+  quality,
+  logger,
+  miScan,
+  scanAndScoreFn,
+  loadCoverageFn,
+  resolveEscomplexVersionFn,
+  resolveTsTranspilerVersionFn,
+  writeFn,
+  writeFileFn,
+  loadPriorFn,
+  fsImpl,
+}) {
+  const crapPath = baselines?.crap?.path;
+  if (typeof crapPath !== 'string' || crapPath.length === 0) return null;
+
+  const crapCfg = quality?.crap ?? {};
+  const crapTargetDirs = Array.isArray(crapCfg.targetDirs)
+    ? crapCfg.targetDirs
+    : [];
+  const crapIgnoreGlobs = Array.isArray(crapCfg.ignoreGlobs)
+    ? crapCfg.ignoreGlobs
+    : [];
+  const requireCoverage = crapCfg.requireCoverage !== false;
+  const coveragePath = crapCfg.coveragePath ?? 'coverage/coverage-final.json';
+  const crapAbs = path.isAbsolute(crapPath)
+    ? crapPath
+    : path.resolve(cwd, crapPath);
+  const coverageAbs = path.isAbsolute(coveragePath)
+    ? coveragePath
+    : path.resolve(cwd, coveragePath);
+  const coverage = loadCoverageFn(coverageAbs);
+
+  if (!coverage && requireCoverage) {
+    logger.warn?.(
+      `[baseline-snapshot] ⚠ no coverage at ${coveragePath} — skipping crap regeneration (refresh stays clean for this file).`,
+    );
+    return {
+      entry: {
+        kind: 'crap',
+        path: crapAbs,
+        didChange: false,
+        reason: 'no-coverage',
+      },
+      wrote: false,
+    };
+  }
+
+  const reusePreScan = crapDirsMatchMi({
+    miSourceList: miScan?.miSourceList ?? null,
+    crapTargetDirs,
+    crapIgnoreGlobs,
+    miTargetDirs: miScan?.miTargetDirs ?? [],
+    miIgnoreGlobs: miScan?.miIgnoreGlobs ?? [],
+  });
+  const { rows } = await scanAndScoreFn({
+    targetDirs: crapTargetDirs,
+    coverage,
+    requireCoverage,
+    cwd,
+    ignoreGlobs: crapIgnoreGlobs,
+    ...(reusePreScan && { preScannedFiles: miScan.miSourceList }),
+  });
+  // scanAndScore yields rows keyed by `file:`; the per-kind crap module's
+  // `projectRow` handles `path ?? file`, so the writer takes either.
+  // Filter to actually-scored rows here (crap is nullable for trivial
+  // methods); the writer's `assertEnvelope` would reject otherwise.
+  const crapRows = (rows ?? []).filter(
+    (r) => typeof r?.crap === 'number' && Number.isFinite(r.crap),
+  );
+
+  // CRAP gates need the running scorer's versions present on the
+  // envelope-adjacent shape; the V2 envelope itself only carries
+  // `kernelVersion`, so we stamp escomplex/tsTranspiler via the writer's
+  // `kernelVersion` override and let the existing per-kind module resolve
+  // the rest. We also resolve them eagerly so a test stub can pin them
+  // deterministically.
+  resolveEscomplexVersionFn(cwd);
+  resolveTsTranspilerVersionFn();
+
+  const priorCrap = loadPriorFn(crapAbs, 'crap');
+  const envelope = writeFn({
+    kind: 'crap',
+    rows: crapRows,
+    priorEnvelope: priorCrap,
+  });
+  return commitBaselineEnvelope({
+    kind: 'crap',
+    abs: crapAbs,
+    envelope,
+    priorEnvelope: priorCrap,
+    writeFileFn,
+    fsImpl,
+  });
+}
+
 export async function regenerateMainFromTree({
   cwd = process.cwd(),
   resolveConfig = defaultResolveConfig,
@@ -476,149 +689,40 @@ export async function regenerateMainFromTree({
   const files = [];
   let didChange = false;
 
-  // ── maintainability ──────────────────────────────────────────────────────
-  const miPath = baselines?.maintainability?.path;
-  const miTargetDirs = quality?.maintainability?.targetDirs ?? [];
-  const miIgnoreGlobs = quality?.maintainability?.ignoreGlobs ?? [];
-  // Hoisted so the CRAP pass can reuse it when targetDirs match — avoids a
-  // second full-tree walk over the same directories (Story #3663).
-  let miSourceList = null;
-  if (typeof miPath === 'string' && miPath.length > 0) {
-    const miAbs = path.isAbsolute(miPath) ? miPath : path.resolve(cwd, miPath);
-    miSourceList = [];
-    for (const dir of miTargetDirs) {
-      const abs = path.isAbsolute(dir) ? dir : path.resolve(cwd, dir);
-      scanDirectoryFn(abs, miSourceList, { cwd, ignoreGlobs: miIgnoreGlobs });
-    }
-    const scores = await calculateAllFn(miSourceList);
-
-    // Project the scoring helper's `{path: mi}` map onto the writer's
-    // canonical row shape. Story #2079 path-canon defence stays in place —
-    // the writer would canonicalise again, but doing it here keeps any
-    // pre-canonicalised comparison inside the function meaningful.
-    const miRows = filterExcludedRows(
-      Object.entries(scores).map(([key, mi]) => {
-        const rel = path.isAbsolute(key) ? path.relative(cwd, key) : key;
-        const posixRel = rel.split(path.sep).join('/');
-        return { path: canonicalisePath(posixRel), mi };
-      }),
-    );
-
-    const priorMi = loadPriorFn(miAbs, 'maintainability');
-    const envelope = writeFn({
-      kind: 'maintainability',
-      rows: miRows,
-      priorEnvelope: priorMi,
-    });
-    if (priorMi && envelope === priorMi) {
-      // Structural-equality short-circuit fired — on-disk bytes are
-      // guaranteed identical, no writeFile invocation needed.
-      files.push({
-        kind: 'maintainability',
-        path: miAbs,
-        didChange: false,
-        reason: 'unchanged',
-      });
-    } else {
-      writeFileFn(miAbs, envelope, { fsImpl });
-      didChange = true;
-      files.push({
-        kind: 'maintainability',
-        path: miAbs,
-        didChange: true,
-        reason: 'updated',
-      });
-    }
+  const miScan = await regenerateMaintainability({
+    cwd,
+    baselines,
+    quality,
+    scanDirectoryFn,
+    calculateAllFn,
+    writeFn,
+    writeFileFn,
+    loadPriorFn,
+    fsImpl,
+  });
+  if (miScan) {
+    files.push(miScan.entry);
+    didChange = didChange || miScan.wrote;
   }
 
-  // ── crap ─────────────────────────────────────────────────────────────────
-  const crapPath = baselines?.crap?.path;
-  const crapCfg = quality?.crap ?? {};
-  const crapTargetDirs = Array.isArray(crapCfg.targetDirs)
-    ? crapCfg.targetDirs
-    : [];
-  const crapIgnoreGlobs = Array.isArray(crapCfg.ignoreGlobs)
-    ? crapCfg.ignoreGlobs
-    : [];
-  const requireCoverage = crapCfg.requireCoverage !== false;
-  const coveragePath = crapCfg.coveragePath ?? 'coverage/coverage-final.json';
-  if (typeof crapPath === 'string' && crapPath.length > 0) {
-    const crapAbs = path.isAbsolute(crapPath)
-      ? crapPath
-      : path.resolve(cwd, crapPath);
-    const coverageAbs = path.isAbsolute(coveragePath)
-      ? coveragePath
-      : path.resolve(cwd, coveragePath);
-    const coverage = loadCoverageFn(coverageAbs);
-    if (!coverage && requireCoverage) {
-      logger.warn?.(
-        `[baseline-snapshot] ⚠ no coverage at ${coveragePath} — skipping crap regeneration (refresh stays clean for this file).`,
-      );
-      files.push({
-        kind: 'crap',
-        path: crapAbs,
-        didChange: false,
-        reason: 'no-coverage',
-      });
-    } else {
-      // Reuse the MI scan's file list when CRAP and MI target the same
-      // directories with the same ignore globs — avoids a second full-tree
-      // walk over identical source trees (Story #3663).
-      const crapDirsMatchMi =
-        miSourceList !== null &&
-        crapTargetDirs.length === miTargetDirs.length &&
-        crapTargetDirs.every((d, i) => d === miTargetDirs[i]) &&
-        crapIgnoreGlobs.length === miIgnoreGlobs.length &&
-        crapIgnoreGlobs.every((g, i) => g === miIgnoreGlobs[i]);
-      const { rows } = await scanAndScoreFn({
-        targetDirs: crapTargetDirs,
-        coverage,
-        requireCoverage,
-        cwd,
-        ignoreGlobs: crapIgnoreGlobs,
-        ...(crapDirsMatchMi && { preScannedFiles: miSourceList }),
-      });
-      // scanAndScore yields rows keyed by `file:`; the per-kind crap module's
-      // `projectRow` handles `path ?? file`, so the writer takes either.
-      // Filter to actually-scored rows here (crap is nullable for trivial
-      // methods); the writer's `assertEnvelope` would reject otherwise.
-      const crapRows = (rows ?? []).filter(
-        (r) => typeof r?.crap === 'number' && Number.isFinite(r.crap),
-      );
-
-      // CRAP gates need the running scorer's versions present on the
-      // envelope-adjacent shape; the V2 envelope itself only carries
-      // `kernelVersion`, so we stamp escomplex/tsTranspiler via the writer's
-      // `kernelVersion` override and let the existing per-kind module
-      // resolve the rest. We also resolve them eagerly so a test stub can
-      // pin them deterministically.
-      resolveEscomplexVersionFn(cwd);
-      resolveTsTranspilerVersionFn();
-
-      const priorCrap = loadPriorFn(crapAbs, 'crap');
-      const envelope = writeFn({
-        kind: 'crap',
-        rows: crapRows,
-        priorEnvelope: priorCrap,
-      });
-      if (priorCrap && envelope === priorCrap) {
-        files.push({
-          kind: 'crap',
-          path: crapAbs,
-          didChange: false,
-          reason: 'unchanged',
-        });
-      } else {
-        writeFileFn(crapAbs, envelope, { fsImpl });
-        didChange = true;
-        files.push({
-          kind: 'crap',
-          path: crapAbs,
-          didChange: true,
-          reason: 'updated',
-        });
-      }
-    }
+  const crapResult = await regenerateCrap({
+    cwd,
+    baselines,
+    quality,
+    logger,
+    miScan,
+    scanAndScoreFn,
+    loadCoverageFn,
+    resolveEscomplexVersionFn,
+    resolveTsTranspilerVersionFn,
+    writeFn,
+    writeFileFn,
+    loadPriorFn,
+    fsImpl,
+  });
+  if (crapResult) {
+    files.push(crapResult.entry);
+    didChange = didChange || crapResult.wrote;
   }
 
   return { didChange, files };

@@ -136,17 +136,57 @@ export function parseLedger(text) {
  *   - Failed: N
  *   - …
  */
-export function render(ledger, opts = {}) {
-  const records = Array.isArray(ledger) ? ledger : parseLedger(ledger);
+/**
+ * Index the ledger records into the two maps `render` needs: the `emitted`
+ * record per seqId and the terminal (`completed`/`failed`) record per seqId.
+ * Story #4075 — extracted from `render` so the orchestrating body stays flat.
+ */
+function indexLedgerRecords(records) {
   const emittedBySeq = new Map();
-  const terminalBySeq = new Map(); // seqId -> 'completed' | 'failed' record
+  const terminalBySeq = new Map();
   for (const rec of records) {
     if (!rec || typeof rec !== 'object') continue;
     if (rec.kind === 'emitted') emittedBySeq.set(rec.seqId, rec);
     else if (rec.kind === 'completed' || rec.kind === 'failed')
       terminalBySeq.set(rec.seqId, rec);
   }
+  return { emittedBySeq, terminalBySeq };
+}
 
+/**
+ * Compute the `(durationMs)` / `(pending)` chunk for one emitted event,
+ * given its terminal record (or undefined when still in flight).
+ */
+export function formatDurationChunk(emit, terminal) {
+  if (!terminal) return '(pending)';
+  const start = new Date(emit.ts).getTime();
+  const end = new Date(terminal.ts).getTime();
+  if (Number.isFinite(start) && Number.isFinite(end) && end >= start) {
+    return `(${end - start}ms)`;
+  }
+  return '';
+}
+
+/**
+ * Render a single per-event line for the phase section.
+ */
+function formatEventLine(emit, terminal) {
+  const failedMarker =
+    terminal && terminal.kind === 'failed' ? ' ⚠️ FAILED' : '';
+  const parts = [
+    formatClock(emit.ts),
+    emit.event,
+    formatDurationChunk(emit, terminal),
+    summarizePayload(emit.payload),
+  ].filter(Boolean);
+  return parts.join('  ') + failedMarker;
+}
+
+/**
+ * Group emitted events into ordered phase buckets, each carrying its
+ * rendered per-event lines. Phase order is first-seen by ascending seqId.
+ */
+function buildPhaseLines(emittedBySeq, terminalBySeq) {
   const phaseOrder = [];
   const phaseLines = new Map();
   for (const emit of [...emittedBySeq.values()].sort(
@@ -157,79 +197,76 @@ export function render(ledger, opts = {}) {
       phaseLines.set(phase, []);
       phaseOrder.push(phase);
     }
-    const terminal = terminalBySeq.get(emit.seqId);
-    let durationMs = '';
-    if (terminal) {
-      const start = new Date(emit.ts).getTime();
-      const end = new Date(terminal.ts).getTime();
-      if (Number.isFinite(start) && Number.isFinite(end) && end >= start) {
-        durationMs = `(${end - start}ms)`;
-      }
-    } else {
-      durationMs = '(pending)';
-    }
-    const summary = summarizePayload(emit.payload);
-    const failedMarker =
-      terminal && terminal.kind === 'failed' ? ' ⚠️ FAILED' : '';
-    const parts = [
-      formatClock(emit.ts),
-      emit.event,
-      durationMs,
-      summary,
-    ].filter(Boolean);
-    phaseLines.get(phase).push(parts.join('  ') + failedMarker);
+    phaseLines
+      .get(phase)
+      .push(formatEventLine(emit, terminalBySeq.get(emit.seqId)));
   }
+  return { phaseOrder, phaseLines };
+}
 
-  const lines = [];
-  const epicId = opts.epicId ? `epic ${opts.epicId}` : 'epic';
-  lines.push(`# Lifecycle — ${epicId}`);
-  lines.push('');
-  for (const phase of phaseOrder) {
-    lines.push(`## ${phase}`);
-    lines.push('');
-    for (const l of phaseLines.get(phase)) {
-      lines.push(l);
+/**
+ * Compute the wall-clock span (`maxEnd - minStart`) of a single phase, or
+ * `null` when no finite span can be derived.
+ */
+function computePhaseSpanMs(phase, emittedBySeq, terminalBySeq) {
+  let minStart = Infinity;
+  let maxEnd = -Infinity;
+  for (const emit of emittedBySeq.values()) {
+    if (phaseFor(emit.event) !== phase) continue;
+    const start = new Date(emit.ts).getTime();
+    if (Number.isFinite(start) && start < minStart) minStart = start;
+    const terminal = terminalBySeq.get(emit.seqId);
+    if (terminal) {
+      const end = new Date(terminal.ts).getTime();
+      if (Number.isFinite(end) && end > maxEnd) maxEnd = end;
     }
-    lines.push('');
   }
-  // Summary block
+  return Number.isFinite(minStart) && Number.isFinite(maxEnd)
+    ? maxEnd - minStart
+    : null;
+}
+
+/**
+ * Build the trailing `## Summary` block lines.
+ */
+function buildSummaryLines(phaseOrder, emittedBySeq, terminalBySeq) {
   const totalEvents = emittedBySeq.size;
   const failedCount = [...terminalBySeq.values()].filter(
     (r) => r.kind === 'failed',
   ).length;
-  const completedCount = totalEvents - failedCount;
   const phaseDurations = [];
   for (const phase of phaseOrder) {
-    const seqIds = [...emittedBySeq.values()]
-      .filter((e) => phaseFor(e.event) === phase)
-      .map((e) => e.seqId);
-    if (seqIds.length === 0) continue;
-    let minStart = Infinity;
-    let maxEnd = -Infinity;
-    for (const sid of seqIds) {
-      const e = emittedBySeq.get(sid);
-      const t = terminalBySeq.get(sid);
-      const start = new Date(e.ts).getTime();
-      if (Number.isFinite(start) && start < minStart) minStart = start;
-      if (t) {
-        const end = new Date(t.ts).getTime();
-        if (Number.isFinite(end) && end > maxEnd) maxEnd = end;
-      }
-    }
-    if (Number.isFinite(minStart) && Number.isFinite(maxEnd)) {
-      phaseDurations.push(`  - ${phase}: ${maxEnd - minStart}ms`);
-    }
+    const spanMs = computePhaseSpanMs(phase, emittedBySeq, terminalBySeq);
+    if (spanMs !== null) phaseDurations.push(`  - ${phase}: ${spanMs}ms`);
   }
-  lines.push('## Summary');
-  lines.push('');
-  lines.push(`- Events: ${totalEvents}`);
-  lines.push(`- Completed: ${completedCount}`);
-  lines.push(`- Failed: ${failedCount}`);
+  const lines = [
+    '## Summary',
+    '',
+    `- Events: ${totalEvents}`,
+    `- Completed: ${totalEvents - failedCount}`,
+    `- Failed: ${failedCount}`,
+  ];
   if (phaseDurations.length > 0) {
-    lines.push('- Phase durations:');
-    for (const pd of phaseDurations) lines.push(pd);
+    lines.push('- Phase durations:', ...phaseDurations);
   }
   lines.push('');
+  return lines;
+}
+
+export function render(ledger, opts = {}) {
+  const records = Array.isArray(ledger) ? ledger : parseLedger(ledger);
+  const { emittedBySeq, terminalBySeq } = indexLedgerRecords(records);
+  const { phaseOrder, phaseLines } = buildPhaseLines(
+    emittedBySeq,
+    terminalBySeq,
+  );
+
+  const epicId = opts.epicId ? `epic ${opts.epicId}` : 'epic';
+  const lines = [`# Lifecycle — ${epicId}`, ''];
+  for (const phase of phaseOrder) {
+    lines.push(`## ${phase}`, '', ...phaseLines.get(phase), '');
+  }
+  lines.push(...buildSummaryLines(phaseOrder, emittedBySeq, terminalBySeq));
   return lines.join('\n');
 }
 

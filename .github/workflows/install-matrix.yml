@@ -165,7 +165,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
 
       - name: Enable Corepack (pnpm / yarn shims)
         run: corepack enable
@@ -287,6 +287,29 @@ jobs:
             --check doctor-ready \
             --doctor-output "$RUNNER_TEMP/doctor-output.txt"
 
+  # ── PROPOSAL (Story #4081 — not yet implemented) ───────────────────────────
+  # The declared engines range is `>=22.22.1 <25`, but every job pins Node via
+  # the repo-root `.nvmrc` (currently `22`), so 23/24 are permitted but never
+  # exercised. Proposal: add a non-blocking nightly leg that runs the quick
+  # test tier (`npm run test:quick`) on Node 24 to cover the upper bound of the
+  # range, gated `if: github.event_name == 'schedule' || ... workflow_dispatch`
+  # like the install-contract legs below, and explicitly NOT added to
+  # branch-protection required checks. Sketch:
+  #
+  #   node24-upper-bound:
+  #     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+  #     name: node24-upper-bound
+  #     runs-on: ubuntu-latest
+  #     steps:
+  #       - uses: actions/checkout@v4
+  #       - uses: actions/setup-node@v4
+  #         with: { node-version: 24, cache: 'npm' }
+  #       - run: npm ci --ignore-scripts
+  #       - run: npm run test:quick
+  #
+  # Deliberately left as a comment per the Story's "propose (do not yet add)"
+  # instruction; promote to a live job in a follow-up.
+
   # ── Extra contract legs (Story #4049 — C2) ─────────────────────────────────
   # Non-blocking nightly-coverage legs. Do NOT add these to branch-protection
   # required checks — see the required-check deadlock note in the file header.
@@ -313,7 +336,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
 
       - name: Enable Corepack (pnpm / yarn shims)
         run: corepack enable

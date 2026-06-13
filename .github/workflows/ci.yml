@@ -38,23 +38,29 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: 'npm'
-
-      - name: Install Dependencies
-        run: npm ci --ignore-scripts
+      - name: Setup Node & Install
+        uses: ./.github/actions/setup
 
       - name: Dependency Vulnerability Audit (SCA)
         run: npm audit --audit-level=high
+
+      - name: Action Pinning Guard
+        # Story #4079: fail the build if any third-party `uses:` ref drifts off
+        # a full 40-char commit SHA onto a branch head (`@main`/`@master`) or a
+        # floating tag (`@v5`). First-party `actions/*` refs may stay on
+        # major-version tags (Dependabot bumps those in-place). This is the
+        # real, automated gate the comments below reference — there is no
+        # `npm run audit-security` script (that name is only the manual
+        # `/audit-security` slash-command lens).
+        run: node .agents/scripts/check-action-pinning.js
 
       - name: Secret Scanning (TruffleHog)
         # Pinned to a released tag rather than the moving `@main` head — a
         # third-party action's default branch is a supply-chain risk vector
         # (CWE-1357). Bump deliberately when a new TruffleHog release ships;
-        # `npm run audit-security` flags any reversion to `@main` / `@master`.
+        # the `Action Pinning Guard` step above (check-action-pinning.js)
+        # fails the build on any reversion to `@main` / `@master` / a
+        # floating tag.
         uses: trufflesecurity/trufflehog@37b77001d0174ebec2fcca2bd83ff83a6d45a3ab # v3.95.3
         with:
           extra_args: --debug --only-verified
@@ -121,17 +127,23 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: 'npm'
-
-      - name: Install Dependencies
-        run: npm ci --ignore-scripts
+      - name: Setup Node & Install
+        uses: ./.github/actions/setup
 
       - name: Run check-baselines
         run: node .agents/scripts/check-baselines.js --format text
+
+      - name: Architecture Cycle Check
+        # Story #4070: wire the import-cycle ratchet (check-arch-cycles.js,
+        # allowlist baselines/arch-cycles.json) and the dead-export ratchet
+        # (check-dead-exports.js, baseline baselines/dead-exports.json) into
+        # the required `baselines` gate. Both are pure-Node, baseline-aware,
+        # sub-second checks that were green-but-unenforced — running them here
+        # converts documented-but-unenforced boundaries into build-failing
+        # guardrails.
+        run: |
+          node .agents/scripts/check-arch-cycles.js --format text
+          node .agents/scripts/check-dead-exports.js
 
   windows-smoke:
     # Story #3389 — advisory Windows leg. Exercises bootstrap, command sync,
@@ -149,14 +161,8 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: 'npm'
-
-      - name: Install Dependencies
-        run: npm ci --ignore-scripts
+      - name: Setup Node & Install
+        uses: ./.github/actions/setup
 
       - name: Bootstrap (dry-run)
         run: node .agents/scripts/bootstrap.js --dry-run --assume-yes --skip-github
