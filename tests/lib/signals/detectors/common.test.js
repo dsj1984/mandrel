@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import {
   extractTool,
   isPositiveInt,
+  validateDetectorArgs,
 } from '../../../../.agents/scripts/lib/signals/detectors/common.js';
 
 // ---------------------------------------------------------------------------
@@ -87,5 +88,206 @@ describe('extractTool()', () => {
   it('returns null for null/undefined records (no throw)', () => {
     assert.equal(extractTool(null), null);
     assert.equal(extractTool(undefined), null);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// validateDetectorArgs() — the shared argument-validation preamble hoisted
+// out of detectRework / detectRetry / detectHotspot in Story #4077. The three
+// detectors previously shipped a near-identical guard block; this helper owns
+// the error-message contract so they stay consistent.
+// ---------------------------------------------------------------------------
+
+describe('validateDetectorArgs() — full preamble (rework/retry shape)', () => {
+  const baseArgs = () => ({
+    tracesPath: '/tmp/traces.ndjson',
+    epicId: 10,
+    storyId: 20,
+    taskId: 30,
+    threshold: 2,
+  });
+
+  it('returns the normalized arg set for a valid full argument object', () => {
+    const out = validateDetectorArgs(baseArgs(), { fnName: 'detectRework' });
+    assert.equal(out.tracesPath, '/tmp/traces.ndjson');
+    assert.equal(out.epicId, 10);
+    assert.equal(out.storyId, 20);
+    assert.equal(out.taskId, 30);
+    assert.equal(out.threshold, 2);
+    assert.equal(typeof out.nowFn, 'function');
+  });
+
+  it('defaults taskId to null when omitted', () => {
+    const { taskId, ...rest } = baseArgs();
+    const out = validateDetectorArgs(rest, { fnName: 'detectRework' });
+    assert.equal(out.taskId, null);
+  });
+
+  it('defaults nowFn to a real ISO clock when omitted', () => {
+    const out = validateDetectorArgs(baseArgs(), { fnName: 'detectRetry' });
+    assert.match(out.nowFn(), /^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it('returns the injected nowFn unchanged when provided', () => {
+    const FIXED = '2026-01-02T03:04:05.678Z';
+    const out = validateDetectorArgs(
+      { ...baseArgs(), nowFn: () => FIXED },
+      { fnName: 'detectRetry' },
+    );
+    assert.equal(out.nowFn(), FIXED);
+  });
+
+  it('throws TypeError when args is null or not an object', () => {
+    assert.throws(
+      () => validateDetectorArgs(null, { fnName: 'detectRework' }),
+      TypeError,
+    );
+    assert.throws(
+      () => validateDetectorArgs(undefined, { fnName: 'detectRework' }),
+      TypeError,
+    );
+    assert.throws(
+      () => validateDetectorArgs(42, { fnName: 'detectRework' }),
+      TypeError,
+    );
+  });
+
+  it('throws TypeError when tracesPath is missing or empty', () => {
+    assert.throws(
+      () =>
+        validateDetectorArgs(
+          { ...baseArgs(), tracesPath: '' },
+          { fnName: 'detectRework' },
+        ),
+      TypeError,
+    );
+    assert.throws(
+      () =>
+        validateDetectorArgs(
+          { ...baseArgs(), tracesPath: 42 },
+          { fnName: 'detectRework' },
+        ),
+      TypeError,
+    );
+  });
+
+  it('throws RangeError for a non-positive epicId', () => {
+    assert.throws(
+      () =>
+        validateDetectorArgs(
+          { ...baseArgs(), epicId: 0 },
+          { fnName: 'detectRework' },
+        ),
+      RangeError,
+    );
+  });
+
+  it('throws RangeError for a non-positive storyId', () => {
+    assert.throws(
+      () =>
+        validateDetectorArgs(
+          { ...baseArgs(), storyId: -1 },
+          { fnName: 'detectRework' },
+        ),
+      RangeError,
+    );
+  });
+
+  it('throws RangeError for a non-positive taskId (when not null)', () => {
+    assert.throws(
+      () =>
+        validateDetectorArgs(
+          { ...baseArgs(), taskId: 0 },
+          { fnName: 'detectRework' },
+        ),
+      RangeError,
+    );
+  });
+
+  it('throws RangeError for a negative threshold', () => {
+    assert.throws(
+      () =>
+        validateDetectorArgs(
+          { ...baseArgs(), threshold: -1 },
+          { fnName: 'detectRework' },
+        ),
+      RangeError,
+    );
+  });
+
+  it('throws TypeError when nowFn is provided but not a function', () => {
+    assert.throws(
+      () =>
+        validateDetectorArgs(
+          { ...baseArgs(), nowFn: 42 },
+          { fnName: 'detectRework' },
+        ),
+      TypeError,
+    );
+  });
+
+  it('prefixes every thrown message with the supplied fnName', () => {
+    assert.throws(
+      () => validateDetectorArgs(null, { fnName: 'detectRetry' }),
+      /^TypeError: detectRetry: /,
+    );
+    assert.throws(
+      () =>
+        validateDetectorArgs(
+          { ...baseArgs(), epicId: 0 },
+          { fnName: 'detectRetry' },
+        ),
+      /^RangeError: detectRetry: epicId/,
+    );
+  });
+});
+
+describe('validateDetectorArgs() — gated preamble (hotspot shape)', () => {
+  it('validates only args/nowFn/epicId when the require flags are off', () => {
+    const out = validateDetectorArgs(
+      { epicId: 7 },
+      {
+        fnName: 'detectHotspot',
+        requireTracesPath: false,
+        requireStoryId: false,
+        requireThreshold: false,
+      },
+    );
+    assert.equal(out.epicId, 7);
+    assert.equal(out.tracesPath, undefined);
+    assert.equal(out.storyId, undefined);
+    assert.equal(out.taskId, undefined);
+    assert.equal(out.threshold, undefined);
+    assert.equal(typeof out.nowFn, 'function');
+  });
+
+  it('still throws RangeError for a non-positive epicId', () => {
+    assert.throws(
+      () =>
+        validateDetectorArgs(
+          { epicId: 0 },
+          {
+            fnName: 'detectHotspot',
+            requireTracesPath: false,
+            requireStoryId: false,
+            requireThreshold: false,
+          },
+        ),
+      RangeError,
+    );
+  });
+
+  it('does not require tracesPath/storyId/threshold when gated off', () => {
+    assert.doesNotThrow(() =>
+      validateDetectorArgs(
+        { epicId: 1 },
+        {
+          fnName: 'detectHotspot',
+          requireTracesPath: false,
+          requireStoryId: false,
+          requireThreshold: false,
+        },
+      ),
+    );
   });
 });
