@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { test } from 'node:test';
+// Note: timer mocking is driven per-test via the injected `t.mock.timers`
+// handle, so no top-level `mock` import is required.
 import {
   buildPreviewSpawn,
   createDebouncer,
@@ -135,7 +137,10 @@ test('createDebouncer — flush triggers the pending call deterministically', ()
   assert.equal(calls, 1);
 });
 
-test('createWatcher — re-emits a delta table when a target file is touched', async () => {
+test('createWatcher — re-emits a delta table when a target file is touched', async (t) => {
+  // Mock setTimeout so the 0ms debounce timer fires on an explicit tick()
+  // rather than racing a real wall-clock window under a loaded CI runner.
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   const chokidar = makeChokidarStub();
   const onSpawnCalls = [];
   const spawnStub = (cmd, args, opts) => {
@@ -155,10 +160,10 @@ test('createWatcher — re-emits a delta table when a target file is touched', a
   assert.deepEqual(chokidar._watcher.watchPaths, ['.agents/scripts']);
   assert.equal(chokidar._watcher.watchOpts.ignoreInitial, true);
   assert.ok(Array.isArray(chokidar._watcher.watchOpts.ignored));
-  // Fire a change event → debouncer schedules the spawn at ms=0 (next tick).
+  // Fire a change event → debouncer schedules the spawn at ms=0.
   chokidar._watcher.fire('change', '.agents/scripts/quality-preview.js');
-  // Drain the microtask queue so the 0ms debounce timer fires.
-  await new Promise((r) => setTimeout(r, 5));
+  // Advance past the 0ms debounce window so the timer fires deterministically.
+  t.mock.timers.tick(0);
   assert.equal(onSpawnCalls.length, 1);
   const { cmd, args } = onSpawnCalls[0];
   assert.equal(cmd, process.execPath);
@@ -173,7 +178,10 @@ test('createWatcher — re-emits a delta table when a target file is touched', a
   assert.equal(chokidar._watcher.closed, true);
 });
 
-test('createWatcher — coalesces a burst of saves into a single spawn', async () => {
+test('createWatcher — coalesces a burst of saves into a single spawn', async (t) => {
+  // Mock setTimeout so the 25ms debounce window is advanced explicitly with
+  // tick() — a real 60ms sleep can be starved by scheduler latency on CI.
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   const chokidar = makeChokidarStub();
   const spawnCalls = [];
   const handle = createWatcher({
@@ -190,8 +198,10 @@ test('createWatcher — coalesces a burst of saves into a single spawn', async (
   for (let i = 0; i < 5; i += 1) {
     chokidar._watcher.fire('change', `lib/file${i}.js`);
   }
-  // Wait past the debounce window so the trailing call lands.
-  await new Promise((r) => setTimeout(r, 60));
+  // Before the window elapses the burst is still pending — no spawn yet.
+  assert.equal(spawnCalls.length, 0);
+  // Advance past the debounce window so the single trailing call lands.
+  t.mock.timers.tick(25);
   assert.equal(spawnCalls.length, 1);
   await handle.close();
 });
