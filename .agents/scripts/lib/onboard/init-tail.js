@@ -22,8 +22,8 @@
  */
 
 import { spawnSync as defaultSpawnSync } from 'node:child_process';
-import fs from 'node:fs';
 import path from 'node:path';
+import readline from 'node:readline/promises';
 
 import { detectStack } from './detect-stack.js';
 import { STUB_MARKER, scaffoldDocs } from './scaffold-docs.js';
@@ -85,20 +85,28 @@ function formatMissingList(missing) {
 const SCAFFOLD_PROMPT = '\nScaffold stubs now? [y/N]: ';
 
 /**
- * Synchronous y/N read from stdin (fd 0). Returns `false` on any read error
- * or when the user enters something other than `y` / `yes`.
+ * Async y/N read from stdin via `node:readline` (mirrors the prompt mechanism
+ * in `bootstrap.js`). Returns on Enter and never blocks waiting for EOF the way
+ * `fs.readFileSync(0)` did — that EOF-blocking read hung `mandrel init` on an
+ * interactive TTY. Returns `false` on any read error or when the user enters
+ * something other than `y` / `yes`. The prompt text is written by the caller
+ * via `stdout`, so the question string passed here is empty.
  *
- * @returns {boolean}
+ * @returns {Promise<boolean>}
  */
-function syncConfirm() {
-  let answer = '';
+async function readConfirm() {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
   try {
-    const buf = fs.readFileSync(0, 'utf8');
-    answer = buf.split('\n', 1)[0].trim().toLowerCase();
+    const answer = (await rl.question('')).trim().toLowerCase();
+    return answer === 'y' || answer === 'yes';
   } catch {
-    answer = '';
+    return false;
+  } finally {
+    rl.close();
   }
-  return answer === 'y' || answer === 'yes';
 }
 
 // ---------------------------------------------------------------------------
@@ -119,14 +127,14 @@ function syncConfirm() {
  *   - Run `mandrel doctor`; injectable for tests.
  * @param {boolean} [opts.isTTY] - Whether stdin is a TTY (defaults to
  *   `Boolean(process.stdin.isTTY)`).
- * @returns {{
+ * @returns {Promise<{
  *   stack: { packageManager: string|null, testRunner: string|null, primaryLanguage: string|null },
  *   scaffoldResult: object,
  *   doctorStatus: number,
  *   ok: boolean,
- * }}
+ * }>}
  */
-export function runInitTail({
+export async function runInitTail({
   root,
   stdout = (s) => process.stdout.write(s),
   confirmScaffold,
@@ -140,7 +148,7 @@ export function runInitTail({
   // it. When using the default, auto-decline on non-TTY so the scaffolder
   // never writes unattended.
   const usingDefaultConfirm = confirmScaffold == null;
-  const confirmFn = confirmScaffold ?? (() => syncConfirm());
+  const confirmFn = confirmScaffold ?? readConfirm;
 
   // Default doctor runner — spawns `mandrel doctor` via the locally installed
   // bin; inherits stdio so the report streams to the terminal.
@@ -181,7 +189,7 @@ export function runInitTail({
     // the prompt and consult the confirm function.
     const canPrompt = tty || !usingDefaultConfirm;
     if (canPrompt) stdout(SCAFFOLD_PROMPT);
-    const accepted = canPrompt ? confirmFn() : false;
+    const accepted = canPrompt ? await confirmFn() : false;
     if (accepted) {
       scaffoldResult = scaffoldDocs({ root: projectRoot, write: true });
       if (scaffoldResult.created.length > 0) {
