@@ -356,6 +356,96 @@ function splitSections(markdown) {
 }
 
 // ---------------------------------------------------------------------------
+// Parser — per-section sub-parsers
+// ---------------------------------------------------------------------------
+
+/**
+ * Build the minimal {@link ParseResult} returned for a legacy string body —
+ * markdown that carries no recognised structured section. The goal falls
+ * back to the preamble text (or the whole trimmed input), `depends_on` is
+ * still recovered from the footer, and all section arrays are empty.
+ *
+ * @param {string} input - The original markdown string.
+ * @param {string} preamble - Text before the first heading (from splitSections).
+ * @param {string} footer - Footer block text (from splitSections).
+ * @returns {ParseResult}
+ */
+function parseLegacyStringBody(input, preamble, footer) {
+  const warnings = [
+    'legacy-string-body: no structured sections found; returning minimal body from preamble text.',
+    'test-surface-unestimated: estimated_test_files not present.',
+  ];
+  const body = {
+    goal: preamble || input.trim(),
+    changes: [],
+    acceptance: [],
+    verify: [],
+    references: [],
+    wide: null,
+    depends_on: extractBlockedBy(footer),
+    estimated_test_files: null,
+  };
+  return {
+    body,
+    warnings,
+    info: {
+      hasGoalSection: false,
+      hasChangesSection: false,
+      hasAcceptanceSection: false,
+      hasVerifySection: false,
+      hasReferencesSection: false,
+      isLegacyStringBody: true,
+    },
+  };
+}
+
+/**
+ * Parse the `## Goal` section: join its non-empty content lines into a
+ * single one-line goal string.
+ *
+ * @param {string[]} lines - Raw content lines under the heading.
+ * @returns {string}
+ */
+function parseGoalSection(lines) {
+  return lines
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .join(' ');
+}
+
+/**
+ * Parse a `## Changes` / `## References` section into a list of
+ * `PathEntry | string` entries. List markers are stripped, blank entries are
+ * dropped, and each surviving entry is normalized via {@link parsePathEntry}
+ * (which appends `legacy-path-entry` warnings for bare-string bullets).
+ *
+ * @param {string[]} lines - Raw content lines under the heading.
+ * @param {string[]} warnings - Mutable warnings sink.
+ * @returns {Array<PathEntry|string>}
+ */
+function parsePathEntrySection(lines, warnings) {
+  const entries = [];
+  for (const line of lines) {
+    const stripped = stripListMarker(line);
+    if (!stripped) continue;
+    const entry = parsePathEntry(stripped, warnings);
+    if (entry !== null) entries.push(entry);
+  }
+  return entries;
+}
+
+/**
+ * Parse a plain bullet-list section (`## Acceptance` / `## Verify`) into a
+ * list of trimmed strings, dropping blank entries.
+ *
+ * @param {string[]} lines - Raw content lines under the heading.
+ * @returns {string[]}
+ */
+function parseTextListSection(lines) {
+  return lines.map((l) => stripListMarker(l)).filter(Boolean);
+}
+
+// ---------------------------------------------------------------------------
 // Parser
 // ---------------------------------------------------------------------------
 
@@ -414,84 +504,20 @@ export function parse(input) {
     !hasVerifySection;
 
   if (isLegacyStringBody) {
-    // Extract depends_on from footer even for legacy bodies.
-    const dependsOn = extractBlockedBy(footer);
-    warnings.push(
-      'legacy-string-body: no structured sections found; returning minimal body from preamble text.',
-    );
-    warnings.push(
-      'test-surface-unestimated: estimated_test_files not present.',
-    );
-    const body = {
-      goal: preamble || input.trim(),
-      changes: [],
-      acceptance: [],
-      verify: [],
-      references: [],
-      wide: null,
-      depends_on: dependsOn,
-      estimated_test_files: null,
-    };
-    return {
-      body,
-      warnings,
-      info: {
-        hasGoalSection: false,
-        hasChangesSection: false,
-        hasAcceptanceSection: false,
-        hasVerifySection: false,
-        hasReferencesSection: false,
-        isLegacyStringBody: true,
-      },
-    };
+    return parseLegacyStringBody(input, preamble, footer);
   }
 
-  // --- Parse goal ---
-  const goalLines = sections.get('goal') ?? [];
-  const goal = goalLines
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .join(' ');
-
-  // --- Parse changes ---
-  const changeLines = sections.get('changes') ?? [];
-  const changes = [];
-  for (const line of changeLines) {
-    const stripped = stripListMarker(line);
-    if (!stripped) continue;
-    const entry = parsePathEntry(stripped, warnings);
-    if (entry !== null) changes.push(entry);
-  }
-
-  // --- Parse acceptance ---
-  const acceptanceLines = sections.get('acceptance') ?? [];
-  const acceptance = acceptanceLines
-    .map((l) => stripListMarker(l))
-    .filter(Boolean);
-
-  // --- Parse verify ---
-  const verifyLines = sections.get('verify') ?? [];
-  const verify = verifyLines.map((l) => stripListMarker(l)).filter(Boolean);
-
-  // --- Parse references (optional) ---
-  const referenceLines = sections.get('references') ?? [];
-  const references = [];
-  for (const line of referenceLines) {
-    const stripped = stripListMarker(line);
-    if (!stripped) continue;
-    const entry = parsePathEntry(stripped, warnings);
-    if (entry !== null) {
-      // References MUST be object form (canonical).
-      if (typeof entry === 'string') {
-        // Already warned as legacy-path-entry; keep as string for now.
-        references.push(entry);
-      } else {
-        references.push(entry);
-      }
-    }
-  }
-
-  // --- Parse footer ---
+  const goal = parseGoalSection(sections.get('goal') ?? []);
+  const changes = parsePathEntrySection(
+    sections.get('changes') ?? [],
+    warnings,
+  );
+  const acceptance = parseTextListSection(sections.get('acceptance') ?? []);
+  const verify = parseTextListSection(sections.get('verify') ?? []);
+  const references = parsePathEntrySection(
+    sections.get('references') ?? [],
+    warnings,
+  );
   const dependsOn = extractBlockedBy(footer);
 
   // --- Recover wide / estimated_test_files from the meta block ---
