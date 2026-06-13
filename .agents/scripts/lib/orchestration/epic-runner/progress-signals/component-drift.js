@@ -1,3 +1,4 @@
+import nodeFs from 'node:fs';
 import path from 'node:path';
 import { resolveComponents } from '../../../baselines/components.js';
 import { componentOrder } from './_bullet-format.js';
@@ -70,7 +71,7 @@ export function walkComponentRegressions(params = {}, spec) {
  *   metadata?: Record<string, unknown>,
  * }} opts
  */
-export function createSnapshotStore({ fs, baselinePath, metadata = {} }) {
+function createSnapshotStore({ fs, baselinePath, metadata = {} }) {
   return {
     persist(scores) {
       if (!fs.writeFileSync) return;
@@ -98,6 +99,105 @@ export function createSnapshotStore({ fs, baselinePath, metadata = {} }) {
       } catch {
         return null;
       }
+    },
+  };
+}
+
+/**
+ * Shared per-file/per-method drift-detector skeleton for the progress-signal
+ * detectors (Story #4076). `crap-drift.js` and `maintainability-drift.js`
+ * previously duplicated the same `{ baselinePath, captureBaseline,
+ * loadBaseline, detect }` shape — identical snapshot-store wiring, identical
+ * "distinct from canonical baseline" framing, and identical
+ * swallow-and-warn resilience. The only divergence is the per-axis scoring
+ * (`scoreFile`), the snapshot value extracted from a score (`captureScore`),
+ * and the per-detect comparison that emits bullets (`detect`). Both detectors
+ * now supply those deltas to this factory, mirroring the "shared walker +
+ * per-axis delta" pattern already established by `walkComponentRegressions`.
+ *
+ * The factory owns:
+ *
+ *   - `fs` / `cwd` / `files` resolution from `opts`.
+ *   - The `<cwd>/<baselineDir>/<baselineFilename>` baseline path and the
+ *     `createSnapshotStore` wiring (with caller-supplied `metadata`).
+ *   - The in-memory `baseline` cache and the `captureBaseline` /
+ *     `loadBaseline` lifecycle.
+ *
+ * The caller owns:
+ *
+ *   - `scoreFile(relPath, ctx)` — returns the per-file score (any shape) or
+ *     `null` when the file can't be scored. `ctx` is whatever
+ *     `beforeScore()` returned for this pass (e.g. a coverage map), or
+ *     `undefined` when `beforeScore` is omitted.
+ *   - `captureScore(score)` — maps a `scoreFile` result to the value
+ *     persisted in the snapshot (e.g. extract `crap` from each method row).
+ *   - `detect({ baseline, scoreFile })` — async; returns the bullet list.
+ *     Receives the loaded baseline and a `scoreFile(relPath)` bound to this
+ *     pass's score context so the per-axis compare stays free of plumbing.
+ *   - `beforeScore()` (optional) — runs once per `captureBaseline` / `detect`
+ *     pass and returns the score context threaded into `scoreFile`.
+ *
+ * @param {{
+ *   cwd?: string,
+ *   files?: string[],
+ *   fs?: { readFileSync?: Function, writeFileSync?: Function, mkdirSync?: Function, existsSync?: Function },
+ *   baselineDir?: string,
+ *   baselineFilename: string,
+ *   metadata?: Record<string, unknown>,
+ *   beforeScore?: () => unknown,
+ *   scoreFile: (relPath: string, ctx: unknown) => unknown,
+ *   captureScore: (score: unknown) => unknown,
+ *   detect: (args: { baseline: Record<string, unknown>, scoreFile: (relPath: string) => unknown }) => Promise<string[]>,
+ * }} opts
+ */
+export function createDriftDetector(opts = {}) {
+  const fs = opts.fs ?? nodeFs;
+  const cwd = opts.cwd ?? process.cwd();
+  const files = Array.isArray(opts.files) ? [...opts.files] : [];
+  const baselineDir = opts.baselineDir ?? '.agents/state';
+  const baselinePath = path.join(cwd, baselineDir, opts.baselineFilename);
+  const beforeScore = opts.beforeScore ?? (() => undefined);
+  const scoreFile = opts.scoreFile;
+  const captureScore = opts.captureScore;
+  const runDetect = opts.detect;
+  const store = createSnapshotStore({
+    fs,
+    baselinePath,
+    metadata: opts.metadata ?? {},
+  });
+
+  let baseline = null;
+
+  return {
+    get baselinePath() {
+      return baselinePath;
+    },
+
+    captureBaseline() {
+      const ctx = beforeScore();
+      const snapshot = {};
+      for (const f of files) {
+        const score = scoreFile(f, ctx);
+        if (score == null) continue;
+        snapshot[f] = captureScore(score);
+      }
+      baseline = snapshot;
+      store.persist(snapshot);
+      return snapshot;
+    },
+
+    loadBaseline() {
+      baseline = store.load();
+      return baseline;
+    },
+
+    async detect() {
+      if (!baseline) return [];
+      const ctx = beforeScore();
+      return runDetect({
+        baseline,
+        scoreFile: (relPath) => scoreFile(relPath, ctx),
+      });
     },
   };
 }
