@@ -175,16 +175,10 @@ test('buildFinding: file/line included only when well-formed', () => {
   assert.equal('file' in empties, false);
   assert.equal('line' in empties, false);
 
-  const badLine = buildFinding(
-    { title: 'T', body: 'B', line: 1.5 },
-    opts,
-  );
+  const badLine = buildFinding({ title: 'T', body: 'B', line: 1.5 }, opts);
   assert.equal('line' in badLine, false);
 
-  const negLine = buildFinding(
-    { title: 'T', body: 'B', line: -3 },
-    opts,
-  );
+  const negLine = buildFinding({ title: 'T', body: 'B', line: -3 }, opts);
   assert.equal('line' in negLine, false);
 });
 
