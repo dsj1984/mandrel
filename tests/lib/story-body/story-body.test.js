@@ -416,3 +416,87 @@ describe('round-trip: serialize → parse', () => {
     assert.deepEqual(reparsed.depends_on, body.depends_on);
   });
 });
+
+describe('parse(): per-section sub-parser behavior', () => {
+  it('joins multi-line goal content into a single one-line string', () => {
+    const md = `## Goal
+First clause
+second clause
+
+## Acceptance
+- [ ] something`;
+    const { body } = parse(md);
+    assert.equal(body.goal, 'First clause second clause');
+  });
+
+  it('drops blank acceptance/verify bullets and strips checkbox markers', () => {
+    const md = `## Goal
+g
+
+## Acceptance
+- [ ] first criterion
+- [x] second criterion
+
+## Verify
+- npm test (unit)
+-   `;
+    const { body } = parse(md);
+    assert.deepEqual(body.acceptance, ['first criterion', 'second criterion']);
+    assert.deepEqual(body.verify, ['npm test (unit)']);
+  });
+
+  it('parses a mix of object-form and legacy-string change entries', () => {
+    const md = `## Goal
+g
+
+## Changes
+- ${JSON.stringify({ path: 'src/a.js', assumption: 'creates' })}
+- src/b.js: legacy bullet
+
+## Acceptance
+- [ ] x`;
+    const { body, warnings } = parse(md);
+    assert.deepEqual(body.changes, [
+      { path: 'src/a.js', assumption: 'creates' },
+      'src/b.js: legacy bullet',
+    ]);
+    assert.ok(
+      warnings.some((w) => w.startsWith('legacy-path-entry:')),
+      'expected a legacy-path-entry warning for the string-form bullet',
+    );
+  });
+
+  it('parses object-form reference entries', () => {
+    const md = `## Goal
+g
+
+## Acceptance
+- [ ] x
+
+## References
+- ${JSON.stringify({ path: 'docs/arch.md', assumption: 'exists' })}`;
+    const { body, info } = parse(md);
+    assert.equal(info.hasReferencesSection, true);
+    assert.deepEqual(body.references, [
+      { path: 'docs/arch.md', assumption: 'exists' },
+    ]);
+  });
+
+  it('returns the legacy-string-body shape when no structured sections exist', () => {
+    const md = `Just a plain prose body with no headings.
+
+---
+blocked by #42`;
+    const { body, info, warnings } = parse(md);
+    assert.equal(info.isLegacyStringBody, true);
+    assert.equal(body.goal, 'Just a plain prose body with no headings.');
+    assert.deepEqual(body.changes, []);
+    assert.deepEqual(body.acceptance, []);
+    assert.deepEqual(body.verify, []);
+    assert.deepEqual(body.references, []);
+    assert.equal(body.wide, null);
+    assert.equal(body.estimated_test_files, null);
+    assert.deepEqual(body.depends_on, ['#42']);
+    assert.ok(warnings.some((w) => w.startsWith('legacy-string-body:')));
+  });
+});
