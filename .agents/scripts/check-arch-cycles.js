@@ -46,11 +46,7 @@ import { runAsCli } from './lib/cli-utils.js';
  *
  * @type {string[]}
  */
-export const DEFAULT_ROOTS = [
-  path.join('.agents', 'scripts'),
-  'bin',
-  'lib',
-];
+export const DEFAULT_ROOTS = [path.join('.agents', 'scripts'), 'bin', 'lib'];
 
 /**
  * Parse argv for `--baseline <path>`, `--root <path>`, and `--json`.
@@ -341,9 +337,7 @@ export async function runCli({
   );
   const presentScanDirs = scanDirs.filter((dir) => fs.existsSync(dir));
   if (presentScanDirs.length === 0) {
-    throw new Error(
-      `[arch-cycles] no scan root found: ${scanDirs.join(', ')}`,
-    );
+    throw new Error(`[arch-cycles] no scan root found: ${scanDirs.join(', ')}`);
   }
   const baseline = loadBaseline(resolvedBaselinePath);
   const allowlisted = Array.isArray(baseline?.cycles) ? baseline.cycles : [];

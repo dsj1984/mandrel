@@ -358,7 +358,11 @@ test('runCli: throws when the scan root does not exist', async () => {
 // ---------------------------------------------------------------------------
 
 test('DEFAULT_ROOTS spans the distributed surface (.agents/scripts, bin, lib)', () => {
-  assert.deepEqual(DEFAULT_ROOTS, [path.join('.agents', 'scripts'), 'bin', 'lib']);
+  assert.deepEqual(DEFAULT_ROOTS, [
+    path.join('.agents', 'scripts'),
+    'bin',
+    'lib',
+  ]);
 });
 
 test('runCli: detects a cycle that crosses the bin <-> lib partition (exit 1)', async () => {
@@ -374,7 +378,10 @@ test('runCli: detects a cycle that crosses the bin <-> lib partition (exit 1)', 
   const stdout = makeSink();
   const code = await runCli({ cwd, stdout, stderr: makeSink() });
   assert.equal(code, 1);
-  assert.match(stdout.text(), /\+ bin\/cli\.js -> lib\/sync\.js -> bin\/cli\.js/);
+  assert.match(
+    stdout.text(),
+    /\+ bin\/cli\.js -> lib\/sync\.js -> bin\/cli\.js/,
+  );
   assert.match(stdout.text(), /\(gate fail\)/);
 });
 
@@ -387,7 +394,12 @@ test('runCli: cross-root cycle resolves with repo-relative ids in --json', async
     { cycles: [] },
   );
   const stdout = makeSink();
-  const code = await runCli({ argv: ['--json'], cwd, stdout, stderr: makeSink() });
+  const code = await runCli({
+    argv: ['--json'],
+    cwd,
+    stdout,
+    stderr: makeSink(),
+  });
   assert.equal(code, 1);
   const envelope = JSON.parse(stdout.text());
   assert.deepEqual(envelope.detected, [['bin/cli.js', 'lib/sync.js']]);
