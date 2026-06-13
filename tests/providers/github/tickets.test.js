@@ -623,8 +623,11 @@ describe('composeStoryBody — single blocked-by footer (Story #3958)', () => {
       dependencies: [1480],
     });
     assert.equal(countOccurrences(out, 'blocked by #1480'), 1);
-    // Canonical position: after the `---` / `parent:` trailer block.
-    assert.match(out, /---\nparent: #1477\n\nblocked by #1480$/);
+    // Canonical position: after the `---` / `parent:` / `Epic:` trailer
+    // block. Under the 2-tier hierarchy a directly-attached Story has
+    // epicId === parentId, and the `Epic: #N` line is emitted regardless
+    // (Story #4102).
+    assert.match(out, /---\nparent: #1477\nEpic: #1477\n\nblocked by #1480$/);
   });
 
   it('renders multiple dependencies each exactly once', () => {
@@ -654,9 +657,11 @@ describe('composeStoryBody — single blocked-by footer (Story #3958)', () => {
       dependencies: [],
     });
     assert.equal(countOccurrences(out, 'blocked by #'), 0);
-    // No trailing blank line after `parent:` when there are no deps.
-    assert.match(out, /---\nparent: #1477$/);
-    assert.doesNotMatch(out, /parent: #1477\n\n/);
+    // The `Epic: #N` line is always the last trailer line when no deps are
+    // present (Story #4102 — emitted even when epicId === parentId).
+    assert.match(out, /---\nparent: #1477\nEpic: #1477$/);
+    // No trailing blank line after the trailer when there are no deps.
+    assert.doesNotMatch(out, /Epic: #1477\n\n/);
   });
 
   it('is robust to a body that itself mentions a dependency in prose (no double count)', () => {
@@ -673,7 +678,34 @@ describe('composeStoryBody — single blocked-by footer (Story #3958)', () => {
       dependencies: [1480],
     });
     assert.equal(countOccurrences(out, 'blocked by #1480'), 2);
-    assert.match(out, /---\nparent: #1477\n\nblocked by #1480$/);
+    assert.match(out, /---\nparent: #1477\nEpic: #1477\n\nblocked by #1480$/);
+  });
+});
+
+// Story #4102 — under the 2-tier hierarchy, a Story attaches directly to its
+// Epic, so epicId === parentId. composeStoryBody MUST still emit the
+// `Epic: #N` trailer line in that case; the prior `epicId !== parentId` guard
+// (a stale 3-tier assumption that the Story's parent was a Feature) suppressed
+// it and made every directly-attached 2-tier Story un-initializable.
+describe('composeStoryBody — 2-tier Epic footer (Story #4102)', () => {
+  it('emits Epic: #N when epicId === parentId (directly-attached Story)', () => {
+    const out = composeStoryBody({
+      body: '# Story body',
+      parentId: 23,
+      epicId: 23,
+      dependencies: [],
+    });
+    assert.match(out, /---\nparent: #23\nEpic: #23$/);
+  });
+
+  it('still omits Epic: #N when no epicId is known (standalone Story)', () => {
+    const out = composeStoryBody({
+      body: '# Story body',
+      parentId: 23,
+      dependencies: [],
+    });
+    assert.match(out, /---\nparent: #23$/);
+    assert.doesNotMatch(out, /Epic: #/);
   });
 });
 
