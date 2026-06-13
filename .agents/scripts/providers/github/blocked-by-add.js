@@ -21,7 +21,15 @@
  */
 
 import { Logger } from '../../lib/Logger.js';
+import { concurrentMap } from '../../lib/util/concurrent-map.js';
 import { parseApiJson } from './request-helpers.js';
+
+/**
+ * Bounded concurrency for the GitHub dependency-edge round-trips. Kept modest
+ * to respect GitHub's secondary rate limits while still collapsing the wall-
+ * clock latency from `sum(round-trips)` toward `sum(round-trips) / concurrency`.
+ */
+const EDGE_CONCURRENCY = 5;
 
 /**
  * Fetch the existing blocked-by issue numbers for a given issue.
@@ -85,28 +93,37 @@ async function addBlockedByEdges({
   });
   const existingSet = new Set(existing);
 
-  let added = 0;
-  let skipped = 0;
-  let failed = 0;
+  // Partition up front so the skip count is deterministic regardless of the
+  // concurrent POST dispatch order, then POST only the missing edges in
+  // parallel under a modest cap.
+  const missing = blockerInternalIds.filter((id) => !existingSet.has(id));
+  const skipped = blockerInternalIds.length - missing.length;
 
-  for (const blockerId of blockerInternalIds) {
-    if (existingSet.has(blockerId)) {
-      skipped++;
-      continue;
-    }
-    try {
-      await gh.api({
-        method: 'POST',
-        endpoint: `/repos/${owner}/${repo}/issues/${issueNumber}/dependencies/blocked_by`,
-        body: { issue_id: blockerId },
-      });
-      added++;
-    } catch (err) {
-      Logger.warn(
-        `[blocked-by-add] Failed to add blocked-by edge #${issueNumber} ← blocker(id=${blockerId}): ${err.message}`,
-      );
-      failed++;
-    }
+  const perEdge = await concurrentMap(
+    missing,
+    async (blockerId) => {
+      try {
+        await gh.api({
+          method: 'POST',
+          endpoint: `/repos/${owner}/${repo}/issues/${issueNumber}/dependencies/blocked_by`,
+          body: { issue_id: blockerId },
+        });
+        return { added: 1, failed: 0 };
+      } catch (err) {
+        Logger.warn(
+          `[blocked-by-add] Failed to add blocked-by edge #${issueNumber} ← blocker(id=${blockerId}): ${err.message}`,
+        );
+        return { added: 0, failed: 1 };
+      }
+    },
+    { concurrency: EDGE_CONCURRENCY },
+  );
+
+  let added = 0;
+  let failed = 0;
+  for (const r of perEdge) {
+    added += r.added;
+    failed += r.failed;
   }
 
   return { added, skipped, failed };
@@ -152,60 +169,83 @@ export async function applyBlockedByDependencies({
   let edgesFailed = 0;
   let storiesProcessed = 0;
 
-  for (const story of stories) {
-    const deps = Array.isArray(story.dependsOn) ? story.dependsOn : [];
-    if (deps.length === 0) continue;
-
-    const storyIssueNumber = slugToIssueNumber[story.slug];
-    if (typeof storyIssueNumber !== 'number') {
-      Logger.warn(
-        `[blocked-by-add] No issue number for story slug "${story.slug}"; skipping depends_on edges.`,
-      );
-      continue;
-    }
-
-    storiesProcessed++;
-    const blockerInternalIds = [];
-
-    for (const depSlug of deps) {
-      const blockerIssueNumber = slugToIssueNumber[depSlug];
-      if (typeof blockerIssueNumber !== 'number') {
-        Logger.warn(
-          `[blocked-by-add] depends_on slug "${depSlug}" (from "${story.slug}") has no mapped issue number; skipping edge.`,
-        );
-        edgesFailed++;
-        continue;
+  // Process each story's GET + its POST batch under one bounded concurrentMap
+  // so the per-story round-trips overlap. Each mapper returns its own counter
+  // contribution; we sum them after the pass. The bodies swallow their own
+  // errors (per-edge try/catch + the non-fatal contract), so concurrentMap
+  // never sees a rejection and the no-throw guarantee is preserved.
+  const perStory = await concurrentMap(
+    stories,
+    async (story) => {
+      const deps = Array.isArray(story.dependsOn) ? story.dependsOn : [];
+      if (deps.length === 0) {
+        return { added: 0, skipped: 0, failed: 0, processed: 0 };
       }
-      try {
-        const blocker = await getTicket(blockerIssueNumber);
-        if (typeof blocker?.internalId !== 'number') {
+
+      const storyIssueNumber = slugToIssueNumber[story.slug];
+      if (typeof storyIssueNumber !== 'number') {
+        Logger.warn(
+          `[blocked-by-add] No issue number for story slug "${story.slug}"; skipping depends_on edges.`,
+        );
+        return { added: 0, skipped: 0, failed: 0, processed: 0 };
+      }
+
+      let failed = 0;
+      const blockerInternalIds = [];
+
+      for (const depSlug of deps) {
+        const blockerIssueNumber = slugToIssueNumber[depSlug];
+        if (typeof blockerIssueNumber !== 'number') {
           Logger.warn(
-            `[blocked-by-add] Blocker #${blockerIssueNumber} ("${depSlug}") has no internalId; skipping edge.`,
+            `[blocked-by-add] depends_on slug "${depSlug}" (from "${story.slug}") has no mapped issue number; skipping edge.`,
           );
-          edgesFailed++;
+          failed++;
           continue;
         }
-        blockerInternalIds.push(blocker.internalId);
-      } catch (err) {
-        Logger.warn(
-          `[blocked-by-add] Could not resolve blocker "${depSlug}" (#${blockerIssueNumber}): ${err.message}`,
-        );
-        edgesFailed++;
+        try {
+          const blocker = await getTicket(blockerIssueNumber);
+          if (typeof blocker?.internalId !== 'number') {
+            Logger.warn(
+              `[blocked-by-add] Blocker #${blockerIssueNumber} ("${depSlug}") has no internalId; skipping edge.`,
+            );
+            failed++;
+            continue;
+          }
+          blockerInternalIds.push(blocker.internalId);
+        } catch (err) {
+          Logger.warn(
+            `[blocked-by-add] Could not resolve blocker "${depSlug}" (#${blockerIssueNumber}): ${err.message}`,
+          );
+          failed++;
+        }
       }
-    }
 
-    if (blockerInternalIds.length === 0) continue;
+      if (blockerInternalIds.length === 0) {
+        return { added: 0, skipped: 0, failed, processed: 1 };
+      }
 
-    const result = await addBlockedByEdges({
-      gh,
-      owner,
-      repo,
-      issueNumber: storyIssueNumber,
-      blockerInternalIds,
-    });
-    edgesAdded += result.added;
-    edgesSkipped += result.skipped;
-    edgesFailed += result.failed;
+      const result = await addBlockedByEdges({
+        gh,
+        owner,
+        repo,
+        issueNumber: storyIssueNumber,
+        blockerInternalIds,
+      });
+      return {
+        added: result.added,
+        skipped: result.skipped,
+        failed: failed + result.failed,
+        processed: 1,
+      };
+    },
+    { concurrency: EDGE_CONCURRENCY },
+  );
+
+  for (const r of perStory) {
+    edgesAdded += r.added;
+    edgesSkipped += r.skipped;
+    edgesFailed += r.failed;
+    storiesProcessed += r.processed;
   }
 
   return { edgesAdded, edgesSkipped, edgesFailed, storiesProcessed };
