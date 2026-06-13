@@ -70,10 +70,10 @@ function track(root) {
 }
 
 /** Collect stdout output from runInitTail. */
-function runTail(root, overrides = {}) {
+async function runTail(root, overrides = {}) {
   const lines = [];
   const stdout = (s) => lines.push(s);
-  const result = runInitTail({ root, stdout, ...overrides });
+  const result = await runInitTail({ root, stdout, ...overrides });
   return { result, output: lines.join('') };
 }
 
@@ -84,10 +84,10 @@ const doctor = (status) => () => ({ status });
 // Phase 1 — stack detection
 // ---------------------------------------------------------------------------
 
-describe('init tail — Phase 1 (stack detection)', () => {
-  it('prints a stack detection report', () => {
+describe('init tail — Phase 1 (stack detection)', async () => {
+  it('prints a stack detection report', async () => {
     const root = track(makeProject([]));
-    const { output } = runTail(root, {
+    const { output } = await runTail(root, {
       runDoctor: doctor(0),
       confirmScaffold: () => false,
       isTTY: false,
@@ -103,12 +103,12 @@ describe('init tail — Phase 1 (stack detection)', () => {
 // Phase 2 — scaffold offer
 // ---------------------------------------------------------------------------
 
-describe('init tail — Phase 2 (scaffold offer)', () => {
-  it('skips the offer when all docsContextFiles are present', () => {
+describe('init tail — Phase 2 (scaffold offer)', async () => {
+  it('skips the offer when all docsContextFiles are present', async () => {
     const root = track(makeProject(['architecture.md']));
     fs.mkdirSync(path.join(root, 'docs'));
     fs.writeFileSync(path.join(root, 'docs', 'architecture.md'), '# Arch\n');
-    const { output } = runTail(root, {
+    const { output } = await runTail(root, {
       runDoctor: doctor(0),
       isTTY: false,
     });
@@ -116,9 +116,9 @@ describe('init tail — Phase 2 (scaffold offer)', () => {
     assert.doesNotMatch(output, /Scaffold stubs now/i);
   });
 
-  it('offers to scaffold when docs are missing', () => {
+  it('offers to scaffold when docs are missing', async () => {
     const root = track(makeProject(['architecture.md']));
-    const { output } = runTail(root, {
+    const { output } = await runTail(root, {
       runDoctor: doctor(0),
       confirmScaffold: () => false,
       isTTY: true,
@@ -127,9 +127,9 @@ describe('init tail — Phase 2 (scaffold offer)', () => {
     assert.match(output, /architecture\.md/);
   });
 
-  it('logs a loud decline message when scaffold is declined', () => {
+  it('logs a loud decline message when scaffold is declined', async () => {
     const root = track(makeProject(['architecture.md']));
-    const { output } = runTail(root, {
+    const { output } = await runTail(root, {
       runDoctor: doctor(0),
       confirmScaffold: () => false,
       isTTY: true,
@@ -137,9 +137,9 @@ describe('init tail — Phase 2 (scaffold offer)', () => {
     assert.match(output, /degraded context/i);
   });
 
-  it('auto-declines on non-TTY without printing the offer', () => {
+  it('auto-declines on non-TTY without printing the offer', async () => {
     const root = track(makeProject(['architecture.md']));
-    const { output } = runTail(root, {
+    const { output } = await runTail(root, {
       runDoctor: doctor(0),
       isTTY: false,
     });
@@ -149,9 +149,9 @@ describe('init tail — Phase 2 (scaffold offer)', () => {
     assert.match(output, /degraded context/i);
   });
 
-  it('writes stubs and reports the MANDREL:STUB marker on acceptance', () => {
+  it('writes stubs and reports the MANDREL:STUB marker on acceptance', async () => {
     const root = track(makeProject(['decisions.md']));
-    const { output, result } = runTail(root, {
+    const { output, result } = await runTail(root, {
       runDoctor: doctor(0),
       confirmScaffold: () => true,
       isTTY: true,
@@ -167,12 +167,12 @@ describe('init tail — Phase 2 (scaffold offer)', () => {
     assert.deepEqual(result.scaffoldResult.created, ['decisions.md']);
   });
 
-  it('is idempotent: re-running does not overwrite a present file', () => {
+  it('is idempotent: re-running does not overwrite a present file', async () => {
     const root = track(makeProject(['arch.md']));
     fs.mkdirSync(path.join(root, 'docs'));
     const original = '# My Real Architecture\n';
     fs.writeFileSync(path.join(root, 'docs', 'arch.md'), original);
-    runTail(root, {
+    await runTail(root, {
       runDoctor: doctor(0),
       confirmScaffold: () => true,
       isTTY: true,
@@ -188,10 +188,10 @@ describe('init tail — Phase 2 (scaffold offer)', () => {
 // Phase 3 — doctor gate
 // ---------------------------------------------------------------------------
 
-describe('init tail — Phase 3 (doctor gate)', () => {
-  it('returns ok=false and stops when doctor exits non-zero', () => {
+describe('init tail — Phase 3 (doctor gate)', async () => {
+  it('returns ok=false and stops when doctor exits non-zero', async () => {
     const root = track(makeProject([]));
-    const { result, output } = runTail(root, {
+    const { result, output } = await runTail(root, {
       runDoctor: doctor(1),
       isTTY: false,
     });
@@ -202,9 +202,9 @@ describe('init tail — Phase 3 (doctor gate)', () => {
     assert.doesNotMatch(output, /Mandrel is ready/i);
   });
 
-  it('returns ok=true when doctor exits 0', () => {
+  it('returns ok=true when doctor exits 0', async () => {
     const root = track(makeProject([]));
-    const { result } = runTail(root, {
+    const { result } = await runTail(root, {
       runDoctor: doctor(0),
       isTTY: false,
     });
@@ -217,10 +217,10 @@ describe('init tail — Phase 3 (doctor gate)', () => {
 // Phase 4 — /plan handoff
 // ---------------------------------------------------------------------------
 
-describe('init tail — Phase 4 (/plan handoff)', () => {
-  it('prints the /plan handoff text when doctor passes', () => {
+describe('init tail — Phase 4 (/plan handoff)', async () => {
+  it('prints the /plan handoff text when doctor passes', async () => {
     const root = track(makeProject([]));
-    const { output } = runTail(root, {
+    const { output } = await runTail(root, {
       runDoctor: doctor(0),
       isTTY: false,
     });
@@ -231,9 +231,9 @@ describe('init tail — Phase 4 (/plan handoff)', () => {
     );
   });
 
-  it('does not print the handoff when doctor fails', () => {
+  it('does not print the handoff when doctor fails', async () => {
     const root = track(makeProject([]));
-    const { output } = runTail(root, {
+    const { output } = await runTail(root, {
       runDoctor: doctor(1),
       isTTY: false,
     });
@@ -245,8 +245,8 @@ describe('init tail — Phase 4 (/plan handoff)', () => {
 // /onboard retirement
 // ---------------------------------------------------------------------------
 
-describe('/onboard retirement', () => {
-  it('onboard.md no longer exists in .agents/workflows/', () => {
+describe('/onboard retirement', async () => {
+  it('onboard.md no longer exists in .agents/workflows/', async () => {
     const onboardPath = path.join(
       REPO_ROOT,
       '.agents',
