@@ -52,7 +52,7 @@ import { createReadStream } from 'node:fs';
 import fs from 'node:fs/promises';
 import { createInterface } from 'node:readline';
 
-import { extractTool, isPositiveInt } from './common.js';
+import { extractTool, validateDetectorArgs } from './common.js';
 
 /**
  * Tools that mutate files. Only these contribute to the per-target edit
@@ -140,45 +140,8 @@ async function tallyEditsByTarget(tracesPath) {
  *   conforming to `.agents/schemas/signal-event.schema.json`.
  */
 export async function detectRework(args) {
-  if (args == null || typeof args !== 'object') {
-    throw new TypeError(
-      `detectRework: args must be an object with at minimum { tracesPath, epicId, storyId, threshold }; got ${args}`,
-    );
-  }
-  const { tracesPath, epicId, storyId, threshold } = args;
-  const taskId = args.taskId ?? null;
-  if (args.nowFn != null && typeof args.nowFn !== 'function') {
-    throw new TypeError(
-      `detectRework: nowFn, when provided, must be a function (got ${typeof args.nowFn})`,
-    );
-  }
-  const nowFn = args.nowFn ?? (() => new Date().toISOString());
-
-  if (typeof tracesPath !== 'string' || tracesPath.length === 0) {
-    throw new TypeError(
-      `detectRework: tracesPath must be a non-empty string (got ${tracesPath})`,
-    );
-  }
-  if (!isPositiveInt(epicId)) {
-    throw new RangeError(
-      `detectRework: epicId must be a positive integer (got ${epicId})`,
-    );
-  }
-  if (!isPositiveInt(storyId)) {
-    throw new RangeError(
-      `detectRework: storyId must be a positive integer (got ${storyId})`,
-    );
-  }
-  if (taskId !== null && !isPositiveInt(taskId)) {
-    throw new RangeError(
-      `detectRework: taskId must be a positive integer or null (got ${taskId})`,
-    );
-  }
-  if (!Number.isInteger(threshold) || threshold < 0) {
-    throw new RangeError(
-      `detectRework: threshold must be a non-negative integer (got ${threshold})`,
-    );
-  }
+  const { tracesPath, epicId, storyId, taskId, threshold, nowFn } =
+    validateDetectorArgs(args, { fnName: 'detectRework' });
 
   const counts = await tallyEditsByTarget(tracesPath);
 
