@@ -33,10 +33,13 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Checkout, Setup Node & Install
-        uses: ./.github/actions/setup
+      - name: Checkout Code
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Setup Node & Install
+        uses: ./.github/actions/setup
 
       - name: Dependency Vulnerability Audit (SCA)
         run: npm audit --audit-level=high
@@ -119,10 +122,13 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Checkout, Setup Node & Install
-        uses: ./.github/actions/setup
+      - name: Checkout Code
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Setup Node & Install
+        uses: ./.github/actions/setup
 
       - name: Run check-baselines
         run: node .agents/scripts/check-baselines.js --format text
@@ -152,7 +158,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Checkout, Setup Node & Install
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node & Install
         uses: ./.github/actions/setup
 
       - name: Bootstrap (dry-run)
