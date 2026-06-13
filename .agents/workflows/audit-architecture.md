@@ -129,6 +129,14 @@ legitimately have no layered architecture to guard.
 
 ## Step 2: Analysis Dimensions
 
+For every finding you surface, grade **Impact** on a High / Medium / Low axis
+reflecting the severity of the architectural risk (how much correctness,
+maintainability, or testability the gap erodes), independent of the
+**Category** effort axis — a Quick Win can still be High Impact, and a
+Structural Change can be Medium. As a loose default, Quick Wins typically land
+High (cheap to fix, real payoff) and Structural Changes Medium/High, but grade
+Impact on the risk itself rather than deriving it mechanically from Category.
+
 Evaluate the gathered context against the following clean code dimensions:
 
 1. **Over-Engineering & Abstractions:** Identify "dry-run" complexity, premature
@@ -294,6 +302,7 @@ marked `n/a`.]
 
 ### [Short Title of the Issue]
 
+- **Impact:** [High | Medium | Low]
 - **Category:** [Quick Win | Structural Change]
 - **Dimension:** [e.g., Cognitive Load & Nesting | Testable Surface (Humble-Object Boundary) | Automated Architecture Guardrails]
 - **Current State:** [The specific file/function and why it is problematic]

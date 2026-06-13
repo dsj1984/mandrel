@@ -163,7 +163,7 @@ Deeper reference material lives in `docs/` rather than inline here:
 - [`.agents/docs/workflows.md`](.agents/docs/workflows.md) — slash-command
   index (auto-generated from the workflow set).
 - [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — release history.
-- [`AGENTS.md`](AGENTS.md) — repository onboarding, the two-package release
+- [`AGENTS.md`](AGENTS.md) — repository onboarding, the single-package release
   topology, PAT / npm-token setup, and major-version policy. Releases are
   automated by `release-please`: land Conventional Commits on `main` and it
   opens a combined `chore: release main` PR that squash-merges itself once

@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import {
   buildGraph,
   collectJsFiles,
+  DEFAULT_ROOTS,
   diffCycles,
   findCycles,
   loadBaseline,
@@ -57,6 +58,37 @@ function makeFixture(modules, { cycles } = {}) {
 function makeSink() {
   const chunks = [];
   return { write: (s) => chunks.push(s), text: () => chunks.join('') };
+}
+
+/**
+ * Materialize a fixture spanning the project's default distributed roots
+ * (`.agents/scripts`, `bin`, `lib`) under a fresh tmpdir. `modules` maps
+ * repo-relative module paths (e.g. `bin/x.js`) to arrays of relative import
+ * specs. Returns `{ cwd }`; the multi-root scan relativizes ids against
+ * `cwd`, so a cross-root edge resolves into the single graph.
+ */
+function makeMultiRootFixture(modules, { cycles } = {}) {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'arch-multiroot-'));
+  // Ensure every default root dir exists so the scan walks all of them.
+  for (const dir of DEFAULT_ROOTS) {
+    fs.mkdirSync(path.join(cwd, dir), { recursive: true });
+  }
+  for (const [rel, imports] of Object.entries(modules)) {
+    const file = path.join(cwd, rel);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const body = imports
+      .map((spec, i) => `import { x${i} } from '${spec}';`)
+      .join('\n');
+    fs.writeFileSync(file, `${body}\nexport const y = 1;\n`);
+  }
+  if (cycles) {
+    fs.mkdirSync(path.join(cwd, 'baselines'), { recursive: true });
+    fs.writeFileSync(
+      path.join(cwd, 'baselines', 'arch-cycles.json'),
+      JSON.stringify({ cycles }),
+    );
+  }
+  return { cwd };
 }
 
 // ---------------------------------------------------------------------------
@@ -317,6 +349,111 @@ test('runCli: throws when the scan root does not exist', async () => {
         stdout: makeSink(),
         stderr: makeSink(),
       }),
-    /scan root not found/,
+    /no scan root found/,
   );
+});
+
+// ---------------------------------------------------------------------------
+// Multi-root (distributed-surface) scan — cross-root cycle detection (#4071)
+// ---------------------------------------------------------------------------
+
+test('DEFAULT_ROOTS spans the distributed surface (.agents/scripts, bin, lib)', () => {
+  assert.deepEqual(DEFAULT_ROOTS, [
+    path.join('.agents', 'scripts'),
+    'bin',
+    'lib',
+  ]);
+});
+
+test('runCli: detects a cycle that crosses the bin <-> lib partition (exit 1)', async () => {
+  // A `bin/` lifecycle script and a root-`lib/` runtime module importing each
+  // other — invisible to any single-root scan, caught by the merged graph.
+  const { cwd } = makeMultiRootFixture(
+    {
+      'bin/cli.js': ['../lib/sync.js'],
+      'lib/sync.js': ['../bin/cli.js'],
+    },
+    { cycles: [] },
+  );
+  const stdout = makeSink();
+  const code = await runCli({ cwd, stdout, stderr: makeSink() });
+  assert.equal(code, 1);
+  assert.match(
+    stdout.text(),
+    /\+ bin\/cli\.js -> lib\/sync\.js -> bin\/cli\.js/,
+  );
+  assert.match(stdout.text(), /\(gate fail\)/);
+});
+
+test('runCli: cross-root cycle resolves with repo-relative ids in --json', async () => {
+  const { cwd } = makeMultiRootFixture(
+    {
+      'bin/cli.js': ['../lib/sync.js'],
+      'lib/sync.js': ['../bin/cli.js'],
+    },
+    { cycles: [] },
+  );
+  const stdout = makeSink();
+  const code = await runCli({
+    argv: ['--json'],
+    cwd,
+    stdout,
+    stderr: makeSink(),
+  });
+  assert.equal(code, 1);
+  const envelope = JSON.parse(stdout.text());
+  assert.deepEqual(envelope.detected, [['bin/cli.js', 'lib/sync.js']]);
+  assert.equal(envelope.root, cwd);
+});
+
+test('runCli: cross-root cycle passes when allowlisted', async () => {
+  const { cwd } = makeMultiRootFixture(
+    {
+      'bin/cli.js': ['../lib/sync.js'],
+      'lib/sync.js': ['../bin/cli.js'],
+    },
+    { cycles: [['bin/cli.js', 'lib/sync.js']] },
+  );
+  const code = await runCli({ cwd, stdout: makeSink(), stderr: makeSink() });
+  assert.equal(code, 0);
+});
+
+test('runCli: explicit --root keeps the single-root contract (no cross-root edges)', async () => {
+  // With --root bin, only `bin/` is scanned and ids are relativized against
+  // it, so the import into `../lib/sync.js` resolves outside the scanned set
+  // and is dropped — no cycle, no crash.
+  const { cwd } = makeMultiRootFixture(
+    {
+      'bin/cli.js': ['../lib/sync.js'],
+      'lib/sync.js': ['../bin/cli.js'],
+    },
+    { cycles: [] },
+  );
+  const stdout = makeSink();
+  const code = await runCli({
+    argv: ['--root', 'bin'],
+    cwd,
+    stdout,
+    stderr: makeSink(),
+  });
+  assert.equal(code, 0);
+  assert.match(stdout.text(), /added=0 removed=0 \(ok\)/);
+});
+
+test('runCli: default scan tolerates a missing optional root', async () => {
+  // Only one of the default roots is materialized; the scan proceeds over the
+  // present root(s) rather than throwing.
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'arch-partial-'));
+  fs.mkdirSync(path.join(cwd, '.agents', 'scripts'), { recursive: true });
+  fs.writeFileSync(
+    path.join(cwd, '.agents', 'scripts', 'a.js'),
+    'export const y = 1;\n',
+  );
+  fs.mkdirSync(path.join(cwd, 'baselines'), { recursive: true });
+  fs.writeFileSync(
+    path.join(cwd, 'baselines', 'arch-cycles.json'),
+    JSON.stringify({ cycles: [] }),
+  );
+  const code = await runCli({ cwd, stdout: makeSink(), stderr: makeSink() });
+  assert.equal(code, 0);
 });
