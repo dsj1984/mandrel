@@ -24,9 +24,101 @@
  *     this value (security-review defaults to `'security'`); when
  *     omitted, `category` is only set when present (codex behavior).
  *
+ * Story #4074 — the parser body was a CC-30 ternary thicket. The
+ * per-field branching now lives in three small, independently-testable
+ * pure helpers (`unwrapEnvelope`, `coerceString`, `buildFinding`), so the
+ * orchestration body collapses to: unwrap → `Array.isArray` guard →
+ * `map(buildFinding).filter(Boolean)`.
+ *
  * @typedef {import('./types.js').Finding}  Finding
  * @typedef {import('./types.js').Severity} Severity
  */
+
+/**
+ * Unwrap up to two layers of envelope around a findings array.
+ *
+ * Accepts a bare array unchanged, an object with a `findings` array, or
+ * either shape nested one level deep under a `result` / `data` key. The
+ * second pass resolves `{ result: { findings: [] } }`-style
+ * double-envelopes. Anything that does not resolve to an array is
+ * returned as-is for the caller's `Array.isArray` guard to reject.
+ *
+ * @param {unknown} parsed
+ * @returns {unknown}
+ */
+export function unwrapEnvelope(parsed) {
+  let value = parsed;
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    if (Array.isArray(value.findings)) value = value.findings;
+    else if (value.result !== undefined) value = value.result;
+    else if (value.data !== undefined) value = value.data;
+  }
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    if (Array.isArray(value.findings)) value = value.findings;
+  }
+  return value;
+}
+
+/**
+ * Coerce a value to a non-empty trimmed string, or null.
+ *
+ * Returns the trimmed string when `value` is a string with
+ * non-whitespace content; otherwise null.
+ *
+ * @param {unknown} value
+ * @returns {string | null}
+ */
+export function coerceString(value) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+/**
+ * Build a single `Finding` from a raw entry, or null when the entry is
+ * unusable (not an object, or missing a title/body).
+ *
+ * `title` is trimmed; `body` falls back to a non-empty `message` alias
+ * and is preserved verbatim (untrimmed) to match the historical
+ * behavior. `category` is set from the entry when present, else from
+ * `defaultCategory` when supplied. `file` / `line` are included only
+ * when present and well-formed.
+ *
+ * @param {unknown} entry
+ * @param {{
+ *   mapSeverity: (raw: unknown) => Severity,
+ *   defaultCategory?: string,
+ * }} options
+ * @returns {Finding | null}
+ */
+export function buildFinding(entry, { mapSeverity, defaultCategory }) {
+  if (!entry || typeof entry !== 'object') return null;
+
+  const title = coerceString(entry.title);
+  const body = coerceString(entry.body)
+    ? entry.body
+    : coerceString(entry.message)
+      ? entry.message
+      : null;
+  if (!title || !body) return null;
+
+  /** @type {Finding} */
+  const finding = { severity: mapSeverity(entry.severity), title, body };
+
+  const category =
+    typeof entry.category === 'string' && entry.category.length > 0
+      ? entry.category
+      : defaultCategory;
+  if (category !== undefined) finding.category = category;
+
+  if (typeof entry.file === 'string' && entry.file.length > 0) {
+    finding.file = entry.file;
+  }
+  if (Number.isInteger(entry.line) && entry.line > 0) {
+    finding.line = entry.line;
+  }
+  return finding;
+}
 
 /**
  * Parse a provider's raw stdout into `Finding[]`.
@@ -52,54 +144,10 @@ export function parseProviderFindings(rawStdout, options) {
     throw new Error(`${errorPrefix}: ${err?.message ?? err}`);
   }
 
-  // Unwrap a single layer of envelope when present.
-  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-    if (Array.isArray(parsed.findings)) parsed = parsed.findings;
-    else if (parsed.result !== undefined) parsed = parsed.result;
-    else if (parsed.data !== undefined) parsed = parsed.data;
-  }
-  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-    if (Array.isArray(parsed.findings)) parsed = parsed.findings;
-  }
+  const unwrapped = unwrapEnvelope(parsed);
+  if (!Array.isArray(unwrapped)) return [];
 
-  if (!Array.isArray(parsed)) return [];
-
-  /** @type {Finding[]} */
-  const findings = [];
-  for (const entry of parsed) {
-    if (!entry || typeof entry !== 'object') continue;
-    const title =
-      typeof entry.title === 'string' && entry.title.trim().length > 0
-        ? entry.title.trim()
-        : null;
-    const body =
-      typeof entry.body === 'string' && entry.body.trim().length > 0
-        ? entry.body
-        : typeof entry.message === 'string' && entry.message.trim().length > 0
-          ? entry.message
-          : null;
-    if (!title || !body) continue;
-
-    /** @type {Finding} */
-    const finding = {
-      severity: mapSeverity(entry.severity),
-      title,
-      body,
-    };
-    const category =
-      typeof entry.category === 'string' && entry.category.length > 0
-        ? entry.category
-        : defaultCategory;
-    if (category !== undefined) {
-      finding.category = category;
-    }
-    if (typeof entry.file === 'string' && entry.file.length > 0) {
-      finding.file = entry.file;
-    }
-    if (Number.isInteger(entry.line) && entry.line > 0) {
-      finding.line = entry.line;
-    }
-    findings.push(finding);
-  }
-  return findings;
+  return unwrapped
+    .map((entry) => buildFinding(entry, { mapSeverity, defaultCategory }))
+    .filter(Boolean);
 }
