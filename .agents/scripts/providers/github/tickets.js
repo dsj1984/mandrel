@@ -77,7 +77,7 @@ export function composeStoryBody({
 }) {
   const head = typeof body === 'string' ? body : '';
   const lines = ['---', `parent: #${parentId}`];
-  if (epicId !== undefined && epicId !== null && epicId !== parentId) {
+  if (epicId !== undefined && epicId !== null) {
     lines.push(`Epic: #${epicId}`);
   }
   if (dependencies.length > 0) {
