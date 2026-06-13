@@ -139,6 +139,146 @@ function resolveGitUserEmail(cwd) {
  *   checkpointInitializedAt: string,
  * }>}
  */
+/**
+ * Run the fail-closed preflight guards (Story #3482): refuse on a
+ * dirty/foreign-branch checkout and on a live foreign Epic lease, BEFORE any
+ * snapshot or git mutation. No-op when guards are suppressed. The guards are
+ * skipped when `skipPreflightGuards` is set, OR — implicitly — when a caller
+ * injects a provider but no git seam (the signature of the prepare-runner
+ * unit tests that drive an in-memory provider and never stand up a tree). The
+ * real CLI path injects neither, so the guards always run for an
+ * operator-driven invocation. Story #4075 — extracted from
+ * `runEpicDeliverPrepare`.
+ */
+async function runPreflightGuardsForPrepare({
+  epicId,
+  cwd,
+  config,
+  provider,
+  injectedProvider,
+  injectedGit,
+  asOperator,
+  steal,
+  leaseHeartbeatAt,
+  leaseNow,
+  skipPreflightGuards,
+}) {
+  const guardsSuppressed =
+    skipPreflightGuards || (Boolean(injectedProvider) && !injectedGit);
+  if (guardsSuppressed) return;
+
+  const guardCwd = cwd ?? process.cwd();
+  const git = injectedGit ?? createGitShim(guardCwd);
+  const baseBranch = config.project?.baseBranch ?? 'main';
+  const expectedBranch = [getEpicBranch(epicId), baseBranch];
+  const operator =
+    resolveOperator({
+      asFlag: asOperator,
+      config,
+      gitUserEmail: injectedGit ? undefined : resolveGitUserEmail(guardCwd),
+    }) ?? null;
+
+  // Liveness seam: a foreign claim is only "live" (and so refuses) when the
+  // claim *owner* has a recent `story.heartbeat`. Without this the lease
+  // guard is inert — every foreign claim looks stale and gets silently
+  // reclaimed (audit #3513). Read the Epic's current assignee (the claim
+  // owner) and resolve that owner's latest heartbeat from the Epic lifecycle
+  // ledger via the shared resolver. Tests may inject `leaseHeartbeatAt`
+  // directly (any value, including null) to bypass the ledger read.
+  let heartbeatAt = leaseHeartbeatAt;
+  if (heartbeatAt === undefined) {
+    const epicTicket = await provider.getTicket(epicId);
+    const claimOwner = leaseCurrentOwner(epicTicket?.assignees);
+    heartbeatAt = claimOwner
+      ? latestHeartbeatForOwner({ epicId, owner: claimOwner, config })
+      : null;
+  }
+
+  await runPrepareGuards({
+    epicId,
+    expectedBranch,
+    git,
+    provider,
+    operator,
+    heartbeatAt,
+    steal,
+    config,
+    now: leaseNow,
+    logger: Logger,
+  });
+}
+
+/**
+ * Resolve the Epic state, preferring the preflight cache (Story #3027) and
+ * falling back to a fresh snapshot + wave-DAG pass on miss or baseSha
+ * mismatch. Returns `{ state, cacheStatus }`. Story #4075 — extracted from
+ * `runEpicDeliverPrepare`.
+ */
+async function resolvePrepareState({ epicId, cwd, provider }) {
+  const cached = await readPreflightCache({ epicId, cwd });
+  if (cached) {
+    const freshEpic = await provider.getTicket(epicId);
+    const cachedStoryIds = cached.stories
+      .map((s) => Number(s?.id ?? s?.number))
+      .filter((id) => Number.isInteger(id) && id > 0);
+    const freshStories = await Promise.all(
+      cachedStoryIds.map((id) => provider.getTicket(id)),
+    );
+    const freshBaseSha = computeBaseSha(freshEpic, freshStories);
+    if (freshBaseSha === cached.baseSha) {
+      return {
+        state: {
+          epic: cached.epic,
+          stories: cached.stories,
+          waves: cached.waves,
+        },
+        cacheStatus: 'hit',
+      };
+    }
+  }
+  const ctx = { epicId, provider };
+  let state = await runSnapshotPhase(ctx, {}, {});
+  state = await runBuildWaveDagPhase(ctx, {}, state);
+  return { state, cacheStatus: cached ? 'stale' : 'miss' };
+}
+
+/**
+ * Evaluate the cross-Story concurrency-hazard gate (Story #2297). Throws on a
+ * tripped, non-bypassed gate; warns (and returns `gate`) on a bypassed trip.
+ * Story #4075 — extracted from `runEpicDeliverPrepare`.
+ */
+function evaluatePrepareConcurrencyGate({
+  config,
+  waves,
+  injectedFindings,
+  ignoreConcurrencyHazards,
+}) {
+  const findings = Array.isArray(injectedFindings) ? injectedFindings : [];
+  const pendingKeys = collectPendingStoryKeys(waves);
+  const pendingFindings = filterFindingsToPending(findings, pendingKeys);
+  const gate = evaluateConcurrencyGate({
+    findings: pendingFindings,
+    policy: {
+      failOnConcurrencyHazards:
+        config?.delivery?.failOnConcurrencyHazards === true,
+    },
+    ignore: ignoreConcurrencyHazards === true,
+  });
+  if (gate.tripped && !gate.bypassed) {
+    const ownerRepo =
+      config?.github?.owner && config?.github?.repo
+        ? `${config.github.owner}/${config.github.repo}`
+        : undefined;
+    throw new Error(renderGateErrorMessage(gate.findings, ownerRepo));
+  }
+  if (gate.tripped && gate.bypassed) {
+    Logger.warn(
+      `[epic-deliver-prepare] ⚠️  Concurrency-hazard gate bypassed via --ignore-concurrency-hazards (reason=${gate.reason}, count=${gate.findings.length}).`,
+    );
+  }
+  return gate;
+}
+
 export async function runEpicDeliverPrepare({
   epicId,
   cwd,
@@ -167,127 +307,32 @@ export async function runEpicDeliverPrepare({
   const { deliverRunner } = getRunners(config);
   const concurrencyCap = deliverRunner.concurrencyCap;
 
-  // Preflight guards (Story #3482): fail closed on a dirty/foreign-branch
-  // checkout and on a live foreign Epic lease, BEFORE any snapshot or git
-  // mutation runs. The guards are injectable so the unit suite exercises them
-  // without a real repo. They are skipped when an explicit `skipPreflightGuards`
-  // is set, OR — implicitly — when a caller injects a provider but no git seam:
-  // that combination is the signature of the pre-existing prepare-runner unit
-  // tests that assert the DAG/checkpoint behaviour against an in-memory
-  // provider and never stand up a working tree. The real CLI path passes
-  // neither `injectedProvider` nor `injectedGit`, so the guards always run for
-  // an operator-driven invocation.
-  const guardsSuppressed =
-    skipPreflightGuards || (Boolean(injectedProvider) && !injectedGit);
-  if (!guardsSuppressed) {
-    const guardCwd = cwd ?? process.cwd();
-    const git = injectedGit ?? createGitShim(guardCwd);
-    const baseBranch = config.project?.baseBranch ?? 'main';
-    const expectedBranch = [getEpicBranch(epicId), baseBranch];
-    const operator =
-      resolveOperator({
-        asFlag: asOperator,
-        config,
-        gitUserEmail: injectedGit ? undefined : resolveGitUserEmail(guardCwd),
-      }) ?? null;
-
-    // Liveness seam: a foreign claim is only "live" (and so refuses) when the
-    // claim *owner* has a recent `story.heartbeat`. Without this the lease
-    // guard is inert — `heartbeatAt` defaults to null, `isClaimLive(null)` is
-    // false, and every foreign claim looks stale and gets silently reclaimed
-    // (audit #3513). Read the Epic's current assignee (the claim owner) and
-    // resolve that owner's latest heartbeat from the Epic lifecycle ledger
-    // (`temp/epic-<id>/lifecycle.ndjson`) via the shared resolver, so a LIVE
-    // foreign claim actually refuses and only a genuinely stale/absent one is
-    // reclaimed. Tests may inject `leaseHeartbeatAt` directly (any value,
-    // including null) to bypass the ledger read; the CLI passes nothing.
-    let heartbeatAt = leaseHeartbeatAt;
-    if (heartbeatAt === undefined) {
-      const epicTicket = await provider.getTicket(epicId);
-      const claimOwner = leaseCurrentOwner(epicTicket?.assignees);
-      heartbeatAt = claimOwner
-        ? latestHeartbeatForOwner({ epicId, owner: claimOwner, config })
-        : null;
-    }
-
-    await runPrepareGuards({
-      epicId,
-      expectedBranch,
-      git,
-      provider,
-      operator,
-      heartbeatAt,
-      steal,
-      config,
-      now: leaseNow,
-      logger: Logger,
-    });
-  }
-
-  // Story #3027: try the preflight cache first so we don't re-walk Epic
-  // → Feature → Story when `epic-deliver-preflight.js` already did. The
-  // cache key is a deterministic fingerprint of the Epic ticket plus the
-  // cached Story snapshots (Story #4019): the Epic re-fetch plus one
-  // getTicket per cached Story is still far cheaper than the full
-  // hierarchy BFS, and a Story-dependency edit now invalidates the cache.
-  // Cache miss or baseSha mismatch → fall back to a fresh pass.
-  const ctx = { epicId, provider };
-  let state = {};
-  let cacheStatus = 'miss';
-  const cached = await readPreflightCache({ epicId, cwd });
-  if (cached) {
-    const freshEpic = await provider.getTicket(epicId);
-    const cachedStoryIds = cached.stories
-      .map((s) => Number(s?.id ?? s?.number))
-      .filter((id) => Number.isInteger(id) && id > 0);
-    const freshStories = await Promise.all(
-      cachedStoryIds.map((id) => provider.getTicket(id)),
-    );
-    const freshBaseSha = computeBaseSha(freshEpic, freshStories);
-    if (freshBaseSha === cached.baseSha) {
-      state = {
-        epic: cached.epic,
-        stories: cached.stories,
-        waves: cached.waves,
-      };
-      cacheStatus = 'hit';
-    } else {
-      cacheStatus = 'stale';
-    }
-  }
-  if (cacheStatus !== 'hit') {
-    state = await runSnapshotPhase(ctx, {}, state);
-    state = await runBuildWaveDagPhase(ctx, {}, state);
-  }
-
-  // Cross-Story concurrency-hazard gate (Story #2297). Findings come in
-  // via DI; no default loader is wired yet — production callers will
-  // either pass findings derived from the persisted manifest or rely on
-  // the empty default (gate trivially passes).
-  const findings = Array.isArray(injectedFindings) ? injectedFindings : [];
-  const pendingKeys = collectPendingStoryKeys(state.waves);
-  const pendingFindings = filterFindingsToPending(findings, pendingKeys);
-  const concurrencyPolicy = {
-    failOnConcurrencyHazards:
-      config?.delivery?.failOnConcurrencyHazards === true,
-  };
-  const gate = evaluateConcurrencyGate({
-    findings: pendingFindings,
-    policy: concurrencyPolicy,
-    ignore: ignoreConcurrencyHazards === true,
+  await runPreflightGuardsForPrepare({
+    epicId,
+    cwd,
+    config,
+    provider,
+    injectedProvider,
+    injectedGit,
+    asOperator,
+    steal,
+    leaseHeartbeatAt,
+    leaseNow,
+    skipPreflightGuards,
   });
-  if (gate.tripped && !gate.bypassed) {
-    const ownerRepo =
-      config?.github?.owner && config?.github?.repo
-        ? `${config.github.owner}/${config.github.repo}`
-        : undefined;
-    throw new Error(renderGateErrorMessage(gate.findings, ownerRepo));
-  }
-  if (gate.tripped && gate.bypassed) {
-    Logger.warn(
-      `[epic-deliver-prepare] ⚠️  Concurrency-hazard gate bypassed via --ignore-concurrency-hazards (reason=${gate.reason}, count=${gate.findings.length}).`,
-    );
-  }
+
+  const { state, cacheStatus } = await resolvePrepareState({
+    epicId,
+    cwd,
+    provider,
+  });
+
+  const gate = evaluatePrepareConcurrencyGate({
+    config,
+    waves: state.waves,
+    injectedFindings,
+    ignoreConcurrencyHazards,
+  });
 
   const totalWaves = state.waves.length;
   const checkpointState = await initializeEpicRunState({
