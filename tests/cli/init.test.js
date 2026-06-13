@@ -252,7 +252,7 @@ describe('init — yes/no prompt rendering', () => {
     });
 
     const prompt = out.join('');
-    assert.match(prompt, /begin the interactive process to setup/);
+    assert.match(prompt, /Begin interactive setup\?/);
     assert.match(prompt, /\[Y\/n\]:/);
   });
 });
@@ -315,7 +315,7 @@ describe('init — answering no skips bootstrap and prints the hint', () => {
 
     const bootstrapCall = calls.find((c) => c.cmd === process.execPath);
     assert.equal(bootstrapCall, undefined, 'no bootstrap step on files-only');
-    assert.match(out.join(''), /Configure any time with: npx mandrel init/);
+    assert.match(out.join(''), /Setup any time with: npx mandrel init/);
     assert.equal(result.ranBootstrap, false);
     assert.equal(result.exitCode, 0);
   });
@@ -397,7 +397,7 @@ describe('init — non-TTY stdin defaults to files-only', () => {
     );
     const bootstrapCall = calls.find((c) => c.cmd === process.execPath);
     assert.equal(bootstrapCall, undefined, 'must never provision unattended');
-    assert.match(out.join(''), /Configure any time with: npx mandrel init/);
+    assert.match(out.join(''), /Setup any time with: npx mandrel init/);
     assert.equal(result.ranBootstrap, false);
     assert.equal(result.exitCode, 0);
   });
