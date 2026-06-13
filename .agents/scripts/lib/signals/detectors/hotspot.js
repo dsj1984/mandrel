@@ -73,7 +73,7 @@ import path from 'node:path';
 import { createInterface } from 'node:readline';
 import { epicTempDir } from '../../config/temp-paths.js';
 import { parseStoryBranch } from '../../git-utils.js';
-import { extractTool, isPositiveInt } from './common.js';
+import { extractTool, validateDetectorArgs } from './common.js';
 
 /**
  * Tools that mutate files. Only these contribute to the per-target edit
@@ -207,24 +207,18 @@ export function nearestRankP95(values) {
  *   p95Threshold, multiplier }`.
  */
 export async function detectHotspot(args) {
-  if (args == null || typeof args !== 'object') {
-    throw new TypeError(
-      `detectHotspot: args must be an object with at minimum { epicId, multiplier }; got ${args}`,
-    );
-  }
-  const { epicId, multiplier, tempRoot } = args;
-  if (args.nowFn != null && typeof args.nowFn !== 'function') {
-    throw new TypeError(
-      `detectHotspot: nowFn, when provided, must be a function (got ${typeof args.nowFn})`,
-    );
-  }
-  const nowFn = args.nowFn ?? (() => new Date().toISOString());
+  // Hotspot shares only the args-shape, nowFn, and epicId guards with the
+  // Story-scoped detectors — it has no tracesPath/storyId/taskId/threshold.
+  // Gate those three off and validate multiplier/tempRoot (hotspot-specific)
+  // inline below.
+  const { epicId, nowFn } = validateDetectorArgs(args, {
+    fnName: 'detectHotspot',
+    requireTracesPath: false,
+    requireStoryId: false,
+    requireThreshold: false,
+  });
+  const { multiplier, tempRoot } = args;
 
-  if (!isPositiveInt(epicId)) {
-    throw new RangeError(
-      `detectHotspot: epicId must be a positive integer (got ${epicId})`,
-    );
-  }
   if (!isPositiveNumber(multiplier)) {
     throw new RangeError(
       `detectHotspot: multiplier must be a positive number (got ${multiplier})`,

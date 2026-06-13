@@ -1,10 +1,19 @@
 /**
  * CLI: ratchet-down architecture gate for import cycles (Story #3991).
  *
- * Walks every `.js` file under `.agents/scripts/` (excluding
- * `node_modules`), parses relative static-import edges
- * (`from './…/x.js'`), detects directed cycles via DFS, and compares
- * them against the committed allowlist at `baselines/arch-cycles.json`.
+ * Walks every `.js` file across the project's **distributed surface**
+ * (the `files[]` set published to npm — `.agents/scripts/`, `bin/`, and
+ * the root `lib/`, excluding `node_modules`), parses relative
+ * static-import edges (`from './…/x.js'`), detects directed cycles via
+ * DFS, and compares them against the committed allowlist at
+ * `baselines/arch-cycles.json`.
+ *
+ * The multi-root scan resolves every root into a **single** import graph
+ * keyed by repository-relative module ids (Story #4071). This lets
+ * `findCycles` catch cycles that cross the documented lifecycle↔runtime
+ * partition — e.g. a `bin/` lifecycle script and an `.agents/scripts/lib`
+ * runtime module importing each other — which a single-root scan cannot
+ * see because it only walks one side of the partition.
  *
  * Ratchet semantics mirror `check-dead-exports.js`:
  *   - Any detected cycle NOT in the allowlist → exit 1, cycle path printed.
@@ -19,8 +28,8 @@
  * Flags:
  *   --baseline <path>  override the allowlist path (default
  *                      `baselines/arch-cycles.json`, resolved from cwd)
- *   --root <path>      override the scanned root (default
- *                      `.agents/scripts`, resolved from cwd)
+ *   --root <path>      scan a single explicit root instead of the default
+ *                      distributed surface, relativized against that root
  *   --json             write the structured envelope to stdout
  */
 
@@ -28,6 +37,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { runAsCli } from './lib/cli-utils.js';
+
+/**
+ * Default scan roots making up the project's distributed surface — the
+ * directories published to npm via `package.json` `files[]`. Resolving
+ * them into one graph (relativized against the repo root) means a cycle
+ * crossing two roots is visible to `findCycles`.
+ *
+ * @type {string[]}
+ */
+export const DEFAULT_ROOTS = [path.join('.agents', 'scripts'), 'bin', 'lib'];
 
 /**
  * Parse argv for `--baseline <path>`, `--root <path>`, and `--json`.
@@ -304,22 +323,27 @@ export async function runCli({
   stderr = process.stderr,
 } = {}) {
   const { baselinePath, rootPath, json } = parseArgv(argv);
-  const resolvedRoot = path.resolve(
-    cwd,
-    rootPath ?? path.join('.agents', 'scripts'),
+  // With an explicit `--root`, scan that single root and relativize ids
+  // against it (unchanged contract). Without it, scan the full distributed
+  // surface and relativize every id against the repo root (`cwd`) so edges
+  // that cross two roots resolve into a single graph.
+  const graphRoot = rootPath ? path.resolve(cwd, rootPath) : path.resolve(cwd);
+  const scanDirs = (rootPath ? [rootPath] : DEFAULT_ROOTS).map((dir) =>
+    path.resolve(cwd, dir),
   );
   const resolvedBaselinePath = path.resolve(
     cwd,
     baselinePath ?? path.join('baselines', 'arch-cycles.json'),
   );
-  if (!fs.existsSync(resolvedRoot)) {
-    throw new Error(`[arch-cycles] scan root not found: ${resolvedRoot}`);
+  const presentScanDirs = scanDirs.filter((dir) => fs.existsSync(dir));
+  if (presentScanDirs.length === 0) {
+    throw new Error(`[arch-cycles] no scan root found: ${scanDirs.join(', ')}`);
   }
   const baseline = loadBaseline(resolvedBaselinePath);
   const allowlisted = Array.isArray(baseline?.cycles) ? baseline.cycles : [];
 
-  const files = collectJsFiles(resolvedRoot);
-  const graph = buildGraph(files, resolvedRoot);
+  const files = presentScanDirs.flatMap((dir) => collectJsFiles(dir));
+  const graph = buildGraph(files, graphRoot);
   const detected = findCycles(graph);
   const diff = diffCycles(allowlisted, detected);
   const exitCode = diff.added.length > 0 ? 1 : 0;
@@ -327,7 +351,7 @@ export async function runCli({
   if (json) {
     const envelope = {
       kind: 'arch-cycles-report',
-      root: resolvedRoot,
+      root: graphRoot,
       baselinePath: resolvedBaselinePath,
       allowlisted: allowlisted.map(normalizeCycle),
       detected,
