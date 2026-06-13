@@ -291,6 +291,110 @@ describe('providers/github/blocked-by-add.js — applyBlockedByDependencies', ()
     assert.strictEqual(postCall.body.issue_id, 777);
   });
 
+  it('aggregates counts identically to the serial implementation across multiple stories sharing a common blocker', async () => {
+    // Three dependent stories all blocked by the same upstream slug
+    // ("story-a"), plus a fourth ("story-e") that fans out to two blockers
+    // including the shared one. Existing-edge fixtures exercise the
+    // added/skipped/failed split so the aggregate is non-trivial.
+    const gh = {
+      calls: [],
+      api: async ({ method, endpoint, body }) => {
+        gh.calls.push({ method, endpoint, body });
+        if (method === 'GET') {
+          // story-c (#30) already has the blocker edge (id=100) → 1 skip.
+          if (endpoint.includes('/issues/30/dependencies/blocked_by')) {
+            return {
+              stdout: JSON.stringify([{ id: 100 }]),
+              stderr: '',
+              code: 0,
+            };
+          }
+          return { stdout: JSON.stringify([]), stderr: '', code: 0 };
+        }
+        return { stdout: JSON.stringify({ id: 999 }), stderr: '', code: 0 };
+      },
+    };
+
+    const internalIdCalls = [];
+    const result = await applyBlockedByDependencies({
+      stories: [
+        { slug: 'story-b', dependsOn: ['story-a'] },
+        { slug: 'story-c', dependsOn: ['story-a'] },
+        { slug: 'story-d', dependsOn: ['story-a'] },
+        { slug: 'story-e', dependsOn: ['story-a', 'story-x'] },
+      ],
+      slugToIssueNumber: {
+        'story-a': 10,
+        'story-b': 20,
+        'story-c': 30,
+        'story-d': 40,
+        'story-e': 50,
+        'story-x': 60,
+      },
+      getTicket: async (n) => {
+        internalIdCalls.push(n);
+        return { internalId: n * 10 };
+      },
+      owner,
+      repo,
+      gh,
+    });
+
+    // Serial reference:
+    //  - story-b → POST blocker 100 → added 1
+    //  - story-c → existing has 100 → skipped 1
+    //  - story-d → POST blocker 100 → added 1
+    //  - story-e → POST blockers 100 + 600 → added 2
+    // = added 4, skipped 1, failed 0, processed 4.
+    assert.deepEqual(result, {
+      edgesAdded: 4,
+      edgesSkipped: 1,
+      edgesFailed: 0,
+      storiesProcessed: 4,
+    });
+
+    const postCalls = gh.calls.filter((c) => c.method === 'POST');
+    assert.equal(postCalls.length, 4);
+  });
+
+  it('does not call getTicket more than once per blocker when getTicket is memoized', async () => {
+    const gh = makeGh({ getResponse: [] });
+
+    // Simulate the caller's per-instance getTicket cache (the provider memoizes
+    // getTicket so a blocker referenced by many stories is fetched once).
+    const cache = new Map();
+    const rawFetches = [];
+    const getTicket = async (n) => {
+      if (cache.has(n)) return cache.get(n);
+      rawFetches.push(n);
+      const ticket = { internalId: n * 10 };
+      cache.set(n, ticket);
+      return ticket;
+    };
+
+    await applyBlockedByDependencies({
+      stories: [
+        { slug: 'story-b', dependsOn: ['story-a'] },
+        { slug: 'story-c', dependsOn: ['story-a'] },
+        { slug: 'story-d', dependsOn: ['story-a'] },
+      ],
+      slugToIssueNumber: {
+        'story-a': 10,
+        'story-b': 20,
+        'story-c': 30,
+        'story-d': 40,
+      },
+      getTicket,
+      owner,
+      repo,
+      gh,
+    });
+
+    // The shared blocker (story-a / #10) is resolved through the cache exactly
+    // once despite three dependent stories referencing it.
+    assert.deepEqual(rawFetches, [10]);
+  });
+
   it('gracefully handles a GET failure by assuming no existing edges', async () => {
     let getCallCount = 0;
     const gh = {
