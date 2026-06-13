@@ -92,12 +92,24 @@ const SCAFFOLD_PROMPT = '\nScaffold stubs now? [y/N]: ';
  * something other than `y` / `yes`. The prompt text is written by the caller
  * via `stdout`, so the question string passed here is empty.
  *
+ * `terminal: false` is **load-bearing**: with terminal mode on (the default
+ * when stdout is a TTY) readline emits cursor-control escapes
+ * (`\x1b[1G\x1b[0J`) that erase the `Scaffold stubs now? [y/N]:` prompt already
+ * written via the caller's `stdout`, leaving the operator staring at a blank,
+ * dead-looking line. Disabling terminal mode preserves the pre-written prompt
+ * and reads the line via the TTY's cooked-mode echo. `createInterface` is
+ * injectable so a test can assert this option is set (regression guard).
+ *
+ * @param {{ createInterface?: typeof readline.createInterface }} [opts]
  * @returns {Promise<boolean>}
  */
-async function readConfirm() {
-  const rl = readline.createInterface({
+export async function readConfirm({
+  createInterface = readline.createInterface,
+} = {}) {
+  const rl = createInterface({
     input: process.stdin,
     output: process.stdout,
+    terminal: false,
   });
   try {
     const answer = (await rl.question('')).trim().toLowerCase();
