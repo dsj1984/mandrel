@@ -38,14 +38,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: 'npm'
-
-      - name: Install Dependencies
-        run: npm ci --ignore-scripts
+      - name: Setup Node & Install
+        uses: ./.github/actions/setup
 
       - name: Dependency Vulnerability Audit (SCA)
         run: npm audit --audit-level=high
@@ -133,14 +127,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: 'npm'
-
-      - name: Install Dependencies
-        run: npm ci --ignore-scripts
+      - name: Setup Node & Install
+        uses: ./.github/actions/setup
 
       - name: Run check-baselines
         run: node .agents/scripts/check-baselines.js --format text
@@ -173,14 +161,8 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: 'npm'
-
-      - name: Install Dependencies
-        run: npm ci --ignore-scripts
+      - name: Setup Node & Install
+        uses: ./.github/actions/setup
 
       - name: Bootstrap (dry-run)
         run: node .agents/scripts/bootstrap.js --dry-run --assume-yes --skip-github
