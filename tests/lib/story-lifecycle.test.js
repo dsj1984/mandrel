@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { STATE_LABELS } from '../../.agents/scripts/lib/orchestration/ticketing.js';
-import { composeStoryBody } from '../../.agents/scripts/providers/github/tickets.js';
 import {
   batchTransitionTickets,
   fetchChildTickets,
   resolveStoryHierarchy,
 } from '../../.agents/scripts/lib/story-lifecycle.js';
+import { composeStoryBody } from '../../.agents/scripts/providers/github/tickets.js';
 
 describe('story-lifecycle', () => {
   describe('resolveStoryHierarchy', () => {
