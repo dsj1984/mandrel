@@ -26,7 +26,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 
-const { runInitTail, PLAN_HANDOFF_TEXT } = await import(
+const { runInitTail, readConfirm, PLAN_HANDOFF_TEXT } = await import(
   pathToFileURL(
     path.resolve(REPO_ROOT, '.agents/scripts/lib/onboard/init-tail.js'),
   ).href
@@ -258,5 +258,39 @@ describe('/onboard retirement', async () => {
       false,
       'onboard.md must be removed — /onboard is retired',
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// readConfirm — scaffold-prompt erase regression guard
+// ---------------------------------------------------------------------------
+
+describe('init tail — readConfirm readline options', () => {
+  it('creates the readline interface with terminal:false so the scaffold prompt is not erased', async () => {
+    let captured;
+    const createInterface = (opts) => {
+      captured = opts;
+      return { question: async () => 'y', close: () => {} };
+    };
+    const result = await readConfirm({ createInterface });
+    assert.equal(
+      captured.terminal,
+      false,
+      'readConfirm must pass terminal:false to readline.createInterface',
+    );
+    assert.equal(result, true, 'a "y" answer resolves to true (scaffold)');
+  });
+
+  it('treats anything but y/yes as decline (default-false for the scaffold offer)', async () => {
+    const make = (answer) => ({
+      createInterface: () => ({
+        question: async () => answer,
+        close: () => {},
+      }),
+    });
+    assert.equal(await readConfirm(make('y')), true);
+    assert.equal(await readConfirm(make('yes')), true);
+    assert.equal(await readConfirm(make('')), false);
+    assert.equal(await readConfirm(make('n')), false);
   });
 });

@@ -27,7 +27,7 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import init, { planInit } from '../../lib/cli/init.js';
+import init, { defaultConfirm, planInit } from '../../lib/cli/init.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
@@ -549,5 +549,41 @@ describe('mandrel init — bin dispatch integration', () => {
       `mandrel init --help exited ${result.status}\nstdout: ${result.stdout}\nstderr: ${result.stderr}`,
     );
     assert.match(result.stdout, /Usage: mandrel init/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// defaultConfirm — prompt-erase regression guard
+// ---------------------------------------------------------------------------
+
+describe('init — defaultConfirm readline options', () => {
+  it('creates the readline interface with terminal:false so the pre-written prompt is not erased', async () => {
+    let captured;
+    const createInterface = (opts) => {
+      captured = opts;
+      return { question: async () => 'y', close: () => {} };
+    };
+    const result = await defaultConfirm({ createInterface });
+    // The load-bearing guard: terminal mode must be off. With it on, readline
+    // emits cursor-erase escapes that wipe the `[Y/n]:` prompt line.
+    assert.equal(
+      captured.terminal,
+      false,
+      'defaultConfirm must pass terminal:false to readline.createInterface',
+    );
+    assert.equal(result, true, 'a "y" answer resolves to true (configure)');
+  });
+
+  it('treats an explicit "no" as decline and bare Enter as the yes default', async () => {
+    const make = (answer) => ({
+      createInterface: () => ({
+        question: async () => answer,
+        close: () => {},
+      }),
+    });
+    assert.equal(await defaultConfirm(make('n')), false);
+    assert.equal(await defaultConfirm(make('no')), false);
+    assert.equal(await defaultConfirm(make('')), true);
+    assert.equal(await defaultConfirm(make('y')), true);
   });
 });
