@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.63.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.62.0...mandrel-v1.63.0) (2026-06-13)
+
+
+### Added
+
+* **decompose:** set native GitHub blocked-by dependencies from Story depends_on graph (refs [#4067](https://github.com/dsj1984/mandrel/issues/4067)) ([#4068](https://github.com/dsj1984/mandrel/issues/4068)) ([1799659](https://github.com/dsj1984/mandrel/commit/1799659a84b06555c9caa1193aec59113c943b78))
+
+
+### Fixed
+
+* **audit-architecture:** add Impact severity field to Detailed Findings (refs [#4085](https://github.com/dsj1984/mandrel/issues/4085)) ([#4096](https://github.com/dsj1984/mandrel/issues/4096)) ([d72c109](https://github.com/dsj1984/mandrel/commit/d72c109195955eff70d7d926abb36a88e32d3f6e))
+* fix stale architecture.md/README docs and broaden the import-cycle gate scan root ([#4071](https://github.com/dsj1984/mandrel/issues/4071)) ([#4090](https://github.com/dsj1984/mandrel/issues/4090)) ([2e97b45](https://github.com/dsj1984/mandrel/commit/2e97b45f9ed43398dc703dd735394c7483329033))
+
+
+### Performance
+
+* **decompose:** parallelize blocked-by edge creation with bounded concurrentMap (refs [#4082](https://github.com/dsj1984/mandrel/issues/4082)) ([#4094](https://github.com/dsj1984/mandrel/issues/4094)) ([a9f38da](https://github.com/dsj1984/mandrel/commit/a9f38da2d44941a164865a6ad291c2da01ee4ed6))
+
+
+### Changed
+
+* `parseProviderFindings` is a CC-30 ternary thicket ([#4074](https://github.com/dsj1984/mandrel/issues/4074)) ([#4089](https://github.com/dsj1984/mandrel/issues/4089)) ([5ed693c](https://github.com/dsj1984/mandrel/commit/5ed693c3325c05a36251b859be5873ab0378031c))
+* extract shared createDriftDetector skeleton for CRAP and MI drift detectors (refs [#4076](https://github.com/dsj1984/mandrel/issues/4076)) ([#4091](https://github.com/dsj1984/mandrel/issues/4091)) ([e8a81a8](https://github.com/dsj1984/mandrel/commit/e8a81a82307a12c3d6e58275d4c4554b07659f4f))
+* **scripts:** reduce CC of CLI orchestration bodies below the must-fix band (refs [#4075](https://github.com/dsj1984/mandrel/issues/4075)) ([#4093](https://github.com/dsj1984/mandrel/issues/4093)) ([53519de](https://github.com/dsj1984/mandrel/commit/53519de7968e59c08479c886ca3713f53f5c039d))
+* **signals:** hoist shared detector validation preamble into common.js (refs [#4077](https://github.com/dsj1984/mandrel/issues/4077)) ([#4092](https://github.com/dsj1984/mandrel/issues/4092)) ([2f6fe7b](https://github.com/dsj1984/mandrel/commit/2f6fe7b103c208fbd3ea4cfedf63d2a7aa412e24))
+* **single-story-init:** inject spawnSync boundary into makeGhRunner (refs [#4073](https://github.com/dsj1984/mandrel/issues/4073)) ([#4087](https://github.com/dsj1984/mandrel/issues/4087)) ([8fae355](https://github.com/dsj1984/mandrel/commit/8fae35568523e3997d8f7e79580c0cc8e0625072))
+* **story-body:** extract per-section sub-parsers from parse() (refs [#4072](https://github.com/dsj1984/mandrel/issues/4072)) ([#4088](https://github.com/dsj1984/mandrel/issues/4088)) ([aa9e472](https://github.com/dsj1984/mandrel/commit/aa9e47204728da0ab4f547927af251fce6a85b69))
+
 ## [1.62.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.61.0...mandrel-v1.62.0) (2026-06-12)
 
 
