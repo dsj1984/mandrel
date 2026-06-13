@@ -463,203 +463,241 @@ function resolveScopeEnvelope(opts, config) {
  *   blockerReason: string|null,
  * }>}
  */
-export async function runCodeReview(opts = {}) {
+/**
+ * Resolve the human-facing provider name from the resolved code-review
+ * config. Chain configs render as `chain[a,b,...]`; a single-provider
+ * config renders its `provider` string; everything else falls back to
+ * `'native'`. Story #4075 — extracted from `runCodeReview`.
+ */
+function resolveProviderName(codeReviewConfig) {
+  const isChainConfig =
+    codeReviewConfig &&
+    Array.isArray(codeReviewConfig.providers) &&
+    codeReviewConfig.providers.length > 0;
+  if (isChainConfig) {
+    return `chain[${codeReviewConfig.providers
+      .map((p) => p?.name ?? '?')
+      .join(',')}]`;
+  }
+  return (
+    (codeReviewConfig && typeof codeReviewConfig.provider === 'string'
+      ? codeReviewConfig.provider
+      : null) ?? 'native'
+  );
+}
+
+/**
+ * Build the provider `runReview` input, resolving the review depth from the
+ * judged risk envelope's `overallLevel` and the mechanical changed-file
+ * count of the diff under review (Story #3876 / #3938). The depth is an
+ * input-only signal (light → standard → deep) and never touches the output
+ * envelope or the posted comment. Absent risk envelope + unknown width →
+ * `standard`. Story #4075 — extracted from `runCodeReview`.
+ */
+function buildReviewInput({ opts, config, scope, ticketId, baseRef, headRef }) {
+  const changedFileCount =
+    typeof opts.changedFileCount === 'number'
+      ? opts.changedFileCount
+      : countChangedFiles({ baseRef, headRef, gitSpawnFn: opts.gitSpawnFn });
+  const depth = resolveDepth({
+    overallLevel: opts.planningRisk?.overallLevel,
+    changedFileCount,
+    sizing: resolveTaskSizing(config),
+  });
+  return {
+    scope,
+    ticketId,
+    baseRef,
+    headRef,
+    labels: Array.isArray(opts.ticketLabels) ? opts.ticketLabels : [],
+    depth,
+  };
+}
+
+/**
+ * Feature-detect manual-prompt providers (Story #2871). Legacy
+ * single-adapter providers don't carry `getPromptMessages`, so the
+ * empty-array fallback keeps the old snapshot byte-stable; a throw is
+ * logged and degraded to empty.
+ */
+async function resolvePromptMessages(reviewProvider, reviewInput, logger) {
+  if (typeof reviewProvider.getPromptMessages !== 'function') return [];
+  try {
+    const out = await reviewProvider.getPromptMessages(reviewInput);
+    return Array.isArray(out) ? out : [];
+  } catch (err) {
+    logger?.warn?.(
+      `[code-review] getPromptMessages threw; treating as empty. ${
+        err?.message ?? err
+      }`,
+    );
+    return [];
+  }
+}
+
+/**
+ * Upsert the rendered report as a structured comment. Posting failure is
+ * non-fatal: it is logged and surfaced via `posted: false`. Story #4075 —
+ * extracted from `runCodeReview`.
+ */
+async function postReviewComment({
+  upsertCommentFn,
+  provider,
+  commentTargetId,
+  report,
+  logger,
+}) {
+  try {
+    const postResult = await upsertCommentFn(
+      provider,
+      commentTargetId,
+      'code-review',
+      report,
+    );
+    const postedCommentId =
+      typeof postResult?.commentId === 'number'
+        ? postResult.commentId
+        : typeof postResult?.id === 'number'
+          ? postResult.id
+          : null;
+    logger?.info?.(
+      `[code-review] Posted structured comment to #${commentTargetId}.`,
+    );
+    return { posted: true, postedCommentId };
+  } catch (err) {
+    logger?.warn?.(
+      `[code-review] Failed to upsert structured comment on #${commentTargetId}: ${err?.message ?? err}`,
+    );
+    return { posted: false, postedCommentId: null };
+  }
+}
+
+/**
+ * Run the review pipeline (resolve provider → runReview → prompt messages →
+ * render → post comment) and shape the `status: 'ok'` result. Pure of the
+ * lifecycle-boundary concern — `runCodeReview` owns the start/end emit pair.
+ * Story #4075 — extracted to keep both bodies below the CC must-fix band.
+ */
+async function executeReviewPipeline({ opts, config, envelope }) {
   const {
     provider,
     logger,
-    bus,
-    now = Date.now,
     reviewProvider: injectedReviewProvider,
-    resolveConfigFn = resolveConfig,
     createReviewProviderFn = createReviewProvider,
     upsertCommentFn = upsertStructuredComment,
     renderFindingsFn = renderFindings,
   } = opts;
+  const { scope, ticketId, baseRef, headRef, commentTargetId } = envelope;
+
+  const codeReviewConfig = config?.delivery?.codeReview ?? null;
+  const providerName = resolveProviderName(codeReviewConfig);
+  const reviewProvider =
+    injectedReviewProvider ?? createReviewProviderFn(codeReviewConfig);
+
+  logger?.info?.(
+    `[code-review] Running ${providerName} adapter for ${scope === 'epic' ? 'Epic' : 'Story'} #${ticketId} (${baseRef}...${headRef})...`,
+  );
+
+  const reviewInput = buildReviewInput({
+    opts,
+    config,
+    scope,
+    ticketId,
+    baseRef,
+    headRef,
+  });
+
+  const findings = await reviewProvider.runReview(reviewInput);
+  if (!Array.isArray(findings)) {
+    throw new TypeError(
+      `[code-review] Review provider "${providerName}" returned a non-array; expected Finding[].`,
+    );
+  }
+
+  const promptMessages = await resolvePromptMessages(
+    reviewProvider,
+    reviewInput,
+    logger,
+  );
+
+  const severity = countBySeverity(findings);
+  const halted = severity.critical > 0;
+  const report = renderFindingsFn({
+    scope,
+    ticketId,
+    baseRef,
+    headRef,
+    findings,
+    provider: providerName,
+    promptMessages,
+  });
+
+  const { posted, postedCommentId } = await postReviewComment({
+    upsertCommentFn,
+    provider,
+    commentTargetId,
+    report,
+    logger,
+  });
+
+  return {
+    status: 'ok',
+    severity,
+    report,
+    posted,
+    postedCommentId,
+    commentTargetId,
+    halted,
+    blockerReason: halted
+      ? `code-review reported ${severity.critical} critical blocker(s)`
+      : null,
+  };
+}
+
+export async function runCodeReview(opts = {}) {
+  const { bus, now = Date.now, resolveConfigFn = resolveConfig } = opts;
 
   const config = resolveConfigFn();
   const envelope = resolveScopeEnvelope(opts, config);
-  const { scope, ticketId, baseRef, headRef, commentTargetId } = envelope;
+  const { scope } = envelope;
 
   // Epic-scope lifecycle ledger requires `bus`; Story-scope sits outside
   // the Epic lifecycle so the bus is optional there. A caller without a
   // bus on the Story path still gets the full review semantics — only the
   // `code-review.start`/`.end` events are suppressed.
-  const requiresBus = scope === 'epic';
-  if (requiresBus && (!bus || typeof bus.emit !== 'function')) {
+  if (scope === 'epic' && (!bus || typeof bus.emit !== 'function')) {
     throw new TypeError('runCodeReview: bus is required (object with emit()).');
   }
   const ledgerEnabled =
     scope === 'epic' && bus && typeof bus.emit === 'function';
 
   const startedAt = typeof now === 'function' ? now() : Date.now();
+  // Emit the matched `code-review.end` boundary; the ledger must always
+  // show a start/end pair (even on adapter throw, where `result` is the
+  // canonical `{ status: 'invalid' }`).
+  const emitEnd = async (result) => {
+    if (!ledgerEnabled) return;
+    const endedAt = typeof now === 'function' ? now() : Date.now();
+    await bus.emit(
+      'code-review.end',
+      buildCodeReviewEndPayload({
+        epicId: envelope.epicIdForLedger,
+        result,
+        durationMs: Math.max(0, endedAt - startedAt),
+      }),
+    );
+  };
+
   if (ledgerEnabled) {
     await bus.emit('code-review.start', { epicId: envelope.epicIdForLedger });
   }
 
   try {
-    const codeReviewConfig = config?.delivery?.codeReview ?? null;
-    const isChainConfig =
-      codeReviewConfig &&
-      Array.isArray(codeReviewConfig.providers) &&
-      codeReviewConfig.providers.length > 0;
-    const providerName = isChainConfig
-      ? `chain[${codeReviewConfig.providers
-          .map((p) => p?.name ?? '?')
-          .join(',')}]`
-      : ((codeReviewConfig && typeof codeReviewConfig.provider === 'string'
-          ? codeReviewConfig.provider
-          : null) ?? 'native');
-    const reviewProvider =
-      injectedReviewProvider ?? createReviewProviderFn(codeReviewConfig);
-
-    const scopeLabel = scope === 'epic' ? 'Epic' : 'Story';
-    logger?.info?.(
-      `[code-review] Running ${providerName} adapter for ${scopeLabel} #${ticketId} (${baseRef}...${headRef})...`,
-    );
-
-    const ticketLabels = Array.isArray(opts.ticketLabels)
-      ? opts.ticketLabels
-      : [];
-    // Story #3876 / #3938 — resolve the review depth from BOTH the judged risk
-    // envelope's `overallLevel` and the mechanical changed-file count of the
-    // diff under review, then thread it into the provider's `runReview` input.
-    // The depth is an input-only signal: it tells the provider how thorough to
-    // be (light → standard → deep) and never touches the output envelope or the
-    // posted structured comment. The changed-file count is enumerated from the
-    // same `baseRef...headRef` diff the native provider reviews; a count that
-    // cannot be determined is the neutral "width unknown" signal that neither
-    // escalates to `deep` nor blocks `light`. The `sizing` thresholds honour
-    // the operator's `planning.taskSizing` override. Absent risk envelope +
-    // unknown width → `standard` (the neutral default), preserving the
-    // pre-change behaviour for callers that pass no risk envelope.
-    const changedFileCount =
-      typeof opts.changedFileCount === 'number'
-        ? opts.changedFileCount
-        : countChangedFiles({
-            baseRef,
-            headRef,
-            gitSpawnFn: opts.gitSpawnFn,
-          });
-    const depth = resolveDepth({
-      overallLevel: opts.planningRisk?.overallLevel,
-      changedFileCount,
-      sizing: resolveTaskSizing(config),
-    });
-    const reviewInput = {
-      scope,
-      ticketId,
-      baseRef,
-      headRef,
-      labels: ticketLabels,
-      depth,
-    };
-
-    const findings = await reviewProvider.runReview(reviewInput);
-
-    if (!Array.isArray(findings)) {
-      throw new TypeError(
-        `[code-review] Review provider "${providerName}" returned a non-array; expected Finding[].`,
-      );
-    }
-
-    // Story #2871 — feature-detect manual-prompt providers. Legacy
-    // single-adapter providers don't carry `getPromptMessages`, so the
-    // empty-array fallback keeps the old snapshot byte-stable.
-    let promptMessages = [];
-    if (typeof reviewProvider.getPromptMessages === 'function') {
-      try {
-        const out = await reviewProvider.getPromptMessages(reviewInput);
-        promptMessages = Array.isArray(out) ? out : [];
-      } catch (err) {
-        logger?.warn?.(
-          `[code-review] getPromptMessages threw; treating as empty. ${
-            err?.message ?? err
-          }`,
-        );
-        promptMessages = [];
-      }
-    }
-
-    const severity = countBySeverity(findings);
-    const halted = severity.critical > 0;
-    const blockerReason = halted
-      ? `code-review reported ${severity.critical} critical blocker(s)`
-      : null;
-
-    const report = renderFindingsFn({
-      scope,
-      ticketId,
-      baseRef,
-      headRef,
-      findings,
-      provider: providerName,
-      promptMessages,
-    });
-
-    let posted = false;
-    let postedCommentId = null;
-    try {
-      const postResult = await upsertCommentFn(
-        provider,
-        commentTargetId,
-        'code-review',
-        report,
-      );
-      posted = true;
-      const rawId =
-        typeof postResult?.commentId === 'number'
-          ? postResult.commentId
-          : typeof postResult?.id === 'number'
-            ? postResult.id
-            : null;
-      postedCommentId = rawId;
-      logger?.info?.(
-        `[code-review] Posted structured comment to #${commentTargetId}.`,
-      );
-    } catch (err) {
-      logger?.warn?.(
-        `[code-review] Failed to upsert structured comment on #${commentTargetId}: ${err?.message ?? err}`,
-      );
-      posted = false;
-    }
-
-    const result = {
-      status: 'ok',
-      severity,
-      report,
-      posted,
-      postedCommentId,
-      commentTargetId,
-      halted,
-      blockerReason,
-    };
-    if (ledgerEnabled) {
-      const endedAt = typeof now === 'function' ? now() : Date.now();
-      await bus.emit(
-        'code-review.end',
-        buildCodeReviewEndPayload({
-          epicId: envelope.epicIdForLedger,
-          result,
-          durationMs: Math.max(0, endedAt - startedAt),
-        }),
-      );
-    }
+    const result = await executeReviewPipeline({ opts, config, envelope });
+    await emitEnd(result);
     return result;
   } catch (err) {
-    // Surface the closing boundary even on adapter throw — the ledger
-    // must always show a matched start/end pair. `status: 'invalid'`
-    // is the canonical "could not complete" value.
-    if (ledgerEnabled) {
-      const endedAt = typeof now === 'function' ? now() : Date.now();
-      await bus.emit(
-        'code-review.end',
-        buildCodeReviewEndPayload({
-          epicId: envelope.epicIdForLedger,
-          result: { status: 'invalid' },
-          durationMs: Math.max(0, endedAt - startedAt),
-        }),
-      );
-    }
+    await emitEnd({ status: 'invalid' });
     throw err;
   }
 }

@@ -238,6 +238,169 @@ export async function createFollowUpIssue({
  * @param {(record: object, finding: object) => object} [opts.spec.decorateRecord]
  * @returns {Promise<{ filed: object[], skipped: object[], errors: string[] }>}
  */
+/**
+ * Validate the `graduate` preconditions (toggle, epicId, provider shape,
+ * currentRepo shape). Returns `null` when all preconditions pass, or a
+ * `{ skipped?, errors? }` partial-envelope the caller short-circuits on.
+ * Story #4075 — extracted from `graduate` so the orchestrating body holds
+ * no guard-chain branching.
+ */
+function checkGraduatePreconditions({
+  epicId,
+  provider,
+  currentRepo,
+  config,
+  spec,
+}) {
+  if (!spec.isAutoFileEnabled(config)) {
+    return { skipped: [{ reason: 'toggle-disabled' }] };
+  }
+  if (!Number.isInteger(epicId) || epicId < 1) {
+    return { errors: [`${spec.fnName}: missing or invalid epicId`] };
+  }
+  if (!provider || typeof provider.getTicketComments !== 'function') {
+    return { errors: [`${spec.fnName}: provider lacks getTicketComments`] };
+  }
+  if (
+    !currentRepo ||
+    typeof currentRepo.owner !== 'string' ||
+    typeof currentRepo.repo !== 'string'
+  ) {
+    return { errors: [`${spec.fnName}: missing currentRepo {owner,repo}`] };
+  }
+  return null;
+}
+
+/**
+ * Read the source structured comment off the Epic and parse its findings.
+ * Returns `{ findings }` on success, or `{ skipped?, errors? }` for the
+ * no-comment / parse-empty / fetch-error short-circuits. Story #4075 —
+ * extracted from `graduate`.
+ */
+async function loadGraduateFindings({ epicId, provider, spec }) {
+  let comments;
+  try {
+    comments = await provider.getTicketComments(epicId);
+  } catch (err) {
+    return {
+      errors: [
+        `getTicketComments failed for epic #${epicId}: ${err?.message ?? err}`,
+      ],
+    };
+  }
+  const matched = (Array.isArray(comments) ? comments : []).filter(
+    (c) => typeof c?.body === 'string' && c.body.includes(spec.commentMarker),
+  );
+  if (matched.length === 0) {
+    return { skipped: [{ reason: spec.noCommentReason }] };
+  }
+  const findings = spec.parseFindings(matched[matched.length - 1].body);
+  if (findings.length === 0) {
+    return { skipped: [{ reason: 'no-non-blocking-findings' }] };
+  }
+  return { findings };
+}
+
+/**
+ * Route a single finding (path-exists probe → repo routing → idempotency
+ * probe → file) and fold the outcome into the running envelope. Story #4075
+ * — extracted from `graduate`'s per-finding loop body.
+ */
+async function processGraduateFinding({
+  finding,
+  envelope,
+  decorate,
+  epicId,
+  currentRepo,
+  frameworkRepo,
+  classifier,
+  gitRef,
+  ghPath,
+  spawnImpl,
+  cwd,
+  logger,
+  spec,
+}) {
+  const skip = (reason) =>
+    envelope.skipped.push(
+      decorate(
+        {
+          index: finding.index,
+          reason,
+          path: finding.path,
+          severity: finding.severity,
+        },
+        finding,
+      ),
+    );
+
+  const exists = await probePathExists({
+    ref: gitRef,
+    path: finding.path,
+    spawnImpl,
+    cwd,
+  });
+  if (!exists) return skip('file-removed');
+
+  const source = classifier(finding.path, null);
+  const routedRepo =
+    source === 'framework' && frameworkRepo ? frameworkRepo : currentRepo;
+  const isCrossRepo =
+    routedRepo.owner !== currentRepo.owner ||
+    routedRepo.repo !== currentRepo.repo;
+  if (isCrossRepo) {
+    logger?.info?.(spec.buildCrossRepoLog({ finding, routedRepo, source }));
+    return skip('cross-repo-deferred');
+  }
+
+  const idMarker = spec.buildIdempotencyMarker(epicId, finding.index);
+  const alreadyFiled = await probeMarkerExists({
+    marker: idMarker,
+    owner: routedRepo.owner,
+    repo: routedRepo.repo,
+    ghPath,
+    spawnImpl,
+    cwd,
+  });
+  if (alreadyFiled) return skip('already-filed');
+
+  const { title, body, labels } = spec.buildFollowUp({
+    finding,
+    source,
+    epicId,
+    idMarker,
+  });
+  const created = await createFollowUpIssue({
+    owner: routedRepo.owner,
+    repo: routedRepo.repo,
+    title,
+    body,
+    labels,
+    ghPath,
+    spawnImpl,
+    cwd,
+  });
+  if (created.error) {
+    envelope.errors.push(
+      `finding ${finding.index} (${finding.path}): ${created.error}`,
+    );
+    return;
+  }
+  envelope.filed.push(
+    decorate(
+      {
+        index: finding.index,
+        severity: finding.severity,
+        path: finding.path,
+        source,
+        repo: `${routedRepo.owner}/${routedRepo.repo}`,
+        url: created.url,
+      },
+      finding,
+    ),
+  );
+}
+
 export async function graduate({
   epicId,
   provider,
@@ -258,163 +421,34 @@ export async function graduate({
       ? spec.decorateRecord
       : (record) => record;
 
-  if (!spec.isAutoFileEnabled(config)) {
-    envelope.skipped.push({ reason: 'toggle-disabled' });
-    return envelope;
-  }
+  const precondition = checkGraduatePreconditions({
+    epicId,
+    provider,
+    currentRepo,
+    config,
+    spec,
+  });
+  if (precondition) return { ...envelope, ...precondition };
 
-  if (!Number.isInteger(epicId) || epicId < 1) {
-    envelope.errors.push(`${spec.fnName}: missing or invalid epicId`);
-    return envelope;
-  }
-  if (!provider || typeof provider.getTicketComments !== 'function') {
-    envelope.errors.push(`${spec.fnName}: provider lacks getTicketComments`);
-    return envelope;
-  }
-  if (
-    !currentRepo ||
-    typeof currentRepo.owner !== 'string' ||
-    typeof currentRepo.repo !== 'string'
-  ) {
-    envelope.errors.push(`${spec.fnName}: missing currentRepo {owner,repo}`);
-    return envelope;
-  }
+  const loaded = await loadGraduateFindings({ epicId, provider, spec });
+  if (!loaded.findings) return { ...envelope, ...loaded };
 
-  // 1. Read the structured comment off the Epic.
-  let comments;
-  try {
-    comments = await provider.getTicketComments(epicId);
-  } catch (err) {
-    envelope.errors.push(
-      `getTicketComments failed for epic #${epicId}: ${err?.message ?? err}`,
-    );
-    return envelope;
-  }
-  if (!Array.isArray(comments) || comments.length === 0) {
-    envelope.skipped.push({ reason: spec.noCommentReason });
-    return envelope;
-  }
-  const matched = comments.filter(
-    (c) => typeof c?.body === 'string' && c.body.includes(spec.commentMarker),
-  );
-  if (matched.length === 0) {
-    envelope.skipped.push({ reason: spec.noCommentReason });
-    return envelope;
-  }
-  const sourceComment = matched[matched.length - 1];
-
-  // 2. Parse findings.
-  const findings = spec.parseFindings(sourceComment.body);
-  if (findings.length === 0) {
-    envelope.skipped.push({ reason: 'no-non-blocking-findings' });
-    return envelope;
-  }
-
-  // 3. For each finding, route → idempotency probe → file.
-  for (const finding of findings) {
-    const exists = await probePathExists({
-      ref: gitRef,
-      path: finding.path,
-      spawnImpl,
-      cwd,
-    });
-    if (!exists) {
-      envelope.skipped.push(
-        decorate(
-          {
-            index: finding.index,
-            reason: 'file-removed',
-            path: finding.path,
-            severity: finding.severity,
-          },
-          finding,
-        ),
-      );
-      continue;
-    }
-
-    const source = classifier(finding.path, null);
-    const routedRepo =
-      source === 'framework' && frameworkRepo ? frameworkRepo : currentRepo;
-
-    const isCrossRepo =
-      routedRepo.owner !== currentRepo.owner ||
-      routedRepo.repo !== currentRepo.repo;
-    if (isCrossRepo) {
-      logger?.info?.(spec.buildCrossRepoLog({ finding, routedRepo, source }));
-      envelope.skipped.push(
-        decorate(
-          {
-            index: finding.index,
-            reason: 'cross-repo-deferred',
-            path: finding.path,
-            severity: finding.severity,
-          },
-          finding,
-        ),
-      );
-      continue;
-    }
-
-    const idMarker = spec.buildIdempotencyMarker(epicId, finding.index);
-    const alreadyFiled = await probeMarkerExists({
-      marker: idMarker,
-      owner: routedRepo.owner,
-      repo: routedRepo.repo,
-      ghPath,
-      spawnImpl,
-      cwd,
-    });
-    if (alreadyFiled) {
-      envelope.skipped.push(
-        decorate(
-          {
-            index: finding.index,
-            reason: 'already-filed',
-            path: finding.path,
-            severity: finding.severity,
-          },
-          finding,
-        ),
-      );
-      continue;
-    }
-
-    const { title, body, labels } = spec.buildFollowUp({
+  for (const finding of loaded.findings) {
+    await processGraduateFinding({
       finding,
-      source,
+      envelope,
+      decorate,
       epicId,
-      idMarker,
-    });
-    const created = await createFollowUpIssue({
-      owner: routedRepo.owner,
-      repo: routedRepo.repo,
-      title,
-      body,
-      labels,
+      currentRepo,
+      frameworkRepo,
+      classifier,
+      gitRef,
       ghPath,
       spawnImpl,
       cwd,
+      logger,
+      spec,
     });
-    if (created.error) {
-      envelope.errors.push(
-        `finding ${finding.index} (${finding.path}): ${created.error}`,
-      );
-      continue;
-    }
-    envelope.filed.push(
-      decorate(
-        {
-          index: finding.index,
-          severity: finding.severity,
-          path: finding.path,
-          source,
-          repo: `${routedRepo.owner}/${routedRepo.repo}`,
-          url: created.url,
-        },
-        finding,
-      ),
-    );
   }
 
   return envelope;

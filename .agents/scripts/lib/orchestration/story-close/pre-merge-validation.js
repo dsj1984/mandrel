@@ -39,6 +39,42 @@ import { getBaselines as defaultGetBaselines } from '../../config-resolver.js';
 import { Logger as DefaultLogger } from '../../Logger.js';
 
 /**
+ * Story #2250 — lifecycle emits fire only when both a positive epicId and a
+ * positive storyId are present (the schema requires both) and a bus exists.
+ * Legacy resume fixtures pass `storyId: null` and must run without emits.
+ * Story #4075 — extracted from `runPreMergeGates`.
+ */
+export function lifecycleEmitsActive({ epicId, storyId, bus }) {
+  return (
+    Number.isInteger(epicId) &&
+    epicId > 0 &&
+    Number.isInteger(storyId) &&
+    storyId > 0 &&
+    !!bus
+  );
+}
+
+/**
+ * Build the typed `PRE_MERGE_GATE_FAILED` Error from the first failed gate.
+ * Story #2136 / Task #2143 — failure metadata is surfaced as typed Error
+ * properties so callers (notably `runPreMergeGatesWithAttribution`)
+ * pattern-match exit codes without parsing the human message; the message
+ * format is preserved byte-for-byte so existing regex consumers keep
+ * matching. Story #4075 — extracted from `runPreMergeGates`.
+ */
+export function buildGateFailureError({ gate, status, gateCwd }) {
+  const err = new Error(
+    `Pre-merge validation failed at "${gate.name}" (exit ${status})${gateCwd ? ` in ${gateCwd}` : ''}.` +
+      (gate.hint ? ` ${gate.hint}` : ''),
+  );
+  err.code = 'PRE_MERGE_GATE_FAILED';
+  err.gateName = gate.name;
+  err.exitCode = status;
+  err.gateCwd = gateCwd ?? null;
+  return err;
+}
+
+/**
  * Run the pre-merge validation gate chain. On failure throws an `Error`
  * whose message embeds the first failed gate's name, exit code, hint, and
  * the working directory the gate ran in — the `runAsCli` boundary in
@@ -103,13 +139,28 @@ export async function runPreMergeGates({
   // and a storyId are present; the schema requires both, and unit
   // fixtures that drive the helper with `storyId: null` (legacy resume
   // tests) must continue to operate without lifecycle observability.
-  const emitsActive =
-    Number.isInteger(epicId) &&
-    epicId > 0 &&
-    Number.isInteger(storyId) &&
-    storyId > 0 &&
-    !!bus;
+  const emitsActive = lifecycleEmitsActive({ epicId, storyId, bus });
   const startedAt = typeof now === 'function' ? now() : Date.now();
+
+  // Emit the `close-validate.end` boundary, plus the `story.blocked`
+  // cascade trigger on failure (Story #2250). No-op when emits are
+  // inactive (legacy resume fixtures with `storyId: null`).
+  const emitEnd = async ({ ok, extra = {}, blockedReason } = {}) => {
+    if (!emitsActive) return;
+    const endedAt = typeof now === 'function' ? now() : Date.now();
+    await bus.emit('close-validate.end', {
+      epicId,
+      storyId,
+      ok,
+      gateCount,
+      ...extra,
+      durationMs: Math.max(0, endedAt - startedAt),
+    });
+    if (blockedReason) {
+      await bus.emit('story.blocked', { storyId, reason: blockedReason });
+    }
+  };
+
   if (emitsActive) {
     await bus.emit('close-validate.start', { epicId, storyId });
   }
@@ -139,74 +190,27 @@ export async function runPreMergeGates({
     // `validation.failed` below). Emit the matching `close-validate.end`
     // with `ok:false` so the ledger always carries the boundary, then
     // re-throw.
-    if (emitsActive) {
-      const endedAt = typeof now === 'function' ? now() : Date.now();
-      await bus.emit('close-validate.end', {
-        epicId,
-        storyId,
-        ok: false,
-        gateCount,
-        failedGate: 'runner-error',
-        durationMs: Math.max(0, endedAt - startedAt),
-      });
-      await bus.emit('story.blocked', {
-        storyId,
-        reason: 'close-validate-failed:runner-error',
-      });
-    }
+    await emitEnd({
+      ok: false,
+      extra: { failedGate: 'runner-error' },
+      blockedReason: 'close-validate-failed:runner-error',
+    });
     throw err;
   }
   if (!validation.ok) {
-    const [first] = validation.failed;
-    const { gate, status, cwd: gateCwd } = first;
-    // Story #2250 — emit `close-validate.end` with `ok:false` BEFORE
-    // throwing so the lifecycle ledger captures the boundary even when
-    // the caller's try/catch swallows the throw. Then emit
-    // `story.blocked` with the typed `close-validate-failed:<gate>`
-    // reason so the BlockerHandler listener cascades to `epic.blocked`
-    // — failed validators MUST route through the lifecycle cascade.
-    if (emitsActive) {
-      const endedAt = typeof now === 'function' ? now() : Date.now();
-      await bus.emit('close-validate.end', {
-        epicId,
-        storyId,
-        ok: false,
-        gateCount,
-        failedGate: gate.name,
-        exitCode: status,
-        durationMs: Math.max(0, endedAt - startedAt),
-      });
-      await bus.emit('story.blocked', {
-        storyId,
-        reason: `close-validate-failed:${gate.name}`,
-      });
-    }
-    // Story #2136 / Task #2143 — surface the structured failure metadata
-    // as typed properties on the Error so callers (notably
-    // `runPreMergeGatesWithAttribution`) can pattern-match exit codes
-    // without parsing the human message. The message format is preserved
-    // byte-for-byte so the existing regex consumers in the wiring layer
-    // keep matching.
-    const err = new Error(
-      `Pre-merge validation failed at "${gate.name}" (exit ${status})${gateCwd ? ` in ${gateCwd}` : ''}.` +
-        (gate.hint ? ` ${gate.hint}` : ''),
-    );
-    err.code = 'PRE_MERGE_GATE_FAILED';
-    err.gateName = gate.name;
-    err.exitCode = status;
-    err.gateCwd = gateCwd ?? null;
-    throw err;
-  }
-  if (emitsActive) {
-    const endedAt = typeof now === 'function' ? now() : Date.now();
-    await bus.emit('close-validate.end', {
-      epicId,
-      storyId,
-      ok: true,
-      gateCount,
-      durationMs: Math.max(0, endedAt - startedAt),
+    const { gate, status, cwd: gateCwd } = validation.failed[0];
+    // Story #2250 — emit the boundary + `story.blocked` cascade BEFORE
+    // throwing so the lifecycle ledger captures the boundary even when the
+    // caller's try/catch swallows the throw, and the BlockerHandler
+    // listener cascades to `epic.blocked`.
+    await emitEnd({
+      ok: false,
+      extra: { failedGate: gate.name, exitCode: status },
+      blockedReason: `close-validate-failed:${gate.name}`,
     });
+    throw buildGateFailureError({ gate, status, gateCwd });
   }
+  await emitEnd({ ok: true });
   return validation;
 }
 
