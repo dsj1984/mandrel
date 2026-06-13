@@ -4,7 +4,7 @@ import { loadCoverage as defaultLoadCoverage } from '../../../coverage-utils.js'
 import { calculateCrapForSource } from '../../../crap-engine.js';
 import { formatNumber } from './_bullet-format.js';
 import {
-  createSnapshotStore,
+  createDriftDetector,
   walkComponentRegressions,
 } from './component-drift.js';
 
@@ -117,16 +117,7 @@ export function createCrapDriftDetector(opts = {}) {
   const ceiling = Number.isFinite(opts.ceiling)
     ? opts.ceiling
     : DEFAULT_CEILING;
-  const baselineDir = opts.baselineDir ?? '.agents/state';
-  const baselinePath = path.join(cwd, baselineDir, BASELINE_FILENAME);
   const logger = opts.logger ?? null;
-  const store = createSnapshotStore({
-    fs,
-    baselinePath,
-    metadata: { ceiling, threshold },
-  });
-
-  let baseline = null;
 
   function methodKey(method, startLine) {
     return `${method}@${startLine}`;
@@ -187,46 +178,33 @@ export function createCrapDriftDetector(opts = {}) {
     }
   }
 
-  return {
-    get baselinePath() {
-      return baselinePath;
-    },
-
-    captureBaseline() {
-      const coverageMap = readCoverageMap();
-      const snapshot = {};
-      for (const f of files) {
-        const methods = scoreFile(f, coverageMap);
-        if (!methods) continue;
-        snapshot[f] = {};
-        for (const [key, row] of Object.entries(methods)) {
-          snapshot[f][key] = row.crap;
-        }
+  return createDriftDetector({
+    fs,
+    cwd,
+    files: opts.files,
+    baselineDir: opts.baselineDir,
+    baselineFilename: BASELINE_FILENAME,
+    metadata: { ceiling, threshold },
+    beforeScore: readCoverageMap,
+    scoreFile,
+    captureScore: (methods) => {
+      const persisted = {};
+      for (const [key, row] of Object.entries(methods)) {
+        persisted[key] = row.crap;
       }
-      baseline = snapshot;
-      store.persist(snapshot);
-      return snapshot;
+      return persisted;
     },
-
-    loadBaseline() {
-      baseline = store.load();
-      return baseline;
-    },
-
-    async detect() {
-      if (!baseline) return [];
-      const coverageMap = readCoverageMap();
+    async detect({ baseline, scoreFile: score }) {
       const bullets = [];
-      const base = baseline;
       // Union of files watched and files present in baseline, so methods that
       // appeared since the snapshot (new files) are still checked, and methods
       // that disappeared from baseline-only files don't get us stuck iterating
       // anything spurious.
-      const fileSet = new Set([...files, ...Object.keys(base)]);
+      const fileSet = new Set([...files, ...Object.keys(baseline)]);
       for (const relPath of fileSet) {
-        const currentMethods = scoreFile(relPath, coverageMap);
+        const currentMethods = score(relPath);
         if (!currentMethods) continue;
-        const fileBaseline = base[relPath] ?? {};
+        const fileBaseline = baseline[relPath] ?? {};
         for (const [key, row] of Object.entries(currentMethods)) {
           const prev = fileBaseline[key];
           const crossed =
@@ -245,5 +223,5 @@ export function createCrapDriftDetector(opts = {}) {
       }
       return bullets;
     },
-  };
+  });
 }
