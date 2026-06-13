@@ -163,7 +163,7 @@ The orchestration engine is the **runtime brain** — a set of JavaScript ESM
 scripts that automate the entire SDLC from planning through integration. The
 operator-facing surface is two slash commands on the SDL critical
 path — `/plan` (with optional ideation entry) and `/deliver` —
-plus `/deliver` for single-Story drives off the dispatch table.
+where `/deliver` also routes single-Story drives off the dispatch table.
 Planning is **git-state-free**: `/plan` produces a declarative
 `epic.yaml` artifact (Epic #1182) that is diff-able, replayable,
 and reconcilable against GitHub via `epic-reconcile.js`; the Epic branch
@@ -463,12 +463,19 @@ classDiagram
 only shipped concrete class. The post-reshape canonical config has no
 provider-selector key; the factory's `PROVIDERS` map is the registry.
 
-**Internal layout**: `providers/github.js` is a thin façade over focused
-modules under `providers/github/`: `ticket-mapper.js` (REST/GraphQL payload →
-ticket shape), `graphql-builder.js` (named query + mutation strings),
-`cache.js` (per-instance ticket cache), and
-`error-classifier.js` (GraphQL error → category). The façade re-exports every
-symbol consumers previously imported.
+**Internal layout**: `provider-factory.js` is the canonical entrypoint for
+obtaining a `GitHubProvider`; callers go through the factory rather than
+constructing the class directly. `providers/github.js` is a thin composition
+root over focused modules under `providers/github/` (tickets, sub-issues,
+comments, labels, branch-protection, merge-methods, PRs, project-board, and
+issues gateways). The barrel is **not** a single public re-export point: it
+re-exports the `GitHubProvider` class plus the five error-classification
+helpers (`classifyGithubError`, `extractErrorFields`, `isPermissionSignal`,
+`isTransientByCodeOrMessage`, `isTransientStatus`) — the mapper, auth, and
+sub-issue symbols were removed as dead exports in Story #3650 (Epic #3599). The
+remaining `providers/github/*` helper modules (e.g. `blocked-by-add.js`,
+`board-add.js`) are imported **directly** at their call sites, not through the
+façade.
 
 ---
 
@@ -909,7 +916,7 @@ and escape hatches.
 
 ### Execution-model modes
 
-The two-skill execution surface (`/deliver` and `/deliver`) runs
+The unified `/deliver` execution surface runs
 in two execution-model modes that share one codepath and differ only in
 whether worktrees are created. The `resolveWorktreeEnabled` function in
 `lib/config-resolver.js` selects the mode at startup based on
@@ -998,12 +1005,28 @@ helps reviewers prioritize, but does not pause execution.
 
 ### Anti-Thrashing Protocol
 
-The framework enforces two circuit breakers to prevent runaway cost:
+The protocol is **qualitative, agent-judgment-based** — there are no numeric
+thresholds and no config keys to tune, because no framework code increments a
+counter or fires at a boundary. The authoritative contract is
+[`.agents/instructions.md` § 1.I](../.agents/instructions.md); the agent stops,
+summarizes, and re-plans (or yields to the operator) on any of three cues:
 
-- **Error Threshold** (`consecutiveErrorCount`, default 3): Stop after N
-  consecutive tool errors.
-- **Stagnation Threshold** (`stagnationStepCount`, default 5): Stop after N
-  steps without file modifications.
+- **Failure cluster**: a handful of tool calls in a row return errors of the
+  same shape and the next attempt is unlikely to surface new information.
+- **Research drift**: several steps of reading code or docs without writing
+  anything, and the additional reads no longer narrow the problem space.
+- **Same fix, same failure**: the same kind of fix has been applied more than
+  once for the same error class and the failure mode hasn't changed — the
+  diagnosis is wrong.
+
+The protocol has a runtime substrate: a Story delivery sub-agent emits a
+`story.heartbeat` lifecycle event on each Task transition (or when it stalls on
+a long-running step), and the parent `/deliver` idle watchdog
+(`wave-tick.js --check-idle`, re-ticked every 30 minutes) consumes those
+heartbeats to distinguish a child still making progress from a dead one. A
+child with no recent `story.heartbeat`, no commit on its `story-<id>` branch,
+and no `agent::blocked` label is the failure mode the watchdog re-dispatches or
+escalates without the child's participation.
 
 ---
 
