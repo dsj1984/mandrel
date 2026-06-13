@@ -1,0 +1,32 @@
+name: Setup
+description: >-
+  Checkout the repository, set up Node.js 22 with npm caching, and install
+  dependencies with `npm ci --ignore-scripts`. Centralizes the
+  checkout + setup-node + install block shared across CI jobs so the Node
+  version and cache config live in one place (Story #4080).
+
+inputs:
+  fetch-depth:
+    description: >-
+      Number of commits to fetch. `0` fetches all history (required by jobs
+      that diff against the base branch); `1` (default) is a shallow checkout.
+    required: false
+    default: '1'
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: ${{ inputs.fetch-depth }}
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: 'npm'
+
+    - name: Install Dependencies
+      shell: bash
+      run: npm ci --ignore-scripts
