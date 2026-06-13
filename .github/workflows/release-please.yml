@@ -38,8 +38,10 @@ jobs:
       # Pinned to an exact release tag rather than a floating major (`@v5`)
       # or the moving `@main` ref — a third-party action's default branch
       # is a supply-chain risk vector (CWE-1357). Bump deliberately when a
-      # new release-please-action ships; `npm run audit-security` flags
-      # any reversion to `@main` / `@master`.
+      # new release-please-action ships; the `Action Pinning Guard` step in
+      # ci.yml (.agents/scripts/check-action-pinning.js) scans every
+      # workflow — including this one — and fails the build on any reversion
+      # to `@main` / `@master` / a floating tag.
       #
       # Token preference: RELEASE_PLEASE_TOKEN (operator-managed PAT or
       # GitHub App installation token) first, default GITHUB_TOKEN as
