@@ -1,11 +1,12 @@
 name: Setup Node & Install
 description: >-
-  Set up Node.js 22 with npm caching and install dependencies with
-  `npm ci --ignore-scripts`. Centralizes the setup-node + install block shared
-  across CI jobs so the Node version, cache config, and install flags live in
-  one place (Story #4080). The repository MUST already be checked out by an
-  `actions/checkout` step in the calling job before this action runs — a local
-  composite action cannot check out the repo that defines it.
+  Set up Node.js (pinned by the repo-root `.nvmrc`) with npm caching and
+  install dependencies with `npm ci --ignore-scripts`. Centralizes the
+  setup-node + install block shared across CI jobs so the Node version (via
+  `.nvmrc`), cache config, and install flags live in one place (Story #4080).
+  The repository MUST already be checked out by an `actions/checkout` step in
+  the calling job before this action runs — a local composite action cannot
+  check out the repo that defines it.
 
 runs:
   using: composite
@@ -13,7 +14,7 @@ runs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: 22
+        node-version-file: .nvmrc
         cache: 'npm'
 
     - name: Install Dependencies
