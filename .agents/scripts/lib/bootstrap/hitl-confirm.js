@@ -61,7 +61,7 @@ export async function confirm({ summary, current, proposed }, opts = {}) {
   // Render the diff. Single-line summary, then a JSON block so the
   // operator can pipe the prompt to a logger and still recover the
   // structured shape.
-  stdout.write(`\n[Bootstrap] HITL confirm: ${summary}\n`);
+  stdout.write(`\nHITL confirm: ${summary}\n`);
   stdout.write(
     `  current:  ${JSON.stringify(current ?? null, null, 2)
       .split('\n')

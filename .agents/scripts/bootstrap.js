@@ -539,7 +539,7 @@ export function buildQuestions(defaults, flags, env = process.env, lists = {}) {
       key: 'owner',
       flag: 'owner',
       env: 'GH_OWNER',
-      message: 'Github repo owner',
+      message: '\n\nGithub repo owner',
       default: defaults.owner,
       required: true,
       validate: (v) =>
@@ -549,7 +549,8 @@ export function buildQuestions(defaults, flags, env = process.env, lists = {}) {
       key: 'operatorHandle',
       flag: 'operator-handle',
       env: 'GH_OPERATOR_HANDLE',
-      message: 'Github username/handle (without the @)',
+      message:
+        'Github username/handle without preceding@ (default: same as owner)',
       // Default tracks the repo owner; resolved post-collect if left blank.
       default: defaults.owner,
       required: false,
@@ -562,8 +563,9 @@ export function buildQuestions(defaults, flags, env = process.env, lists = {}) {
       key: 'repo',
       flag: 'repo',
       env: 'GH_REPO',
-      message:
-        'Github repo name - Select from the list or enter a new name to create one',
+      message: 'New GitHub repo name',
+      pickerMessage:
+        'GitHub repo name  - Select existing or press ENTER to create',
       default: defaults.repo,
       required: true,
       picker: {
@@ -590,8 +592,9 @@ export function buildQuestions(defaults, flags, env = process.env, lists = {}) {
       key: 'projectNumber',
       flag: 'project-number',
       env: 'GH_PROJECT_NUMBER',
-      message:
-        'Github Project V2 name - Select from the list or enter a new name to create one',
+      message: 'New GitHub Project V2 name',
+      pickerMessage:
+        'GitHub Project V2 name  - Select existing or press ENTER to create',
       // Prefer the already-stored numeric project number (an
       // already-provisioned project on a re-run) so `--assume-yes` resolves a
       // numeric answer that `detectCreation` treats as existing — never a
@@ -855,15 +858,15 @@ function renderAnswerSummary(
   visibility,
 ) {
   const newRepoNote = creation.newRepo
-    ? `  (NEW — will be created, ${visibility})`
+    ? `  will be created as ${visibility}`
     : '';
   const lines = [
-    '\n=== Review choices ===',
+    '=== Review choices ===',
     `  Repo owner       ${answers.owner}`,
     `  Username/handle  ${answers.operatorHandle || '(none)'}`,
     `  Repo name        ${answers.repo}${newRepoNote}`,
     `  Base branch      ${answers.baseBranch}`,
-    `  Project V2 name  ${project.name}${creation.newProject ? '  (NEW — will be created)' : ''}`,
+    `  Project V2 name  ${project.name}${creation.newProject ? '  will be created' : ''}`,
     `  Project V2 #     ${project.number}`,
     `  Local git        ${gitInitialized ? 'initialized' : 'will be initialized'}`,
   ];

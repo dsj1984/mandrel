@@ -94,8 +94,8 @@ export async function applyMergeMethods({
     });
     if (!approved) {
       log(
-        '[Bootstrap] Merge methods: HITL declined — leaving operator settings ' +
-          'untouched. Note: auto-merge will remain disabled until the merge-method ' +
+        '[Bootstrap] Merge methods: HITL declined — leaving operator settings untouched\n\n' +
+          'Note: auto-merge will remain disabled until the merge-method ' +
           'settings match the framework stance (allow_squash_merge: true, ' +
           'allow_auto_merge: true, delete_branch_on_merge: true).',
       );

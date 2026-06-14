@@ -97,9 +97,6 @@ async function ensureLabels(provider, log) {
   log(
     `[Bootstrap] Labels — created: ${labels.created.length}, skipped: ${labels.skipped.length}, missing: ${missing.length}`,
   );
-  if (labels.created.length > 0) {
-    log(`[Bootstrap]   Created: ${labels.created.join(', ')}`);
-  }
   if (missing.length > 0) {
     log(
       `[Bootstrap] ⚠️  ${missing.length} label(s) were reported as created/skipped but are NOT present on the remote: ${missing.join(', ')}. Re-run bootstrap or create them manually with \`gh label create\`.`,
@@ -227,15 +224,10 @@ async function auditAndOptionallyReapWorkflows(
   const names = audit.conflicting.map((w) => w.name).join(', ');
   if (!reap) {
     log(
-      `[Bootstrap] ⚠️ Conflicting workflows enabled: ${names}. ` +
-        `These race against the orchestrator's ColumnSync writes and ` +
-        `typically leave closed Stories stuck at "In Progress" on the ` +
-        `board (see Story #2813 for the reproduction). Remediation: ` +
-        `(a) re-run with --reap-conflicting-workflows to delete them, ` +
-        `or (b) toggle them off in the GitHub UI under ` +
-        `Project → Workflows. The orchestrator's post-merge ` +
-        `resync-status-column.js CLI defends against both unless you ` +
-        `also disable that step.`,
+      `[Bootstrap] ⚠️ Conflicting Projects V2 workflows enabled: ${names}. ` +
+        `They can leave closed Stories stuck at "In Progress". Fix: re-run ` +
+        `with --reap-conflicting-workflows, or disable them under ` +
+        `Project → Workflows.`,
     );
     return { audit, reaped: [], action: 'warn-only' };
   }

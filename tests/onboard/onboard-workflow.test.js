@@ -5,14 +5,13 @@
  * `lib/onboard/init-tail.js` and run as the configure-path tail of
  * `mandrel init`. These unit tests cover:
  *
- *   - init tail sequences all four phases in order.
- *   - Phase 1 (detect-stack) report is printed.
- *   - Phase 2 (scaffold offer) is skipped when all docs are present.
- *   - Phase 2 scaffold offer fires for missing docs; declines are logged loudly.
- *   - Phase 2 acceptance writes stubs and reports the MANDREL:STUB marker.
- *   - Phase 3 (doctor) gate: non-zero exit stops the tail (ok: false).
- *   - Phase 3 (doctor) gate: zero exit proceeds to Phase 4.
- *   - Phase 4 (/plan handoff) text is printed on a green doctor run.
+ *   - init tail sequences all three phases in order.
+ *   - Phase 1 (scaffold offer) is skipped when all docs are present.
+ *   - Phase 1 scaffold offer fires for missing docs; declines are logged loudly.
+ *   - Phase 1 acceptance writes stubs and reports the MANDREL:STUB marker.
+ *   - Phase 2 (doctor) gate: non-zero exit stops the tail (ok: false).
+ *   - Phase 2 (doctor) gate: zero exit proceeds to Phase 3.
+ *   - Phase 3 (/plan handoff) text is printed on a green doctor run.
  *   - Non-TTY: scaffold offer auto-declines without prompting.
  */
 
@@ -81,29 +80,10 @@ async function runTail(root, overrides = {}) {
 const doctor = (status) => () => ({ status });
 
 // ---------------------------------------------------------------------------
-// Phase 1 — stack detection
+// Phase 1 — scaffold offer
 // ---------------------------------------------------------------------------
 
-describe('init tail — Phase 1 (stack detection)', async () => {
-  it('prints a stack detection report', async () => {
-    const root = track(makeProject([]));
-    const { output } = await runTail(root, {
-      runDoctor: doctor(0),
-      confirmScaffold: () => false,
-      isTTY: false,
-    });
-    assert.match(output, /Stack detection/i);
-    assert.match(output, /Package manager/i);
-    assert.match(output, /Test runner/i);
-    assert.match(output, /Primary language/i);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Phase 2 — scaffold offer
-// ---------------------------------------------------------------------------
-
-describe('init tail — Phase 2 (scaffold offer)', async () => {
+describe('init tail — Phase 1 (scaffold offer)', async () => {
   it('skips the offer when all docsContextFiles are present', async () => {
     const root = track(makeProject(['architecture.md']));
     fs.mkdirSync(path.join(root, 'docs'));
@@ -113,7 +93,7 @@ describe('init tail — Phase 2 (scaffold offer)', async () => {
       isTTY: false,
     });
     assert.match(output, /All docsContextFiles are present/i);
-    assert.doesNotMatch(output, /Scaffold stubs now/i);
+    assert.doesNotMatch(output, /Create placeholders/i);
   });
 
   it('offers to scaffold when docs are missing', async () => {
@@ -123,7 +103,7 @@ describe('init tail — Phase 2 (scaffold offer)', async () => {
       confirmScaffold: () => false,
       isTTY: true,
     });
-    assert.match(output, /Scaffold stubs now/i);
+    assert.match(output, /Create placeholders/i);
     assert.match(output, /architecture\.md/);
   });
 
@@ -144,7 +124,7 @@ describe('init tail — Phase 2 (scaffold offer)', async () => {
       isTTY: false,
     });
     // Offer text should not appear on non-TTY
-    assert.doesNotMatch(output, /Scaffold stubs now/i);
+    assert.doesNotMatch(output, /Create placeholders/i);
     // Decline log should appear (auto-declined)
     assert.match(output, /degraded context/i);
   });
@@ -185,10 +165,10 @@ describe('init tail — Phase 2 (scaffold offer)', async () => {
 });
 
 // ---------------------------------------------------------------------------
-// Phase 3 — doctor gate
+// Phase 2 — doctor gate
 // ---------------------------------------------------------------------------
 
-describe('init tail — Phase 3 (doctor gate)', async () => {
+describe('init tail — Phase 2 (doctor gate)', async () => {
   it('returns ok=false and stops when doctor exits non-zero', async () => {
     const root = track(makeProject([]));
     const { result, output } = await runTail(root, {
@@ -198,7 +178,7 @@ describe('init tail — Phase 3 (doctor gate)', async () => {
     assert.strictEqual(result.ok, false);
     assert.strictEqual(result.doctorStatus, 1);
     assert.match(output, /Doctor check failed/i);
-    // Phase 4 handoff must not appear
+    // Phase 3 handoff must not appear
     assert.doesNotMatch(output, /Mandrel is ready/i);
   });
 
@@ -214,10 +194,10 @@ describe('init tail — Phase 3 (doctor gate)', async () => {
 });
 
 // ---------------------------------------------------------------------------
-// Phase 4 — /plan handoff
+// Phase 3 — /plan handoff
 // ---------------------------------------------------------------------------
 
-describe('init tail — Phase 4 (/plan handoff)', async () => {
+describe('init tail — Phase 3 (/plan handoff)', async () => {
   it('prints the /plan handoff text when doctor passes', async () => {
     const root = track(makeProject([]));
     const { output } = await runTail(root, {
@@ -281,7 +261,7 @@ describe('init tail — readConfirm readline options', () => {
     assert.equal(result, true, 'a "y" answer resolves to true (scaffold)');
   });
 
-  it('treats anything but y/yes as decline (default-false for the scaffold offer)', async () => {
+  it('treats Enter and anything but an explicit no as accept (default-true for the scaffold offer)', async () => {
     const make = (answer) => ({
       createInterface: () => ({
         question: async () => answer,
@@ -290,7 +270,8 @@ describe('init tail — readConfirm readline options', () => {
     });
     assert.equal(await readConfirm(make('y')), true);
     assert.equal(await readConfirm(make('yes')), true);
-    assert.equal(await readConfirm(make('')), false);
+    assert.equal(await readConfirm(make('')), true);
     assert.equal(await readConfirm(make('n')), false);
+    assert.equal(await readConfirm(make('no')), false);
   });
 });
