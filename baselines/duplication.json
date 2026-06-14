@@ -1,13 +1,13 @@
 {
   "$schema": ".agents/schemas/baselines/duplication.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-06-11T20:33:24.060Z",
+  "generatedAt": "2026-06-14T17:17:02.554Z",
   "rollup": {
     "*": {
-      "percentage": 8.62,
-      "duplicatedLines": 2655,
-      "totalLines": 30785,
-      "filesWithDuplication": 94
+      "percentage": 8.85,
+      "duplicatedLines": 2857,
+      "totalLines": 32293,
+      "filesWithDuplication": 99
     }
   },
   "rows": [
@@ -574,6 +574,36 @@
       "duplicatedLines": 24,
       "totalLines": 272,
       "percentage": 8.82
+    },
+    {
+      "path": "lib/cli/migrate.js",
+      "duplicatedLines": 66,
+      "totalLines": 260,
+      "percentage": 25.38
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "duplicatedLines": 12,
+      "totalLines": 726,
+      "percentage": 1.65
+    },
+    {
+      "path": "lib/cli/sync.js",
+      "duplicatedLines": 21,
+      "totalLines": 299,
+      "percentage": 7.02
+    },
+    {
+      "path": "lib/cli/version-helpers.js",
+      "duplicatedLines": 35,
+      "totalLines": 59,
+      "percentage": 59.32
+    },
+    {
+      "path": "lib/migrations/index.js",
+      "duplicatedLines": 68,
+      "totalLines": 164,
+      "percentage": 41.46
     }
   ]
 }
