@@ -1,23 +1,21 @@
 /**
  * Unit tests for the shared lockfile-probe helper (Story #4048 B3).
  *
- * Prior to this story, five independent `detectPackageManager` implementations
- * existed across the codebase with subtly different semantics:
+ * Prior to this story, several independent `detectPackageManager`
+ * implementations existed across the codebase with subtly different semantics:
  *
  *   - `lib/cli/update.js`              → returns { packageManager, workspaceRoot }
  *   - `lib/bootstrap/project-bootstrap.js` → returns 'pnpm'|'yarn'|'npm'
  *   - `lib/runtime-deps/preflight.js`  → returns 'pnpm'|'yarn'|'npm'
- *   - `lib/onboard/detect-stack.js`    → returns 'pnpm'|'yarn'|'bun'|'npm'|null
  *   - `lib/worktree/node-modules-strategy.js` (inline probe)
  *
  * This suite exercises the unified `detectPackageManager` and
  * `detectPackageManagerWithWorkspace` functions and covers the edge cases that
  * previously diverged:
  *
- *   - `detect-stack.js` returned `null` when no manifest existed at all;
- *     the other copies defaulted to `'npm'`. The shared helper returns `null`.
- *   - `detect-stack.js` detected `bun` from `bun.lockb`; the other copies
- *     did not. The shared helper detects `bun`.
+ *   - When no manifest exists at all, some copies defaulted to `'npm'`; the
+ *     shared helper returns `null`.
+ *   - The shared helper detects `bun` from `bun.lockb` (some copies did not).
  *   - `update.js` needed `workspaceRoot`; the others did not.
  *     `detectPackageManagerWithWorkspace` provides that.
  */
@@ -61,7 +59,7 @@ describe('detectPackageManager', () => {
     );
   });
 
-  it('detects bun from bun.lockb (strictest semantics from detect-stack.js)', () => {
+  it('detects bun from bun.lockb (strictest unified semantics)', () => {
     assert.equal(
       detectPackageManager('/root', makeExists(['bun.lockb'])),
       'bun',
