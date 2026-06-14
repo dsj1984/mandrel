@@ -46,10 +46,7 @@ const TEST_WALK_ROOTS = ['tests', 'lib'];
  * `__tests__` subtrees so it only matches colocated tests, never the shipped
  * source modules themselves.
  */
-const FULL_TIER_GLOBS = [
-  'tests/**/*.test.js',
-  'lib/**/__tests__/**/*.test.js',
-];
+const FULL_TIER_GLOBS = ['tests/**/*.test.js', 'lib/**/__tests__/**/*.test.js'];
 
 /**
  * @param {string} dir
