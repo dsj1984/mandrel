@@ -90,7 +90,8 @@ jobs:
         # guard actually runs here. Non-fatal: the test's own node-pty
         # availability probe still skips gracefully if the build ever fails, so
         # a build-env hiccup degrades to a skip rather than a red gate.
-        run: npm rebuild node-pty --build-from-source || echo "::warning::node-pty build failed; #4106 PTY guard will skip on this run"
+        run: |
+          npm rebuild node-pty --build-from-source || echo "::warning::node-pty build failed; PTY init guard will skip on this run"
 
       - name: Run Tests with Coverage
         # Capture stderr too — Node's test runner and the coverage-threshold
