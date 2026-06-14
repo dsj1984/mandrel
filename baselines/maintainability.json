@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-11T20:33:24.048Z",
+  "generatedAt": "2026-06-14T16:48:08.884Z",
   "rollup": {
     "*": {
       "min": 70.566,
-      "p50": 104.227,
+      "p50": 104.233,
       "p95": 121.809
     }
   },
@@ -2599,6 +2599,14 @@
       "mi": 95.619
     },
     {
+      "path": "tests/e2e/helpers/cli-harness.js",
+      "mi": 106.892
+    },
+    {
+      "path": "tests/e2e/sync-prune.integration.test.js",
+      "mi": 98.598
+    },
+    {
       "path": "tests/emit-context-compact-json.test.js",
       "mi": 106.056
     },
@@ -2993,6 +3001,10 @@
     {
       "path": "tests/lib/config-resolver-worktree.test.js",
       "mi": 109.498
+    },
+    {
+      "path": "tests/lib/config-resolver.test.js",
+      "mi": 104.383
     },
     {
       "path": "tests/lib/config-runners.test.js",
