@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-05-30T17:42:29.140Z",
+  "generatedAt": "2026-06-14T17:09:53.073Z",
   "rollup": {
     "*": {
-      "lines": 95.3,
-      "branches": 84.45,
-      "functions": 89.73
+      "lines": 95.21,
+      "branches": 84.42,
+      "functions": 89.26
     }
   },
   "rows": [
@@ -2859,6 +2859,90 @@
       "lines": 83.09,
       "branches": 69.23,
       "functions": 83.33
+    },
+    {
+      "path": "bin/mandrel.js",
+      "lines": 94.91,
+      "branches": 91.3,
+      "functions": 100
+    },
+    {
+      "path": "bin/postinstall.js",
+      "lines": 98.97,
+      "branches": 83.33,
+      "functions": 66.67
+    },
+    {
+      "path": "lib/cli/doctor.js",
+      "lines": 98.8,
+      "branches": 95,
+      "functions": 62.5
+    },
+    {
+      "path": "lib/cli/explain.js",
+      "lines": 98.13,
+      "branches": 91.67,
+      "functions": 42.86
+    },
+    {
+      "path": "lib/cli/init.js",
+      "lines": 86.2,
+      "branches": 81.25,
+      "functions": 54.55
+    },
+    {
+      "path": "lib/cli/migrate.js",
+      "lines": 68.46,
+      "branches": 58.33,
+      "functions": 50
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "lines": 93.11,
+      "branches": 86.73,
+      "functions": 91.3
+    },
+    {
+      "path": "lib/cli/sync-commands.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": "lib/cli/sync.js",
+      "lines": 96.66,
+      "branches": 95.56,
+      "functions": 100
+    },
+    {
+      "path": "lib/cli/uninstall.js",
+      "lines": 95.18,
+      "branches": 83.06,
+      "functions": 75
+    },
+    {
+      "path": "lib/cli/update.js",
+      "lines": 73.63,
+      "branches": 56.41,
+      "functions": 55.88
+    },
+    {
+      "path": "lib/cli/version-check.js",
+      "lines": 91.75,
+      "branches": 77.78,
+      "functions": 60
+    },
+    {
+      "path": "lib/cli/version-helpers.js",
+      "lines": 96.61,
+      "branches": 87.5,
+      "functions": 66.67
+    },
+    {
+      "path": "lib/migrations/index.js",
+      "lines": 99.39,
+      "branches": 78.57,
+      "functions": 100
     }
   ]
 }

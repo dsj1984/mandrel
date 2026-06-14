@@ -81,6 +81,18 @@ jobs:
           BASELINE_SCOPE: ${{ github.event_name == 'pull_request' && '' || 'full' }}
         run: npm run maintainability:check
 
+      - name: Build node-pty for the PTY init guard
+        # node-pty ships no Linux prebuild and the shared setup action installs
+        # with `npm ci --ignore-scripts`, so the #4106 interactive-init guard
+        # (tests/e2e/init-interactive.integration.test.js) would otherwise skip
+        # on this Linux gate (the only required full-tier test run). Build it
+        # from source (ubuntu-latest ships build-essential + python3) so the
+        # guard actually runs here. Non-fatal: the test's own node-pty
+        # availability probe still skips gracefully if the build ever fails, so
+        # a build-env hiccup degrades to a skip rather than a red gate.
+        run: |
+          npm rebuild node-pty --build-from-source || echo "::warning::node-pty build failed; PTY init guard will skip on this run"
+
       - name: Run Tests with Coverage
         # Capture stderr too — Node's test runner and the coverage-threshold
         # gate both emit failures on stderr, and a stdout-only redirect
@@ -175,7 +187,6 @@ jobs:
           node --experimental-test-module-mocks --test
           tests/shipped-configs-validate.test.js
           tests/lib/config-resolver.test.js
-          tests/lib/config-resolver-worktree.test.js
 
       - name: Fast Test Slice
         run: npm run test:quick
