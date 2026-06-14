@@ -126,7 +126,7 @@ export async function applyBranchProtection({
 
   if (enforce === false) {
     log(
-      `[bootstrap] Branch protection on '${baseBranch}': skipped (github.branchProtection.enforce=false).`,
+      `[Bootstrap] Branch protection on '${baseBranch}': skipped (github.branchProtection.enforce=false).`,
     );
     return { status: 'skipped', reason: 'opt-out' };
   }
@@ -136,7 +136,7 @@ export async function applyBranchProtection({
     .filter((n) => typeof n === 'string' && n.length > 0);
   if (checkNames.length === 0) {
     log(
-      `[bootstrap] Branch protection on '${baseBranch}': skipped (no github.branchProtection.requiredChecks configured).`,
+      `[Bootstrap] Branch protection on '${baseBranch}': skipped (no github.branchProtection.requiredChecks configured).`,
     );
     return { status: 'skipped', reason: 'no-checks' };
   }
@@ -152,12 +152,12 @@ export async function applyBranchProtection({
       exists = await provider.branchExists(baseBranch);
     } catch (err) {
       log(
-        `[bootstrap] Branch protection on '${baseBranch}': existence probe failed — ${err.message}. Proceeding with the write attempt.`,
+        `[Bootstrap] Branch protection on '${baseBranch}': existence probe failed — ${err.message}. Proceeding with the write attempt.`,
       );
     }
     if (!exists) {
       log(
-        `[bootstrap] Branch protection on '${baseBranch}': skipped (base branch does not exist on the remote — push an initial commit first).`,
+        `[Bootstrap] Branch protection on '${baseBranch}': skipped (base branch does not exist on the remote — push an initial commit first).`,
       );
       return { status: 'skipped', reason: 'no-base-branch' };
     }
@@ -169,7 +169,7 @@ export async function applyBranchProtection({
     current = probe?.enabled ? (probe.raw ?? null) : null;
   } catch (err) {
     log(
-      `[bootstrap] Branch protection on '${baseBranch}': read failed — ${err.message}. Proceeding as if no rule exists.`,
+      `[Bootstrap] Branch protection on '${baseBranch}': read failed — ${err.message}. Proceeding as if no rule exists.`,
     );
   }
 
@@ -193,7 +193,7 @@ export async function applyBranchProtection({
         : false;
     if (!approved) {
       log(
-        `[bootstrap] Branch protection on '${baseBranch}': diverges from framework stance; HITL declined / non-TTY — leaving the operator's rule untouched.`,
+        `[Bootstrap] Branch protection on '${baseBranch}': diverges from framework stance; HITL declined / non-TTY — leaving the operator's rule untouched.`,
       );
       return { status: 'skipped', reason: 'hitl-declined', diff };
     }
@@ -210,12 +210,12 @@ export async function applyBranchProtection({
       ? ` (added: ${result.added.join(', ')})`
       : ' (all required checks already present)';
     log(
-      `[bootstrap] Branch protection on '${baseBranch}': ${verb} rule${addedSuffix}.`,
+      `[Bootstrap] Branch protection on '${baseBranch}': ${verb} rule${addedSuffix}.`,
     );
     return { status: result.created ? 'created' : 'merged', ...result };
   } catch (err) {
     log(
-      `[bootstrap] Branch protection on '${baseBranch}': failed — ${err.message}. Proceeding without it.`,
+      `[Bootstrap] Branch protection on '${baseBranch}': failed — ${err.message}. Proceeding without it.`,
     );
     return { status: 'failed', reason: err.message };
   }

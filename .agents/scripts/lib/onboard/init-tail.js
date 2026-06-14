@@ -2,18 +2,17 @@
  * init-tail.js — post-bootstrap onboarding tail for `mandrel init`.
  *
  * Called by `mandrel init` after `bootstrap.js` completes successfully on
- * the "configure now" path. Sequences the four phases that walk an operator
+ * the "configure now" path. Sequences the three phases that walk an operator
  * from a freshly bootstrapped project to a ready-to-plan workspace:
  *
- *   Phase 1 — Detect the consumer stack (lib/onboard/detect-stack.js).
- *   Phase 2 — Offer to scaffold missing docsContextFiles (scaffold-docs.js).
- *   Phase 3 — Run `mandrel doctor` as a readiness gate.
- *   Phase 4 — Print the /plan handoff next-step text.
+ *   Phase 1 — Offer to scaffold missing docsContextFiles (scaffold-docs.js).
+ *   Phase 2 — Run `mandrel doctor` as a readiness gate.
+ *   Phase 3 — Print the /plan handoff next-step text.
  *
  * The whole tail is idempotent: re-running after an already-onboarded project
- * re-detects, re-checks, and re-offers scaffolding without duplicating stubs
- * (the scaffolder only writes genuinely absent files) and without modifying
- * anything (doctor is read-only).
+ * re-checks and re-offers scaffolding without duplicating stubs (the scaffolder
+ * only writes genuinely absent files) and without modifying anything (doctor is
+ * read-only).
  *
  * Injectable seams: `runDoctor`, `stdout`, `confirmScaffold`, and `isTTY`
  * allow the unit suite to drive every branch without real I/O.
@@ -25,7 +24,6 @@ import { spawnSync as defaultSpawnSync } from 'node:child_process';
 import path from 'node:path';
 import readline from 'node:readline/promises';
 
-import { detectStack } from './detect-stack.js';
 import { STUB_MARKER, scaffoldDocs } from './scaffold-docs.js';
 
 // ---------------------------------------------------------------------------
@@ -38,7 +36,7 @@ import { STUB_MARKER, scaffoldDocs } from './scaffold-docs.js';
  * @type {string}
  */
 export const PLAN_HANDOFF_TEXT =
-  '\n✅  Mandrel is ready. Start your first Epic:\n\n' +
+  '\n✅  Mandrel is ready. Start your first project:\n\n' +
   '    /plan --idea "<one-line description of what you want to build>"\n\n' +
   'Or, if you already have a `type::epic` Issue open:\n\n' +
   '    /plan <epicId>\n';
@@ -46,24 +44,6 @@ export const PLAN_HANDOFF_TEXT =
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
-
-/**
- * Format a stack-detection result as a human-readable report line.
- *
- * @param {{ packageManager: string|null, testRunner: string|null, primaryLanguage: string|null }} stack
- * @returns {string}
- */
-function formatStackReport(stack) {
-  const pm = stack.packageManager ?? '(unknown)';
-  const runner = stack.testRunner ?? '(unknown)';
-  const lang = stack.primaryLanguage ?? '(unknown)';
-  return (
-    '\n[init] Stack detection:\n' +
-    `  Package manager : ${pm}\n` +
-    `  Test runner     : ${runner}\n` +
-    `  Primary language: ${lang}\n`
-  );
-}
 
 /**
  * Format a list of missing docs as a human-readable report (no prompt).
@@ -75,26 +55,30 @@ function formatMissingList(missing) {
   if (missing.length === 0) return '';
   const list = missing.map((f) => `  • ${f}`).join('\n');
   return (
-    '\n[init] The following docsContextFiles are missing — agents load\n' +
-    'these before every task:\n' +
+    '\n[Final Checks] The following docsContextFiles are missing,\n' +
+    'agents will load degraded context until you create them:\n' +
     `${list}\n`
   );
 }
 
 /** Prompt text shown only on a TTY when asking to scaffold. */
-const SCAFFOLD_PROMPT = '\nScaffold stubs now? [y/N]: ';
+const SCAFFOLD_PROMPT = '\nCreate placeholders? [Y/n]: ';
 
 /**
  * Async y/N read from stdin via `node:readline` (mirrors the prompt mechanism
  * in `bootstrap.js`). Returns on Enter and never blocks waiting for EOF the way
  * `fs.readFileSync(0)` did — that EOF-blocking read hung `mandrel init` on an
- * interactive TTY. Returns `false` on any read error or when the user enters
- * something other than `y` / `yes`. The prompt text is written by the caller
- * via `stdout`, so the question string passed here is empty.
+ * interactive TTY. Yes is the default (`[Y/n]`): a bare Enter — or anything but
+ * an explicit `n`/`no` — resolves to `true` (create the placeholders), since the
+ * missing docs are known-needed and the stubs carry a `MANDREL:STUB` marker the
+ * `/plan` preflight still flags until they are fleshed out. A read error
+ * resolves to `false` so a genuine I/O failure never writes unattended. The
+ * prompt text is written by the caller via `stdout`, so the question string
+ * passed here is empty.
  *
  * `terminal: false` is **load-bearing**: with terminal mode on (the default
  * when stdout is a TTY) readline emits cursor-control escapes
- * (`\x1b[1G\x1b[0J`) that erase the `Scaffold stubs now? [y/N]:` prompt already
+ * (`\x1b[1G\x1b[0J`) that erase the `Create placeholders? [Y/n]:` prompt already
  * written via the caller's `stdout`, leaving the operator staring at a blank,
  * dead-looking line. Disabling terminal mode preserves the pre-written prompt
  * and reads the line via the TTY's cooked-mode echo. `createInterface` is
@@ -113,7 +97,7 @@ export async function readConfirm({
   });
   try {
     const answer = (await rl.question('')).trim().toLowerCase();
-    return answer === 'y' || answer === 'yes';
+    return answer !== 'n' && answer !== 'no';
   } catch {
     return false;
   } finally {
@@ -140,7 +124,6 @@ export async function readConfirm({
  * @param {boolean} [opts.isTTY] - Whether stdin is a TTY (defaults to
  *   `Boolean(process.stdin.isTTY)`).
  * @returns {Promise<{
- *   stack: { packageManager: string|null, testRunner: string|null, primaryLanguage: string|null },
  *   scaffoldResult: object,
  *   doctorStatus: number,
  *   ok: boolean,
@@ -179,21 +162,12 @@ export async function runInitTail({
 
   const doctorFn = runDoctor ?? defaultRunDoctor;
 
-  // --- Phase 1: Detect the stack -------------------------------------------
-  let stack;
-  try {
-    stack = detectStack(projectRoot);
-  } catch {
-    stack = { packageManager: null, testRunner: null, primaryLanguage: null };
-  }
-  stdout(formatStackReport(stack));
-
-  // --- Phase 2: Offer to scaffold missing docsContextFiles -----------------
+  // --- Phase 1: Offer to scaffold missing docsContextFiles -----------------
   const preview = scaffoldDocs({ root: projectRoot, write: false });
   let scaffoldResult = preview;
 
   if (preview.missing.length === 0) {
-    stdout('\n[init] All docsContextFiles are present.\n');
+    stdout('\n[Final Checks] All docsContextFiles are present.\n');
   } else {
     stdout(formatMissingList(preview.missing));
     // On non-TTY without an injected confirm, auto-decline so the scaffolder
@@ -206,33 +180,30 @@ export async function runInitTail({
       scaffoldResult = scaffoldDocs({ root: projectRoot, write: true });
       if (scaffoldResult.created.length > 0) {
         stdout(
-          `[init] Scaffolded ${scaffoldResult.created.length} stub(s). ` +
+          `[Final Checks] Scaffolded ${scaffoldResult.created.length} stub(s). ` +
             `Each carries a \`${STUB_MARKER}\` marker — replace placeholder ` +
             'content before planning.\n',
         );
       }
     } else {
-      stdout(
-        '[init] Scaffolding declined. docsContextFiles are still missing — ' +
-          'agents will load degraded context until you create them.\n',
-      );
+      stdout('[Final Checks] Placeholders declined.\n');
     }
   }
 
-  // --- Phase 3: Readiness gate (mandrel doctor) ----------------------------
-  stdout('\n[init] Running mandrel doctor…\n');
+  // --- Phase 2: Readiness gate (mandrel doctor) ----------------------------
+  stdout('\n[Final Checks] Final installation summary via mandrel doctor…\n');
   const doctorResult = doctorFn();
   const doctorStatus = doctorResult?.status ?? 1;
 
   if (doctorStatus !== 0) {
     stdout(
-      '\n[init] ❌  Doctor check failed. Resolve the remedies above and\n' +
+      '\n[Final Checks] ❌  Doctor check failed. Resolve the remedies above and\n' +
         'then re-run: mandrel init\n',
     );
-    return { stack, scaffoldResult, doctorStatus, ok: false };
+    return { scaffoldResult, doctorStatus, ok: false };
   }
 
-  // --- Phase 4: Handoff to /plan -------------------------------------------
+  // --- Phase 3: Handoff to /plan -------------------------------------------
   stdout(PLAN_HANDOFF_TEXT);
-  return { stack, scaffoldResult, doctorStatus, ok: true };
+  return { scaffoldResult, doctorStatus, ok: true };
 }

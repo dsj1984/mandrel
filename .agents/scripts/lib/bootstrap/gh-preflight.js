@@ -253,16 +253,16 @@ export async function checkProjectScopes(opts = {}) {
 function classifyProjectScopes(scopeLine) {
   if (!scopeLine) {
     return {
-      name: 'gh-project-scope',
+      name: 'GitHub Projects V2 access',
       ok: true,
       detail: GH_SCOPES_UNREADABLE_NOTE,
     };
   }
   if (/\bproject\b/i.test(scopeLine[1])) {
-    return { name: 'gh-project-scope', ok: true };
+    return { name: 'GitHub Projects V2 access', ok: true };
   }
   return {
-    name: 'gh-project-scope',
+    name: 'GitHub Projects V2 access',
     ok: true,
     detail: GH_PROJECT_SCOPE_NOTE,
   };

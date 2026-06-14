@@ -286,7 +286,11 @@ export async function resolveFromPicker(ctx) {
 
   const normalized = choices.map(normalizePickerChoice);
   const rl = await ctx.getRl();
-  ctx.output.write(`${ctx.q.message}:\n`);
+  // The picker header uses `pickerMessage` when set, so a question can show
+  // list-oriented guidance here (e.g. "Select existing or press ENTER to create
+  // new one") while the manual-entry fall-through prompt (`askOnce`) uses the
+  // shorter `message` (e.g. "New GitHub repo name"). Falls back to `message`.
+  ctx.output.write(`${ctx.q.pickerMessage ?? ctx.q.message}:\n`);
   normalized.forEach((choice, index) => {
     ctx.output.write(`  ${index + 1}) ${choice.label}\n`);
   });

@@ -59,8 +59,8 @@ function defaultGitRunner(args) {
  */
 function checkNode(nodeCheck) {
   const result = nodeCheck();
-  if (result.ok) return { name: 'node', ok: true };
-  return { name: 'node', ok: false, remedy: NODE_REMEDY(result) };
+  if (result.ok) return { name: 'Node version', ok: true };
+  return { name: 'Node version', ok: false, remedy: NODE_REMEDY(result) };
 }
 
 /**
@@ -73,19 +73,19 @@ function checkNode(nodeCheck) {
 function checkGitAvailable(gitRunner) {
   const result = gitRunner(['--version']);
   if (result.error?.code === 'ENOENT') {
-    return { name: 'git', ok: false, remedy: GIT_INSTALL_HINT };
+    return { name: 'Git installed', ok: false, remedy: GIT_INSTALL_HINT };
   }
   if (result.status !== 0) {
     const snippet = (result.stderr || '').trim().slice(0, 200);
     return {
-      name: 'git',
+      name: 'Git installed',
       ok: false,
       remedy: `git --version failed (exit ${result.status})${
         snippet ? `: ${snippet}` : ''
       }. ${GIT_INSTALL_HINT}`,
     };
   }
-  return { name: 'git', ok: true };
+  return { name: 'Git installed', ok: true };
 }
 
 /**
@@ -99,9 +99,13 @@ function checkGitAvailable(gitRunner) {
 function checkInsideWorkTree(gitRunner) {
   const result = gitRunner(['rev-parse', '--is-inside-work-tree']);
   if (result.status === 0 && result.stdout.trim() === 'true') {
-    return { name: 'git-work-tree', ok: true };
+    return { name: 'Local git initialized', ok: true };
   }
-  return { name: 'git-work-tree', ok: false, remedy: GIT_WORKTREE_HINT };
+  return {
+    name: 'Local git initialized',
+    ok: false,
+    remedy: GIT_WORKTREE_HINT,
+  };
 }
 
 /**
@@ -115,9 +119,9 @@ function checkInsideWorkTree(gitRunner) {
 async function checkGh(gh) {
   try {
     await gh();
-    return { name: 'gh', ok: true };
+    return { name: 'GitHub CLI', ok: true };
   } catch (err) {
-    return { name: 'gh', ok: false, remedy: err.message };
+    return { name: 'GitHub CLI', ok: false, remedy: err.message };
   }
 }
 
@@ -170,15 +174,14 @@ export async function runPreflight(opts = {}) {
       checks.push(workTree);
     } else {
       // Non-fatal detection: record whether we are inside a git repo but
-      // never fail the gate on it — `bootstrap-new.js` can run pre-init and
-      // collect the remote/branch/owner in later steps.
+      // never fail the gate on it — bootstrap initialises git in a later
+      // phase. `ok` stays true so the gate passes; the rendered glyph is
+      // driven off `gitInitialized` (✓ when a repo exists, ✗ when not) so the
+      // operator sees the real state without the run aborting.
       checks.push({
-        name: 'git-work-tree',
+        name: 'Local git initialized',
         ok: true,
         gitInitialized,
-        detail: gitInitialized
-          ? 'inside a git work tree'
-          : 'not a git repo yet — will be collected in later steps',
       });
     }
   }

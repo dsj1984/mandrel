@@ -74,13 +74,13 @@ export async function applyMergeMethods({
   try {
     current = (await provider.getMergeMethods()) ?? {};
   } catch (err) {
-    log(`[bootstrap] Merge methods: read failed — ${err.message}.`);
+    log(`[Bootstrap] Merge methods: read failed — ${err.message}.`);
     return { status: 'failed', reason: err.message };
   }
 
   const diff = diffMergeMethods(current, target);
   if (!diff) {
-    log('[bootstrap] Merge methods: already at target stance (no-op).');
+    log('[Bootstrap] Merge methods: already at target stance (no-op).');
     return { status: 'unchanged' };
   }
 
@@ -94,8 +94,8 @@ export async function applyMergeMethods({
     });
     if (!approved) {
       log(
-        '[bootstrap] Merge methods: HITL declined — leaving operator settings ' +
-          'untouched. Note: auto-merge will remain disabled until the merge-method ' +
+        '[Bootstrap] Merge methods: HITL declined — leaving operator settings untouched\n\n' +
+          'Note: auto-merge will remain disabled until the merge-method ' +
           'settings match the framework stance (allow_squash_merge: true, ' +
           'allow_auto_merge: true, delete_branch_on_merge: true).',
       );
@@ -105,7 +105,7 @@ export async function applyMergeMethods({
     // Non-TTY: no operator present to confirm. Default-apply the framework
     // stance and log explicitly so the consequence is never silent.
     log(
-      '[bootstrap] Merge methods: non-TTY — applying framework stance automatically ' +
+      '[Bootstrap] Merge methods: non-TTY — applying framework stance automatically ' +
         '(allow_squash_merge, allow_auto_merge, delete_branch_on_merge). ' +
         'To opt out, pass a hitlConfirm gate or set github.mergeMethods overrides in .agentrc.json.',
     );
@@ -114,10 +114,10 @@ export async function applyMergeMethods({
 
   try {
     const result = await provider.setMergeMethods(target);
-    log(`[bootstrap] Merge methods: patched (${result.patched.join(', ')}).`);
+    log(`[Bootstrap] Merge methods: patched (${result.patched.join(', ')}).`);
     return { status: 'patched', ...result, diff };
   } catch (err) {
-    log(`[bootstrap] Merge methods: PATCH failed — ${err.message}.`);
+    log(`[Bootstrap] Merge methods: PATCH failed — ${err.message}.`);
     return { status: 'failed', reason: err.message };
   }
 }
