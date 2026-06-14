@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-14T16:48:08.884Z",
+  "generatedAt": "2026-06-14T17:29:14.407Z",
   "rollup": {
     "*": {
       "min": 70.566,
-      "p50": 104.233,
+      "p50": 104.227,
       "p95": 121.809
     }
   },
@@ -2597,10 +2597,6 @@
     {
       "path": "tests/e2e-story-only-epic.test.js",
       "mi": 95.619
-    },
-    {
-      "path": "tests/e2e/helpers/cli-harness.js",
-      "mi": 106.892
     },
     {
       "path": "tests/e2e/sync-prune.integration.test.js",
