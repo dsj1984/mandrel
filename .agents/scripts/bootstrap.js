@@ -195,13 +195,13 @@ function runGit(args, cwd) {
  * `GhExecError` — so a bare "gh exited with code 1" is actually diagnosable.
  */
 function logGhError(label, err) {
-  Logger.error(`[bootstrap] ${label} failed: ${err.message}`);
+  Logger.error(`[Bootstrap] ${label} failed: ${err.message}`);
   if (err.stderr)
-    Logger.error(`[bootstrap]   gh stderr: ${String(err.stderr).trim()}`);
+    Logger.error(`[Bootstrap]   gh stderr: ${String(err.stderr).trim()}`);
   if (err.stdout)
-    Logger.error(`[bootstrap]   gh stdout: ${String(err.stdout).trim()}`);
+    Logger.error(`[Bootstrap]   gh stdout: ${String(err.stdout).trim()}`);
   if (Array.isArray(err.args)) {
-    Logger.error(`[bootstrap]   gh args: ${err.args.join(' ')}`);
+    Logger.error(`[Bootstrap]   gh args: ${err.args.join(' ')}`);
   }
 }
 
@@ -249,7 +249,7 @@ function ensureGitInitialized(state) {
     initialized = true;
     state.gitInitialized = true;
     Logger.info(
-      `[bootstrap] Initialized git repo (branch ${branch}) at ${cwd}.`,
+      `[Bootstrap] Initialized git repo (branch ${branch}) at ${cwd}.`,
     );
   }
 
@@ -281,7 +281,7 @@ function ensureGitInitialized(state) {
       return { ok: false, error: commit.stderr || 'git commit failed' };
     }
     committed = true;
-    Logger.info('[bootstrap] Created initial commit.');
+    Logger.info('[Bootstrap] Created initial commit.');
   }
   return { ok: true, initialized, committed };
 }
@@ -303,21 +303,21 @@ async function ensureGitRemote(state, execImpl = exec) {
   if (runGit(['remote', 'get-url', 'origin'], cwd).ok) return;
   if (!(await repoExists(owner, repo, execImpl))) {
     Logger.warn(
-      `[bootstrap] No 'origin' remote and ${owner}/${repo} does not exist on GitHub — skipping remote wiring.`,
+      `[Bootstrap] No 'origin' remote and ${owner}/${repo} does not exist on GitHub — skipping remote wiring.`,
     );
     return;
   }
   const url = `https://github.com/${owner}/${repo}.git`;
   const add = runGit(['remote', 'add', 'origin', url], cwd);
   if (!add.ok) {
-    Logger.warn(`[bootstrap] Could not add 'origin' remote: ${add.stderr}`);
+    Logger.warn(`[Bootstrap] Could not add 'origin' remote: ${add.stderr}`);
     return;
   }
-  Logger.info(`[bootstrap] Wired 'origin' → ${url}.`);
+  Logger.info(`[Bootstrap] Wired 'origin' → ${url}.`);
   const push = runGit(['push', '-u', 'origin', branch], cwd);
   if (!push.ok) {
     Logger.warn(
-      `[bootstrap] 'origin' is set but push of '${branch}' failed (resolve manually, e.g. \`git pull --rebase origin ${branch}\`): ${push.stderr}`,
+      `[Bootstrap] 'origin' is set but push of '${branch}' failed (resolve manually, e.g. \`git pull --rebase origin ${branch}\`): ${push.stderr}`,
     );
   }
 }
@@ -359,11 +359,11 @@ async function ensureProjectLinked(state, execImpl = exec) {
       args: ['project', 'link', pn, '--owner', owner, '--repo', repo],
     });
     Logger.info(
-      `[bootstrap] Linked repo ${owner}/${repo} to Project V2 #${pn}.`,
+      `[Bootstrap] Linked repo ${owner}/${repo} to Project V2 #${pn}.`,
     );
   } catch (err) {
     Logger.warn(
-      `[bootstrap] Could not link repo ${owner}/${repo} to Project V2 #${pn} (continuing): ${err.message}`,
+      `[Bootstrap] Could not link repo ${owner}/${repo} to Project V2 #${pn} (continuing): ${err.message}`,
     );
   }
 }
@@ -413,7 +413,7 @@ async function createGithubRepo(state, execImpl = exec) {
     ],
   });
   Logger.info(
-    `[bootstrap] Created GitHub repo ${slug} (${visibility}) and pushed.`,
+    `[Bootstrap] Created GitHub repo ${slug} (${visibility}) and pushed.`,
   );
 }
 
@@ -480,7 +480,7 @@ async function createGithubProject(state, execImpl = exec) {
   if (Number.isInteger(existing)) {
     state.answers.projectNumber = String(existing);
     Logger.info(
-      `[bootstrap] Reusing existing GitHub Project V2 "${title}" (#${existing}) — no duplicate created.`,
+      `[Bootstrap] Reusing existing GitHub Project V2 "${title}" (#${existing}) — no duplicate created.`,
     );
     return existing;
   }
@@ -510,7 +510,7 @@ async function createGithubProject(state, execImpl = exec) {
     );
   }
   state.answers.projectNumber = String(number);
-  Logger.info(`[bootstrap] Created GitHub Project V2 "${title}" (#${number}).`);
+  Logger.info(`[Bootstrap] Created GitHub Project V2 "${title}" (#${number}).`);
   return number;
 }
 
@@ -750,7 +750,7 @@ export function parseAndValidate(argv, opts = {}) {
   // `--assume-yes` path did.)
   if (!interactive && !assumeYes && !approveGithubAdmin) {
     Logger.error(
-      '[bootstrap] non-TTY run requires --assume-yes or --approve-github-admin ' +
+      '[Bootstrap] non-TTY run requires --assume-yes or --approve-github-admin ' +
         '(no operator is present to confirm the GitHub-admin mutations).',
     );
     return { ok: false, exit: 1 };
@@ -760,7 +760,7 @@ export function parseAndValidate(argv, opts = {}) {
   const githubAdminApproved = interactive || assumeYes || approveGithubAdmin;
   if (resolveRepoVisibility(flags) === null) {
     Logger.error(
-      `[bootstrap] invalid --visibility "${flags.visibility}". ` +
+      `[Bootstrap] invalid --visibility "${flags.visibility}". ` +
         `Expected one of: ${REPO_VISIBILITIES.join(', ')}.`,
     );
     return { ok: false, exit: 1 };
@@ -783,11 +783,12 @@ export function prepareContext(state, opts = {}) {
   const defaults = inferDefaults(projectRoot);
   const silentAccept = resolveSilentAccept(defaults, state.flags);
 
-  Logger.info('[bootstrap] Detected from local git:');
-  Logger.info(`  owner          ${defaults.owner ?? '(none)'}`);
-  Logger.info(`  repo           ${defaults.repo ?? '(none)'}`);
-  Logger.info(`  base branch    ${defaults.baseBranch ?? '(none)'}`);
-  Logger.info(`  username       ${defaults.operatorHandle ?? '(none)'}`);
+  Logger.info('[\n');
+  Logger.info('[Bootstrap] Checking existing GitHub values:');
+  Logger.info(`  GitHub Repo Owner  ${defaults.owner ?? '(unknown)'}`);
+  Logger.info(`  GitHub Repo Name   ${defaults.repo ?? '(unknown)'}`);
+  Logger.info(`  Base Branch        ${defaults.baseBranch ?? '(unknown)'}`);
+  Logger.info(`  GitHub Username    ${defaults.operatorHandle ?? '(unknown)'}`);
 
   return {
     ok: true,
@@ -811,24 +812,34 @@ export async function runPreflightPhase(state, opts = {}) {
 
   for (const check of result.checks) {
     if (check.ok) {
+      // A non-fatal informational check (it carries `gitInitialized`) shows a
+      // glyph reflecting the real state rather than its always-true gate pass:
+      // ✓ when the git repo exists, ✗ when it does not (bootstrap initialises
+      // it in a later phase regardless — the ✗ never aborts the run).
+      const glyph =
+        typeof check.gitInitialized === 'boolean' && !check.gitInitialized
+          ? '✗'
+          : '✓';
       Logger.info(
-        `[bootstrap] ✓ ${check.name}${check.detail ? ` — ${check.detail}` : ''}`,
+        `[Bootstrap] ${glyph} ${check.name}${check.detail ? ` — ${check.detail}` : ''}`,
       );
     } else {
-      Logger.error(`[bootstrap] ✗ ${check.name}: ${check.remedy}`);
+      Logger.error(`[Bootstrap] ✗ ${check.name}: ${check.remedy}`);
     }
   }
 
   if (!result.ok) {
     Logger.error(
-      '[bootstrap] Preflight failed. Resolve the issues above and re-run.',
+      '[Bootstrap] Preflight failed. Resolve the issues above and re-run.',
     );
     return { ok: false, exit: 1 };
   }
 
-  Logger.info(
-    `[bootstrap] git initialized: ${result.gitInitialized ? 'yes' : 'no'}`,
-  );
+  // The git-repo state is already reported by the (non-fatal) "Local git
+  // initialized" check above — both derive from the same
+  // `git rev-parse --is-inside-work-tree` probe — so there is no separate
+  // "git initialized" line here (it would duplicate, and contradict, that
+  // check). The boolean is still threaded through the payload for later phases.
   return {
     ok: true,
     payload: { preflight: result, gitInitialized: result.gitInitialized },
@@ -847,7 +858,7 @@ function renderAnswerSummary(
     ? `  (NEW — will be created, ${visibility})`
     : '';
   const lines = [
-    '\n=== Review your answers ===',
+    '\n=== Review choices ===',
     `  Repo owner       ${answers.owner}`,
     `  Username/handle  ${answers.operatorHandle || '(none)'}`,
     `  Repo name        ${answers.repo}${newRepoNote}`,
@@ -943,7 +954,7 @@ export async function collectAndConfirm(state) {
     });
     if (missing.length > 0) {
       Logger.error(
-        `[bootstrap] missing required answers: ${missing.join(', ')}`,
+        `[Bootstrap] missing required answers: ${missing.join(', ')}`,
       );
       return { ok: false, exit: 1 };
     }
@@ -968,7 +979,7 @@ export async function collectAndConfirm(state) {
     );
     const correct = await confirmYesNo('Is this correct?', state.interactive);
     if (!correct) {
-      Logger.info('[bootstrap] Okay — let’s try again.');
+      Logger.info('[Bootstrap] Okay — let’s try again.');
       // Re-prompt everything on the next pass (drop silent-accept).
       silentAccept = [];
       continue;
@@ -982,7 +993,7 @@ export async function collectAndConfirm(state) {
       );
       if (!approved) {
         Logger.error(
-          '[bootstrap] Creation declined — cannot continue without the repo/project. Exiting.',
+          '[Bootstrap] Creation declined — cannot continue without the repo/project. Exiting.',
         );
         return { ok: false, exit: 1 };
       }
@@ -1025,7 +1036,7 @@ function renderDryRunPlan(state) {
 export function dryRunPlan(state) {
   if (!state.flags['dry-run']) return { ok: true, payload: {} };
   Logger.info(
-    '[bootstrap] --dry-run: no files, GitHub settings, or labels will be changed.',
+    '[Bootstrap] --dry-run: no files, GitHub settings, or labels will be changed.',
   );
   Logger.info(renderDryRunPlan(state));
   return { ok: false, exit: 0 };
@@ -1062,18 +1073,18 @@ export async function provisionResources(state, deps = {}) {
   // 1. Local git — initialize + first commit when missing (idempotent).
   const git = ensureGitInitialized(state);
   if (!git.ok) {
-    Logger.error(`[bootstrap] git initialization failed: ${git.error}`);
+    Logger.error(`[Bootstrap] git initialization failed: ${git.error}`);
     return { ok: false, exit: 1 };
   }
   if (!git.initialized && !git.committed) {
-    Logger.info('[bootstrap] git already initialized — leaving as-is.');
+    Logger.info('[Bootstrap] git already initialized — leaving as-is.');
   }
 
   const { newRepo, newProject } = state.creation;
   if (skipGithub) {
     if (newRepo || newProject) {
       Logger.info(
-        '[bootstrap] --skip-github set; not creating the GitHub repo/project.',
+        '[Bootstrap] --skip-github set; not creating the GitHub repo/project.',
       );
     }
     return { ok: true, payload: {} };
@@ -1108,7 +1119,7 @@ export async function provisionResources(state, deps = {}) {
   }
 
   if (!newRepo && !newProject) {
-    Logger.info('[bootstrap] No new GitHub resources needed.');
+    Logger.info('[Bootstrap] No new GitHub resources needed.');
   }
 
   // 4. Link the repo to the project board so issues/PRs surface on it
@@ -1125,7 +1136,7 @@ export async function provisionResources(state, deps = {}) {
  */
 export async function executeBootstrap(state) {
   Logger.info(
-    `[bootstrap] Starting project bootstrap at ${state.projectRoot} (owner=${state.answers.owner} repo=${state.answers.repo} base=${state.answers.baseBranch})`,
+    `[Bootstrap] Starting project bootstrap at ${state.projectRoot} (owner=${state.answers.owner} repo=${state.answers.repo} base=${state.answers.baseBranch})`,
   );
   const approvedGroups = new Set(Object.values(PHASE_GROUPS));
   const report = await applyProjectBootstrap({
@@ -1158,7 +1169,7 @@ export function persistProjectNumber(state) {
     config = JSON.parse(fs.readFileSync(target, 'utf8'));
   } catch (err) {
     Logger.error(
-      `[bootstrap] Could not read ${target} to store projectNumber: ${err.message}`,
+      `[Bootstrap] Could not read ${target} to store projectNumber: ${err.message}`,
     );
     return { ok: true, payload: {} };
   }
@@ -1172,14 +1183,14 @@ export function persistProjectNumber(state) {
   }
   config.github.projectNumber = Number(pn);
   fs.writeFileSync(target, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
-  Logger.info(`[bootstrap] Stored github.projectNumber=${pn} in .agentrc.json`);
+  Logger.info(`[Bootstrap] Stored github.projectNumber=${pn} in .agentrc.json`);
   return { ok: true, payload: {} };
 }
 
 /** Step 6b — GitHub-side bootstrap. Honours `--skip-github`. */
 export async function executeGithubBootstrap(state) {
   if (state.flags['skip-github']) {
-    Logger.info('[bootstrap] --skip-github set; skipping GitHub bootstrap.');
+    Logger.info('[Bootstrap] --skip-github set; skipping GitHub bootstrap.');
     return { ok: true, payload: {} };
   }
   try {
@@ -1274,7 +1285,7 @@ export async function offerCommitPush(state, deps = {}) {
   // Non-interactive (--assume-yes / no TTY): never push unprompted. Print the
   // exact commands and leave the working tree untouched.
   if (!state.interactive) {
-    Logger.info(`\n[bootstrap] ${instructions}`);
+    Logger.info(`\n[Bootstrap] ${instructions}`);
     return { ok: true, payload: { commitPush: { action: 'instructed' } } };
   }
 
@@ -1283,14 +1294,14 @@ export async function offerCommitPush(state, deps = {}) {
     state.interactive,
   );
   if (!accepted) {
-    Logger.info(`\n[bootstrap] ${instructions}`);
+    Logger.info(`\n[Bootstrap] ${instructions}`);
     return { ok: true, payload: { commitPush: { action: 'declined' } } };
   }
 
   const staged = stageBootstrapFiles({ projectRoot: cwd, runGit: runGitImpl });
   if (!staged.ok) {
-    Logger.warn(`[bootstrap] Could not stage the wiring: ${staged.error}`);
-    Logger.info(`\n[bootstrap] ${instructions}`);
+    Logger.warn(`[Bootstrap] Could not stage the wiring: ${staged.error}`);
+    Logger.info(`\n[Bootstrap] ${instructions}`);
     return { ok: true, payload: { commitPush: { action: 'stage-failed' } } };
   }
   const commit = runGitImpl(
@@ -1300,20 +1311,20 @@ export async function offerCommitPush(state, deps = {}) {
   if (!commit.ok) {
     // A "nothing to commit" exit is benign — the wiring is already committed.
     Logger.warn(
-      `[bootstrap] git commit did not create a commit (already committed?): ${commit.stderr || commit.stdout}`,
+      `[Bootstrap] git commit did not create a commit (already committed?): ${commit.stderr || commit.stdout}`,
     );
-    Logger.info(`\n[bootstrap] ${instructions}`);
+    Logger.info(`\n[Bootstrap] ${instructions}`);
     return { ok: true, payload: { commitPush: { action: 'commit-skipped' } } };
   }
-  Logger.info('[bootstrap] Committed the Mandrel wiring.');
+  Logger.info('[Bootstrap] Committed the Mandrel wiring.');
   const push = runGitImpl(['push', '-u', 'origin', branch], cwd);
   if (!push.ok) {
     Logger.warn(
-      `[bootstrap] Commit landed but push of '${branch}' failed (push it manually with \`git push -u origin ${branch}\`): ${push.stderr}`,
+      `[Bootstrap] Commit landed but push of '${branch}' failed (push it manually with \`git push -u origin ${branch}\`): ${push.stderr}`,
     );
     return { ok: true, payload: { commitPush: { action: 'push-failed' } } };
   }
-  Logger.info(`[bootstrap] Pushed '${branch}' to origin.`);
+  Logger.info(`[Bootstrap] Pushed '${branch}' to origin.`);
   return { ok: true, payload: { commitPush: { action: 'committed-pushed' } } };
 }
 
@@ -1357,7 +1368,7 @@ export async function main(argv = process.argv.slice(2), deps = {}) {
   const githubError = result.state?.report?.github?.error;
   if (githubError) {
     Logger.error(
-      `\n[bootstrap] GitHub bootstrap failed: ${githubError}. ` +
+      `\n[Bootstrap] GitHub bootstrap failed: ${githubError}. ` +
         'Project-side setup (labels are GitHub-side; the local .agentrc.json / ' +
         'quality-gate / workflow files that were applied are recorded in the ' +
         'install ledger) completed, but the GitHub label/board/views/protection ' +
@@ -1368,7 +1379,7 @@ export async function main(argv = process.argv.slice(2), deps = {}) {
     return 1;
   }
 
-  Logger.info('\n[bootstrap] Done.');
+  Logger.info('\n[Bootstrap] Done.');
   return 0;
 }
 

@@ -84,25 +84,25 @@ async function verifyApiAccess(provider) {
     // target repo. Anything else (auth, scope, transport) is fatal.
     if (!isApiAccessNotFoundError(err)) {
       throw new Error(
-        `[bootstrap] API access verification failed: ${err.message}`,
+        `[Bootstrap] API access verification failed: ${err.message}`,
       );
     }
   }
 }
 
 async function ensureLabels(provider, log) {
-  log(`[bootstrap] Ensuring ${LABEL_TAXONOMY.length} labels...`);
+  log(`[Bootstrap] Ensuring ${LABEL_TAXONOMY.length} labels...`);
   const labels = await provider.ensureLabels(LABEL_TAXONOMY);
   const missing = Array.isArray(labels.missing) ? labels.missing : [];
   log(
-    `[bootstrap] Labels — created: ${labels.created.length}, skipped: ${labels.skipped.length}, missing: ${missing.length}`,
+    `[Bootstrap] Labels — created: ${labels.created.length}, skipped: ${labels.skipped.length}, missing: ${missing.length}`,
   );
   if (labels.created.length > 0) {
-    log(`[bootstrap]   Created: ${labels.created.join(', ')}`);
+    log(`[Bootstrap]   Created: ${labels.created.join(', ')}`);
   }
   if (missing.length > 0) {
     log(
-      `[bootstrap] ⚠️  ${missing.length} label(s) were reported as created/skipped but are NOT present on the remote: ${missing.join(', ')}. Re-run bootstrap or create them manually with \`gh label create\`.`,
+      `[Bootstrap] ⚠️  ${missing.length} label(s) were reported as created/skipped but are NOT present on the remote: ${missing.join(', ')}. Re-run bootstrap or create them manually with \`gh label create\`.`,
     );
   }
   return labels;
@@ -119,19 +119,19 @@ async function resolveProject(provider, providerConfig, log) {
     const result = await provider.resolveOrCreateProject();
     if (result.scopesMissing) {
       log(
-        `[bootstrap] Projects V2: token lacks the "project" scope — skipping board provisioning. ${PROJECTS_DOC_POINTER}`,
+        `[Bootstrap] Projects V2: token lacks the "project" scope — skipping board provisioning. ${PROJECTS_DOC_POINTER}`,
       );
       return fallback(true);
     }
     const projectNumber = result.projectNumber ?? null;
     const created = !!result.created;
     log(
-      `[bootstrap] ${created ? 'Created' : 'Using'} Project V2 #${projectNumber}.`,
+      `[Bootstrap] ${created ? 'Created' : 'Using'} Project V2 #${projectNumber}.`,
     );
     return { projectNumber, created, skipped: false, scopesMissing: false };
   } catch (err) {
     log(
-      `[bootstrap] Projects V2 resolution failed: ${err.message}. ${PROJECTS_DOC_POINTER}`,
+      `[Bootstrap] Projects V2 resolution failed: ${err.message}. ${PROJECTS_DOC_POINTER}`,
     );
     return fallback(false);
   }
@@ -142,17 +142,17 @@ async function ensureStatusField(provider, log) {
     const statusField = await provider.ensureStatusField(STATUS_FIELD_OPTIONS);
     if (statusField.status === 'scopes-missing') {
       log(
-        `[bootstrap] Projects V2 Status field: insufficient scopes. ${PROJECTS_DOC_POINTER}`,
+        `[Bootstrap] Projects V2 Status field: insufficient scopes. ${PROJECTS_DOC_POINTER}`,
       );
     } else {
       const addedSuffix = statusField.added.length
         ? ` (added: ${statusField.added.join(', ')})`
         : '';
-      log(`[bootstrap] Status field — ${statusField.status}${addedSuffix}`);
+      log(`[Bootstrap] Status field — ${statusField.status}${addedSuffix}`);
     }
     return statusField;
   } catch (err) {
-    log(`[bootstrap] Status field provisioning failed: ${err.message}`);
+    log(`[Bootstrap] Status field provisioning failed: ${err.message}`);
     return { status: 'skipped', added: [] };
   }
 }
@@ -162,16 +162,16 @@ async function ensureViews(provider, log) {
     const views = await provider.ensureProjectViews(PROJECT_VIEW_DEFS);
     if (views.unavailable) {
       log(
-        `[bootstrap] Projects V2 Views unavailable — skipped ${views.skipped.join(', ')}.${views.error ? ` (${views.error})` : ''} ${PROJECTS_DOC_POINTER}`,
+        `[Bootstrap] Projects V2 Views unavailable — skipped ${views.skipped.join(', ')}.${views.error ? ` (${views.error})` : ''} ${PROJECTS_DOC_POINTER}`,
       );
     } else {
       log(
-        `[bootstrap] Views — created: ${views.created.length}, skipped: ${views.skipped.length}`,
+        `[Bootstrap] Views — created: ${views.created.length}, skipped: ${views.skipped.length}`,
       );
     }
     return views;
   } catch (err) {
-    log(`[bootstrap] Views provisioning failed: ${err.message}`);
+    log(`[Bootstrap] Views provisioning failed: ${err.message}`);
     return { created: [], skipped: [], unavailable: false };
   }
 }
@@ -203,13 +203,13 @@ async function auditAndOptionallyReapWorkflows(
     projectId = await resolveProjectIdByNumber({ provider, projectNumber });
   } catch (err) {
     log(
-      `[bootstrap] Workflow audit: could not resolve project id — ${err.message}.`,
+      `[Bootstrap] Workflow audit: could not resolve project id — ${err.message}.`,
     );
     return { skipped: true, reason: 'project-id-unresolved' };
   }
   if (!projectId) {
     log(
-      `[bootstrap] Workflow audit: project #${projectNumber} not visible to viewer — skipping.`,
+      `[Bootstrap] Workflow audit: project #${projectNumber} not visible to viewer — skipping.`,
     );
     return { skipped: true, reason: 'project-not-visible' };
   }
@@ -217,17 +217,17 @@ async function auditAndOptionallyReapWorkflows(
   try {
     audit = await auditProjectWorkflows({ provider, projectId });
   } catch (err) {
-    log(`[bootstrap] Workflow audit failed: ${err.message} — skipping.`);
+    log(`[Bootstrap] Workflow audit failed: ${err.message} — skipping.`);
     return { skipped: true, reason: 'audit-failed', error: err.message };
   }
-  log(`[bootstrap] Workflow audit — ${formatAuditSummary(audit)}.`);
+  log(`[Bootstrap] Workflow audit — ${formatAuditSummary(audit)}.`);
   if (audit.conflicting.length === 0) {
     return { audit, reaped: [], action: 'no-conflicts' };
   }
   const names = audit.conflicting.map((w) => w.name).join(', ');
   if (!reap) {
     log(
-      `[bootstrap] ⚠️ Conflicting workflows enabled: ${names}. ` +
+      `[Bootstrap] ⚠️ Conflicting workflows enabled: ${names}. ` +
         `These race against the orchestrator's ColumnSync writes and ` +
         `typically leave closed Stories stuck at "In Progress" on the ` +
         `board (see Story #2813 for the reproduction). Remediation: ` +
@@ -240,22 +240,22 @@ async function auditAndOptionallyReapWorkflows(
     return { audit, reaped: [], action: 'warn-only' };
   }
   log(
-    `[bootstrap] Reaping ${audit.conflicting.length} conflicting workflow(s): ${names}...`,
+    `[Bootstrap] Reaping ${audit.conflicting.length} conflicting workflow(s): ${names}...`,
   );
   const { reaped } = await reapConflictingWorkflows({ provider, audit });
   log(
-    `[bootstrap] ✅ Deleted ${reaped.length} workflow(s): ${reaped.map((r) => r.name).join(', ')}.`,
+    `[Bootstrap] ✅ Deleted ${reaped.length} workflow(s): ${reaped.map((r) => r.name).join(', ')}.`,
   );
   return { audit, reaped, action: 'reaped' };
 }
 
 async function ensureProjectFields(provider, project, log) {
   log(
-    `[bootstrap] Ensuring ${PROJECT_FIELD_DEFS.length} project fields on project #${project.projectNumber}...`,
+    `[Bootstrap] Ensuring ${PROJECT_FIELD_DEFS.length} project fields on project #${project.projectNumber}...`,
   );
   const fields = await provider.ensureProjectFields(PROJECT_FIELD_DEFS);
   log(
-    `[bootstrap] Fields — created: ${fields.created.length}, skipped: ${fields.skipped.length}`,
+    `[Bootstrap] Fields — created: ${fields.created.length}, skipped: ${fields.skipped.length}`,
   );
   return fields;
 }
@@ -304,7 +304,7 @@ export async function runBootstrap(config, opts = {}) {
   if (opts.githubAdminApproved !== true) {
     const skipLog = opts.quiet ? () => {} : Logger.info;
     skipLog(
-      '[bootstrap] GitHub-admin mutations skipped: github-admin phase group not approved (explicit opt-in required).',
+      '[Bootstrap] GitHub-admin mutations skipped: github-admin phase group not approved (explicit opt-in required).',
     );
     return { skipped: true, reason: 'github-admin-not-approved' };
   }
@@ -315,13 +315,13 @@ export async function runBootstrap(config, opts = {}) {
   const providerName = config.provider ?? (config.github ? 'github' : null);
   const providerConfig = providerName ? config[providerName] : null;
 
-  log('[bootstrap] Starting idempotent setup...');
-  log(`[bootstrap] Provider: ${providerName}`);
-  log(`[bootstrap] Target: ${providerConfig?.owner}/${providerConfig?.repo}`);
+  log('[Bootstrap] Starting idempotent setup...');
+  log(`[Bootstrap] Provider: ${providerName}`);
+  log(`[Bootstrap] Target: ${providerConfig?.owner}/${providerConfig?.repo}`);
 
-  log('[bootstrap] Verifying API access...');
+  log('[Bootstrap] Verifying API access...');
   await verifyApiAccess(provider);
-  log('[bootstrap] API access verified.');
+  log('[Bootstrap] API access verified.');
 
   const labels = await ensureLabels(provider, log);
   const project = await resolveProject(provider, providerConfig, log);
@@ -336,7 +336,7 @@ export async function runBootstrap(config, opts = {}) {
     views = await ensureViews(provider, log);
     fields = await ensureProjectFields(provider, project, log);
   } else {
-    log('[bootstrap] No active project — skipping legacy project-field setup.');
+    log('[Bootstrap] No active project — skipping legacy project-field setup.');
   }
 
   // Story #2845 — audit project workflows for the ones that race against
@@ -407,7 +407,7 @@ export async function runBootstrap(config, opts = {}) {
     log,
   });
 
-  log('[bootstrap] Done.');
+  log('[Bootstrap] Done.');
   return {
     labels,
     fields,
@@ -432,14 +432,14 @@ async function main() {
   // before bootstrap proceeds.
   try {
     const { version } = await preflightGh();
-    Logger.info(`[bootstrap] gh CLI ${version} ready (auth verified).`);
+    Logger.info(`[Bootstrap] gh CLI ${version} ready (auth verified).`);
   } catch (err) {
     if (
       err instanceof GhNotInstalledError ||
       err instanceof GhAuthError ||
       err instanceof GhVersionError
     ) {
-      Logger.error(`[bootstrap] ${err.message}`);
+      Logger.error(`[Bootstrap] ${err.message}`);
       process.exit(1);
     }
     throw err;
@@ -453,7 +453,7 @@ async function main() {
     await preflightRuntimeDeps();
   } catch (err) {
     if (err instanceof MissingRuntimeDepsError) {
-      Logger.error(`[bootstrap] ${err.message}`);
+      Logger.error(`[Bootstrap] ${err.message}`);
       process.exit(1);
     }
     throw err;
@@ -467,13 +467,13 @@ async function main() {
   const config = resolveConfig();
 
   if (!config.github) {
-    throw new Error('[bootstrap] No "github" block found in .agentrc.json.');
+    throw new Error('[Bootstrap] No "github" block found in .agentrc.json.');
   }
 
   try {
     validateOrchestrationConfig(config);
   } catch (err) {
-    Logger.error(`[bootstrap] ERROR: ${err.message}`);
+    Logger.error(`[Bootstrap] ERROR: ${err.message}`);
     process.exit(1);
   }
 
@@ -513,13 +513,13 @@ async function main() {
     // detailed summary only when mutations were actually attempted.
     if (result.skipped) {
       Logger.info(
-        `[bootstrap] GitHub-admin step skipped (${result.reason}). Re-run with --approve-github-admin (or --assume-yes) to apply.`,
+        `[Bootstrap] GitHub-admin step skipped (${result.reason}). Re-run with --approve-github-admin (or --assume-yes) to apply.`,
       );
     } else {
       printSummary(result);
     }
   } catch (err) {
-    throw new Error(`[bootstrap] runBootstrap failed: ${err.message}`);
+    throw new Error(`[Bootstrap] runBootstrap failed: ${err.message}`);
   }
 }
 

@@ -277,7 +277,7 @@ export function ensureDependenciesInstalled(ctx) {
   });
   if (result.status !== 0) {
     throw new Error(
-      `[bootstrap] ${manager} install failed (exit ${result.status}). Resolve the install error and re-run.`,
+      `[Bootstrap] ${manager} install failed (exit ${result.status}). Resolve the install error and re-run.`,
     );
   }
   return { ran: true, manager, skipped: false };
@@ -462,7 +462,7 @@ export function runSyncCommands(ctx) {
   });
   if (result.status !== 0) {
     throw new Error(
-      `[bootstrap] sync-claude-commands.js failed (exit ${result.status}): ${(
+      `[Bootstrap] sync-claude-commands.js failed (exit ${result.status}): ${(
         result.stderr ?? ''
       )
         .trim()
@@ -615,12 +615,12 @@ export function checkWindowsGitPerf(ctx) {
 const fatalNodeCheck = (result) =>
   result.ok
     ? null
-    : `[bootstrap] Node ${result.version} is below required ${result.required}. Upgrade Node and re-run.`;
+    : `[Bootstrap] Node ${result.version} is below required ${result.required}. Upgrade Node and re-run.`;
 
 const fatalValidation = (result) =>
   result.ok
     ? null
-    : `[bootstrap] .agentrc.json failed schema validation: ${JSON.stringify(
+    : `[Bootstrap] .agentrc.json failed schema validation: ${JSON.stringify(
         result.errors,
         null,
         2,
@@ -629,7 +629,7 @@ const fatalValidation = (result) =>
 const fatalParity = (result) =>
   result.ok
     ? null
-    : `[bootstrap] Parity check failed — workflows missing commands: ${
+    : `[Bootstrap] Parity check failed — workflows missing commands: ${
         result.missingCommand.join(', ') || '(none)'
       }; orphan commands: ${result.orphanCommand.join(', ') || '(none)'}`;
 

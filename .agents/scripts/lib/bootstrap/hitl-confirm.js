@@ -26,7 +26,7 @@
 import { createInterface } from 'node:readline';
 
 const ABORT_MESSAGE =
-  '[bootstrap] aborting: no TTY available for HITL confirm (opt in with --approve-github-admin for GitHub-admin mutations, or --assume-yes to accept every phase group)';
+  '[Bootstrap] aborting: no TTY available for HITL confirm (opt in with --approve-github-admin for GitHub-admin mutations, or --assume-yes to accept every phase group)';
 
 /**
  * @param {object} args
@@ -61,7 +61,7 @@ export async function confirm({ summary, current, proposed }, opts = {}) {
   // Render the diff. Single-line summary, then a JSON block so the
   // operator can pipe the prompt to a logger and still recover the
   // structured shape.
-  stdout.write(`\n[bootstrap] HITL confirm: ${summary}\n`);
+  stdout.write(`\n[Bootstrap] HITL confirm: ${summary}\n`);
   stdout.write(
     `  current:  ${JSON.stringify(current ?? null, null, 2)
       .split('\n')

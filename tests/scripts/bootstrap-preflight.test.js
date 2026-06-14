@@ -71,7 +71,12 @@ describe('runPreflight', () => {
     });
     assert.equal(res.ok, true);
     const names = res.checks.map((c) => c.name);
-    assert.deepEqual(names, ['node', 'git', 'git-work-tree', 'gh']);
+    assert.deepEqual(names, [
+      'Node version',
+      'Git installed',
+      'Local git initialized',
+      'GitHub CLI',
+    ]);
     assert.ok(res.checks.every((c) => c.ok));
     assert.ok(res.checks.every((c) => c.remedy === undefined));
   });
@@ -87,7 +92,11 @@ describe('runPreflight', () => {
     });
     assert.equal(res.ok, true);
     const names = res.checks.map((c) => c.name);
-    assert.deepEqual(names, ['node', 'git', 'git-work-tree']);
+    assert.deepEqual(names, [
+      'Node version',
+      'Git installed',
+      'Local git initialized',
+    ]);
   });
 
   it('fails (ok=false) with a node remedy when Node is too old', async () => {
@@ -97,7 +106,7 @@ describe('runPreflight', () => {
       gitRunner: gitRunnerStub(),
     });
     assert.equal(res.ok, false);
-    const node = res.checks.find((c) => c.name === 'node');
+    const node = res.checks.find((c) => c.name === 'Node version');
     assert.equal(node.ok, false);
     assert.match(node.remedy, /18\.0\.0/);
     assert.match(node.remedy, /below required 22\.22\.1/);
@@ -110,12 +119,12 @@ describe('runPreflight', () => {
       gitRunner: gitRunnerStub({ enoent: true }),
     });
     assert.equal(res.ok, false);
-    const git = res.checks.find((c) => c.name === 'git');
+    const git = res.checks.find((c) => c.name === 'Git installed');
     assert.equal(git.ok, false);
     assert.match(git.remedy, /Install git/);
     // inside-work-tree is not probed when git itself is missing
     assert.equal(
-      res.checks.find((c) => c.name === 'git-work-tree'),
+      res.checks.find((c) => c.name === 'Local git initialized'),
       undefined,
     );
   });
@@ -127,7 +136,7 @@ describe('runPreflight', () => {
       gitRunner: gitRunnerStub({ availableStatus: 1 }),
     });
     assert.equal(res.ok, false);
-    const git = res.checks.find((c) => c.name === 'git');
+    const git = res.checks.find((c) => c.name === 'Git installed');
     assert.equal(git.ok, false);
     assert.match(git.remedy, /git --version failed/);
   });
@@ -139,7 +148,7 @@ describe('runPreflight', () => {
       gitRunner: gitRunnerStub({ insideStatus: 128 }),
     });
     assert.equal(res.ok, false);
-    const wt = res.checks.find((c) => c.name === 'git-work-tree');
+    const wt = res.checks.find((c) => c.name === 'Local git initialized');
     assert.equal(wt.ok, false);
     assert.match(wt.remedy, /inside a git repository/);
   });
@@ -151,7 +160,10 @@ describe('runPreflight', () => {
       gitRunner: gitRunnerStub({ inside: 'false' }),
     });
     assert.equal(res.ok, false);
-    assert.equal(res.checks.find((c) => c.name === 'git-work-tree').ok, false);
+    assert.equal(
+      res.checks.find((c) => c.name === 'Local git initialized').ok,
+      false,
+    );
   });
 
   it('surfaces the gh error message as the gh remedy when preflightGh throws', async () => {
@@ -161,7 +173,7 @@ describe('runPreflight', () => {
       gh: failGh,
     });
     assert.equal(res.ok, false);
-    const gh = res.checks.find((c) => c.name === 'gh');
+    const gh = res.checks.find((c) => c.name === 'GitHub CLI');
     assert.equal(gh.ok, false);
     assert.match(gh.remedy, /not logged in/);
   });
@@ -227,7 +239,7 @@ describe('checkProjectScopes', () => {
     const res = await checkProjectScopes({
       runner: authStatusRunner("  - Token scopes: 'gist', 'project', 'repo'"),
     });
-    assert.deepEqual(res, { name: 'gh-project-scope', ok: true });
+    assert.deepEqual(res, { name: 'GitHub Projects V2 access', ok: true });
   });
 
   it('reads the scopes line from stderr as well as stdout', async () => {
