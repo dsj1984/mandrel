@@ -239,24 +239,61 @@ and optionally route or promote it — with the operator deciding each write.
    `regression-of-closed`. Stamp the `fingerprintFooter(sha)` marker into any
    Issue body so future runs dedup against it.
 
-3. **Optionally promote** the finding to a follow-up ticket via
+3. **Promote `file`-dispositioned findings through `/plan`** (never a raw
+   GitHub Issue) via
    [`promote-finding.js`](../scripts/lib/findings/promote-finding.js), which
-   clusters, routes, and files through the same ports — never hand-roll the
-   promotion:
+   clusters, sizes, routes, and files through the same ports `/qa-explore` and
+   `/audit-to-stories` consume — never hand-roll the promotion, the clustering,
+   or the sizing:
 
    ```js
    import { promoteFindings } from '../scripts/lib/findings/promote-finding.js';
-   const promotions = await promoteFindings(ledgerItems, { searchIssues, createStory });
+   const { promotions } = await promoteFindings(ledgerItems, {
+     searchIssues, // GitHub provider, open + closed
+     createStory, // tight cluster (≤2 surfaces): render seed → /plan --from-notes
+     createEpic, // broad cluster (>2 surfaces): render seed → /plan --idea
+   });
    ```
 
-4. **Gate:** any ledger append, ticket-filing, or label mutation is a write —
-   confirm **each one** with the operator before it happens. Redaction has
-   already run, so nothing unredacted reaches disk or GitHub.
+   - **Sizing is delegated, not decided in prose.** `promoteFindings` runs
+     `clusterLedgerItems` + `targetForCluster`: a cluster spanning **≤2**
+     distinct coverage surfaces routes to `createStory`; **>2** routes to
+     `createEpic`. Do not re-cluster, re-size, or re-dedup in the workflow —
+     [`route-finding.js`](../scripts/lib/findings/route-finding.js) /
+     [`promote-finding.js`](../scripts/lib/findings/promote-finding.js) are the
+     single implementation.
+   - **`createStory` (`/plan --from-notes`)** — render a **redacted**
+     `--from-notes` seed from the cluster (reuse the `/audit-to-stories`
+     Phase 5b notes shape; redaction already ran in Phase 2), **stamp the
+     cluster's `fingerprintFooter(sha)` verbatim into the seed body**, then
+     chain `/plan --from-notes <seed>`. The footer must survive into the issue
+     body the Story create path writes — it round-trips through
+     `story-plan.js --body <file> --dry-run` unchanged (asserted by the
+     deterministic round-trip test under `tests/`) so a later `routeFinding`
+     dedups the same finding instead of re-filing it.
+   - **`createEpic` (`/plan --idea`)** — carry the cluster's
+     `fingerprintFooter(sha)` into the `/plan --idea` seed, then chain
+     `/plan --idea <seed>`. **Known limitation (not solved here):**
+     per-child-Story fingerprint propagation through full Epic decomposition is
+     *not* guaranteed — the fingerprint is carried in the Epic seed only; the
+     child Stories `/plan` spawns from that seed are not individually
+     footer-stamped.
+   - **A `file` disposition never opens a raw GitHub Issue.** Every `file`
+     finding flows through `promoteFindings` → `/plan`; only `defer` (carry
+     forward as backlog) and `dismiss` (non-actionable) skip the `/plan`
+     handoff.
+
+4. **Gate:** any ledger append, seed write, `/plan` invocation, ticket-filing,
+   or label mutation is a write — confirm **each one** with the operator before
+   it happens. The plan→deliver hard stop is preserved: each `/plan` chain
+   pauses at its own HITL gates and never auto-delivers. Redaction has already
+   run, so nothing unredacted reaches disk or GitHub.
 
 After recording, summarize: the finding recorded, its coverage verdict and
 `missingTest`, any route/promotion decision
-(`new`/`update-existing`/`duplicate`/`regression-of-closed`), and the rolling
-backlog a resumed session will pick up.
+(`new`/`update-existing`/`duplicate`/`regression-of-closed`) and whether it was
+promoted to a Story (`/plan --from-notes`) or Epic (`/plan --idea`), and the
+rolling backlog a resumed session will pick up.
 
 ---
 
@@ -291,3 +328,24 @@ backlog a resumed session will pick up.
   promotion ([`promote-finding.js`](../scripts/lib/findings/promote-finding.js)),
   and session resolution ([`qa-session.js`](../scripts/lib/qa/qa-session.js))
   are deterministic — never re-derive them in prose.
+- **Promote through `/plan`, never a raw Issue.** A `file`-dispositioned
+  finding is promoted via `promoteFindings`, which chains into
+  [`/plan`](plan.md) (`--from-notes` for a tight cluster, `--idea` for a broad
+  one) — mirroring [`/audit-to-stories`](audit-to-stories.md). `/qa-assist`
+  never opens a bare GitHub Issue for a `file` finding. The cluster's
+  `fingerprintFooter(sha)` is stamped verbatim into the seed so a future
+  `routeFinding` dedups it.
+
+## See also
+
+- [`/plan`](plan.md) — the planning pipeline `/qa-assist` chains into when an
+  operator dispositions a finding `file` (`--from-notes` for a Story, `--idea`
+  for an Epic). The plan→deliver hard stop is preserved across the handoff.
+- [`/qa-explore`](qa-explore.md) — the agent-led sibling that drives a named
+  surface and triages through the same `/plan` handoff.
+- [`/audit-to-stories`](audit-to-stories.md) — the precedent for the
+  findings → `/plan` handoff and the shared fingerprint-footer dedup contract.
+- [`promote-finding.js`](../scripts/lib/findings/promote-finding.js) /
+  [`route-finding.js`](../scripts/lib/findings/route-finding.js) — the shared
+  cluster/size/promote and dedup/route/fingerprint-footer helpers. There is no
+  second clustering, sizing, or dedup implementation.
