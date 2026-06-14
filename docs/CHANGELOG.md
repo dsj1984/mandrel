@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.65.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.64.0...mandrel-v1.65.0) (2026-06-14)
+
+
+### Added
+
+* Epic [#4118](https://github.com/dsj1984/mandrel/issues/4118) ([#4127](https://github.com/dsj1984/mandrel/issues/4127)) ([d24a1f7](https://github.com/dsj1984/mandrel/commit/d24a1f7d3fc36d20015890fbadd7d08caa1d506b))
+* **qa:** route /qa-assist and /qa-explore triage into /plan (refs [#4115](https://github.com/dsj1984/mandrel/issues/4115)) ([#4116](https://github.com/dsj1984/mandrel/issues/4116)) ([de2a211](https://github.com/dsj1984/mandrel/commit/de2a211089104edd1cb76f77d668b0219a041c3e))
+
 ## [1.64.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.63.0...mandrel-v1.64.0) (2026-06-14)
 
 
