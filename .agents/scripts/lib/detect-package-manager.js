@@ -1,11 +1,11 @@
 /**
  * detect-package-manager — shared lockfile-probe helper (Story #4048 B3).
  *
- * Five independent copies of this lockfile probe existed across the codebase:
+ * Several independent copies of this lockfile probe existed across the
+ * codebase before this consolidation:
  *   - `lib/cli/update.js#detectPackageManager`
  *   - `lib/bootstrap/project-bootstrap.js#detectPackageManager`
  *   - `lib/runtime-deps/preflight.js#detectPackageManager`
- *   - `lib/onboard/detect-stack.js#detectPackageManager`
  *   - `lib/worktree/node-modules-strategy.js#selectInstallCommand` (inline)
  *
  * This module is the single authoritative implementation. It uses the

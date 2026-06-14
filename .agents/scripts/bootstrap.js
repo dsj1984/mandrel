@@ -539,7 +539,7 @@ export function buildQuestions(defaults, flags, env = process.env, lists = {}) {
       key: 'owner',
       flag: 'owner',
       env: 'GH_OWNER',
-      message: '\n\nGithub repo owner',
+      message: '\n\nGitHub repo owner',
       default: defaults.owner,
       required: true,
       validate: (v) =>
@@ -550,7 +550,7 @@ export function buildQuestions(defaults, flags, env = process.env, lists = {}) {
       flag: 'operator-handle',
       env: 'GH_OPERATOR_HANDLE',
       message:
-        'Github username/handle without preceding@ (default: same as owner)',
+        'GitHub username/handle without preceding@ (default: same as owner)',
       // Default tracks the repo owner; resolved post-collect if left blank.
       default: defaults.owner,
       required: false,
