@@ -82,16 +82,19 @@ jobs:
         run: npm run maintainability:check
 
       - name: Build node-pty for the PTY init guard
-        # node-pty ships no Linux prebuild and the shared setup action installs
-        # with `npm ci --ignore-scripts`, so the #4106 interactive-init guard
-        # (tests/e2e/init-interactive.integration.test.js) would otherwise skip
-        # on this Linux gate (the only required full-tier test run). Build it
-        # from source (ubuntu-latest ships build-essential + python3) so the
-        # guard actually runs here. Non-fatal: the test's own node-pty
-        # availability probe still skips gracefully if the build ever fails, so
-        # a build-env hiccup degrades to a skip rather than a red gate.
+        # node-pty (1.x) ships no Linux prebuild and the shared setup installs
+        # with `npm ci --ignore-scripts`, so its native addon is never compiled
+        # and the interactive-init regression guard
+        # (tests/e2e/init-interactive.integration.test.js) skips on this Linux
+        # gate. `npm rebuild --build-from-source` no-ops here (the flag is not
+        # propagated to node-pty's `node scripts/prebuild.js || node-gyp rebuild`
+        # install), so build the addon directly with node-gyp (ubuntu-latest
+        # ships python3 + make + g++) to produce build/Release/pty.node.
+        # Best-effort + non-fatal: the test's own node-pty availability probe
+        # still skips the guard gracefully if this build does not yield a
+        # loadable binary, so the gate never reds on it.
         run: |
-          npm rebuild node-pty --build-from-source || echo "::warning::node-pty build failed; PTY init guard will skip on this run"
+          ( cd node_modules/node-pty && npx --yes node-gyp rebuild ) || echo "::warning::node-pty source build failed; PTY init guard will skip on this run"
 
       - name: Run Tests with Coverage
         # Capture stderr too — Node's test runner and the coverage-threshold
