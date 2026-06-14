@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.66.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.65.0...mandrel-v1.66.0) (2026-06-14)
+
+
+### Added
+
+* **qa:** make /qa-assist a rolling multi-observation intake loop (refs [#4115](https://github.com/dsj1984/mandrel/issues/4115)) ([#4129](https://github.com/dsj1984/mandrel/issues/4129)) ([81e85fa](https://github.com/dsj1984/mandrel/commit/81e85fa6c0b0ac2a8af227d0c8bd6f77fe9a94eb))
+
 ## [1.65.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.64.0...mandrel-v1.65.0) (2026-06-14)
 
 
