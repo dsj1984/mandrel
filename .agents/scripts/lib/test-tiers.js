@@ -38,7 +38,7 @@ const matchesIntegration = picomatch(INTEGRATION_INCLUDE, { dot: true });
  * leaving that coverage dark in `npm test`. The matching full-tier globs
  * live in `FULL_TIER_GLOBS`.
  */
-export const TEST_WALK_ROOTS = ['tests', 'lib'];
+const TEST_WALK_ROOTS = ['tests', 'lib'];
 
 /**
  * Glob targets for the `full` tier — one per walk root in `TEST_WALK_ROOTS`.
@@ -46,7 +46,7 @@ export const TEST_WALK_ROOTS = ['tests', 'lib'];
  * `__tests__` subtrees so it only matches colocated tests, never the shipped
  * source modules themselves.
  */
-export const FULL_TIER_GLOBS = [
+const FULL_TIER_GLOBS = [
   'tests/**/*.test.js',
   'lib/**/__tests__/**/*.test.js',
 ];
