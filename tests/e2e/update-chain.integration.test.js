@@ -29,7 +29,21 @@
  *      value, never whatever is live on npmjs.com.
  *   2. The install step is driven via `--install-cmd "npm install --offline
  *      … <tarball>"`, so the dependency tree resolves from the local npm cache
- *      (already warm from the repo's own install) with zero network.
+ *      with zero network.
+ *
+ * ## Warm-cache precondition (graceful skip on a cold runner)
+ *
+ * That `--offline` install assumes the local npm cache is **warm** — on a dev
+ * machine it is, from the repo's own install. A lockfile-less `--offline`
+ * resolve needs the consumer deps' package-*metadata* (e.g.
+ * `registry.npmjs.org/ajv`, to resolve `ajv@^8.20.0`), not just their tarballs.
+ * A fresh CI runner's `npm ci --ignore-scripts` caches the lockfile-pinned
+ * tarballs but NOT that metadata, so the resolve fails with `ENOTCACHED`. The
+ * suite therefore **probes** the cache once at module load (see `setup()` /
+ * COLD_CACHE_SKIP) and skips cleanly with a clear reason when it is cold,
+ * instead of adding a costly/flaky online install. The update chain stays
+ * covered on a cold runner by the activated `lib/cli/__tests__/update*.test.js`
+ * unit suites and the Install Matrix workflow's real published-package install.
  *
  * The "current" (pre-update) version is seeded **below** the packed version by
  * rewriting the seeded `node_modules/mandrel/package.json`, so `update` has a
@@ -77,7 +91,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { after, afterEach, before, describe, it } from 'node:test';
+import { after, afterEach, describe, it } from 'node:test';
 
 import { REPO_ROOT } from './helpers/cli-harness.js';
 import { startLocalRegistry } from './helpers/local-registry.js';
@@ -104,6 +118,40 @@ const DOCTOR_READY_RE = /✅\s+Ready \(\d+\/\d+ checks passed\)/;
  * path. Never a real credential.
  */
 const DUMMY_TOKEN = 'mandrel-e2e-dummy-token';
+
+/**
+ * Cold-cache skip guard.
+ *
+ * This suite installs the consumer's dependency tree `--offline` (see
+ * `seedConsumer` and the per-test `--install-cmd`). An `--offline` install with
+ * no lockfile must resolve every dep from the **local npm cache**, which needs
+ * not just the dep *tarballs* but the package-*metadata* documents (e.g.
+ * `registry.npmjs.org/ajv`) to resolve a range like `ajv@^8.20.0`. On a dev
+ * machine the cache is warm from the repo's own install, so this is hermetic
+ * and fast; on a **fresh CI runner** `npm ci --ignore-scripts` caches the
+ * lockfile-pinned tarballs but NOT those metadata documents, so the first
+ * lockfile-less `--offline` resolve fails with `ENOTCACHED`
+ * (`cache mode is 'only-if-cached' but no cached response is available`).
+ *
+ * Rather than add a network-dependent online install (per-PR cost + flakiness —
+ * the test-health audit already flagged this e2e's cost), we **probe** the
+ * cache once and skip the whole suite cleanly with a clear reason when it is
+ * cold. The update chain stays covered elsewhere on a cold runner: the
+ * activated `lib/cli/__tests__/update*.test.js` unit suites drive `runUpdate`
+ * with injected fakes (no cache), and the Install Matrix workflow exercises a
+ * real published-package install end to end. The probe + skip mirrors the
+ * `node-pty`-availability guard in `init-interactive.integration.test.js`.
+ *
+ * Set at **module load** (in the top-level `setup()` below), NOT in a `before`
+ * hook — `it(..., { skip })` snapshots its options when `describe` runs its
+ * body, which is *before* any `before` hook fires, so a hook-set value would
+ * always read stale `false`. The same load-time timing is why the PTY guard
+ * runs at module scope. A string reason means "skip"; `false` means "cache is
+ * warm, run normally".
+ *
+ * @type {string | false}
+ */
+let COLD_CACHE_SKIP = false;
 
 /**
  * Decrement a semver to the nearest lower valid version, so the seeded
@@ -199,90 +247,133 @@ function runBinary(binPath, args, { cwd, env, timeoutMs = UPDATE_TIMEOUT_MS }) {
   });
 }
 
+/**
+ * Pack this repo, derive the "current" tarball, and probe the npm cache — all
+ * at **module load** so the results are available when `describe` snapshots the
+ * `it(..., { skip })` options (see COLD_CACHE_SKIP). Returns the immutable
+ * artifacts the suite consumes; sets the module-scoped COLD_CACHE_SKIP as a
+ * side effect when the local cache is too cold to resolve consumer deps offline.
+ *
+ * @returns {{ newestTarball: string, currentTarball: string, newestVersion: string, manifest: object, currentVersion: string }}
+ */
+function setup() {
+  // Pack THIS repo into a tarball — the artifact `npm publish` would ship and
+  // the "newest" version `update` resolves to. `--ignore-scripts` skips the
+  // `prepare` hook (the repo `.npmrc` also sets ignore-scripts=true); pack
+  // honours package.json `files` so `.agents/`, `bin/`, `lib/` are included.
+  // Capture stdout (the tarball filename) but DISCARD stderr — `npm pack`
+  // streams the full ~855-line "Tarball Contents" notice to stderr.
+  const packDir = mkTempDir('mandrel-e2e-pack-');
+  const packed = execFileSync(
+    'npm',
+    ['pack', '--ignore-scripts', '--pack-destination', packDir],
+    { cwd: REPO_ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+  )
+    .trim()
+    .split('\n')
+    .pop()
+    .trim();
+  const newestTarball = path.join(packDir, packed);
+  assert.ok(
+    fs.existsSync(newestTarball),
+    `npm pack did not produce a tarball at ${newestTarball}`,
+  );
+
+  // Read the manifest straight from the tarball so the loopback packument
+  // mirrors the real published metadata, and learn the packed version.
+  const extractDir = mkTempDir('mandrel-e2e-extract-');
+  execFileSync('tar', ['-xzf', newestTarball, '-C', extractDir], {
+    encoding: 'utf8',
+  });
+  const pkgRoot = path.join(extractDir, 'package');
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(pkgRoot, 'package.json'), 'utf8'),
+  );
+  const newestVersion = String(manifest.version);
+  const currentVersion = previousVersion(newestVersion);
+  assert.notEqual(
+    currentVersion,
+    newestVersion,
+    'seeded current version must differ from newest',
+  );
+
+  // Derive a genuine "current" tarball (one minor below) by rewriting the
+  // extracted manifest's version and re-taring. Installing this gives the
+  // consumer a real `currentVersion` payload — so the update's install of the
+  // newest tarball is a genuine version change npm actually applies (a plain
+  // re-install of the SAME version is a no-op npm skips, which would leave the
+  // installed version unchanged and break the upgrade assertion).
+  fs.writeFileSync(
+    path.join(pkgRoot, 'package.json'),
+    `${JSON.stringify({ ...manifest, version: currentVersion }, null, 2)}\n`,
+  );
+  const currentTarball = path.join(packDir, `mandrel-${currentVersion}.tgz`);
+  execFileSync('tar', ['-czf', currentTarball, '-C', extractDir, 'package'], {
+    encoding: 'utf8',
+  });
+  assert.ok(
+    fs.existsSync(currentTarball),
+    `failed to derive the current (${currentVersion}) tarball`,
+  );
+
+  // Cold-cache availability probe. Do a lightweight offline resolve of the
+  // current tarball into a throwaway temp dir with `--dry-run` (no real
+  // writes): if it exits non-zero the local npm cache lacks the consumer's dep
+  // metadata (ENOTCACHED — a fresh CI runner), so set COLD_CACHE_SKIP and every
+  // `it` skips with a clear reason. Where the cache is warm (a dev machine) it
+  // stays `false` and the suite runs.
+  const probeDir = mkTempDir('mandrel-e2e-cachecheck-');
+  const probe = spawnSync(
+    'npm',
+    [
+      'install',
+      currentTarball,
+      '--offline',
+      '--dry-run',
+      '--ignore-scripts',
+      '--no-audit',
+      '--no-fund',
+    ],
+    { cwd: probeDir, encoding: 'utf8' },
+  );
+  if (probe.status !== 0) {
+    COLD_CACHE_SKIP =
+      'npm cache cold for consumer deps (e.g. ajv metadata); update-chain ' +
+      'e2e requires a warm cache — runs locally / where the cache is warm, ' +
+      'skipped here';
+  }
+
+  return {
+    newestTarball,
+    currentTarball,
+    newestVersion,
+    manifest,
+    currentVersion,
+  };
+}
+
+// Run setup at module load (before `describe` snapshots the `it` skip options).
+const {
+  newestTarball,
+  currentTarball,
+  newestVersion,
+  manifest,
+  currentVersion,
+} = setup();
+
 describe('mandrel update — real-binary upgrade chain (e2e)', () => {
-  /** @type {string} absolute path to the "newest" tarball (the update target). */
-  let newestTarball;
-  /** @type {string} absolute path to the "current" tarball (seeds the consumer). */
-  let currentTarball;
-  /** @type {string} the version the repo packs as (the "newest" target). */
-  let newestVersion;
-  /** @type {object} the manifest parsed from the tarball (for the packument). */
-  let manifest;
-  /** @type {string} the seeded "current" version (one step below newest). */
-  let currentVersion;
   /** @type {string[]} per-test consumer dirs, reaped in afterEach. */
   let consumerDirs = [];
   /** @type {Awaited<ReturnType<typeof startLocalRegistry>> | null} */
   let registry = null;
-
-  before(() => {
-    // Pack THIS repo into a tarball — the artifact `npm publish` would ship and
-    // the "newest" version `update` resolves to. `--ignore-scripts` skips the
-    // `prepare` hook (the repo `.npmrc` also sets ignore-scripts=true); pack
-    // honours package.json `files` so `.agents/`, `bin/`, `lib/` are included.
-    // Capture stdout (the tarball filename) but DISCARD stderr — `npm pack`
-    // streams the full ~855-line "Tarball Contents" notice to stderr.
-    const packDir = mkTempDir('mandrel-e2e-pack-');
-    const packed = execFileSync(
-      'npm',
-      ['pack', '--ignore-scripts', '--pack-destination', packDir],
-      { cwd: REPO_ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
-    )
-      .trim()
-      .split('\n')
-      .pop()
-      .trim();
-    newestTarball = path.join(packDir, packed);
-    assert.ok(
-      fs.existsSync(newestTarball),
-      `npm pack did not produce a tarball at ${newestTarball}`,
-    );
-
-    // Read the manifest straight from the tarball so the loopback packument
-    // mirrors the real published metadata, and learn the packed version.
-    const extractDir = mkTempDir('mandrel-e2e-extract-');
-    execFileSync('tar', ['-xzf', newestTarball, '-C', extractDir], {
-      encoding: 'utf8',
-    });
-    const pkgRoot = path.join(extractDir, 'package');
-    manifest = JSON.parse(
-      fs.readFileSync(path.join(pkgRoot, 'package.json'), 'utf8'),
-    );
-    newestVersion = String(manifest.version);
-    currentVersion = previousVersion(newestVersion);
-    assert.notEqual(
-      currentVersion,
-      newestVersion,
-      'seeded current version must differ from newest',
-    );
-
-    // Derive a genuine "current" tarball (one minor below) by rewriting the
-    // extracted manifest's version and re-taring. Installing this gives the
-    // consumer a real `currentVersion` payload — so the update's install of the
-    // newest tarball is a genuine version change npm actually applies (a plain
-    // re-install of the SAME version is a no-op npm skips, which would leave the
-    // installed version unchanged and break the upgrade assertion).
-    fs.writeFileSync(
-      path.join(pkgRoot, 'package.json'),
-      `${JSON.stringify({ ...manifest, version: currentVersion }, null, 2)}\n`,
-    );
-    currentTarball = path.join(packDir, `mandrel-${currentVersion}.tgz`);
-    execFileSync('tar', ['-czf', currentTarball, '-C', extractDir, 'package'], {
-      encoding: 'utf8',
-    });
-    assert.ok(
-      fs.existsSync(currentTarball),
-      `failed to derive the current (${currentVersion}) tarball`,
-    );
-  });
 
   afterEach(async () => {
     if (registry) {
       await registry.close();
       registry = null;
     }
-    // Reap only the per-test consumer dirs; the shared pack/extract dirs created
-    // in `before` survive until the final `after`.
+    // Reap only the per-test consumer dirs; the shared pack/extract/probe dirs
+    // created in `setup()` survive until the final `after`.
     for (const dir of consumerDirs) {
       fs.rmSync(dir, { recursive: true, force: true });
     }
@@ -361,7 +452,9 @@ describe('mandrel update — real-binary upgrade chain (e2e)', () => {
     return { dir, binPath };
   }
 
-  it('upgrades current → newest, re-materializes .agents/, and doctor reports ready', async () => {
+  it('upgrades current → newest, re-materializes .agents/, and doctor reports ready', {
+    skip: COLD_CACHE_SKIP,
+  }, async () => {
     const { dir, binPath } = seedConsumer();
 
     registry = await startLocalRegistry({
@@ -429,7 +522,9 @@ describe('mandrel update — real-binary upgrade chain (e2e)', () => {
     );
   });
 
-  it('is re-runnable: a second update on the now-current consumer is a no-op (already up to date)', async () => {
+  it('is re-runnable: a second update on the now-current consumer is a no-op (already up to date)', {
+    skip: COLD_CACHE_SKIP,
+  }, async () => {
     // First update brings the consumer to newest.
     const { dir, binPath } = seedConsumer();
     registry = await startLocalRegistry({
