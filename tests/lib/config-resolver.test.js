@@ -13,12 +13,15 @@ import {
   getPaths,
   getQuality,
   LIMITS_DEFAULTS,
+  NOTIFICATIONS_DEFAULTS,
   PROJECT_ROOT,
   resolveCodingGuardrails,
   resolveConfig,
   resolveListValue,
   resolveMaintainabilityCrap,
   resolveQuality,
+  resolveWorktreeEnabled,
+  WORKTREE_ISOLATION_DEFAULTS,
 } from '../../.agents/scripts/lib/config-resolver.js';
 import { resolveQaContract } from '../../.agents/scripts/lib/qa/resolve-qa-contract.js';
 import { setupFsMock } from './fs-mock.js';
@@ -398,5 +401,122 @@ describe('resolveQuality / resolveMaintainabilityCrap / resolveCodingGuardrails'
   it('resolveCodingGuardrails preserves miDropMustRefactor', () => {
     const guard = resolveCodingGuardrails({ miDropMustRefactor: 2.0 });
     assert.equal(guard.miDropMustRefactor, 2.0);
+  });
+});
+
+/**
+ * Regression: callers that read `config.project.commands.test` directly
+ * (without `getCommands()`) previously got `undefined` when the operator
+ * omitted the `commands` block. `applyDefaults()` now enriches the
+ * canonical block with COMMANDS_DEFAULTS so every field is present.
+ */
+describe('config-resolver — commands defaults', () => {
+  let vol;
+
+  beforeEach((t) => {
+    vol = new Volume();
+    setupFsMock(t, vol);
+    resolveConfig({ bustCache: true });
+  });
+
+  it('applies COMMANDS_DEFAULTS when project.commands is omitted', () => {
+    vol.mkdirSync(PROJECT_ROOT, { recursive: true });
+    vol.writeFileSync(
+      path.join(PROJECT_ROOT, '.agentrc.json'),
+      JSON.stringify({
+        project: {
+          paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+        },
+      }),
+    );
+    // Epic #2880 / F14B removed `agentSettings` from the resolved config
+    // (hard-cutover of the legacy shim per `git-conventions.md`). The
+    // canonical surface for these defaults is `project.commands`.
+    const { project } = resolveConfig({ bustCache: true });
+    assert.equal(project.commands.test, COMMANDS_DEFAULTS.test);
+    assert.equal(project.commands.lintBaseline, COMMANDS_DEFAULTS.lintBaseline);
+    assert.equal(project.commands.formatCheck, COMMANDS_DEFAULTS.formatCheck);
+  });
+});
+
+/**
+ * Regression: `resolveWorktreeEnabled()` does
+ * `Boolean(config.delivery.worktreeIsolation?.enabled)`, so an omitted
+ * field resolves to `false` and silently disables worktrees. The fix
+ * is `applyDefaults()` enriching the canonical block with
+ * WORKTREE_ISOLATION_DEFAULTS at load time.
+ */
+describe('config-resolver — worktreeIsolation defaults', () => {
+  let vol;
+
+  beforeEach((t) => {
+    vol = new Volume();
+    setupFsMock(t, vol);
+    resolveConfig({ bustCache: true });
+  });
+
+  it('applies WORKTREE_ISOLATION_DEFAULTS when delivery.worktreeIsolation is omitted', () => {
+    vol.mkdirSync(PROJECT_ROOT, { recursive: true });
+    vol.writeFileSync(
+      path.join(PROJECT_ROOT, '.agentrc.json'),
+      JSON.stringify({
+        project: {
+          paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+        },
+        github: { owner: 'org', repo: 'repo', operatorHandle: '@me' },
+      }),
+    );
+    const config = resolveConfig({ bustCache: true });
+    const wi = config.delivery.worktreeIsolation;
+    assert.equal(wi.enabled, true);
+    assert.equal(wi.root, WORKTREE_ISOLATION_DEFAULTS.root);
+    assert.equal(
+      wi.nodeModulesStrategy,
+      WORKTREE_ISOLATION_DEFAULTS.nodeModulesStrategy,
+    );
+    assert.deepEqual(wi.bootstrapFiles, [
+      ...WORKTREE_ISOLATION_DEFAULTS.bootstrapFiles,
+    ]);
+    // And `resolveWorktreeEnabled()` must return true via the defaulted block.
+    assert.equal(resolveWorktreeEnabled({ config }, {}), true);
+  });
+});
+
+/**
+ * Regression: notify.js reads `orchestration.notifications.{commentEvents,
+ * webhookEvents}` directly, and an empty allowlist suppresses the channel
+ * entirely. The legacy shim and applyDefaults() must enrich an omitted
+ * `github.notifications` block with NOTIFICATIONS_DEFAULTS so comment +
+ * webhook channels don't silently disable themselves.
+ */
+describe('config-resolver — notifications defaults', () => {
+  let vol;
+
+  beforeEach((t) => {
+    vol = new Volume();
+    setupFsMock(t, vol);
+    resolveConfig({ bustCache: true });
+  });
+
+  it('applies NOTIFICATIONS_DEFAULTS when github.notifications is omitted', () => {
+    vol.mkdirSync(PROJECT_ROOT, { recursive: true });
+    vol.writeFileSync(
+      path.join(PROJECT_ROOT, '.agentrc.json'),
+      JSON.stringify({
+        project: {
+          paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+        },
+        github: { owner: 'org', repo: 'repo', operatorHandle: '@me' },
+      }),
+    );
+    // Epic #2880 / F14B removed `orchestration` from the resolved config
+    // (hard-cutover of the legacy shim per `git-conventions.md`). The
+    // canonical surface for these defaults is `github.notifications`.
+    const { github } = resolveConfig({ bustCache: true });
+    assert.deepEqual(github.notifications, {
+      mentionOperator: NOTIFICATIONS_DEFAULTS.mentionOperator,
+      commentEvents: [...NOTIFICATIONS_DEFAULTS.commentEvents],
+      webhookEvents: [...NOTIFICATIONS_DEFAULTS.webhookEvents],
+    });
   });
 });
