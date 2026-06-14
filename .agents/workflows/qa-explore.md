@@ -296,19 +296,62 @@ For each untriaged ledger item:
    `searchIssues` port to the GitHub provider (querying both open and closed
    Issues).
 
-3. **Decide the disposition** with the operator: `file` (promote to a
-   follow-up ticket with the classified labels + fingerprint footer), `defer`
-   (carry forward to a later session as backlog), or `dismiss` (non-actionable).
-   Record the chosen `disposition` back onto the ledger item.
+3. **Decide the disposition** with the operator: `file` (promote through
+   `/plan` — never a raw GitHub Issue), `defer` (carry forward to a later
+   session as backlog), or `dismiss` (non-actionable). Record the chosen
+   `disposition` back onto the ledger item.
 
-4. **Gate:** any ticket-filing or label mutation is a write — confirm each one
-   with the operator before it happens. Capture stayed read-only precisely so
-   that every state change lands here, deliberately and confirmed.
+4. **Promote the `file`-dispositioned findings through `/plan`** via
+   [`promote-finding.js`](../scripts/lib/findings/promote-finding.js) — the
+   same cluster/size/route/file path `/qa-assist` and `/audit-to-stories`
+   consume. Never hand-roll the clustering, sizing, or promotion in prose:
+
+   ```js
+   import { promoteFindings } from '../scripts/lib/findings/promote-finding.js';
+   const { promotions } = await promoteFindings(ledgerItems, {
+     searchIssues, // GitHub provider, open + closed
+     createStory, // tight cluster (≤2 surfaces): render seed → /plan --from-notes
+     createEpic, // broad cluster (>2 surfaces): render seed → /plan --idea
+   });
+   ```
+
+   - **Sizing is delegated, not decided in prose.** `promoteFindings` runs
+     `clusterLedgerItems` + `targetForCluster`: a cluster spanning **≤2**
+     distinct coverage surfaces routes to `createStory`; **>2** routes to
+     `createEpic`. The workflow introduces no new sizing, clustering, or dedup
+     logic — `route-finding.js` / `promote-finding.js` remain the single
+     implementation.
+   - **`createStory` (`/plan --from-notes`)** — render a **redacted**
+     `--from-notes` seed from the cluster (reuse the `/audit-to-stories`
+     Phase 5b notes shape; redaction already ran in Capture), **stamp the
+     cluster's `fingerprintFooter(sha)` verbatim into the seed body**, then
+     chain `/plan --from-notes <seed>`. The footer must survive into the issue
+     body the Story create path writes — it round-trips through
+     `story-plan.js --body <file> --dry-run` unchanged (asserted by the
+     deterministic round-trip test under `tests/`) so a later `routeFinding`
+     dedups the same finding instead of re-filing it.
+   - **`createEpic` (`/plan --idea`)** — carry the cluster's
+     `fingerprintFooter(sha)` into the `/plan --idea` seed, then chain
+     `/plan --idea <seed>`. **Known limitation (not solved here):**
+     per-child-Story fingerprint propagation through full Epic decomposition is
+     *not* guaranteed — the fingerprint is carried in the Epic seed only; the
+     child Stories `/plan` spawns from that seed are not individually
+     footer-stamped.
+   - **A `file` disposition never opens a raw GitHub Issue.** Every `file`
+     finding flows through `promoteFindings` → `/plan`; only `defer` and
+     `dismiss` skip the `/plan` handoff.
+
+5. **Gate:** any ticket-filing, seed write, `/plan` invocation, or label
+   mutation is a write — confirm each one with the operator before it happens.
+   Capture stayed read-only precisely so that every state change lands here,
+   deliberately and confirmed. The plan→deliver hard stop is preserved: each
+   `/plan` chain pauses at its own HITL gates and never auto-delivers.
 
 After triage, write the updated dispositions back to the ledger (still under
 `temp/qa/`), and summarize: items captured, the driving method used, classes,
-routes (`new`/`update-existing`/`duplicate`/`regression-of-closed`), filed
-tickets, and the deferred rolling backlog that a resumed session will pick up.
+routes (`new`/`update-existing`/`duplicate`/`regression-of-closed`), the
+Stories (`/plan --from-notes`) and Epics (`/plan --idea`) promoted, and the
+deferred rolling backlog that a resumed session will pick up.
 
 ---
 
@@ -343,8 +386,31 @@ tickets, and the deferred rolling backlog that a resumed session will pick up.
   ([`coverage-verdict.js`](../scripts/lib/qa/coverage-verdict.js)),
   missing-test ([`propose-missing-test.js`](../scripts/lib/qa/propose-missing-test.js)),
   classification ([`classify-finding.js`](../scripts/lib/findings/classify-finding.js)),
-  and dedup/route ([`route-finding.js`](../scripts/lib/findings/route-finding.js))
-  are deterministic — never re-derive them in prose.
+  dedup/route ([`route-finding.js`](../scripts/lib/findings/route-finding.js)),
+  and cluster/size/promote
+  ([`promote-finding.js`](../scripts/lib/findings/promote-finding.js)) are
+  deterministic — never re-derive them in prose.
+- **Promote through `/plan`, never a raw Issue.** A `file`-dispositioned
+  finding is promoted via `promoteFindings`, which chains into
+  [`/plan`](plan.md) (`--from-notes` for a tight cluster, `--idea` for a broad
+  one) — mirroring [`/audit-to-stories`](audit-to-stories.md). `/qa-explore`
+  never opens a bare GitHub Issue for a `file` finding. The cluster's
+  `fingerprintFooter(sha)` is stamped verbatim into the seed so a future
+  `routeFinding` dedups it.
 - **Resume safely.** A reused session appends and carries the un-triaged
   backlog forward via [`qa-session.js`](../scripts/lib/qa/qa-session.js); it
   never overwrites a prior ledger.
+
+## See also
+
+- [`/plan`](plan.md) — the planning pipeline `/qa-explore` Triage chains into
+  for a `file`-dispositioned finding (`--from-notes` for a Story, `--idea` for
+  an Epic). The plan→deliver hard stop is preserved across the handoff.
+- [`/qa-assist`](qa-assist.md) — the human-led sibling that enriches a single
+  operator observation and triages through the same `/plan` handoff.
+- [`/audit-to-stories`](audit-to-stories.md) — the precedent for the
+  findings → `/plan` handoff and the shared fingerprint-footer dedup contract.
+- [`promote-finding.js`](../scripts/lib/findings/promote-finding.js) /
+  [`route-finding.js`](../scripts/lib/findings/route-finding.js) — the shared
+  cluster/size/promote and dedup/route/fingerprint-footer helpers. There is no
+  second clustering, sizing, or dedup implementation.
