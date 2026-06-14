@@ -27,6 +27,31 @@ export const INTEGRATION_INCLUDE = [
 const matchesIntegration = picomatch(INTEGRATION_INCLUDE, { dot: true });
 
 /**
+ * Repo-relative roots the tier walker scans for test files (names ending in
+ * `.test.js`).
+ *
+ * `tests` holds the framework's suite tree; `lib` holds the published CLI
+ * (under `lib/cli` and `lib/migrations`) whose tests are colocated in
+ * `__tests__` directories per the unit-tier convention in
+ * `rules/testing-standards.md`. Without `lib` here, both the quick /
+ * integration walk and the full-tier glob set miss the colocated CLI tests,
+ * leaving that coverage dark in `npm test`. The matching full-tier globs
+ * live in `FULL_TIER_GLOBS`.
+ */
+export const TEST_WALK_ROOTS = ['tests', 'lib'];
+
+/**
+ * Glob targets for the `full` tier — one per walk root in `TEST_WALK_ROOTS`.
+ * The `tests` glob is a flat recursive sweep; the `lib` glob is scoped to
+ * `__tests__` subtrees so it only matches colocated tests, never the shipped
+ * source modules themselves.
+ */
+export const FULL_TIER_GLOBS = [
+  'tests/**/*.test.js',
+  'lib/**/__tests__/**/*.test.js',
+];
+
+/**
  * @param {string} dir
  * @param {string} prefix
  * @param {typeof fs} fsLike
@@ -56,13 +81,11 @@ function walkTestFiles(dir, prefix, fsLike) {
  * @returns {string[]}
  */
 export function listTestFilesForTier(tier, repoRoot, fsLike = fs) {
-  const all = walkTestFiles(
-    path.join(repoRoot, 'tests'),
-    'tests',
-    fsLike,
+  const all = TEST_WALK_ROOTS.flatMap((root) =>
+    walkTestFiles(path.join(repoRoot, root), root, fsLike),
   ).sort();
   if (tier === 'full') {
-    return ['tests/**/*.test.js'];
+    return [...FULL_TIER_GLOBS];
   }
   const integration = all.filter((file) => matchesIntegration(file));
   if (tier === 'integration') {

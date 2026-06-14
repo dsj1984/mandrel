@@ -53,12 +53,31 @@ test('listTestFilesForTier partitions quick vs integration', () => {
   fs.rmSync(root, { recursive: true, force: true });
 });
 
-test('listTestFilesForTier full keeps the default glob', () => {
+test('listTestFilesForTier full returns the tests + lib glob set', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tier-full-'));
   fs.mkdirSync(path.join(root, 'tests'), { recursive: true });
   assert.deepEqual(listTestFilesForTier('full', root, fs), [
     'tests/**/*.test.js',
+    'lib/**/__tests__/**/*.test.js',
   ]);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('quick / integration walk lib/**/__tests__ as a second root', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tier-lib-'));
+  const libTests = path.join(root, 'lib', 'cli', '__tests__');
+  fs.mkdirSync(libTests, { recursive: true });
+  fs.mkdirSync(path.join(root, 'tests'), { recursive: true });
+  fs.writeFileSync(path.join(libTests, 'update.test.js'), '');
+
+  const quick = listTestFilesForTier('quick', root, fs);
+  const integration = listTestFilesForTier('integration', root, fs);
+
+  // The colocated CLI test is dark today; it must land in the runner's
+  // walk-derived target list (quick tier — it is not in INTEGRATION_INCLUDE).
+  assert.ok(quick.includes('lib/cli/__tests__/update.test.js'));
+  assert.ok(!integration.includes('lib/cli/__tests__/update.test.js'));
+
   fs.rmSync(root, { recursive: true, force: true });
 });
 
