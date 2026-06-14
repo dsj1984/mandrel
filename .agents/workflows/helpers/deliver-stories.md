@@ -192,7 +192,18 @@ Each Agent call:
 1. Names the Story ID and instructs the child to invoke
    [`helpers/single-story-deliver`](single-story-deliver.md)
    for that Story.
-2. States the **return contract** (see § 2c).
+2. States the **return contract** (see § 2c) and the **no-park rule**: the
+   child MUST drive the close → CI-watch → merge-confirm → `agent::done`
+   sequence to a terminal state *within its own turn* and end **only** by
+   returning the § 2c JSON object. The auto-merge wait is an
+   internally-blocking step (`gh pr checks --watch` blocks the turn), **not**
+   a reason to suspend and hand back. A child that ends its turn with
+   free-form prose and an unconfirmed merge (e.g. "I'll wait for the
+   background watch task…") has violated the contract — the wave loop cannot
+   advance, and the Story strands at `agent::closing` (the Story #1553 /
+   PR #1554 failure mode). There is no "pending" return status: the child
+   returns `done` (merge confirmed), `blocked` (transitioned + friction
+   posted), or `failed`.
 3. Reminds the child of the **non-interactive contract**: no clarifying
    questions — if stuck, transition to `agent::blocked`, post a
    `friction` comment, and exit non-zero.
@@ -209,7 +220,8 @@ Agent call has returned a result (success, blocked, or failed).
 
 ### 2c. Per-Story return contract
 
-Each child returns:
+Each child ends its turn by returning **exactly one** JSON object — never
+free-form prose:
 
 ```json
 {
@@ -222,6 +234,16 @@ Each child returns:
   "renderedBody": "<terminal story body>"
 }
 ```
+
+The status enum is **closed** — `done`, `blocked`, or `failed`. There is no
+"pending" / "waiting" status, because the close-phase auto-merge wait is
+**not** a returnable suspension: the child blocks on `gh pr checks --watch`
+*inside its own turn*, confirms the merge, flips `agent::done`, and only then
+returns `status: "done"`. A child that returns prose instead — parking on the
+CI wait with an unconfirmed merge — breaks the wave loop's ability to advance
+and leaves the Story at `agent::closing` (Story #1553 / PR #1554). The
+single-homed restatement of this no-park rule for the child's own perspective
+is [`single-story-deliver.md` § Step 7](single-story-deliver.md#return-contract).
 
 ### 2d. Wave outcome handling
 

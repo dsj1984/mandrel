@@ -336,6 +336,26 @@ coverage rounding, platform-conditional branches, and timing-sensitive
 tests routinely drift between the two. The agent owns the green-CI
 outcome, not just the push.
 
+> **The auto-merge wait is an internally-blocking step, not a reason to end
+> your turn.** This is the single most important contract of this workflow,
+> and the seam where a worker most often misbehaves: it delivers up to arming
+> auto-merge, then ends its turn with **free-form prose** — e.g. "I'll wait
+> for the background watch task to complete" or "the next event will be its
+> completion notification" — leaving the merge unconfirmed and the Story
+> stranded at `agent::closing` (observed on Story #1553 / PR #1554). **Do not
+> do this.** `gh pr checks <prNumber> --watch` *blocks the current turn* until
+> CI resolves — that is the mechanism by which you wait. You MUST keep your
+> turn alive across the wait: watch → (fix + push + re-watch on red) → confirm
+> the merge (Step 5) → flip `agent::done` → run the post-merge steps → and
+> only then return the terminal JSON status contract (Step 4 of
+> [`deliver-stories.md` § 2c](deliver-stories.md), mirrored in
+> [§ Return contract](#return-contract) for the standalone caller). The CI
+> wait NEVER terminates your turn; **only** a confirmed-`MERGED` PR (→
+> `status: "done"`), an `agent::blocked` transition (→ `status: "blocked"`),
+> or an unrecoverable failure (→ `status: "failed"`) does. Ending your turn
+> with prose and an unconfirmed merge is a contract violation — it is the very
+> bug this workflow exists to prevent.
+
 After `single-story-close.js` succeeds, enter the watch + fix loop:
 
 ```bash
@@ -348,7 +368,9 @@ When the watch exits:
   still at `agent::closing` with its issue OPEN at this point (Step 3
   deferred the `agent::done` flip). The `Closes #<id>` footer closes the
   Story issue when the merge lands; Step 5 confirms the merge and Step 5.5
-  flips the Story to `agent::done`. Proceed to Step 5.
+  flips the Story to `agent::done`. **Proceed to Step 5 within the same
+  turn** — do not end your turn here. Green CI is the *start* of the
+  merge-confirm sequence, not a terminal state (see Step 7's no-park rule).
 - **Any check ✗** — diagnose, fix, and push a new commit on
   `story-<storyId>`, then re-watch. Auto-merge stays enabled across
   retries; no need to re-arm it. The Story stays at `agent::closing`
@@ -579,6 +601,67 @@ Skip Step 6 only when the operator has explicitly opted out via
 `--no-auto-merge` AND has not yet merged the PR — in that case, leave
 the branch in place until the manual merge lands, then run the
 cleanup.
+
+---
+
+## Step 7 — Return contract (**required when dispatched as a sub-agent**) {#return-contract}
+
+When this workflow runs as a per-Story sub-agent (dispatched by `/deliver`
+via [`deliver-stories.md` § 2a/2c](deliver-stories.md)), the **only**
+acceptable way to end your turn is to **return a single terminal JSON status
+object** — never free-form prose:
+
+```json
+{
+  "storyId": <number>,
+  "status": "done" | "blocked" | "failed",
+  "phase": "init|implementing|closing|blocked|done",
+  "branchDeleted": <boolean>,
+  "blockerCommentId": <string|null>,
+  "detail": "<one-liner: what changed + what was verified, e.g. PR #N merged>",
+  "renderedBody": "<terminal Story body>"
+}
+```
+
+This is the same envelope [`deliver-stories.md` § 2c](deliver-stories.md)
+mandates; this section is its single-homed restatement for the standalone
+worker so the contract is self-contained when this workflow is the entry
+point.
+
+**The auto-merge wait does not produce a fourth status.** There is no
+"pending" or "waiting" terminal — the CI/auto-merge wait is handled
+*internally* by blocking on `gh pr checks --watch` (Step 4) and confirming
+the merge (Step 5). You return **only** when you have reached a genuinely
+terminal state:
+
+- **`status: "done"`** — the PR is confirmed `state: "MERGED"` (Step 5),
+  the Story carries `agent::done`, and Steps 5.5 / 6 have run. `phase: "done"`,
+  `branchDeleted: true`.
+- **`status: "blocked"`** — you transitioned the Story to `agent::blocked`
+  and posted a `friction` comment (acceptance self-eval block in Step 1a, a
+  base-sync conflict, or an operator-blocking CI failure / Anti-Thrashing
+  stop in Step 4). `phase: "blocked"`, `blockerCommentId` set.
+- **`status: "failed"`** — an unrecoverable failure outside the blocked
+  protocol. `phase` reflects where it died.
+
+A turn that ends with prose ("I'll wait for the watch task…", "the next event
+will be its completion notification…") and an **unconfirmed merge** is a
+**contract violation** (the Story #1553 / PR #1554 failure mode): the parent
+wave loop cannot distinguish "still working" from "done but silent", and the
+Story strands at `agent::closing`. If you genuinely cannot confirm the merge,
+that is a `blocked` or `failed` outcome with the JSON contract above — not a
+prose hand-off.
+
+> **Handoff discipline — report state, not process.** Populate the envelope
+> with essential terminal state only (mirroring the fields
+> `single-story-close.js` / `story-phase.js` already emit). Do not narrate the
+> steps you took, and do not prescribe how the next stage should work. Prose
+> process commentary only bloats the hydrated prompt
+> (`delivery.maxTokenBudget` elision). When run **interactively** (no parent
+> aggregator), this JSON envelope is optional — relay terminal state to the
+> operator in prose instead — but the **no-park rule still holds**: never end
+> an interactive turn with an unconfirmed merge either; block on the watch,
+> confirm, and report the merged outcome.
 
 ---
 
