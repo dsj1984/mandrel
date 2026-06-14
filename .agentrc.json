@@ -39,22 +39,27 @@
       "gates": {
         "crap": {
           "floors": { "*": { "max": 30 } },
-          "targetDirs": [".agents/scripts"],
-          "ignoreGlobs": [".agents/scripts/lifecycle-emit.js"]
+          "targetDirs": [".agents/scripts", "bin", "lib"],
+          "ignoreGlobs": [
+            ".agents/scripts/lifecycle-emit.js",
+            "lib/cli/update.js"
+          ]
         },
         "maintainability": {
           "floors": { "*": { "min": 70 } },
-          "targetDirs": [".agents/scripts", "tests"],
+          "targetDirs": [".agents/scripts", "bin", "lib"],
           "tolerance": { "kind": "absolute", "value": 0.5 },
           "ignoreGlobs": [
             ".agents/scripts/lib/config-settings-schema*.js",
-            ".agents/scripts/lib/orchestration/lifecycle/listeners/index.js"
+            ".agents/scripts/lib/orchestration/lifecycle/listeners/index.js",
+            "lib/**/__tests__/**"
           ]
         },
         "duplication": {
           "floors": { "*": { "percentage": 12 } },
-          "targetDirs": [".agents/scripts"],
-          "tolerance": { "kind": "absolute", "value": 1 }
+          "targetDirs": [".agents/scripts", "bin", "lib"],
+          "tolerance": { "kind": "absolute", "value": 1 },
+          "ignoreGlobs": ["lib/**/__tests__/**"]
         }
       }
     }

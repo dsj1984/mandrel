@@ -81,8 +81,15 @@
 
 module.exports = {
   reporter: ['json', 'text'],
-  include: ['.agents/scripts/**'],
+  include: ['.agents/scripts/**', 'bin/**', 'lib/**'],
   exclude: [
+    // Story #4125 — colocated test files under lib/ are test sources, not
+    // production sources. Excluding them keeps `c8 report` and the
+    // per-file coverage baseline from scoring test code as instrumented
+    // source (mirrors how `.agents/scripts/**/__tests__` are out of the
+    // `.agents/scripts/**` include by living under `tests/`).
+    'lib/**/__tests__/**',
+
     // Pre-Story-#1702 baseline carve-outs.
     '.agents/scripts/agents-bootstrap-github.js',
     '.agents/scripts/epic-plan-decompose.js',

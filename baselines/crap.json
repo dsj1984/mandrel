@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-07T01:58:42.381Z",
+  "generatedAt": "2026-06-14T17:09:51.929Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -15088,6 +15088,522 @@
       "method": "main",
       "startLine": 270,
       "crap": 2.0932944606413995
+    },
+    {
+      "path": "bin/mandrel.js",
+      "method": "installedVersion",
+      "startLine": 109,
+      "crap": 1
+    },
+    {
+      "path": "bin/mandrel.js",
+      "method": "printHelp",
+      "startLine": 120,
+      "crap": 1
+    },
+    {
+      "path": "bin/mandrel.js",
+      "method": "suggest",
+      "startLine": 141,
+      "crap": 2
+    },
+    {
+      "path": "bin/mandrel.js",
+      "method": "levenshtein",
+      "startLine": 156,
+      "crap": 6
+    },
+    {
+      "path": "bin/mandrel.js",
+      "method": "findUnknownFlag",
+      "startLine": 193,
+      "crap": 6
+    },
+    {
+      "path": "bin/postinstall.js",
+      "method": "isSourceCheckout",
+      "startLine": 84,
+      "crap": 3
+    },
+    {
+      "path": "bin/postinstall.js",
+      "method": "runPostinstall",
+      "startLine": 144,
+      "crap": 3
+    },
+    {
+      "path": "bin/postinstall.js",
+      "method": "<anon method-1>",
+      "startLine": 170,
+      "crap": 2
+    },
+    {
+      "path": "bin/postinstall.js",
+      "method": "<anon method-2>",
+      "startLine": 173,
+      "crap": 2
+    },
+    {
+      "path": "lib/cli/doctor.js",
+      "method": "padName",
+      "startLine": 42,
+      "crap": 2
+    },
+    {
+      "path": "lib/cli/doctor.js",
+      "method": "formatResult",
+      "startLine": 56,
+      "crap": 4
+    },
+    {
+      "path": "lib/cli/doctor.js",
+      "method": "formatSummary",
+      "startLine": 73,
+      "crap": 2
+    },
+    {
+      "path": "lib/cli/doctor.js",
+      "method": "writeDoctorResultCache",
+      "startLine": 99,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/doctor.js",
+      "method": "runDoctor",
+      "startLine": 130,
+      "crap": 4
+    },
+    {
+      "path": "lib/cli/doctor.js",
+      "method": "run",
+      "startLine": 164,
+      "crap": 1.2962962962962963
+    },
+    {
+      "path": "lib/cli/explain.js",
+      "method": "formatRow",
+      "startLine": 37,
+      "crap": 2
+    },
+    {
+      "path": "lib/cli/explain.js",
+      "method": "parseArgs",
+      "startLine": 49,
+      "crap": 2
+    },
+    {
+      "path": "lib/cli/explain.js",
+      "method": "runExplain",
+      "startLine": 69,
+      "crap": 2
+    },
+    {
+      "path": "lib/cli/explain.js",
+      "method": "run",
+      "startLine": 105,
+      "crap": 1.2962962962962963
+    },
+    {
+      "path": "lib/cli/init.js",
+      "method": "getRunInitTail",
+      "startLine": 78,
+      "crap": 6
+    },
+    {
+      "path": "lib/cli/init.js",
+      "method": "hasAssumeYes",
+      "startLine": 165,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/init.js",
+      "method": "buildBootstrapArgs",
+      "startLine": 178,
+      "crap": 3.3333333333333335
+    },
+    {
+      "path": "lib/cli/init.js",
+      "method": "planInit",
+      "startLine": 210,
+      "crap": 11.024017939814815
+    },
+    {
+      "path": "lib/cli/init.js",
+      "method": "<anon method-1>",
+      "startLine": 230,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/init.js",
+      "method": "defaultExists",
+      "startLine": 337,
+      "crap": 2
+    },
+    {
+      "path": "lib/cli/init.js",
+      "method": "defaultRunStep",
+      "startLine": 352,
+      "crap": 2
+    },
+    {
+      "path": "lib/cli/init.js",
+      "method": "defaultConfirm",
+      "startLine": 382,
+      "crap": 2.0054869684499312
+    },
+    {
+      "path": "lib/cli/init.js",
+      "method": "run",
+      "startLine": 407,
+      "crap": 8.172496570644718
+    },
+    {
+      "path": "lib/cli/init.js",
+      "method": "<anon method-2>",
+      "startLine": 430,
+      "crap": 2
+    },
+    {
+      "path": "lib/cli/migrate.js",
+      "method": "parseOption",
+      "startLine": 66,
+      "crap": 4.25
+    },
+    {
+      "path": "lib/cli/migrate.js",
+      "method": "parseVersion",
+      "startLine": 87,
+      "crap": 20
+    },
+    {
+      "path": "lib/cli/migrate.js",
+      "method": "compareVersions",
+      "startLine": 103,
+      "crap": 12
+    },
+    {
+      "path": "lib/cli/migrate.js",
+      "method": "runMigrate",
+      "startLine": 136,
+      "crap": 18.522237527738962
+    },
+    {
+      "path": "lib/cli/migrate.js",
+      "method": "run",
+      "startLine": 258,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "spawn",
+      "startLine": 52,
+      "crap": 12
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "runNodeVersion",
+      "startLine": 70,
+      "crap": 2
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "runGitAvailable",
+      "startLine": 89,
+      "crap": 6
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "runGhAvailable",
+      "startLine": 110,
+      "crap": 6
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "runGithubToken",
+      "startLine": 145,
+      "crap": 8
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "runGhAuth",
+      "startLine": 186,
+      "crap": 7.355275083078783
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "runCommandsInSync",
+      "startLine": 245,
+      "crap": 5.0633921863260705
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "runRuntimeDeps",
+      "startLine": 315,
+      "crap": 6.276287301534021
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "runAgentsMaterialized",
+      "startLine": 410,
+      "crap": 3.003525775888336
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "runAgentsDrift",
+      "startLine": 486,
+      "crap": 5
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "defaultInstalledVersion",
+      "startLine": 572,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "defaultVersionCachePath",
+      "startLine": 593,
+      "crap": 2
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "runVersionCurrent",
+      "startLine": 632,
+      "crap": 4
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon method-12>",
+      "startLine": 683,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon method-13>",
+      "startLine": 687,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon method-14>",
+      "startLine": 691,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon method-15>",
+      "startLine": 695,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon method-16>",
+      "startLine": 699,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon method-17>",
+      "startLine": 703,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon method-18>",
+      "startLine": 707,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon method-19>",
+      "startLine": 711,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon method-20>",
+      "startLine": 715,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon method-21>",
+      "startLine": 722,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/sync-commands.js",
+      "method": "run",
+      "startLine": 40,
+      "crap": 2
+    },
+    {
+      "path": "lib/cli/sync.js",
+      "method": "defaultResolvePackageRoot",
+      "startLine": 83,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/sync.js",
+      "method": "listFiles",
+      "startLine": 107,
+      "crap": 6
+    },
+    {
+      "path": "lib/cli/sync.js",
+      "method": "listDestFiles",
+      "startLine": 144,
+      "crap": 8.064
+    },
+    {
+      "path": "lib/cli/sync.js",
+      "method": "runSync",
+      "startLine": 195,
+      "crap": 4.006400933080624
+    },
+    {
+      "path": "lib/cli/sync.js",
+      "method": "run",
+      "startLine": 297,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/uninstall.js",
+      "method": "resolveProjectRoot",
+      "startLine": 90,
+      "crap": 2
+    },
+    {
+      "path": "lib/cli/uninstall.js",
+      "method": "revertClaudeMd",
+      "startLine": 140,
+      "crap": 7.3919999999999995
+    },
+    {
+      "path": "lib/cli/uninstall.js",
+      "method": "revertClaudeSettings",
+      "startLine": 196,
+      "crap": 14.02643335187714
+    },
+    {
+      "path": "lib/cli/uninstall.js",
+      "method": "<anon method-2>",
+      "startLine": 204,
+      "crap": 2
+    },
+    {
+      "path": "lib/cli/uninstall.js",
+      "method": "revertClaudeCommands",
+      "startLine": 286,
+      "crap": 2.055296
+    },
+    {
+      "path": "lib/cli/uninstall.js",
+      "method": "revertGitignore",
+      "startLine": 325,
+      "crap": 8.080863917240835
+    },
+    {
+      "path": "lib/cli/uninstall.js",
+      "method": "revertPackageJson",
+      "startLine": 372,
+      "crap": 12.186951164537941
+    },
+    {
+      "path": "lib/cli/uninstall.js",
+      "method": "revertAgentrc",
+      "startLine": 453,
+      "crap": 3
+    },
+    {
+      "path": "lib/cli/uninstall.js",
+      "method": "revertPreCommitHook",
+      "startLine": 491,
+      "crap": 4.03125
+    },
+    {
+      "path": "lib/cli/uninstall.js",
+      "method": "planUninstall",
+      "startLine": 571,
+      "crap": 6
+    },
+    {
+      "path": "lib/cli/uninstall.js",
+      "method": "pad",
+      "startLine": 607,
+      "crap": 2
+    },
+    {
+      "path": "lib/cli/uninstall.js",
+      "method": "formatOutcome",
+      "startLine": 616,
+      "crap": 5
+    },
+    {
+      "path": "lib/cli/uninstall.js",
+      "method": "runUninstall",
+      "startLine": 646,
+      "crap": 12
+    },
+    {
+      "path": "lib/cli/uninstall.js",
+      "method": "run",
+      "startLine": 826,
+      "crap": 1.512
+    },
+    {
+      "path": "lib/cli/version-check.js",
+      "method": "readCache",
+      "startLine": 62,
+      "crap": 6.010666666666666
+    },
+    {
+      "path": "lib/cli/version-check.js",
+      "method": "refreshCache",
+      "startLine": 108,
+      "crap": 1
+    },
+    {
+      "path": "lib/cli/version-check.js",
+      "method": "isStale",
+      "startLine": 159,
+      "crap": 7.0986328125
+    },
+    {
+      "path": "lib/cli/version-helpers.js",
+      "method": "parseVersion",
+      "startLine": 22,
+      "crap": 4
+    },
+    {
+      "path": "lib/cli/version-helpers.js",
+      "method": "compareVersions",
+      "startLine": 39,
+      "crap": 3
+    },
+    {
+      "path": "lib/cli/version-helpers.js",
+      "method": "crossesMajor",
+      "startLine": 57,
+      "crap": 1.2962962962962963
+    },
+    {
+      "path": "lib/migrations/index.js",
+      "method": "parseVersion",
+      "startLine": 75,
+      "crap": 4
+    },
+    {
+      "path": "lib/migrations/index.js",
+      "method": "compareVersions",
+      "startLine": 93,
+      "crap": 3.017578125
+    },
+    {
+      "path": "lib/migrations/index.js",
+      "method": "runMigrations",
+      "startLine": 133,
+      "crap": 2
     }
   ]
 }
