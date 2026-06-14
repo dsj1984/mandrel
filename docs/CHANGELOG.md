@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.64.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.63.0...mandrel-v1.64.0) (2026-06-14)
+
+
+### Added
+
+* **bootstrap:** polish init/bootstrap preflight + UX copy, drop unused stack detection ([#4113](https://github.com/dsj1984/mandrel/issues/4113)) ([c775418](https://github.com/dsj1984/mandrel/commit/c77541846508047f1101158e67ac2a59c8577101))
+* **cli:** mandrel init banner + Welcome prompt, sync 'Installed' wording ([#4109](https://github.com/dsj1984/mandrel/issues/4109)) ([c516d39](https://github.com/dsj1984/mandrel/commit/c516d3903080c5e6838e833dbddf20ab0d4af1cd))
+
+
+### Fixed
+
+* 2-tier Stories un-initializable: composeStoryBody omits `Epic: #N` when epicId === parentId, blocking the /deliver wave loop ([#4102](https://github.com/dsj1984/mandrel/issues/4102)) ([#4103](https://github.com/dsj1984/mandrel/issues/4103)) ([2431cf6](https://github.com/dsj1984/mandrel/commit/2431cf6e7330b9cf98a7f54b60ba8d3df46f635c))
+* **init:** set terminal:false on readline confirms so the prompt is not erased (refs [#4106](https://github.com/dsj1984/mandrel/issues/4106)) ([#4108](https://github.com/dsj1984/mandrel/issues/4108)) ([e31e767](https://github.com/dsj1984/mandrel/commit/e31e767a6d69519faf120bf08ce55d0272a46416))
+* **init:** use node:readline for confirm prompts so init does not hang (refs [#4106](https://github.com/dsj1984/mandrel/issues/4106)) ([#4107](https://github.com/dsj1984/mandrel/issues/4107)) ([2b56d08](https://github.com/dsj1984/mandrel/commit/2b56d0851f403fd97c86e6097fd9d62446ee2257))
+
 ## [1.63.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.62.0...mandrel-v1.63.0) (2026-06-13)
 
 
