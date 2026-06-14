@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-14T17:09:53.289Z",
+  "generatedAt": "2026-06-14T17:29:14.407Z",
   "rollup": {
     "*": {
       "min": 70.566,
-      "p50": 97.964,
-      "p95": 127.336
+      "p50": 104.227,
+      "p95": 121.809
     }
   },
   "rows": [
@@ -1911,60 +1911,2704 @@
       "mi": 96.756
     },
     {
-      "path": "bin/mandrel.js",
-      "mi": 86.603
+      "path": "tests/acceptance-spec-reconciler.test.js",
+      "mi": 106.72
     },
     {
-      "path": "bin/postinstall.js",
+      "path": "tests/acceptance/legacy-orchestration-retired.test.js",
+      "mi": 103.625
+    },
+    {
+      "path": "tests/acceptance/lifecycle-ledger-parity.test.js",
+      "mi": 97.847
+    },
+    {
+      "path": "tests/agentrc-required-checks.test.js",
+      "mi": 117.346
+    },
+    {
+      "path": "tests/agentrc-retro-perf-thresholds.test.js",
+      "mi": 101.874
+    },
+    {
+      "path": "tests/agentrc-verify-cap.test.js",
+      "mi": 104.627
+    },
+    {
+      "path": "tests/analyze-execution-wave-parallelism.test.js",
+      "mi": 98.301
+    },
+    {
+      "path": "tests/analyze-execution.test.js",
+      "mi": 97.145
+    },
+    {
+      "path": "tests/assert-branch.test.js",
+      "mi": 112.975
+    },
+    {
+      "path": "tests/audit-suite/audit-fan-out-retirement.test.js",
+      "mi": 115.93
+    },
+    {
+      "path": "tests/audit-suite/audit-rules-gap-fill.test.js",
+      "mi": 115.231
+    },
+    {
+      "path": "tests/audit-suite/cli.test.js",
+      "mi": 121.071
+    },
+    {
+      "path": "tests/audit-suite/code-review-trim.test.js",
+      "mi": 116.047
+    },
+    {
+      "path": "tests/audit-suite/cross-phase-recheck.test.js",
+      "mi": 107.112
+    },
+    {
+      "path": "tests/audit-suite/epic-audit-helper.test.js",
+      "mi": 100.933
+    },
+    {
+      "path": "tests/audit-suite/epic-audit-prepare.test.js",
+      "mi": 98.337
+    },
+    {
+      "path": "tests/audit-suite/findings.test.js",
+      "mi": 98.588
+    },
+    {
+      "path": "tests/audit-suite/frontmatter-lint.test.js",
+      "mi": 112.791
+    },
+    {
+      "path": "tests/audit-suite/frontmatter.test.js",
+      "mi": 116.01
+    },
+    {
+      "path": "tests/audit-suite/manual-mode-regression.test.js",
+      "mi": 112.178
+    },
+    {
+      "path": "tests/audit-suite/selector-changedfiles.test.js",
+      "mi": 106.572
+    },
+    {
+      "path": "tests/audit-suite/substitutions.test.js",
+      "mi": 116.457
+    },
+    {
+      "path": "tests/audit-suite/workflow-loader.test.js",
+      "mi": 115.765
+    },
+    {
+      "path": "tests/audit-to-stories/build-story-body.test.js",
+      "mi": 109.248
+    },
+    {
+      "path": "tests/audit-to-stories/dedupe-against-github.test.js",
+      "mi": 100.171
+    },
+    {
+      "path": "tests/audit-to-stories/fingerprint.test.js",
+      "mi": 111.844
+    },
+    {
+      "path": "tests/audit-to-stories/group-findings.test.js",
+      "mi": 109.483
+    },
+    {
+      "path": "tests/audit-to-stories/parse-audit-md.test.js",
+      "mi": 111.883
+    },
+    {
+      "path": "tests/audit-to-stories/seed-epic-from-findings.test.js",
+      "mi": 107.619
+    },
+    {
+      "path": "tests/baseline-per-kind-schemas.test.js",
+      "mi": 97.781
+    },
+    {
+      "path": "tests/baseline-store.test.js",
+      "mi": 111.88
+    },
+    {
+      "path": "tests/baselines-byte-identical-js-only.test.js",
+      "mi": 86.955
+    },
+    {
+      "path": "tests/baselines/canonicalize-path-fixture.test.js",
+      "mi": 109.096
+    },
+    {
+      "path": "tests/baselines/canonicalize-path.test.js",
+      "mi": 128.969
+    },
+    {
+      "path": "tests/baselines/component-matcher.test.js",
+      "mi": 125.891
+    },
+    {
+      "path": "tests/baselines/components.test.js",
+      "mi": 113.376
+    },
+    {
+      "path": "tests/baselines/crap-compat-axes.test.js",
+      "mi": 109.185
+    },
+    {
+      "path": "tests/baselines/envelope.test.js",
+      "mi": 114.631
+    },
+    {
+      "path": "tests/baselines/exit-codes.test.js",
+      "mi": 117.111
+    },
+    {
+      "path": "tests/baselines/kernel.test.js",
+      "mi": 120.671
+    },
+    {
+      "path": "tests/baselines/kinds/applyEpsilon.test.js",
+      "mi": 106.879
+    },
+    {
+      "path": "tests/baselines/kinds/bundle-size.compare.test.js",
+      "mi": 107.949
+    },
+    {
+      "path": "tests/baselines/kinds/coverage.compare.test.js",
+      "mi": 104.588
+    },
+    {
+      "path": "tests/baselines/kinds/crap.compare.test.js",
+      "mi": 105.201
+    },
+    {
+      "path": "tests/baselines/kinds/lighthouse.compare.test.js",
+      "mi": 106.937
+    },
+    {
+      "path": "tests/baselines/kinds/lint.compare.test.js",
+      "mi": 100.546
+    },
+    {
+      "path": "tests/baselines/kinds/maintainability.compare.test.js",
+      "mi": 104.596
+    },
+    {
+      "path": "tests/baselines/kinds/maintainability.filter-excluded-rows.test.js",
+      "mi": 114.259
+    },
+    {
+      "path": "tests/baselines/kinds/mergeRows.test.js",
+      "mi": 103.132
+    },
+    {
+      "path": "tests/baselines/kinds/mutation.compare.test.js",
+      "mi": 107.349
+    },
+    {
+      "path": "tests/baselines/kinds/purity.test.js",
+      "mi": 99.857
+    },
+    {
+      "path": "tests/baselines/manual-cli-vs-story-close.byte-identity.test.js",
+      "mi": 100.741
+    },
+    {
+      "path": "tests/baselines/path-canon.test.js",
+      "mi": 129.173
+    },
+    {
+      "path": "tests/baselines/reader.test.js",
+      "mi": 110.789
+    },
+    {
+      "path": "tests/baselines/refresh-entry-points-migration.test.js",
+      "mi": 102.678
+    },
+    {
+      "path": "tests/baselines/refresh-service.api.test.js",
+      "mi": 110.49
+    },
+    {
+      "path": "tests/baselines/refresh-service.determinism.test.js",
+      "mi": 98.979
+    },
+    {
+      "path": "tests/baselines/refresh-service.diff-scope.test.js",
+      "mi": 106.653
+    },
+    {
+      "path": "tests/baselines/refresh-service.invariant.test.js",
+      "mi": 100.31
+    },
+    {
+      "path": "tests/baselines/refresh-service.row-preservation.test.js",
+      "mi": 101.09
+    },
+    {
+      "path": "tests/baselines/scope.test.js",
+      "mi": 106.527
+    },
+    {
+      "path": "tests/baselines/shipped-baselines-idempotency.test.js",
+      "mi": 102.063
+    },
+    {
+      "path": "tests/baselines/writer-epsilon.test.js",
+      "mi": 108.604
+    },
+    {
+      "path": "tests/baselines/writer-scope.test.js",
+      "mi": 102.491
+    },
+    {
+      "path": "tests/baselines/writer.test.js",
+      "mi": 103.474
+    },
+    {
+      "path": "tests/bdd-runner-detect.test.js",
+      "mi": 107.348
+    },
+    {
+      "path": "tests/bdd-scenario-scanner.test.js",
+      "mi": 108.793
+    },
+    {
+      "path": "tests/bootstrap/agents-update-contract.test.js",
+      "mi": 106.694
+    },
+    {
+      "path": "tests/bootstrap/agents-update-migration.test.js",
+      "mi": 92.614
+    },
+    {
+      "path": "tests/bootstrap/branch-protection.test.js",
+      "mi": 95.987
+    },
+    {
+      "path": "tests/bootstrap/hitl-confirm.test.js",
+      "mi": 102.141
+    },
+    {
+      "path": "tests/bootstrap/merge-methods.test.js",
+      "mi": 106.594
+    },
+    {
+      "path": "tests/bootstrap/project-bootstrap.test.js",
+      "mi": 107.293
+    },
+    {
+      "path": "tests/bootstrap/prompt.test.js",
+      "mi": 107.833
+    },
+    {
+      "path": "tests/bootstrap/quality-bootstrap.test.js",
+      "mi": 100.276
+    },
+    {
+      "path": "tests/bootstrap/silent-accept.test.js",
+      "mi": 115.212
+    },
+    {
+      "path": "tests/bootstrap/summary.test.js",
+      "mi": 94.767
+    },
+    {
+      "path": "tests/bootstrap/workflow-audit.test.js",
+      "mi": 103.714
+    },
+    {
+      "path": "tests/check-baselines-branch-protection.test.js",
+      "mi": 116.841
+    },
+    {
+      "path": "tests/check-baselines-dispatch-pipeline.test.js",
+      "mi": 101.745
+    },
+    {
+      "path": "tests/check-baselines-exit-codes.test.js",
+      "mi": 98.684
+    },
+    {
+      "path": "tests/check-baselines-friction.test.js",
+      "mi": 98.03
+    },
+    {
+      "path": "tests/check-baselines-pre-merge-wiring.test.js",
+      "mi": 117.855
+    },
+    {
+      "path": "tests/check-crap-env-overrides.test.js",
+      "mi": 110.248
+    },
+    {
+      "path": "tests/check-crap-epic-ref.test.js",
+      "mi": 116.732
+    },
+    {
+      "path": "tests/check-crap-json.test.js",
+      "mi": 87.345
+    },
+    {
+      "path": "tests/check-doc-links.test.js",
+      "mi": 103.055
+    },
+    {
+      "path": "tests/check-maintainability-epic-ref.test.js",
+      "mi": 117.541
+    },
+    {
+      "path": "tests/check-maintainability-json.test.js",
+      "mi": 96.125
+    },
+    {
+      "path": "tests/check-version-sync.test.js",
+      "mi": 93.99
+    },
+    {
+      "path": "tests/ci-workflow-stderr-capture.test.js",
+      "mi": 113.945
+    },
+    {
+      "path": "tests/cli-utils-redactor.test.js",
+      "mi": 113.227
+    },
+    {
+      "path": "tests/cli/doctor.test.js",
+      "mi": 98.269
+    },
+    {
+      "path": "tests/cli/hook-migration.test.js",
+      "mi": 114.503
+    },
+    {
+      "path": "tests/cli/mandrel.test.js",
+      "mi": 113.325
+    },
+    {
+      "path": "tests/cli/partition.test.js",
+      "mi": 113.324
+    },
+    {
+      "path": "tests/cli/postinstall.test.js",
+      "mi": 124.773
+    },
+    {
+      "path": "tests/cli/sync-commands.test.js",
+      "mi": 117.821
+    },
+    {
+      "path": "tests/close-validation-mi-projection.test.js",
+      "mi": 110.031
+    },
+    {
+      "path": "tests/code-review.test.js",
+      "mi": 105.956
+    },
+    {
+      "path": "tests/codebase-snapshot.test.js",
+      "mi": 104.605
+    },
+    {
+      "path": "tests/config-orchestration.test.js",
+      "mi": 120.985
+    },
+    {
+      "path": "tests/config-schema-mirror-drift.test.js",
+      "mi": 103.778
+    },
+    {
+      "path": "tests/config-settings-schema.test.js",
+      "mi": 107.663
+    },
+    {
+      "path": "tests/config/agentrc-defaults.test.js",
+      "mi": 114.456
+    },
+    {
+      "path": "tests/config/explain.test.js",
+      "mi": 112.579
+    },
+    {
+      "path": "tests/config/lifecycle-defaults-drift.test.js",
+      "mi": 120.11
+    },
+    {
+      "path": "tests/config/limits-template-drift.test.js",
+      "mi": 123.149
+    },
+    {
+      "path": "tests/config/quality-epsilon.test.js",
+      "mi": 120.896
+    },
+    {
+      "path": "tests/config/quality.floors.test.js",
+      "mi": 119.271
+    },
+    {
+      "path": "tests/config/refactor-stage.test.js",
+      "mi": 107.173
+    },
+    {
+      "path": "tests/config/sync-agentrc.test.js",
+      "mi": 104.356
+    },
+    {
+      "path": "tests/context-hydrator.test.js",
+      "mi": 98.612
+    },
+    {
+      "path": "tests/contract/acceptance/waiver-event-split.test.js",
+      "mi": 117.097
+    },
+    {
+      "path": "tests/contract/acceptance/waiver-reaches-finalize.test.js",
+      "mi": 115.074
+    },
+    {
+      "path": "tests/contract/architecture-report-contract.test.js",
+      "mi": 112.272
+    },
+    {
+      "path": "tests/contract/audit-labels-bootstrap.test.js",
+      "mi": 110.334
+    },
+    {
+      "path": "tests/contract/check-baselines-kernel-mismatch.test.js",
+      "mi": 99.737
+    },
+    {
+      "path": "tests/contract/check-baselines-regression.test.js",
+      "mi": 99.41
+    },
+    {
+      "path": "tests/contract/check-prepush-recovery.test.js",
+      "mi": 104.693
+    },
+    {
+      "path": "tests/contract/clean-code-report-contract.test.js",
+      "mi": 112.573
+    },
+    {
+      "path": "tests/contract/code-review-graduator.test.js",
+      "mi": 107.721
+    },
+    {
+      "path": "tests/contract/config/coverage-timeout-honored.test.js",
+      "mi": 105.795
+    },
+    {
+      "path": "tests/contract/config/no-legacy-shim.test.js",
+      "mi": 108.471
+    },
+    {
+      "path": "tests/contract/delivery/preflight-estimate.test.js",
+      "mi": 99.874
+    },
+    {
+      "path": "tests/contract/delivery/schema-ci-preflight.test.js",
+      "mi": 108.302
+    },
+    {
+      "path": "tests/contract/delivery/three-tier-dispatch.test.js",
+      "mi": 113.889
+    },
+    {
+      "path": "tests/contract/dispatch/emit-story-dispatch.test.js",
+      "mi": 109.231
+    },
+    {
+      "path": "tests/contract/dispatch/wave-tick-inflight.test.js",
+      "mi": 103.17
+    },
+    {
+      "path": "tests/contract/dist-bundle-import-isolation.test.js",
+      "mi": 96.681
+    },
+    {
+      "path": "tests/contract/epic-plan-prior-feedback.test.js",
+      "mi": 102.623
+    },
+    {
+      "path": "tests/contract/finalize/close-planning-tickets.test.js",
+      "mi": 104.828
+    },
+    {
+      "path": "tests/contract/finalize/finalizer-bus-owned.test.js",
+      "mi": 109.634
+    },
+    {
+      "path": "tests/contract/finalize/open-or-locate-pr.test.js",
+      "mi": 103.053
+    },
+    {
+      "path": "tests/contract/finalize/post-handoff-comment.test.js",
+      "mi": 113.505
+    },
+    {
+      "path": "tests/contract/finalize/sanitize-skip-ci.test.js",
+      "mi": 106.467
+    },
+    {
+      "path": "tests/contract/finalize/story-close-final-label-assertion.test.js",
+      "mi": 108.506
+    },
+    {
+      "path": "tests/contract/generate-config-docs.test.js",
+      "mi": 105.108
+    },
+    {
+      "path": "tests/contract/lifecycle/doc-drift-check.test.js",
+      "mi": 102.732
+    },
+    {
+      "path": "tests/contract/lifecycle/merge-watcher-resume.test.js",
+      "mi": 115.024
+    },
+    {
+      "path": "tests/contract/lint/label-vocabulary.test.js",
+      "mi": 112.269
+    },
+    {
+      "path": "tests/contract/maintainability-writer-reader-roundtrip.test.js",
+      "mi": 113.531
+    },
+    {
+      "path": "tests/contract/memory-freshness.test.js",
+      "mi": 102.675
+    },
+    {
+      "path": "tests/contract/notifications/test-mode-webhook-guard.test.js",
+      "mi": 107.181
+    },
+    {
+      "path": "tests/contract/orchestration/pr-base-guard.test.js",
+      "mi": 114.185
+    },
+    {
+      "path": "tests/contract/orchestration/review-depth-connectivity.test.js",
+      "mi": 110.83
+    },
+    {
+      "path": "tests/contract/performance-report-contract.test.js",
+      "mi": 112.776
+    },
+    {
+      "path": "tests/contract/planning/healthcheck-blocking.test.js",
+      "mi": 94.365
+    },
+    {
+      "path": "tests/contract/planning/healthcheck-hierarchy-mode.test.js",
+      "mi": 112.086
+    },
+    {
+      "path": "tests/contract/planning/three-tier-manifest.test.js",
+      "mi": 91.548
+    },
+    {
+      "path": "tests/contract/planning/three-tier-schema.test.js",
+      "mi": 101.121
+    },
+    {
+      "path": "tests/contract/quality-report-contract.test.js",
+      "mi": 112.059
+    },
+    {
+      "path": "tests/contract/retro-routed-sections.test.js",
+      "mi": 84.186
+    },
+    {
+      "path": "tests/contract/security-report-contract.test.js",
+      "mi": 111.81
+    },
+    {
+      "path": "tests/contract/spawn-timeout-hardening.test.js",
+      "mi": 118.048
+    },
+    {
+      "path": "tests/contract/workflows/story-deliver-script-references.test.js",
+      "mi": 106.853
+    },
+    {
+      "path": "tests/coverage-baseline-noise-tolerance.test.js",
+      "mi": 102.825
+    },
+    {
+      "path": "tests/crap-1643-refactor-helpers.test.js",
+      "mi": 102.276
+    },
+    {
+      "path": "tests/crap-utils.tsx-coverage-keying.test.js",
+      "mi": 93.629
+    },
+    {
+      "path": "tests/cutover/no-flat-temp.test.js",
+      "mi": 105.366
+    },
+    {
+      "path": "tests/cutover/no-friction-comment.test.js",
+      "mi": 107.987
+    },
+    {
+      "path": "tests/degraded-mode.test.js",
+      "mi": 107.965
+    },
+    {
+      "path": "tests/detect-merges.test.js",
+      "mi": 100.116
+    },
+    {
+      "path": "tests/diagnose-friction.test.js",
+      "mi": 106.37
+    },
+    {
+      "path": "tests/diagnose-output.test.js",
       "mi": 103.888
     },
     {
-      "path": "lib/cli/doctor.js",
-      "mi": 108.115
+      "path": "tests/dispatch-manifest-render.test.js",
+      "mi": 109.48
     },
     {
-      "path": "lib/cli/explain.js",
-      "mi": 109.415
+      "path": "tests/dispatcher-dry-run.test.js",
+      "mi": 114.937
     },
     {
-      "path": "lib/cli/init.js",
-      "mi": 94.901
+      "path": "tests/dispatcher.test.js",
+      "mi": 107.817
     },
     {
-      "path": "lib/cli/migrate.js",
-      "mi": 93.571
+      "path": "tests/docs/no-js-fences.test.js",
+      "mi": 98.579
     },
     {
-      "path": "lib/cli/registry.js",
-      "mi": 97.041
+      "path": "tests/dynamic-workflow-audit-orchestrator.test.js",
+      "mi": 108.151
     },
     {
-      "path": "lib/cli/sync-commands.js",
-      "mi": 112.451
+      "path": "tests/dynamic-workflow-capability.test.js",
+      "mi": 105.152
     },
     {
-      "path": "lib/cli/sync.js",
-      "mi": 88.589
+      "path": "tests/e2e-story-only-epic.test.js",
+      "mi": 95.619
     },
     {
-      "path": "lib/cli/uninstall.js",
-      "mi": 81.335
+      "path": "tests/e2e/sync-prune.integration.test.js",
+      "mi": 98.598
     },
     {
-      "path": "lib/cli/update.js",
-      "mi": 92.538
+      "path": "tests/emit-context-compact-json.test.js",
+      "mi": 106.056
     },
     {
-      "path": "lib/cli/version-check.js",
-      "mi": 90.014
+      "path": "tests/enforcement/cli-wrapper.test.js",
+      "mi": 112.426
     },
     {
-      "path": "lib/cli/version-helpers.js",
-      "mi": 115.945
+      "path": "tests/enforcement/instructions-drift.test.js",
+      "mi": 104.643
     },
     {
-      "path": "lib/migrations/index.js",
-      "mi": 108.159
+      "path": "tests/enforcement/inventory-freshness.test.js",
+      "mi": 107.021
+    },
+    {
+      "path": "tests/enforcement/logger-fatal.test.js",
+      "mi": 93.691
+    },
+    {
+      "path": "tests/enforcement/manifest-schema.test.js",
+      "mi": 91.692
+    },
+    {
+      "path": "tests/enforcement/no-console.test.js",
+      "mi": 94.472
+    },
+    {
+      "path": "tests/enforcement/no-verify-policy.test.js",
+      "mi": 100.374
+    },
+    {
+      "path": "tests/enforcement/parse-cli-args.test.js",
+      "mi": 107.476
+    },
+    {
+      "path": "tests/enforcement/process-exit.test.js",
+      "mi": 94.079
+    },
+    {
+      "path": "tests/enforcement/retired-config-keys.test.js",
+      "mi": 101.802
+    },
+    {
+      "path": "tests/epic-close-comment-perf-link.test.js",
+      "mi": 108.103
+    },
+    {
+      "path": "tests/epic-deliver-preflight-cache.test.js",
+      "mi": 98.449
+    },
+    {
+      "path": "tests/epic-deliver-prepare-cache.test.js",
+      "mi": 91.675
+    },
+    {
+      "path": "tests/epic-execute/epic-deliver-prepare.test.js",
+      "mi": 91.256
+    },
+    {
+      "path": "tests/epic-execute/epic-execute-record-wave.test.js",
+      "mi": 101.345
+    },
+    {
+      "path": "tests/epic-plan-clarity.test.js",
+      "mi": 112
+    },
+    {
+      "path": "tests/epic-plan-spec-drain.test.js",
+      "mi": 102.552
+    },
+    {
+      "path": "tests/epic-plan-spec-snapshot-fork.test.js",
+      "mi": 107.32
+    },
+    {
+      "path": "tests/epic-runner/acceptance-spec-gate.test.js",
+      "mi": 106.014
+    },
+    {
+      "path": "tests/epic-runner/checkpointer.test.js",
+      "mi": 92.059
+    },
+    {
+      "path": "tests/epic-runner/crap-drift.test.js",
+      "mi": 88.131
+    },
+    {
+      "path": "tests/epic-runner/drift-detectors-extra.test.js",
+      "mi": 106.154
+    },
+    {
+      "path": "tests/epic-runner/epic-run-progress-writer.test.js",
+      "mi": 99.269
+    },
+    {
+      "path": "tests/epic-runner/maintainability-drift.test.js",
+      "mi": 101.919
+    },
+    {
+      "path": "tests/epic-runner/progress-reporter/composition.test.js",
+      "mi": 107.875
+    },
+    {
+      "path": "tests/epic-runner/progress-reporter/signals.test.js",
+      "mi": 110.143
+    },
+    {
+      "path": "tests/epic-runner/progress-reporter/transport.test.js",
+      "mi": 103.753
+    },
+    {
+      "path": "tests/epic-runner/stalled-worktree.test.js",
+      "mi": 106.668
+    },
+    {
+      "path": "tests/epic-runner/story-launcher.test.js",
+      "mi": 113.522
+    },
+    {
+      "path": "tests/epic-runner/story-run-progress-writer.test.js",
+      "mi": 98.436
+    },
+    {
+      "path": "tests/epic-runner/sub-agent-return.test.js",
+      "mi": 98.958
+    },
+    {
+      "path": "tests/epic-runner/wave-scheduler.test.js",
+      "mi": 116.517
+    },
+    {
+      "path": "tests/evidence-gate-run.test.js",
+      "mi": 109.462
+    },
+    {
+      "path": "tests/evidence-gate.test.js",
+      "mi": 113.699
+    },
+    {
+      "path": "tests/file-assumptions.test.js",
+      "mi": 99.739
+    },
+    {
+      "path": "tests/fixtures/baselines/cross-platform/deep/nested/module-c.js",
+      "mi": 159.877
+    },
+    {
+      "path": "tests/fixtures/baselines/cross-platform/module-a.js",
+      "mi": 159.877
+    },
+    {
+      "path": "tests/fixtures/baselines/cross-platform/nested/module-b.js",
+      "mi": 159.877
+    },
+    {
+      "path": "tests/fixtures/epic-plan-state-store.js",
+      "mi": 100.865
+    },
+    {
+      "path": "tests/fixtures/epic-run-state-store.js",
+      "mi": 100.581
+    },
+    {
+      "path": "tests/fixtures/mock-provider.js",
+      "mi": 116.346
+    },
+    {
+      "path": "tests/fixtures/reconciler/stub-provider.mjs",
+      "mi": 109.287
+    },
+    {
+      "path": "tests/fixtures/test-isolate/polluter.fixture.js",
+      "mi": 152.125
+    },
+    {
+      "path": "tests/fixtures/test-isolate/victim.fixture.js",
+      "mi": 152.145
+    },
+    {
+      "path": "tests/full-agentrc-floor-axes.test.js",
+      "mi": 99.699
+    },
+    {
+      "path": "tests/gate-friction.test.js",
+      "mi": 105.924
+    },
+    {
+      "path": "tests/gate-integration.test.js",
+      "mi": 113.88
+    },
+    {
+      "path": "tests/gate-json-byte-stability.test.js",
+      "mi": 101.807
+    },
+    {
+      "path": "tests/git-pr-quality-gate.test.js",
+      "mi": 111.951
+    },
+    {
+      "path": "tests/git-rebase-and-resolve.test.js",
+      "mi": 112.441
+    },
+    {
+      "path": "tests/graphql/query-builder.test.js",
+      "mi": 107.15
+    },
+    {
+      "path": "tests/helpers/make-mock-provider.js",
+      "mi": 116.261
+    },
+    {
+      "path": "tests/hierarchy-gate.test.js",
+      "mi": 98.553
+    },
+    {
+      "path": "tests/hook-chain-reflog-invariant.test.js",
+      "mi": 107.622
+    },
+    {
+      "path": "tests/hydrate-context-cli.test.js",
+      "mi": 100.551
+    },
+    {
+      "path": "tests/integration-prime-after-sweep.test.js",
+      "mi": 106.368
+    },
+    {
+      "path": "tests/issue-link-parser.test.js",
+      "mi": 107.656
+    },
+    {
+      "path": "tests/launcher-config-validation.test.js",
+      "mi": 105.816
+    },
+    {
+      "path": "tests/lib/audit-suite/index.test.js",
+      "mi": 110.889
+    },
+    {
+      "path": "tests/lib/baseline-loader.test.js",
+      "mi": 104.272
+    },
+    {
+      "path": "tests/lib/branch-name-guard.test.js",
+      "mi": 123.889
+    },
+    {
+      "path": "tests/lib/changed-files.test.js",
+      "mi": 107.313
+    },
+    {
+      "path": "tests/lib/checks/baseline-drift-main-checkout.test.js",
+      "mi": 105.045
+    },
+    {
+      "path": "tests/lib/checks/core-bare-clean.test.js",
+      "mi": 116.055
+    },
+    {
+      "path": "tests/lib/checks/epic-merge-lock-stale.test.js",
+      "mi": 105.267
+    },
+    {
+      "path": "tests/lib/checks/fixtures/auto-fix.js",
+      "mi": 98.291
+    },
+    {
+      "path": "tests/lib/checks/fixtures/refuse-with-fix.js",
+      "mi": 98.055
+    },
+    {
+      "path": "tests/lib/checks/fixtures/retro-readonly.js",
+      "mi": 103.09
+    },
+    {
+      "path": "tests/lib/checks/fixtures/scope-epic.js",
+      "mi": 110.211
+    },
+    {
+      "path": "tests/lib/checks/fixtures/scope-story.js",
+      "mi": 110.211
+    },
+    {
+      "path": "tests/lib/checks/no-direct-ndjson-parse.test.js",
+      "mi": 105.097
+    },
+    {
+      "path": "tests/lib/checks/push-hook-parity.test.js",
+      "mi": 99.361
+    },
+    {
+      "path": "tests/lib/checks/retro-readonly.test.js",
+      "mi": 112.691
+    },
+    {
+      "path": "tests/lib/checks/runner-integration.test.js",
+      "mi": 112.755
+    },
+    {
+      "path": "tests/lib/checks/runner.test.js",
+      "mi": 109.02
+    },
+    {
+      "path": "tests/lib/checks/stale-origin-epic.test.js",
+      "mi": 110.039
+    },
+    {
+      "path": "tests/lib/checks/state-epic-branch-sync.test.js",
+      "mi": 103.904
+    },
+    {
+      "path": "tests/lib/checks/state.test.js",
+      "mi": 97.018
+    },
+    {
+      "path": "tests/lib/checks/story-init-not-backgrounded.test.js",
+      "mi": 109.379
+    },
+    {
+      "path": "tests/lib/checks/subagent-agent-tool-required.test.js",
+      "mi": 110.788
+    },
+    {
+      "path": "tests/lib/checks/windows-coverage-noise-floor.test.js",
+      "mi": 110.661
+    },
+    {
+      "path": "tests/lib/checks/worktree-bootstrap-env.test.js",
+      "mi": 103.235
+    },
+    {
+      "path": "tests/lib/checks/worktree-residue-biome.test.js",
+      "mi": 106.908
+    },
+    {
+      "path": "tests/lib/cli-args-define-flags.test.js",
+      "mi": 106.318
+    },
+    {
+      "path": "tests/lib/cli-args.test.js",
+      "mi": 119.694
+    },
+    {
+      "path": "tests/lib/cli-parse-numeric.test.js",
+      "mi": 135.16
+    },
+    {
+      "path": "tests/lib/cli-standard-args.test.js",
+      "mi": 117.643
+    },
+    {
+      "path": "tests/lib/cli-utils.test.js",
+      "mi": 120.514
+    },
+    {
+      "path": "tests/lib/close-validation-gate-helpers.test.js",
+      "mi": 117.311
+    },
+    {
+      "path": "tests/lib/close-validation-gh-spawn-count.test.js",
+      "mi": 120.444
+    },
+    {
+      "path": "tests/lib/close-validation/no-perkind-gate.test.js",
+      "mi": 104.962
+    },
+    {
+      "path": "tests/lib/close-validation/projections/head-sha.test.js",
+      "mi": 121.066
+    },
+    {
+      "path": "tests/lib/close-validation/projections/inputs.test.js",
+      "mi": 118.052
+    },
+    {
+      "path": "tests/lib/close-validation/projections/maintainability.test.js",
+      "mi": 106.263
+    },
+    {
+      "path": "tests/lib/config-resolver-commands.test.js",
+      "mi": 115.191
+    },
+    {
+      "path": "tests/lib/config-resolver-local.test.js",
+      "mi": 101.86
+    },
+    {
+      "path": "tests/lib/config-resolver-notifications.test.js",
+      "mi": 112.258
+    },
+    {
+      "path": "tests/lib/config-resolver-worktree.test.js",
+      "mi": 109.498
+    },
+    {
+      "path": "tests/lib/config-resolver.test.js",
+      "mi": 104.383
+    },
+    {
+      "path": "tests/lib/config-runners.test.js",
+      "mi": 109.729
+    },
+    {
+      "path": "tests/lib/config/github.test.js",
+      "mi": 108.456
+    },
+    {
+      "path": "tests/lib/config/limits-override.test.js",
+      "mi": 111.655
+    },
+    {
+      "path": "tests/lib/config/limits.test.js",
+      "mi": 110.179
+    },
+    {
+      "path": "tests/lib/config/temp-paths.test.js",
+      "mi": 113.564
+    },
+    {
+      "path": "tests/lib/coverage-capture.test.js",
+      "mi": 104.645
+    },
+    {
+      "path": "tests/lib/coverage-utils.bench.test.js",
+      "mi": 85.456
+    },
+    {
+      "path": "tests/lib/coverage-utils.test.js",
+      "mi": 97.159
+    },
+    {
+      "path": "tests/lib/cpu-pool-edge.test.js",
+      "mi": 120.854
+    },
+    {
+      "path": "tests/lib/cpu-pool.test.js",
+      "mi": 105.168
+    },
+    {
+      "path": "tests/lib/crap-engine.test.js",
+      "mi": 98.952
+    },
+    {
+      "path": "tests/lib/dependency-analyzer.test.js",
+      "mi": 93.913
+    },
+    {
+      "path": "tests/lib/dependency-parser.test.js",
+      "mi": 114.918
+    },
+    {
+      "path": "tests/lib/doc-reader.test.js",
+      "mi": 105.349
+    },
+    {
+      "path": "tests/lib/duplicate-search.test.js",
+      "mi": 110.205
+    },
+    {
+      "path": "tests/lib/env-loader.test.js",
+      "mi": 117.057
+    },
+    {
+      "path": "tests/lib/epic-merge-lock.test.js",
+      "mi": 103.634
+    },
+    {
+      "path": "tests/lib/feedback-loop/code-review-graduator.test.js",
+      "mi": 105.628
+    },
+    {
+      "path": "tests/lib/feedback-loop/memory-freshness.test.js",
+      "mi": 106.195
+    },
+    {
+      "path": "tests/lib/feedback-loop/prior-feedback-fetcher.test.js",
+      "mi": 97.465
+    },
+    {
+      "path": "tests/lib/findings/classify-finding.test.js",
+      "mi": 113.263
+    },
+    {
+      "path": "tests/lib/findings/promote-finding.test.js",
+      "mi": 101.305
+    },
+    {
+      "path": "tests/lib/findings/route-finding.test.js",
+      "mi": 109.772
+    },
+    {
+      "path": "tests/lib/findings/semantic-issue-search.test.js",
+      "mi": 112.758
+    },
+    {
+      "path": "tests/lib/fs-mock.js",
+      "mi": 128.761
+    },
+    {
+      "path": "tests/lib/gh-exec-classify.test.js",
+      "mi": 112.948
+    },
+    {
+      "path": "tests/lib/gh-exec-wrappers.test.js",
+      "mi": 102.265
+    },
+    {
+      "path": "tests/lib/gh-exec.test.js",
+      "mi": 108.041
+    },
+    {
+      "path": "tests/lib/git-branch-cleanup.test.js",
+      "mi": 105.078
+    },
+    {
+      "path": "tests/lib/git-branch-lifecycle-plan.test.js",
+      "mi": 136.652
+    },
+    {
+      "path": "tests/lib/git-fetch-retry.test.js",
+      "mi": 109.77
+    },
+    {
+      "path": "tests/lib/git-merge-orchestrator-classify.test.js",
+      "mi": 118.749
+    },
+    {
+      "path": "tests/lib/git-merge-orchestrator-merge.test.js",
+      "mi": 103.689
+    },
+    {
+      "path": "tests/lib/git-merge-orchestrator-silent-failure.test.js",
+      "mi": 109.971
+    },
+    {
+      "path": "tests/lib/git-merge-orchestrator-trailer.test.js",
+      "mi": 108.84
+    },
+    {
+      "path": "tests/lib/git-utils-create-interface.test.js",
+      "mi": 110.753
+    },
+    {
+      "path": "tests/lib/git-utils-cwd.test.js",
+      "mi": 123.039
+    },
+    {
+      "path": "tests/lib/git-utils-story-branch.test.js",
+      "mi": 117.7
+    },
+    {
+      "path": "tests/lib/git/cached-fetch.test.js",
+      "mi": 109.649
+    },
+    {
+      "path": "tests/lib/git/sync-from-base.test.js",
+      "mi": 102.916
+    },
+    {
+      "path": "tests/lib/github-projects-resolve.test.js",
+      "mi": 118.396
+    },
+    {
+      "path": "tests/lib/github-provider.test.js",
+      "mi": 86.995
+    },
+    {
+      "path": "tests/lib/Graph-transitive-reduction.test.js",
+      "mi": 102.806
+    },
+    {
+      "path": "tests/lib/graph.test.js",
+      "mi": 99.807
+    },
+    {
+      "path": "tests/lib/json-utils.test.js",
+      "mi": 115.189
+    },
+    {
+      "path": "tests/lib/label-constants.test.js",
+      "mi": 116.283
+    },
+    {
+      "path": "tests/lib/logger-levels.test.js",
+      "mi": 107.774
+    },
+    {
+      "path": "tests/lib/logger.test.js",
+      "mi": 113.667
+    },
+    {
+      "path": "tests/lib/maintainability-engine.test.js",
+      "mi": 107.883
+    },
+    {
+      "path": "tests/lib/maintainability-utils-extra.test.js",
+      "mi": 112.767
+    },
+    {
+      "path": "tests/lib/mandrel-catalog.test.js",
+      "mi": 115.248
+    },
+    {
+      "path": "tests/lib/manifest-formatter-cache.test.js",
+      "mi": 92.402
+    },
+    {
+      "path": "tests/lib/manifest-formatter.test.js",
+      "mi": 99.847
+    },
+    {
+      "path": "tests/lib/manifest-persistence.test.js",
+      "mi": 92.042
+    },
+    {
+      "path": "tests/lib/manifest-renderer-eligibility.test.js",
+      "mi": 121.964
+    },
+    {
+      "path": "tests/lib/manifest-renderer-post.test.js",
+      "mi": 110.146
+    },
+    {
+      "path": "tests/lib/manifest-renderer.test.js",
+      "mi": 95.604
+    },
+    {
+      "path": "tests/lib/mutation/baseline-snapshot.test.js",
+      "mi": 109.208
+    },
+    {
+      "path": "tests/lib/mutation/config-detector.test.js",
+      "mi": 98.535
+    },
+    {
+      "path": "tests/lib/mutation/stryker-runner.test.js",
+      "mi": 100.669
+    },
+    {
+      "path": "tests/lib/mutation/survivor-report.test.js",
+      "mi": 99.919
+    },
+    {
+      "path": "tests/lib/notifications/notifier.test.js",
+      "mi": 111.457
+    },
+    {
+      "path": "tests/lib/observability/active-story-env.test.js",
+      "mi": 113.318
+    },
+    {
+      "path": "tests/lib/observability/baseline-refresh-rate.test.js",
+      "mi": 102.006
+    },
+    {
+      "path": "tests/lib/observability/perf-aggregator.regression.test.js",
+      "mi": 109.56
+    },
+    {
+      "path": "tests/lib/observability/perf-aggregator.test.js",
+      "mi": 92.436
+    },
+    {
+      "path": "tests/lib/observability/render/epic-perf-report-hotspot.test.js",
+      "mi": 104.301
+    },
+    {
+      "path": "tests/lib/observability/render/story-perf-summary-detectors.test.js",
+      "mi": 100.231
+    },
+    {
+      "path": "tests/lib/observability/signals-writer.test.js",
+      "mi": 99.549
+    },
+    {
+      "path": "tests/lib/observability/source-classifier.test.js",
+      "mi": 123.444
+    },
+    {
+      "path": "tests/lib/observability/tool-trace-hook.test.js",
+      "mi": 98.18
+    },
+    {
+      "path": "tests/lib/orchestration/automerge-predicate.test.js",
+      "mi": 107.639
+    },
+    {
+      "path": "tests/lib/orchestration/code-review-chain.test.js",
+      "mi": 111.154
+    },
+    {
+      "path": "tests/lib/orchestration/code-review-snapshot.test.js",
+      "mi": 108.563
+    },
+    {
+      "path": "tests/lib/orchestration/code-review.test.js",
+      "mi": 107.749
+    },
+    {
+      "path": "tests/lib/orchestration/column-sync.test.js",
+      "mi": 98.784
+    },
+    {
+      "path": "tests/lib/orchestration/concurrency-gate.test.js",
+      "mi": 100.546
+    },
+    {
+      "path": "tests/lib/orchestration/crap-remediation-1641.test.js",
+      "mi": 107.495
+    },
+    {
+      "path": "tests/lib/orchestration/detectors-phase.test.js",
+      "mi": 108.534
+    },
+    {
+      "path": "tests/lib/orchestration/epic-cleanup.test.js",
+      "mi": 101.322
+    },
+    {
+      "path": "tests/lib/orchestration/epic-deliver-lease-guard.test.js",
+      "mi": 106.004
+    },
+    {
+      "path": "tests/lib/orchestration/epic-plan-lease-guard.test.js",
+      "mi": 101.188
+    },
+    {
+      "path": "tests/lib/orchestration/epic-plan-state-store.test.js",
+      "mi": 97.99
+    },
+    {
+      "path": "tests/lib/orchestration/epic-run-state-store.test.js",
+      "mi": 91.059
+    },
+    {
+      "path": "tests/lib/orchestration/epic-runner/iterate-waves.resume-check.test.js",
+      "mi": 102.769
+    },
+    {
+      "path": "tests/lib/orchestration/error-journal.test.js",
+      "mi": 103.928
+    },
+    {
+      "path": "tests/lib/orchestration/git-cleanup-phase-drivers-decide.test.js",
+      "mi": 97.172
+    },
+    {
+      "path": "tests/lib/orchestration/git-cleanup-probe-helpers.test.js",
+      "mi": 120.427
+    },
+    {
+      "path": "tests/lib/orchestration/label-transitions.test.js",
+      "mi": 111.346
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/activation/acceptance-reconciler-activation.test.js",
+      "mi": 109.381
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/activation/automerge-armer-activation.test.js",
+      "mi": 107.667
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/activation/automerge-predicate-activation.test.js",
+      "mi": 111.692
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/activation/cleaner-archival.test.js",
+      "mi": 111.74
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/activation/finalizer-idempotency.test.js",
+      "mi": 109.571
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/activation/legacy-shims.test.js",
+      "mi": 116.144
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/activation/watcher-behind-recovery.test.js",
+      "mi": 108.984
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/armer-idempotency.test.js",
+      "mi": 107.649
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/close-end-no-cascade.test.js",
+      "mi": 106.659
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/emit-end-to-end.test.js",
+      "mi": 100.55
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/finalize-idempotency.test.js",
+      "mi": 112.218
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/listener-armer.test.js",
+      "mi": 110.16
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/listener-chain-wiring.test.js",
+      "mi": 112.327
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/listener-checkpoint.test.js",
+      "mi": 109.774
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/listener-cleaner.test.js",
+      "mi": 110.157
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/listener-finalizer.test.js",
+      "mi": 111.426
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/listener-notify.test.js",
+      "mi": 106.836
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/listener-predicate.test.js",
+      "mi": 105.256
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/listener-reconciler.test.js",
+      "mi": 107.871
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/listeners/merge-watcher.test.js",
+      "mi": 111.936
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/merge-gate-ordering.test.js",
+      "mi": 98.426
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/merge-lockout-lint.test.js",
+      "mi": 108.787
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/phase-plan.test.js",
+      "mi": 104.21
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/phase-snapshot.test.js",
+      "mi": 106.103
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/phase-story-close.test.js",
+      "mi": 108.5
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/reconcile-ordering.test.js",
+      "mi": 107.699
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/resume-cleanup.test.js",
+      "mi": 105.805
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/resume-reconcile-finalize.test.js",
+      "mi": 108.432
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/resume-snapshot-plan.test.js",
+      "mi": 104.533
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/resume-story-close.test.js",
+      "mi": 108.397
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/resume-suite.test.js",
+      "mi": 96.19
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/runner-retirement.test.js",
+      "mi": 97.112
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/wave-completeness.test.js",
+      "mi": 121.586
+    },
+    {
+      "path": "tests/lib/orchestration/lint-baseline-service.test.js",
+      "mi": 109.205
+    },
+    {
+      "path": "tests/lib/orchestration/model-attribution.test.js",
+      "mi": 94.997
+    },
+    {
+      "path": "tests/lib/orchestration/phase-runner.test.js",
+      "mi": 121.235
+    },
+    {
+      "path": "tests/lib/orchestration/plan-review-routing.test.js",
+      "mi": 108.047
+    },
+    {
+      "path": "tests/lib/orchestration/plan-runner/worktree-sweep.test.js",
+      "mi": 94.608
+    },
+    {
+      "path": "tests/lib/orchestration/planning-risk.test.js",
+      "mi": 108.026
+    },
+    {
+      "path": "tests/lib/orchestration/post-merge-pipeline-stale-registry.test.js",
+      "mi": 109.766
+    },
+    {
+      "path": "tests/lib/orchestration/post-merge-pipeline.test.js",
+      "mi": 104.709
+    },
+    {
+      "path": "tests/lib/orchestration/reassert-status-column.test.js",
+      "mi": 98.903
+    },
+    {
+      "path": "tests/lib/orchestration/resolves-token.test.js",
+      "mi": 122.691
+    },
+    {
+      "path": "tests/lib/orchestration/retro-append-checks.test.js",
+      "mi": 102.808
+    },
+    {
+      "path": "tests/lib/orchestration/retro-mirror-write.test.js",
+      "mi": 104.233
+    },
+    {
+      "path": "tests/lib/orchestration/retro-proposals.test.js",
+      "mi": 94.836
+    },
+    {
+      "path": "tests/lib/orchestration/retro-runner.test.js",
+      "mi": 90.355
+    },
+    {
+      "path": "tests/lib/orchestration/review-providers/codex.test.js",
+      "mi": 107.383
+    },
+    {
+      "path": "tests/lib/orchestration/review-providers/findings-renderer.test.js",
+      "mi": 96.757
+    },
+    {
+      "path": "tests/lib/orchestration/review-providers/native.test.js",
+      "mi": 105.287
+    },
+    {
+      "path": "tests/lib/orchestration/review-providers/review-provider-factory-chain.test.js",
+      "mi": 108.224
+    },
+    {
+      "path": "tests/lib/orchestration/review-providers/review-provider-factory.test.js",
+      "mi": 118.863
+    },
+    {
+      "path": "tests/lib/orchestration/review-providers/security-review.test.js",
+      "mi": 110.019
+    },
+    {
+      "path": "tests/lib/orchestration/review-providers/ultrareview.test.js",
+      "mi": 113.727
+    },
+    {
+      "path": "tests/lib/orchestration/single-story-lease-guard.test.js",
+      "mi": 107.506
+    },
+    {
+      "path": "tests/lib/orchestration/story-close/auto-refresh-runner.commit-hygiene.test.js",
+      "mi": 105.104
+    },
+    {
+      "path": "tests/lib/orchestration/story-close/auto-refresh-runner.test.js",
+      "mi": 102.457
+    },
+    {
+      "path": "tests/lib/orchestration/story-close/baseline-attribution-wiring.test.js",
+      "mi": 96.986
+    },
+    {
+      "path": "tests/lib/orchestration/story-close/baseline-attribution.test.js",
+      "mi": 93.961
+    },
+    {
+      "path": "tests/lib/orchestration/story-close/close-validation.test.js",
+      "mi": 102.61
+    },
+    {
+      "path": "tests/lib/orchestration/story-close/merge-runner-finalize.test.js",
+      "mi": 101.92
+    },
+    {
+      "path": "tests/lib/orchestration/story-close/post-merge-close.test.js",
+      "mi": 112.346
+    },
+    {
+      "path": "tests/lib/orchestration/story-close/pre-merge-validation-extra.test.js",
+      "mi": 115.863
+    },
+    {
+      "path": "tests/lib/orchestration/story-close/project-crap-regressions.test.js",
+      "mi": 109.307
+    },
+    {
+      "path": "tests/lib/orchestration/story-close/single-commit-per-close-cycle.test.js",
+      "mi": 106.331
+    },
+    {
+      "path": "tests/lib/orchestration/story-init-install-retry.test.js",
+      "mi": 104.084
+    },
+    {
+      "path": "tests/lib/orchestration/story-init.test.js",
+      "mi": 107.988
+    },
+    {
+      "path": "tests/lib/orchestration/story-phase-heartbeat-operator.test.js",
+      "mi": 100.52
+    },
+    {
+      "path": "tests/lib/orchestration/ticket-lease.test.js",
+      "mi": 100.77
+    },
+    {
+      "path": "tests/lib/orchestration/ticket-validator-conflicts.test.js",
+      "mi": 101.937
+    },
+    {
+      "path": "tests/lib/orchestration/ticket-validator-cross-cutting.test.js",
+      "mi": 106.019
+    },
+    {
+      "path": "tests/lib/orchestration/ticket-validator-freshness.test.js",
+      "mi": 109.538
+    },
+    {
+      "path": "tests/lib/orchestration/ticket-validator-sizing.test.js",
+      "mi": 108.054
+    },
+    {
+      "path": "tests/lib/orchestration/ticket-validator-subject-prefix.test.js",
+      "mi": 109.101
+    },
+    {
+      "path": "tests/lib/orchestration/ticketing.cascade-parallel.test.js",
+      "mi": 90.58
+    },
+    {
+      "path": "tests/lib/orchestration/ticketing.cascade-resilience.test.js",
+      "mi": 97.361
+    },
+    {
+      "path": "tests/lib/orchestration/ticketing.column-sync.test.js",
+      "mi": 100.518
+    },
+    {
+      "path": "tests/lib/orchestration/ticketing.structured-comment-cache.test.js",
+      "mi": 103.218
+    },
+    {
+      "path": "tests/lib/orchestration/ticketing.ticket-snapshot.test.js",
+      "mi": 105.644
+    },
+    {
+      "path": "tests/lib/orchestration/ticketing/bulk.test.js",
+      "mi": 104.371
+    },
+    {
+      "path": "tests/lib/orchestration/ticketing/reads.test.js",
+      "mi": 107.289
+    },
+    {
+      "path": "tests/lib/orchestration/wave-record-notifications.test.js",
+      "mi": 116.703
+    },
+    {
+      "path": "tests/lib/orchestration/wave-record-projection.test.js",
+      "mi": 109.666
+    },
+    {
+      "path": "tests/lib/parked-follow-ons.test.js",
+      "mi": 107.233
+    },
+    {
+      "path": "tests/lib/plan-checkpointer.test.js",
+      "mi": 99.854
+    },
+    {
+      "path": "tests/lib/plan-router.test.js",
+      "mi": 128.964
+    },
+    {
+      "path": "tests/lib/planning-context-budget.test.js",
+      "mi": 108.717
+    },
+    {
+      "path": "tests/lib/planning-state-manager.test.js",
+      "mi": 87.369
+    },
+    {
+      "path": "tests/lib/presentation/manifest-builder.test.js",
+      "mi": 100.107
+    },
+    {
+      "path": "tests/lib/presentation/manifest-formatter-end-to-end.test.js",
+      "mi": 102.961
+    },
+    {
+      "path": "tests/lib/presentation/manifest-formatter-layout.test.js",
+      "mi": 98.693
+    },
+    {
+      "path": "tests/lib/presentation/manifest-helpers.test.js",
+      "mi": 103.229
+    },
+    {
+      "path": "tests/lib/presentation/manifest-render-concurrency.test.js",
+      "mi": 104.331
+    },
+    {
+      "path": "tests/lib/presentation/manifest-render-waves.test.js",
+      "mi": 98.86
+    },
+    {
+      "path": "tests/lib/providers/github-projects-extra.test.js",
+      "mi": 106.271
+    },
+    {
+      "path": "tests/lib/qa/coverage-report.test.js",
+      "mi": 112.671
+    },
+    {
+      "path": "tests/lib/qa/coverage-verdict.test.js",
+      "mi": 110.602
+    },
+    {
+      "path": "tests/lib/qa/qa-context-hydrator.test.js",
+      "mi": 103.235
+    },
+    {
+      "path": "tests/lib/qa/qa-session.test.js",
+      "mi": 104.87
+    },
+    {
+      "path": "tests/lib/recut.test.js",
+      "mi": 119.942
+    },
+    {
+      "path": "tests/lib/resolve-and-dispatch-guard.test.js",
+      "mi": 114.079
+    },
+    {
+      "path": "tests/lib/retro-heuristics.test.js",
+      "mi": 105.64
+    },
+    {
+      "path": "tests/lib/signals/detectors/common.test.js",
+      "mi": 111.996
+    },
+    {
+      "path": "tests/lib/signals/detectors/hotspot.test.js",
+      "mi": 108.554
+    },
+    {
+      "path": "tests/lib/signals/detectors/retry.test.js",
+      "mi": 110.698
+    },
+    {
+      "path": "tests/lib/signals/detectors/rework.test.js",
+      "mi": 111.675
+    },
+    {
+      "path": "tests/lib/signals/read.test.js",
+      "mi": 104.738
+    },
+    {
+      "path": "tests/lib/signals/schema.test.js",
+      "mi": 112.295
+    },
+    {
+      "path": "tests/lib/signals/span-tree.test.js",
+      "mi": 107.977
+    },
+    {
+      "path": "tests/lib/story-body/story-body-meta-round-trip.test.js",
+      "mi": 107.899
+    },
+    {
+      "path": "tests/lib/story-body/story-body.test.js",
+      "mi": 108.048
+    },
+    {
+      "path": "tests/lib/story-init/blocker-validator.test.js",
+      "mi": 101.648
+    },
+    {
+      "path": "tests/lib/story-init/branch-initializer-off-branch.test.js",
+      "mi": 103.133
+    },
+    {
+      "path": "tests/lib/story-init/branch-initializer-pure.test.js",
+      "mi": 122.198
+    },
+    {
+      "path": "tests/lib/story-init/context-resolver.test.js",
+      "mi": 101.145
+    },
+    {
+      "path": "tests/lib/story-init/donor-precheck.test.js",
+      "mi": 106.622
+    },
+    {
+      "path": "tests/lib/story-init/hierarchy-tracer.test.js",
+      "mi": 107.271
+    },
+    {
+      "path": "tests/lib/story-init/no-temp-commit-on-epic.test.js",
+      "mi": 119.973
+    },
+    {
+      "path": "tests/lib/story-init/state-transitioner.test.js",
+      "mi": 102.415
+    },
+    {
+      "path": "tests/lib/story-init/task-graph-builder.test.js",
+      "mi": 110.888
+    },
+    {
+      "path": "tests/lib/story-init/transition-summary.test.js",
+      "mi": 106.368
+    },
+    {
+      "path": "tests/lib/story-lifecycle.test.js",
+      "mi": 109.113
+    },
+    {
+      "path": "tests/lib/test-env.test.js",
+      "mi": 121.19
+    },
+    {
+      "path": "tests/lib/test-profile/parse-tap.test.js",
+      "mi": 110.522
+    },
+    {
+      "path": "tests/lib/test-profile/render-report.test.js",
+      "mi": 108.929
+    },
+    {
+      "path": "tests/lib/test-tiers.test.js",
+      "mi": 110.257
+    },
+    {
+      "path": "tests/lib/ticketing.test.js",
+      "mi": 94.421
+    },
+    {
+      "path": "tests/lib/util/concurrent-map.test.js",
+      "mi": 114.986
+    },
+    {
+      "path": "tests/lib/util/phase-timer-state.test.js",
+      "mi": 112.736
+    },
+    {
+      "path": "tests/lib/util/phase-timer.test.js",
+      "mi": 113.392
+    },
+    {
+      "path": "tests/lib/util/poll-loop.test.js",
+      "mi": 117.013
+    },
+    {
+      "path": "tests/lib/validation-evidence.test.js",
+      "mi": 96.328
+    },
+    {
+      "path": "tests/lib/wave-marker.test.js",
+      "mi": 114.813
+    },
+    {
+      "path": "tests/lib/workers/maintainability-report-worker.test.js",
+      "mi": 116.43
+    },
+    {
+      "path": "tests/lib/workers/maintainability-worker.test.js",
+      "mi": 120.472
+    },
+    {
+      "path": "tests/lib/workspace-provisioner.test.js",
+      "mi": 101.085
+    },
+    {
+      "path": "tests/lib/worktree-manager-disabled.test.js",
+      "mi": 110.906
+    },
+    {
+      "path": "tests/lib/worktree/bootstrapper.test.js",
+      "mi": 100.976
+    },
+    {
+      "path": "tests/lib/worktree/force-drain.test.js",
+      "mi": 104.155
+    },
+    {
+      "path": "tests/lib/worktree/gc-discard-after-merge.test.js",
+      "mi": 95.811
+    },
+    {
+      "path": "tests/lib/worktree/inspector.test.js",
+      "mi": 116.005
+    },
+    {
+      "path": "tests/lib/worktree/lifecycle-manager-git-injection.test.js",
+      "mi": 109.538
+    },
+    {
+      "path": "tests/lib/worktree/lifecycle-manager.test.js",
+      "mi": 98.95
+    },
+    {
+      "path": "tests/lib/worktree/lifecycle/drift-detection.test.js",
+      "mi": 104.53
+    },
+    {
+      "path": "tests/lib/worktree/lifecycle/merge-reachability.test.js",
+      "mi": 103.825
+    },
+    {
+      "path": "tests/lib/worktree/lifecycle/precheck.test.js",
+      "mi": 105.907
+    },
+    {
+      "path": "tests/lib/worktree/node-modules-strategy.test.js",
+      "mi": 114.218
+    },
+    {
+      "path": "tests/lib/worktree/pending-cleanup.test.js",
+      "mi": 94.171
+    },
+    {
+      "path": "tests/lib/worktree/post-rebase-reap.test.js",
+      "mi": 88.845
+    },
+    {
+      "path": "tests/lifecycle/bus.test.js",
+      "mi": 118.699
+    },
+    {
+      "path": "tests/lifecycle/ledger-writer.test.js",
+      "mi": 111.697
+    },
+    {
+      "path": "tests/lifecycle/lifecycle-diff.test.js",
+      "mi": 104.959
+    },
+    {
+      "path": "tests/lifecycle/lifecycle-lint.test.js",
+      "mi": 113.579
+    },
+    {
+      "path": "tests/lifecycle/schema-registry.test.js",
+      "mi": 98.672
+    },
+    {
+      "path": "tests/lifecycle/trace-logger.test.js",
+      "mi": 99.238
+    },
+    {
+      "path": "tests/lint-baseline-degraded.test.js",
+      "mi": 101.137
+    },
+    {
+      "path": "tests/lint-baseline-spawn-shape.test.js",
+      "mi": 109.979
+    },
+    {
+      "path": "tests/loc-delta.test.js",
+      "mi": 107.063
+    },
+    {
+      "path": "tests/maintainability-engine.ts-fixture.test.js",
+      "mi": 100.399
+    },
+    {
+      "path": "tests/maintainability-utils.coverage-dir-ignored.test.js",
+      "mi": 103.276
+    },
+    {
+      "path": "tests/maintainability-utils.ignore-globs.test.js",
+      "mi": 97.705
+    },
+    {
+      "path": "tests/manifest-renderer.test.js",
+      "mi": 99.27
+    },
+    {
+      "path": "tests/notify.test.js",
+      "mi": 98.928
+    },
+    {
+      "path": "tests/orchestration/context-envelope.test.js",
+      "mi": 103.19
+    },
+    {
+      "path": "tests/orchestration/context-hydration-engine.test.js",
+      "mi": 101.659
+    },
+    {
+      "path": "tests/orchestration/manifest-builder-3tier.test.js",
+      "mi": 91.81
+    },
+    {
+      "path": "tests/orchestration/skill-capsule-loader.test.js",
+      "mi": 101.209
+    },
+    {
+      "path": "tests/orchestrator-no-logger-fatal.test.js",
+      "mi": 116.866
+    },
+    {
+      "path": "tests/perf-aggregator-shape.test.js",
+      "mi": 105.994
+    },
+    {
+      "path": "tests/perf-aggregator-wave-parallelism.test.js",
+      "mi": 84.147
+    },
+    {
+      "path": "tests/plan-phase-cleanup.test.js",
+      "mi": 117.073
+    },
+    {
+      "path": "tests/post-structured-comment-cli.test.js",
+      "mi": 106.937
+    },
+    {
+      "path": "tests/pre-commit-hook.test.js",
+      "mi": 115.434
+    },
+    {
+      "path": "tests/pre-push-hook.test.js",
+      "mi": 109.629
+    },
+    {
+      "path": "tests/provider-factory.test.js",
+      "mi": 103.962
+    },
+    {
+      "path": "tests/providers-github.test.js",
+      "mi": 96.621
+    },
+    {
+      "path": "tests/providers/github-surface-parity.test.js",
+      "mi": 123.712
+    },
+    {
+      "path": "tests/providers/github-timeout-defaults.test.js",
+      "mi": 118.196
+    },
+    {
+      "path": "tests/providers/github/branch-protection.test.js",
+      "mi": 97.869
+    },
+    {
+      "path": "tests/providers/github/comments.test.js",
+      "mi": 93.166
+    },
+    {
+      "path": "tests/providers/github/labels.test.js",
+      "mi": 107.568
+    },
+    {
+      "path": "tests/providers/github/merge-methods.test.js",
+      "mi": 96.913
+    },
+    {
+      "path": "tests/providers/github/project-board.test.js",
+      "mi": 110.898
+    },
+    {
+      "path": "tests/providers/github/prs.test.js",
+      "mi": 109.298
+    },
+    {
+      "path": "tests/providers/github/request-helpers.test.js",
+      "mi": 108.997
+    },
+    {
+      "path": "tests/providers/github/sub-issues.test.js",
+      "mi": 106.365
+    },
+    {
+      "path": "tests/providers/github/tickets.test.js",
+      "mi": 89.605
+    },
+    {
+      "path": "tests/push-epic-retry.test.js",
+      "mi": 98.694
+    },
+    {
+      "path": "tests/qa-assist-rename.test.js",
+      "mi": 94.127
+    },
+    {
+      "path": "tests/qa-assist-workflow.test.js",
+      "mi": 119.128
+    },
+    {
+      "path": "tests/qa-contract-validation.test.js",
+      "mi": 116.118
+    },
+    {
+      "path": "tests/qa-explore-workflow.test.js",
+      "mi": 119.454
+    },
+    {
+      "path": "tests/qa-finding-shape.test.js",
+      "mi": 108.359
+    },
+    {
+      "path": "tests/qa-harness-selection.test.js",
+      "mi": 107.762
+    },
+    {
+      "path": "tests/qa-instrumentation-allowlist.test.js",
+      "mi": 114.96
+    },
+    {
+      "path": "tests/qa-ledger.test.js",
+      "mi": 109.253
+    },
+    {
+      "path": "tests/quality-preview-staged-scope.test.js",
+      "mi": 101.251
+    },
+    {
+      "path": "tests/quality-preview.test.js",
+      "mi": 96.99
+    },
+    {
+      "path": "tests/quality-watch.test.js",
+      "mi": 107.085
+    },
+    {
+      "path": "tests/render-manifest-script.test.js",
+      "mi": 101.972
+    },
+    {
+      "path": "tests/resolve-runtime.test.js",
+      "mi": 114.994
+    },
+    {
+      "path": "tests/retro-perf-heuristics.test.js",
+      "mi": 99.658
+    },
+    {
+      "path": "tests/retro-runner-perf-signals.test.js",
+      "mi": 92.979
+    },
+    {
+      "path": "tests/run-audit-suite-cli.test.js",
+      "mi": 106.961
+    },
+    {
+      "path": "tests/run-bdd-suite-retired.test.js",
+      "mi": 103.534
+    },
+    {
+      "path": "tests/schemas/epic-perf-report.schema.test.js",
+      "mi": 108.31
+    },
+    {
+      "path": "tests/schemas/signal-schemas.test.js",
+      "mi": 104.98
+    },
+    {
+      "path": "tests/scripts/agents-bootstrap-github-protection.test.js",
+      "mi": 103.888
+    },
+    {
+      "path": "tests/scripts/auto-refresh-runner.test.js",
+      "mi": 100.276
+    },
+    {
+      "path": "tests/scripts/bootstrap-main-phases.test.js",
+      "mi": 107.365
+    },
+    {
+      "path": "tests/scripts/bootstrap-picker-resolver.test.js",
+      "mi": 111.974
+    },
+    {
+      "path": "tests/scripts/bootstrap-preflight.test.js",
+      "mi": 110.036
+    },
+    {
+      "path": "tests/scripts/bootstrap-question-pickers.test.js",
+      "mi": 104.896
+    },
+    {
+      "path": "tests/scripts/bootstrap-system-prompt-wiring.test.js",
+      "mi": 106.979
+    },
+    {
+      "path": "tests/scripts/check-baselines-pipeline.test.js",
+      "mi": 102.241
+    },
+    {
+      "path": "tests/scripts/check-baselines.min-floor.test.js",
+      "mi": 98.242
+    },
+    {
+      "path": "tests/scripts/check-baselines.test.js",
+      "mi": 101.744
+    },
+    {
+      "path": "tests/scripts/check-baselines.unknown-axis.test.js",
+      "mi": 110.435
+    },
+    {
+      "path": "tests/scripts/check-gherkin-placeholders.test.js",
+      "mi": 103.561
+    },
+    {
+      "path": "tests/scripts/cleanup-repo-test-temp.test.js",
+      "mi": 87.516
+    },
+    {
+      "path": "tests/scripts/dispatcher-fromspec.test.js",
+      "mi": 100.134
+    },
+    {
+      "path": "tests/scripts/epic-deliver-note-intervention.test.js",
+      "mi": 111.067
+    },
+    {
+      "path": "tests/scripts/epic-plan-decompose-pipeline.test.js",
+      "mi": 101.819
+    },
+    {
+      "path": "tests/scripts/epic-plan-decompose.3tier-creation-diagnostics.test.js",
+      "mi": 106.232
+    },
+    {
+      "path": "tests/scripts/epic-plan-decompose.body-preservation.test.js",
+      "mi": 94.441
+    },
+    {
+      "path": "tests/scripts/epic-plan-emit-context-stdout-clean.test.js",
+      "mi": 105.713
+    },
+    {
+      "path": "tests/scripts/epic-plan.spec-flow.test.js",
+      "mi": 88.281
+    },
+    {
+      "path": "tests/scripts/epic-reconcile.cli.test.js",
+      "mi": 103.51
+    },
+    {
+      "path": "tests/scripts/epic-spec-reconciler.apply.test.js",
+      "mi": 94.039
+    },
+    {
+      "path": "tests/scripts/epic-spec-reconciler.diff.test.js",
+      "mi": 95.059
+    },
+    {
+      "path": "tests/scripts/epic-spec-reconciler.discriminator.test.js",
+      "mi": 106.552
+    },
+    {
+      "path": "tests/scripts/epic-spec-reconciler.format.test.js",
+      "mi": 104.034
+    },
+    {
+      "path": "tests/scripts/epic-spec-schema.test.js",
+      "mi": 106.468
+    },
+    {
+      "path": "tests/scripts/git-cleanup-pipeline.test.js",
+      "mi": 109.658
+    },
+    {
+      "path": "tests/scripts/git-cleanup.test.js",
+      "mi": 107.977
+    },
+    {
+      "path": "tests/scripts/install-matrix-assert.test.js",
+      "mi": 109.247
+    },
+    {
+      "path": "tests/scripts/lifecycle-emit.test.js",
+      "mi": 117.259
+    },
+    {
+      "path": "tests/scripts/manifest-formatter-fromspec.test.js",
+      "mi": 87.826
+    },
+    {
+      "path": "tests/scripts/project-bootstrap-phases.test.js",
+      "mi": 118.588
+    },
+    {
+      "path": "tests/scripts/prompt-resolvers.test.js",
+      "mi": 110.514
+    },
+    {
+      "path": "tests/scripts/recurring-failure-detector.test.js",
+      "mi": 95.175
+    },
+    {
+      "path": "tests/scripts/run-test-profile.test.js",
+      "mi": 108.045
+    },
+    {
+      "path": "tests/scripts/run-verify.test.js",
+      "mi": 111.521
+    },
+    {
+      "path": "tests/scripts/runtime-deps-drift.test.js",
+      "mi": 113.516
+    },
+    {
+      "path": "tests/scripts/runtime-deps-preflight.test.js",
+      "mi": 114.798
+    },
+    {
+      "path": "tests/scripts/single-story-sweep-lock.test.js",
+      "mi": 108.791
+    },
+    {
+      "path": "tests/scripts/single-story-sweep-protection.test.js",
+      "mi": 101.699
+    },
+    {
+      "path": "tests/scripts/single-story-sweep.test.js",
+      "mi": 101.867
+    },
+    {
+      "path": "tests/scripts/spec-loader.test.js",
+      "mi": 107.807
+    },
+    {
+      "path": "tests/scripts/spec-renderer-3tier-emit.test.js",
+      "mi": 103.39
+    },
+    {
+      "path": "tests/scripts/spec-renderer.test.js",
+      "mi": 108.311
+    },
+    {
+      "path": "tests/scripts/spec-state.test.js",
+      "mi": 109.045
+    },
+    {
+      "path": "tests/scripts/stories-wave-tick.test.js",
+      "mi": 101.516
+    },
+    {
+      "path": "tests/scripts/story-close-biome-autoformat.test.js",
+      "mi": 101.603
+    },
+    {
+      "path": "tests/scripts/story-close-pipeline.test.js",
+      "mi": 110.128
+    },
+    {
+      "path": "tests/scripts/story-close-post-merge-transition.test.js",
+      "mi": 99.045
+    },
+    {
+      "path": "tests/scripts/story-init-install-soak.test.js",
+      "mi": 104.163
+    },
+    {
+      "path": "tests/scripts/sync-branch-from-base.test.js",
+      "mi": 122.422
+    },
+    {
+      "path": "tests/scripts/update-maintainability-baseline.flags.test.js",
+      "mi": 126.217
+    },
+    {
+      "path": "tests/scripts/update-maintainability-baseline.test.js",
+      "mi": 126.612
+    },
+    {
+      "path": "tests/scripts/wave-tick-check-idle.test.js",
+      "mi": 91.8
+    },
+    {
+      "path": "tests/scripts/wave-tick-recurring-failures.test.js",
+      "mi": 99.564
+    },
+    {
+      "path": "tests/select-audits-cli.test.js",
+      "mi": 109.859
+    },
+    {
+      "path": "tests/sentinel/ajv-presence.test.js",
+      "mi": 111.728
+    },
+    {
+      "path": "tests/shipped-configs-validate.test.js",
+      "mi": 108.465
+    },
+    {
+      "path": "tests/signals-view.test.js",
+      "mi": 102.485
+    },
+    {
+      "path": "tests/signals-write-barrel.test.js",
+      "mi": 134.542
+    },
+    {
+      "path": "tests/single-story-close-auto-merge.test.js",
+      "mi": 115.3
+    },
+    {
+      "path": "tests/single-story-close-orchestration.test.js",
+      "mi": 96.093
+    },
+    {
+      "path": "tests/single-story-close-review.test.js",
+      "mi": 104.363
+    },
+    {
+      "path": "tests/single-story-close-sync.test.js",
+      "mi": 108.342
+    },
+    {
+      "path": "tests/single-story-close-wrong-tree-guard.test.js",
+      "mi": 111.825
+    },
+    {
+      "path": "tests/single-story-confirm-merge.test.js",
+      "mi": 102.695
+    },
+    {
+      "path": "tests/skills/_harness/run-skill-smoke.js",
+      "mi": 80.982
+    },
+    {
+      "path": "tests/skills/_harness/run-skill-smoke.test.js",
+      "mi": 114.818
+    },
+    {
+      "path": "tests/skills/analyze-execution.test.js",
+      "mi": 108.31
+    },
+    {
+      "path": "tests/skills/diagnose-friction.test.js",
+      "mi": 106.996
+    },
+    {
+      "path": "tests/skills/epic-plan-decompose-author.test.js",
+      "mi": 97.193
+    },
+    {
+      "path": "tests/skills/epic-plan-spec-author.test.js",
+      "mi": 105.588
+    },
+    {
+      "path": "tests/skills/hydrate-context.test.js",
+      "mi": 108.848
+    },
+    {
+      "path": "tests/skills/legacy-deletions.test.js",
+      "mi": 103.804
+    },
+    {
+      "path": "tests/skills/parse-skill.test.js",
+      "mi": 102.473
+    },
+    {
+      "path": "tests/skills/skills-index-and-capsules.test.js",
+      "mi": 105.911
+    },
+    {
+      "path": "tests/spec-freshness.test.js",
+      "mi": 109.4
+    },
+    {
+      "path": "tests/story-close-branch-restore.test.js",
+      "mi": 94.046
+    },
+    {
+      "path": "tests/story-close-cd-out-guard.test.js",
+      "mi": 102.503
+    },
+    {
+      "path": "tests/story-close-cli-skip-validation.test.js",
+      "mi": 107.511
+    },
+    {
+      "path": "tests/story-close-preflight.test.js",
+      "mi": 107.209
+    },
+    {
+      "path": "tests/story-close-recovery.test.js",
+      "mi": 97.837
+    },
+    {
+      "path": "tests/story-close-review.test.js",
+      "mi": 103.85
+    },
+    {
+      "path": "tests/story-close-state-machine.test.js",
+      "mi": 109.35
+    },
+    {
+      "path": "tests/story-close.test.js",
+      "mi": 102.046
+    },
+    {
+      "path": "tests/story-close/format-autofix.test.js",
+      "mi": 100.7
+    },
+    {
+      "path": "tests/story-close/summarize-gate-results.test.js",
+      "mi": 103.683
+    },
+    {
+      "path": "tests/story-init.test.js",
+      "mi": 88.055
+    },
+    {
+      "path": "tests/story-off-branch-e2e.test.js",
+      "mi": 103.599
+    },
+    {
+      "path": "tests/story-orchestration.test.js",
+      "mi": 85.901
+    },
+    {
+      "path": "tests/structure.test.js",
+      "mi": 107.034
+    },
+    {
+      "path": "tests/sync-claude-commands-frontmatter.test.js",
+      "mi": 94.246
+    },
+    {
+      "path": "tests/test-isolate.test.js",
+      "mi": 109.077
+    },
+    {
+      "path": "tests/test-wrapper-preflight.test.js",
+      "mi": 110.176
+    },
+    {
+      "path": "tests/ticket-decomposer.test.js",
+      "mi": 99.673
+    },
+    {
+      "path": "tests/ticketing-provider.test.js",
+      "mi": 113.228
+    },
+    {
+      "path": "tests/update-baseline-flags.test.js",
+      "mi": 101.964
+    },
+    {
+      "path": "tests/update-epic-from-one-pager.test.js",
+      "mi": 111.168
+    },
+    {
+      "path": "tests/validate-docs-freshness.test.js",
+      "mi": 114.688
+    },
+    {
+      "path": "tests/wave-record-io-verify-concurrency.test.js",
+      "mi": 93.749
+    },
+    {
+      "path": "tests/wave-runner/tick.test.js",
+      "mi": 100.897
+    },
+    {
+      "path": "tests/wave-tick-fresh-fetch.test.js",
+      "mi": 115.788
+    },
+    {
+      "path": "tests/workflows/epic-execute-record-wave-cli.test.js",
+      "mi": 110.431
+    },
+    {
+      "path": "tests/workflows/epic-plan-ideation.test.js",
+      "mi": 110.244
+    },
+    {
+      "path": "tests/workflows/lint-baseline-cli.test.js",
+      "mi": 113.838
+    },
+    {
+      "path": "tests/workflows/select-audits-cli.test.js",
+      "mi": 111.027
     }
   ]
 }
