@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-14T16:48:08.884Z",
+  "generatedAt": "2026-06-14T17:03:12.241Z",
   "rollup": {
     "*": {
       "min": 70.566,
@@ -2600,7 +2600,11 @@
     },
     {
       "path": "tests/e2e/helpers/cli-harness.js",
-      "mi": 106.892
+      "mi": 106.271
+    },
+    {
+      "path": "tests/e2e/init-interactive.integration.test.js",
+      "mi": 109.773
     },
     {
       "path": "tests/e2e/sync-prune.integration.test.js",
