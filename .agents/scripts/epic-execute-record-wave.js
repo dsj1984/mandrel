@@ -2,36 +2,39 @@
 /* node:coverage ignore file */
 
 /**
- * epic-execute-record-wave.js — record one wave's per-Story returns,
- * advance the `epic-run-state` checkpoint, and re-render the unified
+ * epic-execute-record-wave.js — record one recorder beat's per-Story
+ * returns, splice each Story's terminal status into the `epic-run-state`
+ * checkpoint's flat per-Story `stories` map, and re-render the unified
  * `epic-run-progress` rollup on the Epic.
  *
- * The slash-command (`/deliver`) calls this CLI once per wave, after
- * its host-level Agent-tool fan-out drains. It is the only writer of the
- * `epic-run-progress` structured comment for the wave-completion path —
- * there is no separate `/wave-execute` skill, no `wave-run-progress`
- * comment, and no separate rollup CLI. The host LLM owns wave dispatch;
- * this CLI owns the post-wave persistence and operator-facing summary.
+ * Story #4155 (Epic #4151) — the Epic `/deliver` runtime cut over from the
+ * wave-batch scheduler to the continuous ready-set core. This recorder lost
+ * its wave semantics with it: there is no `--wave` flag, no wave-level
+ * status aggregation, no `currentWave` advance, and no `waves[]` history. The
+ * tick (`lib/wave-runner/tick.js`) re-derives readiness from live labels on
+ * every beat, so the checkpoint only records terminal Story outcomes (for the
+ * auto-merge predicate, branch cleanup, and the operator rollup). The
+ * recorder also emits one `story.dispatch.end` per recorded Story so the
+ * tick's ledger-derived in-flight set and the `--check-idle` watchdog can
+ * clear the dispatch start/end pairing.
  *
  *   1. Parse / reconcile / verify the per-Story returns.
- *   2. Aggregate the wave's terminal status (complete | blocked | failed).
- *   3. Splice the wave outcome into `state.waves[]`, advance
- *      `state.currentWave` on `complete`, and re-write the checkpoint.
- *   4. Re-render `epic-run-progress` from `state.waves[]`.
+ *   2. Record each Story's terminal status onto the checkpoint `stories` map.
+ *   3. Emit `story.dispatch.end` per recorded Story.
+ *   4. Re-render `epic-run-progress` from the checkpoint `stories` map.
  *   5. Print the next action for the slash-command (`dispatch-next` |
- *      `finalize` | `halt-blocked` | `halt-failed`).
+ *      `halt-blocked` | `halt-failed`).
  *
  * The implementation is split across three modules so the parent stays a
  * thin runner shell:
  *
- *   - `lib/orchestration/wave-record-projection.js` — pure projection
- *     helpers (status aggregation, rollup-row shaping, next-record
- *     splicing, next-action classification). Re-exported from this file
- *     so existing callers see an unchanged public surface.
+ *   - `lib/orchestration/wave-record-projection.js` — pure helpers
+ *     (per-Story validation / normalization, rollup-row shaping). Re-exported
+ *     from this file so existing callers see an unchanged public surface.
  *   - `lib/orchestration/wave-record-io.js` — impure helpers (ticket
  *     verification, manifest title lookup, returns reconciliation).
  *   - `lib/orchestration/wave-record-notifications.js` — curated webhook
- *     emit chain for the wave boundary.
+ *     emit chain for the recorder beat.
  */
 
 import { readFileSync } from 'node:fs';
@@ -52,14 +55,11 @@ import {
   resolveResolvedResults,
   verifyWaveResults,
 } from './lib/orchestration/wave-record-io.js';
-import { emitWaveBoundaryNotifications } from './lib/orchestration/wave-record-notifications.js';
+import { emitRecordNotifications } from './lib/orchestration/wave-record-notifications.js';
 import {
-  projectWaveRecord,
-  resolveConcurrencyCap,
   selectInputFlag,
-  validateEpicWave,
+  validateEpic,
   validateResults,
-  validateResultsReturnsXor,
 } from './lib/orchestration/wave-record-projection.js';
 import { createProvider } from './lib/provider-factory.js';
 import { notify } from './notify.js';
@@ -73,29 +73,25 @@ export {
 // Re-export the pure projection surface so tests and downstream consumers
 // can keep importing from `epic-execute-record-wave.js` after the extract.
 export {
-  aggregateWaveStatus,
   classifyParsedReturn,
-  classifyWaveOutcome,
-  countDoneStories,
-  resolveConcurrencyCap,
+  normalizeReturnsPure,
   STORY_STATUS_TO_ROW_STATE,
   selectInputFlag,
   toRollupRow,
-  VALID_RESULT_STATUSES,
   VALID_STORY_STATUSES,
-  validateEpicWave,
+  validateEpic,
   validateResults,
-  validateResultsReturnsXor,
   validateReturnsEntry,
 } from './lib/orchestration/wave-record-projection.js';
 
 const HELP = `Usage: node .agents/scripts/epic-execute-record-wave.js \\
-  --epic <epicId> --wave <waveIndex> [--concurrency-cap <N>] \\
+  --epic <epicId> \\
   (--returns @<file>|<inline-json> | --results @<file>|<inline-json>)
 
-Records the wave's per-Story outcomes, advances the epic-run-state
-checkpoint, and upserts the unified epic-run-progress rollup on the Epic.
-Prints the next action for the /deliver slash command.
+Records this recorder beat's per-Story outcomes onto the epic-run-state
+checkpoint's flat per-Story status map and upserts the unified
+epic-run-progress rollup on the Epic. Prints the next action for the
+/deliver slash command.
 `;
 
 /**
@@ -135,15 +131,36 @@ export function parseInputArg(value, deps = {}) {
 }
 
 /**
- * End-to-end record-wave. DI-friendly: tests pass `injectedProvider` and a
+ * Classify the recorder beat's next action from the verified rows. Pure.
+ * Any failed Story → `halt-failed`; else any blocked Story → `halt-blocked`;
+ * else → `dispatch-next` (the host re-ticks to pick up the next ready set).
+ *
+ * @param {Array<{ status: string }>} verified
+ * @returns {{ status: 'complete'|'blocked'|'failed', nextAction: string, blockedStoryIds: number[] }}
+ */
+export function classifyRecordOutcome(verified) {
+  const rows = Array.isArray(verified) ? verified : [];
+  const failed = rows.some((r) => r.status === 'failed');
+  const blockedStoryIds = rows
+    .filter((r) => r.status === 'blocked')
+    .map((r) => r.storyId);
+  if (failed) {
+    return { status: 'failed', nextAction: 'halt-failed', blockedStoryIds };
+  }
+  if (blockedStoryIds.length > 0) {
+    return { status: 'blocked', nextAction: 'halt-blocked', blockedStoryIds };
+  }
+  return { status: 'complete', nextAction: 'dispatch-next', blockedStoryIds };
+}
+
+/**
+ * End-to-end record beat. DI-friendly: tests pass `injectedProvider` and a
  * fully-formed `results` (or `returns`) array to skip real network reads.
  *
  * @param {{
  *   epicId: number,
- *   wave: number,
  *   results?: unknown,
  *   returns?: unknown,
- *   concurrencyCap?: number,
  *   cwd?: string,
  *   injectedProvider?: object,
  *   injectedConfig?: object,
@@ -153,18 +170,25 @@ export function parseInputArg(value, deps = {}) {
  */
 export async function runEpicExecuteRecordWave({
   epicId,
-  wave,
   results,
   returns,
-  concurrencyCap: concurrencyCapOverride,
   cwd,
   injectedProvider,
   injectedConfig,
   injectedNotify,
   now = () => new Date(),
 } = {}) {
-  validateEpicWave(epicId, wave);
-  validateResultsReturnsXor(results, returns);
+  validateEpic(epicId);
+  if (results == null && returns == null) {
+    throw new TypeError(
+      'runEpicExecuteRecordWave: either `results` or `returns` is required',
+    );
+  }
+  if (results != null && returns != null) {
+    throw new TypeError(
+      'runEpicExecuteRecordWave: pass `results` OR `returns`, not both',
+    );
+  }
 
   const config = injectedConfig ?? resolveConfig({ cwd });
   const provider = injectedProvider ?? createProvider(config);
@@ -176,25 +200,16 @@ export async function runEpicExecuteRecordWave({
         'run `node .agents/scripts/epic-deliver-prepare.js --epic <id>` first.',
     );
   }
+  const firstRecord = !hasRecordedStory(existing.stories);
 
   const deliverRunner = getRunners(config).deliverRunner ?? {};
-  const concurrencyCap = resolveConcurrencyCap(
-    concurrencyCapOverride,
-    existing,
-    deliverRunner,
-  );
 
-  // 1. Parse / reconcile the per-Story returns. `existing` is threaded so the
-  //    wave-complete-livelock recovery (Story #3907) can reconcile every
-  //    Story in `plan[wave]` from GitHub when mode B records a wave with no
-  //    child returns.
+  // 1. Parse / reconcile the per-Story returns.
   const { resolvedResults, parseFailures } = await resolveResolvedResults({
     provider,
     epicId,
-    wave,
     results,
     returns,
-    existing,
   });
 
   const validated = validateResults(resolvedResults);
@@ -209,90 +224,61 @@ export async function runEpicExecuteRecordWave({
   // 3. Cross-look manifest titles for the rollup rows.
   const titleById = await loadManifestTitleMap({ provider, epicId });
 
-  // 4. Project the post-wave-record state. Pure: aggregates the wave
-  //    status, splices this wave's record into the prior list, derives
-  //    nextCurrentWave, and classifies the slash-command next action.
-  const projection = projectWaveRecord({
-    wave,
-    verified,
-    existing,
-    concurrencyCap,
-    titleById,
-    now,
-  });
+  // 4. Record each Story's terminal status onto the checkpoint `stories`
+  //    map. Recorded serially so the upserts do not race the same comment.
+  let state = existing;
+  for (const row of verified) {
+    state = await epicRunStateStore.recordStoryStatus({
+      provider,
+      epicId,
+      storyId: row.storyId,
+      status: row.status,
+      title: titleById.get(row.storyId),
+      blockerCommentId: row.blockerCommentId,
+    });
+  }
 
-  // 5. Persist the projected checkpoint.
-  await epicRunStateStore.write({
-    provider,
-    epicId,
-    state: {
-      ...existing,
-      currentWave: projection.nextCurrentWave,
-      totalWaves: projection.totalWaves,
-      waves: projection.nextWaves,
-    },
-  });
-
-  // 5a. Emit one `story.dispatch.end` per recorded Story (Story #3900).
-  //     Closes the start/end pairing the wave-tick reconciler and the
-  //     `--check-idle` watchdog use to derive in-flight Stories. Before this
-  //     the only producer was `wave-session.js`, which the host-LLM driven
-  //     /deliver path never imports — so every dispatched Story stayed
-  //     "in-flight" forever and completed Stories tripped the watchdog.
-  //     Best-effort: a failed append must not block the wave loop.
+  // 5. Emit one `story.dispatch.end` per recorded Story. Closes the
+  //    start/end pairing the tick reconciler and the `--check-idle`
+  //    watchdog use to derive in-flight Stories. Best-effort: a failed
+  //    append must not block the loop.
   emitWaveDispatchEnds({ epicId, verified, config });
 
   // 6. Re-render the unified `epic-run-progress` rollup from the checkpoint
-  //    state. This is the only operator-facing summary — there is no
-  //    separate per-wave structured comment.
+  //    `stories` map. The single operator-facing summary.
   const { body: renderedBody } = await upsertEpicRunProgress({
     provider,
     epicId,
-    waves: projection.rollupWaves,
-    currentWave: projection.nextCurrentWave,
-    totalWaves: projection.totalWaves,
+    stories: state.stories,
     startedAt: existing.startedAt,
     now,
   });
 
-  // 7. Fire the curated webhook events for this wave boundary. Mirrors the
-  //    wave-loop emits in `lib/orchestration/epic-runner/phases/iterate-waves.js`
-  //    for the host-LLM driven /deliver path (which does not pass
-  //    through `runEpic`). Each helper is fire-and-forget — webhook
-  //    misconfig or a transient Slack outage must not block the wave loop.
-  await emitWaveBoundaryNotifications({
+  const { status, nextAction, blockedStoryIds } =
+    classifyRecordOutcome(verified);
+
+  // 7. Fire the curated webhook events for this recorder beat. Each helper
+  //    is fire-and-forget — webhook misconfig or a transient Slack outage
+  //    must not block the loop.
+  await emitRecordNotifications({
     injectedNotify,
     defaultNotify: notify,
     config,
     provider,
     epicId,
-    wave,
-    status: projection.status,
-    priorWaves: projection.priorWaves,
-    nextWaves: projection.nextWaves,
-    titleById,
-    totalWaves: projection.totalWaves,
-    nextCurrentWave: projection.nextCurrentWave,
+    firstRecord,
+    stories: state.stories,
     verified,
-    blockedStoryIds: projection.blockedStoryIds,
+    blockedStoryIds,
   });
-
-  // Note (Story #3909): the per-wave dispatch-manifest refresh hop was
-  // deleted. It re-ran the full dispatch pipeline (re-fetch every ticket,
-  // recompute waves) on every tick only to re-render a comment nothing reads
-  // for control flow. The manifest is written once at prepare time; the
-  // surviving operator-facing surface is the `epic-run-progress` rollup
-  // re-rendered above.
 
   const envelope = {
     epicId,
-    wave,
     recorded: true,
-    status: projection.status,
+    status,
     stories: verified.map((r) => ({ id: r.storyId, status: r.status })),
-    blockedStoryIds: projection.blockedStoryIds,
-    nextAction: projection.nextAction,
-    remainingWaves: projection.remainingWaves,
+    blockedStoryIds,
+    nextAction,
     renderedBody,
   };
   if (discrepancies.length > 0) {
@@ -308,11 +294,27 @@ export async function runEpicExecuteRecordWave({
 }
 
 /**
+ * Whether the checkpoint's per-Story `stories` map already carries a
+ * non-`pending` (recorded) status — used to fire `epic-started` exactly
+ * once, on the first recorder beat. Pure helper.
+ *
+ * @param {Record<string, { status?: string }>|undefined} stories
+ * @returns {boolean}
+ */
+function hasRecordedStory(stories) {
+  const map = stories && typeof stories === 'object' ? stories : {};
+  for (const rec of Object.values(map)) {
+    if (rec?.status && rec.status !== 'pending') return true;
+  }
+  return false;
+}
+
+/**
  * Append one `story.dispatch.end` lifecycle record per recorded Story
  * (Story #3900). Each emit is independent and best-effort: a single failed
- * append is logged and swallowed so one bad record never aborts the wave
- * loop. The Story status taxonomy (`done`/`blocked`/`failed`) maps directly
- * onto the `story.dispatch.end` outcome enum.
+ * append is logged and swallowed so one bad record never aborts the loop.
+ * The Story status taxonomy (`done`/`blocked`/`failed`) maps directly onto
+ * the `story.dispatch.end` outcome enum.
  *
  * Exported for unit testing.
  *
@@ -378,8 +380,6 @@ export function parseArgv(argv) {
   const { values } = defineFlags(
     {
       epic: { type: 'integer', alias: 'epicId' },
-      wave: { type: 'integer' },
-      'concurrency-cap': { type: 'integer' },
       results: { type: 'string', alias: 'resultsRaw' },
       returns: { type: 'string', alias: 'returnsRaw' },
       help: { type: 'boolean', short: 'h' },
@@ -393,8 +393,7 @@ export function parseArgv(argv) {
  * Orchestration body of `main` extracted as a sibling exported function so
  * the validate / dispatch / envelope-shape ladder is unit-testable without
  * spawning a process. `main` becomes a thin shell: parse → call this →
- * render → exit. CLI surface unchanged (same flags, same exit codes, same
- * stdout JSON schema).
+ * render → exit.
  *
  * @param {ReturnType<typeof parseArgv>} values
  * @param {{
@@ -421,23 +420,10 @@ export async function runRecordWaveCli(values, deps = {}) {
       },
     };
   }
-  if (!Number.isInteger(values.wave) || values.wave < 0) {
-    return {
-      exitCode: 2,
-      result: {
-        kind: 'validation-error',
-        message:
-          '[epic-execute-record-wave] ERROR: --wave <index> is required (>= 0).',
-        help: helpText,
-      },
-    };
-  }
   const resolveInput = deps.resolveRecordInput ?? resolveRecordInput;
   const runner = deps.runRecordWave ?? runEpicExecuteRecordWave;
   const envelope = await runner({
     epicId: values.epicId,
-    wave: values.wave,
-    concurrencyCap: values.concurrencyCap,
     ...resolveInput(values),
   });
   return { exitCode: 0, result: { kind: 'envelope', envelope } };

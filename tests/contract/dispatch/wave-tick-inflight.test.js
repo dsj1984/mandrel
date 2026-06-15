@@ -1,23 +1,32 @@
 // tests/contract/dispatch/wave-tick-inflight.test.js
 /**
- * Contract test — Story #2891 Task #2901.
+ * Contract test — Story #2891 Task #2901, refreshed for the ready-set
+ * runtime (Story #4155 / Epic #4151).
  *
- * wave-tick.js MUST surface `nextAction['in-flight']` derived from the
- * lifecycle ledger so /deliver can reconcile dispatched-but-
- * uncompleted Stories. The field is always present (empty array when
- * the ledger is silent) so callers never need an existence check.
+ * The tick MUST surface `nextAction['in-flight']` derived from the lifecycle
+ * ledger so /deliver can reconcile dispatched-but-uncompleted Stories. The
+ * field is always present (empty array when the ledger is silent) so callers
+ * never need an existence check.
  *
- * The test injects a fake `inFlightReader` collaborator (deterministic,
- * no filesystem coupling) plus the existing fake checkpointer and
- * provider so the reconciliation contract is asserted in isolation.
+ * The test injects a fake `inFlightReader` collaborator (deterministic, no
+ * filesystem coupling) plus a fake checkpoint store (new per-Story-status
+ * shape) and provider so the reconciliation contract is asserted in
+ * isolation.
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { tick } from '../../../.agents/scripts/lib/wave-runner/tick.js';
 
-function fakeCheckpointer(state) {
+function fakeStore(state) {
   return { read: async () => state };
+}
+
+/** Per-Story-status checkpoint over the given Story ids. */
+function checkpoint(epicId, storyIds, concurrencyCap = 3) {
+  const stories = {};
+  for (const id of storyIds) stories[String(id)] = { status: 'pending' };
+  return { epicId, concurrencyCap, stories };
 }
 
 function fakeProvider(labelsById = new Map()) {
@@ -25,7 +34,8 @@ function fakeProvider(labelsById = new Map()) {
     async getTicket(id) {
       return {
         id,
-        labels: labelsById.get(id) ?? [],
+        labels: labelsById.get(id) ?? ['agent::ready'],
+        body: '',
         title: `Story #${id}`,
       };
     },
@@ -34,22 +44,15 @@ function fakeProvider(labelsById = new Map()) {
 
 describe('contract/dispatch/wave-tick-inflight', () => {
   it('surfaces nextAction["in-flight"] from the injected ledger reader', async () => {
-    const checkpointer = fakeCheckpointer({
-      epicId: 9001,
-      currentWave: 0,
-      totalWaves: 1,
-      plan: [[{ id: 9101 }, { id: 9102 }]],
-      waves: [],
-    });
     const provider = fakeProvider();
-    // Ledger says A and B both dispatched; only A completed.
+    // Ledger says A and B both dispatched; only A completed → B in-flight.
     const inFlightReader = async () => [9102];
 
     const result = await tick({
       epic: 9001,
       collaborators: {
         provider,
-        epicRunStateStore: checkpointer,
+        epicRunStateStore: fakeStore(checkpoint(9001, [9101, 9102])),
         inFlightReader,
       },
     });
@@ -58,13 +61,6 @@ describe('contract/dispatch/wave-tick-inflight', () => {
   });
 
   it('returns an empty array (not undefined) when no Stories are in flight', async () => {
-    const checkpointer = fakeCheckpointer({
-      epicId: 9001,
-      currentWave: 0,
-      totalWaves: 1,
-      plan: [[{ id: 9101 }]],
-      waves: [],
-    });
     const provider = fakeProvider();
     const inFlightReader = async () => [];
 
@@ -72,7 +68,7 @@ describe('contract/dispatch/wave-tick-inflight', () => {
       epic: 9001,
       collaborators: {
         provider,
-        epicRunStateStore: checkpointer,
+        epicRunStateStore: fakeStore(checkpoint(9001, [9101])),
         inFlightReader,
       },
     });
@@ -87,20 +83,13 @@ describe('contract/dispatch/wave-tick-inflight', () => {
   it('defaults a missing inFlightReader to [] (no ledger on disk)', async () => {
     // Use a unique epicId that has no temp/epic-<id>/lifecycle.ndjson on
     // disk in the test sandbox so the default reader returns [].
-    const checkpointer = fakeCheckpointer({
-      epicId: 999_001,
-      currentWave: 0,
-      totalWaves: 1,
-      plan: [[{ id: 9101 }]],
-      waves: [],
-    });
     const provider = fakeProvider();
 
     const result = await tick({
       epic: 999_001,
       collaborators: {
         provider,
-        epicRunStateStore: checkpointer,
+        epicRunStateStore: fakeStore(checkpoint(999_001, [9101])),
       },
     });
 
@@ -128,14 +117,14 @@ describe('contract/dispatch/wave-tick-inflight', () => {
           seqId: 1,
           ts: '2026-05-22T00:00:00.000Z',
           event: 'story.dispatch.start',
-          payload: { storyId: 9101, waveIndex: 0 },
+          payload: { storyId: 9101 },
         },
         {
           kind: 'emitted',
           seqId: 2,
           ts: '2026-05-22T00:00:01.000Z',
           event: 'story.dispatch.start',
-          payload: { storyId: 9102, waveIndex: 0 },
+          payload: { storyId: 9102 },
         },
         {
           kind: 'emitted',
@@ -151,20 +140,13 @@ describe('contract/dispatch/wave-tick-inflight', () => {
         'utf8',
       );
 
-      const checkpointer = fakeCheckpointer({
-        epicId: 9001,
-        currentWave: 0,
-        totalWaves: 1,
-        plan: [[{ id: 9101 }, { id: 9102 }]],
-        waves: [],
-      });
       const provider = fakeProvider();
 
       const result = await tick({
         epic: 9001,
         collaborators: {
           provider,
-          epicRunStateStore: checkpointer,
+          epicRunStateStore: fakeStore(checkpoint(9001, [9101, 9102])),
         },
       });
 

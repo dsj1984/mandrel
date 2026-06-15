@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { runEpicDeliverPrepare } from '../../.agents/scripts/epic-deliver-prepare.js';
-import { EPIC_RUN_STATE_TYPE as STORE_TYPE } from '../../.agents/scripts/lib/orchestration/epic-run-state-store.js';
-import { structuredCommentMarker } from '../../.agents/scripts/lib/orchestration/ticketing.js';
-import { tick } from '../../.agents/scripts/lib/wave-runner/tick.js';
 import {
   CHECKPOINT_SCHEMA_VERSION,
   EPIC_RUN_STATE_TYPE,
-} from '../fixtures/epic-run-state-store.js';
+  EPIC_RUN_STATE_TYPE as STORE_TYPE,
+} from '../../.agents/scripts/lib/orchestration/epic-run-state-store.js';
+import { structuredCommentMarker } from '../../.agents/scripts/lib/orchestration/ticketing.js';
+import { tick } from '../../.agents/scripts/lib/wave-runner/tick.js';
 
 /**
  * Build a minimal in-memory provider matching the surface the prepare runner
@@ -114,16 +114,12 @@ describe('runEpicDeliverPrepare', () => {
     });
 
     assert.equal(out.epicId, 100);
-    assert.equal(out.totalWaves, 2, 'two waves from 201 → 202 chain');
+    assert.equal(out.storyCount, 2, 'two open Stories: 201 → 202 chain');
     assert.equal(out.concurrencyCap, 3);
-    assert.equal(out.plan.length, 2);
+    // The envelope carries a flat dispatch hint (no wave grouping).
     assert.deepEqual(
-      out.plan[0].stories.map((s) => s.storyId),
-      [201],
-    );
-    assert.deepEqual(
-      out.plan[1].stories.map((s) => s.storyId),
-      [202],
+      out.stories.map((s) => s.storyId).sort((a, b) => a - b),
+      [201, 202],
     );
     assert.ok(typeof out.checkpointInitializedAt === 'string');
 
@@ -140,25 +136,25 @@ describe('runEpicDeliverPrepare', () => {
       new RegExp(`"version":\\s*${CHECKPOINT_SCHEMA_VERSION}`),
     );
 
-    // The plan must be persisted on the checkpoint in the shape wave-tick
-    // expects (`Array<Array<{ storyId, title?, worktree? }>>`). Without
-    // this write the tick reports every wave as `wave-complete: empty`.
+    // The checkpoint carries a flat per-Story status map (each seeded at
+    // pending), the global cap, and NO wave-batch fields.
     const fenced = epicComments[0].body.match(/```json\n([\s\S]+?)\n```/);
     assert.ok(fenced, 'checkpoint body has a fenced JSON block');
     const persisted = JSON.parse(fenced[1]);
-    assert.ok(Array.isArray(persisted.plan), 'persisted plan is an array');
-    assert.equal(persisted.plan.length, 2);
-    assert.deepEqual(
-      persisted.plan[0].map((s) => s.storyId),
-      [201],
-    );
-    assert.deepEqual(
-      persisted.plan[1].map((s) => s.storyId),
-      [202],
-    );
+    assert.equal(persisted.concurrencyCap, 3);
+    assert.deepEqual(persisted.stories, {
+      201: { status: 'pending', title: 'First story' },
+      202: {
+        status: 'pending',
+        title: 'Second story (depends on 201)',
+      },
+    });
+    assert.equal(persisted.plan, undefined, 'no wave plan persisted');
+    assert.equal(persisted.currentWave, undefined);
+    assert.equal(persisted.totalWaves, undefined);
   });
 
-  it('builds the plan for a single-story Epic', async () => {
+  it('seeds the checkpoint for a single-story Epic', async () => {
     const epic = { id: 101, labels: ['type::epic', 'acceptance::n-a'] };
     const descendants = [
       {
@@ -175,7 +171,11 @@ describe('runEpicDeliverPrepare', () => {
       injectedProvider: provider,
       injectedConfig: baseConfig,
     });
-    assert.equal(out.totalWaves, 1);
+    assert.equal(out.storyCount, 1);
+    assert.deepEqual(
+      out.stories.map((s) => s.storyId),
+      [301],
+    );
   });
 
   it('throws when the Epic has no child stories', async () => {
@@ -365,41 +365,46 @@ describe('runEpicDeliverPrepare', () => {
   });
 
   // ---------------------------------------------------------------------
-  // Resume pointer reconciliation (Story #3358)
+  // Resume under the ready-set runtime (Story #4155)
   // ---------------------------------------------------------------------
 
-  it('resets currentWave to 0 and re-dispatches wave 0 when resume recomputes a shorter plan', async () => {
-    // Original 3-wave Epic: 201 → 202 → 203. Waves 0 and 1 completed
-    // (201, 202 merged → closed), leaving only 203 open. The recomputed
-    // DAG therefore has a single wave whose plan[0] = [203].
+  it('preserves recorded Story statuses across a re-prepare and dispatches the genuinely-ready Story', async () => {
+    // A parked run already recorded Story 201 done. On resume the recomputed
+    // Story set still contains 201 + 202; the re-prepare must NOT reset 201's
+    // recorded status, and the tick must dispatch the genuinely-ready 202
+    // (whose only dependency, 201, is done) — no wave pointer involved.
     const epic = { id: 120, labels: ['type::epic', 'acceptance::n-a'] };
     const descendants = [
       {
-        id: 203,
-        number: 203,
-        title: 'Third story',
-        labels: ['type::story'],
+        id: 201,
+        number: 201,
+        title: 'First',
+        labels: ['type::story', 'agent::done'],
         body: '',
+        state: 'closed',
+      },
+      {
+        id: 202,
+        number: 202,
+        title: 'Second (depends on 201)',
+        labels: ['type::story', 'agent::ready'],
+        body: 'blocked by #201',
         state: 'open',
       },
     ];
     const provider = createFakeProvider({ epic, descendants });
 
-    // Prior checkpoint from the parked run: 3-wave plan, currentWave=2.
+    // Prior checkpoint in the new per-Story-status shape: 201 already done.
     seedCheckpoint(provider, 120, {
       epicId: 120,
       startedAt: '2026-05-01T00:00:00.000Z',
-      currentWave: 2,
-      totalWaves: 3,
       concurrencyCap: 3,
-      phase: 'prepare',
-      waves: [
-        { index: 0, stories: [{ storyId: 201, status: 'done' }] },
-        { index: 1, stories: [{ storyId: 202, status: 'done' }] },
-      ],
-      blockerHistory: [],
+      phase: 'wave-loop',
+      stories: {
+        201: { status: 'done', title: 'First' },
+        202: { status: 'pending' },
+      },
       manualInterventions: [],
-      plan: [[{ storyId: 201 }], [{ storyId: 202 }], [{ storyId: 203 }]],
     });
 
     const out = await runEpicDeliverPrepare({
@@ -407,43 +412,31 @@ describe('runEpicDeliverPrepare', () => {
       injectedProvider: provider,
       injectedConfig: baseConfig,
     });
+    // The recomputed open set is just the one not-done Story (the DAG drops
+    // closed Story 201).
+    assert.equal(out.storyCount, 1);
 
-    // Recomputed plan is a single wave over the only open Story.
-    assert.equal(out.totalWaves, 1, 'recomputed DAG has one not-done wave');
-    assert.deepEqual(
-      out.plan[0].stories.map((s) => s.storyId),
-      [203],
-    );
-
-    // The persisted checkpoint must have its pointer reset into the new
-    // index space — currentWave 2 (the old index) would index past the
-    // 1-wave plan and dispatch nothing.
+    // Recorded progress survives the merge: 201 stays done (it is preserved
+    // from the prior checkpoint even though it is no longer in the open set),
+    // 202 stays pending.
     const persisted = readPersistedCheckpoint(provider, 120);
-    assert.equal(persisted.currentWave, 0, 'pointer reset to new index 0');
-    assert.deepEqual(persisted.waves, [], 'stale wave history dropped');
-    assert.deepEqual(
-      persisted.plan.map((w) => w.map((s) => s.storyId ?? s.id)),
-      [[203]],
-    );
+    assert.equal(persisted.stories['201'].status, 'done');
+    assert.equal(persisted.stories['202'].status, 'pending');
 
-    // wave-tick must now dispatch the genuinely-ready Story #203, not
-    // index plan[2] of the recomputed plan (which is undefined → empty).
+    // The tick dispatches the genuinely-ready Story #202.
     const result = await tick({
       epic: 120,
       collaborators: { provider },
       ctx: { config: baseConfig },
     });
-    assert.equal(result.currentWave, 0);
     assert.equal(result.nextAction.kind, 'dispatch');
     assert.deepEqual(
       result.nextAction.stories.map((s) => s.id),
-      [203],
+      [202],
     );
   });
 
-  it('preserves currentWave on an idempotent re-prepare with no completed waves', async () => {
-    // Same open Story set as the prior run → plan is unchanged. The
-    // in-flight pointer (currentWave=1) must survive a no-op re-prepare.
+  it('is idempotent on a no-op re-prepare (single checkpoint comment, preserved startedAt)', async () => {
     const epic = { id: 121, labels: ['type::epic', 'acceptance::n-a'] };
     const descendants = [
       {
@@ -465,35 +458,25 @@ describe('runEpicDeliverPrepare', () => {
     ];
     const provider = createFakeProvider({ epic, descendants });
 
-    seedCheckpoint(provider, 121, {
+    const first = await runEpicDeliverPrepare({
       epicId: 121,
-      startedAt: '2026-05-01T00:00:00.000Z',
-      currentWave: 1,
-      totalWaves: 2,
-      concurrencyCap: 3,
-      phase: 'prepare',
-      waves: [{ index: 0, stories: [{ storyId: 301, status: 'done' }] }],
-      blockerHistory: [],
-      manualInterventions: [],
-      plan: [[{ storyId: 301 }], [{ storyId: 302 }]],
+      injectedProvider: provider,
+      injectedConfig: baseConfig,
     });
-
     await runEpicDeliverPrepare({
       epicId: 121,
       injectedProvider: provider,
       injectedConfig: baseConfig,
     });
 
+    const epicComments = provider._comments.get(121) ?? [];
+    assert.equal(epicComments.length, 1, 'single checkpoint comment');
     const persisted = readPersistedCheckpoint(provider, 121);
     assert.equal(
-      persisted.currentWave,
-      1,
-      'in-flight pointer preserved on idempotent re-prepare',
+      persisted.startedAt,
+      first.checkpointInitializedAt,
+      'startedAt preserved on idempotent re-prepare',
     );
-    assert.deepEqual(
-      persisted.waves,
-      [{ index: 0, stories: [{ storyId: 301, status: 'done' }] }],
-      'wave history preserved when the plan is unchanged',
-    );
+    assert.deepEqual(Object.keys(persisted.stories).sort(), ['301', '302']);
   });
 });

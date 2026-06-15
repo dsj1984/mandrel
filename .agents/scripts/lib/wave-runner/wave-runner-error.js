@@ -4,7 +4,8 @@
  * (blocked stories, gate failures) route through `WaveTickResult`.
  *
  * Callers classify via `err.phase`: `checkpoint-missing`,
- * `checkpoint-read`, `plan-missing`, `story-fetch`, `invalid-input`.
+ * `checkpoint-read`, `old-shape-checkpoint`, `story-fetch`,
+ * `invalid-input`.
  *
  * @module lib/wave-runner/wave-runner-error
  */

@@ -240,42 +240,33 @@ export async function renderProgressBody({
 /**
  * Render and upsert the rolled-up `epic-run-progress` comment on the Epic.
  *
- * Called by `/deliver` Step 2b (`epic-execute-record-wave.js`) after
- * each wave completes. The caller folds `state.waves[]` from the
- * `epic-run-state` checkpoint into the per-wave rows and persists the
- * unified rollup as a fenced-JSON payload on the Epic ticket via
- * `upsertStructuredComment`. There is no separate per-wave structured
- * comment — `epic-run-progress` is the single operator-facing summary,
- * grouped by wave.
+ * Called by `/deliver`'s per-Story status recorder
+ * (`epic-execute-record-wave.js`) after each recorder beat. Story #4155
+ * (Epic #4151) — the Epic `/deliver` runtime cut over from the wave-batch
+ * scheduler to the continuous ready-set core, so the rollup is a **flat
+ * per-Story table** keyed by the checkpoint's `stories` status map, not a
+ * wave-grouped table. There is no `currentWave` / `totalWaves` / `waves[]`
+ * in the payload any more.
  *
- * The payload schema is pinned by `epic-execute.md` Step 2b / tech spec
- * #902:
+ * The payload schema:
  *
  *   {
  *     "kind": "epic-run-progress",
  *     "epicId": <number>,
- *     "currentWave": <number>,
- *     "totalWaves": <number>,
- *     "waves": [ { wave, concurrencyCap?, stories[] } ],
+ *     "stories": [ { id, title?, state, blockerCommentId? } ],
  *     "startedAt"?: "<iso8601>",
  *     "updatedAt": "<iso8601>"
  *   }
  *
  * The function does not re-derive Story state from labels — it trusts the
- * `waves` argument supplied by the caller, which itself is the projection
- * of the validated, verified per-Story rows recorded on the checkpoint.
+ * `stories` map supplied by the caller (the checkpoint's recorded per-Story
+ * statuses).
  *
  * @param {{
  *   provider: import('../../../ITicketingProvider.js').ITicketingProvider,
  *   epicId: number,
- *   waves: Array<{
- *     wave: number,
- *     concurrencyCap?: number,
- *     stories?: Array<{ id: number, title?: string, state?: string,
- *                       blockerCommentId?: string }>,
- *   }>,
- *   currentWave: number,
- *   totalWaves: number,
+ *   stories: Record<string, { status?: string, title?: string,
+ *                             blockerCommentId?: string }>,
  *   startedAt?: string,
  *   now?: () => Date,
  * }} args
@@ -285,9 +276,7 @@ export async function renderProgressBody({
 export async function upsertEpicRunProgress({
   provider,
   epicId,
-  waves,
-  currentWave,
-  totalWaves,
+  stories,
   startedAt,
   now = () => new Date(),
 } = {}) {
@@ -300,73 +289,44 @@ export async function upsertEpicRunProgress({
   if (!Number.isInteger(epicIdNum) || epicIdNum <= 0) {
     throw new TypeError('upsertEpicRunProgress requires a numeric epicId');
   }
-  const totalWavesNum = Number(totalWaves);
-  if (!Number.isInteger(totalWavesNum) || totalWavesNum < 0) {
-    throw new TypeError(
-      'upsertEpicRunProgress requires a non-negative integer totalWaves',
-    );
-  }
-  const currentWaveNum = Number(currentWave);
-  if (!Number.isInteger(currentWaveNum) || currentWaveNum < 0) {
-    throw new TypeError(
-      'upsertEpicRunProgress requires a non-negative integer currentWave',
-    );
-  }
-  const wavesArr = Array.isArray(waves) ? waves : [];
+  const statusMap = stories && typeof stories === 'object' ? stories : {};
 
   const updatedAt = now().toISOString();
-  const normalizedWaves = wavesArr.map((w) => {
-    const stories = Array.isArray(w?.stories) ? w.stories : [];
-    const out = {
-      wave: Number(w?.wave),
-      stories,
-    };
-    if (Number.isInteger(w?.concurrencyCap)) {
-      out.concurrencyCap = Number(w.concurrencyCap);
-    }
-    return out;
-  });
+  const rows = Object.entries(statusMap)
+    .map(([key, rec]) => {
+      const id = Number(key);
+      const state = String(rec?.status ?? 'pending');
+      const row = { id, title: String(rec?.title ?? ''), state };
+      if (rec?.blockerCommentId != null) {
+        row.blockerCommentId = String(rec.blockerCommentId);
+      }
+      return row;
+    })
+    .filter((r) => Number.isInteger(r.id) && r.id > 0)
+    .sort((a, b) => a.id - b.id);
 
   const payload = {
     kind: EPIC_RUN_PROGRESS_TYPE,
     epicId: epicIdNum,
-    currentWave: currentWaveNum,
-    totalWaves: totalWavesNum,
-    waves: normalizedWaves,
+    stories: rows,
     updatedAt,
   };
   if (typeof startedAt === 'string' && startedAt) {
     payload.startedAt = startedAt;
   }
 
-  const totalStories = normalizedWaves.reduce(
-    (acc, w) => acc + w.stories.length,
-    0,
-  );
-  const doneStories = normalizedWaves.reduce(
-    (acc, w) => acc + w.stories.filter((s) => s?.state === 'done').length,
-    0,
-  );
-  const header = `### 📊 Epic Progress — Wave ${Math.min(currentWaveNum + 1, Math.max(totalWavesNum, 1))}/${totalWavesNum || '?'} · ${doneStories}/${totalStories} stories done`;
+  const totalStories = rows.length;
+  const doneStories = rows.filter((s) => s.state === 'done').length;
+  const header = `### 📊 Epic Progress — ${doneStories}/${totalStories} stories done`;
 
-  const tableLines = ['| Wave | ID | State | Title |', '|---|---|---|---|'];
-  if (normalizedWaves.length === 0) {
-    tableLines.push('| — | — | _(no waves yet)_ | — |');
+  const tableLines = ['| ID | State | Title |', '|---|---|---|'];
+  if (rows.length === 0) {
+    tableLines.push('| — | _(no stories yet)_ | — |');
   } else {
-    for (const w of normalizedWaves) {
-      if (w.stories.length === 0) {
-        tableLines.push(`| ${w.wave + 1} | — | _(empty wave)_ | — |`);
-        continue;
-      }
-      for (const s of w.stories) {
-        const state = String(s?.state ?? 'unknown');
-        const emoji = STATE_EMOJI[state] ?? '';
-        const id = Number(s?.id ?? 0);
-        const title = escapePipes(truncate(String(s?.title ?? ''), 60));
-        tableLines.push(
-          `| ${w.wave + 1} | #${id} | ${emoji} ${state} | ${title} |`,
-        );
-      }
+    for (const s of rows) {
+      const emoji = STATE_EMOJI[s.state] ?? '';
+      const title = escapePipes(truncate(s.title, 60));
+      tableLines.push(`| #${s.id} | ${emoji} ${s.state} | ${title} |`);
     }
   }
 

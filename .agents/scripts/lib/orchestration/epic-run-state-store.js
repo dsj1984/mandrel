@@ -2,17 +2,28 @@
  * epic-run-state-store — stateless functions for reading and writing the
  * `epic-run-state` structured comment used by `/deliver`.
  *
+ * Story #4155 (Epic #4151) — the Epic `/deliver` runtime cut over from
+ * the wave-batch scheduler to the continuous ready-set core
+ * (`lib/wave-runner/ready-set.js`). The checkpoint shrank with it: it no
+ * longer carries `currentWave`, `plan[][]`, `totalWaves`, or the
+ * per-wave `waves[]` aggregation. The durable run state is now a flat
+ * **per-Story status map** (`stories: { [storyId]: { status, title?,
+ * blockerCommentId? } }`) plus the run-level `concurrencyCap` (the
+ * GLOBAL in-flight cap the ready-set selector honours), `phase`,
+ * `startedAt`, and `manualInterventions[]`. There is no resume-pointer
+ * to reconcile — the ready-set core re-derives adjacency and readiness
+ * from live Story bodies/labels on every tick, so the checkpoint only
+ * records terminal Story outcomes (for the auto-merge predicate, branch
+ * cleanup, and the operator rollup) and the run-level knobs.
+ *
  * This module is the function-based replacement for the legacy
  * `Checkpointer` class that previously lived at
- * `./epic-runner/checkpointer.js`. Bodies were lifted verbatim from the
- * corresponding `Checkpointer` methods so the structured-comment shape is
- * preserved byte-for-byte. Story #2423 (Epic #2307) deleted the class
- * file; the class API survives as a tests-only fixture at
+ * `./epic-runner/checkpointer.js`. Story #2423 (Epic #2307) deleted the
+ * class file; the class API survives as a tests-only fixture at
  * `tests/fixtures/epic-run-state-store.js`.
  *
  * The comment is identified by a stable HTML marker so it can be overwritten
- * idempotently across orchestrator restarts. The body is a fenced JSON block
- * following the schema in tech spec #323.
+ * idempotently across orchestrator restarts. The body is a fenced JSON block.
  */
 
 import { assertValidDeliverPhase } from './epic-runner/deliver-phases.js';
@@ -20,7 +31,15 @@ import { parseFencedJsonComment } from './structured-comment-parser.js';
 import { findStructuredComment, upsertStructuredComment } from './ticketing.js';
 
 export const EPIC_RUN_STATE_TYPE = 'epic-run-state';
-export const CHECKPOINT_SCHEMA_VERSION = 1;
+export const CHECKPOINT_SCHEMA_VERSION = 2;
+
+/** Terminal / in-progress per-Story statuses persisted on the checkpoint. */
+export const STORY_STATUSES = Object.freeze([
+  'pending',
+  'done',
+  'blocked',
+  'failed',
+]);
 
 // Re-export the phase enum + index helper so downstream importers continue
 // to use this module as a single import target.
@@ -38,6 +57,56 @@ function assertEpicId(epicId) {
   if (!Number.isInteger(epicId)) {
     throw new TypeError('epic-run-state-store requires a numeric epicId');
   }
+}
+
+/**
+ * Normalize an inbound Story id (accepts the ticket `id` shape, the raw
+ * GitHub `number` shape, and a bare integer) to a positive integer, or
+ * `null` when it is absent / non-positive / non-integer.
+ *
+ * @param {object|number|string} entry
+ * @returns {number|null}
+ */
+function storyIdOf(entry) {
+  if (typeof entry === 'number') {
+    return Number.isInteger(entry) && entry > 0 ? entry : null;
+  }
+  if (!entry || typeof entry !== 'object') {
+    const n = Number(entry);
+    return Number.isInteger(n) && n > 0 ? n : null;
+  }
+  const raw = entry.id ?? entry.storyId ?? entry.number;
+  const id = Number(raw);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+/**
+ * Build the initial per-Story status map from a list of Story records (or
+ * ids). Every Story seeds at `status: 'pending'`; an optional `title` is
+ * carried through when the record supplies one so the operator rollup and
+ * branch-cleanup surfaces have a label without a second fetch. Keys are the
+ * positive-integer Story ids as strings (JSON object keys are strings);
+ * shapeless / non-positive entries are dropped.
+ *
+ * Pure helper — exported for unit tests.
+ *
+ * @param {Array<object|number>} stories
+ * @returns {Record<string, { status: string, title?: string }>}
+ */
+export function buildStoryStatusMap(stories) {
+  const out = {};
+  for (const entry of Array.isArray(stories) ? stories : []) {
+    const id = storyIdOf(entry);
+    if (id === null) continue;
+    const record = { status: 'pending' };
+    const title =
+      entry && typeof entry === 'object' && typeof entry.title === 'string'
+        ? entry.title
+        : undefined;
+    if (title) record.title = title;
+    out[String(id)] = record;
+  }
+  return out;
 }
 
 /**
@@ -60,7 +129,7 @@ export async function read({ provider, epicId } = {}) {
 
 /**
  * Overwrite the checkpoint with `state`. Idempotent — callers may invoke
- * freely per wave; the marker-scoped upsert deletes the prior comment.
+ * freely per tick; the marker-scoped upsert deletes the prior comment.
  *
  * @param {{ provider: import('../ITicketingProvider.js').ITicketingProvider, epicId: number, state: object }} opts
  */
@@ -78,38 +147,48 @@ export async function write({ provider, epicId, state } = {}) {
 }
 
 /**
- * Initial checkpoint for a brand-new run. Idempotent against re-dispatch
- * when the wave shape is unchanged. When an existing checkpoint is found
- * but the incoming `totalWaves` or `concurrencyCap` differs from the
- * persisted values, refresh those fields in place — preserving
- * `currentWave`, `waves[]`, `blockerHistory`, `manualInterventions`,
- * `startedAt`, and any other already-persisted fields (e.g., `plan`,
- * `phase`). The `plan` field is owned by the prepare caller, which
- * overwrites it on every prepare run, so it does not need a delta check
- * here.
+ * Initial checkpoint for a brand-new run. Idempotent against re-dispatch:
+ * when an existing checkpoint is found and the persisted `concurrencyCap`
+ * matches the incoming value, the existing state is returned verbatim (no
+ * rewrite) so a re-prepare preserves `startedAt`, prior Story statuses, and
+ * `manualInterventions`. When the cap differs (an operator re-tuned the
+ * global in-flight cap) it is refreshed in place; the Story status map is
+ * **merged** so any Story that already reached a terminal status keeps it
+ * while newly-discovered Stories are seeded at `pending`. Prepare owns the
+ * Story set (it overwrites it on every run) but never clobbers recorded
+ * progress.
  *
- * @param {{ provider: import('../ITicketingProvider.js').ITicketingProvider, epicId: number, totalWaves: number, concurrencyCap: number }} opts
+ * @param {{
+ *   provider: import('../ITicketingProvider.js').ITicketingProvider,
+ *   epicId: number,
+ *   storyIds: Array<object|number>,
+ *   concurrencyCap: number,
+ * }} opts
+ *   `concurrencyCap` is the GLOBAL in-flight cap the ready-set selector
+ *   honours (`selectReadySet({ globalCap })`).
  */
 export async function initialize({
   provider,
   epicId,
-  totalWaves,
+  storyIds,
   concurrencyCap,
 } = {}) {
   assertProvider(provider);
   assertEpicId(epicId);
+  const seededStories = buildStoryStatusMap(storyIds);
   const existing = await read({ provider, epicId });
   if (existing) {
+    const mergedStories = mergeStoryStatuses(existing.stories, seededStories);
     if (
-      existing.totalWaves === totalWaves &&
-      existing.concurrencyCap === concurrencyCap
+      existing.concurrencyCap === concurrencyCap &&
+      storyMapsEqual(existing.stories, mergedStories)
     ) {
       return existing;
     }
     return write({
       provider,
       epicId,
-      state: { ...existing, totalWaves, concurrencyCap },
+      state: { ...existing, concurrencyCap, stories: mergedStories },
     });
   }
   return write({
@@ -118,119 +197,133 @@ export async function initialize({
     state: {
       epicId,
       startedAt: new Date().toISOString(),
-      currentWave: 0,
-      totalWaves,
       concurrencyCap,
       phase: 'prepare',
-      waves: [],
-      blockerHistory: [],
+      stories: seededStories,
       manualInterventions: [],
     },
   });
 }
 
 /**
- * Reconcile the resume pointer (`currentWave` + `waves[]` history) against
- * a freshly-recomputed wave plan.
+ * Merge a freshly-seeded Story status map onto a persisted one. Every Story
+ * present in either map appears in the result; when a Story exists in the
+ * prior map its recorded status / blockerCommentId win (recorded progress is
+ * never lost), while its `title` is refreshed from the incoming seed when the
+ * seed supplies one. Stories present only in the incoming seed are added at
+ * their seeded (`pending`) status. Pure — exported for unit tests.
  *
- * Story #3358 — when `/deliver` is resumed on a partially-complete
- * Epic, `epic-deliver-prepare.js` recomputes the wave DAG over only the
- * **not-done** Stories (`build-wave-dag.js#discoverOpenStories` drops the
- * closed/merged Stories). The recomputed plan is therefore *shorter* and
- * **re-indexed from 0** — `plan[0]` is the next ready wave. The preserved
- * checkpoint, however, still carries the prior `currentWave` (e.g. `2`)
- * and a `waves[]` history keyed to the *old* index space. `wave-tick.js`
- * then indexes `plan[currentWave]` into the new plan and dispatches the
- * wrong wave — silently skipping the Stories that are actually ready.
- *
- * Prepare already owns the `plan` field (it overwrites it on every run),
- * so it must equally own the pointer that indexes into that plan. This
- * helper is the single point of reconciliation:
- *
- *   - When the recomputed `nextPlan` is **structurally identical** to the
- *     persisted `priorPlan` (an idempotent re-prepare with no Story
- *     completed since the last run), the pointer is preserved verbatim so
- *     in-flight wave progress is not lost.
- *   - When the recomputed `nextPlan` **differs** (a Story merged → the
- *     plan got shorter / re-indexed), the pointer is reset: `currentWave`
- *     to `0` (the new plan's index space starts at the first not-done
- *     wave) and `waves[]` to `[]` (the prior history references the old
- *     index space and would mis-key `readGateFailures`).
- *
- * Plan equality is compared on the Story-id matrix only — `title` /
- * `worktree` churn on an otherwise-identical plan must not trip a reset.
- *
- * Pure function — no I/O, no provider, no side effects.
- *
- * @param {{
- *   currentWave?: number,
- *   waves?: Array<unknown>,
- * }} checkpoint The persisted checkpoint fields to reconcile.
- * @param {Array<Array<{ id?: number, storyId?: number, number?: number }>>} priorPlan
- *   The plan currently persisted on the checkpoint (may be undefined on a
- *   first run).
- * @param {Array<Array<{ id?: number, storyId?: number, number?: number }>>} nextPlan
- *   The freshly-recomputed plan prepare is about to persist.
- * @returns {{ currentWave: number, waves: Array<unknown> }} The reconciled
- *   pointer fields. Always returns concrete values so the caller can spread
- *   them onto the checkpoint payload unconditionally.
+ * @param {Record<string, object>|undefined} prior
+ * @param {Record<string, object>} incoming
+ * @returns {Record<string, object>}
  */
-export function reconcileResumePointer(checkpoint, priorPlan, nextPlan) {
-  const safeWaves = Array.isArray(checkpoint?.waves) ? checkpoint.waves : [];
-  const currentWave = Number.isInteger(checkpoint?.currentWave)
-    ? checkpoint.currentWave
-    : 0;
-  if (planStoryMatrixEqual(priorPlan, nextPlan)) {
-    return { currentWave, waves: safeWaves };
+export function mergeStoryStatuses(prior, incoming) {
+  const priorMap = prior && typeof prior === 'object' ? prior : {};
+  const seedMap = incoming && typeof incoming === 'object' ? incoming : {};
+  const out = {};
+  for (const key of new Set([
+    ...Object.keys(priorMap),
+    ...Object.keys(seedMap),
+  ])) {
+    const priorEntry = priorMap[key];
+    const seedEntry = seedMap[key];
+    if (priorEntry && typeof priorEntry === 'object') {
+      const merged = { ...priorEntry };
+      if (seedEntry && typeof seedEntry.title === 'string') {
+        merged.title = seedEntry.title;
+      }
+      out[key] = merged;
+    } else {
+      out[key] = seedEntry;
+    }
   }
-  // Plan was recomputed (resume after a completed wave): the new plan is
-  // 0-indexed over the remaining not-done waves. Reset the pointer and
-  // drop the stale history so `wave-tick.js` reads `plan[0]`.
-  return { currentWave: 0, waves: [] };
+  return out;
 }
 
 /**
- * Compare two wave plans on their Story-id matrix only. Each plan is
- * `Array<Array<{ id|storyId|number }>>`; equality requires the same wave
- * count, the same per-wave Story count, and the same Story ids in the same
- * positions. `title` / `worktree` fields are ignored so cosmetic churn on
- * an otherwise-identical plan does not register as a change.
+ * Structural equality on two Story status maps — same key set and, per key,
+ * the same `status`, `title`, and `blockerCommentId`. Used by `initialize`
+ * to decide whether an idempotent re-prepare needs a rewrite. Pure.
  *
- * Pure helper for {@link reconcileResumePointer}.
- *
- * @param {Array<Array<object>>|undefined} a
- * @param {Array<Array<object>>|undefined} b
+ * @param {Record<string, object>|undefined} a
+ * @param {Record<string, object>|undefined} b
  * @returns {boolean}
  */
-function planStoryMatrixEqual(a, b) {
-  const left = Array.isArray(a) ? a : [];
-  const right = Array.isArray(b) ? b : [];
-  if (left.length !== right.length) return false;
-  for (let i = 0; i < left.length; i += 1) {
-    const wl = Array.isArray(left[i]) ? left[i] : [];
-    const wr = Array.isArray(right[i]) ? right[i] : [];
-    if (wl.length !== wr.length) return false;
-    for (let j = 0; j < wl.length; j += 1) {
-      if (storyIdOf(wl[j]) !== storyIdOf(wr[j])) return false;
+function storyMapsEqual(a, b) {
+  const left = a && typeof a === 'object' ? a : {};
+  const right = b && typeof b === 'object' ? b : {};
+  const keys = Object.keys(left);
+  if (keys.length !== Object.keys(right).length) return false;
+  for (const key of keys) {
+    const l = left[key] ?? {};
+    const r = right[key];
+    if (!r) return false;
+    if (
+      l.status !== r.status ||
+      l.title !== r.title ||
+      l.blockerCommentId !== r.blockerCommentId
+    ) {
+      return false;
     }
   }
   return true;
 }
 
 /**
- * Extract the Story id from a plan entry. Mirrors the resolution order
- * `wave-runner/tick.js#storyIdOf` uses so the equality check keys on the
- * same identity the tick dispatches against. Returns `null` for shapeless
- * entries so two `null`s never compare equal by accident.
+ * Record a per-Story terminal (or in-progress) status on the checkpoint.
+ * Reads the current state first, splices the single Story's record into the
+ * `stories` map, and re-writes. Other Stories and all run-level fields are
+ * preserved verbatim. Tolerant of a legacy/absent `stories` map (treated as
+ * empty) so a checkpoint that predates a field is upgraded in place.
  *
- * @param {object|number|null|undefined} entry
- * @returns {number|null}
+ * @param {{
+ *   provider: import('../ITicketingProvider.js').ITicketingProvider,
+ *   epicId: number,
+ *   storyId: number,
+ *   status: string,
+ *   title?: string,
+ *   blockerCommentId?: string|number|null,
+ * }} opts
+ * @returns {Promise<object>} the persisted state
  */
-function storyIdOf(entry) {
-  if (typeof entry === 'number') return entry;
-  if (!entry || typeof entry !== 'object') return null;
-  const id = entry.id ?? entry.storyId ?? entry.number;
-  return Number.isInteger(id) ? id : null;
+export async function recordStoryStatus({
+  provider,
+  epicId,
+  storyId,
+  status,
+  title,
+  blockerCommentId,
+} = {}) {
+  assertProvider(provider);
+  assertEpicId(epicId);
+  const id = storyIdOf(storyId);
+  if (id === null) {
+    throw new TypeError(
+      'recordStoryStatus: storyId must be a positive integer',
+    );
+  }
+  if (!STORY_STATUSES.includes(status)) {
+    throw new RangeError(
+      `recordStoryStatus: status "${status}" must be one of: ${STORY_STATUSES.join(', ')}`,
+    );
+  }
+  const existing = (await read({ provider, epicId })) ?? {};
+  const stories =
+    existing.stories && typeof existing.stories === 'object'
+      ? { ...existing.stories }
+      : {};
+  const prior = stories[String(id)] ?? {};
+  const record = { ...prior, status };
+  if (typeof title === 'string' && title) record.title = title;
+  if (status === 'blocked' && blockerCommentId != null) {
+    record.blockerCommentId = String(blockerCommentId);
+  }
+  stories[String(id)] = record;
+  return write({
+    provider,
+    epicId,
+    state: { ...existing, stories },
+  });
 }
 
 /**

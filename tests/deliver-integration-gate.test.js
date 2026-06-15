@@ -57,12 +57,12 @@ describe('deliver-epic post-wave integration gate (Epic #4131 F1/F4)', () => {
     );
   });
 
-  it('positions the gate AFTER the wave loop (epic-complete) and BEFORE finalize', () => {
-    const waveLoop = headingOffset(/##\s+Phase 2 — Wave loop/);
+  it('positions the gate AFTER the ready-set loop (epic-complete) and BEFORE finalize', () => {
+    const waveLoop = headingOffset(/##\s+Phase 2 — Ready-set loop/);
     const gate = headingOffset(/##\s+Phase 6\.5 — Post-wave integration gate/);
     const finalize = headingOffset(/##\s+Phase 7 — Finalize/);
 
-    assert.ok(waveLoop !== -1, 'Phase 2 wave loop section is missing');
+    assert.ok(waveLoop !== -1, 'Phase 2 ready-set loop section is missing');
     assert.ok(gate !== -1, 'Phase 6.5 integration-gate section is missing');
     assert.ok(finalize !== -1, 'Phase 7 finalize section is missing');
 
