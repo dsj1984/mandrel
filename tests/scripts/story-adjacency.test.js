@@ -5,10 +5,16 @@
  *   - `lib/story-adjacency.js#buildStoryAdjacency` is the single home for
  *     turning Story records into the `Map<storyId, deps[]>` shape the
  *     `lib/Graph.js` kernel consumes.
- *   - All three wave-computation wrappers (`build-wave-dag.js`,
- *     `dispatch-pipeline.js#buildStoryDispatchGraph`,
- *     `stories-wave-tick.js`) consume it and produce identical wave
- *     numbering for the same representative dependency DAG.
+ *   - The two Epic-path wave-computation wrappers (`build-wave-dag.js`,
+ *     `dispatch-pipeline.js#buildStoryDispatchGraph`) consume it and produce
+ *     identical wave numbering for the same representative dependency DAG.
+ *   - The standalone `stories-wave-tick.js` adapter (Story #4156 routed it
+ *     through `lib/wave-runner/ready-set.js#selectReadySet`, which re-derives
+ *     adjacency from the **same** `buildStoryAdjacency` builder) agrees with
+ *     that wave numbering: its continuous, beat-by-beat ready-set reveals
+ *     exactly those strata in order. The standalone path no longer computes a
+ *     static wave plan, so it is exercised through its public
+ *     `runStoriesWaveTick` entry rather than the retired static planner.
  */
 
 import assert from 'node:assert/strict';
@@ -18,10 +24,7 @@ import { computeWaves } from '../../.agents/scripts/lib/Graph.js';
 import { buildStoryDispatchGraph } from '../../.agents/scripts/lib/orchestration/dispatch-pipeline.js';
 import { runBuildWaveDagPhase } from '../../.agents/scripts/lib/orchestration/epic-runner/phases/build-wave-dag.js';
 import { buildStoryAdjacency } from '../../.agents/scripts/lib/story-adjacency.js';
-import {
-  buildAdjacency,
-  computeStoriesWavePlan,
-} from '../../.agents/scripts/stories-wave-tick.js';
+import { runStoriesWaveTick } from '../../.agents/scripts/stories-wave-tick.js';
 
 /**
  * Representative DAG (diamond + isolated root + chain tail):
@@ -136,13 +139,33 @@ describe('lib/story-adjacency — wave-numbering parity across the three wrapper
     assert.deepEqual(sortedWaves(waves), EXPECTED_WAVES);
   });
 
-  it('stories-wave-tick (computeStoriesWavePlan) produces the expected waves', () => {
-    const plan = computeStoriesWavePlan(buildAdjacency(dagNodes()), 3);
-    assert.equal(plan.cycleError, null);
-    assert.deepEqual(
-      plan.waves.map((w) => w.stories),
-      EXPECTED_WAVES,
-    );
+  it('stories-wave-tick (continuous ready-set) reveals the expected strata in order', () => {
+    // The standalone adapter now selects continuously through the shared
+    // ready-set core rather than emitting a static wave plan. Driving it
+    // beat-by-beat — completing each stratum, then re-ticking with those ids
+    // marked done — must reveal exactly the EXPECTED_WAVES strata, in order:
+    // proof the standalone path agrees with the Epic-path wrappers on the
+    // dependency graph (all three bottom out in buildStoryAdjacency).
+    const dagJson = JSON.stringify(dagNodes());
+    // Generous cap so capacity never masks a stratum (the parity claim is
+    // about dependency ordering, not concurrency throttling).
+    const config = { delivery: { deliverRunner: { concurrencyCap: 10 } } };
+    const done = new Set();
+    const observed = [];
+    // Bounded loop: at most one beat per stratum plus a terminal empty beat.
+    for (let beat = 0; beat <= EXPECTED_WAVES.length; beat++) {
+      const { envelope, exitCode } = runStoriesWaveTick({
+        dagJson,
+        config,
+        done: [...done].join(','),
+      });
+      assert.strictEqual(exitCode, 0);
+      assert.strictEqual(envelope.cycleError, null);
+      if (envelope.ready.length === 0) break;
+      observed.push([...envelope.ready].sort((a, b) => a - b));
+      for (const id of envelope.ready) done.add(id);
+    }
+    assert.deepEqual(observed, EXPECTED_WAVES);
   });
 
   it('shared builder output matches the historical per-wrapper inline adjacency', () => {

@@ -21,8 +21,8 @@ path selection only — all phase content lives in the two path helpers:
   close-validation, epic-audit, code-review, retro, finalize, watch,
   auto-merge gate, cleanup).
 - [`helpers/deliver-stories.md`](helpers/deliver-stories.md) — the
-  standalone multi-Story path (`stories-wave-tick.js` wave plan, operator
-  confirmation, parallel fan-out to
+  standalone multi-Story path (`stories-wave-tick.js` continuous ready-set
+  loop, operator confirmation, parallel fan-out to
   [`helpers/single-story-deliver`](helpers/single-story-deliver.md)).
 
 ## Input matrix (authoritative)
@@ -100,13 +100,16 @@ plans).
 /deliver <id> <id> … --dep <from>:<to> --concurrency <n> --yes
 ```
 
-behaves exactly as the retired multi-Story command did: the same
-`stories-wave-tick.js` wave plan, the same operator confirmation gate
-(suppressed by `--yes`), and the same parallel fan-out — one Agent call per
-Story per wave, capped by the resolved `concurrencyCap` — to
-[`helpers/single-story-deliver`](helpers/single-story-deliver.md). The
-parallelism lives **inside** the standalone segment; segments themselves
-remain strictly sequential.
+preserves the retired multi-Story command's full surface — the same flags,
+the same operator confirmation gate (suppressed by `--yes`), and the same
+parallel fan-out to
+[`helpers/single-story-deliver`](helpers/single-story-deliver.md) — but
+schedules through `stories-wave-tick.js`'s **continuous ready-set loop**
+(the shared `selectReadySet` core) rather than a static wave plan: each
+Story dispatches the instant its own dependencies are done, capped by the
+resolved global `concurrencyCap` and guarded against file-overlap
+co-dispatch, exactly as the Epic path is. The parallelism lives **inside**
+the standalone segment; segments themselves remain strictly sequential.
 
 ## Procedure
 
