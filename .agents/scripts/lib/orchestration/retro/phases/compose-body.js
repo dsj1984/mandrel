@@ -27,6 +27,69 @@ export function normalizeInterventionCount(value) {
 }
 
 /**
+ * Pure: derive the recurring-defect-class signal from the routed-proposal
+ * sections (Story #4135 / Epic #4131, F11).
+ *
+ * The routed-proposals composer (`retro-proposals.js`) already split the
+ * Epic's source-tagged friction into `framework` / `consumer` actionable
+ * items — a category lands there only when it recurred ≥2 times across the
+ * Epic OR was force-flagged by an unresolved `agent::blocked` event. Those
+ * are exactly the **recurring classes** of review/deliver-caught issues F11
+ * tracks, so we lift them verbatim rather than re-deriving a parallel
+ * threshold. Each entry carries the `friction::<category>` label the
+ * composer stamps onto its `gh issue create` command — that label is the
+ * join key the `/plan` Phase 0 prior-feedback fetcher reads back to surface
+ * recurring classes to the planner.
+ *
+ * Determinism: the two actionable arrays are already sorted by `category`
+ * ASC by the composer; we concatenate framework-then-consumer and re-sort by
+ * `category` so the merged signal is stable regardless of which source
+ * contributed a class.
+ *
+ * No-op-safe: a null / non-object / shapeless `routedProposals` (or one with
+ * empty actionable arrays) yields `[]` — the common clean-sprint case.
+ *
+ * @param {{ framework?: object[], consumer?: object[] } | null | undefined} routedProposals
+ * @returns {Array<{ category: string, occurrences: number, source: 'framework'|'consumer', label: string }>}
+ */
+export function deriveDefectClasses(routedProposals) {
+  if (
+    !routedProposals ||
+    typeof routedProposals !== 'object' ||
+    Array.isArray(routedProposals)
+  ) {
+    return [];
+  }
+  const framework = Array.isArray(routedProposals.framework)
+    ? routedProposals.framework
+    : [];
+  const consumer = Array.isArray(routedProposals.consumer)
+    ? routedProposals.consumer
+    : [];
+
+  const out = [];
+  for (const item of [...framework, ...consumer]) {
+    if (!item || typeof item !== 'object') continue;
+    const category =
+      typeof item.category === 'string' ? item.category.trim() : '';
+    if (category.length === 0) continue;
+    const occurrences =
+      typeof item.occurrences === 'number' && Number.isFinite(item.occurrences)
+        ? item.occurrences
+        : 0;
+    const source = item.source === 'framework' ? 'framework' : 'consumer';
+    out.push({
+      category,
+      occurrences,
+      source,
+      label: `friction::${category}`,
+    });
+  }
+  out.sort((a, b) => a.category.localeCompare(b.category));
+  return out;
+}
+
+/**
  * Pure: compose the retro markdown body. Exported for tests so they can
  * verify the body shape without round-tripping through a stub provider.
  *

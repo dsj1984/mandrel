@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-14T17:09:51.929Z",
+  "generatedAt": "2026-06-15T13:23:55.531Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -4885,32 +4885,38 @@
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/prior-feedback-fetcher.js",
+      "method": "extractRecurringDefectClasses",
+      "startLine": 55,
+      "crap": 11
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/prior-feedback-fetcher.js",
       "method": "runGh",
-      "startLine": 38,
-      "crap": 1.0000455539358601
+      "startLine": 108,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/prior-feedback-fetcher.js",
       "method": "formatGhError",
-      "startLine": 74,
+      "startLine": 119,
       "crap": 5.1157407407407405
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/prior-feedback-fetcher.js",
       "method": "normalizeIssue",
-      "startLine": 96,
+      "startLine": 141,
       "crap": 8
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/prior-feedback-fetcher.js",
       "method": "fetchByLabel",
-      "startLine": 123,
+      "startLine": 168,
       "crap": 6.060738581146745
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/prior-feedback-fetcher.js",
       "method": "fetchPriorFeedback",
-      "startLine": 189,
+      "startLine": 235,
       "crap": 10
     },
     {
@@ -9608,13 +9614,13 @@
     {
       "path": ".agents/scripts/lib/orchestration/retro-runner.js",
       "method": "runRetro",
-      "startLine": 101,
+      "startLine": 115,
       "crap": 9.001599115550905
     },
     {
       "path": ".agents/scripts/lib/orchestration/retro-runner.js",
       "method": "<anon method-1>",
-      "startLine": 157,
+      "startLine": 171,
       "crap": 1
     },
     {
@@ -9655,56 +9661,62 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/retro/phases/compose-body.js",
+      "method": "deriveDefectClasses",
+      "startLine": 55,
+      "crap": 13
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/retro/phases/compose-body.js",
       "method": "composeRetroBody",
-      "startLine": 52,
-      "crap": 12.000914494741656
+      "startLine": 113,
+      "crap": 12.000805501108497
     },
     {
       "path": ".agents/scripts/lib/orchestration/retro/phases/compose-body.js",
       "method": "renderPerfSignalsSection",
-      "startLine": 224,
+      "startLine": 292,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/retro/phases/compose-body.js",
       "method": "renderFollowOnsSection",
-      "startLine": 246,
+      "startLine": 314,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/retro/phases/compose-body.js",
       "method": "describeSignal",
-      "startLine": 273,
+      "startLine": 341,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/orchestration/retro/phases/compose-body.js",
       "method": "followOnTitle",
-      "startLine": 297,
+      "startLine": 365,
       "crap": 6.013119533527696
     },
     {
       "path": ".agents/scripts/lib/orchestration/retro/phases/compose-body.js",
       "method": "followOnBody",
-      "startLine": 319,
+      "startLine": 387,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/retro/phases/compose-body.js",
       "method": "formatPercent",
-      "startLine": 330,
+      "startLine": 398,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/retro/phases/compose-body.js",
       "method": "shellEscape",
-      "startLine": 345,
+      "startLine": 413,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/retro/phases/compose-body.js",
       "method": "renderRoutedSections",
-      "startLine": 359,
+      "startLine": 427,
       "crap": 16
     },
     {
@@ -9740,8 +9752,8 @@
     {
       "path": ".agents/scripts/lib/orchestration/retro/phases/post-and-mirror.js",
       "method": "composeAndPostRetro",
-      "startLine": 30,
-      "crap": 6.001596787573888
+      "startLine": 31,
+      "crap": 6.001555134373329
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/codex.js",

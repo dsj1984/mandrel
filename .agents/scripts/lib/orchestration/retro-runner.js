@@ -18,10 +18,23 @@
  * existing import sites stay unchanged.
  *
  * Public API:
- *   - `runRetro({ epicId, provider, logger })` → `{ posted, compact, scorecard, body }`.
+ *   - `runRetro({ epicId, provider, logger })` → `{ posted, compact, scorecard, body, defectClasses }`.
  *   - `composeRetroBody(input)` (pure, exported for tests).
  *   - `gatherRetroSignals({ epicId, provider })` (exported for tests).
  *   - `appendChecksSection(body, findings)` (pure, exported for tests).
+ *   - `deriveDefectClasses(routedProposals)` (pure, exported for tests).
+ *
+ * Story #4135 (Epic #4131, F11) — the runner now derives a
+ * **recurring-defect-class signal** from the routed-proposal actionable
+ * items (categories that recurred ≥2 times across review/deliver-caught
+ * friction, or a force-flagged `agent::blocked` category). The derived
+ * classes ride on the `runRetro` envelope as `defectClasses[]` and are
+ * stamped onto the proposed `gh issue create` commands as `friction::<class>`
+ * labels (the routed-proposals composer already emits that label), which is
+ * the durable substrate the `/plan` Phase 0 prior-feedback fetcher reads
+ * back to surface recurring classes to the planner. The derivation is
+ * **no-op-safe**: absent or empty routed proposals yield an empty array and
+ * no behavioural change to the existing retro/post path.
  *
  * Behaviour:
  *   - Reads child Stories' `story-perf-summary` comments to aggregate
@@ -50,7 +63,10 @@ import { upsertStructuredComment } from './ticketing.js';
 
 // Re-export phase-level helpers so existing import sites stay unchanged.
 export { appendChecksSection } from './retro/phases/checks.js';
-export { composeRetroBody } from './retro/phases/compose-body.js';
+export {
+  composeRetroBody,
+  deriveDefectClasses,
+} from './retro/phases/compose-body.js';
 export { gatherRetroSignals } from './retro/phases/gather-signals.js';
 
 /**
@@ -92,6 +108,7 @@ export { gatherRetroSignals } from './retro/phases/gather-signals.js';
  *   scorecard: object,
  *   body: string,
  *   findings: object[],
+ *   defectClasses: Array<{ category: string, occurrences: number, source: 'framework'|'consumer', label: string }>,
  *   commentId?: number,
  * }>}
  */
