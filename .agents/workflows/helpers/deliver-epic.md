@@ -31,6 +31,7 @@ back to the operator-merges-button path.
   → Phase 4 — epic-audit           (helpers/epic-audit.md — change-set audits via selectAudits)
   → Phase 5 — code-review          (helpers/code-review.md with scope: epic)
   → Phase 6 — retro                (.agents/scripts/lib/orchestration/retro-runner.js)
+  → Phase 6.5 — integration gate   (whole-product navigability + journey suite; @pending ≠ green for surface-adding Epics — blocks finalize)
   → Phase 7 — finalize             (lifecycle-emit → epic.close.end → open PR to main)
   → Phase 8 — watch-and-iterate    (poll `gh pr checks`; fix locally until green)
   → Phase 8.5 — auto-merge gate    (lifecycle-emit → epic.automerge.start)
@@ -52,7 +53,7 @@ spawned.
 ## Arguments
 
 ```text
-/deliver <epicId> [--skip-epic-audit] [--skip-code-review] [--skip-retro] [--full-retro]
+/deliver <epicId> [--skip-epic-audit] [--skip-code-review] [--skip-retro] [--full-retro] [--skip-integration-gate]
 ```
 
 - `epicId` — must carry `type::epic`. Otherwise STOP and tell the operator
@@ -63,6 +64,12 @@ spawned.
 - `--skip-retro` — skip Phase 6 (use sparingly).
 - `--full-retro` — force the six-section retro regardless of manifest
   cleanliness. `--skip-retro` wins over `--full-retro`.
+- `--skip-integration-gate` — skip Phase 6.5 (log the override). The
+  explicit operator override for the post-wave integration gate, consistent
+  with `--skip-epic-audit`. Use only when the deliberately-global checks are
+  known to be irrelevant for this Epic (e.g., a docs-only Epic that adds no
+  surface). Skipping the gate is recorded as a manual intervention and
+  disqualifies auto-merge, exactly like the other `--skip-*` overrides.
 
 Every other runtime modifier is sourced from the Epic's labels or from
 `delivery.deliverRunner` in `.agentrc.json`.
@@ -556,6 +563,109 @@ and never fails the phase.
 
 ---
 
+## Phase 6.5 — Post-wave integration gate (Epic #4131, F1/F4)
+
+This phase runs **after** the Phase 2 wave loop reports `epic-complete` and
+**before** the Phase 7 finalize emit opens the PR to `main`. Where every gate
+before it (`selectAudits`, the cross-epic-leak guard `#3362`, diff-against-base,
+the file-assumption gate) is **change-set-scoped** — it narrows its evidence to
+the Epic's `changedFiles` — this is the one **deliberately-global** gate: its
+evidence spans the **whole product**, not just the change set. The disease it
+catches is the surface that each Story shipped correctly in isolation yet that
+the assembled product cannot reach: a route nobody can navigate to, or a
+persona journey that the integrated waves silently broke. A change-set lens
+never sees that, because no single Story's diff contains the orphan.
+
+Skip when `--skip-integration-gate` (log the override; record a manual
+intervention per [§ Recording manual interventions](#recording-manual-interventions)).
+The gate is otherwise **always evaluated**, but it is a **silent no-op when
+unconfigured** (see *No-op when unconfigured* below) so consumers who ship no
+nav config and no journey suite are unaffected.
+
+### 6.5a — Whole-product navigability (reuses the Phase 4 lens)
+
+Run the `navigability` lens
+([`audit-navigability.md`](../audit-navigability.md), the deliberately-global
+lens delivered in this Epic's wave 0) in **whole-route mode** against the
+integrated `epic/<epicId>` tip. Unlike its Phase 4 change-set-routed invocation,
+here it is driven explicitly over the consumer's **entire** route tree + nav
+registry — it is on the global-lens allowlist (`GLOBAL_LENS_ALLOWLIST` in
+[`lib/audit-suite/selector.js`](../../scripts/lib/audit-suite/selector.js)) and
+exempt from the cross-epic-leak guard `#3362`, so a route orphaned anywhere in
+the product is in scope even when no Story in this Epic touched it.
+
+The lens reads the consumer's navigability config (resolved from `.agentrc.json`):
+
+- `delivery.quality.navigability.routeGlobs` — the route-tree SSOT the lens
+  enumerates.
+- `delivery.quality.navigability.navRegistry` — the nav-registry SSOT the lens
+  cross-checks every route against.
+
+A whole-product finding is a **hard failure**: an **orphaned route** (a route
+with no nav door for any entitled persona) or a **dead nav href** (a nav door
+pointing at a route that no longer exists). On a hard failure the gate **blocks
+finalize** and names the orphaned surface (route identifier / nav-door
+identifier only — never the route body or persona PII, per
+`security-baseline.md`). Do **not** proceed to Phase 7.
+
+### 6.5b — Consumer journey suite
+
+Run the consumer's per-persona journey suite — the integrated, cross-Epic
+persona-journey verification — over the `epic/<epicId>` tip:
+
+- `delivery.quality.navigability.journeySuite` — path/command for the journey
+  suite. Absent ⇒ this sub-step is skipped (no-op).
+
+A failing journey (a persona cannot complete an end-to-end journey through the
+assembled product) is a **hard failure**: block finalize and name the broken
+journey. This is the runtime complement to 6.5a's static reachability check —
+6.5a proves a door exists; the journey suite proves the door, and everything
+behind it, actually works when the waves are integrated.
+
+### 6.5c — `@pending` ≠ green for surface-adding Epics (F4)
+
+The Phase 7 finalize chain runs the acceptance-spec reconciler
+([`acceptance-spec-reconciler.js`](../../scripts/acceptance-spec-reconciler.js)),
+which classifies every AC ID into `satisfied` (covered by a non-pending
+scenario), `pending` (covered **only** by scenarios tagged `@pending`), or
+`missing`. For a **surface-adding Epic** — one whose risk verdict carries a
+surface-adding signal (a route-adding change set, the `navigability` lens routed
+in Phase 4, or a configured `routeGlobs` match) — this phase tightens that
+contract: an AC whose coverage is **only `@pending`** is treated as
+**unsatisfied**, not green. A surface-adding Epic whose acceptance coverage is
+**only `@pending`** therefore **fails the close gate** instead of passing —
+shipping a new surface behind a deferred-forever `@pending` scenario is exactly
+the late-gate gap this Epic exists to close.
+
+This is **purely additive** and **scoped to surface-adding Epics**:
+refactor-only and docs-only Epics (no surface-adding signal) are **unaffected** —
+their `@pending` handling is exactly as before, and the existing
+`satisfied` / `missing` reconciliation is **not** de-scoped for any Epic.
+
+### No-op when unconfigured
+
+With **no** navigability config (`routeGlobs` / `navRegistry`) and **no**
+`journeySuite` present in `.agentrc.json`, this entire phase degrades to a
+**silent no-op**: 6.5a and 6.5b skip (nothing to enumerate or run) and 6.5c's
+surface-adding signal cannot fire without route globs, so the `@pending`
+tightening never engages. The gate adds **zero** behaviour to an unconfigured
+consumer — it neither blocks finalize nor changes the existing change-set-scoped
+gates. The override flag `--skip-integration-gate` is the explicit operator
+escape hatch (consistent with `--skip-epic-audit`) for a configured consumer who
+wants to bypass the gate for a specific run.
+
+### Fail safe and loud
+
+Per the Tech Spec's security note, this gate sits on the **critical path** to
+finalize. It MUST fail **safe and loud**: a hard failure **blocks** finalize and
+**names the cause** (the orphaned route, dead href, broken journey, or
+`@pending`-only AC), never silently passes. A genuinely unconfigured consumer is
+the **only** silent path, and that path **passes** (it is a no-op, not a block).
+On a hard failure, post a friction structured comment naming the surface, flip
+the Epic to `agent::blocked`, and park for the operator — do **not** open the PR.
+
+---
+
 ## Phase 7 — Finalize (open PR to main)
 
 ### 7.0 — Sync Epic branch from `main` (Story #2580)
@@ -859,6 +969,11 @@ the `epic-run-progress` structured comment.
   outcome.
 - **Always** auto-invoke the epic-audit, code-review, and retro helpers
   (Phases 4–6) when their artefacts aren't already present.
+- **Always** run the Phase 6.5 integration gate after the wave loop
+  reports `epic-complete` and before Phase 7 finalize (unless
+  `--skip-integration-gate`); **never** open the PR while the gate
+  reports a hard failure (orphaned surface, dead nav href, broken
+  journey, or a surface-adding Epic with only `@pending` AC coverage).
 - **Always** drive Phase 8 to green CI before returning control — the
   host LLM owns the loop until the PR is mergeable or the Epic is
   parked at `agent::blocked`.
