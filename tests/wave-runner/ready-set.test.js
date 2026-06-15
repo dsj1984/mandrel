@@ -194,6 +194,46 @@ describe('lib/wave-runner/ready-set — selectReadySet dependency gating', () =>
   });
 });
 
+describe('lib/wave-runner/ready-set — selectReadySet dropForeign policy', () => {
+  // The default (dropForeign:false) keeps a foreign dependency as a gate —
+  // the standalone / operator-DAG contract (see the "absent foreign
+  // dependency as a barrier" test above). The Epic path opts into
+  // dropForeign:true so a `blocked by #N` whose target is out-of-scope (a
+  // foreign id or a typo) is pruned rather than treated as a permanent
+  // unsatisfiable gate that would silently strand the dependent.
+  it('dropForeign:true prunes a foreign dependency so the dependent becomes schedulable', () => {
+    const C = story(3, { dependsOn: [99] }); // 99 is not in scope
+    const selected = selectReadySet({
+      stories: [C],
+      inFlight: 0,
+      globalCap: 5,
+      dropForeign: true,
+    });
+    assert.deepEqual(ids(selected), [3]);
+  });
+
+  it('dropForeign:true still gates on an IN-scope, not-done dependency', () => {
+    // Pruning is limited to foreign edges — a sibling dependency that is in
+    // scope and not yet done must still withhold the dependent.
+    const A = story(1); // in scope, not done
+    const C = story(3, { dependsOn: [1] });
+    const selected = selectReadySet({
+      stories: [A, C],
+      inFlight: 0,
+      globalCap: 5,
+      dropForeign: true,
+    });
+    // Only the independently-ready A is selected; C waits on in-scope A.
+    assert.deepEqual(ids(selected), [1]);
+  });
+
+  it('defaults to dropForeign:false — a foreign dependency stays a barrier', () => {
+    const C = story(3, { dependsOn: [99] });
+    const selected = selectReadySet({ stories: [C], globalCap: 5 });
+    assert.deepEqual(ids(selected), []);
+  });
+});
+
 describe('lib/wave-runner/ready-set — selectReadySet capacity', () => {
   // Acceptance: selectReadySet never returns more than (globalCap - inFlight).
   it('never returns more than globalCap - inFlight stories', () => {

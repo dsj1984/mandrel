@@ -324,6 +324,121 @@ describe('lib/wave-runner/tick — ready-set adapter', () => {
     );
   });
 
+  it('AC#audit-1 — an out-of-scope (foreign) `blocked by #N` is NOT lost; dropForeign:true makes the Story schedulable', async () => {
+    // Story 2 declares `blocked by #999` — an id outside this Epic's Story
+    // set (a foreign reference or a typo). Under the prior dropForeign:false
+    // adjacency the edge was retained, #999 never became done, and Story 2
+    // fell through to a false `epic-complete` (silent data loss). With
+    // dropForeign:true the foreign edge is pruned and Story 2 dispatches.
+    const result = await tick({
+      epic: 100,
+      collaborators: {
+        provider: fakeProvider({
+          labelsById: new Map([[2, ready]]),
+          bodyById: new Map([[2, 'Needs the other thing.\n\nblocked by #999']]),
+        }),
+        epicRunStateStore: fakeStore(checkpoint([2])),
+      },
+    });
+    assert.equal(result.nextAction.kind, 'dispatch');
+    assert.deepEqual(
+      result.nextAction.stories.map((s) => s.id),
+      [2],
+    );
+    // Must NOT have collapsed the foreign-gated Story to completion.
+    assert.notEqual(result.nextAction.kind, 'epic-complete');
+  });
+
+  it('AC#audit-2 — a sibling dependency cycle halts the run and never reports epic-complete', async () => {
+    // Stories 1 and 2 each block on the other (a 2-cycle). No member is ever
+    // eligible, so the ready set is empty and nothing is in flight — but the
+    // run is NOT complete. The tick must surface the cycle as a halt, never
+    // an epic-complete that silently drops both Stories.
+    const result = await tick({
+      epic: 100,
+      collaborators: {
+        provider: fakeProvider({
+          labelsById: new Map([
+            [1, ready],
+            [2, ready],
+          ]),
+          bodyById: new Map([
+            [1, 'blocked by #2'],
+            [2, 'blocked by #1'],
+          ]),
+        }),
+        epicRunStateStore: fakeStore(checkpoint([1, 2])),
+      },
+    });
+    assert.notEqual(result.nextAction.kind, 'epic-complete');
+    assert.equal(result.nextAction.kind, 'halt');
+    assert.equal(result.nextAction.reason, 'dependency-cycle');
+    assert.deepEqual(result.nextAction.stuckStories, [1, 2]);
+    assert.ok(Array.isArray(result.nextAction.cycle));
+  });
+
+  it('AC#audit-3 — a permanently-gated Story while siblings are done does NOT report epic-complete', async () => {
+    // Stories 1 and 2 are done; Stories 3 and 4 form an unsatisfiable cycle.
+    // The done count (2) is below the in-scope count (4), so the all-done
+    // gate must withhold epic-complete and surface the stuck Stories instead
+    // of silently finishing the Epic with 3 and 4 stranded.
+    const result = await tick({
+      epic: 100,
+      collaborators: {
+        provider: fakeProvider({
+          labelsById: new Map([
+            [1, [AGENT_LABELS.DONE]],
+            [2, [AGENT_LABELS.DONE]],
+            [3, ready],
+            [4, ready],
+          ]),
+          bodyById: new Map([
+            [3, 'blocked by #4'],
+            [4, 'blocked by #3'],
+          ]),
+        }),
+        epicRunStateStore: fakeStore(checkpoint([1, 2, 3, 4])),
+      },
+    });
+    assert.notEqual(result.nextAction.kind, 'epic-complete');
+    assert.equal(result.nextAction.kind, 'halt');
+    // The stuck set names the Stories that stranded the run (3 and 4).
+    assert.ok(result.nextAction.stuckStories.includes(3));
+    assert.ok(result.nextAction.stuckStories.includes(4));
+  });
+
+  it('AC#audit-4 — global cap counts an executing Story missing from the ledger (no cap overrun)', async () => {
+    // Story 1 carries `agent::executing` but is NOT in the lifecycle ledger
+    // (the label flip raced ahead of the dispatch-ledger write). It occupies
+    // a real slot. With globalCap 2, only ONE further Story may dispatch this
+    // beat — counting the ledger alone (0 in-flight) would wrongly dispatch
+    // two and overrun the cap to three concurrent Stories.
+    const result = await tick({
+      epic: 100,
+      collaborators: {
+        provider: fakeProvider({
+          labelsById: new Map([
+            [1, [AGENT_LABELS.EXECUTING]],
+            [2, ready],
+            [3, ready],
+          ]),
+        }),
+        epicRunStateStore: fakeStore(
+          checkpoint([1, 2, 3], { concurrencyCap: 2 }),
+        ),
+        // Ledger is silent — Story 1's start record never landed.
+        inFlightReader: async () => [],
+      },
+    });
+    assert.equal(result.nextAction.kind, 'dispatch');
+    // cap 2 − 1 occupied (label-executing Story 1) = 1 slot → exactly one.
+    assert.equal(result.nextAction.stories.length, 1);
+    assert.deepEqual(
+      result.nextAction.stories.map((s) => s.id),
+      [2],
+    );
+  });
+
   it('surfaces failed Stories recorded on the checkpoint as gateFailures', async () => {
     const result = await tick({
       epic: 100,

@@ -187,10 +187,20 @@ export function storiesOverlap(a, b) {
  * Algorithm (continuous, dependency-driven — no wave barrier):
  *
  *   1. **Adjacency.** Re-derive `Map<id, depIds[]>` from the supplied
- *      records via `buildStoryAdjacency` (`dropForeign: false` so a
- *      dependency on an id outside the supplied set still gates the
- *      dependent — an absent dependency is treated as not-yet-done and
- *      withholds the dependent).
+ *      records via `buildStoryAdjacency`. The `dropForeign` flag controls
+ *      how a dependency on an id **outside** the supplied set is treated:
+ *      - `dropForeign: false` (default, standalone-path semantics) — the
+ *        foreign dependency still gates the dependent: an absent dependency
+ *        is treated as not-yet-done and withholds the dependent until it
+ *        completes (preserves the operator-DAG contract).
+ *      - `dropForeign: true` (Epic-path semantics) — a foreign edge is
+ *        pruned so the DAG stays closed over the scheduled Story set. An
+ *        Epic's Stories depend only on siblings, so a `blocked by #N` whose
+ *        target is out-of-scope (a foreign id, or a typo) must be dropped,
+ *        not treated as a permanent unsatisfiable gate — otherwise the
+ *        dependent Story is never schedulable and the run silently strands
+ *        it. This matches `build-wave-dag.js`, which builds the Epic
+ *        wave DAG with the same default-`dropForeign` builder.
  *   2. **Done set.** Union the caller-supplied `doneIds` with every record
  *      that classifies as `done` (live label / closed issue). A Story's
  *      dependency counts as satisfied iff it is in this union.
@@ -221,6 +231,10 @@ export function storiesOverlap(a, b) {
  *   slot. Subtracted from `globalCap` to compute remaining capacity.
  * @param {number} args.globalCap       Hard ceiling on total concurrent
  *   Stories.
+ * @param {boolean} [args.dropForeign=false] Adjacency closure policy (see
+ *   step 1 above). `false` keeps a foreign dependency as a gate
+ *   (standalone / operator-DAG semantics); `true` prunes foreign edges so
+ *   the DAG stays closed over the scheduled set (Epic semantics).
  * @returns {StoryRecord[]} The dispatch set: a subset of `stories`,
  *   ascending by id, overlap-free, length ≤ `globalCap − inFlight`.
  */
@@ -229,6 +243,7 @@ export function selectReadySet({
   doneIds = [],
   inFlight = 0,
   globalCap,
+  dropForeign = false,
 } = {}) {
   const records = Array.isArray(stories) ? stories : [];
   const cap = Number.isInteger(globalCap) ? globalCap : 0;
@@ -237,9 +252,11 @@ export function selectReadySet({
   const slots = Math.max(0, cap - inFlightCount);
   if (slots <= 0 || records.length === 0) return [];
 
-  // Step 1 — adjacency keyed by id. dropForeign:false so a dependency on an
-  // id outside the supplied set still gates the dependent until it is done.
-  const adjacency = buildStoryAdjacency(records, { dropForeign: false });
+  // Step 1 — adjacency keyed by id. The `dropForeign` policy decides whether
+  // a dependency on an id outside the supplied set gates the dependent
+  // (false) or is pruned (true). See the JSDoc above for the per-path
+  // rationale.
+  const adjacency = buildStoryAdjacency(records, { dropForeign });
 
   // Step 2 — done set = caller-supplied ids ∪ records that classify done.
   const done = new Set();

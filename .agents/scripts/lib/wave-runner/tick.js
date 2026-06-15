@@ -35,11 +35,13 @@
 import { existsSync, readFileSync } from 'node:fs';
 
 import { epicLedgerPath } from '../config/temp-paths.js';
+import { detectCycle } from '../Graph.js';
 import { AGENT_LABELS } from '../label-constants.js';
 import { appendEpicSignal } from '../observability/signals-writer.js';
 import * as epicRunStateStoreModule from '../orchestration/epic-run-state-store.js';
 import { detectRecurringFailures } from '../orchestration/recurring-failure-detector.js';
 import { upsertStructuredComment as defaultUpsertStructuredComment } from '../orchestration/ticketing.js';
+import { buildStoryAdjacency } from '../story-adjacency.js';
 
 import { classifyStory, selectReadySet, storyIdOf } from './ready-set.js';
 import { WaveRunnerError } from './wave-runner-error.js';
@@ -58,6 +60,8 @@ const OLD_SHAPE_FIELDS = Object.freeze(['plan', 'currentWave', 'totalWaves']);
  *
  *   nextAction: { kind: 'dispatch', stories: [{ id, title? }, ...] }
  *             | { kind: 'observe',  waitingOn: number[] }
+ *             | { kind: 'halt', reason: string, stuckStories: number[],
+ *                 cycle?: number[] }
  *             | { kind: 'epic-complete' }
  *   blockedStories: [{ storyId, reason, detail? }, ...]
  *   gateFailures:   [{ storyId, gate, detail? }, ...]
@@ -66,6 +70,15 @@ const OLD_SHAPE_FIELDS = Object.freeze(['plan', 'currentWave', 'totalWaves']);
  *
  * Readiness comes entirely from the **live** Story bodies + labels — the
  * checkpoint contributes only the Story set in scope and the global cap.
+ *
+ * `epic-complete` is returned **only** when every in-scope Story is done.
+ * If the ready set is empty and nothing is in flight but at least one Story
+ * is still not done — a Story gated on an unsatisfiable dependency
+ * (a dependency cycle, or a `blocked by #N` that survived adjacency closure)
+ * — the tick returns a non-terminal `halt` naming the stuck Story ids rather
+ * than silently reporting the Epic complete and stranding the Story. A
+ * dependency cycle among the in-scope Stories is likewise surfaced as a
+ * `halt` (with the offending `cycle`), never collapsed to `epic-complete`.
  *
  * @typedef {object} WaveTickArgs
  * @property {number | { id: number }} epic
@@ -179,10 +192,26 @@ export async function tick(args = {}) {
     byClass[classifyStory(rec)].push(rec);
   }
 
+  // 2a. Detect a dependency cycle among the in-scope Stories BEFORE selecting.
+  //     A cycle makes every Story on it permanently un-eligible (no member's
+  //     deps can all be done), so `selectReadySet` would return an empty set
+  //     and the terminal decision could otherwise mistake the stall for
+  //     completion. Surface it as a `halt` so the workflow parks the Epic on
+  //     a diagnosable condition instead of silently dropping the cycle. Build
+  //     adjacency with `dropForeign: true` to match the Epic-scoped semantics
+  //     (a cycle is only meaningful over the scheduled sibling set). Mirrors
+  //     the cycle handling in `stories-wave-tick.js`.
+  const epicAdjacency = buildStoryAdjacency(records, { dropForeign: true });
+  const cycle = detectCycle(epicAdjacency);
+
   // 3. Select the ready set under the GLOBAL in-flight cap. The selector
-  //    re-derives adjacency from the live bodies and applies the file-overlap
-  //    co-dispatch guard, returning the deterministic, overlap-free,
-  //    dependency-satisfied subset capped at `globalCap − inFlight`.
+  //    re-derives adjacency from the live bodies (with `dropForeign: true` so
+  //    a `blocked by #N` whose target is outside this Epic's Story set — a
+  //    foreign id or a typo — is pruned rather than treated as a permanent
+  //    unsatisfiable gate that strands the dependent), and applies the
+  //    file-overlap co-dispatch guard, returning the deterministic,
+  //    overlap-free, dependency-satisfied subset capped at the remaining
+  //    slots.
   //
   //    A Story recorded in-flight on the ledger (`story.dispatch.start`
   //    without a matching `.end`) but whose label has not yet flipped to
@@ -192,20 +221,31 @@ export async function tick(args = {}) {
   //    on the same `story-<id>` branch — the worst failure mode in the
   //    system. So the candidate set passed to the selector marks those
   //    Stories `executing`: they keep occupying a slot (and gate any
-  //    dependent, since they are not done) but are never re-selected. The
-  //    `inFlight` count is still subtracted from the global cap, matching the
-  //    ledger view.
+  //    dependent, since they are not done) but are never re-selected.
+  //
+  //    The slot denominator is the size of the UNION of (a) ledger-in-flight
+  //    ids and (b) Stories carrying `agent::executing` by label. A Story that
+  //    flipped to `agent::executing` but whose `story.dispatch.start` never
+  //    landed in the ledger (e.g. the label flip raced ahead of the ledger
+  //    write) occupies a real slot the ledger count alone misses; counting
+  //    only the ledger would let the global cap be exceeded. The union is the
+  //    authoritative occupied-slot count.
   const candidates = records.map((rec) =>
     inFlightSet.has(rec.id) && classifyStory(rec) === 'ready'
       ? { ...rec, labels: [...rec.labels, AGENT_LABELS.EXECUTING] }
       : rec,
   );
   const doneIds = byClass.done.map((s) => s.id);
+  const occupiedSlotIds = new Set([
+    ...inFlight,
+    ...byClass.executing.map((s) => s.id),
+  ]);
   const readySet = selectReadySet({
     stories: candidates,
     doneIds,
-    inFlight: inFlight.length,
+    inFlight: occupiedSlotIds.size,
     globalCap,
+    dropForeign: true,
   });
 
   // 4. Best-effort recurring-failure scan (≥2 distinct Stories sharing the
@@ -226,16 +266,33 @@ export async function tick(args = {}) {
   // 5. Decide nextAction.
   //    - A blocked Story halts the Epic → observe (the workflow flips the
   //      Epic to agent::blocked and parks).
+  //    - A dependency cycle among the in-scope Stories halts the Epic → halt
+  //      (the cycle is an unsatisfiable gate; never collapse it to complete).
   //    - A non-empty ready set → dispatch it. Fire `wave-start` on the very
   //      first dispatch of the run (nothing executing / in-flight / done
   //      yet) so the perf-aggregator can bracket the run's wall-clock.
   //    - Otherwise, if any Story is still executing or in-flight → observe.
-  //    - Otherwise every Story is done → epic-complete.
+  //    - Otherwise, if EVERY in-scope Story is done → epic-complete.
+  //    - Otherwise the ready set is empty, nothing is in flight, yet not all
+  //      Stories are done: at least one Story is permanently gated (an
+  //      unsatisfiable dependency that survived adjacency closure). Halt and
+  //      name the stuck Story ids — never silently report the Epic complete.
+  const allDone = byClass.done.length === records.length;
   let nextAction;
   if (blockedStories.length) {
     nextAction = {
       kind: 'observe',
       waitingOn: byClass.blocked.map((s) => s.id).sort((a, b) => a - b),
+    };
+  } else if (cycle) {
+    const cycleIds = cycle
+      .filter((id) => Number.isInteger(id))
+      .sort((a, b) => a - b);
+    nextAction = {
+      kind: 'halt',
+      reason: 'dependency-cycle',
+      stuckStories: cycleIds,
+      cycle,
     };
   } else if (readySet.length) {
     if (
@@ -260,10 +317,25 @@ export async function tick(args = {}) {
       ...new Set([...byClass.executing.map((s) => s.id), ...inFlight]),
     ].sort((a, b) => a - b);
     nextAction = { kind: 'observe', waitingOn };
-  } else {
+  } else if (allDone) {
     // Every Story is done and nothing is in flight: the run is complete.
     await emit({ kind: 'wave-complete' });
     nextAction = { kind: 'epic-complete' };
+  } else {
+    // Ready set empty, nothing in flight, but not all Stories are done — a
+    // Story is gated on an unsatisfiable dependency. Halt with the stuck ids
+    // (every not-done, not-in-flight Story) so the operator can see exactly
+    // which Story stranded the run instead of a false epic-complete.
+    const stuckStories = records
+      .filter((rec) => classifyStory(rec) !== 'done')
+      .map((rec) => rec.id)
+      .filter((id) => Number.isInteger(id))
+      .sort((a, b) => a - b);
+    nextAction = {
+      kind: 'halt',
+      reason: 'unsatisfiable-dependency',
+      stuckStories,
+    };
   }
 
   return tickResult({

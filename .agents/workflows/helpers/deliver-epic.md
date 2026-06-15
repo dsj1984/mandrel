@@ -257,6 +257,7 @@ Stdout is one `WaveTickResult` envelope:
   "nextAction":
       { "kind": "dispatch", "stories": [{ "id": <n>, "title": "…" }, ...], "in-flight": [<storyId>, ...] }
     | { "kind": "observe",  "waitingOn": [<storyId>, ...], "in-flight": [<storyId>, ...] }
+    | { "kind": "halt", "reason": "dependency-cycle" | "unsatisfiable-dependency", "stuckStories": [<storyId>, ...], "cycle"?: [<storyId>, ...], "in-flight": [<storyId>, ...] }
     | { "kind": "epic-complete", "in-flight": [<storyId>, ...] },
   "blockedStories": [{ "storyId": <n>, "reason": "…", "detail"?: "…" }, ...],
   "gateFailures":   [{ "storyId": <n>, "gate": "…", "detail"?: "…" }, ...],
@@ -407,8 +408,20 @@ After `2c`, re-run `wave-tick.js`. Branch on the new envelope:
 - `observe` → poll the Epic (children may still be in flight, or some
   are `agent::blocked`). If `blockedStories` is non-empty, post a
   friction comment, flip Epic to `agent::blocked`, park.
-- `epic-complete` → every Story is done and nothing is in flight; proceed
-  to Phase 3.
+- `halt` → the run is stuck: no Story is dispatchable, nothing is in
+  flight, yet not every Story is done. `reason` distinguishes the two
+  causes — `dependency-cycle` (the in-scope Stories form a `blocked by`
+  cycle; `cycle` lists the offending Story ids) or
+  `unsatisfiable-dependency` (a Story is gated on a dependency that can
+  never satisfy). `stuckStories` names the Story id(s) that stranded the
+  run. Post a friction comment quoting `reason` + `stuckStories`, flip the
+  Epic to `agent::blocked`, and park for the operator. **Never** treat a
+  `halt` as completion — proceeding to Phase 3 would silently drop the
+  stuck Story.
+- `epic-complete` → **every** in-scope Story is done and nothing is in
+  flight; proceed to Phase 3. (The tick returns `epic-complete` only when
+  the done count equals the in-scope Story count — a stuck Story surfaces
+  as `halt`, not a false `epic-complete`.)
 
 ### 2e. Idle Watchdog
 
