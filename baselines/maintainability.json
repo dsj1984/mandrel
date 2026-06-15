@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-15T13:27:37.121Z",
+  "generatedAt": "2026-06-15T20:40:36.688Z",
   "rollup": {
     "*": {
       "min": 70.566,
-      "p50": 97.996,
+      "p50": 97.964,
       "p95": 127.336
     }
   },
@@ -1645,6 +1645,10 @@
     {
       "path": ".agents/scripts/lib/validation-evidence.js",
       "mi": 94.023
+    },
+    {
+      "path": ".agents/scripts/lib/wave-runner/ready-set.js",
+      "mi": 93.772
     },
     {
       "path": ".agents/scripts/lib/wave-runner/wave-checkpoint.js",
