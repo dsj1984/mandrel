@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-14T18:15:49.771Z",
+  "generatedAt": "2026-06-15T13:27:37.121Z",
   "rollup": {
     "*": {
       "min": 70.566,
-      "p50": 97.964,
+      "p50": 97.996,
       "p95": 127.336
     }
   },
@@ -84,7 +84,7 @@
     },
     {
       "path": ".agents/scripts/epic-audit-prepare.js",
-      "mi": 82.519
+      "mi": 84.398
     },
     {
       "path": ".agents/scripts/epic-deliver-note-intervention.js",
@@ -184,7 +184,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
-      "mi": 97.146
+      "mi": 100.988
     },
     {
       "path": ".agents/scripts/lib/audit-suite/substitutions.js",
