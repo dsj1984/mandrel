@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.68.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.67.0...mandrel-v1.68.0) (2026-06-15)
+
+
+### Added
+
+* **plan:** waive acceptance disposition when no BDD runner detected (refs [#4145](https://github.com/dsj1984/mandrel/issues/4145)) ([#4147](https://github.com/dsj1984/mandrel/issues/4147)) ([f119919](https://github.com/dsj1984/mandrel/commit/f119919c4e69b4a583eeec7c8fe860116dcdf87c))
+
+
+### Fixed
+
+* **watcher:** default gh ports in watchPrToTerminal so the CLI path runs (refs [#4144](https://github.com/dsj1984/mandrel/issues/4144)) ([#4148](https://github.com/dsj1984/mandrel/issues/4148)) ([764cc05](https://github.com/dsj1984/mandrel/commit/764cc05b4414f2dff0fb1247b647460df32d037d))
+
 ## [1.67.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.66.0...mandrel-v1.67.0) (2026-06-15)
 
 
