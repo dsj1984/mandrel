@@ -358,10 +358,15 @@ export async function pollUntilTerminal({
  * @param {number} opts.maxPolls           Hard cap on total poll iterations.
  * @param {number} opts.maxUpdates         Cap on `gh pr update-branch` recovery calls.
  * @param {number} opts.pollIntervalMs     Delay between poll ticks.
- * @param {Function} opts.ghPrChecksFn
- * @param {Function} opts.ghPrViewFn
- * @param {Function} opts.ghPrUpdateBranchFn
- * @param {Function} opts.sleepFn
+ * @param {Function} [opts.ghPrChecksFn]   `gh pr checks` invoker. Defaults
+ *   to the real `gh pr checks` spawn so the CLI path (which injects no
+ *   port) works; tests override it with a stub. Story #4144.
+ * @param {Function} [opts.ghPrViewFn]     `gh pr view` invoker. Defaults
+ *   to the real spawn; tests override.
+ * @param {Function} [opts.ghPrUpdateBranchFn] `gh pr update-branch`
+ *   invoker. Defaults to the real spawn; tests override.
+ * @param {Function} [opts.sleepFn]        Poll-tick delay. Defaults to a
+ *   real `setTimeout`-backed sleep; tests override with a no-op.
  * @param {{ info?: Function, warn?: Function, debug?: Function }} opts.logger
  * @param {{status:number,stdout:string,stderr:string}} [opts.firstProbe]
  *   Optional already-issued `gh pr checks` result. When the caller (the
@@ -388,10 +393,10 @@ export async function watchPrToTerminal({
   maxPolls,
   maxUpdates,
   pollIntervalMs,
-  ghPrChecksFn,
-  ghPrViewFn,
-  ghPrUpdateBranchFn,
-  sleepFn,
+  ghPrChecksFn = ghPrChecks,
+  ghPrViewFn = ghPrView,
+  ghPrUpdateBranchFn = ghPrUpdateBranch,
+  sleepFn = defaultSleep,
   logger,
   firstProbe,
 }) {

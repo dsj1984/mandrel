@@ -16,10 +16,19 @@
  *
  * Plus the guard rails: a malformed `--pr` throws, and an unresolvable
  * `gh pr checks` failure exits non-zero while still printing the map.
+ *
+ * Story #4144 adds the CLI-wiring regression: the real `main()` path
+ * injects NO gh ports, so `watchPrToTerminal` must default them to the
+ * real `gh` invokers instead of throwing `ghPrChecksFn is not a
+ * function`. That case drives `runPrWatch` with no function injection
+ * against a fake `gh` on PATH.
  */
 
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { after, before, describe, it } from 'node:test';
 
 import { runPrWatch } from '../../../../.agents/scripts/pr-watch-with-update.js';
 
@@ -187,5 +196,93 @@ describe('runPrWatch — unresolvable gh failure', () => {
     assert.equal(out.green, false);
     assert.ok(out.error, 'error field must be present');
     assert.deepEqual(out.checkOutcomes, {});
+  });
+});
+
+// Regression for Story #4144. The CLI path (real `main()` → `runPrWatch`)
+// injects NO gh ports, so `watchPrToTerminal` must default
+// `ghPrChecksFn` / `ghPrViewFn` / `ghPrUpdateBranchFn` / `sleepFn` to the
+// real invokers. Before the fix those params were `undefined` and
+// `watchPrToTerminal` threw `TypeError: ghPrChecksFn is not a function`
+// at the first probe (watcher.js:401). We exercise the un-stubbed wiring
+// end to end by putting a fake `gh` on PATH (so the real spawns resolve
+// to it) and driving `runPrWatch` with NO function injection — the
+// precise call shape that used to crash.
+describe('runPrWatch — CLI path wiring (no injected gh ports, Story #4144)', () => {
+  let tmpDir;
+  let originalPath;
+
+  function pathDelimiter() {
+    return process.platform === 'win32' ? ';' : ':';
+  }
+
+  /** Write an executable fake `gh` and prepend its dir to PATH. */
+  function installFakeGh(script) {
+    const ghPath = join(tmpDir, 'gh');
+    writeFileSync(ghPath, script, { mode: 0o755 });
+    chmodSync(ghPath, 0o755);
+    process.env.PATH = `${tmpDir}${pathDelimiter()}${originalPath}`;
+  }
+
+  before(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), 'pr-watch-4144-'));
+    originalPath = process.env.PATH;
+  });
+
+  after(() => {
+    process.env.PATH = originalPath;
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('does not throw "ghPrChecksFn is not a function" and resolves via the real spawn', async (t) => {
+    if (process.platform === 'win32') {
+      // The fake-gh shim is a POSIX shell script. The wiring contract
+      // (defaulted ports, no TypeError) is platform-independent and the
+      // default-port resolution is exercised on Linux/macOS CI.
+      t.skip('POSIX shell shim only');
+      return;
+    }
+
+    // Fake `gh`: every required check green, merge state CLEAN (no BEHIND
+    // recovery). `gh pr checks` is invoked with `--json`; `gh pr view`
+    // with `mergeStateStatus`.
+    installFakeGh(
+      [
+        '#!/usr/bin/env bash',
+        'case "$*" in',
+        '  *"pr checks"*)',
+        '    echo \'[{"name":"Validate and Test","state":"SUCCESS","bucket":"pass"}]\'',
+        '    ;;',
+        '  *"pr view"*)',
+        '    echo \'{"mergeStateStatus":"CLEAN"}\'',
+        '    ;;',
+        'esac',
+        'exit 0',
+        '',
+      ].join('\n'),
+    );
+
+    const { print, lines } = collectPrint();
+    // NB: NO ghPrChecksFn / ghPrViewFn / ghPrUpdateBranchFn injected —
+    // this is the exact CLI call shape that used to throw a TypeError.
+    let code;
+    await assert.doesNotReject(async () => {
+      code = await runPrWatch({
+        prNumber: 4144,
+        maxPolls: 2,
+        pollIntervalMs: 0,
+        sleepFn: async () => {},
+        logger: quietLogger(),
+        print,
+      });
+    }, 'CLI path must not throw "ghPrChecksFn is not a function"');
+
+    assert.equal(code, 0, 'all-green CLI watch exits 0');
+    const out = JSON.parse(lines[0]);
+    assert.equal(out.green, true);
+    assert.equal(out.terminal, true);
+    assert.deepEqual(out.checkOutcomes, {
+      'Validate and Test': 'success',
+    });
   });
 });
