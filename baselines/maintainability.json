@@ -1651,10 +1651,6 @@
       "mi": 93.772
     },
     {
-      "path": ".agents/scripts/lib/wave-runner/wave-checkpoint.js",
-      "mi": 108.246
-    },
-    {
       "path": ".agents/scripts/lib/wave-runner/wave-runner-error.js",
       "mi": 120.306
     },
