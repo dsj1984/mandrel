@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-15T13:28:38.971Z",
+  "generatedAt": "2026-06-15T20:40:36.904Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -13768,6 +13768,42 @@
       "method": "forceClear",
       "startLine": 307,
       "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/wave-runner/ready-set.js",
+      "method": "storyIdOf",
+      "startLine": 76,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/wave-runner/ready-set.js",
+      "method": "classifyStory",
+      "startLine": 107,
+      "crap": 7
+    },
+    {
+      "path": ".agents/scripts/lib/wave-runner/ready-set.js",
+      "method": "storyFootprint",
+      "startLine": 140,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/wave-runner/ready-set.js",
+      "method": "<anon method-1>",
+      "startLine": 142,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/wave-runner/ready-set.js",
+      "method": "storiesOverlap",
+      "startLine": 173,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/wave-runner/ready-set.js",
+      "method": "selectReadySet",
+      "startLine": 227,
+      "crap": 14
     },
     {
       "path": ".agents/scripts/lib/wave-runner/wave-checkpoint.js",
