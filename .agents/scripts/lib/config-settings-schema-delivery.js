@@ -300,6 +300,22 @@ const ACCEPTANCE_EVAL_SCHEMA = {
   additionalProperties: false,
 };
 
+/**
+ * `delivery.feedbackLoop` — opt-out toggles consumed by the Epic finalize
+ * listener's auto-file graduators (`lib/feedback-loop/*-graduator.js`, read
+ * via `graduator-core.js#makeIsAutoFileEnabled`). Both default to `true`
+ * (auto-file on); set either to `false` to suppress auto-filing the
+ * corresponding non-blocking findings as follow-up issues.
+ */
+const FEEDBACK_LOOP_SCHEMA = {
+  type: 'object',
+  properties: {
+    codeReviewAutoFile: { type: 'boolean' },
+    auditResultsAutoFile: { type: 'boolean' },
+  },
+  additionalProperties: false,
+};
+
 export const DELIVERY_SCHEMA = {
   type: 'object',
   properties: {
@@ -318,6 +334,7 @@ export const DELIVERY_SCHEMA = {
     retro: RETRO_SCHEMA,
     refactorStage: REFACTOR_STAGE_SCHEMA,
     acceptanceEval: ACCEPTANCE_EVAL_SCHEMA,
+    feedbackLoop: FEEDBACK_LOOP_SCHEMA,
     ci: CI_DELIVERY_SCHEMA,
     preflight: PREFLIGHT_SCHEMA,
     // Cross-Story concurrency-hazard gate (Story #2297). When true,

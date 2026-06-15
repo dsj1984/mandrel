@@ -37,6 +37,18 @@
  * @property {boolean} requiresReview
  * @property {AcceptanceDisposition} acceptanceDisposition
  * @property {GateDecision} gateDecision
+ * @property {string} [acceptanceWaivedReason] Present only when the
+ *   acceptance disposition was forced to `not-applicable` by a non-axis
+ *   signal (currently: no BDD runner detected). An operator-visible
+ *   rationale so the override is never silent (Story #4145).
+ */
+
+/**
+ * @typedef {Object} BddRunnerProbe
+ * @property {string|null} runner
+ * @property {boolean} fallback `true` when no supported BDD runner was
+ *   detected in the project (`verifyBddRunnerPendingTag`).
+ * @property {string} [reason]
  */
 
 const LEVEL_RANK = Object.freeze({ low: 0, medium: 1, high: 2 });
@@ -129,27 +141,54 @@ function resolveRequiresReview(overallLevel, axes) {
  * (`epic-plan-spec.js`), never here, so a malformed verdict fails closed
  * before this function runs.
  *
+ * **No-BDD-runner waiver (Story #4145).** The acceptance disposition the risk
+ * axes derive presumes a BDD runner exists to satisfy an authored AC table.
+ * When `opts.bddRunner.fallback === true` (no supported runner detected — e.g.
+ * a `node:test` repo with no `tests/features/**`), an authored AC table can
+ * never be reconciled by `@epic-<id>-ac-*` feature tags, so `/deliver`
+ * finalize would abort. In that case the disposition is **forced** to
+ * `not-applicable` regardless of the risk axes, and `acceptanceWaivedReason`
+ * records the override so it is operator-visible, not silent. The
+ * `requiresReview` / `gateDecision` outputs are unaffected — a high-risk
+ * Epic still routes to review; only the acceptance-spec requirement is
+ * waived. Repos that ship a BDD runner (`fallback !== true`) are unaffected.
+ *
  * @param {RiskVerdict} [verdict]
+ * @param {{ bddRunner?: BddRunnerProbe|null }} [opts]
  * @returns {PlanningRiskEnvelope}
  */
-export function deriveRiskEnvelope(verdict = {}) {
+export function deriveRiskEnvelope(verdict = {}, { bddRunner = null } = {}) {
   const axes = (Array.isArray(verdict.axes) ? verdict.axes : []).map(
     ({ axis, level, rationale }) => ({ axis, level, rationale }),
   );
 
   const overallLevel = resolveOverallLevel(axes);
-  const acceptanceDisposition = resolveAcceptanceDisposition(
-    axes,
-    overallLevel,
-  );
+  const axisDisposition = resolveAcceptanceDisposition(axes, overallLevel);
   const requiresReview = resolveRequiresReview(overallLevel, axes);
   const gateDecision = requiresReview ? 'review-required' : 'auto-proceed';
 
-  return {
+  const noBddRunner = bddRunner?.fallback === true;
+  // Force the waiver only when the axes would otherwise have required (or
+  // recommended) an AC table; if the disposition is already not-applicable
+  // there is nothing to override and no waiver rationale to surface.
+  const forceWaiver = noBddRunner && axisDisposition !== 'not-applicable';
+  const acceptanceDisposition = forceWaiver
+    ? 'not-applicable'
+    : axisDisposition;
+
+  /** @type {PlanningRiskEnvelope} */
+  const envelope = {
     axes,
     overallLevel,
     requiresReview,
     acceptanceDisposition,
     gateDecision,
   };
+  if (forceWaiver) {
+    envelope.acceptanceWaivedReason =
+      `no BDD runner detected (${bddRunner?.reason ?? 'no-bdd-runner-detected'}) — ` +
+      `an authored acceptance-spec AC table cannot be reconciled by feature tags, ` +
+      `so the acceptance disposition is waived to not-applicable (was ${axisDisposition}).`;
+  }
+  return envelope;
 }
