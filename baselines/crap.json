@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-15T13:23:55.531Z",
+  "generatedAt": "2026-06-15T13:28:38.971Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -7052,14 +7052,14 @@
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/authoring-context.js",
       "method": "resolveMemoryDir",
-      "startLine": 47,
+      "startLine": 48,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/authoring-context.js",
       "method": "buildAuthoringContext",
-      "startLine": 70,
-      "crap": 4.00067329662201
+      "startLine": 71,
+      "crap": 7.000892987315935
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/cli-args.js",
@@ -7138,6 +7138,24 @@
       "method": "planEpic",
       "startLine": 285,
       "crap": 15.000800679331931
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/spec-authoring-grounding.js",
+      "method": "buildTruncationSignal",
+      "startLine": 56,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/spec-authoring-grounding.js",
+      "method": "findCitedButAbsent",
+      "startLine": 93,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/spec-authoring-grounding.js",
+      "method": "buildAuthoringGrounding",
+      "startLine": 130,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-state-store.js",

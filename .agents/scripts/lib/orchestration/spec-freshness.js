@@ -141,7 +141,7 @@ function lineNumberFor(body, index) {
  * so future cue variants don't silently slip the gate. False positives
  * downgrade staleness to ambiguity, which is the safe direction.
  */
-function hasNewFileCue(body, index, matchLength) {
+export function hasNewFileCue(body, index, matchLength) {
   const start = Math.max(0, index - AMBIGUITY_WINDOW);
   const end = Math.min(body.length, index + matchLength + AMBIGUITY_WINDOW);
   const window = body.slice(start, end).toLowerCase();
@@ -160,7 +160,7 @@ function hasNewFileCue(body, index, matchLength) {
  * @param {string} body
  * @returns {Array<{ path: string, index: number, matchLength: number }>}
  */
-function collectReferences(body) {
+export function collectReferences(body) {
   const refs = [];
   for (const re of [BACKTICK_PATH_RE, COMMENT_HEADER_PATH_RE, BARE_PATH_RE]) {
     re.lastIndex = 0;
