@@ -743,7 +743,7 @@ node .agents/scripts/epic-plan-spec-validate.js \
    `depends_on`** — and it MUST NOT add scope or invent tickets; it
    consolidates fragmented slices by merging them into a cohesive Story,
    never by splitting one. It runs **before** the deterministic
-   validator (step 4), so the validator re-checks its output and the critic
+   validator (step 7), so the validator re-checks its output and the critic
    cannot emit an invalid plan.
 
    **Show the operator the consolidation report (the before/after diff +
@@ -752,7 +752,62 @@ node .agents/scripts/epic-plan-spec-validate.js \
    rejection, persist the draft instead. This is a sub-step of Phase 8 — it
    does **not** renumber the top-level lifecycle phases (9–12).
 
-4. **Persist to GitHub**: Run the decompose CLI's persist half. It
+4. **Phase 8.4 — Reachability Completeness Critic (HITL diff gate, F6)**:
+   After consolidation (8.3) and **before** the persist call below, run the
+   completeness critic. This is a **distinct pass** from
+   [`epic-plan-consolidate`](../../skills/core/epic-plan-consolidate/SKILL.md)
+   and **must NOT relax** that skill's scope-preserving conservation invariant:
+   the consolidate critic is merge-and-rewire-only (it MUST NOT add scope or
+   invent tickets), whereas this critic is permitted exactly one **additive**
+   operation — appending a **single reachability Story** when, and only when, an
+   Epic introduces a user-facing surface (a new route/page) that **no Story
+   gives a navigation owner** (no nav-registry entry, no menu/link door from an
+   authenticated home). The two passes are deliberately separate so the
+   conservation invariant stays intact: consolidation never adds, and this
+   critic's only addition is the reachability Story.
+
+   - **Detection.** Scan the consolidated `tickets.json` for Stories that add a
+     route-shaped surface (paths under the consumer-configured
+     `planning.navigation.routeGlobs`, mirroring the
+     `epic-plan-healthcheck.js --paranoid` reachability check, F7). For each
+     such surface, confirm some Story's `acceptance[]` / `changes[]` references
+     the consumer's nav-registry SSOT (`planning.navigation.navRegistry`). A
+     surface with **no** nav owner is an orphan.
+   - **Action.** When at least one orphan surface exists, append **one**
+     reachability Story whose `acceptance[]` requires the orphaned surface to be
+     reachable by navigation from the relevant persona's authenticated home
+     (never by deep-link), and wire its `depends_on` to the surface-adding
+     Story. Append **at most one** reachability Story per decompose run — batch
+     every orphan under it — so the critic never fans out a parallel backlog.
+   - **No-op when unconfigured.** With no `planning.navigation` config present,
+     the critic degrades to a silent no-op (it cannot identify route-shaped
+     surfaces or a nav registry), exactly like the F7 healthcheck flag.
+   - **HITL.** The added Story is surfaced in the **same Phase 8 HITL diff** as
+     consolidation, **before** any GitHub write — never auto-persisted. On
+     operator rejection, drop the added Story and persist without it. The
+     deterministic validator (step 7) re-checks the critic's output, so an
+     invalid addition cannot reach GitHub.
+
+5. **Phase 8.5 — Planning Pre-Mortem Critic (code-reading, F9)**: After the
+   reachability critic (8.4) and **before** the persist call below, activate the
+   [`epic-plan-premortem`](../../skills/core/epic-plan-premortem/SKILL.md)
+   skill with `[Epic_ID]` as input. This is a **fresh-context critic** sibling
+   to `epic-plan-consolidate`: it reads the drafted `tickets.json`, the PRD /
+   Tech Spec, **and the actual cited code surfaces** (the files each Story's
+   `changes[]` / `references[]` name), then emits predicted-rework findings —
+   unverifiable acceptance criteria, over- or under-specified Stories, and
+   semantically-wrong assumptions the structural file-assumption gate (step 7)
+   cannot catch — to `temp/epic-[Epic_ID]/premortem-report.md`.
+
+   Unlike the consolidate critic it is **not** scope-preserving-only: it may
+   recommend splitting an under-specified Story or tightening an AC. But it
+   **never writes to GitHub** and never persists `tickets.json` — it only emits
+   the report. Its findings are shown in the **same Phase 8 HITL diff**, and on
+   operator approval the author re-runs (Step 2) on the findings **before** the
+   persist call. The critic runs **before** the deterministic validator (step
+   7), so the persist below is the single GitHub write for the whole phase.
+
+6. **Persist to GitHub**: Run the decompose CLI's persist half. It
    validates the ticket array (`validateAndNormalizeTickets`), creates
    the Story issues, flips the Epic to `agent::ready`, and
    writes the `epic-plan-state` checkpoint.
@@ -767,7 +822,7 @@ node .agents/scripts/epic-plan-spec-validate.js \
      --tickets temp/epic-[Epic_ID]/tickets.json --force
    ```
 
-5. **Cross-Validation**:
+7. **Cross-Validation**:
    - Hierarchy completeness, dependency-DAG acyclicity, and `risk::high`
      labelling are deterministic invariants enforced by
      `validateAndNormalizeTickets` in
@@ -808,11 +863,11 @@ node .agents/scripts/epic-plan-spec-validate.js \
        --force
      ```
 
-6. **Audit**:
+8. **Audit**:
    - Check the Epic's comment thread to ensure the backlog summary was posted.
    - Verify that at least one `type::story` issue was created.
 
-7. **Cleanup**: The wrapper script (`epic-plan-decompose.js`) deletes the
+9. **Cleanup**: The wrapper script (`epic-plan-decompose.js`) deletes the
    Phase 8 temp files automatically on success — no operator action required.
    The cleanup contract lives in
    [`lib/plan-phase-cleanup.js`](../../scripts/lib/plan-phase-cleanup.js).
