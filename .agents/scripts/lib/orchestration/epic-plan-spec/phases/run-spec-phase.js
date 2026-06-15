@@ -7,6 +7,7 @@
  */
 
 import path from 'node:path';
+import { verifyBddRunnerPendingTag } from '../../../bdd-runner-detect.js';
 import { Logger } from '../../../Logger.js';
 import { AGENT_LABELS, TYPE_LABELS } from '../../../label-constants.js';
 import { cleanupPhaseTempFiles } from '../../../plan-phase-cleanup.js';
@@ -45,12 +46,20 @@ function buildRiskVerdictCommentBody({ epicId, riskVerdict, planningRisk }) {
     verdict: riskVerdict,
     planningRisk,
   };
+  // Story #4145 — when the disposition was forced to not-applicable because
+  // no BDD runner exists, make the waiver operator-visible in the rendered
+  // comment (not just the fenced JSON record) so a reviewer sees why an
+  // otherwise-required AC table was waived.
+  const waiverNote = planningRisk.acceptanceWaivedReason
+    ? ['', `> ⚠️ **Acceptance waived** — ${planningRisk.acceptanceWaivedReason}`]
+    : [];
   return [
     `### 🧭 Planning Risk Verdict — ${planningRisk.overallLevel} · ${planningRisk.gateDecision}`,
     '',
     riskVerdict.summary,
     '',
     ...axisTable,
+    ...waiverNote,
     '',
     '```json',
     JSON.stringify(record, null, 2),
@@ -99,7 +108,29 @@ export async function runSpecPhase(
       '[epic-plan-spec] risk verdict is required — author risk-verdict.json via the epic-plan-spec-author Skill and pass it with --risk-verdict.',
     );
   }
-  const planningRisk = deriveRiskEnvelope(riskVerdict);
+
+  // Story #4145 — probe the project's BDD runner. When none is detected
+  // (`fallback === true`, e.g. a node:test repo with no tests/features/**),
+  // the acceptance disposition is forced to not-applicable inside
+  // deriveRiskEnvelope: an authored AC table could never be reconciled by
+  // `@epic-<id>-ac-*` feature tags, so /deliver finalize would otherwise
+  // abort and require a manual `acceptance::n-a`. The probe is static and
+  // best-effort — a detection failure degrades to "runner present" (no
+  // forced waiver), preserving the BDD-repo path, and never blocks Phase 7.
+  let bddRunner = null;
+  try {
+    bddRunner = await verifyBddRunnerPendingTag({ cwd: PROJECT_ROOT });
+  } catch (err) {
+    Logger.warn(
+      `[epic-plan-spec] BDD runner probe skipped (${err.message}); acceptance disposition derived from risk axes only.`,
+    );
+  }
+  const planningRisk = deriveRiskEnvelope(riskVerdict, { bddRunner });
+  if (planningRisk.acceptanceWaivedReason) {
+    Logger.info(
+      `[epic-plan-spec] Acceptance disposition forced to not-applicable for Epic #${epicId}: ${planningRisk.acceptanceWaivedReason}`,
+    );
+  }
 
   const epic = await provider.getEpic(epicId);
   if (!epic) {
