@@ -127,9 +127,12 @@ test('renderNestedWaveSections: Ready wave with multiple stories emits the paral
 });
 
 test('renderNestedWaveSections: Blocked wave emits the gating tail naming the latest prior wave', () => {
+  // Story #4157: depth is derived at render time from `dependsOn`, not the
+  // persisted `earliestWave`. Story 102 depends on 101, so 101 lands at
+  // depth 0 (Wave 0) and 102 one layer deeper at Wave 1.
   const stories = [
-    { storyId: 101, storyTitle: 'A', type: 'story', earliestWave: 0 },
-    { storyId: 102, storyTitle: 'B', type: 'story', earliestWave: 1 },
+    { storyId: 101, storyTitle: 'A', type: 'story' },
+    { storyId: 102, storyTitle: 'B', type: 'story', dependsOn: [101] },
   ];
   const md = renderNestedWaveSections(stories);
   assert.ok(md.includes('· gated on Wave 0'));
@@ -175,9 +178,18 @@ test('renderNestedWaveSections: Stories never emit per-Task checkbox rows (2-tie
   assert.ok(!md.includes('_(no tasks)_'));
 });
 
-test('renderNestedWaveSections: Ungrouped bucket (wave -1) renders as ungrouped heading', () => {
+test('renderNestedWaveSections: Ungrouped bucket renders for entries the depth lens cannot place', () => {
+  // Story #4157: with render-time depth derivation a Story that carries
+  // dependency edges (or none) always resolves to a real wave ≥ 0. The
+  // `-1` "Ungrouped" bucket now catches only entries the lens skips — the
+  // `__ungrouped__` sentinel and non-integer storyIds — so they still
+  // render rather than vanishing.
   const stories = [
-    { storyId: 101, storyTitle: 'A', type: 'story', earliestWave: -1 },
+    {
+      storyId: '__ungrouped__',
+      storyTitle: 'Loose',
+      type: 'story',
+    },
   ];
   const md = renderNestedWaveSections(stories);
   assert.ok(md.includes('Ungrouped'));

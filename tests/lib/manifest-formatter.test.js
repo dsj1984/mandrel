@@ -43,7 +43,13 @@ function epicManifest(overrides = {}) {
         storySlug: 'beta',
         storyTitle: 'Beta Story',
         type: 'story',
+        // Story #4157: the per-wave H2 sections derive depth at render time
+        // from `dependsOn`, while the Wave Summary TOC still reads the
+        // persisted `earliestWave`. Keep both consistent (Beta depends on
+        // Alpha → derived depth 1, matching earliestWave: 1) so the TOC
+        // anchors land on the H2s the depth lens emits.
         earliestWave: 1,
+        dependsOn: [101],
         branchName: 'story-102',
         status: 'agent::ready',
       },

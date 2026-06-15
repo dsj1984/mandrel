@@ -36,7 +36,11 @@ function makeFixtureManifest() {
         storyTitle: 'Second story',
         storySlug: 'second-story',
         type: 'story',
+        // Story #4157: the projected `wave` is derived at render time from
+        // `dependsOn` via `assignLayers`, not the persisted `earliestWave`.
+        // 9003 depends on 9002, so it resolves to depth 1.
         earliestWave: 1,
+        dependsOn: [9002],
       },
       {
         // ungrouped sentinel is filtered out
