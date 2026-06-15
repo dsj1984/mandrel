@@ -389,6 +389,23 @@
         },
         "crossCuttingRegistries": {
           "$ref": "#/$defs/listOrExtenderOfStrings"
+        },
+        "navigation": {
+          "type": "object",
+          "description": "Navigability-reachability config consumed by the epic-plan-healthcheck --paranoid reachability check. Opt-in: absent or empty routeGlobs degrades to a silent no-op.",
+          "properties": {
+            "routeGlobs": {
+              "type": "array",
+              "description": "Glob patterns (pages/**, app/**/route.ts) marking paths that add a user-facing route.",
+              "items": { "type": "string" }
+            },
+            "navRegistry": {
+              "type": "array",
+              "description": "Tokens identifying the nav-registry SSOT a route-adding Story is expected to reference.",
+              "items": { "type": "string" }
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
