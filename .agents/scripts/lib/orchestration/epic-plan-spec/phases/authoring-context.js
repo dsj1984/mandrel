@@ -21,11 +21,13 @@ import { fetchPriorFeedback } from '../../../feedback-loop/prior-feedback-fetche
 import { Logger } from '../../../Logger.js';
 import { buildDocsContext } from '../../doc-reader.js';
 import { applyBudget } from '../../planning-context-budget.js';
+import { collectReferences, hasNewFileCue } from '../../spec-freshness.js';
 import {
   ACCEPTANCE_SPEC_SYSTEM_PROMPT,
   PRD_SYSTEM_PROMPT,
   TECH_SPEC_SYSTEM_PROMPT,
 } from './prompts.js';
+import { buildAuthoringGrounding } from './spec-authoring-grounding.js';
 
 /**
  * Resolve the per-project memory directory used by the memory-freshness
@@ -146,24 +148,47 @@ export async function buildAuthoringContext(
       recentCommitWindow:
         settings?.planning?.codebaseSnapshot?.recentCommitWindow,
     });
-    // Story #3959 — when the skinny-tier cap drops files, the degradation
-    // used to be silent (only `truncated: true` on the envelope). Surface
-    // an operator-visible warning naming the dropped count and the two
-    // remedies so the spec author knows the snapshot is partial and can
-    // either opt into the richer `medium` tier or narrow `include`.
-    if (codebaseSnapshot?.truncated) {
-      const dropped = Math.max(
-        0,
-        (codebaseSnapshot.fileCount ?? 0) -
-          (codebaseSnapshot.files?.length ?? 0),
-      );
-      Logger.warn(
-        `[epic-plan-spec] codebase snapshot truncated: ${dropped} of ` +
-          `${codebaseSnapshot.fileCount} matched file(s) dropped from the ` +
-          `skinny-tier view. The spec-author context is partial. To restore ` +
-          `full grounding, set planning.codebaseSnapshot.tier: "medium" ` +
-          `and/or narrow planning.codebaseSnapshot.include in .agentrc.json.`,
-      );
+    // Story #4139 (F10) — ground the spec author in the files it will cite.
+    // Two signals are attached to the snapshot envelope so the author (which
+    // consumes the JSON, not stderr) cannot miss them:
+    //   1. `grounding.truncation` — the structured, in-envelope form of the
+    //      Story #3959 dropped-file warning. The skinny-tier cap used to drop
+    //      the majority of matched files with only a stderr `Logger.warn` and
+    //      a bare `truncated: true` flag; the author never learned the
+    //      snapshot was partial (a real run dropped "377 of 627 files").
+    //   2. `grounding.citedButAbsent` — path-shaped references in the Epic
+    //      body (the prose the author grounds *from*) that are absent from
+    //      the snapshot's file set and not phrased as net-new, so cited-but-
+    //      absent surfaces are visible *during* authoring rather than only
+    //      after the post-author freshness gate (Story #2635).
+    // The grounding consults only the snapshot's file set and the Epic body —
+    // no new filesystem or git probes — so the context stays bounded for cost.
+    if (codebaseSnapshot) {
+      const grounding = buildAuthoringGrounding({
+        snapshot: codebaseSnapshot,
+        prose: epic.body ?? '',
+        collectReferences,
+        hasNewFileCue,
+      });
+      codebaseSnapshot.grounding = grounding;
+      if (grounding.truncation) {
+        const { dropped, matched, tier } = grounding.truncation;
+        Logger.warn(
+          `[epic-plan-spec] codebase snapshot truncated: ${dropped} of ` +
+            `${matched} matched file(s) dropped from the ${tier}-tier view. ` +
+            `The spec-author context is partial. To restore full grounding, ` +
+            `set planning.codebaseSnapshot.tier: "medium" and/or narrow ` +
+            `planning.codebaseSnapshot.include in .agentrc.json.`,
+        );
+      }
+      if (grounding.citedButAbsent.length > 0) {
+        Logger.warn(
+          `[epic-plan-spec] ${grounding.citedButAbsent.length} path(s) cited ` +
+            `in the Epic body are absent from the codebase snapshot: ` +
+            `${grounding.citedButAbsent.join(', ')}. The spec author will ` +
+            `flag these as drift unless they are net-new.`,
+        );
+      }
     }
   } catch (err) {
     Logger.warn(`[epic-plan-spec] codebase snapshot skipped: ${err.message}`);
