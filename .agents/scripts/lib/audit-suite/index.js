@@ -16,7 +16,12 @@
 
 export { runAuditSuite } from './runner.js';
 export {
+  GLOBAL_LENS_ALLOWLIST,
+  isGlobalLens,
   matchesAnyFilePattern,
   matchesFilePattern,
+  NAVIGABILITY_LENS,
+  resolveNavigabilityRouteGlobs,
+  routesNavigabilityLens,
   selectAudits,
 } from './selector.js';
