@@ -115,10 +115,37 @@ function makeSeededConsumer() {
  * suite. The #4106 bug is platform-agnostic, so local (macOS) and
  * Windows-prebuild runs still exercise it; a follow-up can add a Linux native
  * build to the CI test job so it gates there too.
+ *
+ * Two distinct unsupported-host modes are handled: (1) the native binary fails
+ * to load (`import` throws — caught below); and (2) the binary loads but the
+ * host denies PTY allocation at spawn time (`posix_spawnp failed` — restricted
+ * macOS hosts and sandboxed CI containers). The import-time catch does not
+ * cover mode (2), so probe the real spawn path once and skip on failure rather
+ * than red the suite. The #4106 bug stays gated on every host that can spawn a
+ * PTY (CI included).
  */
 let PTY_SKIP = false;
 try {
-  await import('node-pty');
+  const ptyModule = await import('node-pty');
+  const pty = ptyModule.default ?? ptyModule;
+  try {
+    const probe = pty.spawn(process.execPath, ['-e', 'process.exit(0)'], {
+      name: 'xterm-color',
+      cols: 80,
+      rows: 24,
+      cwd: process.cwd(),
+      env: process.env,
+    });
+    try {
+      probe.kill();
+    } catch {
+      // probe already exited — nothing to reap
+    }
+  } catch (spawnErr) {
+    PTY_SKIP =
+      `node-pty cannot allocate a PTY on this host (${spawnErr?.code ?? spawnErr?.message ?? 'spawn failed'}); ` +
+      'PTY #4106 guard skipped on this platform/runner';
+  }
 } catch (err) {
   PTY_SKIP =
     `node-pty native binary unavailable (${err?.code ?? err?.message ?? 'load failed'}); ` +
