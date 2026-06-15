@@ -96,6 +96,19 @@ export const QUALITY_SCHEMA = {
     codingGuardrails: CODING_GUARDRAILS_SCHEMA,
     autoRefresh: AUTO_REFRESH_SCHEMA,
     baselineEpsilon: BASELINE_EPSILON_SCHEMA,
+    // Navigability lens + post-wave integration gate config (Epic #4131,
+    // F2/F3/F1/F4). Read by audit-suite/selector.js (route globs) and the
+    // deliver-epic.md Phase 6.5 gate (journey suite). Opt-in: absent or empty
+    // routeGlobs degrades to a silent no-op.
+    navigability: {
+      type: 'object',
+      properties: {
+        routeGlobs: { type: 'array', items: { type: 'string' } },
+        navRegistry: { type: 'array', items: { type: 'string' } },
+        journeySuite: { type: 'string' },
+      },
+      additionalProperties: false,
+    },
   },
   additionalProperties: false,
 };

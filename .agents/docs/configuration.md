@@ -262,6 +262,10 @@ top-level keys are validation errors.
 | `quality.baselineEpsilon.lighthouse` | No | `number` | — | — |
 | `quality.baselineEpsilon.bundle-size` | No | `number` | — | — |
 | `quality.baselineEpsilon.duplication` | No | `number` | — | — |
+| `quality.navigability` | No | `object` | — | Navigability lens + post-wave integration gate config (Epic #4131, F2/F3/F1/F4). Read by audit-suite/selector.js (route globs) and the deliver-epic.md Phase 6.5 gate (journey suite). Opt-in: absent or empty routeGlobs degrades to a silent no-op. |
+| `quality.navigability.routeGlobs` | No | `array<string>` | — | Glob patterns (pages/**, app/**/route.ts) marking paths that add a user-facing route — the route-tree SSOT the navigability lens enumerates and the route-added routing predicate matches against. |
+| `quality.navigability.navRegistry` | No | `array<string>` | — | Tokens identifying the nav-registry SSOT the navigability lens checks every route resolves a nav door against. |
+| `quality.navigability.journeySuite` | No | `string` | — | Path or command for the per-persona journey suite the deliver-epic.md Phase 6.5 post-wave integration gate runs. |
 | `lifecycle` | No | `object` | — | Knobs consumed by the lifecycle event bus (Epic #2172). `timeouts` is a per-event budget map (eventName → seconds) used by `TimeoutWatchdog`; missing entries fall back to in-listener defaults. `heartbeatWarnSeconds` is the no-progress threshold consumed by `HeartbeatMonitor`. Story #2227 lays down the keys; consumers land in later stories. |
 | `lifecycle.timeouts` | No | `object<map>` | — | — |
 | `lifecycle.heartbeatWarnSeconds` | No | `integer` | — | — |

@@ -1311,6 +1311,27 @@
         },
         "baselineEpsilon": {
           "$ref": "#/$defs/baselineEpsilon"
+        },
+        "navigability": {
+          "type": "object",
+          "description": "Navigability lens + post-wave integration gate config (Epic #4131, F2/F3/F1/F4). Read by audit-suite/selector.js (route globs) and the deliver-epic.md Phase 6.5 gate (journey suite). Opt-in: absent or empty routeGlobs degrades to a silent no-op.",
+          "properties": {
+            "routeGlobs": {
+              "type": "array",
+              "description": "Glob patterns (pages/**, app/**/route.ts) marking paths that add a user-facing route — the route-tree SSOT the navigability lens enumerates and the route-added routing predicate matches against.",
+              "items": { "type": "string" }
+            },
+            "navRegistry": {
+              "type": "array",
+              "description": "Tokens identifying the nav-registry SSOT the navigability lens checks every route resolves a nav door against.",
+              "items": { "type": "string" }
+            },
+            "journeySuite": {
+              "type": "string",
+              "description": "Path or command for the per-persona journey suite the deliver-epic.md Phase 6.5 post-wave integration gate runs."
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

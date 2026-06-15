@@ -250,11 +250,19 @@ function resolveNavConfig(config) {
  * @returns {RegExp}
  */
 function globToRegExp(glob) {
+  // Collapse adjacent `**` segments before compiling. `**/**` and `***` both
+  // mean "any depth", but compiling them literally emits adjacent `.*` runs
+  // (`.*/.*` / `.*.*`) that backtrack catastrophically on a long non-matching
+  // path. Collapsing to a single `**` preserves semantics and keeps the
+  // matcher linear (ReDoS hardening — Epic #4131 audit follow-up).
+  const normalized = glob
+    .replace(/\*\*(?:\/\*\*)+/g, '**')
+    .replace(/\*{3,}/g, '**');
   let re = '';
-  for (let i = 0; i < glob.length; i++) {
-    const ch = glob[i];
+  for (let i = 0; i < normalized.length; i++) {
+    const ch = normalized[i];
     if (ch === '*') {
-      if (glob[i + 1] === '*') {
+      if (normalized[i + 1] === '*') {
         re += '.*';
         i++;
       } else {
