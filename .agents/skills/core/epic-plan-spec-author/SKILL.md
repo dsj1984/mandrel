@@ -72,6 +72,21 @@ reads:
     `codebaseSnapshot.files`, surface that as a `<!-- DRIFT -->` callout
     in the Tech Spec body naming the cited path, so the freshness gate
     (Story #2635) has prose context for the operator to read.
+    - `codebaseSnapshot.grounding` (Story #4139) — operator-visible
+      grounding signals derived before you author:
+      - `grounding.truncation` — non-null when the snapshot dropped files
+        (the skinny-tier cap kept only the first ~250 of N matched files).
+        Carries `{ dropped, matched, shown, tier, remedies[] }`. When it is
+        present, the file tree you see is **partial** — do not assume a
+        module is absent just because it is missing from
+        `codebaseSnapshot.files`; raise the partiality in a `<!-- DRIFT -->`
+        callout and prefer the `medium` tier (or a narrowed `include`) for
+        a grounded spec.
+      - `grounding.citedButAbsent[]` — paths the Epic body already cites
+        that are **not** in the snapshot and are not phrased as net-new.
+        Treat each as a likely drift signal: confirm the path exists (it may
+        have been dropped by truncation) or mark it net-new explicitly in
+        the spec so the post-author freshness gate does not flag it.
   - `systemPrompts.prd`, `systemPrompts.techSpec`, and
     `systemPrompts.acceptanceSpec` — left in the envelope as a backstop;
     this Skill's own body below carries the authoritative versions and is

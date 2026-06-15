@@ -55,6 +55,7 @@
  *     "selectedAudits": ["audit-security", "audit-privacy"],
  *     "changeSetAudits": ["audit-privacy"],
  *     "riskRoutedAudits": ["audit-security"],
+ *     "globalLenses": [],
  *     "changedFiles": ["src/api/admin/users.ts", "..."],
  *     "changedFilesCount": 47,
  *     "substitutionsPayload": "src/api/admin/users.ts\n..."
@@ -67,6 +68,17 @@
  * `depth` (`light` / `standard` / `deep`) is the orthogonal "how deep each
  * selected lens runs" signal (Story #3939).
  *
+ * Epic #4131 (F2/F3) — `globalLenses` is the subset of `selectedAudits` on the
+ * global-lens allowlist (`GLOBAL_LENS_ALLOWLIST`, e.g. `audit-navigability`):
+ * lenses the helper runs against the WHOLE route tree, exempt from the
+ * cross-epic-leak guard's change-set narrowing (`#3362`). The exemption is
+ * scoped to these lenses only — every other selected lens stays scoped to
+ * `changedFiles`, and the guard is not weakened for them. The navigability lens
+ * is also auto-selected here when a changed file matches a consumer-configured
+ * route glob (`delivery.quality.navigability.routeGlobs`), routed through the
+ * SAME risk-routed-lens union; with no route globs configured it routes
+ * nothing (silent no-op).
+ *
  * Usage:
  *   node .agents/scripts/epic-audit-prepare.js --epic <epicId> [--base-branch main]
  *
@@ -76,7 +88,12 @@
  *   1 — provider / git failure
  */
 
-import { selectAudits } from './lib/audit-suite/index.js';
+import {
+  GLOBAL_LENS_ALLOWLIST,
+  isGlobalLens,
+  routesNavigabilityLens,
+  selectAudits,
+} from './lib/audit-suite/index.js';
 import { defineFlags } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
@@ -105,7 +122,13 @@ Output (JSON envelope on stdout):
                      fire, the severity taxonomy, or the Phase 4 halting rule.
   selectedAudits     De-duplicated union of changeSetAudits + riskRoutedAudits.
   changeSetAudits    Lenses the change-set selector chose.
-  riskRoutedAudits   Lenses routed from the model-judged high-risk axes.
+  riskRoutedAudits   Lenses routed from the model-judged high-risk axes plus the
+                     navigability lens when a changed file matches a configured
+                     route glob (Epic #4131, F3).
+  globalLenses       Subset of selectedAudits on the global-lens allowlist
+                     (e.g. audit-navigability) — run against the WHOLE route
+                     tree, exempt from the cross-epic-leak guard (Epic #4131,
+                     F2). Empty unless a global lens was selected.
   changedFiles, changedFilesCount, substitutionsPayload
 `;
 
@@ -359,13 +382,39 @@ export async function runEpicAuditPrepare(values, deps = {}) {
   // (best-effort; a read failure yields no extra lenses). A high-risk
   // `security` axis therefore fires `audit-security` even when the change
   // set alone did not select it; a low-risk Epic adds nothing.
-  const riskRoutedAudits = await resolveRiskRoutedLenses({
+  const riskRoutedFromVerdict = await resolveRiskRoutedLenses({
     epicId,
     provider,
     readPlanState: deps.readPlanState,
     resolveAuditLenses: deps.resolveAuditLenses,
   });
+
+  // Epic #4131 (F3) — route the navigability lens onto route-adding change
+  // sets through the SAME risk-routed-lens union: when a changed file matches a
+  // consumer-configured route glob (`delivery.quality.navigability.routeGlobs`)
+  // the lens joins `riskRoutedAudits`, exactly like a verdict-routed lens. No
+  // new routing function is introduced — the predicate feeds the existing
+  // `unionAudits` seam. Unconfigured consumers route nothing (silent no-op), so
+  // the change-set-scoped selection is unchanged. `cfg` may be `{}` in tests;
+  // the predicate tolerates an absent config and returns `false`.
+  const navigabilityRouted = routesNavigabilityLens({
+    changedFiles,
+    config: cfg,
+  })
+    ? GLOBAL_LENS_ALLOWLIST.slice()
+    : [];
+  const riskRoutedAudits = unionAudits(
+    riskRoutedFromVerdict,
+    navigabilityRouted,
+  );
   const selectedAudits = unionAudits(changeSetAudits, riskRoutedAudits);
+
+  // Epic #4131 (F2) — surface which selected lenses are on the global-lens
+  // allowlist so the helper runs them against the WHOLE route tree, exempt from
+  // the cross-epic-leak guard's change-set narrowing (`#3362`). The exemption
+  // is scoped to these lenses only; every other selected lens stays scoped to
+  // `changedFiles`. Order follows `selectedAudits` for a deterministic list.
+  const globalLenses = selectedAudits.filter(isGlobalLens);
 
   // Story #3939 — resolve the run's audit depth from the SAME model-judged
   // risk envelope the lenses route from, folded with the changed-file count
@@ -392,6 +441,7 @@ export async function runEpicAuditPrepare(values, deps = {}) {
         selectedAudits,
         changeSetAudits,
         riskRoutedAudits,
+        globalLenses,
         changedFiles,
         changedFilesCount: changedFiles.length,
         substitutionsPayload: changedFiles.join('\n'),

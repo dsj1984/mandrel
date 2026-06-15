@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-11T19:47:29.752Z",
+  "generatedAt": "2026-06-15T13:34:12.163Z",
   "generator": "generate-skills-index.js@1",
   "skills": [
     {
@@ -138,8 +138,18 @@
       "category": "core",
       "path": ".agents/skills/core/epic-plan-decompose-author/SKILL.md",
       "description": "Author the Story ticket JSON for an Epic from the decomposer authoring context emitted by `epic-plan-decompose.js --emit-context`. Use during Phase 8 of `/plan` when the host LLM needs to write the ticket array before `epic-plan-decompose.js` validates and persists it.",
-      "policyCapsuleBullets": 12,
+      "policyCapsuleBullets": 14,
       "allowedTools": ["Read", "Write", "Bash"],
+      "vendor": null
+    },
+    {
+      "name": "epic-plan-premortem",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/epic-plan-premortem/SKILL.md",
+      "description": "Run a fresh-context, code-reading pre-mortem critic over the draft Story ticket array an Epic's decompose phase produced. Use during Phase 8 of `/plan`, after `epic-plan-decompose-author` / `epic-plan-consolidate` write `temp/epic-<Epic_ID>/tickets.json` and before `epic-plan-decompose.js` validates and persists it. Reads the PRD / Tech Spec AND the actual cited code surfaces, then emits predicted-rework findings before any GitHub write.",
+      "policyCapsuleBullets": 7,
+      "allowedTools": ["Read", "Write", "Bash", "Grep"],
       "vendor": null
     },
     {

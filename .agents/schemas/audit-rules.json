@@ -149,6 +149,18 @@
         ]
       },
       "substitutionKeys": []
+    },
+    "audit-navigability": {
+      "triggers": {
+        "gates": ["gate2", "gate3"],
+        "keywords": [
+          "navigability",
+          "reachability",
+          "nav registry",
+          "route tree"
+        ]
+      },
+      "substitutionKeys": []
     }
   }
 }

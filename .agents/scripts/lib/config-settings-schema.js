@@ -282,6 +282,17 @@ const PLANNING_SCHEMA = {
     // decompose loop's re-prompt gate.
     failOnSharedEditors: { type: 'boolean' },
     requireExplicitCrossStoryDeps: { type: 'boolean' },
+    // Navigability-reachability config consumed by the epic-plan-healthcheck
+    // --paranoid reachability check (Epic #4131, F7). Opt-in: absent or empty
+    // routeGlobs degrades to a silent no-op.
+    navigation: {
+      type: 'object',
+      properties: {
+        routeGlobs: { type: 'array', items: { type: 'string' } },
+        navRegistry: { type: 'array', items: { type: 'string' } },
+      },
+      additionalProperties: false,
+    },
   },
   additionalProperties: false,
 };
