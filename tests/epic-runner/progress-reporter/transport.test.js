@@ -54,8 +54,6 @@ describe('progress-reporter/transport', () => {
         epicId: 42,
         done: 3,
         total: 10,
-        currentWave: 1,
-        totalWaves: 4,
         phase: 'implementing',
         openBlockers: [],
       });
@@ -68,6 +66,26 @@ describe('progress-reporter/transport', () => {
       assert.equal(result.payload.done, 3);
     });
 
+    it('renders a well-formed message with no wave segment (ready-set runtime)', async () => {
+      // Story #4155 — the ready-set runtime has no wave index. The message
+      // must never contain a `Wave …` / `undefined` segment, and the rollup
+      // payload must not carry currentWave/totalWaves keys.
+      const { notify, calls } = recordingNotify();
+      const result = await emitEpicProgress({
+        notify,
+        epicId: 42,
+        done: 2,
+        total: 5,
+      });
+      assert.equal(
+        calls[0].payload.message,
+        'Epic #42 progress · 2/5 stories done (40%)',
+      );
+      assert.doesNotMatch(calls[0].payload.message, /wave|undefined/i);
+      assert.ok(!('currentWave' in result.payload));
+      assert.ok(!('totalWaves' in result.payload));
+    });
+
     it('elevates severity to high when openBlockers is non-empty', async () => {
       const { notify, calls } = recordingNotify();
       await emitEpicProgress({
@@ -75,8 +93,6 @@ describe('progress-reporter/transport', () => {
         epicId: 42,
         done: 0,
         total: 1,
-        currentWave: 1,
-        totalWaves: 1,
         openBlockers: [{ reason: 'review pending', storyId: 100 }],
       });
       assert.equal(calls[0].payload.severity, 'high');
@@ -90,8 +106,6 @@ describe('progress-reporter/transport', () => {
         epicId: 42,
         done: 1,
         total: 2,
-        currentWave: 1,
-        totalWaves: 2,
         logger,
       });
       assert.equal(result, null);
@@ -106,8 +120,6 @@ describe('progress-reporter/transport', () => {
         epicId: 'not-a-number',
         done: 0,
         total: 1,
-        currentWave: 1,
-        totalWaves: 1,
       });
       assert.equal(result, null);
       assert.equal(calls.length, 0);
@@ -119,20 +131,17 @@ describe('progress-reporter/transport', () => {
         epicId: 42,
         done: 0,
         total: 1,
-        currentWave: 1,
-        totalWaves: 1,
       });
       assert.equal(result, null);
     });
   });
 
   describe('emitEpicStarted', () => {
-    it('fires an epic-started event with skipComment=true', async () => {
+    it('fires an epic-started event with skipComment=true and no wave segment', async () => {
       const { notify, calls } = recordingNotify();
       await emitEpicStarted({
         notify,
         epicId: 7,
-        totalWaves: 3,
         totalStories: 9,
         title: 'Test Epic',
       });
@@ -140,6 +149,8 @@ describe('progress-reporter/transport', () => {
       assert.equal(calls[0].payload.event, 'epic-started');
       assert.equal(calls[0].options.skipComment, true);
       assert.match(calls[0].payload.message, /Test Epic/);
+      // Story #4155 — no wave count in the ready-set runtime.
+      assert.doesNotMatch(calls[0].payload.message, /wave|undefined/i);
     });
 
     it('swallows notify failures', async () => {
@@ -148,7 +159,6 @@ describe('progress-reporter/transport', () => {
       const result = await emitEpicStarted({
         notify,
         epicId: 7,
-        totalWaves: 1,
         totalStories: 1,
         logger,
       });
