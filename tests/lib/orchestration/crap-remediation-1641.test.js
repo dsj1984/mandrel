@@ -287,24 +287,19 @@ describe('automerge-predicate.deriveAutoMergeVerdict', () => {
     assert.ok(v.reasons.some((r) => r.includes('…')));
   });
 
-  it('flags non-complete waves and per-story blockers', () => {
+  it('flags not-done Stories and per-story blockers', () => {
     const v = deriveAutoMergeVerdict({
       state: {
         manualInterventions: [],
-        waves: [
-          {
-            status: 'in-progress',
-            stories: [
-              { blockerCommentId: 'c1', status: 'blocked' },
-              { status: 'in-flight' },
-            ],
-          },
-        ],
+        stories: {
+          1: { status: 'blocked', blockerCommentId: 'c1' },
+          2: { status: 'pending' },
+        },
       },
       codeReview: { body: '🔴 Critical Blocker: 1\n🟠 High Risk: 2\n' },
       retro: { body: 'no marker here' },
     });
-    assert.ok(v.reasons.some((r) => r.includes('wave(s) not complete')));
+    assert.ok(v.reasons.some((r) => r.includes('not done')));
     assert.ok(v.reasons.some((r) => r.includes('story-level blocker')));
     assert.ok(v.reasons.some((r) => r.includes('1 🔴 Critical Blocker')));
     assert.ok(v.reasons.some((r) => r.includes('2 🟠 High Risk')));

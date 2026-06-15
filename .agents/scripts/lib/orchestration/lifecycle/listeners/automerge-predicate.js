@@ -21,7 +21,7 @@
  *     is a hard block evaluated BEFORE the structured-signal evaluator.
  *
  * Either trigger evaluates the same verdict: if `evaluateAutoMergePredicate`
- * reports `clean: true` (no manual interventions, no incomplete waves,
+ * reports `clean: true` (no manual interventions, every Story done,
  * no story blockers, no critical/high review findings, machine-readable
  * "clean sprint" retro trailer), emit `epic.merge.ready`. Otherwise emit
  * `epic.merge.blocked` with a non-empty reason.
@@ -172,38 +172,51 @@ function evaluateStateSignals(state, reasons) {
         .join('; ')}${interventionCount > 3 ? '; …' : ''}`,
     );
   }
-  const waves = Array.isArray(state?.waves) ? state.waves : [];
-  const waveStatuses = waves.map((w) => w.status ?? 'unknown');
-  const nonCompleteWaves = waveStatuses.filter((s) => s !== 'complete');
-  if (nonCompleteWaves.length > 0) {
+  // Story #4155 — the ready-set runtime records a flat per-Story status map
+  // on the checkpoint (`stories: { [id]: { status, blockerCommentId? } }`)
+  // instead of a per-wave `waves[]` history. The clean-run certification
+  // reads it directly: a run is clean only when every Story reached `done`
+  // and none carries a recorded blocker comment.
+  const stories =
+    state?.stories && typeof state.stories === 'object' ? state.stories : {};
+  const storyStatuses = Object.values(stories).map(
+    (s) => s?.status ?? 'pending',
+  );
+  const nonDoneStatuses = storyStatuses.filter((s) => s !== 'done');
+  if (nonDoneStatuses.length > 0) {
     reasons.push(
-      `${nonCompleteWaves.length} wave(s) not complete (statuses: ${nonCompleteWaves.join(', ')})`,
+      `${nonDoneStatuses.length} story(ies) not done (statuses: ${nonDoneStatuses.join(', ')})`,
     );
   }
-  const storyBlockers = countStoryBlockers(waves);
+  const storyBlockers = countStoryBlockers(stories);
   if (storyBlockers > 0) {
     reasons.push(
       `${storyBlockers} story-level blocker(s) recorded in run-state`,
     );
   }
-  return { interventionCount, waveStatuses, storyBlockers };
+  return { interventionCount, storyStatuses, storyBlockers };
 }
 
-function countStoryBlockers(waves) {
+/**
+ * Count blockers in the flat per-Story `stories` status map: each Story with
+ * a recorded `blockerCommentId` and each Story whose status is not `done`
+ * contributes one blocker (matching the prior per-wave count semantics).
+ *
+ * @param {Record<string, { status?: string, blockerCommentId?: string }>} stories
+ * @returns {number}
+ */
+function countStoryBlockers(stories) {
   let blockers = 0;
-  for (const w of waves) {
-    if (!Array.isArray(w.stories)) continue;
-    for (const s of w.stories) {
-      if (
-        s &&
-        typeof s.blockerCommentId === 'string' &&
-        s.blockerCommentId.length > 0
-      ) {
-        blockers += 1;
-      }
-      if (s?.status && s.status !== 'done') {
-        blockers += 1;
-      }
+  for (const s of Object.values(stories ?? {})) {
+    if (
+      s &&
+      typeof s.blockerCommentId === 'string' &&
+      s.blockerCommentId.length > 0
+    ) {
+      blockers += 1;
+    }
+    if (s?.status && s.status !== 'done') {
+      blockers += 1;
     }
   }
   return blockers;
@@ -271,7 +284,7 @@ function evaluateRetroSignals(retro, reasons) {
  *   reasons: string[],
  *   signals: {
  *     manualInterventions: number,
- *     waveStatuses: string[],
+ *     storyStatuses: string[],
  *     storyBlockers: number,
  *     severity: { critical: number|null, high: number|null, medium: number|null, suggestion: number|null },
  *     retroCompact: boolean,
@@ -292,7 +305,7 @@ export function deriveAutoMergeVerdict({ state, codeReview, retro }) {
     reasons,
     signals: {
       manualInterventions: stateSig.interventionCount,
-      waveStatuses: stateSig.waveStatuses,
+      storyStatuses: stateSig.storyStatuses,
       storyBlockers: stateSig.storyBlockers,
       severity: reviewSig.severity,
       retroCompact: retroSig.retroCompact,

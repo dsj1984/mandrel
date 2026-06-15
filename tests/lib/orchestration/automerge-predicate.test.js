@@ -24,21 +24,11 @@ const COMPACT_COUNTS = {
 const cleanState = {
   epicId: 1178,
   manualInterventions: [],
-  waves: [
-    {
-      wave: 0,
-      status: 'complete',
-      stories: [
-        { id: 1191, status: 'done', blockerCommentId: null },
-        { id: 1194, status: 'done', blockerCommentId: null },
-      ],
-    },
-    {
-      wave: 1,
-      status: 'complete',
-      stories: [{ id: 1198, status: 'done', blockerCommentId: null }],
-    },
-  ],
+  stories: {
+    1191: { status: 'done' },
+    1194: { status: 'done' },
+    1198: { status: 'done' },
+  },
 };
 
 const cleanReview = {
@@ -160,39 +150,29 @@ describe('deriveAutoMergeVerdict', () => {
     assert.ok(verdict.reasons.some((r) => r.includes('manual intervention')));
   });
 
-  it('returns clean=false when any wave is not complete', () => {
+  it('returns clean=false when any Story is not done', () => {
     const verdict = deriveAutoMergeVerdict({
       state: {
         ...cleanState,
-        waves: [
-          { wave: 0, status: 'complete', stories: [] },
-          { wave: 1, status: 'blocked', stories: [] },
-        ],
+        stories: {
+          1191: { status: 'done' },
+          1198: { status: 'blocked' },
+        },
       },
       codeReview: cleanReview,
       retro: cleanRetro,
     });
     assert.equal(verdict.clean, false);
-    assert.ok(verdict.reasons.some((r) => r.includes('not complete')));
+    assert.ok(verdict.reasons.some((r) => r.includes('not done')));
   });
 
   it('returns clean=false when a story carries blockerCommentId', () => {
     const verdict = deriveAutoMergeVerdict({
       state: {
         ...cleanState,
-        waves: [
-          {
-            wave: 0,
-            status: 'complete',
-            stories: [
-              {
-                id: 1191,
-                status: 'done',
-                blockerCommentId: 'comment-123',
-              },
-            ],
-          },
-        ],
+        stories: {
+          1191: { status: 'done', blockerCommentId: 'comment-123' },
+        },
       },
       codeReview: cleanReview,
       retro: cleanRetro,

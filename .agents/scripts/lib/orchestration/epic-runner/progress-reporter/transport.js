@@ -85,7 +85,13 @@ export async function emitEpicProgress({
     blockerCount > 0
       ? ` · 🚧 ${blockerCount} blocker${blockerCount === 1 ? '' : 's'}`
       : '';
-  const message = `Epic #${epicIdNum} progress · Wave ${currentWave}/${totalWaves} · ${doneN}/${totalN} stories done (${pct}%)${blockerSuffix}`;
+  // Story #4155 — the ready-set runtime has no wave index; the wave segment
+  // is included only when a caller still supplies wave coordinates.
+  const waveSegment =
+    Number.isInteger(currentWave) && Number.isInteger(totalWaves)
+      ? ` · Wave ${currentWave}/${totalWaves}`
+      : '';
+  const message = `Epic #${epicIdNum} progress${waveSegment} · ${doneN}/${totalN} stories done (${pct}%)${blockerSuffix}`;
 
   const payload = {
     severity: blockerCount > 0 ? 'high' : 'medium',
@@ -133,7 +139,12 @@ export async function emitEpicStarted({
   if (typeof notify !== 'function') return null;
   const epicIdNum = Number(epicId);
   if (!Number.isInteger(epicIdNum) || epicIdNum <= 0) return null;
-  const message = `Epic #${epicIdNum} started · ${totalWaves} wave${totalWaves === 1 ? '' : 's'} · ${totalStories} stor${totalStories === 1 ? 'y' : 'ies'}${title ? ` — ${title}` : ''}`;
+  // Story #4155 — the ready-set runtime has no wave count; the wave segment
+  // is included only when a caller still supplies one.
+  const waveSegment = Number.isInteger(totalWaves)
+    ? ` · ${totalWaves} wave${totalWaves === 1 ? '' : 's'}`
+    : '';
+  const message = `Epic #${epicIdNum} started${waveSegment} · ${totalStories} stor${totalStories === 1 ? 'y' : 'ies'}${title ? ` — ${title}` : ''}`;
   try {
     await notify(
       epicIdNum,

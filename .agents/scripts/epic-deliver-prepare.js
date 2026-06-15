@@ -5,17 +5,25 @@
  * epic-deliver-prepare.js — Step 0/1 of the operator-driven `/deliver`.
  *
  * Composes the existing engine phases that the in-process epic-runner used to
- * call sequentially, but does NOT dispatch any waves. The CLI is the single
+ * call sequentially, but does NOT dispatch any Stories. The CLI is the single
  * point at which the slash-command captures:
  *
  *   1. The Epic ticket snapshot (`runSnapshotPhase`).
- *   2. The wave DAG (`runBuildWaveDagPhase`) computed from every child Story.
+ *   2. The story DAG (`runBuildWaveDagPhase`) computed from every child Story —
+ *      used here only to enumerate the open Story set and run the
+ *      concurrency-hazard gate; the ready-set runtime re-derives readiness
+ *      from live labels on every `tick`, so the prepare no longer persists a
+ *      wave grouping.
  *   3. The seeded `epic-run-state` checkpoint (`epic-run-state-store.initialize`)
- *      — idempotent, so re-running prepare against a partially-driven Epic
- *      preserves the original `startedAt`.
- *   4. The per-wave dispatch plan (`StoryLauncher.planWave`) — a deterministic
- *      list of `{ storyId, worktree }` entries that the slash command feeds
- *      into N parallel `Agent` tool calls per wave.
+ *      in the per-Story-status shape (Story #4155): a flat
+ *      `stories: { [storyId]: { status: 'pending' } }` map plus the GLOBAL
+ *      in-flight `concurrencyCap`. Idempotent — re-running prepare against a
+ *      partially-driven Epic preserves the original `startedAt` and every
+ *      already-recorded Story status (it never resets recorded progress).
+ *   4. The dispatch hint (`StoryLauncher.planWave`) — a deterministic list of
+ *      `{ storyId, worktree }` entries the slash command uses to resolve
+ *      per-Story worktree paths. The ready-set `tick` selects which of these
+ *      to dispatch on each beat; the prepare only enumerates the set.
  *
  * Stdout is a single JSON envelope so the slash command can parse without
  * re-reading any tickets.
@@ -37,7 +45,6 @@ import {
 } from './lib/orchestration/epic-deliver-lease-guard.js';
 import {
   initialize as initializeEpicRunState,
-  reconcileResumePointer,
   write as writeEpicRunState,
 } from './lib/orchestration/epic-run-state-store.js';
 import {
@@ -133,9 +140,9 @@ function resolveGitUserEmail(cwd) {
  * }} args
  * @returns {Promise<{
  *   epicId: number,
- *   totalWaves: number,
+ *   storyCount: number,
  *   concurrencyCap: number,
- *   plan: Array<{ wave: number, stories: Array<{ storyId: number, title: string, worktree?: string }> }>,
+ *   stories: Array<{ storyId: number, title: string, worktree?: string }>,
  *   checkpointInitializedAt: string,
  * }>}
  */
@@ -334,64 +341,44 @@ export async function runEpicDeliverPrepare({
     ignoreConcurrencyHazards,
   });
 
-  const totalWaves = state.waves.length;
+  // Flatten the wave-DAG into the open Story set. The ready-set runtime
+  // re-derives readiness from live labels on every tick, so the checkpoint
+  // stores only the Story set in scope (seeded at `pending`) and the global
+  // in-flight cap — no wave grouping, no `currentWave`, no `totalWaves`.
+  const openStories = state.waves.flat();
   const checkpointState = await initializeEpicRunState({
     provider,
     epicId,
-    totalWaves,
+    storyIds: openStories,
     concurrencyCap,
   });
 
+  // Resolve per-Story worktree paths via the launcher so the slash command
+  // has a deterministic `{ storyId, worktree, title }` list to seed Agent
+  // dispatch from. This is a dispatch *hint* — the ready-set tick decides
+  // which Stories to dispatch on each beat; the prepare only enumerates them.
   const launcher = new StoryLauncher({ concurrencyCap });
-  const plan = state.waves.map((stories, index) => ({
-    wave: index,
-    stories: launcher.planWave(stories).map((entry, i) => ({
-      ...entry,
-      title: stories[i]?.title ?? '',
-    })),
+  const stories = launcher.planWave(openStories).map((entry, i) => ({
+    ...entry,
+    title: openStories[i]?.title ?? '',
   }));
 
-  // Persist the plan onto the checkpoint so `wave-tick.js` (which reads
-  // state.plan as `Array<Array<{ id|storyId, title?, worktree? }>>`) can
-  // resolve the next wave's stories. Without this write the tick reports
-  // every wave as `wave-complete: empty` and the delivery stalls.
-  const tickPlan = plan.map((wave) => wave.stories);
-
-  // Story #3358 — reconcile the resume pointer against the recomputed
-  // plan. On a resumed Epic, `build-wave-dag.js` drops the already-merged
-  // (closed) Stories, so the recomputed plan is shorter and re-indexed
-  // from 0. The preserved `currentWave`/`waves[]` reference the *old*
-  // index space; left untouched, `wave-tick.js` would index
-  // `plan[currentWave]` into the new plan and dispatch the wrong wave.
-  // Prepare owns the `plan` field, so it owns the pointer that indexes
-  // into it. When the plan changed, reset the pointer to 0 and drop the
-  // stale history; when it is byte-identical (idempotent re-prepare),
-  // preserve in-flight progress verbatim.
-  const { currentWave, waves } = reconcileResumePointer(
-    checkpointState,
-    checkpointState.plan,
-    tickPlan,
-  );
-
-  // Persist the `--ignore-concurrency-hazards` flag on the checkpoint
-  // so retro tooling can flag a run that shipped despite an outstanding
-  // hazard (the warning above is one-shot; the checkpoint is durable).
-  const checkpointPayload = {
-    ...checkpointState,
-    plan: tickPlan,
-    currentWave,
-    waves,
-  };
+  // Persist the `--ignore-concurrency-hazards` flag on the checkpoint so
+  // retro tooling can flag a run that shipped despite an outstanding hazard
+  // (the warning above is one-shot; the checkpoint is durable).
   if (gate.bypassed) {
-    checkpointPayload.ignoreConcurrencyHazards = true;
+    await writeEpicRunState({
+      provider,
+      epicId,
+      state: { ...checkpointState, ignoreConcurrencyHazards: true },
+    });
   }
-  await writeEpicRunState({ provider, epicId, state: checkpointPayload });
 
   return {
     epicId,
-    totalWaves,
+    storyCount: openStories.length,
     concurrencyCap,
-    plan,
+    stories,
     checkpointInitializedAt:
       checkpointState.startedAt ??
       checkpointState.lastUpdatedAt ??

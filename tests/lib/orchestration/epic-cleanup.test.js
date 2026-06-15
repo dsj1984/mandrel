@@ -14,14 +14,17 @@ import {
 } from '../../../.agents/scripts/lib/orchestration/epic-cleanup.js';
 
 describe('listEpicBranchesFromState', () => {
-  it('extracts epic + story branches from the run-state', () => {
+  it('extracts epic + story branches from the per-Story status map', () => {
     const state = {
       epicId: 1178,
-      waves: [
-        { stories: [{ id: 1191 }, { id: 1194 }, { id: 1197 }] },
-        { stories: [{ id: 1192 }, { id: 1193 }] },
-        { stories: [{ id: 1198 }] },
-      ],
+      stories: {
+        1191: { status: 'done' },
+        1194: { status: 'done' },
+        1197: { status: 'pending' },
+        1192: { status: 'done' },
+        1193: { status: 'blocked' },
+        1198: { status: 'done' },
+      },
     };
     const out = listEpicBranchesFromState(state);
     assert.equal(out.epicBranch, 'epic/1178');
@@ -33,15 +36,6 @@ describe('listEpicBranchesFromState', () => {
       'story-1197',
       'story-1198',
     ]);
-  });
-
-  it('dedupes story ids across waves', () => {
-    const state = {
-      epicId: 9,
-      waves: [{ stories: [{ id: 1 }] }, { stories: [{ id: 1 }, { id: 2 }] }],
-    };
-    const out = listEpicBranchesFromState(state);
-    assert.deepEqual(out.storyBranches, ['story-1', 'story-2']);
   });
 
   it('returns null epicBranch when state is empty / missing', () => {
@@ -58,7 +52,7 @@ describe('listEpicBranchesFromState', () => {
   it('ignores non-positive story ids', () => {
     const out = listEpicBranchesFromState({
       epicId: 1,
-      waves: [{ stories: [{ id: 0 }, { id: -3 }, { id: 5 }] }],
+      stories: { 0: { status: 'pending' }, 5: { status: 'pending' } },
     });
     assert.deepEqual(out.storyBranches, ['story-5']);
   });
@@ -200,7 +194,7 @@ describe('reapEpicBranches', () => {
     const out = reapEpicBranches({
       state: {
         epicId: 100,
-        waves: [{ stories: [{ id: 1 }, { id: 2 }] }],
+        stories: { 1: { status: 'done' }, 2: { status: 'done' } },
       },
       cwd: '/repo',
       gitSpawn,
@@ -235,7 +229,7 @@ describe('reapEpicBranches', () => {
       return { status: 0, stdout: '', stderr: '' };
     };
     const out = reapEpicBranches({
-      state: { epicId: 9, waves: [{ stories: [{ id: 99 }] }] },
+      state: { epicId: 9, stories: { 99: { status: 'pending' } } },
       cwd: '/repo',
       gitSpawn,
       epicBranchHasOpenPrFn: () => false,
@@ -258,7 +252,7 @@ describe('reapEpicBranches', () => {
       return { status: 0, stdout: '', stderr: '' };
     };
     const out = reapEpicBranches({
-      state: { epicId: 77, waves: [{ stories: [{ id: 1 }] }] },
+      state: { epicId: 77, stories: { 1: { status: 'done' } } },
       cwd: '/repo',
       gitSpawn,
       baseBranch: 'develop',
@@ -284,7 +278,7 @@ describe('reapEpicBranches', () => {
       return { status: 0, stdout: '', stderr: '' };
     };
     const out = reapEpicBranches({
-      state: { epicId: 78, waves: [{ stories: [{ id: 1 }] }] },
+      state: { epicId: 78, stories: { 1: { status: 'done' } } },
       cwd: '/repo',
       gitSpawn,
       epicBranchHasOpenPrFn: () => false,
@@ -315,7 +309,7 @@ describe('reapEpicBranches', () => {
       return { status: 0, stdout: '', stderr: '' };
     };
     const out = reapEpicBranches({
-      state: { epicId: 100, waves: [{ stories: [{ id: 1 }] }] },
+      state: { epicId: 100, stories: { 1: { status: 'done' } } },
       cwd: '/repo',
       gitSpawn,
       epicBranchHasOpenPrFn: () => false,
@@ -340,7 +334,10 @@ describe('reapEpicBranches', () => {
       return { status: 0, stdout: '', stderr: '' };
     };
     const out = reapEpicBranches({
-      state: { epicId: 100, waves: [{ stories: [{ id: 1 }, { id: 2 }] }] },
+      state: {
+        epicId: 100,
+        stories: { 1: { status: 'done' }, 2: { status: 'done' } },
+      },
       cwd: '/repo',
       gitSpawn,
       epicBranchHasOpenPrFn: () => true,
@@ -378,7 +375,7 @@ describe('reapEpicBranches', () => {
       return { status: 0, stdout: '', stderr: '' };
     };
     const out = reapEpicBranches({
-      state: { epicId: 100, waves: [{ stories: [{ id: 1 }] }] },
+      state: { epicId: 100, stories: { 1: { status: 'done' } } },
       cwd: '/repo',
       gitSpawn,
       epicBranchHasOpenPrFn: () => false,

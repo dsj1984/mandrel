@@ -57,7 +57,7 @@ function createFakeProvider() {
     _commentsByTicket: commentsByTicket,
     postCommentCalls: 0,
     async getTicket(id) {
-      return { id, labels: [], title: `Story #${id}` };
+      return { id, labels: [], body: '', title: `Story #${id}` };
     },
     async getTicketComments(ticketId) {
       return [...(commentsByTicket.get(ticketId) ?? [])];
@@ -85,6 +85,13 @@ function createFakeProvider() {
 
 function fakeCheckpointer(state) {
   return { read: async () => state };
+}
+
+/** Per-Story-status checkpoint over the given Story ids (Story #4155). */
+function checkpoint(epicId, storyIds, concurrencyCap = 3) {
+  const stories = {};
+  for (const id of storyIds) stories[String(id)] = { status: 'pending' };
+  return { epicId, concurrencyCap, stories };
 }
 
 function countCommentsWithMarker(provider, ticketId, marker) {
@@ -125,13 +132,7 @@ describe('wave-tick-recurring-failures', () => {
       );
 
       const provider = createFakeProvider();
-      const checkpointer = fakeCheckpointer({
-        epicId,
-        currentWave: 0,
-        totalWaves: 1,
-        plan: [[{ id: 9101 }, { id: 9102 }]],
-        waves: [],
-      });
+      const checkpointer = fakeCheckpointer(checkpoint(epicId, [9101, 9102]));
 
       // Reset the WeakMap cache so a previous suite's entries don't
       // bleed in (defense-in-depth — each provider instance is also
@@ -214,13 +215,7 @@ describe('wave-tick-recurring-failures', () => {
       );
 
       const provider = createFakeProvider();
-      const checkpointer = fakeCheckpointer({
-        epicId,
-        currentWave: 0,
-        totalWaves: 1,
-        plan: [[{ id: 9201 }, { id: 9202 }]],
-        waves: [],
-      });
+      const checkpointer = fakeCheckpointer(checkpoint(epicId, [9201, 9202]));
 
       _resetStructuredCommentCache();
 
@@ -248,16 +243,10 @@ describe('wave-tick-recurring-failures', () => {
     let calls = 0;
     const provider = {
       async getTicket(id) {
-        return { id, labels: [], title: `Story #${id}` };
+        return { id, labels: [], body: '', title: `Story #${id}` };
       },
     };
-    const checkpointer = fakeCheckpointer({
-      epicId: 9053,
-      currentWave: 0,
-      totalWaves: 1,
-      plan: [[{ id: 9301 }]],
-      waves: [],
-    });
+    const checkpointer = fakeCheckpointer(checkpoint(9053, [9301]));
 
     await tick({
       epic: 9053,

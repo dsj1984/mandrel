@@ -8,7 +8,7 @@
  * fan-out and surfaces the result to the operator on two channels:
  *
  *   1. A JSON envelope on stdout (always) with the keys
- *      `storyCount`, `installCostSeconds`, `waveCount`,
+ *      `storyCount`, `installCostSeconds`, `dependencyDepth`,
  *      `githubApiRequests`, `claudeQuotaTokens`, plus `breaches`
  *      (the non-empty subset of `delivery.preflight.max*` thresholds the
  *      estimate exceeds).
@@ -30,8 +30,14 @@
  * the comment can reason about the numbers):
  *
  *   - `storyCount`           = number of child `type::story` tickets.
- *   - `waveCount`            = computed wave DAG length (matches the
- *                              dispatch manifest).
+ *   - `dependencyDepth`      = longest dependency chain through the Story
+ *                              DAG (Story #4155). The ready-set runtime has
+ *                              no wave barrier, so wall-clock is bounded
+ *                              below by this depth, not by a wave count: a
+ *                              depth-1 Epic (all Stories independent) can run
+ *                              fully parallel, while a depth-N chain forces N
+ *                              sequential beats regardless of cap. Computed
+ *                              as the dependency-DAG layer count.
  *   - `installCostSeconds`   = `storyCount * perStoryInstallSeconds`
  *                              (default 45s, override via
  *                              `--per-story-install-seconds`). Models a
@@ -115,7 +121,7 @@ const DEFAULTS = Object.freeze({
  *
  * @param {{
  *   storyCount: number,
- *   waveCount: number,
+ *   dependencyDepth: number,
  *   perStoryInstallSeconds?: number,
  *   perStoryApiRequests?: number,
  *   perStoryClaudeTokens?: number,
@@ -124,14 +130,14 @@ const DEFAULTS = Object.freeze({
  * @returns {{
  *   storyCount: number,
  *   installCostSeconds: number,
- *   waveCount: number,
+ *   dependencyDepth: number,
  *   githubApiRequests: number,
  *   claudeQuotaTokens: number,
  * }}
  */
 export function computeEstimate({
   storyCount,
-  waveCount,
+  dependencyDepth,
   perStoryInstallSeconds = DEFAULTS.perStoryInstallSeconds,
   perStoryApiRequests = DEFAULTS.perStoryApiRequests,
   perStoryClaudeTokens = DEFAULTS.perStoryClaudeTokens,
@@ -142,15 +148,15 @@ export function computeEstimate({
       'computeEstimate: storyCount must be a non-negative integer',
     );
   }
-  if (!Number.isInteger(waveCount) || waveCount < 0) {
+  if (!Number.isInteger(dependencyDepth) || dependencyDepth < 0) {
     throw new TypeError(
-      'computeEstimate: waveCount must be a non-negative integer',
+      'computeEstimate: dependencyDepth must be a non-negative integer',
     );
   }
   return {
     storyCount,
     installCostSeconds: storyCount * perStoryInstallSeconds,
-    waveCount,
+    dependencyDepth,
     githubApiRequests: baseApiRequests + storyCount * perStoryApiRequests,
     claudeQuotaTokens: storyCount * perStoryClaudeTokens,
   };
@@ -167,7 +173,14 @@ export function computeEstimate({
 export function detectBreaches(estimate, thresholds) {
   const mapping = [
     { key: 'storyCount', observedKey: 'storyCount', maxKey: 'maxStories' },
-    { key: 'waveCount', observedKey: 'waveCount', maxKey: 'maxWaves' },
+    // Story #4155 — `dependencyDepth` replaces the retired `waveCount`
+    // estimate; it is still gated by the `maxWaves` config threshold (the
+    // published config key is left unchanged for contract stability).
+    {
+      key: 'dependencyDepth',
+      observedKey: 'dependencyDepth',
+      maxKey: 'maxWaves',
+    },
     {
       key: 'installCostSeconds',
       observedKey: 'installCostSeconds',
@@ -213,7 +226,7 @@ export function renderPreflightBody({
   lines.push('| --- | ---: | ---: |');
   const rows = [
     ['storyCount', estimate.storyCount, thresholds.maxStories],
-    ['waveCount', estimate.waveCount, thresholds.maxWaves],
+    ['dependencyDepth', estimate.dependencyDepth, thresholds.maxWaves],
     [
       'installCostSeconds',
       estimate.installCostSeconds,
@@ -292,7 +305,11 @@ export async function runPreflight({
   state = await runBuildWaveDagPhase(ctx, {}, state);
 
   const storyCount = Array.isArray(state.stories) ? state.stories.length : 0;
-  const waveCount = Array.isArray(state.waves) ? state.waves.length : 0;
+  // Dependency depth = the dependency-DAG layer count (the longest chain of
+  // `blocked by` edges). `runBuildWaveDagPhase` already computes this layering
+  // as `state.waves`, so its length is the depth even though the ready-set
+  // runtime no longer dispatches by wave (Story #4155).
+  const dependencyDepth = Array.isArray(state.waves) ? state.waves.length : 0;
 
   // Persist the snapshot/DAG envelope so `epic-deliver-prepare.js` can
   // reuse it instead of re-walking the hierarchy. The cache key is a
@@ -317,7 +334,7 @@ export async function runPreflight({
 
   const estimate = computeEstimate({
     storyCount,
-    waveCount,
+    dependencyDepth,
     perStoryInstallSeconds,
     perStoryApiRequests,
     perStoryClaudeTokens,
