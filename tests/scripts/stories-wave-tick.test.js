@@ -1,14 +1,24 @@
 /**
- * stories-wave-tick.test.js — Story #3233
+ * stories-wave-tick.test.js — Story #4156
  *
- * Unit tests for the DAG/wave engine in stories-wave-tick.js.
+ * Unit tests for the continuous ready-set adapter in stories-wave-tick.js.
+ *
+ * The file is now a thin adapter over the path-agnostic scheduling core
+ * (`lib/wave-runner/ready-set.js#selectReadySet`): it no longer batches
+ * Stories into fully-draining waves (the static wave-batch plan built via
+ * `Graph.js#assignLayers` is gone). It parses the operator DAG + the live
+ * run progress (`--done` / `--in-flight`) and emits the set of Stories safe
+ * to dispatch on this beat under the same global cap and file-overlap guard
+ * the Epic path uses.
  *
  * Exercises:
  *   - parseDag: validates the DAG input format
- *   - buildAdjacency: builds the adjacency map from parsed nodes
- *   - computeStoriesWavePlan: produces ordered waves via Graph.js
+ *   - parseDoneIds / parseInFlight: validate the live-progress flags
+ *   - parseConcurrencyOverride / resolveConcurrencyCap: cap resolution
+ *   - buildReadySetEnvelope: continuous selection through selectReadySet
  *   - runStoriesWaveTick: end-to-end helper (no subprocess)
- *   - CLI via spawnSync: smoke-tests --help, --dag, --dag-file, cycle detection
+ *   - CLI via spawnSync: smoke-tests --help, --dag, --dag-file, --done,
+ *     cycle detection
  */
 
 import assert from 'node:assert/strict';
@@ -20,10 +30,11 @@ import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import {
-  buildAdjacency,
-  computeStoriesWavePlan,
+  buildReadySetEnvelope,
   parseConcurrencyOverride,
   parseDag,
+  parseDoneIds,
+  parseInFlight,
   resolveConcurrencyCap,
   runStoriesWaveTick,
 } from '../../.agents/scripts/stories-wave-tick.js';
@@ -106,135 +117,214 @@ describe('parseDag', () => {
 });
 
 // ---------------------------------------------------------------------------
-// buildAdjacency
+// parseDoneIds
 // ---------------------------------------------------------------------------
 
-describe('buildAdjacency', () => {
-  it('builds a Map from parsed nodes', () => {
-    const nodes = [
-      { id: 10, dependsOn: [] },
-      { id: 20, dependsOn: [10] },
-    ];
-    const adj = buildAdjacency(nodes);
-    assert.ok(adj instanceof Map);
-    assert.deepEqual(adj.get(10), []);
-    assert.deepEqual(adj.get(20), [10]);
+describe('parseDoneIds', () => {
+  it('returns an empty set for absent / empty input', () => {
+    assert.deepEqual([...parseDoneIds(undefined).ids], []);
+    assert.deepEqual([...parseDoneIds('').ids], []);
   });
 
-  it('isolates the dependsOn arrays (defensive copy)', () => {
-    const orig = [10];
-    const nodes = [{ id: 20, dependsOn: orig }];
-    const adj = buildAdjacency(nodes);
-    orig.push(99);
-    assert.deepEqual(adj.get(20), [10]); // not affected by mutation
+  it('parses a comma-separated list, deduped', () => {
+    const { ids, error } = parseDoneIds('101, 103,101');
+    assert.strictEqual(error, null);
+    assert.deepEqual(
+      [...ids].sort((a, b) => a - b),
+      [101, 103],
+    );
+  });
+
+  it('skips empty tokens (trailing comma / whitespace)', () => {
+    const { ids, error } = parseDoneIds('5, ,6,');
+    assert.strictEqual(error, null);
+    assert.deepEqual(
+      [...ids].sort((a, b) => a - b),
+      [5, 6],
+    );
+  });
+
+  it('rejects a non-positive token', () => {
+    const { ids, error } = parseDoneIds('5,0');
+    assert.strictEqual(ids, null);
+    assert.ok(error);
+    assert.ok(error.includes('--done'));
+  });
+
+  it('rejects a non-numeric token', () => {
+    const { ids, error } = parseDoneIds('5,abc');
+    assert.strictEqual(ids, null);
+    assert.ok(error);
   });
 });
 
 // ---------------------------------------------------------------------------
-// computeStoriesWavePlan
+// parseInFlight
 // ---------------------------------------------------------------------------
 
-describe('computeStoriesWavePlan', () => {
-  it('returns empty waves for empty adjacency', () => {
-    const plan = computeStoriesWavePlan(new Map(), 3);
-    assert.strictEqual(plan.kind, 'stories-wave-plan');
-    assert.deepEqual(plan.waves, []);
-    assert.strictEqual(plan.totalStories, 0);
-    assert.strictEqual(plan.concurrencyCap, 3);
-    assert.strictEqual(plan.cycleError, null);
+describe('parseInFlight', () => {
+  it('defaults to 0 for absent input', () => {
+    const { value, error } = parseInFlight(undefined);
+    assert.strictEqual(value, 0);
+    assert.strictEqual(error, null);
   });
 
-  it('single story with no dependencies → wave 0', () => {
-    const adj = new Map([[101, []]]);
-    const plan = computeStoriesWavePlan(adj, 3);
-    assert.strictEqual(plan.cycleError, null);
-    assert.strictEqual(plan.totalStories, 1);
-    assert.strictEqual(plan.concurrencyCap, 3);
-    assert.strictEqual(plan.waves.length, 1);
-    assert.strictEqual(plan.waves[0].waveIndex, 0);
-    assert.deepEqual(plan.waves[0].stories, [101]);
+  it('accepts 0 (a full run with all slots free is valid)', () => {
+    const { value, error } = parseInFlight('0');
+    assert.strictEqual(value, 0);
+    assert.strictEqual(error, null);
   });
 
-  it('linear chain A→B→C produces three sequential waves', () => {
-    // 103 depends on 102, 102 depends on 101 → waves [101], [102], [103]
-    const adj = new Map([
-      [101, []],
-      [102, [101]],
-      [103, [102]],
-    ]);
-    const plan = computeStoriesWavePlan(adj);
-    assert.strictEqual(plan.cycleError, null);
-    assert.strictEqual(plan.waves.length, 3);
-    assert.deepEqual(plan.waves[0].stories, [101]);
-    assert.deepEqual(plan.waves[1].stories, [102]);
-    assert.deepEqual(plan.waves[2].stories, [103]);
+  it('accepts a positive integer', () => {
+    const { value, error } = parseInFlight('2');
+    assert.strictEqual(value, 2);
+    assert.strictEqual(error, null);
   });
 
-  it('diamond DAG: A → [B,C] → D produces three waves', () => {
-    // 104 depends on 102 and 103; 102 and 103 both depend on 101
-    const adj = new Map([
-      [101, []],
-      [102, [101]],
-      [103, [101]],
-      [104, [102, 103]],
-    ]);
-    const plan = computeStoriesWavePlan(adj);
-    assert.strictEqual(plan.cycleError, null);
-    assert.strictEqual(plan.waves.length, 3);
-    // Wave 0: root
-    assert.deepEqual(plan.waves[0].stories, [101]);
-    // Wave 1: two independent stories sorted by id
-    assert.deepEqual(plan.waves[1].stories, [102, 103]);
-    // Wave 2: dependent leaf
-    assert.deepEqual(plan.waves[2].stories, [104]);
+  it('rejects a negative value', () => {
+    const { value, error } = parseInFlight('-1');
+    assert.strictEqual(value, null);
+    assert.ok(error);
   });
 
-  it('fully independent stories all land in wave 0', () => {
-    const adj = new Map([
-      [10, []],
-      [20, []],
-      [30, []],
-    ]);
-    const plan = computeStoriesWavePlan(adj);
-    assert.strictEqual(plan.cycleError, null);
-    assert.strictEqual(plan.waves.length, 1);
-    assert.deepEqual(plan.waves[0].stories, [10, 20, 30]);
+  it('rejects a fractional value', () => {
+    const { value, error } = parseInFlight('1.5');
+    assert.strictEqual(value, null);
+    assert.ok(error);
   });
 
-  it('stories within the same wave are sorted by id (ascending)', () => {
-    const adj = new Map([
-      [300, []],
-      [100, []],
-      [200, []],
-    ]);
-    const plan = computeStoriesWavePlan(adj);
-    assert.deepEqual(plan.waves[0].stories, [100, 200, 300]);
+  it('rejects a non-numeric value', () => {
+    const { value, error } = parseInFlight('abc');
+    assert.strictEqual(value, null);
+    assert.ok(error);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildReadySetEnvelope (continuous selection through the shared core)
+// ---------------------------------------------------------------------------
+
+describe('buildReadySetEnvelope', () => {
+  it('returns an empty ready set for an empty DAG', () => {
+    const { envelope, exitCode } = buildReadySetEnvelope([], {
+      concurrencyCap: 3,
+    });
+    assert.strictEqual(exitCode, 0);
+    assert.strictEqual(envelope.kind, 'stories-ready-set');
+    assert.deepEqual(envelope.ready, []);
+    assert.strictEqual(envelope.totalStories, 0);
+    assert.strictEqual(envelope.concurrencyCap, 3);
+    assert.strictEqual(envelope.inFlight, 0);
+    assert.strictEqual(envelope.cycleError, null);
   });
 
-  it('detects a cycle and returns cycleError', () => {
-    // 101 → 102 → 103 → 101 (cycle)
-    const adj = new Map([
-      [101, [103]],
-      [102, [101]],
-      [103, [102]],
-    ]);
-    const plan = computeStoriesWavePlan(adj);
-    assert.ok(plan.cycleError, 'expected cycleError to be set');
-    assert.ok(
-      plan.cycleError.includes('Dependency cycle detected'),
-      `unexpected cycleError: ${plan.cycleError}`,
+  it('a single root Story with no deps is ready', () => {
+    const { envelope, exitCode } = buildReadySetEnvelope(
+      [{ id: 101, dependsOn: [] }],
+      { concurrencyCap: 3 },
     );
-    assert.deepEqual(plan.waves, []);
+    assert.strictEqual(exitCode, 0);
+    assert.deepEqual(envelope.ready, [101]);
+    assert.strictEqual(envelope.totalStories, 1);
   });
 
-  it('totalStories matches adjacency size', () => {
-    const adj = new Map([
-      [1, []],
-      [2, [1]],
-      [3, [2]],
-    ]);
-    const plan = computeStoriesWavePlan(adj);
-    assert.strictEqual(plan.totalStories, 3);
+  it('only roots are ready on the first beat; dependents are withheld', () => {
+    // 101 → 102 → 103: on beat 0 (nothing done) only 101 is dispatchable.
+    const nodes = [
+      { id: 101, dependsOn: [] },
+      { id: 102, dependsOn: [101] },
+      { id: 103, dependsOn: [102] },
+    ];
+    const { envelope } = buildReadySetEnvelope(nodes, { concurrencyCap: 3 });
+    assert.deepEqual(envelope.ready, [101]);
+    assert.strictEqual(envelope.totalStories, 3);
+  });
+
+  it('a Story is dispatched the instant its OWN deps are done (no wave barrier)', () => {
+    // 101 → 103; 102 is an unrelated still-pending root. With 101 done, 103
+    // is eligible even though 102 has not been dispatched yet — the
+    // continuous, no-false-barrier property the wave-batch lacked: under a
+    // batch model 103 would sit in a later wave gated behind 102's wave
+    // fully draining. Here both unblocked Stories surface on the same beat.
+    const nodes = [
+      { id: 101, dependsOn: [] },
+      { id: 102, dependsOn: [] },
+      { id: 103, dependsOn: [101] },
+    ];
+    const { envelope } = buildReadySetEnvelope(nodes, {
+      concurrencyCap: 3,
+      doneIds: new Set([101]),
+      inFlight: 0,
+    });
+    assert.deepEqual(envelope.ready, [102, 103]);
+  });
+
+  it('a done Story is never re-dispatched and satisfies its dependents', () => {
+    const nodes = [
+      { id: 101, dependsOn: [] },
+      { id: 102, dependsOn: [101] },
+    ];
+    const { envelope } = buildReadySetEnvelope(nodes, {
+      concurrencyCap: 3,
+      doneIds: new Set([101]),
+    });
+    // 101 done → excluded; 102 now eligible.
+    assert.deepEqual(envelope.ready, [102]);
+  });
+
+  it('the dispatch set is capped at globalCap − inFlight', () => {
+    const nodes = [
+      { id: 1, dependsOn: [] },
+      { id: 2, dependsOn: [] },
+      { id: 3, dependsOn: [] },
+      { id: 4, dependsOn: [] },
+    ];
+    const { envelope } = buildReadySetEnvelope(nodes, {
+      concurrencyCap: 3,
+      inFlight: 2,
+    });
+    // 3 − 2 = 1 free slot → exactly one Story (ascending id) selected.
+    assert.deepEqual(envelope.ready, [1]);
+    assert.strictEqual(envelope.inFlight, 2);
+  });
+
+  it('emits an empty ready set when no capacity remains', () => {
+    const nodes = [
+      { id: 1, dependsOn: [] },
+      { id: 2, dependsOn: [] },
+    ];
+    const { envelope } = buildReadySetEnvelope(nodes, {
+      concurrencyCap: 2,
+      inFlight: 2,
+    });
+    assert.deepEqual(envelope.ready, []);
+  });
+
+  it('detects a cycle and short-circuits with exitCode 2', () => {
+    const nodes = [
+      { id: 101, dependsOn: [103] },
+      { id: 102, dependsOn: [101] },
+      { id: 103, dependsOn: [102] },
+    ];
+    const { envelope, exitCode } = buildReadySetEnvelope(nodes, {
+      concurrencyCap: 3,
+    });
+    assert.strictEqual(exitCode, 2);
+    assert.ok(envelope.cycleError);
+    assert.ok(envelope.cycleError.includes('Dependency cycle detected'));
+    assert.deepEqual(envelope.ready, []);
+  });
+
+  it('honors the file-overlap guard the Epic path uses (co-dispatch withhold)', () => {
+    // Two unblocked roots that declare the same file footprint MUST NOT both
+    // dispatch on one beat — selectReadySet withholds one. The DAG-node
+    // builder forwards `files` through unchanged.
+    const nodes = [
+      { id: 1, dependsOn: [], files: ['lib/shared.js'] },
+      { id: 2, dependsOn: [], files: ['lib/shared.js'] },
+    ];
+    const { envelope } = buildReadySetEnvelope(nodes, { concurrencyCap: 3 });
+    assert.deepEqual(envelope.ready, [1]); // 2 withheld this beat
   });
 });
 
@@ -243,28 +333,59 @@ describe('computeStoriesWavePlan', () => {
 // ---------------------------------------------------------------------------
 
 describe('runStoriesWaveTick', () => {
-  it('returns exitCode 0 and valid envelope for a simple DAG', () => {
+  it('returns exitCode 0 and a valid envelope for a simple DAG', () => {
     const dagJson = JSON.stringify([
       { id: 1, dependsOn: [] },
       { id: 2, dependsOn: [1] },
     ]);
-    const { envelope, exitCode } = runStoriesWaveTick({ dagJson });
+    const { envelope, exitCode } = runStoriesWaveTick({ dagJson, config: {} });
     assert.strictEqual(exitCode, 0);
-    assert.strictEqual(envelope.kind, 'stories-wave-plan');
+    assert.strictEqual(envelope.kind, 'stories-ready-set');
     assert.strictEqual(envelope.cycleError, null);
-    assert.strictEqual(envelope.waves.length, 2);
+    // Only the root is ready on the first beat.
+    assert.deepEqual(envelope.ready, [1]);
+  });
+
+  it('threads --done through to the selection', () => {
+    const dagJson = JSON.stringify([
+      { id: 1, dependsOn: [] },
+      { id: 2, dependsOn: [1] },
+    ]);
+    const { envelope, exitCode } = runStoriesWaveTick({
+      dagJson,
+      config: {},
+      done: '1',
+    });
+    assert.strictEqual(exitCode, 0);
+    assert.deepEqual(envelope.ready, [2]);
+  });
+
+  it('threads --in-flight through to the capacity calculation', () => {
+    const dagJson = JSON.stringify([
+      { id: 1, dependsOn: [] },
+      { id: 2, dependsOn: [] },
+    ]);
+    const { envelope, exitCode } = runStoriesWaveTick({
+      dagJson,
+      config: { delivery: { deliverRunner: { concurrencyCap: 2 } } },
+      inFlight: '2',
+    });
+    assert.strictEqual(exitCode, 0);
+    assert.deepEqual(envelope.ready, []);
+    assert.strictEqual(envelope.inFlight, 2);
   });
 
   it('returns exitCode 1 for invalid JSON input', () => {
     const { envelope, exitCode } = runStoriesWaveTick({
       dagJson: 'not-json{{{',
+      config: {},
     });
     assert.strictEqual(exitCode, 1);
     assert.ok(envelope.inputError);
   });
 
   it('returns exitCode 1 when neither dagJson nor dagFile is provided', () => {
-    const { envelope, exitCode } = runStoriesWaveTick({});
+    const { envelope, exitCode } = runStoriesWaveTick({ config: {} });
     assert.strictEqual(exitCode, 1);
     assert.ok(envelope.inputError);
   });
@@ -274,7 +395,7 @@ describe('runStoriesWaveTick', () => {
       { id: 1, dependsOn: [2] },
       { id: 2, dependsOn: [1] },
     ]);
-    const { envelope, exitCode } = runStoriesWaveTick({ dagJson });
+    const { envelope, exitCode } = runStoriesWaveTick({ dagJson, config: {} });
     assert.strictEqual(exitCode, 2);
     assert.ok(envelope.cycleError);
   });
@@ -290,28 +411,32 @@ describe('runStoriesWaveTick', () => {
       ]),
       'utf8',
     );
-    const { envelope, exitCode } = runStoriesWaveTick({ dagFile: dagPath });
+    const { envelope, exitCode } = runStoriesWaveTick({
+      dagFile: dagPath,
+      config: {},
+    });
     assert.strictEqual(exitCode, 0);
-    assert.strictEqual(envelope.waves.length, 2);
+    assert.deepEqual(envelope.ready, [5]);
   });
 
   it('returns exitCode 1 when dagFile does not exist', () => {
     const { envelope, exitCode } = runStoriesWaveTick({
       dagFile: '/nonexistent/path/dag.json',
+      config: {},
     });
     assert.strictEqual(exitCode, 1);
     assert.ok(envelope.inputError);
   });
 
-  it('returns exitCode 1 for validation error in DAG entries', () => {
-    const dagJson = JSON.stringify([{ id: 0, dependsOn: [] }]); // id=0 is invalid
-    const { envelope, exitCode } = runStoriesWaveTick({ dagJson });
+  it('returns exitCode 1 for a validation error in DAG entries', () => {
+    const dagJson = JSON.stringify([{ id: 0, dependsOn: [] }]); // id=0 invalid
+    const { envelope, exitCode } = runStoriesWaveTick({ dagJson, config: {} });
     assert.strictEqual(exitCode, 1);
     assert.ok(envelope.inputError);
   });
 
   // -------------------------------------------------------------------------
-  // concurrencyCap resolution (Story #3961)
+  // concurrencyCap resolution
   // -------------------------------------------------------------------------
 
   it('(a) default config (no override) → concurrencyCap 3 in the envelope', () => {
@@ -366,6 +491,30 @@ describe('runStoriesWaveTick', () => {
     assert.ok(envelope.inputError);
   });
 
+  it('rejects a negative --in-flight with exitCode 1', () => {
+    const dagJson = JSON.stringify([{ id: 1, dependsOn: [] }]);
+    const { envelope, exitCode } = runStoriesWaveTick({
+      dagJson,
+      config: {},
+      inFlight: '-1',
+    });
+    assert.strictEqual(exitCode, 1);
+    assert.ok(envelope.inputError);
+    assert.ok(envelope.inputError.includes('--in-flight'));
+  });
+
+  it('rejects an invalid --done token with exitCode 1', () => {
+    const dagJson = JSON.stringify([{ id: 1, dependsOn: [] }]);
+    const { envelope, exitCode } = runStoriesWaveTick({
+      dagJson,
+      config: {},
+      done: '1,bogus',
+    });
+    assert.strictEqual(exitCode, 1);
+    assert.ok(envelope.inputError);
+    assert.ok(envelope.inputError.includes('--done'));
+  });
+
   it('carries concurrencyCap through a cyclic-DAG envelope (exitCode 2)', () => {
     const dagJson = JSON.stringify([
       { id: 1, dependsOn: [2] },
@@ -379,7 +528,7 @@ describe('runStoriesWaveTick', () => {
 });
 
 // ---------------------------------------------------------------------------
-// resolveConcurrencyCap (Story #3961)
+// resolveConcurrencyCap
 // ---------------------------------------------------------------------------
 
 describe('resolveConcurrencyCap', () => {
@@ -399,7 +548,7 @@ describe('resolveConcurrencyCap', () => {
 });
 
 // ---------------------------------------------------------------------------
-// parseConcurrencyOverride (Story #3961)
+// parseConcurrencyOverride
 // ---------------------------------------------------------------------------
 
 describe('parseConcurrencyOverride', () => {
@@ -459,22 +608,39 @@ describe('CLI', () => {
     assert.ok(result.stdout.includes('stories-wave-tick'));
   });
 
-  it('--dag with valid input exits 0 and emits JSON envelope', () => {
+  it('--dag with valid input exits 0 and emits the ready-set envelope', () => {
     const dag = JSON.stringify([
       { id: 101, dependsOn: [] },
       { id: 102, dependsOn: [101] },
     ]);
     const result = spawnSync(process.execPath, [CLI, '--dag', dag], {
       encoding: 'utf8',
+      cwd: REPO_ROOT,
     });
     assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
     const envelope = JSON.parse(result.stdout);
-    assert.strictEqual(envelope.kind, 'stories-wave-plan');
+    assert.strictEqual(envelope.kind, 'stories-ready-set');
     assert.strictEqual(envelope.cycleError, null);
-    assert.strictEqual(envelope.waves.length, 2);
+    // Only the root dispatches on the first beat.
+    assert.deepEqual(envelope.ready, [101]);
   });
 
-  it('--dag with cyclic DAG exits 2', () => {
+  it('--dag with --done advances the ready set', () => {
+    const dag = JSON.stringify([
+      { id: 101, dependsOn: [] },
+      { id: 102, dependsOn: [101] },
+    ]);
+    const result = spawnSync(
+      process.execPath,
+      [CLI, '--dag', dag, '--done', '101'],
+      { encoding: 'utf8', cwd: REPO_ROOT },
+    );
+    assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+    const envelope = JSON.parse(result.stdout);
+    assert.deepEqual(envelope.ready, [102]);
+  });
+
+  it('--dag with a cyclic DAG exits 2', () => {
     const dag = JSON.stringify([
       { id: 1, dependsOn: [2] },
       { id: 2, dependsOn: [1] },
@@ -498,11 +664,11 @@ describe('CLI', () => {
     writeFileSync(dagPath, JSON.stringify([{ id: 50, dependsOn: [] }]), 'utf8');
     const result = spawnSync(process.execPath, [CLI, '--dag-file', dagPath], {
       encoding: 'utf8',
+      cwd: REPO_ROOT,
     });
     assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
     const envelope = JSON.parse(result.stdout);
-    assert.strictEqual(envelope.waves.length, 1);
-    assert.deepEqual(envelope.waves[0].stories, [50]);
+    assert.deepEqual(envelope.ready, [50]);
   });
 
   it('--dag emits a numeric concurrencyCap in the envelope', () => {
@@ -539,5 +705,33 @@ describe('CLI', () => {
     assert.strictEqual(result.status, 1, `stderr: ${result.stderr}`);
     const envelope = JSON.parse(result.stdout);
     assert.ok(envelope.inputError);
+  });
+
+  it('--dag forwards a declared file footprint so the overlap guard fires end-to-end', () => {
+    // Two unblocked roots touching the same file: parseDag must preserve the
+    // footprint and the core must withhold one on this beat.
+    const dag = JSON.stringify([
+      { id: 1, dependsOn: [], files: ['lib/shared.js'] },
+      { id: 2, dependsOn: [], files: ['lib/shared.js'] },
+    ]);
+    const result = spawnSync(process.execPath, [CLI, '--dag', dag], {
+      encoding: 'utf8',
+      cwd: REPO_ROOT,
+    });
+    assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+    const envelope = JSON.parse(result.stdout);
+    assert.deepEqual(envelope.ready, [1]);
+  });
+
+  it('--dag rejects a malformed files footprint with exit 1', () => {
+    const dag = JSON.stringify([{ id: 1, dependsOn: [], files: [42] }]);
+    const result = spawnSync(process.execPath, [CLI, '--dag', dag], {
+      encoding: 'utf8',
+      cwd: REPO_ROOT,
+    });
+    assert.strictEqual(result.status, 1, `stderr: ${result.stderr}`);
+    const envelope = JSON.parse(result.stdout);
+    assert.ok(envelope.inputError);
+    assert.ok(envelope.inputError.includes('files'));
   });
 });

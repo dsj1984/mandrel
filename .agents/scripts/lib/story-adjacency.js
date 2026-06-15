@@ -1,18 +1,21 @@
 /**
  * lib/story-adjacency.js — the single story-level adjacency builder.
  *
- * All three wave-computation wrappers bottom out in the shared
- * `lib/Graph.js` kernel (`detectCycle` / `assignLayers` /
- * `computeWaves`), but each historically re-implemented the step that
- * turns a list of Story records into the `Map<storyId, number[]>`
- * adjacency the kernel consumes. This module is now the one home for
- * that step; the consumers are:
+ * Both Epic-path wave-computation wrappers bottom out in the shared
+ * `lib/Graph.js` kernel (`detectCycle` / `assignLayers` / `computeWaves`),
+ * but each historically re-implemented the step that turns a list of Story
+ * records into the `Map<storyId, number[]>` adjacency the kernel consumes.
+ * This module is now the one home for that step; the consumers are:
  *
  *   - `lib/orchestration/epic-runner/phases/build-wave-dag.js`
  *     (`buildStoryDag` → `computeWaves`)
  *   - `lib/orchestration/dispatch-pipeline.js`
  *     (`buildStoryDispatchGraph` → `computeStoryWaves`)
- *   - `stories-wave-tick.js` (`buildAdjacency` → `assignLayers`)
+ *   - `lib/wave-runner/ready-set.js` (`selectReadySet`, the path-agnostic
+ *     continuous scheduler the standalone `stories-wave-tick.js` adapter
+ *     and the Epic path both dispatch through)
+ *   - `stories-wave-tick.js` (for cycle detection, before delegating
+ *     selection to `selectReadySet`)
  *
  * Dependency source order (must stay aligned with manifest-builder.js so
  * the dispatch manifest and runtime wave scheduling never disagree):
@@ -45,9 +48,10 @@ import { parseBlockedBy } from './dependency-parser.js';
  * @param {boolean} [opts.dropForeign=true] When true (the default,
  *   matching the Epic-scoped wrappers), edges pointing at ids outside
  *   the supplied story set are dropped so the DAG stays closed over the
- *   scheduled set. `stories-wave-tick.js` passes `false` to preserve its
- *   historical operator-DAG contract, where a dependency on an id absent
- *   from the input still deepens the dependent's layer.
+ *   scheduled set. The standalone path (`stories-wave-tick.js` and the
+ *   `selectReadySet` core) passes `false` to preserve the operator-DAG
+ *   contract, where a dependency on an id absent from the input is treated
+ *   as not-yet-done and withholds the dependent until it completes.
  * @returns {Map<number, number[]>}
  */
 export function buildStoryAdjacency(stories, { dropForeign = true } = {}) {

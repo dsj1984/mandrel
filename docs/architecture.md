@@ -747,7 +747,7 @@ Epic-attached trio (`story-init.js` / `wave-tick.js` / `story-close.js`):
 | Script                         | Responsibility                                                                                                   |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
 | `single-story-init.js`         | Validates the standalone Story, branches directly from `main` (no `epic/<id>` seed, no dispatch-manifest gate).   |
-| `stories-wave-tick.js`         | DAG/wave engine for the standalone fan-out; resolves the `concurrencyCap` (default 3) on the `stories-wave-plan` envelope. |
+| `stories-wave-tick.js`         | Continuous ready-set planner for the standalone fan-out — a thin adapter over the shared `selectReadySet` core; emits the per-beat dispatch set on the `stories-ready-set` envelope and resolves the global `concurrencyCap` (default 3). |
 | `story-phase.js`               | Phase snapshot + heartbeat writer at each Story-level transition (init → implementing → closing → done / blocked). |
 | `single-story-close.js`        | Runs the canonical close-validation gate chain against the base branch, opens the PR straight to `main` with auto-merge armed, and rests the Story at `agent::closing`. |
 | `single-story-confirm-merge.js` | Post-merge confirmation: once `gh pr checks --watch` exits green and the PR merges, flips `agent::closing → agent::done` and closes the issue. |
