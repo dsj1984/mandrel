@@ -282,6 +282,17 @@ const PLANNING_SCHEMA = {
     // decompose loop's re-prompt gate.
     failOnSharedEditors: { type: 'boolean' },
     requireExplicitCrossStoryDeps: { type: 'boolean' },
+    // Cross-cutting registry conflict knobs consumed by
+    // `ticket-validator-conflicts.js` (wired through
+    // `epic-plan-decompose/phases/planning-artifacts.js`).
+    // `crossCuttingRegistries` names the registry paths whose concurrent
+    // edits are flagged; `failOnRegistryConflicts` upgrades that finding to
+    // `'hard'`. `failOnLargeFanOut` / `largeFanOutThreshold` gate the
+    // single-Story fan-out finding.
+    crossCuttingRegistries: LIST_OR_EXTENDER_OF_STRINGS,
+    failOnRegistryConflicts: { type: 'boolean' },
+    failOnLargeFanOut: { type: 'boolean' },
+    largeFanOutThreshold: { type: 'integer', minimum: 0 },
     // Navigability-reachability config consumed by the epic-plan-healthcheck
     // --paranoid reachability check (Epic #4131, F7). Opt-in: absent or empty
     // routeGlobs degrades to a silent no-op.

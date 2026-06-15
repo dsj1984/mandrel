@@ -601,6 +601,256 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Structural property-coverage parity test (Story #4146).
+//
+// The `assertAgree` cases above only catch drift on the *specific* inputs they
+// happen to feed both validators. They are blind to the failure shape that
+// matters most: a property documented in the published mirror
+// (`agentrc.schema.json`) that the runtime AJV validator rejects on load —
+// the Epic #4131 bug, where `planning.navigation` / `delivery.quality
+// .navigability` shipped into the mirror + docs but not the runtime schema, so
+// a consumer who set the documented key had their entire `.agentrc.json`
+// rejected (dead-on-arrival; fixed in PR #4142). No `assertAgree` case
+// exercised those keys, so the guard never tripped.
+//
+// This block closes that gap structurally. It walks BOTH schemas, deref'ing
+// local `$ref` pointers, and collects — for every `additionalProperties:false`
+// object block — the set of declared property keys, keyed by a structural path
+// that is identical across the inline (runtime) and `$ref` (mirror)
+// representations. It then asserts BIDIRECTIONAL parity: every closed block one
+// schema declares, the other must declare with the SAME key set. A property
+// present in the mirror but absent from the runtime validator (the #4131 shape)
+// — or the reverse — fails loudly here, independent of any sampled input.
+//
+// The two reproduce-the-bug cases mutate a deep copy of each real schema and
+// assert the comparator catches the injected divergence in each direction, so
+// the guard is proven load-bearing, not merely green on consistent input.
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve a local (`#/...`) `$ref` against the document root, following chained
+ * refs and guarding against cycles. Non-local refs and non-ref nodes pass
+ * through unchanged. Pure: returns a node from `root`, never mutates.
+ */
+function derefLocal(node, root, seenRefs) {
+  if (node && typeof node === 'object' && typeof node.$ref === 'string') {
+    const ref = node.$ref;
+    if (!ref.startsWith('#/')) return node;
+    if (seenRefs.has(ref)) return node;
+    const segments = ref.slice(2).split('/');
+    let target = root;
+    for (const seg of segments) {
+      const key = seg.replace(/~1/g, '/').replace(/~0/g, '~');
+      target = target?.[key];
+    }
+    if (!target) return node;
+    return derefLocal(target, root, new Set([...seenRefs, ref]));
+  }
+  return node;
+}
+
+/**
+ * Walk a JSON-Schema document and return a `Map<structuralPath, string[]>`
+ * holding the sorted property-key set of every `additionalProperties:false`
+ * object subschema. The path keys are built from `properties` names and
+ * positional combinator/`items`/`additionalProperties` suffixes, so the inline
+ * runtime schema and the `$ref`-based mirror produce identical keys for the
+ * same logical block.
+ */
+function collectClosedBlocks(schema, root) {
+  const out = new Map();
+  const visit = (rawNode, pathKey, seenRefs) => {
+    const node = derefLocal(rawNode, root, seenRefs);
+    if (!node || typeof node !== 'object') return;
+    const isObjectSchema =
+      node.type === 'object' ||
+      (node.properties && typeof node.properties === 'object');
+    if (isObjectSchema && node.additionalProperties === false) {
+      out.set(
+        pathKey,
+        node.properties ? Object.keys(node.properties).sort() : [],
+      );
+    }
+    if (node.properties && typeof node.properties === 'object') {
+      for (const [key, sub] of Object.entries(node.properties)) {
+        visit(sub, `${pathKey}.${key}`, seenRefs);
+      }
+    }
+    if (
+      node.additionalProperties &&
+      typeof node.additionalProperties === 'object'
+    ) {
+      visit(
+        node.additionalProperties,
+        `${pathKey}.<additionalProperties>`,
+        seenRefs,
+      );
+    }
+    if (node.items && typeof node.items === 'object') {
+      visit(node.items, `${pathKey}[items]`, seenRefs);
+    }
+    for (const combinator of ['oneOf', 'anyOf', 'allOf']) {
+      if (Array.isArray(node[combinator])) {
+        node[combinator].forEach((sub, i) => {
+          visit(sub, `${pathKey}.${combinator}[${i}]`, seenRefs);
+        });
+      }
+    }
+    if (node.not && typeof node.not === 'object') {
+      visit(node.not, `${pathKey}.not`, seenRefs);
+    }
+  };
+  visit(schema, '$', new Set());
+  return out;
+}
+
+/**
+ * Diff two closed-block maps and return the structural divergences as three
+ * flat string arrays. An empty result on every axis means the two schemas
+ * agree on every property path. The runtime schema is the authoritative
+ * SOURCE (see the directionality note at the top of this file); the mirror
+ * must match it.
+ */
+function diffClosedBlocks(runtimeBlocks, mirrorBlocks) {
+  const runtimeKeys = new Set(runtimeBlocks.keys());
+  const mirrorKeys = new Set(mirrorBlocks.keys());
+  const onlyRuntime = [...runtimeKeys].filter((k) => !mirrorKeys.has(k)).sort();
+  const onlyMirror = [...mirrorKeys].filter((k) => !runtimeKeys.has(k)).sort();
+  const propMismatches = [];
+  for (const key of [...runtimeKeys].filter((k) => mirrorKeys.has(k)).sort()) {
+    const runtimeProps = runtimeBlocks.get(key).join(', ');
+    const mirrorProps = mirrorBlocks.get(key).join(', ');
+    if (runtimeProps !== mirrorProps) {
+      propMismatches.push(
+        `${key}: runtime={${runtimeProps}} mirror={${mirrorProps}}`,
+      );
+    }
+  }
+  return { onlyRuntime, onlyMirror, propMismatches };
+}
+
+describe('agentrc.schema.json mirror — structural property-coverage parity (Story #4146)', () => {
+  const runtimeBlocks = collectClosedBlocks(AGENTRC_SCHEMA, AGENTRC_SCHEMA);
+  const mirrorBlocks = collectClosedBlocks(mirror, mirror);
+
+  it('the walker discovers a non-trivial set of closed blocks on both sides', () => {
+    // Guards against a silently-empty walk (e.g. a deref regression) making
+    // every parity assertion below vacuously pass.
+    assert.ok(
+      runtimeBlocks.size >= 50,
+      `expected the runtime schema to expose many additionalProperties:false blocks, got ${runtimeBlocks.size}`,
+    );
+    assert.ok(
+      mirrorBlocks.size >= 50,
+      `expected the mirror to expose many additionalProperties:false blocks, got ${mirrorBlocks.size}`,
+    );
+  });
+
+  it('no property path is accepted by the mirror but rejected by the runtime AJV schema (the Epic #4131 shape)', () => {
+    const { onlyMirror } = diffClosedBlocks(runtimeBlocks, mirrorBlocks);
+    assert.deepEqual(
+      onlyMirror,
+      [],
+      'Static JSON Schema mirror declares closed blocks the runtime AJV schema does not — ' +
+        'a consumer who sets these documented keys would have their .agentrc.json rejected on load ' +
+        '(Epic #4131 dead-on-arrival shape). Add the missing properties to the runtime schema in ' +
+        'config-settings-schema*.js. Divergent paths:\n  ' +
+        onlyMirror.join('\n  '),
+    );
+  });
+
+  it('no property path is accepted by the runtime AJV schema but omitted from the mirror', () => {
+    const { onlyRuntime } = diffClosedBlocks(runtimeBlocks, mirrorBlocks);
+    assert.deepEqual(
+      onlyRuntime,
+      [],
+      'Runtime AJV schema declares closed blocks the static mirror omits — the published ' +
+        'agentrc.schema.json no longer documents a key the runtime accepts. Add the missing ' +
+        'properties to .agents/schemas/agentrc.schema.json. Divergent paths:\n  ' +
+        onlyRuntime.join('\n  '),
+    );
+  });
+
+  it('every shared closed block enumerates the same property keys on both sides', () => {
+    const { propMismatches } = diffClosedBlocks(runtimeBlocks, mirrorBlocks);
+    assert.deepEqual(
+      propMismatches,
+      [],
+      'A closed object block declares a different property-key set in the runtime schema vs the ' +
+        'mirror. Reconcile the two so they enumerate identical keys. Mismatches:\n  ' +
+        propMismatches.join('\n  '),
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // Reproduce-the-bug fixtures (Story #4146 acceptance criteria 1 & 2).
+  //
+  // The current schemas agree, so the parity assertions above pass. These two
+  // cases prove the comparator actually FAILS on injected divergence — without
+  // them, the guard could pass purely because the schemas happen to be aligned
+  // today, never because it can detect drift. We deep-clone the real schemas,
+  // inject one divergence in each direction, and assert the diff reports it.
+  // -------------------------------------------------------------------------
+
+  const clone = (value) => JSON.parse(JSON.stringify(value));
+
+  it('FAILS when a property is present in the mirror but absent from the runtime (Epic #4131 reproduction)', () => {
+    // Arrange: a mirror that documents planning.navigation.depthLimit, a key
+    // the runtime validator does not accept (the #4131 dead-on-arrival shape).
+    const driftedMirror = clone(mirror);
+    driftedMirror.$defs.planning.properties.navigation.properties.depthLimit = {
+      type: 'integer',
+    };
+
+    // Act
+    const driftedMirrorBlocks = collectClosedBlocks(
+      driftedMirror,
+      driftedMirror,
+    );
+    const { onlyMirror, propMismatches } = diffClosedBlocks(
+      runtimeBlocks,
+      driftedMirrorBlocks,
+    );
+
+    // Assert: the comparator surfaces the planning.navigation block as a
+    // property-key mismatch (mirror has depthLimit, runtime does not).
+    assert.ok(
+      propMismatches.some((m) => m.includes('navigation')) ||
+        onlyMirror.length > 0,
+      `expected the comparator to flag the injected mirror-only key, but it reported clean. ` +
+        `onlyMirror=${JSON.stringify(onlyMirror)} propMismatches=${JSON.stringify(propMismatches)}`,
+    );
+  });
+
+  it('FAILS for the reverse divergence — the runtime accepts a key the mirror omits', () => {
+    // Arrange: a runtime schema that accepts delivery.execution.retryLimit, a
+    // key the published mirror does not document.
+    const driftedRuntime = clone(AGENTRC_SCHEMA);
+    driftedRuntime.properties.delivery.properties.execution.properties.retryLimit =
+      { type: 'integer' };
+
+    // Act
+    const driftedRuntimeBlocks = collectClosedBlocks(
+      driftedRuntime,
+      driftedRuntime,
+    );
+    const { onlyRuntime, propMismatches } = diffClosedBlocks(
+      driftedRuntimeBlocks,
+      mirrorBlocks,
+    );
+
+    // Assert: the comparator surfaces the delivery.execution block as a
+    // property-key mismatch (runtime has retryLimit, mirror does not).
+    assert.ok(
+      propMismatches.some((m) => m.includes('execution')) ||
+        onlyRuntime.length > 0,
+      `expected the comparator to flag the injected runtime-only key, but it reported clean. ` +
+        `onlyRuntime=${JSON.stringify(onlyRuntime)} propMismatches=${JSON.stringify(propMismatches)}`,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Baseline schema registry drift test (Story #1888).
 //
 // The shared registry in config-schema-shared.js lists every baseline schema
