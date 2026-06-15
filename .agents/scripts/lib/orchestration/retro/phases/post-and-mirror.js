@@ -18,6 +18,7 @@ import { upsertStructuredComment } from '../../ticketing.js';
 import { appendChecksSection, collectRetroFindings } from './checks.js';
 import {
   composeRetroBody as defaultComposeRetroBody,
+  deriveDefectClasses,
   normalizeInterventionCount,
 } from './compose-body.js';
 import { gatherRetroSignals as defaultGatherRetroSignals } from './gather-signals.js';
@@ -74,6 +75,15 @@ export async function composeAndPostRetro({
     perfThresholds,
   });
 
+  // Story #4135 (Epic #4131, F11) — derive the recurring-defect-class signal
+  // from the same routed proposals the body composer consumed. The signal is
+  // surfaced on the runRetro envelope (`defectClasses`) so callers/tests can
+  // observe the recurring classes the routed-proposal `gh issue create`
+  // commands stamp with `friction::<class>` labels — the join key the
+  // `/plan` Phase 0 fetcher reads back. No-op-safe: a clean sprint (no
+  // routed proposals) yields `[]`.
+  const defectClasses = deriveDefectClasses(signals.routedProposals);
+
   const findings = await collectRetroFindings({
     runChecksFn,
     assembleStateFn,
@@ -128,6 +138,7 @@ export async function composeAndPostRetro({
     scorecard,
     body: bodyWithChecks,
     findings,
+    defectClasses,
     commentId: result?.commentId,
   };
 }
