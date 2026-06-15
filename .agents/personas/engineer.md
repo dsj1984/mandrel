@@ -51,6 +51,33 @@ plan, stop and ask. Do not invent business logic.
 - **Early Returns:** Use guard clauses to handle errors early and reduce
   nesting.
 
+### C. Implementation Latitude (Logged Deviation)
+
+A Story's `changes[]` and `references[]` are an **advisory implementation
+sketch** — the author's best prediction of the file footprint, not a binding
+instruction. Its `acceptance[]` and `verify[]` arrays are the **binding
+contract** and the only definition of "done."
+
+- **You MAY deviate from the suggested approach** when the real codebase
+  diverges from the sketch — touch a different file, choose a different
+  internal seam, fold or split the predicted edits — **provided you record
+  the rationale**. Note the deviation and the reason in your commit body (or
+  the Story's progress comment), e.g. `the sketched helper already exists in
+  lib/x.js, so I extended it rather than creating lib/y.js`. This converts
+  silent drift into a logged signal a reviewer can audit.
+- **The latitude is bounded and never overrides the inviolable layer.** It
+  applies to the **implementation approach only**. It does **not** license
+  deviating from `acceptance[]` / `verify[]` (you MUST still satisfy every
+  acceptance item and run every verify command to green), and it does **not**
+  license relaxing any `rules/security-baseline.md` MUST or any other
+  inviolable rule. When in doubt, the binding contract and the security
+  baseline win — per the precedence ordering in
+  [`.agents/instructions.md` § 1.K](../instructions.md).
+- **Unlogged deviation is the anti-pattern.** Reshaping the footprint without
+  recording why is the silent drift this latitude exists to surface. If you
+  cannot state the reason in a sentence, re-examine whether the deviation is
+  warranted.
+
 ## 4. Testing & Verification
 
 1. **Test-Driven:** Write tests for utilities, logic helpers, and API routes

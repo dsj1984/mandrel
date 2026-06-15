@@ -27,6 +27,8 @@ allowed_tools:
 - Acceptance MUST NOT prescribe a commit subject starting with a non-Conventional-Commits prefix; the literal `baseline-refresh:` leading token is forbidden (use a body trailer instead — see Epic #2501).
 - A legitimately broad Story (files > `hardFiles`) MUST declare `wide` with a one-line reason (encoded in the serialized body string via the `<!-- meta -->` comment) to lift the `hardFiles` rejection; lead the sizing decision with cohesion, not count. UI-touching Stories MUST end `changes` with a `data-testid invariance:` or `data-testid changes: <old> -> <new>` declaration.
 - A Story's `depends_on` references only **sibling Stories within the same Epic**. Apply the cross-cutting-config-file rule (sequential `depends_on` or a late-wave wiring Story) whenever multiple Stories edit a shared root config file.
+- **Authoring-contract altitude (Epic #4131 F8).** `acceptance[]` and `verify[]` are the Story's **binding contract** — the executor MUST satisfy them exactly, and they are the only definition of "done." `changes[]` and `references[]` are an **advisory implementation sketch**: a best-effort prediction of which files the work touches that the executor MAY revise when the codebase tells a different story. Author `acceptance[]`/`verify[]` so they capture the outcome independently of any particular file layout — never bake an incidental implementation detail into them that the advisory sketch is free to change. This does **not** weaken the file-assumption gate: `changes[]` paths are still validated structurally against the base branch (a `creates` against an existing path still fails), the New-File Contract still holds, and the executor's revised approach stays bounded by the inviolable `acceptance[]`/`verify[]` contract and `rules/security-baseline.md`.
+- **Navigate-don't-deep-link acceptance standard (Epic #4131 F5).** For any Story whose acceptance describes a **signed-in** (authenticated) scenario reaching a feature surface, author the acceptance so the persona starts from their authenticated home and **reaches the feature through navigation** (clicking a nav door, menu item, or link the UI exposes) — never by asserting against a hardcoded deep-link URL. A scenario that drops the user straight onto `/some/feature/path` proves the page renders but not that the feature is reachable, masking orphaned surfaces with no nav owner. Phrase signed-in acceptance as "from the signed-in home, the persona navigates to … and sees …", not "loading `/feature/path` shows the feature."
 
 ## Role
 
@@ -252,6 +254,21 @@ Declaring `wide` with a non-empty reason **lifts the `hardFiles` rejection** —
 #### BRAND / COPY / STYLE WORK:
 
 - Stories that touch user-visible copy, brand assets, or visual style MUST cite the relevant section of `docs/style-guide.md` in `acceptance` (e.g. `"acceptance": ["Hero copy matches docs/style-guide.md §3 (voice & tone)"]`). If `docs/style-guide.md` does not exist or has no relevant section, state that explicitly: `"acceptance": ["docs/style-guide.md absent — copy reviewed against the inline brand brief in PRD §2"]`. Silence on style sourcing is a smell.
+
+#### BINDING ACCEPTANCE vs ADVISORY CHANGES (authoring altitude):
+
+`acceptance[]` and `verify[]` are the **binding contract** the executor MUST satisfy — they are the sole definition of "done." `changes[]` and `references[]` are an **advisory implementation sketch**: your best prediction of the file footprint, which the executor is permitted to revise when the real codebase diverges from the sketch. Author at that altitude:
+
+- Write `acceptance[]`/`verify[]` to capture the **outcome**, independent of any one file layout. Do NOT pin an incidental implementation detail (an internal helper name, a private file path) into an acceptance item that the advisory `changes[]` is free to reshape — assert the observable behaviour instead.
+- Keep `changes[]`/`references[]` as the honest predicted footprint. They still pass through the structural file-assumption gate (the `creates`/`refactors-existing`/`deletes` probes against the base branch) and the New-File Contract unchanged — advisory does NOT mean unvalidated. The executor's latitude to revise the approach never licenses skipping `acceptance[]`/`verify[]` or any `rules/security-baseline.md` MUST.
+
+#### NAVIGATE-DON'T-DEEP-LINK (signed-in acceptance scenarios):
+
+When a Story's acceptance describes a **signed-in / authenticated** persona reaching a feature surface, author it so the persona starts from their authenticated home and **reaches the feature through navigation** — clicking a nav door, menu entry, or link the UI actually exposes — **never** via a hardcoded deep-link URL.
+
+- A deep-link scenario (`load /reports/export and assert the export button`) proves the page renders but NOT that it is reachable; it masks an orphaned surface that no navigation door points to.
+- Phrase it as: `"From the signed-in home, the persona navigates to Reports → Export and sees the export button"` — not `"GET /reports/export returns the export view"`.
+- This applies to signed-in journeys only; an unauthenticated landing page or a deliberately deep-linkable share URL is exempt — say so in the acceptance item when you take that exemption.
 
 ### WAVE-0 BDD SCAFFOLD STORY (features-first; emit when the Acceptance Spec has `new`-disposition rows):
 
