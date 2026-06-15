@@ -12,7 +12,10 @@
  * Modes (additive — the fast checks below always run):
  *   (default)         — config validation + git remote check only.
  *                       Targets <2s.
- *   --paranoid        — adds ticket-hierarchy revalidation.
+ *   --paranoid        — adds ticket-hierarchy revalidation plus a
+ *                       navigability-reachability semantic check (silent
+ *                       no-op unless `planning.navigation.routeGlobs` is
+ *                       configured).
  *   --prime-install   — adds the pnpm content-addressable-store priming
  *                       path (up to 300s).
  *
@@ -214,6 +217,174 @@ async function checkTickets(provider, epicId) {
   };
 }
 
+/**
+ * Resolve the navigation config that drives the reachability check.
+ *
+ * The check is opt-in: a consumer that has not configured
+ * `planning.navigation.routeGlobs` gets a silent no-op (F7 / AC-13). The
+ * nav-registry token list is what a route-adding Story is expected to
+ * reference somewhere in its body or `## Acceptance` section.
+ *
+ * @param {object} config Resolved `.agentrc.json`.
+ * @returns {{ routeGlobs: string[], navRegistry: string[] }}
+ */
+function resolveNavConfig(config) {
+  const nav = config?.planning?.navigation ?? {};
+  const toList = (v) =>
+    (Array.isArray(v) ? v : v == null ? [] : [v])
+      .filter((s) => typeof s === 'string' && s.trim().length > 0)
+      .map((s) => s.trim());
+  return {
+    routeGlobs: toList(nav.routeGlobs),
+    navRegistry: toList(nav.navRegistry),
+  };
+}
+
+/**
+ * Translate a route glob (`pages/**`, `app/**\/route.ts`) into a RegExp that
+ * matches a path string. Supports `**` (any depth, including `/`), `*` (any
+ * run of non-separator chars), and `?` (single non-separator char). All other
+ * characters are matched literally.
+ *
+ * @param {string} glob
+ * @returns {RegExp}
+ */
+function globToRegExp(glob) {
+  let re = '';
+  for (let i = 0; i < glob.length; i++) {
+    const ch = glob[i];
+    if (ch === '*') {
+      if (glob[i + 1] === '*') {
+        re += '.*';
+        i++;
+      } else {
+        re += '[^/]*';
+      }
+    } else if (ch === '?') {
+      re += '[^/]';
+    } else {
+      re += ch.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+    }
+  }
+  return new RegExp(`^${re}$`);
+}
+
+/**
+ * Extract the candidate route-touching paths a Story declares. Reads the
+ * `## Changes` block (the decompose-author emits one `{"path":...}` JSON
+ * object per bullet) and falls back to any bare ```` `path/like/this` ````
+ * inline-code spans in the body.
+ *
+ * @param {string} body
+ * @returns {string[]}
+ */
+function extractStoryPaths(body) {
+  if (typeof body !== 'string' || body.length === 0) return [];
+  const paths = new Set();
+  // `{"path":"pages/foo.tsx", ...}` change descriptors.
+  for (const m of body.matchAll(/"path"\s*:\s*"([^"]+)"/g)) {
+    paths.add(m[1]);
+  }
+  // Inline-code spans that look like a path (contain a slash or a dotted ext).
+  for (const m of body.matchAll(/`([^`]+)`/g)) {
+    const token = m[1].trim();
+    if (/[/.]/.test(token) && !token.includes(' ')) paths.add(token);
+  }
+  return [...paths];
+}
+
+/**
+ * Return the `## Acceptance` + full-body text a Story is expected to reference
+ * the nav registry from. The whole body is searched (the registry can be cited
+ * in the Goal, Changes, or Acceptance), so this just lower-cases the body once.
+ *
+ * @param {string} body
+ * @returns {string}
+ */
+function referenceableText(body) {
+  return typeof body === 'string' ? body.toLowerCase() : '';
+}
+
+/**
+ * Navigability-reachability semantic check (F7 / AC-8).
+ *
+ * Flags every Story that adds a route (touches a path matching a configured
+ * `planning.navigation.routeGlobs` entry) but whose body / acceptance never
+ * references the configured nav registry. Silent no-op (returns ok with an
+ * explicit detail) when no route-glob config is present.
+ *
+ * @param {object} provider
+ * @param {number|null} epicId
+ * @param {object} config
+ */
+async function checkReachability(provider, epicId, config) {
+  const { routeGlobs, navRegistry } = resolveNavConfig(config);
+
+  // Opt-in: unconfigured consumers degrade to a silent no-op.
+  if (routeGlobs.length === 0) {
+    return {
+      ok: true,
+      detail: 'No planning.navigation.routeGlobs configured — skipped.',
+    };
+  }
+
+  if (!epicId) {
+    return {
+      ok: false,
+      detail:
+        'reachability check requires --epic <ID> to fetch the ticket hierarchy.',
+    };
+  }
+
+  let tickets;
+  try {
+    tickets = await provider.getSubTickets(epicId);
+  } catch (err) {
+    return {
+      ok: false,
+      detail: `Could not fetch Epic #${epicId} tickets: ${err.message}`,
+    };
+  }
+
+  const stories = tickets.filter((t) => t.labels.includes(TYPE_LABELS.STORY));
+  const matchers = routeGlobs.map(globToRegExp);
+  const registryTokens = navRegistry.map((t) => t.toLowerCase());
+
+  const flagged = [];
+  for (const story of stories) {
+    const body = story.body ?? '';
+    const addsRoute = extractStoryPaths(body).some((p) =>
+      matchers.some((rx) => rx.test(p)),
+    );
+    if (!addsRoute) continue;
+
+    const text = referenceableText(body);
+    // When no explicit registry token is configured, fall back to the
+    // generic "nav registry" phrase so a route-adding Story is still
+    // expected to mention the navigation surface.
+    const tokens =
+      registryTokens.length > 0
+        ? registryTokens
+        : ['nav registry', 'navigation'];
+    const referencesRegistry = tokens.some((tok) => text.includes(tok));
+    if (!referencesRegistry) flagged.push(`#${story.id}`);
+  }
+
+  if (flagged.length > 0) {
+    const registryHint =
+      navRegistry.length > 0 ? navRegistry.join(', ') : 'the nav registry';
+    return {
+      ok: false,
+      detail: `${flagged.length} route-adding story/stories never reference ${registryHint}: ${flagged.join(', ')}`,
+    };
+  }
+
+  return {
+    ok: true,
+    detail: `${stories.length} stories scanned — every route-adding story references the nav registry.`,
+  };
+}
+
 /** Prime the pnpm content-addressable store via `pnpm install --frozen-lockfile`. */
 function primePnpmStore(cwd, dryRun) {
   const lockFile = path.join(cwd, 'pnpm-lock.yaml');
@@ -274,6 +445,9 @@ async function timed(name, fn) {
  * @returns {Promise<{ok: boolean, degraded: boolean, reason: string|null,
  *   checks: Array<{name: string, ok: boolean, durationMs: number, detail: string}>}>}
  */
+// exported for tests — direct-unit coverage of the reachability semantics.
+export { checkReachability, extractStoryPaths, globToRegExp };
+
 // exported for tests — Story-level reuse runner reserved for future test coverage
 export async function runPlanHealthcheck(opts = {}) {
   const ARG_KEYS = ['epicId', 'paranoid', 'primeInstall', 'dryRun'];
@@ -309,12 +483,19 @@ export async function runPlanHealthcheck(opts = {}) {
     await timed('git-remote', async () => checkGitRemote(baseBranch, cwd)),
   );
 
-  // Paranoid lane: ticket-hierarchy revalidation (2-tier only).
+  // Paranoid lane: ticket-hierarchy revalidation (2-tier only) plus the
+  // navigability-reachability semantic check (silent no-op when unconfigured).
   if (paranoid) {
     const provider = opts.injectedProvider || createProvider(config);
     progress('CHECK', 'Validating ticket hierarchy...');
     checks.push(
       await timed('ticket-hierarchy', () => checkTickets(provider, epicId)),
+    );
+    progress('CHECK', 'Checking route-reachability (nav registry)...');
+    checks.push(
+      await timed('reachability', () =>
+        checkReachability(provider, epicId, config),
+      ),
     );
   }
 
