@@ -416,6 +416,94 @@ function shellEscape(s) {
 }
 
 /**
+ * Render the body lines (everything below a section heading and its trailing
+ * blank) for a "proposed issues" bucket — the consumer and framework sections
+ * share this shape. Empty buckets collapse to a single `_None._`; populated
+ * buckets emit one fenced `gh issue create` stanza per item.
+ *
+ * @param {object[]} items
+ * @returns {string[]}
+ */
+function renderIssueBucket(items) {
+  if (items.length === 0) return ['_None._'];
+  const lines = [];
+  for (const item of items) {
+    lines.push(`- **${item.title ?? item.category}**`);
+    lines.push('');
+    lines.push('```sh');
+    lines.push(String(item.command ?? ''));
+    lines.push('```');
+    lines.push('');
+  }
+  return lines;
+}
+
+/**
+ * Render the body lines for the "proposed memory updates" bucket — a plain
+ * instruction prelude followed by one bullet per insight, or `_None._` when
+ * empty. Deliberately NOT YAML frontmatter (asserted by the routed-sections
+ * contract test).
+ *
+ * @param {object[]} items
+ * @returns {string[]}
+ */
+function renderMemoryBucket(items) {
+  if (items.length === 0) return ['_None._'];
+  return [
+    'update your memory with the following insights:',
+    '',
+    ...items.map((m) => `- ${m.insight}`),
+  ];
+}
+
+/**
+ * Render the body lines for the "one-off / discarded" bucket — one bullet per
+ * discarded class naming its occurrence count and source, or `_None._`.
+ *
+ * @param {object[]} items
+ * @returns {string[]}
+ */
+function renderDiscardedBucket(items) {
+  if (items.length === 0) return ['_None._'];
+  return items.map(
+    (d) =>
+      `- \`${d.category}\` (${d.occurrences ?? 1} occurrence, source: ${d.source ?? 'consumer'})`,
+  );
+}
+
+/**
+ * Descriptor table for the four routed-proposal sections, in deterministic
+ * emit order (consumer → framework → memory → discarded). Each descriptor
+ * pairs a heading, the `routedProposals` field it reads, and a body renderer.
+ * {@link renderRoutedSections} walks the table once, so reordering or adding a
+ * section is a data edit here rather than another copy-pasted emit block.
+ *
+ * @type {Array<{ heading: string, field: string, renderBucket: (items: object[]) => string[] }>}
+ */
+const ROUTED_SECTIONS = [
+  {
+    heading: '### Proposed issues — consumer repo',
+    field: 'consumer',
+    renderBucket: renderIssueBucket,
+  },
+  {
+    heading: '### Proposed issues — framework repo',
+    field: 'framework',
+    renderBucket: renderIssueBucket,
+  },
+  {
+    heading: '### Proposed memory updates',
+    field: 'memory',
+    renderBucket: renderMemoryBucket,
+  },
+  {
+    heading: '### One-off / discarded',
+    field: 'discarded',
+    renderBucket: renderDiscardedBucket,
+  },
+];
+
+/**
  * Pure: render the four routed-proposal sections in deterministic order.
  * Returns `null` when `routedProposals` is absent or fully empty — the
  * caller falls back to the legacy "Action Items for Next Epic" section so
@@ -432,80 +520,23 @@ function renderRoutedSections(routedProposals) {
   ) {
     return null;
   }
-  const framework = Array.isArray(routedProposals.framework)
-    ? routedProposals.framework
-    : [];
-  const consumer = Array.isArray(routedProposals.consumer)
-    ? routedProposals.consumer
-    : [];
-  const memory = Array.isArray(routedProposals.memory)
-    ? routedProposals.memory
-    : [];
-  const discarded = Array.isArray(routedProposals.discarded)
-    ? routedProposals.discarded
-    : [];
-  if (
-    framework.length === 0 &&
-    consumer.length === 0 &&
-    memory.length === 0 &&
-    discarded.length === 0
-  ) {
+  const buckets = ROUTED_SECTIONS.map((section) => {
+    const items = Array.isArray(routedProposals[section.field])
+      ? routedProposals[section.field]
+      : [];
+    return { section, items };
+  });
+  if (buckets.every(({ items }) => items.length === 0)) {
     return null;
   }
 
+  // Each section renders as `[heading, '', ...body]`; a single blank-line
+  // separator sits between consecutive sections (no trailing separator after
+  // the last), reproducing the original hand-unrolled push sequence exactly.
   const out = [];
-  out.push('### Proposed issues — consumer repo');
-  out.push('');
-  if (consumer.length === 0) {
-    out.push('_None._');
-  } else {
-    for (const item of consumer) {
-      out.push(`- **${item.title ?? item.category}**`);
-      out.push('');
-      out.push('```sh');
-      out.push(String(item.command ?? ''));
-      out.push('```');
-      out.push('');
-    }
-  }
-  out.push('');
-  out.push('### Proposed issues — framework repo');
-  out.push('');
-  if (framework.length === 0) {
-    out.push('_None._');
-  } else {
-    for (const item of framework) {
-      out.push(`- **${item.title ?? item.category}**`);
-      out.push('');
-      out.push('```sh');
-      out.push(String(item.command ?? ''));
-      out.push('```');
-      out.push('');
-    }
-  }
-  out.push('');
-  out.push('### Proposed memory updates');
-  out.push('');
-  if (memory.length === 0) {
-    out.push('_None._');
-  } else {
-    out.push('update your memory with the following insights:');
-    out.push('');
-    for (const m of memory) {
-      out.push(`- ${m.insight}`);
-    }
-  }
-  out.push('');
-  out.push('### One-off / discarded');
-  out.push('');
-  if (discarded.length === 0) {
-    out.push('_None._');
-  } else {
-    for (const d of discarded) {
-      out.push(
-        `- \`${d.category}\` (${d.occurrences ?? 1} occurrence, source: ${d.source ?? 'consumer'})`,
-      );
-    }
+  for (const { section, items } of buckets) {
+    if (out.length > 0) out.push('');
+    out.push(section.heading, '', ...section.renderBucket(items));
   }
   return out;
 }

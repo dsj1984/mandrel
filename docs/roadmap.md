@@ -223,6 +223,39 @@ not validate.
   worktrees to an implementation option is contingent on future agent platforms
   shipping reliable per-task sandboxes; track alongside the sub-agent
   capability spike ([#2870](https://github.com/dsj1984/mandrel/issues/2870)).
+- **`typhonjs-escomplex` abandonware risk** 🔭 — the complexity kernel behind
+  the CRAP and maintainability-index gates
+  ([`crap-engine.js`](../.agents/scripts/lib/crap-engine.js),
+  [`crap-utils.js`](../.agents/scripts/lib/crap-utils.js)) is pinned at its
+  terminal `0.1.0` (last code release 2018-12-21; no new version in ~7.5
+  years). It is the one runtime dependency with a real bus-factor problem, but
+  it is **deliberately not swapped**: being a 0.x at its final version it never
+  silently churns, it is pure JS (no `node-pty`-style native fragility), and it
+  carries no reachable CVE. Its resolved version is stamped into every
+  committed baseline envelope (`resolveEscomplexVersion()` in `crap-utils.js`,
+  consumed by `update-crap-baseline.js` / `update-maintainability-baseline.js`)
+  and asserted as a hoisted consumer runtime dep in `install-matrix-assert.js`,
+  so **any** replacement (`ts-complex`, another `escomplex` fork, or a bespoke
+  AST walker) produces different MI/Halstead/CRAP numbers and invalidates
+  every `crap-baseline*` / `maintainability-baseline*` plus the floors in
+  `.agentrc.json` (`crap.max: 30`, `maintainability.min: 70`). Treat a swap as
+  its own Epic with a full baseline recut, never a dependency bump.
+  **Trip-wire to revisit (either triggers):** (a) a CVE is filed against it, or
+  (b) it fails to install or parse under a future Node major. Renovate is
+  pinned off for this package (`renovate.json`) so it is never auto-bumped;
+  monitor only until a trip-wire fires.
+- **`typescript` peer floor stays `>=5.0.0`** 🔒 — both the `devDependencies`
+  and the optional `peerDependencies` declare `typescript >=5.0.0` even though
+  the compiler resolves to 6.x locally. The peer floor is **intentionally a
+  permissive floor, not a pin**: consumers on TS 5 *or* 6 stay compatible, and
+  raising it would be a consumer-visible break under the hard-cutover policy.
+  The dev floor is left at `>=5.0.0` too (the optional raise to `^6.0.0` is
+  hygiene-only and was declined here to avoid a lockfile churn and any risk to
+  the CRAP/maintainability TS-transpiler step; the project `typecheck` is a
+  no-op so there is no typecheck to break either way). Renovate is pinned off
+  for this package (`renovate.json`). **Watch:** TS 6 removed long-deprecated
+  flags — only relevant if the maintainability transpiler config ever adopts a
+  removed option.
 
 ### 🔒 Guardrails that must not relax
 
