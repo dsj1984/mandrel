@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.71.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.70.0...mandrel-v1.71.0) (2026-06-16)
+
+
+### ⚠ BREAKING CHANGES
+
+* **workflows:** three operator-facing slash commands are renamed and three git commands are consolidated. Consumers must update muscle memory and any scripts: `/agents-update`→`/mandrel-update`, `/qa-run-harness`→`/qa-run`, and `/git-commit-all` / `/git-push` / `/git-pr-all`→`/git-deliver` (detection picks the old behavior by default; `--no-push` reproduces `/git-commit-all`, a feature-branch run reproduces `/git-push`, and a base-branch run or `--pr` reproduces `/git-pr-all`).
+
+### Changed
+
+* **workflows:** rename agents-update→mandrel-update, qa-run-harness→qa-run; collapse 3 git commands into git-deliver ([#4209](https://github.com/dsj1984/mandrel/issues/4209)) ([fc30a3d](https://github.com/dsj1984/mandrel/commit/fc30a3d579d80fd854217e066f97899b813c6be9))
+
 ## [1.70.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.69.0...mandrel-v1.70.0) (2026-06-16)
 
 
