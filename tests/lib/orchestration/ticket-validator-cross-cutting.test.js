@@ -298,7 +298,7 @@ describe('fan-out persist gate (Story #2962)', () => {
           1,
           provider,
           { tickets },
-          { planning: { maxTickets: 60, largeFanOutThreshold: 10 } },
+          { planning: { largeFanOutThreshold: 10 } },
           { fanOutCounter: () => 50 },
         ),
       /large-fan-out|--allow-large-fan-out|50 call site/i,
@@ -315,7 +315,7 @@ describe('fan-out persist gate (Story #2962)', () => {
         1,
         provider,
         { tickets },
-        { planning: { maxTickets: 60, largeFanOutThreshold: 10 } },
+        { planning: { largeFanOutThreshold: 10 } },
         { fanOutCounter: () => 50, allowLargeFanOut: true },
       );
     } catch (e) {
@@ -400,7 +400,7 @@ describe('soft conflict surfacing in Phase 8 (Story #3957)', () => {
         1,
         provider,
         { tickets },
-        { planning: { maxTickets: 60 } },
+        { planning: {} },
         { fanOutCounter: () => 0 },
       ).catch(() => {});
     } finally {

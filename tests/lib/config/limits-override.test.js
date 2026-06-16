@@ -1,17 +1,19 @@
 /**
  * limits-override.test.js — regression test for limits override resolution.
  *
- * Post-reshape (Epic #1720 Story #1739) `maxTickets` lives under
- * `planning.maxTickets` (was `agentSettings.limits.maxTickets`).
- * `getLimits(resolveConfig())` must surface the operator override
- * end-to-end. Epic #2880 deleted the legacy output-side shim; the
- * canonical `planning.maxTickets` reader is the only supported path.
+ * Story #4163 collapsed the never-overridden `planning.maxTickets` operator
+ * knob to a framework constant (`LIMITS_DEFAULTS.maxTickets`). The knob is
+ * gone from the AJV schema, so a config that still declares it fails the
+ * load-time validation gate; and `getLimits` resolves `maxTickets` from the
+ * constant regardless of config. This regression test pins both halves of
+ * that contract.
  */
 
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { beforeEach, describe, it } from 'node:test';
 import { Volume } from 'memfs';
+import { LIMITS_DEFAULTS } from '../../../.agents/scripts/lib/config/limits.js';
 import {
   getLimits,
   PROJECT_ROOT,
@@ -25,9 +27,7 @@ const REQ_PATHS = Object.freeze({
   tempRoot: 'temp',
 });
 
-const OVERRIDE_VALUE = 75;
-
-describe('limits-override regression — post-reshape', () => {
+describe('limits-override regression — maxTickets is a framework constant (Story #4163)', () => {
   let vol;
 
   beforeEach((t) => {
@@ -36,34 +36,46 @@ describe('limits-override regression — post-reshape', () => {
     resolveConfig({ bustCache: true });
   });
 
-  function writeFixture(root) {
+  function writeFixture(root, planning) {
     vol.mkdirSync(root, { recursive: true });
     vol.writeFileSync(
       path.join(root, '.agentrc.json'),
       JSON.stringify({
         project: { paths: REQ_PATHS },
-        planning: { maxTickets: OVERRIDE_VALUE },
+        planning,
       }),
     );
   }
 
-  it('getLimits(resolveConfig()) honours planning.maxTickets', () => {
+  it('rejects a config that still declares the removed planning.maxTickets knob', () => {
     const root = path.resolve(
       PROJECT_ROOT,
-      '.worktrees/story-1739-fixture-wrapper',
+      '.worktrees/story-4163-fixture-rejects',
     );
-    writeFixture(root);
+    writeFixture(root, { maxTickets: 75 });
+
+    assert.throws(
+      () => resolveConfig({ bustCache: true, cwd: root }),
+      /maxTickets|additional propert/i,
+      'a config declaring the removed planning.maxTickets knob must fail validation',
+    );
+  });
+
+  it('getLimits resolves maxTickets to the framework constant regardless of config', () => {
+    const root = path.resolve(
+      PROJECT_ROOT,
+      '.worktrees/story-4163-fixture-constant',
+    );
+    // A valid (knob-free) config still resolves the constant budget.
+    writeFixture(root, { riskHeuristics: ['no destructive ops'] });
 
     const resolved = resolveConfig({ bustCache: true, cwd: root });
-    // Canonical `planning` block at the top level is the only supported path.
-    assert.equal(typeof resolved.planning, 'object');
-    assert.equal(resolved.planning.maxTickets, OVERRIDE_VALUE);
-
     const limits = getLimits(resolved);
     assert.equal(
       limits.maxTickets,
-      OVERRIDE_VALUE,
-      `getLimits(resolveConfig()).maxTickets must reflect the .agentrc.json override (${OVERRIDE_VALUE}); got ${limits.maxTickets}`,
+      LIMITS_DEFAULTS.maxTickets,
+      `getLimits(resolveConfig()).maxTickets must be the framework constant (${LIMITS_DEFAULTS.maxTickets}); got ${limits.maxTickets}`,
     );
+    assert.equal(limits.maxTickets, 80);
   });
 });

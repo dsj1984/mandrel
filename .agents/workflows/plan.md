@@ -43,7 +43,7 @@ forwards them to the active path helper:
 | `--from-notes <path>` | both | Pre-triaged handoff notes; skips triage. |
 | `--force` | Epic | Close + recreate an existing ticket tree on re-plan. |
 | `--force-review` | Epic | Force the operator review gate even when risk routing would skip it. |
-| `--allow-over-budget` | Epic | Permit a decomposition that exceeds `planning.maxTickets`. |
+| `--allow-over-budget` | Epic | Permit a decomposition that exceeds the framework `maxTickets` reviewability budget. |
 | `--steal` | Epic | Forcibly transfer a foreign Epic-lease. |
 | `--dry-run` | both | Author + validate without GitHub writes. |
 | `--body <path>` | Story | Pre-authored Story body file; validate (and create, unless `--dry-run`) without re-authoring. |

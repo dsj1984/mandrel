@@ -93,14 +93,14 @@ describe('config-resolver — loading + legacy shim', () => {
       JSON.stringify({
         project: { ...REQ.project, baseBranch: 'develop' },
         github: { owner: 'org', repo: 'repo', operatorHandle: '@me' },
-        planning: { maxTickets: 40 },
+        planning: { riskHeuristics: ['no destructive ops'] },
         delivery: { maxTokenBudget: 100000 },
       }),
     );
     const config = resolveConfig({ bustCache: true });
     assert.equal(config.project.baseBranch, 'develop');
     assert.equal(config.github.owner, 'org');
-    assert.equal(config.planning.maxTickets, 40);
+    assert.deepEqual(config.planning.riskHeuristics, ['no destructive ops']);
     assert.equal(config.delivery.maxTokenBudget, 100000);
   });
 
@@ -198,14 +198,14 @@ describe('helper accessors against the post-reshape shape', () => {
 
   it('getLimits exposes the surviving budget + signals surface', () => {
     const lim = getLimits({
-      planning: { maxTickets: 100 },
       delivery: {
         maxTokenBudget: 50000,
         execution: { timeoutMs: 1234 },
         signals: { hotspot: { p95Multiplier: 2 } },
       },
     });
-    assert.equal(lim.maxTickets, 100);
+    // maxTickets is the framework constant (Story #4163), not configurable.
+    assert.equal(lim.maxTickets, LIMITS_DEFAULTS.maxTickets);
     assert.equal(lim.maxTokenBudget, 50000);
     assert.equal(lim.executionTimeoutMs, 1234);
     assert.equal(lim.signals.hotspot.p95Multiplier, 2);

@@ -253,12 +253,14 @@ describe('planning.* shape', () => {
     );
   });
 
-  it('accepts planning.maxTickets >= 1', () => {
-    assert.equal(validate({ ...REQ, planning: { maxTickets: 60 } }), true);
-  });
-
-  it('rejects planning.maxTickets below 1', () => {
-    expectErrors({ ...REQ, planning: { maxTickets: 0 } }, /maxTickets/);
+  it('rejects planning.maxTickets — collapsed to a framework constant (Story #4163)', () => {
+    // `maxTickets` is no longer an operator-configurable knob; it lives only
+    // as LIMITS_DEFAULTS.maxTickets. `additionalProperties: false` on the
+    // planning block now rejects the removed key.
+    expectErrors(
+      { ...REQ, planning: { maxTickets: 60 } },
+      /additional propert/i,
+    );
   });
 
   it('rejects unknown planning.context summaryMode', () => {

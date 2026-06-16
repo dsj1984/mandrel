@@ -7,9 +7,8 @@ import { LIMITS_DEFAULTS } from '../../.agents/scripts/lib/config/limits.js';
 // ---------------------------------------------------------------------------
 // Post-reshape drift guard (Epic #1720 Story #1739).
 //
-// The surviving budget/timeout keys are spread across the new top-level
-// blocks rather than a single `agentSettings.limits` block:
-//   - planning.maxTickets
+// The surviving operator-configurable budget/timeout keys are spread across
+// the new top-level blocks rather than a single `agentSettings.limits` block:
 //   - planning.context.{maxBytes, summaryMode}
 //   - delivery.maxTokenBudget
 //   - delivery.execution.timeoutMs
@@ -27,8 +26,14 @@ const TEMPLATE_PATH = fileURLToPath(
 describe('full-agentrc.json ↔ LIMITS_DEFAULTS drift guard', () => {
   const parsed = JSON.parse(readFileSync(TEMPLATE_PATH, 'utf8'));
 
-  it('declares planning.maxTickets matching LIMITS_DEFAULTS.maxTickets', () => {
-    assert.equal(parsed?.planning?.maxTickets, LIMITS_DEFAULTS.maxTickets);
+  it('does not declare the removed planning.maxTickets knob (Story #4163)', () => {
+    // maxTickets collapsed to a framework constant — it is no longer an
+    // operator-configurable key, so the exhaustive reference must not list it.
+    assert.equal(
+      'maxTickets' in (parsed?.planning ?? {}),
+      false,
+      'agentrc-reference.json must not document the removed planning.maxTickets knob',
+    );
   });
 
   it('declares planning.context matching LIMITS_DEFAULTS.planningContext', () => {

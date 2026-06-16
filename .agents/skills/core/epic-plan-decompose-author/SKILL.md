@@ -62,8 +62,9 @@ reads:
   - `heuristics[]` — risk heuristics surfaced from
     `agentSettings.planning.riskHeuristics`. Apply each one against the
     Stories you are emitting; flag matches via `risk::high` labels.
-  - `maxTickets` — reviewability budget from
-    `agentSettings.planning.maxTickets` (Story #2798). Default: stay
+  - `maxTickets` — reviewability budget; a framework constant
+    (`LIMITS_DEFAULTS.maxTickets` in `.agents/scripts/lib/config/limits.js`,
+    not operator-configurable — Story #2798, Story #4163). Default: stay
     under. When the plan genuinely needs more, emit the full plan with
     an `over_budget_rationale` and rely on the operator's
     `--allow-over-budget` override at persist time. The script logs the
