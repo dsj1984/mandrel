@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-15T13:28:38.971Z",
+  "generatedAt": "2026-06-15T20:40:36.904Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -7225,18 +7225,6 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-run-state-store.js",
-      "method": "reconcileResumePointer",
-      "startLine": 178,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-run-state-store.js",
-      "method": "planStoryMatrixEqual",
-      "startLine": 205,
-      "crap": 10
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-run-state-store.js",
       "method": "storyIdOf",
       "startLine": 229,
       "crap": 5
@@ -7482,12 +7470,6 @@
       "crap": 5.048828125
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/transport.js",
-      "method": "emitEpicComplete",
-      "startLine": 261,
-      "crap": 9
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/_bullet-format.js",
       "method": "componentOrder",
       "startLine": 17,
@@ -7630,12 +7612,6 @@
       "method": "validateStoryReturnShape",
       "startLine": 114,
       "crap": 11.035851851851852
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/sub-agent-return.js",
-      "method": "collectJsonCandidates",
-      "startLine": 153,
-      "crap": 8
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/sub-agent-return.js",
@@ -11874,34 +11850,10 @@
       "crap": 5.286333333333333
     },
     {
-      "path": ".agents/scripts/lib/orchestration/wave-record-io.js",
-      "method": "refreshDispatchManifest",
-      "startLine": 264,
-      "crap": 5.026972808037897
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/wave-record-notifications.js",
       "method": "buildNotifyFn",
       "startLine": 33,
       "crap": 3.1851851851851856
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-record-notifications.js",
-      "method": "emitWaveBoundaryNotifications",
-      "startLine": 50,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-record-notifications.js",
-      "method": "emitCompleteWaveNotifications",
-      "startLine": 112,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-record-notifications.js",
-      "method": "emitFailingWaveNotifications",
-      "startLine": 157,
-      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/wave-record-projection.js",
@@ -11923,45 +11875,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/wave-record-projection.js",
-      "method": "aggregateWaveStatus",
-      "startLine": 140,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-record-projection.js",
-      "method": "classifyWaveOutcome",
-      "startLine": 164,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-record-projection.js",
       "method": "toRollupRow",
       "startLine": 191,
       "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-record-projection.js",
-      "method": "countDoneStories",
-      "startLine": 207,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-record-projection.js",
-      "method": "validateEpicWave",
-      "startLine": 219,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-record-projection.js",
-      "method": "validateResultsReturnsXor",
-      "startLine": 233,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-record-projection.js",
-      "method": "resolveConcurrencyCap",
-      "startLine": 247,
-      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/wave-record-projection.js",
@@ -11974,12 +11890,6 @@
       "method": "normalizeReturnsPure",
       "startLine": 303,
       "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-record-projection.js",
-      "method": "projectWaveRecord",
-      "startLine": 354,
-      "crap": 9
     },
     {
       "path": ".agents/scripts/lib/path-security.js",
@@ -13770,16 +13680,40 @@
       "crap": 2
     },
     {
-      "path": ".agents/scripts/lib/wave-runner/wave-checkpoint.js",
-      "method": "collectHaltedStoryIds",
-      "startLine": 35,
+      "path": ".agents/scripts/lib/wave-runner/ready-set.js",
+      "method": "storyIdOf",
+      "startLine": 76,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/wave-runner/ready-set.js",
+      "method": "classifyStory",
+      "startLine": 107,
       "crap": 7
     },
     {
-      "path": ".agents/scripts/lib/wave-runner/wave-checkpoint.js",
-      "method": "assertWaveCompleteness",
-      "startLine": 69,
-      "crap": 7
+      "path": ".agents/scripts/lib/wave-runner/ready-set.js",
+      "method": "storyFootprint",
+      "startLine": 140,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/wave-runner/ready-set.js",
+      "method": "<anon method-1>",
+      "startLine": 142,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/wave-runner/ready-set.js",
+      "method": "storiesOverlap",
+      "startLine": 173,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/wave-runner/ready-set.js",
+      "method": "selectReadySet",
+      "startLine": 227,
+      "crap": 14
     },
     {
       "path": ".agents/scripts/lib/workers/crap-worker.js",
@@ -14965,18 +14899,6 @@
     },
     {
       "path": ".agents/scripts/stories-wave-tick.js",
-      "method": "buildAdjacency",
-      "startLine": 119,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/stories-wave-tick.js",
-      "method": "computeStoriesWavePlan",
-      "startLine": 141,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/stories-wave-tick.js",
       "method": "runStoriesWaveTick",
       "startLine": 204,
       "crap": 5
@@ -14986,12 +14908,6 @@
       "method": "main",
       "startLine": 270,
       "crap": 3
-    },
-    {
-      "path": ".agents/scripts/stories-wave-tick.js",
-      "method": "<anon method-2>",
-      "startLine": 302,
-      "crap": 1
     },
     {
       "path": ".agents/scripts/sync-branch-from-base.js",

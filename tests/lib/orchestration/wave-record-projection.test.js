@@ -1,44 +1,30 @@
 /**
  * tests/lib/orchestration/wave-record-projection.test.js — pure unit tests for
- * the projection helpers extracted from `epic-execute-record-wave.js`.
+ * the per-Story status-recorder helpers (Story #4155 / Epic #4151).
  *
- * No subprocess, no network, no filesystem: every test injects its own
- * inputs and asserts on the returned shape. Covers the projection
- * aggregator (`projectWaveRecord`) plus the individual pure helpers that
- * back it.
+ * The wave-batch aggregation helpers (`aggregateWaveStatus`,
+ * `classifyWaveOutcome`, `projectWaveRecord`, `countDoneStories`,
+ * `resolveConcurrencyCap`) were deleted in the ready-set cutover. The
+ * surviving surface is the per-Story validation / normalization / rollup-row
+ * helpers, each exercised here with injected inputs and no I/O.
  */
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
-  aggregateWaveStatus,
   classifyParsedReturn,
-  classifyWaveOutcome,
-  countDoneStories,
   normalizeReturnsPure,
-  projectWaveRecord,
-  resolveConcurrencyCap,
   STORY_STATUS_TO_ROW_STATE,
   selectInputFlag,
   toRollupRow,
-  VALID_RESULT_STATUSES,
   VALID_STORY_STATUSES,
-  validateEpicWave,
+  validateEpic,
   validateResults,
-  validateResultsReturnsXor,
   validateReturnsEntry,
 } from '../../../.agents/scripts/lib/orchestration/wave-record-projection.js';
 
 describe('wave-record-projection constants', () => {
-  it('exposes the canonical result-status set', () => {
-    assert.deepEqual([...VALID_RESULT_STATUSES].sort(), [
-      'blocked',
-      'complete',
-      'failed',
-    ]);
-  });
-
   it('exposes the canonical story-status set', () => {
     assert.deepEqual([...VALID_STORY_STATUSES].sort(), [
       'blocked',
@@ -60,19 +46,9 @@ describe('wave-record-projection constants', () => {
 describe('validateResults', () => {
   it('normalizes a happy-path row', () => {
     const out = validateResults([
-      {
-        storyId: 1,
-        status: 'done',
-        phase: 'done',
-      },
+      { storyId: 1, status: 'done', phase: 'done' },
     ]);
-    assert.deepEqual(out, [
-      {
-        storyId: 1,
-        status: 'done',
-        phase: 'done',
-      },
-    ]);
+    assert.deepEqual(out, [{ storyId: 1, status: 'done', phase: 'done' }]);
   });
 
   it('coerces blockerCommentId to string', () => {
@@ -156,120 +132,13 @@ describe('classifyParsedReturn', () => {
   });
 });
 
-describe('aggregateWaveStatus', () => {
-  it('all-done → complete', () => {
-    assert.deepEqual(
-      aggregateWaveStatus([
-        { storyId: 1, status: 'done' },
-        { storyId: 2, status: 'done' },
-      ]),
-      { status: 'complete', blockedStoryIds: [] },
-    );
-  });
-
-  it('any failed → failed', () => {
-    assert.deepEqual(
-      aggregateWaveStatus([
-        { storyId: 1, status: 'done' },
-        { storyId: 2, status: 'failed' },
-        { storyId: 3, status: 'blocked' },
-      ]),
-      { status: 'failed', blockedStoryIds: [3] },
-    );
-  });
-
-  it('blocked + no failures → blocked', () => {
-    assert.deepEqual(
-      aggregateWaveStatus([
-        { storyId: 1, status: 'done' },
-        { storyId: 2, status: 'blocked' },
-      ]),
-      { status: 'blocked', blockedStoryIds: [2] },
-    );
-  });
-
-  it('empty wave → complete (no blockers)', () => {
-    assert.deepEqual(aggregateWaveStatus([]), {
-      status: 'complete',
-      blockedStoryIds: [],
-    });
-  });
-
-  it('tolerates non-array input', () => {
-    assert.deepEqual(aggregateWaveStatus(null), {
-      status: 'complete',
-      blockedStoryIds: [],
-    });
-  });
-});
-
-describe('classifyWaveOutcome', () => {
-  it('complete + remaining → dispatch-next', () => {
-    assert.deepEqual(
-      classifyWaveOutcome({
-        resultStatus: 'complete',
-        currentWave: 0,
-        totalWaves: 3,
-      }),
-      { nextAction: 'dispatch-next', remainingWaves: 2 },
-    );
-  });
-
-  it('complete + last → finalize', () => {
-    assert.deepEqual(
-      classifyWaveOutcome({
-        resultStatus: 'complete',
-        currentWave: 2,
-        totalWaves: 3,
-      }),
-      { nextAction: 'finalize', remainingWaves: 0 },
-    );
-  });
-
-  it('blocked → halt-blocked', () => {
-    assert.equal(
-      classifyWaveOutcome({
-        resultStatus: 'blocked',
-        currentWave: 1,
-        totalWaves: 3,
-      }).nextAction,
-      'halt-blocked',
-    );
-  });
-
-  it('failed → halt-failed', () => {
-    assert.equal(
-      classifyWaveOutcome({
-        resultStatus: 'failed',
-        currentWave: 0,
-        totalWaves: 3,
-      }).nextAction,
-      'halt-failed',
-    );
-  });
-
-  it('throws on unknown status', () => {
-    assert.throws(() =>
-      classifyWaveOutcome({
-        resultStatus: 'bogus',
-        currentWave: 0,
-        totalWaves: 1,
-      }),
-    );
-  });
-});
-
 describe('toRollupRow', () => {
   it('builds a done row', () => {
     const out = toRollupRow(
       { storyId: 1, status: 'done' },
       new Map([[1, 'Story title']]),
     );
-    assert.deepEqual(out, {
-      id: 1,
-      title: 'Story title',
-      state: 'done',
-    });
+    assert.deepEqual(out, { id: 1, title: 'Story title', state: 'done' });
   });
 
   it('attaches blockerCommentId only for blocked rows', () => {
@@ -291,72 +160,13 @@ describe('toRollupRow', () => {
   });
 });
 
-describe('countDoneStories', () => {
-  it('sums done rows across waves', () => {
-    assert.equal(
-      countDoneStories([
-        { stories: [{ state: 'done' }, { state: 'failed' }] },
-        { stories: [{ state: 'done' }] },
-      ]),
-      2,
-    );
+describe('validateEpic', () => {
+  it('accepts a positive integer', () => {
+    assert.doesNotThrow(() => validateEpic(1));
   });
 
-  it('tolerates malformed waves', () => {
-    assert.equal(
-      countDoneStories([
-        { stories: null },
-        {},
-        { stories: [{ state: 'done' }] },
-      ]),
-      1,
-    );
-  });
-});
-
-describe('validateEpicWave', () => {
-  it('accepts positive integers', () => {
-    assert.doesNotThrow(() => validateEpicWave(1, 0));
-  });
-
-  it('rejects non-positive epicId', () => {
-    assert.throws(() => validateEpicWave(0, 0), /--epic/);
-  });
-
-  it('rejects negative wave', () => {
-    assert.throws(() => validateEpicWave(1, -1), /--wave/);
-  });
-});
-
-describe('validateResultsReturnsXor', () => {
-  it('accepts results only', () => {
-    assert.doesNotThrow(() => validateResultsReturnsXor([], null));
-  });
-
-  it('accepts returns only', () => {
-    assert.doesNotThrow(() => validateResultsReturnsXor(null, []));
-  });
-
-  it('throws on neither', () => {
-    assert.throws(() => validateResultsReturnsXor(null, null), /required/);
-  });
-
-  it('throws on both', () => {
-    assert.throws(() => validateResultsReturnsXor([], []), /not both/);
-  });
-});
-
-describe('resolveConcurrencyCap', () => {
-  it('prefers the override', () => {
-    assert.equal(resolveConcurrencyCap(5, { concurrencyCap: 2 }, {}), 5);
-  });
-
-  it('falls back to existing when override is null', () => {
-    assert.equal(resolveConcurrencyCap(null, { concurrencyCap: 3 }, {}), 3);
-  });
-
-  it('throws on a non-integer resolved cap', () => {
-    assert.throws(() => resolveConcurrencyCap(0, {}, {}));
+  it('rejects a non-positive epicId', () => {
+    assert.throws(() => validateEpic(0), /--epic/);
   });
 });
 
@@ -422,210 +232,6 @@ describe('normalizeReturnsPure', () => {
     await assert.rejects(
       () => normalizeReturnsPure({ returns: 'nope' }),
       /must be a JSON array/,
-    );
-  });
-});
-
-describe('projectWaveRecord — happy path', () => {
-  it('appends a new wave record and advances currentWave on complete', () => {
-    const verified = [
-      { storyId: 10, status: 'done' },
-      { storyId: 11, status: 'done' },
-    ];
-    const existing = {
-      currentWave: 0,
-      totalWaves: 3,
-      waves: [],
-    };
-    const titleById = new Map([
-      [10, 'Ten'],
-      [11, 'Eleven'],
-    ]);
-    const fixedNow = () => new Date('2026-05-15T11:00:00.000Z');
-
-    const out = projectWaveRecord({
-      wave: 0,
-      verified,
-      existing,
-      concurrencyCap: 2,
-      titleById,
-      now: fixedNow,
-    });
-
-    assert.equal(out.status, 'complete');
-    assert.deepEqual(out.blockedStoryIds, []);
-    assert.equal(out.totalWaves, 3);
-    assert.equal(out.nextCurrentWave, 1);
-    assert.equal(out.nextAction, 'dispatch-next');
-    assert.equal(out.remainingWaves, 2);
-    assert.equal(out.nextWaves.length, 1);
-    assert.equal(out.newRecord.index, 0);
-    assert.equal(out.newRecord.status, 'complete');
-    assert.equal(out.newRecord.concurrencyCap, 2);
-    assert.equal(out.newRecord.completedAt, '2026-05-15T11:00:00.000Z');
-    assert.equal(out.newRecord.stories.length, 2);
-    assert.deepEqual(out.rollupRows[0], {
-      id: 10,
-      title: 'Ten',
-      state: 'done',
-    });
-    assert.equal(out.rollupWaves[0].wave, 0);
-    assert.equal(out.rollupWaves[0].concurrencyCap, 2);
-  });
-
-  it('replaces an existing record for the same wave (idempotent re-run)', () => {
-    const existing = {
-      currentWave: 0,
-      totalWaves: 2,
-      waves: [
-        {
-          index: 0,
-          status: 'failed',
-          concurrencyCap: 1,
-          stories: [{ id: 1, state: 'failed' }],
-          completedAt: '2026-05-15T10:00:00.000Z',
-        },
-      ],
-    };
-    const out = projectWaveRecord({
-      wave: 0,
-      verified: [{ storyId: 1, status: 'done' }],
-      existing,
-      concurrencyCap: 1,
-      titleById: new Map([[1, 'One']]),
-      now: () => new Date('2026-05-15T11:00:00.000Z'),
-    });
-    assert.equal(out.nextWaves.length, 1);
-    assert.equal(out.nextWaves[0].status, 'complete');
-    assert.equal(out.nextWaves[0].completedAt, '2026-05-15T11:00:00.000Z');
-    assert.equal(out.nextCurrentWave, 1);
-    assert.equal(out.nextAction, 'dispatch-next');
-  });
-
-  it('caps nextCurrentWave at totalWaves on final-wave complete', () => {
-    const out = projectWaveRecord({
-      wave: 2,
-      verified: [{ storyId: 1, status: 'done' }],
-      existing: { currentWave: 2, totalWaves: 3, waves: [] },
-      concurrencyCap: 1,
-      titleById: new Map(),
-    });
-    assert.equal(out.nextCurrentWave, 3);
-    assert.equal(out.nextAction, 'finalize');
-  });
-});
-
-describe('projectWaveRecord — non-happy paths', () => {
-  it('blocked wave preserves currentWave and emits halt-blocked', () => {
-    const out = projectWaveRecord({
-      wave: 1,
-      verified: [
-        { storyId: 1, status: 'done' },
-        { storyId: 2, status: 'blocked', blockerCommentId: 'b-2' },
-      ],
-      existing: { currentWave: 1, totalWaves: 3, waves: [] },
-      concurrencyCap: 2,
-      titleById: new Map(),
-    });
-    assert.equal(out.status, 'blocked');
-    assert.deepEqual(out.blockedStoryIds, [2]);
-    assert.equal(out.nextCurrentWave, 1);
-    assert.equal(out.nextAction, 'halt-blocked');
-    const blockedRow = out.rollupRows.find((r) => r.id === 2);
-    assert.equal(blockedRow.blockerCommentId, 'b-2');
-  });
-
-  it('failed wave preserves currentWave and emits halt-failed', () => {
-    const out = projectWaveRecord({
-      wave: 0,
-      verified: [
-        { storyId: 1, status: 'failed' },
-        { storyId: 2, status: 'done' },
-      ],
-      existing: { currentWave: 0, totalWaves: 2, waves: [] },
-      concurrencyCap: 1,
-      titleById: new Map(),
-    });
-    assert.equal(out.status, 'failed');
-    assert.equal(out.nextCurrentWave, 0);
-    assert.equal(out.nextAction, 'halt-failed');
-  });
-
-  it('empty wave aggregates to complete and advances the cursor', () => {
-    const out = projectWaveRecord({
-      wave: 0,
-      verified: [],
-      existing: { currentWave: 0, totalWaves: 1, waves: [] },
-      concurrencyCap: 1,
-      titleById: new Map(),
-    });
-    assert.equal(out.status, 'complete');
-    assert.equal(out.rollupRows.length, 0);
-    assert.equal(out.nextCurrentWave, 1);
-    assert.equal(out.nextAction, 'finalize');
-  });
-
-  it('sorts prior waves in index order regardless of input order', () => {
-    const existing = {
-      currentWave: 0,
-      totalWaves: 3,
-      waves: [
-        { index: 2, status: 'complete', concurrencyCap: 1, stories: [] },
-        { index: 0, status: 'complete', concurrencyCap: 1, stories: [] },
-      ],
-    };
-    const out = projectWaveRecord({
-      wave: 1,
-      verified: [{ storyId: 1, status: 'done' }],
-      existing,
-      concurrencyCap: 1,
-      titleById: new Map([[1, 'A']]),
-    });
-    assert.deepEqual(
-      out.nextWaves.map((w) => w.index),
-      [0, 1, 2],
-    );
-  });
-
-  it('throws on bad wave', () => {
-    assert.throws(
-      () =>
-        projectWaveRecord({
-          wave: -1,
-          verified: [],
-          existing: { totalWaves: 1, waves: [] },
-          concurrencyCap: 1,
-          titleById: new Map(),
-        }),
-      /wave must be a non-negative integer/,
-    );
-  });
-
-  it('throws when titleById is not a Map', () => {
-    assert.throws(
-      () =>
-        projectWaveRecord({
-          wave: 0,
-          verified: [],
-          existing: { totalWaves: 1, waves: [] },
-          concurrencyCap: 1,
-          titleById: {},
-        }),
-      /titleById must be a Map/,
-    );
-  });
-
-  it('throws when existing checkpoint is missing', () => {
-    assert.throws(
-      () =>
-        projectWaveRecord({
-          wave: 0,
-          verified: [],
-          existing: null,
-          concurrencyCap: 1,
-          titleById: new Map(),
-        }),
-      /existing checkpoint is required/,
     );
   });
 });

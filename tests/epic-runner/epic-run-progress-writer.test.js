@@ -38,28 +38,16 @@ function extractPayload(body) {
 }
 
 describe('upsertEpicRunProgress', () => {
-  it('renders an epic-run-progress payload and upserts via the provider', async () => {
+  it('renders a flat per-Story epic-run-progress payload and upserts it', async () => {
     const provider = buildProvider();
     const { body, payload } = await upsertEpicRunProgress({
       provider,
       epicId: 946,
-      waves: [
-        {
-          wave: 0,
-          concurrencyCap: 2,
-          stories: [
-            { id: 912, title: 'A', state: 'done' },
-            { id: 913, title: 'B', state: 'done' },
-          ],
-        },
-        {
-          wave: 1,
-          concurrencyCap: 2,
-          stories: [{ id: 916, title: 'C', state: 'in-flight' }],
-        },
-      ],
-      currentWave: 1,
-      totalWaves: 3,
+      stories: {
+        912: { status: 'done', title: 'A' },
+        913: { status: 'done', title: 'B' },
+        916: { status: 'blocked', title: 'C', blockerCommentId: 'b-1' },
+      },
       startedAt: '2026-05-01T00:00:00Z',
       now: () => new Date('2026-05-01T01:00:00.000Z'),
     });
@@ -73,37 +61,38 @@ describe('upsertEpicRunProgress', () => {
 
     assert.equal(payload.kind, EPIC_RUN_PROGRESS_TYPE);
     assert.equal(payload.epicId, 946);
-    assert.equal(payload.currentWave, 1);
-    assert.equal(payload.totalWaves, 3);
     assert.equal(payload.startedAt, '2026-05-01T00:00:00Z');
     assert.equal(payload.updatedAt, '2026-05-01T01:00:00.000Z');
-    assert.equal(payload.waves.length, 2);
+    // Flat, ascending-by-id story rows — no wave grouping.
+    assert.equal(payload.stories.length, 3);
+    assert.deepEqual(
+      payload.stories.map((s) => s.id),
+      [912, 913, 916],
+    );
+    assert.equal(payload.stories[2].blockerCommentId, 'b-1');
+    assert.equal(payload.currentWave, undefined);
+    assert.equal(payload.totalWaves, undefined);
+    assert.equal(payload.waves, undefined);
 
-    // Header reflects the done count and wave progress.
-    assert.match(body, /Wave 2\/3/);
+    // Header reflects the done count; flat ID/State/Title table.
     assert.match(body, /2\/3 stories done/);
-    // Table rows for both waves render with the correct state emoji.
-    assert.match(body, /\| 1 \| #912 \| .*done .*\| A \|/);
-    assert.match(body, /\| 2 \| #916 \| .*in-flight .*\| C \|/);
+    assert.match(body, /\| ID \| State \| Title \|/);
+    assert.match(body, /\| #912 \| .*done .*\| A \|/);
 
-    // The fenced payload round-trips.
     const roundTripped = extractPayload(body);
     assert.deepEqual(roundTripped, payload);
   });
 
-  it('handles empty waves[] gracefully', async () => {
+  it('handles an empty stories map gracefully', async () => {
     const provider = buildProvider();
     const { body, payload } = await upsertEpicRunProgress({
       provider,
       epicId: 1,
-      waves: [],
-      currentWave: 0,
-      totalWaves: 0,
+      stories: {},
       now: () => new Date('2026-01-01T00:00:00Z'),
     });
-    assert.equal(payload.waves.length, 0);
-    assert.match(body, /no waves yet/);
-    // Still upserts a single comment.
+    assert.equal(payload.stories.length, 0);
+    assert.match(body, /no stories yet/);
     assert.equal(provider.comments.length, 1);
   });
 
@@ -112,37 +101,21 @@ describe('upsertEpicRunProgress', () => {
     await upsertEpicRunProgress({
       provider,
       epicId: 946,
-      waves: [{ wave: 0, stories: [{ id: 912, state: 'in-flight' }] }],
-      currentWave: 0,
-      totalWaves: 2,
+      stories: { 912: { status: 'pending' } },
     });
     await upsertEpicRunProgress({
       provider,
       epicId: 946,
-      waves: [
-        {
-          wave: 0,
-          stories: [{ id: 912, state: 'done' }],
-        },
-      ],
-      currentWave: 1,
-      totalWaves: 2,
+      stories: { 912: { status: 'done' } },
     });
     assert.equal(provider.comments.length, 1);
     const parsed = extractPayload(provider.comments[0].body);
-    assert.equal(parsed.waves[0].stories[0].state, 'done');
+    assert.equal(parsed.stories[0].state, 'done');
   });
 
   it('rejects bad provider / numeric arguments', async () => {
     await assert.rejects(
-      () =>
-        upsertEpicRunProgress({
-          provider: {},
-          epicId: 1,
-          waves: [],
-          currentWave: 0,
-          totalWaves: 0,
-        }),
+      () => upsertEpicRunProgress({ provider: {}, epicId: 1, stories: {} }),
       /provider with postComment/,
     );
     await assert.rejects(
@@ -150,33 +123,9 @@ describe('upsertEpicRunProgress', () => {
         upsertEpicRunProgress({
           provider: buildProvider(),
           epicId: 0,
-          waves: [],
-          currentWave: 0,
-          totalWaves: 0,
+          stories: {},
         }),
       /numeric epicId/,
-    );
-    await assert.rejects(
-      () =>
-        upsertEpicRunProgress({
-          provider: buildProvider(),
-          epicId: 1,
-          waves: [],
-          currentWave: -1,
-          totalWaves: 0,
-        }),
-      /currentWave/,
-    );
-    await assert.rejects(
-      () =>
-        upsertEpicRunProgress({
-          provider: buildProvider(),
-          epicId: 1,
-          waves: [],
-          currentWave: 0,
-          totalWaves: -1,
-        }),
-      /totalWaves/,
     );
   });
 });

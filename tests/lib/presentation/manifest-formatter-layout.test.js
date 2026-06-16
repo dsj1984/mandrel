@@ -41,13 +41,19 @@ function task(id, status = 'agent::ready', deps = []) {
   };
 }
 
-function story(id, title, wave, tasks) {
+// Story #4157: the per-wave H2 sections derive depth at render time from
+// `dependsOn`, while the Wave Summary TOC still reads the persisted
+// `earliestWave`. Each Story therefore carries explicit `dependsOn` edges
+// onto a Story in the prior wave so the derived depth equals `earliestWave`
+// and the TOC anchors round-trip to the H2s the depth lens emits.
+function story(id, title, wave, tasks, deps = []) {
   return {
     storyId: id,
     storySlug: `story-${id}`,
     storyTitle: title,
     type: 'story',
     earliestWave: wave,
+    dependsOn: deps,
     branchName: `story-${id}`,
     tasks,
   };
@@ -65,35 +71,63 @@ function buildLayoutFixture() {
     task(1012, 'agent::ready', [1011]),
   ]);
 
-  // Wave 1: 2 stories, 6 tasks
-  const s200 = story(200, 'Render TOC', 1, [
-    task(2001, 'agent::ready'),
-    task(2002, 'agent::ready', [2001]),
-    task(2003, 'agent::ready', [2002]),
-  ]);
-  const s201 = story(201, 'Nest Stories', 1, [
-    task(2011, 'agent::ready'),
-    task(2012, 'agent::ready', [2011]),
-    task(2013, 'agent::ready', [2011]),
-  ]);
+  // Wave 1: 2 stories, 6 tasks. Each depends on a Wave-0 Story → depth 1.
+  const s200 = story(
+    200,
+    'Render TOC',
+    1,
+    [
+      task(2001, 'agent::ready'),
+      task(2002, 'agent::ready', [2001]),
+      task(2003, 'agent::ready', [2002]),
+    ],
+    [100],
+  );
+  const s201 = story(
+    201,
+    'Nest Stories',
+    1,
+    [
+      task(2011, 'agent::ready'),
+      task(2012, 'agent::ready', [2011]),
+      task(2013, 'agent::ready', [2011]),
+    ],
+    [101],
+  );
 
   // Wave 2: 2 stories, 6 tasks; one Story has a blocked Task to exercise 🚧.
-  const s300 = story(300, 'Order Tasks', 2, [
-    task(3001, 'agent::ready'),
-    task(3002, 'agent::blocked', [3001]),
-    task(3003, 'agent::ready', [3001]),
-  ]);
-  const s301 = story(301, 'Add Legend', 2, [
-    task(3011, 'agent::ready'),
-    task(3012, 'agent::ready', [3011]),
-    task(3013, 'agent::ready', [3012]),
-  ]);
+  // Each depends on a Wave-1 Story → depth 2.
+  const s300 = story(
+    300,
+    'Order Tasks',
+    2,
+    [
+      task(3001, 'agent::ready'),
+      task(3002, 'agent::blocked', [3001]),
+      task(3003, 'agent::ready', [3001]),
+    ],
+    [200],
+  );
+  const s301 = story(
+    301,
+    'Add Legend',
+    2,
+    [
+      task(3011, 'agent::ready'),
+      task(3012, 'agent::ready', [3011]),
+      task(3013, 'agent::ready', [3012]),
+    ],
+    [201],
+  );
 
-  // Wave 3: 1 Story with 2 tasks
-  const s400 = story(400, 'Lock Layout Fixture', 3, [
-    task(4001, 'agent::ready'),
-    task(4002, 'agent::ready', [4001]),
-  ]);
+  // Wave 3: 1 Story with 2 tasks. Depends on a Wave-2 Story → depth 3.
+  const s400 = story(
+    400,
+    'Lock Layout Fixture',
+    3,
+    [task(4001, 'agent::ready'), task(4002, 'agent::ready', [4001])],
+    [300],
+  );
 
   return {
     epicId: 9999,

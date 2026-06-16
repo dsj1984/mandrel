@@ -17,14 +17,80 @@
  * Imports the small pure helpers from `manifest-helpers.js` — the
  * formatter re-exports them so existing call-sites that read these
  * names off `manifest-formatter.js` keep working.
+ *
+ * Story #4157 — the per-wave grouping key is now a **render-time
+ * dependency depth** derived from each Story entry's `dependsOn` edges via
+ * `assignLayers` (`lib/Graph.js`), not the persisted `earliestWave` field
+ * the planner stamped on the manifest. Scheduling no longer persists waves
+ * onto the run checkpoint (Epic #4151 / Story #4155), so the rollup
+ * re-derives depth from the dependency graph at the moment it renders. The
+ * shared `deriveStoryDepths` lens below is the single home for that
+ * derivation; `dispatch-manifest-render.js` imports it so both
+ * operator-facing surfaces group by the same render-time depths.
  */
 
+import { assignLayers } from '../Graph.js';
 import { AGENT_LABELS } from '../label-constants.js';
+import { buildStoryAdjacency } from '../story-adjacency.js';
 import {
   deriveStorySymbol,
   deriveWaveStatus,
   waveHeadingText,
 } from './manifest-helpers.js';
+
+// ---------------------------------------------------------------------------
+// Render-time dependency-depth lens (Story #4157)
+// ---------------------------------------------------------------------------
+
+/**
+ * Derive a render-time dependency depth for every Story entry in a
+ * `storyManifest`, keyed by storyId.
+ *
+ * The depth is computed by feeding the entries' `dependsOn` edges through
+ * the canonical `buildStoryAdjacency` builder (the same one the dispatch
+ * pipeline and `stories-wave-tick.js` use) and then `assignLayers`
+ * (`lib/Graph.js`): a Story with no dependency edges is depth 0, and a
+ * Story sits one layer deeper than its deepest in-set dependency. This
+ * replaces the planner's persisted `earliestWave` as the grouping key so
+ * the rollup renders correctly from the per-Story checkpoint shape, which
+ * no longer carries a wave field (Epic #4151 / Story #4155).
+ *
+ * `buildStoryAdjacency` reads each entry's id from `id ?? number`, so the
+ * entries are adapted to expose `id: storyId` and `dependsOn`. Foreign
+ * edges (pointing outside the supplied entry set) are dropped — the
+ * default `dropForeign: true` — so the DAG stays closed over the rendered
+ * Stories and depth never deepens on a reference the rollup cannot show.
+ * The ungrouped sentinel (`storyId === '__ungrouped__'`) and any non-object
+ * entry are skipped; they never participate in the graph.
+ *
+ * Pure: no IO, no clock. Returns a `Map<storyId, depth>` covering exactly
+ * the graph-eligible entries.
+ *
+ * @param {object[]} storyManifest
+ * @returns {Map<number|string, number>}
+ */
+export function deriveStoryDepths(storyManifest) {
+  if (!Array.isArray(storyManifest)) return new Map();
+  const eligible = storyManifest.filter(
+    (s) =>
+      s !== null &&
+      typeof s === 'object' &&
+      s.storyId !== '__ungrouped__' &&
+      Number.isInteger(Number(s.storyId)),
+  );
+  const records = eligible.map((s) => ({
+    id: Number(s.storyId),
+    dependsOn: Array.isArray(s.dependsOn) ? s.dependsOn : [],
+  }));
+  const adjacency = buildStoryAdjacency(records);
+  const layers = assignLayers(adjacency);
+
+  const depths = new Map();
+  for (const s of eligible) {
+    depths.set(s.storyId, layers.get(Number(s.storyId)) ?? 0);
+  }
+  return depths;
+}
 
 // ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
@@ -90,14 +156,20 @@ function pickWaveTail(status, waveIdx, sortedWaves, storyCount) {
  * (a Story is "done" when it carries `agent::done`) — the unit
  * `deriveWaveStatus` consumes.
  *
+ * Story #4157 — the bucket key is the render-time dependency depth from
+ * `depths` (keyed by storyId), not the persisted `earliestWave`. The
+ * ungrouped sentinel and any entry the lens could not place fall into the
+ * `-1` "Ungrouped" bucket so they still render.
+ *
  * @param {object[]} waveStories
+ * @param {Map<number|string, number>} depths
  * @returns {{ waveGroups: Map<number, object[]>, waveStats: Map<number, { total: number, done: number }> }}
  */
-function groupStoriesByWave(waveStories) {
+function groupStoriesByWave(waveStories, depths) {
   const waveGroups = new Map();
   const waveStats = new Map();
   for (const story of waveStories) {
-    const w = story.earliestWave ?? -1;
+    const w = depths.get(story.storyId) ?? -1;
     if (!waveGroups.has(w)) {
       waveGroups.set(w, []);
       waveStats.set(w, { total: 0, done: 0 });
@@ -126,7 +198,8 @@ export function renderNestedWaveSections(storyManifest) {
     validateWaveSection('story', s),
   );
 
-  const { waveGroups, waveStats } = groupStoriesByWave(waveStories);
+  const depths = deriveStoryDepths(waveStories);
+  const { waveGroups, waveStats } = groupStoriesByWave(waveStories, depths);
   const sortedWaves = [...waveGroups.keys()].sort((a, b) => a - b);
   const lines = [];
 
@@ -230,4 +303,4 @@ function renderImplicitDepBullet(finding) {
 
 // Test-only: surface the private predicate so the sibling unit test can
 // exercise each branch without going through the full renderer.
-export const __testables = { validateWaveSection };
+export const __testables = { validateWaveSection, groupStoriesByWave };

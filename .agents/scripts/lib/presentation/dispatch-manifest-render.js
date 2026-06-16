@@ -8,23 +8,40 @@
  *
  * No top-level side effects — safe to import from tests without
  * triggering GitHub I/O.
+ *
+ * Story #4157 — each projected story's `wave` is a **render-time
+ * dependency depth** derived from the manifest's `dependsOn` edges via the
+ * shared `deriveStoryDepths` lens (`manifest-render-waves.js`, built on
+ * `assignLayers`), not the persisted `earliestWave`. Scheduling no longer
+ * stamps a wave field onto the run checkpoint (Epic #4151 / Story #4155),
+ * so the rollup re-derives depth from the dependency graph at render time.
  */
+
+import { deriveStoryDepths } from './manifest-render-waves.js';
 
 /**
  * Pure: project a full dispatch manifest into the `{ stories }` shape
  * `renderManifest` accepts. Returns the canonical, non-ungrouped story
  * rows used by the Epic-level dispatch-manifest comment.
  *
+ * The `wave` field is the render-time dependency depth (Story #4157):
+ * `deriveStoryDepths` runs `assignLayers` over the entries' `dependsOn`
+ * edges, so a Story with no in-set dependency is wave 0 and a dependent
+ * sits one layer deeper than its deepest dependency. Entries the lens
+ * cannot place (e.g. a non-integer storyId that survives the sentinel
+ * filter) fall back to `-1`.
+ *
  * @param {object} manifest
  * @returns {{ storyId: number|string, wave: number, title: string }[]}
  */
 export function projectStoriesFromManifest(manifest) {
   const storyManifest = manifest?.storyManifest ?? [];
+  const depths = deriveStoryDepths(storyManifest);
   return storyManifest
     .filter((s) => s && s.storyId !== '__ungrouped__')
     .map((s) => ({
       storyId: s.storyId,
-      wave: s.earliestWave ?? -1,
+      wave: depths.get(s.storyId) ?? -1,
       title: s.storyTitle ?? s.storySlug ?? '',
     }));
 }

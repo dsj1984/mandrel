@@ -38,10 +38,10 @@ export const EPIC_PROGRESS_EVENT = 'epic-progress';
 
 /**
  * Fire a curated `epic-progress` webhook event. Event-driven only — called
- * at wave boundaries and after blocker raise/clear transitions. Carries
- * the rollup payload `{ pct, done, total, currentWave, totalWaves, phase,
- * openBlockers }`, which Slack consumers and downstream subscribers use to
- * track epic progress without subscribing to per-story chatter.
+ * per recorder beat and after blocker raise/clear transitions. Carries the
+ * rollup payload `{ pct, done, total, phase, openBlockers }`, which Slack
+ * consumers and downstream subscribers use to track epic progress without
+ * subscribing to per-story chatter.
  *
  * The dispatch passes `skipComment: true` — the operator-facing GitHub
  * comment is owned by `ProgressReporter.fire()` and `upsertEpicRunProgress`,
@@ -50,13 +50,17 @@ export const EPIC_PROGRESS_EVENT = 'epic-progress';
  * Failures are swallowed by design: the runner must keep moving even if
  * the webhook URL is misconfigured or the network is flaky.
  *
+ * Story #4155 — the Epic `/deliver` runtime cut over to the continuous
+ * ready-set scheduler, which has **no wave index**. The wave segment was
+ * dropped from the message and the rollup payload entirely (rather than
+ * rendered as `Wave undefined/undefined`); the sole live caller
+ * (`wave-record-notifications.js`) never supplied wave coordinates.
+ *
  * @param {{
  *   notify: Function|null,
  *   epicId: number,
  *   done: number,
  *   total: number,
- *   currentWave: number,
- *   totalWaves: number,
  *   phase?: string,
  *   openBlockers?: Array<{ reason: string, storyId?: number }>,
  *   logger?: { warn?: Function },
@@ -68,8 +72,6 @@ export async function emitEpicProgress({
   epicId,
   done,
   total,
-  currentWave,
-  totalWaves,
   phase,
   openBlockers = [],
   logger,
@@ -85,7 +87,7 @@ export async function emitEpicProgress({
     blockerCount > 0
       ? ` · 🚧 ${blockerCount} blocker${blockerCount === 1 ? '' : 's'}`
       : '';
-  const message = `Epic #${epicIdNum} progress · Wave ${currentWave}/${totalWaves} · ${doneN}/${totalN} stories done (${pct}%)${blockerSuffix}`;
+  const message = `Epic #${epicIdNum} progress · ${doneN}/${totalN} stories done (${pct}%)${blockerSuffix}`;
 
   const payload = {
     severity: blockerCount > 0 ? 'high' : 'medium',
@@ -109,8 +111,6 @@ export async function emitEpicProgress({
       pct,
       done: doneN,
       total: totalN,
-      currentWave,
-      totalWaves,
       phase,
       openBlockers: openBlockers ?? [],
     },
@@ -121,11 +121,14 @@ export async function emitEpicProgress({
  * Fire a curated `epic-started` webhook event at /deliver kickoff.
  * The Slack consumer anchors the rest of the epic narrative to this fire.
  * Failures are swallowed.
+ *
+ * Story #4155 — the ready-set runtime has no wave count, so the wave
+ * segment was dropped from the message (rather than rendered as
+ * `undefined wave(s)`); the sole live caller never supplied one.
  */
 export async function emitEpicStarted({
   notify,
   epicId,
-  totalWaves,
   totalStories,
   title,
   logger,
@@ -133,7 +136,7 @@ export async function emitEpicStarted({
   if (typeof notify !== 'function') return null;
   const epicIdNum = Number(epicId);
   if (!Number.isInteger(epicIdNum) || epicIdNum <= 0) return null;
-  const message = `Epic #${epicIdNum} started · ${totalWaves} wave${totalWaves === 1 ? '' : 's'} · ${totalStories} stor${totalStories === 1 ? 'y' : 'ies'}${title ? ` — ${title}` : ''}`;
+  const message = `Epic #${epicIdNum} started · ${totalStories} stor${totalStories === 1 ? 'y' : 'ies'}${title ? ` — ${title}` : ''}`;
   try {
     await notify(
       epicIdNum,

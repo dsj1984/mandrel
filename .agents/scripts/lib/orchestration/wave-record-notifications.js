@@ -1,14 +1,15 @@
 /**
- * wave-record-notifications.js — webhook-emit helpers extracted from
- * `epic-execute-record-wave.js`.
+ * wave-record-notifications.js — webhook-emit helpers for the per-Story
+ * status recorder CLI (`epic-execute-record-wave.js`).
  *
- * The CLI fires curated webhook events at every wave boundary (started,
- * progress, blocked, unblocked) so the host-LLM-driven `/deliver` path
- * mirrors the wave-loop emits in
- * `lib/orchestration/epic-runner/phases/iterate-waves.js`. Each helper here
- * is fire-and-forget — webhook misconfig or a transient Slack outage must
- * not block the wave loop — so the impure surface is small (the inbound
- * `notifyFn` closure) and the rest is plain control flow.
+ * Story #4155 (Epic #4151) — the Epic `/deliver` runtime cut over from the
+ * wave-batch scheduler to the continuous ready-set core, so these emits are
+ * no longer keyed to a wave boundary. The recorder fires curated webhook
+ * events per recorder beat: `epic-started` once (on the first recorded
+ * Story), `epic-progress` with the run's done/total counts (re-derived from
+ * the checkpoint's flat per-Story `stories` map), and `epic-blocked` when a
+ * Story in this beat blocked or failed. Each helper is fire-and-forget —
+ * webhook misconfig or a transient Slack outage must not block the loop.
  *
  * These helpers stay in their own module to keep the parent CLI a thin
  * runner shell. They are not part of the pure projection layer; they
@@ -20,9 +21,7 @@ import {
   emitEpicBlocked,
   emitEpicProgress,
   emitEpicStarted,
-  emitEpicUnblocked,
 } from './epic-runner/progress-reporter/transport.js';
-import { countDoneStories } from './wave-record-projection.js';
 
 /**
  * Build the notify-bound closure used by the curated webhook emitters. When
@@ -41,25 +40,53 @@ export function buildNotifyFn(injectedNotify, config, provider, defaultNotify) {
 }
 
 /**
- * Fire the curated webhook events for a wave boundary. Each emit is
- * fire-and-forget (the emit helpers swallow webhook misconfiguration), but
- * we still serialise them so the order matches the wave-loop emits in
- * `lib/orchestration/epic-runner/phases/iterate-waves.js` for the host-LLM
- * driven /deliver path.
+ * Count Stories in a terminal `done` state across the checkpoint's flat
+ * per-Story `stories` status map. Pure helper.
+ *
+ * @param {Record<string, { status?: string }>|undefined} stories
+ * @returns {number}
  */
-export async function emitWaveBoundaryNotifications({
+export function countDoneStories(stories) {
+  const map = stories && typeof stories === 'object' ? stories : {};
+  let done = 0;
+  for (const rec of Object.values(map)) {
+    if (rec?.status === 'done') done += 1;
+  }
+  return done;
+}
+
+/**
+ * Fire the curated webhook events for a recorder beat. Each emit is
+ * fire-and-forget (the emit helpers swallow webhook misconfiguration), but
+ * we still serialise them so the order is deterministic.
+ *
+ * - `epic-started` fires exactly once: on the very first recorded Story
+ *   (signalled by `firstRecord === true`), before any Story has been
+ *   recorded on a prior beat.
+ * - `epic-progress` always fires with the run's done/total counts.
+ * - `epic-blocked` fires when this beat recorded at least one blocked or
+ *   failed Story.
+ *
+ * @param {{
+ *   injectedNotify?: Function,
+ *   defaultNotify: Function,
+ *   config: object,
+ *   provider: object,
+ *   epicId: number,
+ *   firstRecord: boolean,
+ *   stories: Record<string, { status?: string }>,
+ *   verified: Array<{ storyId: number, status: string }>,
+ *   blockedStoryIds: number[],
+ * }} args
+ */
+export async function emitRecordNotifications({
   injectedNotify,
   defaultNotify,
   config,
   provider,
   epicId,
-  wave,
-  status,
-  priorWaves,
-  nextWaves,
-  titleById,
-  totalWaves,
-  nextCurrentWave,
+  firstRecord,
+  stories,
   verified,
   blockedStoryIds,
 }) {
@@ -69,121 +96,50 @@ export async function emitWaveBoundaryNotifications({
     provider,
     defaultNotify,
   );
-  const totalStoriesEstimate = titleById.size;
-  const doneStoriesSoFar = countDoneStories(nextWaves);
-  const priorWaveRecord = priorWaves.find(
-    (w) => Number(w?.index) === Number(wave),
-  );
-  if (priorWaves.length === 0 && wave === 0) {
+  const map = stories && typeof stories === 'object' ? stories : {};
+  const totalStories = Object.keys(map).length;
+  const doneStories = countDoneStories(map);
+
+  if (firstRecord) {
     await emitEpicStarted({
       notify: notifyFn,
       epicId,
-      totalWaves,
-      totalStories: totalStoriesEstimate,
+      totalStories,
       logger: Logger,
     });
   }
-  if (status === 'complete') {
-    await emitCompleteWaveNotifications({
-      notifyFn,
-      epicId,
-      priorWaveRecord,
-      doneStoriesSoFar,
-      totalStoriesEstimate,
-      nextCurrentWave,
-      totalWaves,
-    });
-    return;
-  }
-  await emitFailingWaveNotifications({
-    notifyFn,
-    epicId,
-    status,
-    blockedStoryIds,
-    verified,
-    doneStoriesSoFar,
-    totalStoriesEstimate,
-    nextCurrentWave,
-    totalWaves,
-  });
-}
 
-/** Emit the unblocked-then-progress pair for a `complete` wave. */
-async function emitCompleteWaveNotifications({
-  notifyFn,
-  epicId,
-  priorWaveRecord,
-  doneStoriesSoFar,
-  totalStoriesEstimate,
-  nextCurrentWave,
-  totalWaves,
-}) {
-  const resumedFromHalt =
-    priorWaveRecord &&
-    (priorWaveRecord.status === 'blocked' ||
-      priorWaveRecord.status === 'failed');
-  if (resumedFromHalt) {
-    await emitEpicUnblocked({
+  const blockedIds = Array.isArray(blockedStoryIds) ? blockedStoryIds : [];
+  const failedStoryId = (verified ?? []).find(
+    (r) => r.status === 'failed',
+  )?.storyId;
+  const failingStoryId = blockedIds[0] ?? failedStoryId;
+  const hasFailure = blockedIds.length > 0 || failedStoryId != null;
+
+  if (hasFailure) {
+    await emitEpicBlocked({
       notify: notifyFn,
       epicId,
-      resolvedBlocker: {
-        reason:
-          priorWaveRecord.status === 'blocked'
-            ? 'story_blocked'
-            : 'story_failed',
-      },
+      reason: blockedIds.length > 0 ? 'story_blocked' : 'story_failed',
+      storyId: failingStoryId,
       logger: Logger,
     });
   }
-  await emitEpicProgress({
-    notify: notifyFn,
-    epicId,
-    done: doneStoriesSoFar,
-    total: totalStoriesEstimate,
-    currentWave: nextCurrentWave,
-    totalWaves,
-    phase: 'iterate-waves',
-    openBlockers: [],
-    logger: Logger,
-  });
-  // The `epic-complete` webhook used to fire here, at the post-final-wave
-  // / pre-finalize boundary. That preceded `gh pr create` by minutes — the
-  // operator got an "Epic complete" ping with no PR to click. The fire
-  // moved to `epic-deliver-finalize.js`, which emits it after the PR URL
-  // is captured. See that script for the new emit point.
-}
 
-/** Emit blocked + progress (with open-blocker context) for a non-complete wave. */
-async function emitFailingWaveNotifications({
-  notifyFn,
-  epicId,
-  status,
-  blockedStoryIds,
-  verified,
-  doneStoriesSoFar,
-  totalStoriesEstimate,
-  nextCurrentWave,
-  totalWaves,
-}) {
-  const reason = status === 'blocked' ? 'story_blocked' : 'story_failed';
-  const failingStoryId =
-    blockedStoryIds[0] ?? verified.find((r) => r.status === 'failed')?.storyId;
-  await emitEpicBlocked({
-    notify: notifyFn,
-    epicId,
-    reason,
-    storyId: failingStoryId,
-    logger: Logger,
-  });
   await emitEpicProgress({
     notify: notifyFn,
     epicId,
-    done: doneStoriesSoFar,
-    total: totalStoriesEstimate,
-    currentWave: nextCurrentWave,
-    totalWaves,
-    phase: 'iterate-waves',
-    openBlockers: [{ reason, storyId: failingStoryId }],
+    done: doneStories,
+    total: totalStories,
+    phase: 'wave-loop',
+    openBlockers: hasFailure
+      ? [
+          {
+            reason: blockedIds.length > 0 ? 'story_blocked' : 'story_failed',
+            storyId: failingStoryId,
+          },
+        ]
+      : [],
     logger: Logger,
   });
 }

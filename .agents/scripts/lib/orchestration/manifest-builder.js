@@ -139,6 +139,12 @@ function buildStoryOnlyManifest(stories, epicId) {
       type: 'story',
       branchName: getStoryBranch(epicId, story.id),
       earliestWave,
+      // Carry the resolved cross-Story dependency edges on the entry so the
+      // presentation layer can derive grouping depth at render time via
+      // `assignLayers` (Story #4157) instead of trusting the persisted
+      // `earliestWave`. This is the same `explicitStoryDeps` set the wave
+      // computation consumed, already closed over the scheduled Story set.
+      dependsOn: explicitStoryDeps.get(story.id) ?? [],
       tasks: [],
     };
   });

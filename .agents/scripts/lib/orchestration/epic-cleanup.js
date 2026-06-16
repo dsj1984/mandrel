@@ -105,7 +105,12 @@ export function epicBranchHasOpenPr(opts) {
 /**
  * Build the list of branches owned by the Epic from the checkpoint.
  *
- * @param {{ epicId: number, waves?: Array<{ stories?: Array<{ id: number }> }> } | null} state
+ * Story #4155 — the ready-set runtime records a flat per-Story status map
+ * (`stories: { [storyId]: { status, ... } }`) on the checkpoint instead of a
+ * per-wave `waves[]` history. The owned Story branches are the keys of that
+ * map.
+ *
+ * @param {{ epicId: number, stories?: Record<string, object> } | null} state
  * @returns {{ epicBranch: string, storyBranches: string[] }}
  */
 export function listEpicBranchesFromState(state) {
@@ -113,13 +118,12 @@ export function listEpicBranchesFromState(state) {
   if (!Number.isInteger(epicId) || epicId <= 0) {
     return { epicBranch: null, storyBranches: [] };
   }
+  const storyMap =
+    state?.stories && typeof state.stories === 'object' ? state.stories : {};
   const storyIds = new Set();
-  for (const wave of state.waves ?? []) {
-    for (const story of wave?.stories ?? []) {
-      if (story && Number.isInteger(story.id) && story.id > 0) {
-        storyIds.add(story.id);
-      }
-    }
+  for (const key of Object.keys(storyMap)) {
+    const id = Number(key);
+    if (Number.isInteger(id) && id > 0) storyIds.add(id);
   }
   return {
     epicBranch: `epic/${epicId}`,

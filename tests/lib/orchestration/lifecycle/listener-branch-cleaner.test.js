@@ -131,7 +131,7 @@ describe('BranchCleaner — handle()', () => {
   });
 
   it('records no-state when the checkpoint has no epicId', async () => {
-    const { cleaner } = buildHarness({ state: { waves: [] } });
+    const { cleaner } = buildHarness({ state: { stories: {} } });
     await cleaner.handle({ event: 'epic.cleanup.start', seqId: 2 });
     assert.equal(cleaner.classifications.at(-1).outcome, 'no-state');
   });
@@ -139,10 +139,11 @@ describe('BranchCleaner — handle()', () => {
   it('reaps the epic + story branches when the checkpoint is populated', async () => {
     const state = {
       epicId: 42,
-      waves: [
-        { stories: [{ id: 100 }, { id: 101 }] },
-        { stories: [{ id: 102 }] },
-      ],
+      stories: {
+        100: { status: 'done' },
+        101: { status: 'done' },
+        102: { status: 'done' },
+      },
     };
     const log = [];
     const { cleaner } = buildHarness({ state, gitSpawnLog: log });
@@ -164,7 +165,7 @@ describe('BranchCleaner — handle()', () => {
   });
 
   it('records failed when at least one branch reap fails', async () => {
-    const state = { epicId: 7, waves: [{ stories: [{ id: 50 }] }] };
+    const state = { epicId: 7, stories: { 50: { status: 'done' } } };
     const { cleaner } = buildHarness({
       state,
       gitOverrides: [
@@ -185,7 +186,7 @@ describe('BranchCleaner — handle()', () => {
   });
 
   it('records skipped-duplicate on a replayed (event, seqId)', async () => {
-    const state = { epicId: 1, waves: [{ stories: [{ id: 9 }] }] };
+    const state = { epicId: 1, stories: { 9: { status: 'done' } } };
     const { cleaner } = buildHarness({ state });
     await cleaner.handle({ event: 'epic.cleanup.start', seqId: 5 });
     await cleaner.handle({ event: 'epic.cleanup.start', seqId: 5 });
@@ -216,7 +217,7 @@ describe('BranchCleaner — handle()', () => {
   });
 
   it('reset() clears the idempotency cache and classifications', async () => {
-    const state = { epicId: 1, waves: [{ stories: [{ id: 1 }] }] };
+    const state = { epicId: 1, stories: { 1: { status: 'done' } } };
     const { cleaner } = buildHarness({ state });
     await cleaner.handle({ event: 'epic.cleanup.start', seqId: 7 });
     assert.equal(cleaner.classifications.length, 1);
@@ -270,7 +271,7 @@ describe('summarizeReap', () => {
 
 describe('BranchCleaner — bus-driven activation', () => {
   it('fires on bus.emit("epic.cleanup.start") through the schema-validated emit', async () => {
-    const state = { epicId: 99, waves: [{ stories: [{ id: 1 }] }] };
+    const state = { epicId: 99, stories: { 1: { status: 'done' } } };
     const bus = new Bus();
     const cleaner = new BranchCleaner({
       bus,
@@ -291,7 +292,7 @@ describe('BranchCleaner — bus-driven activation', () => {
   // Story #3367 — the listener forwards `spawnFn` into reapEpicBranches'
   // open-PR guard; an open PR keeps the epic branch.
   it('keeps the epic branch when the guard probe reports an open PR', async () => {
-    const state = { epicId: 99, waves: [{ stories: [{ id: 1 }] }] };
+    const state = { epicId: 99, stories: { 1: { status: 'done' } } };
     const gitSpawnLog = [];
     const bus = new Bus();
     const cleaner = new BranchCleaner({

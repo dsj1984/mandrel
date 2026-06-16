@@ -3,6 +3,10 @@ import test from 'node:test';
 import { renderManifestMarkdown } from '../../.agents/scripts/lib/presentation/manifest-renderer.js';
 
 test('manifest-renderer: renders simple manifest', () => {
+  // Story #4157: the per-wave H2 sections derive depth at render time from
+  // `dependsOn`. A single Story with no in-set dependency edges is depth 0,
+  // so this fixture is a clean Wave-0 root (its `earliestWave` matches so the
+  // Wave Summary TOC, which still reads that field, agrees with the H2s).
   const manifest = {
     epicId: 1,
     epicTitle: 'Epic',
@@ -13,7 +17,7 @@ test('manifest-renderer: renders simple manifest', () => {
         storySlug: 'story-10',
         tasks: [{ id: 101, title: 'T1' }],
         type: 'story',
-        earliestWave: 1,
+        earliestWave: 0,
       },
     ],
     dryRun: true,
@@ -37,7 +41,7 @@ test('manifest-renderer: renders simple manifest', () => {
     output.includes('| Wave | Status | Stories |'),
     'Missing wave summary table header',
   );
-  assert.ok(output.includes('Wave 1'), 'Missing wave row data');
+  assert.ok(output.includes('Wave 0'), 'Missing wave row data');
 
   // Verify per-wave nested H2/H3 layout (Story #1194 Task #1212): the
   // legacy `## Execution Plan` table was replaced with one `## Wave N`
@@ -50,7 +54,7 @@ test('manifest-renderer: renders simple manifest', () => {
     !output.includes('## Story Details'),
     'Legacy Story Details heading should be gone',
   );
-  assert.ok(output.match(/^## .* Wave 1/m), 'Missing per-wave H2 heading');
+  assert.ok(output.match(/^## .* Wave 0/m), 'Missing per-wave H2 heading');
   assert.ok(output.includes('### '), 'Missing per-Story H3 heading');
   assert.ok(output.includes('#10'), 'Missing story id reference');
 });

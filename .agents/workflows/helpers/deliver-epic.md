@@ -26,7 +26,7 @@ back to the operator-merges-button path.
 ```text
 /deliver <epicId>
   → Phase 1 — prepare              (epic-deliver-prepare.js)
-  → Phase 2 — wave loop            (wave-tick.js + Agent fan-out × concurrencyCap)
+  → Phase 2 — ready-set loop       (wave-tick.js → dispatch ready set → observe → re-tick)
   → Phase 3 — close-validation     (lint + test + ratchets on epic/<id>)
   → Phase 4 — epic-audit           (helpers/epic-audit.md — change-set audits via selectAudits)
   → Phase 5 — code-review          (helpers/code-review.md with scope: epic)
@@ -124,9 +124,9 @@ Every other runtime modifier is sourced from the Epic's labels or from
 
 ### Phase 1 prelude — Delivery preflight (Story #2899 / F13)
 
-Before `epic-deliver-prepare.js` seeds the wave plan, run
+Before `epic-deliver-prepare.js` seeds the checkpoint, run
 `epic-deliver-preflight.js` so the operator (and any reviewer reading the
-Epic ticket) sees the estimated Story count, install cost, wave count,
+Epic ticket) sees the estimated Story count, install cost, dependency depth,
 GitHub API request volume, and Claude Max quota burn for the run that is
 about to fan out. **Preflight always runs before Story fan-out.**
 
@@ -137,9 +137,10 @@ node .agents/scripts/epic-deliver-preflight.js --epic <epicId> --post
 The CLI upserts a `delivery-preflight` structured comment on the Epic
 (idempotent across re-runs) and prints a JSON envelope on stdout with
 the canonical metric keys `storyCount`, `installCostSeconds`,
-`waveCount`, `githubApiRequests`, `claudeQuotaTokens`, plus a `breaches`
-array describing any `delivery.preflight.max*` thresholds the estimate
-exceeds.
+`dependencyDepth` (the longest dependency chain — the ready-set wall-clock
+floor, replacing the retired wave count), `githubApiRequests`,
+`claudeQuotaTokens`, plus a `breaches` array describing any
+`delivery.preflight.max*` thresholds the estimate exceeds.
 
 **Breach handling.** When `breaches` is non-empty, the workflow MUST
 flip the Epic to `agent::blocked`, surface the envelope in chat for the
@@ -162,11 +163,14 @@ node .agents/scripts/epic-deliver-prepare.js --epic <epicId> [--steal] [--as <ha
 ```
 
 Validates `type::epic`, enumerates `type::story` descendants, parses
-`blocked by #N` plus explicit `dependencies`, runs `Graph.computeWaves()`,
-and upserts the `epic-run-state` checkpoint. Treat the printed JSON as
-`state`: `{ epicId, totalWaves, concurrencyCap, plan, checkpointInitializedAt }`.
-`plan[N]` is the Stories assigned to wave `N`. Flip the Epic to
-`agent::executing` (idempotent) after the CLI returns.
+`blocked by #N` plus explicit `dependencies`, computes the dependency DAG
+(to enumerate the open Story set), and upserts the `epic-run-state`
+checkpoint in the per-Story-status shape (a flat `stories` map seeded at
+`pending`, plus the global `concurrencyCap`). Treat the printed JSON as
+`state`: `{ epicId, storyCount, concurrencyCap, stories, checkpointInitializedAt }`.
+`stories` is the flat dispatch hint (`{ storyId, worktree, title }` per open
+Story); the ready-set `tick` (Phase 2) decides which to dispatch on each
+beat. Flip the Epic to `agent::executing` (idempotent) after the CLI returns.
 
 > **Preflight guards (Story #3482 / F-workflow-guards).** Before the
 > snapshot phase runs — and before any worktree is created — prepare runs
@@ -217,14 +221,28 @@ Once the preflight guards pass, the snapshot phase applies one more gate:
 
 ---
 
-## Phase 2 — Wave loop
+## Phase 2 — Ready-set loop
 
-The wave-loop state machine lives in
-[`lib/wave-runner/tick.js`](../../scripts/lib/wave-runner/tick.js) — one
-stateless `tick({ epic })` call returns one `WaveTickResult` describing
-the next action. The slash command's job is to call `tick()` via its CLI
-shim, dispatch from `nextAction.stories` via the Agent tool, persist the
-outcome, and loop until terminal.
+The scheduler lives in
+[`lib/wave-runner/tick.js`](../../scripts/lib/wave-runner/tick.js) — a thin
+**Epic adapter over the ready-set core**
+([`lib/wave-runner/ready-set.js`](../../scripts/lib/wave-runner/ready-set.js)).
+One stateless `tick({ epic })` call re-derives readiness from the **live**
+Story bodies + labels on every beat and returns one `WaveTickResult`
+describing the next action. There is **no wave barrier** (Story #4155): a
+Story whose own dependencies are all done is dispatched the instant a slot is
+free under the GLOBAL in-flight cap, even while an unrelated sibling Story is
+still `agent::executing`. The loop is simply:
+
+```text
+tick → dispatch the ready set → observe → re-tick → … → epic-complete
+```
+
+The slash command's job each beat is to call `tick()` via its CLI shim,
+dispatch the Stories in `nextAction.stories` via the Agent tool, record each
+returned Story's terminal status, and re-tick until terminal. There is no
+`record-wave` / `currentWave` step — the checkpoint carries only a flat
+per-Story status map (for resume + the operator rollup) and the global cap.
 
 ### 2a. Tick — plan the next action
 
@@ -237,55 +255,59 @@ Stdout is one `WaveTickResult` envelope:
 ```json
 {
   "nextAction":
-      { "kind": "dispatch",      "stories": [{ "id": <n>, "title": "…", "worktree"?: "…" }, ...] }
-    | { "kind": "observe",       "waitingOn": [<storyId>, ...] }
-    | { "kind": "wave-complete", "index": <n> }
-    | { "kind": "epic-complete" },
+      { "kind": "dispatch", "stories": [{ "id": <n>, "title": "…" }, ...], "in-flight": [<storyId>, ...] }
+    | { "kind": "observe",  "waitingOn": [<storyId>, ...], "in-flight": [<storyId>, ...] }
+    | { "kind": "halt", "reason": "dependency-cycle" | "unsatisfiable-dependency", "stuckStories": [<storyId>, ...], "cycle"?: [<storyId>, ...], "in-flight": [<storyId>, ...] }
+    | { "kind": "epic-complete", "in-flight": [<storyId>, ...] },
   "blockedStories": [{ "storyId": <n>, "reason": "…", "detail"?: "…" }, ...],
   "gateFailures":   [{ "storyId": <n>, "gate": "…", "detail"?: "…" }, ...],
-  "currentWave":    <n>,
-  "totalWaves":     <n>
+  "readyCount":     <n>,
+  "inFlight":       [<storyId>, ...]
 }
 ```
 
-The CLI is a planner: it returns the `nextAction` envelope above. Wave
-progress is durable on two operator-facing surfaces — the `epic-run-state`
-checkpoint (resume) and the `epic-run-progress` rollup comment, both written
-by `epic-execute-record-wave.js` at the wave boundary. The CLI itself emits
-only the two wave-window forensics signals that have a live consumer —
-`wave-start` and `wave-complete`, which the perf-aggregator brackets into the
-`waveParallelism` report (and `wave-start` anchors span-tree Story spans).
-Story #3909 retired the write-only wave events with no reader (`wave-tick`,
-`epic-complete`) — they duplicated the checkpoint + rollup. The
-[`signals` helper](signals.md) (`node .agents/scripts/signals-view.js`)
-renders the forensics signals in the span-tree view.
+`nextAction.stories` is the **ready set** for this beat — the
+dependency-satisfied, overlap-free subset of open Stories, capped at
+`globalCap − inFlight`. The CLI is a planner: it dispatches nothing and
+persists nothing. It emits only the two wave-window forensics signals that
+have a live consumer — `wave-start` (on the run's first dispatch) and
+`wave-complete` (when the run finishes), which the perf-aggregator brackets
+into the `waveParallelism` report (and `wave-start` anchors span-tree Story
+spans). The [`signals` helper](signals.md)
+(`node .agents/scripts/signals-view.js`) renders the forensics signals in the
+span-tree view.
+
+> **Fail-closed on an old-shape checkpoint.** If the Epic still carries a
+> pre-ready-set (`plan` / `currentWave` / `totalWaves`) `epic-run-state`
+> checkpoint, the tick **refuses to run** and throws an explicit operator
+> message — re-run `epic-deliver-prepare.js --epic <id>` to re-seed the
+> checkpoint in the per-Story-status shape, then re-run `/deliver`.
 
 ### 2b. Dispatch — fan out per-Story Agent calls
 
-*You* (the LLM running this skill) are the wave dispatcher; you never
-invoke `helpers/epic-deliver-story` yourself. Emit **one `Agent` tool call per
+*You* (the LLM running this skill) are the dispatcher; you never invoke
+`helpers/epic-deliver-story` yourself. Emit **one `Agent` tool call per
 Story** in `nextAction.stories` (even when `length === 1` — the
 parent-child boundary keeps the return-parser uniform). The *children*
 run [`helpers/epic-deliver-story`](epic-deliver-story.md). Use
 `subagent_type: general-purpose`.
 
 Emit **one assistant turn** with **N parallel `Agent` calls** where
-`N === min(nextAction.stories.length, concurrencyCap)`. When the wave
-exceeds `concurrencyCap`, dispatch the first `concurrencyCap` Stories
-as background calls (`run_in_background: true`) and refill from
-`nextAction.stories` immediately as each child returns — never exceed
-the cap, never wait for a whole batch before refilling.
+`N === nextAction.stories.length` (the ready set is already capped at
+`globalCap − inFlight` by the tick, so it never exceeds available slots).
+Dispatch the ready set as background calls (`run_in_background: true`) and,
+as each child returns, record it (§ 2c) and **re-tick** (§ 2a) to pull the
+next ready set — never wait for the whole set before refilling.
 
-> **Throughput tradeoff.** The default `concurrencyCap` of 3 is
-> intentionally conservative — it keeps host-quota consumption low on
-> Epics with small waves and avoids flooding the GitHub API. For
-> wide-wave Epics (many Stories per wave) where the host has adequate
-> parallel-agent quota, raising `delivery.deliverRunner.concurrencyCap`
-> in `.agentrc.json` reduces wall-clock time proportionally to the
-> extra concurrency. The safe default is left in place; this is a
-> deliberate operator-tuning knob, not a hidden performance ceiling.
-> See `agentrc-reference.json` `delivery.deliverRunner.concurrencyCap` for
-> the configuration surface.
+> **Throughput tradeoff.** The default `concurrencyCap` of 3 is the GLOBAL
+> in-flight cap, intentionally conservative — it keeps host-quota
+> consumption low and avoids flooding the GitHub API. For Epics with wide
+> dependency-free fronts where the host has adequate parallel-agent quota,
+> raising `delivery.deliverRunner.concurrencyCap` in `.agentrc.json` reduces
+> wall-clock time proportionally to the extra concurrency. The safe default
+> is left in place; this is a deliberate operator-tuning knob, not a hidden
+> performance ceiling. See `agentrc-reference.json`
+> `delivery.deliverRunner.concurrencyCap` for the configuration surface.
 
 **Ledger the dispatch BEFORE the Agent call.** Immediately before each
 per-Story `Agent` tool call (one shell-out per Story, every attempt —
@@ -294,19 +316,21 @@ including retries from a refill), invoke
 so the lifecycle ledger durably records the dispatch attempt. The
 emit must happen **before** the Agent call fires — never after — so
 that a host-process crash mid-Agent leaves a `story.dispatch.start`
-record that `wave-tick.js` (see § 2a) can surface under
-`nextAction['in-flight']` on the next tick:
+record that `wave-tick.js` (see § 2a) excludes from the next beat's ready
+set and surfaces under `nextAction['in-flight']`:
 
 ```bash
 node .agents/scripts/lifecycle-emit-story-dispatch.js \
   --epic <epicId> --story <storyId> \
-  --wave <currentWave> --attempt <attempt>
+  --wave 0 --attempt <attempt>
 ```
 
-`<attempt>` starts at 1 for the Story's first dispatch in this wave
-and increments on each retry/refill. The CLI appends exactly one
-NDJSON line to `temp/epic-<epicId>/lifecycle.ndjson`; the matching
-`story.dispatch.end` record is appended later by
+Pass `--wave 0` — the ready-set runtime has a single continuous front, so
+the ledger's `waveIndex` is a fixed `0` (it is metadata for the start/end
+pairing math, not a scheduling input). `<attempt>` starts at 1 for the
+Story's first dispatch and increments on each retry/refill. The CLI appends
+exactly one NDJSON line to `temp/epic-<epicId>/lifecycle.ndjson`; the
+matching `story.dispatch.end` record is appended later by
 `epic-execute-record-wave.js` (via `emit-story-dispatch-end.js`, Story #3900)
 after the Agent return is recorded in § 2c.
 
@@ -329,7 +353,7 @@ There is **no per-child JSON return-parsing ceremony** for the parent
 to enforce. GitHub state is the contract: `epic-execute-record-wave.js`
 (§ 2c, mode B) treats each child's raw return text as a best-effort
 hint and reconciles any unparseable, empty, or missing return directly
-from the Story's live labels and comments (Story #3907).
+from the Story's live labels and comments.
 
 **Sub-agent dispatch.** `Agent` calls emit no `model:` argument by
 default — children inherit from the `general-purpose` sub-agent
@@ -338,53 +362,66 @@ definition and the parent's worktree context. No
 specific call needs to override the inherited model, pass `model:` as a
 per-call literal at the `Agent(...)` site.
 
-### 2c. Record the wave outcome
+### 2c. Record the Story outcomes
 
-Once every dispatched Story has returned, persist via
-`epic-execute-record-wave.js`:
+As dispatched Stories return (record them as they land — you need not wait
+for the whole ready set), persist each Story's terminal status via
+`epic-execute-record-wave.js`. There is **no `--wave` flag and no
+`currentWave`** — the recorder splices each Story's status into the
+checkpoint's flat per-Story map and re-renders the rollup:
 
 ```bash
 # Mode A — host LLM already parsed each child return.
 node .agents/scripts/epic-execute-record-wave.js \
-  --epic <epicId> --wave <N> [--concurrency-cap <N>] \
-  --results @<file>|<inline-json>
+  --epic <epicId> --results @<file>|<inline-json>
 
 # Mode B — pipe the raw per-Story sub-agent return texts directly.
 node .agents/scripts/epic-execute-record-wave.js \
-  --epic <epicId> --wave <N> [--concurrency-cap <N>] \
-  --returns @<file>|<inline-json>
+  --epic <epicId> --returns @<file>|<inline-json>
 # `<inline-json>` shape: [{ "storyId": <n>, "returnText": "<raw text>" }]
 ```
 
 **Mode B is the default path** — pipe the raw return texts through
-without inspecting them. The CLI reconciles parse failures from
-GitHub, aggregates terminal status, appends to `state.waves[]`,
-re-renders `epic-run-progress`, and prints
-`{ status, nextAction, renderedBody, ... }`. Print `renderedBody`
-verbatim, then optionally append a short **Notable** section (0–5
-bullets on newly blocked / failed / slow Stories, friction,
+without inspecting them. The CLI reconciles parse failures from GitHub,
+records each Story's terminal status, emits one `story.dispatch.end` per
+recorded Story (closing the ledger pairing), re-renders
+`epic-run-progress`, and prints `{ status, nextAction, renderedBody, ... }`.
+Print `renderedBody` verbatim, then optionally append a short **Notable**
+section (0–5 bullets on newly blocked / failed / slow Stories, friction,
 elapsed-time surprises).
 
-> **Crash recovery — empty mode-B returns (Story #3907).** If the host
-> crashed *after* this wave's children finished but *before* `record-wave`
-> ran, no return text survives. Re-run mode B with an **empty** returns
-> array (`--returns '[]'`): the CLI reconciles **every** Story in
-> `plan[<N>]` directly from GitHub (label + `state`) and records the wave
-> from that live state instead of recording a falsely-`complete` empty
-> wave. This is what lets `currentWave` advance after a crash — only
-> `record-wave` advances it, so without this path the loop would return
-> `wave-complete` for the same index forever.
+> **Crash recovery.** If the host crashed *after* a child finished but
+> *before* its return was recorded, the next `tick` re-derives that Story's
+> state directly from its live label (the tick reads labels every beat), so a
+> done-but-unrecorded Story is recognised as done and never re-dispatched —
+> there is no falsely-`complete` empty wave to recover from. If you want to
+> reconcile a known-completed Story whose return text was lost, re-record it
+> from its live state by passing `--results '[{"storyId":<n>,"status":"done"}]'`
+> (verification re-checks the live label before recording `done`).
 
 ### 2d. Loop on `nextAction`
 
 After `2c`, re-run `wave-tick.js`. Branch on the new envelope:
 
-- `dispatch` → repeat 2b/2c for the same wave (refill) or the next wave.
+- `dispatch` → repeat 2b/2c for the new ready set (the next beat's
+  dependency-satisfied Stories), then re-tick.
 - `observe` → poll the Epic (children may still be in flight, or some
   are `agent::blocked`). If `blockedStories` is non-empty, post a
   friction comment, flip Epic to `agent::blocked`, park.
-- `wave-complete` → loop to the next wave.
-- `epic-complete` → proceed to Phase 3.
+- `halt` → the run is stuck: no Story is dispatchable, nothing is in
+  flight, yet not every Story is done. `reason` distinguishes the two
+  causes — `dependency-cycle` (the in-scope Stories form a `blocked by`
+  cycle; `cycle` lists the offending Story ids) or
+  `unsatisfiable-dependency` (a Story is gated on a dependency that can
+  never satisfy). `stuckStories` names the Story id(s) that stranded the
+  run. Post a friction comment quoting `reason` + `stuckStories`, flip the
+  Epic to `agent::blocked`, and park for the operator. **Never** treat a
+  `halt` as completion — proceeding to Phase 3 would silently drop the
+  stuck Story.
+- `epic-complete` → **every** in-scope Story is done and nothing is in
+  flight; proceed to Phase 3. (The tick returns `epic-complete` only when
+  the done count equals the in-scope Story count — a stuck Story surfaces
+  as `halt`, not a false `epic-complete`.)
 
 ### 2e. Idle Watchdog
 
@@ -394,7 +431,7 @@ A Story's implementation loop can run for many minutes between
 sub-agent that has gone silent (host crash, mid-Story stall, lost
 return). The Idle Watchdog closes that gap.
 
-**Cadence.** While any wave is in flight (i.e. `nextAction.kind` is
+**Cadence.** While any Story is in flight (i.e. `nextAction.kind` is
 `observe` or the most recent dispatch's `in-flight` list is non-empty),
 re-tick every **30 minutes** with the watchdog flag:
 
@@ -447,9 +484,8 @@ incrementing the `--attempt` counter; if the child is alive but
 genuinely blocked, flip the Story to `agent::blocked` and proceed per
 § 2d's `observe` branch.
 
-Stop the watchdog cadence once `wave-tick.js` returns
-`wave-complete` or `epic-complete` — there are no in-flight Stories
-left to monitor.
+Stop the watchdog cadence once `wave-tick.js` returns `epic-complete` —
+there are no in-flight Stories left to monitor.
 
 ---
 

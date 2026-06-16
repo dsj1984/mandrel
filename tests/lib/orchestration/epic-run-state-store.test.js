@@ -2,16 +2,27 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   appendIntervention,
+  buildStoryStatusMap,
   CHECKPOINT_SCHEMA_VERSION,
   EPIC_RUN_STATE_TYPE,
   initialize,
+  mergeStoryStatuses,
   read,
-  reconcileResumePointer,
+  recordStoryStatus,
+  STORY_STATUSES,
   setPhase,
   write,
 } from '../../../.agents/scripts/lib/orchestration/epic-run-state-store.js';
 import { structuredCommentMarker } from '../../../.agents/scripts/lib/orchestration/ticketing.js';
-import { Checkpointer } from '../../fixtures/epic-run-state-store.js';
+
+/**
+ * tests/lib/orchestration/epic-run-state-store.test.js — contract tests for
+ * the shrunk per-Story-status checkpoint (Story #4155 / Epic #4151). The
+ * checkpoint no longer carries `currentWave`, `plan`, `totalWaves`, or a
+ * per-wave `waves[]` history; it carries a flat `stories` status map plus the
+ * GLOBAL in-flight `concurrencyCap`, `phase`, `startedAt`, and
+ * `manualInterventions[]`.
+ */
 
 function createFakeProvider() {
   let autoId = 1;
@@ -38,25 +49,75 @@ function createFakeProvider() {
   };
 }
 
-/** Strip volatile fields so two snapshots taken at different timestamps compare. */
-function strip(state) {
-  if (!state) return state;
-  const { lastUpdatedAt: _l, startedAt: _s, ...rest } = state;
-  return rest;
-}
+describe('epic-run-state-store — pure helpers', () => {
+  it('buildStoryStatusMap seeds every Story at pending, keyed by string id', () => {
+    const map = buildStoryStatusMap([
+      { id: 1, title: 'One' },
+      { number: 2 },
+      3,
+    ]);
+    assert.deepEqual(map, {
+      1: { status: 'pending', title: 'One' },
+      2: { status: 'pending' },
+      3: { status: 'pending' },
+    });
+  });
 
-describe('epic-run-state-store', () => {
-  it('initialize() writes fresh state when none exists', async () => {
+  it('buildStoryStatusMap drops shapeless / non-positive entries', () => {
+    const map = buildStoryStatusMap([{ id: 0 }, { id: -2 }, {}, 'x', 7]);
+    assert.deepEqual(map, { 7: { status: 'pending' } });
+  });
+
+  it('mergeStoryStatuses keeps recorded progress and refreshes titles', () => {
+    const prior = {
+      1: { status: 'done', title: 'old' },
+      2: { status: 'blocked', blockerCommentId: 'c1' },
+    };
+    const incoming = {
+      1: { status: 'pending', title: 'new' },
+      2: { status: 'pending' },
+      3: { status: 'pending', title: 'Three' },
+    };
+    const merged = mergeStoryStatuses(prior, incoming);
+    assert.equal(merged['1'].status, 'done', 'recorded done survives');
+    assert.equal(merged['1'].title, 'new', 'title refreshed from seed');
+    assert.equal(merged['2'].status, 'blocked');
+    assert.equal(merged['2'].blockerCommentId, 'c1');
+    assert.deepEqual(merged['3'], { status: 'pending', title: 'Three' });
+  });
+
+  it('exposes the canonical story-status set', () => {
+    assert.deepEqual([...STORY_STATUSES].sort(), [
+      'blocked',
+      'done',
+      'failed',
+      'pending',
+    ]);
+  });
+});
+
+describe('epic-run-state-store — initialize', () => {
+  it('writes a fresh per-Story-status checkpoint when none exists', async () => {
     const provider = createFakeProvider();
     const state = await initialize({
       provider,
       epicId: 321,
-      totalWaves: 3,
-      concurrencyCap: 2,
+      storyIds: [{ id: 10 }, { id: 11 }],
+      concurrencyCap: 3,
     });
     assert.equal(state.version, CHECKPOINT_SCHEMA_VERSION);
-    assert.equal(state.totalWaves, 3);
-    assert.equal(state.currentWave, 0);
+    assert.equal(state.concurrencyCap, 3);
+    assert.equal(state.phase, 'prepare');
+    assert.deepEqual(state.manualInterventions, []);
+    assert.deepEqual(state.stories, {
+      10: { status: 'pending' },
+      11: { status: 'pending' },
+    });
+    // No wave-batch fields leak onto the fresh checkpoint.
+    assert.equal(state.currentWave, undefined);
+    assert.equal(state.totalWaves, undefined);
+    assert.equal(state.plan, undefined);
+    assert.equal(state.waves, undefined);
 
     const comments = provider._comments.get(321) ?? [];
     assert.equal(comments.length, 1);
@@ -65,22 +126,20 @@ describe('epic-run-state-store', () => {
     );
   });
 
-  it('initialize() is idempotent when re-called with the same shape', async () => {
+  it('is idempotent when re-called with the same Story set + cap', async () => {
     const provider = createFakeProvider();
     const first = await initialize({
       provider,
       epicId: 321,
-      totalWaves: 3,
-      concurrencyCap: 2,
+      storyIds: [10, 11],
+      concurrencyCap: 3,
     });
     const second = await initialize({
       provider,
       epicId: 321,
-      totalWaves: 3,
-      concurrencyCap: 2,
+      storyIds: [10, 11],
+      concurrencyCap: 3,
     });
-    assert.equal(second.totalWaves, 3);
-    assert.equal(second.concurrencyCap, 2);
     assert.equal(
       second.startedAt,
       first.startedAt,
@@ -90,72 +149,68 @@ describe('epic-run-state-store', () => {
     assert.equal(comments.length, 1, 'no duplicate checkpoint comment');
   });
 
-  it('initialize() refreshes totalWaves/concurrencyCap when re-prepare detects a delta', async () => {
+  it('refreshes concurrencyCap and adds new Stories without resetting recorded progress', async () => {
     const provider = createFakeProvider();
     await initialize({
       provider,
       epicId: 321,
-      totalWaves: 2,
+      storyIds: [10, 11],
+      concurrencyCap: 2,
+    });
+    // Story 10 reached done since the first prepare.
+    await recordStoryStatus({
+      provider,
+      epicId: 321,
+      storyId: 10,
+      status: 'done',
+    });
+
+    const refreshed = await initialize({
+      provider,
+      epicId: 321,
+      storyIds: [10, 11, 12],
+      concurrencyCap: 4,
+    });
+
+    assert.equal(refreshed.concurrencyCap, 4);
+    assert.equal(
+      refreshed.stories['10'].status,
+      'done',
+      'recorded done preserved across re-prepare',
+    );
+    assert.equal(refreshed.stories['11'].status, 'pending');
+    assert.equal(refreshed.stories['12'].status, 'pending', 'new Story added');
+
+    const comments = provider._comments.get(321) ?? [];
+    assert.equal(comments.length, 1, 'still a single checkpoint comment');
+  });
+});
+
+describe('epic-run-state-store — read/write', () => {
+  it('write overwrites prior checkpoints via marker upsert', async () => {
+    const provider = createFakeProvider();
+    await initialize({
+      provider,
+      epicId: 321,
+      storyIds: [1],
       concurrencyCap: 2,
     });
     await write({
       provider,
       epicId: 321,
       state: {
-        ...(await read({ provider, epicId: 321 })),
-        currentWave: 1,
-        waves: [{ wave: 0, status: 'complete' }],
-        blockerHistory: [{ wave: 0, reason: 'recovered' }],
-        plan: [['storyA'], ['storyB']],
+        epicId: 321,
+        concurrencyCap: 2,
+        stories: { 1: { status: 'done' } },
       },
     });
-
-    const refreshed = await initialize({
-      provider,
-      epicId: 321,
-      totalWaves: 6,
-      concurrencyCap: 4,
-    });
-
-    assert.equal(refreshed.totalWaves, 6);
-    assert.equal(refreshed.concurrencyCap, 4);
-    assert.equal(refreshed.currentWave, 1);
-    assert.deepEqual(refreshed.waves, [{ wave: 0, status: 'complete' }]);
-    assert.deepEqual(refreshed.blockerHistory, [
-      { wave: 0, reason: 'recovered' },
-    ]);
-    assert.deepEqual(refreshed.plan, [['storyA'], ['storyB']]);
-
-    const comments = provider._comments.get(321) ?? [];
-    assert.equal(comments.length, 1, 'still a single checkpoint comment');
-  });
-
-  it('write() overwrites prior checkpoints via marker upsert', async () => {
-    const provider = createFakeProvider();
-    await initialize({
-      provider,
-      epicId: 321,
-      totalWaves: 3,
-      concurrencyCap: 2,
-    });
-    await write({
-      provider,
-      epicId: 321,
-      state: { epicId: 321, currentWave: 1, totalWaves: 3, waves: [] },
-    });
-    await write({
-      provider,
-      epicId: 321,
-      state: { epicId: 321, currentWave: 2, totalWaves: 3, waves: [] },
-    });
-
     const comments = provider._comments.get(321) ?? [];
     assert.equal(comments.length, 1, 'upsert keeps exactly one comment');
     const parsed = await read({ provider, epicId: 321 });
-    assert.equal(parsed.currentWave, 2);
+    assert.equal(parsed.stories['1'].status, 'done');
   });
 
-  it('read() returns null on missing or malformed comment', async () => {
+  it('read returns null on missing or malformed comment', async () => {
     const provider = createFakeProvider();
     assert.equal(await read({ provider, epicId: 321 }), null);
 
@@ -165,23 +220,129 @@ describe('epic-run-state-store', () => {
     assert.equal(await read({ provider, epicId: 321 }), null);
   });
 
-  it('initialize() seeds an empty manualInterventions array', async () => {
+  it('round-trip: write then read returns the persisted state', async () => {
+    const provider = createFakeProvider();
+    const seed = {
+      epicId: 321,
+      startedAt: '2026-04-21T20:00:00.000Z',
+      concurrencyCap: 3,
+      phase: 'wave-loop',
+      stories: { 1: { status: 'done' }, 2: { status: 'pending' } },
+      manualInterventions: [
+        { reason: 'r', source: 'host-llm', ts: '2026-04-21T20:00:00.000Z' },
+      ],
+    };
+    const written = await write({ provider, epicId: 321, state: seed });
+    const got = await read({ provider, epicId: 321 });
+    assert.deepEqual(got, written);
+  });
+});
+
+describe('epic-run-state-store — recordStoryStatus', () => {
+  it('splices a single Story status into the map, preserving others', async () => {
+    const provider = createFakeProvider();
+    await initialize({
+      provider,
+      epicId: 321,
+      storyIds: [1, 2],
+      concurrencyCap: 2,
+    });
+    const state = await recordStoryStatus({
+      provider,
+      epicId: 321,
+      storyId: 2,
+      status: 'done',
+      title: 'Two',
+    });
+    assert.equal(state.stories['2'].status, 'done');
+    assert.equal(state.stories['2'].title, 'Two');
+    assert.equal(state.stories['1'].status, 'pending', 'other Story untouched');
+  });
+
+  it('records a blocker comment id only for the blocked status', async () => {
+    const provider = createFakeProvider();
+    await initialize({
+      provider,
+      epicId: 321,
+      storyIds: [1],
+      concurrencyCap: 1,
+    });
+    const state = await recordStoryStatus({
+      provider,
+      epicId: 321,
+      storyId: 1,
+      status: 'blocked',
+      blockerCommentId: 99,
+    });
+    assert.equal(state.stories['1'].status, 'blocked');
+    assert.equal(state.stories['1'].blockerCommentId, '99');
+  });
+
+  it('upgrades a legacy checkpoint with no stories map in place', async () => {
+    const provider = createFakeProvider();
+    await write({
+      provider,
+      epicId: 321,
+      state: { epicId: 321, concurrencyCap: 1 },
+    });
+    const state = await recordStoryStatus({
+      provider,
+      epicId: 321,
+      storyId: 5,
+      status: 'failed',
+    });
+    assert.deepEqual(state.stories, { 5: { status: 'failed' } });
+  });
+
+  it('rejects a bad storyId or unknown status', async () => {
+    const provider = createFakeProvider();
+    await initialize({
+      provider,
+      epicId: 321,
+      storyIds: [1],
+      concurrencyCap: 1,
+    });
+    await assert.rejects(
+      () =>
+        recordStoryStatus({
+          provider,
+          epicId: 321,
+          storyId: 0,
+          status: 'done',
+        }),
+      /positive integer/,
+    );
+    await assert.rejects(
+      () =>
+        recordStoryStatus({
+          provider,
+          epicId: 321,
+          storyId: 1,
+          status: 'cooked',
+        }),
+      /must be one of/,
+    );
+  });
+});
+
+describe('epic-run-state-store — interventions + phase', () => {
+  it('initialize seeds an empty manualInterventions array', async () => {
     const provider = createFakeProvider();
     const state = await initialize({
       provider,
       epicId: 321,
-      totalWaves: 1,
+      storyIds: [1],
       concurrencyCap: 1,
     });
     assert.deepEqual(state.manualInterventions, []);
   });
 
-  it('appendIntervention() appends a record with default source/ts', async () => {
+  it('appendIntervention appends a record with default source/ts', async () => {
     const provider = createFakeProvider();
     await initialize({
       provider,
       epicId: 321,
-      totalWaves: 1,
+      storyIds: [1],
       concurrencyCap: 1,
     });
     const state = await appendIntervention({
@@ -196,12 +357,12 @@ describe('epic-run-state-store', () => {
     assert.match(entry.ts, /^\d{4}-\d{2}-\d{2}T/);
   });
 
-  it('appendIntervention() preserves prior entries and other state fields', async () => {
+  it('appendIntervention preserves prior entries and other state fields', async () => {
     const provider = createFakeProvider();
     await initialize({
       provider,
       epicId: 321,
-      totalWaves: 2,
+      storyIds: [1],
       concurrencyCap: 3,
     });
     await appendIntervention({
@@ -218,25 +379,20 @@ describe('epic-run-state-store', () => {
     assert.equal(state.manualInterventions[0].reason, 'first');
     assert.equal(state.manualInterventions[0].source, 'host');
     assert.equal(state.manualInterventions[1].reason, 'second');
-    assert.equal(state.totalWaves, 2);
     assert.equal(state.concurrencyCap, 3);
   });
 
-  it('appendIntervention() rejects missing reason', async () => {
+  it('appendIntervention rejects a missing reason', async () => {
     const provider = createFakeProvider();
     await initialize({
       provider,
       epicId: 321,
-      totalWaves: 1,
+      storyIds: [1],
       concurrencyCap: 1,
     });
     await assert.rejects(
       () =>
-        appendIntervention({
-          provider,
-          epicId: 321,
-          entry: { reason: '' },
-        }),
+        appendIntervention({ provider, epicId: 321, entry: { reason: '' } }),
       /reason: string/,
     );
     await assert.rejects(
@@ -245,17 +401,12 @@ describe('epic-run-state-store', () => {
     );
   });
 
-  it('appendIntervention() works when manualInterventions was missing (legacy state)', async () => {
+  it('appendIntervention works when manualInterventions was missing (legacy state)', async () => {
     const provider = createFakeProvider();
     await write({
       provider,
       epicId: 321,
-      state: {
-        epicId: 321,
-        currentWave: 0,
-        totalWaves: 1,
-        waves: [],
-      },
+      state: { epicId: 321, concurrencyCap: 1, stories: {} },
     });
     const state = await appendIntervention({
       provider,
@@ -266,12 +417,12 @@ describe('epic-run-state-store', () => {
     assert.equal(state.manualInterventions[0].reason, 'legacy upgrade');
   });
 
-  it('setPhase() advances the phase field and preserves other state', async () => {
+  it('setPhase advances the phase field and preserves other state', async () => {
     const provider = createFakeProvider();
     await initialize({
       provider,
       epicId: 321,
-      totalWaves: 3,
+      storyIds: [1],
       concurrencyCap: 2,
     });
     const updated = await setPhase({
@@ -280,9 +431,11 @@ describe('epic-run-state-store', () => {
       nextPhase: 'wave-loop',
     });
     assert.equal(updated.phase, 'wave-loop');
-    assert.equal(updated.totalWaves, 3);
+    assert.equal(updated.concurrencyCap, 2);
   });
+});
 
+describe('epic-run-state-store — argument validation', () => {
   it('rejects invalid arguments', async () => {
     await assert.rejects(
       () => read({ provider: null, epicId: 1 }),
@@ -301,148 +454,10 @@ describe('epic-run-state-store', () => {
         initialize({
           provider: null,
           epicId: 1,
-          totalWaves: 1,
+          storyIds: [1],
           concurrencyCap: 1,
         }),
       /requires a provider/,
     );
-  });
-
-  it('write() produces byte-identical comment body to Checkpointer.write()', async () => {
-    const seed = {
-      epicId: 888,
-      startedAt: '2026-04-21T20:00:00.000Z',
-      currentWave: 1,
-      totalWaves: 4,
-      concurrencyCap: 3,
-      phase: 'iterate-waves',
-      waves: [{ wave: 0, status: 'complete' }],
-      blockerHistory: [{ wave: 0, reason: 'ok' }],
-      manualInterventions: [],
-      plan: [['s1'], ['s2', 's3']],
-    };
-
-    const providerA = createFakeProvider();
-    const providerB = createFakeProvider();
-
-    await write({ provider: providerA, epicId: 888, state: seed });
-    const cp = new Checkpointer({ provider: providerB, epicId: 888 });
-    await cp.write(seed);
-
-    const a = await read({ provider: providerA, epicId: 888 });
-    const b = await cp.read();
-
-    assert.deepEqual(
-      strip(a),
-      strip(b),
-      'epic-run-state-store and Checkpointer write equivalent state',
-    );
-    assert.equal(a.version, CHECKPOINT_SCHEMA_VERSION);
-    assert.equal(b.version, CHECKPOINT_SCHEMA_VERSION);
-  });
-
-  it('round-trip: write then read returns the persisted state', async () => {
-    const provider = createFakeProvider();
-    const seed = {
-      epicId: 321,
-      startedAt: '2026-04-21T20:00:00.000Z',
-      currentWave: 2,
-      totalWaves: 5,
-      concurrencyCap: 3,
-      phase: 'close-tail',
-      waves: [],
-      blockerHistory: [],
-      manualInterventions: [
-        { reason: 'r', source: 'host-llm', ts: '2026-04-21T20:00:00.000Z' },
-      ],
-    };
-    const written = await write({ provider, epicId: 321, state: seed });
-    const got = await read({ provider, epicId: 321 });
-    assert.deepEqual(got, written);
-  });
-
-  // -------------------------------------------------------------------
-  // reconcileResumePointer (Story #3358)
-  // -------------------------------------------------------------------
-  describe('reconcileResumePointer', () => {
-    it('preserves currentWave + waves when the plan is unchanged', () => {
-      const checkpoint = {
-        currentWave: 2,
-        waves: [{ index: 0 }, { index: 1 }],
-      };
-      const plan = [[{ id: 10 }], [{ id: 20 }], [{ id: 30 }]];
-      const out = reconcileResumePointer(checkpoint, plan, plan);
-      assert.equal(out.currentWave, 2);
-      assert.deepEqual(out.waves, [{ index: 0 }, { index: 1 }]);
-    });
-
-    it('ignores title/worktree churn when comparing plans', () => {
-      const checkpoint = { currentWave: 1, waves: [{ index: 0 }] };
-      const prior = [[{ id: 10, title: 'old', worktree: 'a' }], [{ id: 20 }]];
-      const next = [[{ id: 10, title: 'new', worktree: 'b' }], [{ id: 20 }]];
-      const out = reconcileResumePointer(checkpoint, prior, next);
-      assert.equal(out.currentWave, 1, 'cosmetic churn must not trip a reset');
-      assert.deepEqual(out.waves, [{ index: 0 }]);
-    });
-
-    it('resets currentWave to 0 and clears waves when the plan shrank', () => {
-      const checkpoint = {
-        currentWave: 2,
-        waves: [{ index: 0 }, { index: 1 }],
-      };
-      // Prior plan had 6 waves; resume recomputed a 4-wave plan over the
-      // not-done Stories, re-indexed from 0.
-      const prior = [
-        [{ id: 1 }],
-        [{ id: 2 }],
-        [{ id: 3 }],
-        [{ id: 4 }],
-        [{ id: 5 }],
-        [{ id: 6 }],
-      ];
-      const next = [[{ id: 3 }], [{ id: 4 }], [{ id: 5 }], [{ id: 6 }]];
-      const out = reconcileResumePointer(checkpoint, prior, next);
-      assert.equal(
-        out.currentWave,
-        0,
-        'pointer reset into the new index space',
-      );
-      assert.deepEqual(out.waves, [], 'stale history dropped');
-    });
-
-    it('resets when wave membership changes but length is identical', () => {
-      const checkpoint = { currentWave: 1, waves: [{ index: 0 }] };
-      const prior = [[{ id: 1 }], [{ id: 2 }]];
-      const next = [[{ id: 1 }], [{ id: 99 }]];
-      const out = reconcileResumePointer(checkpoint, prior, next);
-      assert.equal(out.currentWave, 0);
-      assert.deepEqual(out.waves, []);
-    });
-
-    it('treats an absent prior plan as a fresh-run no-reset baseline', () => {
-      const checkpoint = { currentWave: 0, waves: [] };
-      const next = [[{ id: 1 }]];
-      // undefined prior !== next → reset, but currentWave is already 0 and
-      // waves already empty, so the reconciled output is a clean fresh start.
-      const out = reconcileResumePointer(checkpoint, undefined, next);
-      assert.equal(out.currentWave, 0);
-      assert.deepEqual(out.waves, []);
-    });
-
-    it('coerces non-integer currentWave / non-array waves to safe defaults', () => {
-      const checkpoint = { currentWave: 'nope', waves: 'nope' };
-      const plan = [[{ id: 1 }]];
-      const out = reconcileResumePointer(checkpoint, plan, plan);
-      assert.equal(out.currentWave, 0);
-      assert.deepEqual(out.waves, []);
-    });
-
-    it('keys equality on storyId / number entry shapes too', () => {
-      const checkpoint = { currentWave: 1, waves: [{ index: 0 }] };
-      const prior = [[{ storyId: 5 }], [{ number: 6 }]];
-      const next = [[{ id: 5 }], [{ id: 6 }]];
-      const out = reconcileResumePointer(checkpoint, prior, next);
-      assert.equal(out.currentWave, 1, 'mixed id keys still compare equal');
-    });
   });
 });

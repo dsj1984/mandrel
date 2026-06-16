@@ -5,7 +5,7 @@
  * `epic-deliver-preflight.js` MUST:
  *
  *   - Produce a JSON envelope carrying the five canonical metric keys
- *     (`storyCount`, `installCostSeconds`, `waveCount`,
+ *     (`storyCount`, `installCostSeconds`, `dependencyDepth`,
  *     `githubApiRequests`, `claudeQuotaTokens`) plus a `breaches` array
  *     when called with `--dry-run`.
  *   - Upsert a structured comment with marker `delivery-preflight` on
@@ -85,30 +85,32 @@ const FAKE_CONFIG = {
 describe('contract/delivery/preflight-estimate', () => {
   describe('computeEstimate', () => {
     it('returns the five canonical metric keys', () => {
-      const e = computeEstimate({ storyCount: 4, waveCount: 2 });
+      const e = computeEstimate({ storyCount: 4, dependencyDepth: 2 });
       assert.deepEqual(Object.keys(e).sort(), [
         'claudeQuotaTokens',
+        'dependencyDepth',
         'githubApiRequests',
         'installCostSeconds',
         'storyCount',
-        'waveCount',
       ]);
     });
 
     it('scales install cost linearly with story count', () => {
-      const a = computeEstimate({ storyCount: 2, waveCount: 1 });
-      const b = computeEstimate({ storyCount: 4, waveCount: 1 });
+      const a = computeEstimate({ storyCount: 2, dependencyDepth: 1 });
+      const b = computeEstimate({ storyCount: 4, dependencyDepth: 1 });
       assert.equal(b.installCostSeconds, a.installCostSeconds * 2);
     });
 
     it('rejects negative storyCount', () => {
-      assert.throws(() => computeEstimate({ storyCount: -1, waveCount: 0 }));
+      assert.throws(() =>
+        computeEstimate({ storyCount: -1, dependencyDepth: 0 }),
+      );
     });
   });
 
   describe('detectBreaches', () => {
     it('skips null thresholds', () => {
-      const e = computeEstimate({ storyCount: 10, waveCount: 3 });
+      const e = computeEstimate({ storyCount: 10, dependencyDepth: 3 });
       const breaches = detectBreaches(e, {
         maxStories: null,
         maxWaves: null,
@@ -120,7 +122,7 @@ describe('contract/delivery/preflight-estimate', () => {
     });
 
     it('flags maxStories when exceeded', () => {
-      const e = computeEstimate({ storyCount: 10, waveCount: 3 });
+      const e = computeEstimate({ storyCount: 10, dependencyDepth: 3 });
       const breaches = detectBreaches(e, {
         maxStories: 5,
         maxWaves: null,
@@ -137,7 +139,7 @@ describe('contract/delivery/preflight-estimate', () => {
 
   describe('renderPreflightBody', () => {
     it('embeds the breach list when present', () => {
-      const e = computeEstimate({ storyCount: 10, waveCount: 3 });
+      const e = computeEstimate({ storyCount: 10, dependencyDepth: 3 });
       const t = {
         maxStories: 5,
         maxWaves: null,
@@ -176,7 +178,7 @@ describe('contract/delivery/preflight-estimate', () => {
       });
       // AC1 — envelope carries the five canonical keys.
       assert.equal(envelope.storyCount, 4);
-      assert.equal(envelope.waveCount, 1);
+      assert.equal(envelope.dependencyDepth, 1);
       assert.equal(typeof envelope.installCostSeconds, 'number');
       assert.equal(typeof envelope.githubApiRequests, 'number');
       assert.equal(typeof envelope.claudeQuotaTokens, 'number');

@@ -5,11 +5,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import {
   classifyParsedReturn,
-  countDoneStories,
-  resolveConcurrencyCap,
   selectInputFlag,
-  validateEpicWave,
-  validateResultsReturnsXor,
   validateReturnsEntry,
 } from '../.agents/scripts/epic-execute-record-wave.js';
 import {
@@ -219,38 +215,10 @@ test('hasImproved fires when either count is strictly lower than baseline', () =
 });
 
 // ---------------------------------------------------------------------------
-// epic-execute-record-wave.js — extracted validators / classifiers / counters
+// epic-execute-record-wave.js — surviving per-Story validators / classifiers
+// (Story #4155 removed the wave-batch helpers: validateEpicWave,
+// validateResultsReturnsXor, resolveConcurrencyCap, countDoneStories.)
 // ---------------------------------------------------------------------------
-test('validateEpicWave accepts positive epicId + non-negative wave', () => {
-  validateEpicWave(1, 0);
-  validateEpicWave(42, 7);
-  assert.throws(() => validateEpicWave(0, 0), TypeError);
-  assert.throws(() => validateEpicWave(1.5, 0), TypeError);
-  assert.throws(() => validateEpicWave(1, -1), TypeError);
-  assert.throws(() => validateEpicWave(1, 'x'), TypeError);
-});
-
-test('validateResultsReturnsXor enforces exactly-one', () => {
-  validateResultsReturnsXor([], null);
-  validateResultsReturnsXor(null, []);
-  assert.throws(() => validateResultsReturnsXor(null, null), TypeError);
-  assert.throws(() => validateResultsReturnsXor([], []), TypeError);
-});
-
-test('resolveConcurrencyCap respects override and rejects non-positive ints', () => {
-  // Override beats every other source.
-  assert.strictEqual(resolveConcurrencyCap(5, {}, { concurrencyCap: 3 }), 5);
-  // Checkpoint value takes effect when override is omitted.
-  assert.strictEqual(
-    resolveConcurrencyCap(undefined, { concurrencyCap: 3 }, {}),
-    3,
-  );
-  // Zero / negative / non-integer override → RangeError.
-  assert.throws(() => resolveConcurrencyCap(0, {}, {}), RangeError);
-  assert.throws(() => resolveConcurrencyCap(-1, {}, {}), RangeError);
-  assert.throws(() => resolveConcurrencyCap(1.5, {}, {}), RangeError);
-});
-
 test('validateReturnsEntry normalizes returnText to a string', () => {
   assert.deepStrictEqual(
     validateReturnsEntry({ storyId: 5, returnText: 'hi' }, 0),
@@ -287,22 +255,6 @@ test('selectInputFlag enforces XOR contract between --results and --returns', ()
   assert.strictEqual(selectInputFlag(false, true), 'returns');
   assert.throws(() => selectInputFlag(true, true), TypeError);
   assert.throws(() => selectInputFlag(false, false), TypeError);
-});
-
-test('countDoneStories sums "done" rows across recorded waves only', () => {
-  assert.strictEqual(countDoneStories([]), 0);
-  assert.strictEqual(
-    countDoneStories([
-      { stories: [{ state: 'done' }, { state: 'blocked' }] },
-      { stories: [{ state: 'done' }] },
-    ]),
-    2,
-  );
-  // Tolerate non-array `stories` fields without throwing.
-  assert.strictEqual(
-    countDoneStories([{ stories: 'oops' }, { stories: undefined }]),
-    0,
-  );
 });
 
 // ---------------------------------------------------------------------------

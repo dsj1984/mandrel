@@ -40,29 +40,35 @@ import {
 // `*(after #2001)*` inside Story #300.
 // ---------------------------------------------------------------------------
 
-function story(id, title, wave, status = 'agent::ready') {
+// Story #4157: the per-wave H2 sections derive depth at render time from
+// `dependsOn`, while the Wave Summary TOC still reads the persisted
+// `earliestWave`. Each Story therefore carries explicit `dependsOn` edges
+// onto a Story in the prior wave so the derived depth equals `earliestWave`
+// and the TOC anchors round-trip to the H2s the depth lens emits.
+function story(id, title, wave, status = 'agent::ready', deps = []) {
   return {
     storyId: id,
     storySlug: `story-${id}`,
     storyTitle: title,
     type: 'story',
     earliestWave: wave,
+    dependsOn: deps,
     branchName: `story-${id}`,
     status,
   };
 }
 
 function buildE2EFixture() {
-  // Wave 0: 2 stories.
+  // Wave 0: 2 stories (no dependencies → depth 0).
   const s100 = story(100, 'Sprint Bootstrap', 0);
   const s101 = story(101, 'Wire Telemetry', 0);
 
-  // Wave 1: 2 stories.
-  const s200 = story(200, 'Render TOC', 1);
-  const s201 = story(201, 'Nest Stories', 1);
+  // Wave 1: 2 stories, each depending on a Wave-0 Story → depth 1.
+  const s200 = story(200, 'Render TOC', 1, 'agent::ready', [100]);
+  const s201 = story(201, 'Nest Stories', 1, 'agent::ready', [101]);
 
-  // Wave 2: 1 Story.
-  const s300 = story(300, 'Order Tasks', 2);
+  // Wave 2: 1 Story depending on a Wave-1 Story → depth 2.
+  const s300 = story(300, 'Order Tasks', 2, 'agent::ready', [200]);
 
   return {
     epicId: 11780,

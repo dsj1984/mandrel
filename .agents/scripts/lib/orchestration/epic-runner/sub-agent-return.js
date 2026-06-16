@@ -241,26 +241,29 @@ export async function reconcileStoryFromGitHub({ provider, storyId } = {}) {
 
 /**
  * Render a single friction-comment body listing every malformed sub-agent
- * return for a given wave. Pure helper — no provider call. Exposed so tests
- * can pin the body shape.
+ * return for a recorder beat. Pure helper — no provider call. Exposed so
+ * tests can pin the body shape.
+ *
+ * Story #4155 — under the ready-set runtime there is no wave index; the
+ * recorder records the Stories it was handed, so the body is keyed by Epic
+ * only.
  *
  * @param {{
  *   epicId: number,
- *   wave: number,
  *   failures: Array<{ storyId: number, error: string, returnText: string }>,
  * }} args
  * @returns {string}
  */
-export function renderMalformedReturnsFriction({ epicId, wave, failures }) {
+export function renderMalformedReturnsFriction({ epicId, failures }) {
   const lines = [
-    `### 🚧 epic-execute friction — Epic #${epicId}, wave ${wave}`,
+    `### 🚧 epic-execute friction — Epic #${epicId}`,
     '',
     `**Reason:** \`malformed-subagent-return\``,
     '',
     `${failures.length} sub-agent return(s) did not match the /deliver return contract.`,
     'Each Story below was reconciled from GitHub (labels + `story-run-progress`)',
-    'and its wave-row downgraded to `failed` unless the live ticket already carried',
-    '`agent::done`.',
+    'and its recorded status downgraded to `failed` unless the live ticket',
+    'already carried `agent::done`.',
     '',
   ];
   for (const f of failures) {

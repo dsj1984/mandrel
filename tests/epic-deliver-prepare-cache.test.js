@@ -135,9 +135,8 @@ describe('epic-deliver-prepare cache read', () => {
     });
 
     assert.equal(result.preflightCache, 'hit');
-    assert.equal(result.totalWaves, 1);
-    assert.equal(result.plan.length, 1);
-    assert.equal(result.plan[0].stories.length, 2);
+    assert.equal(result.storyCount, 2);
+    assert.equal(result.stories.length, 2);
     // Cache hit: getSubTickets MUST NOT have been called by prepare
     // (the snapshot+DAG walk is what we're skipping).
     assert.equal(provider._counts.getSubTickets, 0);
@@ -167,8 +166,8 @@ describe('epic-deliver-prepare cache read', () => {
     });
 
     assert.equal(result.preflightCache, 'miss');
-    assert.equal(result.totalWaves, 1);
-    assert.equal(result.plan.length, 1);
+    assert.equal(result.storyCount, 1);
+    assert.equal(result.stories.length, 1);
     // Miss: the snapshot phase walked the hierarchy via getSubTickets.
     assert.ok(provider._counts.getSubTickets >= 1);
   });
@@ -212,9 +211,9 @@ describe('epic-deliver-prepare cache read', () => {
 
     assert.equal(result.preflightCache, 'stale');
     // Stale: the fresh pass reflects the *current* hierarchy, not the
-    // empty wave the stale cache carried.
-    assert.equal(result.totalWaves, 1);
-    assert.equal(result.plan[0].stories.length, 2);
+    // empty set the stale cache carried.
+    assert.equal(result.storyCount, 2);
+    assert.equal(result.stories.length, 2);
     assert.ok(provider._counts.getSubTickets >= 1);
   });
 

@@ -198,7 +198,6 @@ test('reconcileStoryFromGitHub — getTicket throw is non-fatal, returns failed 
 test('renderMalformedReturnsFriction — body lists every failure with quoted text', () => {
   const body = renderMalformedReturnsFriction({
     epicId: 604,
-    wave: 0,
     failures: [
       {
         storyId: 612,
@@ -207,7 +206,7 @@ test('renderMalformedReturnsFriction — body lists every failure with quoted te
       },
     ],
   });
-  assert.match(body, /Epic #604, wave 0/);
+  assert.match(body, /Epic #604/);
   assert.match(body, /Story #612/);
   assert.match(body, /Clean\. Now commit Task 622\./);
 });
