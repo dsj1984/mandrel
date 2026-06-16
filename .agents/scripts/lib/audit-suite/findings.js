@@ -17,8 +17,6 @@
 
 import { groupRows, resolveComponents } from '../baselines/components.js';
 
-const SEVERITIES = Object.freeze(['critical', 'high', 'medium', 'low']);
-
 /**
  * Pure: count findings into a {critical,high,medium,low} histogram. Findings
  * with severities outside that set are ignored, keeping the rendered summary
@@ -36,8 +34,6 @@ export function aggregateSummary(findings) {
   }
   return summary;
 }
-
-export const KNOWN_SEVERITIES = SEVERITIES;
 
 /**
  * Resolve the per-component rollup map for an envelope. When the envelope
