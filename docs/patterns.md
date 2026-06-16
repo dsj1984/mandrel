@@ -621,6 +621,83 @@ established is the live convention.
   `lib/story-init/`) and by `story-close.js`'s post-merge
   pipeline (`lib/orchestration/post-merge/phases/`).
 
+## Decide / Execute / Run phase triple
+
+### Problem
+
+The [Coordinator-plus-Phases Decomposition](#coordinator-plus-phases-decomposition)
+above splits a monolithic orchestrator into one module per workflow
+step, but each individual phase can itself still braid **decision logic**
+(which branch of the workflow applies, given the current state) with
+**side effects** (the git command, the stdin prompt, the filesystem
+write). When the two are interleaved inside a single `runXPhase`
+function, the branching logic is only reachable by spinning up the real
+I/O — you cannot assert "given a plan that is N commits behind in
+`--yes` mode, the phase chooses to execute immediately" without an actual
+git repo and a real subprocess. That is the humble-object anti-pattern:
+testable logic trapped behind an untestable boundary.
+
+### Solution
+
+Decompose each phase into a **triple** — a pure decider, a thin impure
+adapter, and an orchestrator that composes them:
+
+- **`decideXPhase(state)` — pure.** Takes a plain `state` object (the
+  plan, the resolved CLI options, the working directory) and returns a
+  plain **action record** `{ kind, ...args }` describing *what* should
+  happen — `'skip'`, `'dry-run'`, `'execute'`, `'prompt-then-execute'`,
+  etc. It performs **no I/O**: no git, no stdin, no `fs`. Every branch
+  of the workflow is therefore reachable by calling the function with a
+  hand-built `state` and asserting on the returned record.
+- **`executeXPhase(action)` — impure, thin.** Takes the action record
+  the decider produced and performs the side effects for the
+  non-interactive `kind`s (run the git command, emit the human log
+  lines), returning the phase result. It carries **no branching policy**
+  of its own beyond dispatching on `action.kind`, and throws on an
+  unsupported kind so a mis-wired decider fails loudly.
+- **`runXPhase(opts, …)` — orchestrator.** The sequencer that the
+  coordinator actually calls: it builds the `state` (often by invoking a
+  `planX` helper), calls the decider, threads the interactive prompt
+  between decide and execute when the action's `kind` demands it (e.g.
+  `'prompt-then-execute'`), and otherwise delegates to the adapter.
+
+### Reference implementation
+
+[`.agents/scripts/lib/orchestration/git-cleanup/phases/phase-drivers.js`](../.agents/scripts/lib/orchestration/git-cleanup/phases/phase-drivers.js)
+is the canonical exemplar (the split was introduced by Story #2994).
+It drives the git-cleanup phases as three such triples:
+
+- `decideFastForwardPhase` / `executeFastForwardPhase` / `runFastForwardPhase`
+- `decideBranchPhase` / `executeBranchPhase` / `runBranchPhase`
+- `decideStashPhase` / `executeStashPhase` / `runStashPhase`
+
+Each `decide*` returns an action record keyed by `kind` and touches no
+git or stdin; each `execute*` is a thin dispatch on that `kind`; each
+`run*` composes the pair and owns the interactive prompt.
+
+### Benefits
+
+- **Testable surface (humble object).** The decision logic — the part
+  most worth testing and most prone to regression — is unit-testable on
+  plain `state`, with no git repo, subprocess, or stdin mock. The I/O is
+  quarantined in the thin `execute*` adapter, which has little logic left
+  to test.
+- **Cheap to assert every branch.** Skip, dry-run, declined-prompt, and
+  execute paths are each one direct call to the decider with a different
+  `state`, rather than one integration fixture per path.
+- **Local reasoning.** A reviewer reads the decider to understand *what*
+  the phase decides and the adapter to understand *how* it acts, without
+  untangling the two.
+
+### When to reach for it
+
+Apply the triple to any new orchestration phase whose decision logic has
+more than a trivial branch or two — the next `tick.js`-style refactor, a
+new cleanup or migration step, any phase that chooses between skip /
+dry-run / prompt / execute. A phase with a single unconditional side
+effect and no branching (e.g. `runPrunePhase` in the same file) does not
+need the split and is intentionally left as a plain `run*`.
+
 ## Atomic file write via tmp + rename
 
 ### Problem
