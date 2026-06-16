@@ -56,8 +56,6 @@
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 
-let _resolveConfig;
-
 /**
  * Cache the resolved main-checkout root per spawn cwd so the
  * `git rev-parse` shell-out runs at most once per distinct working
@@ -137,20 +135,6 @@ function anchorTempRoot(tempRoot) {
 }
 
 /**
- * Lazy import of `resolveConfig` to side-step a circular module graph
- * (`config-resolver.js` re-exports from this directory and importing it
- * eagerly would resolve `temp-paths.js` before `lib/config/limits.js` is
- * ready). The resolver itself caches per-root, so the inner call is cheap.
- */
-async function getResolveConfig() {
-  if (!_resolveConfig) {
-    const mod = await import('../config-resolver.js');
-    _resolveConfig = mod.resolveConfig;
-  }
-  return _resolveConfig;
-}
-
-/**
  * Synchronous tempRoot extraction. Accepts the canonical full resolved
  * config (`{ project, ... }`) and reads `project.paths.tempRoot`.
  *
@@ -170,21 +154,6 @@ export function tempRootFrom(config) {
   return typeof tempRoot === 'string' && tempRoot.length > 0
     ? tempRoot
     : 'temp';
-}
-
-/**
- * Async tempRoot resolver. When the caller cannot pass a config bag, this
- * loads the project's `.agentrc.json` via `resolveConfig` (cached per
- * root). Most `.agents/scripts` consumers should prefer the synchronous
- * variant by threading their already-resolved config through.
- *
- * @param {{ cwd?: string }} [opts]
- * @returns {Promise<string>}
- */
-export async function tempRootAsync(opts) {
-  const resolveConfig = await getResolveConfig();
-  const resolved = resolveConfig({ cwd: opts?.cwd });
-  return tempRootFrom(resolved);
 }
 
 const epicId = (id) => {

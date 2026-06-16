@@ -67,10 +67,9 @@ export const PHASE_ORDER = [
 ];
 
 /**
- * Emoji prefix per high-level state. Shared between the per-poll table
- * (`composition.renderProgressTable`) and the rolled-up Epic table
- * (`composition.upsertEpicRunProgress`) so operators see the same icon
- * in both surfaces.
+ * Emoji prefix per high-level state. Consumed by the rolled-up Epic table
+ * (`composition.upsertEpicRunProgress`) so operators see a consistent icon
+ * per state across the progress surface.
  */
 export const STATE_EMOJI = {
   done: '✅',

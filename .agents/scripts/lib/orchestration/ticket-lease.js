@@ -56,6 +56,9 @@ import { parseLedger } from './lifecycle/trace-logger.js';
  * coordinated under a shared identity) and no assignee PATCH ever writes a
  * literal `[USERNAME]` (HTTP 422).
  */
+// kept (dead-export allowlist): public config sentinel — the distributed
+// `.agentrc.json` / templates carry this literal; exported so consumers and
+// future call sites resolve it by symbol rather than re-typing the string.
 export const OPERATOR_HANDLE_PLACEHOLDER = '@[USERNAME]';
 const OPERATOR_HANDLE_PLACEHOLDER_BARE = '[USERNAME]';
 

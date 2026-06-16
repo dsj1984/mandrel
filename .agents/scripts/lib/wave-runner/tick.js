@@ -12,7 +12,7 @@
  *      state) for every Story in scope,
  *   3. classifies each by live label (`classifyStory`), re-derives
  *      adjacency from the live bodies (`buildStoryAdjacency`, inside
- *      `selectReadySet`), and selects the ready set under a global
+ *      `selectReadySet`) and selects the ready set under a global
  *      in-flight cap with the file-overlap co-dispatch guard
  *      (`storiesOverlap`),
  *   4. returns a `WaveTickResult` describing the next action.
@@ -28,6 +28,20 @@
  * concurrency, worktrees, and the checkpoint. Expected failures (blocked
  * stories) flow back through result fields; unexpected failures (GH 5xx,
  * malformed / old-shape checkpoint) throw `WaveRunnerError`.
+ *
+ * Story #4183 — the `tick(args)` orchestrator was a 252-line SRP /
+ * cognitive-load hotspot carrying six distinct responsibilities in one
+ * body. It is now a thin coordinator (Coordinator-plus-Phases pattern,
+ * `docs/patterns.md`) that wires four extracted stages:
+ * `resolveTickCollaborators` (collaborator/fallback resolution),
+ * `readAndValidateCheckpoint` (checkpoint read + shape validation, folding
+ * in `assertNotOldShape`), `refetchStoryRecords` (force-fresh re-fetch),
+ * and the **pure** `planTick` (classification → cycle detection → ready-set
+ * selection → dispatch decision, returning the signals to emit rather than
+ * emitting them, so it carries no I/O). The exported `tick(args)`
+ * signature, the `tickResult` / `withInFlight` envelope shapes, and every
+ * `WaveRunnerError` code are preserved verbatim — callers and tests are
+ * unchanged.
  *
  * @module lib/wave-runner/tick
  */
@@ -80,6 +94,13 @@ const OLD_SHAPE_FIELDS = Object.freeze(['plan', 'currentWave', 'totalWaves']);
  * dependency cycle among the in-scope Stories is likewise surfaced as a
  * `halt` (with the offending `cycle`), never collapsed to `epic-complete`.
  *
+ * Coordinator (Story #4183): this function is a thin dispatcher. It resolves
+ * collaborators, reads + validates the checkpoint, re-fetches the live Story
+ * records, runs the best-effort recurring-failure scan, delegates the pure
+ * dispatch decision to `planTick`, then drains the `signals` `planTick`
+ * returned through the configured emitter. Each stage is an independently
+ * testable helper below.
+ *
  * @typedef {object} WaveTickArgs
  * @property {number | { id: number }} epic
  * @property {{
@@ -94,51 +115,11 @@ const OLD_SHAPE_FIELDS = Object.freeze(['plan', 'currentWave', 'totalWaves']);
  * @param {WaveTickArgs} args
  */
 export async function tick(args = {}) {
-  const epicId = resolveEpicId(args.epic);
-  const {
-    provider: collabProvider,
-    epicRunStateStore: collabStore,
-    signalEmit,
-    inFlightReader: collabInFlightReader,
-    recurringFailureReporter: collabRecurringFailureReporter,
-  } = args.collaborators ?? {};
-  const ctx = args.ctx ?? {};
-  const provider = collabProvider ?? ctx.provider;
-  if (!provider) {
-    throw new WaveRunnerError('invalid-input', 'provider is required');
-  }
-  // The ready-set tick is stateless. When the caller does not supply a
-  // collaborator shim, read the `epic-run-state` structured comment
-  // directly via the function-based store.
-  const epicRunStateStore = collabStore ?? {
-    read: () => epicRunStateStoreModule.read({ provider, epicId }),
-  };
-  const emit = signalEmit ?? defaultSignalEmit(epicId, ctx);
-  const inFlightReader =
-    collabInFlightReader ?? (() => defaultInFlightReader(epicId, ctx?.config));
+  const { epicId, provider, epicRunStateStore, emit, inFlightReader, ctx } =
+    resolveTickCollaborators(args);
 
-  let state;
-  try {
-    state = await epicRunStateStore.read();
-  } catch (err) {
-    throw new WaveRunnerError('checkpoint-read', err);
-  }
-  if (!state || typeof state !== 'object') {
-    throw new WaveRunnerError(
-      'checkpoint-missing',
-      `no epic-run-state comment on Epic #${epicId}`,
-    );
-  }
+  const state = await readAndValidateCheckpoint(epicRunStateStore, epicId);
 
-  // Fail closed on an old-shape (wave-batch) checkpoint. A `plan` /
-  // `currentWave` / `totalWaves` comment predates the ready-set cutover
-  // (Story #4155); the ready-set runtime would otherwise ignore those
-  // fields and re-derive readiness from live labels — silently discarding
-  // an in-progress wave-batch run's resume pointer. Refuse with an explicit
-  // operator remediation instead.
-  assertNotOldShape(state, epicId);
-
-  const globalCap = positiveIntOrZero(state.concurrencyCap);
   const storyIds = checkpointStoryIds(state);
 
   if (storyIds.length === 0) {
@@ -150,18 +131,140 @@ export async function tick(args = {}) {
     });
   }
 
-  // 1. Re-fetch the live Story records (body + labels + issue state) for
-  //    every Story in scope. The body feeds `buildStoryAdjacency` (inside
-  //    `selectReadySet`) so the dependency edges are always read from the
-  //    current ticket text, never a stale checkpoint snapshot. In-flight
-  //    Stories are force-fresh-fetched so a label that flipped since the
-  //    last tick is observed; every other Story serves from the provider's
-  //    in-process cache.
+  // Re-fetch the live Story records (body + labels + issue state) for every
+  // Story in scope. In-flight Stories are force-fresh-fetched so a label that
+  // flipped since the last tick is observed; every other Story serves from
+  // the provider's in-process cache.
   const inFlight = await safeReadInFlight(inFlightReader);
   const inFlightSet = new Set(inFlight);
-  let records;
+  const records = await refetchStoryRecords(provider, storyIds, inFlightSet);
+
+  // Best-effort recurring-failure scan (≥2 distinct Stories sharing the same
+  // `close-validate.end` failedGate). Idempotent across re-ticks; a reporter
+  // throw must not crash the planner.
+  const recurringFailureReporter =
+    args.collaborators?.recurringFailureReporter ??
+    defaultRecurringFailureReporter({ provider, epicId, config: ctx?.config });
+  await safeReportRecurringFailures(recurringFailureReporter);
+
+  // Decide the next action from the live records + ledger in-flight set. The
+  // decision is pure (no I/O); the signals it wants emitted come back in
+  // `plan.signals` and are drained by the coordinator below.
+  const plan = planTick(state, records, inFlight);
+  for (const signal of plan.signals) {
+    await emit(signal);
+  }
+
+  return tickResult({
+    nextAction: withInFlight(plan.nextAction, inFlight),
+    blockedStories: plan.blockedStories,
+    gateFailures: plan.gateFailures,
+    readyCount: plan.readyCount,
+    inFlight,
+  });
+}
+
+/**
+ * Resolve the Epic id and the five injectable collaborators (with their
+ * production-default fallbacks) from the `tick` args. The single home for the
+ * collaborator/fallback wiring so the coordinator stays declarative.
+ *
+ * Throws `WaveRunnerError('invalid-input')` when the epic id is not a
+ * positive integer (or `{ id: positiveInt }`) or when no provider is supplied
+ * via either `collaborators.provider` or `ctx.provider`.
+ *
+ * @param {WaveTickArgs} args
+ * @returns {{
+ *   epicId: number,
+ *   provider: object,
+ *   epicRunStateStore: { read: () => Promise<object|null> },
+ *   emit: (signal: object) => Promise<unknown>,
+ *   inFlightReader: () => Promise<number[]>,
+ *   ctx: object,
+ * }}
+ */
+function resolveTickCollaborators(args) {
+  const epicId = resolveEpicId(args.epic);
+  const {
+    provider: collabProvider,
+    epicRunStateStore: collabStore,
+    signalEmit,
+    inFlightReader: collabInFlightReader,
+  } = args.collaborators ?? {};
+  const ctx = args.ctx ?? {};
+  const provider = collabProvider ?? ctx.provider;
+  if (!provider) {
+    throw new WaveRunnerError('invalid-input', 'provider is required');
+  }
+  // The ready-set tick is stateless. When the caller does not supply a
+  // collaborator shim, read the `epic-run-state` structured comment directly
+  // via the function-based store.
+  const epicRunStateStore = collabStore ?? {
+    read: () => epicRunStateStoreModule.read({ provider, epicId }),
+  };
+  const emit = signalEmit ?? defaultSignalEmit(epicId, ctx);
+  const inFlightReader =
+    collabInFlightReader ?? (() => defaultInFlightReader(epicId, ctx?.config));
+  return { epicId, provider, epicRunStateStore, emit, inFlightReader, ctx };
+}
+
+/**
+ * Read the `epic-run-state` checkpoint via the store, validate its shape, and
+ * fail closed on a pre-ready-set (wave-batch) checkpoint.
+ *
+ * Throws:
+ *   - `WaveRunnerError('checkpoint-read')` when the store read rejects,
+ *   - `WaveRunnerError('checkpoint-missing')` when the read resolves to a
+ *     non-object (no comment),
+ *   - `WaveRunnerError('old-shape-checkpoint')` when the checkpoint still
+ *     carries a `plan` / `currentWave` / `totalWaves` field (via
+ *     `assertNotOldShape`). A `plan` / `currentWave` / `totalWaves` comment
+ *     predates the ready-set cutover (Story #4155); the ready-set runtime
+ *     would otherwise ignore those fields and re-derive readiness from live
+ *     labels — silently discarding an in-progress wave-batch run's resume
+ *     pointer. Refuse with an explicit operator remediation instead.
+ *
+ * @param {{ read: () => Promise<object|null> }} store
+ * @param {number} epicId
+ * @returns {Promise<object>} the validated checkpoint state.
+ */
+async function readAndValidateCheckpoint(store, epicId) {
+  let state;
   try {
-    records = await Promise.all(
+    state = await store.read();
+  } catch (err) {
+    throw new WaveRunnerError('checkpoint-read', err);
+  }
+  if (!state || typeof state !== 'object') {
+    throw new WaveRunnerError(
+      'checkpoint-missing',
+      `no epic-run-state comment on Epic #${epicId}`,
+    );
+  }
+  assertNotOldShape(state, epicId);
+  return state;
+}
+
+/**
+ * Re-fetch the live Story records (body + labels + issue state) for every
+ * Story in scope. The body feeds `buildStoryAdjacency` (inside
+ * `selectReadySet`) so the dependency edges are always read from the current
+ * ticket text, never a stale checkpoint snapshot. Stories in `inFlightSet`
+ * are force-fresh-fetched (`{ fresh: true }`) so a label that flipped since
+ * the last tick is observed; every other Story serves from the provider's
+ * in-process cache.
+ *
+ * Throws `WaveRunnerError('story-fetch')` when any `provider.getTicket`
+ * rejects.
+ *
+ * @param {{ getTicket: (id: number, opts?: object) => Promise<object> }} provider
+ * @param {number[]} storyIds Ascending, deduped in-scope Story ids.
+ * @param {Set<number>} inFlightSet Ledger-derived in-flight Story ids.
+ * @returns {Promise<Array<object>>} normalized Story records.
+ */
+async function refetchStoryRecords(provider, storyIds, inFlightSet) {
+  try {
+    return await Promise.all(
       storyIds.map(async (id) => {
         const opts = inFlightSet.has(id) ? { fresh: true } : {};
         const ticket = await provider.getTicket(id, opts);
@@ -185,14 +288,42 @@ export async function tick(args = {}) {
   } catch (err) {
     throw new WaveRunnerError('story-fetch', err);
   }
+}
 
-  // 2. Classify by live label. `done` / `blocked` / `executing` / `ready`.
+/**
+ * Pure dispatch planner — the scheduler tick's decision core with **no I/O**.
+ * Given the parsed checkpoint, the live Story records, and the ledger-derived
+ * in-flight id list, it classifies every Story, detects a sibling dependency
+ * cycle, selects the ready set under the global in-flight cap, and decides the
+ * `nextAction`. It performs no fetching, no signal emission, and no ledger
+ * read: the two wave-window forensics signals are returned in the `signals`
+ * array for the coordinator to drain, so this function stays independently
+ * unit-testable against fixture records without a provider stub or an emitter.
+ *
+ * @param {object} state Parsed `epic-run-state` checkpoint (for the global
+ *   cap and the per-Story `failed` rows surfaced as gate failures).
+ * @param {Array<object>} records Live Story records (id, title, body, labels,
+ *   state, file-footprint shapes).
+ * @param {number[]} inFlight Ledger-derived dispatched-not-yet-ended ids.
+ * @returns {{
+ *   nextAction: object,
+ *   blockedStories: Array<{ storyId: number, reason: string, detail?: string }>,
+ *   gateFailures: Array<{ storyId: number, gate: string, detail?: string }>,
+ *   readyCount: number,
+ *   signals: Array<object>,
+ * }}
+ */
+export function planTick(state, records, inFlight) {
+  const globalCap = positiveIntOrZero(state.concurrencyCap);
+  const inFlightSet = new Set(inFlight);
+
+  // 1. Classify by live label. `done` / `blocked` / `executing` / `ready`.
   const byClass = { done: [], blocked: [], executing: [], ready: [] };
   for (const rec of records) {
     byClass[classifyStory(rec)].push(rec);
   }
 
-  // 2a. Detect a dependency cycle among the in-scope Stories BEFORE selecting.
+  // 1a. Detect a dependency cycle among the in-scope Stories BEFORE selecting.
   //     A cycle makes every Story on it permanently un-eligible (no member's
   //     deps can all be done), so `selectReadySet` would return an empty set
   //     and the terminal decision could otherwise mistake the stall for
@@ -204,7 +335,7 @@ export async function tick(args = {}) {
   const epicAdjacency = buildStoryAdjacency(records, { dropForeign: true });
   const cycle = detectCycle(epicAdjacency);
 
-  // 3. Select the ready set under the GLOBAL in-flight cap. The selector
+  // 2. Select the ready set under the GLOBAL in-flight cap. The selector
   //    re-derives adjacency from the live bodies (with `dropForeign: true` so
   //    a `blocked by #N` whose target is outside this Epic's Story set — a
   //    foreign id or a typo — is pruned rather than treated as a permanent
@@ -248,14 +379,6 @@ export async function tick(args = {}) {
     dropForeign: true,
   });
 
-  // 4. Best-effort recurring-failure scan (≥2 distinct Stories sharing the
-  //    same `close-validate.end` failedGate). Idempotent across re-ticks; a
-  //    reporter throw must not crash the planner.
-  const recurringFailureReporter =
-    collabRecurringFailureReporter ??
-    defaultRecurringFailureReporter({ provider, epicId, config: ctx?.config });
-  await safeReportRecurringFailures(recurringFailureReporter);
-
   const blockedStories = byClass.blocked.map((s) => ({
     storyId: s.id,
     reason: 'agent::blocked',
@@ -263,7 +386,7 @@ export async function tick(args = {}) {
   }));
   const gateFailures = readGateFailures(state);
 
-  // 5. Decide nextAction.
+  // 3. Decide nextAction.
   //    - A blocked Story halts the Epic → observe (the workflow flips the
   //      Epic to agent::blocked and parks).
   //    - A dependency cycle among the in-scope Stories halts the Epic → halt
@@ -278,6 +401,7 @@ export async function tick(args = {}) {
   //      unsatisfiable dependency that survived adjacency closure). Halt and
   //      name the stuck Story ids — never silently report the Epic complete.
   const allDone = byClass.done.length === records.length;
+  const signals = [];
   let nextAction;
   if (blockedStories.length) {
     nextAction = {
@@ -300,7 +424,7 @@ export async function tick(args = {}) {
       byClass.done.length === 0 &&
       inFlight.length === 0
     ) {
-      await emit({
+      signals.push({
         kind: 'wave-start',
         stories: records.map((s) => ({ id: s.id, title: s.title })),
       });
@@ -319,7 +443,7 @@ export async function tick(args = {}) {
     nextAction = { kind: 'observe', waitingOn };
   } else if (allDone) {
     // Every Story is done and nothing is in flight: the run is complete.
-    await emit({ kind: 'wave-complete' });
+    signals.push({ kind: 'wave-complete' });
     nextAction = { kind: 'epic-complete' };
   } else {
     // Ready set empty, nothing in flight, but not all Stories are done — a
@@ -338,13 +462,13 @@ export async function tick(args = {}) {
     };
   }
 
-  return tickResult({
-    nextAction: withInFlight(nextAction, inFlight),
+  return {
+    nextAction,
     blockedStories,
     gateFailures,
     readyCount: readySet.length,
-    inFlight,
-  });
+    signals,
+  };
 }
 
 /**

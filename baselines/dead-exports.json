@@ -1,12 +1,8 @@
 {
   "$schema": "https://mandrel.dev/baselines/dead-exports.schema.json",
   "kernelVersion": "6.14.0",
-  "generatedAt": "2026-06-12T00:49:00.688Z",
+  "generatedAt": "2026-06-16T12:42:22.847Z",
   "rows": [
-    {
-      "file": ".agents/scripts/lib/audit-suite/findings.js",
-      "symbol": "KNOWN_SEVERITIES"
-    },
     {
       "file": ".agents/scripts/lib/baseline-schema-registry.js",
       "symbol": "BASELINE_ENVELOPE_FILE"
@@ -62,10 +58,6 @@
     {
       "file": ".agents/scripts/lib/baselines/reader.js",
       "symbol": "BASELINE_KIND_SCHEMA_FILES"
-    },
-    {
-      "file": ".agents/scripts/lib/baselines/refresh-service.js",
-      "symbol": "REFRESH_SERVICE_SUPPORTED_KINDS"
     },
     {
       "file": ".agents/scripts/lib/bootstrap/branch-protection.js",
@@ -156,10 +148,6 @@
       "symbol": "WEBHOOK_EVENT_NAMES"
     },
     {
-      "file": ".agents/scripts/lib/config/baselines.js",
-      "symbol": "resolveBaselines"
-    },
-    {
       "file": ".agents/scripts/lib/config/gates/shared.js",
       "symbol": "COMPONENTS_SCHEMA"
     },
@@ -190,10 +178,6 @@
     {
       "file": ".agents/scripts/lib/config/sync-agentrc.js",
       "symbol": "isLeafSchemaRemovable"
-    },
-    {
-      "file": ".agents/scripts/lib/config/temp-paths.js",
-      "symbol": "tempRootAsync"
     },
     {
       "file": ".agents/scripts/lib/coverage-baseline.js",
@@ -288,10 +272,6 @@
       "symbol": "runFromStdin"
     },
     {
-      "file": ".agents/scripts/lib/onboard/detect-stack.js",
-      "symbol": "defaultFsFacade"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/column-sync.js",
       "symbol": "LABEL_TO_COLUMN"
     },
@@ -306,14 +286,6 @@
     {
       "file": ".agents/scripts/lib/orchestration/dispatch-engine.js",
       "symbol": "AGENT_DONE_LABEL"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/dispatch-engine.js",
-      "symbol": "AGENT_EXECUTING_LABEL"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/dispatch-engine.js",
-      "symbol": "AGENT_READY_LABEL"
     },
     {
       "file": ".agents/scripts/lib/orchestration/dispatch-engine.js",
@@ -350,18 +322,6 @@
     {
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/composition.js",
       "symbol": "escapePipes"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/composition.js",
-      "symbol": "formatElapsed"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/composition.js",
-      "symbol": "renderProgressBody"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/composition.js",
-      "symbol": "renderProgressTable"
     },
     {
       "file": ".agents/scripts/lib/orchestration/finalize/open-or-locate-pr.js",
@@ -438,10 +398,6 @@
     {
       "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/notify-dispatcher.js",
       "symbol": "LIFECYCLE_TO_WEBHOOK_EVENT"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/trace-logger.js",
-      "symbol": "createTraceLogger"
     },
     {
       "file": ".agents/scripts/lib/orchestration/post-merge-pipeline.js",
@@ -725,10 +681,6 @@
     },
     {
       "file": ".agents/scripts/lib/wave-runner/tick.js",
-      "symbol": "isStoryDone"
-    },
-    {
-      "file": ".agents/scripts/lib/wave-runner/tick.js",
       "symbol": "renderRecurringFailureBody"
     },
     {
@@ -786,10 +738,6 @@
     {
       "file": ".agents/scripts/providers/github/request-helpers.js",
       "symbol": "DEFAULT_PER_PAGE"
-    },
-    {
-      "file": ".agents/scripts/providers/github/tickets.js",
-      "symbol": "composeStoryBody"
     },
     {
       "file": ".agents/scripts/providers/github/transient-retry.js",
