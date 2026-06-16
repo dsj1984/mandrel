@@ -4,7 +4,7 @@
   "generatedAt": "2026-06-16T00:30:54.685Z",
   "rollup": {
     "*": {
-      "min": 49.84,
+      "min": 70.566,
       "p50": 97.964,
       "p95": 127.336
     }
@@ -445,10 +445,6 @@
     {
       "path": ".agents/scripts/lib/config-schema.js",
       "mi": 171
-    },
-    {
-      "path": ".agents/scripts/lib/config-settings-schema.js",
-      "mi": 49.84
     },
     {
       "path": ".agents/scripts/lib/config/baselines.js",
