@@ -1,6 +1,6 @@
 ---
 description: >-
-  npm-era upgrade wraparound for a Mandrel consumer. Runs `mandrel update`
+  npm-era upgrade wraparound for a Mandrel consumer. Runs `npx mandrel update`
   (resolve newest published version → install → re-materialize `.agents/` →
   migrate → doctor → surface changelog) as the single mechanical step, then
   walks the operator through the judgment wraparound the CLI deliberately
@@ -15,7 +15,7 @@ description: >-
 > **Upgrade owner.** The mechanical upgrade is owned end to end by the
 > [`mandrel update`](../../lib/cli/update.js) CLI under the npm distribution
 > model (`mandrel`, #3436/#3437). This workflow wraps that CLI: it
-> runs `mandrel update`, then walks the operator through the
+> runs `npx mandrel update`, then walks the operator through the
 > **distribution-agnostic judgment steps** the CLI deliberately does **not**
 > perform — config reconciliation, the Epic #1386 quality-gate installs, the
 > permission-allowlist refresh, the consumer-side changelog reconciliation,
@@ -60,22 +60,59 @@ The upgrade contract:
 > **Persona**: `devops-engineer` · **Skills**:
 > `core/ci-cd-and-automation`, `core/documentation-and-adrs`
 
+**Invocation form.** In a consumer project `mandrel` is a local
+devDependency at `node_modules/.bin/mandrel` and is **not** on `PATH`, so a
+bare `mandrel <subcommand>` fails with `command not found` before any of the
+hardened CLI logic ([`lib/cli/update.js`](../../lib/cli/update.js)) runs.
+Every **runnable** command in this workflow therefore uses the
+`npx mandrel <subcommand>` form, matching [`README.md`](../../README.md).
+Prose that names the CLI as a noun (e.g. "`mandrel update`'s sync step")
+refers to the binary by name, not as a command to type — run it via the form
+Step 0 selects. The exception is a project where `mandrel` is installed
+**globally**: there, the bare form works and Step 0 says so.
+
+## Step 0 — Detect the install state and pick the invocation form
+
+Before running the updater, detect how `mandrel` resolves in this project and
+route to the matching invocation form. Run from the consumer repo root:
+
+```bash
+# 1. Globally installed and on PATH?
+command -v mandrel
+# 2. Installed as a local devDependency?
+ls node_modules/.bin/mandrel 2>/dev/null || npm ls mandrel
+```
+
+Three real states, three routes:
+
+| State                                   | Detection                                                              | Invocation form                                                   |
+| --------------------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| **Global install (on `PATH`)**          | `command -v mandrel` prints a path                                     | Bare `mandrel <subcommand>` works.                                |
+| **Local devDependency (not on `PATH`)** | `command -v mandrel` is empty; `node_modules/.bin/mandrel` exists      | Use `npx mandrel <subcommand>` (resolves the local bin).          |
+| **Not installed**                       | `command -v mandrel` empty **and** `node_modules/.bin/mandrel` absent  | Run `npm install -D mandrel` first, then `npx mandrel`.           |
+
+The common consumer case is **local devDependency** — `npx mandrel` is the
+default form the rest of this workflow uses. On a global install you may drop
+the `npx` prefix; on a fresh project, install the package first. The `npx`
+form is harmless on a global install too (it prefers the local bin and falls
+back to a one-off fetch), so when unsure, use `npx mandrel`.
+
 ## Step 1 — Run the updater
 
 Preview first, then apply. From the consumer repo root:
 
 ```bash
-mandrel update --dry-run
-mandrel update
+npx mandrel update --dry-run
+npx mandrel update
 ```
 
-`mandrel update --dry-run` resolves the newest published version and prints
-the ordered step plan (`npm-update → runSync → runMigrations → doctor →
+`npx mandrel update --dry-run` resolves the newest published version and
+prints the ordered step plan (`npm-update → runSync → runMigrations → doctor →
 surface changelog`) without invoking any effectful seam — no dependency bump,
 no sync, no migrations, no doctor, nothing written. Read the planned target
 version before applying.
 
-`mandrel update` (no flags) runs the live cycle:
+`npx mandrel update` (no flags) runs the live cycle:
 
 1. **Resolve target** — the newest published `mandrel` version (via
    the daily freshness cache in `temp/version-check.json`) and the currently
@@ -359,7 +396,7 @@ no-op.
 > distribution `.agents/` is a
 > materialized directory rebuilt from the installed package — whether the
 > consumer commits the regenerated `.agents/` tree, or treats it as a
-> gitignored install artifact rebuilt by `mandrel sync`, depends on the
+> gitignored install artifact rebuilt by `npx mandrel sync`, depends on the
 > consumer's own vendoring policy. Stage the `.agents/` / `.claude/`
 > changes here only if the project commits its materialized tree.
 
@@ -367,7 +404,7 @@ no-op.
 
 - **`doctor reported failures: …`** — the dependency bumped and `.agents/`
   re-materialized, but a doctor check failed (and the run exited
-  non-zero). Run `mandrel doctor` for the per-check remedies. The lockfile
+  non-zero). Run `npx mandrel doctor` for the per-check remedies. The lockfile
   bump is already staged; fix the doctor finding (often a missing
   bootstrap install — Step 3.5 — or a stale `.agentrc.json` — Step 3)
   before committing in Step 5.
@@ -375,13 +412,13 @@ no-op.
 - **Install command failed / `npm install … exited <n>`** — the npm
   install step could not bump the dependency (network hiccup, registry
   auth gap, or a peer-dependency conflict). Resolve the underlying npm
-  error and re-run `mandrel update`; it is idempotent — a clean re-run
+  error and re-run `npx mandrel update`; it is idempotent — a clean re-run
   resumes from the resolve step and short-circuits if the install already
   landed.
 
 - **Wrong package manager** — the default install is `npm install`. For a
   pnpm or yarn workspace, pass the package manager explicitly:
-  `mandrel update --install-cmd "pnpm add mandrel@<target>"`.
+  `npx mandrel update --install-cmd "pnpm add mandrel@<target>"`.
   The registry probe always stays on `npm view` (a PM-agnostic query); only
   the install seam honours the override.
 
