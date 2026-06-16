@@ -187,8 +187,8 @@ any prior comment of the same type.
 | ------------------- | --------------------------------------------------- | ------------------------------------------------------------------------ |
 | `epic-run-state`    | `Checkpointer`                                      | JSON checkpoint of wave progress and resume state.                       |
 | `epic-run-progress` | `ProgressReporter`                                  | Periodic operator-facing wave roll-up.                                   |
-| `wave-<N>-start`    | `WaveObserver.waveStart`                            | Per-wave start manifest + timestamp.                                     |
-| `wave-<N>-end`      | `WaveObserver.waveEnd`                              | Per-wave outcomes + duration.                                            |
+| `wave-<N>-start`    | `/deliver` wave loop (`lib/orchestration/wave-marker.js`) | Per-wave start manifest + timestamp.                                |
+| `wave-<N>-end`      | `/deliver` wave loop (`lib/orchestration/wave-marker.js`) | Per-wave outcomes + duration.                                       |
 | `epic-plan-state`   | `/plan` checkpoint                             | Phase 1/2 progress so re-plans resume cleanly.                           |
 | `dispatch-manifest` | `/plan` / dispatcher                           | Frozen Story manifest for the wave-gate.                                 |
 | `parked-follow-ons` | dispatcher                                          | Out-of-manifest Stories surfaced at the deliver-tail gate (recuts + parked). |
@@ -283,8 +283,8 @@ the Epic is the SSOT; the on-disk file is a renderer cache regenerable via
 
 The wave structured-comment marker regex is
 `/^wave-([0-9]{1,3})-(start|end)$/` — up to 999 waves. `wave-1000-start` is
-rejected; downstream wave-index consumers (`manifest-builder`,
-`wave-dispatcher`) tolerate rejected indices gracefully.
+rejected; downstream wave-index consumers (`manifest-builder`) tolerate
+rejected indices gracefully.
 
 ---
 

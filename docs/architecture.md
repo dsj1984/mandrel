@@ -91,8 +91,7 @@ mandrel/
 │   ├── workflows/            ← Slash-command workflows
 │   ├── scripts/              ← Deterministic JavaScript tooling
 │   │   ├── lib/              ←   Shared modules & interfaces
-│   │   ├── providers/        ←   Ticketing provider implementations
-│   │   └── adapters/         ←   Execution adapter implementations
+│   │   └── providers/        ←   Ticketing provider implementations
 │   ├── schemas/              ← JSON Schema for structured output
 │   ├── templates/            ← Prompt and planning templates
 │   └── docs/                 ← Shipped consumer reference docs
@@ -484,8 +483,8 @@ façade.
 Mandrel runs Claude-Code-in-session: `/deliver` fans out via the
 `Agent` tool over a wave of Story sub-agents, each driving the per-Story
 implementation loop directly from the Story worktree. There is no separate
-adapter abstraction — `wave-dispatcher.js` synthesizes the
-`{ taskId, dispatchId, status }` record inline at the dispatch site,
+adapter abstraction — `lib/orchestration/manifest-builder.js` synthesizes
+the `{ taskId, dispatchId, status }` record inline at the dispatch site,
 and the **dispatch manifest** (md + structured comment, schema
 [`dispatch-manifest.json`](../.agents/schemas/dispatch-manifest.json))
 is the load-bearing artifact downstream tooling (and operators) read.
@@ -1357,7 +1356,7 @@ conventions to follow.
 - **Ticketing provider abstraction:** `.agents/scripts/lib/ITicketingProvider.js`
   with a shipped GitHub implementation in `.agents/scripts/providers/github.js`
 - **Execution path:** Claude-Code-in-session; the dispatch record is
-  synthesized inline at `wave-dispatcher.js` and the
+  synthesized inline at `lib/orchestration/manifest-builder.js` and the
   [dispatch manifest](../.agents/schemas/dispatch-manifest.json) is the
   cross-runtime contract. Epic #2646 removed the previous
   `IExecutionAdapter` abstraction as a hard cutover.
