@@ -72,6 +72,24 @@ describe('skill:epic-plan-consolidate — smoke', () => {
           errors.push('Skill body must name the scope-conservation invariant');
         }
 
+        // Missing reason-to-exist cohesion check (Story #4164). The critic
+        // must document that it flags any Story whose body carries no
+        // non-empty "reason to exist" meta field.
+        if (!/reason[_ ]to[_ ]exist|reason to exist/i.test(body)) {
+          errors.push(
+            'Skill body must document the reason_to_exist cohesion field',
+          );
+        }
+        if (
+          !/(flag|check)[^.]*\breason[_ ]to[_ ]exist|\breason to exist[^.]*\b(flag|check|missing|no\b|non-empty)/i.test(
+            body,
+          )
+        ) {
+          errors.push(
+            'Skill body must document a check that flags Stories missing a non-empty reason to exist',
+          );
+        }
+
         // Delivery Slicing target + graceful degradation.
         if (!/Delivery Slicing/.test(body)) {
           errors.push(

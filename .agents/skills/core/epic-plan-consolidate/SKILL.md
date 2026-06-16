@@ -23,6 +23,7 @@ allowed_tools:
 - Your operations are constrained to exactly two shapes: **(1) merge two or more Stories** into one (union their `changes`/`acceptance`/`verify`/`references`, keep one coherent `goal`); **(2) rewire `depends_on`** so the edges still reference surviving sibling-Story slugs. No other mutation is permitted.
 - Consume the Tech Spec **"Delivery Slicing"** section as the authoritative target grouping when one is present: cluster the draft's Stories toward the N shippable Stories the Architect proposed. When the section is **absent**, degrade gracefully — apply only the cohesion rules below and leave the rest of the draft shape intact.
 - Apply the same cohesion heuristic the author skill leads with: **one Story = one coherent change with one reason to exist**, and the **single-consumer merge rule** (a Story whose only consumer is one sibling Story is merged into that sibling). Lead every merge decision with the change's reason, not its file count.
+- **Missing reason-to-exist check (cohesion gate).** Every draft Story body MUST carry a non-empty `reason_to_exist` meta field (the parseable form of "one Story = one coherent change with one reason to exist", encoded in the `<!-- meta: {"reason_to_exist": "..."} -->` comment and surfaced as `body.reason_to_exist` by `lib/story-body/story-body.js`). Flag any Story whose body carries **no** non-empty reason to exist: a Story that cannot state its single reason in one sentence is a cohesion smell — it is probably two Stories, or two Stories that should be merged into one. Name each flagged Story in the consolidation report so the operator sees the cohesion gap at the HITL diff gate.
 - After every merge, **rewire `depends_on`**: drop self-edges, collapse edges that now point at the absorbing Story onto itself, and re-point any edge that named a now-deleted slug at its surviving successor. Never leave a `depends_on` referencing a slug absent from the consolidated array — the validator HARD-rejects unknown deps.
 - The consolidation report MUST name each operation applied (merged slugs → surviving slug, rewired edges) with a one-line reason, plus a before/after Story-count line, so the operator can approve or reject at the HITL diff gate before the persist call.
 
@@ -95,6 +96,11 @@ Across the draft Story array, decide which Stories merge:
   single Story: union their `changes` / `acceptance` / `verify` / `references`,
   write one coherent `goal`, and keep the union of labels.
 - **Single-consumer Story** → merge into the one sibling that consumes it.
+- **Missing reason to exist** → flag any Story whose body carries no non-empty
+  `reason_to_exist` meta field. A Story that cannot name its single coherent
+  reason is a cohesion smell; record it in the report so the operator can
+  re-scope it (merge, split, or have the author supply the reason) at the HITL
+  gate.
 
 Record each decision with its one-line reason for the report.
 

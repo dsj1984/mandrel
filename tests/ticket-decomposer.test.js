@@ -388,6 +388,24 @@ describe('ticket-decomposer buildDecomposerSystemPrompt', () => {
     );
   });
 
+  it('instructs the author to emit a reason_to_exist per Story (Story #4164)', () => {
+    const prompt = buildDecomposerSystemPrompt([]);
+    // The prompt must name the field and frame it as the machine-checkable
+    // form of the cohesion rule the consolidate critic verifies.
+    assert.ok(
+      /reason[_ ]to[_ ]exist|reason to exist/i.test(prompt),
+      'prompt must mention the reason to exist field',
+    );
+    assert.ok(
+      /reason_to_exist/.test(prompt),
+      'prompt must name the reason_to_exist meta field by its serialized key',
+    );
+    assert.ok(
+      /epic-plan-consolidate/.test(prompt),
+      'prompt must tie the reason to exist field to the consolidate critic',
+    );
+  });
+
   it('no longer mentions the retired profile enum or testSurface gates (Story #3760)', () => {
     const prompt = buildDecomposerSystemPrompt([]);
     assert.ok(
