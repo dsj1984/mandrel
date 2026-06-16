@@ -90,6 +90,7 @@ import {
 } from '../crap-utils.js';
 import {
   calculateAll as calculateAllMi,
+  isIgnoredByGlobs as isIgnoredByGlobsMi,
   scanDirectory as scanDirectoryMi,
 } from '../maintainability-utils.js';
 import { filterExcludedRows } from './kinds/maintainability.js';
@@ -291,7 +292,18 @@ function buildDefaultMaintainabilityScorer({ cwd, config, quality } = {}) {
         const underTarget = targetAbsDirs.some(
           (root) => abs === root || abs.startsWith(`${root}${path.sep}`),
         );
-        if (underTarget) sourceList.push(abs);
+        // Apply `ignoreGlobs` here too — the full-scope walk drops
+        // ignore-matched files via `scanDirectoryMi`, so the diff-scope path
+        // must do the same or an ignored-but-changed file (e.g. one matched by
+        // `config-settings-schema*.js`) enters `rows` and drags the
+        // `rollup["*"].min` below the maintainability floor. Reuse the same
+        // matcher `scanDirectoryMi` uses so behaviour is identical.
+        if (
+          underTarget &&
+          !isIgnoredByGlobsMi(abs, ignoreGlobs, effectiveCwd)
+        ) {
+          sourceList.push(abs);
+        }
       }
     }
     const scores = await calculateAllMi(sourceList);
