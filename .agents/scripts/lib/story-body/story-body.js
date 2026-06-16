@@ -16,6 +16,7 @@
  *   verify:              string[],         // exact commands / tier annotation
  *   references:          PathEntry[],      // read-only paths (optional)
  *   wide:                { reason } | null,// declared-wide footprint (optional)
+ *   reason_to_exist:     string | null,    // one-sentence cohesion reason (optional)
  *   depends_on:          string[],         // blocker story slugs or #ids
  *   estimated_test_files: number | null,   // absent → null (informational)
  * }
@@ -69,6 +70,7 @@ import { FILE_ASSUMPTION_VALUES } from '../orchestration/file-assumption-enum.js
  * @property {string[]}      verify              - Exact commands with tier annotation.
  * @property {PathEntry[]}   references          - Read-only paths (may be empty).
  * @property {{ reason: string }|null} wide      - Declared-wide footprint (reason), or null.
+ * @property {string|null}   reason_to_exist     - One-sentence cohesion reason ("why this Story exists"), or null.
  * @property {string[]}      depends_on          - Blocking story slugs / issue refs.
  * @property {number|null}   estimated_test_files - Test surface count or null.
  */
@@ -246,10 +248,14 @@ const META_BLOCK_RE = /<!--\s*meta:\s*(\{[\s\S]*?\})\s*-->/;
  * defaults instead of throwing.
  *
  * @param {string} markdown
- * @returns {{ wide: { reason: string }|null, estimated_test_files: number|null }}
+ * @returns {{ wide: { reason: string }|null, reason_to_exist: string|null, estimated_test_files: number|null }}
  */
 function extractMeta(markdown) {
-  const result = { wide: null, estimated_test_files: null };
+  const result = {
+    wide: null,
+    reason_to_exist: null,
+    estimated_test_files: null,
+  };
   const match = markdown.match(META_BLOCK_RE);
   if (!match) return result;
 
@@ -263,10 +269,27 @@ function extractMeta(markdown) {
   if (parsed === null || typeof parsed !== 'object') return result;
 
   result.wide = normalizeWide(parsed.wide);
+  result.reason_to_exist = normalizeReasonToExist(parsed.reason_to_exist);
   if (typeof parsed.estimated_test_files === 'number') {
     result.estimated_test_files = parsed.estimated_test_files;
   }
   return result;
+}
+
+/**
+ * Normalize a raw `reason_to_exist` value to a non-empty trimmed string or
+ * `null`. The field is the machine-checkable form of the cohesion rule
+ * ("one Story = one coherent change with one reason to exist"): the
+ * `epic-plan-consolidate` critic flags any Story whose body carries no
+ * non-empty reason. An empty or non-string value is treated as absent.
+ *
+ * @param {unknown} raw
+ * @returns {string|null}
+ */
+function normalizeReasonToExist(raw) {
+  if (typeof raw !== 'string') return null;
+  const reason = raw.trim();
+  return reason.length === 0 ? null : reason;
 }
 
 /**
@@ -382,6 +405,7 @@ function parseLegacyStringBody(input, preamble, footer) {
     verify: [],
     references: [],
     wide: null,
+    reason_to_exist: null,
     depends_on: extractBlockedBy(footer),
     estimated_test_files: null,
   };
@@ -526,6 +550,7 @@ export function parse(input) {
   const meta = extractMeta(input);
   const estimated_test_files = meta.estimated_test_files;
   const wide = meta.wide;
+  const reason_to_exist = meta.reason_to_exist;
   if (estimated_test_files === null) {
     warnings.push(
       'test-surface-unestimated: estimated_test_files not present.',
@@ -539,6 +564,7 @@ export function parse(input) {
     verify,
     references,
     wide,
+    reason_to_exist,
     depends_on: dependsOn,
     estimated_test_files,
   };
@@ -597,6 +623,7 @@ function parseStructuredObject(obj) {
   }
 
   const wide = normalizeWide(obj.wide);
+  const reason_to_exist = normalizeReasonToExist(obj.reason_to_exist);
 
   // depends_on: may be at top level or in body
   const rawDeps = Array.isArray(obj.depends_on) ? obj.depends_on : [];
@@ -621,6 +648,7 @@ function parseStructuredObject(obj) {
     verify,
     references,
     wide,
+    reason_to_exist,
     depends_on,
     estimated_test_files,
   };
@@ -663,8 +691,8 @@ function serializePathEntry(entry) {
  * `## Goal`, `## Changes`, `## Acceptance`, `## Verify`, `## References`
  * (omitted when empty).
  *
- * `wide` and `estimated_test_files` are emitted as a fenced
- * `<!-- meta -->` comment block so round-trips preserve them without
+ * `wide`, `reason_to_exist`, and `estimated_test_files` are emitted as a
+ * fenced `<!-- meta -->` comment block so round-trips preserve them without
  * polluting the human-readable body.
  *
  * @param {StoryBody} body
@@ -720,6 +748,10 @@ export function serialize(body, opts = {}) {
   const wide = normalizeWide(body.wide);
   if (wide !== null) {
     metaFields.wide = wide;
+  }
+  const reasonToExist = normalizeReasonToExist(body.reason_to_exist);
+  if (reasonToExist !== null) {
+    metaFields.reason_to_exist = reasonToExist;
   }
   if (typeof body.estimated_test_files === 'number') {
     metaFields.estimated_test_files = body.estimated_test_files;

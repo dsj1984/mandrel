@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-16T00:30:54.685Z",
+  "generatedAt": "2026-06-16T00:59:04.827Z",
   "rollup": {
     "*": {
       "min": 70.566,
@@ -1568,7 +1568,7 @@
     },
     {
       "path": ".agents/scripts/lib/story-body/story-body.js",
-      "mi": 83.583
+      "mi": 86.882
     },
     {
       "path": ".agents/scripts/lib/story-init/blocker-validator.js",

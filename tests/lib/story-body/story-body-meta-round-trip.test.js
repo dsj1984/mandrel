@@ -32,8 +32,10 @@ import {
 // ---------------------------------------------------------------------------
 
 const WIDE_REASON = 'hard cutover: migrate every call site in one PR';
+const REASON_TO_EXIST =
+  'Promote the cohesion rule to a parseable, critic-checkable meta field.';
 
-/** A canonical body carrying both meta fields and a References section. */
+/** A canonical body carrying every meta field and a References section. */
 const BODY_WITH_META = {
   goal: 'Recover meta fields on parse.',
   changes: [
@@ -48,6 +50,7 @@ const BODY_WITH_META = {
   ],
   references: [{ path: 'docs/architecture.md', assumption: 'exists' }],
   wide: { reason: WIDE_REASON },
+  reason_to_exist: REASON_TO_EXIST,
   depends_on: [],
   estimated_test_files: 3,
 };
@@ -102,6 +105,54 @@ describe('parse() — meta block recovery', () => {
     const { body } = parse(md);
     assert.equal(body.wide, null);
     assert.equal(body.estimated_test_files, 3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// reason_to_exist round-trips through the meta block (Story #4164).
+// The cohesion reason ("why this Story exists") is promoted to a parseable
+// meta field the epic-plan-consolidate critic checks. serialize() then parse()
+// MUST round-trip a non-empty reason; an empty / absent reason parses to null.
+// ---------------------------------------------------------------------------
+
+describe('parse() — reason_to_exist meta round-trip', () => {
+  it('round-trips a non-empty reason_to_exist through serialize() → parse()', () => {
+    const md = serialize(BODY_WITH_META);
+    const { body } = parse(md);
+    assert.equal(body.reason_to_exist, REASON_TO_EXIST);
+  });
+
+  it('emits reason_to_exist into the serialized meta block', () => {
+    const md = serialize(BODY_WITH_META);
+    assert.ok(md.includes('<!-- meta:'));
+    assert.ok(md.includes(`"reason_to_exist":"${REASON_TO_EXIST}"`));
+  });
+
+  it('parses reason_to_exist to null when absent from the meta block', () => {
+    const md = serialize({ ...BODY_WITH_META, reason_to_exist: null });
+    const { body } = parse(md);
+    assert.equal(body.reason_to_exist, null);
+    assert.ok(!md.includes('reason_to_exist'));
+  });
+
+  it('treats a blank / whitespace-only reason_to_exist as absent (null)', () => {
+    for (const blank of ['', '   ', '\n\t']) {
+      const md = serialize({ ...BODY_WITH_META, reason_to_exist: blank });
+      const { body } = parse(md);
+      assert.equal(
+        body.reason_to_exist,
+        null,
+        `expected blank reason ${JSON.stringify(blank)} to parse as null`,
+      );
+      assert.ok(!md.includes('reason_to_exist'));
+    }
+  });
+
+  it('preserves reason_to_exist across a serialize → parse → serialize round-trip', () => {
+    const once = serialize(BODY_WITH_META);
+    const twice = serialize(parse(once).body);
+    assert.equal(twice, once);
+    assert.ok(twice.includes(`"reason_to_exist":"${REASON_TO_EXIST}"`));
   });
 });
 
