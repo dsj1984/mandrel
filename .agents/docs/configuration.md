@@ -106,7 +106,7 @@ top-level keys are validation errors.
 | `codebaseSnapshot.exclude` | No | `array<string>` | — | — |
 | `codebaseSnapshot.recentCommitWindow` | No | `integer` | — | — |
 | `taskSizing` | No | `object` | — | Story-sizing thresholds consumed by ticket-validator-sizing.js. Operator overrides shallow-merge with DEFAULT_TASK_SIZING defaults. Story #3760 collapsed the per-profile matrix and the parallel testSurface axis into a flat set of knobs; the sizingProfile enum was replaced by an optional body-level `wide` declaration that lifts the hardFiles rejection. Story #3874 cut over to one uniform relaxed profile sized for capability slices a frontier model delivers and self-verifies in one pass. |
-| `taskSizing.softFiles` | No | `integer` | — | File-count soft-warn threshold above which a typical-Story width finding fires (default 8). |
+| `taskSizing.softFiles` | No | `integer` | — | File-count soft-warn threshold above which a typical-Story width finding fires (default 15). |
 | `taskSizing.hardFiles` | No | `integer` | — | File-count hard ceiling: a Story exceeding it is rejected unless it declares `wide` with a reason (default 30). |
 | `taskSizing.maxAcceptance` | No | `integer` | — | Hard ceiling on acceptance[] item count (default 14). |
 | `taskSizing.softAcceptanceCount` | No | `integer` | — | Soft-warn threshold on acceptance[] item count (default 10). |

@@ -90,7 +90,7 @@
       "Schema migrations that rewrite existing rows or drop columns without a backfill or rollback plan."
     ],
     "taskSizing": {
-      "softFiles": 8,
+      "softFiles": 15,
       "hardFiles": 30,
       "maxAcceptance": 14,
       "softAcceptanceCount": 10

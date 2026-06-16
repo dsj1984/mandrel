@@ -22,9 +22,9 @@ import { applyBudget } from '../../planning-context-budget.js';
 
 export function buildDecomposerSystemPrompt(
   heuristics = [],
-  { maxTickets } = {},
+  { maxTickets, maxTokenBudget } = {},
 ) {
-  const base = renderDecomposerSystemPrompt({ maxTickets });
+  const base = renderDecomposerSystemPrompt({ maxTickets, maxTokenBudget });
   const heuristicsStr =
     heuristics.length > 0
       ? `### RISK HEURISTICS (planning metadata if any apply):\n- ${heuristics.join('\n- ')}`
@@ -115,9 +115,13 @@ export async function buildDecompositionContext(
   const heuristics = resolveHeuristics(config);
   const limits = getLimits(config);
   const maxTickets = limits.maxTickets;
+  const maxTokenBudget = limits.maxTokenBudget;
   const planningLimits = limits.planningContext;
   const { fullContext = false } = opts;
-  const systemPrompt = buildDecomposerSystemPrompt(heuristics, { maxTickets });
+  const systemPrompt = buildDecomposerSystemPrompt(heuristics, {
+    maxTickets,
+    maxTokenBudget,
+  });
 
   const budgeted = applyBudget(
     [
@@ -137,8 +141,10 @@ export async function buildDecompositionContext(
     maxTickets,
     // Story #3875 — surface the real delivery envelope to the decomposer
     // so Stories are sized against the hydration budget and the
-    // configured preflight ceilings rather than guessed.
-    maxTokenBudget: limits.maxTokenBudget,
+    // configured preflight ceilings rather than guessed. Story #4162 also
+    // threads this value into the rendered systemPrompt above as a sizing
+    // input so the prompt itself names the budget.
+    maxTokenBudget,
     preflightCeilings: resolvePreflightCeilings(config),
     contextMode: budgeted.mode,
     // Story #2801 — surface the Phase 7 planning decision so the

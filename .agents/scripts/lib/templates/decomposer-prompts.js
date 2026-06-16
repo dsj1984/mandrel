@@ -15,11 +15,28 @@ import {
  * 2-tier is the only published hierarchy after Story #4041 removed the
  * Feature tier: the prompt emits Stories only (direct Epic children) and
  * asks the planner to carry acceptance/verify as top-level ticket arrays.
+ *
+ * **Single source of the prompt body (Story #4162).** This module is the sole
+ * carrier of the full decomposer system-prompt body. The
+ * `epic-plan-decompose-author` SKILL no longer embeds a second verbatim copy —
+ * it references this rendered prompt (delivered to the host LLM in the
+ * `systemPrompt` field of the authoring context envelope built by
+ * `epic-plan-decompose/phases/context.js`) instead, so the two surfaces cannot
+ * drift. A guard test (`tests/ticket-decomposer.test.js`) fails if the SKILL
+ * re-grows a full copy of the prompt preamble.
+ *
+ * **Token-budget sizing input (Story #4162).** `maxTokenBudget` is the real
+ * one-pass delivery envelope (the task-prompt hydration cap surfaced into the
+ * authoring envelope by `context.js`, Story #3875). It is threaded into the
+ * rendered prompt as a sizing input so the planner sizes Stories against the
+ * envelope a single agent can actually deliver in one pass, rather than leading
+ * with the file-count proxy alone.
  */
 export function renderDecomposerSystemPrompt({
   maxTickets = LIMITS_DEFAULTS.maxTickets,
+  maxTokenBudget = LIMITS_DEFAULTS.maxTokenBudget,
 } = {}) {
-  return render2TierPrompt({ maxTickets });
+  return render2TierPrompt({ maxTickets, maxTokenBudget });
 }
 
 /**
@@ -28,7 +45,7 @@ export function renderDecomposerSystemPrompt({
  * on the Story body so the executing agent has everything it needs in one
  * ticket. Thematic grouping lives as prose in the Epic body / Tech Spec.
  */
-function render2TierPrompt({ maxTickets }) {
+function render2TierPrompt({ maxTickets, maxTokenBudget }) {
   // Sizing thresholds are sourced from the single DEFAULT_TASK_SIZING constant
   // (ticket-validator-sizing.js) so the prompt and the validator cannot drift.
   const { softFiles, hardFiles, maxAcceptance, softAcceptanceCount } =
@@ -110,6 +127,8 @@ The serialized \`body\` string renders these markdown sections (in order):
 **Decompose at deliverable granularity, not module/task level.** ${granularityDefinition}
 
 The primary question is **cohesion, not count**: *is this one coherent change with one reason to exist?* File count cannot tell a trivial ${softFiles}-file rename from a hard 3-file parser+caller+config change — so lead with the change's reason, not its size.
+
+**Size against the real one-pass delivery envelope.** Each Story is delivered and self-verified by a single agent in one pass, whose context is capped by the delivery token budget \`maxTokenBudget = ${maxTokenBudget}\` tokens (the task-prompt hydration cap). Use that envelope — not the file count alone — as the leading sizing input: a Story is correctly sized when one agent can hold its full change, acceptance, and verification in a single pass within \`maxTokenBudget\`. The numeric file thresholds below are a coarse backstop on top of this envelope, not the primary signal.
 
 - **One Story = one coherent change with one reason to exist.** If you cannot state that reason in a sentence, the Story is probably two Stories — or two Stories that should be one.
 - ${singleConsumerRule}

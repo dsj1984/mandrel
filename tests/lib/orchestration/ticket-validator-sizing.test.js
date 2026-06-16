@@ -10,7 +10,7 @@ import { validateAndNormalizeTickets } from '../../../.agents/scripts/lib/orches
  * `sizingProfile` enum (`atomic-rewrite` / `scaffolding` / `mechanical-sweep`)
  * are gone. The model is now:
  *
- *   - Flat knobs (DEFAULT_TASK_SIZING): softFiles=8, hardFiles=30,
+ *   - Flat knobs (DEFAULT_TASK_SIZING): softFiles=15, hardFiles=30,
  *     maxAcceptance=14, softAcceptanceCount=10.
  *   - A single optional `body.wide = { reason }` declaration. Declaring `wide`
  *     with a non-empty reason lifts the hardFiles rejection — no Story is
@@ -168,11 +168,13 @@ test('wide lifts only the file ceiling — 15 acceptance items still hard-reject
 });
 
 // ---------------------------------------------------------------------------
-// File width — single ceiling (softFiles=8, hardFiles=30)
+// File width — single ceiling (softFiles=15, hardFiles=30)
 // ---------------------------------------------------------------------------
 
-test('8 files (at softFiles) produces no width finding', () => {
-  const result = validateStory(makeStory('t-8files', { changes: changes(8) }));
+test('15 files (at softFiles) produces no width finding', () => {
+  const result = validateStory(
+    makeStory('t-15files', { changes: changes(15) }),
+  );
   const widthFindings = result.findings.filter(
     (f) => f.kind === 'wide-undeclared' || f.field === 'fileCount',
   );
@@ -180,15 +182,17 @@ test('8 files (at softFiles) produces no width finding', () => {
   assert.deepEqual(result.errors, []);
 });
 
-test('9 files (>softFiles) with no wide declaration emits wide-undeclared (soft, no rejection)', () => {
-  const result = validateStory(makeStory('t-9files', { changes: changes(9) }));
+test('16 files (>softFiles) with no wide declaration emits wide-undeclared (soft, no rejection)', () => {
+  const result = validateStory(
+    makeStory('t-16files', { changes: changes(16) }),
+  );
   const hard = result.findings.filter((f) => f.severity === 'hard');
   assert.deepEqual(hard, []);
   assert.deepEqual(result.errors, []);
   const nudge = result.findings.filter((f) => f.kind === 'wide-undeclared');
   assert.equal(nudge.length, 1);
-  assert.equal(nudge[0].fileCount, 9);
-  assert.equal(nudge[0].softFiles, 8);
+  assert.equal(nudge[0].fileCount, 16);
+  assert.equal(nudge[0].softFiles, 15);
 });
 
 test('31 files (>hardFiles) with no wide declaration trips hard oversized-task on fileCount', () => {
@@ -223,13 +227,13 @@ test('31 files WITH a wide declaration lifts the hard ceiling (soft-task-width o
   );
   assert.equal(soft.length, 1);
   assert.equal(soft[0].observed, 31);
-  assert.equal(soft[0].soft, 8);
+  assert.equal(soft[0].soft, 15);
 });
 
-test('9 files WITH a wide declaration emits soft-task-width, not wide-undeclared', () => {
+test('16 files WITH a wide declaration emits soft-task-width, not wide-undeclared', () => {
   const result = validateStory(
-    makeStory('t-9files-wide', {
-      changes: changes(9),
+    makeStory('t-16files-wide', {
+      changes: changes(16),
       wide: { reason: 'legitimately broad: scaffold a new package skeleton' },
     }),
   );
@@ -239,8 +243,8 @@ test('9 files WITH a wide declaration emits soft-task-width, not wide-undeclared
     (f) => f.kind === 'soft-task-width' && f.field === 'fileCount',
   );
   assert.equal(soft.length, 1);
-  assert.equal(soft[0].observed, 9);
-  assert.equal(soft[0].soft, 8);
+  assert.equal(soft[0].observed, 16);
+  assert.equal(soft[0].soft, 15);
   assert.deepEqual(result.errors, []);
 });
 
@@ -306,7 +310,7 @@ test('glob entries skip the numeric ceiling — 100 globs never trip oversized-t
 // ---------------------------------------------------------------------------
 
 test('changes[] with PathEntry object form counts files correctly (not zero)', () => {
-  // 9 PathEntry objects, no wide → wide-undeclared (fileCount=9 > softFiles=8).
+  // 16 PathEntry objects, no wide → wide-undeclared (fileCount=16 > softFiles=15).
   const result = validateStory(
     makeStory('t-pathentry', {
       changes: [
@@ -319,6 +323,13 @@ test('changes[] with PathEntry object form counts files correctly (not zero)', (
         { path: 'src/g.js', assumption: 'refactors-existing' },
         { path: 'src/h.js', assumption: 'refactors-existing' },
         { path: 'src/i.js', assumption: 'refactors-existing' },
+        { path: 'src/j.js', assumption: 'refactors-existing' },
+        { path: 'src/k.js', assumption: 'refactors-existing' },
+        { path: 'src/l.js', assumption: 'refactors-existing' },
+        { path: 'src/m.js', assumption: 'refactors-existing' },
+        { path: 'src/n.js', assumption: 'refactors-existing' },
+        { path: 'src/o.js', assumption: 'refactors-existing' },
+        { path: 'src/p.js', assumption: 'refactors-existing' },
       ],
     }),
   );
@@ -326,9 +337,9 @@ test('changes[] with PathEntry object form counts files correctly (not zero)', (
   assert.equal(
     nudge.length,
     1,
-    'expected wide-undeclared for 9 PathEntry changes',
+    'expected wide-undeclared for 16 PathEntry changes',
   );
-  assert.equal(nudge[0].fileCount, 9);
+  assert.equal(nudge[0].fileCount, 16);
 });
 
 test('changes[] with a glob PathEntry object triggers wide-undeclared', () => {
