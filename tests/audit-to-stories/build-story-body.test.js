@@ -43,12 +43,22 @@ test('buildStoryBody emits all canonical sections', () => {
   assert.ok(title.length > 0);
 });
 
-test('buildStoryBody applies audit:: labels for every dimension in the merge (Story AC #5)', () => {
+test('buildStoryBody applies one canonical audit::<lens> label per distinct source report (Story #4195)', () => {
   const { labels } = buildStoryBody({ group: loginGroup() });
   assert.ok(labels.includes('type::story'));
   assert.ok(labels.includes('agent::ready'));
-  assert.ok(labels.some((l) => l === 'audit::injection'));
-  assert.ok(labels.some((l) => l === 'audit::maintainability'));
+  // The login group merges findings from audit-security-results.md and
+  // audit-clean-code-results.md, so the canonical lens labels are
+  // audit::security + audit::clean-code — derived from the sourceReport
+  // basename, NOT the fine-grained dimension text (injection /
+  // maintainability / security-misconfiguration), which would mint
+  // non-existent labels.
+  assert.ok(labels.includes('audit::security'));
+  assert.ok(labels.includes('audit::clean-code'));
+  // None of the junk dimension-derived labels may appear.
+  assert.ok(!labels.includes('audit::injection'));
+  assert.ok(!labels.includes('audit::maintainability'));
+  assert.ok(!labels.includes('audit::security-misconfiguration'));
 });
 
 test('buildStoryBody stamps the machine-readable fingerprint footer', () => {

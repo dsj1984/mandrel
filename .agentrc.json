@@ -42,6 +42,7 @@
           "targetDirs": [".agents/scripts", "bin", "lib"],
           "ignoreGlobs": [
             ".agents/scripts/lifecycle-emit.js",
+            ".agents/scripts/**/__tests__/**",
             "lib/cli/update.js"
           ]
         },
@@ -52,6 +53,7 @@
           "ignoreGlobs": [
             ".agents/scripts/lib/config-settings-schema*.js",
             ".agents/scripts/lib/orchestration/lifecycle/listeners/index.js",
+            ".agents/scripts/**/__tests__/**",
             "lib/**/__tests__/**"
           ]
         },
@@ -59,7 +61,10 @@
           "floors": { "*": { "percentage": 12 } },
           "targetDirs": [".agents/scripts", "bin", "lib"],
           "tolerance": { "kind": "absolute", "value": 1 },
-          "ignoreGlobs": ["lib/**/__tests__/**"]
+          "ignoreGlobs": [
+            ".agents/scripts/**/__tests__/**",
+            "lib/**/__tests__/**"
+          ]
         }
       }
     }

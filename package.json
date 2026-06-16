@@ -7,7 +7,8 @@
     "bin/",
     "docs/CHANGELOG.md",
     "lib/",
-    "!lib/**/__tests__"
+    "!lib/**/__tests__",
+    "!.agents/**/__tests__"
   ],
   "publishConfig": {
     "access": "public",

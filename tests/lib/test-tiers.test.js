@@ -53,12 +53,13 @@ test('listTestFilesForTier partitions quick vs integration', () => {
   fs.rmSync(root, { recursive: true, force: true });
 });
 
-test('listTestFilesForTier full returns the tests + lib glob set', () => {
+test('listTestFilesForTier full returns the tests + lib + .agents/scripts glob set', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tier-full-'));
   fs.mkdirSync(path.join(root, 'tests'), { recursive: true });
   assert.deepEqual(listTestFilesForTier('full', root, fs), [
     'tests/**/*.test.js',
     'lib/**/__tests__/**/*.test.js',
+    '.agents/scripts/**/__tests__/**/*.test.js',
   ]);
   fs.rmSync(root, { recursive: true, force: true });
 });
@@ -77,6 +78,34 @@ test('quick / integration walk lib/**/__tests__ as a second root', () => {
   // walk-derived target list (quick tier — it is not in INTEGRATION_INCLUDE).
   assert.ok(quick.includes('lib/cli/__tests__/update.test.js'));
   assert.ok(!integration.includes('lib/cli/__tests__/update.test.js'));
+
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('quick / integration walk .agents/scripts/**/__tests__ as a third root', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tier-agents-'));
+  const agentTests = path.join(
+    root,
+    '.agents',
+    'scripts',
+    'lib',
+    'audit-to-stories',
+    '__tests__',
+  );
+  fs.mkdirSync(agentTests, { recursive: true });
+  fs.mkdirSync(path.join(root, 'tests'), { recursive: true });
+  fs.writeFileSync(path.join(agentTests, 'audit-lenses.test.js'), '');
+
+  const quick = listTestFilesForTier('quick', root, fs);
+  const integration = listTestFilesForTier('integration', root, fs);
+
+  // Colocated orchestration-engine tests under .agents/scripts must be
+  // discovered (Story #4195) — quick tier, since they are not in
+  // INTEGRATION_INCLUDE.
+  const rel =
+    '.agents/scripts/lib/audit-to-stories/__tests__/audit-lenses.test.js';
+  assert.ok(quick.includes(rel));
+  assert.ok(!integration.includes(rel));
 
   fs.rmSync(root, { recursive: true, force: true });
 });

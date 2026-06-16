@@ -39,6 +39,7 @@ import { groupFindings } from './lib/audit-to-stories/group-findings.js';
 import { parseAuditReports } from './lib/audit-to-stories/parse-audit-md.js';
 import { buildEpicSeedMarkdown } from './lib/audit-to-stories/seed-epic-from-findings.js';
 import { runAsCli } from './lib/cli-utils.js';
+import { Logger } from './lib/Logger.js';
 
 const SEVERITY_RANK = { critical: 4, high: 3, medium: 2, low: 1 };
 const DEFAULT_GLOB = 'temp/audits/audit-*-results.md';
@@ -109,6 +110,44 @@ async function loadProvider() {
   }
 }
 
+/**
+ * Render the loud, operator-visible warning emitted when the Phase 6 dedup
+ * does NOT run against real GitHub issues. Two distinct reasons:
+ *
+ *   - `'no-provider-port'` — the configured provider resolved but exposes no
+ *     `searchIssues` port (or `loadProvider()` threw). This is the
+ *     silent-no-op the workflow's "Never open a duplicate Issue" contract
+ *     was failing on: every group classifies `create` and the operator gets
+ *     zero automated dedup signal. Surfacing it loudly is the whole point.
+ *   - `'disabled'` — the operator passed `--no-provider`, intentionally
+ *     skipping dedup. Still warned (so a re-run that opens duplicates is
+ *     never a surprise), but framed as a deliberate choice.
+ *
+ * Pure: returns the message string so `buildPlan` owns the single
+ * `Logger.warn` write site and the text stays unit-testable.
+ *
+ * @param {'no-provider-port'|'disabled'} reason
+ * @returns {string}
+ */
+function dedupSkippedWarning(reason) {
+  if (reason === 'disabled') {
+    return (
+      'dedup skipped (--no-provider): every group is classified "create" ' +
+      'without checking GitHub for existing issues. A re-run may open ' +
+      'duplicates of already-tracked or already-closed findings. Drop ' +
+      '--no-provider to enable fingerprint dedup against real issues.'
+    );
+  }
+  return (
+    'dedup skipped (no provider port): the configured provider exposes no ' +
+    'searchIssues() port, so Phase 6 dedup did NOT run. Every group is ' +
+    'classified "create" and existing/closed issues are NOT checked — a run ' +
+    'that creates Stories from this plan WILL open duplicates of ' +
+    'already-tracked work. Verify `gh auth status` and the github.{owner,repo} ' +
+    'config so a real provider resolves.'
+  );
+}
+
 async function buildPlan({ glob: pattern, severity, useProvider }) {
   const reportPaths = await collectReportPaths(pattern ?? DEFAULT_GLOB);
   if (reportPaths.length === 0) {
@@ -143,6 +182,7 @@ async function buildPlan({ glob: pattern, severity, useProvider }) {
     matchedFingerprints: [],
   }));
   let summary = { create: groups.length, skipOpen: 0, skipReoccurring: 0 };
+  let dedupApplied = false;
 
   if (useProvider) {
     const provider = await loadProvider();
@@ -150,7 +190,18 @@ async function buildPlan({ glob: pattern, severity, useProvider }) {
       const result = await classifyGroupsAgainstGitHub({ groups, provider });
       classifications = result.classifications;
       summary = result.summary;
+      dedupApplied = true;
+    } else {
+      // The provider could not resolve a searchIssues port — the dedup gate
+      // is silently a no-op without this. Surface it loudly (stderr, so the
+      // --scan JSON on stdout stays clean) so the operator does not read a
+      // create-only plan as "no duplicates found".
+      Logger.warn(dedupSkippedWarning('no-provider-port'));
     }
+  } else {
+    // Operator explicitly opted out via --no-provider. Still warn so a
+    // duplicate-opening re-run is never a surprise.
+    Logger.warn(dedupSkippedWarning('disabled'));
   }
 
   return {
@@ -165,6 +216,7 @@ async function buildPlan({ glob: pattern, severity, useProvider }) {
       totalFindings: allFindings.length,
       filtered: filtered.length,
       tally: tallyBySeverity(filtered),
+      dedupApplied,
       ...summary,
     },
   };
@@ -188,6 +240,8 @@ export const __testing = {
   meetsSeverity,
   collectReportPaths,
   buildPlan,
+  loadProvider,
+  dedupSkippedWarning,
 };
 
 async function main() {
