@@ -289,3 +289,49 @@ describe('picker precedence in collectAnswers', () => {
     assert.deepEqual(await resolveFromPicker(ctx), { kind: 'skip' });
   });
 });
+
+// ---------------------------------------------------------------------------
+// buildQuestions — owner/repo required-ness tracks --skip-github
+// ---------------------------------------------------------------------------
+
+describe('buildQuestions owner/repo requiredness under --skip-github', () => {
+  const EMPTY = Object.freeze({}); // no inferable defaults (fresh non-git dir)
+
+  it('marks owner and repo required when GitHub bootstrap is active', () => {
+    const questions = buildQuestions(EMPTY, {}, {}, {});
+    assert.equal(findQuestion(questions, 'owner').required, true);
+    assert.equal(findQuestion(questions, 'repo').required, true);
+  });
+
+  it('relaxes owner and repo when --skip-github is set', () => {
+    const questions = buildQuestions(EMPTY, { 'skip-github': true }, {}, {});
+    assert.equal(findQuestion(questions, 'owner').required, false);
+    assert.equal(findQuestion(questions, 'repo').required, false);
+  });
+
+  it('non-interactive --assume-yes hard-fails on missing owner/repo when GitHub is active', async () => {
+    const questions = buildQuestions(EMPTY, {}, {}, {});
+    const { missing } = await collectAnswers({
+      questions,
+      flags: {},
+      interactive: false,
+      assumeYes: true,
+    });
+    assert.ok(missing.includes('owner'), 'owner should be missing');
+    assert.ok(missing.includes('repo'), 'repo should be missing');
+  });
+
+  it('non-interactive --assume-yes --skip-github resolves with no missing owner/repo (cold-start path)', async () => {
+    const questions = buildQuestions(EMPTY, { 'skip-github': true }, {}, {});
+    const { missing } = await collectAnswers({
+      questions,
+      flags: { 'skip-github': true },
+      interactive: false,
+      assumeYes: true,
+    });
+    assert.ok(
+      !missing.includes('owner') && !missing.includes('repo'),
+      `owner/repo must not be required under --skip-github; got missing=[${missing.join(', ')}]`,
+    );
+  });
+});

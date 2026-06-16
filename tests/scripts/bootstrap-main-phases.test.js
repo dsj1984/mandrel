@@ -331,12 +331,14 @@ describe('runPipeline', () => {
 });
 
 describe('collectAndConfirm', () => {
-  it('halts with exit 1 when required answers are missing under --assume-yes', async () => {
+  it('halts with exit 1 when required answers are missing under --assume-yes (GitHub active)', async () => {
     const { collectAndConfirm } = await import(
       '../../.agents/scripts/bootstrap.js'
     );
+    // GitHub bootstrap is active (no --skip-github), so owner/repo are
+    // required; non-interactive --assume-yes with no inferable values halts.
     const res = await collectAndConfirm({
-      flags: { 'assume-yes': true, 'skip-github': true },
+      flags: { 'assume-yes': true },
       interactive: false,
       assumeYes: true,
       defaults: { owner: null, repo: null, baseBranch: null },
@@ -345,6 +347,25 @@ describe('collectAndConfirm', () => {
     });
     assert.equal(res.ok, false);
     assert.equal(res.exit, 1);
+  });
+
+  it('advances under --assume-yes --skip-github with no inferable owner/repo (cold-start path)', async () => {
+    const { collectAndConfirm } = await import(
+      '../../.agents/scripts/bootstrap.js'
+    );
+    // --skip-github relaxes the GitHub-side answers, so a fresh non-git dir
+    // (null owner/repo) configures the files/local setup instead of hard-
+    // failing on `missing required answers: owner, repo` — the install-matrix
+    // cold-start leg's contract.
+    const res = await collectAndConfirm({
+      flags: { 'assume-yes': true, 'skip-github': true },
+      interactive: false,
+      assumeYes: true,
+      defaults: { owner: null, repo: null, baseBranch: null },
+      silentAccept: [],
+      gitInitialized: true,
+    });
+    assert.equal(res.ok, true);
   });
 
   it('advances with the resolved answers when flags satisfy every required field', async () => {
