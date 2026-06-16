@@ -37,6 +37,36 @@ const IGNORED_DIRS = new Set([
 ]);
 
 /**
+ * Test whether an absolute (or repo-relative) file path matches any of the
+ * configured `ignoreGlobs`. This is the single source of truth for how the
+ * maintainability scorer decides a file is ignored: both the full-scope
+ * directory walk (`scanDirectory` below) and the diff-scope file-list path
+ * in `refresh-service.js` MUST funnel through it so an `ignoreGlobs`-listed
+ * file is excluded identically in both scopes (a diff-scope refresh that
+ * skipped this check would let an ignored file poison the `rollup["*"].min`
+ * floor — see `buildDefaultMaintainabilityScorer`).
+ *
+ * Matching mirrors `scanDirectory`: the path is reduced to a canonicalised,
+ * POSIX, repo-relative form and tested against each glob with minimatch's
+ * `{ dot: true }` so dot-prefixed roots like `.agents/` match.
+ *
+ * @param {string} filePath absolute or relative path to the source file
+ * @param {string[]} ignoreGlobs minimatch patterns; empty/absent is a no-op
+ * @param {string} [cwd] root for repo-relative resolution; defaults to cwd
+ * @returns {boolean} true when the file matches at least one ignore glob
+ */
+export function isIgnoredByGlobs(filePath, ignoreGlobs = [], cwd) {
+  if (!Array.isArray(ignoreGlobs) || ignoreGlobs.length === 0) return false;
+  const matchCwd = cwd ?? process.cwd();
+  const absFilePath = path.isAbsolute(filePath)
+    ? filePath
+    : path.resolve(matchCwd, filePath);
+  const rawRel = path.relative(matchCwd, absFilePath).replace(/\\/g, '/');
+  const relPath = canonicalisePath(rawRel);
+  return ignoreGlobs.some((g) => minimatch(relPath, g, { dot: true }));
+}
+
+/**
  * Recursively scans a directory for JS/TS source files. Accepts `.js`,
  * `.mjs`, `.cjs`, `.ts`, `.tsx`, `.mts`, and `.cts`. Directories listed
  * in `IGNORED_DIRS` (including `coverage` and `.next`, added in 5.29.0
@@ -71,15 +101,8 @@ export function scanDirectory(dir, fileList = [], opts = {}) {
         scanDirectory(filePath, fileList, opts);
       }
     } else if (entry.isFile() && isSupportedSourceFile(entry.name)) {
-      if (ignoreGlobs.length > 0) {
-        const absFilePath = path.isAbsolute(filePath)
-          ? filePath
-          : path.resolve(filePath);
-        const rawRel = path.relative(matchCwd, absFilePath).replace(/\\/g, '/');
-        const relPath = canonicalisePath(rawRel);
-        if (ignoreGlobs.some((g) => minimatch(relPath, g, { dot: true }))) {
-          continue;
-        }
+      if (isIgnoredByGlobs(filePath, ignoreGlobs, matchCwd)) {
+        continue;
       }
       fileList.push(filePath);
     }
