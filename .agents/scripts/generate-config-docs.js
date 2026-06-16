@@ -142,6 +142,92 @@ function resolveNode(schema, node) {
 }
 
 /**
+ * Render the "Type" cell for an `array`-typed node by inspecting its `items`
+ * schema. Mirrors the original inline ladder exactly: a `$ref` item renders
+ * `array<RefName>`, an enum item renders `array<enum>`, a typed item renders
+ * `array<type>`, and anything else collapses to a bare `array`.
+ *
+ * @param {object} flat Flattened array node.
+ * @returns {string}
+ */
+function renderArrayType(flat) {
+  const items = flat.items;
+  if (items && typeof items === 'object') {
+    if (items.$ref) {
+      const refName = items.$ref.startsWith('#/$defs/')
+        ? items.$ref.slice('#/$defs/'.length)
+        : items.$ref;
+      return `\`array<${refName}>\``;
+    }
+    if (Array.isArray(items.enum)) {
+      return `\`array<enum>\``;
+    }
+    if (typeof items.type === 'string') {
+      return `\`array<${items.type}>\``;
+    }
+  }
+  return '`array`';
+}
+
+/**
+ * Render the "Type" cell for an `object`-typed node — `object<map>` when it
+ * carries an `additionalProperties` schema (the map form), `object`
+ * otherwise.
+ *
+ * @param {object} flat Flattened object node.
+ * @returns {string}
+ */
+function renderObjectType(flat) {
+  if (
+    flat.additionalProperties &&
+    typeof flat.additionalProperties === 'object'
+  ) {
+    return '`object<map>`';
+  }
+  return '`object`';
+}
+
+/**
+ * Ordered dispatch table for the "Type" cell. Each rule pairs a `when(flat)`
+ * predicate with a `render(flat)` producer; {@link renderType} walks the
+ * table once and returns the first match, so a new schema shape becomes a new
+ * row here rather than another nested branch.
+ *
+ * Order is load-bearing — `oneOf` and `enum` are matched before the plain
+ * `type` rules, exactly as the original ladder short-circuited.
+ *
+ * @type {Array<{ when: (flat: object) => boolean, render: (flat: object) => string }>}
+ */
+const TYPE_RULES = [
+  // The only oneOf in the schema is `listOrExtenderOfStrings`.
+  {
+    when: (flat) => Array.isArray(flat.oneOf),
+    render: () => '`string[]` or `{ append?, prepend? }`',
+  },
+  {
+    when: (flat) => Array.isArray(flat.enum),
+    render: (flat) =>
+      flat.enum.map((v) => `\`${JSON.stringify(v)}\``).join(' \\| '),
+  },
+  {
+    when: (flat) => Array.isArray(flat.type),
+    render: (flat) => flat.type.map((t) => `\`${t}\``).join(' \\| '),
+  },
+  {
+    when: (flat) => flat.type === 'array',
+    render: renderArrayType,
+  },
+  {
+    when: (flat) => flat.type === 'object',
+    render: renderObjectType,
+  },
+  {
+    when: (flat) => typeof flat.type === 'string',
+    render: (flat) => `\`${flat.type}\``,
+  },
+];
+
+/**
  * Render the "Type" cell for a schema node. The agentrc schema uses a few
  * recurring shapes — string, integer, number, boolean, array, object,
  * `oneOf` (the `listOrExtenderOfStrings` extender form), enum, and nullable
@@ -155,51 +241,8 @@ function resolveNode(schema, node) {
 function renderType(schema, node) {
   if (!node || typeof node !== 'object') return '?';
   const flat = flattenAllOf(schema, node);
-
-  if (Array.isArray(flat.oneOf)) {
-    // The only oneOf in the schema is `listOrExtenderOfStrings`.
-    return '`string[]` or `{ append?, prepend? }`';
-  }
-
-  if (Array.isArray(flat.enum)) {
-    return flat.enum.map((v) => `\`${JSON.stringify(v)}\``).join(' \\| ');
-  }
-
-  const type = flat.type;
-  if (Array.isArray(type)) {
-    return type.map((t) => `\`${t}\``).join(' \\| ');
-  }
-  if (typeof type === 'string') {
-    if (type === 'array') {
-      const items = flat.items;
-      if (items && typeof items === 'object') {
-        if (items.$ref) {
-          const refName = items.$ref.startsWith('#/$defs/')
-            ? items.$ref.slice('#/$defs/'.length)
-            : items.$ref;
-          return `\`array<${refName}>\``;
-        }
-        if (Array.isArray(items.enum)) {
-          return `\`array<enum>\``;
-        }
-        if (typeof items.type === 'string') {
-          return `\`array<${items.type}>\``;
-        }
-      }
-      return '`array`';
-    }
-    if (type === 'object') {
-      if (
-        flat.additionalProperties &&
-        typeof flat.additionalProperties === 'object'
-      ) {
-        return '`object<map>`';
-      }
-      return '`object`';
-    }
-    return `\`${type}\``;
-  }
-  return '?';
+  const rule = TYPE_RULES.find((r) => r.when(flat));
+  return rule ? rule.render(flat) : '?';
 }
 
 /**
@@ -234,6 +277,94 @@ function escapeCell(text) {
 }
 
 /**
+ * Emit the rows for a nested-object property: a header row carrying the
+ * parent's description followed by the recursively-flattened child rows.
+ * Returns `null` when `flat` is not a properties-bearing object, so the
+ * caller can fall through to the next row shape.
+ *
+ * @param {object} schema
+ * @param {{flat: object, keyPath: string, pathParts: string[], propName: string, isRequired: boolean, description: string}} ctx
+ * @returns {Array<object> | null}
+ */
+function nestedObjectRows(schema, ctx) {
+  const { flat, keyPath, pathParts, propName, isRequired, description } = ctx;
+  if (flat.type !== 'object' || !flat.properties) return null;
+  const childRequired = new Set(
+    Array.isArray(flat.required) ? flat.required : [],
+  );
+  return [
+    {
+      key: keyPath,
+      required: isRequired ? 'Yes' : 'No',
+      type: '`object`',
+      def: renderDefault(flat.default),
+      description: description || 'Nested configuration block.',
+    },
+    ...flattenObject(schema, flat, [...pathParts, propName], childRequired),
+  ];
+}
+
+/**
+ * Emit the single `[]`-suffixed row for an array-of-objects property,
+ * describing the item shape in the Description cell. Returns `null` when the
+ * property is not an array whose items are a properties-bearing object.
+ *
+ * @param {object} schema
+ * @param {{flat: object, keyPath: string, isRequired: boolean, description: string}} ctx
+ * @returns {Array<object> | null}
+ */
+function arrayOfObjectsRows(schema, ctx) {
+  const { flat, keyPath, isRequired, description } = ctx;
+  if (flat.type !== 'array' || !flat.items) return null;
+  const { node: itemNode, refName } = resolveNode(schema, flat.items);
+  if (!itemNode || itemNode.type !== 'object' || !itemNode.properties) {
+    return null;
+  }
+  const itemKeys = Object.keys(itemNode.properties).join(', ');
+  const suffix = refName ? ` (\`${refName}\`)` : '';
+  const desc =
+    (description ? `${description} ` : '') +
+    `Each item${suffix} has: ${itemKeys}.`;
+  return [
+    {
+      key: `${keyPath}[]`,
+      required: isRequired ? 'Yes' : 'No',
+      type: renderType(schema, flat),
+      def: renderDefault(flat.default),
+      description: desc,
+    },
+  ];
+}
+
+/**
+ * Emit the leaf (scalar / non-recursed) row for a property. Always matches —
+ * it is the fallthrough shape when neither the nested-object nor the
+ * array-of-objects builder applied.
+ *
+ * @param {object} schema
+ * @param {{flat: object, keyPath: string, isRequired: boolean, description: string}} ctx
+ * @returns {Array<object>}
+ */
+function leafRow(schema, ctx) {
+  const { flat, keyPath, isRequired, description } = ctx;
+  return [
+    {
+      key: keyPath,
+      required: isRequired ? 'Yes' : 'No',
+      type: renderType(schema, flat),
+      def: renderDefault(flat.default),
+      description: description || '—',
+    },
+  ];
+}
+
+// Ordered row-shape builders for one property. The loop in flattenObject
+// returns the first builder that yields rows (non-null), matching the
+// original if/continue ladder: nested-object first, array-of-objects next,
+// scalar leaf as the always-matching fallthrough.
+const ROW_BUILDERS = [nestedObjectRows, arrayOfObjectsRows, leafRow];
+
+/**
  * Flatten one object-typed schema node into table rows. Recurses into
  * nested `object` properties (resolving `$ref`s along the way) so dot-paths
  * like `paths.agentRoot` and `branchProtection.requiredChecks` show up as
@@ -260,57 +391,21 @@ function flattenObject(schema, node, pathParts, required) {
   for (const [propName, rawChild] of Object.entries(properties)) {
     const { node: child } = resolveNode(schema, rawChild);
     const flat = flattenAllOf(schema, child);
-    const keyPath = [...pathParts, propName].join('.');
-    const isRequired = required.has(propName) || localRequired.has(propName);
-    const description = flat.description || rawChild.description || '';
-
-    // Nested object: recurse to surface dot-pathed children.
-    if (flat.type === 'object' && flat.properties) {
-      // Emit a header row for the parent object so its description is
-      // visible, then recurse.
-      rows.push({
-        key: keyPath,
-        required: isRequired ? 'Yes' : 'No',
-        type: '`object`',
-        def: renderDefault(flat.default),
-        description: description || 'Nested configuration block.',
-      });
-      const childRequired = new Set(
-        Array.isArray(flat.required) ? flat.required : [],
-      );
-      rows.push(
-        ...flattenObject(schema, flat, [...pathParts, propName], childRequired),
-      );
-      continue;
-    }
-
-    // Array-of-objects: emit one row and describe the item shape.
-    if (flat.type === 'array' && flat.items) {
-      const { node: itemNode, refName } = resolveNode(schema, flat.items);
-      if (itemNode && itemNode.type === 'object' && itemNode.properties) {
-        const itemKeys = Object.keys(itemNode.properties).join(', ');
-        const suffix = refName ? ` (\`${refName}\`)` : '';
-        const desc =
-          (description ? `${description} ` : '') +
-          `Each item${suffix} has: ${itemKeys}.`;
-        rows.push({
-          key: `${keyPath}[]`,
-          required: isRequired ? 'Yes' : 'No',
-          type: renderType(schema, flat),
-          def: renderDefault(flat.default),
-          description: desc,
-        });
-        continue;
+    const ctx = {
+      flat,
+      keyPath: [...pathParts, propName].join('.'),
+      pathParts,
+      propName,
+      isRequired: required.has(propName) || localRequired.has(propName),
+      description: flat.description || rawChild.description || '',
+    };
+    for (const build of ROW_BUILDERS) {
+      const built = build(schema, ctx);
+      if (built !== null) {
+        rows.push(...built);
+        break;
       }
     }
-
-    rows.push({
-      key: keyPath,
-      required: isRequired ? 'Yes' : 'No',
-      type: renderType(schema, flat),
-      def: renderDefault(flat.default),
-      description: description || '—',
-    });
   }
 
   return rows;

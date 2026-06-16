@@ -684,6 +684,108 @@ function serializePathEntry(entry) {
 }
 
 /**
+ * Descriptor table for the human-readable Story-body sections, in canonical
+ * emit order (`## Goal`, `## Changes`, `## Acceptance`, `## Verify`,
+ * `## References`). Each descriptor reads one body field and returns the
+ * section's markdown block when the field is present and non-empty, or `null`
+ * to omit the section.
+ *
+ * Standardising the section ladder as a single data table makes adding a new
+ * optional section a one-line edit here rather than a new control-flow branch
+ * in {@link serialize}.
+ *
+ * @type {Array<{ field: string, render: (value: unknown) => string | null }>}
+ */
+const SERIALIZE_SECTIONS = [
+  {
+    field: 'goal',
+    render: (goal) =>
+      typeof goal === 'string' && goal.trim().length > 0
+        ? `## Goal\n${goal.trim()}`
+        : null,
+  },
+  {
+    field: 'changes',
+    render: (changes) =>
+      Array.isArray(changes) && changes.length > 0
+        ? `## Changes\n${changes.map((c) => `- ${serializePathEntry(c)}`).join('\n')}`
+        : null,
+  },
+  {
+    field: 'acceptance',
+    render: (acceptance) =>
+      Array.isArray(acceptance) && acceptance.length > 0
+        ? `## Acceptance\n${acceptance.map((a) => `- [ ] ${a}`).join('\n')}`
+        : null,
+  },
+  {
+    field: 'verify',
+    render: (verify) =>
+      Array.isArray(verify) && verify.length > 0
+        ? `## Verify\n${verify.map((v) => `- ${v}`).join('\n')}`
+        : null,
+  },
+  {
+    field: 'references',
+    render: (references) =>
+      Array.isArray(references) && references.length > 0
+        ? `## References\n${references.map((r) => `- ${serializePathEntry(r)}`).join('\n')}`
+        : null,
+  },
+];
+
+/**
+ * Build the trailing `<!-- meta: {...} -->` block carrying the fields that
+ * have no human-readable section (`wide`, `reason_to_exist`,
+ * `estimated_test_files`). Returns the empty string when no meta field is
+ * present so {@link serialize} appends nothing.
+ *
+ * Key insertion order (`wide` → `reason_to_exist` → `estimated_test_files`)
+ * is load-bearing: it fixes the serialized JSON byte sequence the parser's
+ * meta round-trip and the unit suite assert against.
+ *
+ * @param {StoryBody} body
+ * @returns {string}
+ */
+function serializeMetaBlock(body) {
+  const metaFields = {};
+  const wide = normalizeWide(body.wide);
+  if (wide !== null) {
+    metaFields.wide = wide;
+  }
+  const reasonToExist = normalizeReasonToExist(body.reason_to_exist);
+  if (reasonToExist !== null) {
+    metaFields.reason_to_exist = reasonToExist;
+  }
+  if (typeof body.estimated_test_files === 'number') {
+    metaFields.estimated_test_files = body.estimated_test_files;
+  }
+  if (Object.keys(metaFields).length === 0) return '';
+  return `\n\n<!-- meta: ${JSON.stringify(metaFields)} -->`;
+}
+
+/**
+ * Build the optional `---` footer block (`parent` / `Epic` / `blocked by`
+ * lines). Returns the empty string when `opts.includeFooter` is falsy.
+ *
+ * @param {StoryBody} body
+ * @param {SerializeOptions} opts
+ * @returns {string}
+ */
+function serializeFooter(body, opts) {
+  if (!opts.includeFooter) return '';
+  const footerLines = ['---'];
+  if (opts.footer?.parent) footerLines.push(`parent: #${opts.footer.parent}`);
+  if (opts.footer?.epic) footerLines.push(`Epic: #${opts.footer.epic}`);
+  if (Array.isArray(body.depends_on)) {
+    for (const dep of body.depends_on) {
+      footerLines.push(`blocked by ${dep}`);
+    }
+  }
+  return `\n\n${footerLines.join('\n')}`;
+}
+
+/**
  * Serialize a structured {@link StoryBody} back to the canonical markdown
  * format written to GitHub issue bodies.
  *
@@ -707,73 +809,16 @@ export function serialize(body, opts = {}) {
   }
 
   const sections = [];
-
-  // ## Goal
-  if (typeof body.goal === 'string' && body.goal.trim().length > 0) {
-    sections.push(`## Goal\n${body.goal.trim()}`);
+  for (const descriptor of SERIALIZE_SECTIONS) {
+    const block = descriptor.render(body[descriptor.field]);
+    if (block !== null) sections.push(block);
   }
 
-  // ## Changes
-  if (Array.isArray(body.changes) && body.changes.length > 0) {
-    const items = body.changes
-      .map((c) => `- ${serializePathEntry(c)}`)
-      .join('\n');
-    sections.push(`## Changes\n${items}`);
-  }
-
-  // ## Acceptance
-  if (Array.isArray(body.acceptance) && body.acceptance.length > 0) {
-    const items = body.acceptance.map((a) => `- [ ] ${a}`).join('\n');
-    sections.push(`## Acceptance\n${items}`);
-  }
-
-  // ## Verify
-  if (Array.isArray(body.verify) && body.verify.length > 0) {
-    const items = body.verify.map((v) => `- ${v}`).join('\n');
-    sections.push(`## Verify\n${items}`);
-  }
-
-  // ## References (only when non-empty)
-  if (Array.isArray(body.references) && body.references.length > 0) {
-    const items = body.references
-      .map((r) => `- ${serializePathEntry(r)}`)
-      .join('\n');
-    sections.push(`## References\n${items}`);
-  }
-
-  let out = sections.join('\n\n');
-
-  // Meta block for fields not representable as human-readable sections.
-  const metaFields = {};
-  const wide = normalizeWide(body.wide);
-  if (wide !== null) {
-    metaFields.wide = wide;
-  }
-  const reasonToExist = normalizeReasonToExist(body.reason_to_exist);
-  if (reasonToExist !== null) {
-    metaFields.reason_to_exist = reasonToExist;
-  }
-  if (typeof body.estimated_test_files === 'number') {
-    metaFields.estimated_test_files = body.estimated_test_files;
-  }
-  if (Object.keys(metaFields).length > 0) {
-    out += `\n\n<!-- meta: ${JSON.stringify(metaFields)} -->`;
-  }
-
-  // Footer
-  if (opts.includeFooter) {
-    const footerLines = ['---'];
-    if (opts.footer?.parent) footerLines.push(`parent: #${opts.footer.parent}`);
-    if (opts.footer?.epic) footerLines.push(`Epic: #${opts.footer.epic}`);
-    if (Array.isArray(body.depends_on)) {
-      for (const dep of body.depends_on) {
-        footerLines.push(`blocked by ${dep}`);
-      }
-    }
-    out += `\n\n${footerLines.join('\n')}`;
-  }
-
-  return out;
+  return (
+    sections.join('\n\n') +
+    serializeMetaBlock(body) +
+    serializeFooter(body, opts)
+  );
 }
 
 // ---------------------------------------------------------------------------
