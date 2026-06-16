@@ -71,6 +71,24 @@ name: Install Matrix
 #      layout), mandrel sync, then runs a materialized .agents/scripts/*.js
 #      from the consumer root. This exercises the Story #4046 anchoring fix:
 #      if scripts free-ride on consumer node_modules they fail here.
+#   4. update-reexec-pnpm — installs with pnpm (--ignore-scripts, so .agents/
+#      is NOT materialized = drift), then drives `mandrel update`'s drift-heal
+#      path with the registry probe forced to the installed version (target ==
+#      current → no real bump). That path re-execs `sync` / `sync-commands`
+#      from the NEW binary via resolveNewBinPath(projectRoot) →
+#      node_modules/.bin/mandrel, the exact seam that diverges under pnpm's
+#      symlinked / `.pnpm` layout (Story #4034, #4173). Asserts the re-exec
+#      materialized .agents/ and that `mandrel doctor` is ready afterward,
+#      proving resolveNewBinPath resolved a runnable binary under pnpm.
+#
+# Gate-vs-nightly decision (Story #4173 AC3): the update-reexec-pnpm leg stays
+# NIGHTLY-ONLY (Coverage profile), NOT promoted to the required branch-protection
+# Gate set. Rationale: it shares the same required-check + path-filter deadlock
+# risk the file header documents, adds a `mandrel update` re-exec (extra spawn /
+# install surface = more flake) to the release-blocking path, and the pnpm
+# re-exec boundary is a regression-catcher (≤24h latency acceptable), not a
+# release-correctness invariant the Gate legs already cover. Promote only if a
+# pnpm-layout resolveNewBinPath regression slips a release despite nightly cover.
 #
 # OPERATOR ACTION (branch protection on `main`): add these two job names to the
 # required-status-check set so the Install Matrix gate actually blocks merges
@@ -326,6 +344,7 @@ jobs:
           - postinstall-materialization
           - cold-start
           - materialized-script-run
+          - update-reexec-pnpm
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -497,3 +516,121 @@ jobs:
         # node_modules layout — under pnpm's isolated layout a free-ride
         # regression dies here with ERR_MODULE_NOT_FOUND.
         run: node ./.agents/scripts/validate-skills.js --help
+
+      # ── Leg: update-reexec-pnpm ──────────────────────────────────────────────
+      # Drives `mandrel update`'s post-install re-exec boundary
+      # (resolveNewBinPath → node_modules/.bin/mandrel → sync / sync-commands
+      # from the NEW binary) under pnpm's symlinked / `.pnpm` node_modules
+      # layout — the seam most likely to diverge from the npm happy path the
+      # unit tests cover (Story #4034, #4173).
+      #
+      # `--shamefully-hoist` is intentional: it hoists mandrel's transitive
+      # runtime deps (ajv, js-yaml, …) to the consumer's top-level node_modules
+      # so the doctor `runtime-deps` check (anchored at the consumer root, Story
+      # #4046 A2) is reachable. Without it, doctor fails `runtime-deps` for an
+      # ORTHOGONAL pnpm-hoisting reason and masks the re-exec boundary this leg
+      # exists to test. The `.pnpm` virtual store and the symlinked
+      # `node_modules/.bin/mandrel` shim remain pnpm-specific, so
+      # resolveNewBinPath is still genuinely exercised under a pnpm layout.
+      - name: "[update-reexec] Install pnpm (--shamefully-hoist, --ignore-scripts)"
+        if: matrix.leg == 'update-reexec-pnpm'
+        shell: bash
+        working-directory: ${{ env.CONSUMER_DIR }}
+        run: pnpm add --ignore-scripts --shamefully-hoist "$TARBALL_PATH"
+
+      - name: "[update-reexec] Materialize .agents/ once, then induce drift"
+        if: matrix.leg == 'update-reexec-pnpm'
+        shell: bash
+        working-directory: ${{ env.CONSUMER_DIR }}
+        # `mandrel update`'s drift-heal path only fires when .agents/ exists but
+        # is STALE (runAgentsDrift returns ok:false on a missing/differing
+        # payload file). A wholly-absent .agents/ short-circuits to "already up
+        # to date" (agents-materialized owns that remedy, not drift-heal). So:
+        # materialize the payload, then delete one tracked file to manufacture a
+        # deterministic drift the re-exec must heal.
+        run: |
+          set -euo pipefail
+          node "$MANDREL_BIN" sync
+          test -f .agents/instructions.md || {
+            echo "::error::initial mandrel sync did not materialize .agents/instructions.md" >&2
+            exit 1
+          }
+          rm -f .agents/instructions.md
+          if [ -f .agents/instructions.md ]; then
+            echo "::error::failed to delete .agents/instructions.md to induce drift" >&2
+            exit 1
+          fi
+          echo "drift induced: .agents/instructions.md removed."
+
+      - name: "[update-reexec] Drive mandrel update drift-heal (re-exec from new binary)"
+        if: matrix.leg == 'update-reexec-pnpm'
+        shell: bash
+        working-directory: ${{ env.CONSUMER_DIR }}
+        # Drive the production `run()` entrypoint from lib/cli/update.js with the
+        # registry version probe forced to the INSTALLED version (target ==
+        # current) so update takes the drift-heal branch — no real npm bump, no
+        # network. The drift-heal branch runs the PRODUCTION spawnPhase
+        # (defaultSpawnPhase → resolveNewBinPath → node_modules/.bin/mandrel),
+        # so this genuinely re-execs `sync` + `sync-commands` from the new binary
+        # under pnpm's layout. A pnpm-layout resolveNewBinPath regression
+        # surfaces here as a failed spawn / non-zero phase exit.
+        #
+        # The driver is written INTO the consumer dir (not $RUNNER_TEMP): ESM
+        # bare-specifier resolution walks up from the importing file's directory,
+        # so `import 'mandrel/...'` only resolves when the file sits under the
+        # consumer's node_modules tree.
+        run: |
+          set -euo pipefail
+          cat > "$CONSUMER_DIR/drive-update-reexec.mjs" <<'NODE'
+          import { createRequire } from 'node:module';
+          import run from 'mandrel/lib/cli/update.js';
+
+          const require = createRequire(import.meta.url);
+          // Resolve the installed mandrel package's own version so the forced
+          // registry probe returns target === current (drift-heal, no bump).
+          const pkgPath = require.resolve('mandrel/package.json');
+          const installedVersion = require(pkgPath).version;
+
+          // versionRunner is the ONLY network boundary seam we stub; every
+          // other seam (spawnPhase / resolveNewBinPath / sync / sync-commands)
+          // stays production so the pnpm re-exec boundary is genuinely exercised.
+          await run([], {
+            versionRunner: () => installedVersion,
+            exit: (code) => {
+              if (code !== 0) {
+                process.exitCode = code;
+                throw new Error(`mandrel update exited ${code}`);
+              }
+            },
+          });
+          NODE
+          node ./drive-update-reexec.mjs
+          # The re-exec'd `sync` must have restored the file we deleted.
+          test -f .agents/instructions.md || {
+            echo "::error::drift-heal re-exec did not restore .agents/instructions.md" >&2
+            exit 1
+          }
+
+      - name: "[update-reexec] Assert re-exec materialized .agents/ under pnpm"
+        if: matrix.leg == 'update-reexec-pnpm'
+        shell: bash
+        # Proves resolveNewBinPath resolved a RUNNABLE binary under pnpm: the
+        # re-exec'd `sync` from node_modules/.bin/mandrel materialized .agents/.
+        run: |
+          node "$GITHUB_WORKSPACE/.agents/scripts/install-matrix-assert.js" \
+            --consumer "$CONSUMER_DIR" \
+            --check materialized \
+            --check manifest-clean
+
+      - name: "[update-reexec] Run mandrel doctor and require a ready verdict"
+        if: matrix.leg == 'update-reexec-pnpm'
+        shell: bash
+        working-directory: ${{ env.CONSUMER_DIR }}
+        # AC2: after the update re-exec, doctor must report ready under pnpm.
+        run: |
+          set -o pipefail
+          node "$MANDREL_BIN" doctor 2>&1 | tee "$RUNNER_TEMP/doctor-output.txt"
+          node "$GITHUB_WORKSPACE/.agents/scripts/install-matrix-assert.js" \
+            --consumer "$CONSUMER_DIR" \
+            --check doctor-ready \
+            --doctor-output "$RUNNER_TEMP/doctor-output.txt"
