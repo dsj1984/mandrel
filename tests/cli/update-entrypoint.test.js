@@ -17,8 +17,8 @@
  * process/filesystem seams its production defaults shell across:
  *   (a) `run(argv)` does NOT throw "seam is required" — the production
  *       defaults satisfy every required `runUpdate` seam.
- *   (b) the ordered cycle (npm-install → sync → migrations → doctor →
- *       changelog) runs.
+ *   (b) the ordered cycle (npm-install → sync → sync-commands → migrate →
+ *       doctor → changelog) runs through the spawn boundary.
  *   (c) `--dry-run` writes NOTHING to disk and runs no effectful seam.
  *   (d) the freshness-cache write path is exercised — resolving the target
  *       version through `version-check.js#isStale` populates
@@ -144,20 +144,24 @@ function makeDeps(fsFake, cap, { onNpmView, onNpmInstall } = {}) {
         if (onNpmInstall) onNpmInstall(installCmd, cwd);
         return { status: 0, stderr: '' };
       },
-      // Downstream materialize/migrate/verify seams are stubbed: the boundary
-      // under test is the entrypoint ↔ npm/network/fs wiring, not sync.js's
-      // real mandrel resolution (absent in this dev repo).
-      runSync: () => {
-        calls.push('runSync');
-        return { copied: 0, planned: 0, dryRun: false };
-      },
-      runMigrations: ({ fromVersion, toVersion }) => {
-        calls.push(`runMigrations:${fromVersion}->${toVersion}`);
-        return { applied: [], skipped: [] };
-      },
-      runDoctor: async () => {
-        calls.push('runDoctor');
-        return { ok: true, results: [{ name: 'node-version', ok: true }] };
+      // Downstream materialize/migrate/verify phases run through the spawn
+      // boundary (the sole post-install path since Story #4182 retired the
+      // in-process runSync/runMigrations/runDoctor seam set). The boundary under
+      // test is the entrypoint ↔ npm/network/fs wiring, not sync.js's real
+      // mandrel resolution (absent in this dev repo), so spawnFn is stubbed:
+      // each phase records its name and exits 0 (doctor passes). The stub keys
+      // off argv[0] = the mandrel sub-command (sync / sync-commands / migrate /
+      // doctor).
+      spawnFn: (_binPath, argv) => {
+        const phase = argv[0];
+        if (phase === 'migrate') {
+          const from = argv[argv.indexOf('--from') + 1];
+          const to = argv[argv.indexOf('--to') + 1];
+          calls.push(`migrate:${from}->${to}`);
+        } else {
+          calls.push(`spawn:${phase}`);
+        }
+        return { status: 0, stdout: '', stderr: '' };
       },
       write: cap.write,
       writeErr: cap.writeErr,
@@ -188,13 +192,15 @@ describe('mandrel update entrypoint — production wiring', () => {
     await run([], deps);
 
     // The newest version was probed, then the full ordered cycle ran:
-    // install → sync → migrate → doctor (changelog is surfaced via the fs).
+    // install → sync → sync-commands → migrate → doctor (changelog is surfaced
+    // via the fs; sync-commands sits between sync and migrate — Story #4046 A1c).
     assert.deepEqual(calls, [
       'npm-view',
       `npm install mandrel@${TARGET_VERSION}`,
-      'runSync',
-      `runMigrations:${CURRENT_VERSION}->${TARGET_VERSION}`,
-      'runDoctor',
+      'spawn:sync',
+      'spawn:sync-commands',
+      `migrate:${CURRENT_VERSION}->${TARGET_VERSION}`,
+      'spawn:doctor',
     ]);
     // Success surface + staged-lockfile messaging from runUpdate.
     const joined = cap.out.join('');
@@ -293,13 +299,16 @@ describe('mandrel update entrypoint — --dry-run', () => {
       !calls.some((c) => c.startsWith('npm install')),
       'dry-run must not install',
     );
-    // No sync/migrate/doctor seams run.
-    assert.ok(!calls.includes('runSync'), 'dry-run must not run sync');
+    // No post-install phase is spawned (no sync / sync-commands / migrate /
+    // doctor).
     assert.ok(
-      !calls.some((c) => c.startsWith('runMigrations')),
+      !calls.some((c) => c.startsWith('spawn:')),
+      'dry-run must not spawn any post-install phase',
+    );
+    assert.ok(
+      !calls.some((c) => c.startsWith('migrate:')),
       'dry-run must not run migrations',
     );
-    assert.ok(!calls.includes('runDoctor'), 'dry-run must not run doctor');
 
     // The plan was printed with the A1c step list.
     const joined = cap.out.join('');

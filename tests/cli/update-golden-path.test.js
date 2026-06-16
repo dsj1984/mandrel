@@ -9,8 +9,14 @@
  * single end-to-end happy path that an operator actually walks: a minor-ahead
  * release drives the full ordered cycle
  *
- *     resolve → npm-update → runSync → runMigrations → doctor
+ *     resolve → npm-update → sync → sync-commands → migrate → doctor
  *     → surfaceChangelog
+ *
+ * The post-install phases (sync, sync-commands, migrate, doctor) run through
+ * the `spawnPhase` re-exec boundary — the sole post-install path since
+ * Story #4182 retired the in-process runSync/runMigrations/runDoctor seam set
+ * (No-Shim). The fixture's `spawnPhase` stub composes the same stateful
+ * working-tree mutations keyed on the phase name.
  *
  * against one cohesive, **stateful** fixture and asserts two things the
  * unit tests do not:
@@ -27,10 +33,11 @@
  *
  * Tier: contract (testing-standards § Contract). The boundary under test is
  * the ordered contract between the update orchestrator and its downstream
- * seams (sync, migrations, doctor) plus the on-disk staged-lockfile invariant
- * the cycle must preserve. All seams are driven through the injectable
- * surface `runUpdate` exposes — no real npm process, no real network, and no
- * real `git` invocation occurs (the git index is a faithful in-memory fake).
+ * phases (npm-update, then the sync / sync-commands / migrate / doctor spawn
+ * phases) plus the on-disk staged-lockfile invariant the cycle must preserve.
+ * All seams are driven through the injectable surface `runUpdate` exposes — no
+ * real npm process, no real network, and no real `git` invocation occurs (the
+ * git index is a faithful in-memory fake).
  *
  * Security (security-baseline § 5 — Data Leakage & Logging): the fixture
  * carries only version strings and file paths; no tokens, credentials, or
@@ -106,18 +113,21 @@ function makeWorkingTree() {
 
 /**
  * Wire the full golden-path seam set against a shared working-tree fixture.
- * Each seam mutates / reads the same `tree` so the steps compose the way the
- * live cycle does: `npmUpdate` bumps + stages the lockfile and the
- * installed `package.json` version (the framework version SSOT under npm
- * distribution), `runSync` re-materializes the `.agents/` payload,
- * `runMigrations` is a no-op (empty registry on the 1.x line), and
- * `runDoctor` inspects the resulting tree.
+ * `npmUpdate` and the post-install `spawnPhase` boundary mutate / read the same
+ * `tree` so the steps compose the way the live cycle does: `npmUpdate` bumps +
+ * stages the lockfile and the installed `package.json` version (the framework
+ * version SSOT under npm distribution); the `spawnPhase` stub then drives the
+ * post-install phases keyed on the phase name — `sync` re-materializes the
+ * `.agents/` payload, `sync-commands` regenerates the command tree (no-op
+ * here), `migrate` is a no-op (empty registry on the 1.x line), and `doctor`
+ * inspects the resulting tree and returns its verdict via `ok`.
  */
 function makeGoldenPathSeams(tree) {
   const calls = [];
   return {
     calls,
     currentVersion: CURRENT_VERSION,
+    cwd: () => '/fake/consumer',
     resolveTargetVersion: async () => {
       calls.push('resolve');
       return TARGET_VERSION;
@@ -131,32 +141,32 @@ function makeGoldenPathSeams(tree) {
       tree.write(PACKAGE_JSON, `{"version":"${version}"}`);
       tree.add(PACKAGE_JSON);
     },
-    runSync: (_opts) => {
-      calls.push('sync');
-      // Re-materialize the `.agents/` payload from the new package version.
-      return { copied: 1, planned: 1, dryRun: false };
-    },
-    runMigrations: ({ fromVersion, toVersion }) => {
-      calls.push(`migrate:${fromVersion}->${toVersion}`);
-      // Empty registry on the 1.x line: nothing to apply.
-      return { applied: [], skipped: [] };
-    },
-    runDoctor: async () => {
+    spawnPhase: async (phase, args) => {
+      if (phase === 'sync') {
+        calls.push('sync');
+        // Re-materialize the `.agents/` payload from the new package version.
+        return { ok: true, stdout: '', stderr: '' };
+      }
+      if (phase === 'sync-commands') {
+        calls.push('sync-commands');
+        return { ok: true, stdout: '', stderr: '' };
+      }
+      if (phase === 'migrate') {
+        const from = args[args.indexOf('--from') + 1];
+        const to = args[args.indexOf('--to') + 1];
+        calls.push(`migrate:${from}->${to}`);
+        // Empty registry on the 1.x line: nothing to apply.
+        return { ok: true, stdout: '', stderr: '' };
+      }
+      // phase === 'doctor': read the post-sync state the earlier steps produced
+      // and verify it is healthy — the bumped package.json version matches the
+      // target and the lockfile bump is staged (the expected pre-commit shape).
       calls.push('doctor');
-      // Doctor reads the post-sync state the earlier steps produced and
-      // verifies it is healthy: the bumped package.json version matches the
-      // target and the lockfile bump is staged (the expected pre-commit
-      // shape).
       const versionOk =
         tree.read(PACKAGE_JSON) === `{"version":"${TARGET_VERSION}"}`;
       const lockStaged = tree.isStaged(LOCKFILE);
-      return {
-        ok: versionOk && lockStaged,
-        results: [
-          { name: 'agents-materialized', ok: versionOk },
-          { name: 'lockfile-staged', ok: lockStaged },
-        ],
-      };
+      const ok = versionOk && lockStaged;
+      return { ok, stdout: '', stderr: ok ? '' : 'doctor failed' };
     },
     surfaceChangelog: async (version) => {
       calls.push(`changelog:${version}`);
@@ -188,7 +198,7 @@ function makeCapture() {
 // ---------------------------------------------------------------------------
 
 describe('update golden path — full cycle, doctor-pass, staged lockfile', () => {
-  it('drives resolve → npm-update → sync → migrate → doctor → changelog and reports success', async () => {
+  it('drives resolve → npm-update → sync → sync-commands → migrate → doctor → changelog and reports success', async () => {
     // Arrange
     const tree = makeWorkingTree();
     const seams = makeGoldenPathSeams(tree);
@@ -204,11 +214,13 @@ describe('update golden path — full cycle, doctor-pass, staged lockfile', () =
     });
 
     // Assert — the full ordered cycle ran exactly once, in order; resolve is
-    // the observable entry point.
+    // the observable entry point (sync-commands runs between sync and migrate —
+    // Story #4046 A1c).
     assert.deepEqual(seams.calls, [
       'resolve',
       `npm-update:${TARGET_VERSION}`,
       'sync',
+      'sync-commands',
       `migrate:${CURRENT_VERSION}->${TARGET_VERSION}`,
       'doctor',
       `changelog:${TARGET_VERSION}`,
@@ -221,6 +233,7 @@ describe('update golden path — full cycle, doctor-pass, staged lockfile', () =
     assert.deepEqual(result.stepsRun, [
       'npm-update',
       'runSync',
+      'sync-commands',
       'runMigrations',
       'doctor',
     ]);
