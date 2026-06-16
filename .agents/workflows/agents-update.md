@@ -97,6 +97,52 @@ the `npx` prefix; on a fresh project, install the package first. The `npx`
 form is harmless on a global install too (it prefers the local bin and falls
 back to a one-off fetch), so when unsure, use `npx mandrel`.
 
+## Step 0.5 — First-run preflight (before any bump)
+
+Before running the updater, run the first-run preflight. It catches three
+day-0 failure modes — **wrong project**, a **dirty git index**, and being
+**offline** — before `npx mandrel update` bumps anything. Run from the
+consumer repo root:
+
+```bash
+node .agents/scripts/agents-update-preflight.js
+```
+
+The preflight runs three checks and prints a JSON envelope
+(`{ ok, blocked, findings[] }`) on stdout plus a human-readable report:
+
+| Check              | Severity            | What it verifies                                                                                                                                                       |
+| ------------------ | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **consumer-shape** | **blocker** (exit 2) | `package.json` lists `mandrel` as a dependency **and** a `.agents/` directory exists. Hard-stops in the framework repo itself or any non-consumer project.             |
+| **dirty-index**    | warn-only           | The git index has no pre-existing staged changes. `mandrel update` leaves the lockfile staged and Step 5 would otherwise sweep unrelated staged files into the commit. |
+| **offline**        | warn-only           | The npm registry is reachable (`npm ping`), so the version probe in Step 1 will not fail with a confusing offline error.                                               |
+
+Severity follows framework preflight conventions (cf.
+[`epic-deliver-preflight.js`](../scripts/epic-deliver-preflight.js), the
+`story-close` preflight): the **consumer-shape** check is a hard stop — the
+script exits `2` and you MUST NOT proceed until it is resolved; **dirty-index**
+and **offline** are warn-only and never block the run.
+
+Routing:
+
+- **Exit 0, `ok: true`** — all checks passed; proceed to Step 1.
+- **Exit 0 with warnings** (`blocked: false`, non-empty `findings[]`) —
+  review the warnings. For **dirty-index**, unstage unrelated changes
+  (`git restore --staged <path>`) so they are not swept into the
+  `chore: update mandrel` commit. For **offline**, restore connectivity
+  before the version probe. Then proceed.
+- **Exit 2, `blocked: true`** — the consumer-shape check failed. Stop. You
+  are not in a Mandrel consumer project (wrong directory, the framework repo
+  itself, or a project that never ran `mandrel sync`). `cd` into the consumer
+  repo, or bootstrap one with `npm install -D mandrel && npx mandrel sync`,
+  then re-run the preflight.
+
+> **Scope.** The preflight is a **workflow-layer** guard; it deliberately
+> lives outside [`lib/cli/update.js`](../../lib/cli/update.js), which stays
+> git-free and side-effect-scoped. It composes cleanly with the Step 0
+> invocation-form detection above — Step 0 picks *how* to call the updater;
+> Step 0.5 verifies it is *safe* to call it at all.
+
 ## Step 1 — Run the updater
 
 Preview first, then apply. From the consumer repo root:
