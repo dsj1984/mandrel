@@ -13,6 +13,10 @@ import { scanDirectory } from './maintainability-utils.js';
 import { resolveTsTranspilerVersion, transpileIfNeeded } from './transpile.js';
 
 const CRAP_WORKER_URL = new URL('./workers/crap-worker.js', import.meta.url);
+const COMBINED_MI_CRAP_WORKER_URL = new URL(
+  './workers/combined-mi-crap-worker.js',
+  import.meta.url,
+);
 
 // Pool-vs-serial cutover — single-sourced in cpu-pool.js (see the
 // POOL_SERIAL_THRESHOLD docstring for the tuning rationale).
@@ -471,4 +475,281 @@ async function scoreFilesViaPool(queue, coverage) {
     }
     return { item, result: r };
   });
+}
+
+/**
+ * In-process combined scorer: parse `abs` exactly once via `analyzeOnce` and
+ * derive BOTH the module MI score and the per-method CRAP rows. The reference
+ * implementation for the combined worker, used directly below
+ * `SERIAL_THRESHOLD` (matching the serial fast paths of `calculateAll` and
+ * `scanAndScore`).
+ *
+ * Return shape mirrors `combined-mi-crap-worker.js`:
+ *   - `miScore` — `null` on read failure (MI dropped by the host), `0` on
+ *     transpile-null / parse-error (parity with `calculateForFile` /
+ *     `calculateForSource`), otherwise the module maintainability index.
+ *   - `crapRows` — `null` on read/transpile/parse failure (CRAP drops the
+ *     file), `[]` when coverage-skipped, otherwise the scored method rows.
+ *   - `skippedFileNoCoverage` / `skippedMethodsNoCoverage` — CRAP counters.
+ */
+function scoreFileCombinedSerial({ abs, relPath, requireCoverage }, coverage) {
+  const entry = findCoverageEntry(coverage, relPath);
+  let source;
+  try {
+    source = fs.readFileSync(abs, 'utf-8');
+  } catch {
+    return {
+      relPath,
+      miScore: null,
+      skippedFileNoCoverage: false,
+      crapRows: null,
+      skippedMethodsNoCoverage: 0,
+    };
+  }
+  const prepared = transpileIfNeeded(abs, source);
+  if (prepared === null) {
+    return {
+      relPath,
+      miScore: 0,
+      skippedFileNoCoverage: false,
+      crapRows: null,
+      skippedMethodsNoCoverage: 0,
+    };
+  }
+  const {
+    miScore,
+    crapRows: rawCrapRows,
+    parseError,
+  } = analyzeOnce(prepared, entry);
+  if (parseError) {
+    return {
+      relPath,
+      miScore: 0,
+      skippedFileNoCoverage: false,
+      crapRows: null,
+      skippedMethodsNoCoverage: 0,
+    };
+  }
+  if (requireCoverage && entry === null) {
+    return {
+      relPath,
+      miScore,
+      skippedFileNoCoverage: true,
+      crapRows: [],
+      skippedMethodsNoCoverage: 0,
+    };
+  }
+  const crapRows = [];
+  let skippedMethodsNoCoverage = 0;
+  for (const mr of rawCrapRows) {
+    if (mr.crap === null || mr.coverage === null) {
+      skippedMethodsNoCoverage += 1;
+      continue;
+    }
+    crapRows.push({
+      method: mr.method,
+      startLine: mr.startLine,
+      cyclomatic: mr.cyclomatic,
+      coverage: mr.coverage,
+      crap: mr.crap,
+    });
+  }
+  return {
+    relPath,
+    miScore,
+    skippedFileNoCoverage: false,
+    crapRows,
+    skippedMethodsNoCoverage,
+  };
+}
+
+async function scoreFilesCombinedViaPool(queue, coverage) {
+  const enrichedQueue = queue.map((item) => ({
+    ...item,
+    coverageEntry: findCoverageEntry(coverage, item.relPath),
+  }));
+  const results = await runOnPool(COMBINED_MI_CRAP_WORKER_URL, enrichedQueue, {
+    workerData: {},
+  });
+  return results.map((r, i) => {
+    const item = queue[i];
+    if (!r || r.__cpuPoolError) {
+      Logger.warn(
+        `[crap-utils] combined worker pool error for ${item.relPath}: ${r?.message ?? 'unknown'}`,
+      );
+      return { item, result: null };
+    }
+    return { item, result: r };
+  });
+}
+
+/**
+ * Combined MI + CRAP single-pass scan. Walks the shared `targetDirs` once (or
+ * reuses `preScannedFiles`), dispatches every file through ONE worker that
+ * calls `analyzeOnce` a single time, and returns BOTH the maintainability
+ * score map and the CRAP scan result.
+ *
+ * This collapses the two independent escomplex passes the full-tree baseline
+ * regenerator used to run (`calculateAll` → maintainability worker, then
+ * `scanAndScore` → CRAP worker) into one parse per file. The outputs are
+ * shaped to be drop-in equivalents of the two passes they replace, so the
+ * downstream envelope projection + writer logic stays byte-identical:
+ *
+ *   - `miScores` — `Record<relPath, number>` keyed exactly as `calculateAll`
+ *     keys its result (`path.relative(cwd, abs)`, POSIX-normalised), with
+ *     read-failure files (`miScore === null`) dropped. Parity target:
+ *     `calculateAll(files)`.
+ *   - `crap` — `{ rows, scannedFiles, skippedFilesNoCoverage,
+ *     skippedMethodsNoCoverage }`, identical in shape and content to
+ *     `scanAndScore({ targetDirs, coverage, ... })`. The rows are
+ *     CRAP-sorted (file → startLine → method) so the result matches
+ *     `scanAndScore` even before the writer re-sorts.
+ *
+ * The `requireCoverage`, `scopeFiles`, `ignoreGlobs`, and `preScannedFiles`
+ * semantics match `scanAndScore` exactly — coverage gating, scope filtering,
+ * and the single-walk reuse path behave the same. Files dropped from CRAP by
+ * the coverage gate STILL contribute their MI score (the MI pass never
+ * required coverage), preserving the two-pass behaviour where MI scores every
+ * file in the target dirs.
+ *
+ * @param {{
+ *   targetDirs: string[],
+ *   coverage: object|null,
+ *   requireCoverage?: boolean,
+ *   cwd?: string,
+ *   scopeFiles?: Set<string>|string[]|null,
+ *   ignoreGlobs?: string[],
+ *   preScannedFiles?: string[]|null,
+ * }} params
+ * @returns {Promise<{
+ *   miScores: Record<string, number>,
+ *   crap: {
+ *     rows: Array<{
+ *       file: string, method: string, startLine: number,
+ *       cyclomatic: number, coverage: number, crap: number,
+ *     }>,
+ *     scannedFiles: number,
+ *     skippedFilesNoCoverage: number,
+ *     skippedMethodsNoCoverage: number,
+ *   },
+ * }>}
+ */
+export async function scanAndScoreCombined({
+  targetDirs,
+  coverage,
+  requireCoverage = true,
+  cwd = process.cwd(),
+  scopeFiles = null,
+  ignoreGlobs = [],
+  preScannedFiles = null,
+}) {
+  if (!Array.isArray(targetDirs)) {
+    throw new TypeError('scanAndScoreCombined: targetDirs must be an array');
+  }
+  const scopeSet =
+    scopeFiles == null
+      ? null
+      : scopeFiles instanceof Set
+        ? scopeFiles
+        : new Set(scopeFiles);
+
+  // Single directory walk (or reuse the caller's pre-walked list), mirroring
+  // scanAndScore so the file discovery is byte-identical between paths.
+  const files = preScannedFiles != null ? [...preScannedFiles] : [];
+  if (preScannedFiles == null) {
+    for (const dir of targetDirs) {
+      const abs = path.isAbsolute(dir) ? dir : path.resolve(cwd, dir);
+      scanDirectory(abs, files, { cwd, ignoreGlobs });
+    }
+  }
+  files.sort();
+
+  // Build the work queue. Each item carries both the canonicalised relPath
+  // (CRAP's key + scope filter, matching scanAndScore) and the raw relPath
+  // (MI's key, matching calculateAll's `path.relative(cwd, p)` shape).
+  const queue = [];
+  for (const abs of files) {
+    const rawRel = path.relative(cwd, abs).replace(/\\/g, '/');
+    const relPath = canonicalisePath(rawRel);
+    if (scopeSet && !scopeSet.has(relPath)) continue;
+    queue.push({ abs, relPath, miRel: rawRel, requireCoverage });
+  }
+  const scannedFiles = queue.length;
+
+  const perFile =
+    queue.length < SERIAL_THRESHOLD
+      ? queue.map((item) => ({
+          item,
+          result: scoreFileCombinedSerial(item, coverage),
+        }))
+      : await scoreFilesCombinedViaPool(queue, coverage);
+
+  // MI assembly — mirror calculateAll: drop read-failure files (miScore
+  // null), key by the raw relative path, then sort ascending so the returned
+  // object is insertion-order-stable.
+  const miEntries = [];
+  // CRAP assembly — mirror scanAndScore: file-level skip counter, drop
+  // read/transpile/parse failures, accumulate method rows.
+  const crapRows = [];
+  let skippedFilesNoCoverage = 0;
+  let skippedMethodsNoCoverage = 0;
+
+  for (const { item, result } of perFile) {
+    if (!result) continue; // unrecoverable per-file failure: drop silently
+
+    // MI side.
+    if (result.miScore !== null) {
+      miEntries.push({ relPath: item.miRel, score: result.miScore });
+    }
+
+    // CRAP side.
+    if (result.skippedFileNoCoverage) {
+      skippedFilesNoCoverage += 1;
+      continue;
+    }
+    if (result.crapRows === null) {
+      if (result.error) {
+        Logger.warn(
+          `[crap-utils] failed to score ${item.relPath}: ${result.error}`,
+        );
+      }
+      continue;
+    }
+    skippedMethodsNoCoverage += result.skippedMethodsNoCoverage ?? 0;
+    for (const mr of result.crapRows) {
+      crapRows.push({
+        file: item.relPath,
+        method: mr.method,
+        startLine: mr.startLine,
+        cyclomatic: mr.cyclomatic,
+        coverage: mr.coverage,
+        crap: mr.crap,
+      });
+    }
+  }
+
+  miEntries.sort((a, b) =>
+    a.relPath < b.relPath ? -1 : a.relPath > b.relPath ? 1 : 0,
+  );
+  const miScores = {};
+  for (const { relPath, score } of miEntries) {
+    miScores[relPath] = score;
+  }
+
+  crapRows.sort((a, b) => {
+    if (a.file !== b.file) return a.file < b.file ? -1 : 1;
+    if (a.startLine !== b.startLine) return a.startLine - b.startLine;
+    if (a.method !== b.method) return a.method < b.method ? -1 : 1;
+    return 0;
+  });
+
+  return {
+    miScores,
+    crap: {
+      rows: crapRows,
+      scannedFiles,
+      skippedFilesNoCoverage,
+      skippedMethodsNoCoverage,
+    },
+  };
 }

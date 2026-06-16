@@ -20,6 +20,7 @@ import {
   resolveEscomplexVersion,
   resolveTsTranspilerVersion,
   scanAndScore,
+  scanAndScoreCombined,
 } from './crap-utils.js';
 import { ensureEpicBranchRef as defaultEnsureEpicBranchRef } from './git-branch-lifecycle.js';
 import { calculateAll, scanDirectory } from './maintainability-utils.js';
@@ -563,6 +564,126 @@ function crapDirsMatchMi({
 }
 
 /**
+ * Config-only sibling of `crapDirsMatchMi` (Story #4192): decide — before any
+ * tree scan — whether the MI and CRAP passes target the same dirs with the
+ * same ignore globs. When true, `regenerateMainFromTree` collapses the two
+ * escomplex passes into a single combined `analyzeOnce` scan; when false it
+ * falls back to the independent two-pass path. Pure array compare, no scan
+ * list required.
+ */
+function crapConfigMatchesMi({
+  crapTargetDirs,
+  crapIgnoreGlobs,
+  miTargetDirs,
+  miIgnoreGlobs,
+}) {
+  return (
+    crapTargetDirs.length === miTargetDirs.length &&
+    crapTargetDirs.every((d, i) => d === miTargetDirs[i]) &&
+    crapIgnoreGlobs.length === miIgnoreGlobs.length &&
+    crapIgnoreGlobs.every((g, i) => g === miIgnoreGlobs[i])
+  );
+}
+
+/**
+ * Run the combined MI + CRAP single-pass scan once and project it into the
+ * `{ calculateAllFn, scanDirectoryFn, scanAndScoreFn, loadCoverageFn }`
+ * injection seams that `regenerateMaintainability` / `regenerateCrap` already
+ * consume. Returns `null` when the combined path is NOT eligible (either
+ * baseline unconfigured, dirs/globs differ, or coverage is required but
+ * missing) — the caller then falls back to the two independent passes.
+ *
+ * Eligibility deliberately requires coverage to be present under
+ * `requireCoverage`: when coverage is missing, the two-pass path takes a
+ * dedicated `no-coverage` short-circuit for CRAP (no scan at all), and
+ * reproducing that precise envelope is cleaner by deferring to the existing
+ * `regenerateCrap` branch than by routing through the combined scanner.
+ *
+ * Story #4192 — collapses the duplicate escomplex AST parse on the full-tree
+ * baseline path (2 parses/file → 1 parse/file). Byte-for-byte equivalent to
+ * the two-pass path: the combined scan returns the same MI score map and the
+ * same CRAP rows the separate passes would, and the downstream projection +
+ * writer logic is shared verbatim.
+ *
+ * @returns {Promise<null | {
+ *   calculateAllFn: () => Promise<Record<string, number>>,
+ *   scanDirectoryFn: (dir: string, list: string[]) => string[],
+ *   scanAndScoreFn: () => Promise<{ rows: Array<object> }>,
+ *   loadCoverageFn: () => object,
+ * }>}
+ */
+async function buildCombinedScanSeams({
+  cwd,
+  baselines,
+  quality,
+  loadCoverageFn,
+  scanAndScoreCombinedFn,
+}) {
+  const miPath = baselines?.maintainability?.path;
+  const crapPath = baselines?.crap?.path;
+  if (
+    typeof miPath !== 'string' ||
+    miPath.length === 0 ||
+    typeof crapPath !== 'string' ||
+    crapPath.length === 0
+  ) {
+    return null; // both baselines must be configured to combine
+  }
+
+  const miTargetDirs = quality?.maintainability?.targetDirs ?? [];
+  const miIgnoreGlobs = quality?.maintainability?.ignoreGlobs ?? [];
+  const crapCfg = quality?.crap ?? {};
+  const crapTargetDirs = Array.isArray(crapCfg.targetDirs)
+    ? crapCfg.targetDirs
+    : [];
+  const crapIgnoreGlobs = Array.isArray(crapCfg.ignoreGlobs)
+    ? crapCfg.ignoreGlobs
+    : [];
+
+  if (
+    !crapConfigMatchesMi({
+      crapTargetDirs,
+      crapIgnoreGlobs,
+      miTargetDirs,
+      miIgnoreGlobs,
+    })
+  ) {
+    return null; // dirs/globs differ → two-pass fallback
+  }
+
+  const requireCoverage = crapCfg.requireCoverage !== false;
+  const coveragePath = crapCfg.coveragePath ?? 'coverage/coverage-final.json';
+  const coverageAbs = path.isAbsolute(coveragePath)
+    ? coveragePath
+    : path.resolve(cwd, coveragePath);
+  const coverage = loadCoverageFn(coverageAbs);
+
+  if (!coverage && requireCoverage) {
+    return null; // no coverage → let the two-pass CRAP short-circuit run
+  }
+
+  const { miScores, crap } = await scanAndScoreCombinedFn({
+    targetDirs: miTargetDirs,
+    coverage,
+    requireCoverage,
+    cwd,
+    ignoreGlobs: miIgnoreGlobs,
+  });
+
+  return {
+    // MI consumes the precomputed score map directly; the scanDirectory seam
+    // is short-circuited to a no-op list (the combined scan already walked
+    // the tree), so regenerateMaintainability's projection runs unchanged.
+    calculateAllFn: async () => miScores,
+    scanDirectoryFn: (_dir, list = []) => list,
+    // CRAP consumes the precomputed scan result; coverage is already loaded
+    // so its loadCoverage seam returns the same object without re-reading.
+    scanAndScoreFn: async () => crap,
+    loadCoverageFn: () => coverage,
+  };
+}
+
+/**
  * Regenerate the CRAP baseline from a fresh tree scan + coverage map.
  * Returns `null` when no CRAP baseline path is configured. Story #4075 —
  * extracted from `regenerateMainFromTree`.
@@ -675,6 +796,7 @@ export async function regenerateMainFromTree({
   scanDirectoryFn = scanDirectory,
   calculateAllFn = calculateAll,
   scanAndScoreFn = scanAndScore,
+  scanAndScoreCombinedFn = scanAndScoreCombined,
   loadCoverageFn = loadCoverage,
   resolveEscomplexVersionFn = resolveEscomplexVersion,
   resolveTsTranspilerVersionFn = resolveTsTranspilerVersion,
@@ -689,12 +811,49 @@ export async function regenerateMainFromTree({
   const files = [];
   let didChange = false;
 
+  // Story #4192 — when MI and CRAP target the same dirs/globs (and coverage
+  // is present), collapse the two escomplex passes into a single combined
+  // `analyzeOnce` scan. The combined scan is projected into the same scan
+  // seams the two passes consume, so the MI/CRAP envelope projection + writer
+  // logic below runs byte-for-byte identically either way. When the combined
+  // path is not eligible, `combined` is `null` and the original two
+  // independent passes run.
+  //
+  // The combined path is an internal optimization of the *production-default*
+  // scan seams. A caller that injects its own `calculateAllFn` or
+  // `scanAndScoreFn` is explicitly opting into the two independent passes
+  // (the DI contract: "use my seam"), so the combined path defers to those
+  // injected seams rather than silently bypassing them. In production neither
+  // seam is overridden, so the optimization is always taken.
+  const usingDefaultScanSeams =
+    calculateAllFn === calculateAll && scanAndScoreFn === scanAndScore;
+  const combined = usingDefaultScanSeams
+    ? await buildCombinedScanSeams({
+        cwd,
+        baselines,
+        quality,
+        loadCoverageFn,
+        scanAndScoreCombinedFn,
+      })
+    : null;
+
+  const miCalculateAllFn = combined ? combined.calculateAllFn : calculateAllFn;
+  const miScanDirectoryFn = combined
+    ? combined.scanDirectoryFn
+    : scanDirectoryFn;
+  const crapScanAndScoreFn = combined
+    ? combined.scanAndScoreFn
+    : scanAndScoreFn;
+  const crapLoadCoverageFn = combined
+    ? combined.loadCoverageFn
+    : loadCoverageFn;
+
   const miScan = await regenerateMaintainability({
     cwd,
     baselines,
     quality,
-    scanDirectoryFn,
-    calculateAllFn,
+    scanDirectoryFn: miScanDirectoryFn,
+    calculateAllFn: miCalculateAllFn,
     writeFn,
     writeFileFn,
     loadPriorFn,
@@ -711,8 +870,8 @@ export async function regenerateMainFromTree({
     quality,
     logger,
     miScan,
-    scanAndScoreFn,
-    loadCoverageFn,
+    scanAndScoreFn: crapScanAndScoreFn,
+    loadCoverageFn: crapLoadCoverageFn,
     resolveEscomplexVersionFn,
     resolveTsTranspilerVersionFn,
     writeFn,
