@@ -8,7 +8,8 @@
   "properties": {
     "prUrl": { "type": "string", "format": "uri", "minLength": 1 },
     "merged": { "type": "boolean" },
-    "reason": { "type": "string" }
+    "reason": { "type": "string" },
+    "epicId": { "type": "integer", "minimum": 1 }
   },
   "additionalProperties": false
 }
