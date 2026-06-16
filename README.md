@@ -69,6 +69,26 @@ explicit `npx mandrel sync` above is the belt-and-suspenders step for
 `--ignore-scripts` or sandboxed-CI installs. Run `npx mandrel doctor` any
 time to confirm the install is healthy.
 
+> **pnpm users — hoist mandrel's runtime deps.** The materialized
+> `./.agents/scripts/*.js` run from your project root and resolve their
+> third-party deps (ajv, js-yaml, …) from your top-level `node_modules`.
+> npm and yarn hoist transitive deps there automatically; pnpm's default
+> isolated layout does **not** — it keeps them in the `.pnpm` virtual store,
+> so the framework scripts (and `mandrel doctor`'s `runtime-deps` check)
+> cannot see them. Add the following to your `.npmrc` before installing:
+>
+> ```ini
+> # Lift mandrel's runtime deps to the top-level node_modules so the
+> # materialized .agents/scripts can resolve them.
+> shamefully-hoist=true
+> ```
+>
+> Prefer a surgical alternative? Replace `shamefully-hoist` with a scoped
+> `public-hoist-pattern[]=` line per package listed in
+> `.agents/runtime-deps.json` (`ajv`, `ajv-formats`, `js-yaml`, `minimatch`,
+> `picomatch`, `string-argv`, `typhonjs-escomplex`). If `mandrel doctor`
+> reports `runtime-deps missing: …`, this is the fix.
+
 `bootstrap.js` is interactive on a TTY and auto-accepts the
 owner/repo/base branch/operator handle it can infer from your local
 `git remote` and `git config user.name` — you only get prompted for

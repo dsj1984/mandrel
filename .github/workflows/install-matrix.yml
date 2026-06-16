@@ -255,7 +255,15 @@ jobs:
               npm install --ignore-scripts "$TARBALL_PATH"
               ;;
             pnpm)
-              pnpm add --ignore-scripts "$TARBALL_PATH"
+              # `--shamefully-hoist` lifts mandrel's transitive runtime deps
+              # (ajv, js-yaml, …) to the consumer's top-level node_modules.
+              # pnpm's default isolated layout only hoists them into the `.pnpm`
+              # virtual store, which the materialized `.agents/scripts/*.js`
+              # (run from the consumer root, free-riding on consumer
+              # node_modules) cannot reach — so without this flag doctor
+              # honestly fails `runtime-deps`. This mirrors the supported pnpm
+              # consumer contract documented in .agents/README.md.
+              pnpm add --ignore-scripts --shamefully-hoist "$TARBALL_PATH"
               ;;
             yarn)
               # Classic yarn (corepack default for `yarn`) installs the tarball
@@ -464,16 +472,24 @@ jobs:
             --doctor-output "$RUNNER_TEMP/doctor-output.txt"
 
       # ── Leg: materialized-script-run (pnpm) ──────────────────────────────────
-      # Installs with pnpm (isolated layout), mandrel sync, then runs a
-      # materialized .agents/scripts/*.js from the consumer root. pnpm's
-      # isolated node_modules cannot satisfy transitive deps via free-riding
-      # on consumer node_modules — this leg exposes the anchoring fix
-      # from Story #4046 (scripts must resolve deps from the package root).
-      - name: "[script-run] Install pnpm with --ignore-scripts"
+      # Installs with pnpm, mandrel sync, then runs a materialized
+      # .agents/scripts/*.js from the consumer root. The materialized scripts
+      # use bare imports (`import Ajv from 'ajv'`) resolved from their own
+      # location, which walks up to the consumer's top-level node_modules.
+      # pnpm's default isolated layout hoists mandrel's transitive deps only
+      # into the `.pnpm` virtual store — never to the top level — so the
+      # materialized scripts (and the doctor `runtime-deps` check anchored at
+      # the consumer root, Story #4046 A2) genuinely cannot resolve them.
+      # `--shamefully-hoist` lifts them to the top level, which IS the supported
+      # pnpm consumer contract (see .agents/README.md). This leg therefore
+      # exercises the supported configuration end to end; a pnpm-without-hoist
+      # install is intentionally NOT supported (doctor correctly reports it
+      # unready).
+      - name: "[script-run] Install pnpm (--shamefully-hoist, --ignore-scripts)"
         if: matrix.leg == 'materialized-script-run'
         shell: bash
         working-directory: ${{ env.CONSUMER_DIR }}
-        run: pnpm add --ignore-scripts "$TARBALL_PATH"
+        run: pnpm add --ignore-scripts --shamefully-hoist "$TARBALL_PATH"
 
       - name: "[script-run] Materialize .agents/ (mandrel sync)"
         if: matrix.leg == 'materialized-script-run'
@@ -491,9 +507,11 @@ jobs:
         if: matrix.leg == 'materialized-script-run'
         shell: bash
         working-directory: ${{ env.CONSUMER_DIR }}
-        # mandrel doctor resolves through .agents/scripts/ which in turn
-        # must load its own deps from the package root (Story #4046 anchoring).
-        # A free-ride breakage would surface here as MODULE_NOT_FOUND.
+        # The materialized .agents/scripts/ free-ride on the consumer's
+        # top-level node_modules (Story #4046 A2 anchors the doctor runtime-deps
+        # check there to mirror that). With --shamefully-hoist applied above the
+        # deps are present at the top level; a free-ride breakage (e.g. a
+        # missing-hoist regression) would surface here as MODULE_NOT_FOUND.
         run: |
           set -o pipefail
           node "$MANDREL_BIN" doctor 2>&1 | tee "$RUNNER_TEMP/doctor-output.txt"
