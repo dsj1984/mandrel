@@ -1,0 +1,17 @@
+{"kind":"emitted","seqId":1,"ts":"2026-06-16T19:32:00.000Z","event":"epic.plan.start","payload":{"epicId":9001}}
+{"kind":"completed","seqId":1,"ts":"2026-06-16T19:32:00.000Z","event":"epic.plan.start"}
+{"kind":"emitted","seqId":2,"ts":"2026-06-16T19:34:30.000Z","event":"epic.plan.end","payload":{"waves":[[9101,9102]]}}
+{"kind":"completed","seqId":2,"ts":"2026-06-16T19:34:30.000Z","event":"epic.plan.end"}
+{"kind":"emitted","seqId":3,"ts":"2026-06-16T19:34:40.000Z","event":"story.dispatch.start","payload":{"storyId":9101,"waveIndex":0,"dispatchedAt":"2026-06-16T19:34:40.000Z","attempt":1}}
+{"kind":"completed","seqId":3,"ts":"2026-06-16T19:34:40.000Z","event":"story.dispatch.start"}
+{"kind":"emitted","ts":"2026-06-16T19:35:10.000Z","event":"story.heartbeat","payload":{"event":"story.heartbeat","storyId":9101,"epicId":9001,"phase":"implementing","timestamp":"2026-06-16T19:35:10.000Z"}}
+{"kind":"emitted","seqId":4,"ts":"2026-06-16T19:34:45.000Z","event":"story.dispatch.start","payload":{"storyId":9102,"waveIndex":0,"dispatchedAt":"2026-06-16T19:34:45.000Z","attempt":1}}
+{"kind":"completed","seqId":4,"ts":"2026-06-16T19:34:45.000Z","event":"story.dispatch.start"}
+{"kind":"emitted","ts":"2026-06-16T19:38:00.000Z","event":"story.dispatch.end","payload":{"storyId":9101,"outcome":"done","durationMs":200000}}
+{"kind":"emitted","ts":"2026-06-16T19:38:20.000Z","event":"story.dispatch.end","payload":{"storyId":9102,"outcome":"done","durationMs":215000}}
+{"kind":"emitted","seqId":5,"ts":"2026-06-16T19:38:30.000Z","event":"story.merged","payload":{"storyId":9101,"sha":"a1b2c3d4e5f6"}}
+{"kind":"completed","seqId":5,"ts":"2026-06-16T19:38:30.000Z","event":"story.merged"}
+{"kind":"emitted","seqId":6,"ts":"2026-06-16T19:38:40.000Z","event":"story.merged","payload":{"storyId":9102,"sha":"f6e5d4c3b2a1"}}
+{"kind":"completed","seqId":6,"ts":"2026-06-16T19:38:40.000Z","event":"story.merged"}
+{"kind":"emitted","seqId":7,"ts":"2026-06-16T19:42:11.000Z","event":"epic.complete","payload":{"epicId":9001,"prUrl":"https://github.com/dsj1984/mandrel/pull/9123"}}
+{"kind":"completed","seqId":7,"ts":"2026-06-16T19:42:11.000Z","event":"epic.complete"}
