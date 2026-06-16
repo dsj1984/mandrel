@@ -1,6 +1,6 @@
 /**
  * apply-quality-bootstrap — Story #4171
- * (refactor(agents-update): extract the quality-bootstrap heredoc into a
+ * (refactor(mandrel-update): extract the quality-bootstrap heredoc into a
  * tested script)
  *
  * Exercises the script that replaced Step 3.5's inline `node -e` heredoc. The

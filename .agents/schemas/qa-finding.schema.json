@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "QaFinding",
-  "description": "Structured `F#` finding emitted by the agent-driven QA harness (`.agents/workflows/qa-run-harness.md`, Epic #3214). One object per genuine problem surfaced while sweeping a consumer's Gherkin scenarios through chrome-devtools MCP: a non-allowlisted console error, a failed/error-status network request, or a gross design-token violation. Findings are validated against this schema before they are bundled by likely root cause into operator-approved follow-up ticket drafts (the harness never files tickets autonomously). The shape mirrors the F# convergence in Tech Spec #3285 and is produced in its console-derived subset by `.agents/scripts/lib/qa/console-allowlist.js`.",
+  "description": "Structured `F#` finding emitted by the agent-driven QA harness (`.agents/workflows/qa-run.md`, Epic #3214). One object per genuine problem surfaced while sweeping a consumer's Gherkin scenarios through chrome-devtools MCP: a non-allowlisted console error, a failed/error-status network request, or a gross design-token violation. Findings are validated against this schema before they are bundled by likely root cause into operator-approved follow-up ticket drafts (the harness never files tickets autonomously). The shape mirrors the F# convergence in Tech Spec #3285 and is produced in its console-derived subset by `.agents/scripts/lib/qa/console-allowlist.js`.",
   "type": "object",
   "additionalProperties": false,
   "required": [

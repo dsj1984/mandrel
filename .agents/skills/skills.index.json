@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-16T00:37:23.856Z",
+  "generatedAt": "2026-06-16T16:35:27.286Z",
   "generator": "generate-skills-index.js@1",
   "skills": [
     {
@@ -577,7 +577,7 @@
       "tier": "stack",
       "category": "qa",
       "path": ".agents/skills/stack/qa/qa-harness/SKILL.md",
-      "description": "Conventions for the agent-driven QA harness that drives Gherkin scenarios through a real browser. Use when executing `/qa-run-harness` or instrumenting a live surface — covers navigation-first execution, per-surface console and network capture, design-token visual checks, and the framework-generic heuristic cards for turning signal into findings. The harness procedure lives in `.agents/workflows/qa-run-harness.md`; this skill is the conventions reference it leans on.",
+      "description": "Conventions for the agent-driven QA harness that drives Gherkin scenarios through a real browser. Use when executing `/qa-run` or instrumenting a live surface — covers navigation-first execution, per-surface console and network capture, design-token visual checks, and the framework-generic heuristic cards for turning signal into findings. The harness procedure lives in `.agents/workflows/qa-run.md`; this skill is the conventions reference it leans on.",
       "policyCapsuleBullets": 8,
       "allowedTools": null,
       "vendor": null

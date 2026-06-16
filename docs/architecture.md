@@ -1388,7 +1388,7 @@ three tiers and carries distinct scope, dependency, and assertion rules:
   assertions.
 - **E2E / Acceptance** — `.feature` files authored against
   `.agents/rules/gherkin-standards.md` (the SSOT for the tag taxonomy and
-  forbidden patterns) and executed via `/qa-run-harness`, whose sweep summary
+  forbidden patterns) and executed via `/qa-run`, whose sweep summary
   and structured findings are the canonical evidence artifact consumed by the
   `workflows/helpers/epic-testing.md` helper.
 
@@ -1400,7 +1400,7 @@ they ship the contract that consumer projects implement.
 ### Agent-driven QA harness
 
 The E2E/Acceptance tier is executed by the **agent-driven QA harness**
-(`/qa-run-harness`, Epic #3214). It is the successor to the framework's
+(`/qa-run`, Epic #3214). It is the successor to the framework's
 earlier headless BDD runner (now retired): rather than a
 Node orchestrator running Cucumber headlessly, the harness is a **prose
 workflow** the host LLM executes against a **real browser** through the
@@ -1413,11 +1413,11 @@ directory also houses the shared exploratory-QA core consumed by
 `/qa-assist` and `/qa-explore` (see below): `qa-session.js`,
 `redact-evidence.js`, `coverage-verdict.js`, `coverage-report.js`,
 `propose-missing-test.js`, and `qa-context-hydrator.js`. The full run procedure is the SSOT in
-[`.agents/workflows/qa-run-harness.md`](../.agents/workflows/qa-run-harness.md);
+[`.agents/workflows/qa-run.md`](../.agents/workflows/qa-run.md);
 the instrumentation conventions live in the
 `skills/stack/qa/qa-harness` skill.
 
-**How it is invoked.** `/qa-run-harness <selector>`, where the selector
+**How it is invoked.** `/qa-run <selector>`, where the selector
 scopes the sweep to a concrete, deterministic scenario set:
 
 - `feature:<id>` — the single `.feature` file whose `featureRoot`-relative

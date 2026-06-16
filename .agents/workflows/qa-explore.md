@@ -19,7 +19,7 @@ operator watches and gates.** Its human-led sibling is
 the agent scribes/enriches. No human-driven flow lives in `/qa-explore`; if you
 want to capture something *you* observed, use `/qa-assist` instead.
 
-Unlike [`/qa-run-harness`](qa-run-harness.md) (which steps a known set of
+Unlike [`/qa-run`](qa-run.md) (which steps a known set of
 Gherkin `.feature` scenarios through a browser), `/qa-explore` is **open-ended
 exploration**: the agent probes the surface for product bugs, environment-setup
 friction, tooling/DX gaps, missing tests, and enhancement ideas — each captured

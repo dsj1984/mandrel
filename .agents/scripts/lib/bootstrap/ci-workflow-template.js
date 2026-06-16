@@ -180,7 +180,7 @@ export const CI_WORKFLOW_RELATIVE_PATH = '.github/workflows/ci.yml';
  * `unchanged`. When the file is absent the action is `created`. When the
  * file exists with operator-authored differences the helper preserves it
  * and returns `custom-workflow-skip` along with the rendered body so the
- * bootstrap caller (or `/agents-update`) can offer a side-by-side diff.
+ * bootstrap caller (or `/mandrel-update`) can offer a side-by-side diff.
  *
  * Network-free; safe to invoke under tests with a tmp `projectRoot`.
  *

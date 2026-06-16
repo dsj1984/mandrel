@@ -350,7 +350,7 @@ Trusted-Publishing migration ([#3559](https://github.com/dsj1984/mandrel/issues/
 
 ### E-C — Deterministic QA harness (Finding 5)
 
-`qa-run-harness` is by design a **prose** workflow: the host LLM drives a
+`qa-run` is by design a **prose** workflow: the host LLM drives a
 `chrome-devtools` MCP surface, there is no headless fallback, and it never files
 tickets autonomously. New human-led / agent-led QA loops (`qa-assist`,
 `qa-explore`) added ledgered, resumable QA but are **not** deterministic CI

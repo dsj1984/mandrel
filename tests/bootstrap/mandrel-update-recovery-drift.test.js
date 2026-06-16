@@ -1,7 +1,7 @@
 /**
- * agents-update-recovery-drift.test.js — Story #4172
+ * mandrel-update-recovery-drift.test.js — Story #4172
  *
- * The `/agents-update` workflow ([`.agents/workflows/agents-update.md`])
+ * The `/mandrel-update` workflow ([`.agents/workflows/mandrel-update.md`])
  * documents a **partial-upgrade recovery** step (Step 2.5): when a
  * post-install phase of `mandrel update` fails, the lockfile bump is already
  * staged while `.agents/` may be half-materialized, so the operator must run
@@ -43,7 +43,7 @@ const repoRoot = path.resolve(here, '..', '..');
 const normalizeWs = (s) => s.replace(/\s+/g, ' ').trim();
 
 const workflowRawSrc = fs.readFileSync(
-  path.join(repoRoot, '.agents', 'workflows', 'agents-update.md'),
+  path.join(repoRoot, '.agents', 'workflows', 'mandrel-update.md'),
   'utf8',
 );
 const workflowSrc = normalizeWs(workflowRawSrc);
@@ -99,7 +99,7 @@ async function captureHint(failPhase) {
   return thrown.message;
 }
 
-describe('agents-update partial-upgrade recovery — CLI ↔ workflow drift', () => {
+describe('mandrel-update partial-upgrade recovery — CLI ↔ workflow drift', () => {
   it('quotes every per-phase recovery hint the CLI actually emits', async () => {
     const phases = ['sync', 'sync-commands', 'migrate', 'doctor'];
     for (const phase of phases) {
@@ -126,7 +126,7 @@ describe('agents-update partial-upgrade recovery — CLI ↔ workflow drift', ()
 
       assert.ok(
         workflowSrc.includes(remedySentence),
-        `.agents/workflows/agents-update.md is missing the ${phase} recovery ` +
+        `.agents/workflows/mandrel-update.md is missing the ${phase} recovery ` +
           `hint "${remedySentence}" emitted by lib/cli/update.js. The Step 2.5 ` +
           'recovery section must quote the CLI hint strings verbatim.',
       );
@@ -136,7 +136,7 @@ describe('agents-update partial-upgrade recovery — CLI ↔ workflow drift', ()
   it('frames partial-upgrade recovery as a pre-commit blocker', () => {
     assert.ok(
       /##\s+Step 2\.5\s+—\s+Partial-upgrade recovery/.test(workflowRawSrc),
-      'agents-update.md must document a "Step 2.5 — Partial-upgrade recovery" step.',
+      'mandrel-update.md must document a "Step 2.5 — Partial-upgrade recovery" step.',
     );
     assert.ok(
       /blocker/i.test(workflowRawSrc) &&

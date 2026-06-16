@@ -5,15 +5,16 @@ description: >-
   surfacing redundant keys (project values that already match framework
   defaults). The runtime layers defaults at read time, so the helper never
   auto-fills optional keys from the template. Invoked by reference from
-  /agents-update.
+  /mandrel-update.
 ---
 
-# agents-sync-config (helper)
+# mandrel-sync-config (helper)
 
 > **Not a slash command.** Lives under `.agents/workflows/helpers/` so it is
 > not projected into the mandrel plugin command tree. Invoked by reference from
-> [`/agents-update`](../agents-update.md) after a framework update; previously
-> shipped as `/agents-sync-config`. The reconciliation runs as part of the
+> [`/mandrel-update`](../mandrel-update.md) after a framework update; previously
+> shipped as the standalone `/agents-sync-config` command (later demoted to a
+> helper, then renamed alongside `/mandrel-update`). The reconciliation runs as part of the
 > `mandrel update` upgrade path (bump → sync → migrate → doctor).
 >
 > **Configuration reference.** The full set of configurable keys, defaults,

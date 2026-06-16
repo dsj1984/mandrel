@@ -1,6 +1,6 @@
 /**
- * agents-update-preflight.test.js — Unit tests for the first-run preflight
- * wired ahead of the `/agents-update` workflow under Story #4170.
+ * mandrel-update-preflight.test.js — Unit tests for the first-run preflight
+ * wired ahead of the `/mandrel-update` workflow under Story #4170.
  *
  * The Story's acceptance criteria are:
  *   1. Consumer-shape check: package.json lists `mandrel` AND `.agents/`
@@ -10,7 +10,7 @@
  *   4. Severity: consumer-shape is a hard stop; dirty-index and offline
  *      are warn-only.
  *
- * The tests drive the exported pure `runAgentsUpdatePreflight` helper with
+ * The tests drive the exported pure `runMandrelUpdatePreflight` helper with
  * an inline fixture probe set so no real FS / git / network is touched, and
  * cover the `reportPreflight` rendering + severity routing.
  */
@@ -19,8 +19,8 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   reportPreflight,
-  runAgentsUpdatePreflight,
-} from '../.agents/scripts/agents-update-preflight.js';
+  runMandrelUpdatePreflight,
+} from '../.agents/scripts/mandrel-update-preflight.js';
 
 /** A healthy consumer project: all checks pass. */
 const healthyProbes = {
@@ -50,16 +50,16 @@ function findingById(result, id) {
   return result.findings.find((f) => f.id === id);
 }
 
-describe('runAgentsUpdatePreflight — consumer-shape (blocker)', () => {
+describe('runMandrelUpdatePreflight — consumer-shape (blocker)', () => {
   it('passes clean on a healthy consumer project', () => {
-    const result = runAgentsUpdatePreflight({ probes: probes() });
+    const result = runMandrelUpdatePreflight({ probes: probes() });
     assert.equal(result.ok, true);
     assert.equal(result.blocked, false);
     assert.deepEqual(result.findings, []);
   });
 
   it('hard-stops when package.json is missing/unreadable', () => {
-    const result = runAgentsUpdatePreflight({
+    const result = runMandrelUpdatePreflight({
       probes: probes({ readPackageJson: () => null }),
     });
     assert.equal(result.blocked, true);
@@ -70,7 +70,7 @@ describe('runAgentsUpdatePreflight — consumer-shape (blocker)', () => {
   });
 
   it('hard-stops when "mandrel" is not a dependency', () => {
-    const result = runAgentsUpdatePreflight({
+    const result = runMandrelUpdatePreflight({
       probes: probes({
         readPackageJson: () => ({ dependencies: { other: '1.0.0' } }),
       }),
@@ -82,7 +82,7 @@ describe('runAgentsUpdatePreflight — consumer-shape (blocker)', () => {
   });
 
   it('accepts "mandrel" in dependencies (not just devDependencies)', () => {
-    const result = runAgentsUpdatePreflight({
+    const result = runMandrelUpdatePreflight({
       probes: probes({
         readPackageJson: () => ({ dependencies: { mandrel: '^1.0.0' } }),
       }),
@@ -92,7 +92,7 @@ describe('runAgentsUpdatePreflight — consumer-shape (blocker)', () => {
   });
 
   it('hard-stops when .agents/ is absent even if mandrel is a dep', () => {
-    const result = runAgentsUpdatePreflight({
+    const result = runMandrelUpdatePreflight({
       probes: probes({ agentsDirExists: () => false }),
     });
     assert.equal(result.blocked, true);
@@ -102,9 +102,9 @@ describe('runAgentsUpdatePreflight — consumer-shape (blocker)', () => {
   });
 });
 
-describe('runAgentsUpdatePreflight — dirty-index (warn-only)', () => {
+describe('runMandrelUpdatePreflight — dirty-index (warn-only)', () => {
   it('warns when the index has staged changes, but does not block', () => {
-    const result = runAgentsUpdatePreflight({
+    const result = runMandrelUpdatePreflight({
       probes: probes({ hasStagedChanges: () => true }),
     });
     assert.equal(result.blocked, false);
@@ -116,14 +116,14 @@ describe('runAgentsUpdatePreflight — dirty-index (warn-only)', () => {
   });
 
   it('does not fire when the index is clean', () => {
-    const result = runAgentsUpdatePreflight({ probes: probes() });
+    const result = runMandrelUpdatePreflight({ probes: probes() });
     assert.equal(findingById(result, 'dirty-index'), undefined);
   });
 });
 
-describe('runAgentsUpdatePreflight — offline (warn-only)', () => {
+describe('runMandrelUpdatePreflight — offline (warn-only)', () => {
   it('warns when the registry is unreachable, but does not block', () => {
-    const result = runAgentsUpdatePreflight({
+    const result = runMandrelUpdatePreflight({
       probes: probes({ registryReachable: () => false }),
     });
     assert.equal(result.blocked, false);
@@ -134,14 +134,14 @@ describe('runAgentsUpdatePreflight — offline (warn-only)', () => {
   });
 
   it('does not fire when the registry is reachable', () => {
-    const result = runAgentsUpdatePreflight({ probes: probes() });
+    const result = runMandrelUpdatePreflight({ probes: probes() });
     assert.equal(findingById(result, 'offline'), undefined);
   });
 });
 
-describe('runAgentsUpdatePreflight — severity composition', () => {
+describe('runMandrelUpdatePreflight — severity composition', () => {
   it('a blocker plus warnings still reports blocked:true', () => {
-    const result = runAgentsUpdatePreflight({
+    const result = runMandrelUpdatePreflight({
       probes: probes({
         readPackageJson: () => null,
         hasStagedChanges: () => true,
@@ -153,7 +153,7 @@ describe('runAgentsUpdatePreflight — severity composition', () => {
   });
 
   it('warnings without a blocker report blocked:false, ok:false', () => {
-    const result = runAgentsUpdatePreflight({
+    const result = runMandrelUpdatePreflight({
       probes: probes({
         hasStagedChanges: () => true,
         registryReachable: () => false,
@@ -176,7 +176,7 @@ describe('reportPreflight — rendering + severity routing', () => {
 
   it('routes blockers to error and warnings to warn', () => {
     const logger = makeLogger();
-    const result = runAgentsUpdatePreflight({
+    const result = runMandrelUpdatePreflight({
       probes: probes({
         readPackageJson: () => null,
         hasStagedChanges: () => true,
@@ -192,7 +192,7 @@ describe('reportPreflight — rendering + severity routing', () => {
 
   it('emits a warn-only summary when no blocker fired', () => {
     const logger = makeLogger();
-    const result = runAgentsUpdatePreflight({
+    const result = runMandrelUpdatePreflight({
       probes: probes({ registryReachable: () => false }),
     });
     reportPreflight(result, logger);

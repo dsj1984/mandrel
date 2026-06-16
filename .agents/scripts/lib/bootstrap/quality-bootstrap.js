@@ -242,7 +242,7 @@ export function ensureQualityNpmScripts(ctx) {
  * underneath the project config at read time, so a key whose intended
  * value equals the framework default would be written redundantly — and
  * would then be flagged `[REDUNDANT]` by the sync-agentrc helper on the
- * next /agents-update. Default-aware seeding keeps the two helpers from
+ * next /mandrel-update. Default-aware seeding keeps the two helpers from
  * contradicting each other.
  *
  * Returns `{ merged, addedKeys[] }` so the caller can report exactly

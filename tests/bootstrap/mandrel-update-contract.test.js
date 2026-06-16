@@ -1,7 +1,7 @@
 /**
- * agents-update-contract — Story #2281
+ * mandrel-update-contract — Story #2281
  *
- * The `/agents-update` workflow runs two `.agentrc.json` reconcilers back
+ * The `/mandrel-update` workflow runs two `.agentrc.json` reconcilers back
  * to back:
  *
  *   - Helper A — `sync-agentrc` emits `[REDUNDANT]` advisories for
@@ -99,7 +99,7 @@ function makeFixtureProject() {
 }
 
 beforeEach(() => {
-  tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'agents-update-contract-'));
+  tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mandrel-update-contract-'));
   frameworkRoot = path.join(tmpRoot, '_framework');
   const helperSrc = path.join(
     frameworkRoot,
@@ -115,7 +115,7 @@ afterEach(() => {
   fs.rmSync(tmpRoot, { recursive: true, force: true });
 });
 
-describe('agents-update contract — Helper A advisories are schema-safe', () => {
+describe('mandrel-update contract — Helper A advisories are schema-safe', () => {
   it('following every [REDUNDANT] advisory leaves the config schema-valid', () => {
     const projectRoot = makeFixtureProject();
     const result = syncAgentrc({ projectRoot });
@@ -161,12 +161,12 @@ describe('agents-update contract — Helper A advisories are schema-safe', () =>
   });
 });
 
-describe('agents-update contract — Helper B does not seed Helper A redundancy', () => {
+describe('mandrel-update contract — Helper B does not seed Helper A redundancy', () => {
   it('no key Helper B writes appears in Helper A’s [REDUNDANT] list on next run', () => {
     const projectRoot = makeFixtureProject();
 
     // Run the full quality-bootstrap (Helper B). Whatever it writes is
-    // the seed surface Helper A inspects on the next /agents-update.
+    // the seed surface Helper A inspects on the next /mandrel-update.
     const bootstrap = applyQualityBootstrap({ projectRoot, frameworkRoot });
     const writtenKeys = bootstrap.config.addedKeys ?? [];
 
@@ -203,7 +203,7 @@ describe('agents-update contract — Helper B does not seed Helper A redundancy'
   });
 });
 
-describe('agents-update contract — collectRedundantAdvisories respects the schema', () => {
+describe('mandrel-update contract — collectRedundantAdvisories respects the schema', () => {
   it('honours a synthetic schema’s required arrays when injected', () => {
     // Synthetic schema that mirrors the project-paths constraint:
     // `required` lists the leaf at its immediate parent.

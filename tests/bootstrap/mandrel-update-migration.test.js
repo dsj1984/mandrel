@@ -1,7 +1,7 @@
 /**
- * agents-update-migration — Story #1401 (Epic #1386)
+ * mandrel-update-migration — Story #1401 (Epic #1386)
  *
- * Drives the `/agents-update` Step 3.5 install procedure (Epic #1386
+ * Drives the `/mandrel-update` Step 3.5 install procedure (Epic #1386
  * stabilized-quality-gates surface) against three tmp-project fixtures:
  *
  *   1. **Fresh-upgrade path.** A project that was last bootstrapped on a
@@ -50,7 +50,7 @@ function readJson(p) {
 }
 
 beforeEach(() => {
-  tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'agents-update-mig-'));
+  tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mandrel-update-mig-'));
   frameworkRoot = path.join(tmpRoot, '_framework');
   const helperSrc = path.join(
     frameworkRoot,
@@ -66,7 +66,7 @@ afterEach(() => {
   fs.rmSync(tmpRoot, { recursive: true, force: true });
 });
 
-describe('agents-update — fresh-upgrade path', () => {
+describe('mandrel-update — fresh-upgrade path', () => {
   it('installs all four artefacts and is idempotent on re-run', () => {
     const projectRoot = path.join(tmpRoot, 'project');
     fs.mkdirSync(projectRoot, { recursive: true });
@@ -114,7 +114,7 @@ describe('agents-update — fresh-upgrade path', () => {
   });
 });
 
-describe('agents-update — custom-hook-skip path', () => {
+describe('mandrel-update — custom-hook-skip path', () => {
   it('preserves a custom .husky/pre-commit and surfaces a notice', () => {
     const projectRoot = path.join(tmpRoot, 'project');
     fs.mkdirSync(projectRoot, { recursive: true });
@@ -154,7 +154,7 @@ describe('agents-update — custom-hook-skip path', () => {
   });
 });
 
-describe('agents-update — baselines layout migration', () => {
+describe('mandrel-update — baselines layout migration', () => {
   // A stub spawnSync that records git invocations without mutating anything;
   // the helper's `git rm -r --quiet --ignore-unmatch` is safe to no-op in
   // tests where the fixture is not a real git repo.

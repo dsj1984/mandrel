@@ -199,7 +199,7 @@ function applyDefaults(raw) {
     // `#/$defs/qa`). It needs no default-layering — the harness resolver
     // (`resolveQaContract`) owns normalization and required-field
     // enforcement — it only needs to survive the reshape so
-    // `/qa-run-harness` Step 0 can read it off the resolved wrapper.
+    // `/qa-run` Step 0 can read it off the resolved wrapper.
     ...(raw.qa !== undefined ? { qa: raw.qa } : {}),
   };
 }

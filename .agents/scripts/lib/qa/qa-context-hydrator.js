@@ -1,7 +1,7 @@
 /**
  * QA context hydrator — Story #3805, Epic #3798 (f1-shared-qa-core).
  *
- * Both QA front-ends (`/qa-explore` and `/qa-run-harness`) need to load the
+ * Both QA front-ends (`/qa-explore` and `/qa-run`) need to load the
  * *grounded* surface context for an Epic before they reason about what to test:
  * the Epic body, its linked context tickets (PRD / Tech Spec / Acceptance
  * Spec), the project's `.feature` files, the implementation files the surface
