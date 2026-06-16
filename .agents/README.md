@@ -466,7 +466,7 @@ ticketing provider is GitHub, resolved by `provider-factory.js` from the
 `orchestration.provider` config key. CLI scripts receive provider
 instances from the SDK surface rather than importing provider
 implementations directly. Execution is Claude-Code-in-session — there is
-no separate adapter abstraction; `wave-dispatcher.js` synthesizes the
+no separate adapter abstraction; `manifest-builder.js` synthesizes the
 dispatch record inline and the dispatch manifest (md + structured
 comment) is the cross-runtime contract.
 
