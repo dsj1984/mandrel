@@ -2,11 +2,11 @@
 
 /**
  * apply-quality-bootstrap.js — Story #4171
- * (refactor(agents-update): extract the quality-bootstrap heredoc into a
+ * (refactor(mandrel-update): extract the quality-bootstrap heredoc into a
  * tested script)
  *
  * Replaces the inline `node -e "Promise.all([...])"` heredoc that Step 3.5 of
- * the `/agents-update` workflow used to carry. That shape was fragile in three
+ * the `/mandrel-update` workflow used to carry. That shape was fragile in three
  * ways: it broke across shells (PowerShell vs bash quoting / backticks), it
  * had no test so it silently drifted when the two helper signatures moved, and
  * it could not be invoked or dry-run independently.

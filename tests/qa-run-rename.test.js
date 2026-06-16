@@ -1,23 +1,23 @@
 /**
- * qa-run-harness rename guard (Epic #3686 / Story #3719).
+ * qa-run rename guard.
  *
- * Acceptance: the `run-qa-harness` workflow/command is hard-cutover renamed to
- * `qa-run-harness` (no alias), establishing the `qa-*` workflow family
- * (f7-qa-naming). This spec is a structural assertion that:
+ * The agent-driven QA-harness workflow/command was hard-cutover renamed from
+ * `qa-run-harness` to `qa-run` (no alias) for naming clarity, keeping the
+ * `qa-*` workflow family. This spec is a structural assertion that:
  *
- *   1. `.agents/workflows/qa-run-harness.md` exists and
- *      `.agents/workflows/run-qa-harness.md` does not.
- *   2. `.claude/commands/qa-run-harness.md` exists and
- *      `.claude/commands/run-qa-harness.md` does not. The `.claude/commands/`
+ *   1. `.agents/workflows/qa-run.md` exists and
+ *      `.agents/workflows/qa-run-harness.md` does not.
+ *   2. `.claude/commands/qa-run.md` exists and
+ *      `.claude/commands/qa-run-harness.md` does not. The `.claude/commands/`
  *      tree is generated from `.agents/workflows/` by `sync-claude-commands.js`,
  *      which prunes orphans — so the old generated command disappears once the
  *      source workflow is renamed and the sync re-runs.
  *   3. No file under `.agents/`, `docs/`, `.claude/`, or `tests/` references the
- *      old `run-qa-harness` string (this test file excepted).
+ *      old `qa-run-harness` string (this test file excepted).
  *
  * The skill DIRECTORY `.agents/skills/stack/qa/qa-harness/` keeps its name —
- * only the workflow/command string `run-qa-harness` is renamed, so the
- * directory name never matches the `run-qa-harness` reference pattern.
+ * only the workflow/command string `qa-run-harness` is renamed, so the
+ * directory name (`qa-harness`) never matches the `qa-run-harness` pattern.
  */
 
 import assert from 'node:assert/strict';
@@ -30,10 +30,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, '..');
 
-const NEW_WORKFLOW = '.agents/workflows/qa-run-harness.md';
-const OLD_WORKFLOW = '.agents/workflows/run-qa-harness.md';
-const NEW_COMMAND = '.claude/commands/qa-run-harness.md';
-const OLD_COMMAND = '.claude/commands/run-qa-harness.md';
+const NEW_WORKFLOW = '.agents/workflows/qa-run.md';
+const OLD_WORKFLOW = '.agents/workflows/qa-run-harness.md';
+const NEW_COMMAND = '.claude/commands/qa-run.md';
+const OLD_COMMAND = '.claude/commands/qa-run-harness.md';
 
 const SCAN_ROOTS = [
   path.join(REPO_ROOT, '.agents'),
@@ -48,8 +48,8 @@ const EXCLUDED_DIRS = new Set(['node_modules', '.worktrees', 'archive']);
 
 // The old name, as a string. Constructed at runtime so this test file is not
 // itself an offender when it scans for the pattern.
-const OLD_REFERENCE = ['run', 'qa', 'harness'].join('-');
-const SELF = path.join(REPO_ROOT, 'tests', 'qa-run-harness-rename.test.js');
+const OLD_REFERENCE = ['qa', 'run', 'harness'].join('-');
+const SELF = path.join(REPO_ROOT, 'tests', 'qa-run-rename.test.js');
 
 async function fileExists(filePath) {
   try {
@@ -80,8 +80,8 @@ async function* walkTextFiles(root) {
   }
 }
 
-describe('qa-run-harness rename guard', () => {
-  it('renames the workflow to .agents/workflows/qa-run-harness.md', async () => {
+describe('qa-run rename guard', () => {
+  it('renames the workflow to .agents/workflows/qa-run.md', async () => {
     assert.equal(
       await fileExists(path.join(REPO_ROOT, NEW_WORKFLOW)),
       true,
@@ -94,7 +94,7 @@ describe('qa-run-harness rename guard', () => {
     );
   });
 
-  it('renames the generated command to .claude/commands/qa-run-harness.md', async () => {
+  it('renames the generated command to .claude/commands/qa-run.md', async () => {
     assert.equal(
       await fileExists(path.join(REPO_ROOT, NEW_COMMAND)),
       true,
@@ -107,7 +107,7 @@ describe('qa-run-harness rename guard', () => {
     );
   });
 
-  it('no live .agents/, docs/, .claude/, or tests/ file references the old run-qa-harness name', async () => {
+  it('no live .agents/, docs/, .claude/, or tests/ file references the old qa-run-harness name', async () => {
     const offenders = [];
     for (const root of SCAN_ROOTS) {
       for await (const file of walkTextFiles(root)) {
@@ -126,7 +126,7 @@ describe('qa-run-harness rename guard', () => {
     assert.deepEqual(
       offenders,
       [],
-      `Found live references to the old /run-qa-harness name (repoint to /qa-run-harness):\n${offenders.join('\n')}`,
+      `Found live references to the old /qa-run-harness name (repoint to /qa-run):\n${offenders.join('\n')}`,
     );
   });
 });

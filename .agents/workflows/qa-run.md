@@ -2,7 +2,7 @@
 description: Drive Gherkin scenarios through a real browser as an agent-driven QA sweep
 ---
 
-# /qa-run-harness
+# /qa-run
 
 Execute a consumer's Gherkin `.feature` scenarios through a **real browser**
 (the chrome-devtools MCP surface), with the agent acting as the step executor
@@ -31,7 +31,7 @@ console filtering.
 ## Slash Command
 
 ```text
-/qa-run-harness <selector>
+/qa-run <selector>
 ```
 
 ### Arguments
@@ -58,9 +58,9 @@ deterministic, `(file, line)`-sorted scenario set under the contract's
 ### Examples
 
 ```text
-/qa-run-harness feature:login
-/qa-run-harness "tag:@smoke and not @wip"
-/qa-run-harness domain:billing
+/qa-run feature:login
+/qa-run "tag:@smoke and not @wip"
+/qa-run domain:billing
 ```
 
 The canonical tag taxonomy — `@smoke`, `@risk-high`, `@platform-web`,

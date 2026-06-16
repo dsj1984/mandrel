@@ -333,7 +333,7 @@ See [`docs/SDLC.md` § Ticket hierarchy](docs/SDLC.md) for the diagram and execu
 | Check registry authoring rules | [§ Self-healing checks](#self-healing-checks) |
 | JSON Schema conventions | [§ Schemas](#schemas) |
 | Bootstrap script (project + GitHub setup) | [`scripts/bootstrap.js`](scripts/bootstrap.js) |
-| Adopt the QA workflows (`/qa-explore`, `/qa-assist`, `/qa-run-harness`) in your project | [§ Adopting the QA harness](#adopting-the-qa-harness) |
+| Adopt the QA workflows (`/qa-explore`, `/qa-assist`, `/qa-run`) in your project | [§ Adopting the QA harness](#adopting-the-qa-harness) |
 | Coordinate two operators on the same repo (lease model) | [§ Multi-developer coordination](#multi-developer-coordination) |
 
 ---
@@ -890,12 +890,12 @@ known scenario set:
   `/qa-assist` when you hit something mid-flight and want it captured well
   without breaking stride; reach for `/qa-explore` when you want the agent to
   go hunt a named surface.
-- **`/qa-run-harness <selector>`** — the **automated complement**: it drives a
+- **`/qa-run <selector>`** — the **automated complement**: it drives a
   consumer's Gherkin `.feature` scenarios through a real browser (the
   `chrome-devtools` MCP surface), captures per-surface console/network into
   structured `F#` findings, and drafts follow-up tickets for operator
   sign-off. The end-to-end procedure is the SSOT in
-  [`workflows/qa-run-harness.md`](workflows/qa-run-harness.md); the
+  [`workflows/qa-run.md`](workflows/qa-run.md); the
   instrumentation conventions live in the
   [`skills/stack/qa/qa-harness`](skills/stack/qa/qa-harness/SKILL.md) skill; the
   architectural overview (run pipeline, contract fields, finding shape) is in
@@ -904,7 +904,7 @@ known scenario set:
 Reach for `/qa-explore` when you want the **agent** to hunt a freshly delivered
 Story/Feature or run a structured bug-hunt captured into a triageable ledger;
 reach for `/qa-assist` when **you** hit something mid-flight and want it
-enriched into a single triage-ready ledger item; reach for `/qa-run-harness` to
+enriched into a single triage-ready ledger item; reach for `/qa-run` to
 step a **known** scenario set through the browser for a regression pass.
 
 Binding the QA contract is **opt-in**. All three workflows resolve the
@@ -989,8 +989,8 @@ environment, never inlined) and `{ signInSkill }` points at a per-persona
 sign-in skill.
 
 Once these three `qa.*` keys are in place, `/qa-explore <surface>`,
-`/qa-assist`, and `/qa-run-harness <selector>` all resolve the contract and
-operate against the bound surface. For `/qa-run-harness`, the `chrome-devtools`
+`/qa-assist`, and `/qa-run <selector>` all resolve the contract and
+operate against the bound surface. For `/qa-run`, the `chrome-devtools`
 MCP surface is a host-provided runtime dependency; when it is unavailable the
 harness degrades with a clear error rather than falling back to a headless
 runner. `/qa-explore` and `/qa-assist` read the same `qa.*` keys to scope their

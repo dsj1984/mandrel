@@ -10,7 +10,7 @@ description: >-
   stage + commit the staged lockfile bump.
 ---
 
-# /agents-update
+# /mandrel-update
 
 > **Upgrade owner.** The mechanical upgrade is owned end to end by the
 > [`mandrel update`](../../lib/cli/update.js) CLI under the npm distribution
@@ -23,7 +23,7 @@ description: >-
 
 ## Overview
 
-`/agents-update` advances the consumer repo to the newest published
+`/mandrel-update` advances the consumer repo to the newest published
 `mandrel` release, re-materializes `.agents/`, and regenerates the
 flat `.claude/commands/` tree (invoked as `/<name>`) against the new workflow
 set — then reconciles the consumer's own config, harness allowlist, and
@@ -105,7 +105,7 @@ day-0 failure modes — **wrong project**, a **dirty git index**, and being
 consumer repo root:
 
 ```bash
-node .agents/scripts/agents-update-preflight.js
+node .agents/scripts/mandrel-update-preflight.js
 ```
 
 The preflight runs three checks and prints a JSON envelope
@@ -243,8 +243,8 @@ CLI's stderr names it) and run the matching manual remedy from the consumer
 repo root. These commands match the hint strings
 [`lib/cli/update.js`](../../lib/cli/update.js) emits verbatim — it is the
 single source of truth, kept in lockstep with this table by the
-`agents-update-recovery-drift` contract test
-([`tests/bootstrap/agents-update-recovery-drift.test.js`](../../tests/bootstrap/agents-update-recovery-drift.test.js)):
+`mandrel-update-recovery-drift` contract test
+([`tests/bootstrap/mandrel-update-recovery-drift.test.js`](../../tests/bootstrap/mandrel-update-recovery-drift.test.js)):
 
 | Failed phase      | Manual remedy                                            |
 | ----------------- | ------------------------------------------------------- |
@@ -319,7 +319,7 @@ The helper (Story #1995) is **default-aware** and **read-only**:
   modified.
 
 Full procedure reference:
-[`helpers/agents-sync-config.md`](helpers/agents-sync-config.md).
+[`helpers/mandrel-sync-config.md`](helpers/mandrel-sync-config.md).
 
 If the helper prints `No changes required` with no advisories, the config
 is already in sync — carry on. If it lists `[REDUNDANT]` rows, you may
@@ -392,7 +392,7 @@ rest of the per-Epic temp tree):
   contract for the framework.
 
 A second run produces `no-change` on every install path, which is the
-guarantee `agents-update`'s idempotence contract requires.
+guarantee `mandrel-update`'s idempotence contract requires.
 
 ## Step 3.6 — Refresh the harness permission allowlist (`/fewer-permission-prompts`)
 
@@ -431,7 +431,7 @@ auto-applied change:
 - Apply the accepted subset by editing `.claude/settings.json` and
   stage it alongside the version bump in Step 5.
 
-The maintenance cadence is **once per `/agents-update` invocation** —
+The maintenance cadence is **once per `/mandrel-update` invocation** —
 the same operator who just ran `mandrel update` is the one with the
 freshest transcript context to review the proposed allowlist
 diff. Skipping the step is fine when the bump introduces no new

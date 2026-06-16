@@ -11,8 +11,7 @@ const WORKFLOWS_DIR = path.join(REPO_ROOT, '.agents', 'workflows');
 const JUSTIFICATION_WINDOW = 3;
 
 const ALLOWLIST = new Set([
-  'git-push.md',
-  'git-pr-all.md',
+  'git-deliver.md',
   path.join('helpers', '_merge-conflict-template.md'),
 ]);
 

@@ -71,7 +71,7 @@ authoring.
   single `defineBddConfig` block that lists `features` and `steps` paths.
 - Register the Cucumber HTML/JSON reporter alongside the Playwright HTML
   reporter so a headless CI invocation emits machine-readable evidence
-  alongside the agent-driven `/qa-run-harness` sweep.
+  alongside the agent-driven `/qa-run` sweep.
 - Use Playwright projects (not Cucumber profiles) for browser matrix fan-out —
   keeps sharding, retries, and trace config in one place.
 
@@ -99,7 +99,7 @@ authoring.
   tag vocabularies in the runner config; extend via `@domain-*` only.
 - Wire tag-filtered headless runs to a single npm script so operators never
   reconstruct the generate-then-run sequence by hand; the agent-driven
-  `/qa-run-harness` selector mirrors the same tag expressions for browser sweeps.
+  `/qa-run` selector mirrors the same tag expressions for browser sweeps.
 - Fail the run if generation produces zero matching scenarios — a silent empty
   suite is worse than a red build.
 
@@ -184,5 +184,5 @@ those outcomes.
 
 - Scenario authoring rules: `.agents/rules/gherkin-standards.md`.
 - Browser-level conventions: `.agents/skills/stack/qa/playwright/SKILL.md`.
-- Operator entry point: `.agents/workflows/qa-run-harness.md`.
+- Operator entry point: `.agents/workflows/qa-run.md`.
 - Evidence handoff: `.agents/workflows/helpers/epic-testing.md`.

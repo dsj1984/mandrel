@@ -1,7 +1,7 @@
 /**
  * `qa` contract resolver — Epic #3214, Story #3294.
  *
- * The agent-driven QA harness (`/qa-run-harness`) needs the
+ * The agent-driven QA harness (`/qa-run`) needs the
  * consumer's `.agentrc.json` `qa` block to know where the `.feature` root
  * lives, how to sign in, and which personas the seam accepts. The block is
  * *optional in the schema* (most repos never bind the harness, so config

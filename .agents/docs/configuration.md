@@ -748,8 +748,8 @@ number of keys.
 | `github.operatorHandle` | Committed as the `@[USERNAME]` placeholder; each contributor overrides it in gitignored `.agentrc.local.json` | `@[USERNAME]` | Schema-required, but per-contributor: the committed placeholder resolves to null and the lease guards fail closed until you set your own handle locally (see [Per-machine local overrides](#per-machine-local-overrides)). |
 | `delivery.worktreeIsolation.nodeModulesStrategy`     | `per-worktree`                        | `per-worktree`                             | npm-only repo (`package-lock.json`); worktree init runs `npm ci` per tree.                                                       |
 
-When a consumer runs `/agents-update`, the
-[`agents-sync-config`](../workflows/helpers/agents-sync-config.md)
+When a consumer runs `/mandrel-update`, the
+[`mandrel-sync-config`](../workflows/helpers/mandrel-sync-config.md)
 helper validates the project config against the schema, then adds any
 template-introduced keys the project does not already define. Project-side
 values that validate are preserved unconditionally — including optional keys
@@ -821,10 +821,10 @@ project-specific knob:
 1. Confirm the key is **already declared in the schema** at
    [`.agents/schemas/agentrc.schema.json`](../schemas/agentrc.schema.json)
    — if it isn't, the AJV validators will reject it on the next
-   `/agents-update`.
+   `/mandrel-update`.
 2. Set the key in `.agentrc.json`. Don't add it to the template unless it
    should ship to all consumers.
-3. Run `/agents-update` to confirm the helper preserves the key on round-trip.
+3. Run `/mandrel-update` to confirm the helper preserves the key on round-trip.
 
 ### Extending list-valued keys without losing template defaults
 
@@ -898,7 +898,7 @@ This is a framework-level change, not a project-level one. The path is:
    [`config-resolver.js`](../scripts/lib/config-resolver.js).
 4. Add tests under `tests/lib/config-*.test.js` and confirm
    `tests/config-schema-mirror-drift.test.js` passes.
-5. Document the key in this file and update `agents-sync-config.md` only if
+5. Document the key in this file and update `mandrel-sync-config.md` only if
    the merge semantics differ from the default (project-wins) rule.
 
 ---
@@ -979,10 +979,10 @@ allowlists drift project-to-project.
 
 ### Cadence
 
-Run `/fewer-permission-prompts` **once per `/agents-update`
+Run `/fewer-permission-prompts` **once per `/mandrel-update`
 invocation**, immediately after the package upgrade re-materializes
 `.agents/` and before the bump commit lands. The cadence is codified in
-[`/agents-update` Step 3.6](../workflows/agents-update.md). The
+[`/mandrel-update` Step 3.6](../workflows/mandrel-update.md). The
 operator who just bumped `.agents/` has the freshest transcript context
 in the active session, which is exactly what the skill scans, so this
 is the cheapest time to surface new high-frequency calls.
@@ -1024,7 +1024,7 @@ on the next cadence run if they remain high-frequency, so the cost of
 deferral is bounded.
 
 Stage the accepted `.claude/settings.json` diff alongside the
-`/agents-update` bump commit so the reviewer sees the framework pointer
+`/mandrel-update` bump commit so the reviewer sees the framework pointer
 move and the allowlist response in the same diff.
 
 ---
@@ -1093,7 +1093,7 @@ mandrel uninstall --include-github # acknowledge GitHub-side follow-ups
 - Resolver entry point —
   [`config-resolver.js`](../scripts/lib/config-resolver.js)
 - Sync helper —
-  [`agents-sync-config.md`](../workflows/helpers/agents-sync-config.md)
+  [`mandrel-sync-config.md`](../workflows/helpers/mandrel-sync-config.md)
 - Bootstrap script —
   [`bootstrap.js`](../scripts/bootstrap.js)
 - Quality gates runbook (CRAP onboarding, MI ratchet, lint ratchet) —

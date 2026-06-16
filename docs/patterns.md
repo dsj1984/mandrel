@@ -55,7 +55,7 @@ sub-blocks read through dedicated accessors:
   one resolver accessor, one doc row — instead of threading through
   multiple flat-key consumer sites.
 - **Operator overrides survive sync.** Schema-valid keys absent from the
-  template no longer disappear on `/agents-update`.
+  template no longer disappear on `/mandrel-update`.
 
 ### Trade-offs
 

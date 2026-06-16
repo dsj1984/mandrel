@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
 /**
- * agents-update-preflight.js — Story #4170
- * (feat(agents-update): add a first-run preflight before the updater)
+ * mandrel-update-preflight.js — Story #4170
+ * (feat(mandrel-update): add a first-run preflight before the updater)
  *
- * A first-run preflight for the `/agents-update` workflow. The workflow
+ * A first-run preflight for the `/mandrel-update` workflow. The workflow
  * otherwise jumps straight to `npx mandrel update` with no guard rails;
  * this preflight catches three day-0 failure modes *before* the version
  * bump:
@@ -33,7 +33,7 @@
  * `lib/cli/update.js` itself — the CLI stays git-free and
  * side-effect-scoped; this is a workflow-layer concern.
  *
- * The detection logic is a pure function (`runAgentsUpdatePreflight`) that
+ * The detection logic is a pure function (`runMandrelUpdatePreflight`) that
  * takes injectable probes so it is unit-testable without touching the real
  * filesystem, git index, or network. The CLI wrapper wires the real probes
  * and maps a blocker finding to a non-zero exit code.
@@ -128,7 +128,7 @@ export function makeProbes(projectRoot) {
  *   consumer-shape hard stop). `ok` is true when there are no findings of
  *   any severity.
  */
-export function runAgentsUpdatePreflight({ probes }) {
+export function runMandrelUpdatePreflight({ probes }) {
   /** @type {PreflightFinding[]} */
   const findings = [];
 
@@ -153,7 +153,7 @@ export function runAgentsUpdatePreflight({ probes }) {
     findings.push({
       id: 'consumer-shape',
       severity: 'blocker',
-      summary: `Not a Mandrel consumer project (${missing.join('; ')}). Run /agents-update from a consumer repo that depends on "mandrel" and has a materialized .agents/ tree — not the framework repo itself or an unrelated project.`,
+      summary: `Not a Mandrel consumer project (${missing.join('; ')}). Run /mandrel-update from a consumer repo that depends on "mandrel" and has a materialized .agents/ tree — not the framework repo itself or an unrelated project.`,
       fix: 'cd into the consumer project root, or run `npm install -D mandrel && npx mandrel sync` to bootstrap one.',
     });
   }
@@ -194,7 +194,7 @@ export function runAgentsUpdatePreflight({ probes }) {
 export function reportPreflight(result, logger) {
   if (result.ok) {
     logger.info(
-      '✅ [agents-update-preflight] All checks passed — safe to run `npx mandrel update`.',
+      '✅ [mandrel-update-preflight] All checks passed — safe to run `npx mandrel update`.',
     );
     return;
   }
@@ -208,11 +208,11 @@ export function reportPreflight(result, logger) {
   }
   if (result.blocked) {
     logger.error(
-      '[agents-update-preflight] Hard stop: do not run `npx mandrel update` until the blocker above is resolved (exit 2).',
+      '[mandrel-update-preflight] Hard stop: do not run `npx mandrel update` until the blocker above is resolved (exit 2).',
     );
   } else {
     logger.warn(
-      '[agents-update-preflight] Warnings only — review them, then proceed if intentional.',
+      '[mandrel-update-preflight] Warnings only — review them, then proceed if intentional.',
     );
   }
 }
@@ -220,7 +220,7 @@ export function reportPreflight(result, logger) {
 async function main() {
   const projectRoot = process.cwd();
   const probes = makeProbes(projectRoot);
-  const result = runAgentsUpdatePreflight({ probes });
+  const result = runMandrelUpdatePreflight({ probes });
   reportPreflight(result, Logger);
   // Machine-parsable JSON envelope on stdout for tooling / the workflow to
   // read. Use process.stdout.write (not console.log) per the no-console
@@ -230,6 +230,6 @@ async function main() {
 }
 
 runAsCli(import.meta.url, main, {
-  source: 'agents-update-preflight',
+  source: 'mandrel-update-preflight',
   propagateExitCode: true,
 });

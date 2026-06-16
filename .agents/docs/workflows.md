@@ -25,11 +25,10 @@ by `node .agents/scripts/generate-workflows-doc.js`; `npm run docs:check`
 fails when it drifts from the on-disk workflow set. To change a command’s
 description, edit the workflow file’s front-matter and regenerate.
 
-## Commands (27)
+## Commands (25)
 
 | Command | Description |
 | --- | --- |
-| `/agents-update` | npm-era upgrade wraparound for a Mandrel consumer. Runs `npx mandrel update` (resolve newest published version → install → re-materialize `.agents/` → migrate → doctor → surface changelog) as the single mechanical step, then walks the operator through the judgment wraparound the CLI deliberately leaves unowned: reconcile `.agentrc.json`, install the Epic #1386 quality-gate surface, refresh the harness permission allowlist, reconcile the consumer's `AGENTS.md` / runbooks against the surfaced changelog, and stage + commit the staged lockfile bump. |
 | `/audit-architecture` | Audit architectural boundaries, module coupling, and layering violations; emit a structured findings report keyed to High/Medium/Low severity. |
 | `/audit-clean-code` | Audit code smells, dead code, complexity hotspots, and maintainability-index outliers; emit a structured findings report. |
 | `/audit-dependencies` | Audit `package.json` for unused, outdated, and major-version-stale dependencies; surface Node-engine drift and propose upgrade batches. |
@@ -48,11 +47,10 @@ description, edit the workflow file’s front-matter and regenerate.
 | `/deliver` | Unified delivery entry point. Inspects the ticket type(s) and Epic-reference state of the supplied IDs, composes a sequential segment plan over any mix of Epics and standalone Stories, then delegates each segment to the Epic wave loop or the standalone multi-Story fan-out — preserving every flag and the parallel-delivery contract of the retired commands. |
 | `/explain` | Walk the operator through a code change until they genuinely understand it. Targets a PR, a branch, or the working-tree diff, then drives the `core/knowledge-transfer` skill (restate-first, why-ladder, mastery gates, persistent checklist) with an operator-controlled stop at every checkpoint. |
 | `/git-cleanup` | Tidy the local checkout in four phases: fast-forward `main`, prune stale remote-tracking refs, sweep merged branches (squash-aware), and triage `git stash` entries — each step gated by operator confirmation. |
-| `/git-commit-all` | Stage every untracked and modified file, then create a single conventional-commit on the current branch (no push). |
+| `/git-deliver` | Single ad-hoc delivery command for working-tree changes. Detects the git setup and escalates to the right terminal step — commit only, commit + push, or commit + push + open a PR with native auto-merge — picking the default from observable state and letting flags pin any level explicitly. Replaces the retired git-commit-all, git-push, and git-pr-all trio. |
 | `/git-merge-pr` | Analyze, validate, resolve conflicts, and merge a given pull request by number. |
-| `/git-pr-all` | Stage all outstanding changes, commit, push to a feature branch, and open a pull request with native auto-merge enabled. |
-| `/git-push` | Commit all outstanding changes then push to the remote repository. |
+| `/mandrel-update` | npm-era upgrade wraparound for a Mandrel consumer. Runs `npx mandrel update` (resolve newest published version → install → re-materialize `.agents/` → migrate → doctor → surface changelog) as the single mechanical step, then walks the operator through the judgment wraparound the CLI deliberately leaves unowned: reconcile `.agentrc.json`, install the Epic #1386 quality-gate surface, refresh the harness permission allowlist, reconcile the consumer's `AGENTS.md` / runbooks against the surfaced changelog, and stage + commit the staged lockfile bump. |
 | `/plan` | Unified planning entry point. Routes a seed idea (via scope triage) or an existing Epic ID to the right planning path — the full Epic pipeline (PRD, Tech Spec, Acceptance Spec, decomposition) or the standalone-Story authoring path — and absorbs every planning flag. |
 | `/qa-assist` | Human-led QA assist loop — set up, then ride a rolling multi-observation intake session. The operator reports observations in any order; the agent enriches each (repro + root-cause file:line + coverage verdict for bugs; analysis + options + recommendation for enhancements), asks clarifying questions only when ambiguous, and appends a redacted ledger item — recording, never planning — to a persistent, resumable session under temp/qa/. Only when the operator says they are done does it review the full ledger and hand off to /plan. |
 | `/qa-explore` | Agent-led exploratory-QA loop — the agent Plans a surface with an explicit static-vs-drive method choice, drives it (browser MCP or static), and captures ledger items read-only, then Triages — a bounded per-surface session, HITL-gated at every phase transition, routed through the shared dedup/coverage/classification/missing-test/redaction/session core under temp/qa/ |
-| `/qa-run-harness` | Drive Gherkin scenarios through a real browser as an agent-driven QA sweep |
+| `/qa-run` | Drive Gherkin scenarios through a real browser as an agent-driven QA sweep |

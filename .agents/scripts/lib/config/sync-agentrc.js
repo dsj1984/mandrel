@@ -16,7 +16,7 @@
  *      untouched. Operators who want a leaner config can prune the
  *      redundant keys by hand.
  *
- * Outcome: after `/agents-update`, `.agentrc.json` contains only keys
+ * Outcome: after `/mandrel-update`, `.agentrc.json` contains only keys
  * that materially diverge from framework defaults, plus the
  * consumer-identity keys with no sensible framework default (owner,
  * repo, operatorHandle).

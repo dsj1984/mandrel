@@ -9,7 +9,7 @@
  * (tests/config/full-agentrc-runtime-parity.test.js) keeps the two in
  * lockstep.
  *
- * Story #1995: the `/agents-update` sync helper consults this module
+ * Story #1995: the `/mandrel-update` sync helper consults this module
  * (not the template directly) to decide whether a project value is
  * "just the default" and therefore safe to omit from `.agentrc.json`.
  *

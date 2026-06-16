@@ -1103,7 +1103,7 @@ for the acceptance tier is governed by
 [`rules/gherkin-standards.md`](../rules/gherkin-standards.md).
 
 The acceptance tier is executed and reported via
-[`workflows/qa-run-harness.md`](../workflows/qa-run-harness.md) and consumed as
+[`workflows/qa-run.md`](../workflows/qa-run.md) and consumed as
 epic evidence by
 [`workflows/helpers/epic-testing.md`](../workflows/helpers/epic-testing.md).
 
@@ -1146,8 +1146,8 @@ set:
   (`qa-ledger.schema.json`) and reuses the same `scripts/lib/qa/` and
   `scripts/lib/findings/` decision seams, so a `/qa-assist` item flows through
   the identical dedup, classification, and promotion machinery later.
-- **[`workflows/qa-run-harness.md`](../workflows/qa-run-harness.md)**
-  (`/qa-run-harness`) — the **automated complement**: it steps a *known* set of
+- **[`workflows/qa-run.md`](../workflows/qa-run.md)**
+  (`/qa-run`) — the **automated complement**: it steps a *known* set of
   Gherkin `.feature` scenarios through a real browser, asserting `Then`
   outcomes semantically against the accessibility snapshot and bundling
   console/network problems into structured `F#` findings for operator sign-off.
@@ -1420,6 +1420,5 @@ For Stories already in flight, use one of the three options above.
 | *helper* `workflows/helpers/epic-deliver-story`               | Per-Story worker called by `/deliver`'s wave loop; not an operator slash command. See [`helpers/epic-deliver-story.md`](../workflows/helpers/epic-deliver-story.md).         |
 | *helper* `workflows/helpers/single-story-deliver`             | Per-Story worker called by `/deliver`; not an operator slash command. See [`helpers/single-story-deliver.md`](../workflows/helpers/single-story-deliver.md).                |
 | *helper* `workflows/helpers/code-review.md`                   | Auto-invoked by `/deliver`'s `delivery.code-review` state (scope: epic); not a slash command.                                                                            |
-| `/git-commit-all`                                | Stage and commit all changes                                                                                                                                                 |
-| `/git-push`                                      | Stage, commit, and push to remote                                                                                                                                            |
+| `/git-deliver`                                   | Ad-hoc delivery of working-tree changes — detects the git setup and escalates to commit, commit + push, or commit + push + PR (auto-merge armed).                            |
 | `epic-reconcile.js --explicit-delete`            | Hard reset — close orphaned Epic-scoped issues per `.agents/epics/<id>.yaml`                                                                                                 |

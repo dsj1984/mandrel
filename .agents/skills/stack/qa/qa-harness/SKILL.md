@@ -2,11 +2,11 @@
 name: qa-harness
 description:
   Conventions for the agent-driven QA harness that drives Gherkin scenarios
-  through a real browser. Use when executing `/qa-run-harness` or instrumenting
+  through a real browser. Use when executing `/qa-run` or instrumenting
   a live surface — covers navigation-first execution, per-surface console and
   network capture, design-token visual checks, and the framework-generic
   heuristic cards for turning signal into findings. The harness procedure lives
-  in `.agents/workflows/qa-run-harness.md`; this skill is the conventions
+  in `.agents/workflows/qa-run.md`; this skill is the conventions
   reference it leans on.
 ---
 
@@ -26,7 +26,7 @@ description:
 Guidance for executing the agent-driven QA harness through a real browser (the
 chrome-devtools MCP surface). The harness **procedure** — argument parsing,
 step ordering, contract resolution sequence — is the SSOT in
-[`.agents/workflows/qa-run-harness.md`](../../../../workflows/qa-run-harness.md);
+[`.agents/workflows/qa-run.md`](../../../../workflows/qa-run.md);
 this skill shows **how** to apply the instrumentation and inspection
 conventions that procedure depends on. The assertion-tier rules it enforces
 live in [`testing-standards.md`](../../../../rules/testing-standards.md)
@@ -212,7 +212,7 @@ QA evidence ticket.
 
 ## 7. Cross-References
 
-- Run procedure (SSOT): [`qa-run-harness.md`](../../../../workflows/qa-run-harness.md).
+- Run procedure (SSOT): [`qa-run.md`](../../../../workflows/qa-run.md).
 - Console filter module: [`console-allowlist.js`](../../../../scripts/lib/qa/console-allowlist.js).
 - Assertion-tier rules: [`testing-standards.md`](../../../../rules/testing-standards.md).
 - Scenario prose: [`gherkin-authoring`](../gherkin-authoring/SKILL.md).

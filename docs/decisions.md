@@ -954,7 +954,7 @@ name without rewriting this ADR text.
   framework's coupling contract. Such adoption is encouraged where the
   built-in's contract matches the framework's artifact expectations or
   can be wrapped via the hybrid pattern. As of this writing only
-  `/fewer-permission-prompts` is wired in (referenced by `/agents-update`
+  `/fewer-permission-prompts` is wired in (referenced by `/mandrel-update`
   Step 3.6); the others remain candidates. Note that `/goal` is a
   *prompt-side* directive the operator types — it is not reachable from
   the agent's tool surface and cannot be invoked from a workflow body.
@@ -1142,7 +1142,7 @@ The three-level topology — `/epic-execute` → `wave-runner` →
 sub-agent type whose frontmatter granted the `Agent` tool to the
 wave-level child. That contract was documented in framework code, but
 **the agent file was never scaffolded into consumer projects** by
-`agents-bootstrap-project` or `agents-update`. Downstream consumers
+`agents-bootstrap-project` or `mandrel-update`. Downstream consumers
 running `/epic-execute` saw the host harness reject `subagent_type:
 wave-runner` with "Agent type not found" before any Story sub-agent
 could be dispatched, halting at wave 0. The host-driven flat fan-out
@@ -1989,7 +1989,7 @@ Concretely:
   schemas in `lib/config-schema.js` and `lib/config-settings-schema.js`
   remain authoritative; the static mirror exists for editor tooling and
   human readers, kept in sync by a drift test.
-- **Schema-driven sync helper.** `agents-sync-config` now validates the
+- **Schema-driven sync helper.** `mandrel-sync-config` now validates the
   project config against the schema, adds template-introduced keys, and
   preserves every project-side key that validates — including optional keys
   absent from the template (e.g. the legacy `concurrency`, `closeRetry`,
@@ -2247,7 +2247,7 @@ Epic #269 introduces a BDD authoring framework: one rule
 (`.agents/rules/gherkin-standards.md`), two skills
 (`skills/stack/qa/gherkin-authoring`, `skills/stack/qa/playwright-bdd`), one
 acceptance-execution workflow (the headless BDD runner, later retired in Epic
-#3214 in favor of the agent-driven `/qa-run-harness`), and a pyramid-aware
+#3214 in favor of the agent-driven `/qa-run`), and a pyramid-aware
 rewrite of `testing-standards.md`. Without a single source of truth for the tag taxonomy
 and forbidden patterns, the two skills and every consuming project would
 inevitably drift into parallel vocabularies — exactly the failure mode that
@@ -3336,7 +3336,7 @@ The seven-row recategorization matrix from the Epic body (#1184) codifies the sp
 | Item | Decision | Rationale |
 | --- | --- | --- |
 | `agents-bootstrap-*` → `mandrel-bootstrap-*` | **Keep `agents-bootstrap-*`** | The name describes what it bootstraps — the `.agents/` directory, which the rebrand explicitly preserves as a stable filename. Brand-prefixing where the artifact name is already more self-describing is reverse-coupling. |
-| `agents-update` → `mandrel-update` | **Keep `agents-update`** | Updates the `.agents/` submodule pointer; that is what the name says. Same rationale as the bootstrap row. |
+| `agents-update` → `mandrel-update` | **Rename to `mandrel-update`** | The command now runs `npx mandrel update` — it upgrades the `mandrel` **npm package**, then re-materializes `.agents/`. `mandrel-update` names exactly that, and reads as unambiguously "update the framework" from a consumer's seat (the consumer never thinks of `.agents/` by that name). _(Supersedes the original rebrand-era call to keep `agents-update`, whose rationale — "updates the `.agents/` submodule pointer" — was made obsolete by the move from the Git-submodule distribution model to the npm package.)_ The sibling `agents-bootstrap-*` row still stands — those commands genuinely scaffold the `.agents/` directory. |
 | `delete-epic-*` workflows → scripts-only | **Keep as workflows** | Destructive operations benefit from slash-command discoverability and the workflow-level confirmation step. The scripts are thin, but the operator's entry point and confirmation home is the workflow file. |
 | `epic-plan` / `epic-deliver` → `mandrel-plan` / `mandrel-deliver` | **Keep as `epic-*`** | "Epic" is the domain concept the framework operates on. `mandrel-plan` is strictly less informative ("plan what?"). The noun the workflow acts on is the right primary axis for the name. |
 | `story-deliver` → helper | **Keep as command** | Operator-facing for individual story re-runs and debugging. The documented argument is a Story ID; the workflow is intended to be human-invocable, not just a fan-out target. |

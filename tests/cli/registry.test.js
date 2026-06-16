@@ -401,7 +401,7 @@ describe('gh-auth check', () => {
 describe('commands-in-sync check', () => {
   it('returns ok=true when sources and destinations match', () => {
     const check = findCheck('commands-in-sync');
-    const files = ['epic-deliver.md', 'story-deliver.md', 'git-push.md'];
+    const files = ['epic-deliver.md', 'story-deliver.md', 'git-deliver.md'];
     const result = check.run({
       projectRoot: '/fake/root',
       readDir: () => [...files],
