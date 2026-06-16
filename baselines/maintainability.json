@@ -1,10 +1,10 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-15T20:40:36.688Z",
+  "generatedAt": "2026-06-16T00:22:01.959Z",
   "rollup": {
     "*": {
-      "min": 70.566,
+      "min": 50.044,
       "p50": 97.964,
       "p95": 127.336
     }
@@ -447,6 +447,10 @@
       "mi": 171
     },
     {
+      "path": ".agents/scripts/lib/config-settings-schema.js",
+      "mi": 50.044
+    },
+    {
       "path": ".agents/scripts/lib/config/baselines.js",
       "mi": 105.406
     },
@@ -464,7 +468,7 @@
     },
     {
       "path": ".agents/scripts/lib/config/explain.js",
-      "mi": 90.25
+      "mi": 90.381
     },
     {
       "path": ".agents/scripts/lib/config/gates/bundle-size.schema.js",
@@ -509,6 +513,10 @@
     {
       "path": ".agents/scripts/lib/config/lifecycle.js",
       "mi": 111.715
+    },
+    {
+      "path": ".agents/scripts/lib/config/limits.js",
+      "mi": 102.745
     },
     {
       "path": ".agents/scripts/lib/config/paths.js",
@@ -1736,7 +1744,7 @@
     },
     {
       "path": ".agents/scripts/lint-label-vocabulary.js",
-      "mi": 88.01
+      "mi": 88.017
     },
     {
       "path": ".agents/scripts/loc-delta.js",
