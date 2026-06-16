@@ -13,7 +13,10 @@
  *      which prunes orphans — so the old generated command disappears once the
  *      source workflow is renamed and the sync re-runs.
  *   3. No file under `.agents/`, `docs/`, `.claude/`, or `tests/` references the
- *      old `qa-run-harness` string (this test file excepted).
+ *      old `qa-run-harness` string (this test file and `docs/CHANGELOG.md`
+ *      excepted — the release-please version changelog legitimately records the
+ *      rename in its release history, which is a factual record, not a live
+ *      reference to the renamed workflow).
  *
  * The skill DIRECTORY `.agents/skills/stack/qa/qa-harness/` keeps its name —
  * only the workflow/command string `qa-run-harness` is renamed, so the
@@ -50,6 +53,15 @@ const EXCLUDED_DIRS = new Set(['node_modules', '.worktrees', 'archive']);
 // itself an offender when it scans for the pattern.
 const OLD_REFERENCE = ['qa', 'run', 'harness'].join('-');
 const SELF = path.join(REPO_ROOT, 'tests', 'qa-run-rename.test.js');
+// docs/CHANGELOG.md is the release-please-managed version changelog — the
+// project's canonical release history (release-please is its sole writer). A
+// release entry necessarily quotes the rename commit's subject
+// ("qa-run-harness→qa-run"), so the old name appears there as a factual record
+// of the rename, NOT as a live reference to the renamed workflow (which is what
+// this guard catches). Exempt it as a named file — unlike EXCLUDED_DIRS, which
+// are throwaway/generated/vendored dirs, the changelog is a first-class source
+// doc that must stay.
+const CHANGELOG = path.join(REPO_ROOT, 'docs', 'CHANGELOG.md');
 
 async function fileExists(filePath) {
   try {
@@ -111,7 +123,7 @@ describe('qa-run rename guard', () => {
     const offenders = [];
     for (const root of SCAN_ROOTS) {
       for await (const file of walkTextFiles(root)) {
-        if (file === SELF) continue;
+        if (file === SELF || file === CHANGELOG) continue;
         let source;
         try {
           source = await readFile(file, 'utf8');
