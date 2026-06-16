@@ -2,6 +2,38 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.70.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.69.0...mandrel-v1.70.0) (2026-06-16)
+
+
+### Added
+
+* **agents-update:** add a first-run preflight before the updater (refs [#4170](https://github.com/dsj1984/mandrel/issues/4170)) ([#4177](https://github.com/dsj1984/mandrel/issues/4177)) ([82d30c6](https://github.com/dsj1984/mandrel/commit/82d30c6877d567d8272e1f433da00797a71bdeb9))
+* **agents-update:** make partial-upgrade recovery a first-class workflow step (refs [#4172](https://github.com/dsj1984/mandrel/issues/4172)) ([#4179](https://github.com/dsj1984/mandrel/issues/4179)) ([9959fd8](https://github.com/dsj1984/mandrel/commit/9959fd8e480067b1c35d25c9e37f8be0908f9a9e))
+
+
+### Fixed
+
+* /audit-to-stories: fix silent-no-op dedup (GitHubProvider.searchIssues missing) + junk audit:: label derivation ([#4195](https://github.com/dsj1984/mandrel/issues/4195)) ([#4207](https://github.com/dsj1984/mandrel/issues/4207)) ([d4fed9b](https://github.com/dsj1984/mandrel/commit/d4fed9b6a3077c6c9371ec00debae5c422ac89c6))
+* **agents-update:** invoke mandrel via npx and detect install state (refs [#4169](https://github.com/dsj1984/mandrel/issues/4169)) ([#4174](https://github.com/dsj1984/mandrel/issues/4174)) ([9aab7ba](https://github.com/dsj1984/mandrel/commit/9aab7ba3f2c425a5ecaf16e1008078538093a985))
+* **bootstrap:** relax owner/repo under --skip-github so non-interactive init works in a fresh dir ([#4181](https://github.com/dsj1984/mandrel/issues/4181)) ([e560116](https://github.com/dsj1984/mandrel/commit/e560116aa33178f182752558e7d646c2cb7cdeb4))
+* **deps:** bump markdownlint-cli2 0.18.1 -&gt; 0.22.1, force patched js-yaml/markdown-it (refs [#4187](https://github.com/dsj1984/mandrel/issues/4187)) ([#4200](https://github.com/dsj1984/mandrel/issues/4200)) ([9fe1e09](https://github.com/dsj1984/mandrel/commit/9fe1e09daf91fab0ca5d44d5a701cd2576406a5b))
+* **install-matrix:** hoist mandrel runtime deps in pnpm legs so doctor is honest ([#4180](https://github.com/dsj1984/mandrel/issues/4180)) ([5e7aca7](https://github.com/dsj1984/mandrel/commit/5e7aca7d48b9ab9d0ddd5c157a28bea8978fb90a))
+
+
+### Performance
+
+* **baselines:** collapse the two escomplex passes in full-tree regen into one (refs [#4192](https://github.com/dsj1984/mandrel/issues/4192)) ([#4205](https://github.com/dsj1984/mandrel/issues/4205)) ([4f971c3](https://github.com/dsj1984/mandrel/commit/4f971c36723521058322b346980d6e1822c9d35d))
+* **doctor:** short-circuit payload-drift on statSync size mismatch (refs [#4193](https://github.com/dsj1984/mandrel/issues/4193)) ([#4204](https://github.com/dsj1984/mandrel/issues/4204)) ([a85c050](https://github.com/dsj1984/mandrel/commit/a85c0501a02ff346024fa9d8c9aa48046999f08c))
+
+
+### Changed
+
+* **agents-update:** extract quality-bootstrap heredoc into a tested script (refs [#4171](https://github.com/dsj1984/mandrel/issues/4171)) ([#4178](https://github.com/dsj1984/mandrel/issues/4178)) ([032ecf7](https://github.com/dsj1984/mandrel/commit/032ecf70f5840ad5291c0bcdb6b11a9d23bec1be))
+* **baselines:** triage dead-export allowlist 198 -&gt; 185 (refs [#4184](https://github.com/dsj1984/mandrel/issues/4184)) ([#4197](https://github.com/dsj1984/mandrel/issues/4197)) ([2a39e61](https://github.com/dsj1984/mandrel/commit/2a39e616bb9a843325bf151d8f057f85a43fcd95))
+* **renderers:** table-drive flat section ladders to lower CC ceilings (refs [#4186](https://github.com/dsj1984/mandrel/issues/4186)) ([#4201](https://github.com/dsj1984/mandrel/issues/4201)) ([36df937](https://github.com/dsj1984/mandrel/commit/36df9370d8e9cdef8f6bc47d0341ef8425314222))
+* **update:** retire No-Shim in-process path and extract pure planUpdate (refs [#4182](https://github.com/dsj1984/mandrel/issues/4182)) ([#4198](https://github.com/dsj1984/mandrel/issues/4198)) ([d5ed325](https://github.com/dsj1984/mandrel/commit/d5ed32560d98fa43d6103789efac530f16244a91))
+* **wave-runner:** decompose tick() into coordinator + phases (refs [#4183](https://github.com/dsj1984/mandrel/issues/4183)) ([#4196](https://github.com/dsj1984/mandrel/issues/4196)) ([0d7a6b4](https://github.com/dsj1984/mandrel/commit/0d7a6b4326b60ec3f2dd58a0798c8a37b6117d9c))
+
 ## [1.69.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.68.0...mandrel-v1.69.0) (2026-06-16)
 
 
