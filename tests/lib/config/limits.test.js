@@ -13,8 +13,12 @@ import {
 // to three detectors (hotspot, rework, retry) and reads from
 // `delivery.signals.*`. The legacy `agentSettings.limits.signals` location
 // is gone. Other limits move:
-//   - planning.maxTickets / planning.context.{maxBytes,summaryMode}
+//   - planning.context.{maxBytes,summaryMode}
 //   - delivery.maxTokenBudget / delivery.execution.timeoutMs
+//
+// `maxTickets` is no longer an operator knob (Story #4163) — it is the
+// framework constant LIMITS_DEFAULTS.maxTickets (default 80) and
+// `resolveLimits` ignores any `planning.maxTickets` value.
 //
 // `getLimits(config)` accepts the resolved-config wrapper and surfaces the
 // surviving subset; `getSignals(config)` is the shorthand for
@@ -116,11 +120,6 @@ describe('resolveLimits — per-detector override merge', () => {
 });
 
 describe('resolveLimits — surviving budget surface', () => {
-  it('reads planning.maxTickets', () => {
-    const lim = resolveLimits({ planning: { maxTickets: 99 } });
-    assert.equal(lim.maxTickets, 99);
-  });
-
   it('reads delivery.maxTokenBudget + execution.timeoutMs', () => {
     const lim = resolveLimits({
       delivery: { maxTokenBudget: 50000, execution: { timeoutMs: 1234 } },
@@ -134,6 +133,24 @@ describe('resolveLimits — surviving budget surface', () => {
     assert.equal(lim.maxTickets, LIMITS_DEFAULTS.maxTickets);
     assert.equal(lim.maxTokenBudget, LIMITS_DEFAULTS.maxTokenBudget);
     assert.equal(lim.executionTimeoutMs, LIMITS_DEFAULTS.executionTimeoutMs);
+  });
+});
+
+describe('resolveLimits — maxTickets is a framework constant (Story #4163)', () => {
+  it('defaults the maxTickets reviewability budget to 80', () => {
+    assert.equal(LIMITS_DEFAULTS.maxTickets, 80);
+    const lim = resolveLimits({});
+    assert.equal(lim.maxTickets, 80);
+    assert.equal(getLimits().maxTickets, 80);
+  });
+
+  it('ignores planning.maxTickets — the operator knob is inert', () => {
+    const lim = resolveLimits({ planning: { maxTickets: 99 } });
+    assert.equal(
+      lim.maxTickets,
+      LIMITS_DEFAULTS.maxTickets,
+      'setting planning.maxTickets must not change the resolved maxTickets value',
+    );
   });
 });
 

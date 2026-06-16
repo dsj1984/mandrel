@@ -713,14 +713,14 @@ node .agents/scripts/epic-plan-spec-validate.js \
    ticket array to `temp/epic-[Epic_ID]/tickets.json`. Do **not** inline
    the JSON authoring in the workflow body.
 
-   The `maxTickets` cap (`planning.maxTickets` in
-   `.agentrc.json`; framework default in
-   `.agents/scripts/lib/config/limits.js`) is a **reviewability budget**,
-   not a hard authoring ceiling: a draft over budget warns at authoring
-   time and is rejected at persist unless rerun with `--allow-over-budget`
-   (after confirming the over-budget rationale on the Epic). The
-   `epic-plan-decompose.js` script also logs the resolved budget to stderr
-   so a misconfigured key surfaces immediately. The skill body is the
+   The `maxTickets` cap is a **framework constant**
+   (`LIMITS_DEFAULTS.maxTickets` in
+   `.agents/scripts/lib/config/limits.js`; not operator-configurable) and
+   a **reviewability budget**, not a hard authoring ceiling: a draft over
+   budget warns at authoring time and is rejected at persist unless rerun
+   with `--allow-over-budget` (after confirming the over-budget rationale
+   on the Epic). The `epic-plan-decompose.js` script also logs the
+   resolved budget to stderr. The skill body is the
    authoritative source of the decomposer prompt; the `systemPrompt`
    field on the emit envelope is a backstop for legacy callers.
 

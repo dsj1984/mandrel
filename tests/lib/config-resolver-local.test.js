@@ -56,13 +56,13 @@ describe('config-resolver — .agentrc.local.json overlay (Story #3388)', () => 
     writeConfigs({
       agentrc: {
         project: { ...REQ.project, baseBranch: 'develop' },
-        planning: { maxTickets: 40 },
+        planning: { context: { maxBytes: 40000 } },
       },
     });
 
     const config = resolveConfig({ bustCache: true, cwd: FIXTURE_ROOT });
     assert.equal(config.project.baseBranch, 'develop');
-    assert.equal(config.planning.maxTickets, 40);
+    assert.equal(config.planning.context.maxBytes, 40000);
     assert.equal(config.source, path.join(FIXTURE_ROOT, '.agentrc.json'));
   });
 
@@ -70,16 +70,16 @@ describe('config-resolver — .agentrc.local.json overlay (Story #3388)', () => 
     writeConfigs({
       agentrc: {
         project: { ...REQ.project, baseBranch: 'develop' },
-        planning: { maxTickets: 40 },
+        planning: { context: { maxBytes: 40000 } },
         delivery: { maxTokenBudget: 100000, execution: { timeoutMs: 900000 } },
       },
       local: {
-        planning: { maxTickets: 12 },
+        planning: { context: { maxBytes: 12000 } },
       },
     });
 
     const config = resolveConfig({ bustCache: true, cwd: FIXTURE_ROOT });
-    assert.equal(config.planning.maxTickets, 12);
+    assert.equal(config.planning.context.maxBytes, 12000);
     assert.equal(config.delivery.maxTokenBudget, 100000);
     assert.equal(config.delivery.execution.timeoutMs, 900000);
     assert.match(

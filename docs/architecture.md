@@ -534,7 +534,7 @@ readers, kept in sync by a drift test.
 | `project.paths`          | Required filesystem roots (`agentRoot`, `docsRoot`, `tempRoot`).        |
 | `project.commands`       | Validate / lint / test / typecheck / build commands; `null` disables.  |
 | `delivery.quality`       | Maintainability + CRAP + lint baselines and gate configuration.         |
-| `planning.maxTickets`, `delivery.maxTokenBudget`, `delivery.execution` | Resource ceilings (planning-context, token budget, execution timeout). |
+| `planning.context`, `delivery.maxTokenBudget`, `delivery.execution` | Resource ceilings (planning-context budget, token budget, execution timeout). |
 | `github` + `delivery`    | GitHub provider config, worktree isolation, deliver-runner tuning.      |
 
 Each grouped block is read through a typed accessor (`getPaths(config)`,

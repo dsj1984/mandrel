@@ -59,7 +59,6 @@
     }
   },
   "planning": {
-    "maxTickets": 60,
     "context": {
       "maxBytes": 50000,
       "summaryMode": "auto"

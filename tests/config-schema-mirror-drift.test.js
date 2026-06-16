@@ -124,7 +124,6 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
           },
         },
         planning: {
-          maxTickets: 60,
           riskHeuristics: ['no destructive ops'],
           context: { maxBytes: 50000, summaryMode: 'auto' },
         },
@@ -180,6 +179,16 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
         },
       },
       'fully populated doc',
+    );
+  });
+
+  it('rejects the removed planning.maxTickets knob on both sides (Story #4163)', () => {
+    // `maxTickets` collapsed to a framework constant; both the runtime AJV
+    // schema and the static mirror dropped it, so `additionalProperties:
+    // false` on the planning block rejects it identically on both sides.
+    assertAgree(
+      { ...REQ, planning: { maxTickets: 60 } },
+      'removed planning.maxTickets knob',
     );
   });
 

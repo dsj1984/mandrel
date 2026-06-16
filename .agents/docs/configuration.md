@@ -26,7 +26,7 @@ with the runtime validators.
   "$schema": "./.agents/schemas/agentrc.schema.json",
   "project":  { /* paths, commands, baseBranch, docsContextFiles */ },
   "github":   { /* owner, repo, branchProtection, mergeMethods, notifications */ },
-  "planning": { /* riskHeuristics, maxTickets, codebaseSnapshot, context */ },
+  "planning": { /* riskHeuristics, codebaseSnapshot, context */ },
   "delivery": { /* execution, quality, worktreeIsolation, deliverRunner, ... */ }
 }
 ```
@@ -97,7 +97,6 @@ top-level keys are validation errors.
 | Key | Required | Type | Default | Description |
 | --- | --- | --- | --- | --- |
 | `riskHeuristics` | No | `string[]` or `{ append?, prepend? }` | — | — |
-| `maxTickets` | No | `integer` | — | — |
 | `context` | No | `object` | — | Nested configuration block. |
 | `context.maxBytes` | No | `integer` | — | — |
 | `context.summaryMode` | No | `"auto"` \| `"always"` \| `"never"` | — | — |
@@ -430,7 +429,6 @@ suppress a channel entirely, set its array to `[]`.
 | Field                          | Required | Default    | Purpose                                                                                          |
 | ------------------------------ | -------- | ---------- | ------------------------------------------------------------------------------------------------ |
 | `riskHeuristics`               | No       | `[]`       | Free-form rubric for `risk::high` decisions (informational only — `risk::high` does not gate runtime). Accepts a plain array or the `{ append/prepend }` extender form. |
-| `maxTickets`                   | No       | (none)     | Soft cap on tickets a single Epic may decompose.                                                 |
 | `failOnSharedEditors`          | No       | (none)     | Hard-fail Phase 7 when two Stories declare the same editor.                                       |
 | `requireExplicitCrossStoryDeps`| No       | (none)     | Require explicit cross-Story `blocked by` declarations rather than inferring from shared paths.   |
 

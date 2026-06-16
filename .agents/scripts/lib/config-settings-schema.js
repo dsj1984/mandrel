@@ -271,7 +271,6 @@ const PLANNING_SCHEMA = {
   type: 'object',
   properties: {
     riskHeuristics: LIST_OR_EXTENDER_OF_STRINGS,
-    maxTickets: { type: 'integer', minimum: 1 },
     context: PLANNING_CONTEXT_SCHEMA,
     codebaseSnapshot: CODEBASE_SNAPSHOT_SCHEMA,
     taskSizing: TASK_SIZING_SCHEMA,

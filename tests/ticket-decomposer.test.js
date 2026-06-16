@@ -300,7 +300,8 @@ describe('ticket-decomposer buildDecomposerSystemPrompt', () => {
     // budget value and the "reviewability budget" language; the legacy
     // "Do NOT generate more than ..." hard-cap directive is forbidden.
     assert.ok(/reviewability budget/i.test(prompt));
-    assert.ok(/maxTickets\s*=\s*60/.test(prompt));
+    // Story #4163 — the framework-constant default budget is 80.
+    assert.ok(/maxTickets\s*=\s*80/.test(prompt));
     assert.ok(
       !/Do NOT generate more than/.test(prompt),
       'hard-cap directive must be removed in favor of reviewability-budget language',
@@ -477,10 +478,7 @@ describe('ticket-decomposer buildDecompositionContext', () => {
     };
 
     const ctx = await buildDecompositionContext(1, provider, {
-      agentSettings: {
-        planning: { riskHeuristics: ['Heuristic A'] },
-        limits: { maxTickets: 60 },
-      },
+      planning: { riskHeuristics: ['Heuristic A'] },
     });
 
     assert.equal(ctx.epic.id, 1);
@@ -488,11 +486,12 @@ describe('ticket-decomposer buildDecompositionContext', () => {
     assert.equal(ctx.techSpec.body, 'TECH SPEC BODY');
     assert.deepEqual(ctx.heuristics, ['Heuristic A']);
     assert.ok(ctx.systemPrompt.includes('Heuristic A'));
-    assert.equal(ctx.maxTickets, 60);
+    // Story #4163 — maxTickets is the framework constant (80), not config-driven.
+    assert.equal(ctx.maxTickets, 80);
     assert.ok(
-      /maxTickets\s*=\s*60/.test(ctx.systemPrompt) &&
+      /maxTickets\s*=\s*80/.test(ctx.systemPrompt) &&
         /reviewability budget/i.test(ctx.systemPrompt),
-      'systemPrompt must interpolate the configured maxTickets value and describe it as a reviewability budget',
+      'systemPrompt must interpolate the framework-constant maxTickets value and describe it as a reviewability budget',
     );
   });
 

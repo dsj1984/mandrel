@@ -358,10 +358,6 @@
         "riskHeuristics": {
           "$ref": "#/$defs/listOrExtenderOfStrings"
         },
-        "maxTickets": {
-          "type": "integer",
-          "minimum": 1
-        },
         "context": {
           "$ref": "#/$defs/planningContext"
         },

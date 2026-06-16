@@ -159,7 +159,7 @@ export function findVocabularyViolations(src, axes = KNOWN_AXES) {
   //   - `context::acceptance-spec` — canonical label, value contains a
   //     hyphen but is not at axis position.
   //   - `<type>/<slug>` — template placeholders.
-  //   - `planning.maxTickets` — config-key paths with `.`.
+  //   - `delivery.maxTokenBudget` — config-key paths with `.`.
   //   - `context.{prdId,techSpecId}` — JS destructure shapes.
   //   - `agent-protocol.md` — filenames / concept slugs.
   //
