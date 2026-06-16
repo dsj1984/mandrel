@@ -215,6 +215,32 @@ describe('lifecycle-emit ↔ epic.automerge.start schema (Story #2855)', () => {
   });
 });
 
+// `epic.automerge.end` had the same outlier shape as the #2855
+// `epic.automerge.start` schema: `additionalProperties: false` with no
+// `epicId` property. Because `lifecycle-emit.js#buildPayload` always maps
+// `--epic <id>` → `payload.epicId`, the documented `/deliver` Phase 8.5
+// ledger close-out invocation
+// `lifecycle-emit --epic <id> --event epic.automerge.end --pr-url <url>
+// --merged <true|false>` failed schema validation every time. The schema now
+// accepts `epicId` as an optional integer, matching its sibling
+// `epic.automerge.start`. This test pins the relaxation against future
+// re-tightening.
+describe('lifecycle-emit ↔ epic.automerge.end schema', () => {
+  it('epic.automerge.end accepts the injected epicId alongside prUrl + merged', async () => {
+    const out = await runLifecycleEmit({
+      event: 'epic.automerge.end',
+      payload: {
+        epicId: 90046,
+        prUrl: 'https://github.com/dsj1984/mandrel/pull/90046',
+        merged: false,
+      },
+      bus: new Bus(),
+    });
+    assert.equal(out.event, 'epic.automerge.end');
+    assert.equal(typeof out.seqId, 'number');
+  });
+});
+
 // Story #3904 — `runLifecycleEmit` previously returned `{ event, payload,
 // seqId }` and the CLI always exited 0, even when a listener (e.g. the
 // Finalizer on a `closePlanningTickets` throw, or the AcceptanceReconciler
