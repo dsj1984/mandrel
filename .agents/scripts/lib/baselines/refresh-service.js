@@ -739,7 +739,3 @@ function validateOptions({ kind, scopeFiles, fullScope, writePath }) {
     );
   }
 }
-
-// Exposed for the lint/test invariant (Task #2208) so the guard can list
-// every kind the service is contracted to dispatch without re-deriving it.
-export const REFRESH_SERVICE_SUPPORTED_KINDS = SUPPORTED_KINDS;

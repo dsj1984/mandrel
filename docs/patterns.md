@@ -475,43 +475,43 @@ that own their own cadence.
 
 The progress-reporter module
 (`lib/orchestration/epic-runner/progress-reporter/composition.js`,
-`renderProgressBody` / `upsertEpicRunProgress`) renders the
-`epic-run-progress` snapshot covering every story across every wave —
-queued, in-flight, done, blocked — so operators see the full Epic at a
-glance.
+`upsertEpicRunProgress`) renders the `epic-run-progress` snapshot
+covering every story in the Epic — queued, in-flight, done, blocked —
+so operators see the full Epic at a glance.
 
-`upsertEpicRunProgress` is called by `/deliver` Step 2b
-(`epic-execute-record-wave.js`) after each wave completes, folding the
-`epic-run-state` checkpoint's `waves[]` into per-wave rows and
-rendering a single grouped table:
+`upsertEpicRunProgress` is called by `/deliver`'s per-Story status
+recorder (`epic-execute-record-wave.js`) after each recorder beat.
+Story #4155 (Epic #4151) cut the runtime over from the wave-batch
+scheduler to the continuous ready-set core, so the rollup is a **flat
+per-Story table** keyed by the checkpoint's `stories` status map — there
+is no `Wave` column and no `waves[]` grouping any more:
 
 ```text
-### 📊 Progress — Wave 2/2 · 5/6 closed · 38m elapsed
-| Wave | ID  | State        | Title                                         |
-|------|-----|--------------|-----------------------------------------------|
-| 1    | #419| ✅ done      | Spawner hardening suite                       |
-| 1    | #420| ✅ done      | Post-wave commit assertion                    |
-| 1    | #421| ✅ done      | story-close --resume / --restart              |
-| 1    | #422| ✅ done      | Biome format gate + tagging sanity check      |
-| 1    | #423| ✅ done      | error-journal parse-fix, validator wiring     |
-| 2    | #424| 🔧 in-flight | ProgressReporter detectors + CI Node matrix   |
+### 📊 Epic Progress — 5/6 stories done
+| ID | State | Title |
+|---|---|---|
+| #419 | ✅ done | Spawner hardening suite |
+| #420 | ✅ done | Post-wave commit assertion |
+| #421 | ✅ done | story-close --resume / --restart |
+| #422 | ✅ done | Biome format gate + tagging sanity check |
+| #423 | ✅ done | error-journal parse-fix, validator wiring |
+| #424 | 🔧 in-flight | ProgressReporter detectors + CI Node matrix |
 ```
 
-There is no separate per-wave structured comment — `epic-run-progress`
-is the single operator-facing summary, grouped by wave, and the upsert
-is idempotent by marker (see the structured-comment pattern above).
+There is no separate per-Story structured comment — `epic-run-progress`
+is the single operator-facing summary, and the upsert is idempotent by
+marker (see the structured-comment pattern above).
 
 **Why it matters:** the progress signal is what operators read while
-the delivery loop runs. A snapshot that only shows the active wave hides
-"is the epic 20% done or 80% done?" — exactly the question the
-operator is trying to answer when checking in. The grouped table
-collapses that question into a single glance.
+the delivery loop runs. A snapshot that only shows the active stories
+hides "is the epic 20% done or 80% done?" — exactly the question the
+operator is trying to answer when checking in. The flat table collapses
+that question into a single glance.
 
-**When to extend the table:** add a new column only when every wave's
-rendering benefits. Mechanical detectors (stalled-worktree,
-maintainability-drift) belong in the `Notable` section under the
-table — they fire once per snapshot, not once per row, so a column
-would mostly be blank.
+**When to extend the table:** add a new column only when every row
+benefits. Mechanical detectors (stalled-worktree, maintainability-drift)
+belong in the `Notable` section under the table — they fire once per
+snapshot, not once per row, so a column would mostly be blank.
 
 ## Per-Story friction signal emission (NDJSON)
 

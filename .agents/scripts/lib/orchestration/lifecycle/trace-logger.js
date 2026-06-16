@@ -353,7 +353,3 @@ export class TraceLogger {
     });
   }
 }
-
-export function createTraceLogger(opts) {
-  return new TraceLogger(opts);
-}

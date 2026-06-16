@@ -38,23 +38,3 @@ export function getBaselines(config) {
     maintainability: merge('maintainability'),
   };
 }
-
-/**
- * Legacy entry point retained for backward-compatible imports. Story #1737
- * retired the standalone `baselines.*` block; this helper now translates
- * `{ lint: { path }, ... }` input onto synthetic `gates.<tier>.baselinePath`.
- *
- * @param {object|undefined} userBlock
- */
-export function resolveBaselines(userBlock) {
-  const block = userBlock ?? {};
-  return getBaselines({
-    quality: {
-      gates: {
-        lint: { baselinePath: block.lint?.path },
-        crap: { baselinePath: block.crap?.path },
-        maintainability: { baselinePath: block.maintainability?.path },
-      },
-    },
-  });
-}

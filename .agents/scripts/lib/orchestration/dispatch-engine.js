@@ -27,8 +27,6 @@ import { buildManifest } from './manifest-builder.js';
 import { STATE_LABELS } from './ticketing.js';
 
 export const AGENT_DONE_LABEL = STATE_LABELS.DONE;
-export const AGENT_EXECUTING_LABEL = STATE_LABELS.EXECUTING;
-export const AGENT_READY_LABEL = STATE_LABELS.READY;
 
 /* node:coverage ignore next */
 export function ensureBranch(branchName, baseBranch) {
