@@ -213,6 +213,86 @@ mandrel update — planned upgrade v1.44.0 → v1.46.0
 Dry run: no files written, no dependency bumped.
 ```
 
+## Step 2.5 — Partial-upgrade recovery (**blocker — resolve before Step 5**)
+
+`mandrel update` runs its post-install phases in order — **install** →
+**sync** → **sync-commands** → **migrate** → **doctor** — and the install
+phase bumps `package.json` / `package-lock.json` and leaves the change
+**staged on disk** *before* any of the later phases run. By deliberate
+design the CLI **never rolls back the install on failure** (the lockfile
+bump is left staged for the operator — see the Out-of-Scope note in
+[`lib/cli/update.js`](../../lib/cli/update.js)). So when a post-install
+phase exits non-zero, you land in a **partially-upgraded state**:
+
+- The lockfile bump to the new version is **already staged**, *and*
+- `.agents/` may be **half-materialized** (sync failed midway), the flat
+  `.claude/commands/` tree may be **out of sync** (sync-commands failed), a
+  version-keyed migration may have **partially applied** (migrate failed), or
+  the post-upgrade state failed validation (doctor failed).
+
+This is the dangerous case the whole workflow exists to guard: the operator
+is now **one `git commit` away** (Step 5) from recording a broken
+half-upgrade as "done". `mandrel update` prints the per-phase manual remedy
+to **stderr**, but a line buried in stderr is easy to scroll past and commit
+right over. **Treat any post-install phase failure as an explicit blocker:
+do not proceed to Step 5 (commit) until the failed phase is recovered and a
+clean re-run reports success.**
+
+When `npx mandrel update` exits non-zero, identify which phase failed (the
+CLI's stderr names it) and run the matching manual remedy from the consumer
+repo root. These commands match the hint strings
+[`lib/cli/update.js`](../../lib/cli/update.js) emits verbatim — it is the
+single source of truth, kept in lockstep with this table by the
+`agents-update-recovery-drift` contract test
+([`tests/bootstrap/agents-update-recovery-drift.test.js`](../../tests/bootstrap/agents-update-recovery-drift.test.js)):
+
+| Failed phase      | Manual remedy                                            |
+| ----------------- | ------------------------------------------------------- |
+| **sync**          | `npx mandrel sync`                                       |
+| **sync-commands** | `npm run sync:commands`                                  |
+| **migrate**       | `npx mandrel migrate --from <cur> --to <target>`        |
+| **doctor**        | `npx mandrel doctor` (then apply the per-check remedies) |
+
+The exact stderr the CLI prints per failed phase — quoted verbatim from
+[`lib/cli/update.js`](../../lib/cli/update.js) so the table above can never
+drift from what the operator actually sees:
+
+- **sync** — the .agents/ materialization may be incomplete. Run `mandrel
+  sync` manually to restore.
+- **sync-commands** — the .claude/commands/ tree may be out of sync. Run `npm
+  run sync:commands` manually to restore.
+- **migrate** — some migrations for v\<cur\> → v\<target\> may not have
+  applied. Run `mandrel migrate --from <cur> --to <target>` manually to retry.
+- **doctor** — upgraded to v\<target\> but doctor reported failures. → Run
+  `mandrel doctor` for remedies.
+
+> **`<cur>` / `<target>`** are the installed and resolved-newest version
+> strings the CLI printed in Step 1 (e.g. `--from 1.44.0 --to 1.46.0`).
+> Substitute the real values the failing run reported.
+
+Recovery sequence:
+
+1. **Run the matching remedy** for the failed phase from the table above.
+2. **Re-run `npx mandrel update`.** It is idempotent — the install already
+   landed, so a clean re-run short-circuits the bump and re-drives the
+   post-install phases. Repeat the per-phase remedy until the run reports
+   `✅  Updated to v<target>. The lockfile bump is staged for review.` (or
+   `✅  Already up to date`).
+3. **Only then proceed** to Step 3. The staged lockfile bump is safe to
+   commit (Step 5) once — and only once — the post-install phases have all
+   gone green.
+
+> **Why not auto-rollback / `mandrel update --resume`?** A `--resume` flag
+> that re-enters the cycle at the failed phase was **evaluated and
+> deferred** (Story #4172, Out of Scope). The per-phase manual remedies
+> above fully cover recovery: each failed phase has an exact, idempotent
+> command, and re-running `npx mandrel update` already short-circuits the
+> completed install and re-drives the remaining phases — so a dedicated
+> resume entrypoint would add a parallel code path without covering any
+> recovery case the manual remedies miss. If a future change makes the
+> phases expensive enough that re-driving completed ones is wasteful,
+> revisit `--resume` then; today it is unnecessary.
+
 ## Step 3 — Reconcile `.agentrc.json` against the new defaults
 
 A framework bump can add or reshape fields in
@@ -408,6 +488,14 @@ response."
 
 ## Step 5 — Commit the bump
 
+> **Blocker check before you commit.** The staged lockfile bump is only safe
+> to commit once every post-install phase has gone green. If `npx mandrel
+> update` exited non-zero, you are in a partially-upgraded state — resolve it
+> via [Step 2.5 — Partial-upgrade recovery](#step-25--partial-upgrade-recovery-blocker--resolve-before-step-5)
+> (run the per-phase remedy, re-run the updater to success) **before** running
+> the `git commit` below. Committing over a half-upgrade records a broken
+> state as "done".
+
 `mandrel update` leaves the dependency bump **staged on disk** but never
 commits. After reviewing the surfaced changelog, any `.agentrc.json`
 reconciliation diff from Step 3, the `.claude/settings.json` allowlist
@@ -446,10 +534,20 @@ no-op.
 
 - **`doctor reported failures: …`** — the dependency bumped and `.agents/`
   re-materialized, but a doctor check failed (and the run exited
-  non-zero). Run `npx mandrel doctor` for the per-check remedies. The lockfile
-  bump is already staged; fix the doctor finding (often a missing
-  bootstrap install — Step 3.5 — or a stale `.agentrc.json` — Step 3)
-  before committing in Step 5.
+  non-zero). This is one shape of the **partial-upgrade** failure mode —
+  the lockfile bump is already staged, so it is a **blocker** you MUST
+  resolve before the commit step (see
+  [Step 2.5 — Partial-upgrade recovery](#step-25--partial-upgrade-recovery-blocker--resolve-before-step-5)).
+  Run `npx mandrel doctor` for the per-check remedies; fix the doctor
+  finding (often a missing bootstrap install — Step 3.5 — or a stale
+  `.agentrc.json` — Step 3), re-run `npx mandrel update` until it reports
+  success, and only then commit in Step 5.
+
+- **A post-install phase failed (`sync` / `sync-commands` / `migrate`)** —
+  the install bumped the lockfile but a later phase exited non-zero, leaving
+  a partially-upgraded tree. Do not commit. Run the matching per-phase
+  remedy and re-run the updater per
+  [Step 2.5 — Partial-upgrade recovery](#step-25--partial-upgrade-recovery-blocker--resolve-before-step-5).
 
 - **Install command failed / `npm install … exited <n>`** — the npm
   install step could not bump the dependency (network hiccup, registry
