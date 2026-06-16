@@ -1,0 +1,23 @@
+{
+  "id": "hello-world",
+  "title": "Hello-world HTTP server",
+  "difficulty": 1,
+  "rung": "floor",
+  "description": "The overhead floor and end-to-end smoke scenario. A single tiny capability with no decomposition surface — its only job is to expose Mandrel's fixed ceremony tax on near-zero work versus the bare-model control.",
+  "seed": {
+    "title": "Hello-world HTTP server",
+    "prompt": "Build a minimal HTTP server in Node.js (ESM, no external web framework) that listens on the port given by the PORT environment variable (default 3000). A GET request to the path \"/\" must return HTTP 200 with a Content-Type of text/html and a response body containing the exact text \"Hello, World!\". Add an npm \"start\" script that launches the server. Keep the implementation to a single source file plus package.json.",
+    "acceptance": [
+      "GET / returns HTTP 200",
+      "The response Content-Type is text/html",
+      "The response body contains the text \"Hello, World!\""
+    ]
+  },
+  "app": {
+    "startCommand": "npm start",
+    "readinessPath": "/",
+    "defaultPort": 3000,
+    "portEnvVar": "PORT"
+  },
+  "acceptanceSuite": "./acceptance.test.js"
+}

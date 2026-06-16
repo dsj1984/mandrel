@@ -1,0 +1,26 @@
+{
+  "id": "crud-db",
+  "title": "CRUD + DB notes API",
+  "difficulty": 2,
+  "rung": "depth",
+  "description": "The depth scenario. A persisted CRUD resource exercises decomposition, multi-wave delivery, planning fidelity, and autonomy at depth — enough surface to need a real plan, not just a single file.",
+  "seed": {
+    "title": "Notes CRUD API with persistent storage",
+    "prompt": "Build a JSON REST API in Node.js (ESM) for a \"notes\" resource backed by a persistent store (an embedded SQLite database file, or an equivalent on-disk store — not in-memory). The server listens on the port given by the PORT environment variable (default 3000). It must expose: POST /notes (accepts a JSON body {\"title\": string, \"body\": string}, validates that both fields are non-empty strings, persists the note with a server-assigned id and createdAt timestamp, and returns 201 with the created note as JSON); GET /notes (returns 200 with a JSON array of all notes); GET /notes/:id (returns 200 with the note JSON, or 404 if no such note exists); PUT /notes/:id (accepts a JSON body with title and/or body, updates the persisted note, returns 200 with the updated note, or 404 if absent); DELETE /notes/:id (deletes the persisted note, returns 204, or 404 if absent). Invalid create/update payloads must return 400. Persisted notes must survive a server restart. Add an npm \"start\" script.",
+    "acceptance": [
+      "POST /notes with a valid body creates a note and returns 201 with the created note (including a server-assigned id) as JSON",
+      "GET /notes returns 200 with a JSON array containing previously created notes",
+      "GET /notes/:id returns the matching note, and 404 for an unknown id",
+      "PUT /notes/:id updates the persisted note and returns the updated representation",
+      "DELETE /notes/:id removes the note (returns 204) and a subsequent GET for that id returns 404",
+      "POST /notes with an invalid body (missing or empty title/body) returns 400"
+    ]
+  },
+  "app": {
+    "startCommand": "npm start",
+    "readinessPath": "/notes",
+    "defaultPort": 3000,
+    "portEnvVar": "PORT"
+  },
+  "acceptanceSuite": "./acceptance.test.js"
+}
