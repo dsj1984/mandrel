@@ -55,6 +55,11 @@
       "enabled": false
     },
     {
+      "description": "typhonjs-escomplex is the complexity kernel for the CRAP/maintainability gates; its resolved version is stamped into committed baselines, so a bump invalidates every baseline. It is pinned at its terminal 0.1.0 (abandonware, but pure-JS and CVE-free) and must only be swapped via a dedicated baseline-recut Epic — never an automated bump. See docs/roadmap.md (Part 1, 'Also parked').",
+      "matchPackageNames": ["typhonjs-escomplex"],
+      "enabled": false
+    },
+    {
       "description": "Do not touch the Node engines constraint; it is hand-managed",
       "matchManagers": ["npm"],
       "matchDepTypes": ["engines"],
