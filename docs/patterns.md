@@ -103,14 +103,31 @@ graph LR
 ## Story-Level Branching
 
 ### Problem
-Epic branches become massive, long-lived, and prone to merge conflicts across dozens of tasks.
+Epic branches become massive, long-lived, and prone to merge conflicts when
+every Story commits directly to the shared Epic branch.
 
 ### Solution
-The **Story-Level Branching** pattern restricts the integration scope:
-1.  **Base Branch:** `epic/NNN`
-2.  **Shared Story Branch:** `story/EPIC-ID/STORY-NAME`
-3.  **Task Branches:** `task/EPIC-ID/TASK-NAME` (branch from story branch)
-4.  **Integration:** Task merges into Story branch → Story merges into Epic branch.
+The **Story-Level Branching** pattern restricts the integration scope under
+the 2-tier (Epic → Story) hierarchy — there is no Task tier
+(`label-constants.js` `TYPE_LABELS` defines only `EPIC` and `STORY`), so there
+are no task branches:
+
+1.  **Epic base branch:** `epic/<id>` — created from `main`, the integration
+    target for every Story in the Epic.
+2.  **Per-Story branch:** `story-<storyId>` (flat, hyphenated — **not**
+    slash-namespaced) — created by `story-init.js`, materialized as a worktree
+    at `.worktrees/story-<storyId>/`. All Story implementation commits land
+    here.
+3.  **Story → Epic integration:** Story branches merge into the Epic branch
+    with `--no-ff` (via `story-close.js`).
+4.  **Epic → `main`:** the Epic branch reaches `main` through the pull request
+    `/deliver` opens at the end of its run; the operator merges it through the
+    GitHub UI.
+
+This matches the canonical contract in
+[`.agents/rules/git-conventions.md`](../.agents/rules/git-conventions.md) and
+the Ticket Hierarchy / branch model in
+[`docs/architecture.md`](architecture.md#ticket-hierarchy).
 
 ### Benefits
 *   Reduced integration surface area.
