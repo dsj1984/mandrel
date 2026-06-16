@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { beforeEach, describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
 // Story #1437 Task #1447: the `ticket-decomposer.js` engine was inlined
 // into `epic-plan-decompose.js`. The test suite name is kept as a
 // historical breadcrumb for greppability; the exercised behaviour is
@@ -300,7 +303,8 @@ describe('ticket-decomposer buildDecomposerSystemPrompt', () => {
     // budget value and the "reviewability budget" language; the legacy
     // "Do NOT generate more than ..." hard-cap directive is forbidden.
     assert.ok(/reviewability budget/i.test(prompt));
-    assert.ok(/maxTickets\s*=\s*60/.test(prompt));
+    // Story #4163 — the framework-constant default budget is 80.
+    assert.ok(/maxTickets\s*=\s*80/.test(prompt));
     assert.ok(
       !/Do NOT generate more than/.test(prompt),
       'hard-cap directive must be removed in favor of reviewability-budget language',
@@ -384,6 +388,24 @@ describe('ticket-decomposer buildDecomposerSystemPrompt', () => {
     );
   });
 
+  it('instructs the author to emit a reason_to_exist per Story (Story #4164)', () => {
+    const prompt = buildDecomposerSystemPrompt([]);
+    // The prompt must name the field and frame it as the machine-checkable
+    // form of the cohesion rule the consolidate critic verifies.
+    assert.ok(
+      /reason[_ ]to[_ ]exist|reason to exist/i.test(prompt),
+      'prompt must mention the reason to exist field',
+    );
+    assert.ok(
+      /reason_to_exist/.test(prompt),
+      'prompt must name the reason_to_exist meta field by its serialized key',
+    );
+    assert.ok(
+      /epic-plan-consolidate/.test(prompt),
+      'prompt must tie the reason to exist field to the consolidate critic',
+    );
+  });
+
   it('no longer mentions the retired profile enum or testSurface gates (Story #3760)', () => {
     const prompt = buildDecomposerSystemPrompt([]);
     assert.ok(
@@ -458,6 +480,85 @@ describe('ticket-decomposer buildDecomposerSystemPrompt', () => {
   });
 });
 
+describe('ticket-decomposer prompt single-sourcing (Story #4162)', () => {
+  // The decomposer system-prompt BODY is single-sourced in
+  // `decomposer-prompts.js`. The `epic-plan-decompose-author` SKILL references
+  // that rendered prompt rather than embedding a second verbatim copy, so the
+  // two surfaces cannot drift. This distinctive opening line is the
+  // unmistakable marker of the full prompt body — it must appear in exactly one
+  // of the two surfaces.
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const SKILL_PATH = path.join(
+    __dirname,
+    '..',
+    '.agents',
+    'skills',
+    'core',
+    'epic-plan-decompose-author',
+    'SKILL.md',
+  );
+  const FULL_BODY_MARKER =
+    'You are an expert Senior Project Manager and Orchestrator.\nYour job is to take a Product Requirements Document (PRD) and a Technical Specification and decompose them into a flat list of Story tickets';
+
+  it('the JS template carries the full decomposer system-prompt body', () => {
+    const prompt = renderDecomposerSystemPrompt();
+    assert.ok(
+      prompt.includes(FULL_BODY_MARKER),
+      'decomposer-prompts.js must carry the full prompt body (the single source)',
+    );
+  });
+
+  it('the SKILL references the prompt and does NOT carry a second full body — a guard test fails if both carry it', () => {
+    const skill = readFileSync(SKILL_PATH, 'utf8');
+    assert.ok(
+      !skill.includes(FULL_BODY_MARKER),
+      'SKILL.md must NOT embed a second verbatim copy of the full decomposer prompt body — reference the rendered prompt instead (Story #4162)',
+    );
+    assert.ok(
+      /decomposer-prompts\.js/.test(skill),
+      'SKILL.md must reference the single-source prompt template (decomposer-prompts.js)',
+    );
+  });
+
+  it('no prompt surface mixes the soft reviewability-budget framing with a hard "Do NOT generate more than" cap (Story #4162)', () => {
+    const prompt = renderDecomposerSystemPrompt();
+    const skill = readFileSync(SKILL_PATH, 'utf8');
+    for (const [name, text] of [
+      ['rendered prompt', prompt],
+      ['SKILL.md', skill],
+    ]) {
+      // Soft framing is present...
+      assert.ok(
+        /reviewability budget/i.test(text),
+        `${name} must keep the soft reviewability-budget framing`,
+      );
+      // ...and the contradictory hard-cap line is gone.
+      assert.ok(
+        !/Do NOT generate more than/i.test(text),
+        `${name} must not contain the hard "Do NOT generate more than" maxTickets cap (Story #4162)`,
+      );
+    }
+  });
+
+  it('the rendered prompt names the delivery token budget (maxTokenBudget) as a sizing input (Story #4162)', () => {
+    const prompt = renderDecomposerSystemPrompt({ maxTokenBudget: 300000 });
+    assert.ok(
+      /maxTokenBudget/.test(prompt),
+      'prompt must mention maxTokenBudget as a sizing input',
+    );
+    assert.ok(
+      /\b300000\b/.test(prompt),
+      'prompt must interpolate the configured maxTokenBudget value',
+    );
+    assert.ok(
+      /token budget|delivery .*envelope|one-pass delivery envelope/i.test(
+        prompt,
+      ),
+      'prompt must frame maxTokenBudget as the one-pass delivery envelope',
+    );
+  });
+});
+
 describe('ticket-decomposer buildDecompositionContext', () => {
   it('returns the PRD/Tech Spec bodies and system prompt', async () => {
     const provider = {
@@ -477,10 +578,7 @@ describe('ticket-decomposer buildDecompositionContext', () => {
     };
 
     const ctx = await buildDecompositionContext(1, provider, {
-      agentSettings: {
-        planning: { riskHeuristics: ['Heuristic A'] },
-        limits: { maxTickets: 60 },
-      },
+      planning: { riskHeuristics: ['Heuristic A'] },
     });
 
     assert.equal(ctx.epic.id, 1);
@@ -488,11 +586,12 @@ describe('ticket-decomposer buildDecompositionContext', () => {
     assert.equal(ctx.techSpec.body, 'TECH SPEC BODY');
     assert.deepEqual(ctx.heuristics, ['Heuristic A']);
     assert.ok(ctx.systemPrompt.includes('Heuristic A'));
-    assert.equal(ctx.maxTickets, 60);
+    // Story #4163 — maxTickets is the framework constant (80), not config-driven.
+    assert.equal(ctx.maxTickets, 80);
     assert.ok(
-      /maxTickets\s*=\s*60/.test(ctx.systemPrompt) &&
+      /maxTickets\s*=\s*80/.test(ctx.systemPrompt) &&
         /reviewability budget/i.test(ctx.systemPrompt),
-      'systemPrompt must interpolate the configured maxTickets value and describe it as a reviewability budget',
+      'systemPrompt must interpolate the framework-constant maxTickets value and describe it as a reviewability budget',
     );
   });
 

@@ -332,7 +332,7 @@
         "softFiles": {
           "type": "integer",
           "minimum": 1,
-          "description": "File-count soft-warn threshold above which a typical-Story width finding fires (default 8)."
+          "description": "File-count soft-warn threshold above which a typical-Story width finding fires (default 15)."
         },
         "hardFiles": {
           "type": "integer",
@@ -357,10 +357,6 @@
       "properties": {
         "riskHeuristics": {
           "$ref": "#/$defs/listOrExtenderOfStrings"
-        },
-        "maxTickets": {
-          "type": "integer",
-          "minimum": 1
         },
         "context": {
           "$ref": "#/$defs/planningContext"

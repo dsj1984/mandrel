@@ -249,7 +249,7 @@ const CODEBASE_SNAPSHOT_SCHEMA = {
 /**
  * `planning.taskSizing` — Story-sizing thresholds consumed by
  * `ticket-validator-sizing.js`. Operator overrides shallow-merge with
- * `DEFAULT_TASK_SIZING` defaults (softFiles 8, hardFiles 30,
+ * `DEFAULT_TASK_SIZING` defaults (softFiles 15, hardFiles 30,
  * maxAcceptance 14, softAcceptanceCount 10 — the uniform relaxed profile
  * from Story #3874). Story #3760 collapsed the per-profile matrix and the
  * parallel `testSurface` axis into a flat set of knobs; the `sizingProfile`
@@ -271,7 +271,6 @@ const PLANNING_SCHEMA = {
   type: 'object',
   properties: {
     riskHeuristics: LIST_OR_EXTENDER_OF_STRINGS,
-    maxTickets: { type: 'integer', minimum: 1 },
     context: PLANNING_CONTEXT_SCHEMA,
     codebaseSnapshot: CODEBASE_SNAPSHOT_SCHEMA,
     taskSizing: TASK_SIZING_SCHEMA,

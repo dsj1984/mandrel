@@ -15,11 +15,28 @@ import {
  * 2-tier is the only published hierarchy after Story #4041 removed the
  * Feature tier: the prompt emits Stories only (direct Epic children) and
  * asks the planner to carry acceptance/verify as top-level ticket arrays.
+ *
+ * **Single source of the prompt body (Story #4162).** This module is the sole
+ * carrier of the full decomposer system-prompt body. The
+ * `epic-plan-decompose-author` SKILL no longer embeds a second verbatim copy —
+ * it references this rendered prompt (delivered to the host LLM in the
+ * `systemPrompt` field of the authoring context envelope built by
+ * `epic-plan-decompose/phases/context.js`) instead, so the two surfaces cannot
+ * drift. A guard test (`tests/ticket-decomposer.test.js`) fails if the SKILL
+ * re-grows a full copy of the prompt preamble.
+ *
+ * **Token-budget sizing input (Story #4162).** `maxTokenBudget` is the real
+ * one-pass delivery envelope (the task-prompt hydration cap surfaced into the
+ * authoring envelope by `context.js`, Story #3875). It is threaded into the
+ * rendered prompt as a sizing input so the planner sizes Stories against the
+ * envelope a single agent can actually deliver in one pass, rather than leading
+ * with the file-count proxy alone.
  */
 export function renderDecomposerSystemPrompt({
   maxTickets = LIMITS_DEFAULTS.maxTickets,
+  maxTokenBudget = LIMITS_DEFAULTS.maxTokenBudget,
 } = {}) {
-  return render2TierPrompt({ maxTickets });
+  return render2TierPrompt({ maxTickets, maxTokenBudget });
 }
 
 /**
@@ -28,7 +45,7 @@ export function renderDecomposerSystemPrompt({
  * on the Story body so the executing agent has everything it needs in one
  * ticket. Thematic grouping lives as prose in the Epic body / Tech Spec.
  */
-function render2TierPrompt({ maxTickets }) {
+function render2TierPrompt({ maxTickets, maxTokenBudget }) {
   // Sizing thresholds are sourced from the single DEFAULT_TASK_SIZING constant
   // (ticket-validator-sizing.js) so the prompt and the validator cannot drift.
   const { softFiles, hardFiles, maxAcceptance, softAcceptanceCount } =
@@ -103,6 +120,7 @@ The serialized \`body\` string renders these markdown sections (in order):
 - **changes** (in body string): Each entry is an object \`{ path, assumption }\` where \`assumption\` is one of \`creates | refactors-existing | deletes\`. Acceptable path shapes include explicit files (\`src/components/Foo.tsx\`), glob patterns (\`tests/e2e/*.spec.ts\`, \`**/*.astro\`), and module identifiers that resolve to files. Use \`refactors-existing\` for in-place edits to a file already on \`main\`; \`creates\` for net-new files; \`deletes\` for removals.
 - **acceptance** (top-level array on the ticket object): Items MUST be observable from outside the agent. Acceptable shapes: a specific command exits 0, a file exists at a given path, a snapshot test matches, a \`data-testid\` resolves under a given selector, a row count in a fixture matches. UNACCEPTABLE: "verify by reading the diff", "looks good", "matches the spec" — push these down into a \`verify\` command instead.
 - **verify** (top-level array on the ticket object): Each entry MUST name a testing tier in parentheses, drawn from \`unit\` / \`contract\` / \`e2e\` / \`validate\`. Example: \`npm run test -- src/x.test.ts (unit)\`, \`npm run validate (validate)\`. Stories with zero verify entries SHOULD fail validation; if a story is genuinely unverifiable in isolation (e.g., a copy edit auditor will eyeball), the literal entry \`manual:<reason>\` is allowed so the absence is intentional, not lazy. Manual entries without a reason are rejected.
+- **reason to exist** (REQUIRED, encoded as the \`reason_to_exist\` field of the \`<!-- meta: {...} -->\` comment appended to the serialized body string — NOT a top-level ticket field): One sentence stating the single coherent reason this Story exists, distinct from its broader \`## Goal\` prose. Every Story MUST carry a non-empty \`reason_to_exist\`; it is the machine-checkable form of the cohesion rule (**one Story = one coherent change with one reason to exist**) and the \`epic-plan-consolidate\` critic flags any Story whose body carries no non-empty reason to exist. Encode it as \`<!-- meta: {"reason_to_exist": "..."} -->\`.
 - **estimated_test_files** (optional, encoded in the \`<!-- meta: {...} -->\` comment appended to the serialized body string — NOT a top-level ticket field): Integer estimate of how many test files this Story creates or modifies. Omit when the number is not estimable. Informational only — it does not gate the decompose.
 
 #### STORY SIZING — COHESION FIRST (the numeric ceiling is only a backstop):
@@ -111,7 +129,9 @@ The serialized \`body\` string renders these markdown sections (in order):
 
 The primary question is **cohesion, not count**: *is this one coherent change with one reason to exist?* File count cannot tell a trivial ${softFiles}-file rename from a hard 3-file parser+caller+config change — so lead with the change's reason, not its size.
 
-- **One Story = one coherent change with one reason to exist.** If you cannot state that reason in a sentence, the Story is probably two Stories — or two Stories that should be one.
+**Size against the real one-pass delivery envelope.** Each Story is delivered and self-verified by a single agent in one pass, whose context is capped by the delivery token budget \`maxTokenBudget = ${maxTokenBudget}\` tokens (the task-prompt hydration cap). Use that envelope — not the file count alone — as the leading sizing input: a Story is correctly sized when one agent can hold its full change, acceptance, and verification in a single pass within \`maxTokenBudget\`. The numeric file thresholds below are a coarse backstop on top of this envelope, not the primary signal.
+
+- **One Story = one coherent change with one reason to exist.** If you cannot state that reason in a sentence, the Story is probably two Stories — or two Stories that should be one. State that sentence explicitly in the Story's \`reason_to_exist\` meta field (see STORY BODY RULES) so the consolidate critic can check it.
 - ${singleConsumerRule}
 - **Split independent, parallelizable work** into sibling Stories — but only when the pieces genuinely have separate reasons to exist.
 - **Declare \`wide\` with a one-line reason when a change is legitimately broad** (a cohesive cutover that spans many files for one reason). Declaring \`wide\` lifts the hard file-width ceiling — see below.

@@ -21,6 +21,7 @@ import {
   resolveDependencies,
   runDecomposePhase,
 } from '../../.agents/scripts/epic-plan-decompose.js';
+import { LIMITS_DEFAULTS } from '../../.agents/scripts/lib/config/limits.js';
 import { warnTicketCapNearLimit } from '../../.agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js';
 import { EPIC_PLAN_STATE_TYPE } from '../../.agents/scripts/lib/orchestration/epic-plan-state-store.js';
 import { structuredCommentMarker } from '../../.agents/scripts/lib/orchestration/ticketing.js';
@@ -188,9 +189,11 @@ describe('epic-plan-decompose pipeline — runDecomposePhase over-budget gate (S
   });
 
   it('throws a deterministic over-budget error when tickets.length > maxTickets and no override is set', async () => {
+    // Story #4163 — maxTickets is the framework constant (80). The inert
+    // `planning.maxTickets` knob is ignored, so the gate trips only above 80.
     const epic = buildEpic();
     const provider = buildProvider(epic);
-    const tickets = new Array(65).fill(null).map((_, i) => ({
+    const tickets = new Array(85).fill(null).map((_, i) => ({
       slug: `s${i}`,
       type: 'story',
       title: `T${i}`,
@@ -203,7 +206,7 @@ describe('epic-plan-decompose pipeline — runDecomposePhase over-budget gate (S
           1,
           provider,
           { tickets },
-          { planning: { maxTickets: 60 } },
+          { planning: { maxTickets: 200 } },
         ),
       /over.?budget|--allow-over-budget|reviewability budget/i,
     );
@@ -431,17 +434,20 @@ describe('epic-plan-decompose pipeline — buildDecompositionContext planning ri
     assert.equal(fullCtx.techSpec.body, TECH_SPEC_BODY);
   });
 
-  it('preserves the resolved maxTickets reviewability budget (AC #3)', async () => {
+  it('threads the framework-constant maxTickets reviewability budget, ignoring the inert knob (Story #4163)', async () => {
     const provider = buildProvider({
       planStateBody: planStateCommentBody({
         planningRisk: RISK_ENVELOPE,
         reviewRouting: ROUTING_ENVELOPE,
       }),
     });
+    // `planning.maxTickets` is inert post-#4163; the context must carry the
+    // framework constant (80), not the config value.
     const ctx = await buildDecompositionContext(EPIC_ID, provider, {
       planning: { maxTickets: 42 },
     });
-    assert.equal(ctx.maxTickets, 42);
+    assert.equal(ctx.maxTickets, LIMITS_DEFAULTS.maxTickets);
+    assert.equal(ctx.maxTickets, 80);
   });
 
   it('does not remove or rename existing context fields (Tech Spec AC)', async () => {

@@ -2,16 +2,23 @@
  * Limits/budgets/signals accessors (Epic #1720 Story #1739 — top-level reshape).
  *
  * Pre-reshape, every runtime ceiling lived under the legacy `agentSettings.limits.*` bag.
- * Post-reshape, the surviving keys are split across `planning.*` and
- * `delivery.*`:
+ * Post-reshape, the surviving operator-configurable keys are split across
+ * `planning.*` and `delivery.*`:
  *
- *   - `planning.maxTickets` (decomposer ceiling)
  *   - `planning.context.{maxBytes, summaryMode}` (planning-context budget)
  *   - `delivery.maxTokenBudget` (task-prompt hydration cap)
  *   - `delivery.execution.timeoutMs` (per-process execution timeout)
  *   - `delivery.lease.ttlMs` (assignee-as-lease staleness window — Story #3480)
  *   - `delivery.signals.{hotspot, rework, retry}` (performance-signal
  *     detector thresholds — `churn` and `idle` dropped)
+ *
+ * `maxTickets` (the decomposer reviewability budget) is a **framework
+ * constant** — Story #4163 collapsed the never-overridden
+ * `planning.maxTickets` operator knob to `LIMITS_DEFAULTS.maxTickets` and
+ * removed it from the AJV schema, the published mirror, and the explain
+ * map. The persist-time over-budget gate (ADR-20260610) still reads the
+ * constant via `getLimits(config).maxTickets`; `resolveLimits` no longer
+ * reads `planning.maxTickets`, so setting it in a config is inert.
  *
  * Dropped entirely: `maxInstructionSteps`, `friction.*` (the LLM
  * self-pacing thresholds rewritten as qualitative prose in
@@ -55,7 +62,7 @@ export const LEASE_TTL_MS_DEFAULT = 900000;
  * per-complexity budget branch anywhere in the resolver.
  */
 export const LIMITS_DEFAULTS = Object.freeze({
-  maxTickets: 60,
+  maxTickets: 80,
   maxTokenBudget: 300000,
   executionTimeoutMs: 600000,
   leaseTtlMs: LEASE_TTL_MS_DEFAULT,
@@ -91,9 +98,10 @@ function mergeSignals(userSignals) {
 /**
  * Resolve the surviving limits surface against a `.agentrc.json` shape
  * (post-reshape). Accepts the resolved-config wrapper or a partial bag —
- * pulls `maxTickets` and `planningContext` from `planning.*`, pulls
- * `maxTokenBudget` and `executionTimeoutMs` from `delivery.*`, pulls
- * signals from `delivery.signals.*`.
+ * `maxTickets` is the framework constant `LIMITS_DEFAULTS.maxTickets`
+ * (no longer operator-configurable; Story #4163), pulls `planningContext`
+ * from `planning.*`, pulls `maxTokenBudget` and `executionTimeoutMs` from
+ * `delivery.*`, pulls signals from `delivery.signals.*`.
  *
  * @param {object|undefined} config
  * @returns {{
@@ -125,7 +133,10 @@ export function resolveLimits(config) {
   const lease =
     delivery.lease && typeof delivery.lease === 'object' ? delivery.lease : {};
   return {
-    maxTickets: planning.maxTickets ?? LIMITS_DEFAULTS.maxTickets,
+    // `maxTickets` is a framework constant (Story #4163) — never read from
+    // `planning.maxTickets`. The persist-time over-budget gate still reads
+    // this value via getLimits().maxTickets.
+    maxTickets: LIMITS_DEFAULTS.maxTickets,
     maxTokenBudget: delivery.maxTokenBudget ?? LIMITS_DEFAULTS.maxTokenBudget,
     executionTimeoutMs:
       execution.timeoutMs ?? LIMITS_DEFAULTS.executionTimeoutMs,

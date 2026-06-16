@@ -89,13 +89,13 @@ async function runEmitContextPath({ epicId, provider, config, values }) {
   const ctx = await buildDecompositionContext(epicId, provider, config, {
     fullContext: values['full-context'],
   });
-  // Surface the resolved budget on stderr so a misconfigured `.agentrc.json`
-  // (e.g. flat-key `maxTickets` instead of grouped `planning.maxTickets`) is
-  // visible to the operator. The decomposer prompt embeds the same value.
-  // Story #2798 — language changed from "prompt cap" to "reviewability
-  // budget" to match the new prompt/skill contract.
+  // Surface the resolved reviewability budget on stderr so the operator
+  // sees the same value the decomposer prompt embeds. `maxTickets` is a
+  // framework constant (LIMITS_DEFAULTS.maxTickets), no longer an
+  // operator-configurable key. Story #2798 — language is "reviewability
+  // budget", not "prompt cap".
   Logger.error(
-    `[epic-plan-decompose] Resolved planning.maxTickets = ${ctx.maxTickets} (reviewability budget).`,
+    `[epic-plan-decompose] Resolved maxTickets reviewability budget = ${ctx.maxTickets} (framework constant).`,
   );
   const json = values.pretty
     ? JSON.stringify(ctx, null, 2)

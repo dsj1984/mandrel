@@ -1,13 +1,13 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-15T20:40:36.904Z",
+  "generatedAt": "2026-06-16T00:59:05.043Z",
   "rollup": {
     "*": {
       "p50": 3,
       "p95": 12,
       "max": 29.10003921033038,
-      "methodsAbove20": 19
+      "methodsAbove20": 20
     }
   },
   "rows": [
@@ -13238,19 +13238,97 @@
     {
       "path": ".agents/scripts/lib/story-body/story-body.js",
       "method": "stripListMarker",
-      "startLine": 146,
+      "startLine": 148,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/story-body/story-body.js",
       "method": "parsePathEntry",
-      "startLine": 165,
+      "startLine": 167,
       "crap": 14
     },
     {
       "path": ".agents/scripts/lib/story-body/story-body.js",
       "method": "extractBlockedBy",
-      "startLine": 225,
+      "startLine": 227,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/story-body/story-body.js",
+      "method": "extractMeta",
+      "startLine": 253,
+      "crap": 5.0432
+    },
+    {
+      "path": ".agents/scripts/lib/story-body/story-body.js",
+      "method": "normalizeReasonToExist",
+      "startLine": 289,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/story-body/story-body.js",
+      "method": "normalizeWide",
+      "startLine": 304,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/story-body/story-body.js",
+      "method": "splitSections",
+      "startLine": 325,
+      "crap": 12
+    },
+    {
+      "path": ".agents/scripts/lib/story-body/story-body.js",
+      "method": "parseLegacyStringBody",
+      "startLine": 396,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/story-body/story-body.js",
+      "method": "parseGoalSection",
+      "startLine": 433,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/story-body/story-body.js",
+      "method": "parsePathEntrySection",
+      "startLine": 450,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/story-body/story-body.js",
+      "method": "parseTextListSection",
+      "startLine": 468,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/story-body/story-body.js",
+      "method": "parse",
+      "startLine": 494,
+      "crap": 11
+    },
+    {
+      "path": ".agents/scripts/lib/story-body/story-body.js",
+      "method": "parseStructuredObject",
+      "startLine": 594,
+      "crap": 11
+    },
+    {
+      "path": ".agents/scripts/lib/story-body/story-body.js",
+      "method": "serializePathEntry",
+      "startLine": 680,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/story-body/story-body.js",
+      "method": "serialize",
+      "startLine": 702,
+      "crap": 21
+    },
+    {
+      "path": ".agents/scripts/lib/story-body/story-body.js",
+      "method": "extractChangePaths",
+      "startLine": 794,
       "crap": 2
     },
     {
@@ -13352,13 +13430,13 @@
     {
       "path": ".agents/scripts/lib/templates/decomposer-prompts.js",
       "method": "renderDecomposerSystemPrompt",
-      "startLine": 15,
+      "startLine": 35,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/templates/decomposer-prompts.js",
-      "method": "render3TierPrompt",
-      "startLine": 26,
+      "method": "render2TierPrompt",
+      "startLine": 48,
       "crap": 1
     },
     {

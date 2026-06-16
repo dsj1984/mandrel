@@ -26,7 +26,7 @@ with the runtime validators.
   "$schema": "./.agents/schemas/agentrc.schema.json",
   "project":  { /* paths, commands, baseBranch, docsContextFiles */ },
   "github":   { /* owner, repo, branchProtection, mergeMethods, notifications */ },
-  "planning": { /* riskHeuristics, maxTickets, codebaseSnapshot, context */ },
+  "planning": { /* riskHeuristics, codebaseSnapshot, context */ },
   "delivery": { /* execution, quality, worktreeIsolation, deliverRunner, ... */ }
 }
 ```
@@ -97,7 +97,6 @@ top-level keys are validation errors.
 | Key | Required | Type | Default | Description |
 | --- | --- | --- | --- | --- |
 | `riskHeuristics` | No | `string[]` or `{ append?, prepend? }` | — | — |
-| `maxTickets` | No | `integer` | — | — |
 | `context` | No | `object` | — | Nested configuration block. |
 | `context.maxBytes` | No | `integer` | — | — |
 | `context.summaryMode` | No | `"auto"` \| `"always"` \| `"never"` | — | — |
@@ -107,7 +106,7 @@ top-level keys are validation errors.
 | `codebaseSnapshot.exclude` | No | `array<string>` | — | — |
 | `codebaseSnapshot.recentCommitWindow` | No | `integer` | — | — |
 | `taskSizing` | No | `object` | — | Story-sizing thresholds consumed by ticket-validator-sizing.js. Operator overrides shallow-merge with DEFAULT_TASK_SIZING defaults. Story #3760 collapsed the per-profile matrix and the parallel testSurface axis into a flat set of knobs; the sizingProfile enum was replaced by an optional body-level `wide` declaration that lifts the hardFiles rejection. Story #3874 cut over to one uniform relaxed profile sized for capability slices a frontier model delivers and self-verifies in one pass. |
-| `taskSizing.softFiles` | No | `integer` | — | File-count soft-warn threshold above which a typical-Story width finding fires (default 8). |
+| `taskSizing.softFiles` | No | `integer` | — | File-count soft-warn threshold above which a typical-Story width finding fires (default 15). |
 | `taskSizing.hardFiles` | No | `integer` | — | File-count hard ceiling: a Story exceeding it is rejected unless it declares `wide` with a reason (default 30). |
 | `taskSizing.maxAcceptance` | No | `integer` | — | Hard ceiling on acceptance[] item count (default 14). |
 | `taskSizing.softAcceptanceCount` | No | `integer` | — | Soft-warn threshold on acceptance[] item count (default 10). |
@@ -430,7 +429,6 @@ suppress a channel entirely, set its array to `[]`.
 | Field                          | Required | Default    | Purpose                                                                                          |
 | ------------------------------ | -------- | ---------- | ------------------------------------------------------------------------------------------------ |
 | `riskHeuristics`               | No       | `[]`       | Free-form rubric for `risk::high` decisions (informational only — `risk::high` does not gate runtime). Accepts a plain array or the `{ append/prepend }` extender form. |
-| `maxTickets`                   | No       | (none)     | Soft cap on tickets a single Epic may decompose.                                                 |
 | `failOnSharedEditors`          | No       | (none)     | Hard-fail Phase 7 when two Stories declare the same editor.                                       |
 | `requireExplicitCrossStoryDeps`| No       | (none)     | Require explicit cross-Story `blocked by` declarations rather than inferring from shared paths.   |
 

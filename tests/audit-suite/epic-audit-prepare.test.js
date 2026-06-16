@@ -457,11 +457,11 @@ test('runEpicAuditPrepare: --help documents the depth field (Story #3939)', asyn
 
 // --- Story #3939: depth-aware audit envelope -------------------------------
 //
-// The default sizing thresholds (DEFAULT_TASK_SIZING) are softFiles=8,
+// The default sizing thresholds (DEFAULT_TASK_SIZING) are softFiles=15,
 // hardFiles=30. With the default config (noopConfig → no taskSizing override),
 // `resolveDepth` resolves:
 //   - high risk (any width)                → deep
-//   - low risk + count ≤ 8                  → light
+//   - low risk + count ≤ 15                 → light
 //   - absent checkpoint + small/unknown     → standard
 //   - low risk + count > 30 (wide)          → deep (width escalation)
 
@@ -502,7 +502,7 @@ test('runEpicAuditPrepare: low-risk + small change set resolves depth=light', as
       createProvider: noopProviderFactory(provider),
       selectAudits: makeFakeSelectAudits({
         selectedAudits: ['audit-clean-code'],
-        // 3 files ≤ softFiles(8) → small.
+        // 3 files ≤ softFiles(15) → small.
         changedFiles: makeChangedFiles(3),
         ticketTitle: 'x',
       }),

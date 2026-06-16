@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-15T13:34:12.163Z",
+  "generatedAt": "2026-06-16T00:37:23.856Z",
   "generator": "generate-skills-index.js@1",
   "skills": [
     {
@@ -128,7 +128,7 @@
       "category": "core",
       "path": ".agents/skills/core/epic-plan-consolidate/SKILL.md",
       "description": "Run a holistic, pre-persist consolidation pass over the draft Story ticket array an Epic's decompose phase produced. Use during Phase 8 of `/plan`, after `epic-plan-decompose-author` writes `temp/epic-<Epic_ID>/tickets.json` and before `epic-plan-decompose.js` validates and persists it. Reconciles the draft against the Tech Spec \"Delivery Slicing\" target via scope-preserving operations only.",
-      "policyCapsuleBullets": 8,
+      "policyCapsuleBullets": 9,
       "allowedTools": ["Read", "Write", "Bash"],
       "vendor": null
     },
