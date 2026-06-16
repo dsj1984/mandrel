@@ -14,6 +14,9 @@
  *   2. A hand-edited materialized file → ok:false naming the file + a remedy
  *      pointing at `mandrel sync` / the .agents/local/ zone
  *   3. The check logs only paths and counts — never file contents
+ *   4. (Story #4193) A `statSync` size short-circuit reports drift on a size
+ *      mismatch WITHOUT reading either file's contents; an equal-size pair
+ *      still falls through to the byte comparison.
  */
 
 import assert from 'node:assert/strict';
@@ -129,6 +132,56 @@ function makeFs(fileMap) {
   }
 
   return { existsSync, readdirSync, readFileSync };
+}
+
+/**
+ * Build a stat-aware fs seam (Story #4193) on top of {@link makeFs}.
+ *
+ * Each entry supplies the file's byte `content` plus the `size` that
+ * `statSync` should report — decoupling the two so a test can force a
+ * size mismatch (drift via stat alone) or an equal-size pair (falls through
+ * to the byte read) independently of the actual byte length. The returned
+ * `readFileSync` is wrapped in a spy that records every path read so a test
+ * can assert the byte read was skipped on the stat short-circuit.
+ *
+ * @param {Record<string, { content: Buffer|string, size: number }>} entries
+ * @returns {{
+ *   fsImpl: { existsSync: Function, readdirSync: Function, readFileSync: Function, statSync: Function },
+ *   readPaths: string[],
+ * }}
+ */
+function makeStatFs(entries) {
+  const byteMap = Object.fromEntries(
+    Object.entries(entries).map(([k, v]) => [k, v.content]),
+  );
+  const sizes = new Map(
+    Object.entries(entries).map(([k, v]) => [normalize(k), v.size]),
+  );
+  const base = makeFs(byteMap);
+
+  const readPaths = [];
+  function readFileSync(p) {
+    readPaths.push(normalize(p));
+    return base.readFileSync(p);
+  }
+
+  function statSync(p) {
+    const n = normalize(p);
+    if (!sizes.has(n)) {
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' });
+    }
+    return { size: sizes.get(n) };
+  }
+
+  return {
+    fsImpl: {
+      existsSync: base.existsSync,
+      readdirSync: base.readdirSync,
+      readFileSync,
+      statSync,
+    },
+    readPaths,
+  };
 }
 
 /** Normalize OS separators to POSIX for the in-memory map keys. */
@@ -308,5 +361,80 @@ describe('agents-drift check', () => {
     if (result.remedy) {
       assert.doesNotMatch(result.remedy, new RegExp(secret));
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// agents-drift — statSync size short-circuit (Story #4193)
+// ---------------------------------------------------------------------------
+
+describe('agents-drift statSync size short-circuit', () => {
+  it('reports drift on a size mismatch WITHOUT reading either file', () => {
+    const src = `${PKG_ROOT}/.agents/instructions.md`;
+    const dest = `${PROJECT}/.agents/instructions.md`;
+    const { fsImpl, readPaths } = makeStatFs({
+      [src]: { content: 'canonical body', size: 14 },
+      [dest]: { content: 'canonical body EDITED', size: 21 },
+    });
+
+    const result = driftCheck().run({
+      cwd: () => PROJECT,
+      fsImpl,
+      resolvePackageRoot: () => PKG_ROOT,
+    });
+
+    assertResultShape(result, { expectOk: false });
+    assert.match(result.detail, /instructions\.md/);
+    assert.match(result.detail, /differs/);
+    // The byte read MUST be skipped for the size-mismatched file: stat alone
+    // proved the drift, so neither src nor dest contents were read.
+    assert.deepEqual(
+      readPaths,
+      [],
+      'readFileSync must NOT be called when the size short-circuit fires',
+    );
+  });
+
+  it('falls through to the byte read when sizes are equal but content differs', () => {
+    // Same reported size, different bytes — the size check cannot prove drift,
+    // so the byte comparison must still run and catch it.
+    const src = `${PKG_ROOT}/.agents/instructions.md`;
+    const dest = `${PROJECT}/.agents/instructions.md`;
+    const { fsImpl, readPaths } = makeStatFs({
+      [src]: { content: 'AAAAA', size: 5 },
+      [dest]: { content: 'BBBBB', size: 5 },
+    });
+
+    const result = driftCheck().run({
+      cwd: () => PROJECT,
+      fsImpl,
+      resolvePackageRoot: () => PKG_ROOT,
+    });
+
+    assertResultShape(result, { expectOk: false });
+    assert.match(result.detail, /differs/);
+    // Equal size ⇒ both files were read for the byte comparison.
+    assert.ok(
+      readPaths.includes(normalize(src)) && readPaths.includes(normalize(dest)),
+      'both files must be byte-read when sizes are equal',
+    );
+  });
+
+  it('returns ok=true when sizes and bytes both match (no false drift)', () => {
+    const src = `${PKG_ROOT}/.agents/instructions.md`;
+    const dest = `${PROJECT}/.agents/instructions.md`;
+    const { fsImpl } = makeStatFs({
+      [src]: { content: 'identical', size: 9 },
+      [dest]: { content: 'identical', size: 9 },
+    });
+
+    const result = driftCheck().run({
+      cwd: () => PROJECT,
+      fsImpl,
+      resolvePackageRoot: () => PKG_ROOT,
+    });
+
+    assertResultShape(result, { expectOk: true });
+    assert.match(result.detail, /1 materialized file\(s\) match/);
   });
 });
