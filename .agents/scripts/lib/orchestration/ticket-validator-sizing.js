@@ -18,7 +18,7 @@
  *
  * Sizing model (Story #3760 — profile-matrix collapse; Story #3874 — one
  * uniform relaxed profile):
- *   - Flat knobs: `softFiles` (~8), `hardFiles` (~30), `maxAcceptance` (~14),
+ *   - Flat knobs: `softFiles` (~15), `hardFiles` (~30), `maxAcceptance` (~14),
  *     `softAcceptanceCount` (~10). No per-profile ceiling map, no parallel
  *     `testSurface` axis, no selector and no second profile.
  *   - The four-profile `sizingProfile` enum is replaced by a single optional
@@ -32,7 +32,11 @@
 
 export const DEFAULT_TASK_SIZING = Object.freeze({
   // Typical-Story warning thresholds (soft — emit advisory findings).
-  softFiles: 8,
+  // Story #4162 raised `softFiles` 8 → 15: a capability-sized Story routinely
+  // touches a dozen-plus files for one cohesive reason, so the advisory width
+  // nudge fired far too eagerly and biased the decomposer toward over-slicing.
+  // The hard `hardFiles` rejection (30) is unchanged.
+  softFiles: 15,
   softAcceptanceCount: 10,
   // Hard ceilings (rejection unless lifted).
   hardFiles: 30,

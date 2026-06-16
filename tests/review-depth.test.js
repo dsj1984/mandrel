@@ -128,16 +128,16 @@ describe('resolveDepth — standard tier (fail toward the middle)', () => {
 
 describe('resolveDepth — custom sizing override (planning.taskSizing)', () => {
   test('a tighter hardFiles makes a previously-standard diff deep', () => {
-    // Default: 10 files is below hardFiles(30) → standard for low risk.
+    // Default: softFiles(15) < 20 ≤ hardFiles(30) → standard for low risk.
     assert.equal(
-      resolveDepth({ overallLevel: 'low', changedFileCount: 10 }),
+      resolveDepth({ overallLevel: 'low', changedFileCount: 20 }),
       'standard',
     );
     // Operator retunes hardFiles down to 5 → the same diff is now wide → deep.
     assert.equal(
       resolveDepth({
         overallLevel: 'low',
-        changedFileCount: 10,
+        changedFileCount: 20,
         sizing: { hardFiles: 5 },
       }),
       'deep',
@@ -145,24 +145,24 @@ describe('resolveDepth — custom sizing override (planning.taskSizing)', () => 
   });
 
   test('a wider softFiles lifts a previously-standard low-risk diff to light', () => {
-    // Default: softFiles(8) < 12 ≤ hardFiles(30) → standard for low risk.
+    // Default: softFiles(15) < 18 ≤ hardFiles(30) → standard for low risk.
     assert.equal(
-      resolveDepth({ overallLevel: 'low', changedFileCount: 12 }),
+      resolveDepth({ overallLevel: 'low', changedFileCount: 18 }),
       'standard',
     );
-    // Operator retunes softFiles up to 20 → 12 now counts as small → light.
+    // Operator retunes softFiles up to 25 → 18 now counts as small → light.
     assert.equal(
       resolveDepth({
         overallLevel: 'low',
-        changedFileCount: 12,
-        sizing: { softFiles: 20 },
+        changedFileCount: 18,
+        sizing: { softFiles: 25 },
       }),
       'light',
     );
   });
 
   test('partial sizing override merges over DEFAULT_TASK_SIZING', () => {
-    // Only hardFiles overridden; softFiles still defaults to 8.
+    // Only hardFiles overridden; softFiles still defaults to 15.
     assert.equal(
       resolveDepth({
         overallLevel: 'low',
