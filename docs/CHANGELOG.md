@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.69.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.68.0...mandrel-v1.69.0) (2026-06-16)
+
+
+### Added
+
+* Epic [#4151](https://github.com/dsj1984/mandrel/issues/4151) ([#4159](https://github.com/dsj1984/mandrel/issues/4159)) ([f4ad69b](https://github.com/dsj1984/mandrel/commit/f4ad69b1663fca95c8e121f837a2e511ab306706))
+* Epic [#4158](https://github.com/dsj1984/mandrel/issues/4158) ([#4167](https://github.com/dsj1984/mandrel/issues/4167)) ([939265e](https://github.com/dsj1984/mandrel/commit/939265ef589a24a72d6beebad14197a245ec31ec))
+
+
+### Fixed
+
+* **baselines:** apply ignoreGlobs in diff-scope maintainability refresh ([#4166](https://github.com/dsj1984/mandrel/issues/4166)) ([436e3a4](https://github.com/dsj1984/mandrel/commit/436e3a424db9aac54f720a9a993ad0dd285998f3))
+* **lifecycle:** allow epicId in epic.automerge.end schema so the CLI can emit it ([#4168](https://github.com/dsj1984/mandrel/issues/4168)) ([5536cdc](https://github.com/dsj1984/mandrel/commit/5536cdc348e4958b9d05eebd3cd90e1554a1675c))
+
 ## [1.68.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.67.0...mandrel-v1.68.0) (2026-06-15)
 
 
