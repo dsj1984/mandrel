@@ -33,20 +33,26 @@ const matchesIntegration = picomatch(INTEGRATION_INCLUDE, { dot: true });
  * `tests` holds the framework's suite tree; `lib` holds the published CLI
  * (under `lib/cli` and `lib/migrations`) whose tests are colocated in
  * `__tests__` directories per the unit-tier convention in
- * `rules/testing-standards.md`. Without `lib` here, both the quick /
- * integration walk and the full-tier glob set miss the colocated CLI tests,
+ * `rules/testing-standards.md`. `.agents/scripts` holds the orchestration
+ * engine; some of its modules colocate tests in `__tests__` directories the
+ * same way (Story #4195). Without each root here, both the quick /
+ * integration walk and the full-tier glob set miss the colocated tests,
  * leaving that coverage dark in `npm test`. The matching full-tier globs
  * live in `FULL_TIER_GLOBS`.
  */
-const TEST_WALK_ROOTS = ['tests', 'lib'];
+const TEST_WALK_ROOTS = ['tests', 'lib', '.agents/scripts'];
 
 /**
  * Glob targets for the `full` tier — one per walk root in `TEST_WALK_ROOTS`.
- * The `tests` glob is a flat recursive sweep; the `lib` glob is scoped to
- * `__tests__` subtrees so it only matches colocated tests, never the shipped
- * source modules themselves.
+ * The `tests` glob is a flat recursive sweep; the `lib` and `.agents/scripts`
+ * globs are scoped to `__tests__` subtrees so they only match colocated
+ * tests, never the shipped source modules themselves.
  */
-const FULL_TIER_GLOBS = ['tests/**/*.test.js', 'lib/**/__tests__/**/*.test.js'];
+const FULL_TIER_GLOBS = [
+  'tests/**/*.test.js',
+  'lib/**/__tests__/**/*.test.js',
+  '.agents/scripts/**/__tests__/**/*.test.js',
+];
 
 /**
  * @param {string} dir

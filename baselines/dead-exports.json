@@ -4,6 +4,14 @@
   "generatedAt": "2026-06-16T12:42:22.847Z",
   "rows": [
     {
+      "file": ".agents/scripts/lib/audit-to-stories/audit-lenses.js",
+      "symbol": "isCanonicalLens"
+    },
+    {
+      "file": ".agents/scripts/lib/audit-to-stories/audit-lenses.js",
+      "symbol": "lensFromSourceReport"
+    },
+    {
       "file": ".agents/scripts/lib/baseline-schema-registry.js",
       "symbol": "BASELINE_ENVELOPE_FILE"
     },

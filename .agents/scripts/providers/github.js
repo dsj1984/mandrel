@@ -98,6 +98,7 @@ export class GitHubProvider extends ITicketingProvider {
  */
 const DELEGATIONS = [
   ['graphql', 'issues.ghGraphql'],
+  ['searchIssues', 'issues.searchIssues'],
   ['listIssuesByLabel', 'issues.listIssuesByLabel'],
   ['getEpics', 'issues.getEpics'],
   ['getEpic', 'issues.getEpic'],

@@ -6,8 +6,10 @@
  * criteria #8: Title (caller), Summary, Acceptance Criteria, Agent
  * Prompts, Context block, fingerprint footer.
  *
- * Pure: returns { title, body, labels }. Labels include every
- * `audit::<dimension>` represented in the merge plus the standard
+ * Pure: returns { title, body, labels }. Labels carry one canonical
+ * `audit::<lens>` per distinct source report represented in the merge
+ * (derived from each finding's `sourceReport` basename, NEVER from the
+ * fine-grained `dimension` text — see Story #4195), plus the standard
  * `type::story`, `agent::ready`, and (when any finding is Critical)
  * `risk::high`.
  *
@@ -19,6 +21,7 @@
  */
 
 import { serialize } from '../story-body/story-body.js';
+import { auditLabelsForFindings } from './audit-lenses.js';
 import { renderFingerprintFooter } from './finding-adapter.js';
 
 const STATIC_LABELS = Object.freeze(['type::story', 'agent::ready']);
@@ -71,9 +74,14 @@ function contextLinksFromGroup(group) {
 }
 
 function labelsForGroup(group) {
-  const auditLabels = uniq(
-    (group.dimensions ?? []).map((d) => `audit::${d.replace(/\s+/g, '-')}`),
-  );
+  // Derive `audit::<lens>` from each finding's `sourceReport` basename
+  // (`audit-<lens>-results.md` → `audit::<lens>`), NOT from the finding's
+  // fine-grained `dimension` text. The dimension is free-form prose
+  // ("stale-description", "dry", "efficiency (cpu)") and minting
+  // `audit::<dimension>` from it produced non-existent labels; only the 14
+  // canonical lens labels are valid. Multi-lens groups carry one label per
+  // distinct source report. See Story #4195.
+  const auditLabels = auditLabelsForFindings(group.findings ?? []);
   const labels = [...STATIC_LABELS, ...auditLabels];
   const hasCritical = (group.findings ?? []).some(
     (f) => f.severity === 'critical',

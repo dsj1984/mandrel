@@ -86,9 +86,14 @@ module.exports = {
     // Story #4125 — colocated test files under lib/ are test sources, not
     // production sources. Excluding them keeps `c8 report` and the
     // per-file coverage baseline from scoring test code as instrumented
-    // source (mirrors how `.agents/scripts/**/__tests__` are out of the
-    // `.agents/scripts/**` include by living under `tests/`).
+    // source.
     'lib/**/__tests__/**',
+    // Story #4195 — orchestration-engine modules under .agents/scripts may
+    // colocate tests in __tests__ directories too. They are caught by the
+    // `.agents/scripts/**` include above, so exclude them here (and from the
+    // maintainability / crap / duplication ignoreGlobs in .agentrc.json) so
+    // test code is never scored as instrumented production source.
+    '.agents/scripts/**/__tests__/**',
 
     // Pre-Story-#1702 baseline carve-outs.
     '.agents/scripts/agents-bootstrap-github.js',

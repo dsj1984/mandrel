@@ -1,14 +1,21 @@
 /**
- * audit-labels-bootstrap.js — Idempotently create the `audit::<dimension>`
+ * audit-labels-bootstrap.js — Idempotently create the `audit::<lens>`
  * label taxonomy in the configured GitHub repo.
  *
  * Run this once per repo before `/audit-to-stories` opens its first
  * Story. Re-runs are safe — existing labels are skipped, only missing
  * ones are created. Story #2583 acceptance criterion #6.
  *
- * The dimension list mirrors the 12 audit-* workflows in
- * `.agents/workflows/`. Adding a new audit-* workflow should also add a
- * corresponding entry below.
+ * The lens list is the shared SSOT `AUDIT_LENSES`
+ * (`lib/audit-to-stories/audit-lenses.js`), one per `/audit-<lens>` workflow
+ * under `.agents/workflows/`. Sourcing the list from the same module that
+ * `build-story-body.js` derives `audit::<lens>` labels from guarantees the
+ * label producer (this bootstrap) and the label deriver (story-body) cannot
+ * drift — a finding from `audit-documentation-results.md` derives
+ * `audit::documentation`, and this bootstrap creates exactly that label
+ * (Story #4195). The per-lens colour/description metadata lives in
+ * `LENS_META` below; adding a new `audit-*` workflow means adding its lens to
+ * `AUDIT_LENSES` and (optionally) a `LENS_META` entry.
  *
  * Delegates to `gh label create` so the script works without any
  * provider plumbing — `gh auth status` is the only prerequisite. Per
@@ -19,72 +26,87 @@
 import process from 'node:process';
 import { parseArgs } from 'node:util';
 
+import { AUDIT_LENSES } from './lib/audit-to-stories/audit-lenses.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import { gh as defaultGh, GhExecError } from './lib/gh-exec.js';
 
-const DIMENSIONS = Object.freeze([
-  {
-    name: 'architecture',
+/**
+ * Per-lens label presentation. Keyed by canonical lens name. A lens absent
+ * from this map falls back to {@link DEFAULT_LENS_META} so a newly-added
+ * `AUDIT_LENSES` entry still gets a label without a hard requirement to
+ * register colour/description here first.
+ */
+const LENS_META = Object.freeze({
+  architecture: {
     color: '6f42c1',
     description: 'Audit-sourced finding: architectural concerns',
   },
-  {
-    name: 'clean-code',
+  'clean-code': {
     color: '0e8a16',
     description: 'Audit-sourced finding: clean-code / maintainability',
   },
-  {
-    name: 'dependencies',
+  dependencies: {
     color: 'd4c5f9',
     description: 'Audit-sourced finding: dependencies / supply chain',
   },
-  {
-    name: 'devops',
+  devops: {
     color: 'fbca04',
     description: 'Audit-sourced finding: DevOps / CI / CD',
   },
-  {
-    name: 'lighthouse',
+  documentation: {
+    color: '1d76db',
+    description: 'Audit-sourced finding: documentation staleness / gaps',
+  },
+  lighthouse: {
     color: 'c5def5',
     description: 'Audit-sourced finding: Lighthouse score regressions',
   },
-  {
-    name: 'performance',
+  navigability: {
+    color: 'bfdadc',
+    description: 'Audit-sourced finding: route / nav reachability',
+  },
+  performance: {
     color: 'b60205',
     description: 'Audit-sourced finding: performance / latency',
   },
-  {
-    name: 'privacy',
+  privacy: {
     color: 'fef2c0',
     description: 'Audit-sourced finding: privacy / data handling',
   },
-  {
-    name: 'quality',
+  quality: {
     color: '0052cc',
     description: 'Audit-sourced finding: test quality / coverage gaps',
   },
-  {
-    name: 'security',
+  security: {
     color: 'b60205',
     description: 'Audit-sourced finding: security / OWASP',
   },
-  {
-    name: 'seo',
+  seo: {
     color: 'fbca04',
     description: 'Audit-sourced finding: SEO / discoverability',
   },
-  {
-    name: 'sre',
+  sre: {
     color: '0052cc',
     description: 'Audit-sourced finding: SRE / observability / reliability',
   },
-  {
-    name: 'ux-ui',
+  'ux-ui': {
     color: 'd4c5f9',
     description: 'Audit-sourced finding: UX / UI concerns',
   },
-]);
+});
+
+const DEFAULT_LENS_META = Object.freeze({
+  color: 'ededed',
+  description: 'Audit-sourced finding',
+});
+
+const DIMENSIONS = Object.freeze(
+  AUDIT_LENSES.map((name) => ({
+    name,
+    ...(LENS_META[name] ?? DEFAULT_LENS_META),
+  })),
+);
 
 async function labelExists(gh, owner, repo, name) {
   try {

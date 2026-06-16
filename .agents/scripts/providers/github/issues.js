@@ -100,6 +100,54 @@ export class IssuesGateway {
   }
 
   /**
+   * Search issues by a free-text query via the REST search API
+   * (`GET /search/issues`). Deliberately REST, **not** GraphQL: transient
+   * GraphQL 401s are a known failure mode in this repo (the dedup port that
+   * consumes this method must not silently no-op on an auth blip), so the
+   * search rides the same `gh api` REST surface + transient-retry shim as
+   * every other read here.
+   *
+   * The caller (`audit-to-stories.js` `loadProvider()`) passes a 40-char
+   * fingerprint sha as the query so the search resolves the handful of
+   * issues whose fingerprint footer carries that sha; `route-finding.js`
+   * then confirms identity against the footer. Both open and closed issues
+   * are returned (no `state:` qualifier is appended) so a closed-fingerprint
+   * match can surface as `regression-of-closed`.
+   *
+   * Returns the trimmed `[{ number, state, body }]` projection the dedup
+   * port expects. `state` is normalised to the REST lowercase form
+   * (`open` / `closed`).
+   *
+   * @param {{ query: string, owner?: string, repo?: string }} params
+   * @returns {Promise<Array<{ number: number, state: string, body: string }>>}
+   * @field-manifest GET /search/issues: total_count, items[number, state, body]
+   */
+  async searchIssues({ query, owner, repo } = {}) {
+    if (typeof query !== 'string' || query.trim().length === 0) {
+      throw new Error('searchIssues: a non-empty query string is required');
+    }
+    const scopeOwner = owner ?? this.owner;
+    const scopeRepo = repo ?? this.repo;
+    // Constrain the search to this repo and to issues (not PRs). The
+    // fingerprint sha is the free-text term; GitHub matches it against the
+    // issue body where the `<!-- audit-fingerprints: ... -->` footer lives.
+    const qualifiers = [`repo:${scopeOwner}/${scopeRepo}`, 'type:issue'];
+    const q = `${query.trim()} ${qualifiers.join(' ')}`;
+    const endpoint = `/search/issues?q=${encodeURIComponent(q)}`;
+    const result = await withTransientRetry(
+      () => this._gh.api({ method: 'GET', endpoint }),
+      { label: `searchIssues ${query}`, onRetry: defaultRetryWarn },
+    );
+    const json = parseApiJson(result);
+    const items = Array.isArray(json?.items) ? json.items : [];
+    return items.map((item) => ({
+      number: item.number,
+      state: item.state ?? 'open',
+      body: item.body ?? '',
+    }));
+  }
+
+  /**
    * List Epic-typed issues. Filter shape preserved from the old code.
    *
    * @field-manifest /repos/{owner}/{repo}/issues?labels=type::epic: number,
