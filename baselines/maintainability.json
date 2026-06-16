@@ -1,10 +1,10 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-15T20:40:36.688Z",
+  "generatedAt": "2026-06-16T00:30:54.685Z",
   "rollup": {
     "*": {
-      "min": 70.566,
+      "min": 49.84,
       "p50": 97.964,
       "p95": 127.336
     }
@@ -447,6 +447,10 @@
       "mi": 171
     },
     {
+      "path": ".agents/scripts/lib/config-settings-schema.js",
+      "mi": 49.84
+    },
+    {
       "path": ".agents/scripts/lib/config/baselines.js",
       "mi": 105.406
     },
@@ -509,6 +513,10 @@
     {
       "path": ".agents/scripts/lib/config/lifecycle.js",
       "mi": 111.715
+    },
+    {
+      "path": ".agents/scripts/lib/config/limits.js",
+      "mi": 102.668
     },
     {
       "path": ".agents/scripts/lib/config/paths.js",
@@ -848,7 +856,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/context.js",
-      "mi": 95.083
+      "mi": 93.856
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js",
@@ -1359,6 +1367,10 @@
       "mi": 87.033
     },
     {
+      "path": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
+      "mi": 96.709
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/ticketing.js",
       "mi": 171
     },
@@ -1587,6 +1599,10 @@
       "mi": 93.77
     },
     {
+      "path": ".agents/scripts/lib/templates/decomposer-prompts.js",
+      "mi": 120.302
+    },
+    {
       "path": ".agents/scripts/lib/test-env.js",
       "mi": 130.158
     },
@@ -1736,7 +1752,7 @@
     },
     {
       "path": ".agents/scripts/lint-label-vocabulary.js",
-      "mi": 88.01
+      "mi": 88.017
     },
     {
       "path": ".agents/scripts/loc-delta.js",
