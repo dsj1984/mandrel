@@ -158,6 +158,45 @@ function sanitizeLabels(labels) {
 }
 
 /**
+ * Descriptor table for the structured-body → markdown projection, in
+ * canonical emit order (`## Goal`, `## Changes`, `## Acceptance`,
+ * `## Verify`). Each descriptor reads one body field and returns the
+ * section's markdown block when the field is present and non-empty, or `null`
+ * to omit it. Adding a section is a one-line data edit rather than a new
+ * branch in {@link renderBody}.
+ *
+ * @type {Array<{ field: string, render: (value: unknown) => string | null }>}
+ */
+const SPEC_BODY_SECTIONS = [
+  {
+    field: 'goal',
+    render: (goal) =>
+      typeof goal === 'string' && goal.length > 0 ? `## Goal\n${goal}` : null,
+  },
+  {
+    field: 'changes',
+    render: (changes) =>
+      Array.isArray(changes) && changes.length > 0
+        ? `## Changes\n${changes.map((c) => `- ${String(c)}`).join('\n')}`
+        : null,
+  },
+  {
+    field: 'acceptance',
+    render: (acceptance) =>
+      Array.isArray(acceptance) && acceptance.length > 0
+        ? `## Acceptance\n${acceptance.map((a) => `- [ ] ${String(a)}`).join('\n')}`
+        : null,
+  },
+  {
+    field: 'verify',
+    render: (verify) =>
+      Array.isArray(verify) && verify.length > 0
+        ? `## Verify\n${verify.map((v) => `- ${String(v)}`).join('\n')}`
+        : null,
+  },
+];
+
+/**
  * Convert a decomposer body value into a spec `body` string. The
  * decomposer schema admits two shapes for a Story body:
  *
@@ -190,20 +229,9 @@ function renderBody(body) {
   if (typeof body !== 'object') return undefined;
 
   const sections = [];
-  if (typeof body.goal === 'string' && body.goal.length > 0) {
-    sections.push(`## Goal\n${body.goal}`);
-  }
-  if (Array.isArray(body.changes) && body.changes.length > 0) {
-    const items = body.changes.map((c) => `- ${String(c)}`).join('\n');
-    sections.push(`## Changes\n${items}`);
-  }
-  if (Array.isArray(body.acceptance) && body.acceptance.length > 0) {
-    const items = body.acceptance.map((a) => `- [ ] ${String(a)}`).join('\n');
-    sections.push(`## Acceptance\n${items}`);
-  }
-  if (Array.isArray(body.verify) && body.verify.length > 0) {
-    const items = body.verify.map((v) => `- ${String(v)}`).join('\n');
-    sections.push(`## Verify\n${items}`);
+  for (const descriptor of SPEC_BODY_SECTIONS) {
+    const block = descriptor.render(body[descriptor.field]);
+    if (block !== null) sections.push(block);
   }
   return sections.length > 0 ? sections.join('\n\n') : undefined;
 }
