@@ -436,20 +436,30 @@ jobs:
 
       # ── Leg: cold-start ───────────────────────────────────────────────────────
       # Exercises the Story #4045 single-command path end-to-end:
-      #   npm install --ignore-scripts → mandrel init --assume-yes → doctor ready.
+      #   npm install --ignore-scripts → mandrel init --assume-yes --skip-github
+      #   → doctor ready.
+      # `--skip-github` is required here: the throwaway consumer is not a git
+      # repo and has no remote, so owner/repo are uninferrable. Without
+      # --skip-github, `--assume-yes` (which means "configure now, incl. GitHub
+      # provisioning") hard-fails on `missing required answers: owner, repo`.
+      # The GitHub side effects (repo/labels/project creation) cannot be
+      # exercised against a throwaway repo anyway; this leg validates the
+      # single-command materialize + local-configure → doctor-ready path.
       - name: "[cold-start] Install npm with --ignore-scripts"
         if: matrix.leg == 'cold-start'
         shell: bash
         working-directory: ${{ env.CONSUMER_DIR }}
         run: npm install --ignore-scripts "$TARBALL_PATH"
 
-      - name: "[cold-start] Run mandrel init --assume-yes (cold-start bootstrap)"
+      - name: "[cold-start] Run mandrel init --assume-yes --skip-github (cold-start bootstrap)"
         if: matrix.leg == 'cold-start'
         shell: bash
         working-directory: ${{ env.CONSUMER_DIR }}
-        # --assume-yes accepts all prompts non-interactively, exercising the full
-        # single-command bootstrap path introduced in Story #4045.
-        run: node "$MANDREL_BIN" init --assume-yes
+        # --assume-yes accepts all prompts non-interactively; --skip-github
+        # scopes the run to the files + local configuration (no GitHub
+        # provisioning, no inferable owner/repo needed). Together they exercise
+        # the single-command bootstrap path introduced in Story #4045.
+        run: node "$MANDREL_BIN" init --assume-yes --skip-github
 
       - name: "[cold-start] Assert materialization after mandrel init"
         if: matrix.leg == 'cold-start'

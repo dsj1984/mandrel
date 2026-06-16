@@ -534,6 +534,13 @@ export function buildQuestions(defaults, flags, env = process.env, lists = {}) {
   const reposList = lists.reposList;
   const projectsList = lists.projectsList;
   const pickerOwner = (answers) => answers?.owner || owner;
+  // `owner` / `repo` are GitHub-side answers. When `--skip-github` suppresses
+  // the entire GitHub bootstrap, they are not required — this lets a
+  // non-interactive `--assume-yes --skip-github` run materialize and configure
+  // a fresh non-git directory (no inferable remote) without hard-failing on
+  // `missing required answers: owner, repo`. With GitHub bootstrap active they
+  // remain required (the target repo must be resolvable).
+  const skipGithub = Boolean(flags?.['skip-github']);
   return [
     {
       key: 'owner',
@@ -541,7 +548,7 @@ export function buildQuestions(defaults, flags, env = process.env, lists = {}) {
       env: 'GH_OWNER',
       message: '\n\nGitHub repo owner',
       default: defaults.owner,
-      required: true,
+      required: !skipGithub,
       validate: (v) =>
         /^[A-Za-z0-9][A-Za-z0-9-]*$/.test(v) ? null : 'Invalid GitHub owner',
     },
@@ -567,7 +574,7 @@ export function buildQuestions(defaults, flags, env = process.env, lists = {}) {
       pickerMessage:
         'GitHub repo name  - Select existing or press ENTER to create',
       default: defaults.repo,
-      required: true,
+      required: !skipGithub,
       picker: {
         list: (answers) => {
           if (Array.isArray(reposList) && reposList.length > 0)
@@ -957,7 +964,10 @@ export async function collectAndConfirm(state) {
     });
     if (missing.length > 0) {
       Logger.error(
-        `[Bootstrap] missing required answers: ${missing.join(', ')}`,
+        `[Bootstrap] missing required answers: ${missing.join(', ')}. ` +
+          'Pass them as flags (e.g. `--owner <name> --repo <name>`), or run ' +
+          'with `--skip-github` to configure the files/local setup only and ' +
+          'wire GitHub later.',
       );
       return { ok: false, exit: 1 };
     }
