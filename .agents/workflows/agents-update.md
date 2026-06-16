@@ -260,21 +260,17 @@ framework version sees `no-change` everywhere here.
 Run from the consumer repo root:
 
 ```bash
-node -e "
-  Promise.all([
-    import('./.agents/scripts/lib/bootstrap/quality-bootstrap.js'),
-    import('./.agents/scripts/lib/bootstrap/baselines-layout-migration.js'),
-  ]).then(([qb, bm]) => {
-    const root = process.cwd();
-    const quality = qb.applyQualityBootstrap({ projectRoot: root });
-    const baselines = bm.migrateBaselinesLayout({
-      baselinesDir: require('node:path').join(root, 'baselines'),
-      repoRoot: root,
-    });
-    console.log(JSON.stringify({ quality, baselines }, null, 2));
-  });
-"
+node .agents/scripts/apply-quality-bootstrap.js
 ```
+
+The script (Story #4171) replaced the prior inline `node -e` heredoc — a
+shell-fragile, untested block that silently drifted whenever the two helper
+signatures moved (see
+[`apply-quality-bootstrap.js`](../scripts/apply-quality-bootstrap.js)). It
+runs the same two installs in order against `process.cwd()` —
+`applyQualityBootstrap` then `migrateBaselinesLayout` — and prints the same
+`{ quality, baselines }` JSON envelope to stdout. It is idempotent: a second
+run is a no-op beyond reporting `no-change` on every install path.
 
 The four `quality-bootstrap` outcomes:
 
