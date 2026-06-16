@@ -720,9 +720,12 @@ node .agents/scripts/epic-plan-spec-validate.js \
    budget warns at authoring time and is rejected at persist unless rerun
    with `--allow-over-budget` (after confirming the over-budget rationale
    on the Epic). The `epic-plan-decompose.js` script also logs the
-   resolved budget to stderr. The skill body is the
-   authoritative source of the decomposer prompt; the `systemPrompt`
-   field on the emit envelope is a backstop for legacy callers.
+   resolved budget to stderr. The decomposer system prompt is
+   single-sourced in
+   `.agents/scripts/lib/templates/decomposer-prompts.js`
+   (`renderDecomposerSystemPrompt`); the `epic-plan-decompose-author`
+   skill references that rendered `systemPrompt` rather than carrying
+   its own copy of the prompt body.
 
    When the Tech Spec carries a `## Delivery Slicing` section (authored by
    `epic-plan-spec-author` in Phase 7), the decompose-author skill authors
