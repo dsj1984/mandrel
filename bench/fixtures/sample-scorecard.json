@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "runId": "hello-world-mandrel-2026-06-16-r03",
+  "timestamp": "2026-06-16T19:42:11.000Z",
+  "model": {
+    "id": "claude-opus-4-8[1m]",
+    "displayName": "Claude Opus 4.8 (1M context)"
+  },
+  "frameworkVersion": "1.70.0",
+  "env": {
+    "node": "v24.16.0",
+    "os": "darwin",
+    "host": "bench-runner-01"
+  },
+  "scenario": "hello-world",
+  "arm": "mandrel",
+  "dimensions": {
+    "quality": {
+      "score": 1,
+      "frozenSuitePassRate": 1,
+      "frozenSuitePassed": 6,
+      "frozenSuiteTotal": 6,
+      "acceptanceEvalScore": 1
+    },
+    "planningFidelity": {
+      "score": 0.92,
+      "rePlanCount": 0,
+      "plannedStoryCount": 2,
+      "deliveredStoryCount": 2,
+      "fileFootprintDrift": 0.08
+    },
+    "autonomy": {
+      "score": 1,
+      "hitlStops": 0,
+      "blockedEvents": 0,
+      "manualRescues": 0
+    },
+    "efficiency": {
+      "wallClockMs": 612000,
+      "totalTokens": 184320,
+      "inputTokens": 151200,
+      "outputTokens": 33120,
+      "dispatches": 2,
+      "costUsd": 1.47
+    },
+    "overheadRatio": {
+      "tokenRatio": 4.2,
+      "timeRatio": 3.6,
+      "ceremonyTokens": 148800,
+      "codegenTokens": 35520
+    }
+  },
+  "rawRefs": {
+    "lifecycleNdjson": "temp/epic-9001/lifecycle.ndjson",
+    "signalsNdjson": [
+      "temp/epic-9001/story-9101/signals.ndjson",
+      "temp/epic-9001/story-9102/signals.ndjson"
+    ],
+    "costEnvelope": "temp/bench/hello-world-mandrel-2026-06-16-r03/cost-envelope.json",
+    "acceptanceEvalVerdict": "temp/bench/hello-world-mandrel-2026-06-16-r03/acceptance-eval-verdict.json"
+  }
+}
