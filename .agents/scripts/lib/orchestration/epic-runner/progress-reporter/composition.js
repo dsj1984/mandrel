@@ -38,20 +38,6 @@ export function escapePipes(s) {
 }
 
 /**
- * Render a millisecond duration as a compact human-readable string. Used
- * in the wave-elapsed header to keep the snapshot tight.
- */
-export function formatElapsed(ms) {
-  const s = Math.max(0, Math.floor(ms / 1000));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  if (h) return `${h}h ${m}m`;
-  if (m) return `${m}m ${sec}s`;
-  return `${sec}s`;
-}
-
-/**
  * Derive the high-level state classification for a single ticket. Reads
  * the canonical `agent::*` label set first, then falls back to the GitHub
  * `state` string for the closed-without-done case. Returns `'unknown'`
@@ -67,35 +53,6 @@ export function deriveState(ticket, AGENT_LABELS) {
   if (labels.includes(AGENT_LABELS.EXECUTING)) return 'in-flight';
   if (labels.includes(AGENT_LABELS.READY)) return 'queued';
   return 'unknown';
-}
-
-/**
- * Build the markdown table for the per-poll progress snapshot. Switches
- * between a 3-column (ID / State / Title) and a 4-column (Wave / ID /
- * State / Title) form depending on whether any row carries a wave index —
- * the wider form fires when the reporter has a plan set and is rendering
- * every wave instead of just the current one.
- */
-export function renderProgressTable(rows) {
-  const includeWaveCol = rows.some((r) => Number.isInteger(r.wave));
-  if (includeWaveCol) {
-    return [
-      '| Wave | ID | State | Title |',
-      '|---|---|---|---|',
-      ...rows.map(
-        (r) =>
-          `| ${r.wave + 1} | #${r.id} | ${STATE_EMOJI[r.state] ?? ''} ${r.state} | ${escapePipes(r.title)} |`,
-      ),
-    ].join('\n');
-  }
-  return [
-    '| ID | State | Title |',
-    '|---|---|---|',
-    ...rows.map(
-      (r) =>
-        `| #${r.id} | ${STATE_EMOJI[r.state] ?? ''} ${r.state} | ${escapePipes(r.title)} |`,
-    ),
-  ].join('\n');
 }
 
 /**
@@ -194,47 +151,6 @@ export async function renderNotable({ rows, detectors = [], wave, logger }) {
 
   if (!items.length) items.push('- (none)');
   return items.join('\n');
-}
-
-/**
- * Compose the full per-poll snapshot body. Pure with respect to the
- * supplied state — the caller passes the resolved `rows`, the plan/wave
- * context, the optional aggregated phase-timings block, and the now()
- * clock; the renderer assembles header + table + Notable + phase-timings.
- */
-export async function renderProgressBody({
-  rows,
-  plan,
-  currentWave,
-  epicStartedAt,
-  now,
-  detectors,
-  phaseSummariesBlock,
-  logger,
-}) {
-  const done = rows.filter((r) => r.state === 'done').length;
-  const total = rows.length;
-  const totalWaves = plan?.length ?? currentWave?.totalWaves ?? '?';
-  const currentWaveNum = currentWave
-    ? currentWave.index + 1
-    : (plan?.length ?? '?');
-  const waveLabel = `Wave ${currentWaveNum}/${totalWaves}`;
-  const elapsedSrc = epicStartedAt ?? currentWave?.startedAt ?? null;
-  const elapsed = elapsedSrc
-    ? ` · ${formatElapsed(now() - new Date(elapsedSrc))} elapsed`
-    : '';
-
-  const header = `### 📊 Progress — ${waveLabel} · ${done}/${total} closed${elapsed}`;
-  const table = renderProgressTable(rows);
-  const notable = await renderNotable({
-    rows,
-    detectors,
-    wave: currentWave,
-    logger,
-  });
-  const parts = [header, '', table, '', '**Notable**', notable];
-  if (phaseSummariesBlock) parts.push('', phaseSummariesBlock);
-  return parts.join('\n');
 }
 
 /**
