@@ -158,6 +158,26 @@ npx mandrel sync                        # re-materialize ./.agents/
 npx mandrel doctor                      # verify the install
 ```
 
+## Benchmarking
+
+Mandrel's effectiveness is measured by a separate companion repo,
+**[mandrel-bench](https://github.com/dsj1984/mandrel-bench)** — a *consumer* of
+the published `mandrel` package. It pins a specific framework version,
+materializes it via `mandrel sync`, and drives Mandrel's own `/plan`→`/deliver`
+pipeline (plus a bare-model control) over a scenario corpus. Each run is scored
+across five dimensions — Quality, Planning fidelity, and Autonomy (what the
+scaffolding *buys*) versus Efficiency and Overhead ratio (what it *costs*) —
+reported as distributions with a noise-band, tracking the framework's
+**value-add over the bare-model baseline** across versions and models.
+
+The benchmark lives in its own repo on purpose: holding the harness fixed while
+varying the pinned `mandrel` version cleanly decouples harness-version from
+framework-version, and running through the published-package + `mandrel sync`
+path exercises the real consumer contract. The dependency is one-directional —
+`mandrel-bench` depends on `mandrel`, never the reverse. See the
+[mandrel-bench README](https://github.com/dsj1984/mandrel-bench#readme) for the
+dimensions, run model, and how to benchmark a new version.
+
 ## Contributors
 
 Only `.agents/` is distributed to consumers — it ships inside the
