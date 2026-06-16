@@ -494,7 +494,10 @@ describe('runtime-deps check', () => {
     });
     assertResultShape(result, { expectOk: false });
     assert.match(result.detail, /missing-pkg/);
-    assert.match(result.remedy, /npm install/);
+    // Remedy names the real cause (consumer-root resolution) and the pnpm
+    // hoist fix that operators who hit this actually need.
+    assert.match(result.remedy, /pnpm/i);
+    assert.match(result.remedy, /hoist/i);
   });
 
   it('returns ok=true for an empty manifest', () => {
