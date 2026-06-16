@@ -1,0 +1,311 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mandrel-bench-scorecard",
+  "title": "Mandrel Self-Benchmark Scorecard",
+  "description": "One persisted, schema-validated scorecard for a single (scenario × arm × run) of the Mandrel Self-Benchmark Harness (Epic #4211). Each scorecard captures the five measured dimensions for one headless `claude -p` session, stamped with the pinned model id, the framework version under test, and the execution environment so that cross-version / cross-model comparisons only ever compare like to like. Internal tooling only — never shipped in the distributed `.agents/` bundle. Per-run scorecards aggregate into distributions across N≈8–10 runs (see bench/metrics/variance.js for the noise-band method). Authored by Story #4215; consumed by the scoring, report, and persistence slices.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "runId",
+    "timestamp",
+    "model",
+    "frameworkVersion",
+    "env",
+    "scenario",
+    "arm",
+    "dimensions"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "Scorecard-record schema version. Bumped on any breaking change to this record shape (hard cutover — see .agents/rules/git-conventions.md § Contract Cutovers)."
+    },
+    "runId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9._-]+$",
+      "description": "Unique identifier for this single (scenario × arm × run). Stable across re-reads of the same persisted scorecard."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 / ISO 8601 timestamp at which the run completed and the scorecard was emitted."
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "description": "The pinned model under measurement. The harness measures the framework's value-add at a fixed model — the exact id is recorded so a cross-version comparison only compares like model to like.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Exact model id as reported by the `claude -p` envelope (e.g. 'claude-opus-4-8[1m]')."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Human-readable model name, when available."
+        }
+      }
+    },
+    "frameworkVersion": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The Mandrel framework version under test (the `version` field of the repo's root package.json) for the Mandrel arm. For the control arm this records the framework version the comparison is anchored to, even though the control clone carries no .agents/ scaffolding."
+    },
+    "env": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["node", "os"],
+      "description": "Execution environment stamp. Comparisons across environments are advisory only; a band is computed per (model, frameworkVersion, env) cohort.",
+      "properties": {
+        "node": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Node.js version the harness ran under (e.g. 'v24.16.0')."
+        },
+        "os": {
+          "type": "string",
+          "minLength": 1,
+          "description": "OS platform identifier (e.g. 'darwin', 'linux')."
+        },
+        "host": {
+          "type": "string",
+          "description": "Optional host/runner identifier."
+        }
+      }
+    },
+    "scenario": {
+      "type": "string",
+      "enum": ["hello-world", "crud-db"],
+      "description": "Scenario this run exercised. v1 ships two rungs: 'hello-world' (the overhead floor + end-to-end smoke) and 'crud-db' (decomposition, multi-wave delivery, planning fidelity, autonomy at depth)."
+    },
+    "arm": {
+      "type": "string",
+      "enum": ["mandrel", "control"],
+      "description": "Which arm produced this run. 'mandrel' clones carry .agents/ and run the /plan→/deliver pipeline; 'control' clones have no scaffolding and receive the bare task prompt. Both arms are costed by the same `claude -p` envelope (apples-to-apples by construction)."
+    },
+    "dimensions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "quality",
+        "planningFidelity",
+        "autonomy",
+        "efficiency",
+        "overheadRatio"
+      ],
+      "description": "The five measured dimensions for this run. Value side: quality, planningFidelity, autonomy. Cost side: efficiency, overheadRatio. Each is a single per-run value; the distribution/noise-band is computed across N runs by the scoring slice, never stored here. Formulas are defined in bench/metrics/README.md.",
+      "properties": {
+        "quality": {
+          "$ref": "#/$defs/qualityDimension"
+        },
+        "planningFidelity": {
+          "$ref": "#/$defs/planningFidelityDimension"
+        },
+        "autonomy": {
+          "$ref": "#/$defs/autonomyDimension"
+        },
+        "efficiency": {
+          "$ref": "#/$defs/efficiencyDimension"
+        },
+        "overheadRatio": {
+          "$ref": "#/$defs/overheadRatioDimension"
+        }
+      }
+    },
+    "rawRefs": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Pointers to the on-disk raw artifacts this scorecard was derived from, for traceability and re-scoring. Paths are workspace-relative; the underlying ephemeral workspace is torn down after the run, so these are provenance breadcrumbs, not live handles.",
+      "properties": {
+        "lifecycleNdjson": {
+          "type": "string",
+          "description": "Path to the run's temp/epic-<id>/lifecycle.ndjson (timings/autonomy source)."
+        },
+        "signalsNdjson": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Paths to per-Story signals.ndjson files."
+        },
+        "costEnvelope": {
+          "type": "string",
+          "description": "Path to the captured `claude -p --output-format json` usage/cost envelope."
+        },
+        "acceptanceEvalVerdict": {
+          "type": "string",
+          "description": "Path to the acceptance-eval LLM-judge verdict JSON, validated against .agents/schemas/acceptance-eval-verdict.schema.json."
+        }
+      }
+    }
+  },
+  "$defs": {
+    "qualityDimension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["score", "frozenSuitePassRate"],
+      "description": "Quality — is the output correct & on-intent? Spine: the scenario's frozen acceptance suite pass rate; cross-checked by the acceptance-eval LLM judge.",
+      "properties": {
+        "score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Composite quality in [0,1]. Formula in README; the frozen-suite pass rate is the objective spine."
+        },
+        "frozenSuitePassRate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Fraction of the scenario's frozen acceptance-suite assertions that passed against the delivered app."
+        },
+        "frozenSuitePassed": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Count of passing frozen-suite assertions."
+        },
+        "frozenSuiteTotal": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total frozen-suite assertions."
+        },
+        "acceptanceEvalScore": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1,
+          "description": "LLM-judge cross-check score in [0,1], or null when the judge did not run (e.g. control arm with no acceptance criteria)."
+        }
+      }
+    },
+    "planningFidelityDimension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["score"],
+      "description": "Planning fidelity — did the plan match reality? Decomposition accuracy, re-plan count, plan-vs-actual drift. For the control arm (no plan authored) this is null.",
+      "properties": {
+        "score": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Planning fidelity in [0,1], or null when no plan was authored (control arm)."
+        },
+        "rePlanCount": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of re-plan / decomposition-revision events observed."
+        },
+        "plannedStoryCount": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of Stories the decomposer emitted."
+        },
+        "deliveredStoryCount": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of Stories actually delivered (closed)."
+        },
+        "fileFootprintDrift": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Symmetric drift between the planned changes[] footprint and the files actually touched (Jaccard distance in [0,1])."
+        }
+      }
+    },
+    "autonomyDimension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["score", "hitlStops", "blockedEvents", "manualRescues"],
+      "description": "Autonomy — how little human intervention? Counts of HITL stops, agent::blocked transitions, and manual rescues, collapsed to a [0,1] score where 1 = fully unattended.",
+      "properties": {
+        "score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Autonomy in [0,1]; 1 means the run completed with zero human intervention."
+        },
+        "hitlStops": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Count of human-in-the-loop STOP gates the run halted at."
+        },
+        "blockedEvents": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Count of agent::blocked transitions observed in lifecycle.ndjson."
+        },
+        "manualRescues": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Count of operator interventions that unblocked or restarted the run."
+        }
+      }
+    },
+    "efficiencyDimension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["wallClockMs", "totalTokens", "dispatches"],
+      "description": "Efficiency — what did it cost absolutely? Wall-clock, tokens, and dispatch count. Cost (tokens) comes from the `claude -p` envelope; timings/dispatches from lifecycle.ndjson. No composite is required — the three are reported as a vector; an optional `costUsd` is included when the envelope reports it.",
+      "properties": {
+        "wallClockMs": {
+          "type": "number",
+          "minimum": 0,
+          "description": "End-to-end wall-clock duration of the run in milliseconds."
+        },
+        "totalTokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total tokens (input + output) from the `claude -p` usage envelope, summed across the session."
+        },
+        "inputTokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Input tokens from the usage envelope."
+        },
+        "outputTokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Output tokens from the usage envelope."
+        },
+        "dispatches": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of agent dispatches (Story sub-agent launches) recorded in lifecycle.ndjson."
+        },
+        "costUsd": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "description": "Total USD cost from the `claude -p` envelope when reported, else null."
+        }
+      }
+    },
+    "overheadRatioDimension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tokenRatio"],
+      "description": "Overhead ratio — ceremony tax vs. shippable output. Ceremony cost (planning, decomposition, orchestration, gate ceremony) divided by codegen cost (tokens/time spent producing shippable artifacts). For the control arm there is effectively no ceremony, so tokenRatio approaches its floor.",
+      "properties": {
+        "tokenRatio": {
+          "type": "number",
+          "minimum": 0,
+          "description": "ceremonyTokens ÷ codegenTokens. A ratio of 4.0 means 4 tokens of ceremony per token of shippable codegen."
+        },
+        "timeRatio": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "description": "ceremonyMs ÷ codegenMs, or null when the time split is not available."
+        },
+        "ceremonyTokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Tokens attributed to ceremony (planning + orchestration + gates)."
+        },
+        "codegenTokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Tokens attributed to producing shippable code/artifacts."
+        }
+      }
+    }
+  }
+}
