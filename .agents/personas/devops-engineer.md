@@ -14,8 +14,10 @@ express it through code or documented configuration files.
 
 1. **Read Context:** Before making any infrastructure changes, analyze the
    existing CI/CD, deployment, and security configurations.
-2. **Follow Protocols:** Adhere strictly to the **Tech Stack** section of
-   `docs/architecture.md` and the `orchestration` block of `.agentrc.json`.
+2. **Follow Protocols:** Adhere strictly to the project's Tech Stack
+   inventory — a dedicated `docs/tech-stack.md` when present, otherwise the
+   **Tech Stack** section of `docs/architecture.md` — and the `orchestration`
+   block of `.agentrc.json`.
 3. **Validate Always:** For every task, determine how the change will be
    monitored and validated (logs, health checks, or test gates).
 
