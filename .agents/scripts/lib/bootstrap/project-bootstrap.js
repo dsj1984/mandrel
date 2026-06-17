@@ -18,6 +18,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { detectPackageManager as detectPm } from '../detect-package-manager.js';
 import { LEDGER_RELATIVE_PATH } from './install-ledger.js';
+import { ensureIssueForms } from './issue-forms-template.js';
 import { PHASE_GROUPS, previewMutationManifest } from './manifest.js';
 import { applyQualityBootstrap } from './quality-bootstrap.js';
 
@@ -440,6 +441,33 @@ export function ensureGitignore(ctx) {
 }
 
 /**
+ * Materialize the generated GitHub Issue Forms
+ * (`.github/ISSUE_TEMPLATE/story.yml` + `epic.yml`) into the consumer
+ * project (Story #4227). Derived from the Story-body SSOT so a human-filed
+ * ticket round-trips through `story-body.parse()`. Idempotent and additive,
+ * mirroring `ensureGitignore`: byte-identical forms are `unchanged`,
+ * operator-edited forms are preserved (`custom-skip`). Honours `ctx.preview`
+ * (no writes) like the other phases.
+ *
+ * Returns the per-form action envelope keyed by ticket type.
+ *
+ * @param {object} ctx
+ * @param {string} ctx.projectRoot
+ * @param {boolean} [ctx.preview]
+ */
+export function ensureIssueFormsPhase(ctx) {
+  const { forms } = ensureIssueForms({
+    projectRoot: ctx.projectRoot,
+    write: !ctx.preview,
+  });
+  const outcomes = {};
+  for (const form of forms) {
+    outcomes[form.type] = { action: form.action, path: form.path };
+  }
+  return outcomes;
+}
+
+/**
  * Step 5 — Run the sync script. Step 6 (parity) is enforced by the
  * sync script itself (it removes stale entries and writes from the
  * single source of truth), so a successful exit equals parity.
@@ -689,6 +717,11 @@ export const BOOTSTRAP_PHASES = Object.freeze([
     name: 'gitignore',
     phaseGroup: PHASE_GROUPS.IDE_WIRING,
     run: (ctx) => ensureGitignore(ctx),
+  },
+  {
+    name: 'issueForms',
+    phaseGroup: PHASE_GROUPS.REPO_CONFIG,
+    run: (ctx) => ensureIssueFormsPhase(ctx),
   },
   {
     name: 'sync',

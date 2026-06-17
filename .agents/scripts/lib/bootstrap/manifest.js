@@ -177,6 +177,14 @@ export function buildMutationManifest(ctx = {}) {
         'Seed .agentrc.json from the bundled starter with the operator-supplied owner/repo/handle/base-branch.',
       reversible: true,
     },
+    {
+      phaseGroup: PHASE_GROUPS.REPO_CONFIG,
+      target: rel('.github', 'ISSUE_TEMPLATE'),
+      action: 'create',
+      detail:
+        'Generate the Story/Epic GitHub Issue Forms from the body SSOT so human-filed tickets round-trip through story-body.parse(). Operator-edited forms are preserved.',
+      reversible: true,
+    },
   );
 
   // --- quality-gates ----------------------------------------------------
