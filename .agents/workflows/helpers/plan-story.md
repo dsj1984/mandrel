@@ -97,7 +97,7 @@ Envelope fields (`kind: "story-plan-context"`, `version: 1`):
 | `bodyTemplate`         | Contents of `.agents/templates/single-story-body.md`.     |
 | `requiredSections`     | `["Context", "Acceptance Criteria", "Out of Scope", "Notes"]`. |
 | `duplicateCandidates`  | Ranked open Stories whose titles fuzzy-match the seed.    |
-| `techStack`            | The `## Tech Stack` section of `docs/architecture.md`.    |
+| `techStack`            | The project's Tech Stack inventory, resolved in order: `docs/tech-stack.md` (full body) when present, else the `## Tech Stack` section of `docs/architecture.md` (numbered/decorated and final-section headings tolerated). |
 | `deliverContract`      | Workflow path + required/forbidden labels and references. |
 
 ### Refine heuristic

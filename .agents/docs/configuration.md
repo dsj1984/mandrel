@@ -358,6 +358,19 @@ Read with `getCommands(config)` — see
 | ------------------ | -------- | ------- | -------------------------------------------------------------------------------------------------- |
 | `docsContextFiles` | No       | `[]`    | Files the context-hydration engine includes when assembling agent prompts. Resolved against `paths.docsRoot`. |
 
+> **Entries are plain filenames, not globs.** Each entry is resolved as a
+> single file under `paths.docsRoot`; the loader does **not** expand glob
+> patterns. This matters for the decisions log: when a project adopts the
+> index + `decisions/` ADR-directory layout (see
+> [`documentation-and-adrs`](../skills/core/documentation-and-adrs/SKILL.md)),
+> the **index** `decisions.md` stays the mandatory-read and the per-ADR bodies
+> under `decisions/` are link-followed on demand — **index-only by default**.
+> Auto-loading every ADR body into each task's context would reintroduce the
+> bloat the directory split exists to remove. A project that genuinely wants
+> the full ADR set in mandatory context must opt in by listing the individual
+> ADR files explicitly (one filename per entry); there is no built-in
+> `decisions/*.md` glob.
+
 ---
 
 ## `github`

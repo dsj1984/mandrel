@@ -18,7 +18,7 @@
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
@@ -30,6 +30,7 @@ import {
   DEFAULT_REFINE_THRESHOLD,
   REQUIRED_SECTIONS,
   rankDuplicateCandidates,
+  readTechStackSummary,
   shouldRefine,
   validateStoryBody,
 } from '../.agents/scripts/lib/story-plan.js';
@@ -416,5 +417,78 @@ describe('story-plan.js runPersist: Projects V2 board membership (Story #3822)',
     assert.deepEqual(projectCalls, []);
     const summary = JSON.parse(summaries.join(''));
     assert.equal(summary.issueNumber, 8181);
+  });
+});
+
+describe('readTechStackSummary (Story #4228)', () => {
+  let tmp;
+
+  beforeEach(() => {
+    tmp = mkdtempSync(path.join(os.tmpdir(), 'tech-stack-'));
+    mkdirSync(path.join(tmp, 'docs'), { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(tmp, { recursive: true, force: true });
+  });
+
+  it('prefers a dedicated docs/tech-stack.md when present', async () => {
+    writeFileSync(
+      path.join(tmp, 'docs', 'tech-stack.md'),
+      '# Tech Stack\n\nNode 22, React 19, Postgres.\n',
+    );
+    // architecture.md is also present, but the dedicated file wins.
+    writeFileSync(
+      path.join(tmp, 'docs', 'architecture.md'),
+      '## Tech Stack\n\nStale pointer-stub: see tech-stack.md\n',
+    );
+
+    const summary = await readTechStackSummary(tmp);
+    assert.equal(summary, '# Tech Stack\n\nNode 22, React 19, Postgres.');
+  });
+
+  it('falls back to architecture.md when no dedicated file exists', async () => {
+    writeFileSync(
+      path.join(tmp, 'docs', 'architecture.md'),
+      '# Architecture\n\n## Tech Stack\n\nNode 22\n\n## Decisions\n\nfoo\n',
+    );
+
+    const summary = await readTechStackSummary(tmp);
+    assert.equal(summary, '## Tech Stack\nNode 22');
+  });
+
+  it('resolves a numbered heading (## 1. Tech Stack)', async () => {
+    writeFileSync(
+      path.join(tmp, 'docs', 'architecture.md'),
+      '# Architecture\n\n## 1. Tech Stack\n\nNode 22\n\n## 2. Decisions\n\nfoo\n',
+    );
+
+    const summary = await readTechStackSummary(tmp);
+    assert.equal(summary, '## Tech Stack\nNode 22');
+  });
+
+  it('resolves a Tech Stack section that is the final ## in the file', async () => {
+    writeFileSync(
+      path.join(tmp, 'docs', 'architecture.md'),
+      '# Architecture\n\n## Overview\n\nbar\n\n## Tech Stack\n\nNode 22\nReact 19\n',
+    );
+
+    const summary = await readTechStackSummary(tmp);
+    assert.equal(summary, '## Tech Stack\nNode 22\nReact 19');
+  });
+
+  it('returns null when neither source is present', async () => {
+    const summary = await readTechStackSummary(tmp);
+    assert.equal(summary, null);
+  });
+
+  it('returns null when architecture.md lacks a Tech Stack heading', async () => {
+    writeFileSync(
+      path.join(tmp, 'docs', 'architecture.md'),
+      '# Architecture\n\n## Overview\n\nNo stack section here.\n',
+    );
+
+    const summary = await readTechStackSummary(tmp);
+    assert.equal(summary, null);
   });
 });
