@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.72.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.71.0...mandrel-v1.72.0) (2026-06-17)
+
+
+### Added
+
+* **plan:** add a headless/non-interactive flag to suppress the ideation one-pager + Phase-7 review gate ([#4223](https://github.com/dsj1984/mandrel/issues/4223)) ([#4226](https://github.com/dsj1984/mandrel/issues/4226)) ([9ffa355](https://github.com/dsj1984/mandrel/commit/9ffa35543f897199c096ad45a568de39b0424ba7))
+
+
+### Fixed
+
+* **deliver:** fail open on unparseable code-review severity bullets in auto-merge gate (refs [#4222](https://github.com/dsj1984/mandrel/issues/4222)) ([#4224](https://github.com/dsj1984/mandrel/issues/4224)) ([ca949bd](https://github.com/dsj1984/mandrel/commit/ca949bd7d98eea440571db6636f8be2f2128c3b9))
+
 ## [1.71.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.70.0...mandrel-v1.71.0) (2026-06-16)
 
 
