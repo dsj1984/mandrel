@@ -451,11 +451,14 @@ export function ensureGitignore(ctx) {
  *
  * Returns the per-form action envelope keyed by ticket type.
  *
+ * Internal — consumed only by the `issueForms` entry in
+ * {@link BOOTSTRAP_PHASES} below.
+ *
  * @param {object} ctx
  * @param {string} ctx.projectRoot
  * @param {boolean} [ctx.preview]
  */
-export function ensureIssueFormsPhase(ctx) {
+function ensureIssueFormsPhase(ctx) {
   const { forms } = ensureIssueForms({
     projectRoot: ctx.projectRoot,
     write: !ctx.preview,
