@@ -68,16 +68,27 @@ suppresses that command's segment-plan confirmation. `/plan` has exactly
 **two** HITL STOP gates, and `--yes` deterministically auto-proceeds **both**
 without waiting for operator input:
 
-1. **Gate #1 — the ideation one-pager / scope-triage confirm.** On the
-   `--idea` path, [`helpers/plan-epic.md`](helpers/plan-epic.md) Phase 1
-   (folding in the Phase 1.5 scope-triage verdict) and
-   [`helpers/plan-story.md`](helpers/plan-story.md) Phase 2 each STOP to
-   confirm the sharpened one-pager / drafted body. Under `--yes` the gate
-   auto-proceeds: the one-pager confirm resolves as **approved**, and a
-   `story` / `borderline` triage verdict resolves to its **recommended**
-   branch (the one the gate prose marks "Recommended") rather than
-   prompting the three-way choice. The verdict is still recorded in chat
-   (one line); only the *wait* is suppressed.
+1. **Gate #1 — the ideation one-pager / scope-triage / clarity confirm.**
+   This single conceptual gate has three faces depending on the entry form,
+   and `--yes` auto-proceeds **all three**:
+   - On the `--idea` Epic path,
+     [`helpers/plan-epic.md`](helpers/plan-epic.md) Phase 1 (folding in the
+     Phase 1.5 scope-triage verdict) STOPs to confirm the sharpened one-pager.
+   - On the `--idea` Story path,
+     [`helpers/plan-story.md`](helpers/plan-story.md) Phase 2 STOPs to
+     confirm the drafted Story body.
+   - On the existing-Epic (`/plan <epicId>`) path, the Phase 6 Epic Clarity
+     Gate's **needs-refinement** branch STOPs to confirm the refined-body
+     diff before persisting it.
+
+   Under `--yes` each auto-proceeds: the one-pager / draft / refined-body
+   confirm resolves as **approved**, and a `story` / `borderline` triage
+   verdict resolves to its **recommended** branch (the one the gate prose
+   marks "Recommended") rather than prompting the three-way choice. The
+   verdict / clarity scoring is still recorded in chat (one line); only the
+   *wait* is suppressed. The clarity-gate *scoring* itself (deterministic
+   section-presence in Phase 6 step 1) still runs — `--yes` suppresses only
+   the operator confirm of the proposed refinement.
 2. **Gate #2 — the Phase-7 Epic operator review gate.** When risk routing
    forces a review (`planningRisk.requiresReview === true`, or the operator
    also passed `--force-review`),
@@ -98,16 +109,20 @@ composes cleanly:
   gate — it only *forces a proceed where the gate would otherwise STOP*, it
   never *adds* a stop or relaxes any non-HITL validator.
 
-**`--yes` suppresses only the two HITL STOP gates above.** It does **not**
-relax any deterministic gate — the Phase 6 Epic Clarity Gate, the Phase 7.5
-Tech Spec Section Gate, the file-assumption / DAG validators, the Phase 10
-readiness healthcheck, and the `agent::blocked` runtime pause all behave
-exactly as without the flag. A `--yes` run that hits one of those still
-fails closed; the flag is an operator-input suppressor, not a validation
-override. The non-blocking Phase 2 duplicate-search pause and the advisory
-Phase 8.3/8.4/8.5 consolidation/critic diffs also auto-proceed under `--yes`
-(distinct-Epic confirmed; consolidated/critic output applied) since they are
-operator-input waits, not validators.
+**`--yes` suppresses only the HITL operator *waits* above.** It does **not**
+relax any deterministic gate — the Phase 6 Epic Clarity Gate **scoring**
+(section-presence), the Phase 7.5 Tech Spec Section Gate, the file-assumption
+/ DAG validators, the Phase 10 readiness healthcheck, and the `agent::blocked`
+runtime pause all behave exactly as without the flag. A `--yes` run that hits
+one of those still fails closed; the flag is an operator-input suppressor, not
+a validation override. The other operator-input *waits* in the pipeline also
+auto-proceed under `--yes` — the non-blocking Phase 2 duplicate-search pause
+(distinct-Epic confirmed), the Phase 6 clarity refinement-diff confirm
+(refined body approved), and the advisory Phase 8.3/8.4/8.5
+consolidation/critic diffs (consolidated/critic output applied) — since they
+are operator-input waits, not validators. The two *named* HITL STOP gates the
+Story tracks (gate #1, gate #2) are the load-bearing pair; these additional
+waits are auto-proceeded for the same headless reason.
 
 ## First-run preflight
 

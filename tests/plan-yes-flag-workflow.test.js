@@ -218,6 +218,43 @@ describe('/plan --yes headless flag — gate #1 (one-pager / draft confirm)', ()
     );
   });
 
+  it('wires --yes auto-proceed at the existing-Epic Phase 6 clarity refinement-diff confirm', () => {
+    // criterion 2's `/plan <epicId> --yes` path: the Phase 6 needs-refinement
+    // diff confirm is an operator wait that --yes must auto-proceed, else an
+    // AC-less / unclear Epic body still blocks the headless run.
+    const phase6 =
+      epicSource.match(
+        /## Phase 6: Epic Clarity Gate[\s\S]*?(?=\n## Phase 7:)/,
+      )?.[0] ?? '';
+    assert.match(
+      phase6,
+      /`--yes`[\s\S]*does \*\*not\*\* STOP/i,
+      'Phase 6 refinement-diff confirm must carry a --yes auto-proceed note',
+    );
+    assert.match(
+      phase6,
+      /existing-Epic[\s\S]*gate #1|gate #1[\s\S]*existing-Epic/i,
+      'Phase 6 confirm must be tied to gate #1 on the existing-Epic path',
+    );
+  });
+
+  it('plan.md gate #1 covers all three confirm faces (one-pager, draft, clarity diff)', () => {
+    const section =
+      planSource.match(
+        /###\s+Headless \/ non-interactive mode[\s\S]*?(?=\n## )/,
+      )?.[0] ?? '';
+    assert.match(
+      section,
+      /existing-Epic[\s\S]*Clarity Gate|Clarity Gate[\s\S]*existing-Epic/i,
+      'gate #1 must enumerate the existing-Epic clarity confirm face',
+    );
+    assert.match(
+      section,
+      /Story path[\s\S]*Story body|drafted Story body/i,
+      'gate #1 must enumerate the Story-path draft confirm face',
+    );
+  });
+
   it('surfaces a --yes invocation shape in plan-story usage', () => {
     assert.match(
       storySource,

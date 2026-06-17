@@ -413,6 +413,19 @@ for the scoring logic.
    permission") is honored — no `gh issue edit` call until the
    operator confirms.
 
+   > **`--yes` (headless) auto-proceed.** This refinement-diff confirm is the
+   > clarity-gate face of `/plan`'s **gate #1** on the existing-Epic
+   > (`/plan <epicId>`) path — it is an operator *wait*, not a deterministic
+   > validator (the deterministic half is the section-presence *scoring* in
+   > step 1, which always runs). When `/plan` was invoked with `--yes`, this
+   > confirm does **not** STOP: the sharpened body is auto-**approved** and the
+   > run proceeds to step 6 (persist). The blast-radius note is still displayed
+   > for the record; only the operator wait is suppressed. This keeps
+   > `/plan <epicId> --yes` driveable headlessly even when the Epic body needs
+   > refinement (`gh issue edit` still runs only via the step 6 persist call,
+   > which the auto-approval authorizes). See
+   > [`plan.md` § Headless / non-interactive mode](../plan.md#headless--non-interactive-mode---yes).
+
 6. **Persist**: On approval, run the persist mode:
 
    ```bash
