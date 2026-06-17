@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.73.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.72.0...mandrel-v1.73.0) (2026-06-17)
+
+
+### Added
+
+* generate GitHub issue forms from the Story/Epic body SSOT (human↔agent ticket consistency) ([#4227](https://github.com/dsj1984/mandrel/issues/4227)) ([#4233](https://github.com/dsj1984/mandrel/issues/4233)) ([d42b0cb](https://github.com/dsj1984/mandrel/commit/d42b0cb6122f46d8528d4bbb3793f27be2854bc1))
+* **plan:** robust tech-stack hydrator resolution (refs [#4228](https://github.com/dsj1984/mandrel/issues/4228)) ([#4230](https://github.com/dsj1984/mandrel/issues/4230)) ([4f1ad3c](https://github.com/dsj1984/mandrel/commit/4f1ad3c13b9a50f4e436d63282c7f6c2f461ab0e))
+
 ## [1.72.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.71.0...mandrel-v1.72.0) (2026-06-17)
 
 
