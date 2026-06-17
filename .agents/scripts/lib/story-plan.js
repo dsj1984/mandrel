@@ -227,13 +227,51 @@ export function buildContextEnvelope({
 }
 
 /**
- * Strip the leading "Tech Stack" section of `docs/architecture.md` for
- * the host LLM. Returns `null` when the file or section is missing.
+ * Extract the "Tech Stack" `##` section from a markdown document.
+ *
+ * Tolerates a numbered / decorated heading (`## 1. Tech Stack`,
+ * `## Tech Stack`, etc.) and a section that is the final `##` in the
+ * file (the terminator matches the next `##` heading **or** end-of-file).
+ * Returns the matched section text (re-headed to a clean `## Tech Stack`)
+ * or `null` when no Tech Stack heading is present.
+ *
+ * @param {string} content
+ * @returns {string|null}
+ */
+function extractTechStackSection(content) {
+  const match = content.match(
+    /^##\s+(?:\d+[.)]\s+)?Tech Stack\s*$([\s\S]*?)(?=^##\s+|(?![\s\S]))/m,
+  );
+  return match ? `## Tech Stack${match[1]}`.trim() : null;
+}
+
+/**
+ * Resolve the project's Tech Stack inventory for the host LLM, in order:
+ *
+ *   1. A dedicated `docs/tech-stack.md` when present (the emerging
+ *      single-ownership convention — WHAT in tech-stack.md, HOW in
+ *      architecture.md, WHY in the ADRs). Its full body is returned.
+ *   2. Otherwise, the `## Tech Stack` section of `docs/architecture.md`,
+ *      tolerating a numbered/decorated heading and a final-section
+ *      heading (no following `##` required).
+ *
+ * Returns `null` when neither source yields an inventory.
  *
  * @param {string} projectRoot
  * @returns {Promise<string|null>}
  */
 export async function readTechStackSummary(projectRoot) {
+  const dedicatedPath = path.join(projectRoot, 'docs', 'tech-stack.md');
+  try {
+    const dedicated = await readFile(dedicatedPath, 'utf8');
+    const trimmed = dedicated.trim();
+    if (trimmed) {
+      return trimmed;
+    }
+  } catch {
+    // No dedicated tech-stack.md — fall through to architecture.md.
+  }
+
   const archPath = path.join(projectRoot, 'docs', 'architecture.md');
   let content;
   try {
@@ -241,6 +279,5 @@ export async function readTechStackSummary(projectRoot) {
   } catch {
     return null;
   }
-  const match = content.match(/^##\s+Tech Stack\s*$([\s\S]*?)(?=^##\s+\S)/m);
-  return match ? `## Tech Stack${match[1]}`.trim() : null;
+  return extractTechStackSection(content);
 }
