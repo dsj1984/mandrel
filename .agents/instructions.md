@@ -242,7 +242,13 @@ stops.
      data dictionary, decisions log, patterns, etc.) and replaces any
      hardcoded filename list. Resolve each entry against
      `project.paths.docsRoot` (default `docs/`) and skip silently
-     when an entry's file is absent.
+     when an entry's file is absent. The decisions log (`decisions.md`) may
+     be either a single-file dated-entry log or an **index** into a
+     `decisions/` ADR directory — both are first-class layouts (see
+     [`skills/core/documentation-and-adrs`](skills/core/documentation-and-adrs/SKILL.md)).
+     When it is an index, only the index is the mandatory-read; the
+     per-ADR bodies under `decisions/` are link-followed on demand
+     (index-only by default), not auto-loaded into every task's context.
    - **Conditional Reads**: When the task touches UI copy, layout, or
      routing and the corresponding file is present in the project, also
      read `docs/style-guide.md` and `docs/web-routes.md`. Skip both when
