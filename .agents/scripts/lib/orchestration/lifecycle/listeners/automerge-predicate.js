@@ -26,6 +26,15 @@
  * "clean sprint" retro trailer), emit `epic.merge.ready`. Otherwise emit
  * `epic.merge.blocked` with a non-empty reason.
  *
+ * Code-review parse-miss policy (Story #4222): a code-review comment that is
+ * present but whose severity bullets cannot be parsed is treated as a DISTINCT
+ * condition — surfaced via the `codeReviewUnparseable` signal — and FAILS OPEN
+ * rather than blocking. Failing closed on a format miss is indistinguishable,
+ * to the operator and to downstream telemetry, from a real disqualifying
+ * finding; a parser miss must never masquerade as "the signal said no" inside
+ * a generic `epic.merge.blocked`. Genuine critical/high findings still block,
+ * because those require the counts to have parsed.
+ *
  * Critical contract:
  *   - The verdict for any given input set is byte-identical to the
  *     pre-inlining legacy module's output — this file is its
@@ -229,11 +238,30 @@ function evaluateCodeReviewSignals(codeReview, reasons) {
     : { critical: null, high: null, medium: null, suggestion: null };
   if (!codeReviewFound) {
     reasons.push('code-review structured comment not found on Epic');
-    return { codeReviewFound, severity };
+    return { codeReviewFound, codeReviewUnparseable: false, severity };
   }
-  if (severity.critical === null || severity.high === null) {
-    reasons.push('code-review severity bullets could not be parsed');
-    return { codeReviewFound, severity };
+  // "Present but unparseable" is a DISTINCT condition from "present and says
+  // no" (Story #4222). The canonical renderer
+  // (`review-providers/findings-renderer.js`) always emits all four severity
+  // bullets, so a body whose critical/high counts we cannot extract is a
+  // FORMAT MISS, not a disqualifying signal. Failing closed here — pushing a
+  // generic block reason — is indistinguishable, to the operator and to
+  // downstream telemetry (the mandrel-bench Autonomy dimension), from a real
+  // critical finding: it stalls an otherwise-clean unattended run for a
+  // non-reason.
+  //
+  // Chosen policy: FAIL OPEN on an unparseable code-review body. We surface
+  // the condition explicitly via the `codeReviewUnparseable` signal so
+  // telemetry can tell a parser miss from a true HITL hand-off, but we do NOT
+  // add a disqualifying `reasons[]` entry — the absence of a parseable
+  // critical/high count cannot, on its own, block a run whose other signals
+  // are clean. Genuine disqualifying review findings (critical > 0 /
+  // high > 0) still block below, because those require the counts to have
+  // parsed successfully.
+  const codeReviewUnparseable =
+    severity.critical === null || severity.high === null;
+  if (codeReviewUnparseable) {
+    return { codeReviewFound, codeReviewUnparseable, severity };
   }
   if (severity.critical > 0) {
     reasons.push(`code-review has ${severity.critical} 🔴 Critical Blocker(s)`);
@@ -241,7 +269,7 @@ function evaluateCodeReviewSignals(codeReview, reasons) {
   if (severity.high > 0) {
     reasons.push(`code-review has ${severity.high} 🟠 High Risk finding(s)`);
   }
-  return { codeReviewFound, severity };
+  return { codeReviewFound, codeReviewUnparseable, severity };
 }
 
 function evaluateRetroSignals(retro, reasons) {
@@ -287,6 +315,7 @@ function evaluateRetroSignals(retro, reasons) {
  *     storyStatuses: string[],
  *     storyBlockers: number,
  *     severity: { critical: number|null, high: number|null, medium: number|null, suggestion: number|null },
+ *     codeReviewUnparseable: boolean,
  *     retroCompact: boolean,
  *     codeReviewFound: boolean,
  *     retroFound: boolean,
@@ -308,6 +337,7 @@ export function deriveAutoMergeVerdict({ state, codeReview, retro }) {
       storyStatuses: stateSig.storyStatuses,
       storyBlockers: stateSig.storyBlockers,
       severity: reviewSig.severity,
+      codeReviewUnparseable: reviewSig.codeReviewUnparseable,
       retroCompact: retroSig.retroCompact,
       codeReviewFound: reviewSig.codeReviewFound,
       retroFound: retroSig.retroFound,

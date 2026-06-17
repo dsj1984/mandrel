@@ -311,17 +311,23 @@ describe('automerge-predicate.deriveAutoMergeVerdict', () => {
     assert.equal(v.clean, false);
   });
 
-  it('flags un-parseable code-review severity bullets', () => {
+  it('treats un-parseable code-review severity bullets as a distinct fail-open signal (Story #4222)', () => {
     const v = deriveAutoMergeVerdict({
       state: { manualInterventions: [], waves: [] },
       codeReview: { body: 'no bullets here' },
       retro: { body: CLEAN_RETRO_BODY },
     });
-    assert.ok(
+    // Fail-open: an unparseable code-review body no longer adds a
+    // disqualifying reason — the run is certified clean on its other signals.
+    assert.equal(
       v.reasons.some((r) =>
         r.includes('code-review severity bullets could not be parsed'),
       ),
+      false,
     );
+    // …but the condition is surfaced explicitly so telemetry can tell a
+    // parser miss from a true HITL hand-off.
+    assert.equal(v.signals.codeReviewUnparseable, true);
   });
 
   it('flags missing code-review + missing retro', () => {
