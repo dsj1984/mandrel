@@ -194,6 +194,59 @@ describe('deriveAutoMergeVerdict', () => {
     assert.ok(verdict.reasons.some((r) => r.includes('Critical Blocker')));
   });
 
+  it('returns clean=true when code-review is present but its severity bullets are unparseable (Story #4222 fail-open)', () => {
+    // A clean run whose code-review comment exists but is in a shape the
+    // severity parser cannot read must NOT block: failing closed on a parse
+    // miss is indistinguishable from a real disqualifying finding and strands
+    // an otherwise-clean unattended run.
+    const verdict = deriveAutoMergeVerdict({
+      state: cleanState,
+      codeReview: {
+        body: '## Code review\nNo severity bullets in this shape.',
+      },
+      retro: cleanRetro,
+    });
+    assert.equal(verdict.clean, true);
+    assert.deepEqual(verdict.reasons, []);
+    // The parse miss is surfaced as a distinct signal for telemetry — never a
+    // silent generic block reason.
+    assert.equal(verdict.signals.codeReviewUnparseable, true);
+    assert.equal(verdict.signals.codeReviewFound, true);
+    assert.equal(verdict.signals.severity.critical, null);
+    assert.equal(verdict.signals.severity.high, null);
+    // The old generic block reason is gone.
+    assert.equal(
+      verdict.reasons.some((r) =>
+        r.includes('code-review severity bullets could not be parsed'),
+      ),
+      false,
+    );
+  });
+
+  it('sets codeReviewUnparseable=false when the severity bullets parse cleanly', () => {
+    const verdict = deriveAutoMergeVerdict({
+      state: cleanState,
+      codeReview: cleanReview,
+      retro: cleanRetro,
+    });
+    assert.equal(verdict.signals.codeReviewUnparseable, false);
+  });
+
+  it('still blocks on a genuine 🔴 Critical even though parse-miss fails open', () => {
+    // The fail-open carve-out applies ONLY to "present but unparseable" — a
+    // parseable body that reports a real critical finding must still block.
+    const verdict = deriveAutoMergeVerdict({
+      state: cleanState,
+      codeReview: {
+        body: ['- 🔴 Critical Blocker: 2', '- 🟠 High Risk: 0'].join('\n'),
+      },
+      retro: cleanRetro,
+    });
+    assert.equal(verdict.clean, false);
+    assert.equal(verdict.signals.codeReviewUnparseable, false);
+    assert.ok(verdict.reasons.some((r) => r.includes('Critical Blocker')));
+  });
+
   it('returns clean=false when code-review reports a 🟠 High Risk', () => {
     const review = {
       body: ['- 🔴 Critical Blocker: 0', '- 🟠 High Risk: 3'].join('\n'),
