@@ -4,6 +4,17 @@
 > decisions here as dated entries. This file is one of the
 > `project.docsContextFiles` mandatory-reads — agents consult it before every
 > task to avoid re-litigating settled choices.
+>
+> **Two supported layouts — pick one at onboarding.** This single-file
+> dated-entry layout is the **default**, ideal for small projects. Once the
+> log grows past a few dozen entries it becomes a context-bloat liability;
+> at that point switch to the first-class **index + `decisions/` directory**
+> variant ([`decisions.index.md`](decisions.index.md) + the ADR scaffold at
+> [`decisions/_template.md`](decisions/_template.md)). Both layouts keep the
+> file named `decisions.md` so the `project.docsContextFiles` mandatory-read
+> resolves the same; only the shape differs. See
+> [`.agents/skills/core/documentation-and-adrs/SKILL.md`](../../skills/core/documentation-and-adrs/SKILL.md)
+> for when to choose which.
 
 ## Format
 

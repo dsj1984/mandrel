@@ -12,7 +12,7 @@ description:
 
 - Document the **why**, not the what. Capture context, constraints, alternatives considered, and trade-offs — code already shows what was built.
 - Write an ADR for any decision that would be expensive to reverse (framework choice, data model, auth strategy, API architecture, hosting platform).
-- Store ADRs at `docs/decisions/` with sequential numbering (`ADR-001`, `ADR-002`, …) and the canonical sections: **Status, Date, Context, Decision, Alternatives Considered, Consequences**.
+- Mandrel ships **two first-class decisions-log layouts** — pick one at onboarding (see [Decisions-log layouts](#decisions-log-layouts)): the **single-file dated-entry** `docs/decisions.md` (default; best for small projects) or the **index + `docs/decisions/` directory** (MADR-style, one file per ADR; best once the log outgrows a single file). Either way, the canonical ADR sections are **Status, Date, Deciders, Context, Decision, (Alternatives Considered), Consequences**.
 - Mark an ADR's status as `Accepted`, `Superseded by ADR-XXX`, or `Deprecated`. Never silently delete an ADR — supersede it.
 - Do **not** document obvious code; do **not** restate what the code already says. Stale or redundant docs are worse than no docs.
 - Comments explain **non-obvious intent** (the why). If a comment describes what the code does, refactor the code instead.
@@ -54,9 +54,41 @@ highest-value documentation you can write.
 - Choosing between build tools, hosting platforms, or infrastructure
 - Any decision that would be expensive to reverse
 
+### Decisions-log layouts
+
+Mandrel ships **two supported layouts** for the decisions log. Both keep the
+mandatory-read file named `docs/decisions.md` (the `project.docsContextFiles`
+default), so `config-resolver.js` and every `.agents/` reference resolve the
+same regardless of which you pick — only the **shape** differs. Choose one at
+onboarding:
+
+| Layout                              | Shape                                                                 | Template(s)                                                                                                | When to use                                                                       |
+| ----------------------------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| **Single-file dated entries** (default) | One `decisions.md` of append-only `## YYYY-MM-DD — title` entries     | [`templates/docs/decisions.md`](../../../templates/docs/decisions.md)                                      | Small projects; a handful of decisions; you want everything in one scannable file. |
+| **Index + `decisions/` directory**  | `decisions.md` is a one-row-per-ADR **index**; each ADR is `decisions/NNNN-*.md` | [`templates/docs/decisions.index.md`](../../../templates/docs/decisions.index.md) + [`templates/docs/decisions/_template.md`](../../../templates/docs/decisions/_template.md) | The log has outgrown a single file (dozens of ADRs); you want per-decision history and `git blame` per ADR. |
+
+To adopt the directory layout, replace `decisions.md` with the index variant,
+create a `decisions/` directory beside it, and scaffold each ADR from
+`decisions/_template.md` using zero-padded sequential numbering
+(`0001-*.md`, `0002-*.md`, …).
+
+> **Loading model (resolved design question).** The decisions **index** is the
+> only artifact loaded into mandatory task context — individual ADR bodies
+> under `decisions/` are **lazy / link-followed**, not auto-loaded. This is
+> **index-only by default**: auto-loading every ADR body into each task's
+> context would reintroduce exactly the bloat the split exists to remove.
+> `project.docsContextFiles` entries are plain filenames resolved against the
+> docs root (no glob expansion in the loader), so the index ships as a normal
+> mandatory-read with no loader change. A project that genuinely wants the full
+> ADR set in mandatory context can add explicit per-file entries (or a
+> `decisions/*.md`-style entry if it maintains its own globbing) as a
+> deliberate opt-in, but that is the exception, not the default.
+
 ### ADR Template
 
-Store ADRs in `docs/decisions/` with sequential numbering:
+In the **single-file** layout, append a short dated entry per the
+`templates/docs/decisions.md` format. In the **directory** layout, store ADRs
+in `docs/decisions/` with sequential numbering:
 
 ```markdown
 # ADR-001: Use PostgreSQL for primary database
@@ -68,6 +100,10 @@ Accepted | Superseded by ADR-XXX | Deprecated
 ## Date
 
 2025-01-15
+
+## Deciders
+
+The platform team (architect + two senior engineers).
 
 ## Context
 

@@ -27,4 +27,7 @@ Describe the top-level directories and their responsibilities.
 
 ## Key Decisions
 
-Link to `decisions.md` for the architectural decision log.
+Link to `decisions.md` for the architectural decision log. Mandrel supports two
+first-class layouts for it: a single-file dated-entry `decisions.md` (default)
+or an index + `decisions/` ADR directory — see
+[`.agents/skills/core/documentation-and-adrs/SKILL.md`](../../skills/core/documentation-and-adrs/SKILL.md).
