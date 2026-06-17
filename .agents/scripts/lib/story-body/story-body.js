@@ -342,8 +342,11 @@ function splitSections(markdown) {
       }
     }
 
-    // Detect `## Heading` lines
-    const headingMatch = line.match(/^##\s+(\w+)\s*$/i);
+    // Detect `## Heading` (canonical) or `### Heading` lines. GitHub Issue
+    // Forms (Story #4227) render every field label as a level-3 heading
+    // (`### Goal`), not the level-2 the canonical serializer emits, so the
+    // parser accepts both levels. Any other heading depth is ignored.
+    const headingMatch = line.match(/^#{2,3}\s+(\w+)\s*$/i);
     if (headingMatch) {
       const name = headingMatch[1].toLowerCase();
       if (HEADING_TO_FIELD.has(name)) {
