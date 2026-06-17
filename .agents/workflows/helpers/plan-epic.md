@@ -74,13 +74,21 @@ Phase 5 (Re-Plan Detection).
    one-pager feeds the scope-triage gate below, whose verdict folds into
    the **same** Phase 1 HITL confirmation. Do not stop twice.
 
-3. **HITL stop — confirm the sharpened one-pager**: Display the one-pager
-   to the operator and **STOP**. Do not proceed to Phase 2 until the
-   user explicitly confirms the direction. This is the same gate the
-   skill's own Phase 3 enforces; surfacing it here makes the wait
+3. **HITL stop — confirm the sharpened one-pager** (**gate #1**): Display
+   the one-pager to the operator and **STOP**. Do not proceed to Phase 2
+   until the user explicitly confirms the direction. This is the same gate
+   the skill's own Phase 3 enforces; surfacing it here makes the wait
    contract visible to `/plan` callers. When the Phase 1.5 verdict is
    `story` or `borderline`, this stop carries the three-way choice the
    triage gate defines (below) instead of a plain confirm.
+
+   > **`--yes` (headless) auto-proceed.** When `/plan` was invoked with
+   > `--yes`, this gate does **not** STOP: the one-pager confirm resolves as
+   > **approved** and the run continues to Phase 2. A `story` / `borderline`
+   > triage verdict resolves to its **Recommended** branch (below) rather
+   > than prompting the three-way choice. Display the one-pager and the
+   > verdict line for the record, then proceed without waiting. See
+   > [`plan.md` § Headless / non-interactive mode](../plan.md#headless--non-interactive-mode---yes).
 
 ## Phase 1.5: Scope Triage (ideation path only)
 
@@ -123,6 +131,15 @@ skill states once).
    the sizing validator catch an over-planned Story later); the gate exists to
    avoid the ceremony tax of pushing a story-sized scope through the full Epic
    pipeline.
+
+   > **`--yes` (headless) exception.** "Never auto-route" is the interactive
+   > contract. Under `--yes` the operator has *pre-authorized* the
+   > recommendation: the three-way choice resolves to its **Recommended**
+   > branch deterministically — `single Story` hands off to
+   > `/plan --from-notes <path>` (carrying `--yes` so the receiving story
+   > path also auto-proceeds), and an `epic` verdict simply continues to
+   > Phase 2. No operator wait. This is the only sanctioned auto-route, and it
+   > exists solely to make `/plan` driveable headlessly.
 
 ## Phase 2: Cross-Epic Duplicate Search
 
@@ -556,18 +573,31 @@ for the scoring logic.
      `planningRisk.requiresReview` unless the operator passed
      `--force-review`:
      - **High risk** (`requiresReview === true`) or **operator override**
-       (`--force-review`): **STOP**. Ask the USER to review the generated
-       PRD, Tech Spec, and Acceptance Spec on GitHub. Approval is the
-       user's verbal OK in this session — the three context tickets stay
+       (`--force-review`) — **gate #2**: **STOP**. Ask the USER to review the
+       generated PRD, Tech Spec, and Acceptance Spec on GitHub. Approval is
+       the user's verbal OK in this session — the three context tickets stay
        **open** through delivery and are closed automatically by
        `/deliver` when the Epic PR opens. Do NOT proceed
        to decomposition until the user confirms the plan is accurate.
+
+       > **`--yes` (headless) auto-proceed.** When `/plan` was invoked with
+       > `--yes`, this review gate does **not** STOP, even when
+       > `requiresReview === true` or `--force-review` was also passed: the
+       > review resolves as **approved** and the run **continues directly to
+       > Phase 8**, exactly as the low-risk auto-proceed branch below. The
+       > three context tickets stay **open** through delivery as usual; only
+       > the operator *wait* is suppressed. This is `/plan`'s **gate #2** —
+       > the second and last HITL STOP `--yes` suppresses. `--yes` does
+       > **not** alter risk routing or the review criteria themselves; it
+       > only forces a proceed where this gate would otherwise STOP. See
+       > [`plan.md` § Headless / non-interactive mode](../plan.md#headless--non-interactive-mode---yes).
      - **Low risk** (`requiresReview === false` and no `--force-review`):
        Emit the auto-proceed message from the persist stdout
        (`reviewRouting.operatorMessage`) and **continue directly to Phase 8**
        without an extra review stop. The Epic still carries
        `agent::review-spec` until decomposition completes; the routing
-       decision is recorded in the `epic-plan-state` checkpoint.
+       decision is recorded in the `epic-plan-state` checkpoint. (`--yes` is
+       a no-op on this branch — there is no STOP to suppress.)
 
 5. **Tech Spec freshness check (advisory)**: After the Tech Spec issue
    is created, `epic-plan-spec.js` runs

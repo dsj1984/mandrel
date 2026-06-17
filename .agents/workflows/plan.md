@@ -44,6 +44,7 @@ forwards them to the active path helper:
 | `--force` | Epic | Close + recreate an existing ticket tree on re-plan. |
 | `--force-review` | Epic | Force the operator review gate even when risk routing would skip it. |
 | `--allow-over-budget` | Epic | Permit a decomposition that exceeds the framework `maxTickets` reviewability budget. |
+| `--yes` | both | **Non-interactive / headless mode.** Deterministically auto-proceeds the two `/plan` HITL STOP gates — the ideation one-pager / scope-triage confirm (gate #1) and the Phase-7 Epic operator review gate (gate #2) — without waiting for operator input. Parallel to [`/deliver --yes`](deliver.md). Composes with `--allow-over-budget` and with the risk-routed Phase-7 skip (it forces a proceed where those do not apply). Default (flag absent) behavior is unchanged: both gates still STOP for interactive use. |
 | `--steal` | Epic | Forcibly transfer a foreign Epic-lease. |
 | `--dry-run` | both | Author + validate without GitHub writes. |
 | `--body <path>` | Story | Pre-authored Story body file; validate (and create, unless `--dry-run`) without re-authoring. |
@@ -57,6 +58,56 @@ error. The historical bidirectional escalation between the two planning
 commands (story-sized Epic ↘ Story; epic-sized Story draft ↗ Epic) is now
 an **internal branch switch** inside this router: same skills, same
 helpers, no command hop and no operator re-entry.
+
+### Headless / non-interactive mode (`--yes`)
+
+`--yes` is the headless escape hatch for an unattended driver (CI, a
+benchmark harness, or any `claude -p` run with no human at the keyboard). It
+is the `/plan`-side parallel of [`/deliver --yes`](deliver.md), which
+suppresses that command's segment-plan confirmation. `/plan` has exactly
+**two** HITL STOP gates, and `--yes` deterministically auto-proceeds **both**
+without waiting for operator input:
+
+1. **Gate #1 — the ideation one-pager / scope-triage confirm.** On the
+   `--idea` path, [`helpers/plan-epic.md`](helpers/plan-epic.md) Phase 1
+   (folding in the Phase 1.5 scope-triage verdict) and
+   [`helpers/plan-story.md`](helpers/plan-story.md) Phase 2 each STOP to
+   confirm the sharpened one-pager / drafted body. Under `--yes` the gate
+   auto-proceeds: the one-pager confirm resolves as **approved**, and a
+   `story` / `borderline` triage verdict resolves to its **recommended**
+   branch (the one the gate prose marks "Recommended") rather than
+   prompting the three-way choice. The verdict is still recorded in chat
+   (one line); only the *wait* is suppressed.
+2. **Gate #2 — the Phase-7 Epic operator review gate.** When risk routing
+   forces a review (`planningRisk.requiresReview === true`, or the operator
+   also passed `--force-review`),
+   [`helpers/plan-epic.md`](helpers/plan-epic.md) Phase 7 STOPs for operator
+   approval of the PRD / Tech Spec / Acceptance Spec before decomposition.
+   Under `--yes` this review auto-proceeds straight to Phase 8 — the three
+   context tickets stay **open** through delivery exactly as on the low-risk
+   auto-proceed path.
+
+**Composition.** `--yes` is orthogonal to the other planning flags and
+composes cleanly:
+
+- With **`--allow-over-budget`**: `--yes` suppresses the gate *waits* while
+  `--allow-over-budget` still governs the `maxTickets` over-budget persist —
+  passing `--yes` alone does **not** waive the budget gate.
+- With the **risk-routed Phase-7 skip**: when risk routing already skips the
+  Phase-7 review (low-risk, no `--force-review`), `--yes` is a no-op for that
+  gate — it only *forces a proceed where the gate would otherwise STOP*, it
+  never *adds* a stop or relaxes any non-HITL validator.
+
+**`--yes` suppresses only the two HITL STOP gates above.** It does **not**
+relax any deterministic gate — the Phase 6 Epic Clarity Gate, the Phase 7.5
+Tech Spec Section Gate, the file-assumption / DAG validators, the Phase 10
+readiness healthcheck, and the `agent::blocked` runtime pause all behave
+exactly as without the flag. A `--yes` run that hits one of those still
+fails closed; the flag is an operator-input suppressor, not a validation
+override. The non-blocking Phase 2 duplicate-search pause and the advisory
+Phase 8.3/8.4/8.5 consolidation/critic diffs also auto-proceed under `--yes`
+(distinct-Epic confirmed; consolidated/critic output applied) since they are
+operator-input waits, not validators.
 
 ## First-run preflight
 
@@ -109,9 +160,11 @@ stubbed docs, or an unready doctor verdict).
    [`core/scope-triage`](../skills/core/scope-triage/SKILL.md) skill on the
    seed. Record the verdict in chat (one line).
 4. **Delegate.** Read the selected path helper **in full** and execute it
-   from its entry phase, forwarding the absorbed flags. The helper's phase
-   numbering, HITL gates, and scripts are unchanged — this router adds no
-   phase content.
+   from its entry phase, forwarding the absorbed flags (including `--yes`).
+   The helper's phase numbering, HITL gates, and scripts are unchanged — this
+   router adds no phase content. When `--yes` is present, the two HITL STOP
+   gates auto-proceed per [Headless / non-interactive mode](#headless--non-interactive-mode---yes)
+   above; every deterministic gate still runs.
 5. **Internal returns.** When a path helper would historically have handed
    off to the other planning command, switch helpers in-place and continue;
    surface the switch to the operator as a one-line note.

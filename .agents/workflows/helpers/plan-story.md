@@ -68,6 +68,9 @@ to authoring the standalone Story body from the handed-off one-pager.
 
 # Inspect the draft body without creating an Issue:
 /plan --dry-run --body temp/single-story-draft.md
+
+# Headless / non-interactive (auto-proceeds the draft-confirm gate):
+/plan --idea "rip out the unused TaskBodyMigrator export" --yes
 ```
 
 ## Phase 1 — Emit Context
@@ -153,8 +156,18 @@ add a second stop.
 
 Display the draft to the operator and **STOP**. Do not call the persist phase
 until the operator explicitly confirms the draft. This mirrors the HITL gate
-`/plan` Phase 3 enforces before opening the Epic Issue. The scope-triage
-verdict folds into this same stop:
+`/plan` Phase 3 enforces before opening the Epic Issue. This is the
+story-path face of `/plan`'s **gate #1** (the ideation one-pager /
+scope-triage confirm). The scope-triage verdict folds into this same stop:
+
+> **`--yes` (headless) auto-proceed.** When `/plan` was invoked with `--yes`,
+> this gate does **not** STOP: the draft confirm resolves as **approved** and
+> the run proceeds to Phase 3 (persist). An `epic` verdict resolves to its
+> **Recommended** branch — escalate to `/plan --idea` (carrying `--yes`),
+> abandoning the draft — rather than prompting the three-way choice. Display
+> the draft and the verdict line for the record, then proceed without
+> waiting. See
+> [`plan.md` § Headless / non-interactive mode](../plan.md#headless--non-interactive-mode---yes).
 
 - **`story` verdict (or gate skipped via handoff)** → no extra prompt. The
   operator confirms the draft as usual and the run proceeds to Phase 3
@@ -177,6 +190,9 @@ verdict folds into this same stop:
 
   **Never auto-route.** The verdict is advisory; the operator always decides,
   and no `agent::*` / label transition happens on either side of the choice.
+  (**`--yes` exception:** headless mode pre-authorizes the **Recommended**
+  branch deterministically — see the `--yes` note above — the only sanctioned
+  auto-route, present solely to make `/plan` driveable without an operator.)
 
 ## Phase 3 — Persist (`gh issue create`)
 
