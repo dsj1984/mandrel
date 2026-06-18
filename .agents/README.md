@@ -33,7 +33,7 @@ It then shows a **two-option prompt**:
 
 1. **Configure now** — runs `node .agents/scripts/bootstrap.js`, forwarding any
    passthrough flags unchanged, to wire the project and GitHub side (creates the
-   GitHub repo + Projects board).
+   GitHub repo; board decoration and Issue Forms are opt-in — see below).
 2. **Just the files** — stops after materialization and prints a re-run hint
    (`mandrel init`) so you can configure later.
 
@@ -100,9 +100,13 @@ The bootstrap pipeline, in order:
    `.claude/commands/` tree so every `/<command>` loads), wires the system
    prompt (see below), gitignores derived artefacts, and runs the
    quality-gates installer.
-4. **GitHub-side mutations.** Creates the label taxonomy, Project V2
-   fields, branch protection, and merge-method settings. Skipped with
-   `--skip-github`.
+4. **GitHub-side mutations.** Creates the label taxonomy, branch protection,
+   and merge-method settings. Skipped with `--skip-github`. Two additional
+   mutations are **opt-in** (prompted y/N, defaulting No, or passed as flags):
+   - `--with-project-board` — provision the Projects V2 Status field and
+     custom fields on an existing board.
+   - `--with-issue-forms` — generate `.github/ISSUE_TEMPLATE/story.yml` and
+     `epic.yml` from the ticket-body schema.
 
 The bootstrap is idempotent — safe to re-run; an already-configured
 clone produces zero file mutations.
@@ -184,7 +188,7 @@ Reverses a recorded install using the install ledger
 (`.agents/.install-manifest.json`). Each ledger entry is a
 mutation-manifest record; uninstall walks reversible entries and undoes
 exactly what the install applied, without touching pre-existing operator
-content. GitHub-side state (labels, branch protection, Projects board)
+content. GitHub-side state (labels, branch protection, project board fields)
 requires manual reversal and is surfaced as a follow-up checklist.
 
 ```bash

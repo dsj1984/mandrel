@@ -55,7 +55,6 @@ function makeCountingProvider({
     ensureLabels: 0,
     resolveOrCreateProject: 0,
     ensureStatusField: 0,
-    ensureProjectViews: 0,
     ensureProjectFields: 0,
     getBranchProtection: 0,
     setBranchProtection: [],
@@ -79,10 +78,6 @@ function makeCountingProvider({
     async ensureStatusField() {
       calls.ensureStatusField++;
       return { status: 'skipped', added: [] };
-    },
-    async ensureProjectViews() {
-      calls.ensureProjectViews++;
-      return { created: [], skipped: [], unavailable: false };
     },
     async ensureProjectFields() {
       calls.ensureProjectFields++;
@@ -125,7 +120,6 @@ function totalProviderCalls(calls) {
     calls.ensureLabels +
     calls.resolveOrCreateProject +
     calls.ensureStatusField +
-    calls.ensureProjectViews +
     calls.ensureProjectFields +
     calls.getBranchProtection +
     calls.setBranchProtection.length +
@@ -133,6 +127,60 @@ function totalProviderCalls(calls) {
     calls.setMergeMethods.length
   );
 }
+
+describe('agents-bootstrap-github — project board decoration opt-in (#4234)', () => {
+  it('board decoration is skipped by default (withProjectBoard not set)', async () => {
+    const provider = makeCountingProvider();
+    const result = await runBootstrap(ORCHESTRATION, {
+      providerOverride: provider,
+      project: PROJECT_BLOCK,
+      quiet: true,
+      githubAdminApproved: true,
+      assumeYes: true,
+    });
+    // Labels still run (load-bearing); board decoration does not.
+    assert.ok(result.labels, 'labels result present');
+    assert.equal(
+      provider.calls.resolveOrCreateProject,
+      0,
+      'no project resolution',
+    );
+    assert.equal(provider.calls.ensureStatusField, 0, 'no status field');
+    assert.equal(provider.calls.ensureProjectFields, 0, 'no custom fields');
+    // result envelope skips board fields when decoration not opted in.
+    assert.equal(result.project?.skipped, true);
+    assert.equal(result.statusField?.status, 'skipped');
+  });
+
+  it('board decoration runs when withProjectBoard: true', async () => {
+    const provider = makeCountingProvider();
+    const result = await runBootstrap(ORCHESTRATION, {
+      providerOverride: provider,
+      project: PROJECT_BLOCK,
+      quiet: true,
+      githubAdminApproved: true,
+      assumeYes: true,
+      withProjectBoard: true,
+    });
+    // resolveOrCreateProject runs; mock returns scopesMissing=true so status
+    // field and fields are still skipped (no real project number resolved),
+    // but the call was issued — decoration was attempted.
+    assert.equal(
+      provider.calls.resolveOrCreateProject,
+      1,
+      'project lookup attempted',
+    );
+  });
+
+  it('provider has no ensureProjectViews method — views are removed (#4234)', async () => {
+    const provider = makeCountingProvider();
+    assert.equal(
+      typeof provider.ensureProjectViews,
+      'undefined',
+      'ensureProjectViews must not exist on the provider mock',
+    );
+  });
+});
 
 describe('agents-bootstrap-github — explicit github-admin opt-in (#3526)', () => {
   it('with no explicit approval: completes and issues zero GitHub mutations', async () => {

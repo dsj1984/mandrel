@@ -57,12 +57,6 @@ export function printSummary(result) {
   Logger.info(`Fields skipped: ${result.fields.skipped.length}`);
   Logger.info(`Project: ${formatProjectSummary(result.project)}`);
   Logger.info(`Status field: ${result.statusField.status}`);
-  const unavailableSuffix = result.views.unavailable
-    ? ' (mutation unavailable)'
-    : '';
-  Logger.info(
-    `Views — created: ${result.views.created.length}, skipped: ${result.views.skipped.length}${unavailableSuffix}`,
-  );
   Logger.info(
     `Workflow audit: ${formatWorkflowAuditSummary(result.workflowAudit)}`,
   );

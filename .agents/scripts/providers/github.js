@@ -130,7 +130,6 @@ const DELEGATIONS = [
   ['setMergeMethods', 'mergeMethods.setMergeMethods'],
   ['resolveOrCreateProject', 'projectBoard.resolveOrCreateProject'],
   ['ensureStatusField', 'projectBoard.ensureStatusField'],
-  ['ensureProjectViews', 'projectBoard.ensureProjectViews'],
   ['ensureProjectFields', 'projectBoard.ensureProjectFields'],
 ];
 for (const [name, target] of DELEGATIONS) {

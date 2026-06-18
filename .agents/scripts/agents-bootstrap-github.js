@@ -43,7 +43,6 @@ import { Logger } from './lib/Logger.js';
 import {
   LABEL_TAXONOMY,
   PROJECT_FIELD_DEFS,
-  PROJECT_VIEW_DEFS,
   STATUS_FIELD_OPTIONS,
 } from './lib/label-taxonomy.js';
 import { createProvider } from './lib/provider-factory.js';
@@ -151,25 +150,6 @@ async function ensureStatusField(provider, log) {
   } catch (err) {
     log(`[Bootstrap] Status field provisioning failed: ${err.message}`);
     return { status: 'skipped', added: [] };
-  }
-}
-
-async function ensureViews(provider, log) {
-  try {
-    const views = await provider.ensureProjectViews(PROJECT_VIEW_DEFS);
-    if (views.unavailable) {
-      log(
-        `[Bootstrap] Projects V2 Views unavailable — skipped ${views.skipped.join(', ')}.${views.error ? ` (${views.error})` : ''} ${PROJECTS_DOC_POINTER}`,
-      );
-    } else {
-      log(
-        `[Bootstrap] Views — created: ${views.created.length}, skipped: ${views.skipped.length}`,
-      );
-    }
-    return views;
-  } catch (err) {
-    log(`[Bootstrap] Views provisioning failed: ${err.message}`);
-    return { created: [], skipped: [], unavailable: false };
   }
 }
 
@@ -283,10 +263,15 @@ async function ensureProjectFields(provider, project, log) {
  *   github?: object,
  *   baseBranch?: string,
  *   githubAdminApproved?: boolean,
+ *   withProjectBoard?: boolean,
  *   isTTY?: boolean,
  * }} [opts] - `githubAdminApproved` MUST be `true` for any GitHub mutation to
  *   occur; any other value (absent / `false`) is treated as "not approved"
  *   and the run is a verified no-op.
+ *   `withProjectBoard` (default `false`) — opt-in for Projects V2 board,
+ *   Status field, custom fields, and workflow audit. When absent or `false`,
+ *   the board decoration is skipped and only labels + branch protection +
+ *   merge methods are provisioned.
  */
 export async function runBootstrap(config, opts = {}) {
   // Explicit opt-in gate (Story #3526). Default-deny: absent or non-`true`
@@ -316,36 +301,46 @@ export async function runBootstrap(config, opts = {}) {
   log('[Bootstrap] API access verified.');
 
   const labels = await ensureLabels(provider, log);
-  const project = await resolveProject(provider, providerConfig, log);
 
-  const projectReady = !project.skipped && project.projectNumber;
+  // Board decoration (Projects V2 board, Status field, custom fields, workflow
+  // audit) is opt-in and defaults OFF. Minimal install = labels only. Gate is
+  // `opts.withProjectBoard === true`; absent or false skips all board work.
+  // ColumnSync already soft-noops when projectNumber is unset (column-sync.js:19-23).
+  const projectBoard = opts.withProjectBoard === true;
+  let project = { projectNumber: null, created: false, skipped: true };
   let statusField = { status: 'skipped', added: [] };
-  let views = { created: [], skipped: [], unavailable: false };
   let fields = { created: [], skipped: [] };
+  let workflowAudit = {
+    skipped: true,
+    reason: 'board-decoration-not-opted-in',
+  };
 
-  if (projectReady) {
-    statusField = await ensureStatusField(provider, log);
-    views = await ensureViews(provider, log);
-    fields = await ensureProjectFields(provider, project, log);
-  } else {
-    log('[Bootstrap] No active project — skipping legacy project-field setup.');
-  }
-
-  // Story #2845 — audit project workflows for the ones that race against
-  // the orchestrator's ColumnSync writes (notably `Pull request merged`
-  // and `Pull request linked to issue`, which both rewrite Status as a
-  // side-effect of auto-merge). When `--reap-conflicting-workflows` is
-  // set, also delete the offenders via `deleteProjectV2Workflow` (the
-  // only programmatic action GraphQL exposes today — `enabled` is
-  // read-only).
-  const workflowAudit = projectReady
-    ? await auditAndOptionallyReapWorkflows(
+  if (projectBoard) {
+    project = await resolveProject(provider, providerConfig, log);
+    const projectReady = !project.skipped && project.projectNumber;
+    if (projectReady) {
+      statusField = await ensureStatusField(provider, log);
+      fields = await ensureProjectFields(provider, project, log);
+      // Story #2845 — audit project workflows for the ones that race against
+      // the orchestrator's ColumnSync writes (notably `Pull request merged`
+      // and `Pull request linked to issue`, which both rewrite Status as a
+      // side-effect of auto-merge). When `--reap-conflicting-workflows` is
+      // set, also delete the offenders via `deleteProjectV2Workflow` (the
+      // only programmatic action GraphQL exposes today — `enabled` is
+      // read-only).
+      workflowAudit = await auditAndOptionallyReapWorkflows(
         provider,
         project.projectNumber,
         opts.reapConflictingWorkflows === true,
         log,
-      )
-    : { skipped: true, reason: 'no-project' };
+      );
+    } else {
+      log('[Bootstrap] No active project — skipping project-field setup.');
+      workflowAudit = { skipped: true, reason: 'no-project' };
+    }
+  } else {
+    log('[Bootstrap] Project board decoration skipped (opt-in not set).');
+  }
 
   // Consumer-facing bootstrap promotes the framework's CI-gates-only
   // stance: branch protection with enforce_admins + 0-approval-count and
@@ -405,7 +400,6 @@ export async function runBootstrap(config, opts = {}) {
     fields,
     project,
     statusField,
-    views,
     workflowAudit,
     branchProtection,
     mergeMethods,
@@ -490,6 +484,10 @@ async function main() {
   // invocation never silently reconfigures branch protection or merge methods.
   const githubAdminApproved =
     assumeYes || process.argv.includes('--approve-github-admin');
+  // Story #4234 — Board decoration is opt-in (default off). Pass
+  // `--with-project-board` to also provision the Projects V2 board, Status
+  // field, and custom fields.
+  const withProjectBoard = process.argv.includes('--with-project-board');
 
   try {
     const result = await runBootstrap(config, {
@@ -499,6 +497,7 @@ async function main() {
       assumeNo,
       reapConflictingWorkflows,
       githubAdminApproved,
+      withProjectBoard,
     });
     // A non-approved run returns the skip envelope (no full result shape);
     // the skip line is already logged inside runBootstrap, so render the

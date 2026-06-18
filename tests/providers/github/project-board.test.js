@@ -36,12 +36,13 @@ const pbMod = await import(
 const { ProjectBoardGateway } = pbMod;
 
 describe('providers/github/project-board.js — ProjectBoardGateway', () => {
-  it('exposes the four Projects V2 methods on its prototype', () => {
+  it('exposes the three Projects V2 methods on its prototype', () => {
     const gw = new ProjectBoardGateway({ ctx: {} });
     assert.equal(typeof gw.resolveOrCreateProject, 'function');
     assert.equal(typeof gw.ensureStatusField, 'function');
-    assert.equal(typeof gw.ensureProjectViews, 'function');
     assert.equal(typeof gw.ensureProjectFields, 'function');
+    // ensureProjectViews was hard-cutover deleted in Story #4234.
+    assert.equal(typeof gw.ensureProjectViews, 'undefined');
   });
 
   it('preserves the shared _ctx instance across calls', () => {

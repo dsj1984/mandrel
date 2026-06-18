@@ -724,7 +724,10 @@ export const BOOTSTRAP_PHASES = Object.freeze([
   {
     name: 'issueForms',
     phaseGroup: PHASE_GROUPS.REPO_CONFIG,
-    run: (ctx) => ensureIssueFormsPhase(ctx),
+    run: (ctx) =>
+      ctx.withIssueForms === true
+        ? ensureIssueFormsPhase(ctx)
+        : { skipped: true, reason: 'issue-forms-not-opted-in' },
   },
   {
     name: 'sync',

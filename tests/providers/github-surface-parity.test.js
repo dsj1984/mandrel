@@ -77,7 +77,6 @@ function buildProvider() {
   provider.projectBoard = {
     resolveOrCreateProject: async () => 'projectBoard.resolveOrCreateProject',
     ensureStatusField: async () => 'projectBoard.ensureStatusField',
-    ensureProjectViews: async () => 'projectBoard.ensureProjectViews',
     ensureProjectFields: async () => 'projectBoard.ensureProjectFields',
   };
   provider.issues = {
@@ -164,7 +163,6 @@ describe('providers/github.js — surface parity (Story #2462 / Task #2481)', ()
       // project-board
       ['resolveOrCreateProject', [{}], 'projectBoard.resolveOrCreateProject'],
       ['ensureStatusField', [[]], 'projectBoard.ensureStatusField'],
-      ['ensureProjectViews', [[]], 'projectBoard.ensureProjectViews'],
       ['ensureProjectFields', [[]], 'projectBoard.ensureProjectFields'],
       // issues
       ['graphql', ['query {}'], 'issues.ghGraphql'],
