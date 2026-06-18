@@ -21,14 +21,8 @@ const Q_PROJ = (scope, fields) =>
 const M_PROJ = `mutation($ownerId:ID!,$title:String!){createProjectV2(input:{ownerId:$ownerId,title:$title}){projectV2{id number}}}`;
 const M_FIELD = `mutation($projectId:ID!,$name:String!,$options:[ProjectV2SingleSelectFieldOptionInput!]!){createProjectV2Field(input:{projectId:$projectId,dataType:SINGLE_SELECT,name:$name,singleSelectOptions:$options}){projectV2Field{... on ProjectV2SingleSelectField{id name}}}}`;
 const M_UPDATE = `mutation($fieldId:ID!,$name:String!,$options:[ProjectV2SingleSelectFieldOptionInput!]!){updateProjectV2Field(input:{fieldId:$fieldId,name:$name,singleSelectOptions:$options}){projectV2Field{... on ProjectV2SingleSelectField{id name}}}}`;
-// Projects V2 view creation uses the REST API — the GraphQL
-// `createProjectV2View` mutation is not generally available. Endpoints:
-//   org-owned:  POST /orgs/{org}/projectsV2/{number}/views        ({org} login)
-//   user-owned: POST /users/{user_id}/projectsV2/{number}/views   (numeric id)
-const REST_API_VERSION = '2026-03-10';
 const M_ITEM = `mutation($projectId:ID!,$contentId:ID!){addProjectV2ItemById(input:{projectId:$projectId,contentId:$contentId}){item{id}}}`;
 const F_STATUS = `id fields(first:50){nodes{... on ProjectV2SingleSelectField{id name options{id name}}}}`;
-const F_VIEWS = `id views(first:50){nodes{name}}`;
 const F_FIELDS = `id fields(first:50){nodes{... on ProjectV2Field{name} ... on ProjectV2IterationField{name} ... on ProjectV2SingleSelectField{name}}}`;
 const SCOPES_RE =
   /INSUFFICIENT_SCOPES|Resource not accessible by personal access token|your token has not been granted the required scopes/i;
@@ -104,97 +98,6 @@ async function gql(ctx, query, variables, { retry = false } = {}) {
     return json.data;
   };
   return retry ? withTransientRetry(run) : run();
-}
-
-/**
- * Issue a REST request against api.github.com, reusing the same token and
- * fetch seam as `gql`. Throws on non-2xx with the response body for context.
- * Pass `{ retry: true }` to retry transient network blips (idempotent calls).
- */
-async function rest(ctx, method, apiPath, body, { retry = false } = {}) {
-  const run = async () => {
-    const fetchImpl = ctx.fetchImpl ?? globalThis.fetch;
-    const response = await fetchImpl(`https://api.github.com${apiPath}`, {
-      method,
-      headers: {
-        Accept: 'application/vnd.github+json',
-        Authorization: `Bearer ${ctx.token ?? resolveToken()}`,
-        'Content-Type': 'application/json',
-        'User-Agent': 'node.js',
-        'X-GitHub-Api-Version': REST_API_VERSION,
-      },
-      ...(body ? { body: JSON.stringify(body) } : {}),
-    });
-    if (!response.ok) {
-      const text = await response.text().catch(() => '');
-      const err = new Error(
-        `[GitHubProvider] REST ${method} ${apiPath} → ${response.status}: ${text}`,
-      );
-      err.status = response.status;
-      throw err;
-    }
-    return response.json().catch(() => ({}));
-  };
-  return retry ? withTransientRetry(run) : run();
-}
-
-/**
- * Resolve an owner login to its account type and numeric id via
- * `GET /users/{login}` (which serves both users and orgs). The REST views
- * endpoint keys orgs by login but users by numeric id, so we need both.
- */
-async function resolveOwnerAccount(ctx, owner) {
-  const data = await rest(
-    ctx,
-    'GET',
-    `/users/${encodeURIComponent(owner)}`,
-    undefined,
-    { retry: true },
-  );
-  return { id: data?.id ?? null, type: data?.type ?? null };
-}
-
-/**
- * Build the candidate REST views endpoints to try, in order. Orgs key by
- * login. For user-owned projects the docs label the path param `{user_id}`
- * but it's ambiguous (numeric id vs login) and the numeric form was observed
- * to 404 — so we try the login first (mirroring the org endpoint) then fall
- * back to the numeric id, treating a 404 as "wrong param, try the next".
- */
-function viewsEndpoints(account, owner, projectNumber) {
-  if (account.type === 'Organization') {
-    return [
-      `/orgs/${encodeURIComponent(owner)}/projectsV2/${projectNumber}/views`,
-    ];
-  }
-  const candidates = [];
-  if (owner) {
-    candidates.push(
-      `/users/${encodeURIComponent(owner)}/projectsV2/${projectNumber}/views`,
-    );
-  }
-  if (account.id != null) {
-    candidates.push(`/users/${account.id}/projectsV2/${projectNumber}/views`);
-  }
-  return candidates;
-}
-
-/**
- * POST a view to the first candidate endpoint that does not 404. A 404 means
- * the path param shape was wrong (login vs numeric id) — try the next. Any
- * other status is a real failure and propagates.
- */
-async function createView(ctx, endpoints, body) {
-  let lastError = null;
-  for (const endpoint of endpoints) {
-    try {
-      return await rest(ctx, 'POST', endpoint, body, { retry: true });
-    } catch (err) {
-      lastError = err;
-      if (err.status !== 404) throw err;
-    }
-  }
-  throw lastError ?? new Error('[GitHubProvider] No views endpoint available.');
 }
 
 async function lookupProject(ctx, fragment, strict = false) {
@@ -355,75 +258,6 @@ export async function ensureStatusField(ctx, optionNames) {
       return { status: 'scopes-missing', added: [] };
     throw err;
   }
-}
-
-export async function ensureProjectViews(ctx, viewDefs) {
-  if (!ctx.projectNumber)
-    throw new Error(
-      '[GitHubProvider] ensureProjectViews requires projectNumber.',
-    );
-  const created = [],
-    skipped = [];
-  let project;
-  try {
-    project = await lookupProject(ctx, F_VIEWS, true);
-  } catch {
-    return {
-      created,
-      skipped: viewDefs.map((view) => view.name),
-      unavailable: true,
-    };
-  }
-  if (!project)
-    throw new Error(
-      `[GitHubProvider] Project #${ctx.projectNumber} not found for ${ctx.projectOwner}.`,
-    );
-  const existingViewNames = new Set(
-    (project.views?.nodes ?? []).map((view) => view?.name).filter(Boolean),
-  );
-
-  // Resolve the owner account once to pick the right REST endpoint shape.
-  let account;
-  try {
-    account = await resolveOwnerAccount(ctx, ctx.projectOwner);
-  } catch (err) {
-    return {
-      created,
-      skipped: viewDefs.map((view) => view.name),
-      unavailable: true,
-      error: err.message,
-    };
-  }
-
-  const endpoints = viewsEndpoints(
-    account,
-    ctx.projectOwner,
-    ctx.projectNumber,
-  );
-  let unavailable = false;
-  let error;
-  for (const def of viewDefs) {
-    if (existingViewNames.has(def.name) || unavailable) {
-      skipped.push(def.name);
-      continue;
-    }
-    try {
-      await createView(ctx, endpoints, {
-        name: def.name,
-        // PROJECT_VIEW_DEFS predate REST layouts; the GraphQL path always
-        // created board views, so default to 'board' (override via
-        // `def.layout` = 'table' | 'board' | 'roadmap').
-        layout: def.layout ?? 'board',
-        ...(def.filter ? { filter: def.filter } : {}),
-      });
-      created.push(def.name);
-    } catch (err) {
-      unavailable = true;
-      error = err.message;
-      skipped.push(def.name);
-    }
-  }
-  return { created, skipped, unavailable, ...(error ? { error } : {}) };
 }
 
 export async function ensureProjectFields(ctx, fieldDefs) {

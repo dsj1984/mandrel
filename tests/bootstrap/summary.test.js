@@ -121,7 +121,6 @@ test('printSummary emits one info line per section via the injected Logger', (t)
     fields: { created: [], skipped: ['x'] },
     project: { created: true, projectNumber: 9 },
     statusField: { status: 'created' },
-    views: { created: ['v1'], skipped: [], unavailable: false },
     workflowAudit: { action: 'no-conflicts' },
     branchProtection: { status: 'merged', added: [] },
     mergeMethods: { status: 'unchanged' },
@@ -136,27 +135,6 @@ test('printSummary emits one info line per section via the injected Logger', (t)
   assert.match(joined, /Workflow audit: no conflicting workflows/);
   assert.match(joined, /Branch protection: merged \(no changes\)/);
   assert.match(joined, /Merge methods: unchanged \(already at target stance\)/);
-});
-
-test('printSummary surfaces the views mutation-unavailable suffix', (t) => {
-  const lines = [];
-  t.mock.method(Logger, 'info', (msg) => {
-    lines.push(String(msg));
-  });
-
-  printSummary({
-    labels: { created: [], skipped: [] },
-    fields: { created: [], skipped: [] },
-    project: {},
-    statusField: { status: 'skipped' },
-    views: { created: [], skipped: [], unavailable: true },
-    workflowAudit: null,
-    branchProtection: null,
-    mergeMethods: null,
-  });
-
-  assert.match(
-    lines.join('\n'),
-    /Views — created: 0, skipped: 0 \(mutation unavailable\)/,
-  );
+  // Views are no longer in the summary (hard-cutover deleted in Story #4234).
+  assert.doesNotMatch(joined, /Views/);
 });

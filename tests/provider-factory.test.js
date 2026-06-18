@@ -204,10 +204,11 @@ describe('createProvider — gh-exec routing', () => {
         operatorHandle: '@test',
       },
     });
-    // Method must exist (sourced from projects-v2-graphql shim).
+    // Methods must exist (sourced from projects-v2-graphql shim).
     assert.equal(typeof provider.resolveOrCreateProject, 'function');
     assert.equal(typeof provider.ensureStatusField, 'function');
-    assert.equal(typeof provider.ensureProjectViews, 'function');
     assert.equal(typeof provider.ensureProjectFields, 'function');
+    // ensureProjectViews hard-cutover deleted in Story #4234.
+    assert.equal(typeof provider.ensureProjectViews, 'undefined');
   });
 });

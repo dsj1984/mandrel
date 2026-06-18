@@ -52,7 +52,6 @@ class MockProvider extends ITicketingProvider {
     this.ensureLabelsCalls = [];
     this.ensureProjectFieldsCalls = [];
     this.ensureStatusFieldCalls = [];
-    this.ensureProjectViewsCalls = [];
     this.resolveOrCreateProjectCalls = [];
     this.getTicketCalls = [];
     this._labelResult = { created: [], skipped: [] };
@@ -63,7 +62,6 @@ class MockProvider extends ITicketingProvider {
       created: false,
     };
     this._statusResult = { status: 'unchanged', added: [] };
-    this._viewsResult = { created: [], skipped: [], unavailable: false };
   }
 
   async getTicket(ticketId) {
@@ -90,11 +88,6 @@ class MockProvider extends ITicketingProvider {
   async ensureStatusField(options) {
     this.ensureStatusFieldCalls.push(options);
     return this._statusResult;
-  }
-
-  async ensureProjectViews(viewDefs) {
-    this.ensureProjectViewsCalls.push(viewDefs);
-    return this._viewsResult;
   }
 }
 
@@ -237,7 +230,7 @@ describe('Bootstrap — PROJECT_FIELD_DEFS', () => {
 });
 
 // ---------------------------------------------------------------------------
-// STATUS_FIELD_OPTIONS + PROJECT_VIEW_DEFS
+// STATUS_FIELD_OPTIONS
 // ---------------------------------------------------------------------------
 describe('Bootstrap — STATUS_FIELD_OPTIONS', () => {
   it('contains the three stock Status options in canonical order', () => {
@@ -245,34 +238,10 @@ describe('Bootstrap — STATUS_FIELD_OPTIONS', () => {
   });
 });
 
-describe('Bootstrap — PROJECT_VIEW_DEFS', () => {
-  it('defines the four default Views', () => {
-    const names = PROJECT_VIEW_DEFS.map((v) => v.name);
-    assert.deepEqual(names, [
-      'Mandrel Board',
-      'Epic Roadmap',
-      'Active Stories',
-      'My Queue',
-    ]);
-  });
-
-  it('each View has a string filter and groups by Status', () => {
-    for (const view of PROJECT_VIEW_DEFS) {
-      assert.equal(typeof view.filter, 'string', `${view.name} missing filter`);
-      assert.equal(view.groupBy, 'Status');
-    }
-  });
-
-  it('Mandrel Board is a board-layout view with an empty filter', () => {
-    const view = PROJECT_VIEW_DEFS.find((v) => v.name === 'Mandrel Board');
-    assert.ok(view, 'Mandrel Board view missing');
-    assert.equal(view.layout, 'board');
-    assert.equal(view.filter, '');
-  });
-
-  it('Epic Roadmap filter targets type::epic', () => {
-    const view = PROJECT_VIEW_DEFS.find((v) => v.name === 'Epic Roadmap');
-    assert.match(view.filter, /label:type::epic/);
+// PROJECT_VIEW_DEFS was hard-cutover deleted in Story #4234.
+describe('Bootstrap — PROJECT_VIEW_DEFS (deleted in Story #4234)', () => {
+  it('is no longer exported from label-taxonomy.js', () => {
+    assert.equal(PROJECT_VIEW_DEFS, undefined);
   });
 });
 
@@ -290,7 +259,24 @@ describe('Bootstrap — runBootstrap()', () => {
     },
   };
 
-  it('calls resolveOrCreateProject, ensureStatusField, ensureProjectViews, ensureProjectFields, ensureLabels in order', async () => {
+  it('calls resolveOrCreateProject, ensureStatusField, ensureProjectFields, ensureLabels in order when withProjectBoard: true', async () => {
+    const mock = new MockProvider();
+    const result = await runBootstrap(config, {
+      providerOverride: mock,
+      quiet: true,
+      githubAdminApproved: true,
+      withProjectBoard: true,
+    });
+
+    assert.equal(mock.ensureLabelsCalls.length, 1);
+    assert.equal(mock.resolveOrCreateProjectCalls.length, 1);
+    assert.equal(mock.ensureStatusFieldCalls.length, 1);
+    assert.deepEqual(mock.ensureStatusFieldCalls[0], STATUS_FIELD_OPTIONS);
+    assert.equal(mock.ensureProjectFieldsCalls.length, 1);
+    assert.equal(result.project.projectNumber, 1);
+  });
+
+  it('skips board calls when withProjectBoard is not set (opt-in default off)', async () => {
     const mock = new MockProvider();
     const result = await runBootstrap(config, {
       providerOverride: mock,
@@ -299,13 +285,10 @@ describe('Bootstrap — runBootstrap()', () => {
     });
 
     assert.equal(mock.ensureLabelsCalls.length, 1);
-    assert.equal(mock.resolveOrCreateProjectCalls.length, 1);
-    assert.equal(mock.ensureStatusFieldCalls.length, 1);
-    assert.deepEqual(mock.ensureStatusFieldCalls[0], STATUS_FIELD_OPTIONS);
-    assert.equal(mock.ensureProjectViewsCalls.length, 1);
-    assert.deepEqual(mock.ensureProjectViewsCalls[0], PROJECT_VIEW_DEFS);
-    assert.equal(mock.ensureProjectFieldsCalls.length, 1);
-    assert.equal(result.project.projectNumber, 1);
+    assert.equal(mock.resolveOrCreateProjectCalls.length, 0);
+    assert.equal(mock.ensureStatusFieldCalls.length, 0);
+    assert.equal(mock.ensureProjectFieldsCalls.length, 0);
+    assert.ok(result.labels);
   });
 
   it('degrades gracefully when resolveOrCreateProject reports scopesMissing', async () => {
@@ -315,34 +298,16 @@ describe('Bootstrap — runBootstrap()', () => {
       providerOverride: mock,
       quiet: true,
       githubAdminApproved: true,
+      withProjectBoard: true,
     });
 
     assert.equal(result.project.scopesMissing, true);
     assert.equal(result.project.skipped, true);
-    // Status + Views + Fields are skipped when the project is unavailable.
+    // Status + Fields are skipped when the project is unavailable.
     assert.equal(mock.ensureStatusFieldCalls.length, 0);
-    assert.equal(mock.ensureProjectViewsCalls.length, 0);
     assert.equal(mock.ensureProjectFieldsCalls.length, 0);
     // Labels still succeed.
     assert.equal(mock.ensureLabelsCalls.length, 1);
-  });
-
-  it('reports views unavailable without throwing', async () => {
-    const mock = new MockProvider();
-    mock._viewsResult = {
-      created: [],
-      skipped: ['Epic Roadmap', 'Active Stories', 'My Queue'],
-      unavailable: true,
-    };
-    const result = await runBootstrap(config, {
-      providerOverride: mock,
-      quiet: true,
-      githubAdminApproved: true,
-    });
-
-    assert.equal(result.views.unavailable, true);
-    assert.equal(result.views.created.length, 0);
-    assert.equal(result.views.skipped.length, 3);
   });
 
   it('reports status field status "updated" with added options', async () => {
@@ -355,6 +320,7 @@ describe('Bootstrap — runBootstrap()', () => {
       providerOverride: mock,
       quiet: true,
       githubAdminApproved: true,
+      withProjectBoard: true,
     });
     assert.equal(result.statusField.status, 'updated');
     assert.deepEqual(result.statusField.added, ['Todo']);
@@ -368,7 +334,12 @@ describe('Bootstrap — runBootstrap()', () => {
         ...config,
         github: { ...config.github, projectNumber: null },
       },
-      { providerOverride: mock, quiet: true, githubAdminApproved: true },
+      {
+        providerOverride: mock,
+        quiet: true,
+        githubAdminApproved: true,
+        withProjectBoard: true,
+      },
     );
     assert.equal(result.project.skipped, true);
     assert.equal(result.project.scopesMissing, true);
@@ -396,9 +367,8 @@ describe('Bootstrap — module exports', () => {
     assert.equal(STATUS_FIELD_OPTIONS.length, 3);
   });
 
-  it('exports PROJECT_VIEW_DEFS array', () => {
-    assert.ok(Array.isArray(PROJECT_VIEW_DEFS));
-    assert.equal(PROJECT_VIEW_DEFS.length, 4);
+  it('does not export PROJECT_VIEW_DEFS (hard-cutover deleted in Story #4234)', () => {
+    assert.equal(PROJECT_VIEW_DEFS, undefined);
   });
 });
 

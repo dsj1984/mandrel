@@ -4,7 +4,6 @@ import { describe, it } from 'node:test';
 import {
   addItemToProject,
   ensureProjectFields,
-  ensureProjectViews,
   ensureStatusField,
   isInsufficientScopes,
   isScopesMissingEnvelope,
@@ -27,11 +26,9 @@ const NOT_GRANTED_ERR = new Error(
  * return value becomes the GraphQL `data` payload. Returning `null` or
  * throwing simulates an error response.
  *
- * REST calls (any other URL — `resolveOwnerAccount`'s `GET /users/{login}`
- * and `createView`'s `POST …/views`) invoke `runRest(url, method, body, j,
- * restOk)` when provided; otherwise they fall back to sensible defaults
- * (owner resolves to a `User`, view creation succeeds). `restOk(payload,
- * status)` builds a fetch-shaped response.
+ * REST calls invoke `runRest(url, method, body, j, restOk)` when provided;
+ * otherwise they fall back to sensible defaults. `restOk(payload, status)`
+ * builds a fetch-shaped response.
  */
 function buildCtx({ runGraphqlScript, runRest } = {}) {
   const calls = [];
@@ -298,94 +295,6 @@ describe('ensureStatusField', () => {
     assert.equal(result.status, 'created');
     assert.equal(result.fieldId, 'newf');
     assert.deepEqual(result.added, ['Todo']);
-  });
-});
-
-describe('ensureProjectViews', () => {
-  it('throws when projectNumber is missing', async () => {
-    const { ctx } = buildCtx();
-    ctx.projectNumber = null;
-    await assert.rejects(
-      () => ensureProjectViews(ctx, []),
-      /requires projectNumber/,
-    );
-  });
-
-  it('returns unavailable on fetch failure (scopes missing)', async () => {
-    const { ctx } = buildCtx({
-      runGraphqlScript: () => {
-        throw SCOPES_ERR;
-      },
-    });
-    const result = await ensureProjectViews(ctx, [{ name: 'Backlog' }]);
-    assert.equal(result.unavailable, true);
-    assert.deepEqual(result.skipped, ['Backlog']);
-  });
-
-  it('skips views that already exist and creates only the new ones', async () => {
-    const { ctx } = buildCtx({
-      runGraphqlScript: (_q, _v, i) => {
-        if (i === 0) {
-          return {
-            user: {
-              projectV2: {
-                id: 'pv2',
-                views: { nodes: [{ name: 'Backlog' }] },
-              },
-            },
-          };
-        }
-        return {};
-      },
-    });
-    const result = await ensureProjectViews(ctx, [
-      { name: 'Backlog' },
-      { name: 'Active', filter: 'is:open' },
-    ]);
-    assert.deepEqual(result.created, ['Active']);
-    assert.deepEqual(result.skipped, ['Backlog']);
-    assert.equal(result.unavailable, false);
-  });
-
-  it('flips unavailable=true after the first create failure and skips the rest', async () => {
-    let posts = 0;
-    const { ctx } = buildCtx({
-      runGraphqlScript: (_q, _v, i) => {
-        if (i === 0) {
-          return {
-            user: { projectV2: { id: 'pv2', views: { nodes: [] } } },
-          };
-        }
-        return {};
-      },
-      runRest: (_url, method, _body, _j, restOk) => {
-        if (method === 'GET') return restOk({ id: 4242, type: 'User' });
-        // The first view-create POST fails with a non-404 status; the loop
-        // must flip unavailable and skip the remaining defs without a 2nd POST.
-        posts += 1;
-        return restOk('view creation failed', 500);
-      },
-    });
-    const result = await ensureProjectViews(ctx, [
-      { name: 'A' },
-      { name: 'B' },
-    ]);
-    assert.equal(result.unavailable, true);
-    assert.equal(posts, 1);
-    assert.deepEqual(result.created, []);
-    assert.deepEqual(result.skipped, ['A', 'B']);
-  });
-
-  it('throws when fetched project is null (project not found)', async () => {
-    const { ctx } = buildCtx({
-      runGraphqlScript: () => ({ user: null }),
-    });
-    // Two calls: user lookup returns null, org lookup returns no projectV2 →
-    // null project.
-    await assert.rejects(
-      () => ensureProjectViews(ctx, [{ name: 'A' }]),
-      /Project #5 not found/,
-    );
   });
 });
 

@@ -2,9 +2,12 @@
  * GitHubProvider facade — projects surface.
  *
  * Tests GitHubProvider's Projects v2 methods (ensureProjectFields,
- * isInsufficientScopes, ensureStatusField, ensureProjectViews) against a
- * mocked global `fetch` — no live API calls. Split from the former root
- * monolith `tests/providers-github.test.js` (Story #4084).
+ * isInsufficientScopes, ensureStatusField) against a mocked global `fetch`
+ * — no live API calls. Split from the former root monolith
+ * `tests/providers-github.test.js` (Story #4084).
+ *
+ * Note: ensureProjectViews was removed in Story #4234 (hard cutover — views
+ * are no longer created; no compatibility shim).
  */
 
 import assert from 'node:assert/strict';
@@ -268,102 +271,15 @@ describe('GitHubProvider — ensureStatusField()', () => {
 });
 
 // ---------------------------------------------------------------------------
-// ensureProjectViews
+// ensureProjectViews — removed (#4234)
 // ---------------------------------------------------------------------------
-describe('GitHubProvider — ensureProjectViews()', () => {
-  let originalFetch;
-
-  beforeEach(() => {
-    originalFetch = globalThis.fetch;
-  });
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-  });
-
-  it('throws when projectNumber is not configured', async () => {
-    const provider = createTestProvider({ projectNumber: null });
-    await assert.rejects(
-      provider.ensureProjectViews([{ name: 'x', filter: 'y' }]),
-      /projectNumber/,
+describe('GitHubProvider — ensureProjectViews removed (#4234)', () => {
+  it('ensureProjectViews no longer exists on the provider', () => {
+    const provider = createTestProvider({ projectNumber: 1 });
+    assert.equal(
+      typeof provider.ensureProjectViews,
+      'undefined',
+      'ensureProjectViews was hard-cutover deleted in Story #4234',
     );
-  });
-
-  it('reports unavailable when the views field cannot be queried', async () => {
-    // The metadata query itself fails (views field unknown). The provider
-    // treats this as unavailable rather than fatal.
-    globalThis.fetch = async () => ({
-      ok: true,
-      status: 200,
-      headers: { get: () => null },
-      json: async () => ({
-        errors: [
-          { message: "Field 'views' doesn't exist on type 'ProjectV2'" },
-        ],
-      }),
-      text: async () => '',
-    });
-
-    const provider = createTestProvider({ projectNumber: 1 });
-    const result = await provider.ensureProjectViews([
-      { name: 'Epic Roadmap', filter: 'label:type::epic' },
-    ]);
-    assert.equal(result.unavailable, true);
-    assert.deepEqual(result.skipped, ['Epic Roadmap']);
-    assert.deepEqual(result.created, []);
-  });
-
-  it('reports unavailable + stops after the first view-create failure', async () => {
-    let createCount = 0;
-    globalThis.fetch = async (url, opts) => {
-      // GraphQL metadata query: the project exists with no views yet.
-      if (url === 'https://api.github.com/graphql') {
-        const body = JSON.parse(opts.body);
-        if (body.query.includes('views(first')) {
-          return {
-            ok: true,
-            status: 200,
-            headers: { get: () => null },
-            json: async () => ({
-              data: {
-                user: {
-                  projectV2: { id: 'PVT_1', views: { nodes: [] } },
-                },
-              },
-            }),
-            text: async () => '',
-          };
-        }
-        throw new Error('unexpected graphql call');
-      }
-      // REST GET /users/{owner}: resolve the owner account.
-      if ((opts.method ?? 'GET') === 'GET') {
-        return {
-          ok: true,
-          status: 200,
-          headers: { get: () => null },
-          json: async () => ({ id: 4242, type: 'User' }),
-          text: async () => '',
-        };
-      }
-      // REST POST …/views: the view-create call fails (non-404 → real
-      // failure), so the loop must stop after the first attempt.
-      createCount += 1;
-      return {
-        ok: false,
-        status: 500,
-        headers: { get: () => null },
-        json: async () => ({}),
-        text: async () => 'view creation unavailable',
-      };
-    };
-
-    const provider = createTestProvider({ projectNumber: 1 });
-    const result = await provider.ensureProjectViews([
-      { name: 'Epic Roadmap', filter: 'label:type::epic' },
-      { name: 'Active Stories', filter: 'label:type::story' },
-    ]);
-    assert.equal(result.unavailable, true);
-    assert.equal(createCount, 1);
-    assert.equal(result.skipped.length, 2);
   });
 });

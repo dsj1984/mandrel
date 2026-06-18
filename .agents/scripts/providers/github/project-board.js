@@ -2,11 +2,11 @@
  * GitHub Provider — ProjectBoardGateway.
  *
  * Owns the Projects V2 bootstrap surface: `resolveOrCreateProject`,
- * `ensureStatusField`, `ensureProjectViews`, `ensureProjectFields`. The
- * low-level GraphQL mutations live in `./projects-v2-graphql.js`; this
- * class threads the parent provider's `_ctx` (which carries `projectNumber`,
- * `projectOwner`, `state`, and the shared cache) into each call so the
- * legacy shim contract is preserved.
+ * `ensureStatusField`, `ensureProjectFields`. The low-level GraphQL
+ * mutations live in `./projects-v2-graphql.js`; this class threads the
+ * parent provider's `_ctx` (which carries `projectNumber`, `projectOwner`,
+ * `state`, and the shared cache) into each call so the legacy shim contract
+ * is preserved.
  *
  * Extracted from `../github.js` in Story #2462 / Task #2479. Public
  * surface on `GitHubProvider` is unchanged — every project-board method
@@ -34,10 +34,6 @@ export class ProjectBoardGateway {
 
   async ensureStatusField(optionNames) {
     return projects.ensureStatusField(this._ctx, optionNames);
-  }
-
-  async ensureProjectViews(viewDefs) {
-    return projects.ensureProjectViews(this._ctx, viewDefs);
   }
 
   /* node:coverage ignore next */

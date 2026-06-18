@@ -39,6 +39,12 @@
  *   --skip-github             Skip the GitHub-side bootstrap entirely
  *   --skip-quality            Skip the quality-gates bootstrap
  *   --dry-run                 Collect info and print the plan; change nothing
+ *   --with-project-board      Opt-in: provision the Projects V2 Status field
+ *                             and custom fields. Off by default — the project
+ *                             board object is still created when a project
+ *                             name is supplied, but decoration is skipped.
+ *   --with-issue-forms        Opt-in: generate .github/ISSUE_TEMPLATE/story.yml
+ *                             and epic.yml. Off by default.
  *   --reap-conflicting-workflows  Delete Projects V2 built-in workflows that
  *                             race against the orchestrator (destructive)
  *   --help                    Print this help
@@ -99,6 +105,10 @@ Flags:
   --skip-github             Skip the GitHub-side bootstrap entirely
   --skip-quality            Skip the quality-gates bootstrap
   --dry-run                 Collect info and print the plan; change nothing
+  --with-project-board      Opt-in: provision the Projects V2 Status field
+                            and custom fields (default: off — prompted y/N).
+  --with-issue-forms        Opt-in: generate .github/ISSUE_TEMPLATE/story.yml
+                            and epic.yml (default: off — prompted y/N).
   --reap-conflicting-workflows  Delete Projects V2 built-in workflows that
                             race against the orchestrator (destructive)
   --help                    Print this help
@@ -157,16 +167,24 @@ export function resolveOwnerForPicker(defaults, flags, env = process.env) {
   return null;
 }
 
-/** Ask a yes/no question. Non-interactive runs auto-accept (return true). */
-async function confirmYesNo(message, interactive) {
-  if (!interactive) return true;
+/**
+ * Ask a yes/no question. `defaultAnswer` controls the default when the
+ * operator presses Enter without typing (true = Y/n, false = y/N). In
+ * non-interactive mode the default is returned immediately.
+ */
+async function confirmYesNo(message, interactive, defaultAnswer = true) {
+  if (!interactive) return defaultAnswer;
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
   });
   try {
-    const raw = (await rl.question(`${message} [Y/n]: `)).trim().toLowerCase();
-    return raw === '' || raw === 'y' || raw === 'yes';
+    const hint = defaultAnswer ? '[Y/n]' : '[y/N]';
+    const raw = (await rl.question(`${message} ${hint}: `))
+      .trim()
+      .toLowerCase();
+    if (raw === '') return defaultAnswer;
+    return raw === 'y' || raw === 'yes';
   } finally {
     rl.close();
   }
@@ -688,6 +706,9 @@ async function runGithubBootstrap(answers, opts) {
     // interactive operator confirmation, `--assume-yes`, or
     // `--approve-github-admin`. Default-deny at the boundary gate when absent.
     githubAdminApproved: opts.githubAdminApproved === true,
+    // Opt-in: provision Status field + custom fields on the project board.
+    // Default off — prompted y/N during collect/confirm or via --with-project-board.
+    withProjectBoard: opts.withProjectBoard === true,
     // Opt-in: delete the Projects V2 built-in workflows that race against the
     // orchestrator's ColumnSync (e.g. "Pull request merged"). Off by default.
     reapConflictingWorkflows: Boolean(opts.reapConflictingWorkflows),
@@ -1011,7 +1032,32 @@ export async function collectAndConfirm(state) {
         return { ok: false, exit: 1 };
       }
     }
-    return { ok: true, payload: { answers, creation } };
+
+    // Opt-in: board decoration (Status field, custom fields). Default off.
+    // Dry-run halts immediately after this step — resolve without prompting.
+    let withProjectBoard = Boolean(state.flags['with-project-board']);
+    if (!state.flags['dry-run'] && !withProjectBoard) {
+      withProjectBoard = await confirmYesNo(
+        'Set up project board fields (Status, custom)?',
+        state.interactive,
+        false,
+      );
+    }
+
+    // Opt-in: GitHub Issue Form templates. Default off.
+    let withIssueForms = Boolean(state.flags['with-issue-forms']);
+    if (!state.flags['dry-run'] && !withIssueForms) {
+      withIssueForms = await confirmYesNo(
+        'Generate GitHub Issue Form templates?',
+        state.interactive,
+        false,
+      );
+    }
+
+    return {
+      ok: true,
+      payload: { answers, creation, withProjectBoard, withIssueForms },
+    };
   }
 }
 
@@ -1158,6 +1204,7 @@ export async function executeBootstrap(state) {
     answers: state.answers,
     approvedGroups,
     skipQuality: Boolean(state.flags['skip-quality']),
+    withIssueForms: state.withIssueForms === true,
   });
   return { ok: true, payload: { report, approvedGroups } };
 }
@@ -1210,6 +1257,7 @@ export async function executeGithubBootstrap(state) {
     state.report.github = await runGithubBootstrap(state.answers, {
       assumeYes: state.assumeYes,
       githubAdminApproved: state.githubAdminApproved === true,
+      withProjectBoard: state.withProjectBoard === true,
       reapConflictingWorkflows: Boolean(
         state.flags['reap-conflicting-workflows'],
       ),
@@ -1384,7 +1432,7 @@ export async function main(argv = process.argv.slice(2), deps = {}) {
       `\n[Bootstrap] GitHub bootstrap failed: ${githubError}. ` +
         'Project-side setup (labels are GitHub-side; the local .agentrc.json / ' +
         'quality-gate / workflow files that were applied are recorded in the ' +
-        'install ledger) completed, but the GitHub label/board/views/protection ' +
+        'install ledger) completed, but the GitHub label/board/protection ' +
         'setup did not. Resolve the cause above (commonly `gh auth login` or a ' +
         'missing repo/project scope) and re-run `mandrel bootstrap` — the run is ' +
         'idempotent and will skip what already succeeded.',
