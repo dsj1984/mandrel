@@ -208,6 +208,30 @@ describe('resolveProjectIdByNumber', () => {
     );
   });
 
+  it('resolves an organization-owned board via organization(login:) (Story #4237)', async () => {
+    // The bootstrap project check previously only saw viewer-owned boards.
+    // For an org-owned board it now walks the owner ladder using the repo
+    // owner and resolves the id from the organization rung.
+    const calls = [];
+    const provider = {
+      owner: 'Beestera',
+      async graphql(query, vars) {
+        calls.push({ query, vars });
+        if (query.includes('organization(login: $owner)')) {
+          return { organization: { projectV2: { id: 'PVT_org' } } };
+        }
+        return {};
+      },
+    };
+    const id = await resolveProjectIdByNumber({ provider, projectNumber: 1 });
+    assert.equal(id, 'PVT_org');
+    const orgCall = calls.find((c) =>
+      c.query.includes('organization(login: $owner)'),
+    );
+    assert.ok(orgCall, 'queried the organization rung');
+    assert.equal(orgCall.vars.owner, 'Beestera');
+  });
+
   it('rejects bad inputs', async () => {
     await assert.rejects(
       resolveProjectIdByNumber({ provider: {}, projectNumber: 1 }),

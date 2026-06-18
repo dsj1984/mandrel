@@ -369,9 +369,12 @@ describe('ColumnSync.sync', () => {
     assert.equal(mutation.vars.optionId, 'opt-done');
   });
 
-  it('falls back to viewer query when projectOwner is not configured', async () => {
-    // Ensures backward compatibility: when projectOwner is absent (null),
-    // the original viewer.projectV2 path is still used.
+  it('falls through the owner ladder to viewer when only user/viewer-owned (Story #4237)', async () => {
+    // Backward compatibility: when projectOwner is absent, the resolver
+    // still walks the owner ladder using the repo owner (organization →
+    // user → viewer). For a user/viewer-owned board the org and user
+    // rungs miss (null), and resolution falls through to the original
+    // viewer.projectV2 path — the historical behaviour is preserved.
     const graphqlCalls = [];
     const provider = {
       graphqlCalls,
@@ -381,6 +384,13 @@ describe('ColumnSync.sync', () => {
       repo: 'widgets',
       async graphql(query, vars) {
         graphqlCalls.push({ query, vars });
+        // org and user rungs miss for a viewer-owned board
+        if (query.includes('organization(login: $owner)')) {
+          return { organization: null };
+        }
+        if (query.includes('user(login: $owner)')) {
+          return { user: null };
+        }
         if (query.includes('viewer {')) {
           return {
             viewer: {
@@ -424,19 +434,164 @@ describe('ColumnSync.sync', () => {
     const viewerCall = graphqlCalls.find(
       (c) => c.query.includes('viewer {') && c.query.includes('projectV2'),
     );
-    assert.ok(
-      viewerCall,
-      'used the viewer query when no projectOwner configured',
-    );
+    assert.ok(viewerCall, 'fell through to the viewer query');
 
-    const crossOwnerCall = graphqlCalls.find((c) =>
+    const mutation = graphqlCalls.find((c) =>
+      c.query.includes('updateProjectV2ItemFieldValue'),
+    );
+    assert.equal(mutation.vars.projectId, 'PROJ-VIEWER');
+  });
+
+  it('resolves an organization-owned board via organization(login: $owner) (Story #4237)', async () => {
+    // The core bug: org-owned boards (github.owner is an org) previously
+    // failed with NOT_FOUND because there was no organization() resolution
+    // path. The resolver now tries organization(login:$owner) first.
+    const graphqlCalls = [];
+    const provider = {
+      graphqlCalls,
+      projectNumber: 1,
+      // No explicit projectOwner — owner is the org login itself.
+      owner: 'Beestera',
+      repo: 'swarm-os',
+      async graphql(query, vars) {
+        graphqlCalls.push({ query, vars });
+        if (query.includes('organization(login: $owner)')) {
+          return {
+            organization: {
+              projectV2: {
+                id: 'PROJ-ORG',
+                field: {
+                  id: 'FIELD-ORG',
+                  options: [
+                    { id: 'opt-todo', name: 'Todo' },
+                    { id: 'opt-inprog', name: 'In Progress' },
+                    { id: 'opt-done', name: 'Done' },
+                  ],
+                },
+              },
+            },
+          };
+        }
+        if (query.includes('projectItems(first')) {
+          return {
+            repository: {
+              issue: {
+                projectItems: {
+                  nodes: [{ id: 'ITEM-ORG', project: { id: 'PROJ-ORG' } }],
+                },
+              },
+            },
+          };
+        }
+        if (query.includes('updateProjectV2ItemFieldValue')) {
+          return {
+            updateProjectV2ItemFieldValue: {
+              projectV2Item: { id: vars.itemId },
+            },
+          };
+        }
+        return {};
+      },
+    };
+
+    const sync = new ColumnSync({ provider });
+    const res = await sync.sync(2, ['agent::executing']);
+    assert.equal(res.status, 'synced');
+    assert.equal(res.column, 'In Progress');
+
+    const orgCall = graphqlCalls.find((c) =>
+      c.query.includes('organization(login: $owner)'),
+    );
+    assert.ok(orgCall, 'issued the organization(login: $owner) query');
+    assert.equal(orgCall.vars.owner, 'Beestera');
+    assert.equal(orgCall.vars.number, 1);
+
+    // Org rung resolved → user/viewer rungs must NOT be probed.
+    const userCall = graphqlCalls.find((c) =>
       c.query.includes('user(login: $owner)'),
     );
-    assert.equal(
-      crossOwnerCall,
-      undefined,
-      'did not issue the cross-owner query',
+    assert.equal(userCall, undefined, 'did not fall through to user rung');
+    const viewerCall = graphqlCalls.find(
+      (c) => c.query.includes('viewer {') && c.query.includes('projectV2'),
     );
+    assert.equal(viewerCall, undefined, 'did not fall through to viewer rung');
+
+    const mutation = graphqlCalls.find((c) =>
+      c.query.includes('updateProjectV2ItemFieldValue'),
+    );
+    assert.equal(mutation.vars.projectId, 'PROJ-ORG');
+    assert.equal(mutation.vars.optionId, 'opt-inprog');
+  });
+
+  it('falls from organization (NOT_FOUND) to user(login: $owner) for a user board (Story #4237)', async () => {
+    // A user-owned board where the owner login is not an org: the
+    // organization rung throws NOT_FOUND, and the resolver advances to the
+    // user rung rather than aborting.
+    const graphqlCalls = [];
+    const provider = {
+      graphqlCalls,
+      projectNumber: 1,
+      projectOwner: 'dsj1984',
+      owner: 'dsj1984',
+      repo: 'mandrel',
+      async graphql(query, vars) {
+        graphqlCalls.push({ query, vars });
+        if (query.includes('organization(login: $owner)')) {
+          throw new Error('gh-exec: resource not found');
+        }
+        if (query.includes('user(login: $owner)')) {
+          return {
+            user: {
+              projectV2: {
+                id: 'PROJ-USER',
+                field: {
+                  id: 'FIELD-USER',
+                  options: [{ id: 'opt-done', name: 'Done' }],
+                },
+              },
+            },
+          };
+        }
+        if (query.includes('projectItems(first')) {
+          return {
+            repository: {
+              issue: {
+                projectItems: {
+                  nodes: [{ id: 'ITEM-USER', project: { id: 'PROJ-USER' } }],
+                },
+              },
+            },
+          };
+        }
+        if (query.includes('updateProjectV2ItemFieldValue')) {
+          return {
+            updateProjectV2ItemFieldValue: {
+              projectV2Item: { id: vars.itemId },
+            },
+          };
+        }
+        return {};
+      },
+    };
+
+    const sync = new ColumnSync({ provider });
+    const res = await sync.sync(7, ['agent::done']);
+    assert.equal(res.status, 'synced');
+    assert.equal(res.column, 'Done');
+
+    const orgCall = graphqlCalls.find((c) =>
+      c.query.includes('organization(login: $owner)'),
+    );
+    assert.ok(orgCall, 'attempted the organization rung first');
+    const userCall = graphqlCalls.find((c) =>
+      c.query.includes('user(login: $owner)'),
+    );
+    assert.ok(userCall, 'advanced to the user rung after org NOT_FOUND');
+
+    const mutation = graphqlCalls.find((c) =>
+      c.query.includes('updateProjectV2ItemFieldValue'),
+    );
+    assert.equal(mutation.vars.projectId, 'PROJ-USER');
   });
 });
 
