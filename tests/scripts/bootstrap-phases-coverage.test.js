@@ -11,7 +11,7 @@
  *   - `persistProjectNumber`  — numeric-only persistence, merge-into-existing,
  *                               no-op on blank/non-numeric, read-failure path.
  *   - `executeBootstrap`      — approves every phase group; threads
- *                               `--skip-quality`.
+ *                               `--with-quality`.
  *   - `executeGithubBootstrap`— the `GhExecError` stderr/stdout/args surfacing
  *                               path (catch branch).
  *   - `recordLedger` /        — applied-group filtering and the
@@ -463,7 +463,7 @@ describe('collectAndConfirm — creation approval (gh seams mocked)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// executeBootstrap — approves every phase group; threads --skip-quality
+// executeBootstrap — approves every phase group; threads withQuality
 // ---------------------------------------------------------------------------
 describe('executeBootstrap — project-side bootstrap (lib seam mocked)', () => {
   it('approves every phase group and returns the report from applyProjectBootstrap', async (t) => {
@@ -494,10 +494,10 @@ describe('executeBootstrap — project-side bootstrap (lib seam mocked)', () => 
       [...res.payload.approvedGroups].sort(),
       [...Object.values(PHASE_GROUPS)].sort(),
     );
-    assert.equal(received.skipQuality, false);
+    assert.equal(received.withQuality, false);
   });
 
-  it('threads --skip-quality into applyProjectBootstrap', async (t) => {
+  it('threads --with-quality into applyProjectBootstrap', async (t) => {
     const realPb = await import(PROJECT_BOOTSTRAP_URL);
     let received = null;
     t.mock.module(PROJECT_BOOTSTRAP_URL, {
@@ -510,15 +510,16 @@ describe('executeBootstrap — project-side bootstrap (lib seam mocked)', () => 
       },
     });
     captureInfo(t);
-    const mod = await import(`${SUT_URL}?t=eb-skipq`);
+    const mod = await import(`${SUT_URL}?t=eb-withq`);
     const res = await mod.executeBootstrap({
       projectRoot: '/proj',
       agentRoot: '/proj/.agents',
       answers: { owner: 'acme', repo: 'widget', baseBranch: 'main' },
-      flags: { 'skip-quality': true },
+      flags: {},
+      withQuality: true,
     });
     assert.equal(res.ok, true);
-    assert.equal(received.skipQuality, true);
+    assert.equal(received.withQuality, true);
   });
 });
 

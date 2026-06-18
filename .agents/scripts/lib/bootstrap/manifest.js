@@ -94,14 +94,14 @@ export const MANIFEST_ENTRY_FIELDS = Object.freeze([
  * platform; remote targets are scoped to the resolved `owner/repo` slug.
  *
  * The `github-admin` group is omitted when `ctx.skipGithub` is set, and the
- * `quality-gates` group is omitted when `ctx.skipQuality` is set, so the
- * preview reflects the same flags the executing pipeline honours.
+ * `quality-gates` group is included only when `ctx.withQuality` is true, so
+ * the preview reflects the same flags the executing pipeline honours.
  *
  * @param {object} [ctx]
  * @param {{ owner?: string, repo?: string }} [ctx.answers] — scopes the
  *   `github-admin` targets to the `owner/repo` slug.
  * @param {boolean} [ctx.skipGithub] — omit the `github-admin` group.
- * @param {boolean} [ctx.skipQuality] — omit the `quality-gates` group.
+ * @param {boolean} [ctx.withQuality] — include the `quality-gates` group.
  * @returns {MutationManifestEntry[]}
  */
 export function buildMutationManifest(ctx = {}) {
@@ -189,8 +189,8 @@ export function buildMutationManifest(ctx = {}) {
 
   // --- quality-gates ----------------------------------------------------
   // Stabilized quality-gate surface (husky pre-commit, quality npm
-  // scripts, .agentrc quality defaults).
-  if (!ctx.skipQuality) {
+  // scripts, .agentrc quality defaults). Included only when opted in.
+  if (ctx.withQuality) {
     entries.push(
       {
         phaseGroup: PHASE_GROUPS.QUALITY_GATES,

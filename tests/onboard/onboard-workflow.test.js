@@ -261,7 +261,7 @@ describe('init tail — readConfirm readline options', () => {
     assert.equal(result, true, 'a "y" answer resolves to true (scaffold)');
   });
 
-  it('treats Enter and anything but an explicit no as accept (default-true for the scaffold offer)', async () => {
+  it('treats only an explicit y/yes as accept (default-no for the scaffold offer)', async () => {
     const make = (answer) => ({
       createInterface: () => ({
         question: async () => answer,
@@ -270,7 +270,7 @@ describe('init tail — readConfirm readline options', () => {
     });
     assert.equal(await readConfirm(make('y')), true);
     assert.equal(await readConfirm(make('yes')), true);
-    assert.equal(await readConfirm(make('')), true);
+    assert.equal(await readConfirm(make('')), false);
     assert.equal(await readConfirm(make('n')), false);
     assert.equal(await readConfirm(make('no')), false);
   });
