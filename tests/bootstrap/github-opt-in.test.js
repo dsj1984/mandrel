@@ -140,7 +140,11 @@ describe('agents-bootstrap-github — project board decoration opt-in (#4234)', 
     });
     // Labels still run (load-bearing); board decoration does not.
     assert.ok(result.labels, 'labels result present');
-    assert.equal(provider.calls.resolveOrCreateProject, 0, 'no project resolution');
+    assert.equal(
+      provider.calls.resolveOrCreateProject,
+      0,
+      'no project resolution',
+    );
     assert.equal(provider.calls.ensureStatusField, 0, 'no status field');
     assert.equal(provider.calls.ensureProjectFields, 0, 'no custom fields');
     // result envelope skips board fields when decoration not opted in.
@@ -161,7 +165,11 @@ describe('agents-bootstrap-github — project board decoration opt-in (#4234)', 
     // resolveOrCreateProject runs; mock returns scopesMissing=true so status
     // field and fields are still skipped (no real project number resolved),
     // but the call was issued — decoration was attempted.
-    assert.equal(provider.calls.resolveOrCreateProject, 1, 'project lookup attempted');
+    assert.equal(
+      provider.calls.resolveOrCreateProject,
+      1,
+      'project lookup attempted',
+    );
   });
 
   it('provider has no ensureProjectViews method — views are removed (#4234)', async () => {
