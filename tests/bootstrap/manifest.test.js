@@ -8,7 +8,7 @@
  *   - every entry carries the five preview fields (phaseGroup, target,
  *     action, detail, reversible);
  *   - every entry's phaseGroup is one of the four approvable groups;
- *   - the flag-honouring partition (skipGithub / skipQuality);
+ *   - the flag-honouring partition (skipGithub / withQuality);
  *   - and that `applyProjectBootstrap`'s no-write preview is derived from
  *     `buildMutationManifest` so preview and execution share one source.
  *
@@ -78,9 +78,21 @@ describe('buildMutationManifest', () => {
     }
   });
 
-  it('covers all four phase groups by default', () => {
-    const groups = new Set(buildMutationManifest(CTX).map((e) => e.phaseGroup));
+  it('covers all four phase groups when all opt-ins are enabled', () => {
+    const groups = new Set(
+      buildMutationManifest({ ...CTX, withQuality: true }).map(
+        (e) => e.phaseGroup,
+      ),
+    );
     assert.deepEqual([...groups].sort(), [...PHASE_GROUP_VALUES].sort());
+  });
+
+  it('covers three phase groups by default (quality-gates omitted unless withQuality)', () => {
+    const groups = new Set(buildMutationManifest(CTX).map((e) => e.phaseGroup));
+    assert.equal(groups.has(PHASE_GROUPS.IDE_WIRING), true);
+    assert.equal(groups.has(PHASE_GROUPS.REPO_CONFIG), true);
+    assert.equal(groups.has(PHASE_GROUPS.GITHUB_ADMIN), true);
+    assert.equal(groups.has(PHASE_GROUPS.QUALITY_GATES), false);
   });
 
   it('omits the github-admin group when skipGithub is set', () => {
@@ -93,14 +105,21 @@ describe('buildMutationManifest', () => {
     assert.equal(groups.has(PHASE_GROUPS.IDE_WIRING), true);
   });
 
-  it('omits the quality-gates group when skipQuality is set', () => {
+  it('omits the quality-gates group when withQuality is not set', () => {
     const groups = new Set(
-      buildMutationManifest({ ...CTX, skipQuality: true }).map(
-        (e) => e.phaseGroup,
-      ),
+      buildMutationManifest({ ...CTX }).map((e) => e.phaseGroup),
     );
     assert.equal(groups.has(PHASE_GROUPS.QUALITY_GATES), false);
     assert.equal(groups.has(PHASE_GROUPS.REPO_CONFIG), true);
+  });
+
+  it('includes the quality-gates group when withQuality is true', () => {
+    const groups = new Set(
+      buildMutationManifest({ ...CTX, withQuality: true }).map(
+        (e) => e.phaseGroup,
+      ),
+    );
+    assert.equal(groups.has(PHASE_GROUPS.QUALITY_GATES), true);
   });
 
   it('marks github-admin mutations as not trivially reversible', () => {
@@ -175,7 +194,7 @@ describe('applyProjectBootstrap preview', () => {
   });
 
   it('honours skip flags in the preview the same way buildMutationManifest does', async () => {
-    const ctx = { ...CTX, preview: true, skipGithub: true, skipQuality: true };
+    const ctx = { ...CTX, preview: true, skipGithub: true };
     const result = await applyProjectBootstrap(ctx);
     assert.deepEqual(result.entries, buildMutationManifest(ctx));
     const groups = new Set(result.entries.map((e) => e.phaseGroup));

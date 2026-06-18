@@ -62,23 +62,22 @@ function formatMissingList(missing) {
 }
 
 /** Prompt text shown only on a TTY when asking to scaffold. */
-const SCAFFOLD_PROMPT = '\nCreate placeholders? [Y/n]: ';
+const SCAFFOLD_PROMPT = '\nCreate placeholders? [y/N]: ';
 
 /**
  * Async y/N read from stdin via `node:readline` (mirrors the prompt mechanism
  * in `bootstrap.js`). Returns on Enter and never blocks waiting for EOF the way
  * `fs.readFileSync(0)` did — that EOF-blocking read hung `mandrel init` on an
- * interactive TTY. Yes is the default (`[Y/n]`): a bare Enter — or anything but
- * an explicit `n`/`no` — resolves to `true` (create the placeholders), since the
- * missing docs are known-needed and the stubs carry a `MANDREL:STUB` marker the
- * `/plan` preflight still flags until they are fleshed out. A read error
- * resolves to `false` so a genuine I/O failure never writes unattended. The
- * prompt text is written by the caller via `stdout`, so the question string
- * passed here is empty.
+ * interactive TTY. No is the default (`[y/N]`): only an explicit `y`/`yes`
+ * resolves to `true` (create the placeholders). A bare Enter or any other input
+ * declines, matching the same default-off policy as `--with-issue-forms`. A
+ * read error resolves to `false` so a genuine I/O failure never writes
+ * unattended. The prompt text is written by the caller via `stdout`, so the
+ * question string passed here is empty.
  *
  * `terminal: false` is **load-bearing**: with terminal mode on (the default
  * when stdout is a TTY) readline emits cursor-control escapes
- * (`\x1b[1G\x1b[0J`) that erase the `Create placeholders? [Y/n]:` prompt already
+ * (`\x1b[1G\x1b[0J`) that erase the `Create placeholders? [y/N]:` prompt already
  * written via the caller's `stdout`, leaving the operator staring at a blank,
  * dead-looking line. Disabling terminal mode preserves the pre-written prompt
  * and reads the line via the TTY's cooked-mode echo. `createInterface` is
@@ -97,7 +96,7 @@ export async function readConfirm({
   });
   try {
     const answer = (await rl.question('')).trim().toLowerCase();
-    return answer !== 'n' && answer !== 'no';
+    return answer === 'y' || answer === 'yes';
   } catch {
     return false;
   } finally {

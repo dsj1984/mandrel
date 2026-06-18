@@ -745,9 +745,9 @@ export const BOOTSTRAP_PHASES = Object.freeze([
     name: 'quality',
     phaseGroup: PHASE_GROUPS.QUALITY_GATES,
     run: (ctx) =>
-      ctx.skipQuality
-        ? { skipped: true }
-        : applyQualityBootstrap({ projectRoot: ctx.projectRoot }),
+      ctx.withQuality === true
+        ? applyQualityBootstrap({ projectRoot: ctx.projectRoot })
+        : { skipped: true, reason: 'quality-not-opted-in' },
   },
   {
     name: 'winPerf',
@@ -847,7 +847,7 @@ export async function runPhases(phases, ctx) {
  * @param {Set<string>} [ctx.approvedGroups] — when present, only phases
  *   whose `phaseGroup` is in this set execute (the consent-first gate from
  *   Story #3524); always-run infrastructure phases ignore it.
- * @param {boolean} [ctx.skipQuality]
+ * @param {boolean} [ctx.withQuality]
  * @param {boolean} [ctx.skipGithub]
  * @param {boolean} [ctx.skipInstall]
  * @param {boolean} [ctx.quiet]

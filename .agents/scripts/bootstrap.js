@@ -37,7 +37,9 @@
  *                             (labels, Projects V2, branch protection, merge
  *                             methods) without accepting every other default.
  *   --skip-github             Skip the GitHub-side bootstrap entirely
- *   --skip-quality            Skip the quality-gates bootstrap
+ *   --with-quality            Opt-in: install local quality gates (pre-commit
+ *                             hook + quality:preview/watch scripts). Off by
+ *                             default — prompted y/N.
  *   --dry-run                 Collect info and print the plan; change nothing
  *   --with-project-board      Opt-in: provision the Projects V2 Status field
  *                             and custom fields. Off by default — the project
@@ -103,7 +105,9 @@ Flags:
                             (labels, Projects V2, branch protection, merge
                             methods) without accepting every other default.
   --skip-github             Skip the GitHub-side bootstrap entirely
-  --skip-quality            Skip the quality-gates bootstrap
+  --with-quality            Opt-in: install local quality gates (pre-commit
+                            hook + quality:preview/watch scripts).
+                            (default: off — prompted y/N).
   --dry-run                 Collect info and print the plan; change nothing
   --with-project-board      Opt-in: provision the Projects V2 Status field
                             and custom fields (default: off — prompted y/N).
@@ -1054,9 +1058,25 @@ export async function collectAndConfirm(state) {
       );
     }
 
+    // Opt-in: local quality gates. Default off.
+    let withQuality = Boolean(state.flags['with-quality']);
+    if (!state.flags['dry-run'] && !withQuality) {
+      withQuality = await confirmYesNo(
+        'Install local quality gates (pre-commit hook + quality:preview/watch scripts)?',
+        state.interactive,
+        false,
+      );
+    }
+
     return {
       ok: true,
-      payload: { answers, creation, withProjectBoard, withIssueForms },
+      payload: {
+        answers,
+        creation,
+        withProjectBoard,
+        withIssueForms,
+        withQuality,
+      },
     };
   }
 }
@@ -1203,7 +1223,7 @@ export async function executeBootstrap(state) {
     agentRoot: state.agentRoot,
     answers: state.answers,
     approvedGroups,
-    skipQuality: Boolean(state.flags['skip-quality']),
+    withQuality: state.withQuality === true,
     withIssueForms: state.withIssueForms === true,
   });
   return { ok: true, payload: { report, approvedGroups } };
@@ -1280,7 +1300,7 @@ export function recordLedger(state) {
   const manifestCtx = {
     answers: state.answers,
     skipGithub: Boolean(state.flags['skip-github']),
-    skipQuality: Boolean(state.flags['skip-quality']),
+    withQuality: state.withQuality === true,
   };
   const entries = buildMutationManifest(manifestCtx).filter((e) =>
     appliedGroups.has(e.phaseGroup),

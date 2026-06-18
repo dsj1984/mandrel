@@ -41,7 +41,7 @@ export const KNOWN_FLAGS = Object.freeze({
     'assume-yes',
     'approve-github-admin',
     'skip-github',
-    'skip-quality',
+    'with-quality',
     'help',
     'dry-run',
     'reap-conflicting-workflows',
