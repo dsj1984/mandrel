@@ -35,6 +35,7 @@
  */
 
 import { AGENT_LABELS } from '../label-constants.js';
+import { resolveProjectMeta } from './project-meta-resolver.js';
 
 export const LABEL_TO_COLUMN = Object.freeze({
   [AGENT_LABELS.REVIEW_SPEC]: 'Todo',
@@ -141,49 +142,29 @@ export class ColumnSync {
   async #loadMeta() {
     if (this._meta !== null) return this._meta || null;
     try {
-      let project;
-      if (this.projectOwner) {
-        // When the project is owned by a different account than the
-        // authenticated viewer, `viewer.projectV2` returns null. Use
-        // `user(login: $owner).projectV2` instead. (Story #3560)
-        const data = await this.provider.graphql(
-          `
-          query($owner: String!, $number: Int!) {
-            user(login: $owner) {
-              projectV2(number: $number) {
-                id
-                field(name: "Status") {
-                  ... on ProjectV2SingleSelectField {
-                    id
-                    options { id name }
-                  }
-                }
-              }
+      // Resolve the board by walking the owner-type ladder
+      // (organization → user → viewer) via the shared resolver so the
+      // org-owned path can't drift from `workflow-audit.js`. The Status
+      // single-select field is projected alongside the board id in one
+      // round-trip. (Story #4237; org-owner support extends the
+      // user/viewer ladder added in #3560.)
+      const project = await resolveProjectMeta({
+        provider: this.provider,
+        // Prefer the explicit `github.projectOwner`; fall back to the repo
+        // owner so an org-owned board still gets a login to scope
+        // `organization(login:)` / `user(login:)` by even when no separate
+        // projectOwner is configured. `viewer` is always the final rung.
+        owner: this.projectOwner ?? this.provider.owner ?? null,
+        projectNumber: this.projectNumber,
+        projectFields: `
+          id
+          field(name: "Status") {
+            ... on ProjectV2SingleSelectField {
+              id
+              options { id name }
             }
           }`,
-          { owner: this.projectOwner, number: this.projectNumber },
-        );
-        project = data?.user?.projectV2;
-      } else {
-        const data = await this.provider.graphql(
-          `
-          query($number: Int!) {
-            viewer {
-              projectV2(number: $number) {
-                id
-                field(name: "Status") {
-                  ... on ProjectV2SingleSelectField {
-                    id
-                    options { id name }
-                  }
-                }
-              }
-            }
-          }`,
-          { number: this.projectNumber },
-        );
-        project = data?.viewer?.projectV2;
-      }
+      });
       const field = project?.field;
       if (!project || !field) {
         this._meta = false;

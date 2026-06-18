@@ -36,6 +36,8 @@
  *   {@link reapConflictingWorkflows}.
  */
 
+import { resolveProjectMeta } from '../orchestration/project-meta-resolver.js';
+
 /**
  * Workflows that **must not** be enabled when the orchestrator owns
  * the Status column. Each entry writes Status as a side-effect of an
@@ -207,14 +209,23 @@ export async function reapConflictingWorkflows(args) {
 }
 
 /**
- * Resolve a Project v2 node id from a project number against the viewer
- * scope. Used by the bootstrap CLI to convert the resolver's
- * `projectNumber` into the node id required by
- * {@link auditProjectWorkflows}. Returns `null` when the viewer cannot
- * see the project (e.g. missing scope, project not under viewer) so the
- * caller can degrade gracefully.
+ * Resolve a Project v2 node id from a project number. Used by the
+ * bootstrap CLI to convert the resolver's `projectNumber` into the node
+ * id required by {@link auditProjectWorkflows}.
  *
- * @param {{ provider: { graphql: Function }, projectNumber: number }} args
+ * Walks the shared owner-type ladder — `organization(login:$owner)` →
+ * `user(login:$owner)` → `viewer` — via {@link resolveProjectMeta}, so an
+ * **org-owned** board resolves here the same way it does for `ColumnSync`
+ * (Story #4237). The owner login is read from `provider.projectOwner`
+ * (explicit board owner) and falls back to `provider.owner` (the repo
+ * owner) so org boards resolve even when no separate `projectOwner` is
+ * configured. Returns `null` when no owner scope can see the project
+ * (e.g. missing scope) so the caller can degrade gracefully.
+ *
+ * @param {{
+ *   provider: { graphql: Function, owner?: string|null, projectOwner?: string|null },
+ *   projectNumber: number,
+ * }} args
  * @returns {Promise<string|null>}
  */
 export async function resolveProjectIdByNumber(args) {
@@ -230,11 +241,13 @@ export async function resolveProjectIdByNumber(args) {
     );
   }
   try {
-    const data = await provider.graphql(
-      `query($n: Int!) { viewer { projectV2(number: $n) { id } } }`,
-      { n: projectNumber },
-    );
-    return data?.viewer?.projectV2?.id ?? null;
+    const project = await resolveProjectMeta({
+      provider,
+      owner: provider.projectOwner ?? provider.owner ?? null,
+      projectNumber,
+      projectFields: 'id',
+    });
+    return project?.id ?? null;
   } catch {
     return null;
   }
