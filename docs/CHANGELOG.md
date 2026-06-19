@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.75.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.74.0...mandrel-v1.75.0) (2026-06-19)
+
+
+### Added
+
+* **sync:** project .agents/local/workflows/ as prune-exempt slash commands ([#4244](https://github.com/dsj1984/mandrel/issues/4244)) ([9470f6a](https://github.com/dsj1984/mandrel/commit/9470f6a567b656eee508c2ef10910454a084ee43))
+
 ## [1.74.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.73.0...mandrel-v1.74.0) (2026-06-19)
 
 
