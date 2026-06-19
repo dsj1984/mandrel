@@ -23,6 +23,7 @@
 
 import { parseBlockedBy, parseBlocks } from '../../lib/dependency-parser.js';
 import { Logger } from '../../lib/Logger.js';
+import { TYPE_LABELS } from '../../lib/label-constants.js';
 import { addIssueToBoard } from './board-add.js';
 import { createInlineTicketCache } from './cache.js';
 import { withTransientRetry } from './errors.js';
@@ -318,13 +319,21 @@ export class TicketGateway {
       dependencies: ticketData.dependencies ?? [],
     });
 
+    // Mirror the Epic create path (issues.js:160 → `labels: TYPE_LABELS.EPIC`):
+    // always inject TYPE_LABELS.STORY so a spec that omits the labels array
+    // cannot produce an unlabeled, undispatchable Story. Dedupe to avoid
+    // duplicates when the caller already carries the label.
+    const callerLabels = ticketData.labels ?? [];
+    const labels = callerLabels.includes(TYPE_LABELS.STORY)
+      ? callerLabels
+      : [TYPE_LABELS.STORY, ...callerLabels];
     const result = await this._gh.api({
       method: 'POST',
       endpoint: `/repos/${this.owner}/${this.repo}/issues`,
       body: {
         title: ticketData.title,
         body: renderedBody,
-        labels: ticketData.labels ?? [],
+        labels,
       },
     });
     const issue = parseApiJson(result);

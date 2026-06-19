@@ -45,7 +45,7 @@
  * @property {string}  [reason]   Structured reason code when allowed=false.
  */
 
-import { AGENT_LABELS } from '../label-constants.js';
+import { AGENT_LABELS, TYPE_LABELS } from '../label-constants.js';
 
 /**
  * Execution-signal labels that block Close. Stored as a frozen Set for
@@ -246,6 +246,57 @@ export class LabelAllowListViolation extends Error {
 }
 
 /**
+ * Error class thrown synchronously by `assertStoryTypeLabel` when a Story
+ * create operation carries no `type::story` label. Named distinctly from
+ * `LabelAllowListViolation` so callers can route it separately.
+ *
+ * The class carries structured metadata (`slug`, `title`) so the error
+ * message can name the offending Story clearly.
+ */
+export class MissingTypeLabelError extends Error {
+  /**
+   * @param {string} message
+   * @param {{slug?: string, title?: string}} [meta]
+   */
+  constructor(message, meta = {}) {
+    super(message);
+    this.name = 'MissingTypeLabelError';
+    if (meta.slug !== undefined) this.slug = meta.slug;
+    if (meta.title !== undefined) this.title = meta.title;
+  }
+}
+
+/**
+ * Diff-time assertion. Throws `MissingTypeLabelError` synchronously when a
+ * Story create operation is missing the mandatory `type::story` label.
+ *
+ * Symmetric with `assertNoAgentLabels`: both fire at diff time so the plan
+ * fails loudly before the apply pipeline touches GitHub.
+ *
+ * Only validates Story create ops — Epic creates carry a different mandatory
+ * label (`type::epic`) that the caller already hard-codes at issue-creation
+ * time; the assertion is not needed there.
+ *
+ * @param {{slug?: string, title?: string, entity?: string, labels?: string[]}} op
+ * @returns {void}
+ */
+export function assertStoryTypeLabel(op) {
+  if (!op || typeof op !== 'object') return;
+  if (op.entity !== 'story') return;
+  // A create op for a Story MUST carry type::story. An absent or empty labels
+  // array means the mandatory label is missing — fail loud so the operator
+  // sees a named Story rather than a silent unlabeled issue on GitHub.
+  if (!Array.isArray(op.labels) || !op.labels.includes(TYPE_LABELS.STORY)) {
+    throw new MissingTypeLabelError(
+      `create plan for story slug=${op.slug ?? '?'} ("${op.title ?? ''}") is ` +
+        `missing the mandatory "${TYPE_LABELS.STORY}" label. Add it to the ` +
+        `spec's labels array for this Story and re-run.`,
+      { slug: op.slug, title: op.title },
+    );
+  }
+}
+
+/**
  * Diff-time assertion. Throws `LabelAllowListViolation` synchronously
  * when an operation targets an `agent::*` label. The assertion is the
  * safety net for the apply pipeline: plans fail loudly at construction
@@ -329,7 +380,10 @@ export function assertNoAgentLabels(op) {
  */
 export function assertPlanLabelAllowList(plan) {
   if (!plan || typeof plan !== 'object') return;
-  for (const op of plan.creates ?? []) assertNoAgentLabels(op);
+  for (const op of plan.creates ?? []) {
+    assertNoAgentLabels(op);
+    assertStoryTypeLabel(op);
+  }
   for (const op of plan.updates ?? []) assertNoAgentLabels(op);
   // closes/relinks do not carry label payloads — nothing to assert.
 }
