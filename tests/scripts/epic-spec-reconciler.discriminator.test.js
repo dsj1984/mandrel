@@ -18,7 +18,9 @@ import { diff } from '../../.agents/scripts/lib/orchestration/epic-spec-reconcil
 import {
   assertNoAgentLabels,
   assertPlanLabelAllowList,
+  assertStoryTypeLabel,
   LabelAllowListViolation,
+  MissingTypeLabelError,
   mayClose,
   mayUpdate,
   STRUCTURAL_LABELS,
@@ -407,6 +409,218 @@ describe('diff engine — wires the diff-time assertion', () => {
       () => diff({ spec, state, ghState }),
       LabelAllowListViolation,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// assertStoryTypeLabel — mandatory type::story enforcement (Story #4241)
+// ---------------------------------------------------------------------------
+
+describe('assertStoryTypeLabel — mandatory type::story on Story create ops', () => {
+  it('throws MissingTypeLabelError when labels is undefined', () => {
+    assert.throws(
+      () =>
+        assertStoryTypeLabel({
+          kind: OP_KINDS.CREATE,
+          slug: 'story-x',
+          entity: 'story',
+          title: 'Missing Label Story',
+          // labels intentionally absent
+        }),
+      (err) => {
+        assert.ok(err instanceof MissingTypeLabelError);
+        assert.equal(err.slug, 'story-x');
+        assert.equal(err.title, 'Missing Label Story');
+        assert.match(err.message, /type::story/);
+        return true;
+      },
+    );
+  });
+
+  it('throws MissingTypeLabelError when labels is an empty array', () => {
+    assert.throws(
+      () =>
+        assertStoryTypeLabel({
+          kind: OP_KINDS.CREATE,
+          slug: 'story-y',
+          entity: 'story',
+          title: 'Empty Labels Story',
+          labels: [],
+        }),
+      (err) => {
+        assert.ok(err instanceof MissingTypeLabelError);
+        assert.equal(err.slug, 'story-y');
+        return true;
+      },
+    );
+  });
+
+  it('throws MissingTypeLabelError when labels carries other labels but not type::story', () => {
+    assert.throws(
+      () =>
+        assertStoryTypeLabel({
+          kind: OP_KINDS.CREATE,
+          slug: 'story-z',
+          entity: 'story',
+          title: 'Partially Labeled',
+          labels: ['area::core', 'persona::backend'],
+        }),
+      MissingTypeLabelError,
+    );
+  });
+
+  it('does NOT throw when type::story is present', () => {
+    assert.doesNotThrow(() =>
+      assertStoryTypeLabel({
+        kind: OP_KINDS.CREATE,
+        slug: 'story-ok',
+        entity: 'story',
+        title: 'Good Story',
+        labels: ['type::story', 'area::core'],
+      }),
+    );
+  });
+
+  it('does NOT throw for Epic create ops (entity !== "story")', () => {
+    assert.doesNotThrow(() =>
+      assertStoryTypeLabel({
+        kind: OP_KINDS.CREATE,
+        slug: 'epic',
+        entity: 'epic',
+        title: 'My Epic',
+        labels: ['type::epic'],
+      }),
+    );
+  });
+
+  it('is a no-op for non-object inputs', () => {
+    assert.doesNotThrow(() => assertStoryTypeLabel(null));
+    assert.doesNotThrow(() => assertStoryTypeLabel(undefined));
+    assert.doesNotThrow(() => assertStoryTypeLabel('string'));
+  });
+});
+
+describe('assertPlanLabelAllowList — Story create op missing type::story', () => {
+  it('throws MissingTypeLabelError for a Story create op with labels: undefined', () => {
+    assert.throws(
+      () =>
+        assertPlanLabelAllowList({
+          creates: [
+            {
+              kind: OP_KINDS.CREATE,
+              slug: 'story-unlabeled',
+              entity: 'story',
+              title: 'Unlabeled Story',
+              // labels absent
+            },
+          ],
+          updates: [],
+          closes: [],
+          relinks: [],
+        }),
+      MissingTypeLabelError,
+    );
+  });
+
+  it('throws MissingTypeLabelError for a Story create op with labels: []', () => {
+    assert.throws(
+      () =>
+        assertPlanLabelAllowList({
+          creates: [
+            {
+              kind: OP_KINDS.CREATE,
+              slug: 'story-empty-labels',
+              entity: 'story',
+              title: 'Empty Labels Story',
+              labels: [],
+            },
+          ],
+          updates: [],
+          closes: [],
+          relinks: [],
+        }),
+      MissingTypeLabelError,
+    );
+  });
+
+  it('does not throw when all Story create ops carry type::story', () => {
+    assert.doesNotThrow(() =>
+      assertPlanLabelAllowList({
+        creates: [
+          {
+            kind: OP_KINDS.CREATE,
+            slug: 'story-labeled',
+            entity: 'story',
+            title: 'Properly Labeled',
+            labels: ['type::story', 'persona::backend'],
+          },
+        ],
+        updates: [],
+        closes: [],
+        relinks: [],
+      }),
+    );
+  });
+});
+
+describe('diff engine — rejects Story create ops missing type::story (Story #4241)', () => {
+  it('throws MissingTypeLabelError when a spec Story omits labels entirely', () => {
+    const spec = {
+      epic: { id: 9001, title: 'Test Epic', labels: ['type::epic'] },
+      stories: [
+        {
+          slug: 'story-nolabel',
+          title: 'No Label Story',
+          wave: 0,
+          // labels intentionally absent
+        },
+      ],
+    };
+    const state = { epicId: 9001, mapping: {} };
+    assert.throws(
+      () => diff({ spec, state, ghState: {} }),
+      MissingTypeLabelError,
+    );
+  });
+
+  it('throws MissingTypeLabelError when a spec Story carries an empty labels array', () => {
+    const spec = {
+      epic: { id: 9002, title: 'Test Epic', labels: ['type::epic'] },
+      stories: [
+        {
+          slug: 'story-emptylabels',
+          title: 'Empty Labels Story',
+          wave: 0,
+          labels: [],
+        },
+      ],
+    };
+    const state = { epicId: 9002, mapping: {} };
+    assert.throws(
+      () => diff({ spec, state, ghState: {} }),
+      (err) => {
+        assert.ok(err instanceof MissingTypeLabelError);
+        assert.equal(err.slug, 'story-emptylabels');
+        assert.equal(err.title, 'Empty Labels Story');
+        return true;
+      },
+    );
+  });
+
+  it('does not throw when the spec Story carries type::story', () => {
+    const spec = {
+      epic: { id: 9003, title: 'Test Epic', labels: ['type::epic'] },
+      stories: [
+        {
+          slug: 'story-ok',
+          title: 'OK Story',
+          wave: 0,
+          labels: ['type::story'],
+        },
+      ],
+    };
+    const state = { epicId: 9003, mapping: {} };
+    assert.doesNotThrow(() => diff({ spec, state, ghState: {} }));
   });
 });
 

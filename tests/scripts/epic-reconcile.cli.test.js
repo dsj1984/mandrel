@@ -594,6 +594,7 @@ describe('runReconcile — bootstrap state.mapping.epic', () => {
             slug: 'story-only',
             title: 'Story only',
             wave: 0,
+            labels: ['type::story'],
           },
         ],
       }),

@@ -91,6 +91,7 @@ describe('reconciler apply — dry-run path', () => {
         slug: 'story-new',
         entity: ENTITY_KINDS.STORY,
         title: 'New Story',
+        labels: ['type::story'],
         parentSlug: 'feat-alpha',
       }),
     );
@@ -175,6 +176,7 @@ describe('reconciler apply — create path', () => {
         slug: 'orphan-story',
         entity: ENTITY_KINDS.STORY,
         title: 'Orphan',
+        labels: ['type::story'],
         parentSlug: 'missing-parent',
       }),
     );

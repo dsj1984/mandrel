@@ -454,6 +454,93 @@ describe('providers/github/tickets.js — TicketGateway', () => {
     assert.ok(out.subIssueError instanceof Error);
   });
 
+  // Story #4241 — createTicket must always carry type::story in the POST body.
+  it('createTicket: injects type::story when labels is undefined (Story #4241)', async () => {
+    const gh = makeFakeGh({
+      'POST /repos/o/r/issues': {
+        status: 201,
+        json: {
+          number: 500,
+          id: 5000,
+          node_id: 'node_500',
+          html_url: 'https://example/500',
+        },
+      },
+    });
+    const gateway = new TicketGateway({ gh, owner: 'o', repo: 'r', hooks: {} });
+    await gateway.createTicket(10, {
+      title: 'Story without labels',
+      body: '',
+      // labels intentionally absent — simulates the authoring-agent miss
+    });
+    const posted = JSON.parse(
+      gh.__exec.calls.find((c) => c.args[2] === 'POST').input,
+    );
+    assert.ok(
+      posted.labels.includes('type::story'),
+      `POST body must carry type::story; got: ${JSON.stringify(posted.labels)}`,
+    );
+  });
+
+  it('createTicket: injects type::story when labels is an empty array (Story #4241)', async () => {
+    const gh = makeFakeGh({
+      'POST /repos/o/r/issues': {
+        status: 201,
+        json: {
+          number: 501,
+          id: 5010,
+          node_id: 'node_501',
+          html_url: 'https://example/501',
+        },
+      },
+    });
+    const gateway = new TicketGateway({ gh, owner: 'o', repo: 'r', hooks: {} });
+    await gateway.createTicket(10, {
+      title: 'Story with empty labels',
+      body: '',
+      labels: [],
+    });
+    const posted = JSON.parse(
+      gh.__exec.calls.find((c) => c.args[2] === 'POST').input,
+    );
+    assert.ok(
+      posted.labels.includes('type::story'),
+      `POST body must carry type::story; got: ${JSON.stringify(posted.labels)}`,
+    );
+  });
+
+  it('createTicket: does not duplicate type::story when caller already includes it (Story #4241)', async () => {
+    const gh = makeFakeGh({
+      'POST /repos/o/r/issues': {
+        status: 201,
+        json: {
+          number: 502,
+          id: 5020,
+          node_id: 'node_502',
+          html_url: 'https://example/502',
+        },
+      },
+    });
+    const gateway = new TicketGateway({ gh, owner: 'o', repo: 'r', hooks: {} });
+    await gateway.createTicket(10, {
+      title: 'Story with type::story already',
+      body: '',
+      labels: ['type::story', 'persona::backend'],
+    });
+    const posted = JSON.parse(
+      gh.__exec.calls.find((c) => c.args[2] === 'POST').input,
+    );
+    const storyLabelCount = posted.labels.filter(
+      (l) => l === 'type::story',
+    ).length;
+    assert.equal(
+      storyLabelCount,
+      1,
+      `type::story must appear exactly once; got: ${JSON.stringify(posted.labels)}`,
+    );
+    assert.ok(posted.labels.includes('persona::backend'));
+  });
+
   it('updateTicket: additive label-only PATCH skips body PATCH and invalidates cache', async () => {
     const cache = createInlineTicketCache();
     cache.set(50, {
