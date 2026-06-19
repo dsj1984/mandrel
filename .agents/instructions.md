@@ -76,6 +76,15 @@ environment variables that override project defaults. The config resolver
 deep-merges `.agentrc.local.json` over `.agentrc.json` (local wins; absent
 local file is a no-op). Do not modify these local files unless requested.
 
+**Durable slash commands.** Any `.md` file placed at
+`.agents/local/workflows/<name>.md` is automatically projected into
+`.claude/commands/<name>.md` by `sync-claude-commands.js`, making it
+invocable as `/<name>`. Because the entire `.agents/local/` subtree is
+exempt from `mandrel sync`'s prune pass, these commands survive
+`npm install`, `mandrel sync`, and `mandrel update` with no manual
+re-sync. Core payload commands of the same basename always win (the
+local copy is ignored with a `shadowed` warning).
+
 ### F. Modular Global Rules
 
 Before writing code or documentation, verify if any domain-agnostic rules
