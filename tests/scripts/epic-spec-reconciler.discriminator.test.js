@@ -20,9 +20,9 @@ import {
   assertPlanLabelAllowList,
   assertStoryTypeLabel,
   LabelAllowListViolation,
+  MissingTypeLabelError,
   mayClose,
   mayUpdate,
-  MissingTypeLabelError,
   STRUCTURAL_LABELS,
 } from '../../.agents/scripts/lib/orchestration/epic-spec-reconciler-discriminator.js';
 import { OP_KINDS } from '../../.agents/scripts/lib/orchestration/epic-spec-reconciler-ops.js';
