@@ -1,10 +1,18 @@
 #!/usr/bin/env node
 
 /**
- * Projects .agents/workflows/ into a flat `.claude/commands/` tree so Claude
- * Code exposes each workflow as a bare `/<name>` slash command. The workflows
- * directory remains the single source of truth; this script is the only writer
- * of `.claude/commands/`.
+ * Projects .agents/workflows/ (and .agents/local/workflows/ when present) into
+ * a flat `.claude/commands/` tree so Claude Code exposes each workflow as a
+ * bare `/<name>` slash command. Two source directories are enumerated in order:
+ *
+ *   1. PAYLOAD_SRC  — `.agents/workflows/`  (the installed Mandrel payload)
+ *   2. LOCAL_SRC    — `.agents/local/workflows/`  (consumer-authored, prune-exempt)
+ *
+ * The payload directory wins on basename collision: if both sources supply
+ * `foo.md`, the payload copy is projected and the local copy is ignored with a
+ * `shadowed` warning. Because both sources are unioned into `sourceSet`, local
+ * commands are also protected from the orphan-reap — they survive
+ * `npm install`, `mandrel sync`, and `mandrel update` with no manual re-sync.
  *
  * Flat projection (reverts the #3576 plugin cutover): the plugin command tree
  * (`.claude/plugins/mandrel/`) and the repo-local marketplace
@@ -48,15 +56,37 @@ const PROJECT_ROOT = process.cwd();
 // fixture workflow tree in isolation (regression test for the Epic #1185
 // frontmatter pass-through contract). When unset, behaviour is unchanged
 // — the script defaults to the real workflows / commands directories.
-const SRC_DIR =
+// SYNC_CLAUDE_COMMANDS_SRC overrides the PAYLOAD source only; the LOCAL_SRC
+// is always derived from the project root so fixture tests can isolate the
+// payload source while still allowing LOCAL_SRC to be present if needed.
+const PAYLOAD_SRC =
   process.env.SYNC_CLAUDE_COMMANDS_SRC ??
   path.join(PROJECT_ROOT, '.agents', 'workflows');
+const LOCAL_SRC = path.join(PROJECT_ROOT, '.agents', 'local', 'workflows');
+
 const DEST_DIR =
   process.env.SYNC_CLAUDE_COMMANDS_DEST ??
   path.join(PROJECT_ROOT, '.claude', 'commands');
 
 export const HEADER =
   '<!-- AUTO-GENERATED — do not edit. Source of truth: .agents/workflows/ -->\n<!-- Re-run: npm run sync:commands -->\n\n';
+
+export const LOCAL_HEADER =
+  '<!-- AUTO-GENERATED from .agents/local/ — do not edit. Source of truth: .agents/local/workflows/ -->\n<!-- Re-run: npm run sync:commands -->\n\n';
+
+/**
+ * Return true when the given directory path exists and is accessible.
+ *
+ * @param {string} dir
+ * @returns {boolean}
+ */
+function dirExists(dir) {
+  try {
+    return fs.statSync(dir).isDirectory();
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Reap the generated plugin projection (the #3576 surface) so the namespaced
@@ -102,12 +132,33 @@ fs.mkdirSync(DEST_DIR, { recursive: true });
 const isTopLevelWorkflow = (entry) =>
   entry.isFile() && entry.name.endsWith('.md');
 
+// Enumerate sources: payload first, then local (if it exists). Payload wins
+// on basename collision — a consumer must not silently shadow a core command.
+const SRC_DIRS = [PAYLOAD_SRC, LOCAL_SRC].filter(dirExists);
+
+/** @type {Array<{dir: string, name: string}>} */
+const entries = SRC_DIRS.flatMap((dir) =>
+  fs
+    .readdirSync(dir, { withFileTypes: true })
+    .filter(isTopLevelWorkflow)
+    .map((e) => ({ dir, name: e.name })),
+);
+
+// Collision policy: payload wins, warn on a shadowed local file.
+const byName = new Map();
+for (const e of entries) {
+  if (byName.has(e.name)) {
+    Logger.warn(`  shadowed  ${e.name} (local copy ignored; payload wins)`);
+    continue;
+  }
+  byName.set(e.name, e);
+}
+
+// sourceSet drives the orphan-reap: any existing command not in this set is
+// removed. Local-projected commands are included, so they survive the reap.
+const sourceSet = new Set(byName.keys());
+
 const existing = fs.readdirSync(DEST_DIR).filter((f) => f.endsWith('.md'));
-const sources = fs
-  .readdirSync(SRC_DIR, { withFileTypes: true })
-  .filter(isTopLevelWorkflow)
-  .map((entry) => entry.name);
-const sourceSet = new Set(sources);
 
 for (const file of existing) {
   if (!sourceSet.has(file)) {
@@ -118,18 +169,18 @@ for (const file of existing) {
 
 // Copy each workflow, injecting the auto-generated header after any leading
 // frontmatter (so the `---` block stays on line 1 and Claude Code parses the
-// command description). Parallelised so the ~30-file sync doesn't serialise on
-// per-file fs latency (noticeable on Windows where each syscall pays a larger
-// fixed cost).
+// command description). Use a distinct header comment for local-origin files.
+// Parallelised so the ~30-file sync doesn't serialise on per-file fs latency
+// (noticeable on Windows where each syscall pays a larger fixed cost).
 let synced = 0;
+const resolvedEntries = Array.from(byName.values());
 await Promise.all(
-  sources.map(async (file) => {
-    const content = await fs.promises.readFile(
-      path.join(SRC_DIR, file),
-      'utf8',
-    );
-    const dest = path.join(DEST_DIR, file);
-    const target = applyHeader(content, HEADER);
+  resolvedEntries.map(async ({ dir, name }) => {
+    const isLocal = dir === LOCAL_SRC;
+    const header = isLocal ? LOCAL_HEADER : HEADER;
+    const content = await fs.promises.readFile(path.join(dir, name), 'utf8');
+    const dest = path.join(DEST_DIR, name);
+    const target = applyHeader(content, header);
 
     // Skip write if content is already identical (avoid noisy git diffs).
     // Use try/catch over existsSync+readFile so we only pay one syscall.
@@ -142,10 +193,10 @@ await Promise.all(
 
     await fs.promises.writeFile(dest, target, 'utf8');
     synced++;
-    Logger.info(`  synced   ${file}`);
+    Logger.info(`  synced   ${name}`);
   }),
 );
 
 Logger.info(
-  `\n✔ ${synced} file(s) synced, ${sources.length} total commands in .claude/commands/`,
+  `\n✔ ${synced} file(s) synced, ${sourceSet.size} total commands in .claude/commands/`,
 );
