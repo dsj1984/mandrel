@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.74.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.73.0...mandrel-v1.74.0) (2026-06-19)
+
+
+### Added
+
+* minimize install footprint: drop Project views, make the board + custom-fields + issue-forms decoration opt-in (default off) ([#4234](https://github.com/dsj1984/mandrel/issues/4234)) ([#4235](https://github.com/dsj1984/mandrel/issues/4235)) ([9c8acf6](https://github.com/dsj1984/mandrel/commit/9c8acf6f8b324d3d2c221031f636680c823d5c2a))
+
+
+### Fixed
+
+* **bootstrap:** make quality gates and docs-stub scaffold opt-in and default-off ([#4240](https://github.com/dsj1984/mandrel/issues/4240)) ([e41da73](https://github.com/dsj1984/mandrel/commit/e41da7343e7fc1b55d1e1749f2e532b231426766))
+* **decompose:** enforce/default the mandatory type::story label on Story create → no more unlabeled, undispatchable Stories ([#4241](https://github.com/dsj1984/mandrel/issues/4241)) ([#4242](https://github.com/dsj1984/mandrel/issues/4242)) ([14d3752](https://github.com/dsj1984/mandrel/commit/14d3752f0bf8ed1133508e5c1955e60afb8d8a24))
+* **projects:** resolve organization-owned Projects v2 boards (refs [#4237](https://github.com/dsj1984/mandrel/issues/4237)) ([#4238](https://github.com/dsj1984/mandrel/issues/4238)) ([3c033c3](https://github.com/dsj1984/mandrel/commit/3c033c36a03ca68c94be0cfbee991ef33e7fa14d))
+
 ## [1.73.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.72.0...mandrel-v1.73.0) (2026-06-17)
 
 
