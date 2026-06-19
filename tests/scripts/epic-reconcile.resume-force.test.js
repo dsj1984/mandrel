@@ -46,7 +46,12 @@ function specWithStories({ storyTwoSlug = 'story-two', storyTwoTitle } = {}) {
   return {
     epic: { id: EPIC_ID, title: 'Resume/Force Epic' },
     stories: [
-      { slug: 'story-one', title: 'Story One', wave: 1, labels: ['type::story'] },
+      {
+        slug: 'story-one',
+        title: 'Story One',
+        wave: 1,
+        labels: ['type::story'],
+      },
       {
         slug: storyTwoSlug,
         title: storyTwoTitle ?? 'Story Two',
@@ -158,8 +163,18 @@ describe('runReconcile — Story #3905 changed-slug force re-plan', () => {
     const spec = {
       epic: { id: EPIC_ID, title: 'Resume/Force Epic' },
       stories: [
-        { slug: 'story-one', title: 'Story One', wave: 1, labels: ['type::story'] },
-        { slug: 'story-three', title: 'Story Three', wave: 1, labels: ['type::story'] },
+        {
+          slug: 'story-one',
+          title: 'Story One',
+          wave: 1,
+          labels: ['type::story'],
+        },
+        {
+          slug: 'story-three',
+          title: 'Story Three',
+          wave: 1,
+          labels: ['type::story'],
+        },
       ],
     };
     const ghState = {
@@ -209,7 +224,14 @@ describe('runReconcile — Story #3905 changed-slug force re-plan', () => {
     };
     const spec = {
       epic: { id: EPIC_ID, title: 'Resume/Force Epic' },
-      stories: [{ slug: 'story-three', title: 'Story Three', wave: 1, labels: ['type::story'] }],
+      stories: [
+        {
+          slug: 'story-three',
+          title: 'Story Three',
+          wave: 1,
+          labels: ['type::story'],
+        },
+      ],
     };
     const ghState = {
       [EPIC_ID]: { title: 'Resume/Force Epic', state: 'open' },
@@ -321,8 +343,18 @@ describe('runReconcile — Story #3905 --resume with deleted state.json', () => 
       // GH observations carry type::story so the spec labels match and the
       // diff produces no label-change ops — only then does the plan come out
       // empty and the no-duplication assertion hold.
-      101: { title: 'Story One', state: 'open', body: '', labels: ['type::story'] },
-      102: { title: 'Story Two', state: 'open', body: '', labels: ['type::story'] },
+      101: {
+        title: 'Story One',
+        state: 'open',
+        body: '',
+        labels: ['type::story'],
+      },
+      102: {
+        title: 'Story Two',
+        state: 'open',
+        body: '',
+        labels: ['type::story'],
+      },
     };
     const applySpy = { calls: 0, plan: null };
     const { deps } = buildDeps({

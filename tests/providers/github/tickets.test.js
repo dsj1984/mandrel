@@ -473,7 +473,9 @@ describe('providers/github/tickets.js — TicketGateway', () => {
       body: '',
       // labels intentionally absent — simulates the authoring-agent miss
     });
-    const posted = JSON.parse(gh.__exec.calls.find((c) => c.args[2] === 'POST').input);
+    const posted = JSON.parse(
+      gh.__exec.calls.find((c) => c.args[2] === 'POST').input,
+    );
     assert.ok(
       posted.labels.includes('type::story'),
       `POST body must carry type::story; got: ${JSON.stringify(posted.labels)}`,
@@ -498,7 +500,9 @@ describe('providers/github/tickets.js — TicketGateway', () => {
       body: '',
       labels: [],
     });
-    const posted = JSON.parse(gh.__exec.calls.find((c) => c.args[2] === 'POST').input);
+    const posted = JSON.parse(
+      gh.__exec.calls.find((c) => c.args[2] === 'POST').input,
+    );
     assert.ok(
       posted.labels.includes('type::story'),
       `POST body must carry type::story; got: ${JSON.stringify(posted.labels)}`,
@@ -523,8 +527,12 @@ describe('providers/github/tickets.js — TicketGateway', () => {
       body: '',
       labels: ['type::story', 'persona::backend'],
     });
-    const posted = JSON.parse(gh.__exec.calls.find((c) => c.args[2] === 'POST').input);
-    const storyLabelCount = posted.labels.filter((l) => l === 'type::story').length;
+    const posted = JSON.parse(
+      gh.__exec.calls.find((c) => c.args[2] === 'POST').input,
+    );
+    const storyLabelCount = posted.labels.filter(
+      (l) => l === 'type::story',
+    ).length;
     assert.equal(
       storyLabelCount,
       1,
