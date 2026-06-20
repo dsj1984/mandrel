@@ -41,7 +41,9 @@ export async function discoverOpenStories({ epicId, provider }) {
     // tickets that way, but a context ticket mislabelled out-of-band must
     // still never reach a delivery wave (it has no `story-<id>` branch or
     // acceptance contract to deliver against).
-    if (labels.some((l) => typeof l === 'string' && l.startsWith('context::'))) {
+    if (
+      labels.some((l) => typeof l === 'string' && l.startsWith('context::'))
+    ) {
       continue;
     }
     const rawState = t.state ?? 'open';
