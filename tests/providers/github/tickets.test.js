@@ -541,6 +541,39 @@ describe('providers/github/tickets.js — TicketGateway', () => {
     assert.ok(posted.labels.includes('persona::backend'));
   });
 
+  it('createTicket: does NOT inject type::story onto context spec tickets (Story #4246)', async () => {
+    // Context tickets (PRD / Tech Spec / Acceptance Spec) are created through
+    // this same factory carrying only a context:: label. Stamping them
+    // type::story makes every story-counting consumer (the decompose
+    // open-children guard, the delivery wave builder) mis-classify them as
+    // deliverable Stories. The injection must be skipped for context tickets.
+    const gh = makeFakeGh({
+      'POST /repos/o/r/issues': {
+        status: 201,
+        json: {
+          number: 503,
+          id: 5030,
+          node_id: 'node_503',
+          html_url: 'https://example/503',
+        },
+      },
+    });
+    const gateway = new TicketGateway({ gh, owner: 'o', repo: 'r', hooks: {} });
+    await gateway.createTicket(10, {
+      title: '[PRD] Some Epic',
+      body: '',
+      labels: ['context::prd'],
+    });
+    const posted = JSON.parse(
+      gh.__exec.calls.find((c) => c.args[2] === 'POST').input,
+    );
+    assert.ok(
+      !posted.labels.includes('type::story'),
+      `context ticket must NOT carry type::story; got: ${JSON.stringify(posted.labels)}`,
+    );
+    assert.deepEqual(posted.labels, ['context::prd']);
+  });
+
   it('updateTicket: additive label-only PATCH skips body PATCH and invalidates cache', async () => {
     const cache = createInlineTicketCache();
     cache.set(50, {

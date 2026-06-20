@@ -320,13 +320,26 @@ export class TicketGateway {
     });
 
     // Mirror the Epic create path (issues.js:160 → `labels: TYPE_LABELS.EPIC`):
-    // always inject TYPE_LABELS.STORY so a spec that omits the labels array
-    // cannot produce an unlabeled, undispatchable Story. Dedupe to avoid
-    // duplicates when the caller already carries the label.
+    // inject TYPE_LABELS.STORY so a spec that omits the labels array cannot
+    // produce an unlabeled, undispatchable Story. Dedupe to avoid duplicates
+    // when the caller already carries the label.
+    //
+    // Context spec tickets (PRD / Tech Spec / Acceptance Spec) are a distinct
+    // ticket class created through this same factory carrying a `context::*`
+    // label (and no `type::story`). They MUST NOT be stamped `type::story`:
+    // doing so makes every `type::story`-counting consumer — the decompose
+    // open-children guard (`assertNoOpenPlanChildren`), the delivery wave
+    // builder (`discoverOpenStories`), the plan healthcheck — mis-classify
+    // them as deliverable Stories. Skip the injection when the caller's labels
+    // already classify the ticket as context.
     const callerLabels = ticketData.labels ?? [];
-    const labels = callerLabels.includes(TYPE_LABELS.STORY)
-      ? callerLabels
-      : [TYPE_LABELS.STORY, ...callerLabels];
+    const isContextTicket = callerLabels.some(
+      (l) => typeof l === 'string' && l.startsWith('context::'),
+    );
+    const labels =
+      isContextTicket || callerLabels.includes(TYPE_LABELS.STORY)
+        ? callerLabels
+        : [TYPE_LABELS.STORY, ...callerLabels];
     const result = await this._gh.api({
       method: 'POST',
       endpoint: `/repos/${this.owner}/${this.repo}/issues`,
