@@ -35,6 +35,17 @@ export async function discoverOpenStories({ epicId, provider }) {
   for (const t of descendants) {
     const labels = t.labels ?? [];
     if (!labels.includes(TYPE_LABELS.STORY)) continue;
+    // Defense-in-depth: never enumerate a context spec ticket (PRD / Tech
+    // Spec / Acceptance Spec) as a deliverable Story even if it carries
+    // `type::story`. The `createTicket` factory no longer stamps context
+    // tickets that way, but a context ticket mislabelled out-of-band must
+    // still never reach a delivery wave (it has no `story-<id>` branch or
+    // acceptance contract to deliver against).
+    if (
+      labels.some((l) => typeof l === 'string' && l.startsWith('context::'))
+    ) {
+      continue;
+    }
     const rawState = t.state ?? 'open';
     const norm = typeof rawState === 'string' ? rawState.toLowerCase() : 'open';
     if (norm !== 'open') continue;

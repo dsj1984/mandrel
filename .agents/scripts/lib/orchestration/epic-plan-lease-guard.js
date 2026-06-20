@@ -341,11 +341,20 @@ export async function assertNoOpenPlanChildren({
   const openChildren = (children ?? []).filter((t) => {
     const labels = Array.isArray(t.labels) ? t.labels : [];
     const isOpen = t.state === undefined || t.state === 'open';
-    // Any open typed plan ticket counts — `type::story` plus pre-v4
-    // `type::feature` leftovers. The prefix check is legacy-data
-    // detection, not compat support: the guard only refuses, it never
-    // processes the legacy tier. Context tickets (`context::*`) are
-    // untouched.
+    // Context spec tickets (PRD / Tech Spec / Acceptance Spec) carry a
+    // `context::*` label and — since the `createTicket` factory injects
+    // `type::story` by default — also `type::story`. They are reference
+    // artifacts that stay open across delivery, NOT plan children, so they
+    // MUST be excluded here: counting them would make every first decompose
+    // (where the three context tickets are the only open children) refuse.
+    const isContext = labels.some(
+      (l) => typeof l === 'string' && l.startsWith('context::'),
+    );
+    if (isContext) return false;
+    // Any remaining open typed plan ticket counts — `type::story` plus pre-v4
+    // `type::feature` leftovers. The prefix check is legacy-data detection,
+    // not compat support: the guard only refuses, it never processes the
+    // legacy tier.
     return (
       isOpen &&
       labels.some((l) => typeof l === 'string' && l.startsWith('type::'))

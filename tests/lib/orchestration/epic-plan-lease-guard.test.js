@@ -475,6 +475,65 @@ describe('epic-plan-lease-guard — assertNoOpenPlanChildren', () => {
     });
     assert.deepEqual(result.openChildren, []);
   });
+
+  it('does not count context tickets that also carry type::story (Story #4246)', async () => {
+    // Regression: createTicket's default-label injection stamps the three
+    // context spec tickets with type::story alongside their context:: label.
+    // On a FIRST decompose these are the only open children — the guard must
+    // exclude them (by their context:: label) rather than refuse persist.
+    const provider = makeProvider({
+      children: [
+        {
+          id: 13,
+          title: 'PRD',
+          labels: ['type::story', 'context::prd'],
+          state: 'open',
+        },
+        {
+          id: 14,
+          title: 'Tech Spec',
+          labels: ['type::story', 'context::tech-spec'],
+          state: 'open',
+        },
+        {
+          id: 15,
+          title: 'Acceptance Spec',
+          labels: ['type::story', 'context::acceptance-spec'],
+          state: 'open',
+        },
+      ],
+    });
+    const result = await assertNoOpenPlanChildren({
+      provider,
+      epicId: 9,
+      force: false,
+    });
+    assert.deepEqual(result.openChildren, []);
+  });
+
+  it('still refuses real Stories even when context tickets are present (Story #4246)', async () => {
+    // The context exclusion must not blind the guard to a genuine open Story
+    // sitting alongside the context tickets on a re-decompose.
+    const provider = makeProvider({
+      children: [
+        {
+          id: 13,
+          title: 'PRD',
+          labels: ['type::story', 'context::prd'],
+          state: 'open',
+        },
+        { id: 16, title: 'Story A', labels: ['type::story'], state: 'open' },
+      ],
+    });
+    await assert.rejects(
+      assertNoOpenPlanChildren({ provider, epicId: 9, force: false }),
+      (err) => {
+        assert.match(err.message, /already has 1 open plan child/);
+        assert.match(err.message, /#16 Story A/);
+        return true;
+      },
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
