@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.76.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.75.0...mandrel-v1.76.0) (2026-06-20)
+
+
+### Fixed
+
+* **plan:** stop stamping context spec tickets as type::story so first decompose isn't blocked ([#4246](https://github.com/dsj1984/mandrel/issues/4246)) ([#4247](https://github.com/dsj1984/mandrel/issues/4247)) ([564cfb8](https://github.com/dsj1984/mandrel/commit/564cfb81876f87ad5f61f3c670efb7cfc2c95540))
+
 ## [1.75.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.74.0...mandrel-v1.75.0) (2026-06-19)
 
 
