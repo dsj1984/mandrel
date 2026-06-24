@@ -14,10 +14,11 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-
+import { resolveAutoMergeArmCwd } from '../../../../.agents/scripts/lib/orchestration/auto-merge-cwd.js';
 import { Bus } from '../../../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
 import {
   AutomergeArmer,
+  ghPrMergeAuto,
   parseAutoMergeArmed,
 } from '../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/automerge-armer.js';
 
@@ -227,5 +228,88 @@ describe('AutomergeArmer (bus integration)', () => {
     assert.equal(mergeCalls.length, 1);
     assert.equal(emits.length, 1);
     assert.equal(emits[0].event, 'epic.merge.armed');
+  });
+});
+
+describe('ghPrMergeAuto — worktree-occupied-base-branch robustness (Story #4282)', () => {
+  const PORCELAIN = [
+    'worktree /repo/primary',
+    'branch refs/heads/main',
+    '',
+    'worktree /repo/.worktrees/story-4282',
+    'branch refs/heads/story-4282',
+    '',
+  ].join('\n');
+
+  // Models `gh pr merge --delete-branch`: collides with the primary
+  // worktree's base-branch checkout when run from the head-branch
+  // worktree, succeeds when run from the base-branch (primary) worktree.
+  function worktreeAwareSpawn(capture) {
+    return (_bin, _args, opts) => {
+      capture.cwd = opts.cwd;
+      if (opts.cwd === '/repo/.worktrees/story-4282') {
+        return {
+          status: 1,
+          stdout: '',
+          stderr:
+            "failed to run git: fatal: 'main' is already used by worktree at '/repo/primary'",
+        };
+      }
+      return { status: 0, stdout: '', stderr: '' };
+    };
+  }
+
+  it('re-points the spawn cwd at the primary worktree so the arm succeeds', () => {
+    const capture = {};
+    const resolveArmCwd = (cwd) =>
+      resolveAutoMergeArmCwd(cwd, {
+        gitSpawn: () => ({ status: 0, stdout: PORCELAIN, stderr: '' }),
+      });
+    const result = ghPrMergeAuto({
+      prUrl: 'https://github.com/o/r/pull/88',
+      cwd: '/repo/.worktrees/story-4282',
+      spawnFn: worktreeAwareSpawn(capture),
+      resolveArmCwd,
+    });
+    assert.equal(result.status, 0, 'arm queued without a worktree collision');
+    assert.equal(
+      capture.cwd,
+      '/repo/primary',
+      'arm must spawn gh from the base-branch worktree, not the head-branch worktree',
+    );
+    assert.doesNotMatch(result.stderr, /already used by worktree/);
+  });
+
+  it('regression baseline: arming from the head-branch worktree still hits the gh worktree error', () => {
+    const capture = {};
+    const result = ghPrMergeAuto({
+      prUrl: 'https://github.com/o/r/pull/88',
+      cwd: '/repo/.worktrees/story-4282',
+      spawnFn: worktreeAwareSpawn(capture),
+      resolveArmCwd: (cwd) => cwd, // pin to the buggy head-branch worktree
+    });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /already used by worktree/);
+  });
+
+  it('preserves the --auto --squash --delete-branch argv shape', () => {
+    let capturedArgs = null;
+    ghPrMergeAuto({
+      prUrl: 'https://github.com/o/r/pull/88',
+      cwd: '/repo/primary',
+      spawnFn: (_bin, args) => {
+        capturedArgs = args;
+        return { status: 0, stdout: '', stderr: '' };
+      },
+      resolveArmCwd: (cwd) => cwd,
+    });
+    assert.deepEqual(capturedArgs, [
+      'pr',
+      'merge',
+      'https://github.com/o/r/pull/88',
+      '--auto',
+      '--squash',
+      '--delete-branch',
+    ]);
   });
 });
