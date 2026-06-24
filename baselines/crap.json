@@ -1,13 +1,13 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-24T15:18:24.878Z",
+  "generatedAt": "2026-06-24T15:37:15.914Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.000805501108497,
-      "max": 36.013433747201304,
-      "methodsAbove20": 21
+      "p95": 12,
+      "max": 29.10003921033038,
+      "methodsAbove20": 20
     }
   },
   "rows": [
@@ -429,7 +429,7 @@
       "path": ".agents/scripts/check-loop-units.js",
       "method": "parseArgv",
       "startLine": 40,
-      "crap": 36.013433747201304
+      "crap": 6
     },
     {
       "path": ".agents/scripts/check-loop-units.js",
