@@ -35,6 +35,11 @@ import { serialize as serializeStoryBody } from '../../../.agents/scripts/lib/st
 function makeStory(slug = 's-sizing', body) {
   const structured = {
     goal: `Goal for ${slug}.`,
+    // Carry a non-empty reason_to_exist by default so the deterministic
+    // `missing-reason-to-exist` soft finding (Story #4273) does not perturb
+    // the width / wide assertions under test. A test exercising the absent
+    // case overrides it via `body`.
+    reason_to_exist: `Single coherent reason ${slug} exists.`,
     changes: ['src/a.js: edit'],
     acceptance: ['observable criterion'],
     verify: ['npm test (unit)'],
@@ -72,6 +77,7 @@ const SIBLING_FILLER = Object.freeze({
   verify: ['npm test (unit)'],
   body: {
     goal: 'Filler sibling so the Feature has two Stories.',
+    reason_to_exist: 'Benign filler sibling so the Feature has two Stories.',
     changes: ['src/_sizing-filler.js: edit'],
     acceptance: ['filler observable criterion'],
     verify: ['npm test (unit)'],
