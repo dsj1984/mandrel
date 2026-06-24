@@ -12,9 +12,21 @@
  * inject a synchronous fake; the default runner delegates to
  * `gh.pr.merge`, which spawns through the classified, typed-error
  * surface instead of a raw `execFileSync('gh', …)` call.
+ *
+ * Story #4282 made arming robust when the base branch is checked out by a
+ * git worktree. The `--delete-branch` flag makes `gh` shell out to local
+ * `git` (including a `git checkout <base>`); from a per-Story worktree cwd
+ * that collides with the base branch already checked out by the primary
+ * worktree (`fatal: '<base>' is already used by worktree`). We now resolve
+ * the arm cwd to the **primary worktree root** (which holds the base
+ * branch) via `resolveAutoMergeArmCwd`, so `gh`'s local checkout is a
+ * no-op. `--delete-branch` is preserved verbatim, so the PR head branch is
+ * still deleted on merge without depending on the repo's auto-delete
+ * setting. Resolution is non-fatal — it degrades to the original cwd.
  */
 
 import { gh as defaultGh } from '../../../gh-exec.js';
+import { resolveAutoMergeArmCwd } from '../../auto-merge-cwd.js';
 
 /**
  * Enable GitHub native auto-merge on the PR. Non-fatal.
@@ -24,11 +36,22 @@ import { gh as defaultGh } from '../../../gh-exec.js';
  *   prNumber: number,
  *   gh?: ReturnType<typeof import('../../../gh-exec.js').createGh>,
  *   runner?: (args: string[], opts: object) => ({ status: number, stdout?: string, stderr?: string } | Promise<{ status: number, stdout?: string, stderr?: string }>),
+ *   resolveArmCwd?: (cwd: string) => string,
  * }} opts
  * @returns {Promise<{ enabled: boolean, reason?: string }>}
  */
-export async function enableAutoMergeWith({ cwd, prNumber, gh, runner }) {
+export async function enableAutoMergeWith({
+  cwd,
+  prNumber,
+  gh,
+  runner,
+  resolveArmCwd = resolveAutoMergeArmCwd,
+}) {
   const exec = runner ?? makeDefaultGhAutoMergeRunner(gh ?? defaultGh);
+  // Re-point the arm at the base-branch (primary) worktree so gh's
+  // `--delete-branch` local `git checkout <base>` cannot collide with the
+  // base branch already checked out by the primary worktree (Story #4282).
+  const armCwd = resolveArmCwd(cwd);
   try {
     const result = await exec(
       [
@@ -39,7 +62,7 @@ export async function enableAutoMergeWith({ cwd, prNumber, gh, runner }) {
         '--squash',
         '--delete-branch',
       ],
-      { cwd },
+      { cwd: armCwd },
     );
     if (result.status === 0) return { enabled: true };
     return {

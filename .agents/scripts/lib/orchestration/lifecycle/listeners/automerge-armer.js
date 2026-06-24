@@ -54,6 +54,8 @@
 
 import { spawnSync } from 'node:child_process';
 
+import { resolveAutoMergeArmCwd } from '../../auto-merge-cwd.js';
+
 /**
  * Default `gh pr view --json autoMergeRequest` probe. Pure-spawn helper
  * — exported so tests can stub the shell-out without touching the
@@ -77,12 +79,28 @@ export function ghPrViewAutoMerge({ prUrl, cwd, spawnFn = spawnSync }) {
  * helper. Exported so tests can stub. The arg list is captured in a
  * single helper so the merge-lockout lint allow-list narrows to one
  * literal site.
+ *
+ * Story #4282: `--delete-branch` makes `gh` shell out to local `git`
+ * (including a `git checkout <base>`). When this arm runs from a per-Story
+ * worktree cwd checked out on the head branch while the base branch is
+ * occupied by the primary worktree, that checkout collides
+ * (`fatal: '<base>' is already used by worktree`). We re-point the spawn
+ * cwd at the primary worktree root (which holds the base branch) via
+ * `resolveAutoMergeArmCwd`, so the local checkout is a no-op while
+ * `--delete-branch` (head-branch-removed-on-merge) is preserved. The
+ * resolver is non-fatal — it degrades to the original cwd.
  */
-export function ghPrMergeAuto({ prUrl, cwd, spawnFn = spawnSync }) {
+export function ghPrMergeAuto({
+  prUrl,
+  cwd,
+  spawnFn = spawnSync,
+  resolveArmCwd = resolveAutoMergeArmCwd,
+}) {
+  const armCwd = resolveArmCwd(cwd);
   const result = spawnFn(
     'gh',
     ['pr', 'merge', prUrl, '--auto', '--squash', '--delete-branch'],
-    { cwd, encoding: 'utf-8', shell: false },
+    { cwd: armCwd, encoding: 'utf-8', shell: false },
   );
   return {
     status: result.status ?? 1,

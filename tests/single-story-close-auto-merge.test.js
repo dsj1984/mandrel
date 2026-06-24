@@ -8,11 +8,14 @@
  *     `{ enabled: false, reason }` on non-zero / spawn errors.
  *   - Spawn args wire `--auto --squash --delete-branch` so GitHub merges
  *     the PR when required checks pass and deletes the source branch.
+ *   - Story #4282: the arm runs from the primary (base-branch) worktree
+ *     root so `gh`'s `--delete-branch` local checkout cannot collide with
+ *     the base branch occupied by the primary worktree.
  */
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-
+import { enableAutoMergeWith } from '../.agents/scripts/lib/orchestration/single-story-close/phases/auto-merge.js';
 import {
   enableAutoMerge,
   parsePrNumber,
@@ -120,5 +123,95 @@ describe('enableAutoMerge', () => {
       runner,
     });
     assert.ok(result.reason.length < 250);
+  });
+});
+
+describe('enableAutoMergeWith — worktree-occupied-base-branch robustness (Story #4282)', () => {
+  // The primary worktree holds the base branch (`main`); the close runs
+  // from the per-Story worktree (`story-4282`). `git checkout main` from
+  // that worktree collides with the primary worktree's checkout.
+  const PORCELAIN = [
+    'worktree /repo/primary',
+    'branch refs/heads/main',
+    '',
+    'worktree /repo/.worktrees/story-4282',
+    'branch refs/heads/story-4282',
+    '',
+  ].join('\n');
+
+  // Models `gh pr merge --delete-branch`: succeeds when run from the
+  // base-branch (primary) worktree; reproduces the consumer's
+  // `gh-exit-1: fatal: 'main' is already used by worktree` failure when
+  // run from the head-branch worktree (because gh's local `git checkout
+  // main` collides there).
+  function worktreeAwareRunner(capture) {
+    return (_args, opts) => {
+      capture.cwd = opts.cwd;
+      if (opts.cwd === '/repo/.worktrees/story-4282') {
+        return {
+          status: 1,
+          stdout: '',
+          stderr:
+            "failed to run git: fatal: 'main' is already used by worktree at '/repo/primary'",
+        };
+      }
+      return { status: 0, stdout: '', stderr: '' };
+    };
+  }
+
+  it('with the resolver re-pointing to the primary worktree, the arm succeeds and queues without the worktree error', async () => {
+    const capture = {};
+    const result = await enableAutoMergeWith({
+      cwd: '/repo/.worktrees/story-4282',
+      prNumber: 88,
+      runner: worktreeAwareRunner(capture),
+      resolveArmCwd: () => '/repo/primary',
+    });
+    assert.deepEqual(result, { enabled: true });
+    assert.equal(
+      capture.cwd,
+      '/repo/primary',
+      'arm must run from the base-branch worktree, not the head-branch worktree',
+    );
+  });
+
+  it('end-to-end with the real resolver (gitSpawn injected) avoids the worktree collision', async () => {
+    const capture = {};
+    // Real resolveAutoMergeArmCwd is the default; feed it a fake gitSpawn
+    // by importing the module-level helper through resolveArmCwd binding.
+    const { resolveAutoMergeArmCwd } = await import(
+      '../.agents/scripts/lib/orchestration/auto-merge-cwd.js'
+    );
+    const resolveArmCwd = (cwd) =>
+      resolveAutoMergeArmCwd(cwd, {
+        gitSpawn: () => ({ status: 0, stdout: PORCELAIN, stderr: '' }),
+      });
+    const result = await enableAutoMergeWith({
+      cwd: '/repo/.worktrees/story-4282',
+      prNumber: 88,
+      runner: worktreeAwareRunner(capture),
+      resolveArmCwd,
+    });
+    assert.deepEqual(result, { enabled: true });
+    assert.equal(capture.cwd, '/repo/primary');
+    assert.doesNotMatch(
+      String(result.reason ?? ''),
+      /already used by worktree/,
+      'the worktree-occupied-base-branch failure must not surface',
+    );
+  });
+
+  it('regression baseline: arming from the head-branch worktree still emits the gh-exit-1 worktree error', async () => {
+    const capture = {};
+    const result = await enableAutoMergeWith({
+      cwd: '/repo/.worktrees/story-4282',
+      prNumber: 88,
+      runner: worktreeAwareRunner(capture),
+      // Pin the cwd to the (buggy) head-branch worktree to prove the test
+      // double actually reproduces the failure the fix prevents.
+      resolveArmCwd: (cwd) => cwd,
+    });
+    assert.equal(result.enabled, false);
+    assert.match(result.reason, /already used by worktree/);
   });
 });
