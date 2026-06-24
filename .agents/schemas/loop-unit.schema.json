@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/loop-unit.schema.json",
+  "version": "1.0.0",
+  "title": "Loop Unit (recurring-work definition)",
+  "description": "Schema for the YAML frontmatter of a loop unit — a markdown file under .agents/workflows/loops/ that defines a recurring/iterative unit of work with a checkable definition of done. The loop block carries the cadence (how the loop is paced), the goal (what the loop is trying to achieve), an optional verify command/array (the at-keyboard checks proving a round is complete — required for self-paced cadence, optional for interval/cron), a maxRounds backstop, and an onExhaust policy describing what happens when the round cap is hit without the goal being met.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["loop"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Optional reference to this schema file so YAML editors with $schema-aware autocomplete can resolve it from the unit file itself."
+    },
+    "description": {
+      "type": "string",
+      "description": "Optional human-readable summary of what this loop unit does."
+    },
+    "loop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cadence", "goal"],
+      "description": "The loop definition block. Carries the cadence, goal, conditional verify, round cap, and exhaustion policy.",
+      "properties": {
+        "cadence": {
+          "type": "string",
+          "enum": ["self-paced", "interval", "cron"],
+          "description": "How the loop is paced. 'self-paced' lets the agent decide when to run the next round and therefore MUST carry a verify[] so each round has a checkable definition of done. 'interval' and 'cron' are externally scheduled, so verify is optional."
+        },
+        "goal": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Required. What the loop is trying to achieve — the standing objective each round works toward."
+        },
+        "verify": {
+          "description": "Command(s) that prove a round is complete. A single command string or an array of command strings. Required when cadence is 'self-paced'; optional for 'interval' / 'cron'.",
+          "oneOf": [
+            { "type": "string", "minLength": 1 },
+            {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "minItems": 1
+            }
+          ]
+        },
+        "maxRounds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Optional positive-integer backstop on the number of loop rounds before the onExhaust policy fires."
+        },
+        "onExhaust": {
+          "type": "string",
+          "enum": ["block", "report", "hand-back"],
+          "description": "What happens when maxRounds is hit without the goal met. 'block' transitions to a HITL gate; 'report' emits a summary and stops; 'hand-back' returns control to the caller."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "cadence": { "const": "self-paced" } },
+            "required": ["cadence"]
+          },
+          "then": {
+            "required": ["verify"]
+          }
+        }
+      ]
+    }
+  }
+}
