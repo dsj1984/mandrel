@@ -27,6 +27,7 @@ import {
   classifyBranchSeed,
   ensureEpicBranch,
   ensureEpicBranchRef,
+  seedStoryBranchRef,
 } from '../git-branch-lifecycle.js';
 import { gitSpawn } from '../git-utils.js';
 import { Logger } from '../Logger.js';
@@ -186,7 +187,10 @@ export function ensureStoryBranchSeed({
   progress = defaultProgress(),
   git,
 }) {
-  const spawn = git?.spawn ?? ((...args) => gitSpawn(mainCwd, ...args));
+  const spawn =
+    git?.spawn != null
+      ? (args) => git.spawn(...args)
+      : (args) => gitSpawn(mainCwd, ...args);
   const existsLocally =
     git?.existsLocally ?? ((b) => branchExistsLocally(b, mainCwd));
   // `ensureStoryBranchSeed` is always called after `fetchMainRefs` in
@@ -195,49 +199,31 @@ export function ensureStoryBranchSeed({
   const existsRemotely =
     git?.existsRemotely ?? ((b) => branchExistsViaTrackingRef(b, mainCwd));
 
-  const action = planStoryBranchSeed({
-    localHas: existsLocally(storyBranch),
-    remoteHas: existsRemotely(storyBranch),
+  // The seed-action switch shell is single-homed in `seedStoryBranchRef`
+  // (Story #4255). The Epic path runs under concurrent wave dispatch, so it
+  // opts into `swallowCreateRace: true` to treat a lost probe→create race
+  // (`git branch` exits "already exists") as reuse (Story #3482) — the ref
+  // exists, which is exactly the post-condition this function guarantees.
+  // No `fetchError` is supplied: the fetch exit status is intentionally not
+  // inspected here (the worktree bootstrap re-checks the ref downstream).
+  seedStoryBranchRef({
+    storyBranch,
+    baseRef: epicBranch,
+    swallowCreateRace: true,
+    spawn,
+    existsLocally,
+    existsRemotely,
+    progress,
+    messages: {
+      reuse: (b) => `Reusing existing story branch ref: ${b} (no re-seed)`,
+      fetch: (b) => `Fetching remote story branch: ${b}`,
+      create: (b, ref) => `Creating story branch ref: ${b} from ${ref}`,
+      createRace: (b) =>
+        `Story branch ref ${b} already exists (created concurrently) — reusing.`,
+      createError: (b, ref, stderr) =>
+        `ensureStoryBranchSeed: failed to create ${b} from ${ref}: ${stderr}`,
+    },
   });
-  if (action === 'none') {
-    // Story #3482 — a pre-existing `story-<id>` ref is reuse, not an error.
-    // The worktree bootstrap below seeds onto whatever the ref already points
-    // at (resuming a partially-implemented Story), so seeding is a no-op here.
-    progress(
-      'GIT',
-      `Reusing existing story branch ref: ${storyBranch} (no re-seed)`,
-    );
-    return;
-  }
-  if (action === 'fetch') {
-    progress('GIT', `Fetching remote story branch: ${storyBranch}`);
-    spawn('fetch', 'origin', `${storyBranch}:${storyBranch}`);
-    return;
-  }
-  progress(
-    'GIT',
-    `Creating story branch ref: ${storyBranch} from ${epicBranch}`,
-  );
-  const res = spawn('branch', storyBranch, epicBranch);
-  // Story #3482 — close the probe→create race: another concurrent
-  // dispatch (or a prior interrupted run) may have created the ref between
-  // our existence probe above and this `git branch` call. `git branch`
-  // exits non-zero with "already exists" in that window. Treat it as reuse
-  // rather than letting story-init abort — the ref exists, which is exactly
-  // the post-condition this function guarantees.
-  if (res.status !== 0) {
-    const stderr = res.stderr || res.stdout || '';
-    if (/already exists/i.test(stderr)) {
-      progress(
-        'GIT',
-        `Story branch ref ${storyBranch} already exists (created concurrently) — reusing.`,
-      );
-      return;
-    }
-    throw new Error(
-      `ensureStoryBranchSeed: failed to create ${storyBranch} from ${epicBranch}: ${stderr}`,
-    );
-  }
 }
 
 function verifyWorkspaceSafe({
