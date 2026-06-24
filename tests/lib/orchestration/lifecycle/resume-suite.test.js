@@ -139,6 +139,14 @@ const PAYLOAD_BY_EVENT = Object.freeze({
     requiredChecks: [],
   },
   'intervention.recorded': { epicId: 9999, reason: 'fixture' },
+  'loop.tick': {
+    event: 'loop.tick',
+    loopName: 'fixture-loop',
+    round: 1,
+    cadence: '5m',
+    status: 'running',
+    timestamp: '2026-05-26T00:00:00.000Z',
+  },
   'notification.emitted': {
     event: 'epic.complete',
     channel: 'webhook',
