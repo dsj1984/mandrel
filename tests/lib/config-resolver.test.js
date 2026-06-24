@@ -7,6 +7,7 @@ import {
   BASELINES_DEFAULTS,
   CODING_GUARDRAILS_DEFAULTS,
   COMMANDS_DEFAULTS,
+  defaultNodeModulesStrategy,
   getBaselines,
   getCommands,
   getLimits,
@@ -479,6 +480,17 @@ describe('config-resolver — worktreeIsolation defaults', () => {
     ]);
     // And `resolveWorktreeEnabled()` must return true via the defaulted block.
     assert.equal(resolveWorktreeEnabled({ config }, {}), true);
+  });
+
+  it('defaultNodeModulesStrategy is platform-aware: clone on darwin/linux, per-worktree on Windows (Story #4249)', () => {
+    assert.equal(defaultNodeModulesStrategy('darwin'), 'clone');
+    assert.equal(defaultNodeModulesStrategy('linux'), 'clone');
+    assert.equal(defaultNodeModulesStrategy('win32'), 'per-worktree');
+    // The frozen default const seeds from this helper on the current host.
+    assert.equal(
+      WORKTREE_ISOLATION_DEFAULTS.nodeModulesStrategy,
+      defaultNodeModulesStrategy(),
+    );
   });
 });
 

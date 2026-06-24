@@ -105,7 +105,7 @@ const WORKTREE_ISOLATION_SCHEMA = {
     root: { type: 'string', minLength: 1 },
     nodeModulesStrategy: {
       type: 'string',
-      enum: ['per-worktree', 'symlink', 'pnpm-store'],
+      enum: ['per-worktree', 'clone', 'symlink', 'pnpm-store'],
     },
     primeFromPath: { type: ['string', 'null'], minLength: 1 },
     allowSymlinkOnWindows: { type: 'boolean' },

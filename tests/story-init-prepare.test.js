@@ -4,7 +4,6 @@ import { parseInstallCmd } from '../.agents/scripts/lib/install-cmd-parser.js';
 import { structuredCommentMarker } from '../.agents/scripts/lib/orchestration/ticketing.js';
 import {
   deriveInstallAction,
-  resolveInstallCommand,
   runStoryInitPrepare,
 } from '../.agents/scripts/story-init.js';
 
@@ -13,6 +12,13 @@ import {
  * into `story-init.js`. The prepare step now consumes the in-process init
  * result directly (no structured-comment re-read), so these tests drive
  * `runStoryInitPrepare` with a result-shaped object.
+ *
+ * Story #4249 — the prepare step's install branch was DELETED. The worktree
+ * install is owned by `WorktreeManager.ensure` (PM-aware retry budget); the
+ * formerly-hardcoded `npm ci` re-install (and `resolveInstallCommand`) is
+ * gone. `runStoryInitPrepare` is now purely the snapshot-render half, and
+ * `deriveInstallAction` survives as the canonical tri-state classifier for the
+ * `dependenciesInstalled` structured-comment signal.
  */
 
 function makeProvider() {
@@ -59,21 +65,8 @@ test('deriveInstallAction: rejects unknown tri-state values', () => {
   assert.throws(() => deriveInstallAction('maybe'), /must be one of/);
 });
 
-test('resolveInstallCommand: defaults to npm ci', () => {
-  assert.equal(resolveInstallCommand(), 'npm ci');
-});
-
-test('resolveInstallCommand: honors override when non-blank', () => {
-  assert.equal(
-    resolveInstallCommand({ override: 'pnpm install --frozen-lockfile' }),
-    'pnpm install --frozen-lockfile',
-  );
-  assert.equal(resolveInstallCommand({ override: '   ' }), 'npm ci');
-});
-
-test('runStoryInitPrepare: dependenciesInstalled=true skips install + renders init snapshot', async () => {
+test('runStoryInitPrepare: renders the init snapshot without running any install (Story #4249)', async () => {
   const provider = makeProvider();
-  let runInstallCalls = 0;
 
   const result = await runStoryInitPrepare({
     provider,
@@ -83,14 +76,11 @@ test('runStoryInitPrepare: dependenciesInstalled=true skips install + renders in
       workCwd: '/tmp/.worktrees/story-42',
       dependenciesInstalled: 'true',
     }),
-    runInstall: () => {
-      runInstallCalls++;
-      return { status: 0 };
-    },
   });
-  assert.equal(result.installAction, 'skip');
-  assert.equal(result.installCmd, null);
-  assert.equal(runInstallCalls, 0);
+  // The install branch (and its installAction/installCmd outputs) is gone —
+  // the prepare step is purely the snapshot-render half now.
+  assert.equal('installAction' in result, false);
+  assert.equal('installCmd' in result, false);
   assert.equal(result.snapshot.phase, 'init');
   assert.equal(Array.isArray(result.snapshot.phases), true);
   assert.ok(result.snapshot.phases.every((p) => p.status === 'pending'));
@@ -108,9 +98,10 @@ test('runStoryInitPrepare: dependenciesInstalled=true skips install + renders in
   assert.match(result.renderedBody, /0\/4 phases done/);
 });
 
-test('runStoryInitPrepare: dependenciesInstalled=false retries install before rendering', async () => {
+test('runStoryInitPrepare: renders the snapshot regardless of dependenciesInstalled value (no re-install)', async () => {
   const provider = makeProvider();
-  const installs = [];
+  // Even a `false` (init-install-failed) tri-state no longer triggers a
+  // prepare-side re-install — the in-`ensure` retry budget already absorbed it.
   const result = await runStoryInitPrepare({
     provider,
     storyId: 50,
@@ -119,33 +110,9 @@ test('runStoryInitPrepare: dependenciesInstalled=false retries install before re
       workCwd: '/tmp/.worktrees/story-50',
       dependenciesInstalled: 'false',
     }),
-    runInstall: (cmd, dir) => {
-      installs.push({ cmd, dir });
-      return { status: 0 };
-    },
   });
-  assert.equal(result.installAction, 'install');
-  assert.equal(result.installCmd, 'npm ci');
-  assert.deepEqual(installs, [
-    { cmd: 'npm ci', dir: '/tmp/.worktrees/story-50' },
-  ]);
-});
-
-test('runStoryInitPrepare: failed install bubbles up as an Error', async () => {
-  const provider = makeProvider();
-  await assert.rejects(
-    runStoryInitPrepare({
-      provider,
-      storyId: 51,
-      result: makeInitResult({
-        storyId: 51,
-        workCwd: '/tmp/.worktrees/story-51',
-        dependenciesInstalled: 'false',
-      }),
-      runInstall: () => ({ status: 7, stderr: 'npm exited 7' }),
-    }),
-    /install command `npm ci` failed/,
-  );
+  assert.equal(result.snapshot.phase, 'init');
+  assert.match(result.renderedBody, /### 📖 Story #50/);
 });
 
 test('runStoryInitPrepare: 2-tier snapshot carries phases[] (init/implement/validate/close), never tasks[]', async () => {
@@ -158,7 +125,6 @@ test('runStoryInitPrepare: 2-tier snapshot carries phases[] (init/implement/vali
       workCwd: '/tmp/.worktrees/story-3129',
       dependenciesInstalled: 'true',
     }),
-    runInstall: () => ({ status: 0 }),
   });
 
   assert.equal(result.snapshot.phase, 'init');

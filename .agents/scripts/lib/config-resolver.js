@@ -63,7 +63,10 @@ export {
 } from './config/runtime.js';
 export { resolveListValue } from './config/shared.js';
 export { validateOrchestrationConfig } from './config/validate-orchestration.js';
-export { WORKTREE_ISOLATION_DEFAULTS } from './config/worktree-isolation.js';
+export {
+  defaultNodeModulesStrategy,
+  WORKTREE_ISOLATION_DEFAULTS,
+} from './config/worktree-isolation.js';
 export { PROJECT_ROOT } from './project-root.js';
 
 // Cache keyed by absolute root path so callers passing different cwds

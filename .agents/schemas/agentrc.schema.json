@@ -635,7 +635,7 @@
         },
         "nodeModulesStrategy": {
           "type": "string",
-          "enum": ["per-worktree", "symlink", "pnpm-store"]
+          "enum": ["per-worktree", "clone", "symlink", "pnpm-store"]
         },
         "primeFromPath": {
           "type": ["string", "null"],

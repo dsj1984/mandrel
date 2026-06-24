@@ -10,10 +10,26 @@
  * silently disabling worktrees when the operator omitted the block).
  */
 
+/**
+ * Default `nodeModulesStrategy`, platform-aware (Story #4249).
+ *
+ * darwin/linux default to `clone` — a copy-on-write (clonefile/reflink) clone
+ * of the donor's `node_modules` that is effectively free in time and disk on
+ * APFS / reflink-capable filesystems, with a clean fall-back to `per-worktree`
+ * on any failure (unsupported fs, cross-volume, etc.). Windows has no reflink
+ * equivalent on this path, so it keeps the `per-worktree` install default.
+ *
+ * @param {NodeJS.Platform} [platform]
+ * @returns {'clone' | 'per-worktree'}
+ */
+export function defaultNodeModulesStrategy(platform = process.platform) {
+  return platform === 'win32' ? 'per-worktree' : 'clone';
+}
+
 export const WORKTREE_ISOLATION_DEFAULTS = Object.freeze({
   enabled: true,
   root: '.worktrees',
-  nodeModulesStrategy: 'per-worktree',
+  nodeModulesStrategy: defaultNodeModulesStrategy(),
   primeFromPath: null,
   allowSymlinkOnWindows: false,
   reapOnSuccess: true,
@@ -55,8 +71,7 @@ export function getWorktreeIsolation(config) {
         ? wi.enabled
         : WORKTREE_ISOLATION_DEFAULTS.enabled,
     root: wi.root ?? WORKTREE_ISOLATION_DEFAULTS.root,
-    nodeModulesStrategy:
-      wi.nodeModulesStrategy ?? WORKTREE_ISOLATION_DEFAULTS.nodeModulesStrategy,
+    nodeModulesStrategy: wi.nodeModulesStrategy ?? defaultNodeModulesStrategy(),
     primeFromPath:
       wi.primeFromPath === undefined
         ? WORKTREE_ISOLATION_DEFAULTS.primeFromPath
