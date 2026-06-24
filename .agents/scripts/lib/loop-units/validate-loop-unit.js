@@ -79,15 +79,6 @@ function getValidator(schemaPath, fs) {
 }
 
 /**
- * Test-only hook: drop the cached validator so a subsequent call
- * recompiles. Safe to leave exported — production code never invokes it.
- */
-export function _resetValidatorCacheForTests() {
-  cachedValidator = null;
-  cachedValidatorKey = null;
-}
-
-/**
  * Raised when a loop-unit file cannot be read, has no YAML frontmatter
  * block, or the frontmatter does not parse as YAML.
  */
@@ -154,7 +145,7 @@ export function parseFrontmatter(source, filePath = '<string>') {
  * @param {Array<{instancePath:string,message:string,keyword:string,params?:Record<string,unknown>}>} ajvErrors
  * @returns {Array<{path:string,message:string}>}
  */
-export function normaliseAjvErrors(ajvErrors) {
+function normaliseAjvErrors(ajvErrors) {
   return (ajvErrors ?? []).map((err) => {
     let p = err.instancePath || '/';
     let message = err.message ?? 'validation failed';
