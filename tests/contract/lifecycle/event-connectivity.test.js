@@ -296,6 +296,11 @@ const EVENT_CLASSIFICATION = Object.freeze({
     emitter: 'post-merge-close.js',
     why: 'merge signal surfaced via the post-merge label flip; its former dedicated subscriber (LabelTransitioner) was part of the in-process runner stratum deleted in Story #3908. Consumed by wildcard observers (LedgerWriter) only.',
   },
+  'loop.tick': {
+    kind: 'terminal',
+    emitter: 'emit-loop-tick.js',
+    why: 'ledger-append per-pass marker for a host-driven loop (Story #4287); consumed by the idle watchdog reading the ledger, not a dedicated bus subscriber. Mirrors story.heartbeat but is loop-scoped rather than Story-scoped.',
+  },
 
   // --- wave lifecycle ---
   // The dotted lifecycle `wave.start` / `wave.end` events and their
