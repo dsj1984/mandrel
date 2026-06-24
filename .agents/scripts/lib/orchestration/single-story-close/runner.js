@@ -158,6 +158,41 @@ async function releaseLease({
   }
 }
 
+/**
+ * Story #4257 — run a blocked-prone phase and, if it throws, release the
+ * assignee-lease best-effort BEFORE re-throwing the original error.
+ *
+ * The two recoverable-blocked close exits (base-sync conflict in
+ * `runBaseSyncPhase`, and a critical-blocker review halt in
+ * `openAndReviewPr`) throw before the clean-close lease release at the
+ * tail of `runSingleStoryClose`, stranding the operator's lease until its
+ * TTL expires. That fail-closed-refuses a different operator who picks up
+ * the blocked Story — exactly the hand-off case. Releasing here closes
+ * that gap.
+ *
+ * The original throw is preserved verbatim (per
+ * `rules/orchestration-error-handling.md` — throw, never `Logger.fatal`),
+ * so the CLI boundary still maps it to a non-zero exit; the lease release
+ * must not swallow it. `releaseLease` is itself best-effort and never
+ * throws, so it cannot mask the real failure. Fail-closed re-acquire
+ * semantics are preserved: `releaseStoryLease` no-ops when the operator no
+ * longer holds the claim, and a self-held re-acquire on a re-run still
+ * succeeds against the now-unclaimed ticket.
+ *
+ * @template T
+ * @param {() => Promise<T>} run The blocked-prone phase to execute.
+ * @param {{ provider: object, storyId: number, config: object, injectedReleaseLease?: Function }} leaseArgs
+ * @returns {Promise<T>}
+ */
+async function releaseLeaseOnBlock(run, leaseArgs) {
+  try {
+    return await run();
+  } catch (err) {
+    await releaseLease(leaseArgs);
+    throw err;
+  }
+}
+
 function closeResult({
   storyId,
   storyBranch,
@@ -237,27 +272,45 @@ export async function runSingleStoryClose({
     config,
     storyId: options.storyId,
   });
-  await runPrePushPhases({
-    ...options,
-    config,
-    baseBranch,
-    storyBranch,
+  // Story #4257 — the base-sync conflict and review-critical exits throw
+  // before the clean-close lease release at the tail of this function.
+  // Wrap both blocked-prone phases so the lease is released best-effort
+  // before the throw propagates; the original error is preserved.
+  const leaseArgs = {
     provider,
-    worktreePath,
-    injectedSync,
-    injectedGitSpawn,
-  });
-
-  const { prUrl, prNumber } = await openAndReviewPr({
-    cwd: options.cwd,
-    story,
     storyId: options.storyId,
-    storyBranch,
-    baseBranch,
-    provider,
-    injectedGh,
-    injectedRunCodeReview,
-  });
+    config,
+    injectedReleaseLease,
+  };
+  await releaseLeaseOnBlock(
+    () =>
+      runPrePushPhases({
+        ...options,
+        config,
+        baseBranch,
+        storyBranch,
+        provider,
+        worktreePath,
+        injectedSync,
+        injectedGitSpawn,
+      }),
+    leaseArgs,
+  );
+
+  const { prUrl, prNumber } = await releaseLeaseOnBlock(
+    () =>
+      openAndReviewPr({
+        cwd: options.cwd,
+        story,
+        storyId: options.storyId,
+        storyBranch,
+        baseBranch,
+        provider,
+        injectedGh,
+        injectedRunCodeReview,
+      }),
+    leaseArgs,
+  );
   const { autoMergeEnabled, autoMergeReason } = await runAutoMergePhase({
     cwd: options.cwd,
     prNumber,
@@ -285,12 +338,7 @@ export async function runSingleStoryClose({
     progress,
     WorktreeManager,
   });
-  const leaseReleased = await releaseLease({
-    provider,
-    storyId: options.storyId,
-    config,
-    injectedReleaseLease,
-  });
+  const leaseReleased = await releaseLease(leaseArgs);
   const result = closeResult({
     storyId: options.storyId,
     storyBranch,
