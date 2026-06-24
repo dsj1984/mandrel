@@ -19,6 +19,7 @@
  */
 
 import { Logger } from '../../../Logger.js';
+import { hasInlineAcceptance } from '../../../story-init/task-graph-builder.js';
 import { fetchChildTickets } from '../../../story-lifecycle.js';
 import { createPhaseTimer } from '../../../util/phase-timer.js';
 import {
@@ -197,7 +198,15 @@ export async function runStoryCloseLocked(args) {
       logger: Logger,
     });
 
-  const tasks = await fetchChildTickets(provider, storyId);
+  // Story #4251 — mirror the init-side short-circuit: a 2-tier Story (inline
+  // acceptance on its body) has no children, so skip the `fetchChildTickets`
+  // probe (empty sub-issues GraphQL query + never-matching `/search/issues`
+  // scan) entirely. The cascade target is just the Story itself. A body
+  // lacking inline acceptance still enumerates children for legacy / Epic
+  // callers.
+  const tasks = hasInlineAcceptance(story?.body)
+    ? []
+    : await fetchChildTickets(provider, storyId);
   provider.primeTicketCache([story, ...tasks]);
   progress('TICKETS', `Found ${tasks.length} child ticket(s)`);
 
