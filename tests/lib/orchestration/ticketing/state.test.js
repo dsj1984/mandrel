@@ -8,7 +8,10 @@
  */
 
 import assert from 'node:assert/strict';
-import { beforeEach, describe, it } from 'node:test';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, beforeEach, describe, it } from 'node:test';
 import { ITicketingProvider } from '../../../../.agents/scripts/lib/ITicketingProvider.js';
 import {
   _resetStructuredCommentCache,
@@ -98,11 +101,27 @@ class MockProvider extends ITicketingProvider {
 
 describe('ticketing/state — transitionTicketState', () => {
   let mock;
+  // Story #4252 — ColumnSync now persists board metadata to an on-disk
+  // cache. Sandbox it to a fresh per-test tempRoot so the registry test's
+  // "meta fetched once" assertion sees a cold disk cache (one resolve, then
+  // the in-process registry serves the rest) and never reads a warm cache
+  // written by a sibling test or a prior run.
+  let isolatedTempDir;
+  let isolatedConfig;
 
   beforeEach(() => {
     mock = new MockProvider();
     _resetStructuredCommentCache(mock);
     _resetColumnSyncCache(mock);
+    isolatedTempDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'mandrel-state-cache-'),
+    );
+    isolatedConfig = { project: { paths: { tempRoot: isolatedTempDir } } };
+  });
+
+  afterEach(() => {
+    if (isolatedTempDir)
+      fs.rmSync(isolatedTempDir, { recursive: true, force: true });
   });
 
   it('validateTransitionInputs throws on unknown state labels', async () => {
@@ -295,14 +314,19 @@ describe('ticketing/state — transitionTicketState', () => {
     _resetColumnSyncCache(mock);
 
     // Act: fire three label transitions without injecting _makeColumnSync.
+    // The isolated tempRoot keeps the on-disk meta cache cold so the only
+    // resolve is the first transition's (the registry serves the rest).
     await transitionTicketState(mock, 10, STATE_LABELS.EXECUTING, {
       cascade: false,
+      config: isolatedConfig,
     });
     await transitionTicketState(mock, 10, STATE_LABELS.BLOCKED, {
       cascade: false,
+      config: isolatedConfig,
     });
     await transitionTicketState(mock, 10, STATE_LABELS.EXECUTING, {
       cascade: false,
+      config: isolatedConfig,
     });
 
     // Assert: the meta GraphQL query fired exactly once across all three

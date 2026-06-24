@@ -127,6 +127,7 @@ export function buildReassertOptions({
   logger,
   pollAttempts,
   pollDelayMs,
+  config,
 }) {
   const opts = {
     provider,
@@ -135,6 +136,9 @@ export function buildReassertOptions({
   };
   if (pollAttempts !== undefined) opts.pollAttempts = pollAttempts;
   if (pollDelayMs !== undefined) opts.pollDelayMs = pollDelayMs;
+  // Story #4252 — forward the resolved config so ColumnSync's on-disk
+  // board-metadata cache lands under the project's configured tempRoot.
+  if (config !== undefined) opts.config = config;
   return opts;
 }
 
@@ -168,6 +172,7 @@ export async function main(argv = process.argv.slice(2)) {
       logger: Logger,
       pollAttempts,
       pollDelayMs,
+      config: effectiveConfig,
     }),
   );
   process.stdout.write(`${JSON.stringify({ ticketId, ...result })}\n`);

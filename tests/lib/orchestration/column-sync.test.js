@@ -1,10 +1,38 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import {
   ColumnSync,
   columnForLabels,
 } from '../../../.agents/scripts/lib/orchestration/column-sync.js';
+
+// Story #4252 — ColumnSync now persists resolved board metadata to an
+// on-disk cache under the resolved `tempRoot`. Give every ColumnSync in this
+// suite an isolated, per-test tempRoot so that cache (a) never bleeds across
+// cases or test runs and (b) never writes into the repo's real `temp/`. The
+// `config` bag is shaped like the resolved config (`project.paths.tempRoot`);
+// an absolute path is honoured verbatim by the temp-paths anchor.
+let _testTempDir;
+let _testConfig;
+beforeEach(() => {
+  _testTempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mandrel-cs-cache-'));
+  _testConfig = { project: { paths: { tempRoot: _testTempDir } } };
+});
+afterEach(() => {
+  if (_testTempDir) fs.rmSync(_testTempDir, { recursive: true, force: true });
+});
+
+/**
+ * Construct a ColumnSync with the per-test isolated tempRoot config merged
+ * in, so the disk cache is sandboxed. Tests pass the same `opts` they always
+ * have; `config` is injected unless a test overrides it explicitly.
+ */
+function makeSync(opts) {
+  return new ColumnSync({ config: _testConfig, ...opts });
+}
 
 describe('columnForLabels', () => {
   it('maps agent lifecycle labels to the three stock columns', () => {
@@ -102,7 +130,7 @@ function providerWithProject() {
 describe('ColumnSync.sync', () => {
   it('syncs to the computed column via GraphQL when project is configured', async () => {
     const provider = providerWithProject();
-    const sync = new ColumnSync({ provider });
+    const sync = makeSync({ provider });
     const res = await sync.sync(321, ['agent::executing']);
     assert.equal(res.status, 'synced');
     assert.equal(res.column, 'In Progress');
@@ -119,7 +147,7 @@ describe('ColumnSync.sync', () => {
 
   it('no-ops when projectNumber is absent', async () => {
     const provider = { graphql: async () => ({}) };
-    const sync = new ColumnSync({ provider, projectNumber: null });
+    const sync = makeSync({ provider, projectNumber: null });
     const res = await sync.sync(321, ['agent::executing']);
     assert.equal(res.status, 'skipped');
     assert.equal(res.reason, 'no-project');
@@ -127,7 +155,7 @@ describe('ColumnSync.sync', () => {
 
   it('no-ops when the label has no column mapping', async () => {
     const provider = providerWithProject();
-    const sync = new ColumnSync({ provider });
+    const sync = makeSync({ provider });
     const res = await sync.sync(321, ['type::epic']);
     assert.equal(res.status, 'skipped');
     assert.equal(res.reason, 'no-matching-label');
@@ -140,7 +168,7 @@ describe('ColumnSync.sync', () => {
         return { viewer: { projectV2: { id: 'PROJ', field: null } } };
       },
     };
-    const sync = new ColumnSync({ provider });
+    const sync = makeSync({ provider });
     const res = await sync.sync(321, ['agent::done']);
     assert.equal(res.status, 'skipped');
     assert.equal(res.reason, 'no-meta');
@@ -179,7 +207,7 @@ describe('ColumnSync.sync', () => {
         throw new Error('API boom');
       },
     };
-    const sync = new ColumnSync({ provider, logger: { warn: () => {} } });
+    const sync = makeSync({ provider, logger: { warn: () => {} } });
     await assert.rejects(() => sync.sync(321, ['agent::done']), /API boom/);
   });
 
@@ -189,7 +217,7 @@ describe('ColumnSync.sync', () => {
     // for any issue beyond the first 100 board items. The fix walks from
     // the issue to its projectItems and picks the match by project.id.
     const provider = providerWithProject();
-    const sync = new ColumnSync({ provider });
+    const sync = makeSync({ provider });
     const res = await sync.sync(2586, ['agent::executing']);
 
     assert.equal(res.status, 'synced');
@@ -258,7 +286,7 @@ describe('ColumnSync.sync', () => {
         return {};
       },
     };
-    const sync = new ColumnSync({ provider });
+    const sync = makeSync({ provider });
     const res = await sync.sync(321, ['agent::executing']);
     assert.equal(res.status, 'skipped');
     assert.equal(res.reason, 'not-on-project');
@@ -284,7 +312,7 @@ describe('ColumnSync.sync', () => {
         return {};
       },
     };
-    const sync = new ColumnSync({ provider });
+    const sync = makeSync({ provider });
     const res = await sync.sync(321, ['agent::executing']);
     assert.equal(res.status, 'skipped');
     assert.equal(res.reason, 'not-on-project');
@@ -342,7 +370,7 @@ describe('ColumnSync.sync', () => {
       },
     };
 
-    const sync = new ColumnSync({ provider });
+    const sync = makeSync({ provider });
     const res = await sync.sync(100, ['agent::done']);
     assert.equal(res.status, 'synced');
     assert.equal(res.column, 'Done');
@@ -426,7 +454,7 @@ describe('ColumnSync.sync', () => {
       },
     };
 
-    const sync = new ColumnSync({ provider });
+    const sync = makeSync({ provider });
     const res = await sync.sync(50, ['agent::done']);
     assert.equal(res.status, 'synced');
     assert.equal(res.column, 'Done');
@@ -494,7 +522,7 @@ describe('ColumnSync.sync', () => {
       },
     };
 
-    const sync = new ColumnSync({ provider });
+    const sync = makeSync({ provider });
     const res = await sync.sync(2, ['agent::executing']);
     assert.equal(res.status, 'synced');
     assert.equal(res.column, 'In Progress');
@@ -574,7 +602,7 @@ describe('ColumnSync.sync', () => {
       },
     };
 
-    const sync = new ColumnSync({ provider });
+    const sync = makeSync({ provider });
     const res = await sync.sync(7, ['agent::done']);
     assert.equal(res.status, 'synced');
     assert.equal(res.column, 'Done');
@@ -642,14 +670,14 @@ describe('ColumnSync.readCurrentColumn (Story #2876)', () => {
   }
 
   it('returns the live column name when set', async () => {
-    const sync = new ColumnSync({
+    const sync = makeSync({
       provider: readProvider({ statusByItem: { PVTI_n: 'Done' } }),
     });
     assert.equal(await sync.readCurrentColumn(7), 'Done');
   });
 
   it('returns null when the field has no current value', async () => {
-    const sync = new ColumnSync({
+    const sync = makeSync({
       provider: readProvider({ statusByItem: {} }),
     });
     assert.equal(await sync.readCurrentColumn(7), null);
@@ -658,7 +686,7 @@ describe('ColumnSync.readCurrentColumn (Story #2876)', () => {
   it('returns null when projectNumber is unset', async () => {
     const provider = readProvider({ statusByItem: { PVTI_n: 'Done' } });
     provider.projectNumber = null;
-    const sync = new ColumnSync({ provider });
+    const sync = makeSync({ provider });
     assert.equal(await sync.readCurrentColumn(7), null);
   });
 
@@ -672,7 +700,7 @@ describe('ColumnSync.readCurrentColumn (Story #2876)', () => {
       }
       return origGraphql(query, vars);
     };
-    const sync = new ColumnSync({
+    const sync = makeSync({
       provider: baseProvider,
       logger: { info: () => {}, warn: (m) => warned.push(m) },
     });

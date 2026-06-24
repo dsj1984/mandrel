@@ -35,6 +35,11 @@
  */
 
 import { AGENT_LABELS } from '../label-constants.js';
+import {
+  invalidateProjectMetaCache,
+  readProjectMetaCache,
+  writeProjectMetaCache,
+} from './project-meta-cache.js';
 import { resolveProjectMeta } from './project-meta-resolver.js';
 
 export const LABEL_TO_COLUMN = Object.freeze({
@@ -74,6 +79,7 @@ export class ColumnSync {
    *   projectNumber?: number | null,
    *   projectOwner?: string | null,
    *   logger?: { info: Function, warn: Function },
+   *   config?: object,
    *   ctx?: { provider?: object, config?: { github?: { projectNumber?: number|null } }, logger?: object },
    * }} opts
    */
@@ -89,7 +95,16 @@ export class ColumnSync {
       null;
     this.projectOwner = opts.projectOwner ?? provider.projectOwner ?? null;
     this.logger = opts.logger ?? ctx?.logger ?? console;
+    // Resolved config bag used to locate the on-disk meta cache's tempRoot.
+    // Optional — when omitted, the cache resolves the framework-default
+    // `temp` root (Story #4252).
+    this.config = opts.config ?? ctx?.config ?? undefined;
     this._meta = null; // lazy-cached { projectId, fieldId, options: Map<name, id> }
+    // Records whether the in-process `_meta` was hydrated from the on-disk
+    // cache, so a GraphQL error against possibly-stale cached metadata can
+    // invalidate the disk entry and force a fresh resolve on the next flip
+    // (Story #4252).
+    this._metaFromDiskCache = false;
   }
 
   /**
@@ -117,8 +132,9 @@ export class ColumnSync {
     const itemId = await this.#getProjectItemId(issueId, meta.projectId);
     if (!itemId) return { status: 'skipped', reason: 'not-on-project' };
 
-    await this.provider.graphql(
-      `
+    try {
+      await this.provider.graphql(
+        `
       mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
         updateProjectV2ItemFieldValue(
           input: {
@@ -129,18 +145,71 @@ export class ColumnSync {
           }
         ) { projectV2Item { id } }
       }`,
-      {
-        projectId: meta.projectId,
-        itemId,
-        fieldId: meta.fieldId,
-        optionId,
-      },
-    );
+        {
+          projectId: meta.projectId,
+          itemId,
+          fieldId: meta.fieldId,
+          optionId,
+        },
+      );
+    } catch (err) {
+      // A failed mutation against metadata that came from the disk cache
+      // most likely means the board was reconfigured since the entry was
+      // written (a stale projectId / fieldId / optionId). Invalidate the
+      // disk entry so the next flip re-resolves against the live board and
+      // self-heals (Story #4252). Re-throw so the caller's existing error
+      // handling (e.g. `syncProjectStatusColumn`'s warn) is preserved.
+      this.#invalidateMetaCache();
+      throw err;
+    }
     return { status: 'synced', column };
+  }
+
+  /**
+   * The `(owner, projectNumber)` pair the disk cache is keyed by. Mirrors
+   * the owner that `#loadMeta` resolves the board against so a cache hit and
+   * a live resolve agree on the same board identity.
+   *
+   * @returns {{ owner: string|null, projectNumber: number|null }}
+   */
+  get #cacheBoard() {
+    return {
+      owner: this.projectOwner ?? this.provider.owner ?? null,
+      projectNumber: this.projectNumber,
+    };
+  }
+
+  /**
+   * Invalidate the on-disk metadata cache entry for this board and drop the
+   * in-process copy, so the next `#loadMeta` re-resolves from the live
+   * board. Only fires when the current `_meta` came from the disk cache —
+   * a freshly-resolved entry that fails the mutation is a transient/live
+   * problem, not a stale-cache problem.
+   */
+  #invalidateMetaCache() {
+    if (!this._metaFromDiskCache) return;
+    const { owner, projectNumber } = this.#cacheBoard;
+    invalidateProjectMetaCache({ owner, projectNumber, config: this.config });
+    this._meta = null;
+    this._metaFromDiskCache = false;
   }
 
   async #loadMeta() {
     if (this._meta !== null) return this._meta || null;
+    // Disk cache hit short-circuits the ~2 metadata GraphQL round-trips
+    // (resolveProjectMeta) — repo-invariant board metadata persists across
+    // the cold CLI processes of a single-story delivery (Story #4252).
+    const cachedBoard = this.#cacheBoard;
+    const cached = readProjectMetaCache({
+      owner: cachedBoard.owner,
+      projectNumber: cachedBoard.projectNumber,
+      config: this.config,
+    });
+    if (cached) {
+      this._meta = cached;
+      this._metaFromDiskCache = true;
+      return this._meta;
+    }
     try {
       // Resolve the board by walking the owner-type ladder
       // (organization → user → viewer) via the shared resolver so the
@@ -176,6 +245,16 @@ export class ColumnSync {
         fieldId: field.id,
         options,
       };
+      // Persist the freshly-resolved, repo-invariant metadata so the next
+      // cold flip reads it from disk instead of re-paying the resolve
+      // (Story #4252). Best-effort: a write failure never blocks the sync.
+      writeProjectMetaCache({
+        owner: cachedBoard.owner,
+        projectNumber: cachedBoard.projectNumber,
+        meta: this._meta,
+        config: this.config,
+      });
+      this._metaFromDiskCache = false;
       return this._meta;
     } catch (err) {
       this.logger.warn?.(
