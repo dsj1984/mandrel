@@ -642,7 +642,14 @@ describe('runSingleStoryClose orchestration', () => {
     assert.equal(buildCall.epicBranch, 'main');
     const runCall = validationCalls.find((c) => c.phase === 'run');
     assert.ok(runCall, 'runCloseValidation must be invoked');
-    assert.equal(runCall.opts.epicId, null);
+    // Story #4250 — the standalone phase routes evidence through the
+    // storyId-anchored keyspace via `standalone: true` instead of feeding a
+    // null `epicId` into the Epic-keyed path.
+    assert.equal(runCall.opts.standalone, true);
+    assert.ok(
+      runCall.opts.epicId == null,
+      'standalone phase must not feed a positive epicId into runCloseValidation',
+    );
     assert.equal(runCall.opts.storyId, 8);
   });
 

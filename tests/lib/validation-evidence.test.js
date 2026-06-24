@@ -93,6 +93,82 @@ test('evidencePath() throws when epicId is missing', () => {
   );
 });
 
+test('evidencePath() resolves a standalone storyId-anchored path (Story #4250)', () => {
+  const expected = path.join(
+    FAKE_CWD,
+    'temp',
+    'standalone',
+    'stories',
+    'story-4250',
+    'validation-evidence.json',
+  );
+  assert.equal(
+    evidencePath(4250, { cwd: FAKE_CWD, standalone: true }),
+    expected,
+  );
+});
+
+test('evidencePath() ignores epicId when standalone is set (Story #4250)', () => {
+  // A stray epicId must NOT route the standalone evidence file into the
+  // Epic-keyed tree — standalone branches on storyId alone.
+  const standalonePath = evidencePath(4250, {
+    cwd: FAKE_CWD,
+    epicId: 99,
+    standalone: true,
+  });
+  assert.ok(
+    standalonePath.includes(path.join('standalone', 'stories', 'story-4250')),
+    `standalone path must anchor on storyId, got: ${standalonePath}`,
+  );
+  assert.ok(
+    !standalonePath.includes('epic-99'),
+    'standalone path must not include the epic-<id> segment',
+  );
+});
+
+test('recordPass()/shouldSkip() round-trip via the standalone keyspace (Story #4250)', () => {
+  const fs = makeFakeFs();
+  const opts = { cwd: FAKE_CWD, now: fixedNow, standalone: true, fs };
+  const cfg = hashCommandConfig({
+    cmd: 'npm',
+    args: ['run', 'lint'],
+    cwd: FAKE_CWD,
+  });
+  recordPass(
+    { storyId: 4250, gateName: 'lint', sha: 'abcdef0', configHash: cfg },
+    opts,
+  );
+  // The record must land in the standalone path, not an Epic-keyed one.
+  const standalonePath = evidencePath(4250, {
+    cwd: FAKE_CWD,
+    standalone: true,
+  });
+  assert.ok(fs.files.has(path.resolve(standalonePath)));
+
+  const verdict = shouldSkip(
+    { storyId: 4250, gateName: 'lint', currentSha: 'abcdef0', configHash: cfg },
+    opts,
+  );
+  assert.equal(verdict.skip, true);
+  assert.equal(verdict.reason, 'evidence-match');
+});
+
+test('typecheck is a recordable evidence gate (Story #4250)', () => {
+  const fs = makeFakeFs();
+  const opts = { cwd: FAKE_CWD, now: fixedNow, standalone: true, fs };
+  const cfg = hashCommandConfig({ cmd: 'node', args: ['--version'] });
+  // Prior to Story #4250 the schema enum excluded `typecheck`, so recordPass
+  // threw schema-validation. It must now persist cleanly.
+  const record = recordPass(
+    { storyId: 4250, gateName: 'typecheck', sha: 'abcdef0', configHash: cfg },
+    opts,
+  );
+  assert.equal(record.gateName, 'typecheck');
+  const loaded = loadEvidence(4250, opts);
+  assert.equal(loaded.records.length, 1);
+  assert.equal(loaded.records[0].gateName, 'typecheck');
+});
+
 test('hashCommandConfig() is deterministic and shape-valid', () => {
   const a = hashCommandConfig({ cmd: 'npm', args: ['run', 'lint'], cwd: '/x' });
   const b = hashCommandConfig({ cmd: 'npm', args: ['run', 'lint'], cwd: '/x' });

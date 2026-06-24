@@ -67,6 +67,7 @@ async function runPrePushPhases({
       worktreePath,
       config,
       baseBranch,
+      storyBranch,
       storyId,
       progress,
       runCloseValidation,

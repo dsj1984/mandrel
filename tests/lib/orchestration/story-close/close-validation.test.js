@@ -224,6 +224,188 @@ describe('runCloseValidation — standalone Story (epicId: null)', () => {
   });
 });
 
+describe('runCloseValidation — standalone evidence keyspace (Story #4250)', () => {
+  // The standalone path now passes `standalone: true` (not `epicId: null`)
+  // so `evidenceActive` is TRUE and the cache routes to the storyId-anchored
+  // keyspace. These tests assert the evidence layer fires and threads
+  // `standalone: true` into the store opts.
+
+  const fakeGates = [{ name: 'lint', cmd: 'fake-lint', args: [] }];
+
+  it('invokes the evidence layer with standalone store opts when standalone is true', async () => {
+    const { runner } = makeRecordingRunner();
+    const shouldSkipCalls = [];
+    const recordPassCalls = [];
+    const getHeadCalls = [];
+
+    const result = await runCloseValidation({
+      cwd: '/main/repo',
+      worktreePath: '/main/repo/.worktrees/story-4250',
+      gates: fakeGates,
+      runner,
+      storyId: 4250,
+      epicId: null,
+      standalone: true,
+      useEvidence: true,
+      getHeadSha: (cwd) => {
+        getHeadCalls.push(cwd);
+        return 'bbbb2222';
+      },
+      shouldSkip: (input, opts) => {
+        shouldSkipCalls.push({ input, opts });
+        return { skip: false };
+      },
+      recordPass: (input, opts) => {
+        recordPassCalls.push({ input, opts });
+      },
+    });
+
+    assert.equal(result.ok, true);
+    // Evidence layer fires for the standalone keyspace.
+    assert.equal(getHeadCalls.length, 1, 'HEAD read for the standalone cache');
+    assert.equal(shouldSkipCalls.length, 1);
+    assert.equal(recordPassCalls.length, 1);
+    // Store opts thread standalone:true and no positive epicId.
+    assert.equal(shouldSkipCalls[0].opts.standalone, true);
+    assert.equal(shouldSkipCalls[0].opts.epicId, null);
+    assert.equal(recordPassCalls[0].opts.standalone, true);
+    assert.equal(recordPassCalls[0].opts.epicId, null);
+    // Evidence cwd stays anchored on the main checkout; HEAD reads worktree.
+    assert.equal(getHeadCalls[0], '/main/repo/.worktrees/story-4250');
+    assert.equal(shouldSkipCalls[0].opts.cwd, '/main/repo');
+    assert.equal(recordPassCalls[0].opts.cwd, '/main/repo');
+  });
+
+  it('second close at unchanged HEAD short-circuits the already-passed gate', async () => {
+    // Simulate the evidence store with a tiny in-memory record set keyed on
+    // gate name (the real shouldSkip/recordPass triple-match is unit-tested
+    // in validation-evidence.test.js; here we assert the runner consults it).
+    const store = new Map();
+    const headSha = 'cccc3333';
+    const recordPass = (input) => {
+      store.set(input.gateName, { sha: input.sha });
+    };
+    const shouldSkip = ({ gateName, currentSha }) => {
+      const rec = store.get(gateName);
+      if (rec && rec.sha === currentSha) {
+        return { skip: true, reason: 'evidence-match', record: rec };
+      }
+      return { skip: false, reason: 'no-record' };
+    };
+
+    const firstCalls = makeRecordingRunner();
+    const first = await runCloseValidation({
+      cwd: '/main/repo',
+      worktreePath: '/main/repo/.worktrees/story-4250',
+      gates: fakeGates,
+      runner: firstCalls.runner,
+      storyId: 4250,
+      standalone: true,
+      useEvidence: true,
+      getHeadSha: () => headSha,
+      shouldSkip,
+      recordPass,
+    });
+    assert.equal(first.ok, true);
+    assert.equal(firstCalls.calls.length, 1, 'first close runs the gate');
+
+    // Second close at the SAME HEAD must skip the gate via evidence.
+    const secondCalls = makeRecordingRunner();
+    const second = await runCloseValidation({
+      cwd: '/main/repo',
+      worktreePath: '/main/repo/.worktrees/story-4250',
+      gates: fakeGates,
+      runner: secondCalls.runner,
+      storyId: 4250,
+      standalone: true,
+      useEvidence: true,
+      getHeadSha: () => headSha,
+      shouldSkip,
+      recordPass,
+    });
+    assert.equal(second.ok, true);
+    assert.equal(
+      secondCalls.calls.length,
+      0,
+      'second close at unchanged HEAD short-circuits the gate via evidence',
+    );
+    assert.equal(second.skipped.length, 1);
+    assert.equal(second.skipped[0].reason, 'evidence-match');
+  });
+
+  it('a redraft round (HEAD moves) busts the standalone evidence', async () => {
+    const store = new Map();
+    const recordPass = (input) => store.set(input.gateName, { sha: input.sha });
+    const shouldSkip = ({ gateName, currentSha }) => {
+      const rec = store.get(gateName);
+      return rec && rec.sha === currentSha
+        ? { skip: true, reason: 'evidence-match', record: rec }
+        : { skip: false, reason: 'sha-mismatch' };
+    };
+
+    await runCloseValidation({
+      cwd: '/main/repo',
+      gates: fakeGates,
+      runner: makeRecordingRunner().runner,
+      storyId: 4250,
+      standalone: true,
+      useEvidence: true,
+      getHeadSha: () => 'sha-A',
+      shouldSkip,
+      recordPass,
+    });
+
+    // HEAD moved (redraft commit) → gate must re-run, not skip.
+    const afterRedraft = makeRecordingRunner();
+    const result = await runCloseValidation({
+      cwd: '/main/repo',
+      gates: fakeGates,
+      runner: afterRedraft.runner,
+      storyId: 4250,
+      standalone: true,
+      useEvidence: true,
+      getHeadSha: () => 'sha-B',
+      shouldSkip,
+      recordPass,
+    });
+    assert.equal(result.ok, true);
+    assert.equal(
+      afterRedraft.calls.length,
+      1,
+      'gate re-runs after HEAD moves (evidence busted)',
+    );
+    assert.equal(result.skipped.length, 0);
+  });
+
+  it('Epic-path evidence keying is unchanged (epicId, no standalone flag)', async () => {
+    const { runner } = makeRecordingRunner();
+    const shouldSkipCalls = [];
+    const recordPassCalls = [];
+    await runCloseValidation({
+      cwd: '/main/repo',
+      worktreePath: '/main/repo/.worktrees/story-1120',
+      gates: fakeGates,
+      runner,
+      storyId: 1120,
+      epicId: 1114,
+      useEvidence: true,
+      getHeadSha: () => 'aaaa1111',
+      shouldSkip: (input, opts) => {
+        shouldSkipCalls.push({ input, opts });
+        return { skip: false };
+      },
+      recordPass: (input, opts) => {
+        recordPassCalls.push({ input, opts });
+      },
+    });
+    // Epic path: standalone defaults to false, epicId threaded through.
+    assert.equal(shouldSkipCalls[0].opts.epicId, 1114);
+    assert.equal(shouldSkipCalls[0].opts.standalone, false);
+    assert.equal(recordPassCalls[0].opts.epicId, 1114);
+    assert.equal(recordPassCalls[0].opts.standalone, false);
+  });
+});
+
 describe('runCloseValidation — independent/serial split', () => {
   const gates = [
     { name: 'lint', cmd: 'fake-lint', args: [] },

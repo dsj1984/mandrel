@@ -215,6 +215,18 @@ proceed / redraft / block decision) is the single-homed include
 
 Standalone specifics for this path:
 
+- **Critic evidence-share** (Story #4250). When the critic runs a `verify[]`
+  command that is byte-identical to a close gate (`lint` / `typecheck`), it
+  records the pass into the standalone evidence keyspace via `--standalone`
+  (no parent Epic to key on) so Step 3's close short-circuits the gate at
+  unchanged HEAD. Run it in the **Story worktree** (`workCwd` from Step 0):
+
+  ```bash
+  node <main-repo>/.agents/scripts/evidence-gate.js \
+    --standalone --scope-id <storyId> --gate lint \
+    --worktree <workCwd> -- npm run lint
+  ```
+
 - **Gate invocation** (omit `--epic` — there is no parent Epic):
 
   ```bash
