@@ -34,7 +34,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
 import { Logger } from './lib/Logger.js';
-import { buildCatalog } from './lib/mandrel-catalog.js';
+import { buildCatalog, buildLoopCatalog } from './lib/mandrel-catalog.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -66,12 +66,14 @@ function cellEscape(description) {
 }
 
 /**
- * Render the full generated `workflows.md` content from a catalog.
+ * Render the full generated `workflows.md` content from the flat command
+ * catalog and the loop-unit catalog.
  *
  * @param {Array<{ name: string, description: string | null, vague: boolean }>} catalog
+ * @param {Array<{ name: string, description: string | null, vague: boolean }>} [loopCatalog]
  * @returns {string}
  */
-export function renderWorkflowsDoc(catalog) {
+export function renderWorkflowsDoc(catalog, loopCatalog = []) {
   const lines = [
     '<!--',
     '  GENERATED FILE — do not edit by hand.',
@@ -95,6 +97,13 @@ export function renderWorkflowsDoc(catalog) {
     '`.claude/commands/<name>.md` — there is no plugin manifest and no',
     'marketplace listing. The commands load in every Claude Code environment.',
     '',
+    'Loop units are the one namespaced exception: files under',
+    '`.agents/workflows/loops/<name>.md` project to',
+    '`.claude/commands/loops/<name>.md` and are invoked as the namespaced',
+    '`/loops:<name>` command. On hosts that flatten subdirectory commands the',
+    'same unit surfaces under the flat fallback `/loops-<name>`. They are',
+    'listed separately in the **Loops namespace** section below.',
+    '',
     'This index is regenerated from each workflow’s front-matter `description:`',
     'by `node .agents/scripts/generate-workflows-doc.js`; `npm run docs:check`',
     'fails when it drifts from the on-disk workflow set. To change a command’s',
@@ -111,6 +120,29 @@ export function renderWorkflowsDoc(catalog) {
   }
 
   lines.push('');
+  lines.push(`## Loops namespace (${loopCatalog.length})`);
+  lines.push('');
+  lines.push(
+    'Loop units project to `.claude/commands/loops/<name>.md` and are invoked',
+  );
+  lines.push(
+    'as `/loops:<name>` (flat fallback `/loops-<name>` on hosts that flatten',
+  );
+  lines.push('subdirectory commands).');
+  lines.push('');
+  if (loopCatalog.length === 0) {
+    lines.push('> No loop units are shipped yet.');
+  } else {
+    lines.push('| Command | Description |');
+    lines.push('| --- | --- |');
+    for (const entry of loopCatalog) {
+      lines.push(
+        `| \`/loops:${entry.name}\` | ${cellEscape(entry.description)} |`,
+      );
+    }
+  }
+
+  lines.push('');
   return lines.join('\n');
 }
 
@@ -121,7 +153,8 @@ export function renderWorkflowsDoc(catalog) {
  */
 export function buildExpected() {
   const catalog = buildCatalog(WORKFLOWS_DIR);
-  const generated = renderWorkflowsDoc(catalog);
+  const loopCatalog = buildLoopCatalog(WORKFLOWS_DIR);
+  const generated = renderWorkflowsDoc(catalog, loopCatalog);
   const original = fs.existsSync(DOC_PATH)
     ? fs.readFileSync(DOC_PATH, 'utf8')
     : null;
