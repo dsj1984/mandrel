@@ -243,9 +243,3 @@ export function buildStoryBody({ group, edges = [] }) {
 
   return { title, body, labels: labelsForGroup(group) };
 }
-
-export const __testing = {
-  DEFAULT_VERIFY,
-  sequencingDepsForGroup,
-  changesFromGroup,
-};

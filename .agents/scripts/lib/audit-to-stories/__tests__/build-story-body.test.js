@@ -16,13 +16,14 @@ import { describe, it } from 'node:test';
 
 import { __testing as auditCli } from '../../../audit-to-stories.js';
 import { parse, serialize } from '../../story-body/story-body.js';
-import {
-  __testing as bodyTesting,
-  buildStoryBody,
-} from '../build-story-body.js';
+import { buildStoryBody } from '../build-story-body.js';
 
 const { buildAndGateStories } = auditCli;
-const { DEFAULT_VERIFY, sequencingDepsForGroup } = bodyTesting;
+
+// The verify[] contract every generated audit Story carries (mirrors the
+// frozen DEFAULT_VERIFY in build-story-body.js — asserted against literals so
+// the module needs no test-only export).
+const DEFAULT_VERIFY = ['npm run lint (validate)', 'npm test (unit)'];
 
 /** A representative cross-audit group with files[], recommendations, prompts. */
 function makeGroup(overrides = {}) {
@@ -112,13 +113,12 @@ describe('buildStoryBody changes + edges (criterion 3)', () => {
     ]);
   });
 
-  it('resolves edges[] anchored on the group and renders a ## Sequencing block', () => {
+  it('carries edges[] anchored on the group through a ## Sequencing block', () => {
     const group = makeGroup();
     const edges = [
       { fromGroupKey: group.groupKey, toGroupKey: 'file:other.js', via: 'x' },
       { fromGroupKey: 'file:unrelated.js', toGroupKey: 'file:nope.js' },
     ];
-    assert.deepEqual(sequencingDepsForGroup(group, edges), ['file:other.js']);
     const { body } = buildStoryBody({ group, edges });
     assert.match(body, /## Sequencing/);
     assert.match(body, /depends on group `file:other\.js`/);
