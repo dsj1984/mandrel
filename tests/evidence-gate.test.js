@@ -66,3 +66,20 @@ test('parseWrapperArgs() yields epicId=null on non-positive input', () => {
   assert.equal(parseWrapperArgs(['--epic-id', 'abc']).epicId, null);
   assert.equal(parseWrapperArgs([]).epicId, null);
 });
+
+test('parseWrapperArgs() parses --standalone (Story #4250)', () => {
+  const args = parseWrapperArgs([
+    '--standalone',
+    '--scope-id',
+    '4250',
+    '--gate',
+    'lint',
+  ]);
+  assert.equal(args.standalone, true);
+  assert.equal(args.scopeId, 4250);
+  assert.equal(args.epicId, null);
+});
+
+test('parseWrapperArgs() defaults --standalone to false', () => {
+  assert.equal(parseWrapperArgs(['--scope-id', '4250']).standalone, false);
+});

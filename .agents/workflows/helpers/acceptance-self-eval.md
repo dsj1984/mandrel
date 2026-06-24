@@ -43,6 +43,33 @@ per-criterion, mid-delivery, and evaluates the actual work product.
      optional advisory pre-flight — a criterion cannot be scored `met` without
      the supporting `verify[]` evidence where a `verify[]` command is relevant
      to it.
+   - **Shares `lint` / `typecheck` evidence with close (Story #4250).** When a
+     `verify[]` command is **byte-identical** to a close-validation gate — in
+     practice only the cheap, command-identical `lint` and `typecheck` gates
+     (`npm run lint` and the resolved `project.commands.typecheck`) — the
+     critic MUST run it through `evidence-gate.js` so a passing run records an
+     evidence entry in the **same keyspace** `close-validation/runner.js`
+     consults. Run it in the **same Story worktree** the close validates (the
+     HEAD-sha key enforces "unchanged HEAD") and pass the exact gate name:
+
+     ```bash
+     # Epic-attached Story:
+     node <main-repo>/.agents/scripts/evidence-gate.js \
+       --epic-id <epicId> --scope-id <storyId> --gate lint \
+       --worktree <worktree> -- npm run lint
+
+     # Standalone Story (no parent Epic) — use --standalone, omit --epic-id:
+     node <main-repo>/.agents/scripts/evidence-gate.js \
+       --standalone --scope-id <storyId> --gate typecheck \
+       --worktree <worktree> -- <resolved typecheck command>
+     ```
+
+     Close's `shouldSkip` then short-circuits that gate when HEAD is
+     unchanged; a redraft round (HEAD moves) correctly busts it. **Never**
+     run the coverage / CRAP suite through `evidence-gate.js` to stamp it
+     fresh — a false-fresh coverage record without `coverage-final.json`
+     silently weakens the floor. Limit the evidence-share to `lint` and
+     `typecheck`.
    - Emits a verdict file under `temp/` conforming to
      [`acceptance-eval-verdict.schema.json`](../../schemas/acceptance-eval-verdict.schema.json):
      one `{ index, criterion, verdict: met|partial|unmet, evidence,
