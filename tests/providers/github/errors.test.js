@@ -359,3 +359,113 @@ describe('providers/github/errors.js — withTransientRetry (Story #2852)', () =
     assert.equal(calls, 2);
   });
 });
+
+/**
+ * Story #4298 — the two divergent `withTransientRetry` implementations
+ * (network-only in the deleted `transient-retry.js`, status/code-only here)
+ * were unified into this single canonical primitive. These tests pin the
+ * binding constraint: the default classifier retries the **union** of both
+ * prior predicates, and every call site's retry class is preserved.
+ */
+describe('providers/github/errors.js — unified transient predicate (Story #4298)', () => {
+  it('classifies a fetch-path network failure (err.cause.code) as transient', () => {
+    // The `fetch` path surfaces `TypeError: fetch failed` with the real
+    // reason nested on `err.cause`. Folded in from the former
+    // `transient-retry.js` predicate; no `.status` and the message keyword
+    // alone (`fetch failed`) is what rescues it.
+    const err = new Error('fetch failed');
+    err.cause = { code: 'ENOTFOUND' };
+    assert.equal(classifyGithubError(err), 'transient');
+  });
+
+  it('does NOT classify a 422 validation error as transient', () => {
+    assert.equal(
+      classifyGithubError({ message: 'Validation Failed', status: 422 }),
+      'permanent',
+    );
+  });
+
+  it('classifies a transient network error (dropped socket) as transient', () => {
+    // Former `transient-retry.js` consumers (branch-protection, labels,
+    // projects-v2-graphql) relied on this class retrying. The error carries
+    // no `.status` and a code (`ECONNREFUSED`) the status/code-message checks
+    // above already cover — but the bare-message socket case below is one the
+    // network predicate uniquely rescues.
+    const err = new Error('socket hang up');
+    assert.equal(classifyGithubError(err), 'transient');
+  });
+
+  it('classifies a gh-CLI dial timeout (err.stderr only) as transient', () => {
+    // `dial tcp ...: i/o timeout` lives on `err.stderr` with no `.status` /
+    // `.code` and no transient keyword in `.message` — only the network
+    // predicate catches it. This is the union's load-bearing addition.
+    const err = new Error('gh exited with code 1');
+    err.stderr = 'dial tcp 140.82.121.3:443: i/o timeout';
+    assert.equal(classifyGithubError(err), 'transient');
+  });
+
+  it('classifies a transient HTTP 503 status as transient', () => {
+    // Former `errors.js` consumers (tickets, issues, comments, request-helpers)
+    // relied on this class retrying — preserved unchanged.
+    assert.equal(
+      classifyGithubError({ message: 'service unavailable', status: 503 }),
+      'transient',
+    );
+  });
+
+  it('does NOT classify a non-transient 404 as transient (no retry regression)', () => {
+    assert.equal(
+      classifyGithubError({ message: 'Not Found', status: 404 }),
+      'permanent',
+    );
+  });
+
+  it('retries a transient network error to success (binding: dropped socket)', async () => {
+    let calls = 0;
+    const result = await withTransientRetry(
+      async () => {
+        calls++;
+        if (calls < 2) {
+          const err = new Error('socket hang up');
+          err.code = 'ECONNREFUSED';
+          throw err;
+        }
+        return 'recovered';
+      },
+      { baseDelayMs: 1, jitterMs: 0, sleep: () => Promise.resolve() },
+    );
+    assert.equal(result, 'recovered');
+    assert.equal(calls, 2);
+  });
+
+  it('retries a transient HTTP 503 to success (binding: server error)', async () => {
+    let calls = 0;
+    const result = await withTransientRetry(
+      async () => {
+        calls++;
+        if (calls < 2) throw transientError(503);
+        return 'recovered';
+      },
+      { baseDelayMs: 1, jitterMs: 0, sleep: () => Promise.resolve() },
+    );
+    assert.equal(result, 'recovered');
+    assert.equal(calls, 2);
+  });
+
+  it('does NOT retry a non-transient 404 (binding: no regression)', async () => {
+    let calls = 0;
+    const err = new Error('Not Found');
+    err.status = 404;
+    await assert.rejects(
+      withTransientRetry(
+        async () => {
+          calls++;
+          throw err;
+        },
+        { baseDelayMs: 1, jitterMs: 0, sleep: () => Promise.resolve() },
+      ),
+      { message: 'Not Found' },
+    );
+    assert.equal(calls, 1);
+  });
+});

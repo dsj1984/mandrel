@@ -13,8 +13,8 @@
  * @see Story #2462 — Split GitHubProvider god class into seven composed gateways.
  */
 
+import { withTransientRetry } from './errors.js';
 import { parseApiJson } from './request-helpers.js';
-import { withTransientRetry } from './transient-retry.js';
 
 /**
  * Detect a 404 across both error surfaces:

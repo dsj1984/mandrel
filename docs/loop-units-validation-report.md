@@ -185,7 +185,7 @@ loop substrate would collapse that duplication.
 > [`pollUntil` in `lib/util/poll-loop.js`](../.agents/scripts/lib/util/poll-loop.js)
 > ("run `fn` on an interval until `predicate(result)` is truthy, the signal
 > aborts, or `timeoutMs` elapses"), plus
-> [`withTransientRetry` in `providers/github/transient-retry.js`](../.agents/scripts/providers/github/transient-retry.js)
+> [`withTransientRetry` in `providers/github/errors.js`](../.agents/scripts/providers/github/errors.js)
 > for the retry-with-backoff shape. The roadmap below routes each candidate to
 > the appropriate substrate.
 
@@ -255,17 +255,25 @@ watch item, not a work item.
 
 #### P3 — transient-retry → the canonical retry primitive
 
-- **File:** [`providers/github/transient-retry.js`](../.agents/scripts/providers/github/transient-retry.js).
-- **Today:** `withTransientRetry(fn, { retries, baseDelayMs, sleep })` — already
-  the cleanest, most reusable of the retry loops, with an injectable `sleep` and
-  a tight transient-error regex.
-- **Adoption:** promote this to *the* canonical bounded-retry primitive (the
-  base P2 specializes), rather than refactor it. It is the target shape, not a
-  problem.
-- **Payoff:** low direct payoff (it is already small and clean); the value is as
-  the **anchor** for the P2 consolidation. Listing it documents that the retry
-  family should converge **here**.
-- **Effort:** low (mostly a naming/placement decision taken alongside P2).
+> **Resolved (Story #4298).** The two divergent same-named `withTransientRetry`
+> implementations (`transient-retry.js` network-only + `errors.js`
+> status/code-only) were unified into a single canonical primitive in
+> [`providers/github/errors.js`](../.agents/scripts/providers/github/errors.js),
+> whose default classifier retries the **union** of transient network errors
+> AND transient HTTP statuses/codes. The redundant `transient-retry.js` module
+> was deleted and all seven consumers repointed in one hard cutover.
+
+- **File:** [`providers/github/errors.js`](../.agents/scripts/providers/github/errors.js)
+  (formerly two modules; `transient-retry.js` deleted in #4298).
+- **Today:** `withTransientRetry(fn, opts)` — the cleanest, most reusable of the
+  retry loops, with an injectable `sleep`, jittered/capped exponential backoff,
+  and a union transient predicate spanning network blips and HTTP status/code
+  signals.
+- **Adoption:** *the* canonical bounded-retry primitive (the base P2
+  specializes). It is the target shape, not a problem.
+- **Payoff:** the consolidation removed the import-the-wrong-one footgun; the
+  module is the **anchor** for the P2 convergence.
+- **Effort:** done.
 
 #### P4 — idle watchdog re-tick → keep bespoke (watch item, not work item)
 
