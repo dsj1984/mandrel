@@ -125,7 +125,7 @@
                 },
                 "verify": {
                   "type": "array",
-                  "description": "Inline verify commands or shell snippets executed at close to prove the Story.",
+                  "description": "Inline verify commands or shell snippets run by the pre-close acceptance self-eval critic as required, binding evidence that the Story's acceptance criteria are met — NOT by the close-validation gate chain (which runs only the canonical gate list).",
                   "items": { "type": "string" }
                 },
                 "dependsOn": {
