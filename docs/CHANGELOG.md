@@ -2,6 +2,39 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.77.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.76.0...mandrel-v1.77.0) (2026-06-24)
+
+
+### Added
+
+* **close-validation:** unify evidence keyspace — critic verify[] sharing + standalone parity (refs [#4250](https://github.com/dsj1984/mandrel/issues/4250)) ([#4266](https://github.com/dsj1984/mandrel/issues/4266)) ([0555f3b](https://github.com/dsj1984/mandrel/commit/0555f3b0aaeabfb09c2ab02ed2bf7f5182a96c28))
+* **decompose-gates:** emit a deterministic soft missing-reason-to-exist finding + document reason_to_exist in the author SKILL (refs [#4273](https://github.com/dsj1984/mandrel/issues/4273)) ([#4280](https://github.com/dsj1984/mandrel/issues/4280)) ([98d3d5b](https://github.com/dsj1984/mandrel/commit/98d3d5b3d4ba8aa1c5485f5728e44bda09a6f3d3))
+* **decompose:** single-source the binding-vs-advisory authoring altitude + New-File Contract into the decomposer prompt (refs [#4272](https://github.com/dsj1984/mandrel/issues/4272)) ([#4279](https://github.com/dsj1984/mandrel/issues/4279)) ([3fc9adb](https://github.com/dsj1984/mandrel/commit/3fc9adb848226e4ef90463e31d5cbabb3f350c7f))
+* **deliver:** add --epic/--branch flags to story-phase.js and drop duplicate closing snapshot (refs [#4256](https://github.com/dsj1984/mandrel/issues/4256)) ([#4261](https://github.com/dsj1984/mandrel/issues/4261)) ([0f75eda](https://github.com/dsj1984/mandrel/commit/0f75eda48568d136803cd714ab0fd04bc341033d))
+* overhaul worktree install: copy-on-write node_modules + correct, PM-aware retry ([#4249](https://github.com/dsj1984/mandrel/issues/4249)) ([#4267](https://github.com/dsj1984/mandrel/issues/4267)) ([ce92a71](https://github.com/dsj1984/mandrel/commit/ce92a71b47a7851a04ce4d48ce6fa16c9ea41988))
+* persist Projects v2 board metadata to a disk cache ([#4252](https://github.com/dsj1984/mandrel/issues/4252)) ([#4263](https://github.com/dsj1984/mandrel/issues/4263)) ([277d9ec](https://github.com/dsj1984/mandrel/commit/277d9ecd8ac05fa291bb873a57966fc67d768205))
+* **story-body:** add optional advisory non_goals negative-scope section (refs [#4275](https://github.com/dsj1984/mandrel/issues/4275)) ([#4281](https://github.com/dsj1984/mandrel/issues/4281)) ([e118482](https://github.com/dsj1984/mandrel/commit/e118482aa5aa6ae2874c1da9d470d8c53b26bdf8))
+
+
+### Fixed
+
+* **decompose-gates:** parse string Story bodies in sizing/conflict gates (refs [#4271](https://github.com/dsj1984/mandrel/issues/4271)) ([#4277](https://github.com/dsj1984/mandrel/issues/4277)) ([6c804a4](https://github.com/dsj1984/mandrel/commit/6c804a4b6645f0742ba21ef145a5dc5a351b21bb))
+* rebuild the audit-to-stories Story body to the canonical inline-contract shape and gate it before issue creation ([#4270](https://github.com/dsj1984/mandrel/issues/4270)) ([#4278](https://github.com/dsj1984/mandrel/issues/4278)) ([058ff7b](https://github.com/dsj1984/mandrel/commit/058ff7b13ec799c11ed2ddf134adaf82c289168f))
+* **single-story-close:** release assignee-lease on recoverable-blocked exits (refs [#4257](https://github.com/dsj1984/mandrel/issues/4257)) ([#4268](https://github.com/dsj1984/mandrel/issues/4268)) ([108fa5f](https://github.com/dsj1984/mandrel/commit/108fa5f834121bf53c5cb59005415ea30b6e990f))
+* **story-body:** close section on unrecognized heading to stop content bleed (refs [#4274](https://github.com/dsj1984/mandrel/issues/4274)) ([#4276](https://github.com/dsj1984/mandrel/issues/4276)) ([808d508](https://github.com/dsj1984/mandrel/commit/808d5080fee460f24cae8ef43b2c8c1b442de1f3))
+
+
+### Performance
+
+* **coverage:** make run-coverage.js host-aware for --test-concurrency (refs [#4254](https://github.com/dsj1984/mandrel/issues/4254)) ([#4260](https://github.com/dsj1984/mandrel/issues/4260)) ([0078195](https://github.com/dsj1984/mandrel/commit/0078195afeee50fafefdaf4dea3d59b33b172cc6))
+* **deliver:** resolve Epic once and thread --prd/--tech-spec into story-init (refs [#4253](https://github.com/dsj1984/mandrel/issues/4253)) ([#4269](https://github.com/dsj1984/mandrel/issues/4269)) ([8dbc006](https://github.com/dsj1984/mandrel/commit/8dbc006882379ccdfb5dca90d8d8bca11c2dbb0e))
+* **story-init:** short-circuit childless 2-tier sub-issues + Search probe in buildTaskGraph (refs [#4251](https://github.com/dsj1984/mandrel/issues/4251)) ([#4265](https://github.com/dsj1984/mandrel/issues/4265)) ([7c8fcd2](https://github.com/dsj1984/mandrel/commit/7c8fcd21a9c781bd2e4592d7c8e7b4bf8476cd22))
+
+
+### Changed
+
+* **story-init:** single-home the duplicated branch-seed action switch (refs [#4255](https://github.com/dsj1984/mandrel/issues/4255)) ([#4264](https://github.com/dsj1984/mandrel/issues/4264)) ([7a6f2ec](https://github.com/dsj1984/mandrel/commit/7a6f2ec9c2e7ce0b680c620e9bb52541ec37db1b))
+
 ## [1.76.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.75.0...mandrel-v1.76.0) (2026-06-20)
 
 
