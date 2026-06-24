@@ -18,11 +18,15 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import { ColumnSync } from '../column-sync.js';
 import {
-  DEFAULT_META_TTL_MS,
-  projectMetaCachePath,
   readProjectMetaCache,
   writeProjectMetaCache,
 } from '../project-meta-cache.js';
+
+// The on-disk cache layout under tempRoot (mirrors the module's internal
+// `projectMetaCachePath`). Pinned here so the AC5 assertion verifies the
+// exact path shape independently of the implementation helper.
+const cachePathFor = (tmpDir) =>
+  path.join(tmpDir, 'cache', 'project-meta.json');
 
 /**
  * A fresh isolated tempRoot per test so the on-disk cache never bleeds
@@ -122,7 +126,7 @@ describe('project-meta disk cache (Story #4252)', () => {
     const sync = new ColumnSync({ provider, config: tmp.config });
     await sync.sync(321, ['agent::executing']);
 
-    const cacheFile = projectMetaCachePath(tmp.config);
+    const cacheFile = cachePathFor(tmp.dir);
     // The cache file lives under the resolved tempRoot.
     assert.ok(
       cacheFile.startsWith(tmp.dir),
@@ -184,7 +188,9 @@ describe('project-meta disk cache (Story #4252)', () => {
         options: new Map([['In Progress', 'stale-opt']]),
       },
       config: tmp.config,
-      now: Date.now() - (DEFAULT_META_TTL_MS + 60_000),
+      // Stamp the entry at the Unix epoch so it is always outside any
+      // reasonable TTL window — the read must treat it as expired.
+      now: 0,
     });
 
     const provider = recordingProvider();

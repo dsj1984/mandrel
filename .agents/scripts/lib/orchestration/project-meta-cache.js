@@ -52,7 +52,7 @@ import { anchorTempRoot, tempRootFrom } from '../config/temp-paths.js';
  * spans a single `/single-story-deliver` run's four cold flips while still
  * forcing a periodic re-resolve.
  */
-export const DEFAULT_META_TTL_MS = 60 * 60 * 1000;
+const DEFAULT_META_TTL_MS = 60 * 60 * 1000;
 
 /**
  * Resolve the path to the on-disk project-meta cache file under the
@@ -64,7 +64,7 @@ export const DEFAULT_META_TTL_MS = 60 * 60 * 1000;
  *   default (`temp`).
  * @returns {string}
  */
-export function projectMetaCachePath(config) {
+function projectMetaCachePath(config) {
   return path.join(
     anchorTempRoot(tempRootFrom(config)),
     'cache',
@@ -80,7 +80,7 @@ export function projectMetaCachePath(config) {
  * @returns {string|null} `<owner>/<projectNumber>`, or null when either part
  *   is missing (an un-keyable board — caller skips the cache).
  */
-export function projectMetaCacheKey(owner, projectNumber) {
+function projectMetaCacheKey(owner, projectNumber) {
   if (!owner || projectNumber === null || projectNumber === undefined) {
     return null;
   }
