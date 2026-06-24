@@ -51,6 +51,7 @@ import {
   branchExistsLocally,
   branchExistsViaTrackingRef,
   classifyBranchSeed,
+  seedStoryBranchRef,
 } from './lib/git-branch-lifecycle.js';
 import { getStoryBranch, gitSpawn, gitSync } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
@@ -376,36 +377,28 @@ export async function materializeBaseBranch({
  * @param {Function} opts.progress
  */
 export function seedStoryBranch({ cwd, storyBranch, baseBranch, progress }) {
-  const seedAction = decideStoryBranchSeed({
-    localHas: branchExistsLocally(storyBranch, cwd),
-    remoteHas: branchExistsViaTrackingRef(storyBranch, cwd),
+  // Standalone path: no concurrent creator to race, so create failures are
+  // fatal (`swallowCreateRace: false`) and a failed fetch throws. The
+  // seed-action switch shell is single-homed in `seedStoryBranchRef`
+  // (Story #4255); this caller only supplies its `baseRef`, its git seams
+  // bound to `cwd`, and its own log/error vocabulary.
+  seedStoryBranchRef({
+    storyBranch,
+    baseRef: baseBranch,
+    swallowCreateRace: false,
+    spawn: (args) => gitSpawn(cwd, ...args),
+    existsLocally: (b) => branchExistsLocally(b, cwd),
+    existsRemotely: (b) => branchExistsViaTrackingRef(b, cwd),
+    progress,
+    messages: {
+      reuse: (b) => `Reusing existing local story branch: ${b}`,
+      fetch: (b) => `Fetching remote story branch: ${b}`,
+      create: (b, ref) => `Creating story branch ref: ${b} from ${ref}`,
+      createError: (b, _ref, stderr) =>
+        `Failed to create story branch ${b}: ${stderr || '(no stderr)'}`,
+      fetchError: (b, stderr) => `Failed to fetch story branch ${b}: ${stderr}`,
+    },
   });
-  if (seedAction === 'fetch') {
-    progress('GIT', `Fetching remote story branch: ${storyBranch}`);
-    const r = gitSpawn(cwd, 'fetch', 'origin', `${storyBranch}:${storyBranch}`);
-    if (r.status !== 0) {
-      throw new Error(
-        `Failed to fetch story branch ${storyBranch}: ${r.stderr || '(no stderr)'}`,
-      );
-    }
-    return;
-  }
-  if (seedAction === 'create') {
-    progress(
-      'GIT',
-      `Creating story branch ref: ${storyBranch} from ${baseBranch}`,
-    );
-    const r = gitSpawn(cwd, 'branch', storyBranch, baseBranch);
-    if (r.status !== 0) {
-      throw new Error(
-        `Failed to create story branch ${storyBranch}: ${r.stderr || '(no stderr)'}`,
-      );
-    }
-    return;
-  }
-  // seedAction === 'reuse' — the local ref already exists. Do NOT run
-  // `git branch` here; re-creating an existing ref throws. Reuse it.
-  progress('GIT', `Reusing existing local story branch: ${storyBranch}`);
 }
 
 /**
