@@ -27,6 +27,14 @@
  * `c8 report` path is ~19% faster end-to-end on a Windows dev host
  * while producing an identical `coverage-final.json` artifact for the
  * CRAP gate.
+ *
+ * Test-runner concurrency: the suite spawn reuses `TEST_RUNNER_FLAGS`
+ * from `run-tests.js` — the single source of truth for the
+ * `--test-concurrency` value, derived at startup from the host's
+ * available parallelism and clamped to `[TEST_CONCURRENCY_MIN,
+ * TEST_CONCURRENCY_MAX]`. This keeps the coverage gate (which runs the
+ * suite at every story close on both delivery paths) host-aware instead
+ * of pinned to the historical literal of 8.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -37,6 +45,7 @@ import { fileURLToPath } from 'node:url';
 
 import { cleanupRepoTestTempArtifacts } from './cleanup-repo-test-temp.js';
 import { C8_CLI } from './lib/c8-cli-path.js';
+import { TEST_RUNNER_FLAGS } from './run-tests.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
@@ -45,59 +54,90 @@ const require = createRequire(import.meta.url);
 const C8_CONFIG = require('../../.c8rc.cjs');
 const V8_TMP = path.join(COVERAGE_DIR, 'tmp');
 
-rmSync(COVERAGE_DIR, { recursive: true, force: true });
-mkdirSync(V8_TMP, { recursive: true });
+/**
+ * Build the `node --test` argv for the coverage suite spawn.
+ *
+ * Reuses the shared `TEST_RUNNER_FLAGS` (the single source of truth for
+ * the host-aware, clamped `--test-concurrency` value) so the coverage
+ * path never drifts from `run-tests.js`. The `runnerFlags` parameter is
+ * injected in tests so the argv can be asserted without touching the OS.
+ *
+ * @param {object} [opts]
+ * @param {readonly string[]} [opts.runnerFlags]
+ * @param {string} [opts.testGlob]
+ * @returns {string[]}
+ */
+export function buildCoverageTestArgs({
+  runnerFlags = TEST_RUNNER_FLAGS,
+  testGlob = 'tests/**/*.test.js',
+} = {}) {
+  return [...runnerFlags, testGlob];
+}
 
-const testRun = spawnSync(
-  process.execPath,
-  [
-    '--experimental-test-module-mocks',
-    '--test',
-    '--test-concurrency=8',
-    'tests/**/*.test.js',
-  ],
-  {
+/**
+ * Execute the coverage pipeline: run the suite under `NODE_V8_COVERAGE`,
+ * post-process the dumps with `c8 report`, then gate on the coverage
+ * baseline. Returns the first non-zero exit code across the three stages
+ * (or the baseline check's status when both prior stages pass).
+ *
+ * @returns {number}
+ */
+function runCoveragePipeline() {
+  rmSync(COVERAGE_DIR, { recursive: true, force: true });
+  mkdirSync(V8_TMP, { recursive: true });
+
+  const testRun = spawnSync(process.execPath, buildCoverageTestArgs(), {
     cwd: ROOT,
     stdio: 'inherit',
     env: { ...process.env, NODE_V8_COVERAGE: V8_TMP },
-  },
-);
+  });
 
-cleanupRepoTestTempArtifacts({ repoRoot: ROOT });
+  cleanupRepoTestTempArtifacts({ repoRoot: ROOT });
 
-const includeArgs = (C8_CONFIG.include ?? []).flatMap((p) => ['--include', p]);
-const excludeArgs = (C8_CONFIG.exclude ?? []).flatMap((p) => ['--exclude', p]);
+  const includeArgs = (C8_CONFIG.include ?? []).flatMap((p) => [
+    '--include',
+    p,
+  ]);
+  const excludeArgs = (C8_CONFIG.exclude ?? []).flatMap((p) => [
+    '--exclude',
+    p,
+  ]);
 
-const reportRun = spawnSync(
-  process.execPath,
-  [
-    C8_CLI,
-    'report',
-    '--reporter=json',
-    '--reporter=text',
-    '--temp-directory',
-    V8_TMP,
-    ...includeArgs,
-    ...excludeArgs,
-  ],
-  { cwd: ROOT, stdio: 'inherit', shell: false },
-);
+  const reportRun = spawnSync(
+    process.execPath,
+    [
+      C8_CLI,
+      'report',
+      '--reporter=json',
+      '--reporter=text',
+      '--temp-directory',
+      V8_TMP,
+      ...includeArgs,
+      ...excludeArgs,
+    ],
+    { cwd: ROOT, stdio: 'inherit', shell: false },
+  );
 
-const checkRun = spawnSync(
-  process.execPath,
-  [
-    path.join(ROOT, '.agents', 'scripts', 'check-baselines.js'),
-    '--gate',
-    'coverage',
-  ],
-  { cwd: ROOT, stdio: 'inherit' },
-);
+  const checkRun = spawnSync(
+    process.execPath,
+    [
+      path.join(ROOT, '.agents', 'scripts', 'check-baselines.js'),
+      '--gate',
+      'coverage',
+    ],
+    { cwd: ROOT, stdio: 'inherit' },
+  );
 
-const exitCode =
-  testRun.status !== 0
-    ? testRun.status
+  return testRun.status !== 0
+    ? (testRun.status ?? 1)
     : reportRun.status !== 0
-      ? reportRun.status
-      : checkRun.status;
+      ? (reportRun.status ?? 1)
+      : (checkRun.status ?? 1);
+}
 
-process.exit(exitCode ?? 1);
+// Run the pipeline only when invoked directly as a CLI; importing the
+// module (e.g. from a test asserting the spawn argv) must not spawn the
+// real suite.
+if (fileURLToPath(import.meta.url) === path.resolve(process.argv[1] ?? '')) {
+  process.exit(runCoveragePipeline());
+}
