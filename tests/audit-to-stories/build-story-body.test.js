@@ -8,6 +8,7 @@ import { withFingerprints } from '../../.agents/scripts/lib/audit-to-stories/fin
 import { groupFindings } from '../../.agents/scripts/lib/audit-to-stories/group-findings.js';
 import { parseAuditReports } from '../../.agents/scripts/lib/audit-to-stories/parse-audit-md.js';
 import { parseFingerprintFooter } from '../../.agents/scripts/lib/findings/route-finding.js';
+import { parse as parseStoryBody } from '../../.agents/scripts/lib/story-body/story-body.js';
 
 const __filename = url.fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -105,4 +106,34 @@ test('buildStoryBody Context section links every distinct source report', () => 
   for (const r of unique) {
     assert.ok(body.includes(r));
   }
+});
+
+test('buildStoryBody (real fixtures) clears the inline-contract bar and round-trips', () => {
+  // Story #4270: a generated audit Story body must parse into a clean,
+  // structured StoryBody with a populated changes[] footprint, non-empty
+  // observable acceptance[], and a non-empty tier-tagged verify[] — and the
+  // trailing Agent Prompts / Context blocks must NOT bleed into those arrays.
+  const group = loginGroup();
+  const { body } = parseStoryBody(buildStoryBody({ group }).body);
+
+  // Goal is the group intent only — no leftover ordinal / [SEVERITY] prefix.
+  assert.ok(!/^\d+\.\s/.test(body.goal), 'goal must not lead with an ordinal');
+  assert.ok(!/\[[A-Z]+\]/.test(body.goal), 'goal must not carry [SEVERITY]');
+
+  // changes[] is canonical { path, assumption } entries drawn from files[].
+  assert.ok(body.changes.length > 0, 'changes[] must be populated');
+  for (const c of body.changes) {
+    assert.equal(typeof c.path, 'string');
+    assert.equal(c.assumption, 'refactors-existing');
+  }
+
+  // acceptance[] is observable and is NOT swamped by extended sections.
+  assert.equal(body.acceptance.length, group.findings.length);
+  for (const a of body.acceptance) {
+    assert.match(a, /is remediated/);
+    assert.ok(!a.includes('## Agent Prompts'));
+  }
+
+  // verify[] survives intact — extended markdown did not bleed in.
+  assert.deepEqual(body.verify, ['npm run lint (validate)', 'npm test (unit)']);
 });

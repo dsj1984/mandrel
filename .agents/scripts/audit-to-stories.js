@@ -40,6 +40,7 @@ import { parseAuditReports } from './lib/audit-to-stories/parse-audit-md.js';
 import { buildEpicSeedMarkdown } from './lib/audit-to-stories/seed-epic-from-findings.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { Logger } from './lib/Logger.js';
+import { parse as parseStoryBody } from './lib/story-body/story-body.js';
 
 const SEVERITY_RANK = { critical: 4, high: 3, medium: 2, low: 1 };
 const DEFAULT_GLOB = 'temp/audits/audit-*-results.md';
@@ -227,6 +228,46 @@ function loadPlan(planPath) {
   return JSON.parse(fs.readFileSync(planPath, 'utf8'));
 }
 
+/**
+ * Build every eligible group into a `{ title, body, labels }` Story object and
+ * gate the batch against the inline-contract bar BEFORE any issue is opened.
+ *
+ * The `--emit-stories` path opens GitHub issues directly (no decomposer
+ * round-trip), so `assertEveryStoryHasInlineContract` never runs against these
+ * bodies. This gate restores that guarantee at the standalone seam: each
+ * emitted body is re-parsed through the canonical `story-body` parser and must
+ * carry a non-empty `acceptance[]` AND a non-empty `verify[]`. A body that
+ * fails throws, surfacing the gap instead of opening an ungated Story
+ * (Story #4270).
+ *
+ * @param {Array<{ group: object }>} eligible — classifications eligible to create.
+ * @param {Array<{ fromGroupKey: string, toGroupKey: string }>} edges — sequencing edges.
+ * @returns {Array<{ title: string, body: string, labels: string[] }>}
+ */
+function buildAndGateStories(eligible, edges) {
+  const built = eligible.map((g) => buildStoryBody({ group: g, edges }));
+  const offenders = [];
+  for (const story of built) {
+    const { body } = parseStoryBody(story.body);
+    const ok =
+      Array.isArray(body.acceptance) &&
+      body.acceptance.length > 0 &&
+      Array.isArray(body.verify) &&
+      body.verify.length > 0;
+    if (!ok) offenders.push(story.title);
+  }
+  if (offenders.length > 0) {
+    throw new Error(
+      `inline-contract gate failed: ${offenders.length} generated audit Story/Stories lack a non-empty acceptance[] + verify[] contract: ${offenders
+        .map((t) => `"${t}"`)
+        .join(
+          ', ',
+        )}. No issues were opened. Every emitted Story must carry both arrays.`,
+    );
+  }
+  return built;
+}
+
 function persist(text, outPath) {
   if (!outPath) {
     process.stdout.write(text);
@@ -242,6 +283,7 @@ export const __testing = {
   buildPlan,
   loadProvider,
   dedupSkippedWarning,
+  buildAndGateStories,
 };
 
 async function main() {
@@ -289,7 +331,7 @@ async function main() {
     const eligible = (plan.classifications ?? [])
       .filter((c) => c.action === 'create')
       .map((c) => c.group);
-    const built = eligible.map((g) => buildStoryBody({ group: g }));
+    const built = buildAndGateStories(eligible, plan.edges ?? []);
     const out = values.json
       ? JSON.stringify(built, null, 2)
       : built
