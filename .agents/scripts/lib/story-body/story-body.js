@@ -346,15 +346,42 @@ function splitSections(markdown) {
     // Forms (Story #4227) render every field label as a level-3 heading
     // (`### Goal`), not the level-2 the canonical serializer emits, so the
     // parser accepts both levels. Any other heading depth is ignored.
-    const headingMatch = line.match(/^#{2,3}\s+(\w+)\s*$/i);
-    if (headingMatch) {
-      const name = headingMatch[1].toLowerCase();
+    const fieldHeadingMatch = line.match(/^#{2,3}\s+(\w+)\s*$/i);
+    if (fieldHeadingMatch) {
+      const name = fieldHeadingMatch[1].toLowerCase();
       if (HEADING_TO_FIELD.has(name)) {
         inPreamble = false;
         currentSection = name;
         if (!sections.has(currentSection)) sections.set(currentSection, []);
         continue;
       }
+      // A heading that matches the canonical `## Word` shape but is not a
+      // recognized field name (e.g. a trailing free-form `## Notes`) closes
+      // the currently-open section. Without this reset, the unknown heading
+      // and its bullets bleed into the previously-recognized section,
+      // silently corrupting `verify[]` / `acceptance[]`. We do NOT re-enter
+      // the preamble (`inPreamble` stays false), so a later recognized
+      // heading still registers normally; we only stop appending to the
+      // closed section. The heading line and its body are dropped from all
+      // sections. (Multi-word free-form headings like `## Out of Scope` do
+      // not match this single-word shape and are intentionally out of scope
+      // here — widening the regex is a separate decision.)
+      currentSection = null;
+      continue;
+    }
+
+    // Any other markdown heading (`## …` / `### …`, single- or multi-word)
+    // that is NOT a canonical field heading TERMINATES the current structured
+    // section. Trailing extended content a producer appends after the
+    // canonical block — `audit-to-stories`'s `## Agent Prompts` / `## Context`
+    // / `## Sequencing` blocks, for instance — must not bleed into the last
+    // structured section's bullet list (Story #4270). Without this, those
+    // lines were silently absorbed into `verify[]` / `acceptance[]`. The
+    // heading and everything under it is dropped from structured parsing
+    // (it is extended, non-canonical markdown).
+    if (!inPreamble && /^#{1,6}\s+\S/.test(line)) {
+      currentSection = null;
+      continue;
     }
 
     // The trailing `<!-- meta: {...} -->` block is machine metadata, not

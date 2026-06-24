@@ -129,6 +129,47 @@ describe('parse() — markdown', () => {
     const { body } = parse(CANONICAL_MARKDOWN);
     assert.equal(body.wide, null);
   });
+
+  it('does not bleed a trailing unrecognized heading into the prior section', () => {
+    // A canonical body followed by a free-form, single-word `## Notes`
+    // section (a heading that matches the canonical `## Word` shape but is
+    // not a recognized field). Before the fix, the unknown heading + its
+    // bullets bled into the previously-open `verify` section, corrupting
+    // `verify[]`. The fix resets currentSection to null on the unrecognized
+    // heading so the trailing section is dropped, not appended.
+    const md = `${CANONICAL_MARKDOWN}
+
+## Notes
+- not touching b.js
+- some other negative bound`;
+    const { body } = parse(md);
+    // The recognized sections stay clean — the unknown heading and its
+    // bullets are dropped, not appended to verify[] / acceptance[].
+    assert.deepEqual(body.verify, [
+      'npm test -- tests/lib/story-body/story-body.test.js (unit)',
+    ]);
+    assert.deepEqual(body.acceptance, [
+      'parse() returns a StoryBody with all sections populated',
+      'serialize(parse(md)) round-trips cleanly',
+    ]);
+  });
+
+  it('still registers a recognized heading that follows an unrecognized one', () => {
+    // A single-word unknown heading between Goal and Verify must close the
+    // Goal section without re-entering the preamble, so the later
+    // `## Verify` still registers normally.
+    const md = `## Goal
+Do the thing.
+
+## Notes
+- nope
+
+## Verify
+- npm test (unit)`;
+    const { body } = parse(md);
+    assert.equal(body.goal, 'Do the thing.');
+    assert.deepEqual(body.verify, ['npm test (unit)']);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -443,6 +484,40 @@ g
     const { body } = parse(md);
     assert.deepEqual(body.acceptance, ['first criterion', 'second criterion']);
     assert.deepEqual(body.verify, ['npm test (unit)']);
+  });
+
+  it('stops a structured section at an unrecognized heading (extended content does not bleed in)', () => {
+    // Story #4270: producers (audit-to-stories) append non-canonical
+    // `## Agent Prompts` / `## Context` blocks after the canonical sections.
+    // Those headings — single- or multi-word — must terminate the prior
+    // section so their lines are not absorbed into verify[] / acceptance[].
+    const md = `## Goal
+g
+
+## Acceptance
+- [ ] observable outcome
+
+## Verify
+- npm run lint (validate)
+- npm test (unit)
+
+## Agent Prompts
+
+**Some finding**
+
+\`\`\`
+do the thing
+\`\`\`
+
+## Context
+
+linked report`;
+    const { body } = parse(md);
+    assert.deepEqual(body.verify, [
+      'npm run lint (validate)',
+      'npm test (unit)',
+    ]);
+    assert.deepEqual(body.acceptance, ['observable outcome']);
   });
 
   it('parses a mix of object-form and legacy-string change entries', () => {

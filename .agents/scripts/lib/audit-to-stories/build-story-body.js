@@ -1,10 +1,11 @@
 /**
  * lib/audit-to-stories/build-story-body.js
  *
- * Render the canonical Story body for the standalone grouping mode. The
- * body follows the contract spelled out in Story #2583 acceptance
- * criteria #8: Title (caller), Summary, Acceptance Criteria, Agent
- * Prompts, Context block, fingerprint footer.
+ * Render the canonical Story body for the standalone grouping mode so a
+ * generated audit Story clears the same inline-contract bar the decomposer
+ * enforces (`assertEveryStoryHasInlineContract`): a clean goal, observable
+ * `acceptance[]`, a populated `changes[]` footprint, and a non-empty,
+ * tier-tagged `verify[]` (Story #4270).
  *
  * Pure: returns { title, body, labels }. Labels carry one canonical
  * `audit::<lens>` per distinct source report represented in the merge
@@ -14,10 +15,11 @@
  * `risk::high`.
  *
  * The body is serialized via the canonical story-body serializer
- * (`.agents/scripts/lib/story-body/story-body.js`) so the output is
- * parseable by `parse()` and round-trippable. Audit-specific content
- * (agent prompts, context links, fingerprint footer) is appended after
- * the canonical sections as extended markdown.
+ * (`.agents/scripts/lib/story-body/story-body.js`) so the output round-trips
+ * through `parse()` / `serialize()`. Audit-specific content (agent prompts,
+ * context links, fingerprint footer) is appended after the canonical sections
+ * as extended markdown — it is informational only and is not part of the
+ * structured contract.
  */
 
 import { serialize } from '../story-body/story-body.js';
@@ -26,36 +28,128 @@ import { renderFingerprintFooter } from './finding-adapter.js';
 
 const STATIC_LABELS = Object.freeze(['type::story', 'agent::ready']);
 
+// The verify[] contract every generated audit Story carries. These commands
+// exist in this repo's harness (package.json scripts) so the Story satisfies
+// the inline-contract bar with runnable, tier-tagged gates rather than
+// placeholder prose. Kept as a frozen constant so the same contract is
+// asserted by the unit suite.
+const DEFAULT_VERIFY = Object.freeze([
+  'npm run lint (validate)',
+  'npm test (unit)',
+]);
+
 function uniq(items) {
   return [...new Set(items)];
 }
 
-function summaryFromGroup(group) {
-  const lines = group.findings.map((f, idx) => {
-    const sev = f.severity ? `[${f.severity.toUpperCase()}]` : '[—]';
-    const dim = f.dimension ? `(${f.dimension})` : '';
-    return `${idx + 1}. ${sev} ${dim} **${f.title}** — ${
-      f.currentState || '_(no current-state captured)_'
-    }`;
-  });
-  return lines.join('\n');
+/**
+ * The goal is the group intent only — the synthesized `group.title`. It
+ * carries no leading ordinal (`1.`/`2.`) and no `[SEVERITY]` / `(dimension)`
+ * prefix (the polluted shape Story #4270 replaced); those signals live in the
+ * per-finding fingerprint footer and the extended Agent Prompts section, not
+ * in the goal.
+ *
+ * @param {object} group
+ * @returns {string}
+ */
+function goalFromGroup(group) {
+  return (group.title ?? '').trim();
 }
 
-function goalFromGroup(group) {
-  // Derive a concise goal statement from the group title + finding summary.
-  const summary = summaryFromGroup(group);
-  return `${group.title}\n\n${summary}`;
+/**
+ * Map every distinct file mentioned across the merge onto a canonical
+ * `changes[]` PathEntry (`{ path, assumption }`). Audit findings remediate
+ * code that already exists, so the assumption is `refactors-existing`.
+ *
+ * `group.files` is an array post-`groupFindings`; fall back to scanning the
+ * findings' own `files[]` when an upstream caller hands a group whose `files`
+ * aggregate was not materialized.
+ *
+ * @param {object} group
+ * @returns {Array<{ path: string, assumption: string }>}
+ */
+function changesFromGroup(group) {
+  const fromGroup = Array.isArray(group.files) ? group.files : [];
+  const fromFindings = (group.findings ?? []).flatMap((f) =>
+    Array.isArray(f.files) ? f.files : [],
+  );
+  const paths = uniq(
+    [...fromGroup, ...fromFindings].filter(
+      (p) => typeof p === 'string' && p.length > 0,
+    ),
+  );
+  return paths.map((path) => ({ path, assumption: 'refactors-existing' }));
+}
+
+/**
+ * Build an observable acceptance item from a single finding: a checkable
+ * end-state a reviewer can confirm, NOT the verbatim recommendation
+ * paragraph. The recommendation prose is preserved verbatim in the Agent
+ * Prompts / fingerprint footer for the implementer; the acceptance line is
+ * the binding, confirmable outcome.
+ *
+ * Shape: `<title> is remediated in <primary file>: the recommended end-state
+ * holds and the finding is no longer reproducible.` — anchored on the finding
+ * title and primary file so the reviewer knows exactly what to check.
+ *
+ * @param {object} finding
+ * @returns {string}
+ */
+function acceptanceItemFromFinding(finding) {
+  const title = (finding.title ?? 'finding').trim();
+  const primaryFile =
+    Array.isArray(finding.files) && finding.files.length > 0
+      ? finding.files[0]
+      : null;
+  const where = primaryFile ? ` in \`${primaryFile}\`` : '';
+  return `${title} is remediated${where}: the recommended end-state holds and the finding is no longer reproducible`;
 }
 
 function acceptanceCriteriaFromGroup(group) {
-  return group.findings.map((f) => {
-    const rec = f.recommendation || '_(no recommendation captured)_';
-    return `${f.title} — ${rec}`;
-  });
+  return (group.findings ?? []).map(acceptanceItemFromFinding);
+}
+
+/**
+ * Resolve the `edges[]` sequencing anchored on this group. Each edge whose
+ * `fromGroupKey` matches this group's key contributes its `toGroupKey`. Group
+ * keys are the only stable identifier available at emit time — issues are not
+ * numbered yet — so the relationship is preserved as machine-readable keys the
+ * operator can resolve.
+ *
+ * @param {object} group
+ * @param {Array<{ fromGroupKey: string, toGroupKey: string }>} edges
+ * @returns {string[]}
+ */
+function sequencingDepsForGroup(group, edges) {
+  if (!Array.isArray(edges) || edges.length === 0) return [];
+  const deps = edges
+    .filter((e) => e && e.fromGroupKey === group.groupKey)
+    .map((e) => e.toGroupKey)
+    .filter((k) => typeof k === 'string' && k.length > 0);
+  return uniq(deps);
+}
+
+/**
+ * Render the carried-through `edges[]` sequencing as a dedicated extended
+ * markdown block. The canonical `depends_on[]` footer only round-trips `#N`
+ * issue refs (`blocked by #123`), which do not exist before the issues are
+ * opened; rendering the group-key sequencing as its own informational section
+ * keeps the signal in the body (not discarded — Story #4270) and survives
+ * `parse()` / `serialize()` round-tripping (it is preamble/extended content,
+ * not a structured section). Returns the empty string when there is no
+ * sequencing to surface.
+ *
+ * @param {string[]} deps
+ * @returns {string}
+ */
+function sequencingSection(deps) {
+  if (deps.length === 0) return '';
+  const lines = deps.map((k) => `- depends on group \`${k}\``);
+  return ['## Sequencing', '', lines.join('\n'), ''].join('\n');
 }
 
 function agentPromptsSection(group) {
-  const blocks = group.findings
+  const blocks = (group.findings ?? [])
     .filter(
       (f) => typeof f.agentPrompt === 'string' && f.agentPrompt.length > 0,
     )
@@ -65,7 +159,7 @@ function agentPromptsSection(group) {
 
 function contextLinksFromGroup(group) {
   const reports = uniq(
-    group.findings
+    (group.findings ?? [])
       .map((f) => f.sourceReport)
       .filter((s) => typeof s === 'string'),
   );
@@ -93,34 +187,47 @@ function labelsForGroup(group) {
 /**
  * @param {object} params
  * @param {object} params.group — output of `groupFindings` (one entry).
+ * @param {Array<{ fromGroupKey: string, toGroupKey: string }>} [params.edges]
+ *   — the dependency `edges[]` emitted by `groupFindings`. Edges anchored on
+ *   this group are carried through to `depends_on[]`; omit when no sequencing
+ *   is known.
  * @returns {{ title: string, body: string, labels: string[] }}
  */
-export function buildStoryBody({ group }) {
+export function buildStoryBody({ group, edges = [] }) {
   if (!group || !Array.isArray(group.findings)) {
     throw new Error('buildStoryBody: group with findings[] is required');
   }
   const title = group.title;
 
-  // Build the canonical StoryBody object from the audit group data.
+  // Build the canonical StoryBody object from the audit group data. The
+  // acceptance + verify arrays are populated so the body clears the
+  // inline-contract bar; changes[] carries the file footprint. The edges[]
+  // sequencing is carried through as an extended `## Sequencing` block (see
+  // sequencingSection) — group keys are not `#N` refs, so they cannot ride the
+  // canonical depends_on footer.
   const storyBody = {
     goal: goalFromGroup(group),
-    changes: [],
+    changes: changesFromGroup(group),
     acceptance: acceptanceCriteriaFromGroup(group),
-    verify: [],
+    verify: [...DEFAULT_VERIFY],
     references: [],
     wide: null,
+    reason_to_exist: null,
     depends_on: [],
     estimated_test_files: null,
   };
 
-  // Serialize via the canonical serializer.
+  // Serialize via the canonical serializer (no footer — depends_on is empty).
   const canonicalSections = serialize(storyBody);
+  const sequencing = sequencingSection(sequencingDepsForGroup(group, edges));
 
-  // Append audit-specific extended sections (agent prompts, context links,
-  // fingerprint footer) that are not part of the canonical shape.
+  // Append audit-specific extended sections (sequencing, agent prompts,
+  // context links, fingerprint footer) that are not part of the canonical
+  // shape.
   const body = [
     canonicalSections,
     '',
+    ...(sequencing ? [sequencing] : []),
     '## Agent Prompts',
     '',
     agentPromptsSection(group),
