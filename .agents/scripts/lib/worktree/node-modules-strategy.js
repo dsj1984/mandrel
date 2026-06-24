@@ -7,6 +7,15 @@
  *
  *   - `per-worktree`  — run the project's package-manager install inside the
  *                       worktree (lock-file aware).
+ *   - `clone`         — copy-on-write (reflink/clonefile) clone of the donor's
+ *                       `node_modules` into the worktree (`cp -c` on darwin,
+ *                       `cp --reflink=auto` on linux). Effectively free in time
+ *                       and disk on APFS / reflink-capable filesystems. Falls
+ *                       back to `per-worktree` cleanly on any failure
+ *                       (unsupported filesystem, cross-volume clone, Windows).
+ *                       When the worktree's lockfile byte-matches the donor's
+ *                       and the donor's install markers are present, the
+ *                       per-tree install is skipped.
  *   - `symlink`       — symlink (or junction on Windows) the worktree's
  *                       `node_modules` to a donor worktree's copy. Refuses on
  *                       Windows unless `allowSymlinkOnWindows=true`.
@@ -14,10 +23,11 @@
  *                       shared content-addressable store.
  *
  * The context passed to each helper carries the minimum state the strategy
- * needs: config, platform, logger, and repoRoot (for `symlink`).
+ * needs: config, platform, logger, and repoRoot (for `symlink` / `clone`).
  */
 
 import { spawnSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { detectPackageManager } from '../detect-package-manager.js';
@@ -26,6 +36,21 @@ function sleepSync(ms) {
   if (!Number.isFinite(ms) || ms <= 0) return;
   const signal = new Int32Array(new SharedArrayBuffer(4));
   Atomics.wait(signal, 0, 0, ms);
+}
+
+/**
+ * Resolve the copy-on-write clone donor directory. Defaults to the repo root
+ * (the main checkout, which is primed by the host's own install) unless the
+ * operator pinned a `primeFromPath`.
+ *
+ * @param {{ config: object, repoRoot: string }} ctx
+ * @returns {string} Absolute donor path.
+ */
+function resolveCloneDonor(ctx) {
+  const primeFromPath = ctx.config?.primeFromPath;
+  return primeFromPath
+    ? path.resolve(ctx.repoRoot, primeFromPath)
+    : path.resolve(ctx.repoRoot);
 }
 
 /**
@@ -42,6 +67,11 @@ export function applyNodeModulesStrategy(ctx, wtPath) {
     case 'per-worktree':
     case 'pnpm-store':
       return;
+
+    case 'clone': {
+      cloneNodeModules(ctx, wtPath);
+      return;
+    }
 
     case 'symlink': {
       const primeFromPath = ctx.config.primeFromPath;
@@ -89,9 +119,94 @@ export function applyNodeModulesStrategy(ctx, wtPath) {
     default:
       throw new Error(
         `WorktreeManager: unknown nodeModulesStrategy '${strategy}'. ` +
-          'Expected per-worktree | symlink | pnpm-store.',
+          'Expected per-worktree | clone | symlink | pnpm-store.',
       );
   }
+}
+
+/**
+ * Copy-on-write clone the donor's `node_modules` into the worktree. On a
+ * reflink-capable filesystem (APFS on darwin, btrfs/XFS/etc. on linux) the
+ * clone is effectively free in both time and disk; the subsequent
+ * lockfile-match probe in `installDependencies` then skips the per-tree
+ * install entirely.
+ *
+ * Non-fatal by design: any failure (unsupported filesystem, cross-volume
+ * clone, Windows, missing donor) falls back to `per-worktree` cleanly — the
+ * worktree is simply left without a cloned `node_modules`, and the regular
+ * per-tree install runs. Failure NEVER throws; the clone is a fast-path
+ * optimization, not a correctness requirement.
+ *
+ * @param {{ config: object, platform: NodeJS.Platform, logger: object, repoRoot: string }} ctx
+ * @param {string} wtPath Absolute worktree path.
+ * @param {{ spawnFn?: typeof spawnSync, fsLike?: typeof fs }} [io] Injectable for tests.
+ * @returns {{ cloned: boolean, reason?: string }}
+ */
+export function cloneNodeModules(ctx, wtPath, io = {}) {
+  const spawnFn = io.spawnFn ?? spawnSync;
+  const fsLike = io.fsLike ?? fs;
+  // Key off the real host OS, not the test-injection `ctx.platform`, for the
+  // capability decision: Windows has no `cp -c`/`--reflink` equivalent here.
+  if (process.platform === 'win32') {
+    ctx.logger.info(
+      'worktree.node_modules strategy=clone fallback=per-worktree reason=windows-unsupported',
+    );
+    return { cloned: false, reason: 'windows-unsupported' };
+  }
+
+  const donor = resolveCloneDonor(ctx);
+  const donorNodeModules = path.join(donor, 'node_modules');
+  if (!fsLike.existsSync(donorNodeModules)) {
+    ctx.logger.info(
+      `worktree.node_modules strategy=clone fallback=per-worktree reason=donor-node-modules-missing donor=${donorNodeModules}`,
+    );
+    return { cloned: false, reason: 'donor-node-modules-missing' };
+  }
+
+  const target = path.join(wtPath, 'node_modules');
+  if (fsLike.existsSync(target)) {
+    // A worktree that already carries node_modules must not be clobbered by a
+    // clone-on-top (cp would nest into the existing dir). Treat as already
+    // populated and let the install-skip probe decide freshness.
+    ctx.logger.info(
+      `worktree.node_modules strategy=clone skip reason=target-exists target=${target}`,
+    );
+    return { cloned: false, reason: 'target-exists' };
+  }
+
+  // darwin: `cp -c` requests a clonefile (APFS). linux: `cp --reflink=auto`
+  // requests a reflink, silently degrading to a full copy on non-reflink
+  // filesystems — which we deliberately reject below so a slow full-tree copy
+  // never masquerades as a free clone.
+  const cloneArgs =
+    process.platform === 'darwin'
+      ? ['-c', '-R', donorNodeModules, target]
+      : ['--reflink=always', '-R', donorNodeModules, target];
+  const result = spawnFn('cp', cloneArgs, {
+    cwd: wtPath,
+    stdio: 'pipe',
+    encoding: 'utf-8',
+    timeout: 120_000,
+  });
+  if (result.status !== 0) {
+    // Clean up a partial copy so the per-worktree fallback install starts from
+    // a known-empty target.
+    try {
+      fsLike.rmSync(target, { recursive: true, force: true });
+    } catch {
+      // best-effort
+    }
+    ctx.logger.warn(
+      `worktree.node_modules strategy=clone fallback=per-worktree reason=clone-command-failed ` +
+        `(${describeAttemptFailure(result, 120_000)}) stderr=${(result.stderr ?? '').slice(0, 300)}`,
+    );
+    return { cloned: false, reason: 'clone-command-failed' };
+  }
+
+  ctx.logger.info(
+    `worktree.node_modules strategy=clone target=${target} source=${donorNodeModules}`,
+  );
+  return { cloned: true };
 }
 
 /**
@@ -99,7 +214,11 @@ export function applyNodeModulesStrategy(ctx, wtPath) {
  * worktree path. Returns `null` when the strategy is `symlink` (handled
  * elsewhere) or the worktree has no `package.json`.
  *
- * @param {string} strategy One of `per-worktree | pnpm-store | symlink`.
+ * `clone` shares `per-worktree`'s PM-detection: when the install is *not*
+ * skipped (lockfile mismatch), the worktree still installs with the project's
+ * detected package manager.
+ *
+ * @param {string} strategy One of `per-worktree | clone | pnpm-store | symlink`.
  * @param {string} wtPath Absolute worktree path.
  * @param {{ existsSync: (p: string) => boolean }} [fsLike] Injectable for tests.
  * @returns {{ cmd: string, args: string[] } | null}
@@ -112,6 +231,7 @@ export function selectInstallCommand(strategy, wtPath, fsLike = fs) {
     return { cmd: 'pnpm', args: ['install', '--frozen-lockfile'] };
   }
   // Shared lockfile probe (Story #4048 B3 — one implementation per concept).
+  // `per-worktree` and `clone` both fall through to PM detection here.
   const pm = detectPackageManager(wtPath, (p) => fsLike.existsSync(p)) ?? 'npm';
   if (pm === 'pnpm') {
     return { cmd: 'pnpm', args: ['install', '--frozen-lockfile'] };
@@ -138,12 +258,76 @@ const INSTALL_MARKERS = [
 
 const LOCKFILES = ['package-lock.json', 'pnpm-lock.yaml', 'yarn.lock'];
 
-function safeMtimeMs(fsLike, p) {
+/**
+ * Pure: locate the first present lockfile in `dir` and return its byte-exact
+ * SHA-256 hash, or `null` when no lockfile exists / cannot be read.
+ *
+ * The hash is the load-bearing freshness key for the install-skip decision —
+ * never an mtime, which clone (clonefile/reflink) does not preserve reliably
+ * and which is trivially perturbed by a no-op `git checkout`.
+ *
+ * @param {string} dir Absolute directory containing the lockfile.
+ * @param {{ existsSync: Function, readFileSync: Function }} [fsLike]
+ * @returns {string | null}
+ */
+export function lockfileHash(dir, fsLike = fs) {
+  const lockfile = LOCKFILES.map((l) => path.join(dir, l)).find((p) =>
+    fsLike.existsSync(p),
+  );
+  if (!lockfile) return null;
   try {
-    return fsLike.statSync(p).mtimeMs;
+    const bytes = fsLike.readFileSync(lockfile);
+    return crypto.createHash('sha256').update(bytes).digest('hex');
   } catch {
     return null;
   }
+}
+
+/**
+ * Pure: the single shared "is the per-tree install skippable?" predicate
+ * (generalized from `probeReusedInstall`). The install is safe to skip iff:
+ *
+ *   1. the worktree carries a completed-install marker
+ *      (`node_modules/<INSTALL_MARKERS>`), AND
+ *   2. the worktree's lockfile byte-exactly matches the donor's lockfile.
+ *
+ * The lockfile match is keyed on a byte-exact SHA-256 hash, NEVER mtime: a
+ * reflink/clonefile clone does not preserve mtime relationships, so an mtime
+ * comparison would either mis-skip a real change or force a redundant install
+ * on every clone. When the donor is omitted (reuse path, no clone donor), the
+ * worktree's own lockfile is hashed against itself — i.e. the lockfile-match
+ * leg is vacuously satisfied and only the marker presence gates the skip.
+ *
+ * @param {object} opts
+ * @param {string} opts.wtPath Absolute worktree path.
+ * @param {string} [opts.donorPath] Absolute donor path (the clone source).
+ * @param {{ existsSync: Function, readFileSync: Function }} [opts.fsLike]
+ * @returns {{ skippable: boolean, reason: string }}
+ */
+export function isInstallSkippable({ wtPath, donorPath, fsLike = fs }) {
+  const nmPath = path.join(wtPath, 'node_modules');
+  if (!fsLike.existsSync(nmPath)) {
+    return { skippable: false, reason: 'node-modules-missing' };
+  }
+  const marker = INSTALL_MARKERS.map((m) => path.join(nmPath, m)).find((p) =>
+    fsLike.existsSync(p),
+  );
+  if (!marker) {
+    return { skippable: false, reason: 'install-incomplete' };
+  }
+  const wtHash = lockfileHash(wtPath, fsLike);
+  if (wtHash === null) {
+    // No lockfile in the worktree — nothing to pin freshness against. The
+    // marker alone is the signal (matches a lockfile-less project).
+    return { skippable: true, reason: 'marker-present-no-lockfile' };
+  }
+  if (donorPath) {
+    const donorHash = lockfileHash(donorPath, fsLike);
+    if (donorHash !== null && donorHash !== wtHash) {
+      return { skippable: false, reason: 'lockfile-mismatch' };
+    }
+  }
+  return { skippable: true, reason: 'lockfile-match' };
 }
 
 /**
@@ -157,12 +341,17 @@ function safeMtimeMs(fsLike, p) {
  *   - `{ status: 'skipped', reason: 'worktree-reused' }` — a completed
  *     install was detected (or the strategy never installs per-tree);
  *     safe to skip.
- *   - `{ status: 'failed', reason }` — missing/incomplete/stale install
- *     detected; callers should retry the install.
+ *   - `{ status: 'failed', reason }` — missing/incomplete install detected;
+ *     callers should retry the install.
  *
- * @param {string} strategy One of `per-worktree | pnpm-store | symlink`.
+ * Thin wrapper over the shared `isInstallSkippable` predicate (Story #4249 —
+ * one freshness predicate, keyed on a byte-exact lockfile hash, never mtime).
+ * The reuse path has no separate donor, so freshness reduces to marker
+ * presence (the worktree's own lockfile is its own baseline).
+ *
+ * @param {string} strategy One of `per-worktree | clone | pnpm-store | symlink`.
  * @param {string} wtPath Absolute worktree path.
- * @param {{ existsSync: Function, statSync: Function }} [fsLike] Injectable for tests.
+ * @param {{ existsSync: Function, readFileSync: Function }} [fsLike] Injectable for tests.
  * @returns {{ status: 'skipped' | 'failed', reason: string }}
  */
 export function probeReusedInstall(strategy, wtPath, fsLike = fs) {
@@ -173,34 +362,33 @@ export function probeReusedInstall(strategy, wtPath, fsLike = fs) {
   if (!fsLike.existsSync(path.join(wtPath, 'package.json'))) {
     return { status: 'skipped', reason: 'no-package-json' };
   }
-  const nmPath = path.join(wtPath, 'node_modules');
-  if (!fsLike.existsSync(nmPath)) {
-    return { status: 'failed', reason: 'reuse-node-modules-missing' };
+  const probe = isInstallSkippable({ wtPath, fsLike });
+  if (probe.skippable) {
+    return { status: 'skipped', reason: 'worktree-reused' };
   }
-  const marker = INSTALL_MARKERS.map((m) => path.join(nmPath, m)).find((p) =>
-    fsLike.existsSync(p),
-  );
-  if (!marker) {
-    return { status: 'failed', reason: 'reuse-install-incomplete' };
-  }
-  const markerMtime = safeMtimeMs(fsLike, marker);
-  const lockfile = LOCKFILES.map((l) => path.join(wtPath, l)).find((p) =>
-    fsLike.existsSync(p),
-  );
-  if (lockfile && markerMtime !== null) {
-    const lockMtime = safeMtimeMs(fsLike, lockfile);
-    if (lockMtime !== null && lockMtime > markerMtime) {
-      return { status: 'failed', reason: 'reuse-node-modules-stale' };
-    }
-  }
-  return { status: 'skipped', reason: 'worktree-reused' };
+  return {
+    status: 'failed',
+    reason:
+      probe.reason === 'node-modules-missing'
+        ? 'reuse-node-modules-missing'
+        : 'reuse-install-incomplete',
+  };
 }
 
-/** Pure: retry policy keyed off the chosen command. pnpm gets 3× + 5min. */
+/**
+ * Pure: retry policy keyed off the chosen command. pnpm gets 3× + 5min.
+ *
+ * Story #4249: npm/yarn now get a real `maxAttempts` of 2 (was 1). The
+ * formerly hardcoded `npm ci` retry inside `runStoryInitPrepare` was deleted
+ * in the same change; this in-`ensure` retry budget is what compensates so
+ * npm install reliability does not regress — a transient first-attempt
+ * failure now retries here, with the correct (PM-detected) command, instead
+ * of an unconditional `npm ci` re-run after init.
+ */
 export function installRetryPolicy(cmd) {
   const isPnpm = cmd === 'pnpm';
   return {
-    maxAttempts: isPnpm ? 3 : 1,
+    maxAttempts: isPnpm ? 3 : 2,
     timeoutMs: isPnpm ? 300_000 : 120_000,
     backoffMs: [0, 2_000, 5_000],
   };
@@ -386,6 +574,26 @@ export function installDependencies(ctx, wtPath) {
   const selection = selectInstallCommand(strategy, wtPath);
   if (selection === null) {
     return { status: 'skipped', reason: 'no-package-json' };
+  }
+  // `clone` reflink-clones the donor's node_modules in `applyNodeModulesStrategy`.
+  // When the cloned tree carries a completed-install marker AND the worktree's
+  // lockfile byte-matches the donor's, the per-tree install is pure waste —
+  // skip it. The freshness predicate is the single shared `isInstallSkippable`
+  // (byte-exact lockfile hash, never mtime). On a lockfile mismatch (donor
+  // drifted, or no clone happened) this returns false and the install below
+  // runs normally.
+  if (strategy === 'clone') {
+    const donor = resolveCloneDonor(ctx);
+    const probe = isInstallSkippable({ wtPath, donorPath: donor });
+    if (probe.skippable) {
+      ctx.logger.info(
+        `worktree.install strategy=clone skip reason=${probe.reason} path=${wtPath}`,
+      );
+      return { status: 'skipped', reason: `clone-${probe.reason}` };
+    }
+    ctx.logger.info(
+      `worktree.install strategy=clone install reason=${probe.reason} path=${wtPath}`,
+    );
   }
   // Prime the pnpm content-addressable store once per machine before the
   // worktree's own install runs. No-op for non-pnpm-store strategies. Prime

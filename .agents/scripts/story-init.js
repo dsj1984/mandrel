@@ -38,7 +38,6 @@ import {
 } from './lib/config-resolver.js';
 import { parseBlockedBy } from './lib/dependency-parser.js';
 import { getEpicBranch, getStoryBranch } from './lib/git-utils.js';
-import { runInstallCommand } from './lib/install-cmd-parser.js';
 import { Logger } from './lib/Logger.js';
 import { setActiveStoryEnv } from './lib/observability/active-story-env.js';
 import {
@@ -366,8 +365,15 @@ const VALID_INSTALLED_STATES = new Set(['true', 'false', 'skipped']);
 
 /**
  * Apply the dependenciesInstalled tri-state to derive the next install
- * action. Pure helper — exposes the Step 0.5 truth table as data so tests
+ * action. Pure helper — exposes the install truth table as data so tests
  * can pin each branch without spinning up a child process.
+ *
+ * Story #4249: this is no longer wired into a post-init re-install. The
+ * in-`ensure` install (with its PM-aware retry budget) is the single install
+ * owner; the formerly-hardcoded `npm ci` retry inside `runStoryInitPrepare`
+ * was deleted. The tri-state still flows onto the `story-init` structured
+ * comment (`dependenciesInstalled`) as the workflow-facing signal, and this
+ * helper remains its canonical classifier.
  *
  * @param {'true' | 'false' | 'skipped'} dependenciesInstalled
  * @param {{ skipInstall?: boolean }} [options]
@@ -384,54 +390,33 @@ export function deriveInstallAction(dependenciesInstalled, options = {}) {
 }
 
 /**
- * Resolve the install command to run when `dependenciesInstalled === 'false'`.
- * `project.commands` does not currently carry a dedicated install key,
- * so this defaults to `npm ci`. Operators can override per-invocation via
- * the `installCmd` option.
+ * Post-init prepare step (Story #4017 — formerly a standalone prepare CLI,
+ * now consuming the in-process init result instead of re-reading the
+ * `story-init` structured comment).
  *
- * @param {{ override?: string }} [options]
- * @returns {string}
- */
-export function resolveInstallCommand(options = {}) {
-  const trimmed = options.override?.trim();
-  if (trimmed) {
-    return trimmed;
-  }
-  return 'npm ci';
-}
-
-/**
- * Post-init prepare step (Story #4017 — formerly a standalone prepare
- * CLI, now consuming the in-process init result
- * instead of re-reading the `story-init` structured comment):
+ * Story #4249: the install branch was deleted. The worktree install is owned
+ * entirely by `WorktreeManager.ensure` (via `installDependencies`), which now
+ * carries a PM-aware retry budget (`installRetryPolicy`) — so a transient
+ * first-attempt failure retries there with the correct package-manager
+ * command, never an unconditional `npm ci` re-run after init. This step is now
+ * purely the snapshot-render half:
  *
- *   1. Apply the `dependenciesInstalled` tri-state truth table — `'false'`
- *      (install attempted and failed) retries the install command in the
- *      worktree; `'true'` / `'skipped'` proceed.
- *   2. Render the initial Story-phase snapshot with every phase pinned to
- *      `pending` and `phase: 'init'` via `upsertStoryRunProgress`
- *      (render-only since Story #3909 — no comment is posted). The
- *      `renderedBody` markdown is relayed to chat by the delivery
- *      workflows so operators see the initial progress block before the
- *      first commit lands.
+ *   - Render the initial Story-phase snapshot with every phase pinned to
+ *     `pending` and `phase: 'init'` via `upsertStoryRunProgress` (render-only
+ *     since Story #3909 — no comment is posted). The `renderedBody` markdown is
+ *     relayed to chat by the delivery workflows so operators see the initial
+ *     progress block before the first commit lands.
  *
- * Install failure throws (init exits non-zero); a snapshot-render failure
- * is non-fatal observability loss and only warns.
+ * A snapshot-render failure is non-fatal observability loss and only warns.
  *
  * @param {{
  *   provider: object,
  *   storyId: number,
- *   result: { workCwd?: string, dependenciesInstalled?: string, storyBranch?: string },
+ *   result: { storyBranch?: string },
  *   notify?: Function | null,
- *   runInstall?: (cmd: string, cwd: string) => { status: number, stderr?: string },
- *   skipInstall?: boolean,
- *   installCmd?: string,
  *   logger?: object,
  * }} args
  * @returns {Promise<{
- *   installAction: 'skip' | 'install',
- *   installCmd: string | null,
- *   installResult: { status: number, stderr?: string } | null,
  *   snapshot: object | null,
  *   renderedBody: string | null,
  * }>}
@@ -441,29 +426,8 @@ export async function runStoryInitPrepare({
   storyId,
   result,
   notify: notifyFn = null,
-  runInstall = runInstallCommand,
-  skipInstall = false,
-  installCmd: installCmdOverride,
   logger = stageLogger,
 }) {
-  const dependenciesInstalled = String(
-    result?.dependenciesInstalled ?? 'skipped',
-  );
-  const installAction = deriveInstallAction(dependenciesInstalled, {
-    skipInstall,
-  });
-  let installCmd = null;
-  let installResult = null;
-  if (installAction === 'install') {
-    installCmd = resolveInstallCommand({ override: installCmdOverride });
-    installResult = runInstall(installCmd, result.workCwd);
-    if (installResult.status !== 0) {
-      throw new Error(
-        `runStoryInitPrepare: install command \`${installCmd}\` failed with status ${installResult.status}: ${installResult.stderr ?? ''}`,
-      );
-    }
-  }
-
   let snapshot = null;
   let renderedBody = null;
   try {
@@ -483,7 +447,7 @@ export async function runStoryInitPrepare({
     );
   }
 
-  return { installAction, installCmd, installResult, snapshot, renderedBody };
+  return { snapshot, renderedBody };
 }
 
 function buildStoryInitResult({

@@ -138,7 +138,7 @@ top-level keys are validation errors.
 | `worktreeIsolation` | No | `object` | — | Nested configuration block. |
 | `worktreeIsolation.enabled` | No | `boolean` | — | — |
 | `worktreeIsolation.root` | No | `string` | — | — |
-| `worktreeIsolation.nodeModulesStrategy` | No | `"per-worktree"` \| `"symlink"` \| `"pnpm-store"` | — | — |
+| `worktreeIsolation.nodeModulesStrategy` | No | `"per-worktree"` \| `"clone"` \| `"symlink"` \| `"pnpm-store"` | — | — |
 | `worktreeIsolation.primeFromPath` | No | `string` \| `null` | — | — |
 | `worktreeIsolation.allowSymlinkOnWindows` | No | `boolean` | — | — |
 | `worktreeIsolation.reapOnSuccess` | No | `boolean` | — | — |
@@ -526,7 +526,7 @@ checkout's HEAD.
 | ----------------------- | --------------- | ---------------- | ----------------------------------------------------------- |
 | `enabled`               | No              | `false`          | Master switch.                                              |
 | `root`                  | Conditional     | `.worktrees`     | Required when `enabled: true`. Worktree parent directory.    |
-| `nodeModulesStrategy`   | No              | `per-worktree`   | One of `per-worktree`, `symlink`, `pnpm-store`.              |
+| `nodeModulesStrategy`   | No              | `clone` (darwin/linux); `per-worktree` (Windows) | One of `per-worktree`, `clone`, `symlink`, `pnpm-store`. `clone` copy-on-write (reflink/clonefile) clones the donor's `node_modules` and skips the per-tree install on a byte-exact lockfile match, falling back to `per-worktree` on any failure. |
 | `primeFromPath`         | No              | `null`           | Optional source path used to prime `node_modules`.            |
 | `allowSymlinkOnWindows` | No              | `false`          | Permit symlink strategy on Windows (requires admin/dev mode). |
 | `reapOnSuccess`         | No              | `true`           | Reap the worktree after a successful Story close.            |
