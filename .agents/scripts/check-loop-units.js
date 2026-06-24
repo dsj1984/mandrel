@@ -56,8 +56,24 @@ export function parseArgv(argv = []) {
 }
 
 /**
+ * `README.md` (any case) under the loops directory is namespace
+ * documentation, not a loop unit — it carries no `loop:` frontmatter and is
+ * not projected as a `/loops:` command (see `sync-claude-commands.js`). It is
+ * excluded from the loop-unit collector so the lint gate never flags the
+ * directory's own README as a malformed unit.
+ *
+ * @param {string} name a directory-entry basename
+ * @returns {boolean}
+ */
+export function isLoopUnitFile(name) {
+  return name.endsWith('.md') && name.toLowerCase() !== 'readme.md';
+}
+
+/**
  * Collect `*.md` loop-unit files directly under `dir`, sorted. Returns an
- * empty array when the directory is absent (the clean-pass case).
+ * empty array when the directory is absent (the clean-pass case). The
+ * directory's `README.md` is excluded — it is namespace documentation, not a
+ * unit (see `isLoopUnitFile`).
  *
  * @param {string} dir absolute path
  * @returns {string[]} absolute paths
@@ -70,7 +86,7 @@ export function collectLoopUnitFiles(dir) {
     return [];
   }
   return entries
-    .filter((e) => e.isFile() && e.name.endsWith('.md'))
+    .filter((e) => e.isFile() && isLoopUnitFile(e.name))
     .map((e) => path.join(dir, e.name))
     .sort();
 }

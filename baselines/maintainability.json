@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-16T00:59:04.827Z",
+  "generatedAt": "2026-06-24T15:18:24.654Z",
   "rollup": {
     "*": {
       "min": 70.566,
-      "p50": 97.964,
+      "p50": 97.988,
       "p95": 127.336
     }
   },
@@ -36,7 +36,7 @@
     },
     {
       "path": ".agents/scripts/check-doc-links.js",
-      "mi": 90.521
+      "mi": 89.461
     },
     {
       "path": ".agents/scripts/check-gherkin-placeholders.js",
@@ -45,6 +45,10 @@
     {
       "path": ".agents/scripts/check-lifecycle-doc-drift.js",
       "mi": 85.238
+    },
+    {
+      "path": ".agents/scripts/check-loop-units.js",
+      "mi": 97.988
     },
     {
       "path": ".agents/scripts/check-prepush-recovery.js",
@@ -1884,7 +1888,7 @@
     },
     {
       "path": ".agents/scripts/sync-claude-commands.js",
-      "mi": 98.907
+      "mi": 100.812
     },
     {
       "path": ".agents/scripts/test-isolate.js",

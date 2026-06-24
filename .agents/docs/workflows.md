@@ -62,10 +62,14 @@ description, edit the workflow file’s front-matter and regenerate.
 | `/qa-explore` | Agent-led exploratory-QA loop — the agent Plans a surface with an explicit static-vs-drive method choice, drives it (browser MCP or static), and captures ledger items read-only, then Triages — a bounded per-surface session, HITL-gated at every phase transition, routed through the shared dedup/coverage/classification/missing-test/redaction/session core under temp/qa/ |
 | `/qa-run` | Drive Gherkin scenarios through a real browser as an agent-driven QA sweep |
 
-## Loops namespace (0)
+## Loops namespace (3)
 
 Loop units project to `.claude/commands/loops/<name>.md` and are invoked
 as `/loops:<name>` (flat fallback `/loops-<name>` on hosts that flatten
 subdirectory commands).
 
-> No loop units are shipped yet.
+| Command | Description |
+| --- | --- |
+| `/loops:fix-failing-tests` | Self-paced convergence loop that drives a red test suite to green. Each round reads the latest failure, applies the smallest fix, and re-runs the verify oracle (`npm test`); the loop terminates when the oracle exits 0. The host (`/loop`) owns iteration and pacing — mandrel supplies the action, the goal, and the terminating oracle. |
+| `/loops:nightly-audit` | Cron maintenance loop that runs a nightly audit sweep over the repository and files actionable findings. Each run executes the audit workflows and routes the results; the host (`/schedule` or a cron-driven `/loop`) owns the cadence. verify is optional for a cron loop — the scheduler owns iteration, so this unit ships the action and goal, not a terminating oracle. |
+| `/loops:watch-ci` | Interval watch loop that polls a pull request's CI checks until they settle. Each round runs `gh pr checks` and reports the delta; the host (`/loop 5m`) owns the cadence and re-invokes the unit on its schedule. verify is optional for an interval loop — the externally-scheduled host owns iteration, so this unit ships the action and goal, not a terminating oracle. |

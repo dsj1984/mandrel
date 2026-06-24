@@ -1,13 +1,13 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-16T00:59:05.043Z",
+  "generatedAt": "2026-06-24T15:18:24.878Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12,
-      "max": 29.10003921033038,
-      "methodsAbove20": 20
+      "p95": 12.000805501108497,
+      "max": 36.013433747201304,
+      "methodsAbove20": 21
     }
   },
   "rows": [
@@ -158,79 +158,79 @@
     {
       "path": ".agents/scripts/check-doc-links.js",
       "method": "isExcludedRelPath",
-      "startLine": 120,
-      "crap": 3
+      "startLine": 126,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/check-doc-links.js",
       "method": "walkMarkdown",
-      "startLine": 126,
+      "startLine": 131,
       "crap": 7.06721536351166
     },
     {
       "path": ".agents/scripts/check-doc-links.js",
       "method": "discoverMarkdown",
-      "startLine": 145,
+      "startLine": 150,
       "crap": 2
     },
     {
       "path": ".agents/scripts/check-doc-links.js",
       "method": "maskCodeRegions",
-      "startLine": 162,
+      "startLine": 167,
       "crap": 6
     },
     {
       "path": ".agents/scripts/check-doc-links.js",
       "method": "offsetToLine",
-      "startLine": 199,
+      "startLine": 204,
       "crap": 3
     },
     {
       "path": ".agents/scripts/check-doc-links.js",
       "method": "extractLinks",
-      "startLine": 213,
+      "startLine": 218,
       "crap": 2
     },
     {
       "path": ".agents/scripts/check-doc-links.js",
       "method": "isExternalOrInternalAnchor",
-      "startLine": 227,
+      "startLine": 232,
       "crap": 4
     },
     {
       "path": ".agents/scripts/check-doc-links.js",
       "method": "stripAnchorAndQuery",
-      "startLine": 234,
+      "startLine": 239,
       "crap": 3
     },
     {
       "path": ".agents/scripts/check-doc-links.js",
       "method": "extractSlashTokens",
-      "startLine": 258,
+      "startLine": 270,
       "crap": 2
     },
     {
       "path": ".agents/scripts/check-doc-links.js",
       "method": "checkFile",
-      "startLine": 274,
-      "crap": 10.002143347050755
+      "startLine": 286,
+      "crap": 12.00169045830203
     },
     {
       "path": ".agents/scripts/check-doc-links.js",
       "method": "runCheck",
-      "startLine": 357,
+      "startLine": 385,
       "crap": 2
     },
     {
       "path": ".agents/scripts/check-doc-links.js",
       "method": "formatViolation",
-      "startLine": 373,
+      "startLine": 401,
       "crap": 2
     },
     {
       "path": ".agents/scripts/check-doc-links.js",
       "method": "main",
-      "startLine": 377,
+      "startLine": 405,
       "crap": 6
     },
     {
@@ -424,6 +424,48 @@
       "method": "main",
       "startLine": 385,
       "crap": 2.116522530723714
+    },
+    {
+      "path": ".agents/scripts/check-loop-units.js",
+      "method": "parseArgv",
+      "startLine": 40,
+      "crap": 36.013433747201304
+    },
+    {
+      "path": ".agents/scripts/check-loop-units.js",
+      "method": "isLoopUnitFile",
+      "startLine": 68,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/check-loop-units.js",
+      "method": "collectLoopUnitFiles",
+      "startLine": 81,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/check-loop-units.js",
+      "method": "checkLoopUnits",
+      "startLine": 103,
+      "crap": 3.3956849175656423
+    },
+    {
+      "path": ".agents/scripts/check-loop-units.js",
+      "method": "renderReport",
+      "startLine": 128,
+      "crap": 10.58179012345679
+    },
+    {
+      "path": ".agents/scripts/check-loop-units.js",
+      "method": "runCli",
+      "startLine": 159,
+      "crap": 18.703360768175582
+    },
+    {
+      "path": ".agents/scripts/check-loop-units.js",
+      "method": "main",
+      "startLine": 196,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/check-prepush-recovery.js",
@@ -15007,8 +15049,38 @@
     },
     {
       "path": ".agents/scripts/sync-claude-commands.js",
+      "method": "dirExists",
+      "startLine": 95,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/sync-claude-commands.js",
+      "method": "reapPluginTree",
+      "startLine": 115,
+      "crap": 2.002630064929728
+    },
+    {
+      "path": ".agents/scripts/sync-claude-commands.js",
       "method": "<anon method-1>",
-      "startLine": 44,
+      "startLine": 151,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/sync-claude-commands.js",
+      "method": "<anon method-2>",
+      "startLine": 164,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/sync-claude-commands.js",
+      "method": "enumerateLoopUnits",
+      "startLine": 177,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/sync-claude-commands.js",
+      "method": "listExistingCommands",
+      "startLine": 228,
       "crap": 2
     },
     {

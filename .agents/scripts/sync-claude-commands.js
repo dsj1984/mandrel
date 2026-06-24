@@ -152,10 +152,24 @@ const isTopLevelWorkflow = (entry) =>
   entry.isFile() && entry.name.endsWith('.md');
 
 /**
+ * `README.md` (any case) under `loops/` is namespace documentation, not a
+ * loop unit — it carries no `loop:` frontmatter and must not project as a
+ * `/loops:README` command. Exclude it from the loop-unit enumeration (this
+ * mirrors `check-loop-units.js#isLoopUnitFile`, which excludes it from the
+ * lint gate).
+ *
+ * @param {import('node:fs').Dirent} entry
+ * @returns {boolean}
+ */
+const isLoopUnit = (entry) =>
+  isTopLevelWorkflow(entry) && entry.name.toLowerCase() !== 'readme.md';
+
+/**
  * Enumerate the loop units under a source dir's `loops/` subdirectory.
  * Returns entries keyed by the namespaced relative path
  * (`loops/<name>.md`) so they never collide with a flat top-level command
- * of the same basename and so the reap can track them distinctly.
+ * of the same basename and so the reap can track them distinctly. The
+ * directory's `README.md` is skipped — it is documentation, not a command.
  *
  * @param {string} dir — a workflows source root (payload or local).
  * @returns {Array<{dir: string, name: string, rel: string}>}
@@ -165,7 +179,7 @@ function enumerateLoopUnits(dir) {
   if (!dirExists(loopsDir)) return [];
   return fs
     .readdirSync(loopsDir, { withFileTypes: true })
-    .filter(isTopLevelWorkflow)
+    .filter(isLoopUnit)
     .map((e) => ({
       dir,
       name: e.name,
