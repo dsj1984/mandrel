@@ -98,11 +98,22 @@ contract.
 | `story.dispatch.end`        | A Story sub-agent returned (done / blocked / failed).       |
 | `story.merged`              | Story branch merged into `epic/<epicId>`.                   |
 | `story.blocked`             | Story transitioned to `agent::blocked`.                     |
+| `loop.tick`                 | One pass of a host-driven loop completed (idle-watchdog visibility). |
 
 > **Story-only heartbeats.** Stories have no child Task tickets;
 > `story.heartbeat` carries phase info only. Wave + Story events
 > (`wave.*`, `story.dispatch.*`, `story.merged`, `story.blocked`)
 > operate at the Story tier.
+
+> **Loop ticks vs Story heartbeats.** `loop.tick` is a **distinct** event
+> from `story.heartbeat`: it is emitted once per pass of a host-driven
+> loop (a `/loop`-style recurring command or a long-running poll), not
+> tied to any Story tier. It carries a free-form `loopName`, a monotonic
+> `round` counter, the loop's configured `cadence` label, and a per-round
+> `status` (`running` | `done` | `blocked`) so the `/deliver` idle
+> watchdog sees forward progress and a host loop never runs silently.
+> Emit it through the bus via
+> [`emit-loop-tick.js`](../.agents/scripts/lib/orchestration/lifecycle/emit-loop-tick.js).
 
 ### Reconciliation + supporting events
 
@@ -171,6 +182,7 @@ a lifecycle schema; the drift gate is
 | `epic.watch.start` | [`epic.watch.start.schema.json`](../.agents/schemas/lifecycle/epic.watch.start.schema.json) | Emitted by Watcher when required-check polling begins. Required-check names are resolved from GitHub at runtime via gh pr checks, not from .agentrc.json. | `prUrl`, `requiredChecks` |
 | `intervention.recorded` | [`intervention.recorded.schema.json`](../.agents/schemas/lifecycle/intervention.recorded.schema.json) | Emitted whenever the host LLM performs an out-of-band manual intervention during an Epic delivery (e.g., AskUserQuestion, manual git restore/reset, --no-ff recovery merge, story-close --skipValidation). The InterventionRecorder listener appends the payload to the epic-run-state-store's manualInterventions array; a non-empty array disqualifies the Epic from auto-merge. | `epicId`, `reason` |
 | `ledger-record` | [`ledger-record.schema.json`](../.agents/schemas/lifecycle/ledger-record.schema.json) | Append-only NDJSON record shape for temp/epic-<id>/lifecycle.ndjson. Three discriminated kinds; consumers (LedgerWriter, lifecycle-diff CLI, TraceLogger) discriminate on `kind`. | — |
+| `loop.tick` | [`loop.tick.schema.json`](../.agents/schemas/lifecycle/loop.tick.schema.json) | Emitted once per pass of a host-driven loop (e.g. a /loop-style recurring command or a long-running poll) so each round lands an inspectable ledger record. Surfaces the loop as forward-progress evidence the /deliver idle watchdog already scans — distinct from story.heartbeat, which carries Story-phase info for a single in-flight Story. A loop is not tied to a Story tier: loop.tick carries a free-form loopName, a monotonic round counter, the configured cadence, and a status so a host loop never runs silently. cadence is the loop's configured interval label (e.g. '5m', 'self-paced'); status is the per-round verdict (running while the loop continues, done when it terminates normally, blocked when it stalls). | `event`, `loopName`, `round`, `cadence`, `status`, `timestamp` |
 | `notification.emitted` | [`notification.emitted.schema.json`](../.agents/schemas/lifecycle/notification.emitted.schema.json) | Self-emitted by NotifyDispatcher after each webhook/comment dispatch. Carries the upstream event name, the channel, the severity, and the ok flag for trace fidelity. | `event`, `channel`, `severity`, `ok` |
 | `pr.created` | [`pr.created.schema.json`](../.agents/schemas/lifecycle/pr.created.schema.json) | Emitted by Finalizer immediately after gh pr create (or short-circuit). Must be preceded by acceptance.reconcile.ok from the same run. | `prUrl`, `head`, `base` |
 | `retro.end` | [`retro.end.schema.json`](../.agents/schemas/lifecycle/retro.end.schema.json) | Emitted at the end of the retro sub-phase. `posted` indicates whether the retro structured comment was upserted onto the Epic; `retroPath` is the local mirror path under temp/epic-<id>/ when written. Story #2252. | `epicId`, `posted` |
