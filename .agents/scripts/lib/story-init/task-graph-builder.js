@@ -82,22 +82,32 @@ export async function buildTaskGraph({ provider, logger, input }) {
   const warn = logger?.warn ?? ((msg) => Logger.error(msg));
   const progress = logger?.progress ?? (() => {});
 
+  // Story #4251 — under the 2-tier hierarchy every Story is childless, so the
+  // `fetchChildTickets` call (a `getTicket` + empty sub-issues GraphQL query +
+  // a never-matching `/search/issues` fallback) is pure waste on every
+  // story-init. The Story body is already in scope, so detect the inline-
+  // acceptance 2-tier shape FIRST and short-circuit without any child fetch —
+  // sparing the most aggressively rate-limited GitHub endpoint exactly during
+  // wide wave fan-out. A body lacking inline acceptance still falls through to
+  // the legacy child-enumeration path below.
+  if (hasInlineAcceptance(storyBody)) {
+    progress(
+      'TASKS',
+      `Story #${storyId} has inline acceptance — no child Tasks expected (2-tier shape).`,
+    );
+    return { sortedTasks: [], mode: '2-tier' };
+  }
+
+  // Legacy / 4-tier fall-through: a body lacking inline acceptance still
+  // enumerates child Tasks for the topological sort below.
   const tasks = await fetchChildTickets(provider, storyId);
 
-  const inlineAcceptance = hasInlineAcceptance(storyBody);
-  const mode = tasks.length === 0 && inlineAcceptance ? '2-tier' : '4-tier';
+  const mode = '4-tier';
 
   if (tasks.length === 0) {
-    if (inlineAcceptance) {
-      progress(
-        'TASKS',
-        `Story #${storyId} has inline acceptance — no child Tasks expected (2-tier shape).`,
-      );
-    } else {
-      warn(
-        `[story-init] Warning: Story #${storyId} has no child Tasks. The agent will need to work from the Story body directly.`,
-      );
-    }
+    warn(
+      `[story-init] Warning: Story #${storyId} has no child Tasks. The agent will need to work from the Story body directly.`,
+    );
   }
 
   const sortedTasks = sortTasksByDependencies(tasks);

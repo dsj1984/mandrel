@@ -102,11 +102,13 @@ test('hasInlineAcceptance returns false when section has no bullets', () => {
   );
 });
 
-test('buildTaskGraph treats empty Task list as expected when Story has inline acceptance', async () => {
+test('buildTaskGraph short-circuits the child fetch when Story has inline acceptance (Story #4251)', async () => {
   const warnings = [];
   const progress = [];
+  let getSubTicketsCalls = 0;
   const provider = {
     async getSubTickets() {
+      getSubTicketsCalls += 1;
       return [];
     },
   };
@@ -123,6 +125,13 @@ test('buildTaskGraph treats empty Task list as expected when Story has inline ac
   });
   assert.deepStrictEqual(out.sortedTasks, []);
   assert.strictEqual(out.mode, '2-tier');
+  // Story #4251 — the inline-acceptance predicate gates the fetch, so no
+  // sub-issues GraphQL query / `/search/issues` scan is ever issued.
+  assert.strictEqual(
+    getSubTicketsCalls,
+    0,
+    'getSubTickets must not run for a 2-tier Story',
+  );
   // Must NOT emit the scary "no child Tasks" warning when the Story
   // is authored in the 2-tier shape.
   assert.deepStrictEqual(warnings, []);
@@ -152,12 +161,17 @@ test('buildTaskGraph still warns on empty Task list for a Story without inline a
   assert.ok(warnings.some((w) => w.includes('no child Tasks')));
 });
 
-test('buildTaskGraph enumerates child Tasks normally when Story has both inline acceptance AND child Tasks', async () => {
-  // Defensive: if a Story body somehow has an Acceptance section but the
-  // ticket also has child Tasks (mixed shape during migration), the Tasks
-  // MUST still be returned. No regression on AC2.
+test('buildTaskGraph short-circuits on inline acceptance even if children would exist (Story #4251 hard cutover)', async () => {
+  // Hard cutover (Story #4251): inline acceptance is authoritative for the
+  // 2-tier shape. The predicate gates the fetch BEFORE the provider is
+  // consulted, so a populated `getSubTickets` is never called and the result
+  // is the 2-tier short-circuit. This supersedes the prior mixed-shape
+  // "enumerate anyway" contract — under the 2-tier hierarchy every Story is
+  // childless, and skipping the rate-limited probe is the whole point.
+  let getSubTicketsCalls = 0;
   const provider = {
     async getSubTickets() {
+      getSubTicketsCalls += 1;
       return [mkTask(1), mkTask(2, { body: 'blocked by #1' })];
     },
   };
@@ -168,9 +182,11 @@ test('buildTaskGraph enumerates child Tasks normally when Story has both inline 
       storyBody: '## Acceptance\n- foo\n',
     },
   });
-  assert.deepStrictEqual(
-    out.sortedTasks.map((t) => t.id),
-    [1, 2],
+  assert.deepStrictEqual(out.sortedTasks, []);
+  assert.strictEqual(out.mode, '2-tier');
+  assert.strictEqual(
+    getSubTicketsCalls,
+    0,
+    'inline acceptance must gate the fetch — provider never consulted',
   );
-  assert.strictEqual(out.mode, '4-tier');
 });
