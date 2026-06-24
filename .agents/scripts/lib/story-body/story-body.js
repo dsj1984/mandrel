@@ -15,6 +15,7 @@
  *   acceptance:          string[],         // observable criteria
  *   verify:              string[],         // exact commands / tier annotation
  *   references:          PathEntry[],      // read-only paths (optional)
+ *   non_goals:           string[],         // negative-scope bullets (optional, advisory)
  *   wide:                { reason } | null,// declared-wide footprint (optional)
  *   reason_to_exist:     string | null,    // one-sentence cohesion reason (optional)
  *   depends_on:          string[],         // blocker story slugs or #ids
@@ -69,6 +70,7 @@ import { FILE_ASSUMPTION_VALUES } from '../orchestration/file-assumption-enum.js
  * @property {string[]}      acceptance          - Observable acceptance criteria.
  * @property {string[]}      verify              - Exact commands with tier annotation.
  * @property {PathEntry[]}   references          - Read-only paths (may be empty).
+ * @property {string[]}      non_goals           - Negative-scope bullets (advisory; may be empty).
  * @property {{ reason: string }|null} wide      - Declared-wide footprint (reason), or null.
  * @property {string|null}   reason_to_exist     - One-sentence cohesion reason ("why this Story exists"), or null.
  * @property {string[]}      depends_on          - Blocking story slugs / issue refs.
@@ -89,6 +91,7 @@ import { FILE_ASSUMPTION_VALUES } from '../orchestration/file-assumption-enum.js
  * @property {boolean} hasAcceptanceSection - Whether a `## Acceptance` section was found.
  * @property {boolean} hasVerifySection     - Whether a `## Verify` section was found.
  * @property {boolean} hasReferencesSection - Whether a `## References` section was found.
+ * @property {boolean} hasNonGoalsSection   - Whether a `## Non-Goals` section was found.
  * @property {boolean} isLegacyStringBody   - True when no structured sections were found.
  */
 
@@ -125,13 +128,16 @@ export class StoryBodyParseError extends Error {
 // Section heading map
 // ---------------------------------------------------------------------------
 
-// Heading text → body field name
+// Heading text → body field name. Keys are normalized: lower-cased with `-`
+// folded to `_` (see splitSections), so the hyphenated `## Non-Goals` heading
+// maps to the `non_goals` field.
 const HEADING_TO_FIELD = new Map([
   ['goal', 'goal'],
   ['changes', 'changes'],
   ['acceptance', 'acceptance'],
   ['verify', 'verify'],
   ['references', 'references'],
+  ['non_goals', 'non_goals'],
 ]);
 
 // ---------------------------------------------------------------------------
@@ -346,9 +352,19 @@ function splitSections(markdown) {
     // Forms (Story #4227) render every field label as a level-3 heading
     // (`### Goal`), not the level-2 the canonical serializer emits, so the
     // parser accepts both levels. Any other heading depth is ignored.
-    const fieldHeadingMatch = line.match(/^#{2,3}\s+(\w+)\s*$/i);
+    //
+    // The token class is `[\w-]+` (not bare `\w+`) so a single hyphenated
+    // heading word — the canonical `## Non-Goals` negative-scope section —
+    // matches as one token. The captured name is normalized (lower-cased,
+    // `-` folded to `_`) before the HEADING_TO_FIELD lookup, so `Non-Goals`
+    // resolves to the `non_goals` field. Multi-word headings that contain a
+    // space (`## Out of Scope`, `## Agent Prompts`) still do NOT match this
+    // single-token shape — they fall through to the catch-all heading branch
+    // below, which closes the open section. The chosen canonical spelling is
+    // therefore the hyphenated single token `## Non-Goals`.
+    const fieldHeadingMatch = line.match(/^#{2,3}\s+([\w-]+)\s*$/i);
     if (fieldHeadingMatch) {
-      const name = fieldHeadingMatch[1].toLowerCase();
+      const name = fieldHeadingMatch[1].toLowerCase().replace(/-/g, '_');
       if (HEADING_TO_FIELD.has(name)) {
         inPreamble = false;
         currentSection = name;
@@ -363,9 +379,10 @@ function splitSections(markdown) {
       // the preamble (`inPreamble` stays false), so a later recognized
       // heading still registers normally; we only stop appending to the
       // closed section. The heading line and its body are dropped from all
-      // sections. (Multi-word free-form headings like `## Out of Scope` do
-      // not match this single-word shape and are intentionally out of scope
-      // here — widening the regex is a separate decision.)
+      // sections. (Multi-word free-form headings like `## Out of Scope` —
+      // with internal spaces — do not match the `[\w-]+` single-token shape
+      // and reach this branch too. The hyphenated single-token canonical
+      // negative-scope heading is `## Non-Goals`, which IS recognized above.)
       currentSection = null;
       continue;
     }
@@ -434,6 +451,7 @@ function parseLegacyStringBody(input, preamble, footer) {
     acceptance: [],
     verify: [],
     references: [],
+    non_goals: [],
     wide: null,
     reason_to_exist: null,
     depends_on: extractBlockedBy(footer),
@@ -448,6 +466,7 @@ function parseLegacyStringBody(input, preamble, footer) {
       hasAcceptanceSection: false,
       hasVerifySection: false,
       hasReferencesSection: false,
+      hasNonGoalsSection: false,
       isLegacyStringBody: true,
     },
   };
@@ -549,6 +568,7 @@ export function parse(input) {
   const hasAcceptanceSection = sections.has('acceptance');
   const hasVerifySection = sections.has('verify');
   const hasReferencesSection = sections.has('references');
+  const hasNonGoalsSection = sections.has('non_goals');
 
   // If no structured sections found, treat as legacy string body.
   const isLegacyStringBody =
@@ -572,6 +592,7 @@ export function parse(input) {
     sections.get('references') ?? [],
     warnings,
   );
+  const non_goals = parseTextListSection(sections.get('non_goals') ?? []);
   const dependsOn = extractBlockedBy(footer);
 
   // --- Recover wide / estimated_test_files from the meta block ---
@@ -593,6 +614,7 @@ export function parse(input) {
     acceptance,
     verify,
     references,
+    non_goals,
     wide,
     reason_to_exist,
     depends_on: dependsOn,
@@ -608,6 +630,7 @@ export function parse(input) {
       hasAcceptanceSection,
       hasVerifySection,
       hasReferencesSection,
+      hasNonGoalsSection,
       isLegacyStringBody: false,
     },
   };
@@ -652,6 +675,11 @@ function parseStructuredObject(obj) {
     if (entry !== null) references.push(entry);
   }
 
+  // non_goals (advisory negative-scope bullets)
+  const non_goals = Array.isArray(obj.non_goals)
+    ? obj.non_goals.filter((n) => typeof n === 'string' && n.trim().length > 0)
+    : [];
+
   const wide = normalizeWide(obj.wide);
   const reason_to_exist = normalizeReasonToExist(obj.reason_to_exist);
 
@@ -677,6 +705,7 @@ function parseStructuredObject(obj) {
     acceptance,
     verify,
     references,
+    non_goals,
     wide,
     reason_to_exist,
     depends_on,
@@ -692,6 +721,7 @@ function parseStructuredObject(obj) {
       hasAcceptanceSection: 'acceptance' in obj,
       hasVerifySection: 'verify' in obj,
       hasReferencesSection: 'references' in obj,
+      hasNonGoalsSection: 'non_goals' in obj,
       isLegacyStringBody: false,
     },
   };
@@ -716,7 +746,7 @@ function serializePathEntry(entry) {
 /**
  * Descriptor table for the human-readable Story-body sections, in canonical
  * emit order (`## Goal`, `## Changes`, `## Acceptance`, `## Verify`,
- * `## References`). Each descriptor reads one body field and returns the
+ * `## References`, `## Non-Goals`). Each descriptor reads one body field and returns the
  * section's markdown block when the field is present and non-empty, or `null`
  * to omit the section.
  *
@@ -760,6 +790,18 @@ const SERIALIZE_SECTIONS = [
     render: (references) =>
       Array.isArray(references) && references.length > 0
         ? `## References\n${references.map((r) => `- ${serializePathEntry(r)}`).join('\n')}`
+        : null,
+  },
+  {
+    // Advisory negative-scope bullets. Rendered as the hyphenated canonical
+    // `## Non-Goals` heading (the spelling the parser's widened
+    // `[\w-]+` field-heading regex recognizes). Render-when-non-empty: an
+    // empty or absent `non_goals` emits nothing, so every pre-existing body
+    // round-trips byte-identically.
+    field: 'non_goals',
+    render: (nonGoals) =>
+      Array.isArray(nonGoals) && nonGoals.length > 0
+        ? `## Non-Goals\n${nonGoals.map((n) => `- ${n}`).join('\n')}`
         : null,
   },
 ];
@@ -820,8 +862,8 @@ function serializeFooter(body, opts) {
  * format written to GitHub issue bodies.
  *
  * The output matches the section order the spec-renderer uses:
- * `## Goal`, `## Changes`, `## Acceptance`, `## Verify`, `## References`
- * (omitted when empty).
+ * `## Goal`, `## Changes`, `## Acceptance`, `## Verify`, `## References`,
+ * `## Non-Goals` (each omitted when empty).
  *
  * `wide`, `reason_to_exist`, and `estimated_test_files` are emitted as a
  * fenced `<!-- meta -->` comment block so round-trips preserve them without

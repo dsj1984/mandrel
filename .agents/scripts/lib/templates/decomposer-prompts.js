@@ -124,6 +124,10 @@ The serialized \`body\` string renders these markdown sections (in order):
     - {"path": "<read-only dependency path>", "assumption": "exists"}
     - ...
 
+    ## Non-Goals
+    - <a capability or change this Story explicitly does NOT deliver>
+    - ...
+
 #### STORY BODY RULES:
 
 - **goal** (in body string): One sentence stating WHY this story exists within the Epic.
@@ -132,6 +136,7 @@ The serialized \`body\` string renders these markdown sections (in order):
 - **verify** (top-level array on the ticket object): Each entry MUST name a testing tier in parentheses, drawn from \`unit\` / \`contract\` / \`e2e\` / \`validate\`. Example: \`npm run test -- src/x.test.ts (unit)\`, \`npm run validate (validate)\`. Stories with zero verify entries SHOULD fail validation; if a story is genuinely unverifiable in isolation (e.g., a copy edit auditor will eyeball), the literal entry \`manual:<reason>\` is allowed so the absence is intentional, not lazy. Manual entries without a reason are rejected.
 - **reason to exist** (REQUIRED, encoded as the \`reason_to_exist\` field of the \`<!-- meta: {...} -->\` comment appended to the serialized body string — NOT a top-level ticket field): One sentence stating the single coherent reason this Story exists, distinct from its broader \`## Goal\` prose. Every Story MUST carry a non-empty \`reason_to_exist\`; it is the machine-checkable form of the cohesion rule (**one Story = one coherent change with one reason to exist**) and the \`epic-plan-consolidate\` critic flags any Story whose body carries no non-empty reason to exist. Encode it as \`<!-- meta: {"reason_to_exist": "..."} -->\`.
 - **estimated_test_files** (optional, encoded in the \`<!-- meta: {...} -->\` comment appended to the serialized body string — NOT a top-level ticket field): Integer estimate of how many test files this Story creates or modifies. Omit when the number is not estimable. Informational only — it does not gate the decompose.
+- **non_goals** (OPTIONAL, in body string as the \`## Non-Goals\` section): A short list of capabilities or changes this Story explicitly does NOT deliver — an advisory negative-scope bound that fences the executing agent away from adjacent work. It is **advisory and NON-GATING**: the validator does not require, count, or reject on it, and an absent or empty section renders nothing. Use the EXACT single-word hyphenated heading spelling \`## Non-Goals\` (a space-separated heading like \`## Out of Scope\` is NOT recognized by the parser and will be dropped). Reach for it when a Story's negative boundary is non-obvious from its \`acceptance[]\` alone; omit it otherwise.
 
 #### AUTHORING ALTITUDE — BINDING ACCEPTANCE vs ADVISORY CHANGES:
 
