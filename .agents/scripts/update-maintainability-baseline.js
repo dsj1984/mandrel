@@ -8,6 +8,18 @@
  * resolution, envelope assembly, and persistence flows through the unified
  * service.
  *
+ * Story #4293: the CLI no longer injects a bespoke maintainability scorer.
+ * It now lets `refreshBaseline` resolve the canonical default scorer
+ * (`buildDefaultMaintainabilityScorer`) the same way `update-crap-baseline.js`
+ * and `update-coverage-baseline.js` route through their canonical defaults.
+ * The previously-injected `buildMaintainabilityScorer` was a stale copy of the
+ * canonical scorer that never received the `ignoreGlobs` fix on its diff-scope
+ * branch, so an ignored-but-changed file (e.g. one matched by
+ * `config-settings-schema*.js` or a consumer's `seed.mjs`) leaked into `rows`
+ * and dragged `rollup["*"].min` below the maintainability floor. The canonical
+ * default scorer applies the ignore filter on BOTH the full-scope walk and the
+ * diff-scope branch, eliminating the divergence at the source.
+ *
  * Surface:
  *
  *   - `--diff-scope <ref>` (or `--diff-scope=<ref>`): explicitly scope the
@@ -18,13 +30,10 @@
  *     Operators wanting a full rewrite must pass `--full-scope` (added by
  *     Task #2214; see that Task's notes for the cut-over).
  *
- * The scoring step (escomplex / typhonjs maintainability index) is
- * injected as a scorer function via the service's `opts.scorer` seam.
  * Full-scope refreshes (`scope.mode === 'full'`) walk every configured
  * target directory; diff/explicit refreshes score only the files the
- * service hands in. This keeps the manual CLI byte-identical (per
- * AC-3 — see Task #2212's byte-identity test) to whatever code path
- * story-close would have produced for the same scope.
+ * service hands in. Both paths drop `ignoreGlobs`-listed files via the
+ * canonical default scorer.
  */
 
 // Fail-fast if the framework's runtime deps are not installed — must be the
@@ -33,16 +42,10 @@
 import './lib/runtime-deps/ensure-installed.js';
 import path from 'node:path';
 import { parseDiffScopeFlag } from './lib/baselines/diff-scope-cli.js';
-import { filterExcludedRows } from './lib/baselines/kinds/maintainability.js';
 import { refreshBaseline } from './lib/baselines/refresh-service.js';
 import { getBaselineEpsilon } from './lib/config/quality.js';
-import {
-  getBaselines,
-  getQuality,
-  resolveConfig,
-} from './lib/config-resolver.js';
+import { getBaselines, resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
-import { calculateAll, scanDirectory } from './lib/maintainability-utils.js';
 
 /**
  * Parse `--full-scope` (boolean opt-out flag).
@@ -52,60 +55,6 @@ import { calculateAll, scanDirectory } from './lib/maintainability-utils.js';
  */
 function parseFullScopeFlag(argv = []) {
   return argv.includes('--full-scope');
-}
-
-/**
- * Build the per-kind scorer the service will invoke. The scorer receives
- * `(files, { fullScope })`:
- *
- *   - `fullScope === true`: ignore `files`, walk every configured target
- *     directory, score every supported source file, return rows.
- *   - `fullScope === false`: `files` is the resolved (diff or explicit)
- *     scope. Score only those that fall under a configured target
- *     directory; rows outside that set are dropped (the service / writer
- *     preserves their prior-on-disk entries verbatim).
- *
- * The scorer is `cwd`-aware: the service passes its `cwd` through so all
- * path normalisation stays consistent with diff-scope derivation.
- */
-function buildMaintainabilityScorer({ targetDirs, ignoreGlobs = [], logger }) {
-  return async function maintainabilityScorer(files, opts) {
-    const cwd = opts?.cwd ?? process.cwd();
-    let absPaths;
-    if (opts?.fullScope) {
-      absPaths = [];
-      for (const dir of targetDirs) {
-        const abs = path.isAbsolute(dir) ? dir : path.resolve(cwd, dir);
-        logger.info(`[Maintainability] Scanning ${dir}...`);
-        scanDirectory(abs, absPaths, { cwd, ignoreGlobs });
-      }
-    } else {
-      // Files come in as canonical POSIX repo-relative paths from the
-      // service. Resolve to absolute paths for the scorer, but only keep
-      // the ones that fall under a configured target dir — rows outside
-      // those roots are the gate's responsibility, not the baseline's.
-      const targetAbsDirs = targetDirs.map((dir) =>
-        path.isAbsolute(dir) ? dir : path.resolve(cwd, dir),
-      );
-      absPaths = [];
-      for (const rel of files ?? []) {
-        const abs = path.resolve(cwd, rel);
-        const underTarget = targetAbsDirs.some(
-          (root) => abs === root || abs.startsWith(`${root}${path.sep}`),
-        );
-        if (underTarget) absPaths.push(abs);
-      }
-    }
-
-    logger.info(
-      `[Maintainability] Calculating scores for ${absPaths.length} files...`,
-    );
-    const scores = await calculateAll(absPaths);
-    const rows = Object.entries(scores).map(([p, mi]) => ({ path: p, mi }));
-    // Story #2467 / Task #2494: drop files the escomplex kernel can't parse
-    // so they stop landing as `mi: 0` phantom entries in the baseline.
-    return filterExcludedRows(rows);
-  };
 }
 
 async function main() {
@@ -120,9 +69,6 @@ async function main() {
   }
 
   const config = resolveConfig();
-  const miQuality = getQuality(config).maintainability;
-  const targetDirs = miQuality.targetDirs;
-  const ignoreGlobs = miQuality.ignoreGlobs ?? [];
   const baselinePath = getBaselines(config).maintainability.path;
   const absBaselinePath = path.isAbsolute(baselinePath)
     ? baselinePath
@@ -140,21 +86,18 @@ async function main() {
     );
   }
 
-  const scorer = buildMaintainabilityScorer({
-    targetDirs,
-    ignoreGlobs,
-    logger: Logger,
-  });
-
   // Task #2214 (Epic #2173, AC-2): flag-omission now defaults to
   // diff-scope. The pre-migration default was a full regenerate; operators
   // wanting that behaviour must now pass `--full-scope` explicitly. This is
   // a deliberate breaking CLI behaviour change — see docs/CHANGELOG.md.
+  //
+  // Story #4293: no `scorer` is injected — the service resolves the canonical
+  // default maintainability scorer, which applies `ignoreGlobs` on both the
+  // full-scope walk and the diff-scope branch.
   const refreshOpts = {
     kind: 'maintainability',
     writePath: absBaselinePath,
     epsilon,
-    scorer,
   };
   if (fullScope) {
     refreshOpts.fullScope = true;
