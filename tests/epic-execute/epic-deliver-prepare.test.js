@@ -178,6 +178,82 @@ describe('runEpicDeliverPrepare', () => {
     );
   });
 
+  it('surfaces the Epic PRD / Tech-Spec ids from linkedIssues (Story #4253)', async () => {
+    const epic = {
+      id: 110,
+      labels: ['type::epic', 'acceptance::n-a'],
+      linkedIssues: { prd: 911, techSpec: 912 },
+    };
+    const descendants = [
+      {
+        id: 401,
+        number: 401,
+        title: 'Story A',
+        labels: ['type::story'],
+        body: '',
+      },
+    ];
+    const provider = createFakeProvider({ epic, descendants });
+    const out = await runEpicDeliverPrepare({
+      epicId: 110,
+      injectedProvider: provider,
+      injectedConfig: baseConfig,
+    });
+    assert.equal(out.prdId, 911);
+    assert.equal(out.techSpecId, 912);
+  });
+
+  it('falls back to body-parsed PRD / Tech-Spec ids when linkedIssues absent (Story #4253)', async () => {
+    const epic = {
+      id: 111,
+      labels: ['type::epic', 'acceptance::n-a'],
+      body: [
+        '## Planning Artifacts',
+        '',
+        '- [x] PRD: #921',
+        '- [x] Tech Spec: #922',
+      ].join('\n'),
+    };
+    const descendants = [
+      {
+        id: 411,
+        number: 411,
+        title: 'Story B',
+        labels: ['type::story'],
+        body: '',
+      },
+    ];
+    const provider = createFakeProvider({ epic, descendants });
+    const out = await runEpicDeliverPrepare({
+      epicId: 111,
+      injectedProvider: provider,
+      injectedConfig: baseConfig,
+    });
+    assert.equal(out.prdId, 921);
+    assert.equal(out.techSpecId, 922);
+  });
+
+  it('surfaces null PRD / Tech-Spec ids when the Epic links neither (Story #4253)', async () => {
+    const epic = { id: 112, labels: ['type::epic', 'acceptance::n-a'] };
+    const descendants = [
+      {
+        id: 421,
+        number: 421,
+        title: 'Story C',
+        labels: ['type::story'],
+        body: '',
+      },
+    ];
+    const provider = createFakeProvider({ epic, descendants });
+    const out = await runEpicDeliverPrepare({
+      epicId: 112,
+      injectedProvider: provider,
+      injectedConfig: baseConfig,
+    });
+    assert.equal(out.prdId, null);
+    assert.equal(out.techSpecId, null);
+  });
+
   it('throws when the Epic has no child stories', async () => {
     const epic = { id: 102, labels: ['type::epic', 'acceptance::n-a'] };
     const provider = createFakeProvider({ epic, descendants: [] });

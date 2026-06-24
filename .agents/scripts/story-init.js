@@ -88,6 +88,8 @@ export async function runStoryInit({
   dryRun: dryRunParam,
   cwd: cwdParam,
   recutOf: recutOfParam,
+  prdId: prdIdParam,
+  techSpecId: techSpecIdParam,
   injectedProvider,
   injectedConfig,
 } = {}) {
@@ -98,10 +100,17 @@ export async function runStoryInit({
           dryRun: !!dryRunParam,
           cwd: cwdParam ?? null,
           recutOf: recutOfParam ?? null,
+          prdId: prdIdParam ?? null,
+          techSpecId: techSpecIdParam ?? null,
         }
       : parseSprintArgs();
   const { storyId, dryRun } = parsed;
   const recutOf = recutOfParam ?? parsed.recutOf ?? null;
+  // Story #4253: pre-resolved Epic linkages (from the /deliver fan-out's
+  // one-time Epic resolution). When both are present, hierarchy-tracer skips
+  // the per-Story getEpic round-trip; when absent it resolves them itself.
+  const threadedPrdId = prdIdParam ?? parsed.prdId ?? null;
+  const threadedTechSpecId = techSpecIdParam ?? parsed.techSpecId ?? null;
   // Worktree-aware cwd resolution: explicit param > --cwd flag > env > PROJECT_ROOT.
   const cwd = path.resolve(cwdParam ?? parsed.cwd ?? PROJECT_ROOT);
 
@@ -146,11 +155,13 @@ export async function runStoryInit({
     input: { storyId, recutOf, dryRun },
   });
 
-  // Stage 2 — hierarchy.
+  // Stage 2 — hierarchy. When the /deliver fan-out threaded --prd/--tech-spec
+  // (both resolved once by the parent), this short-circuits the per-Story
+  // getEpic. Absent flags fall back to the legacy getEpic resolution.
   const { prdId, techSpecId } = await traceHierarchy({
     provider,
     logger: stageLogger,
-    input: { epicId },
+    input: { epicId, prdId: threadedPrdId, techSpecId: threadedTechSpecId },
   });
 
   progress('CONTEXT', `Epic: #${epicId}, Parent: #${parentId ?? 'none'}`);
