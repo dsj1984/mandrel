@@ -1,6 +1,6 @@
 {
   "name": "mandrel",
-  "version": "1.76.0",
+  "version": "1.77.0",
   "description": "Claude Code-first opinionated workflow framework: instructions, personas, skills, and SDLC workflows that govern AI coding assistants.",
   "files": [
     ".agents/",
