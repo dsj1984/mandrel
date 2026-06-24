@@ -348,3 +348,35 @@ test('AC5: removing a loop unit reaps loops/<name>.md without touching flat comm
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+// ---------------------------------------------------------------------------
+// AC6: loops/README.md is namespace documentation, not a /loops: command
+// ---------------------------------------------------------------------------
+
+test('AC6: workflows/loops/README.md is NOT projected as a /loops: command', () => {
+  const run = runSyncIsolated({
+    payloadFiles: {
+      'loops/converge.md': LOOP_UNIT,
+      'loops/README.md': '# Loops\n\nNamespace docs, not a loop unit.\n',
+    },
+  });
+  try {
+    assert.equal(run.result.status, 0, run.result.stderr);
+    // The real loop unit still projects under the namespace.
+    assert.ok(
+      run.commands['loops/converge.md'],
+      'loop unit must still project under the loops/ namespace',
+    );
+    // The README must NOT project — neither namespaced nor flat.
+    assert.ok(
+      !run.commands['loops/README.md'],
+      'loops/README.md must not project as /loops:README',
+    );
+    assert.ok(
+      !run.commands['README.md'],
+      'loops/README.md must not leak to the flat command root',
+    );
+  } finally {
+    run.cleanup();
+  }
+});

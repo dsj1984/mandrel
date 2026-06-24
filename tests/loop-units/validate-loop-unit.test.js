@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import {
   checkLoopUnits,
   collectLoopUnitFiles,
+  isLoopUnitFile,
 } from '../../.agents/scripts/check-loop-units.js';
 import {
   DEFAULT_SCHEMA_PATH,
@@ -153,6 +154,36 @@ test('checkLoopUnits surfaces an invalid unit with its file path and field', () 
       .map((i) => `${i.path} ${i.message}`)
       .join('\n');
     assert.match(joined, /verify/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('isLoopUnitFile excludes README.md (any case) but accepts other *.md', () => {
+  assert.strictEqual(isLoopUnitFile('README.md'), false);
+  assert.strictEqual(isLoopUnitFile('readme.md'), false);
+  assert.strictEqual(isLoopUnitFile('fix-failing-tests.md'), true);
+  assert.strictEqual(isLoopUnitFile('notes.txt'), false);
+});
+
+test('collectLoopUnitFiles skips the directory README so the gate ignores it', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'loop-units-readme-'));
+  try {
+    // A README with no loop frontmatter must not be treated as a unit.
+    fs.writeFileSync(
+      path.join(tmp, 'README.md'),
+      '# Loops\n\nNamespace docs, not a loop unit.\n',
+      'utf8',
+    );
+    fs.copyFileSync(
+      fixture('valid-self-paced.md'),
+      path.join(tmp, 'fix-failing-tests.md'),
+    );
+    const collected = collectLoopUnitFiles(tmp).map((p) => path.basename(p));
+    assert.deepStrictEqual(collected, ['fix-failing-tests.md']);
+    // And the gate is a clean pass — the README is never validated.
+    const result = checkLoopUnits(tmp);
+    assert.deepStrictEqual(result.failures, []);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

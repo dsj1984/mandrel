@@ -137,6 +137,47 @@ test('runCheck: unknown slash command surfaces a violation when no allowlist hit
   assert.match(v.message, /not-a-real-command/);
 });
 
+test('runCheck: namespaced /loops:<name> resolves to workflows/loops/<name>.md', () => {
+  const root = makeFakeRepo();
+  fs.mkdirSync(path.join(root, '.agents', 'workflows', 'loops'), {
+    recursive: true,
+  });
+  fs.writeFileSync(
+    path.join(root, '.agents', 'workflows', 'loops', 'fix-failing-tests.md'),
+    '# loop\n',
+  );
+  write(
+    root,
+    'docs/intro.md',
+    '# Intro\n\nRun /loops:fix-failing-tests to converge.\n',
+  );
+  const result = runCheck({ repoRoot: root, scanRoots: ['docs', '.agents'] });
+  assert.equal(
+    result.exitCode,
+    0,
+    `unexpected violations: ${JSON.stringify(result.violations)}`,
+  );
+});
+
+test('runCheck: namespaced /loops:<name> with no unit surfaces a violation', () => {
+  const root = makeFakeRepo();
+  write(root, 'docs/intro.md', '# Intro\n\nRun /loops:missing now.\n');
+  const result = runCheck({ repoRoot: root, scanRoots: ['docs', '.agents'] });
+  assert.equal(result.exitCode, 1);
+  const v = result.violations.find((x) => x.kind === 'unknown-command');
+  assert.ok(v);
+  assert.match(v.message, /loops:missing/);
+  assert.match(v.message, /loops\/missing\.md/);
+});
+
+test('extractSlashTokens: captures the namespaced loops:<name> form whole', () => {
+  const tokens = extractSlashTokens(
+    maskCodeRegions('see /loops:watch-ci and /plan\n'),
+  );
+  const names = tokens.map((t) => t.token);
+  assert.deepEqual(names, ['loops:watch-ci', 'plan']);
+});
+
 test('runCheck: tokens inside fenced code blocks are ignored', () => {
   const root = makeFakeRepo();
   write(
