@@ -6,6 +6,7 @@ import {
   computeConflictFindings,
   renderHardConflictError,
 } from '../../../.agents/scripts/lib/orchestration/ticket-validator-conflicts.js';
+import { serialize as serializeStoryBody } from '../../../.agents/scripts/lib/story-body/story-body.js';
 
 /**
  * Cross-Story path-conflict & implicit-dependency findings (Story #2296).
@@ -621,4 +622,166 @@ test('collectStoryProducerPaths: object-form writes + legacy bullets, dropping r
     'src/refactored.ts',
     'src/removed.ts',
   ]);
+});
+
+// ---------------------------------------------------------------------------
+// Canonical serialized STRING body — production shape (Story #4271)
+//
+// The decomposer mandates `body` as a serialized markdown string, but the
+// conflict passes (`indexConsumers`, `indexAssumptionEntries`,
+// `computeMissingBddScaffoldFindings`, the sibling-create scan in
+// `computeRegistryFindings`) historically read `story.body` only when it was
+// already an object — so on the production string shape the
+// `implicit-cross-story-dep`, `fan-out`, and `missing-bdd-scaffold` findings
+// emitted nothing. `computeConflictFindings` now normalizes every body up
+// front, so these fixtures exercise the canonical string shape at parity with
+// the object-body cases above.
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a Story whose `body` is the canonical serialized **string** the
+ * decomposer emits, with the authoritative top-level `acceptance[]` /
+ * `verify[]` inline contract. The structured `changes` / `verify` fields
+ * survive the serialize → parse round-trip the conflict passes run.
+ */
+function makeStringStory(slug, body = {}, extras = {}) {
+  const structured = {
+    goal: `Goal for ${slug}.`,
+    changes: ['src/default.js: edit'],
+    acceptance: ['observable criterion'],
+    verify: ['npm test (unit)'],
+    ...body,
+  };
+  return {
+    type: 'story',
+    slug,
+    title: `Story ${slug}`,
+    acceptance: structured.acceptance,
+    verify: structured.verify,
+    body: serializeStoryBody(structured),
+    ...extras,
+  };
+}
+
+test('string body: emits shared-editor when two string-body Stories write the same path in one wave', () => {
+  const tickets = [
+    makeStringStory('s-a', {
+      changes: [
+        {
+          path: '.github/workflows/quality.yml',
+          assumption: 'refactors-existing',
+        },
+      ],
+    }),
+    makeStringStory('s-b', {
+      changes: [
+        {
+          path: '.github/workflows/quality.yml',
+          assumption: 'refactors-existing',
+        },
+      ],
+    }),
+  ];
+  const result = validateAndNormalizeTickets(tickets);
+  const shared = result.findings.filter((f) => f.kind === 'shared-editor');
+  assert.equal(shared.length, 1);
+  assert.equal(shared[0].path, '.github/workflows/quality.yml');
+  assert.deepEqual(shared[0].storySlugs, ['s-a', 's-b']);
+});
+
+test("string body: emits implicit-cross-story-dep when a string-body consumer verifies another Story's declared path", () => {
+  const tickets = [
+    makeStringStory('s-producer', {
+      changes: [
+        {
+          path: '.agents/schemas/baselines/coverage.schema.json',
+          assumption: 'creates',
+        },
+      ],
+    }),
+    makeStringStory('s-consumer', {
+      changes: [{ path: 'src/consumer.js', assumption: 'creates' }],
+      verify: [
+        'ajv validate -s .agents/schemas/baselines/coverage.schema.json (contract)',
+      ],
+    }),
+  ];
+  const result = validateAndNormalizeTickets(tickets);
+  const implicit = result.findings.filter(
+    (f) => f.kind === 'implicit-cross-story-dep',
+  );
+  assert.equal(implicit.length, 1);
+  assert.equal(
+    implicit[0].path,
+    '.agents/schemas/baselines/coverage.schema.json',
+  );
+  assert.equal(implicit[0].producer.storySlug, 's-producer');
+  assert.equal(implicit[0].consumer.storySlug, 's-consumer');
+  assert.equal(implicit[0].consumer.sourceField, 'verify');
+});
+
+test('string body: emits missing-bdd-scaffold when a string-body Story verifies a same-wave .feature creator', () => {
+  const tickets = [
+    makeStringStory('s-scaffold', {
+      changes: [
+        {
+          path: 'tests/features/billing/invoice.feature',
+          assumption: 'creates',
+        },
+      ],
+    }),
+    makeStringStory('s-impl', {
+      changes: [{ path: 'src/billing.js', assumption: 'creates' }],
+      verify: ['npx bddgen tests/features/billing/invoice.feature (e2e)'],
+    }),
+  ];
+  const result = validateAndNormalizeTickets(tickets);
+  const bdd = result.findings.filter((f) => f.kind === 'missing-bdd-scaffold');
+  assert.equal(bdd.length, 1);
+  assert.equal(bdd[0].path, 'tests/features/billing/invoice.feature');
+  assert.equal(bdd[0].producer.storySlug, 's-scaffold');
+  assert.equal(bdd[0].consumer.storySlug, 's-impl');
+});
+
+test('string body: fan-out finding fires on a string-body deletes entry', () => {
+  const del = makeStringStory('s-del', {
+    changes: [{ path: 'src/legacy/old.js', assumption: 'deletes' }],
+  });
+  const findings = computeConflictFindings({
+    stories: [del],
+    policy: { largeFanOutThreshold: 2, fanOutCounter: () => 5 },
+  });
+  const fanOut = findings.filter((f) => f.kind === 'fan-out-warning');
+  assert.equal(fanOut.length, 1);
+  assert.equal(fanOut[0].path, 'src/legacy/old.js');
+  assert.equal(fanOut[0].callSiteCount, 5);
+  assert.equal(fanOut[0].storySlug, 's-del');
+});
+
+test('string body: a depends_on chain still serialises string-body writers (no shared-editor)', () => {
+  const tickets = [
+    makeStringStory('s-a', {
+      changes: [
+        {
+          path: '.github/workflows/quality.yml',
+          assumption: 'refactors-existing',
+        },
+      ],
+    }),
+    makeStringStory(
+      's-b',
+      {
+        changes: [
+          {
+            path: '.github/workflows/quality.yml',
+            assumption: 'refactors-existing',
+          },
+        ],
+      },
+      { depends_on: ['s-a'] },
+    ),
+  ];
+  const result = validateAndNormalizeTickets(tickets);
+  const shared = result.findings.filter((f) => f.kind === 'shared-editor');
+  assert.deepEqual(shared, []);
 });

@@ -30,6 +30,62 @@
  *     decomposer prompt and authoring SKILL.
  */
 
+import { parse as parseStoryBody } from '../story-body/story-body.js';
+
+/**
+ * Normalize a Story's `body` to the structured object the sizing layers
+ * score, mirroring `validateAcFreshness` / `collectStoryAssumptionEntries`
+ * (Story #3302) and `resolveStructuredBody` in `task-body-validator.js`.
+ *
+ * The decomposer emits `body` as the canonical serialized **string**
+ * (`decomposer-prompts.js`), but the sizing layers historically read
+ * `story.body` only when it was already an object — so on the production
+ * string shape `changes` / `wide` fell through to empty and the `hardFiles`
+ * / unanchored-constant backstops emitted nothing. A defensive parse here
+ * restores parity:
+ *   - **string body** → parsed via `parseStoryBody`; an unparseable string
+ *     yields `null` (the gate degrades to "no structured signal", never
+ *     throws mid-validation).
+ *   - **object body** → returned verbatim (a caller may pass the
+ *     pre-serialize shape directly; `parse` round-trips it).
+ *   - **null / other** → `null`.
+ *
+ * @param {object} story
+ * @returns {object|null}
+ */
+function resolveStoryBody(story) {
+  const body = story?.body;
+  if (typeof body === 'string') {
+    if (body.trim().length === 0) return null;
+    try {
+      return parseStoryBody(body).body;
+    } catch {
+      return null;
+    }
+  }
+  if (body !== null && typeof body === 'object') return body;
+  return null;
+}
+
+/**
+ * Resolve the acceptance-criteria array for a Story, preferring the
+ * authoritative top-level `story.acceptance` (the binding contract the
+ * validator already requires every Story to carry inline) over the
+ * structured body's `acceptance`. Reading the top-level array makes the
+ * acceptance ceiling correct regardless of body shape — a string body whose
+ * structured `acceptance` is only reachable after a parse, or an object body
+ * (Story #4271). Falls back to `resolveStoryBody(story).acceptance` only when
+ * the top-level array is absent.
+ *
+ * @param {object} story
+ * @returns {unknown[]}
+ */
+function resolveAcceptance(story) {
+  if (Array.isArray(story?.acceptance)) return story.acceptance;
+  const body = resolveStoryBody(story);
+  return Array.isArray(body?.acceptance) ? body.acceptance : [];
+}
+
 export const DEFAULT_TASK_SIZING = Object.freeze({
   // Typical-Story warning thresholds (soft — emit advisory findings).
   // Story #4162 raised `softFiles` 8 → 15: a capability-sized Story routinely
@@ -143,8 +199,11 @@ function makeUnanchoredConstant(slug, criterion) {
  */
 function computeUnanchoredConstantFindings(story) {
   const out = [];
-  const body = story.body && typeof story.body === 'object' ? story.body : null;
-  const acceptance = Array.isArray(body?.acceptance) ? body.acceptance : [];
+  // Read the authoritative top-level `story.acceptance` (the binding
+  // contract), falling back to the structured body's acceptance only when the
+  // top-level array is absent. This is correct regardless of body shape —
+  // string or object (Story #4271).
+  const acceptance = resolveAcceptance(story);
   for (const item of acceptance) {
     const criterion = String(item ?? '');
     if (CONCRETE_VALUE_RE.test(criterion)) continue;
@@ -253,8 +312,12 @@ function isDeclaredWide(wide) {
  */
 function computeStorySizingFindings(story, sizing) {
   const out = [];
-  const body = story.body && typeof story.body === 'object' ? story.body : null;
-  const acceptance = Array.isArray(body?.acceptance) ? body.acceptance : [];
+  // Story #4271: normalize the body so the canonical serialized **string**
+  // shape the decomposer emits is scored at parity with the pre-serialize
+  // object shape. The acceptance ceiling reads the authoritative top-level
+  // `story.acceptance` (the binding contract), not `body.acceptance`.
+  const body = resolveStoryBody(story);
+  const acceptance = resolveAcceptance(story);
   const changes = Array.isArray(body?.changes) ? body.changes : [];
   const declaredWide = isDeclaredWide(body?.wide ?? null);
 
