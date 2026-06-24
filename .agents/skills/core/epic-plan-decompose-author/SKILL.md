@@ -266,10 +266,11 @@ Declaring `wide` with a non-empty reason **lifts the `hardFiles` rejection** —
 
 #### BINDING ACCEPTANCE vs ADVISORY CHANGES (authoring altitude)
 
-`acceptance[]` and `verify[]` are the **binding contract** the executor MUST satisfy — they are the sole definition of "done." `changes[]` and `references[]` are an **advisory implementation sketch**: your best prediction of the file footprint, which the executor is permitted to revise when the real codebase diverges from the sketch. Author at that altitude:
+The canonical altitude + New-File Contract wording is single-sourced in `AUTHORING_ALTITUDE_GUIDANCE` in `ticket-validator-sizing.js` (Story #4272); the rendered decomposer prompt interpolates the same strings, so do not restate a divergent version here. The three canonical statements:
 
-- Write `acceptance[]`/`verify[]` to capture the **outcome**, independent of any one file layout. Do NOT pin an incidental implementation detail (an internal helper name, a private file path) into an acceptance item that the advisory `changes[]` is free to reshape — assert the observable behaviour instead.
-- Keep `changes[]`/`references[]` as the honest predicted footprint. They still pass through the structural file-assumption gate (the `creates`/`refactors-existing`/`deletes` probes against the base branch) and the New-File Contract unchanged — advisory does NOT mean unvalidated. The executor's latitude to revise the approach never licenses skipping `acceptance[]`/`verify[]` or any `rules/security-baseline.md` MUST.
+- **Binding contract vs advisory sketch.** `acceptance[]` and `verify[]` are the Story's **binding contract** — the executor MUST satisfy them exactly, and they are the only definition of "done." `changes[]` and `references[]` are an **advisory implementation sketch**: your best prediction of the file footprint, which the executor MAY revise when the real codebase diverges from the sketch. Author `acceptance[]` / `verify[]` to assert the **outcome** independent of any one file layout — never pin an incidental implementation detail (an internal helper name, a private file path) into an acceptance item that the advisory `changes[]` is free to reshape; assert the observable behaviour instead.
+- **New-File Contract.** Any path named in a Story's `goal`, `acceptance`, or `verify` that does NOT already exist on `main` MUST also appear in that Story's `changes[]` with `assumption: "creates"`; otherwise the freshness validator rejects the decompose — even when the Story is the one authoring the file.
+- **Advisory does not mean unvalidated.** `changes[]` paths still pass the base-branch file-assumption probes (a `creates` against an existing path still fails), the New-File Contract still holds, and the executor's latitude to revise the approach never licenses skipping `acceptance[]` / `verify[]` or relaxing any `rules/security-baseline.md` MUST.
 
 #### NAVIGATE-DON'T-DEEP-LINK (signed-in acceptance scenarios)
 

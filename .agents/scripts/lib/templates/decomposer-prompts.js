@@ -1,5 +1,6 @@
 import { LIMITS_DEFAULTS } from '../config/limits.js';
 import {
+  AUTHORING_ALTITUDE_GUIDANCE,
   DEFAULT_TASK_SIZING,
   DELIVERABLE_GRANULARITY_GUIDANCE,
 } from '../orchestration/ticket-validator-sizing.js';
@@ -56,6 +57,15 @@ function render2TierPrompt({ maxTickets, maxTokenBudget }) {
   // cannot drift (Story #3777).
   const { definition: granularityDefinition, singleConsumerRule } =
     DELIVERABLE_GRANULARITY_GUIDANCE;
+  // The binding-vs-advisory authoring altitude + the New-File Contract are
+  // sourced from the single AUTHORING_ALTITUDE_GUIDANCE constant
+  // (ticket-validator-sizing.js) so the prompt and the authoring SKILL cannot
+  // drift (Story #4272).
+  const {
+    altitude: authoringAltitude,
+    advisoryCaveat,
+    newFileContract,
+  } = AUTHORING_ALTITUDE_GUIDANCE;
   return `You are an expert Senior Project Manager and Orchestrator.
 Your job is to take a Product Requirements Document (PRD) and a Technical Specification and decompose them into a flat list of Story tickets for an AI Agent to execute.
 
@@ -122,6 +132,14 @@ The serialized \`body\` string renders these markdown sections (in order):
 - **verify** (top-level array on the ticket object): Each entry MUST name a testing tier in parentheses, drawn from \`unit\` / \`contract\` / \`e2e\` / \`validate\`. Example: \`npm run test -- src/x.test.ts (unit)\`, \`npm run validate (validate)\`. Stories with zero verify entries SHOULD fail validation; if a story is genuinely unverifiable in isolation (e.g., a copy edit auditor will eyeball), the literal entry \`manual:<reason>\` is allowed so the absence is intentional, not lazy. Manual entries without a reason are rejected.
 - **reason to exist** (REQUIRED, encoded as the \`reason_to_exist\` field of the \`<!-- meta: {...} -->\` comment appended to the serialized body string — NOT a top-level ticket field): One sentence stating the single coherent reason this Story exists, distinct from its broader \`## Goal\` prose. Every Story MUST carry a non-empty \`reason_to_exist\`; it is the machine-checkable form of the cohesion rule (**one Story = one coherent change with one reason to exist**) and the \`epic-plan-consolidate\` critic flags any Story whose body carries no non-empty reason to exist. Encode it as \`<!-- meta: {"reason_to_exist": "..."} -->\`.
 - **estimated_test_files** (optional, encoded in the \`<!-- meta: {...} -->\` comment appended to the serialized body string — NOT a top-level ticket field): Integer estimate of how many test files this Story creates or modifies. Omit when the number is not estimable. Informational only — it does not gate the decompose.
+
+#### AUTHORING ALTITUDE — BINDING ACCEPTANCE vs ADVISORY CHANGES:
+
+${authoringAltitude}
+
+${newFileContract}
+
+${advisoryCaveat}
 
 #### STORY SIZING — COHESION FIRST (the numeric ceiling is only a backstop):
 

@@ -22,7 +22,10 @@ import {
   resolveDependencies,
   runDecomposePhase,
 } from '../.agents/scripts/epic-plan-decompose.js';
-import { DELIVERABLE_GRANULARITY_GUIDANCE } from '../.agents/scripts/lib/orchestration/ticket-validator-sizing.js';
+import {
+  AUTHORING_ALTITUDE_GUIDANCE,
+  DELIVERABLE_GRANULARITY_GUIDANCE,
+} from '../.agents/scripts/lib/orchestration/ticket-validator-sizing.js';
 import { renderDecomposerSystemPrompt } from '../.agents/scripts/lib/templates/decomposer-prompts.js';
 
 // 2-tier (Story #4041): a flat Story backlog attached directly to the Epic,
@@ -556,6 +559,79 @@ describe('ticket-decomposer prompt single-sourcing (Story #4162)', () => {
       ),
       'prompt must frame maxTokenBudget as the one-pass delivery envelope',
     );
+  });
+
+  it('renders the binding-vs-advisory authoring altitude in the prompt (Story #4272)', () => {
+    const prompt = renderDecomposerSystemPrompt();
+    // binding acceptance / verify vs advisory changes / references
+    assert.ok(
+      /binding contract/i.test(prompt),
+      'prompt must name acceptance/verify as the binding contract',
+    );
+    assert.ok(
+      /advisory implementation sketch/i.test(prompt),
+      'prompt must frame changes/references as an advisory sketch the executor may revise',
+    );
+    // assert the OUTCOME, never pin an incidental helper/path
+    assert.ok(
+      /assert the \*\*outcome\*\*|capture the \*\*outcome\*\*/i.test(prompt) ||
+        /the \*\*outcome\*\* independent/i.test(prompt),
+      'prompt must instruct authoring acceptance to assert the outcome independent of file layout',
+    );
+    assert.ok(
+      /never pin an incidental implementation detail/i.test(prompt),
+      'prompt must forbid pinning an incidental helper name / private path into acceptance',
+    );
+  });
+
+  it('renders the New-File Contract in the prompt (Story #4272)', () => {
+    const prompt = renderDecomposerSystemPrompt();
+    assert.ok(
+      /New-File Contract/i.test(prompt),
+      'prompt must state the New-File Contract',
+    );
+    assert.ok(
+      /does NOT already exist on .?main.? MUST also appear in .* `changes\[\]` with `assumption: "creates"`/i.test(
+        prompt,
+      ),
+      'prompt must require a not-on-main referenced path to appear in changes[] with assumption creates',
+    );
+  });
+
+  it('retains the "advisory does not mean unvalidated" caveat in the prompt (Story #4272)', () => {
+    const prompt = renderDecomposerSystemPrompt();
+    assert.ok(
+      /Advisory does not mean unvalidated/i.test(prompt),
+      'prompt must keep the advisory-still-validated caveat',
+    );
+    assert.ok(
+      /base-branch file-assumption probes/i.test(prompt) &&
+        /security-baseline\.md/i.test(prompt),
+      'caveat must name the base-branch probes and the inviolable security baseline',
+    );
+  });
+
+  it('single-sources the altitude + New-File wording so the prompt and the SKILL cannot drift (Story #4272)', () => {
+    const prompt = renderDecomposerSystemPrompt();
+    const skill = readFileSync(SKILL_PATH, 'utf8');
+    // The prompt interpolates AUTHORING_ALTITUDE_GUIDANCE verbatim; the SKILL
+    // mirrors the same canonical sentences. Asserting each constant string is
+    // present on BOTH surfaces is the drift gate — a divergent restatement on
+    // either surface fails here.
+    for (const canonical of [
+      AUTHORING_ALTITUDE_GUIDANCE.altitude,
+      AUTHORING_ALTITUDE_GUIDANCE.newFileContract,
+      AUTHORING_ALTITUDE_GUIDANCE.advisoryCaveat,
+    ]) {
+      assert.ok(
+        prompt.includes(canonical),
+        'rendered prompt must interpolate the shared AUTHORING_ALTITUDE_GUIDANCE wording verbatim',
+      );
+      assert.ok(
+        skill.includes(canonical),
+        'SKILL.md must mirror the shared AUTHORING_ALTITUDE_GUIDANCE wording verbatim',
+      );
+    }
   });
 });
 
