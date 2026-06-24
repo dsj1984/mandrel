@@ -16,7 +16,7 @@
  * @see Story #2462 — Split GitHubProvider god class into seven composed gateways.
  */
 
-import { withTransientRetry } from './transient-retry.js';
+import { withTransientRetry } from './errors.js';
 
 /**
  * Detect the "label already exists" signal across the surfaces `gh label

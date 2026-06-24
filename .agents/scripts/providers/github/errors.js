@@ -48,6 +48,40 @@ const TRANSIENT_MESSAGES = [
 
 const PERMISSION_MESSAGES = ['unauthorized', 'forbidden', 'permission'];
 
+// Network/connectivity blips that the gh-CLI path surfaces on `err.stderr`
+// (Go HTTP errors, e.g. `dial tcp ...: i/o timeout`) and the direct `fetch`
+// path surfaces as `TypeError: fetch failed` with the real reason on
+// `err.cause` (e.g. `ETIMEDOUT`, `ENOTFOUND`). Folded in from the former
+// `transient-retry.js` predicate (Story #4298) so the single canonical
+// classifier retries the **union** of transient HTTP statuses/codes AND
+// transient network errors. The `\b50[234]\b` alternative also catches a
+// bare 502/503/504 surfaced only in an error message string (no `.status`).
+const TRANSIENT_NETWORK_RE =
+  /i\/o timeout|dial tcp|TLS handshake timeout|connection reset|connection refused|temporary failure|could not resolve host|no such host|network is unreachable|socket hang up|fetch failed|ConnectTimeoutError|UND_ERR_CONNECT_TIMEOUT|ETIMEDOUT|ECONNRESET|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|\b50[234]\b/i;
+
+/**
+ * True when an error looks like a retryable network/connectivity blip.
+ * Scans the union of fields both transport paths populate (`stderr`,
+ * `message`, `code`, and the nested `cause.message` / `cause.code` the
+ * `fetch` path uses). Module-private — folded in from the former
+ * `transient-retry.js` predicate (Story #4298) and consumed only by
+ * `classifyGithubError` below; its behavior is exercised through that public
+ * classifier rather than as a standalone export (keeps the dead-export gate
+ * green — nothing outside this module imports it).
+ */
+function isTransientNetworkError(err) {
+  const hay = [
+    err?.stderr,
+    err?.message,
+    err?.code,
+    err?.cause?.message,
+    err?.cause?.code,
+  ]
+    .filter(Boolean)
+    .join(' ');
+  return TRANSIENT_NETWORK_RE.test(hay);
+}
+
 function matchesAny(haystack, needles) {
   for (const n of needles) if (haystack.includes(n)) return true;
   return false;
@@ -97,19 +131,36 @@ export function classifyGithubError(err) {
   if (matchesAny(lower, FEATURE_DISABLED_MESSAGES)) return 'feature-disabled';
   if (isTransientStatus(status)) return 'transient';
   if (isTransientByCodeOrMessage(code, lower)) return 'transient';
+  // Union with the former `transient-retry.js` predicate (Story #4298):
+  // retry on network/connectivity blips the status/code checks above miss
+  // (e.g. a `dial tcp ... i/o timeout` on `err.stderr` from the gh-CLI path,
+  // or `ECONNREFUSED` / `ENETUNREACH`). Checked before the permission rule so
+  // a transient network failure never masquerades as a permanent denial.
+  if (isTransientNetworkError(err)) return 'transient';
   if (isPermissionSignal(status, lower)) return 'permission';
   return 'permanent';
 }
 
 // ---------------------------------------------------------------------------
-// Transient-retry helper (Story #2852)
+// Transient-retry helper (Story #2852; unified in Story #4298)
 // ---------------------------------------------------------------------------
+//
+// The single canonical `withTransientRetry` for the GitHub provider. Story
+// #4298 collapsed the former two divergent same-named implementations (this
+// one + the network-only one in the deleted `transient-retry.js`) into this
+// one primitive. Its default classifier (`classifyGithubError`) is the
+// **union** predicate — it retries on transient HTTP statuses/codes AND on
+// transient network/connectivity errors — so every former consumer of either
+// module keeps (or gains) its prior retry coverage with no shim.
 //
 // Mirrors the addSubIssue retry contract in `sub-issues.js` so read-path
 // callers (paginateRest, getTicket, getNativeSubIssues, …) absorb the same
 // jittered exponential backoff on transient GitHub errors instead of
 // bubbling a one-shot 502/429/ECONNRESET that kills a longer pipeline
-// (e.g. the /deliver Phase E retro).
+// (e.g. the /deliver Phase E retro). The network consumers repointed here
+// (branch-protection, labels, projects-v2-graphql) call with no opts, so
+// they adopt these defaults; their retry *classes* (the network blips) are
+// preserved via the unified classifier above.
 
 export const TRANSIENT_RETRY_DEFAULTS = Object.freeze({
   maxAttempts: 6,

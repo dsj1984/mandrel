@@ -7,7 +7,7 @@
  * `unavailable:true` envelopes. Wave 3 deletes the old submodules.
  */
 import { execSync } from 'node:child_process';
-import { withTransientRetry } from './transient-retry.js';
+import { withTransientRetry } from './errors.js';
 
 // Resolve an owner node id per-scope. Querying `user` and `organization`
 // together in one request makes GitHub return a NOT_FOUND error for whichever
