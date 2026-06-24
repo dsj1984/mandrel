@@ -488,6 +488,14 @@ test('isInstallSkippable: forces install when the completion marker is absent', 
 });
 
 // ---- cloneNodeModules (copy-on-write clone with clean fall-back) ----
+// The cp-driven cases are POSIX-only: on a real Windows host cloneNodeModules
+// short-circuits to the per-worktree fallback BEFORE spawning cp (no reflink
+// equivalent), so the clone/cp assertions are guarded with `{ skip }` on win32
+// and the Windows behavior gets its own dedicated test below. The guard keys
+// off the real `process.platform` because the capability branch in
+// cloneNodeModules does too (ctx.platform is only a logging hint).
+const POSIX_ONLY = { skip: process.platform === 'win32' };
+const WIN_ONLY = { skip: process.platform !== 'win32' };
 
 function cloneCtx({ repoRoot, platform = 'linux', primeFromPath } = {}) {
   return {
@@ -498,65 +506,98 @@ function cloneCtx({ repoRoot, platform = 'linux', primeFromPath } = {}) {
   };
 }
 
-test('cloneNodeModules: invokes cp reflink and reports cloned on success', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cl-'));
-  fs.mkdirSync(path.join(root, 'node_modules'), { recursive: true });
-  const wtPath = path.join(root, '.worktrees', 'story-1');
-  fs.mkdirSync(wtPath, { recursive: true });
-  const calls = [];
-  const out = cloneNodeModules(cloneCtx({ repoRoot: root }), wtPath, {
-    spawnFn: (cmd, args) => {
-      calls.push({ cmd, args });
-      return { status: 0, stderr: '' };
-    },
-    fsLike: fs,
-  });
-  assert.deepEqual(out, { cloned: true });
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].cmd, 'cp');
-  // The CoW flag is host-OS specific: `-c` (clonefile) on darwin,
-  // `--reflink=always` on linux. The capability branch keys off the real
-  // `process.platform`, not the injected ctx.platform.
-  const expectedFlag =
-    process.platform === 'darwin' ? '-c' : '--reflink=always';
-  assert.ok(
-    calls[0].args.includes(expectedFlag),
-    `expected cp args to include ${expectedFlag}, got ${calls[0].args.join(' ')}`,
-  );
-});
+test(
+  'cloneNodeModules: invokes cp reflink and reports cloned on success',
+  POSIX_ONLY,
+  () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cl-'));
+    fs.mkdirSync(path.join(root, 'node_modules'), { recursive: true });
+    const wtPath = path.join(root, '.worktrees', 'story-1');
+    fs.mkdirSync(wtPath, { recursive: true });
+    const calls = [];
+    const out = cloneNodeModules(cloneCtx({ repoRoot: root }), wtPath, {
+      spawnFn: (cmd, args) => {
+        calls.push({ cmd, args });
+        return { status: 0, stderr: '' };
+      },
+      fsLike: fs,
+    });
+    assert.deepEqual(out, { cloned: true });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].cmd, 'cp');
+    // The CoW flag is host-OS specific: `-c` (clonefile) on darwin,
+    // `--reflink=always` on linux. The capability branch keys off the real
+    // `process.platform`, not the injected ctx.platform.
+    const expectedFlag =
+      process.platform === 'darwin' ? '-c' : '--reflink=always';
+    assert.ok(
+      calls[0].args.includes(expectedFlag),
+      `expected cp args to include ${expectedFlag}, got ${calls[0].args.join(' ')}`,
+    );
+  },
+);
 
-test('cloneNodeModules: falls back (no throw) on unsupported-fs / cross-volume cp failure', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cl-'));
-  fs.mkdirSync(path.join(root, 'node_modules'), { recursive: true });
-  const wtPath = path.join(root, '.worktrees', 'story-2');
-  fs.mkdirSync(wtPath, { recursive: true });
-  const out = cloneNodeModules(cloneCtx({ repoRoot: root }), wtPath, {
-    spawnFn: () => ({ status: 1, stderr: 'cp: clone failed (unsupported)' }),
-    fsLike: fs,
-  });
-  assert.deepEqual(out, { cloned: false, reason: 'clone-command-failed' });
-});
+test(
+  'cloneNodeModules: falls back (no throw) on unsupported-fs / cross-volume cp failure',
+  POSIX_ONLY,
+  () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cl-'));
+    fs.mkdirSync(path.join(root, 'node_modules'), { recursive: true });
+    const wtPath = path.join(root, '.worktrees', 'story-2');
+    fs.mkdirSync(wtPath, { recursive: true });
+    const out = cloneNodeModules(cloneCtx({ repoRoot: root }), wtPath, {
+      spawnFn: () => ({ status: 1, stderr: 'cp: clone failed (unsupported)' }),
+      fsLike: fs,
+    });
+    assert.deepEqual(out, { cloned: false, reason: 'clone-command-failed' });
+  },
+);
 
-test('cloneNodeModules: falls back when the donor has no node_modules', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cl-'));
-  const wtPath = path.join(root, '.worktrees', 'story-3');
-  fs.mkdirSync(wtPath, { recursive: true });
-  let spawned = false;
-  const out = cloneNodeModules(cloneCtx({ repoRoot: root }), wtPath, {
-    spawnFn: () => {
-      spawned = true;
-      return { status: 0 };
-    },
-    fsLike: fs,
-  });
-  assert.deepEqual(out, {
-    cloned: false,
-    reason: 'donor-node-modules-missing',
-  });
-  assert.equal(spawned, false, 'cp must not run when the donor is unprimed');
-});
+test(
+  'cloneNodeModules: falls back when the donor has no node_modules',
+  POSIX_ONLY,
+  () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cl-'));
+    const wtPath = path.join(root, '.worktrees', 'story-3');
+    fs.mkdirSync(wtPath, { recursive: true });
+    let spawned = false;
+    const out = cloneNodeModules(cloneCtx({ repoRoot: root }), wtPath, {
+      spawnFn: () => {
+        spawned = true;
+        return { status: 0 };
+      },
+      fsLike: fs,
+    });
+    assert.deepEqual(out, {
+      cloned: false,
+      reason: 'donor-node-modules-missing',
+    });
+    assert.equal(spawned, false, 'cp must not run when the donor is unprimed');
+  },
+);
 
-test('applyNodeModulesStrategy: clone is wired through (no throw on linux donor)', () => {
+test(
+  'cloneNodeModules: Windows short-circuits to per-worktree fallback without spawning cp',
+  WIN_ONLY,
+  () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cl-'));
+    fs.mkdirSync(path.join(root, 'node_modules'), { recursive: true });
+    const wtPath = path.join(root, '.worktrees', 'story-w');
+    fs.mkdirSync(wtPath, { recursive: true });
+    let spawned = false;
+    const out = cloneNodeModules(cloneCtx({ repoRoot: root }), wtPath, {
+      spawnFn: () => {
+        spawned = true;
+        return { status: 0 };
+      },
+      fsLike: fs,
+    });
+    assert.deepEqual(out, { cloned: false, reason: 'windows-unsupported' });
+    assert.equal(spawned, false, 'cp must not run on Windows');
+  },
+);
+
+test('applyNodeModulesStrategy: clone is wired through (no throw regardless of host)', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cl-'));
   // No donor node_modules → clone falls back cleanly without throwing.
   assert.doesNotThrow(() =>
