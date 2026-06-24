@@ -445,6 +445,40 @@ g
     assert.deepEqual(body.verify, ['npm test (unit)']);
   });
 
+  it('stops a structured section at an unrecognized heading (extended content does not bleed in)', () => {
+    // Story #4270: producers (audit-to-stories) append non-canonical
+    // `## Agent Prompts` / `## Context` blocks after the canonical sections.
+    // Those headings — single- or multi-word — must terminate the prior
+    // section so their lines are not absorbed into verify[] / acceptance[].
+    const md = `## Goal
+g
+
+## Acceptance
+- [ ] observable outcome
+
+## Verify
+- npm run lint (validate)
+- npm test (unit)
+
+## Agent Prompts
+
+**Some finding**
+
+\`\`\`
+do the thing
+\`\`\`
+
+## Context
+
+linked report`;
+    const { body } = parse(md);
+    assert.deepEqual(body.verify, [
+      'npm run lint (validate)',
+      'npm test (unit)',
+    ]);
+    assert.deepEqual(body.acceptance, ['observable outcome']);
+  });
+
   it('parses a mix of object-form and legacy-string change entries', () => {
     const md = `## Goal
 g
