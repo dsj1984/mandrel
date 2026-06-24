@@ -128,6 +128,39 @@ export const DELIVERABLE_GRANULARITY_GUIDANCE = Object.freeze({
 });
 
 /**
+ * `AUTHORING_ALTITUDE_GUIDANCE` is the **single source of truth** for the
+ * binding-vs-advisory authoring altitude (Epic #4131 F8) and the New-File
+ * Contract (Story #4272). It is stated ONCE here and consumed by BOTH the
+ * decomposer prompt template
+ * (`.agents/scripts/lib/templates/decomposer-prompts.js`, which interpolates
+ * the strings verbatim into the rendered system prompt) AND the authoring
+ * SKILL (`.agents/skills/core/epic-plan-decompose-author/SKILL.md`, whose
+ * prose mirrors these sentences). The SKILL cannot import JS, so the
+ * `ticket-decomposer` prompt test asserts the canonical phrasing on both
+ * surfaces — a divergent restatement fails that gate. This reuses the #3777
+ * single-source mechanism (one constant, two surfaces, drift-gated by tests).
+ *
+ * The altitude: `acceptance[]` / `verify[]` are the **binding contract** (the
+ * sole definition of "done"); `changes[]` / `references[]` are an **advisory
+ * implementation sketch** the executor MAY revise. Author acceptance to assert
+ * the **outcome** independent of file layout — never pin an incidental helper
+ * name or private path into an acceptance item. The advisory sketch is still
+ * validated (base-branch probes, New-File Contract) and never licenses
+ * skipping `acceptance[]` / `verify[]` or any `rules/security-baseline.md` MUST.
+ */
+export const AUTHORING_ALTITUDE_GUIDANCE = Object.freeze({
+  // The binding-vs-advisory altitude statement.
+  altitude:
+    '**Binding contract vs advisory sketch.** `acceptance[]` and `verify[]` are the Story\'s **binding contract** — the executor MUST satisfy them exactly, and they are the only definition of "done." `changes[]` and `references[]` are an **advisory implementation sketch**: your best prediction of the file footprint, which the executor MAY revise when the real codebase diverges from the sketch. Author `acceptance[]` / `verify[]` to assert the **outcome** independent of any one file layout — never pin an incidental implementation detail (an internal helper name, a private file path) into an acceptance item that the advisory `changes[]` is free to reshape; assert the observable behaviour instead.',
+  // The advisory-does-not-mean-unvalidated caveat.
+  advisoryCaveat:
+    "**Advisory does not mean unvalidated.** `changes[]` paths still pass the base-branch file-assumption probes (a `creates` against an existing path still fails), the New-File Contract still holds, and the executor's latitude to revise the approach never licenses skipping `acceptance[]` / `verify[]` or relaxing any `rules/security-baseline.md` MUST.",
+  // The New-File Contract.
+  newFileContract:
+    '**New-File Contract.** Any path named in a Story\'s `goal`, `acceptance`, or `verify` that does NOT already exist on `main` MUST also appear in that Story\'s `changes[]` with `assumption: "creates"`; otherwise the freshness validator rejects the decompose — even when the Story is the one authoring the file.',
+});
+
+/**
  * Configuration-constant phrase patterns the `unanchored-constant` heuristic
  * scans Story acceptance criteria for. Each entry matches the *kind* of
  * tunable an implementing agent would otherwise have to context-hop to the
