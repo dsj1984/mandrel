@@ -984,3 +984,173 @@ describe('runSingleStoryClose story-closing notify dispatch', () => {
     assert.equal(result.autoMergeEnabled, true);
   });
 });
+
+describe('runSingleStoryClose — lease release on recoverable-blocked exits (Story #4257)', () => {
+  /**
+   * A review halt with ≥1 critical blocker throws from `openAndReviewPr`
+   * before the clean-close lease release. The lease must be released
+   * best-effort BEFORE the throw propagates, and the original throw must
+   * still surface (per `rules/orchestration-error-handling.md`).
+   */
+  it('releases the lease then re-throws on a review-critical halt', async (t) => {
+    const gh = makeFakeGh((args) => {
+      if (args[1] === 'list') return [];
+      if (args[1] === 'create') {
+        return 'https://github.com/owner/repo/pull/4257\n';
+      }
+      throw new Error('gh merge must not run when review halts');
+    });
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+
+    const releaseCalls = [];
+    const { runSingleStoryClose } = await import(`${SUT_URL}?t=lease-review`);
+    await assert.rejects(
+      () =>
+        runSingleStoryClose({
+          storyId: 4257,
+          cwd: '/repo',
+          skipValidation: true,
+          skipSync: true,
+          injectedProvider: makeFakeProvider({
+            initialStory: {
+              id: 4257,
+              state: 'open',
+              title: 'review halt',
+              labels: ['agent::executing'],
+            },
+          }),
+          injectedConfig: fakeConfig(),
+          injectedGh: gh,
+          injectedRunCodeReview: async () => ({
+            status: 'critical',
+            severity: { critical: 2, high: 0, medium: 0, suggestion: 0 },
+            posted: true,
+            postedCommentId: 'c-1',
+            commentTargetId: 4257,
+            halted: true,
+            blockerReason: 'critical blockers',
+          }),
+          injectedReleaseLease: async ({ storyId }) => {
+            releaseCalls.push(storyId);
+            return { released: true, owner: 'alice', reason: 'released' };
+          },
+        }),
+      /Story-scope review reported 2 critical blocker/,
+    );
+
+    assert.deepEqual(
+      releaseCalls,
+      [4257],
+      'lease must be released exactly once on the review-critical exit',
+    );
+  });
+
+  /**
+   * A base-sync conflict throws from `runBaseSyncPhase` before the
+   * clean-close lease release. Same contract: release best-effort, then
+   * re-throw the original base-sync error.
+   */
+  it('releases the lease then re-throws on a base-sync conflict', async (t) => {
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+    const gh = makeFakeGh(() => {
+      throw new Error('gh must not be invoked when base-sync fails');
+    });
+
+    const releaseCalls = [];
+    const { runSingleStoryClose } = await import(`${SUT_URL}?t=lease-sync`);
+    const provider = makeFakeProvider({
+      initialStory: {
+        id: 4258,
+        state: 'open',
+        title: 'sync conflict',
+        labels: ['agent::executing'],
+      },
+    });
+    await assert.rejects(
+      () =>
+        runSingleStoryClose({
+          storyId: 4258,
+          cwd: '/repo',
+          skipValidation: true,
+          // skipSync omitted so the base-sync phase runs and the injected
+          // conflict throws.
+          injectedProvider: provider,
+          injectedConfig: fakeConfig(),
+          injectedGh: gh,
+          injectedSync: async () => ({
+            synced: false,
+            kind: 'conflict',
+            conflictFiles: ['src/x.js'],
+          }),
+          injectedRunCodeReview: noopReview(),
+          injectedReleaseLease: async ({ storyId }) => {
+            releaseCalls.push(storyId);
+            return { released: true, owner: 'alice', reason: 'released' };
+          },
+        }),
+      /Base-sync failed \(conflict\).*src\/x\.js/,
+    );
+
+    assert.deepEqual(
+      releaseCalls,
+      [4258],
+      'lease must be released exactly once on the base-sync conflict exit',
+    );
+  });
+
+  /**
+   * Regression guard: a best-effort release failure on the blocked path
+   * must NOT mask the original throw. The operator-visible error is still
+   * the review-critical message, not the lease-release error.
+   */
+  it('still re-throws the original error when the lease release itself fails', async (t) => {
+    const gh = makeFakeGh((args) => {
+      if (args[1] === 'list') return [];
+      if (args[1] === 'create') {
+        return 'https://github.com/owner/repo/pull/4259\n';
+      }
+      throw new Error('gh merge must not run when review halts');
+    });
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+
+    const { runSingleStoryClose } = await import(`${SUT_URL}?t=lease-fail`);
+    await assert.rejects(
+      () =>
+        runSingleStoryClose({
+          storyId: 4259,
+          cwd: '/repo',
+          skipValidation: true,
+          skipSync: true,
+          injectedProvider: makeFakeProvider({
+            initialStory: {
+              id: 4259,
+              state: 'open',
+              title: 'review halt + lease fail',
+              labels: ['agent::executing'],
+            },
+          }),
+          injectedConfig: fakeConfig(),
+          injectedGh: gh,
+          injectedRunCodeReview: async () => ({
+            status: 'critical',
+            severity: { critical: 1, high: 0, medium: 0, suggestion: 0 },
+            posted: true,
+            postedCommentId: 'c-2',
+            commentTargetId: 4259,
+            halted: true,
+            blockerReason: 'critical blocker',
+          }),
+          injectedReleaseLease: async () => {
+            throw new Error('assignee write failed');
+          },
+        }),
+      /Story-scope review reported 1 critical blocker/,
+    );
+  });
+});
