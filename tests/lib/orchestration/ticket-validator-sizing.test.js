@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { validateAndNormalizeTickets } from '../../../.agents/scripts/lib/orchestration/ticket-validator.js';
+import { serialize as serializeStoryBody } from '../../../.agents/scripts/lib/story-body/story-body.js';
 
 /**
  * Sizing validator fixtures for the collapsed sizing model (Story #3760),
@@ -32,19 +33,24 @@ import { validateAndNormalizeTickets } from '../../../.agents/scripts/lib/orches
  */
 
 function makeStory(slug = 's-sizing', body) {
+  const structured = {
+    goal: `Goal for ${slug}.`,
+    changes: ['src/a.js: edit'],
+    acceptance: ['observable criterion'],
+    verify: ['npm test (unit)'],
+    ...body,
+  };
+  // The decomposer mirrors the structured body's acceptance / verify onto the
+  // authoritative top-level inline contract. Mirror that here so the
+  // acceptance ceiling — which reads the top-level `story.acceptance`
+  // (Story #4271) — sees whatever the fixture's body declares.
   return {
     type: 'story',
     slug,
     title: `Sizing story ${slug}`,
-    acceptance: ['observable criterion'],
-    verify: ['npm test (unit)'],
-    body: {
-      goal: `Goal for ${slug}.`,
-      changes: ['src/a.js: edit'],
-      acceptance: ['observable criterion'],
-      verify: ['npm test (unit)'],
-      ...body,
-    },
+    acceptance: structured.acceptance,
+    verify: structured.verify,
+    body: structured,
   };
 }
 
@@ -371,4 +377,137 @@ test('rejects a Story that lacks an inline acceptance + verify contract', () => 
       ]),
     /lack an inline acceptance \+ verify contract/,
   );
+});
+
+// ---------------------------------------------------------------------------
+// Canonical serialized STRING body — production shape (Story #4271)
+//
+// The decomposer mandates `body` as a serialized markdown string, but the
+// sizing layers historically read `story.body` only when it was already an
+// object — so on the production string shape `hardFiles`, `maxAcceptance`,
+// and the `unanchored-constant` nudge all emitted nothing. These fixtures
+// exercise the canonical string shape at parity with the object-body cases
+// above. The freshness gate already string-aware via parseStoryBody;
+// `computeStorySizingFindings` now mirrors that.
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a Story whose `body` is the canonical serialized **string** the
+ * decomposer emits (via `serialize()`), with the authoritative top-level
+ * `acceptance[]` / `verify[]` inline contract the validator requires. The
+ * structured body fields (`changes` / `wide` / body-level `acceptance`)
+ * survive the serialize → parse round-trip the gate runs internally.
+ */
+function makeStringStory(slug, body = {}) {
+  const structured = {
+    goal: `Goal for ${slug}.`,
+    changes: ['src/a.js: edit'],
+    acceptance: ['observable criterion'],
+    verify: ['npm test (unit)'],
+    ...body,
+  };
+  return {
+    type: 'story',
+    slug,
+    title: `Sizing story ${slug}`,
+    acceptance: structured.acceptance,
+    verify: structured.verify,
+    body: serializeStoryBody(structured),
+  };
+}
+
+function objectChanges(n, verb = 'refactors-existing') {
+  return Array.from({ length: n }, (_, i) => ({
+    path: `src/file${i}.js`,
+    assumption: i === 0 ? 'creates' : verb,
+  }));
+}
+
+test('string body: >hardFiles distinct changes paths trips hard oversized-task on fileCount', () => {
+  const result = validateStory(
+    makeStringStory('t-str-31files', { changes: objectChanges(31) }),
+  );
+  const hard = result.findings.filter(
+    (f) => f.kind === 'oversized-task' && f.field === 'fileCount',
+  );
+  assert.equal(
+    hard.length,
+    1,
+    'expected the file-width hard finding on a string body',
+  );
+  assert.equal(hard[0].observed, 31);
+  assert.equal(hard[0].ceiling, 30);
+  assert.equal(
+    result.errors.filter((e) => e.includes('fileCount ceiling')).length,
+    1,
+  );
+});
+
+test('string body: >maxAcceptance acceptance items trips hard oversized-task on acceptance', () => {
+  const result = validateStory(
+    makeStringStory('t-str-15ac', {
+      acceptance: Array.from({ length: 15 }, (_, i) => `criterion ${i}`),
+    }),
+  );
+  const hard = result.findings.filter(
+    (f) => f.kind === 'oversized-task' && f.field === 'acceptance',
+  );
+  assert.equal(
+    hard.length,
+    1,
+    'expected the acceptance hard finding on a string body',
+  );
+  assert.equal(hard[0].observed, 15);
+  assert.equal(hard[0].ceiling, 14);
+});
+
+test('string body: unanchored-constant fires identically to the object case', () => {
+  const result = validateStory(
+    makeStringStory('t-str-unanch', {
+      acceptance: ['Records older than the retention window are purged'],
+    }),
+  );
+  const nudge = result.findings.filter((f) => f.kind === 'unanchored-constant');
+  assert.equal(nudge.length, 1);
+  assert.equal(nudge[0].ticketSlug, 't-str-unanch');
+});
+
+test('string body: a declared wide reason lifts the hard file ceiling', () => {
+  const result = validateStory(
+    makeStringStory('t-str-31files-wide', {
+      changes: objectChanges(31),
+      wide: { reason: 'hard contract cutover across every call site' },
+    }),
+  );
+  const hard = result.findings.filter((f) => f.severity === 'hard');
+  assert.deepEqual(hard, []);
+  const soft = result.findings.filter(
+    (f) => f.kind === 'soft-task-width' && f.field === 'fileCount',
+  );
+  assert.equal(soft.length, 1);
+  assert.equal(soft[0].observed, 31);
+});
+
+test('acceptance ceiling reads the authoritative top-level story.acceptance, not body.acceptance', () => {
+  // Top-level acceptance carries 15 items (> ceiling 14); the structured
+  // body's acceptance carries only 2. The ceiling MUST read the top-level
+  // binding contract regardless of what the body says.
+  const result = validateStory({
+    type: 'story',
+    slug: 't-toplevel-ac',
+    title: 'Top-level acceptance authority',
+    acceptance: Array.from({ length: 15 }, (_, i) => `top criterion ${i}`),
+    verify: ['npm test (unit)'],
+    body: {
+      goal: 'Goal.',
+      changes: ['src/a.js: edit'],
+      acceptance: ['only two', 'criteria'],
+      verify: ['npm test (unit)'],
+    },
+  });
+  const hard = result.findings.filter(
+    (f) => f.kind === 'oversized-task' && f.field === 'acceptance',
+  );
+  assert.equal(hard.length, 1);
+  assert.equal(hard[0].observed, 15);
 });

@@ -1,5 +1,48 @@
+import { parse as parseStoryBody } from '../story-body/story-body.js';
 import { collectStoryAssumptionEntries } from './file-assumptions.js';
 import { computeStoryReachability } from './story-reachability.js';
+
+/**
+ * Normalize a Story so its `body` is the structured object the conflict
+ * passes scan, mirroring `validateAcFreshness` /
+ * `collectStoryAssumptionEntries` (Story #3302) and the sizing gate's
+ * `resolveStoryBody` (Story #4271).
+ *
+ * The decomposer emits `body` as the canonical serialized **string**, but
+ * the conflict passes (`indexConsumers`, `indexAssumptionEntries`,
+ * `computeMissingBddScaffoldFindings`, the sibling-create scan in
+ * `computeRegistryFindings`, and the legacy-bullet branch of
+ * `collectStoryProducerPaths`) historically read `story.body` only when it
+ * was already an object — so on the production string shape the
+ * `implicit-cross-story-dep`, `fan-out`, registry, and `missing-bdd-scaffold`
+ * findings emitted nothing. Parsing the body once at the entry point and
+ * threading the normalized Story through every pass restores parity.
+ *
+ * `collectStoryAssumptionEntries` already parses string bodies itself, so a
+ * normalized object body round-trips through it unchanged. The returned Story
+ * keeps every other field (notably `slug` and `depends_on`) intact.
+ *
+ *   - **string body** → parsed via `parseStoryBody`; an unparseable string
+ *     yields `body: null` (the passes degrade to "no structured signal",
+ *     never throw mid-validation).
+ *   - **object body** → returned verbatim.
+ *   - **null / other** → `body: null`.
+ *
+ * @param {object} story
+ * @returns {object} A shallow clone of `story` with a structured `body`.
+ */
+function normalizeStoryBody(story) {
+  const body = story?.body;
+  if (typeof body === 'string') {
+    if (body.trim().length === 0) return { ...story, body: null };
+    try {
+      return { ...story, body: parseStoryBody(body).body };
+    } catch {
+      return { ...story, body: null };
+    }
+  }
+  return story;
+}
 
 /**
  * Cross-Story path-conflict & implicit-dependency findings.
@@ -661,7 +704,11 @@ function computeFanOutFindings({
  */
 export function computeConflictFindings({ stories, policy } = {}) {
   const merged = { ...DEFAULT_POLICY, ...(policy ?? {}) };
-  const storyList = stories ?? [];
+  // Story #4271: normalize every Story's body to its structured object form
+  // once, up front, so the canonical serialized **string** shape the
+  // decomposer emits is scanned at parity with the pre-serialize object
+  // shape across every conflict pass.
+  const storyList = (stories ?? []).map(normalizeStoryBody);
   const producers = indexProducers(storyList);
   const consumers = indexConsumers(storyList, producers);
   const reach = computeStoryReachability(storyList);
