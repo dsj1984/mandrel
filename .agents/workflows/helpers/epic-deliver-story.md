@@ -139,11 +139,15 @@ the Story-level rollup the parent `/deliver` aggregator reads).
 Run a single Story-implementation phase against the inline `acceptance[]`
 / `verify[]` arrays on the Story body.
 
-1. Flip the snapshot to the `implementing` phase:
+1. Flip the snapshot to the `implementing` phase. Pass `--epic <epicId>`
+   and `--branch story-<storyId>` from the Step 0 envelope so the render
+   skips the `readEpicIdFromStory` / `resolveStoryBranch` GitHub reads
+   (pass these same flags to **every** `story-phase.js` call below):
 
    ```bash
    node .agents/scripts/story-phase.js \
-     --story <storyId> --phase implementing
+     --story <storyId> --epic <epicId> --branch story-<storyId> \
+     --phase implementing
    ```
 
 2. Read the Story body's inline `acceptance[]` and `verify[]` arrays
@@ -166,11 +170,14 @@ Run a single Story-implementation phase against the inline `acceptance[]`
    evidence** — they are no longer optional advisory pre-flight.
 
 5. Once the eval loop returns `proceed`, flip the snapshot to `closing`
-   and proceed to Step 3:
+   and proceed to Step 3 (Step 3 invokes close directly — it no longer
+   re-renders the `closing` snapshot, so this is the single `closing`
+   render):
 
    ```bash
    node .agents/scripts/story-phase.js \
-     --story <storyId> --phase closing
+     --story <storyId> --epic <epicId> --branch story-<storyId> \
+     --phase closing
    ```
 
 6. If blocked (including by the eval loop reaching its round cap with
@@ -180,7 +187,8 @@ Run a single Story-implementation phase against the inline `acceptance[]`
 
    ```bash
    node .agents/scripts/story-phase.js \
-     --story <storyId> --phase blocked
+     --story <storyId> --epic <epicId> --branch story-<storyId> \
+     --phase blocked
    ```
 
 ### Step 1a — Bounded acceptance self-eval loop (**required, not optional**)
@@ -235,16 +243,18 @@ fine as advisory pre-flight.)
 
 ## Step 3 — Close (`story-close.js`)
 
-Flip the snapshot to the closing phase, then invoke close. Pass the
-main-checkout path via `--cwd` so the merge and branch deletion run
-against the main repo (branches checked out in a worktree cannot be
+Step 1 item 5 already flipped the snapshot to the `closing` phase, so this
+step does **not** re-render it (the duplicate render was removed). Invoke
+close directly. Pass the parent Epic id via `--epic <epicId>` from the
+Step 0 envelope so close skips re-parsing the Epic hierarchy off the
+Story body (which also closes the malformed-`Epic:`-line failure mode).
+Pass the main-checkout path via `--cwd` so the merge and branch deletion
+run against the main repo (branches checked out in a worktree cannot be
 deleted from themselves):
 
 ```bash
-node .agents/scripts/story-phase.js \
-  --story <storyId> --phase closing
-
-node <main-repo>/.agents/scripts/story-close.js --story <storyId> --cwd <main-repo>
+node <main-repo>/.agents/scripts/story-close.js \
+  --story <storyId> --epic <epicId> --cwd <main-repo>
 ```
 
 In single-tree mode, `--cwd` defaults to `PROJECT_ROOT`. The script merges
@@ -261,7 +271,8 @@ After close, upsert a terminal snapshot:
 
 ```bash
 node .agents/scripts/story-phase.js \
-  --story <storyId> --phase done
+  --story <storyId> --epic <epicId> --branch story-<storyId> \
+  --phase done
 ```
 
 ---

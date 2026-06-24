@@ -27,6 +27,12 @@
  *   --story <id>                        Story ID (required).
  *   --phase <init|implementing|closing|blocked|done>
  *                                       Phase the Story is entering (required).
+ *   --epic <id>                         Parent Epic id from the Step 0 envelope.
+ *                                       When supplied, skips the readEpicIdFromStory
+ *                                       GitHub read.
+ *   --branch <name>                     Story branch from the Step 0 envelope.
+ *                                       When supplied, skips the resolveStoryBranch
+ *                                       GitHub read.
  *   --no-heartbeat                      Suppress the lifecycle emit (tests).
  *
  * Stdout: a single JSON envelope
@@ -67,12 +73,17 @@ const VALID_PHASES = new Set([
 
 const HELP = `Usage: node .agents/scripts/story-phase.js \\
   --story <id> --phase <init|implementing|closing|blocked|done> \\
-  [--no-heartbeat]
+  [--epic <id>] [--branch <name>] [--no-heartbeat]
 
 Renders the Story-phase snapshot for Story #<id> at the requested phase
 (returned as renderedBody for chat relay; no comment is posted) and
 (unless --no-heartbeat) appends one story.heartbeat record to the parent
 Epic's lifecycle ledger so the Idle Watchdog can confirm the Story is alive.
+
+--epic / --branch let the caller pass the parent Epic id and Story branch
+from story-init.js's Step 0 envelope, skipping the GitHub reads
+(readEpicIdFromStory / resolveStoryBranch) that would otherwise re-fetch
+these immutable values on every phase call. Omit both for interactive use.
 `;
 
 /**
@@ -216,9 +227,17 @@ function emitHeartbeatBestEffort({
  * End-to-end phase writer. DI-friendly: tests pass `provider`, override
  * the ledger path, and skip the heartbeat as needed.
  *
+ * When `epicId` / `branch` are supplied (the `/deliver` worker passes them
+ * from `story-init.js`'s Step 0 envelope), the corresponding GitHub read is
+ * skipped entirely: `epicId` short-circuits `readEpicIdFromStory` and
+ * `branch` short-circuits `resolveStoryBranch`. Omit both for interactive
+ * use to restore the original GitHub-read resolution.
+ *
  * @param {{
  *   storyId: number,
  *   phase: string,
+ *   epicId?: number|null,
+ *   branch?: string,
  *   noHeartbeat?: boolean,
  *   provider?: object,
  *   config?: object,
@@ -230,6 +249,8 @@ export async function runStoryPhase(args) {
   const {
     storyId,
     phase,
+    epicId: epicIdOverride,
+    branch: branchOverride,
     noHeartbeat = false,
     provider: providerOverride,
     config: configOverride,
@@ -253,8 +274,17 @@ export async function runStoryPhase(args) {
     : (ticketId, payload, opts = {}) =>
         notify(ticketId, payload, { config, provider, ...opts });
 
-  const branch = await resolveStoryBranch({ provider, storyId });
-  const epicId = await readEpicIdFromStory({ provider, storyId });
+  // When the Step 0 envelope supplied the branch / epicId (the /deliver
+  // worker passes them via --branch / --epic), skip the GitHub reads that
+  // would otherwise re-fetch these immutable values on every phase call.
+  const branch =
+    typeof branchOverride === 'string' && branchOverride
+      ? branchOverride
+      : await resolveStoryBranch({ provider, storyId });
+  const epicId =
+    epicIdOverride !== undefined
+      ? epicIdOverride
+      : await readEpicIdFromStory({ provider, storyId });
   const phases = phasesForWorkflowPhase(phase, now);
 
   const { body: renderedBody, payload: snapshot } =
@@ -301,17 +331,29 @@ export function parseArgv(argv) {
     options: {
       story: { type: 'string' },
       phase: { type: 'string' },
+      epic: { type: 'string' },
+      branch: { type: 'string' },
       'no-heartbeat': { type: 'boolean' },
       help: { type: 'boolean' },
     },
     strict: false,
   });
-  return {
+  // `--epic` absent → leave `epicId` undefined so runStoryPhase falls back to
+  // the readEpicIdFromStory GitHub read. `--branch` absent → leave `branch`
+  // undefined so it falls back to resolveStoryBranch.
+  const parsed = {
     help: Boolean(values.help),
     storyId: Number.parseInt(values.story ?? '', 10),
     phase: values.phase,
     noHeartbeat: Boolean(values['no-heartbeat']),
   };
+  if (values.epic !== undefined) {
+    parsed.epicId = Number.parseInt(values.epic, 10);
+  }
+  if (typeof values.branch === 'string' && values.branch) {
+    parsed.branch = values.branch;
+  }
+  return parsed;
 }
 
 export async function main(argv = process.argv.slice(2)) {
