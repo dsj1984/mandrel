@@ -167,10 +167,24 @@ Validates `type::epic`, enumerates `type::story` descendants, parses
 (to enumerate the open Story set), and upserts the `epic-run-state`
 checkpoint in the per-Story-status shape (a flat `stories` map seeded at
 `pending`, plus the global `concurrencyCap`). Treat the printed JSON as
-`state`: `{ epicId, storyCount, concurrencyCap, stories, checkpointInitializedAt }`.
+`state`: `{ epicId, storyCount, concurrencyCap, stories, prdId, techSpecId, checkpointInitializedAt }`.
 `stories` is the flat dispatch hint (`{ storyId, worktree, title }` per open
 Story); the ready-set `tick` (Phase 2) decides which to dispatch on each
 beat. Flip the Epic to `agent::executing` (idempotent) after the CLI returns.
+
+**Epic linkages resolved once (Story #4253).** The envelope also carries
+`prdId` and `techSpecId` — the Epic's linked PRD / Tech-Spec issue ids,
+resolved a **single** time here from the Epic snapshot prepare already
+holds (no extra fetch). Capture both and thread them into **every**
+per-Story `story-init.js` invocation (§ 2b → `epic-deliver-story` Step 0)
+as `--prd <prdId> --tech-spec <techSpecId>`. This collapses the N
+per-Story `getEpic` round-trips (one per child, each in its own process
+with its own provider cache) to this one parent-side resolution — the
+immutable Epic issue is invariant for the lifetime of a delivery run.
+When a linkage is `null` (the Epic links no PRD or Tech Spec), omit the
+corresponding flag; the child's `story-init.js` then falls back to its
+own `getEpic` resolution for the missing id, preserving graceful
+degradation.
 
 > **Preflight guards (Story #3482 / F-workflow-guards).** Before the
 > snapshot phase runs — and before any worktree is created — prepare runs
@@ -334,7 +348,10 @@ matching `story.dispatch.end` record is appended later by
 `epic-execute-record-wave.js` (via `emit-story-dispatch-end.js`, Story #3900)
 after the Agent return is recorded in § 2c.
 
-Each Agent call's prompt must (1) name the Story + Epic ids, (2)
+Each Agent call's prompt must (1) name the Story + Epic ids **and the
+`prdId` / `techSpecId` from the Phase 1 prepare envelope** (Story #4253) so
+the child can thread `--prd <prdId> --tech-spec <techSpecId>` into its
+`story-init.js` Step 0 — omit whichever flag is `null`, (2)
 instruct the child to invoke `helpers/epic-deliver-story <storyId>`
 (whose Step 4 defines the child's return shape), (3) remind the child
 of the **non-interactive contract** (no clarifying questions;

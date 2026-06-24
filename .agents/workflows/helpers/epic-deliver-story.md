@@ -77,8 +77,21 @@ the parent's permissions but have **no input channel** mid-run.
 Run from the **main checkout** (the worktree does not exist yet):
 
 ```bash
-node .agents/scripts/story-init.js --story <storyId>
+node .agents/scripts/story-init.js --story <storyId> \
+  --prd <prdId> --tech-spec <techSpecId>
 ```
+
+**Thread the Epic linkages (Story #4253).** The parent `/deliver` resolved
+the Epic's `prdId` / `techSpecId` **once** in its Phase 1 prepare and passed
+them into your dispatch prompt. Forward them as `--prd` / `--tech-spec` so
+this `story-init.js` run **skips** the per-Story `getEpic` round-trip — the
+two ids are invariant for the whole delivery run, so re-fetching the
+immutable Epic per Story is pure waste (and secondary-rate-limit pressure
+during wide fan-out). **Omit** whichever flag the prompt reported as `null`;
+`story-init.js` then falls back to its own `getEpic` resolution for the
+missing id (graceful degradation on a missing Epic linkage). When dispatched
+interactively with neither flag, drop both — the legacy single-fetch path is
+unchanged.
 
 > **Execution mode (sub-agents must read).** This command typically takes
 > 3–6 minutes when the worktree's per-tree install runs. Invoke it
