@@ -203,6 +203,18 @@ The critic reads the Story's inline `acceptance[]` / `verify[]` arrays from the
 
 Epic-attached specifics for this path:
 
+- **Critic evidence-share** (Story #4250). When the critic runs a `verify[]`
+  command that is byte-identical to a close gate (`lint` / `typecheck`), it
+  records the pass into the Epic-keyed evidence keyspace via `--epic-id
+  <epicId>` so `story-close.js` short-circuits the gate at unchanged HEAD.
+  Run it in the **Story worktree** (`.worktrees/story-<storyId>`):
+
+  ```bash
+  node .agents/scripts/evidence-gate.js \
+    --epic-id <epicId> --scope-id <storyId> --gate lint \
+    --worktree .worktrees/story-<storyId> -- npm run lint
+  ```
+
 - **Gate invocation** (pass `--epic <epicId>` so the per-criterion signal lands
   on the Epic-scoped stream):
 
