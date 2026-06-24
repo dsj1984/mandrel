@@ -258,7 +258,14 @@ function stripAnchorAndQuery(target) {
 //     `temp/epic-[ID]/tickets.json` (preceded by `]`).
 //   - the following char is NOT a word char, `-`, or `.`, so file
 //     extensions like `/tickets.json` and identifier suffixes don't match.
-const SLASH_TOKEN_RE = /(?<![\w/:.>\])])\/([a-z][a-z0-9-]*)(?![\w.-])/g;
+// The optional `(?::[a-z][a-z0-9-]*)?` tail captures the namespaced
+// `/loops:<name>` command form (Story #4289). Without it the matcher would
+// stop at `loops` and try to resolve `.agents/workflows/loops.md`, which does
+// not exist — loop units live under `loops/<name>.md`. The resolver below
+// splits the captured `loops:<name>` token on the `:` to resolve the
+// namespaced path.
+const SLASH_TOKEN_RE =
+  /(?<![\w/:.>\])])\/([a-z][a-z0-9-]*(?::[a-z][a-z0-9-]*)?)(?![\w.-])/g;
 
 export function extractSlashTokens(masked) {
   const out = [];
@@ -334,6 +341,22 @@ export function checkFile(absPath, repoRoot) {
   for (const { token, line } of slashTokens) {
     if (RETIRED_COMMANDS.has(token)) continue;
     if (SLASH_ALLOWLIST.has(token)) continue;
+    // Namespaced loop commands (`/loops:<name>`, Story #4289) resolve to a
+    // loop unit under `.agents/workflows/loops/<name>.md`. Split on the `:`
+    // and resolve the namespaced path rather than a flat `loops:<name>.md`.
+    if (token.includes(':')) {
+      const [ns, name] = token.split(':');
+      const nsFile = path.join(workflowsDir, ns, `${name}.md`);
+      if (!fs.existsSync(nsFile)) {
+        violations.push({
+          file: relFile,
+          line,
+          kind: 'unknown-command',
+          message: `slash command /${token} does not resolve to .agents/workflows/${ns}/${name}.md`,
+        });
+      }
+      continue;
+    }
     const workflowFile = path.join(workflowsDir, `${token}.md`);
     const helperFile = path.join(workflowsDir, 'helpers', `${token}.md`);
     if (!fs.existsSync(workflowFile) && !fs.existsSync(helperFile)) {

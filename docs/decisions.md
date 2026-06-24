@@ -14,6 +14,33 @@
 > answered at the time; cross-cuts that the Mandrel rebrand supersedes
 > are flagged in the entries themselves.
 
+## ADR 20260624-loop-units-division-of-labor: mandrel owns content + oracle + contract; the host owns cadence + iteration
+
+**Date:** 2026-06-24
+**Status:** Accepted
+**Epic:** [#4284](https://github.com/dsj1984/mandrel/issues/4284)
+**Builds on:**
+[ADR 20260512-coupling-stance](#adr-20260512-coupling-stance-two-surface-coupling-stance)
+and
+[ADR 20260512-loop-adoption](#adr-20260512-loop-adoption-adopt-built-in-loop-no-homegrown-surface-to-reconcile).
+
+Loop units (`.agents/workflows/loops/*.md`) ship the **content and contract** of
+recurring work — the action, the goal, the runnable `verify` oracle (required
+for `self-paced`, optional for `interval` / `cron`), and the
+observability/escalation contract (`maxRounds` / `onExhaust` + explicit
+stop-and-escalate conditions). The **host owns cadence and iteration**: the
+built-in `/loop` drives self-paced and interval loops, `/schedule` drives cron
+loops. Mandrel ships **no `/goal` command and no `/loop` runner** — building one
+would duplicate a Claude Code built-in and create a homegrown surface to
+reconcile, which the coupling stance forbids. Read the full ADR before adding a
+runner, scheduler, or definition-of-done command to the framework — the decision
+to **not** build one is deliberate.
+
+> **Full ADR:**
+> [`decisions/loop-units-division-of-labor.md`](decisions/loop-units-division-of-labor.md).
+
+---
+
 ## ADR 20260611-two-tier-hierarchy: Remove the Feature tier (Epic → Story)
 
 **Date:** 2026-06-11
