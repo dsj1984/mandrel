@@ -50,11 +50,18 @@ function applyChangedFileScope({ gate, spawnCwd, log }) {
   log(
     `[close-validation] ↳ ${gate.name} scoped to ${eligibleFiles.length} formatter-eligible changed file(s) from ${gate.changedFileScope.baseRef}...HEAD`,
   );
+  // The extension filter cannot see biome's own config-ignore axis
+  // (`files.includes` allowlist / `files.ignore` / `overrides`). When every
+  // eligible-by-extension path is also config-ignored, the scoped biome
+  // invocation exits 1 with "No files were processed" — a false negative for
+  // the gate (Story #4292). Flag the scoped run so the runner downgrades that
+  // specific exit to a clean skip instead of a formatting failure.
   return {
     gate,
     cmd: gate.cmd,
     args: [...args, ...eligibleFiles],
     skip: false,
+    tolerateNoFilesProcessed: true,
   };
 }
 
@@ -209,6 +216,9 @@ export async function runCloseValidation({
       log,
       signal,
       ...(gate.env ? { env: gate.env } : {}),
+      ...(gate.tolerateNoFilesProcessed
+        ? { tolerateNoFilesProcessed: true }
+        : {}),
     });
     return { status: result?.status ?? 1 };
   };
@@ -255,7 +265,12 @@ export async function runCloseValidation({
     let result;
     try {
       result = await dispatchGate(
-        { ...gate, cmd: execution.cmd, args: execution.args },
+        {
+          ...gate,
+          cmd: execution.cmd,
+          args: execution.args,
+          tolerateNoFilesProcessed: execution.tolerateNoFilesProcessed,
+        },
         ac.signal,
       );
     } catch (err) {
@@ -321,6 +336,7 @@ export async function runCloseValidation({
       ...gate,
       cmd: execution.cmd,
       args: execution.args,
+      tolerateNoFilesProcessed: execution.tolerateNoFilesProcessed,
     });
     if (result.status !== 0) {
       failed.push({ gate, status: result.status, cwd: spawnCwd });

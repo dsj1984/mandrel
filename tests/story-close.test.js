@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -12,6 +12,7 @@ import {
   buildDefaultGates,
   DEFAULT_GATES,
 } from '../.agents/scripts/lib/close-validation/gates.js';
+import { isBiomeNoFilesProcessed } from '../.agents/scripts/lib/close-validation/process.js';
 import { runCloseValidation as runCloseValidationOnly } from '../.agents/scripts/lib/close-validation/runner.js';
 import {
   drainPendingCleanupAfterClose,
@@ -454,6 +455,154 @@ test('runCloseValidation', async (t) => {
         );
       }
     },
+  );
+
+  // ── Story #4292 — biome "No files were processed" false-negative guard ──
+  // The extension filter cannot see biome's own config-ignore axis. When every
+  // eligible-by-extension changed file is also biome-config-ignored, the scoped
+  // biome invocation exits 1 with "No files were processed in the specified
+  // paths" even though `biome format .` over the tree is clean. The chosen fix
+  // (option 2) downgrades that specific exit to a clean pass.
+
+  await t.test(
+    "isBiomeNoFilesProcessed detects biome's zero-files marker and ignores unrelated output",
+    () => {
+      assert.equal(
+        isBiomeNoFilesProcessed(
+          '× No files were processed in the specified paths.\n',
+        ),
+        true,
+      );
+      assert.equal(
+        isBiomeNoFilesProcessed(
+          '[format] No files were processed in the specified paths',
+        ),
+        true,
+      );
+      assert.equal(
+        isBiomeNoFilesProcessed('Formatting drift in data.json'),
+        false,
+      );
+      assert.equal(isBiomeNoFilesProcessed(''), false);
+      assert.equal(isBiomeNoFilesProcessed(undefined), false);
+    },
+  );
+
+  // A stub formatter that mimics the slice of biome behaviour under test: when
+  // every path it is handed is in its config-ignore set, it prints biome's
+  // exact "No files were processed" line and exits 1; when handed a path that
+  // carries a "DRIFT" marker it exits 1 with a drift message; otherwise it
+  // exits 0. Used to exercise the real `defaultGateRunner` end to end.
+  const writeBiomeStub = (repoDir, ignoredFiles) => {
+    const stubPath = path.join(repoDir, 'biome-stub.cjs');
+    writeFileSync(
+      stubPath,
+      [
+        'const fs = require("node:fs");',
+        `const ignored = new Set(${JSON.stringify(ignoredFiles)});`,
+        '// args after the leading "format" token are the scoped file paths.',
+        'const files = process.argv.slice(3);',
+        'const processed = files.filter((f) => !ignored.has(f));',
+        'if (processed.length === 0) {',
+        '  process.stderr.write("× No files were processed in the specified paths.\\n");',
+        '  process.exit(1);',
+        '}',
+        'for (const f of processed) {',
+        '  const body = fs.readFileSync(f, "utf8");',
+        '  if (body.includes("DRIFT")) {',
+        '    process.stderr.write("Formatter would reformat " + f + "\\n");',
+        '    process.exit(1);',
+        '  }',
+        '}',
+        'process.exit(0);',
+      ].join('\n'),
+    );
+    return stubPath;
+  };
+
+  const formatGateOverStub = (stubPath) => {
+    const gate = buildDefaultGates({ epicBranch: 'main' }).find(
+      (g) => g.name === 'format',
+    );
+    // Repoint the gate's command at the stub while keeping the trailing "."
+    // so `applyChangedFileScope` strips it and appends the eligible paths.
+    return { ...gate, cmd: process.execPath, args: [stubPath, 'format', '.'] };
+  };
+
+  await t.test(
+    'format gate passes (not fails) when every eligible changed file is biome-config-ignored (Story #4292)',
+    async () =>
+      withTempGitRepo(async (repoDir) => {
+        runGit(repoDir, ['switch', '-c', 'story-4292']);
+        // Two formatter-eligible-by-extension files, both config-ignored by
+        // the stub — the exact athportal failure shape (root-config-only diff).
+        mkdirSync(path.join(repoDir, 'baselines'), { recursive: true });
+        writeFileSync(path.join(repoDir, '.agentrc.json'), '{ "a": 1 }\n');
+        writeFileSync(
+          path.join(repoDir, 'baselines', 'bundle-size.json'),
+          '{}\n',
+        );
+        runGit(repoDir, ['add', '.agentrc.json', 'baselines/bundle-size.json']);
+        runGit(repoDir, ['commit', '-m', 'chore: root config + baseline']);
+
+        const stub = writeBiomeStub(repoDir, [
+          '.agentrc.json',
+          'baselines/bundle-size.json',
+          // the stub itself + git plumbing never reach the gate, but list
+          // them defensively so any stray path is treated as ignored.
+          'biome-stub.cjs',
+        ]);
+        const gate = formatGateOverStub(stub);
+
+        const result = await runCloseValidationOnly({
+          cwd: repoDir,
+          gates: [gate],
+          // No injected runner → exercises the real defaultGateRunner, which
+          // owns the "No files were processed" downgrade.
+          log: () => {},
+        });
+
+        assert.equal(
+          result.ok,
+          true,
+          'all-config-ignored eligible diff must not fail the format gate',
+        );
+        assert.equal(result.failed.length, 0);
+      }),
+  );
+
+  await t.test(
+    'format gate still FAILS on real drift in a config-included file (Story #4292 — no blanket pass)',
+    async () =>
+      withTempGitRepo(async (repoDir) => {
+        runGit(repoDir, ['switch', '-c', 'story-4292-drift']);
+        // A config-included (.json, NOT in the stub's ignore set) file that
+        // carries the DRIFT marker — the stub exits 1 with a drift message,
+        // and the gate must surface that as a real failure.
+        writeFileSync(
+          path.join(repoDir, 'included.json'),
+          '{ "DRIFT": true }\n',
+        );
+        runGit(repoDir, ['add', 'included.json']);
+        runGit(repoDir, ['commit', '-m', 'feat: included config']);
+
+        const stub = writeBiomeStub(repoDir, ['biome-stub.cjs']);
+        const gate = formatGateOverStub(stub);
+
+        const result = await runCloseValidationOnly({
+          cwd: repoDir,
+          gates: [gate],
+          log: () => {},
+        });
+
+        assert.equal(
+          result.ok,
+          false,
+          'genuine formatting drift in a config-included file must fail the gate',
+        );
+        assert.equal(result.failed.length, 1);
+        assert.equal(result.failed[0].gate.name, 'format');
+      }),
   );
 
   await t.test(
