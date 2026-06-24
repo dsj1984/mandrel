@@ -458,6 +458,87 @@ describe('round-trip: serialize → parse', () => {
   });
 });
 
+describe('non_goals (advisory negative-scope section)', () => {
+  it('round-trips a body WITH non_goals populated through serialize/parse', () => {
+    const body = {
+      goal: 'Add an optional negative-scope section.',
+      changes: [
+        {
+          path: '.agents/scripts/lib/story-body/story-body.js',
+          assumption: 'refactors-existing',
+        },
+      ],
+      acceptance: ['non_goals round-trips'],
+      verify: ['node --test (unit)'],
+      references: [],
+      non_goals: [
+        'Making non_goals validator-gating',
+        'Migrating existing standalone bodies',
+      ],
+      wide: null,
+      reason_to_exist: null,
+      depends_on: [],
+      estimated_test_files: null,
+    };
+    const md = serialize(body);
+    // The hyphenated canonical heading is emitted.
+    assert.match(md, /^## Non-Goals$/m);
+    const { body: reparsed, info } = parse(md);
+    assert.deepEqual(reparsed.non_goals, body.non_goals);
+    assert.equal(info.hasNonGoalsSection, true);
+  });
+
+  it('round-trips a body WITHOUT non_goals (empty) byte-identically', () => {
+    const body = {
+      goal: 'No negative-scope bounds here.',
+      changes: [{ path: 'lib/x.js', assumption: 'creates' }],
+      acceptance: ['it works'],
+      verify: ['node --test (unit)'],
+      references: [],
+      non_goals: [],
+      wide: null,
+      reason_to_exist: null,
+      depends_on: [],
+      estimated_test_files: null,
+    };
+    const md = serialize(body);
+    // An empty non_goals emits no section — the body must be byte-identical
+    // to the same body serialized without the field at all.
+    const { non_goals, ...withoutNonGoals } = body;
+    assert.equal(serialize(withoutNonGoals), md);
+    assert.equal(/## Non-Goals/.test(md), false);
+
+    const { body: reparsed, info } = parse(md);
+    assert.deepEqual(reparsed.non_goals, []);
+    assert.equal(info.hasNonGoalsSection, false);
+  });
+
+  it('parses the canonical ## Non-Goals heading into non_goals[]', () => {
+    const md = `## Goal
+g
+
+## Non-Goals
+- do not touch the validator
+- do not migrate existing bodies`;
+    const { body, info } = parse(md);
+    assert.deepEqual(body.non_goals, [
+      'do not touch the validator',
+      'do not migrate existing bodies',
+    ]);
+    assert.equal(info.hasNonGoalsSection, true);
+  });
+
+  it('does NOT treat a non_goals-only body as legacy (predicate unchanged)', () => {
+    // isLegacyStringBody keys off goal/changes/acceptance/verify only — a body
+    // carrying ONLY a ## Non-Goals section and none of those is still a legacy
+    // string body, proving non_goals was not added to the predicate.
+    const md = `## Non-Goals
+- nothing structured here`;
+    const { info } = parse(md);
+    assert.equal(info.isLegacyStringBody, true);
+  });
+});
+
 describe('parse(): per-section sub-parser behavior', () => {
   it('joins multi-line goal content into a single one-line string', () => {
     const md = `## Goal
