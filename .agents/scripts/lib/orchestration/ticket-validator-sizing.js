@@ -251,6 +251,47 @@ function computeUnanchoredConstantFindings(story) {
 }
 
 /**
+ * Soft, advisory `missing-reason-to-exist` finding (Story #4273). Surfaces a
+ * Story whose body carries no non-empty `reason_to_exist` — the
+ * machine-checkable form of the cohesion rule (**one Story = one coherent
+ * change with one reason to exist**). `reason_to_exist` is marked REQUIRED by
+ * the decomposer prompt and is the field the `epic-plan-consolidate` critic
+ * gates on, but that critic is an honor-system LLM check with no runtime
+ * backstop. This deterministic finding is the cheap backstop.
+ *
+ * Severity is `soft` (not a hard reject) so existing `reason_to_exist`-less
+ * standalone / audit Stories are surfaced as an advisory nudge rather than
+ * blocked — matching the `unanchored-constant` finding's advisory contract.
+ */
+function makeMissingReasonToExist(slug) {
+  return {
+    kind: 'missing-reason-to-exist',
+    severity: 'soft',
+    ticketSlug: slug,
+    message:
+      'Story body carries no non-empty `reason_to_exist`. State the single coherent reason this Story exists in one sentence (the machine-checkable form of "one Story = one coherent change with one reason to exist"), encoded as the `reason_to_exist` field of the body meta comment.',
+  };
+}
+
+/**
+ * Emit a soft `missing-reason-to-exist` finding when the Story body resolves
+ * to no non-empty `reason_to_exist`. The body parser
+ * (`story-body/story-body.js`) already normalizes `reason_to_exist` to a
+ * non-empty trimmed string or `null`, so reading `body.reason_to_exist` after
+ * `resolveStoryBody` is correct regardless of body shape — a serialized
+ * **string** body (the production decomposer shape) or an object body
+ * (Story #4271). A body that fails to parse resolves to `null` and trips the
+ * finding, which is the right advisory signal: the author should re-emit a
+ * parseable body carrying the field. One finding per Story.
+ */
+function computeMissingReasonToExistFinding(story) {
+  const body = resolveStoryBody(story);
+  const reason = body?.reason_to_exist;
+  const hasReason = typeof reason === 'string' && reason.trim().length > 0;
+  return hasReason ? [] : [makeMissingReasonToExist(story.slug)];
+}
+
+/**
  * Returns true when a `changes[]` entry is a glob pattern. Handles both the
  * canonical PathEntry object form `{ path, assumption }` and legacy strings.
  */
@@ -358,6 +399,13 @@ function computeStorySizingFindings(story, sizing) {
   // constant without inlining a concrete value (Story #3855). Independent of
   // the numeric sizing layers below — purely an authoring nudge.
   out.push(...computeUnanchoredConstantFindings(story));
+
+  // Soft, advisory: flag a Story body that carries no non-empty
+  // `reason_to_exist` (Story #4273). The decomposer prompt marks the field
+  // REQUIRED and the consolidate critic gates on it, but that critic has no
+  // runtime backstop — this deterministic finding is the cheap backstop.
+  // Independent of the numeric sizing layers below.
+  out.push(...computeMissingReasonToExistFinding(story));
 
   // Acceptance ceiling + soft warn.
   if (acceptance.length > sizing.maxAcceptance) {
