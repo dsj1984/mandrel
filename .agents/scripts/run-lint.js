@@ -78,6 +78,17 @@ const tasks = [
     cmd: 'node',
     args: ['.agents/scripts/check-arch-cycles.js'],
   },
+  {
+    // Loop-unit frontmatter gate (Story #4288, Epic #4284). Validates
+    // every `.agents/workflows/loops/*.md` loop unit against
+    // `.agents/schemas/loop-unit.schema.json`. An absent/empty loops
+    // directory is a clean pass; a malformed unit (e.g. a self-paced
+    // cadence missing its required `verify`) fails the lint gate with a
+    // message naming the offending file + field.
+    name: 'loop-units',
+    cmd: 'node',
+    args: ['.agents/scripts/check-loop-units.js'],
+  },
 ];
 
 function runTask({ name, cmd, args }) {
