@@ -141,6 +141,42 @@ export function buildCatalog(workflowsDir) {
 }
 
 /**
+ * Build the loop-unit catalog from a workflows directory's `loops/`
+ * namespace. Loop units live at `.agents/workflows/loops/<name>.md` and
+ * project to the namespaced `/loops:<name>` slash command (Story #4289).
+ * They are catalogued separately from the flat top-level commands because
+ * they carry a distinct invocation form.
+ *
+ * Returns an empty array when the `loops/` subdirectory is absent (the
+ * common case before the starter loops land in a later Story) — an absent
+ * namespace is a clean "no loop units", not an error.
+ *
+ * @param {string} workflowsDir — absolute path to `.agents/workflows/`.
+ * @returns {Array<{ name: string, description: string | null, vague: boolean }>}
+ */
+export function buildLoopCatalog(workflowsDir) {
+  const loopsDir = path.join(workflowsDir, 'loops');
+  if (!fs.existsSync(loopsDir)) return [];
+  const entries = fs.readdirSync(loopsDir, { withFileTypes: true });
+  const catalog = [];
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
+    if (!entry.name.endsWith('.md')) continue;
+    if (entry.name === 'README.md') continue;
+    const filePath = path.join(loopsDir, entry.name);
+    const source = fs.readFileSync(filePath, 'utf8');
+    const description = extractDescription(source);
+    catalog.push({
+      name: entry.name.replace(/\.md$/, ''),
+      description,
+      vague: isVagueDescription(description),
+    });
+  }
+  catalog.sort((a, b) => a.name.localeCompare(b.name));
+  return catalog;
+}
+
+/**
  * Render the catalog as a plain-markdown bullet list. Kept as a
  * lightweight alternative rendering of the same catalog backend that
  * `generate-workflows-doc.js` renders into the shipped
