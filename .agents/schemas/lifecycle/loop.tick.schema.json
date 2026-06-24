@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/loop.tick.schema.json",
   "title": "loop.tick",
-  "description": "Emitted once per pass of a host-driven loop (e.g. a /loop-style recurring command or a long-running poll) so each round lands an inspectable ledger record. Surfaces the loop as forward-progress evidence the /deliver idle watchdog already scans — distinct from story.heartbeat, which carries Story-phase info for a single in-flight Story. A loop is not tied to a Story tier: loop.tick carries a free-form loopName, a monotonic round counter, the configured cadence, and a status so a host loop never runs silently. cadence is the loop's configured interval label (e.g. '5m', 'self-paced'); status is the per-round verdict (running while the loop continues, done when it terminates normally, blocked when it stalls).",
+  "description": "Emitted once per pass of a host-driven loop (e.g. a recurring loop command or a long-running poll) so each round lands an inspectable ledger record. Surfaces the loop as forward-progress evidence the /deliver idle watchdog already scans — distinct from story.heartbeat, which carries Story-phase info for a single in-flight Story. A loop is not tied to a Story tier: loop.tick carries a free-form loopName, a monotonic round counter, the configured cadence, and a status so a host loop never runs silently. cadence is the loop's configured interval label (e.g. '5m', 'self-paced'); status is the per-round verdict (running while the loop continues, done when it terminates normally, blocked when it stalls).",
   "type": "object",
   "required": ["event", "loopName", "round", "cadence", "status", "timestamp"],
   "properties": {
