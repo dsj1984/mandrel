@@ -89,6 +89,7 @@ function defaultSleep(ms) {
  *   pollAttempts?: number,
  *   pollDelayMs?: number,
  *   sleepFn?: (ms: number) => Promise<void>,
+ *   config?: object,
  * }} args
  * @returns {Promise<{ status: string, column?: string, reason?: string, attempts?: number }>}
  */
@@ -100,6 +101,7 @@ export async function reassertStatusColumn(args) {
     pollAttempts = DEFAULT_POLL_ATTEMPTS,
     pollDelayMs = DEFAULT_POLL_DELAY_MS,
     sleepFn = defaultSleep,
+    config,
   } = args ?? {};
   if (!provider || typeof provider.getTicket !== 'function') {
     throw new TypeError(
@@ -128,7 +130,7 @@ export async function reassertStatusColumn(args) {
   if (!targetColumn) {
     return { status: 'skipped', reason: 'no-matching-label' };
   }
-  const sync = new ColumnSync({ provider, logger: logger ?? console });
+  const sync = new ColumnSync({ provider, logger: logger ?? console, config });
 
   // First attempt — always fires through ColumnSync.sync so the skip
   // paths (no-project / no-meta / no-option-<col> / not-on-project)

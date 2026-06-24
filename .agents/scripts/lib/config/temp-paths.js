@@ -128,7 +128,7 @@ export function _clearMainCheckoutRootCache() {
  * @param {string} tempRoot
  * @returns {string}
  */
-function anchorTempRoot(tempRoot) {
+export function anchorTempRoot(tempRoot) {
   if (path.isAbsolute(tempRoot)) return tempRoot;
   const root = mainCheckoutRoot();
   return root ? path.join(root, tempRoot) : tempRoot;

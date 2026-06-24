@@ -1,7 +1,36 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import { reassertStatusColumn } from '../../../.agents/scripts/lib/orchestration/reassert-status-column.js';
+
+// Story #4252 — ColumnSync (used internally by reassertStatusColumn) now
+// persists resolved board metadata to an on-disk cache under the resolved
+// `tempRoot`. Sandbox every call in this suite to a fresh per-test tempRoot
+// so cached metadata never bleeds across cases (which reuse the same
+// owner/projectNumber with different board ids) or into the repo's `temp/`.
+let _testTempDir;
+let _testConfig;
+beforeEach(() => {
+  _testTempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'mandrel-reassert-cache-'),
+  );
+  _testConfig = { project: { paths: { tempRoot: _testTempDir } } };
+});
+afterEach(() => {
+  if (_testTempDir) fs.rmSync(_testTempDir, { recursive: true, force: true });
+});
+
+/**
+ * Invoke reassertStatusColumn with the per-test isolated tempRoot config
+ * injected, so the ColumnSync disk cache is sandboxed. Tests pass the same
+ * args they always have; `config` is injected unless overridden explicitly.
+ */
+function callReassert(args) {
+  return reassertStatusColumn({ config: _testConfig, ...args });
+}
 
 /**
  * Provider fake that records every GraphQL call and supports the four
@@ -114,7 +143,7 @@ describe('reassertStatusColumn — basics', () => {
       ticketLabels: { 2813: ['type::story', 'agent::done'] },
       itemIdByTicket: { 2813: 'PVTI_abc' },
     });
-    const result = await reassertStatusColumn({
+    const result = await callReassert({
       provider,
       ticketId: 2813,
       sleepFn: fastSleep,
@@ -129,7 +158,7 @@ describe('reassertStatusColumn — basics', () => {
     const provider = makeProvider({
       ticketLabels: { 99: ['type::story'] },
     });
-    const result = await reassertStatusColumn({
+    const result = await callReassert({
       provider,
       ticketId: 99,
       sleepFn: fastSleep,
@@ -144,7 +173,7 @@ describe('reassertStatusColumn — basics', () => {
       ticketLabels: { 5: ['agent::executing'] },
       itemIdByTicket: {}, // no item registered for #5
     });
-    const result = await reassertStatusColumn({
+    const result = await callReassert({
       provider,
       ticketId: 5,
       sleepFn: fastSleep,
@@ -155,22 +184,22 @@ describe('reassertStatusColumn — basics', () => {
 
   it('rejects bad inputs', async () => {
     await assert.rejects(
-      reassertStatusColumn({ provider: {}, ticketId: 1 }),
+      callReassert({ provider: {}, ticketId: 1 }),
       /provider with getTicket/,
     );
     await assert.rejects(
-      reassertStatusColumn({
+      callReassert({
         provider: { getTicket: () => null },
         ticketId: 1,
       }),
       /provider with graphql/,
     );
     await assert.rejects(
-      reassertStatusColumn({ provider: makeProvider(), ticketId: 0 }),
+      callReassert({ provider: makeProvider(), ticketId: 0 }),
       /positive integer ticketId/,
     );
     await assert.rejects(
-      reassertStatusColumn({
+      callReassert({
         provider: makeProvider(),
         ticketId: 1,
         pollAttempts: 0,
@@ -197,7 +226,7 @@ describe('reassertStatusColumn — poll-and-retry loop (Story #2876)', () => {
         }
       },
     });
-    const result = await reassertStatusColumn({
+    const result = await callReassert({
       provider,
       ticketId: 7,
       sleepFn: fastSleep,
@@ -218,7 +247,7 @@ describe('reassertStatusColumn — poll-and-retry loop (Story #2876)', () => {
         provider.calls.statusByItem[itemId] = 'OPT_inprog';
       },
     });
-    const result = await reassertStatusColumn({
+    const result = await callReassert({
       provider,
       ticketId: 7,
       pollAttempts: 3,
@@ -238,7 +267,7 @@ describe('reassertStatusColumn — poll-and-retry loop (Story #2876)', () => {
         mutationCount += 1;
       },
     });
-    const result = await reassertStatusColumn({
+    const result = await callReassert({
       provider,
       ticketId: 7,
       pollAttempts: 1,
@@ -258,7 +287,7 @@ describe('reassertStatusColumn — poll-and-retry loop (Story #2876)', () => {
       sleeps += 1;
       return Promise.resolve();
     };
-    const result = await reassertStatusColumn({
+    const result = await callReassert({
       provider,
       ticketId: 99,
       sleepFn,
@@ -285,7 +314,7 @@ describe('reassertStatusColumn — poll-and-retry loop (Story #2876)', () => {
       return origGraphql(query, vars);
     };
     const warned = [];
-    const result = await reassertStatusColumn({
+    const result = await callReassert({
       provider: baseProvider,
       ticketId: 7,
       pollAttempts: 3,

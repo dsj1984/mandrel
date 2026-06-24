@@ -179,6 +179,7 @@ async function syncProjectStatusColumn(
   ticketId,
   newState,
   _makeColumnSync,
+  config,
 ) {
   try {
     let sync;
@@ -191,10 +192,15 @@ async function syncProjectStatusColumn(
       // The instance's `_meta` cache survives across label transitions
       // so the invariant project metadata (projectId, fieldId, options)
       // is only fetched once per process run. Story #3661.
+      //
+      // Story #4252 — `config` is threaded so the on-disk board-metadata
+      // cache lands under the project's configured tempRoot. It is read at
+      // construction only; the registry caches the first instance per
+      // provider, so a later transition's config is intentionally ignored.
       if (!_columnSyncRegistry.has(provider)) {
         _columnSyncRegistry.set(
           provider,
-          new ColumnSync({ provider, logger: Logger }),
+          new ColumnSync({ provider, logger: Logger, config }),
         );
       }
       sync = _columnSyncRegistry.get(provider);
@@ -363,6 +369,7 @@ export async function transitionTicketState(
     ticketId,
     newState,
     opts._makeColumnSync,
+    opts.config,
   );
 
   // Automatically trigger upward cascade on every transition (Story
