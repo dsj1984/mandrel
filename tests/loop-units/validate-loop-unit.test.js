@@ -9,6 +9,7 @@ import {
   checkLoopUnits,
   collectLoopUnitFiles,
   isLoopUnitFile,
+  parseArgv,
 } from '../../.agents/scripts/check-loop-units.js';
 import {
   DEFAULT_SCHEMA_PATH,
@@ -187,4 +188,39 @@ test('collectLoopUnitFiles skips the directory README so the gate ignores it', (
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
+});
+
+test('parseArgv defaults to { dir: null, json: false } for empty argv', () => {
+  assert.deepStrictEqual(parseArgv([]), { dir: null, json: false });
+  // Default argument: called with no arguments behaves the same.
+  assert.deepStrictEqual(parseArgv(), { dir: null, json: false });
+});
+
+test('parseArgv reads --dir <value> and sets json with --json', () => {
+  assert.deepStrictEqual(parseArgv(['--dir', '/loops']), {
+    dir: '/loops',
+    json: false,
+  });
+  assert.deepStrictEqual(parseArgv(['--json']), { dir: null, json: true });
+  assert.deepStrictEqual(parseArgv(['--dir', '/loops', '--json']), {
+    dir: '/loops',
+    json: true,
+  });
+});
+
+test('parseArgv ignores a --dir whose value is missing or another flag', () => {
+  // Trailing --dir with no following value: dir stays null (no consume).
+  assert.deepStrictEqual(parseArgv(['--dir']), { dir: null, json: false });
+  // --dir immediately followed by another flag must not swallow the flag.
+  assert.deepStrictEqual(parseArgv(['--dir', '--json']), {
+    dir: null,
+    json: true,
+  });
+});
+
+test('parseArgv ignores unrecognized tokens', () => {
+  assert.deepStrictEqual(parseArgv(['--unknown', 'value', '--json']), {
+    dir: null,
+    json: true,
+  });
 });

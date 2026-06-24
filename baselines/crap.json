@@ -5,9 +5,9 @@
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.000805501108497,
-      "max": 36.013433747201304,
-      "methodsAbove20": 21
+      "p95": 12.00169045830203,
+      "max": 29.10003921033038,
+      "methodsAbove20": 20
     }
   },
   "rows": [
@@ -429,7 +429,7 @@
       "path": ".agents/scripts/check-loop-units.js",
       "method": "parseArgv",
       "startLine": 40,
-      "crap": 36.013433747201304
+      "crap": 6
     },
     {
       "path": ".agents/scripts/check-loop-units.js",
