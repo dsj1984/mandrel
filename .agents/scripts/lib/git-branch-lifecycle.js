@@ -115,6 +115,96 @@ export function classifyBranchSeed({ localHas, remoteHas }) {
 }
 
 /**
+ * Single-home for the story-branch seed-action *switch shell* that
+ * `single-story-init.js#seedStoryBranch` (standalone path) and
+ * `story-init/branch-initializer.js#ensureStoryBranchSeed` (Epic path) had
+ * each re-implemented (Story #4255). Both already delegated the (local,
+ * remote) decision to `classifyBranchSeed`; only the act-on-the-decision
+ * shell (reuse / fetch / create) was duplicated, and that shell was the
+ * drift surface for the seed-decision contract.
+ *
+ * The two callers differ in exactly two behavioural axes, both of which are
+ * parameters here — no other conditional branching is introduced:
+ *   - **`baseRef`** — the ref to branch from on `create` (`main` for the
+ *     standalone path, the Epic branch for the Epic path).
+ *   - **`swallowCreateRace`** — when `true`, a `git branch` that exits
+ *     non-zero with an "already exists" stderr is treated as reuse rather
+ *     than a fatal error (closes the probe→create race the Epic path runs
+ *     under concurrent wave dispatch). When `false`, any create failure
+ *     throws (the standalone path has no concurrent creator to race).
+ *
+ * The asymmetric surrounding wrappers (merged-sweep, fast-forward,
+ * donor-prime, workspace-verify, phase-timer) are deliberately NOT folded
+ * in — they stay in their respective callers.
+ *
+ * Caller-specific log lines and error text are passed in as the `messages`
+ * data bag so behaviour stays byte-identical to the pre-extraction switches.
+ * The git seams (`spawn`, `existsLocally`, `existsRemotely`) are injected so
+ * each caller can bind its own cwd (and tests can mock them).
+ *
+ * @param {object} opts
+ * @param {string} opts.storyBranch
+ * @param {string} opts.baseRef            Ref to branch from on `create`.
+ * @param {boolean} [opts.swallowCreateRace=false]
+ * @param {(args: string[]) => { status: number, stdout?: string, stderr?: string }} opts.spawn
+ * @param {(branch: string) => boolean} opts.existsLocally
+ * @param {(branch: string) => boolean} opts.existsRemotely
+ * @param {(level: string, message: string) => void} [opts.progress]
+ * @param {object} opts.messages
+ * @param {(b: string) => string} opts.messages.reuse
+ * @param {(b: string) => string} opts.messages.fetch
+ * @param {(b: string, ref: string) => string} opts.messages.create
+ * @param {(b: string) => string} [opts.messages.createRace]  Used when `swallowCreateRace`.
+ * @param {(b: string, ref: string, stderr: string) => string} opts.messages.createError
+ * @param {(b: string, stderr: string) => string} [opts.messages.fetchError]
+ *   When provided, a non-zero `fetch` exit throws with this message; when
+ *   omitted, the fetch exit status is not inspected.
+ */
+export function seedStoryBranchRef({
+  storyBranch,
+  baseRef,
+  swallowCreateRace = false,
+  spawn,
+  existsLocally,
+  existsRemotely,
+  progress = () => {},
+  messages,
+}) {
+  const action = classifyBranchSeed({
+    localHas: existsLocally(storyBranch),
+    remoteHas: existsRemotely(storyBranch),
+  });
+
+  if (action === 'local') {
+    progress('GIT', messages.reuse(storyBranch));
+    return;
+  }
+
+  if (action === 'fetch') {
+    progress('GIT', messages.fetch(storyBranch));
+    const r = spawn(['fetch', 'origin', `${storyBranch}:${storyBranch}`]);
+    if (messages.fetchError && r.status !== 0) {
+      throw new Error(
+        messages.fetchError(storyBranch, r.stderr || '(no stderr)'),
+      );
+    }
+    return;
+  }
+
+  // action === 'create'
+  progress('GIT', messages.create(storyBranch, baseRef));
+  const r = spawn(['branch', storyBranch, baseRef]);
+  if (r.status !== 0) {
+    const stderr = r.stderr || r.stdout || '';
+    if (swallowCreateRace && /already exists/i.test(stderr)) {
+      progress('GIT', messages.createRace(storyBranch));
+      return;
+    }
+    throw new Error(messages.createError(storyBranch, baseRef, stderr));
+  }
+}
+
+/**
  * Ensure an Epic branch exists and is published to `origin`. Handles all
  * four states of the (local, remote) matrix.
  *

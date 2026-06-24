@@ -322,8 +322,10 @@ test('runStoryInit dry-run accepts a 2-tier Story with inline acceptance and zer
   assert.deepStrictEqual(out.result.tasks, []);
   // Pipeline still resolved hierarchy correctly.
   assert.strictEqual(out.result.context.parentId, 500);
-  // The task-graph stage was invoked exactly once (no retry).
-  assert.deepStrictEqual(provider.calls.getSubTickets, [712]);
+  // Story #4251 — the inline-acceptance 2-tier shape short-circuits the
+  // task-graph stage BEFORE any child fetch, so `getSubTickets` (the
+  // sub-issues GraphQL + `/search/issues` seam) is never called.
+  assert.deepStrictEqual(provider.calls.getSubTickets, []);
 });
 
 test('runStoryInit rejects an issue that is not a type::story', async () => {
