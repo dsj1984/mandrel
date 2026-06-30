@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.79.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.78.0...mandrel-v1.79.0) (2026-06-30)
+
+
+### Fixed
+
+* **decompose-author:** require namespaced [@epic](https://github.com/epic)-&lt;id&gt;-ac-N tag on wave-0 BDD scaffold scenarios (refs [#4301](https://github.com/dsj1984/mandrel/issues/4301)) ([#4304](https://github.com/dsj1984/mandrel/issues/4304)) ([c97d45e](https://github.com/dsj1984/mandrel/commit/c97d45e806a72a8511995d8f606b5be2ef486315))
+* **reconciler:** single-source the parent/Epic body trailer so force re-decompose retains Epic: #&lt;id&gt; (refs [#4300](https://github.com/dsj1984/mandrel/issues/4300)) ([#4303](https://github.com/dsj1984/mandrel/issues/4303)) ([a8e78a9](https://github.com/dsj1984/mandrel/commit/a8e78a9fd946e6f532a59df9cd37237e0d046b2d))
+
 ## [1.78.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.77.0...mandrel-v1.78.0) (2026-06-24)
 
 
