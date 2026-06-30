@@ -23,6 +23,15 @@ import {
 /**
  * Parse the `Epic: #N` and `parent: #N` references from a Story body.
  *
+ * Story #4300 (defense-in-depth): under the 2-tier hierarchy
+ * (Epic → Story) a Story's `parent: #N` marker always IS the parent
+ * Epic, so when the `Epic: #N` line is missing — e.g. a Story body
+ * refreshed by the reconciler's UPDATE op before Story #4300's
+ * single-sourced footer rendering landed — `epicId` falls back to the
+ * resolved `parentId` rather than reporting `null` and aborting
+ * delivery. A body that carries neither marker still resolves
+ * `epicId: null` (no parent to fall back to).
+ *
  * @param {string} body  Raw Story body Markdown.
  * @returns {{ epicId: number|null, parentId: number|null }}
  */
@@ -30,10 +39,9 @@ export function resolveStoryHierarchy(body) {
   const source = body ?? '';
   const epicMatch = source.match(/(?:^\s*epic:\s*#(\d+))/im);
   const parentMatch = source.match(/(?:^\s*parent:\s*#(\d+))/im);
-  return {
-    epicId: epicMatch ? Number.parseInt(epicMatch[1], 10) : null,
-    parentId: parentMatch ? Number.parseInt(parentMatch[1], 10) : null,
-  };
+  const parentId = parentMatch ? Number.parseInt(parentMatch[1], 10) : null;
+  const epicId = epicMatch ? Number.parseInt(epicMatch[1], 10) : parentId;
+  return { epicId, parentId };
 }
 
 /**

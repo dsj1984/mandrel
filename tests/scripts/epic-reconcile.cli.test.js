@@ -702,8 +702,13 @@ describe('fetchGhState — scoped child enumeration (Story #3455)', () => {
     const storyIssue = 911;
 
     // Compose the canonical orchestrator footer the diff engine expects on
-    // non-epic bodies so the body comparison is a no-op.
-    const storyBody = `A delivered story.\n\n---\nparent: #${epicIssue}`;
+    // non-epic bodies so the body comparison is a no-op. Story #4300:
+    // a directly-attached 2-tier Story has parentId === epicId, and the
+    // canonical footer carries `Epic: #<id>` alongside `parent: #<id>` —
+    // omitting it here previously masked the renderFooter divergence bug
+    // by accident (this fixture's "no-op" assertion only held because the
+    // pre-fix renderer also dropped the Epic: line for this exact shape).
+    const storyBody = `A delivered story.\n\n---\nparent: #${epicIssue}\nEpic: #${epicIssue}`;
 
     const spec = {
       epic: { id: epicId, title: 'Partially Delivered Epic', body: '' },

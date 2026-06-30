@@ -78,6 +78,28 @@ test('resolveContext resolves a directly-attached 2-tier Story body without thro
   assert.strictEqual(out.parentId, 23);
 });
 
+// Story #4300 — a Story body refreshed by the epic-spec-reconciler's
+// UPDATE op (e.g. via `/plan <epicId> --force`) that, pre-fix, dropped the
+// `Epic: #N` line and left only `parent: #N`. resolveContext (via
+// resolveStoryHierarchy's defense-in-depth fallback) must resolve the
+// hierarchy from `parent: #N` rather than throwing
+// `has no "Epic: #N" reference`.
+test('resolveContext falls back to parent: #N when Epic: #N is absent (UPDATE-path body)', async () => {
+  const provider = makeProvider({
+    tickets: {
+      30: {
+        id: 30,
+        labels: ['type::story'],
+        body: 'story description\n\n---\nparent: #23',
+        title: 'S',
+      },
+    },
+  });
+  const out = await resolveContext({ provider, input: { storyId: 30 } });
+  assert.strictEqual(out.epicId, 23);
+  assert.strictEqual(out.parentId, 23);
+});
+
 test('resolveContext rejects self-referential recut', async () => {
   const provider = makeProvider({
     tickets: {

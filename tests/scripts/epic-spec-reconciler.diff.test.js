@@ -715,7 +715,14 @@ describe('reconciler diff — orchestrator footer preservation (Story #2982)', (
     return { spec, state, ghState };
   }
 
-  const canonicalFooter = '\n\n---\nparent: #7000\n\nblocked by #7201';
+  // Story #4300 — the canonical footer for a directly-attached 2-tier
+  // Story (parentId === epicId, both #7000 here) carries `Epic: #7000`
+  // alongside `parent: #7000`. Pre-fix this fixture omitted the `Epic:`
+  // line, which happened to match the buggy renderer's
+  // `epicId !== parentId` gate — that match masked the bug rather than
+  // proving the canonical shape.
+  const canonicalFooter =
+    '\n\n---\nparent: #7000\nEpic: #7000\n\nblocked by #7201';
 
   it('does not flap when GH already carries the canonical footer (description match)', () => {
     const description = 'story description';
@@ -790,6 +797,33 @@ describe('reconciler diff — orchestrator footer preservation (Story #2982)', (
       'an Update should fire to restore the missing footer',
     );
     assert.match(storyUpdate.changes.body.after, /\n---\nparent: #7000\n/);
+  });
+
+  // Story #4300 — force re-decompose (`/plan <epicId> --force`) routes
+  // every Story body refresh through this UPDATE op. Under the 2-tier
+  // hierarchy a Story's `parentSlug` always resolves to the Epic, so
+  // `epicId === parentId` for every directly-attached Story (here both
+  // are #7000, matching `buildInputs`' fixture). Before this fix, the
+  // diff engine's inlined `renderFooter` gated the `Epic: #<id>` line on
+  // `epicId !== parentId` — a stale 3-tier-era condition that is always
+  // false in this shape — so the UPDATE op silently dropped `Epic: #7000`
+  // from the refreshed body and `story-init.js` aborted Step 0 with
+  // "has no 'Epic: #N' reference". The Update op must render the same
+  // `parent: #<id>` + `Epic: #<id>` trailer CREATE renders.
+  it('retains Epic: #<id> on the UPDATE op for a directly-attached 2-tier Story (force re-decompose)', () => {
+    const { spec, state, ghState } = buildInputs({
+      specBody: 'new description',
+      obsBody: 'old description',
+    });
+    const plan = diff({ spec, state, ghState });
+    const storyUpdate = plan.updates.find((op) => op.slug === 'story-cascade');
+    assert.ok(storyUpdate, 'an Update should fire when description changes');
+    assert.match(storyUpdate.changes.body.after, /\n---\nparent: #7000\n/);
+    assert.match(
+      storyUpdate.changes.body.after,
+      /\nEpic: #7000\n/,
+      'the refreshed body must retain the Epic: #<id> trailer line',
+    );
   });
 });
 

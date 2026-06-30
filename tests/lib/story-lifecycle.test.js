@@ -43,6 +43,27 @@ describe('story-lifecycle', () => {
         parentId: 2,
       });
     });
+
+    // Story #4300 (defense-in-depth) — under the 2-tier hierarchy a
+    // Story's `parent: #N` marker always IS the parent Epic, so a body
+    // that carries `parent: #N` but is missing `Epic: #N` (e.g. one
+    // refreshed by a stale UPDATE-op renderer pre-fix) must still
+    // resolve a non-null epicId rather than aborting delivery.
+    it('falls back to parent: #N when Epic: #N is absent', () => {
+      const body = 'Some story description\n\n---\nparent: #42';
+      assert.deepEqual(resolveStoryHierarchy(body), {
+        epicId: 42,
+        parentId: 42,
+      });
+    });
+
+    it('prefers the explicit Epic: #N marker over the parent fallback', () => {
+      const body = 'Some story description\n\n---\nparent: #42\nEpic: #7';
+      assert.deepEqual(resolveStoryHierarchy(body), {
+        epicId: 7,
+        parentId: 42,
+      });
+    });
   });
 
   // Story #4102 — the producer↔consumer contract for the Story-body Epic
@@ -64,14 +85,21 @@ describe('story-lifecycle', () => {
       });
     });
 
-    it('resolves epicId: null for a standalone Story (parent but no Epic)', () => {
+    // Story #4300 — composeStoryBody({ parentId, no epicId }) is a synthetic
+    // input: every production createTicket call site resolves
+    // `epicId = ticketData.epicId || parentId` before calling
+    // composeStoryBody (tickets.js `createTicket`), so a real created Story
+    // body never carries `parent:` without `Epic:`. resolveStoryHierarchy's
+    // defense-in-depth fallback (Story #4300 AC #2) now recovers epicId from
+    // parentId in this shape too, so the round-trip stays non-null.
+    it('falls back to parentId when composeStoryBody omits epicId', () => {
       const body = composeStoryBody({
         body: '# Story body',
         parentId: 23,
         dependencies: [],
       });
       assert.deepEqual(resolveStoryHierarchy(body), {
-        epicId: null,
+        epicId: 23,
         parentId: 23,
       });
     });
