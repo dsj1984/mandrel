@@ -22,9 +22,13 @@ import { applyBudget } from '../../planning-context-budget.js';
 
 export function buildDecomposerSystemPrompt(
   heuristics = [],
-  { maxTickets, maxTokenBudget } = {},
+  { maxTickets, maxTokenBudget, epicId } = {},
 ) {
-  const base = renderDecomposerSystemPrompt({ maxTickets, maxTokenBudget });
+  const base = renderDecomposerSystemPrompt({
+    maxTickets,
+    maxTokenBudget,
+    epicId,
+  });
   const heuristicsStr =
     heuristics.length > 0
       ? `### RISK HEURISTICS (planning metadata if any apply):\n- ${heuristics.join('\n- ')}`
@@ -121,6 +125,7 @@ export async function buildDecompositionContext(
   const systemPrompt = buildDecomposerSystemPrompt(heuristics, {
     maxTickets,
     maxTokenBudget,
+    epicId,
   });
 
   const budgeted = applyBudget(

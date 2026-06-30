@@ -290,13 +290,14 @@ When the Acceptance Spec contains **one or more `Disposition: new` rows**, you M
 - **goal** (in body string): contains the literal token `bdd-scaffold`.
 - **depends_on**: EMPTY (`[]`) — the scaffold runs first, in wave 0.
 - **changes** (in body string): one `{ path, assumption: "creates" }` entry per distinct `.feature` file named in a `new` row.
-- **acceptance** (top-level array): MUST assert (a) every new `.feature` file exists, and (b) every new scenario within them carries an `@skip` tag. Keep items observable (a command exits 0; a file exists at a path).
-- **verify** (top-level array): a grep/validate command (tier `validate`), NOT an e2e runner — verifying that a file exists with a tag needs no browser/playwright run.
+- **acceptance** (top-level array): MUST assert (a) every new `.feature` file exists, (b) every new scenario within them carries an `@skip` tag, AND (c) every new scenario also carries its **namespaced per-Epic AC tag** `@epic-<id>-ac-N` (one tag per AC ID the scenario satisfies). Keep items observable (a command exits 0; a file exists at a path).
+- **The namespaced AC tag is REQUIRED at scaffold time, not only at de-skip time.** Phase 7 finalize's `acceptance-spec-reconciler.js` matches AC IDs only against `@epic-<id>-ac-*` / `@pending` tags under `tests/features/**` — a bare `@ac-N` tag is deliberately ignored to prevent cross-Epic collision (Story #3362). A scaffolded scenario carrying `@skip` but no `@epic-<id>-ac-N` tag reads as `missing[]` at finalize and throws, aborting close, even after the implementation Story de-skips it — the tag was never added in either pass. Tag each scenario with both `@skip` AND `@epic-<id>-ac-N` (substituting the Epic's real ID and the scenario's own AC number) in this SAME wave-0 commit; do not defer the AC tag to the later de-skip edit.
+- **verify** (top-level array): a grep/validate command (tier `validate`), NOT an e2e runner — verifying that a file exists with the required tags needs no browser/playwright run. Include a check that each new AC ID's namespaced tag is present in the scaffolded files, alongside the `@skip` check.
 - Each implementation Story whose `verify[]` references a scaffolded `.feature` path MUST add `depends_on: ["<scaffold-slug>"]` so the scaffold lands in an earlier wave. Omitting the link trips the soft `missing-bdd-scaffold` finding in `ticket-validator-conflicts.js` (advisory, not a hard block).
 
 When the Acceptance Spec contains **zero `new`-disposition rows** (every row is `updated` or `unchanged`), do NOT emit a scaffold Story — there is nothing to create.
 
-**Worked example.** Acceptance Spec with two `new` rows (`AC-1` -> `tests/features/billing/invoice.feature`, `AC-2` -> `tests/features/billing/refund.feature`). The scaffold Story below uses a serialized string `body`, top-level `acceptance`/`verify` arrays, and an empty `depends_on`:
+**Worked example.** Epic #42, Acceptance Spec with two `new` rows (`AC-1` -> `tests/features/billing/invoice.feature`, `AC-2` -> `tests/features/billing/refund.feature`). The scaffold Story below uses a serialized string `body`, top-level `acceptance`/`verify` arrays, an empty `depends_on`, and tags each scenario with both `@skip` and its namespaced `@epic-42-ac-N` tag:
 
     {
       "slug": "scaffold-billing-feature-files",
@@ -306,16 +307,18 @@ When the Acceptance Spec contains **zero `new`-disposition rows** (every row is 
       "labels": ["type::story", "persona::qa-engineer"],
       "acceptance": [
         "tests/features/billing/invoice.feature and tests/features/billing/refund.feature both exist on the branch",
-        "every Scenario in the two new feature files is preceded by an @skip tag (grep for un-skipped scenarios returns zero matches)"
+        "every Scenario in the two new feature files is preceded by an @skip tag (grep for un-skipped scenarios returns zero matches)",
+        "the invoice.feature scenario carries @epic-42-ac-1 and the refund.feature scenario carries @epic-42-ac-2"
       ],
       "verify": [
         "test -f tests/features/billing/invoice.feature && test -f tests/features/billing/refund.feature (validate)",
-        "test -z \"$(grep -rL '@skip' tests/features/billing/*.feature)\" (validate)"
+        "test -z \"$(grep -rL '@skip' tests/features/billing/*.feature)\" (validate)",
+        "grep -q '@epic-42-ac-1' tests/features/billing/invoice.feature && grep -q '@epic-42-ac-2' tests/features/billing/refund.feature (validate)"
       ],
-      "body": "## Goal\nbdd-scaffold: create the @skip-tagged feature files the billing-flows implementation Stories verify against, so wave-0 lands them before any implementation Story runs.\n\n## Changes\n- {\"path\": \"tests/features/billing/invoice.feature\", \"assumption\": \"creates\"}\n- {\"path\": \"tests/features/billing/refund.feature\", \"assumption\": \"creates\"}\n\n## Acceptance\n- [ ] tests/features/billing/invoice.feature and tests/features/billing/refund.feature both exist on the branch\n- [ ] every Scenario in the two new feature files is preceded by an @skip tag\n\n## Verify\n- test -f tests/features/billing/invoice.feature && test -f tests/features/billing/refund.feature (validate)\n- test -z \"$(grep -rL '@skip' tests/features/billing/*.feature)\" (validate)\n"
+      "body": "## Goal\nbdd-scaffold: create the @skip-tagged, @epic-42-ac-N-tagged feature files the billing-flows implementation Stories verify against, so wave-0 lands them before any implementation Story runs.\n\n## Changes\n- {\"path\": \"tests/features/billing/invoice.feature\", \"assumption\": \"creates\"}\n- {\"path\": \"tests/features/billing/refund.feature\", \"assumption\": \"creates\"}\n\n## Acceptance\n- [ ] tests/features/billing/invoice.feature and tests/features/billing/refund.feature both exist on the branch\n- [ ] every Scenario in the two new feature files is preceded by an @skip tag\n- [ ] the invoice.feature scenario carries @epic-42-ac-1 and the refund.feature scenario carries @epic-42-ac-2\n\n## Verify\n- test -f tests/features/billing/invoice.feature && test -f tests/features/billing/refund.feature (validate)\n- test -z \"$(grep -rL '@skip' tests/features/billing/*.feature)\" (validate)\n- grep -q '@epic-42-ac-1' tests/features/billing/invoice.feature && grep -q '@epic-42-ac-2' tests/features/billing/refund.feature (validate)\n"
     }
 
-The implementation Stories that later un-skip and flesh out these scenarios each carry `depends_on: ["scaffold-billing-feature-files"]`, placing them in a later wave than the scaffold.
+The implementation Stories that later un-skip and flesh out these scenarios each carry `depends_on: ["scaffold-billing-feature-files"]`, placing them in a later wave than the scaffold. They MUST NOT add the `@epic-42-ac-N` tag themselves — it is already present from the scaffold pass; their job is to remove `@skip` once the scenario passes.
 
 ### SCOPE-OVERLAP FLAGGING (docs/runbook downstream of config work)
 

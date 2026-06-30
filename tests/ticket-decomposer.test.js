@@ -633,6 +633,59 @@ describe('ticket-decomposer prompt single-sourcing (Story #4162)', () => {
       );
     }
   });
+
+  // Story #4301 — the wave-0 BDD scaffold contract must require the
+  // namespaced per-Epic AC tag (`@epic-<id>-ac-N`) on every scaffolded
+  // scenario AT SCAFFOLD TIME, not only at de-skip time. Without it,
+  // acceptance-spec-reconciler.js (which matches only @epic-<id>-ac-* /
+  // @pending tags) reports every AC as missing[] and finalize aborts.
+  it('the WAVE-0 BDD scaffold section requires the namespaced @epic-<id>-ac-N tag, not just @skip (Story #4301)', () => {
+    const prompt = renderDecomposerSystemPrompt();
+    const waveZeroIdx = prompt.indexOf('WAVE-0 BDD SCAFFOLD STORY');
+    assert.ok(
+      waveZeroIdx >= 0,
+      'prompt must carry the WAVE-0 scaffold section',
+    );
+    const scopeOverlapIdx = prompt.indexOf(
+      'SCOPE-OVERLAP FLAGGING',
+      waveZeroIdx,
+    );
+    const waveZeroSection = prompt.slice(
+      waveZeroIdx,
+      scopeOverlapIdx > 0 ? scopeOverlapIdx : undefined,
+    );
+    assert.ok(
+      /@epic-<id>-ac-N/.test(waveZeroSection) ||
+        /@epic-\d+-ac-\d+/.test(waveZeroSection),
+      'WAVE-0 section must name the namespaced @epic-<id>-ac-N tag pattern',
+    );
+    assert.ok(
+      /REQUIRED at scaffold time, not only at de-skip time/i.test(
+        waveZeroSection,
+      ),
+      'WAVE-0 section must state the namespaced tag is required at scaffold time, not deferred to de-skip',
+    );
+    assert.ok(
+      /acceptance-spec-reconciler\.js/.test(waveZeroSection),
+      'WAVE-0 section must name acceptance-spec-reconciler.js as the consumer of the namespaced tag',
+    );
+  });
+
+  it('interpolates the literal Epic ID into the @epic-<id>-ac-N example when epicId is supplied (Story #4301)', () => {
+    const prompt = renderDecomposerSystemPrompt({ epicId: 4301 });
+    assert.ok(
+      /@epic-4301-ac-1/.test(prompt),
+      'prompt must render the literal @epic-4301-ac-1 example when epicId=4301 is supplied',
+    );
+  });
+
+  it('buildDecomposerSystemPrompt threads epicId through to the rendered prompt (Story #4301)', () => {
+    const prompt = buildDecomposerSystemPrompt([], { epicId: 777 });
+    assert.ok(
+      /@epic-777-ac-1/.test(prompt),
+      'buildDecomposerSystemPrompt must forward epicId into renderDecomposerSystemPrompt',
+    );
+  });
 });
 
 describe('ticket-decomposer buildDecompositionContext', () => {
@@ -683,6 +736,39 @@ describe('ticket-decomposer buildDecompositionContext', () => {
     await assert.rejects(
       async () => await buildDecompositionContext(1, provider, {}),
       { message: /missing linked PRD or Tech Spec/ },
+    );
+  });
+
+  // Story #4301 — plan an Epic with a `new`-disposition AC row: the
+  // generated authoring context's systemPrompt must require the namespaced
+  // @epic-<id>-ac-N tag (not just @skip) on the wave-0 scaffold scenarios,
+  // using the REAL Epic id fetched from the provider.
+  it('the system prompt requires the literal @epic-<epicId>-ac-N tag for the Epic under decomposition (Story #4301)', async () => {
+    const provider = {
+      async getEpic(id) {
+        return {
+          id,
+          title: 'Epic with new-disposition AC rows',
+          linkedIssues: { prd: 10, techSpec: 11 },
+        };
+      },
+      async getTicket(id) {
+        return {
+          id,
+          body:
+            id === 10
+              ? 'PRD BODY'
+              : '## Acceptance Spec\n| AC ID | Outcome | Feature File | Scenario | Disposition |\n| AC-1 | Invoice created | tests/features/billing/invoice.feature | Create invoice | new |',
+        };
+      },
+    };
+
+    const ctx = await buildDecompositionContext(4301, provider, {});
+
+    assert.equal(ctx.epic.id, 4301);
+    assert.ok(
+      /@epic-4301-ac-1/.test(ctx.systemPrompt),
+      'systemPrompt must require the literal @epic-4301-ac-1 tag for this Epic, not a generic placeholder',
     );
   });
 

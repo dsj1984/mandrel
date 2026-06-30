@@ -36,8 +36,9 @@ import {
 export function renderDecomposerSystemPrompt({
   maxTickets = LIMITS_DEFAULTS.maxTickets,
   maxTokenBudget = LIMITS_DEFAULTS.maxTokenBudget,
+  epicId = null,
 } = {}) {
-  return render2TierPrompt({ maxTickets, maxTokenBudget });
+  return render2TierPrompt({ maxTickets, maxTokenBudget, epicId });
 }
 
 /**
@@ -46,7 +47,7 @@ export function renderDecomposerSystemPrompt({
  * on the Story body so the executing agent has everything it needs in one
  * ticket. Thematic grouping lives as prose in the Epic body / Tech Spec.
  */
-function render2TierPrompt({ maxTickets, maxTokenBudget }) {
+function render2TierPrompt({ maxTickets, maxTokenBudget, epicId = null }) {
   // Sizing thresholds are sourced from the single DEFAULT_TASK_SIZING constant
   // (ticket-validator-sizing.js) so the prompt and the validator cannot drift.
   const { softFiles, hardFiles, maxAcceptance, softAcceptanceCount } =
@@ -66,6 +67,13 @@ function render2TierPrompt({ maxTickets, maxTokenBudget }) {
     advisoryCaveat,
     newFileContract,
   } = AUTHORING_ALTITUDE_GUIDANCE;
+  // The namespaced AC-tag token the wave-0 BDD scaffold section below must
+  // require on every scaffolded scenario (Story #4301). When the Epic ID is
+  // known at render time, interpolate the concrete tag so the author has no
+  // placeholder to get wrong; otherwise fall back to the documented pattern.
+  const acTagExample = Number.isInteger(epicId)
+    ? `@epic-${epicId}-ac-1`
+    : '@epic-<id>-ac-N';
   return `You are an expert Senior Project Manager and Orchestrator.
 Your job is to take a Product Requirements Document (PRD) and a Technical Specification and decompose them into a flat list of Story tickets for an AI Agent to execute.
 
@@ -96,7 +104,7 @@ You MUST respond ONLY with a valid JSON array of objects. No prose, no markdown 
   }
 ]
 
-**Slug format**: \`^[a-z0-9][a-z0-9-]*\$\` — hyphen-case only. Underscores are rejected by the validator.
+**Slug format**: \`^[a-z0-9][a-z0-9-]*$\` — hyphen-case only. Underscores are rejected by the validator.
 
 ### STORY BODY SCHEMA (REQUIRED FOR EVERY STORY):
 \`body\` MUST be a **string** — the serialized markdown produced by \`serialize()\` from \`lib/story-body/story-body.js\`. Do NOT emit \`body\` as a JSON object: an object body throws \`StoryBodyParseError\` in the reconciler (Story #3302) and is discarded by the GitHub provider, producing an empty issue body. Stories are consumed by non-interactive sub-agents that must self-verify from the Story ticket alone — so the ticket must carry everything an agent needs to execute and self-verify.
@@ -196,8 +204,9 @@ When the Acceptance Spec contains **one or more \`Disposition: new\` rows**, you
 - **goal**: contains the literal token \`bdd-scaffold\` (e.g. "bdd-scaffold: create the @skip-tagged feature files the implementation Stories verify against").
 - **depends_on**: EMPTY (\`[]\`) — it runs first, in wave 0.
 - **changes**: one entry per distinct \`.feature\` file named in a \`new\` row, each \`{ "path": "<feature file path>", "assumption": "creates" }\`.
-- **acceptance**: MUST assert (a) every new \`.feature\` file exists, and (b) every new scenario within them carries an \`@skip\` tag. Keep these observable (a grep/validate command exits 0, a file exists at a path).
-- **verify**: a grep/validate command (tier \`validate\`), NOT an e2e runner — verifying that a file exists with a tag needs no browser/playwright run. Example: \`grep -rL '@skip' tests/features/<area>/*.feature (validate)\` paired with an existence check.
+- **acceptance**: MUST assert (a) every new \`.feature\` file exists, (b) every new scenario within them carries an \`@skip\` tag, AND (c) every new scenario also carries its **namespaced per-Epic AC tag** \`${acTagExample}\` (one tag per AC ID the scenario satisfies — see below). Keep these observable (a grep/validate command exits 0, a file exists at a path).
+- **Namespaced AC tag is REQUIRED at scaffold time, not only at de-skip time.** Phase 7 finalize's \`acceptance-spec-reconciler.js\` matches AC IDs only against \`@epic-<id>-ac-*\` / \`@pending\` tags in \`tests/features/**\` — a bare \`@ac-N\` tag is deliberately ignored to prevent cross-Epic collision. A scaffolded scenario that carries \`@skip\` but omits \`@epic-<id>-ac-N\` reads as \`missing[]\` at finalize and aborts the close even after the implementation Story de-skips it, because the tag was never added. Tag each scenario with both \`@skip\` AND \`${acTagExample}\` (substituting the AC's own number) in this SAME wave-0 pass — do not defer the AC tag to the later de-skip edit.
+- **verify**: a grep/validate command (tier \`validate\`), NOT an e2e runner — verifying that a file exists with the required tags needs no browser/playwright run. Example: \`grep -rL '@skip' tests/features/<area>/*.feature (validate)\` paired with an existence check, AND a check that every new AC ID's namespaced tag (\`${acTagExample}\`) appears in the scaffolded files, e.g. \`grep -q '${acTagExample}' tests/features/<area>/<file>.feature (validate)\` for each new AC row.
 - Each implementation Story whose \`verify[]\` references one of these scaffolded \`.feature\` paths MUST \`depends_on\` the scaffold Story (so the scaffold lands in an earlier wave). Omitting the link trips the soft \`missing-bdd-scaffold\` validator finding.
 
 When the Acceptance Spec contains **zero \`new\`-disposition rows** (every row is \`updated\` or \`unchanged\`), do NOT emit a scaffold Story — there is nothing to create.
