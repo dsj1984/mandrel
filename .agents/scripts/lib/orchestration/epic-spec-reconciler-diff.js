@@ -80,6 +80,7 @@
  *     issue with an empty body.
  */
 
+import { composeStoryBody } from '../../providers/github/tickets.js';
 import { assertPlanLabelAllowList } from './epic-spec-reconciler-discriminator.js';
 import {
   closeOp,
@@ -209,34 +210,6 @@ function stripFooter(body) {
 }
 
 /**
- * Render the canonical orchestrator footer (no leading newline). Format
- * matches the byte-stable shape that the cascade-reading consumers
- * (story-init, dispatcher, manifest, close-gate) parse line-anchored:
- *
- *   ---
- *   parent: #<parentId>
- *   [Epic: #<epicId>]            // only when epicId !== parentId
- *
- *   [blocked by #<dep>]          // one per dependency
- *
- * @param {{parentId: number, epicId?: number, dependencies?: number[]}} opts
- * @returns {string}
- */
-function renderFooter({ parentId, epicId, dependencies = [] }) {
-  const lines = ['---', `parent: #${parentId}`];
-  if (epicId !== undefined && epicId !== null && epicId !== parentId) {
-    lines.push(`Epic: #${epicId}`);
-  }
-  if (dependencies.length > 0) {
-    lines.push('');
-    for (const dep of dependencies) {
-      lines.push(`blocked by #${dep}`);
-    }
-  }
-  return lines.join('\n');
-}
-
-/**
  * Compose the canonical orchestrator footer onto a spec body for non-epic
  * entities. Resolves `parentSlug`/`dependsOn` slugs against the running
  * `state.mapping` so the rendered footer carries the live issue numbers.
@@ -246,12 +219,19 @@ function renderFooter({ parentId, epicId, dependencies = [] }) {
  * the YAML spec writes just the description, silently stripping
  * `parent: #N` / `Epic: #M` / `blocked by #X` and breaking the cascade.
  *
- * Story #3185 — the footer compose/strip logic is inlined here rather
- * than reused from the legacy Task-body renderer module. That renderer
- * was removed, so the diff engine carries its own footer shape. The shape
- * is byte-identical to the legacy renderer's `parent: #<n>` /
- * `Epic: #<m>` / `blocked by #<x>` output so cascade-readers continue
- * to parse it unchanged.
+ * Story #4300 — the footer rendering is single-sourced from
+ * `composeStoryBody` (`providers/github/tickets.js`), the same helper the
+ * CREATE path (`epic-spec-reconciler-apply.js` → `provider.createTicket`)
+ * uses. Story #3185 previously inlined a parallel `renderFooter` here to
+ * avoid depending on the (now-removed) legacy Task-body renderer; that
+ * inlined copy silently diverged from `composeStoryBody` by gating the
+ * `Epic: #<id>` line on `epicId !== parentId` — a 3-tier-era condition
+ * that is always false under the 2-tier hierarchy (a Story's parent IS
+ * the Epic), so force re-decompose (`/plan --force`, which routes through
+ * this UPDATE path) silently dropped `Epic: #<id>` from every refreshed
+ * Story body and broke `story-init.js`'s hierarchy resolution. Importing
+ * `composeStoryBody` directly makes that divergence structurally
+ * impossible going forward.
  *
  * @param {{entity: string, parentSlug?: string|null, dependsOn?: string[]}} specEntity
  * @param {string} specBody
@@ -284,8 +264,7 @@ function composeBodyWithFooter(specEntity, specBody, ctx) {
   // included) or emits a canonical-form body. With the strip, the
   // function is idempotent against its own output.
   const head = stripFooter(specBody);
-  const footer = renderFooter({ parentId, epicId, dependencies });
-  return `${head}\n\n${footer}`;
+  return composeStoryBody({ body: head, parentId, epicId, dependencies });
 }
 
 /**
