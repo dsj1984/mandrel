@@ -473,6 +473,94 @@ describe('reconcileAcceptanceSpec', () => {
     assert.deepEqual(out.missing, ['AC-1', 'AC-2']);
   });
 
+  // Story #4301 — regression for the wave-0 BDD scaffold bug: scaffolded
+  // scenarios carry @skip AND the namespaced @epic-<id>-ac-N tag from the
+  // SAME scaffolding pass (not deferred to de-skip). The reconciler must
+  // report `satisfied` (not `missing`) once the scenario is also de-skipped,
+  // proving the namespaced tag — present from scaffold time — is what the
+  // reconciler actually keys on (the @skip tag itself is irrelevant to
+  // classifyCoverage; only the AC tag and @pending matter).
+  it('reports satisfied (not missing) for a wave-0-scaffolded-and-tagged, then de-skipped, scenario (Story #4301)', async () => {
+    const provider = buildProvider([
+      {
+        id: 4301,
+        labels: ['type::epic'],
+        body: '## Planning Artifacts\n- [x] Acceptance Spec: #4500\n',
+      },
+      {
+        id: 4500,
+        labels: ['context::acceptance-spec'],
+        body: '| AC-1 | Invoice created | tests/features/billing/invoice.feature | Create invoice | new |\n',
+        state: 'closed',
+      },
+    ]);
+    // Simulates the wave-0 scaffold Story's output: @epic-4301-ac-1 is
+    // present from scaffold time alongside @skip (per the corrected
+    // decompose-author contract). A later implementation Story removes
+    // @skip without touching the AC tag.
+    const scaffoldedThenDeskipped = [
+      'Feature: Billing',
+      '@epic-4301-ac-1',
+      'Scenario: Create invoice',
+      '  Given a customer',
+      '  When they create an invoice',
+      '  Then the invoice exists',
+    ].join('\n');
+    const out = await reconcileAcceptanceSpec({
+      epicId: 4301,
+      cwd: process.cwd(),
+      injectedProvider: provider,
+      injectedConfig: {},
+      loggerImpl: SILENT_LOGGER,
+      listFeatureFiles: () => ['/fake/billing/invoice.feature'],
+      readFeatureFile: () => scaffoldedThenDeskipped,
+    });
+    assert.equal(out.status, 'ok');
+    assert.equal(out.ok, true);
+    assert.deepEqual(out.satisfied, ['AC-1']);
+    assert.deepEqual(out.missing, []);
+    assert.deepEqual(out.pending, []);
+  });
+
+  // The bug being fixed: a scaffold that ONLY carries @skip (the
+  // pre-Story-#4301 contract) leaves the AC unmatched even after de-skip,
+  // because the namespaced tag was never authored at scaffold time.
+  it('reproduces the pre-fix bug: a @skip-only scaffold (no namespaced AC tag) reads as missing (Story #4301)', async () => {
+    const provider = buildProvider([
+      {
+        id: 4302,
+        labels: ['type::epic'],
+        body: '## Planning Artifacts\n- [x] Acceptance Spec: #4501\n',
+      },
+      {
+        id: 4501,
+        labels: ['context::acceptance-spec'],
+        body: '| AC-1 | Invoice created | tests/features/billing/invoice.feature | Create invoice | new |\n',
+        state: 'closed',
+      },
+    ]);
+    const skipOnlyScaffold = [
+      'Feature: Billing',
+      '@skip',
+      'Scenario: Create invoice',
+      '  Given a customer',
+      '  When they create an invoice',
+      '  Then the invoice exists',
+    ].join('\n');
+    const out = await reconcileAcceptanceSpec({
+      epicId: 4302,
+      cwd: process.cwd(),
+      injectedProvider: provider,
+      injectedConfig: {},
+      loggerImpl: SILENT_LOGGER,
+      listFeatureFiles: () => ['/fake/billing/invoice.feature'],
+      readFeatureFile: () => skipOnlyScaffold,
+    });
+    assert.equal(out.ok, false);
+    assert.equal(out.status, 'gap');
+    assert.deepEqual(out.missing, ['AC-1']);
+  });
+
   it('honours pre-populated linkedIssues.acceptanceSpec on the epic', async () => {
     const provider = buildProvider([
       {
