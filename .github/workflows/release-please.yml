@@ -69,11 +69,13 @@ jobs:
     # package. This replaces the retired `dist` branch mirror: consumers now
     # install a versioned, provenance-signed package from npm instead of
     # pinning a Git submodule to the `dist` branch. `id-token: write` lets
-    # npm attach a signed provenance statement (Sigstore) proving the tarball
-    # was built from this repo's CI run; `package.json#publishConfig.provenance`
-    # opts the publish in. Auth uses the `NPM_TOKEN` automation token rather
-    # than OIDC token exchange so the publish works against the public registry
-    # without additional trusted-publisher configuration.
+    # npm exchange the GitHub Actions OIDC token for short-lived publish
+    # credentials via npm Trusted Publishing — no stored `NPM_TOKEN`, no
+    # rotation, no 2FA-bypass concern — and the same token mints the signed
+    # provenance statement (Sigstore) that `package.json#publishConfig.provenance`
+    # opts into. Trusted Publishing requires npm CLI >=11.5.1; `.nvmrc` pins
+    # Node 22 (bundled npm 10.x), so the workflow explicitly upgrades npm
+    # before publishing.
     #
     # Gated on the root component's release output so the publish runs only
     # when release-please cuts a new root release.
@@ -97,7 +99,8 @@ jobs:
       - name: Install Dependencies
         run: npm ci --ignore-scripts
 
+      - name: Upgrade npm for Trusted Publishing
+        run: npm install -g npm@latest
+
       - name: Publish package
         run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
