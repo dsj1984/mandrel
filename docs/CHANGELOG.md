@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.78.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.77.0...mandrel-v1.78.0) (2026-06-24)
+
+
+### Added
+
+* Epic [#4284](https://github.com/dsj1984/mandrel/issues/4284) ([#4297](https://github.com/dsj1984/mandrel/issues/4297)) ([0f7c543](https://github.com/dsj1984/mandrel/commit/0f7c543e1ceb1c38ac425c388e338e3bfaaec49e))
+
+
+### Fixed
+
+* **baselines:** apply ignoreGlobs in the maintainability baseline CLI diff-scope branch (refs [#4293](https://github.com/dsj1984/mandrel/issues/4293)) ([#4294](https://github.com/dsj1984/mandrel/issues/4294)) ([c0c7dd5](https://github.com/dsj1984/mandrel/commit/c0c7dd5948314800e5a9d5808fb5eb0b01b09833))
+* **close-validation:** treat biome "No files were processed" as a clean format-gate skip (refs [#4292](https://github.com/dsj1984/mandrel/issues/4292)) ([#4295](https://github.com/dsj1984/mandrel/issues/4295)) ([bf6840d](https://github.com/dsj1984/mandrel/commit/bf6840dd69abbece4eb221797e6432519b6614a0))
+
+
+### Changed
+
+* **github-provider:** unify the two divergent withTransientRetry into one canonical primitive (refs [#4298](https://github.com/dsj1984/mandrel/issues/4298)) ([#4299](https://github.com/dsj1984/mandrel/issues/4299)) ([e5668dc](https://github.com/dsj1984/mandrel/commit/e5668dcca73b37c37d38e52e1eb8d2930a0e1790))
+
 ## [1.77.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.76.0...mandrel-v1.77.0) (2026-06-24)
 
 
