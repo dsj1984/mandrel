@@ -175,8 +175,8 @@ Releases are automated by
    provenance-signed package from npm (`npm install mandrel`, then
    `mandrel sync`) instead of pinning a Git submodule to the `dist`
    branch, and bootstrap a fresh project with `npx mandrel init`. The
-   publish job requires the `NPM_TOKEN` secret — see
-   [§ npm publish token](#npm-publish-token) below.
+   publish job authenticates via npm Trusted Publishing (OIDC) — see
+   [§ npm Trusted Publisher (OIDC)](#npm-trusted-publisher-oidc) below.
 4. **Breaking-change releases** document their migration steps in the
    **release PR body** release-please opens (which becomes the
    squash-commit body and the versioned
@@ -297,27 +297,41 @@ Alternative: install a GitHub App with the same permissions and feed
 its installation token in via the same secret name. Apps have a higher
 ceiling on automation throughput than PATs.
 
-#### npm publish token
+#### npm Trusted Publisher (OIDC)
 
 The `npm-publish` job in
 [`release-please.yml`](.github/workflows/release-please.yml) authenticates
-to the npm registry with an automation token (rather than OIDC trusted
-publishing), so it needs a one-time secret:
+to the npm registry via **Trusted Publishing (OIDC)** — there is no stored
+`NPM_TOKEN` secret. npm exchanges the GitHub Actions OIDC token (minted
+per-run from the job's workflow identity) for short-lived publish
+credentials, so there is nothing to rotate and no 2FA-bypass automation
+token sitting in repo secrets.
 
-1. Create an **automation** access token at
-   <https://www.npmjs.com/settings/~/tokens>. The token owner must be able to
-   publish the unscoped root package **`mandrel`** — its first publish relies
-   on `publishConfig.access: "public"` (already set in the root
-   `package.json`).
-2. Add it as a repository secret named **`NPM_TOKEN`** at
-   <https://github.com/dsj1984/mandrel/settings/secrets/actions>.
-3. No further setup is required: the publish job declares `id-token: write`
-   and the package sets `publishConfig.provenance: true`, so npm attaches a
-   signed Sigstore provenance statement automatically.
+1. Configure the **Trusted Publisher** at
+   <https://www.npmjs.com/package/mandrel/access> (package Settings →
+   Publishing access → Trusted Publisher → GitHub Actions):
+   - **Organization or user:** `dsj1984`
+   - **Repository:** `mandrel`
+   - **Workflow filename:** `release-please.yml`
+   - **Environment name:** (leave blank — the `npm-publish` job does not
+     use a GitHub Environment)
+2. No repository secret is needed. The publish job declares
+   `id-token: write` (required for the OIDC token exchange) and the
+   package sets `publishConfig.provenance: true`, so npm attaches a
+   signed Sigstore provenance statement automatically as part of the same
+   OIDC exchange.
+3. Trusted Publishing requires **npm CLI >=11.5.1**. `.nvmrc` pins Node 22
+   (which bundles an older npm), so the job runs
+   `npm install -g npm@latest` after `npm ci` and before `npm publish` to
+   pick up a CLI that supports the OIDC flow. Re-check this step is still
+   needed if `.nvmrc` is ever bumped to a Node version that bundles a
+   sufficiently new npm by default.
 
-Without `NPM_TOKEN`, release-please still tags `main` and creates the
-GitHub Release, but the publish job fails and the package is not
-published until the secret is configured and the job re-run.
+If the Trusted Publisher is not configured (or its repo/workflow fields
+don't match), `npm publish` fails authentication and the package is not
+published — release-please still tags `main` and creates the GitHub
+Release regardless, so a publish failure here does not block the release
+itself, only the npm artifact.
 
 #### Major-version policy
 
