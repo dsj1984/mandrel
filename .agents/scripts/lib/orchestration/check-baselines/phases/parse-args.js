@@ -43,6 +43,13 @@ Unified baseline dispatcher. Per-kind pipeline (schema → floor → tolerance �
 compare) over every configured gate, with centralised friction emission and
 aggregated exit codes.
 
+Env vars:
+  BUNDLE_SIZE_REFRESH=1  One-shot acknowledge for an intentional bundle-size
+                         growth: demotes bundle-size regressions to
+                         "unchanged" for this run only (floors still
+                         enforced). Never persisted — the next run without
+                         this flag re-enforces the ratchet.
+
 Exit codes:
   0  every enabled gate passes
   1  any floor breach

@@ -83,6 +83,41 @@ export function resolveCrapEnvOverrides(crapConfig, env) {
 }
 
 /**
+ * Pure helper: resolve the one-shot bundle-size refresh/acknowledge flag
+ * (Story #151). Unlike `coverage` / `crap` / `maintainability`, the
+ * bundle-size gate has no scorer of its own — the measured sizes come from
+ * a build step the operator already runs, not a source-tree rescan — so
+ * there is no `refreshBaseline({ kind: 'bundle-size', ... })` path to
+ * regenerate a "corrected" baseline. Instead, `BUNDLE_SIZE_REFRESH=1`
+ * (mirroring `CRAP_TOLERANCE`'s env-override precedent) tells
+ * `check-baselines --gate bundle-size` to treat this run's head
+ * measurements as the newly acknowledged baseline: head-vs-base
+ * regressions are demoted to `unchanged` for this invocation only. Floors
+ * still apply — an acknowledged PR can still fail on an absolute budget
+ * breach, only the ratchet-vs-`origin/main` comparison is suspended.
+ *
+ * The flag is **not persisted** anywhere (no config write, no committed
+ * tag): the very next `check-baselines` invocation without the env var —
+ * i.e. the next PR — reverts to full strict enforcement automatically, so
+ * there is no lingering loosened tolerance to remember to reset (AC-3).
+ *
+ * Accepted truthy values: `1`, `true` (case-insensitive). Anything else
+ * (including unset/empty) resolves to `acknowledged: false`.
+ *
+ * @param {NodeJS.ProcessEnv} env
+ * @returns {{ acknowledged: boolean, overrides: string[] }}
+ */
+export function resolveBundleSizeEnvOverrides(env) {
+  const raw = env?.BUNDLE_SIZE_REFRESH;
+  const acknowledged =
+    typeof raw === 'string' && /^(1|true)$/i.test(raw.trim());
+  const overrides = acknowledged
+    ? [`acknowledged=true (BUNDLE_SIZE_REFRESH=${raw})`]
+    : [];
+  return { acknowledged, overrides };
+}
+
+/**
  * Pure helper: resolve the effective MI tolerance by layering precedence:
  *   1. `CRAP_TOLERANCE` env-var (CI override — the baseline-refresh-
  *      guardrail uses this to force base-branch values on both gates).

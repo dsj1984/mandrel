@@ -452,6 +452,67 @@ watch loop — an unjustified baseline ratchet is no longer caught by CI.
 
 ---
 
+## Bundle-size ratchet — one-shot refresh/acknowledge (Story #151)
+
+> Baseline envelope, axes, and component model: see the
+> [Baseline reference](#baseline-reference) section below.
+
+`check-baselines --gate bundle-size` is a **strict** ratchet: it diffs the
+branch's committed `baselines/bundle-size.json` (head) against the base
+ref's copy (`origin/main` by default) using the gate's configured
+`tolerance`, and separately checks the head aggregate against `floors`.
+Unlike `coverage` / `crap` / `maintainability`, bundle-size has **no
+scorer of its own** — the measured `rawKb` / `gzippedKb` numbers come from
+whatever build step the consumer already runs, not a source-tree rescan —
+so there is no `refreshBaseline({ kind: 'bundle-size', ... })` path to
+regenerate a "corrected" baseline the way `npm run crap:update` does.
+
+This makes an **intentional** bundle-size growth (a framework major bump,
+a new dependency, an SSR runtime swap) impossible to land cleanly with the
+usual levers: permanently raising `tolerance` in `.agentrc.json` disables
+the ratchet for every *future* PR too, not just the one that legitimately
+grew.
+
+### `BUNDLE_SIZE_REFRESH=1`
+
+Set the environment variable for the one CI/local run that needs to land
+the growth:
+
+```bash
+BUNDLE_SIZE_REFRESH=1 npm run bundle-size:check
+# or, calling the dispatcher directly:
+BUNDLE_SIZE_REFRESH=1 node .agents/scripts/check-baselines.js --gate bundle-size
+```
+
+When set (`1` or `true`, case-insensitive), every `bundle-size`
+head-vs-base regression is demoted to `unchanged` **for that invocation
+only** — the gate compares head-vs-head in effect, so it passes even
+though the committed baseline grew. **Floors still apply**: an
+acknowledged PR can still fail if the head aggregate breaches the
+configured `floors` budget, so a genuinely runaway regression isn't
+silently waved through under the guise of "intentional".
+
+Commit the regenerated `baselines/bundle-size.json` (reflecting the real,
+larger sizes) in the same PR so the new numbers become the base for the
+*next* PR's diff.
+
+### The ratchet returns to full strength automatically
+
+`BUNDLE_SIZE_REFRESH` is read fresh on every invocation and is **never
+persisted** — no config write, no committed tag, no lingering state. The
+very next `check-baselines --gate bundle-size` run (i.e. the next PR),
+without the env var set, re-enforces the ratchet at full strength against
+the now-larger committed baseline. There is nothing to remember to reset.
+
+This mirrors the `CRAP_TOLERANCE` env-override precedent (see
+[CRAP gate — Consumer onboarding](#crap-gate--consumer-onboarding) above),
+but as a true one-shot acknowledgment rather than a run-scoped tolerance
+override: `CRAP_TOLERANCE` changes the *threshold*, `BUNDLE_SIZE_REFRESH`
+demotes the *outcome* of an already-flagged regression, which is the
+correct shape for a gate with no rescoring path of its own.
+
+---
+
 ## HITL blocker escalation
 
 `risk::high` is informational/planning metadata only. Runtime execution
