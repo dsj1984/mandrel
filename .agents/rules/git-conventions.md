@@ -108,7 +108,7 @@ rejected by `pre-push` hooks):
     other hook-skipping flags unless the operator explicitly authorizes it.
     If a hook fails, investigate the underlying cause.
     - **Known false-negative signature**: a `pre-push`/`pre-commit` failure
-      whose message is a *zero-match* error (e.g. Biome's
+      whose message is a _zero-match_ error (e.g. Biome's
       `No files were processed in the specified paths`) rather than a
       reported violation, combined with an agent CWD under a harness-managed
       worktree path a consumer's lint config ignores (e.g.
