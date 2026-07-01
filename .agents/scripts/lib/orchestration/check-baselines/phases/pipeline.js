@@ -59,7 +59,7 @@ function dispatchPerKind({ wanted, quality, env, cwd, configPath }) {
     wanted.map((kind) => {
       const gateBlock = quality.gates[kind];
       const scope = resolveDispatchScope({ kind, quality, env });
-      return evaluateKind({ kind, gateBlock, scope, cwd, configPath });
+      return evaluateKind({ kind, gateBlock, scope, cwd, configPath, env });
     }),
   );
 }

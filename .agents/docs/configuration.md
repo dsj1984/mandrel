@@ -627,6 +627,12 @@ No tier-specific knobs beyond the common shape.
 | --------- | -------- | ------- | ---------------------------------------------------------------------------------------- |
 | `bundles` | No       | `[]`    | Array of `{ name, path, limit }` entries (e.g. `{ "name": "app", "path": "dist/app.js", "limit": "100kB" }`). |
 
+Unlike `crap` / `maintainability`, this gate has no `refreshTag` config
+field — there is no scorer to regenerate the baseline from source, so the
+one-shot refresh/acknowledge mechanism is an env var, not a config knob.
+See [`.agents/docs/quality-gates.md` § Bundle-size ratchet](quality-gates.md#bundle-size-ratchet--one-shot-refreshacknowledge-story-151)
+for `BUNDLE_SIZE_REFRESH=1` usage.
+
 #### `delivery.quality.formatAutofix`
 
 | Field       | Required | Default | Purpose                                                                                                                  |
@@ -791,6 +797,7 @@ the lint ratchet, and the CRAP/MI gates.
 | `baselines/lint.json`             | `lint-baseline.js`                   | `node .agents/scripts/lint-baseline.js capture`                       |
 | `baselines/crap.json`             | `update-crap-baseline.js`            | `npm run crap:update`                                                   |
 | `baselines/maintainability.json`  | `update-maintainability-baseline.js` | `npm run maintainability:update`                                        |
+| `baselines/bundle-size.json`      | consumer's own build/measure step    | Commit the build's measured sizes; for an intentional growth, run the check with `BUNDLE_SIZE_REFRESH=1` (see [Bundle-size ratchet](quality-gates.md#bundle-size-ratchet--one-shot-refreshacknowledge-story-151)) |
 
 These files are the contract. They are read by every gate (Story close, push
 hook, CI) and are regenerated only via tagged `baseline-refresh:` commits

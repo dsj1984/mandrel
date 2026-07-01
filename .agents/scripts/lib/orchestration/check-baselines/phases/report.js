@@ -27,7 +27,8 @@ function formatGateLine(g) {
     ? ''
     : ` [kernel drift ${g.kernelBaseline} → ${g.kernelCurrent}]`;
   const baseRef = g.baseRef ? ` [baseRef=${g.baseRef}]` : '';
-  return `  - ${g.kind}: ${status}${drift}${baseRef}`;
+  const ack = g.acknowledged ? ' [ACKNOWLEDGED — this run only]' : '';
+  return `  - ${g.kind}: ${status}${drift}${baseRef}${ack}`;
 }
 
 function formatViolationLine(component, v) {
