@@ -48,7 +48,9 @@ test('resolveBundleSizeEnvOverrides — case-insensitive truthy values (TRUE, Tr
 });
 
 test('resolveBundleSizeEnvOverrides — surrounding whitespace is trimmed before matching', () => {
-  const result = resolveBundleSizeEnvOverrides({ BUNDLE_SIZE_REFRESH: '  1  ' });
+  const result = resolveBundleSizeEnvOverrides({
+    BUNDLE_SIZE_REFRESH: '  1  ',
+  });
   assert.strictEqual(result.acknowledged, true);
 });
 
@@ -70,7 +72,8 @@ test('resolveBundleSizeEnvOverrides — "0" and "false" are not acknowledged', (
     false,
   );
   assert.strictEqual(
-    resolveBundleSizeEnvOverrides({ BUNDLE_SIZE_REFRESH: 'false' }).acknowledged,
+    resolveBundleSizeEnvOverrides({ BUNDLE_SIZE_REFRESH: 'false' })
+      .acknowledged,
     false,
   );
 });
