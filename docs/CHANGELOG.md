@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.80.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.79.0...mandrel-v1.80.0) (2026-07-01)
+
+
+### Chores
+
+* **release:** force a release to ship the [#4306](https://github.com/dsj1984/mandrel/issues/4306) worktree-lifecycle doc fix ([#4307](https://github.com/dsj1984/mandrel/issues/4307)) ([fa54ebb](https://github.com/dsj1984/mandrel/commit/fa54ebb52fc8fe264bab2f4c6dea180973023c28))
+
 ## [1.79.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.78.0...mandrel-v1.79.0) (2026-06-30)
 
 
