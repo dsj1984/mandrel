@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.81.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.80.0...mandrel-v1.81.0) (2026-07-01)
+
+
+### Fixed
+
+* **baselines:** add one-shot BUNDLE_SIZE_REFRESH acknowledge for the bundle-size ratchet ([#4309](https://github.com/dsj1984/mandrel/issues/4309)) ([bc466b9](https://github.com/dsj1984/mandrel/commit/bc466b98f6c7521c3a24bbb4d93ee5169c163839))
+
 ## [1.80.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.79.0...mandrel-v1.80.0) (2026-07-01)
 
 
