@@ -107,6 +107,18 @@ rejected by `pre-push` hooks):
 4.  **Never bypass hooks**: Do not use `--no-verify`, `--no-gpg-sign`, or
     other hook-skipping flags unless the operator explicitly authorizes it.
     If a hook fails, investigate the underlying cause.
+    - **Known false-negative signature**: a `pre-push`/`pre-commit` failure
+      whose message is a _zero-match_ error (e.g. Biome's
+      `No files were processed in the specified paths`) rather than a
+      reported violation, combined with an agent CWD under a harness-managed
+      worktree path a consumer's lint config ignores (e.g.
+      `.claude/worktrees/<name>/` against a `files.includes` glob like
+      `"!**/.claude"`), is a **consumer-tooling gap**, not a real lint
+      failure. It does not authorize `--no-verify`. See
+      [`worktree-lifecycle.md` § Harness-worktree ⇄ consumer-lint-ignore interaction](../workflows/helpers/worktree-lifecycle.md#harness-worktree-consumer-lint-ignore-interaction-story-152)
+      for the recognition signature and the sanctioned consumer-side fix
+      (`--no-errors-on-unmatched` or equivalent) before escalating via
+      `agent::blocked`.
 
 ## Meta Labels (Retrospective Signal Routing)
 
