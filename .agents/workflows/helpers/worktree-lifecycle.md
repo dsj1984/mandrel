@@ -287,9 +287,9 @@ against, and the hook is not reporting a real defect. It is functionally
 distinct from a `pre-push` rejection caused by a genuine lint violation, and
 must not be treated the same way.
 
-**Do not resolve this by adding `--no-verify` to the push.**
+**Do not resolve this by bypassing the push hook.**
 [`rules/git-conventions.md`](../../rules/git-conventions.md) § "Push
-Validation & Reliability" prohibits bypassing hooks without explicit operator
+Validation & Reliability" prohibits skipping hooks without explicit operator
 authorization, and that prohibition is not weakened by this interaction —
 the zero-match failure is a **consumer-tooling gap**, not a framework
 authorization the agent gets to grant itself.
@@ -316,9 +316,10 @@ authorization the agent gets to grant itself.
    the Story's scope). Transition to `agent::blocked`, name the zero-match
    signature and the one-line remedy in the blocker summary, and let the
    operator apply the consumer-side fix or explicitly authorize a one-time
-   `--no-verify` bypass. An explicit operator authorization is the *only*
-   circumstance under which `--no-verify` is permitted — never as an agent's
-   unilateral default when this signature is recognized.
+   hook-skip per [`rules/git-conventions.md`](../../rules/git-conventions.md)
+   § "Push Validation & Reliability". Explicit operator authorization is the
+   *only* circumstance under which a hook may be skipped — never as an
+   agent's unilateral default when this signature is recognized.
 4. **Do not relocate mandrel's own worktrees to work around a harness-level
    path.** `delivery.worktreeIsolation.root` controls where *mandrel*
    materializes `story-<id>` worktrees (default `.worktrees/`, already
