@@ -151,6 +151,16 @@ export const DEFAULT_TASK_SIZING = Object.freeze({
  * as a single PR — not a single module or file. Module-level slices fold into
  * the capability they belong to, and a Story whose only consumer is one
  * sibling Story is merged into that sibling (single-consumer merge rule).
+ *
+ * The `envelopeFloor` sentence is the **soft** complement to the sizing
+ * section's envelope framing (Story #4313): the delivery envelope
+ * (`maxTokenBudget`) bounds the TOP of a Story, but under-utilizing it is
+ * itself a merge signal. It is deliberately prose-only — an illustrative
+ * fraction, not a threshold constant, and no validator finding backs it (the
+ * mechanical backstop is the `merge-candidate` finding). It names the
+ * per-Story delivery-session cost (hydration, branch, PR, review, CI) so the
+ * "models one-shot bigger things now" planning assumption is stated, not
+ * implicit.
  */
 export const DELIVERABLE_GRANULARITY_GUIDANCE = Object.freeze({
   // The one-sentence definition of Story granularity.
@@ -159,6 +169,9 @@ export const DELIVERABLE_GRANULARITY_GUIDANCE = Object.freeze({
   // The single-consumer merge rule.
   singleConsumerRule:
     '**Single-consumer merge rule.** A Story whose only consumer is one sibling Story should be **merged into that sibling** rather than emitted separately — a single-consumer downstream slice is not its own unit of work.',
+  // The envelope-floor heuristic (soft; no validator finding — Story #4313).
+  envelopeFloor:
+    '**Envelope floor — under-utilizing the envelope is a merge signal.** A Story that would plausibly consume well under a third of the delivery envelope (`maxTokenBudget`) and is neither parallel-deliverable nor orthogonal to its siblings should be **merged into its consumer**. The fraction is illustrative, not a threshold — the point is that modern frontier models one-shot capability-sized changes, so a chain of small dependent Stories needlessly pays a full delivery session (hydration, branch, PR, review, CI) per link. Merge such links up unless a parallelism or orthogonality reason justifies the separate slice.',
 });
 
 /**
