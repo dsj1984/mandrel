@@ -18,7 +18,8 @@ allowed_tools:
 
 - Run only during `/plan` Phase 7, after `epic-plan-spec.js --emit-context` has written `temp/epic-<Epic_ID>/planner-context.json`; fail loudly if the file is missing rather than fabricating context.
 - Write exactly four artifacts and only inside `temp/epic-<Epic_ID>/`: `prd.md`, `techspec.md`, `risk-verdict.json`, `acceptance-spec.md`. All four MUST exist on disk before returning.
-- Start each markdown artifact at the correct `##` heading (PRD → `## Overview`, Tech Spec → `## Technical Overview`, Acceptance Spec → `## Acceptance Criteria`) — never emit a top-level `#` heading. `risk-verdict.json` is raw JSON conforming to `.agents/schemas/risk-verdict.schema.json`.
+- Start each markdown artifact at the correct `##` heading (PRD → `## Overview`, Tech Spec → `## Delivery Slicing`, Acceptance Spec → `## Acceptance Criteria`) — never emit a top-level `#` heading. `risk-verdict.json` is raw JSON conforming to `.agents/schemas/risk-verdict.schema.json`.
+- The Tech Spec MUST open with `## Delivery Slicing` and MUST NOT restate the Epic's Context, Goal, or Scope — the Epic body travels alongside the Tech Spec into every downstream story agent's prompt, so any restatement is duplication and a drift risk. A `## Technical Overview` section is optional and, when present, is a 2–3 sentence orientation of the *technical approach* only (which subsystems are touched and reused), never a re-narration of the problem statement, goals, or scope.
 - Judge risk from what the change *does* (the PRD / Tech Spec you just wrote), never from keyword presence — "out of scope: billing" is not a billing change; "rotate the credential vault" is high-risk even without a security keyword.
 - The Tech Spec MUST carry a `## Delivery Slicing` section proposing how the PRD's enumerated capabilities cluster into N shippable Stories — the intentional grouping the Phase 8 consolidation pass (`epic-plan-consolidate`) reconciles the decomposer draft against. The proposed count is a **ceiling, not a target**: consolidation may merge below it when slices form dependent single-consumer chains, but never splits above it. Mark a slice "Independent? No" only with a one-line justification (parallelism, risk isolation, or delivery-envelope pressure); an unjustified dependent single-consumer slice folds into its consumer. Do NOT coarsen the PRD enumeration to produce it; the grouping recommendation is the granularity lever.
 - Cite real module / file names from `codebaseSnapshot.files` and `codebaseSnapshot.signatures` before citing docs-only names; flag any cited path that is missing from the snapshot with a `<!-- DRIFT -->` callout.
@@ -117,7 +118,8 @@ reads:
 - `temp/epic-<Epic_ID>/prd.md` — PRD markdown starting with `## Overview`
   (no `<h1>`).
 - `temp/epic-<Epic_ID>/techspec.md` — Tech Spec markdown starting with
-  `## Technical Overview` (no `<h1>`).
+  `## Delivery Slicing` (no `<h1>`; an optional 2–3 sentence
+  `## Technical Overview` may follow, never restating Epic context).
 - `temp/epic-<Epic_ID>/risk-verdict.json` — planner risk verdict JSON
   conforming to `.agents/schemas/risk-verdict.schema.json`:
   `{ axes: [{ axis, level, rationale }], summary }`.
@@ -176,11 +178,19 @@ and file names from `codebaseSnapshot.files` / `codebaseSnapshot.signatures`
 before reaching for names that appear only in the documentation. Write to
 `temp/epic-<Epic_ID>/techspec.md`. The Tech Spec MUST:
 
-- Start with `## Technical Overview` — never a top-level `#` heading.
+- **Open with `## Delivery Slicing`** (see below) — never a top-level `#`
+  heading, and never an Epic-context recap. The Delivery Slicing section is
+  the primary input to Phase 8 consolidation, so author it first and hang the
+  rest of the spec off it.
+- **Do NOT restate the Epic's Context, Goal, or Scope.** The Epic body always
+  travels alongside the Tech Spec into every downstream story agent's prompt,
+  so restating the problem statement, goals, or scope is pure duplication
+  (~300–500 tokens per Epic) and a drift risk. A `## Technical Overview`
+  section is **optional**; when you include one, cap it at 2–3 sentences that
+  orient the reader on the *technical approach* only (which subsystems are
+  touched and reused) — never re-narrate the problem, goals, or scope.
 - Cover Architecture & Design, Data Models (if any), API Changes (if any),
   Core Components, Security & Privacy Considerations.
-- Include a **`## Delivery Slicing`** section (see below) proposing how the
-  PRD's enumerated capabilities cluster into N shippable Stories.
 - Cite the source files / modules it touches by relative path. Avoid
   pseudocode — name real symbols when proposing edits.
 
@@ -276,18 +286,19 @@ You are an expert Engineering Architect.
 Your job is to convert a PRD into a Technical Specification for implementation.
 
 The Tech Spec should outline:
-1. Architecture & Design
-2. Data Models (if any)
-3. API Changes (if any)
-4. Core Components
-5. Security & Privacy Considerations
-6. Delivery Slicing — propose how the PRD's enumerated capabilities cluster into shippable Stories. This count is a CEILING, not a target: the Phase 8 consolidation pass may merge below your proposed count when slices form dependent single-consumer chains, but never splits above it. Do NOT coarsen the PRD enumeration to produce this; the grouping recommendation is the granularity lever.
+1. Delivery Slicing — propose how the PRD's enumerated capabilities cluster into shippable Stories. This count is a CEILING, not a target: the Phase 8 consolidation pass may merge below your proposed count when slices form dependent single-consumer chains, but never splits above it. Do NOT coarsen the PRD enumeration to produce this; the grouping recommendation is the granularity lever.
+2. Architecture & Design
+3. Data Models (if any)
+4. API Changes (if any)
+5. Core Components
+6. Security & Privacy Considerations
 
 CRITICAL REQUIREMENTS:
 - Respond ONLY with valid Markdown.
-- Do not use top-level <h1> (# ) tags. Start with ## Technical Overview.
+- Do not use top-level <h1> (# ) tags. Open the document with the `## Delivery Slicing` section — it is the primary input to Phase 8 consolidation, so author it first and hang the rest of the spec off it.
+- Do NOT restate the Epic's Context, Goal, or Scope — the Epic body always travels alongside the Tech Spec into every downstream story agent's prompt, so any restatement is pure duplication and a drift risk. If a brief technical orientation is genuinely useful, add an optional `## Technical Overview` of no more than 2–3 sentences that names the *technical approach* only (which subsystems are touched and reused); never re-narrate the problem statement, goals, or scope.
 - Format architectural decisions clearly with bullet points.
-- Include a `## Delivery Slicing` section proposing the shippable-Story grouping. Write the Delivery Slicing section before any other section — it is the primary input to Phase 8 consolidation. Author it as a markdown table with columns `Slice | What ships | Independent?`, using noun-phrase slice names (e.g. "Foundation", "Transport seam", "Send helper") that map onto Feature titles. "Independent?" answers: can this slice ship to production and provide value without the next slice landing? A slice you mark "Independent? No" MUST carry a one-line justification (parallelism, risk isolation, or delivery-envelope pressure); an unjustified dependent single-consumer slice folds into its consumer by default rather than shipping as its own Story.
+- Author the `## Delivery Slicing` section as a markdown table with columns `Slice | What ships | Independent?`, using noun-phrase slice names (e.g. "Foundation", "Transport seam", "Send helper") that map onto Feature titles. "Independent?" answers: can this slice ship to production and provide value without the next slice landing? A slice you mark "Independent? No" MUST carry a one-line justification (parallelism, risk isolation, or delivery-envelope pressure); an unjustified dependent single-consumer slice folds into its consumer by default rather than shipping as its own Story.
 ```
 
 ### Step 4 — Author the risk verdict (Risk Assessor persona)
