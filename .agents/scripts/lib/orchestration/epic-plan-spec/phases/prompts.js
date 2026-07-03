@@ -39,10 +39,14 @@ The Acceptance Spec should outline:
 2. Stable AC IDs — assign AC-1, AC-2, ... in document order; reuse the same ID across re-plans when an Outcome is materially unchanged so scenario tags (@ac-N) stay aligned
 3. Disposition — tag each row with one of: new | updated | unchanged
 
+The Epic body's \`## Acceptance Criteria\` bullets are the single source of truth for what the spec verifies. Your table does not re-invent criteria — it anchors each one to a specific Epic AC bullet.
+
 CRITICAL REQUIREMENTS:
 - Respond ONLY with valid Markdown.
 - Do not use top-level <h1> (# ) tags. Start with ## Acceptance Criteria.
 - Every AC row MUST have a stable AC ID of the form AC-<n> (AC-1, AC-2, ...) — do not reorder IDs across re-plans; new ACs get fresh sequential IDs.
 - Every AC row MUST carry a Disposition value from the enum: new | updated | unchanged.
-- Each Outcome MUST be a single user-visible behaviour — no DB assertions, no HTTP status codes, no internal implementation details.
+- Each Outcome MUST be a **terse restatement keyed to a specific Epic \`## Acceptance Criteria\` bullet** — lead the Outcome with the bullet's anchor (its quoted lead phrase or an explicit "Epic AC N" index) and keep the rest to a single user-visible behaviour. Do NOT re-elaborate the Epic bullet in independent words: a free-standing Outcome that paraphrases the criterion without naming the bullet it verifies is forbidden, because it drifts from the Epic silently. No DB assertions, no HTTP status codes, no internal implementation details.
+- Where one Epic AC bullet genuinely expands into several user-visible outcomes, emit one row per outcome and declare the split on each — e.g. lead with "splits Epic AC 3" — so the fan-out is explicit rather than hidden.
+- Anchor coverage MUST be complete and auditable: every Epic AC bullet MUST be covered by at least one row, and every row MUST anchor to an Epic AC bullet. Flag divergence in the authored spec instead of dropping it — if an Epic AC bullet has no corresponding row, or a row has no Epic anchor, call it out explicitly (a note beneath the table) rather than silently omitting the bullet or emitting an unanchored row.
 - Cite proposed feature file paths under tests/features/** so Phase 8 can scaffold matching scenarios.`;
