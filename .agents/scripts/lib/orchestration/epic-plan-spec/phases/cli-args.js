@@ -20,7 +20,6 @@ export function parseEpicPlanSpecArgs(argv = process.argv.slice(2)) {
     args: argv,
     options: {
       epic: { type: 'string' },
-      prd: { type: 'string' },
       techspec: { type: 'string' },
       'acceptance-spec': { type: 'string' },
       'risk-verdict': { type: 'string' },
@@ -35,7 +34,7 @@ export function parseEpicPlanSpecArgs(argv = process.argv.slice(2)) {
 
   if (!values.epic) {
     throw new Error(
-      'Usage: epic-plan-spec.js --epic <EpicId> (--emit-context [--pretty] [--full-context] | --prd <file> --techspec <file> --risk-verdict <file> [--acceptance-spec <file>]) [--force]',
+      'Usage: epic-plan-spec.js --epic <EpicId> (--emit-context [--pretty] [--full-context] | --techspec <file> --risk-verdict <file> [--acceptance-spec <file>]) [--force]',
     );
   }
 

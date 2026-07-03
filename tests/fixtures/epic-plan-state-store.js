@@ -94,7 +94,6 @@ export class PlanCheckpointer {
       epicId: this.epicId,
       startedAt: now,
       spec: {
-        prdId: null,
         techSpecId: null,
         acceptanceSpecId: null,
         completedAt: null,

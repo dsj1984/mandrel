@@ -10,10 +10,10 @@
  *                       JSON. The authoring middle is the
  *                       `epic-plan-spec-author` Skill (see
  *                       `.agents/skills/core/epic-plan-spec-author/SKILL.md`),
- *                       which consumes this envelope and writes the PRD and
- *                       Tech Spec markdown files.
+ *                       which consumes this envelope and writes the Tech Spec
+ *                       markdown file.
  *
- *   2. (default)        Given author-provided PRD, Tech Spec, and risk-verdict
+ *   2. (default)        Given author-provided Tech Spec and risk-verdict
  *                       files, validates the risk verdict against
  *                       `risk-verdict.schema.json`, derives the planningRisk
  *                       envelope, persists the artifact issues, records the
@@ -21,7 +21,7 @@
  *                       the Epic to `agent::review-spec`, and upserts the
  *                       `epic-plan-state` structured comment.
  *
- * --force regenerates existing PRD/Tech Spec.
+ * --force regenerates the existing Tech Spec.
  * --steal forcibly transfers a foreign Epic-lease claim (the plan-lease guard
  *   fails closed, so any foreign assignee blocks the run unless stolen).
  *
@@ -70,7 +70,6 @@ import {
 } from './lib/orchestration/epic-plan-spec/phases/plan-epic.js';
 import {
   ACCEPTANCE_SPEC_SYSTEM_PROMPT,
-  PRD_SYSTEM_PROMPT,
   TECH_SPEC_SYSTEM_PROMPT,
 } from './lib/orchestration/epic-plan-spec/phases/prompts.js';
 import {
@@ -89,7 +88,6 @@ export {
   buildAuthoringContext,
   drainPendingCleanupAtBoot,
   loadRiskVerdict,
-  PRD_SYSTEM_PROMPT,
   planEpic,
   resolveAcceptancePersistence,
   resolveMemoryDir,
@@ -158,9 +156,9 @@ async function main() {
     return;
   }
 
-  if (!values.prd || !values.techspec || !values['risk-verdict']) {
+  if (!values.techspec || !values['risk-verdict']) {
     throw new Error(
-      'Missing --prd, --techspec, and/or --risk-verdict file paths. (Use --emit-context first to gather authoring context; the epic-plan-spec-author Skill writes all artifacts including risk-verdict.json.)',
+      'Missing --techspec and/or --risk-verdict file paths. (Use --emit-context first to gather authoring context; the epic-plan-spec-author Skill writes all artifacts including risk-verdict.json.)',
     );
   }
 
@@ -168,20 +166,17 @@ async function main() {
   // GitHub mutation: a malformed verdict fails closed here (Epic #3865).
   const riskVerdict = loadRiskVerdict(values['risk-verdict']);
 
-  const readPromises = [
-    readFile(values.prd, 'utf8'),
-    readFile(values.techspec, 'utf8'),
-  ];
+  const readPromises = [readFile(values.techspec, 'utf8')];
   if (values['acceptance-spec']) {
     readPromises.push(readFile(values['acceptance-spec'], 'utf8'));
   }
-  const [prdContent, techSpecContent, acceptanceSpecContent = null] =
+  const [techSpecContent, acceptanceSpecContent = null] =
     await Promise.all(readPromises);
 
   const result = await runSpecPhase(
     epicId,
     provider,
-    { prdContent, techSpecContent, acceptanceSpecContent },
+    { techSpecContent, acceptanceSpecContent },
     settings,
     {
       force: values.force,

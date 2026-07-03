@@ -3,7 +3,7 @@
  *
  * Both QA front-ends (`/qa-explore` and `/qa-run`) need to load the
  * *grounded* surface context for an Epic before they reason about what to test:
- * the Epic body, its linked context tickets (PRD / Tech Spec / Acceptance
+ * the Epic body, its linked context tickets (Tech Spec / Acceptance
  * Spec), the project's `.feature` files, the implementation files the surface
  * map points at, and a slice of recent git history. Today a front-end that
  * trusts in-code comments ("this handler lives at …") can be wrong — the path
@@ -39,11 +39,10 @@ export const DEFAULT_LOG_MAX_COUNT = 20;
 
 /**
  * The GitHub label prefixes that mark a linked context ticket. The hydrator
- * resolves `context::prd`, `context::tech-spec`, and `context::acceptance-spec`
+ * resolves `context::tech-spec` and `context::acceptance-spec`
  * references off the Epic body and fetches each one through the port.
  */
 export const CONTEXT_TICKET_KINDS = Object.freeze([
-  'prd',
   'tech-spec',
   'acceptance-spec',
 ]);
@@ -77,8 +76,8 @@ export const CONTEXT_TICKET_KINDS = Object.freeze([
  * Parse the linked context-ticket issue numbers out of an Epic body.
  *
  * Two reference shapes are recognized, both written by the planning workflows:
- *   - A labelled line: `context::prd #3800` (or `context::tech-spec: #3801`).
- *   - A "Planning Artifacts" link: `- PRD: #3800`, `- Tech Spec: #3801`,
+ *   - A labelled line: `context::tech-spec #3801`.
+ *   - A "Planning Artifacts" link: `- Tech Spec: #3801`,
  *     `- Acceptance Spec: #3802`.
  *
  * Returns a map of kind → issue number for whichever kinds are present. A kind
@@ -94,7 +93,6 @@ export function parseContextTicketRefs(epicBody) {
 
   // Map the human-readable labels back to canonical kinds.
   const labelToKind = {
-    prd: 'prd',
     'tech-spec': 'tech-spec',
     'tech spec': 'tech-spec',
     techspec: 'tech-spec',
@@ -105,7 +103,7 @@ export function parseContextTicketRefs(epicBody) {
 
   for (const rawLine of body.split('\n')) {
     const line = rawLine.trim();
-    // Match `context::tech-spec #N`, `Tech Spec: #N`, `- PRD: #N`, etc.
+    // Match `context::tech-spec #N`, `Tech Spec: #N`, `- Acceptance Spec: #N`, etc.
     const match = line.match(
       /(?:context::)?([A-Za-z][A-Za-z -]*?)\s*[:#]*\s*#(\d+)/,
     );
@@ -190,7 +188,7 @@ export async function verifySurfaceMap(surfaceMap, gitPort, baseRef) {
  *
  * Assembles, in one object:
  *   - `epic`            — the Epic's `{ number, body, labels }`.
- *   - `contextTickets`  — the linked PRD / Tech Spec / Acceptance Spec tickets,
+ *   - `contextTickets`  — the linked Tech Spec / Acceptance Spec tickets,
  *                         keyed by kind, each `{ number, body, labels }`.
  *   - `featureFiles`    — repo-relative paths of the project's `.feature` files.
  *   - `implementation`  — the verified surface map (each entry carries

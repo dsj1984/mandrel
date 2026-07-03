@@ -10,14 +10,14 @@
  *
  * The two gates catch different problems and are intentionally distinct:
  *   - The wave gate misses descendants that exist on GitHub but were never
- *     in the manifest — context::prd / context::tech-spec tickets, mid-sprint
+ *     in the manifest — context::tech-spec tickets, mid-sprint
  *     additions, or recuts that bypassed the dispatcher.
  *   - The hierarchy gate misses parked follow-ons that live as separate
  *     top-level Stories outside the Epic's sub-issue graph.
  *
  * Per ticket type the rule is:
  *   - Stories   — must be closed.
- *   - Auxiliary (context::prd, context::tech-spec) — ignored.
+ *   - Auxiliary (context::tech-spec) — ignored.
  *     These are closed by the operator after the Epic PR merges, so
  *     requiring them closed here would block every Epic.
  *
@@ -52,10 +52,7 @@ const SUB_TICKET_FETCH_CONCURRENCY = 4;
 function classify(ticket) {
   const labels = ticket.labels ?? [];
   if (labels.includes(TYPE_LABELS.STORY)) return 'story';
-  if (
-    labels.includes(CONTEXT_LABELS.PRD) ||
-    labels.includes(CONTEXT_LABELS.TECH_SPEC)
-  ) {
+  if (labels.includes(CONTEXT_LABELS.TECH_SPEC)) {
     return 'auxiliary';
   }
   return 'other';

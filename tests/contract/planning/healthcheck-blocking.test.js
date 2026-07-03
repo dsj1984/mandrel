@@ -55,10 +55,10 @@ function buildStubProvider({ epicId, epicLabels }) {
   issues.set(epicId, {
     id: epicId,
     title: 'Healthcheck Gate Epic',
-    body: 'Some Epic body.\n\n## Planning Artifacts\n- [ ] PRD: #1\n- [ ] Tech Spec: #2\n',
+    body: 'Some Epic body.\n\n## Planning Artifacts\n- [ ] Tech Spec: #2\n',
     labels: epicLabels,
     state: 'open',
-    linkedIssues: { prd: 1, techSpec: 2, acceptanceSpec: 3 },
+    linkedIssues: { techSpec: 2, acceptanceSpec: 3 },
   });
   return {
     issues,

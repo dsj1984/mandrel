@@ -23,7 +23,7 @@
  *   6. Flip the Story to `agent::executing`.
  *
  * What this script does NOT do (and why):
- *   - Skips `traceHierarchy` — no Epic → no PRD/Tech-Spec.
+ *   - Skips `traceHierarchy` — no Epic → no Tech-Spec.
  *   - Skips `validateBlockers` against the body's `Blocked by:` markers —
  *     pre-flight is still the operator's responsibility, but the Epic-scope
  *     blocker chain doesn't fit.

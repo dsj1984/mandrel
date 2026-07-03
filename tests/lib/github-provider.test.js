@@ -91,7 +91,7 @@ test('GitHubProvider: getTicket handles simple ticket', async () => {
   assert.ok(ticket.labels.includes('type::task'));
 });
 
-test('GitHubProvider: getEpic parses PRD/TechSpec links', async () => {
+test('GitHubProvider: getEpic parses TechSpec links (ignoring legacy PRD)', async () => {
   const gh = makeFakeGh({
     'GET /issues/1': {
       status: 200,
@@ -108,7 +108,9 @@ test('GitHubProvider: getEpic parses PRD/TechSpec links', async () => {
   const provider = new GitHubProvider({ owner: 'owner', repo: 'repo' }, { gh });
   const epic = await provider.getEpic(1);
   assert.equal(epic.id, 1);
-  assert.equal(epic.linkedIssues.prd, 2);
+  // Story #4314 — the PRD artifact class is retired; the historical
+  // `- [ ] PRD: #2` line is ignored and no `prd` slot is surfaced.
+  assert.ok(!('prd' in epic.linkedIssues));
   assert.equal(epic.linkedIssues.techSpec, 3);
 });
 

@@ -465,7 +465,12 @@ describe('epic-plan-lease-guard — assertNoOpenPlanChildren', () => {
     const provider = makeProvider({
       children: [
         // context tickets are not Stories — they must not trip the guard
-        { id: 13, title: 'PRD', labels: ['context::prd'], state: 'open' },
+        {
+          id: 13,
+          title: 'Tech Spec',
+          labels: ['context::tech-spec'],
+          state: 'open',
+        },
       ],
     });
     const result = await assertNoOpenPlanChildren({
@@ -483,12 +488,6 @@ describe('epic-plan-lease-guard — assertNoOpenPlanChildren', () => {
     // exclude them (by their context:: label) rather than refuse persist.
     const provider = makeProvider({
       children: [
-        {
-          id: 13,
-          title: 'PRD',
-          labels: ['type::story', 'context::prd'],
-          state: 'open',
-        },
         {
           id: 14,
           title: 'Tech Spec',
@@ -518,8 +517,8 @@ describe('epic-plan-lease-guard — assertNoOpenPlanChildren', () => {
       children: [
         {
           id: 13,
-          title: 'PRD',
-          labels: ['type::story', 'context::prd'],
+          title: 'Tech Spec',
+          labels: ['type::story', 'context::tech-spec'],
           state: 'open',
         },
         { id: 16, title: 'Story A', labels: ['type::story'], state: 'open' },
@@ -537,14 +536,14 @@ describe('epic-plan-lease-guard — assertNoOpenPlanChildren', () => {
 });
 
 // ---------------------------------------------------------------------------
-// planEpic find-or-create — AC2: re-running reuses linked PRD / Tech Spec
+// planEpic find-or-create — AC2: re-running reuses the linked Tech Spec
 // ---------------------------------------------------------------------------
 
 describe('epic-plan-lease-guard — context-ticket find-or-create (AC2)', () => {
   /**
    * Provider stub for planEpic: tracks createTicket calls (the duplication we
-   * are guarding against) and serves an Epic that already links a PRD + Tech
-   * Spec via linkedIssues.
+   * are guarding against) and serves an Epic that already links a Tech Spec
+   * via linkedIssues.
    */
   function makePlanProvider(linkedIssues) {
     const createCalls = [];
@@ -576,9 +575,8 @@ describe('epic-plan-lease-guard — context-ticket find-or-create (AC2)', () => 
     };
   }
 
-  it('reuses the already-linked PRD and Tech Spec instead of creating duplicates', async () => {
+  it('reuses the already-linked Tech Spec instead of creating a duplicate', async () => {
     const provider = makePlanProvider({
-      prd: 501,
       techSpec: 502,
       acceptanceSpec: null,
     });
@@ -586,18 +584,17 @@ describe('epic-plan-lease-guard — context-ticket find-or-create (AC2)', () => 
     await planEpic(
       9,
       provider,
-      { prdContent: 'PRD body', techSpecContent: 'Tech Spec body' },
+      { techSpecContent: 'Tech Spec body' },
       {},
       { force: false },
     );
 
-    // No new PRD or Tech Spec issues are created on a re-run.
+    // No new Tech Spec issue is created on a re-run.
     assert.equal(provider.createCalls.length, 0);
   });
 
-  it('creates the PRD and Tech Spec when none are linked yet', async () => {
+  it('creates the Tech Spec when none is linked yet', async () => {
     const provider = makePlanProvider({
-      prd: null,
       techSpec: null,
       acceptanceSpec: null,
     });
@@ -605,13 +602,13 @@ describe('epic-plan-lease-guard — context-ticket find-or-create (AC2)', () => 
     await planEpic(
       9,
       provider,
-      { prdContent: 'PRD body', techSpecContent: 'Tech Spec body' },
+      { techSpecContent: 'Tech Spec body' },
       {},
       { force: false },
     );
 
     const labels = provider.createCalls.map((c) => c.labels?.[0]);
-    assert.ok(labels.includes('context::prd'));
+    assert.ok(!labels.includes('context::prd'));
     assert.ok(labels.includes('context::tech-spec'));
   });
 });

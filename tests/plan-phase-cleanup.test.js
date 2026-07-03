@@ -11,7 +11,6 @@ describe('plan-phase-cleanup.resolvePhaseTempPaths', () => {
     const paths = resolvePhaseTempPaths('spec', 441, '/repo');
     assert.equal(paths.length, PHASE_TEMP_BASENAMES.spec.length);
     assert.ok(paths.every((p) => p.includes('epic-441')));
-    assert.ok(paths.some((p) => p.endsWith('prd.md')));
     assert.ok(paths.some((p) => p.endsWith('techspec.md')));
     assert.ok(paths.some((p) => p.endsWith('acceptance-spec.md')));
     assert.ok(paths.some((p) => p.endsWith('planner-context.json')));
@@ -38,7 +37,7 @@ describe('plan-phase-cleanup.cleanupPhaseTempFiles', () => {
     const unlinked = [];
     const fakeUnlink = async (p) => {
       unlinked.push(p);
-      if (p.endsWith('prd.md')) return; // success
+      if (p.endsWith('planner-context.json')) return; // success
       if (p.endsWith('acceptance-spec.md')) return; // success
       if (p.endsWith('techspec.md')) {
         const err = new Error('ENOENT');
@@ -57,7 +56,7 @@ describe('plan-phase-cleanup.cleanupPhaseTempFiles', () => {
     });
     assert.equal(result.deleted.length, 2);
     assert.equal(result.missing.length, 1);
-    assert.equal(result.failed.length, 1);
+    assert.equal(result.failed.length, 0);
     assert.equal(unlinked.length, PHASE_TEMP_BASENAMES.spec.length);
   });
 

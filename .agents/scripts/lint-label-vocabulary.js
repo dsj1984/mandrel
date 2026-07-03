@@ -160,7 +160,7 @@ export function findVocabularyViolations(src, axes = KNOWN_AXES) {
   //     hyphen but is not at axis position.
   //   - `<type>/<slug>` — template placeholders.
   //   - `delivery.maxTokenBudget` — config-key paths with `.`.
-  //   - `context.{prdId,techSpecId}` — JS destructure shapes.
+  //   - `context.{techSpecId}` — JS destructure shapes.
   //   - `agent-protocol.md` — filenames / concept slugs.
   //
   // Real drift like `type/epic` matches because the WHOLE body is

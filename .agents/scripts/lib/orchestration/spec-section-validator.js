@@ -1,7 +1,7 @@
 /**
  * spec-section-validator.js — Phase 7.5 Tech Spec post-authoring section gate.
  *
- * `/plan` Phase 7 authors a Tech Spec from documentation and the PRD.
+ * `/plan` Phase 7 authors a Tech Spec from documentation and the Epic body.
  * Phase 8.3 (Holistic Consolidation) then reconciles the draft ticket array
  * against the Tech Spec's `## Delivery Slicing` section, which the
  * decompose-author skill uses as the capability-boundary anchor. When the

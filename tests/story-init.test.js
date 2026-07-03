@@ -72,7 +72,7 @@ test('runStoryInit dry-run composes all stages end-to-end', async () => {
   const epic = {
     id: 400,
     labels: ['type::epic'],
-    linkedIssues: { prd: 401, techSpec: 402 },
+    linkedIssues: { techSpec: 402 },
   };
   const subTickets = [
     {
@@ -119,7 +119,6 @@ test('runStoryInit dry-run composes all stages end-to-end', async () => {
   assert.strictEqual(r.installFailed, false);
   assert.deepStrictEqual(r.context, {
     parentId: 500,
-    prdId: 401,
     techSpecId: 402,
   });
   // task-graph-builder must topologically sort #802 before #801.
@@ -303,7 +302,7 @@ test('runStoryInit dry-run accepts a 2-tier Story with inline acceptance and zer
   const epic = {
     id: 400,
     labels: ['type::epic'],
-    linkedIssues: { prd: 401, techSpec: 402 },
+    linkedIssues: { techSpec: 402 },
   };
   const provider = makePipelineProvider({ story, epic, subTickets: [] });
 

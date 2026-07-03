@@ -1,27 +1,28 @@
 /**
- * Parse PRD / Tech-Spec / Acceptance-Spec references from a GitHub epic body.
+ * Parse Tech-Spec / Acceptance-Spec references from a GitHub epic body.
  * Extracted from providers/github.js so link-parsing is not mixed with HTTP
  * transport.
  *
  * Expected markdown conventions in an epic body (case-insensitive, tolerant
  * of the `- [ ]` / `- [x]` checkbox prefix that `epic-plan-spec.js` emits in
  * the `## Planning Artifacts` section):
- *   - "PRD: #42"  or  "prd #42"
  *   - "Tech Spec: #43"  /  "Technical Spec: #43"  /  "tech-spec: #43"
  *   - "Acceptance Spec: #44"  /  "acceptance-spec: #44"  /  "accept spec: #44"
  *
  * Story #2091 added the `acceptanceSpec` slot so the
  * `closePlanningArtifacts()` cascade in `epic-deliver-finalize.js` can close
  * the `context::acceptance-spec` ticket Epic #2001 introduces alongside the
- * existing PRD / Tech-Spec pair.
+ * Tech-Spec.
  *
  * Story #3848: regexes are now scoped to the `## Planning Artifacts` section
  * only. Prose elsewhere in the body (e.g. bundled-follow-up notes that
  * mention a foreign Epic's spec ticket by number) can no longer collide with
  * the machine-managed list items.
+ *
+ * Story #4314: the PRD artifact class is retired — the Epic body now carries
+ * its `## User Stories` section inline, so there is no `prd` slot to parse.
  */
 
-const PRD_RE = /(?:PRD|prd)[:\s]+#(\d+)/;
 const TECH_SPEC_RE = /(?:Tech Spec|tech.?spec|technical.?spec)[:\s]+#(\d+)/i;
 const ACCEPTANCE_SPEC_RE =
   /(?:Acceptance Spec|acceptance.?spec|accept.?spec)[:\s]+#(\d+)/i;
@@ -49,10 +50,10 @@ function extractPlanningArtifactsSection(body) {
 
 /**
  * @param {string|null|undefined} body
- * @returns {{ prd: number|null, techSpec: number|null, acceptanceSpec: number|null }}
+ * @returns {{ techSpec: number|null, acceptanceSpec: number|null }}
  */
 export function parseLinkedIssues(body) {
-  const result = { prd: null, techSpec: null, acceptanceSpec: null };
+  const result = { techSpec: null, acceptanceSpec: null };
   if (typeof body !== 'string' || body.length === 0) return result;
 
   // Scope all regex matching to the canonical Planning Artifacts section so
@@ -62,8 +63,6 @@ export function parseLinkedIssues(body) {
   const section = extractPlanningArtifactsSection(body);
   if (section.length === 0) return result;
 
-  const prdMatch = section.match(PRD_RE);
-  if (prdMatch) result.prd = Number.parseInt(prdMatch[1], 10);
   const specMatch = section.match(TECH_SPEC_RE);
   if (specMatch) result.techSpec = Number.parseInt(specMatch[1], 10);
   const acceptanceMatch = section.match(ACCEPTANCE_SPEC_RE);

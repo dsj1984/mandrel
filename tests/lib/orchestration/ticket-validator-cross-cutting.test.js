@@ -253,7 +253,7 @@ describe('fan-out persist gate (Story #2962)', () => {
     title: 'E',
     body: '',
     labels: ['type::epic'],
-    linkedIssues: { prd: 10, techSpec: 11 },
+    linkedIssues: { techSpec: 11 },
   });
 
   const buildProvider = (epic) => ({
@@ -340,7 +340,7 @@ describe('soft conflict surfacing in Phase 8 (Story #3957)', () => {
     title: 'E',
     body: '',
     labels: ['type::epic'],
-    linkedIssues: { prd: 10, techSpec: 11 },
+    linkedIssues: { techSpec: 11 },
   });
 
   const buildProvider = (epic) => ({

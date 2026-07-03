@@ -41,9 +41,9 @@ function storyTicket(id, { dependsOnIds = [], extraLabels = [] } = {}) {
 function nonStoryTicket(id) {
   return {
     id,
-    title: `PRD ${id}`,
+    title: `Tech Spec ${id}`,
     body: '',
-    labels: ['context::prd'],
+    labels: ['context::tech-spec'],
   };
 }
 

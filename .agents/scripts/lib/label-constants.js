@@ -92,7 +92,6 @@ export const STATUS_LABELS = {
 export const PERSONA_LABEL_PREFIX = 'persona::';
 
 export const CONTEXT_LABELS = {
-  PRD: 'context::prd',
   TECH_SPEC: 'context::tech-spec',
   ACCEPTANCE_SPEC: 'context::acceptance-spec',
 };

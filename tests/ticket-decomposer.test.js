@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 //
 // Story #3841 — the dead `decomposeEpic` direct-create entry point was
 // deleted. The decompose-time input guards it used to own (Epic not found,
-// not a type::epic, missing PRD/Tech Spec, non-array tickets, mutually
+// not a type::epic, missing Tech Spec, non-array tickets, mutually
 // exclusive --force/--resume) live on the canonical reconciler-based
 // `runDecomposePhase`/persist surface, so those assertions are re-pointed
 // there. The DAG ordering + sibling-dependency wiring stays covered through
@@ -97,12 +97,11 @@ describe('ticket-decomposer persist guards (runDecomposePhase)', () => {
           title: 'Implement V5 Core',
           body: 'Epic body.',
           labels: ['type::epic'],
-          linkedIssues: { prd: 100, techSpec: 101 },
+          linkedIssues: { techSpec: 101 },
         };
       },
 
       async getTicket(id) {
-        if (id === 100) return { id: 100, body: 'Mocked PRD body' };
         if (id === 101) return { id: 101, body: 'Mocked Tech Spec body' };
         return null;
       },
@@ -123,18 +122,18 @@ describe('ticket-decomposer persist guards (runDecomposePhase)', () => {
     };
   });
 
-  it('aborts early when the Epic is missing linked PRD/Tech Spec artifacts', async () => {
+  it('aborts early when the Epic is missing a linked Tech Spec artifact', async () => {
     mockProvider.getEpic = async () => ({
       id: 1,
       title: 'Missing Links Epic',
       labels: ['type::epic'],
-      linkedIssues: { prd: null, techSpec: null },
+      linkedIssues: { techSpec: null },
     });
 
     await assert.rejects(
       () =>
         runDecomposePhase(1, mockProvider, { tickets: baseTickets() }, {}, {}),
-      /missing a linked PRD or Tech Spec/,
+      /missing a linked Tech Spec/,
     );
   });
 
@@ -143,7 +142,7 @@ describe('ticket-decomposer persist guards (runDecomposePhase)', () => {
       id: 1,
       title: 'Not An Epic',
       labels: ['type::story'],
-      linkedIssues: { prd: 100, techSpec: 101 },
+      linkedIssues: { techSpec: 101 },
     });
 
     await assert.rejects(
@@ -527,7 +526,7 @@ describe('ticket-decomposer prompt single-sourcing (Story #4162)', () => {
     'SKILL.md',
   );
   const FULL_BODY_MARKER =
-    'You are an expert Senior Project Manager and Orchestrator.\nYour job is to take a Product Requirements Document (PRD) and a Technical Specification and decompose them into a flat list of Story tickets';
+    'You are an expert Senior Project Manager and Orchestrator.\nYour job is to take an Epic (including its inline User Stories) and a Technical Specification and decompose them into a flat list of Story tickets';
 
   it('the JS template carries the full decomposer system-prompt body', () => {
     const prompt = renderDecomposerSystemPrompt();
@@ -715,19 +714,23 @@ describe('ticket-decomposer prompt single-sourcing (Story #4162)', () => {
 });
 
 describe('ticket-decomposer buildDecompositionContext', () => {
-  it('returns the PRD/Tech Spec bodies and system prompt', async () => {
+  it('returns the Epic body / Tech Spec bodies and system prompt', async () => {
+    // Story #4314 retired the PRD artifact class: the decomposition context
+    // reads the Epic body itself (surfaced as `ctx.epicBody`) plus the linked
+    // Tech Spec, so the PRD id / body fetch is gone.
     const provider = {
       async getEpic(id) {
         return {
           id,
           title: 'Ctx Epic',
-          linkedIssues: { prd: 10, techSpec: 11 },
+          body: 'EPIC BODY',
+          linkedIssues: { techSpec: 11 },
         };
       },
       async getTicket(id) {
         return {
           id,
-          body: id === 10 ? 'PRD BODY' : 'TECH SPEC BODY',
+          body: 'TECH SPEC BODY',
         };
       },
     };
@@ -737,7 +740,7 @@ describe('ticket-decomposer buildDecompositionContext', () => {
     });
 
     assert.equal(ctx.epic.id, 1);
-    assert.equal(ctx.prd.body, 'PRD BODY');
+    assert.equal(ctx.epicBody.body, 'EPIC BODY');
     assert.equal(ctx.techSpec.body, 'TECH SPEC BODY');
     assert.deepEqual(ctx.heuristics, ['Heuristic A']);
     assert.ok(ctx.systemPrompt.includes('Heuristic A'));
@@ -753,7 +756,7 @@ describe('ticket-decomposer buildDecompositionContext', () => {
   it('throws when planning artifacts are missing', async () => {
     const provider = {
       async getEpic() {
-        return { id: 1, linkedIssues: { prd: null, techSpec: null } };
+        return { id: 1, linkedIssues: { techSpec: null } };
       },
       async getTicket() {
         return null;
@@ -761,7 +764,7 @@ describe('ticket-decomposer buildDecompositionContext', () => {
     };
     await assert.rejects(
       async () => await buildDecompositionContext(1, provider, {}),
-      { message: /missing linked PRD or Tech Spec/ },
+      { message: /missing a linked Tech Spec/ },
     );
   });
 
@@ -775,16 +778,14 @@ describe('ticket-decomposer buildDecompositionContext', () => {
         return {
           id,
           title: 'Epic with new-disposition AC rows',
-          linkedIssues: { prd: 10, techSpec: 11 },
+          body: 'EPIC BODY',
+          linkedIssues: { techSpec: 11 },
         };
       },
       async getTicket(id) {
         return {
           id,
-          body:
-            id === 10
-              ? 'PRD BODY'
-              : '## Acceptance Spec\n| AC ID | Outcome | Feature File | Scenario | Disposition |\n| AC-1 | Invoice created | tests/features/billing/invoice.feature | Create invoice | new |',
+          body: '## Acceptance Spec\n| AC ID | Outcome | Feature File | Scenario | Disposition |\n| AC-1 | Invoice created | tests/features/billing/invoice.feature | Create invoice | new |',
         };
       },
     };
@@ -799,27 +800,26 @@ describe('ticket-decomposer buildDecompositionContext', () => {
   });
 
   describe('planning-context budget (Epic #817 Story 9)', () => {
+    // Story #4314 retired the PRD artifact class: the budgeted authoring
+    // inputs are now the Epic body (surfaced as `ctx.epicBody`) and the linked
+    // Tech Spec, so the big Epic body lives on `epic.body` and the Tech Spec
+    // body on `getTicket(11)`.
+    const bigBody = (tail) => `## Heading\n\n${'x'.repeat(40000)}\n\n${tail}`;
     const buildProvider = () => ({
       async getEpic(id) {
         return {
           id,
           title: 'Big Epic',
-          linkedIssues: { prd: 10, techSpec: 11 },
+          body: bigBody('## Epic-only\n\nbody'),
+          linkedIssues: { techSpec: 11 },
         };
       },
       async getTicket(id) {
-        const big = `## Heading\n\n${'x'.repeat(40000)}\n`;
-        return {
-          id,
-          body:
-            id === 10
-              ? `${big}\n## PRD-only\n\nbody`
-              : `${big}\n## TS-only\n\nbody`,
-        };
+        return { id, body: bigBody('## TS-only\n\nbody') };
       },
     });
 
-    it('downgrades to summary mode when PRD+TechSpec exceed maxBytes', async () => {
+    it('downgrades to summary mode when Epic body + TechSpec exceed maxBytes', async () => {
       const ctx = await buildDecompositionContext(1, buildProvider(), {
         agentSettings: {
           limits: {
@@ -828,9 +828,9 @@ describe('ticket-decomposer buildDecompositionContext', () => {
         },
       });
       assert.equal(ctx.contextMode, 'summary');
-      assert.equal(ctx.prd.body, null);
-      assert.ok(ctx.prd.bodySummary);
-      assert.ok(ctx.prd.bodySummary.headings.includes('Heading'));
+      assert.equal(ctx.epicBody.body, null);
+      assert.ok(ctx.epicBody.bodySummary);
+      assert.ok(ctx.epicBody.bodySummary.headings.includes('Heading'));
       assert.equal(ctx.techSpec.body, null);
       assert.ok(ctx.techSpec.bodySummary);
     });
@@ -849,7 +849,7 @@ describe('ticket-decomposer buildDecompositionContext', () => {
         { fullContext: true },
       );
       assert.equal(ctx.contextMode, 'full');
-      assert.ok(ctx.prd.body.includes('## Heading'));
+      assert.ok(ctx.epicBody.body.includes('## Heading'));
       assert.ok(ctx.techSpec.body.includes('## Heading'));
     });
 
@@ -859,7 +859,8 @@ describe('ticket-decomposer buildDecompositionContext', () => {
           return {
             id,
             title: 'Small Epic',
-            linkedIssues: { prd: 10, techSpec: 11 },
+            body: '## Tiny\n\nshort body',
+            linkedIssues: { techSpec: 11 },
           };
         },
         async getTicket(id) {
@@ -872,11 +873,11 @@ describe('ticket-decomposer buildDecompositionContext', () => {
         },
       });
       assert.equal(ctx.contextMode, 'summary');
-      assert.deepEqual(ctx.prd.bodySummary.headings, ['Tiny']);
+      assert.deepEqual(ctx.epicBody.bodySummary.headings, ['Tiny']);
     });
 
     it('creation order is driven by the ticket array, not the planning-context mode', () => {
-      // Decomposition itself doesn't read the PRD/Tech-Spec bodies — it only
+      // Decomposition itself doesn't read the Epic-body/Tech-Spec bodies — it only
       // reads the authored ticket array. The planning-context mode (full vs
       // summary) is purely an emit-context concern and never leaks into the
       // deterministic creation order, which is fixed by

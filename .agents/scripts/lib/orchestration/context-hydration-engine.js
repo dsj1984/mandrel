@@ -163,8 +163,7 @@ function getVersion() {
 /**
  * Parse the work-breakdown hierarchy from a Task ticket body.
  *
- * Looks for patterns like: `Epic: #1`, `Story: #3`,
- * `PRD: #4`, `Tech Spec: #5`.
+ * Looks for patterns like: `Epic: #1`, `Story: #3`, `Tech Spec: #5`.
  *
  * @param {string} body
  * @returns {Record<string, number>}
@@ -177,7 +176,7 @@ export function parseHierarchy(body) {
   for (const match of matches) {
     const key = match[1].trim().toLowerCase().replace(/\s+/g, '');
     const val = Number.parseInt(match[2], 10);
-    result[key] = val; // e.g. { epic: 1, story: 3, prd: 4, techspec: 5 }
+    result[key] = val; // e.g. { epic: 1, story: 3, techspec: 5 }
   }
   return result;
 }
@@ -351,9 +350,12 @@ async function buildHierarchySections(task, provider, epicId, agentSettings) {
   const depth = agentSettings?.contextDepth ?? 'standard';
   const idsToFetch = [];
 
+  // Story #4314 — with the PRD artifact class retired, `full` and `standard`
+  // fetch the identical Epic / Tech Spec / Story set (there is no longer a PRD
+  // body to add at the deeper depth). Both branches are kept so the
+  // `contextDepth` setting stays a stable API surface.
   if (depth === 'full') {
     idsToFetch.push({ key: 'Epic', id: epicId || hierarchyKeys.epic });
-    idsToFetch.push({ key: 'PRD', id: hierarchyKeys.prd });
     idsToFetch.push({ key: 'Tech Spec', id: hierarchyKeys.techspec });
     idsToFetch.push({ key: 'Story', id: hierarchyKeys.story });
   } else if (depth === 'standard') {

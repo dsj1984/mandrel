@@ -10,7 +10,7 @@
  * requirement via the `acceptance::n-a` label, *or* a
  * `context::acceptance-spec` ticket is linked to the Epic. The ticket's
  * GitHub state (open / closed) is **not** checked — presence is
- * sufficient, matching the PRD and Tech Spec contract. The reviewer's
+ * sufficient, matching the Tech Spec contract. The reviewer's
  * OK during /plan Phase 7 is the approval signal, not a manual
  * ticket-close action. This still refuses to launch Epics that skipped
  * the /plan Phase 7 acceptance-spec authoring step (or didn't

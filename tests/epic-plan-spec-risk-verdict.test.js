@@ -139,7 +139,7 @@ function buildSpecPhaseProvider() {
     title: 'Verdict Epic',
     body: 'Epic body.',
     labels: ['type::epic'],
-    linkedIssues: { prd: null, techSpec: null, acceptanceSpec: null },
+    linkedIssues: { techSpec: null, acceptanceSpec: null },
   };
   return {
     epic,
@@ -199,7 +199,6 @@ describe('runSpecPhase risk-verdict recording', () => {
       provider.epic.id,
       provider,
       {
-        prdContent: '## Overview\nPRD.',
         techSpecContent: '## Technical Overview\nTS.',
       },
       { baseBranch: 'main', paths: { tempRoot: sandbox } },
@@ -234,7 +233,6 @@ describe('runSpecPhase risk-verdict recording', () => {
         provider.epic.id,
         provider,
         {
-          prdContent: '## Overview\nPRD.',
           techSpecContent: '## Technical Overview\nTS.',
         },
         { baseBranch: 'main', paths: { tempRoot: sandbox } },
@@ -254,7 +252,6 @@ describe('runSpecPhase rerun demotion guard (Story #4019)', () => {
     // Fully decomposed + planned: artifacts linked, Epic at agent::ready.
     provider.epic.labels = ['type::epic', 'agent::ready'];
     provider.epic.linkedIssues = {
-      prd: 801,
       techSpec: 802,
       acceptanceSpec: null,
     };
@@ -263,7 +260,6 @@ describe('runSpecPhase rerun demotion guard (Story #4019)', () => {
       provider.epic.id,
       provider,
       {
-        prdContent: '## Overview\nPRD.',
         techSpecContent: '## Technical Overview\nTS.',
       },
       { baseBranch: 'main', paths: { tempRoot: sandbox } },
@@ -291,7 +287,6 @@ describe('runSpecPhase rerun demotion guard (Story #4019)', () => {
       provider.epic.id,
       provider,
       {
-        prdContent: '## Overview\nPRD.',
         techSpecContent: '## Technical Overview\nTS.',
       },
       { baseBranch: 'main', paths: { tempRoot: sandbox } },

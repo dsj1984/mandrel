@@ -47,7 +47,6 @@ describe('build-wave-dag — discoverOpenStories', () => {
     // A context ticket mislabelled with type::story must never reach a
     // delivery wave — it has no story branch or acceptance contract.
     const provider = makeProvider([
-      { id: 13, labels: ['type::story', 'context::prd'], state: 'open' },
       {
         id: 14,
         labels: ['type::story', 'context::tech-spec'],

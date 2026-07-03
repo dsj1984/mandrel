@@ -16,8 +16,8 @@ action is destructive.
 
 ## 2. Interaction Protocol
 
-1. **Contextualize the User:** Understand the PRD and the user story. Identify
-   the primary Call to Action (CTA).
+1. **Contextualize the User:** Understand the Epic body and its user stories.
+   Identify the primary Call to Action (CTA).
 2. **Flow Before UI:** Do not design specific UI components until the entire
    end-to-end user flow is mapped out and theoretically sound.
 3. **State Management:** Define every state of a page or component (Empty,

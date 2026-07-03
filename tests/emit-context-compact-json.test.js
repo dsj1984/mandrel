@@ -35,10 +35,14 @@ const fixture = {
     id: 817,
     title: 'Reduce token spend in planning prompts',
     body: 'Trim emit-context payloads.',
-    linkedIssues: { prd: 818, techSpec: 819 },
+    linkedIssues: { techSpec: 819 },
   },
-  prd: {
-    id: 818,
+  // Story #4314 retired the PRD artifact class; the Epic body (carrying its
+  // inline `## User Stories`) is the budgeted authoring input in the PRD's
+  // place, so the emitted context carries `epicBody` where it used to carry
+  // `prd`.
+  epicBody: {
+    id: 817,
     body: 'Goals: lower per-Epic prompt cost; preserve roundtrip parity.',
   },
   techSpec: {

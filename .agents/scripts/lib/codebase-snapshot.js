@@ -2,7 +2,7 @@
  * codebase-snapshot.js — Bounded structural view of the consumer repo.
  *
  * Story #2634 (sibling to #2635 spec-freshness). `/plan` Phase 7
- * authors PRD + Tech Spec from documentation alone — `architecture.md`,
+ * authors the Tech Spec from documentation alone — `architecture.md`,
  * `data-dictionary.md`, `decisions.md`, `patterns.md`. When those docs
  * drift from the real source tree, the Architect persona cites modules
  * and paths that no longer exist, and the mismatch only surfaces at

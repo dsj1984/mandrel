@@ -146,7 +146,7 @@ describe('lifecycle/phase-plan', () => {
       [
         775,
         [
-          { id: 781, labels: ['context::prd'], body: '', state: 'open' },
+          { id: 781, labels: ['context::tech-spec'], body: '', state: 'open' },
           { id: 787, labels: ['type::story'], body: '', state: 'open' },
           { id: 791, labels: ['type::story'], body: '', state: 'open' },
           { id: 799, labels: ['type::story'], body: '', state: 'open' },

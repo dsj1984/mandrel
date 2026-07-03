@@ -1,15 +1,19 @@
 /**
- * phases/plan-epic.js — PRD / Tech Spec / Acceptance Spec persistence phase.
+ * phases/plan-epic.js — Tech Spec / Acceptance Spec persistence phase.
  *
- * Heals any prior planning artifacts (PRD / Tech Spec issues, "Planning
- * Artifacts" body section, lifecycle labels) before writing the new issues.
- * Idempotent against partial state: when the Epic already has a PRD but no
- * Tech Spec, the existing PRD is reused. Pass `force: true` to re-plan: the
- * canonical context tickets (PRD / Tech Spec / Acceptance Spec) are
- * **overwritten in place** — same issue numbers, refreshed bodies, kept open,
- * with a one-line regeneration audit comment on each. Only redundant
- * duplicate artifacts are closed; Feature/Story child tickets retain
- * close-and-recreate behaviour (handled by the decomposer, not here).
+ * Heals any prior planning artifacts (Tech Spec issue, "Planning Artifacts"
+ * body section, lifecycle labels) before writing the new issues. Idempotent
+ * against partial state: when the Epic already has a Tech Spec it is reused.
+ * Pass `force: true` to re-plan: the canonical context tickets
+ * (Tech Spec / Acceptance Spec) are **overwritten in place** — same issue
+ * numbers, refreshed bodies, kept open, with a one-line regeneration audit
+ * comment on each. Only redundant duplicate artifacts are closed;
+ * Feature/Story child tickets retain close-and-recreate behaviour (handled by
+ * the decomposer, not here).
+ *
+ * Story #4314: the PRD artifact class is retired — the Epic body carries its
+ * `## User Stories` section inline, so this phase persists only the Tech Spec
+ * and (optionally) the Acceptance Spec.
  */
 
 import { Logger } from '../../../Logger.js';
@@ -51,7 +55,7 @@ export function resolveAcceptancePersistence(
 }
 
 /**
- * Overwrite an existing context ticket (PRD / Tech Spec / Acceptance Spec)
+ * Overwrite an existing context ticket (Tech Spec / Acceptance Spec)
  * in place: push the freshly-authored body and refresh the title prefix so a
  * clarity-gate Epic rename does not strand a stale spec title, then post a
  * single one-line regeneration audit comment so the preserved discussion
@@ -64,9 +68,9 @@ export function resolveAcceptancePersistence(
  * @param {import('../../../ITicketingProvider.js').ITicketingProvider} provider
  * @param {number} ticketId           Existing context-ticket issue number.
  * @param {{ title: string, body: string, artifact: string }} fields
- *   `title` is the refreshed `[PRD] <epic title>`-style prefix; `body` is the
- *   regenerated content; `artifact` is the human label used in the audit
- *   comment (`PRD`, `Tech Spec`, `Acceptance Spec`).
+ *   `title` is the refreshed `[Tech Spec] <epic title>`-style prefix; `body`
+ *   is the regenerated content; `artifact` is the human label used in the
+ *   audit comment (`Tech Spec`, `Acceptance Spec`).
  * @returns {Promise<void>}
  */
 export async function overwriteContextTicket(
@@ -87,15 +91,9 @@ export async function overwriteContextTicket(
 }
 
 export function validatePlanEpicInputs({
-  prdContent,
   techSpecContent,
   acceptanceSpecContent,
 }) {
-  if (typeof prdContent !== 'string' || prdContent.trim() === '') {
-    throw new Error(
-      '[Epic Planner] prdContent is required and must be non-empty.',
-    );
-  }
   if (typeof techSpecContent !== 'string' || techSpecContent.trim() === '') {
     throw new Error(
       '[Epic Planner] techSpecContent is required and must be non-empty.',
@@ -114,7 +112,6 @@ export function validatePlanEpicInputs({
 
 export function getExistingArtifactIds(epic) {
   return {
-    prd: epic.linkedIssues?.prd ?? null,
     techSpec: epic.linkedIssues?.techSpec ?? null,
     acceptanceSpec: epic.linkedIssues?.acceptanceSpec ?? null,
   };
@@ -122,49 +119,8 @@ export function getExistingArtifactIds(epic) {
 
 export function hasAllRequestedArtifacts({ existing, wantsAcceptanceSpec }) {
   return Boolean(
-    existing.prd &&
-      existing.techSpec &&
-      (wantsAcceptanceSpec ? existing.acceptanceSpec : true),
+    existing.techSpec && (wantsAcceptanceSpec ? existing.acceptanceSpec : true),
   );
-}
-
-async function persistPrd({
-  provider,
-  epicId,
-  epic,
-  prdContent,
-  existingId,
-  force,
-}) {
-  if (existingId) {
-    if (force) {
-      Logger.info(
-        `[Epic Planner] --force: Overwriting PRD #${existingId} in place.`,
-      );
-      await overwriteContextTicket(provider, existingId, {
-        title: `[PRD] ${epic.title}`,
-        body: prdContent,
-        artifact: 'PRD',
-      });
-    } else {
-      Logger.info(
-        `[Epic Planner] Reusing existing PRD #${existingId}. Skipping PRD creation.`,
-      );
-    }
-    return existingId;
-  }
-
-  Logger.info(`[Epic Planner] Creating PRD issue for "${epic.title}"...`);
-  const prdTicket = await provider.createTicket(epicId, {
-    title: `[PRD] ${epic.title}`,
-    body: prdContent,
-    labels: ['context::prd'],
-    dependencies: [],
-  });
-  Logger.info(
-    `[Epic Planner] Created PRD Issue #${prdTicket.id} (${prdTicket.url})`,
-  );
-  return prdTicket.id;
 }
 
 async function persistTechSpec({
@@ -172,7 +128,6 @@ async function persistTechSpec({
   epicId,
   epic,
   techSpecContent,
-  prdId,
   existingId,
   force,
 }) {
@@ -194,14 +149,12 @@ async function persistTechSpec({
     return existingId;
   }
 
-  Logger.info(
-    `[Epic Planner] Creating Tech Spec issue linking to PRD #${prdId}...`,
-  );
+  Logger.info(`[Epic Planner] Creating Tech Spec issue for "${epic.title}"...`);
   const techSpecTicket = await provider.createTicket(epicId, {
     title: `[Tech Spec] ${epic.title}`,
     body: techSpecContent,
     labels: ['context::tech-spec'],
-    dependencies: [prdId],
+    dependencies: [],
   });
   Logger.info(
     `[Epic Planner] Created Tech Spec Issue #${techSpecTicket.id} (${techSpecTicket.url})`,
@@ -279,17 +232,17 @@ async function closeWaivedAcceptanceSpec({
 }
 
 /**
- * Persist the host-authored PRD and Tech Spec under the Epic.
+ * Persist the host-authored Tech Spec (and optional Acceptance Spec) under the
+ * Epic.
  */
 export async function planEpic(
   epicId,
   provider,
-  { prdContent, techSpecContent, acceptanceSpecContent = null },
+  { techSpecContent, acceptanceSpecContent = null },
   _settings = {},
   { force = false, planningRisk = null } = {},
 ) {
   validatePlanEpicInputs({
-    prdContent,
     techSpecContent,
     acceptanceSpecContent,
   });
@@ -324,7 +277,6 @@ export async function planEpic(
     return {
       persisted: false,
       reason: 'already-planned',
-      prdId: existing.prd,
       techSpecId: existing.techSpec,
       acceptanceSpecId: existing.acceptanceSpec,
     };
@@ -336,20 +288,11 @@ export async function planEpic(
   // paths. The difference: under force we push the freshly-authored body via
   // `provider.updateTicket`, whereas the non-force partial-state reuse keeps
   // the existing body untouched.
-  const prdId = await persistPrd({
-    provider,
-    epicId,
-    epic,
-    prdContent,
-    existingId: existing.prd,
-    force,
-  });
   const techSpecId = await persistTechSpec({
     provider,
     epicId,
     epic,
     techSpecContent,
-    prdId,
     existingId: existing.techSpec,
     force,
   });
@@ -384,22 +327,19 @@ export async function planEpic(
 
   // Format exactly so the issue-link-parser regexes still catch each line.
   // The parser is the source of truth for which prefixes are accepted; we
-  // emit the canonical "PRD: #N" / "Tech Spec: #N" / "Acceptance Spec: #N"
-  // shape so the epic-deliver finalize/cascade-close call shape and the
-  // Phase 2 decomposer-context picker both see the third link.
-  const artifactLines = [
-    `- [ ] PRD: #${prdId}`,
-    `- [ ] Tech Spec: #${techSpecId}`,
-  ];
+  // emit the canonical "Tech Spec: #N" / "Acceptance Spec: #N" shape so the
+  // epic-deliver finalize/cascade-close call shape and the Phase 2
+  // decomposer-context picker both see the links.
+  const artifactLines = [`- [ ] Tech Spec: #${techSpecId}`];
   if (acceptanceSpecId !== null) {
     artifactLines.push(`- [ ] Acceptance Spec: #${acceptanceSpecId}`);
   }
   // Idempotent append (Story #4019): strip any pre-existing
   // `## Planning Artifacts` section before re-appending. The `--force`
   // path already stripped it in `healAndCleanupArtifacts`, but the
-  // partial-recovery rerun (e.g. PRD present, Tech Spec missing) reaches
-  // here with a body that may still carry a stale section — without the
-  // strip, every rerun stacked a duplicate section onto the Epic body.
+  // partial-recovery rerun (e.g. Tech Spec missing) reaches here with a
+  // body that may still carry a stale section — without the strip, every
+  // rerun stacked a duplicate section onto the Epic body.
   const appendBody = `\n\n## Planning Artifacts\n${artifactLines.join('\n')}\n`;
   const strippedBody = epic.body.replace(
     /\n*## Planning Artifacts[\s\S]*$/,
@@ -431,7 +371,6 @@ export async function planEpic(
   return {
     persisted: true,
     reason: force ? 'force-replan' : 'persisted',
-    prdId,
     techSpecId,
     acceptanceSpecId,
   };

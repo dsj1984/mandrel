@@ -27,7 +27,7 @@ function makeProvider() {
         id,
         title: 'Test Epic — memory-freshness contract',
         body: '## Overview\nShort body for contract testing.',
-        linkedIssues: { prd: null, techSpec: null },
+        linkedIssues: { techSpec: null },
       };
     },
   };

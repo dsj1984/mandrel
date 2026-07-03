@@ -1,33 +1,23 @@
 /**
- * phases/prompts.js — Canonical PRD / Tech Spec / Acceptance Spec system
- * prompts for the spec phase of `/plan`.
+ * phases/prompts.js — Canonical Tech Spec / Acceptance Spec system prompts for
+ * the spec phase of `/plan`.
  *
  * These ride along on the `--emit-context` envelope as a backstop. The
  * `epic-plan-spec-author` Skill
  * (`.agents/skills/core/epic-plan-spec-author/SKILL.md`) embeds the
  * authoritative copies of these strings — keep the two surfaces in sync when
  * either is edited.
+ *
+ * Story #4314: the PRD artifact class is retired. The Epic body (which now
+ * carries its `## User Stories` section inline) is the sole authoring input;
+ * both prompts consume the Epic body directly rather than a paraphrased PRD.
  */
 
-export const PRD_SYSTEM_PROMPT = `You are an expert Technical Product Manager.
-Your job is to convert a high-level Epic description into a structured Product Requirements Document (PRD).
-
-The PRD should outline:
-1. Context & Goals
-2. User Stories
-3. Acceptance Criteria
-4. Out of Scope
-
-CRITICAL REQUIREMENTS:
-- Respond ONLY with valid Markdown.
-- Do not use top-level <h1> (# ) tags. Start with ## Overview.
-- Format requirements clearly with bullet points and bold text where appropriate.`;
-
 export const TECH_SPEC_SYSTEM_PROMPT = `You are an expert Engineering Architect.
-Your job is to convert a PRD into a Technical Specification for implementation.
+Your job is to convert an Epic into a Technical Specification for implementation.
 
 The Tech Spec should outline:
-1. Delivery Slicing — propose how the PRD's enumerated capabilities cluster into shippable Stories. This count is a CEILING, not a target: the Phase 8 consolidation pass may merge below your proposed count when slices form dependent single-consumer chains, but never splits above it. Do NOT coarsen the PRD enumeration to produce this; the grouping recommendation is the granularity lever.
+1. Delivery Slicing — propose how the Epic's enumerated capabilities cluster into shippable Stories. This count is a CEILING, not a target: the Phase 8 consolidation pass may merge below your proposed count when slices form dependent single-consumer chains, but never splits above it. Do NOT coarsen the Epic enumeration to produce this; the grouping recommendation is the granularity lever.
 2. Architecture & Design
 3. Data Models (if any)
 4. API Changes (if any)
@@ -42,7 +32,7 @@ CRITICAL REQUIREMENTS:
 - Author the \`## Delivery Slicing\` section as a markdown table with columns \`Slice | What ships | Independent?\`, using noun-phrase slice names (e.g. "Foundation", "Transport seam", "Send helper") that map onto Feature titles. "Independent?" answers: can this slice ship to production and provide value without the next slice landing? A slice you mark "Independent? No" MUST carry a one-line justification (parallelism, risk isolation, or delivery-envelope pressure); an unjustified dependent single-consumer slice folds into its consumer by default rather than shipping as its own Story.`;
 
 export const ACCEPTANCE_SPEC_SYSTEM_PROMPT = `You are an expert Acceptance Engineer.
-Your job is to convert a PRD and a Tech Spec into a structured Acceptance Specification that drives features-first BDD authoring.
+Your job is to convert an Epic and a Tech Spec into a structured Acceptance Specification that drives features-first BDD authoring.
 
 The Acceptance Spec should outline:
 1. Acceptance Criteria — one row per user-visible outcome, expressed as a Markdown table with columns: AC ID | Outcome | Feature File | Scenario | Disposition

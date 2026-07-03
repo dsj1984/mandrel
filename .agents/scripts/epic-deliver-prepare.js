@@ -144,7 +144,6 @@ function resolveGitUserEmail(cwd) {
  *   storyCount: number,
  *   concurrencyCap: number,
  *   stories: Array<{ storyId: number, title: string, worktree?: string }>,
- *   prdId: number|null,
  *   techSpecId: number|null,
  *   checkpointInitializedAt: string,
  * }>}
@@ -377,20 +376,20 @@ export async function runEpicDeliverPrepare({
     });
   }
 
-  // Story #4253: resolve the Epic's PRD / Tech-Spec linkages ONCE here and
-  // surface them in the prepare envelope. The /deliver fan-out threads these
-  // into each per-Story `story-init.js --prd/--tech-spec`, collapsing the
+  // Story #4253: resolve the Epic's Tech-Spec linkage ONCE here and
+  // surface it in the prepare envelope. The /deliver fan-out threads this
+  // into each per-Story `story-init.js --tech-spec`, collapsing the
   // N per-Story `getEpic` round-trips to this single parent-side resolution.
+  // Story #4314 retired the PRD linkage.
   // The Epic snapshot is already in hand (`state.epic`), so this adds no
   // extra fetch; the body-parse fallback mirrors hierarchy-tracer's source.
-  const { prdId, techSpecId } = resolveEpicLinkages(state.epic);
+  const { techSpecId } = resolveEpicLinkages(state.epic);
 
   return {
     epicId,
     storyCount: openStories.length,
     concurrencyCap,
     stories,
-    prdId,
     techSpecId,
     checkpointInitializedAt:
       checkpointState.startedAt ??
@@ -402,19 +401,19 @@ export async function runEpicDeliverPrepare({
 }
 
 /**
- * Resolve an Epic's linked PRD / Tech-Spec issue ids from the snapshot ticket.
+ * Resolve an Epic's linked Tech-Spec issue id from the snapshot ticket.
  * Prefers the provider-supplied `linkedIssues` map and falls back to parsing
  * the Epic body's `## Planning Artifacts` section — the same two sources
- * `hierarchy-tracer.js` reads — so the threaded ids match what an unthreaded
- * `story-init.js` run would have resolved itself. Story #4253.
+ * `hierarchy-tracer.js` reads — so the threaded id matches what an unthreaded
+ * `story-init.js` run would have resolved itself. Story #4253; Story #4314
+ * retired the PRD linkage.
  *
- * @param {{ linkedIssues?: { prd?: number|null, techSpec?: number|null }|null, body?: string }|null|undefined} epic
- * @returns {{ prdId: number|null, techSpecId: number|null }}
+ * @param {{ linkedIssues?: { techSpec?: number|null }|null, body?: string }|null|undefined} epic
+ * @returns {{ techSpecId: number|null }}
  */
 function resolveEpicLinkages(epic) {
   const linked = epic?.linkedIssues ?? parseLinkedIssues(epic?.body ?? '');
   return {
-    prdId: linked?.prd ?? null,
     techSpecId: linked?.techSpec ?? null,
   };
 }

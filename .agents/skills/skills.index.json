@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-03T21:25:55.110Z",
+  "generatedAt": "2026-07-03T22:14:27.900Z",
   "generator": "generate-skills-index.js@1",
   "skills": [
     {
@@ -157,7 +157,7 @@
       "tier": "core",
       "category": "core",
       "path": ".agents/skills/core/epic-plan-spec-author/SKILL.md",
-      "description": "Author the PRD, Tech Spec, Acceptance Spec markdown, and risk-verdict JSON for an Epic from the planner authoring context emitted by `epic-plan-spec.js --emit-context`. Use during Phase 7 of `/plan` when the host LLM needs to write the four artifacts before `epic-plan-spec.js` persists them.",
+      "description": "Author the Tech Spec, Acceptance Spec markdown, and risk-verdict JSON for an Epic from the planner authoring context emitted by `epic-plan-spec.js --emit-context`. Use during Phase 7 of `/plan` when the host LLM needs to write the three artifacts before `epic-plan-spec.js` persists them.",
       "policyCapsuleBullets": 13,
       "allowedTools": ["Read", "Write", "Bash"],
       "vendor": null

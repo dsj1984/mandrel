@@ -43,7 +43,6 @@ test('ACCEPTANCE_NA named export mirrors ACCEPTANCE_LABELS.N_A', () => {
 });
 
 test('existing CONTEXT_LABELS entries are still exposed', () => {
-  assert.equal(CONTEXT_LABELS.PRD, 'context::prd');
   assert.equal(CONTEXT_LABELS.TECH_SPEC, 'context::tech-spec');
 });
 

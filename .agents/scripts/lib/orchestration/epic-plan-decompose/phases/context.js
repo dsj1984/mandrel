@@ -1,8 +1,8 @@
 /**
  * context.js — Phase 3 of the epic-plan-decompose pipeline (Story #2466).
  *
- * Builds the authoring context (PRD + Tech Spec bodies, heuristics, system
- * prompt, ticket cap) the host LLM / `epic-plan-decompose-author` Skill
+ * Builds the authoring context (Epic body + Tech Spec bodies, heuristics,
+ * system prompt, ticket cap) the host LLM / `epic-plan-decompose-author` Skill
  * consumes when producing the ticket JSON array.
  *
  * Extracted verbatim from `epic-plan-decompose.js`; both
@@ -85,23 +85,20 @@ async function readPlanningDecision(provider, epicId) {
 
 async function fetchPlanningTickets(provider, epicId) {
   const epic = await provider.getEpic(epicId);
-  if (!epic?.linkedIssues?.prd || !epic.linkedIssues.techSpec) {
+  if (!epic?.linkedIssues?.techSpec) {
     throw new Error(
-      `[Decomposer] Epic #${epicId} is missing linked PRD or Tech Spec. Run the Epic Planner first.`,
+      `[Decomposer] Epic #${epicId} is missing a linked Tech Spec. Run the Epic Planner first.`,
     );
   }
-  const [prd, techSpec] = await Promise.all([
-    provider.getTicket(epic.linkedIssues.prd),
-    provider.getTicket(epic.linkedIssues.techSpec),
-  ]);
-  return { epic, prd, techSpec };
+  const techSpec = await provider.getTicket(epic.linkedIssues.techSpec);
+  return { epic, techSpec };
 }
 
 /**
  * Build the authoring context the host LLM (or the
  * `epic-plan-decompose-author` Skill) needs to produce the ticket JSON.
  *
- * PRD and Tech Spec bodies are bounded by the planning-context budget
+ * Epic body and Tech Spec bodies are bounded by the planning-context budget
  * (Epic #817 Story 9). Pass `{ fullContext: true }` (CLI: `--full-context`)
  * to restore the unbounded full bodies.
  */
@@ -111,7 +108,7 @@ export async function buildDecompositionContext(
   config = {},
   opts = {},
 ) {
-  const { epic, prd, techSpec } = await fetchPlanningTickets(provider, epicId);
+  const { epic, techSpec } = await fetchPlanningTickets(provider, epicId);
   const { planningRisk, reviewRouting } = await readPlanningDecision(
     provider,
     epicId,
@@ -130,16 +127,19 @@ export async function buildDecompositionContext(
 
   const budgeted = applyBudget(
     [
-      { path: `prd-${prd.id}.md`, content: prd.body ?? '' },
+      { path: `epic-${epic.id}.md`, content: epic.body ?? '' },
       { path: `tech-spec-${techSpec.id}.md`, content: techSpec.body ?? '' },
     ],
     planningLimits,
     { fullContext },
   );
-  const [prdItem, techSpecItem] = budgeted.items;
+  const [epicItem, techSpecItem] = budgeted.items;
   return {
     epic: { id: epic.id, title: epic.title },
-    prd: projectBudgetedEntry(prdItem, prd, budgeted.mode),
+    // Story #4314 — the PRD artifact class is retired; the Epic body (which
+    // now carries its `## User Stories` section inline) is the budgeted
+    // authoring input the decomposer reads in the PRD's place.
+    epicBody: projectBudgetedEntry(epicItem, epic, budgeted.mode),
     techSpec: projectBudgetedEntry(techSpecItem, techSpec, budgeted.mode),
     heuristics,
     systemPrompt,

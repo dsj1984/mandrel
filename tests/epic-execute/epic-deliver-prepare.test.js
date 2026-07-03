@@ -178,11 +178,11 @@ describe('runEpicDeliverPrepare', () => {
     );
   });
 
-  it('surfaces the Epic PRD / Tech-Spec ids from linkedIssues (Story #4253)', async () => {
+  it('surfaces the Epic Tech-Spec id from linkedIssues (Story #4253)', async () => {
     const epic = {
       id: 110,
       labels: ['type::epic', 'acceptance::n-a'],
-      linkedIssues: { prd: 911, techSpec: 912 },
+      linkedIssues: { techSpec: 912 },
     };
     const descendants = [
       {
@@ -199,20 +199,14 @@ describe('runEpicDeliverPrepare', () => {
       injectedProvider: provider,
       injectedConfig: baseConfig,
     });
-    assert.equal(out.prdId, 911);
     assert.equal(out.techSpecId, 912);
   });
 
-  it('falls back to body-parsed PRD / Tech-Spec ids when linkedIssues absent (Story #4253)', async () => {
+  it('falls back to body-parsed Tech-Spec id when linkedIssues absent (Story #4253)', async () => {
     const epic = {
       id: 111,
       labels: ['type::epic', 'acceptance::n-a'],
-      body: [
-        '## Planning Artifacts',
-        '',
-        '- [x] PRD: #921',
-        '- [x] Tech Spec: #922',
-      ].join('\n'),
+      body: ['## Planning Artifacts', '', '- [x] Tech Spec: #922'].join('\n'),
     };
     const descendants = [
       {
@@ -229,11 +223,10 @@ describe('runEpicDeliverPrepare', () => {
       injectedProvider: provider,
       injectedConfig: baseConfig,
     });
-    assert.equal(out.prdId, 921);
     assert.equal(out.techSpecId, 922);
   });
 
-  it('surfaces null PRD / Tech-Spec ids when the Epic links neither (Story #4253)', async () => {
+  it('surfaces null Tech-Spec id when the Epic links none (Story #4253)', async () => {
     const epic = { id: 112, labels: ['type::epic', 'acceptance::n-a'] };
     const descendants = [
       {
@@ -250,7 +243,6 @@ describe('runEpicDeliverPrepare', () => {
       injectedProvider: provider,
       injectedConfig: baseConfig,
     });
-    assert.equal(out.prdId, null);
     assert.equal(out.techSpecId, null);
   });
 

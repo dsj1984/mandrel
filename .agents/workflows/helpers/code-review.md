@@ -79,13 +79,14 @@ review yourself, honor the `depth` semantics above directly.
 
 1. Resolve `[TICKET_ID]` from `ticketId` (Story or Epic depending on `scope`).
 2. Resolve `[BASE_REF]` from `baseRef` and `[HEAD_REF]` from `headRef`.
-3. Fetch the `[TICKET_ID]` ticket and identify linked context tickets:
+3. Fetch the `[TICKET_ID]` ticket and identify the linked context ticket:
    - **Story scope** — read the parent Epic from the Story body, then load
-     the Epic's `context::prd` (PRD) and `context::tech-spec` (Tech Spec).
-   - **Epic scope** — load the Epic's `context::prd` (PRD) and
+     the Epic body (including its `## User Stories` section) and the linked
+     `context::tech-spec` (Tech Spec).
+   - **Epic scope** — read the Epic body and load its linked
      `context::tech-spec` (Tech Spec) directly from the Epic body.
-4. Read both the PRD and Tech Spec fully to understand the intended scope,
-   architectural decisions, and acceptance criteria.
+4. Read the Epic body and the Tech Spec fully to understand the intended
+   scope, architectural decisions, and acceptance criteria.
 
 ## Step 1 — Automated Audit (Pre-Review)
 
@@ -120,7 +121,7 @@ before finalizing findings.
 
 ### Pillar 1: Spec Adherence
 
-Does the implementation match the PRD requirements and Tech Spec architecture?
+Does the implementation match the Epic's requirements and Tech Spec architecture?
 
 - Compare each completed Story/Task against its stated acceptance criteria.
 - Flag any undocumented deviations, missing features, or scope creep.
@@ -251,7 +252,7 @@ anything not fixed in-place.
      structured comment for the operator to triage in Step 5.
 2. **Leave the finding on the structured comment for Step 5.** Required
    when the finding falls into any of the following classes:
-   - `spec-deviation` — the change diverges from the PRD/Tech Spec.
+   - `spec-deviation` — the change diverges from the Epic/Tech Spec.
    - `secrets` — credentials, tokens, or PII surfaced in the diff.
    - `test-deletion` — coverage was removed without an explicit
      decision in the spec.
@@ -359,7 +360,7 @@ to the next phase of the parent workflow.
   the scope is set by the caller, and reviewing against the wrong base
   produces either a hollow review (too small a diff) or noise (too large a
   diff that includes unrelated history).
-- **Always** read the PRD and Tech Spec before reviewing code. Findings without
+- **Always** read the Epic body and Tech Spec before reviewing code. Findings without
   spec context are noise.
 - **Never** implement fixes unless the operator explicitly requests it. The
   default mode is read-only audit.

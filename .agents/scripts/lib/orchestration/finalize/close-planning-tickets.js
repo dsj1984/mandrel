@@ -1,8 +1,8 @@
 // .agents/scripts/lib/orchestration/finalize/close-planning-tickets.js
 /**
- * close-planning-tickets.js — finalize helper that closes the three
- * planning context tickets (PRD / Tech Spec / Acceptance Spec) linked
- * from the Epic body's `## Planning Artifacts` section.
+ * close-planning-tickets.js — finalize helper that closes the planning
+ * context tickets (Tech Spec / Acceptance Spec) linked from the Epic
+ * body's `## Planning Artifacts` section.
  *
  * Extracted from `/deliver` Phase 7.1 prose (the `gh issue close`
  * sequence) so the lifecycle Finalizer listener has a single async
@@ -41,7 +41,7 @@ import { STATE_LABELS, transitionTicketState } from '../ticketing.js';
  *   closed: number,
  *   alreadyClosed: number,
  *   failed: number,
- *   details: Array<{ kind: 'prd'|'techSpec'|'acceptanceSpec', id: number|null, status: 'closed'|'already-closed'|'failed'|'skipped', detail?: string }>,
+ *   details: Array<{ kind: 'techSpec'|'acceptanceSpec', id: number|null, status: 'closed'|'already-closed'|'failed'|'skipped', detail?: string }>,
  * }>}
  */
 export async function closePlanningTickets({
@@ -65,7 +65,6 @@ export async function closePlanningTickets({
   const linked = epic?.linkedIssues ?? parseLinkedIssues(epic?.body ?? '');
 
   const kinds = /** @type {const} */ ([
-    ['prd', linked?.prd ?? null],
     ['techSpec', linked?.techSpec ?? null],
     ['acceptanceSpec', linked?.acceptanceSpec ?? null],
   ]);

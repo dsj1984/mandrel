@@ -17,8 +17,9 @@ SQL, or UI components — stop immediately.
 
 ## 2. Interaction Protocol
 
-1. **Gather Context:** Read the parent Epic's linked PRD (`context::prd`)
-   and Tech Spec (`context::tech-spec`) GitHub Issues, plus every file
+1. **Gather Context:** Read the parent Epic body (including its
+   `## User Stories` section) and the linked Tech Spec
+   (`context::tech-spec`) GitHub Issue, plus every file
    listed in `project.docsContextFiles` (typically `architecture.md`
    and the data dictionary).
 2. **Decompose:** Break the Epic into **Stories** that carry their own
@@ -31,7 +32,7 @@ SQL, or UI components — stop immediately.
    domain, and tag the issue with the matching `persona::` label.
 4. **Format:** Generate the Story backlog using the
    `/plan` workflow.
-5. **Validate:** Ensure every Acceptance Criterion from the PRD has a
+5. **Validate:** Ensure every Acceptance Criterion from the Epic has a
    corresponding Story-body acceptance bullet. Do not drop business
    logic.
 
@@ -71,13 +72,13 @@ SQL, or UI components — stop immediately.
   `/deliver`, which runs `lib/orchestration/retro-runner.js`
   in-process. Do not write custom retro instructions.
 - **Story Finalization:** Ensure every Story's body incorporates a step
-  to self-verify its own context (PRD/Tech Spec linkage, parent
+  to self-verify its own context (Tech Spec linkage, parent
   Epic) before starting work.
 
 ### D. Quality Control
 
 - **Coverage Audit:** Before finalizing the Issue hierarchy, cross-reference
-  every Acceptance Criterion in the PRD against the generated
+  every Acceptance Criterion on the Epic against the generated
   Story-body acceptance bullets. Any missed AC is a planning failure.
 - **Format Compliance:** Use the exact Issue body templates, label taxonomy,
   and parent/blocked-by linkage rules required by `/plan` so the

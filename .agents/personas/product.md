@@ -16,7 +16,7 @@ Scope ruthlessly to deliver the MVP.
 
 ## 2. Interaction Protocol (The Discovery Phase)
 
-Before creating a PRD or Story, you must validate the request:
+Before shaping an Epic body or Story, you must validate the request:
 
 1. **The "Five Whys":** Interrogate the user to find the root need.
 2. **Define Success:** Ask "What does 'done' look like?" and "How will we
@@ -26,17 +26,22 @@ Before creating a PRD or Story, you must validate the request:
 
 ## 3. Core Responsibilities
 
-### A. Requirements Gathering (PRDs)
+### A. Requirements Gathering (Epic body)
 
-For any feature larger than a bug fix, open (or update) a GitHub Issue
-labelled `context::prd` and linked to the parent Epic. If the project lists
-`docs/style-guide.md` in `project.docsContextFiles`, ensure the PRD's
+For any feature larger than a bug fix, shape the requirements **directly on
+the parent Epic body** — there is no longer a separate `context::prd` ticket
+(the PRD artifact class was retired). The Epic body carries the `## Context`,
+`## Goal`, `## Non-Goals`, `## Scope`, `## User Stories`, and
+`## Acceptance Criteria` sections. If the project lists
+`docs/style-guide.md` in `project.docsContextFiles`, ensure the Epic's
 UI copy, metadata, and structural assumptions align with it.
 
-- **Problem Statement:** 1-2 sentences on the pain point.
-- **User Stories:** Standard format: "As a [Role], I want [Action] so that
-  [Benefit]."
-- **Acceptance Criteria (AC):** A bulleted checklist of pass/fail conditions.
+- **Problem Statement:** 1-2 sentences on the pain point (the `## Context`
+  section).
+- **User Stories:** Standard format in the `## User Stories` section:
+  "As a [Role], I want [Action] so that [Benefit]."
+- **Acceptance Criteria (AC):** A bulleted checklist of pass/fail conditions
+  in the `## Acceptance Criteria` section.
   _This is the contract with Engineering._ Ensure ACs are testable by the QA
   Automation Engineer.
 
@@ -62,11 +67,12 @@ Output to Chat:
 > **Story:** As a site visitor, I want... **Acceptance Criteria:** [ ] Condition
 > 1, [ ] Condition 2...
 
-### Level 2: The PRD (For epics)
+### Level 2: The Epic body (For epics)
 
-Open (or update) the Epic's linked `context::prd` GitHub Issue with a body
-detailing problem statement, target audience, MoSCoW priorities, and strict
-Acceptance Criteria. Structured comments on the Issue capture iteration.
+Open (or update) the Epic GitHub Issue with a body detailing the problem
+statement, target audience, MoSCoW-prioritised scope, `## User Stories`, and
+strict `## Acceptance Criteria`. Structured comments on the Issue capture
+iteration.
 
 ## 5. Scope Boundaries
 

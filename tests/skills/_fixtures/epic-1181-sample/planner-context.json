@@ -14,7 +14,7 @@
     ]
   },
   "systemPrompts": {
-    "prd": "Write the PRD using the standard template.",
-    "techSpec": "Write the Tech Spec using the standard template."
+    "techSpec": "Write the Tech Spec using the standard template.",
+    "acceptanceSpec": "Write the Acceptance Spec using the standard template."
   }
 }

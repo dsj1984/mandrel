@@ -18,7 +18,7 @@
  *   "epicId": 349,
  *   "startedAt": "...",
  *   "lastUpdatedAt": "...",
- *   "spec": { "prdId": null, "techSpecId": null, "acceptanceSpecId": null, "completedAt": null },
+ *   "spec": { "techSpecId": null, "acceptanceSpecId": null, "completedAt": null },
  *   "decompose": { "ticketCount": null, "completedAt": null },
  *   "planningRisk": { "overallLevel": "...", "requiresReview": true, "gateDecision": "..." },
  *   "reviewRouting": { "decision": "review-required|auto-proceed|operator-override-review", "requiresStop": true, "forceReviewApplied": false },
@@ -106,7 +106,6 @@ export async function initialize({ provider, epicId, seed = {} } = {}) {
     epicId,
     startedAt: now,
     spec: {
-      prdId: null,
       techSpecId: null,
       acceptanceSpecId: null,
       completedAt: null,

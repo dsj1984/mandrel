@@ -203,7 +203,7 @@ describe('buildAuthoringContext — envelope carries grounding', () => {
           'from the source tree.',
         ].join('\n'),
         labels: ['type::epic'],
-        linkedIssues: { prd: null, techSpec: null },
+        linkedIssues: { techSpec: null },
       };
     },
   };

@@ -18,14 +18,15 @@ import { DEFAULT_REGISTRY_PATTERNS } from '../../ticket-validator-conflicts.js';
  * Idempotent — when the section already exists the body is returned
  * verbatim; when it's missing and `linkedIssues` carries resolved ids
  * the section is appended exactly once using the canonical
- * `- [ ] PRD: #N` / `Tech Spec: #N` / `Acceptance Spec: #N` lines that
+ * `Tech Spec: #N` / `Acceptance Spec: #N` lines that
  * `issue-link-parser.js` recognises (so cascade-close still resolves the
  * linked tickets).
  *
- * Story #2283.
+ * Story #2283. Story #4314 retired the PRD artifact class, so there is no
+ * longer a `- [ ] PRD: #N` line.
  *
  * @param {string} body
- * @param {{ prd: number|null, techSpec: number|null, acceptanceSpec: number|null } | undefined | null} linkedIssues
+ * @param {{ techSpec: number|null, acceptanceSpec: number|null } | undefined | null} linkedIssues
  * @returns {string}
  */
 export function ensurePlanningArtifacts(body, linkedIssues) {
@@ -33,9 +34,6 @@ export function ensurePlanningArtifacts(body, linkedIssues) {
   if (safeBody.includes('## Planning Artifacts')) return safeBody;
   if (!linkedIssues) return safeBody;
   const lines = [];
-  if (Number.isInteger(linkedIssues.prd)) {
-    lines.push(`- [ ] PRD: #${linkedIssues.prd}`);
-  }
   if (Number.isInteger(linkedIssues.techSpec)) {
     lines.push(`- [ ] Tech Spec: #${linkedIssues.techSpec}`);
   }

@@ -3,6 +3,12 @@ import { describe, it } from 'node:test';
 import { PlanningStateManager } from '../../.agents/scripts/lib/orchestration/planning-state-manager.js';
 import { MockProvider } from '../fixtures/mock-provider.js';
 
+// Story #4314: the PRD artifact class is retired. The canonical planning
+// artifacts are now the Tech Spec and (optionally) the Acceptance Spec, so
+// these tests exercise heal / dedup / readiness against those two axes. The
+// redundant-cleanup cap tests use the Acceptance Spec class as the wide
+// duplicate burst (the Tech Spec is the canonical artifact kept open).
+
 describe('PlanningStateManager', () => {
   it('heals dangling artifact references in the Epic object', async () => {
     const provider = new MockProvider({
@@ -15,9 +21,9 @@ describe('PlanningStateManager', () => {
         },
         11: {
           id: 11,
-          title: '[PRD] Epic',
+          title: '[Acceptance Spec] Epic',
           body: 'parent: #10',
-          labels: ['context::prd'],
+          labels: ['context::acceptance-spec'],
           state: 'open',
         },
         12: {
@@ -35,14 +41,14 @@ describe('PlanningStateManager', () => {
       id: 10,
       title: 'Epic',
       body: 'Some description',
-      linkedIssues: { prd: null, techSpec: null },
+      linkedIssues: { techSpec: null, acceptanceSpec: null },
     };
 
     await mgr.healAndCleanupArtifacts(epic);
 
     // Should have filled linkedIssues from open tickets
-    assert.strictEqual(epic.linkedIssues.prd, 11);
     assert.strictEqual(epic.linkedIssues.techSpec, 12);
+    assert.strictEqual(epic.linkedIssues.acceptanceSpec, 11);
   });
 
   it('closes redundant artifacts and detaches them', async () => {
@@ -51,14 +57,14 @@ describe('PlanningStateManager', () => {
         10: { id: 10, title: 'Epic', body: '', labels: ['type::epic'] },
         11: {
           id: 11,
-          title: 'PRD 1',
-          labels: ['context::prd'],
+          title: 'Tech Spec 1',
+          labels: ['context::tech-spec'],
           state: 'open',
         },
         12: {
           id: 12,
-          title: 'PRD 2',
-          labels: ['context::prd'],
+          title: 'Tech Spec 2',
+          labels: ['context::tech-spec'],
           state: 'open',
         },
       },
@@ -72,7 +78,7 @@ describe('PlanningStateManager', () => {
       id: 10,
       title: 'Epic',
       body: '',
-      linkedIssues: { prd: 11, techSpec: null },
+      linkedIssues: { techSpec: 11, acceptanceSpec: null },
     };
 
     // 12 is redundant because 11 is canonical
@@ -91,16 +97,15 @@ describe('PlanningStateManager', () => {
         10: {
           id: 10,
           title: 'Epic',
-          body: 'Desc\n\n## Planning Artifacts\n- [ ] PRD: #11\n- [ ] Tech Spec: #12\n',
+          body: 'Desc\n\n## Planning Artifacts\n- [ ] Tech Spec: #12\n',
           labels: ['type::epic'],
         },
-        11: { id: 11, labels: ['context::prd'], state: 'open' },
         12: { id: 12, labels: ['context::tech-spec'], state: 'open' },
-        // A redundant duplicate PRD left over from an interrupted run.
-        13: { id: 13, labels: ['context::prd'], state: 'open' },
+        // A redundant duplicate Tech Spec left over from an interrupted run.
+        13: { id: 13, labels: ['context::tech-spec'], state: 'open' },
       },
       subTickets: {
-        10: [11, 12, 13],
+        10: [12, 13],
       },
     });
 
@@ -109,16 +114,14 @@ describe('PlanningStateManager', () => {
       id: 10,
       title: 'Epic',
       body: provider.tickets[10].body,
-      linkedIssues: { prd: 11, techSpec: 12 },
+      linkedIssues: { techSpec: 12, acceptanceSpec: null },
     };
 
     await mgr.healAndCleanupArtifacts(epic, true); // force=true
 
-    // Canonical context tickets are preserved OPEN with their IDs intact so
-    // planEpic can overwrite them in place.
-    assert.strictEqual(provider.tickets[11].state, 'open');
+    // Canonical context ticket is preserved OPEN with its ID intact so
+    // planEpic can overwrite it in place.
     assert.strictEqual(provider.tickets[12].state, 'open');
-    assert.strictEqual(epic.linkedIssues.prd, 11);
     assert.strictEqual(epic.linkedIssues.techSpec, 12);
 
     // The redundant duplicate is still closed and detached.
@@ -131,14 +134,15 @@ describe('PlanningStateManager', () => {
   });
 
   it('redundant-cleanup path caps in-flight close/detach mutations at 3', async () => {
-    // Build 1 canonical PRD + 8 redundant PRDs so the cleanup burst is
-    // wider than the cap. Track peak in-flight updateTicket calls.
+    // Build 1 canonical Acceptance Spec + 8 redundant duplicates so the
+    // cleanup burst is wider than the cap. Track peak in-flight updateTicket
+    // calls.
     const tickets = {
       10: { id: 10, title: 'Epic', body: '', labels: ['type::epic'] },
       11: {
         id: 11,
-        title: 'Canonical PRD',
-        labels: ['context::prd'],
+        title: 'Canonical Acceptance Spec',
+        labels: ['context::acceptance-spec'],
         state: 'open',
       },
     };
@@ -147,8 +151,8 @@ describe('PlanningStateManager', () => {
       const id = 100 + i;
       tickets[id] = {
         id,
-        title: `Redundant PRD ${i}`,
-        labels: ['context::prd'],
+        title: `Redundant Acceptance Spec ${i}`,
+        labels: ['context::acceptance-spec'],
         state: 'open',
       };
       subList.push(id);
@@ -175,7 +179,7 @@ describe('PlanningStateManager', () => {
       id: 10,
       title: 'Epic',
       body: '',
-      linkedIssues: { prd: 11, techSpec: null },
+      linkedIssues: { techSpec: null, acceptanceSpec: 11 },
     };
 
     await mgr.healAndCleanupArtifacts(epic);
@@ -184,7 +188,7 @@ describe('PlanningStateManager', () => {
       peakInFlight <= 3,
       `expected peak in-flight close mutations <= 3 but observed ${peakInFlight}`,
     );
-    // All 8 redundant PRDs should now be closed.
+    // All 8 redundant duplicates should now be closed.
     for (let i = 0; i < 8; i++) {
       assert.strictEqual(provider.tickets[100 + i].state, 'closed');
     }
@@ -192,9 +196,9 @@ describe('PlanningStateManager', () => {
   });
 
   it('force re-plan path caps the redundant-duplicate close burst at 3', async () => {
-    // 1 canonical PRD + 9 redundant duplicates so the --force redundant
-    // close burst is wider than the cap. Under overwrite-in-place the
-    // canonical context ticket is preserved OPEN; only the redundant
+    // 1 canonical Acceptance Spec + 9 redundant duplicates so the --force
+    // redundant close burst is wider than the cap. Under overwrite-in-place
+    // the canonical context ticket is preserved OPEN; only the redundant
     // duplicates are closed, and that burst is bounded by the cap.
     const tickets = {
       10: { id: 10, title: 'Epic', body: '', labels: ['type::epic'] },
@@ -204,8 +208,8 @@ describe('PlanningStateManager', () => {
       const id = 200 + i;
       tickets[id] = {
         id,
-        title: `PRD ${i}`,
-        labels: ['context::prd'],
+        title: `Acceptance Spec ${i}`,
+        labels: ['context::acceptance-spec'],
         state: 'open',
       };
       ids.push(id);
@@ -232,7 +236,7 @@ describe('PlanningStateManager', () => {
       id: 10,
       title: 'Epic',
       body: '',
-      linkedIssues: { prd: 200, techSpec: null },
+      linkedIssues: { techSpec: null, acceptanceSpec: 200 },
     };
 
     await mgr.healAndCleanupArtifacts(epic, true); // force=true
@@ -241,9 +245,9 @@ describe('PlanningStateManager', () => {
       peakInFlight <= 3,
       `expected peak in-flight redundant-close mutations <= 3 but observed ${peakInFlight}`,
     );
-    // Canonical PRD #200 is preserved open for in-place overwrite.
+    // Canonical Acceptance Spec #200 is preserved open for in-place overwrite.
     assert.strictEqual(provider.tickets[200].state, 'open');
-    assert.strictEqual(epic.linkedIssues.prd, 200);
+    assert.strictEqual(epic.linkedIssues.acceptanceSpec, 200);
     // The 9 redundant duplicates are closed.
     for (const id of ids.slice(1)) {
       assert.strictEqual(provider.tickets[id].state, 'closed');
@@ -267,13 +271,12 @@ describe('PlanningStateManager', () => {
       id: 10,
       title: 'Epic',
       body: 'Base body',
-      linkedIssues: { prd: 11, techSpec: 12 },
+      linkedIssues: { techSpec: 12, acceptanceSpec: null },
     };
 
     await mgr.healAndCleanupArtifacts(epic);
 
     assert.ok(epic.body.includes('## Planning Artifacts'));
-    assert.ok(epic.body.includes('PRD: #11'));
     assert.ok(epic.body.includes('Tech Spec: #12'));
 
     const lastUpdate = provider.updates[provider.updates.length - 1];
@@ -284,21 +287,12 @@ describe('PlanningStateManager', () => {
   describe('computeReviewReadiness', () => {
     function buildProvider({
       epicLabels = ['type::epic', 'agent::review-spec'],
-      prd,
       techSpec,
       acceptanceSpec,
     } = {}) {
       const tickets = {
         10: { id: 10, title: 'Epic', body: '', labels: epicLabels },
       };
-      if (prd) {
-        tickets[11] = {
-          id: 11,
-          title: 'PRD',
-          labels: ['context::prd'],
-          state: prd,
-        };
-      }
       if (techSpec) {
         tickets[12] = {
           id: 12,
@@ -318,9 +312,8 @@ describe('PlanningStateManager', () => {
       return new MockProvider({ tickets });
     }
 
-    it('returns ready=true when PRD, Tech Spec, and Acceptance Spec are all closed', async () => {
+    it('returns ready=true when Tech Spec and Acceptance Spec are both closed', async () => {
       const provider = buildProvider({
-        prd: 'closed',
         techSpec: 'closed',
         acceptanceSpec: 'closed',
       });
@@ -329,7 +322,6 @@ describe('PlanningStateManager', () => {
       assert.strictEqual(verdict.ready, true);
       assert.strictEqual(verdict.reason, 'all-context-closed');
       assert.deepStrictEqual(verdict.contexts, {
-        prd: 'closed',
         techSpec: 'closed',
         acceptanceSpec: 'closed',
       });
@@ -338,7 +330,6 @@ describe('PlanningStateManager', () => {
     it('returns ready=true when acceptance-spec is missing but the Epic carries acceptance::n-a', async () => {
       const provider = buildProvider({
         epicLabels: ['type::epic', 'agent::review-spec', 'acceptance::n-a'],
-        prd: 'closed',
         techSpec: 'closed',
       });
       const mgr = new PlanningStateManager(provider);
@@ -350,7 +341,6 @@ describe('PlanningStateManager', () => {
 
     it('returns ready=false with reason "acceptance-spec-missing" when acceptance spec is absent and not waived', async () => {
       const provider = buildProvider({
-        prd: 'closed',
         techSpec: 'closed',
       });
       const mgr = new PlanningStateManager(provider);
@@ -361,7 +351,6 @@ describe('PlanningStateManager', () => {
 
     it('returns ready=false with reason "acceptance-spec-open" when acceptance spec is still open', async () => {
       const provider = buildProvider({
-        prd: 'closed',
         techSpec: 'closed',
         acceptanceSpec: 'open',
       });
@@ -371,31 +360,29 @@ describe('PlanningStateManager', () => {
       assert.strictEqual(verdict.reason, 'acceptance-spec-open');
     });
 
-    it('returns ready=false with reason "prd-open" when PRD is still open, regardless of other axes', async () => {
+    it('returns ready=false with reason "tech-spec-open" when the Tech Spec is still open, regardless of other axes', async () => {
       const provider = buildProvider({
-        prd: 'open',
-        techSpec: 'closed',
+        techSpec: 'open',
         acceptanceSpec: 'closed',
       });
       const mgr = new PlanningStateManager(provider);
       const verdict = await mgr.computeReviewReadiness(10);
       assert.strictEqual(verdict.ready, false);
-      assert.strictEqual(verdict.reason, 'prd-open');
+      assert.strictEqual(verdict.reason, 'tech-spec-open');
     });
 
-    it('returns ready=false with reason "prd-missing" before any context tickets exist', async () => {
+    it('returns ready=false with reason "tech-spec-missing" before any context tickets exist', async () => {
       const provider = buildProvider({});
       const mgr = new PlanningStateManager(provider);
       const verdict = await mgr.computeReviewReadiness(10);
       assert.strictEqual(verdict.ready, false);
-      assert.strictEqual(verdict.reason, 'prd-missing');
+      assert.strictEqual(verdict.reason, 'tech-spec-missing');
     });
 
     describe('acceptance disposition waiver — Story #2792', () => {
       it('reports acceptance axis as waived when acceptance::n-a is present without a spec ticket', async () => {
         const provider = buildProvider({
           epicLabels: ['type::epic', 'agent::review-spec', 'acceptance::n-a'],
-          prd: 'closed',
           techSpec: 'closed',
         });
         const mgr = new PlanningStateManager(provider);
@@ -408,7 +395,6 @@ describe('PlanningStateManager', () => {
       it('honours acceptance::n-a even when an open acceptance-spec ticket exists', async () => {
         const provider = buildProvider({
           epicLabels: ['type::epic', 'agent::review-spec', 'acceptance::n-a'],
-          prd: 'closed',
           techSpec: 'closed',
           acceptanceSpec: 'open',
         });
@@ -430,12 +416,6 @@ describe('PlanningStateManager', () => {
             title: 'Epic',
             body: '',
             labels: ['type::epic', 'agent::review-spec'],
-          },
-          11: {
-            id: 11,
-            title: 'PRD',
-            labels: ['context::prd'],
-            state: 'closed',
           },
           12: {
             id: 12,
@@ -469,10 +449,10 @@ describe('PlanningStateManager', () => {
             body: '',
             labels: ['type::epic', 'agent::review-spec'],
           },
-          11: {
-            id: 11,
-            title: 'PRD',
-            labels: ['context::prd'],
+          12: {
+            id: 12,
+            title: 'Tech Spec',
+            labels: ['context::tech-spec'],
             state: 'open',
           },
         },

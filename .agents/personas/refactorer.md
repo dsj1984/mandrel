@@ -23,8 +23,8 @@ red tests green by "refactoring".
 ## 2. Interaction Protocol
 
 1. **Read Context:** Before touching anything, confirm the suite is green
-   and the quality gates currently pass. Read the parent Epic's Tech Spec
-   (`context::tech-spec`) and PRD (`context::prd`) plus every file listed in
+   and the quality gates currently pass. Read the parent Epic body and its
+   Tech Spec (`context::tech-spec`) plus every file listed in
    `project.docsContextFiles` so you know the conventions the code must keep
    matching.
 2. **Establish the baseline:** Capture the current CRAP and maintainability

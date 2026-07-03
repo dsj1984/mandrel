@@ -542,7 +542,7 @@ describe('providers/github/tickets.js — TicketGateway', () => {
   });
 
   it('createTicket: does NOT inject type::story onto context spec tickets (Story #4246)', async () => {
-    // Context tickets (PRD / Tech Spec / Acceptance Spec) are created through
+    // Context tickets (Tech Spec / Acceptance Spec) are created through
     // this same factory carrying only a context:: label. Stamping them
     // type::story makes every story-counting consumer (the decompose
     // open-children guard, the delivery wave builder) mis-classify them as
@@ -560,9 +560,9 @@ describe('providers/github/tickets.js — TicketGateway', () => {
     });
     const gateway = new TicketGateway({ gh, owner: 'o', repo: 'r', hooks: {} });
     await gateway.createTicket(10, {
-      title: '[PRD] Some Epic',
+      title: '[Tech Spec] Some Epic',
       body: '',
-      labels: ['context::prd'],
+      labels: ['context::tech-spec'],
     });
     const posted = JSON.parse(
       gh.__exec.calls.find((c) => c.args[2] === 'POST').input,
@@ -571,7 +571,7 @@ describe('providers/github/tickets.js — TicketGateway', () => {
       !posted.labels.includes('type::story'),
       `context ticket must NOT carry type::story; got: ${JSON.stringify(posted.labels)}`,
     );
-    assert.deepEqual(posted.labels, ['context::prd']);
+    assert.deepEqual(posted.labels, ['context::tech-spec']);
   });
 
   it('updateTicket: additive label-only PATCH skips body PATCH and invalidates cache', async () => {
