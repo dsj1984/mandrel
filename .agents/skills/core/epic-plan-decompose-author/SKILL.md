@@ -224,6 +224,8 @@ They are NOT top-level ticket fields.
 
 The first question is **cohesion, not count**: *is this one coherent change with one reason to exist?* File count cannot tell a trivial 10-file mechanical rename from a hard 3-file parser+caller+config change — so lead with the change's reason, not its size. Size against the real one-pass delivery envelope (`maxTokenBudget`): a Story is correctly sized when a single agent can hold its full change, acceptance, and verification in one pass within that budget.
 
+The envelope also has a **floor**, not just a ceiling: a Story that would plausibly use well under a third of `maxTokenBudget` and is neither parallel-deliverable nor orthogonal to its siblings is a **merge candidate** — modern frontier models one-shot capability-sized changes, so a chain of small dependent Stories needlessly pays a full per-Story delivery session (hydration, branch, PR, review, CI) per link. This is soft guidance, not a threshold or validator finding; the canonical phrasing lives in `DELIVERABLE_GRANULARITY_GUIDANCE.envelopeFloor` in `ticket-validator-sizing.js`, which the decomposer prompt interpolates — do not restate a divergent version here.
+
 - **One Story = one coherent change with one reason to exist.** If you cannot state that reason in a sentence, the Story is probably two Stories.
 - **Single-consumer merge rule.** A Story whose only consumer is one sibling Story should be **merged into that sibling** rather than emitted separately — a single-consumer downstream slice is not its own unit of work.
 - **Split independent, parallelizable work** into sibling Stories — but only when the pieces genuinely have separate reasons to exist.

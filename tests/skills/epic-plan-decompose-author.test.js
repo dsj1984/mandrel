@@ -222,6 +222,26 @@ describe('skill:epic-plan-decompose-author — smoke', () => {
             'Skill body must say a single-consumer Story is merged into that sibling (Story #3777)',
           );
         }
+        // Story #4313 — the SKILL must reference the soft envelope-floor
+        // guidance (under-utilizing the delivery envelope is a merge signal,
+        // naming the per-Story delivery-session cost) rather than only the
+        // ceiling framing. Single-sourced in DELIVERABLE_GRANULARITY_GUIDANCE;
+        // the SKILL references rather than restates the full passage.
+        if (!/\bfloor\b/i.test(body) || !/merge candidate/i.test(body)) {
+          errors.push(
+            'Skill body must reference the envelope-floor merge-candidate guidance (Story #4313)',
+          );
+        }
+        if (!/hydration, branch, PR, review, CI/i.test(body)) {
+          errors.push(
+            'Skill body must name the per-Story delivery-session cost the envelope floor guards against (Story #4313)',
+          );
+        }
+        if (!/DELIVERABLE_GRANULARITY_GUIDANCE\.envelopeFloor/.test(body)) {
+          errors.push(
+            'Skill body must reference the single-source envelopeFloor constant rather than restate a divergent version (Story #4313)',
+          );
+        }
         // Story #3263 — SKILL must document hyphen-case slug format.
         if (!/hyphen[-\s]case|\\^\\[a-z0-9\\]|a-z0-9.*-/i.test(body)) {
           errors.push(

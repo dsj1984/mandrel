@@ -52,12 +52,16 @@ function render2TierPrompt({ maxTickets, maxTokenBudget, epicId = null }) {
   // (ticket-validator-sizing.js) so the prompt and the validator cannot drift.
   const { softFiles, hardFiles, maxAcceptance, softAcceptanceCount } =
     DEFAULT_TASK_SIZING;
-  // Deliverable-granularity definition + single-consumer merge rule are
-  // sourced from the single DELIVERABLE_GRANULARITY_GUIDANCE constant
-  // (ticket-validator-sizing.js) so the prompt and the authoring SKILL
-  // cannot drift (Story #3777).
-  const { definition: granularityDefinition, singleConsumerRule } =
-    DELIVERABLE_GRANULARITY_GUIDANCE;
+  // Deliverable-granularity definition + single-consumer merge rule + the
+  // soft envelope-floor heuristic are sourced from the single
+  // DELIVERABLE_GRANULARITY_GUIDANCE constant (ticket-validator-sizing.js) so
+  // the prompt and the authoring SKILL cannot drift (Story #3777; the
+  // envelope-floor sentence added by Story #4313).
+  const {
+    definition: granularityDefinition,
+    singleConsumerRule,
+    envelopeFloor,
+  } = DELIVERABLE_GRANULARITY_GUIDANCE;
   // The binding-vs-advisory authoring altitude + the New-File Contract are
   // sourced from the single AUTHORING_ALTITUDE_GUIDANCE constant
   // (ticket-validator-sizing.js) so the prompt and the authoring SKILL cannot
@@ -161,6 +165,8 @@ ${advisoryCaveat}
 The primary question is **cohesion, not count**: *is this one coherent change with one reason to exist?* File count cannot tell a trivial ${softFiles}-file rename from a hard 3-file parser+caller+config change — so lead with the change's reason, not its size.
 
 **Size against the real one-pass delivery envelope.** Each Story is delivered and self-verified by a single agent in one pass, whose context is capped by the delivery token budget \`maxTokenBudget = ${maxTokenBudget}\` tokens (the task-prompt hydration cap). Use that envelope — not the file count alone — as the leading sizing input: a Story is correctly sized when one agent can hold its full change, acceptance, and verification in a single pass within \`maxTokenBudget\`. The numeric file thresholds below are a coarse backstop on top of this envelope, not the primary signal.
+
+${envelopeFloor}
 
 - **One Story = one coherent change with one reason to exist.** If you cannot state that reason in a sentence, the Story is probably two Stories — or two Stories that should be one. State that sentence explicitly in the Story's \`reason_to_exist\` meta field (see STORY BODY RULES) so the consolidate critic can check it.
 - ${singleConsumerRule}
