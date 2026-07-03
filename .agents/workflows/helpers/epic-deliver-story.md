@@ -83,8 +83,8 @@ node .agents/scripts/story-init.js --story <storyId> \
 
 **Thread the Epic linkage (Story #4253).** The parent `/deliver` resolved
 the Epic's `techSpecId` **once** in its Phase 1 prepare and passed
-it into your dispatch prompt (the PRD artifact class was retired in Story
-#4314). Forward it as `--tech-spec` so this `story-init.js` run **skips**
+it into your dispatch prompt (the PRD artifact class was retired in
+Story #4314). Forward it as `--tech-spec` so this `story-init.js` run **skips**
 the per-Story `getEpic` round-trip — the id is invariant for the whole
 delivery run, so re-fetching the immutable Epic per Story is pure waste (and
 secondary-rate-limit pressure during wide fan-out). **Omit** the flag when
