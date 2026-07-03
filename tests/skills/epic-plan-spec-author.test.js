@@ -64,9 +64,29 @@ describe('skill:epic-plan-spec-author — smoke', () => {
         if (!/## Overview/.test(body)) {
           errors.push('PRD prompt must require "## Overview" heading');
         }
-        if (!/## Technical Overview/.test(body)) {
+        // Story #4316 — the Tech Spec now OPENS with "## Delivery Slicing"
+        // (not "## Technical Overview"), and the "Technical Overview" section
+        // is demoted to optional. The prompt must say "Open ... with ## Delivery
+        // Slicing" and must NOT carry the old "Start with ## Technical Overview"
+        // instruction that contradicted the Delivery-Slicing-first ordering.
+        if (
+          !/Open the document with the `## Delivery Slicing` section/.test(body)
+        ) {
           errors.push(
-            'Tech Spec prompt must require "## Technical Overview" heading',
+            'Tech Spec prompt must instruct the document to OPEN with "## Delivery Slicing" (Story #4316)',
+          );
+        }
+        if (/Start with ## Technical Overview/.test(body)) {
+          errors.push(
+            'Tech Spec prompt must not retain the "Start with ## Technical Overview" contradiction (Story #4316)',
+          );
+        }
+        // Story #4316 — the prompt must forbid restating the Epic's
+        // Context/Goal/Scope (the Epic body travels with the Tech Spec
+        // downstream, so restatement is duplication).
+        if (!/Do NOT restate the Epic's Context, Goal, or Scope/.test(body)) {
+          errors.push(
+            "Tech Spec prompt must forbid restating the Epic's Context/Goal/Scope (Story #4316)",
           );
         }
         // Story #3797 — the Tech Spec must carry a "Delivery Slicing" section
