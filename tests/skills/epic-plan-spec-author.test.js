@@ -48,21 +48,17 @@ describe('skill:epic-plan-spec-author — smoke', () => {
       fixture: fixtureFile,
       validator: async ({ body }) => {
         const errors = [];
-        // The Skill is the source of truth for the PRD + Tech Spec output
-        // contract that epic-plan-spec.js --persist reads back. If these
-        // path conventions ever drift, the persist half breaks silently.
-        if (!/temp\/epic-<Epic_ID>\/prd\.md/.test(body)) {
-          errors.push(
-            'Skill body must reference temp/epic-<Epic_ID>/prd.md output path',
-          );
-        }
+        // The Skill is the source of truth for the Tech Spec output contract
+        // that epic-plan-spec.js --persist reads back. If this path convention
+        // ever drifts, the persist half breaks silently.
+        //
+        // Story #4314 — the PRD artifact class is retired; the Skill no longer
+        // authors prd.md and its User Stories section now lives inline in the
+        // Epic body, so the prd.md / "## Overview" checks are dropped.
         if (!/temp\/epic-<Epic_ID>\/techspec\.md/.test(body)) {
           errors.push(
             'Skill body must reference temp/epic-<Epic_ID>/techspec.md output path',
           );
-        }
-        if (!/## Overview/.test(body)) {
-          errors.push('PRD prompt must require "## Overview" heading');
         }
         // Story #4316 — the Tech Spec now OPENS with "## Delivery Slicing"
         // (not "## Technical Overview"), and the "Technical Overview" section

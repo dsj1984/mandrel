@@ -144,7 +144,7 @@ function buildStoryOnlyEpicFixture() {
     title: 'Story-only Epic 9000',
     body: 'Synthetic 2-tier Epic for end-to-end E2E coverage (Story #3144).',
     labels: ['type::epic'],
-    linkedIssues: { prd: null, techSpec: null },
+    linkedIssues: { techSpec: null },
     state: 'open',
   };
   const storyA = {

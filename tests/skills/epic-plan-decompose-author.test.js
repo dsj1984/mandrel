@@ -36,7 +36,10 @@ describe('skill:epic-plan-decompose-author — smoke', () => {
     );
     const ctx = JSON.parse(await readFile(fixtureFile, 'utf8'));
     assert.ok(ctx.epic.id > 0, 'fixture must carry a sample Epic ID');
-    assert.ok(ctx.prd.length > 0, 'fixture must carry a PRD body');
+    // Story #4314 — the PRD artifact class is retired; the Epic body (with its
+    // inline User Stories) is the authoring input the decomposer reads in the
+    // PRD's place.
+    assert.ok(ctx.epicBody.length > 0, 'fixture must carry an Epic body');
     assert.ok(ctx.techSpec.length > 0, 'fixture must carry a Tech Spec body');
 
     const result = await runSkillSmoke({

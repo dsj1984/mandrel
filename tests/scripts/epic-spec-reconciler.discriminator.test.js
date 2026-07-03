@@ -168,7 +168,7 @@ describe('STRUCTURAL_LABELS — complement helper', () => {
     for (const label of [
       'type::story',
       'persona::engineer',
-      'context::prd',
+      'context::tech-spec',
       'status::blocked',
       'area::core',
     ]) {

@@ -80,7 +80,10 @@ describe('providers/github/mappers.js — REST payload shapes', () => {
     assert.strictEqual(t.labelSet.size, 0);
   });
 
-  it('issueToEpic includes linkedIssues (PRD/TechSpec) parsed from body', () => {
+  it('issueToEpic includes linkedIssues (TechSpec) parsed from body', () => {
+    // Story #4314 retired the PRD artifact class: a historical
+    // `- [ ] PRD: #200` line in the body is ignored by the parser, which
+    // now emits only techSpec / acceptanceSpec.
     const epic = issueToEpic({
       number: 100,
       id: 9999,
@@ -92,13 +95,12 @@ describe('providers/github/mappers.js — REST payload shapes', () => {
     assert.strictEqual(epic.id, 100);
     assert.strictEqual(epic.title, 'Epic title');
     assert.deepStrictEqual(epic.linkedIssues, {
-      prd: 200,
       techSpec: 201,
       acceptanceSpec: null,
     });
   });
 
-  it('issueToEpic returns null linkedIssues when body has no PRD/TechSpec refs', () => {
+  it('issueToEpic returns null linkedIssues when body has no TechSpec refs', () => {
     const epic = issueToEpic({
       number: 1,
       id: 1,
@@ -108,7 +110,6 @@ describe('providers/github/mappers.js — REST payload shapes', () => {
       labels: [],
     });
     assert.deepStrictEqual(epic.linkedIssues, {
-      prd: null,
       techSpec: null,
       acceptanceSpec: null,
     });

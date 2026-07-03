@@ -13,7 +13,6 @@ import {
   epicArtifactPath,
   epicManifestPath,
   epicPerfReportPath,
-  epicPrdPath,
   epicRetroMirrorPath,
   epicTechSpecPath,
   epicTempDir,
@@ -114,7 +113,6 @@ describe('lib/config/temp-paths.js — signals + canonical artifact paths', () =
   });
 
   it('Epic-level canonical filenames live directly under the Epic dir', () => {
-    assert.equal(epicPrdPath(1030), anchored('temp', 'epic-1030', 'prd.md'));
     assert.equal(
       epicTechSpecPath(1030),
       anchored('temp', 'epic-1030', 'techspec.md'),
@@ -188,7 +186,6 @@ describe('lib/config/temp-paths.js — path.join semantics (Windows + POSIX)', (
       epicTempDir(1030, cfg),
       storyTempDir(1030, 1042, cfg),
       signalsFile(1030, 1042, cfg),
-      epicPrdPath(1030, cfg),
       epicTechSpecPath(1030, cfg),
       storyManifestPath(1030, 1042, cfg),
     ];

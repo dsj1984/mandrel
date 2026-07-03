@@ -86,10 +86,9 @@ describe('runHierarchyGate', () => {
     }
   });
 
-  it('defers auxiliary tickets (context::prd / context::tech-spec) — they close in Phase 7', async () => {
+  it('defers auxiliary tickets (context::tech-spec) — they close in Phase 7', async () => {
     const provider = new GraphProvider({
       100: [
-        { id: 250, title: 'PRD', state: 'open', labels: ['context::prd'] },
         {
           id: 251,
           title: 'Tech Spec',
@@ -103,7 +102,6 @@ describe('runHierarchyGate', () => {
           labels: ['type::story'],
         },
       ],
-      250: [],
       251: [],
       252: [],
     });
@@ -112,7 +110,7 @@ describe('runHierarchyGate', () => {
       injectedProvider: provider,
     });
     assert.strictEqual(result.success, true);
-    assert.strictEqual(result.auxiliaryDeferred, 2);
+    assert.strictEqual(result.auxiliaryDeferred, 1);
     assert.strictEqual(result.checked, 1);
   });
 

@@ -5,16 +5,20 @@
  * (Epic #2880).
  *
  * Asserts:
- *   1. Happy path — three open planning tickets are closed; helper
- *      returns `{ closed: 3, alreadyClosed: 0, failed: 0 }`.
- *   2. Idempotency — three already-closed planning tickets return
- *      `{ closed: 0, alreadyClosed: 3, failed: 0 }` and no transition
+ *   1. Happy path — the two open planning tickets (Tech Spec +
+ *      Acceptance Spec) are closed; helper returns
+ *      `{ closed: 2, alreadyClosed: 0, failed: 0 }`.
+ *   2. Idempotency — two already-closed planning tickets return
+ *      `{ closed: 0, alreadyClosed: 2, failed: 0 }` and no transition
  *      is attempted.
  *   3. Partial fail — a thrown transition on one ticket counts as
  *      `failed` and does NOT abort the remaining closes.
  *   4. Body-only parsing — when `linkedIssues` is absent the helper
  *      falls back to parsing the Epic body's `## Planning Artifacts`
  *      lines via `parseLinkedIssues`.
+ *
+ * Story #4314: the PRD artifact class is retired, so `kinds` covers only
+ * Tech Spec + Acceptance Spec (no `prd`).
  */
 
 import { strict as assert } from 'node:assert';
@@ -38,14 +42,13 @@ function makeProvider({ epic, tickets }) {
 }
 
 describe('closePlanningTickets', () => {
-  it('closes three open planning tickets and reports closed=3', async () => {
+  it('closes two open planning tickets and reports closed=2', async () => {
     const epic = {
       id: 2880,
       body: '',
-      linkedIssues: { prd: 2884, techSpec: 2885, acceptanceSpec: 2886 },
+      linkedIssues: { techSpec: 2885, acceptanceSpec: 2886 },
     };
     const tickets = {
-      2884: { id: 2884, state: 'open' },
       2885: { id: 2885, state: 'open' },
       2886: { id: 2886, state: 'open' },
     };
@@ -59,23 +62,22 @@ describe('closePlanningTickets', () => {
       },
       logger: quietLogger(),
     });
-    assert.equal(result.closed, 3);
+    assert.equal(result.closed, 2);
     assert.equal(result.alreadyClosed, 0);
     assert.equal(result.failed, 0);
     assert.deepEqual(
       transitions.sort((a, b) => a - b),
-      [2884, 2885, 2886],
+      [2885, 2886],
     );
   });
 
-  it('returns alreadyClosed=3 and skips transitions when all tickets are closed', async () => {
+  it('returns alreadyClosed=2 and skips transitions when all tickets are closed', async () => {
     const epic = {
       id: 2880,
       body: '',
-      linkedIssues: { prd: 2884, techSpec: 2885, acceptanceSpec: 2886 },
+      linkedIssues: { techSpec: 2885, acceptanceSpec: 2886 },
     };
     const tickets = {
-      2884: { id: 2884, state: 'closed' },
       2885: { id: 2885, state: 'closed' },
       2886: { id: 2886, state: 'closed' },
     };
@@ -95,7 +97,7 @@ describe('closePlanningTickets', () => {
         alreadyClosed: result.alreadyClosed,
         failed: result.failed,
       },
-      { closed: 0, alreadyClosed: 3, failed: 0 },
+      { closed: 0, alreadyClosed: 2, failed: 0 },
     );
     assert.equal(transitionCalls, 0);
   });
@@ -104,10 +106,9 @@ describe('closePlanningTickets', () => {
     const epic = {
       id: 2880,
       body: '',
-      linkedIssues: { prd: 2884, techSpec: 2885, acceptanceSpec: 2886 },
+      linkedIssues: { techSpec: 2885, acceptanceSpec: 2886 },
     };
     const tickets = {
-      2884: { id: 2884, state: 'open' },
       2885: { id: 2885, state: 'open' },
       2886: { id: 2886, state: 'open' },
     };
@@ -120,7 +121,7 @@ describe('closePlanningTickets', () => {
       },
       logger: quietLogger(),
     });
-    assert.equal(result.closed, 2);
+    assert.equal(result.closed, 1);
     assert.equal(result.failed, 1);
     const failed = result.details.find((d) => d.status === 'failed');
     assert.equal(failed?.id, 2885);
@@ -128,6 +129,8 @@ describe('closePlanningTickets', () => {
   });
 
   it('parses planning ids from the Epic body when linkedIssues is absent', async () => {
+    // A historical `- [ ] PRD: #100` line may still appear in a legacy body,
+    // but the parser ignores it (Story #4314) — only the Tech Spec closes.
     const epic = {
       id: 2880,
       body: [
@@ -137,7 +140,6 @@ describe('closePlanningTickets', () => {
       ].join('\n'),
     };
     const tickets = {
-      100: { id: 100, state: 'open' },
       101: { id: 101, state: 'open' },
     };
     const provider = makeProvider({ epic, tickets });
@@ -150,11 +152,8 @@ describe('closePlanningTickets', () => {
       },
       logger: quietLogger(),
     });
-    assert.equal(result.closed, 2);
-    assert.deepEqual(
-      transitions.sort((a, b) => a - b),
-      [100, 101],
-    );
+    assert.equal(result.closed, 1);
+    assert.deepEqual(transitions, [101]);
   });
 
   it('throws on invalid epicId', async () => {

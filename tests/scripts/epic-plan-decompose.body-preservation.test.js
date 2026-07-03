@@ -43,7 +43,6 @@ import {
 import { writeSpec } from '../../.agents/scripts/lib/spec/index.js';
 
 const EPIC_ID = 2173;
-const PRD_ID = 2185;
 const TECH_SPEC_ID = 2186;
 const ACCEPTANCE_SPEC_ID = 2187;
 
@@ -56,7 +55,6 @@ const NON_TRIVIAL_BODY_PROSE =
 
 const PLANNING_ARTIFACTS_SECTION =
   `\n\n## Planning Artifacts\n` +
-  `- [ ] PRD: #${PRD_ID}\n` +
   `- [ ] Tech Spec: #${TECH_SPEC_ID}\n` +
   `- [ ] Acceptance Spec: #${ACCEPTANCE_SPEC_ID}\n`;
 
@@ -87,7 +85,6 @@ function buildStubProvider({ epicId, epicBody }) {
     labels: ['type::epic', 'agent::review-spec'],
     state: 'open',
     linkedIssues: {
-      prd: PRD_ID,
       techSpec: TECH_SPEC_ID,
       acceptanceSpec: ACCEPTANCE_SPEC_ID,
     },
@@ -221,7 +218,6 @@ const stubSpawnSync = () => ({ status: 0, stdout: '', stderr: '' });
 
 describe('ensurePlanningArtifacts (Story #2283)', () => {
   const linkedIssues = {
-    prd: PRD_ID,
     techSpec: TECH_SPEC_ID,
     acceptanceSpec: ACCEPTANCE_SPEC_ID,
   };
@@ -255,21 +251,19 @@ describe('ensurePlanningArtifacts (Story #2283)', () => {
     assert.equal(twice, once);
   });
 
-  it('skips PRD / Tech Spec / Acceptance Spec lines whose id is null', () => {
+  it('skips Tech Spec / Acceptance Spec lines whose id is null', () => {
     const out = ensurePlanningArtifacts('original', {
-      prd: PRD_ID,
-      techSpec: null,
+      techSpec: TECH_SPEC_ID,
       acceptanceSpec: null,
     });
     assert.equal(
       out,
-      `original\n\n## Planning Artifacts\n- [ ] PRD: #${PRD_ID}\n`,
+      `original\n\n## Planning Artifacts\n- [ ] Tech Spec: #${TECH_SPEC_ID}\n`,
     );
   });
 
   it('returns the body unchanged when no linkedIssues are resolvable', () => {
     const out = ensurePlanningArtifacts('original', {
-      prd: null,
       techSpec: null,
       acceptanceSpec: null,
     });
@@ -381,7 +375,6 @@ describe('runDecomposePhase — Epic body preservation (Story #2283)', () => {
       captured.epic.body.match(/## Planning Artifacts/g) ?? []
     ).length;
     assert.equal(occurrences, 1, 'section must appear exactly once');
-    assert.ok(captured.epic.body.includes(`- [ ] PRD: #${PRD_ID}`));
     assert.ok(captured.epic.body.includes(`- [ ] Tech Spec: #${TECH_SPEC_ID}`));
     assert.ok(
       captured.epic.body.includes(

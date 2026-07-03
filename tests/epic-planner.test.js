@@ -5,10 +5,14 @@ import { beforeEach, describe, it } from 'node:test';
 // migrated into `epic-plan-spec.js`. The test suite name is kept as a
 // historical breadcrumb so a reader looking for the original module can
 // still find this file. The exercised behaviour is unchanged.
+//
+// Story #4314: the PRD artifact class is retired. `planEpic` no longer takes
+// `prdContent` and no longer creates a `context::prd` ticket; the Epic body
+// carries its `## User Stories` section inline. The Tech Spec is now the first
+// artifact `planEpic` creates.
 import {
   ACCEPTANCE_SPEC_SYSTEM_PROMPT,
   buildAuthoringContext,
-  PRD_SYSTEM_PROMPT,
   planEpic,
   resolveReviewRouting,
   TECH_SPEC_SYSTEM_PROMPT,
@@ -37,7 +41,7 @@ describe('epic-planner orchestration (v5.6+)', () => {
           title: 'Implement V5 Core',
           body: 'This epic covers the v5 architectural overhaul.',
           labels: ['epic'],
-          linkedIssues: { prd: null, techSpec: null },
+          linkedIssues: { techSpec: null },
         };
       },
 
@@ -65,21 +69,9 @@ describe('epic-planner orchestration (v5.6+)', () => {
     await assert.rejects(
       async () =>
         await planEpic(999, mockProvider, {
-          prdContent: 'x',
           techSpecContent: 'y',
         }),
       { message: 'Epic #999 not found.' },
-    );
-  });
-
-  it('rejects empty PRD content', async () => {
-    await assert.rejects(
-      async () =>
-        await planEpic(1, mockProvider, {
-          prdContent: '',
-          techSpecContent: 'y',
-        }),
-      { message: /prdContent is required/ },
     );
   });
 
@@ -87,7 +79,6 @@ describe('epic-planner orchestration (v5.6+)', () => {
     await assert.rejects(
       async () =>
         await planEpic(1, mockProvider, {
-          prdContent: 'x',
           techSpecContent: '   ',
         }),
       { message: /techSpecContent is required/ },
@@ -98,7 +89,6 @@ describe('epic-planner orchestration (v5.6+)', () => {
     await assert.rejects(
       async () =>
         await planEpic(1, mockProvider, {
-          prdContent: 'x',
           techSpecContent: 'y',
           acceptanceSpecContent: '   ',
         }),
@@ -109,105 +99,63 @@ describe('epic-planner orchestration (v5.6+)', () => {
   it('exposes pure helpers for artifact preflight decisions', () => {
     assert.doesNotThrow(() =>
       validatePlanEpicInputs({
-        prdContent: 'prd',
         techSpecContent: 'tech',
         acceptanceSpecContent: null,
       }),
     );
     assert.deepEqual(
       getExistingArtifactIds({
-        linkedIssues: { prd: 10, techSpec: 11, acceptanceSpec: 12 },
+        linkedIssues: { techSpec: 11, acceptanceSpec: 12 },
       }),
-      { prd: 10, techSpec: 11, acceptanceSpec: 12 },
+      { techSpec: 11, acceptanceSpec: 12 },
     );
     assert.equal(
       hasAllRequestedArtifacts({
-        existing: { prd: 10, techSpec: 11, acceptanceSpec: null },
+        existing: { techSpec: 11, acceptanceSpec: null },
         wantsAcceptanceSpec: false,
       }),
       true,
     );
     assert.equal(
       hasAllRequestedArtifacts({
-        existing: { prd: 10, techSpec: 11, acceptanceSpec: null },
+        existing: { techSpec: 11, acceptanceSpec: null },
         wantsAcceptanceSpec: true,
       }),
       false,
     );
   });
 
-  it('aborts early if epic already has BOTH linked issues', async () => {
+  it('aborts early if epic already has the linked Tech Spec', async () => {
     mockProvider.getEpic = async () => ({
       id: 1,
       title: 'Fully Linked Epic',
       body: '',
-      linkedIssues: { prd: 42, techSpec: 43 },
+      linkedIssues: { techSpec: 43 },
     });
 
     await planEpic(1, mockProvider, {
-      prdContent: '## Overview\nx',
       techSpecContent: '## Technical Overview\ny',
     });
 
     assert.equal(
       mockProvider.createdTickets.length,
       0,
-      'No tickets should be created if both already linked.',
-    );
-  });
-
-  it('resumes from existing PRD when only Tech Spec is missing', async () => {
-    mockProvider.getEpic = async () => ({
-      id: 1,
-      title: 'Partial Epic',
-      body: '',
-      linkedIssues: { prd: 42, techSpec: null },
-    });
-    mockProvider.getTicket = async (id) => ({
-      id,
-      body: '## Overview\nExisting PRD content from ticket #42.',
-    });
-
-    await planEpic(1, mockProvider, {
-      prdContent: '## Overview\nignored — PRD already exists',
-      techSpecContent: '## Technical Overview\nauthored tech spec',
-    });
-
-    assert.equal(
-      mockProvider.createdTickets.length,
-      1,
-      'Should create only the Tech Spec.',
-    );
-    assert.equal(
-      mockProvider.createdTickets[0].ticketData.title,
-      '[Tech Spec] Partial Epic',
-    );
-    assert.equal(
-      mockProvider.createdTickets[0].ticketData.body,
-      '## Technical Overview\nauthored tech spec',
+      'No tickets should be created if the Tech Spec is already linked.',
     );
   });
 
   it('runs the full planning pipeline with authored content', async () => {
     await planEpic(1, mockProvider, {
-      prdContent: '## Overview\nAuthored PRD.',
       techSpecContent: '## Technical Overview\nAuthored Tech Spec.',
     });
 
     assert.equal(
       mockProvider.createdTickets.length,
-      2,
-      'Should create exactly two tickets',
+      1,
+      'Should create exactly one ticket (the Tech Spec)',
     );
 
-    const prdCreation = mockProvider.createdTickets[0];
-    assert.equal(prdCreation.epicId, 1);
-    assert.equal(prdCreation.ticketData.title, '[PRD] Implement V5 Core');
-    assert.equal(prdCreation.ticketData.body, '## Overview\nAuthored PRD.');
-    assert.deepEqual(prdCreation.ticketData.labels, ['context::prd']);
-    assert.deepEqual(prdCreation.ticketData.dependencies, []);
-
-    const tsCreation = mockProvider.createdTickets[1];
+    const tsCreation = mockProvider.createdTickets[0];
     assert.equal(tsCreation.epicId, 1);
     assert.equal(tsCreation.ticketData.title, '[Tech Spec] Implement V5 Core');
     assert.equal(
@@ -215,20 +163,23 @@ describe('epic-planner orchestration (v5.6+)', () => {
       '## Technical Overview\nAuthored Tech Spec.',
     );
     assert.deepEqual(tsCreation.ticketData.labels, ['context::tech-spec']);
-    assert.deepEqual(tsCreation.ticketData.dependencies, [100]);
+    assert.deepEqual(tsCreation.ticketData.dependencies, []);
 
     assert.equal(mockProvider.updatedTickets.length, 1);
     const update = mockProvider.updatedTickets[0];
     assert.equal(update.id, 1);
-    assert.ok(update.mutations.body.includes('- [ ] PRD: #100'));
-    assert.ok(update.mutations.body.includes('- [ ] Tech Spec: #101'));
+    assert.ok(
+      !update.mutations.body.includes('PRD'),
+      'No PRD line in Planning Artifacts',
+    );
+    assert.ok(update.mutations.body.includes('- [ ] Tech Spec: #100'));
     assert.ok(
       !update.mutations.body.includes('Acceptance Spec'),
       'No acceptance-spec line when not requested',
     );
   });
 
-  it('creates a third context::acceptance-spec ticket and links it in Planning Artifacts', async () => {
+  it('creates a context::acceptance-spec ticket and links it in Planning Artifacts', async () => {
     mockProvider.getEpic = async (id) => {
       if (id !== 1) return null;
       return {
@@ -236,12 +187,11 @@ describe('epic-planner orchestration (v5.6+)', () => {
         title: 'Implement V5 Core',
         body: 'User-facing security changes and /plan gate routing.',
         labels: ['epic'],
-        linkedIssues: { prd: null, techSpec: null },
+        linkedIssues: { techSpec: null },
       };
     };
 
     await planEpic(1, mockProvider, {
-      prdContent: '## Overview\nAuthored PRD.',
       techSpecContent: '## Technical Overview\nAuthored Tech Spec.',
       acceptanceSpecContent:
         '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
@@ -249,11 +199,11 @@ describe('epic-planner orchestration (v5.6+)', () => {
 
     assert.equal(
       mockProvider.createdTickets.length,
-      3,
-      'Should create exactly three tickets',
+      2,
+      'Should create exactly two tickets (Tech Spec + Acceptance Spec)',
     );
 
-    const acceptanceCreation = mockProvider.createdTickets[2];
+    const acceptanceCreation = mockProvider.createdTickets[1];
     assert.equal(acceptanceCreation.epicId, 1);
     assert.equal(
       acceptanceCreation.ticketData.title,
@@ -263,32 +213,29 @@ describe('epic-planner orchestration (v5.6+)', () => {
     assert.deepEqual(acceptanceCreation.ticketData.labels, [
       'context::acceptance-spec',
     ]);
-    // Acceptance Spec depends on Tech Spec (ID 101) so it appears after both
-    // upstream artifacts in dependency order.
-    assert.deepEqual(acceptanceCreation.ticketData.dependencies, [101]);
+    // Acceptance Spec depends on Tech Spec (ID 100, the first-created ticket).
+    assert.deepEqual(acceptanceCreation.ticketData.dependencies, [100]);
 
     const update = mockProvider.updatedTickets[0];
-    assert.ok(update.mutations.body.includes('- [ ] PRD: #100'));
-    assert.ok(update.mutations.body.includes('- [ ] Tech Spec: #101'));
+    assert.ok(update.mutations.body.includes('- [ ] Tech Spec: #100'));
     assert.ok(
-      update.mutations.body.includes('- [ ] Acceptance Spec: #102'),
+      update.mutations.body.includes('- [ ] Acceptance Spec: #101'),
       'Planning Artifacts must include the acceptance-spec link',
     );
   });
 
   it('does not duplicate Planning Artifacts on a partial-recovery rerun (Story #4019)', async () => {
-    // PRD present, Tech Spec missing — and the Epic body already carries a
-    // stale `## Planning Artifacts` section from the earlier partial run.
+    // Tech Spec missing — and the Epic body already carries a stale
+    // `## Planning Artifacts` section from an earlier partial run.
     mockProvider.getEpic = async () => ({
       id: 1,
       title: 'Partial Epic',
-      body: 'Epic body.\n\n## Planning Artifacts\n- [ ] PRD: #42\n',
-      linkedIssues: { prd: 42, techSpec: null },
+      body: 'Epic body.\n\n## Planning Artifacts\n- [ ] Tech Spec: #42\n',
+      linkedIssues: { techSpec: null },
     });
-    mockProvider.getTicket = async (id) => ({ id, body: 'PRD body' });
+    mockProvider.getTicket = async (id) => ({ id, body: 'Tech Spec body' });
 
     await planEpic(1, mockProvider, {
-      prdContent: '## Overview\nignored',
       techSpecContent: '## Technical Overview\nauthored tech spec',
     });
 
@@ -303,7 +250,6 @@ describe('epic-planner orchestration (v5.6+)', () => {
       1,
       'rerun must not stack a duplicate Planning Artifacts section',
     );
-    assert.ok(update.mutations.body.includes('- [ ] PRD: #42'));
     assert.ok(update.mutations.body.includes('- [ ] Tech Spec: #100'));
     assert.ok(update.mutations.body.startsWith('Epic body.'));
   });
@@ -313,35 +259,32 @@ describe('epic-planner orchestration (v5.6+)', () => {
       id: 1,
       title: 'Fully Linked Epic',
       body: '',
-      linkedIssues: { prd: 42, techSpec: 43 },
+      linkedIssues: { techSpec: 43 },
     });
 
     const result = await planEpic(1, mockProvider, {
-      prdContent: '## Overview\nx',
       techSpecContent: '## Technical Overview\ny',
     });
 
     assert.equal(result.persisted, false);
     assert.equal(result.reason, 'already-planned');
-    assert.equal(result.prdId, 42);
     assert.equal(result.techSpecId, 43);
+    assert.ok(!('prdId' in result), 'result must not carry a prdId');
   });
 
   it('returns persisted:true when artifacts are created', async () => {
     const result = await planEpic(1, mockProvider, {
-      prdContent: '## Overview\nAuthored PRD.',
       techSpecContent: '## Technical Overview\nAuthored Tech Spec.',
     });
     assert.equal(result.persisted, true);
-    assert.equal(result.prdId, 100);
-    assert.equal(result.techSpecId, 101);
+    assert.equal(result.techSpecId, 100);
+    assert.ok(!('prdId' in result), 'result must not carry a prdId');
   });
 
   it('rejects an empty acceptanceSpecContent string when the flag is supplied', async () => {
     await assert.rejects(
       async () =>
         await planEpic(1, mockProvider, {
-          prdContent: '## Overview\nx',
           techSpecContent: '## Technical Overview\ny',
           acceptanceSpecContent: '   ',
         }),
@@ -358,7 +301,7 @@ describe('epic-planner buildAuthoringContext', () => {
           id,
           title: 'Context Epic',
           body: 'Epic body text.',
-          linkedIssues: { prd: null, techSpec: null },
+          linkedIssues: { techSpec: null },
         };
       },
     };
@@ -368,7 +311,10 @@ describe('epic-planner buildAuthoringContext', () => {
     assert.equal(ctx.epic.id, 7);
     assert.equal(ctx.epic.title, 'Context Epic');
     assert.equal(ctx.epic.body, 'Epic body text.');
-    assert.equal(ctx.systemPrompts.prd, PRD_SYSTEM_PROMPT);
+    assert.ok(
+      !('prd' in ctx.systemPrompts),
+      'systemPrompts must not carry a prd key',
+    );
     assert.equal(ctx.systemPrompts.techSpec, TECH_SPEC_SYSTEM_PROMPT);
     assert.equal(
       ctx.systemPrompts.acceptanceSpec,
@@ -444,7 +390,7 @@ describe('epic-planner buildAuthoringContext', () => {
           id,
           title: 'Trunc Epic',
           body: 'Epic body.',
-          linkedIssues: { prd: null, techSpec: null },
+          linkedIssues: { techSpec: null },
         };
       },
     };

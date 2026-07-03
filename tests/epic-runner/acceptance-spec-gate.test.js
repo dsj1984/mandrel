@@ -97,7 +97,7 @@ describe('runSnapshotPhase — acceptance-spec start gate', () => {
         id: 9005,
         labels: ['type::epic'],
         body: '', // intentionally empty — the parsed body would say "no spec"
-        linkedIssues: { prd: null, techSpec: null, acceptanceSpec: 9700 },
+        linkedIssues: { techSpec: null, acceptanceSpec: 9700 },
       },
       // Note: 9700 is not registered with the provider. The gate no longer
       // calls getTicket(acceptanceSpecId) — presence on the Epic is all

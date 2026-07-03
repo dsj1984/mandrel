@@ -102,7 +102,7 @@ describe('ITicketingProvider — subclass behavior', () => {
         title: 'Test Epic',
         body: 'Test body',
         labels: ['type::epic'],
-        linkedIssues: { prd: null, techSpec: null },
+        linkedIssues: { techSpec: null },
       };
     }
   }

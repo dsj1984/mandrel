@@ -56,7 +56,6 @@ describe('epic-plan-state-store', () => {
       'write-only phase telemetry is no longer persisted (Story #3909)',
     );
     assert.deepEqual(state.spec, {
-      prdId: null,
       techSpecId: null,
       acceptanceSpecId: null,
       completedAt: null,
@@ -80,7 +79,7 @@ describe('epic-plan-state-store', () => {
     const second = await initialize({
       provider,
       epicId: 349,
-      seed: { spec: { prdId: 1 } },
+      seed: { spec: { techSpecId: 1 } },
     });
 
     // Seed overrides must not clobber a pre-existing checkpoint.
@@ -126,7 +125,6 @@ describe('epic-plan-state-store', () => {
       epicId: 777,
       startedAt: '2026-04-21T20:00:00.000Z',
       spec: {
-        prdId: 511,
         techSpecId: 512,
         acceptanceSpecId: null,
         completedAt: '2026-04-21T21:00:00Z',
@@ -160,7 +158,6 @@ describe('epic-plan-state-store', () => {
       epicId: 349,
       startedAt: '2026-04-21T20:00:00.000Z',
       spec: {
-        prdId: 1,
         techSpecId: 2,
         acceptanceSpecId: 3,
         completedAt: '2026-04-22T00:00:00.000Z',

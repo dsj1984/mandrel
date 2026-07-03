@@ -46,7 +46,6 @@ describe('PlanCheckpointer', () => {
       'write-only phase telemetry is no longer persisted (Story #3909)',
     );
     assert.deepEqual(state.spec, {
-      prdId: null,
       techSpecId: null,
       acceptanceSpecId: null,
       completedAt: null,
@@ -68,7 +67,7 @@ describe('PlanCheckpointer', () => {
     const provider = createFakeProvider();
     const cp = new PlanCheckpointer({ provider, epicId: 349 });
     const first = await cp.initialize();
-    const second = await cp.initialize({ spec: { prdId: 1 } });
+    const second = await cp.initialize({ spec: { techSpecId: 1 } });
 
     // Seed overrides must not clobber a pre-existing checkpoint.
     assert.deepEqual(second.spec, first.spec);
@@ -81,16 +80,16 @@ describe('PlanCheckpointer', () => {
     const cp = new PlanCheckpointer({ provider, epicId: 349 });
     await cp.initialize();
 
-    const first = await cp.updateSpec({ prdId: 511 });
-    assert.equal(first.spec.prdId, 511);
-    assert.equal(first.spec.techSpecId, null);
+    const first = await cp.updateSpec({ techSpecId: 511 });
+    assert.equal(first.spec.techSpecId, 511);
+    assert.equal(first.spec.acceptanceSpecId, null);
 
     const second = await cp.updateSpec({
-      techSpecId: 512,
+      acceptanceSpecId: 512,
       completedAt: '2026-04-21T21:00:00Z',
     });
-    assert.equal(second.spec.prdId, 511, 'prior prdId preserved');
-    assert.equal(second.spec.techSpecId, 512);
+    assert.equal(second.spec.techSpecId, 511, 'prior techSpecId preserved');
+    assert.equal(second.spec.acceptanceSpecId, 512);
     assert.equal(second.spec.completedAt, '2026-04-21T21:00:00Z');
   });
 

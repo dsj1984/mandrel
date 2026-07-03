@@ -11,16 +11,20 @@ import { buildDecompositionContext } from '../.agents/scripts/lib/orchestration/
 // hydrate and preflight will actually gate.
 // ---------------------------------------------------------------------------
 
+// Story #4314 retired the PRD artifact class: the decomposition context now
+// reads the Epic body (as `epicBody`) plus the linked Tech Spec, so the PRD
+// id / body fetch is gone from the provider stub.
 const buildProvider = () => ({
   async getEpic(id) {
     return {
       id,
       title: 'Envelope Epic',
-      linkedIssues: { prd: 10, techSpec: 11 },
+      body: 'EPIC BODY',
+      linkedIssues: { techSpec: 11 },
     };
   },
   async getTicket(id) {
-    return { id, body: id === 10 ? 'PRD BODY' : 'TECH SPEC BODY' };
+    return { id, body: 'TECH SPEC BODY' };
   },
 });
 

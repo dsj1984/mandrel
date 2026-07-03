@@ -117,8 +117,10 @@ describe('Bootstrap — LABEL_TAXONOMY', () => {
   it('contains status and context labels', () => {
     const names = LABEL_TAXONOMY.map((l) => l.name);
     assert.ok(names.includes('status::blocked'));
-    assert.ok(names.includes('context::prd'));
     assert.ok(names.includes('context::tech-spec'));
+    // Story #4314 — the PRD artifact class is retired; its label is no
+    // longer provisioned during bootstrap.
+    assert.ok(!names.includes('context::prd'));
   });
 
   it('derives one persona label per file in .agents/personas/', () => {
@@ -137,7 +139,8 @@ describe('Bootstrap — LABEL_TAXONOMY', () => {
     // Story #3704 — removed `plan::acknowledged` (story-plan ack feature
     // retired in a hard cutover).
     // Story #4041 — removed the Feature tier label (2-tier hard cutover).
-    const nonPersonaBase = 13;
+    // Story #4314 — removed the `context::prd` label (PRD artifact retired).
+    const nonPersonaBase = 12;
     assert.equal(LABEL_TAXONOMY.length, nonPersonaBase + PERSONA_NAMES.length);
   });
 

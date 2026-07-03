@@ -91,8 +91,10 @@ describe('GitHubProvider — getEpic()', () => {
     assert.equal(epic.id, 10);
     assert.equal(epic.title, 'Epic: Build v5');
     assert.deepEqual(epic.labels, ['type::epic']);
+    // Story #4314 retired the PRD artifact class: the historical
+    // `- [ ] PRD: #11` line in the body is now ignored by the parser — the
+    // parsed linkedIssues carries only techSpec / acceptanceSpec, no `prd`.
     assert.deepEqual(epic.linkedIssues, {
-      prd: 11,
       techSpec: 12,
       acceptanceSpec: null,
     });
@@ -113,7 +115,6 @@ describe('GitHubProvider — getEpic()', () => {
     const provider = createTestProvider({ gh });
     const epic = await provider.getEpic(10);
     assert.deepEqual(epic.linkedIssues, {
-      prd: null,
       techSpec: null,
       acceptanceSpec: null,
     });
@@ -130,7 +131,6 @@ describe('GitHubProvider — getEpic()', () => {
     const epic = await provider.getEpic(10);
     assert.equal(epic.body, '');
     assert.deepEqual(epic.linkedIssues, {
-      prd: null,
       techSpec: null,
       acceptanceSpec: null,
     });

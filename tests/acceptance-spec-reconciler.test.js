@@ -567,7 +567,7 @@ describe('reconcileAcceptanceSpec', () => {
         id: 7006,
         labels: ['type::epic'],
         body: '', // empty — body parser would say "no spec"
-        linkedIssues: { prd: null, techSpec: null, acceptanceSpec: 7600 },
+        linkedIssues: { techSpec: null, acceptanceSpec: 7600 },
       },
       {
         id: 7600,

@@ -1,8 +1,8 @@
 ▶ [story-init] [ENV] worktreeIsolation=off (env-override)
 ▶ [story-init] [ENV] sessionId=<sessionId> (local|remote)
 ▶ [story-init] [INIT] Initializing Story #<id>...
-▶ [story-init] [CONTEXT] Epic: #<epic>, Feature/Parent: #<parent>
-▶ [story-init] [CONTEXT] PRD: #<prd>, Tech Spec: #<spec>
+▶ [story-init] [CONTEXT] Epic: #<epic>, Parent: #<parent>
+▶ [story-init] [CONTEXT] Tech Spec: #<spec>
 ▶ [story-init] [BLOCKERS] Checking <n> dependency/dependencies...
 ▶ [story-init] [BLOCKERS] ✅ All blockers resolved
 ▶ [story-init] [TASKS] Found <n> child Task(s) in dependency order

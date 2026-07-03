@@ -2,7 +2,7 @@
 
 This is a minimal Epic body used by the planning-Skill smoke tests. The
 text is intentionally short and free of placeholders so the planning
-Skills can author a PRD and Tech Spec without external context.
+Skills can author a Tech Spec without external context.
 
 ## Problem
 

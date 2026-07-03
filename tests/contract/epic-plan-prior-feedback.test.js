@@ -26,7 +26,7 @@ function makeProvider() {
         id,
         title: 'Test Epic',
         body: '## Overview\nA short epic body for contract testing.',
-        linkedIssues: { prd: null, techSpec: null },
+        linkedIssues: { techSpec: null },
       };
     },
   };
