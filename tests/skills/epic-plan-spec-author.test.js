@@ -89,6 +89,27 @@ describe('skill:epic-plan-spec-author — smoke', () => {
             'Skill body must state the PRD enumeration is not coarsened (Story #3797)',
           );
         }
+        // Story #4311 — the Delivery Slicing count is a CEILING, not a target,
+        // and an "Independent? No" slice must justify staying separate.
+        if (!/ceiling/i.test(body)) {
+          errors.push(
+            'Tech Spec prompt must frame the Delivery Slicing count as a ceiling (Story #4311)',
+          );
+        }
+        if (
+          !/parallelism|risk isolation|delivery-envelope|envelope pressure/i.test(
+            body,
+          )
+        ) {
+          errors.push(
+            'Tech Spec prompt must require a justification (parallelism, risk isolation, or envelope pressure) for an "Independent? No" slice (Story #4311)',
+          );
+        }
+        if (!/fold(s)? into (its )?consumer/i.test(body)) {
+          errors.push(
+            'Tech Spec prompt must state an unjustified dependent single-consumer slice folds into its consumer (Story #4311)',
+          );
+        }
         return { ok: errors.length === 0, errors };
       },
     });

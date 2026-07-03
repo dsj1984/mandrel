@@ -20,7 +20,7 @@ allowed_tools:
 - Write exactly four artifacts and only inside `temp/epic-<Epic_ID>/`: `prd.md`, `techspec.md`, `risk-verdict.json`, `acceptance-spec.md`. All four MUST exist on disk before returning.
 - Start each markdown artifact at the correct `##` heading (PRD → `## Overview`, Tech Spec → `## Technical Overview`, Acceptance Spec → `## Acceptance Criteria`) — never emit a top-level `#` heading. `risk-verdict.json` is raw JSON conforming to `.agents/schemas/risk-verdict.schema.json`.
 - Judge risk from what the change *does* (the PRD / Tech Spec you just wrote), never from keyword presence — "out of scope: billing" is not a billing change; "rotate the credential vault" is high-risk even without a security keyword.
-- The Tech Spec MUST carry a `## Delivery Slicing` section proposing how the PRD's enumerated capabilities cluster into N shippable Stories — the intentional target the Phase 8 consolidation pass (`epic-plan-consolidate`) reconciles the decomposer draft against. Do NOT coarsen the PRD enumeration to produce it; the grouping recommendation is the granularity lever.
+- The Tech Spec MUST carry a `## Delivery Slicing` section proposing how the PRD's enumerated capabilities cluster into N shippable Stories — the intentional grouping the Phase 8 consolidation pass (`epic-plan-consolidate`) reconciles the decomposer draft against. The proposed count is a **ceiling, not a target**: consolidation may merge below it when slices form dependent single-consumer chains, but never splits above it. Mark a slice "Independent? No" only with a one-line justification (parallelism, risk isolation, or delivery-envelope pressure); an unjustified dependent single-consumer slice folds into its consumer. Do NOT coarsen the PRD enumeration to produce it; the grouping recommendation is the granularity lever.
 - Cite real module / file names from `codebaseSnapshot.files` and `codebaseSnapshot.signatures` before citing docs-only names; flag any cited path that is missing from the snapshot with a `<!-- DRIFT -->` callout.
 - Assign stable AC IDs of the form `AC-<n>` in document order; reuse existing IDs across re-plans when Outcome wording is materially unchanged and tag every row's `Disposition` with one of `new | updated | unchanged`.
 - Render the AC table with the canonical columns `AC ID | Outcome | Feature File | Scenario | Disposition`; when `bddScenarios` is non-empty, run `findBestScenarioMatch` per AC and annotate matched rows with `<file>:L<line>` (never tag a covered outcome as `new`).
@@ -184,17 +184,25 @@ before reaching for names that appear only in the documentation. Write to
 - Cite the source files / modules it touches by relative path. Avoid
   pseudocode — name real symbols when proposing edits.
 
-#### Delivery Slicing section (authoritative target for Phase 8 consolidation)
+#### Delivery Slicing section (authoritative ceiling for Phase 8 consolidation)
 
 The Tech Spec MUST carry a `## Delivery Slicing` section in which the Architect
 — who holds the full design — proposes how the PRD's enumerated capabilities
-**cluster into N shippable Stories**. This section is the intentional target
-grouping the Phase 8 consolidation pass
+**cluster into N shippable Stories**. This section is the intentional grouping
+the Phase 8 consolidation pass
 ([`epic-plan-consolidate`](../epic-plan-consolidate/SKILL.md)) reconciles the
 decomposer's draft against before any GitHub write. Without it, the decompose
 phase maps PRD capabilities to Stories ~1:1 and cannot produce a coarser,
-holistic plan; with it, the consolidation critic has a well-defined target
+holistic plan; with it, the consolidation critic has a well-defined reference
 instead of a guess.
+
+**The proposed count is a ceiling, not a target.** Consolidation reconciles
+the draft *toward* your grouping, but it treats the count as an upper bound: it
+may **merge below** your proposed count when slices form dependent
+single-consumer chains, and it **never splits above** it. Over-slicing here
+therefore locks in fragmentation only when the extra slices are genuinely
+independent — so keep a slice separate only when it earns its own delivery
+session.
 
 **Write the Delivery Slicing section before any other section — it is the
 primary input to Phase 8 consolidation.** Author it first so the rest of the
@@ -216,30 +224,50 @@ dumbed-down PRD.
 value *without the next slice landing*? A `Yes` slice is releasable on its own;
 a `No` slice only becomes valuable once a later slice lands on top of it.
 
+**"Independent? No" is a smell that must be justified.** A dependent,
+single-consumer slice (one that only feeds the next slice) folds into its
+consumer by default — it is not worth its own delivery session's hydration,
+branch, PR, and CI ceremony. Mark a slice `No` only when you can name a
+one-line reason to keep it separate anyway: **parallelism** (two `No` slices
+that can be delivered concurrently by different sessions), **risk isolation**
+(a blast-radius or reviewability reason to land it as its own reviewable PR),
+or **delivery-envelope pressure** (folding it in would push the consumer past a
+single-session sizing envelope). Absent such a justification, do not author the
+slice as its own row — fold it into its consumer and let the merged slice carry
+the combined capability.
+
 Worked example:
 
 ```text
 ## Delivery Slicing
 
-Proposed shippable slices (consolidation target for Phase 8):
+Proposed shippable slices (consolidation ceiling for Phase 8):
 
 | Slice          | What ships                                              | Independent? |
 | -------------- | ------------------------------------------------------ | ------------ |
 | Foundation     | Config schema, types, and the no-op default path       | Yes          |
 | Transport seam | The pluggable transport interface + in-memory adapter  | Yes          |
-| Send helper    | The send() helper built on the transport seam          | No           |
+| Send helper    | The send() helper + retries, built on the transport    | No (justified: risk isolation) |
 
 - **Foundation** folds PRD capabilities "config surface" + "type model" — they
   share a reason to exist and ship as one reviewable PR.
 - **Transport seam** is the pluggable boundary; it provides value on its own
   (in-memory adapter is usable for tests) so it is independently shippable.
 - **Send helper** depends on the transport seam landing first, so it is *not*
-  independent — it is valuable only once Transport seam ships.
+  independent. It stays its own slice only because the retry/backoff logic is a
+  large, high-blast-radius surface worth isolating in its own reviewable PR
+  (risk isolation). Absent that justification it would fold into Transport
+  seam — a bare "depends on the previous slice" is not a reason to keep it
+  separate.
 ```
 
 The consolidation pass degrades gracefully when this section is absent (it
 falls back to cohesion + single-Story-Feature rules only), so authoring it is
 how the Architect steers the decomposition toward fewer, right-sized Stories.
+Because the count is a **ceiling**, an over-sliced table is coarsened back
+during consolidation — but only where the extra slices are dependent
+single-consumer chains, so an unjustified `No` slice is the one you should fold
+in yourself rather than leaning on the consolidator to catch.
 
 #### Tech Spec system prompt (authoritative)
 
@@ -253,13 +281,13 @@ The Tech Spec should outline:
 3. API Changes (if any)
 4. Core Components
 5. Security & Privacy Considerations
-6. Delivery Slicing — propose how the PRD's enumerated capabilities cluster into N shippable Stories (the consolidation target for Phase 8). One bullet per proposed Story, naming the capability cluster it delivers. Do NOT coarsen the PRD enumeration to produce this; the grouping recommendation is the granularity lever.
+6. Delivery Slicing — propose how the PRD's enumerated capabilities cluster into shippable Stories. This count is a CEILING, not a target: the Phase 8 consolidation pass may merge below your proposed count when slices form dependent single-consumer chains, but never splits above it. Do NOT coarsen the PRD enumeration to produce this; the grouping recommendation is the granularity lever.
 
 CRITICAL REQUIREMENTS:
 - Respond ONLY with valid Markdown.
 - Do not use top-level <h1> (# ) tags. Start with ## Technical Overview.
 - Format architectural decisions clearly with bullet points.
-- Include a `## Delivery Slicing` section proposing the shippable-Story grouping. Write the Delivery Slicing section before any other section — it is the primary input to Phase 8 consolidation. Author it as a markdown table with columns `Slice | What ships | Independent?`, using noun-phrase slice names (e.g. "Foundation", "Transport seam", "Send helper") that map onto Feature titles. "Independent?" answers: can this slice ship to production and provide value without the next slice landing?
+- Include a `## Delivery Slicing` section proposing the shippable-Story grouping. Write the Delivery Slicing section before any other section — it is the primary input to Phase 8 consolidation. Author it as a markdown table with columns `Slice | What ships | Independent?`, using noun-phrase slice names (e.g. "Foundation", "Transport seam", "Send helper") that map onto Feature titles. "Independent?" answers: can this slice ship to production and provide value without the next slice landing? A slice you mark "Independent? No" MUST carry a one-line justification (parallelism, risk isolation, or delivery-envelope pressure); an unjustified dependent single-consumer slice folds into its consumer by default rather than shipping as its own Story.
 ```
 
 ### Step 4 — Author the risk verdict (Risk Assessor persona)
