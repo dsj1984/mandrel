@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-16T16:35:27.286Z",
+  "generatedAt": "2026-07-03T21:15:39.431Z",
   "generator": "generate-skills-index.js@1",
   "skills": [
     {
@@ -127,7 +127,7 @@
       "tier": "core",
       "category": "core",
       "path": ".agents/skills/core/epic-plan-consolidate/SKILL.md",
-      "description": "Run a holistic, pre-persist consolidation pass over the draft Story ticket array an Epic's decompose phase produced. Use during Phase 8 of `/plan`, after `epic-plan-decompose-author` writes `temp/epic-<Epic_ID>/tickets.json` and before `epic-plan-decompose.js` validates and persists it. Reconciles the draft against the Tech Spec \"Delivery Slicing\" target via scope-preserving operations only.",
+      "description": "Run a holistic, pre-persist consolidation pass over the draft Story ticket array an Epic's decompose phase produced. Use during Phase 8 of `/plan`, after `epic-plan-decompose-author` writes `temp/epic-<Epic_ID>/tickets.json` and before `epic-plan-decompose.js` validates and persists it. Reconciles the draft against the Tech Spec \"Delivery Slicing\" ceiling via scope-preserving operations only.",
       "policyCapsuleBullets": 9,
       "allowedTools": ["Read", "Write", "Bash"],
       "vendor": null

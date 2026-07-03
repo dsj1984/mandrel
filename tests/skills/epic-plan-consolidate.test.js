@@ -90,15 +90,36 @@ describe('skill:epic-plan-consolidate — smoke', () => {
           );
         }
 
-        // Delivery Slicing target + graceful degradation.
+        // Delivery Slicing ceiling + graceful degradation.
         if (!/Delivery Slicing/.test(body)) {
           errors.push(
-            'Skill body must consume the Tech Spec "Delivery Slicing" section as the target grouping',
+            'Skill body must consume the Tech Spec "Delivery Slicing" section as the grouping ceiling',
           );
         }
         if (!/degrade gracefully|graceful(ly)?[- ]degrade|absent/i.test(body)) {
           errors.push(
             'Skill body must degrade gracefully when Delivery Slicing is absent',
+          );
+        }
+        // Story #4311 — the Delivery Slicing count is a CEILING, not a target:
+        // the consolidator may merge below it but never splits above it.
+        if (!/ceiling/i.test(body)) {
+          errors.push(
+            'Skill body must describe the Delivery Slicing count as a ceiling (Story #4311)',
+          );
+        }
+        if (!/never split(s)? above/i.test(body)) {
+          errors.push(
+            'Skill body must state the consolidator never splits above the ceiling (Story #4311)',
+          );
+        }
+        // Story #4311 — a below-ceiling merge must be surfaced in the report
+        // with a one-line rationale so the operator sees the coarsening.
+        if (
+          !/below[- ]ceiling|below the (Delivery-Slicing )?ceiling/i.test(body)
+        ) {
+          errors.push(
+            'Skill body report format must surface below-ceiling merges (Story #4311)',
           );
         }
 
