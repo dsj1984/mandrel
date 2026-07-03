@@ -78,20 +78,20 @@ Run from the **main checkout** (the worktree does not exist yet):
 
 ```bash
 node .agents/scripts/story-init.js --story <storyId> \
-  --prd <prdId> --tech-spec <techSpecId>
+  --tech-spec <techSpecId>
 ```
 
-**Thread the Epic linkages (Story #4253).** The parent `/deliver` resolved
-the Epic's `prdId` / `techSpecId` **once** in its Phase 1 prepare and passed
-them into your dispatch prompt. Forward them as `--prd` / `--tech-spec` so
-this `story-init.js` run **skips** the per-Story `getEpic` round-trip — the
-two ids are invariant for the whole delivery run, so re-fetching the
-immutable Epic per Story is pure waste (and secondary-rate-limit pressure
-during wide fan-out). **Omit** whichever flag the prompt reported as `null`;
-`story-init.js` then falls back to its own `getEpic` resolution for the
-missing id (graceful degradation on a missing Epic linkage). When dispatched
-interactively with neither flag, drop both — the legacy single-fetch path is
-unchanged.
+**Thread the Epic linkage (Story #4253).** The parent `/deliver` resolved
+the Epic's `techSpecId` **once** in its Phase 1 prepare and passed
+it into your dispatch prompt (the PRD artifact class was retired in Story
+#4314). Forward it as `--tech-spec` so this `story-init.js` run **skips**
+the per-Story `getEpic` round-trip — the id is invariant for the whole
+delivery run, so re-fetching the immutable Epic per Story is pure waste (and
+secondary-rate-limit pressure during wide fan-out). **Omit** the flag when
+the prompt reported it as `null`; `story-init.js` then falls back to its own
+`getEpic` resolution for the missing id (graceful degradation on a missing
+Epic linkage). When dispatched interactively with no flag, drop it — the
+legacy single-fetch path is unchanged.
 
 > **Execution mode (sub-agents must read).** This command typically takes
 > 3–6 minutes when the worktree's per-tree install runs. Invoke it
@@ -106,14 +106,14 @@ unchanged.
 > prevention is cheaper: just give Bash the 10-minute timeout and block.
 
 The script validates `type::story`, checks blockers, traces the
-Epic → PRD/Tech-Spec hierarchy, seeds `story-<id>` from the
+Epic → Tech-Spec hierarchy, seeds `story-<id>` from the
 Epic branch, and (when worktree isolation is on) runs `git worktree add`
 at `.worktrees/story-<id>/`. The Story flips to `agent::executing`. A
 `story-init` structured comment is upserted with the Story's inline
 `acceptance[]` and `verify[]` arrays from the body.
 
 Capture `workCwd`, `dependenciesInstalled` (tri-state), and
-`context.{prdId,techSpecId,acceptance,verify}`. Add `--dry-run` to check
+`context.{techSpecId,acceptance,verify}`. Add `--dry-run` to check
 status without git or ticket changes.
 
 ### Step 0.5 — `cd` into the workCwd

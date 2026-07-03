@@ -227,7 +227,7 @@ graph TB
 
 | Script                       | Responsibility                                                                                                                                                                              |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `epic-plan-spec.js`          | Authoring wrapper for PRD + Tech Spec; flips Epic to `agent::review-spec` and writes the `epic-plan-state` checkpoint. Threads `docsContext` and a `codebaseSnapshot` (Story #2634, see below) into the spec-author envelope so the Architect persona cites real modules instead of doc-only names. |
+| `epic-plan-spec.js`          | Authoring wrapper for Tech Spec + Acceptance Spec; flips Epic to `agent::review-spec` and writes the `epic-plan-state` checkpoint. Threads `docsContext` and a `codebaseSnapshot` (Story #2634, see below) into the spec-author envelope so the Architect persona cites real modules instead of doc-only names. |
 | `epic-plan-decompose.js`     | Authoring wrapper for the Epic's child-Story backlog; flips Epic to `agent::ready` and posts the dispatch manifest.                                                                       |
 | `dispatcher.js`              | Builds dependency DAG, computes execution waves, posts the dispatch manifest (consumed by `/deliver`).                                                                                   |
 | `epic-deliver-prepare.js`    | Snapshots the Epic, builds the wave plan, and initialises the `epic-run-state` checkpoint at the start of `/deliver` Phase 1.                                                            |
@@ -589,7 +589,7 @@ sequenceDiagram
 
     H->>P: /plan (ideation) or /plan #EPIC
     P->>GH: Open Epic (ideation path) / read existing Epic
-    P->>EP: Generate PRD + Tech Spec
+    P->>EP: Generate Tech Spec + Acceptance Spec
     EP->>GH: Create linked context issues
     EP->>TD: Decompose into Stories
     TD->>GH: Create the Story backlog
@@ -638,7 +638,7 @@ inline-emit comments" framing is retired.
         /plan ideation creates the Epic with type::epic only
                               (no state::* label at creation)
                                        │
-                                       │ PRD + Tech Spec authored
+                                       │ Tech Spec + Acceptance Spec authored
                                        ▼
                                agent::review-spec  ◄── operator reviews on GitHub
                                        │
@@ -803,7 +803,6 @@ Tech Spec, never as a ticket:
 
 ```text
 Epic (type::epic)
-├── PRD (context::prd)
 ├── Tech Spec (context::tech-spec)
 ├── Story (type::story)
 │   ├── acceptance[]            ← inline on Story body
@@ -839,15 +838,15 @@ the authoritative contract:
 | Parent tier                                     | Auto-closes via cascade? | How it closes                                                    |
 | ----------------------------------------------- | ------------------------ | ---------------------------------------------------------------- |
 | Epic (`type::epic`)                             | **No** — cascade stops.  | The `/deliver` PR merges — auto-merge when the Phase 8.5 clean-run gate armed it, otherwise the operator merges via the GitHub UI. |
-| Planning (`context::prd`, `context::tech-spec`) | **No** — cascade stops.  | Operator close after the Epic PR is merged.                      |
+| Planning (`context::tech-spec`)                 | **No** — cascade stops.  | Operator close after the Epic PR is merged.                      |
 
 **Why neither tier auto-closes.** Epics gate on a real pull-request
 merge — cascade must not pre-empt the operator's required-checks review.
-Planning tickets (PRD, Tech Spec) are narrative artefacts the operator
+Planning tickets (Tech Spec) are narrative artefacts the operator
 closes once the Epic PR is merged.
 
 Implementation: [`.agents/scripts/lib/orchestration/ticketing.js`](../.agents/scripts/lib/orchestration/ticketing.js)
-— `cascadeCompletion()` explicitly skips `type::epic`, `context::prd`, and
+— `cascadeCompletion()` explicitly skips `type::epic` and
 `context::tech-spec` parents; every other parent tier is eligible. The
 `fromState` lookup inside `transitionTicketState()` has a deliberate
 try/catch — a network flake reading the prior state label must not block a

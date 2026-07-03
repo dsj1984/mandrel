@@ -1,10 +1,10 @@
 ---
 name: epic-plan-spec-author
 description: >-
-  Author the PRD, Tech Spec, Acceptance Spec markdown, and risk-verdict JSON
+  Author the Tech Spec, Acceptance Spec markdown, and risk-verdict JSON
   for an Epic from the planner authoring context emitted by
   `epic-plan-spec.js --emit-context`. Use during Phase 7 of `/plan` when
-  the host LLM needs to write the four artifacts before `epic-plan-spec.js`
+  the host LLM needs to write the three artifacts before `epic-plan-spec.js`
   persists them.
 allowed_tools:
   - Read
@@ -14,14 +14,21 @@ allowed_tools:
 
 # epic-plan-spec-author
 
+> **PRD retired (Story #4314).** The `context::prd` PRD artifact class was
+> retired; this Skill no longer authors `prd.md`. Its one novel section —
+> User Stories — now lives inline in the Epic body under a `## User Stories`
+> heading, which is the requirements input. Both the Tech Spec and the
+> Acceptance Spec now consume the Epic body directly (Context / Goal / Scope /
+> User Stories) rather than a paraphrased PRD.
+
 ## Policy Capsule
 
 - Run only during `/plan` Phase 7, after `epic-plan-spec.js --emit-context` has written `temp/epic-<Epic_ID>/planner-context.json`; fail loudly if the file is missing rather than fabricating context.
-- Write exactly four artifacts and only inside `temp/epic-<Epic_ID>/`: `prd.md`, `techspec.md`, `risk-verdict.json`, `acceptance-spec.md`. All four MUST exist on disk before returning.
-- Start each markdown artifact at the correct `##` heading (PRD → `## Overview`, Tech Spec → `## Delivery Slicing`, Acceptance Spec → `## Acceptance Criteria`) — never emit a top-level `#` heading. `risk-verdict.json` is raw JSON conforming to `.agents/schemas/risk-verdict.schema.json`.
+- Write exactly three artifacts and only inside `temp/epic-<Epic_ID>/`: `techspec.md`, `risk-verdict.json`, `acceptance-spec.md`. All three MUST exist on disk before returning.
+- Start each markdown artifact at the correct `##` heading (Tech Spec → `## Delivery Slicing`, Acceptance Spec → `## Acceptance Criteria`) — never emit a top-level `#` heading. `risk-verdict.json` is raw JSON conforming to `.agents/schemas/risk-verdict.schema.json`.
 - The Tech Spec MUST open with `## Delivery Slicing` and MUST NOT restate the Epic's Context, Goal, or Scope — the Epic body travels alongside the Tech Spec into every downstream story agent's prompt, so any restatement is duplication and a drift risk. A `## Technical Overview` section is optional and, when present, is a 2–3 sentence orientation of the *technical approach* only (which subsystems are touched and reused), never a re-narration of the problem statement, goals, or scope.
-- Judge risk from what the change *does* (the PRD / Tech Spec you just wrote), never from keyword presence — "out of scope: billing" is not a billing change; "rotate the credential vault" is high-risk even without a security keyword.
-- The Tech Spec MUST carry a `## Delivery Slicing` section proposing how the PRD's enumerated capabilities cluster into N shippable Stories — the intentional grouping the Phase 8 consolidation pass (`epic-plan-consolidate`) reconciles the decomposer draft against. The proposed count is a **ceiling, not a target**: consolidation may merge below it when slices form dependent single-consumer chains, but never splits above it. Mark a slice "Independent? No" only with a one-line justification (parallelism, risk isolation, or delivery-envelope pressure); an unjustified dependent single-consumer slice folds into its consumer. Do NOT coarsen the PRD enumeration to produce it; the grouping recommendation is the granularity lever.
+- Judge risk from what the change *does* (the Epic body / Tech Spec you just wrote), never from keyword presence — "out of scope: billing" is not a billing change; "rotate the credential vault" is high-risk even without a security keyword.
+- The Tech Spec MUST carry a `## Delivery Slicing` section proposing how the Epic's enumerated capabilities cluster into N shippable Stories — the intentional grouping the Phase 8 consolidation pass (`epic-plan-consolidate`) reconciles the decomposer draft against. The proposed count is a **ceiling, not a target**: consolidation may merge below it when slices form dependent single-consumer chains, but never splits above it. Mark a slice "Independent? No" only with a one-line justification (parallelism, risk isolation, or delivery-envelope pressure); an unjustified dependent single-consumer slice folds into its consumer. Do NOT coarsen the Epic enumeration to produce it; the grouping recommendation is the granularity lever.
 - Cite real module / file names from `codebaseSnapshot.files` and `codebaseSnapshot.signatures` before citing docs-only names; flag any cited path that is missing from the snapshot with a `<!-- DRIFT -->` callout.
 - Assign stable AC IDs of the form `AC-<n>` in document order; reuse existing IDs across re-plans when Outcome wording is materially unchanged and tag every row's `Disposition` with one of `new | updated | unchanged`.
 - Render the AC table with the canonical columns `AC ID | Outcome | Feature File | Scenario | Disposition`; when `bddScenarios` is non-empty, run `findBestScenarioMatch` per AC and annotate matched rows with `<file>:L<line>` (never tag a covered outcome as `new`).
@@ -32,22 +39,21 @@ allowed_tools:
 
 ## Role
 
-Technical Product Manager + Engineering Architect + Risk Assessor +
-Acceptance Engineer (four personas, one Skill — the PRD persona produces the
-requirements; the Architect persona consumes the PRD to produce the Tech
-Spec; the Risk Assessor judges the change the two specs describe to produce
-the risk verdict; the Acceptance Engineer consumes all of them to produce
-the Acceptance Spec).
+Engineering Architect + Risk Assessor + Acceptance Engineer (three authoring
+roles, one Skill — the Architect persona consumes the Epic body to produce the
+Tech Spec; the Risk Assessor judges the change the Epic and Tech Spec describe
+to produce the risk verdict; the Acceptance Engineer consumes the Epic body and
+the Tech Spec to produce the Acceptance Spec).
 
 ## When to use
 
 `/plan` Phase 7, immediately after `epic-plan-spec.js --emit-context`
 writes `temp/epic-<Epic_ID>/planner-context.json`. This Skill replaces the
-inline "Author the PRD" / "Author the Tech Spec" steps from the legacy
-workflow body — the calling workflow dispatches this Skill via the `Skill`
-tool, supplies the Epic ID, and on completion has `temp/epic-<Epic_ID>/prd.md`,
-`temp/epic-<Epic_ID>/techspec.md`, `temp/epic-<Epic_ID>/risk-verdict.json`,
-and `temp/epic-<Epic_ID>/acceptance-spec.md` ready for the persist half of
+inline "Author the Tech Spec" step from the legacy workflow body — the calling
+workflow dispatches this Skill via the `Skill` tool, supplies the Epic ID, and
+on completion has `temp/epic-<Epic_ID>/techspec.md`,
+`temp/epic-<Epic_ID>/risk-verdict.json`, and
+`temp/epic-<Epic_ID>/acceptance-spec.md` ready for the persist half of
 the script.
 
 ## Inputs
@@ -88,7 +94,7 @@ reads:
         Treat each as a likely drift signal: confirm the path exists (it may
         have been dropped by truncation) or mark it net-new explicitly in
         the spec so the post-author freshness gate does not flag it.
-  - `systemPrompts.prd`, `systemPrompts.techSpec`, and
+  - `systemPrompts.techSpec` and
     `systemPrompts.acceptanceSpec` — left in the envelope as a backstop;
     this Skill's own body below carries the authoritative versions and is
     the source of truth going forward
@@ -105,18 +111,16 @@ reads:
     means the project has not adopted BDD; degrade silently and proceed
     as before. Non-empty means the Acceptance Engineer step MUST run
     `findBestScenarioMatch` for each planned AC and annotate the
-    Disposition column accordingly (see Step 5).
+    Disposition column accordingly (see Step 4).
   Planning risk is **not** an input — this Skill authors it. The risk
-  verdict (`risk-verdict.json`, Step 4 below) is the fourth planning
-  artifact; the persist half validates it against
+  verdict (`risk-verdict.json`, Step 3 below) is one of the three planning
+  artifacts; the persist half validates it against
   `.agents/schemas/risk-verdict.schema.json` and derives the deterministic
   `planningRisk` envelope (`deriveRiskEnvelope`) that drives gate routing
   and the acceptance disposition (Epic #3865).
 
 ## Outputs
 
-- `temp/epic-<Epic_ID>/prd.md` — PRD markdown starting with `## Overview`
-  (no `<h1>`).
 - `temp/epic-<Epic_ID>/techspec.md` — Tech Spec markdown starting with
   `## Delivery Slicing` (no `<h1>`; an optional 2–3 sentence
   `## Technical Overview` may follow, never restating Epic context).
@@ -126,9 +130,9 @@ reads:
 - `temp/epic-<Epic_ID>/acceptance-spec.md` — Acceptance Spec markdown
   starting with `## Acceptance Criteria` (no `<h1>`).
 
-All four files MUST exist on disk before this Skill returns control. The
+All three files MUST exist on disk before this Skill returns control. The
 caller will invoke
-`epic-plan-spec.js --epic <Epic_ID> --prd ... --techspec ... --risk-verdict ... --acceptance-spec ...`
+`epic-plan-spec.js --epic <Epic_ID> --techspec ... --risk-verdict ... --acceptance-spec ...`
 next, and the persist half will fail loudly if any file is missing, empty,
 or (for the verdict) schema-invalid.
 
@@ -137,41 +141,13 @@ or (for the verdict) schema-invalid.
 ### Step 1 — Load the context
 
 Read `temp/epic-<Epic_ID>/planner-context.json` with the `Read` tool. Pull
-the Epic title, body (or body summary), the `docsContext` items, and (for
-reference) the two system prompts.
+the Epic title, body (or body summary, including the Epic's `## User Stories`
+section), the `docsContext` items, and (for reference) the two system prompts.
 
-### Step 2 — Author the PRD (Technical Product Manager persona)
+### Step 2 — Author the Tech Spec (Engineering Architect persona)
 
-Apply the PRD system prompt below to the Epic title + body. Write the PRD
-to `temp/epic-<Epic_ID>/prd.md` using the `Write` tool. The PRD MUST:
-
-- Start with `## Overview` — never a top-level `#` heading.
-- Contain four sections: **Context & Goals**, **User Stories**,
-  **Acceptance Criteria**, **Out of Scope**.
-- Be valid Markdown — no fenced code blocks of prose, no smart quotes that
-  break the issue body renderer.
-
-#### PRD system prompt (authoritative)
-
-```text
-You are an expert Technical Product Manager.
-Your job is to convert a high-level Epic description into a structured Product Requirements Document (PRD).
-
-The PRD should outline:
-1. Context & Goals
-2. User Stories
-3. Acceptance Criteria
-4. Out of Scope
-
-CRITICAL REQUIREMENTS:
-- Respond ONLY with valid Markdown.
-- Do not use top-level <h1> (# ) tags. Start with ## Overview.
-- Format requirements clearly with bullet points and bold text where appropriate.
-```
-
-### Step 3 — Author the Tech Spec (Engineering Architect persona)
-
-Apply the Tech Spec system prompt below to the PRD just written, the
+Apply the Tech Spec system prompt below to the Epic body (Context / Goal /
+Scope / User Stories), the
 `docsContext` items, and the `codebaseSnapshot` envelope (so the spec is
 grounded in the actual codebase, not hallucinated patterns). Cite module
 and file names from `codebaseSnapshot.files` / `codebaseSnapshot.signatures`
@@ -197,12 +173,12 @@ before reaching for names that appear only in the documentation. Write to
 #### Delivery Slicing section (authoritative ceiling for Phase 8 consolidation)
 
 The Tech Spec MUST carry a `## Delivery Slicing` section in which the Architect
-— who holds the full design — proposes how the PRD's enumerated capabilities
+— who holds the full design — proposes how the Epic's enumerated capabilities
 **cluster into N shippable Stories**. This section is the intentional grouping
 the Phase 8 consolidation pass
 ([`epic-plan-consolidate`](../epic-plan-consolidate/SKILL.md)) reconciles the
 decomposer's draft against before any GitHub write. Without it, the decompose
-phase maps PRD capabilities to Stories ~1:1 and cannot produce a coarser,
+phase maps Epic capabilities to Stories ~1:1 and cannot produce a coarser,
 holistic plan; with it, the consolidation critic has a well-defined reference
 instead of a guess.
 
@@ -226,9 +202,9 @@ capability cluster each slice would deliver, what ships in it, and whether it
 can ship independently. Use **noun phrases** for slice names ("Foundation",
 "Transport seam", "Send helper") so they map cleanly onto Feature titles in the
 resulting decomposition — never verb phrases ("Add transport") or file names
-("`sender.ts`"). Do **not** coarsen the PRD's capability enumeration to produce
+("`sender.ts`"). Do **not** coarsen the Epic's capability enumeration to produce
 the slicing: the granularity lever is *this* grouping recommendation, not a
-dumbed-down PRD.
+dumbed-down Epic enumeration.
 
 **What "Independent?" means:** can this slice ship to production and provide
 value *without the next slice landing*? A `Yes` slice is releasable on its own;
@@ -259,7 +235,7 @@ Proposed shippable slices (consolidation ceiling for Phase 8):
 | Transport seam | The pluggable transport interface + in-memory adapter  | Yes          |
 | Send helper    | The send() helper + retries, built on the transport    | No (justified: risk isolation) |
 
-- **Foundation** folds PRD capabilities "config surface" + "type model" — they
+- **Foundation** folds Epic capabilities "config surface" + "type model" — they
   share a reason to exist and ship as one reviewable PR.
 - **Transport seam** is the pluggable boundary; it provides value on its own
   (in-memory adapter is usable for tests) so it is independently shippable.
@@ -283,10 +259,10 @@ in yourself rather than leaning on the consolidator to catch.
 
 ```text
 You are an expert Engineering Architect.
-Your job is to convert a PRD into a Technical Specification for implementation.
+Your job is to convert an Epic into a Technical Specification for implementation.
 
 The Tech Spec should outline:
-1. Delivery Slicing — propose how the PRD's enumerated capabilities cluster into shippable Stories. This count is a CEILING, not a target: the Phase 8 consolidation pass may merge below your proposed count when slices form dependent single-consumer chains, but never splits above it. Do NOT coarsen the PRD enumeration to produce this; the grouping recommendation is the granularity lever.
+1. Delivery Slicing — propose how the Epic's enumerated capabilities cluster into shippable Stories. This count is a CEILING, not a target: the Phase 8 consolidation pass may merge below your proposed count when slices form dependent single-consumer chains, but never splits above it. Do NOT coarsen the Epic enumeration to produce this; the grouping recommendation is the granularity lever.
 2. Architecture & Design
 3. Data Models (if any)
 4. API Changes (if any)
@@ -301,9 +277,9 @@ CRITICAL REQUIREMENTS:
 - Author the `## Delivery Slicing` section as a markdown table with columns `Slice | What ships | Independent?`, using noun-phrase slice names (e.g. "Foundation", "Transport seam", "Send helper") that map onto Feature titles. "Independent?" answers: can this slice ship to production and provide value without the next slice landing? A slice you mark "Independent? No" MUST carry a one-line justification (parallelism, risk isolation, or delivery-envelope pressure); an unjustified dependent single-consumer slice folds into its consumer by default rather than shipping as its own Story.
 ```
 
-### Step 4 — Author the risk verdict (Risk Assessor persona)
+### Step 3 — Author the risk verdict (Risk Assessor persona)
 
-Judge the change described by the PRD and Tech Spec you just wrote —
+Judge the change described by the Epic body and Tech Spec you just wrote —
 grounded in `codebaseSnapshot` where it helps — and write
 `temp/epic-<Epic_ID>/risk-verdict.json` with the `Write` tool. The file
 MUST be valid JSON conforming to
@@ -329,11 +305,11 @@ Axis vocabulary (fixed — the schema rejects anything else):
 Authoring rules:
 
 - Include an axis only when the change **genuinely exercises it** — judge
-  what the Epic *does*, not which words appear in it. A PRD that says
+  what the Epic *does*, not which words appear in it. An Epic that says
   "out of scope: billing" carries no `billing` axis; an Epic that rotates
   a credential vault carries `security` even if the word never appears.
 - `level` reflects blast radius and reversibility of *this* change on
-  *that* axis. `rationale` cites the PRD / Tech Spec section or code
+  *that* axis. `rationale` cites the Epic / Tech Spec section or code
   surface that justifies the entry — never an empty self-attestation.
 - An empty `axes` array is a deliberate assertion that no recognized risk
   axis applies (derives an all-low, auto-proceed envelope) — use it only
@@ -344,13 +320,13 @@ Authoring rules:
   judgment, not control flow.
 
 The derivation rules you are feeding (so you can anticipate the
-disposition Step 5 must honor): any required axis ⇒ acceptance spec
+disposition Step 4 must honor): any required axis ⇒ acceptance spec
 `required`; otherwise any `medium` level ⇒ `recommended`; otherwise
 only not-applicable axes (or no axes) ⇒ `not-applicable` (waived).
 
-### Step 5 — Author the Acceptance Spec (Acceptance Engineer persona)
+### Step 4 — Author the Acceptance Spec (Acceptance Engineer persona)
 
-Apply the Acceptance Spec system prompt below to the PRD + Tech Spec just
+Apply the Acceptance Spec system prompt below to the Epic body + Tech Spec just
 written, plus the **existing BDD scenario index** from
 `bddScenarios` on the planner-context envelope (Story #2637). The
 scenario index is the output of
@@ -366,7 +342,7 @@ behaviour) — never `new` for an AC whose outcome is already proven by
 an existing scenario. When `bddScenarios` is empty (the project has not
 adopted BDD), proceed exactly as before with no annotation.
 
-Branch on the acceptance disposition your Step 4 verdict derives (see the
+Branch on the acceptance disposition your Step 3 verdict derives (see the
 derivation rules there): `required` and `recommended` author the spec
 normally per the rules below. `not-applicable` authorizes the persist half
 to apply `acceptance::n-a` on the Epic; in that case write a one-paragraph
@@ -403,7 +379,7 @@ MUST:
 
 ```text
 You are an expert Acceptance Engineer.
-Your job is to convert a PRD and a Tech Spec into a structured Acceptance Specification that drives features-first BDD authoring.
+Your job is to convert an Epic and a Tech Spec into a structured Acceptance Specification that drives features-first BDD authoring.
 
 The Acceptance Spec should outline:
 1. Acceptance Criteria — one row per user-visible outcome, expressed as a Markdown table with columns: AC ID | Outcome | Feature File | Scenario | Disposition
@@ -420,11 +396,11 @@ CRITICAL REQUIREMENTS:
 - Acceptance Outcomes MUST NOT prescribe a commit subject that begins with a non-Conventional-Commits prefix (allowed leading types: feat|fix|chore|refactor|perf|docs|style|test|build|ci|revert). The legacy `baseline-refresh` token used as a leading subject prescription is forbidden — commitlint will reject it at commit time, and the decompose-time validator (`ticket-validator.js` → `validateAcceptanceSubjectPrefix`) will reject the decompose with `code: 'forbidden-subject-prefix'`. Use a Conventional-Commits subject (e.g. `chore(baselines): refresh ...`) and a body trailer (e.g. `baseline-refresh: true` — trailer with a value, not a subject prefix) when a machine-readable marker is needed. See Epic #2501 for rationale.
 ```
 
-### Step 6 — Hand back to `/plan`
+### Step 5 — Hand back to `/plan`
 
-All four files exist; return. The caller will run
-`node .agents/scripts/epic-plan-spec.js --epic <Epic_ID> --prd
-temp/epic-<Epic_ID>/prd.md --techspec temp/epic-<Epic_ID>/techspec.md
+All three files exist; return. The caller will run
+`node .agents/scripts/epic-plan-spec.js --epic <Epic_ID>
+--techspec temp/epic-<Epic_ID>/techspec.md
 --risk-verdict temp/epic-<Epic_ID>/risk-verdict.json
 --acceptance-spec temp/epic-<Epic_ID>/acceptance-spec.md`, which validates
 the risk verdict, derives the planningRisk envelope, persists the
