@@ -263,6 +263,11 @@ const TASK_SIZING_SCHEMA = {
     hardFiles: { type: 'integer', minimum: 1 },
     maxAcceptance: { type: 'integer', minimum: 1 },
     softAcceptanceCount: { type: 'integer', minimum: 1 },
+    // Under-size (merge-candidate) thresholds (Story #4312). A Story whose
+    // footprint is at or below BOTH ceilings and that carries a `depends_on`
+    // edge to a sibling trips the advisory `merge-candidate` soft finding.
+    mergeCandidateMaxFiles: { type: 'integer', minimum: 1 },
+    mergeCandidateMaxAcceptance: { type: 'integer', minimum: 1 },
   },
   additionalProperties: false,
 };

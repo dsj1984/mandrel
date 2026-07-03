@@ -110,6 +110,8 @@ top-level keys are validation errors.
 | `taskSizing.hardFiles` | No | `integer` | — | File-count hard ceiling: a Story exceeding it is rejected unless it declares `wide` with a reason (default 30). |
 | `taskSizing.maxAcceptance` | No | `integer` | — | Hard ceiling on acceptance[] item count (default 14). |
 | `taskSizing.softAcceptanceCount` | No | `integer` | — | Soft-warn threshold on acceptance[] item count (default 10). |
+| `taskSizing.mergeCandidateMaxFiles` | No | `integer` | — | Under-size threshold (Story #4312): a Story with at most this many declared changes[] files, at most mergeCandidateMaxAcceptance acceptance items, and at least one depends_on edge to a sibling trips the advisory `merge-candidate` soft finding (default 3). |
+| `taskSizing.mergeCandidateMaxAcceptance` | No | `integer` | — | Under-size threshold (Story #4312): the acceptance[] item ceiling of the `merge-candidate` soft finding heuristic (default 4). |
 | `failOnSharedEditors` | No | `boolean` | — | — |
 | `requireExplicitCrossStoryDeps` | No | `boolean` | — | — |
 | `failOnRegistryConflicts` | No | `boolean` | — | — |

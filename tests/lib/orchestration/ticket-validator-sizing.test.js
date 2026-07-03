@@ -517,3 +517,150 @@ test('acceptance ceiling reads the authoritative top-level story.acceptance, not
   assert.equal(hard.length, 1);
   assert.equal(hard[0].observed, 15);
 });
+
+// ---------------------------------------------------------------------------
+// merge-candidate under-size soft finding (Story #4312)
+//
+// The symmetric backstop to the over-size ceilings. A Story that looks like a
+// dependent fragment rather than a capability slice — ≤ mergeCandidateMaxFiles
+// declared changes[] files AND ≤ mergeCandidateMaxAcceptance acceptance items
+// AND at least one depends_on edge to a sibling — trips an advisory `soft`
+// finding recommending a merge into the consumer. A tiny ORPHAN Story (no
+// depends_on) stays silent. Never a rejection: never in errors[], never hard.
+//
+// The heuristic's depends_on target must be a real sibling slug — the
+// cross-Story validator rejects a depends_on edge to an unknown slug — so these
+// fixtures depend on SIBLING_FILLER ('s-sizing-filler').
+// ---------------------------------------------------------------------------
+
+test('fires on a tiny chained Story (soft, never in errors[])', () => {
+  const story = makeStory('t-merge-fires', {
+    changes: ['src/a.js: edit', 'src/b.js: edit'],
+    acceptance: ['criterion 1', 'criterion 2'],
+  });
+  story.depends_on = ['s-sizing-filler'];
+  const result = validateStory(story);
+
+  const merge = result.findings.filter((f) => f.kind === 'merge-candidate');
+  assert.equal(merge.length, 1);
+  assert.equal(merge[0].severity, 'soft');
+  assert.equal(merge[0].ticketSlug, 't-merge-fires');
+  assert.equal(merge[0].fileCount, 2);
+  assert.equal(merge[0].acceptanceCount, 2);
+  assert.deepEqual(merge[0].dependsOn, ['s-sizing-filler']);
+  // Advisory only: never a hard finding, never an error.
+  const hard = result.findings.filter((f) => f.severity === 'hard');
+  assert.deepEqual(hard, []);
+  assert.deepEqual(result.errors, []);
+});
+
+test('the rendered advisory names the depended-on sibling and recommends merging', () => {
+  const story = makeStory('t-merge-message', {
+    changes: ['src/a.js: edit'],
+    acceptance: ['criterion 1'],
+  });
+  story.depends_on = ['s-sizing-filler'];
+  const result = validateStory(story);
+
+  const merge = result.findings.find((f) => f.kind === 'merge-candidate');
+  assert.ok(merge, 'expected a merge-candidate finding');
+  assert.match(merge.message, /s-sizing-filler/);
+  assert.match(merge.message, /merg/i);
+});
+
+test('silent on a tiny ORPHAN Story (no depends_on edge)', () => {
+  // Same tiny footprint, but no depends_on — a legitimate small orthogonal
+  // slice. Must NOT trip the finding.
+  const result = validateStory(
+    makeStory('t-merge-orphan', {
+      changes: ['src/a.js: edit', 'src/b.js: edit'],
+      acceptance: ['criterion 1', 'criterion 2'],
+    }),
+  );
+  const merge = result.findings.filter((f) => f.kind === 'merge-candidate');
+  assert.deepEqual(merge, []);
+});
+
+test('silent on a normal-sized chained Story (footprint above the ceiling)', () => {
+  // A chained Story whose file footprint exceeds mergeCandidateMaxFiles (3) is
+  // a real capability slice, not a fragment — no finding despite the edge.
+  const story = makeStory('t-merge-normal-files', {
+    changes: [
+      'src/a.js: edit',
+      'src/b.js: edit',
+      'src/c.js: edit',
+      'src/d.js: edit',
+    ],
+    acceptance: ['criterion 1', 'criterion 2'],
+  });
+  story.depends_on = ['s-sizing-filler'];
+  const result = validateStory(story);
+  const merge = result.findings.filter((f) => f.kind === 'merge-candidate');
+  assert.deepEqual(merge, []);
+});
+
+test('silent on a chained Story whose acceptance count exceeds the ceiling', () => {
+  // Tiny file footprint + a depends_on edge, but 5 acceptance items (> 4): the
+  // acceptance axis alone keeps it out of merge-candidate territory.
+  const story = makeStory('t-merge-normal-ac', {
+    changes: ['src/a.js: edit'],
+    acceptance: Array.from({ length: 5 }, (_, i) => `criterion ${i}`),
+  });
+  story.depends_on = ['s-sizing-filler'];
+  const result = validateStory(story);
+  const merge = result.findings.filter((f) => f.kind === 'merge-candidate');
+  assert.deepEqual(merge, []);
+});
+
+test('respects a planning.taskSizing threshold override', () => {
+  // A Story with 4 files + a depends_on edge: silent under the default
+  // mergeCandidateMaxFiles=3, but flagged when the operator raises the ceiling
+  // to 4 via planning.taskSizing.
+  const makeFourFileChained = (slug) => {
+    const s = makeStory(slug, {
+      changes: [
+        'src/a.js: edit',
+        'src/b.js: edit',
+        'src/c.js: edit',
+        'src/d.js: edit',
+      ],
+      acceptance: ['criterion 1'],
+    });
+    s.depends_on = ['s-sizing-filler'];
+    return s;
+  };
+
+  const defaultResult = validateStory(makeFourFileChained('t-merge-default'));
+  assert.deepEqual(
+    defaultResult.findings.filter((f) => f.kind === 'merge-candidate'),
+    [],
+    'default mergeCandidateMaxFiles=3 leaves a 4-file Story silent',
+  );
+
+  const overrideResult = validateStory(
+    makeFourFileChained('t-merge-override'),
+    { taskSizing: { mergeCandidateMaxFiles: 4 } },
+  );
+  const merge = overrideResult.findings.filter(
+    (f) => f.kind === 'merge-candidate',
+  );
+  assert.equal(
+    merge.length,
+    1,
+    'raising mergeCandidateMaxFiles to 4 flags the 4-file Story',
+  );
+  assert.equal(merge[0].fileCount, 4);
+});
+
+test('silent on a chained Story that carries a glob change (unknown width)', () => {
+  // A glob makes the footprint unknown-width; a merge candidate must have a
+  // known, small footprint, so a glob-carrying Story is never flagged.
+  const story = makeStory('t-merge-glob', {
+    changes: ['**/*.ts: update imports'],
+    acceptance: ['criterion 1'],
+  });
+  story.depends_on = ['s-sizing-filler'];
+  const result = validateStory(story);
+  const merge = result.findings.filter((f) => f.kind === 'merge-candidate');
+  assert.deepEqual(merge, []);
+});
