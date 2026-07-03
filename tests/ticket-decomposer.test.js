@@ -481,6 +481,32 @@ describe('ticket-decomposer buildDecomposerSystemPrompt', () => {
       'prompt must interpolate the canonical single-consumer rule verbatim',
     );
   });
+
+  it('carries the soft envelope-floor guidance from the single shared constant — no drift (Story #4313)', () => {
+    // The envelope-floor passage is single-sourced in
+    // DELIVERABLE_GRANULARITY_GUIDANCE.envelopeFloor and interpolated verbatim,
+    // so the exact canonical sentence must appear in the rendered prompt.
+    const prompt = buildDecomposerSystemPrompt([]);
+    assert.ok(
+      prompt.includes(DELIVERABLE_GRANULARITY_GUIDANCE.envelopeFloor),
+      'prompt must interpolate the canonical envelope-floor guidance verbatim',
+    );
+    // The guidance frames under-utilizing the envelope as a merge signal...
+    assert.ok(
+      /under-utilizing the envelope is a merge signal/i.test(prompt),
+      'prompt must frame under-utilizing the delivery envelope as a merge signal',
+    );
+    // ...and names the per-Story delivery-session cost as the reason.
+    assert.ok(
+      /hydration, branch, PR, review, CI/i.test(prompt),
+      'prompt must name the per-Story delivery-session cost (hydration, branch, PR, review, CI)',
+    );
+    // Soft guidance only: it is illustrative prose, not a threshold constant.
+    assert.ok(
+      /illustrative, not a threshold/i.test(prompt),
+      'envelope-floor guidance must be phrased as guidance, not a numeric threshold',
+    );
+  });
 });
 
 describe('ticket-decomposer prompt single-sourcing (Story #4162)', () => {
