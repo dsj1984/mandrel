@@ -3,7 +3,7 @@
  *
  * Story #2637 (sibling to #2634 codebase-snapshot, #2635 spec-freshness,
  * #2636 file-assumption gate). The Acceptance Engineer step of
- * `epic-plan-spec-author` currently writes ACs from PRD/Tech Spec narrative
+ * `epic-plan-spec-author` currently writes ACs from Epic/Tech Spec narrative
  * alone — it never inspects the consumer project's existing `.feature`
  * files. Planned ACs frequently duplicate scenarios that already exist or
  * re-specify behaviour the codebase already proves; the duplication is

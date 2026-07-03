@@ -64,7 +64,7 @@ export const LABEL_TAXONOMY = [
     name: AGENT_LABELS.REVIEW_SPEC,
     color: LABEL_COLORS.AGENT,
     description:
-      'Parking state — PRD + Tech Spec exist; awaiting human review before decomposition',
+      'Parking state — Tech Spec exists; awaiting human review before decomposition',
   },
   {
     name: AGENT_LABELS.READY,
@@ -99,11 +99,6 @@ export const LABEL_TAXONOMY = [
   ...buildPersonaLabels(),
 
   // Context
-  {
-    name: CONTEXT_LABELS.PRD,
-    color: LABEL_COLORS.CONTEXT,
-    description: 'Product Requirements Document',
-  },
   {
     name: CONTEXT_LABELS.TECH_SPEC,
     color: LABEL_COLORS.CONTEXT,

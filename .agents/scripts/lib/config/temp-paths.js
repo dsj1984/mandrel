@@ -10,7 +10,6 @@
  *
  * Layout:
  *   temp/epic-<eid>/
- *     ├─ prd.md
  *     ├─ techspec.md
  *     ├─ manifest.md          (dispatch manifest)
  *     ├─ retro.md             (mirror of GitHub retro at Epic close)
@@ -228,7 +227,7 @@ export function epicTempDir(eid, config) {
  * location instead of being dropped on the floor.
  *
  * Story #2940 introduced the intermediate `stories/` segment so that
- * per-Epic top-level artifacts (`prd.md`, `techspec.md`, `manifest.md`,
+ * per-Epic top-level artifacts (`techspec.md`, `manifest.md`,
  * `retro.md`, `lifecycle.ndjson`, `baselines/`, `checkpoints/`) are
  * visually and structurally separated from the per-Story siblings.
  *
@@ -291,8 +290,6 @@ export function storyArtifactPath(eid, sid, name, config) {
 
 // --- Canonical Epic-level filenames (Tech Spec #1032 §tempRoot) ---
 
-export const epicPrdPath = (eid, config) =>
-  epicArtifactPath(eid, 'prd.md', config);
 export const epicTechSpecPath = (eid, config) =>
   epicArtifactPath(eid, 'techspec.md', config);
 export const epicManifestPath = (eid, config) =>

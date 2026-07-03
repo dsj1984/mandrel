@@ -75,7 +75,7 @@ function render2TierPrompt({ maxTickets, maxTokenBudget, epicId = null }) {
     ? `@epic-${epicId}-ac-1`
     : '@epic-<id>-ac-N';
   return `You are an expert Senior Project Manager and Orchestrator.
-Your job is to take a Product Requirements Document (PRD) and a Technical Specification and decompose them into a flat list of Story tickets for an AI Agent to execute.
+Your job is to take an Epic (including its inline User Stories) and a Technical Specification and decompose them into a flat list of Story tickets for an AI Agent to execute.
 
 ### HIERARCHY RULES:
 1. **Stories**: Specific user-facing or architectural user stories (e.g., "Implement JWT Token Exchange").
@@ -194,7 +194,7 @@ Declaring \`wide\` with a non-empty reason **lifts the \`hardFiles\` rejection**
 
 #### BRAND / COPY / STYLE WORK:
 
-- Stories that touch user-visible copy, brand assets, or visual style MUST cite the relevant section of \`docs/style-guide.md\` in \`acceptance\` (e.g. \`"acceptance": ["Hero copy matches docs/style-guide.md §3 (voice & tone)"]\`). If \`docs/style-guide.md\` does not exist or has no relevant section, state that explicitly: \`"acceptance": ["docs/style-guide.md absent — copy reviewed against the inline brand brief in PRD §2"]\`. Silence on style sourcing is a smell.
+- Stories that touch user-visible copy, brand assets, or visual style MUST cite the relevant section of \`docs/style-guide.md\` in \`acceptance\` (e.g. \`"acceptance": ["Hero copy matches docs/style-guide.md §3 (voice & tone)"]\`). If \`docs/style-guide.md\` does not exist or has no relevant section, state that explicitly: \`"acceptance": ["docs/style-guide.md absent — copy reviewed against the inline brand brief in the Epic body"]\`. Silence on style sourcing is a smell.
 
 ### WAVE-0 BDD SCAFFOLD STORY (features-first; emit when the Acceptance Spec has \`new\`-disposition rows):
 The Acceptance Spec's AC table (columns \`AC ID | Outcome | Feature File | Scenario | Disposition\`) tags each row's \`Disposition\` with one of \`new | updated | unchanged\`. A \`new\` row names a \`.feature\` file + scenario that does NOT yet exist on \`main\`. The framework is features-first: implementing Stories reference those \`.feature\` paths in their \`verify[]\` lines, so the files MUST already exist when those Stories run — otherwise verification fails mid-delivery on a missing file. (These Gherkin \`.feature\` files are BDD artifacts, unrelated to any ticket tier.)

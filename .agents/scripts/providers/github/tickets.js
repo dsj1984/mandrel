@@ -324,7 +324,7 @@ export class TicketGateway {
     // produce an unlabeled, undispatchable Story. Dedupe to avoid duplicates
     // when the caller already carries the label.
     //
-    // Context spec tickets (PRD / Tech Spec / Acceptance Spec) are a distinct
+    // Context spec tickets (Tech Spec / Acceptance Spec) are a distinct
     // ticket class created through this same factory carrying a `context::*`
     // label (and no `type::story`). They MUST NOT be stamped `type::story`:
     // doing so makes every `type::story`-counting consumer — the decompose

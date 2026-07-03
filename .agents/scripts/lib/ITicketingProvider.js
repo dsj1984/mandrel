@@ -33,7 +33,7 @@ export class ITicketingProvider {
   }
 
   /**
-   * Fetch the Epic issue with body and linked context issues (PRD, Tech Spec).
+   * Fetch the Epic issue with body and linked context issues (Tech Spec).
    *
    * @param {number} epicId - GitHub Issue number of the Epic.
    * @returns {Promise<{
@@ -41,7 +41,7 @@ export class ITicketingProvider {
    *   title: string,
    *   body: string,
    *   labels: string[],
-   *   linkedIssues: { prd: number|null, techSpec: number|null }
+   *   linkedIssues: { techSpec: number|null }
    * }>}
    */
   async getEpic(_epicId) {

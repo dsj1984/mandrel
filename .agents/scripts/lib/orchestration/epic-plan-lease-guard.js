@@ -28,7 +28,7 @@
  *                                operator passed `--force` (a deliberate
  *                                re-decompose that closes the old tree).
  *
- * The PRD / Tech Spec find-or-create idempotency already lives in
+ * The Tech Spec find-or-create idempotency already lives in
  * `phases/plan-epic.js` (keyed on `epic.linkedIssues`); these guards add the
  * cross-run mutual exclusion and the child-duplication refusal around it.
  */
@@ -341,7 +341,7 @@ export async function assertNoOpenPlanChildren({
   const openChildren = (children ?? []).filter((t) => {
     const labels = Array.isArray(t.labels) ? t.labels : [];
     const isOpen = t.state === undefined || t.state === 'open';
-    // Context spec tickets (PRD / Tech Spec / Acceptance Spec) carry a
+    // Context spec tickets (Tech Spec / Acceptance Spec) carry a
     // `context::*` label and — since the `createTicket` factory injects
     // `type::story` by default — also `type::story`. They are reference
     // artifacts that stay open across delivery, NOT plan children, so they

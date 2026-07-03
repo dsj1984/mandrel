@@ -43,9 +43,9 @@ export function assertDecomposeInputs(epic, epicId, tickets) {
       `[epic-plan-decompose] Ticket #${epicId} is not a ${TYPE_LABELS.EPIC}.`,
     );
   }
-  if (!epic.linkedIssues?.prd || !epic.linkedIssues?.techSpec) {
+  if (!epic.linkedIssues?.techSpec) {
     throw new Error(
-      `[epic-plan-decompose] Epic #${epicId} is missing a linked PRD or Tech Spec. Run /epic-plan-spec first.`,
+      `[epic-plan-decompose] Epic #${epicId} is missing a linked Tech Spec. Run /epic-plan-spec first.`,
     );
   }
   if (!Array.isArray(tickets)) {
@@ -117,7 +117,6 @@ export async function seedPlanState(provider, epicId, epic) {
     epicId,
     seed: {
       spec: {
-        prdId: epic.linkedIssues.prd,
         techSpecId: epic.linkedIssues.techSpec,
         completedAt: null,
       },

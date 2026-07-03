@@ -5,7 +5,7 @@
  * using the canonical template at `.agents/templates/epic-from-idea.md`.
  * Phase 4: open the GitHub Issue via an injected provider with the
  * `type::epic` label only — no `state::draft` (the Epic carries only
- * `type::epic` until PRD authoring writes `agent::review-spec`).
+ * `type::epic` until spec authoring writes `agent::review-spec`).
  *
  * The template is parsed from a string the caller has already loaded
  * (typically via `fs.readFile`). The renderer is pure — no I/O — and

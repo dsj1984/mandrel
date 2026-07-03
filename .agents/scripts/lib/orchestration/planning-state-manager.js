@@ -2,8 +2,8 @@
  * @file planning-state-manager.js
  * Extracted state-healing and artifact idempotency logic for epic planning.
  *
- * Invariant: After planning completes, exactly ONE open PRD and ONE open
- * Tech Spec must exist as sub-issues of the Epic.  All others are closed
+ * Invariant: After planning completes, exactly ONE open Tech Spec must exist
+ * as a sub-issue of the Epic.  All others are closed
  * (state_reason: 'not_planned') and detached.
  */
 
@@ -23,14 +23,14 @@ import { concurrentMap } from '../util/concurrent-map.js';
  *
  * @typedef {object} PlanCheckpointState
  * @property {number} epicId                             Epic ticket id.
- * @property {{ prd: (number | null), techSpec: (number | null), acceptanceSpec: (number | null) }} linkedIssues  Canonical planning-artifact references persisted on the Epic.
+ * @property {{ techSpec: (number | null), acceptanceSpec: (number | null) }} linkedIssues  Canonical planning-artifact references persisted on the Epic.
  * @property {string} body                               Current Epic body (may include a `## Planning Artifacts` section).
  */
 
 /**
- * Heals and de-duplicates the Epic's PRD / Tech Spec planning artifacts so
- * the post-state invariant holds: exactly ONE open PRD and ONE open Tech
- * Spec, both linked from the Epic body. All redundant artifacts are closed
+ * Heals and de-duplicates the Epic's Tech Spec planning artifact so
+ * the post-state invariant holds: exactly ONE open Tech Spec, linked from
+ * the Epic body. All redundant artifacts are closed
  * (`state_reason: 'not_planned'`) and detached.
  */
 export class PlanningStateManager {
@@ -45,7 +45,7 @@ export class PlanningStateManager {
    * Resolve existing planning artifacts and heal / clean up the graph.
    *
    * With `force=false` (normal run):
-   *   - Pick the canonical PRD / Tech Spec (first open one, else first overall).
+   *   - Pick the canonical Tech Spec (first open one, else first overall).
    *   - Heal dangling `epic.linkedIssues` references.
    *   - Close + detach any redundant artifacts (posting an audit-trace
    *     notification first).
@@ -53,7 +53,7 @@ export class PlanningStateManager {
    *     already written.
    *
    * With `force=true` (re-plan requested): **overwrite the canonical
-   * context tickets in place.** Keep the canonical PRD / Tech Spec /
+   * context tickets in place.** Keep the canonical Tech Spec /
    * Acceptance Spec **open** and keep `epic.linkedIssues` pointing at them
    * (so the caller can refresh their bodies via `provider.updateTicket`),
    * close + detach only the redundant duplicate artifacts (exactly as the
@@ -81,7 +81,6 @@ export class PlanningStateManager {
     // filter / canonical / heal / successor logic runs from a single loop
     // instead of three inlined copies.
     const ARTIFACT_TYPES = [
-      { label: CONTEXT_LABELS.PRD, key: 'prd', name: 'PRD' },
       { label: CONTEXT_LABELS.TECH_SPEC, key: 'techSpec', name: 'Tech Spec' },
       {
         label: CONTEXT_LABELS.ACCEPTANCE_SPEC,
@@ -174,14 +173,13 @@ export class PlanningStateManager {
     // Persist healed references to the body if needed.
     if (
       !force &&
-      epic.linkedIssues.prd &&
       epic.linkedIssues.techSpec &&
       !epic.body.includes('## Planning Artifacts')
     ) {
       Logger.info(
         `[Epic Planner] Persisting healed references to Epic body...`,
       );
-      const appendBody = `\n\n## Planning Artifacts\n- [ ] PRD: #${epic.linkedIssues.prd}\n- [ ] Tech Spec: #${epic.linkedIssues.techSpec}\n`;
+      const appendBody = `\n\n## Planning Artifacts\n- [ ] Tech Spec: #${epic.linkedIssues.techSpec}\n`;
       await this.provider.updateTicket(epicId, {
         body: epic.body + appendBody,
       });
@@ -193,7 +191,7 @@ export class PlanningStateManager {
     // cleanup pass above. Here we only strip the `## Planning Artifacts`
     // body section so `planEpic` re-appends it pointing at the same
     // preserved canonical IDs. We deliberately DO NOT close the canonical
-    // PRD / Tech Spec / Acceptance Spec, and we keep `epic.linkedIssues`
+    // Tech Spec / Acceptance Spec, and we keep `epic.linkedIssues`
     // pointing at them so the caller can refresh their bodies.
     if (force) {
       const stripped = epic.body.replace(
@@ -214,11 +212,11 @@ export class PlanningStateManager {
    * Compute whether an Epic is ready to transition from `agent::review-spec`
    * to `agent::ready` by inspecting the state of its context tickets.
    *
-   * An Epic is ready when **all three** context tickets — PRD, Tech Spec, and
+   * An Epic is ready when **both** context tickets — Tech Spec and
    * Acceptance Spec — exist and are closed. The acceptance-spec requirement
    * can be waived by attaching the `acceptance::n-a` label to the Epic, in
-   * which case acceptance-spec presence and state are ignored. Missing PRD
-   * or Tech Spec is never waivable through this method.
+   * which case acceptance-spec presence and state are ignored. A missing
+   * Tech Spec is never waivable through this method.
    *
    * This predicate is **pure** with respect to the world: it reads tickets
    * via the provider and computes a verdict. Callers (e.g. the planning
@@ -226,12 +224,11 @@ export class PlanningStateManager {
    * `ready === true`.
    *
    * @param {number} epicId  Epic ticket id.
-   * @returns {Promise<{ ready: boolean, reason: string, contexts: { prd: ('open' | 'closed' | 'missing'), techSpec: ('open' | 'closed' | 'missing'), acceptanceSpec: ('open' | 'closed' | 'missing' | 'waived') } }>}
+   * @returns {Promise<{ ready: boolean, reason: string, contexts: { techSpec: ('open' | 'closed' | 'missing'), acceptanceSpec: ('open' | 'closed' | 'missing' | 'waived') } }>}
    *   `ready` is `true` when the Epic satisfies the readiness gate.
    *   `reason` is a machine-readable code suitable for logging / metrics
-   *   (`all-context-closed`, `acceptance-waived`, `prd-missing`,
-   *   `prd-open`, `tech-spec-missing`, `tech-spec-open`,
-   *   `acceptance-spec-missing`, `acceptance-spec-open`).
+   *   (`all-context-closed`, `acceptance-waived`, `tech-spec-missing`,
+   *   `tech-spec-open`, `acceptance-spec-missing`, `acceptance-spec-open`).
    *   `contexts` is per-axis status for callers that want to render the
    *   verdict alongside ticket links.
    */
@@ -246,7 +243,6 @@ export class PlanningStateManager {
     const findByLabel = (label) =>
       relatedTickets.find((t) => (t.labels ?? []).includes(label)) ?? null;
 
-    const prd = findByLabel(CONTEXT_LABELS.PRD);
     const techSpec = findByLabel(CONTEXT_LABELS.TECH_SPEC);
     const acceptanceSpec = findByLabel(CONTEXT_LABELS.ACCEPTANCE_SPEC);
 
@@ -256,17 +252,10 @@ export class PlanningStateManager {
     };
 
     const contexts = {
-      prd: axisStatus(prd),
       techSpec: axisStatus(techSpec),
       acceptanceSpec: acceptanceWaived ? 'waived' : axisStatus(acceptanceSpec),
     };
 
-    if (contexts.prd === 'missing') {
-      return { ready: false, reason: 'prd-missing', contexts };
-    }
-    if (contexts.prd === 'open') {
-      return { ready: false, reason: 'prd-open', contexts };
-    }
     if (contexts.techSpec === 'missing') {
       return { ready: false, reason: 'tech-spec-missing', contexts };
     }

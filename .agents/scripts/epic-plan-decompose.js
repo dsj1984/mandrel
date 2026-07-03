@@ -23,7 +23,7 @@
  *   6. cli                — argument parsing + `main()` pipeline.
  *
  * Modes:
- *   --emit-context     Prints the decomposer authoring context (PRD body,
+ *   --emit-context     Prints the decomposer authoring context (Epic body,
  *                      Tech Spec body, risk heuristics, system prompt,
  *                      ticket cap) as JSON. The authoring middle is the
  *                      `epic-plan-decompose-author` Skill

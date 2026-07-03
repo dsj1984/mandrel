@@ -295,7 +295,7 @@ async function processCascadeParentLocked(
     // PR-driven `Closes #N` auto-close, and a recovery transition in
     // `epic-deliver-finalize.js`).
     //
-    // Planning tickets (context::prd, context::tech-spec) DO close via
+    // Planning tickets (context::tech-spec) DO close via
     // cascade now (Story #1951). Previously they were excluded under
     // the assumption that the operator would close them manually
     // post-merge — but that step never reliably happened and leaving

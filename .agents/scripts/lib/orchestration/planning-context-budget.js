@@ -3,7 +3,7 @@
  *
  * Bounded planning-context budget for the `--emit-context` planning scripts
  * (Epic #817 Story 9). Provides a summary representation of large markdown
- * payloads (project docs, PRD body, Tech Spec body) so the host LLM is not
+ * payloads (project docs, Epic body, Tech Spec body) so the host LLM is not
  * handed multi-100KB envelopes when the underlying material exceeds the
  * configured `maxBytes` budget.
  *

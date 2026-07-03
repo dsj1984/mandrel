@@ -3,7 +3,7 @@
  *
  * The spec and decompose phases write several Epic-scoped temp files under
  * the per-Epic tree (`temp/epic-<id>/planner-context.json`,
- * `temp/epic-<id>/prd.md`, etc. — see `lib/config/temp-paths.js`). The
+ * `temp/epic-<id>/techspec.md`, etc. — see `lib/config/temp-paths.js`). The
  * workflow .md previously told the operator to `Remove-Item` those files by
  * name at the end of each phase, which rots: adding a new temp file in the
  * script required a synchronized markdown edit, and missed edits left
@@ -37,7 +37,6 @@ import { PROJECT_ROOT, resolveConfig } from './config-resolver.js';
 export const PHASE_TEMP_BASENAMES = Object.freeze({
   spec: Object.freeze([
     'planner-context.json',
-    'prd.md',
     'techspec.md',
     'acceptance-spec.md',
   ]),
