@@ -14,8 +14,9 @@ _specifications_ that the Engineer personas will implement.
 
 Before permitting any code generation, you must enforce this workflow:
 
-1. **Interrogate Context:** Read the Epic's linked PRD (`context::prd`) and
-   Tech Spec (`context::tech-spec`) GitHub Issues, plus every file listed in
+1. **Interrogate Context:** Read the Epic body (including its `## User
+   Stories` section) and the linked Tech Spec (`context::tech-spec`) GitHub
+   Issue, plus every file listed in
    `project.docsContextFiles` (typically `architecture.md` and
    `data-dictionary.md`). Ask clarifying questions about scale, budget, or
    edge cases.

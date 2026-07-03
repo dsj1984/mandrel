@@ -30,13 +30,23 @@ const SECTION_RE = {
     /^##\s+(?:Non[\s-]?Goals|Out\s+of\s+Scope|Not\s+Doing(?:\s+\(and\s+Why\))?)\s*$/im,
   scope:
     /^##\s+(?:MVP\s+|Proposed\s+)?Scope(?:\s+\([^)]+\))?\s*$|^##\s+Work\s+Breakdown\s*$/im,
+  // Story #4314 — the PRD's one novel section (User Stories) now folds into
+  // the Epic body as a canonical section.
+  userStories: /^##\s+(?:User\s+Stories|Stories|Personas?\s+&\s+Stories)\s*$/im,
   acceptanceCriteria: /^##\s+(?:Acceptance(?:\s+Criteria)?|AC)\s*$/im,
 };
 
-const ORDER = ['context', 'goal', 'nonGoals', 'scope', 'acceptanceCriteria'];
+const ORDER = [
+  'context',
+  'goal',
+  'nonGoals',
+  'scope',
+  'userStories',
+  'acceptanceCriteria',
+];
 
 /**
- * Extract the five canonical sections from an idea-refinement one-pager.
+ * Extract the six canonical sections from an idea-refinement one-pager.
  *
  * @param {string} onePager - Markdown produced by Phase 3 of the
  *   `idea-refinement` skill.
@@ -46,6 +56,7 @@ const ORDER = ['context', 'goal', 'nonGoals', 'scope', 'acceptanceCriteria'];
  *   goal: string,
  *   nonGoals: string,
  *   scope: string,
+ *   userStories: string,
  *   acceptanceCriteria: string,
  * }}
  */
@@ -72,6 +83,7 @@ export function parseOnePager(onePager) {
     goal: '',
     nonGoals: '',
     scope: '',
+    userStories: '',
     acceptanceCriteria: '',
   };
 

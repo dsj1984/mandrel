@@ -16,6 +16,10 @@
 
 {{scope}}
 
+## User Stories
+
+{{userStories}}
+
 ## Acceptance Criteria
 
 {{acceptanceCriteria}}

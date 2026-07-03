@@ -361,8 +361,8 @@ rule:
 > GitHub I/O, label transitions, JSON validators, NDJSON readers,
 > diff-vs-baseline gates, template renderers.
 >
-> **Prompt + judgment → make it a Skill.** Examples: composing a PRD
-> from an Epic body, classifying friction signals from a failed shell
+> **Prompt + judgment → make it a Skill.** Examples: composing a Tech
+> Spec from an Epic body, classifying friction signals from a failed shell
 > command, decomposing a Tech Spec into a ticket hierarchy.
 
 The rule is two-sided on purpose. "Has an LLM step adjacent" is *not*
@@ -377,7 +377,7 @@ judgment (Skill) or of a parseable transform (script).
 **split**: the deterministic halves stay as a script, the judgment middle
 moves to a Skill.
 
-- **`--emit-context`** (script half) — fetches the PRD and Tech Spec
+- **`--emit-context`** (script half) — fetches the Epic body and Tech Spec
   bodies, scrapes project docs, emits a JSON envelope. Parseable in,
   parseable out. Stays a script.
 - **Authoring middle** (Skill half) — given the envelope, author the
