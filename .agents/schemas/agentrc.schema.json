@@ -348,6 +348,16 @@
           "type": "integer",
           "minimum": 1,
           "description": "Soft-warn threshold on acceptance[] item count (default 10)."
+        },
+        "mergeCandidateMaxFiles": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Under-size threshold (Story #4312): a Story with at most this many declared changes[] files, at most mergeCandidateMaxAcceptance acceptance items, and at least one depends_on edge to a sibling trips the advisory `merge-candidate` soft finding (default 3)."
+        },
+        "mergeCandidateMaxAcceptance": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Under-size threshold (Story #4312): the acceptance[] item ceiling of the `merge-candidate` soft finding heuristic (default 4)."
         }
       },
       "additionalProperties": false
