@@ -44,6 +44,16 @@ const storySource = readFileSync(
   path.join(WORKFLOWS, 'helpers', 'plan-story.md'),
   'utf8',
 );
+// Story #4341 single-homed the scope-triage gate semantics (verdict meanings,
+// the three-way choice, the --yes resolution, the no-re-triage rule) into this
+// shared fragment. plan-epic Phase 1.5 / 5.5 and plan-story Phase 2 REFERENCE
+// it and keep only their path-specific firing conditions, so the shared --yes
+// contract is asserted against the fragment while each path is asserted to
+// reference it and to name its own Recommended branch.
+const gateFragmentSource = readFileSync(
+  path.join(WORKFLOWS, 'helpers', 'scope-triage-gate.md'),
+  'utf8',
+);
 
 describe('/plan --yes headless flag — plan.md router', () => {
   it('documents --yes in the flag table as a both-path flag', () => {
@@ -180,19 +190,40 @@ describe('/plan --yes headless flag — gate #1 (one-pager / draft confirm)', ()
   });
 
   it('resolves a story/borderline verdict to the Recommended branch under --yes', () => {
+    // The shared --yes → Recommended resolution (and the --yes handoff
+    // propagation) is single-homed in the scope-triage-gate fragment
+    // (Story #4341); Phase 1.5 references the fragment and names its own
+    // Recommended handoff branch.
     const phase15 =
       epicSource.match(
         /## Phase 1\.5: Scope Triage[\s\S]*?(?=\n## Phase 2)/,
       )?.[0] ?? '';
     assert.match(
       phase15,
-      /`--yes`[\s\S]*Recommended/,
-      'Phase 1.5 must resolve to the Recommended branch under --yes',
+      /scope-triage-gate\.md/,
+      'Phase 1.5 must reference the shared scope-triage-gate fragment',
     );
     assert.match(
       phase15,
-      /carrying `--yes`|carry .*--yes/i,
-      'the --yes handoff must propagate --yes to the receiving story path',
+      /Recommended branch[\s\S]*story[\s\S]*borderline|story[\s\S]*borderline[\s\S]*Recommended/i,
+      'Phase 1.5 must name its Recommended branch on a story/borderline verdict',
+    );
+    assert.match(
+      phase15,
+      /scope-triage handoff so `\/plan` skips its\s+own gate/,
+      'Phase 1.5 Recommended branch must hand off as a scope-triage handoff',
+    );
+    // The shared --yes → Recommended contract, with --yes propagated to the
+    // receiving path, lives in the fragment.
+    assert.match(
+      gateFragmentSource,
+      /`--yes`[\s\S]*Recommended/,
+      'the fragment must resolve to the Recommended branch under --yes',
+    );
+    assert.match(
+      gateFragmentSource,
+      /handoff carries `--yes`|carrying `--yes`|carry .*--yes/i,
+      'the fragment --yes handoff must propagate --yes to the receiving path',
     );
   });
 
@@ -206,15 +237,18 @@ describe('/plan --yes headless flag — gate #1 (one-pager / draft confirm)', ()
       /gate #1/i,
       'plan-story draft confirm must be identified as gate #1',
     );
+    // Story #4341 single-homed the --yes resolution in the scope-triage-gate
+    // fragment; the plan-story HITL stop references it rather than restating
+    // the auto-proceed / no-STOP prose.
     assert.match(
       hitl,
-      /`--yes`[^\n]*auto-proceed/i,
-      'plan-story gate #1 must carry a --yes auto-proceed note',
+      /scope-triage-gate\.md/,
+      'plan-story gate #1 must reference the shared scope-triage-gate fragment for its --yes resolution',
     );
     assert.match(
-      hitl,
-      /does \*\*not\*\* STOP/i,
-      'plan-story gate #1 --yes note must state the gate does not STOP',
+      gateFragmentSource,
+      /`--yes`[\s\S]*does \*\*not\*\* STOP/i,
+      'the fragment must carry the --yes auto-proceed / does-not-STOP note',
     );
   });
 
