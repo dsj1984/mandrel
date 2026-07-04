@@ -27,7 +27,7 @@ import {
   PROJECT_ROOT,
   resolveConfig,
 } from '../config-resolver.js';
-import { stripEpicSection } from '../epic-body-sections.js';
+import { sliceEpicBodyForDelivery } from '../epic-body-sections.js';
 import { Logger } from '../Logger.js';
 import {
   buildEnvelope,
@@ -234,6 +234,53 @@ export function extractStorySections(body) {
 }
 
 /**
+ * Remove one `## <heading>` section (heading line through the last line
+ * before the next `## ` heading, or EOF) from a Story body. Byte-preserving
+ * outside the removed span. No-op when the heading is absent. Case- and
+ * whitespace-tolerant to match `extractSectionList`.
+ *
+ * @param {string} body
+ * @param {string} heading
+ * @returns {string}
+ */
+function stripSection(body, heading) {
+  if (typeof body !== 'string' || body.length === 0) return body ?? '';
+  const pattern = new RegExp(
+    `^##\\s+${heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`,
+    'mi',
+  );
+  const startMatch = body.match(pattern);
+  if (!startMatch || startMatch.index == null) return body;
+  const start = startMatch.index;
+  const afterHeading = start + startMatch[0].length;
+  const rest = body.slice(afterHeading);
+  const nextHeading = rest.search(/^##\s+/m);
+  const end = nextHeading === -1 ? body.length : afterHeading + nextHeading;
+  const before = body.slice(0, start).replace(/\n+$/, '\n');
+  const after = body.slice(end).replace(/^\n+/, '');
+  return (before + after).replace(/\n{3,}/g, '\n\n').trimEnd();
+}
+
+/**
+ * Strip the inline `## Acceptance Criteria` / `## Acceptance` and `## Verify`
+ * sections from a Story body. Used to build the `taskInstructions` section
+ * when the dedicated `acceptanceCriteria` / `verificationCommands` envelope
+ * sections already carry those lists — so the binding acceptance/verify
+ * content appears exactly once in the hydrated envelope rather than being
+ * duplicated between the dedicated sections and the full task body.
+ *
+ * @param {string} body
+ * @returns {string}
+ */
+export function stripStorySectionsForTaskInstructions(body) {
+  if (typeof body !== 'string' || body.length === 0) return body ?? '';
+  let out = stripSection(body, 'Acceptance Criteria');
+  out = stripSection(out, 'Acceptance');
+  out = stripSection(out, 'Verify');
+  return out;
+}
+
+/**
  * Detect whether the dispatched unit is a 2-tier Story (Story is the
  * leaf, carries inline acceptance/verify) vs. a 4-tier Task (Task is
  * the leaf, Story is one level up). The decision is made off the
@@ -371,16 +418,15 @@ async function buildHierarchySections(task, provider, epicId, agentSettings) {
       try {
         const t = await provider.getTicket(item.id);
         provenance.push(ticketSnapshot(t, retrievedAt));
-        // Hydration section-elision guardrail (Story #4324): the Epic
-        // body's ## Acceptance Table managed section is authoring/close
-        // machinery — never delivery context. Strip it before it reaches
-        // a story agent's prompt so per-story prompt size stays flat
-        // versus the pre-fold baseline (the old acceptance-spec ticket
-        // was never hydrated either).
+        // Hydration section-slicing guardrail (Story #4340): the Epic body
+        // is sliced down to only the sections a delivery story agent acts
+        // on — Goal / Non-Goals / User Stories / Tech Spec (plus any
+        // operator-authored section, fail-open). Ideation / authoring /
+        // close machinery (## Context, ## Scope, ## Acceptance Criteria,
+        // and the ## Acceptance Table managed region) is dropped so
+        // per-story prompt size stays flat versus the pre-fold baseline.
         const body =
-          item.key === 'Epic'
-            ? stripEpicSection(t.body ?? '', 'acceptanceTable')
-            : t.body;
+          item.key === 'Epic' ? sliceEpicBodyForDelivery(t.body ?? '') : t.body;
         return `### ${item.key}: ${t.title} (#${t.id})\n\n${body}\n`;
       } catch (err) {
         const detail = err?.message ? `: ${err.message}` : '';
@@ -485,9 +531,14 @@ function buildStaticSections(
     }
   }
 
+  // Track whether either dedicated acceptance/verify section was emitted so
+  // taskInstructions can drop the duplicated inline sections from the body —
+  // keeping each binding acceptance/verify item in the envelope exactly once.
+  let dedicatedSectionsEmitted = false;
   if (isTwoTierStoryTask(task)) {
     const { acceptance, verify } = extractStorySections(task.body ?? '');
     if (acceptance.length > 0) {
+      dedicatedSectionsEmitted = true;
       sections.push({
         name: 'acceptanceCriteria',
         priority: DEFAULT_SECTION_PRIORITIES.acceptanceCriteria,
@@ -499,6 +550,7 @@ function buildStaticSections(
       });
     }
     if (verify.length > 0) {
+      dedicatedSectionsEmitted = true;
       sections.push({
         name: 'verificationCommands',
         priority: DEFAULT_SECTION_PRIORITIES.verificationCommands,
@@ -511,11 +563,17 @@ function buildStaticSections(
     }
   }
 
+  // When the dedicated acceptance/verify sections carry those lists, strip
+  // them from the task body so they are not duplicated in taskInstructions.
+  // When absent, taskInstructions is byte-identical to the full body.
+  const taskBody = dedicatedSectionsEmitted
+    ? stripStorySectionsForTaskInstructions(task.body ?? '')
+    : task.body;
   sections.push({
     name: 'taskInstructions',
     priority: DEFAULT_SECTION_PRIORITIES.taskInstructions,
     elideWhenOverBudget: DEFAULT_ELIDE_POLICIES.taskInstructions,
-    content: `## Task Instructions (Issue #${task.id}: ${task.title})\n\n${task.body}`,
+    content: `## Task Instructions (Issue #${task.id}: ${task.title})\n\n${taskBody}`,
     source: { kind: 'ticket', ref: String(task.id) },
   });
 

@@ -199,6 +199,94 @@ export function hasTechSpecContent(body) {
 }
 
 /**
+ * `##` headings dropped from the delivery-hydrated Epic body. These are
+ * ideation / authoring / close-machinery sections a story agent never acts
+ * on: keeping them out of the per-Story prompt trims token cost without
+ * losing any binding context (the Story carries its own inline
+ * acceptance[] / verify[]).
+ *
+ * @type {ReadonlySet<string>}
+ */
+const DELIVERY_DROP_HEADINGS = new Set([
+  'context',
+  'scope',
+  'acceptance criteria',
+]);
+
+/**
+ * Slice an Epic body down to the sections a delivery story agent acts on.
+ *
+ * KEEP: the Epic title / preamble before the first `##`, `## Goal`,
+ * `## Non-Goals`, `## User Stories`, the `techSpec` managed region, and —
+ * fail-open — any unknown / operator-authored `##` section not in the drop
+ * list. DROP: `## Context`, `## Scope`, `## Acceptance Criteria`, and the
+ * `acceptanceTable` managed region.
+ *
+ * The `techSpec` region is located by its markers (not by heading
+ * boundaries) so its inner `## Delivery Slicing` heading is preserved
+ * verbatim and never mistaken for a plain droppable section. Plain `##`
+ * sections outside the managed regions are sliced by heading boundaries.
+ *
+ * Fail-open is load-bearing: any heading not explicitly in the drop set is
+ * kept, so operator-authored content is never silently lost.
+ *
+ * @param {string} body
+ * @returns {string}
+ */
+export function sliceEpicBodyForDelivery(body) {
+  if (typeof body !== 'string' || body.length === 0) return '';
+
+  // 1. Drop the acceptance-table managed region outright (authoring/close
+  //    machinery, never delivery context).
+  let working = stripEpicSection(body, 'acceptanceTable');
+
+  // 2. Protect the techSpec managed region from heading-boundary slicing by
+  //    lifting it out behind an opaque placeholder, then restoring it after
+  //    the plain-section pass. Its inner `## Delivery Slicing` heading must
+  //    survive verbatim.
+  const techLoc = locate(working, 'techSpec');
+  let techRegion = null;
+  const PLACEHOLDER = ' MANDREL_TECH_SPEC_PLACEHOLDER ';
+  if (techLoc) {
+    const { end } = descriptor('techSpec');
+    techRegion = working.slice(techLoc.startIdx, techLoc.endIdx + end.length);
+    working =
+      working.slice(0, techLoc.startIdx) +
+      PLACEHOLDER +
+      working.slice(techLoc.endIdx + end.length);
+  }
+
+  // 3. Slice plain `##` sections by heading boundaries, dropping only the
+  //    known ideation/authoring headings. The preamble before the first
+  //    `##` (Epic title / lede) is always kept.
+  const kept = [];
+  let dropping = false;
+  for (const line of working.split('\n')) {
+    const headingMatch = line.match(/^##\s+(.*?)\s*$/);
+    if (headingMatch) {
+      dropping = DELIVERY_DROP_HEADINGS.has(
+        headingMatch[1].trim().toLowerCase(),
+      );
+      if (dropping) continue;
+    }
+    if (dropping) continue;
+    kept.push(line);
+  }
+  working = kept.join('\n');
+
+  // 4. Restore the techSpec region in place.
+  if (techRegion !== null) {
+    working = working.replace(PLACEHOLDER, () => techRegion);
+  }
+
+  // 5. Normalise the blank-line runs left by the drops.
+  return working
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/^\n+/, '')
+    .trimEnd();
+}
+
+/**
  * Strip the retired machine-managed `## Planning Artifacts` checklist from
  * an Epic body (the section that linked the now-retired context tickets).
  * The slice ends at the next `## ` heading, a managed-region marker, or
