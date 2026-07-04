@@ -542,6 +542,59 @@ describe('stripStorySectionsForTaskInstructions', () => {
     assert.equal(stripStorySectionsForTaskInstructions(''), '');
     assert.equal(stripStorySectionsForTaskInstructions(null), '');
   });
+
+  it('acceptance-only: strips the acceptance headings but preserves ## Verify', () => {
+    const body = [
+      '## Acceptance',
+      '- do the thing',
+      '',
+      '## Verify',
+      'Prose-only verify with no bullets — kept.',
+    ].join('\n');
+    const out = stripStorySectionsForTaskInstructions(body, {
+      acceptance: true,
+      verify: false,
+    });
+    assert.ok(!out.includes('## Acceptance'), 'acceptance heading stripped');
+    assert.ok(!out.includes('do the thing'), 'acceptance body stripped');
+    assert.ok(out.includes('## Verify'), '## Verify heading preserved');
+    assert.ok(
+      out.includes('Prose-only verify with no bullets — kept.'),
+      'verify prose preserved',
+    );
+  });
+
+  it('verify-only: strips ## Verify but preserves the acceptance section', () => {
+    const body = [
+      '## Acceptance',
+      'Prose-only acceptance with no bullets — kept.',
+      '',
+      '## Verify',
+      '- node --test foo.test.js',
+    ].join('\n');
+    const out = stripStorySectionsForTaskInstructions(body, {
+      acceptance: false,
+      verify: true,
+    });
+    assert.ok(out.includes('## Acceptance'), '## Acceptance heading preserved');
+    assert.ok(
+      out.includes('Prose-only acceptance with no bullets — kept.'),
+      'acceptance prose preserved',
+    );
+    assert.ok(!out.includes('## Verify'), 'verify heading stripped');
+    assert.ok(!out.includes('node --test foo.test.js'), 'verify body stripped');
+  });
+
+  it('neither flag: returns the body unchanged', () => {
+    const body = '## Acceptance\n- a\n\n## Verify\n- b';
+    assert.equal(
+      stripStorySectionsForTaskInstructions(body, {
+        acceptance: false,
+        verify: false,
+      }),
+      body,
+    );
+  });
 });
 
 describe('hydrateContext — acceptance/verify de-duplication (dedup on/off)', () => {
@@ -682,6 +735,103 @@ describe('hydrateContext — acceptance/verify de-duplication (dedup on/off)', (
     assert.equal(
       taskInst.content,
       `## Task Instructions (Issue #801: Bare Story)\n\n${storyBody}`,
+    );
+  });
+
+  it('asymmetric: a bulletless ## Verify (no dedicated section) is NOT stripped when only acceptance fired', async () => {
+    // Acceptance carries bullets (dedicated section fires); Verify carries
+    // only prose (no bullets → no verificationCommands section). The old
+    // single-flag guard would strip ## Verify anyway, dropping content that
+    // nothing else in the envelope reproduces. It must be preserved.
+    const storyBody = [
+      '> Epic: #1',
+      '',
+      'Story narrative body.',
+      '',
+      '## Acceptance',
+      '- [ ] Inline AC alpha',
+      '',
+      '## Verify',
+      'Manual verification prose — no bullets here.',
+    ].join('\n');
+
+    const envelope = await hydrateContext(
+      {
+        id: 810,
+        title: 'Asymmetric Story',
+        body: storyBody,
+        labels: ['type::story'],
+      },
+      epicProvider(),
+      'epic/1',
+      'story-810',
+      1,
+    );
+
+    const taskInst = envelope.sections.find(
+      (s) => s.name === 'taskInstructions',
+    );
+    assert.ok(taskInst, 'taskInstructions section must be emitted');
+    // Acceptance was reproduced in its dedicated section, so it is stripped…
+    assert.ok(!taskInst.content.includes('Inline AC alpha'));
+    // …but the bulletless ## Verify has no dedicated twin and MUST survive.
+    assert.ok(taskInst.content.includes('## Verify'), '## Verify preserved');
+    assert.ok(
+      taskInst.content.includes('Manual verification prose — no bullets here.'),
+      'verify prose preserved',
+    );
+    assert.ok(envelope.sections.some((s) => s.name === 'acceptanceCriteria'));
+    assert.ok(
+      !envelope.sections.some((s) => s.name === 'verificationCommands'),
+      'no verificationCommands section for a bulletless Verify',
+    );
+  });
+
+  it('asymmetric: a bulletless ## Acceptance (no dedicated section) is NOT stripped when only verify fired', async () => {
+    const storyBody = [
+      '> Epic: #1',
+      '',
+      'Story narrative body.',
+      '',
+      '## Acceptance',
+      'Prose-only acceptance — no bullets here.',
+      '',
+      '## Verify',
+      '- node --test tests/beta.test.js',
+    ].join('\n');
+
+    const envelope = await hydrateContext(
+      {
+        id: 811,
+        title: 'Asymmetric Story',
+        body: storyBody,
+        labels: ['type::story'],
+      },
+      epicProvider(),
+      'epic/1',
+      'story-811',
+      1,
+    );
+
+    const taskInst = envelope.sections.find(
+      (s) => s.name === 'taskInstructions',
+    );
+    assert.ok(taskInst, 'taskInstructions section must be emitted');
+    // Verify was reproduced in its dedicated section, so it is stripped…
+    assert.ok(!taskInst.content.includes('node --test tests/beta.test.js'));
+    // …but the bulletless ## Acceptance has no dedicated twin and MUST survive.
+    assert.ok(
+      taskInst.content.includes('## Acceptance'),
+      '## Acceptance preserved',
+    );
+    assert.ok(
+      taskInst.content.includes('Prose-only acceptance — no bullets here.'),
+      'acceptance prose preserved',
+    );
+    assert.ok(envelope.sections.some((s) => s.name === 'verificationCommands'));
+    assert.ok(
+      !envelope.sections.some((s) => s.name === 'acceptanceCriteria'),
+      'no acceptanceCriteria section for a bulletless Acceptance',
     );
   });
 });
