@@ -10,6 +10,7 @@ import {
   extractStorySections,
   formatSkillCapsulesSection,
   hydrateContext,
+  stripStorySectionsForTaskInstructions,
 } from '../../.agents/scripts/lib/orchestration/context-hydration-engine.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -190,17 +191,27 @@ describe('hydrateContext — envelope return shape', () => {
     );
   });
 
-  it('strips the ## Acceptance Table managed section from the hydrated Epic body', async () => {
-    // Story #4324 guardrail (acceptance oracle): the Epic body's
-    // acceptance-table managed region is authoring/close machinery, never
-    // delivery context. The hierarchy section must carry the Epic's
-    // ideation + Delivery Slicing content while dropping every AC-ID row.
+  it('slices the hydrated Epic body: keeps Goal/User Stories/Delivery Slicing, drops Context/Acceptance Criteria/Acceptance Table', async () => {
+    // Story #4340 guardrail (slicing oracle): the Epic body is cut down to
+    // only the sections a delivery story agent acts on. Goal / Non-Goals /
+    // User Stories / Tech Spec survive; ideation (## Context), the Epic's
+    // ## Acceptance Criteria, and the ## Acceptance Table managed region are
+    // dropped. Unknown operator sections are preserved (fail-open).
     const epicBody = [
       '## Context',
       'Epic ideation context.',
       '',
+      '## Goal',
+      'Ship the thing.',
+      '',
+      '## User Stories',
+      '- As a user I want the thing.',
+      '',
       '## Acceptance Criteria',
       '- [ ] the thing works',
+      '',
+      '## Operator Notes',
+      'Keep this hand-authored note.',
       '',
       '<!-- mandrel:tech-spec:start -->',
       '',
@@ -254,10 +265,18 @@ describe('hydrateContext — envelope return shape', () => {
       (s) => s.name === 'hierarchy',
     );
     assert.ok(hierarchySection, 'hierarchy section must be emitted');
-    // Ideation + Delivery Slicing content survives…
-    assert.match(hierarchySection.content, /Epic ideation context\./);
+    // KEEP: Goal, User Stories, Delivery Slicing, and the operator section.
+    assert.match(hierarchySection.content, /## Goal/);
+    assert.match(hierarchySection.content, /Ship the thing\./);
+    assert.match(hierarchySection.content, /## User Stories/);
     assert.match(hierarchySection.content, /## Delivery Slicing/);
-    // …but no acceptance-table heading or AC-ID rows reach the prompt.
+    assert.match(hierarchySection.content, /## Operator Notes/);
+    // DROP: ideation Context, the Epic's Acceptance Criteria, and the
+    // Acceptance Table managed region (no AC-ID rows reach the prompt).
+    assert.ok(!hierarchySection.content.includes('## Context'));
+    assert.ok(!hierarchySection.content.includes('Epic ideation context.'));
+    assert.ok(!hierarchySection.content.includes('## Acceptance Criteria'));
+    assert.ok(!hierarchySection.content.includes('the thing works'));
     assert.ok(!hierarchySection.content.includes('## Acceptance Table'));
     assert.ok(!/\|\s*AC-\d+\s*\|/.test(hierarchySection.content));
 
@@ -486,6 +505,183 @@ describe('hydrateContext — skill capsule routing', () => {
       prompt,
       /### Skill: hydrate-context\n---/,
       'must not dump raw SKILL frontmatter without source: capsule routing',
+    );
+  });
+});
+
+describe('stripStorySectionsForTaskInstructions', () => {
+  it('removes ## Acceptance Criteria / ## Acceptance and ## Verify sections', () => {
+    const body = [
+      'Story narrative paragraph.',
+      '',
+      '## Acceptance',
+      '- do the thing',
+      '',
+      '## Verify',
+      '- node --test foo.test.js',
+      '',
+      '## Notes',
+      'keep me',
+    ].join('\n');
+    const out = stripStorySectionsForTaskInstructions(body);
+    assert.ok(out.includes('Story narrative paragraph.'));
+    assert.ok(out.includes('## Notes'));
+    assert.ok(out.includes('keep me'));
+    assert.ok(!out.includes('## Acceptance'));
+    assert.ok(!out.includes('do the thing'));
+    assert.ok(!out.includes('## Verify'));
+    assert.ok(!out.includes('node --test foo.test.js'));
+  });
+
+  it('is a no-op when the sections are absent', () => {
+    const body = 'Just narrative, no acceptance or verify headings.';
+    assert.equal(stripStorySectionsForTaskInstructions(body), body);
+  });
+
+  it('handles empty / non-string input', () => {
+    assert.equal(stripStorySectionsForTaskInstructions(''), '');
+    assert.equal(stripStorySectionsForTaskInstructions(null), '');
+  });
+});
+
+describe('hydrateContext — acceptance/verify de-duplication (dedup on/off)', () => {
+  const epicProvider = () =>
+    new HierarchyProvider({
+      1: {
+        id: 1,
+        title: 'Epic',
+        body: '## Goal\nShip it.',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+    });
+
+  it('dedup ON: taskInstructions drops the inline AC/verify sections when the dedicated sections are present', async () => {
+    const storyBody = [
+      '> Epic: #1',
+      '',
+      'Story narrative body.',
+      '',
+      '## Acceptance',
+      '- [ ] Inline AC alpha',
+      '',
+      '## Verify',
+      '- node --test tests/alpha.test.js',
+    ].join('\n');
+
+    const envelope = await hydrateContext(
+      {
+        id: 700,
+        title: 'Dedup Story',
+        body: storyBody,
+        labels: ['type::story'],
+      },
+      epicProvider(),
+      'epic/1',
+      'story-700',
+      1,
+    );
+
+    const taskInst = envelope.sections.find(
+      (s) => s.name === 'taskInstructions',
+    );
+    assert.ok(taskInst, 'taskInstructions section must be emitted');
+    // The inline AC/verify sections are stripped from taskInstructions…
+    assert.ok(!taskInst.content.includes('## Acceptance'));
+    assert.ok(!taskInst.content.includes('## Verify'));
+    // …but the narrative body survives.
+    assert.ok(taskInst.content.includes('Story narrative body.'));
+    // The dedicated sections still carry the lists.
+    assert.ok(envelope.sections.some((s) => s.name === 'acceptanceCriteria'));
+    assert.ok(envelope.sections.some((s) => s.name === 'verificationCommands'));
+  });
+
+  it('each acceptance and verify item appears exactly once in the hydrated envelope', async () => {
+    const storyBody = [
+      '> Epic: #1',
+      '',
+      'Story narrative body.',
+      '',
+      '## Acceptance',
+      '- [ ] Inline AC alpha',
+      '',
+      '## Verify',
+      '- node --test tests/alpha.test.js',
+    ].join('\n');
+
+    const envelope = await hydrateContext(
+      {
+        id: 701,
+        title: 'Dedup Story',
+        body: storyBody,
+        labels: ['type::story'],
+      },
+      epicProvider(),
+      'epic/1',
+      'story-701',
+      1,
+    );
+
+    const prompt = envelopeToPrompt(envelope);
+    const count = (needle) => prompt.split(needle).length - 1;
+    assert.equal(
+      count('Inline AC alpha'),
+      1,
+      'AC item must appear exactly once',
+    );
+    assert.equal(
+      count('node --test tests/alpha.test.js'),
+      1,
+      'verify item must appear exactly once',
+    );
+  });
+
+  it('dedup OFF: taskInstructions is byte-identical to the full body when no dedicated sections are emitted', async () => {
+    // A type::task (4-tier) unit never emits the dedicated sections, so
+    // taskInstructions must carry the full body unchanged (no regression).
+    const taskBody = '> Epic: #1\n\n## Acceptance\n- [ ] Task AC\n';
+    const envelope = await hydrateContext(
+      {
+        id: 800,
+        title: 'Task 4-tier',
+        body: taskBody,
+        labels: ['type::task'],
+      },
+      epicProvider(),
+      'epic/1',
+      'story-1',
+      1,
+    );
+    const taskInst = envelope.sections.find(
+      (s) => s.name === 'taskInstructions',
+    );
+    assert.ok(taskInst, 'taskInstructions section must be emitted');
+    assert.equal(
+      taskInst.content,
+      `## Task Instructions (Issue #800: Task 4-tier)\n\n${taskBody}`,
+      'taskInstructions must be byte-identical to today when dedup is off',
+    );
+  });
+
+  it('dedup OFF: a type::story with no inline AC/verify keeps the full body in taskInstructions', async () => {
+    const storyBody = '> Epic: #1\n\nJust a narrative, no AC or verify.';
+    const envelope = await hydrateContext(
+      {
+        id: 801,
+        title: 'Bare Story',
+        body: storyBody,
+        labels: ['type::story'],
+      },
+      epicProvider(),
+      'epic/1',
+      'story-801',
+      1,
+    );
+    const taskInst = envelope.sections.find(
+      (s) => s.name === 'taskInstructions',
+    );
+    assert.equal(
+      taskInst.content,
+      `## Task Instructions (Issue #801: Bare Story)\n\n${storyBody}`,
     );
   });
 });
