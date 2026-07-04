@@ -178,11 +178,16 @@ describe('runEpicDeliverPrepare', () => {
     );
   });
 
-  it('surfaces the Epic Tech-Spec id from linkedIssues (Story #4253)', async () => {
+  it('carries no techSpecId even for a legacy body with a Planning Artifacts checklist (Story #4324)', async () => {
+    // The Tech Spec is folded into the Epic body — resolveEpicLinkages and
+    // the techSpecId envelope field are retired. A historical Epic body that
+    // still carries the retired `## Planning Artifacts` checklist must not
+    // resurrect the field (or break the prepare) — the legacy content is
+    // simply ignored.
     const epic = {
       id: 110,
       labels: ['type::epic', 'acceptance::n-a'],
-      linkedIssues: { techSpec: 912 },
+      body: ['## Planning Artifacts', '', '- [x] Tech Spec: #922'].join('\n'),
     };
     const descendants = [
       {
@@ -199,51 +204,11 @@ describe('runEpicDeliverPrepare', () => {
       injectedProvider: provider,
       injectedConfig: baseConfig,
     });
-    assert.equal(out.techSpecId, 912);
-  });
-
-  it('falls back to body-parsed Tech-Spec id when linkedIssues absent (Story #4253)', async () => {
-    const epic = {
-      id: 111,
-      labels: ['type::epic', 'acceptance::n-a'],
-      body: ['## Planning Artifacts', '', '- [x] Tech Spec: #922'].join('\n'),
-    };
-    const descendants = [
-      {
-        id: 411,
-        number: 411,
-        title: 'Story B',
-        labels: ['type::story'],
-        body: '',
-      },
-    ];
-    const provider = createFakeProvider({ epic, descendants });
-    const out = await runEpicDeliverPrepare({
-      epicId: 111,
-      injectedProvider: provider,
-      injectedConfig: baseConfig,
-    });
-    assert.equal(out.techSpecId, 922);
-  });
-
-  it('surfaces null Tech-Spec id when the Epic links none (Story #4253)', async () => {
-    const epic = { id: 112, labels: ['type::epic', 'acceptance::n-a'] };
-    const descendants = [
-      {
-        id: 421,
-        number: 421,
-        title: 'Story C',
-        labels: ['type::story'],
-        body: '',
-      },
-    ];
-    const provider = createFakeProvider({ epic, descendants });
-    const out = await runEpicDeliverPrepare({
-      epicId: 112,
-      injectedProvider: provider,
-      injectedConfig: baseConfig,
-    });
-    assert.equal(out.techSpecId, null);
+    assert.equal(out.storyCount, 1);
+    assert.ok(
+      !('techSpecId' in out),
+      'prepare envelope must not carry techSpecId after the #4324 fold',
+    );
   });
 
   it('throws when the Epic has no child stories', async () => {

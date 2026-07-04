@@ -137,19 +137,17 @@ describe('hydrateContext — envelope return shape', () => {
     assert.ok(prompt.includes('Epic Body'));
   });
 
-  it('records provenance for each fetched hierarchy ticket', async () => {
+  it('records provenance for the Epic + Story pair only (legacy Tech Spec refs ignored)', async () => {
+    // Story #4324 — the hierarchy fetch is Epic + Story only. A historical
+    // task body still carrying a `Tech Spec: #5` reference must not
+    // resurrect a third fetch: #5 is never requested and never lands in
+    // provenance.
     const provider = new HierarchyProvider({
       1: {
         id: 1,
         title: 'Epic',
         body: 'Epic Body',
         updatedAt: '2026-01-01T00:00:00.000Z',
-      },
-      5: {
-        id: 5,
-        title: 'Tech Spec',
-        body: 'Spec Body',
-        updatedAt: '2026-01-03T00:00:00.000Z',
       },
       9: {
         id: 9,
@@ -177,7 +175,7 @@ describe('hydrateContext — envelope return shape', () => {
       1,
     );
 
-    assert.equal(envelope.provenance.length, 3);
+    assert.equal(envelope.provenance.length, 2);
     for (const snap of envelope.provenance) {
       assert.ok(typeof snap.id === 'number');
       assert.ok(snap.version);
@@ -185,7 +183,91 @@ describe('hydrateContext — envelope return shape', () => {
       assert.ok(snap.retrievedAt);
     }
     const ids = envelope.provenance.map((p) => p.id).sort((a, b) => a - b);
-    assert.deepEqual(ids, [1, 5, 9]);
+    assert.deepEqual(ids, [1, 9]);
+    assert.ok(
+      !provider.calls.includes(5),
+      'the legacy Tech Spec ticket must never be fetched',
+    );
+  });
+
+  it('strips the ## Acceptance Table managed section from the hydrated Epic body', async () => {
+    // Story #4324 guardrail (acceptance oracle): the Epic body's
+    // acceptance-table managed region is authoring/close machinery, never
+    // delivery context. The hierarchy section must carry the Epic's
+    // ideation + Delivery Slicing content while dropping every AC-ID row.
+    const epicBody = [
+      '## Context',
+      'Epic ideation context.',
+      '',
+      '## Acceptance Criteria',
+      '- [ ] the thing works',
+      '',
+      '<!-- mandrel:tech-spec:start -->',
+      '',
+      '## Delivery Slicing',
+      '| Slice | What ships | Independent? |',
+      '| --- | --- | --- |',
+      '| S1 | the change | yes |',
+      '',
+      '<!-- mandrel:tech-spec:end -->',
+      '',
+      '<!-- mandrel:acceptance-table:start -->',
+      '',
+      '## Acceptance Table',
+      '| AC ID | Outcome | Feature File | Scenario | Disposition |',
+      '| --- | --- | --- | --- | --- |',
+      '| AC-1 | works end to end | tests/features/x.feature | happy | new |',
+      '| AC-2 | fails closed | tests/features/x.feature | sad | new |',
+      '',
+      '<!-- mandrel:acceptance-table:end -->',
+    ].join('\n');
+
+    const provider = new HierarchyProvider({
+      1: {
+        id: 1,
+        title: 'Sectioned Epic',
+        body: epicBody,
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+      600: {
+        id: 600,
+        title: 'Sectioned Story',
+        body: '> Epic: #1\n\nStory narrative.\n\n## Acceptance\n- inline ac\n\n## Verify\n- node --test\n',
+        updatedAt: '2026-01-02T00:00:00.000Z',
+      },
+    });
+
+    const envelope = await hydrateContext(
+      {
+        id: 600,
+        title: 'Sectioned Story',
+        body: '> Epic: #1\n\nStory narrative.\n\n## Acceptance\n- inline ac\n\n## Verify\n- node --test\n',
+        labels: ['type::story'],
+      },
+      provider,
+      'epic/1',
+      'story-600',
+      1,
+    );
+
+    const hierarchySection = envelope.sections.find(
+      (s) => s.name === 'hierarchy',
+    );
+    assert.ok(hierarchySection, 'hierarchy section must be emitted');
+    // Ideation + Delivery Slicing content survives…
+    assert.match(hierarchySection.content, /Epic ideation context\./);
+    assert.match(hierarchySection.content, /## Delivery Slicing/);
+    // …but no acceptance-table heading or AC-ID rows reach the prompt.
+    assert.ok(!hierarchySection.content.includes('## Acceptance Table'));
+    assert.ok(!/\|\s*AC-\d+\s*\|/.test(hierarchySection.content));
+
+    const prompt = envelopeToPrompt(envelope);
+    assert.ok(prompt.includes('## Delivery Slicing'));
+    assert.ok(!prompt.includes('## Acceptance Table'));
+    assert.ok(
+      !/\|\s*AC-\d+\s*\|/.test(prompt),
+      'no AC-ID table rows may reach a delivery prompt',
+    );
   });
 });
 

@@ -1,12 +1,11 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
 
+import * as labelConstants from '../../.agents/scripts/lib/label-constants.js';
 import {
   ACCEPTANCE_LABELS,
   ACCEPTANCE_NA,
   AGENT_LABELS,
-  CONTEXT_ACCEPTANCE_SPEC,
-  CONTEXT_LABELS,
   isValidTransition,
   LABEL_COLORS,
   META_LABELS,
@@ -24,13 +23,11 @@ test('META_LABELS.CONSUMER_IMPROVEMENT equals "meta::consumer-improvement"', () 
   assert.equal(META_LABELS.CONSUMER_IMPROVEMENT, 'meta::consumer-improvement');
 });
 
-test('CONTEXT_LABELS.ACCEPTANCE_SPEC equals "context::acceptance-spec"', () => {
-  assert.equal(CONTEXT_LABELS.ACCEPTANCE_SPEC, 'context::acceptance-spec');
-});
-
-test('CONTEXT_ACCEPTANCE_SPEC named export mirrors CONTEXT_LABELS.ACCEPTANCE_SPEC', () => {
-  assert.equal(CONTEXT_ACCEPTANCE_SPEC, 'context::acceptance-spec');
-  assert.equal(CONTEXT_ACCEPTANCE_SPEC, CONTEXT_LABELS.ACCEPTANCE_SPEC);
+// ── Story #4324 — context-ticket label classes retired (hard cutover) ───
+test('context label exports are gone (Story #4324 hard cutover)', () => {
+  assert.equal(labelConstants.CONTEXT_LABELS, undefined);
+  assert.equal(labelConstants.CONTEXT_ACCEPTANCE_SPEC, undefined);
+  assert.equal(LABEL_COLORS.CONTEXT, undefined);
 });
 
 test('ACCEPTANCE_LABELS.N_A equals "acceptance::n-a"', () => {
@@ -40,10 +37,6 @@ test('ACCEPTANCE_LABELS.N_A equals "acceptance::n-a"', () => {
 test('ACCEPTANCE_NA named export mirrors ACCEPTANCE_LABELS.N_A', () => {
   assert.equal(ACCEPTANCE_NA, 'acceptance::n-a');
   assert.equal(ACCEPTANCE_NA, ACCEPTANCE_LABELS.N_A);
-});
-
-test('existing CONTEXT_LABELS entries are still exposed', () => {
-  assert.equal(CONTEXT_LABELS.TECH_SPEC, 'context::tech-spec');
 });
 
 // ── Story #2921 — planning-axis label for healthcheck waiver (F7) ────────

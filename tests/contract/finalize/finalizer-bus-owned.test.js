@@ -5,9 +5,10 @@
  * Task #2917 (Epic #2880).
  *
  * Asserts:
- *   1. `composeBusOwnedFinalize` invokes openOrLocatePr,
- *      closePlanningTickets, and postHandoffComment in order. With no
- *      `runFinalizeFn` override the Finalizer default is this
+ *   1. `composeBusOwnedFinalize` invokes openOrLocatePr then
+ *      postHandoffComment in order (Story #4324 retired the
+ *      closePlanningTickets sweep with the context-ticket classes).
+ *      With no `runFinalizeFn` override the Finalizer default is this
  *      composition.
  *   2. The default `runFinalizeFn` is the bus-owned composition (no
  *      `d1-default-no-op` blocker reachable from the default path).
@@ -59,7 +60,7 @@ function makeBus() {
 }
 
 describe('composeBusOwnedFinalize', () => {
-  it('invokes openOrLocatePr, closePlanningTickets, postHandoffComment in order', async () => {
+  it('invokes openOrLocatePr then postHandoffComment in order', async () => {
     const calls = [];
     const run = composeBusOwnedFinalize({
       provider: { sentinel: true },
@@ -71,10 +72,6 @@ describe('composeBusOwnedFinalize', () => {
           created: true,
         };
       },
-      closePlanningTicketsFn: async (args) => {
-        calls.push({ step: 'closePlanningTickets', args });
-        return { closed: 3, alreadyClosed: 0, failed: 0, details: [] };
-      },
       postHandoffCommentFn: async (args) => {
         calls.push({ step: 'postHandoffComment', args });
         return { marker: 'epic-handoff', commentId: 12345 };
@@ -83,22 +80,23 @@ describe('composeBusOwnedFinalize', () => {
     const result = await run({ epicId: 2880, cwd: '/tmp' });
     assert.deepEqual(
       calls.map((c) => c.step),
-      ['openOrLocatePr', 'closePlanningTickets', 'postHandoffComment'],
+      ['openOrLocatePr', 'postHandoffComment'],
     );
     // openOrLocatePr receives `epic/<id>` as headBranch with `main` base.
     assert.equal(calls[0].args.epicId, 2880);
     assert.equal(calls[0].args.headBranch, 'epic/2880');
     assert.equal(calls[0].args.baseBranch, 'main');
-    // closePlanningTickets receives provider
+    // postHandoffComment receives the provider and the prNumber/prUrl
+    // from openOrLocatePr.
     assert.equal(calls[1].args.provider.sentinel, true);
-    // postHandoffComment receives the prNumber from openOrLocatePr
-    assert.equal(calls[2].args.prNumber, 99);
-    assert.equal(calls[2].args.prUrl, 'https://github.com/o/r/pull/99');
-    // Returns the canonical finalize envelope
+    assert.equal(calls[1].args.prNumber, 99);
+    assert.equal(calls[1].args.prUrl, 'https://github.com/o/r/pull/99');
+    // Returns the canonical finalize envelope — no planningClose field
+    // (Story #4324: there are no planning tickets to close).
     assert.equal(result.prNumber, 99);
     assert.equal(result.prUrl, 'https://github.com/o/r/pull/99');
     assert.equal(result.created, true);
-    assert.equal(result.planningClose.closed, 3);
+    assert.ok(!('planningClose' in result));
     assert.equal(result.handoff.commentId, 12345);
   });
 
@@ -107,9 +105,6 @@ describe('composeBusOwnedFinalize', () => {
       provider: { sentinel: true },
       openOrLocatePrFn: async () => {
         throw new Error('branch behind base');
-      },
-      closePlanningTicketsFn: async () => {
-        throw new Error('should not be called');
       },
       postHandoffCommentFn: async () => {
         throw new Error('should not be called');
@@ -121,22 +116,6 @@ describe('composeBusOwnedFinalize', () => {
     assert.match(result.blocker.detail, /branch behind base/);
   });
 
-  it('routes closePlanningTickets throw to a blocker envelope', async () => {
-    const run = composeBusOwnedFinalize({
-      provider: { sentinel: true },
-      openOrLocatePrFn: async () => ({
-        prNumber: 1,
-        url: 'https://github.com/o/r/pull/1',
-        created: true,
-      }),
-      closePlanningTicketsFn: async () => {
-        throw new Error('provider 502');
-      },
-    });
-    const result = await run({ epicId: 1, cwd: '/tmp' });
-    assert.equal(result?.blocker?.reason, 'close-planning-tickets-failed');
-  });
-
   it('treats handoff-comment failures as non-blocking', async () => {
     const run = composeBusOwnedFinalize({
       provider: { sentinel: true },
@@ -144,12 +123,6 @@ describe('composeBusOwnedFinalize', () => {
         prNumber: 1,
         url: 'https://github.com/o/r/pull/1',
         created: true,
-      }),
-      closePlanningTicketsFn: async () => ({
-        closed: 0,
-        alreadyClosed: 3,
-        failed: 0,
-        details: [],
       }),
       postHandoffCommentFn: async () => {
         throw new Error('comment posting failed');
@@ -161,7 +134,7 @@ describe('composeBusOwnedFinalize', () => {
     assert.match(result.handoff.error, /comment posting failed/);
   });
 
-  it('skips planning-ticket close and handoff when provider is absent', async () => {
+  it('skips the handoff comment when provider is absent', async () => {
     const run = composeBusOwnedFinalize({
       provider: null,
       openOrLocatePrFn: async () => ({
@@ -172,7 +145,6 @@ describe('composeBusOwnedFinalize', () => {
     });
     const result = await run({ epicId: 1, cwd: '/tmp' });
     assert.equal(result.prNumber, 5);
-    assert.equal(result.planningClose, null);
     assert.equal(result.handoff, null);
   });
 
@@ -199,12 +171,6 @@ describe('Finalizer with the bus-owned default', () => {
           prNumber: 99,
           url: 'https://github.com/o/r/pull/99',
           created: true,
-        }),
-        closePlanningTicketsFn: async () => ({
-          closed: 3,
-          alreadyClosed: 0,
-          failed: 0,
-          details: [],
         }),
         postHandoffCommentFn: async () => ({
           marker: 'epic-handoff',

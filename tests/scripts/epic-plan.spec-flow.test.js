@@ -39,10 +39,14 @@ import {
   EXIT_CODES,
   runReconcile,
 } from '../../.agents/scripts/epic-reconcile.js';
+import {
+  extractEpicSection,
+  hasEpicSection,
+  upsertEpicSection,
+} from '../../.agents/scripts/lib/epic-body-sections.js';
 import { ACCEPTANCE_NA } from '../../.agents/scripts/lib/label-constants.js';
 import { resolveReviewRouting } from '../../.agents/scripts/lib/orchestration/plan-review-routing.js';
 import { deriveRiskEnvelope } from '../../.agents/scripts/lib/orchestration/planning-risk.js';
-import { PlanningStateManager } from '../../.agents/scripts/lib/orchestration/planning-state-manager.js';
 import {
   loadSpec,
   loadState,
@@ -51,6 +55,19 @@ import {
 import { serialize } from '../../.agents/scripts/lib/story-body/story-body.js';
 
 const EPIC_ID = 9998;
+
+// Canonical folded Tech Spec content (Story #4324 — the Epic body carries
+// the spec as a managed section opening with `## Delivery Slicing`).
+const TECH_SPEC_SECTION =
+  '## Delivery Slicing\n\n| Slice | What ships | Independent? |\n| --- | --- | --- |\n| S1 | the change | yes |';
+
+// A sectioned Epic body: ideation sections plus the managed Tech Spec
+// region the decomposer gate (`hasTechSpecContent`) requires.
+const SECTIONED_EPIC_BODY = upsertEpicSection(
+  '## Context\nEpic context.\n\n## Acceptance Criteria\n- [ ] the thing works',
+  'techSpec',
+  TECH_SPEC_SECTION,
+);
 
 let sandbox;
 let epicsDir;
@@ -79,10 +96,11 @@ function buildStubProvider({ epicId, epicTitle }) {
   issues.set(epicId, {
     id: epicId,
     title: epicTitle,
-    body: '',
+    // The decompose gate keys on the Epic body carrying folded Tech Spec
+    // content (Story #4324) — no linked context tickets exist anymore.
+    body: SECTIONED_EPIC_BODY,
     labels: ['type::epic'],
     state: 'open',
-    linkedIssues: { techSpec: epicId + 200 },
   });
   const calls = {
     createTicket: 0,
@@ -414,7 +432,7 @@ describe('epic-plan spec-flow integration', () => {
 
 /**
  * Build a minimal provider for Phase 7 persist-half tests. Tracks created
- * tickets and label/body mutations on the Epic in memory.
+ * tickets, label/body mutations on the Epic, and posted comments in memory.
  */
 function buildPlanEpicProvider(epicShape = {}) {
   let nextId = 600;
@@ -423,15 +441,16 @@ function buildPlanEpicProvider(epicShape = {}) {
     title: epicShape.title ?? 'Test Epic',
     body: epicShape.body ?? '',
     labels: epicShape.labels ?? ['type::epic'],
-    linkedIssues: { techSpec: null, acceptanceSpec: null },
   };
   const createdTickets = [];
   const updatedTickets = [];
+  const postedComments = []; // { id, payload }
 
   const provider = {
     epic,
     createdTickets,
     updatedTickets,
+    postedComments,
     async getEpic() {
       return epic;
     },
@@ -453,6 +472,9 @@ function buildPlanEpicProvider(epicShape = {}) {
         for (const rm of mutations.labels.remove ?? []) existing.delete(rm);
         epic.labels = Array.from(existing);
       }
+    },
+    async postComment(id, payload) {
+      postedComments.push({ id, payload });
     },
     primeTicketCache() {},
   };
@@ -645,50 +667,53 @@ describe('acceptance disposition persistence — Story #2792', () => {
     assert.equal(verdict.applyAcceptanceWaiver, true);
   });
 
-  it('required disposition creates and links context::acceptance-spec', async () => {
+  it('required disposition persists the ## Acceptance Table managed section', async () => {
     const provider = buildPlanEpicProvider({
       title: 'Adaptive planning gate routing',
       body: 'Changes /plan gate behavior and acceptance-spec creation.',
     });
 
-    await planEpic(
+    const result = await planEpic(
       provider.epic.id,
       provider,
       {
-        techSpecContent: '## Technical Overview\nTS.',
+        techSpecContent: '## Delivery Slicing\nTS.',
         acceptanceSpecContent:
-          '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
+          '## Acceptance Table\n| AC-1 | x | f | s | new |',
       },
       {},
       { planningRisk: deriveRiskEnvelope(HIGH_RISK_VERDICT) },
     );
 
-    assert.equal(provider.createdTickets.length, 2);
-    assert.deepEqual(provider.createdTickets[1].ticketData.labels, [
-      'context::acceptance-spec',
-    ]);
+    // No context tickets exist anymore — the section lands on the Epic body.
+    assert.equal(provider.createdTickets.length, 0);
+    assert.equal(result.acceptanceTable, 'persisted');
     const epicUpdate = provider.updatedTickets.find(
       (entry) => entry.id === provider.epic.id,
     );
-    assert.ok(epicUpdate.mutations.body.includes('Acceptance Spec'));
+    assert.ok(hasEpicSection(epicUpdate.mutations.body, 'acceptanceTable'));
+    assert.match(
+      extractEpicSection(epicUpdate.mutations.body, 'acceptanceTable'),
+      /AC-1/,
+    );
     assert.ok(
       !(epicUpdate.mutations.labels?.add ?? []).includes(ACCEPTANCE_NA),
     );
   });
 
-  it('not-applicable disposition applies acceptance::n-a and skips acceptance-spec', async () => {
+  it('not-applicable disposition applies acceptance::n-a and skips the acceptance table', async () => {
     const provider = buildPlanEpicProvider({
       title: 'Internal refactor cleanup',
       body: 'Internal refactor only — docs-only housekeeping.',
     });
 
-    await planEpic(
+    const result = await planEpic(
       provider.epic.id,
       provider,
       {
-        techSpecContent: '## Technical Overview\nTS.',
+        techSpecContent: '## Delivery Slicing\nTS.',
         acceptanceSpecContent:
-          '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
+          '## Acceptance Table\n| AC-1 | x | f | s | new |',
       },
       {},
       { planningRisk: deriveRiskEnvelope(LOW_RISK_VERDICT) },
@@ -696,377 +721,191 @@ describe('acceptance disposition persistence — Story #2792', () => {
 
     assert.equal(
       provider.createdTickets.length,
-      1,
-      'must not create acceptance-spec when disposition is not-applicable',
+      0,
+      'must not create any tickets — planning writes are Epic-body sections',
     );
+    assert.equal(result.acceptanceTable, 'waived');
     const epicUpdate = provider.updatedTickets.find(
       (entry) => entry.id === provider.epic.id,
     );
     assert.ok((epicUpdate.mutations.labels?.add ?? []).includes(ACCEPTANCE_NA));
-    assert.ok(!epicUpdate.mutations.body.includes('Acceptance Spec'));
+    assert.ok(
+      !hasEpicSection(epicUpdate.mutations.body, 'acceptanceTable'),
+      'waived disposition must not persist an ## Acceptance Table section',
+    );
+    assert.ok(hasEpicSection(epicUpdate.mutations.body, 'techSpec'));
     assert.ok(provider.epic.labels.includes(ACCEPTANCE_NA));
-
-    const mgr = new PlanningStateManager({
-      async getTicket(id) {
-        if (id === provider.epic.id) {
-          return {
-            id: provider.epic.id,
-            labels: provider.epic.labels,
-            body: provider.epic.body,
-          };
-        }
-        const created = provider.createdTickets.find((t) => t.id === id);
-        if (!created) return null;
-        return {
-          id,
-          labels: created.ticketData.labels,
-          state: 'closed',
-        };
-      },
-      async getTickets() {
-        return provider.createdTickets.map((t) => ({
-          id: t.id,
-          labels: t.ticketData.labels,
-          state: 'closed',
-        }));
-      },
-      primeTicketCache() {},
-    });
-    const verdict = await mgr.computeReviewReadiness(provider.epic.id);
-    assert.strictEqual(verdict.ready, true);
-    assert.strictEqual(verdict.reason, 'acceptance-waived');
-    assert.strictEqual(verdict.contexts.acceptanceSpec, 'waived');
   });
 });
 
 /**
- * Build a provider with an Epic that already carries linked context tickets
- * (Tech Spec / Acceptance Spec) plus the full ticket table, so the
- * `--force` overwrite-in-place path can be exercised end-to-end. Tracks
- * per-ticket body/title/state mutations and posted comments.
+ * Build a Phase 7 provider whose Epic already carries persisted planning
+ * sections (Tech Spec + optional Acceptance Table managed regions) plus a
+ * legacy `## Planning Artifacts` checklist, so the `--force`
+ * overwrite-in-place path can be exercised end-to-end against the sectioned
+ * Epic body (Story #4324 — no linked context tickets exist anymore).
  */
 function buildOverwriteProvider({
   epicTitle = 'Test Epic',
-  techSpecId = 6200,
-  acceptanceSpecId = null,
+  withAcceptanceTable = true,
   epicLabels = ['type::epic'],
-  extraTickets = {},
 } = {}) {
-  let nextId = 6500;
-  const epic = {
-    id: 6000,
-    title: epicTitle,
-    body: '',
-    labels: epicLabels,
-    linkedIssues: {
-      techSpec: techSpecId,
-      acceptanceSpec: acceptanceSpecId,
-    },
-  };
-  // Reflect the linked artifacts in the Epic body so healAndCleanup's
-  // body-strip path runs as it would in production.
-  const artifactLines = [`- [ ] Tech Spec: #${techSpecId}`];
-  if (acceptanceSpecId) {
-    artifactLines.push(`- [ ] Acceptance Spec: #${acceptanceSpecId}`);
+  // A historical body: ideation prose, the retired machine-managed
+  // `## Planning Artifacts` checklist (must be stripped on persist,
+  // never crash the parser), and the existing managed sections.
+  let body =
+    'Epic context.\n\n## Planning Artifacts\n- [ ] Tech Spec: #6200\n- [ ] Acceptance Spec: #6300\n';
+  body = upsertEpicSection(body, 'techSpec', '## Delivery Slicing\nOLD TS.');
+  if (withAcceptanceTable) {
+    body = upsertEpicSection(
+      body,
+      'acceptanceTable',
+      '## Acceptance Table\n| AC-1 | old outcome | f | s | new |',
+    );
   }
-  epic.body = `Epic context.\n\n## Planning Artifacts\n${artifactLines.join('\n')}\n`;
-
-  const tickets = { [epic.id]: epic };
-  tickets[techSpecId] = {
-    id: techSpecId,
-    title: `[Tech Spec] ${epicTitle}`,
-    body: 'old tech spec body',
-    labels: ['context::tech-spec'],
-    state: 'open',
-  };
-  if (acceptanceSpecId) {
-    tickets[acceptanceSpecId] = {
-      id: acceptanceSpecId,
-      title: `[Acceptance Spec] ${epicTitle}`,
-      body: 'old acceptance body',
-      labels: ['context::acceptance-spec'],
-      state: 'open',
-    };
-  }
-  Object.assign(tickets, extraTickets);
-
-  const createdTickets = [];
-  const updatedTickets = [];
-  const comments = []; // { id, payload }
-  const detached = []; // child ids removed from the Epic
-
-  const provider = {
-    epic,
-    tickets,
-    createdTickets,
-    updatedTickets,
-    comments,
-    detached,
-    async getEpic() {
-      return epic;
-    },
-    async getTicket(id) {
-      return tickets[id] ?? null;
-    },
-    async getTickets() {
-      return Object.values(tickets).filter((t) => t.id !== epic.id);
-    },
-    async createTicket(epicId, ticketData) {
-      const id = nextId++;
-      const created = {
-        id,
-        title: ticketData.title,
-        body: ticketData.body ?? '',
-        labels: ticketData.labels ?? [],
-        state: 'open',
-      };
-      tickets[id] = created;
-      createdTickets.push({ epicId, ticketData, id });
-      return { id, url: `https://stub/issues/${id}` };
-    },
-    async updateTicket(id, mutations) {
-      updatedTickets.push({ id, mutations });
-      const cur = tickets[id];
-      if (!cur) return;
-      if (mutations.title !== undefined) cur.title = mutations.title;
-      if (mutations.body !== undefined) cur.body = mutations.body;
-      if (mutations.state) cur.state = mutations.state;
-      if (mutations.labels && typeof mutations.labels === 'object') {
-        const existing = new Set(cur.labels ?? []);
-        for (const add of mutations.labels.add ?? []) existing.add(add);
-        for (const rm of mutations.labels.remove ?? []) existing.delete(rm);
-        cur.labels = Array.from(existing);
-      }
-    },
-    async postComment(id, payload) {
-      comments.push({ id, payload });
-    },
-    async removeSubIssue(_epicId, childId) {
-      detached.push(childId);
-    },
-    primeTicketCache() {},
-  };
-
-  return provider;
+  return buildPlanEpicProvider({ title: epicTitle, body, labels: epicLabels });
 }
 
-describe('--force overwrite-in-place — Story #3310', () => {
-  it('overwrites Tech Spec + Acceptance Spec in place (same ids, new bodies, no creates)', async () => {
+describe('--force overwrite-in-place — Story #3310 / #4324', () => {
+  it('overwrites the managed sections in place (no ticket creates, prose preserved)', async () => {
     const provider = buildOverwriteProvider({
       epicTitle: 'Security and billing rollout',
-      acceptanceSpecId: 6300,
     });
 
-    await planEpic(
+    const result = await planEpic(
       provider.epic.id,
       provider,
       {
-        techSpecContent: '## Technical Overview\nNEW TS.',
+        techSpecContent: '## Delivery Slicing\nNEW TS.',
         acceptanceSpecContent:
-          '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
+          '## Acceptance Table\n| AC-1 | x | f | s | new |',
       },
       {},
       { force: true },
     );
 
-    // AC-1: no new context-ticket issues created.
+    // AC-1: no tickets created — planning writes are Epic-body sections.
     assert.equal(provider.createdTickets.length, 0);
+    assert.equal(result.reason, 'force-replan');
 
-    // AC-1: bodies updated while ids preserved.
-    assert.match(provider.tickets[6200].body, /NEW TS/);
-    assert.match(provider.tickets[6300].body, /AC-1/);
+    // AC-1: section contents replaced in place.
+    const epicBody = provider.epic.body;
+    assert.match(extractEpicSection(epicBody, 'techSpec'), /NEW TS/);
+    assert.doesNotMatch(extractEpicSection(epicBody, 'techSpec'), /OLD TS/);
+    assert.match(extractEpicSection(epicBody, 'acceptanceTable'), /AC-1/);
 
-    // AC-2: tickets remain open.
-    assert.equal(provider.tickets[6200].state, 'open');
-    assert.equal(provider.tickets[6300].state, 'open');
-
-    // AC-2: Planning Artifacts section points at the same preserved ids.
-    const epicBody = provider.tickets[provider.epic.id].body;
-    assert.match(epicBody, /Tech Spec: #6200/);
-    assert.match(epicBody, /Acceptance Spec: #6300/);
+    // AC-2: content outside the managed sections is preserved…
+    assert.match(epicBody, /Epic context\./);
+    // …while the retired `## Planning Artifacts` checklist is stripped.
+    assert.doesNotMatch(epicBody, /## Planning Artifacts/);
+    assert.doesNotMatch(epicBody, /Tech Spec: #6200/);
   });
 
-  it('refreshes the title prefix to track the current Epic title', async () => {
-    const provider = buildOverwriteProvider({
-      epicTitle: 'Renamed Epic After Clarity Gate',
-      acceptanceSpecId: 6300,
-    });
-
-    await planEpic(
-      provider.epic.id,
-      provider,
-      {
-        techSpecContent: '## Technical Overview\nNEW TS.',
-        acceptanceSpecContent:
-          '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
-      },
-      {},
-      { force: true },
-    );
-
-    assert.equal(
-      provider.tickets[6200].title,
-      '[Tech Spec] Renamed Epic After Clarity Gate',
-    );
-    assert.equal(
-      provider.tickets[6300].title,
-      '[Acceptance Spec] Renamed Epic After Clarity Gate',
-    );
-  });
-
-  it('AC-3: posts a single regeneration audit comment per overwritten ticket', async () => {
+  it('AC-3: posts a single regeneration audit comment on the Epic', async () => {
     const provider = buildOverwriteProvider({
       epicTitle: 'Security and billing rollout',
-      acceptanceSpecId: 6300,
     });
 
     await planEpic(
       provider.epic.id,
       provider,
       {
-        techSpecContent: '## Technical Overview\nNEW TS.',
+        techSpecContent: '## Delivery Slicing\nNEW TS.',
         acceptanceSpecContent:
-          '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
+          '## Acceptance Table\n| AC-1 | x | f | s | new |',
       },
       {},
       { force: true },
     );
 
-    const regenComments = provider.comments.filter((c) =>
+    const regenComments = provider.postedComments.filter((c) =>
       /Regeneration Audit/.test(c.payload.body),
     );
-    assert.equal(regenComments.length, 2);
-    for (const id of [6200, 6300]) {
-      assert.equal(
-        regenComments.filter((c) => c.id === id).length,
-        1,
-        `expected exactly one regeneration comment on #${id}`,
-      );
-    }
+    assert.equal(regenComments.length, 1);
+    assert.equal(regenComments[0].id, provider.epic.id);
   });
 
-  it('AC-4: still closes + detaches redundant duplicate context artifacts', async () => {
-    const provider = buildOverwriteProvider({
-      epicTitle: 'Security and billing rollout',
-      acceptanceSpecId: 6300,
-      extraTickets: {
-        // A redundant duplicate Tech Spec from an interrupted run — not the
-        // canonical #6200 linked on the Epic, so healAndCleanup must close +
-        // detach it while preserving the canonical one.
-        6999: {
-          id: 6999,
-          title: '[Tech Spec] leftover',
-          body: 'dupe',
-          labels: ['context::tech-spec'],
-          state: 'open',
-        },
-      },
-    });
-
-    await planEpic(
-      provider.epic.id,
-      provider,
-      {
-        techSpecContent: '## Technical Overview\nNEW TS.',
-        acceptanceSpecContent:
-          '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
-      },
-      {},
-      { force: true },
-    );
-
-    // Redundant duplicate closed + detached; canonical preserved.
-    assert.equal(provider.tickets[6999].state, 'closed');
-    assert.ok(provider.detached.includes(6999));
-    assert.equal(provider.tickets[6200].state, 'open');
-  });
-
-  it('AC-5: present→waived closes the existing Acceptance Spec ticket', async () => {
+  it('AC-5: present→waived strips the stale ## Acceptance Table section', async () => {
     const provider = buildOverwriteProvider({
       // A docs-only verdict resolves to acceptance disposition not-applicable.
       epicTitle: 'Docs-only readme cleanup',
-      acceptanceSpecId: 6300,
     });
 
-    await planEpic(
+    const result = await planEpic(
       provider.epic.id,
       provider,
       {
-        techSpecContent: '## Technical Overview\nNEW TS.',
+        techSpecContent: '## Delivery Slicing\nNEW TS.',
         acceptanceSpecContent:
-          '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
+          '## Acceptance Table\n| AC-1 | x | f | s | new |',
       },
       {},
       { force: true, planningRisk: deriveRiskEnvelope(LOW_RISK_VERDICT) },
     );
 
-    // Acceptance spec genuinely closed (not overwritten) and detached.
-    assert.equal(provider.tickets[6300].state, 'closed');
-    assert.ok(provider.detached.includes(6300));
-    // Epic body no longer references the acceptance spec.
-    const epicBody = provider.tickets[provider.epic.id].body;
-    assert.doesNotMatch(epicBody, /Acceptance Spec: #6300/);
+    // The stale acceptance-table section is genuinely removed, not kept.
+    assert.equal(result.acceptanceTable, 'waived');
+    assert.ok(!hasEpicSection(provider.epic.body, 'acceptanceTable'));
+    assert.doesNotMatch(provider.epic.body, /## Acceptance Table/);
+    // The Tech Spec section survives the waiver.
+    assert.match(extractEpicSection(provider.epic.body, 'techSpec'), /NEW TS/);
     // The acceptance::n-a waiver is applied.
     assert.ok(provider.epic.labels.includes(ACCEPTANCE_NA));
   });
 
-  it('AC-5: absent→present creates a new Acceptance Spec ticket', async () => {
+  it('AC-5: absent→present appends a new ## Acceptance Table section', async () => {
     const provider = buildOverwriteProvider({
       epicTitle: 'Security and billing rollout',
-      acceptanceSpecId: null, // none linked yet
+      withAcceptanceTable: false, // no acceptance table persisted yet
     });
 
-    await planEpic(
+    const result = await planEpic(
       provider.epic.id,
       provider,
       {
-        techSpecContent: '## Technical Overview\nNEW TS.',
+        techSpecContent: '## Delivery Slicing\nNEW TS.',
         acceptanceSpecContent:
-          '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
+          '## Acceptance Table\n| AC-1 | x | f | s | new |',
       },
       {},
       { force: true },
     );
 
-    const created = provider.createdTickets.filter((t) =>
-      (t.ticketData.labels ?? []).includes('context::acceptance-spec'),
+    assert.equal(result.acceptanceTable, 'persisted');
+    assert.ok(hasEpicSection(provider.epic.body, 'acceptanceTable'));
+    assert.match(
+      extractEpicSection(provider.epic.body, 'acceptanceTable'),
+      /AC-1/,
     );
-    assert.equal(created.length, 1);
-    // Tech Spec was overwritten in place, not created.
-    assert.equal(
-      provider.createdTickets.filter((t) =>
-        (t.ticketData.labels ?? []).some((l) =>
-          ['context::tech-spec'].includes(l),
-        ),
-      ).length,
-      0,
-    );
+    // The Tech Spec section was overwritten in place, and no tickets were
+    // created for either artifact.
+    assert.match(extractEpicSection(provider.epic.body, 'techSpec'), /NEW TS/);
+    assert.equal(provider.createdTickets.length, 0);
   });
 
-  it('AC-7: first-time --force (no prior artifacts) still creates the context tickets', async () => {
+  it('AC-7: first-time --force (no prior sections) still persists both sections', async () => {
     const provider = buildPlanEpicProvider({
       title: 'Security and billing rollout',
       body: 'User-facing security changes with Stripe billing.',
     });
 
-    await planEpic(
+    const result = await planEpic(
       provider.epic.id,
       provider,
       {
-        techSpecContent: '## Technical Overview\nTS.',
+        techSpecContent: '## Delivery Slicing\nTS.',
         acceptanceSpecContent:
-          '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
+          '## Acceptance Table\n| AC-1 | x | f | s | new |',
       },
       {},
       { force: true },
     );
 
-    // Both context tickets created from scratch (Tech Spec first).
-    assert.equal(provider.createdTickets.length, 2);
-    const labels = provider.createdTickets.map((t) => t.ticketData.labels[0]);
-    assert.deepEqual(labels, [
-      'context::tech-spec',
-      'context::acceptance-spec',
-    ]);
+    // Both managed sections land from scratch on the Epic body.
+    assert.equal(result.techSpecPersisted, true);
+    assert.equal(result.acceptanceTable, 'persisted');
+    assert.ok(hasEpicSection(provider.epic.body, 'techSpec'));
+    assert.ok(hasEpicSection(provider.epic.body, 'acceptanceTable'));
+    assert.equal(provider.createdTickets.length, 0);
   });
 });

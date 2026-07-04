@@ -72,7 +72,6 @@ test('runStoryInit dry-run composes all stages end-to-end', async () => {
   const epic = {
     id: 400,
     labels: ['type::epic'],
-    linkedIssues: { techSpec: 402 },
   };
   const subTickets = [
     {
@@ -117,17 +116,19 @@ test('runStoryInit dry-run composes all stages end-to-end', async () => {
   });
   assert.strictEqual(r.dependenciesInstalled, 'skipped');
   assert.strictEqual(r.installFailed, false);
+  // Story #4324 — the hierarchy-tracer stage (and its techSpecId thread)
+  // is retired; the result context carries the parent id only.
   assert.deepStrictEqual(r.context, {
     parentId: 500,
-    techSpecId: 402,
   });
   // task-graph-builder must topologically sort #802 before #801.
   assert.deepStrictEqual(
     r.tasks.map((t) => t.id),
     [802, 801],
   );
-  // hierarchy-tracer and task-graph-builder each make exactly one call.
-  assert.deepStrictEqual(provider.calls.getEpic, [400]);
+  // No stage fetches the Epic anymore (the tracer is gone);
+  // task-graph-builder makes exactly one child fetch.
+  assert.deepStrictEqual(provider.calls.getEpic, []);
   assert.deepStrictEqual(provider.calls.getSubTickets, [701]);
 });
 
@@ -142,7 +143,6 @@ test('runStoryInit short-circuits with {blocked:true} when blockers are open', a
   const epic = {
     id: 400,
     labels: ['type::epic'],
-    linkedIssues: {},
   };
   const blocker = {
     id: 999,
@@ -302,7 +302,6 @@ test('runStoryInit dry-run accepts a 2-tier Story with inline acceptance and zer
   const epic = {
     id: 400,
     labels: ['type::epic'],
-    linkedIssues: { techSpec: 402 },
   };
   const provider = makePipelineProvider({ story, epic, subTickets: [] });
 

@@ -21,6 +21,7 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { upsertEpicSection } from '../../../.agents/scripts/lib/epic-body-sections.js';
 import { runDecomposePhase } from '../../../.agents/scripts/lib/orchestration/epic-plan-decompose/phases/persist.js';
 import { validateAndNormalizeTickets } from '../../../.agents/scripts/lib/orchestration/ticket-validator.js';
 import {
@@ -248,20 +249,19 @@ describe('fan-out persist gate (Story #2962)', () => {
   // runDecomposePhase MUST refuse to persist when a fan-out-warning is
   // present and `allowLargeFanOut` is not set. Mirrors the over-budget
   // gate the persist phase already enforces.
+  //
+  // Story #4324 — the decompose input gate keys on the folded Tech Spec
+  // sections in the Epic body (no linked context ticket exists anymore).
   const buildEpic = () => ({
     id: 1,
     title: 'E',
-    body: '',
+    body: upsertEpicSection('', 'techSpec', '## Delivery Slicing\n\nspec'),
     labels: ['type::epic'],
-    linkedIssues: { techSpec: 11 },
   });
 
   const buildProvider = (epic) => ({
     async getEpic() {
       return epic;
-    },
-    async getTicket(id) {
-      return { id, body: 'b' };
     },
     async updateTicket() {},
     async createTicket() {
@@ -338,17 +338,13 @@ describe('soft conflict surfacing in Phase 8 (Story #3957)', () => {
   const buildEpic = () => ({
     id: 1,
     title: 'E',
-    body: '',
+    body: upsertEpicSection('', 'techSpec', '## Delivery Slicing\n\nspec'),
     labels: ['type::epic'],
-    linkedIssues: { techSpec: 11 },
   });
 
   const buildProvider = (epic) => ({
     async getEpic() {
       return epic;
-    },
-    async getTicket(id) {
-      return { id, body: 'b' };
     },
     async updateTicket() {},
     async createTicket() {

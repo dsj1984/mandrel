@@ -1,13 +1,22 @@
 /**
  * Unit tests for `acceptance-spec-reconciler.js` — Story #2106 / Task #2113.
  *
+ * Story #4324 retargeted the reconciler from the `context::acceptance-spec`
+ * ticket to the Epic body's `## Acceptance Table` managed section. Every
+ * pre-fold test intent is preserved against the new anchor; the fixtures
+ * are mechanically retargeted (spec-ticket bodies → Epic-body sections).
+ *
  * Covers:
  *   - Pure helpers: parseAcIds, collectScenarioTagSets, classifyCoverage,
- *     renderBlockerMessage, classifyReconcilerInvocation.
+ *     renderBlockerMessage, renderDispositions,
+ *     classifyReconcilerInvocation.
  *   - End-to-end reconcileAcceptanceSpec with stubbed provider + filesystem.
  *   - Waiver short-circuit (acceptance::n-a label).
- *   - Missing-spec throw (defence in depth past the start gate).
+ *   - Missing-section throw (defence in depth past the start gate).
  *   - OK / pending / missing matrix.
+ *   - Close-time disposition write-back — section-scoped (the Story #4324
+ *     sentinel oracle: an unrelated edit elsewhere in the body survives the
+ *     reconciler's write byte-for-byte).
  */
 
 import assert from 'node:assert/strict';
@@ -21,12 +30,19 @@ import {
   parseAcIds,
   reconcileAcceptanceSpec,
   renderBlockerMessage,
+  renderDispositions,
 } from '../.agents/scripts/acceptance-spec-reconciler.js';
+import {
+  extractEpicSection,
+  upsertEpicSection,
+} from '../.agents/scripts/lib/epic-body-sections.js';
 import { makeMockProvider } from './helpers/make-mock-provider.js';
 
 function buildProvider(tickets) {
   const byId = new Map(tickets.map((t) => [t.id, t]));
+  const updates = [];
   return {
+    updates,
     async getEpic(id) {
       const t = byId.get(id);
       if (!t) return null;
@@ -37,7 +53,27 @@ function buildProvider(tickets) {
       if (!t) return null;
       return { ...t, labels: [...(t.labels ?? [])] };
     },
+    async updateTicket(id, patch) {
+      updates.push({ id, patch });
+      const t = byId.get(id);
+      if (t && typeof patch?.body === 'string') t.body = patch.body;
+      return { id };
+    },
   };
+}
+
+/** Build a sectioned Epic body carrying an ## Acceptance Table region. */
+function epicBodyWithTable(tableRows, { prose = '' } = {}) {
+  const base = ['## Context', 'Some context.', prose]
+    .filter(Boolean)
+    .join('\n');
+  const section = [
+    '## Acceptance Table',
+    '| AC ID | Outcome | Feature File | Scenario | Disposition |',
+    '| --- | --- | --- | --- | --- |',
+    ...tableRows,
+  ].join('\n');
+  return upsertEpicSection(base, 'acceptanceTable', section);
 }
 
 const SILENT_LOGGER = { info: () => {}, warn: () => {}, error: () => {} };
@@ -220,7 +256,15 @@ describe('classifyReconcilerInvocation', () => {
       epicId: 2001,
       featuresDir: null,
       skipWhenWaived: false,
+      writeDispositions: false,
     });
+  });
+  it('passes --write-dispositions through', () => {
+    const r = classifyReconcilerInvocation({
+      epic: '7',
+      'write-dispositions': true,
+    });
+    assert.equal(r.writeDispositions, true);
   });
   it('passes --features-dir through', () => {
     const r = classifyReconcilerInvocation({
@@ -235,14 +279,53 @@ describe('renderBlockerMessage', () => {
   it('includes both missing and pending sections when populated', () => {
     const msg = renderBlockerMessage({
       epicId: 99,
-      acceptanceSpecId: 100,
       missing: ['AC-1'],
       pending: ['AC-2'],
     });
     assert.match(msg, /Epic #99/);
-    assert.match(msg, /#100/);
+    assert.match(msg, /## Acceptance Table/);
     assert.match(msg, /Missing.*AC-1/);
     assert.match(msg, /Pending.*AC-2/);
+  });
+});
+
+describe('renderDispositions', () => {
+  const SECTION = [
+    '## Acceptance Table',
+    '| AC ID | Outcome | Feature File | Scenario | Disposition |',
+    '| --- | --- | --- | --- | --- |',
+    '| AC-1 | one | a.feature | s1 | new |',
+    '| AC-2 | two | b.feature | s2 | updated |',
+    '| AC-3 | three | c.feature | s3 | unchanged |',
+    '',
+    'Prose after the table stays untouched.',
+  ].join('\n');
+
+  it('rewrites only the Disposition cell of classified AC rows', () => {
+    const out = renderDispositions(SECTION, {
+      satisfied: ['AC-1'],
+      pending: ['AC-2'],
+      missing: ['AC-3'],
+    });
+    assert.match(out, /\| AC-1 \| one \| a\.feature \| s1 \| satisfied \|/);
+    assert.match(out, /\| AC-2 \| two \| b\.feature \| s2 \| pending \|/);
+    assert.match(out, /\| AC-3 \| three \| c\.feature \| s3 \| missing \|/);
+    // Header, divider, and prose pass through verbatim.
+    assert.match(
+      out,
+      /\| AC ID \| Outcome \| Feature File \| Scenario \| Disposition \|/,
+    );
+    assert.match(out, /Prose after the table stays untouched\./);
+  });
+
+  it('leaves unclassified rows and non-table lines untouched', () => {
+    const out = renderDispositions(SECTION, {
+      satisfied: ['AC-1'],
+      pending: [],
+      missing: [],
+    });
+    assert.match(out, /\| AC-2 \| two \| b\.feature \| s2 \| updated \|/);
+    assert.match(out, /\| AC-3 \| three \| c\.feature \| s3 \| unchanged \|/);
   });
 });
 
@@ -273,9 +356,9 @@ describe('reconcileAcceptanceSpec', () => {
     assert.equal(out.ok, true);
   });
 
-  it('throws when no acceptance-spec linked and waiver absent', async () => {
+  it('throws when the acceptance-table section is absent and waiver absent', async () => {
     const provider = buildProvider([
-      { id: 7001, labels: ['type::epic'], body: '', linkedIssues: null },
+      { id: 7001, labels: ['type::epic'], body: '## Context\nno table here' },
     ]);
     await assert.rejects(
       () =>
@@ -287,8 +370,25 @@ describe('reconcileAcceptanceSpec', () => {
           loggerImpl: SILENT_LOGGER,
           listFeatureFiles: () => [],
         }),
-      /no linked context::acceptance-spec/,
+      /no ## Acceptance Table section/,
     );
+  });
+
+  it('returns waived when the section is absent and skipWhenWaived is set', async () => {
+    const provider = buildProvider([
+      { id: 7010, labels: ['type::epic'], body: '## Context\nno table here' },
+    ]);
+    const out = await reconcileAcceptanceSpec({
+      epicId: 7010,
+      cwd: process.cwd(),
+      injectedProvider: provider,
+      injectedConfig: {},
+      loggerImpl: SILENT_LOGGER,
+      skipWhenWaived: true,
+      listFeatureFiles: () => [],
+    });
+    assert.equal(out.status, 'waived');
+    assert.equal(out.ok, true);
   });
 
   it('ok=true and exits cleanly when all AC IDs are satisfied', async () => {
@@ -296,13 +396,10 @@ describe('reconcileAcceptanceSpec', () => {
       {
         id: 7002,
         labels: ['type::epic'],
-        body: '## Planning Artifacts\n- [x] Acceptance Spec: #7500\n',
-      },
-      {
-        id: 7500,
-        labels: ['context::acceptance-spec'],
-        body: '| AC-1 | Outcome |\n| AC-2 | Outcome two |\n',
-        state: 'closed',
+        body: epicBodyWithTable([
+          '| AC-1 | Outcome | a.feature | s1 | new |',
+          '| AC-2 | Outcome two | b.feature | s2 | new |',
+        ]),
       },
     ]);
     const featureContent = [
@@ -336,13 +433,11 @@ describe('reconcileAcceptanceSpec', () => {
       {
         id: 7003,
         labels: ['type::epic'],
-        body: '## Planning Artifacts\n- [x] Acceptance Spec: #7501\n',
-      },
-      {
-        id: 7501,
-        labels: ['context::acceptance-spec'],
-        body: '| AC-1 | a |\n| AC-2 | b |\n| AC-3 | c |\n',
-        state: 'closed',
+        body: epicBodyWithTable([
+          '| AC-1 | a | a.feature | s1 | new |',
+          '| AC-2 | b | b.feature | s2 | new |',
+          '| AC-3 | c | c.feature | s3 | new |',
+        ]),
       },
     ]);
     const featureContent = [
@@ -371,13 +466,10 @@ describe('reconcileAcceptanceSpec', () => {
       {
         id: 7004,
         labels: ['type::epic'],
-        body: '## Planning Artifacts\n- [x] Acceptance Spec: #7502\n',
-      },
-      {
-        id: 7502,
-        labels: ['context::acceptance-spec'],
-        body: '| AC-1 | a |\n| AC-2 | b |\n',
-        state: 'closed',
+        body: epicBodyWithTable([
+          '| AC-1 | a | a.feature | s1 | new |',
+          '| AC-2 | b | b.feature | s2 | new |',
+        ]),
       },
     ]);
     const featureContent = [
@@ -405,18 +497,16 @@ describe('reconcileAcceptanceSpec', () => {
     assert.deepEqual(out.missing, []);
   });
 
-  it('returns status=empty-spec when the spec has no AC IDs', async () => {
+  it('returns status=empty-spec when the section has no AC IDs', async () => {
     const provider = buildProvider([
       {
         id: 7005,
         labels: ['type::epic'],
-        body: '## Planning Artifacts\n- [x] Acceptance Spec: #7503\n',
-      },
-      {
-        id: 7503,
-        labels: ['context::acceptance-spec'],
-        body: 'no AC table here',
-        state: 'closed',
+        body: upsertEpicSection(
+          '## Context\nx',
+          'acceptanceTable',
+          '## Acceptance Table\nno AC rows authored yet',
+        ),
       },
     ]);
     const out = await reconcileAcceptanceSpec({
@@ -439,13 +529,10 @@ describe('reconcileAcceptanceSpec', () => {
       {
         id: 1241,
         labels: ['type::epic'],
-        body: '## Planning Artifacts\n- [x] Acceptance Spec: #1500\n',
-      },
-      {
-        id: 1500,
-        labels: ['context::acceptance-spec'],
-        body: '| AC-1 | a |\n| AC-2 | b |\n',
-        state: 'closed',
+        body: epicBodyWithTable([
+          '| AC-1 | a | a.feature | s1 | new |',
+          '| AC-2 | b | b.feature | s2 | new |',
+        ]),
       },
     ]);
     const foreignFeature = [
@@ -485,13 +572,9 @@ describe('reconcileAcceptanceSpec', () => {
       {
         id: 4301,
         labels: ['type::epic'],
-        body: '## Planning Artifacts\n- [x] Acceptance Spec: #4500\n',
-      },
-      {
-        id: 4500,
-        labels: ['context::acceptance-spec'],
-        body: '| AC-1 | Invoice created | tests/features/billing/invoice.feature | Create invoice | new |\n',
-        state: 'closed',
+        body: epicBodyWithTable([
+          '| AC-1 | Invoice created | tests/features/billing/invoice.feature | Create invoice | new |',
+        ]),
       },
     ]);
     // Simulates the wave-0 scaffold Story's output: @epic-4301-ac-1 is
@@ -530,13 +613,9 @@ describe('reconcileAcceptanceSpec', () => {
       {
         id: 4302,
         labels: ['type::epic'],
-        body: '## Planning Artifacts\n- [x] Acceptance Spec: #4501\n',
-      },
-      {
-        id: 4501,
-        labels: ['context::acceptance-spec'],
-        body: '| AC-1 | Invoice created | tests/features/billing/invoice.feature | Create invoice | new |\n',
-        state: 'closed',
+        body: epicBodyWithTable([
+          '| AC-1 | Invoice created | tests/features/billing/invoice.feature | Create invoice | new |',
+        ]),
       },
     ]);
     const skipOnlyScaffold = [
@@ -561,20 +640,17 @@ describe('reconcileAcceptanceSpec', () => {
     assert.deepEqual(out.missing, ['AC-1']);
   });
 
-  it('honours pre-populated linkedIssues.acceptanceSpec on the epic', async () => {
+  // Story #4324 forward-only cutover: a historical Epic's legacy
+  // `## Planning Artifacts` list (pointing at retired context tickets) is
+  // ignored — never fetched — and does not shadow the managed section.
+  it('ignores a legacy Planning Artifacts list and reads only the managed section', async () => {
+    const legacyBody = `${epicBodyWithTable([
+      '| AC-1 | x | a.feature | s1 | new |',
+    ])}\n\n## Planning Artifacts\n- [x] Acceptance Spec: #7600\n`;
     const provider = buildProvider([
-      {
-        id: 7006,
-        labels: ['type::epic'],
-        body: '', // empty — body parser would say "no spec"
-        linkedIssues: { techSpec: null, acceptanceSpec: 7600 },
-      },
-      {
-        id: 7600,
-        labels: ['context::acceptance-spec'],
-        body: '| AC-1 | x |\n',
-        state: 'closed',
-      },
+      { id: 7006, labels: ['type::epic'], body: legacyBody },
+      // #7600 deliberately NOT registered — a fetch attempt would return
+      // null and blow up downstream, proving legacy links are not fetched.
     ]);
     const out = await reconcileAcceptanceSpec({
       epicId: 7006,
@@ -584,8 +660,101 @@ describe('reconcileAcceptanceSpec', () => {
       loggerImpl: SILENT_LOGGER,
       listFeatureFiles: () => [],
     });
-    assert.equal(out.acceptanceSpecId, 7600);
     assert.deepEqual(out.missing, ['AC-1']);
     assert.equal(out.ok, false);
+  });
+
+  describe('close-time disposition write-back (Story #4324)', () => {
+    const ROWS = [
+      '| AC-1 | one | a.feature | s1 | new |',
+      '| AC-2 | two | b.feature | s2 | new |',
+    ];
+    const FEATURE = [
+      'Feature: Sample',
+      '@epic-8000-ac-1',
+      'Scenario: first',
+      '  Given x',
+    ].join('\n');
+
+    it('records satisfied/missing into the Disposition column, section-scoped', async () => {
+      const SENTINEL =
+        'operator-authored prose SENTINEL-4324 outside the table';
+      const provider = buildProvider([
+        {
+          id: 8000,
+          labels: ['type::epic'],
+          body: epicBodyWithTable(ROWS, { prose: SENTINEL }),
+        },
+      ]);
+      const before = (await provider.getEpic(8000)).body;
+      const out = await reconcileAcceptanceSpec({
+        epicId: 8000,
+        cwd: process.cwd(),
+        injectedProvider: provider,
+        injectedConfig: {},
+        loggerImpl: SILENT_LOGGER,
+        writeDispositions: true,
+        listFeatureFiles: () => ['/fake/a.feature'],
+        readFeatureFile: () => FEATURE,
+      });
+      assert.equal(out.dispositionsUpdated, true);
+      assert.equal(provider.updates.length, 1);
+      const after = provider.updates[0].patch.body;
+      const section = extractEpicSection(after, 'acceptanceTable');
+      assert.match(
+        section,
+        /\| AC-1 \| one \| a\.feature \| s1 \| satisfied \|/,
+      );
+      assert.match(section, /\| AC-2 \| two \| b\.feature \| s2 \| missing \|/);
+      // Sentinel oracle: everything OUTSIDE the managed section is
+      // byte-identical — the reconciler writes only its own region.
+      const stripRegion = (body) =>
+        body.replace(
+          /<!-- mandrel:acceptance-table:start -->[\s\S]*<!-- mandrel:acceptance-table:end -->/,
+          '<REGION>',
+        );
+      assert.equal(stripRegion(after), stripRegion(before));
+      assert.ok(after.includes(SENTINEL));
+    });
+
+    it('does not write when writeDispositions is false (default)', async () => {
+      const provider = buildProvider([
+        { id: 8001, labels: ['type::epic'], body: epicBodyWithTable(ROWS) },
+      ]);
+      const out = await reconcileAcceptanceSpec({
+        epicId: 8001,
+        cwd: process.cwd(),
+        injectedProvider: provider,
+        injectedConfig: {},
+        loggerImpl: SILENT_LOGGER,
+        listFeatureFiles: () => ['/fake/a.feature'],
+        readFeatureFile: () => FEATURE.replaceAll('8000', '8001'),
+      });
+      assert.equal(out.dispositionsUpdated, false);
+      assert.equal(provider.updates.length, 0);
+    });
+
+    it('a failed write downgrades to a warning and never changes the verdict', async () => {
+      const provider = buildProvider([
+        { id: 8002, labels: ['type::epic'], body: epicBodyWithTable(ROWS) },
+      ]);
+      provider.updateTicket = async () => {
+        throw new Error('boom: secondary rate limit');
+      };
+      const out = await reconcileAcceptanceSpec({
+        epicId: 8002,
+        cwd: process.cwd(),
+        injectedProvider: provider,
+        injectedConfig: {},
+        loggerImpl: SILENT_LOGGER,
+        writeDispositions: true,
+        listFeatureFiles: () => ['/fake/a.feature'],
+        readFeatureFile: () => FEATURE.replaceAll('8000', '8002'),
+      });
+      assert.equal(out.dispositionsUpdated, false);
+      assert.equal(out.status, 'gap');
+      assert.deepEqual(out.satisfied, ['AC-1']);
+      assert.deepEqual(out.missing, ['AC-2']);
+    });
   });
 });

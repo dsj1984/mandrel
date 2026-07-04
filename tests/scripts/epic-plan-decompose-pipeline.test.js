@@ -16,12 +16,12 @@ import { describe, it } from 'node:test';
 import {
   buildDecomposerSystemPrompt,
   buildDecompositionContext,
-  ensurePlanningArtifacts,
   orderTicketsForCreation,
   resolveDependencies,
   runDecomposePhase,
 } from '../../.agents/scripts/epic-plan-decompose.js';
 import { LIMITS_DEFAULTS } from '../../.agents/scripts/lib/config/limits.js';
+import { upsertEpicSection } from '../../.agents/scripts/lib/epic-body-sections.js';
 import { warnTicketCapNearLimit } from '../../.agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js';
 import { EPIC_PLAN_STATE_TYPE } from '../../.agents/scripts/lib/orchestration/epic-plan-state-store.js';
 import { structuredCommentMarker } from '../../.agents/scripts/lib/orchestration/ticketing.js';
@@ -31,44 +31,21 @@ describe('epic-plan-decompose pipeline — named exports (Story #2466)', () => {
     // Removing any of these breaks downstream tests + the orchestrator.
     assert.equal(typeof buildDecomposerSystemPrompt, 'function');
     assert.equal(typeof buildDecompositionContext, 'function');
-    assert.equal(typeof ensurePlanningArtifacts, 'function');
     assert.equal(typeof orderTicketsForCreation, 'function');
     assert.equal(typeof resolveDependencies, 'function');
     assert.equal(typeof runDecomposePhase, 'function');
   });
-});
 
-describe('epic-plan-decompose pipeline — ensurePlanningArtifacts (Story #2466)', () => {
-  it('returns the body verbatim when the section is already present', () => {
-    const body = 'A heading.\n\n## Planning Artifacts\n- [ ] Tech Spec: #2\n';
-    const out = ensurePlanningArtifacts(body, {
-      techSpec: 2,
-      acceptanceSpec: 3,
-    });
-    assert.equal(out, body, 'must be byte-identical when section exists');
-  });
-
-  it('appends the section exactly once when missing', () => {
-    const out = ensurePlanningArtifacts('Hello', {
-      techSpec: 20,
-      acceptanceSpec: 30,
-    });
-    assert.match(out, /## Planning Artifacts/);
-    // Story #4314 retired the PRD artifact class — no PRD line is emitted.
-    assert.doesNotMatch(out, /PRD/);
-    assert.match(out, /- \[ \] Tech Spec: #20/);
-    assert.match(out, /- \[ \] Acceptance Spec: #30/);
-    // No double-append on second call.
-    const out2 = ensurePlanningArtifacts(out, {
-      techSpec: 20,
-      acceptanceSpec: 30,
-    });
-    assert.equal(out2, out);
-  });
-
-  it('returns the body verbatim when linkedIssues is missing', () => {
-    assert.equal(ensurePlanningArtifacts('foo'), 'foo');
-    assert.equal(ensurePlanningArtifacts('foo', null), 'foo');
+  it('no longer exports the retired ensurePlanningArtifacts helper (Story #4324)', async () => {
+    // Story #4324 folded the planning artifacts into the Epic body as
+    // managed sections — the `## Planning Artifacts` checklist writer is
+    // deleted, and the persist phase hands the Epic body to the spec
+    // renderer verbatim (see epic-plan-decompose.body-preservation.test.js).
+    const mod = await import('../../.agents/scripts/epic-plan-decompose.js');
+    assert.ok(
+      !('ensurePlanningArtifacts' in mod),
+      'ensurePlanningArtifacts must not be re-exported after the context-ticket fold',
+    );
   });
 });
 
@@ -162,20 +139,18 @@ describe('epic-plan-decompose pipeline — runDecomposePhase over-budget gate (S
   // `allowOverBudget` override (CLI: `--allow-over-budget`). This is the
   // explicit-override-path the tech spec requires so accidental over-
   // budget plans do not silently persist.
+  // Story #4324 — the decompose input gate keys on the folded Tech Spec
+  // sections in the Epic body (no linked context ticket exists anymore).
   const buildEpic = () => ({
     id: 1,
     title: 'E',
-    body: '',
+    body: upsertEpicSection('', 'techSpec', '## Delivery Slicing\n\nspec'),
     labels: ['type::epic'],
-    linkedIssues: { techSpec: 11 },
   });
 
   const buildProvider = (epic) => ({
     async getEpic() {
       return epic;
-    },
-    async getTicket(id) {
-      return { id, body: 'b' };
     },
     async updateTicket() {},
     async createTicket() {
@@ -281,12 +256,15 @@ describe('epic-plan-decompose pipeline — buildDecompositionContext planning ri
   // re-shaping", not "classifier output matches an oracle".
 
   const EPIC_ID = 7400;
-  const TECH_SPEC_ID = 7402;
 
-  // Story #4314 — the PRD artifact class is retired; the Epic body (with its
-  // inline `## User Stories`) is the budgeted authoring input in its place.
-  const EPIC_BODY = '# Epic\n\nSome Epic prose for #7400.\n';
-  const TECH_SPEC_BODY = '# Tech Spec\n\nSome Tech Spec prose for #7400.\n';
+  // Story #4324 — the Epic body is the single planning document: it carries
+  // the ideation prose plus the folded Tech Spec sections as a managed
+  // region, and is the sole budgeted authoring input.
+  const EPIC_BODY = upsertEpicSection(
+    '# Epic\n\nSome Epic prose for #7400.\n',
+    'techSpec',
+    '## Delivery Slicing\n\nSome Tech Spec prose for #7400.',
+  );
 
   const RISK_ENVELOPE = {
     axes: [
@@ -324,22 +302,14 @@ describe('epic-plan-decompose pipeline — buildDecompositionContext planning ri
       title: 'Adaptive planning',
       body: EPIC_BODY,
       labels: ['type::epic'],
-      linkedIssues: { techSpec: TECH_SPEC_ID },
     };
-    const tickets = new Map([
-      [EPIC_ID, epic],
-      [TECH_SPEC_ID, { id: TECH_SPEC_ID, body: TECH_SPEC_BODY }],
-    ]);
     const comments = new Map();
     if (planStateBody) {
       comments.set(EPIC_ID, [{ id: 1, body: planStateBody }]);
     }
     return {
       async getEpic(id) {
-        return tickets.get(id);
-      },
-      async getTicket(id) {
-        return tickets.get(id);
+        return id === EPIC_ID ? epic : null;
       },
       async getTicketComments(id) {
         return comments.get(id) ?? [];
@@ -393,10 +363,12 @@ describe('epic-plan-decompose pipeline — buildDecompositionContext planning ri
 
   it('exposes null planningRisk when the comment exists but lacks the field (forward-compat)', async () => {
     // Older `epic-plan-state` payloads may exist without the risk field.
-    // The decomposer must not crash and must surface a null sentinel.
+    // The decomposer must not crash and must surface a null sentinel. The
+    // fixture deliberately keeps the historical pre-#4324 `techSpecId`
+    // checkpoint shape — legacy payloads must be ignored, not choked on.
     const provider = buildProvider({
       planStateBody: planStateCommentBody({
-        spec: { techSpecId: TECH_SPEC_ID },
+        spec: { techSpecId: 7402 },
       }),
     });
     const ctx = await buildDecompositionContext(EPIC_ID, provider, {
@@ -406,7 +378,7 @@ describe('epic-plan-decompose pipeline — buildDecompositionContext planning ri
     assert.equal(ctx.reviewRouting, null);
   });
 
-  it('preserves the Epic body and Tech Spec body behavior (AC #2)', async () => {
+  it('preserves the Epic body behavior (AC #2)', async () => {
     const provider = buildProvider({
       planStateBody: planStateCommentBody({
         planningRisk: RISK_ENVELOPE,
@@ -416,14 +388,14 @@ describe('epic-plan-decompose pipeline — buildDecompositionContext planning ri
     const ctx = await buildDecompositionContext(EPIC_ID, provider, {
       planning: { maxTickets: 60 },
     });
-    // Story #4314 — the retired `prd` slot is replaced by `epicBody`.
+    // Story #4324 — the Epic body (with its folded Tech Spec sections) is
+    // the single budgeted authoring input; there is no `techSpec` slot.
     assert.equal(ctx.epic.id, EPIC_ID);
     assert.equal(ctx.epicBody.id, EPIC_ID);
-    assert.equal(ctx.techSpec.id, TECH_SPEC_ID);
     // In default (budgeted) mode the body slot is null and a summary
     // is provided; in `fullContext: true` mode the verbatim body is
     // restored. Both behaviors are preserved by Story #2801.
-    assert.ok('body' in ctx.epicBody && 'body' in ctx.techSpec);
+    assert.ok('body' in ctx.epicBody);
     const fullCtx = await buildDecompositionContext(
       EPIC_ID,
       provider,
@@ -431,7 +403,6 @@ describe('epic-plan-decompose pipeline — buildDecompositionContext planning ri
       { fullContext: true },
     );
     assert.equal(fullCtx.epicBody.body, EPIC_BODY);
-    assert.equal(fullCtx.techSpec.body, TECH_SPEC_BODY);
   });
 
   it('threads the framework-constant maxTickets reviewability budget, ignoring the inert knob (Story #4163)', async () => {
@@ -464,7 +435,6 @@ describe('epic-plan-decompose pipeline — buildDecompositionContext planning ri
       'epic',
       // Story #4314 — the retired `prd` slot is replaced by `epicBody`.
       'epicBody',
-      'techSpec',
       'heuristics',
       'systemPrompt',
       'maxTickets',
@@ -473,6 +443,12 @@ describe('epic-plan-decompose pipeline — buildDecompositionContext planning ri
       assert.ok(key in ctx, `context field "${key}" must remain present`);
     }
     assert.ok(!('prd' in ctx), 'retired `prd` context field must be gone');
+    // Story #4324 — the Tech Spec folded into the Epic body; the envelope
+    // slot is retired with the context-ticket class.
+    assert.ok(
+      !('techSpec' in ctx),
+      'retired `techSpec` context field must be gone',
+    );
   });
 
   it('emits a context that round-trips through JSON.stringify in both modes', async () => {

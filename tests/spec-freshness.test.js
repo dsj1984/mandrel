@@ -128,7 +128,6 @@ describe('renderSpecFreshnessComment — markdown shape', () => {
     };
     const body = renderSpecFreshnessComment(report, {
       baseBranchRef: 'main',
-      techSpecId: 1234,
       epicId: 999,
     });
     assert.match(body, /Tech Spec freshness check \(Epic #999\)/);
@@ -145,7 +144,6 @@ describe('renderSpecFreshnessComment — markdown shape', () => {
     };
     const body = renderSpecFreshnessComment(report, {
       baseBranchRef: 'main',
-      techSpecId: 1,
       epicId: 2,
     });
     assert.doesNotMatch(body, /### Stale references/);
@@ -168,7 +166,6 @@ describe('runSpecFreshnessCheck — non-blocking integration', () => {
 
     const result = await runSpecFreshnessCheck({
       epicId: 100,
-      techSpecId: 200,
       techSpecContent: '## Tech Spec\n',
       baseBranchRef: 'main',
       tempRoot: '/tmp/fixture',
@@ -197,7 +194,6 @@ describe('runSpecFreshnessCheck — non-blocking integration', () => {
 
     const result = await runSpecFreshnessCheck({
       epicId: 100,
-      techSpecId: 200,
       techSpecContent: '## Tech Spec\n',
       baseBranchRef: 'main',
       tempRoot: '/tmp/fixture',
@@ -211,9 +207,11 @@ describe('runSpecFreshnessCheck — non-blocking integration', () => {
     assert.equal(result.commentPosted, true);
     assert.equal(commentUpserter.mock.callCount(), 1);
     const call = commentUpserter.mock.calls[0];
+    // Story #4324 — the Tech Spec is folded into the Epic body, so the
+    // structured comment is upserted on the Epic id itself.
     assert.deepEqual(call.arguments.slice(0, 3), [
       { id: 'fake-provider' },
-      200,
+      100,
       'spec-freshness',
     ]);
     assert.match(call.arguments[3], /1 stale/);
@@ -226,7 +224,6 @@ describe('runSpecFreshnessCheck — non-blocking integration', () => {
 
     const result = await runSpecFreshnessCheck({
       epicId: 100,
-      techSpecId: 200,
       techSpecContent: '',
       baseBranchRef: 'main',
       tempRoot: '/tmp/fixture',
@@ -242,7 +239,7 @@ describe('runSpecFreshnessCheck — non-blocking integration', () => {
     assert.match(result.error, /git ref unreachable/);
   });
 
-  it('skips comment upsert when techSpecId is null even with stale refs', async () => {
+  it('skips comment upsert when epicId is not finite even with stale refs', async () => {
     const commentUpserter = mock.fn(async () => {});
     const validator = () => ({
       stale: [{ path: 'src/x.ts', line: 1, citations: [{ line: 1 }] }],
@@ -251,8 +248,7 @@ describe('runSpecFreshnessCheck — non-blocking integration', () => {
     });
 
     const result = await runSpecFreshnessCheck({
-      epicId: 100,
-      techSpecId: null,
+      epicId: null,
       techSpecContent: '',
       baseBranchRef: 'main',
       tempRoot: '/tmp/fixture',

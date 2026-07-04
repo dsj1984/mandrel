@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { LIMITS_DEFAULTS } from '../.agents/scripts/lib/config/limits.js';
+import { upsertEpicSection } from '../.agents/scripts/lib/epic-body-sections.js';
 import { buildDecompositionContext } from '../.agents/scripts/lib/orchestration/epic-plan-decompose/phases/context.js';
 
 // ---------------------------------------------------------------------------
@@ -11,20 +12,20 @@ import { buildDecompositionContext } from '../.agents/scripts/lib/orchestration/
 // hydrate and preflight will actually gate.
 // ---------------------------------------------------------------------------
 
-// Story #4314 retired the PRD artifact class: the decomposition context now
-// reads the Epic body (as `epicBody`) plus the linked Tech Spec, so the PRD
-// id / body fetch is gone from the provider stub.
+// Story #4324 retired the context-ticket classes: the decomposition context
+// reads the Epic body (as `epicBody`), which carries the folded Tech Spec
+// sections, so the linked Tech Spec fetch is gone from the provider stub.
 const buildProvider = () => ({
   async getEpic(id) {
     return {
       id,
       title: 'Envelope Epic',
-      body: 'EPIC BODY',
-      linkedIssues: { techSpec: 11 },
+      body: upsertEpicSection(
+        'EPIC BODY',
+        'techSpec',
+        '## Delivery Slicing\n\nTECH SPEC BODY',
+      ),
     };
-  },
-  async getTicket(id) {
-    return { id, body: 'TECH SPEC BODY' };
   },
 });
 

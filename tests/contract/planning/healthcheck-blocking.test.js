@@ -55,10 +55,10 @@ function buildStubProvider({ epicId, epicLabels }) {
   issues.set(epicId, {
     id: epicId,
     title: 'Healthcheck Gate Epic',
-    body: 'Some Epic body.\n\n## Planning Artifacts\n- [ ] Tech Spec: #2\n',
+    // Story #4324 — the Epic body carries the folded Tech Spec sections.
+    body: 'Some Epic body.\n\n<!-- mandrel:tech-spec:start -->\n\n## Delivery Slicing\n| Slice | What ships | Independent? |\n\n<!-- mandrel:tech-spec:end -->\n',
     labels: epicLabels,
     state: 'open',
-    linkedIssues: { techSpec: 2, acceptanceSpec: 3 },
   });
   return {
     issues,

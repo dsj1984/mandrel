@@ -114,13 +114,23 @@ describe('Bootstrap — LABEL_TAXONOMY', () => {
     assert.ok(names.includes('agent::done'));
   });
 
-  it('contains status and context labels', () => {
+  it('contains status labels; the context axis is fully retired', () => {
     const names = LABEL_TAXONOMY.map((l) => l.name);
     assert.ok(names.includes('status::blocked'));
-    assert.ok(names.includes('context::tech-spec'));
-    // Story #4314 — the PRD artifact class is retired; its label is no
-    // longer provisioned during bootstrap.
+    // Story #4314 retired `context::prd`; Story #4324 retired the rest of
+    // the context axis (Tech Spec / Acceptance Spec now live as managed
+    // sections of the Epic body) — no `context::*` label is provisioned.
     assert.ok(!names.includes('context::prd'));
+    assert.ok(!names.includes('context::tech-spec'));
+    assert.ok(!names.includes('context::acceptance-spec'));
+    assert.equal(names.filter((n) => n.startsWith('context::')).length, 0);
+  });
+
+  it('keeps the acceptance::n-a waiver label (survives Story #4324)', () => {
+    // The waiver survives the context-ticket fold with unchanged meaning:
+    // it now waives the Epic body's `## Acceptance Table` section.
+    const names = LABEL_TAXONOMY.map((l) => l.name);
+    assert.ok(names.includes('acceptance::n-a'));
   });
 
   it('derives one persona label per file in .agents/personas/', () => {
@@ -140,7 +150,9 @@ describe('Bootstrap — LABEL_TAXONOMY', () => {
     // retired in a hard cutover).
     // Story #4041 — removed the Feature tier label (2-tier hard cutover).
     // Story #4314 — removed the `context::prd` label (PRD artifact retired).
-    const nonPersonaBase = 12;
+    // Story #4324 — removed `context::tech-spec` + `context::acceptance-spec`
+    // (planning content folded into managed Epic-body sections).
+    const nonPersonaBase = 10;
     assert.equal(LABEL_TAXONOMY.length, nonPersonaBase + PERSONA_NAMES.length);
   });
 

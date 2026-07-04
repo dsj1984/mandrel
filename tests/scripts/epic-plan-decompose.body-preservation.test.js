@@ -9,10 +9,7 @@
  * the Epic spec entry from `{ id, title }` only; the structural diff
  * engine treated the spec's `undefined` body as `""` and emitted
  * `body: <17KB body> → ""`. The reconciler apply phase then wiped the
- * GH issue body — taking the hand-authored Epic spec AND the
- * `## Planning Artifacts` section with it, which broke
- * `/deliver`'s start gate (parseLinkedIssues → null) and the
- * cascade-close walk in `epic-deliver-finalize.js`.
+ * GH issue body — taking the hand-authored Epic spec with it.
  *
  * The fix lives in two cooperating places (defence in depth):
  *
@@ -22,12 +19,18 @@
  *
  *   2. `epic-plan-decompose.js#runDecomposePhase` — pass the Epic's
  *      live body through to the spec renderer so the persisted YAML
- *      is the SSOT, and call `ensurePlanningArtifacts` so the
- *      Planning Artifacts section is appended exactly once if missing.
+ *      is the SSOT.
+ *
+ * Story #4324 retired the `context::*` ticket classes and the
+ * machine-managed `## Planning Artifacts` checklist writer
+ * (`ensurePlanningArtifacts` is deleted): the Epic body carries the
+ * folded Tech Spec / Acceptance Table as managed sections, and Phase 8
+ * hands that body to `renderSpec` verbatim — it neither appends nor
+ * strips anything (the legacy-checklist strip belongs to Phase 7's
+ * `planEpic`).
  *
  * The tests below drive `runDecomposePhase` with a capture
- * `renderSpecFn` and assert the body the renderer would project; plus
- * direct unit coverage of `ensurePlanningArtifacts`.
+ * `renderSpecFn` and assert the body the renderer would project.
  */
 
 import assert from 'node:assert/strict';
@@ -36,15 +39,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
-import {
-  ensurePlanningArtifacts,
-  runDecomposePhase,
-} from '../../.agents/scripts/epic-plan-decompose.js';
+import { runDecomposePhase } from '../../.agents/scripts/epic-plan-decompose.js';
+import { upsertEpicSection } from '../../.agents/scripts/lib/epic-body-sections.js';
 import { writeSpec } from '../../.agents/scripts/lib/spec/index.js';
 
 const EPIC_ID = 2173;
-const TECH_SPEC_ID = 2186;
-const ACCEPTANCE_SPEC_ID = 2187;
 
 const NON_TRIVIAL_BODY_PROSE =
   '## Context\n\n' +
@@ -53,13 +52,22 @@ const NON_TRIVIAL_BODY_PROSE =
     .trim() +
   '\n\n## Goal\n\nKeep the body verbatim through Phase 8 persist.\n';
 
-const PLANNING_ARTIFACTS_SECTION =
-  `\n\n## Planning Artifacts\n` +
-  `- [ ] Tech Spec: #${TECH_SPEC_ID}\n` +
-  `- [ ] Acceptance Spec: #${ACCEPTANCE_SPEC_ID}\n`;
+// Story #4324 — the folded Tech Spec managed section the decompose input
+// gate requires on every Epic body.
+const NON_TRIVIAL_SECTIONED_BODY = upsertEpicSection(
+  NON_TRIVIAL_BODY_PROSE,
+  'techSpec',
+  '## Delivery Slicing\n\n| Slice | What ships | Independent? |\n| --- | --- | --- |\n| 1 | Everything | yes |',
+);
 
-const NON_TRIVIAL_BODY_WITH_ARTIFACTS =
-  NON_TRIVIAL_BODY_PROSE + PLANNING_ARTIFACTS_SECTION;
+// Historical Epic bodies may still carry the retired machine-managed
+// checklist (forward-only cutover, no backfill). Phase 8 must pass it
+// through verbatim — never re-append, never strip.
+const LEGACY_PLANNING_ARTIFACTS_SECTION =
+  '\n\n## Planning Artifacts\n- [ ] Tech Spec: #2186\n- [ ] Acceptance Spec: #2187\n';
+
+const BODY_WITH_LEGACY_ARTIFACTS =
+  NON_TRIVIAL_SECTIONED_BODY + LEGACY_PLANNING_ARTIFACTS_SECTION;
 
 let sandbox;
 let epicsDir;
@@ -84,10 +92,6 @@ function buildStubProvider({ epicId, epicBody }) {
     body: epicBody,
     labels: ['type::epic', 'agent::review-spec'],
     state: 'open',
-    linkedIssues: {
-      techSpec: TECH_SPEC_ID,
-      acceptanceSpec: ACCEPTANCE_SPEC_ID,
-    },
   });
   return {
     issues,
@@ -216,75 +220,15 @@ function buildFixtureTickets() {
 
 const stubSpawnSync = () => ({ status: 0, stdout: '', stderr: '' });
 
-describe('ensurePlanningArtifacts (Story #2283)', () => {
-  const linkedIssues = {
-    techSpec: TECH_SPEC_ID,
-    acceptanceSpec: ACCEPTANCE_SPEC_ID,
-  };
-
-  it('returns the body verbatim when the section is already present', () => {
-    const out = ensurePlanningArtifacts(
-      NON_TRIVIAL_BODY_WITH_ARTIFACTS,
-      linkedIssues,
-    );
-    assert.equal(
-      out,
-      NON_TRIVIAL_BODY_WITH_ARTIFACTS,
-      'body must be byte-identical when the section already exists',
-    );
-  });
-
-  it('appends the Planning Artifacts section exactly once when missing', () => {
-    const out = ensurePlanningArtifacts(NON_TRIVIAL_BODY_PROSE, linkedIssues);
-    assert.equal(
-      out,
-      NON_TRIVIAL_BODY_PROSE + PLANNING_ARTIFACTS_SECTION,
-      'section must be appended verbatim, prose preserved byte-identical',
-    );
-    const occurrences = (out.match(/## Planning Artifacts/g) ?? []).length;
-    assert.equal(occurrences, 1, 'section must appear exactly once');
-  });
-
-  it('is idempotent — running twice yields the same result', () => {
-    const once = ensurePlanningArtifacts(NON_TRIVIAL_BODY_PROSE, linkedIssues);
-    const twice = ensurePlanningArtifacts(once, linkedIssues);
-    assert.equal(twice, once);
-  });
-
-  it('skips Tech Spec / Acceptance Spec lines whose id is null', () => {
-    const out = ensurePlanningArtifacts('original', {
-      techSpec: TECH_SPEC_ID,
-      acceptanceSpec: null,
-    });
-    assert.equal(
-      out,
-      `original\n\n## Planning Artifacts\n- [ ] Tech Spec: #${TECH_SPEC_ID}\n`,
-    );
-  });
-
-  it('returns the body unchanged when no linkedIssues are resolvable', () => {
-    const out = ensurePlanningArtifacts('original', {
-      techSpec: null,
-      acceptanceSpec: null,
-    });
-    assert.equal(out, 'original');
-  });
-
-  it('returns an empty string unchanged when the body and linkedIssues are both empty', () => {
-    const out = ensurePlanningArtifacts('', null);
-    assert.equal(out, '');
-  });
-});
-
 describe('runDecomposePhase — Epic body preservation (Story #2283)', () => {
-  it('passes the Epic body byte-identical to renderSpec when Planning Artifacts is already present', async () => {
+  it('passes a legacy body (with a historical Planning Artifacts section) byte-identical to renderSpec', async () => {
     assert.ok(
-      NON_TRIVIAL_BODY_WITH_ARTIFACTS.length > 1024,
+      BODY_WITH_LEGACY_ARTIFACTS.length > 1024,
       'fixture body must exceed 1KB to mirror the bug-report scale',
     );
     const provider = buildStubProvider({
       epicId: EPIC_ID,
-      epicBody: NON_TRIVIAL_BODY_WITH_ARTIFACTS,
+      epicBody: BODY_WITH_LEGACY_ARTIFACTS,
     });
     const tickets = buildFixtureTickets();
     const writeSpecOverride = (id, spec) => writeSpec(id, spec, { epicsDir });
@@ -320,18 +264,26 @@ describe('runDecomposePhase — Epic body preservation (Story #2283)', () => {
     assert.ok(captured, 'renderSpec must have been called');
     assert.equal(
       captured.epic.body,
-      NON_TRIVIAL_BODY_WITH_ARTIFACTS,
-      'renderSpec must receive the Epic body byte-identical to the pre-persist state',
+      BODY_WITH_LEGACY_ARTIFACTS,
+      'renderSpec must receive the Epic body byte-identical to the pre-persist state — legacy checklist content included, untouched',
     );
     // AC #3 from Story #2283 — the spec we hand to the reconciler
     // carries the body, so the diff would not emit `body → ""`.
     assert.notEqual(captured.epic.body, '');
+    // Story #4324 — decompose neither strips nor duplicates the historical
+    // section; it appears exactly as often as the input carried it.
+    const occurrences = (
+      captured.epic.body.match(/## Planning Artifacts/g) ?? []
+    ).length;
+    assert.equal(occurrences, 1);
   });
 
-  it('appends Planning Artifacts when missing before handing to renderSpec', async () => {
+  it('passes the body verbatim without appending any Planning Artifacts section (Story #4324)', async () => {
+    // The retired ensurePlanningArtifacts append is gone: a body carrying
+    // only the managed planning sections flows through byte-identical.
     const provider = buildStubProvider({
       epicId: EPIC_ID,
-      epicBody: NON_TRIVIAL_BODY_PROSE,
+      epicBody: NON_TRIVIAL_SECTIONED_BODY,
     });
     const tickets = buildFixtureTickets();
     const writeSpecOverride = (id, spec) => writeSpec(id, spec, { epicsDir });
@@ -363,23 +315,14 @@ describe('runDecomposePhase — Epic body preservation (Story #2283)', () => {
     );
 
     assert.ok(captured, 'renderSpec must have been called');
-    assert.ok(
-      captured.epic.body.startsWith(NON_TRIVIAL_BODY_PROSE),
-      'the prose portion of the Epic body must be preserved byte-identical at the head',
+    assert.equal(
+      captured.epic.body,
+      NON_TRIVIAL_SECTIONED_BODY,
+      'the Epic body must flow through to renderSpec byte-identical',
     );
     assert.ok(
-      captured.epic.body.includes('## Planning Artifacts'),
-      'Planning Artifacts section must be appended when missing',
-    );
-    const occurrences = (
-      captured.epic.body.match(/## Planning Artifacts/g) ?? []
-    ).length;
-    assert.equal(occurrences, 1, 'section must appear exactly once');
-    assert.ok(captured.epic.body.includes(`- [ ] Tech Spec: #${TECH_SPEC_ID}`));
-    assert.ok(
-      captured.epic.body.includes(
-        `- [ ] Acceptance Spec: #${ACCEPTANCE_SPEC_ID}`,
-      ),
+      !captured.epic.body.includes('## Planning Artifacts'),
+      'no Planning Artifacts section may be appended — the checklist writer is retired (Story #4324)',
     );
   });
 });

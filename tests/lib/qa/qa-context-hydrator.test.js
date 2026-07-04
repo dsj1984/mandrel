@@ -5,23 +5,22 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import {
-  CONTEXT_TICKET_KINDS,
   collectFeatureFiles,
   DEFAULT_BASE_REF,
   hydrateQaContext,
-  parseContextTicketRefs,
   verifySurfaceMap,
 } from '../../../.agents/scripts/lib/qa/qa-context-hydrator.js';
 
 /**
  * Story #3805 — QA context hydrator (Epic #3798, f1-shared-qa-core).
  *
- * The hydrator assembles the Epic body + linked context::tech-spec/
- * acceptance-spec tickets + project `.feature` files + the implementation
- * surface map + recent git log into one context object, and verifies every
- * surface-map path against the base ref (`main`) — marking absent paths as
- * unverified rather than trusting them. Every GitHub/git access flows through
- * an injected port so this whole suite runs with NO network and NO real repo.
+ * The hydrator assembles the Epic body (the single planning document since
+ * Story #4324 folded the Tech Spec / Acceptance Table into managed body
+ * sections) + project `.feature` files + the implementation surface map +
+ * recent git log into one context object, and verifies every surface-map
+ * path against the base ref (`main`) — marking absent paths as unverified
+ * rather than trusting them. Every GitHub/git access flows through an
+ * injected port so this whole suite runs with NO network and NO real repo.
  */
 
 /**
@@ -67,42 +66,6 @@ beforeEach(() => {
 });
 afterEach(() => {
   fs.rmSync(tmpRoot, { recursive: true, force: true });
-});
-
-describe('parseContextTicketRefs — linked-ticket resolution', () => {
-  it('reads context:: label lines and Planning-Artifacts links (ignoring legacy PRD lines)', () => {
-    // Story #4314: the PRD artifact class is retired. A historical `PRD:` line
-    // may still appear in a body but must no longer surface a `prd` ref.
-    const body = [
-      '## Planning Artifacts',
-      '- PRD: #3800',
-      '- Tech Spec: #3801',
-      '- Acceptance Spec: #3802',
-    ].join('\n');
-
-    assert.deepEqual(parseContextTicketRefs(body), {
-      'tech-spec': 3801,
-      'acceptance-spec': 3802,
-    });
-  });
-
-  it('handles the context::kind #N label shape', () => {
-    const body = 'context::tech-spec #101\ncontext::acceptance-spec #102';
-    assert.deepEqual(parseContextTicketRefs(body), {
-      'tech-spec': 101,
-      'acceptance-spec': 102,
-    });
-  });
-
-  it('keeps the first occurrence and ignores unparseable lines', () => {
-    const body = 'Tech Spec: #1\nrandom note with no ref\nTech Spec: #2';
-    assert.deepEqual(parseContextTicketRefs(body), { 'tech-spec': 1 });
-  });
-
-  it('returns an empty map for a body with no refs', () => {
-    assert.deepEqual(parseContextTicketRefs('no tickets here'), {});
-    assert.deepEqual(parseContextTicketRefs(''), {});
-  });
 });
 
 describe('collectFeatureFiles — .feature enumeration', () => {
@@ -164,14 +127,29 @@ describe('verifySurfaceMap — base-ref verification', () => {
 
 describe('hydrateQaContext — full assembly with injected ports (no network)', () => {
   function buildPorts() {
+    // Story #4324: the Epic body is the single planning document. A
+    // historical `## Planning Artifacts` checklist may still appear in a
+    // body — it must be ignored (no context-ticket fetches).
     const githubPort = fakeGithubPort({
       3798: {
-        body: '- PRD: #3800\n- Tech Spec: #3801\n- Acceptance Spec: #3802',
+        body: [
+          '## Context',
+          'Epic context.',
+          '',
+          '## Planning Artifacts',
+          '- PRD: #3800',
+          '- Tech Spec: #3801',
+          '- Acceptance Spec: #3802',
+          '',
+          '<!-- mandrel:tech-spec:start -->',
+          '',
+          '## Delivery Slicing',
+          '| Slice | What ships | Independent? |',
+          '',
+          '<!-- mandrel:tech-spec:end -->',
+        ].join('\n'),
         labels: ['type::epic'],
       },
-      3800: { body: 'PRD body', labels: ['context::prd'] },
-      3801: { body: 'Tech Spec body', labels: ['context::tech-spec'] },
-      3802: { body: 'AC body', labels: ['context::acceptance-spec'] },
     });
     const gitPort = fakeGitPort({
       trackedOnRef: ['src/present.js'],
@@ -183,7 +161,7 @@ describe('hydrateQaContext — full assembly with injected ports (no network)', 
     return { githubPort, gitPort };
   }
 
-  it('assembles epic, context tickets, features, impl, and git log', async () => {
+  it('assembles epic, features, impl, and git log', async () => {
     const { githubPort, gitPort } = buildPorts();
     const featureRoot = path.join(tmpRoot, 'features');
     fs.mkdirSync(featureRoot, { recursive: true });
@@ -200,15 +178,16 @@ describe('hydrateQaContext — full assembly with injected ports (no network)', 
       ],
     });
 
-    // Epic + surviving context tickets fetched through the port. The legacy
-    // PRD line in the body is ignored (Story #4314).
+    // Only the Epic is fetched through the port — the folded body carries
+    // the planning sections, and the legacy Planning Artifacts links are
+    // ignored (no context-ticket fetches, Story #4324).
     assert.equal(ctx.epic.number, 3798);
-    assert.deepEqual(Object.keys(ctx.contextTickets).sort(), [
-      'acceptance-spec',
-      'tech-spec',
-    ]);
-    assert.equal(ctx.contextTickets['tech-spec'].number, 3801);
-    assert.deepEqual(githubPort.fetched, [3798, 3801, 3802]);
+    assert.match(ctx.epic.body, /## Delivery Slicing/);
+    assert.deepEqual(githubPort.fetched, [3798]);
+    assert.ok(
+      !('contextTickets' in ctx),
+      'the contextTickets result key is retired',
+    );
 
     // Feature files discovered.
     assert.equal(ctx.featureFiles.length, 1);
@@ -229,7 +208,7 @@ describe('hydrateQaContext — full assembly with injected ports (no network)', 
     ]);
   });
 
-  it('omits context tickets the Epic body does not reference', async () => {
+  it('returns empty feature/impl defaults when none are supplied', async () => {
     const githubPort = fakeGithubPort({
       42: { body: 'no planning links here', labels: ['type::epic'] },
     });
@@ -241,7 +220,6 @@ describe('hydrateQaContext — full assembly with injected ports (no network)', 
       gitPort,
     });
 
-    assert.deepEqual(ctx.contextTickets, {});
     assert.deepEqual(ctx.featureFiles, []);
     assert.deepEqual(ctx.implementation, []);
     assert.deepEqual(githubPort.fetched, [42]);
@@ -276,13 +254,6 @@ describe('hydrateQaContext — full assembly with injected ports (no network)', 
     await assert.rejects(
       () => hydrateQaContext({ epicNumber: 1, githubPort }),
       /gitPort/,
-    );
-  });
-
-  it('exposes the canonical set of context-ticket kinds', () => {
-    assert.deepEqual(
-      [...CONTEXT_TICKET_KINDS],
-      ['tech-spec', 'acceptance-spec'],
     );
   });
 });

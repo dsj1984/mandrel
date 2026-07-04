@@ -22,11 +22,21 @@ import {
   resolveDependencies,
   runDecomposePhase,
 } from '../.agents/scripts/epic-plan-decompose.js';
+import { upsertEpicSection } from '../.agents/scripts/lib/epic-body-sections.js';
 import {
   AUTHORING_ALTITUDE_GUIDANCE,
   DELIVERABLE_GRANULARITY_GUIDANCE,
 } from '../.agents/scripts/lib/orchestration/ticket-validator-sizing.js';
 import { renderDecomposerSystemPrompt } from '../.agents/scripts/lib/templates/decomposer-prompts.js';
+
+// Story #4324 — the context::tech-spec / context::acceptance-spec ticket
+// classes are retired: the Epic body is the single planning document. The
+// decompose gate keys on the folded Tech Spec sections (managed region or a
+// bare `## Delivery Slicing` heading) in the Epic body itself.
+const TECH_SPEC_SECTION =
+  '## Delivery Slicing\n\n| Slice | What ships | Independent? |\n| --- | --- | --- |\n| 1 | Everything | yes |';
+const sectionedEpicBody = (base) =>
+  upsertEpicSection(base, 'techSpec', TECH_SPEC_SECTION);
 
 // 2-tier (Story #4041): a flat Story backlog attached directly to the Epic,
 // with every Story carrying its inline acceptance + verify contract and a
@@ -95,15 +105,9 @@ describe('ticket-decomposer persist guards (runDecomposePhase)', () => {
         return {
           id: 1,
           title: 'Implement V5 Core',
-          body: 'Epic body.',
+          body: sectionedEpicBody('Epic body.'),
           labels: ['type::epic'],
-          linkedIssues: { techSpec: 101 },
         };
-      },
-
-      async getTicket(id) {
-        if (id === 101) return { id: 101, body: 'Mocked Tech Spec body' };
-        return null;
       },
 
       async getSubTickets() {
@@ -122,18 +126,20 @@ describe('ticket-decomposer persist guards (runDecomposePhase)', () => {
     };
   });
 
-  it('aborts early when the Epic is missing a linked Tech Spec artifact', async () => {
+  it('aborts early when the Epic body carries no Tech Spec sections', async () => {
+    // Story #4324 — the decompose gate keys on the folded Tech Spec content
+    // in the Epic body (no linked context ticket exists anymore).
     mockProvider.getEpic = async () => ({
       id: 1,
-      title: 'Missing Links Epic',
+      title: 'Missing Sections Epic',
+      body: 'Ideation prose only — no managed planning sections.',
       labels: ['type::epic'],
-      linkedIssues: { techSpec: null },
     });
 
     await assert.rejects(
       () =>
         runDecomposePhase(1, mockProvider, { tickets: baseTickets() }, {}, {}),
-      /missing a linked Tech Spec/,
+      /carries no Tech Spec sections \(no ## Delivery Slicing\)/,
     );
   });
 
@@ -141,8 +147,8 @@ describe('ticket-decomposer persist guards (runDecomposePhase)', () => {
     mockProvider.getEpic = async () => ({
       id: 1,
       title: 'Not An Epic',
+      body: sectionedEpicBody('Epic body.'),
       labels: ['type::story'],
-      linkedIssues: { techSpec: 101 },
     });
 
     await assert.rejects(
@@ -714,23 +720,18 @@ describe('ticket-decomposer prompt single-sourcing (Story #4162)', () => {
 });
 
 describe('ticket-decomposer buildDecompositionContext', () => {
-  it('returns the Epic body / Tech Spec bodies and system prompt', async () => {
-    // Story #4314 retired the PRD artifact class: the decomposition context
-    // reads the Epic body itself (surfaced as `ctx.epicBody`) plus the linked
-    // Tech Spec, so the PRD id / body fetch is gone.
+  it('returns the Epic body (with folded Tech Spec sections) and system prompt', async () => {
+    // Story #4324 retired the context-ticket classes: the Epic body is the
+    // single planning document (ideation prose + folded Tech Spec sections),
+    // surfaced as `ctx.epicBody`. There is no `techSpec` envelope key and no
+    // second ticket fetch.
+    const epicBody = sectionedEpicBody('EPIC BODY');
     const provider = {
       async getEpic(id) {
         return {
           id,
           title: 'Ctx Epic',
-          body: 'EPIC BODY',
-          linkedIssues: { techSpec: 11 },
-        };
-      },
-      async getTicket(id) {
-        return {
-          id,
-          body: 'TECH SPEC BODY',
+          body: epicBody,
         };
       },
     };
@@ -740,8 +741,11 @@ describe('ticket-decomposer buildDecompositionContext', () => {
     });
 
     assert.equal(ctx.epic.id, 1);
-    assert.equal(ctx.epicBody.body, 'EPIC BODY');
-    assert.equal(ctx.techSpec.body, 'TECH SPEC BODY');
+    assert.equal(ctx.epicBody.body, epicBody);
+    assert.ok(
+      !('techSpec' in ctx),
+      'retired `techSpec` context field must be gone',
+    );
     assert.deepEqual(ctx.heuristics, ['Heuristic A']);
     assert.ok(ctx.systemPrompt.includes('Heuristic A'));
     // Story #4163 — maxTickets is the framework constant (80), not config-driven.
@@ -753,18 +757,15 @@ describe('ticket-decomposer buildDecompositionContext', () => {
     );
   });
 
-  it('throws when planning artifacts are missing', async () => {
+  it('throws when the Epic body carries no Tech Spec sections', async () => {
     const provider = {
       async getEpic() {
-        return { id: 1, linkedIssues: { techSpec: null } };
-      },
-      async getTicket() {
-        return null;
+        return { id: 1, body: 'Ideation prose only.' };
       },
     };
     await assert.rejects(
       async () => await buildDecompositionContext(1, provider, {}),
-      { message: /missing a linked Tech Spec/ },
+      { message: /carries no Tech Spec sections \(no ## Delivery Slicing\)/ },
     );
   });
 
@@ -773,19 +774,18 @@ describe('ticket-decomposer buildDecompositionContext', () => {
   // @epic-<id>-ac-N tag (not just @skip) on the wave-0 scaffold scenarios,
   // using the REAL Epic id fetched from the provider.
   it('the system prompt requires the literal @epic-<epicId>-ac-N tag for the Epic under decomposition (Story #4301)', async () => {
+    // Story #4324 — the AC-ID table lives in the Epic body's managed
+    // `## Acceptance Table` section, not on a linked Acceptance Spec ticket.
     const provider = {
       async getEpic(id) {
         return {
           id,
           title: 'Epic with new-disposition AC rows',
-          body: 'EPIC BODY',
-          linkedIssues: { techSpec: 11 },
-        };
-      },
-      async getTicket(id) {
-        return {
-          id,
-          body: '## Acceptance Spec\n| AC ID | Outcome | Feature File | Scenario | Disposition |\n| AC-1 | Invoice created | tests/features/billing/invoice.feature | Create invoice | new |',
+          body: upsertEpicSection(
+            sectionedEpicBody('EPIC BODY'),
+            'acceptanceTable',
+            '## Acceptance Table\n| AC ID | Outcome | Feature File | Scenario | Disposition |\n| --- | --- | --- | --- | --- |\n| AC-1 | Invoice created | tests/features/billing/invoice.feature | Create invoice | new |',
+          ),
         };
       },
     };
@@ -800,39 +800,32 @@ describe('ticket-decomposer buildDecompositionContext', () => {
   });
 
   describe('planning-context budget (Epic #817 Story 9)', () => {
-    // Story #4314 retired the PRD artifact class: the budgeted authoring
-    // inputs are now the Epic body (surfaced as `ctx.epicBody`) and the linked
-    // Tech Spec, so the big Epic body lives on `epic.body` and the Tech Spec
-    // body on `getTicket(11)`.
+    // Story #4324 — the single budgeted authoring input is the Epic body
+    // (surfaced as `ctx.epicBody`), which carries the folded Tech Spec
+    // sections. The retired linked Tech Spec fetch is gone.
     const bigBody = (tail) => `## Heading\n\n${'x'.repeat(40000)}\n\n${tail}`;
     const buildProvider = () => ({
       async getEpic(id) {
         return {
           id,
           title: 'Big Epic',
-          body: bigBody('## Epic-only\n\nbody'),
-          linkedIssues: { techSpec: 11 },
+          body: sectionedEpicBody(bigBody('## Epic-only\n\nbody')),
         };
-      },
-      async getTicket(id) {
-        return { id, body: bigBody('## TS-only\n\nbody') };
       },
     });
 
-    it('downgrades to summary mode when Epic body + TechSpec exceed maxBytes', async () => {
+    it('downgrades to summary mode when the Epic body exceeds maxBytes', async () => {
       const ctx = await buildDecompositionContext(1, buildProvider(), {
-        agentSettings: {
-          limits: {
-            planningContext: { maxBytes: 4096, summaryMode: 'auto' },
-          },
+        planning: {
+          context: { maxBytes: 4096, summaryMode: 'auto' },
         },
       });
       assert.equal(ctx.contextMode, 'summary');
       assert.equal(ctx.epicBody.body, null);
       assert.ok(ctx.epicBody.bodySummary);
       assert.ok(ctx.epicBody.bodySummary.headings.includes('Heading'));
-      assert.equal(ctx.techSpec.body, null);
-      assert.ok(ctx.techSpec.bodySummary);
+      // The folded Tech Spec headings surface through the same summary.
+      assert.ok(ctx.epicBody.bodySummary.headings.includes('Delivery Slicing'));
     });
 
     it('keeps full bodies when --full-context opt is set', async () => {
@@ -840,17 +833,15 @@ describe('ticket-decomposer buildDecompositionContext', () => {
         1,
         buildProvider(),
         {
-          agentSettings: {
-            limits: {
-              planningContext: { maxBytes: 4096, summaryMode: 'auto' },
-            },
+          planning: {
+            context: { maxBytes: 4096, summaryMode: 'auto' },
           },
         },
         { fullContext: true },
       );
       assert.equal(ctx.contextMode, 'full');
       assert.ok(ctx.epicBody.body.includes('## Heading'));
-      assert.ok(ctx.techSpec.body.includes('## Heading'));
+      assert.ok(ctx.epicBody.body.includes('## Delivery Slicing'));
     });
 
     it('summaryMode=always forces summary even for small bodies', async () => {
@@ -859,12 +850,8 @@ describe('ticket-decomposer buildDecompositionContext', () => {
           return {
             id,
             title: 'Small Epic',
-            body: '## Tiny\n\nshort body',
-            linkedIssues: { techSpec: 11 },
+            body: sectionedEpicBody('## Tiny\n\nshort body'),
           };
-        },
-        async getTicket(id) {
-          return { id, body: '## Tiny\n\nshort body' };
         },
       };
       const ctx = await buildDecompositionContext(1, provider, {
@@ -873,7 +860,10 @@ describe('ticket-decomposer buildDecompositionContext', () => {
         },
       });
       assert.equal(ctx.contextMode, 'summary');
-      assert.deepEqual(ctx.epicBody.bodySummary.headings, ['Tiny']);
+      assert.deepEqual(ctx.epicBody.bodySummary.headings, [
+        'Tiny',
+        'Delivery Slicing',
+      ]);
     });
 
     it('creation order is driven by the ticket array, not the planning-context mode', () => {

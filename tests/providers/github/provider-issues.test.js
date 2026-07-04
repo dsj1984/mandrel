@@ -73,14 +73,20 @@ describe('GitHubProvider — listIssues() & getEpics()', () => {
 // getEpic
 // ---------------------------------------------------------------------------
 describe('GitHubProvider — getEpic()', () => {
-  it('returns epic with parsed linked issues', async () => {
+  it('returns the raw body without linked-issue parsing (legacy Planning Artifacts lines are inert)', async () => {
+    // Story #4324 retired the context-ticket classes: the Epic body is the
+    // single planning document. A historical `## Planning Artifacts` list
+    // (PRD / Tech Spec refs) rides along verbatim in `body` and no
+    // `linkedIssues` slot is derived from it.
+    const legacyBody =
+      'Goal description\n\n## Planning Artifacts\n- [ ] PRD: #11\n- [ ] Tech Spec: #12\n';
     const gh = makeGh({
       'GET /issues/10': {
         status: 200,
         json: {
           number: 10,
           title: 'Epic: Build v5',
-          body: 'Goal description\n\n## Planning Artifacts\n- [ ] PRD: #11\n- [ ] Tech Spec: #12\n',
+          body: legacyBody,
           labels: [{ name: 'type::epic' }],
         },
       },
@@ -91,16 +97,11 @@ describe('GitHubProvider — getEpic()', () => {
     assert.equal(epic.id, 10);
     assert.equal(epic.title, 'Epic: Build v5');
     assert.deepEqual(epic.labels, ['type::epic']);
-    // Story #4314 retired the PRD artifact class: the historical
-    // `- [ ] PRD: #11` line in the body is now ignored by the parser — the
-    // parsed linkedIssues carries only techSpec / acceptanceSpec, no `prd`.
-    assert.deepEqual(epic.linkedIssues, {
-      techSpec: 12,
-      acceptanceSpec: null,
-    });
+    assert.equal(epic.body, legacyBody);
+    assert.equal('linkedIssues' in epic, false);
   });
 
-  it('handles missing linked issues', async () => {
+  it('does not attach linkedIssues for a plain body', async () => {
     const gh = makeGh({
       'GET /issues/10': {
         status: 200,
@@ -114,10 +115,8 @@ describe('GitHubProvider — getEpic()', () => {
     });
     const provider = createTestProvider({ gh });
     const epic = await provider.getEpic(10);
-    assert.deepEqual(epic.linkedIssues, {
-      techSpec: null,
-      acceptanceSpec: null,
-    });
+    assert.equal(epic.body, 'No linked docs here');
+    assert.equal('linkedIssues' in epic, false);
   });
 
   it('handles null body', async () => {
@@ -130,10 +129,7 @@ describe('GitHubProvider — getEpic()', () => {
     const provider = createTestProvider({ gh });
     const epic = await provider.getEpic(10);
     assert.equal(epic.body, '');
-    assert.deepEqual(epic.linkedIssues, {
-      techSpec: null,
-      acceptanceSpec: null,
-    });
+    assert.equal('linkedIssues' in epic, false);
   });
 
   it('throws on API error', async () => {

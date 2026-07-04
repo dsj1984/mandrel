@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-
+import {
+  hasEpicSection,
+  upsertEpicSection,
+} from '../../../.agents/scripts/lib/epic-body-sections.js';
 import {
   acquireEpicPlanLease,
   assertNoOpenPlanChildren,
@@ -464,7 +467,9 @@ describe('epic-plan-lease-guard — assertNoOpenPlanChildren', () => {
   it('passes when the Epic has no open Story children', async () => {
     const provider = makeProvider({
       children: [
-        // context tickets are not Stories — they must not trip the guard
+        // Legacy pre-#4324 context tickets are not Stories — historical
+        // Epics keep them (forward-only cutover) and they must not trip
+        // the guard.
         {
           id: 13,
           title: 'Tech Spec',
@@ -481,11 +486,13 @@ describe('epic-plan-lease-guard — assertNoOpenPlanChildren', () => {
     assert.deepEqual(result.openChildren, []);
   });
 
-  it('does not count context tickets that also carry type::story (Story #4246)', async () => {
-    // Regression: createTicket's default-label injection stamps the three
-    // context spec tickets with type::story alongside their context:: label.
-    // On a FIRST decompose these are the only open children — the guard must
-    // exclude them (by their context:: label) rather than refuse persist.
+  it('does not count legacy context tickets that also carry type::story (Story #4246)', async () => {
+    // Regression: the retired createTicket default-label injection stamped
+    // historical context spec tickets with type::story alongside their
+    // context:: label. Story #4324 retired the context-ticket classes, but
+    // historical Epics keep the tickets (forward-only cutover) — the guard
+    // must still exclude them (by their context:: label) rather than
+    // refuse persist.
     const provider = makeProvider({
       children: [
         {
@@ -510,9 +517,9 @@ describe('epic-plan-lease-guard — assertNoOpenPlanChildren', () => {
     assert.deepEqual(result.openChildren, []);
   });
 
-  it('still refuses real Stories even when context tickets are present (Story #4246)', async () => {
-    // The context exclusion must not blind the guard to a genuine open Story
-    // sitting alongside the context tickets on a re-decompose.
+  it('still refuses real Stories even when legacy context tickets are present (Story #4246)', async () => {
+    // The legacy-context exclusion must not blind the guard to a genuine
+    // open Story sitting alongside the historical tickets on a re-decompose.
     const provider = makeProvider({
       children: [
         {
@@ -536,27 +543,29 @@ describe('epic-plan-lease-guard — assertNoOpenPlanChildren', () => {
 });
 
 // ---------------------------------------------------------------------------
-// planEpic find-or-create — AC2: re-running reuses the linked Tech Spec
+// planEpic idempotency — AC2: re-running against an already-planned Epic
+// body is a no-op (Story #4324: sections, not tickets)
 // ---------------------------------------------------------------------------
 
-describe('epic-plan-lease-guard — context-ticket find-or-create (AC2)', () => {
+describe('epic-plan-lease-guard — spec-persist idempotency (AC2)', () => {
   /**
-   * Provider stub for planEpic: tracks createTicket calls (the duplication we
-   * are guarding against) and serves an Epic that already links a Tech Spec
-   * via linkedIssues.
+   * Provider stub for planEpic: tracks createTicket + updateTicket calls.
+   * Story #4324 — planEpic never creates tickets; the duplication guard is
+   * now "no second body write when the sections already exist".
    */
-  function makePlanProvider(linkedIssues) {
+  function makePlanProvider(body) {
     const createCalls = [];
+    const updateCalls = [];
     return {
       createCalls,
+      updateCalls,
       primeTicketCache() {},
       async getEpic(id) {
         return {
           id,
           title: 'Demo Epic',
-          body: 'Epic body',
+          body,
           labels: ['type::epic', 'acceptance::n-a'],
-          linkedIssues,
         };
       },
       async createTicket(_parentId, ticketData) {
@@ -564,7 +573,9 @@ describe('epic-plan-lease-guard — context-ticket find-or-create (AC2)', () => 
         createCalls.push(ticketData);
         return { id, url: `https://example/${id}` };
       },
-      async updateTicket() {},
+      async updateTicket(id, patch) {
+        updateCalls.push({ id, patch });
+      },
       async postComment() {
         return { commentId: 1 };
       },
@@ -575,40 +586,43 @@ describe('epic-plan-lease-guard — context-ticket find-or-create (AC2)', () => 
     };
   }
 
-  it('reuses the already-linked Tech Spec instead of creating a duplicate', async () => {
-    const provider = makePlanProvider({
-      techSpec: 502,
-      acceptanceSpec: null,
-    });
+  it('re-running against an already-sectioned body is a no-op', async () => {
+    const planned = upsertEpicSection(
+      'Epic body',
+      'techSpec',
+      '## Delivery Slicing\ntable',
+    );
+    const provider = makePlanProvider(planned);
 
-    await planEpic(
+    const result = await planEpic(
       9,
       provider,
-      { techSpecContent: 'Tech Spec body' },
+      { techSpecContent: '## Delivery Slicing\ntable' },
       {},
       { force: false },
     );
 
-    // No new Tech Spec issue is created on a re-run.
+    assert.equal(result.reason, 'already-planned');
     assert.equal(provider.createCalls.length, 0);
+    assert.equal(provider.updateCalls.length, 0);
   });
 
-  it('creates the Tech Spec when none is linked yet', async () => {
-    const provider = makePlanProvider({
-      techSpec: null,
-      acceptanceSpec: null,
-    });
+  it('folds the Tech Spec into the Epic body when the section is absent — no tickets', async () => {
+    const provider = makePlanProvider('Epic body');
 
     await planEpic(
       9,
       provider,
-      { techSpecContent: 'Tech Spec body' },
+      { techSpecContent: '## Delivery Slicing\ntable' },
       {},
       { force: false },
     );
 
-    const labels = provider.createCalls.map((c) => c.labels?.[0]);
-    assert.ok(!labels.includes('context::prd'));
-    assert.ok(labels.includes('context::tech-spec'));
+    assert.equal(provider.createCalls.length, 0, 'no context tickets created');
+    assert.equal(provider.updateCalls.length, 1);
+    assert.ok(
+      hasEpicSection(provider.updateCalls[0].patch.body, 'techSpec'),
+      'the Tech Spec lands as a managed section of the Epic body',
+    );
   });
 });

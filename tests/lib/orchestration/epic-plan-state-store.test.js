@@ -55,9 +55,12 @@ describe('epic-plan-state-store', () => {
       undefined,
       'write-only phase telemetry is no longer persisted (Story #3909)',
     );
+    // Story #4324 — spec checkpoints record section persistence on the
+    // Epic body (techSpecPersisted / acceptanceTable), not context-ticket
+    // ids.
     assert.deepEqual(state.spec, {
-      techSpecId: null,
-      acceptanceSpecId: null,
+      techSpecPersisted: false,
+      acceptanceTable: 'none',
       completedAt: null,
     });
     assert.deepEqual(state.decompose, {
@@ -79,7 +82,7 @@ describe('epic-plan-state-store', () => {
     const second = await initialize({
       provider,
       epicId: 349,
-      seed: { spec: { techSpecId: 1 } },
+      seed: { spec: { techSpecPersisted: true } },
     });
 
     // Seed overrides must not clobber a pre-existing checkpoint.
@@ -125,8 +128,8 @@ describe('epic-plan-state-store', () => {
       epicId: 777,
       startedAt: '2026-04-21T20:00:00.000Z',
       spec: {
-        techSpecId: 512,
-        acceptanceSpecId: null,
+        techSpecPersisted: true,
+        acceptanceTable: 'persisted',
         completedAt: '2026-04-21T21:00:00Z',
       },
       decompose: { ticketCount: 18, completedAt: '2026-04-21T22:00:00Z' },
@@ -158,8 +161,8 @@ describe('epic-plan-state-store', () => {
       epicId: 349,
       startedAt: '2026-04-21T20:00:00.000Z',
       spec: {
-        techSpecId: 2,
-        acceptanceSpecId: 3,
+        techSpecPersisted: true,
+        acceptanceTable: 'waived',
         completedAt: '2026-04-22T00:00:00.000Z',
       },
       decompose: { ticketCount: 7, completedAt: '2026-04-22T00:10:00.000Z' },

@@ -3,7 +3,7 @@
  *
  * Covers the REST and GraphQL payload shapes for all five mappers:
  *   - issueToTicket           (REST Issue → normalized ticket)
- *   - issueToEpic             (REST Issue → Epic, with linkedIssues)
+ *   - issueToEpic             (REST Issue → Epic; raw body, no link parsing)
  *   - issueToListItem         (REST Issue → list item)
  *   - issueToEpicListItem     (REST Issue → epic list item with state_reason)
  *   - subIssueNodeToTicket    (GraphQL node → ticket; labels.nodes shape)
@@ -80,27 +80,28 @@ describe('providers/github/mappers.js — REST payload shapes', () => {
     assert.strictEqual(t.labelSet.size, 0);
   });
 
-  it('issueToEpic includes linkedIssues (TechSpec) parsed from body', () => {
-    // Story #4314 retired the PRD artifact class: a historical
-    // `- [ ] PRD: #200` line in the body is ignored by the parser, which
-    // now emits only techSpec / acceptanceSpec.
+  it('issueToEpic returns the raw body without linked-issue parsing (legacy Planning Artifacts lines are inert)', () => {
+    // Story #4324 retired the context-ticket classes: the Epic body is the
+    // single planning document, so a historical `## Planning Artifacts`
+    // list (PRD / Tech Spec issue refs) is carried verbatim in `body` and
+    // no `linkedIssues` slot is derived from it.
+    const legacyBody =
+      '## Planning Artifacts\n- [ ] PRD: #200\n- [ ] Tech Spec: #201\n';
     const epic = issueToEpic({
       number: 100,
       id: 9999,
       node_id: 'EPIC_NODE',
       title: 'Epic title',
-      body: '## Planning Artifacts\n- [ ] PRD: #200\n- [ ] Tech Spec: #201\n',
+      body: legacyBody,
       labels: [{ name: 'type::epic' }],
     });
     assert.strictEqual(epic.id, 100);
     assert.strictEqual(epic.title, 'Epic title');
-    assert.deepStrictEqual(epic.linkedIssues, {
-      techSpec: 201,
-      acceptanceSpec: null,
-    });
+    assert.strictEqual(epic.body, legacyBody);
+    assert.strictEqual(Object.hasOwn(epic, 'linkedIssues'), false);
   });
 
-  it('issueToEpic returns null linkedIssues when body has no TechSpec refs', () => {
+  it('issueToEpic does not attach linkedIssues for a plain body either', () => {
     const epic = issueToEpic({
       number: 1,
       id: 1,
@@ -109,10 +110,8 @@ describe('providers/github/mappers.js — REST payload shapes', () => {
       body: '',
       labels: [],
     });
-    assert.deepStrictEqual(epic.linkedIssues, {
-      techSpec: null,
-      acceptanceSpec: null,
-    });
+    assert.strictEqual(epic.body, '');
+    assert.strictEqual(Object.hasOwn(epic, 'linkedIssues'), false);
   });
 
   it('issueToListItem mirrors issueToTicket without assignees', () => {
