@@ -263,16 +263,18 @@ stops.
      read `docs/style-guide.md` and `docs/web-routes.md`. Skip both when
      absent or unrelated to the task — they are not part of the universal
      mandatory set.
-   - **Epic Context**: Additionally, read the context tickets (PRD, Tech
-     Spec) linked in the current Epic's body and the task-specific
-     instructions.
+   - **Epic Context**: Additionally, read the current Epic's body — the
+     single planning document (ideation sections plus the folded Tech
+     Spec sections; Story #4324 retired the separate context tickets) —
+     and the task-specific instructions.
    - **Optimization**: For large projects, prioritize targeted retrieval
      (semantic code search or focused text search) to isolate specific
      schemas or decisions before reading broad files.
 2. **Plan First:** For non-trivial tasks (3+ steps or architectural
-   decisions), enter **Plan Mode**. Update the Tech Spec issue or create a
-   new Technical Specification document in the `docs/` root (if not already
-   handled by a ticket) before touching code.
+   decisions), enter **Plan Mode**. Update the Epic body's Tech Spec
+   sections (via `/plan`) or create a new Technical Specification document
+   in the `docs/` root (if not already handled by a ticket) before
+   touching code.
 3. **Artifacts over Chat:** Create log files for test results, build
    outputs, or debug sessions rather than pasting large code blocks in
    chat.
@@ -350,7 +352,7 @@ Mandrel uses a **2-tier ticket hierarchy** (Epic → Story).
 Acceptance criteria and verification steps live inline on the Story
 body (`acceptance[]` / `verify[]`); there is no Feature tier and no
 `type::task` ticket layer. Thematic grouping lives as prose in the
-Epic body / Tech Spec.
+Epic body (which also carries the folded Tech Spec sections).
 
 - The decomposer emits only `type::epic` and `type::story` issues;
   Stories attach directly to the Epic.

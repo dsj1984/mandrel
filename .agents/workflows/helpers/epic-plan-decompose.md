@@ -1,6 +1,7 @@
 ---
 description: >-
-  Phase 8 of sprint planning — decompose an Epic's body and Tech Spec into a
+  Phase 8 of sprint planning — decompose an Epic's sectioned body (which
+  carries the folded Tech Spec) into a
   backlog of child Stories, persist the backlog, and flip the Epic to
   `agent::ready`. Host-LLM authored; no external API calls.
 ---
@@ -18,8 +19,9 @@ Director / Architect
 ## Context
 
 This helper is the **decompose phase** of the split planning pipeline. It
-reads the Epic body and the Tech Spec previously produced by the spec phase
-helper ([`epic-plan-spec.md`](epic-plan-spec.md)), generates the Epic's child
+reads the Epic body — whose managed sections carry the Tech Spec previously
+produced by the spec phase
+helper ([`epic-plan-spec.md`](epic-plan-spec.md)) — generates the Epic's child
 Story tickets, persists them to GitHub, and flips the Epic to
 `agent::ready` (parking) so a human can run `/deliver` when
 execution should begin.
@@ -38,9 +40,9 @@ skill.
 
 ## Constraint
 
-- **Do not** run this skill until the spec phase is complete. The Epic must
-  have a linked `context::tech-spec` issue; the script will
-  refuse to proceed otherwise.
+- **Do not** run this skill until the spec phase is complete. The Epic body
+  must carry Tech Spec content (the managed section or a `## Delivery
+  Slicing` heading); the script will refuse to proceed otherwise.
 - **Do not** restructure the Story set after the decomposition
   writes — the `epic-plan-state` checkpoint records the structure as
   committed. Use `--force` to rebuild from scratch.
@@ -52,7 +54,7 @@ skill.
 ## Prerequisites
 
 1. **Epic is on `agent::review-spec`** — i.e. the spec phase has already run
-   and the Tech Spec exists.
+   and the Epic body carries the Tech Spec sections.
 2. **API keys** — `GITHUB_TOKEN` set in `.env`.
 
 ## Step 1 — Gather decomposition context
@@ -62,7 +64,8 @@ node .agents/scripts/epic-plan-decompose.js --epic [Epic_ID] --emit-context \
   > temp/epic-[Epic_ID]/decomposer-context.json
 ```
 
-The emitted JSON contains the Epic body, Tech Spec body, risk heuristics, the
+The emitted JSON contains the Epic body (`epicBody` — the spec sections and
+acceptance table travel inside it), risk heuristics, the
 decomposer system prompt, and the `maxTickets` **reviewability budget**
 (Story #2798 — not a hard cap; over-budget plans require an explicit
 `--allow-over-budget` override at persist time).
@@ -87,7 +90,8 @@ deterministic validator and **before** the GitHub write.
 Activate the
 [`epic-plan-consolidate`](../../skills/core/epic-plan-consolidate/SKILL.md)
 skill with `[Epic_ID]` as input. It reads the draft
-`temp/epic-[Epic_ID]/tickets.json` plus the Epic body / Tech Spec from
+`temp/epic-[Epic_ID]/tickets.json` plus the Epic body (with its folded
+Tech Spec sections) from
 `decomposer-context.json`, reconciles the draft against the Tech Spec
 `## Delivery Slicing` target (degrading gracefully when absent), and emits:
 
@@ -187,8 +191,9 @@ is the single source of truth for which temp paths this phase owns.
 
 ## Troubleshooting
 
-- "Epic #N is missing a linked Tech Spec" — run `/plan [Epic_ID]`
-  first (it will run the spec phase if the Tech Spec is missing).
+- "Epic #N body carries no Tech Spec sections (no ## Delivery Slicing)" —
+  run `/plan [Epic_ID]`
+  first (it will run the spec phase if the Tech Spec sections are missing).
 - Validator rejects the tickets file — the most common causes are a
   Story whose `parent_slug` does not point at a Feature, a missing
   `acceptance[]` / `verify[]` array on a Story body, or a Story

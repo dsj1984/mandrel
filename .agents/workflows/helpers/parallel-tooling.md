@@ -20,7 +20,8 @@ them in one assistant turn rather than serially. The host runtime executes
 the batch in parallel; serial calls cost N round-trips for no gain.
 
 - **Tool primitives:** `Read`, `Grep`, `Glob`, MCP `list_*` / `get_*` calls.
-- **When:** reading the PRD, Tech Spec, and Story body up front; grepping
+- **When:** reading the Epic body (with its folded Tech Spec sections)
+  and Story body up front; grepping
   for multiple unrelated patterns; globbing several directory trees;
   fetching independent GitHub tickets.
 - **Anti-pattern:** sequential `Read` → wait → `Read` → wait → `Grep` chains

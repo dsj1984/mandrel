@@ -226,7 +226,8 @@ every decision to the shared core helpers; never re-derive them in prose.
 
 3. **Hydrate the QA context** to locate code precisely, via
    [`qa-context-hydrator.js`](../scripts/lib/qa/qa-context-hydrator.js) — it
-   resolves the Epic/Feature context tickets, the feature-file set, the surface
+   resolves the Epic (whose body carries the planning sections), the
+   feature-file set, the surface
    map, and recent git log:
 
    ```js

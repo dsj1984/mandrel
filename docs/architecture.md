@@ -798,12 +798,14 @@ changing its shape (full per-field reference:
 
 The framework uses a **2-tier GitHub Issue hierarchy**
 (Epic → Story) with label-based typing and `blocked by #NNN`
-dependency wiring. Thematic grouping lives as prose in the Epic body /
-Tech Spec, never as a ticket:
+dependency wiring. Thematic grouping lives as prose in the Epic body —
+the single planning document, which also carries the folded Tech Spec
+sections and the `## Acceptance Table` (Story #4324) — never as a
+ticket:
 
 ```text
-Epic (type::epic)
-├── Tech Spec (context::tech-spec)
+Epic (type::epic)                ← body carries the folded Tech Spec
+│                                  sections + ## Acceptance Table
 ├── Story (type::story)
 │   ├── acceptance[]            ← inline on Story body
 │   └── verify[]                ← inline on Story body
@@ -838,16 +840,16 @@ the authoritative contract:
 | Parent tier                                     | Auto-closes via cascade? | How it closes                                                    |
 | ----------------------------------------------- | ------------------------ | ---------------------------------------------------------------- |
 | Epic (`type::epic`)                             | **No** — cascade stops.  | The `/deliver` PR merges — auto-merge when the Phase 8.5 clean-run gate armed it, otherwise the operator merges via the GitHub UI. |
-| Planning (`context::tech-spec`)                 | **No** — cascade stops.  | Operator close after the Epic PR is merged.                      |
 
-**Why neither tier auto-closes.** Epics gate on a real pull-request
-merge — cascade must not pre-empt the operator's required-checks review.
-Planning tickets (Tech Spec) are narrative artefacts the operator
-closes once the Epic PR is merged.
+**Why the Epic tier never auto-closes.** Epics gate on a real
+pull-request merge — cascade must not pre-empt the operator's
+required-checks review. (Story #4324 retired the planning
+context-ticket tier; legacy `context::*` artifacts on historical Epics
+still close via cascade as a hygiene path.)
 
 Implementation: [`.agents/scripts/lib/orchestration/ticketing.js`](../.agents/scripts/lib/orchestration/ticketing.js)
-— `cascadeCompletion()` explicitly skips `type::epic` and
-`context::tech-spec` parents; every other parent tier is eligible. The
+— `cascadeCompletion()` explicitly skips `type::epic` parents; every
+other parent tier is eligible. The
 `fromState` lookup inside `transitionTicketState()` has a deliberate
 try/catch — a network flake reading the prior state label must not block a
 legitimate transition; failures emit a `debug`-level log instead of swallowing

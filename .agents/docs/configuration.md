@@ -450,7 +450,8 @@ suppress a channel entirely, set its array to `[]`.
 ### `planning.context`
 
 Caps the size of `--emit-context` JSON payloads emitted during `/plan`
-so a runaway PRD / Tech Spec can't blow the planning agent's context budget.
+so a runaway Epic body (with its folded Tech Spec sections) can't blow the
+planning agent's context budget.
 
 | Field         | Required | Default  | Purpose                                                                                       |
 | ------------- | -------- | -------- | --------------------------------------------------------------------------------------------- |

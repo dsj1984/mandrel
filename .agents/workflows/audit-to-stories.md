@@ -118,8 +118,8 @@ Ask:
 > How would you like these `<M>` Stories created?
 >
 > - **Single Epic via `/plan`** **[Recommended]** — opens one Epic,
->   then chains into `/plan --idea` so the standard PRD / Tech Spec
->   / WBS authoring handles decomposition. Grouped Stories become the
+>   then chains into `/plan --idea` so the standard spec-and-WBS
+>   authoring handles decomposition. Grouped Stories become the
 >   seed for Phase 7 decomposition.
 > - **Individual standalone Stories** — opens one GitHub Issue per
 >   group directly, no Epic wrapper.

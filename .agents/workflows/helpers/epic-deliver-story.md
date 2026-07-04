@@ -77,21 +77,15 @@ the parent's permissions but have **no input channel** mid-run.
 Run from the **main checkout** (the worktree does not exist yet):
 
 ```bash
-node .agents/scripts/story-init.js --story <storyId> \
-  --tech-spec <techSpecId>
+node .agents/scripts/story-init.js --story <storyId>
 ```
 
-**Thread the Epic linkage (Story #4253).** The parent `/deliver` resolved
-the Epic's `techSpecId` **once** in its Phase 1 prepare and passed
-it into your dispatch prompt (the PRD artifact class was retired in
-Story #4314). Forward it as `--tech-spec` so this `story-init.js` run **skips**
-the per-Story `getEpic` round-trip — the id is invariant for the whole
-delivery run, so re-fetching the immutable Epic per Story is pure waste (and
-secondary-rate-limit pressure during wide fan-out). **Omit** the flag when
-the prompt reported it as `null`; `story-init.js` then falls back to its own
-`getEpic` resolution for the missing id (graceful degradation on a missing
-Epic linkage). When dispatched interactively with no flag, drop it — the
-legacy single-fetch path is unchanged.
+**No spec-ticket threading (Story #4324).** The Tech Spec lives as managed
+sections of the Epic body — there is no separate Tech-Spec issue, no
+`--tech-spec` flag, and no per-Story hierarchy trace to a spec ticket.
+Your hydrated prompt already embeds the Epic body (with the
+`## Acceptance Table` section stripped), which carries the folded Tech
+Spec sections; do not fetch a Tech Spec issue.
 
 > **Execution mode (sub-agents must read).** This command typically takes
 > 3–6 minutes when the worktree's per-tree install runs. Invoke it
@@ -105,15 +99,15 @@ legacy single-fetch path is unchanged.
 > partial state, so the recovery is to re-run it synchronously, but
 > prevention is cheaper: just give Bash the 10-minute timeout and block.
 
-The script validates `type::story`, checks blockers, traces the
-Epic → Tech-Spec hierarchy, seeds `story-<id>` from the
+The script validates `type::story`, checks blockers, resolves the parent
+Epic id, seeds `story-<id>` from the
 Epic branch, and (when worktree isolation is on) runs `git worktree add`
 at `.worktrees/story-<id>/`. The Story flips to `agent::executing`. A
 `story-init` structured comment is upserted with the Story's inline
 `acceptance[]` and `verify[]` arrays from the body.
 
 Capture `workCwd`, `dependenciesInstalled` (tri-state), and
-`context.{techSpecId,acceptance,verify}`. Add `--dry-run` to check
+`context.parentId`. Add `--dry-run` to check
 status without git or ticket changes.
 
 ### Step 0.5 — `cd` into the workCwd

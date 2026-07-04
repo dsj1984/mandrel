@@ -13,7 +13,7 @@ description:
 [`/deliver`](deliver-stories.md). Use it for a Story that is **not**
 attached to an Epic — refactors carved out of closed Epics, framework
 maintenance, or any work small enough that the Epic-Centric ceremony
-(PRD + Tech Spec + decomposition + dispatch manifest + cascade) would be
+(sectioned Epic body + decomposition + dispatch manifest + cascade) would be
 overhead rather than help.
 
 ```text

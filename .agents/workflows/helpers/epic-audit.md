@@ -44,12 +44,14 @@ change-set selection. Both lens sources fire through the **same**
 2. Resolve `[EPIC_BRANCH]` — `epic/<epicId>`.
 3. Resolve `[BASE_BRANCH]` from `baseBranch` in `.agentrc.json` (default:
    `main`).
-4. Fetch the Epic ticket and identify the linked context ticket:
-   - **Epic body** — the Epic's Context / Goal / Scope / User Stories /
-     Acceptance Criteria sections.
-   - **Tech Spec** — the `context::tech-spec` ticket linked in the Epic
-     body.
-5. Read the Epic body and the Tech Spec fully to understand the intended
+4. Fetch the Epic ticket — the Epic body is the single planning
+   document:
+   - **Narrative sections** — Context / Goal / Scope / User Stories /
+     Acceptance Criteria.
+   - **Tech Spec** — the folded Tech Spec sections (opening with
+     `## Delivery Slicing`) inside the body's managed region.
+5. Read the Epic body fully (including its Tech Spec sections) to
+   understand the intended
    scope, selected lenses, and acceptance criteria.
 
 ## Step 1 — Prepare (`epic-audit-prepare.js`)

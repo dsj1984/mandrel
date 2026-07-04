@@ -79,13 +79,14 @@ review yourself, honor the `depth` semantics above directly.
 
 1. Resolve `[TICKET_ID]` from `ticketId` (Story or Epic depending on `scope`).
 2. Resolve `[BASE_REF]` from `baseRef` and `[HEAD_REF]` from `headRef`.
-3. Fetch the `[TICKET_ID]` ticket and identify the linked context ticket:
+3. Fetch the `[TICKET_ID]` ticket and resolve the planning context:
    - **Story scope** — read the parent Epic from the Story body, then load
-     the Epic body (including its `## User Stories` section) and the linked
-     `context::tech-spec` (Tech Spec).
-   - **Epic scope** — read the Epic body and load its linked
-     `context::tech-spec` (Tech Spec) directly from the Epic body.
-4. Read the Epic body and the Tech Spec fully to understand the intended
+     the Epic body (including its `## User Stories` section and its folded
+     Tech Spec sections).
+   - **Epic scope** — read the Epic body directly; its managed sections
+     carry the Tech Spec.
+4. Read the Epic body fully (including its Tech Spec sections) to
+   understand the intended
    scope, architectural decisions, and acceptance criteria.
 
 ## Step 1 — Automated Audit (Pre-Review)

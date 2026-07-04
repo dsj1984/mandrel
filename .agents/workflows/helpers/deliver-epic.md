@@ -167,24 +167,17 @@ Validates `type::epic`, enumerates `type::story` descendants, parses
 (to enumerate the open Story set), and upserts the `epic-run-state`
 checkpoint in the per-Story-status shape (a flat `stories` map seeded at
 `pending`, plus the global `concurrencyCap`). Treat the printed JSON as
-`state`: `{ epicId, storyCount, concurrencyCap, stories, techSpecId, checkpointInitializedAt }`.
+`state`: `{ epicId, storyCount, concurrencyCap, stories, checkpointInitializedAt }`.
 `stories` is the flat dispatch hint (`{ storyId, worktree, title }` per open
 Story); the ready-set `tick` (Phase 2) decides which to dispatch on each
 beat. Flip the Epic to `agent::executing` (idempotent) after the CLI returns.
 
-**Epic linkage resolved once (Story #4253).** The envelope also carries
-`techSpecId` — the Epic's linked Tech-Spec issue id (the PRD artifact class
-was retired in Story #4314), resolved a **single** time here from the Epic
-snapshot prepare already holds (no extra fetch). Capture it and thread it
-into **every** per-Story `story-init.js` invocation (§ 2b →
-`epic-deliver-story` Step 0) as `--tech-spec <techSpecId>`. This collapses
-the N per-Story `getEpic` round-trips (one per child, each in its own
-process with its own provider cache) to this one parent-side resolution —
-the immutable Epic issue is invariant for the lifetime of a delivery run.
-When the linkage is `null` (the Epic links no Tech Spec), omit the
-flag; the child's `story-init.js` then falls back to its
-own `getEpic` resolution for the missing id, preserving graceful
-degradation.
+**No spec-ticket linkage to resolve (Story #4324).** The Tech Spec lives
+as managed sections of the Epic body itself — there is no separate
+Tech-Spec issue id in the envelope and no `--tech-spec` flag to thread
+into the per-Story `story-init.js` invocations. Story agents receive the
+Tech Spec via context hydration, which embeds the Epic body (with the
+`## Acceptance Table` section stripped) directly into each Story prompt.
 
 > **Preflight guards (Story #3482 / F-workflow-guards).** Before the
 > snapshot phase runs — and before any worktree is created — prepare runs
@@ -218,19 +211,19 @@ degradation.
 
 Once the preflight guards pass, the snapshot phase applies one more gate:
 
-> **Acceptance-spec start gate.** Before the wave loop fans out, the
+> **Acceptance-table start gate.** Before the wave loop fans out, the
 > snapshot phase
 > ([`lib/orchestration/epic-runner/phases/snapshot.js`](../../scripts/lib/orchestration/epic-runner/phases/snapshot.js))
 > asserts that the Epic either carries the `acceptance::n-a` waiver
-> label **or** has a linked `context::acceptance-spec` ticket. The
-> ticket's GitHub state (open / closed) is **not** checked —
-> presence is sufficient, matching the Tech Spec contract.
+> label **or** has a `## Acceptance Table` managed section in its
+> body — section presence is sufficient.
 > The reviewer's OK during `/plan` Phase 7 is the approval
-> signal, not a manual ticket-close action. Neither condition met →
+> signal. Neither condition met →
 > the snapshot throws a clear error
-> (`[epic-deliver] Epic #<id> cannot launch: …`) and `runAsCli`
+> (`[epic-deliver] Epic #<id> cannot launch: …` — naming the missing
+> `## Acceptance Table` section and the absent waiver) and `runAsCli`
 > maps it to `process.exit(1)`. Operator remediation: either run
-> `/plan` Phase 7 to author the spec, or apply the
+> `/plan` Phase 7 to author the acceptance table, or apply the
 > `acceptance::n-a` label to opt out.
 
 ---
@@ -348,10 +341,7 @@ matching `story.dispatch.end` record is appended later by
 `epic-execute-record-wave.js` (via `emit-story-dispatch-end.js`, Story #3900)
 after the Agent return is recorded in § 2c.
 
-Each Agent call's prompt must (1) name the Story + Epic ids **and the
-`techSpecId` from the Phase 1 prepare envelope** (Story #4253) so
-the child can thread `--tech-spec <techSpecId>` into its
-`story-init.js` Step 0 — omit the flag when it is `null`, (2)
+Each Agent call's prompt must (1) name the Story + Epic ids, (2)
 instruct the child to invoke `helpers/epic-deliver-story <storyId>`
 (whose Step 4 defines the child's return shape), (3) remind the child
 of the **non-interactive contract** (no clarifying questions;
@@ -765,19 +755,22 @@ bus-owned finalize) composes three helpers under
 chain.** Treat this section as a runtime contract — `/deliver`
 just fires the emit and reads the resulting ledger.
 
-1. **Acceptance-spec reconciliation — bus-driven.** The
+1. **Acceptance-table reconciliation — bus-driven.** The
    `AcceptanceReconciler` listener invokes
    [`acceptance-spec-reconciler.js`](../../scripts/acceptance-spec-reconciler.js)
-   to diff the AC IDs declared in the linked `context::acceptance-spec`
-   body against `@ac-*` / `@pending` tags in `tests/features/**`. A
+   to diff the AC IDs declared in the Epic body's `## Acceptance Table`
+   section against `@ac-*` / `@pending` tags in `tests/features/**`,
+   recording each row's verification outcome
+   (`satisfied` / `pending` / `missing`) into the table's Disposition
+   column via a section-scoped upsert of the Epic body. A
    non-OK reconciliation throws (per
    [`rules/orchestration-error-handling.md`](../../rules/orchestration-error-handling.md)),
-   aborting finalize **before** any PR is opened or planning artifacts
-   are closed — so the Tech Spec and Acceptance Spec stay open
-   until the AC coverage gap is fixed. The reconciler returns
+   aborting finalize **before** any PR is opened — so the Epic stays
+   unfinalized until the AC coverage gap is fixed. The reconciler returns
    `status: 'waived'` without scanning features when the Epic carries
    `acceptance::n-a`, and defends against direct CLI invocation by
-   refusing to run when no spec is linked and no waiver is set (the
+   refusing to run when the body has no `## Acceptance Table` section
+   and no waiver is set (the
    start gate in Phase 1 would normally catch that first).
 2. **PR open — bus-driven (Story #2894).** On
    `acceptance.reconcile.ok` the `Finalizer` listener invokes
@@ -800,21 +793,16 @@ just fires the emit and reads the resulting ledger.
    in [`check-lifecycle-lint.js`](../../scripts/check-lifecycle-lint.js)
    keeps `gh pr merge --auto --squash --delete-branch` confined to
    `AutomergeArmer` — Phase 7 never shells the merge command.
-3. **Planning-artifact close + hand-off — bus-driven (Story
-   #2894).** After `openOrLocatePr` returns, the `Finalizer` chains
-   [`closePlanningTickets`](../../scripts/lib/orchestration/finalize/close-planning-tickets.js)
-   to close the two planning context tickets
-   (`context::tech-spec`, `context::acceptance-spec`)
-   so the Epic's `Closes #<id>` auto-close path is not blocked by
-   open sub-issues, then
+3. **Hand-off — bus-driven (Story #2894).** After `openOrLocatePr`
+   returns, the `Finalizer` chains
    [`postHandoffComment`](../../scripts/lib/orchestration/finalize/post-handoff-comment.js)
    to upsert the canonical `epic-handoff` structured comment naming
-   the PR URL. Both helpers are idempotent — already-closed tickets
-   are counted under `alreadyClosed`, and the handoff comment is
+   the PR URL. The helper is idempotent — the handoff comment is
    edited in place via `upsertStructuredComment` rather than
-   appending a duplicate. When the `acceptance::n-a` waiver is set
-   and no Acceptance Spec ticket was ever opened, the third
-   planning-ticket close is recorded as `skipped`.
+   appending a duplicate. There is **no planning-ticket close sweep**
+   (Story #4324): the planning artifacts live as sections of the Epic
+   body itself, so there are no context tickets to close and nothing
+   blocks the Epic's `Closes #<id>` auto-close path.
 
 Branch cleanup is out-of-band (Phase 9 reaps local refs after merge; the
 rare "scrap and reset" case for an unmerged Epic is handled manually).

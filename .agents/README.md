@@ -377,9 +377,9 @@ judgment (Skill) or of a parseable transform (script).
 **split**: the deterministic halves stay as a script, the judgment middle
 moves to a Skill.
 
-- **`--emit-context`** (script half) — fetches the Epic body and Tech Spec
-  bodies, scrapes project docs, emits a JSON envelope. Parseable in,
-  parseable out. Stays a script.
+- **`--emit-context`** (script half) — fetches the Epic body (which
+  carries the folded Tech Spec sections), scrapes project docs, emits a
+  JSON envelope. Parseable in, parseable out. Stays a script.
 - **Authoring middle** (Skill half) — given the envelope, author the
   ticket hierarchy JSON. Pure prompt + judgment. Migrates to a Skill
   under `.agents/skills/core/` so it ships with declarative
