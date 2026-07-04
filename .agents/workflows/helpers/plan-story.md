@@ -125,32 +125,31 @@ Write the draft to `temp/single-story-draft.md`.
 
 ### Scope-triage escalation gate (symmetric counterpart to `/plan` Phase 1.5)
 
-Once the draft body exists — and **only** then, because the seed alone is not
-an honest basis for a sizing judgment — run the
-[`core/scope-triage`](../../skills/core/scope-triage/SKILL.md) rubric over the
-**drafted Story body** to catch an Epic-sized scope before it is persisted as a
-standalone Story. This is the outbound mirror of `/plan` Phase 1.5's
-inbound downgrade gate: the two planning entry points route toward each other
-instead of each silently accepting wrong-sized work.
+This gate runs the shared scope-triage gate over the **drafted Story body** to
+catch an Epic-sized scope before it is persisted as a standalone Story — the
+outbound mirror of `/plan` Phase 1.5's inbound downgrade gate. The gate
+mechanics (verdict meanings, the three-way operator choice, the `--yes`
+resolution, and the no-re-triage rule) live in the single-homed fragment
+[`scope-triage-gate.md`](scope-triage-gate.md); read it and follow it. This
+phase supplies only its path-specific firing conditions:
 
-**Skip the gate entirely when `/plan` was entered via a scope-triage
-handoff** — i.e. from `/plan` Phase 1.5 (the inbound route above) or the
-`/plan` Phase 5.5 existing-Epic conversion path. A handoff is a triage
-decision already made; re-running the rubric here would re-litigate a settled
-call and risk a ping-pong between the two workflows (the skill's no-re-triage
-rule).
-
-Otherwise, activate the skill **by reference** — read its `SKILL.md` via the
-`Read` tool and apply its rubric; do **not** restate its sizing thresholds or
-copy its verdict prose here. The skill anchors its sizing judgment to
-`DELIVERABLE_GRANULARITY_GUIDANCE` / `DEFAULT_TASK_SIZING` in
-[`ticket-validator-sizing.js`](../../scripts/lib/orchestration/ticket-validator-sizing.js)
-and emits one verdict — `epic` | `story` | `borderline`. The verdict is
-host-LLM judgment: there is **no `--flag`**, no scorer, no schema, and no label
-transition behind it. (The `refine` heuristic in `story-plan.js` is unchanged —
-it is a deterministic seed-length proxy, not a scope-size judgment.) The verdict
-folds into the **existing** draft-confirmation HITL stop below — it does **not**
-add a second stop.
+- **When it runs**: only **after the draft body exists** — the seed alone is
+  not an honest basis for a sizing judgment. The rubric is applied to the
+  **drafted Story body**, and the verdict folds into the **existing**
+  draft-confirmation HITL stop below (it does **not** add a second stop). (The
+  `refine` heuristic in `story-plan.js` is unchanged — it is a deterministic
+  seed-length proxy, not a scope-size judgment.)
+- **When it is skipped**: entirely, when `/plan` was entered via a scope-triage
+  handoff — from `/plan` Phase 1.5 (the inbound route above) or the `/plan`
+  Phase 5.5 existing-Epic conversion path (the no-re-triage rule in the
+  fragment).
+- **Recommended branch on an `epic` verdict**: escalate to `/plan --idea` —
+  persist the notes/draft to a notes file and hand off to `/plan --idea` (or
+  `--from-notes <path>`), identifying the invocation as a scope-triage handoff
+  so `/plan` skips its own Phase 1.5 gate, then **abandon the draft and exit
+  `/plan`** (no standalone Story is created). The alternative branches are
+  **persist as a standalone Story anyway** (proceed to Phase 3 with the draft
+  unchanged) and **abort**.
 
 ### HITL — operator confirms the draft (verdict folded in)
 
@@ -158,41 +157,12 @@ Display the draft to the operator and **STOP**. Do not call the persist phase
 until the operator explicitly confirms the draft. This mirrors the HITL gate
 `/plan` Phase 3 enforces before opening the Epic Issue. This is the
 story-path face of `/plan`'s **gate #1** (the ideation one-pager /
-scope-triage confirm). The scope-triage verdict folds into this same stop:
-
-> **`--yes` (headless) auto-proceed.** When `/plan` was invoked with `--yes`,
-> this gate does **not** STOP: the draft confirm resolves as **approved** and
-> the run proceeds to Phase 3 (persist). An `epic` verdict resolves to its
-> **Recommended** branch — escalate to `/plan --idea` (carrying `--yes`),
-> abandoning the draft — rather than prompting the three-way choice. Display
-> the draft and the verdict line for the record, then proceed without
-> waiting. See
-> [`plan.md` § Headless / non-interactive mode](../plan.md#headless--non-interactive-mode---yes).
-
-- **`story` verdict (or gate skipped via handoff)** → no extra prompt. The
-  operator confirms the draft as usual and the run proceeds to Phase 3
-  (persist).
-- **`epic` verdict** (multiple independent capabilities, a plausible
-  sizing-ceiling breach, or a real dependency structure) → the confirmation
-  prompt presents a **three-way operator choice**:
-  - **Recommended: escalate to `/plan --idea`** (with the triage
-    rationale) — persist the notes/draft to a notes file and hand off to
-    `/plan --idea` (or `--from-notes <path>`), identifying the invocation
-    as a **scope-triage handoff** so `/plan` skips its own Phase 1.5 gate
-    (the skill's no-re-triage rule). Then **abandon the draft and exit
-    `/plan`** — no standalone Story is created.
-  - **Persist as a standalone Story anyway** — ignore the recommendation and
-    proceed to Phase 3 with the draft unchanged. Being wrong in the `epic`
-    direction is cheap to tolerate: if the operator persists an oversized Story,
-    the sizing validator and delivery reality push back later. The gate's value
-    is surfacing the recommendation while the scope is still free to change.
-  - **Abort** — stop planning entirely. No Issue is created.
-
-  **Never auto-route.** The verdict is advisory; the operator always decides,
-  and no `agent::*` / label transition happens on either side of the choice.
-  (**`--yes` exception:** headless mode pre-authorizes the **Recommended**
-  branch deterministically — see the `--yes` note above — the only sanctioned
-  auto-route, present solely to make `/plan` driveable without an operator.)
+scope-triage confirm). The scope-triage verdict folds into this same stop, per
+the branch bindings above; on a **`story` verdict (or gate skipped via
+handoff)** there is no extra prompt and the operator confirms the draft as
+usual. The `--yes` headless resolution of this stop is the fragment's — see
+[`scope-triage-gate.md` § `--yes` (headless) resolution](scope-triage-gate.md#--yes-headless-resolution)
+and [`plan.md` § Headless / non-interactive mode](../plan.md#headless--non-interactive-mode---yes).
 
 ## Phase 3 — Persist (`gh issue create`)
 
