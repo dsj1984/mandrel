@@ -75,8 +75,10 @@ const PLANNING_SECTION_RE = {
 
 /**
  * Names of the recognised (unscored) planning sections, in document order.
+ * Module-private: consumers read the reported `planningSections[]` rows on
+ * the scoreEpicBody result rather than importing the name list.
  */
-export const PLANNING_SECTION_NAMES = Object.freeze([
+const PLANNING_SECTION_NAMES = Object.freeze([
   'deliverySlicing',
   'acceptanceTable',
 ]);

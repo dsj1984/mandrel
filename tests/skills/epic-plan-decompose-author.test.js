@@ -38,9 +38,20 @@ describe('skill:epic-plan-decompose-author — smoke', () => {
     assert.ok(ctx.epic.id > 0, 'fixture must carry a sample Epic ID');
     // Story #4314 — the PRD artifact class is retired; the Epic body (with its
     // inline User Stories) is the authoring input the decomposer reads in the
-    // PRD's place.
+    // PRD's place. Story #4324 — the Tech Spec is no longer a separate
+    // envelope key: the sectioned Epic body carries the folded Tech Spec
+    // sections (## Delivery Slicing) and the ## Acceptance Table.
     assert.ok(ctx.epicBody.length > 0, 'fixture must carry an Epic body');
-    assert.ok(ctx.techSpec.length > 0, 'fixture must carry a Tech Spec body');
+    assert.equal(
+      ctx.techSpec,
+      undefined,
+      'decomposer context must not carry a separate techSpec key (Story #4324)',
+    );
+    assert.match(
+      ctx.epicBody,
+      /## Delivery Slicing/,
+      'the sectioned Epic body must carry the folded Tech Spec sections',
+    );
 
     const result = await runSkillSmoke({
       skillName: 'epic-plan-decompose-author',
